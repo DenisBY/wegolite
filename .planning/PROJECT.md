@@ -46,7 +46,7 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 **The source game.** Oolite is written in Objective-C (with some C/C++) on GNUstep + SDL + OpenGL, spanning roughly 515 source files. It ships its own JavaScript engine for world scripts, which is why its gameplay logic maps cleanly onto TypeScript. It is licensed GPL-2.0-or-later, and its art, sound, and configuration files are additionally available under CC BY-NC-SA 3.0.
 
-**Reusable data.** `Resources/Config/` holds the canonical plists: `shipdata.plist`, `commodities.plist`, `equipment.plist`, `world-scripts.plist`, plus the eight-galaxy system data. These are the source of truth for faithful numbers.
+**Reusable data.** `Resources/Config/` holds the canonical plists: `shipdata.plist`, `trade-goods.plist`, `equipment.plist`, `world-scripts.plist`, plus `planetinfo.plist` with all 2,048 systems across the eight galaxies. These are the source of truth for faithful numbers.
 
 **Prior art worth studying.** Oolite's docking approach, flight model constants, commodity price formula, and hyperspace distance rules are documented on the Oolite wiki and in the source. Port mechanics from documented behavior; port numbers from the config files.
 
