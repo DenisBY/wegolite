@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Wegolite contributors
 
+/// <reference types="vite/client" />
+
 import * as THREE from "three";
-import { cameraRelative, f32Ulp } from "./render/camera-relative.js";
-import { createPrecisionScene, FAR_M, NEAR_M } from "./render/precision-scene.js";
+import { cameraRelative, f32Ulp, type Point3 } from "./render/camera-relative.js";
+import {
+  createPrecisionScene,
+  FAR_M,
+  FAR_WORLD,
+  NEAR_WORLD,
+} from "./render/precision-scene.js";
 
 export interface WegoliteProbe {
   ready: boolean;
@@ -23,19 +30,23 @@ declare global {
   }
 }
 
-interface CameraWorld {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-}
+export type CameraWorld = Point3;
 
 /** The camera never leaves the origin; it carries orientation only. */
 export const CAMERA_WORLD: CameraWorld = { x: 0, y: 0, z: 0 };
 
 /** Only the camera-relative subtraction is allowed to touch Object3D.position. */
-function place(obj: THREE.Object3D, world: CameraWorld): void {
+function place(obj: THREE.Object3D, world: Point3): void {
   const relative = cameraRelative(world, CAMERA_WORLD);
   obj.position.set(relative.x, relative.y, relative.z);
+}
+
+function requireElement(id: string): HTMLElement {
+  const element = document.getElementById(id);
+  if (!(element instanceof HTMLElement)) {
+    throw new Error(`Wegolite: expected an element with id "${id}", but it is missing.`);
+  }
+  return element;
 }
 
 function requireCanvas(): HTMLCanvasElement {
@@ -85,17 +96,21 @@ function buildRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer {
 const canvas = requireCanvas();
 const renderer = buildRenderer(canvas);
 const gl = renderer.getContext();
+const depthBits = gl.getParameter(gl.DEPTH_BITS) as number;
 
-const scene = new THREE.Scene();
+const statusElement = requireElement("status");
+const statsElement = requireElement("stats");
+
+const { scene, nearBox, farMarker, starfield } = createPrecisionScene();
 const camera = new THREE.PerspectiveCamera(60, 1, 0.5, 2_500_000);
 camera.position.set(0, 0, 0);
 camera.lookAt(0, 0, -1);
 
-const { scene: precisionScene, nearBox, farMarker } = createPrecisionScene();
-scene.add(precisionScene);
-
-place(nearBox, { x: 0, y: 0, z: -NEAR_M });
-// The distinct far body at (0, 0, -FAR_M) arrives with task 3's starfield.
+// Every body goes through the one transform. The starfield sits at the camera
+// so it never drifts out of the frustum.
+place(nearBox, NEAR_WORLD);
+place(farMarker, FAR_WORLD);
+place(starfield, CAMERA_WORLD);
 
 function resize(): void {
   const width = window.innerWidth;
@@ -110,13 +125,29 @@ resize();
 
 renderer.render(scene, camera);
 
+// D-05: a static status line, always visible, written with textContent (S-7).
+statusElement.textContent =
+  "Wegolite — foundation build · near box at 1e5 m · far marker at 1.4e6 m";
+
+// D-05: the renderer stats line exists only in development.
+if (import.meta.env.DEV) {
+  statsElement.textContent = [
+    `draw calls: ${renderer.info.render.calls}`,
+    `triangles: ${renderer.info.render.triangles}`,
+    `depth bits: ${depthBits}`,
+    `log depth: ${String(renderer.capabilities.logarithmicDepthBuffer)}`,
+  ].join(" · ");
+} else {
+  statsElement.hidden = true;
+}
+
 // Published after the first render so `ready` implies the probe's numbers are real.
 window.__wegolite = {
   ready: true,
   calls: renderer.info.render.calls,
   triangles: renderer.info.render.triangles,
   logDepth: renderer.capabilities.logarithmicDepthBuffer,
-  depthBits: gl.getParameter(gl.DEPTH_BITS) as number,
+  depthBits,
   webgl2: gl instanceof WebGL2RenderingContext,
   nearRelZ: nearBox.position.z,
   farRelZ: farMarker.position.z,

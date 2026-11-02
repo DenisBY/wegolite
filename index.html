@@ -27,11 +27,42 @@
         font: 13px/1.4 monospace;
         pointer-events: none;
       }
+
+      #status,
+      #stats {
+        pointer-events: none;
+      }
+
+      #stats {
+        color: #8a8;
+      }
+
+      /* Fixed to the bottom so `overflow: hidden` on body cannot clip it. */
+      footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 0.35rem 1rem;
+        background: rgba(0, 0, 0, 0.8);
+        color: #9a9;
+        font: 12px/1.4 monospace;
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
     <canvas id="view"></canvas>
-    <div id="overlay"><div id="title">Wegolite — foundation build</div></div>
+    <div id="overlay">
+      <div id="title">Wegolite — foundation build</div>
+      <div id="status"></div>
+      <div id="stats"></div>
+    </div>
+    <footer>
+      Wegolite is an unofficial fan project. Not affiliated with, endorsed by, or connected to the
+      Oolite project, Frontier Developments plc, David Braben or Ian Bell. Elite and Cobra are
+      trademarks of Frontier Developments plc.
+    </footer>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
