@@ -29,7 +29,7 @@ into the travel phase so one module owns the fuel/distance rule instead of two.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation, Containers & Compliance** - Docker-only workflow, fixed-step loop, precision spike, licence and trademark posture
+- [x] **Phase 1: Foundation, Containers & Compliance** - Docker-only workflow, fixed-step loop, precision spike, licence and trademark posture (completed 2026-11-02)
 - [ ] **Phase 2: Data Pipeline & Content Compiler** - Pinned Oolite snapshot compiled at build time into typed content, GLB models, and a drift gate
 - [ ] **Phase 3: Flight in the Lave System** - Launch from Lave's Coriolis and fly the Cobra through a faithful, stably rendered system
 - [ ] **Phase 4: Manual Docking** - Skill-based docking with corridor feedback, plus the buyable docking computer
@@ -50,7 +50,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A test runs the same scripted simulation at two different frame cadences and produces identical state hashes, proving the 1/120 s fixed step.
   4. A rendered marker at 1.4e6 m from the camera stays visually stable, with no float32 jitter and no depth fighting against nearer geometry.
   5. `LICENSE`, `NOTICE`, `ASSETS.md`, and a visible non-affiliation disclaimer are present, and no Frontier trademark appears in the product name or the shipped UI.
-**Plans**: 7/7 plans executed
+**Plans**: 7/7 plans complete
 Plans:
 **Wave 1**
 - [x] 01-01-PLAN.md — Walking skeleton: container topology serves the live shell, headless Chromium proves the camera-relative render path at 1.4e6 m
@@ -156,7 +156,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation, Containers & Compliance | 7/7 | In Progress | - |
+| 1. Foundation, Containers & Compliance | 7/7 | Complete    | 2026-11-02 |
 | 2. Data Pipeline & Content Compiler | 0/TBD | Not started | - |
 | 3. Flight in the Lave System | 0/TBD | Not started | - |
 | 4. Manual Docking | 0/TBD | Not started | - |

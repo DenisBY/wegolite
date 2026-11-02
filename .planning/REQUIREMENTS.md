@@ -9,15 +9,15 @@ Requirements for the initial release. Each maps to a roadmap phase.
 
 ### Foundation, Containers & Compliance
 
-- [ ] **FOUND-01**: From a clean checkout, `docker compose up app` serves the game with hot reload, with no host Node/npm install required
-- [ ] **FOUND-02**: `docker compose up preview` builds and serves the production bundle as a static site
-- [ ] **FOUND-03**: `test`, `e2e`, `lint`, `typecheck`, and aggregate `verify` services run entirely in containers, and `verify` is the documented definition of done
-- [ ] **FOUND-04**: Images pin base tags and cache dependency layers; browser binaries are baked in, never downloaded at test time
-- [ ] **FOUND-05**: Repository skeleton enforces TypeScript strict mode, lint/format, and an import-zone rule that forbids `src/sim/` from importing Three.js or touching the DOM
-- [ ] **FOUND-06**: `LICENSE` (GPL-2.0-or-later), `NOTICE` (Oolite attribution), `ASSETS.md` (per-asset provenance), and a non-affiliation/trademark disclaimer are present
-- [ ] **FOUND-07**: The simulation advances on a deterministic fixed 1/120 s step with an accumulator, and a test proves identical results across different frame cadences
-- [ ] **FOUND-08**: A camera-relative rendering spike shows a marker at 1.4e6 m without float32 jitter or z-fighting
-- [ ] **FOUND-09**: `AGENTS.md` documents the container-only workflow, and its commands work verbatim from a clean checkout
+- [x] **FOUND-01**: From a clean checkout, `docker compose up app` serves the game with hot reload, with no host Node/npm install required
+- [x] **FOUND-02**: `docker compose up preview` builds and serves the production bundle as a static site
+- [x] **FOUND-03**: `test`, `e2e`, `lint`, `typecheck`, and aggregate `verify` services run entirely in containers, and `verify` is the documented definition of done
+- [x] **FOUND-04**: Images pin base tags and cache dependency layers; browser binaries are baked in, never downloaded at test time
+- [x] **FOUND-05**: Repository skeleton enforces TypeScript strict mode, lint/format, and an import-zone rule that forbids `src/sim/` from importing Three.js or touching the DOM
+- [x] **FOUND-06**: `LICENSE` (GPL-2.0-or-later), `NOTICE` (Oolite attribution), `ASSETS.md` (per-asset provenance), and a non-affiliation/trademark disclaimer are present
+- [x] **FOUND-07**: The simulation advances on a deterministic fixed 1/120 s step with an accumulator, and a test proves identical results across different frame cadences
+- [x] **FOUND-08**: A camera-relative rendering spike shows a marker at 1.4e6 m without float32 jitter or z-fighting
+- [x] **FOUND-09**: `AGENTS.md` documents the container-only workflow, and its commands work verbatim from a clean checkout
 
 ### Data Pipeline & Fidelity
 
@@ -146,15 +146,15 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 1 | Pending |
-| FOUND-02 | Phase 1 | Pending |
-| FOUND-03 | Phase 1 | Pending |
-| FOUND-04 | Phase 1 | Pending |
-| FOUND-05 | Phase 1 | Pending |
-| FOUND-06 | Phase 1 | Pending |
-| FOUND-07 | Phase 1 | Pending |
-| FOUND-08 | Phase 1 | Pending |
-| FOUND-09 | Phase 1 | Pending |
+| FOUND-01 | Phase 1 | Complete |
+| FOUND-02 | Phase 1 | Complete |
+| FOUND-03 | Phase 1 | Complete |
+| FOUND-04 | Phase 1 | Complete |
+| FOUND-05 | Phase 1 | Complete |
+| FOUND-06 | Phase 1 | Complete |
+| FOUND-07 | Phase 1 | Complete |
+| FOUND-08 | Phase 1 | Complete |
+| FOUND-09 | Phase 1 | Complete |
 | DATA-01 | Phase 2 | Pending |
 | DATA-02 | Phase 2 | Pending |
 | DATA-03 | Phase 2 | Pending |
