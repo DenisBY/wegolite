@@ -136,3 +136,11 @@ None. No production behaviour was changed; the two failures during authoring wer
 - [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** validated 2026-11-02 (validate-phase); live-Docker and host-GPU halves remain manual-only as listed above.
+
+## Validation Audit 2026-11-02
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
