@@ -87,3 +87,15 @@ If Compose is not yet present (early scaffolding), creating it is part of the fi
 | Full verification | `docker compose run --rm verify` |
 | Lint | `docker compose run --rm lint` |
 | Typecheck | `docker compose run --rm typecheck` |
+
+## GSD Workflow Enforcement
+
+Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
+
+Use these entry points:
+- `/gsd-fast` for a trivial task inline, with no subagents and no PLAN.md
+- `/gsd-quick` for small fixes, doc updates, and ad-hoc tasks
+- `/gsd-debug` for investigation and bug fixing
+- `/gsd-execute-phase` for planned phase work
+
+Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
