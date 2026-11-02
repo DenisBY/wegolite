@@ -6,6 +6,16 @@ Wegolite is a browser-based, faithful reimplementation of Oolite's core single-p
 
 Read `.planning/PROJECT.md` for the authoritative scope, constraints, and decisions. Read `.planning/REQUIREMENTS.md` and `.planning/ROADMAP.md` before starting work on a phase.
 
+## Codebase memory
+
+Use the codebase-memory MCP index before grepping, reading whole directories, or guessing at structure. The repository is indexed as project `wegolite`.
+
+- The main agent and **every subagent** must use codebase-memory when exploring code. Include this instruction in subagent prompts.
+- Start with `index_status` to check freshness. Re-index with `index_repository` after large structural changes; the index is best-effort, not proof of completeness.
+- Prefer `search_graph` for symbols, `trace_path` for callers/callees, `get_code_snippet` for source, `query_graph` for multi-hop questions, and `get_architecture` for the overview or layering.
+- Fall back to `grep`/file reads for literals, configuration, non-code files, and paths reported as coverage gaps. Verify cited paths with `check_index_coverage`.
+- Treat graph results as an index into the source: confirm important findings against the actual file before changing code.
+
 ## Non-negotiable constraints
 
 1. **Everything runs in Docker.** The app (dev server and production preview) and every test run in containers. Do not treat host-installed Node, npm, or Playwright browsers as authoritative.
