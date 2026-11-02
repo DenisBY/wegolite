@@ -212,7 +212,13 @@ Required additions for `.gitignore` (not in scaffold): `node_modules/`, `dist/`,
 
 ### `package-lock.json` — lockfile, generated
 
-**No analog; must not be hand-written.** Generate inside the container (`docker compose run --rm ci npm install` or a one-off `docker run` of the deps stage), then commit. `npm ci` in the image depends on it and fails loudly on drift. Record in the plan that no host `npm install` is permitted (AGENTS.md).
+**No analog; must not be hand-written.** Generate inside the container with a one-off `docker run` of the pinned base image (there is no `ci` compose service; the compose services are `app`, `preview`, `test`, `e2e`, `verify`, `lint`, `typecheck`):
+
+```bash
+docker run --rm -v "$PWD":/app -w /app node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c npm install --package-lock-only --no-audit --no-fund
+```
+
+This writes the lockfile only and creates no host `node_modules`. Then commit it. `npm ci` in the image depends on it and fails loudly on drift. Record in the plan that no host `npm install` is permitted (AGENTS.md).
 
 ---
 
@@ -467,7 +473,7 @@ function place(obj: THREE.Object3D, world: { x: number; y: number; z: number }):
 ```ts
 window.__wegolite = {
   ready: true,
-  renderCalls: renderer.info.render.calls,
+  calls: renderer.info.render.calls,
   triangles: renderer.info.render.triangles,
   logDepth: renderer.capabilities.logarithmicDepthBuffer,
   depthBits: gl.getParameter(gl.DEPTH_BITS) as number,
@@ -816,7 +822,7 @@ test("shell boots, renders the precision scene, and reports no console errors", 
 
   const info = await page.evaluate(() => window.__wegolite);
   expect(info?.webgl2).toBe(true);
-  expect(info?.renderCalls ?? 0).toBeGreaterThan(0);
+  expect(info?.calls ?? 0).toBeGreaterThan(0);
   expect(info?.triangles ?? 0).toBeGreaterThan(0);
   expect(info?.logDepth).toBe(true);
   expect(info?.depthBits ?? 0).toBeGreaterThanOrEqual(16);
@@ -1058,7 +1064,7 @@ The planner must resolve each of these **in the plan text**; the executor will o
 | Sim purity (Three) | `docker compose run --rm lint` on a `three` fixture | `no-restricted-imports` error |
 | Determinism | `docker compose run --rm test npx vitest run src/sim/cadence.test.ts` | 3 tests pass, one hash across 4 cadences |
 | Precision numerics | `docker compose run --rm test npx vitest run src/render/camera-relative.test.ts` | 3 tests pass, `f32Ulp(1.4e6) === 0.125` |
-| Browser precision | `docker compose run --rm e2e` | 1 test passes; `renderCalls > 0`, `logDepth`, no console errors |
+| Browser precision | `docker compose run --rm e2e` | 1 test passes; `calls > 0`, `logDepth`, no console errors |
 | Compliance | `docker compose run --rm test npx vitest run tests/compliance.test.ts` | licence md5, NOTICE strings, disclaimer text |
 
 ---
