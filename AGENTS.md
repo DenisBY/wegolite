@@ -44,8 +44,9 @@ docker compose run --rm e2e
 # Run everything CI runs
 docker compose run --rm verify
 
-# Rebuild after dependency changes
+# Rebuild after dependency changes, then drop the stale named volume
 docker compose build --no-cache
+docker compose down --volumes
 
 # Stop and clean up
 docker compose down --volumes --remove-orphans
@@ -58,7 +59,10 @@ Rules:
 - Browser tests must use the browsers baked into the Playwright image; do not download browsers at test time.
 - Pin base image tags. Do not use `latest`.
 - Every service must be reachable from a clean checkout with `docker compose up`. Document any required env vars in `.env.example`.
-- Ports are published to the host only for the dev server and preview. Test services need no published ports.
+- Ports are published to the host only for the dev server (`5173`) and preview (`4173`). Test services need no published ports.
+- `docker compose build` alone is **not** enough after a `package.json`/`package-lock.json` change: the named `node_modules` volume is populated from the image once and otherwise keeps its old contents, so run `docker compose down --volumes` as well.
+- On WSL2 or macOS, if hot reload stops seeing host edits, opt in to polling with `VITE_USE_POLLING=1` (documented in `.env.example`). It is opt-in because polling burns CPU.
+- `docker compose run --rm verify` bind-mounts the working tree, so it validates your current edits rather than the content baked into the image.
 
 If Compose is not yet present (early scaffolding), creating it is part of the first implementation phase — not an optional extra.
 
@@ -78,15 +82,15 @@ If Compose is not yet present (early scaffolding), creating it is part of the fi
 
 ## Commands quick reference
 
-| Task               | Command                             |
-| ------------------ | ----------------------------------- |
-| Dev server         | `docker compose up app`             |
-| Production preview | `docker compose up preview`         |
-| Unit tests         | `docker compose run --rm test`      |
-| Browser tests      | `docker compose run --rm e2e`       |
-| Full verification  | `docker compose run --rm verify`    |
-| Lint               | `docker compose run --rm lint`      |
-| Typecheck          | `docker compose run --rm typecheck` |
+| Task                           | Command                             |
+| ------------------------------ | ----------------------------------- |
+| Dev server (port 5173)         | `docker compose up app`             |
+| Production preview (port 4173) | `docker compose up preview`         |
+| Unit tests                     | `docker compose run --rm test`      |
+| Browser tests                  | `docker compose run --rm e2e`       |
+| Full verification              | `docker compose run --rm verify`    |
+| Lint                           | `docker compose run --rm lint`      |
+| Typecheck                      | `docker compose run --rm typecheck` |
 
 ## GSD Workflow Enforcement
 
