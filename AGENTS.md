@@ -78,21 +78,22 @@ If Compose is not yet present (early scaffolding), creating it is part of the fi
 
 ## Commands quick reference
 
-| Task | Command |
-|---|---|
-| Dev server | `docker compose up app` |
-| Production preview | `docker compose up preview` |
-| Unit tests | `docker compose run --rm test` |
-| Browser tests | `docker compose run --rm e2e` |
-| Full verification | `docker compose run --rm verify` |
-| Lint | `docker compose run --rm lint` |
-| Typecheck | `docker compose run --rm typecheck` |
+| Task               | Command                             |
+| ------------------ | ----------------------------------- |
+| Dev server         | `docker compose up app`             |
+| Production preview | `docker compose up preview`         |
+| Unit tests         | `docker compose run --rm test`      |
+| Browser tests      | `docker compose run --rm e2e`       |
+| Full verification  | `docker compose run --rm verify`    |
+| Lint               | `docker compose run --rm lint`      |
+| Typecheck          | `docker compose run --rm typecheck` |
 
 ## GSD Workflow Enforcement
 
 Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
 
 Use these entry points:
+
 - `/gsd-fast` for a trivial task inline, with no subagents and no PLAN.md
 - `/gsd-quick` for small fixes, doc updates, and ad-hoc tasks
 - `/gsd-debug` for investigation and bug fixing

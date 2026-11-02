@@ -4,5 +4,7 @@ test-results
 playwright-report
 package-lock.json
 .planning
+# Agent runtime state written by the GSD harness, not project source.
+.gsd
 LICENSE
 NOTICE

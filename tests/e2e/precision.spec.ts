@@ -13,9 +13,13 @@ test("shell boots, renders the precision scene, and reports no console errors", 
   page.on("pageerror", (error) => errors.push(String(error)));
 
   await page.goto("/");
-  await page.waitForFunction(() => window.__wegolite?.ready === true, undefined, {
-    timeout: 20_000,
-  });
+  await page.waitForFunction(
+    () => window.__wegolite?.ready === true,
+    undefined,
+    {
+      timeout: 20_000,
+    },
+  );
 
   const info = await page.evaluate(() => window.__wegolite);
 

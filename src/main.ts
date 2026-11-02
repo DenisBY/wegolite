@@ -4,7 +4,11 @@
 /// <reference types="vite/client" />
 
 import * as THREE from "three";
-import { cameraRelative, f32Ulp, type Point3 } from "./render/camera-relative.js";
+import {
+  cameraRelative,
+  f32Ulp,
+  type Point3,
+} from "./render/camera-relative.js";
 import {
   createPrecisionScene,
   FAR_M,
@@ -44,7 +48,9 @@ function place(obj: THREE.Object3D, world: Point3): void {
 function requireElement(id: string): HTMLElement {
   const element = document.getElementById(id);
   if (!(element instanceof HTMLElement)) {
-    throw new Error(`Wegolite: expected an element with id "${id}", but it is missing.`);
+    throw new Error(
+      `Wegolite: expected an element with id "${id}", but it is missing.`,
+    );
   }
   return element;
 }
