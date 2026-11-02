@@ -5,7 +5,7 @@
 
 ## Capability Proven End-to-End
 
-A contributor with only Docker runs one documented command from a clean checkout and gets a live page at `http://localhost:5173` — served by Vite from inside the multi-stage image, booted through a bind-mounted working tree — whose WebGL2 renderer places a camera-relative marker at 1.4e6 m and reports a deterministic 1/120 s simulation hash identical across four frame cadences, all re-proven by `docker compose run --rm verify`.
+A contributor with only Docker runs one documented command from a clean checkout and gets a live page at `http://localhost:5173` — served by Vite from inside the multi-stage image, booted through a bind-mounted working tree — whose WebGL2 renderer places a camera-relative marker at 1.4e6 m. In the same phase, the pure `src/sim/` probe is proven by unit tests (not by the page) to produce an identical 1/120 s state hash across four frame cadences, and `docker compose run --rm verify` re-proves both halves from a volume-free rebuild.
 
 ## Architectural Decisions
 
@@ -16,7 +16,7 @@ A contributor with only Docker runs one documented command from a clean checkout
 | Renderer | Three.js 0.187.0, WebGL2, `logarithmicDepthBuffer: true`, camera at the origin | Camera-relative placement is the only strategy that survives 1.4e6 m in float32; log depth covers 0.5 m → 2.5e6 m without reversed depth. |
 | Simulation core | Pure TypeScript under `src/sim/`, fixed `DT = 1/120`, `MAX_STEPS_PER_FRAME = 5`, `MAX_FRAME_DELTA = 0.25`, no DOM/Three/clock/randomness | Fixed step is the most expensive thing to retrofit; purity is enforced by two independent gates. |
 | Determinism proof | Canonical fixed-precision text + in-repo FNV-1a 32, checked-in golden fixture | No dependency, no `node:crypto`, no inline snapshots; a versioned fixture makes a re-baseline a reviewed change. |
-| Container topology | One multi-stage `Dockerfile` (`base → deps → ci → dev`), Compose `build.target: ci` for every command service, one named `node_modules` volume | One image, one Node, one Chromium; the bind mount makes the documented commands evaluate the working tree. |
+| Container topology | One multi-stage `Dockerfile` (`base → deps → ci → preview` alias → `dev`), Compose `build.target: ci` for every command service, one named `node_modules` volume | One image, one Node, one Chromium; the `preview` stage is a named alias of `ci` (D-01 enumerates it) with no distinct build; the bind mount makes the documented commands evaluate the working tree. |
 | Verify chain | One Compose service running `sh -lc "lint && typecheck && test && build && e2e"` | Real exit-code propagation; `depends_on` fan-in cannot fail the chain. |
 | Data layer | None in Phase 1. No database, no ORM, no server storage. Saves will use IndexedDB from Phase 6. | Static client by project constraint; Phase 1 must not create a persistence surface it cannot test. |
 | Auth | None. Single-player, no accounts, no backend. | Out of scope for the milestone. |

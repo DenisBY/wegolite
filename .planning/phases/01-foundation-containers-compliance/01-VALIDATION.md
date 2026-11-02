@@ -47,7 +47,7 @@ eventually carry. `❌ W0` marks a check that must be created before the require
 | 01-01-02 | 01 | 1 | FOUND-02 | — | Preview serves the built bundle | smoke | `docker compose up -d preview && curl -fsS localhost:4173/ \| grep -q 'foundation build'` | ❌ W0 | ⬜ pending |
 | 01-01-03 | 01 | 1 | FOUND-03 | — | Verify chain is definition of done | integration | `docker compose run --rm verify` → exit 0 | ✅ (chain itself) | ⬜ pending |
 | 01-01-04 | 01 | 1 | FOUND-09 | — | Documented commands work verbatim | integration | `verify` + dev/preview smoke scripts; command table matches `compose.yaml` service names | ❌ W0 | ⬜ pending |
-| 01-02-01 | 02 | 2 | FOUND-04 | T-01-01 | Base image pinned by digest; browsers baked, never downloaded | static assertion | `grep -q 'node:24-bookworm-slim@sha256:' Dockerfile` | ❌ W0 | ⬜ pending |
+| 01-01-05 | 01 | 1 | FOUND-04 | T-01-01 | Base image pinned by digest; browsers baked, never downloaded | static assertion | `test "$(grep -cE '^FROM node:24-bookworm-slim@sha256:[0-9a-f]{64}' Dockerfile)" -eq 1 && ! grep -qiE '^FROM [^#]*:latest' Dockerfile` (digest pin half) + `docker run --rm --network none wegolite-ci sh -lc 'ls /ms-playwright \| grep -qi chromium'` (baked-browser half, 01-06) | ❌ W0 | ⬜ pending |
 | 01-02-02 | 02 | 2 | FOUND-05 | — | `src/sim` cannot import Three.js or touch the DOM | unit + compiler/linter assertions | `docker compose run --rm typecheck` and `--rm lint` exit 0 clean; seeded violation exits ≠ 0 | ❌ W0 | ⬜ pending |
 | 01-03-01 | 03 | 3 | FOUND-07 | — | Identical state hash at 30/60/120/144 Hz | unit | `docker compose run --rm test npx vitest run src/sim/cadence.test.ts` | ✅ verified in probe | ⬜ pending |
 | 01-03-02 | 03 | 3 | FOUND-07 | — | Golden fixture replay | unit | `docker compose run --rm test npx vitest run tests/golden/` | ❌ W0 | ⬜ pending |
@@ -62,7 +62,7 @@ eventually carry. `❌ W0` marks a check that must be created before the require
 ## Wave 0 Requirements
 
 - [ ] `tests/golden/` — one scripted input log plus its expected FNV-1a hash, checked in (decision D-11).
-- [ ] `tests/compliance.test.ts` — LICENSE text/hash, NOTICE terms, `dist/index.html` disclaimer, no trademark in `<title>`.
+- [ ] `tests/compliance.test.ts` — LICENSE text/hash, NOTICE terms, `index.html` disclaimer (the built-bundle disclaimer check lives in `tests/e2e/precision.spec.ts`, which runs against `vite preview`), no trademark in `<title>`, and the tree-wide S-6 SPDX header walk.
 - [ ] `src/sim/__fixtures__/` — tiny deliberate violations for the import-purity guard, or a documented manual check if shelling out from Vitest is too slow.
 - [ ] `scripts/smoke-dev.sh` / `scripts/smoke-preview.sh` (or Compose healthchecks) so FOUND-01/02 are machine-checked.
 - [ ] No framework install needed — Vitest and Playwright are already baked into the `ci` image stage; new paths are covered by existing config includes.
@@ -76,8 +76,8 @@ eventually carry. `❌ W0` marks a check that must be created before the require
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | Hot reload on host file edit | FOUND-01 | File-event propagation into bind mounts is host-specific (macOS/WSL2); research could not test it here | Edit `index.html` in a running `docker compose up app`; confirm the browser updates without a restart. On macOS/WSL2 set `VITE_USE_POLLING=1` if no update appears. |
-| Verify fails fast on a seeded lint error | FOUND-03 | Deliberately breaking the tree is not part of the green suite | Add an unused-variable lint error, run `docker compose run --rm verify`, confirm non-zero exit at the lint stage; revert. |
-| Visual stability at 1.4e6 m on real GPU | FOUND-08 | SwiftShader proves the pipeline, not discrete-GPU rendering | Open the shell in a desktop browser; confirm the distant marker does not shimmer or z-fight against the ~100 km box. |
+| Verify fails fast on a seeded lint error | FOUND-03 | Deliberately breaking the tree is not part of the green suite | Add `import * as THREE from "three";` to a file under `src/sim/` (the violation plan 01-02's own gate demonstrates), run `docker compose run --rm verify`, confirm a non-zero exit whose output names `no-restricted-imports` or the seeded file; delete the seed. `scripts/check-verify-fails-fast.sh` automates exactly this. |
+| Visual stability at 1.4e6 m on real GPU | FOUND-08 | SwiftShader proves the pipeline, not discrete-GPU rendering | Open the shell in a desktop browser at 1280x720. Confirm the page is not blank: the starfield fills the frame and the 500 m box at ~100 km renders as a small crisp square near the view centre (about 3 px at this viewport), with no z-fighting or depth artefacts. Phase 1 has no animation loop, so this is a still-frame check. The 1.4e6 m marker is deliberately sub-pixel (~0.2 px for a 400 m cube at this FOV), so it cannot be judged visually — its placement and float32 ULP are asserted numerically (`farRelZ`, `farUlp`) by `tests/e2e/precision.spec.ts`, and system-scale visual confirmation on a real GPU arrives with Phase 3's planet and station. |
 | Licence/trademark wording | FOUND-06 | Needs the professional legal read already flagged in STATE.md | Human review of `LICENSE`, `NOTICE`, `ASSETS.md` and the shell footer against Oolite's `LICENSE.md` and Frontier's trademark list. |
 
 ---
