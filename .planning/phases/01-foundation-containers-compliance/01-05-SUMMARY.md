@@ -241,3 +241,11 @@ None — this plan adds no endpoint, auth path, file-access boundary or schema c
 
 *Phase: 01-foundation-containers-compliance*
 *Completed: 2026-11-02*
+
+## Self-Check: PASSED
+
+- All seven artefacts exist on disk (`LICENSE`, `NOTICE`, `ASSETS.md`, `tests/compliance.test.ts`, `README.md`, `public/.gitkeep`, `AGENTS.md`).
+- All four commits (`add08d9`, `f659cc1`, `8331882`, `2bc29e3`) are ancestors of HEAD.
+- `docker compose run --rm test md5sum LICENSE` still prints `570a9b3749dd0463a1778803b12a6dce`.
+- `docker compose run --rm lint` and `docker compose run --rm verify` both exit 0 on the committed tree.
+- Plan-level greps pass: `grep -rniE '\b(elite|oolite)\b' index.html package.json` matches only the footer disclaimer, and `git ls-files` lists every artefact.
