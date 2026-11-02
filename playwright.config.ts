@@ -9,12 +9,15 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"]],
   use: {
+    // Spread the device descriptor first: it carries its own `viewport`, and a
+    // later explicit key would be flagged as overwritten (TS2783). The Desktop
+    // Chrome viewport is already 1280x720, which is the size every assertion in
+    // tests/e2e was written against.
+    ...devices["Desktop Chrome"],
     baseURL: "http://127.0.0.1:4173",
     // D-08 forbids pixel diffing, so no traces or screenshots.
     trace: "off",
     screenshot: "off",
-    viewport: { width: 1280, height: 720 },
-    ...devices["Desktop Chrome"],
   },
   webServer: {
     // `vite preview` serves dist/, so the caller must build first (`npm run build`

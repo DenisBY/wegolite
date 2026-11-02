@@ -1,0 +1,23 @@
+{
+  // The purity gate (FOUND-05, T-01-06). `lib: ["ES2022"]` + `types: []` remove
+  // every DOM identifier from this project, so `document`, `window`, `fetch`
+  // and friends fail with TS2584. This gate does NOT catch
+  // `import * as THREE from "three"` (verified in 01-RESEARCH.md §Pattern 5) —
+  // ESLint's `no-restricted-imports` owns that. Both gates are load-bearing.
+  //
+  // Not a `composite` project reference: two independent `tsc -p ... --noEmit`
+  // runs (see package.json `typecheck`) are simpler and verified.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  // `src/render/camera-relative.ts` is included deliberately: it is DOM-free and
+  // Three-free by design, so gating it now means a future Three import inside it
+  // fails `typecheck`. That is a documented extension of the research's
+  // `src/sim/**` glob, and it keeps this project non-empty before `src/sim/` exists.
+  "include": ["src/sim/**/*.ts", "src/render/camera-relative.ts"],
+  // Tests legitimately need `vitest` types; the implementation they exercise is
+  // still gated here, and ESLint covers the test files.
+  "exclude": ["**/*.test.ts"]
+}
