@@ -52,12 +52,16 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 **Why the browser.** The goal is zero-install access for fans on any modern desktop machine. A static site with WebGL2 is the lowest-friction delivery mechanism.
 
+**Container-first development.** Every process in the project — dev server, production preview, unit tests, and browser tests — runs in Docker. The host machine is only expected to provide Docker and a browser; no host Node/npm install is authoritative. Because the client is static and saves live in IndexedDB, no database service is required. If server-side persistence is ever added, it gets its own Compose service with a healthcheck rather than a host install.
+
 ## Constraints
 
 - **License**: GPL-2.0-or-later — chosen because the project ports Oolite's data and may port logic; mismatched licensing would make distribution indefensible.
 - **Assets**: CC BY-NC-SA 3.0 — reused models, textures, and audio require attribution, share-alike, and forbid commercial use.
 - **Tech stack**: TypeScript, Three.js on WebGL2, Vite for building, Vitest for unit tests. No game engine, no framework-level abstraction over the simulation.
-- **Platform**: Desktop browsers (Chrome, Firefox, Safari) served as a static site. No backend, no accounts, no network calls at runtime.
+- **Platform**: Desktop browsers (Chrome, Firefox, Safari) served as a static site. No backend, no accounts, no network calls at runtime. No database.
+- **Containers**: The application (dev server and production preview) and the entire test suite run in Docker via Docker Compose. This includes headless browser tests — the image must ship the browsers, not download them on the host. Tests are only considered passing when they pass in the container. Host-side `npm test` is a convenience at most and never the source of truth.
+- **Container reproducibility**: Compose must work from a clean checkout with one command, pin base images, and cache dependency layers. No service may require a manually installed host dependency beyond Docker itself.
 - **Data fidelity**: System, commodity, equipment, and ship values come from Oolite's config, not from invention. Where the original is ambiguous, prefer documented Oolite behavior over guesswork.
 - **Scope**: No expansion pack support. Ever, in this project's definition.
 
@@ -73,6 +77,8 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 | Manual docking with a buyable docking computer | Preserves the skill and tension of docking without permanently blocking new players | — Pending |
 | Desktop web only, mobile-ready architecture | Focus v1 effort while keeping input and UI behind interfaces so touch can be added later | — Pending |
 | GPL-2.0-or-later for the project | Matches Oolite and is required for porting its code and data | — Pending |
+| Docker for app runtime and all tests | Reproducible toolchain across contributors, no host drift, and the same image can serve the static build; headless browser tests stay self-contained | — Pending |
+| No database service | The client is static and saves to IndexedDB; adding a DB now would be unused infrastructure | — Pending |
 
 ## Evolution
 
