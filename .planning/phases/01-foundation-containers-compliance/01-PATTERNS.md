@@ -852,10 +852,12 @@ These are Wave 0 gaps: nothing in the reference scaffold implements them. Shapes
 
 **Data contract (suggested — planner owns the final shape):**
 
+> `dt` must equal `DT` from `src/sim/step.ts` (`1 / 120`). The literal above is the decimal form that parses to the same IEEE-754 double; a ten-times-larger value (the `1/12` decimal) is a transcription error that would silently falsify what the fixture records.
+
 ```json
 {
   "version": 1,
-  "dt": 0.08333333333333333,
+  "dt": 0.008333333333333333,
   "targetSteps": 1200,
   "script": [
     { "pitch": 0, "roll": 1, "thrust": 1 },
