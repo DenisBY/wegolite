@@ -2,10 +2,10 @@
 phase: "01"
 status: issues_found
 findings:
-  total: 19
-  critical: 1
-  warning: 8
-  info: 10
+  total: 23
+  critical: 0
+  warning: 11
+  info: 12
 created: "2026-11-02"
 ---
 
@@ -18,44 +18,8 @@ and the licensing/attribution artifacts). Documentation prose is out of scope.
 Baseline: `docker compose run --rm verify` is green (lint → typecheck → 35 unit tests → build → 1 e2e) at
 `1e1e124`. Every finding below was verified against the working tree; the runtime findings were reproduced
 inside the `wegolite-ci` image with Playwright probes and temporary, self-cleaning files (no source left
-modified). Because the committed gate is green, none of these is caught by the current suite.
-
-## Critical Issues
-
-### CR-01: Window resize resizes the drawing buffer but never repaints the scene
-
-**File:** `src/main.ts:121-132`
-
-**Evidence:** `resize()` calls `renderer.setSize(width, height, false)` and
-`camera.updateProjectionMatrix()`, but the only `renderer.render(scene, camera)` is the one-shot boot render
-at line 132. Nothing renders again after the `resize` listener fires. I instrumented the production bundle
-served by `vite preview` inside `wegolite-ci` and resized the viewport from 1280×720 to 900×600:
-`canvas.width/height` became 900/600 while the patched `drawElements`/`drawArrays`/`clear` counters both
-stayed at **0**. The compositor therefore presents a stale frame (scaled to the new box); any path that
-clears the buffer (context restore, a second resize, some engines) leaves a black canvas. The e2e spec never
-resizes, so this defect ships undetected.
-
-**Fix:** repaint in the handler and guard the zero-size case (a single render keeps the plan's "no
-`requestAnimationFrame` loop" constraint):
-
-```ts
-function resize(): void {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  if (width === 0 || height === 0) return; // e.g. minimised: avoids an Infinity aspect
-  renderer.setSize(width, height, false);
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
-  renderer.render(scene, camera);
-}
-
-window.addEventListener("resize", resize);
-resize();
-```
-
-The standalone `renderer.render(scene, camera)` at line 132 can then be removed (the first `resize()`
-renders), or left in place harmlessly. Consider a `webglcontextlost`/`webglcontextrestored` handler for the
-same reason.
+modified). Because the committed gate is green, none of these is caught by the current suite. CR-01 was
+fixed in `01-07` (`406d74c`), verified by `tests/e2e/resize.spec.ts`.
 
 ## Warnings
 
@@ -253,6 +217,144 @@ archive at build time, so image contents drift even with the base digest pinned.
 **Fix:** delete the `# syntax` line (or pin it by digest), and either pin the apt package set used by
 `--with-deps` or record the accepted drift. Extend the FOUND-04 test to reject an unpinned `# syntax` line.
 
+### WR-09: A zero-size viewport at boot publishes `ready: true` with `renders: 0` and no paint
+
+**File:** `src/main.ts:133-146`, `src/main.ts:164-176`
+
+**Evidence:** `resize()` is the only render site in the module, and the new
+guard returns at `:138` before it. The probe literal at `:165-176` is published
+unconditionally afterwards, with `ready: true` and every render-derived field
+copied from `renderer.info.render`, which is still zero. Reproduced inside
+`wegolite-ci` against the production bundle with a same-origin
+`display:none` iframe (`innerWidth/innerHeight === 0`):
+
+```
+{ ready: true, calls: 0, triangles: 0, renders: 0, canvasW: 300, canvasH: 150 }
+```
+
+The canvas keeps the `WebGLRenderer` constructor default (300×150) because
+`setSize` was never called. Growing the iframe to 800×600 recovers on the next
+`resize` event (`renders: 1`, `calls: 3`, `canvas 800×600`), so the state is not
+permanent — but it is observable. This falsifies the comment at `:164`
+("Published after the first render so `ready` implies the probe's numbers are
+real") and the invariant `01-07-PLAN.md` relies on ("`ready` still implies the
+numbers are real"). The plan's static gate only proves the `Infinity`-aspect
+half; it does not prove that `ready` still means "rendered".
+
+**Impact:** a shell mounted in a zero-sized container (hidden/`display:none`
+iframe, an un-sized embed host, a document restored at 0×0) reports itself
+booted while nothing was ever painted. Any consumer keyed on `ready` — including
+`tests/e2e/*.spec.ts`'s `waitForFunction(ready === true)` — treats a blank
+canvas as a successful boot, and the failure surfaces as a confusing downstream
+assertion (`calls > 0`) rather than at the real cause. Recoverable on the next
+resize, so no crash or data loss.
+
+**Fix:** make `ready` mean what the comment says. Either compute it from the
+render counter in the published literal:
+
+```ts
+window.__wegolite = {
+  ready: renderer.info.render.frame > 0,
+  // ...
+};
+```
+
+or publish the probe before the boot `resize()` with `ready: false` and let
+`renderFrame()` flip `ready = true` after a successful `renderer.render()`
+(this also removes the need for the `if (window.__wegolite)` guard). Add a case
+to `tests/e2e/resize.spec.ts` or a unit test if the contract is to be pinned —
+Playwright cannot set a 0×0 viewport, but a hidden iframe can.
+
+### WR-10: `renders` resets to 0 on WebGL context restore, so the field is not monotonic and the new spec can time out
+
+**File:** `src/main.ts:122-131`, `src/main.ts:165-176`;
+`tests/e2e/resize.spec.ts:48-69`
+
+**Evidence:** the plan's premise that the counter only resets when the context is
+recreated is correct, but the consequence was not followed through. In three
+r187, `WebGLRenderer`'s `initGLContext()` builds a new info object
+(`info = new WebGLInfo(_gl)`, `three.module.js:16288`) and `onContextRestore()`
+calls `initGLContext()` (`:16950-16962`), so `info.render.frame` restarts at 0
+after a restore. Measured on the production bundle: boot `1` → 900×600 `2` →
+restore `3`; then `loseContext()` + `restoreContext()` (with no render in
+between) left the probe at the stale `3`, and the next resize (700×500)
+published `renders: 1`. The field went **3 → 1**. `ready` also stays `true`
+across the loss, and no repaint is attempted on `webglcontextrestored`, so the
+canvas remains blank until an unrelated resize.
+
+**Impact:** `renders` is a per-context counter published under a name that reads
+as "renders performed", and the only consumer uses it as a monotonic signal:
+`waitForFunction((prev) => renders > prev)` at
+`tests/e2e/resize.spec.ts:49-53` and `:65-69`. After any context restore —
+driver reset/TDR, GPU-process restart, SwiftShader memory pressure in CI — the
+counter is behind `previous` and cannot catch up within the single remaining
+resize, so the regression fails with an opaque 5 s timeout instead of
+diagnosing the restore. (Three logs `Context Lost.`/`Context Restored.` via
+`console.log`, which the spec's console filter ignores because it only collects
+`error` messages, so nothing in the failure output points at the cause.) No
+runtime consumer exists today, but the field is now part of the probe contract
+and Phase 3 will inherit it.
+
+**Fix:** pick one and record it on `WegoliteProbe.renders`:
+
+1. Make the published value monotonic while still deriving from three's
+   counter — keep an epoch offset and bump it on restore so
+   `renders = info.render.frame + epochBase` never decreases; or
+2. Add a `webglcontextrestored` listener that calls `resize()` (repaint the
+   restored context, which is also the fix CR-01 suggested) and document that
+   `renders` restarts at 0 per context; if the spec must stay green across a
+   restore, sample a fresh baseline after a `webglcontextrestored` page event
+   rather than comparing against the pre-restore value.
+
+Either way the restore path should repaint, otherwise the new `ready`-implies-a-
+painted-canvas contract is broken for a lost context as well.
+
+### WR-11: The resize spec samples the buffer and counter after the fact, so it cannot detect a render-before-setSize ordering
+
+**File:** `tests/e2e/resize.spec.ts:48-75`
+
+**Evidence:** both checks wait for `renders` to advance and then read
+`canvas.width/height` in a separate `page.evaluate`, i.e. after the resize task
+has finished. A handler ordered as
+
+```ts
+renderFrame();                    // paints the OLD buffer, increments info.render.frame
+renderer.setSize(width, height, false); // reallocates + clears the buffer
+```
+
+would still pass: the counter advanced, and the post-hoc read sees the correct
+900×600 buffer. But the paint went to the discarded buffer, so the presented
+canvas is blank — exactly the CR-01 symptom. The plan pins the zero-size guard's
+ordering statically (`awk` gate) and the code currently places `renderFrame()`
+last (`src/main.ts:142`), but nothing in the spec or the gates pins that
+ordering, so a future edit can reintroduce the bug with a green suite.
+
+**Impact:** the regression is not order-sensitive. Its stated purpose — proving
+"a fresh render follows the buffer resize" — is only half covered: it proves a
+render happened and a reallocation happened, not that the render used the new
+buffer.
+
+**Fix:** record the buffer size at draw time (still D-08-compliant: no pixels),
+for example with an init script:
+
+```ts
+await page.addInitScript(() => {
+  const proto = WebGL2RenderingContext.prototype;
+  for (const name of ["drawElements", "drawArrays", "clear"] as const) {
+    const original = proto[name];
+    (proto as any)[name] = function (this: WebGL2RenderingContext, ...args: any[]) {
+      (window as any).__lastDrawWidth = this.canvas.width;
+      return (original as any).apply(this, args);
+    };
+  }
+});
+```
+
+then assert `__lastDrawWidth === canvas.width` after each counter advance. (A
+cheaper alternative is to add the symmetric static gate: `renderer.render` is
+only reached through `renderFrame()`, and `renderFrame()` is the final statement
+of `resize()`.)
+
 ## Info
 
 ### IN-01: `f32Ulp` returns the wrong spacing for float32 subnormals
@@ -381,3 +483,50 @@ the header comment that teardown happens "on every exit path" and the T-01-19 cl
 `docker compose up -d ...`. The scripts also assume a host `curl` with `--retry-all-errors` (≥7.71), which is
 not part of the documented "Docker and a browser" host requirement; state it in README/AGENTS or drop the
 flag.
+
+### IN-11: The spec proves "at least one render per resize", not "exactly one"
+
+**File:** `tests/e2e/resize.spec.ts:49-53`, `tests/e2e/resize.spec.ts:65-69`
+
+**Evidence:** both waits use `> previous` and the follow-up assertions use
+`toBeGreaterThan`, so a handler that renders twice per event (or a hidden extra
+render site) passes. `01-07-PLAN.md` lists "each resize event produces exactly
+one render" as a must-have; only the static "no loop" grep backs it. My probe
+measured exactly one `resize` event and one counter step per
+`page.setViewportSize`, so a tighter assertion is feasible on this Chromium, but
+it is browser-version dependent (an intermediate resize event would make `+1`
+flaky), which is presumably why the looser form was chosen.
+
+**Fix:** either pin the multiplicity statically (`renderer.render` appears once
+in `src/main.ts`, and `renderFrame(` is called only from `resize()`), or assert
+an upper bound per event (`expect(renders).toBeLessThanOrEqual(previous + 2)`)
+and document why it is not exactly `+1`.
+
+### IN-12: The spec derives the expected buffer size from the live `devicePixelRatio`, but the renderer pins the pixel ratio at boot
+
+**File:** `src/main.ts:98`, `src/main.ts:139`;
+`tests/e2e/resize.spec.ts:58-60`, `:73-75`
+
+**Evidence:** `buildRenderer()` calls
+`renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))` once at boot;
+`resize()` never re-applies it, so `setSize` keeps using the boot-time
+`_pixelRatio`. The spec instead computes the expectation from
+`window.devicePixelRatio` read after each resize. When the device pixel ratio
+changes between boot and the assertion (window dragged between monitors,
+browser zoom), the renderer sizes the buffer with the old ratio while the spec
+expects the new one: the app renders a scaled/blurry image and the spec fails
+with a false negative that looks like a resize regression.
+
+**Impact:** a real (if uncommon) DPR-change path is neither handled nor
+distinguished from a genuine failure, and the new test encodes the assumption
+that DPR is constant for the page's lifetime.
+
+**Fix:** re-apply the ratio inside `resize()` before `setSize`:
+
+```ts
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(width, height, false);
+```
+
+so the assertion and the renderer agree, or assert against the ratio the
+renderer actually resolved instead of the live `window.devicePixelRatio`.

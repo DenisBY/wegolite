@@ -3,10 +3,6 @@ phase: 01
 review: 01-REVIEW.md
 titles: json
 findings:
-  - id: CR-01
-    severity: critical
-    disposition: fixed
-    title: "Window resize resizes the drawing buffer but never repaints the scene"
   - id: WR-01
     severity: warning
     disposition: open
@@ -39,6 +35,18 @@ findings:
     severity: warning
     disposition: open
     title: "The Dockerfile's `# syntax` directive pulls an unpinned external image, and `--with-deps` installs unpinned OS packages"
+  - id: WR-09
+    severity: warning
+    disposition: open
+    title: "A zero-size viewport at boot publishes `ready: true` with `renders: 0` and no paint"
+  - id: WR-10
+    severity: warning
+    disposition: open
+    title: "`renders` resets to 0 on WebGL context restore, so the field is not monotonic and the new spec can time out"
+  - id: WR-11
+    severity: warning
+    disposition: open
+    title: "The resize spec samples the buffer and counter after the fact, so it cannot detect a render-before-setSize ordering"
   - id: IN-01
     severity: info
     disposition: open
@@ -79,16 +87,27 @@ findings:
     severity: info
     disposition: open
     title: "The smoke scripts install their teardown trap after `docker compose up -d`"
-open: 18
-total: 19
-recorded: 2026-11-02T18:50:30.825Z
+  - id: IN-11
+    severity: info
+    disposition: open
+    title: "The spec proves \"at least one render per resize\", not \"exactly one\""
+  - id: IN-12
+    severity: info
+    disposition: open
+    title: "The spec derives the expected buffer size from the live `devicePixelRatio`, but the renderer pins the pixel ratio at boot"
+  - id: CR-01
+    severity: critical
+    disposition: fixed
+    title: "Window resize resizes the drawing buffer but never repaints the scene"
+open: 23
+total: 24
+recorded: 2026-11-02T22:03:25.981Z
 ---
 
 # Phase 01: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | fixed | 01-07-PLAN.md |
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
 | WR-03 | warning | open | - |
@@ -97,6 +116,9 @@ recorded: 2026-11-02T18:50:30.825Z
 | WR-06 | warning | open | - |
 | WR-07 | warning | open | - |
 | WR-08 | warning | open | - |
+| WR-09 | warning | open | - |
+| WR-10 | warning | open | - |
+| WR-11 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
@@ -107,6 +129,9 @@ recorded: 2026-11-02T18:50:30.825Z
 | IN-08 | info | open | - |
 | IN-09 | info | open | - |
 | IN-10 | info | open | - |
+| IN-11 | info | open | - |
+| IN-12 | info | open | - |
+| CR-01 | critical | fixed | 01-07-PLAN.md (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
