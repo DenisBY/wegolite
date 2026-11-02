@@ -79,6 +79,10 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 | GPL-2.0-or-later for the project | Matches Oolite and is required for porting its code and data | — Pending |
 | Docker for app runtime and all tests | Reproducible toolchain across contributors, no host drift, and the same image can serve the static build; headless browser tests stay self-contained | — Pending |
 | No database service | The client is static and saves to IndexedDB; adding a DB now would be unused infrastructure | — Pending |
+| Camera-relative rendering with a logarithmic depth buffer | Float32 world coordinates jitter at system scale (1.4e6 m); rendering relative to the camera keeps uploaded coordinates small and log depth separates near/far geometry | ✓ Phase 1 — marker placed at 1.4e6 m with 0.125 m ULP at that range (FOUND-08) |
+| One multi-stage Dockerfile on `node:24-bookworm-slim`, with Chromium baked into the `ci` stage | Keeps app, tests, and CI on one pinned toolchain; no host install and no test-time browser download | ✓ Phase 1 — `docker compose run --rm verify` green from a clean, volume-free checkout |
+| Determinism proven by 1/120 s fixed steps, cross-cadence hash equality, and checked-in golden fixtures | A single step rate plus cadence-independent hashes makes simulation regressions detectable without wall-clock flakiness | ✓ Phase 1 — identical hash at 30/60/144 Hz; golden fixture replays (FOUND-07) |
+| No screenshot or pixel-diff evidence; assert renderer probes and console errors instead | Browser rendering evidence must be stable across machines; probe counters and error collection prove rendering without brittle image comparison | ✓ Phase 1 — precision and resize specs assert `renderer.info` counters, not pixels (D-08) |
 
 ## Evolution
 
@@ -98,4 +102,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-02 after initialization*
+*Last updated: 2026-11-02 after Phase 1*

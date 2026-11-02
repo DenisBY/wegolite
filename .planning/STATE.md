@@ -23,7 +23,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-02)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 01 — Foundation, Containers & Compliance
+**Current focus:** Phase 2 — Data Pipeline & Content Compiler
 
 ## Current Position
 
@@ -72,7 +72,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1] The Docker/Compose layer and Vitest 5 browser mode inside a container are unresearched; validate before Phase 1 exit.
+- [Phase 1] 23 code-review findings remain open (0 critical, 11 warning, 12 info) — quality/robustness debt, none falsifying a Phase 1 must-have; triage before the next review gate.
 - [Phase 2] Byte-determinism of generated assets across arm64 Docker vs amd64 CI is unverified; decide per-image or per-arch comparison.
 - [Phase 4] Coriolis effective gate geometry and required roll are MEDIUM confidence; measure the dock mesh before hard-coding thresholds. v1 docking damage model (bounce-only vs small hull pool) still undecided.
 - [Project] Licence election and trademark posture need a professional legal read before the first public post.
@@ -87,6 +87,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-02T21:47:44.000Z
+Last session: 2026-11-02T22:10:35.000Z
 Stopped at: Phase 01 complete, ready to plan Phase 2
 Resume file: None
