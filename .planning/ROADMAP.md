@@ -52,11 +52,22 @@ Decimal phases appear between their surrounding integers in numeric order.
   5. `LICENSE`, `NOTICE`, `ASSETS.md`, and a visible non-affiliation disclaimer are present, and no Frontier trademark appears in the product name or the shipped UI.
 **Plans**: 6 plans
 Plans:
+**Wave 1**
 - [ ] 01-01-PLAN.md — Walking skeleton: container topology serves the live shell, headless Chromium proves the camera-relative render path at 1.4e6 m
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 01-02-PLAN.md — Toolchain gates: strict TypeScript, sim purity project, ESLint import zones, Vitest unit project, guard test
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 01-03-PLAN.md — Determinism harness: pure sim core, 1/120 s accumulator, cross-cadence hash equality, golden fixture
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 01-04-PLAN.md — Precision proof: float64/ULP unit test and hardened browser smoke (log depth, placement, disclaimer, no console errors)
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 01-05-PLAN.md — Compliance and command contract: LICENSE, NOTICE, ASSETS.md, compliance test, README, AGENTS updates
+
+**Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 01-06-PLAN.md — Operational rehearsal: dev/preview smoke scripts, verify fail-fast proof, volume-free clean-state verify
 
 ### Phase 2: Data Pipeline & Content Compiler
