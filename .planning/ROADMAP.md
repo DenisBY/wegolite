@@ -50,7 +50,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A test runs the same scripted simulation at two different frame cadences and produces identical state hashes, proving the 1/120 s fixed step.
   4. A rendered marker at 1.4e6 m from the camera stays visually stable, with no float32 jitter and no depth fighting against nearer geometry.
   5. `LICENSE`, `NOTICE`, `ASSETS.md`, and a visible non-affiliation disclaimer are present, and no Frontier trademark appears in the product name or the shipped UI.
-**Plans**: TBD
+**Plans**: 6 plans
+Plans:
+- [ ] 01-01-PLAN.md — Walking skeleton: container topology serves the live shell, headless Chromium proves the camera-relative render path at 1.4e6 m
+- [ ] 01-02-PLAN.md — Toolchain gates: strict TypeScript, sim purity project, ESLint import zones, Vitest unit project, guard test
+- [ ] 01-03-PLAN.md — Determinism harness: pure sim core, 1/120 s accumulator, cross-cadence hash equality, golden fixture
+- [ ] 01-04-PLAN.md — Precision proof: float64/ULP unit test and hardened browser smoke (log depth, placement, disclaimer, no console errors)
+- [ ] 01-05-PLAN.md — Compliance and command contract: LICENSE, NOTICE, ASSETS.md, compliance test, README, AGENTS updates
+- [ ] 01-06-PLAN.md — Operational rehearsal: dev/preview smoke scripts, verify fail-fast proof, volume-free clean-state verify
 
 ### Phase 2: Data Pipeline & Content Compiler
 **Goal**: Every system, commodity, ship, equipment item, and model the game uses is generated at build time from a pinned Oolite snapshot into typed content, and any unexplained drift fails the build.
@@ -135,7 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation, Containers & Compliance | 0/TBD | Not started | - |
+| 1. Foundation, Containers & Compliance | 0/6 | Planned | - |
 | 2. Data Pipeline & Content Compiler | 0/TBD | Not started | - |
 | 3. Flight in the Lave System | 0/TBD | Not started | - |
 | 4. Manual Docking | 0/TBD | Not started | - |
