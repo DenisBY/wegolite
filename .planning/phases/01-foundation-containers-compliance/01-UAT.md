@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 01-foundation-containers-compliance
 source: [01-VERIFICATION.md]
 started: 2026-11-02T00:00:00Z
@@ -49,5 +49,13 @@ blocked: 0
   reason: "User reported: when I resize browser window, all \"start\" disapper and don't appear also if restore to original size"
   severity: major
   test: 4
-  artifacts: []
-  missing: []
+  root_cause: "src/main.ts renders the scene exactly once at boot (line 132). The resize handler (121-127) calls renderer.setSize and updates camera.aspect but never calls renderer.render again. setSize reallocates the drawing buffer, which is cleared with preserveDrawingBuffer:false, so the canvas presents black; restoring the size re-triggers the same clear and there is no render loop or other repaint path."
+  artifacts:
+    - path: "src/main.ts"
+      issue: "resize() has no render call; the only renderer.render is the one-shot boot render at line 132"
+    - path: "tests/e2e/precision.spec.ts"
+      issue: "no resize coverage; asserts boot-time probe values only, so the defect ships green"
+  missing:
+    - "Re-render the scene after resizing the drawing buffer (add renderer.render at the end of resize(), guarding zero-size windows)"
+    - "Add a browser regression that resizes the viewport and asserts a repaint occurs"
+  debug_session: .planning/debug/resize-never-repaints.md
