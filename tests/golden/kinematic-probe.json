@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "dt": 0.008333333333333333,
+  "targetSteps": 1200,
+  "script": [
+    { "pitch": 0, "roll": 1, "thrust": 1 },
+    { "pitch": 0.5, "roll": 0, "thrust": 1 },
+    { "pitch": -0.25, "roll": -1, "thrust": 0 }
+  ],
+  "expected": {
+    "algorithm": "fnv1a32",
+    "hash": "1c079894"
+  }
+}
