@@ -15,6 +15,8 @@ validated: "2026-11-02"
 > Per-requirement validation contract for feedback sampling during execution.
 > Refreshed by `validate-phase` on 2026-11-02 against the committed tree; every
 > row below names evidence that exists on disk and was executed in the container.
+> 01-07 re-measured the suite inventory against the committed tree on 2026-11-02;
+> the current totals are 35 unit tests and 2 browser tests.
 
 ---
 
@@ -25,7 +27,7 @@ validated: "2026-11-02"
 | **Framework** | Vitest `5.0.5` (Node project `unit`) + `@playwright/test` `1.64.1` (Chromium, headless, baked into the `ci` image stage) |
 | **Config file** | `vitest.config.ts`, `playwright.config.ts` |
 | **Quick run command** | `docker compose run --rm test` — 6 files, 35 tests, ~7 s |
-| **Full suite command** | `docker compose run --rm verify` (lint → typecheck → unit → build → e2e) — ~20 s, 35 unit + 1 e2e |
+| **Full suite command** | `docker compose run --rm verify` (lint → typecheck → unit → build → e2e) — ~20 s, 35 unit + 2 e2e |
 | **Live infrastructure checks** | `sh scripts/smoke-dev.sh`, `sh scripts/smoke-preview.sh`, `sh scripts/check-verify-fails-fast.sh` (need a Docker daemon on the host; not nested inside `verify`) |
 
 ---
@@ -55,7 +57,7 @@ compose/script/docs contract and the live script is named alongside it.
 | **FOUND-05** | T-01-04, T-01-05, T-01-06 | Strict TS + a `src/sim/` zone that rejects Three imports and DOM globals; gates can actually fail | unit + compiler/linter | `tests/guards/sim-purity.test.ts` writes probes at runtime and proves ESLint `no-restricted-imports` / `no-restricted-globals` and `tsc -p tsconfig.sim.json` `TS2584` fire. Clean-tree `docker compose run --rm lint` and `--rm typecheck` are green in `verify`. | ✅ green |
 | **FOUND-06** | — | `LICENSE`, `NOTICE`, `ASSETS.md`, and a shipped non-affiliation/trademark disclaimer | unit + e2e | `tests/compliance.test.ts` (10 cases: canonical GPL text hash, NOTICE election/attribution/CC terms/source offer/disclaimer, ASSETS columns, title and package-name trademark check, tree-wide SPDX walk with vacuity guard); the e2e spec asserts the footer text in the built shell. | ✅ green |
 | **FOUND-07** | T-01-07, T-01-08 | Deterministic 1/120 s fixed step; identical state hash across cadences | unit | `src/sim/cadence.test.ts` (one hash at 30/60/120/144 Hz to 1200 steps; measured 144 Hz one-second counter-example; non-finite rejection) and `tests/golden/kinematic-probe.test.ts` (versioned fixture replays to `1c079894`). | ✅ green |
-| **FOUND-08** | — | Camera-relative marker at 1.4e6 m without float32 jitter or z-fighting | unit + e2e | `src/render/camera-relative.test.ts` (exact 100 m separation at 1e6 m; `f32Ulp(1.4e6) === 0.125`; half-ULP bound proving no `Math.fround`); `tests/e2e/precision.spec.ts` asserts WebGL2, log depth, depth bits, `nearRelZ`/`farRelZ`/`farUlp`, and zero console/page errors. | ✅ green |
+| **FOUND-08** | — | Camera-relative marker at 1.4e6 m without float32 jitter or z-fighting | unit + e2e | `src/render/camera-relative.test.ts` (exact 100 m separation at 1e6 m; `f32Ulp(1.4e6) === 0.125`; half-ULP bound proving no `Math.fround`); `tests/e2e/precision.spec.ts` asserts WebGL2, log depth, depth bits, `nearRelZ`/`farRelZ`/`farUlp`, and zero console/page errors; `tests/e2e/resize.spec.ts` proves a repaint after resizing and after restoring the window (render-counter advance plus drawing-buffer size). | ✅ green |
 | **FOUND-09** | — | `AGENTS.md` documents the container-only workflow; commands work verbatim | unit (contract) + live rehearsal | `tests/contract/container-contract.test.ts` requires the set of `docker compose run --rm` / `up` targets in both `AGENTS.md` and `README.md` to equal the declared Compose services exactly, and every referenced `npm run <script>` to exist in `package.json`. The scripts and cold-state `verify` rehearsal execute the commands verbatim. | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
@@ -83,7 +85,7 @@ Added `tests/contract/container-contract.test.ts` (16 tests), committed as `b953
 ### Result after closure
 
 - `docker compose run --rm test`: **6 files / 35 tests** green.
-- `docker compose run --rm verify`: green (lint → typecheck → 35 unit → build → 1 e2e).
+- `docker compose run --rm verify`: green (lint → typecheck → 35 unit → build → 2 e2e).
 
 ### Defects found
 

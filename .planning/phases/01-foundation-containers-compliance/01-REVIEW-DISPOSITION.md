@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "Window resize resizes the drawing buffer but never repaints the scene"
   - id: WR-01
     severity: warning
@@ -79,7 +79,7 @@ findings:
     severity: info
     disposition: open
     title: "The smoke scripts install their teardown trap after `docker compose up -d`"
-open: 19
+open: 18
 total: 19
 recorded: 2026-11-02T18:50:30.825Z
 ---
@@ -88,7 +88,7 @@ recorded: 2026-11-02T18:50:30.825Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
+| CR-01 | critical | fixed | 01-07-PLAN.md |
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
 | WR-03 | warning | open | - |
