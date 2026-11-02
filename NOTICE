@@ -1,0 +1,60 @@
+# Wegolite — notice and attribution
+
+## 1. Wegolite
+
+Copyright © 2026 Wegolite contributors.
+
+Wegolite is free software: you may redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, version 2 of the License, or (at your option) any later version. The
+SPDX identifier for this election is `GPL-2.0-or-later`.
+
+The unmodified licence text is in `LICENSE`. That file is the canonical GNU
+General Public License version 2 exactly as published by the Free Software
+Foundation, so it records no version election of its own; the "or any later
+version" election is stated here, as the FSF's own guidance requires.
+
+## 2. Oolite
+
+Wegolite is a fan reimplementation of the core single-player loop of Oolite, the
+open-source Elite-style game.
+
+Copyright © 2004-2026 Giles C Williams, Jens Ayton and contributors.
+
+Oolite is licensed under the GNU General Public License, version 2, or any later
+version.
+
+## 3. Oolite artwork and configuration files — CC BY-NC-SA 3.0
+
+Oolite's artwork — its 3D models, images and sounds — as well as its
+configuration files are also available under the Creative Commons
+Attribution-NonCommercial-ShareAlike 3.0 licence, at the recipient's discretion.
+Wegolite takes the CC BY-NC-SA 3.0 option for every Oolite-derived artwork or
+configuration file it reuses. Those files stay CC BY-NC-SA 3.0: attribution is
+required, commercial use is not permitted, and derivative works must be shared
+under the same terms. They are never relicensed under the GPL.
+
+Creative Commons Attribution-NonCommercial-ShareAlike 3.0:
+http://creativecommons.org/licenses/by-nc-sa/3.0/
+
+Every reused asset and every reused configuration file is recorded, with its
+origin and licence, in `ASSETS.md`. Wegolite's own source code is
+GPL-2.0-or-later and is not covered by the CC BY-NC-SA 3.0 terms above.
+
+## 4. Corresponding source
+
+The complete corresponding source for every distributed build of Wegolite is
+available at:
+
+https://github.com/DenisBY/wegolite
+
+## 5. Non-affiliation and trademarks
+
+Wegolite is an unofficial fan project. Not affiliated with, endorsed by, or
+connected to the Oolite project, Frontier Developments plc, David Braben or Ian
+Bell. Elite and Cobra are trademarks of Frontier Developments plc.
+
+## 6. Status of this document
+
+This wording is engineering risk reduction, not legal advice; a professional
+legal review is still required before the first public release.
