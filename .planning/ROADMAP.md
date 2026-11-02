@@ -50,7 +50,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A test runs the same scripted simulation at two different frame cadences and produces identical state hashes, proving the 1/120 s fixed step.
   4. A rendered marker at 1.4e6 m from the camera stays visually stable, with no float32 jitter and no depth fighting against nearer geometry.
   5. `LICENSE`, `NOTICE`, `ASSETS.md`, and a visible non-affiliation disclaimer are present, and no Frontier trademark appears in the product name or the shipped UI.
-**Plans**: 6/6 plans executed
+**Plans**: 7/7 plans executed
 Plans:
 **Wave 1**
 - [x] 01-01-PLAN.md — Walking skeleton: container topology serves the live shell, headless Chromium proves the camera-relative render path at 1.4e6 m
@@ -69,6 +69,9 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 - [x] 01-06-PLAN.md — Operational rehearsal: dev/preview smoke scripts, verify fail-fast proof, volume-free clean-state verify
+
+**Wave 7** *(gap closure — G-01-4 / CR-01)*
+- [x] 01-07-PLAN.md — Resize repaint: render once per resize event behind a zero-size guard, plus a Playwright regression for resize and restore
 
 ### Phase 2: Data Pipeline & Content Compiler
 **Goal**: Every system, commodity, ship, equipment item, and model the game uses is generated at build time from a pinned Oolite snapshot into typed content, and any unexplained drift fails the build.
@@ -153,7 +156,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation, Containers & Compliance | 6/6 | In Progress | - |
+| 1. Foundation, Containers & Compliance | 7/7 | In Progress | - |
 | 2. Data Pipeline & Content Compiler | 0/TBD | Not started | - |
 | 3. Flight in the Lave System | 0/TBD | Not started | - |
 | 4. Manual Docking | 0/TBD | Not started | - |
