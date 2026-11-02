@@ -26,6 +26,7 @@ export interface WegoliteProbe {
   nearRelZ: number;
   farRelZ: number;
   farUlp: number;
+  renders: number;
 }
 
 declare global {
@@ -118,18 +119,31 @@ place(nearBox, NEAR_WORLD);
 place(farMarker, FAR_WORLD);
 place(starfield, CAMERA_WORLD);
 
+function renderFrame(): void {
+  renderer.render(scene, camera);
+  // The probe is published after the boot render, so the guard keeps that
+  // first call safe while still refreshing from three's own counters.
+  if (window.__wegolite) {
+    window.__wegolite.calls = renderer.info.render.calls;
+    window.__wegolite.triangles = renderer.info.render.triangles;
+    window.__wegolite.renders = renderer.info.render.frame;
+  }
+}
+
 function resize(): void {
   const width = window.innerWidth;
   const height = window.innerHeight;
+  // A minimised or hidden window reports a zero dimension; resizing to it
+  // would compute an Infinity aspect and an empty drawing buffer.
+  if (width === 0 || height === 0) return;
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  renderFrame();
 }
 
 window.addEventListener("resize", resize);
 resize();
-
-renderer.render(scene, camera);
 
 // D-05: a static status line, always visible, written with textContent (S-7).
 statusElement.textContent =
@@ -158,4 +172,5 @@ window.__wegolite = {
   nearRelZ: nearBox.position.z,
   farRelZ: farMarker.position.z,
   farUlp: f32Ulp(FAR_M),
+  renders: renderer.info.render.frame,
 };
