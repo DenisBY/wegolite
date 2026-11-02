@@ -1,0 +1,81 @@
+name: wegolite
+
+# One shared workspace definition (D-04, PATTERNS §2 Pattern 2). EVERY command
+# service inherits it — including the bind mount and the named node_modules
+# volume — because `docker compose run` does not rebuild: without the mount it
+# would verify stale image content instead of the working tree.
+#
+# `ci` is a Dockerfile stage and the image tag `wegolite-ci`, NOT a Compose
+# service. `docker compose run` resolves service names only, so one-off tools
+# run either through a declared service with a command override
+# (`docker compose run --rm lint npx prettier --write .`) or directly against
+# the image (`docker run --rm wegolite-ci <cmd>`). Never name `ci` as a run
+# target.
+#
+# After any package.json / package-lock.json change run
+# `docker compose down --volumes` (not just `build`): a named volume is
+# populated from the image exactly once and otherwise keeps its old contents.
+x-workspace: &workspace
+  build:
+    context: .
+    target: ci
+  image: wegolite-ci
+  init: true
+  volumes:
+    - .:/app
+    - wegolite-node-modules:/app/node_modules
+
+services:
+  app:
+    <<: *workspace
+    ports:
+      - "5173:5173"
+    command: ["npm", "run", "dev"]
+
+  preview:
+    <<: *workspace
+    ports:
+      - "4173:4173"
+    # FOUND-02: `up preview` serves the production bundle, so build first.
+    command: ["sh", "-lc", "npm run build && npm run preview"]
+
+  test:
+    <<: *workspace
+    command: ["npm", "test"]
+
+  e2e:
+    <<: *workspace
+    # Playwright recommends --ipc=host for Chromium: without it the browser can
+    # run out of shared memory and crash.
+    ipc: host
+    # `vite preview` serves dist/, so the bundle must exist before the browser
+    # test starts. Inside `verify` the chain already built, so that service
+    # calls `npm run test:e2e` directly instead of rebuilding.
+    command: ["sh", "-lc", "npm run build && npm run test:e2e"]
+
+  lint:
+    <<: *workspace
+    command: ["npm", "run", "lint"]
+
+  typecheck:
+    <<: *workspace
+    command: ["npm", "run", "typecheck"]
+
+  verify:
+    <<: *workspace
+    ipc: host
+    # D-03: one fail-fast shell chain in one container. `&&` (not `;`, not
+    # `set -e` with semicolons) is what makes the first failing stage
+    # short-circuit. No depends_on fan-in and no orchestration script.
+    command:
+      - sh
+      - -lc
+      - >-
+        npm run lint &&
+        npm run typecheck &&
+        npm run test &&
+        npm run build &&
+        npm run test:e2e
+
+volumes:
+  wegolite-node-modules:

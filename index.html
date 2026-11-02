@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wegolite — foundation build</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+      }
+
+      #view {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      #overlay {
+        position: absolute;
+        top: 1rem;
+        left: 1rem;
+        color: #cfc;
+        font: 13px/1.4 monospace;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="overlay"><div id="title">Wegolite — foundation build</div></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
