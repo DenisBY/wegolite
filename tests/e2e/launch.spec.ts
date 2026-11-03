@@ -116,3 +116,54 @@ test("a launch after the first viewing skips on any key", async ({ page }) => {
   expect(after.clock - clockBefore).toBeLessThan(604);
   expect(errors).toEqual([]);
 });
+
+test("the break pattern covers the launch and freezes with pause", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await bootToDocked(page);
+  await page.click('button[data-action="launch"]');
+  await waitForMode(page, "launching");
+
+  // The overlay draws on the HUD canvas in device pixels; a zero backing store
+  // would mean the break pattern has nowhere to draw (Pitfall 10).
+  const hud = await page.evaluate(() => {
+    const canvas = document.getElementById("hud");
+    return canvas instanceof HTMLCanvasElement
+      ? { width: canvas.width, height: canvas.height }
+      : null;
+  });
+  expect(hud?.width ?? 0).toBeGreaterThan(0);
+  expect(hud?.height ?? 0).toBeGreaterThan(0);
+
+  // The launch timer advances on fixed steps, not wall time.
+  const first = (await getProbe(page)).launch.elapsed;
+  await page.waitForFunction(
+    (start) => {
+      const probe = window.__wegolite;
+      return probe !== undefined && probe.launch.elapsed > start;
+    },
+    first,
+    { timeout: 20_000 },
+  );
+
+  // Pause freezes the same timer: no step runs, so no hidden time is replayed.
+  await press(page, "p");
+  await page.waitForFunction(
+    () => window.__wegolite?.paused === true,
+    undefined,
+    { timeout: 10_000 },
+  );
+  const frozen = (await getProbe(page)).launch.elapsed;
+  await page.waitForTimeout(750);
+  expect((await getProbe(page)).launch.elapsed).toBe(frozen);
+
+  await press(page, "p");
+  await waitForMode(page, "inFlight");
+  expect(errors).toEqual([]);
+});

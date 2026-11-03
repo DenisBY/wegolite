@@ -31,6 +31,8 @@ import type { SceneManager } from "./scene-manager.js";
 import { createLaunchSequence } from "./launch-sequence.js";
 import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
+import { createBreakPattern } from "../render/break-pattern.js";
+import type { BreakPattern } from "../render/break-pattern.js";
 import { createHud } from "../render/hud/hud.js";
 import type { Hud } from "../render/hud/hud.js";
 import type { HudModel } from "../render/hud/draw.js";
@@ -144,6 +146,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let config: FlightConfig | undefined;
   let scene: SystemScene | undefined;
   let hud: Hud | undefined;
+  let breakPattern: BreakPattern | undefined;
   let input: KeyboardInputSource | undefined;
   let loop: GameLoop | undefined;
   let settings: SettingsV1 | undefined;
@@ -432,14 +435,27 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const docked = currentState.mode === "docked";
     hudCanvas.hidden = docked;
     if (!docked) {
-      const model = buildHudModel(
-        currentState,
-        currentLayout,
-        currentConfig,
-        messages.current(currentState.flightTime),
-      );
-      currentHud.draw(model);
-      lastModel = model;
+      const currentBreakPattern = breakPattern;
+      if (
+        currentState.mode === "launching" &&
+        currentBreakPattern !== undefined
+      ) {
+        // D-10: the break pattern covers the cut to the cockpit, and is driven
+        // by the same fixed-step timeline as the launch itself.
+        currentBreakPattern.draw(
+          launchSequence.elapsed,
+          currentState.launchCount,
+        );
+      } else {
+        const model = buildHudModel(
+          currentState,
+          currentLayout,
+          currentConfig,
+          messages.current(currentState.flightTime),
+        );
+        currentHud.draw(model);
+        lastModel = model;
+      }
     }
     updateProbe();
   }
@@ -544,6 +560,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     scene = nextScene;
     hud = createHud(hudCanvas);
     hud.resize();
+    breakPattern = createBreakPattern(hudCanvas);
     hudCanvas.hidden = true;
 
     const loaded = loadSettings();
@@ -628,6 +645,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     settingsPanel?.dispose();
     scenes.dispose();
     assets.dispose();
+    breakPattern?.dispose();
     hud?.dispose();
     docked.dispose();
     title.dispose();

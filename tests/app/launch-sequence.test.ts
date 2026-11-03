@@ -19,6 +19,14 @@ import {
   LAUNCH_TUNNEL_END,
   launchPhaseAt,
 } from "../../src/app/launch-sequence.js";
+import {
+  BREAK_DURATION,
+  BREAK_FLASH_END,
+  BREAK_LINE_COUNT,
+  BREAK_TUNNEL_END,
+  breakPatternLines,
+  breakPatternPhase,
+} from "../../src/render/break-pattern.js";
 import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
 import { LAUNCH_DURATION } from "../../src/sim/flight/launch.js";
 import { CLOCK_START, initFlightState } from "../../src/sim/flight/state.js";
@@ -34,6 +42,19 @@ const launchSequenceSource = readFileSync(
   new URL("../../src/app/launch-sequence.ts", import.meta.url),
   "utf8",
 );
+
+const breakPatternSource = readFileSync(
+  new URL("../../src/render/break-pattern.ts", import.meta.url),
+  "utf8",
+);
+
+/** Drop comment-only lines so documentation cannot satisfy an assertion. */
+function stripComments(source: string): string {
+  return source
+    .split("\n")
+    .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+    .join("\n");
+}
 
 function step(state: FlightState, commands: readonly Command[] = []): void {
   stepFlight(state, layout, config, ZERO_INTENT, commands, DT);
@@ -161,9 +182,42 @@ describe("launch clock", () => {
 
 describe("launch-sequence determinism", () => {
   it("contains no wall clock", () => {
-    expect(launchSequenceSource.length).toBeGreaterThan(1_000);
-    expect(launchSequenceSource).not.toMatch(/Math\.random/);
-    expect(launchSequenceSource).not.toMatch(/\bperformance\b/);
-    expect(launchSequenceSource).not.toMatch(/\bDate\.now\b|\bnew Date\b/);
+    const code = stripComments(launchSequenceSource);
+    expect(code.length).toBeGreaterThan(1_000);
+    expect(code).not.toMatch(/Math\.random/);
+    expect(code).not.toMatch(/\bperformance\b/);
+    expect(code).not.toMatch(/\bDate\.now\b|\bnew Date\b/);
+  });
+});
+
+describe("break pattern", () => {
+  it("follows the 0.2/1.6/2.0 timeline", () => {
+    expect(breakPatternPhase(0)).toBe("flash");
+    expect(breakPatternPhase(BREAK_FLASH_END - 0.001)).toBe("flash");
+    expect(breakPatternPhase(BREAK_FLASH_END)).toBe("tunnel");
+    expect(breakPatternPhase(BREAK_TUNNEL_END - 0.001)).toBe("tunnel");
+    expect(breakPatternPhase(BREAK_TUNNEL_END)).toBe("fade");
+    expect(breakPatternPhase(BREAK_DURATION - 0.001)).toBe("fade");
+    expect(breakPatternPhase(BREAK_DURATION)).toBe("done");
+  });
+
+  it("is deterministic for the same launch count and differs across counts", () => {
+    expect(breakPatternLines(1)).toHaveLength(BREAK_LINE_COUNT);
+    expect(breakPatternLines(1)).toEqual(breakPatternLines(1));
+    expect(breakPatternLines(1)).not.toEqual(breakPatternLines(2));
+
+    for (const line of breakPatternLines(3)) {
+      expect(Number.isFinite(line.angle)).toBe(true);
+      expect(Number.isFinite(line.radius)).toBe(true);
+      expect(Number.isFinite(line.length)).toBe(true);
+    }
+  });
+
+  it("uses no wall clock or unseeded randomness", () => {
+    const code = stripComments(breakPatternSource);
+    expect(code.length).toBeGreaterThan(1_000);
+    expect(code).not.toMatch(/Math\.random/);
+    expect(code).not.toMatch(/\bperformance\b/);
+    expect(code).not.toMatch(/\bDate\.now\b|\bnew Date\b/);
   });
 });
