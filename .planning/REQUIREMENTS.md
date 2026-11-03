@@ -27,9 +27,9 @@ Requirements for the initial release. Each maps to a roadmap phase.
 - [x] **DATA-04**: The converter emits GLB plus a content manifest, applying the Oolite +Z-forward to Three −Z-forward coordinate and winding conversion verified by fixture
 - [x] **DATA-05**: All 2,048 systems across all eight galaxies are ingested from `planetinfo.plist` with stable IDs, names, and positions
 - [x] **DATA-06**: All 17 commodities are ingested from `trade-goods.plist` with correct units (decicredits, kg, g), and Alien Items are parsed but never tradeable
-- [ ] **DATA-07**: Cobra Mk III, Coriolis station, equipment catalogue, and Lave starting-system data are available as typed, compiled content
-- [ ] **DATA-08**: Golden fidelity tests compare generated content against a pinned Oolite snapshot, and the build fails on unexplained drift
-- [ ] **DATA-09**: The Oolite source snapshot is pinned to a specific release/commit and recorded in the repository
+- [x] **DATA-07**: Cobra Mk III, Coriolis station, equipment catalogue, and Lave starting-system data are available as typed, compiled content
+- [x] **DATA-08**: Golden fidelity tests compare generated content against a pinned Oolite snapshot, and the build fails on unexplained drift
+- [x] **DATA-09**: The Oolite source snapshot is pinned to a specific release/commit and recorded in the repository
 
 ### World Rendering & Scale
 
@@ -161,9 +161,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DATA-04 | Phase 2 | Complete |
 | DATA-05 | Phase 2 | Complete |
 | DATA-06 | Phase 2 | Complete |
-| DATA-07 | Phase 2 | Pending |
-| DATA-08 | Phase 2 | Pending |
-| DATA-09 | Phase 2 | Pending |
+| DATA-07 | Phase 2 | Complete |
+| DATA-08 | Phase 2 | Complete |
+| DATA-09 | Phase 2 | Complete |
 | WORLD-01 | Phase 3 | Pending |
 | WORLD-02 | Phase 3 | Pending |
 | WORLD-03 | Phase 3 | Pending |
