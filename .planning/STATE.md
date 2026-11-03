@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 02
 current_phase_name: Data Pipeline & Content Compiler
 status: executing
-stopped_at: Completed 02-06-PLAN.md (human letterbox check deferred to end-of-phase)
-last_updated: "2026-11-03T12:20:41.994Z"
+stopped_at: Completed 02-07-PLAN.md
+last_updated: "2026-11-03T12:33:58.176Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 02 execution started
-state_head: 03eb0f7ff41a2762c5d1749ca7d88e0a1419284c
+state_head: 104e0e1146ec6d599f84a2c3bd839088b839dd31
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 16
-  completed_plans: 13
+  completed_plans: 14
   percent: 14
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 02 (Data Pipeline & Content Compiler) — EXECUTING
-Plan: 7 of 9
+Plan: 8 of 9
 Status: Ready to execute
 Last activity: 2026-11-03 — Phase 02 execution started
 
@@ -62,6 +62,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P04 | 7 min | 3 tasks | 15 files |
 | Phase 02 P05 | 14 min | 3 tasks | 14 files |
 | Phase 02 P06 | 21 min | 3 tasks | 14 files |
+| Phase 02 P07 | 10 min | 3 tasks | 50 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Recent decisions affecting current work:
 - [Phase 02]: The golden records the writer's float32-exact converted bounds so the assertion is exact, and -0 is normalised to 0 so a bound compares equal to the recorded 0.
 - [Phase 02]: Specular maps ride KHR_materials_specular because core glTF has no specular slot; extras.oolite keeps the authored name beside it.
 - [Phase 02]: The UV handedness handoff is explicit: v-flip decided by plan 07's asymmetric-PNG fixture, applied in exactly one place if needed.
+- [Phase 02]: The texture closure imports EMITTED_ENTRIES rather than restating the entry list, and both directions are fatal: a reference outside the 16-name allowlist and an allowlisted file with no reference each fail the build.
+- [Phase 02]: decodePng is header-first and limited to non-interlaced 8-bit colour-type-6 with an 8192 cap; decodeGreyscalePng is a separate path so the colour-type-6 contract stays strict.
+- [Phase 02]: emissiveFile is exported from convert/glb.ts and imported by the bake, so the GLB emissiveTexture URI and the written _emissive.png cannot drift apart.
 
 ### Pending Todos
 
@@ -116,6 +120,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T12:20:41.876Z
-Stopped at: Completed 02-06-PLAN.md (human letterbox check deferred to end-of-phase)
+Last session: 2026-11-03T12:33:50.049Z
+Stopped at: Completed 02-07-PLAN.md
 Resume file: None

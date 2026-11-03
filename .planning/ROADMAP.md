@@ -83,7 +83,7 @@ Plans:
   2. All 2,048 systems across the eight galaxies and all 17 commodities are available as typed content with stable IDs, correct units, and Alien Items present but never tradeable.
   3. The Cobra Mk III and Coriolis load in-engine with correct orientation, winding, per-face normals, and bounding boxes, and the Coriolis letterbox reads correctly rather than mirrored.
   4. A malformed plist, a cyclic `like_ship` chain, or a broken mesh fails with a message naming the file and construct instead of producing a silently wrong number.
-**Plans**: 6/9 plans executed
+**Plans**: 7/9 plans executed
 Plans:
 **Wave 1**
 - [x] 02-01-PLAN.md — Tracer: pinned snapshot, OpenStep parser, canonical JSON, manifest, `assets:build`/`assets:check` gate wired into `verify`, 17 commodities emitted
@@ -104,7 +104,7 @@ Plans:
 - [x] 02-06-PLAN.md — In-repo GLB writer: Cobra and the four-part Coriolis composite, axis conversion (reflection already yields glTF CCW; authored corners preserved), materials, dock transform
 
 **Wave 7** *(blocked on Wave 6)*
-- [ ] 02-07-PLAN.md — Textures: referenced PNGs copied verbatim, deterministic greyscale emissive bake, V-orientation fixture
+- [x] 02-07-PLAN.md — Textures: referenced PNGs copied verbatim, deterministic greyscale emissive bake, V-orientation fixture
 
 **Wave 8** *(blocked on Wave 7)*
 - [ ] 02-08-PLAN.md — Determinism guards: generator lint zone banning nondeterministic APIs, plus the arm64 vs amd64 byte-identity proof with an empty exclusion list
@@ -184,7 +184,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation, Containers & Compliance | 7/7 | Complete    | 2026-11-02 |
-| 2. Data Pipeline & Content Compiler | 6/9 | In Progress | - |
+| 2. Data Pipeline & Content Compiler | 7/9 | In Progress | - |
 | 3. Flight in the Lave System | 0/TBD | Not started | - |
 | 4. Manual Docking | 0/TBD | Not started | - |
 | 5. Docked Economy & Station Screens | 0/TBD | Not started | - |
