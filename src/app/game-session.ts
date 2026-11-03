@@ -31,6 +31,7 @@ import type { SceneManager } from "./scene-manager.js";
 import type { AssetCache } from "../render/asset-cache.js";
 import { createHud } from "../render/hud/hud.js";
 import type { Hud } from "../render/hud/hud.js";
+import type { HudModel } from "../render/hud/draw.js";
 import {
   applyFrame,
   applyStationRoll,
@@ -105,6 +106,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let paused = false;
   let launchSeen = false;
   let message = "";
+  let lastModel: HudModel | undefined;
   let lastMs = 0;
   let rafId = 0;
 
@@ -193,11 +195,28 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     const currentHud = hud;
     if (currentHud !== undefined) {
+      const model = lastModel;
       probe.hud = {
         drawn: currentHud.drawn,
         elements: [...currentHud.elements],
         designScale: currentHud.designScale,
         letterbox: [currentHud.letterbox[0], currentHud.letterbox[1]],
+        contacts:
+          model === undefined
+            ? []
+            : model.contacts
+                .filter((contact) => contact.visible)
+                .map((contact) => contact.id),
+        compass:
+          model === undefined
+            ? { target: "planet", forward: false }
+            : {
+                target: model.compass.target,
+                forward: model.compass.forward,
+              },
+        aegis: model === undefined ? "none" : model.aegis,
+        message: model === undefined ? "" : model.message,
+        bounds: currentHud.bounds,
       };
     }
   }
@@ -205,11 +224,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function renderFrame(alpha: number): void {
     const currentState = state;
     const currentLayout = layout;
+    const currentConfig = config;
     const currentScene = scene;
     const currentHud = hud;
     if (
       currentState === undefined ||
       currentLayout === undefined ||
+      currentConfig === undefined ||
       currentScene === undefined ||
       currentHud === undefined
     ) {
@@ -235,7 +256,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const docked = currentState.mode === "docked";
     hudCanvas.hidden = docked;
     if (!docked) {
-      currentHud.draw(buildHudModel(currentState, currentLayout, message));
+      const model = buildHudModel(
+        currentState,
+        currentLayout,
+        currentConfig,
+        message,
+      );
+      currentHud.draw(model);
+      lastModel = model;
     }
     updateProbe();
   }

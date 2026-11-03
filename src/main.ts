@@ -130,7 +130,17 @@ const probe: WegoliteProbe = {
   speed: 0,
   angular: { pitch: 0, roll: 0 },
   torus: { engaged: false, factor: 1, massLocked: false },
-  hud: { drawn: false, elements: [], designScale: 1, letterbox: [0, 0] },
+  hud: {
+    drawn: false,
+    elements: [],
+    designScale: 1,
+    letterbox: [0, 0],
+    contacts: [],
+    compass: { target: "planet", forward: false },
+    aegis: "none",
+    message: "",
+    bounds: {},
+  },
   launch: { count: 0, elapsed: 0, seen: false },
   bodies: [],
 };

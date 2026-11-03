@@ -18,7 +18,8 @@
  */
 
 import type { FlightMode } from "../sim/flight/state.js";
-import type { FlightState } from "../sim/flight/state.js";
+import type { CompassTarget, FlightState } from "../sim/flight/state.js";
+import type { AegisStatus } from "../sim/world/aegis.js";
 import { vec } from "../sim/math.js";
 
 export interface WegoliteWorldProbe {
@@ -30,11 +31,23 @@ export interface WegoliteWorldProbe {
   maxRelativeMagnitude: number;
 }
 
+export interface WegoliteHudCompassProbe {
+  target: CompassTarget;
+  forward: boolean;
+}
+
 export interface WegoliteHudProbe {
   drawn: boolean;
   elements: string[];
   designScale: number;
   letterbox: [number, number];
+  /** Visible scanner contacts, by body id (station/navBuoy/witchpoint). */
+  contacts: string[];
+  compass: WegoliteHudCompassProbe;
+  aegis: AegisStatus;
+  message: string;
+  /** Design-space bounding boxes, so the proof is numeric, never a screenshot. */
+  bounds: Record<string, readonly [number, number, number, number]>;
 }
 
 export interface WegoliteTestHook {
@@ -126,7 +139,17 @@ export function publishFailure(reason: string): void {
     speed: 0,
     angular: { pitch: 0, roll: 0 },
     torus: { engaged: false, factor: 1, massLocked: false },
-    hud: { drawn: false, elements: [], designScale: 1, letterbox: [0, 0] },
+    hud: {
+      drawn: false,
+      elements: [],
+      designScale: 1,
+      letterbox: [0, 0],
+      contacts: [],
+      compass: { target: "planet", forward: false },
+      aegis: "none",
+      message: "",
+      bounds: {},
+    },
     launch: { count: 0, elapsed: 0, seen: false },
     bodies: [],
     error: reason,

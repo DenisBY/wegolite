@@ -40,3 +40,18 @@ export function formatSpeed(speed: number): string {
 export function formatFuel(fuelTenths: number): string {
   return `${(fuelTenths / 10).toFixed(1)} LY`;
 }
+
+/** The message line is ~900 design px wide at 28px monospace. */
+export const MAX_MESSAGE_CHARS = 54;
+
+/**
+ * Clamp a message to one line with an ellipsis on overflow.
+ *
+ * The sim never produces UI copy; the app owns the string, so this is the last
+ * point before it is drawn. `maxChars` counts the ellipsis as one character.
+ */
+export function clampMessage(text: string, maxChars: number): string {
+  if (maxChars <= 0) return "";
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars - 1)}…`;
+}

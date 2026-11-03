@@ -15,10 +15,15 @@ import {
   HUD_DESIGN_HEIGHT,
   HUD_DESIGN_WIDTH,
   HUD_ELEMENTS,
+  HUD_LAYOUT,
 } from "./draw.js";
 import type { HudModel } from "./draw.js";
 
 const MAX_DEVICE_PIXEL_RATIO = 2;
+
+export type HudBounds = Readonly<
+  Record<string, readonly [number, number, number, number]>
+>;
 
 export interface Hud {
   resize(): void;
@@ -26,8 +31,17 @@ export interface Hud {
   readonly elements: readonly string[];
   readonly designScale: number;
   readonly letterbox: readonly [number, number];
+  readonly bounds: HudBounds;
   readonly drawn: boolean;
   dispose(): void;
+}
+
+function buildBounds(): HudBounds {
+  const bounds: Record<string, readonly [number, number, number, number]> = {};
+  for (const [id, rect] of Object.entries(HUD_LAYOUT)) {
+    bounds[id] = [rect.x, rect.y, rect.width, rect.height];
+  }
+  return bounds;
 }
 
 function requireContext2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
@@ -42,14 +56,32 @@ function requireContext2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
 
 export function createHud(canvas: HTMLCanvasElement): Hud {
   const context = requireContext2d(canvas);
+  const bounds = buildBounds();
 
   let scale = 1;
   let offsetX = 0;
   let offsetY = 0;
   let drawn = false;
+  let watchedDpr = 0;
+  let dprQuery: MediaQueryList | undefined;
 
   function applyTransform(): void {
     context.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+  }
+
+  function onDprChange(): void {
+    resize();
+  }
+
+  function watchDpr(dpr: number): void {
+    if (dpr === watchedDpr) return;
+    watchedDpr = dpr;
+    dprQuery?.removeEventListener("change", onDprChange);
+    // A DPR change without a resize event (moving between displays) must still
+    // reallocate the backing store; the media query is the only browser signal.
+    if (typeof window.matchMedia !== "function") return;
+    dprQuery = window.matchMedia(`(resolution: ${dpr}dppx)`);
+    dprQuery.addEventListener("change", onDprChange);
   }
 
   function resize(): void {
@@ -72,15 +104,21 @@ export function createHud(canvas: HTMLCanvasElement): Hud {
     offsetX = (canvas.width - HUD_DESIGN_WIDTH * scale) / 2;
     offsetY = (canvas.height - HUD_DESIGN_HEIGHT * scale) / 2;
     applyTransform();
+    watchDpr(dpr);
   }
 
   function draw(model: HudModel): void {
+    // A 0x0 backing store has no transform to draw with; skip the frame rather
+    // than set a zero scale (Pitfall 10).
+    if (canvas.width === 0 || canvas.height === 0) return;
     applyTransform();
     drawHud(context, model);
     drawn = true;
   }
 
   function dispose(): void {
+    dprQuery?.removeEventListener("change", onDprChange);
+    dprQuery = undefined;
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, canvas.width, canvas.height);
     drawn = false;
@@ -97,6 +135,9 @@ export function createHud(canvas: HTMLCanvasElement): Hud {
     },
     get letterbox(): readonly [number, number] {
       return [offsetX, offsetY];
+    },
+    get bounds(): HudBounds {
+      return bounds;
     },
     get drawn(): boolean {
       return drawn;
