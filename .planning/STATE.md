@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 02
 current_phase_name: Data Pipeline & Content Compiler
 status: executing
-stopped_at: Completed 02-07-PLAN.md
-last_updated: "2026-11-03T12:33:58.176Z"
+stopped_at: Completed 02-08-PLAN.md
+last_updated: "2026-11-03T12:41:01.586Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 02 execution started
-state_head: 104e0e1146ec6d599f84a2c3bd839088b839dd31
+state_head: 28ecc2d16806665344aebe44405f7dfe5440c792
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 16
-  completed_plans: 14
+  completed_plans: 15
   percent: 14
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 02 (Data Pipeline & Content Compiler) — EXECUTING
-Plan: 8 of 9
+Plan: 9 of 9
 Status: Ready to execute
 Last activity: 2026-11-03 — Phase 02 execution started
 
@@ -63,6 +63,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P05 | 14 min | 3 tasks | 14 files |
 | Phase 02 P06 | 21 min | 3 tasks | 14 files |
 | Phase 02 P07 | 10 min | 3 tasks | 50 files |
+| Phase 02 P08 | 4 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,9 @@ Recent decisions affecting current work:
 - [Phase 02]: The texture closure imports EMITTED_ENTRIES rather than restating the entry list, and both directions are fatal: a reference outside the 16-name allowlist and an allowlisted file with no reference each fail the build.
 - [Phase 02]: decodePng is header-first and limited to non-interlaced 8-bit colour-type-6 with an 8192 cap; decodeGreyscalePng is a separate path so the colour-type-6 contract stays strict.
 - [Phase 02]: emissiveFile is exported from convert/glb.ts and imported by the bake, so the GLB emissiveTexture URI and the written _emissive.png cannot drift apart.
+- [Phase 02]: Determinism bans apply only to tools/oolite-ingest/**, never to src/sim or src/render; the safe Math surface (sqrt/min/max/abs/floor/round/ceil/imul/fround) stays unrestricted and is proven to pass.
+- [Phase 02]: check-arch-determinism.sh builds the deps stage for linux/arm64 and linux/amd64, regenerates in isolated trees, and uses exit 1 for a byte difference and exit 2 for an unrunnable environment; no force/skip override exists.
+- [Phase 02]: The arm64/amd64 byte-identity measurement remains outstanding on this host (no QEMU binfmt); the script's Result line records the gap and the CI invocation rather than claiming a pass.
 
 ### Pending Todos
 
@@ -120,6 +124,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T12:33:50.049Z
-Stopped at: Completed 02-07-PLAN.md
+Last session: 2026-11-03T12:41:01.474Z
+Stopped at: Completed 02-08-PLAN.md
 Resume file: None
