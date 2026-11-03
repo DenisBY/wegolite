@@ -1,11 +1,14 @@
 ---
 phase: "3"
 slug: "flight-in-the-lave-system"
-status: complete
+# status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
+# audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false)
+status: validated
 nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-03"
 reconciled: "2026-11-03"
+updated: "2026-11-03"
 ---
 
 # Phase 3 — Validation Strategy
@@ -104,7 +107,7 @@ reconciled: "2026-11-03"
 - [x] Feedback latency < 60s
 - [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** complete (automated; manual rows listed)
+**Approval:** validated 2026-11-03 — 13 evidence rows mapped, 0 gaps, 6 manual-only items. Full `docker compose run --rm verify` green in-container (449 unit tests, 26 Playwright specs).
 
 ---
 
@@ -112,7 +115,15 @@ reconciled: "2026-11-03"
 
 `03-09` task 3 step 5 owns the final reconciliation, performed after the wave-0/task files existed:
 
-1. Frontmatter flipped to `status: complete`, `nyquist_compliant: true`, `wave_0_complete: true`.
+1. Frontmatter flipped to `status: complete`, `nyquist_compliant: true`, `wave_0_complete: true` (status later promoted to `validated` by `validate-phase`, see the audit below).
 2. Every box in § Validation Sign-Off ticked; approval recorded as automated with the manual rows listed above.
 3. Every row in § Per-Task Verification Map names the **implementing** task and its real wave (not a later test-only task).
 4. No row promises a behaviour owned by a later wave: the hint lifecycle belongs to 03-07, the torus teleport uses the mass-lock-free point pinned in 03-04/03-02, and the settings-layer denial is proved by the failing-`src/sim`/passing-`src/app` probe pair in 03-09 task 3.
+
+## Validation Audit 2026-11-03
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 6 |
