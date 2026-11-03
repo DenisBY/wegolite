@@ -1,0 +1,7 @@
+{
+  corporate = "\007 - Corporate State";
+  index = "\030";
+  backspace = "\b";
+  regex = "GeForce.*\\b5\\d{3}";
+  del = "\177";
+}
