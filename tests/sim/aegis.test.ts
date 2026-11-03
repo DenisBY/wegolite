@@ -21,12 +21,16 @@ import {
   nextCompassMode,
   resolveCompassTarget,
 } from "../../src/sim/world/aegis.js";
+import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
+import { initFlightState } from "../../src/sim/flight/state.js";
+import { stepFlight } from "../../src/sim/flight/step.js";
 import { add, scale, vec } from "../../src/sim/math.js";
 import type { Vec3 } from "../../src/sim/math.js";
+import { DT } from "../../src/sim/time.js";
 import { laveFixture } from "../helpers/lave.js";
 
 const fixture = laveFixture();
-const { layout } = fixture;
+const { layout, config } = fixture;
 const awayFromPlanet = scale(layout.stationToPlanet, -1);
 
 function fromStation(distance: number): Vec3 {
@@ -89,6 +93,45 @@ describe("compass target", () => {
     expect(resolveCompassTarget(fromPlanet(200_000), "auto", layout)).toBe(
       "planet",
     );
+  });
+
+  it("applies cycleCompass and targetStation through stepFlight", () => {
+    const state = initFlightState(layout);
+    stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+    stepFlight(
+      state,
+      layout,
+      config,
+      ZERO_INTENT,
+      [{ kind: "skipLaunch" }],
+      DT,
+    );
+
+    // Auto resolves to the station inside the docking-range aegis.
+    expect(state.compassMode).toBe("auto");
+    expect(state.compassTarget).toBe("station");
+
+    stepFlight(
+      state,
+      layout,
+      config,
+      ZERO_INTENT,
+      [{ kind: "cycleCompass" }],
+      DT,
+    );
+    expect(state.compassMode).toBe("planet");
+    expect(state.compassTarget).toBe("planet");
+
+    stepFlight(
+      state,
+      layout,
+      config,
+      ZERO_INTENT,
+      [{ kind: "targetStation" }],
+      DT,
+    );
+    expect(state.compassMode).toBe("station");
+    expect(state.compassTarget).toBe("station");
   });
 });
 

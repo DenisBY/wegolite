@@ -21,6 +21,10 @@ import {
   formatFuel,
   formatSpeed,
 } from "../../src/render/hud/format.js";
+import {
+  MESSAGE_DURATION_SECONDS,
+  createMessageQueue,
+} from "../../src/render/hud/messages.js";
 
 const CLOCK_START = 2_084_004 * 86_400;
 
@@ -73,5 +77,47 @@ describe("locale independence", () => {
     expect(source).not.toContain("Intl");
     expect(source).not.toContain("toLocaleString");
     expect(source).not.toContain("toLocaleDateString");
+  });
+});
+
+describe("message queue", () => {
+  it("shows one message at a time, FIFO, and expires on flightTime", () => {
+    const queue = createMessageQueue(4);
+    queue.enqueue("first");
+    queue.enqueue("second");
+    expect(queue.size).toBe(2);
+
+    expect(queue.current(0)).toBe("first");
+    expect(queue.current(MESSAGE_DURATION_SECONDS - 0.001)).toBe("first");
+    expect(queue.current(MESSAGE_DURATION_SECONDS)).toBe("second");
+    expect(queue.current(MESSAGE_DURATION_SECONDS * 2 - 0.001)).toBe("second");
+    expect(queue.current(MESSAGE_DURATION_SECONDS * 2)).toBe("");
+    expect(queue.size).toBe(0);
+  });
+
+  it("caps at four and drops the oldest message", () => {
+    const queue = createMessageQueue(4);
+    for (const text of ["a", "b", "c", "d", "e"]) queue.enqueue(text);
+
+    expect(queue.size).toBe(4);
+    // "a" was dropped when "e" arrived.
+    expect(queue.current(0)).toBe("b");
+  });
+
+  it("freezes expiry when flightTime does not advance (pause)", () => {
+    const queue = createMessageQueue();
+    queue.enqueue("hint");
+
+    expect(queue.current(10)).toBe("hint");
+    // A paused frame samples the same flightTime repeatedly.
+    expect(queue.current(10)).toBe("hint");
+    expect(queue.current(10 + MESSAGE_DURATION_SECONDS - 0.001)).toBe("hint");
+  });
+
+  it("ignores an empty message", () => {
+    const queue = createMessageQueue();
+    queue.enqueue("");
+    expect(queue.size).toBe(0);
+    expect(queue.current(0)).toBe("");
   });
 });

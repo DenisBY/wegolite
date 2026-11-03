@@ -32,6 +32,7 @@ import type { AssetCache } from "../render/asset-cache.js";
 import { createHud } from "../render/hud/hud.js";
 import type { Hud } from "../render/hud/hud.js";
 import type { HudModel } from "../render/hud/draw.js";
+import { createMessageQueue } from "../render/hud/messages.js";
 import {
   applyFrame,
   applyStationRoll,
@@ -105,7 +106,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let currentPose: FlightPose = previousPose;
   let paused = false;
   let launchSeen = false;
-  let message = "";
+  const messages = createMessageQueue(4);
   let lastModel: HudModel | undefined;
   let lastMs = 0;
   let rafId = 0;
@@ -115,23 +116,23 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       case "launched":
         docked.hide();
         hudCanvas.hidden = false;
-        message = "Launching — stand by";
+        messages.enqueue("Launching — stand by");
         break;
       case "launchComplete":
         launchSeen = true;
-        message = "Arrows pitch and roll · W and S change speed";
+        messages.enqueue("Arrows pitch and roll · W and S change speed");
         break;
       case "torusEngaged":
-        message = `Torus engaged at ${event.factor.toFixed(1)}×`;
+        messages.enqueue(`Torus engaged at ${event.factor.toFixed(1)}×`);
         break;
       case "torusDisengaged":
-        message = "Torus disengaged";
+        messages.enqueue("Torus disengaged");
         break;
       case "massLockChanged":
-        message = event.locked ? "Mass locked" : "";
+        if (event.locked) messages.enqueue("Mass locked");
         break;
       case "compassTargetChanged":
-        message = `Compass target: ${event.target}`;
+        messages.enqueue(`Compass target: ${event.target}`);
         break;
     }
   }
@@ -260,7 +261,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         currentState,
         currentLayout,
         currentConfig,
-        message,
+        messages.current(currentState.flightTime),
       );
       currentHud.draw(model);
       lastModel = model;

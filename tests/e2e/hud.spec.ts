@@ -13,6 +13,7 @@
 
 import { expect, test } from "@playwright/test";
 
+import { MAX_MESSAGE_CHARS } from "../../src/render/hud/format.js";
 import { getProbe, waitForReady } from "./helpers/probe.js";
 
 interface HudFrame {
@@ -198,6 +199,42 @@ test("the HUD set is the eleven v1 elements and letterboxes on ultrawide", async
 
   // The footer disclaimer must remain visible above the HUD overlay.
   await expect(page.locator("footer")).toBeVisible();
+
+  // Asserted last so a rendering failure is reported before any noise.
+  expect(errors).toEqual([]);
+});
+
+test("the message line is one clamped line and expires on flightTime", async ({
+  page,
+}) => {
+  // The queue expires on simulated time, and SwiftShader advances the fixed
+  // step far slower than wall time. This is a correctness wait, not a
+  // performance claim (Pitfall 15).
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await launch(page);
+
+  const initial = await readHud(page);
+  expect(initial.hud.message.length).toBeGreaterThan(0);
+  expect(initial.hud.message.length).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
+  expect(initial.hud.message).not.toContain("\n");
+
+  // The app enqueued the launch/compass messages; the queue must drain them on
+  // flightTime and leave the line empty, not keep the last string forever.
+  await page.waitForFunction(
+    () => window.__wegolite?.hud.message === "",
+    undefined,
+    { timeout: 150_000 },
+  );
+
+  const after = await readHud(page);
+  expect(after.hud.message).toBe("");
+  expect(after.hud.drawn).toBe(true);
 
   // Asserted last so a rendering failure is reported before any noise.
   expect(errors).toEqual([]);

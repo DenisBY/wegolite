@@ -18,6 +18,7 @@
 
 import type { Command } from "../commands.js";
 import type { SimEvent } from "../events.js";
+import { nextCompassMode, resolveCompassTarget } from "../world/aegis.js";
 import type { SystemLayout } from "../world/layout.js";
 import { stepAttitude } from "./attitude.js";
 import type { FlightConfig } from "./config.js";
@@ -71,10 +72,13 @@ export function stepFlight(
         torusToggle = true;
         break;
       case "setPaused":
+        // Pause is app-owned; the sim only sees the absence of steps.
+        break;
       case "cycleCompass":
+        state.compassMode = nextCompassMode(state.compassMode);
+        break;
       case "targetStation":
-        // Pause is app-owned; compass/targeting arrive with the full HUD in
-        // plan 05.
+        state.compassMode = "station";
         break;
     }
   }
@@ -112,6 +116,15 @@ export function stepFlight(
     state.stationAngle += layout.stationRollRadPerSec * dt;
     state.flightTime += dt;
     state.clockSeconds += dt;
+
+    // The compass resolves after the position update, so a manual cycle or an
+    // aegis crossing is reflected on the same tick. The HUD reads the resolved
+    // target from state; the event union stays app-facing and copy-free.
+    state.compassTarget = resolveCompassTarget(
+      state.position,
+      state.compassMode,
+      layout,
+    );
   }
 
   state.tick += 1;
