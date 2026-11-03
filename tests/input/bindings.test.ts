@@ -1,0 +1,257 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2026 Wegolite contributors
+
+/**
+ * The binding map and the DOM-free input core (D-12, FLGT-07).
+ *
+ * These tests drive `createInputState` directly: no browser, no synthetic
+ * `KeyboardEvent`. They pin the contract the app relies on — a rebind replaces
+ * the old code, a conflict names the other action, an edge command fires once
+ * per non-repeat keydown, and `clearAll` cannot be undone by a late keyup.
+ */
+
+import { describe, expect, it } from "vitest";
+
+import { DEFAULT_BINDINGS } from "../../src/input/actions.js";
+import {
+  MAX_CODES_PER_ACTION,
+  bindAction,
+  capCodes,
+  codeLabel,
+  createBindingMap,
+  detectConflict,
+  labelFor,
+  resetBindings,
+  unbindAction,
+} from "../../src/input/bindings.js";
+import { createInputState } from "../../src/input/keyboard.js";
+
+describe("createBindingMap", () => {
+  it("matches the researched default table", () => {
+    const map = createBindingMap();
+
+    for (const [action, codes] of Object.entries(DEFAULT_BINDINGS)) {
+      expect(map[action as keyof typeof DEFAULT_BINDINGS]).toEqual([...codes]);
+    }
+    expect(map.pause).toEqual(["KeyP", "Escape"]);
+    expect(map.launch).toEqual(["Digit1", "F1"]);
+    expect(map.precision).toEqual(["ControlLeft", "ControlRight"]);
+  });
+
+  it("uses a null prototype", () => {
+    expect(Object.getPrototypeOf(createBindingMap())).toBeNull();
+  });
+
+  it("keeps an explicit empty array instead of refilling the default", () => {
+    const map = createBindingMap({ rollRight: [] });
+
+    expect(map.rollRight).toEqual([]);
+    expect(map.rollLeft).toEqual(["ArrowLeft"]);
+  });
+});
+
+describe("bindAction", () => {
+  it("replaces the action's old code so the old key stops acting", () => {
+    const map = createBindingMap();
+
+    expect(bindAction(map, "rollRight", "KeyL")).toEqual({ ok: true });
+    expect(map.rollRight).toEqual(["KeyL"]);
+    expect(detectConflict(map, "rollRight", "KeyL")).toBeUndefined();
+  });
+
+  it("rejects a code bound to another action and names that action", () => {
+    const map = createBindingMap();
+
+    expect(bindAction(map, "rollLeft", "ArrowRight")).toEqual({
+      ok: false,
+      conflict: "rollRight",
+    });
+    // The other action is never silently unbound.
+    expect(map.rollRight).toEqual(["ArrowRight"]);
+    expect(map.rollLeft).toEqual(["ArrowLeft"]);
+  });
+
+  it("allows rebinding an action to one of its own codes", () => {
+    const map = createBindingMap();
+
+    expect(bindAction(map, "pause", "KeyP")).toEqual({ ok: true });
+    expect(map.pause).toEqual(["KeyP"]);
+  });
+});
+
+describe("unbindAction and resetBindings", () => {
+  it("removes one code and leaves the others", () => {
+    const map = createBindingMap();
+
+    expect(unbindAction(map, "pause", "Escape")).toBe(true);
+    expect(map.pause).toEqual(["KeyP"]);
+    expect(unbindAction(map, "pause", "KeyQ")).toBe(false);
+  });
+
+  it("clears every code when no code is given", () => {
+    const map = createBindingMap();
+
+    expect(unbindAction(map, "pause")).toBe(true);
+    expect(map.pause).toEqual([]);
+    expect(unbindAction(map, "pause")).toBe(false);
+  });
+
+  it("restores the default table", () => {
+    const map = createBindingMap();
+    bindAction(map, "rollRight", "KeyL");
+    unbindAction(map, "torus");
+
+    resetBindings(map);
+
+    expect(map.rollRight).toEqual(["ArrowRight"]);
+    expect(map.torus).toEqual(["KeyJ"]);
+  });
+});
+
+describe("labels and the code cap", () => {
+  it("labels codes for the UI and hint text", () => {
+    expect(codeLabel("KeyW")).toBe("W");
+    expect(codeLabel("Digit1")).toBe("1");
+    expect(codeLabel("ArrowRight")).toBe("Right arrow");
+    expect(codeLabel("Escape")).toBe("Esc");
+    expect(codeLabel("ControlLeft")).toBe("Left Ctrl");
+  });
+
+  it("joins every code for an action and marks an unbound one", () => {
+    const map = createBindingMap();
+
+    expect(labelFor(map, "pause")).toBe("P / Esc");
+    expect(labelFor(map, "rollRight")).toBe("Right arrow");
+
+    unbindAction(map, "rollRight");
+    expect(labelFor(map, "rollRight")).toBe("(unbound)");
+  });
+
+  it("caps an array at four distinct valid codes", () => {
+    const capped = capCodes([
+      "KeyA",
+      "KeyB",
+      "KeyA",
+      "",
+      "KeyC",
+      "KeyD",
+      "KeyE",
+    ]);
+
+    expect(capped).toHaveLength(MAX_CODES_PER_ACTION);
+    expect(capped).toEqual(["KeyA", "KeyB", "KeyC", "KeyD"]);
+  });
+});
+
+describe("createInputState", () => {
+  it("turns held codes into axes in [-1, 1]", () => {
+    const state = createInputState();
+
+    state.keyDown("ArrowRight");
+    expect(state.frame().roll).toBe(1);
+    state.keyDown("ArrowLeft");
+    expect(state.frame().roll).toBe(0);
+    state.keyUp("ArrowRight");
+    expect(state.frame().roll).toBe(-1);
+    state.keyUp("ArrowLeft");
+
+    state.keyDown("ArrowUp");
+    expect(state.frame().pitch).toBe(-1);
+    state.keyDown("ArrowDown");
+    expect(state.frame().pitch).toBe(0);
+    state.keyUp("ArrowUp");
+    state.keyUp("ArrowDown");
+
+    state.keyDown("KeyW");
+    expect(state.frame().speed).toBe(1);
+    state.keyDown("KeyS");
+    expect(state.frame().speed).toBe(0);
+
+    state.keyDown("ControlLeft");
+    expect(state.frame().precision).toBe(true);
+  });
+
+  it("enqueues an edge command once per non-repeat keydown", () => {
+    const state = createInputState();
+
+    expect(state.keyDown("KeyJ")).toBe(true);
+    expect(state.keyDown("KeyJ", true)).toBe(true);
+    expect(state.drainCommands()).toEqual([{ kind: "toggleTorus" }]);
+    expect(state.drainCommands()).toEqual([]);
+
+    state.keyDown("KeyJ");
+    expect(state.drainCommands()).toEqual([{ kind: "toggleTorus" }]);
+  });
+
+  it("maps every edge action to its command", () => {
+    const state = createInputState();
+
+    state.keyDown("Digit1");
+    state.keyDown("F1");
+    state.keyDown("Backslash");
+    state.keyDown("KeyR");
+
+    expect(state.drainCommands()).toEqual([
+      { kind: "launch" },
+      { kind: "launch" },
+      { kind: "cycleCompass" },
+      { kind: "targetStation" },
+    ]);
+  });
+
+  it("treats both pause codes as one pause edge", () => {
+    const state = createInputState();
+
+    state.keyDown("KeyP");
+    expect(state.consumePauseToggle()).toBe(true);
+    expect(state.consumePauseToggle()).toBe(false);
+
+    state.keyDown("Escape");
+    expect(state.consumePauseToggle()).toBe(true);
+  });
+
+  it("clears held codes and pending commands", () => {
+    const state = createInputState();
+    state.keyDown("ArrowRight");
+    state.keyDown("KeyJ");
+
+    state.clearAll();
+
+    expect(state.frame().roll).toBe(0);
+    expect(state.drainCommands()).toEqual([]);
+    expect(state.consumePauseToggle()).toBe(false);
+  });
+
+  it("cannot restore a held key from a keyup that arrives after clearAll", () => {
+    const state = createInputState();
+    state.keyDown("ArrowRight");
+    expect(state.frame().roll).toBe(1);
+
+    state.clearAll();
+    state.keyUp("ArrowRight");
+
+    expect(state.frame().roll).toBe(0);
+  });
+
+  it("uses the replaced table after setBindings", () => {
+    const map = createBindingMap();
+    const state = createInputState(map);
+
+    bindAction(map, "rollRight", "KeyL");
+    state.setBindings(map);
+
+    state.keyDown("ArrowRight");
+    expect(state.frame().roll).toBe(0);
+    state.keyUp("ArrowRight");
+
+    state.keyDown("KeyL");
+    expect(state.frame().roll).toBe(1);
+  });
+
+  it("reports whether a code is bound", () => {
+    const state = createInputState();
+
+    expect(state.isBound("KeyJ")).toBe(true);
+    expect(state.isBound("KeyL")).toBe(false);
+  });
+});
