@@ -31,7 +31,46 @@ BASE_URL="https://raw.githubusercontent.com/OoliteProject/oolite/${COMMIT}/Resou
 # Ordered list of vendored paths, relative to Resources/. Later plans append to
 # this list; nothing else decides what is vendored.
 FILES="
+Config/autoAImap.plist
+Config/characters.plist
+Config/crosshairs.plist
+Config/customsounds.plist
+Config/demoships.plist
+Config/descriptions.plist
+Config/equipment.plist
+Config/explosions.plist
+Config/global-settings.plist
+Config/gpu-settings.plist
+Config/gui-settings.plist
+Config/hud-small.plist
+Config/hud.plist
+Config/javascript-errors.plist
+Config/keyconfig.plist
+Config/keyconfig2.plist
+Config/keymappings_linux.plist
+Config/keymappings_mac.plist
+Config/keymappings_windows.plist
+Config/logcontrol.plist
+Config/material-defaults.plist
+Config/missiontext.plist
+Config/nebulatextures.plist
+Config/oolite-font.plist
+Config/pirate-victim-roles.plist
+Config/planetinfo.plist
+Config/role-categories.plist
+Config/scenarios.plist
+Config/screenbackgrounds.plist
+Config/shader-uniform-bindings.plist
+Config/shipdata-overrides.plist
+Config/shipdata.plist
+Config/shiplibrary.plist
+Config/shipyard.plist
+Config/speech_pronunciation_guide.plist
+Config/startextures.plist
 Config/trade-goods.plist
+Config/verifyOXP.plist
+Config/whitelist.plist
+Config/world-scripts.plist
 "
 
 for path in $FILES; do

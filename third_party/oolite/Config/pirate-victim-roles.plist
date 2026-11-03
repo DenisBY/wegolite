@@ -1,0 +1,14 @@
+/*	List of roles pirates will attack.
+	
+	Ships whose primary role is among those listed can be located with the AI
+	methods scanForNearestMerchantman and scanForRandomMerchantman. They can
+	also be identified with the JavaScript property isPirateVictim.
+*/
+
+(
+/* This file is deprecated. Pirate victim roles should be added to the
+ * role-categories.plist file in the "oolite-pirate-victim" entry.
+ *
+ * Entries placed in this file by OXPs will still be read.
+ */
+)

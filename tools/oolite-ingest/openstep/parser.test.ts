@@ -15,18 +15,19 @@
  * silently repaired by a converter is exactly what this file is here to catch.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { isContentError } from "../content-error.js";
+import { formatContentError, isContentError } from "../content-error.js";
 import type { ContentError } from "../content-error.js";
 import { parseOpenStep } from "./parser.js";
 import type { PlistDict, PlistValue } from "./plist-value.js";
 import { dictToMap, getEntry, plistToJson } from "./plist-value.js";
 
 const FIXTURES = join(process.cwd(), "tests", "fixtures", "plist");
+const CONFIG_DIR = join(process.cwd(), "third_party", "oolite", "Config");
 
 function readFixture(name: string): string {
   return readFileSync(join(FIXTURES, name), "utf8");
@@ -297,5 +298,43 @@ describe("structural failures", () => {
     const deeplyNested = `${"(".repeat(65)}1${")".repeat(65)}`;
     const error = parseError(deeplyNested, "inline:deep");
     expect(error.construct).toBe("value");
+  });
+});
+
+describe("vendored corpus", () => {
+  it("parses all 40 Config plists with one parser, 31 dict roots and 9 array roots", () => {
+    const files = readdirSync(CONFIG_DIR)
+      .filter((name) => name.endsWith(".plist"))
+      .sort();
+
+    // Vacuity guard: a broken walk must fail rather than pass on a short list.
+    expect(files).toHaveLength(40);
+
+    const roots = new Map<string, PlistValue>();
+    for (const name of files) {
+      const source = readFileSync(join(CONFIG_DIR, name), "utf8");
+      const relative = `third_party/oolite/Config/${name}`;
+      try {
+        roots.set(name, parseOpenStep(source, relative));
+      } catch (error) {
+        if (isContentError(error)) {
+          // The per-file name is the whole value of a parse-all test: a
+          // failure must say which vendored file broke, not just that one did.
+          throw new Error(`${relative}: ${formatContentError(error)}`, {
+            cause: error,
+          });
+        }
+        throw error;
+      }
+    }
+
+    const dicts = [...roots.values()].filter((root) => root.kind === "dict");
+    const arrays = [...roots.values()].filter((root) => root.kind === "array");
+    expect(dicts).toHaveLength(31);
+    expect(arrays).toHaveLength(9);
+
+    const gui = roots.get("gui-settings.plist");
+    expect(gui?.kind).toBe("dict");
+    if (gui?.kind === "dict") expect(gui.entries).toHaveLength(0);
   });
 });
