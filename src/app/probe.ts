@@ -18,6 +18,8 @@
  */
 
 import type { FlightMode } from "../sim/flight/state.js";
+import type { FlightState } from "../sim/flight/state.js";
+import { vec } from "../sim/math.js";
 
 export interface WegoliteWorldProbe {
   planet: [number, number, number];
@@ -79,6 +81,22 @@ declare global {
 /** Publish the live probe object exactly once. */
 export function publishProbe(probe: WegoliteProbe): void {
   window.__wegolite = probe;
+}
+
+/**
+ * The `?test=1` hook. It mutates only the live flight state — no save, no
+ * arbitrary code — so a browser spec can teleport to a mass-lock-free point or
+ * set a speed without flying there.
+ */
+export function createTestHook(state: FlightState): WegoliteTestHook {
+  return {
+    setPosition(x: number, y: number, z: number): void {
+      state.position = vec(x, y, z);
+    },
+    setSpeed(speed: number): void {
+      state.speed = speed;
+    },
+  };
 }
 
 /**

@@ -15,6 +15,7 @@
  */
 
 import * as THREE from "three";
+import { showBootFailure } from "./boot-failure.js";
 import {
   loadShipCatalogue,
   playerShip,
@@ -24,7 +25,7 @@ import type { System } from "../content/types.js";
 import { buildHudModel } from "./hud-model.js";
 import { createGameLoop } from "./game-loop.js";
 import type { GameLoop } from "./game-loop.js";
-import { publishFailure } from "./probe.js";
+import { createTestHook, publishFailure } from "./probe.js";
 import type { WegoliteProbe } from "./probe.js";
 import type { SceneManager } from "./scene-manager.js";
 import type { AssetCache } from "../render/asset-cache.js";
@@ -220,7 +221,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     currentScene.ship.visible = currentState.mode !== "inFlight";
 
     renderer.render(currentScene.scene, currentScene.camera);
-    currentHud.draw(buildHudModel(currentState, currentLayout, message));
+
+    // The flight HUD is not drawn while docked (D-09 shows the status panel).
+    const docked = currentState.mode === "docked";
+    hudCanvas.hidden = docked;
+    if (!docked) {
+      currentHud.draw(buildHudModel(currentState, currentLayout, message));
+    }
     updateProbe();
   }
 
@@ -286,8 +293,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       await assets.preload();
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
+      // T-3-02: a failed model load must be visible, never a blank canvas, and
+      // no frame may be scheduled after it.
+      showBootFailure(reason);
       publishFailure(reason);
-      throw error;
+      return;
     }
 
     const catalogue = await loadShipCatalogue();
@@ -315,6 +325,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     loop = createGameLoop();
     previousPose = poseOf(flightState);
     currentPose = previousPose;
+
+    // The hook exists only when explicitly asked for, and only mutates the live
+    // state: no save, no arbitrary code (V5 / test-API abuse).
+    if (new URLSearchParams(window.location.search).has("test")) {
+      probe.test = createTestHook(flightState);
+    }
 
     title.hide();
     docked.show(system.name);
