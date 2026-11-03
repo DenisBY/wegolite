@@ -58,7 +58,7 @@ export function createSceneManager(
     },
     enterSystem(system, stationDef): SystemScene {
       const layout = deriveSystemLayout(system, stationDef);
-      const next = createSystemScene(layout, assets);
+      const next = createSystemScene(layout, assets, system);
       const previous = current;
       current = next;
       currentLayout = layout;

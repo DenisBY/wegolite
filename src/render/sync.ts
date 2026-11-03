@@ -90,6 +90,7 @@ export function applyFrame(
   current: FlightPose,
   alpha: number,
   layout: SystemLayout,
+  elapsedSeconds: number,
 ): void {
   const pose = interpolatePose(previous, current, alpha);
   const cameraWorld = add(pose.position, rotate(pose.orientation, VIEW_OFFSET));
@@ -97,7 +98,8 @@ export function applyFrame(
   scene.camera.position.set(0, 0, 0);
   setQuaternion(scene.camera, pose.orientation);
 
-  placeRelative(scene.planet, layout.planet.position, cameraWorld);
+  placeRelative(scene.planet.mesh, layout.planet.position, cameraWorld);
+  scene.planet.update(elapsedSeconds);
   placeRelative(scene.sun, layout.sun.position, cameraWorld);
   placeRelative(scene.station, layout.station.position, cameraWorld);
   placeRelative(scene.ship, pose.position, cameraWorld);

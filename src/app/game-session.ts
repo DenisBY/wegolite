@@ -173,7 +173,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const currentScene = scene;
     if (currentLayout !== undefined && currentScene !== undefined) {
       probe.bodies = [
-        currentScene.planet.name,
+        currentScene.planet.mesh.name,
         currentScene.sun.name,
         currentScene.starfield.name,
         currentScene.station.name,
@@ -215,7 +215,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
 
     applyStationRoll(currentScene, currentLayout, currentState.stationAngle);
-    applyFrame(currentScene, previousPose, currentPose, alpha, currentLayout);
+    applyFrame(
+      currentScene,
+      previousPose,
+      currentPose,
+      alpha,
+      currentLayout,
+      currentState.flightTime,
+    );
     // First-person flight: the hull would clip the camera, so it is hidden.
     // Plan 07 shows it again for the launch cinematic.
     currentScene.ship.visible = currentState.mode !== "inFlight";

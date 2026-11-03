@@ -31,6 +31,10 @@ test("boots to the title, starts docked at Lave, launches and flies", async ({
   expect((await getProbe(page)).mode).toBe("docked");
 
   await page.click('button[data-action="launch"]');
+  // The launch is two simulated seconds, but headless Chromium renders the
+  // procedural planet on SwiftShader (~software), where the fixed-step loop
+  // advances far slower than wall time. The bound is generous on purpose; it
+  // is a correctness wait, not a performance claim (Pitfall 15).
   await page.waitForFunction(
     () => {
       const probe = window.__wegolite;
@@ -39,7 +43,7 @@ test("boots to the title, starts docked at Lave, launches and flies", async ({
       );
     },
     undefined,
-    { timeout: 4_000 },
+    { timeout: 30_000 },
   );
 
   const info = await getProbe(page);
@@ -47,6 +51,10 @@ test("boots to the title, starts docked at Lave, launches and flies", async ({
   expect(info.calls).toBeGreaterThan(0);
   expect(info.triangles).toBeGreaterThan(0);
   expect(info.logDepth).toBe(true);
+  // The planet's `ShaderMaterial` and its uniforms are pinned by
+  // `tests/render/planet-shader.test.ts`; the browser only has to see the body
+  // at its authored position and keep drawing.
+  expect(info.bodies).toContain("planet");
   expect(info.bodies).toEqual([
     "planet",
     "sun",

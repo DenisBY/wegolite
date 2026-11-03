@@ -16,9 +16,11 @@
  */
 
 import * as THREE from "three";
+import type { System } from "../content/types.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import type { AssetCache } from "./asset-cache.js";
 import { createPlanet } from "./bodies/planet.js";
+import type { PlanetBody } from "./bodies/planet.js";
 import { createShip } from "./bodies/ship.js";
 import { createStation, disposeClonedMaterials } from "./bodies/station.js";
 import { createSun } from "./bodies/sun.js";
@@ -32,7 +34,7 @@ export const CAMERA_FAR = 2_500_000;
 export interface SystemScene {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
-  planet: THREE.Mesh;
+  planet: PlanetBody;
   sun: THREE.Mesh;
   starfield: THREE.Points;
   station: THREE.Group;
@@ -51,6 +53,7 @@ function disposeGeometryAndMaterials(object: THREE.Mesh | THREE.Points): void {
 export function createSystemScene(
   layout: SystemLayout,
   assets: AssetCache,
+  system: System,
 ): SystemScene {
   const scene = new THREE.Scene();
 
@@ -62,7 +65,12 @@ export function createSystemScene(
   );
   camera.position.set(0, 0, 0);
 
-  const planet = createPlanet(layout);
+  const planet = createPlanet(
+    system,
+    layout.planet.radius,
+    layout.sunDir,
+    layout.rotationSpeed,
+  );
   const sun = createSun(layout);
   // The interim starfield is borrowed from the Phase 1 precision scene; plan 03
   // replaces it with `createSystemStarfield` and deletes that module.
@@ -80,7 +88,7 @@ export function createSystemScene(
   );
   const ambient = new THREE.AmbientLight(0xffffff, 0.1);
 
-  scene.add(light, ambient, planet, sun, starfield, station, ship);
+  scene.add(light, ambient, planet.mesh, sun, starfield, station, ship);
 
   return {
     scene,
@@ -91,7 +99,7 @@ export function createSystemScene(
     station,
     ship,
     dispose(): void {
-      disposeGeometryAndMaterials(planet);
+      disposeGeometryAndMaterials(planet.mesh);
       disposeGeometryAndMaterials(sun);
       disposeGeometryAndMaterials(starfield);
       disposeClonedMaterials(station);
