@@ -53,7 +53,8 @@ describe("label arrays", () => {
   });
 
   it("keeps the nested adjective and system-description pools", () => {
-    for (const pool of labels.inhabitants) expect(pool.length).toBeGreaterThan(0);
+    for (const pool of labels.inhabitants)
+      expect(pool.length).toBeGreaterThan(0);
     for (const pool of labels.systemDescription) {
       expect(pool.length).toBeGreaterThan(0);
     }
@@ -68,9 +69,7 @@ describe("label arrays", () => {
     expect(labels.formatTemplates["sysdata-pop-value"]).toBe(
       "[population|multiply:0.1|precision:1] Billion",
     );
-    expect(labels.formatTemplates["sysdata-radius-value"]).toBe(
-      "[radius] km",
-    );
+    expect(labels.formatTemplates["sysdata-radius-value"]).toBe("[radius] km");
     expect(Object.keys(labels.formatTemplates)).toHaveLength(34);
     const keys = Object.keys(labels.formatTemplates);
     expect(keys).toEqual([...keys].sort());

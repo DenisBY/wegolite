@@ -70,7 +70,10 @@ const EQUIPMENT_KEYS = [
 ] as const;
 
 const source = readFileSync(
-  new URL("../../../third_party/oolite/Config/equipment.plist", import.meta.url),
+  new URL(
+    "../../../third_party/oolite/Config/equipment.plist",
+    import.meta.url,
+  ),
   "utf8",
 );
 
@@ -139,7 +142,7 @@ describe("equipment catalogue", () => {
         (
           1, 2, "Fuel", "EQ_FUEL", "Fuel for the witchspace engines.",
           {
-            available_to_all = true;
+            available_to_all = yes;
             brand_new_condition = 42;
           }
         )
@@ -152,8 +155,10 @@ describe("equipment catalogue", () => {
     expect(record.conditions.available_to_all).toBe(true);
     expect(record.conditions.brand_new_condition).toBe(42);
 
-    // The real catalogue keeps its authored condition metadata verbatim.
-    expect(require("EQ_FUEL").conditions.available_to_all).toBe(true);
+    // The real catalogue keeps its authored condition metadata verbatim. Note
+    // `available_to_all = true;` is a bare atom, so it stays the string
+    // "true" — coercion is Oolite's job at runtime, not the compiler's.
+    expect(require("EQ_FUEL").conditions.available_to_all).toBe("true");
     expect(require("EQ_DOCK_COMP").conditions.condition_script).toBe(
       "oolite-conditions.js",
     );

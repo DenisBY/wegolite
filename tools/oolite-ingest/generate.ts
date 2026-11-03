@@ -22,6 +22,8 @@ import { dirname, resolve, sep } from "node:path";
 
 import { contentError } from "./content-error.js";
 import { emitCommodities } from "./convert/commodities.js";
+import { emitEquipment } from "./convert/equipment.js";
+import { emitLabels } from "./convert/labels.js";
 import { emitSystems } from "./convert/systems.js";
 import { parseOpenStep } from "./openstep/parser.js";
 import type { PlistValue } from "./openstep/plist-value.js";
@@ -33,6 +35,10 @@ const TRADE_GOODS_RELATIVE = "Config/trade-goods.plist";
 const TRADE_GOODS_FILE = `${SNAPSHOT_DIR}/${TRADE_GOODS_RELATIVE}`;
 const PLANETINFO_RELATIVE = "Config/planetinfo.plist";
 const PLANETINFO_FILE = `${SNAPSHOT_DIR}/${PLANETINFO_RELATIVE}`;
+const EQUIPMENT_RELATIVE = "Config/equipment.plist";
+const EQUIPMENT_FILE = `${SNAPSHOT_DIR}/${EQUIPMENT_RELATIVE}`;
+const DESCRIPTIONS_RELATIVE = "Config/descriptions.plist";
+const DESCRIPTIONS_FILE = `${SNAPSHOT_DIR}/${DESCRIPTIONS_RELATIVE}`;
 
 export interface EmittedFile {
   readonly path: string;
@@ -92,14 +98,18 @@ export async function generateContent({
   inputRoot,
   outRoot,
 }: GenerateOptions): Promise<EmittedFile[]> {
-  const [commodities, systems] = await Promise.all([
+  const [commodities, systems, equipment, descriptions] = await Promise.all([
     readConfig(inputRoot, TRADE_GOODS_RELATIVE, TRADE_GOODS_FILE),
     readConfig(inputRoot, PLANETINFO_RELATIVE, PLANETINFO_FILE),
+    readConfig(inputRoot, EQUIPMENT_RELATIVE, EQUIPMENT_FILE),
+    readConfig(inputRoot, DESCRIPTIONS_RELATIVE, DESCRIPTIONS_FILE),
   ]);
 
   const emitted: EmittedFile[] = [
     emitCommodities(commodities),
     ...emitSystems(systems),
+    emitEquipment(equipment),
+    emitLabels(descriptions),
   ];
 
   for (const file of emitted) {

@@ -6,6 +6,16 @@
       "sha256": "0f66683981f9b763a8b21276eb9e64493f4c004f388f922de25741a4230f226b"
     },
     {
+      "bytes": 17774,
+      "path": "src/content/generated/equipment.json",
+      "sha256": "aa7fe8a7dcfa69c882559aaa4cfd224e8db12ed8f9b6887230bad3553814c976"
+    },
+    {
+      "bytes": 6370,
+      "path": "src/content/generated/labels.json",
+      "sha256": "d0302d18161a8e3477976d7a5db93d074856b8ec0ead83c852ca1d9c98528ebc"
+    },
+    {
       "bytes": 694240,
       "path": "src/content/generated/systems/g0.json",
       "sha256": "0b72da27bb744db62a7a07ddb552da682fa81eaa49bac06e0a31f73956b4af58"

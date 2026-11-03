@@ -1,0 +1,588 @@
+[
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "A Tyley-Feynman GW-99 astro-navigation compass with user-selectable target modes.",
+    "key": "EQ_ADVANCED_COMPASS",
+    "name": "Advanced Space Compass",
+    "price": 6500,
+    "priceUnit": "decicredits",
+    "techLevel": 7
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "Navigation Computer software upgrade, improving the functionality of the Galactic Chart and enabling efficient route planning.",
+    "key": "EQ_ADVANCED_NAVIGATIONAL_ARRAY",
+    "name": "Advanced Navigational Array",
+    "price": 22500,
+    "priceUnit": "decicredits",
+    "techLevel": 6
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js",
+      "damage_probability": 0
+    },
+    "description": "Retro-fitted hull extensions permit the enclosure of a few extra tons of cargo capacity.",
+    "key": "EQ_CARGO_BAY",
+    "name": "Large Cargo Bay",
+    "price": 4000,
+    "priceUnit": "decicredits",
+    "techLevel": 1
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "fast_affinity_defensive": "true",
+      "portable_between_ships": "true",
+      "script": "oolite-cloaking-device-equipment.js"
+    },
+    "description": "Experimental Naval cloaking device.",
+    "key": "EQ_CLOAKING_DEVICE",
+    "name": "Cloaking Device",
+    "price": 500000,
+    "priceUnit": "decicredits",
+    "techLevel": 15
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "A simple autopilot and in-system communication system interlocking with local station systems.",
+    "key": "EQ_DOCK_COMP",
+    "name": "Docking Computers",
+    "price": 15000,
+    "priceUnit": "decicredits",
+    "techLevel": 9
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "High power disruptor circuits capable of remotely detonating inbound missiles.",
+    "key": "EQ_ECM",
+    "name": "E.C.M. System",
+    "price": 6000,
+    "priceUnit": "decicredits",
+    "techLevel": 2
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js",
+      "incompatible_with_equipment": "EQ_NAVAL_ENERGY_UNIT",
+      "script_info": {
+        "oolite_energy_recharge_multiplier": 1.8
+      }
+    },
+    "description": "An improved efficiency energy recharge unit.",
+    "key": "EQ_ENERGY_UNIT",
+    "name": "Extra Energy Unit",
+    "price": 15000,
+    "priceUnit": "decicredits",
+    "techLevel": 8
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "A simple emergency capsule with a life-support system, purchase includes comprehensive insurance for your ship and systems.",
+    "key": "EQ_ESCAPE_POD",
+    "name": "Escape Pod",
+    "price": 10000,
+    "priceUnit": "decicredits",
+    "techLevel": 6
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "purchase_sort_order": 1,
+      "requires_non_full_fuel": "true"
+    },
+    "description": "Fuel for the witchspace engines.",
+    "key": "EQ_FUEL",
+    "name": "Fuel",
+    "price": 2,
+    "priceUnit": "decicredits",
+    "sortHint": 1,
+    "techLevel": 0
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "A convertor added to your in-system drive that can inject unused witch-drive fuel into your exhaust, massively increasing your speed.",
+    "key": "EQ_FUEL_INJECTION",
+    "name": "Witchdrive Fuel Injectors",
+    "price": 6000,
+    "priceUnit": "decicredits",
+    "techLevel": 10
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js",
+      "provides": [
+        "EQ_CARGO_SCOOPS"
+      ]
+    },
+    "description": "Wide cargo entrance and magnetic scoops enable in-flight capture of mined materials, fuel gasses from the solar corona, and salvage of space debris.",
+    "key": "EQ_FUEL_SCOOPS",
+    "name": "Fuel Scoops",
+    "price": 5250,
+    "priceUnit": "decicredits",
+    "techLevel": 5
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "A one-shot overcharge for the witchspace engines, enabling inter-galactic travel.",
+    "key": "EQ_GAL_DRIVE",
+    "name": "Galactic Hyperdrive",
+    "price": 50000,
+    "priceUnit": "decicredits",
+    "techLevel": 10
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "damage_probability": 0,
+      "requires_empty_pylon": "true",
+      "weapon_info": {
+        "fx_weapon_launch_name": "[ecm-missile-launch]"
+      }
+    },
+    "description": "Faulcon de Lacy HMX5 homing missile - hardened against ECM.",
+    "key": "EQ_HARDENED_MISSILE",
+    "name": "ECM Hardened Missile",
+    "price": 3500,
+    "priceUnit": "decicredits",
+    "techLevel": 9
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "script_info": {
+        "oolite_heat_insulation_strength": 1
+      }
+    },
+    "description": "Additional ceramid-fibre blanketing and tiles, no armour value but provides extra solar insulation.",
+    "key": "EQ_HEAT_SHIELD",
+    "name": "External Heat Shielding",
+    "price": 15000,
+    "priceUnit": "decicredits",
+    "techLevel": 4
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "requires_equipment": [
+        "EQ_TARGET_MEMORY",
+        "EQ_SCANNER_SHOW_MISSILE_TARGET"
+      ]
+    },
+    "description": "Integrates your target system memory expansion with your scanner targeting enhancement to provide visual tracking of secondary targets.",
+    "key": "EQ_INTEGRATED_TARGETING_SYSTEM",
+    "name": "Integrated Targeting System",
+    "price": 15000,
+    "priceUnit": "decicredits",
+    "techLevel": 11
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "Developed from experimental cloaking prototypes, this jamming device stops enemy ships from scanning your craft.",
+    "key": "EQ_MILITARY_JAMMER",
+    "name": "Military Anti-Scanner Countermeasures (MASC'M)",
+    "price": 1500000,
+    "priceUnit": "decicredits",
+    "techLevel": 0
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "Filters out the jamming signals from MASC'M devices.",
+    "key": "EQ_MILITARY_SCANNER_FILTER",
+    "name": "Military Scanner Filtering",
+    "price": 250000,
+    "priceUnit": "decicredits",
+    "techLevel": 0
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "damage_probability": 0,
+      "requires_empty_pylon": "true"
+    },
+    "description": "Faulcon de Lacy HM3 homing missile, fast and accurate when used in conjunction with standard targeting scanners.",
+    "key": "EQ_MISSILE",
+    "name": "Missile",
+    "price": 300,
+    "priceUnit": "decicredits",
+    "techLevel": 1
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "requires_mounted_pylon": "true"
+    },
+    "description": "Unmounts, safes, and re-sells at full market value all missiles and mines currently mounted on your craft.",
+    "key": "EQ_MISSILE_REMOVAL",
+    "name": "Unmount and sell all pylon mounted weapons",
+    "price": 200,
+    "priceUnit": "decicredits",
+    "techLevel": 1
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "Per-missile target memory, maintains multiple target locks.",
+    "key": "EQ_MULTI_TARGET",
+    "name": "Multi-Targeting System",
+    "price": 3250,
+    "priceUnit": "decicredits",
+    "techLevel": 5
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js",
+      "script_info": {
+        "oolite_energy_recharge_multiplier": 2.6
+      }
+    },
+    "description": "A special improved efficiency energy recharge unit, as supplied to Navy vessels.",
+    "key": "EQ_NAVAL_ENERGY_UNIT",
+    "name": "Naval Energy Unit",
+    "price": 500000,
+    "priceUnit": "decicredits",
+    "techLevel": 13
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js",
+      "script_info": {
+        "oolite_shield_increase": 128,
+        "oolite_shield_recharge_multiplier": 1.5
+      }
+    },
+    "description": "Military technology, used in conjunction with ordinary shields and shield boosting technology, further increases the capability of standard defensive shields.",
+    "key": "EQ_NAVAL_SHIELD_BOOSTER",
+    "name": "Military Shield Enhancement",
+    "price": 475500,
+    "priceUnit": "decicredits",
+    "techLevel": 13
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "damage_probability": 0,
+      "script": "oolite-tutorial-equipment.js",
+      "visible": "false"
+    },
+    "description": "Tutorial Controls.",
+    "key": "EQ_OOLITE_TUTORIAL_CONTROLS",
+    "name": "Tutorial Controls",
+    "price": 500000,
+    "priceUnit": "decicredits",
+    "techLevel": 100
+  },
+  {
+    "conditions": {
+      "available_to_NPCs": "false",
+      "available_to_all": "true",
+      "can_carry_multiple": "true",
+      "condition_script": "oolite-conditions.js",
+      "damage_probability": 0,
+      "requires_cargo_space": 5
+    },
+    "description": "Provides life support, entertainment and comfort for a single passenger.",
+    "key": "EQ_PASSENGER_BERTH",
+    "name": "Passenger Berth - takes up 5t of cargo space",
+    "price": 8250,
+    "priceUnit": "decicredits",
+    "techLevel": 5
+  },
+  {
+    "conditions": {
+      "available_to_NPCs": "false",
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "requires_free_passenger_berth": "true"
+    },
+    "description": "Removes a passenger berth.",
+    "key": "EQ_PASSENGER_BERTH_REMOVAL",
+    "name": "Remove Passenger Berth - reclaims 5t of cargo space",
+    "price": 1000,
+    "priceUnit": "decicredits",
+    "techLevel": 1
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "damage_probability": 0,
+      "requires_empty_pylon": "true"
+    },
+    "description": "Tyley-Feynman Quirium cascade mine. Mounts in place of a missile, but deploys to the rear of your craft. Capable of massive destruction and triggering chain reactions in the witchdrives of ships caught in its blast range.",
+    "key": "EQ_QC_MINE",
+    "name": "Quirium Cascade Mine",
+    "price": 25000,
+    "priceUnit": "decicredits",
+    "techLevel": 6
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "Covers dry docking fees, cleaning and replating of damaged hull sections, shield and scoop system de-ionization, systems tune-up, repainting and detailed valeting.",
+    "key": "EQ_RENOVATION",
+    "name": "Maintenance Overhaul",
+    "price": 1000,
+    "priceUnit": "decicredits",
+    "techLevel": 6
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "Adds a visible indicator, range and legal status display around the target currently locked into your targeting computer.",
+    "key": "EQ_SCANNER_SHOW_MISSILE_TARGET",
+    "name": "Scanner Targeting Enhancement",
+    "price": 4500,
+    "priceUnit": "decicredits",
+    "techLevel": 11
+  },
+  {
+    "conditions": {
+      "condition_script": "oolite-conditions.js",
+      "script_info": {
+        "oolite_shield_increase": 128,
+        "oolite_shield_recharge_multiplier": 1
+      }
+    },
+    "description": "Shield boosting technology dramatically increases the capability of standard defensive shields.",
+    "key": "EQ_SHIELD_BOOSTER",
+    "name": "Shield Boosters",
+    "price": 147500,
+    "priceUnit": "decicredits",
+    "techLevel": 10
+  },
+  {
+    "conditions": {
+      "available_to_player": "false"
+    },
+    "description": "Shield enhancing technology dramatically increases the capability of standard defensive shields.",
+    "key": "EQ_SHIELD_ENHANCER",
+    "name": "Shield Enhancers",
+    "price": 147500,
+    "priceUnit": "decicredits",
+    "techLevel": 100
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "A sixteen core target memory matrix. Allows selection of previous target locks.",
+    "key": "EQ_TARGET_MEMORY",
+    "name": "Target System Memory Expansion",
+    "price": 12500,
+    "priceUnit": "decicredits",
+    "techLevel": 8
+  },
+  {
+    "conditions": {
+      "available_to_player": "false"
+    },
+    "description": "Alien drone ship.",
+    "key": "EQ_THARGON",
+    "name": "Thargon",
+    "price": 1000,
+    "priceUnit": "decicredits",
+    "techLevel": 100
+  },
+  {
+    "conditions": {
+      "damage_probability": 0,
+      "visible": "false"
+    },
+    "description": "A cute alien pet.",
+    "key": "EQ_TRUMBLE",
+    "name": "Trumble",
+    "price": 300,
+    "priceUnit": "decicredits",
+    "techLevel": 100
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "weapon_info": {
+        "color": "yellowColor",
+        "damage": 6,
+        "energy": 0.5,
+        "fx_shot_hit_name": "[beam-laser-player-laser-hit]",
+        "fx_shot_miss_name": "[beam-laser-player-laser-miss]",
+        "range": 15000,
+        "recharge_rate": 0.1,
+        "shot_temperature": 3.2,
+        "threat_assessment": 0.5
+      }
+    },
+    "description": "Rapid cycle laser, delivers more energy in less time for more effective results.",
+    "key": "EQ_WEAPON_BEAM_LASER",
+    "name": "Beam Laser",
+    "price": 10000,
+    "priceUnit": "decicredits",
+    "techLevel": 4
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "weapon_info": {
+        "color": "magentaColor",
+        "damage": 12,
+        "energy": 1.1,
+        "fx_shot_hit_name": "[mil-laser-player-laser-hit]",
+        "fx_shot_miss_name": "[mil-laser-player-laser-miss]",
+        "range": 30000,
+        "recharge_rate": 0.1,
+        "shot_temperature": 4.25,
+        "threat_assessment": 1
+      }
+    },
+    "description": "Increased power beam laser, developed for Naval use.",
+    "key": "EQ_WEAPON_MILITARY_LASER",
+    "name": "Military Laser",
+    "price": 60000,
+    "priceUnit": "decicredits",
+    "techLevel": 10
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "weapon_info": {
+        "color": "blueColor",
+        "damage": 50,
+        "energy": 1.4,
+        "fx_shot_hit_name": "[mining-laser-player-laser-hit]",
+        "fx_shot_miss_name": "[mining-laser-player-laser-miss]",
+        "is_mining_laser": 1,
+        "range": 12500,
+        "recharge_rate": 2.5,
+        "shot_temperature": 10,
+        "threat_assessment": -0.5
+      }
+    },
+    "description": "High power, slow recharge. Ideal for mineral extraction from large asteroids.",
+    "key": "EQ_WEAPON_MINING_LASER",
+    "name": "Mining Laser",
+    "price": 8000,
+    "priceUnit": "decicredits",
+    "techLevel": 10
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "weapon_info": {
+        "damage": 0,
+        "energy": 0,
+        "range": 32000,
+        "recharge_rate": 100,
+        "shot_temperature": 0,
+        "threat_assessment": -1
+      }
+    },
+    "description": "Remove laser weapon from selected mounting.",
+    "key": "EQ_WEAPON_NONE",
+    "name": "Remove Laser",
+    "price": 0,
+    "priceUnit": "decicredits",
+    "techLevel": 3
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js",
+      "weapon_info": {
+        "color": "redColor",
+        "damage": 15,
+        "energy": 0.8,
+        "range": 12500,
+        "recharge_rate": 0.5,
+        "shot_temperature": 7,
+        "threat_assessment": 0
+      }
+    },
+    "description": "High powered pulse laser, a basic defense configuration.",
+    "key": "EQ_WEAPON_PULSE_LASER",
+    "name": "Pulse Laser",
+    "price": 4000,
+    "priceUnit": "decicredits",
+    "techLevel": 3
+  },
+  {
+    "conditions": {
+      "available_to_player": "false",
+      "weapon_info": {
+        "color": "greenColor",
+        "damage": 12.5,
+        "energy": 1.1,
+        "is_turret_laser": "true",
+        "range": 17500,
+        "recharge_rate": 1,
+        "shot_temperature": 8,
+        "threat_assessment": 1
+      }
+    },
+    "description": "Captured Thargoid weapon, self-aiming.",
+    "key": "EQ_WEAPON_THARGOID_LASER",
+    "name": "Thargoid Laser",
+    "price": 150000,
+    "priceUnit": "decicredits",
+    "techLevel": 100
+  },
+  {
+    "conditions": {
+      "available_to_all": "true",
+      "condition_script": "oolite-conditions.js"
+    },
+    "description": "The Mössbauer-Krantz Works wormhole scanner integrates into your existing targeting system. It analyzes the residual energy of a wormhole and, in combination with your Galactic Map software, calculates the most likely target system.",
+    "key": "EQ_WORMHOLE_SCANNER",
+    "name": "Wormhole Scanner",
+    "price": 23950,
+    "priceUnit": "decicredits",
+    "techLevel": 9
+  },
+  {
+    "conditions": {
+      "available_to_player": "false"
+    },
+    "description": "Alien drone ship.",
+    "key": "thargon",
+    "name": "Thargon",
+    "price": 1000,
+    "priceUnit": "decicredits",
+    "techLevel": 100
+  }
+]
