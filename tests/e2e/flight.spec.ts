@@ -20,6 +20,12 @@ import type { Page } from "@playwright/test";
 
 import { getProbe, hold, press, waitForReady } from "./helpers/probe.js";
 
+// The full verify chain runs the e2e suite with two workers. Under parallel
+// SwiftShader load this correctness spec (which waits on simulated time, not
+// wall time) can exceed the 30 s default; the bound is not a performance claim
+// (Pitfall 15).
+test.setTimeout(90_000);
+
 const TORUS_TEST_POINT = [
   -121_635.102_366_311_97, 149_362.238_845_820_7, -391_031.703_458_028_1,
 ] as const;
@@ -56,6 +62,27 @@ test("press J away from Lave, cross the system under torus, and disengage on inp
   page.on("pageerror", (error) => errors.push(String(error)));
 
   await bootToFlight(page);
+
+  // Precision after launch: the probe publishes the maximum camera-relative
+  // magnitude (the same quantity the Node proof pins) and every pose component
+  // must be finite. The camera object itself is not published; the structural
+  // "camera at (0,0,0), one cameraRelative() path" assertion is plan 07's
+  // `tests/render/sync.test.ts`, because plan 03 rewrites `sync.ts`.
+  const launched = await getProbe(page);
+  expect(launched.logDepth).toBe(true);
+  const launchWorld = launched.world;
+  if (launchWorld === undefined)
+    throw new Error("the probe published no world");
+  expect(launchWorld.maxRelativeMagnitude).toBeGreaterThan(0);
+  expect(launchWorld.maxRelativeMagnitude).toBeLessThan(2.5e6);
+  for (const value of launched.position) {
+    expect(Number.isFinite(value)).toBe(true);
+  }
+  for (const value of launched.orientation) {
+    expect(Number.isFinite(value)).toBe(true);
+  }
+  expect(launched.bodies).toContain("planet");
+  expect(launched.bodies).toContain("station");
 
   // Teleport clear of the station lock and set the normal top speed so the
   // spec does not spend a minute crawling out of the 25.6 km sphere.
@@ -123,6 +150,21 @@ test("press J away from Lave, cross the system under torus, and disengage on inp
   const settled = await getProbe(page);
   expect(settled.speed).toBeCloseTo(350, 1);
   expect(settled.torus.engaged).toBe(false);
+
+  // Precision after the torus run: the ship has crossed a large part of the
+  // system, and every uploaded coordinate must still be small and finite.
+  expect(settled.logDepth).toBe(true);
+  const torusWorld = settled.world;
+  if (torusWorld === undefined) throw new Error("the probe published no world");
+  expect(torusWorld.maxRelativeMagnitude).toBeLessThan(2.5e6);
+  for (const value of settled.position) {
+    expect(Number.isFinite(value)).toBe(true);
+  }
+  for (const value of settled.orientation) {
+    expect(Number.isFinite(value)).toBe(true);
+  }
+  expect(settled.bodies).toContain("planet");
+  expect(settled.bodies).toContain("station");
 
   // Asserted last so a rendering failure is reported before any noise.
   expect(errors).toEqual([]);
