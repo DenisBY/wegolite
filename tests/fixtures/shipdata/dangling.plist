@@ -1,0 +1,9 @@
+/*
+ * `stranded` points at a key that does not exist; `external` does the same but
+ * declares itself an external dependency, which Oolite treats as intentional.
+ */
+
+{
+	stranded = { like_ship = "missing_ship"; };
+	external = { like_ship = "not_here"; is_external_dependency = 1; };
+}

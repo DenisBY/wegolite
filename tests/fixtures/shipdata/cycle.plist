@@ -1,0 +1,11 @@
+/*
+ * A four-entry shipdata dictionary whose `a -> b -> c -> a` chain closes.
+ * `d` is independent, so the fixture proves an unrelated entry still resolves.
+ */
+
+{
+	a = { like_ship = "b"; };
+	b = { like_ship = "c"; };
+	c = { like_ship = "a"; };
+	d = { name = "Unrelated"; };
+}

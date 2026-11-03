@@ -1,0 +1,14 @@
+/*
+ * One plist carrying both halves of the override stage: `base` is the raw entry
+ * dictionary and `overrides` patches `base` and tries to add `added`. The added
+ * key must be ignored, because overrides never create entries.
+ */
+
+{
+	base = { name = "Base"; };
+	overrides =
+	{
+		base = { name = "Patched"; };
+		added = { name = "Added"; };
+	};
+}
