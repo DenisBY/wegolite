@@ -26,7 +26,10 @@ import { tokenize } from "./tokenizer.js";
 const MAX_DEPTH = 64;
 
 const INTEGER = /^-?\d+$/;
-const REAL = /^-?\d*\.\d+$/;
+// A real needs digits on both sides of the point: `.5`, `1.` and `+5` are not
+// numbers in this grammar, and are therefore strings (the corpus never uses
+// them as numbers, and guessing would change an authored value).
+const REAL = /^-?\d+\.\d+$/;
 
 export function parseOpenStep(source: string, file: string): PlistValue {
   const tokens = tokenize(source, file);
@@ -183,8 +186,12 @@ export function parseOpenStep(source: string, file: string): PlistValue {
         separator.kind === "punct" &&
         separator.value === ","
       ) {
+        // A trailing comma is legal (`( 1, )` occurs in the corpus): consume it
+        // and let the loop meet the `)` on the next iteration.
         position += 1;
-      } else if (
+        continue;
+      }
+      if (
         separator !== undefined &&
         separator.kind === "punct" &&
         separator.value === ")"
@@ -192,6 +199,8 @@ export function parseOpenStep(source: string, file: string): PlistValue {
         position += 1;
         break;
       }
+      // Anything else is a missing comma, not two adjacent values.
+      fail("array", separator, 'expected "," or ")" after the value');
     }
     return {
       kind: "array",

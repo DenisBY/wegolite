@@ -125,16 +125,38 @@ export function tokenize(source: string, file: string): Token[] {
           closed = true;
           break;
         }
+        if (inner === "\n" || inner === "\r") {
+          // A quoted string never spans a line in this grammar. Report the
+          // opening quote, which is where the author's mistake begins, rather
+          // than the newline the scanner happened to reach.
+          fail(
+            "string",
+            startLine,
+            startColumn,
+            "raw newline in quoted string",
+          );
+        }
         if (inner === "\\") {
           advance();
           const escaped = current();
           if (escaped === "") break;
           if (isOctal(escaped)) {
+            const escapeLine = line;
+            const escapeColumn = column;
             let digits = "";
             while (digits.length < 3 && isOctal(current())) {
               digits += advance();
             }
-            value += String.fromCharCode(Number.parseInt(digits, 8));
+            const code = Number.parseInt(digits, 8);
+            if (code > 0xff) {
+              fail(
+                "escape",
+                escapeLine,
+                escapeColumn,
+                `octal escape \\${digits} exceeds 255`,
+              );
+            }
+            value += String.fromCharCode(code);
             continue;
           }
           advance();

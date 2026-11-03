@@ -87,7 +87,10 @@ export function getString(dict: PlistDict, key: string): string | undefined {
 export function plistToJson(value: PlistValue): PlistJson {
   switch (value.kind) {
     case "dict": {
-      const object: { [key: string]: PlistJson } = {};
+      // A null-prototype object has no `__proto__` setter, so a dictionary key
+      // named `__proto__` becomes an ordinary own property instead of reaching
+      // Object.prototype (T-02-11).
+      const object = Object.create(null) as { [key: string]: PlistJson };
       for (const entry of value.entries) {
         object[entry.key] = plistToJson(entry.value);
       }
