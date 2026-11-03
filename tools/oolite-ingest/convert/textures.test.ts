@@ -188,7 +188,8 @@ describe("copyTextures", () => {
 });
 
 /** The pinned Coriolis hull diffuse: 512x512, non-interlaced 8-bit RGBA. */
-const CORIOLIS_DIFFUSE = "third_party/oolite/Textures/oolite_coriolis_diffuse.png";
+const CORIOLIS_DIFFUSE =
+  "third_party/oolite/Textures/oolite_coriolis_diffuse.png";
 
 /** The measured number of non-zero alpha pixels in that file. */
 const CORIOLIS_NON_ZERO_ALPHA = 6224;
@@ -401,18 +402,21 @@ describe("emitTextures", () => {
     }
   });
 
-  it("writes the committed baked files byte-for-byte", async () => {
+  it("writes the committed baked files byte-for-byte", () => {
     for (const name of EMISSIVE_FILES) {
       const committed = readFileSync(join(REPO_ROOT, "public/textures", name));
       const source = decodePng(
-        readBytes(`third_party/oolite/Textures/${name.replace("_emissive", "")}`),
+        readBytes(
+          `third_party/oolite/Textures/${name.replace("_emissive", "")}`,
+        ),
       );
       const expected = bakeEmissive(
-        readBytes(`third_party/oolite/Textures/${name.replace("_emissive", "")}`),
+        readBytes(
+          `third_party/oolite/Textures/${name.replace("_emissive", "")}`,
+        ),
       );
       expect(committed.equals(Buffer.from(expected)), name).toBe(true);
       expect(source.width).toBeGreaterThan(0);
     }
   });
 });
-

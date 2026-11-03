@@ -49,6 +49,14 @@ share-alike terms. The conversion is a format change (glTF binary), an axis
 convention change and a material projection — no authorship of the geometry is
 claimed.
 
+The baked greyscale emissive maps under `public/textures/*_emissive.png` are
+derived from Oolite's PNG textures by Wegolite's build, which reads the source
+alpha channel and writes a new greyscale image; they are derivative works of
+those textures and remain CC BY-NC-SA 3.0, never GPL, under the same
+attribution, non-commercial and share-alike terms. The source PNGs copied under
+`public/textures/` are byte-identical to the vendored originals and are
+redistributed unmodified under the same licence.
+
 ## 4. Corresponding source
 
 The complete corresponding source for every distributed build of Wegolite is

@@ -19,15 +19,22 @@
  * module, and adding a second Vite entry point for a test is a larger change
  * than this property needs.
  *
- * Handoff to plan 07: this case checks only that every `images[].uri` is a
- * well-formed `textures/` path. The files do not exist yet — plan 07 vendors
- * them and extends this spec to fetch each one and assert its bytes.
+ * Handoff from plan 07: this case now fetches every `images[].uri` over the
+ * preview server and asserts its PNG signature. A URI that points at a missing
+ * file, or at the wrong directory after a `base: "./"` regression, fails here.
  */
 
 import { expect, test } from "@playwright/test";
 
 const GLB_MAGIC = 0x46546c67;
 const TEXTURES_PREFIX = "/textures/";
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+interface ImageCheck {
+  readonly path: string;
+  readonly status: number;
+  readonly signature: readonly number[];
+}
 
 interface GlbRead {
   readonly magic: number;
@@ -47,6 +54,7 @@ interface GlbRead {
     readonly images: readonly { readonly uri: string }[];
   };
   readonly imagePaths: readonly string[];
+  readonly imageChecks: readonly ImageCheck[];
 }
 
 interface ReadResult {
@@ -67,6 +75,18 @@ const result = async (): Promise<ReadResult> => {
       new TextDecoder().decode(bytes.subarray(20, 20 + jsonLength)),
     ) as GlbRead["json"];
     const base = new URL(relative, window.location.href);
+    const imageChecks = await Promise.all(
+      json.images.map(async (image) => {
+        const url = new URL(image.uri, base);
+        const response = await fetch(url.href);
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        return {
+          path: url.pathname,
+          status: response.status,
+          signature: Array.from(bytes.subarray(0, 8)),
+        };
+      }),
+    );
     return {
       magic: view.getUint32(0, true),
       version: view.getUint32(4, true),
@@ -74,6 +94,7 @@ const result = async (): Promise<ReadResult> => {
       byteLength: bytes.byteLength,
       json,
       imagePaths: json.images.map((image) => new URL(image.uri, base).pathname),
+      imageChecks,
     };
   };
 
@@ -99,6 +120,14 @@ test("the preview serves both GLBs and the Coriolis graph reads correctly", asyn
     expect(glb.imagePaths.length, label).toBeGreaterThan(0);
     for (const path of glb.imagePaths) {
       expect(path, `${label} texture reference`).toContain(TEXTURES_PREFIX);
+    }
+    expect(glb.imageChecks.length, label).toBe(glb.imagePaths.length);
+    for (const check of glb.imageChecks) {
+      expect(check.path, `${label} texture reference`).toContain(
+        TEXTURES_PREFIX,
+      );
+      expect(check.status, `${label} ${check.path}`).toBe(200);
+      expect(check.signature, `${label} ${check.path}`).toEqual(PNG_SIGNATURE);
     }
   }
 

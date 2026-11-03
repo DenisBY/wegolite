@@ -667,7 +667,11 @@ function normalizedColour(
   return [red / divisor, green / divisor, blue / divisor];
 }
 
-function emissiveFile(name: string): string {
+/**
+ * `<source-basename>_emissive.png` — the single naming rule the GLB material and
+ * the alpha bake share, so an emitted URI and a written file cannot drift apart.
+ */
+export function emissiveFile(name: string): string {
   return `${name.endsWith(".png") ? name.slice(0, -".png".length) : name}${EMISSIVE_SUFFIX}`;
 }
 

@@ -30,7 +30,7 @@ import { emitEquipment } from "./convert/equipment.js";
 import { emitLabels } from "./convert/labels.js";
 import { compileShips, emitShipsFromCatalogue } from "./convert/ships.js";
 import { emitSystems } from "./convert/systems.js";
-import { copyTextures } from "./convert/textures.js";
+import { copyTextures, emitTextures } from "./convert/textures.js";
 import { parseOpenStep } from "./openstep/parser.js";
 import type { PlistValue } from "./openstep/plist-value.js";
 
@@ -148,8 +148,13 @@ export async function generateContent({
   // Textures own their own copy step: the closure is asserted before a byte is
   // read, and each copy is hash-verified in `copyTextures` (D-20, D-21).
   const textures = await copyTextures({ inputRoot, outRoot });
+  const emissives = await emitTextures({
+    inputRoot,
+    outRoot,
+    catalogue: catalogue.entries,
+  });
 
-  return [...emitted, ...textures];
+  return [...emitted, ...textures, ...emissives];
 }
 
 /**
