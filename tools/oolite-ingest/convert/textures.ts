@@ -23,6 +23,15 @@
  * `modelVendored` entry. `cobra3-alternate` and `cobra3-pirate` reference
  * `oolite_cobra3_diffuse_alt.png` / `_pirate.png`, which are deliberately absent
  * because no GLB is built from those entries.
+ *
+ * UV orientation (DATA-04, D-09) is settled by the committed 8x8 asymmetric
+ * fixture: `sampleNearest(fixture, 0.25, 0.25)` returns its uniquely marked
+ * top-left quadrant and `(0.25, 0.75)` its bottom-left, which proves `v = 0` is
+ * the image's top row. Combined with the emitted quad corner whose geometry is
+ * top-left carrying UV `(0, 0)`, the mapping is the identity: `convertMesh`
+ * keeps the authored pair and this pipeline applies no V flip. If a future
+ * fixture disagrees, the flip belongs in exactly one place — the UV copy in
+ * `convertMesh`.
  */
 
 import { constants, deflateSync, inflateSync } from "node:zlib";
@@ -553,6 +562,35 @@ export function decodeGreyscalePng(
     channels: 1,
     data: unfilter(raw, header.width, header.height, 1, name),
   };
+}
+
+/**
+ * Nearest-neighbour sample with glTF's texture-space convention: `v = 0` is the
+ * image's **top** row, so `row = floor(v * height)` and no flip is applied.
+ * This is the pixel-level half of the orientation decision; `convertMesh` is the
+ * geometry half.
+ */
+export function sampleNearest(
+  pngBytes: Uint8Array,
+  u: number,
+  v: number,
+  name = "texture.png",
+): readonly [number, number, number, number] {
+  const decoded = decodePng(pngBytes, name);
+  const clamp = (value: number, maximum: number): number => {
+    if (value < 0) return 0;
+    if (value > maximum) return maximum;
+    return value;
+  };
+  const column = clamp(Math.floor(u * decoded.width), decoded.width - 1);
+  const row = clamp(Math.floor(v * decoded.height), decoded.height - 1);
+  const offset = (row * decoded.width + column) * 4;
+  return [
+    decoded.data[offset] ?? 0,
+    decoded.data[offset + 1] ?? 0,
+    decoded.data[offset + 2] ?? 0,
+    decoded.data[offset + 3] ?? 0,
+  ];
 }
 
 /** CRC-32 (IEEE) for PNG chunks; an integer-only table. */

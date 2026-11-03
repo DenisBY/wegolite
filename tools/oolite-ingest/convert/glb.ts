@@ -38,12 +38,14 @@
  * refine the look without re-extracting the snapshot. The Coriolis alpha
  * channel is an emission mask, not opacity: no `alphaMode` is ever emitted.
  *
- * Handedness handoff (plan 07): the emitted `(u, v)` pair is the authored one,
- * divided only by the declared `max_x`/`max_y` — on all five vendored models
- * that divisor is 1.0, and the PNG's pixel dimensions are never used. Whether
- * `v` needs `1 - v` is decided by plan 07's asymmetric-PNG pixel fixture; if it
- * is needed, the flip belongs in exactly one place, the UV copy in
- * `convertMesh`. This module cannot decide it, because it has no PNG decoder.
+ * Handedness handoff (plan 07, resolved): the emitted `(u, v)` pair is the
+ * authored one, divided only by the declared `max_x`/`max_y` — on all five
+ * vendored models that divisor is 1.0, and the PNG's pixel dimensions are never
+ * used. The committed 8x8 asymmetric fixture confirms identity: `v = 0` is the
+ * image's top row and the emitted UV `(0, 0)` is the geometry's top-left corner,
+ * so no V flip is applied and the authored pair is kept. If a future fixture
+ * disagrees, the flip belongs in exactly one place, the UV copy in
+ * `convertMesh`.
  */
 
 import { contentError } from "../content-error.js";

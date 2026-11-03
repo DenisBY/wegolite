@@ -30,7 +30,10 @@ import {
   decodePng,
   emitTextures,
   resolveReferencedTextures,
+  sampleNearest,
 } from "./textures.js";
+import { convertMesh } from "./glb.js";
+import type { Face, MeshMaterial, ParsedMesh } from "./dat.js";
 import type { ShipCatalogue } from "../../../src/content/schemas/ship.js";
 
 const REPO_ROOT = process.cwd();
@@ -418,5 +421,117 @@ describe("emitTextures", () => {
       expect(committed.equals(Buffer.from(expected)), name).toBe(true);
       expect(source.width).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * The V-orientation decision (DATA-04, D-09). The fixture's four quadrants are
+ * distinct and its top-left is opaque red, so a flip would be visible as a
+ * colour swap rather than a tolerance.
+ */
+const ASYMMETRIC_FIXTURE = "tests/fixtures/textures/asymmetric-8x8.png";
+const RED: readonly [number, number, number, number] = [255, 0, 0, 255];
+const GREEN: readonly [number, number, number, number] = [0, 255, 0, 255];
+const BLUE: readonly [number, number, number, number] = [0, 0, 255, 255];
+const WHITE: readonly [number, number, number, number] = [255, 255, 255, 255];
+
+const QUAD_MATERIAL: MeshMaterial = {
+  index: 0,
+  key: "asymmetric-8x8.png",
+  name: "asymmetric-8x8.png",
+};
+
+/** Two triangles, corners in the plan's order, UVs walking the unit square. */
+function quadMesh(): ParsedMesh {
+  const normal = { x: 0, y: 0, z: 1 };
+  const faces: Face[] = [
+    {
+      smoothGroup: 0,
+      normal,
+      vertices: [0, 1, 2],
+      uv: [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+      ],
+      materialIndex: 0,
+    },
+    {
+      smoothGroup: 0,
+      normal,
+      vertices: [0, 2, 3],
+      uv: [
+        [0, 0],
+        [1, 1],
+        [0, 1],
+      ],
+      materialIndex: 0,
+    },
+  ];
+  return {
+    nverts: 4,
+    nfaces: 2,
+    // Top-left, top-right, bottom-right, bottom-left in glTF's Y-up space.
+    vertices: [
+      { x: -1, y: 1, z: 0 },
+      { x: 1, y: 1, z: 0 },
+      { x: 1, y: -1, z: 0 },
+      { x: -1, y: -1, z: 0 },
+    ],
+    faces,
+    materials: [QUAD_MATERIAL],
+    normals: null,
+    names: null,
+    caseSensitiveNames: false,
+    warnings: [],
+  };
+}
+
+describe("sampleNearest (V orientation)", () => {
+  it("treats v = 0 as the image's top row", () => {
+    const png = readBytes(ASYMMETRIC_FIXTURE);
+
+    expect(sampleNearest(png, 0.25, 0.25)).toEqual(RED);
+    expect(sampleNearest(png, 0.75, 0.25)).toEqual(GREEN);
+    expect(sampleNearest(png, 0.25, 0.75)).toEqual(BLUE);
+    expect(sampleNearest(png, 0.75, 0.75)).toEqual(WHITE);
+  });
+
+  it("emits UV (0,0) on the geometry's top-left corner, with no V flip", () => {
+    const primitives = convertMesh(quadMesh(), "per-face", "gltf");
+    const primitive = primitives[0];
+    if (primitive === undefined)
+      throw new Error("the quad emitted no primitive");
+
+    const cornerAt = (x: number, y: number): readonly [number, number] => {
+      for (let index = 0; index < primitive.positions.length; index += 3) {
+        if (
+          primitive.positions[index] === x &&
+          primitive.positions[index + 1] === y
+        ) {
+          const uvIndex = (index / 3) * 2;
+          return [
+            primitive.uvs[uvIndex] ?? -1,
+            primitive.uvs[uvIndex + 1] ?? -1,
+          ];
+        }
+      }
+      throw new Error(`no emitted corner at (${String(x)}, ${String(y)})`);
+    };
+
+    const topLeft = cornerAt(-1, 1);
+    const bottomLeft = cornerAt(-1, -1);
+    expect(topLeft).toEqual([0, 0]);
+    expect(bottomLeft).toEqual([0, 1]);
+
+    // The same pair through the sampler lands in the marked red quadrant at the
+    // top-left and the blue quadrant at the bottom-left: identity, no flip.
+    const png = readBytes(ASYMMETRIC_FIXTURE);
+    expect(sampleNearest(png, topLeft[0] + 0.25, topLeft[1] + 0.25)).toEqual(
+      RED,
+    );
+    expect(
+      sampleNearest(png, bottomLeft[0] + 0.25, bottomLeft[1] + 0.25),
+    ).toEqual(BLUE);
   });
 });
