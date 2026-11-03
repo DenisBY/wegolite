@@ -2,16 +2,22 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The shared GLB cache (Pattern 3, T-3-02).
+ * The shared GLB cache (Pattern 3, T-3-02, T-3-24).
  *
- * The Cobra and Coriolis models are loaded once and cloned per scene, so a
- * scene swap never re-downloads or re-parses them. The cache owns the shared
- * geometries, materials and textures; a `SystemScene` owns only the clones and
- * disposable resources it creates itself.
+ * **Ownership rule.** This module is the single owner of the two shared GLB
+ * scenes: their geometries, materials and textures. A `SystemScene` or a
+ * `MenuScene` clones the model and owns only the clone's *materials*; it must
+ * never dispose a cached geometry, material or texture. Disposing a cloned
+ * material does not dispose its `map` (Three does not cascade), which is what
+ * keeps the menu Cobra textured after a system swap. Only `dispose()` below
+ * frees the cached resources, and only on app teardown.
  *
- * A failed load rejects with a named error that includes the model path. The
- * caller must not start the render loop on that rejection: an empty scene over
- * a live canvas is exactly the blank-canvas failure T-3-02 forbids.
+ * `loadCobra()`/`loadCoriolis()` are memoised: repeated calls return the same
+ * promise, so a boot-time warm-up and the session's own `preload()` share one
+ * download. A failed load rejects with a named error that includes the model
+ * path; the caller must not start the render loop on that rejection, because an
+ * empty scene over a live canvas is exactly the blank-canvas failure T-3-02
+ * forbids.
  */
 
 import * as THREE from "three";
@@ -22,13 +28,20 @@ import { isMesh, meshMaterials } from "./mesh.js";
 const COBRA_PATH = "models/cobra3.glb";
 const CORIOLIS_PATH = "models/coriolis.glb";
 
+/** The one seam the Node disposal test injects; production uses `GLTFLoader`. */
+export type ModelLoader = (url: string) => Promise<GLTF>;
+
 export interface AssetCache {
+  /** Memoised Cobra load; the promise rejects with a path-named error. */
+  loadCobra(): Promise<GLTF>;
+  /** Memoised Coriolis load; the promise rejects with a path-named error. */
+  loadCoriolis(): Promise<GLTF>;
+  /** The Cobra model; throws when called before the load resolved. */
+  cobra(): GLTF;
+  /** The Coriolis model; throws when called before the load resolved. */
+  coriolis(): GLTF;
   /** Load both models; resolves once, and is safe to call repeatedly. */
   preload(): Promise<void>;
-  /** The Cobra model; throws when called before `preload()` resolved. */
-  cobra(): GLTF;
-  /** The Coriolis model; throws when called before `preload()` resolved. */
-  coriolis(): GLTF;
   /**
    * True once both GLBs are loaded and `cobra()`/`coriolis()` are safe.
    *
@@ -37,53 +50,69 @@ export interface AssetCache {
    * because the cache is still loading.
    */
   loaded(): boolean;
+  /** Free the shared GLBs exactly once. Idempotent; never called by a scene. */
   dispose(): void;
 }
 
-function disposeMaterial(material: THREE.Material): void {
-  const record = material as unknown as Record<string, unknown>;
-  for (const value of Object.values(record)) {
-    if (value instanceof THREE.Texture) value.dispose();
-  }
-  material.dispose();
+function defaultLoader(): ModelLoader {
+  const loader = new GLTFLoader();
+  return (url) => loader.loadAsync(url);
 }
 
-function disposeModel(root: THREE.Object3D): void {
-  root.traverse((object) => {
-    if (!isMesh(object)) return;
-    object.geometry.dispose();
-    for (const material of meshMaterials(object)) disposeMaterial(material);
-  });
+/** Collect every texture a material references (map, normalMap, emissiveMap…). */
+function collectTextures(
+  material: THREE.Material,
+  into: Set<THREE.Texture<unknown>>,
+): void {
+  const record = material as unknown as Record<string, unknown>;
+  for (const value of Object.values(record)) {
+    if (value instanceof THREE.Texture) {
+      // `instanceof` narrows to `Texture<any, any>`; the set is the safe form.
+      into.add(value as THREE.Texture<unknown>);
+    }
+  }
 }
 
 export function createAssetCache(
   baseUrl: string = import.meta.env.BASE_URL,
+  loadModel: ModelLoader = defaultLoader(),
 ): AssetCache {
-  const loader = new GLTFLoader();
   let cobraModel: GLTF | undefined;
   let coriolisModel: GLTF | undefined;
+  let cobraPromise: Promise<GLTF> | undefined;
+  let coriolisPromise: Promise<GLTF> | undefined;
   let pending: Promise<void> | undefined;
 
-  const load = async (path: string): Promise<GLTF> => {
-    try {
-      return await loader.loadAsync(`${baseUrl}${path}`);
-    } catch (cause) {
+  const load = (path: string): Promise<GLTF> =>
+    loadModel(`${baseUrl}${path}`).catch((cause: unknown) => {
       throw new Error(`Wegolite: failed to load the model at ${path}.`, {
         cause,
       });
-    }
-  };
+    });
+
+  function loadCobra(): Promise<GLTF> {
+    cobraPromise ??= load(COBRA_PATH).then((gltf) => {
+      cobraModel = gltf;
+      return gltf;
+    });
+    return cobraPromise;
+  }
+
+  function loadCoriolis(): Promise<GLTF> {
+    coriolisPromise ??= load(CORIOLIS_PATH).then((gltf) => {
+      coriolisModel = gltf;
+      return gltf;
+    });
+    return coriolisPromise;
+  }
 
   return {
+    loadCobra,
+    loadCoriolis,
     preload(): Promise<void> {
-      pending ??= (async () => {
-        const [cobra, coriolis] = await Promise.all([
-          load(COBRA_PATH),
-          load(CORIOLIS_PATH),
-        ]);
-        cobraModel = cobra;
-        coriolisModel = coriolis;
-      })();
+      pending ??= Promise.all([loadCobra(), loadCoriolis()]).then(
+        () => undefined,
+      );
       return pending;
     },
     cobra(): GLTF {
@@ -106,10 +135,35 @@ export function createAssetCache(
       return cobraModel !== undefined && coriolisModel !== undefined;
     },
     dispose(): void {
-      if (cobraModel !== undefined) disposeModel(cobraModel.scene);
-      if (coriolisModel !== undefined) disposeModel(coriolisModel.scene);
+      // Dedupe by identity: the GLBs share one material across many meshes, and
+      // a texture can hang off several materials. Disposing a resource twice is
+      // not an error in Three, but it is a double-free in the proof.
+      const geometries = new Set<THREE.BufferGeometry>();
+      const materials = new Set<THREE.Material>();
+      const textures = new Set<THREE.Texture<unknown>>();
+
+      for (const model of [cobraModel, coriolisModel]) {
+        if (model === undefined) continue;
+        model.scene.traverse((object) => {
+          if (!isMesh(object)) return;
+          geometries.add(object.geometry);
+          for (const material of meshMaterials(object)) {
+            materials.add(material);
+            collectTextures(material, textures);
+          }
+        });
+      }
+
+      for (const geometry of geometries) geometry.dispose();
+      for (const material of materials) material.dispose();
+      for (const texture of textures) texture.dispose();
+
+      // Clearing the models is what makes a second call a no-op; a later
+      // `preload()` re-loads from scratch.
       cobraModel = undefined;
       coriolisModel = undefined;
+      cobraPromise = undefined;
+      coriolisPromise = undefined;
       pending = undefined;
     },
   };

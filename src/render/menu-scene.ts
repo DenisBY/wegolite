@@ -7,12 +7,11 @@
  * A starfield and a slowly presented Cobra Mk III, built once and swapped in
  * through the same build -> swap -> dispose path as a system scene. It owns
  * only what it creates: the starfield geometry/material and the cloned Cobra
- * materials. The cached GLB geometries and textures stay with `AssetCache`.
+ * materials. The cached GLB geometry and textures stay with `AssetCache` —
+ * `dispose()` never calls `AssetCache.dispose()`, and the cloned materials share
+ * the cached textures, so the Cobra stays textured after a system swap.
  *
- * This module is deliberately **not** wired here: `src/app/scene-manager.ts` is
- * plan 09's file and `SceneManager.enterMenu()` is this factory's single caller.
- * Building it in plan 03 keeps the scene work together while leaving the swap
- * policy with the lifecycle owner.
+ * `SceneManager.enterMenu()` is this factory's single caller.
  */
 
 import * as THREE from "three";
@@ -21,6 +20,7 @@ import { cameraRelative } from "./camera-relative.js";
 import { createShip } from "./bodies/ship.js";
 import { disposeClonedMaterials } from "./bodies/station.js";
 import { createSystemStarfield } from "./bodies/starfield.js";
+import { createDisposer } from "./system-scene.js";
 import { CAMERA_FAR, CAMERA_FOV_DEGREES, CAMERA_NEAR } from "./system-scene.js";
 
 /** Menu stars: far fewer than a system, because there is no scale cue. */
@@ -56,13 +56,27 @@ export function createMenuScene(assets: AssetCache): MenuScene {
 
   scene.add(new THREE.AmbientLight(0xffffff, 1), starfield, ship);
 
+  // Explicit registry, mirroring `SystemScene`: only the starfield and the
+  // clone's materials. The cached GLB (and its textures) is never touched.
+  const disposer = createDisposer([
+    {
+      dispose(): void {
+        starfield.geometry.dispose();
+        starfield.material.dispose();
+      },
+    },
+    {
+      dispose(): void {
+        disposeClonedMaterials(ship);
+      },
+    },
+  ]);
+
   return {
     scene,
     camera,
     dispose(): void {
-      starfield.geometry.dispose();
-      starfield.material.dispose();
-      disposeClonedMaterials(ship);
+      disposer.dispose();
       scene.clear();
     },
   };

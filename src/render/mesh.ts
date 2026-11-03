@@ -28,5 +28,17 @@ export function isPoints(object: THREE.Object3D): object is THREE.Points {
 
 /** A mesh's material as an array, whether the GLB authored one or several. */
 export function meshMaterials(mesh: THREE.Mesh): THREE.Material[] {
-  return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  return materialList(mesh.material);
+}
+
+/**
+ * A material or material array as an array.
+ *
+ * `Array.isArray` narrows its true branch to `any[]`, which the type-aware lint
+ * rules reject; the `instanceof` test narrows the same union without `any`.
+ */
+export function materialList(
+  material: THREE.Material | THREE.Material[],
+): THREE.Material[] {
+  return material instanceof THREE.Material ? [material] : material;
 }
