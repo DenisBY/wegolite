@@ -209,3 +209,159 @@ describe("shipdata catalogue", () => {
     expect(error.message).toContain("../../etc/passwd");
   });
 });
+
+/** The versioned golden: counts plus the two entries plan 06 converts. */
+interface ShipFixture {
+  readonly version: number;
+  readonly entryCount: number;
+  readonly templateCount: number;
+  readonly usableCount: number;
+  readonly maxChainDepth: number;
+  readonly vendoredModelEntries: readonly string[];
+  readonly marketDefinition: {
+    readonly absent: number;
+    readonly empty: number;
+    readonly explicit: number;
+  };
+  readonly cobra3Player: {
+    readonly model: string;
+    readonly modelVendored: boolean;
+    readonly isTemplate: boolean;
+    readonly usable: boolean;
+    readonly roles: readonly string[];
+    readonly maxFlightSpeed: number;
+    readonly thrust: number;
+    readonly maxFlightPitch: number;
+    readonly maxFlightRoll: number;
+    readonly maxCargo: number;
+    readonly fuel: number;
+    readonly materialKeys: readonly string[];
+  };
+  readonly coriolisStation: {
+    readonly model: string;
+    readonly modelVendored: boolean;
+    readonly isTemplate: boolean;
+    readonly usable: boolean;
+    readonly roles: readonly string[];
+    readonly marketDefinitionKind: string;
+    readonly rotating: boolean;
+    readonly stationRoll: number;
+    readonly subentityCount: number;
+    readonly entitySubentities: readonly string[];
+    readonly flasherCount: number;
+    readonly dockSubentity: {
+      readonly subentity_key: string;
+      readonly is_dock: string;
+      readonly isDock: boolean;
+      readonly position: readonly [number, number, number];
+    };
+  };
+}
+
+const shipFixture = JSON.parse(
+  readFileSync(
+    new URL("../../../tests/golden/content/ships.json", import.meta.url),
+    "utf8",
+  ),
+) as ShipFixture;
+
+describe("ship golden fixture", () => {
+  it("pins the version, the four counts and the seven vendored entries", () => {
+    expect(shipFixture.version).toBe(1);
+    expect(shipFixture.entryCount).toBe(194);
+    expect(catalogue.entries).toHaveLength(shipFixture.entryCount);
+    expect(shipFixture.templateCount).toBe(81);
+    expect(catalogue.entries.filter((entry) => entry.isTemplate)).toHaveLength(
+      shipFixture.templateCount,
+    );
+    expect(shipFixture.usableCount).toBe(102);
+    expect(catalogue.entries.filter((entry) => entry.usable)).toHaveLength(
+      shipFixture.usableCount,
+    );
+    expect(shipFixture.maxChainDepth).toBe(3);
+    expect(catalogue.maxChainDepth).toBe(shipFixture.maxChainDepth);
+
+    const vendored = catalogue.entries
+      .filter((entry) => entry.usable && entry.modelVendored)
+      .map((entry) => entry.key)
+      .sort();
+    expect(vendored).toEqual([...shipFixture.vendoredModelEntries].sort());
+  });
+
+  it("pins the market_definition tri-state", () => {
+    const counts = { absent: 0, empty: 0, explicit: 0 };
+    for (const entry of catalogue.entries)
+      counts[entry.marketDefinition.kind] += 1;
+    expect(counts).toEqual(shipFixture.marketDefinition);
+  });
+
+  it("pins the Cobra player anchors", () => {
+    const cobra = requireEntry("cobra3-player");
+    const expected = shipFixture.cobra3Player;
+
+    expect(cobra.model).toBe(expected.model);
+    expect(cobra.modelVendored).toBe(expected.modelVendored);
+    expect(cobra.isTemplate).toBe(expected.isTemplate);
+    expect(cobra.usable).toBe(expected.usable);
+    expect(cobra.roles).toEqual([...expected.roles]);
+    expect(cobra.shipDef.maxFlightSpeed).toBe(expected.maxFlightSpeed);
+    expect(cobra.shipDef.thrust).toBe(expected.thrust);
+    expect(cobra.shipDef.maxFlightPitch).toBe(expected.maxFlightPitch);
+    expect(cobra.shipDef.maxFlightRoll).toBe(expected.maxFlightRoll);
+    expect(cobra.shipDef.maxCargo).toBe(expected.maxCargo);
+    expect(cobra.shipDef.fuel).toBe(expected.fuel);
+    expect(Object.keys(cobra.shipDef.materials).sort()).toEqual(
+      [...expected.materialKeys].sort(),
+    );
+  });
+
+  it("pins the Coriolis anchors and the keyed dock subentity", () => {
+    const station = requireEntry("coriolis-station");
+    const expected = shipFixture.coriolisStation;
+
+    expect(station.model).toBe(expected.model);
+    expect(station.modelVendored).toBe(expected.modelVendored);
+    expect(station.isTemplate).toBe(expected.isTemplate);
+    expect(station.usable).toBe(expected.usable);
+    expect(station.roles).toEqual([...expected.roles]);
+    expect(station.marketDefinition.kind).toBe(expected.marketDefinitionKind);
+    expect(station.shipDef.rotating).toBe(expected.rotating);
+    expect(station.shipDef.stationRoll).toBe(expected.stationRoll);
+    expect(station.shipDef.subentities).toHaveLength(expected.subentityCount);
+    expect(
+      station.shipDef.subentities
+        .filter((subentity) => subentity.subentity_key !== undefined)
+        .map((subentity) => subentity.subentity_key),
+    ).toEqual([...expected.entitySubentities]);
+    expect(
+      station.shipDef.subentities.filter(
+        (subentity) => subentity.type === "flasher",
+      ),
+    ).toHaveLength(expected.flasherCount);
+
+    const typedDock = station.shipDef.subentities.find(
+      (subentity) =>
+        subentity.subentity_key === expected.dockSubentity.subentity_key,
+    );
+    if (typedDock === undefined)
+      throw new Error("typed dock subentity missing");
+    expect(typedDock.isDock).toBe(expected.dockSubentity.isDock);
+    expect(typedDock.position).toEqual([...expected.dockSubentity.position]);
+
+    const raw = station.extras.subentities;
+    if (!Array.isArray(raw)) throw new Error("raw subentities missing");
+    const rawDock: unknown = raw.find(
+      (item: unknown) =>
+        item !== null &&
+        typeof item === "object" &&
+        "subentity_key" in item &&
+        (item as { subentity_key?: unknown }).subentity_key ===
+          expected.dockSubentity.subentity_key,
+    );
+    expect(rawDock).toMatchObject({
+      subentity_key: expected.dockSubentity.subentity_key,
+      is_dock: expected.dockSubentity.is_dock,
+      position: [...expected.dockSubentity.position],
+    });
+  });
+});

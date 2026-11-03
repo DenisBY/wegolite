@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "entryCount": 194,
+  "templateCount": 81,
+  "usableCount": 102,
+  "maxChainDepth": 3,
+  "vendoredModelEntries": [
+    "cobra3-alternate",
+    "cobra3-pirate",
+    "cobra3-player",
+    "cobra3-trader",
+    "coriolis-station",
+    "oolite-cobra3-strict",
+    "oolite-tutorial-station"
+  ],
+  "marketDefinition": {
+    "absent": 180,
+    "empty": 8,
+    "explicit": 6
+  },
+  "cobra3Player": {
+    "model": "oolite_cobra3.dat",
+    "modelVendored": true,
+    "isTemplate": false,
+    "usable": true,
+    "roles": ["player"],
+    "maxFlightSpeed": 350,
+    "thrust": 32,
+    "maxFlightPitch": 1,
+    "maxFlightRoll": 2,
+    "maxCargo": 20,
+    "fuel": 70,
+    "materialKeys": ["Gun", "Hull"]
+  },
+  "coriolisStation": {
+    "model": "oolite_coriolis.dat",
+    "modelVendored": true,
+    "isTemplate": false,
+    "usable": true,
+    "roles": ["coriolis", "station"],
+    "marketDefinitionKind": "empty",
+    "rotating": true,
+    "stationRoll": 0.08,
+    "subentityCount": 17,
+    "entitySubentities": [
+      "oolite_coriolis_faceplate",
+      "oolite_coriolis_tris",
+      "oolite_coriolis_dock"
+    ],
+    "flasherCount": 14,
+    "dockSubentity": {
+      "subentity_key": "oolite_coriolis_dock",
+      "is_dock": "true",
+      "isDock": true,
+      "position": [0, 0, 500.2561]
+    }
+  }
+}

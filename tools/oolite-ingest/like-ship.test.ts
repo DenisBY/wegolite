@@ -24,7 +24,7 @@ import type { PlistJson } from "./canonical/json.js";
 import { isContentError } from "./content-error.js";
 import type { ContentError } from "./content-error.js";
 import { parseOpenStep } from "./openstep/parser.js";
-import { dictToMap, plistToJson } from "./openstep/plist-value.js";
+import { dictToMap, getEntry, plistToJson } from "./openstep/plist-value.js";
 import type {
   PlistDict,
   PlistEntry,
@@ -321,5 +321,33 @@ describe("resolved chains", () => {
       "oolite_template_cobra3",
     ]);
     expect(result.maxChainDepth).toBe(3);
+  });
+});
+
+describe("the pinned Cobra template", () => {
+  it("declares is_template as the integer 1, not a string", () => {
+    const source = readFileSync(
+      new URL(`../../${SHIPDATA}`, import.meta.url),
+      "utf8",
+    );
+    const root = parseOpenStep(source, SHIPDATA);
+    if (root.kind !== "dict") throw new Error("shipdata is not a dict");
+
+    const template = root.entries.find(
+      (item) => item.key === "oolite_template_cobra3",
+    )?.value;
+    if (template === undefined || template.kind !== "dict") {
+      throw new Error("oolite_template_cobra3 is missing");
+    }
+    const flag = getEntry(template, "is_template")?.value;
+    expect(flag?.kind).toBe("integer");
+    expect(flag?.kind === "integer" ? flag.value : undefined).toBe(1);
+
+    const result = resolveAll(root, { file: SHIPDATA });
+    const inherited = result.entries
+      .get("oolite_template_cobra3-player")
+      ?.get("is_template");
+    expect(inherited?.kind).toBe("integer");
+    expect(inherited?.kind === "integer" ? inherited.value : undefined).toBe(1);
   });
 });
