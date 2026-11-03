@@ -71,7 +71,13 @@ function parseAssetRows(): AssetRow[] {
         .split("|")
         .slice(1, -1)
         .map((cell) => cell.trim());
-      if (cells.length !== 8) return;
+      if (cells.length !== 8) {
+        // Fail closed: a malformed row silently dropped here would let an
+        // asset ship with no provenance (CR-01 / WR-01, phase 02 review).
+        throw new Error(
+          `${ASSETS_PATH}:${String(index + 1)}: row has ${String(cells.length)} cells, expected 8`,
+        );
+      }
       const path = cells[0] ?? "";
       if (path === "Path" || /^-+$/.test(path)) return;
       rows.push({ cells, line: index + 1 });
@@ -198,5 +204,56 @@ describe("vendored Oolite snapshot", () => {
     expect(FILES.length).toBeGreaterThanOrEqual(60);
 
     expect(FILES.filter((file) => file.endsWith(".js"))).toEqual([]);
+  });
+});
+
+/**
+ * CR-01 / WR-01 (phase 02 review): committed assets under `public/` are
+ * redistributed artwork and must carry the same provenance as the vendored
+ * inputs. Previously nothing walked this directory, so a bare path row passed
+ * the gate. `.gitkeep` placeholders are not assets.
+ */
+const PUBLIC_FILES = collectFiles("public").filter(
+  (file) => !file.split("/").pop()?.startsWith("."),
+);
+
+describe("committed public assets", () => {
+  it("walks at least the 23 emitted assets (vacuity guard)", () => {
+    expect(PUBLIC_FILES.length).toBeGreaterThanOrEqual(23);
+  });
+
+  it("gives every public file exactly one ASSETS.md row", () => {
+    const problems = PUBLIC_FILES.flatMap((file) => {
+      const matches = ROWS.filter((row) => row.cells[0] === file);
+      return matches.length === 1
+        ? []
+        : [`${file}: ${String(matches.length)} ASSETS.md rows`];
+    });
+
+    expect(problems).toEqual([]);
+  });
+
+  it("records the actual SHA-256 of every public file", () => {
+    const problems = PUBLIC_FILES.flatMap((file) => {
+      const row = ROWS.find((candidate) => candidate.cells[0] === file);
+      if (row === undefined) return [`${file}: no ASSETS.md row`];
+      const actual = sha256Of(file);
+      return row.cells[7] === actual
+        ? []
+        : [`${file}: row has ${String(row.cells[7])}, actual ${actual}`];
+    });
+
+    expect(problems).toEqual([]);
+  });
+
+  it("states a licence for every public file", () => {
+    const problems = PUBLIC_FILES.flatMap((file) => {
+      const row = ROWS.find((candidate) => candidate.cells[0] === file);
+      return row === undefined || row.cells[5] === ""
+        ? [`${file}: no licence cell`]
+        : [];
+    });
+
+    expect(problems).toEqual([]);
   });
 });
