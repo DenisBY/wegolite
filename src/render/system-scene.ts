@@ -23,8 +23,9 @@ import { createPlanet } from "./bodies/planet.js";
 import type { PlanetBody } from "./bodies/planet.js";
 import { createShip } from "./bodies/ship.js";
 import { createStation, disposeClonedMaterials } from "./bodies/station.js";
+import { createSystemStarfield } from "./bodies/starfield.js";
 import { createSun } from "./bodies/sun.js";
-import { createStarfield } from "./precision-scene.js";
+import type { SunBody } from "./bodies/sun.js";
 
 /** Oolite's default vertical field of view (Universe.m). */
 export const CAMERA_FOV_DEGREES = 57.2;
@@ -35,7 +36,7 @@ export interface SystemScene {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   planet: PlanetBody;
-  sun: THREE.Mesh;
+  sun: SunBody;
   starfield: THREE.Points;
   station: THREE.Group;
   ship: THREE.Group;
@@ -71,10 +72,14 @@ export function createSystemScene(
     layout.sunDir,
     layout.rotationSpeed,
   );
-  const sun = createSun(layout);
-  // The interim starfield is borrowed from the Phase 1 precision scene; plan 03
-  // replaces it with `createSystemStarfield` and deletes that module.
-  const starfield = createStarfield();
+  const sun = createSun(system, layout.sun.radius, system.sun_color);
+  // The starfield is sized and tinted from the same record: the exact authored
+  // `sky_n_stars`, seeded by `random_seed`, tinted by `sun_color`.
+  const starfield = createSystemStarfield(
+    system.sky_n_stars,
+    system.random_seed,
+    [system.sun_color[0], system.sun_color[1], system.sun_color[2]],
+  );
   const station = createStation(layout, assets.coriolis());
   const ship = createShip(assets.cobra());
 
@@ -88,7 +93,16 @@ export function createSystemScene(
   );
   const ambient = new THREE.AmbientLight(0xffffff, 0.1);
 
-  scene.add(light, ambient, planet.mesh, sun, starfield, station, ship);
+  scene.add(
+    light,
+    ambient,
+    planet.mesh,
+    sun.sun,
+    sun.corona,
+    starfield,
+    station,
+    ship,
+  );
 
   return {
     scene,
@@ -100,7 +114,7 @@ export function createSystemScene(
     ship,
     dispose(): void {
       disposeGeometryAndMaterials(planet.mesh);
-      disposeGeometryAndMaterials(sun);
+      sun.dispose();
       disposeGeometryAndMaterials(starfield);
       disposeClonedMaterials(station);
       disposeClonedMaterials(ship);

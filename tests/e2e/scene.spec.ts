@@ -55,6 +55,8 @@ test("boots to the title, starts docked at Lave, launches and flies", async ({
   // `tests/render/planet-shader.test.ts`; the browser only has to see the body
   // at its authored position and keep drawing.
   expect(info.bodies).toContain("planet");
+  expect(info.bodies).toContain("sun");
+  expect(info.bodies).toContain("starfield");
   expect(info.bodies).toEqual([
     "planet",
     "sun",

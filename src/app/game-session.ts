@@ -174,7 +174,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (currentLayout !== undefined && currentScene !== undefined) {
       probe.bodies = [
         currentScene.planet.mesh.name,
-        currentScene.sun.name,
+        currentScene.sun.sun.name,
         currentScene.starfield.name,
         currentScene.station.name,
         currentScene.ship.name,

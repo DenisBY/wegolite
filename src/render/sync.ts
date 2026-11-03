@@ -100,7 +100,9 @@ export function applyFrame(
 
   placeRelative(scene.planet.mesh, layout.planet.position, cameraWorld);
   scene.planet.update(elapsedSeconds);
-  placeRelative(scene.sun, layout.sun.position, cameraWorld);
+  placeRelative(scene.sun.sun, layout.sun.position, cameraWorld);
+  placeRelative(scene.sun.corona, layout.sun.position, cameraWorld);
+  scene.sun.update(elapsedSeconds, scene.camera);
   placeRelative(scene.station, layout.station.position, cameraWorld);
   placeRelative(scene.ship, pose.position, cameraWorld);
   setQuaternion(scene.ship, pose.orientation);
