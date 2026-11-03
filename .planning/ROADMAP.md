@@ -30,7 +30,7 @@ into the travel phase so one module owns the fuel/distance rule instead of two.
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation, Containers & Compliance** - Docker-only workflow, fixed-step loop, precision spike, licence and trademark posture (completed 2026-11-02)
-- [ ] **Phase 2: Data Pipeline & Content Compiler** - Pinned Oolite snapshot compiled at build time into typed content, GLB models, and a drift gate
+- [x] **Phase 2: Data Pipeline & Content Compiler** - Pinned Oolite snapshot compiled at build time into typed content, GLB models, and a drift gate (completed 2026-11-03)
 - [ ] **Phase 3: Flight in the Lave System** - Launch from Lave's Coriolis and fly the Cobra through a faithful, stably rendered system
 - [ ] **Phase 4: Manual Docking** - Skill-based docking with corridor feedback, plus the buyable docking computer
 - [ ] **Phase 5: Docked Economy & Station Screens** - Market, outfitting, status, and system-data screens on Oolite's economy rules
@@ -83,7 +83,7 @@ Plans:
   2. All 2,048 systems across the eight galaxies and all 17 commodities are available as typed content with stable IDs, correct units, and Alien Items present but never tradeable.
   3. The Cobra Mk III and Coriolis load in-engine with correct orientation, winding, per-face normals, and bounding boxes, and the Coriolis letterbox reads correctly rather than mirrored.
   4. A malformed plist, a cyclic `like_ship` chain, or a broken mesh fails with a message naming the file and construct instead of producing a silently wrong number.
-**Plans**: 9/9 plans executed
+**Plans**: 9/9 plans complete
 Plans:
 **Wave 1**
 - [x] 02-01-PLAN.md — Tracer: pinned snapshot, OpenStep parser, canonical JSON, manifest, `assets:build`/`assets:check` gate wired into `verify`, 17 commodities emitted
@@ -184,7 +184,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation, Containers & Compliance | 7/7 | Complete    | 2026-11-02 |
-| 2. Data Pipeline & Content Compiler | 9/9 | In Progress | - |
+| 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
 | 3. Flight in the Lave System | 0/TBD | Not started | - |
 | 4. Manual Docking | 0/TBD | Not started | - |
 | 5. Docked Economy & Station Screens | 0/TBD | Not started | - |
