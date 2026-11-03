@@ -123,7 +123,16 @@ Plans:
   3. The torus drive engages, mass-locks near the station and planet, and disengages on pilot input, and the HUD shows crosshair, scanner, compass, aegis indicator, bars, clock, message line, and condition light.
   4. The view stays stable from witchpoint to station — no visible jitter or z-fighting on the planet, station, or dock opening — across the full ~1.4e6 m extent.
   5. A browser without WebGL2 shows a clear fallback message instead of a blank canvas, and returning to a system after leaving it returns GPU memory to its baseline.
-**Plans**: TBD
+**Plans**: 1/9 plans executed
+- [x] 03-01-PLAN.md
+- [ ] 03-02-PLAN.md
+- [ ] 03-03-PLAN.md
+- [ ] 03-04-PLAN.md
+- [ ] 03-05-PLAN.md
+- [ ] 03-06-PLAN.md
+- [ ] 03-07-PLAN.md
+- [ ] 03-08-PLAN.md
+- [ ] 03-09-PLAN.md
 
 ### Phase 4: Manual Docking
 **Goal**: The player can dock a Cobra by hand with real feedback and real risk, and can buy a docking computer when they would rather not.
@@ -185,7 +194,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Foundation, Containers & Compliance | 7/7 | Complete    | 2026-11-02 |
 | 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
-| 3. Flight in the Lave System | 0/TBD | Not started | - |
+| 3. Flight in the Lave System | 1/9 | In Progress | - |
 | 4. Manual Docking | 0/TBD | Not started | - |
 | 5. Docked Economy & Station Screens | 0/TBD | Not started | - |
 | 6. Hyperspace, Navigation & Persistence | 0/TBD | Not started | - |
