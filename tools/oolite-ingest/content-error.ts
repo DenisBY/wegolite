@@ -32,6 +32,19 @@ export interface ContentErrorOptions {
 
 const MAX_EXCERPT = 120;
 
+/**
+ * Collapse arbitrary diagnostic text into the bounded, single-line excerpt the
+ * contract promises (T-02-13). Applied to every excerpt, not just to a source
+ * line, because a caller may prefix a detail that would otherwise push the
+ * stored text past the limit.
+ */
+function boundedExcerpt(text: string): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  return collapsed.length > MAX_EXCERPT
+    ? `${collapsed.slice(0, MAX_EXCERPT - 1)}…`
+    : collapsed;
+}
+
 function describe(
   code: ContentErrorCode,
   file: string,
@@ -58,19 +71,18 @@ function describe(
  */
 export function sourceExcerpt(source: string, line: number): string {
   const text = source.split("\n")[line - 1] ?? "";
-  const collapsed = text.replace(/\s+/g, " ").trim();
-  return collapsed.length > MAX_EXCERPT
-    ? `${collapsed.slice(0, MAX_EXCERPT - 1)}…`
-    : collapsed;
+  return boundedExcerpt(text);
 }
 
 export class ContentError extends Error {
   readonly code: ContentErrorCode;
   readonly file: string;
   readonly construct: string;
-  readonly line?: number;
-  readonly column?: number;
-  readonly chain?: readonly string[];
+  // `declare` keeps an absent position genuinely absent at runtime: a normal
+  // class field would define an own property holding `undefined`.
+  declare readonly line?: number;
+  declare readonly column?: number;
+  declare readonly chain?: readonly string[];
   readonly excerpt: string;
 
   constructor(
@@ -79,7 +91,7 @@ export class ContentError extends Error {
     construct: string,
     options: ContentErrorOptions = {},
   ) {
-    const excerpt = options.excerpt ?? "";
+    const excerpt = boundedExcerpt(options.excerpt ?? "");
     super(
       describe(code, file, construct, options.line, options.column, excerpt),
     );

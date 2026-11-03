@@ -18,8 +18,11 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
+import { assert as fcAssert, property, string } from "fast-check";
 import { describe, expect, it } from "vitest";
 
+import { canonicalJson } from "../canonical/json.js";
+import type { PlistJson } from "../canonical/json.js";
 import { formatContentError, isContentError } from "../content-error.js";
 import type { ContentError } from "../content-error.js";
 import { parseOpenStep } from "./parser.js";
@@ -336,5 +339,41 @@ describe("vendored corpus", () => {
     const gui = roots.get("gui-settings.plist");
     expect(gui?.kind).toBe("dict");
     if (gui?.kind === "dict") expect(gui.entries).toHaveLength(0);
+  });
+});
+
+describe("total-function property", () => {
+  it("returns a value or a located PLIST_PARSE error for arbitrary input", () => {
+    fcAssert(
+      property(string(), (source) => {
+        try {
+          parseOpenStep(source, "fixture:arbitrary");
+          return true;
+        } catch (error) {
+          // A TypeError or RangeError escaping here is the failure mode this
+          // property exists to catch: arbitrary bytes must never become a
+          // crash the CLI cannot present as a content error.
+          return isContentError(error) && error.code === "PLIST_PARSE";
+        }
+      }),
+      { numRuns: 100 },
+    );
+  });
+});
+
+describe("canonical round-trip", () => {
+  it("re-canonicalises every vendored plist to the same bytes", () => {
+    const files = readdirSync(CONFIG_DIR)
+      .filter((name) => name.endsWith(".plist"))
+      .sort();
+    expect(files).toHaveLength(40);
+
+    for (const name of files) {
+      const relative = `third_party/oolite/Config/${name}`;
+      const source = readFileSync(join(CONFIG_DIR, name), "utf8");
+      const first = canonicalJson(plistToJson(parseOpenStep(source, relative)));
+      const reparsed = JSON.parse(first) as PlistJson;
+      expect(canonicalJson(reparsed), relative).toBe(first);
+    }
   });
 });

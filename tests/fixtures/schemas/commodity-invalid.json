@@ -1,0 +1,41 @@
+{
+  "commodities": [
+    {
+      "key": "bad_field",
+      "name": "Unknown Field",
+      "classes": ["food"],
+      "unit": "t",
+      "podConversion": { "kilogramsPerUnit": 1000 },
+      "priceAverage": 50,
+      "priceEconomic": 0.55,
+      "priceRandom": 0.04,
+      "quantityAverage": 13.5,
+      "quantityEconomic": 0.52,
+      "quantityRandom": 0.04,
+      "legalityExport": 0,
+      "legalityImport": 0,
+      "trumbleOpinion": 0,
+      "sortOrder": 100,
+      "tradeable": true,
+      "unexpectedField": true
+    },
+    {
+      "key": "bad_price",
+      "name": "String Price",
+      "classes": ["food"],
+      "unit": "t",
+      "podConversion": { "kilogramsPerUnit": 1000 },
+      "priceAverage": "50",
+      "priceEconomic": 0.55,
+      "priceRandom": 0.04,
+      "quantityAverage": 13.5,
+      "quantityEconomic": 0.52,
+      "quantityRandom": 0.04,
+      "legalityExport": 0,
+      "legalityImport": 0,
+      "trumbleOpinion": 0,
+      "sortOrder": 100,
+      "tradeable": true
+    }
+  ]
+}
