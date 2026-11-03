@@ -31,6 +31,8 @@ import {
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { withProbeLock } from "./probe-lock.js";
+
 const REPO_ROOT = process.cwd();
 const SIM_DIR = join(REPO_ROOT, "src", "sim");
 const SRC_DIR = join(REPO_ROOT, "src");
@@ -62,16 +64,20 @@ function withProbe(
   source: string,
   body: (file: string) => void,
 ): void {
-  const file = join("src", "sim", name);
-  const absolute = join(REPO_ROOT, file);
-  mkdirSync(dirname(absolute), { recursive: true });
-  writeFileSync(absolute, source);
-  try {
-    body(file);
-  } finally {
-    // Remove the file only: `src/sim/` and its real subdirectories must stay.
-    rmSync(absolute, { force: true });
-  }
+  // `tsconfig.sim.json` globs `src/sim/**`, so a probe written by a parallel
+  // guard file can be globbed and then deleted mid-run (TS6053). Serialise.
+  withProbeLock(() => {
+    const file = join("src", "sim", name);
+    const absolute = join(REPO_ROOT, file);
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(absolute, source);
+    try {
+      body(file);
+    } finally {
+      // Remove the file only: `src/sim/` and its real subdirectories must stay.
+      rmSync(absolute, { force: true });
+    }
+  });
 }
 
 /** Every `.ts` file below `directory`, recursively. */

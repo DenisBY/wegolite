@@ -120,6 +120,13 @@
         margin: 0;
       }
 
+      #docked .docked-message {
+        min-height: 1.7em;
+        margin: 0 0 1rem;
+        color: #33ff66;
+        font: inherit;
+      }
+
       #docked button {
         width: 100%;
         padding: 0.6rem;
@@ -277,6 +284,7 @@
           <dt>Fuel</dt>
           <dd data-field="fuel"></dd>
         </dl>
+        <p class="docked-message" data-field="message" role="status"></p>
         <button type="button" data-action="launch">Launch</button>
       </section>
     </div>

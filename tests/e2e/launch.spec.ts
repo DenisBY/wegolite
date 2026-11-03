@@ -117,6 +117,99 @@ test("a launch after the first viewing skips on any key", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+/**
+ * The same mass-lock-free point as `tests/sim/torus.test.ts` and
+ * `tests/e2e/flight.spec.ts`: `station - stationToPlanet * 120,000`.
+ */
+const TORUS_TEST_POINT = [
+  -121_635.102_366_311_97, 149_362.238_845_820_7, -391_031.703_458_028_1,
+] as const;
+
+test("hints stay on the message line, dismiss on first use and persist", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await bootToDocked(page);
+  // D-11: the launch hint is in the docked panel's message line, using the
+  // current binding label (not a hard-coded key).
+  const dockedMessage = page.locator('#docked [data-field="message"]');
+  await expect(dockedMessage).toContainText("to launch");
+  await expect(dockedMessage).toContainText("1");
+
+  await page.click('button[data-action="launch"]');
+  await waitForMode(page, "inFlight");
+
+  // D-04: the camera-local dust field is live in flight.
+  const flight = await getProbe(page);
+  expect(flight.dust?.active).toBe(true);
+  expect(flight.dust?.count ?? 0).toBeGreaterThanOrEqual(600);
+
+  // Clear the station lock so the torus hint is legitimate.
+  await page.evaluate((point: readonly number[]) => {
+    const probe = window.__wegolite;
+    if (probe?.test === undefined) throw new Error("the ?test hook is missing");
+    probe.test.setPosition(point[0] ?? 0, point[1] ?? 0, point[2] ?? 0);
+    probe.test.setSpeed(350);
+  }, TORUS_TEST_POINT);
+  await page.waitForFunction(
+    () => window.__wegolite?.torus.massLocked === false,
+    undefined,
+    { timeout: 20_000 },
+  );
+
+  // The torus hint appears once clear of mass lock. The probe publishes the
+  // controller's decision (the message line itself expires on the simulation
+  // clock, which runs far slower than wall time under SwiftShader).
+  await page.waitForFunction(
+    () => (window.__wegolite?.hint ?? "").includes("Torus drive"),
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  await press(page, "j");
+  await page.waitForFunction(
+    () => window.__wegolite?.torus.engaged === true,
+    undefined,
+    { timeout: 10_000 },
+  );
+  // First engagement dismisses the torus hint and advances to the disengage
+  // hint, which is the "used" proof on the message line.
+  await page.waitForFunction(
+    () => window.__wegolite?.hints?.includes("torus") === true,
+    undefined,
+    { timeout: 15_000 },
+  );
+  await page.waitForFunction(
+    () => (window.__wegolite?.hint ?? "").includes("disengage"),
+    undefined,
+    { timeout: 15_000 },
+  );
+  expect((await getProbe(page)).dust?.active).toBe(true);
+
+  // The dismissal is persisted in the versioned settings blob.
+  const stored = await page.evaluate(() =>
+    localStorage.getItem("wegolite.settings"),
+  );
+  expect(stored).not.toBeNull();
+  expect(stored).toContain('"torus"');
+
+  // Reload: the launch hint does not reappear because `hintsSeen` survived.
+  await page.reload();
+  await waitForReady(page);
+  await page.click("#title-start");
+  await expect(page.locator("#docked")).toBeVisible();
+  await expect(page.locator('#docked [data-field="message"]')).toHaveText("");
+  const reloaded = await getProbe(page);
+  expect(reloaded.hints).toContain("launch");
+  expect(reloaded.hints).toContain("torus");
+  expect(errors).toEqual([]);
+});
+
 test("the break pattern covers the launch and freezes with pause", async ({
   page,
 }) => {

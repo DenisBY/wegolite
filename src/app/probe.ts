@@ -21,6 +21,7 @@ import type { FlightMode } from "../sim/flight/state.js";
 import type { CompassTarget, FlightState } from "../sim/flight/state.js";
 import type { AegisStatus } from "../sim/world/aegis.js";
 import { vec } from "../sim/math.js";
+import type { HintId } from "../settings/schema.js";
 
 export interface WegoliteWorldProbe {
   planet: [number, number, number];
@@ -79,6 +80,12 @@ export interface WegoliteProbe {
   bodies: string[];
   /** D-10: the Cobra is shown for the launch cinematic, hidden in the cockpit. */
   shipVisible?: boolean;
+  /** D-04: the camera-local dust field, once a system scene exists. */
+  dust?: { active: boolean; count: number };
+  /** D-11: hints already dismissed (persisted in settings). */
+  hints?: HintId[];
+  /** D-11: the last hint the controller decided to show (message-line proof). */
+  hint?: string;
   /** Present once a system scene exists. */
   world?: WegoliteWorldProbe;
   /** Present only under `?test=1`. */

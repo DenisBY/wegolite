@@ -20,6 +20,8 @@ import type { System } from "../content/types.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import type { AssetCache } from "./asset-cache.js";
 import { createBeacon } from "./bodies/beacon.js";
+import { createDust } from "./bodies/dust.js";
+import type { Dust } from "./bodies/dust.js";
 import { createPlanet } from "./bodies/planet.js";
 import type { PlanetBody } from "./bodies/planet.js";
 import { createShip } from "./bodies/ship.js";
@@ -45,6 +47,8 @@ export interface SystemScene {
   navBuoy: THREE.Group;
   witchpoint: THREE.Group;
   ship: THREE.Group;
+  /** D-04: camera-local speed dust; `sync.ts`/the session feed it the camera delta. */
+  dust: Dust;
   dispose(): void;
 }
 
@@ -105,6 +109,7 @@ export function createSystemScene(
   );
   const station = createStation(layout, assets.coriolis());
   const ship = createShip(assets.cobra());
+  const dust = createDust();
 
   // D-04: a nav buoy in front of the dock and the witchpoint beacon at the
   // arrival point. Procedural markers, no new asset.
@@ -134,6 +139,7 @@ export function createSystemScene(
     ship,
     navBuoy,
     witchpoint,
+    dust.object,
   );
 
   return {
@@ -146,6 +152,7 @@ export function createSystemScene(
     navBuoy,
     witchpoint,
     ship,
+    dust,
     dispose(): void {
       disposeGeometryAndMaterials(planet.mesh);
       sun.dispose();
@@ -154,6 +161,7 @@ export function createSystemScene(
       disposeClonedMaterials(ship);
       disposeBeacon(navBuoy);
       disposeBeacon(witchpoint);
+      dust.dispose();
       scene.clear();
     },
   };

@@ -27,6 +27,8 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { withProbeLock } from "./probe-lock.js";
+
 const REPO_ROOT = process.cwd();
 const SIM_DIR = join(REPO_ROOT, "src", "sim");
 
@@ -120,15 +122,19 @@ function withProbe(
   source: string,
   body: (file: string) => void,
 ): void {
-  mkdirSync(SIM_DIR, { recursive: true });
-  const file = join("src", "sim", name);
-  writeFileSync(join(REPO_ROOT, file), source);
-  try {
-    body(file);
-  } finally {
-    // Remove the file only: `src/sim/` is a real source directory and must stay.
-    rmSync(join(REPO_ROOT, file), { force: true });
-  }
+  // `tsconfig.sim.json` globs `src/sim/**`, so a probe written by a parallel
+  // guard file can be globbed and then deleted mid-run (TS6053). Serialise.
+  withProbeLock(() => {
+    mkdirSync(SIM_DIR, { recursive: true });
+    const file = join("src", "sim", name);
+    writeFileSync(join(REPO_ROOT, file), source);
+    try {
+      body(file);
+    } finally {
+      // Remove the file only: `src/sim/` is a real source directory and must stay.
+      rmSync(join(REPO_ROOT, file), { force: true });
+    }
+  });
 }
 
 describe("src/content boundary", () => {

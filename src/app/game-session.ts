@@ -28,6 +28,8 @@ import type { GameLoop } from "./game-loop.js";
 import { createTestHook, publishFailure } from "./probe.js";
 import type { WegoliteProbe } from "./probe.js";
 import type { SceneManager } from "./scene-manager.js";
+import { createHintController } from "./hints.js";
+import type { HintContext, HintController } from "./hints.js";
 import { createLaunchSequence } from "./launch-sequence.js";
 import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
@@ -61,8 +63,9 @@ import {
 import { initFlightState, poseOf } from "../sim/flight/state.js";
 import type { FlightPose, FlightState } from "../sim/flight/state.js";
 import { stepFlight } from "../sim/flight/step.js";
-import { identity, vec } from "../sim/math.js";
+import { identity, sub, vec } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
+import type { InputFrame } from "../sim/state.js";
 import { DT } from "../sim/time.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import { createKeyboardInputSource } from "../input/keyboard.js";
@@ -151,6 +154,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let loop: GameLoop | undefined;
   let settings: SettingsV1 | undefined;
   let bindings: BindingMap | undefined;
+  let hints: HintController | undefined;
   let pauseOverlay: PauseOverlay | undefined;
   let controlsPanel: ControlsPanel | undefined;
   let settingsPanel: SettingsPanel | undefined;
@@ -160,6 +164,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     orientation: identity(),
   };
   let currentPose: FlightPose = previousPose;
+  let previousCameraWorld: Vec3 | undefined;
+  let currentFrame: InputFrame = {
+    pitch: 0,
+    roll: 0,
+    speed: 0,
+    precision: false,
+  };
   let paused = false;
   let launchSeen = false;
   const messages = createMessageQueue(4);
@@ -352,6 +363,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         currentScene.witchpoint.name,
       ];
       probe.shipVisible = currentScene.ship.visible;
+      probe.dust = {
+        active: currentScene.dust.active,
+        count: currentScene.dust.count,
+      };
       probe.world = {
         planet: toTuple(currentLayout.planet.position),
         sun: toTuple(currentLayout.sun.position),
@@ -388,6 +403,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         bounds: currentHud.bounds,
       };
     }
+
+    probe.hints = hints === undefined ? [] : [...hints.seen];
   }
 
   function renderFrame(alpha: number): void {
@@ -416,7 +433,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     } else if (currentState.mode === "inFlight") {
       camera = computeCockpitCamera(pose.position, pose.orientation);
     }
-    applyFrame(
+    const cameraWorld = applyFrame(
       currentScene,
       previousPose,
       currentPose,
@@ -425,6 +442,17 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       camera,
       currentState.flightTime,
     );
+    // D-04: dust is camera-local. The world delta comes from the one transform
+    // path; the field wraps inside its box, so it never drifts to the origin.
+    const currentDust = currentScene.dust;
+    currentDust.update(
+      previousCameraWorld === undefined
+        ? vec(0, 0, 0)
+        : sub(cameraWorld, previousCameraWorld),
+      currentState.speed,
+      currentState.torus.factor,
+    );
+    previousCameraWorld = cameraWorld;
     // D-10: the Cobra is shown for the scripted exit and hidden in the cockpit;
     // it is toggled, never rebuilt.
     currentScene.ship.visible = currentState.mode === "launching";
@@ -432,9 +460,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderer.render(currentScene.scene, currentScene.camera);
 
     // The flight HUD is not drawn while docked (D-09 shows the status panel).
-    const docked = currentState.mode === "docked";
-    hudCanvas.hidden = docked;
-    if (!docked) {
+    const isDocked = currentState.mode === "docked";
+    hudCanvas.hidden = isDocked;
+    if (!isDocked) {
       const currentBreakPattern = breakPattern;
       if (
         currentState.mode === "launching" &&
@@ -457,7 +485,26 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         lastModel = model;
       }
     }
+    showHint(currentState);
     updateProbe();
+  }
+
+  /** D-11: one message-line hint at a time, never a modal or overlay. */
+  function showHint(currentState: FlightState): void {
+    const currentHints = hints;
+    if (currentHints === undefined) return;
+    const context: HintContext = {
+      mode: currentState.mode,
+      massLocked: currentState.torus.massLocked,
+      torusEngaged: currentState.torus.engaged,
+      speedInput: currentFrame.speed,
+      pitchRollInput: currentFrame.pitch !== 0 || currentFrame.roll !== 0,
+    };
+    const hint = currentHints.maybeShow(context);
+    if (hint === null) return;
+    probe.hint = hint;
+    if (currentState.mode === "docked") docked.setMessage(hint);
+    else messages.enqueue(hint);
   }
 
   function frame(now: number): void {
@@ -492,6 +539,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       pending.length = 0;
       // One immutable frame per rendered frame, shared by every fixed step.
       const frameInput = currentInput.frame();
+      currentFrame = frameInput;
 
       alpha = currentLoop.advance(delta, commands, (stepCommands) => {
         previousPose = currentPose;
@@ -521,6 +569,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       // fires on resume.
       currentInput.drainCommands();
       pending.length = 0;
+      currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
     }
 
     renderFrame(alpha);
@@ -569,12 +618,25 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     bindings = bindingMap;
     launchSeen = loaded.launchSeen;
     if (launchSeen) launchSequence.markSeen();
+    hints = createHintController({
+      bindings: bindingMap,
+      seen: settings.hintsSeen,
+      onSeen: (id) => {
+        const currentSettings = settings;
+        if (currentSettings === undefined) return;
+        if (!currentSettings.hintsSeen.includes(id)) {
+          currentSettings.hintsSeen.push(id);
+        }
+        persistSettings();
+      },
+    });
 
     input = createKeyboardInputSource(bindingMap);
     input.attach();
     loop = createGameLoop();
     previousPose = poseOf(flightState);
     currentPose = previousPose;
+    previousCameraWorld = undefined;
 
     pauseOverlay = createPauseOverlay({
       root: pauseRoot,

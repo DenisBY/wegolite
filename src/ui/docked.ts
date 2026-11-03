@@ -17,6 +17,8 @@ export const DOCKED_FUEL = "7.0 LY";
 export interface DockedPanel {
   show(systemName: string): void;
   hide(): void;
+  /** D-11: the docked panel's message line, same monospace/green styling. */
+  setMessage(text: string): void;
   onLaunch(handler: () => void): void;
   dispose(): void;
 }
@@ -34,6 +36,7 @@ export function createDockedPanel(root: HTMLElement): DockedPanel {
   const creditsField = requireField(root, "credits");
   const shipField = requireField(root, "ship");
   const fuelField = requireField(root, "fuel");
+  const messageField = requireField(root, "message");
 
   const launch = root.querySelector('[data-action="launch"]');
   if (!(launch instanceof HTMLButtonElement)) {
@@ -55,6 +58,9 @@ export function createDockedPanel(root: HTMLElement): DockedPanel {
     },
     hide(): void {
       root.hidden = true;
+    },
+    setMessage(text: string): void {
+      messageField.textContent = text;
     },
     onLaunch(handler: () => void): void {
       launch.addEventListener(
