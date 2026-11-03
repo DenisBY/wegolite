@@ -1,0 +1,48 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": null,
+  "phases": [
+    {
+      "number": "1",
+      "name": "Foundation, Containers & Compliance",
+      "status": "complete"
+    },
+    {
+      "number": "2",
+      "name": "Data Pipeline & Content Compiler",
+      "status": "pending"
+    },
+    {
+      "number": "3",
+      "name": "Flight in the Lave System",
+      "status": "pending"
+    },
+    {
+      "number": "4",
+      "name": "Manual Docking",
+      "status": "pending"
+    },
+    {
+      "number": "5",
+      "name": "Docked Economy & Station Screens",
+      "status": "pending"
+    },
+    {
+      "number": "6",
+      "name": "Hyperspace, Navigation & Persistence",
+      "status": "pending"
+    },
+    {
+      "number": "7",
+      "name": "Hardening & Community Release",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step (plan phase 2)",
+    "reason": "Phase 2 of 7 — needs a plan"
+  },
+  "updated_at": "2026-11-02T22:09:53.828Z"
+}
