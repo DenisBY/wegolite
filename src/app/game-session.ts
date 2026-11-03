@@ -180,6 +180,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let lastMs = 0;
   let rafId = 0;
   let disposed = false;
+  // Set synchronously on the first `start()` call. `state` is only assigned
+  // after two awaits, so it cannot guard re-entry on its own.
+  let starting = false;
 
   function persistSettings(): void {
     if (settings === undefined || bindings === undefined) return;
@@ -579,7 +582,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   async function start(): Promise<void> {
-    if (state !== undefined || disposed) return;
+    // The guard is set synchronously: `state` is only assigned after two
+    // awaits, so a second click during the load would otherwise start a second
+    // frame loop (two RAF chains, two HUDs, two input sources) that `dispose()`
+    // could never fully cancel.
+    if (state !== undefined || starting || disposed) return;
+    starting = true;
 
     try {
       await assets.preload();
@@ -592,7 +600,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       return;
     }
 
+    // A `pagehide` during the load disposes the session; resuming into a
+    // disposed asset cache would reject unhandled.
+    if (disposed) return;
+
     const catalogue = await loadShipCatalogue();
+
+    if (disposed) return;
     const playerDef = playerShip(catalogue).shipDef;
     const station = stationShip(catalogue).shipDef;
     stationDef = station;

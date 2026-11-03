@@ -72,7 +72,7 @@ recorded: 2026-11-03T20:41:43.651Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
+| CR-01 | critical | fixed | `fix(03): guard session start against re-entry and dispose during load` |
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
 | WR-03 | warning | open | - |
