@@ -19,13 +19,16 @@ import * as THREE from "three";
 import type { System } from "../content/types.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import type { AssetCache } from "./asset-cache.js";
+import { createBeacon } from "./bodies/beacon.js";
 import { createPlanet } from "./bodies/planet.js";
 import type { PlanetBody } from "./bodies/planet.js";
 import { createShip } from "./bodies/ship.js";
 import { createStation, disposeClonedMaterials } from "./bodies/station.js";
+import type { StationBody } from "./bodies/station.js";
 import { createSystemStarfield } from "./bodies/starfield.js";
 import { createSun } from "./bodies/sun.js";
 import type { SunBody } from "./bodies/sun.js";
+import { isMesh, isPoints, meshMaterials } from "./mesh.js";
 
 /** Oolite's default vertical field of view (Universe.m). */
 export const CAMERA_FOV_DEGREES = 57.2;
@@ -38,9 +41,29 @@ export interface SystemScene {
   planet: PlanetBody;
   sun: SunBody;
   starfield: THREE.Points;
-  station: THREE.Group;
+  station: StationBody;
+  navBuoy: THREE.Group;
+  witchpoint: THREE.Group;
   ship: THREE.Group;
   dispose(): void;
+}
+
+/** Dispose a beacon's own geometry and materials (never a shared asset). */
+function disposeBeacon(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    if (isMesh(object)) {
+      object.geometry.dispose();
+      for (const material of meshMaterials(object)) material.dispose();
+      return;
+    }
+    if (isPoints(object)) {
+      object.geometry.dispose();
+      const materials = Array.isArray(object.material)
+        ? object.material
+        : [object.material];
+      for (const material of materials) material.dispose();
+    }
+  });
 }
 
 function disposeGeometryAndMaterials(object: THREE.Mesh | THREE.Points): void {
@@ -83,6 +106,13 @@ export function createSystemScene(
   const station = createStation(layout, assets.coriolis());
   const ship = createShip(assets.cobra());
 
+  // D-04: a nav buoy in front of the dock and the witchpoint beacon at the
+  // arrival point. Procedural markers, no new asset.
+  const navBuoy = createBeacon(layout.navBuoy.radius);
+  navBuoy.name = "navBuoy";
+  const witchpoint = createBeacon(layout.witchpoint.radius);
+  witchpoint.name = "witchpoint";
+
   // One key light from the planet toward the sun, plus the authored ambient
   // floor. No shadows and no post-processing.
   const light = new THREE.DirectionalLight(0xffffff, 2.5);
@@ -100,8 +130,10 @@ export function createSystemScene(
     sun.sun,
     sun.corona,
     starfield,
-    station,
+    station.root,
     ship,
+    navBuoy,
+    witchpoint,
   );
 
   return {
@@ -111,13 +143,17 @@ export function createSystemScene(
     sun,
     starfield,
     station,
+    navBuoy,
+    witchpoint,
     ship,
     dispose(): void {
       disposeGeometryAndMaterials(planet.mesh);
       sun.dispose();
       disposeGeometryAndMaterials(starfield);
-      disposeClonedMaterials(station);
+      station.dispose();
       disposeClonedMaterials(ship);
+      disposeBeacon(navBuoy);
+      disposeBeacon(witchpoint);
       scene.clear();
     },
   };

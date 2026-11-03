@@ -18,7 +18,7 @@
 
 import * as THREE from "three";
 import type { FlightPose } from "../sim/flight/state.js";
-import { add, axisAngle, mul, nlerp, rotate, vec } from "../sim/math.js";
+import { add, nlerp, rotate, vec } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import { cameraRelative } from "./camera-relative.js";
@@ -74,13 +74,9 @@ function setQuaternion(
 /** Roll the station about its local +Z, on top of the base orientation. */
 export function applyStationRoll(
   scene: SystemScene,
-  layout: SystemLayout,
   stationAngle: number,
 ): void {
-  setQuaternion(
-    scene.station,
-    mul(layout.stationBaseQuat, axisAngle(0, 0, 1, stationAngle)),
-  );
+  scene.station.update(stationAngle);
 }
 
 /** Place every body and orient the camera for one rendered frame. */
@@ -103,9 +99,11 @@ export function applyFrame(
   placeRelative(scene.sun.sun, layout.sun.position, cameraWorld);
   placeRelative(scene.sun.corona, layout.sun.position, cameraWorld);
   scene.sun.update(elapsedSeconds, scene.camera);
-  placeRelative(scene.station, layout.station.position, cameraWorld);
+  placeRelative(scene.station.root, layout.station.position, cameraWorld);
   placeRelative(scene.ship, pose.position, cameraWorld);
   setQuaternion(scene.ship, pose.orientation);
+  placeRelative(scene.navBuoy, layout.navBuoy.position, cameraWorld);
+  placeRelative(scene.witchpoint, layout.witchpoint.position, cameraWorld);
 
   // The starfield is camera-locked: it stays at the origin, so its points never
   // leave the frustum however far the ship travels.

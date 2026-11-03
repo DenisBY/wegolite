@@ -57,12 +57,16 @@ test("boots to the title, starts docked at Lave, launches and flies", async ({
   expect(info.bodies).toContain("planet");
   expect(info.bodies).toContain("sun");
   expect(info.bodies).toContain("starfield");
+  expect(info.bodies).toContain("navBuoy");
+  expect(info.bodies).toContain("witchpoint");
   expect(info.bodies).toEqual([
     "planet",
     "sun",
     "starfield",
     "station",
     "ship",
+    "navBuoy",
+    "witchpoint",
   ]);
   expect(info.launch.count).toBe(1);
 
@@ -76,6 +80,17 @@ test("boots to the title, starts docked at Lave, launches and flies", async ({
   expect(world.sun[1]).toBeCloseTo(-340_475.52, 2);
   expect(world.sun[2]).toBeCloseTo(-755_203.68, 2);
   expect(world.witchpoint).toEqual([0, 0, 0]);
+  // The nav buoy sits 10,000 m from the station, along the station->planet
+  // axis (a buoy behind the station would fail the `along` check).
+  const dx = world.navBuoy[0] - world.station[0];
+  const dy = world.navBuoy[1] - world.station[1];
+  const dz = world.navBuoy[2] - world.station[2];
+  expect(Math.hypot(dx, dy, dz)).toBeCloseTo(10_000, 3);
+  const px = world.planet[0] - world.station[0];
+  const py = world.planet[1] - world.station[1];
+  const pz = world.planet[2] - world.station[2];
+  const along = (dx * px + dy * py + dz * pz) / Math.hypot(px, py, pz);
+  expect(along).toBeCloseTo(10_000, 3);
   expect(world.maxRelativeMagnitude).toBeLessThan(2.5e6);
   expect(world.maxRelativeMagnitude).toBeGreaterThan(0);
 

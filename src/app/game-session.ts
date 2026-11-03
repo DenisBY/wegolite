@@ -176,8 +176,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         currentScene.planet.mesh.name,
         currentScene.sun.sun.name,
         currentScene.starfield.name,
-        currentScene.station.name,
+        currentScene.station.root.name,
         currentScene.ship.name,
+        currentScene.navBuoy.name,
+        currentScene.witchpoint.name,
       ];
       probe.world = {
         planet: toTuple(currentLayout.planet.position),
@@ -214,7 +216,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       return;
     }
 
-    applyStationRoll(currentScene, currentLayout, currentState.stationAngle);
+    applyStationRoll(currentScene, currentState.stationAngle);
     applyFrame(
       currentScene,
       previousPose,
