@@ -17,6 +17,11 @@ import { getProbe, waitForReady } from "./helpers/probe.js";
 
 interface HudFrame {
   readonly canvas: { width: number; height: number } | null;
+  readonly viewport: {
+    width: number;
+    height: number;
+    devicePixelRatio: number;
+  };
   readonly hud: {
     drawn: boolean;
     elements: string[];
@@ -57,6 +62,11 @@ function readHud(page: import("@playwright/test").Page): Promise<HudFrame> {
     return {
       canvas:
         canvas === null ? null : { width: canvas.width, height: canvas.height },
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio,
+      },
       hud: probe.hud,
     };
   });
@@ -90,6 +100,104 @@ test("the scanner and compass draw and the probe reports the station contact", a
 
   const probe = await getProbe(page);
   expect(probe.hud.drawn).toBe(true);
+
+  // Asserted last so a rendering failure is reported before any noise.
+  expect(errors).toEqual([]);
+});
+
+test("the HUD set is the eleven v1 elements and letterboxes on ultrawide", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await launch(page);
+
+  const required = [
+    "crosshair",
+    "scanner",
+    "compass",
+    "aegis",
+    "speed",
+    "roll",
+    "pitch",
+    "fuel",
+    "clock",
+    "condition",
+    "message",
+  ];
+  const postV1 = [
+    "shield",
+    "shields",
+    "energy",
+    "temperature",
+    "missile",
+    "missiles",
+    "reticle",
+    "mfd",
+  ];
+
+  const initial = await readHud(page);
+  expect([...initial.hud.elements].sort()).toEqual([...required].sort());
+  for (const name of postV1) {
+    expect(initial.hud.elements.map((id) => id.toLowerCase())).not.toContain(
+      name,
+    );
+  }
+
+  // 2560x1080 is wider than 16:9, so the fixed 1920x1080 design space must be
+  // centred with a horizontal letterbox margin — never stretched or edge-anchored.
+  await page.setViewportSize({ width: 2560, height: 1080 });
+  await page.waitForFunction(
+    () => {
+      const canvas = document.querySelector<HTMLCanvasElement>("#hud");
+      const probe = window.__wegolite;
+      return (
+        canvas !== null &&
+        canvas.width === 2560 &&
+        probe !== undefined &&
+        probe.hud.letterbox[0] > 0
+      );
+    },
+    undefined,
+    { timeout: 10_000 },
+  );
+
+  const frame = await readHud(page);
+  const canvas = frame.canvas;
+  if (canvas === null) throw new Error("the HUD canvas is missing");
+
+  const dpr = Math.min(frame.viewport.devicePixelRatio, 2);
+  expect(canvas.width).toBe(Math.round(frame.viewport.width * dpr));
+  expect(canvas.height).toBe(Math.round(frame.viewport.height * dpr));
+
+  const [offsetX, offsetY] = frame.hud.letterbox;
+  const scale = frame.hud.designScale;
+  expect(scale).toBeGreaterThan(0);
+  expect(scale).toBe(Math.min(canvas.width / 1920, canvas.height / 1080));
+  expect(offsetX).toBeGreaterThan(0);
+  expect(offsetY).toBeGreaterThanOrEqual(0);
+  expect(offsetX + 1920 * scale).toBeLessThanOrEqual(canvas.width + 1e-6);
+  expect(offsetY + 1080 * scale).toBeLessThanOrEqual(canvas.height + 1e-6);
+
+  // Every element's design-space rect stays inside the fixed design rect.
+  for (const id of required) {
+    const rect = frame.hud.bounds[id];
+    if (rect === undefined)
+      throw new Error(`the probe has no bounds for ${id}`);
+    const [x, y, width, height] = rect;
+    expect(x, `${id}.x`).toBeGreaterThanOrEqual(0);
+    expect(y, `${id}.y`).toBeGreaterThanOrEqual(0);
+    expect(x + width, `${id}.x + width`).toBeLessThanOrEqual(1920);
+    expect(y + height, `${id}.y + height`).toBeLessThanOrEqual(1080);
+  }
+
+  // The footer disclaimer must remain visible above the HUD overlay.
+  await expect(page.locator("footer")).toBeVisible();
 
   // Asserted last so a rendering failure is reported before any noise.
   expect(errors).toEqual([]);

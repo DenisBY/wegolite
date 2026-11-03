@@ -16,8 +16,10 @@
  * `src/app/hud-model.ts`, never read from the simulation directly.
  */
 
+import { clamp } from "../../sim/math.js";
 import type { CompassTarget } from "../../sim/flight/state.js";
 import type { AegisStatus } from "../../sim/world/aegis.js";
+import { aegisLabel } from "./projection.js";
 import type { CompassBlip, ScannerBlip } from "./projection.js";
 
 export const HUD_DESIGN_WIDTH = 1920;
@@ -41,17 +43,25 @@ export type HudElementId =
   | "crosshair"
   | "scanner"
   | "compass"
+  | "aegis"
   | "speed"
+  | "roll"
+  | "pitch"
+  | "fuel"
   | "clock"
   | "condition"
   | "message";
 
-/** The element ids the probe publishes; plan 05 task 2 extends this list. */
+/** The eleven-element v1 set (FLGT-05, D-06); nothing post-v1 is drawn. */
 export const HUD_ELEMENTS: readonly HudElementId[] = [
   "crosshair",
   "scanner",
   "compass",
+  "aegis",
   "speed",
+  "roll",
+  "pitch",
+  "fuel",
   "clock",
   "condition",
   "message",
@@ -79,7 +89,11 @@ export const HUD_LAYOUT: Readonly<Record<HudElementId, HudRect>> = {
     width: COMPASS_RADIUS * 2,
     height: COMPASS_RADIUS * 2,
   },
+  aegis: { x: 410, y: 890, width: 120, height: 100 },
   speed: { x: 1500, y: 740, width: 200, height: 45 },
+  roll: { x: 1500, y: 680, width: 200, height: 45 },
+  pitch: { x: 1500, y: 620, width: 200, height: 45 },
+  fuel: { x: 220, y: 740, width: 200, height: 45 },
   clock: { x: 60, y: 40, width: 360, height: 40 },
   condition: { x: 1848, y: 48, width: 24, height: 24 },
   message: { x: 510, y: 980, width: 900, height: 40 },
@@ -246,6 +260,78 @@ function drawCompass(
   context.fillText(compassLabel(compass.target), x, rect.y + rect.height - 4);
 }
 
+function drawAegis(
+  context: CanvasRenderingContext2D,
+  status: AegisStatus,
+): void {
+  // Oolite's drawAegis only shows the indicator in docking range.
+  if (status !== "dockingRange") return;
+  const rect = HUD_LAYOUT.aegis;
+  const { x, y } = rectCentre(rect);
+
+  context.strokeStyle = HUD_COLOR;
+  context.lineWidth = 2;
+  context.strokeRect(x - 12, y - 18, 24, 24);
+  context.strokeRect(x - 6, y - 12, 12, 12);
+
+  context.fillStyle = HUD_COLOR;
+  context.font = HUD_SMALL_FONT;
+  context.textAlign = "center";
+  context.fillText(aegisLabel(status), x, y + 26);
+}
+
+function drawBar(
+  context: CanvasRenderingContext2D,
+  rect: HudRect,
+  value: number,
+  signed: boolean,
+  label: string,
+  text?: string,
+): void {
+  context.fillStyle = HUD_COLOR;
+  context.strokeStyle = HUD_COLOR;
+  context.lineWidth = 2;
+  context.font = HUD_SMALL_FONT;
+  context.textAlign = "left";
+  context.fillText(label, rect.x, rect.y + 8);
+
+  if (text !== undefined) {
+    context.textAlign = "right";
+    context.fillText(text, rect.x + rect.width, rect.y + 8);
+  }
+
+  const barY = rect.y + 20;
+  const barHeight = 14;
+  context.strokeRect(rect.x, barY, rect.width, barHeight);
+
+  const innerX = rect.x + 2;
+  const innerY = barY + 2;
+  const innerWidth = rect.width - 4;
+  const innerHeight = barHeight - 4;
+
+  if (signed) {
+    const centre = innerX + innerWidth / 2;
+    const half = (innerWidth / 2) * clamp(value, -1, 1);
+    context.fillRect(
+      half >= 0 ? centre : centre + half,
+      innerY,
+      Math.abs(half),
+      innerHeight,
+    );
+    context.beginPath();
+    context.moveTo(centre, barY - 2);
+    context.lineTo(centre, barY + barHeight + 2);
+    context.stroke();
+  } else {
+    context.fillRect(
+      innerX,
+      innerY,
+      innerWidth * clamp(value, 0, 1),
+      innerHeight,
+    );
+  }
+}
+
 function drawCondition(
   context: CanvasRenderingContext2D,
   condition: HudModel["condition"],
@@ -273,6 +359,25 @@ export function drawHud(
   drawCrosshair(context);
   drawScanner(context, model);
   drawCompass(context, model.compass);
+  drawAegis(context, model.aegis);
+  drawBar(
+    context,
+    HUD_LAYOUT.speed,
+    model.bars.speed,
+    false,
+    "SPD",
+    model.speedText,
+  );
+  drawBar(context, HUD_LAYOUT.roll, model.bars.roll, true, "ROLL");
+  drawBar(context, HUD_LAYOUT.pitch, model.bars.pitch, true, "PITCH");
+  drawBar(
+    context,
+    HUD_LAYOUT.fuel,
+    model.bars.fuel,
+    false,
+    "FUEL",
+    model.fuelText,
+  );
   drawCondition(context, model.condition);
 
   context.fillStyle = HUD_COLOR;
@@ -282,12 +387,6 @@ export function drawHud(
     model.clockText,
     HUD_LAYOUT.clock.x,
     HUD_LAYOUT.clock.y + 20,
-  );
-
-  context.fillText(
-    model.speedText,
-    HUD_LAYOUT.speed.x,
-    HUD_LAYOUT.speed.y + 20,
   );
 
   if (model.message !== "") {
