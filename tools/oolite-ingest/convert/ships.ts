@@ -508,12 +508,7 @@ function entryToJson(entry: CatalogEntry): PlistJson {
 }
 
 /** Canonical JSON bytes for the compiled catalogue. */
-export function emitShips(
-  parsedShipdata: PlistValue,
-  parsedOverrides: PlistValue,
-  options: CompileShipsOptions = {},
-): EmittedShips {
-  const catalogue = compileShips(parsedShipdata, parsedOverrides, options);
+export function emitShipsFromCatalogue(catalogue: ShipCatalogue): EmittedShips {
   return {
     path: SHIPS_PATH,
     bytes: Buffer.from(
@@ -521,4 +516,15 @@ export function emitShips(
       "utf8",
     ),
   };
+}
+
+/** Compile then serialise; the one-call form used by the generator. */
+export function emitShips(
+  parsedShipdata: PlistValue,
+  parsedOverrides: PlistValue,
+  options: CompileShipsOptions = {},
+): EmittedShips {
+  return emitShipsFromCatalogue(
+    compileShips(parsedShipdata, parsedOverrides, options),
+  );
 }

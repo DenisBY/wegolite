@@ -14,24 +14,42 @@
 import { readFileSync } from "node:fs";
 
 import { NodeIO } from "@gltf-transform/core";
+import type { Document, GLTF } from "@gltf-transform/core";
 import { describe, expect, it } from "vitest";
 
 import { sha256Hex } from "../canonical/hash.js";
 import { parseOpenStep } from "../openstep/parser.js";
 import { boundingBox, parseDat, selectNormalMode } from "./dat.js";
 import type { ParsedMesh, Vec3 } from "./dat.js";
-import {
-  buildCobraGlb,
-  convertMesh,
-  materialFor,
-  writeGlb,
-} from "./glb.js";
+import { buildCobraGlb, convertMesh, materialFor, writeGlb } from "./glb.js";
 import type { GlbPrimitive, GlbScene, ShipEntry } from "./glb.js";
 import { compileShips } from "./ships.js";
 
 const SHIPDATA = "third_party/oolite/Config/shipdata.plist";
 const OVERRIDES = "third_party/oolite/Config/shipdata-overrides.plist";
 const MODELS = "third_party/oolite/Models";
+
+interface BoundsRecord {
+  readonly min: readonly number[];
+  readonly max: readonly number[];
+}
+
+interface ShipBoundsGolden {
+  readonly version: number;
+  readonly cobra3: {
+    readonly source: string;
+    readonly sourceBounds: BoundsRecord;
+    readonly converted: BoundsRecord;
+    readonly cornerNormalDots: readonly (readonly [number, number])[];
+  };
+}
+
+const golden = JSON.parse(
+  readFileSync(
+    new URL("../../../tests/golden/content/ship-bounds.json", import.meta.url),
+    "utf8",
+  ),
+) as ShipBoundsGolden;
 
 function readRepo(relative: string): string {
   return readFileSync(new URL(`../../../${relative}`, import.meta.url), "utf8");
@@ -45,7 +63,9 @@ function loadMesh(filename: string): ParsedMesh {
 function at<T>(list: readonly T[], index: number): T {
   const value = list[index];
   if (value === undefined) {
-    throw new Error(`missing element ${String(index)} of ${String(list.length)}`);
+    throw new Error(
+      `missing element ${String(index)} of ${String(list.length)}`,
+    );
   }
   return value;
 }
@@ -151,6 +171,35 @@ function imageUri(json: GlbJson, textureIndex: number | undefined): string {
   return at(json.images, texture.source).uri;
 }
 
+/**
+ * Feed our own JSON and BIN chunks to the independent reader.
+ *
+ * `NodeIO.readBinary` cannot be used for these files: it refuses any GLB whose
+ * images are external URIs by design ("Cannot resolve external images with
+ * binaryToJSON()"), and D-20 deliberately keeps the textures as separate files
+ * rather than embedding them. The reader therefore receives the same JSON and
+ * the same BIN chunk the file carries — nothing is re-serialised by us — plus
+ * an empty payload per image URI so the material graph binds; the committed
+ * bytes still name the real files, and plan 07 vendors and byte-asserts them.
+ * The material test also pins the `readBinary` refusal, so external references
+ * cannot silently become embedded ones.
+ */
+async function readWithReader(bytes: Uint8Array): Promise<Document> {
+  const chunks = readChunks(bytes);
+  const json = structuredClone(chunks.json) as unknown as GLTF.IGLTF;
+  const resources: { [uri: string]: Uint8Array<ArrayBuffer> } = {
+    bin: new Uint8Array(chunks.bin),
+  };
+  json.buffers = (json.buffers ?? []).map((buffer) => ({
+    ...buffer,
+    uri: "bin",
+  }));
+  for (const image of json.images ?? []) {
+    if (image.uri !== undefined) resources[image.uri] = new Uint8Array(0);
+  }
+  return new NodeIO().readJSON({ json, resources });
+}
+
 function subtract(left: Vec3, right: Vec3): Vec3 {
   return {
     x: left.x - right.x,
@@ -241,7 +290,9 @@ function faceCorners(
 
 const cobraEntry = shipEntry("cobra3-player");
 const cobraMesh = loadMesh("oolite_cobra3.dat");
-const cobraMode = selectNormalMode(cobraMesh, { smooth: cobraEntry.shipDef.smooth });
+const cobraMode = selectNormalMode(cobraMesh, {
+  smooth: cobraEntry.shipDef.smooth,
+});
 
 describe("GLB container", () => {
   it("writes the glTF header, the two 4-byte aligned chunks and their padding", () => {
@@ -256,7 +307,10 @@ describe("GLB container", () => {
     };
     const scene: GlbScene = {
       nodes: [
-        { name: "triangle", mesh: { name: "triangle", primitives: [primitive] } },
+        {
+          name: "triangle",
+          mesh: { name: "triangle", primitives: [primitive] },
+        },
       ],
       materials: [
         {
@@ -306,15 +360,39 @@ describe("GLB container", () => {
     expect(second).toEqual(first);
     expect(sha256Hex(second)).toBe(sha256Hex(first));
     expect(first.byteLength).toBeGreaterThan(0);
-    expect(boundingBox(cobraMesh)).toEqual({
-      min: { x: -65, y: -13.9688, z: -37.9071 },
-      max: { x: 65, y: 20.9961, z: 43.4655 },
-    });
+
+    // The golden pins both frames: the authored extents before the conversion,
+    // and the extents of the doubles actually written.
+    const source = boundingBox(cobraMesh);
+    expect([
+      source.min.x,
+      source.min.y,
+      source.min.z,
+      source.max.x,
+      source.max.y,
+      source.max.z,
+    ]).toEqual([
+      ...golden.cobra3.sourceBounds.min,
+      ...golden.cobra3.sourceBounds.max,
+    ]);
+    const converted = convertMesh(cobraMesh, cobraMode, "gltf");
+    const min = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
+    const max = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
+    for (const primitive of converted) {
+      for (let axis = 0; axis < 3; axis++) {
+        min[axis] = Math.min(min[axis] ?? 0, primitive.min[axis] ?? 0);
+        max[axis] = Math.max(max[axis] ?? 0, primitive.max[axis] ?? 0);
+      }
+    }
+    expect([...min, ...max]).toEqual([
+      ...golden.cobra3.converted.min,
+      ...golden.cobra3.converted.max,
+    ]);
   });
 
   it("round-trips through the independent reader with one mesh and two primitives", async () => {
     const bytes = buildCobraGlb(cobraMesh, cobraEntry);
-    const document = await new NodeIO().readBinary(bytes);
+    const document = await readWithReader(bytes);
     const meshes = document.getRoot().listMeshes();
 
     expect(meshes).toHaveLength(1);
@@ -322,9 +400,9 @@ describe("GLB container", () => {
     expect(mesh.getName()).toBe("oolite_cobra3");
     const primitives = mesh.listPrimitives();
     expect(primitives).toHaveLength(2);
-    expect(primitives.map((primitive) => primitive.getMaterial()?.getName())).toEqual(
-      ["Gun", "Hull"],
-    );
+    expect(
+      primitives.map((primitive) => primitive.getMaterial()?.getName()),
+    ).toEqual(["Gun", "Hull"]);
 
     const emitted = convertMesh(cobraMesh, cobraMode, "gltf");
     for (let index = 0; index < primitives.length; index++) {
@@ -343,7 +421,8 @@ describe("GLB container", () => {
     const emitted = convertMesh(cobraMesh, cobraMode, "gltf");
     const faceCounts = [0, 0];
     for (const face of cobraMesh.faces) {
-      faceCounts[face.materialIndex] = (faceCounts[face.materialIndex] ?? 0) + 1;
+      faceCounts[face.materialIndex] =
+        (faceCounts[face.materialIndex] ?? 0) + 1;
     }
 
     expect(emitted.map((primitive) => primitive.materialName)).toEqual([
@@ -364,10 +443,18 @@ describe("GLB container", () => {
   });
 
   it("keeps the authored corner order so every face fronts Oolite's converted normal", () => {
+    expect(golden.version).toBe(1);
+    expect(golden.cobra3.source).toBe(
+      "third_party/oolite/Models/oolite_cobra3.dat",
+    );
     const emitted = convertMesh(cobraMesh, cobraMode, "gltf");
     const cursors = [0, 0];
+    const baseline = new Map<number, number>(
+      golden.cobra3.cornerNormalDots.map(([face, value]) => [face, value]),
+    );
 
     let worst = Number.POSITIVE_INFINITY;
+    let positive = 0;
     for (let faceIndex = 0; faceIndex < cobraMesh.faces.length; faceIndex++) {
       const face = at(cobraMesh.faces, faceIndex);
       const corners = faceCorners(cobraMesh, emitted, faceIndex, cursors);
@@ -376,7 +463,10 @@ describe("GLB container", () => {
       const v2 = at(cobraMesh.vertices, face.vertices[2]);
       const oolite = convertedOoliteNormal(v0, v1, v2);
       const [p0, p1, p2] = corners.positions;
-      const front = dot(unit(cross(subtract(p1, p0), subtract(p2, p0))), oolite);
+      const front = dot(
+        unit(cross(subtract(p1, p0), subtract(p2, p0))),
+        oolite,
+      );
 
       // The reflection alone yields glTF counter-clockwise: reversing the
       // corners turns every one of these into -1.
@@ -386,15 +476,37 @@ describe("GLB container", () => {
       expect(front).toBeCloseTo(1, 6);
       worst = Math.min(worst, front);
 
+      let minimum = Number.POSITIVE_INFINITY;
       for (const normal of corners.normals) {
         const size = length(normal);
-        expect(size, `face ${String(faceIndex)} corner normal length`).toBeGreaterThan(
-          0,
-        );
+        expect(
+          size,
+          `face ${String(faceIndex)} corner normal length`,
+        ).toBeGreaterThan(0);
         expect(Math.abs(size - 1)).toBeLessThanOrEqual(1e-5);
+        minimum = Math.min(minimum, dot(unit(normal), oolite));
+      }
+
+      // 1,064 faces are positive on every corner; the 12 recorded faces carry an
+      // authored explicit normal that sits a little past perpendicular, so their
+      // minimum corner dot is the committed negative baseline, not a tolerance.
+      const recorded = baseline.get(faceIndex);
+      if (recorded === undefined) {
+        positive += 1;
+        expect(
+          minimum,
+          `face ${String(faceIndex)} minimum corner dot`,
+        ).toBeGreaterThan(0);
+      } else {
+        expect(
+          Math.abs(minimum - recorded),
+          `face ${String(faceIndex)} minimum corner dot ${String(minimum)} vs recorded ${String(recorded)}`,
+        ).toBeLessThanOrEqual(1e-4);
       }
     }
     expect(worst).toBeCloseTo(1, 6);
+    expect(positive).toBe(1064);
+    expect(baseline.size).toBe(12);
   });
 
   it("resolves every Cobra material texture against the measured map names", async () => {
@@ -421,7 +533,7 @@ describe("GLB container", () => {
 
     const bytes = buildCobraGlb(cobraMesh, cobraEntry);
     const { json } = readChunks(bytes);
-    const document = await new NodeIO().readBinary(bytes);
+    const document = await readWithReader(bytes);
     const materials = document.getRoot().listMaterials();
     const hullMaterial = materials.find(
       (material) => material.getName() === "Hull",
@@ -444,7 +556,9 @@ describe("GLB container", () => {
     );
     expect(gunMaterial.getEmissiveTexture()).toBeNull();
 
-    const hullJson = json.materials.find((material) => material.name === "Hull");
+    const hullJson = json.materials.find(
+      (material) => material.name === "Hull",
+    );
     const gunJson = json.materials.find((material) => material.name === "Gun");
     if (hullJson === undefined || gunJson === undefined) {
       throw new Error("the GLB JSON lost a Cobra material");
@@ -462,5 +576,12 @@ describe("GLB container", () => {
     ).toBe("../textures/oolite_cobra3_specular.png");
     expect(gunJson.extensions?.KHR_materials_specular).toBeUndefined();
     expect(json.extensionsUsed).toEqual(["KHR_materials_specular"]);
+
+    // D-20 keeps the textures out of the container. The reader refuses a GLB
+    // with external images, which is exactly the proof that they stayed
+    // external rather than being silently embedded.
+    await expect(new NodeIO().readBinary(bytes)).rejects.toThrow(
+      "Cannot resolve external images with binaryToJSON()",
+    );
   });
 });

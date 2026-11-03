@@ -41,6 +41,14 @@ Every reused asset and every reused configuration file is recorded, with its
 origin and licence, in `ASSETS.md`. Wegolite's own source code is
 GPL-2.0-or-later and is not covered by the CC BY-NC-SA 3.0 terms above.
 
+The generated meshes under `public/models/` (`cobra3.glb`, `coriolis.glb`) are
+converted with Wegolite's own code from the Oolite `.dat` models, and they are
+derivative works of those models: they remain CC BY-NC-SA 3.0, never GPL, with
+attribution to the Oolite contributors, non-commercial use only, and
+share-alike terms. The conversion is a format change (glTF binary), an axis
+convention change and a material projection — no authorship of the geometry is
+claimed.
+
 ## 4. Corresponding source
 
 The complete corresponding source for every distributed build of Wegolite is

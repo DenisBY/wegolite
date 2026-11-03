@@ -22,9 +22,13 @@ import { dirname, resolve, sep } from "node:path";
 
 import { contentError } from "./content-error.js";
 import { emitCommodities } from "./convert/commodities.js";
+import { assertBounds, modelBounds, parseDat } from "./convert/dat.js";
+import type { ParsedMesh } from "./convert/dat.js";
+import { MODEL_SOURCE_FILES, emitModels } from "./convert/glb.js";
+import type { ShipEntry } from "./convert/glb.js";
 import { emitEquipment } from "./convert/equipment.js";
 import { emitLabels } from "./convert/labels.js";
-import { emitShips } from "./convert/ships.js";
+import { compileShips, emitShipsFromCatalogue } from "./convert/ships.js";
 import { emitSystems } from "./convert/systems.js";
 import { parseOpenStep } from "./openstep/parser.js";
 import type { PlistValue } from "./openstep/plist-value.js";
@@ -119,12 +123,19 @@ export async function generateContent({
     readConfig(inputRoot, SHIPDATA_OVERRIDES_RELATIVE, SHIPDATA_OVERRIDES_FILE),
   ]);
 
+  const catalogue = compileShips(shipdata, shipOverrides);
+  const entries: Record<string, ShipEntry> = {};
+  for (const entry of catalogue.entries) {
+    entries[entry.key] = { key: entry.key, shipDef: entry.shipDef };
+  }
+
   const emitted: EmittedFile[] = [
     emitCommodities(commodities),
     ...emitSystems(systems),
     emitEquipment(equipment),
     emitLabels(descriptions),
-    emitShips(shipdata, shipOverrides),
+    emitShipsFromCatalogue(catalogue),
+    ...emitModels(await readModels(inputRoot), entries),
   ];
 
   for (const file of emitted) {
@@ -134,4 +145,35 @@ export async function generateContent({
   }
 
   return emitted;
+}
+
+/**
+ * Read and validate every mesh a GLB is built from. The authored extents are
+ * asserted against the recorded ones before any conversion, so a snapshot bump
+ * that changes geometry fails as `MESH_BOUNDS` instead of silently re-baselining
+ * the committed binaries.
+ */
+async function readModels(
+  inputRoot: string,
+): Promise<Record<string, ParsedMesh>> {
+  const wanted = new Set<string>();
+  for (const files of Object.values(MODEL_SOURCE_FILES)) {
+    for (const file of files) wanted.add(file);
+  }
+  const names = [...wanted].sort((left, right) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  );
+
+  const models: Record<string, ParsedMesh> = {};
+  for (const name of names) {
+    const relative = `Models/${name}`;
+    const file = `${SNAPSHOT_DIR}/${relative}`;
+    const mesh = parseDat(
+      await readFile(resolveSnapshotFile(inputRoot, relative), "utf8"),
+      file,
+    );
+    assertBounds(mesh, modelBounds(name), file);
+    models[name] = mesh;
+  }
+  return models;
 }

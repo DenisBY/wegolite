@@ -1,6 +1,16 @@
 {
   "files": [
     {
+      "bytes": 119816,
+      "path": "public/models/cobra3.glb",
+      "sha256": "bfccd5c87027b7da0d90c47900b887f938a17c6d44592c40f56267b66212a184"
+    },
+    {
+      "bytes": 248448,
+      "path": "public/models/coriolis.glb",
+      "sha256": "ad30e3fd94ee538ebf3e76242ce303eff8778b41974b3417cc41fa1f15b42960"
+    },
+    {
       "bytes": 9119,
       "path": "src/content/generated/commodities.json",
       "sha256": "0f66683981f9b763a8b21276eb9e64493f4c004f388f922de25741a4230f226b"

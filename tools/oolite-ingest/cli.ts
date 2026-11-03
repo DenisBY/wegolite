@@ -29,6 +29,7 @@ import {
   formatContentError,
   isContentError,
 } from "./content-error.js";
+import { EMITTED_MODELS_DIR } from "./convert/glb.js";
 import { GENERATED_DIR, SNAPSHOT_DIR, generateContent } from "./generate.js";
 import { MANIFEST_PATH, buildManifest, writeManifest } from "./manifest.js";
 import type { OolitePin } from "./manifest.js";
@@ -130,13 +131,27 @@ function parseManifestRows(text: string): ManifestRow[] {
   return rows;
 }
 
+/**
+ * Every directory the generator writes into. The drift gate compares all of
+ * them: a GLB under `public/models` is an artefact like any generated JSON, and
+ * a binary that drifts silently is exactly the failure the gate exists for.
+ */
+const EMITTED_ROOTS: readonly string[] = [GENERATED_DIR, EMITTED_MODELS_DIR];
+
 async function compareTrees(
   root: string,
   tempRoot: string,
   expectedPaths: readonly string[],
 ): Promise<CheckReport> {
-  const committed = new Set(await listFiles(root, GENERATED_DIR));
-  const regenerated = new Set(await listFiles(tempRoot, GENERATED_DIR));
+  const committed = new Set<string>();
+  for (const scanned of EMITTED_ROOTS) {
+    for (const path of await listFiles(root, scanned)) committed.add(path);
+  }
+  const regenerated = new Set<string>();
+  for (const scanned of EMITTED_ROOTS) {
+    for (const path of await listFiles(tempRoot, scanned))
+      regenerated.add(path);
+  }
   const expected = new Set(expectedPaths);
   const statuses = new Map<string, CheckStatus>();
 
@@ -212,7 +227,7 @@ async function buildAssets(root: string): Promise<void> {
   const manifest = buildManifest(emitted, await readPin(root));
   await writeManifest(root, manifest);
   console.log(
-    `assets:build: wrote ${String(emitted.length + 1)} files under ${GENERATED_DIR}/`,
+    `assets:build: wrote ${String(emitted.length + 1)} files under ${GENERATED_DIR}/ and ${EMITTED_MODELS_DIR}/`,
   );
 }
 

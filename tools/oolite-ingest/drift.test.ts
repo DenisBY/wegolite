@@ -22,6 +22,8 @@ const REPO_ROOT = process.cwd();
 const GENERATED = "src/content/generated";
 const COMMODITIES = `${GENERATED}/commodities.json`;
 const MANIFEST = `${GENERATED}/manifest.json`;
+const MODELS = "public/models";
+const COBRA_GLB = `${MODELS}/cobra3.glb`;
 
 async function withTempTree(
   body: (root: string) => Promise<void>,
@@ -36,6 +38,11 @@ async function withTempTree(
       },
     );
     await cp(join(REPO_ROOT, GENERATED), join(root, GENERATED), {
+      recursive: true,
+    });
+    // The generated GLBs live outside the generated directory, so the drift
+    // gate scans both roots and this harness must copy both.
+    await cp(join(REPO_ROOT, MODELS), join(root, MODELS), {
       recursive: true,
     });
     await body(root);
@@ -80,6 +87,21 @@ describe("drift gate", () => {
 
       const report = await checkAssets(root);
       expect(entryFor(report, COMMODITIES)?.status).toBe("MISSING");
+    });
+  });
+
+  it("reports CHANGED bytes naming a generated GLB with one byte changed", async () => {
+    await withTempTree(async (root) => {
+      const file = join(root, COBRA_GLB);
+      const bytes = await readFile(file);
+      const mutated = Buffer.from(bytes);
+      // The last byte of the BIN chunk: still a structurally valid GLB, so the
+      // report must name the byte change rather than a parse failure.
+      mutated[mutated.length - 1] = (mutated[mutated.length - 1] ?? 0) ^ 0xff;
+      await writeFile(file, mutated);
+
+      const report = await checkAssets(root);
+      expect(entryFor(report, COBRA_GLB)?.status).toBe("CHANGED bytes");
     });
   });
 
