@@ -143,3 +143,163 @@ test("rebinding roll-right persists through reload and changes the flight", asyn
   // Asserted last so a rendering/input failure is reported before any noise.
   expect(errors).toEqual([]);
 });
+
+test("pause freezes the clock and resume never replays hidden time", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await startAndLaunch(page);
+
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeVisible();
+
+  const frozen = await getProbe(page);
+  expect(frozen.paused).toBe(true);
+  const clock = frozen.clock;
+  const flightTime = frozen.flightTime;
+
+  await page.waitForTimeout(600);
+  const still = await getProbe(page);
+  expect(still.clock).toBe(clock);
+  expect(still.flightTime).toBe(flightTime);
+
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeHidden();
+  await page.waitForFunction(
+    (before: number) => (window.__wegolite?.clock ?? 0) > before,
+    clock,
+    { timeout: 15_000 },
+  );
+
+  const after = await getProbe(page);
+  expect(after.paused).toBe(false);
+  // The 600 ms pause must not be replayed as simulation time.
+  expect(after.clock - clock).toBeLessThan(1);
+
+  expect(errors).toEqual([]);
+});
+
+test("blur and visibility hidden auto-pause and clear held input", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await startAndLaunch(page);
+
+  // Hold a key, then lose focus without a keyup.
+  await page.keyboard.down("ArrowRight");
+  await page.waitForFunction(
+    () => (window.__wegolite?.angular.roll ?? 0) > 0.1,
+    undefined,
+    { timeout: 15_000 },
+  );
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("blur"));
+  });
+  await expect(page.locator("#pause")).toBeVisible();
+  const paused = await getProbe(page);
+  expect(paused.paused).toBe(true);
+  const clock = paused.clock;
+  await page.waitForTimeout(400);
+  expect((await getProbe(page)).clock).toBe(clock);
+
+  // Resume while the physical key is still down: clearAll must have removed it,
+  // so the roll rate damps to zero instead of staying at maximum.
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeHidden();
+  await page.waitForFunction(
+    () => window.__wegolite?.paused === false,
+    undefined,
+    { timeout: 15_000 },
+  );
+  await page.waitForFunction(
+    () => Math.abs(window.__wegolite?.angular.roll ?? 1) < 1e-6,
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.keyboard.up("ArrowRight");
+
+  // The same rule applies to visibilitychange -> hidden.
+  await page.keyboard.down("ArrowRight");
+  await page.waitForFunction(
+    () => (window.__wegolite?.angular.roll ?? 0) > 0.1,
+    undefined,
+    { timeout: 15_000 },
+  );
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(page.locator("#pause")).toBeVisible();
+  expect((await getProbe(page)).paused).toBe(true);
+  await page.keyboard.up("ArrowRight");
+  await page.evaluate(() => {
+    Reflect.deleteProperty(document, "visibilityState");
+  });
+
+  expect(errors).toEqual([]);
+});
+
+test("the overlay traps focus and Escape backs out one level", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await startAndLaunch(page);
+
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeVisible();
+  await page.click('#pause button[data-pause-action="controls"]');
+  await expect(page.locator("#controls")).toBeVisible();
+
+  // Escape backs out to the pause menu; it must not resume.
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#controls")).toBeHidden();
+  await expect(page.locator("#pause")).toBeVisible();
+  expect((await getProbe(page)).paused).toBe(true);
+
+  // Tab stays inside the overlay.
+  for (let index = 0; index < 8; index += 1) {
+    await page.keyboard.press("Tab");
+  }
+  const focusInside = await page.evaluate(() => {
+    const pause = document.getElementById("pause");
+    return pause !== null && pause.contains(document.activeElement);
+  });
+  expect(focusInside).toBe(true);
+
+  // P still toggles pause inside a subpanel.
+  await page.click('#pause button[data-pause-action="settings"]');
+  await expect(page.locator("#settings-panel")).toBeVisible();
+
+  // The settings panel's reset-all removes the one blob (the launch save).
+  await page.click('[data-settings-action="reset"]');
+  expect(
+    await page.evaluate(() => localStorage.getItem("wegolite.settings")),
+  ).toBeNull();
+
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeHidden();
+  expect((await getProbe(page)).paused).toBe(false);
+
+  expect(errors).toEqual([]);
+});

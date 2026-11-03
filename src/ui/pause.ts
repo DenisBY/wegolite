@@ -45,6 +45,41 @@ export function createPauseOverlay(options: PauseOverlayOptions): PauseOverlay {
   const controls = requireButton(root, "controls");
   const settings = requireButton(root, "settings");
   const controller = new AbortController();
+  let open = false;
+
+  function focusables(): HTMLElement[] {
+    return Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter(
+      (element) =>
+        element.closest("[hidden]") === null &&
+        !element.hasAttribute("disabled"),
+    );
+  }
+
+  function onKeyDown(event: KeyboardEvent): void {
+    if (!open || event.code !== "Tab") return;
+    const items = focusables();
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (first === undefined || last === undefined) return;
+    const active = document.activeElement;
+    if (event.shiftKey) {
+      if (active === first || !root.contains(active)) {
+        event.preventDefault();
+        last.focus();
+      }
+      return;
+    }
+    if (active === last || !root.contains(active)) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  window.addEventListener("keydown", onKeyDown, { signal: controller.signal });
 
   resume.addEventListener("click", onResume, { signal: controller.signal });
   controls.addEventListener("click", onControls, { signal: controller.signal });
@@ -52,10 +87,12 @@ export function createPauseOverlay(options: PauseOverlayOptions): PauseOverlay {
 
   return {
     show(): void {
+      open = true;
       root.hidden = false;
       resume.focus();
     },
     hide(): void {
+      open = false;
       root.hidden = true;
       gameRoot.focus();
     },

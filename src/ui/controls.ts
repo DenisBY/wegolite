@@ -64,6 +64,8 @@ export interface ControlsPanel {
   hide(): void;
   isOpen(): boolean;
   isCapturing(): boolean;
+  /** Re-render the rows after a settings-level reset changed the map. */
+  refresh(): void;
   dispose(): void;
 }
 
@@ -247,6 +249,9 @@ export function createControlsPanel(
     },
     isCapturing(): boolean {
       return capturing !== undefined;
+    },
+    refresh(): void {
+      render();
     },
     dispose(): void {
       stopCapture();

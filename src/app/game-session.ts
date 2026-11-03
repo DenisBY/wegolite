@@ -70,6 +70,8 @@ import { createControlsPanel } from "../ui/controls.js";
 import type { ControlsPanel } from "../ui/controls.js";
 import { createPauseOverlay } from "../ui/pause.js";
 import type { PauseOverlay } from "../ui/pause.js";
+import { createSettingsPanel } from "../ui/settings-panel.js";
+import type { SettingsPanel } from "../ui/settings-panel.js";
 import type { DockedPanel } from "../ui/docked.js";
 import type { TitleScreen } from "../ui/title.js";
 
@@ -84,6 +86,7 @@ export interface GameSessionOptions {
   readonly system: System;
   readonly pauseRoot: HTMLElement;
   readonly controlsRoot: HTMLElement;
+  readonly settingsRoot: HTMLElement;
   /** The canvas that receives focus when the pause overlay closes. */
   readonly gameRoot: HTMLElement;
 }
@@ -119,6 +122,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     system,
     pauseRoot,
     controlsRoot,
+    settingsRoot,
     gameRoot,
   } = options;
 
@@ -138,6 +142,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let bindings: BindingMap | undefined;
   let pauseOverlay: PauseOverlay | undefined;
   let controlsPanel: ControlsPanel | undefined;
+  let settingsPanel: SettingsPanel | undefined;
 
   let previousPose: FlightPose = {
     position: vec(0, 0, 0),
@@ -184,21 +189,46 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     loop?.reset();
     pauseOverlay?.hide();
     controlsPanel?.hide();
+    settingsPanel?.hide();
   }
 
   function backToPause(): void {
     controlsPanel?.hide();
+    settingsPanel?.hide();
     pauseOverlay?.show();
   }
 
   function openControls(): void {
+    settingsPanel?.hide();
     controlsPanel?.show();
+  }
+
+  function openSettings(): void {
+    controlsPanel?.hide();
+    settingsPanel?.show();
+  }
+
+  function resetAllSettings(): void {
+    const fresh = resetSettings();
+    if (bindings !== undefined) {
+      for (const action of ACTION_IDS) {
+        bindings[action] = [...(fresh.bindings[action] ?? [])];
+      }
+      settings = { ...fresh, bindings };
+      input?.setBindings(bindings);
+      controlsPanel?.refresh();
+    } else {
+      settings = fresh;
+    }
+    launchSeen = false;
   }
 
   function onSubpanelKeyDown(event: KeyboardEvent): void {
     if (event.code !== "Escape") return;
     if (controlsPanel?.isCapturing() === true) return;
-    if (controlsPanel?.isOpen() !== true) return;
+    if (controlsPanel?.isOpen() !== true && settingsPanel?.isOpen() !== true) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     backToPause();
@@ -488,7 +518,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         openControls();
       },
       onSettings: () => {
-        // The Settings panel is wired in task 3; the control stays inert here.
+        openSettings();
       },
     });
     controlsPanel = createControlsPanel(bindingMap, {
@@ -498,19 +528,22 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         persistSettings();
       },
       onReset: () => {
-        const fresh = resetSettings();
-        if (bindings !== undefined) {
-          for (const action of ACTION_IDS) {
-            bindings[action] = [...(fresh.bindings[action] ?? [])];
-          }
-        }
-        if (settings !== undefined && bindings !== undefined) {
-          settings.bindings = bindings;
-          input?.setBindings(bindings);
-        }
+        resetAllSettings();
       },
       onBack: () => {
         backToPause();
+      },
+    });
+    settingsPanel = createSettingsPanel({
+      root: settingsRoot,
+      onBack: () => {
+        backToPause();
+      },
+      onControls: () => {
+        openControls();
+      },
+      onReset: () => {
+        resetAllSettings();
       },
     });
 
@@ -541,6 +574,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     input?.dispose();
     pauseOverlay?.dispose();
     controlsPanel?.dispose();
+    settingsPanel?.dispose();
     scenes.dispose();
     assets.dispose();
     hud?.dispose();

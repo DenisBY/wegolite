@@ -106,6 +106,7 @@ const title = createTitleScreen(requireElement("title-screen"));
 const docked = createDockedPanel(requireElement("docked"));
 const pauseRoot = requireElement("pause");
 const controlsRoot = requireElement("controls");
+const settingsRoot = requireElement("settings-panel");
 
 const lave = galaxy0().find((system) => system.id === "g0-s7");
 if (lave === undefined) {
@@ -158,6 +159,7 @@ const session = createGameSession({
   system: lave,
   pauseRoot,
   controlsRoot,
+  settingsRoot,
   gameRoot: canvas,
 });
 
@@ -193,7 +195,45 @@ title.onStart(() => {
   void session.start();
 });
 
+// D-15: focus loss auto-pauses and clears held input. `session.pause()` is a
+// no-op on the title/menu (there is no simulation yet) apart from clearing
+// input. Pointer-lock and fullscreen changes clear input even while paused.
+const focusController = new AbortController();
+const focusOptions: AddEventListenerOptions = {
+  signal: focusController.signal,
+};
+
+window.addEventListener(
+  "blur",
+  () => {
+    session.pause();
+  },
+  focusOptions,
+);
+document.addEventListener(
+  "visibilitychange",
+  () => {
+    if (document.visibilityState === "hidden") session.pause();
+  },
+  focusOptions,
+);
+document.addEventListener(
+  "pointerlockchange",
+  () => {
+    session.clearInput();
+  },
+  focusOptions,
+);
+document.addEventListener(
+  "fullscreenchange",
+  () => {
+    session.clearInput();
+  },
+  focusOptions,
+);
+
 window.addEventListener("pagehide", () => {
+  focusController.abort();
   session.dispose();
 });
 
