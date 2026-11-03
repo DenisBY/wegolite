@@ -23,7 +23,7 @@ Requirements for the initial release. Each maps to a roadmap phase.
 
 - [x] **DATA-01**: A build-time OpenStep ASCII plist parser handles comments, unquoted keys, nested dictionaries/arrays, and fails with actionable parse errors
 - [ ] **DATA-02**: `like_ship`/template inheritance resolves with cycle detection and per-key overrides
-- [ ] **DATA-03**: A `.dat` mesh parser reads `NVERTS`/`NFACES`/`VERTEX`/`FACES`/`TEXTURES`/`END`, truncates faces above three vertices, and produces per-face normals
+- [x] **DATA-03**: A `.dat` mesh parser reads `NVERTS`/`NFACES`/`VERTEX`/`FACES`/`TEXTURES`/`END`, truncates faces above three vertices, and produces per-face normals
 - [ ] **DATA-04**: The converter emits GLB plus a content manifest, applying the Oolite +Z-forward to Three −Z-forward coordinate and winding conversion verified by fixture
 - [x] **DATA-05**: All 2,048 systems across all eight galaxies are ingested from `planetinfo.plist` with stable IDs, names, and positions
 - [x] **DATA-06**: All 17 commodities are ingested from `trade-goods.plist` with correct units (decicredits, kg, g), and Alien Items are parsed but never tradeable
@@ -157,7 +157,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | FOUND-09 | Phase 1 | Complete |
 | DATA-01 | Phase 2 | Complete |
 | DATA-02 | Phase 2 | Pending |
-| DATA-03 | Phase 2 | Pending |
+| DATA-03 | Phase 2 | Complete |
 | DATA-04 | Phase 2 | Pending |
 | DATA-05 | Phase 2 | Complete |
 | DATA-06 | Phase 2 | Complete |
