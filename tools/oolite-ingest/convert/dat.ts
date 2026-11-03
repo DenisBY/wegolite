@@ -259,8 +259,8 @@ function cross(a: Vec3, b: Vec3): Vec3 {
 }
 
 function normaliseOr(vector: Vec3, fallback: Vec3): Vec3 {
-  // `Math.sqrt`, never `Math.pow`/`Math.hypot`: the former is a plain IEEE
-  // operation and reproduces byte-for-byte across architectures.
+  // `Math.sqrt`, never `Math.hypot`: the former is a plain IEEE operation and
+  // reproduces byte-for-byte across architectures.
   const length = Math.sqrt(
     vector.x * vector.x + vector.y * vector.y + vector.z * vector.z,
   );
