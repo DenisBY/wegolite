@@ -274,3 +274,62 @@ export async function copyTextures({
 
   return emitted.sort((left, right) => compareCodeUnits(left.path, right.path));
 }
+
+export interface DecodedPng {
+  readonly width: number;
+  readonly height: number;
+  readonly channels: 4;
+  readonly data: Uint8Array;
+}
+
+export interface DecodedGreyscalePng {
+  readonly width: number;
+  readonly height: number;
+  readonly channels: 1;
+  readonly data: Uint8Array;
+}
+
+export interface EmitTexturesOptions {
+  readonly inputRoot: string;
+  readonly outRoot: string;
+  readonly catalogue: ShipCatalogue;
+}
+
+function notImplemented(name: string): never {
+  throw new Error(`${name}: not implemented`);
+}
+
+export function decodePng(
+  _bytes: Uint8Array,
+  _name = "texture.png",
+): DecodedPng {
+  return notImplemented("decodePng");
+}
+
+export function decodeGreyscalePng(
+  _bytes: Uint8Array,
+  _name = "texture.png",
+): DecodedGreyscalePng {
+  return notImplemented("decodeGreyscalePng");
+}
+
+export function encodeGreyscalePng(
+  _grey: Uint8Array,
+  _width: number,
+  _height: number,
+): Uint8Array {
+  return notImplemented("encodeGreyscalePng");
+}
+
+export function bakeEmissive(
+  _pngBytes: Uint8Array,
+  _name = "texture.png",
+): Uint8Array {
+  return notImplemented("bakeEmissive");
+}
+
+export async function emitTextures(
+  _options: EmitTexturesOptions,
+): Promise<EmittedTextureFile[]> {
+  return notImplemented("emitTextures");
+}
