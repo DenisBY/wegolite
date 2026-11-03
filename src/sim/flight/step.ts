@@ -11,7 +11,9 @@
  * applied twice because a frame ran two steps.
  *
  * Order (research § Step 2): commands -> mode transition -> attitude ->
- * speed/position -> station angle/flight time/clock -> events.
+ * torus/mass lock -> speed/position -> station angle/flight time/clock ->
+ * events. Mass lock is evaluated before the integration step, so a lock
+ * discovered this tick disengages before the large torus speed is applied.
  */
 
 import type { Command } from "../commands.js";
@@ -22,6 +24,7 @@ import type { FlightConfig } from "./config.js";
 import type { ControlIntent } from "./controller.js";
 import { beginLaunch, completeLaunch, stepLaunch } from "./launch.js";
 import { stepSpeed } from "./speed.js";
+import { stepTorus } from "./torus.js";
 import type { FlightState } from "./state.js";
 
 /**
@@ -48,6 +51,7 @@ export function stepFlight(
   const modeAtStart = state.mode;
   let skipLaunch = false;
   let launchedThisStep = false;
+  let torusToggle = false;
 
   // 1. Drain this frame's commands exactly once.
   for (const command of commands) {
@@ -62,11 +66,15 @@ export function stepFlight(
         skipLaunch = true;
         break;
       case "toggleTorus":
+        // A `j` edge is consumed once, on the first step of the frame that
+        // drained it (FLGT-04).
+        torusToggle = true;
+        break;
       case "setPaused":
       case "cycleCompass":
       case "targetStation":
-        // The torus is plan 04's; pause is app-owned; compass/targeting arrive
-        // with the full HUD in plan 05.
+        // Pause is app-owned; compass/targeting arrive with the full HUD in
+        // plan 05.
         break;
     }
   }
@@ -88,7 +96,13 @@ export function stepFlight(
     }
   } else if (state.mode === "inFlight") {
     stepAttitude(state, intent, config, dt);
-    stepSpeed(state, intent, config, dt);
+    // A command edge is merged into this step's intent so `stepTorus` owns the
+    // engage/disengage decision in one place.
+    const effectiveIntent: ControlIntent = torusToggle
+      ? { ...intent, torusToggle: true }
+      : intent;
+    events.push(...stepTorus(state, layout, config, effectiveIntent, dt));
+    stepSpeed(state, effectiveIntent, config, dt);
   }
 
   // 5. Station roll, flight time and the ship clock. A docked ship is static,

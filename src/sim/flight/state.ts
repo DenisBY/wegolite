@@ -103,7 +103,7 @@ export function serializeFlight(state: FlightState): string {
     `speed=${canon(state.speed, 6)}`,
     `pitchRate=${canon(state.pitchRate, 6)}`,
     `rollRate=${canon(state.rollRate, 6)}`,
-    `torus=${String(state.torus.engaged)}:${canon(state.torus.factor, 6)}:${String(state.torus.massLocked)}`,
+    `torus=${String(state.torus.engaged)}:${canon(state.torus.factor, 6)}:${String(state.torus.massLocked)}:${canon(state.torus.lastFactor, 6)}`,
     `stationAngle=${canon(state.stationAngle, 6)}`,
     `launchElapsed=${canon(state.launchElapsed, 6)}`,
     `launchCount=${canon(state.launchCount, 0)}`,
