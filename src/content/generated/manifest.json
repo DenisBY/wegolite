@@ -11,6 +11,86 @@
       "sha256": "98f7666a53192b4c561ccfc94ccd91dfadd1225c829251c9559f798433bb7789"
     },
     {
+      "bytes": 1590699,
+      "path": "public/textures/oolite_cobra3_diffuse.png",
+      "sha256": "348a0f9394baba4ec1ac0a37a775850e964d496078e5c4f136c479425eb4aa11"
+    },
+    {
+      "bytes": 537044,
+      "path": "public/textures/oolite_cobra3_normal.png",
+      "sha256": "fd3f733f97c406f418880352825b92720fedff9951200aca918fa710eba3daa6"
+    },
+    {
+      "bytes": 1827815,
+      "path": "public/textures/oolite_cobra3_specular.png",
+      "sha256": "4dc706d2ceb93093c27b000fa03834557e91a08fbc636a567b032cee61ac9798"
+    },
+    {
+      "bytes": 89951,
+      "path": "public/textures/oolite_cobra3_subents.png",
+      "sha256": "be0dedb1d34d3425b1f7a92d2ac56f174938f8157aab56509e227bba26721da5"
+    },
+    {
+      "bytes": 14255,
+      "path": "public/textures/oolite_cobra3_subents_normal.png",
+      "sha256": "13607e4bb2b8ac69a83a2af86d4326786ecd8dcaee103ba1ec63a47932c64670"
+    },
+    {
+      "bytes": 562284,
+      "path": "public/textures/oolite_coriolis_diffuse.png",
+      "sha256": "4d37a45710fd88798b7ff5a109e6b1fc0a9088166f05fc66a28540a31eaabf13"
+    },
+    {
+      "bytes": 1095743,
+      "path": "public/textures/oolite_coriolis_dock_diffuse.png",
+      "sha256": "64bda5ab0b7c00548d6ce335de4d4de63156f4507ab8ce8352adfd15fa490693"
+    },
+    {
+      "bytes": 2792477,
+      "path": "public/textures/oolite_coriolis_dock_normal.png",
+      "sha256": "9863395167650e295669c831a9bc57d6ba3c0a27de8ffe7add87c9d4a17250b7"
+    },
+    {
+      "bytes": 2146837,
+      "path": "public/textures/oolite_coriolis_faceplate_diffuse.png",
+      "sha256": "9edd6dee6d90101e55392c6897b395846519d16d21503bc229846d3a5511188a"
+    },
+    {
+      "bytes": 2471217,
+      "path": "public/textures/oolite_coriolis_faceplate_normal.png",
+      "sha256": "3908e10c05211bb66b7c6deb675de79b91a7fc7dae3f0259fec5c0ea5b55ab3a"
+    },
+    {
+      "bytes": 2505247,
+      "path": "public/textures/oolite_coriolis_faceplate_specular.png",
+      "sha256": "0125056880902023aba4cc20c3b273bba184f445d661fe1ef9ab3873770bd353"
+    },
+    {
+      "bytes": 534707,
+      "path": "public/textures/oolite_coriolis_normal.png",
+      "sha256": "c051af90ea73c2318b3104ee5110e619de5195ed9a41a982e1a73b90f136ecf4"
+    },
+    {
+      "bytes": 594791,
+      "path": "public/textures/oolite_coriolis_specular.png",
+      "sha256": "5f46f01778043d81434396fb7eca492ea8e3bf7d0158be22377292a88c001036"
+    },
+    {
+      "bytes": 1037276,
+      "path": "public/textures/oolite_coriolis_tris_diffuse.png",
+      "sha256": "729917a5f1c32d1f8cb9fd52788131ad713a6d8a2284e956d224ca2b5901088f"
+    },
+    {
+      "bytes": 866761,
+      "path": "public/textures/oolite_coriolis_tris_normal.png",
+      "sha256": "c6aecd20e89e6373b3c1734ed04f1cfc1043864e485132b25fb2766640fa47b5"
+    },
+    {
+      "bytes": 1059971,
+      "path": "public/textures/oolite_coriolis_tris_specular.png",
+      "sha256": "281ada9fa9ece3a36adc0bd905ac0366f88ae83afacc548174cc42f3997c50a7"
+    },
+    {
       "bytes": 9119,
       "path": "src/content/generated/commodities.json",
       "sha256": "0f66683981f9b763a8b21276eb9e64493f4c004f388f922de25741a4230f226b"

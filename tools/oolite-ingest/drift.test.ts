@@ -23,6 +23,7 @@ const GENERATED = "src/content/generated";
 const COMMODITIES = `${GENERATED}/commodities.json`;
 const MANIFEST = `${GENERATED}/manifest.json`;
 const MODELS = "public/models";
+const TEXTURES = "public/textures";
 const COBRA_GLB = `${MODELS}/cobra3.glb`;
 
 async function withTempTree(
@@ -43,6 +44,11 @@ async function withTempTree(
     // The generated GLBs live outside the generated directory, so the drift
     // gate scans both roots and this harness must copy both.
     await cp(join(REPO_ROOT, MODELS), join(root, MODELS), {
+      recursive: true,
+    });
+    // Copied and baked textures are emitted artefacts too; the drift gate scans
+    // `public/textures` beside the generated JSON and the GLBs.
+    await cp(join(REPO_ROOT, TEXTURES), join(root, TEXTURES), {
       recursive: true,
     });
     await body(root);

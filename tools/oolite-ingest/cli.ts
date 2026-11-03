@@ -30,6 +30,7 @@ import {
   isContentError,
 } from "./content-error.js";
 import { EMITTED_MODELS_DIR } from "./convert/glb.js";
+import { EMITTED_TEXTURES_DIR } from "./convert/textures.js";
 import { GENERATED_DIR, SNAPSHOT_DIR, generateContent } from "./generate.js";
 import { MANIFEST_PATH, buildManifest, writeManifest } from "./manifest.js";
 import type { OolitePin } from "./manifest.js";
@@ -136,7 +137,11 @@ function parseManifestRows(text: string): ManifestRow[] {
  * them: a GLB under `public/models` is an artefact like any generated JSON, and
  * a binary that drifts silently is exactly the failure the gate exists for.
  */
-const EMITTED_ROOTS: readonly string[] = [GENERATED_DIR, EMITTED_MODELS_DIR];
+const EMITTED_ROOTS: readonly string[] = [
+  GENERATED_DIR,
+  EMITTED_MODELS_DIR,
+  EMITTED_TEXTURES_DIR,
+];
 
 async function compareTrees(
   root: string,

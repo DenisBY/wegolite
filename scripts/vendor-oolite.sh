@@ -76,6 +76,22 @@ Models/oolite_coriolis.dat
 Models/oolite_coriolis_dock.dat
 Models/oolite_coriolis_faceplate.dat
 Models/oolite_coriolis_tris.dat
+Textures/oolite_cobra3_diffuse.png
+Textures/oolite_cobra3_normal.png
+Textures/oolite_cobra3_specular.png
+Textures/oolite_cobra3_subents.png
+Textures/oolite_cobra3_subents_normal.png
+Textures/oolite_coriolis_diffuse.png
+Textures/oolite_coriolis_dock_diffuse.png
+Textures/oolite_coriolis_dock_normal.png
+Textures/oolite_coriolis_faceplate_diffuse.png
+Textures/oolite_coriolis_faceplate_normal.png
+Textures/oolite_coriolis_faceplate_specular.png
+Textures/oolite_coriolis_normal.png
+Textures/oolite_coriolis_specular.png
+Textures/oolite_coriolis_tris_diffuse.png
+Textures/oolite_coriolis_tris_normal.png
+Textures/oolite_coriolis_tris_specular.png
 "
 
 for path in $FILES; do
