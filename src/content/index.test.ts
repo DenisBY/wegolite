@@ -79,7 +79,8 @@ describe("assertContentManifest", () => {
   it("rejects a file row without a sha256 and names the row path", () => {
     const manifest = committedCopy();
     const row = manifest.files[3];
-    if (row === undefined) throw new Error("fixture manifest has no fourth row");
+    if (row === undefined)
+      throw new Error("fixture manifest has no fourth row");
     delete (row as Partial<typeof row>).sha256;
 
     const message = messageOf(() => assertContentManifest(manifest));

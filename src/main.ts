@@ -4,6 +4,8 @@
 /// <reference types="vite/client" />
 
 import * as THREE from "three";
+import manifest from "./content/generated/manifest.json";
+import { assertContentManifest } from "./content/index.js";
 import { LAZY_GALAXY_COUNT, galaxy0 } from "./content/systems.js";
 import {
   cameraRelative,
@@ -102,6 +104,15 @@ function buildRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   return renderer;
 }
+
+// D-15: the manifest is the only content this app validates at runtime; every
+// record was already validated at build time. The assertion runs before the
+// renderer exists, so a mismatched manifest throws a named error instead of
+// booting into a plausible-looking blank game (T-02-23).
+const content = assertContentManifest(manifest);
+console.info(
+  `Wegolite: content compiled from Oolite ${content.oolite.release} (${content.oolite.commit}).`,
+);
 
 const canvas = requireCanvas();
 const renderer = buildRenderer(canvas);
