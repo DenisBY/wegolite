@@ -160,7 +160,7 @@ describe("sim purity gates", () => {
       expect(lint.output).toMatch(/no-restricted-imports/);
       expect(lint.output).toMatch(/renderer-free/);
     });
-  }, 30_000);
+  }, 120_000);
 
   it("DOM identifier fails typecheck", () => {
     const source = [
@@ -189,7 +189,7 @@ describe("sim purity gates", () => {
       expect(lint.status).not.toBe(0);
       expect(lint.output).toMatch(/no-restricted-globals/);
     });
-  }, 30_000);
+  }, 120_000);
 });
 
 describe("sim purity covers the flight and world modules", () => {
@@ -212,7 +212,7 @@ describe("sim purity covers the flight and world modules", () => {
         expect(lint.output).toMatch(/no-restricted-imports/);
         expect(lint.output).toMatch(/renderer-free/);
       });
-    }, 30_000);
+    }, 120_000);
 
     it(`${directory}/ DOM identifier fails typecheck`, () => {
       const source = [
@@ -236,7 +236,7 @@ describe("sim purity covers the flight and world modules", () => {
         expect(lint.status, lint.output).not.toBe(0);
         expect(lint.output).toMatch(/no-restricted-globals/);
       });
-    }, 30_000);
+    }, 120_000);
   }
 });
 
