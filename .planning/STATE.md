@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 02
 current_phase_name: Data Pipeline & Content Compiler
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-11-03T10:45:38.998Z"
-last_activity: 2026-11-02
-last_activity_desc: Phase 01 complete, transitioned to Phase 2
-state_head: 60010711156d6fb97a868ee60933b867bf7d8f01
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-11-03T11:08:26.122Z"
+last_activity: 2026-11-03
+last_activity_desc: Phase 02 execution started
+state_head: 51c086ff27573cf38eb86bdee6186f8db242bcac
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 16
-  completed_plans: 7
+  completed_plans: 8
   percent: 14
 ---
 
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-02)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 2 — Data Pipeline & Content Compiler
+**Current focus:** Phase 02 — Data Pipeline & Content Compiler
 
 ## Current Position
 
-Phase: 02 (Data Pipeline & Content Compiler) — READY TO EXECUTE
-Plan: Not started
+Phase: 02 (Data Pipeline & Content Compiler) — EXECUTING
+Plan: 2 of 9
 Status: Ready to execute
-Last activity: 2026-11-02 — Phase 01 complete, transitioned to Phase 2
+Last activity: 2026-11-03 — Phase 02 execution started
 
 Progress: [█░░░░░░░░░] 14%
 
@@ -52,6 +52,11 @@ Progress: [█░░░░░░░░░] 14%
 - Trend: steady
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 02 P01 | 12 min | 3 tasks | 31 files |
 
 ## Accumulated Context
 
@@ -65,6 +70,9 @@ Recent decisions affecting current work:
 - [Roadmap]: Phase 1 must author the Compose topology from PROJECT.md constraints — research is silent on containers and its own install commands (`npx playwright install`, host `npm ci`) violate the constraint.
 - [Roadmap]: Adopt 1/120 s fixed step (ARCHITECTURE.md) over 1/60 s (STACK/PITFALLS); adopt IndexedDB over FEATURES.md's `localStorage` suggestion; tool directory is `tools/oolite-ingest`.
 - [Plan 01-07]: Repaint once per non-zero resize event (no loop); publish `renders` from three's `renderer.info.render.frame`; the probe contract stays additive.
+- [Phase 02]: Content dictionaries are entry arrays, never objects keyed by plist key, so __proto__ cannot reach a prototype and integer-like keys cannot be reordered.
+- [Phase 02]: Manifest rows use repository-relative paths so one row identifies an emitted file in both the committed tree and the mkdtemp regeneration.
+- [Phase 02]: podConversion.kilogramsPerUnit is carried metadata only (t=1000, kg=1, g=0.001); Phase 5 owns conversion.
 
 ### Pending Todos
 
@@ -87,6 +95,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T09:02:06.111Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-data-pipeline-content-compiler/02-CONTEXT.md
+Last session: 2026-11-03T11:08:26.025Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None
