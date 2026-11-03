@@ -1,0 +1,17 @@
+// Synthetic failure fixture: face 0 declares two vertices, which Oolite treats
+// as a hard error ("Face[0] has fewer than three vertices").
+NVERTS 3
+NFACES 1
+
+VERTEX
+0 0 0
+1 0 0
+0 1 0
+
+FACES
+0 0 0	0 0 1	2	0 1
+
+TEXTURES
+underflow.png	1.0 1.0	0.0 0.0	1.0 0.0	0.0 1.0
+
+END

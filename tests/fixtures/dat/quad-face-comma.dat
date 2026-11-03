@@ -1,0 +1,18 @@
+// The same quad geometry as quad-face.dat, in the Coriolis comma dialect.
+NVERTS 5
+NFACES 1
+
+VERTEX
+0,0,0
+1,0,0
+1,1,0
+0,1,0
+2,2,2
+
+FACES
+0,0,0,	0,0,-1,	4,	0,1,2,3
+
+TEXTURES
+quad.png,1.0,1.0,0.0,0.0,1.0,0.0,1.0,1.0,0.0,1.0
+
+END

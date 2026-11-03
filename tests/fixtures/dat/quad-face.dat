@@ -1,0 +1,20 @@
+// Synthetic quad fixture: one face declares four vertices and four UV pairs.
+// Oolite warns and uses the first three; the trailing index and UV pair must
+// be consumed so the END section is still found.
+NVERTS 5
+NFACES 1
+
+VERTEX
+0 0 0
+1 0 0
+1 1 0
+0 1 0
+2 2 2
+
+FACES
+0 0 0	0 0 -1	4	0 1 2 3
+
+TEXTURES
+quad.png	1.0 1.0	0.0 0.0	1.0 0.0	1.0 1.0	0.0 1.0
+
+END

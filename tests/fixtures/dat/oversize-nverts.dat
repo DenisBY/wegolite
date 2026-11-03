@@ -1,0 +1,17 @@
+// Synthetic denial-of-service fixture: the declared vertex count is above the
+// defensive 200,000 cap, so the parser must fail before allocating anything.
+NVERTS 300000
+NFACES 1
+
+VERTEX
+0 0 0
+1 0 0
+0 1 0
+
+FACES
+0 0 0	0 0 1	3	0 1 2
+
+TEXTURES
+oversize.png	1.0 1.0	0.0 0.0	1.0 0.0	0.0 1.0
+
+END
