@@ -106,13 +106,11 @@ describe("the five pinned meshes", () => {
   it("uses the PNG filename as the material key for the Coriolis parts", () => {
     for (const model of MODELS.slice(1)) {
       const mesh = readMesh(model.file);
+      const filename = model.file.slice(model.file.lastIndexOf("/") + 1);
+      const expectedKey = filename.replace(/\.dat$/, "_diffuse.png");
       expect(mesh.materials, model.file).toHaveLength(1);
-      expect(mesh.materials[0]?.key, model.file).toBe(
-        "oolite_coriolis_diffuse.png",
-      );
-      expect(mesh.materials[0]?.name, model.file).toBe(
-        "oolite_coriolis_diffuse.png",
-      );
+      expect(mesh.materials[0]?.key, model.file).toBe(expectedKey);
+      expect(mesh.materials[0]?.name, model.file).toBe(expectedKey);
       expect(mesh.names, model.file).toBeNull();
       expect(mesh.normals, model.file).toBeNull();
     }
