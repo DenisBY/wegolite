@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 02
 current_phase_name: Data Pipeline & Content Compiler
 status: executing
-stopped_at: Completed 02-05-PLAN.md
-last_updated: "2026-11-03T11:56:46.094Z"
+stopped_at: Completed 02-06-PLAN.md (human letterbox check deferred to end-of-phase)
+last_updated: "2026-11-03T12:20:41.994Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 02 execution started
-state_head: 4114ff8c565e0407b2e7bd5cadcf81fd74adaae6
+state_head: 03eb0f7ff41a2762c5d1749ca7d88e0a1419284c
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 16
-  completed_plans: 12
+  completed_plans: 13
   percent: 14
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 02 (Data Pipeline & Content Compiler) — EXECUTING
-Plan: 6 of 9
+Plan: 7 of 9
 Status: Ready to execute
 Last activity: 2026-11-03 — Phase 02 execution started
 
@@ -61,6 +61,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P03 | 10 min | 3 tasks | 28 files |
 | Phase 02 P04 | 7 min | 3 tasks | 15 files |
 | Phase 02 P05 | 14 min | 3 tasks | 14 files |
+| Phase 02 P06 | 21 min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,12 @@ Recent decisions affecting current work:
 - [Phase 02]: caseSensitiveNames is true exactly when a NAMES block exists: authored names are identifiers, TEXTURES keys are filenames.
 - [Phase 02]: Ship catalogue depth counts like_ship hops, not entries: the pinned anaconda chain has four entries but depth 3, matching the measured value.
 - [Phase 02]: The ship catalogue keeps the raw subentities array, stats, roles and custom_views in extras; only is_template/model/market_definition/materials are consumed by the typed record.
+- [Phase 02]: The GLB container is ours: a fixed generator string, fixed insertion order and no clock, so a dependency upgrade cannot re-baseline every committed binary.
+- [Phase 02]: The reflection alone yields glTF CCW; reversing the authored corner order would make every face a back face, so no winding repair runs after the conversion.
+- [Phase 02]: NodeIO.readBinary refuses a GLB with external images, so the independent reader validates through readJSON with the file's own JSON and BIN; the refusal is asserted so textures cannot silently become embedded.
+- [Phase 02]: The golden records the writer's float32-exact converted bounds so the assertion is exact, and -0 is normalised to 0 so a bound compares equal to the recorded 0.
+- [Phase 02]: Specular maps ride KHR_materials_specular because core glTF has no specular slot; extras.oolite keeps the authored name beside it.
+- [Phase 02]: The UV handedness handoff is explicit: v-flip decided by plan 07's asymmetric-PNG fixture, applied in exactly one place if needed.
 
 ### Pending Todos
 
@@ -109,6 +116,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T11:56:45.980Z
-Stopped at: Completed 02-05-PLAN.md
+Last session: 2026-11-03T12:20:41.876Z
+Stopped at: Completed 02-06-PLAN.md (human letterbox check deferred to end-of-phase)
 Resume file: None
