@@ -71,6 +71,11 @@ Config/trade-goods.plist
 Config/verifyOXP.plist
 Config/whitelist.plist
 Config/world-scripts.plist
+Models/oolite_cobra3.dat
+Models/oolite_coriolis.dat
+Models/oolite_coriolis_dock.dat
+Models/oolite_coriolis_faceplate.dat
+Models/oolite_coriolis_tris.dat
 "
 
 for path in $FILES; do
