@@ -79,6 +79,24 @@ const source = readFileSync(
 
 const equipment = compileEquipment(parseOpenStep(source, PLIST));
 
+/** The 41 TL/price pairs, generated from the committed `equipment.json`. */
+interface EquipmentFixtureEntry {
+  readonly techLevel: number;
+  readonly price: number;
+}
+
+interface EquipmentFixture {
+  readonly version: number;
+  readonly entries: Record<string, EquipmentFixtureEntry>;
+}
+
+const equipmentFixture = JSON.parse(
+  readFileSync(
+    new URL("../../../tests/golden/content/equipment.json", import.meta.url),
+    "utf8",
+  ),
+) as EquipmentFixture;
+
 function require(key: string): Equipment {
   const record = equipment.find((item) => item.key === key);
   if (record === undefined) throw new Error(`equipment "${key}" is missing`);
@@ -173,5 +191,28 @@ describe("equipment catalogue", () => {
     expect(EquipmentSchema.safeParse({ ...first, extra: true }).success).toBe(
       false,
     );
+  });
+});
+
+describe("equipment golden fixture", () => {
+  it("pins all 41 tech-level and price pairs", () => {
+    expect(equipmentFixture.version).toBe(1);
+    const fixtureKeys = Object.keys(equipmentFixture.entries).sort();
+    expect(fixtureKeys).toHaveLength(41);
+    expect(equipment.map((record) => record.key).sort()).toEqual(fixtureKeys);
+
+    for (const key of fixtureKeys) {
+      const expected = equipmentFixture.entries[key];
+      if (expected === undefined)
+        throw new Error(`fixture entry ${key} missing`);
+      const record = require(key);
+      expect(record.techLevel).toBe(expected.techLevel);
+      expect(record.price).toBe(expected.price);
+      expect(record.priceUnit).toBe("decicredits");
+    }
+
+    expect(
+      equipment.filter((record) => record.priceUnit === "decicredits"),
+    ).toHaveLength(41);
   });
 });

@@ -57,6 +57,8 @@ function withProbe(
 }
 
 describe("sim purity gates", () => {
+  // Each case spawns the real gate, which builds a type-aware ESLint program;
+  // that is several seconds on a loaded container, well past Vitest's 5s default.
   it("Three import fails lint", () => {
     const source = [
       'import * as THREE from "three";',
@@ -72,7 +74,7 @@ describe("sim purity gates", () => {
       expect(lint.output).toMatch(/no-restricted-imports/);
       expect(lint.output).toMatch(/renderer-free/);
     });
-  });
+  }, 30_000);
 
   it("DOM identifier fails typecheck", () => {
     const source = [
@@ -101,5 +103,5 @@ describe("sim purity gates", () => {
       expect(lint.status).not.toBe(0);
       expect(lint.output).toMatch(/no-restricted-globals/);
     });
-  });
+  }, 30_000);
 });

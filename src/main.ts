@@ -4,6 +4,7 @@
 /// <reference types="vite/client" />
 
 import * as THREE from "three";
+import { LAZY_GALAXY_COUNT, galaxy0 } from "./content/systems.js";
 import {
   cameraRelative,
   f32Ulp,
@@ -27,6 +28,8 @@ export interface WegoliteProbe {
   farRelZ: number;
   farUlp: number;
   renders: number;
+  homeSystems: number;
+  codeSplitGalaxies: number;
 }
 
 declare global {
@@ -173,4 +176,7 @@ window.__wegolite = {
   farRelZ: farMarker.position.z,
   farUlp: f32Ulp(FAR_M),
   renders: renderer.info.render.frame,
+  // D-14: galaxy 0 is eager, so it is in this bundle; g1-g7 are code-split.
+  homeSystems: galaxy0().length,
+  codeSplitGalaxies: LAZY_GALAXY_COUNT,
 };

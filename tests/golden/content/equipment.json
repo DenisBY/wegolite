@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "entries": {
+    "EQ_ADVANCED_COMPASS": {
+      "techLevel": 7,
+      "price": 6500
+    },
+    "EQ_ADVANCED_NAVIGATIONAL_ARRAY": {
+      "techLevel": 6,
+      "price": 22500
+    },
+    "EQ_CARGO_BAY": {
+      "techLevel": 1,
+      "price": 4000
+    },
+    "EQ_CLOAKING_DEVICE": {
+      "techLevel": 15,
+      "price": 500000
+    },
+    "EQ_DOCK_COMP": {
+      "techLevel": 9,
+      "price": 15000
+    },
+    "EQ_ECM": {
+      "techLevel": 2,
+      "price": 6000
+    },
+    "EQ_ENERGY_UNIT": {
+      "techLevel": 8,
+      "price": 15000
+    },
+    "EQ_ESCAPE_POD": {
+      "techLevel": 6,
+      "price": 10000
+    },
+    "EQ_FUEL": {
+      "techLevel": 0,
+      "price": 2
+    },
+    "EQ_FUEL_INJECTION": {
+      "techLevel": 10,
+      "price": 6000
+    },
+    "EQ_FUEL_SCOOPS": {
+      "techLevel": 5,
+      "price": 5250
+    },
+    "EQ_GAL_DRIVE": {
+      "techLevel": 10,
+      "price": 50000
+    },
+    "EQ_HARDENED_MISSILE": {
+      "techLevel": 9,
+      "price": 3500
+    },
+    "EQ_HEAT_SHIELD": {
+      "techLevel": 4,
+      "price": 15000
+    },
+    "EQ_INTEGRATED_TARGETING_SYSTEM": {
+      "techLevel": 11,
+      "price": 15000
+    },
+    "EQ_MILITARY_JAMMER": {
+      "techLevel": 0,
+      "price": 1500000
+    },
+    "EQ_MILITARY_SCANNER_FILTER": {
+      "techLevel": 0,
+      "price": 250000
+    },
+    "EQ_MISSILE": {
+      "techLevel": 1,
+      "price": 300
+    },
+    "EQ_MISSILE_REMOVAL": {
+      "techLevel": 1,
+      "price": 200
+    },
+    "EQ_MULTI_TARGET": {
+      "techLevel": 5,
+      "price": 3250
+    },
+    "EQ_NAVAL_ENERGY_UNIT": {
+      "techLevel": 13,
+      "price": 500000
+    },
+    "EQ_NAVAL_SHIELD_BOOSTER": {
+      "techLevel": 13,
+      "price": 475500
+    },
+    "EQ_OOLITE_TUTORIAL_CONTROLS": {
+      "techLevel": 100,
+      "price": 500000
+    },
+    "EQ_PASSENGER_BERTH": {
+      "techLevel": 5,
+      "price": 8250
+    },
+    "EQ_PASSENGER_BERTH_REMOVAL": {
+      "techLevel": 1,
+      "price": 1000
+    },
+    "EQ_QC_MINE": {
+      "techLevel": 6,
+      "price": 25000
+    },
+    "EQ_RENOVATION": {
+      "techLevel": 6,
+      "price": 1000
+    },
+    "EQ_SCANNER_SHOW_MISSILE_TARGET": {
+      "techLevel": 11,
+      "price": 4500
+    },
+    "EQ_SHIELD_BOOSTER": {
+      "techLevel": 10,
+      "price": 147500
+    },
+    "EQ_SHIELD_ENHANCER": {
+      "techLevel": 100,
+      "price": 147500
+    },
+    "EQ_TARGET_MEMORY": {
+      "techLevel": 8,
+      "price": 12500
+    },
+    "EQ_THARGON": {
+      "techLevel": 100,
+      "price": 1000
+    },
+    "EQ_TRUMBLE": {
+      "techLevel": 100,
+      "price": 300
+    },
+    "EQ_WEAPON_BEAM_LASER": {
+      "techLevel": 4,
+      "price": 10000
+    },
+    "EQ_WEAPON_MILITARY_LASER": {
+      "techLevel": 10,
+      "price": 60000
+    },
+    "EQ_WEAPON_MINING_LASER": {
+      "techLevel": 10,
+      "price": 8000
+    },
+    "EQ_WEAPON_NONE": {
+      "techLevel": 3,
+      "price": 0
+    },
+    "EQ_WEAPON_PULSE_LASER": {
+      "techLevel": 3,
+      "price": 4000
+    },
+    "EQ_WEAPON_THARGOID_LASER": {
+      "techLevel": 100,
+      "price": 150000
+    },
+    "EQ_WORMHOLE_SCANNER": {
+      "techLevel": 9,
+      "price": 23950
+    },
+    "thargon": {
+      "techLevel": 100,
+      "price": 1000
+    }
+  }
+}

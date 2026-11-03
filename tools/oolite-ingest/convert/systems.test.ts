@@ -55,6 +55,40 @@ const source = readFileSync(
   "utf8",
 );
 
+/** The researched Lave values, generated from the committed `g0.json`. */
+interface LaveFixture {
+  readonly version: number;
+  readonly id: string;
+  readonly galaxy: number;
+  readonly systemIndex: number;
+  readonly name: string;
+  readonly chartX: number;
+  readonly chartY: number;
+  readonly economy: number;
+  readonly government: number;
+  readonly techLevelRaw: number;
+  readonly population: number;
+  readonly productivity: number;
+  readonly radiusKm: number;
+  readonly planetDistance: number;
+  readonly sunDistance: number;
+  readonly sunRadius: number;
+  readonly station: string;
+  readonly stationVector: readonly number[];
+  readonly sunVector: readonly number[];
+  readonly terminatorThresholdVector: readonly number[];
+  readonly description: string;
+  readonly random_seed: string;
+  readonly percentCloud: number;
+}
+
+const laveFixture = JSON.parse(
+  readFileSync(
+    new URL("../../../tests/golden/content/lave.json", import.meta.url),
+    "utf8",
+  ),
+) as LaveFixture;
+
 const galaxies = compileSystems(parseOpenStep(source, PLIST));
 const allSystems = galaxies.flat();
 
@@ -161,5 +195,57 @@ describe("system chunks", () => {
     expect(
       SystemSchema.safeParse({ ...lave, sunVector: [1, 0, 0, 1] }).success,
     ).toBe(false);
+  });
+});
+
+describe("Lave golden fixture", () => {
+  it("pins every researched field with exact equality", () => {
+    expect(laveFixture.version).toBe(1);
+    const lave = find(laveFixture.id);
+    expect(lave.id).toBe("g0-s7");
+    expect(lave.galaxy).toBe(laveFixture.galaxy);
+    expect(lave.systemIndex).toBe(laveFixture.systemIndex);
+    expect(lave.name).toBe(laveFixture.name);
+    expect(lave.chartX).toBe(laveFixture.chartX);
+    expect(lave.chartY).toBe(laveFixture.chartY);
+    expect(lave.economy).toBe(laveFixture.economy);
+    expect(lave.government).toBe(laveFixture.government);
+    expect(lave.techLevelRaw).toBe(laveFixture.techLevelRaw);
+    expect(lave.population).toBe(laveFixture.population);
+    expect(lave.productivity).toBe(laveFixture.productivity);
+    expect(lave.radiusKm).toBe(laveFixture.radiusKm);
+    expect(lave.planetDistance).toBe(laveFixture.planetDistance);
+    expect(lave.sunDistance).toBe(laveFixture.sunDistance);
+    expect(lave.sunRadius).toBe(laveFixture.sunRadius);
+    expect(lave.station).toBe(laveFixture.station);
+    expect(lave.stationVector[0]).toBe(laveFixture.stationVector[0]);
+    expect(lave.stationVector[1]).toBe(laveFixture.stationVector[1]);
+    expect(lave.stationVector[2]).toBe(laveFixture.stationVector[2]);
+    expect(lave.sunVector[0]).toBe(laveFixture.sunVector[0]);
+    expect(lave.sunVector[1]).toBe(laveFixture.sunVector[1]);
+    expect(lave.sunVector[2]).toBe(laveFixture.sunVector[2]);
+    expect(lave.terminatorThresholdVector[0]).toBe(
+      laveFixture.terminatorThresholdVector[0],
+    );
+    expect(lave.terminatorThresholdVector[1]).toBe(
+      laveFixture.terminatorThresholdVector[1],
+    );
+    expect(lave.terminatorThresholdVector[2]).toBe(
+      laveFixture.terminatorThresholdVector[2],
+    );
+    expect(lave.description).toBe(laveFixture.description);
+    expect(lave.random_seed).toBe(laveFixture.random_seed);
+    expect(lave.percentCloud).toBe(laveFixture.percentCloud);
+  });
+
+  it("stores the raw tech level and no display-adjusted field", () => {
+    const lave = find("g0-s7");
+    expect(lave.techLevelRaw).toBe(4);
+    expect("techLevelDisplay" in lave).toBe(false);
+    expect("techLevel" in lave).toBe(false);
+    // radiusKm is the authored kilometres, not Oolite's ×10 game units.
+    expect(lave.radiusKm).toBe(4116);
+    // `station` stays the role fragment, not the resolved shipdata key.
+    expect(lave.station).toBe("coriolis");
   });
 });
