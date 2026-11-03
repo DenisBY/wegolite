@@ -51,20 +51,30 @@ interface BoundsRecord {
   readonly max: readonly number[];
 }
 
+interface UvSignsRecord {
+  readonly positive: number;
+  readonly negative: number;
+  readonly zeroArea: number;
+}
+
 interface CoriolisNodeGolden {
   readonly source: string;
   readonly translation: readonly number[];
   readonly sourceBounds: BoundsRecord;
   readonly converted: BoundsRecord;
+  readonly uvSigns?: UvSignsRecord;
+  readonly mouthFaces?: number;
 }
 
 interface ShipBoundsGolden {
   readonly version: number;
+  readonly uvBasis: string;
   readonly cobra3: {
     readonly source: string;
     readonly sourceBounds: BoundsRecord;
     readonly converted: BoundsRecord;
     readonly cornerNormalDots: readonly (readonly [number, number])[];
+    readonly uvSigns: UvSignsRecord;
   };
   readonly coriolis: {
     readonly hull: CoriolisNodeGolden;
@@ -288,6 +298,13 @@ function normalAt(primitive: GlbPrimitive, index: number): Vec3 {
   };
 }
 
+function uvAt(
+  primitive: GlbPrimitive,
+  index: number,
+): readonly [number, number] {
+  return [primitive.uvs[index * 2] ?? 0, primitive.uvs[index * 2 + 1] ?? 0];
+}
+
 /**
  * `convertMesh` emits one primitive per material in `mesh.materials` order, so
  * a face's material index is also its primitive index and the per-material
@@ -298,24 +315,114 @@ function faceCorners(
   primitives: readonly GlbPrimitive[],
   faceIndex: number,
   cursors: number[],
-): { positions: [Vec3, Vec3, Vec3]; normals: [Vec3, Vec3, Vec3] } {
+): {
+  positions: [Vec3, Vec3, Vec3];
+  normals: [Vec3, Vec3, Vec3];
+  uvs: [
+    readonly [number, number],
+    readonly [number, number],
+    readonly [number, number],
+  ];
+  faceNormalZ: number;
+} {
   const face = at(mesh.faces, faceIndex);
   const primitive = at(primitives, face.materialIndex);
   const slot = cursors[face.materialIndex] ?? 0;
   cursors[face.materialIndex] = slot + 1;
   const base = slot * 3;
+  const positions: [Vec3, Vec3, Vec3] = [
+    positionAt(primitive, base),
+    positionAt(primitive, base + 1),
+    positionAt(primitive, base + 2),
+  ];
+  const [p0, p1, p2] = positions;
   return {
-    positions: [
-      positionAt(primitive, base),
-      positionAt(primitive, base + 1),
-      positionAt(primitive, base + 2),
-    ],
+    positions,
     normals: [
       normalAt(primitive, base),
       normalAt(primitive, base + 1),
       normalAt(primitive, base + 2),
     ],
+    uvs: [
+      uvAt(primitive, base),
+      uvAt(primitive, base + 1),
+      uvAt(primitive, base + 2),
+    ],
+    // The converted normal's Z, taken from the emitted corners: it is
+    // `M * -normalize(cross(v1-v0, v2-v0))`, and its sign is what identifies
+    // the station's -Z-facing mouth faces.
+    faceNormalZ: unit(cross(subtract(p1, p0), subtract(p2, p0))).z,
   };
+}
+
+const UV_AREA_EPSILON = 1e-6;
+
+/** Shoelace double-area of one emitted face in the pinned UV basis. */
+function uvSignedArea(uvs: readonly (readonly [number, number])[]): number {
+  const [first, second, third] = [at(uvs, 0), at(uvs, 1), at(uvs, 2)];
+  return (
+    (second[0] - first[0]) * (third[1] - first[1]) -
+    (third[0] - first[0]) * (second[1] - first[1])
+  );
+}
+
+function countUvSigns(
+  mesh: ParsedMesh,
+  primitives: readonly GlbPrimitive[],
+): UvSignsRecord {
+  const cursors = mesh.materials.map(() => 0);
+  let positive = 0;
+  let negative = 0;
+  let zeroArea = 0;
+  for (let faceIndex = 0; faceIndex < mesh.faces.length; faceIndex++) {
+    const area = uvSignedArea(
+      faceCorners(mesh, primitives, faceIndex, cursors).uvs,
+    );
+    if (Math.abs(area) <= UV_AREA_EPSILON) zeroArea += 1;
+    else if (area > 0) positive += 1;
+    else negative += 1;
+  }
+  return { positive, negative, zeroArea };
+}
+
+/** Faces whose emitted normal points down the station's -Z axis. */
+function mouthFaceAreas(
+  mesh: ParsedMesh,
+  primitives: readonly GlbPrimitive[],
+): number[] {
+  const cursors = mesh.materials.map(() => 0);
+  const areas: number[] = [];
+  for (let faceIndex = 0; faceIndex < mesh.faces.length; faceIndex++) {
+    const corners = faceCorners(mesh, primitives, faceIndex, cursors);
+    if (corners.faceNormalZ < -0.999) areas.push(uvSignedArea(corners.uvs));
+  }
+  return areas;
+}
+
+/**
+ * The `max_x`/`max_y` each `TEXTURES` line declares. A value above 1 would mean
+ * the converter divided by a pixel dimension instead of the declared scale.
+ */
+function textureScales(source: string): { maxX: string; maxY: string }[] {
+  const lines = source.split("\n").map((line) => line.replace(/\/\/.*$/, ""));
+  const start = lines.findIndex((line) => line.trim() === "TEXTURES");
+  if (start === -1) throw new Error("no TEXTURES section");
+  const scales: { maxX: string; maxY: string }[] = [];
+  for (let index = start + 1; index < lines.length; index++) {
+    const line = (lines[index] ?? "").trim();
+    if (
+      line === "" ||
+      line === "END" ||
+      line.startsWith("NAMES") ||
+      line.startsWith("NORMALS") ||
+      line.startsWith("TANGENTS")
+    ) {
+      break;
+    }
+    const tokens = line.split(/[,\s]+/).filter(Boolean);
+    scales.push({ maxX: tokens[1] ?? "", maxY: tokens[2] ?? "" });
+  }
+  return scales;
 }
 
 const cobraEntry = shipEntry("cobra3-player");
@@ -891,5 +998,92 @@ describe("GLB container", () => {
     expect(at(normalized, 2)).toBeCloseTo(12.866, 3);
     expect(hull.extras?.oolite?.gloss).toBe(1);
     expect(hull.extras?.oolite?.shipKey).toBe("coriolis-station");
+  });
+
+  it("pins the emitted UV handedness in glTF texture space", () => {
+    expect(golden.uvBasis).toContain("u right, v down");
+
+    const cobraPrimitives = convertMesh(cobraMesh, cobraMode, "gltf");
+    expect(countUvSigns(cobraMesh, cobraPrimitives)).toEqual(
+      golden.cobra3.uvSigns,
+    );
+
+    const dockMesh = loadMesh(CORIOLIS_FILES.dock);
+    const dockMode = selectNormalMode(dockMesh, { smooth: false });
+    repairWinding(dockMesh, dockMode);
+    const dockPrimitives = convertMesh(dockMesh, dockMode, "gltf");
+    expect(countUvSigns(dockMesh, dockPrimitives)).toEqual(
+      golden.coriolis.dock.uvSigns,
+    );
+
+    // The 14 faces that open down the station's -Z axis all share the recorded
+    // sign, which is what the visual letterbox check confirms by eye.
+    const mouth = mouthFaceAreas(dockMesh, dockPrimitives);
+    expect(mouth).toHaveLength(golden.coriolis.dock.mouthFaces ?? 0);
+    for (const area of mouth) expect(area).toBeLessThan(0);
+
+    // The geometry signed area is taken against the converted face normal and
+    // is positive by construction, so it is not compared with the UV sign.
+    const dockFront = assertFrontFaces(loadMesh(CORIOLIS_FILES.dock), false);
+    expect(dockFront).toBe(330);
+  });
+
+  it("keeps every UV inside the unit square and divides only by the declared scale", () => {
+    const models: readonly (readonly [string, boolean])[] = [
+      ["oolite_cobra3.dat", false],
+      ["oolite_coriolis.dat", false],
+      ["oolite_coriolis_faceplate.dat", false],
+      ["oolite_coriolis_tris.dat", false],
+      ["oolite_coriolis_dock.dat", false],
+    ];
+
+    for (const [filename, smooth] of models) {
+      const mesh = loadMesh(filename);
+      const source = readRepo(`${MODELS}/${filename}`);
+      const scales = textureScales(source);
+      expect(scales, filename).toHaveLength(mesh.nfaces);
+      for (const scale of scales) {
+        // All five vendored models declare 1.0 1.0, so no UV was divided by a
+        // PNG's pixel size.
+        expect(scale.maxX, filename).toBe("1.0");
+        expect(scale.maxY, filename).toBe("1.0");
+      }
+
+      const mode = selectNormalMode(mesh, { smooth });
+      repairWinding(mesh, mode);
+      const primitives = convertMesh(mesh, mode, "gltf");
+      const cursors = mesh.materials.map(() => 0);
+      let emitted = 0;
+      for (let faceIndex = 0; faceIndex < mesh.faces.length; faceIndex++) {
+        const corners = faceCorners(mesh, primitives, faceIndex, cursors);
+        const face = at(mesh.faces, faceIndex);
+        for (let corner = 0; corner < 3; corner++) {
+          const uv = at(corners.uvs, corner);
+          expect(
+            uv[0],
+            `${filename} face ${String(faceIndex)} u`,
+          ).toBeGreaterThanOrEqual(0);
+          expect(
+            uv[0],
+            `${filename} face ${String(faceIndex)} u`,
+          ).toBeLessThanOrEqual(1);
+          expect(
+            uv[1],
+            `${filename} face ${String(faceIndex)} v`,
+          ).toBeGreaterThanOrEqual(0);
+          expect(
+            uv[1],
+            `${filename} face ${String(faceIndex)} v`,
+          ).toBeLessThanOrEqual(1);
+          // Unchanged from ParsedMesh within float32 storage: the converter
+          // applies no flip and no extra scale.
+          const authored = at(face.uv, corner);
+          expect(uv[0]).toBeCloseTo(authored[0], 6);
+          expect(uv[1]).toBeCloseTo(authored[1], 6);
+          emitted += 1;
+        }
+      }
+      expect(emitted).toBe(mesh.faces.length * 3);
+    }
   });
 });

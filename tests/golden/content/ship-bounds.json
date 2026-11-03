@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "uvBasis": "glTF texture space: origin top-left, u right, v down; signed area = (u1-u0)*(v2-v0) - (u2-u0)*(v1-v0)",
   "cobra3": {
     "source": "third_party/oolite/Models/oolite_cobra3.dat",
     "sourceBounds": {
@@ -9,6 +10,11 @@
     "converted": {
       "min": [-65, -13.968799591064453, -43.46549987792969],
       "max": [65, 20.9960994720459, 37.907100677490234]
+    },
+    "uvSigns": {
+      "positive": 383,
+      "negative": 687,
+      "zeroArea": 6
     },
     "cornerNormalDots": [
       [38, -0.0009],
@@ -72,7 +78,13 @@
       "converted": {
         "min": [-53.411800384521484, -120.94400024414062, 0],
         "max": [50.0004997253418, 120.94400024414062, 250]
-      }
+      },
+      "uvSigns": {
+        "positive": 0,
+        "negative": 330,
+        "zeroArea": 0
+      },
+      "mouthFaces": 14
     }
   }
 }
