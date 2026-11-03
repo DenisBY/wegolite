@@ -179,6 +179,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let lastModel: HudModel | undefined;
   let lastMs = 0;
   let rafId = 0;
+  let disposed = false;
 
   function persistSettings(): void {
     if (settings === undefined || bindings === undefined) return;
@@ -578,7 +579,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   async function start(): Promise<void> {
-    if (state !== undefined) return;
+    if (state !== undefined || disposed) return;
 
     try {
       await assets.preload();
@@ -738,20 +739,45 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderFrame(0);
   }
 
+  /**
+   * Teardown (WORLD-04, T-3-22): stop the loop, release every listener, clear
+   * the HUD, then free the scene and the shared cache in that order.
+   *
+   * Idempotent: `pagehide`, `webglcontextlost` and an explicit call may all
+   * arrive for the same session. A second call must not double-free or throw.
+   */
   function dispose(): void {
+    if (disposed) return;
+    disposed = true;
+
     if (rafId !== 0) cancelAnimationFrame(rafId);
     rafId = 0;
+
+    // Every listener this session added hangs off `uiController`; aborting it
+    // also releases the sub-panel controllers' listeners through their own
+    // disposers below.
     uiController.abort();
+    input?.clearAll();
     input?.dispose();
     pauseOverlay?.dispose();
     controlsPanel?.dispose();
     settingsPanel?.dispose();
+
+    // Scene first, then the cache that owns the shared GLBs it referenced.
     scenes.dispose();
     assets.dispose();
+
     breakPattern?.dispose();
     hud?.dispose();
     docked.dispose();
     title.dispose();
+
+    // Drop the live references so a late callback cannot read a disposed
+    // scene, and withdraw the test surface with the session.
+    state = undefined;
+    scene = undefined;
+    layout = undefined;
+    delete probe.test;
   }
 
   return {

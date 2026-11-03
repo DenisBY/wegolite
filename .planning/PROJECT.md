@@ -83,6 +83,8 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 | One multi-stage Dockerfile on `node:24-bookworm-slim`, with Chromium baked into the `ci` stage | Keeps app, tests, and CI on one pinned toolchain; no host install and no test-time browser download | ✓ Phase 1 — `docker compose run --rm verify` green from a clean, volume-free checkout |
 | Determinism proven by 1/120 s fixed steps, cross-cadence hash equality, and checked-in golden fixtures | A single step rate plus cadence-independent hashes makes simulation regressions detectable without wall-clock flakiness | ✓ Phase 1 — identical hash at 30/60/144 Hz; golden fixture replays (FOUND-07) |
 | No screenshot or pixel-diff evidence; assert renderer probes and console errors instead | Browser rendering evidence must be stable across machines; probe counters and error collection prove rendering without brittle image comparison | ✓ Phase 1 — precision and resize specs assert `renderer.info` counters, not pixels (D-08) |
+| Launch roll is expressed in the station's world basis (D-10 reconciliation) | Oolite's authored `launchRoll = -station roll` is a ship-relative value; Wegolite gives the ship the station's world roll rate `+stationRollRadPerSec` about local `+Z` (the `stationAngle` axis), which is the same slot-steady motion in the other basis | ✓ Phase 3 — 03-02 proves the no-roll and doubled counter-rotation cases fail |
+| Torus disengages on any pilot input (deliberately stricter than Oolite) | FLGT-04 requires pilot-input disengagement, while Oolite's keyboard path disengages on speed decrease and mass lock only; the stricter rule is kept and dust is the motion cue | ✓ Phase 3 — 03-04 implements it and 03-07 proves the dust cue |
 
 ## Evolution
 

@@ -87,3 +87,101 @@ test("three system swaps keep GPU memory at the first-swap baseline", async ({
   // Asserted last so a rendering failure is reported before any noise.
   expect(errors).toEqual([]);
 });
+
+test("pagehide tears the session down and a reload starts from the same baseline", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await enterSystem(page);
+  const first = (await getProbe(page)).memory;
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("pagehide"));
+  });
+
+  // Teardown withdraws the test surface with the session: the hook belongs to
+  // the session it can drive, so it cannot outlive it.
+  expect(await page.evaluate(() => window.__wegolite?.test)).toBeUndefined();
+
+  // A fresh document boots cleanly and the counters start from the same
+  // baseline rather than accumulating across loads.
+  await page.reload();
+  await waitForReady(page);
+  await page.click("#title-start");
+  await page.waitForFunction(
+    () => {
+      const probe = window.__wegolite;
+      return (
+        probe !== undefined &&
+        probe.ready === true &&
+        probe.test !== undefined &&
+        probe.mode !== "menu"
+      );
+    },
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.waitForTimeout(SETTLE_MS);
+
+  const second = (await getProbe(page)).memory;
+  expect(second.geometries).toBe(first.geometries);
+  expect(second.textures).toBe(first.textures);
+  expect(second.programs).toBeLessThanOrEqual(first.programs);
+
+  expect(errors).toEqual([]);
+});
+
+test("disposing the system scene and re-entering leaves the scene drawable", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await enterSystem(page);
+
+  await page.evaluate(() => {
+    window.__wegolite?.test?.disposeSystem();
+  });
+  // The RAF keeps running with no scene; that must be a no-op, not a throw.
+  await page.waitForTimeout(SETTLE_MS);
+
+  await page.evaluate(async () => {
+    await window.__wegolite?.test?.swapSystem();
+  });
+  await page.waitForTimeout(SETTLE_MS);
+
+  const probe = await getProbe(page);
+  expect(probe.ready).toBe(true);
+  expect(probe.calls).toBeGreaterThan(0);
+  expect(probe.triangles).toBeGreaterThan(0);
+
+  expect(errors).toEqual([]);
+});
+
+test("a normal load exposes no test hook", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  // No `?test=1`: the hook must be absent, and the read-only probe still has
+  // its memory counters.
+  await page.goto("/");
+  await waitForReady(page);
+
+  expect(await page.evaluate(() => window.__wegolite?.test)).toBeUndefined();
+  const probe = await getProbe(page);
+  expect(probe.memory.geometries).toBeGreaterThanOrEqual(0);
+  expect(probe.mode).toBe("menu");
+
+  expect(errors).toEqual([]);
+});

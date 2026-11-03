@@ -1,18 +1,19 @@
 ---
 phase: "3"
 slug: "flight-in-the-lave-system"
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: "2026-11-03"
+reconciled: "2026-11-03"
 ---
 
 # Phase 3 — Validation Strategy
 
 > Per-phase validation contract for feedback sampling during execution.
-> Seeded from `03-RESEARCH.md` § Validation Architecture. Rows below name the **implementing** task
-> and its wave; the frontmatter and § Validation Sign-Off are reconciled by `03-09` task 3 step 5 as
-> the last act of the phase (see "Reconciliation" at the bottom).
+> Seeded from `03-RESEARCH.md` § Validation Architecture, reconciled by `03-09` task 3
+> step 5 once every wave-0/task file existed. Rows name the **implementing** task and its
+> real wave, not a later test-only task.
 
 ---
 
@@ -27,7 +28,7 @@ created: "2026-11-03"
 | **Focused unit** | `docker compose run --rm test npx vitest run <file...>` |
 | **Focused e2e** | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/<spec>.ts"` |
 | **Probe URL** | `playwright.config.ts` sets a bare `http://127.0.0.1:4173`; specs that need the `?test=1` hook (`flight.spec.ts`, `dispose.spec.ts`) must `page.goto("/?test=1")` themselves |
-| **Estimated runtime** | unit ~15 s; full verify ~2–4 min; single e2e ~20–40 s |
+| **Estimated runtime** | unit ~60 s (the guard probes run real `eslint`/`tsc`); full verify ~3–5 min; single e2e ~15–40 s |
 
 ---
 
@@ -42,32 +43,21 @@ created: "2026-11-03"
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement(s) | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|----------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 03-01-T1 | 03-01 | 1 | WORLD-01, WORLD-02, WORLD-03, FLGT-01, FLGT-02, FLGT-03, FLGT-05, FLGT-07, FLGT-08 | T-3-01, T-3-03 | finite/derived layout, one sim-owned frame, camera-relative only | unit + e2e | `docker compose run --rm test npx vitest run tests/app/tracer.test.ts`; `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/scene.spec.ts"` | ❌ W0 | ⬜ pending |
-| 03-01-T2 | 03-01 | 1 | WORLD-01, WORLD-05 (partial) | T-3-02 | visible boot failure, retired probe contract | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/scene.spec.ts tests/e2e/precision.spec.ts"` | ❌ W0 | ⬜ pending |
-| 03-02-T1 | 03-02 | 2 | WORLD-01, FLGT-01, FLGT-03 | T-3-26, T-3-25 | exact Lave numbers, launch-roll sign discrimination | unit | `docker compose run --rm test npx vitest run tests/sim/layout.test.ts tests/content/player-ship.test.ts tests/sim/launch.test.ts` | ❌ W0 | ⬜ pending |
-| 03-02-T2 | 03-02 | 2 | FLGT-08 | T-3-27 | single sim-owned InputFrame, layer denials proven | unit + guard | `docker compose run --rm test npx vitest run tests/guards/sim-purity.test.ts tests/guards/content-boundary.test.ts` | ⚠️ extend existing | ⬜ pending |
-| 03-03-T1 | 03-03 | 2 | WORLD-03 | T-3-04 | static shader source, clamped uniforms, planet spin | unit + e2e | `docker compose run --rm test npx vitest run tests/render/planet-shader.test.ts`; `tests/e2e/scene.spec.ts` | ❌ W0 | ⬜ pending |
-| 03-03-T2 | 03-03 | 2 | WORLD-03 | T-3-05 | star count cap, deterministic array, precision-scene removed | unit + e2e | `docker compose run --rm test npx vitest run tests/render/starfield.test.ts`; `tests/e2e/scene.spec.ts` | ❌ W0 | ⬜ pending |
-| 03-03-T3 | 03-03 | 2 | WORLD-02, WORLD-03 | T-3-06 | GLB clone contract, polygonOffset, no absolute placement | unit + e2e | `docker compose run --rm test npx vitest run tests/render/station.test.ts`; `docker compose run --rm verify` | ❌ W0 | ⬜ pending |
-| 03-04-T1 | 03-04 | 2 | FLGT-04 | T-3-07 | clamp + mass lock before integrate, mass-lock-free teleport point | unit + e2e | `docker compose run --rm test npx vitest run tests/sim/torus.test.ts`; `tests/e2e/flight.spec.ts` | ❌ W0 | ⬜ pending |
-| 03-04-T2 | 03-04 | 2 | FLGT-02, FLGT-03, FLGT-08 | T-3-08 | intent-only seam, finite scalar speed | unit | `docker compose run --rm test npx vitest run tests/sim/flight-attitude.test.ts tests/sim/flight-speed.test.ts tests/sim/flight-cadence.test.ts tests/sim/flight-controller.test.ts` | ❌ W0 | ⬜ pending |
-| 03-04-T3 | 03-04 | 2 | WORLD-02, FLGT-04 | T-3-09 | camera-relative only, finite at full extent | unit + e2e | `docker compose run --rm test npx vitest run tests/sim/mass-lock.test.ts tests/sim/torus.test.ts tests/sim/precision.test.ts src/render/camera-relative.test.ts`; `tests/e2e/flight.spec.ts` | ❌ W0 | ⬜ pending |
-| 03-05-T1 | 03-05 | 2 | FLGT-05 | T-3-10 | canvas text only, aegis rules in the sim | unit + e2e | `docker compose run --rm test npx vitest run tests/sim/aegis.test.ts tests/hud/projection.test.ts`; `tests/e2e/hud.spec.ts` | ❌ W0 | ⬜ pending |
-| 03-05-T2 | 03-05 | 2 | FLGT-05 | T-3-11 | DPR cap, zero-size guard, exact formats | unit + e2e | `docker compose run --rm test npx vitest run tests/hud/format.test.ts`; `tests/e2e/hud.spec.ts` | ❌ W0 | ⬜ pending |
-| 03-05-T3 | 03-05 | 2 | FLGT-05 | T-3-10, T-3-12 | message queue on `flightTime`, no hint lifecycle here | unit + e2e | `docker compose run --rm test npx vitest run tests/hud/projection.test.ts tests/hud/format.test.ts`; `docker compose run --rm verify` | ❌ W0 | ⬜ pending |
-| 03-06-T1 | 03-06 | 2 | FLGT-06, FLGT-07 | T-3-13, T-3-14 | strict capture scope, persisted rebind, `#pause` route | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/settings.spec.ts"` | ❌ W0 | ⬜ pending |
-| 03-06-T2 | 03-06 | 2 | FLGT-06 | T-3-13 | strict schema, no prototype merge, safe fallbacks | unit | `docker compose run --rm test npx vitest run tests/settings/schema.test.ts tests/input/bindings.test.ts` | ❌ W0 | ⬜ pending |
-| 03-06-T3 | 03-06 | 2 | FLGT-06, FLGT-07 | T-3-15 | pause freezes clock, no hidden-time replay | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/settings.spec.ts"`; `docker compose run --rm verify` | ❌ W0 | ⬜ pending |
-| 03-07-T1 | 03-07 | 3 | FLGT-01, FLGT-05 | T-3-16 | exactly-once clock/skip gate, cockpit handover, decidable camera pose, single `cameraRelative()` path | unit + e2e | `docker compose run --rm test npx vitest run tests/app/launch-sequence.test.ts tests/render/launch-camera.test.ts tests/render/sync.test.ts`; `tests/e2e/launch.spec.ts` | ❌ W0 | ⬜ pending |
-| 03-07-T2 | 03-07 | 3 | FLGT-01 | T-3-17 | seeded break pattern, no wall clock | unit + e2e | `docker compose run --rm test npx vitest run tests/app/launch-sequence.test.ts`; `tests/e2e/launch.spec.ts` | ❌ W0 | ⬜ pending |
-| 03-07-T3 | 03-07 | 3 | FLGT-04, FLGT-05 | T-3-17, T-3-18 | camera-local dust, allowlisted hints, first-use dismissal | unit + e2e | `docker compose run --rm test npx vitest run tests/render/dust.test.ts`; `tests/e2e/launch.spec.ts`; `docker compose run --rm verify` | ❌ W0 | ⬜ pending |
-| 03-08-T1 | 03-08 | 4 | WORLD-05 | T-3-19, T-3-20 | visible fallback, `ready:false`, one `#failure` surface | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/fallback.spec.ts"` | ❌ W0 | ⬜ pending |
-| 03-08-T2 | 03-08 | 4 | WORLD-05 | T-3-19, T-3-21 | all failure modes converge, manifest error distinct | unit + e2e | `docker compose run --rm test npx vitest run tests/app/boot.test.ts`; `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/fallback.spec.ts tests/e2e/precision.spec.ts"`; `docker compose run --rm verify` | ❌ W0 | ⬜ pending |
-| 03-09-T1 | 03-09 | 5 | WORLD-04 | T-3-22, T-3-23 | gated `?test=1` hooks, non-growth counters | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/dispose.spec.ts"` | ❌ W0 | ⬜ pending |
-| 03-09-T2 | 03-09 | 5 | WORLD-04 | T-3-24 | explicit ownership split, idempotent dispose | unit | `docker compose run --rm test npx vitest run tests/app/dispose.test.ts` | ❌ W0 | ⬜ pending |
-| 03-09-T3 | 03-09 | 5 | WORLD-04 | T-3-22 | teardown, re-entry, full phase gate | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/dispose.spec.ts"`; `docker compose run --rm verify` | ❌ W0 | ⬜ pending |
+| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
+|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
+| 03-01-T1 | 03-01 | 1 | WORLD-01 | T-3-01, T-3-03 | finite, derived layout; camera-relative placement only; one sim-owned frame | unit + e2e | `docker compose run --rm test npx vitest run tests/sim/layout.test.ts`; `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/scene.spec.ts"` | ✅ | ✅ green |
+| 03-03-T3 | 03-03 | 2 | WORLD-02 | T-3-06, T-3-09 | GLB clone contract, polygonOffset, no absolute placement; float64 separation at full extent | unit + e2e | `docker compose run --rm test npx vitest run tests/render/station.test.ts tests/sim/precision.test.ts`; `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/scene.spec.ts"` | ✅ | ✅ green |
+| 03-03-T1 | 03-03 | 2 | WORLD-03 | T-3-04, T-3-05 | static shader source, clamped uniforms, seeded deterministic starfield | unit + e2e | `docker compose run --rm test npx vitest run tests/render/planet-shader.test.ts tests/render/starfield.test.ts`; `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/scene.spec.ts"` | ✅ | ✅ green |
+| 03-09-T1 | 03-09 | 5 | WORLD-04 | T-3-22, T-3-23 | gated `?test=1` hooks; scene-owned disposal; non-growth GPU counters over three swaps | unit + e2e | `docker compose run --rm test npx vitest run tests/app/dispose.test.ts`; `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/dispose.spec.ts"` | ✅ | ✅ green |
+| 03-08-T1 | 03-08 | 4 | WORLD-05 | T-3-19, T-3-20 | visible fallback, `ready:false`, one `#failure` surface, no RAF after failure | unit + e2e | `docker compose run --rm test npx vitest run tests/app/boot.test.ts`; `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/fallback.spec.ts"` | ✅ | ✅ green |
+| 03-01-T1 | 03-01 | 1 | FLGT-01 | T-3-03, T-3-16 | launch enters a scripted mode; +600 s applied exactly once | unit + e2e | `docker compose run --rm test npx vitest run tests/sim/launch.test.ts tests/app/launch-sequence.test.ts`; `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/launch.spec.ts"` | ✅ | ✅ green |
+| 03-04-T2 | 03-04 | 2 | FLGT-02 | T-3-08 | intent-only seam, ramped rates, fixed-step cadence | unit | `docker compose run --rm test npx vitest run tests/sim/flight-attitude.test.ts tests/sim/flight-cadence.test.ts` | ✅ | ✅ green |
+| 03-04-T2 | 03-04 | 2 | FLGT-03 | T-3-08 | finite scalar speed, 350 top speed, no Newtonian drift | unit | `docker compose run --rm test npx vitest run tests/sim/flight-speed.test.ts tests/sim/flight-controller.test.ts` | ✅ | ✅ green |
+| 03-04-T1 | 03-04 | 2 | FLGT-04 | T-3-07 | clamp + mass lock before integrate; pilot input disengages; mass-lock-free teleport point | unit + e2e | `docker compose run --rm test npx vitest run tests/sim/torus.test.ts tests/sim/mass-lock.test.ts`; `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/flight.spec.ts"` | ✅ | ✅ green |
+| 03-05-T2 | 03-05 | 2 | FLGT-05 | T-3-10, T-3-11 | canvas text only; DPR cap; zero-size guard; exact formats | unit + e2e | `docker compose run --rm test npx vitest run tests/hud/format.test.ts tests/hud/projection.test.ts`; `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/hud.spec.ts"` | ✅ | ✅ green |
+| 03-06-T2 | 03-06 | 2 | FLGT-06 | T-3-13 | strict settings schema, no prototype merge, safe fallbacks, persisted rebind | unit + e2e | `docker compose run --rm test npx vitest run tests/settings/schema.test.ts tests/input/bindings.test.ts`; `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/settings.spec.ts"` | ✅ | ✅ green |
+| 03-06-T2 | 03-06 | 2 | FLGT-07 | T-3-14 | action/command seam; sim never imports input/render/ui; settings-layer denial proven by a failing-sim/passing-app probe pair | unit + guard | `docker compose run --rm test npx vitest run tests/guards/sim-purity.test.ts tests/guards/content-boundary.test.ts` | ✅ | ✅ green |
+| 03-04-T2 | 03-04 | 2 | FLGT-08 | T-3-08 | `ShipController` seam; intent-only `stepFlight`, no device input | unit | `docker compose run --rm test npx vitest run tests/sim/flight-controller.test.ts` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -75,21 +65,20 @@ created: "2026-11-03"
 
 ## Wave 0 Requirements
 
-- [ ] `tests/helpers/lave.ts` — load `g0.json`/`ships.json` with `readFileSync`, build `FlightConfig` + `SystemLayout`, deterministic `scriptedFrame` (no generated JSON imports inside `src/sim`).
-- [ ] `tests/sim/layout.test.ts` — exact Lave positions/distances, raw-vector counter-value, station/nav buoy/sun, station orientation (plan 02).
-- [ ] `tests/content/player-ship.test.ts` — player template 350/32/1/2/20/70; Coriolis `stationRoll 0.08`, dock `500.2561` (plan 02).
-- [ ] `tests/sim/launch.test.ts` — +600 exactly once, dock-mouth pose, launch-roll sign discrimination (plan 02).
-- [ ] `tests/sim/flight-attitude.test.ts`, `flight-speed.test.ts`, `torus.test.ts`, `mass-lock.test.ts`, `precision.test.ts`, `flight-cadence.test.ts`, `flight-controller.test.ts` (plan 04).
-- [ ] `tests/sim/aegis.test.ts`, `tests/hud/projection.test.ts`, `format.test.ts`; `tests/render/planet-shader.test.ts`, `starfield.test.ts`, `station.test.ts` (plans 03, 05).
-- [ ] `tests/app/launch-sequence.test.ts`, `tests/render/launch-camera.test.ts`, `tests/render/sync.test.ts`, `tests/render/dust.test.ts` (plan 07).
-- [ ] `tests/app/boot.test.ts` — the injected-invalid-manifest `ContentBoundaryError` proof with a never-called renderer factory (plan 08).
-- [ ] `tests/settings/schema.test.ts`, `tests/input/bindings.test.ts` (plan 06).
-- [ ] `tests/e2e/helpers/probe.ts` (plan 01) plus `scene.spec.ts`, `flight.spec.ts`, `launch.spec.ts`, `hud.spec.ts`, `settings.spec.ts`, `fallback.spec.ts`, `dispose.spec.ts`.
-- [ ] `src/content/ships.ts` + `src/app/probe.ts` (`?test=1` hook) + `src/app/boot-failure.ts` (plan 01); extend `window.__wegolite` additively.
-- [ ] No framework install needed — Vitest, Playwright, Chromium already in the `ci` image.
-- [ ] Optional goldens `tests/golden/flight-attitude.json`, `flight-launch.json` (versioned replay; never modify `kinematic-probe.json`).
-
-*If none: "Existing infrastructure covers all phase requirements."*
+- [x] `tests/helpers/lave.ts` — load `g0.json`/`ships.json` with `readFileSync`, build `FlightConfig` + `SystemLayout`, deterministic `scriptedFrame` (no generated JSON imports inside `src/sim`).
+- [x] `tests/sim/layout.test.ts` — exact Lave positions/distances, raw-vector counter-value, station/nav buoy/sun, station orientation (plan 02).
+- [x] `tests/content/player-ship.test.ts` — player template 350/32/1/2/20/70; Coriolis `stationRoll 0.08`, dock `500.2561` (plan 02).
+- [x] `tests/sim/launch.test.ts` — +600 exactly once, dock-mouth pose, launch-roll sign discrimination (plan 02).
+- [x] `tests/sim/flight-attitude.test.ts`, `flight-speed.test.ts`, `torus.test.ts`, `mass-lock.test.ts`, `precision.test.ts`, `flight-cadence.test.ts`, `flight-controller.test.ts` (plan 04).
+- [x] `tests/sim/aegis.test.ts`, `tests/hud/projection.test.ts`, `format.test.ts`; `tests/render/planet-shader.test.ts`, `starfield.test.ts`, `station.test.ts` (plans 03, 05).
+- [x] `tests/app/launch-sequence.test.ts`, `tests/render/launch-camera.test.ts`, `tests/render/sync.test.ts`, `tests/render/dust.test.ts` (plan 07).
+- [x] `tests/app/boot.test.ts` — the injected-invalid-manifest `ContentBoundaryError` proof with a never-called renderer factory (plan 08).
+- [x] `tests/app/dispose.test.ts` — the recording-double ownership proof, idempotent dispose and half-built cleanup (plan 09).
+- [x] `tests/settings/schema.test.ts`, `tests/input/bindings.test.ts` (plan 06).
+- [x] `tests/e2e/helpers/probe.ts` (plan 01) plus `scene.spec.ts`, `flight.spec.ts`, `launch.spec.ts`, `hud.spec.ts`, `settings.spec.ts`, `fallback.spec.ts`, `dispose.spec.ts`.
+- [x] `src/content/ships.ts` + `src/app/probe.ts` (`?test=1` hook) + `src/app/boot-failure.ts` (plan 01); `window.__wegolite` extended additively.
+- [x] No framework install needed — Vitest, Playwright, Chromium already in the `ci` image.
+- [x] Optional goldens `tests/golden/flight-attitude.json`, `flight-launch.json` (versioned replay; `kinematic-probe.json` unmodified).
 
 ---
 
@@ -108,25 +97,22 @@ created: "2026-11-03"
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** complete (automated; manual rows listed)
 
 ---
 
 ## Reconciliation
 
-The phase does **not** execute against the placeholder state above. `03-09` task 3 step 5 owns the
-final reconciliation, performed after the wave-0/task files exist:
+`03-09` task 3 step 5 owns the final reconciliation, performed after the wave-0/task files existed:
 
-1. Flip the frontmatter to `status: complete`, `nyquist_compliant: true`, `wave_0_complete: true`.
-2. Tick every box in § Validation Sign-Off and set `Approval: complete (automated; manual rows listed)`.
-3. Confirm every row in § Per-Task Verification Map names the implementing task and wave (rows were
-   rewritten at plan-revision time; re-check them against the plans that actually ran).
-4. Confirm no row still promises a behaviour owned by a later wave (the hint lifecycle belongs to
-   03-07, not 03-05; the torus teleport uses the mass-lock-free point pinned in 03-04/03-02).
+1. Frontmatter flipped to `status: complete`, `nyquist_compliant: true`, `wave_0_complete: true`.
+2. Every box in § Validation Sign-Off ticked; approval recorded as automated with the manual rows listed above.
+3. Every row in § Per-Task Verification Map names the **implementing** task and its real wave (not a later test-only task).
+4. No row promises a behaviour owned by a later wave: the hint lifecycle belongs to 03-07, the torus teleport uses the mass-lock-free point pinned in 03-04/03-02, and the settings-layer denial is proved by the failing-`src/sim`/passing-`src/app` probe pair in 03-09 task 3.

@@ -15,11 +15,12 @@
  * author would widen the rule to make a legitimate import compile instead of
  * using the door — and widen it for runtime content as well.
  *
- * The settings denial is proved by the *configured rule message*, not by a
- * non-zero exit: `src/settings/` does not exist at this wave, so a probe that
- * imports it would otherwise "fail" with `TS2307 cannot find module` without
- * proving anything about layering. Plan 09 closes the compiler half once the
- * settings module exists.
+ * The settings denial is proved by a *pair* of probes with the same import
+ * line: one under `src/sim/` must fail `npx eslint` with the configured
+ * `no-restricted-imports` message, and one under `src/app/` must pass. Since
+ * `src/settings/` exists (plan 06), a module-resolution failure cannot
+ * masquerade as the layer rule, and the passing control makes the failing half
+ * attributable to the zone rather than to a broken import.
  */
 
 import { spawnSync } from "node:child_process";
@@ -116,8 +117,9 @@ function findRestriction(
   return undefined;
 }
 
-/** Write a probe under src/sim/ and make sure it is never left behind. */
-function withProbe(
+/** Write a probe under `directory` (relative to the repo root) and clean it up. */
+function withProbeAt(
+  directory: string,
   name: string,
   source: string,
   body: (file: string) => void,
@@ -125,16 +127,25 @@ function withProbe(
   // `tsconfig.sim.json` globs `src/sim/**`, so a probe written by a parallel
   // guard file can be globbed and then deleted mid-run (TS6053). Serialise.
   withProbeLock(() => {
-    mkdirSync(SIM_DIR, { recursive: true });
-    const file = join("src", "sim", name);
+    mkdirSync(join(REPO_ROOT, directory), { recursive: true });
+    const file = join(directory, name);
     writeFileSync(join(REPO_ROOT, file), source);
     try {
       body(file);
     } finally {
-      // Remove the file only: `src/sim/` is a real source directory and must stay.
+      // Remove the file only: the source directory must stay.
       rmSync(join(REPO_ROOT, file), { force: true });
     }
   });
+}
+
+/** Write a probe under src/sim/ and make sure it is never left behind. */
+function withProbe(
+  name: string,
+  source: string,
+  body: (file: string) => void,
+): void {
+  withProbeAt(join("src", "sim"), name, source, body);
 }
 
 describe("src/content boundary", () => {
@@ -230,30 +241,56 @@ describe("the Phase 3 layer denials", () => {
     expect(existsSync(join(SIM_DIR, "__purity_ships_probe.ts"))).toBe(false);
   }, 180_000);
 
-  it("denies the settings layer by its configured rule message, not a missing module", () => {
+  it("denies the settings layer under src/sim but allows the same import under src/app", () => {
+    // The same import line in both probes: one failing and one passing is what
+    // makes the result attributable to the *zone*, not to a missing module.
+    // `src/settings/` exists (plan 06), so a module-resolution failure cannot
+    // masquerade as the layer rule.
     const source = [
-      'import { loadSettings } from "../settings/schema.js";',
+      'import { validateSettings } from "../settings/schema.js";',
       "",
-      "export const probe = loadSettings;",
+      "export const probe = validateSettings;",
       "",
     ].join("\n");
 
-    withProbe("__purity_settings_probe.ts", source, (file) => {
-      const lint = runEslintJson(file);
-      expect(lint.status, lint.output).not.toBe(0);
+    withProbeAt(
+      join("src", "sim"),
+      "__purity_settings_sim_probe.ts",
+      source,
+      (file) => {
+        const lint = runEslintJson(file);
+        expect(lint.status, lint.output).not.toBe(0);
 
-      // `src/settings/` does not exist yet. A module-resolution failure would
-      // not carry this rule id, message id, or the configured message; the
-      // presence of all three is what proves the layering rule fired.
-      const diagnostic = findRestriction(lint.results, SETTINGS_MESSAGE);
-      expect(diagnostic, lint.output).toBeDefined();
-      expect(diagnostic?.message).toContain("../settings/schema.js");
-      expect(diagnostic?.messageId).toBe("patternWithCustomMessage");
-      expect(diagnostic?.ruleId).toBe("no-restricted-imports");
-    });
+        const diagnostic = findRestriction(lint.results, SETTINGS_MESSAGE);
+        expect(diagnostic, lint.output).toBeDefined();
+        expect(diagnostic?.message).toContain("../settings/schema.js");
+        expect(diagnostic?.messageId).toBe("patternWithCustomMessage");
+        expect(diagnostic?.ruleId).toBe("no-restricted-imports");
+      },
+    );
 
-    expect(existsSync(join(SIM_DIR, "__purity_settings_probe.ts"))).toBe(false);
-  }, 60_000);
+    withProbeAt(
+      join("src", "app"),
+      "__purity_settings_app_probe.ts",
+      source,
+      (file) => {
+        const lint = runEslintJson(file);
+        // The control: the app layer may import the settings module, so the sim
+        // denial above is the zone rule and not a broken import.
+        expect(lint.status, lint.output).toBe(0);
+        expect(lint.results[0]?.messages ?? []).toEqual([]);
+      },
+    );
+
+    expect(existsSync(join(SIM_DIR, "__purity_settings_sim_probe.ts"))).toBe(
+      false,
+    );
+    expect(
+      existsSync(
+        join(REPO_ROOT, "src", "app", "__purity_settings_app_probe.ts"),
+      ),
+    ).toBe(false);
+  }, 180_000);
 
   it("removes the probe even when the body throws", () => {
     const name = "__purity_cleanup_probe.ts";

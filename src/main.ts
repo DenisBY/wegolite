@@ -70,6 +70,10 @@ if (!boot.ok) {
   scenes.enterMenu();
 
   let stopped = false;
+  // One controller owns every listener this module adds, so `pagehide` can
+  // release them in a single abort (T-3-22). `resize` is registered through it
+  // below, before the first render.
+  const lifecycle = new AbortController();
 
   // The title scene needs the shared Cobra, which only exists once the GLBs
   // have loaded. Warm the cache in the background so the menu becomes a real
@@ -177,7 +181,7 @@ if (!boot.ok) {
     renderActiveScene();
   }
 
-  window.addEventListener("resize", resize);
+  window.addEventListener("resize", resize, { signal: lifecycle.signal });
   resize();
 
   // Published after the first render so `ready` implies the probe's numbers are
@@ -229,16 +233,25 @@ if (!boot.ok) {
   // restoration is Phase 7's QUAL-05; this phase does not claim it.
   canvas.addEventListener("webglcontextlost", (event) => {
     event.preventDefault();
+    lifecycle.abort();
+    focusController.abort();
     stopSession();
     const reason = "The WebGL2 context was lost.";
     showBootFailure(`${reason} Reload the page to restart Wegolite.`);
     publishFailure(reason);
   });
 
-  window.addEventListener("pagehide", () => {
-    focusController.abort();
-    stopSession();
-  });
+  // T-3-22: release every listener, then the session (RAF, input, HUD, scene,
+  // cache). `stopSession` is idempotent, so a second pagehide cannot double-free.
+  window.addEventListener(
+    "pagehide",
+    () => {
+      lifecycle.abort();
+      focusController.abort();
+      stopSession();
+    },
+    { signal: lifecycle.signal },
+  );
 
   const statusElement = document.getElementById("status");
   if (statusElement !== null) {
