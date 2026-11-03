@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 1905,
+      "bytes": 9119,
       "path": "src/content/generated/commodities.json",
-      "sha256": "d7298d71e03035db1c28b7481261a0ec4ce77b5724ae61d5b9f2dbeacbc56c22"
+      "sha256": "0f66683981f9b763a8b21276eb9e64493f4c004f388f922de25741a4230f226b"
     }
   ],
   "format": "wegolite-content-manifest",

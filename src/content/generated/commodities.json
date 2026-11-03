@@ -1,104 +1,414 @@
 [
   {
+    "classes": [
+      "oolite-consumer",
+      "oolite-edible",
+      "oolite-farming"
+    ],
     "key": "food",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name food]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 50,
-    "unit": 0
+    "priceEconomic": 0.55,
+    "priceRandom": 0.04,
+    "quantityAverage": 13.5,
+    "quantityEconomic": 0.52,
+    "quantityRandom": 0.04,
+    "sortOrder": 100,
+    "tradeable": true,
+    "trumbleOpinion": 1,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-consumer",
+      "oolite-wearable",
+      "oolite-farming"
+    ],
     "key": "textiles",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name textiles]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 71,
-    "unit": 0
+    "priceEconomic": 0.18,
+    "priceRandom": 0.09,
+    "quantityAverage": 15,
+    "quantityEconomic": 0.23,
+    "quantityRandom": 0.1,
+    "sortOrder": 200,
+    "tradeable": true,
+    "trumbleOpinion": 0.25,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-dangerous",
+      "oolite-mining"
+    ],
     "key": "radioactives",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name radioactives]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 231,
-    "unit": 0
+    "priceEconomic": 0.19,
+    "priceRandom": 0.06,
+    "quantityAverage": 16,
+    "quantityEconomic": 0.66,
+    "quantityRandom": 0.09,
+    "sortOrder": 300,
+    "tradeable": true,
+    "trumbleOpinion": 0.75,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-restricted",
+      "oolite-living",
+      "oolite-slaves",
+      "oolite-salvage"
+    ],
     "key": "slaves",
+    "legalityExport": 1,
+    "legalityImport": 0,
     "name": "[commodity-name slaves]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 152,
-    "unit": 0
+    "priceEconomic": 0.45,
+    "priceRandom": 0.4,
+    "quantityAverage": 9.75,
+    "quantityEconomic": 1.1,
+    "quantityRandom": 1.59,
+    "sortOrder": 400,
+    "tradeable": true,
+    "trumbleOpinion": 0.01,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-consumer",
+      "oolite-edible",
+      "oolite-farming"
+    ],
     "key": "liquor_wines",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name liquor_wines]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 291,
-    "unit": 0
+    "priceEconomic": 0.24,
+    "priceRandom": 0.05,
+    "quantityAverage": 20,
+    "quantityEconomic": 0.88,
+    "quantityRandom": 0.38,
+    "sortOrder": 500,
+    "tradeable": true,
+    "trumbleOpinion": 0.95,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-consumer",
+      "oolite-luxury"
+    ],
     "key": "luxuries",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name luxuries]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 902,
-    "unit": 0
+    "priceEconomic": 0.12,
+    "priceRandom": 0.01,
+    "quantityAverage": 27.5,
+    "quantityEconomic": 1.02,
+    "quantityRandom": 0.05,
+    "sortOrder": 600,
+    "tradeable": true,
+    "trumbleOpinion": 1.25,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-consumer",
+      "oolite-dangerous",
+      "oolite-restricted",
+      "oolite-medical"
+    ],
     "key": "narcotics",
+    "legalityExport": 2,
+    "legalityImport": 0,
     "name": "[commodity-name narcotics]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 512,
-    "unit": 0
+    "priceEconomic": 0,
+    "priceRandom": 1,
+    "quantityAverage": 32,
+    "quantityEconomic": 0,
+    "quantityRandom": 1,
+    "sortOrder": 700,
+    "tradeable": true,
+    "trumbleOpinion": 1.05,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-business",
+      "oolite-shipyard",
+      "oolite-technological"
+    ],
     "key": "computers",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name computers]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 818,
-    "unit": 0
+    "priceEconomic": 0.24,
+    "priceRandom": 0.01,
+    "quantityAverage": 8.5,
+    "quantityEconomic": 5.77,
+    "quantityRandom": 0.17,
+    "sortOrder": 800,
+    "tradeable": true,
+    "trumbleOpinion": 0,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-business",
+      "oolite-technological",
+      "oolite-machinery"
+    ],
     "key": "machinery",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name machinery]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 560,
-    "unit": 0
+    "priceEconomic": 0.14,
+    "priceRandom": 0.03,
+    "quantityAverage": 22.5,
+    "quantityEconomic": 0.93,
+    "quantityRandom": 0.16,
+    "sortOrder": 900,
+    "tradeable": true,
+    "trumbleOpinion": 0,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-business",
+      "oolite-shipyard",
+      "oolite-metals",
+      "oolite-salvage"
+    ],
     "key": "alloys",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name alloys]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 388,
-    "unit": 0
+    "priceEconomic": 0.03,
+    "priceRandom": 0.16,
+    "quantityAverage": 29,
+    "quantityEconomic": 0.12,
+    "quantityRandom": 0.53,
+    "sortOrder": 1000,
+    "tradeable": true,
+    "trumbleOpinion": 0,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-dangerous",
+      "oolite-restricted",
+      "oolite-military",
+      "oolite-weapons"
+    ],
     "key": "firearms",
+    "legalityExport": 1,
+    "legalityImport": 0,
     "name": "[commodity-name firearms]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 692,
-    "unit": 0
+    "priceEconomic": 0.26,
+    "priceRandom": 0.02,
+    "quantityAverage": 1,
+    "quantityEconomic": 32.5,
+    "quantityRandom": 3.5,
+    "sortOrder": 1100,
+    "tradeable": true,
+    "trumbleOpinion": 0,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-consumer",
+      "oolite-farming",
+      "oolite-wearable",
+      "oolite-animalproduct"
+    ],
     "key": "furs",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name furs]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 704,
-    "unit": 0
+    "priceEconomic": 0.18,
+    "priceRandom": 0.18,
+    "quantityAverage": 27.5,
+    "quantityEconomic": 1.15,
+    "quantityRandom": 1.15,
+    "sortOrder": 1200,
+    "tradeable": true,
+    "trumbleOpinion": 0.15,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-mining",
+      "oolite-business",
+      "oolite-rawmaterial"
+    ],
     "key": "minerals",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name minerals]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 120,
-    "unit": 0
+    "priceEconomic": 0.11,
+    "priceRandom": 0.05,
+    "quantityAverage": 58,
+    "quantityEconomic": 0.06,
+    "quantityRandom": 0.03,
+    "sortOrder": 1300,
+    "tradeable": true,
+    "trumbleOpinion": 0,
+    "unit": "t"
   },
   {
+    "classes": [
+      "oolite-mining",
+      "oolite-business",
+      "oolite-consumer",
+      "oolite-metals"
+    ],
     "key": "gold",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name gold]",
+    "podConversion": {
+      "kilogramsPerUnit": 1
+    },
     "priceAverage": 388,
-    "unit": 1
+    "priceEconomic": 0.04,
+    "priceRandom": 0.05,
+    "quantityAverage": 9,
+    "quantityEconomic": 0.39,
+    "quantityRandom": 0.39,
+    "sortOrder": 1400,
+    "tradeable": true,
+    "trumbleOpinion": 0,
+    "unit": "kg"
   },
   {
+    "classes": [
+      "oolite-mining",
+      "oolite-business",
+      "oolite-consumer",
+      "oolite-metals"
+    ],
     "key": "platinum",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name platinum]",
+    "podConversion": {
+      "kilogramsPerUnit": 1
+    },
     "priceAverage": 718,
-    "unit": 1
+    "priceEconomic": 0.04,
+    "priceRandom": 0.09,
+    "quantityAverage": 13.5,
+    "quantityEconomic": 0.52,
+    "quantityRandom": 1.15,
+    "sortOrder": 1500,
+    "tradeable": true,
+    "trumbleOpinion": 0,
+    "unit": "kg"
   },
   {
+    "classes": [
+      "oolite-mining",
+      "oolite-consumer"
+    ],
     "key": "gem_stones",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name gem_stones]",
+    "podConversion": {
+      "kilogramsPerUnit": 0.001
+    },
     "priceAverage": 196,
-    "unit": 2
+    "priceEconomic": 0.07,
+    "priceRandom": 0.15,
+    "quantityAverage": 6.75,
+    "quantityEconomic": 0.26,
+    "quantityRandom": 1.11,
+    "sortOrder": 1600,
+    "tradeable": true,
+    "trumbleOpinion": 0,
+    "unit": "g"
   },
   {
+    "classes": [
+      "oolite-alien",
+      "oolite-thargoid",
+      "oolite-military"
+    ],
     "key": "alien_items",
+    "legalityExport": 0,
+    "legalityImport": 0,
     "name": "[commodity-name alien_items]",
+    "podConversion": {
+      "kilogramsPerUnit": 1000
+    },
     "priceAverage": 436,
-    "unit": 0
+    "priceEconomic": 0.48,
+    "priceRandom": 0.03,
+    "quantityAverage": 0,
+    "quantityEconomic": 0,
+    "quantityRandom": 0,
+    "sortOrder": 1700,
+    "tradeable": false,
+    "trumbleOpinion": 0,
+    "unit": "t"
   }
 ]

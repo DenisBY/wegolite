@@ -8,10 +8,11 @@
  * Rules, each of which exists to keep `assets:check` byte-comparable across
  * machines and architectures:
  *
- * - object keys sorted by **code-unit** comparison (`a < b ? -1 : …`), never
- *   `localeCompare` — ICU version differences would change the order.
+ * - object keys sorted by **code-unit** comparison (`a < b ? -1 : …`), never an
+ *   ICU-dependent locale comparison — ICU version differences would change the
+ *   order.
  * - numbers through ECMAScript's shortest round-trip `String(n)`; never
- *   `toFixed`/`toPrecision`, and `-0` normalises to `"0"`.
+ *   fixed-precision formatting, and `-0` normalises to `"0"`.
  * - two-space indent, `\n` line endings, one final newline.
  * - UTF-8 with literal non-ASCII (no `\u` escaping), so `☆` and `–` stay
  *   reviewable in a diff.

@@ -13,26 +13,20 @@
  *   repository-relative path, and `--check` gives it a throwaway `mkdtemp`.
  *
  * A parsed value never chooses a path. Every directory listing that can affect
- * output is sorted first.
- *
- * This plan's emitter is deliberately thin: it proves the frame
- * (plist → canonical JSON → manifest → drift gate) on the 17 commodities. The
- * full typed projection lives in `convert/commodities.ts` from plan task 3.
+ * output is sorted first. This plan wires exactly one emitter (commodities);
+ * later plans add theirs beside it without changing these rules.
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 
-import { canonicalJson } from "./canonical/json.js";
-import type { PlistJson } from "./canonical/json.js";
 import { contentError } from "./content-error.js";
-import { getEntry, getString } from "./openstep/plist-value.js";
-import type { PlistDict, PlistValue } from "./openstep/plist-value.js";
+import { emitCommodities } from "./convert/commodities.js";
 import { parseOpenStep } from "./openstep/parser.js";
+import type { PlistValue } from "./openstep/plist-value.js";
 
 export const SNAPSHOT_DIR = "third_party/oolite";
 export const GENERATED_DIR = "src/content/generated";
-export const COMMODITIES_PATH = `${GENERATED_DIR}/commodities.json`;
 
 const TRADE_GOODS_RELATIVE = "Config/trade-goods.plist";
 const TRADE_GOODS_FILE = `${SNAPSHOT_DIR}/${TRADE_GOODS_RELATIVE}`;
@@ -79,99 +73,8 @@ function resolveOutputFile(outRoot: string, relativePath: string): string {
   return target;
 }
 
-function requireInteger(
-  dict: PlistDict,
-  key: string,
-  construct: string,
-): number {
-  const entry = getEntry(dict, key);
-  if (entry === undefined) {
-    throw contentError("SCHEMA", TRADE_GOODS_FILE, construct, {
-      excerpt: `missing key "${key}"`,
-    });
-  }
-  if (entry.value.kind !== "integer") {
-    throw contentError("SCHEMA", TRADE_GOODS_FILE, construct, {
-      line: entry.keyLine,
-      column: entry.keyColumn,
-      excerpt: `"${key}" must be a bare integer`,
-    });
-  }
-  return entry.value.value;
-}
-
-function requireString(
-  dict: PlistDict,
-  key: string,
-  construct: string,
-): string {
-  const value = getString(dict, key);
-  if (value === undefined) {
-    throw contentError("SCHEMA", TRADE_GOODS_FILE, construct, {
-      excerpt: `"${key}" must be a quoted string`,
-    });
-  }
-  return value;
-}
-
-interface TracerCommodity {
-  readonly key: string;
-  readonly name: string;
-  readonly unit: number;
-  readonly priceAverage: number;
-  readonly sortOrder: number;
-}
-
-/** Thin tracer projection: enough to prove plist → JSON → manifest → gate. */
-function compileTracerCommodities(parsed: PlistValue): TracerCommodity[] {
-  if (parsed.kind !== "dict") {
-    throw contentError("SCHEMA", TRADE_GOODS_FILE, "root", {
-      excerpt: "trade-goods.plist must be a dictionary",
-    });
-  }
-  if (parsed.entries.length === 0) {
-    throw contentError("SCHEMA", TRADE_GOODS_FILE, "root", {
-      excerpt: "trade-goods.plist parsed to zero commodities",
-    });
-  }
-
-  const records = parsed.entries.map((entry) => {
-    if (entry.value.kind !== "dict") {
-      throw contentError(
-        "SCHEMA",
-        TRADE_GOODS_FILE,
-        `commodities.${entry.key}`,
-        {
-          line: entry.keyLine,
-          column: entry.keyColumn,
-          excerpt: `"${entry.key}" must be a dictionary`,
-        },
-      );
-    }
-    const construct = `commodities.${entry.key}`;
-    return {
-      key: entry.key,
-      name: requireString(entry.value, "name", `${construct}.name`),
-      unit: requireInteger(
-        entry.value,
-        "quantity_unit",
-        `${construct}.quantity_unit`,
-      ),
-      priceAverage: requireInteger(
-        entry.value,
-        "price_average",
-        `${construct}.price_average`,
-      ),
-      sortOrder: requireInteger(
-        entry.value,
-        "sort_order",
-        `${construct}.sort_order`,
-      ),
-    };
-  });
-
-  records.sort((a, b) => a.sortOrder - b.sortOrder);
-  return records;
+function parseTradeGoods(source: string): PlistValue {
+  return parseOpenStep(source, TRADE_GOODS_FILE);
 }
 
 /** Full generation run: writes every emitted file under `outRoot`. */
@@ -183,20 +86,13 @@ export async function generateContent({
     resolveSnapshotFile(inputRoot, TRADE_GOODS_RELATIVE),
     "utf8",
   );
-  const parsed = parseOpenStep(source, TRADE_GOODS_FILE);
-  const commodities = compileTracerCommodities(parsed);
+  const emitted: EmittedFile[] = [emitCommodities(parseTradeGoods(source))];
 
-  const json: PlistJson = commodities.map((commodity) => ({
-    key: commodity.key,
-    name: commodity.name,
-    unit: commodity.unit,
-    priceAverage: commodity.priceAverage,
-  }));
-  const bytes = Buffer.from(canonicalJson(json), "utf8");
+  for (const file of emitted) {
+    const target = resolveOutputFile(outRoot, file.path);
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, file.bytes);
+  }
 
-  const target = resolveOutputFile(outRoot, COMMODITIES_PATH);
-  await mkdir(dirname(target), { recursive: true });
-  await writeFile(target, bytes);
-
-  return [{ path: COMMODITIES_PATH, bytes }];
+  return emitted;
 }
