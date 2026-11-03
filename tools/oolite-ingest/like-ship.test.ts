@@ -33,6 +33,7 @@ import type {
 import {
   ALIAS_PAIRS,
   applyOverrides,
+  fieldsFromDict,
   LIKE_SHIP_NON_INHERITABLE,
   MAX_LIKE_SHIP_DEPTH,
   mergeShip,
@@ -82,7 +83,8 @@ function fixture(name: string): PlistDict {
     "utf8",
   );
   const parsed = parseOpenStep(source, file);
-  if (parsed.kind !== "dict") throw new Error(`${name} did not parse as a dict`);
+  if (parsed.kind !== "dict")
+    throw new Error(`${name} did not parse as a dict`);
   return parsed;
 }
 
@@ -101,7 +103,8 @@ function serialize(result: ResolutionResult): string {
   const keys = [...result.entries.keys()].sort();
   const entries = keys.map((key) => {
     const resolved = result.entries.get(key);
-    if (resolved === undefined) throw new Error(`missing resolved entry ${key}`);
+    if (resolved === undefined)
+      throw new Error(`missing resolved entry ${key}`);
     const object: { [field: string]: PlistJson } = {};
     for (const [field, value] of resolved) object[field] = plistToJson(value);
     return { key, fields: object };
@@ -220,30 +223,40 @@ describe("resolveAll", () => {
   it("applies overrides before resolution and never adds an entry", () => {
     const root = fixture("overrides-adds-entry.plist");
     const base = root.entries.find((item) => item.key === "base")?.value;
-    const overrides = root.entries.find((item) => item.key === "overrides")?.value;
+    const overrides = root.entries.find(
+      (item) => item.key === "overrides",
+    )?.value;
     if (base === undefined || base.kind !== "dict")
       throw new Error("base fixture missing");
     if (overrides === undefined || overrides.kind !== "dict")
       throw new Error("overrides fixture missing");
 
-    const patched = applyOverrides(dictToMap(base), overrides);
-    const result = resolveAll(base, {
+    const patched = applyOverrides(
+      new Map([["base", fieldsFromDict(base)]]),
+      overrides,
+    );
+    const result = resolveAll(dictOf({ base }), {
       file: "tests/fixtures/shipdata/overrides-adds-entry.plist",
       overrides,
     });
 
     expect(result.entries.size).toBe(1);
     expect(patched.size).toBe(1);
-    expect(result.entries.get("base")?.get("name")).toEqual(string("Patched"));
+    const name = result.entries.get("base")?.get("name");
+    expect(name?.kind).toBe("string");
+    expect(name?.kind === "string" ? name.value : undefined).toBe("Patched");
     expect(result.entries.has("added")).toBe(false);
   });
 
   it("refuses a chain deeper than the depth cap instead of recursing", () => {
     const entries: PlistEntry[] = [];
     for (let index = 0; index <= MAX_LIKE_SHIP_DEPTH; index++) {
-      const next = index === MAX_LIKE_SHIP_DEPTH ? {} : {
-        like_ship: string(`s${String(index + 1)}`),
-      };
+      const next =
+        index === MAX_LIKE_SHIP_DEPTH
+          ? {}
+          : {
+              like_ship: string(`s${String(index + 1)}`),
+            };
       entries.push(entry(`s${String(index)}`, dictOf(next)));
     }
     const root: PlistDict = { kind: "dict", line: 1, column: 1, entries };
