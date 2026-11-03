@@ -484,9 +484,18 @@ export function writeGlb(scene: GlbScene): Uint8Array {
   return bytes;
 }
 
+/**
+ * Negate Z once, and normalise `-0` to `0` on the way out: the two are
+ * numerically identical but differ in a float32 buffer's bytes, and a `-0`
+ * bound would not compare equal to the `0` the accessor's JSON records.
+ */
+function negate(value: number): number {
+  return value === 0 ? 0 : -value;
+}
+
 function convertPoint(point: Vec3, coordinates: Coordinates): Vec3 {
   return coordinates === "gltf"
-    ? { x: point.x, y: point.y, z: -point.z }
+    ? { x: point.x, y: point.y, z: negate(point.z) }
     : { x: point.x, y: point.y, z: point.z };
 }
 

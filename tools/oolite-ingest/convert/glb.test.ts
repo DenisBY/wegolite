@@ -19,10 +19,27 @@ import { describe, expect, it } from "vitest";
 
 import { sha256Hex } from "../canonical/hash.js";
 import { parseOpenStep } from "../openstep/parser.js";
-import { boundingBox, parseDat, selectNormalMode } from "./dat.js";
+import {
+  boundingBox,
+  parseDat,
+  repairWinding,
+  selectNormalMode,
+} from "./dat.js";
 import type { ParsedMesh, Vec3 } from "./dat.js";
-import { buildCobraGlb, convertMesh, materialFor, writeGlb } from "./glb.js";
-import type { GlbPrimitive, GlbScene, ShipEntry } from "./glb.js";
+import {
+  buildCobraGlb,
+  buildCoriolisGlb,
+  convertMesh,
+  materialFor,
+  writeGlb,
+} from "./glb.js";
+import type {
+  CoriolisEntries,
+  CoriolisMeshes,
+  GlbPrimitive,
+  GlbScene,
+  ShipEntry,
+} from "./glb.js";
 import { compileShips } from "./ships.js";
 
 const SHIPDATA = "third_party/oolite/Config/shipdata.plist";
@@ -34,6 +51,13 @@ interface BoundsRecord {
   readonly max: readonly number[];
 }
 
+interface CoriolisNodeGolden {
+  readonly source: string;
+  readonly translation: readonly number[];
+  readonly sourceBounds: BoundsRecord;
+  readonly converted: BoundsRecord;
+}
+
 interface ShipBoundsGolden {
   readonly version: number;
   readonly cobra3: {
@@ -41,6 +65,12 @@ interface ShipBoundsGolden {
     readonly sourceBounds: BoundsRecord;
     readonly converted: BoundsRecord;
     readonly cornerNormalDots: readonly (readonly [number, number])[];
+  };
+  readonly coriolis: {
+    readonly hull: CoriolisNodeGolden;
+    readonly faceplate: CoriolisNodeGolden;
+    readonly tris: CoriolisNodeGolden;
+    readonly dock: CoriolisNodeGolden;
   };
 }
 
@@ -294,6 +324,57 @@ const cobraMode = selectNormalMode(cobraMesh, {
   smooth: cobraEntry.shipDef.smooth,
 });
 
+const CORIOLIS_FILES = {
+  hull: "oolite_coriolis.dat",
+  faceplate: "oolite_coriolis_faceplate.dat",
+  tris: "oolite_coriolis_tris.dat",
+  dock: "oolite_coriolis_dock.dat",
+} as const;
+
+function coriolisEntries(): CoriolisEntries {
+  return {
+    hull: shipEntry("coriolis-station"),
+    faceplate: shipEntry("oolite_coriolis_faceplate"),
+    tris: shipEntry("oolite_coriolis_tris"),
+    dock: shipEntry("oolite_coriolis_dock"),
+  };
+}
+
+function coriolisMeshes(): CoriolisMeshes {
+  return {
+    hull: loadMesh(CORIOLIS_FILES.hull),
+    faceplate: loadMesh(CORIOLIS_FILES.faceplate),
+    tris: loadMesh(CORIOLIS_FILES.tris),
+    dock: loadMesh(CORIOLIS_FILES.dock),
+  };
+}
+
+/** Every emitted triangle must front `M * -normalize(cross(v1-v0, v2-v0))`. */
+function assertFrontFaces(mesh: ParsedMesh, smooth: boolean): number {
+  const mode = selectNormalMode(mesh, { smooth });
+  repairWinding(mesh, mode);
+  const primitives = convertMesh(mesh, mode, "gltf");
+  const cursors = mesh.materials.map(() => 0);
+
+  let checked = 0;
+  for (let faceIndex = 0; faceIndex < mesh.faces.length; faceIndex++) {
+    const face = at(mesh.faces, faceIndex);
+    const corners = faceCorners(mesh, primitives, faceIndex, cursors);
+    const oolite = convertedOoliteNormal(
+      at(mesh.vertices, face.vertices[0]),
+      at(mesh.vertices, face.vertices[1]),
+      at(mesh.vertices, face.vertices[2]),
+    );
+    const [p0, p1, p2] = corners.positions;
+    const front = dot(unit(cross(subtract(p1, p0), subtract(p2, p0))), oolite);
+    expect(front, `face ${String(faceIndex)} front-face dot`).toBeGreaterThan(
+      0,
+    );
+    checked += 1;
+  }
+  return checked;
+}
+
 describe("GLB container", () => {
   it("writes the glTF header, the two 4-byte aligned chunks and their padding", () => {
     const primitive: GlbPrimitive = {
@@ -376,8 +457,16 @@ describe("GLB container", () => {
       ...golden.cobra3.sourceBounds.max,
     ]);
     const converted = convertMesh(cobraMesh, cobraMode, "gltf");
-    const min = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
-    const max = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
+    const min = [
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+    ];
+    const max = [
+      Number.NEGATIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+    ];
     for (const primitive of converted) {
       for (let axis = 0; axis < 3; axis++) {
         min[axis] = Math.min(min[axis] ?? 0, primitive.min[axis] ?? 0);
@@ -583,5 +672,224 @@ describe("GLB container", () => {
     await expect(new NodeIO().readBinary(bytes)).rejects.toThrow(
       "Cannot resolve external images with binaryToJSON()",
     );
+  });
+
+  it("emits the four-part Coriolis composite with its own local transforms", async () => {
+    const bytes = buildCoriolisGlb(coriolisMeshes(), coriolisEntries());
+    const { json } = readChunks(bytes);
+    const document = await readWithReader(bytes);
+
+    expect(json.nodes.map((node) => node.name)).toEqual([
+      "hull",
+      "faceplate",
+      "tris",
+      "dock",
+    ]);
+    expect(json.meshes).toHaveLength(4);
+    expect(json.materials).toHaveLength(4);
+    expect(document.getRoot().listNodes()).toHaveLength(4);
+    expect(document.getRoot().listMeshes()).toHaveLength(4);
+
+    // The dock's authored +500.2561 is negated by the conversion, and the value
+    // is copied from the resolved subentity exactly: no re-typing, no tidying.
+    expect(json.nodes.map((node) => node.translation)).toEqual([
+      golden.coriolis.hull.translation,
+      golden.coriolis.faceplate.translation,
+      golden.coriolis.tris.translation,
+      golden.coriolis.dock.translation,
+    ]);
+    expect(at(json.nodes, 3).translation).toEqual([0, 0, -500.2561]);
+
+    const hullPrimitive = at(json.meshes, 0).primitives[0];
+    const hullPosition = at(
+      json.accessors,
+      hullPrimitive?.attributes.POSITION ?? 0,
+    );
+    // Source z was [-500, 495.918]; the reflection swaps and negates it.
+    expect(hullPosition.min?.[2]).toBeCloseTo(-495.918, 3);
+    expect(hullPosition.max?.[2]).toBeCloseTo(500, 3);
+
+    const dockPrimitive = at(json.meshes, 3).primitives[0];
+    const dockPosition = at(
+      json.accessors,
+      dockPrimitive?.attributes.POSITION ?? 0,
+    );
+    // Source z was [-250, 0], so the converted local range is [0, 250].
+    expect(dockPosition.min?.[2]).toBe(0);
+    expect(dockPosition.max?.[2]).toBe(250);
+  });
+
+  it("pins every Coriolis node's converted bounds against the golden", async () => {
+    expect(golden.version).toBe(1);
+    const bytes = buildCoriolisGlb(coriolisMeshes(), coriolisEntries());
+    const document = await readWithReader(bytes);
+
+    const expected: readonly (readonly [string, CoriolisNodeGolden])[] = [
+      ["hull", golden.coriolis.hull],
+      ["faceplate", golden.coriolis.faceplate],
+      ["tris", golden.coriolis.tris],
+      ["dock", golden.coriolis.dock],
+    ];
+
+    for (const [name, record] of expected) {
+      const node = document
+        .getRoot()
+        .listNodes()
+        .find((candidate) => candidate.getName() === name);
+      if (node === undefined) throw new Error(`the reader lost node "${name}"`);
+      expect(node.getTranslation()).toEqual([...record.translation]);
+
+      const mesh = node.getMesh();
+      if (mesh === null) throw new Error(`node "${name}" has no mesh`);
+      const primitives = mesh.listPrimitives();
+      expect(primitives, name).toHaveLength(1);
+      const position = at(primitives, 0).getAttribute("POSITION");
+      if (position === null) throw new Error(`node "${name}" has no POSITION`);
+      expect(position.getMin([]), `${name} min`).toEqual([
+        ...record.converted.min,
+      ]);
+      expect(position.getMax([]), `${name} max`).toEqual([
+        ...record.converted.max,
+      ]);
+    }
+  });
+
+  it("fronts Oolite's converted normal on all 2,226 Coriolis faces", () => {
+    const meshes = coriolisMeshes();
+    let total = 0;
+    for (const name of ["hull", "faceplate", "tris", "dock"] as const) {
+      total += assertFrontFaces(meshes[name], false);
+    }
+    expect(total).toBe(2226);
+  });
+
+  it("draws each Coriolis part's material set from its own owning entry", async () => {
+    const entries = coriolisEntries();
+    const bytes = buildCoriolisGlb(coriolisMeshes(), entries);
+    const { json } = readChunks(bytes);
+    const document = await readWithReader(bytes);
+
+    const expected: readonly (readonly [string, readonly string[]])[] = [
+      [
+        "hull",
+        [
+          "oolite_coriolis_diffuse.png",
+          "oolite_coriolis_normal.png",
+          "oolite_coriolis_specular.png",
+          "oolite_coriolis_diffuse_emissive.png",
+        ],
+      ],
+      [
+        "faceplate",
+        [
+          "oolite_coriolis_faceplate_diffuse.png",
+          "oolite_coriolis_faceplate_normal.png",
+          "oolite_coriolis_faceplate_specular.png",
+          "oolite_coriolis_faceplate_diffuse_emissive.png",
+        ],
+      ],
+      [
+        "tris",
+        [
+          "oolite_coriolis_tris_diffuse.png",
+          "oolite_coriolis_tris_normal.png",
+          "oolite_coriolis_tris_specular.png",
+          "oolite_coriolis_tris_diffuse_emissive.png",
+        ],
+      ],
+      [
+        "dock",
+        [
+          "oolite_coriolis_dock_diffuse.png",
+          "oolite_coriolis_dock_normal.png",
+          "oolite_coriolis_dock_diffuse_emissive.png",
+        ],
+      ],
+    ];
+
+    for (const [name, maps] of expected) {
+      const jsonMaterial = json.materials.find(
+        (candidate) => candidate.name === at(maps, 0),
+      );
+      if (jsonMaterial === undefined) {
+        throw new Error(`no material for the "${name}" diffuse`);
+      }
+      expect(
+        imageUri(
+          json,
+          jsonMaterial.pbrMetallicRoughness.baseColorTexture?.index,
+        ),
+      ).toBe(`../textures/${at(maps, 0)}`);
+      expect(imageUri(json, jsonMaterial.normalTexture?.index)).toBe(
+        `../textures/${at(maps, 1)}`,
+      );
+      if (maps.length === 4) {
+        expect(imageUri(json, jsonMaterial.emissiveTexture?.index)).toBe(
+          `../textures/${at(maps, 3)}`,
+        );
+        expect(
+          imageUri(
+            json,
+            jsonMaterial.extensions?.KHR_materials_specular?.specularTexture
+              ?.index,
+          ),
+        ).toBe(`../textures/${at(maps, 2)}`);
+      } else {
+        // The dock authors no specular map at all.
+        expect(jsonMaterial.extensions?.KHR_materials_specular).toBeUndefined();
+        expect(imageUri(json, jsonMaterial.emissiveTexture?.index)).toBe(
+          `../textures/${at(maps, 2)}`,
+        );
+      }
+      // The alpha channel is an emission mask, never opacity.
+      expect(jsonMaterial.alphaMode).toBeUndefined();
+    }
+
+    // A single shipDef for all four meshes would texture only the hull, so three
+    // of these four base colours would vanish. Assert the distinct set instead.
+    const baseColours = json.materials.map((material) =>
+      imageUri(json, material.pbrMetallicRoughness.baseColorTexture?.index),
+    );
+    expect(baseColours).toEqual([
+      "../textures/oolite_coriolis_diffuse.png",
+      "../textures/oolite_coriolis_faceplate_diffuse.png",
+      "../textures/oolite_coriolis_tris_diffuse.png",
+      "../textures/oolite_coriolis_dock_diffuse.png",
+    ]);
+
+    const hullMaterial = document
+      .getRoot()
+      .listMaterials()
+      .find(
+        (candidate) => candidate.getName() === "oolite_coriolis_diffuse.png",
+      );
+    if (hullMaterial === undefined)
+      throw new Error("the hull material is missing");
+    expect(hullMaterial.getBaseColorTexture()?.getURI()).toBe(
+      "../textures/oolite_coriolis_diffuse.png",
+    );
+
+    const hull = json.materials.find(
+      (candidate) => candidate.name === "oolite_coriolis_diffuse.png",
+    );
+    if (hull === undefined) throw new Error("the hull material is missing");
+    expect(hull.pbrMetallicRoughness.metallicFactor).toBe(0);
+    // gloss 1.0 clamps to the 0.04 floor.
+    expect(hull.pbrMetallicRoughness.roughnessFactor).toBe(0.04);
+    expect(hull.extras?.oolite?.emission_modulate_color).toEqual({
+      red: 6750.952,
+      green: 6780.963,
+      blue: 3280.8824,
+    });
+    const normalized = hull.extras?.oolite?.emissionModulateColorNormalized as
+      readonly number[] | undefined;
+    if (normalized === undefined)
+      throw new Error("no normalized emission colour");
+    expect(normalized).toHaveLength(3);
+    expect(at(normalized, 0)).toBeCloseTo(26.474, 3);
+    expect(at(normalized, 1)).toBeCloseTo(26.592, 3);
+    expect(at(normalized, 2)).toBeCloseTo(12.866, 3);
+    expect(hull.extras?.oolite?.gloss).toBe(1);
+    expect(hull.extras?.oolite?.shipKey).toBe("coriolis-station");
   });
 });

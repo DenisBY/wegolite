@@ -24,5 +24,55 @@
       [298, -0.0049],
       [411, -0.0235]
     ]
+  },
+  "coriolis": {
+    "hull": {
+      "source": "third_party/oolite/Models/oolite_coriolis.dat",
+      "translation": [0, 0, 0],
+      "sourceBounds": {
+        "min": [-500, -500, -500],
+        "max": [500, 500, 495.918]
+      },
+      "converted": {
+        "min": [-500, -500, -495.9179992675781],
+        "max": [500, 500, 500]
+      }
+    },
+    "faceplate": {
+      "source": "third_party/oolite/Models/oolite_coriolis_faceplate.dat",
+      "translation": [0, 0, 0],
+      "sourceBounds": {
+        "min": [-500, -500, 492.929],
+        "max": [500, 500, 534.298]
+      },
+      "converted": {
+        "min": [-500, -500, -534.2979736328125],
+        "max": [500, 500, -492.9289855957031]
+      }
+    },
+    "tris": {
+      "source": "third_party/oolite/Models/oolite_coriolis_tris.dat",
+      "translation": [0, 0, 0],
+      "sourceBounds": {
+        "min": [-500, -500, -500],
+        "max": [500, 500, 495.918]
+      },
+      "converted": {
+        "min": [-500, -500, -495.9179992675781],
+        "max": [500, 500, 500]
+      }
+    },
+    "dock": {
+      "source": "third_party/oolite/Models/oolite_coriolis_dock.dat",
+      "translation": [0, 0, -500.2561],
+      "sourceBounds": {
+        "min": [-53.4118, -120.944, -250],
+        "max": [50.0005, 120.944, 0]
+      },
+      "converted": {
+        "min": [-53.411800384521484, -120.94400024414062, 0],
+        "max": [50.0004997253418, 120.94400024414062, 250]
+      }
+    }
   }
 }
