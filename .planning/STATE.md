@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 02
 current_phase_name: Data Pipeline & Content Compiler
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-11-03T11:08:26.122Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-11-03T11:19:25.235Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 02 execution started
-state_head: 51c086ff27573cf38eb86bdee6186f8db242bcac
+state_head: 3ce3a1f36a68cfdcf1f83f5a843b8c3b5b4313fa
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 16
-  completed_plans: 8
+  completed_plans: 9
   percent: 14
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 02 (Data Pipeline & Content Compiler) — EXECUTING
-Plan: 2 of 9
+Plan: 3 of 9
 Status: Ready to execute
 Last activity: 2026-11-03 — Phase 02 execution started
 
@@ -57,6 +57,7 @@ Progress: [█░░░░░░░░░] 14%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 02 P01 | 12 min | 3 tasks | 31 files |
+| Phase 02 P02 | 9 min | 3 tasks | 56 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [Phase 02]: Content dictionaries are entry arrays, never objects keyed by plist key, so __proto__ cannot reach a prototype and integer-like keys cannot be reordered.
 - [Phase 02]: Manifest rows use repository-relative paths so one row identifies an emitted file in both the committed tree and the mkdtemp regeneration.
 - [Phase 02]: podConversion.kilogramsPerUnit is carried metadata only (t=1000, kg=1, g=0.001); Phase 5 owns conversion.
+- [Phase 02]: OpenStep reals require digits on both sides of the point; .5, 1., +5 and 1e5 stay strings so no authored value is silently coerced.
+- [Phase 02]: ContentError bounds every excerpt at 120 single-line characters and uses declare fields so an absent line/column is genuinely absent, not undefined.
+- [Phase 02]: plistToJson projects dictionaries onto Object.create(null) so a __proto__ key stays ordinary data (T-02-11).
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T11:08:26.025Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-11-03T11:19:19.786Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
