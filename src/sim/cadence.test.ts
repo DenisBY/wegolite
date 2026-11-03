@@ -11,9 +11,9 @@ const TARGET_STEPS = 1200; // 10 s of simulated time at 1/120 s
 
 /** One per-tick input log, replayed identically at every frame cadence. */
 const SCRIPT: readonly InputFrame[] = [
-  { pitch: 0, roll: 1, thrust: 1 },
-  { pitch: 0.5, roll: 0, thrust: 1 },
-  { pitch: -0.25, roll: -1, thrust: 0 },
+  { pitch: 0, roll: 1, speed: 0, precision: false, thrust: 1 },
+  { pitch: 0.5, roll: 0, speed: 0, precision: false, thrust: 1 },
+  { pitch: -0.25, roll: -1, speed: 0, precision: false, thrust: 0 },
 ];
 
 /**

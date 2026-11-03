@@ -19,11 +19,22 @@ export interface SimState {
 /**
  * The replay contract: one frame of device input, all components dimensionless
  * in [-1, 1]. No flight constants live here — Phase 3 owns those (D-09).
+ *
+ * This is the **only** input-frame shape in the app (FLGT-07, FLGT-08). The
+ * keyboard source imports it, the controller consumes it, and `src/input/**`
+ * never declares a second one — a duplicate would be a second seam between
+ * devices and the deterministic step.
+ *
+ * `thrust` is the Phase 1 kinematic-probe axis. It stays optional so the probe's
+ * recorded input log (and its golden hash) keeps replaying unchanged while the
+ * flight model reads `pitch`/`roll`/`speed`.
  */
 export interface InputFrame {
   pitch: number;
   roll: number;
-  thrust: number;
+  speed: number;
+  precision: boolean;
+  thrust?: number;
 }
 
 export function initState(): SimState {

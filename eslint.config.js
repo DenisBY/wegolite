@@ -78,6 +78,18 @@ export default tseslint.config(
               group: ["three", "three/*", "three/addons/*"],
               message: "src/sim must stay renderer-free.",
             },
+            // D-13/FLGT-06: settings persistence is an app concern. The sim
+            // receives a validated config, never a storage blob.
+            {
+              group: ["**/settings/**"],
+              message: "src/sim must not import the settings layer",
+            },
+            // FLGT-03/D-16: the ship catalogue is runtime content. The sim
+            // receives a derived `FlightConfig`, never the catalogue itself.
+            {
+              group: ["**/content/ships*"],
+              message: "src/sim must not import the ship catalogue",
+            },
             {
               group: [
                 "**/render/**",

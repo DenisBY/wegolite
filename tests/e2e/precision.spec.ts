@@ -1,9 +1,24 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Wegolite contributors
 
+/**
+ * The Phase 3 boot contract (WORLD-01, WORLD-02).
+ *
+ * This spec replaces the Phase 1/2 near/far marker proof. The three retired
+ * probe fields (`nearRelZ`, `farRelZ`, `farUlp`) are asserted **absent** so a
+ * stale success value cannot survive the retirement; the numeric precision proof
+ * now lives in `world.maxRelativeMagnitude` (asserted in `scene.spec.ts`) and in
+ * the float32 ULP assertion at the real sun distance in plan 04.
+ *
+ * The system scene exists only after Start, so the draw-call and triangle
+ * counters are read once the docked panel is up.
+ */
+
 import { expect, test } from "@playwright/test";
 
-test("shell boots, renders the precision scene, and reports no console errors", async ({
+import { getProbe, waitForReady } from "./helpers/probe.js";
+
+test("boots, starts Lave, renders the system scene, and reports no console errors", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -13,24 +28,31 @@ test("shell boots, renders the precision scene, and reports no console errors", 
   page.on("pageerror", (error) => errors.push(String(error)));
 
   await page.goto("/");
+  await waitForReady(page);
+  await page.click("#title-start");
   await page.waitForFunction(
-    () => window.__wegolite?.ready === true,
-    undefined,
-    {
-      timeout: 20_000,
+    () => {
+      const probe = window.__wegolite;
+      return (
+        probe !== undefined && probe.ready === true && probe.mode === "docked"
+      );
     },
+    undefined,
+    { timeout: 20_000 },
   );
 
-  const info = await page.evaluate(() => window.__wegolite);
+  const info = await getProbe(page);
 
-  expect(info?.webgl2).toBe(true);
-  expect(info?.calls ?? 0).toBeGreaterThan(0);
-  expect(info?.triangles ?? 0).toBeGreaterThan(0);
-  expect(info?.logDepth).toBe(true);
-  expect(info?.depthBits ?? 0).toBeGreaterThanOrEqual(16);
-  expect(info?.nearRelZ).toBeCloseTo(-1e5, 3);
-  expect(info?.farRelZ).toBeCloseTo(-1.4e6, 3);
-  expect(info?.farUlp).toBeCloseTo(0.125, 6);
+  expect(info.webgl2).toBe(true);
+  expect(info.calls).toBeGreaterThan(0);
+  expect(info.triangles).toBeGreaterThan(0);
+  expect(info.logDepth).toBe(true);
+  expect(info.depthBits).toBeGreaterThanOrEqual(16);
+
+  // The Phase 1 precision probe is retired, not merely unused.
+  expect(info).not.toHaveProperty("nearRelZ");
+  expect(info).not.toHaveProperty("farRelZ");
+  expect(info).not.toHaveProperty("farUlp");
 
   // Playwright's toContainText normalises whitespace, so Prettier wrapping the
   // sentence across source lines does not break the assertion the way a raw

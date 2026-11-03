@@ -43,8 +43,10 @@ export function step(state: SimState, input: InputFrame, dt: number): void {
       state.velocity.y * state.velocity.y +
       state.velocity.z * state.velocity.z,
   );
+  // `thrust` is optional in the shared frame shape (the flight model uses
+  // `speed` instead), so the probe reads its own axis with a zero default.
   const speed = Math.min(
-    Math.max(currentSpeed + input.thrust * PROBE_THRUST_ACCEL * dt, 0),
+    Math.max(currentSpeed + (input.thrust ?? 0) * PROBE_THRUST_ACCEL * dt, 0),
     PROBE_MAX_SPEED,
   );
   state.velocity = vec(forward.x * speed, forward.y * speed, forward.z * speed);
