@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 1
+open_count: 0
 waived_count: 0
-fixed_count: 0
+fixed_count: 1
 total_count: 1
-last_updated: 2026-11-03T12:21:05.714Z
+last_updated: 2026-11-03T13:45:38.860Z
 ---
 
 # Broken Windows Ledger
@@ -15,7 +15,7 @@ last_updated: 2026-11-03T12:21:05.714Z
 
 | id | phase | kind | file | line | description | status | reason | recorded_at | resolved_at |
 |----|-------|------|------|------|-------------|--------|--------|-------------|-------------|
-| 1 | 02 | unrun-verify | public/models/coriolis.glb |  | Visual letterbox check (dock opening reads correctly, not mirrored; faceplate proud of the hull) is deferred to end-of-phase verification because workflow.human_verify_mode is end-of-phase. | open |  | 2026-11-03T12:21:05.714Z |  |
+| 1 | 02 | unrun-verify | public/models/coriolis.glb |  | Visual letterbox check (dock opening reads correctly, not mirrored; faceplate proud of the hull) is deferred to end-of-phase verification because workflow.human_verify_mode is end-of-phase. | fixed |  | 2026-11-03T12:21:05.714Z | 2026-11-03T13:45:38.860Z |
 
 ````json
 [
@@ -26,10 +26,10 @@ last_updated: 2026-11-03T12:21:05.714Z
     "file": "public/models/coriolis.glb",
     "line": null,
     "description": "Visual letterbox check (dock opening reads correctly, not mirrored; faceplate proud of the hull) is deferred to end-of-phase verification because workflow.human_verify_mode is end-of-phase.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-11-03T12:21:05.714Z",
-    "resolved_at": null,
+    "resolved_at": "2026-11-03T13:45:38.860Z",
     "milestone": null
   }
 ]
