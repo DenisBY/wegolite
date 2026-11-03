@@ -13,7 +13,11 @@
  *
  * The camera world pose is derived from the *same* interpolated ship pose used
  * for the hull; mixing current and interpolated poses produces sub-metre
- * shimmer at speed.
+ * shimmer at speed. The launch cinematic and the cockpit handover supply their
+ * world pose explicitly through the optional `camera` argument, so they share
+ * this one transform path instead of placing a second camera. The supplied pose
+ * is a *world* pose: it is never written into `camera.position`, which stays at
+ * `(0, 0, 0)`.
  */
 
 import * as THREE from "three";
@@ -22,6 +26,7 @@ import { add, nlerp, rotate, vec } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import { cameraRelative } from "./camera-relative.js";
+import type { CameraPose } from "./launch-camera.js";
 import type { SystemScene } from "./system-scene.js";
 
 /** Oolite `view_position_forward = "0.0 7.25 31.0"` in +Z, converted to -Z. */
@@ -79,20 +84,34 @@ export function applyStationRoll(
   scene.station.update(stationAngle);
 }
 
-/** Place every body and orient the camera for one rendered frame. */
+/**
+ * Place every body and orient the camera for one rendered frame.
+ *
+ * @param camera the launch cinematic or cockpit world pose; `null` keeps the
+ *   first-person pose derived from the interpolated ship pose.
+ * @returns the camera world pose, so a camera-local effect (dust) can take its
+ *   delta without re-deriving the transform.
+ */
 export function applyFrame(
   scene: SystemScene,
   previous: FlightPose,
   current: FlightPose,
   alpha: number,
   layout: SystemLayout,
-  elapsedSeconds: number,
-): void {
+  camera: CameraPose | null = null,
+  elapsedSeconds = 0,
+): Vec3 {
   const pose = interpolatePose(previous, current, alpha);
-  const cameraWorld = add(pose.position, rotate(pose.orientation, VIEW_OFFSET));
+  const cameraWorld =
+    camera === null
+      ? add(pose.position, rotate(pose.orientation, VIEW_OFFSET))
+      : camera.position;
 
   scene.camera.position.set(0, 0, 0);
-  setQuaternion(scene.camera, pose.orientation);
+  setQuaternion(
+    scene.camera,
+    camera === null ? pose.orientation : camera.quaternion,
+  );
 
   placeRelative(scene.planet.mesh, layout.planet.position, cameraWorld);
   scene.planet.update(elapsedSeconds);
@@ -108,6 +127,7 @@ export function applyFrame(
   // The starfield is camera-locked: it stays at the origin, so its points never
   // leave the frustum however far the ship travels.
   scene.starfield.position.set(0, 0, 0);
+  return cameraWorld;
 }
 
 /**

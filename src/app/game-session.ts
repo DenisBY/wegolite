@@ -28,14 +28,22 @@ import type { GameLoop } from "./game-loop.js";
 import { createTestHook, publishFailure } from "./probe.js";
 import type { WegoliteProbe } from "./probe.js";
 import type { SceneManager } from "./scene-manager.js";
+import { createLaunchSequence } from "./launch-sequence.js";
+import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
 import { createHud } from "../render/hud/hud.js";
 import type { Hud } from "../render/hud/hud.js";
 import type { HudModel } from "../render/hud/draw.js";
 import { createMessageQueue } from "../render/hud/messages.js";
 import {
+  computeCockpitCamera,
+  computeLaunchCamera,
+} from "../render/launch-camera.js";
+import type { CameraPose } from "../render/launch-camera.js";
+import {
   applyFrame,
   applyStationRoll,
+  interpolatePose,
   maxRelativeMagnitude,
 } from "../render/sync.js";
 import type { SystemScene } from "../render/system-scene.js";
@@ -152,6 +160,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let paused = false;
   let launchSeen = false;
   const messages = createMessageQueue(4);
+  const launchSequence: LaunchSequence = createLaunchSequence();
   let lastModel: HudModel | undefined;
   let lastMs = 0;
   let rafId = 0;
@@ -239,14 +248,37 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     signal: uiController.signal,
   });
 
+  /**
+   * D-10: after the first viewing, any key during `launching` skips to the
+   * handover. Before `launchSeen` the key is ignored, so the first launch always
+   * plays in full. The skip is a command, not a state mutation: the simulation
+   * still applies the +600 s clock exactly once.
+   */
+  function onLaunchKeyDown(event: KeyboardEvent): void {
+    const currentState = state;
+    if (currentState === undefined || currentState.mode !== "launching") return;
+    if (paused || event.repeat) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (!launchSequence.canSkip(launchSeen)) return;
+    pending.push({ kind: "skipLaunch" });
+    event.preventDefault();
+  }
+
+  window.addEventListener("keydown", onLaunchKeyDown, {
+    capture: true,
+    signal: uiController.signal,
+  });
+
   function handleEvent(event: SimEvent): void {
     switch (event.kind) {
       case "launched":
+        launchSequence.reset();
         docked.hide();
         hudCanvas.hidden = false;
         messages.enqueue("Launching — stand by");
         break;
       case "launchComplete":
+        launchSequence.markSeen();
         launchSeen = true;
         if (settings !== undefined && !settings.launchSeen) {
           settings.launchSeen = true;
@@ -316,6 +348,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         currentScene.navBuoy.name,
         currentScene.witchpoint.name,
       ];
+      probe.shipVisible = currentScene.ship.visible;
       probe.world = {
         planet: toTuple(currentLayout.planet.position),
         sun: toTuple(currentLayout.sun.position),
@@ -371,17 +404,27 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
 
     applyStationRoll(currentScene, currentState.stationAngle);
+    // The launch cinematic and the cockpit handover supply a world pose; while
+    // docked the first-person pose is derived from the interpolated ship pose.
+    const pose = interpolatePose(previousPose, currentPose, alpha);
+    let camera: CameraPose | null = null;
+    if (currentState.mode === "launching") {
+      camera = computeLaunchCamera(currentLayout, pose.position);
+    } else if (currentState.mode === "inFlight") {
+      camera = computeCockpitCamera(pose.position, pose.orientation);
+    }
     applyFrame(
       currentScene,
       previousPose,
       currentPose,
       alpha,
       currentLayout,
+      camera,
       currentState.flightTime,
     );
-    // First-person flight: the hull would clip the camera, so it is hidden.
-    // Plan 07 shows it again for the launch cinematic.
-    currentScene.ship.visible = currentState.mode !== "inFlight";
+    // D-10: the Cobra is shown for the scripted exit and hidden in the cockpit;
+    // it is toggled, never rebuilt.
+    currentScene.ship.visible = currentState.mode === "launching";
 
     renderer.render(currentScene.scene, currentScene.camera);
 
@@ -436,6 +479,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
       alpha = currentLoop.advance(delta, commands, (stepCommands) => {
         previousPose = currentPose;
+        const modeBefore = currentState.mode;
         const controller =
           currentState.mode === "launching" ? scripted : player;
         const intent = controller.update(flightView(currentState), frameInput);
@@ -448,6 +492,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           DT,
         );
         for (const event of events) handleEvent(event);
+        // The view timeline advances on the same fixed steps as the simulation,
+        // and only after the step that entered `launching` (which does not move
+        // the ship either).
+        if (modeBefore === "launching") {
+          launchSequence.advance(DT, currentState.mode === "inFlight");
+        }
         currentPose = poseOf(currentState);
       });
     } else {
@@ -501,6 +551,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     settings = { ...loaded, bindings: bindingMap };
     bindings = bindingMap;
     launchSeen = loaded.launchSeen;
+    if (launchSeen) launchSequence.markSeen();
 
     input = createKeyboardInputSource(bindingMap);
     input.attach();

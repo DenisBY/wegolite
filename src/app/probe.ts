@@ -77,6 +77,8 @@ export interface WegoliteProbe {
   hud: WegoliteHudProbe;
   launch: { count: number; elapsed: number; seen: boolean };
   bodies: string[];
+  /** D-10: the Cobra is shown for the launch cinematic, hidden in the cockpit. */
+  shipVisible?: boolean;
   /** Present once a system scene exists. */
   world?: WegoliteWorldProbe;
   /** Present only under `?test=1`. */
