@@ -1,0 +1,104 @@
+[
+  {
+    "key": "food",
+    "name": "[commodity-name food]",
+    "priceAverage": 50,
+    "unit": 0
+  },
+  {
+    "key": "textiles",
+    "name": "[commodity-name textiles]",
+    "priceAverage": 71,
+    "unit": 0
+  },
+  {
+    "key": "radioactives",
+    "name": "[commodity-name radioactives]",
+    "priceAverage": 231,
+    "unit": 0
+  },
+  {
+    "key": "slaves",
+    "name": "[commodity-name slaves]",
+    "priceAverage": 152,
+    "unit": 0
+  },
+  {
+    "key": "liquor_wines",
+    "name": "[commodity-name liquor_wines]",
+    "priceAverage": 291,
+    "unit": 0
+  },
+  {
+    "key": "luxuries",
+    "name": "[commodity-name luxuries]",
+    "priceAverage": 902,
+    "unit": 0
+  },
+  {
+    "key": "narcotics",
+    "name": "[commodity-name narcotics]",
+    "priceAverage": 512,
+    "unit": 0
+  },
+  {
+    "key": "computers",
+    "name": "[commodity-name computers]",
+    "priceAverage": 818,
+    "unit": 0
+  },
+  {
+    "key": "machinery",
+    "name": "[commodity-name machinery]",
+    "priceAverage": 560,
+    "unit": 0
+  },
+  {
+    "key": "alloys",
+    "name": "[commodity-name alloys]",
+    "priceAverage": 388,
+    "unit": 0
+  },
+  {
+    "key": "firearms",
+    "name": "[commodity-name firearms]",
+    "priceAverage": 692,
+    "unit": 0
+  },
+  {
+    "key": "furs",
+    "name": "[commodity-name furs]",
+    "priceAverage": 704,
+    "unit": 0
+  },
+  {
+    "key": "minerals",
+    "name": "[commodity-name minerals]",
+    "priceAverage": 120,
+    "unit": 0
+  },
+  {
+    "key": "gold",
+    "name": "[commodity-name gold]",
+    "priceAverage": 388,
+    "unit": 1
+  },
+  {
+    "key": "platinum",
+    "name": "[commodity-name platinum]",
+    "priceAverage": 718,
+    "unit": 1
+  },
+  {
+    "key": "gem_stones",
+    "name": "[commodity-name gem_stones]",
+    "priceAverage": 196,
+    "unit": 2
+  },
+  {
+    "key": "alien_items",
+    "name": "[commodity-name alien_items]",
+    "priceAverage": 436,
+    "unit": 0
+  }
+]

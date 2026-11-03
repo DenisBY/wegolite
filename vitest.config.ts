@@ -15,7 +15,11 @@ export default defineConfig({
           // `src/**/*.test.ts` (not `src/sim/**`): the reference scaffold's
           // narrower glob silently skipped src/render/camera-relative.test.ts,
           // which is FOUND-08's numeric half.
-          include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+          include: [
+            "src/**/*.test.ts",
+            "tests/**/*.test.ts",
+            "tools/**/*.test.ts",
+          ],
         },
       },
     ],

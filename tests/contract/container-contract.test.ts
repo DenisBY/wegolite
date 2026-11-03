@@ -233,14 +233,28 @@ describe("FOUND-02 production preview", () => {
 
 describe("FOUND-03 container-only verification", () => {
   it("declares every documented service on the shared workspace anchor", () => {
-    for (const name of ["test", "e2e", "lint", "typecheck", "verify"]) {
+    for (const name of [
+      "test",
+      "e2e",
+      "lint",
+      "typecheck",
+      "assets",
+      "verify",
+    ]) {
       expect(executable(service(name))).toContain("<<: *workspace");
     }
     // One image build target for every service: no service may drift onto a
     // different stage and test content other than the committed tree.
     expect(COMPOSE_TEXT).toMatch(/x-workspace: &workspace[\s\S]*?target: ci/);
     // Ports are published only for the two servers, never for test services.
-    for (const name of ["test", "e2e", "lint", "typecheck", "verify"]) {
+    for (const name of [
+      "test",
+      "e2e",
+      "lint",
+      "typecheck",
+      "assets",
+      "verify",
+    ]) {
       expect(executable(service(name))).not.toMatch(/^\s*ports:/m);
     }
     expect(COMPOSE_TEXT).not.toMatch(/^\s*depends_on:/m);
@@ -253,11 +267,13 @@ describe("FOUND-03 container-only verification", () => {
       e2e: executable(service("e2e")),
       lint: executable(service("lint")),
       typecheck: executable(service("typecheck")),
+      assets: executable(service("assets")),
     };
 
     expect(blocks.test).toMatch(/command:\s*\[\s*"npm",\s*"test"\s*\]/);
     expect(blocks.lint).toMatch(/"npm",\s*"run",\s*"lint"/);
     expect(blocks.typecheck).toMatch(/"npm",\s*"run",\s*"typecheck"/);
+    expect(blocks.assets).toMatch(/"npm",\s*"run",\s*"assets:build"/);
     expect(blocks.e2e).toContain("npm run build");
     expect(blocks.e2e).toContain("npm run test:e2e");
 
@@ -279,7 +295,7 @@ describe("FOUND-03 container-only verification", () => {
     // The exact chain is the contract: `&&` (not `;`) is what makes the first
     // failing stage short-circuit (D-03).
     expect(verify.slice(chainAt)).toBe(
-      "npm run lint && npm run typecheck && npm run test && npm run build && npm run test:e2e",
+      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build && npm run test:e2e",
     );
   });
 

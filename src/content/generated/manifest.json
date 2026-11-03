@@ -1,0 +1,17 @@
+{
+  "files": [
+    {
+      "bytes": 1905,
+      "path": "src/content/generated/commodities.json",
+      "sha256": "d7298d71e03035db1c28b7481261a0ec4ce77b5724ae61d5b9f2dbeacbc56c22"
+    }
+  ],
+  "format": "wegolite-content-manifest",
+  "generator": "oolite-ingest/1",
+  "oolite": {
+    "commit": "7437f22",
+    "release": "1.93.1-241",
+    "retrieved": "2026-11-03"
+  },
+  "schemaVersion": 1
+}

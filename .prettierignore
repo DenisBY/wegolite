@@ -8,3 +8,7 @@ package-lock.json
 .gsd
 LICENSE
 NOTICE
+# Generated canonical JSON: Prettier's array wrapping would break assets:check.
+src/content/generated
+# Vendored Oolite snapshot: third-party bytes, never reformatted.
+third_party
