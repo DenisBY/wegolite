@@ -14,8 +14,8 @@
  * `( /* … *\/ )` produce an explicit empty node, not a failure and not
  * `undefined`. An empty or comment-only file is an empty dictionary.
  *
- * There is no `eval`, no `new Function`, and no dynamic `require`: this is a
- * recursive descent over a token array, capped at 64 levels (T-02-01).
+ * No token is ever run as code: this is a recursive descent over a token
+ * array, capped at 64 levels (T-02-01).
  */
 
 import { contentError, sourceExcerpt } from "../content-error.js";

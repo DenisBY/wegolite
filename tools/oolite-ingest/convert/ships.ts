@@ -16,7 +16,7 @@
  * `modelVendored` makes the difference explicit (DATA-07).
  *
  * `extras` carries every resolved key that the typed projection does not
- * consume, verbatim. Nothing is evaluated: a value that looks like a condition
+ * consume, verbatim. Nothing is interpreted: a value that looks like a condition
  * script stays a string in `extras` (T-02-17).
  */
 

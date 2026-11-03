@@ -29,7 +29,7 @@
  *
  * Dictionary storage is `Map`, never a plain object keyed by a plist key: a
  * `__proto__` ship key must stay ordinary data and integer-like keys must not be
- * reordered (T-02-11). Nothing here evaluates a value.
+ * reordered (T-02-11). Nothing here interprets a value.
  */
 
 import { contentError } from "./content-error.js";

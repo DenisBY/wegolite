@@ -15,7 +15,7 @@
  * throws `SCHEMA` naming the file and the entry key. A short tuple can never
  * produce an `undefined` price or tech level.
  *
- * Nothing is evaluated: `condition_script`, `requires_*`, `provides` and every
+ * Nothing is interpreted: `condition_script`, `requires_*`, `provides` and every
  * other condition key are carried in the open `conditions` record. No entry is
  * filtered out, and two entries sharing a price/TL pair (`thargon` and
  * `EQ_THARGON`) stay two keys because the key is the identity.
