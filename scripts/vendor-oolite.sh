@@ -95,7 +95,8 @@ digests.set(CHECKSUMS, createHash("sha256").update(checksums).digest("hex"));
 
 const assets = await readFile("ASSETS.md", "utf8");
 const rows = assets.split("\n");
-const rowPattern = /^\| (third_party\/oolite\/[^ |]+) \|/;
+// Prettier pads every cell, so the path is followed by spaces before the pipe.
+const rowPattern = /^\|\s*(third_party\/oolite\/[^|]+?)\s*\|/;
 const rowIndex = new Map();
 rows.forEach((line, index) => {
   const match = rowPattern.exec(line);
@@ -111,7 +112,7 @@ if (missing.length > 0) {
 for (const [file, hash] of digests) {
   const index = rowIndex.get(file);
   if (index === undefined) continue;
-  rows[index] = rows[index].replace(/\| [^|]*\|$/, `| ${hash} |`);
+  rows[index] = rows[index].replace(/\|[^|]*\|\s*$/, `| ${hash} |`);
 }
 await writeFile("ASSETS.md", rows.join("\n"), "utf8");
 
