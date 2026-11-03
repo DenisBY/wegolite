@@ -2,7 +2,8 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * Negative and positive proof of the `src/content` boundary (D-16, S-5).
+ * Negative and positive proof of the `src/content` boundary (D-16, S-5), plus
+ * the Phase 3 settings and ship-catalogue denials (FLGT-03, FLGT-06, T-3-26).
  *
  * A clean-tree `lint` proves the sim zone is green; it cannot prove the zone
  * would notice a runtime content import. Each case writes a probe into
@@ -13,19 +14,39 @@
  * the type-only door open. If the zone denied `content/types` too, a future
  * author would widen the rule to make a legitimate import compile instead of
  * using the door — and widen it for runtime content as well.
+ *
+ * The settings denial is proved by the *configured rule message*, not by a
+ * non-zero exit: `src/settings/` does not exist at this wave, so a probe that
+ * imports it would otherwise "fail" with `TS2307 cannot find module` without
+ * proving anything about layering. Plan 09 closes the compiler half once the
+ * settings module exists.
  */
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = process.cwd();
 const SIM_DIR = join(REPO_ROOT, "src", "sim");
 
+const SHIPS_MESSAGE = "src/sim must not import the ship catalogue";
+const SETTINGS_MESSAGE = "src/sim must not import the settings layer";
+
 interface GateRun {
   status: number | null;
   output: string;
+}
+
+interface EslintMessage {
+  ruleId?: string | null;
+  message?: string;
+  messageId?: string | null;
+}
+
+interface EslintResult {
+  filePath: string;
+  messages: EslintMessage[];
 }
 
 /** Run a gate in the repo root and return its exit status and combined output. */
@@ -39,6 +60,58 @@ function runGate(command: string, args: readonly string[]): GateRun {
     status: result.status,
     output: `${result.stdout ?? ""}${result.stderr ?? ""}`,
   };
+}
+
+/**
+ * Run ESLint with JSON output so the assertion can name the rule and its
+ * message instead of matching a human-readable blob.
+ */
+function runEslintJson(file: string): {
+  status: number | null;
+  output: string;
+  results: EslintResult[];
+} {
+  const result = spawnSync("npx", ["eslint", "--format", "json", file], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+    timeout: 180_000,
+  });
+  const stdout = result.stdout ?? "";
+  let results: EslintResult[];
+  try {
+    results = JSON.parse(stdout) as EslintResult[];
+  } catch {
+    results = [];
+  }
+  return {
+    status: result.status,
+    output: `${stdout}${result.stderr ?? ""}`,
+    results,
+  };
+}
+
+/**
+ * The `no-restricted-imports` diagnostic carrying `expectedMessage` as its
+ * configured message. ESLint prefixes the custom message with the matched
+ * specifier (`'…' import is restricted from being used by a pattern. <message>`),
+ * so the configured text is the exact suffix.
+ */
+function findRestriction(
+  results: readonly EslintResult[],
+  expectedMessage: string,
+): EslintMessage | undefined {
+  for (const result of results) {
+    for (const message of result.messages) {
+      if (
+        message.ruleId === "no-restricted-imports" &&
+        typeof message.message === "string" &&
+        message.message.endsWith(expectedMessage)
+      ) {
+        return message;
+      }
+    }
+  }
+  return undefined;
 }
 
 /** Write a probe under src/sim/ and make sure it is never left behind. */
@@ -114,4 +187,75 @@ describe("src/content boundary", () => {
       expect(typecheck.status, typecheck.output).toBe(0);
     });
   }, 180_000);
+});
+
+describe("the Phase 3 layer denials", () => {
+  it("denies the ship catalogue by rule message and a real tsc failure", () => {
+    const source = [
+      'import { loadShipCatalogue } from "../content/ships.js";',
+      "",
+      "export const probe = loadShipCatalogue;",
+      "",
+    ].join("\n");
+
+    withProbe("__purity_ships_probe.ts", source, (file) => {
+      const lint = runEslintJson(file);
+      expect(lint.status, lint.output).not.toBe(0);
+
+      const diagnostic = findRestriction(lint.results, SHIPS_MESSAGE);
+      expect(diagnostic, lint.output).toBeDefined();
+      expect(diagnostic?.message).toContain("../content/ships.js");
+      expect(diagnostic?.messageId).toBe("patternWithCustomMessage");
+
+      // `src/content/ships.ts` exists, so the compiler half is non-vacuous:
+      // the probe must fail `tsc`, and not because the module is missing.
+      const typecheck = runGate("npx", [
+        "tsc",
+        "-p",
+        "tsconfig.sim.json",
+        "--noEmit",
+      ]);
+      expect(typecheck.status).not.toBe(0);
+      expect(typecheck.output).not.toMatch(/TS2307/);
+      expect(typecheck.output).toMatch(/ships\.ts/);
+    });
+
+    // The probe is removed in `finally`, even though the gate ran above.
+    expect(existsSync(join(SIM_DIR, "__purity_ships_probe.ts"))).toBe(false);
+  }, 180_000);
+
+  it("denies the settings layer by its configured rule message, not a missing module", () => {
+    const source = [
+      'import { loadSettings } from "../settings/schema.js";',
+      "",
+      "export const probe = loadSettings;",
+      "",
+    ].join("\n");
+
+    withProbe("__purity_settings_probe.ts", source, (file) => {
+      const lint = runEslintJson(file);
+      expect(lint.status, lint.output).not.toBe(0);
+
+      // `src/settings/` does not exist yet. A module-resolution failure would
+      // not carry this rule id, message id, or the configured message; the
+      // presence of all three is what proves the layering rule fired.
+      const diagnostic = findRestriction(lint.results, SETTINGS_MESSAGE);
+      expect(diagnostic, lint.output).toBeDefined();
+      expect(diagnostic?.message).toContain("../settings/schema.js");
+      expect(diagnostic?.messageId).toBe("patternWithCustomMessage");
+      expect(diagnostic?.ruleId).toBe("no-restricted-imports");
+    });
+
+    expect(existsSync(join(SIM_DIR, "__purity_settings_probe.ts"))).toBe(false);
+  }, 60_000);
+
+  it("removes the probe even when the body throws", () => {
+    const name = "__purity_cleanup_probe.ts";
+    expect(() =>
+      withProbe(name, "export const probe = 1;\n", () => {
+        throw new Error("expected cleanup test failure");
+      }),
+    ).toThrow("expected cleanup test failure");
+    expect(existsSync(join(SIM_DIR, name))).toBe(false);
+  });
 });
