@@ -14,7 +14,7 @@
  * is built with `-rollRate`; do not "fix" the minus sign.
  */
 
-import { axisAngle, mul, normalize } from "../math.js";
+import { axisAngle, clamp, mul, normalize } from "../math.js";
 import type { FlightConfig } from "./config.js";
 import type { ControlIntent } from "./controller.js";
 import type { FlightState } from "./state.js";
@@ -55,19 +55,15 @@ export function stepAttitude(
   const pitchTarget = intent.pitch * config.maxPitch * scale;
   const rollTarget = intent.roll * config.maxRoll * scale;
 
-  state.pitchRate = slew(
-    state.pitchRate,
-    pitchTarget,
-    config.pitchAccel,
-    config.damping,
-    dt,
+  state.pitchRate = clamp(
+    slew(state.pitchRate, pitchTarget, config.pitchAccel, config.damping, dt),
+    -config.maxPitch,
+    config.maxPitch,
   );
-  state.rollRate = slew(
-    state.rollRate,
-    rollTarget,
-    config.rollAccel,
-    config.damping,
-    dt,
+  state.rollRate = clamp(
+    slew(state.rollRate, rollTarget, config.rollAccel, config.damping, dt),
+    -config.maxRoll,
+    config.maxRoll,
   );
 
   const roll = axisAngle(0, 0, 1, -state.rollRate * dt);
