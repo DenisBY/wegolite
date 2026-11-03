@@ -1636,7 +1636,7 @@ export function loadSettings(storage: Storage = localStorage): SettingsV1 {
 | A11 | No new npm packages are needed; inline GLSL noise and Canvas2D suffice. | Stack | If a noise/utility package is added, run the Package Legitimacy Gate before installing. |
 | A12 | The Phase 1 kinematic probe and its golden remain untouched; the real flight lives in a new `src/sim/flight/` module. | Architecture | If the planner replaces `src/sim/step.ts`, FOUND-07’s golden must be migrated deliberately; do not silently delete it. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Launch-roll sign after the Z reflection.** The magnitude is settled (station rate 0.1256637 rad/s), but the sign that keeps the slot steady in the Wegolite basis must be verified with a probe. Recommendation: set the ship’s launch roll equal to the station’s world roll; if the slot counter-rotates, negate it at the composition point. This is a 10-minute probe, not a design debate.
 2. **Cinematic vs cockpit-only launch.** D-10 says “the Cobra sliding out of the slot”; a visible Cobra implies an external camera. Recommendation: 2 s cinematic, then cockpit. Confirm during the manual launch review; the code can keep the Cobra mesh toggleable.
@@ -1647,6 +1647,20 @@ export function loadSettings(storage: Storage = localStorage): SettingsV1 {
 7. **`ships.json` payload.** Dynamic import is the low-risk choice; measure the gzip chunk after the first build. If it exceeds the initial-JS budget, add a tiny generated player entry in a later phase.
 8. **Planet shader visual calibration.** The land/sea threshold that yields `land_fraction 0.65` depends on the noise distribution; calibrate visually and keep the threshold as a uniform, not a magic constant.
 9. **HUD scanner proportions.** Oolite's default is 288×64. A 360×80 design is a slightly larger, readable v1 choice that keeps the same 4.5:1 ratio and the same `zFactor/yFactor` math. D-08 allows this; choose one size and keep it consistent.
+
+**Resolution (2026-11-03 — all nine closed; the plans are the authority):**
+
+| # | Question | Decision | Where it lands |
+|---|----------|----------|----------------|
+| 1 | Launch-roll sign after the Z reflection | World-sense `+stationRollRadPerSec` about local `+Z` (assumption A2); the slot stays steady and the test discriminates the no-roll and doubled counter-rotation cases | `03-02` task 1 step 4 |
+| 2 | Cinematic vs cockpit-only launch | ~2 s external cinematic, then cockpit handover; the Cobra is toggled, never rebuilt | `03-07` task 1 |
+| 3 | Coriolis emissive intensity | Start at `0.8`, tune visually, never modify the baked asset | `03-03` task 3 step 1 |
+| 4 | **Oolite FOV** | **Adopted**: vertical FOV `57.2°` — `PerspectiveCamera(57.2, 1, 0.5, 2_500_000)` — replacing the Phase 1/2 `60°` | `03-01` task 1 step 10 and its "Fidelity corrections" bullets; `03-PATTERNS.md` launch-camera row |
+| 5 | Torus "any input" vs Oolite keyboard behaviour | Keep the stricter FLGT-04 rule as a deliberate divergence and record it at project level (there is no `FIDELITY.md`; `AGENTS.md` points at `PROJECT.md` § Key Decisions) | `03-04` objective and task 1; `03-09` task 3 step 6 |
+| 6 | Dust density at torus | Tune count/size/streak length in the visual pass; dust is the primary motion cue | `03-07` task 3 |
+| 7 | `ships.json` payload | Dynamic `?raw` import + `JSON.parse` (never a static 706 KB import); measure the gzip chunk after the first build | `03-01` task 1 step 1 |
+| 8 | Planet shader visual calibration | `landThresholdFor(land_fraction, seed)` uniform calibrated to `land_fraction 0.65`, never the literal `0.5` | `03-03` task 1 step 2 |
+| 9 | HUD scanner proportions | Oolite's 4.5:1 design-space ellipse; the projection is `width`/`height`-parameterised so the design size stays a layout constant | `03-05` task 1 step 3 |
 
 ## Environment Availability
 
