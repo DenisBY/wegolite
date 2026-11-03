@@ -13,8 +13,8 @@
  *   repository-relative path, and `--check` gives it a throwaway `mkdtemp`.
  *
  * A parsed value never chooses a path. Every directory listing that can affect
- * output is sorted first. This plan wires exactly one emitter (commodities);
- * later plans add theirs beside it without changing these rules.
+ * output is sorted first. Each plan wires its emitters beside `commodities`
+ * without changing these rules.
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -22,6 +22,7 @@ import { dirname, resolve, sep } from "node:path";
 
 import { contentError } from "./content-error.js";
 import { emitCommodities } from "./convert/commodities.js";
+import { emitSystems } from "./convert/systems.js";
 import { parseOpenStep } from "./openstep/parser.js";
 import type { PlistValue } from "./openstep/plist-value.js";
 
@@ -30,6 +31,8 @@ export const GENERATED_DIR = "src/content/generated";
 
 const TRADE_GOODS_RELATIVE = "Config/trade-goods.plist";
 const TRADE_GOODS_FILE = `${SNAPSHOT_DIR}/${TRADE_GOODS_RELATIVE}`;
+const PLANETINFO_RELATIVE = "Config/planetinfo.plist";
+const PLANETINFO_FILE = `${SNAPSHOT_DIR}/${PLANETINFO_RELATIVE}`;
 
 export interface EmittedFile {
   readonly path: string;
@@ -73,8 +76,15 @@ function resolveOutputFile(outRoot: string, relativePath: string): string {
   return target;
 }
 
-function parseTradeGoods(source: string): PlistValue {
-  return parseOpenStep(source, TRADE_GOODS_FILE);
+async function readConfig(
+  inputRoot: string,
+  relativePath: string,
+  file: string,
+): Promise<PlistValue> {
+  return parseOpenStep(
+    await readFile(resolveSnapshotFile(inputRoot, relativePath), "utf8"),
+    file,
+  );
 }
 
 /** Full generation run: writes every emitted file under `outRoot`. */
@@ -82,11 +92,15 @@ export async function generateContent({
   inputRoot,
   outRoot,
 }: GenerateOptions): Promise<EmittedFile[]> {
-  const source = await readFile(
-    resolveSnapshotFile(inputRoot, TRADE_GOODS_RELATIVE),
-    "utf8",
-  );
-  const emitted: EmittedFile[] = [emitCommodities(parseTradeGoods(source))];
+  const [commodities, systems] = await Promise.all([
+    readConfig(inputRoot, TRADE_GOODS_RELATIVE, TRADE_GOODS_FILE),
+    readConfig(inputRoot, PLANETINFO_RELATIVE, PLANETINFO_FILE),
+  ]);
+
+  const emitted: EmittedFile[] = [
+    emitCommodities(commodities),
+    ...emitSystems(systems),
+  ];
 
   for (const file of emitted) {
     const target = resolveOutputFile(outRoot, file.path);

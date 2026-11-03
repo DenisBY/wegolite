@@ -87,7 +87,9 @@ describe("system chunks", () => {
     const ids = new Set<string>();
     for (const system of allSystems) {
       expect(system.id).toMatch(/^g[0-7]-s(?:25[0-5]|2[0-4]\d|1?\d?\d)$/);
-      expect(system.id).toBe(`g${String(system.galaxy)}-s${String(system.systemIndex)}`);
+      expect(system.id).toBe(
+        `g${String(system.galaxy)}-s${String(system.systemIndex)}`,
+      );
       expect(ids.has(system.id)).toBe(false);
       ids.add(system.id);
     }
@@ -153,11 +155,11 @@ describe("system chunks", () => {
     expect(SystemVectorSchema.safeParse([1, 0, 0]).success).toBe(true);
     // A 3-component colour and a 4-component vector are each rejected, so the
     // two tuple schemas are not interchangeable.
-    expect(SystemSchema.safeParse({ ...lave, air_color: [1, 0, 0] }).success).toBe(
-      false,
-    );
-    expect(SystemSchema.safeParse({ ...lave, sunVector: [1, 0, 0, 1] }).success).toBe(
-      false,
-    );
+    expect(
+      SystemSchema.safeParse({ ...lave, air_color: [1, 0, 0] }).success,
+    ).toBe(false);
+    expect(
+      SystemSchema.safeParse({ ...lave, sunVector: [1, 0, 0, 1] }).success,
+    ).toBe(false);
   });
 });
