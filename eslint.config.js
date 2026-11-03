@@ -85,6 +85,13 @@ export default tseslint.config(
                 "**/input/**",
                 "**/app/**",
                 "**/persistence/**",
+                // D-16: the sim may name content *types* and nothing else. A
+                // runtime import would drag zod, the loader, or generated data
+                // into the simulation bundle. The type-only door is
+                // `content/types`, proven by tests/guards/content-boundary.
+                "**/content/index*",
+                "**/content/schemas/**",
+                "**/content/generated/**",
               ],
               message: "src/sim may only import src/sim and content/types.",
             },
