@@ -17,6 +17,7 @@
  * arbitrary code.
  */
 
+import type * as THREE from "three";
 import type { FlightMode } from "../sim/flight/state.js";
 import type { CompassTarget, FlightState } from "../sim/flight/state.js";
 import type { AegisStatus } from "../sim/world/aegis.js";
@@ -51,7 +52,28 @@ export interface WegoliteHudProbe {
   bounds: Record<string, readonly [number, number, number, number]>;
 }
 
-export interface WegoliteTestHook {
+/**
+ * The live GPU-resource counters (WORLD-04).
+ *
+ * `geometries` and `textures` are Three's own `renderer.info.memory` counts;
+ * `programs` is the compiled-shader list length. A scene swap must leave all
+ * three flat — a monotonic climb is the leak this phase must not ship.
+ */
+export interface WegoliteMemoryProbe {
+  geometries: number;
+  textures: number;
+  programs: number;
+}
+
+/** The two scene-level operations the `?test=1` hook may drive. */
+export interface WegoliteSceneTestHook {
+  /** Re-enter the active system (build, swap, dispose) and settle one frame. */
+  swapSystem(): Promise<void>;
+  /** Dispose the active system scene and leave the app on the empty scene. */
+  disposeSystem(): void;
+}
+
+export interface WegoliteTestHook extends WegoliteSceneTestHook {
   setPosition(x: number, y: number, z: number): void;
   setSpeed(speed: number): void;
 }
@@ -77,6 +99,8 @@ export interface WegoliteProbe {
   torus: { engaged: boolean; factor: number; massLocked: boolean };
   hud: WegoliteHudProbe;
   launch: { count: number; elapsed: number; seen: boolean };
+  /** WORLD-04: the live GPU counters a scene swap must not grow. */
+  memory: WegoliteMemoryProbe;
   bodies: string[];
   /** D-10: the Cobra is shown for the launch cinematic, hidden in the cockpit. */
   shipVisible?: boolean;
@@ -106,17 +130,38 @@ export function publishProbe(probe: WegoliteProbe): void {
 }
 
 /**
- * The `?test=1` hook. It mutates only the live flight state — no save, no
- * arbitrary code — so a browser spec can teleport to a mass-lock-free point or
- * set a speed without flying there.
+ * Read the live GPU-resource counters.
+ *
+ * `renderer.info.programs` is nullable in Three's types; the `?? 0` keeps the
+ * probe numeric instead of leaking a null into a Playwright assertion.
  */
-export function createTestHook(state: FlightState): WegoliteTestHook {
+export function readMemory(renderer: THREE.WebGLRenderer): WegoliteMemoryProbe {
+  return {
+    geometries: renderer.info.memory.geometries,
+    textures: renderer.info.memory.textures,
+    programs: renderer.info.programs?.length ?? 0,
+  };
+}
+
+/**
+ * The `?test=1` hook. It mutates only the live flight state and drives the
+ * scene manager — no save, no arbitrary code — so a browser spec can teleport
+ * to a mass-lock-free point, set a speed, or swap the scene to prove disposal.
+ */
+export function createTestHook(
+  state: FlightState,
+  scenes: WegoliteSceneTestHook,
+): WegoliteTestHook {
   return {
     setPosition(x: number, y: number, z: number): void {
       state.position = vec(x, y, z);
     },
     setSpeed(speed: number): void {
       state.speed = speed;
+    },
+    swapSystem: () => scenes.swapSystem(),
+    disposeSystem: () => {
+      scenes.disposeSystem();
     },
   };
 }
@@ -160,6 +205,7 @@ export function publishFailure(reason: string): void {
       bounds: {},
     },
     launch: { count: 0, elapsed: 0, seen: false },
+    memory: { geometries: 0, textures: 0, programs: 0 },
     bodies: [],
     error: reason,
   };

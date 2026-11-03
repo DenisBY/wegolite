@@ -29,6 +29,14 @@ export interface AssetCache {
   cobra(): GLTF;
   /** The Coriolis model; throws when called before `preload()` resolved. */
   coriolis(): GLTF;
+  /**
+   * True once both GLBs are loaded and `cobra()`/`coriolis()` are safe.
+   *
+   * The scene manager uses this to decide whether the title scene can be built
+   * yet: the menu needs the shared Cobra, and a swap must not throw merely
+   * because the cache is still loading.
+   */
+  loaded(): boolean;
   dispose(): void;
 }
 
@@ -93,6 +101,9 @@ export function createAssetCache(
         );
       }
       return coriolisModel;
+    },
+    loaded(): boolean {
+      return cobraModel !== undefined && coriolisModel !== undefined;
     },
     dispose(): void {
       if (cobraModel !== undefined) disposeModel(cobraModel.scene);

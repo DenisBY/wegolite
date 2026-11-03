@@ -24,7 +24,7 @@ import { bootApp } from "./app/boot.js";
 import { showBootFailure } from "./app/boot-failure.js";
 import { showWebgl2Fallback } from "./app/fallback.js";
 import { createGameSession } from "./app/game-session.js";
-import { publishFailure, publishProbe } from "./app/probe.js";
+import { publishFailure, publishProbe, readMemory } from "./app/probe.js";
 import type { WegoliteProbe } from "./app/probe.js";
 import { createSceneManager } from "./app/scene-manager.js";
 import manifest from "./content/generated/manifest.json";
@@ -69,6 +69,23 @@ if (!boot.ok) {
   const scenes = createSceneManager(renderer, assets);
   scenes.enterMenu();
 
+  let stopped = false;
+
+  // The title scene needs the shared Cobra, which only exists once the GLBs
+  // have loaded. Warm the cache in the background so the menu becomes a real
+  // scene on every load. A failure is deliberately swallowed here: the session
+  // awaits the same memoised promise and owns the visible failure surface.
+  void assets
+    .preload()
+    .then(() => {
+      // Never fight a system scene the player already entered, and never
+      // rebuild after teardown.
+      if (!stopped && scenes.layout() === undefined) scenes.enterMenu();
+    })
+    .catch(() => {
+      // Reported by `session.start()`.
+    });
+
   const title = createTitleScreen(requireElement("title-screen"));
   const docked = createDockedPanel(requireElement("docked"));
   const pauseRoot = requireElement("pause");
@@ -112,6 +129,7 @@ if (!boot.ok) {
       bounds: {},
     },
     launch: { count: 0, elapsed: 0, seen: false },
+    memory: { geometries: 0, textures: 0, programs: 0 },
     bodies: [],
   };
 
@@ -130,8 +148,6 @@ if (!boot.ok) {
     gameRoot: canvas,
   });
 
-  let stopped = false;
-
   function stopSession(): void {
     if (stopped) return;
     stopped = true;
@@ -144,6 +160,7 @@ if (!boot.ok) {
     probe.calls = renderer.info.render.calls;
     probe.triangles = renderer.info.render.triangles;
     probe.renders = renderer.info.render.frame;
+    probe.memory = readMemory(renderer);
   }
 
   function resize(): void {

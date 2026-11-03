@@ -21,11 +21,11 @@ import {
   playerShip,
   stationShip,
 } from "../content/ships.js";
-import type { System } from "../content/types.js";
+import type { ShipDef, System } from "../content/types.js";
 import { buildHudModel } from "./hud-model.js";
 import { createGameLoop } from "./game-loop.js";
 import type { GameLoop } from "./game-loop.js";
-import { createTestHook, publishFailure } from "./probe.js";
+import { createTestHook, publishFailure, readMemory } from "./probe.js";
 import type { WegoliteProbe } from "./probe.js";
 import type { SceneManager } from "./scene-manager.js";
 import { createHintController } from "./hints.js";
@@ -148,6 +148,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let layout: SystemLayout | undefined;
   let config: FlightConfig | undefined;
   let scene: SystemScene | undefined;
+  let stationDef: ShipDef | undefined;
   let hud: Hud | undefined;
   let breakPattern: BreakPattern | undefined;
   let input: KeyboardInputSource | undefined;
@@ -319,6 +320,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     probe.calls = renderer.info.render.calls;
     probe.triangles = renderer.info.render.triangles;
     probe.renders = renderer.info.render.frame;
+    probe.memory = readMemory(renderer);
     probe.paused = paused;
 
     const currentState = state;
@@ -591,10 +593,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     const catalogue = await loadShipCatalogue();
     const playerDef = playerShip(catalogue).shipDef;
-    const stationDef = stationShip(catalogue).shipDef;
+    const station = stationShip(catalogue).shipDef;
+    stationDef = station;
 
     const flightConfig = deriveFlightConfig(playerDef);
-    const nextScene = scenes.enterSystem(system, stationDef);
+    const nextScene = scenes.enterSystem(system, station);
     const systemLayout = scenes.layout();
     if (systemLayout === undefined) {
       throw new Error(
@@ -680,7 +683,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // The hook exists only when explicitly asked for, and only mutates the live
     // state: no save, no arbitrary code (V5 / test-API abuse).
     if (new URLSearchParams(window.location.search).has("test")) {
-      probe.test = createTestHook(flightState);
+      probe.test = createTestHook(flightState, { swapSystem, disposeSystem });
     }
 
     title.hide();
@@ -695,6 +698,44 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   function resize(): void {
     hud?.resize();
+  }
+
+  /**
+   * WORLD-04 test surface: rebuild the active system scene through the manager.
+   *
+   * The flight state and layout stay put: a swap replaces the scene graph, not
+   * the simulation, and only the render references move. That is exactly the
+   * ownership boundary the disposal proof is about.
+   */
+  function performSwap(): void {
+    const currentStationDef = stationDef;
+    if (state === undefined || currentStationDef === undefined) return;
+    scene = scenes.enterSystem(system, currentStationDef);
+    layout = scenes.layout() ?? layout;
+    // The new dust field has no camera history; a stale delta would smear it.
+    previousCameraWorld = undefined;
+  }
+
+  function disposeSystem(): void {
+    scenes.disposeSystem();
+    scene = undefined;
+    previousCameraWorld = undefined;
+  }
+
+  /**
+   * Swap, then settle one real frame so the GPU counters the probe reports
+   * describe the new scene rather than the frame before it.
+   */
+  async function swapSystem(): Promise<void> {
+    if (state === undefined) return;
+    performSwap();
+    renderFrame(0);
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        resolve();
+      });
+    });
+    renderFrame(0);
   }
 
   function dispose(): void {

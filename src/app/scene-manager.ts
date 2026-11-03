@@ -2,16 +2,20 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * Scene lifecycle (Pattern 3, WORLD-04 groundwork).
+ * Scene lifecycle (Pattern 3, WORLD-04).
  *
  * `AssetCache` owns the shared GLBs; a `SystemScene` owns only what it creates.
- * A swap builds the new scene, installs it, then disposes the old one and clears
- * the renderer's list cache, so no GPU resource is orphaned and no cached model
- * is disposed.
+ * A swap builds the new scene first, installs it, then disposes the old one and
+ * clears the renderer's list cache, so no GPU resource is orphaned and no
+ * cached model is disposed. The build happens *before* the swap on purpose: a
+ * factory that throws leaves the previous scene live rather than half-gone.
  *
- * `enterMenu()` installs an empty scene for now: the title screen is DOM, and
- * plan 03 creates `src/render/menu-scene.ts`. Plan 09 wires that scene in here —
- * the empty scene is a hand-off, not the finished state.
+ * `enterMenu()` is the single caller of plan 03's `src/render/menu-scene.ts`.
+ * The menu needs the shared Cobra, which only exists once `AssetCache.preload()`
+ * has resolved, so `enterMenu()` installs the real title scene when the cache is
+ * loaded and plan 01's empty scene before that. `main.ts` re-enters the menu
+ * once the background preload resolves, so every load ends up with a real title
+ * scene (or a reported failure).
  */
 
 import * as THREE from "three";
@@ -19,6 +23,13 @@ import type { ShipDef, System } from "../content/types.js";
 import { deriveSystemLayout } from "../sim/world/layout.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import type { AssetCache } from "../render/asset-cache.js";
+import { createMenuScene } from "../render/menu-scene.js";
+import type { MenuScene } from "../render/menu-scene.js";
+import {
+  CAMERA_FAR,
+  CAMERA_FOV_DEGREES,
+  CAMERA_NEAR,
+} from "../render/system-scene.js";
 import { createSystemScene } from "../render/system-scene.js";
 import type { SystemScene } from "../render/system-scene.js";
 
@@ -33,50 +44,92 @@ export interface SceneManager {
   active(): ActiveScene;
   /** The layout of the active system scene, or undefined while in the menu. */
   layout(): SystemLayout | undefined;
+  /** Dispose only the active system scene; the menu and the cache survive. */
+  disposeSystem(): void;
   dispose(): void;
+}
+
+function createCamera(): THREE.PerspectiveCamera {
+  return new THREE.PerspectiveCamera(
+    CAMERA_FOV_DEGREES,
+    1,
+    CAMERA_NEAR,
+    CAMERA_FAR,
+  );
 }
 
 export function createSceneManager(
   renderer: THREE.WebGLRenderer,
   assets: AssetCache,
 ): SceneManager {
-  const menu: ActiveScene = {
+  // The pre-load fallback: a real (empty) scene so `active()` never returns
+  // undefined and the boot resize has something to render.
+  const empty: ActiveScene = {
     scene: new THREE.Scene(),
-    camera: new THREE.PerspectiveCamera(57.2, 1, 0.5, 2_500_000),
+    camera: createCamera(),
   };
 
   let current: SystemScene | undefined;
   let currentLayout: SystemLayout | undefined;
+  let menu: MenuScene | undefined;
+
+  /** Dispose a swapped-out scene and clear the renderer's list cache. */
+  function retire(
+    previousSystem: SystemScene | undefined,
+    previousMenu: MenuScene | undefined,
+  ): void {
+    try {
+      previousSystem?.dispose();
+    } finally {
+      // Even if a scene's own disposal throws, the render lists must not keep
+      // pointing at objects that are gone.
+      previousMenu?.dispose();
+      renderer.renderLists.dispose();
+    }
+  }
 
   return {
     enterMenu(): void {
-      // Plan 03 installs the title scene here; until then the title is DOM only.
-      current?.dispose();
+      // Build first: a throwing menu factory must not leave the manager with no
+      // active scene at all.
+      const next = assets.loaded() ? createMenuScene(assets) : undefined;
+      const previousSystem = current;
+      const previousMenu = menu;
       current = undefined;
       currentLayout = undefined;
-      renderer.renderLists.dispose();
+      menu = next;
+      retire(previousSystem, previousMenu);
     },
     enterSystem(system, stationDef): SystemScene {
       const layout = deriveSystemLayout(system, stationDef);
       const next = createSystemScene(layout, assets, system);
-      const previous = current;
+      const previousSystem = current;
+      const previousMenu = menu;
       current = next;
       currentLayout = layout;
-      previous?.dispose();
-      renderer.renderLists.dispose();
+      menu = undefined;
+      retire(previousSystem, previousMenu);
       return next;
     },
     active(): ActiveScene {
-      return current ?? menu;
+      return current ?? menu ?? empty;
     },
     layout(): SystemLayout | undefined {
       return currentLayout;
     },
-    dispose(): void {
-      current?.dispose();
+    disposeSystem(): void {
+      const previousSystem = current;
       current = undefined;
       currentLayout = undefined;
-      renderer.renderLists.dispose();
+      retire(previousSystem, undefined);
+    },
+    dispose(): void {
+      const previousSystem = current;
+      const previousMenu = menu;
+      current = undefined;
+      currentLayout = undefined;
+      menu = undefined;
+      retire(previousSystem, previousMenu);
     },
   };
 }
