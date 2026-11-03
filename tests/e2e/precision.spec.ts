@@ -49,6 +49,18 @@ test("boots, starts Lave, renders the system scene, and reports no console error
   expect(info.logDepth).toBe(true);
   expect(info.depthBits).toBeGreaterThanOrEqual(16);
 
+  // The surviving Phase 1/2 fields stay put while Phase 3 adds its own: the
+  // eager galaxy is the whole 256-record chunk and seven galaxies are split.
+  expect(info.homeSystems).toBe(256);
+  expect(info.codeSplitGalaxies).toBe(7);
+
+  // The additive Phase 3 probe is present after Start, not merely declared.
+  expect(info.mode).toBe("docked");
+  expect(info.world).toBeDefined();
+  expect(info.world?.planet).toHaveLength(3);
+  expect(info.hud).toBeDefined();
+  expect(Array.isArray(info.hud.elements)).toBe(true);
+
   // The Phase 1 precision probe is retired, not merely unused.
   expect(info).not.toHaveProperty("nearRelZ");
   expect(info).not.toHaveProperty("farRelZ");
