@@ -57,6 +57,19 @@ import { DT } from "../sim/time.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import { createKeyboardInputSource } from "../input/keyboard.js";
 import type { KeyboardInputSource } from "../input/keyboard.js";
+import { ACTION_IDS } from "../input/actions.js";
+import { createBindingMap } from "../input/bindings.js";
+import type { BindingMap } from "../input/bindings.js";
+import {
+  loadSettings,
+  resetSettings,
+  saveSettings,
+} from "../settings/store.js";
+import type { SettingsV1 } from "../settings/schema.js";
+import { createControlsPanel } from "../ui/controls.js";
+import type { ControlsPanel } from "../ui/controls.js";
+import { createPauseOverlay } from "../ui/pause.js";
+import type { PauseOverlay } from "../ui/pause.js";
 import type { DockedPanel } from "../ui/docked.js";
 import type { TitleScreen } from "../ui/title.js";
 
@@ -69,6 +82,10 @@ export interface GameSessionOptions {
   readonly hudCanvas: HTMLCanvasElement;
   readonly probe: WegoliteProbe;
   readonly system: System;
+  readonly pauseRoot: HTMLElement;
+  readonly controlsRoot: HTMLElement;
+  /** The canvas that receives focus when the pause overlay closes. */
+  readonly gameRoot: HTMLElement;
 }
 
 export interface GameSession {
@@ -76,6 +93,13 @@ export interface GameSession {
   start(): Promise<void>;
   /** The HUD needs the same resize as the WebGL canvas. */
   resize(): void;
+  /** Freeze the simulation and show the pause overlay (D-14/D-15). */
+  pause(): void;
+  /** Resume from pause and discard any hidden time (D-14). */
+  resume(): void;
+  isPaused(): boolean;
+  /** Clear every held key without changing the paused flag (focus loss). */
+  clearInput(): void;
   dispose(): void;
 }
 
@@ -84,12 +108,24 @@ function toTuple(position: Vec3): [number, number, number] {
 }
 
 export function createGameSession(options: GameSessionOptions): GameSession {
-  const { renderer, assets, scenes, title, docked, hudCanvas, probe, system } =
-    options;
+  const {
+    renderer,
+    assets,
+    scenes,
+    title,
+    docked,
+    hudCanvas,
+    probe,
+    system,
+    pauseRoot,
+    controlsRoot,
+    gameRoot,
+  } = options;
 
   const player = new PlayerController();
   const scripted = new ScriptedLaunchController();
   const pending: Command[] = [];
+  const uiController = new AbortController();
 
   let state: FlightState | undefined;
   let layout: SystemLayout | undefined;
@@ -98,6 +134,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let hud: Hud | undefined;
   let input: KeyboardInputSource | undefined;
   let loop: GameLoop | undefined;
+  let settings: SettingsV1 | undefined;
+  let bindings: BindingMap | undefined;
+  let pauseOverlay: PauseOverlay | undefined;
+  let controlsPanel: ControlsPanel | undefined;
 
   let previousPose: FlightPose = {
     position: vec(0, 0, 0),
@@ -111,6 +151,64 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let lastMs = 0;
   let rafId = 0;
 
+  function persistSettings(): void {
+    if (settings === undefined || bindings === undefined) return;
+    settings.bindings = bindings;
+    saveSettings(settings);
+  }
+
+  function pause(): void {
+    const currentState = state;
+    if (currentState === undefined) {
+      // The title/menu has no simulation; focus loss only clears input.
+      input?.clearAll();
+      return;
+    }
+    if (paused) {
+      // Repeated blur/visibility events are idempotent.
+      input?.clearAll();
+      return;
+    }
+    paused = true;
+    input?.clearAll();
+    loop?.reset();
+    pauseOverlay?.show();
+  }
+
+  function resume(): void {
+    if (!paused) return;
+    paused = false;
+    input?.clearAll();
+    // Hidden time is never replayed: the accumulator starts at zero and the
+    // next frame delta is one rendered frame, not the time spent paused.
+    loop?.reset();
+    pauseOverlay?.hide();
+    controlsPanel?.hide();
+  }
+
+  function backToPause(): void {
+    controlsPanel?.hide();
+    pauseOverlay?.show();
+  }
+
+  function openControls(): void {
+    controlsPanel?.show();
+  }
+
+  function onSubpanelKeyDown(event: KeyboardEvent): void {
+    if (event.code !== "Escape") return;
+    if (controlsPanel?.isCapturing() === true) return;
+    if (controlsPanel?.isOpen() !== true) return;
+    event.preventDefault();
+    event.stopPropagation();
+    backToPause();
+  }
+
+  window.addEventListener("keydown", onSubpanelKeyDown, {
+    capture: true,
+    signal: uiController.signal,
+  });
+
   function handleEvent(event: SimEvent): void {
     switch (event.kind) {
       case "launched":
@@ -120,6 +218,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         break;
       case "launchComplete":
         launchSeen = true;
+        if (settings !== undefined && !settings.launchSeen) {
+          settings.launchSeen = true;
+          persistSettings();
+        }
         messages.enqueue("Arrows pitch and roll · W and S change speed");
         break;
       case "torusEngaged":
@@ -291,18 +393,17 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     lastMs = now;
 
     if (currentInput.consumePauseToggle()) {
-      paused = !paused;
-      currentInput.clearAll();
-      currentLoop.reset();
+      if (paused) resume();
+      else pause();
     }
-
-    const commands: Command[] = [...currentInput.drainCommands(), ...pending];
-    pending.length = 0;
-    // One immutable frame per rendered frame, shared by every fixed step.
-    const frameInput = currentInput.frame();
 
     let alpha = 0;
     if (!paused) {
+      const commands: Command[] = [...currentInput.drainCommands(), ...pending];
+      pending.length = 0;
+      // One immutable frame per rendered frame, shared by every fixed step.
+      const frameInput = currentInput.frame();
+
       alpha = currentLoop.advance(delta, commands, (stepCommands) => {
         previousPose = currentPose;
         const controller =
@@ -319,6 +420,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         for (const event of events) handleEvent(event);
         currentPose = poseOf(currentState);
       });
+    } else {
+      // A key pressed while paused must not become a queued edge command that
+      // fires on resume.
+      currentInput.drainCommands();
+      pending.length = 0;
     }
 
     renderFrame(alpha);
@@ -359,10 +465,54 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     hud = createHud(hudCanvas);
     hud.resize();
     hudCanvas.hidden = true;
-    input = createKeyboardInputSource();
+
+    const loaded = loadSettings();
+    const bindingMap = createBindingMap(loaded.bindings);
+    settings = { ...loaded, bindings: bindingMap };
+    bindings = bindingMap;
+    launchSeen = loaded.launchSeen;
+
+    input = createKeyboardInputSource(bindingMap);
+    input.attach();
     loop = createGameLoop();
     previousPose = poseOf(flightState);
     currentPose = previousPose;
+
+    pauseOverlay = createPauseOverlay({
+      root: pauseRoot,
+      gameRoot,
+      onResume: () => {
+        resume();
+      },
+      onControls: () => {
+        openControls();
+      },
+      onSettings: () => {
+        // The Settings panel is wired in task 3; the control stays inert here.
+      },
+    });
+    controlsPanel = createControlsPanel(bindingMap, {
+      root: controlsRoot,
+      onChange: (next) => {
+        input?.setBindings(next);
+        persistSettings();
+      },
+      onReset: () => {
+        const fresh = resetSettings();
+        if (bindings !== undefined) {
+          for (const action of ACTION_IDS) {
+            bindings[action] = [...(fresh.bindings[action] ?? [])];
+          }
+        }
+        if (settings !== undefined && bindings !== undefined) {
+          settings.bindings = bindings;
+          input?.setBindings(bindings);
+        }
+      },
+      onBack: () => {
+        backToPause();
+      },
+    });
 
     // The hook exists only when explicitly asked for, and only mutates the live
     // state: no save, no arbitrary code (V5 / test-API abuse).
@@ -387,7 +537,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function dispose(): void {
     if (rafId !== 0) cancelAnimationFrame(rafId);
     rafId = 0;
+    uiController.abort();
     input?.dispose();
+    pauseOverlay?.dispose();
+    controlsPanel?.dispose();
     scenes.dispose();
     assets.dispose();
     hud?.dispose();
@@ -395,5 +548,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     title.dispose();
   }
 
-  return { start, resize, dispose };
+  return {
+    start,
+    resize,
+    pause,
+    resume,
+    isPaused: () => paused,
+    clearInput: () => {
+      input?.clearAll();
+    },
+    dispose,
+  };
 }

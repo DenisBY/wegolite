@@ -136,6 +136,91 @@
         color: #000;
       }
 
+      /* The pause overlay is the single home for Resume, Controls and Settings
+         (D-14). It sits above the title, docked panel and HUD. */
+      #pause {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        padding: 2rem 1rem 4rem;
+        overflow-y: auto;
+        background: rgba(0, 8, 3, 0.94);
+        color: #33ff66;
+        font: 16px/1.6 monospace;
+      }
+
+      #pause .pause-menu {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        min-width: 18rem;
+        padding: 1.5rem 2rem;
+        border: 1px solid #33ff66;
+        background: rgba(0, 0, 0, 0.7);
+      }
+
+      #pause h2 {
+        margin: 0;
+        font-size: 24px;
+        letter-spacing: 0.08em;
+      }
+
+      #pause button {
+        padding: 0.5rem 1rem;
+        border: 1px solid #33ff66;
+        border-radius: 0;
+        background: transparent;
+        color: #33ff66;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      #pause button:hover,
+      #pause button:focus-visible {
+        background: #33ff66;
+        color: #000;
+      }
+
+      #controls,
+      #settings-panel {
+        width: min(44rem, 92vw);
+        padding: 1.25rem 1.5rem;
+        border: 1px solid #33ff66;
+        background: rgba(0, 0, 0, 0.7);
+      }
+
+      .controls-row {
+        display: grid;
+        grid-template-columns: 12rem 1fr auto;
+        gap: 1rem;
+        align-items: center;
+        padding: 0.25rem 0;
+      }
+
+      .controls-label {
+        opacity: 0.8;
+      }
+
+      .controls-codes {
+        color: #9f9;
+      }
+
+      #controls-status {
+        min-height: 1.6em;
+        margin: 0.5rem 0;
+        color: #cfc;
+      }
+
+      .panel-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
+
       #failure {
         position: absolute;
         inset: 0;
@@ -168,7 +253,7 @@
     </style>
   </head>
   <body>
-    <canvas id="view"></canvas>
+    <canvas id="view" tabindex="-1"></canvas>
     <canvas id="hud" aria-hidden="true"></canvas>
     <div id="overlay">
       <div id="title">Wegolite — foundation build</div>
@@ -193,6 +278,49 @@
           <dd data-field="fuel"></dd>
         </dl>
         <button type="button" data-action="launch">Launch</button>
+      </section>
+    </div>
+    <div
+      id="pause"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pause-title"
+    >
+      <section class="pause-menu" aria-labelledby="pause-title">
+        <h2 id="pause-title">Paused</h2>
+        <button type="button" data-pause-action="resume">Resume</button>
+        <button type="button" data-pause-action="controls">Controls</button>
+        <button type="button" data-pause-action="settings">Settings</button>
+      </section>
+      <section id="controls" hidden aria-labelledby="controls-title">
+        <h2 id="controls-title">Controls</h2>
+        <p id="controls-status" role="status"></p>
+        <div id="controls-list"></div>
+        <div class="panel-actions">
+          <button type="button" data-controls-action="reset">
+            Reset to defaults
+          </button>
+          <button type="button" data-controls-action="back">Back</button>
+        </div>
+      </section>
+      <section id="settings-panel" hidden aria-labelledby="settings-title">
+        <h2 id="settings-title">Settings</h2>
+        <p>
+          Settings are stored locally in this browser (localStorage). No account
+          and no server.
+        </p>
+        <p>
+          Control bindings live in
+          <button type="button" data-settings-action="controls">Controls</button
+          >.
+        </p>
+        <div class="panel-actions">
+          <button type="button" data-settings-action="reset">
+            Reset all settings
+          </button>
+          <button type="button" data-settings-action="back">Back</button>
+        </div>
       </section>
     </div>
     <div id="failure" role="alert" hidden></div>

@@ -39,6 +39,13 @@ export const ACTION_IDS: readonly ActionId[] = [
   "precision",
 ];
 
+const ACTION_ID_SET: ReadonlySet<string> = new Set(ACTION_IDS);
+
+/** Narrow a persisted or DOM string to the action allowlist. */
+export function isActionId(value: string): value is ActionId {
+  return ACTION_ID_SET.has(value);
+}
+
 /**
  * The Oolite keyboard defaults, projected onto semantic actions. Arrow-up noses
  * down (Oolite convention), W/S change speed, J toggles the torus.

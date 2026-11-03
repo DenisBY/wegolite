@@ -9,27 +9,22 @@
  * `InputFrame` — `src/input` imports it, `src/sim` never imports this module,
  * and no second frame shape exists.
  *
- * Focus loss is the classic stuck-key bug: browsers do not guarantee a `keyup`
- * after blur, so every held code is cleared on blur, visibility loss and
+ * The key→action table is mutable: `setBindings` replaces it after a rebind, so
+ * a new key acts immediately and the old key stops. Focus loss is the classic
+ * stuck-key bug: browsers do not guarantee a `keyup` after blur, so every held
+ * code is cleared on blur, visibility loss, pointer-lock/fullscreen change and
  * teardown. The app also pauses on the same events (D-15).
+ *
+ * `createInputState` is the DOM-free core: Vitest drives keydown/keyup directly
+ * without a browser, and `createKeyboardInputSource` is the thin listener layer.
  */
 
 import type { Command } from "../sim/commands.js";
 import type { InputFrame } from "../sim/state.js";
-import { DEFAULT_BINDINGS } from "./actions.js";
+import { ACTION_IDS } from "./actions.js";
 import type { ActionId } from "./actions.js";
-
-export interface KeyboardInputSource {
-  /** The current frame, sampled once per rendered frame. */
-  frame(): InputFrame;
-  /** Edge commands since the last drain (launch, torus, compass, targeting). */
-  drainCommands(): Command[];
-  /** `p`/`Esc` edge; the app owns the paused flag. */
-  consumePauseToggle(): boolean;
-  /** Release every held key (blur, visibility loss, pause, launch). */
-  clearAll(): void;
-  dispose(): void;
-}
+import { createBindingMap } from "./bindings.js";
+import type { BindingMap } from "./bindings.js";
 
 const EDGE_COMMANDS: Readonly<Partial<Record<ActionId, Command>>> = {
   torus: { kind: "toggleTorus" },
@@ -37,6 +32,111 @@ const EDGE_COMMANDS: Readonly<Partial<Record<ActionId, Command>>> = {
   compassCycle: { kind: "cycleCompass" },
   targetStation: { kind: "targetStation" },
 };
+
+function buildCodeToActions(map: BindingMap): Map<string, ActionId[]> {
+  const result = new Map<string, ActionId[]>();
+  for (const action of ACTION_IDS) {
+    for (const code of map[action] ?? []) {
+      const existing = result.get(code);
+      if (existing === undefined) result.set(code, [action]);
+      else existing.push(action);
+    }
+  }
+  return result;
+}
+
+/** The DOM-free keyboard state. */
+export interface InputState {
+  /** Record a keydown; returns whether the code is bound to any action. */
+  keyDown(code: string, repeat?: boolean): boolean;
+  keyUp(code: string): void;
+  frame(): InputFrame;
+  drainCommands(): Command[];
+  /** `p`/`Esc` edge; the app owns the paused flag. */
+  consumePauseToggle(): boolean;
+  /** Release every held key (blur, visibility loss, pause, launch). */
+  clearAll(): void;
+  /** Replace the action table after a rebind. */
+  setBindings(bindings: BindingMap): void;
+  /** Whether a code is currently bound to any action. */
+  isBound(code: string): boolean;
+}
+
+export function createInputState(
+  bindings: BindingMap = createBindingMap(),
+): InputState {
+  const held = new Set<string>();
+  const pending: Command[] = [];
+  let pauseToggle = false;
+  let map = bindings;
+  let codeToActions = buildCodeToActions(map);
+
+  function pressed(action: ActionId): boolean {
+    const codes = map[action] ?? [];
+    return codes.some((code) => held.has(code));
+  }
+
+  return {
+    keyDown(code, repeat = false) {
+      const actions = codeToActions.get(code);
+      if (actions === undefined) return false;
+      if (repeat) return true;
+      held.add(code);
+      for (const action of actions) {
+        if (action === "pause") {
+          pauseToggle = true;
+          continue;
+        }
+        const command = EDGE_COMMANDS[action];
+        if (command !== undefined) pending.push(command);
+      }
+      return true;
+    },
+    keyUp(code) {
+      held.delete(code);
+    },
+    frame(): InputFrame {
+      return {
+        pitch:
+          (pressed("pitchBack") ? 1 : 0) - (pressed("pitchForward") ? 1 : 0),
+        roll: (pressed("rollRight") ? 1 : 0) - (pressed("rollLeft") ? 1 : 0),
+        speed: (pressed("speedUp") ? 1 : 0) - (pressed("speedDown") ? 1 : 0),
+        precision: pressed("precision"),
+        // `thrust` stays undefined: it is the Phase 1 probe axis, not flight.
+      };
+    },
+    drainCommands() {
+      const drained = pending.slice();
+      pending.length = 0;
+      return drained;
+    },
+    consumePauseToggle() {
+      const toggled = pauseToggle;
+      pauseToggle = false;
+      return toggled;
+    },
+    clearAll() {
+      held.clear();
+      pending.length = 0;
+      pauseToggle = false;
+    },
+    setBindings(next) {
+      map = next;
+      codeToActions = buildCodeToActions(next);
+    },
+    isBound(code) {
+      return codeToActions.has(code);
+    },
+  };
+}
+
+export interface KeyboardInputSource extends InputState {
+  /** Install the window/document listeners. Safe to call twice. */
+  attach(target?: Window): void;
+  /** Remove the listeners without clearing the input state. */
+  detach(): void;
+  dispose(): void;
+}
 
 function isTextTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -49,101 +149,76 @@ function isTextTarget(target: EventTarget | null): boolean {
   );
 }
 
-export function createKeyboardInputSource(): KeyboardInputSource {
-  const held = new Set<string>();
-  const pending: Command[] = [];
-  let pauseToggle = false;
+/** A bound modifier code (precision) is allowed; other chords are browser UI. */
+const MODIFIER_CODES: ReadonlySet<string> = new Set([
+  "ControlLeft",
+  "ControlRight",
+]);
 
-  const codeToActions = new Map<string, ActionId[]>();
-  for (const [action, codes] of Object.entries(DEFAULT_BINDINGS) as [
-    ActionId,
-    readonly string[],
-  ][]) {
-    for (const code of codes) {
-      const existing = codeToActions.get(code);
-      if (existing === undefined) codeToActions.set(code, [action]);
-      else existing.push(action);
-    }
-  }
-
-  const controller = new AbortController();
-
-  function pressed(action: ActionId): boolean {
-    return DEFAULT_BINDINGS[action].some((code) => held.has(code));
-  }
+export function createKeyboardInputSource(
+  bindings: BindingMap = createBindingMap(),
+): KeyboardInputSource {
+  const state = createInputState(bindings);
+  let controller = new AbortController();
+  let attached = false;
 
   function onKeyDown(event: KeyboardEvent): void {
     if (isTextTarget(event.target)) return;
-    const actions = codeToActions.get(event.code);
-    if (actions === undefined) return;
-
-    // Bound keys must not scroll the page or trigger the browser's own
-    // shortcuts; F5/F11/F12 are not bound, so they stay untouched.
-    event.preventDefault();
-
-    if (event.repeat) return;
-    held.add(event.code);
-    for (const action of actions) {
-      if (action === "pause") {
-        pauseToggle = true;
-        continue;
-      }
-      const command = EDGE_COMMANDS[action];
-      if (command !== undefined) pending.push(command);
+    // Ctrl+R, Cmd+W, Alt+Tab and friends belong to the browser. A bound
+    // Control key is still allowed on its own (precision), but a chord never
+    // becomes game input and its default is never prevented.
+    if (
+      (event.ctrlKey || event.metaKey || event.altKey) &&
+      !MODIFIER_CODES.has(event.code)
+    ) {
+      return;
     }
+    if (state.keyDown(event.code, event.repeat)) event.preventDefault();
   }
 
   function onKeyUp(event: KeyboardEvent): void {
-    held.delete(event.code);
-  }
-
-  function clearAll(): void {
-    held.clear();
-    pending.length = 0;
-    pauseToggle = false;
+    state.keyUp(event.code);
   }
 
   function onBlur(): void {
-    clearAll();
+    state.clearAll();
   }
 
   function onVisibilityChange(): void {
-    if (document.visibilityState === "hidden") clearAll();
+    if (document.visibilityState === "hidden") state.clearAll();
   }
 
-  window.addEventListener("keydown", onKeyDown, { signal: controller.signal });
-  window.addEventListener("keyup", onKeyUp, { signal: controller.signal });
-  window.addEventListener("blur", onBlur, { signal: controller.signal });
-  document.addEventListener("visibilitychange", onVisibilityChange, {
-    signal: controller.signal,
-  });
+  function onFocusLoss(): void {
+    state.clearAll();
+  }
 
   return {
-    frame(): InputFrame {
-      return {
-        pitch:
-          (pressed("pitchBack") ? 1 : 0) - (pressed("pitchForward") ? 1 : 0),
-        roll: (pressed("rollRight") ? 1 : 0) - (pressed("rollLeft") ? 1 : 0),
-        speed: (pressed("speedUp") ? 1 : 0) - (pressed("speedDown") ? 1 : 0),
-        precision: pressed("precision"),
-        // `thrust` stays undefined: it is the Phase 1 probe axis, not flight.
-      };
+    ...state,
+    attach(target: Window = window): void {
+      if (attached) return;
+      controller = new AbortController();
+      const options: AddEventListenerOptions = { signal: controller.signal };
+      target.addEventListener("keydown", onKeyDown, options);
+      target.addEventListener("keyup", onKeyUp, options);
+      target.addEventListener("blur", onBlur, options);
+      document.addEventListener(
+        "visibilitychange",
+        onVisibilityChange,
+        options,
+      );
+      document.addEventListener("pointerlockchange", onFocusLoss, options);
+      document.addEventListener("fullscreenchange", onFocusLoss, options);
+      attached = true;
     },
-    drainCommands(): Command[] {
-      const drained = pending.slice();
-      pending.length = 0;
-      return drained;
+    detach(): void {
+      if (!attached) return;
+      controller.abort();
+      attached = false;
     },
-    consumePauseToggle(): boolean {
-      const toggled = pauseToggle;
-      pauseToggle = false;
-      return toggled;
-    },
-    clearAll,
     dispose(): void {
       controller.abort();
-      held.clear();
-      pending.length = 0;
+      attached = false;
+      state.clearAll();
     },
   };
 }

@@ -104,6 +104,8 @@ scenes.enterMenu();
 
 const title = createTitleScreen(requireElement("title-screen"));
 const docked = createDockedPanel(requireElement("docked"));
+const pauseRoot = requireElement("pause");
+const controlsRoot = requireElement("controls");
 
 const lave = galaxy0().find((system) => system.id === "g0-s7");
 if (lave === undefined) {
@@ -154,6 +156,9 @@ const session = createGameSession({
   hudCanvas,
   probe,
   system: lave,
+  pauseRoot,
+  controlsRoot,
+  gameRoot: canvas,
 });
 
 function renderActiveScene(): void {
