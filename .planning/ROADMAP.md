@@ -83,7 +83,7 @@ Plans:
   2. All 2,048 systems across the eight galaxies and all 17 commodities are available as typed content with stable IDs, correct units, and Alien Items present but never tradeable.
   3. The Cobra Mk III and Coriolis load in-engine with correct orientation, winding, per-face normals, and bounding boxes, and the Coriolis letterbox reads correctly rather than mirrored.
   4. A malformed plist, a cyclic `like_ship` chain, or a broken mesh fails with a message naming the file and construct instead of producing a silently wrong number.
-**Plans**: 2/9 plans executed
+**Plans**: 3/9 plans executed
 Plans:
 **Wave 1**
 - [x] 02-01-PLAN.md — Tracer: pinned snapshot, OpenStep parser, canonical JSON, manifest, `assets:build`/`assets:check` gate wired into `verify`, 17 commodities emitted
@@ -92,7 +92,7 @@ Plans:
 - [x] 02-02-PLAN.md — Parser completeness over all 40 config plists, escapes and duplicate keys, the located failure contract and its fixtures
 
 **Wave 3** *(blocked on Wave 2)*
-- [ ] 02-03-PLAN.md — Systems (2,048 across eight galaxies) with the eager-g0 / code-split g1–g7 loader, equipment (41), and label arrays as typed chunks with Lave and equipment goldens
+- [x] 02-03-PLAN.md — Systems (2,048 across eight galaxies) with the eager-g0 / code-split g1–g7 loader, equipment (41), and label arrays as typed chunks with Lave and equipment goldens
 
 **Wave 4** *(blocked on Waves 2-3; reads 02-03's generated tree in `assets:check`)*
 - [ ] 02-04-PLAN.md — `.dat` mesh parser: comma dialect, per-face TEXTURES, three normal modes, legacy winding repair, bounding-box validation
@@ -184,7 +184,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation, Containers & Compliance | 7/7 | Complete    | 2026-11-02 |
-| 2. Data Pipeline & Content Compiler | 2/9 | In Progress | - |
+| 2. Data Pipeline & Content Compiler | 3/9 | In Progress | - |
 | 3. Flight in the Lave System | 0/TBD | Not started | - |
 | 4. Manual Docking | 0/TBD | Not started | - |
 | 5. Docked Economy & Station Screens | 0/TBD | Not started | - |
