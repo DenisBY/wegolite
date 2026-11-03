@@ -31,8 +31,11 @@
 # architecture-dependent field ever exists, it must be written here with its
 # justification so it is reviewed in the diff, never added as a bypass.
 #
-# Result: not yet measured — run this script on an arm64-emulation host or the
-# CI arm64 runner to record the outcome.
+# Result: not yet measured: linux/arm64 execution is unavailable on the
+#   development host (no QEMU binfmt); the script exits 2 there rather than
+#   reporting a pass. Run `sh scripts/check-arch-determinism.sh` on the CI arm64
+#   runner (or any host with binfmt arm64 registered) and record its output on
+#   this line.
 #
 # Invocation on a CI arm64 runner (or any host with QEMU binfmt registered):
 #   sh scripts/check-arch-determinism.sh
@@ -53,10 +56,17 @@ fail_env() {
   exit 2
 }
 
+# Docker's last line is usually the useless "Run 'docker run --help'" hint;
+# prefer the line that actually names the failure.
+probe_reason() {
+  grep -m1 -E 'exec format error|cannot overwrite digest|no matching manifest|permission denied|error during connect' "$1" 2>/dev/null ||
+    tail -n 1 "$1"
+}
+
 # --- preflight -------------------------------------------------------------
 
 if ! docker buildx version >"$tmp/buildx.log" 2>&1; then
-  fail_env "docker buildx is not available ($(tail -n 1 "$tmp/buildx.log"))"
+  fail_env "docker buildx is not available ($(probe_reason "$tmp/buildx.log"))"
 fi
 
 # The pinned Node base is read from the Dockerfile so there is exactly one
@@ -69,25 +79,25 @@ pinned=$(sed -n 's/^FROM \(node:[^ ]*@sha256:[0-9a-f]*\) AS base$/\1/p' Dockerfi
 # or Docker itself is broken, which is an environment failure, not a result.
 if ! docker run --rm --platform linux/amd64 "$pinned" true \
   >"$tmp/probe-amd64.log" 2>&1; then
-  fail_env "linux/amd64 cannot run the pinned image ($(tail -n 1 "$tmp/probe-amd64.log"))"
+  fail_env "linux/amd64 cannot run the pinned image ($(probe_reason "$tmp/probe-amd64.log"))"
 fi
 
 # No QEMU binfmt for linux/arm64 is the expected reason this exits 2 on an
 # x86_64 development host.
 if ! docker run --rm --platform linux/arm64 "$pinned" true \
   >"$tmp/probe-arm64.log" 2>&1; then
-  fail_env "linux/arm64 execution is unavailable, no QEMU binfmt ($(tail -n 1 "$tmp/probe-arm64.log"))"
+  fail_env "linux/arm64 execution is unavailable, no QEMU binfmt ($(probe_reason "$tmp/probe-arm64.log"))"
 fi
 
 # --- build the deps stage for both platforms from one context ---------------
 
 docker buildx build --platform linux/arm64 --target deps \
   -t wegolite-determinism:arm64 --load . >"$tmp/build-arm64.log" 2>&1 ||
-  fail_env "docker buildx build --platform linux/arm64 --target deps failed ($(tail -n 1 "$tmp/build-arm64.log"))"
+  fail_env "docker buildx build --platform linux/arm64 --target deps failed ($(probe_reason "$tmp/build-arm64.log"))"
 
 docker buildx build --platform linux/amd64 --target deps \
   -t wegolite-determinism:amd64 --load . >"$tmp/build-amd64.log" 2>&1 ||
-  fail_env "docker buildx build --platform linux/amd64 --target deps failed ($(tail -n 1 "$tmp/build-amd64.log"))"
+  fail_env "docker buildx build --platform linux/amd64 --target deps failed ($(probe_reason "$tmp/build-amd64.log"))"
 
 # --- regenerate in an isolated tree under each architecture -----------------
 
