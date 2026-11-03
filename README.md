@@ -34,6 +34,43 @@ contract.
 | Rebuild after dependency changes | `docker compose build --no-cache`                     |
 | Stop and clean up                | `docker compose down --volumes --remove-orphans`      |
 
+## Content pipeline
+
+The game content is compiled at build time from a pinned Oolite snapshot. The
+browser never parses a plist and never downloads the snapshot.
+
+- **Pinned snapshot.** `third_party/oolite/` holds the exact bytes the compiler
+  reads: Oolite release **1.93.1-241**, commit **`7437f22`**. The identity lives
+  in `third_party/oolite/pin.json` and is explained by
+  `third_party/oolite/SOURCE.md`; `scripts/vendor-oolite.sh` is the only
+  sanctioned way those bytes enter the repository.
+- **Regenerate.** `docker compose run --rm assets` compiles the snapshot into
+  `src/content/generated/` (typed JSON and the manifest) and `public/models/`,
+  `public/textures/` (GLB and PNG). The output is committed: it is the reviewed
+  baseline, not a build cache.
+- **Drift gate.** `docker compose run --rm assets npm run assets:check`
+  regenerates into a temporary directory and compares the file set, the bytes
+  and each SHA-256 against the committed tree. It runs inside
+  `docker compose run --rm verify`, third in the chain, so a content change
+  that was not regenerated and committed fails the definition of done.
+- **Never hand-edit generated output.** Every file under
+  `src/content/generated/`, `public/models/` and `public/textures/` is emitted
+  by the compiler. Change the converter or the pinned input, then regenerate.
+- **Bump the pin.** Re-vendor at the new release/commit, run
+  `docker compose run --rm assets`, review every changed byte, and commit the
+  regenerated output together with the new `pin.json`, `SOURCE.md`,
+  `CHECKSUMS.sha256` and `ASSETS.md` hashes. `verify` stays red until that diff
+  is reviewed and committed; there is no override.
+- **Cross-architecture proof.** `sh scripts/check-arch-determinism.sh` rebuilds
+  the generator and regenerates under `linux/arm64` and `linux/amd64`, then
+  compares the two trees file by file. It is deliberately outside `verify`
+  because Compose cannot select a platform per invocation; run it on CI or a
+  host with arm64 execution.
+- **Licensing.** Oolite-derived data and artwork stay CC BY-NC-SA 3.0:
+  attribution required, non-commercial only, share-alike. Every vendored and
+  generated asset has a row with a SHA-256 in [`ASSETS.md`](./ASSETS.md); see
+  also [`NOTICE`](./NOTICE).
+
 ## Operational notes
 
 - **Ports.** The dev server publishes `5173` and the production preview `4173`. The test services (`test`, `e2e`, `lint`, `typecheck`, `assets`, `verify`) publish no ports — Playwright starts its own `vite preview` inside the container.
@@ -47,6 +84,11 @@ contract.
 
 - `src/sim/` — pure TypeScript simulation core: no Three.js, no DOM, no wall clock.
 - `src/render/` — camera-relative transforms and the scene, downstream of the sim.
+- `src/content/` — compiled content: the zod schemas, the type-only surface the
+  sim may import, and the generated JSON under `src/content/generated/`.
+- `tools/oolite-ingest/` — the build-time compiler that turns the pinned
+  snapshot into typed content, GLB models and textures.
 - `tests/` — Vitest suites (`compliance`, golden fixtures, guards) and Playwright
   specs under `tests/e2e/`.
-- `public/` — static assets; empty until the Phase 2 content compiler lands.
+- `third_party/oolite/` — the pinned Oolite snapshot; `public/` holds the
+  compiled GLB models and textures served by URL.

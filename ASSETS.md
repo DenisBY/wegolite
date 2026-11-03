@@ -84,3 +84,19 @@ required, non-commercial only, share-alike).
 | public/textures/oolite_coriolis_dock_diffuse_emissive.png          | generated-asset | derived from oolite_coriolis_dock_diffuse.png      | —                                                                                                                        | Oolite contributors   | CC BY-NC-SA 3.0  | alpha channel baked to greyscale; no other change                                | ef084f611ca0b58bfcaecc603317f15f758aa87d5cae27f6b7a9533f57c5a655 |
 | public/textures/oolite_coriolis_faceplate_diffuse_emissive.png     | generated-asset | derived from oolite_coriolis_faceplate_diffuse.png | —                                                                                                                        | Oolite contributors   | CC BY-NC-SA 3.0  | alpha channel baked to greyscale; no other change                                | 5203bc2cfa5d95fb6674dd7b02a3cd04aab458618e226cccc8a0014fd6fe3809 |
 | public/textures/oolite_coriolis_tris_diffuse_emissive.png          | generated-asset | derived from oolite_coriolis_tris_diffuse.png      | —                                                                                                                        | Oolite contributors   | CC BY-NC-SA 3.0  | alpha channel baked to greyscale; no other change                                | 4793eda5671325e9291ca1655f339f9e2a193a0543a86b880f63629516b93d3e |
+| public/textures/oolite_cobra3_diffuse.png                          |
+| public/textures/oolite_cobra3_normal.png                           |
+| public/textures/oolite_cobra3_specular.png                         |
+| public/textures/oolite_cobra3_subents.png                          |
+| public/textures/oolite_cobra3_subents_normal.png                   |
+| public/textures/oolite_coriolis_diffuse.png                        |
+| public/textures/oolite_coriolis_dock_diffuse.png                   |
+| public/textures/oolite_coriolis_dock_normal.png                    |
+| public/textures/oolite_coriolis_faceplate_diffuse.png              |
+| public/textures/oolite_coriolis_faceplate_normal.png               |
+| public/textures/oolite_coriolis_faceplate_specular.png             |
+| public/textures/oolite_coriolis_normal.png                         |
+| public/textures/oolite_coriolis_specular.png                       |
+| public/textures/oolite_coriolis_tris_diffuse.png                   |
+| public/textures/oolite_coriolis_tris_normal.png                    |
+| public/textures/oolite_coriolis_tris_specular.png                  |
