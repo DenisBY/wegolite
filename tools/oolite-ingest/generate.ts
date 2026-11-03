@@ -24,6 +24,7 @@ import { contentError } from "./content-error.js";
 import { emitCommodities } from "./convert/commodities.js";
 import { emitEquipment } from "./convert/equipment.js";
 import { emitLabels } from "./convert/labels.js";
+import { emitShips } from "./convert/ships.js";
 import { emitSystems } from "./convert/systems.js";
 import { parseOpenStep } from "./openstep/parser.js";
 import type { PlistValue } from "./openstep/plist-value.js";
@@ -39,6 +40,10 @@ const EQUIPMENT_RELATIVE = "Config/equipment.plist";
 const EQUIPMENT_FILE = `${SNAPSHOT_DIR}/${EQUIPMENT_RELATIVE}`;
 const DESCRIPTIONS_RELATIVE = "Config/descriptions.plist";
 const DESCRIPTIONS_FILE = `${SNAPSHOT_DIR}/${DESCRIPTIONS_RELATIVE}`;
+const SHIPDATA_RELATIVE = "Config/shipdata.plist";
+const SHIPDATA_FILE = `${SNAPSHOT_DIR}/${SHIPDATA_RELATIVE}`;
+const SHIPDATA_OVERRIDES_RELATIVE = "Config/shipdata-overrides.plist";
+const SHIPDATA_OVERRIDES_FILE = `${SNAPSHOT_DIR}/${SHIPDATA_OVERRIDES_RELATIVE}`;
 
 export interface EmittedFile {
   readonly path: string;
@@ -98,11 +103,20 @@ export async function generateContent({
   inputRoot,
   outRoot,
 }: GenerateOptions): Promise<EmittedFile[]> {
-  const [commodities, systems, equipment, descriptions] = await Promise.all([
+  const [
+    commodities,
+    systems,
+    equipment,
+    descriptions,
+    shipdata,
+    shipOverrides,
+  ] = await Promise.all([
     readConfig(inputRoot, TRADE_GOODS_RELATIVE, TRADE_GOODS_FILE),
     readConfig(inputRoot, PLANETINFO_RELATIVE, PLANETINFO_FILE),
     readConfig(inputRoot, EQUIPMENT_RELATIVE, EQUIPMENT_FILE),
     readConfig(inputRoot, DESCRIPTIONS_RELATIVE, DESCRIPTIONS_FILE),
+    readConfig(inputRoot, SHIPDATA_RELATIVE, SHIPDATA_FILE),
+    readConfig(inputRoot, SHIPDATA_OVERRIDES_RELATIVE, SHIPDATA_OVERRIDES_FILE),
   ]);
 
   const emitted: EmittedFile[] = [
@@ -110,6 +124,7 @@ export async function generateContent({
     ...emitSystems(systems),
     emitEquipment(equipment),
     emitLabels(descriptions),
+    emitShips(shipdata, shipOverrides),
   ];
 
   for (const file of emitted) {
