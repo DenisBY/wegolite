@@ -31,6 +31,8 @@
 - **D-08:** Use approximate metallic-roughness PBR (metalness 0, roughness derived from gloss), preserve original Oolite gloss/shininess/specular in `extras.oolite`, and bake a separate greyscale emissive PNG from the alpha channel at build time. — **Reversibility:** reversible — source values are preserved in `extras.oolite`, so the material model can be refined without re-extracting the snapshot.
 - **D-09:** Preserve full source semantics: per-face normals by default; smoothGroup averaging only when `smooth = yes`; UV = texel units divided by declared texture size; V-flip decided by an asymmetric fixture; Oolite +Z-forward → Three −Z-forward by negating Z on positions and normals and reversing triangle winding; bounding-box assertions for Cobra and Coriolis. Use `oolite_cobra3.dat`, not `cobra3_redux.dat`. — **Reversibility:** costly — changing the convention invalidates fixtures, bounding-box assertions, and the orientation assumptions in Phases 3 and 4.
 
+  **Mechanism refinement (measured, see §P5.2):** do **not** reverse the corners. Oolite's stored normals already encode the reversed convention, so negating Z alone emits glTF CCW; a corner reversal double-flips every face. D-09's intent — the correct +Z-forward → −Z-forward orientation, proven — is unchanged.
+
 #### Catalogue & Content Shape
 
 - **D-10:** Ingest every `equipment.plist` entry with its metadata (conditions, `requires_*` flags, tech level, price) but do not evaluate Oolite condition scripts; Phase 5 filters to the v1-functional set. — **Reversibility:** reversible — the catalogue is additive and metadata can be ignored downstream.
@@ -88,9 +90,9 @@
 | DATA-01 | A build-time OpenStep ASCII plist parser handles comments, unquoted keys, nested dictionaries/arrays, and fails with actionable parse errors | §P2 grammar table is enumerated from all 40 vendored files (7,234 line comments, 212 block comments, 91,618 bare keys, 10,644 quoted keys, 2,297 of them with special characters, octal escapes, UTF-8 literals, max depth 6, duplicate keys last-wins). Line/column tracking requirement is explicit in §P2.4. |
 | DATA-02 | `like_ship`/template inheritance resolves with cycle detection and per-key overrides | §P3 reproduces Oolite's real algorithm verbatim from `OOShipRegistry.m`: shallow child-over-parent merge, three non-inheritable keys, five alias-conflict pairs, and the overrides-before-resolution stage order. Measured on the pinned file: 194 entries, 137 with `like_ship`, max depth 3, 81 templates. |
 | DATA-03 | A `.dat` mesh parser reads `NVERTS`/`NFACES`/`VERTEX`/`FACES`/`TEXTURES`/`END`, truncates faces above three vertices, and produces per-face normals | §P4: exact section grammar, the **comma separator** used by the Coriolis files, zero face normals on the Cobra, the `NORMALS` explicit mode, and the truncation/`<3` rules read from `OOMesh.m:1208-1300`. |
-| DATA-04 | The converter emits GLB plus a content manifest, applying the Oolite +Z-forward to Three −Z-forward coordinate and winding conversion verified by fixture | §P5 derives and *empirically confirms* the winding fact on all four Coriolis meshes (0/2,226 faces agree with the standard right-hand normal; all 2,226 agree with Oolite's negated convention), which is why "negate Z and reverse winding" is simultaneously correct for axes and for glTF front-face order. §P6 covers the manifest. |
+| DATA-04 | The converter emits GLB plus a content manifest, applying the Oolite +Z-forward to Three −Z-forward coordinate and winding conversion verified by fixture | §P5 derives and *empirically confirms* the winding fact on all four Coriolis meshes (0/2,226 faces agree with the standard right-hand normal; all 2,226 agree with Oolite's negated convention), which is why "negate Z" alone is simultaneously correct for axes and for glTF front-face order: the reflected authored corner order is already CCW, so no corner reversal is applied. §P6 covers the manifest. |
 | DATA-05 | All 2,048 systems across all eight galaxies are ingested from `planetinfo.plist` with stable IDs, names, and positions | §The Pinned Data → Systems: 2,050 top-level keys = 2,048 systems + `"universal"` + `"interstellar space"`; 40 keys present on every system; `percent_cloud` present only on Lave (the present-vs-absent fixture); Lave's pinned values are quoted verbatim. |
-| DATA-06 | All 17 commodities are ingested from `trade-goods.plist` with correct units (decicredits, kg, g), and Alien Items are parsed but never tradeable | §The Pinned Data → Commodities: 17 keys, `quantity_unit` 0/1/2 = t/kg/g, all prices integer decicredits, Alien Items present with zero quantity fields. |
+| DATA-06 | All 17 commodities are ingested from `trade-goods.plist` with correct units (decicredits, kg, g), and Alien Items are parsed but never tradeable | §The Pinned Data → Commodities: 17 keys, `quantity_unit` 0/1/2 = t/kg/g, integer `price_average` decicredits plus authored-real `price_economic`/`price_random`/`quantity_*` ratios, Alien Items present with zero quantity fields. |
 | DATA-07 | Cobra Mk III, Coriolis station, equipment catalogue, and Lave starting-system data are available as typed, compiled content | §Pattern 3 + §Pattern 5 (ships), §The Pinned Data → Equipment (41 positional tuples), §The Pinned Data → Systems (Lave). |
 | DATA-08 | Golden fidelity tests compare generated content against a pinned Oolite snapshot, and the build fails on unexplained drift | §Pattern 6 canonical/manifest design, §Validation Architecture test map. |
 | DATA-09 | The Oolite source snapshot is pinned to a specific release/commit and recorded in the repository | §Pattern 1 vendoring layout, `ASSETS.md` row contract, deliberate bump script. |
@@ -104,7 +106,7 @@ Four findings dominate the plan:
 
 1. **The `.dat` and plist data disagree with the prose in `PITFALLS.md`/`CONTEXT.md` in three specific, load-bearing ways.** (a) The Coriolis `.dat` files use **commas as separators**; the Cobra does not. (b) The Cobra's per-face normals are **all zero**, and it carries a `NORMALS` block of one normal per *vertex* — Oolite selects an `explicit` normal mode for it, so a converter that hardcodes "per-face normals" produces a different silhouette from Oolite. (c) Oolite applies `shipdata-overrides.plist` **before** `like_ship` resolution, not after, and its merge is **shallow** with three non-inheritable keys and five alias-conflict pairs. Each of these is one line of code if known and a silent fidelity bug if not.
 
-2. **The winding conversion is provable, not a convention to pick.** Every one of the 2,226 faces in the four Coriolis meshes has a stored normal that is the *negation* of the standard right-hand normal for its index order. Negating Z (a reflection, `det = -1`) maps `cross(Ma, Mb)` to `-M·n`, so the same operation that converts +Z-forward to −Z-forward also converts Oolite's clockwise-facing index order into glTF's required counter-clockwise order **provided the winding is reversed**. The two requirements coincide; there is no second decision.
+2. **The winding conversion is provable, not a convention to pick.** Every one of the 2,226 faces in the four Coriolis meshes has a stored normal that is the *negation* of the standard right-hand normal for its index order. Negating Z (a reflection, `det = -1`) maps `cross(Ma, Mb)` to `-M·cross(a,b)`, and the source order already yields `-n`, so the reflected authored order yields `+M·n = n'` — glTF's required counter-clockwise front face. The reflection alone converts +Z-forward to −Z-forward *and* Oolite's clockwise-facing index order into glTF CCW; reversing the corners as well would double-flip every face. The two requirements coincide; there is no second decision.
 
 3. **The Phase 1 contracts are a minefield of exact-string assertions.** `tests/contract/container-contract.test.ts` pins the `verify` chain byte-for-byte, pins the `lint`, `typecheck`, `test` and `test:e2e` script strings byte-for-byte, and requires the set of `docker compose run --rm` targets documented in `AGENTS.md` and `README.md` to equal the Compose service set exactly. `tests/compliance.test.ts` walks every `.ts`/`.js`/`.sh` file in the tree for an SPDX header. And `prettier --check .` runs inside `lint` over generated JSON — so `src/content/generated/` must be in `.prettierignore` or every build fails lint. None of this is hard, but all of it must be in the same plan as the thing it breaks.
 
@@ -290,7 +292,7 @@ I ran a reference tokenizer over all 40 `Resources/Config/*.plist` at `7437f22`.
 
 | Feature | Count / value | Consequence for the implementation |
 |---------|---------------|------------------------------------|
-| Top-level type | 30 dictionaries, 10 arrays | Both must be legal roots. `PlistValue` is a union, not a dict. |
+| Top-level type | 31 dictionaries, 9 arrays | Both must be legal roots. `PlistValue` is a union, not a dict. Array roots: `demoships`, `equipment`, `nebulatextures`, `pirate-victim-roles`, `scenarios`, `shiplibrary`, `speech_pronunciation_guide`, `startextures`, `world-scripts`. |
 | `//` line comments | 7,234 | Inside dicts, arrays, and between a key and `=`. |
 | `/* */` block comments | 212 | Must nest-safely scan to `*/`; may span lines. |
 | Bare keys | 91,618 | `[A-Za-z0-9_.\-/+:$]` covers every one observed. |
@@ -303,7 +305,7 @@ I ran a reference tokenizer over all 40 `Resources/Config/*.plist` at `7437f22`.
 | Empty arrays | 5 | All five are `market_definition = ( // comments )` — a comment-only array. Must yield `[]` and must be distinguishable from absent. |
 | Empty dictionaries | 1 | `gui-settings.plist` is a file whose entire body is commented out: it parses to `{}`. A vendored file that yields an empty dict must not be an error. |
 | Nesting depth | max 6 | Recursion is safe; no explicit depth guard needed beyond a sanity cap (say 64). |
-| Duplicate keys | 111 (all inside `keymappings_{linux,mac,windows}.plist`) | Must be **last-wins**, not an error — GNUstep's `NSMutableDictionary` semantics. |
+| Duplicate keys | 111 occurrences from 15 distinct key names across 17 file-key pairs in 72 dictionaries (keymappings_linux 36, keymappings_mac 64, keymappings_windows 9, `logcontrol.plist` 1 `$shaderError`, `shader-uniform-bindings.plist` 1 `fuel`) | Must be **last-wins** at lookup, not an error — GNUstep's `NSMutableDictionary` semantics. |
 | `<hex>` data blobs | 0 | Not needed. Explicitly out of scope per CONTEXT (binary/XML plists deferred). |
 | CRLF / BOM | 0 / 0 | Treat `\r\n` as whitespace anyway; strip a leading BOM defensively. |
 | Non-ASCII literals | 506 occurrences | UTF-8: `☆`, `★`, `–`, and a non-breaking space used as a value. Read UTF-8; emit UTF-8 (no `\u` escaping) so byte output is predictable. |
@@ -615,15 +617,15 @@ Oolite is +Z-forward, Y-up. Three/glTF are −Z-forward, Y-up. Apply:
 ```
 position' = (x, y, -z)
 normal'   = (x, y, -z)          // M is diagonal ±1 ⇒ M^-T = M
-winding   = reverse (swap corner 1 and corner 2)
+winding   = unchanged (c0, c1, c2)
 ```
 
-Why reversing is *required*, not stylistic: with `M = diag(1,1,-1)`, `det(M) = -1`, and for a reflection `cross(Ma, Mb) = det(M)·M^-T·cross(a,b) = -M·cross(a,b)`. Since the source index order already yields `cross(v1−v0, v2−v0) = -n` (§P4.3), reversing the corners yields `+M·n = n'`, which is precisely glTF's CCW front face. **One operation satisfies both requirements.**
+Why no corner reversal is needed — and why adding one is wrong: with `M = diag(1,1,-1)`, `det(M) = -1`, and for a reflection `cross(Ma, Mb) = det(M)·M^-T·cross(a,b) = -M·cross(a,b)`. Since the source index order already yields `cross(v1−v0, v2−v0) = -n` (§P4.3), the *authored* corners after reflection yield `cross(M(v1−v0), M(v2−v0)) = -M·(-n) = +M·n = n'`, which is precisely glTF's CCW front face. Reversing the corners would yield `-n'`, making every face a back face. **The reflection alone satisfies both requirements.** Empirically confirmed on the pinned meshes: with the authored order, `dot(convertedNormal, normalize(cross(converted v1−v0, converted v2−v0))) = +1` on all 2,226 Coriolis faces (e.g. `oolite_coriolis.dat` face 0); the reversed order gives `-1`. This is a correction to D-09's mechanism wording ("reversing triangle winding"): the measured data already encodes the reversed convention in its stored normals, so the reflection alone completes the conversion. D-09's intent — correct Oolite→glTF orientation, proven rather than assumed — is preserved and strictly strengthened.
 
 Consequences to assert:
 - `oolite_coriolis_dock.dat` spans local `z ∈ [-250, 0]`; placed by its subentity at station `z = +500.2561`, its mouth is at `z = 500.2561` and its tunnel reaches back to `250.2561`. After conversion the subentity local transform becomes `(0, 0, -500.2561)` and the mouth is at world `-500.2561`. `[VERIFIED: oolite_coriolis_dock.dat bbox; Resources/Config/shipdata.plist:1760 — "position = (0, 0, 500.2561);"]`
 - Hull `max z = 495.918`, faceplate spans `z ∈ [492.929, 534.298]` and stands slightly proud of the hull. After conversion those become negative; keep the subentity transforms and do not "tidy" them.
-- Do **not** run Oolite's `checkNormalsAndAdjustWinding` *in addition to* the conversion. For these models it is a no-op, but on repaired models it would double-flip. Order: read → (Oolite winding repair if per-face mode) → convert axes + reverse → write.
+- Do **not** run Oolite's `checkNormalsAndAdjustWinding` *in addition to* the conversion, and do **not** reverse the corners. For these models the repair is a no-op, but on repaired models it would double-flip. Order: read → (Oolite winding repair for legacy modes: per-face and smooth) → negate Z, keep authored corners → write.
 
 #### P5.3 Materials
 
@@ -969,15 +971,17 @@ coriolis-station
 
 Sub-entries are separate top-level keys with their own models: `oolite_coriolis_faceplate` (`smooth = 0`), `oolite_coriolis_tris` (`smooth = 0`), `oolite_coriolis_dock` (`smooth = 0`, no `roles` — it exists only as a subentity). `[VERIFIED: shipdata.plist:1630-1660 approx., entries for oolite_coriolis_faceplate / _tris / _dock]`
 
-`market_definition` tri-state, directly evidenced (D-24):
+`market_definition` tri-state, directly evidenced (D-24). Two bases exist and the generator emits the **resolved** one: the raw plist declares 3 empty / 3 explicit / 188 absent; inheritance carries those arrays into the concrete station and rock-hermit entries, so the resolved catalogue is 8 empty / 6 explicit / 180 absent. Counted after `like_ship` resolution, which is what the catalogue contains:
 
-| State | Where | Count |
+| State | Where | Count (resolved) |
 |-------|-------|-------|
-| comment-only empty array ⇒ "matches system prices" | `oolite_template_coriolis-station` and two station templates | 3 |
-| explicit definitions ⇒ e.g. `"type" = "class"; "name" = "oolite-mining"` | two station templates | 2 |
-| key absent ⇒ blank market | every other entry | 189 |
+| comment-only empty array ⇒ "matches system prices" | `coriolis-station` and the three other station entries, plus the station templates | 8 |
+| explicit definitions ⇒ e.g. `"type" = "class"; "name" = "oolite-mining"` | six rock-hermit entries (3 templates + 3 concrete) | 6 |
+| key absent ⇒ blank market | every other entry | 180 |
 
-`[VERIFIED: shipdata.plist:1702-1705, 1891-1894, 2348-2351 (empty); :3256-3260, 3372-3376 (explicit)]`
+`[VERIFIED: shipdata.plist:1702-1705, 1891-1894, 2348-2351 (empty); :3256-3260, 3372-3376, 3438-3442 (explicit); resolved walk of all 194 entries]`
+
+`coriolis-station` has **17** `subentities`: three keyed entity subentities (`oolite_coriolis_faceplate`, `oolite_coriolis_tris`, `oolite_coriolis_dock` — the dock is third, `is_dock = "true"`, `position = (0, 0, 500.2561)`) and 14 `type = flasher` entries. Select by `subentity_key`, never by ordinal. `[VERIFIED: resolved coriolis-station subentity list]`
 
 ### Textures (16 files, ~18.8 MiB)
 
@@ -1006,7 +1010,7 @@ The phase is MVP-mode, so the first plan must be a **tracer**: the thinnest slic
 | 1 | **Tracer**: vendor + parser slice + 17 commodities + canonical JSON + manifest + `assets:check` | `third_party/oolite/**` + `ASSETS.md` rows; tokenizer/parser for dict/array/string/int/real/bool/comment; `commodities.json`; `manifest.json`; `assets:build`/`assets:check`; `assets` service; `verify` chain insertion; contract-test + guide updates; `.prettierignore` | **`docker compose run --rm verify` green; mutating one byte of `commodities.json` fails `assets:check` and names the file** | Phase 1 |
 | 2 | Parser completeness + failure contract | All 40 plists parse; octal escapes; duplicates last-wins; empty dict/array preserved; `ContentError` with line/column; malformed-plist and schema fixtures | 40/40 files parse; failure fixtures assert code+file+line+column | 1 |
 | 3 | Systems | `systems/g0..g7.json`, stable ids, raw values, present-vs-absent, Lave golden | Lave golden matches every value in §Systems; 8×256 counts asserted | 2 |
-| 4 | Equipment + labels + market tri-state | 41 equipment records with preserved conditions; 6 label arrays; `market_definition` tri-state from shipdata | Equipment golden + tri-state counts (3 empty / 2 explicit / 189 absent) | 2 |
+| 4 | Equipment + labels + market tri-state | 41 equipment records with preserved conditions; 6 label arrays; `market_definition` tri-state from shipdata | Equipment golden + tri-state counts (8 empty / 6 explicit / 180 absent, resolved basis) | 2 |
 | 5 | `like_ship` + shipdata catalogue | Real merge rules, alias pairs, cycle/dangling detection with chain, typed projection + `extras`, 153-key drift allowlist | 194→194, 81 templates, 102 usable, depth 3; cycle fixture prints `a → b → c → a` | 2, 4 |
 | 6 | `.dat` parser | All five meshes; commas; `NAMES`/`NORMALS`; three normal modes; winding repair; bbox validation; broken-mesh fixture | §P4.1 counts and bboxes exact; `> 3` truncation fixture | 2 |
 | 7 | GLB writer | Per-material primitives; coordinate/winding conversion; `extras.oolite`; deterministic bytes; `NodeIO` reader round-trip; asymmetric UV fixture; dock transform `(0,0,-500.2561)` | Two runs byte-identical; reader round-trips; UV handedness fixture passes | 5, 6 |
@@ -1090,9 +1094,9 @@ That is ~600 lines total and it proves the two things that are expensive to disc
 
 ### Pitfall 8: Re-running Oolite's winding repair after the axis conversion
 
-**What goes wrong:** the Coriolis renders inside-out (back faces visible), the dock becomes a black hole, and `DoubleSide` "fixes" it and hides the bug.
-**Why:** the repair flips winding to agree with the *source* normal; after negating Z you must reverse once more for glTF. Doing both in the wrong order double-flips.
-**Avoid:** fixed pipeline order — read → (repair if per-face) → negate Z on positions/normals → reverse corners → write.
+**What goes wrong:** every face becomes a back face (visible interior), and re-running the repair on top can leave some meshes inside-out; `DoubleSide` "fixes" it and hides the bug.
+**Why:** Oolite's stored normals are the negation of the authored-order right-hand normal; after the Z reflection the authored corner order already has a positive dot with the converted normal. Reversing the corners — or re-running the repair after conversion — flips it negative.
+**Avoid:** fixed pipeline order — read → (repair only for legacy modes: per-face and smooth, before conversion) → negate Z on positions/normals → write with the authored corner order `c0, c1, c2`. Never reverse, never repair after.
 **Warning sign:** `THREE.FrontSide` shows the interior.
 
 ### Pitfall 9: Dividing UVs by the PNG's pixel size
@@ -1233,13 +1237,13 @@ Sources: `[VERIFIED: src/Core/OOShipRegistry.m, -mergeShip:withParent:]` for the
 
 ```ts
 // tools/oolite-ingest/convert/glb.ts
-// Order matters: repair (per-face mode only) → negate Z → reverse winding.
+// Order matters: repair (legacy modes only: per-face and smooth) → negate Z → write.
 const p = { x: v.x, y: v.y, z: -v.z };          // positions
 const n = { x: n0.x, y: n0.y, z: -n0.z };       // normals (M^-T = M for diag(1,1,-1))
-const corners = [c0, c2, c1];                    // reverse: glTF front face is CCW
+const corners = [c0, c1, c2];                    // authored order: the reflection already gives glTF CCW
 ```
 
-Proof sketch: `cross(Ma, Mb) = det(M)·M^-T·cross(a,b)` with `det(M) = -1`; the source order yields `-n`, so reversed corners yield `+M·n = n'`. Empirically confirmed: all 2,226 Coriolis faces have `dot(storedNormal, normalize(cross(v1−v0, v2−v0))) < 0`.
+Proof sketch: `cross(Ma, Mb) = det(M)·M^-T·cross(a,b)` with `det(M) = -1`; the source order yields `-n`, so the *authored* corners after reflection yield `-M·(-n) = +M·n = n'`. Empirically confirmed: all 2,226 Coriolis faces have `dot(storedNormal, normalize(cross(v1−v0, v2−v0))) < 0` in source space, and `+1` against the converted normal with the authored order in converted space. Reversing the corners gives `-1` on every face.
 
 ### GLB container
 
@@ -1440,7 +1444,7 @@ All questions raised by the research focus are resolved below with a recommendat
 | Pattern | STRIDE | Standard Mitigation |
 |---------|--------|---------------------|
 | Path traversal via a plist value (`model = "../../etc/passwd"`) | Tampering | Resolve every referenced file against the snapshot root and reject any resolved path that escapes it; report `TEXTURE_MISSING`/`DAT_MESH` with the attempted path. |
-| Prototype pollution from a `__proto__` key in a parsed dict | Tampering | Store dicts as `Map<string, PlistValue>` (or `Object.create(null)`); never `obj[key] = value` on a plain literal with attacker-shaped keys. This is real: the corpus has 111 duplicate keys and keys with brackets and `@`. |
+| Prototype pollution from a `__proto__` key in a parsed dict | Tampering | Store dicts as `Map<string, PlistValue>` (or `Object.create(null)`); never `obj[key] = value` on a plain literal with attacker-shaped keys. This is real: the corpus has 111 duplicate-key occurrences and keys with brackets and `@`. |
 | Decompression bomb / huge mesh in a future bump | DoS (build) | Cap `NVERTS`/`NFACES` (say 200k each) and PNG dimensions (say 8192²); fail with `DAT_MESH`/`TEXTURE_MISSING` rather than allocating. |
 | Silent substitution of a missing asset | Repudiation (provenance) | D-21: no placeholders, ever. A missing texture is a build failure naming the referencing ship and material. |
 | `ASSETS.md` drift (a vendored file with no row, or a stale hash) | Repudiation | Compliance test walks `third_party/**` and requires a row per file plus a matching SHA-256. |
@@ -1454,9 +1458,9 @@ All questions raised by the research focus are resolved below with a recommendat
 **Pinned Oolite tree, commit `7437f22` (release `1.93.1-241`), fetched from `raw.githubusercontent.com/OoliteProject/oolite/7437f22/…`:**
 
 - `Resources/Config/planetinfo.plist` — 2,050 top-level keys, 2,048 system entries, 40 universal keys, Lave at `:321-363`, `percent_cloud` only on Lave.
-- `Resources/Config/trade-goods.plist` — 17 commodities, `quantity_unit` 0/1/2, integer decicredits.
+- `Resources/Config/trade-goods.plist` — 17 commodities, `quantity_unit` 0/1/2, integer `price_average` decicredits plus authored-real trade ratios.
 - `Resources/Config/equipment.plist` — 41 six-element positional arrays, 21 distinct condition keys.
-- `Resources/Config/shipdata.plist` — 194 entries, 137 `like_ship`, 81 templates, Cobra template `:1226-1353`, player template `:1437-1443`, Coriolis template `:1690-1878`, `market_definition` tri-state at `:1702`, `:1891`, `:2348`, `:3256`, `:3372`, `smooth` value variants at `:4637`–`:4950`.
+- `Resources/Config/shipdata.plist` — 194 entries, 137 `like_ship`, 81 templates, Cobra template `:1226-1353`, player template `:1437-1443`, Coriolis template `:1690-1878`, `market_definition` tri-state at `:1702`, `:1891`, `:2348`, `:3256`, `:3372`, `:3438`, `smooth` value variants at `:4637`–`:4950`.
 - `Resources/Config/shipdata-overrides.plist` — 9 lines, one unrelated entry.
 - `Resources/Config/descriptions.plist` — 1,144 keys; `economy`/`government`/`legal_status`/`rating`/`inhabitants`/`system_description`; no tech-level array.
 - `Resources/Config/shipyard.plist` — 11 player entries, `price` in credits.
