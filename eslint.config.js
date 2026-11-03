@@ -30,6 +30,14 @@ const DOM_GLOBALS = [
   "fetch",
 ];
 
+/**
+ * The generator's transcendental ban message. It names the rule's reason and
+ * the replacement surface in one sentence so an ESLint failure is actionable
+ * without opening this file (DATA-08).
+ */
+const MATH_1ULP_MESSAGE =
+  "Math.sin/cos/tan/exp/log/pow are spec-permitted to differ by 1 ULP across engines and architectures; use + - * /, Math.sqrt, or integers in the generator.";
+
 export default tseslint.config(
   {
     // A fixed four-entry set: nothing under src/ is ever ignored, so a seeded
@@ -115,6 +123,96 @@ export default tseslint.config(
           message: "No Date inside src/sim.",
         },
       ],
+    },
+  },
+  {
+    // The generator determinism zone (DATA-08, RESEARCH §P6.4, D-06). These
+    // APIs are spec-permitted to differ by engine or architecture (1-ULP
+    // transcendentals, ICU-backed locale formatting, historical tie-breaking),
+    // so one call anywhere in the compiler can make the emitted bytes depend on
+    // the machine that produced them. Every rule is "error": a warning would
+    // let the divergence ship. The safe surface — `+ - * /`, `Math.sqrt`,
+    // `min`/`max`/`abs`/`floor`/`round`/`ceil`, `Math.imul`, `Math.fround`,
+    // integers and SHA-256 — is deliberately left unrestricted.
+    files: ["tools/oolite-ingest/**/*.ts"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "Math",
+          property: "sin",
+          message: MATH_1ULP_MESSAGE,
+        },
+        {
+          object: "Math",
+          property: "cos",
+          message: MATH_1ULP_MESSAGE,
+        },
+        {
+          object: "Math",
+          property: "tan",
+          message: MATH_1ULP_MESSAGE,
+        },
+        {
+          object: "Math",
+          property: "exp",
+          message: MATH_1ULP_MESSAGE,
+        },
+        {
+          object: "Math",
+          property: "log",
+          message: MATH_1ULP_MESSAGE,
+        },
+        {
+          object: "Math",
+          property: "pow",
+          message: MATH_1ULP_MESSAGE,
+        },
+        {
+          object: "Math",
+          property: "random",
+          message: "No unseeded randomness in the generator.",
+        },
+        {
+          object: "Date",
+          property: "now",
+          message: "No wall clock in the generator.",
+        },
+      ],
+      "no-restricted-globals": [
+        "error",
+        {
+          name: "Intl",
+          message:
+            "Intl is locale/ICU-dependent; emit stable strings and numbers, not locale formatting.",
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: 'NewExpression[callee.name="Date"]',
+          message: "No Date in the generator; the output carries no time.",
+        },
+        {
+          selector: 'CallExpression[callee.property.name="localeCompare"]',
+          message:
+            "localeCompare is ICU-dependent; sort with a code-unit comparison.",
+        },
+        {
+          selector: 'CallExpression[callee.property.name="toFixed"]',
+          message:
+            "toFixed tie-breaking is engine-dependent; format numbers explicitly with String(n).",
+        },
+        {
+          selector: 'CallExpression[callee.property.name="toPrecision"]',
+          message:
+            "toPrecision tie-breaking is engine-dependent; format numbers explicitly with String(n).",
+        },
+      ],
+      // `eval` and `new Function` are not global-name restrictions, so the core
+      // rules are enabled explicitly: generated code must never run in-process.
+      "no-eval": "error",
+      "no-new-func": "error",
     },
   },
   // Must stay last: turns off every stylistic rule Prettier owns.
