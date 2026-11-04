@@ -503,10 +503,20 @@ describe("the menu Cobra survives a system swap", () => {
             renderListDisposals += 1;
           },
         },
+        // The manager projects every camera it installs from this size; a
+        // stub without `getSize` would make the install path look correct by
+        // accident (Three would never be asked).
+        getSize: (target: THREE.Vector2) => target.set(1600, 1000),
       } as unknown as THREE.WebGLRenderer;
 
       const manager = createSceneManager(renderer, cache);
+
+      // Install 1 — the empty pre-load scene, no resize event anywhere.
+      expect(manager.active().camera.aspect).toBeCloseTo(1.6, 12);
+
       manager.enterMenu();
+      // Install 2 — the real menu scene.
+      expect(manager.active().camera.aspect).toBeCloseTo(1.6, 12);
 
       // The menu is the real title scene, not plan 01's empty one.
       const menuMeshes: THREE.Mesh[] = [];
@@ -517,6 +527,14 @@ describe("the menu Cobra survives a system swap", () => {
 
       manager.enterSystem(system, stationDef);
       expect(renderListDisposals).toBeGreaterThanOrEqual(2);
+
+      // Install 3 — the system scene `start()` installs.
+      expect(manager.active().camera.aspect).toBeCloseTo(1.6, 12);
+
+      // A second system install (the `?test=1` swap path) must re-apply it,
+      // not inherit the previous camera or fall back to the constructor's 1.
+      manager.enterSystem(system, stationDef);
+      expect(manager.active().camera.aspect).toBeCloseTo(1.6, 12);
 
       // The swap disposed the menu's clone, never the shared cache.
       expect(cobraMaterialDisposals()).toBe(0);

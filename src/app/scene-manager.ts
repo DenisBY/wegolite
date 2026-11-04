@@ -32,6 +32,7 @@ import {
 } from "../render/system-scene.js";
 import { createSystemScene } from "../render/system-scene.js";
 import type { SystemScene } from "../render/system-scene.js";
+import { applyViewport } from "../render/viewport.js";
 
 export interface ActiveScene {
   readonly scene: THREE.Scene;
@@ -58,6 +59,20 @@ function createCamera(): THREE.PerspectiveCamera {
   );
 }
 
+/**
+ * One scratch vector for every `getSize` call. Three's `getSize` reports CSS
+ * pixels, so the device-pixel-ratio factor cancels when it becomes an aspect.
+ */
+const viewportScratch = new THREE.Vector2();
+
+function rendererSize(renderer: THREE.WebGLRenderer): {
+  readonly width: number;
+  readonly height: number;
+} {
+  const size = renderer.getSize(viewportScratch);
+  return { width: size.x, height: size.y };
+}
+
 export function createSceneManager(
   renderer: THREE.WebGLRenderer,
   assets: AssetCache,
@@ -68,6 +83,10 @@ export function createSceneManager(
     scene: new THREE.Scene(),
     camera: createCamera(),
   };
+  // The manager, not the pure render modules, owns the aspect: every camera it
+  // installs — including this one — is projected from the renderer's current
+  // size. No `window` access here (WORLD-02).
+  applyViewport(empty.camera, rendererSize(renderer));
 
   let current: SystemScene | undefined;
   let currentLayout: SystemLayout | undefined;
@@ -93,6 +112,10 @@ export function createSceneManager(
       // Build first: a throwing menu factory must not leave the manager with no
       // active scene at all.
       const next = assets.loaded() ? createMenuScene(assets) : undefined;
+      // Apply before the retire so the replacement scene never renders a frame
+      // at the constructor's 1:1 aspect. The `undefined` fallback is the empty
+      // camera, which `active()` then returns.
+      applyViewport(next?.camera ?? empty.camera, rendererSize(renderer));
       const previousSystem = current;
       const previousMenu = menu;
       current = undefined;
@@ -103,6 +126,9 @@ export function createSceneManager(
     enterSystem(system, stationDef): SystemScene {
       const layout = deriveSystemLayout(system, stationDef);
       const next = createSystemScene(layout, assets, system);
+      // `start()` and the `?test=1` swap both arrive here; applying the
+      // viewport before the install is what makes the swap path safe too.
+      applyViewport(next.camera, rendererSize(renderer));
       const previousSystem = current;
       const previousMenu = menu;
       current = next;

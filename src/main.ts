@@ -30,6 +30,7 @@ import { createSceneManager } from "./app/scene-manager.js";
 import manifest from "./content/generated/manifest.json";
 import { LAZY_GALAXY_COUNT, galaxy0 } from "./content/systems.js";
 import { createAssetCache } from "./render/asset-cache.js";
+import { applyViewport } from "./render/viewport.js";
 import { createDockedPanel } from "./ui/docked.js";
 import { createTitleScreen } from "./ui/title.js";
 
@@ -174,9 +175,9 @@ if (!boot.ok) {
     // would compute an Infinity aspect and an empty drawing buffer.
     if (width === 0 || height === 0) return;
     renderer.setSize(width, height, false);
-    const camera = scenes.active().camera;
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
+    // `applyViewport` is the single writer of `camera.aspect`; the manager uses
+    // it on every scene install, and this is the resize path.
+    applyViewport(scenes.active().camera, { width, height });
     session.resize();
     renderActiveScene();
   }
