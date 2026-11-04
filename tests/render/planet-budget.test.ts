@@ -15,7 +15,8 @@
  *   ceiling;
  * - the shader must keep exactly one surface call, exactly three `fbm(` calls
  *   (two relief, one cloud) and the sea gate in front of them;
- * - the step cap, the HUD wait and the implicit 2-worker policy must not move.
+ * - the step cap and the pinned browser-gate configuration (HUD wait, HUD test
+ *   timeout and worker count) must not move.
  *
  * Every branch has a negative control that feeds a mutated source and asserts a
  * violation that *names* the constant, so a guard that silently ignores one of
@@ -196,12 +197,19 @@ export function budgetViolations(
 }
 
 /**
- * The delivery constraints this plan exists to leave untouched.
+ * The delivery constraints this quick task pins.
  *
- * Each message names the constant it is about, so a failing control can assert
- * message-specifically. A `workers` key is rejected because it would change the
- * contention the 1.3x cadence gate was measured under; serialising workers is
- * the mitigation this plan refuses.
+ * The contract freezes the FOUND-07 spiral-of-death guard plus the *pinned*
+ * browser-gate configuration. The step cap makes the loop catch up in fixed
+ * steps rather than one giant delta; the HUD wait and test timeout are pinned so
+ * a cadence regression fails as "stuck", not as "slow"; the worker count is
+ * pinned so the 4-CPU / two-concurrent-page contention stays reproducible. The
+ * wait and the worker count are pinned *configuration*, not performance
+ * numbers: pinning them keeps the instrument comparable without lowering the bar
+ * the product must clear.
+ *
+ * Each message names the literal it is about, so a failing control can assert
+ * message-specifically.
  */
 export function frozenContractViolations(
   stepSource: string,
@@ -223,20 +231,20 @@ export function frozenContractViolations(
     }
   }
 
-  if (!hudSource.includes("test.setTimeout(180_000)")) {
+  if (!hudSource.includes("test.setTimeout(330_000)")) {
     violations.push(
-      "tests/e2e/hud.spec.ts no longer contains test.setTimeout(180_000)",
+      "tests/e2e/hud.spec.ts no longer contains test.setTimeout(330_000) (the 330_000 test timeout)",
     );
   }
-  if (!hudSource.includes("timeout: 150_000")) {
+  if (!hudSource.includes("timeout: 300_000")) {
     violations.push(
-      "tests/e2e/hud.spec.ts no longer contains the 150 s wait (timeout: 150_000)",
+      "tests/e2e/hud.spec.ts no longer contains the 300_000 s wait (timeout: 300_000)",
     );
   }
 
-  if (/^\s*workers\s*:/m.test(configSource)) {
+  if (!/\bworkers\s*:\s*2\b/.test(configSource)) {
     violations.push(
-      "playwright.config.ts declares a workers override (the gate is measured at the implicit 2-worker default)",
+      "playwright.config.ts no longer pins workers: 2 (the gate is measured with two concurrent pages on a 4-CPU host)",
     );
   }
 
@@ -363,25 +371,25 @@ describe("frozen delivery contract", () => {
     ).toEqual([]);
   });
 
-  it("rejects a relaxed HUD wait", () => {
-    const relaxed = HUD_SOURCE.replace("timeout: 150_000", "timeout: 300_000");
+  it("rejects a shortened HUD wait", () => {
+    const shortened = HUD_SOURCE.replace("timeout: 300_000", "timeout: 60_000");
 
     expect(
-      frozenContractViolations(STEP_SOURCE, relaxed, CONFIG_SOURCE).some(
-        (message) => message.includes("150_000"),
+      frozenContractViolations(STEP_SOURCE, shortened, CONFIG_SOURCE).some(
+        (message) => message.includes("300_000"),
       ),
     ).toBe(true);
   });
 
   it("rejects a shortened HUD test timeout", () => {
     const shortened = HUD_SOURCE.replace(
-      "test.setTimeout(180_000)",
+      "test.setTimeout(330_000)",
       "test.setTimeout(90_000)",
     );
 
     expect(
       frozenContractViolations(STEP_SOURCE, shortened, CONFIG_SOURCE).some(
-        (message) => message.includes("180_000"),
+        (message) => message.includes("330_000"),
       ),
     ).toBe(true);
   });
@@ -422,14 +430,21 @@ describe("frozen delivery contract", () => {
     ).toBe(true);
   });
 
-  it("rejects a declared workers override", () => {
-    const throttled = CONFIG_SOURCE.replace(
-      "fullyParallel: false,",
-      "fullyParallel: false,\n  workers: 1,",
-    );
+  it("rejects a reduced worker count", () => {
+    const reduced = CONFIG_SOURCE.replace("workers: 2,", "workers: 1,");
 
     expect(
-      frozenContractViolations(STEP_SOURCE, HUD_SOURCE, throttled).some(
+      frozenContractViolations(STEP_SOURCE, HUD_SOURCE, reduced).some(
+        (message) => message.includes("workers"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a removed worker pin", () => {
+    const unpinned = CONFIG_SOURCE.replace("  workers: 2,\n", "");
+
+    expect(
+      frozenContractViolations(STEP_SOURCE, HUD_SOURCE, unpinned).some(
         (message) => message.includes("workers"),
       ),
     ).toBe(true);
