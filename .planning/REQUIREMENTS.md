@@ -33,23 +33,23 @@ Requirements for the initial release. Each maps to a roadmap phase.
 
 ### World Rendering & Scale
 
-- [ ] **WORLD-01**: A new game loads Lave with witchpoint, planet, sun, and Coriolis station at faithful relative positions and scale
+- [x] **WORLD-01**: A new game loads Lave with witchpoint, planet, sun, and Coriolis station at faithful relative positions and scale
 - [x] **WORLD-02**: The full system extent renders without visible jitter or z-fighting on the planet, station, and dock opening
 - [x] **WORLD-03**: Starfield, lighting, and planet rendering produce a recognisably Oolite-like scene at v1 fidelity
-- [ ] **WORLD-04**: The scene manager swaps systems without leaking GPU resources, verified by a dispose test
-- [ ] **WORLD-05**: The app detects missing WebGL2 support and shows a clear fallback message instead of failing silently
+- [x] **WORLD-04**: The scene manager swaps systems without leaking GPU resources, verified by a dispose test
+- [x] **WORLD-05**: The app detects missing WebGL2 support and shows a clear fallback message instead of failing silently
 - [ ] **WORLD-06**: A pure hyperspace-math module computes distance, fuel cost, and jump time, matching Lave→Diso and Lave→Zaonce fixtures
 
 ### Flight, Input & Launch
 
-- [ ] **FLGT-01**: The player launches from the Coriolis station into flight, with the +10 minute clock advance and launch roll
-- [ ] **FLGT-02**: Elite-style pitch and roll work from the keyboard with no yaw and Oolite's ramped rotation rates
-- [ ] **FLGT-03**: Flight uses Oolite's Aristotelian model: speed cap 350, thrust acceleration 160 u/s², no drift-based Newtonian physics
-- [ ] **FLGT-04**: The torus drive (`j`) engages 32×–1024×, mass-locks near the station/planet, and disengages on pilot input
-- [ ] **FLGT-05**: The HUD shows crosshair, 25.6 km scanner, compass, aegis indicator, speed/roll/pitch/fuel bars, clock, message line, and condition light
-- [ ] **FLGT-06**: The player can pause, rebind controls, and have settings persist locally
-- [ ] **FLGT-07**: Input flows through an action/command layer so touch or gamepad support can be added without touching the simulation
-- [ ] **FLGT-08**: A `ShipController` seam allows combat and NPC ships to be added later without retrofitting the flight model
+- [x] **FLGT-01**: The player launches from the Coriolis station into flight, with the +10 minute clock advance and launch roll
+- [x] **FLGT-02**: Elite-style pitch and roll work from the keyboard with no yaw and Oolite's ramped rotation rates
+- [x] **FLGT-03**: Flight uses Oolite's Aristotelian model: speed cap 350, thrust acceleration 160 u/s², no drift-based Newtonian physics
+- [x] **FLGT-04**: The torus drive (`j`) engages 32×–1024×, mass-locks near the station/planet, and disengages on pilot input
+- [x] **FLGT-05**: The HUD shows crosshair, 25.6 km scanner, compass, aegis indicator, speed/roll/pitch/fuel bars, clock, message line, and condition light
+- [x] **FLGT-06**: The player can pause, rebind controls, and have settings persist locally
+- [x] **FLGT-07**: Input flows through an action/command layer so touch or gamepad support can be added without touching the simulation
+- [x] **FLGT-08**: A `ShipController` seam allows combat and NPC ships to be added later without retrofitting the flight model
 
 ### Manual Docking
 
@@ -164,20 +164,20 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DATA-07 | Phase 2 | Complete |
 | DATA-08 | Phase 2 | Complete |
 | DATA-09 | Phase 2 | Complete |
-| WORLD-01 | Phase 3 | Pending |
+| WORLD-01 | Phase 3 | Complete |
 | WORLD-02 | Phase 3 | Complete |
 | WORLD-03 | Phase 3 | Complete |
-| WORLD-04 | Phase 3 | Pending |
-| WORLD-05 | Phase 3 | Pending |
+| WORLD-04 | Phase 3 | Complete |
+| WORLD-05 | Phase 3 | Complete |
 | WORLD-06 | Phase 6 | Pending |
-| FLGT-01 | Phase 3 | Pending |
-| FLGT-02 | Phase 3 | Pending |
-| FLGT-03 | Phase 3 | Pending |
-| FLGT-04 | Phase 3 | Pending |
-| FLGT-05 | Phase 3 | Pending |
-| FLGT-06 | Phase 3 | Pending |
-| FLGT-07 | Phase 3 | Pending |
-| FLGT-08 | Phase 3 | Pending |
+| FLGT-01 | Phase 3 | Complete |
+| FLGT-02 | Phase 3 | Complete |
+| FLGT-03 | Phase 3 | Complete |
+| FLGT-04 | Phase 3 | Complete |
+| FLGT-05 | Phase 3 | Complete |
+| FLGT-06 | Phase 3 | Complete |
+| FLGT-07 | Phase 3 | Complete |
+| FLGT-08 | Phase 3 | Complete |
 | DOCK-01 | Phase 4 | Pending |
 | DOCK-02 | Phase 4 | Pending |
 | DOCK-03 | Phase 4 | Pending |

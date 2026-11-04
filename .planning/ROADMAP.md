@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation, Containers & Compliance** - Docker-only workflow, fixed-step loop, precision spike, licence and trademark posture (completed 2026-11-02)
 - [x] **Phase 2: Data Pipeline & Content Compiler** - Pinned Oolite snapshot compiled at build time into typed content, GLB models, and a drift gate (completed 2026-11-03)
-- [ ] **Phase 3: Flight in the Lave System** - Launch from Lave's Coriolis and fly the Cobra through a faithful, stably rendered system
+- [x] **Phase 3: Flight in the Lave System** - Launch from Lave's Coriolis and fly the Cobra through a faithful, stably rendered system (completed 2026-11-04)
 - [ ] **Phase 4: Manual Docking** - Skill-based docking with corridor feedback, plus the buyable docking computer
 - [ ] **Phase 5: Docked Economy & Station Screens** - Market, outfitting, status, and system-data screens on Oolite's economy rules
 - [ ] **Phase 6: Hyperspace, Navigation & Persistence** - Chart targeting, fuel-gated jumps, and saves that resume exactly
@@ -123,7 +123,7 @@ Plans:
   3. The torus drive engages, mass-locks near the station and planet, and disengages on pilot input, and the HUD shows crosshair, scanner, compass, aegis indicator, bars, clock, message line, and condition light.
   4. The view stays stable from witchpoint to station — no visible jitter or z-fighting on the planet, station, or dock opening — across the full ~1.4e6 m extent.
   5. A browser without WebGL2 shows a clear fallback message instead of a blank canvas, and returning to a system after leaving it returns GPU memory to its baseline.
-**Plans**: 13/13 plans executed; 5 gap-closure plans added from UAT (03-14 pending)
+**Plans**: 14/14 plans complete; 5 gap-closure plans added from UAT (03-14 pending)
 - [x] 03-01-PLAN.md
 - [x] 03-02-PLAN.md
 - [x] 03-03-PLAN.md
