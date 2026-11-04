@@ -21,7 +21,7 @@
     {
       "number": "4",
       "name": "Manual Docking",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "5",
@@ -44,5 +44,5 @@
     "label": "Advance to the next step",
     "reason": "Phase 4 of 7 · 43% · executing"
   },
-  "updated_at": "2026-11-04T19:18:36.159Z"
+  "updated_at": "2026-11-04T21:43:30.554Z"
 }

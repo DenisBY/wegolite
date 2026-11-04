@@ -151,10 +151,19 @@ Plans:
   4. With the docking computer installed (TL 9, 1500 Cr), `Shift+C` docks instantly and advances the clock by 20 minutes.
   5. Launching autosaves, so a docked state is always resumable.
 **Plans**: 5 plans in 5 waves
+**Wave 1**
 - [ ] 04-01-PLAN.md — Wave 1: measure the dock aperture at build time, emit `dock-port.json`, typed loader, golden + drift check
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 04-02-PLAN.md — Wave 2: port-frame corridor, lane/capture, safety-band auto-centring, docked transition (tracer: aligned approach docks)
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 04-03-PLAN.md — Wave 3: box-hull bounce, scrape/bounce events, shake/flash feedback, no-trap invariant
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 04-04-PLAN.md — Wave 4: credits, equipment purchase line, `Shift+C` docking computer (+20 min), aegis gate
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 04-05-PLAN.md — Wave 5: IndexedDB autosave on launch, title Continue/New game restore
 
 ### Phase 5: Docked Economy & Station Screens
