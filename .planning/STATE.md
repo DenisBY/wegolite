@@ -3,11 +3,11 @@ gsd_state_version: "1.0"
 current_phase: 03
 current_phase_name: Flight in the Lave System
 status: executing
-stopped_at: Halted 03-14-PLAN.md — cadence gate 152390 ms > 133000 ms (G-03-3 stays failed)
-last_updated: "2026-11-04T15:24:06.052Z"
+stopped_at: Quick 261104-oif measured the loaded frame cost; G-03-3 decision remains (real planet-shading fix vs gate revision)
+last_updated: "2026-11-04T16:58:52.232Z"
 last_activity: 2026-11-04
-last_activity_desc: Phase 03 execution started
-state_head: 3ae27c7901cd629feafd9b3ecd76180b21759070
+last_activity_desc: Quick 261104-oif diagnostic measured — planet fragment shader owns ~281 of 369 ms; antialias worth ~135 ms
+state_head: ddad14098124f5013da28fa89f13bb64866eba97
 progress:
   total_phases: 7
   completed_phases: 2
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 Phase: 03 (Flight in the Lave System) — EXECUTING
 Plan: 14 of 14
 Status: Executing Phase 03
-Last activity: 2026-11-04 — Phase 03 execution started
+Last activity: 2026-11-04 - Completed quick task 261104-oif: Diagnose the loaded per-frame render cost of the Lave flight scene
 
 Progress: [███░░░░░░░] 29%
 
@@ -121,6 +121,7 @@ Recent decisions affecting current work:
 - [Phase 03]: The scene-wide clipping bound is exported (albedo bytes 101/119/139 at NdotL 1.0/0.7/0.5) so every body lit by the one sun, including the Cobra, is bounded rather than assumed safe
 - [Phase 03]: Plan 03-14: the planet noise budget is 9 evaluations (surface 6, two sea-gated 1-octave relief taps, cloud 1); RELIEF_SCALE 80 is confirmed (mean shade 0.8519, min 0.4636) and cloud coverage re-pins at 0.26001.
 - [Phase 03]: Plan 03-14 halted on G-03-3: the 29-test suite is green in both the 10- and 9-evaluation builds, but the JSON-reporter message-test duration is 160362 ms then 152390 ms against the 133 s gate; the proven dominant cost is ~340 ms of fixed loaded frame time, not the noise evaluations.
+- [Quick 261104-oif]: measured at 1280x720 DPR 1 on SwiftShader with two concurrent pages: loaded in-flight frame 369.4 ms (2.71 fps), planet fragment shader ~281 ms of it (flat fragment keeps 38308 triangles/6 calls and runs at 88.4 ms), rest of scene ~30 ms (planet hidden), MSAA 4x real (SAMPLES 4) and worth ~135 ms (antialias:false: 234.6 ms), half resolution saves ~199 ms. The measurement gives a real planet-shading fix ~340 ms of headroom against the 55 ms bar; it does not force a gate revision.
 
 ### Pending Todos
 
@@ -132,8 +133,14 @@ None yet.
 - [Phase 2] Byte-determinism of generated assets across arm64 Docker vs amd64 CI is unverified; decide per-image or per-arch comparison.
 - [Phase 4] Coriolis effective gate geometry and required roll are MEDIUM confidence; measure the dock mesh before hard-coding thresholds. v1 docking damage model (bounce-only vs small hull pool) still undecided.
 - [Project] Licence election and trademark posture need a professional legal read before the first public post.
-- G-03-3 halted: 03-14 shipped a 9-evaluation planet budget but the message-expiry test measures 152390 ms (fps 2.35, drain 132.0 s) against the 133 s / 2.69 fps cadence gate. All 29 e2e tests pass. The loaded fixed per-frame cost (~340 ms), not the noise budget, dominates; a new gap plan or an explicit user decision on a frozen constraint is required.
+- G-03-3 measured (Quick 261104-oif): the loaded in-flight frame (369.4 ms at 2.71 fps) is dominated by the planet fragment shader (~281 ms; hiding the planet leaves 29.9 ms, flattening only the fragment body with unchanged 38308 triangles and 6 calls leaves 88.4 ms). antialias:false is real (~135 ms; SAMPLES 4 -> 0); half resolution saves ~199 ms. Remaining decision: pursue a real planet-shading fix (ample headroom) or revise the frozen gate — the measurement does not force a revision.
 - [Test infra] `tests/guards/content-boundary.test.ts > removes the probe even when the body throws` runs on Vitest's 5 s default while its five siblings use `180_000`; it timed out at 5 s in one full `verify` run under load and passes in isolation (file 6/6 in 24 s). Give it an explicit timeout — unrelated to 03-14.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 261104-oif | Diagnose the loaded per-frame render cost of the Lave flight scene: GL context attributes, MSAA A/B, resolution scaling, hidden-planet arm, and split launch vs in-flight frame timing | 2026-11-04 | ddad140 | [261104-oif-diagnose-the-loaded-per-frame-render-cos](./quick/261104-oif-diagnose-the-loaded-per-frame-render-cos/) |
 
 ## Deferred Items
 
@@ -145,6 +152,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-04T15:24:05.671Z
-Stopped at: Halted 03-14-PLAN.md — cadence gate 152390 ms > 133000 ms (G-03-3 stays failed)
+Last session: 2026-11-04T16:52:00.000Z
+Stopped at: Quick 261104-oif measured the loaded frame cost; G-03-3 decision remains (real planet-shading fix vs gate revision)
 Resume file: None
