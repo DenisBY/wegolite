@@ -82,6 +82,12 @@ export const SystemSchema = z.looseObject({
   sky_n_stars: z.number().int(),
   // Authored on Lave only in the pinned snapshot.
   percentCloud: z.number().int().optional(),
+  // Oolite's authored ice key: `OOPlanetEntity.m:133-134` maps
+  // `percent_ice` (default 5) to `polar_fraction = percent_ice / 100`. The
+  // compiler does not project the key for the pinned snapshot, so every system
+  // currently falls back to the engine default; this is a type addition, not a
+  // generated-content change.
+  percent_ice: z.number().int().min(0).max(100).optional(),
   // The authored key list, sorted in code-unit order: the present-vs-absent
   // record D-22 needs without ever storing `undefined`.
   presentFields: z.array(z.string()),
