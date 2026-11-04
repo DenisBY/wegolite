@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 03-flight-in-the-lave-system
 source:
   - 03-VERIFICATION.md
@@ -67,5 +67,19 @@ blocked: 0
   reason: "User reported: исправь (fix the red browser gate)"
   severity: major
   test: 5
-  artifacts: []
-  missing: []
+  root_cause: "Phase-03 gap closure raised the planet fragment shader from 7 to 16 value-noise evaluations per pixel (~2.3x cost). Under headless SwiftShader that is 4.3 fps solo and ~1.9 fps with a second Playwright worker competing. The game loop caps catch-up at MAX_STEPS_PER_FRAME=5 with DT=1/120, so simulated time advances at only fps*5/120 (0.08-0.18x wall). The launch/hint queue needs ~12.9 s simulated, i.e. ~161 s wall under load, past the test's fixed 150 s wait."
+  artifacts:
+    - path: "src/render/shaders/planet.glsl.ts"
+      issue: "16 value-noise evaluations per pixel; the per-pixel cost driver"
+    - path: "src/app/game-loop.ts"
+      issue: "MAX_STEPS_PER_FRAME=5 with DT=1/120 converts low fps into slow simulated time (intentional cap)"
+    - path: "src/render/hud/messages.ts"
+      issue: "message expiry is driven by simulated flightTime, so it inherits the slowdown"
+    - path: "tests/e2e/hud.spec.ts"
+      issue: "fixed 150 s wait at line 229 is exceeded under load"
+    - path: "playwright.config.ts"
+      issue: "2 workers, fullyParallel false: parallel-load amplifier"
+  missing:
+    - "Reduce planet fragment-shader cost so rendered cadence returns to >=24 fps with headroom under SwiftShader"
+    - "Prove it with the full 29-test e2e suite, not only scene+hud"
+  debug_session: .planning/debug/e2e-message-expiry-timeout.md
