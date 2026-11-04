@@ -455,16 +455,16 @@ Not a rename/refactor/migration phase — section omitted. (New persisted state:
 | A7 | Throttle scrape message to ≥ 1 s of `flightTime` | Pitfall 8 | UX only |
 | A8 | Save clock = post-launch clock (+600 s already applied) | Persistence | Resumed clock differs by 10 min from a "pre-launch" interpretation |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **TL gate vs Lave (blocks DOCK-05 purchase UX).**
-   - Known: `EQ_DOCK_COMP` TL 9; Oolite refuses purchase when `system.info.techlevel < equipment TL` (oolite-conditions.js:80-91); Lave raw TL = 4; D-10 wants the TL requirement "enforced" and the e2e to "grant credits".
-   - Unclear: should Lave's line show "unavailable — requires TL 9" (faithful), or should the Phase 4 line bypass the TL gate?
-   - Recommendation: implement `canPurchase(profile, item, systemTechLevelRaw)` faithfully and unit-test it with a synthetic TL ≥ 9 system record; show the Lave line disabled with a reason; the e2e uses an additional `?test=1` hook `grantEquipment("EQ_DOCK_COMP")` / `setCredits(n)` for the Shift+C path. **Needs user confirmation** (changes how SC4 is demonstrated).
-2. **Launch orientation twist (Pitfall 5).** Recommend leaving Phase 3 launch untouched and teaching the roll; alternatively add the Oolite 90° twist and update `tests/sim/launch.test.ts:112` + launch camera. User decision.
-3. **Oolite y-guard bug (DockEntity.m:752).** Recommend symmetric fix with a recorded deviation. User may prefer bug-for-bug.
-4. **Station roll wording in CONTEXT** ("0.08 rad/s") should be corrected to 0.1256637 rad/s to avoid mis-tuned tests.
-5. **Save clock semantics (A8)** and whether manual/computer docking should also autosave (DOCK-07 says launch only).
+> All five were settled by the Phase 4 plan set (revision round 2). The adopted answer is recorded per item so this artifact agrees with the plans it seeds.
+
+1. **TL gate vs Lave (blocks DOCK-05 purchase UX). — RESOLVED: enforce the faithful gate.**
+   - Adopted: `canPurchase(profile, item, techLevelRaw)` refuses when `techLevelRaw < item.techLevel`; Lave (raw TL 4) refuses `EQ_DOCK_COMP`, the panel shows the disabled line with "Requires TL 9", and the unit test covers Lave vs a synthetic TL 9 system. The raw value is the session's loaded `System.techLevelRaw` (`src/main.ts:100,149`), not a `SystemLayout` field. The e2e exercises the refusal and uses `grantEquipment("EQ_DOCK_COMP")` / `setCredits(n)` for the Shift+C path. Owned by `04-04-PLAN.md` Task 2/Task 3.
+2. **Launch orientation twist (Pitfall 5). — RESOLVED: leave Phase 3 launch untouched and teach the 90-degree roll.** `beginLaunch` keeps `orientation = layout.stationBaseQuat`; `tests/sim/launch.test.ts` is unmodified; `04-03`'s straddle copy ("Too wide for the slot - roll 90 degrees") teaches the correction. Owned by `04-02-PLAN.md` (assumptions, Task 1) and `04-03-PLAN.md` Task 1.
+3. **Oolite y-guard bug (DockEntity.m:752). — RESOLVED: symmetric fix with a recorded deviation.** `if (box.max.y < hh && box.min.y > -hh) delta.y = 0`, a code comment citing DockEntity.m:752, and a PROJECT.md Key Decisions row. Owned by `04-02-PLAN.md` Task 2.
+4. **Station roll wording in CONTEXT ("0.08 rad/s"). — RESOLVED: it is 0.08 right-angles per second, i.e. 0.1256637 rad/s.** The implementation reads `layout.stationRollRadPerSec`; no `0.08` literal is allowed in `src/sim/dock`. Owned by `04-02-PLAN.md` (prohibitions and acceptance).
+5. **Save clock semantics (A8) and which transitions autosave. — RESOLVED: save the post-launch clock (+600 s already applied); launch and a successful purchase autosave; manual or computer docking does not.** Owned by `04-05-PLAN.md` Task 2/Task 3 (and `04-04-PLAN.md` for the purchase seam).
 
 ## Environment Availability
 
