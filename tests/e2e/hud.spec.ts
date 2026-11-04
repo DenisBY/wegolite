@@ -209,8 +209,10 @@ test("the message line is one clamped line and expires on flightTime", async ({
 }) => {
   // The queue expires on simulated time, and SwiftShader advances the fixed
   // step far slower than wall time. This is a correctness wait, not a
-  // performance claim (Pitfall 15).
-  test.setTimeout(180_000);
+  // performance claim (Pitfall 15). The 300 s ceiling is deliberately generous
+  // (roughly double the measured ~153 s) because a harness cadence regression
+  // must fail as "stuck", not as "slow".
+  test.setTimeout(330_000);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -226,11 +228,35 @@ test("the message line is one clamped line and expires on flightTime", async ({
 
   // The app enqueued the launch/compass messages; the queue must drain them on
   // flightTime and leave the line empty, not keep the last string forever.
-  await page.waitForFunction(
-    () => window.__wegolite?.hud.message === "",
-    undefined,
-    { timeout: 150_000 },
-  );
+  try {
+    await page.waitForFunction(
+      () => window.__wegolite?.hud.message === "",
+      undefined,
+      { timeout: 300_000 },
+    );
+  } catch (error) {
+    // Best-effort diagnostics: a closed page or a serialisation failure must
+    // degrade to "probe unavailable", never mask the timeout.
+    const observed = await page
+      .evaluate(() => {
+        const probe = window.__wegolite;
+        return probe === undefined
+          ? null
+          : { renders: probe.renders, flightTime: probe.flightTime };
+      })
+      .catch(() => null);
+    const seen =
+      observed === null
+        ? "probe unavailable"
+        : `renders=${observed.renders}, flightTime=${observed.flightTime}`;
+    throw new Error(
+      "the message line had not expired after 300 s (" +
+        seen +
+        "): " +
+        (error instanceof Error ? error.message : String(error)),
+      { cause: error },
+    );
+  }
 
   const after = await readHud(page);
   expect(after.hud.message).toBe("");

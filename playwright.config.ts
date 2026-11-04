@@ -6,6 +6,9 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
+  // The browser gate is measured on a 4-CPU host with two concurrent pages, and
+  // pinning makes that contention reproducible instead of depending on the runner's core count.
+  workers: 2,
   retries: 0,
   reporter: [["list"]],
   use: {
