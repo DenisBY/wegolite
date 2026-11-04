@@ -137,7 +137,7 @@ Plans:
 - [x] 03-11-PLAN.md — G-03-1: calibrated PlanetMix surface, coastline/snowline/relief, authored polar ice
 - [x] 03-12-PLAN.md — G-03-1: one exposure contract, Oolite-bright station, authored emissive
 - [x] 03-13-PLAN.md — G-03-2: viewport aspect applied on every camera install, with browser regression
-- [ ] 03-14-PLAN.md — G-03-3: planet per-pixel noise budget 16 -> 11, full 29-test suite green with measured headroom
+- [ ] 03-14-PLAN.md — G-03-3: planet per-pixel noise budget 16 -> 10 (9 on the fallback), full 29-test suite green with measured headroom
 
 ### Phase 4: Manual Docking
 **Goal**: The player can dock a Cobra by hand with real feedback and real risk, and can buy a docking computer when they would rather not.
