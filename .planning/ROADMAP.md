@@ -205,7 +205,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Foundation, Containers & Compliance | 7/7 | Complete    | 2026-11-02 |
 | 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
 | 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
-| 4. Manual Docking | 0/TBD | Not started | - |
+| 4. Manual Docking | 0/5 | Planned | - |
 | 5. Docked Economy & Station Screens | 0/TBD | Not started | - |
 | 6. Hyperspace, Navigation & Persistence | 0/TBD | Not started | - |
 | 7. Hardening & Community Release | 0/TBD | Not started | - |
