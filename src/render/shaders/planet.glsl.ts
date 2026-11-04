@@ -42,10 +42,13 @@
  * authored ambient added outside the day factor through Oolite's
  * `(0.8, 0.8, 1.0)` tint.
  *
- * The per-pixel noise budget is 16 value-noise evaluations: six for the
- * surface, two three-octave relief taps and four for the cloud field. The
- * software-rasterised end-to-end suite measures the budget by timing out if it
- * grows (T-3-31).
+ * The per-pixel noise budget is 10 value-noise evaluations worst case: six for
+ * the surface, one for each of the two sea-gated relief taps and two for the
+ * cloud field. The relief taps run only on land (0.6499 of the sphere for
+ * Lave), so the average is about 9.3. The software-rasterised end-to-end suite
+ * measures this budget by wall duration: the fixed-step loop advances simulated
+ * time at `fps x 5/120`, so a slower shader starves the message-expiry test's
+ * fixed wait (T-3-31, T-3-36).
  */
 
 export const PLANET_VERTEX_SHADER = /* glsl */ `
@@ -99,8 +102,9 @@ uniform float uCloudNoiseLo;
 uniform float uCloudNoiseScale;
 uniform float uCloudThreshold;
 // Presentation tuning (documented where it is declared in planet.ts), not a
-// calibration output. Eight times the plan's starting value: the measured
-// three-octave height difference over the relief step is small.
+// calibration output. The measured one-octave height difference is close to
+// the three-octave one, so the scale that maps the mean slope to a 0.85 shade
+// is unchanged at 80 (see planet.ts for the measurement).
 uniform float uReliefScale;
 
 // Retained for the record; the calibration uniforms above carry the level set.
@@ -123,6 +127,13 @@ varying vec3 vViewDirW;
 #define COASTLINE_PORTION 0.00625
 #define SHALLOWS 0.0125
 #define DEEPS 0.25
+
+// Per-pixel noise-budget octave counts, mirrored in src/render/planet-noise.ts:
+// SURFACE_OCTAVES = 6, RELIEF_OCTAVES = 1, CLOUD_OCTAVES = 2. The budget guard
+// in tests/render/planet-budget.test.ts asserts each define equals its mirror.
+#define SURFACE_OCTAVES 6
+#define RELIEF_OCTAVES 1
+#define CLOUD_OCTAVES 2
 
 // Deterministic 3D value noise: a hash of the lattice corner plus trilinear
 // interpolation. No texture lookups and no world-space coordinates.
@@ -158,7 +169,7 @@ float fbm(vec3 p, float octaves) {
   float amplitude = 0.5;
   float norm = 0.0;
 
-  for (int octave = 0; octave < 6; octave++) {
+  for (int octave = 0; octave < SURFACE_OCTAVES; octave++) {
     if (float(octave) >= octaves) {
       break;
     }
@@ -171,22 +182,23 @@ float fbm(vec3 p, float octaves) {
   return total / max(norm, 0.0001);
 }
 
-// Six-octave surface sum; 'lowThree' receives the normalised three-octave
-// partial with no extra noise evaluation. The relief gradient reuses that
-// partial as its base height, so the two displaced taps are the entire relief
-// cost (3 + 3 octaves).
-float fbmSurface(vec3 p, out float lowThree) {
+// Six-octave surface sum; 'lowPartial' receives the normalised
+// RELIEF_OCTAVES-octave partial with no extra noise evaluation. The relief
+// gradient reuses that partial as its base height, so the base and the two
+// displaced taps always share an octave count — otherwise the finite difference
+// would measure the octave mismatch rather than the slope.
+float fbmSurface(vec3 p, out float lowPartial) {
   float total = 0.0;
   float amplitude = 0.5;
   float norm = 0.0;
   float low = 0.0;
   float lowNorm = 0.0;
 
-  for (int octave = 0; octave < 6; octave++) {
+  for (int octave = 0; octave < SURFACE_OCTAVES; octave++) {
     float noiseSample = valueNoise(p) * amplitude;
     total += noiseSample;
     norm += amplitude;
-    if (octave < 3) {
+    if (octave < RELIEF_OCTAVES) {
       low += noiseSample;
       lowNorm += amplitude;
     }
@@ -194,7 +206,7 @@ float fbmSurface(vec3 p, out float lowThree) {
     amplitude *= 0.5;
   }
 
-  lowThree = low / max(lowNorm, 0.0001);
+  lowPartial = low / max(lowNorm, 0.0001);
   return total / max(norm, 0.0001);
 }
 
@@ -269,19 +281,30 @@ void main() {
   float seaishness;
   planetMix(q, nearPole, ground, seaishness);
 
-  // Lambert terrain relief from two three-octave height taps, with the base
-  // height reused from the surface evaluation. Oolite shades with norm.z
+  // Lambert terrain relief from two RELIEF_OCTAVES-octave height taps, with the
+  // base height reused from the surface evaluation. Oolite shades with norm.z
   // ("lambertian lighting from straight above"); the sea is flattened by
-  // seaishness, exactly as Oolite recycles its specular alpha.
-  vec3 reference = abs(n.y) > 0.99 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
-  vec3 tangent = normalize(cross(reference, n));
-  vec3 bitangent = cross(n, tangent);
-  float hU = fbm(normalize(n + tangent * 0.006) * 3.1 + vec3(uSeed), 3.0);
-  float hV = fbm(normalize(n - bitangent * 0.006) * 3.1 + vec3(uSeed), 3.0);
-  float dU = hU - h0;
-  float dV = h0 - hV;
-  vec3 relief = normalize(vec3(-dU * uReliefScale, -dV * uReliefScale, 1.0));
-  float shade = mix(relief.z, 1.0, seaishness);
+  // seaishness, exactly as Oolite recycles its specular alpha. The taps are
+  // gated on water: seaishness == 1.0 is exactly the q <= 0.0 branch, where the
+  // shade is 1 regardless of the gradient, so the gate is bit-identical.
+  float shade = 1.0;
+  if (seaishness < 1.0) {
+    vec3 reference = abs(n.y) > 0.99 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+    vec3 tangent = normalize(cross(reference, n));
+    vec3 bitangent = cross(n, tangent);
+    float hU = fbm(
+      normalize(n + tangent * 0.006) * 3.1 + vec3(uSeed),
+      float(RELIEF_OCTAVES)
+    );
+    float hV = fbm(
+      normalize(n - bitangent * 0.006) * 3.1 + vec3(uSeed),
+      float(RELIEF_OCTAVES)
+    );
+    float dU = hU - h0;
+    float dV = h0 - hV;
+    vec3 relief = normalize(vec3(-dU * uReliefScale, -dV * uReliefScale, 1.0));
+    shade = mix(relief.z, 1.0, seaishness);
+  }
   ground *= shade;
 
   // Clouds are a second field in the same material: no shell, no second pass.
@@ -289,7 +312,7 @@ void main() {
   // quantile, so the authored fraction is what appears on the sphere.
   float cloudRaw = fbm(
     n * 5.3 + vec3(uSeed * 1.7 + 13.0) + vec3(uTime * 0.002, 0.0, 0.0),
-    4.0
+    float(CLOUD_OCTAVES)
   );
   float cloudField = clamp(
     (cloudRaw - uCloudNoiseLo) * uCloudNoiseScale,

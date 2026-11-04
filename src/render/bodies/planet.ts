@@ -63,7 +63,14 @@ export function seedToUniform(seed: string): number {
  */
 const DEFAULT_PERCENT_ICE = 5;
 
-/** Oolite's presentation tuning for the Lambert relief, not a calibration output. */
+/**
+ * Oolite's presentation tuning for the Lambert relief, not a calibration output.
+ *
+ * Confirmed by measurement on the one-octave field (03-14): the mean `|dU|`
+ * over the shaded land set is 0.00447 at one octave versus 0.00486 at three, so
+ * the scale that held the approved 0.85 mean shade is unchanged. At 80,
+ * `measuredReliefShade` reports mean 0.8519 / min 0.4636 / landShare 0.6499.
+ */
 export const RELIEF_SCALE = 80;
 
 /**
@@ -149,10 +156,10 @@ export function createPlanet(
       uCloudNoiseLo: { value: clouds.noiseLo },
       uCloudNoiseScale: { value: clouds.noiseScale },
       uCloudThreshold: { value: clouds.threshold },
-      // Presentation tuning, not a calibration output: the measured three-
-      // octave height difference over the 0.006 rad relief step averages
-      // 0.0076 and peaks at 0.026, so 80 maps the mean slope to a 0.85 shade
-      // and the steepest to 0.43. The plan's 4.0 was measured at under 0.1%
+      // Presentation tuning, not a calibration output: the measured one-octave
+      // height difference over the 0.006 rad relief step averages 0.00447
+      // (0.00486 at three octaves), so 80 maps the mean slope to a 0.852 shade
+      // and the steepest to 0.464. The plan's 4.0 was measured at under 0.1%
       // modulation (invisible).
       uReliefScale: { value: RELIEF_SCALE },
       uLandFraction: { value: system.land_fraction },

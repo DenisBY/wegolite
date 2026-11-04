@@ -24,13 +24,16 @@ import { linearToSrgb } from "../../src/render/color.js";
 import {
   calibrateSurface,
   classifySurface,
+  CLOUD_OCTAVES,
   COASTLINE_PORTION,
   DEEPS,
   fibonacciDirections,
   measuredIceFraction,
   measuredLandFraction,
   measuredQRange,
+  RELIEF_OCTAVES,
   SHALLOWS,
+  SURFACE_OCTAVES,
 } from "../../src/render/planet-noise.js";
 import type {
   SurfaceCalibration,
@@ -128,6 +131,18 @@ describe("planet surface contract", () => {
     );
     expect(defineValue(PLANET_FRAGMENT_SHADER, "SHALLOWS")).toBe(SHALLOWS);
     expect(defineValue(PLANET_FRAGMENT_SHADER, "DEEPS")).toBe(DEEPS);
+  });
+
+  it("keeps the shader's octave counts equal to the mirror's", () => {
+    expect(defineValue(PLANET_FRAGMENT_SHADER, "SURFACE_OCTAVES")).toBe(
+      SURFACE_OCTAVES,
+    );
+    expect(defineValue(PLANET_FRAGMENT_SHADER, "RELIEF_OCTAVES")).toBe(
+      RELIEF_OCTAVES,
+    );
+    expect(defineValue(PLANET_FRAGMENT_SHADER, "CLOUD_OCTAVES")).toBe(
+      CLOUD_OCTAVES,
+    );
   });
 
   it("re-measures the uploaded calibration, not a fresh one", () => {

@@ -21,7 +21,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { seedToUniform } from "../../src/render/bodies/planet.js";
+import { RELIEF_SCALE, seedToUniform } from "../../src/render/bodies/planet.js";
 import {
   calibrateClouds,
   calibrateSurface,
@@ -33,6 +33,7 @@ import {
   measuredIceLatitudeRange,
   measuredLandFraction,
   measuredQRange,
+  measuredReliefShade,
   sampleCloud,
   sampleSurface,
   valueNoise,
@@ -259,6 +260,31 @@ describe("calibrated surface (pinned system g0-s7, seed 49.192859)", () => {
   });
 });
 
+describe("relief shade (pinned system g0-s7)", () => {
+  it("keeps the approved Lambert shade over the shaded land set", () => {
+    const shade = measuredReliefShade(CALIBRATION, SEED, RELIEF_SCALE);
+
+    // The gate, not the sphere: 0.6499 is the measured land share, so the
+    // helper pinned exactly the directions where the shader applies `shade`.
+    expect(shade.landShare).toBeGreaterThanOrEqual(0.63);
+    expect(shade.landShare).toBeLessThanOrEqual(0.67);
+    expect(shade.landShare).toBeCloseTo(0.6499, 2);
+
+    expect(shade.mean).toBeGreaterThanOrEqual(0.8);
+    expect(shade.mean).toBeLessThanOrEqual(0.9);
+    expect(shade.mean).toBeCloseTo(0.8519, 3);
+    expect(shade.min).toBeGreaterThanOrEqual(0.4);
+    expect(shade.min).toBeCloseTo(0.4636, 3);
+  });
+
+  it("rejects the plan's flat 4.0 scale as invisible", () => {
+    // 03-11 measured 4.0 at under 0.1% modulation; the approved pin must
+    // discriminate it rather than accept any positive scale.
+    const flat = measuredReliefShade(CALIBRATION, SEED, 4);
+    expect(flat.mean).toBeGreaterThan(0.999);
+  });
+});
+
 describe("calibrated polar cap (pinned system g0-s7)", () => {
   it("derives the cap from percent_ice and covers the pole", () => {
     expect(CALIBRATION.polarCap).toBeCloseTo(0.4142, 4);
@@ -312,7 +338,9 @@ describe("calibrated clouds (pinned system g0-s7)", () => {
       }).length / DIRECTIONS.length;
 
     expect(Math.abs(coverage - CLOUD_FRACTION)).toBeLessThan(0.03);
-    expect(coverage).toBeCloseTo(0.2595, 2);
+    // Re-pinned for the two-octave field (03-14): 0.26001 measured, by
+    // construction the authored 0.26.
+    expect(coverage).toBeCloseTo(0.26, 2);
     expect(clouds.noiseScale).toBeGreaterThan(0);
   });
 });

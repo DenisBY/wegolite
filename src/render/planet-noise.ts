@@ -35,11 +35,28 @@ export interface Vec3Like {
   readonly z: number;
 }
 
-/** The surface is six octaves; see the shader's `fbm` for the constants. */
+/** Octave counts, mirrored by the shader's `#define`s; see its `fbm`. */
 export const SURFACE_SCALE = 3.1;
 export const SURFACE_OCTAVES = 6;
+export const RELIEF_OCTAVES = 1;
 export const CLOUD_SCALE = 5.3;
-export const CLOUD_OCTAVES = 4;
+export const CLOUD_OCTAVES = 2;
+
+/**
+ * The fragment shader's worst-case value-noise evaluations per pixel.
+ *
+ * Derived from its parts — six surface octaves, two relief taps of
+ * `RELIEF_OCTAVES` each, and the cloud field — so it cannot drift from the
+ * constants it describes. The average is about 9.3 because the relief taps run
+ * only on land (0.6499 of the sphere for Lave); it is 9 worst case / about 8.3
+ * average if the pre-agreed slow-run step lowers `CLOUD_OCTAVES` to 1.
+ *
+ * `tests/render/planet-budget.test.ts` is the guard: the define-derived sum must
+ * equal this value and stay at or below a pinned ceiling. Lowering any octave
+ * count lowers both numbers without breaking the guard.
+ */
+export const NOISE_EVAL_BUDGET =
+  SURFACE_OCTAVES + 2 * RELIEF_OCTAVES + CLOUD_OCTAVES;
 
 /** Directions on the deterministic sample sphere (a Fibonacci lattice). */
 export const SURFACE_SAMPLES = 4096;
@@ -447,6 +464,121 @@ export function measuredIceLatitudeRange(
   }
 
   return { minAbsLatitude, maxAbsLatitude };
+}
+
+function cross(a: Vec3Like, b: Vec3Like): Vec3Like {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  };
+}
+
+function unit(v: Vec3Like): Vec3Like {
+  const length = Math.hypot(v.x, v.y, v.z);
+  return { x: v.x / length, y: v.y / length, z: v.z / length };
+}
+
+/** The shader's relief base height: `fbm(dir * SURFACE_SCALE + seed, RELIEF_OCTAVES)`. */
+function reliefHeight(dir: Vec3Like, seed: number): number {
+  return fbm(
+    {
+      x: dir.x * SURFACE_SCALE + seed,
+      y: dir.y * SURFACE_SCALE + seed,
+      z: dir.z * SURFACE_SCALE + seed,
+    },
+    RELIEF_OCTAVES,
+  );
+}
+
+/** The land-set Lambert shade distribution the shader draws. */
+export interface ReliefShadeDistribution {
+  readonly mean: number;
+  readonly min: number;
+  readonly max: number;
+  /** Fraction of the sampled sphere measured: the shaded land set. */
+  readonly landShare: number;
+}
+
+/**
+ * Measure the shader's `shade` over the directions it actually shades.
+ *
+ * This mirrors the fragment shader's relief block exactly: the base height is
+ * the `RELIEF_OCTAVES`-octave partial, the two taps displace the direction by
+ * `0.006` rad along the tangent and bitangent, and `shade` is `relief.z` after
+ * `mix(relief.z, 1.0, seaishness)`. The gate is the shader's: `seaishness`
+ * is 1 only in `planetMix`'s `q <= 0` branch, so `q > 0` is exactly the set
+ * where the shade is applied. `landShare` is returned so a test can prove the
+ * helper measured that set (0.6499 for Lave) rather than the whole sphere.
+ *
+ * It measures a value, not a rendered pixel: no GPU, no Three, no DOM.
+ *
+ * @param calibration the uploaded (or freshly computed) surface calibration.
+ * @param seed `seedToUniform(random_seed)` — the same float the shader gets.
+ * @param reliefScale the shader's `uReliefScale` presentation constant.
+ */
+export function measuredReliefShade(
+  calibration: SurfaceCalibration,
+  seed: number,
+  reliefScale: number,
+): ReliefShadeDistribution {
+  const directions = fibonacciDirections();
+  const shades: number[] = [];
+
+  for (const direction of directions) {
+    const q = surfaceQ(direction, seed, calibration);
+    if (q <= 0) continue; // sea: seaishness == 1, so shade stays 1
+
+    const h0 = reliefHeight(direction, seed);
+    const reference =
+      Math.abs(direction.y) > 0.99
+        ? { x: 1, y: 0, z: 0 }
+        : { x: 0, y: 1, z: 0 };
+    const tangent = unit(cross(reference, direction));
+    const bitangent = cross(direction, tangent);
+
+    const hU = reliefHeight(
+      unit({
+        x: direction.x + tangent.x * 0.006,
+        y: direction.y + tangent.y * 0.006,
+        z: direction.z + tangent.z * 0.006,
+      }),
+      seed,
+    );
+    const hV = reliefHeight(
+      unit({
+        x: direction.x - bitangent.x * 0.006,
+        y: direction.y - bitangent.y * 0.006,
+        z: direction.z - bitangent.z * 0.006,
+      }),
+      seed,
+    );
+
+    const dU = hU - h0;
+    const dV = h0 - hV;
+    const relief = unit({
+      x: -dU * reliefScale,
+      y: -dV * reliefScale,
+      z: 1,
+    });
+    shades.push(relief.z);
+  }
+
+  let sum = 0;
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const shade of shades) {
+    sum += shade;
+    min = Math.min(min, shade);
+    max = Math.max(max, shade);
+  }
+
+  return {
+    mean: shades.length === 0 ? 0 : sum / shades.length,
+    min: shades.length === 0 ? 0 : min,
+    max: shades.length === 0 ? 0 : max,
+    landShare: shades.length / directions.length,
+  };
 }
 
 /** The measured `q` range; `max < 1` is what proves `"snow"` is unreachable. */
