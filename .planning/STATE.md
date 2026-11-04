@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 03
 current_phase_name: Flight in the Lave System
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-11-03T16:36:45.243Z"
-last_activity: 2026-11-03
-last_activity_desc: Phase 03 execution started
-state_head: 2bdac20511b7e50061df7bfebd7b76923c0d215c
+stopped_at: Completed 03-10-PLAN.md
+last_updated: "2026-11-04T10:16:45.228Z"
+last_activity: 2026-11-04
+last_activity_desc: Phase 03 execution resumed (wave continue)
+state_head: e0e50e55e6584bbe78605a25e6ede735ccf375b3
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 25
-  completed_plans: 16
+  total_plans: 29
+  completed_plans: 26
   percent: 29
 ---
 
@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 03 (Flight in the Lave System) — EXECUTING
-Plan: 1 of 9
-Status: Executing Phase 03
-Last activity: 2026-11-03 — Phase 03 execution started
+Plan: 2 of 9
+Status: Ready to execute
+Last activity: 2026-11-04 — Phase 03 execution resumed (wave continue)
 
 Progress: [███░░░░░░░] 29%
 
@@ -66,6 +66,7 @@ Progress: [███░░░░░░░] 29%
 | Phase 02 P07 | 10 min | 3 tasks | 50 files |
 | Phase 02 P08 | 4 min | 3 tasks | 3 files |
 | Phase 02 P09 | 5 min | 3 tasks | 12 files |
+| Phase 03 P10 | 5 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,9 @@ Recent decisions affecting current work:
 - [Phase 02]: The sim's content door is type-only (src/content/types.ts); ESLint denies content/index*, content/schemas/** and content/generated/**, and the type-only import is proven to pass both lint and tsconfig.sim.json.
 - [Phase 02]: The app validates only the manifest at boot: schemaVersion 1, the format literal and every file row are strict, and a mismatch throws ContentBoundaryError naming the failing path before the renderer exists.
 - [Phase 02]: Provenance is proven three ways with a vacuity guard: the third_party/oolite walk, ASSETS.md rows and CHECKSUMS.sha256 agree; public/ copies gained explicit rows even though the walk scopes to third_party/.
+- [Phase 03]: Plan 03-10: the planet palette is decoded once through an explicit IEC 61966-2-1 sRGB transfer (not THREE.ColorManagement) so <colorspace_fragment> encodes once and the displayed byte equals Oolite's authored texture byte.
+- [Phase 03]: Plan 03-10: the sRGB encode cut is the exact image of 0.04045 (0.0031308049535603713), not the truncated 0.0031308, keeping the transfer pair invertible at its seam.
+- [Phase 03]: Plan 03-10: the terminator is Oolite's per-channel smoothstep against terminatorThresholdVector (red saturates first), with the authored ambient added outside the day factor through (0.8,0.8,1.0); NdotL pairs the object-space normal with the object-space sun.
 
 ### Pending Todos
 
@@ -129,6 +133,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-03T14:00:21.306Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-flight-in-the-lave-system/03-CONTEXT.md
+Last session: 2026-11-04T10:16:44.854Z
+Stopped at: Completed 03-10-PLAN.md
+Resume file: None

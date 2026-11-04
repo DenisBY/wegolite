@@ -35,7 +35,7 @@ Requirements for the initial release. Each maps to a roadmap phase.
 
 - [ ] **WORLD-01**: A new game loads Lave with witchpoint, planet, sun, and Coriolis station at faithful relative positions and scale
 - [ ] **WORLD-02**: The full system extent renders without visible jitter or z-fighting on the planet, station, and dock opening
-- [ ] **WORLD-03**: Starfield, lighting, and planet rendering produce a recognisably Oolite-like scene at v1 fidelity
+- [x] **WORLD-03**: Starfield, lighting, and planet rendering produce a recognisably Oolite-like scene at v1 fidelity
 - [ ] **WORLD-04**: The scene manager swaps systems without leaking GPU resources, verified by a dispose test
 - [ ] **WORLD-05**: The app detects missing WebGL2 support and shows a clear fallback message instead of failing silently
 - [ ] **WORLD-06**: A pure hyperspace-math module computes distance, fuel cost, and jump time, matching Lave→Diso and Lave→Zaonce fixtures
@@ -166,7 +166,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DATA-09 | Phase 2 | Complete |
 | WORLD-01 | Phase 3 | Pending |
 | WORLD-02 | Phase 3 | Pending |
-| WORLD-03 | Phase 3 | Pending |
+| WORLD-03 | Phase 3 | Complete |
 | WORLD-04 | Phase 3 | Pending |
 | WORLD-05 | Phase 3 | Pending |
 | WORLD-06 | Phase 6 | Pending |
