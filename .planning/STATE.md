@@ -3,11 +3,11 @@ gsd_state_version: "1.0"
 current_phase: 03
 current_phase_name: Flight in the Lave System
 status: executing
-stopped_at: Completed 03-12-PLAN.md
-last_updated: "2026-11-04T14:48:58.918Z"
+stopped_at: Halted 03-14-PLAN.md — cadence gate 152390 ms > 133000 ms (G-03-3 stays failed)
+last_updated: "2026-11-04T15:24:06.052Z"
 last_activity: 2026-11-04
 last_activity_desc: Phase 03 execution started
-state_head: 73f800052c90cf6a4f7556f8525e451da3987b9b
+state_head: 3ae27c7901cd629feafd9b3ecd76180b21759070
 progress:
   total_phases: 7
   completed_phases: 2
@@ -119,6 +119,8 @@ Recent decisions affecting current work:
 - [Phase 03]: Planet surface calibration is measured, not constant: calibrateSurface cuts the field at the land_fraction quantile (0.6499 for Lave), mixHi = 0.66667 * (1 + seaBias) = 0.28581 keeps the snowline reachable, percent_ice drives the polar cap, and uReliefScale 80 is documented presentation tuning.
 - [Phase 03]: Calibrated-LDR exposure contract: linear light, NoToneMapping, one sRGB encode, exposure 1; DISPLAY_SUN_INTENSITY 24.25 derived from Oolite's 3.75 radiance and 2.484 pre-exposure takes a lit Coriolis face from ~64 to 190/255
 - [Phase 03]: The scene-wide clipping bound is exported (albedo bytes 101/119/139 at NdotL 1.0/0.7/0.5) so every body lit by the one sun, including the Cobra, is bounded rather than assumed safe
+- [Phase 03]: Plan 03-14: the planet noise budget is 9 evaluations (surface 6, two sea-gated 1-octave relief taps, cloud 1); RELIEF_SCALE 80 is confirmed (mean shade 0.8519, min 0.4636) and cloud coverage re-pins at 0.26001.
+- [Phase 03]: Plan 03-14 halted on G-03-3: the 29-test suite is green in both the 10- and 9-evaluation builds, but the JSON-reporter message-test duration is 160362 ms then 152390 ms against the 133 s gate; the proven dominant cost is ~340 ms of fixed loaded frame time, not the noise evaluations.
 
 ### Pending Todos
 
@@ -126,10 +128,11 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1] 23 code-review findings remain open (0 critical, 11 warning, 12 info) — quality/robustness debt, none falsifying a Phase 1 must-have; triage before the next review gate.
+- [Phase 1] 23 code-review findings remain open (0 critical, 11 warning, 12 info) — quality/robustness debt, falsifying a Phase 1 must-have; triage before the next review gate.
 - [Phase 2] Byte-determinism of generated assets across arm64 Docker vs amd64 CI is unverified; decide per-image or per-arch comparison.
 - [Phase 4] Coriolis effective gate geometry and required roll are MEDIUM confidence; measure the dock mesh before hard-coding thresholds. v1 docking damage model (bounce-only vs small hull pool) still undecided.
 - [Project] Licence election and trademark posture need a professional legal read before the first public post.
+- G-03-3 halted: 03-14 shipped a 9-evaluation planet budget but the message-expiry test measures 152390 ms (fps 2.35, drain 132.0 s) against the 133 s / 2.69 fps cadence gate. All 29 e2e tests pass. The loaded fixed per-frame cost (~340 ms), not the noise budget, dominates; a new gap plan or an explicit user decision on a frozen constraint is required.
 
 ## Deferred Items
 
@@ -141,6 +144,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-04T10:48:00.564Z
-Stopped at: Completed 03-12-PLAN.md
+Last session: 2026-11-04T15:24:05.671Z
+Stopped at: Halted 03-14-PLAN.md — cadence gate 152390 ms > 133000 ms (G-03-3 stays failed)
 Resume file: None
