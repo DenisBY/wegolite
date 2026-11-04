@@ -23,6 +23,14 @@
  * The noise is sampled on the object-space unit normal, never on a world
  * position: at 452 km a float32 world coordinate has a ~3 cm ULP and the
  * terminator would crawl as the ship moves (Pitfall 13).
+ *
+ * The day/night terminator is Oolite's per-channel threshold, not a symmetric
+ * scalar band: each component of `uTerminatorThreshold` is the cosine of the
+ * angle at which that channel reaches full light (`0.105, 0.18, 0.28` for
+ * Lave), so red saturates before green and blue. That ordering produces the
+ * warm edge, and the geometric terminator is 0% lit; the night side is the
+ * authored ambient added outside the day factor through Oolite's
+ * `(0.8, 0.8, 1.0)` tint.
  */
 
 export const PLANET_VERTEX_SHADER = /* glsl */ `
@@ -65,7 +73,8 @@ uniform float uCloudFraction;
 uniform float uCloudAlpha;
 uniform float uAirDensity;
 uniform float uAmbient;
-uniform float uTerminatorSoftness;
+uniform vec3 uAmbientTint;
+uniform vec3 uTerminatorThreshold;
 uniform float uTime;
 
 varying vec3 vLocal;
@@ -154,19 +163,23 @@ void main() {
   vec3 cloudColor = mix(uCloudColor, uPolarCloudColor, polar);
   vec3 color = mix(ground, cloudColor, cloud);
 
-  // Day/night terminator. uSunDir is the sun direction in object space, so
-  // the terminator stays fixed in space while the surface turns.
-  float day = smoothstep(
-    -uTerminatorSoftness,
-    uTerminatorSoftness,
-    dot(normalW, uSunDir)
-  );
-  float light = uAmbient + (1.0 - uAmbient) * day;
-  color *= light;
+  // Day/night terminator. uSunDir is the sun direction rotated into object
+  // space by the CPU, so NdotL must pair it with the object-space surface
+  // normal n; the world-space normal below is only for the view-dependent
+  // rim. The threshold components are cosines of the angle at which each
+  // channel reaches full light (Oolite's own comment): red saturates first at
+  // 0.105, green at 0.18 and blue last at 0.28. That ordering is the warm rim,
+  // not a colour constant, and the geometric edge is 0% lit rather than the
+  // 50% a symmetric smoothstep gives. The night side is the authored ambient
+  // added outside the day factor, through Oolite's (0.8, 0.8, 1.0) tint.
+  float ndotl = dot(n, normalize(uSunDir));
+  vec3 dayLight = smoothstep(vec3(0.0), uTerminatorThreshold, vec3(ndotl));
+  color *= dayLight + uAmbientTint * uAmbient;
 
   // A thin air-colour rim, strongest at the limb and only on the lit side.
+  float lit = max(dayLight.r, max(dayLight.g, dayLight.b));
   float rim = pow(1.0 - max(dot(normalW, normalize(vViewDirW)), 0.0), 3.0);
-  color += uAirColor * rim * uAirDensity * day;
+  color += uAirColor * rim * uAirDensity * lit;
 
   gl_FragColor = vec4(color, 1.0);
 

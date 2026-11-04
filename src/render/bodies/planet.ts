@@ -5,10 +5,10 @@
  * Lave's planet: one sphere, one procedural `ShaderMaterial` (D-01, D-02).
  *
  * Every uniform comes from the compiled `g0-s7` record — palette, polar
- * colours, land/cloud fractions, air density and the ambient floor — and the
- * noise seed is the authored six-byte `random_seed` string hashed with
- * `fnv1a32`. Nothing is hardcoded except the tessellation, which only affects
- * the silhouette.
+ * colours, land/cloud fractions, air density, the ambient level and the
+ * per-channel terminator thresholds — and the noise seed is the authored
+ * six-byte `random_seed` string hashed with `fnv1a32`. Nothing is hardcoded
+ * except the tessellation, which only affects the silhouette.
  *
  * The spin is presentation-only but must come from the simulation clock:
  * `update(elapsedSeconds)` composes `axisAngle(0, 1, 0, rotationSpeed * t)` on
@@ -84,13 +84,12 @@ function color3(
 }
 
 /**
- * The authored terminator vector is not a colour: its x component widens the
- * day/night band, clamped so the terminator can never vanish or swallow the
- * planet.
+ * The authored terminator vector is not a colour: each component is the cosine
+ * of the angle at which that channel reaches full light (`0.105, 0.18, 0.28`
+ * for Lave), so it is uploaded unchanged and the shader saturates red first.
+ * `ambient_level` is the night-side floor, applied through Oolite's
+ * `(0.8, 0.8, 1.0)` tint outside the day factor.
  */
-function terminatorSoftness(system: System): number {
-  return clamp(0.08 + system.terminatorThresholdVector[0], 0.02, 0.4);
-}
 
 /**
  * Build the planet body.
@@ -133,8 +132,15 @@ export function createPlanet(
       uCloudFraction: { value: system.cloud_fraction },
       uCloudAlpha: { value: system.cloud_alpha },
       uAirDensity: { value: system.air_density },
+      // Night side: Oolite adds `AMBIENT_LIGHT * ambientColor` with
+      // `ambientColor *= vec3(0.8, 0.8, 1.0)`, outside the day factor.
       uAmbient: { value: system.ambient_level },
-      uTerminatorSoftness: { value: terminatorSoftness(system) },
+      uAmbientTint: { value: new THREE.Vector3(0.8, 0.8, 1.0) },
+      // Authored per system (`terminator_threshold_vector`); the shader applies
+      // it per channel, so red saturates before green and blue.
+      uTerminatorThreshold: {
+        value: new THREE.Vector3(...system.terminatorThresholdVector),
+      },
       uSunDir: sunDirUniform,
       uTime: timeUniform,
     },
