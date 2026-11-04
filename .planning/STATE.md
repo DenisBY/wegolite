@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 current_phase: 03
 current_phase_name: Flight in the Lave System
-status: executing
-stopped_at: Quick 261104-oif measured the loaded frame cost; G-03-3 decision remains (real planet-shading fix vs gate revision)
-last_updated: "2026-11-04T16:58:52.232Z"
+status: complete
+stopped_at: Phase 03 complete — G-03-3 accepted as a known issue (wait 300 s, workers: 2 pinned)
+last_updated: "2026-11-04T17:45:00.000Z"
 last_activity: 2026-11-04
-last_activity_desc: Quick 261104-oif diagnostic measured — planet fragment shader owns ~281 of 369 ms; antialias worth ~135 ms
-state_head: ddad14098124f5013da28fa89f13bb64866eba97
+last_activity_desc: Phase 03 complete — G-03-3 accepted as a known issue; the browser gate is stabilised at 300 s with workers pinned
+state_head: 313a2bf
 progress:
   total_phases: 7
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 30
-  completed_plans: 29
-  percent: 29
+  completed_plans: 30
+  percent: 43
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 
 ## Current Position
 
-Phase: 03 (Flight in the Lave System) — EXECUTING
+Phase: 03 (Flight in the Lave System) — COMPLETE
 Plan: 14 of 14
-Status: Executing Phase 03
-Last activity: 2026-11-04 - Completed quick task 261104-oif: Diagnose the loaded per-frame render cost of the Lave flight scene
+Status: Phase 03 complete — ready for Phase 04 planning
+Last activity: 2026-11-04 - Phase 03 complete; accepted G-03-3 as a known issue and stabilised the browser gate
 
-Progress: [███░░░░░░░] 29%
+Progress: [████░░░░░░] 43%
 
 ## Performance Metrics
 
@@ -133,7 +133,7 @@ None yet.
 - [Phase 2] Byte-determinism of generated assets across arm64 Docker vs amd64 CI is unverified; decide per-image or per-arch comparison.
 - [Phase 4] Coriolis effective gate geometry and required roll are MEDIUM confidence; measure the dock mesh before hard-coding thresholds. v1 docking damage model (bounce-only vs small hull pool) still undecided.
 - [Project] Licence election and trademark posture need a professional legal read before the first public post.
-- G-03-3 measured (Quick 261104-oif): the loaded in-flight frame (369.4 ms at 2.71 fps) is dominated by the planet fragment shader (~281 ms; hiding the planet leaves 29.9 ms, flattening only the fragment body with unchanged 38308 triangles and 6 calls leaves 88.4 ms). antialias:false is real (~135 ms; SAMPLES 4 -> 0); half resolution saves ~199 ms. Remaining decision: pursue a real planet-shading fix (ample headroom) or revise the frozen gate — the measurement does not force a revision.
+- G-03-3 accepted as a known issue (2026-11-04, `PROJECT.md` Key Decisions): the loaded in-flight frame (369.4 ms at 2.71 fps under SwiftShader) is fill-bound and the planet fragment shader owns ~281 ms; the cheap fixes (`antialias:false` ~135 ms, half resolution ~199 ms) would change the approved look. The message-expiry spec is a correctness wait, so it now has a 300 s ceiling with `workers: 2` pinned; QUAL-01 (60 fps at 1080p, mid-range hardware) stays Phase 7's requirement on a real GPU. Do not re-open the octave budget: `BUDGET_CEILING = 9`.
 - [Test infra] `tests/guards/content-boundary.test.ts > removes the probe even when the body throws` runs on Vitest's 5 s default while its five siblings use `180_000`; it timed out at 5 s in one full `verify` run under load and passes in isolation (file 6/6 in 24 s). Give it an explicit timeout — unrelated to 03-14.
 
 ### Quick Tasks Completed
@@ -141,6 +141,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 261104-oif | Diagnose the loaded per-frame render cost of the Lave flight scene: GL context attributes, MSAA A/B, resolution scaling, hidden-planet arm, and split launch vs in-flight frame timing | 2026-11-04 | ddad140 | [261104-oif-diagnose-the-loaded-per-frame-render-cos](./quick/261104-oif-diagnose-the-loaded-per-frame-render-cos/) |
+| 261104-p2m | Stabilise the message-expiry browser gate (300 s wait, `workers: 2` pinned), update the frozen-contract guard, and record G-03-3 as an accepted known issue | 2026-11-04 | 313a2bf | [261104-p2m-stabilize-the-message-expiry-browser-gat](./quick/261104-p2m-stabilize-the-message-expiry-browser-gat/) |
 
 ## Deferred Items
 

@@ -137,7 +137,7 @@ Plans:
 - [x] 03-11-PLAN.md — G-03-1: calibrated PlanetMix surface, coastline/snowline/relief, authored polar ice
 - [x] 03-12-PLAN.md — G-03-1: one exposure contract, Oolite-bright station, authored emissive
 - [x] 03-13-PLAN.md — G-03-2: viewport aspect applied on every camera install, with browser regression
-- [ ] 03-14-PLAN.md — G-03-3: planet per-pixel noise budget 16 -> 10 (9 on the fallback), full 29-test suite green with measured headroom
+- [x] 03-14-PLAN.md — G-03-3: planet per-pixel noise budget 16 -> 9 (the 10-eval fallback was taken); SwiftShader cadence accepted as a known issue (wait 300 s, `workers: 2` pinned)
 
 ### Phase 4: Manual Docking
 **Goal**: The player can dock a Cobra by hand with real feedback and real risk, and can buy a docking computer when they would rather not.
@@ -199,7 +199,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Foundation, Containers & Compliance | 7/7 | Complete    | 2026-11-02 |
 | 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
-| 3. Flight in the Lave System | 13/13 | In Progress | - |
+| 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
 | 4. Manual Docking | 0/TBD | Not started | - |
 | 5. Docked Economy & Station Screens | 0/TBD | Not started | - |
 | 6. Hyperspace, Navigation & Persistence | 0/TBD | Not started | - |
