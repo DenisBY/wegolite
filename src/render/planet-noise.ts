@@ -40,16 +40,17 @@ export const SURFACE_SCALE = 3.1;
 export const SURFACE_OCTAVES = 6;
 export const RELIEF_OCTAVES = 1;
 export const CLOUD_SCALE = 5.3;
-export const CLOUD_OCTAVES = 2;
+export const CLOUD_OCTAVES = 1;
 
 /**
  * The fragment shader's worst-case value-noise evaluations per pixel.
  *
  * Derived from its parts — six surface octaves, two relief taps of
  * `RELIEF_OCTAVES` each, and the cloud field — so it cannot drift from the
- * constants it describes. The average is about 9.3 because the relief taps run
- * only on land (0.6499 of the sphere for Lave); it is 9 worst case / about 8.3
- * average if the pre-agreed slow-run step lowers `CLOUD_OCTAVES` to 1.
+ * constants it describes. It is 9 worst case / about 8.3 average because the
+ * relief taps run only on land (0.6499 of the sphere for Lave). This is the
+ * pre-agreed slow-run step: the ten-evaluation build measured a 160 s message
+ * test, above the 133 s cadence gate.
  *
  * `tests/render/planet-budget.test.ts` is the guard: the define-derived sum must
  * equal this value and stay at or below a pinned ceiling. Lowering any octave

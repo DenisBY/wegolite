@@ -42,11 +42,13 @@
  * authored ambient added outside the day factor through Oolite's
  * `(0.8, 0.8, 1.0)` tint.
  *
- * The per-pixel noise budget is 10 value-noise evaluations worst case: six for
- * the surface, one for each of the two sea-gated relief taps and two for the
+ * The per-pixel noise budget is 9 value-noise evaluations worst case: six for
+ * the surface, one for each of the two sea-gated relief taps and one for the
  * cloud field. The relief taps run only on land (0.6499 of the sphere for
- * Lave), so the average is about 9.3. The software-rasterised end-to-end suite
- * measures this budget by wall duration: the fixed-step loop advances simulated
+ * Lave), so the average is about 8.3. This is the pre-agreed slow-run step down
+ * from ten evaluations: the ten-evaluation build measured a 160 s message test,
+ * above the 133 s cadence gate. The software-rasterised end-to-end suite
+ * measures the budget by wall duration: the fixed-step loop advances simulated
  * time at `fps x 5/120`, so a slower shader starves the message-expiry test's
  * fixed wait (T-3-31, T-3-36).
  */
@@ -129,11 +131,11 @@ varying vec3 vViewDirW;
 #define DEEPS 0.25
 
 // Per-pixel noise-budget octave counts, mirrored in src/render/planet-noise.ts:
-// SURFACE_OCTAVES = 6, RELIEF_OCTAVES = 1, CLOUD_OCTAVES = 2. The budget guard
+// SURFACE_OCTAVES = 6, RELIEF_OCTAVES = 1, CLOUD_OCTAVES = 1. The budget guard
 // in tests/render/planet-budget.test.ts asserts each define equals its mirror.
 #define SURFACE_OCTAVES 6
 #define RELIEF_OCTAVES 1
-#define CLOUD_OCTAVES 2
+#define CLOUD_OCTAVES 1
 
 // Deterministic 3D value noise: a hash of the lattice corner plus trilinear
 // interpolation. No texture lookups and no world-space coordinates.

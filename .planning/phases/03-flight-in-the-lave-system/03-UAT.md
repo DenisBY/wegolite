@@ -4,20 +4,23 @@ phase: 03-flight-in-the-lave-system
 source:
   - 03-VERIFICATION.md
 started: 2026-11-04T11:30:37Z
-updated: 2026-11-04T13:20:21.044Z
+updated: 2026-11-04T15:22:32.000Z
 ---
 
 ## Current Test
 
-[testing complete]
+number: 1
+name: Lave visual fidelity after the gap closure
+awaiting: user response
 
 ## Tests
 
 ### 1. Lave visual fidelity after the gap closure
 expected: New game, launch, and fly toward Lave's planet and station at 1080p. The planet reads green/mauve (authored land bytes 92,150,31; sea 150,100,146) with polar ice and a terminator fixed relative to the sun; the sun is white with a thin corona; stars are sparse; the Coriolis lit faces read around 190/255 — not lime-green, not near-black, not an Earth-like blue marble.
 why_human: Visual fidelity is a judgement; the phase deliberately forbids pixel evidence and GPU rasterisation varies.
-result: pass
+result: [pending]
 reported: "looking good" (1080p screenshot: mauve/green planet, polar ice, sun-relative terminator, white sun, sparse stars, lit Coriolis)
+reopened: "the reduced relief (3 -> 1 octave) and cloud (4 -> 1 octave, the slow-run step) fields change the approved look; re-run on a real GPU before accepting (03-14-PLAN.md)"
 
 ### 2. Real-GPU aspect check
 expected: At 2222x1000 (and an ultrawide window), launch and fly. The planet limb is a circle, the Coriolis is not squashed, and rotation traces circles. The e2e proves `probe.aspect` equals 2.222 numerically; this check confirms the rasterised result on a real GPU.
@@ -53,9 +56,9 @@ reported: "pass"
 ## Summary
 
 total: 6
-passed: 5
+passed: 4
 issues: 1
-pending: 0
+pending: 1
 skipped: 0
 blocked: 0
 
@@ -83,3 +86,4 @@ blocked: 0
     - "Reduce planet fragment-shader cost so rendered cadence returns to >=24 fps with headroom under SwiftShader"
     - "Prove it with the full 29-test e2e suite, not only scene+hud"
   debug_session: .planning/debug/e2e-message-expiry-timeout.md
+  restatement: "missing[0] ('rendered cadence >= 24 fps') is restated as the drain arithmetic the loop actually obeys: sim rate = fps x 5/120, so the unchanged 150 s wait needs fps >= 12.92 x 24 / 115.4 = 2.69 for 1.3x headroom (drain <= 150/1.3 = 115.4 s), with the launch segment adding 48/fps. The shipped 9-evaluation build measured 152390 ms (fps 2.35, launch 20.4 s, drain 132.0 s, headroom 1.14x) on the JSON reporter, still above the 133 s / 2.69 fps gate; the 10-evaluation build measured 160362 ms (fps 2.23, launch 21.5 s, drain 139.0 s, headroom 1.08x). Both runs passed all 29 tests. G-03-3 stays failed: the cadence gate is NOT met."

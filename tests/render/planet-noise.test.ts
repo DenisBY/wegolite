@@ -338,8 +338,8 @@ describe("calibrated clouds (pinned system g0-s7)", () => {
       }).length / DIRECTIONS.length;
 
     expect(Math.abs(coverage - CLOUD_FRACTION)).toBeLessThan(0.03);
-    // Re-pinned for the two-octave field (03-14): 0.26001 measured, by
-    // construction the authored 0.26.
+    // Re-pinned for the one-octave field (03-14 slow-run step): 0.26001
+    // measured, by construction the authored 0.26.
     expect(coverage).toBeCloseTo(0.26, 2);
     expect(clouds.noiseScale).toBeGreaterThan(0);
   });
