@@ -112,6 +112,11 @@ export interface WegoliteProbe {
   hint?: string;
   /** Present once a system scene exists. */
   world?: WegoliteWorldProbe;
+  /**
+   * The live active-camera aspect (WORLD-02). The e2e proof reads this instead
+   * of a screenshot. Absent on the failure surface, where no camera renders.
+   */
+  aspect?: number;
   /** Present only under `?test=1`. */
   test?: WegoliteTestHook;
   /** Present only on the failure surface. */

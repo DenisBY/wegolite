@@ -178,6 +178,9 @@ if (!boot.ok) {
     // `applyViewport` is the single writer of `camera.aspect`; the manager uses
     // it on every scene install, and this is the resize path.
     applyViewport(scenes.active().camera, { width, height });
+    // Before a session exists this is the only frame that publishes the live
+    // aspect; `renderFrame` takes over once the system scene is installed.
+    probe.aspect = scenes.active().camera.aspect;
     session.resize();
     renderActiveScene();
   }

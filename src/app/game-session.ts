@@ -429,6 +429,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       return;
     }
 
+    // WORLD-02: the live projection aspect, published from the one camera that
+    // is actually rendered. `start()`, every frame and `swapSystem()` all pass
+    // through here, so a rebuilt scene can never leave the field stale.
+    probe.aspect = currentScene.camera.aspect;
+
     applyStationRoll(currentScene, currentState.stationAngle);
     // The launch cinematic and the cockpit handover supply a world pose; while
     // docked the first-person pose is derived from the interpolated ship pose.
