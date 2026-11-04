@@ -22,6 +22,7 @@ import { fnv1a32 } from "../../sim/hash.js";
 import { axisAngle, clamp, rotateInverse } from "../../sim/math.js";
 import type { Vec3 } from "../../sim/math.js";
 import { LayoutError } from "../../sim/world/layout.js";
+import { decodeColor3 } from "../color.js";
 import {
   PLANET_FRAGMENT_SHADER,
   PLANET_VERTEX_SHADER,
@@ -67,10 +68,19 @@ export function landThresholdFor(landFraction: number, seed: number): number {
   return clamp(base + (jitter - 0.5) * 0.02, 0.02, 0.98);
 }
 
+/**
+ * Decode an authored `planetinfo` colour to linear light and upload it.
+ *
+ * The palette is sRGB texture data (Oolite writes `255 * color` bytes and
+ * decodes them before lighting), so the raw triple must never reach the
+ * shader: the fragment stage ends with `<colorspace_fragment>`, which encodes
+ * once on output. `color.ts` stays Three-free; the `Vector3` wrap happens here.
+ */
 function color3(
   value: readonly [number, number, number, number],
 ): THREE.Vector3 {
-  return new THREE.Vector3(value[0], value[1], value[2]);
+  const [red, green, blue] = decodeColor3(value);
+  return new THREE.Vector3(red, green, blue);
 }
 
 /**

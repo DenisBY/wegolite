@@ -24,6 +24,7 @@ import {
   landThresholdFor,
   seedToUniform,
 } from "../../src/render/bodies/planet.js";
+import { linearToSrgb } from "../../src/render/color.js";
 import {
   PLANET_FRAGMENT_SHADER,
   PLANET_VERTEX_SHADER,
@@ -62,9 +63,34 @@ function uniform<T>(material: THREE.ShaderMaterial, name: string): T {
   return entry.value as T;
 }
 
-function color(value: THREE.Vector3): [number, number, number] {
-  return [value.x, value.y, value.z];
+/**
+ * The pre-lighting albedo byte of a palette uniform.
+ *
+ * This measures the uniform, not a rendered pixel: a lit pixel additionally
+ * carries `dayLight + uAmbientTint * uAmbient`, so a fully lit land pixel reads
+ * ≈(95,155,32) rather than the authored `(92,150,31)`. Encoding the uniform
+ * once is exactly the contract the shader's `<colorspace_fragment>` applies.
+ */
+function albedoByte(value: THREE.Vector3): [number, number, number] {
+  return [
+    Math.round(linearToSrgb(value.x) * 255),
+    Math.round(linearToSrgb(value.y) * 255),
+    Math.round(linearToSrgb(value.z) * 255),
+  ];
 }
+
+/** Lave's authored `planetinfo` bytes: `255 * colour`, Oolite's texture form. */
+const LAVE_PALETTE_BYTES: ReadonlyArray<
+  readonly [string, readonly [number, number, number]]
+> = [
+  ["uLandColor", [92, 150, 31]],
+  ["uSeaColor", [150, 100, 146]],
+  ["uPolarLandColor", [238, 232, 217]],
+  ["uPolarSeaColor", [253, 253, 253]],
+  ["uPolarCloudColor", [241, 172, 105]],
+  ["uCloudColor", [204, 204, 204]],
+  ["uAirColor", [0, 0, 255]],
+];
 
 describe("planet shader source", () => {
   it("is long enough for the chunk assertions to mean something", () => {
@@ -115,30 +141,30 @@ describe("planet shader source", () => {
 });
 
 describe("planet uniforms", () => {
-  it("uses Lave's compiled palette and fractions", () => {
+  it("decodes Lave's palette to linear light exactly once", () => {
     const material = planet().material;
 
-    expect(color(uniform<THREE.Vector3>(material, "uLandColor"))).toEqual([
-      0.36, 0.58882, 0.120234,
-    ]);
-    expect(color(uniform<THREE.Vector3>(material, "uSeaColor"))).toEqual([
-      0.589844, 0.393997, 0.573013,
-    ]);
-    expect(color(uniform<THREE.Vector3>(material, "uPolarLandColor"))).toEqual([
-      0.934, 0.908817, 0.849174,
-    ]);
-    expect(color(uniform<THREE.Vector3>(material, "uPolarSeaColor"))).toEqual([
-      0.9941016, 0.9932904, 0.9934303,
-    ]);
-    expect(color(uniform<THREE.Vector3>(material, "uPolarCloudColor"))).toEqual(
-      [0.946484, 0.675422, 0.4127],
-    );
-    expect(color(uniform<THREE.Vector3>(material, "uCloudColor"))).toEqual([
-      0.8, 0.8, 0.8,
-    ]);
-    expect(color(uniform<THREE.Vector3>(material, "uAirColor"))).toEqual([
-      0, 0, 1,
-    ]);
+    for (const [name, authored] of LAVE_PALETTE_BYTES) {
+      expect(albedoByte(uniform<THREE.Vector3>(material, name))).toEqual([
+        ...authored,
+      ]);
+    }
+
+    // The uniform itself is linear light, not the authored sRGB triple.
+    const land = uniform<THREE.Vector3>(material, "uLandColor");
+    expect(land.x).toBeCloseTo(0.106539, 6);
+    expect(land.y).toBeCloseTo(0.305653, 6);
+    expect(land.z).toBeCloseTo(0.013455, 6);
+
+    // Negative control: the pre-fix value fed the raw triple to the shader and
+    // the output encoder made it (162,202,97) instead of (92,150,31).
+    expect(land.x).not.toBe(0.36);
+    expect(Math.round(land.x * 255)).not.toBe(92);
+    expect(albedoByte(land)).not.toEqual([162, 202, 97]);
+  });
+
+  it("uses Lave's compiled fractions", () => {
+    const material = planet().material;
 
     expect(uniform<number>(material, "uLandFraction")).toBe(0.65);
     expect(uniform<number>(material, "uCloudFraction")).toBe(0.26);
