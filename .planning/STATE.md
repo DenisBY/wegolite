@@ -23,12 +23,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-02)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 03 — Flight in the Lave System
+**Current focus:** Phase 04 — Manual Docking
 
 ## Current Position
 
 Phase: 04 (Manual Docking) — READY TO EXECUTE
-Plan: Not started
+Plan: 5 plans ready (04-01 … 04-05)
 Status: Ready to execute
 Last activity: 2026-11-04 — Phase 03 complete, transitioned to Phase 4
 
