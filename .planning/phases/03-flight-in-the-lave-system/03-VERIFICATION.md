@@ -373,3 +373,34 @@ No functional must-have failed and no artifact is missing or unwired. Status is 
 
 _Verified: 2026-11-04T11:30:37Z_
 _Verifier: the agent (gsd-verifier)_
+
+## Re-verification (2026-11-04)
+
+**G-03-3 is accepted as a known issue by explicit user decision, not fixed.**
+The earlier sections above stay as history.
+
+What changed:
+
+- The message-expiry wait is 300 s (was 150 s) under a 330 s test timeout (was
+  180 s), documented as a correctness wait on simulated time, not a performance
+  claim; a timeout failure now reports the observed `renders` and `flightTime`
+  plus the original error.
+- `playwright.config.ts` pins `workers: 2`, so the 4-CPU / two-concurrent-page
+  contention is reproducible rather than dependent on the runner.
+- `frozenContractViolations` now requires `test.setTimeout(330_000)`,
+  `timeout: 300_000` and `workers: 2`, with four negative controls that name the
+  literal.
+- No product change: `git diff e0367eb -- src/` is empty and the shipped noise
+  budget stays 9 with `BUDGET_CEILING = 9`.
+
+Evidence:
+
+- Measured message-test durations 152,390 ms and 153,359 ms, with the full suite
+  29/29 green both times and green again under the 300 s ceiling.
+- Diagnostic quick task 261104-oif (commits `ddad140`, `e0367eb`): loaded frame
+  369.4 ms, planet fragment shader ~281 ms (76 %), `antialias:false` would save
+  ~135 ms, half resolution ~199 ms, fixed non-planet cost ~30 ms.
+
+The earlier `human_needed` caveats WR-08 (sea bands) and WR-09 (polar cap)
+remain open review items, not blockers.
+

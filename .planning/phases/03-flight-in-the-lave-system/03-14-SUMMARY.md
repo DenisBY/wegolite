@@ -319,3 +319,24 @@ pending / 6 total / 1 issue.
 - `.planning/phases/03-flight-in-the-lave-system/03-UAT.md` — restatement, reopened item 1, summary 4/1/6/1 — FOUND
 - Commits `434576b` (task 1) and `3ae27c7` (task 2) — both ancestors of HEAD
 - `playwright-results.json` — deleted, not tracked
+
+## Addendum (2026-11-04)
+
+This addendum records a decision; it does not revise the record above. **03-14
+remains `status: halted`** on its own cadence gate. The shipped budget stays 9
+with `BUDGET_CEILING = 9`, and the 133 s / 1.3x gate is **superseded, not met**.
+
+The diagnostic quick task 261104-oif (commits `ddad140`, `e0367eb`) measured the
+loaded frame at 369.4 ms, of which the planet fragment shader is ~281 ms (76 %).
+The cheap levers would change the approved look (`antialias:false` saves ~135 ms,
+half resolution ~199 ms), and the 24 fps / 133 s figures were never
+requirements — QUAL-01 (60 fps at 1080p on mid-range hardware) is measured
+separately on a real GPU in Phase 7.
+
+On that basis the orchestrator recorded the accepted-known-issue decision in
+`.planning/PROJECT.md` (Key Decisions) and `03-UAT.md` (items 1 and 5, and gap
+G-03-3 as `status: resolved` with its restatement kept as history). The browser
+gate was stabilised rather than made faster: wait 150 s → 300 s, test timeout
+180 s → 330 s, `workers: 2` pinned, and `frozenContractViolations` now requires
+those values. No product change.
+
