@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 03
 current_phase_name: Flight in the Lave System
 status: executing
-stopped_at: Completed 03-13-PLAN.md
-last_updated: "2026-11-04T10:24:27.797Z"
+stopped_at: Completed 03-11-PLAN.md
+last_updated: "2026-11-04T10:38:56.645Z"
 last_activity: 2026-11-04
 last_activity_desc: Phase 03 execution resumed (wave continue)
-state_head: 2cedd1471c86f8a32705513ab7017b865a4919fd
+state_head: 3374c07473042d68022eb52655d8e054f53a7e54
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 29
-  completed_plans: 27
+  completed_plans: 28
   percent: 29
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 03 (Flight in the Lave System) — EXECUTING
-Plan: 3 of 9
+Plan: 4 of 9
 Status: Ready to execute
 Last activity: 2026-11-04 — Phase 03 execution resumed (wave continue)
 
@@ -68,6 +68,7 @@ Progress: [███░░░░░░░] 29%
 | Phase 02 P09 | 5 min | 3 tasks | 12 files |
 | Phase 03 P10 | 5 min | 2 tasks | 5 files |
 | Phase 03 P13 | 6 min | 2 tasks | 8 files |
+| Phase 03 P11 | 10min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -114,6 +115,7 @@ Recent decisions affecting current work:
 - [Phase 03]: Plan 03-10: the terminator is Oolite's per-channel smoothstep against terminatorThresholdVector (red saturates first), with the authored ambient added outside the day factor through (0.8,0.8,1.0); NdotL pairs the object-space normal with the object-space sun.
 - [Phase 03]: Plan 03-13: src/render/viewport.ts is the only writer of camera.aspect; the SceneManager applies the renderer's CSS size on every camera install (empty, menu, system and swap), so the projection is uniform without a window resize.
 - [Phase 03]: Plan 03-13: applyViewport rejects zero, negative, NaN and infinite sizes and leaves the projection byte-identical, so a hidden or minimised window cannot write an Infinity aspect.
+- [Phase 03]: Planet surface calibration is measured, not constant: calibrateSurface cuts the field at the land_fraction quantile (0.6499 for Lave), mixHi = 0.66667 * (1 + seaBias) = 0.28581 keeps the snowline reachable, percent_ice drives the polar cap, and uReliefScale 80 is documented presentation tuning.
 
 ### Pending Todos
 
@@ -136,6 +138,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-04T10:24:27.429Z
-Stopped at: Completed 03-13-PLAN.md
+Last session: 2026-11-04T10:38:56.267Z
+Stopped at: Completed 03-11-PLAN.md
 Resume file: None
