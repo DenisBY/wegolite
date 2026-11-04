@@ -1,8 +1,8 @@
 ---
 phase: 03-flight-in-the-lave-system
-reviewed: 2026-11-03T20:41:00Z
+reviewed: 2026-11-04T11:20:00Z
 depth: standard
-files_reviewed: 101
+files_reviewed: 112
 files_reviewed_list:
   - eslint.config.js
   - index.html
@@ -17,6 +17,7 @@ files_reviewed_list:
   - src/app/mode.ts
   - src/app/probe.ts
   - src/app/scene-manager.ts
+  - src/content/schemas/system.ts
   - src/content/ships.ts
   - src/content/types.ts
   - src/input/actions.ts
@@ -32,6 +33,8 @@ files_reviewed_list:
   - src/render/bodies/station.ts
   - src/render/bodies/sun.ts
   - src/render/break-pattern.ts
+  - src/render/color.ts
+  - src/render/exposure.ts
   - src/render/hud/draw.ts
   - src/render/hud/format.ts
   - src/render/hud/hud.ts
@@ -40,9 +43,11 @@ files_reviewed_list:
   - src/render/launch-camera.ts
   - src/render/menu-scene.ts
   - src/render/mesh.ts
+  - src/render/planet-noise.ts
   - src/render/shaders/planet.glsl.ts
   - src/render/sync.ts
   - src/render/system-scene.ts
+  - src/render/viewport.ts
   - src/settings/schema.ts
   - src/settings/store.ts
   - src/sim/cadence.test.ts
@@ -72,6 +77,7 @@ files_reviewed_list:
   - tests/app/launch-sequence.test.ts
   - tests/app/tracer.test.ts
   - tests/content/player-ship.test.ts
+  - tests/e2e/aspect.spec.ts
   - tests/e2e/dispose.spec.ts
   - tests/e2e/fallback.spec.ts
   - tests/e2e/flight.spec.ts
@@ -88,12 +94,17 @@ files_reviewed_list:
   - tests/hud/format.test.ts
   - tests/hud/projection.test.ts
   - tests/input/bindings.test.ts
+  - tests/render/color.test.ts
   - tests/render/dust.test.ts
+  - tests/render/exposure.test.ts
   - tests/render/launch-camera.test.ts
+  - tests/render/planet-noise.test.ts
   - tests/render/planet-shader.test.ts
+  - tests/render/planet-surface.test.ts
   - tests/render/starfield.test.ts
   - tests/render/station.test.ts
   - tests/render/sync.test.ts
+  - tests/render/viewport.test.ts
   - tests/settings/schema.test.ts
   - tests/sim/aegis.test.ts
   - tests/sim/flight-attitude.test.ts
@@ -107,18 +118,18 @@ files_reviewed_list:
   - tests/sim/torus.test.ts
 findings:
   critical: 1
-  warning: 7
-  info: 7
-  total: 15
+  warning: 10
+  info: 13
+  total: 24
   necessity: 0
 status: issues_found
 ---
 
 # Phase 3: Code Review Report
 
-**Reviewed:** 2026-11-03T20:41:00Z
+**Reviewed:** 2026-11-04T11:20:00Z
 **Depth:** standard
-**Files Reviewed:** 101
+**Files Reviewed:** 112
 **Status:** issues_found
 
 ## Summary
@@ -435,8 +446,117 @@ built body's disposer also throws, the construction error is replaced and
 **Fix:** Capture the dispose error, clear the scene in a `finally`, and rethrow
 the original construction error (attach the dispose error as `cause`).
 
+## Gap-Closure Re-Review (03-10 – 03-13)
+
+**Reviewed:** 2026-11-04T11:20:00Z
+**Depth:** standard
+**New files:** 11 (5 source, 6 tests) — total scope now 112.
+**Verification observed:** `docker compose run --rm test npx vitest run tests/render tests/app` → 15 files, 146 tests passed. The findings below are the paths that suite does **not** exercise.
+
+This incremental pass covers the four gap-closure plans (03-10 colour-space/terminator, 03-11 calibrated PlanetMix surface, 03-12 exposure/station, 03-13 viewport/aspect). Their headline claims hold: the palette is decoded exactly once and re-encodes to the authored bytes, the terminator now pairs the object-space normal with the object-space sun (closing WR-01), the `applyOutputContract` is the only writer of colour space/tone mapping/exposure, every `SceneManager` install applies the renderer's aspect, and the GLB extras path is validated with a finite fallback (GLTFLoader does copy `extras` to `material.userData`, and `Material.copy` deep-copies it — verified against `node_modules/three/examples/jsm/loaders/GLTFLoader.js:3819` and `src/materials/Material.js:1214`).
+
+Two substantive defects remain in the Oolite port, plus a test-parity gap that lets the calibration drift silently.
+
+### WR-08: Oolite's `deepSeaColor` and `paleSeaColor` are ported with the `Blend` arguments reversed
+
+**File:** `src/render/shaders/planet.glsl.ts:206-207` (used at 215, 220, 224); `tests/render/planet-shader.test.ts:240-241`
+
+**Issue:** Oolite defines `Blend(fraction, a, b) = Lerp(b, a, fraction) = mix(b, a, fraction)` (`OOPlanetTextureGenerator.m:576-583`), and derives `paleSeaColor = Blend(0.35, polarSea, Blend(0.7, sea, land))` (`:410`) and `deepSeaColor = Blend(0.85, sea, black)` (`:421`). Both shader expressions invert the weight:
+
+```glsl
+vec3 deepSeaColor = mix(uSeaColor, vec3(0.0), 0.85);                            // 0.15 x sea, not 0.85 x sea
+vec3 paleSeaColor = mix(uPolarSeaColor, mix(uSeaColor, uLandColor, 0.7), 0.35); // 0.65 polar + 0.35 x (0.3 sea + 0.7 land)
+```
+
+For Lave's authored palette, Oolite's deep sea is ≈(139,93,136) and its pale sea ≈(188,181,184); the shader produces ≈(60,38,59) — nearly black — and ≈(217,221,214) — washed-out white. That is exactly the "washed-out" read G-03-1 set out to remove, just moved from the land to the shelf/deep bands. The test comment on line 240 ("Deep sea is 0.15x the sea colour (Blend(0.85, sea, black))") states the inversion as if it were Oolite's, so the suite locks the defect in.
+
+**Fix:**
+
+```glsl
+vec3 deepSeaColor = mix(vec3(0.0), uSeaColor, 0.85);
+vec3 paleSeaColor = mix(
+  mix(uLandColor, uSeaColor, 0.7),
+  uPolarSeaColor,
+  0.35
+);
+```
+
+Update the test's string/comment accordingly and add a pin on the derived colours (or move them through the CPU mirror) so the argument order is asserted, not just the string.
+
+### WR-09: Polar cap, polar cloud boundary and the Q-factor pole lift use `sin²(latitude)`, not Oolite's `(latitude / 90°)²`
+
+**File:** `src/render/shaders/planet.glsl.ts:258` (`nearPole = n.y * n.y`), 248-252 (`phi` and ice), 309 (polar cloud); `src/render/planet-noise.ts:321-324, 376-377, 423-425, 483-484`
+
+**Issue:** Oolite's texture generator computes `nearPole = ((2*fy - height)/height)²` from the **texture row** (`OOPlanetTextureGenerator.m:438-439,452-453`) and feeds it to `QFactor` and `PlanetMix`. The planet sphere's texture coordinate is latitude-linear (`kOOPlanetTexCoords`, `OOPlanetDrawable.m:252`; e.g. row 3200 is latitude 54.2° at `v = 0.199`), so Oolite's `nearPole` is `(lat/90°)²`. The shader and mirror use `n.y² = sin²(lat)`. The two values differ substantially: 0.5 vs 0.25 at 45°, and 0.579 vs 0.304 at the measured 49.59°. Because `phi = 2*polarCap - nearPole`, the ice edge, the polar cloud tint (`smoothstep(0.33, 0.53, nearPole)`) and the `uPoleValue` lift of `q` all sit much closer to the equator than Oolite's formula for the same `polar_fraction` (the same threshold corresponds to ≈68° under Oolite's parameterisation). The tests cannot catch this because the mirror uses the same `sin²` definition. Secondary: the ice ramp is `clamp((q-phi)/0.02, 0.2, 1.0)`, while Oolite ramps `0.2 + 0.8*(q-phi)/0.02`; at the midpoint the shader paints 0.5 where Oolite paints 0.6.
+
+**Fix:** If Oolite fidelity is intended, use the latitude parameterisation on both sides:
+
+```glsl
+float latitude = asin(clamp(n.y, -1.0, 1.0)) / (0.5 * PI);
+float nearPole = latitude * latitude;
+```
+
+and mirror it in `planet-noise.ts` (`Math.asin(...) / (Math.PI / 2)`), then re-derive the pinned cap/cloud/highland numbers. If `sin²(lat)` is a deliberate reparameterisation, drop the "Oolite's `phi`" framing and the 49.59° "Oolite" claim from the plan/summary. Also use `ICE_RAMP` for the ramp so the mirror and shader share one number.
+
+### WR-10: The mirror/shader parity suite pins only three band `#define`s; the noise constants and the ice ramp can drift silently
+
+**File:** `tests/render/planet-surface.test.ts:125-131`; `src/render/planet-noise.ts:39-60,123-184,303-336`; `src/render/shaders/planet.glsl.ts:123-172,250,264,279-280,290-293`
+
+**Issue:** `planet-noise.test.ts` proves the mirror's own invariants and `planet-surface.test.ts` compares `COASTLINE_PORTION`/`SHALLOWS`/`DEEPS` to the shader's `#define`s. Nothing compares the shader's `hash31` offsets (`0.71/0.113/0.419`), its `17.0` factor, the `2.03` step with `(1.7, 9.2, 4.1)`, the `0.5` amplitude, the 6-octave cap, `SURFACE_SCALE = 3.1`, `CLOUD_SCALE = 5.3`, the `seed * 1.7 + 13` offset, `CLOUD_OCTAVES = 4`, or the `0.02` ice ramp to the mirror. A change to any one of them changes every calibration number (`0.6499` land, `0.28581` mixHi, `0.4142` cap, `0.2595` cloud share) while the whole suite stays green. The summary claims "the contract test keeps the shader and the mirror from drifting apart"; it only keeps three band constants aligned. (`ICE_RAMP` is exported but has no reader at all.)
+
+**Fix:** Add a source scan in the spirit of `vectorSpaceViolations` that asserts the fragment shader contains the exact constants/caps, and assert the shader's `0.02` equals `ICE_RAMP`; or generate the GLSL constants from the mirror.
+
+### IN-08: `uLandFraction` and `uCloudFraction` are declared and supplied but never read
+
+**File:** `src/render/shaders/planet.glsl.ts:106-108`; `src/render/bodies/planet.ts:158-159`; `tests/render/planet-shader.test.ts:285-293`
+
+**Issue:** After the quantile calibration, neither uniform is referenced by the shader. They exist only so the "declared set equals supplied set" contract test passes; the plan's rationale ("so the material cannot accumulate dead wiring") is backwards. The test also pins their values, reinforcing the dead wiring.
+
+**Fix:** Remove both uniforms and update the contract test, or actually consume them (e.g. as debug readouts), so the set-equality test keeps its meaning.
+
+### IN-09: The neutral-emissive fallback does not set a neutral colour
+
+**File:** `src/render/bodies/station.ts:95-104` (comment), 117-124 (fallback path); `tests/render/station.test.ts:303-315`
+
+**Issue:** `applyNeutralEmissive` sets `emissiveIntensity = 1` and leaves `material.emissive` as GLTFLoader set it. The comment says "GLTFLoader gives every material `emissiveFactor (1,1,1)`", but the glTF default is `[0,0,0]`; only this asset authors `[1,1,1]`. On an asset with missing extras and a default emissive, the fallback that is meant to avoid "vanishing" produces a black emissive. The missing-extras test uses `new MeshStandardMaterial()` (black emissive) and only asserts finite values, so it cannot tell a neutral glow from black.
+
+**Fix:** In the fallback, set `material.emissive.setRGB(1, 1, 1)` (or a documented neutral tint) before `emissiveIntensity = 1`, and assert a non-zero emissive product in the missing-extras case.
+
+### IN-10: `color.ts`'s clamp passes `NaN` through while the exposure clamp maps non-finite to 0
+
+**File:** `src/render/color.ts:43-48`; compare `src/render/exposure.ts:76-90`
+
+**Issue:** `clamp01(NaN)` returns `NaN` (both comparisons are false), so `srgbToLinear(NaN)`/`linearToSrgb(NaN)` propagate `NaN`. The exposure module's own `clamp01` maps every non-finite value to 0. A malformed authored colour would upload a `NaN` palette uniform and produce undefined pixels rather than a safe black, contradicting the module's own "a bad uniform cannot extrapolate" contract.
+
+**Fix:** `if (!Number.isFinite(value)) return 0;` before the range checks, matching `exposure.ts`.
+
+### IN-11: The `?test=1` swap e2e can pass without performing a swap
+
+**File:** `tests/e2e/aspect.spec.ts:122-126`
+
+**Issue:** `await window.__wegolite?.test?.swapSystem()` silently does nothing when the hook or method is absent; the following `expectAspect` then reads the pre-swap aspect and passes. The spec claims to prove the swap path re-applies the viewport, but it only proves the aspect did not change.
+
+**Fix:** Assert `typeof window.__wegolite?.test?.swapSystem === "function"` before calling it, and assert an observable swap effect (e.g. `probe.renders`/`probe.memory` changing, or a scene identity field) after it.
+
+### IN-12: Three doc comments contradict the code
+
+**File:** `src/render/shaders/planet.glsl.ts:101-104`; `src/render/exposure.ts:139-140`; `src/render/exposure.ts:218-231`
+
+**Issue:** (a) "Eight times the plan's starting value" — `RELIEF_SCALE` 80 is 20× the plan's 4.0. (b) "each has unit column sums" — the ACES matrices have unit **row** sums, which is the property `multiplyMatrix` relies on for a grey pixel. (c) "the largest authored albedo byte that still displays without saturating" — `clippingAlbedoByteFor(1)` returns 101, whose display is already 255; 100 is the largest non-saturating byte.
+
+**Fix:** Correct the comments (20×; row sums; "the first byte that clips").
+
+### IN-13: `start()`'s `starting` flag is never cleared
+
+**File:** `src/app/game-session.ts:185,594-595,597-606,610-716`
+
+**Issue:** The CR-01 fix sets `starting = true` before the first await but never resets it. After a preload failure the opaque `#failure` surface covers the title, so the impact is small; but on a throw *after* the preload (the existing WR-03 path: `loadShipCatalogue`, `deriveFlightConfig`, `enterSystem`, `createHud`, `loadSettings`, the panel factories) the title stays visible and every later Start click returns at line 594 — the session can never be retried without a reload. The existing review's CR-01 fix snippet included `finally { starting = false; }`; the implementation omitted it. (This predates the gap-closure diff; it is recorded here because `game-session.ts` is in this scope.)
+
+**Fix:** Wrap the whole post-guard body in `try { ... } finally { starting = false; }`, keeping `state !== undefined`/`disposed` as the terminal guards.
+
 ---
 
-_Reviewed: 2026-11-03T20:41:00Z_
+_Reviewed: 2026-11-04T11:20:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+_Scope: phase 03 full review + gap-closure re-review (03-10 – 03-13)_
