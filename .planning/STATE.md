@@ -133,6 +133,7 @@ None yet.
 - [Phase 4] Coriolis effective gate geometry and required roll are MEDIUM confidence; measure the dock mesh before hard-coding thresholds. v1 docking damage model (bounce-only vs small hull pool) still undecided.
 - [Project] Licence election and trademark posture need a professional legal read before the first public post.
 - G-03-3 halted: 03-14 shipped a 9-evaluation planet budget but the message-expiry test measures 152390 ms (fps 2.35, drain 132.0 s) against the 133 s / 2.69 fps cadence gate. All 29 e2e tests pass. The loaded fixed per-frame cost (~340 ms), not the noise budget, dominates; a new gap plan or an explicit user decision on a frozen constraint is required.
+- [Test infra] `tests/guards/content-boundary.test.ts > removes the probe even when the body throws` runs on Vitest's 5 s default while its five siblings use `180_000`; it timed out at 5 s in one full `verify` run under load and passes in isolation (file 6/6 in 24 s). Give it an explicit timeout — unrelated to 03-14.
 
 ## Deferred Items
 
