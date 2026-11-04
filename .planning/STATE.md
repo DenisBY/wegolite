@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 03
 current_phase_name: Flight in the Lave System
 status: executing
-stopped_at: Completed 03-10-PLAN.md
-last_updated: "2026-11-04T10:16:45.228Z"
+stopped_at: Completed 03-13-PLAN.md
+last_updated: "2026-11-04T10:24:27.797Z"
 last_activity: 2026-11-04
 last_activity_desc: Phase 03 execution resumed (wave continue)
-state_head: e0e50e55e6584bbe78605a25e6ede735ccf375b3
+state_head: 2cedd1471c86f8a32705513ab7017b865a4919fd
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 29
-  completed_plans: 26
+  completed_plans: 27
   percent: 29
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 03 (Flight in the Lave System) — EXECUTING
-Plan: 2 of 9
+Plan: 3 of 9
 Status: Ready to execute
 Last activity: 2026-11-04 — Phase 03 execution resumed (wave continue)
 
@@ -67,6 +67,7 @@ Progress: [███░░░░░░░] 29%
 | Phase 02 P08 | 4 min | 3 tasks | 3 files |
 | Phase 02 P09 | 5 min | 3 tasks | 12 files |
 | Phase 03 P10 | 5 min | 2 tasks | 5 files |
+| Phase 03 P13 | 6 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -111,6 +112,8 @@ Recent decisions affecting current work:
 - [Phase 03]: Plan 03-10: the planet palette is decoded once through an explicit IEC 61966-2-1 sRGB transfer (not THREE.ColorManagement) so <colorspace_fragment> encodes once and the displayed byte equals Oolite's authored texture byte.
 - [Phase 03]: Plan 03-10: the sRGB encode cut is the exact image of 0.04045 (0.0031308049535603713), not the truncated 0.0031308, keeping the transfer pair invertible at its seam.
 - [Phase 03]: Plan 03-10: the terminator is Oolite's per-channel smoothstep against terminatorThresholdVector (red saturates first), with the authored ambient added outside the day factor through (0.8,0.8,1.0); NdotL pairs the object-space normal with the object-space sun.
+- [Phase 03]: Plan 03-13: src/render/viewport.ts is the only writer of camera.aspect; the SceneManager applies the renderer's CSS size on every camera install (empty, menu, system and swap), so the projection is uniform without a window resize.
+- [Phase 03]: Plan 03-13: applyViewport rejects zero, negative, NaN and infinite sizes and leaves the projection byte-identical, so a hidden or minimised window cannot write an Infinity aspect.
 
 ### Pending Todos
 
@@ -133,6 +136,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-04T10:16:44.854Z
-Stopped at: Completed 03-10-PLAN.md
+Last session: 2026-11-04T10:24:27.429Z
+Stopped at: Completed 03-13-PLAN.md
 Resume file: None
