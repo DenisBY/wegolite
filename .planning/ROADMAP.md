@@ -123,7 +123,7 @@ Plans:
   3. The torus drive engages, mass-locks near the station and planet, and disengages on pilot input, and the HUD shows crosshair, scanner, compass, aegis indicator, bars, clock, message line, and condition light.
   4. The view stays stable from witchpoint to station — no visible jitter or z-fighting on the planet, station, or dock opening — across the full ~1.4e6 m extent.
   5. A browser without WebGL2 shows a clear fallback message instead of a blank canvas, and returning to a system after leaving it returns GPU memory to its baseline.
-**Plans**: 9/9 plans executed
+**Plans**: 9/9 plans executed; 4 gap-closure plans added from UAT
 - [x] 03-01-PLAN.md
 - [x] 03-02-PLAN.md
 - [x] 03-03-PLAN.md
@@ -133,6 +133,10 @@ Plans:
 - [x] 03-07-PLAN.md
 - [x] 03-08-PLAN.md
 - [x] 03-09-PLAN.md
+- [ ] 03-10-PLAN.md — G-03-1: palette decoded once, per-channel Oolite terminator in one vector space
+- [ ] 03-11-PLAN.md — G-03-1: calibrated PlanetMix surface, coastline/snowline/relief, authored polar ice
+- [ ] 03-12-PLAN.md — G-03-1: one exposure contract, Oolite-bright station, authored emissive
+- [ ] 03-13-PLAN.md — G-03-2: viewport aspect applied on every camera install, with browser regression
 
 ### Phase 4: Manual Docking
 **Goal**: The player can dock a Cobra by hand with real feedback and real risk, and can buy a docking computer when they would rather not.
