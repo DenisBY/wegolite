@@ -24,6 +24,16 @@
  * position: at 452 km a float32 world coordinate has a ~3 cm ULP and the
  * terminator would crawl as the ship moves (Pitfall 13).
  *
+ * The surface is a port of Oolite's `PlanetMix`
+ * (`OOPlanetTextureGenerator.m:636-690`): the field `q` is cut into deep sea,
+ * open sea, coastal shelf, coastline, land and snowline bands, with a
+ * noise-perturbed polar cap on top and a Lambert terrain shade flattened over
+ * water. The band edges are not guesses: `src/render/planet-noise.ts` measures
+ * the same field on the CPU and passes `uNoiseLo`, `uNoiseScale`, `uSeaBias`,
+ * `uPoleValue`, `uPolarCap`, `uMixHi`, `uCloudNoiseLo`, `uCloudNoiseScale` and
+ * `uCloudThreshold`, so the coastline is a level set of the authored
+ * `land_fraction` rather than a midpoint.
+ *
  * The day/night terminator is Oolite's per-channel threshold, not a symmetric
  * scalar band: each component of `uTerminatorThreshold` is the cosine of the
  * angle at which that channel reaches full light (`0.105, 0.18, 0.28` for
@@ -31,6 +41,11 @@
  * warm edge, and the geometric terminator is 0% lit; the night side is the
  * authored ambient added outside the day factor through Oolite's
  * `(0.8, 0.8, 1.0)` tint.
+ *
+ * The per-pixel noise budget is 16 value-noise evaluations: six for the
+ * surface, two three-octave relief taps and four for the cloud field. The
+ * software-rasterised end-to-end suite measures the budget by timing out if it
+ * grows (T-3-31).
  */
 
 export const PLANET_VERTEX_SHADER = /* glsl */ `
@@ -67,9 +82,31 @@ uniform vec3 uPolarCloudColor;
 uniform vec3 uCloudColor;
 uniform vec3 uAirColor;
 uniform vec3 uSunDir;
-uniform float uLandThreshold;
+
+// Calibration, measured by src/render/planet-noise.ts from the compiled record.
+uniform float uNoiseLo;
+uniform float uNoiseScale;
+uniform float uSeaBias;
+uniform float uPoleValue;
+uniform float uPolarCap;
+// Two-thirds of the calibrated land-range top (1 + uSeaBias), i.e. Oolite's
+// 'mix_hi = 0.66667 * landFraction' rule applied to a field whose top is
+// '1 + uSeaBias' rather than 'landFraction'. The snowline band is therefore
+// non-empty (measured highland share 0.0142, 0.28581 for Lave); the literal
+// '0.66667 * landFraction' would sit above the field's top and render nothing.
+uniform float uMixHi;
+uniform float uCloudNoiseLo;
+uniform float uCloudNoiseScale;
+uniform float uCloudThreshold;
+// Presentation tuning (documented where it is declared in planet.ts), not a
+// calibration output. Eight times the plan's starting value: the measured
+// three-octave height difference over the relief step is small.
+uniform float uReliefScale;
+
+// Retained for the record; the calibration uniforms above carry the level set.
 uniform float uLandFraction;
 uniform float uCloudFraction;
+
 uniform float uCloudAlpha;
 uniform float uAirDensity;
 uniform float uAmbient;
@@ -80,6 +117,12 @@ uniform float uTime;
 varying vec3 vLocal;
 varying vec3 vNormalW;
 varying vec3 vViewDirW;
+
+// PlanetMix band widths, mirrored in src/render/planet-noise.ts:
+// COASTLINE_PORTION = 1/160, SHALLOWS = 2/160, DEEPS = 40/160.
+#define COASTLINE_PORTION 0.00625
+#define SHALLOWS 0.0125
+#define DEEPS 0.25
 
 // Deterministic 3D value noise: a hash of the lattice corner plus trilinear
 // interpolation. No texture lookups and no world-space coordinates.
@@ -128,39 +171,143 @@ float fbm(vec3 p, float octaves) {
   return total / max(norm, 0.0001);
 }
 
+// Six-octave surface sum; 'lowThree' receives the normalised three-octave
+// partial with no extra noise evaluation. The relief gradient reuses that
+// partial as its base height, so the two displaced taps are the entire relief
+// cost (3 + 3 octaves).
+float fbmSurface(vec3 p, out float lowThree) {
+  float total = 0.0;
+  float amplitude = 0.5;
+  float norm = 0.0;
+  float low = 0.0;
+  float lowNorm = 0.0;
+
+  for (int octave = 0; octave < 6; octave++) {
+    float noiseSample = valueNoise(p) * amplitude;
+    total += noiseSample;
+    norm += amplitude;
+    if (octave < 3) {
+      low += noiseSample;
+      lowNorm += amplitude;
+    }
+    p = p * 2.03 + vec3(1.7, 9.2, 4.1);
+    amplitude *= 0.5;
+  }
+
+  lowThree = low / max(lowNorm, 0.0001);
+  return total / max(norm, 0.0001);
+}
+
+// Oolite's PlanetMix ('OOPlanetTextureGenerator.m:636-690'): deep sea, open
+// sea, coastal shelf, coastline, land, snowline, then the polar cap overriding
+// all of them. 'seaishness' is Oolite's alpha channel: 1 on water, 0 on land,
+// used to flatten the Lambert relief over the sea.
+void planetMix(float q, float nearPole, out vec3 ground, out float seaishness) {
+  vec3 deepSeaColor = mix(uSeaColor, vec3(0.0), 0.85);
+  vec3 paleSeaColor = mix(uPolarSeaColor, mix(uSeaColor, uLandColor, 0.7), 0.35);
+  seaishness = 0.0;
+
+  if (q <= 0.0) {
+    // Below datum: sea.
+    seaishness = 1.0;
+    if (q > -SHALLOWS) {
+      // Coastal waters: pale shelf just under the coast, then the sea colour.
+      ground = mix(paleSeaColor, uSeaColor, clamp(-q * 80.0, 0.0, 1.0));
+    } else if (q > -DEEPS) {
+      // Open sea darkening into the deep ocean past the shelf.
+      ground = mix(uSeaColor, deepSeaColor, clamp(-q * 4.0, 0.0, 1.0));
+    } else {
+      ground = deepSeaColor;
+    }
+  } else if (q < COASTLINE_PORTION) {
+    // Coastline: pale sea into land across a 1/160 band.
+    ground = mix(paleSeaColor, uLandColor, clamp(q * 160.0, 0.0, 1.0));
+  } else if (q > 1.0) {
+    // Snow-capped peaks. With overrides q can range between -2 and +2; a base
+    // system cannot reach 1 (calibrated top is 1 + uSeaBias).
+    ground = vec3(1.0);
+  } else if (q > uMixHi) {
+    // Snowline: pale land into white as q approaches the top.
+    ground = mix(
+      uPolarLandColor,
+      vec3(1.0),
+      clamp((q - uMixHi) / max(1.0 - uMixHi, 0.0001), 0.0, 1.0)
+    );
+  } else {
+    // Normal land: the authored land colour fading to pale land at mix_hi.
+    ground = mix(
+      uPolarLandColor,
+      uLandColor,
+      clamp((uMixHi - q) / max(uMixHi, 0.0001), 0.0, 1.0)
+    );
+  }
+
+  // Polar cap: phi = 2 * polarCap - nearPole, with a 0.02 ramp. The cap is a
+  // threshold of the same field, so its edge is noise-broken rather than a
+  // latitude wash.
+  float phi = 2.0 * uPolarCap - nearPole;
+  if (q > phi) {
+    float ice = clamp((q - phi) / 0.02, 0.2, 1.0);
+    ground = mix(ground, uPolarSeaColor, ice);
+  }
+}
+
 void main() {
   vec3 n = normalize(vLocal);
   vec3 normalW = normalize(vNormalW);
+  float nearPole = n.y * n.y;
 
-  // Surface: the octave sum is normalised to [0,1]; the CPU-calibrated
-  // threshold turns land_fraction into a coastline instead of a coin flip.
-  // Four octaves is the fidelity floor for a recognisable coastline; each
-  // extra octave is another eight lattice hashes per pixel.
-  float surface = fbm(n * 3.1 + vec3(uSeed), 4.0);
-  float land = smoothstep(
-    uLandThreshold - 0.02,
-    uLandThreshold + 0.02,
-    surface
-  );
-  vec3 ground = mix(uSeaColor, uLandColor, land);
+  // Surface: the calibrated normalisation and level set. 'q' is Oolite's
+  // QFactor: the octave sum biased so q > 0 is land, with a polar-Y smooth
+  // that lifts the poles toward 'uPoleValue'.
+  float h0;
+  float raw = fbmSurface(n * 3.1 + vec3(uSeed), h0);
+  float u = clamp((raw - uNoiseLo) * uNoiseScale, 0.0, 1.0);
+  float q = mix(u + uSeaBias, uPoleValue, nearPole);
 
-  float polar = smoothstep(0.6, 0.95, abs(n.y));
-  vec3 polarGround = mix(uPolarSeaColor, uPolarLandColor, land);
-  ground = mix(ground, polarGround, polar);
+  vec3 ground;
+  float seaishness;
+  planetMix(q, nearPole, ground, seaishness);
+
+  // Lambert terrain relief from two three-octave height taps, with the base
+  // height reused from the surface evaluation. Oolite shades with norm.z
+  // ("lambertian lighting from straight above"); the sea is flattened by
+  // seaishness, exactly as Oolite recycles its specular alpha.
+  vec3 reference = abs(n.y) > 0.99 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+  vec3 tangent = normalize(cross(reference, n));
+  vec3 bitangent = cross(n, tangent);
+  float hU = fbm(normalize(n + tangent * 0.006) * 3.1 + vec3(uSeed), 3.0);
+  float hV = fbm(normalize(n - bitangent * 0.006) * 3.1 + vec3(uSeed), 3.0);
+  float dU = hU - h0;
+  float dV = h0 - hV;
+  vec3 relief = normalize(vec3(-dU * uReliefScale, -dV * uReliefScale, 1.0));
+  float shade = mix(relief.z, 1.0, seaishness);
+  ground *= shade;
 
   // Clouds are a second field in the same material: no shell, no second pass.
-  // Three octaves is enough for the soft cloud shapes; the surface carries the
-  // fine detail.
-  float cloudField = fbm(
+  // The field is normalised and cut at the calibrated 'cloud_fraction'
+  // quantile, so the authored fraction is what appears on the sphere.
+  float cloudRaw = fbm(
     n * 5.3 + vec3(uSeed * 1.7 + 13.0) + vec3(uTime * 0.002, 0.0, 0.0),
-    3.0
+    4.0
+  );
+  float cloudField = clamp(
+    (cloudRaw - uCloudNoiseLo) * uCloudNoiseScale,
+    0.0,
+    1.0
   );
   float cloud = smoothstep(
-    1.0 - uCloudFraction,
-    1.0 - uCloudFraction + 0.05,
+    uCloudThreshold - 0.02,
+    uCloudThreshold + 0.02,
     cloudField
   ) * uCloudAlpha;
-  vec3 cloudColor = mix(uCloudColor, uPolarCloudColor, polar);
+  // Oolite's polar cloud boundary (CloudMix, POLAR_BOUNDARY 0.33 with a 0.2
+  // ramp).
+  vec3 cloudColor = mix(
+    uCloudColor,
+    uPolarCloudColor,
+    smoothstep(0.33, 0.53, nearPole)
+  );
   vec3 color = mix(ground, cloudColor, cloud);
 
   // Day/night terminator. uSunDir is the sun direction rotated into object

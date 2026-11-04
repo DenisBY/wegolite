@@ -19,12 +19,12 @@ import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
-import {
-  createPlanet,
-  landThresholdFor,
-  seedToUniform,
-} from "../../src/render/bodies/planet.js";
+import { createPlanet, seedToUniform } from "../../src/render/bodies/planet.js";
 import { linearToSrgb } from "../../src/render/color.js";
+import {
+  calibrateClouds,
+  calibrateSurface,
+} from "../../src/render/planet-noise.js";
 import {
   PLANET_FRAGMENT_SHADER,
   PLANET_VERTEX_SHADER,
@@ -228,6 +228,35 @@ describe("planet shader source", () => {
     expect(PLANET_FRAGMENT_SHADER).not.toContain("modelMatrix[3]");
     expect(PLANET_VERTEX_SHADER).not.toContain("modelMatrix[3]");
   });
+
+  it("ports the PlanetMix bands, relief shade and polar cap", () => {
+    expect(PLANET_FRAGMENT_SHADER).toContain("void planetMix(");
+    expect(PLANET_FRAGMENT_SHADER).toContain(
+      "#define COASTLINE_PORTION 0.00625",
+    );
+    expect(PLANET_FRAGMENT_SHADER).toContain("#define SHALLOWS 0.0125");
+    expect(PLANET_FRAGMENT_SHADER).toContain("#define DEEPS 0.25");
+
+    // Deep sea is 0.15x the sea colour (Blend(0.85, sea, black)).
+    expect(PLANET_FRAGMENT_SHADER).toContain("mix(uSeaColor, vec3(0.0), 0.85)");
+    // Snowline and the polar cap both come from the calibrated field.
+    expect(PLANET_FRAGMENT_SHADER).toContain("q > uMixHi");
+    expect(PLANET_FRAGMENT_SHADER).toContain("2.0 * uPolarCap - nearPole");
+    expect(PLANET_FRAGMENT_SHADER).toContain("uPolarLandColor");
+    expect(PLANET_FRAGMENT_SHADER).toContain("uPolarSeaColor");
+
+    // Lambert relief, flattened over water.
+    expect(PLANET_FRAGMENT_SHADER).toContain("uReliefScale");
+    expect(PLANET_FRAGMENT_SHADER).toContain(
+      "shade = mix(relief.z, 1.0, seaishness)",
+    );
+
+    // The latitude-only polar wash and the midpoint threshold are gone.
+    expect(PLANET_FRAGMENT_SHADER).not.toContain(
+      "smoothstep(0.6, 0.95, abs(n.y))",
+    );
+    expect(PLANET_FRAGMENT_SHADER).not.toContain("uLandThreshold");
+  });
 });
 
 describe("planet uniforms", () => {
@@ -279,17 +308,44 @@ describe("planet uniforms", () => {
     expect(planetSource).toContain("seedToUniform(system.random_seed)");
   });
 
-  it("calibrates the land threshold from land_fraction, never 0.5", () => {
+  it("calibrates the surface from the compiled record, never a constant", () => {
     const material = planet().material;
-    const threshold = uniform<number>(material, "uLandThreshold");
+    const seed = seedToUniform(system.random_seed);
+    const calibration = calibrateSurface(seed, system.land_fraction, 0.05);
+    const clouds = calibrateClouds(seed, system.cloud_fraction);
 
-    expect(threshold).toBeGreaterThan(0.33);
-    expect(threshold).toBeLessThan(0.37);
-    expect(threshold).not.toBe(0.5);
+    expect(uniform<number>(material, "uNoiseLo")).toBe(calibration.noiseLo);
+    expect(uniform<number>(material, "uNoiseScale")).toBe(
+      calibration.noiseScale,
+    );
+    expect(uniform<number>(material, "uSeaBias")).toBe(calibration.seaBias);
+    expect(uniform<number>(material, "uPoleValue")).toBeCloseTo(0.325, 6);
+    expect(uniform<number>(material, "uPolarCap")).toBeCloseTo(0.4142, 4);
+    expect(uniform<number>(material, "uMixHi")).toBe(calibration.mixHi);
+    expect(uniform<number>(material, "uCloudNoiseLo")).toBe(clouds.noiseLo);
+    expect(uniform<number>(material, "uCloudNoiseScale")).toBe(
+      clouds.noiseScale,
+    );
+    expect(uniform<number>(material, "uCloudThreshold")).toBe(clouds.threshold);
 
-    // More land must mean a lower threshold; a hardcoded midpoint cannot do it.
-    expect(landThresholdFor(0.8, 1)).toBeLessThan(landThresholdFor(0.2, 1));
-    expect(landThresholdFor(0.65, 0)).toBeCloseTo(0.34, 6);
+    // Oolite's snowline rule applied to the calibrated field's top
+    // (1 + seaBias). The literal 0.66667 * 0.65 = 0.43334 is above the field's
+    // reachable maximum (0.42871) and would leave the band empty.
+    expect(uniform<number>(material, "uMixHi")).toBeCloseTo(0.2858, 2);
+    expect(uniform<number>(material, "uMixHi")).toBeLessThan(0.42871);
+    expect(uniform<number>(material, "uMixHi")).not.toBeCloseTo(
+      0.66667 * system.land_fraction,
+      2,
+    );
+
+    // A declared relief uniform must be wired, or shade collapses to 1.
+    expect(uniform<number>(material, "uReliefScale")).toBeGreaterThan(0);
+
+    // The old midpoint threshold and its derivation are gone.
+    expect(material.uniforms.uLandThreshold).toBeUndefined();
+    expect(planetSource).not.toContain("landThresholdFor");
+    expect(planetSource).toContain("calibrateSurface");
+    expect(planetSource).toContain("calibrateClouds");
   });
 
   it("builds exactly one sphere with one ShaderMaterial and no shells", () => {

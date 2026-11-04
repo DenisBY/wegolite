@@ -8,7 +8,9 @@
  * colours, land/cloud fractions, air density, the ambient level and the
  * per-channel terminator thresholds — and the noise seed is the authored
  * six-byte `random_seed` string hashed with `fnv1a32`. Nothing is hardcoded
- * except the tessellation, which only affects the silhouette.
+ * except the tessellation (which only affects the silhouette), Oolite's
+ * `percent_ice` default and the relief scale (presentation tuning documented
+ * where it is declared).
  *
  * The spin is presentation-only but must come from the simulation clock:
  * `update(elapsedSeconds)` composes `axisAngle(0, 1, 0, rotationSpeed * t)` on
@@ -23,6 +25,7 @@ import { axisAngle, clamp, rotateInverse } from "../../sim/math.js";
 import type { Vec3 } from "../../sim/math.js";
 import { LayoutError } from "../../sim/world/layout.js";
 import { decodeColor3 } from "../color.js";
+import { calibrateClouds, calibrateSurface } from "../planet-noise.js";
 import {
   PLANET_FRAGMENT_SHADER,
   PLANET_VERTEX_SHADER,
@@ -52,21 +55,16 @@ export function seedToUniform(seed: string): number {
 }
 
 /**
- * Calibrate the land/sea threshold from `land_fraction`, never from a
- * hardcoded 0.5.
- *
- * The octave sum is normalised to `[0, 1]` and is symmetric about 0.5, so the
- * land share is the upper tail: `threshold = 1 - land_fraction`. For Lave that
- * is 0.35 (65% land), where a midpoint threshold would render roughly half
- * land. The seed contributes a sub-percent offset so two systems with the same
- * fraction do not share an identical coastline; the offset is much smaller than
- * the smoothstep band, so it can never invert land and sea.
+ * Oolite's authored `percent_ice` default: `OOPlanetEntity.m:133-134` maps the
+ * plist key to `polar_fraction = percent_ice / 100`, and a system without the
+ * key gets 5%. The compiler does not project the key for the pinned snapshot,
+ * so every pinned system currently takes this engine default; it is an Oolite
+ * constant, not a rendering knob.
  */
-export function landThresholdFor(landFraction: number, seed: number): number {
-  const base = 1 - clamp(landFraction, 0.02, 0.98);
-  const jitter = (seed * 1000) % 1;
-  return clamp(base + (jitter - 0.5) * 0.02, 0.02, 0.98);
-}
+const DEFAULT_PERCENT_ICE = 5;
+
+/** Oolite's presentation tuning for the Lambert relief, not a calibration output. */
+export const RELIEF_SCALE = 80;
 
 /**
  * Decode an authored `planetinfo` colour to linear light and upload it.
@@ -110,6 +108,16 @@ export function createPlanet(
   }
 
   const seed = seedToUniform(system.random_seed);
+  const polarFraction = clamp(
+    (system.percent_ice ?? DEFAULT_PERCENT_ICE) / 100,
+    0,
+    1,
+  );
+  // The calibration is the level set: it is measured from the same field the
+  // shader draws, so `land_fraction`, `cloud_fraction` and `percent_ice` are
+  // true shares rather than threshold guesses (debug report 00:25).
+  const surface = calibrateSurface(seed, system.land_fraction, polarFraction);
+  const clouds = calibrateClouds(seed, system.cloud_fraction);
   const sunDirUniform = {
     value: new THREE.Vector3(sunDir.x, sunDir.y, sunDir.z),
   };
@@ -125,9 +133,28 @@ export function createPlanet(
       uPolarCloudColor: { value: color3(system.polar_cloud_color) },
       uCloudColor: { value: color3(system.cloud_color) },
       uAirColor: { value: color3(system.air_color) },
-      uLandThreshold: {
-        value: landThresholdFor(system.land_fraction, seed),
-      },
+      // Calibration: the shader normalises the raw field with (raw - lo) *
+      // scale, then compares `q` against thresholds derived here. None of these
+      // is hand-tuned; all come from the compiled record.
+      uNoiseLo: { value: surface.noiseLo },
+      uNoiseScale: { value: surface.noiseScale },
+      uSeaBias: { value: surface.seaBias },
+      uPoleValue: { value: surface.poleValue },
+      uPolarCap: { value: surface.polarCap },
+      // Two-thirds of the calibrated land-range top (`1 + uSeaBias`), Oolite's
+      // snowline rule applied to this field; 0.28581 for Lave. The literal
+      // `0.66667 * land_fraction` (0.43334) sits above the reachable top
+      // (0.42871) and leaves the band empty.
+      uMixHi: { value: surface.mixHi },
+      uCloudNoiseLo: { value: clouds.noiseLo },
+      uCloudNoiseScale: { value: clouds.noiseScale },
+      uCloudThreshold: { value: clouds.threshold },
+      // Presentation tuning, not a calibration output: the measured three-
+      // octave height difference over the 0.006 rad relief step averages
+      // 0.0076 and peaks at 0.026, so 80 maps the mean slope to a 0.85 shade
+      // and the steepest to 0.43. The plan's 4.0 was measured at under 0.1%
+      // modulation (invisible).
+      uReliefScale: { value: RELIEF_SCALE },
       uLandFraction: { value: system.land_fraction },
       uCloudFraction: { value: system.cloud_fraction },
       uCloudAlpha: { value: system.cloud_alpha },
