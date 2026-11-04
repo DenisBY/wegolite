@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 03
 current_phase_name: Flight in the Lave System
 status: executing
-stopped_at: Completed 03-11-PLAN.md
-last_updated: "2026-11-04T10:38:56.645Z"
+stopped_at: Completed 03-12-PLAN.md
+last_updated: "2026-11-04T10:48:00.991Z"
 last_activity: 2026-11-04
 last_activity_desc: Phase 03 execution resumed (wave continue)
-state_head: 3374c07473042d68022eb52655d8e054f53a7e54
+state_head: 0e2488e8d0a567fa57a310a64c1ffa9ec0d58606
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 29
-  completed_plans: 28
+  completed_plans: 29
   percent: 29
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 03 (Flight in the Lave System) — EXECUTING
-Plan: 4 of 9
+Plan: 5 of 9
 Status: Ready to execute
 Last activity: 2026-11-04 — Phase 03 execution resumed (wave continue)
 
@@ -69,6 +69,7 @@ Progress: [███░░░░░░░] 29%
 | Phase 03 P10 | 5 min | 2 tasks | 5 files |
 | Phase 03 P13 | 6 min | 2 tasks | 8 files |
 | Phase 03 P11 | 10min | 2 tasks | 7 files |
+| Phase 03 P12 | 6 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,8 @@ Recent decisions affecting current work:
 - [Phase 03]: Plan 03-13: src/render/viewport.ts is the only writer of camera.aspect; the SceneManager applies the renderer's CSS size on every camera install (empty, menu, system and swap), so the projection is uniform without a window resize.
 - [Phase 03]: Plan 03-13: applyViewport rejects zero, negative, NaN and infinite sizes and leaves the projection byte-identical, so a hidden or minimised window cannot write an Infinity aspect.
 - [Phase 03]: Planet surface calibration is measured, not constant: calibrateSurface cuts the field at the land_fraction quantile (0.6499 for Lave), mixHi = 0.66667 * (1 + seaBias) = 0.28581 keeps the snowline reachable, percent_ice drives the polar cap, and uReliefScale 80 is documented presentation tuning.
+- [Phase 03]: Calibrated-LDR exposure contract: linear light, NoToneMapping, one sRGB encode, exposure 1; DISPLAY_SUN_INTENSITY 24.25 derived from Oolite's 3.75 radiance and 2.484 pre-exposure takes a lit Coriolis face from ~64 to 190/255
+- [Phase 03]: The scene-wide clipping bound is exported (albedo bytes 101/119/139 at NdotL 1.0/0.7/0.5) so every body lit by the one sun, including the Cobra, is bounded rather than assumed safe
 
 ### Pending Todos
 
@@ -138,6 +141,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-04T10:38:56.267Z
-Stopped at: Completed 03-11-PLAN.md
+Last session: 2026-11-04T10:48:00.564Z
+Stopped at: Completed 03-12-PLAN.md
 Resume file: None
