@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 03-flight-in-the-lave-system
 source:
   - 03-01-SUMMARY.md
@@ -77,8 +77,25 @@ blocked: 0
   reason: "User reported: I guess it shouldn't be like this. Planet renders washed-out lime-green with soft blobby continents and no clear polar ice; Coriolis reads very dark/low-contrast."
   severity: major
   test: 1
-  artifacts: []
-  missing: []
+  root_cause: "Planet palette is authored in sRGB but consumed as linear light, then encoded to sRGB again (planet.ts:70-74,112-118 + planet.glsl.ts:173-174 + boot.ts:83), so lit land lands on (162,202,97) instead of Oolite's (92,150,31). Terminator uses a symmetric scalar smoothstep at +-0.185 with a 0.1 ambient floor (planet.glsl.ts:159-165) instead of Oolite's per-channel smoothstep(0, 0.105/0.18/0.28, N.L), giving a 55%-bright grey wash with no warm rim. Surface generator is 4-octave value noise whose actual land threshold yields 87.4% land rather than the intended 65%, with no sea depth, coastal shelf, snowline or Lambert terrain shade, and polar ice is a latitude-only smoothstep(0.6,0.95,|n.y|) ignoring percent_ice/polar_fraction. Station uses DirectionalLight 2.5 + AmbientLight 0.1 with NoToneMapping and emissiveIntensity 0.8 vs Oolite's ~3.75 radiance x 2.484 pre-exposure + ACES, making lit Coriolis faces ~64/255 instead of ~190/255."
+  artifacts:
+    - path: "src/render/bodies/planet.ts"
+      issue: "Raw sRGB palette triples fed as linear uniforms; terminator threshold derived from the wrong vector semantics"
+    - path: "src/render/shaders/planet.glsl.ts"
+      issue: "No sRGB->linear conversion; symmetric scalar terminator; coarse noise model with mis-calibrated land threshold and latitude-only ice"
+    - path: "src/render/system-scene.ts"
+      issue: "Under-powered directional/ambient lighting contract for the scene"
+    - path: "src/app/boot.ts"
+      issue: "NoToneMapping + sRGB output with no exposure, so lighting energy cannot reach Oolite levels"
+    - path: "src/render/bodies/station.ts"
+      issue: "emissiveIntensity 0.8 ignores the authored ~26x emission"
+  missing:
+    - "Convert the authored planet palette from sRGB to linear before use (or decode in-shader), so colour reaches the encoder once"
+    - "Replace the scalar terminator with Oolite's per-channel smoothstep(0, terminatorThreshold.xyz, N.L) and remove the 0.1 ambient floor at the night edge"
+    - "Rework the surface generator toward Oolite's PlanetMix model: deep sea darkening, coastal shelf, snowline/peaks, Lambert terrain shade, and a land threshold that actually matches land_fraction"
+    - "Drive polar ice from percent_ice/polar_fraction with a noise-perturbed cap instead of a latitude-only wash"
+    - "Pick one exposure contract for the scene; make the station's lighting/emissive match it (Oolite HDR path or calibrated LDR), replacing emissiveIntensity 0.8 with the authored modulate factor"
+  debug_session: .planning/debug/lave-planet-washed-out.md
 
 - gap_id: G-03-2
   truth: "Geometry keeps a correct aspect ratio across the system extent — the planet limb and station read as circles/spheres, and rotation moves the starfield along circular paths."
@@ -86,5 +103,19 @@ blocked: 0
   reason: "User reported: no jitter, but the planet looks like an ellipse, the station is squashed, and rotating makes the stars travel along an ellipse instead of a circle."
   severity: major
   test: 2
-  artifacts: []
-  missing: []
+  root_cause: "Every PerspectiveCamera is constructed with aspect = 1 (scene-manager.ts:52-59, system-scene.ts:224-233, menu-scene.ts:41-46). The only writer of a real aspect is main.ts:170-182 resize(), bound to window.resize and called once at boot against the throwaway empty scene. Starting a game swaps in the system-scene camera (game-session.ts:615) whose aspect stays 1, and only the HUD is resized (game-session.ts:628-629), so the 3D layer is stretched by innerWidth/innerHeight at every non-square viewport (x2.22 at 2222x1000) while the 2D HUD stays circular."
+  artifacts:
+    - path: "src/main.ts"
+      issue: "resize() applies aspect only to the currently active camera, at boot/resize time"
+    - path: "src/app/scene-manager.ts"
+      issue: "All cameras constructed at aspect 1 and swapped in without reprojection"
+    - path: "src/render/system-scene.ts"
+      issue: "Flight camera created at aspect 1"
+    - path: "src/render/menu-scene.ts"
+      issue: "Menu camera created at aspect 1"
+    - path: "src/app/game-session.ts"
+      issue: "Start installs the new aspect-1 camera and resizes only the HUD"
+  missing:
+    - "Apply the viewport aspect when a camera is installed, not only on window.resize (e.g. a shared applyViewport(camera) called after every scene swap)"
+    - "Add a regression test that asserts the active camera aspect matches the renderer size after entering a scene at a non-1:1 viewport"
+  debug_session: .planning/debug/viewport-aspect-distortion.md
