@@ -150,7 +150,12 @@ Plans:
   3. An off-axis or too-fast approach scrapes or bounces with visible feedback, and every failure recovers to flight — no attempt ever traps the player.
   4. With the docking computer installed (TL 9, 1500 Cr), `Shift+C` docks instantly and advances the clock by 20 minutes.
   5. Launching autosaves, so a docked state is always resumable.
-**Plans**: TBD
+**Plans**: 5 plans in 5 waves
+- [ ] 04-01-PLAN.md — Wave 1: measure the dock aperture at build time, emit `dock-port.json`, typed loader, golden + drift check
+- [ ] 04-02-PLAN.md — Wave 2: port-frame corridor, lane/capture, safety-band auto-centring, docked transition (tracer: aligned approach docks)
+- [ ] 04-03-PLAN.md — Wave 3: box-hull bounce, scrape/bounce events, shake/flash feedback, no-trap invariant
+- [ ] 04-04-PLAN.md — Wave 4: credits, equipment purchase line, `Shift+C` docking computer (+20 min), aegis gate
+- [ ] 04-05-PLAN.md — Wave 5: IndexedDB autosave on launch, title Continue/New game restore
 
 ### Phase 5: Docked Economy & Station Screens
 **Goal**: The player can trade at a station market, equip the ship, and read their status and the system's data, all through keyboard-driven screens faithful to Oolite's numbers.
