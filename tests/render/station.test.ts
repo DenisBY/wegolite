@@ -45,6 +45,18 @@ interface GlbAccessor {
 
 interface GlbPrimitive {
   readonly attributes: { readonly POSITION?: number };
+  readonly material?: number;
+}
+
+interface GlbMaterialExtras {
+  readonly oolite?: {
+    readonly emissionModulateColorNormalized?: readonly number[];
+  };
+}
+
+interface GlbMaterial {
+  readonly name?: string;
+  readonly extras?: GlbMaterialExtras;
 }
 
 interface GlbMesh {
@@ -61,6 +73,7 @@ interface GlbJson {
   readonly nodes: readonly GlbNode[];
   readonly meshes: readonly GlbMesh[];
   readonly accessors: readonly GlbAccessor[];
+  readonly materials?: readonly GlbMaterial[];
 }
 
 function readGlbJson(): GlbJson {
@@ -83,17 +96,65 @@ function positionAccessor(
   return json.accessors[accessorIndex];
 }
 
-function syntheticCoriolis(): GLTF {
+function syntheticCoriolis(
+  emissive: ReadonlyMap<string, readonly number[]> = new Map(),
+): GLTF {
   const scene = new THREE.Group();
   for (const name of ["hull", "faceplate", "tris", "dock"]) {
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshStandardMaterial(),
-    );
+    const material = new THREE.MeshStandardMaterial();
+    const triple = emissive.get(name);
+    if (triple !== undefined) {
+      // Production's path: GLTFLoader copies the GLB `extras` object straight
+      // onto `material.userData`, and `Material.clone()` deep-copies it, so
+      // setting it on the bare material is exactly what `cloneMaterials` reads.
+      material.userData.oolite = {
+        emissionModulateColorNormalized: [...triple],
+      };
+    }
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
     mesh.name = name;
     scene.add(mesh);
   }
   return { scene } as unknown as GLTF;
+}
+
+/** The assembled station's materials, keyed by node name. */
+function assembledMaterials(
+  station: ReturnType<typeof createStation>,
+): Map<string, THREE.MeshStandardMaterial> {
+  const byName = new Map<string, THREE.MeshStandardMaterial>();
+  station.root.traverse((object) => {
+    if (!isMesh(object)) return;
+    byName.set(object.name, object.material as THREE.MeshStandardMaterial);
+  });
+  return byName;
+}
+
+/**
+ * Resolve a node-name -> authored emissive triple map from the committed GLB by
+ * following `node.name -> node.mesh -> mesh.primitives[0].material ->
+ * material.extras`, the same chain GLTFLoader walks.
+ */
+function authoredEmissiveByNode(
+  json: GlbJson,
+): Map<string, readonly [number, number, number]> {
+  const triples = new Map<string, readonly [number, number, number]>();
+
+  for (const node of json.nodes) {
+    if (node.name === undefined || node.mesh === undefined) continue;
+    const materialIndex = json.meshes[node.mesh]?.primitives[0]?.material;
+    if (materialIndex === undefined) continue;
+    const triple =
+      json.materials?.[materialIndex]?.extras?.oolite
+        ?.emissionModulateColorNormalized;
+    if (triple === undefined) continue;
+    const [red, green, blue] = triple;
+    if (red === undefined || green === undefined || blue === undefined)
+      continue;
+    triples.set(node.name, [red, green, blue]);
+  }
+
+  return triples;
 }
 
 describe("the committed Coriolis GLB", () => {
@@ -142,6 +203,134 @@ describe("the committed Coriolis GLB", () => {
     const halfZ = (Math.max(...zValues) - Math.min(...zValues)) / 2;
     expect(halfZ).toBeGreaterThan(500.01);
     expect(halfZ).toBeCloseTo(517.15, 2);
+  });
+});
+
+describe("the authored Coriolis emissive", () => {
+  const BLOCK = [26.474321568627452, 26.59201176470588, 12.866205490196078];
+  const DOCK = [0.952, 0.963, 0.8824];
+
+  it("reads the per-material emission modulate triple from the GLB extras", () => {
+    const triples = authoredEmissiveByNode(readGlbJson());
+
+    expect(triples.size).toBe(4);
+    for (const name of ["hull", "faceplate", "tris"]) {
+      const triple = triples.get(name);
+      expect(triple, name).toBeDefined();
+      for (const [index, expected] of BLOCK.entries()) {
+        expect(triple?.[index], `${name}[${String(index)}]`).toBeCloseTo(
+          expected ?? 0,
+          12,
+        );
+      }
+    }
+    const dock = triples.get("dock");
+    expect(dock).toBeDefined();
+    for (const [index, expected] of DOCK.entries()) {
+      expect(dock?.[index], `dock[${String(index)}]`).toBeCloseTo(
+        expected ?? 0,
+        12,
+      );
+    }
+  });
+
+  it("applies the authored triple per channel on the assembled materials", () => {
+    const triples = authoredEmissiveByNode(readGlbJson());
+    const materials = assembledMaterials(
+      createStation(layout, syntheticCoriolis(triples)),
+    );
+
+    for (const name of ["hull", "faceplate", "tris", "dock"]) {
+      const authored = triples.get(name);
+      const material = materials.get(name);
+      expect(authored, name).toBeDefined();
+      expect(material, name).toBeDefined();
+      if (authored === undefined || material === undefined) continue;
+
+      const products = [
+        material.emissive.r * material.emissiveIntensity,
+        material.emissive.g * material.emissiveIntensity,
+        material.emissive.b * material.emissiveIntensity,
+      ];
+      for (const [index, product] of products.entries()) {
+        expect(product, `${name}[${String(index)}]`).toBeCloseTo(
+          authored[index] ?? 0,
+          6,
+        );
+      }
+    }
+
+    // The dock's authored gain is below 1, so it must not bloom; the hull
+    // layers carry the ~26x bloom the shipdata authoring intends.
+    expect(materials.get("dock")?.emissiveIntensity).toBeCloseTo(0.963, 12);
+    expect(materials.get("hull")?.emissiveIntensity).toBeCloseTo(
+      BLOCK[1] ?? 0,
+      9,
+    );
+    expect(materials.get("faceplate")?.emissiveIntensity).toBeCloseTo(
+      BLOCK[1] ?? 0,
+      9,
+    );
+    expect(materials.get("tris")?.emissiveIntensity).toBeCloseTo(
+      BLOCK[1] ?? 0,
+      9,
+    );
+  });
+
+  it("proves the fixture's extras actually reach the material", () => {
+    // A fabricated triple the asset does not author: if the fixture's extras
+    // were dropped, this would read the neutral fallback instead.
+    const fabricated = new Map<string, readonly number[]>([
+      ["hull", [3, 4, 5]],
+    ]);
+    const materials = assembledMaterials(
+      createStation(layout, syntheticCoriolis(fabricated)),
+    );
+    const hull = materials.get("hull");
+
+    expect(hull?.emissiveIntensity).toBeCloseTo(5, 12);
+    expect(
+      (hull?.emissive.r ?? 0) * (hull?.emissiveIntensity ?? 0),
+    ).toBeCloseTo(3, 12);
+    expect(
+      (hull?.emissive.g ?? 0) * (hull?.emissiveIntensity ?? 0),
+    ).toBeCloseTo(4, 12);
+    expect(
+      (hull?.emissive.b ?? 0) * (hull?.emissiveIntensity ?? 0),
+    ).toBeCloseTo(5, 12);
+  });
+
+  it("falls back to a neutral emissive when extras are missing", () => {
+    const materials = assembledMaterials(
+      createStation(layout, syntheticCoriolis()),
+    );
+
+    expect(materials.size).toBe(4);
+    for (const [name, material] of materials) {
+      expect(material.emissiveIntensity, name).toBe(1);
+      expect(Number.isFinite(material.emissive.r), name).toBe(true);
+      expect(Number.isFinite(material.emissive.g), name).toBe(true);
+      expect(Number.isFinite(material.emissive.b), name).toBe(true);
+    }
+  });
+
+  it("falls back instead of emitting NaN when a component is not finite", () => {
+    const malformed = new Map<string, readonly number[]>([
+      ["hull", [Number.NaN, 1, 1]],
+      ["dock", [0, 0, 0]],
+    ]);
+    const materials = assembledMaterials(
+      createStation(layout, syntheticCoriolis(malformed)),
+    );
+
+    for (const name of ["hull", "dock"]) {
+      const material = materials.get(name);
+      expect(material?.emissiveIntensity, name).toBe(1);
+      expect(Number.isFinite(material?.emissive.r), name).toBe(true);
+      expect(Number.isFinite(material?.emissive.g), name).toBe(true);
+      expect(Number.isFinite(material?.emissive.b), name).toBe(true);
+      expect(Number.isFinite(material?.emissiveIntensity), name).toBe(true);
+    }
   });
 });
 

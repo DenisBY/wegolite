@@ -19,6 +19,7 @@
 
 import * as THREE from "three";
 import { assertContentManifest } from "../content/index.js";
+import { applyOutputContract } from "../render/exposure.js";
 
 /** Create a renderer from the canvas. Injectable so the manifest proof is Node-only. */
 export type RendererFactory = (
@@ -62,8 +63,10 @@ function defaultRendererFactory(
 
 /**
  * Build and verify the renderer. Throws on any failure; `bootApp` converts that
- * into the `{ ok: false, reason }` shape. The DPR cap and colour space are
- * byte-equivalent to the pre-extraction `main.ts`.
+ * into the `{ ok: false, reason }` shape. The DPR cap is byte-equivalent to the
+ * pre-extraction `main.ts`; the output contract (sRGB once, no tone map,
+ * exposure 1) lives in `src/render/exposure.ts` so no caller can set a second
+ * one here.
  */
 export function buildRenderer(
   canvas: HTMLCanvasElement,
@@ -80,7 +83,7 @@ export function buildRenderer(
   }
 
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  applyOutputContract(renderer);
   return renderer;
 }
 

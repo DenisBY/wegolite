@@ -15,8 +15,9 @@
  * - every opaque node keeps `depthWrite: true` and the dock keeps
  *   `depthTest: true` (never `depthTest: false` on the one node that must be
  *   visible through the slot);
- * - the baked textures are never modified; presentation tuning is
- *   `emissiveIntensity` only.
+ * - the baked textures are never modified; the only material tuning is the
+ *   authored per-channel emissive read from the GLB extras (see
+ *   `applyAuthoredEmissive`), which replaces the flat `emissiveIntensity 0.8`.
  *
  * Orientation: `layout.stationBaseQuat` maps the model's local -Z (the dock)
  * onto `stationToPlanet`, then `update(stationAngle)` rolls about local +Z.
@@ -42,8 +43,21 @@ const NODE_ORDER: Readonly<Record<string, number>> = {
 /** The node names the pinned GLB contract guarantees (tests/e2e/models.spec). */
 const NODE_NAMES = ["hull", "faceplate", "tris", "dock"] as const;
 
-/** Start value for the baked emissive maps; tuned without touching the PNGs. */
-const EMISSIVE_INTENSITY = 0.8;
+/**
+ * The GLB authoring contract for a Coriolis material.
+ *
+ * `emissionModulateColorNormalized` is the authored per-channel bloom factor:
+ * hull/faceplate/tris carry `(26.474, 26.592, 12.866)` and the dock carries
+ * `(0.952, 0.963, 0.882)` (`coriolis.glb` material extras, from
+ * `shipdata.plist`'s `emission_modulate_color`). It crosses from a compiled
+ * asset into shader uniforms, so it is validated before use (T-3-32): finite,
+ * at least three components, a positive peak, each component clamped.
+ */
+const MAX_EMISSIVE_COMPONENT = 64;
+
+interface OoliteMaterialExtras {
+  readonly emissionModulateColorNormalized?: unknown;
+}
 
 /** The GPU-facing station: the root, the dock node and the roll step. */
 export interface StationBody {
@@ -69,6 +83,71 @@ export function disposeClonedMaterials(root: THREE.Object3D): void {
     if (!isMesh(object)) return;
     for (const material of meshMaterials(object)) material.dispose();
   });
+}
+
+/** Clamp one authored component so a corrupted asset cannot reach Infinity. */
+function clampEmissiveComponent(value: number): number {
+  if (value <= 0) return 0;
+  if (value >= MAX_EMISSIVE_COMPONENT) return MAX_EMISSIVE_COMPONENT;
+  return value;
+}
+
+/**
+ * The neutral emissive used when the GLB carries no usable triple.
+ *
+ * GLTFLoader gives every material `emissiveFactor (1, 1, 1)`, so intensity 1
+ * leaves the baked emissive map at its authored-albedo level rather than
+ * vanishing or turning the station into a white blob.
+ */
+function applyNeutralEmissive(material: THREE.MeshStandardMaterial): void {
+  material.emissiveIntensity = 1;
+}
+
+/**
+ * Apply a material's authored per-channel emissive exactly.
+ *
+ * Normalising by the peak keeps the product exact: `emissive.r *
+ * emissiveIntensity` equals the authored red component for every channel, while
+ * Three's `Color` stays in `[0, 1]` and the intensity carries the bloom gain
+ * (26.59 for the hull layers, 0.963 for the dock, so the dock does not bloom).
+ * The read happens after `cloneMaterials`: `Material.clone()` deep-copies
+ * `userData`, and GLTFLoader copies the GLB `extras` object straight onto
+ * `material.userData`, so production and the test fixture take one path.
+ */
+function applyAuthoredEmissive(material: THREE.MeshStandardMaterial): void {
+  const extras = (material.userData as { oolite?: OoliteMaterialExtras })
+    .oolite;
+  const triple = extras?.emissionModulateColorNormalized;
+  if (!Array.isArray(triple)) {
+    applyNeutralEmissive(material);
+    return;
+  }
+
+  const [redValue, greenValue, blueValue] = triple as readonly unknown[];
+  if (
+    typeof redValue !== "number" ||
+    !Number.isFinite(redValue) ||
+    typeof greenValue !== "number" ||
+    !Number.isFinite(greenValue) ||
+    typeof blueValue !== "number" ||
+    !Number.isFinite(blueValue)
+  ) {
+    // A NaN component would poison the whole material; treat it as absent.
+    applyNeutralEmissive(material);
+    return;
+  }
+
+  const red = clampEmissiveComponent(redValue);
+  const green = clampEmissiveComponent(greenValue);
+  const blue = clampEmissiveComponent(blueValue);
+  const peak = Math.max(red, green, blue);
+  if (peak <= 0) {
+    applyNeutralEmissive(material);
+    return;
+  }
+
+  material.emissive.setRGB(red / peak, green / peak, blue / peak);
+  material.emissiveIntensity = peak;
 }
 
 function requireNode(model: THREE.Object3D, name: string): THREE.Object3D {
@@ -104,7 +183,7 @@ export function createStation(layout: SystemLayout, gltf: GLTF): StationBody {
       material.depthWrite = true;
       if (object.name === "dock") material.depthTest = true;
       if (material instanceof THREE.MeshStandardMaterial) {
-        material.emissiveIntensity = EMISSIVE_INTENSITY;
+        applyAuthoredEmissive(material);
       }
     }
   });

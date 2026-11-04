@@ -39,6 +39,7 @@ import type { StationBody } from "./bodies/station.js";
 import { createSystemStarfield } from "./bodies/starfield.js";
 import { createSun } from "./bodies/sun.js";
 import type { SunBody } from "./bodies/sun.js";
+import { ambientIntensityFor, DISPLAY_SUN_INTENSITY } from "./exposure.js";
 import { isMesh, isPoints, materialList, meshMaterials } from "./mesh.js";
 
 /** Oolite's default vertical field of view (Universe.m). */
@@ -242,15 +243,22 @@ function createCamera(): THREE.PerspectiveCamera {
 export function assembleSystemScene(
   parts: SystemSceneParts,
   sunDir: Vec3,
+  ambientLevel: number,
   scene: THREE.Scene = new THREE.Scene(),
   camera: THREE.PerspectiveCamera = createCamera(),
 ): SystemScene {
-  // One key light from the planet toward the sun, plus the authored ambient
-  // floor. No shadows and no post-processing. Lights hold no GPU resources, so
-  // `scene.clear()` is all they need.
-  const light = new THREE.DirectionalLight(0xffffff, 2.5);
+  // The pair below is the scene's *only* light, calibrated in
+  // `src/render/exposure.ts`: one derived sun intensity so a mean lit Coriolis
+  // face displays Oolite's 190/255, and `pi * ambient_level` so the additive
+  // ambient term is `albedo * ambient_level` exactly. No shadows and no
+  // post-processing. The planet deliberately ignores both lights — its own
+  // shader owns the terminator and the authored ambient tint.
+  const light = new THREE.DirectionalLight(0xffffff, DISPLAY_SUN_INTENSITY);
   light.position.set(sunDir.x * 1_000, sunDir.y * 1_000, sunDir.z * 1_000);
-  const ambient = new THREE.AmbientLight(0xffffff, 0.1);
+  const ambient = new THREE.AmbientLight(
+    0xffffff,
+    ambientIntensityFor(ambientLevel),
+  );
 
   scene.add(
     light,
@@ -355,6 +363,7 @@ export function createSystemScene(
     return assembleSystemScene(
       { planet, sun, starfield, station, ship, navBuoy, witchpoint, dust },
       layout.sunDir,
+      system.ambient_level,
       scene,
       camera,
     );

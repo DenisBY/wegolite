@@ -39,6 +39,10 @@ import { createStation } from "../../src/render/bodies/station.js";
 import { createSystemStarfield } from "../../src/render/bodies/starfield.js";
 import type { SunBody } from "../../src/render/bodies/sun.js";
 import {
+  ambientIntensityFor,
+  DISPLAY_SUN_INTENSITY,
+} from "../../src/render/exposure.js";
+import {
   isMesh,
   isPoints,
   materialList,
@@ -357,13 +361,46 @@ describe("SystemScene owns only what it created", () => {
     };
   }
 
+  it("lights the scene with one calibrated directional and one ambient light", () => {
+    const { parts } = buildParts();
+    const scene = assembleSystemScene(
+      parts,
+      layout.sunDir,
+      system.ambient_level,
+    );
+
+    const directional: THREE.DirectionalLight[] = [];
+    const ambient: THREE.AmbientLight[] = [];
+    scene.scene.traverse((object) => {
+      if (object instanceof THREE.DirectionalLight) directional.push(object);
+      if (object instanceof THREE.AmbientLight) ambient.push(object);
+    });
+
+    // One contract, one light of each kind: a second directional would be a
+    // second exposure scale for some body in the scene (T-3-33).
+    expect(directional).toHaveLength(1);
+    expect(ambient).toHaveLength(1);
+    expect(directional[0]?.intensity).toBeCloseTo(DISPLAY_SUN_INTENSITY, 12);
+    expect(ambient[0]?.intensity).toBeCloseTo(
+      ambientIntensityFor(system.ambient_level),
+      12,
+    );
+    expect(ambient[0]?.intensity).toBeCloseTo(Math.PI * 0.1, 12);
+
+    scene.dispose();
+  });
+
   it("frees scene resources once and never a cached GLB resource", () => {
     const { parts, cached, sun, sceneOwned } = buildParts();
     const cachedMaterialDisposals = countDisposals(cached.material);
     const cachedTextureDisposals = countDisposals(cached.texture);
     const cachedGeometryDisposals = countDisposals(cached.geometry);
 
-    const scene = assembleSystemScene(parts, layout.sunDir);
+    const scene = assembleSystemScene(
+      parts,
+      layout.sunDir,
+      system.ambient_level,
+    );
     scene.dispose();
 
     // Scene-owned resources: exactly one disposal each.
