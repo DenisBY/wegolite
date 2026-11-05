@@ -81,7 +81,7 @@ Requirements for the initial release. Each maps to a roadmap phase.
 - [ ] **NAV-04**: A 15-second countdown can be aborted with pilot input, and a completed jump advances the clock by distance² hours
 - [ ] **NAV-05**: Arrival occurs at the destination witchpoint with a freshly generated market and the new system scene
 - [ ] **NAV-06**: Fuel is deducted exactly `10 × max(0.1, distance)` and can never go negative
-- [ ] **SAVE-01**: Saves use a versioned envelope (`format`, `schemaVersion`, `appVersion`, `payload`) validated with a schema
+- [ ] **SAVE-01**: Saves are a single versioned JSON object with a numeric `version`, validated by a strict schema; older versions migrate in order, a newer version is left untouched, and a corrupt blob is backed up before any clear
 - [ ] **SAVE-02**: IndexedDB persists credits, cargo, fuel, equipment, location, clock, RNG state, and per-system market snapshots
 - [ ] **SAVE-03**: Loading restores the exact docked or in-flight state, including orientation and velocity
 - [ ] **SAVE-04**: Ordered migrations upgrade older saves, and corrupt saves fail safely without wiping good data

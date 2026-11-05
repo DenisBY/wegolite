@@ -164,7 +164,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+- [ ] Fix compassMode hash omission and negative frame delta — testing, minor (2026-11-05)
 
 ### Blockers/Concerns
 
