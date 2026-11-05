@@ -57,6 +57,7 @@ key-files:
     - src/render/hud/messages.ts
     - src/render/launch-camera.ts
     - tests/e2e/docking.spec.ts
+    - .planning/PROJECT.md
 
 key-decisions:
   - "Contact detection is a 15-axis SAT of the ship OBB against the emitted contactPort, sharing one predicate with obbsIntersect so the oracle cannot diverge"
@@ -198,6 +199,7 @@ Each task was committed atomically; Task 2 followed RED → GREEN:
 - `tests/sim/dock-integrated.test.ts` - the phase gate and the skipped-launch scenario
 - `tests/app/dock-feedback.test.ts` - envelope determinism/expiry and the scrape throttle
 - `tests/e2e/docking.spec.ts` - the browser bounce/retry/skip proof
+- `.planning/PROJECT.md` - the SAT, probe-envelope and no-trap Key Decisions rows
 
 ## Decisions Made
 

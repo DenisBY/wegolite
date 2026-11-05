@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Manual Docking
 status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-11-05T08:15:39.111Z"
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-11-05T08:45:53.500Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 04 execution started
-state_head: d66ea37d11c86f05997728c84768cc2357209883
+state_head: dacd9f29b6a2bf0adc87498e4ecc28167511d75a
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 35
-  completed_plans: 32
+  completed_plans: 33
   percent: 43
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 04 (Manual Docking) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-11-05 — Phase 04 execution started
 
@@ -73,6 +73,7 @@ Progress: [████░░░░░░] 43%
 | Phase 03 P12 | 6 | 2 tasks | 8 files |
 | Phase 04 P01 | 13 min | 2 tasks | 11 files |
 | Phase 04 P02 | 20 min | 3 tasks | 17 files |
+| Phase 04 P03 | 30 min | 3 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -132,6 +133,9 @@ Recent decisions affecting current work:
 - [Phase 04]: Plan 04-02: dockArmed is a clearance latch that arms only when box.min.z > contactPort.zMax, preserving Oolite's STATUS_LAUNCHING exemption across the Space-skip path.
 - [Phase 04]: Plan 04-02: band auto-centre applies the per-tick port-frame delta without dt scaling; one scrape event and one scrapeTicks increment per band tick.
 - [Phase 04]: Plan 04-02: the symmetric y auto-centre guard deviates from DockEntity.m:752 and is recorded in PROJECT.md.
+- [Phase 04]: Plan 04-03: contact detection is a 15-axis SAT of the ship OBB against contactPort, sharing one predicate with obbsIntersect so the oracle cannot diverge.
+- [Phase 04]: Plan 04-03: the armed branch is an exclusive capture/straddle/band/lane/outside pipeline; one response, one count and one velocity rewrite per tick.
+- [Phase 04]: Plan 04-03: the probe publishes envelope strength (1 at the trigger instant), never the sinusoidal camera offset; bounceCount is per departure.
 
 ### Pending Todos
 
@@ -163,6 +167,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-05T08:15:38.732Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-11-05T08:45:53.106Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None

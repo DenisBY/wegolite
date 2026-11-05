@@ -55,10 +55,10 @@ Requirements for the initial release. Each maps to a roadmap phase.
 
 - [x] **DOCK-01**: The docking corridor is derived from the Coriolis dock geometry and matches the visible opening
 - [x] **DOCK-02**: The station spins at the Oolite rate, and docking tolerates station roll with x/y auto-centring
-- [ ] **DOCK-03**: Off-axis contact produces scrape damage or bounce feedback, using the v1 collision-only hull model
+- [x] **DOCK-03**: Off-axis contact produces scrape damage or bounce feedback, using the v1 collision-only hull model
 - [x] **DOCK-04**: Crossing 90% past the dock plane while aligned transitions cleanly into docked mode
 - [ ] **DOCK-05**: A docking computer can be bought (TL 9, 1500 Cr) and grants instant docking on `Shift+C` with a +20 minute clock advance
-- [ ] **DOCK-06**: A failed docking attempt never traps the player; they recover to flight with clear feedback
+- [x] **DOCK-06**: A failed docking attempt never traps the player; they recover to flight with clear feedback
 - [ ] **DOCK-07**: The game autosaves on launch so the docked state is always resumable
 
 ### Docked Mode, Economy & Station Screens
@@ -180,10 +180,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 | FLGT-08 | Phase 3 | Complete |
 | DOCK-01 | Phase 4 | Complete |
 | DOCK-02 | Phase 4 | Complete |
-| DOCK-03 | Phase 4 | Pending |
+| DOCK-03 | Phase 4 | Complete |
 | DOCK-04 | Phase 4 | Complete |
 | DOCK-05 | Phase 4 | Pending |
-| DOCK-06 | Phase 4 | Pending |
+| DOCK-06 | Phase 4 | Complete |
 | DOCK-07 | Phase 4 | Pending |
 | ECON-01 | Phase 5 | Pending |
 | ECON-02 | Phase 5 | Pending |
