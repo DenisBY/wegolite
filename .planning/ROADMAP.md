@@ -185,22 +185,22 @@ Plans:
   4. The outfitting screen lists only equipment whose tech level and conditions are met, and installs or removes legal items at the correct price.
 **Plans**: 6 plans
 **Wave 1**
-- [ ] 05-01-PLAN.md — Tracer: Lave market buy → autosave → reload; content peaks/names, economy core (buy), cargo/pods, save extension, input contexts, F8
+- [ ] 05-01-PLAN.md — Tracer: Lave market buy → autosave → reload; content peaks/names, economy core (buy), exact cargo/pods, shared reader/writer save semantics, bubble keyboard, F8; independent anchors and regression proofs
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 05-02-PLAN.md — Trading breadth: sell, kg/g pods, clamps, refusal reasons, market goldens, determinism, PROJECT.md decisions
+- [ ] 05-02-PLAN.md — Trading breadth: exact kg/g capacity, sell, sequential clamps, overflow, regression goldens plus independent reference vectors, determinism, PROJECT.md decisions
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 05-03-PLAN.md — Outfitting rules: D-11 visible set, conditions, fuel fill, multi-instance, no-refund removals
+- [ ] 05-03-PLAN.md — Outfitting rules: D-11 visible set, `notOffered`, fail-closed conditions, integer fuel, multi-instance, truthful no-refund removal copy
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 05-04-PLAN.md — Labels loader and pure view models for F8/F3/F5/F7
+- [ ] 05-04-PLAN.md — Labels loader and pure view models for F8/F3/F5/F7, total-cost confirmation, truthful removal detail
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 05-05-PLAN.md — F3/F5/F7 screens, keyboard-only navigation, reserved-key no-reload proof
+- [ ] 05-05-PLAN.md — F3/F5/F7 screens, two-state confirm, keyboard-only navigation, sentinel no-reload proof, Tab focus containment
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 05-06-PLAN.md — Save hardening, full keyboard loop, economy-purity guard, phase gate
+- [ ] 05-06-PLAN.md — Save hardening and writer parity, full keyboard loop with pause, economy-purity guard with correct paths, phase gate
 **UI hint**: yes
 
 ### Phase 6: Hyperspace, Navigation & Persistence
@@ -239,7 +239,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
 | 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
 | 4. Manual Docking | 8/8 | Complete    | 2026-11-05 |
-| 5. Docked Economy & Station Screens | 0/5 | Planning | - |
+| 5. Docked Economy & Station Screens | 0/6 | Planning | - |
 | 6. Hyperspace, Navigation & Persistence | 0/TBD | Not started | - |
 | 7. Hardening & Community Release | 0/TBD | Not started | - |
 

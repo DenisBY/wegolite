@@ -576,7 +576,7 @@ export function encodeSave(inputs: SaveInputs): string {
 **Rules the planner must state**
 - Add new fields as **optional** on the existing `z.strictObject` (no version bump).
 - Cargo is an **entry array** (`{ key, quantity }`), bounded `MAX_SAVE_CARGO_ENTRIES = 17`; never a keyed object.
-- Add `commodities: ReadonlySet<string>` to `SaveAllowLists`; reject unknown/duplicate cargo keys as `corrupt`.
+- Add `commodities: ReadonlyMap<string, CommodityUnit>` to `SaveAllowLists` (the unit map is needed by `podsFor`/`holdPodsUsed`); reject unknown/duplicate/zero/non-tradeable cargo keys as `corrupt`.
 - Validate `holdPodsUsed(cargo) <= capacityPods(equipment, passengerBerths)` inside `parseSave`; over-capacity is `corrupt`, not clamped.
 - Keep `equipment` unique; encode missiles/berths as counts (`MAX_SAVE_MISSILES = 3`, `MAX_SAVE_BERTHS = 7`, `MAX_SAVE_FUEL = 70`).
 - Update `SaveInputs`/`encodeSave`/`snapshotForSave` together.
