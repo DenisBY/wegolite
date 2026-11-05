@@ -53,6 +53,9 @@ export function beginLaunch(
   // The world-sense station rate: the slot stays steady during the exit.
   state.rollRate = layout.stationRollRadPerSec;
   state.stationAngle = 0;
+  // A launch leaves through the mouth, overlapping the contact proxy; the latch
+  // re-arms only after the whole box is clear of the proxy's outward face.
+  state.dockArmed = false;
   return true;
 }
 

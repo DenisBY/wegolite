@@ -46,6 +46,12 @@ export interface FlightState {
   stationAngle: number;
   launchElapsed: number;
   launchCount: number;
+  /** Cleared by a launch; set once the ship is wholly clear of the contact proxy. */
+  dockArmed: boolean;
+  /** Successful manual/computer docks, shown in the probe and persisted later. */
+  dockCount: number;
+  /** Band-correction ticks; one increment per emitted scrape event. */
+  scrapeTicks: number;
   compassMode: CompassMode;
   compassTarget: CompassTarget;
 }
@@ -78,6 +84,10 @@ export function initFlightState(layout: SystemLayout): FlightState {
     stationAngle: 0,
     launchElapsed: 0,
     launchCount: 0,
+    // A fresh game starts parked at the mouth: the corridor is already clear.
+    dockArmed: true,
+    dockCount: 0,
+    scrapeTicks: 0,
     compassMode: "auto",
     compassTarget: "planet",
   };
@@ -108,6 +118,9 @@ export function serializeFlight(state: FlightState): string {
     `launchElapsed=${canon(state.launchElapsed, 6)}`,
     `launchCount=${canon(state.launchCount, 0)}`,
     `compass=${state.compassTarget}`,
+    `dockArmed=${String(state.dockArmed)}`,
+    `dockCount=${canon(state.dockCount, 0)}`,
+    `scrapeTicks=${canon(state.scrapeTicks, 0)}`,
   ].join("\n");
 }
 

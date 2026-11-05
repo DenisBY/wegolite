@@ -20,6 +20,8 @@ import type { Command } from "../commands.js";
 import type { SimEvent } from "../events.js";
 import { nextCompassMode, resolveCompassTarget } from "../world/aegis.js";
 import type { SystemLayout } from "../world/layout.js";
+import { stepDocking } from "../dock/step.js";
+import type { DockGeometry } from "../dock/geometry.js";
 import { stepAttitude } from "./attitude.js";
 import type { FlightConfig } from "./config.js";
 import type { ControlIntent } from "./controller.js";
@@ -27,6 +29,12 @@ import { beginLaunch, completeLaunch, stepLaunch } from "./launch.js";
 import { stepSpeed } from "./speed.js";
 import { stepTorus } from "./torus.js";
 import type { FlightState } from "./state.js";
+
+/** Optional per-step systems. Plan 04-03 extends the options with an impulse. */
+export interface StepOptions {
+  /** The validated docking geometry; absent in Phase 1/2 probe steps. */
+  readonly dock?: DockGeometry;
+}
 
 /**
  * Advance the flight simulation by one fixed step.
@@ -41,6 +49,7 @@ export function stepFlight(
   intent: ControlIntent,
   commands: readonly Command[],
   dt: number,
+  options?: StepOptions,
 ): SimEvent[] {
   if (!Number.isFinite(dt) || dt <= 0) {
     throw new Error(
@@ -127,8 +136,15 @@ export function stepFlight(
     );
   }
 
+  // 6. Docking, after the post-increment station angle so the corridor never
+  // lags the visible slot, and before the tick counter so the capture tick is
+  // the same tick the pose reached the weighted plane.
+  if (options?.dock !== undefined) {
+    events.push(...stepDocking(state, layout, options.dock));
+  }
+
   state.tick += 1;
 
-  // 6. Events were collected in order above.
+  // 7. Events were collected in order above.
   return events;
 }

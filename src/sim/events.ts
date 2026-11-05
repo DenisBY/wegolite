@@ -18,4 +18,6 @@ export type SimEvent =
   | { kind: "torusEngaged"; factor: number }
   | { kind: "torusDisengaged"; reason: TorusDisengageReason }
   | { kind: "massLockChanged"; locked: boolean }
-  | { kind: "compassTargetChanged"; target: CompassTarget };
+  | { kind: "compassTargetChanged"; target: CompassTarget }
+  | { kind: "docked"; via: "manual" | "computer"; clockDelta: number }
+  | { kind: "scrape" };
