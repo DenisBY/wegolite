@@ -15,7 +15,7 @@
  * a repaired tick from a clean one.
  */
 
-import { lengthSquared, vec } from "../math.js";
+import { vec } from "../math.js";
 import type { FlightConfig } from "./config.js";
 import { dockMouthPosition } from "./state.js";
 import type { FlightState } from "./state.js";
@@ -47,9 +47,14 @@ export function sanitizeFlightState(
     repaired = true;
   }
 
-  const orientationLengthSquared = lengthSquared(state.orientation);
+  const orientation = state.orientation;
+  const orientationLengthSquared =
+    orientation.w * orientation.w +
+    orientation.x * orientation.x +
+    orientation.y * orientation.y +
+    orientation.z * orientation.z;
   if (
-    !finiteVec(state.orientation) ||
+    !finiteVec(orientation) ||
     !(orientationLengthSquared > 0) ||
     !Number.isFinite(orientationLengthSquared)
   ) {
