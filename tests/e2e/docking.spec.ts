@@ -442,6 +442,9 @@ test("Shift+C with the computer granted docks instantly with exactly 1200 s", as
   const docked = await getProbe(page);
   expect(docked.dock?.lastClockDelta).toBe(1200);
   expect(docked.dock?.dockCount).toBe(1);
+  // WR-03: the computer dock is not an autosave trigger either. `attempts`
+  // counts the launch write only, even though the profile is tainted.
+  expect(docked.save?.attempts).toBe(1);
   await expect(page.locator("#docked")).toBeVisible();
   await expect(page.locator('[data-field="dockcomp-message"]')).toHaveText(
     "Already fitted",

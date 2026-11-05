@@ -106,6 +106,12 @@ export interface WegoliteProfileTestHook {
  */
 export interface WegoliteSaveProbe {
   status: SaveStatus;
+  /**
+   * Every trigger attempt, incremented at the top of `autosave()` before any
+   * status/taint skip. `writes` alone cannot distinguish "not a trigger" from
+   * "a trigger that was skipped", so the docking proof reads this counter.
+   */
+  attempts: number;
   /** Write/clear attempts queued this session. */
   writes: number;
   /** Writes whose transaction completed. */

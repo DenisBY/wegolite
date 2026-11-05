@@ -262,6 +262,9 @@ test("a manual dock does not autosave: Continue still restores the launch clock"
   await page.waitForTimeout(600);
   const docked = await getProbe(page);
   expect(docked.mode).toBe("docked");
+  // `attempts` is incremented before the taint skip, so this proves the dock
+  // never called `autosave()` at all — not merely that the write was skipped.
+  expect(docked.save?.attempts).toBe(1);
   expect(docked.save?.writes).toBe(1);
   expect(docked.save?.committed).toBe(1);
   expect(docked.save?.lastClock).toBe(savedClock);

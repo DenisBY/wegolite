@@ -229,6 +229,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   // cleared or overwritten, so the launch/purchase write path is skipped whole.
   let saveStatus: SaveStatus = saveBoot.status;
   let saveRevision = 0;
+  let saveAttempts = 0;
   let saveWrites = 0;
   let saveCommitted = 0;
   let saveLastClock: number | null = null;
@@ -241,6 +242,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let saveUnavailable = saveStatus === "unavailable";
   const saveProbe: WegoliteSaveProbe = {
     status: saveStatus,
+    attempts: 0,
     writes: 0,
     committed: 0,
     revision: 0,
@@ -386,6 +388,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   function syncSaveProbe(): void {
     saveProbe.status = saveStatus;
+    saveProbe.attempts = saveAttempts;
     saveProbe.writes = saveWrites;
     saveProbe.committed = saveCommitted;
     saveProbe.revision = saveRevision;
@@ -410,6 +413,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * in the probe.
    */
   function autosave(): void {
+    // WR-03: recorded before every skip, so a test can prove that a dock never
+    // even reached this function while the taint guard still suppresses writes.
+    saveAttempts += 1;
     if (saveStatus === "future" || saveStatus === "unreadable") {
       saveSkipReason = saveStatus === "future" ? "future" : "unreadable";
       syncSaveProbe();
