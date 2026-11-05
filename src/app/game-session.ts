@@ -23,6 +23,8 @@ import {
 } from "../content/ships.js";
 import { loadDockPort } from "../content/dock-port.js";
 import type { ShipDef, System } from "../content/types.js";
+import { createDockFeedback } from "./dock-feedback.js";
+import type { DockFeedback } from "./dock-feedback.js";
 import { buildHudModel } from "./hud-model.js";
 import { createGameLoop } from "./game-loop.js";
 import type { GameLoop } from "./game-loop.js";
@@ -182,6 +184,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   // autosave a tainted profile.
   let testTainted = false;
   const messages = createMessageQueue(4);
+  const dockFeedback: DockFeedback = createDockFeedback();
   const launchSequence: LaunchSequence = createLaunchSequence();
   let lastModel: HudModel | undefined;
   let lastMs = 0;
@@ -195,6 +198,20 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (settings === undefined || bindings === undefined) return;
     settings.bindings = bindings;
     saveSettings(settings);
+  }
+
+  /** D-08 copy is app-owned and fixed; the sim event carries facts only. */
+  function bounceMessage(event: {
+    cause: "hull" | "straddle";
+    axis: "x" | "y" | "z";
+  }): string {
+    if (event.cause === "straddle") {
+      return "Too wide for the slot - roll 90 degrees to match the opening";
+    }
+    if (event.axis === "x") {
+      return "Hull contact - roll 90 degrees and line up with the slot";
+    }
+    return "Hull contact - pull away and line up with the slot";
   }
 
   function pause(): void {
@@ -335,6 +352,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       case "massLockChanged":
         if (event.locked) messages.enqueue("Mass locked");
         break;
+      case "bounce":
+        dockFeedback.trigger("bounce", state?.flightTime ?? 0);
+        messages.enqueue(bounceMessage(event));
+        break;
       case "compassTargetChanged":
         messages.enqueue(`Compass target: ${event.target}`);
         break;
@@ -378,6 +399,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       probe.dock = {
         dockCount: currentState.dockCount,
         scrapeCount: currentState.scrapeTicks,
+        bounceCount: currentState.bounceCount,
+        shake: dockFeedback.shakeStrength(currentState.flightTime),
+        flash: dockFeedback.flashAlpha(currentState.flightTime),
         outcome: currentState.mode === "docked" ? "docked" : "inFlight",
       };
     }

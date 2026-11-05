@@ -11,7 +11,7 @@
  */
 
 import { canon, fnv1a32 } from "../hash.js";
-import { add, scale } from "../math.js";
+import { add, scale, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import type { SystemLayout } from "../world/layout.js";
 
@@ -52,6 +52,16 @@ export interface FlightState {
   dockCount: number;
   /** Band-correction ticks; one increment per emitted scrape event. */
   scrapeTicks: number;
+  /**
+   * The transient contact velocity (world m/s) added on top of the scalar
+   * forward speed. A bounce reflects into an impulse and decays; a flight
+   * tick integrates it into the position (D-07).
+   */
+  impulse: Vec3;
+  /** Contact responses emitted; one per bounce event (DOCK-03). */
+  bounceCount: number;
+  /** Ticks where `sanitizeFlightState` repaired the state (T-04-41). */
+  repairCount: number;
   compassMode: CompassMode;
   compassTarget: CompassTarget;
 }
@@ -88,6 +98,9 @@ export function initFlightState(layout: SystemLayout): FlightState {
     dockArmed: true,
     dockCount: 0,
     scrapeTicks: 0,
+    impulse: vec(0, 0, 0),
+    bounceCount: 0,
+    repairCount: 0,
     compassMode: "auto",
     compassTarget: "planet",
   };
@@ -121,6 +134,9 @@ export function serializeFlight(state: FlightState): string {
     `dockArmed=${String(state.dockArmed)}`,
     `dockCount=${canon(state.dockCount, 0)}`,
     `scrapeTicks=${canon(state.scrapeTicks, 0)}`,
+    `impulse=${canon(state.impulse.x)},${canon(state.impulse.y)},${canon(state.impulse.z)}`,
+    `bounceCount=${canon(state.bounceCount, 0)}`,
+    `repairCount=${canon(state.repairCount, 0)}`,
   ].join("\n");
 }
 

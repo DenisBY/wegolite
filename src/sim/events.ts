@@ -12,6 +12,12 @@ import type { CompassTarget } from "./flight/state.js";
 
 export type TorusDisengageReason = "input" | "massLock" | "toggle";
 
+/** Why a contact response fired: a straddle or the hull SAT (D-05, D-09). */
+export type BounceCause = "hull" | "straddle";
+
+/** The port-frame axis a bounce normal is most aligned with. */
+export type BounceAxis = "x" | "y" | "z";
+
 export type SimEvent =
   | { kind: "launched" }
   | { kind: "launchComplete" }
@@ -20,4 +26,11 @@ export type SimEvent =
   | { kind: "massLockChanged"; locked: boolean }
   | { kind: "compassTargetChanged"; target: CompassTarget }
   | { kind: "docked"; via: "manual" | "computer"; clockDelta: number }
-  | { kind: "scrape" };
+  | { kind: "scrape" }
+  | {
+      kind: "bounce";
+      /** The impact speed along the contact normal, in m/s. */
+      speed: number;
+      cause: BounceCause;
+      axis: BounceAxis;
+    };

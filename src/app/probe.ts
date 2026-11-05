@@ -77,6 +77,12 @@ export interface WegoliteSceneTestHook {
 export interface WegoliteDockProbe {
   dockCount: number;
   scrapeCount: number;
+  /** One increment per emitted bounce event (DOCK-03). */
+  bounceCount: number;
+  /** The shake envelope strength, 1 at the trigger instant (D-08). */
+  shake: number;
+  /** The red-frame flash alpha, 1 at the trigger instant (D-08). */
+  flash: number;
   outcome: "docked" | "inFlight";
 }
 
@@ -126,8 +132,7 @@ export interface WegoliteProbe {
   /** Present once a system scene exists. */
   world?: WegoliteWorldProbe;
   /** Live docking counters; plan 04-03 extends this with bounce/shake/flash. */
-  dock?: WegoliteDockProbe;
-  /**
+  dock?: WegoliteDockProbe; /**
    * The live active-camera aspect (WORLD-02). The e2e proof reads this instead
    * of a screenshot. Absent on the failure surface, where no camera renders.
    */

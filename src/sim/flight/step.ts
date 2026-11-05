@@ -26,6 +26,7 @@ import { stepAttitude } from "./attitude.js";
 import type { FlightConfig } from "./config.js";
 import type { ControlIntent } from "./controller.js";
 import { beginLaunch, completeLaunch, stepLaunch } from "./launch.js";
+import { sanitizeFlightState } from "./sanitize.js";
 import { stepSpeed } from "./speed.js";
 import { stepTorus } from "./torus.js";
 import type { FlightState } from "./state.js";
@@ -51,6 +52,11 @@ export function stepFlight(
   dt: number,
   options?: StepOptions,
 ): SimEvent[] {
+  // Repair a poisoned hook/restore value before anything integrates it
+  // (T-04-41). Speed is bounded by the torus cap, so it can never drive the
+  // position to Infinity.
+  sanitizeFlightState(state, layout, config);
+
   if (!Number.isFinite(dt) || dt <= 0) {
     throw new Error(
       `Wegolite: stepFlight requires a positive finite dt, received ${String(dt)}.`,
@@ -140,7 +146,7 @@ export function stepFlight(
   // lags the visible slot, and before the tick counter so the capture tick is
   // the same tick the pose reached the weighted plane.
   if (options?.dock !== undefined) {
-    events.push(...stepDocking(state, layout, options.dock));
+    events.push(...stepDocking(state, layout, options.dock, dt));
   }
 
   state.tick += 1;
