@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Manual Docking
 status: executing
-stopped_at: Completed 04-06-PLAN.md
-last_updated: "2026-11-05T13:39:31.073Z"
+stopped_at: Completed 04-08-PLAN.md
+last_updated: "2026-11-05T13:53:46.417Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 04 execution started
-state_head: e70dc78d71cb147c91676b7099c92b449030fbb4
+state_head: 3fa472d1676754fdf1d933b6372ee48983a70385
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 38
-  completed_plans: 36
+  completed_plans: 37
   percent: 43
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 04 (Manual Docking) — EXECUTING
-Plan: 7 of 8
+Plan: 8 of 8
 Status: Ready to execute
 Last activity: 2026-11-05 — Phase 04 execution started
 
@@ -77,6 +77,7 @@ Progress: [████░░░░░░] 43%
 | Phase 04 P04 | 44 min | 3 tasks | 19 files |
 | Phase 04 P05 | 31 | 3 tasks | 14 files |
 | Phase 04 P06 | 15 min | 2 tasks | 8 files |
+| Phase 04 P08 | 14min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -152,6 +153,8 @@ Recent decisions affecting current work:
 - [Phase 04]: Plan 04-05: boot builds the equipment, galaxy-0 and station allow-lists at the parseSave call site.
 - [Phase 04]: Plan 04-06: the purchase refusal is a span inside the docking-computer value dd, so grid auto-placement cannot move it to the label column; the Buy control describes it through aria-describedby.
 - [Phase 04]: Plan 04-06: SHIFT_REQUIRED_ACTIONS is shared action metadata in actions.ts; chordLabel adds the modifier only for display while bindings keep plain KeyboardEvent.code values.
+- [Phase 04]: Plan 04-08: the disarmed tunnel-end clamp is asserted as pos + frame.k * shift under a rotated stationAngle, so a world-axis shortcut cannot pass.
+- [Phase 04]: Plan 04-08: the bounce block is named for orientation invariance; exactly-one-bounce and bounceCount === 1 remain preconditions for the deep-equal quaternion.
 
 ### Pending Todos
 
@@ -183,6 +186,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-05T13:39:30.580Z
-Stopped at: Completed 04-06-PLAN.md
+Last session: 2026-11-05T13:53:45.927Z
+Stopped at: Completed 04-08-PLAN.md
 Resume file: None
