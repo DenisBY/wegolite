@@ -150,9 +150,9 @@ Plans:
   3. An off-axis or too-fast approach scrapes or bounces with visible feedback, and every failure recovers to flight — no attempt ever traps the player.
   4. With the docking computer installed (TL 9, 1500 Cr), `Shift+C` docks instantly and advances the clock by 20 minutes.
   5. Launching autosaves, so a docked state is always resumable.
-**Plans**: 5 plans in 5 waves
+**Plans**: 1/5 plans executed in 5 waves
 **Wave 1**
-- [ ] 04-01-PLAN.md — Wave 1: measure the dock aperture at build time, emit `dock-port.json`, typed loader, golden + drift check
+- [x] 04-01-PLAN.md — Wave 1: measure the dock aperture at build time, emit `dock-port.json`, typed loader, golden + drift check
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 04-02-PLAN.md — Wave 2: port-frame corridor, lane/capture, safety-band auto-centring, docked transition (tracer: aligned approach docks)
@@ -214,7 +214,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Foundation, Containers & Compliance | 7/7 | Complete    | 2026-11-02 |
 | 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
 | 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
-| 4. Manual Docking | 0/5 | Planned | - |
+| 4. Manual Docking | 1/5 | In Progress | - |
 | 5. Docked Economy & Station Screens | 0/TBD | Not started | - |
 | 6. Hyperspace, Navigation & Persistence | 0/TBD | Not started | - |
 | 7. Hardening & Community Release | 0/TBD | Not started | - |

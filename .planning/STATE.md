@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Manual Docking
 status: executing
-stopped_at: Phase 4 context gathered
-last_updated: "2026-11-04T21:43:30.535Z"
-last_activity: 2026-11-04
-last_activity_desc: Phase 03 complete, transitioned to Phase 4
-state_head: 04ae167c869bfd2253e38cce3703c3dc55fd9760
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-11-05T07:54:40.399Z"
+last_activity: 2026-11-05
+last_activity_desc: Phase 04 execution started
+state_head: 6a0a272c104595cf6cb3f0f1a22a30dc418ce72a
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 35
-  completed_plans: 30
+  completed_plans: 31
   percent: 43
 ---
 
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 
 ## Current Position
 
-Phase: 04 (Manual Docking) — READY TO EXECUTE
-Plan: 5 plans ready (04-01 … 04-05)
+Phase: 04 (Manual Docking) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-11-04 — Phase 03 complete, transitioned to Phase 4
+Last activity: 2026-11-05 — Phase 04 execution started
 
 Progress: [████░░░░░░] 43%
 
@@ -71,6 +71,7 @@ Progress: [████░░░░░░] 43%
 | Phase 03 P13 | 6 min | 2 tasks | 8 files |
 | Phase 03 P11 | 10min | 2 tasks | 7 files |
 | Phase 03 P12 | 6 | 2 tasks | 8 files |
+| Phase 04 P01 | 13 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,9 @@ Recent decisions affecting current work:
 - [Phase 03]: Plan 03-14: the planet noise budget is 9 evaluations (surface 6, two sea-gated 1-octave relief taps, cloud 1); RELIEF_SCALE 80 is confirmed (mean shade 0.8519, min 0.4636) and cloud coverage re-pins at 0.26001.
 - [Phase 03]: Plan 03-14 halted on G-03-3: the 29-test suite is green in both the 10- and 9-evaluation builds, but the JSON-reporter message-test duration is 160362 ms then 152390 ms against the 133 s gate; the proven dominant cost is ~340 ms of fixed loaded frame time, not the noise evaluations.
 - [Quick 261104-oif]: measured at 1280x720 DPR 1 on SwiftShader with two concurrent pages: loaded in-flight frame 369.4 ms (2.71 fps), planet fragment shader ~281 ms of it (flat fragment keeps 38308 triangles/6 calls and runs at 88.4 ms), rest of scene ~30 ms (planet hidden), MSAA 4x real (SAMPLES 4) and worth ~135 ms (antialias:false: 234.6 ms), half resolution saves ~199 ms. The measurement gives a real planet-shading fix ~340 ms of headroom against the 55 ms bar; it does not force a gate revision.
+- [Phase 04]: Plan 04-01: the dock aperture is the oolite_coriolis_dock.dat bbox (103.4123 x 241.888 x 250), emitted at build time to src/content/generated/dock-port.json, never typed into src/sim.
+- [Phase 04]: Plan 04-01: the contact proxy is the union of hull, tris and faceplate bounds (station-local z -534.298..500), a deliberate conservative box, not the hull-only box.
+- [Phase 04]: Plan 04-01: corridor expansion is Oolite's x1.25 loop bounded at 64 iterations with a strict progress check, so degenerate apertures fail SCHEMA instead of hanging.
 
 ### Pending Todos
 
@@ -154,6 +158,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-04T18:30:38.730Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-manual-docking/04-CONTEXT.md
+Last session: 2026-11-05T07:54:40.062Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
