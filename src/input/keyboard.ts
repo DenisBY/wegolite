@@ -21,7 +21,7 @@
 
 import type { Command } from "../sim/commands.js";
 import type { InputFrame } from "../sim/state.js";
-import { ACTION_IDS } from "./actions.js";
+import { ACTION_IDS, SHIFT_REQUIRED_ACTIONS } from "./actions.js";
 import type { ActionId } from "./actions.js";
 import { createBindingMap } from "./bindings.js";
 import type { BindingMap } from "./bindings.js";
@@ -35,17 +35,15 @@ const EDGE_COMMANDS: Readonly<Partial<Record<ActionId, Command>>> = {
 };
 
 /**
- * The actions Oolite requires Shift for. `dockingComputer` is Oolite's fast
- * autopilot (`n_key_autodock`, `C`); plain `C` is the ordinary autopilot, which
- * this build does not have. The modifier lives in the keyboard layer only —
- * bindings stay plain `KeyboardEvent.code` values so the rebinding UI is
- * unchanged (D-11, T-04-18).
+ * The modifier state that decides a chord.
+ *
+ * The Shift requirement is shared action metadata in `actions.ts`
+ * (`SHIFT_REQUIRED_ACTIONS`), sourced from Oolite's fast autopilot
+ * (`n_key_autodock`, `C`); plain `C` is the ordinary autopilot, which this
+ * build does not have. Bindings still store plain `KeyboardEvent.code` values,
+ * and only the display layer adds the chord through `bindings.chordLabel`
+ * (D-11, T-04-18).
  */
-const REQUIRES_SHIFT: ReadonlySet<ActionId> = new Set<ActionId>([
-  "dockingComputer",
-]);
-
-/** The modifier state that decides a chord. */
 export interface KeyModifiers {
   readonly shift: boolean;
 }
@@ -105,12 +103,12 @@ export function createInputState(
       // plain C for pause and Shift+C for docking, with no double queue
       // (T-04-18).
       const shiftRequired = actions.filter((action) =>
-        REQUIRES_SHIFT.has(action),
+        SHIFT_REQUIRED_ACTIONS.has(action),
       );
       const useShift = mods?.shift === true && shiftRequired.length > 0;
       const firing = useShift
         ? shiftRequired
-        : actions.filter((action) => !REQUIRES_SHIFT.has(action));
+        : actions.filter((action) => !SHIFT_REQUIRED_ACTIONS.has(action));
       if (!useShift) held.add(code);
 
       for (const action of firing) {

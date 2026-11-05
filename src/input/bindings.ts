@@ -15,7 +15,11 @@
  * for pause, launch and precision).
  */
 
-import { ACTION_IDS, DEFAULT_BINDINGS } from "./actions.js";
+import {
+  ACTION_IDS,
+  DEFAULT_BINDINGS,
+  SHIFT_REQUIRED_ACTIONS,
+} from "./actions.js";
 import type { ActionId } from "./actions.js";
 
 /** The most codes one action may hold (research § Step 7). */
@@ -153,9 +157,20 @@ export function codeLabel(code: string): string {
   return CODE_LABELS[code] ?? code;
 }
 
+/**
+ * A display label for one bound code, with the chord added when the action
+ * requires Shift. The stored code stays plain; only this projection shows the
+ * modifier, so a rebind to `KeyK` renders as `Shift+K`.
+ */
+export function chordLabel(action: ActionId, code: string): string {
+  return SHIFT_REQUIRED_ACTIONS.has(action)
+    ? `Shift+${codeLabel(code)}`
+    : codeLabel(code);
+}
+
 /** The current codes for an action, e.g. `"Right arrow"` or `"P / Esc"`. */
 export function labelFor(map: BindingMap, action: ActionId): string {
   const codes = map[action] ?? [];
   if (codes.length === 0) return "(unbound)";
-  return codes.map(codeLabel).join(" / ");
+  return codes.map((code) => chordLabel(action, code)).join(" / ");
 }

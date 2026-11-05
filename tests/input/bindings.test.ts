@@ -17,6 +17,7 @@ import {
   MAX_CODES_PER_ACTION,
   bindAction,
   capCodes,
+  chordLabel,
   codeLabel,
   createBindingMap,
   detectConflict,
@@ -125,6 +126,19 @@ describe("labels and the code cap", () => {
 
     unbindAction(map, "rollRight");
     expect(labelFor(map, "rollRight")).toBe("(unbound)");
+  });
+
+  it("renders the Shift chord for a shift-required action", () => {
+    const map = createBindingMap();
+
+    expect(labelFor(map, "dockingComputer")).toBe("Shift+C");
+    // An ordinary action keeps its plain label.
+    expect(labelFor(map, "rollRight")).toBe("Right arrow");
+
+    // The chord follows the rebound code, not a fixed default.
+    bindAction(map, "dockingComputer", "KeyK");
+    expect(chordLabel("dockingComputer", "KeyK")).toBe("Shift+K");
+    expect(labelFor(map, "dockingComputer")).toBe("Shift+K");
   });
 
   it("caps an array at four distinct valid codes", () => {

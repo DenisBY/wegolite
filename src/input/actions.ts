@@ -79,8 +79,21 @@ export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
   torus: "Torus drive",
   pause: "Pause",
   launch: "Launch",
-  dockingComputer: "Docking computer (Shift+)",
+  dockingComputer: "Docking computer",
   targetStation: "Target station",
   compassCycle: "Cycle compass",
   precision: "Precision",
 });
+
+/**
+ * The actions Oolite requires Shift for. `dockingComputer` is Oolite's fast
+ * autopilot (`n_key_autodock`, `C`); plain `C` is the ordinary autopilot, which
+ * this build does not have.
+ *
+ * This is action metadata, not keyboard state: the input resolver enforces it
+ * and the display layer renders the chord from it. Bindings still store plain
+ * `KeyboardEvent.code` values (D-11, T-04-18).
+ */
+export const SHIFT_REQUIRED_ACTIONS: ReadonlySet<ActionId> = new Set<ActionId>([
+  "dockingComputer",
+]);

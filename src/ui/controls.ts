@@ -19,7 +19,7 @@ import { ACTION_IDS, ACTION_LABELS } from "../input/actions.js";
 import type { ActionId } from "../input/actions.js";
 import {
   bindAction,
-  codeLabel,
+  chordLabel,
   labelFor,
   resetBindings,
   unbindAction,
@@ -176,7 +176,7 @@ export function createControlsPanel(
     }
     render();
     onChange(bindings);
-    setStatus(`${ACTION_LABELS[action]} bound to ${codeLabel(code)}.`);
+    setStatus(`${ACTION_LABELS[action]} bound to ${chordLabel(action, code)}.`);
     stopCapture();
   }
 

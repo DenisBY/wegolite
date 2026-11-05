@@ -15,7 +15,7 @@
  */
 
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import {
   add,
@@ -384,13 +384,89 @@ test("the docked panel shows real credits and refuses the TL 9 computer at Lave"
   await expect(dockedPanel.locator('[data-field="dockcomp"]')).toHaveText(
     "Docking Computers — 1500.0 Cr (TL 9)",
   );
+
+  const buy = page.locator('button[data-action="buy-dockcomp"]');
+  const launch = page.locator('button[data-action="launch"]');
+  const reason = dockedPanel.locator("#dockcomp-message");
+
   // Lave's raw tech level is 4, so the "(TL 9)" line is a real gate.
-  await expect(
-    dockedPanel.locator('[data-field="dockcomp-message"]'),
-  ).toHaveText("Requires TL 9");
-  await expect(
-    page.locator('button[data-action="buy-dockcomp"]'),
-  ).toBeDisabled();
+  await expect(reason).toHaveText("Requires TL 9");
+  await expect(reason).toHaveClass(/docked-reason/);
+  await expect(buy).toBeDisabled();
+  await expect(buy).toHaveAttribute("aria-describedby", "dockcomp-message");
+
+  // The reason sits in the value cell beside the line it qualifies, never a
+  // stray dd in the label column.
+  expect(
+    await dockedPanel.evaluate(() => {
+      const line = document.querySelector('[data-field="dockcomp"]');
+      const message = document.getElementById("dockcomp-message");
+      return (
+        line !== null &&
+        message !== null &&
+        line.tagName === "SPAN" &&
+        message.tagName === "SPAN" &&
+        line.parentElement !== null &&
+        line.parentElement === message.parentElement &&
+        line.parentElement.tagName === "DD"
+      );
+    }),
+  ).toBe(true);
+
+  // Computed presentation: the disabled control must read as unavailable.
+  const computedStyle = (locator: Locator) =>
+    locator.evaluate((element) => {
+      const computed = getComputedStyle(element);
+      return {
+        cursor: computed.cursor,
+        opacity: Number(computed.opacity),
+        color: computed.color,
+        borderColor: computed.borderColor,
+        background: computed.backgroundColor,
+      };
+    });
+  const buyStyle = await computedStyle(buy);
+  const launchStyle = await computedStyle(launch);
+  expect(buyStyle.cursor).toBe("not-allowed");
+  expect(buyStyle.opacity).toBeLessThan(launchStyle.opacity);
+  expect(buyStyle.color).not.toBe(launchStyle.color);
+  expect(buyStyle.borderColor).not.toBe(launchStyle.borderColor);
+
+  const buyBox = await buy.boundingBox();
+  const launchBox = await launch.boundingBox();
+  expect(buyBox).not.toBeNull();
+  expect(launchBox).not.toBeNull();
+  if (buyBox !== null && launchBox !== null) {
+    // Hover the disabled control: it must not take the active fill.
+    await page.mouse.move(
+      buyBox.x + buyBox.width / 2,
+      buyBox.y + buyBox.height / 2,
+    );
+    expect((await computedStyle(buy)).background).toBe(buyStyle.background);
+
+    // A positive gap separates the secondary Buy control from Launch.
+    expect(launchBox.y - (buyBox.y + buyBox.height)).toBeGreaterThan(4);
+  }
+
+  // The same shift metadata drives the Controls row and the rebind feedback.
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeVisible();
+  await page.click('#pause button[data-pause-action="controls"]');
+  await expect(page.locator("#controls")).toBeVisible();
+
+  const dockComputerRow = page.locator(
+    '.controls-row:has([data-rebind="dockingComputer"])',
+  );
+  const dockComputerLabel = dockComputerRow.locator(".controls-label");
+  const dockComputerCodes = dockComputerRow.locator(".controls-codes");
+  await expect(dockComputerLabel).toHaveText("Docking computer");
+  await expect(dockComputerCodes).toHaveText("Shift+C");
+
+  await page.click('button[data-rebind="dockingComputer"]');
+  await page.keyboard.press("KeyK");
+  await expect(page.locator("#controls-status")).toHaveText(
+    "Docking computer bound to Shift+K.",
+  );
 
   expect((await getProbe(page)).mode).toBe("docked");
   expect(errors).toEqual([]);
