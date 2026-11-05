@@ -14,7 +14,7 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 <!-- Shipped and confirmed valuable. -->
 
-(None yet — ship to validate)
+- ✓ Player can manually dock with a station, with a buyable docking computer as an assist — Phase 4 (DOCK-01..DOCK-07)
 
 ### Active
 
@@ -22,7 +22,6 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 - [ ] Player can launch from a Coriolis station into open space
 - [ ] Player can fly with a faithful pitch/roll flight model (Elite-style controls, no yaw)
-- [ ] Player can manually dock with a station, with a buyable docking computer as an assist
 - [ ] Player can buy and sell the core commodity set at station markets, with prices driven by Oolite's economy rules
 - [ ] Player can hyperspace between star systems using fuel and the galactic chart
 - [ ] Player can view station screens: market, equipment, galactic chart, ship status
@@ -120,4 +119,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-02 after Phase 1*
+*Last updated: 2026-11-05 after Phase 4*

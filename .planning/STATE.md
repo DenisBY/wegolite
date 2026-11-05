@@ -20,10 +20,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-02)
+See: .planning/PROJECT.md (updated 2026-11-05)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 04 — Manual Docking
+**Current focus:** Phase 5 — Docked Economy & Station Screens
 
 ## Current Position
 
@@ -32,7 +32,7 @@ Plan: Not started
 Status: Ready to plan
 Last activity: 2026-11-05 — Phase 04 complete, transitioned to Phase 5
 
-Progress: [██████░░░░] 57%
+Progress: [██████░░░░] 57% — 38/38 plans complete
 
 ## Performance Metrics
 
@@ -170,7 +170,8 @@ None yet.
 
 - [Phase 1] 23 code-review findings remain open (0 critical, 11 warning, 12 info) — quality/robustness debt, falsifying a Phase 1 must-have; triage before the next review gate.
 - [Phase 2] Byte-determinism of generated assets across arm64 Docker vs amd64 CI is unverified; decide per-image or per-arch comparison.
-- [Phase 4] Coriolis effective gate geometry and required roll are MEDIUM confidence; measure the dock mesh before hard-coding thresholds. v1 docking damage model (bounce-only vs small hull pool) still undecided.
+- [Phase 4 → Phase 5] DOCK-05's purchase path is proven but not player-reachable at Lave: the raw tech level is 4, so the TL 9 docking computer is correctly refused. The player-visible purchase arrives with the Phase 5 equipment screen; `canPurchase` is reused unchanged.
+- [Phase 4] The static dock-port schema's half-extents are not magnitude-bounded (verification warning W-01); harmless with the vendored asset but worth a schema bound if the aperture ever becomes data-driven.
 - [Project] Licence election and trademark posture need a professional legal read before the first public post.
 - G-03-3 accepted as a known issue (2026-11-04, `PROJECT.md` Key Decisions): the loaded in-flight frame (369.4 ms at 2.71 fps under SwiftShader) is fill-bound and the planet fragment shader owns ~281 ms; the cheap fixes (`antialias:false` ~135 ms, half resolution ~199 ms) would change the approved look. The message-expiry spec is a correctness wait, so it now has a 300 s ceiling with `workers: 2` pinned; QUAL-01 (60 fps at 1080p, mid-range hardware) stays Phase 7's requirement on a real GPU. Do not re-open the octave budget: `BUDGET_CEILING = 9`.
 - [Test infra] `tests/guards/content-boundary.test.ts > removes the probe even when the body throws` runs on Vitest's 5 s default while its five siblings use `180_000`; it timed out at 5 s in one full `verify` run under load and passes in isolation (file 6/6 in 24 s). Give it an explicit timeout — unrelated to 03-14.
@@ -192,6 +193,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-05T14:10:47.126Z
+Last session: 2026-11-05T14:34:49.096Z
 Stopped at: Phase 04 complete, ready to plan Phase 5
 Resume file: None
