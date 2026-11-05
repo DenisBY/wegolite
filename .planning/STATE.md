@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Manual Docking
 status: executing
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-11-05T08:45:53.500Z"
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-11-05T09:26:39.243Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 04 execution started
-state_head: dacd9f29b6a2bf0adc87498e4ecc28167511d75a
+state_head: df31063d82d0ee702d69977593bdefb939e8c629
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 35
-  completed_plans: 33
+  completed_plans: 34
   percent: 43
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 04 (Manual Docking) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-11-05 — Phase 04 execution started
 
@@ -74,6 +74,7 @@ Progress: [████░░░░░░] 43%
 | Phase 04 P01 | 13 min | 2 tasks | 11 files |
 | Phase 04 P02 | 20 min | 3 tasks | 17 files |
 | Phase 04 P03 | 30 min | 3 tasks | 19 files |
+| Phase 04 P04 | 44 min | 3 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -136,6 +137,11 @@ Recent decisions affecting current work:
 - [Phase 04]: Plan 04-03: contact detection is a 15-axis SAT of the ship OBB against contactPort, sharing one predicate with obbsIntersect so the oracle cannot diverge.
 - [Phase 04]: Plan 04-03: the armed branch is an exclusive capture/straddle/band/lane/outside pipeline; one response, one count and one velocity rewrite per tick.
 - [Phase 04]: Plan 04-03: the probe publishes envelope strength (1 at the trigger instant), never the sinusoidal camera offset; bounceCount is per departure.
+- [Phase 04]: Plan 04-04: the TL 9 gate compares the raw System.techLevelRaw, so Lave (raw 4) refuses EQ_DOCK_COMP and Phase 5 reuses canPurchase unchanged.
+- [Phase 04]: Plan 04-04: the purchase price comes only from the validated catalogue; zero, negative, non-integer and non-finite prices are refused before any credits arithmetic.
+- [Phase 04]: Plan 04-04: the dockingComputer command is payload-free; ownership travels through StepOptions.equipment, derived from the profile every frame.
+- [Phase 04]: Plan 04-04: every mode-changing command is gated on modeAtStart and terminalTransition suppresses step 5, making launch +600 s and the computer dock +1200 s exact.
+- [Phase 04]: Plan 04-04: the panel prefers 'Already fitted' for an owned item while canPurchase keeps techLevel first; purchase durability is handed to 04-05 via onProfileChanged.
 
 ### Pending Todos
 
@@ -167,6 +173,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-05T08:45:53.106Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-11-05T09:26:22.229Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None

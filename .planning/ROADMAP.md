@@ -150,7 +150,7 @@ Plans:
   3. An off-axis or too-fast approach scrapes or bounces with visible feedback, and every failure recovers to flight — no attempt ever traps the player.
   4. With the docking computer installed (TL 9, 1500 Cr), `Shift+C` docks instantly and advances the clock by 20 minutes.
   5. Launching autosaves, so a docked state is always resumable.
-**Plans**: 3/5 plans executed in 5 waves
+**Plans**: 4/5 plans executed in 5 waves
 **Wave 1**
 - [x] 04-01-PLAN.md — Wave 1: measure the dock aperture at build time, emit `dock-port.json`, typed loader, golden + drift check
 
@@ -161,7 +161,7 @@ Plans:
 - [x] 04-03-PLAN.md — Wave 3: box-hull bounce, scrape/bounce events, shake/flash feedback, no-trap invariant
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 04-04-PLAN.md — Wave 4: credits, equipment purchase line, `Shift+C` docking computer (+20 min), aegis gate
+- [x] 04-04-PLAN.md — Wave 4: credits, equipment purchase line, `Shift+C` docking computer (+20 min), aegis gate
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 04-05-PLAN.md — Wave 5: IndexedDB autosave on launch, title Continue/New game restore
@@ -214,7 +214,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Foundation, Containers & Compliance | 7/7 | Complete    | 2026-11-02 |
 | 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
 | 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
-| 4. Manual Docking | 3/5 | In Progress | - |
+| 4. Manual Docking | 4/5 | In Progress | - |
 | 5. Docked Economy & Station Screens | 0/TBD | Not started | - |
 | 6. Hyperspace, Navigation & Persistence | 0/TBD | Not started | - |
 | 7. Hardening & Community Release | 0/TBD | Not started | - |
