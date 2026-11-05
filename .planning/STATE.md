@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Manual Docking
-status: executing
-stopped_at: Completed 04-08-PLAN.md
-last_updated: "2026-11-05T13:53:46.417Z"
+status: verifying
+stopped_at: Completed 04-07-PLAN.md
+last_updated: "2026-11-05T14:10:47.637Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 04 execution started
-state_head: 3fa472d1676754fdf1d933b6372ee48983a70385
+state_head: 6eaedd72fb389a38445cc38eef36a5904cbfb708
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 38
-  completed_plans: 37
+  completed_plans: 38
   percent: 43
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 
 Phase: 04 (Manual Docking) — EXECUTING
 Plan: 8 of 8
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-05 — Phase 04 execution started
 
 Progress: [████░░░░░░] 43%
@@ -78,6 +78,7 @@ Progress: [████░░░░░░] 43%
 | Phase 04 P05 | 31 | 3 tasks | 14 files |
 | Phase 04 P06 | 15 min | 2 tasks | 8 files |
 | Phase 04 P08 | 14min | 2 tasks | 2 files |
+| Phase 04 P07 | 17 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -155,6 +156,10 @@ Recent decisions affecting current work:
 - [Phase 04]: Plan 04-06: SHIFT_REQUIRED_ACTIONS is shared action metadata in actions.ts; chordLabel adds the modifier only for display while bindings keep plain KeyboardEvent.code values.
 - [Phase 04]: Plan 04-08: the disarmed tunnel-end clamp is asserted as pos + frame.k * shift under a rotated stationAngle, so a world-axis shortcut cannot pass.
 - [Phase 04]: Plan 04-08: the bounce block is named for orientation invariance; exactly-one-bounce and bounceCount === 1 remain preconditions for the deep-equal quaternion.
+- [Phase 04]: Plan 04-07: New game asks only for valid and corrupt blobs, matching GameSession.canClear; absent, future, unreadable and unavailable keep the one-click path.
+- [Phase 04]: Plan 04-07: onStart stores one handler gated by the confirmation requirement; accept is the only route to it while the requirement is set.
+- [Phase 04]: Plan 04-07: the shared e2e starter checks #title-confirm visibility, so prompted and unprompted boots use one New-game route.
+- [Phase 04]: Plan 04-07: PROJECT.md records the confirmation gate as a refinement of D-14 - the clear still happens, after explicit confirmation.
 
 ### Pending Todos
 
@@ -186,6 +191,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-05T13:53:45.927Z
-Stopped at: Completed 04-08-PLAN.md
+Last session: 2026-11-05T14:10:47.126Z
+Stopped at: Completed 04-07-PLAN.md
 Resume file: None

@@ -150,7 +150,7 @@ Plans:
   3. An off-axis or too-fast approach scrapes or bounces with visible feedback, and every failure recovers to flight — no attempt ever traps the player.
   4. With the docking computer installed (TL 9, 1500 Cr), `Shift+C` docks instantly and advances the clock by 20 minutes.
   5. Launching autosaves, so a docked state is always resumable.
-**Plans**: 7/8 plans executed; 3 gap-closure plans added from UAT
+**Plans**: 8/8 plans executed; 3 gap-closure plans added from UAT
 **Wave 1**
 - [x] 04-01-PLAN.md — Wave 1: measure the dock aperture at build time, emit `dock-port.json`, typed loader, golden + drift check
 
@@ -171,7 +171,7 @@ Plans:
 - [x] 04-08-PLAN.md — G-04-4/G-04-5: committed sim regressions for the disarmed tunnel-end clamp and bounce orientation
 
 **Gap closure — Wave 2** *(blocked on 04-06 because both touch `index.html`)*
-- [ ] 04-07-PLAN.md — G-04-3: confirm before New game discards a committed save
+- [x] 04-07-PLAN.md — G-04-3: confirm before New game discards a committed save
 
 ### Phase 5: Docked Economy & Station Screens
 **Goal**: The player can trade at a station market, equip the ship, and read their status and the system's data, all through keyboard-driven screens faithful to Oolite's numbers.
@@ -221,7 +221,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Foundation, Containers & Compliance | 7/7 | Complete    | 2026-11-02 |
 | 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
 | 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
-| 4. Manual Docking | 7/8 | In Progress | - |
+| 4. Manual Docking | 8/8 | In Progress | - |
 | 5. Docked Economy & Station Screens | 0/TBD | Not started | - |
 | 6. Hyperspace, Navigation & Persistence | 0/TBD | Not started | - |
 | 7. Hardening & Community Release | 0/TBD | Not started | - |
