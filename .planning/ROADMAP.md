@@ -150,7 +150,7 @@ Plans:
   3. An off-axis or too-fast approach scrapes or bounces with visible feedback, and every failure recovers to flight — no attempt ever traps the player.
   4. With the docking computer installed (TL 9, 1500 Cr), `Shift+C` docks instantly and advances the clock by 20 minutes.
   5. Launching autosaves, so a docked state is always resumable.
-**Plans**: 5/5 plans executed in 5 waves
+**Plans**: 5/5 plans executed; 3 gap-closure plans added from UAT
 **Wave 1**
 - [x] 04-01-PLAN.md — Wave 1: measure the dock aperture at build time, emit `dock-port.json`, typed loader, golden + drift check
 
@@ -165,6 +165,13 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [x] 04-05-PLAN.md — Wave 5: IndexedDB autosave on launch, title Continue/New game restore
+
+**Gap closure — Wave 1**
+- [ ] 04-06-PLAN.md — G-04-2: disabled purchase presentation, reason placement beside the control, `Shift+C` in Controls
+- [ ] 04-08-PLAN.md — G-04-4/G-04-5: committed sim regressions for the disarmed tunnel-end clamp and bounce orientation
+
+**Gap closure — Wave 2** *(blocked on 04-06 because both touch `index.html`)*
+- [ ] 04-07-PLAN.md — G-04-3: confirm before New game discards a committed save
 
 ### Phase 5: Docked Economy & Station Screens
 **Goal**: The player can trade at a station market, equip the ship, and read their status and the system's data, all through keyboard-driven screens faithful to Oolite's numbers.
