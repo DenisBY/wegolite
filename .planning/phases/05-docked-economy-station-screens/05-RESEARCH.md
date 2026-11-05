@@ -27,7 +27,7 @@
 - **D-11:** Visible set is the peaceful research set: Fuel (only when the tank is not full), Large Cargo Bay (+15 t), Docking Computers, Galactic Hyperdrive, Advanced Space Compass, Advanced Navigational Array, Missile, Passenger Berth, plus removal entries. Combat and defensive items (lasers, shields, ECM, scoops, escape pod, energy unit, fuel injection, targeting) are hidden entirely.
 - **D-12:** Purchase effects apply immediately and do not advance the clock: fuel tops up at 0.2 Cr per 0.1 LY without ship-mass scaling; the cargo bay raises capacity by 15 t at once; the docking computer becomes available at once. Oolite's `600 + price` seconds install delay is explicitly out of v1 because docked screens have no time model.
 - **D-13:** Purchasable items are listed normally. Items failing tech level or ship conditions are shown dimmed and non-interactive with a short reason (`Requires TL 9`); nothing unavailable is ever purchasable. Fuel is hidden when the tank is full. The selected item shows its description and price.
-- **D-14:** Missiles are multi-instance up to 3 at 30 Cr each, displayed `Missile (2/3)`. Passenger berths are 82.5 Cr each, consume 5 t of cargo space each, and are buyable while space remains. Every other item is single-instance.
+- **D-14:** Missiles are multi-instance up to 3 at 30 Cr each, displayed `Missile (2/3)`. Passenger berths are 8250 dc (825.0 Cr) each as compiled from the catalogue — D-14's 82.5 Cr is arithmetically wrong and corrected in PROJECT.md — consume 5 t of cargo space each, and are buyable while space remains. Every other item is single-instance.
 - **D-15:** Removal entries appear as ordinary rows only when there is something to remove (`Remove Passenger Berth — 100 Cr`, `Remove Missile — 20 Cr`); they are selected and confirmed like any purchase, with no special keys.
 - **D-16:** F3 uses the same footer Y/N confirmation as F8 (`Buy Large Cargo Bay for 400.0 Cr? [Y/N]`); refusals (credits, tech level) use the same footer line.
 
@@ -450,7 +450,7 @@ All prices are integer decicredits; all tech levels are raw.
 | Remove Passenger Berth | `EQ_PASSENGER_BERTH_REMOVAL` | 1 | 1000 | only when berths > 0 | `[VERIFIED: src/content/generated/equipment.json:321-334]` |
 | Remove Missile | `EQ_MISSILE_REMOVAL` | 1 | 200 | only when missiles > 0; removes all | `[VERIFIED: src/content/generated/equipment.json:237-249]` |
 
-This exactly matches D-11/D-14/D-15 (30 Cr missile, 82.5 Cr berth, 100 Cr berth removal, 20 Cr missile removal, 400 Cr cargo bay, 1500 Cr computer, 5000 Cr gal drive, 650 Cr compass, 2250 Cr ANA).
+This matches D-11/D-14/D-15 on every row except the passenger berth: the compiled catalogue and Oolite price it at 8250 dc (825.0 Cr), so D-14's stated 82.5 Cr is a mis-statement corrected in PROJECT.md (30 Cr missile, 825.0 Cr berth, 100 Cr berth removal, 20 Cr missile removal, 400 Cr cargo bay, 1500 Cr computer, 5000 Cr gal drive, 650 Cr compass, 2250 Cr ANA).
 
 **ROADMAP criterion 4 vs D-13.** Criterion 4 says the screen "lists only equipment whose tech level and conditions are met"; D-13 refines that to "shown dimmed and non-interactive with a short reason; nothing unavailable is ever purchasable" (the discussion log records the refinement). Implement D-13: the visible set is D-11's, unavailable entries are dimmed, and the purchase path refuses — this satisfies criterion 4's intent without hiding the catalogue.
 
