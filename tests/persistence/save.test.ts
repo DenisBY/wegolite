@@ -110,8 +110,8 @@ describe("parseSave reject table", () => {
       reason: "corrupt",
     },
     {
-      name: "huge credits",
-      raw: raw(validSave({ credits: 1e13 })),
+      name: "unsafe credits",
+      raw: raw(validSave({ credits: Number.MAX_SAFE_INTEGER + 1 })),
       reason: "corrupt",
     },
     {

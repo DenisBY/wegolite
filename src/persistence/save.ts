@@ -37,8 +37,19 @@ import { CLOCK_START } from "../sim/flight/state.js";
 /** The schema version this build writes and accepts. */
 export const SAVE_VERSION = 1;
 
-/** The largest raw blob the parser will even attempt to parse. */
-export const MAX_SAVE_CHARS = 4096;
+/**
+ * The largest raw blob the parser will even attempt to parse.
+ *
+ * This is a true upper bound on what `encodeSave` can produce, including
+ * worst-case JSON escaping. The largest v1 tuple is 64 equipment keys of 64
+ * characters; a control character encodes to six characters (`\u00XX`), so the
+ * equipment array alone is at most 64 × 64 × 6 = 24,576 characters. Adding the
+ * escaped system id (16 × 6), station key (64 × 6), 16-digit safe-integer
+ * credits, a 13-digit clock and the field envelope stays below 25,600. 32 KiB
+ * keeps a comfortable margin while remaining a hard resource bound before
+ * `JSON.parse` (T-04-27/T-04-49).
+ */
+export const MAX_SAVE_CHARS = 32_768;
 
 /** The most equipment keys one profile may carry. */
 export const MAX_SAVE_EQUIPMENT = 64;
@@ -55,8 +66,14 @@ export const MAX_SAVE_STATION_KEY_CHARS = 64;
 /** A clock more than this far ahead of `CLOCK_START` is not credible. */
 export const MAX_SAVE_CLOCK_DELTA = 1_000_000_000_000;
 
-/** The largest credit balance in decicredits the schema accepts. */
-export const MAX_SAVE_CREDITS = 1_000_000_000_000;
+/**
+ * The largest credit balance the schema accepts.
+ *
+ * Aligned with `isSafeCredits` (`Number.isSafeInteger` and non-negative), so
+ * every balance `setCredits`/`grantCredits` can represent is also encodable.
+ * The writer still validates the encoded blob before committing.
+ */
+export const MAX_SAVE_CREDITS = Number.MAX_SAFE_INTEGER;
 
 export const SaveV1Schema = z.strictObject({
   version: z.literal(SAVE_VERSION),

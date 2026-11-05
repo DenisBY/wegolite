@@ -19,7 +19,17 @@ import {
   snapshotForSave,
 } from "../../src/persistence/autosave.js";
 import { encodeSave, parseSave } from "../../src/persistence/save.js";
-import type { SaveAllowLists, SaveV1 } from "../../src/persistence/save.js";
+import {
+  MAX_SAVE_CHARS,
+  MAX_SAVE_CLOCK_DELTA,
+  MAX_SAVE_CREDITS,
+  MAX_SAVE_EQUIPMENT,
+} from "../../src/persistence/save.js";
+import type {
+  SaveAllowLists,
+  SaveInputs,
+  SaveV1,
+} from "../../src/persistence/save.js";
 import {
   PlayerController,
   flightView,
@@ -28,6 +38,7 @@ import { initFlightState, CLOCK_START } from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { completeLaunch } from "../../src/sim/flight/launch.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
+import type { Command } from "../../src/sim/commands.js";
 import {
   newProfile,
   purchase,
@@ -55,9 +66,36 @@ function launch(state: FlightState): void {
   stepFlight(state, layout, config, intent, [{ kind: "launch" }], DT);
 }
 
+/** Advance one fixed step with the same scripted, zero-input intent. */
+function step(state: FlightState, commands: readonly Command[] = []): void {
+  const intent = player.update(flightView(state), scriptedFrame(0, 0, 0));
+  stepFlight(state, layout, config, intent, commands, DT);
+}
+
 function profileWithCredits(credits: number): PlayerProfile {
   return setCredits(newProfile(), credits);
 }
+
+/**
+ * The largest equipment tuple the v1 schema allows, built from control
+ * characters so every character encodes to six bytes: this is the worst case
+ * for the blob length, not merely the in-memory shape.
+ */
+function maximumEquipment(): string[] {
+  return Array.from({ length: MAX_SAVE_EQUIPMENT }, (_, index) => {
+    const first = String.fromCharCode(index % 32).repeat(32);
+    const second = String.fromCharCode(Math.floor(index / 32) + 1).repeat(32);
+    return `${first}${second}`;
+  });
+}
+
+const MAX_EQUIPMENT = maximumEquipment();
+
+const MAX_ALLOW: SaveAllowLists = {
+  equipment: new Set(MAX_EQUIPMENT),
+  systems: new Set(["g0-s7"]),
+  stations: new Set(["coriolis-station"]),
+};
 
 describe("snapshotForSave", () => {
   it("records the post-launch clock, docked mode and identities", () => {
@@ -88,22 +126,15 @@ describe("snapshotForSave", () => {
     completeLaunch(state);
     // Fly for two simulated seconds; every in-flight tick advances the clock
     // by DT (1/120), so it is fractional when the ship docks.
-    for (let step = 0; step < 240; step += 1) {
-      stepFlight(state, layout, config, scriptedFrame(0, 0, 0), [], DT);
+    for (let stepIndex = 0; stepIndex < 240; stepIndex += 1) {
+      step(state);
     }
     state.mode = "docked";
     const liveClock = state.clockSeconds;
     expect(Number.isInteger(liveClock)).toBe(false);
 
     // Relaunch: +600 s, then the `launched` handler takes this snapshot.
-    stepFlight(
-      state,
-      layout,
-      config,
-      scriptedFrame(0, 0, 0),
-      [{ kind: "launch" }],
-      DT,
-    );
+    step(state, [{ kind: "launch" }]);
     expect(state.clockSeconds).toBeGreaterThan(liveClock + 599);
 
     const store = new MemorySaveStore();
@@ -139,6 +170,45 @@ describe("snapshotForSave", () => {
     if (!parsed.ok) return;
     expect(parsed.save.credits).toBe(5000);
     expect(parsed.save.equipment).toEqual(["EQ_DOCK_COMP"]);
+  });
+});
+
+describe("writer bounds", () => {
+  const maximumInputs: SaveInputs = {
+    clockSeconds: CLOCK_START + MAX_SAVE_CLOCK_DELTA,
+    credits: MAX_SAVE_CREDITS,
+    equipment: MAX_EQUIPMENT,
+    systemId: "g0-s7",
+    stationKey: "coriolis-station",
+  };
+
+  it("fits the maximum tuple inside MAX_SAVE_CHARS even with worst-case escaping", async () => {
+    const store = new MemorySaveStore();
+    // Control characters double the pressure: every one encodes as `\u00XX`.
+    const result = await queueAutosave(store, 1, {
+      ...maximumInputs,
+      systemId: "\u0000".repeat(16),
+      stationKey: "\u0000".repeat(64),
+    });
+
+    expect(result.committed).toBe(true);
+    expect(store.raw).not.toBeNull();
+    expect(store.raw!.length).toBeLessThanOrEqual(MAX_SAVE_CHARS);
+  });
+
+  it("round-trips the maximum equipment tuple through the parser", async () => {
+    const store = new MemorySaveStore();
+    const result = await queueAutosave(store, 1, maximumInputs);
+    expect(result.committed).toBe(true);
+
+    const parsed = parseSave(store.raw, MAX_ALLOW);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.save.equipment).toEqual(MAX_EQUIPMENT);
+    expect(parsed.save.credits).toBe(MAX_SAVE_CREDITS);
+    expect(parsed.save.clockSeconds).toBe(
+      CLOCK_START + MAX_SAVE_CLOCK_DELTA,
+    );
   });
 });
 
