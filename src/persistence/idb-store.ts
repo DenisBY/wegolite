@@ -29,6 +29,7 @@ import {
   SAVE_DB_VERSION,
   SAVE_STORE_NAME,
 } from "./store.js";
+import { boundCorruptBackup } from "./save.js";
 import type { SaveReadResult, SaveStore, WriteResult } from "./store.js";
 
 /** An open/transaction failure, carrying the short reason the probe reports. */
@@ -266,7 +267,7 @@ export function createIndexedDbSaveStore(
         async () => {
           const db = await getDatabase();
           await runTransaction(db, "readwrite", (store) => {
-            store.put(raw, CORRUPT_SAVE_KEY);
+            store.put(boundCorruptBackup(raw), CORRUPT_SAVE_KEY);
           });
         },
         () => undefined,

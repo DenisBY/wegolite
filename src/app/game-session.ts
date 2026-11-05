@@ -411,8 +411,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    */
   function autosave(): void {
     if (saveStatus === "future" || saveStatus === "unreadable") {
-      saveSkipReason =
-        saveStatus === "future" ? "future" : "unreadable";
+      saveSkipReason = saveStatus === "future" ? "future" : "unreadable";
       syncSaveProbe();
       return;
     }
@@ -457,8 +456,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    */
   async function clearSaveForNewGame(): Promise<void> {
     if (saveStatus === "future" || saveStatus === "unreadable") {
-      saveSkipReason =
-        saveStatus === "future" ? "future" : "unreadable";
+      saveSkipReason = saveStatus === "future" ? "future" : "unreadable";
       syncSaveProbe();
       return;
     }

@@ -105,10 +105,7 @@ export interface SaveAllowLists {
 }
 
 export type SaveParseFailure =
-  | "corrupt"
-  | "future-version"
-  | "absent"
-  | "unreadable";
+  "corrupt" | "future-version" | "absent" | "unreadable";
 
 export type SaveParseResult =
   | { readonly ok: true; readonly save: SaveV1 }
@@ -242,6 +239,24 @@ export function isEncodedSaveValid(raw: string): boolean {
     return false;
   }
   return SaveV1Schema.safeParse(parsed).success;
+}
+
+/** Marker prefixed to a truncated `autosave.corrupt` backup. */
+export const CORRUPT_BACKUP_MARKER = "wegolite-corrupt-save-truncated";
+
+/**
+ * Bound a corrupt blob before it is copied to the backup key.
+ *
+ * A short blob is stored verbatim. An oversized one keeps a bounded prefix plus
+ * a marker carrying its original length, so the backup path cannot double the
+ * storage of a huge blob or exhaust the origin's quota (WR-02). The copy is
+ * never read back, so a prefix is enough for diagnosis.
+ */
+export function boundCorruptBackup(raw: string): string {
+  if (raw.length <= MAX_SAVE_CHARS) return raw;
+  const header = `${CORRUPT_BACKUP_MARKER}:${raw.length}:`;
+  const budget = Math.max(0, MAX_SAVE_CHARS - header.length);
+  return `${header}${raw.slice(0, budget)}`;
 }
 
 /**

@@ -14,7 +14,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CLOCK_START } from "../../src/sim/flight/state.js";
 import {
+  CORRUPT_BACKUP_MARKER,
   MAX_SAVE_CHARS,
+  boundCorruptBackup,
   encodeSave,
   parseSave,
 } from "../../src/persistence/save.js";
@@ -237,6 +239,22 @@ describe("parseSave resource bound", () => {
     });
     expect(parse).not.toHaveBeenCalled();
     parse.mockRestore();
+  });
+});
+
+describe("boundCorruptBackup", () => {
+  it("keeps a short blob verbatim", () => {
+    expect(boundCorruptBackup("not-json{{{")).toBe("not-json{{{");
+  });
+
+  it("truncates an oversized blob and records its original length", () => {
+    const oversized = "x".repeat(MAX_SAVE_CHARS * 16);
+    const backup = boundCorruptBackup(oversized);
+
+    expect(backup.length).toBeLessThanOrEqual(MAX_SAVE_CHARS);
+    expect(
+      backup.startsWith(`${CORRUPT_BACKUP_MARKER}:${oversized.length}:`),
+    ).toBe(true);
   });
 });
 

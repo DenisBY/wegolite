@@ -17,12 +17,7 @@
 
 /** Where a boot read ended up. `unavailable` means the database may not open. */
 export type SaveStatus =
-  | "absent"
-  | "valid"
-  | "corrupt"
-  | "future"
-  | "unreadable"
-  | "unavailable";
+  "absent" | "valid" | "corrupt" | "future" | "unreadable" | "unavailable";
 
 export type SaveReadResult =
   | { readonly kind: "absent" }

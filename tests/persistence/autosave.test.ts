@@ -152,7 +152,8 @@ describe("snapshotForSave", () => {
     expect(parsed.save.clockSeconds - state.clockSeconds).toBeGreaterThan(-1);
   });
 
-  it("writes the reduced balance after a purchase", async () => {    const purchased = purchase(profileWithCredits(20_000), DOCK_COMPUTER);
+  it("writes the reduced balance after a purchase", async () => {
+    const purchased = purchase(profileWithCredits(20_000), DOCK_COMPUTER);
     expect(purchased.credits).toBe(5000);
 
     const store = new MemorySaveStore();
@@ -206,9 +207,7 @@ describe("writer bounds", () => {
     if (!parsed.ok) return;
     expect(parsed.save.equipment).toEqual(MAX_EQUIPMENT);
     expect(parsed.save.credits).toBe(MAX_SAVE_CREDITS);
-    expect(parsed.save.clockSeconds).toBe(
-      CLOCK_START + MAX_SAVE_CLOCK_DELTA,
-    );
+    expect(parsed.save.clockSeconds).toBe(CLOCK_START + MAX_SAVE_CLOCK_DELTA);
   });
 });
 

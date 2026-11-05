@@ -9,6 +9,7 @@
  * Playwright is the only place real IndexedDB is exercised.
  */
 
+import { boundCorruptBackup } from "./save.js";
 import type { SaveReadResult, SaveStore, WriteResult } from "./store.js";
 
 export interface MemorySaveStoreOptions {
@@ -102,7 +103,7 @@ export class MemorySaveStore implements SaveStore {
   }
 
   backupCorrupt(raw: string): Promise<void> {
-    if (!this.disposed) this.backups.push(raw);
+    if (!this.disposed) this.backups.push(boundCorruptBackup(raw));
     return Promise.resolve();
   }
 
