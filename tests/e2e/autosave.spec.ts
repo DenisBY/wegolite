@@ -367,6 +367,49 @@ test("a manual dock does not autosave: Continue still restores the launch clock"
   expect(errors).toEqual([]);
 });
 
+test("the New-game confirmation traps focus, Escape returns to New game, and the save survives", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  await startNewGame(page);
+  await launchAndAwaitCommit(page);
+
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+
+  // The first click only asks: nothing is deleted yet.
+  await page.click("#title-start");
+  await expect(page.locator("#title-confirm")).toBeVisible();
+
+  // Escape backs out without starting anything and restores New game focus.
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#title-confirm")).toBeHidden();
+  await expect(page.locator("#title-start")).toBeFocused();
+  await expect(page.locator("#docked")).toBeHidden();
+  expect((await getProbe(page)).save?.status).toBe("valid");
+
+  // Tab stays inside the dialog's two buttons.
+  await page.click("#title-start");
+  await expect(page.locator("#title-confirm")).toBeVisible();
+  for (let index = 0; index < 6; index += 1) {
+    await page.keyboard.press("Tab");
+  }
+  const focusInside = await page.evaluate(() => {
+    const confirm = document.getElementById("title-confirm");
+    return confirm !== null && confirm.contains(document.activeElement);
+  });
+  expect(focusInside).toBe(true);
+
+  // Cancel restores New game focus and leaves the save untouched.
+  await page.click("#title-confirm-cancel");
+  await expect(page.locator("#title-confirm")).toBeHidden();
+  await expect(page.locator("#title-start")).toBeFocused();
+  expect((await getProbe(page)).save?.status).toBe("valid");
+  expect(errors).toEqual([]);
+});
+
 test("New game clears a committed save before starting", async ({ page }) => {
   const errors = collectErrors(page);
   await boot(page);

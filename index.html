@@ -81,6 +81,44 @@
         color: #000;
       }
 
+      #title-confirm {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.78);
+      }
+
+      #title-confirm .title-confirm-panel {
+        max-width: 32rem;
+        padding: 1.5rem 2rem;
+        border: 1px solid #33ff66;
+        background: rgba(0, 0, 0, 0.92);
+        text-align: center;
+      }
+
+      #title-confirm h2 {
+        margin: 0 0 1rem;
+        font-size: 24px;
+        letter-spacing: 0.06em;
+      }
+
+      #title-confirm p {
+        margin: 0 0 1.5rem;
+        color: #9f9;
+        font-size: 15px;
+        line-height: 1.6;
+      }
+
+      #title-confirm .title-confirm-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 1rem;
+      }
+
       #docked {
         position: absolute;
         inset: 0;
@@ -295,6 +333,28 @@
       <h1>Wegolite</h1>
       <button id="title-continue" type="button" hidden>Continue</button>
       <button id="title-start" type="button">New game</button>
+      <div
+        id="title-confirm"
+        hidden
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="title-confirm-title"
+        aria-describedby="title-confirm-detail"
+      >
+        <div class="title-confirm-panel">
+          <h2 id="title-confirm-title">Delete your saved game?</h2>
+          <p id="title-confirm-detail">
+            Starting a new game permanently deletes your saved commander. This
+            cannot be undone.
+          </p>
+          <div class="title-confirm-actions">
+            <button id="title-confirm-cancel" type="button">Cancel</button>
+            <button id="title-confirm-accept" type="button">
+              Delete save and start
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
     <div id="docked" hidden>
       <section class="panel" aria-labelledby="docked-title">

@@ -38,7 +38,7 @@ import type { SaveStatus } from "./persistence/store.js";
 import { createAssetCache } from "./render/asset-cache.js";
 import { applyViewport } from "./render/viewport.js";
 import { createDockedPanel } from "./ui/docked.js";
-import { createTitleScreen } from "./ui/title.js";
+import { createTitleScreen, shouldConfirmNewGame } from "./ui/title.js";
 
 function requireElement(id: string): HTMLElement {
   const element = document.getElementById(id);
@@ -270,6 +270,9 @@ if (!boot.ok) {
   if (probe.save !== undefined) {
     probe.save.continueVisible = bootSave !== undefined;
   }
+  // G-04-3: the title asks before New game discards a save this build can
+  // clear. A fresh boot, or an untouchable status, keeps the one-click path.
+  title.setNewGameConfirmationRequired(shouldConfirmNewGame(saveStatus));
 
   const continueSave = bootSave;
   title.onStart(() => {
