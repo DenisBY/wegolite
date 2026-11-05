@@ -59,7 +59,7 @@ Requirements for the initial release. Each maps to a roadmap phase.
 - [x] **DOCK-04**: Crossing 90% past the dock plane while aligned transitions cleanly into docked mode
 - [x] **DOCK-05**: A docking computer can be bought (TL 9, 1500 Cr) and grants instant docking on `Shift+C` with a +20 minute clock advance
 - [x] **DOCK-06**: A failed docking attempt never traps the player; they recover to flight with clear feedback
-- [ ] **DOCK-07**: The game autosaves on launch so the docked state is always resumable
+- [x] **DOCK-07**: The game autosaves on launch so the docked state is always resumable
 
 ### Docked Mode, Economy & Station Screens
 
@@ -184,7 +184,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DOCK-04 | Phase 4 | Complete |
 | DOCK-05 | Phase 4 | Complete |
 | DOCK-06 | Phase 4 | Complete |
-| DOCK-07 | Phase 4 | Pending |
+| DOCK-07 | Phase 4 | Complete |
 | ECON-01 | Phase 5 | Pending |
 | ECON-02 | Phase 5 | Pending |
 | ECON-03 | Phase 5 | Pending |

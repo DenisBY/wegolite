@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Manual Docking
-status: executing
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-11-05T09:26:39.243Z"
+status: verifying
+stopped_at: Completed 04-05-PLAN.md
+last_updated: "2026-11-05T09:59:38.036Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 04 execution started
-state_head: df31063d82d0ee702d69977593bdefb939e8c629
+state_head: 6104f477a8ac733dff0a4eecfcc8f192742a9089
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 35
-  completed_plans: 34
+  completed_plans: 35
   percent: 43
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 
 Phase: 04 (Manual Docking) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-05 — Phase 04 execution started
 
 Progress: [████░░░░░░] 43%
@@ -75,6 +75,7 @@ Progress: [████░░░░░░] 43%
 | Phase 04 P02 | 20 min | 3 tasks | 17 files |
 | Phase 04 P03 | 30 min | 3 tasks | 19 files |
 | Phase 04 P04 | 44 min | 3 tasks | 19 files |
+| Phase 04 P05 | 31 | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -142,6 +143,12 @@ Recent decisions affecting current work:
 - [Phase 04]: Plan 04-04: the dockingComputer command is payload-free; ownership travels through StepOptions.equipment, derived from the profile every frame.
 - [Phase 04]: Plan 04-04: every mode-changing command is gated on modeAtStart and terminalTransition suppresses step 5, making launch +600 s and the computer dock +1200 s exact.
 - [Phase 04]: Plan 04-04: the panel prefers 'Already fitted' for an owned item while canPurchase keeps techLevel first; purchase durability is handed to 04-05 via onProfileChanged.
+- [Phase 04]: Plan 04-05: the save records the post-launch clock (+600 s) and mode docked; the docked pose is derived from the layout and never stored.
+- [Phase 04]: Plan 04-05: a version-2+ save is inert - never cleared or replaced; New game starts in memory, the launch write is skipped, and the bytes stay identical.
+- [Phase 04]: Plan 04-05: IndexedDB writes resolve on transaction oncomplete through one serialized queue with a monotonic revision; New game awaits a committed delete.
+- [Phase 04]: Plan 04-05: the purchase autosave is a direct call, not onProfileChanged, because the ?test=1 seam must taint before any write.
+- [Phase 04]: Plan 04-05: VersionError/blocked/quota reports the store unavailable and never calls deleteDatabase.
+- [Phase 04]: Plan 04-05: boot builds the equipment, galaxy-0 and station allow-lists at the parseSave call site.
 
 ### Pending Todos
 
@@ -173,6 +180,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-05T09:26:22.229Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-11-05T09:59:37.642Z
+Stopped at: Completed 04-05-PLAN.md
 Resume file: None
