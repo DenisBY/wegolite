@@ -121,7 +121,7 @@ export interface WegoliteSaveProbe {
   lastClock: number | null;
   /** Whether the title is currently offering Continue. */
   continueVisible: boolean;
-  /** Why the last autosave was skipped ("future", "tainted"), or "". */
+  /** Why the last autosave or clear was skipped ("future", "unreadable", "unavailable", "tainted"), or "". */
   skipReason: string;
   /** True when IndexedDB could not be opened for this session. */
   unavailable: boolean;

@@ -233,12 +233,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let saveWrites = 0;
   let saveCommitted = 0;
   let saveLastClock: number | null = null;
-  let saveSkipReason =
-    saveStatus === "future"
-      ? "future"
-      : saveStatus === "unreadable"
-        ? "unreadable"
-        : "";
+  let saveSkipReason = statusSkipReason(saveStatus);
   let saveUnavailable = saveStatus === "unavailable";
   const saveProbe: WegoliteSaveProbe = {
     status: saveStatus,
@@ -407,17 +402,43 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   /**
-   * DOCK-07: a write can only follow a launch or a purchase. A future or
-   * unreadable blob disables the path for the whole session; a tainted profile
-   * (any `?test=1` mutation) must never become durable. Every skip is visible
-   * in the probe.
+   * Only a blob this build positively owns may be replaced. `unavailable` (the
+   * read failed or the database would not open) and `unreadable` are
+   * untouchable: the writer must never overwrite something it could not read.
+   */
+  function canOverwrite(status: SaveStatus): boolean {
+    return status === "absent" || status === "valid";
+  }
+
+  /**
+   * Only a blob this build positively understands may be deleted. A corrupt
+   * v1-shaped blob is eligible (boot already copied it aside); `future`,
+   * `unreadable` and `unavailable` are not.
+   */
+  function canClear(status: SaveStatus): boolean {
+    return status === "absent" || status === "valid" || status === "corrupt";
+  }
+
+  /** The probe's short reason for a skipped autosave or clear. */
+  function statusSkipReason(status: SaveStatus): string {
+    if (status === "future") return "future";
+    if (status === "unreadable") return "unreadable";
+    if (status === "unavailable") return "unavailable";
+    return "";
+  }
+
+  /**
+   * DOCK-07: a write can only follow a launch or a purchase. A future,
+   * unreadable or unavailable blob leaves the write path disabled for the whole
+   * session; a tainted profile (any `?test=1` mutation) must never become
+   * durable. Every skip is visible in the probe.
    */
   function autosave(): void {
     // WR-03: recorded before every skip, so a test can prove that a dock never
     // even reached this function while the taint guard still suppresses writes.
     saveAttempts += 1;
-    if (saveStatus === "future" || saveStatus === "unreadable") {
-      saveSkipReason = saveStatus === "future" ? "future" : "unreadable";
+    if (!canOverwrite(saveStatus)) {
+      saveSkipReason = statusSkipReason(saveStatus);
       syncSaveProbe();
       return;
     }
@@ -456,13 +477,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   /**
-   * New game clears only a save this build understands. A future or unreadable
-   * blob is left byte-identical (D-14/T-04-47) and the write path stays
-   * disabled.
+   * New game clears only a save this build understands. A future, unreadable,
+   * unavailable or otherwise unknown blob is left byte-identical (WR-04,
+   * D-14/T-04-47) and the write path stays disabled.
    */
   async function clearSaveForNewGame(): Promise<void> {
-    if (saveStatus === "future" || saveStatus === "unreadable") {
-      saveSkipReason = saveStatus === "future" ? "future" : "unreadable";
+    if (!canClear(saveStatus)) {
+      saveSkipReason = statusSkipReason(saveStatus);
       syncSaveProbe();
       return;
     }

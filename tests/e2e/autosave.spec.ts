@@ -150,6 +150,83 @@ async function readRaw(
   );
 }
 
+/** Write an arbitrary structured value (not necessarily a string). */
+async function writeStored(
+  page: Page,
+  value: unknown,
+  key: string = AUTOSAVE_KEY,
+): Promise<void> {
+  await page.evaluate(
+    (payload: { value: unknown; key: string; db: string; store: string }) =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open(payload.db, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(payload.store)) {
+            db.createObjectStore(payload.store);
+          }
+        };
+        request.onerror = () => {
+          reject(new Error(`open failed: ${String(request.error)}`));
+        };
+        request.onsuccess = () => {
+          const db = request.result;
+          const transaction = db.transaction(payload.store, "readwrite");
+          transaction
+            .objectStore(payload.store)
+            .put(payload.value, payload.key);
+          transaction.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          transaction.onerror = () => {
+            reject(new Error(`write failed: ${String(transaction.error)}`));
+          };
+          transaction.onabort = () => {
+            reject(new Error(`write aborted: ${String(transaction.error)}`));
+          };
+        };
+      }),
+    { value, key, db: SAVE_DB, store: SAVE_STORE },
+  );
+}
+
+/** Read any stored shape, or `null` when the record is absent. */
+async function readStored(
+  page: Page,
+  key: string = AUTOSAVE_KEY,
+): Promise<unknown> {
+  return page.evaluate(
+    (payload: { key: string; db: string; store: string }) =>
+      new Promise<unknown>((resolve, reject) => {
+        const request = indexedDB.open(payload.db, 1);
+        request.onerror = () => {
+          reject(new Error(`open failed: ${String(request.error)}`));
+        };
+        request.onsuccess = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(payload.store)) {
+            db.close();
+            resolve(null);
+            return;
+          }
+          const transaction = db.transaction(payload.store, "readonly");
+          const get = transaction.objectStore(payload.store).get(payload.key);
+          get.onsuccess = () => {
+            const value: unknown = get.result;
+            db.close();
+            resolve(value === undefined ? null : value);
+          };
+          get.onerror = () => {
+            db.close();
+            reject(new Error(`read failed: ${String(get.error)}`));
+          };
+        };
+      }),
+    { key, db: SAVE_DB, store: SAVE_STORE },
+  );
+}
+
 /** Launch and wait for the launch write to commit, returning its clock. */
 async function launchAndAwaitCommit(page: Page): Promise<number> {
   await page.click('button[data-action="launch"]');
@@ -427,6 +504,45 @@ test("an unreadable blob is never backed up, cleared or overwritten", async ({
   expect(after.save?.writes).toBe(0);
   expect(after.save?.committed).toBe(0);
   expect(await readRaw(page)).toBe(unreadable);
+  expect(errors).toEqual([]);
+});
+
+test("New game leaves an unreadable stored shape byte-identical", async ({
+  page,
+}) => {
+  await boot(page);
+  // A structured clone is not a string; the adapter reports `save-shape` and
+  // boot can only mark the store unavailable. WR-04: it must never be deleted.
+  const stored = { version: 1, mode: "docked", note: "structured clone" };
+  await writeStored(page, stored);
+
+  const errors = collectErrors(page);
+  await page.reload();
+  await waitForReady(page);
+
+  await expect(page.locator("#title-continue")).toBeHidden();
+  const booted = await getProbe(page);
+  expect(booted.save?.status).toBe("unavailable");
+  expect(booted.save?.unavailable).toBe(true);
+  expect(await readStored(page)).toEqual(stored);
+
+  // New game must not clear a shape boot could not read...
+  await startNewGame(page);
+  await page.waitForFunction(
+    () => window.__wegolite?.save?.status === "unavailable",
+    undefined,
+    { timeout: 30_000 },
+  );
+  expect(await readStored(page)).toEqual(stored);
+
+  // ...and a launch must not overwrite it either.
+  await page.click('button[data-action="launch"]');
+  await waitForMode(page, "launching");
+  const after = await getProbe(page);
+  expect(after.save?.attempts).toBe(1);
+  expect(after.save?.writes).toBe(0);
+  expect(after.save?.skipReason).toBe("unavailable");
+  expect(await readStored(page)).toEqual(stored);
   expect(errors).toEqual([]);
 });
 

@@ -113,7 +113,7 @@ if (!boot.ok) {
   // catalogue, galaxy 0's system ids and the catalogue entries that actually
   // carry a dock subentity. A forged key can therefore never reach `findShip`.
   const saveStore = createIndexedDbSaveStore();
-  let saveStatus: SaveStatus = "unavailable";
+  let saveStatus: SaveStatus;
   let bootSave: SaveV1 | undefined;
   try {
     const [equipment, catalogue] = await Promise.all([
@@ -158,6 +158,12 @@ if (!boot.ok) {
       }
     } else if (read.kind === "absent") {
       saveStatus = "absent";
+    } else {
+      // A read failure (non-string stored value, transaction error) is not
+      // proof of absence: the blob may be a valid save this boot could not
+      // decode. Keep `unavailable`, which New game and autosave both treat as
+      // untouchable (WR-04).
+      saveStatus = "unavailable";
     }
   } catch {
     // A broken catalogue fails `session.start` visibly. Here it only means no
