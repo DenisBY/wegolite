@@ -127,6 +127,21 @@
         font: inherit;
       }
 
+      /* Beside the line it qualifies, in the value cell — never a stray grid
+         row in the label column. */
+      #docked .docked-reason {
+        display: block;
+        margin-top: 0.15rem;
+        color: #9c9;
+        font-size: 0.85em;
+      }
+
+      #docked .docked-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
       #docked button {
         width: 100%;
         padding: 0.6rem;
@@ -137,8 +152,17 @@
         cursor: pointer;
       }
 
-      #docked button:hover,
-      #docked button:focus-visible {
+      /* The disabled state must beat the author colour/cursor above. Native
+         `disabled` stays the only activation gate; this is presentation only. */
+      #docked button:disabled {
+        border-color: #2a5a35;
+        color: #2a5a35;
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      #docked button:hover:not(:disabled),
+      #docked button:focus-visible:not(:disabled) {
         background: #33ff66;
         color: #000;
       }
@@ -285,14 +309,22 @@
           <dt>Fuel</dt>
           <dd data-field="fuel"></dd>
           <dt>Docking computer</dt>
-          <dd data-field="dockcomp"></dd>
-          <dd class="docked-message" data-field="dockcomp-message"></dd>
+          <dd>
+            <span data-field="dockcomp"></span>
+            <span
+              id="dockcomp-message"
+              class="docked-reason"
+              data-field="dockcomp-message"
+            ></span>
+          </dd>
         </dl>
         <p class="docked-message" data-field="message" role="status"></p>
-        <button type="button" data-action="buy-dockcomp">
-          Buy docking computer
-        </button>
-        <button type="button" data-action="launch">Launch</button>
+        <div class="docked-actions">
+          <button type="button" data-action="buy-dockcomp">
+            Buy docking computer
+          </button>
+          <button type="button" data-action="launch">Launch</button>
+        </div>
       </section>
     </div>
     <div

@@ -10,8 +10,9 @@
  * D-10 line; Phase 5 will replace that line with the outfitting screen.
  *
  * Every dynamic string is written with `textContent` — never `innerHTML`
- * (Pitfall 16, T-04-23). The purchase reason is its own field so the launch
- * hint on the message line cannot hide it.
+ * (Pitfall 16, T-04-23). The purchase reason lives in the value cell beside the
+ * line it qualifies and is associated with the Buy control by
+ * `aria-describedby`, so the launch hint on the message line cannot hide it.
  */
 
 export const DOCKED_SHIP = "Cobra Mk III";
@@ -93,6 +94,11 @@ export function createDockedPanel(root: HTMLElement): DockedPanel {
       dockComputerField.textContent = view.line;
       dockComputerMessageField.textContent = view.reason;
       buyDockComputer.disabled = view.disabled;
+      if (view.reason.length > 0) {
+        buyDockComputer.setAttribute("aria-describedby", "dockcomp-message");
+      } else {
+        buyDockComputer.removeAttribute("aria-describedby");
+      }
     },
     onLaunch(handler: () => void): void {
       launch.addEventListener(
