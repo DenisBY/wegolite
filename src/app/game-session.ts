@@ -33,13 +33,20 @@ import { buildHudModel } from "./hud-model.js";
 import { createGameLoop } from "./game-loop.js";
 import type { GameLoop } from "./game-loop.js";
 import { createTestHook, publishFailure, readMemory } from "./probe.js";
-import type { WegoliteProbe } from "./probe.js";
+import type { WegoliteProbe, WegoliteSaveProbe } from "./probe.js";
 import type { SceneManager } from "./scene-manager.js";
 import { createHintController } from "./hints.js";
 import type { HintContext, HintController } from "./hints.js";
 import { createLaunchSequence } from "./launch-sequence.js";
 import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
+import {
+  queueAutosave,
+  restoreFromSave,
+  snapshotForSave,
+} from "../persistence/autosave.js";
+import type { SaveStore, SaveStatus } from "../persistence/store.js";
+import type { SaveV1 } from "../persistence/save.js";
 import { createBreakPattern } from "../render/break-pattern.js";
 import type { BreakPattern } from "../render/break-pattern.js";
 import { createHud } from "../render/hud/hud.js";
@@ -109,6 +116,22 @@ import type { DockedPanel } from "../ui/docked.js";
 import type { DockComputerView } from "../ui/docked.js";
 import type { TitleScreen } from "../ui/title.js";
 
+export interface GameSessionSave {
+  /** The injected port; the session never imports IndexedDB directly. */
+  readonly store: SaveStore;
+  /** The status boot derived from the one read; `future` stops all writes. */
+  readonly status: SaveStatus;
+  /** The validated save, present only when `status` is `valid`. */
+  readonly save?: SaveV1;
+}
+
+export interface StartOptions {
+  /** New game is the default; a restore is Continue. */
+  readonly fresh?: boolean;
+  /** A validated blob to restore instead of starting at Lave. */
+  readonly restore?: SaveV1;
+}
+
 export interface GameSessionOptions {
   readonly renderer: THREE.WebGLRenderer;
   readonly assets: AssetCache;
@@ -123,6 +146,8 @@ export interface GameSessionOptions {
   readonly settingsRoot: HTMLElement;
   /** The canvas that receives focus when the pause overlay closes. */
   readonly gameRoot: HTMLElement;
+  /** DOCK-07: the boot read and the store every autosave writes through. */
+  readonly save: GameSessionSave;
   /**
    * Plan 04-05 attaches the purchase autosave here. Called after every accepted
    * profile change (purchase or dev-seam grant), so a reload cannot silently
@@ -132,8 +157,12 @@ export interface GameSessionOptions {
 }
 
 export interface GameSession {
-  /** Load the assets, build the Lave scene and start the render loop. */
-  start(): Promise<void>;
+  /**
+   * Load the assets, build the Lave scene and start the render loop. A restore
+   * resumes the validated docked save; the default starts a New game and clears
+   * this build's save first.
+   */
+  start(options?: StartOptions): Promise<void>;
   /** The HUD needs the same resize as the WebGL canvas. */
   resize(): void;
   /** Freeze the simulation and show the pause overlay (D-14/D-15). */
@@ -164,6 +193,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     controlsRoot,
     settingsRoot,
     gameRoot,
+    save: saveBoot,
     onProfileChanged = () => undefined,
   } = options;
 
@@ -190,9 +220,31 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let settingsPanel: SettingsPanel | undefined;
   let equipmentCatalogue: readonly Equipment[] | undefined;
   let dockComputer: Equipment | undefined;
+  let stationKey: string | undefined;
   // Economy state lives beside the flight state, never inside it (D-10).
   let profile: PlayerProfile = newProfile();
   let lastDockClockDelta = 0;
+
+  // DOCK-07: the boot status is sticky for the session. A future blob is never
+  // cleared or overwritten, so the launch/purchase write path is skipped whole.
+  let saveStatus: SaveStatus = saveBoot.status;
+  let saveRevision = 0;
+  let saveWrites = 0;
+  let saveCommitted = 0;
+  let saveLastClock: number | null = null;
+  let saveSkipReason = saveStatus === "future" ? "future" : "";
+  let saveUnavailable = saveStatus === "unavailable";
+  const saveProbe: WegoliteSaveProbe = {
+    status: saveStatus,
+    writes: 0,
+    committed: 0,
+    revision: 0,
+    lastClock: null,
+    continueVisible: false,
+    skipReason: saveSkipReason,
+    unavailable: saveUnavailable,
+  };
+  probe.save = saveProbe;
 
   let previousPose: FlightPose = {
     position: vec(0, 0, 0),
@@ -306,7 +358,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       refreshDockedProfile();
       return;
     }
-    commitProfile(purchase(profile, item));
+    if (commitProfile(purchase(profile, item))) autosave();
   }
 
   /** `?test=1` seam: replace the balance; never persisted by the hook itself. */
@@ -325,6 +377,92 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       credits: profile.credits,
       equipment: [...profile.equipment, key],
     });
+  }
+
+  function syncSaveProbe(): void {
+    saveProbe.status = saveStatus;
+    saveProbe.writes = saveWrites;
+    saveProbe.committed = saveCommitted;
+    saveProbe.revision = saveRevision;
+    saveProbe.lastClock = saveLastClock;
+    saveProbe.skipReason = saveSkipReason;
+    saveProbe.unavailable = saveUnavailable;
+  }
+
+  function isStoreUnavailable(reason: string | undefined): boolean {
+    return (
+      reason === "unavailable" ||
+      reason === "version" ||
+      reason === "blocked" ||
+      reason === "disposed"
+    );
+  }
+
+  /**
+   * DOCK-07: a write can only follow a launch or a purchase. A future blob
+   * disables the path for the whole session; a tainted profile (any `?test=1`
+   * mutation) must never become durable. Both skips are visible in the probe.
+   */
+  function autosave(): void {
+    if (saveStatus === "future") {
+      saveSkipReason = "future";
+      syncSaveProbe();
+      return;
+    }
+    if (testTainted) {
+      saveSkipReason = "tainted";
+      syncSaveProbe();
+      return;
+    }
+    const currentState = state;
+    const currentStationKey = stationKey;
+    if (currentState === undefined || currentStationKey === undefined) {
+      saveSkipReason = "not-ready";
+      syncSaveProbe();
+      return;
+    }
+
+    const inputs = snapshotForSave(currentState, profile, system, {
+      key: currentStationKey,
+    });
+    saveRevision += 1;
+    const revision = saveRevision;
+    saveWrites += 1;
+    saveSkipReason = "";
+    syncSaveProbe();
+    // The frame loop never awaits this; `queueAutosave` cannot reject.
+    void queueAutosave(saveBoot.store, revision, inputs).then((result) => {
+      if (result.committed) {
+        saveCommitted += 1;
+        saveLastClock = inputs.clockSeconds;
+        saveStatus = "valid";
+      } else if (isStoreUnavailable(result.reason)) {
+        saveUnavailable = true;
+      }
+      syncSaveProbe();
+    });
+  }
+
+  /**
+   * New game clears only a save this build understands. A future blob is left
+   * byte-identical (D-14/T-04-47) and the write path stays disabled.
+   */
+  async function clearSaveForNewGame(): Promise<void> {
+    if (saveStatus === "future") {
+      saveSkipReason = "future";
+      syncSaveProbe();
+      return;
+    }
+    saveRevision += 1;
+    const currentRevision = saveRevision;
+    const result = await saveBoot.store.clear(currentRevision);
+    if (result.committed) {
+      saveStatus = "absent";
+      saveSkipReason = "";
+    } else if (isStoreUnavailable(result.reason)) {
+      saveUnavailable = true;
+    }
+    syncSaveProbe();
   }
 
   function pause(): void {
@@ -432,6 +570,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         docked.hide();
         hudCanvas.hidden = false;
         messages.enqueue("Launching — stand by");
+        // DOCK-07: the state is post-`beginLaunch`, so the saved clock already
+        // carries the +600 s launch adjustment.
+        autosave();
         break;
       case "launchComplete":
         launchSequence.markSeen();
@@ -793,13 +934,23 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderFrame(alpha);
   }
 
-  async function start(): Promise<void> {
+  async function start(options: StartOptions = {}): Promise<void> {
     // The guard is set synchronously: `state` is only assigned after two
     // awaits, so a second click during the load would otherwise start a second
     // frame loop (two RAF chains, two HUDs, two input sources) that `dispose()`
     // could never fully cancel.
     if (state !== undefined || starting || disposed) return;
     starting = true;
+
+    const restore = options.restore;
+    const restoring = restore !== undefined && options.fresh !== true;
+    if (!restoring) {
+      // New game: the clear must commit before this promise resolves, so a
+      // reload after the click cannot resurrect the old blob. A future blob is
+      // never touched (T-04-47).
+      await clearSaveForNewGame();
+      if (disposed) return;
+    }
 
     try {
       await assets.preload();
@@ -836,8 +987,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
 
     const playerDef = playerShip(catalogue).shipDef;
-    const station = stationShip(catalogue).shipDef;
+    const stationEntry = stationShip(catalogue);
+    const station = stationEntry.shipDef;
     stationDef = station;
+    stationKey = stationEntry.key;
 
     const flightConfig = deriveFlightConfig(playerDef);
     const nextScene = scenes.enterSystem(system, station);
@@ -861,12 +1014,25 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       return;
     }
 
-    const flightState = initFlightState(systemLayout);
+    let flightState: FlightState;
+    let restoredProfile: PlayerProfile | undefined;
+    if (restoring && restore !== undefined) {
+      const restored = restoreFromSave(
+        restore,
+        systemLayout,
+        (credits, equipment) => ({ credits, equipment }),
+      );
+      flightState = restored.state;
+      restoredProfile = restored.profile;
+    } else {
+      flightState = initFlightState(systemLayout);
+    }
 
     state = flightState;
     layout = systemLayout;
     config = flightConfig;
     scene = nextScene;
+    profile = restoredProfile ?? newProfile();
     hud = createHud(hudCanvas);
     hud.resize();
     breakPattern = createBreakPattern(hudCanvas);
@@ -1048,6 +1214,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     scene = undefined;
     layout = undefined;
     delete probe.test;
+    delete probe.save;
+    saveBoot.store.dispose();
   }
 
   return {

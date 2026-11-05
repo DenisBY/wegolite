@@ -18,6 +18,7 @@
  */
 
 import type * as THREE from "three";
+import type { SaveStatus } from "../persistence/store.js";
 import type { FlightMode } from "../sim/flight/state.js";
 import type { CompassTarget, FlightState } from "../sim/flight/state.js";
 import type { AegisStatus } from "../sim/world/aegis.js";
@@ -96,6 +97,30 @@ export interface WegoliteProfileTestHook {
   grantEquipment(key: string): boolean;
 }
 
+/**
+ * The live autosave state (DOCK-07, D-13, D-14).
+ *
+ * `committed` counts writes whose transaction completed, not writes that were
+ * merely requested; `lastClock` therefore only advances on a durable save. The
+ * e2e reload proof waits on those two fields (T-04-48).
+ */
+export interface WegoliteSaveProbe {
+  status: SaveStatus;
+  /** Write/clear attempts queued this session. */
+  writes: number;
+  /** Writes whose transaction completed. */
+  committed: number;
+  revision: number;
+  /** The saved clock of the last committed write, if any. */
+  lastClock: number | null;
+  /** Whether the title is currently offering Continue. */
+  continueVisible: boolean;
+  /** Why the last autosave was skipped ("future", "tainted"), or "". */
+  skipReason: string;
+  /** True when IndexedDB could not be opened for this session. */
+  unavailable: boolean;
+}
+
 export interface WegoliteTestHook extends WegoliteSceneTestHook {
   setPosition(x: number, y: number, z: number): void;
   setSpeed(speed: number): void;
@@ -149,7 +174,10 @@ export interface WegoliteProbe {
   /** Present once a system scene exists. */
   world?: WegoliteWorldProbe;
   /** Live docking counters; plan 04-03 extends this with bounce/shake/flash. */
-  dock?: WegoliteDockProbe; /**
+  dock?: WegoliteDockProbe;
+  /** Live autosave state; absent on the failure surface. */
+  save?: WegoliteSaveProbe;
+  /**
    * The live active-camera aspect (WORLD-02). The e2e proof reads this instead
    * of a screenshot. Absent on the failure surface, where no camera renders.
    */

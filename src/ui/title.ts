@@ -2,30 +2,36 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The title screen (D-09).
+ * The title screen (D-09, D-14).
  *
- * A minimal DOM start screen: one Start control and the product name. The
- * screen carries no Frontier/Oolite mark (the footer keeps the disclaimer). The
- * scene behind it is empty until plan 03 adds the title scene.
+ * A minimal DOM start screen: New game, and Continue only when a validated save
+ * exists. Every string is static markup; this module writes no text, so there is
+ * no markup-injection surface. D-09 of Phase 3 (a start screen leading straight
+ * to the dock) is extended, not replaced: `#title-start` keeps its id and means
+ * New game.
  */
 
 export interface TitleScreen {
   show(): void;
   hide(): void;
   onStart(handler: () => void): void;
+  onContinue(handler: () => void): void;
+  /** Show the Continue control only for a save this build validated. */
+  setContinueVisible(visible: boolean): void;
   dispose(): void;
 }
 
-function requireStartButton(root: HTMLElement): HTMLButtonElement {
-  const element = root.querySelector("#title-start");
+function requireButton(root: HTMLElement, id: string): HTMLButtonElement {
+  const element = root.querySelector(`#${id}`);
   if (!(element instanceof HTMLButtonElement)) {
-    throw new Error('Wegolite: the title screen is missing "#title-start".');
+    throw new Error(`Wegolite: the title screen is missing "#${id}".`);
   }
   return element;
 }
 
 export function createTitleScreen(root: HTMLElement): TitleScreen {
-  const start = requireStartButton(root);
+  const start = requireButton(root, "title-start");
+  const resume = requireButton(root, "title-continue");
   const controller = new AbortController();
 
   return {
@@ -43,6 +49,18 @@ export function createTitleScreen(root: HTMLElement): TitleScreen {
         },
         { signal: controller.signal },
       );
+    },
+    onContinue(handler: () => void): void {
+      resume.addEventListener(
+        "click",
+        () => {
+          handler();
+        },
+        { signal: controller.signal },
+      );
+    },
+    setContinueVisible(visible: boolean): void {
+      resume.hidden = !visible;
     },
     dispose(): void {
       controller.abort();

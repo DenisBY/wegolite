@@ -28,7 +28,13 @@ import { publishFailure, publishProbe, readMemory } from "./app/probe.js";
 import type { WegoliteProbe } from "./app/probe.js";
 import { createSceneManager } from "./app/scene-manager.js";
 import manifest from "./content/generated/manifest.json";
+import { loadEquipment } from "./content/equipment.js";
+import { loadShipCatalogue } from "./content/ships.js";
 import { LAZY_GALAXY_COUNT, galaxy0 } from "./content/systems.js";
+import { createIndexedDbSaveStore } from "./persistence/idb-store.js";
+import { parseSave } from "./persistence/save.js";
+import type { SaveAllowLists, SaveV1 } from "./persistence/save.js";
+import type { SaveStatus } from "./persistence/store.js";
 import { createAssetCache } from "./render/asset-cache.js";
 import { applyViewport } from "./render/viewport.js";
 import { createDockedPanel } from "./ui/docked.js";
@@ -102,6 +108,57 @@ if (!boot.ok) {
     throw new Error('Wegolite: galaxy 0 has no Lave record ("g0-s7").');
   }
 
+  // D-14: read the one save before offering anything. Every allow-list is built
+  // at this call site from validated sources (T-04-50): the equipment
+  // catalogue, galaxy 0's system ids and the catalogue entries that actually
+  // carry a dock subentity. A forged key can therefore never reach `findShip`.
+  const saveStore = createIndexedDbSaveStore();
+  let saveStatus: SaveStatus = "unavailable";
+  let bootSave: SaveV1 | undefined;
+  try {
+    const [equipment, catalogue] = await Promise.all([
+      loadEquipment(),
+      loadShipCatalogue(),
+    ]);
+    const allowLists: SaveAllowLists = {
+      equipment: new Set(equipment.map((item) => item.key)),
+      systems: new Set(galaxy0().map((system) => system.id)),
+      stations: new Set(
+        catalogue
+          .filter((entry) =>
+            entry.shipDef.subentities.some(
+              (subentity) => subentity.isDock === true,
+            ),
+          )
+          .map((entry) => entry.key),
+      ),
+    };
+    const read = await saveStore.read();
+    if (read.kind === "ok") {
+      const parsed = parseSave(read.raw, allowLists);
+      if (parsed.ok) {
+        saveStatus = "valid";
+        bootSave = parsed.save;
+      } else if (parsed.reason === "future-version") {
+        // A newer build owns this blob; this build never clears or replaces it.
+        saveStatus = "future";
+      } else if (parsed.reason === "corrupt") {
+        saveStatus = "corrupt";
+        // Exactly once, best effort, before the title: the copy is never read
+        // back and a failure must not block boot.
+        await saveStore.backupCorrupt(read.raw).catch(() => undefined);
+      } else {
+        saveStatus = "absent";
+      }
+    } else if (read.kind === "absent") {
+      saveStatus = "absent";
+    }
+  } catch {
+    // A broken catalogue fails `session.start` visibly. Here it only means no
+    // save can be trusted, so the title starts fresh without offering Continue.
+    saveStatus = "unavailable";
+  }
+
   const probe: WegoliteProbe = {
     ready: true,
     calls: 0,
@@ -151,6 +208,11 @@ if (!boot.ok) {
     controlsRoot,
     settingsRoot,
     gameRoot: canvas,
+    save: {
+      store: saveStore,
+      status: saveStatus,
+      ...(bootSave === undefined ? {} : { save: bootSave }),
+    },
   });
 
   function stopSession(): void {
@@ -192,9 +254,20 @@ if (!boot.ok) {
   // real.
   publishProbe(probe);
 
+  title.setContinueVisible(bootSave !== undefined);
+  if (probe.save !== undefined) {
+    probe.save.continueVisible = bootSave !== undefined;
+  }
+
+  const continueSave = bootSave;
   title.onStart(() => {
     void session.start();
   });
+  if (continueSave !== undefined) {
+    title.onContinue(() => {
+      void session.start({ restore: continueSave, fresh: false });
+    });
+  }
 
   // D-15: focus loss auto-pauses and clears held input. `session.pause()` is a
   // no-op on the title/menu (there is no simulation yet) apart from clearing
