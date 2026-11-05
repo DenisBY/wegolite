@@ -21,7 +21,7 @@
     {
       "number": "4",
       "name": "Manual Docking",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "5",
@@ -41,8 +41,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 4 of 7 · 43% · ready to verify"
+    "label": "Advance to the next step (plan phase 5)",
+    "reason": "Phase 5 of 7 — needs a plan"
   },
-  "updated_at": "2026-11-05T14:10:39.757Z"
+  "updated_at": "2026-11-05T14:33:32.819Z"
 }

@@ -1,8 +1,8 @@
 ---
 phase: 04-manual-docking
-verified: 2026-11-05T11:13:59Z
-status: human_needed
-score: 42/44 must-haves verified
+verified: 2026-11-05T14:32:24Z
+status: passed
+score: 54/54 must-haves verified
 covered_files:
   - .planning/phases/04-manual-docking/04-01-PLAN.md
   - .planning/phases/04-manual-docking/04-01-SUMMARY.md
@@ -14,6 +14,12 @@ covered_files:
   - .planning/phases/04-manual-docking/04-04-SUMMARY.md
   - .planning/phases/04-manual-docking/04-05-PLAN.md
   - .planning/phases/04-manual-docking/04-05-SUMMARY.md
+  - .planning/phases/04-manual-docking/04-06-PLAN.md
+  - .planning/phases/04-manual-docking/04-06-SUMMARY.md
+  - .planning/phases/04-manual-docking/04-07-PLAN.md
+  - .planning/phases/04-manual-docking/04-07-SUMMARY.md
+  - .planning/phases/04-manual-docking/04-08-PLAN.md
+  - .planning/phases/04-manual-docking/04-08-SUMMARY.md
   - .prettierignore
   - NOTICE
   - index.html
@@ -29,6 +35,7 @@ covered_files:
   - src/content/generated/manifest.json
   - src/content/schemas/dock-port.ts
   - src/input/actions.ts
+  - src/input/bindings.ts
   - src/input/keyboard.ts
   - src/main.ts
   - src/persistence/autosave.ts
@@ -52,11 +59,16 @@ covered_files:
   - src/sim/flight/state.ts
   - src/sim/flight/step.ts
   - src/sim/player/profile.ts
+  - src/ui/controls.ts
   - src/ui/docked.ts
   - src/ui/title.ts
   - tests/app/dock-feedback.test.ts
+  - tests/app/title-confirm.test.ts
   - tests/e2e/autosave.spec.ts
   - tests/e2e/docking.spec.ts
+  - tests/e2e/helpers/title.ts
+  - tests/e2e/launch.spec.ts
+  - tests/e2e/settings.spec.ts
   - tests/golden/content/dock-port.json
   - tests/helpers/dock-pose.ts
   - tests/input/bindings.test.ts
@@ -75,117 +87,119 @@ covered_files:
   - tools/oolite-ingest/convert/dock-port.test.ts
   - tools/oolite-ingest/convert/dock-port.ts
   - tools/oolite-ingest/generate.ts
-covered_digest: "v4:sha256:b40e61b71adff23b4de15de68ad82450c2b0097ea0ad43d55289bbb3285c030a"
-behavior_unverified: 2
+covered_digest: "v4:sha256:8eb3265926dcdfe822d1749b4347ece7f5bab9140b040126244426238691084c"
+behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: human_needed
+  previous_score: 42/44
+  gaps_closed:
+    - "G-04-2 — the disabled Buy docking-computer control is visually distinct, the refusal sits in the value cell with aria-describedby, and Controls prints Shift+C"
+    - "G-04-3 — New game asks for confirmation before deleting a committed save; Cancel/Escape preserve it byte-for-byte"
+    - "G-04-4 — a committed sim test pins the disarmed tunnel-end clamp"
+    - "G-04-5 — committed sim tests pin one-bounce and orientation invariance through straddle and hull contact"
+  gaps_remaining: []
+  regressions: []
 deferred:
   - truth: "A player can buy the docking computer at a station whose tech level allows it"
     addressed_in: "Phase 5 (outfitting screen) / Phase 6 (hyperspace to TL 9 systems)"
     evidence: "Phase 5 ECON-05 reuses `canPurchase`; Phase 6 NAV opens systems beyond Lave. Lave is raw TL 4 and correctly refuses; the purchase rule and maths are unit-proven against a synthetic TL 9 record."
-behavior_unverified_items:
-  - truth: "While disarmed the ship cannot pass the 250 m tunnel end; the clamp is positional only and emits no bounce."
-    test: "Place a disarmed in-flight ship with `box.min.z < -geometry.port.depth` (for example `placeShipInPortFrame(..., { nosePastPlane: 300 })`) and call `stepDocking` once."
-    expected: "Position clamps so `box.min.z === -geometry.port.depth`; no `bounce`, `docked` or `scrape` event; mode stays `inFlight`."
-    why_human: "The code path is present and wired, and an ad-hoc Docker tsx check observed the clamp (-300.0000000000097 -> -250.00000000000455, events [], mode `inFlight`, latch still false), but no committed test exercises it, so the test suite would not catch a regression."
-  - truth: "An off-axis or rolled-wrong approach produces exactly one contact response per tick, with orientation unchanged and mode still inFlight."
-    test: "Place a wings-across straddle or a hull contact, capture the orientation quaternion, call `stepDocking` once, and deep-compare the orientation."
-    expected: "Exactly one `bounce` event; mode `inFlight`; orientation quaternion unchanged."
-    why_human: "The one-response, mode and nose-gate clauses are tested, but no committed assertion checks orientation preservation after a bounce. An ad-hoc Docker tsx check observed `unchanged: true` for a straddle bounce."
-human_verification:
-  - test: "Launch, fly off-axis into the Coriolis, and observe the bounce."
-    expected: "A clear message, camera shake and red HUD frame; all three clear within about 0.5 s; a second attempt is possible immediately."
-    why_human: "Shake amplitude/duration and flash feel are qualitative; automation only proves presence and expiry on the sim clock."
-  - test: "Dock at Lave and inspect the docking-computer line, the disabled Buy control and the Controls screen."
-    expected: "The line reads 'Docking Computers — 1500.0 Cr (TL 9)', the refusal reads 'Requires TL 9', the disabled control is visually distinct, and the Controls screen tells the player the chord is Shift+C."
-    why_human: "Layout, colour and discoverability are visual judgements. The UI review reports the Controls label currently renders 'C' rather than 'Shift+C', the disabled Buy control looks active, and the reason sits in the label column."
-  - test: "With a committed save, click New game once."
-    expected: "Either a confirmation/one-slot backup before the only save is deleted, or an explicit product decision that one-click deletion is intended."
-    why_human: "This is a product/UX decision, not a DOCK-01..07 functional assertion. The current path deletes the only save with no confirmation, undo or backup; the UI review rates it a blocking UX defect."
-  - test: "Add and run a committed regression test for the disarmed tunnel-end clamp."
-    expected: "A disarmed ship past the 250 m tunnel end is clamped positionally, emits no bounce/docked/scrape event and stays in flight."
-    why_human: "No committed test exercises this behaviour; an ad-hoc check passed on this tree. The gap is test coverage, not observed product failure."
-  - test: "Add and run a committed regression test asserting orientation is unchanged after a straddle/hull bounce."
-    expected: "The orientation quaternion is deep-equal before and after the bounce."
-    why_human: "No committed assertion exists; an ad-hoc check passed on this tree. The gap is test coverage, not observed product failure."
 ---
 
 # Phase 4: Manual Docking Verification Report
 
 **Phase Goal:** The player can dock a Cobra by hand with real feedback and real risk, and can buy a docking computer when they would rather not.
-**Verified:** 2026-11-05T11:13:59Z
-**Status:** human_needed
-**Re-verification:** No — initial verification
+**Verified:** 2026-11-05T14:32:24Z
+**Status:** passed
+**Re-verification:** Yes — after UAT gap closure (04-06, 04-07, 04-08)
 
 ## MVP-Mode Note
 
-ROADMAP.md marks this phase `Mode: mvp`, but the phase goal is not in the `As a …, I want …, so that …` form (`gsd-tools query user-story.validate` returns `valid: false`). Standard goal-backward verification was therefore used, as requested. If MVP user-flow UAT framing is required, run `/gsd-mvp-phase 04` to reformat the goal first; this is a process discrepancy, not a product gap.
+ROADMAP.md marks this phase `Mode: mvp`, but the phase goal is not in the `As a …, I want …, so that …` form (`gsd-tools query user-story.validate` returns `valid: false`). Standard goal-backward verification was therefore used, as in the previous round. If MVP user-flow UAT framing is required, run `/gsd-mvp-phase 04` to reformat the goal first; this is a process discrepancy, not a product gap.
 
 ## Goal Achievement
 
-The phase goal is achieved in the codebase. The aperture and corridor are measured from the vendored Coriolis dock mesh and drift-checked; an aligned, correctly rolled approach docks on Oolite's weighted capture plane with the exact mouth pose; a sloppy approach bounces once, gives a message, camera shake and a red HUD frame, and recovers to flight immediately; the docking computer is TL-gated, costs the catalogue price and docks instantly on Shift+C for exactly +1200 s; and launching writes a committed IndexedDB autosave that Continue restores, with future/unreadable blobs left inert.
+The phase goal is achieved in the codebase and in the browser. The aperture and corridor are measured from the vendored Coriolis dock mesh and drift-checked; an aligned, correctly rolled approach docks on Oolite's weighted capture plane with the exact mouth pose; a sloppy approach bounces once, gives a message, camera shake and a red HUD frame, and recovers to flight immediately; the docking computer is TL-gated, costs the catalogue price and docks instantly on Shift+C for exactly +1200 s; and launching writes a committed IndexedDB autosave that Continue restores, with future/unreadable blobs left inert.
 
-The full Docker gate was green on this tree: lint, typecheck, `assets:check`, **686 unit tests across 68 files**, production build, and **46 Playwright tests**.
+The previous round left four UAT gaps open. All four are closed on this tree and verified here:
 
-Two must-have truths are present and wired but lack a committed behavioural test (disarmed tunnel-end clamp; orientation preservation through a bounce). Ad-hoc Docker checks exercised both successfully. They are not product failures; they are regression-coverage gaps.
+- **G-04-2** — `index.html` now carries `#docked button:disabled` styling (dimmed border/text, reduced opacity, `not-allowed`, hover/focus scoped to `:not(:disabled)`), the refusal is a `span#dockcomp-message.docked-reason` inside the docking-computer value `dd`, `src/ui/docked.ts` sets `aria-describedby` when a reason exists, and `SHIFT_REQUIRED_ACTIONS` + `chordLabel` make Controls print `Shift+C` / rebind print `Shift+K`. `tests/e2e/docking.spec.ts#the docked panel shows real credits and refuses the TL 9 computer at Lave` asserts the computed style, hover non-fill, ARIA link, same-cell placement, positive button gap, Controls row and rebind status.
+- **G-04-3** — `src/ui/title.ts` owns a static `role="alertdialog"` `#title-confirm`; `shouldConfirmNewGame` gates only `valid`/`corrupt`; `src/main.ts` enables it from the boot status; Cancel/Escape/Tab behave like `ui/pause.ts`; the accept path is the only caller of the stored start handler. `tests/app/title-confirm.test.ts` covers all six statuses, and `tests/e2e/autosave.spec.ts` proves the blob survives the first click and Cancel byte-for-byte and clears only after accept.
+- **G-04-4** — `tests/sim/dock-corridor.test.ts#clamps a disarmed past-end ship along the port-frame k with no response` places a disarmed ship 50 m past the 250 m tunnel end at a rotated station, calls `stepDocking`, and asserts the port-frame clamp, no events, `inFlight`, still-disarmed latch and unchanged counters.
+- **G-04-5** — `tests/sim/dock-hull.test.ts` now asserts, for both a straddle and a hull contact, exactly one `bounce` with its cause, a deep-equal pre-step orientation quaternion, `inFlight` and `bounceCount === 1`.
 
-The one UI-review blocker — New game deletes the only save on one click with no confirmation or backup — is real and should be fixed before shipping, but it does not violate DOCK-07's autosave/resume contract: the launch write and Continue restore are verified, New game is by design a clear action (D-14), and the clear is refused for future/unreadable/unavailable blobs. The phase goal's "real risk" refers to docking contact risk (bounce/scrape), not save deletion. It is recorded as a human/product decision below rather than a failed must-have.
+The full Docker gate was green on this tree: lint, Prettier, typecheck, `assets:check`, **697 unit/integration tests across 69 files**, production build, and **47 Playwright tests**.
 
 ### Observable Truths
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 04-01.1 | The aperture (103.4123 × 241.888 × 250) is measured at build time from `third_party/oolite/Models/oolite_coriolis_dock.dat`, never typed into `src/sim/`. | ✓ VERIFIED | `src/content/generated/dock-port.json` carries the three measured extents; the emitter reads the dock mesh; `rg` finds no `103.4123`/`241.888` literal under `src/sim`. |
-| 04-01.2 | The emitter writes `src/content/generated/dock-port.json` at the repository-relative path, and the manifest carries that exact path. | ✓ VERIFIED | `DOCK_PORT_PATH` defined in `convert/dock-port.ts`; `manifest.json` has a row with that exact path, 514 bytes and the matching hash; unit test pins the path row. |
-| 04-01.3 | Corridor half-extents (ww 51.70615, hh 120.944) are derived at build time with a bounded expansion loop and byte-pinned in the golden. | ✓ VERIFIED | Generated and golden JSON agree; `corridorHalfExtents` has a 64-step cap and progress check; emitter test asserts byte equality with both golden and generated bytes. |
-| 04-01.4 | The contact proxy covers the union of hull, tris and faceplate bounds, reaching station-local z −534.298 and +500; it is a box. | ✓ VERIFIED | `contact` is the union of the three `stationBox` values; test asserts `zMin <= -534.2979`, `zMin <= hull.zMin`, and `zMax ≈ 500`; emitter and PROJECT.md state it is a conservative box. |
-| 04-01.5 | Every emitted box has finite components, ordered axes and a positive span; zero, negative, NaN, Infinity, subnormal, reversed and degenerate input is rejected by the schema. | ✓ VERIFIED | Boxes require positive finite half-extents and `zMin < zMax`; the ship box requires `min < max` on all axes; the port dimensions have a `[1e-3, 1e5]` range and the reject table covers zero, negative, NaN, Infinity, subnormal, MAX_VALUE, reversed and degenerate cases. **Caveat:** box/corridor half-extents have no magnitude bound, so a forged record with `Number.MIN_VALUE`/`Number.MAX_VALUE` half-extent is accepted (see Findings, W-01). The dangerous aperture/expansion inputs are bounded; committed data is 500/51.70615. |
-| 04-01.6 | `assets:check` fails if the emitted `dock-port.json` drifts from the vendored `.dat`. | ✓ VERIFIED | `docker compose run --rm assets npm run assets:check` reports `no differences`; `tools/oolite-ingest/drift.test.ts` proves CHANGED/MISSING/hash drift are reported; the file is in the generated root scanned by `EMITTED_ROOTS`. |
-| 04-02.1 | A Cobra rolled to the slot and centred on the opening docks on the tick where `0.90*max.z + 0.10*min.z < 0`, with the docked pose equal to `dockMouthPosition(layout)`. | ✓ VERIFIED | `tests/sim/dock-capture.test.ts#docks an aligned centred approach…` asserts mode, `dockCount`, deep-equal position and exact event; `classifyCorridor` implements the weighted plane. |
-| 04-02.2 | The corridor is the port-frame bounding box of the ship against the measured aperture, not a trigger sphere; all four strict inequalities hold at stationAngle 0, π/4, π/2 and π. | ✓ VERIFIED | `tests/sim/dock-corridor.test.ts#is identical at stationAngle…` asserts all four inequalities and lane outcome at the four phases. |
-| 04-02.3 | Classification follows DockEntity.m:691-773: past-end reject, lane (no nose gate), then the 1.5× safety footprint under `box.min.z < 0`; a non-lane tick with `min.z >= 0` is outside with no band correction, straddle or scrape. | ✓ VERIFIED | `src/sim/dock/corridor.ts` order; boundary tests assert `min.z == 0 => outside`, `-1e-9 => band`, wings-across at 500 m => outside with no event. |
-| 04-02.4 | The emitted station-local contact box is converted to port coordinates once in `createDockGeometry` (z ≈ −1000.2561 … +34.0419). | ✓ VERIFIED | `geometry.ts` conversion; `dock-capture.test.ts` pins the bounds and rejects non-positive `dockOffset`; `hull.ts` never re-projects it. |
-| 04-02.5 | Arming is evaluated while disarmed; after natural or skipped launch the ship arms once `box.min.z > contactPort.zMax`, and a later aligned return docks. | ✓ VERIFIED | `stepDocking` arming branch; natural and skipped-launch tests assert the exact threshold, no self-dock/scrape, and a later return docking once. |
-| 04-02.6 | Roll acceptance is computed over the committed Cobra corners: 30° fits, 35° does not, limit ≈ 31.296°. | ✓ VERIFIED | `dock-corridor.test.ts` derives the crossing by bisection and asserts the range and the 30/35 pair; no round-number fixture remains. |
-| 04-02.7 | Inside the 1.5× safety band with the nose past the plane, the ship is shifted toward the port centre each fixed tick; roll tolerance comes only from the bbox. | ✓ VERIFIED | Band branch applies the per-tick delta; `#shifts a +x band ship…` asserts position delta and one scrape; the y-guard symmetry test is present. |
-| 04-02.8 | Speed never gates docking: the same aligned capture-plane pose docks at 0, `maxSpeed` and the torus cap. | ✓ VERIFIED | `tests/sim/dock-capture.test.ts#has no speed term…` asserts identical mode, pose, count and events at all three speeds. |
-| 04-02.9 | Replay is hash-identical at 60/120/144 Hz and non-vacuous (`dockCount === 1`, `scrapeTicks > 0`). | ✓ VERIFIED | `tests/sim/dock-cadence.test.ts` asserts one hash across cadences and both counters. |
-| 04-02.10 | While disarmed the ship cannot pass the 250 m tunnel end; the clamp is positional only and emits no bounce. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | `step.ts` clamps `box.min.z < -port.depth` along `k` and returns no events. No committed test exercises it. An ad-hoc Docker check observed −300.0000000000097 → −250.00000000000455, `events: []`, mode `inFlight`, latch still false. See `behavior_unverified_items`. |
-| 04-03.1 | An off-axis or rolled-wrong approach gives exactly one contact response per tick: reflected velocity with damping, orientation unchanged, mode inFlight; a nose-at-or-in-front tick gives no straddle/band/capture response. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | The exclusive pipeline, one-response count, mode and nose gate are tested (`dock-hull`, `dock-no-trap`, `dock-integrated`), and `respondToContact` never writes orientation. **No committed test asserts orientation equality.** An ad-hoc Docker check observed `unchanged: true` for a straddle bounce. |
-| 04-03.2 | Contact detection is a 15-axis SAT of the ship OBB against the port-frame contact box, finding edge/face intersections with no corner inside. | ✓ VERIFIED | `hull.ts` fixed axis order with degenerate-axis skip and earliest-tie; `dock-hull.test.ts#finds an edge intersection…` builds the crossing and asserts contact + unit normal. |
-| 04-03.3 | The proxy is the once-converted `contactPort`; a ship 200 m in front, outside the safety band, is not in contact. | ✓ VERIFIED | `hullContact` consumes `snapshot.centre/axes` and `geometry.contactPort`; the 200 m test asserts classifier `outside` and both `hullContact === null` and `obbsIntersect === false`. |
-| 04-03.4 | A launch followed by straight departure emits no contact response, natural or Space-skipped. | ✓ VERIFIED | `dock-hull` natural-departure test, `dock-integrated` natural and skipped scenarios, and the e2e skip path all assert `bounceCount === 0` through and past the arming tick. |
-| 04-03.5 | The integrated chain launch → clearance → off-axis bounce → retry → dock asserts `dockCount === 1`, `bounceCount === 1`, mode docked, and zero bounces throughout departure. | ✓ VERIFIED | `tests/sim/dock-integrated.test.ts#launches, departs cleanly…` asserts exactly those values. |
-| 04-03.6 | Scrape, bounce, docked and dockDenied are sim events carrying their facts; copy, shake and flash live app-side. | ✓ VERIFIED | `events.ts` union; `game-session.ts` maps `bounce`/`scrape`/`dockDenied` to fixed copy and `dock-feedback`; no UI copy in the sim. |
-| 04-03.7 | Shake lasts 0.35 s and flash 0.40 s on the sim `flightTime`, are deterministic, and publish envelope strength (not a sinusoid). | ✓ VERIFIED | `dock-feedback.ts` constants; unit tests assert strength 1 at trigger, linear expiry and determinism; e2e asserts `shake > 0`/`flash > 0` immediately and both 0 after 0.6 s. |
-| 04-03.8 | The no-trap oracle asserts non-penetration, outward separation and retry-ability, not only mode plus finiteness. | ✓ VERIFIED | Seeded fast-check property plus adversarial seeds for zero-speed straddle, straddle+hull, deep centre; asserts `obbsIntersect` false after resolution and movement within 30 ticks. |
-| 04-03.9 | A non-finite or absurd hook value is repaired at the start of `stepFlight`, and speed can never integrate position to Infinity. | ✓ VERIFIED | `sanitizeFlightState` at the top of `stepFlight`; tests inject `1e308` and NaN and assert finite position, speed ≤ `maxSpeed*1024`, deterministic repair. |
-| 04-03.10 | `scrapeTicks` increments exactly once per emitted scrape event. | ✓ VERIFIED | `dock-no-trap.test.ts#increments scrapeTicks exactly once…` counts events and compares. |
-| 04-04.1 | `canPurchase` enforces raw `System.techLevelRaw`; Lave (raw 4) refuses the TL 9 computer and the panel says why; "(TL 9)" is a real gate. | ✓ VERIFIED | `canPurchase` compares raw TL; Lave-vs-synthetic-TL9 unit pair; browser asserts "Requires TL 9" and a disabled Buy; `system.techLevelRaw` is read from the loaded System record. |
-| 04-04.2 | The price is read from the validated equipment catalogue by key; zero, negative, non-integer or non-finite prices are refused; no command price is trusted. | ✓ VERIFIED | `purchase`/`canPurchase` validate the catalogue record before arithmetic; reject tests; the command is payload-free. |
-| 04-04.3 | A new game has 1000 decicredits; 15000 succeeds leaving 0, 14999 is refused, owned is refused, and credits never go negative. | ✓ VERIFIED | `player-profile.test.ts` asserts the boundary pair, owned refusal, double-purchase refusal and safe-integer bounds. |
-| 04-04.4 | Shift+C inside the aegis with the computer docks on the same tick, adds exactly 1200 s, emits `docked{via:"computer", clockDelta:1200}`, and increments tick by 1 while flightTime/stationAngle do not advance. | ✓ VERIFIED | `dock-computer.test.ts` and the four-row `dock-transitions.test.ts`; e2e asserts `probe.dock.lastClockDelta === 1200`. |
-| 04-04.5 | Outside the aegis, without the computer, or when the mode at tick start is not inFlight, Shift+C emits dockDenied or nothing and changes neither mode nor clock. | ✓ VERIFIED | `dock-computer.test.ts` covers each case; browser covers the beyond-aegis message. |
-| 04-04.6 | Commands are gated on `modeAtStart`, so a dock and a launch in one tick cannot both take effect. | ✓ VERIFIED | `stepFlight` gates launch/skipLaunch/dockingComputer; same-tick `[dockingComputer, launch]` test asserts one transition and +1200 only. |
-| 04-04.7 | Docking resets the torus drive and impulse, so a docked ship never carries an engaged drive or residual velocity. | ✓ VERIFIED | `dockWithComputer` resets both and the test starts with an engaged torus and speed 120; manual capture performs the same reset in `stepDocking`. |
-| 04-04.8 | The keyboard emits a fresh command object per keydown; no shared EDGE_COMMANDS entry is mutated. | ✓ VERIFIED | `keyboard.ts` pushes `{ ...command }`; `bindings.test.ts` asserts distinct object identity and chord behaviour. |
-| 04-05.1 | Launching writes a versioned JSON autosave (version, mode docked, post-launch +600 s clock, credits, equipment, system id, station key) to db `wegolite`, store `saves`, key `autosave`; a purchase writes the same shape. | ✓ VERIFIED | Constants in `store.ts`; `snapshotForSave` tests assert the post-launch clock and identities; real-IDB e2e asserts the committed launch clock; purchase snapshot test asserts reduced credits and equipment. |
-| 04-05.2 | A future-version blob is never cleared or replaced; New game starts fresh without touching it, the launch write is skipped, and bytes are identical after New game and after a launch. | ✓ VERIFIED | `parseSave` returns future before schema; `canOverwrite`/`canClear` exclude future; e2e injects version 2 and asserts exact bytes after both actions. |
-| 04-05.3 | A write is durable only on transaction `oncomplete`; reads/writes are serialized through one queue; a monotonic revision makes stale completions a no-op. | ✓ VERIFIED | `idb-store.ts` resolves on `oncomplete` and rejects on abort/error; `MemorySaveStore` and e2e committed-write reload prove the ordering; revision tests ignore a late old write. |
-| 04-05.4 | A tainted profile (any `?test=1` mutation) is never autosaved; the skip is observable. | ✓ VERIFIED | Hook mutations set `testTainted`; `autosave()` skips and publishes `skipReason: "tainted"`; e2e asserts zero writes/commits and null raw. |
-| 04-05.5 | Oversized raw data is rejected before `JSON.parse`; boot never parses an unbounded string. | ✓ VERIFIED | `MAX_SAVE_CHARS` length check precedes parse; unit spy proves parse is not reached; 1 MB e2e boots inert. |
-| 04-05.6 | `parseSave` receives equipment, system and station allow-lists at the boot call site, so an unknown key cannot reach `findShip`. | ✓ VERIFIED | `main.ts` builds all three from validated sources and passes them; unit reject rows cover unknown equipment/system/station. |
-| 04-05.7 | `clockSeconds` is an integer in a bounded safe range; 1e308 is rejected. | ✓ VERIFIED | `SaveV1Schema` `.int().min(CLOCK_START).max(CLOCK_START + 1e12)`; reject row for 1e308; `snapshotForSave` floors. |
-| 04-05.8 | A `VersionError` on open never calls `deleteDatabase`; the store reports unavailable and the game runs without saves. | ✓ VERIFIED | `idb-store.ts` maps `VersionError` to `unavailable`; no `deleteDatabase` in `src`; `canOverwrite`/`canClear` refuse. An ad-hoc Docker fake-factory check observed `read {kind:"error",reason:"version"}` and write/clear `committed:false, reason:"version"`. |
-| 04-05.9 | A corrupt blob is copied to `autosave.corrupt` by an explicit adapter operation, best effort, exactly when `parseSave` returns corrupt, and is never read back. | ✓ VERIFIED | `main.ts` calls `backupCorrupt` only in the `corrupt` branch; `boundCorruptBackup` keeps it bounded; e2e asserts the backup for a v1-shaped invalid blob and no backup for unreadable/future. |
-| 04-05.10 | Docking does not autosave. | ✓ VERIFIED | e2e manual-dock case asserts `attempts === 1` (launch only) and `writes === 1`; computer-dock case asserts `attempts === 1`. |
+| 04-01.1 | The aperture (103.4123 × 241.888 × 250) is measured at build time from `third_party/oolite/Models/oolite_coriolis_dock.dat`, never typed into `src/sim/`. | ✓ VERIFIED | Generated JSON carries the three measured extents; the emitter reads the dock mesh; no literal under `src/sim`. |
+| 04-01.2 | The emitter writes `src/content/generated/dock-port.json` at the repository-relative path, and the manifest carries that exact path. | ✓ VERIFIED | `DOCK_PORT_PATH`; manifest row with matching path/hash; unit test pins the row. |
+| 04-01.3 | Corridor half-extents (ww 51.70615, hh 120.944) are derived at build time with a bounded expansion loop and byte-pinned in the golden. | ✓ VERIFIED | Generated and golden JSON agree; 64-step bounded loop with progress check; emitter test asserts byte equality. |
+| 04-01.4 | The contact proxy covers the union of hull, tris and faceplate bounds, reaching station-local z −534.298 and +500; it is a box. | ✓ VERIFIED | `contact` is the union of the three station boxes; tests assert the bounds and that it is stated as a box. |
+| 04-01.5 | Every emitted box has finite components, ordered axes and a positive span; zero, negative, NaN, Infinity, subnormal, reversed and degenerate input is rejected by the schema. | ✓ VERIFIED | Positive finite half-extents, `zMin < zMax`, ship `min < max`, port range `[1e-3, 1e5]`; reject table covers the listed inputs. Half-extent magnitude is still unbounded (W-01). |
+| 04-01.6 | `assets:check` fails if the emitted `dock-port.json` drifts from the vendored `.dat`. | ✓ VERIFIED | `docker compose run --rm verify` reports `assets:check: no differences`; drift tests cover CHANGED/MISSING/hash. |
+| 04-02.1 | A Cobra rolled to the slot and centred docks on the tick where `0.90*max.z + 0.10*min.z < 0`, with the docked pose equal to `dockMouthPosition(layout)`. | ✓ VERIFIED | `dock-capture.test.ts` asserts mode, count, deep-equal pose and exact event; `classifyCorridor` implements the weighted plane. |
+| 04-02.2 | The corridor is the port-frame bounding box against the measured aperture, not a trigger sphere; the strict inequalities hold at stationAngle 0, π/4, π/2 and π. | ✓ VERIFIED | `dock-corridor.test.ts` asserts all four inequalities and lane outcome at the four phases. |
+| 04-02.3 | Classification follows DockEntity.m:691-773: past-end reject, lane (no nose gate), then the 1.5× safety footprint under `box.min.z < 0`. | ✓ VERIFIED | `corridor.ts` order; boundary tests assert `min.z == 0 => outside`, `-1e-9 => band`, wings-across at 500 m => outside. |
+| 04-02.4 | The emitted station-local contact box is converted to port coordinates once in `createDockGeometry` (z ≈ −1000.2561 … +34.0419). | ✓ VERIFIED | `geometry.ts` converts once; `dock-capture.test.ts` pins the bounds; `hull.ts` never re-projects. |
+| 04-02.5 | After natural or skipped launch the ship arms once `box.min.z > contactPort.zMax`, and a later aligned return docks. | ✓ VERIFIED | Arming branch; natural and skipped-launch tests assert the threshold, no self-dock/scrape, and a later return docking once. |
+| 04-02.6 | Roll acceptance is computed over the committed Cobra corners: 30° fits, 35° does not, limit ≈ 31.296°. | ✓ VERIFIED | Bisection derives the limit; the 30/35 pair and range are asserted. |
+| 04-02.7 | Inside the 1.5× safety band with the nose past the plane, the ship shifts toward port centre each tick; roll tolerance comes only from the bbox. | ✓ VERIFIED | Band branch delta and one-scrape assertions; y-guard symmetry test. |
+| 04-02.8 | Speed never gates docking: the same capture-plane pose docks at 0, `maxSpeed` and the torus cap. | ✓ VERIFIED | `dock-capture.test.ts#has no speed term…` asserts identical mode, pose, count and events. |
+| 04-02.9 | Replay is hash-identical at 60/120/144 Hz and non-vacuous (`dockCount === 1`, `scrapeTicks > 0`). | ✓ VERIFIED | `dock-cadence.test.ts` asserts one hash across cadences and both counters. |
+| 04-02.10 | While disarmed the ship cannot pass the 250 m tunnel end; the clamp is positional only and emits no bounce. | ✓ VERIFIED | `step.ts:150-157` clamps along `frame.k`; committed `dock-corridor.test.ts#clamps a disarmed past-end ship along the port-frame k with no response` asserts clamp, empty events, `inFlight` and latch false (G-04-4 closed). |
+| 04-03.1 | An off-axis or rolled-wrong approach gives exactly one contact response per tick: reflected velocity with damping, orientation unchanged, mode inFlight; a nose-at-or-in-front tick gives no straddle/band/capture response. | ✓ VERIFIED | Exclusive pipeline, one-response count, mode and nose gate tested; committed straddle and hull tests now deep-compare the orientation quaternion and assert one bounce with cause (G-04-5 closed). |
+| 04-03.2 | Contact detection is a 15-axis SAT of the ship OBB against the port-frame contact box, finding edge/face intersections with no corner inside. | ✓ VERIFIED | `hull.ts` fixed axis order, degenerate skip, earliest tie; edge-intersection test asserts contact + unit normal. |
+| 04-03.3 | The proxy is the once-converted `contactPort`; a ship 200 m in front, outside the safety band, is not in contact. | ✓ VERIFIED | `hullContact` consumes snapshot + `contactPort`; the 200 m test asserts classifier `outside`, `hullContact === null`, `obbsIntersect === false`. |
+| 04-03.4 | A launch followed by straight departure emits no contact response, natural or Space-skipped. | ✓ VERIFIED | `dock-hull`, `dock-integrated` and e2e skip path all assert `bounceCount === 0` through and past arming. |
+| 04-03.5 | The integrated chain launch → clearance → off-axis bounce → retry → dock asserts one dock, one bounce, docked mode, and zero bounces through departure. | ✓ VERIFIED | `dock-integrated.test.ts#launches, departs cleanly…` asserts exactly those values. |
+| 04-03.6 | Scrape, bounce, docked and dockDenied are sim events carrying their facts; copy, shake and flash live app-side. | ✓ VERIFIED | `events.ts` union; session maps events to fixed copy and `dock-feedback`; no UI copy in the sim. |
+| 04-03.7 | Shake lasts 0.35 s and flash 0.40 s on the sim `flightTime`, are deterministic, and publish envelope strength. | ✓ VERIFIED | `dock-feedback.ts` constants; unit tests assert strength 1, linear expiry, determinism; e2e asserts presence and expiry. |
+| 04-03.8 | The no-trap oracle asserts non-penetration, outward separation and retry-ability. | ✓ VERIFIED | Seeded fast-check property plus adversarial seeds; asserts `obbsIntersect` false after resolution and movement within 30 ticks. |
+| 04-03.9 | A non-finite or absurd hook value is repaired at the start of `stepFlight`, and speed can never integrate position to Infinity. | ✓ VERIFIED | `sanitizeFlightState` at the top of `stepFlight`; `1e308`/NaN tests assert finite position and deterministic repair. |
+| 04-03.10 | `scrapeTicks` increments exactly once per emitted scrape event. | ✓ VERIFIED | `dock-no-trap.test.ts` counts events and compares the counter. |
+| 04-04.1 | `canPurchase` enforces raw `System.techLevelRaw`; Lave refuses the TL 9 computer and the panel says why. | ✓ VERIFIED | Raw-TL comparison; Lave-vs-synthetic-TL9 unit pair; browser asserts "Requires TL 9" and a disabled Buy. |
+| 04-04.2 | The price is read from the validated catalogue by key; zero/negative/non-integer/non-finite prices are refused; no command price is trusted. | ✓ VERIFIED | `purchase`/`canPurchase` validate before arithmetic; reject tests; command is payload-free. |
+| 04-04.3 | A new game has 1000 decicredits; 15000 succeeds leaving 0, 14999 is refused, owned is refused, credits never negative. | ✓ VERIFIED | `player-profile.test.ts` boundary pair, owned/double refusal, safe-integer bounds. |
+| 04-04.4 | Shift+C inside the aegis with the computer docks on the same tick, adds exactly 1200 s, emits the computer event, and does not advance flightTime/stationAngle. | ✓ VERIFIED | `dock-computer.test.ts` and the four-row `dock-transitions.test.ts`; e2e asserts `lastClockDelta === 1200`. |
+| 04-04.5 | Outside the aegis, without the computer, or when the mode at tick start is not inFlight, Shift+C emits dockDenied or nothing and changes neither mode nor clock. | ✓ VERIFIED | Each case covered in `dock-computer.test.ts`; browser covers the beyond-aegis message. |
+| 04-04.6 | Commands are gated on `modeAtStart`, so a dock and a launch in one tick cannot both take effect. | ✓ VERIFIED | `stepFlight` gates launch/skipLaunch/dockingComputer; same-tick test asserts one transition and +1200 only. |
+| 04-04.7 | Docking resets the torus drive and impulse, so a docked ship never carries residual motion. | ✓ VERIFIED | `dockWithComputer` resets both; test starts with engaged torus and speed 120; manual capture performs the same reset. |
+| 04-04.8 | The keyboard emits a fresh command object per keydown; no shared `EDGE_COMMANDS` entry is mutated. | ✓ VERIFIED | `keyboard.ts` pushes `{ ...command }`; `bindings.test.ts` asserts distinct identity and chord behaviour. |
+| 04-05.1 | Launching writes a versioned JSON autosave (docked mode, post-launch +600 s clock, credits, equipment, system, station key) to db `wegolite`, store `saves`, key `autosave`; a purchase writes the same shape. | ✓ VERIFIED | `store.ts` constants; `snapshotForSave` tests; real-IDB e2e asserts the committed launch clock; purchase snapshot test. |
+| 04-05.2 | A future-version blob is never cleared or replaced; New game starts fresh without touching it, the launch write is skipped, and bytes are identical after both actions. | ✓ VERIFIED | `parseSave` returns future before schema; `canOverwrite`/`canClear` exclude future; e2e injects version 2 and asserts exact bytes. |
+| 04-05.3 | A write is durable only on transaction `oncomplete`; operations are serialized; a monotonic revision makes stale completions no-ops. | ✓ VERIFIED | `idb-store.ts` resolves on `oncomplete`, rejects on abort/error; memory/e2e ordering; revision tests. |
+| 04-05.4 | A tainted profile (any `?test=1` mutation) is never autosaved; the skip is observable in `probe.save`. | ✓ VERIFIED | Hook sets `testTainted`; `autosave()` skips with `skipReason: "tainted"`; e2e asserts zero writes/commits and null raw. |
+| 04-05.5 | Oversized raw data is rejected before `JSON.parse`; boot never parses an unbounded string. | ✓ VERIFIED | `MAX_SAVE_CHARS` check precedes parse; parse-spy unit test; 1 MB e2e boots inert. |
+| 04-05.6 | `parseSave` receives equipment, system and station allow-lists at the boot call site. | ✓ VERIFIED | `main.ts` builds all three; reject rows cover unknown keys. |
+| 04-05.7 | `clockSeconds` is an integer inside a bounded safe range; 1e308 is rejected. | ✓ VERIFIED | Zod `.int().min().max()`; reject row for 1e308; `snapshotForSave` floors. |
+| 04-05.8 | A `VersionError` on open never calls `deleteDatabase`; the store reports unavailable and the game runs without saves. | ✓ VERIFIED | `idb-store.ts` maps `VersionError` to `unavailable`; no `deleteDatabase` in `src`; refusal tests. |
+| 04-05.9 | A corrupt blob is copied to `autosave.corrupt` by an explicit adapter operation, best effort, exactly on `corrupt`, and never read back. | ✓ VERIFIED | `main.ts` calls `backupCorrupt` only in the corrupt branch; bounded backup; e2e asserts backup/no-backup cases. |
+| 04-05.10 | Docking does not autosave. | ✓ VERIFIED | e2e manual-dock case asserts attempts/writes stay 1; computer-dock case asserts attempts 1. |
+| 04-06.1 | On the Docked screen the disabled Buy docking-computer control is visually distinct from Launch: dimmed border/text, reduced opacity, not-allowed cursor, no hover/focus fill. | ✓ VERIFIED | `index.html` `#docked button:disabled` + `:not(:disabled)` hover/focus; e2e asserts computed cursor/opacity/colour/border and unchanged background after hover. |
+| 04-06.2 | The refusal reason renders inside the docking-computer value cell, adjacent to the control, is linked by `aria-describedby`, and a visible gap separates Buy from Launch. | ✓ VERIFIED | `span#dockcomp-message.docked-reason` inside the value `dd`; `src/ui/docked.ts` sets/removes `aria-describedby`; e2e asserts same-parent DD, attribute, and >4 px gap. |
+| 04-06.3 | Controls shows "Docking computer" with "Shift+C", and a rebind status names the chord, sourced from shared action metadata. | ✓ VERIFIED | `SHIFT_REQUIRED_ACTIONS` in `actions.ts`; `chordLabel` in `bindings.ts`; `controls.ts` uses both; unit + e2e assert `Shift+C` and `Docking computer bound to Shift+K.` |
+| 04-07.1 | With a committed valid save, the first New game click opens a confirmation and leaves the save untouched: blob readable, `probe.save.status` valid. | ✓ VERIFIED | `autosave.spec.ts` reads the raw blob before/after the first click and asserts byte identity and `status === "valid"`. |
+| 04-07.2 | Cancel dismisses and preserves the save; accepting deletes it and starts a fresh docked game at Lave. | ✓ VERIFIED | Cancel path asserts hidden overlay + byte identity; accept path waits for `status === "absent"` and a visible docked panel. |
+| 04-07.3 | With no clearable save at boot, New game starts immediately with no confirmation. | ✓ VERIFIED | `shouldConfirmNewGame` returns false for absent/future/unreadable/unavailable; the unit table covers all six statuses; e2e fresh-boot starter asserts `#title-confirm` hidden. |
+| 04-07.4 | The gate is a title-layer static overlay (`alertdialog`/`aria-modal`); Escape closes it and returns focus, Tab is trapped, closing without accepting starts nothing, and main enables it only for valid/corrupt. | ✓ VERIFIED | Markup + `title.ts` focus trap/AbortController; `main.ts` calls `setNewGameConfirmationRequired(shouldConfirmNewGame(saveStatus))`; e2e asserts Escape focus restore, six-Tab containment, Cancel no-start. |
+| 04-08.1 | A committed sim test places a disarmed past-end ship, calls `stepDocking`, and asserts the positional clamp, no events, inFlight mode and still-disarmed latch. | ✓ VERIFIED | `dock-corridor.test.ts#clamps a disarmed past-end ship along the port-frame k with no response`; passes in the targeted and full runs. |
+| 04-08.2 | A committed sim test asserts a straddle contact emits exactly one bounce, leaves the quaternion deep-equal and keeps inFlight. | ✓ VERIFIED | `dock-hull.test.ts#emits exactly one straddle bounce and leaves the orientation deep-equal`; passes. |
+| 04-08.3 | A committed sim test asserts the same one-bounce and orientation-invariance contract for a hull contact. | ✓ VERIFIED | `dock-hull.test.ts#emits exactly one hull bounce and leaves the orientation deep-equal`; passes. |
 
-**Score:** 42/44 truths verified (2 present, behaviour-unverified).
+**Score:** 54/54 truths verified (0 present, behaviour-unverified).
 
 ### Deferred Items
 
 | # | Item | Addressed In | Evidence |
 |---|------|--------------|----------|
 | 1 | A player cannot buy the docking computer at Lave because Lave's raw TL is 4; the purchase path is unit-proven on a synthetic TL 9 system and the browser proves the refusal. | Phase 5 / Phase 6 | Phase 5 ECON-05 reuses `canPurchase`; Phase 6 NAV opens systems beyond Lave. This is faithful TL gating, not a broken purchase rule. |
+
+### Advisory (New Scope, Unevidenced)
+
+None — the re-verification round added only gap-closure work backed by committed tests and the recorded PROJECT.md decision.
 
 ### Required Artifacts
 
@@ -199,9 +213,9 @@ The one UI-review blocker — New game deletes the only save on one click with n
 | `src/sim/dock/geometry.ts` | `DockGeometry` incl. `contactPort`, `createDockGeometry`, error | ✓ VERIFIED | Imported by session and step; bounds pinned. |
 | `src/sim/dock/port-frame.ts` | `portFrame(layout, stationAngle)` | ✓ VERIFIED | Used by corridor/snapshot. |
 | `src/sim/dock/corridor.ts` | snapshot, bounded aperture, classifier | ✓ VERIFIED | Used by step and tests. |
-| `src/sim/dock/step.ts` | `stepDocking` with arming and exclusive response | ✓ VERIFIED | Called by `stepFlight`. |
+| `src/sim/dock/step.ts` | `stepDocking` with arming and exclusive response | ✓ VERIFIED | Called by `stepFlight`; clamp and orientation now regression-tested. |
 | `src/sim/flight/state.ts` | dockArmed/dockCount/scrapeTicks/impulse/bounceCount/repairCount | ✓ VERIFIED | Serialized and hashed; probe reads. |
-| `tests/helpers/dock-pose.ts` | port-frame poses and computed roll limit | ✓ VERIFIED (test-only) | Used by sim tests and integrated chain. |
+| `tests/helpers/dock-pose.ts` | port-frame poses and computed roll limit | ✓ VERIFIED (test-only) | Used by the sim tests, integrated chain and 04-08 regressions. |
 | `src/sim/dock/hull.ts` | `hullContact` + `obbsIntersect` | ✓ VERIFIED | Used by `stepDocking`; no-trap oracle shares it. |
 | `src/sim/flight/sanitize.ts` | `sanitizeFlightState` | ✓ VERIFIED | Called at the top of `stepFlight`. |
 | `src/app/dock-feedback.ts` | shake/flash envelopes + scrape throttle | ✓ VERIFIED | Used by session, HUD, camera and probe. |
@@ -216,7 +230,19 @@ The one UI-review blocker — New game deletes the only save on one click with n
 | `src/persistence/memory-store.ts` | revision-ordered memory adapter | ✓ VERIFIED | Used by unit tests. |
 | `src/persistence/idb-store.ts` | serialized, commit-only IndexedDB adapter | ✓ VERIFIED | Used by `main.ts`; e2e real IDB. |
 | `src/persistence/autosave.ts` | snapshot/queue/restore | ✓ VERIFIED | Wired into session/boot. |
-| `tests/e2e/autosave.spec.ts` | committed reload + future bytes | ✓ VERIFIED (test-only) | 12 real-IndexedDB cases pass. |
+| `tests/e2e/autosave.spec.ts` | committed reload, future bytes, confirmation gate | ✓ VERIFIED (test-only) | 13 real-IndexedDB cases pass. |
+| `index.html` | restructured purchase row, reason id, action group, `:disabled` rules, title alertdialog | ✓ VERIFIED | Styles and markup present; browser asserts computed style, ARIA and overlay semantics. |
+| `src/ui/docked.ts` | conditional `aria-describedby` association | ✓ VERIFIED | Sets/removes the attribute with the reason. |
+| `src/input/actions.ts` | `SHIFT_REQUIRED_ACTIONS` + clean docking label | ✓ VERIFIED | Consumed by keyboard and bindings; unit-tested. |
+| `src/input/keyboard.ts` | shared shift set; private set removed | ✓ VERIFIED | Chord resolution reads `SHIFT_REQUIRED_ACTIONS`; no `REQUIRES_SHIFT`. |
+| `src/input/bindings.ts` | `chordLabel` and shift-aware `labelFor` | ✓ VERIFIED | Used by Controls; unit-tested. |
+| `src/ui/controls.ts` | chord-aware rebind status | ✓ VERIFIED | Uses `chordLabel`; e2e asserts `Shift+K`. |
+| `src/ui/title.ts` | confirmation gate, focus handling, `shouldConfirmNewGame` | ✓ VERIFIED | Wired from `main.ts`; unit + browser tests. |
+| `src/main.ts` | boot-status wiring of the confirmation requirement | ✓ VERIFIED | Calls `setNewGameConfirmationRequired(shouldConfirmNewGame(saveStatus))`. |
+| `tests/app/title-confirm.test.ts` | status-to-gate predicate table | ✓ VERIFIED (test-only) | Six statuses, all pass. |
+| `tests/e2e/helpers/title.ts` | shared New-game starter that accepts the prompt | ✓ VERIFIED (test-only) | Used by launch and settings specs. |
+| `tests/sim/dock-corridor.test.ts` | disarmed tunnel-end clamp regression | ✓ VERIFIED (test-only) | Passes in the full run. |
+| `tests/sim/dock-hull.test.ts` | straddle and hull orientation-preservation regressions | ✓ VERIFIED (test-only) | Passes in the full run. |
 
 ### Key Link Verification
 
@@ -224,9 +250,9 @@ The one UI-review blocker — New game deletes the only save on one click with n
 |------|----|-----|--------|---------|
 | `generateContent` | emitted `DOCK_PORT_PATH` | `emitted[]` + manifest | ✓ WIRED | Manifest row exists; `assets:check` scans it. |
 | `loadDockPort()` | `createGameSession` | `start()` load | ✓ WIRED | Geometry built once and passed in. |
-| `StepOptions.dock` | `stepDocking` | `stepFlight` every step | ✓ WIRED | Called after station-angle update. |
+| `StepOptions.dock` | `stepDocking` | `stepFlight` every step | ✓ WIRED | Called after the station-angle update. |
 | `dockSnapshot` | `classifyCorridor` / `hullContact` | shared snapshot | ✓ WIRED | One frame, same corners/centre/axes. |
-| `SimEvent docked` | `handleEvent` | `docked.show()` + HUD hide | ✓ WIRED | Browser observes the panel. |
+| `SimEvent docked` | `handleEvent` | docked panel show + HUD hide | ✓ WIRED | Browser observes the panel. |
 | Shift+C chord | `dockingComputer` command | `stepFlight` `modeAtStart` gate | ✓ WIRED | Unit + e2e. |
 | `profile.equipment` | `StepOptions.equipment` | session each frame | ✓ WIRED | `hasComputer` derived from the set. |
 | buy control | `canPurchase` → `purchase` → credits | session handler | ✓ WIRED | Re-checked in the click path; autosave after success. |
@@ -234,6 +260,12 @@ The one UI-review blocker — New game deletes the only save on one click with n
 | boot read | `parseSave` → Continue | `main.ts` allow-lists | ✓ WIRED | Unknown keys rejected; title reads the status. |
 | `testTainted` | autosave skip | `autosave()` guard | ✓ WIRED | Probe publishes `skipReason`. |
 | `future`/`unreadable`/`unavailable` | clear/write skip | `canClear`/`canOverwrite` | ✓ WIRED | Future bytes are e2e byte-identical. |
+| `SHIFT_REQUIRED_ACTIONS` | `bindings.chordLabel` → `labelFor` → Controls row | shared action metadata | ✓ WIRED | Unit + e2e assert `Shift+C`. |
+| `setDockComputer(view.reason)` | `#dockcomp-message` in the value cell | `aria-describedby` on the Buy button | ✓ WIRED | Markup + `docked.ts` + e2e. |
+| `#docked button:disabled` | computed style asserted by Playwright | native disabled remains the activation gate | ✓ WIRED | e2e computed-style/hover assertions. |
+| boot `saveStatus` | `shouldConfirmNewGame` → `setNewGameConfirmationRequired` → click gate | title layer | ✓ WIRED | `main.ts` + unit table + e2e. |
+| accept | `session.start()` → `clearSaveForNewGame()` → committed delete → `probe.save.status` absent | title accept handler | ✓ WIRED | e2e asserts the absent status after accept. |
+| cancel or Escape | overlay hidden → focus returns to `#title-start` | title key/click handlers | ✓ WIRED | e2e asserts focus and no start. |
 
 ### Data-Flow Trace (Level 4)
 
@@ -241,20 +273,21 @@ The one UI-review blocker — New game deletes the only save on one click with n
 |----------|---------------|--------|--------------------|--------|
 | `dock-port.json` → `stepDocking` | port/corridor/contact | Build-time `.dat` measurement | Yes — generated from the vendored mesh, drift-checked | ✓ FLOWING |
 | `profile.credits` → docked panel | credits | Session `PlayerProfile` after launch/purchase | Yes — live balance, not a constant | ✓ FLOWING |
+| `dockComputerView().reason` → `#dockcomp-message` | refusal reason | `canPurchase` against the loaded `System.techLevelRaw` and catalogue price | Yes — Lave yields "Requires TL 9"; the value is derived, not a static DOM default | ✓ FLOWING |
 | `docked` event → docked panel | docked view | Sim event on capture/computer dock | Yes — panel shown and refreshed | ✓ FLOWING |
 | `launched` → IndexedDB | save blob | Post-`beginLaunch` state/profile | Yes — real IDB commit, reload restores clock | ✓ FLOWING |
-| `testTainted` → autosave | skip reason | Hook mutation | Yes — e2e observes skip | ✓ FLOWING |
-| key chord → `dockWithComputer` | `hasComputer`, aegis | Profile set + layout | Yes — denies outside aegis / without equipment | ✓ FLOWING |
+| boot `saveStatus` → confirmation overlay | required/absent | `store.read` + `parseSave` result | Yes — valid/corrupt prompt; the e2e proves no prompt on a fresh boot and a prompt after reload | ✓ FLOWING |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Full phase gate | `docker compose run --rm verify` | lint, typecheck, `assets:check`, 686 tests/68 files, build, 46 e2e all pass | ✓ PASS |
-| VersionError handling | one-off `docker compose run --rm -v /tmp/wegolite-verify:/tmp/wegolite-verify test npx tsx /tmp/wegolite-verify/version-error-check.ts` with a fake `IDBFactory` returning `VersionError` | `read {kind:"error",reason:"version"}`, write/clear `committed:false, reason:"version"` | ✓ PASS |
-| Disarmed tunnel clamp | one-off tsx check placing a disarmed ship at `nosePastPlane: 300` | `box.min.z` −300.0000000000097 → −250.00000000000455; `events: []`; mode `inFlight`; latch false | ✓ PASS (ad-hoc; no committed test) |
-| Orientation preserved on bounce | one-off tsx check with a wings-across straddle at speed 100 | one `bounce` (straddle, z); `unchanged: true`; mode `inFlight` | ✓ PASS (ad-hoc; no committed test) |
-| Schema magnitude bounds | one-off tsx check of `DockPortSchema` extremes | `hull.halfX` MIN_VALUE/MAX_VALUE accepted; `corridor.ww` MIN_VALUE accepted; `port.width` MIN_VALUE rejected | ⚠️ FINDING (W-01) |
+| Full phase gate | `docker compose run --rm verify` | lint + Prettier, typecheck, `assets:check: no differences`, 697 tests/69 files, build, 47 Playwright tests — exit 0 | ✓ PASS |
+| Disarmed tunnel-end clamp regression | `docker compose run --rm test npx vitest run tests/sim/dock-corridor.test.ts` | 17 tests pass (includes the new clamp case) | ✓ PASS |
+| Bounce orientation regression | `docker compose run --rm test npx vitest run tests/sim/dock-hull.test.ts` | 11 tests pass (includes straddle + hull orientation cases) | ✓ PASS |
+| Confirmation predicate | `docker compose run --rm test npx vitest run tests/app/title-confirm.test.ts tests/input/bindings.test.ts` | 31 tests pass (7 + 24) | ✓ PASS |
+| Browser disabled purchase + chord | `docker compose run --rm e2e` (within verify) | `the docked panel shows real credits and refuses the TL 9 computer at Lave` passes | ✓ PASS |
+| Browser New-game confirmation | `docker compose run --rm e2e` (within verify) | `the New-game confirmation traps focus, Escape returns to New game, and the save survives` and `New game clears a committed save before starting` pass | ✓ PASS |
 
 ### Probe Execution
 
@@ -264,103 +297,74 @@ N/A — no `scripts/*/tests/probe-*.sh` exists and no probe script is declared i
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|-------------|-------------|--------|----------|
-| DOCK-01 | 04-01, 04-02 | Corridor derived from the Coriolis dock geometry and matches the visible opening | ✓ SATISFIED | Measured `dock-port.json` (103.4123 × 241.888 × 250) with manifest/drift/golden; port-frame classifier; e2e independent pose docks through the opening. |
-| DOCK-02 | 04-02 | Station spins at Oolite's rate; docking tolerates roll with x/y auto-centring | ✓ SATISFIED | `stationRollRadPerSec = 0.1256637…` (2π/50 s, Oolite's right-angles/s conversion); band correction tests; corridor invariance at four angles; computed 31.296° limit. |
-| DOCK-03 | 04-03 | Off-axis contact produces scrape/bounce feedback with the v1 collision-only hull model | ✓ SATISFIED | 15-axis SAT, reflected-velocity bounce, scrape events, deterministic shake/flash, fixed copy; e2e observes all three channels. |
+| DOCK-01 | 04-01, 04-02 | Corridor derived from the Coriolis dock geometry and matches the visible opening | ✓ SATISFIED | Measured `dock-port.json` (103.4123 × 241.888 × 250) with manifest/drift/golden; port-frame classifier; e2e independently derived pose docks through the opening. |
+| DOCK-02 | 04-02 | Station spins at Oolite's rate; docking tolerates roll with x/y auto-centring | ✓ SATISFIED | `stationRollRadPerSec = 0.1256637…` (2π/50 s); band correction tests; corridor invariance at four angles; computed 31.296° limit. |
+| DOCK-03 | 04-03, 04-08 | Off-axis contact produces scrape/bounce feedback with the v1 collision-only hull model | ✓ SATISFIED | 15-axis SAT, reflected-velocity bounce, scrape events, deterministic shake/flash, fixed copy; e2e observes all three channels; committed orientation-invariance tests. |
 | DOCK-04 | 04-02 | Crossing 90% past the dock plane while aligned transitions cleanly to docked | ✓ SATISFIED | Weighted-plane capture test, exact mouth pose, transition matrix; e2e mode `docked`. |
-| DOCK-05 | 04-04 | Docking computer can be bought (TL 9, 1500 Cr) and grants instant docking on Shift+C with +20 min | ✓ SATISFIED (reachability caveat) | `canPurchase`/`purchase` unit-proven at a synthetic TL 9; Lave correctly refuses; Shift+C +1200 unit/e2e. Lave is the only reachable system in this phase, so the buy flow is not browser-reachable yet (see Deferred). |
-| DOCK-06 | 04-03 | A failed attempt never traps the player; recover to flight with clear feedback | ✓ SATISFIED | Seeded no-trap property (non-penetration, outward separation, retry), integrated chain, browser bounce/retry and skipped-launch negatives. |
-| DOCK-07 | 04-05 | Autosave on launch so the docked state is always resumable | ✓ SATISFIED | Launch commit e2e restores the exact clock via Continue; strict v1 schema; future/unreadable/inaccessible blobs preserved; tainted profiles never written. |
+| DOCK-05 | 04-04, 04-06 | Docking computer can be bought (TL 9, 1500 Cr) and grants instant docking on Shift+C with +20 min | ✓ SATISFIED (reachability caveat) | `canPurchase`/`purchase` unit-proven at a synthetic TL 9; Lave correctly refuses; Shift+C +1200 unit/e2e; disabled control + reason + `Shift+C` Controls copy browser-proven. Lave is the only reachable system in this phase (see Deferred). |
+| DOCK-06 | 04-03, 04-08 | A failed attempt never traps the player; recover to flight with clear feedback | ✓ SATISFIED | Seeded no-trap property (non-penetration, outward separation, retry), integrated chain, browser bounce/retry and skipped-launch negatives; committed clamp and one-bounce regressions. |
+| DOCK-07 | 04-05, 04-07 | Autosave on launch so the docked state is always resumable | ✓ SATISFIED | Launch commit e2e restores the exact clock via Continue; strict v1 schema; future/unreadable/inaccessible blobs preserved; tainted profiles never written; New game now confirms before clearing. |
 
-No orphaned requirements: `.planning/REQUIREMENTS.md` maps only DOCK-01..07 to Phase 4, and every ID appears in plan frontmatter.
+No orphaned requirements: `.planning/REQUIREMENTS.md` maps only DOCK-01..07 to Phase 4, and every ID appears in plan frontmatter (04-01 DOCK-01; 04-02 DOCK-01/02/04; 04-03 DOCK-03/06; 04-04 DOCK-05; 04-05 DOCK-07; 04-06 DOCK-05; 04-07 DOCK-07; 04-08 DOCK-03/06).
 
 ### Decision Coverage
 
-`check.decision-coverage-verify` reports **15/15 trackable decisions honored**, `not_honored: []`:
-
-> All trackable CONTEXT.md decisions are honored by shipped artifacts.
+`check.decision-coverage-verify` reported **15/15 trackable decisions honored** in the previous round. The only new decision — "Ask before New game deletes a committed save (refines D-14)" — is recorded in `.planning/PROJECT.md:103` and proven by the new unit/e2e tests.
 
 ### Test Quality Audit
 
 | Test File | Linked Req | Active | Skipped | Circular | Assertion Level | Verdict |
 |-----------|-----------|--------|---------|----------|-----------------|---------|
-| `tests/sim/dock-corridor.test.ts` | DOCK-01/02/04 | all | 0 | no | Value + behavioural boundaries | PASS |
+| `tests/sim/dock-corridor.test.ts` | DOCK-01/02/04 | all | 0 | no | Value + behavioural boundaries + clamp | PASS |
 | `tests/sim/dock-capture.test.ts` | DOCK-01/04 | all | 0 | no | Behavioural (pose/count/clock) | PASS |
-| `tests/sim/dock-cadence.test.ts` | DOCK-02/04 | 1 | 0 | no | Behavioural (hash + counters) | PASS |
-| `tests/sim/dock-hull.test.ts` | DOCK-03/06 | all | 0 | no | Value + behavioural | PASS |
+| `tests/sim/dock-cadence.test.ts` | DOCK-02/04 | all | 0 | no | Behavioural (hash + counters) | PASS |
+| `tests/sim/dock-hull.test.ts` | DOCK-03/06 | all | 0 | no | Value + behavioural + quaternion invariance | PASS |
 | `tests/sim/dock-no-trap.test.ts` | DOCK-06 | all | 0 | no | Property + behavioural | PASS |
-| `tests/sim/dock-integrated.test.ts` | DOCK-06 | 2 | 0 | no | Behavioural chain | PASS |
+| `tests/sim/dock-integrated.test.ts` | DOCK-06 | all | 0 | no | Behavioural chain | PASS |
 | `tests/sim/dock-computer.test.ts` | DOCK-05 | all | 0 | no | Value + behavioural | PASS |
-| `tests/sim/dock-transitions.test.ts` | DOCK-05 | 4 | 0 | no | Behavioural matrix | PASS |
+| `tests/sim/dock-transitions.test.ts` | DOCK-05 | all | 0 | no | Behavioural matrix | PASS |
 | `tests/sim/player-profile.test.ts` | DOCK-05 | all | 0 | no | Value boundaries | PASS |
 | `tests/persistence/save.test.ts` | DOCK-07 | all | 0 | no | Value reject table + spy | PASS |
 | `tests/persistence/autosave.test.ts` | DOCK-07 | all | 0 | no | Value + behavioural ordering | PASS |
-| `tests/e2e/docking.spec.ts` | DOCK-01..06 | 6 | 0 | no | Behavioural browser | PASS |
-| `tests/e2e/autosave.spec.ts` | DOCK-07 | 12 | 0 | no | Behavioural real-IDB | PASS |
+| `tests/app/title-confirm.test.ts` | DOCK-07 | all | 0 | no | Policy table (6 statuses) | PASS |
+| `tests/input/bindings.test.ts` | DOCK-05 | all | 0 | no | Chord formatting + identity | PASS |
+| `tests/e2e/docking.spec.ts` | DOCK-01..06 | all | 0 | no | Behavioural browser + computed style/ARIA | PASS |
+| `tests/e2e/autosave.spec.ts` | DOCK-07 | all | 0 | no | Behavioural real-IDB + confirmation gate | PASS |
 
 **Disabled tests on requirements:** 0.
-**Circular patterns detected:** 0 (the golden is a byte copy of the emitter, but the measured values are also independently pinned and derived from the vendored mesh; no test writes expected values by running the system under test).
-**Insufficient assertions:** 2 WARNINGs — no committed assertion for orientation preservation after a bounce; no committed test for the disarmed tunnel-end clamp. Ad-hoc checks passed; the suite would not catch a regression. The manual-capture torus/impulse reset is also only covered indirectly through the computer-dock test (minor).
+**Circular patterns detected:** 0 (the golden is a byte copy of the emitter, but the measured values are independently pinned and derived from the vendored mesh; no test writes expected values by running the system under test).
+**Insufficient assertions:** none remaining — the two previous coverage WARNINGs are closed by committed regressions, and the disabled-control contract is now asserted at computed-style/ARIA level.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
 | `src/content/schemas/dock-port.ts`, `src/sim/dock/geometry.ts` | `halfExtent` / `requirePositive` | No magnitude bound on `halfX`/`halfY`/corridor half-extents; `MIN_VALUE`/`MAX_VALUE` are accepted | ⚠️ WARNING (W-01) | Literal overreach of 04-01.5. The dangerous aperture/expansion inputs are bounded and tested; the committed record is 500/51.70615. A forged static record could carry a degenerate half-extent. Recommend a finite magnitude range before Phase 5. |
-| `src/input/actions.ts:82`, `src/ui/controls.ts:191-195` | `ACTION_LABELS.dockingComputer` + Controls render | Label is "Docking computer (Shift+)" beside "C", so the screen never says Shift+C | ⚠️ WARNING (W-02) | DOCK-05 discoverability; binding works, copy is weak. |
-| `index.html:108-113,287-289` | Docked panel | Reason `<dd>` has no `<dt>`, sits in the label column; disabled Buy looks active; Buy/Launch buttons touch | ⚠️ WARNING (W-03) | Visual/semantic quality of the DOCK-05 purchase surface; automation pins the strings/disabled state, not the layout. |
-| `src/app/game-session.ts:450-466`, `:946-952`, `index.html:270-274` | New game clear | One click deletes the only save with no confirmation, undo or backup | ⚠️ WARNING (W-04) | Real data-loss hazard and UI-review blocker. Not a DOCK-07 functional failure (New game is an intentional clear), but fix before shipping. |
-| `src/app/mode.ts`, `src/app/game-session.ts:151-156`, `src/app/game-session.ts:197` | Dead/stale surfaces | `advanceMode`/`screenForMode` unused; `onProfileChanged` seam not used for the purchase autosave; `apertureHalfExtents` is test-only | ℹ️ INFO | No functional impact; cleanup for Phase 5. |
-| — | — | No `TBD`/`FIXME`/`XXX` in phase-changed source/tests/tools; no stub artefacts found | ✓ CLEAN | — |
+| — | — | No `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`/`PLACEHOLDER` in phase-changed source/tests/tools; no stub artefacts found | ✓ CLEAN | — |
+
+The previous W-02 (Controls never says Shift+C), W-03 (reason in the label column / disabled Buy looks active) and W-04 (one-click save deletion) are all resolved by 04-06 and 04-07 and are now asserted automatically.
 
 ### Human Verification Required
 
-1. **Bounce feedback feel**
+None. The previous round's five human items are resolved:
 
-   **Test:** Launch, fly off-axis into the Coriolis, and observe the contact.
-   **Expected:** Message, camera shake and red HUD frame are clearly visible; all clear within about 0.5 s; a second attempt is possible immediately.
-   **Why human:** Amplitude/duration feel is qualitative; probes only prove presence and expiry.
-
-2. **Docking-computer line, disabled state and Shift+C affordance**
-
-   **Test:** Dock at Lave; inspect "Docking Computers — 1500.0 Cr (TL 9)", the disabled Buy control, the reason and the Controls screen.
-   **Expected:** Reason "Requires TL 9" is legible in the value column, the disabled control is visually distinct, and Controls says Shift+C (not just "C").
-   **Why human:** Layout, colour and discoverability are visual judgements. The UI review reports the current Controls label renders "C", the disabled Buy looks active, and the reason sits in the label column.
-
-3. **New game save deletion decision**
-
-   **Test:** With a committed save, click New game once.
-   **Expected:** A confirmation/one-slot backup before deletion, or an explicit product decision that one-click deletion is intended.
-   **Why human:** This is a product/UX decision. It is a UI-review blocker but not a DOCK-01..07 functional failure; the save is the only copy of progress in v1.
-
-4. **Add a committed regression test for the disarmed tunnel-end clamp**
-
-   **Test:** Place a disarmed in-flight ship with `box.min.z < -250`, call `stepDocking` once; assert the clamp to −250, no events, mode inFlight.
-   **Expected:** Positional clamp only; no bounce/docked/scrape.
-   **Why human:** No committed test; an ad-hoc Docker check passed on this tree.
-
-5. **Add a committed regression test for orientation preservation through a bounce**
-
-   **Test:** Capture the orientation, place a straddle or hull contact, call `stepDocking` once, deep-compare orientation.
-   **Expected:** Exactly one bounce; orientation unchanged; mode inFlight.
-   **Why human:** No committed assertion; an ad-hoc Docker check observed `unchanged: true`.
+- Bounce feedback feel was human-verified (UAT test 1, `pass`).
+- The docking-computer panel complaints are now covered by computed-style, ARIA and layout assertions in the browser.
+- The New-game deletion decision is now a product decision recorded in `PROJECT.md` and enforced by a confirmation dialog.
+- The two regression-coverage gaps are closed by committed sim tests.
 
 ### Gaps Summary
 
-No must-have truth failed; no artifact is missing or a stub; no key link is broken. The phase goal is achieved in the codebase and in the browser: measured corridor, weighted-plane capture, bounce/scrape feedback with no trap, TL-gated docking computer with exact +1200 s, and committed launch autosave with Continue restore all pass.
-
-The two behaviour-unverified truths are coverage gaps, not observed product failures: the disarmed tunnel-end clamp and orientation preservation have no committed regression test. The schema's half-extent magnitude bound is a low-severity hardening gap against a static generated asset, not a goal blocker. The UI review's New game blocker is a real data-loss hazard, but it is an intentional New-game clear and does not violate DOCK-07's autosave/resume contract or the goal's docking-risk wording; it should be fixed as a UX follow-up. The remaining human items are visual feel, purchase-panel layout/discoverability and the save-deletion product decision.
+No must-have truth failed; no artifact is missing or a stub; no key link is broken; no unresolved debt marker. The phase goal is achieved in the codebase and in the browser: measured corridor, weighted-plane capture, bounce/scrape feedback with no trap, TL-gated docking computer with exact +1200 s, and committed launch autosave with Continue restore all pass. The four UAT gaps from the previous round are closed with verified code and committed tests. The only outstanding item is the deliberate DOCK-05 reachability limitation (Lave is raw TL 4), which is deferred to Phase 5/6.
 
 ## Observations (non-blocking)
 
-- **Fix provenance:** `e687537` (floor the fractional autosave clock and fail closed on an invalid encoded blob) and `86b758b` (sniff a future version before the size cap and treat unknown shapes as untouchable) are ancestors of HEAD. Their behaviour is covered by `tests/persistence/autosave.test.ts`, `tests/persistence/save.test.ts` and the future/oversized real-IndexedDB e2e cases; all pass.
-- **MVP-mode discrepancy:** ROADMAP says `Mode: mvp`; the goal is not a user story (`user-story.validate` false). Standard goal-backward verification used. Reformat with `/gsd-mvp-phase 04` if MVP UAT framing is required.
-- **Security observations are stale:** `04-SECURITY.md` Observations 2 (non-string value could be cleared) and 3 (fractional clock not re-asserted by `encodeSave`) describe pre-fix behaviour. `86b758b` makes non-string/unreadable values untouchable, and `e687537` floors the clock and validates the encoded blob before writing. Both are closed, not open.
-- **DOCK-05 reachability:** Lave's raw TL 4 correctly refuses the TL 9 computer; the unit pair proves the rule at a synthetic TL 9. The player-visible purchase path awaits a TL 9 system (Phase 6) or the Phase 5 outfitting screen.
-- **Known flake:** the load-sensitive `tests/guards/content-boundary.test.ts` 5 s timeout did not occur in this full run; the file passed (its lint/typecheck subprocesses took about 68 s in total).
+- **MVP-mode discrepancy:** ROADMAP says `Mode: mvp`; the goal is not a user story (`user-story.validate` false). Standard goal-backward verification used, as in the previous round. Reformat with `/gsd-mvp-phase 04` if MVP UAT framing is required.
+- **Test count growth:** 697 unit tests across 69 files (up from 686/68) and 47 Playwright tests (up from 46), matching the four gap-closure plans.
+- **Coverage-only plan:** 04-08 modified only test files; `src/sim/dock/step.ts` was not touched, so the clamp and orientation behaviour verified here is the same code previously observed ad hoc — now regression-pinned.
 - **No new dependencies:** `package.json` is unchanged; `idb`/`fake-indexeddb` remain rejected.
 
 ---
 
-_Verified: 2026-11-05T11:13:59Z_
+_Verified: 2026-11-05T14:32:24Z_
 _Verifier: the agent (gsd-verifier)_

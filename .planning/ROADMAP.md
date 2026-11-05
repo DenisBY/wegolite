@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation, Containers & Compliance** - Docker-only workflow, fixed-step loop, precision spike, licence and trademark posture (completed 2026-11-02)
 - [x] **Phase 2: Data Pipeline & Content Compiler** - Pinned Oolite snapshot compiled at build time into typed content, GLB models, and a drift gate (completed 2026-11-03)
 - [x] **Phase 3: Flight in the Lave System** - Launch from Lave's Coriolis and fly the Cobra through a faithful, stably rendered system (completed 2026-11-04)
-- [ ] **Phase 4: Manual Docking** - Skill-based docking with corridor feedback, plus the buyable docking computer
+- [x] **Phase 4: Manual Docking** - Skill-based docking with corridor feedback, plus the buyable docking computer (completed 2026-11-05)
 - [ ] **Phase 5: Docked Economy & Station Screens** - Market, outfitting, status, and system-data screens on Oolite's economy rules
 - [ ] **Phase 6: Hyperspace, Navigation & Persistence** - Chart targeting, fuel-gated jumps, and saves that resume exactly
 - [ ] **Phase 7: Hardening & Community Release** - 60 fps, three-browser support, end-to-end coverage, docs, and a licensing audit
@@ -150,7 +150,7 @@ Plans:
   3. An off-axis or too-fast approach scrapes or bounces with visible feedback, and every failure recovers to flight — no attempt ever traps the player.
   4. With the docking computer installed (TL 9, 1500 Cr), `Shift+C` docks instantly and advances the clock by 20 minutes.
   5. Launching autosaves, so a docked state is always resumable.
-**Plans**: 8/8 plans executed; 3 gap-closure plans added from UAT
+**Plans**: 8/8 plans complete; 3 gap-closure plans added from UAT
 **Wave 1**
 - [x] 04-01-PLAN.md — Wave 1: measure the dock aperture at build time, emit `dock-port.json`, typed loader, golden + drift check
 
@@ -221,7 +221,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Foundation, Containers & Compliance | 7/7 | Complete    | 2026-11-02 |
 | 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
 | 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
-| 4. Manual Docking | 8/8 | In Progress | - |
+| 4. Manual Docking | 8/8 | Complete    | 2026-11-05 |
 | 5. Docked Economy & Station Screens | 0/TBD | Not started | - |
 | 6. Hyperspace, Navigation & Persistence | 0/TBD | Not started | - |
 | 7. Hardening & Community Release | 0/TBD | Not started | - |
