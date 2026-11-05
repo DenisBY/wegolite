@@ -21,6 +21,7 @@ import {
   playerShip,
   stationShip,
 } from "../content/ships.js";
+import { loadDockPort } from "../content/dock-port.js";
 import type { ShipDef, System } from "../content/types.js";
 import { buildHudModel } from "./hud-model.js";
 import { createGameLoop } from "./game-loop.js";
@@ -53,6 +54,8 @@ import {
 import type { SystemScene } from "../render/system-scene.js";
 import type { Command } from "../sim/commands.js";
 import type { SimEvent } from "../sim/events.js";
+import { createDockGeometry } from "../sim/dock/geometry.js";
+import type { DockGeometry } from "../sim/dock/geometry.js";
 import { deriveFlightConfig } from "../sim/flight/config.js";
 import type { FlightConfig } from "../sim/flight/config.js";
 import {
@@ -147,6 +150,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let state: FlightState | undefined;
   let layout: SystemLayout | undefined;
   let config: FlightConfig | undefined;
+  let dockGeometry: DockGeometry | undefined;
   let scene: SystemScene | undefined;
   let stationDef: ShipDef | undefined;
   let hud: Hud | undefined;
@@ -174,6 +178,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   };
   let paused = false;
   let launchSeen = false;
+  // Set by any accepted `?test=1` live-state mutation; plan 04-05 refuses to
+  // autosave a tainted profile.
+  let testTainted = false;
   const messages = createMessageQueue(4);
   const launchSequence: LaunchSequence = createLaunchSequence();
   let lastModel: HudModel | undefined;
@@ -305,6 +312,20 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         }
         messages.enqueue("Arrows pitch and roll · W and S change speed");
         break;
+      case "docked": {
+        launchSequence.reset();
+        docked.show(system.name);
+        // D-09/D-15: stop any held input and collapse the interpolation window
+        // onto the docked pose so the camera does not smear across the teleport.
+        input?.clearAll();
+        const currentState = state;
+        if (currentState !== undefined) {
+          const dockedPose = poseOf(currentState);
+          previousPose = dockedPose;
+          currentPose = dockedPose;
+        }
+        break;
+      }
       case "torusEngaged":
         messages.enqueue(`Torus engaged at ${event.factor.toFixed(1)}×`);
         break;
@@ -354,7 +375,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         elapsed: currentState.launchElapsed,
         seen: launchSeen,
       };
+      probe.dock = {
+        dockCount: currentState.dockCount,
+        scrapeCount: currentState.scrapeTicks,
+        outcome: currentState.mode === "docked" ? "docked" : "inFlight",
+      };
     }
+
+    if (probe.test !== undefined) probe.test.tainted = testTainted;
 
     const currentLayout = layout;
     const currentScene = scene;
@@ -565,6 +593,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           intent,
           stepCommands,
           DT,
+          dockGeometry === undefined ? undefined : { dock: dockGeometry },
         );
         for (const event of events) handleEvent(event);
         // The view timeline advances on the same fixed steps as the simulation,
@@ -624,6 +653,20 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         "Wegolite: the scene manager entered a system without a layout.",
       );
     }
+
+    // D-01/DOCK-01: the generated aperture is validated and converted into the
+    // port frame once, here, and injected into every fixed step as plain data.
+    try {
+      const rawDockPort = await loadDockPort();
+      if (disposed) return;
+      dockGeometry = createDockGeometry(rawDockPort, systemLayout.dockOffset);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      showBootFailure(reason);
+      publishFailure(reason);
+      return;
+    }
+
     const flightState = initFlightState(systemLayout);
 
     state = flightState;
@@ -700,10 +743,16 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       },
     });
 
-    // The hook exists only when explicitly asked for, and only mutates the live
-    // state: no save, no arbitrary code (V5 / test-API abuse).
-    if (new URLSearchParams(window.location.search).has("test")) {
-      probe.test = createTestHook(flightState, { swapSystem, disposeSystem });
+    // The hook exists only when explicitly asked for with exactly `?test=1`,
+    // and only mutates the live state: no save, no arbitrary code (T-04-08).
+    if (new URLSearchParams(window.location.search).get("test") === "1") {
+      probe.test = createTestHook(
+        flightState,
+        { swapSystem, disposeSystem },
+        () => {
+          testTainted = true;
+        },
+      );
     }
 
     title.hide();

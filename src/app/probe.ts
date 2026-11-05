@@ -73,9 +73,22 @@ export interface WegoliteSceneTestHook {
   disposeSystem(): void;
 }
 
+/** The live docking counters plan 04-03 and 04-05 consume. */
+export interface WegoliteDockProbe {
+  dockCount: number;
+  scrapeCount: number;
+  outcome: "docked" | "inFlight";
+}
+
 export interface WegoliteTestHook extends WegoliteSceneTestHook {
   setPosition(x: number, y: number, z: number): void;
   setSpeed(speed: number): void;
+  /** Replace the ship orientation after normalising; a zero-length is ignored. */
+  setOrientation(w: number, x: number, y: number, z: number): void;
+  /** Set the station roll phase, reduced modulo 2*pi. */
+  setStationAngle(radians: number): void;
+  /** True once any live-state mutation was accepted. */
+  tainted: boolean;
 }
 
 export interface WegoliteProbe {
@@ -112,6 +125,8 @@ export interface WegoliteProbe {
   hint?: string;
   /** Present once a system scene exists. */
   world?: WegoliteWorldProbe;
+  /** Live docking counters; plan 04-03 extends this with bounce/shake/flash. */
+  dock?: WegoliteDockProbe;
   /**
    * The live active-camera aspect (WORLD-02). The e2e proof reads this instead
    * of a screenshot. Absent on the failure surface, where no camera renders.
@@ -156,19 +171,59 @@ export function readMemory(renderer: THREE.WebGLRenderer): WegoliteMemoryProbe {
 export function createTestHook(
   state: FlightState,
   scenes: WegoliteSceneTestHook,
+  onMutate: () => void = () => {},
 ): WegoliteTestHook {
-  return {
+  const hook: WegoliteTestHook = {
+    tainted: false,
     setPosition(x: number, y: number, z: number): void {
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
+        return;
+      }
       state.position = vec(x, y, z);
+      hook.tainted = true;
+      onMutate();
     },
     setSpeed(speed: number): void {
+      if (!Number.isFinite(speed)) return;
       state.speed = speed;
+      hook.tainted = true;
+      onMutate();
+    },
+    setOrientation(w: number, x: number, y: number, z: number): void {
+      if (
+        !Number.isFinite(w) ||
+        !Number.isFinite(x) ||
+        !Number.isFinite(y) ||
+        !Number.isFinite(z)
+      ) {
+        return;
+      }
+      const lengthSquared = w * w + x * x + y * y + z * z;
+      if (!(lengthSquared > 0)) return;
+      const length = Math.sqrt(lengthSquared);
+      state.orientation = {
+        w: w / length,
+        x: x / length,
+        y: y / length,
+        z: z / length,
+      };
+      hook.tainted = true;
+      onMutate();
+    },
+    setStationAngle(radians: number): void {
+      if (!Number.isFinite(radians)) return;
+      const twoPi = Math.PI * 2;
+      // Normalise into [0, 2*pi) so a caller cannot inject an unbounded phase.
+      state.stationAngle = ((radians % twoPi) + twoPi) % twoPi;
+      hook.tainted = true;
+      onMutate();
     },
     swapSystem: () => scenes.swapSystem(),
     disposeSystem: () => {
       scenes.disposeSystem();
     },
   };
+  return hook;
 }
 
 /**

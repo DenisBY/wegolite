@@ -15,7 +15,7 @@
 
 import type { FlightMode } from "../sim/flight/state.js";
 
-export type ModeTransition = "launch" | "launchComplete";
+export type ModeTransition = "launch" | "launchComplete" | "dock";
 export type AppScreen = "docked" | "flight";
 
 /** Apply one transition; an illegal one returns the mode unchanged. */
@@ -23,10 +23,14 @@ export function advanceMode(
   mode: FlightMode,
   transition: ModeTransition,
 ): FlightMode {
-  if (transition === "launch") {
-    return mode === "docked" ? "launching" : mode;
+  switch (transition) {
+    case "launch":
+      return mode === "docked" ? "launching" : mode;
+    case "launchComplete":
+      return mode === "launching" ? "inFlight" : mode;
+    case "dock":
+      return mode === "inFlight" ? "docked" : mode;
   }
-  return mode === "launching" ? "inFlight" : mode;
 }
 
 /** Which panel the app shows for a simulation mode. */
