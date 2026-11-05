@@ -59,6 +59,9 @@ async function boot(page: Page, query = "/"): Promise<void> {
 
 async function startNewGame(page: Page): Promise<void> {
   await page.click("#title-start");
+  // Every caller here boots with no clearable save, so this pins the
+  // "a fresh boot starts immediately" half of the G-04-3 contract.
+  await expect(page.locator("#title-confirm")).toBeHidden();
   await expect(page.locator("#docked")).toBeVisible();
 }
 
@@ -419,8 +422,26 @@ test("New game clears a committed save before starting", async ({ page }) => {
   await page.reload();
   await waitForReady(page);
   await expect(page.locator("#title-continue")).toBeVisible();
+  const before = await readRaw(page);
+  expect(before).not.toBeNull();
 
+  // The first click only asks: the committed blob is still readable and valid.
   await page.click("#title-start");
+  await expect(page.locator("#title-confirm")).toBeVisible();
+  await expect(page.locator("#docked")).toBeHidden();
+  expect((await getProbe(page)).save?.status).toBe("valid");
+  expect(await readRaw(page)).toBe(before);
+
+  // Cancel is non-destructive: the same bytes and the same status.
+  await page.click("#title-confirm-cancel");
+  await expect(page.locator("#title-confirm")).toBeHidden();
+  expect((await getProbe(page)).save?.status).toBe("valid");
+  expect(await readRaw(page)).toBe(before);
+
+  // Only the explicit accept clears it, and the clear commits before the dock.
+  await page.click("#title-start");
+  await expect(page.locator("#title-confirm")).toBeVisible();
+  await page.click("#title-confirm-accept");
   await page.waitForFunction(
     () => window.__wegolite?.save?.status === "absent",
     undefined,

@@ -13,6 +13,7 @@
 import { expect, test } from "@playwright/test";
 
 import { getProbe, waitForReady } from "./helpers/probe.js";
+import { startNewGame } from "./helpers/title.js";
 
 interface StoredSettings {
   version: number;
@@ -24,7 +25,7 @@ async function startAndLaunch(
 ): Promise<void> {
   await page.goto("/");
   await waitForReady(page);
-  await page.click("#title-start");
+  await startNewGame(page);
   await expect(page.locator("#docked")).toBeVisible({ timeout: 30_000 });
   await page.click('button[data-action="launch"]');
   await page.waitForFunction(

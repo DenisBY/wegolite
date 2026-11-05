@@ -19,6 +19,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { getProbe, press, waitForReady } from "./helpers/probe.js";
+import { startNewGame } from "./helpers/title.js";
 
 test.setTimeout(120_000);
 
@@ -96,7 +97,7 @@ test("a launch after the first viewing skips on any key", async ({ page }) => {
   // Reload: the new game is docked again, but `launchSeen` survived in settings.
   await page.reload();
   await waitForReady(page);
-  await page.click("#title-start");
+  await startNewGame(page);
   await expect(page.locator("#docked")).toBeVisible();
   const reloaded = await getProbe(page);
   expect(reloaded.mode).toBe("docked");
@@ -201,7 +202,7 @@ test("hints stay on the message line, dismiss on first use and persist", async (
   // Reload: the launch hint does not reappear because `hintsSeen` survived.
   await page.reload();
   await waitForReady(page);
-  await page.click("#title-start");
+  await startNewGame(page);
   await expect(page.locator("#docked")).toBeVisible();
   await expect(page.locator('#docked [data-field="message"]')).toHaveText("");
   const reloaded = await getProbe(page);
