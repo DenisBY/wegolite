@@ -42,15 +42,14 @@ created: "2026-11-05"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 05-01-01 | 01 | 1 | ECON-01 | T-05-01 | Market formula cannot be driven by DOM/runtime input; build-validated content only | unit + golden + drift | `docker compose run --rm test npx vitest run tests/sim/economy` | ❌ W0 | ⬜ pending |
-| 05-01-02 | 01 | 1 | ECON-02, ECON-08 | T-05-06 | Integer dc arithmetic; no subtract-before-approval; credits never negative | unit + property | `docker compose run --rm test npx vitest run tests/sim/economy/trade.test.ts` | ❌ W0 | ⬜ pending |
-| 05-01-03 | 01 | 1 | ECON-03 | T-05-06 | Hold/pod accounting rejects over-capacity; forged cargo caught by schema | unit | `docker compose run --rm test npx vitest run tests/sim/economy/cargo.test.ts` | ❌ W0 | ⬜ pending |
-| 05-01-04 | 01 | 1 | ECON-05 | T-05-06 | TL/condition gating on raw value; no unavailable purchase | unit | `docker compose run --rm test npx vitest run tests/sim/player/outfitting.test.ts` | ❌ W0 | ⬜ pending |
-| 05-02-01 | 02 | 2 | ECON-04, ECON-09 | T-05-09 | F-key/Digit handling prevents browser shortcut hijack; `textContent` only | unit + e2e | `docker compose run --rm test npx vitest run tests/ui tests/input` | ❌ W0 | ⬜ pending |
-| 05-02-02 | 02 | 2 | ECON-06, ECON-07 | T-05-08 | Displayed TL is raw+1; `textContent` writes only | unit + e2e | `docker compose run --rm test npx vitest run tests/ui` | ❌ W0 | ⬜ pending |
-| 05-03-01 | 03 | 3 | ECON-09 | T-05-07 | `?test=1` hooks are query-param-only, live-state-only, never autosaved | e2e | `docker compose run --rm e2e` | ❌ W0 | ⬜ pending |
-| 05-03-02 | 03 | 3 | ECON-04…09 | T-05-07, T-05-10 | Save schema rejects tampered cargo/credits/over-capacity | unit + e2e | `docker compose run --rm test npx vitest run tests/persistence` | ⚠️ exists, must update | ⬜ pending |
-| 05-04-01 | 04 | 3 | (content) | — | Generated content stays build-validated; drift gate catches hand edits | golden + drift | `docker compose run --rm assets npm run assets:check` | ⚠️ exists, must update | ⬜ pending |
+| 05-01-01 | 01 | 1 | ECON-01, ECON-02, ECON-04, ECON-09 | T-05-01 | Tracer: market generation from build-validated content only; buy path, F8 render and keyboard context end-to-end | unit + e2e + drift | `docker compose run --rm test npx vitest run tests/persistence tests/input tests/sim/player-profile.test.ts` | ❌ W0 | ⬜ pending |
+| 05-02-01 | 02 | 2 | ECON-02, ECON-03 | T-05-17 | Sell mirrors buy; integer dc arithmetic; no subtract-before-approval; pods at the 499/500 boundary | unit + property | `docker compose run --rm test npx vitest run tests/sim/economy/trade.test.ts tests/sim/economy/cargo.test.ts` | ❌ W0 | ⬜ pending |
+| 05-02-02 | 02 | 2 | ECON-01 | T-05-18 | Fixtures are implementation output; seed re-derived; economy-only determinism | unit + golden | `docker compose run --rm test npx vitest run tests/sim/economy/market.test.ts tests/sim/economy/determinism.test.ts` | ❌ W0 | ⬜ pending |
+| 05-03-01 | 03 | 3 | ECON-05, ECON-08 | T-05-07 | TL/condition gating on the raw value; no unavailable purchase; no-refund removals | unit | `docker compose run --rm test npx vitest run tests/sim/player/outfitting.test.ts` | ❌ W0 | ⬜ pending |
+| 05-04-01 | 04 | 4 | ECON-04, ECON-05, ECON-06, ECON-07 | T-05-10 | Displayed TL is raw+1; labels from compiled templates; `textContent`-safe plain data | unit | `docker compose run --rm test npx vitest run tests/ui tests/content` | ❌ W0 | ⬜ pending |
+| 05-05-01 | 05 | 5 | ECON-05, ECON-06, ECON-07, ECON-09 | T-05-12, T-05-13 | F-key/Digit handling prevents browser hijack; disabled rows unreachable; `textContent` only | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/station.spec.ts"` | ❌ W0 | ⬜ pending |
+| 05-06-01 | 06 | 6 | ECON-08, ECON-09 | T-05-14, T-05-15, T-05-16 | Save schema rejects tampered cargo/credits/over-capacity; `?test=1` never durable | unit + e2e | `docker compose run --rm test npx vitest run tests/persistence` | ⚠️ exists, must update | ⬜ pending |
+| 05-06-02 | 06 | 6 | (content, purity) | T-05-SC | Generated content stays build-validated; sim stays DOM/Three/RNG-free | golden + drift + guard | `docker compose run --rm assets npm run assets:check` | ⚠️ exists, must update | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

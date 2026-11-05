@@ -1103,39 +1103,17 @@ const firing = candidates.filter((a) => ACTION_CONTEXTS[a].includes(context));
 | A10 | The browser permits `preventDefault()` to suppress F5/F3/F7 defaults (at least in Chromium), with `Digit` keys as the reliable path | Station Screens | Medium — if F5 cannot be suppressed, the F-key alias is unusable in that browser; the number keys still satisfy ECON-09 |
 | A11 | No `jsdom` is added; DOM wiring is proven by Playwright, pure view models by Node | Standard Stack / Validation | Low — saves a dependency and a volume reset; a later phase can add it |
 
-**If this table were empty:** no user confirmation would be needed. It is not: A3, A4 and A10 should be confirmed (or explicitly accepted) before the relevant plan locks.
+**If this table were empty:** no user confirmation would be needed. It is not, but A3, A4 and A10 are now settled in §Open Questions (RESOLVED), and D-10/D-15 are the binding decisions.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Missile-removal money rule (A3).**
-   - What we know: core Oolite charges 200 dc and refunds 300 dc per missile `[VERIFIED: PlayerEntity.m:9326-9329,9431-9437]`; D-10 says no resale; D-15 shows `Remove Missile — 20 Cr`.
-   - Unclear: whether "no resale" is intended to forbid the missile trade-in too.
-   - Recommendation: implement the faithful net refund, show it in the confirmation, and record the reading in PROJECT.md. If the user prefers the simpler charge-only rule, record the deviation.
-
-2. **Fuel persistence (A4).**
-   - What we know: D-19 names cargo and credits; F5/F3 need real fuel; Phase 6 owns fuel persistence (SAVE-02).
-   - Recommendation: include `fuel` as an optional v1 field now; it is additive and prevents a buy-then-reload loss.
-
-3. **Arrival counter on Continue (D-18).**
-   - What we know: D-18 says the counter starts at 0 on new game **or load**; D-19 says the market regenerates on load as a new arrival.
-   - Consequence: after docking N times and saving, reload reproduces the arrival-0 market, not the Nth. Phase 6's SAVE-06 will change this.
-   - Recommendation: implement D-18 literally (0 on load) and add a probe field so the Phase 6 change is visible.
-
-4. **F-key suppression (A10).**
-   - What we know: F5 reloads in browsers; capture-phase `preventDefault` usually suppresses it in Chromium.
-   - Recommendation: prove with a Playwright test; advertise `Digit` keys in the footer/controls; if suppression fails, keep the F-key binding but document the browser limitation.
-
-5. **Save forward-compatibility.**
-   - What we know: optional additive fields keep old blobs readable but an old build sees a new blob as corrupt.
-   - Recommendation: accept it (continuous deployment, no downgrade path) and note it; the alternative is a `version: 2` union, which imports Phase 6 work.
-
-6. **New-game missile count.**
-   - What we know: Oolite's Cobra starts with 3 missiles (`PLAYER_STARTING_MISSILES 3` `[VERIFIED: /home/opencode/git/oolite/src/Core/Entities/PlayerEntity.h:284-286]`) and D-14 caps purchases at 3.
-   - Recommendation: `newProfile().missiles = 3`; F3 shows `Missile (3/3)` dimmed until one is removed.
-
-7. **Does the Phase 5 UI need a `UI-SPEC.md`?**
-   - What we know: `workflow.ui_phase: true`, `ui_safety_gate: true`, roadmap "UI hint: yes".
-   - Recommendation: follow the existing terminal tokens (`#33ff66` on black, monospace, 18px/1.7) and let the UI phase produce the spec if the workflow requires it.
+1. **Missile-removal money rule (A3). — RESOLVED: charge-only, no trade-in.** D-10 and D-15 are locked and intentionally make removal entries ordinary catalogue purchases at their listed price with no net refund; the Oolite trade-in is deliberately not implemented. Plan 05-03 records the divergence and its locked-decision justification in PROJECT.md, and the exact-delta tests assert credits fall by the catalogue price with no credit add.
+2. **Fuel persistence (A4). — RESOLVED: fuel is a persisted optional v1 field.** Plan 05-01 adds `fuel` (0..70) beside cargo/credits so a buy-then-reload cannot lose a credits-worth of fuel; it remains additive and Phase 6's SAVE-02 can extend it.
+3. **Arrival counter on Continue (D-18). — RESOLVED: 0 on load, as D-18 says literally.** Plan 05-01 resets the counter to 0 on restore and regenerates the arrival-0 market; `probe.economy.arrival` exposes the value so the Phase 6 SAVE-06 change is visible. Plan 05-06's reload case asserts `arrival === 0` and a fresh stock value.
+4. **F-key suppression (A10). — RESOLVED: proven in the browser, Digit keys advertised.** Plan 05-05 asserts `performance.getEntriesByType("navigation").length === 1` after `page.keyboard.press("F5")`; the capture-phase listener cancels the reserved codes and the footer advertises the Digit aliases.
+5. **Save forward-compatibility. — RESOLVED: accept the caveat.** Plan 05-01/05-02 use optional additive fields (no `version: 2` union, no migration), and plan 05-02 records in PROJECT.md that an older build sees a newer v1 blob as corrupt.
+6. **New-game missile count. — RESOLVED: 3 missiles.** `newProfile()` sets `missiles: 3` and a field-less Phase 4 blob restores the same default; D-14 caps purchases at 3, so F3 shows `Missile (3/3)` dimmed with `Pylons full` until one is removed.
+7. **Does the Phase 5 UI need a `UI-SPEC.md`? — RESOLVED: no blocking spec.** `check ui-plan-gate` reports `block: false`; the plans follow the existing terminal tokens (`#33ff66` on black, monospace, 18px/1.7) and D-02's chrome, so no separate UI-SPEC is produced for this phase.
 
 ## Environment Availability
 
