@@ -86,9 +86,9 @@ describe("canPurchase", () => {
     const profile: PlayerProfile = { credits: 15000, equipment: [] };
 
     expect(fixture.system.techLevelRaw).toBe(4);
-    expect(canPurchase(profile, dockComputer, fixture.system.techLevelRaw)).toEqual(
-      { ok: false, reason: "techLevel" },
-    );
+    expect(
+      canPurchase(profile, dockComputer, fixture.system.techLevelRaw),
+    ).toEqual({ ok: false, reason: "techLevel" });
   });
 
   it("accepts a TL 9 item on a synthetic TL 9 system", () => {
@@ -111,12 +111,12 @@ describe("canPurchase", () => {
   });
 
   it("accredits exactly 15000 and refuses 14999", () => {
-    expect(canPurchase({ credits: 15000, equipment: [] }, dockComputer, 9)).toEqual(
-      { ok: true },
-    );
-    expect(canPurchase({ credits: 14999, equipment: [] }, dockComputer, 9)).toEqual(
-      { ok: false, reason: "insufficientCredits" },
-    );
+    expect(
+      canPurchase({ credits: 15000, equipment: [] }, dockComputer, 9),
+    ).toEqual({ ok: true });
+    expect(
+      canPurchase({ credits: 14999, equipment: [] }, dockComputer, 9),
+    ).toEqual({ ok: false, reason: "insufficientCredits" });
   });
 
   it("refuses every invalid price shape", () => {
@@ -131,9 +131,10 @@ describe("canPurchase", () => {
 
     for (const price of invalidPrices) {
       const item = { ...dockComputer, price };
-      expect(
-        canPurchase({ credits: 15000, equipment: [] }, item, 9),
-      ).toEqual({ ok: false, reason: "invalidPrice" });
+      expect(canPurchase({ credits: 15000, equipment: [] }, item, 9)).toEqual({
+        ok: false,
+        reason: "invalidPrice",
+      });
     }
   });
 });
@@ -153,7 +154,10 @@ describe("purchase", () => {
     const poor: PlayerProfile = { credits: 14999, equipment: [] };
     expect(purchase(poor, dockComputer)).toBe(poor);
 
-    const owned: PlayerProfile = { credits: 15000, equipment: ["EQ_DOCK_COMP"] };
+    const owned: PlayerProfile = {
+      credits: 15000,
+      equipment: ["EQ_DOCK_COMP"],
+    };
     expect(purchase(owned, dockComputer)).toBe(owned);
 
     const forged = { ...dockComputer, price: 0 };
@@ -177,11 +181,16 @@ describe("purchase", () => {
     expect(purchase(emptyKey, { ...dockComputer, key: "" })).toBe(emptyKey);
 
     const tooLong = "K".repeat(MAX_EQUIPMENT_KEY_LENGTH + 1);
-    expect(purchase(emptyKey, { ...dockComputer, key: tooLong })).toBe(emptyKey);
+    expect(purchase(emptyKey, { ...dockComputer, key: tooLong })).toBe(
+      emptyKey,
+    );
 
     const full: PlayerProfile = {
       credits: 15000,
-      equipment: Array.from({ length: MAX_EQUIPMENT_KEYS }, (_, index) => `K${String(index)}`),
+      equipment: Array.from(
+        { length: MAX_EQUIPMENT_KEYS },
+        (_, index) => `K${String(index)}`,
+      ),
     };
     expect(purchase(full, dockComputer)).toBe(full);
   });
@@ -232,7 +241,10 @@ describe("equipment catalogue", () => {
   });
 
   it("uses the same 15000 decicredit price the purchase gate reads", () => {
-    const found = findEquipment(parseEquipment(equipmentFile()), "EQ_DOCK_COMP");
+    const found = findEquipment(
+      parseEquipment(equipmentFile()),
+      "EQ_DOCK_COMP",
+    );
     expect(canPurchase({ credits: 15000, equipment: [] }, found, 9)).toEqual({
       ok: true,
     });
