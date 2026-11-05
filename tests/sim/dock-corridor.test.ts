@@ -283,6 +283,48 @@ describe("auto-centring applies the port-frame delta", () => {
   });
 });
 
+describe("disarmed tunnel-end clamp", () => {
+  it("clamps a disarmed past-end ship along the port-frame k with no response", () => {
+    const stationAngle = Math.PI / 6;
+    const pose = placeShipInPortFrame(layout, geometry, {
+      nosePastPlane: geometry.port.depth + 50,
+      rollFromMatched: 0,
+      lateral: 0,
+      stationAngle,
+    });
+    const state = stateAt(pose);
+    state.dockArmed = false;
+    state.stationAngle = stationAngle;
+
+    const snapshot = dockSnapshot(layout, state, geometry, state.stationAngle);
+    // Precondition: the near face is past the 250 m tunnel end (`port.depth`).
+    expect(snapshot.box.min.z).toBeLessThan(-geometry.port.depth);
+    const shift = -geometry.port.depth - snapshot.box.min.z;
+
+    const beforePosition = state.position;
+    const beforeBounceCount = state.bounceCount;
+    const beforeDockCount = state.dockCount;
+    const beforeScrapeTicks = state.scrapeTicks;
+
+    const events = stepDocking(state, layout, geometry);
+
+    // The unstick is positional only and follows the port frame's k, not world
+    // +Z: a rotated station must not push the ship in the wrong direction.
+    expect(state.position).toEqual(
+      add(beforePosition, scale(snapshot.frame.k, shift)),
+    );
+    expect(events).toEqual([]);
+    expect(state.mode).toBe("inFlight");
+    expect(state.dockArmed).toBe(false);
+    expect(state.bounceCount).toBe(beforeBounceCount);
+    expect(state.dockCount).toBe(beforeDockCount);
+    expect(state.scrapeTicks).toBe(beforeScrapeTicks);
+
+    const after = dockSnapshot(layout, state, geometry, state.stationAngle);
+    expect(after.box.min.z).toBeCloseTo(-geometry.port.depth, 6);
+  });
+});
+
 describe("finite-pose guard", () => {
   it("classifies a non-finite pose outside and leaves the state untouched", () => {
     const pose = placeShipInPortFrame(layout, geometry, {
