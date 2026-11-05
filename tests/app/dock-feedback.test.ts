@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDockFeedback,
   FLASH_SECONDS,
+  shouldEmitScrapeMessage,
   SHAKE_SECONDS,
 } from "../../src/app/dock-feedback.js";
 import { length } from "../../src/sim/math.js";
@@ -89,5 +90,33 @@ describe("dock feedback envelopes", () => {
     for (const time of [1.25, 1.3, 1.4, 1.5]) {
       expect(first.shakeOffset(time)).toEqual(second.shakeOffset(time));
     }
+  });
+});
+
+describe("scrape message throttle", () => {
+  it("allows at most one message per simulated second", () => {
+    let last: number | null = null;
+    let messages = 0;
+    // 120 ticks = exactly 1 s of flightTime.
+    for (let tick = 0; tick < 120; tick += 1) {
+      const now = tick * (1 / 120);
+      if (shouldEmitScrapeMessage(last, now)) {
+        expect(messages).toBe(0);
+        messages += 1;
+        last = now;
+      }
+    }
+    expect(messages).toBe(1);
+
+    // One tick later the interval has elapsed.
+    expect(shouldEmitScrapeMessage(last, 1)).toBe(true);
+    expect(messages).toBe(1);
+  });
+
+  it("emits on the first call and rejects a non-finite clock", () => {
+    expect(shouldEmitScrapeMessage(null, 5)).toBe(true);
+    expect(shouldEmitScrapeMessage(5, 5.5)).toBe(false);
+    expect(shouldEmitScrapeMessage(5, 6)).toBe(true);
+    expect(shouldEmitScrapeMessage(5, Number.NaN)).toBe(false);
   });
 });

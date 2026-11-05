@@ -176,6 +176,21 @@ describe("hull SAT against the contact proxy", () => {
     expect(contact?.depth).toBeCloseTo(15, 6);
   });
 
+  it("breaks an exact x/y overlap tie toward the earliest axis", () => {
+    // x: 500 + 65 - 100 = 465; y: 500 + 35 - 70 = 465. The fixed order must
+    // choose x, so two engines never disagree on the push direction.
+    const snapshot = snapshotFromObb(
+      vec(100, 70, -483.1),
+      [vec(1, 0, 0), vec(0, 1, 0), vec(0, 0, 1)],
+      vec(65, 35, 44),
+    );
+
+    const contact = hullContact(snapshot, geometry.contactPort);
+    expect(contact).not.toBeNull();
+    expect(contact?.axis).toBe("x");
+    expect(contact?.depth).toBeCloseTo(465, 6);
+  });
+
   it("resolves a ship centre inside the proxy and separates it in one step", () => {
     // The centre is inside the box but the footprint is far outside the
     // corridor, so the classifier is `outside` and the hull branch owns it.
