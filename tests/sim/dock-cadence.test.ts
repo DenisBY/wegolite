@@ -23,7 +23,10 @@ import {
   MAX_FRAME_DELTA,
   MAX_STEPS_PER_FRAME,
 } from "../../src/sim/time.js";
-import { laveDockGeometry, placeShipInPortFrame } from "../helpers/dock-pose.js";
+import {
+  laveDockGeometry,
+  placeShipInPortFrame,
+} from "../helpers/dock-pose.js";
 import { laveFixture } from "../helpers/lave.js";
 
 const fixture = laveFixture();
@@ -66,15 +69,9 @@ function runToSteps(state: FlightState, frames: readonly number[]): number {
       stepsThisFrame < MAX_STEPS_PER_FRAME &&
       steps < TARGET_STEPS
     ) {
-      stepFlight(
-        state,
-        layout,
-        config,
-        ZERO_INTENT,
-        [],
-        DT,
-        { dock: geometry },
-      );
+      stepFlight(state, layout, config, ZERO_INTENT, [], DT, {
+        dock: geometry,
+      });
       accumulator -= DT;
       steps += 1;
       stepsThisFrame += 1;

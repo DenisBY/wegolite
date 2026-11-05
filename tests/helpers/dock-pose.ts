@@ -30,14 +30,7 @@ import {
   type DockGeometry,
 } from "../../src/sim/dock/geometry.js";
 import { portFrame, portQuaternion } from "../../src/sim/dock/port-frame.js";
-import {
-  add,
-  axisAngle,
-  mul,
-  normalize,
-  scale,
-  vec,
-} from "../../src/sim/math.js";
+import { add, axisAngle, mul, normalize, scale } from "../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../src/sim/math.js";
 import type { SystemLayout } from "../../src/sim/world/layout.js";
 import { laveFixture } from "./lave.js";
@@ -155,41 +148,4 @@ export function rollLimitRadians(geometry: DockGeometry): number {
     else high = middle;
   }
   return (low + high) / 2;
-}
-
-/** Project a world point on the port axes, relative to `origin`. */
-export function portCoordinates(
-  layout: SystemLayout,
-  stationAngle: number,
-  point: Vec3,
-): Vec3 {
-  const frame = portFrame(layout, stationAngle);
-  const relative = {
-    x: point.x - frame.origin.x,
-    y: point.y - frame.origin.y,
-    z: point.z - frame.origin.z,
-  };
-  return vec(
-    relative.x * frame.i.x + relative.y * frame.i.y + relative.z * frame.i.z,
-    relative.x * frame.j.x + relative.y * frame.j.y + relative.z * frame.j.z,
-    relative.x * frame.k.x + relative.y * frame.k.y + relative.z * frame.k.z,
-  );
-}
-
-/** Shift a pose along the port i or j axis (tests pin exact boundaries). */
-export function shiftPose(
-  layout: SystemLayout,
-  stationAngle: number,
-  pose: PortPose,
-  shift: { readonly alongI?: number; readonly alongJ?: number },
-): PortPose {
-  const frame = portFrame(layout, stationAngle);
-  let position = pose.position;
-  if (shift.alongI !== undefined) {
-    position = add(position, scale(frame.i, shift.alongI));
-  }
-  if (shift.alongJ !== undefined) {
-    position = add(position, scale(frame.j, shift.alongJ));
-  }
-  return { ...pose, position };
 }

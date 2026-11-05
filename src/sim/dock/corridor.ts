@@ -294,7 +294,50 @@ export function classifyCorridor(
     return captureWeight(box) < 0 ? result("capture", true) : result("lane");
   }
 
-  // 3. Safety band and straddle (Task 2).
+  // 3. The 1.5x safety footprint, gated by the nose being inside the station
+  // (`DockEntity.m:727`). This gate is what keeps a wings-across launch pose at
+  // any distance `outside` rather than a straddle (`T-04-53`).
+  const inBand =
+    box.min.x > -SAFETY_FACTOR * ww &&
+    box.max.x < SAFETY_FACTOR * ww &&
+    box.min.y > -SAFETY_FACTOR * hh &&
+    box.max.y < SAFETY_FACTOR * hh;
+
+  if (inBand && box.min.z < 0) {
+    // Opposite edges outside the lane at once is the fatal straddle. It is
+    // classification-only here; plan 04-03 owns the single bounce response.
+    const straddles =
+      (box.min.x < -ww && box.max.x > ww) ||
+      (box.min.y < -hh && box.max.y > hh);
+    if (straddles) return result("straddle");
+
+    const span = box.max.z - box.min.z;
+    let deltaX = 0;
+    let deltaY = 0;
+    if (Number.isFinite(span) && span > 0) {
+      const factor = -box.min.z / span;
+      if (Number.isFinite(factor)) {
+        deltaX = 0.5 * (box.max.x + box.min.x) * factor;
+        deltaY = 0.5 * (box.max.y + box.min.y) * factor;
+
+        // x is inside the lane: no correction.
+        if (box.max.x < ww && box.min.x > -ww) deltaX = 0;
+        // Symmetric y guard. Oolite's `DockEntity.m:752` uses `max.y > hh`,
+        // which disables correction exactly when the ship protrudes above the
+        // top edge; Wegolite deliberately mirrors the x guard instead. The
+        // deviation is recorded in PROJECT.md's Key Decisions.
+        if (box.max.y < hh && box.min.y > -hh) deltaY = 0;
+
+        if (!Number.isFinite(deltaX)) deltaX = 0;
+        if (!Number.isFinite(deltaY)) deltaY = 0;
+      }
+    }
+
+    if (captureWeight(box) < 0) {
+      return result("capture", true, deltaX, deltaY);
+    }
+    return result("band", false, deltaX, deltaY);
+  }
 
   // 4. Everything else.
   return result("outside");

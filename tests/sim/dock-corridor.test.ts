@@ -38,7 +38,6 @@ import {
   laveDockGeometry,
   placeShipInPortFrame,
   rollLimitRadians,
-  shiftPose,
 } from "../helpers/dock-pose.js";
 import { laveFixture } from "../helpers/lave.js";
 
@@ -47,10 +46,7 @@ const { layout } = fixture;
 const geometry = laveDockGeometry();
 const { ww, hh } = geometry.corridor;
 
-function syntheticSnapshot(box: {
-  min: Vec3;
-  max: Vec3;
-}): DockSnapshot {
+function syntheticSnapshot(box: { min: Vec3; max: Vec3 }): DockSnapshot {
   return {
     frame: portFrame(layout, 0),
     corners: [],
@@ -84,12 +80,7 @@ function snapshotAt(
   pose: ReturnType<typeof placeShipInPortFrame>,
   stationAngle = 0,
 ): DockSnapshot {
-  return dockSnapshot(
-    layout,
-    stateAt(pose),
-    geometry,
-    stationAngle,
-  );
+  return dockSnapshot(layout, stateAt(pose), geometry, stationAngle);
 }
 
 const INSIDE = 1e-9;
@@ -189,20 +180,16 @@ describe("safety band and straddle", () => {
       classifyBox(vec(-boundary, -10, z.min), vec(10, 10, z.max)).outcome,
     ).toBe("outside");
     expect(
-      classifyBox(
-        vec(-boundary + INSIDE, -10, z.min),
-        vec(10, 10, z.max),
-      ).outcome,
+      classifyBox(vec(-boundary + INSIDE, -10, z.min), vec(10, 10, z.max))
+        .outcome,
     ).toBe("band");
 
     expect(
       classifyBox(vec(-10, -10, z.min), vec(boundary, 10, z.max)).outcome,
     ).toBe("outside");
     expect(
-      classifyBox(
-        vec(-10, -10, z.min),
-        vec(boundary - INSIDE, 10, z.max),
-      ).outcome,
+      classifyBox(vec(-10, -10, z.min), vec(boundary - INSIDE, 10, z.max))
+        .outcome,
     ).toBe("band");
   });
 
@@ -229,23 +216,14 @@ describe("safety band and straddle", () => {
 
   it("classifies a wings-across straddle only with min.z < 0; at 500 m out it is outside", () => {
     const y = { min: -10, max: 10 };
-    const straddle = classifyBox(
-      vec(-60, y.min, -10),
-      vec(60, y.max, 71.3726),
-    );
+    const straddle = classifyBox(vec(-60, y.min, -10), vec(60, y.max, 71.3726));
     expect(straddle.outcome).toBe("straddle");
 
-    const inFront = classifyBox(
-      vec(-60, y.min, 500),
-      vec(60, y.max, 581),
-    );
+    const inFront = classifyBox(vec(-60, y.min, 500), vec(60, y.max, 581));
     expect(inFront.outcome).toBe("outside");
 
     // The y opposite-edge predicate behaves the same way.
-    const yStraddle = classifyBox(
-      vec(-10, -130, -10),
-      vec(10, 130, 71.3726),
-    );
+    const yStraddle = classifyBox(vec(-10, -130, -10), vec(10, 130, 71.3726));
     expect(yStraddle.outcome).toBe("straddle");
   });
 

@@ -91,7 +91,21 @@ export function stepDocking(
     return [{ kind: "docked", via: "manual", clockDelta: 0 }];
   }
 
-  // Band/straddle are no-ops in Task 1. Task 2 applies the auto-centre delta
-  // and the scrape counter; outside stays a no-op until 04-03.
+  if (classification.outcome === "band") {
+    // Oolite's positional correction: shift toward the port centre along -i
+    // and -j, with no velocity change, once per fixed tick (D-03 / D-02).
+    state.position = add(
+      state.position,
+      add(
+        scale(snapshot.frame.i, -classification.deltaX),
+        scale(snapshot.frame.j, -classification.deltaY),
+      ),
+    );
+    state.scrapeTicks += 1;
+    return [{ kind: "scrape" }];
+  }
+
+  // Straddle is classification-only in this plan; outside is a no-op until
+  // plan 04-03's hull SAT. Neither may produce a second response here.
   return [];
 }
