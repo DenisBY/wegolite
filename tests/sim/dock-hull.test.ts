@@ -250,6 +250,58 @@ describe("hull SAT against the contact proxy", () => {
   });
 });
 
+describe("orientation invariance through a bounce", () => {
+  it("emits exactly one straddle bounce and leaves the orientation deep-equal", () => {
+    const state = inFlightAt(
+      placeShipInPortFrame(layout, geometry, {
+        nosePastPlane: 10,
+        rollFromMatched: Math.PI / 2,
+        lateral: 0,
+        forwardSpeed: 100,
+      }),
+    );
+    state.dockArmed = true;
+
+    const beforeOrientation = { ...state.orientation };
+    const snapshot = snapshotOf(state, state.stationAngle);
+    expect(classifyCorridor(snapshot, geometry).outcome).toBe("straddle");
+
+    const events = stepDocking(state, layout, geometry, DT);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.kind).toBe("bounce");
+    expect(events[0]).toMatchObject({ kind: "bounce", cause: "straddle" });
+    expect(state.orientation).toEqual(beforeOrientation);
+    expect(state.mode).toBe("inFlight");
+    expect(state.bounceCount).toBe(1);
+  });
+
+  it("emits exactly one hull bounce and leaves the orientation deep-equal", () => {
+    const state = inFlightAt(
+      placeShipInPortFrame(layout, geometry, {
+        nosePastPlane: 300,
+        lateral: 300,
+        rollFromMatched: 0,
+      }),
+    );
+    state.dockArmed = true;
+
+    const beforeOrientation = { ...state.orientation };
+    const snapshot = snapshotOf(state, state.stationAngle);
+    expect(classifyCorridor(snapshot, geometry).outcome).toBe("outside");
+    expect(obbsIntersect(snapshot, geometry.contactPort)).toBe(true);
+
+    const events = stepDocking(state, layout, geometry, DT);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.kind).toBe("bounce");
+    expect(events[0]).toMatchObject({ kind: "bounce", cause: "hull" });
+    expect(state.orientation).toEqual(beforeOrientation);
+    expect(state.mode).toBe("inFlight");
+    expect(state.bounceCount).toBe(1);
+  });
+});
+
 describe("sanitize and hook poisoning", () => {
   it("clamps a 1e308 speed before it can integrate the position to Infinity", () => {
     const state = initFlightState(layout);
