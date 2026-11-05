@@ -184,23 +184,22 @@ Plans:
   3. The F8 market, F3 outfitting, F5 status, and F7 system-data screens show correct names, units, prices, and figures, and are fully navigable and operable without a mouse.
   4. The outfitting screen lists only equipment whose tech level and conditions are met, and installs or removes legal items at the correct price.
 **Plans**: 6 plans
-Plans:
 **Wave 1**
 - [ ] 05-01-PLAN.md — Tracer: Lave market buy → autosave → reload; content peaks/names, economy core (buy), cargo/pods, save extension, input contexts, F8
 
-**Wave 2** *(blocked on Wave 1)*
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 05-02-PLAN.md — Trading breadth: sell, kg/g pods, clamps, refusal reasons, market goldens, determinism, PROJECT.md decisions
 
-**Wave 3** *(blocked on Wave 2)*
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 05-03-PLAN.md — Outfitting rules: D-11 visible set, conditions, fuel fill, multi-instance, no-refund removals
 
-**Wave 4** *(blocked on Wave 3)*
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 05-04-PLAN.md — Labels loader and pure view models for F8/F3/F5/F7
 
-**Wave 5** *(blocked on Wave 4)*
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 05-05-PLAN.md — F3/F5/F7 screens, keyboard-only navigation, reserved-key no-reload proof
 
-**Wave 6** *(blocked on Wave 5)*
+**Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 05-06-PLAN.md — Save hardening, full keyboard loop, economy-purity guard, phase gate
 **UI hint**: yes
 
