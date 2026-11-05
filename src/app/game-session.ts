@@ -119,7 +119,7 @@ import type { TitleScreen } from "../ui/title.js";
 export interface GameSessionSave {
   /** The injected port; the session never imports IndexedDB directly. */
   readonly store: SaveStore;
-  /** The status boot derived from the one read; `future` stops all writes. */
+  /** The status boot derived from the one read; `future`/`unreadable` stop all writes. */
   readonly status: SaveStatus;
   /** The validated save, present only when `status` is `valid`. */
   readonly save?: SaveV1;
@@ -232,7 +232,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let saveWrites = 0;
   let saveCommitted = 0;
   let saveLastClock: number | null = null;
-  let saveSkipReason = saveStatus === "future" ? "future" : "";
+  let saveSkipReason =
+    saveStatus === "future"
+      ? "future"
+      : saveStatus === "unreadable"
+        ? "unreadable"
+        : "";
   let saveUnavailable = saveStatus === "unavailable";
   const saveProbe: WegoliteSaveProbe = {
     status: saveStatus,
@@ -399,13 +404,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   /**
-   * DOCK-07: a write can only follow a launch or a purchase. A future blob
-   * disables the path for the whole session; a tainted profile (any `?test=1`
-   * mutation) must never become durable. Both skips are visible in the probe.
+   * DOCK-07: a write can only follow a launch or a purchase. A future or
+   * unreadable blob disables the path for the whole session; a tainted profile
+   * (any `?test=1` mutation) must never become durable. Every skip is visible
+   * in the probe.
    */
   function autosave(): void {
-    if (saveStatus === "future") {
-      saveSkipReason = "future";
+    if (saveStatus === "future" || saveStatus === "unreadable") {
+      saveSkipReason =
+        saveStatus === "future" ? "future" : "unreadable";
       syncSaveProbe();
       return;
     }
@@ -444,12 +451,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   /**
-   * New game clears only a save this build understands. A future blob is left
-   * byte-identical (D-14/T-04-47) and the write path stays disabled.
+   * New game clears only a save this build understands. A future or unreadable
+   * blob is left byte-identical (D-14/T-04-47) and the write path stays
+   * disabled.
    */
   async function clearSaveForNewGame(): Promise<void> {
-    if (saveStatus === "future") {
-      saveSkipReason = "future";
+    if (saveStatus === "future" || saveStatus === "unreadable") {
+      saveSkipReason =
+        saveStatus === "future" ? "future" : "unreadable";
       syncSaveProbe();
       return;
     }

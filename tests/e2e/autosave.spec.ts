@@ -17,6 +17,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { CLOCK_START } from "../../src/sim/flight/state.js";
+import { MAX_SAVE_CHARS } from "../../src/persistence/save.js";
 import {
   add,
   axisAngle,
@@ -360,11 +361,21 @@ test("a future-version blob is never cleared or replaced", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("a corrupt blob is backed up once and never blocks boot", async ({
+test("a v1-shaped invalid blob is backed up once and never blocks boot", async ({
   page,
 }) => {
   await boot(page);
-  const corrupt = "not-json{{{";
+  // `corrupt` is reserved for a blob that is provably this build's save family
+  // but fails its schema (negative credits here).
+  const corrupt = JSON.stringify({
+    version: 1,
+    mode: "docked",
+    clockSeconds: CLOCK_START + 600,
+    credits: -1,
+    equipment: [],
+    system: { id: "g0-s7" },
+    station: { key: "coriolis-station" },
+  });
   await writeRaw(page, corrupt);
 
   const errors = collectErrors(page);
@@ -380,7 +391,43 @@ test("a corrupt blob is backed up once and never blocks boot", async ({
   expect(errors).toEqual([]);
 });
 
-test("an oversized blob is rejected before it can be parsed", async ({
+test("an unreadable blob is never backed up, cleared or overwritten", async ({
+  page,
+}) => {
+  await boot(page);
+  // Unparseable, short and not recognisably v1: this build cannot identify it,
+  // so it must leave it exactly as it found it (T-04-47).
+  const unreadable = "not-json{{{";
+  await writeRaw(page, unreadable);
+
+  const errors = collectErrors(page);
+  await page.reload();
+  await waitForReady(page);
+
+  await expect(page.locator("#title-continue")).toBeHidden();
+  expect((await getProbe(page)).save?.status).toBe("unreadable");
+  expect(await readRaw(page, CORRUPT_KEY)).toBeNull();
+  expect(await readRaw(page)).toBe(unreadable);
+
+  // New game skips the destructive clear, and the launch skips the write.
+  await startNewGame(page);
+  await page.waitForFunction(
+    () => window.__wegolite?.save?.status === "unreadable",
+    undefined,
+    { timeout: 30_000 },
+  );
+  expect(await readRaw(page)).toBe(unreadable);
+
+  await page.click('button[data-action="launch"]');
+  await waitForMode(page, "launching");
+  const after = await getProbe(page);
+  expect(after.save?.writes).toBe(0);
+  expect(after.save?.committed).toBe(0);
+  expect(await readRaw(page)).toBe(unreadable);
+  expect(errors).toEqual([]);
+});
+
+test("an oversized blob is unreadable and never overwritten", async ({
   page,
 }) => {
   await boot(page);
@@ -392,9 +439,58 @@ test("an oversized blob is rejected before it can be parsed", async ({
   await waitForReady(page);
 
   await expect(page.locator("#title-continue")).toBeHidden();
-  expect((await getProbe(page)).save?.status).toBe("corrupt");
-  const backup = await readRaw(page, CORRUPT_KEY);
-  expect(backup?.length).toBe(oversized.length);
+  expect((await getProbe(page)).save?.status).toBe("unreadable");
+  // WR-02: the backup path never stores an unbounded copy.
+  expect(await readRaw(page, CORRUPT_KEY)).toBeNull();
+  expect(await readRaw(page)).toBe(oversized);
+
+  await startNewGame(page);
+  await page.click('button[data-action="launch"]');
+  await waitForMode(page, "launching");
+  expect((await getProbe(page)).save?.writes).toBe(0);
+  expect(await readRaw(page)).toBe(oversized);
+  expect(errors).toEqual([]);
+});
+
+test("an oversized future-version blob is still recognised and untouched", async ({
+  page,
+}) => {
+  await boot(page);
+  // Version 2 appears in the first bytes; the rest is padding beyond the cap.
+  const future = `${JSON.stringify({
+    version: 2,
+    mode: "docked",
+    clockSeconds: CLOCK_START + 600,
+    credits: 999_999,
+    equipment: [],
+    system: { id: "g0-s7" },
+    station: { key: "coriolis-station" },
+    futureBuild: "leave this alone",
+  })}${" ".repeat(MAX_SAVE_CHARS)}`;
+  expect(future.length).toBeGreaterThan(MAX_SAVE_CHARS);
+  await writeRaw(page, future);
+
+  const errors = collectErrors(page);
+  await page.reload();
+  await waitForReady(page);
+
+  await expect(page.locator("#title-continue")).toBeHidden();
+  const booted = await getProbe(page);
+  expect(booted.save?.status).toBe("future");
+  expect(await readRaw(page, CORRUPT_KEY)).toBeNull();
+
+  await startNewGame(page);
+  await page.waitForFunction(
+    () => window.__wegolite?.save?.status === "future",
+    undefined,
+    { timeout: 30_000 },
+  );
+  expect(await readRaw(page)).toBe(future);
+
+  await page.click('button[data-action="launch"]');
+  await waitForMode(page, "launching");
+  expect((await getProbe(page)).save?.writes).toBe(0);
+  expect(await readRaw(page)).toBe(future);
   expect(errors).toEqual([]);
 });
 

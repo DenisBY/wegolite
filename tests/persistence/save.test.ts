@@ -62,12 +62,12 @@ describe("parseSave reject table", () => {
   const rows: ReadonlyArray<{
     readonly name: string;
     readonly raw: string;
-    readonly reason: "corrupt" | "future-version";
+    readonly reason: "corrupt" | "future-version" | "unreadable";
   }> = [
     {
       name: "truncated JSON",
       raw: '{"version":1',
-      reason: "corrupt",
+      reason: "unreadable",
     },
     {
       name: "version 0",
@@ -174,6 +174,17 @@ describe("parseSave reject table", () => {
     });
   }
 
+  it("treats an unknown JSON shape as unreadable, not corrupt", () => {
+    // Only a JSON object with this family's numeric version can be backed up
+    // and cleared; a scalar/array belongs to nobody this build can identify.
+    for (const shape of ['"hello"', "42", "null", "[]", "{}", '{"other":1}']) {
+      expect(parseSave(shape, ALLOW)).toEqual({
+        ok: false,
+        reason: "unreadable",
+      });
+    }
+  });
+
   it("rejects a __proto__ key without polluting Object.prototype", () => {
     const payload = `${raw(validSave()).slice(0, -1)},"__proto__":{"polluted":true}}`;
     expect(parseSave(payload, ALLOW)).toEqual({
@@ -185,25 +196,47 @@ describe("parseSave reject table", () => {
 });
 
 describe("parseSave resource bound", () => {
-  it("rejects an oversized blob before JSON.parse runs", () => {
+  it("rejects an oversized non-save blob before JSON.parse runs", () => {
     // Padding is valid JSON whitespace, so the blob is syntactically a save; it
-    // is rejected purely by the length cap.
+    // is rejected by the length cap without ever allocating a parse.
     const oversized = `${" ".repeat(MAX_SAVE_CHARS + 1)}${raw(validSave())}`;
     expect(oversized.length).toBeGreaterThan(MAX_SAVE_CHARS);
 
     const parse = vi.spyOn(JSON, "parse");
     const result = parseSave(oversized, ALLOW);
-    expect(result).toEqual({ ok: false, reason: "corrupt" });
+    expect(result).toEqual({ ok: false, reason: "unreadable" });
     expect(parse).not.toHaveBeenCalled();
     parse.mockRestore();
   });
 
-  it("checks the cap before the future-version test", () => {
+  it("recognises an oversized future-version blob without parsing it", () => {
+    // CR-02: the version sniff runs on a bounded prefix *before* the blob is
+    // classified, so a newer build's oversized save is untouchable, not
+    // corrupt.
     const oversized = `${raw(validSave({ version: 2 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
+    expect(oversized.length).toBeGreaterThan(MAX_SAVE_CHARS);
+
+    const parse = vi.spyOn(JSON, "parse");
     expect(parseSave(oversized, ALLOW)).toEqual({
       ok: false,
-      reason: "corrupt",
+      reason: "future-version",
     });
+    expect(parse).not.toHaveBeenCalled();
+    parse.mockRestore();
+  });
+
+  it("does not let a version marker beyond the sniff window defeat the bound", () => {
+    // A hostile oversized blob cannot force a full parse by hiding the marker:
+    // without a recognised prefix it is simply unreadable (still untouchable).
+    const hidden = `${" ".repeat(MAX_SAVE_CHARS)}${raw(validSave({ version: 2 }))}`;
+    expect(hidden.length).toBeGreaterThan(MAX_SAVE_CHARS);
+    const parse = vi.spyOn(JSON, "parse");
+    expect(parseSave(hidden, ALLOW)).toEqual({
+      ok: false,
+      reason: "unreadable",
+    });
+    expect(parse).not.toHaveBeenCalled();
+    parse.mockRestore();
   });
 });
 

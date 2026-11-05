@@ -15,11 +15,16 @@
  * contract (T-04-27/T-04-49):
  *
  * 1. `MAX_SAVE_CHARS` is checked before `JSON.parse`, so boot never parses an
- *    unbounded string;
+ *    unbounded string. A bounded prefix sniff still recognises an oversized
+ *    newer-version blob before any destructive classification;
  * 2. the strict schema caps every field;
  * 3. the allow-lists reject an equipment key, system id or station key this
  *    build does not know, so a forged value can never reach `findShip` or the
  *    equipment catalogue.
+ *
+ * An oversized, unparseable or unrecognised blob is `unreadable`, never
+ * `corrupt`: only a provably v1-shaped-but-invalid blob may be backed up and
+ * cleared by New game (T-04-47).
  *
  * The save carries no docked pose, no timestamp and no host data: the pose is
  * derived from the layout on restore (D-13).
@@ -82,7 +87,11 @@ export interface SaveAllowLists {
   readonly stations: ReadonlySet<string>;
 }
 
-export type SaveParseFailure = "corrupt" | "future-version" | "absent";
+export type SaveParseFailure =
+  | "corrupt"
+  | "future-version"
+  | "absent"
+  | "unreadable";
 
 export type SaveParseResult =
   | { readonly ok: true; readonly save: SaveV1 }
@@ -102,26 +111,61 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * How much of an oversized blob is inspected for a future-version marker.
+ *
+ * The sniff is bounded and allocation-safe: `raw.slice` copies at most this
+ * many characters, never the whole (potentially megabyte) string. It only
+ * needs to see the canonical `{"version":N,…}` prefix this app writes.
+ */
+export const MAX_VERSION_SNIFF_CHARS = 256;
+
+const VERSION_SNIFF = /"version"\s*:\s*(\d{1,16})/;
+
+/** Read the leading version marker, or `null` when there is none. */
+function sniffVersion(raw: string): number | null {
+  const match = VERSION_SNIFF.exec(raw.slice(0, MAX_VERSION_SNIFF_CHARS));
+  if (match === null) return null;
+  const value = Number(match[1]);
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+/**
  * Validate an untrusted blob against the schema and the boot allow-lists.
  *
- * The order is load-bearing: absent, size cap, parse, future version, strict
- * schema, allow-lists. A `null` raw value is the only input that produces
- * `absent`; a store read failure is converted to `null` by the caller.
+ * The order is load-bearing: absent, size cap (+ bounded version sniff),
+ * parse, future version, shape family, strict schema, allow-lists. A `null`
+ * raw value is the only input that produces `absent`; a store read failure is
+ * converted to `null` by the caller.
+ *
+ * "Unreadable" is deliberately distinct from "corrupt". Only a blob this build
+ * can positively recognise as its own v1 family (a JSON object with a numeric
+ * `version` not newer than this build) may be backed up and cleared. Anything
+ * else — oversized, unparseable, a JSON scalar, an object with no version — is
+ * `unreadable`: the caller must never clear or overwrite it.
  */
 export function parseSave(
   raw: string | null,
   allow: SaveAllowLists,
 ): SaveParseResult {
   if (raw === null) return { ok: false, reason: "absent" };
-  // T-04-27/T-04-49: reject an oversized blob *before* JSON.parse. A cap that
-  // ran after parsing would still allocate the attacker's string.
-  if (raw.length > MAX_SAVE_CHARS) return { ok: false, reason: "corrupt" };
+
+  // T-04-27/T-04-49: reject an oversized blob *before* JSON.parse. The cap
+  // that ran after parsing would still allocate the attacker's string. Before
+  // classifying it as unreadable, sniff the bounded prefix so a newer build's
+  // oversized blob is still recognised as future-version (T-04-47).
+  if (raw.length > MAX_SAVE_CHARS) {
+    const version = sniffVersion(raw);
+    if (version !== null && version > SAVE_VERSION) {
+      return { ok: false, reason: "future-version" };
+    }
+    return { ok: false, reason: "unreadable" };
+  }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw) as unknown;
   } catch {
-    return { ok: false, reason: "corrupt" };
+    return { ok: false, reason: "unreadable" };
   }
 
   // A version newer than this build is not a save this build understands. It is
@@ -134,7 +178,15 @@ export function parseSave(
   }
 
   const result = SaveV1Schema.safeParse(parsed);
-  if (!result.success) return { ok: false, reason: "corrupt" };
+  if (!result.success) {
+    // A JSON value that does not carry this save family's numeric `version`
+    // field is an unknown shape, not a corrupt v1 save. Only the latter may be
+    // backed up and cleared by New game.
+    if (!isRecord(parsed) || typeof parsed["version"] !== "number") {
+      return { ok: false, reason: "unreadable" };
+    }
+    return { ok: false, reason: "corrupt" };
+  }
   const save = result.data;
 
   // The schema proves the shape; the allow-lists prove the referents exist. A

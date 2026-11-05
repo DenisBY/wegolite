@@ -145,8 +145,14 @@ if (!boot.ok) {
       } else if (parsed.reason === "corrupt") {
         saveStatus = "corrupt";
         // Exactly once, best effort, before the title: the copy is never read
-        // back and a failure must not block boot.
+        // back and a failure must not block boot. `corrupt` is only returned
+        // for a provably v1-shaped blob, so the copy is bounded by the parser.
         await saveStore.backupCorrupt(read.raw).catch(() => undefined);
+      } else if (parsed.reason === "unreadable") {
+        // Oversized, unparseable or unknown-shape blob: this build cannot
+        // positively identify it, so it is untouchable. No backup, no clear,
+        // no autosave overwrite (T-04-47).
+        saveStatus = "unreadable";
       } else {
         saveStatus = "absent";
       }
