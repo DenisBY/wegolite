@@ -32,6 +32,23 @@ export const SHAKE_AMPLITUDE = 0.6;
 const SHAKE_HZ = 18;
 const SHAKE_ANGULAR = Math.PI * 2 * SHAKE_HZ;
 
+/** Pitfall 8: one scrape message per second of simulated time. */
+export const SCRAPE_MESSAGE_INTERVAL_SECONDS = 1;
+
+/**
+ * Whether a scrape may post a message at `flightTime`.
+ *
+ * `last === null` is the first scrape; a non-finite clock never posts.
+ */
+export function shouldEmitScrapeMessage(
+  last: number | null,
+  flightTime: number,
+): boolean {
+  if (!Number.isFinite(flightTime)) return false;
+  if (last === null || !Number.isFinite(last)) return true;
+  return flightTime - last >= SCRAPE_MESSAGE_INTERVAL_SECONDS;
+}
+
 export interface DockFeedback {
   /** Start the envelopes for `kind` at `flightTime`; only when idle. */
   trigger(kind: DockFeedbackKind, flightTime: number): void;

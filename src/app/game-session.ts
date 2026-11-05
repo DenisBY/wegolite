@@ -23,7 +23,10 @@ import {
 } from "../content/ships.js";
 import { loadDockPort } from "../content/dock-port.js";
 import type { ShipDef, System } from "../content/types.js";
-import { createDockFeedback } from "./dock-feedback.js";
+import {
+  createDockFeedback,
+  shouldEmitScrapeMessage,
+} from "./dock-feedback.js";
 import type { DockFeedback } from "./dock-feedback.js";
 import { buildHudModel } from "./hud-model.js";
 import { createGameLoop } from "./game-loop.js";
@@ -183,6 +186,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   // Set by any accepted `?test=1` live-state mutation; plan 04-05 refuses to
   // autosave a tainted profile.
   let testTainted = false;
+  let lastScrapeMessageTime: number | null = null;
   const messages = createMessageQueue(4);
   const dockFeedback: DockFeedback = createDockFeedback();
   const launchSequence: LaunchSequence = createLaunchSequence();
@@ -356,6 +360,17 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         dockFeedback.trigger("bounce", state?.flightTime ?? 0);
         messages.enqueue(bounceMessage(event));
         break;
+      case "scrape": {
+        // Pitfall 8: the sim emits one scrape per correcting tick (120 Hz);
+        // the message line is throttled to one per simulated second.
+        const now = state?.flightTime ?? 0;
+        dockFeedback.trigger("scrape", now);
+        if (shouldEmitScrapeMessage(lastScrapeMessageTime, now)) {
+          messages.enqueue("Scrape - ease toward the centre of the slot");
+          lastScrapeMessageTime = now;
+        }
+        break;
+      }
       case "compassTargetChanged":
         messages.enqueue(`Compass target: ${event.target}`);
         break;

@@ -163,7 +163,11 @@ describe("the no-trap property", () => {
           if (state.mode === "inFlight") {
             const before = state.position;
             const away = { ...ZERO_INTENT, speed: 1 };
-            for (let tick = 0; tick < 30 && state.mode === "inFlight"; tick += 1) {
+            for (
+              let tick = 0;
+              tick < 30 && state.mode === "inFlight";
+              tick += 1
+            ) {
               step(state, away);
             }
             expect(length(sub(state.position, before))).toBeGreaterThan(0);

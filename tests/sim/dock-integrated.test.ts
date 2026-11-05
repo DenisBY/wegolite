@@ -42,9 +42,7 @@ function step(state: FlightState): ReturnType<typeof stepFlight> {
   });
 }
 
-function containsBounce(
-  events: ReturnType<typeof stepFlight>,
-): boolean {
+function containsBounce(events: ReturnType<typeof stepFlight>): boolean {
   return events.some((event) => event.kind === "bounce");
 }
 
@@ -104,9 +102,9 @@ describe("integrated manual docking chain", () => {
       bounceEvents.push(...step(state));
     }
 
-    expect(bounceEvents.filter((event) => event.kind === "bounce")).toHaveLength(
-      1,
-    );
+    expect(
+      bounceEvents.filter((event) => event.kind === "bounce"),
+    ).toHaveLength(1);
     expect(state.bounceCount).toBe(1);
     expect(state.mode).toBe("inFlight");
     expect(state.dockCount).toBe(0);
