@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Manual Docking
-status: verifying
-stopped_at: Completed 04-05-PLAN.md
-last_updated: "2026-11-05T09:59:38.036Z"
+status: executing
+stopped_at: Completed 04-06-PLAN.md
+last_updated: "2026-11-05T13:39:31.073Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 04 execution started
-state_head: 6104f477a8ac733dff0a4eecfcc8f192742a9089
+state_head: e70dc78d71cb147c91676b7099c92b449030fbb4
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 35
-  completed_plans: 35
+  total_plans: 38
+  completed_plans: 36
   percent: 43
 ---
 
@@ -28,8 +28,8 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 04 (Manual Docking) — EXECUTING
-Plan: 5 of 5
-Status: Phase complete — ready for verification
+Plan: 7 of 8
+Status: Ready to execute
 Last activity: 2026-11-05 — Phase 04 execution started
 
 Progress: [████░░░░░░] 43%
@@ -76,6 +76,7 @@ Progress: [████░░░░░░] 43%
 | Phase 04 P03 | 30 min | 3 tasks | 19 files |
 | Phase 04 P04 | 44 min | 3 tasks | 19 files |
 | Phase 04 P05 | 31 | 3 tasks | 14 files |
+| Phase 04 P06 | 15 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -149,6 +150,8 @@ Recent decisions affecting current work:
 - [Phase 04]: Plan 04-05: the purchase autosave is a direct call, not onProfileChanged, because the ?test=1 seam must taint before any write.
 - [Phase 04]: Plan 04-05: VersionError/blocked/quota reports the store unavailable and never calls deleteDatabase.
 - [Phase 04]: Plan 04-05: boot builds the equipment, galaxy-0 and station allow-lists at the parseSave call site.
+- [Phase 04]: Plan 04-06: the purchase refusal is a span inside the docking-computer value dd, so grid auto-placement cannot move it to the label column; the Buy control describes it through aria-describedby.
+- [Phase 04]: Plan 04-06: SHIFT_REQUIRED_ACTIONS is shared action metadata in actions.ts; chordLabel adds the modifier only for display while bindings keep plain KeyboardEvent.code values.
 
 ### Pending Todos
 
@@ -180,6 +183,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-05T09:59:37.642Z
-Stopped at: Completed 04-05-PLAN.md
+Last session: 2026-11-05T13:39:30.580Z
+Stopped at: Completed 04-06-PLAN.md
 Resume file: None
