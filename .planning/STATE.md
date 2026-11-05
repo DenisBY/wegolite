@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 04
 current_phase_name: Manual Docking
 status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-11-05T07:54:40.399Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-11-05T08:15:39.111Z"
 last_activity: 2026-11-05
 last_activity_desc: Phase 04 execution started
-state_head: 6a0a272c104595cf6cb3f0f1a22a30dc418ce72a
+state_head: d66ea37d11c86f05997728c84768cc2357209883
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 35
-  completed_plans: 31
+  completed_plans: 32
   percent: 43
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-11-02)
 ## Current Position
 
 Phase: 04 (Manual Docking) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-11-05 — Phase 04 execution started
 
@@ -72,6 +72,7 @@ Progress: [████░░░░░░] 43%
 | Phase 03 P11 | 10min | 2 tasks | 7 files |
 | Phase 03 P12 | 6 | 2 tasks | 8 files |
 | Phase 04 P01 | 13 min | 2 tasks | 11 files |
+| Phase 04 P02 | 20 min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -127,6 +128,10 @@ Recent decisions affecting current work:
 - [Phase 04]: Plan 04-01: the dock aperture is the oolite_coriolis_dock.dat bbox (103.4123 x 241.888 x 250), emitted at build time to src/content/generated/dock-port.json, never typed into src/sim.
 - [Phase 04]: Plan 04-01: the contact proxy is the union of hull, tris and faceplate bounds (station-local z -534.298..500), a deliberate conservative box, not the hull-only box.
 - [Phase 04]: Plan 04-01: corridor expansion is Oolite's x1.25 loop bounded at 64 iterations with a strict progress check, so degenerate apertures fail SCHEMA instead of hanging.
+- [Phase 04]: Plan 04-02: the contact proxy is converted once into the port frame (contactPort z about -1000.2561..+34.0419); 04-03 consumes it with the snapshot centre/axes and never re-projects.
+- [Phase 04]: Plan 04-02: dockArmed is a clearance latch that arms only when box.min.z > contactPort.zMax, preserving Oolite's STATUS_LAUNCHING exemption across the Space-skip path.
+- [Phase 04]: Plan 04-02: band auto-centre applies the per-tick port-frame delta without dt scaling; one scrape event and one scrapeTicks increment per band tick.
+- [Phase 04]: Plan 04-02: the symmetric y auto-centre guard deviates from DockEntity.m:752 and is recorded in PROJECT.md.
 
 ### Pending Todos
 
@@ -158,6 +163,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-05T07:54:40.062Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-11-05T08:15:38.732Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
