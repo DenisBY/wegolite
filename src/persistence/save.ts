@@ -157,6 +157,25 @@ export function parseSave(
 }
 
 /**
+ * Validate an encoded blob against the writer's own contract.
+ *
+ * `queueAutosave` runs this before `store.write`: a snapshot that would encode
+ * to a blob this build rejects must never replace the last good save. The
+ * allow-lists are not consulted here — they depend on boot content — only the
+ * size cap and the strict schema the parser applies first.
+ */
+export function isEncodedSaveValid(raw: string): boolean {
+  if (raw.length > MAX_SAVE_CHARS) return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    return false;
+  }
+  return SaveV1Schema.safeParse(parsed).success;
+}
+
+/**
  * Project trusted values into the canonical blob.
  *
  * `mode` is always `"docked"`: a save written at launch records "resume docked

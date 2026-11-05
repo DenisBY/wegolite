@@ -19,7 +19,7 @@ import { initFlightState } from "../sim/flight/state.js";
 import type { FlightState } from "../sim/flight/state.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
 import type { SystemLayout } from "../sim/world/layout.js";
-import { encodeSave } from "./save.js";
+import { encodeSave, isEncodedSaveValid } from "./save.js";
 import type { SaveInputs, SaveV1 } from "./save.js";
 import type { SaveStore, WriteResult } from "./store.js";
 
@@ -42,7 +42,11 @@ export function snapshotForSave(
   station: { readonly key: string },
 ): SaveInputs {
   return {
-    clockSeconds: state.clockSeconds,
+    // `SaveV1Schema.clockSeconds` is an integer; flight advances the clock by
+    // `DT` (1/120), so a snapshot taken after any flight is fractional. Floor
+    // it at the writer boundary: the save contract must never depend on how
+    // long the player flew.
+    clockSeconds: Math.floor(state.clockSeconds),
     credits: profile.credits,
     equipment: [...profile.equipment],
     systemId: system.id,
@@ -63,7 +67,14 @@ export async function queueAutosave(
   inputs: SaveInputs,
 ): Promise<WriteResult> {
   try {
-    return await store.write(encodeSave(inputs), revision);
+    const encoded = encodeSave(inputs);
+    // Fail closed: a snapshot this build's own parser would reject must never
+    // replace the last good blob. Reporting `invalid-save` leaves the store
+    // untouched and the previous save intact.
+    if (!isEncodedSaveValid(encoded)) {
+      return { committed: false, revision, reason: "invalid-save" };
+    }
+    return await store.write(encoded, revision);
   } catch (error) {
     return {
       committed: false,

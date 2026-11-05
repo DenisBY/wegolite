@@ -26,6 +26,7 @@ import {
 } from "../../src/sim/flight/controller.js";
 import { initFlightState, CLOCK_START } from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
+import { completeLaunch } from "../../src/sim/flight/launch.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
 import {
   newProfile,
@@ -80,8 +81,47 @@ describe("snapshotForSave", () => {
     expect(parsed.save.clockSeconds).toBe(CLOCK_START + 600);
   });
 
-  it("writes the reduced balance after a purchase", async () => {
-    const purchased = purchase(profileWithCredits(20_000), DOCK_COMPUTER);
+  it("round-trips a fractional clock after flight, a dock and a relaunch", async () => {
+    const state = initFlightState(layout);
+    // New game -> launch: the clock is integer and valid.
+    launch(state);
+    completeLaunch(state);
+    // Fly for two simulated seconds; every in-flight tick advances the clock
+    // by DT (1/120), so it is fractional when the ship docks.
+    for (let step = 0; step < 240; step += 1) {
+      stepFlight(state, layout, config, scriptedFrame(0, 0, 0), [], DT);
+    }
+    state.mode = "docked";
+    const liveClock = state.clockSeconds;
+    expect(Number.isInteger(liveClock)).toBe(false);
+
+    // Relaunch: +600 s, then the `launched` handler takes this snapshot.
+    stepFlight(
+      state,
+      layout,
+      config,
+      scriptedFrame(0, 0, 0),
+      [{ kind: "launch" }],
+      DT,
+    );
+    expect(state.clockSeconds).toBeGreaterThan(liveClock + 599);
+
+    const store = new MemorySaveStore();
+    const inputs = snapshotForSave(state, newProfile(), SYSTEM, STATION);
+    const result = await queueAutosave(store, 1, inputs);
+    expect(result.committed).toBe(true);
+
+    const parsed = parseSave(store.raw, ALLOW);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    // The writer floors the fractional live clock, so the blob this build
+    // writes is always one its own parser accepts.
+    expect(parsed.save.clockSeconds).toBe(Math.floor(liveClock) + 600);
+    expect(parsed.save.clockSeconds - state.clockSeconds).toBeLessThan(1);
+    expect(parsed.save.clockSeconds - state.clockSeconds).toBeGreaterThan(-1);
+  });
+
+  it("writes the reduced balance after a purchase", async () => {    const purchased = purchase(profileWithCredits(20_000), DOCK_COMPUTER);
     expect(purchased.credits).toBe(5000);
 
     const store = new MemorySaveStore();
@@ -127,6 +167,26 @@ describe("queueAutosave failure paths", () => {
     const result = await queueAutosave(store, 1, inputs);
     expect(result).toMatchObject({ committed: false, revision: 1 });
     expect(result.reason).toBe("write-failed");
+  });
+
+  it("refuses to commit a snapshot its own schema rejects", async () => {
+    const store = new MemorySaveStore();
+    const valid = snapshotForSave(
+      initFlightState(layout),
+      newProfile(),
+      SYSTEM,
+      STATION,
+    );
+    // A negative balance cannot be encoded into a blob `parseSave` accepts.
+    const result = await queueAutosave(store, 1, { ...valid, credits: -1 });
+
+    expect(result).toMatchObject({
+      committed: false,
+      revision: 1,
+      reason: "invalid-save",
+    });
+    expect(store.writes).toHaveLength(0);
+    expect(store.raw).toBeNull();
   });
 });
 
