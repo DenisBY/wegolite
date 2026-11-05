@@ -22,7 +22,8 @@ import {
   stationShip,
 } from "../content/ships.js";
 import { loadDockPort } from "../content/dock-port.js";
-import type { ShipDef, System } from "../content/types.js";
+import { findEquipment, loadEquipment } from "../content/equipment.js";
+import type { Equipment, ShipDef, System } from "../content/types.js";
 import {
   createDockFeedback,
   shouldEmitScrapeMessage,
@@ -61,6 +62,7 @@ import type { Command } from "../sim/commands.js";
 import type { SimEvent } from "../sim/events.js";
 import { createDockGeometry } from "../sim/dock/geometry.js";
 import type { DockGeometry } from "../sim/dock/geometry.js";
+import { DOCK_COMPUTER_KEY } from "../sim/dock/computer.js";
 import { deriveFlightConfig } from "../sim/flight/config.js";
 import type { FlightConfig } from "../sim/flight/config.js";
 import {
@@ -71,6 +73,16 @@ import {
 import { initFlightState, poseOf } from "../sim/flight/state.js";
 import type { FlightPose, FlightState } from "../sim/flight/state.js";
 import { stepFlight } from "../sim/flight/step.js";
+import type { StepOptions } from "../sim/flight/step.js";
+import {
+  MAX_EQUIPMENT_KEYS,
+  canPurchase,
+  formatCredits,
+  newProfile,
+  purchase,
+  setCredits,
+} from "../sim/player/profile.js";
+import type { PlayerProfile } from "../sim/player/profile.js";
 import { identity, sub, vec } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
 import type { InputFrame } from "../sim/state.js";
@@ -94,6 +106,7 @@ import type { PauseOverlay } from "../ui/pause.js";
 import { createSettingsPanel } from "../ui/settings-panel.js";
 import type { SettingsPanel } from "../ui/settings-panel.js";
 import type { DockedPanel } from "../ui/docked.js";
+import type { DockComputerView } from "../ui/docked.js";
 import type { TitleScreen } from "../ui/title.js";
 
 export interface GameSessionOptions {
@@ -110,6 +123,12 @@ export interface GameSessionOptions {
   readonly settingsRoot: HTMLElement;
   /** The canvas that receives focus when the pause overlay closes. */
   readonly gameRoot: HTMLElement;
+  /**
+   * Plan 04-05 attaches the purchase autosave here. Called after every accepted
+   * profile change (purchase or dev-seam grant), so a reload cannot silently
+   * undo it without re-opening the panel code.
+   */
+  readonly onProfileChanged?: (profile: PlayerProfile) => void;
 }
 
 export interface GameSession {
@@ -145,6 +164,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     controlsRoot,
     settingsRoot,
     gameRoot,
+    onProfileChanged = () => undefined,
   } = options;
 
   const player = new PlayerController();
@@ -168,6 +188,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let pauseOverlay: PauseOverlay | undefined;
   let controlsPanel: ControlsPanel | undefined;
   let settingsPanel: SettingsPanel | undefined;
+  let equipmentCatalogue: readonly Equipment[] | undefined;
+  let dockComputer: Equipment | undefined;
+  // Economy state lives beside the flight state, never inside it (D-10).
+  let profile: PlayerProfile = newProfile();
+  let lastDockClockDelta = 0;
 
   let previousPose: FlightPose = {
     position: vec(0, 0, 0),
@@ -216,6 +241,90 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       return "Hull contact - roll 90 degrees and line up with the slot";
     }
     return "Hull contact - pull away and line up with the slot";
+  }
+
+  /** D-10: the panel line and its fixed refusal copy, from the live profile. */
+  function dockComputerView(): DockComputerView {
+    const item = dockComputer;
+    if (item === undefined) {
+      return {
+        line: "",
+        disabled: true,
+        reason: "Equipment unavailable",
+      };
+    }
+
+    const line = `${item.name} — ${formatCredits(item.price)} (TL ${String(item.techLevel)})`;
+    // Ownership is the most relevant reason once fitted, even at a system whose
+    // tech level would otherwise block a fresh purchase.
+    if (profile.equipment.includes(item.key)) {
+      return { line, disabled: true, reason: "Already fitted" };
+    }
+    const check = canPurchase(profile, item, system.techLevelRaw);
+    if (check.ok) return { line, disabled: false, reason: "" };
+
+    switch (check.reason) {
+      case "techLevel":
+        return {
+          line,
+          disabled: true,
+          reason: `Requires TL ${String(item.techLevel)}`,
+        };
+      case "owned":
+        return { line, disabled: true, reason: "Already fitted" };
+      case "insufficientCredits":
+        return { line, disabled: true, reason: "Not enough credits" };
+      case "invalidPrice":
+        return { line, disabled: true, reason: "Price unavailable" };
+    }
+  }
+
+  function refreshDockedProfile(): void {
+    docked.setCredits(formatCredits(profile.credits));
+    docked.setDockComputer(dockComputerView());
+  }
+
+  /**
+   * Commit an accepted profile change: publish it to the 04-05 seam, then
+   * refresh the one panel that shows it. A refusal returns `false` and changes
+   * nothing.
+   */
+  function commitProfile(next: PlayerProfile): boolean {
+    if (next === profile) return false;
+    profile = next;
+    onProfileChanged(profile);
+    refreshDockedProfile();
+    return true;
+  }
+
+  function buyDockComputer(): void {
+    const item = dockComputer;
+    if (item === undefined) return;
+    // The gate is re-checked here, not trusted from the disabled button: the
+    // click path and the panel state share one rule (T-04-43).
+    if (!canPurchase(profile, item, system.techLevelRaw).ok) {
+      refreshDockedProfile();
+      return;
+    }
+    commitProfile(purchase(profile, item));
+  }
+
+  /** `?test=1` seam: replace the balance; never persisted by the hook itself. */
+  function applyTestCredits(credits: number): boolean {
+    return commitProfile(setCredits(profile, credits));
+  }
+
+  /** `?test=1` seam: grant only a key the validated catalogue knows. */
+  function applyTestEquipment(key: string): boolean {
+    const catalogue = equipmentCatalogue;
+    if (catalogue === undefined) return false;
+    if (catalogue.every((item) => item.key !== key)) return false;
+    if (profile.equipment.includes(key)) return false;
+    if (profile.equipment.length >= MAX_EQUIPMENT_KEYS) return false;
+    return commitProfile({
+      credits: profile.credits,
+      equipment: [...profile.equipment, key],
+    });
   }
 
   function pause(): void {
@@ -334,8 +443,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         messages.enqueue("Arrows pitch and roll · W and S change speed");
         break;
       case "docked": {
+        // D-12: the exact delta is the event's, never a wall/frame comparison.
+        lastDockClockDelta = event.clockDelta;
         launchSequence.reset();
         docked.show(system.name);
+        refreshDockedProfile();
+        if (event.via === "computer") {
+          messages.enqueuePriority("Docking computers engaged");
+          docked.setMessage("Docking computers engaged");
+        }
         // D-09/D-15: stop any held input and collapse the interpolation window
         // onto the docked pose so the camera does not smear across the teleport.
         input?.clearAll();
@@ -347,6 +463,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         }
         break;
       }
+      case "dockDenied":
+        // D-11: fixed app-owned copy; priority so it is visible immediately.
+        messages.enqueuePriority(
+          event.reason === "notInstalled"
+            ? "No docking computer fitted"
+            : "Too far from the station to engage docking computer",
+        );
+        break;
       case "torusEngaged":
         messages.enqueue(`Torus engaged at ${event.factor.toFixed(1)}×`);
         break;
@@ -420,6 +544,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         shake: dockFeedback.shakeStrength(currentState.flightTime),
         flash: dockFeedback.flashAlpha(currentState.flightTime),
         outcome: currentState.mode === "docked" ? "docked" : "inFlight",
+        lastClockDelta: lastDockClockDelta,
       };
     }
 
@@ -632,6 +757,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         const controller =
           currentState.mode === "launching" ? scripted : player;
         const intent = controller.update(flightView(currentState), frameInput);
+        // Ownership travels beside the command, never inside it: one read-only
+        // set per frame, derived from the profile (T-04-19).
+        const equipment = new Set(profile.equipment);
+        const stepOptions: StepOptions =
+          dockGeometry === undefined
+            ? { equipment }
+            : { dock: dockGeometry, equipment };
         const events = stepFlight(
           currentState,
           currentLayout,
@@ -639,7 +771,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           intent,
           stepCommands,
           DT,
-          dockGeometry === undefined ? undefined : { dock: dockGeometry },
+          stepOptions,
         );
         for (const event of events) handleEvent(event);
         // The view timeline advances on the same fixed steps as the simulation,
@@ -687,6 +819,22 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const catalogue = await loadShipCatalogue();
 
     if (disposed) return;
+
+    // D-10/T-04-43: the equipment catalogue is the only source of a price and a
+    // tech level. A missing or malformed record fails the boot visibly, exactly
+    // like the ship catalogue.
+    try {
+      const equipment = await loadEquipment();
+      if (disposed) return;
+      equipmentCatalogue = equipment;
+      dockComputer = findEquipment(equipment, DOCK_COMPUTER_KEY);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      showBootFailure(reason);
+      publishFailure(reason);
+      return;
+    }
+
     const playerDef = playerShip(catalogue).shipDef;
     const station = stationShip(catalogue).shipDef;
     stationDef = station;
@@ -798,13 +946,21 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         () => {
           testTainted = true;
         },
+        {
+          setCredits: applyTestCredits,
+          grantEquipment: applyTestEquipment,
+        },
       );
     }
 
     title.hide();
     docked.show(system.name);
+    refreshDockedProfile();
     docked.onLaunch(() => {
       pending.push({ kind: "launch" });
+    });
+    docked.onBuyDockComputer(() => {
+      buyDockComputer();
     });
 
     renderFrame(0);

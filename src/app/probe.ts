@@ -84,6 +84,16 @@ export interface WegoliteDockProbe {
   /** The red-frame flash alpha, 1 at the trigger instant (D-08). */
   flash: number;
   outcome: "docked" | "inFlight";
+  /** The clock delta the last `docked` event reported (D-12: 1200 on Shift+C). */
+  lastClockDelta: number;
+}
+
+/** The profile mutations the `?test=1` hook may request. */
+export interface WegoliteProfileTestHook {
+  /** Replace the balance; returns false when the value is not a safe integer. */
+  setCredits(credits: number): boolean;
+  /** Grant a known catalogue key; returns false when unknown or already owned. */
+  grantEquipment(key: string): boolean;
 }
 
 export interface WegoliteTestHook extends WegoliteSceneTestHook {
@@ -93,6 +103,13 @@ export interface WegoliteTestHook extends WegoliteSceneTestHook {
   setOrientation(w: number, x: number, y: number, z: number): void;
   /** Set the station roll phase, reduced modulo 2*pi. */
   setStationAngle(radians: number): void;
+  /**
+   * D-10 test seam: a finite non-negative safe integer balance. Marks the
+   * profile tainted; the hook never persists anything.
+   */
+  setCredits(credits: number): void;
+  /** D-10 test seam: a known catalogue key only; marks the profile tainted. */
+  grantEquipment(key: string): boolean;
   /** True once any live-state mutation was accepted. */
   tainted: boolean;
 }
@@ -177,6 +194,7 @@ export function createTestHook(
   state: FlightState,
   scenes: WegoliteSceneTestHook,
   onMutate: () => void = () => {},
+  profile?: WegoliteProfileTestHook,
 ): WegoliteTestHook {
   const hook: WegoliteTestHook = {
     tainted: false,
@@ -222,6 +240,19 @@ export function createTestHook(
       state.stationAngle = ((radians % twoPi) + twoPi) % twoPi;
       hook.tainted = true;
       onMutate();
+    },
+    setCredits(credits: number): void {
+      // `isSafeInteger` rejects NaN, infinities and fractions in one predicate.
+      if (!Number.isSafeInteger(credits) || credits < 0) return;
+      if (profile === undefined || !profile.setCredits(credits)) return;
+      hook.tainted = true;
+      onMutate();
+    },
+    grantEquipment(key: string): boolean {
+      if (profile === undefined || !profile.grantEquipment(key)) return false;
+      hook.tainted = true;
+      onMutate();
+      return true;
     },
     swapSystem: () => scenes.swapSystem(),
     disposeSystem: () => {

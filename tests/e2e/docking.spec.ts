@@ -367,3 +367,152 @@ test("a bounce shakes, flashes and messages, and a retry is immediate", async ({
   expect(afterSkip.dock?.bounceCount).toBe(0);
   expect(errors).toEqual([]);
 });
+
+test("the docked panel shows real credits and refuses the TL 9 computer at Lave", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await bootToDocked(page);
+
+  const dockedPanel = page.locator("#docked");
+  await expect(dockedPanel).toContainText("100.0 Cr");
+  await expect(dockedPanel.locator('[data-field="dockcomp"]')).toHaveText(
+    "Docking Computers — 1500.0 Cr (TL 9)",
+  );
+  // Lave's raw tech level is 4, so the "(TL 9)" line is a real gate.
+  await expect(
+    dockedPanel.locator('[data-field="dockcomp-message"]'),
+  ).toHaveText("Requires TL 9");
+  await expect(
+    page.locator('button[data-action="buy-dockcomp"]'),
+  ).toBeDisabled();
+
+  expect((await getProbe(page)).mode).toBe("docked");
+  expect(errors).toEqual([]);
+});
+
+test("Shift+C with the computer granted docks instantly with exactly 1200 s", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await bootToDocked(page);
+  await page.click('button[data-action="launch"]');
+  await waitForMode(page, "inFlight");
+
+  // D-10 test seam: the equipment is granted, never persisted (04-05 refuses a
+  // tainted profile).
+  const granted = await page.evaluate(() => {
+    const hook = window.__wegolite?.test;
+    if (hook === undefined) throw new Error("the ?test=1 hook is missing");
+    return hook.grantEquipment("EQ_DOCK_COMP");
+  });
+  expect(granted).toBe(true);
+  await page.waitForFunction(
+    () => window.__wegolite?.test?.tainted === true,
+    undefined,
+    { timeout: 10_000 },
+  );
+
+  const before = await getProbe(page);
+  expect(before.dock?.lastClockDelta).toBe(0);
+
+  // Plain C is Oolite's autopilot key, not the computer: it must not dock.
+  await page.keyboard.press("KeyC");
+  await page.waitForTimeout(400);
+  expect((await getProbe(page)).mode).toBe("inFlight");
+
+  // Shift+C is the fast autopilot (n_key_autodock). Hold Shift explicitly so
+  // the chord's modifier state is unambiguous.
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("KeyC");
+  await page.keyboard.up("Shift");
+
+  await waitForMode(page, "docked");
+  const docked = await getProbe(page);
+  expect(docked.dock?.lastClockDelta).toBe(1200);
+  expect(docked.dock?.dockCount).toBe(1);
+  await expect(page.locator("#docked")).toBeVisible();
+  await expect(page.locator('[data-field="dockcomp-message"]')).toHaveText(
+    "Already fitted",
+  );
+  await expect(page.locator("#hud")).toBeHidden();
+  expect(docked.test?.tainted).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("Shift+C beyond the station aegis stays in flight and says why", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await bootToDocked(page);
+  await page.click('button[data-action="launch"]');
+  await waitForMode(page, "inFlight");
+
+  await page.evaluate(() => {
+    const hook = window.__wegolite?.test;
+    if (hook === undefined) throw new Error("the ?test=1 hook is missing");
+    hook.grantEquipment("EQ_DOCK_COMP");
+  });
+
+  const probe = await getProbe(page);
+  const station = probe.world?.station;
+  const planet = probe.world?.planet;
+  if (station === undefined || planet === undefined) {
+    throw new Error("the probe has no station/planet world positions");
+  }
+
+  // One metre beyond the 51,200 m aegis, away from the planet so the planetary
+  // aegis is left too (the same geometry the aegis unit test pins).
+  const dx = station[0] - planet[0];
+  const dy = station[1] - planet[1];
+  const dz = station[2] - planet[2];
+  const distance = Math.hypot(dx, dy, dz);
+  const target: [number, number, number] = [
+    station[0] + (dx / distance) * 51_201,
+    station[1] + (dy / distance) * 51_201,
+    station[2] + (dz / distance) * 51_201,
+  ];
+  await page.evaluate((point: [number, number, number]) => {
+    const hook = window.__wegolite?.test;
+    if (hook === undefined) throw new Error("the ?test=1 hook is missing");
+    hook.setPosition(point[0], point[1], point[2]);
+    // No drift between the placement and the key press.
+    hook.setSpeed(0);
+  }, target);
+
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("KeyC");
+  await page.keyboard.up("Shift");
+
+  await page.waitForFunction(
+    () =>
+      (window.__wegolite?.hud?.message ?? "").includes(
+        "Too far from the station",
+      ) === true,
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  const after = await getProbe(page);
+  expect(after.mode).toBe("inFlight");
+  expect(after.dock?.dockCount).toBe(0);
+  expect(after.dock?.lastClockDelta).toBe(0);
+  expect(errors).toEqual([]);
+});
