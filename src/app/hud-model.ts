@@ -116,6 +116,7 @@ export function buildHudModel(
   layout: SystemLayout,
   config: FlightConfig,
   message: string,
+  flashAlpha = 0,
 ): HudModel {
   const aegis: AegisStatus = aegisStatus(state.position, layout);
 
@@ -124,6 +125,9 @@ export function buildHudModel(
     clockSeconds: state.clockSeconds,
     message: clampMessage(message, MAX_MESSAGE_CHARS),
     condition: "green",
+    // D-08: the red frame overlay is app-owned feedback, clamped so a bad
+    // envelope can never paint outside the canvas.
+    flashAlpha: clamp(flashAlpha, 0, 1),
     massLocked: state.torus.massLocked,
     scannerRange: layout.scannerRange,
     contacts: buildContacts(state, layout),

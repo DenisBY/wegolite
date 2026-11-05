@@ -105,14 +105,20 @@ export function computeLaunchCamera(
 
 /**
  * The cockpit pose at handover: the ship pose plus the Oolite view offset, with
- * the ship's own orientation as the camera orientation.
+ * the ship's own orientation as the camera orientation. `shakeOffset` is a
+ * world-space camera nudge from the app's deterministic feedback envelope; it
+ * defaults to zero so every existing caller is unchanged.
  */
 export function computeCockpitCamera(
   position: Vec3,
   orientation: Quat,
+  shakeOffset: Vec3 = vec(0, 0, 0),
 ): CameraPose {
   return {
-    position: add(position, rotate(orientation, COCKPIT_OFFSET)),
+    position: add(
+      add(position, rotate(orientation, COCKPIT_OFFSET)),
+      shakeOffset,
+    ),
     quaternion: orientation,
   };
 }

@@ -50,6 +50,10 @@ export function beginLaunch(
   state.orientation = layout.stationBaseQuat;
   state.speed = config.launchSpeed;
   state.pitchRate = 0;
+  // Contacts are reported per departure: a relaunch starts a fresh approach,
+  // which is what the skipped-launch browser assertion reads.
+  state.bounceCount = 0;
+  state.impulse = vec(0, 0, 0);
   // The world-sense station rate: the slot stays steady during the exit.
   state.rollRate = layout.stationRollRadPerSec;
   state.stationAngle = 0;

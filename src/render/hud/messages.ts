@@ -13,6 +13,14 @@
 
 export interface MessageQueue {
   enqueue(text: string): void;
+  /**
+   * Show `text` at the head of the queue, ahead of teaching copy.
+   *
+   * Failure feedback (a bounce or a scrape) must be visible on the next frame:
+   * waiting behind two four-second tutorial messages would make D-08's
+   * "clear feedback" false. The oldest queued message is dropped when full.
+   */
+  enqueuePriority(text: string): void;
   /** Drop every message whose expiry has passed at `flightTime`. */
   advance(flightTime: number): void;
   /** The one visible message at `flightTime`; `""` when the queue is empty. */
@@ -53,6 +61,13 @@ export function createMessageQueue(cap = 4): MessageQueue {
       if (text === "") return;
       if (queue.length >= limit) queue.shift();
       queue.push({ text, expiresAt: null });
+    },
+    enqueuePriority(text: string): void {
+      if (text === "") return;
+      // The new message expires from its first read, not from the moment its
+      // predecessor would have expired.
+      queue.unshift({ text, expiresAt: null });
+      if (queue.length > limit) queue.pop();
     },
     advance,
     current(flightTime: number): string {

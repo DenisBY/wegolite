@@ -147,3 +147,223 @@ test("the ?test hook is absent unless the query is exactly test=1", async ({
   );
   expect(hasHook).toBe(false);
 });
+
+/** The independent dock frame derived from the published probe positions. */
+function dockFrame(
+  station: readonly [number, number, number],
+  planet: readonly [number, number, number],
+): {
+  mouth: ReturnType<typeof vec>;
+  k: ReturnType<typeof vec>;
+  qPort: ReturnType<typeof quatFromUnitVectors>;
+} {
+  const stationVec = vec(station[0], station[1], station[2]);
+  const planetVec = vec(planet[0], planet[1], planet[2]);
+  const stationToPlanet = normalizeVec(sub(planetVec, stationVec));
+  const mouth = add(stationVec, scale(stationToPlanet, DOCK_OFFSET));
+  const qPort = quatFromUnitVectors(vec(0, 0, -1), stationToPlanet);
+  return { mouth, k: rotate(qPort, vec(0, 0, -1)), qPort };
+}
+
+async function readDockFrame(page: Page): Promise<{
+  mouth: ReturnType<typeof vec>;
+  k: ReturnType<typeof vec>;
+  qPort: ReturnType<typeof quatFromUnitVectors>;
+}> {
+  const probe = await getProbe(page);
+  const station = probe.world?.station;
+  const planet = probe.world?.planet;
+  if (station === undefined || planet === undefined) {
+    throw new Error("the probe has no station/planet world positions");
+  }
+  return dockFrame(station, planet);
+}
+
+/** Place a pose through the hook; stationAngle 0 keeps the frame deterministic. */
+async function placePose(
+  page: Page,
+  position: ReturnType<typeof vec>,
+  orientation: { w: number; x: number; y: number; z: number },
+  speed: number,
+): Promise<void> {
+  await page.evaluate(
+    (payload: { position: number[]; orientation: number[]; speed: number }) => {
+      const hook = window.__wegolite?.test;
+      if (hook === undefined) throw new Error("the ?test=1 hook is missing");
+      hook.setStationAngle(0);
+      hook.setOrientation(
+        payload.orientation[0] ?? 0,
+        payload.orientation[1] ?? 0,
+        payload.orientation[2] ?? 0,
+        payload.orientation[3] ?? 0,
+      );
+      hook.setPosition(
+        payload.position[0] ?? 0,
+        payload.position[1] ?? 0,
+        payload.position[2] ?? 0,
+      );
+      hook.setSpeed(payload.speed);
+    },
+    {
+      position: [position.x, position.y, position.z],
+      orientation: [orientation.w, orientation.x, orientation.y, orientation.z],
+      speed,
+    },
+  );
+}
+
+test("a bounce shakes, flashes and messages, and a retry is immediate", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await bootToDocked(page);
+  await page.click('button[data-action="launch"]');
+  await waitForMode(page, "inFlight");
+
+  // The departure phase is response-free before any hook placement: the
+  // browser counterpart of the integrated sim test.
+  const inFlight = await getProbe(page);
+  await page.waitForFunction(
+    (start) => {
+      const probe = window.__wegolite;
+      return (
+        probe !== undefined &&
+        probe.ready === true &&
+        probe.mode === "inFlight" &&
+        probe.flightTime >= start + 2 &&
+        (probe.dock?.bounceCount ?? -1) === 0
+      );
+    },
+    inFlight.flightTime,
+    { timeout: 60_000 },
+  );
+  expect((await getProbe(page)).dock?.bounceCount).toBe(0);
+
+  const frame = await readDockFrame(page);
+  const matched = normalize(axisAngle(1, 1, 0, Math.PI));
+  const wingsAcross = normalize(
+    mul(frame.qPort, mul(matched, axisAngle(0, 0, 1, Math.PI / 2))),
+  );
+  const aligned = normalize(mul(frame.qPort, matched));
+
+  // Wings across, nose 10 m past the plane, moving inward: the straddle.
+  await placePose(
+    page,
+    add(frame.mouth, scale(frame.k, -COBRA_NOSE_Z - 10)),
+    wingsAcross,
+    60,
+  );
+
+  await page.waitForFunction(
+    () => {
+      const probe = window.__wegolite;
+      const dock = probe?.dock;
+      return (
+        dock !== undefined &&
+        dock.bounceCount >= 1 &&
+        dock.shake > 0 &&
+        dock.flash > 0
+      );
+    },
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  const afterBounce = await getProbe(page);
+  const triggerTime = afterBounce.flightTime;
+  expect(afterBounce.dock?.bounceCount).toBeGreaterThanOrEqual(1);
+  expect(afterBounce.dock?.shake).toBeGreaterThan(0);
+  expect(afterBounce.dock?.flash).toBeGreaterThan(0);
+  expect(afterBounce.mode).toBe("inFlight");
+
+  await page.waitForFunction(
+    () =>
+      window.__wegolite?.hud?.message.includes("Too wide for the slot") ===
+      true,
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  // Both envelopes expire inside D-08's 0.3-0.5 s window.
+  await page.waitForFunction(
+    (trigger) => {
+      const probe = window.__wegolite;
+      return (
+        probe !== undefined &&
+        probe.flightTime >= trigger + 0.6 &&
+        (probe.dock?.shake ?? 1) === 0 &&
+        (probe.dock?.flash ?? 1) === 0
+      );
+    },
+    triggerTime,
+    { timeout: 30_000 },
+  );
+  const settled = await getProbe(page);
+  expect(settled.mode).toBe("inFlight");
+  expect(settled.dock?.shake).toBe(0);
+  expect(settled.dock?.flash).toBe(0);
+
+  // A second approach can bounce again: recovery is immediate.
+  await placePose(
+    page,
+    add(frame.mouth, scale(frame.k, -COBRA_NOSE_Z - 10)),
+    wingsAcross,
+    60,
+  );
+  await page.waitForFunction(
+    () => {
+      const dock = window.__wegolite?.dock;
+      return (
+        dock !== undefined &&
+        dock.bounceCount >= 2 &&
+        dock.shake > 0 &&
+        dock.flash > 0
+      );
+    },
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  // Retry with an aligned pose and dock.
+  await placePose(
+    page,
+    add(frame.mouth, scale(frame.k, -COBRA_NOSE_Z - 90)),
+    aligned,
+    0,
+  );
+  await waitForMode(page, "docked");
+  const docked = await getProbe(page);
+  expect(docked.dock?.dockCount).toBe(1);
+  expect(docked.dock?.bounceCount).toBeGreaterThanOrEqual(2);
+
+  // Relaunch and skip: the arming tick must not produce a contact response.
+  await page.click('button[data-action="launch"]');
+  await waitForMode(page, "launching");
+  await page.keyboard.press("x");
+  await waitForMode(page, "inFlight");
+
+  const skip = await getProbe(page);
+  expect(skip.dock?.bounceCount).toBe(0);
+  await page.waitForFunction(
+    (start) => {
+      const probe = window.__wegolite;
+      return (
+        probe !== undefined &&
+        probe.flightTime >= start + 0.6 &&
+        (probe.dock?.bounceCount ?? -1) === 0
+      );
+    },
+    skip.flightTime,
+    { timeout: 30_000 },
+  );
+  const afterSkip = await getProbe(page);
+  expect(afterSkip.mode).toBe("inFlight");
+  expect(afterSkip.dock?.bounceCount).toBe(0);
+  expect(errors).toEqual([]);
+});

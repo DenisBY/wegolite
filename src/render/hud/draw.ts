@@ -124,6 +124,8 @@ export interface HudModel {
   readonly clockSeconds: number;
   readonly message: string;
   readonly condition: "green" | "yellow" | "red";
+  /** 0..1 red frame overlay from the dock feedback envelope (D-08). */
+  readonly flashAlpha: number;
   readonly massLocked: boolean;
   readonly scannerRange: number;
   readonly contacts: readonly HudContact[];
@@ -348,6 +350,29 @@ function drawCondition(
   context.fill();
 }
 
+/** The band width of the D-08 red frame, in design units. */
+const FLASH_BAND = 24;
+
+/** A red frame overlay, drawn only while the dock-feedback envelope is live. */
+function drawFlash(context: CanvasRenderingContext2D, alpha: number): void {
+  if (!(alpha > 0)) return;
+  context.fillStyle = `rgba(255, 68, 68, ${String(alpha * 0.45)})`;
+  context.fillRect(0, 0, HUD_DESIGN_WIDTH, FLASH_BAND);
+  context.fillRect(
+    0,
+    HUD_DESIGN_HEIGHT - FLASH_BAND,
+    HUD_DESIGN_WIDTH,
+    FLASH_BAND,
+  );
+  context.fillRect(0, 0, FLASH_BAND, HUD_DESIGN_HEIGHT);
+  context.fillRect(
+    HUD_DESIGN_WIDTH - FLASH_BAND,
+    0,
+    FLASH_BAND,
+    HUD_DESIGN_HEIGHT,
+  );
+}
+
 /** Clear the design space and draw the model. */
 export function drawHud(
   context: CanvasRenderingContext2D,
@@ -398,4 +423,7 @@ export function drawHud(
       HUD_LAYOUT.message.y + HUD_LAYOUT.message.height / 2,
     );
   }
+
+  // Drawn last so the red frame is never covered by a HUD element.
+  drawFlash(context, model.flashAlpha);
 }

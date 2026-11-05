@@ -358,7 +358,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         break;
       case "bounce":
         dockFeedback.trigger("bounce", state?.flightTime ?? 0);
-        messages.enqueue(bounceMessage(event));
+        messages.enqueuePriority(bounceMessage(event));
         break;
       case "scrape": {
         // Pitfall 8: the sim emits one scrape per correcting tick (120 Hz);
@@ -366,7 +366,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         const now = state?.flightTime ?? 0;
         dockFeedback.trigger("scrape", now);
         if (shouldEmitScrapeMessage(lastScrapeMessageTime, now)) {
-          messages.enqueue("Scrape - ease toward the centre of the slot");
+          messages.enqueuePriority(
+            "Scrape - ease toward the centre of the slot",
+          );
           lastScrapeMessageTime = now;
         }
         break;
@@ -509,7 +511,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (currentState.mode === "launching") {
       camera = computeLaunchCamera(currentLayout, pose.position);
     } else if (currentState.mode === "inFlight") {
-      camera = computeCockpitCamera(pose.position, pose.orientation);
+      camera = computeCockpitCamera(
+        pose.position,
+        pose.orientation,
+        dockFeedback.shakeOffset(currentState.flightTime),
+      );
     }
     const cameraWorld = applyFrame(
       currentScene,
@@ -558,6 +564,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           currentLayout,
           currentConfig,
           messages.current(currentState.flightTime),
+          dockFeedback.flashAlpha(currentState.flightTime),
         );
         currentHud.draw(model);
         lastModel = model;
