@@ -39,6 +39,9 @@ export const DOCK_PORT_PATH = "src/content/generated/dock-port.json";
 const SOURCE = "third_party/oolite";
 
 const DOCK_MODEL = "oolite_coriolis_dock.dat";
+const HULL_MODEL = "oolite_coriolis.dat";
+const TRIS_MODEL = "oolite_coriolis_tris.dat";
+const FACEPLATE_MODEL = "oolite_coriolis_faceplate.dat";
 const SHIP_MODEL = "oolite_cobra3.dat";
 
 const DOCK_FILE = `${SOURCE}/Models/${DOCK_MODEL}`;
@@ -64,7 +67,7 @@ function requireMesh(
 ): ParsedMesh {
   const mesh = meshes[name];
   if (mesh === undefined) {
-    throw contentError("SCHEMA", DOCK_FILE, name, {
+    throw contentError("SCHEMA", `${SOURCE}/Models/${name}`, name, {
       excerpt: `the model set has no parsed mesh for "${name}"`,
     });
   }
@@ -81,6 +84,60 @@ function extents(bounds: MeshBounds): {
     x: bounds.max.x - bounds.min.x,
     y: bounds.max.y - bounds.min.y,
     z: bounds.max.z - bounds.min.z,
+  };
+}
+
+/** One station-local collision box, in Wegolite's negated-Z frame (glb.ts:19). */
+interface StationBox {
+  readonly halfX: number;
+  readonly halfY: number;
+  readonly zMin: number;
+  readonly zMax: number;
+}
+
+/**
+ * Convert authored mesh bounds to a station-local box: x/y are symmetric half
+ * extents about the station origin, and Z is negated and swapped exactly once,
+ * mirroring the GLB conversion (`glb.ts:19`: `position' = (x, y, -z)`).
+ */
+function stationBox(bounds: MeshBounds): StationBox {
+  return {
+    halfX: Math.max(Math.abs(bounds.min.x), Math.abs(bounds.max.x)),
+    halfY: Math.max(Math.abs(bounds.min.y), Math.abs(bounds.max.y)),
+    zMin: -bounds.max.z,
+    zMax: -bounds.min.z,
+  };
+}
+
+/**
+ * The contact proxy (T-04-35): a box covering the union of every converted
+ * collision mesh, so the protruding faceplate (station-local z -534.298) is
+ * inside it. It is deliberately a box, not the mesh: it contains empty volume
+ * around the diamond hull, and a contact can fire slightly before visible
+ * contact. That is the v1 collision-only model (D-06), not an accident.
+ */
+function unionBoxes(boxes: readonly StationBox[]): StationBox {
+  let halfX = Number.NEGATIVE_INFINITY;
+  let halfY = Number.NEGATIVE_INFINITY;
+  let zMin = Number.POSITIVE_INFINITY;
+  let zMax = Number.NEGATIVE_INFINITY;
+  for (const box of boxes) {
+    if (box.halfX > halfX) halfX = box.halfX;
+    if (box.halfY > halfY) halfY = box.halfY;
+    if (box.zMin < zMin) zMin = box.zMin;
+    if (box.zMax > zMax) zMax = box.zMax;
+  }
+  return { halfX, halfY, zMin, zMax };
+}
+
+/** The ship bbox as explicit min/max corners in the Wegolite frame. */
+function shipBox(bounds: MeshBounds): {
+  readonly min: readonly [number, number, number];
+  readonly max: readonly [number, number, number];
+} {
+  return {
+    min: [bounds.min.x, bounds.min.y, -bounds.max.z],
+    max: [bounds.max.x, bounds.max.y, -bounds.min.z],
   };
 }
 
@@ -159,9 +216,9 @@ export function corridorHalfExtents(
 }
 
 /**
- * Measure the aperture and corridor from parsed meshes and return the canonical
- * JSON bytes at {@link DOCK_PORT_PATH}. Pure: the same meshes produce the same
- * bytes, and `generate.ts` owns every file write.
+ * Measure the aperture, corridor, hull, contact proxy and ship boxes from parsed
+ * meshes and return the canonical JSON bytes at {@link DOCK_PORT_PATH}. Pure:
+ * the same meshes produce the same bytes, and `generate.ts` owns every write.
  */
 export function emitDockPort(
   meshes: Readonly<Record<string, ParsedMesh>>,
@@ -170,6 +227,18 @@ export function emitDockPort(
   const ship = extents(boundingBox(requireMesh(meshes, SHIP_MODEL)));
 
   const corridor = corridorHalfExtents(dock.x, dock.y, ship.x, ship.y);
+
+  // Hull and contact are station-local (Wegolite z, the same frame as every
+  // other box here). Plan 04-02 converts the contact box into port coordinates
+  // once with `layout.dockOffset`; committing a port-frame literal here would
+  // double-convert it.
+  const hull = stationBox(boundingBox(requireMesh(meshes, HULL_MODEL)));
+  const contact = unionBoxes([
+    hull,
+    stationBox(boundingBox(requireMesh(meshes, TRIS_MODEL))),
+    stationBox(boundingBox(requireMesh(meshes, FACEPLATE_MODEL))),
+  ]);
+  const cobra = shipBox(boundingBox(requireMesh(meshes, SHIP_MODEL)));
 
   const candidate: PlistJson = {
     version: 1,
@@ -182,6 +251,22 @@ export function emitDockPort(
     corridor: {
       ww: corridor.ww,
       hh: corridor.hh,
+    },
+    hull: {
+      halfX: hull.halfX,
+      halfY: hull.halfY,
+      zMin: hull.zMin,
+      zMax: hull.zMax,
+    },
+    contact: {
+      halfX: contact.halfX,
+      halfY: contact.halfY,
+      zMin: contact.zMin,
+      zMax: contact.zMax,
+    },
+    ship: {
+      min: [cobra.min[0], cobra.min[1], cobra.min[2]],
+      max: [cobra.max[0], cobra.max[1], cobra.max[2]],
     },
   };
 

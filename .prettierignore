@@ -10,5 +10,8 @@ LICENSE
 NOTICE
 # Generated canonical JSON: Prettier's array wrapping would break assets:check.
 src/content/generated
+# Canonical-bytes golden: the emitter test compares it byte for byte, so
+# Prettier's array wrapping must not rewrite it.
+tests/golden/content/dock-port.json
 # Vendored Oolite snapshot: third-party bytes, never reformatted.
 third_party

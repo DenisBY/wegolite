@@ -57,6 +57,13 @@ attribution, non-commercial and share-alike terms. The source PNGs copied under
 `public/textures/` are byte-identical to the vendored originals and are
 redistributed unmodified under the same licence.
 
+The generated dock-port record `src/content/generated/dock-port.json` is
+measured at build time from the vendored Oolite `.dat` models (`oolite_coriolis`,
+`oolite_coriolis_tris`, `oolite_coriolis_faceplate`, `oolite_coriolis_dock` and
+`oolite_cobra3`). It is a derivative work of those models and remains
+CC BY-NC-SA 3.0, never GPL, with attribution to the Oolite contributors,
+non-commercial use only and share-alike terms.
+
 ## 4. Corresponding source
 
 The complete corresponding source for every distributed build of Wegolite is

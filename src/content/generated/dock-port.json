@@ -1,12 +1,36 @@
 {
+  "contact": {
+    "halfX": 500,
+    "halfY": 500,
+    "zMax": 500,
+    "zMin": -534.298
+  },
   "corridor": {
     "hh": 120.944,
     "ww": 51.70615
+  },
+  "hull": {
+    "halfX": 500,
+    "halfY": 500,
+    "zMax": 500,
+    "zMin": -495.918
   },
   "port": {
     "depth": 250,
     "height": 241.888,
     "width": 103.4123
+  },
+  "ship": {
+    "max": [
+      65,
+      20.9961,
+      37.9071
+    ],
+    "min": [
+      -65,
+      -13.9688,
+      -43.4655
+    ]
   },
   "source": "third_party/oolite",
   "version": 1

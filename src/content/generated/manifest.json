@@ -121,9 +121,9 @@
       "sha256": "0f66683981f9b763a8b21276eb9e64493f4c004f388f922de25741a4230f226b"
     },
     {
-      "bytes": 192,
+      "bytes": 514,
       "path": "src/content/generated/dock-port.json",
-      "sha256": "bb293645f72b431eea8b28880c86e4914aa31122936bd7ee9a69f91a0ab696fa"
+      "sha256": "eb14630651ad32563cf621c1c427c5f93cb568f255a7a2dd95cb7ab81eb35abf"
     },
     {
       "bytes": 17774,

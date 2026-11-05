@@ -31,6 +31,52 @@ const portDimension = z
   .max(PORT_DIMENSION_MAX);
 
 const halfExtent = z.number().finite().positive();
+const finite = z.number().finite();
+
+/**
+ * One collision box in station-local Wegolite coordinates: `halfX`/`halfY` are
+ * the symmetric x/y half-extents about the station origin, and `zMin`/`zMax`
+ * are already in Wegolite's negated-Z frame. `min < max` on every axis is the
+ * positive-span invariant; a zero-span box is a degenerate mesh, not geometry.
+ */
+const BoxSchema = z
+  .strictObject({
+    halfX: halfExtent,
+    halfY: halfExtent,
+    zMin: finite,
+    zMax: finite,
+  })
+  .superRefine((box, ctx) => {
+    if (!(box.zMin < box.zMax)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["zMax"],
+        message: `box zMin ${String(box.zMin)} must be less than zMax ${String(box.zMax)}`,
+      });
+    }
+  });
+
+const Coordinate = z.tuple([finite, finite, finite]);
+
+/** An axis-aligned box with explicit min/max corners, every axis ordered. */
+const ShipBoxSchema = z
+  .strictObject({
+    min: Coordinate,
+    max: Coordinate,
+  })
+  .superRefine((box, ctx) => {
+    for (let axis = 0; axis < 3; axis++) {
+      const min = box.min[axis];
+      const max = box.max[axis];
+      if (min === undefined || max === undefined || !(min < max)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["max", axis],
+          message: `ship min[${String(axis)}] ${String(min)} must be less than max[${String(axis)}] ${String(max)}`,
+        });
+      }
+    }
+  });
 
 export const DockPortSchema = z
   .strictObject({
@@ -46,6 +92,16 @@ export const DockPortSchema = z
       ww: halfExtent,
       hh: halfExtent,
     }),
+    /** The Coriolis hull as a collision box, station-local Wegolite z. */
+    hull: BoxSchema,
+    /**
+     * The contact proxy: the union of the hull, triangle and faceplate bounds.
+     * It is a conservative box, not the mesh, and it may only grow past the
+     * hull — never shrink inside it.
+     */
+    contact: BoxSchema,
+    /** The committed Cobra Mk III bbox in the Wegolite frame (nose at -Z). */
+    ship: ShipBoxSchema,
   })
   .superRefine((value, ctx) => {
     // The corridor half-extents are derived from the aperture and can never
@@ -62,6 +118,15 @@ export const DockPortSchema = z
         code: "custom",
         path: ["corridor", "hh"],
         message: `corridor.hh ${String(value.corridor.hh)} exceeds port.height ${String(value.port.height)}`,
+      });
+    }
+    // T-04-35: the contact proxy must cover the protruding faceplate, so its
+    // -Z face can only sit at or beyond the hull's.
+    if (!(value.contact.zMin <= value.hull.zMin)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["contact", "zMin"],
+        message: `contact.zMin ${String(value.contact.zMin)} must not be greater than hull.zMin ${String(value.hull.zMin)}`,
       });
     }
   });
