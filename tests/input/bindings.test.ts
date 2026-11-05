@@ -199,6 +199,54 @@ describe("createInputState", () => {
     ]);
   });
 
+  it("requires Shift for the docking computer and never fires on plain C", () => {
+    const state = createInputState();
+
+    // Plain C is bound but shift-required, so it queues nothing at all.
+    expect(state.keyDown("KeyC")).toBe(true);
+    expect(state.drainCommands()).toEqual([]);
+
+    state.keyDown("KeyC", false, { shift: true });
+    expect(state.drainCommands()).toEqual([{ kind: "dockingComputer" }]);
+
+    // A repeat keydown never queues a second activation.
+    state.keyDown("KeyC", true, { shift: true });
+    expect(state.drainCommands()).toEqual([]);
+  });
+
+  it("queues a fresh command object for every Shift+C keydown", () => {
+    const state = createInputState();
+
+    state.keyDown("KeyC", false, { shift: true });
+    const first = state.drainCommands();
+    state.keyUp("KeyC");
+    state.keyDown("KeyC", false, { shift: true });
+    const second = state.drainCommands();
+
+    expect(first).toEqual([{ kind: "dockingComputer" }]);
+    expect(second).toEqual([{ kind: "dockingComputer" }]);
+    // No shared EDGE_COMMANDS singleton is reused between activations.
+    expect(second[0]).not.toBe(first[0]);
+  });
+
+  it("resolves a KeyC rebind chord-aware: Shift+C docks, plain C pauses", () => {
+    // The rebinding UI rejects a duplicate code, so this is the defensive
+    // case: both actions share the same code in the persisted table.
+    const map = createBindingMap();
+    map.pause = ["KeyC"];
+    map.dockingComputer = ["KeyC"];
+    const state = createInputState(map);
+
+    state.keyDown("KeyC", false, { shift: true });
+    expect(state.drainCommands()).toEqual([{ kind: "dockingComputer" }]);
+    expect(state.consumePauseToggle()).toBe(false);
+
+    state.keyUp("KeyC");
+    state.keyDown("KeyC", false, { shift: false });
+    expect(state.drainCommands()).toEqual([]);
+    expect(state.consumePauseToggle()).toBe(true);
+  });
+
   it("treats both pause codes as one pause edge", () => {
     const state = createInputState();
 

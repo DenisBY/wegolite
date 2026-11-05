@@ -222,6 +222,9 @@ describe("mergeDefaults", () => {
     expect(merged.bindings.rollRight).toEqual([]);
     expect(merged.bindings.speedUp).toEqual(["KeyI"]);
     expect(merged.bindings.rollLeft).toEqual(["ArrowLeft"]);
+    // A blob written before plan 04-04 has no dockingComputer key; the merge
+    // supplies the default so Shift+C works without a settings reset.
+    expect(merged.bindings.dockingComputer).toEqual(["KeyC"]);
     expect(merged.hintsSeen).toEqual(["speed"]);
   });
 });

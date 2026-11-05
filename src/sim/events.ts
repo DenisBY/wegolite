@@ -18,6 +18,9 @@ export type BounceCause = "hull" | "straddle";
 /** The port-frame axis a bounce normal is most aligned with. */
 export type BounceAxis = "x" | "y" | "z";
 
+/** Why a Shift+C docking request was refused (D-11/D-12). */
+export type DockDeniedReason = "notInstalled" | "outsideAegis";
+
 export type SimEvent =
   | { kind: "launched" }
   | { kind: "launchComplete" }
@@ -26,6 +29,7 @@ export type SimEvent =
   | { kind: "massLockChanged"; locked: boolean }
   | { kind: "compassTargetChanged"; target: CompassTarget }
   | { kind: "docked"; via: "manual" | "computer"; clockDelta: number }
+  | { kind: "dockDenied"; reason: DockDeniedReason }
   | { kind: "scrape" }
   | {
       kind: "bounce";

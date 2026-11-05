@@ -20,6 +20,7 @@ import type { Command } from "../commands.js";
 import type { SimEvent } from "../events.js";
 import { nextCompassMode, resolveCompassTarget } from "../world/aegis.js";
 import type { SystemLayout } from "../world/layout.js";
+import { DOCK_COMPUTER_KEY, dockWithComputer } from "../dock/computer.js";
 import { stepDocking } from "../dock/step.js";
 import type { DockGeometry } from "../dock/geometry.js";
 import { stepAttitude } from "./attitude.js";
@@ -31,10 +32,15 @@ import { stepSpeed } from "./speed.js";
 import { stepTorus } from "./torus.js";
 import type { FlightState } from "./state.js";
 
-/** Optional per-step systems. Plan 04-03 extends the options with an impulse. */
+/** Optional per-step systems. Plan 04-04 adds the owned-equipment set. */
 export interface StepOptions {
   /** The validated docking geometry; absent in Phase 1/2 probe steps. */
   readonly dock?: DockGeometry;
+  /**
+   * The equipment keys the player owns. Read-only and derived from the
+   * profile, so a command never carries a forged ownership flag (T-04-19).
+   */
+  readonly equipment?: ReadonlySet<string>;
 }
 
 /**
@@ -67,20 +73,34 @@ export function stepFlight(
   const modeAtStart = state.mode;
   let skipLaunch = false;
   let launchedThisStep = false;
+  // A command-phase transition that ends the tick: the launch, or a computer
+  // dock. Step 5 must not also run the +dt clock on that tick, which is what
+  // makes the computer dock exactly +1200 s (T-04-44).
+  let terminalTransition = false;
   let torusToggle = false;
 
-  // 1. Drain this frame's commands exactly once.
+  // 1. Drain this frame's commands exactly once. Every mode-changing command
+  // is gated on `modeAtStart`, so a dock and a launch drained on the same tick
+  // cannot both take effect (T-04-44).
   for (const command of commands) {
     switch (command.kind) {
       case "launch":
-        if (beginLaunch(state, layout, config)) {
+        if (modeAtStart === "docked" && beginLaunch(state, layout, config)) {
           events.push({ kind: "launched" });
           launchedThisStep = true;
+          terminalTransition = true;
         }
         break;
       case "skipLaunch":
-        skipLaunch = true;
+        if (modeAtStart === "launching") skipLaunch = true;
         break;
+      case "dockingComputer": {
+        if (modeAtStart !== "inFlight") break;
+        const hasComputer = options?.equipment?.has(DOCK_COMPUTER_KEY) === true;
+        events.push(...dockWithComputer(state, layout, hasComputer));
+        if (state.mode === "docked") terminalTransition = true;
+        break;
+      }
       case "toggleTorus":
         // A `j` edge is consumed once, on the first step of the frame that
         // drained it (FLGT-04).
@@ -125,9 +145,11 @@ export function stepFlight(
   }
 
   // 5. Station roll, flight time and the ship clock. A docked ship is static,
-  // and the launch step itself does not advance the clock: the +600 s is the
-  // whole of the launch's clock change, so a test can pin it exactly.
-  if (modeAtStart !== "docked") {
+  // and a command-phase terminal transition does not advance anything else:
+  // the +600 s launch and the +1200 s computer dock are the whole clock effect
+  // of their tick, so a test can pin them exactly. A manual capture happens in
+  // step 6, after this block, and legitimately carries +dt.
+  if (modeAtStart !== "docked" && !terminalTransition) {
     state.stationAngle += layout.stationRollRadPerSec * dt;
     state.flightTime += dt;
     state.clockSeconds += dt;

@@ -20,6 +20,7 @@ export type ActionId =
   | "torus"
   | "pause"
   | "launch"
+  | "dockingComputer"
   | "targetStation"
   | "compassCycle"
   | "precision";
@@ -34,6 +35,7 @@ export const ACTION_IDS: readonly ActionId[] = [
   "torus",
   "pause",
   "launch",
+  "dockingComputer",
   "targetStation",
   "compassCycle",
   "precision",
@@ -61,6 +63,7 @@ export const DEFAULT_BINDINGS: Readonly<Record<ActionId, readonly string[]>> =
     torus: Object.freeze(["KeyJ"]),
     pause: Object.freeze(["KeyP", "Escape"]),
     launch: Object.freeze(["Digit1", "F1"]),
+    dockingComputer: Object.freeze(["KeyC"]),
     targetStation: Object.freeze(["KeyR"]),
     compassCycle: Object.freeze(["Backslash"]),
     precision: Object.freeze(["ControlLeft", "ControlRight"]),
@@ -76,6 +79,7 @@ export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
   torus: "Torus drive",
   pause: "Pause",
   launch: "Launch",
+  dockingComputer: "Docking computer (Shift+)",
   targetStation: "Target station",
   compassCycle: "Cycle compass",
   precision: "Precision",

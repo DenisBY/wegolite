@@ -16,4 +16,10 @@ export type Command =
   | { kind: "toggleTorus" }
   | { kind: "setPaused"; paused: boolean }
   | { kind: "cycleCompass" }
-  | { kind: "targetStation" };
+  | { kind: "targetStation" }
+  /**
+   * D-11/D-12: Shift+C. Deliberately payload-free — equipment ownership travels
+   * through `StepOptions.equipment`, so a shared command object can never carry
+   * a forged `installed` flag (T-04-46).
+   */
+  | { kind: "dockingComputer" };

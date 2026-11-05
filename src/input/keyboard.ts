@@ -29,9 +29,26 @@ import type { BindingMap } from "./bindings.js";
 const EDGE_COMMANDS: Readonly<Partial<Record<ActionId, Command>>> = {
   torus: { kind: "toggleTorus" },
   launch: { kind: "launch" },
+  dockingComputer: { kind: "dockingComputer" },
   compassCycle: { kind: "cycleCompass" },
   targetStation: { kind: "targetStation" },
 };
+
+/**
+ * The actions Oolite requires Shift for. `dockingComputer` is Oolite's fast
+ * autopilot (`n_key_autodock`, `C`); plain `C` is the ordinary autopilot, which
+ * this build does not have. The modifier lives in the keyboard layer only —
+ * bindings stay plain `KeyboardEvent.code` values so the rebinding UI is
+ * unchanged (D-11, T-04-18).
+ */
+const REQUIRES_SHIFT: ReadonlySet<ActionId> = new Set<ActionId>([
+  "dockingComputer",
+]);
+
+/** The modifier state that decides a chord. */
+export interface KeyModifiers {
+  readonly shift: boolean;
+}
 
 function buildCodeToActions(map: BindingMap): Map<string, ActionId[]> {
   const result = new Map<string, ActionId[]>();
@@ -48,7 +65,7 @@ function buildCodeToActions(map: BindingMap): Map<string, ActionId[]> {
 /** The DOM-free keyboard state. */
 export interface InputState {
   /** Record a keydown; returns whether the code is bound to any action. */
-  keyDown(code: string, repeat?: boolean): boolean;
+  keyDown(code: string, repeat?: boolean, mods?: KeyModifiers): boolean;
   keyUp(code: string): void;
   frame(): InputFrame;
   drainCommands(): Command[];
@@ -77,18 +94,34 @@ export function createInputState(
   }
 
   return {
-    keyDown(code, repeat = false) {
+    keyDown(code, repeat = false, mods) {
       const actions = codeToActions.get(code);
       if (actions === undefined) return false;
       if (repeat) return true;
-      held.add(code);
-      for (const action of actions) {
+
+      // A chord is resolved explicitly: when Shift is held and the code owns a
+      // shift-required action, only those fire. Otherwise only the ordinary
+      // actions fire. A rebind that puts pause on KeyC therefore still gets
+      // plain C for pause and Shift+C for docking, with no double queue
+      // (T-04-18).
+      const shiftRequired = actions.filter((action) =>
+        REQUIRES_SHIFT.has(action),
+      );
+      const useShift = mods?.shift === true && shiftRequired.length > 0;
+      const firing = useShift
+        ? shiftRequired
+        : actions.filter((action) => !REQUIRES_SHIFT.has(action));
+      if (!useShift) held.add(code);
+
+      for (const action of firing) {
         if (action === "pause") {
           pauseToggle = true;
           continue;
         }
         const command = EDGE_COMMANDS[action];
-        if (command !== undefined) pending.push(command);
+        // A fresh object per keydown: the module-level table is never mutated,
+        // so a command can never carry state between activations (T-04-46).
+        if (command !== undefined) pending.push({ ...command });
       }
       return true;
     },
@@ -173,7 +206,9 @@ export function createKeyboardInputSource(
     ) {
       return;
     }
-    if (state.keyDown(event.code, event.repeat)) event.preventDefault();
+    if (state.keyDown(event.code, event.repeat, { shift: event.shiftKey })) {
+      event.preventDefault();
+    }
   }
 
   function onKeyUp(event: KeyboardEvent): void {
