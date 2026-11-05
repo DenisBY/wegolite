@@ -24,6 +24,7 @@ import { contentError } from "./content-error.js";
 import { emitCommodities } from "./convert/commodities.js";
 import { assertBounds, modelBounds, parseDat } from "./convert/dat.js";
 import type { ParsedMesh } from "./convert/dat.js";
+import { emitDockPort } from "./convert/dock-port.js";
 import { MODEL_SOURCE_FILES, emitModels } from "./convert/glb.js";
 import type { ShipEntry } from "./convert/glb.js";
 import { emitEquipment } from "./convert/equipment.js";
@@ -130,13 +131,19 @@ export async function generateContent({
     entries[entry.key] = { key: entry.key, shipDef: entry.shipDef };
   }
 
+  // One model read feeds both emitters: the GLB writer and the dock-port
+  // measurement must see the same parsed geometry, and parsing the snapshot
+  // twice would double the build cost for no benefit.
+  const models = await readModels(inputRoot);
+
   const emitted: EmittedFile[] = [
     emitCommodities(commodities),
     ...emitSystems(systems),
     emitEquipment(equipment),
     emitLabels(descriptions),
     emitShipsFromCatalogue(catalogue),
-    ...emitModels(await readModels(inputRoot), entries),
+    emitDockPort(models),
+    ...emitModels(models, entries),
   ];
 
   for (const file of emitted) {

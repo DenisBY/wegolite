@@ -1,0 +1,13 @@
+{
+  "corridor": {
+    "hh": 120.944,
+    "ww": 51.70615
+  },
+  "port": {
+    "depth": 250,
+    "height": 241.888,
+    "width": 103.4123
+  },
+  "source": "third_party/oolite",
+  "version": 1
+}
