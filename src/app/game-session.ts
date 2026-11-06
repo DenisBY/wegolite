@@ -60,7 +60,11 @@ import {
   restoreFromSave,
   snapshotForSave,
 } from "../persistence/autosave.js";
-import type { SaveAllowLists, SaveV2 } from "../persistence/save.js";
+import type {
+  SaveAllowLists,
+  SaveInputs,
+  SaveV2,
+} from "../persistence/save.js";
 import type { SaveStore, SaveStatus } from "../persistence/store.js";
 import { createBreakPattern } from "../render/break-pattern.js";
 import type { BreakPattern } from "../render/break-pattern.js";
@@ -345,9 +349,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let saveAttempts = 0;
   let saveWrites = 0;
   let saveCommitted = 0;
+  let saveCommittedRevision = 0;
   let saveLastClock: number | null = null;
   let saveSkipReason = statusSkipReason(saveStatus);
   let saveUnavailable = saveStatus === "unavailable";
+  // A manual Save is a single confirmed request; the flag coalesces a
+  // double-press while the one write is in flight.
+  let manualSavePending = false;
+  let overwritePending = false;
   const saveProbe: WegoliteSaveProbe = {
     status: saveStatus,
     attempts: 0,
@@ -893,10 +902,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     saveProbe.attempts = saveAttempts;
     saveProbe.writes = saveWrites;
     saveProbe.committed = saveCommitted;
-    saveProbe.revision = saveRevision;
+    // D-23: the probe reports the last COMMITTED revision, never the one a
+    // queued write merely requested.
+    saveProbe.revision = saveCommittedRevision;
     saveProbe.lastClock = saveLastClock;
     saveProbe.skipReason = saveSkipReason;
     saveProbe.unavailable = saveUnavailable;
+    saveProbe.notice = saveScreenNotice;
   }
 
   function isStoreUnavailable(reason: string | undefined): boolean {
@@ -931,7 +943,93 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (status === "future") return "future";
     if (status === "unreadable") return "unreadable";
     if (status === "unavailable") return "unavailable";
+    // A corrupt blob is recognised but not overwritable (`canOverwrite`), so
+    // its reason must be visible rather than silently blank.
+    if (status === "corrupt") return "corrupt";
     return "";
+  }
+
+  /** Publish one app-owned save notice on the F2 screen and station footer. */
+  function setSaveNotice(text: string): void {
+    saveScreenNotice = text;
+    stationSaveNotice = text;
+    saveLoad?.setNotice(text);
+    syncSaveProbe();
+  }
+
+  /**
+   * Build the one schema input set used by both the autosave anchors and the
+   * manual F2 Save, so the two producers can never diverge (D-21).
+   */
+  function buildSnapshotInputs(): SaveInputs | undefined {
+    const currentState = state;
+    const currentStationKey = stationKey;
+    const currentMarket = market;
+    const catalogue = commodities;
+    if (
+      currentState === undefined ||
+      currentStationKey === undefined ||
+      currentMarket === undefined ||
+      catalogue === undefined
+    ) {
+      return undefined;
+    }
+    return snapshotForSave(
+      currentState,
+      profile,
+      system,
+      { key: currentStationKey },
+      currentMarket,
+      catalogue,
+      hyperspaceTargetId,
+    );
+  }
+
+  /**
+   * Encode and queue one snapshot on the one serialized revision queue. The
+   * probe only publishes a committed revision, clock and notice when the
+   * transaction completes.
+   */
+  function queueSnapshot(inputs: SaveInputs, manual: boolean): void {
+    saveRevision += 1;
+    const revision = saveRevision;
+    saveWrites += 1;
+    saveSkipReason = "";
+    syncSaveProbe();
+    // The frame loop never awaits this; `queueAutosave` cannot reject.
+    void queueAutosave(saveBoot.store, revision, inputs, saveBoot.allow).then(
+      (result) => {
+        if (manual) manualSavePending = false;
+        if (result.committed) {
+          saveCommitted += 1;
+          saveCommittedRevision = revision;
+          saveLastClock = inputs.clockSeconds;
+          saveStatus = "valid";
+          saveSkipReason = "";
+          if (manual) {
+            setSaveNotice(`Saved at ${formatClock(inputs.clockSeconds)}`);
+          } else {
+            stationSaveNotice = "";
+          }
+        } else if (isStoreUnavailable(result.reason)) {
+          saveUnavailable = true;
+          saveSkipReason = result.reason ?? "";
+          if (manual) setSaveNotice("Save failed — progress not saved");
+          else stationSaveNotice = "Save failed — progress not saved";
+        } else {
+          // A rejected snapshot (invalid-save) or a store failure is visible
+          // but non-blocking: the in-memory session remains playable.
+          saveSkipReason = result.reason ?? "";
+          if (manual) setSaveNotice("Save failed — progress not saved");
+          else stationSaveNotice = "Save failed — progress not saved";
+        }
+        syncSaveProbe();
+        if (!disposed) {
+          renderStation();
+          if (saveScreenOpen) saveLoad?.setSlot(saveSlotText());
+        }
+      },
+    );
   }
 
   /**
@@ -954,58 +1052,60 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       syncSaveProbe();
       return;
     }
-    const currentState = state;
-    const currentStationKey = stationKey;
-    const currentMarket = market;
-    const catalogue = commodities;
-    if (
-      currentState === undefined ||
-      currentStationKey === undefined ||
-      currentMarket === undefined ||
-      catalogue === undefined
-    ) {
+    const inputs = buildSnapshotInputs();
+    if (inputs === undefined) {
       saveSkipReason = "not-ready";
       syncSaveProbe();
       return;
     }
+    queueSnapshot(inputs, false);
+  }
 
-    const inputs = snapshotForSave(
-      currentState,
-      profile,
-      system,
-      { key: currentStationKey },
-      currentMarket,
-      catalogue,
-      hyperspaceTargetId,
-    );
-    saveRevision += 1;
-    const revision = saveRevision;
-    saveWrites += 1;
-    saveSkipReason = "";
-    syncSaveProbe();
-    // The frame loop never awaits this; `queueAutosave` cannot reject.
-    void queueAutosave(saveBoot.store, revision, inputs, saveBoot.allow).then(
-      (result) => {
-        if (result.committed) {
-          saveCommitted += 1;
-          saveLastClock = inputs.clockSeconds;
-          saveStatus = "valid";
-          stationSaveNotice = "";
-          saveSkipReason = "";
-        } else if (isStoreUnavailable(result.reason)) {
-          saveUnavailable = true;
-          saveSkipReason = result.reason ?? "";
-          stationSaveNotice = "Save failed — progress not saved";
-        } else {
-          // A rejected snapshot (invalid-save) or a store failure is visible
-          // but non-blocking: the in-memory trade remains playable.
-          saveSkipReason = result.reason ?? "";
-          stationSaveNotice = "Save failed — progress not saved";
-        }
-        syncSaveProbe();
-        if (!disposed) renderStation();
-      },
-    );
+  /**
+   * D-21: the manual Save writes the one `autosave` key through the same
+   * `snapshotForSave` + `queueAutosave` path. A committed valid slot asks first;
+   * only absent/valid slots may be written at all (T-06-15).
+   */
+  function manualSave(): void {
+    saveAttempts += 1;
+    if (manualSavePending) {
+      setSaveNotice("Save already in progress");
+      return;
+    }
+    if (!canOverwrite(saveStatus)) {
+      saveSkipReason = statusSkipReason(saveStatus);
+      setSaveNotice("Saving is disabled — this save is read-only");
+      return;
+    }
+    if (testTainted) {
+      saveSkipReason = "tainted";
+      setSaveNotice("Save skipped — test changes are not saved");
+      return;
+    }
+    if (saveStatus === "valid") {
+      // The committed slot is the only save: ask before replacing it.
+      if (!overwritePending) {
+        overwritePending = true;
+        saveLoad?.confirmOverwrite();
+        updateProbe();
+      }
+      return;
+    }
+    writeManualSave();
+  }
+
+  /** The confirmed (or absent-slot) manual write; never asks again. */
+  function writeManualSave(): void {
+    overwritePending = false;
+    saveLoad?.cancelOverwrite();
+    const inputs = buildSnapshotInputs();
+    if (inputs === undefined) {
+      saveSkipReason = "not-ready";
+      setSaveNotice("Save failed — the game is not ready");
+      return;
+    }
+    manualSavePending = true;
+    queueSnapshot(inputs, true);
   }
 
   /**
@@ -1242,6 +1342,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (paused || saveScreenOpen || chartOpen) return;
     if (currentState.mode !== "docked") return;
     saveScreenOpen = true;
+    overwritePending = false;
     contextBeforeSaveScreen = currentInput.getContext();
     currentInput.setContext("saveScreen");
     screen.show(saveSlotText());
@@ -1256,6 +1357,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function closeSaveScreen(): void {
     if (!saveScreenOpen) return;
     saveScreenOpen = false;
+    overwritePending = false;
+    saveLoad?.cancelOverwrite();
     saveLoad?.hide();
     input?.setContext(contextBeforeSaveScreen);
     // Return focus to the station screen the input context just restored.
@@ -1277,7 +1380,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         else openSaveScreen();
         break;
       case "saveScreenReturn":
-        closeSaveScreen();
+        if (screen.isConfirming()) {
+          overwritePending = false;
+          screen.cancelOverwrite();
+          updateProbe();
+        } else {
+          closeSaveScreen();
+        }
         break;
       case "saveScreenUp":
         if (saveScreenOpen) screen.moveSelection(-1);
@@ -1286,10 +1395,22 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         if (saveScreenOpen) screen.moveSelection(1);
         break;
       case "saveScreenSave":
-      case "saveScreenLoad":
+        if (saveScreenOpen) manualSave();
+        break;
       case "saveScreenConfirm":
+        if (!saveScreenOpen) break;
+        if (screen.isConfirming()) writeManualSave();
+        else screen.activate();
+        break;
       case "saveScreenCancel":
-        // Save/Load semantics land in Task 2/3; Return is live from Task 1.
+        if (saveScreenOpen && screen.isConfirming()) {
+          overwritePending = false;
+          screen.cancelOverwrite();
+          updateProbe();
+        }
+        break;
+      case "saveScreenLoad":
+        // The in-session Load lands in Task 3.
         break;
       default:
         break;
@@ -2242,6 +2363,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     saveLoad = createSaveLoadScreen(document.body);
     saveLoad.onReturn(() => {
       closeSaveScreen();
+    });
+    saveLoad.onSave(() => {
+      manualSave();
+    });
+    saveLoad.onOverwriteConfirmed(() => {
+      writeManualSave();
     });
 
     const loaded = loadSettings();

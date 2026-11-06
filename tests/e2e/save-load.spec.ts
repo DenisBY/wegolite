@@ -17,8 +17,13 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { getProbe, waitForReady } from "./helpers/probe.js";
+import { formatClock } from "../../src/render/hud/format.js";
 
 test.setTimeout(360_000);
+
+const SAVE_DB = "wegolite";
+const SAVE_STORE = "saves";
+const AUTOSAVE_KEY = "autosave";
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -56,6 +61,116 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
 async function waitForDocked(page: Page): Promise<void> {
   await waitForMode(page, "docked");
   await expect(page.locator("#docked")).toBeVisible();
+}
+
+/** Read a raw value, or `null` when the record is absent. */
+async function readRaw(
+  page: Page,
+  key: string = AUTOSAVE_KEY,
+): Promise<string | null> {
+  return page.evaluate(
+    (payload: { key: string; db: string; store: string }) =>
+      new Promise<string | null>((resolve, reject) => {
+        const request = indexedDB.open(payload.db, 1);
+        request.onerror = () => {
+          reject(new Error(`open failed: ${String(request.error)}`));
+        };
+        request.onsuccess = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(payload.store)) {
+            db.close();
+            resolve(null);
+            return;
+          }
+          const transaction = db.transaction(payload.store, "readonly");
+          const get = transaction.objectStore(payload.store).get(payload.key);
+          get.onsuccess = () => {
+            const value: unknown = get.result;
+            db.close();
+            resolve(typeof value === "string" ? value : null);
+          };
+          get.onerror = () => {
+            db.close();
+            reject(new Error(`read failed: ${String(get.error)}`));
+          };
+        };
+      }),
+    { key, db: SAVE_DB, store: SAVE_STORE },
+  );
+}
+
+/** Write a raw value into the save database from outside the app. */
+async function writeRaw(
+  page: Page,
+  raw: string,
+  key: string = AUTOSAVE_KEY,
+): Promise<void> {
+  await page.evaluate(
+    (payload: { raw: string; key: string; db: string; store: string }) =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open(payload.db, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(payload.store)) {
+            db.createObjectStore(payload.store);
+          }
+        };
+        request.onerror = () => {
+          reject(new Error(`open failed: ${String(request.error)}`));
+        };
+        request.onsuccess = () => {
+          const db = request.result;
+          const transaction = db.transaction(payload.store, "readwrite");
+          transaction.objectStore(payload.store).put(payload.raw, payload.key);
+          transaction.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          transaction.onerror = () => {
+            reject(new Error(`write failed: ${String(transaction.error)}`));
+          };
+          transaction.onabort = () => {
+            reject(new Error(`write aborted: ${String(transaction.error)}`));
+          };
+        };
+      }),
+    { raw, key, db: SAVE_DB, store: SAVE_STORE },
+  );
+}
+
+/** Wait for a committed save count. */
+async function waitForCommitted(page: Page, count: number): Promise<void> {
+  await page.waitForFunction(
+    (expected) => (window.__wegolite?.save?.committed ?? 0) >= expected,
+    count,
+    { timeout: 60_000 },
+  );
+}
+
+interface DecodedSave {
+  version: number;
+  mode: string;
+  clockSeconds: number;
+  credits: number;
+  fuel: number;
+  system: { id: string };
+  station: { key: string };
+  targetSystem?: string;
+  marketSeed?: number;
+  market?: { systemId: string; seed: number; goods: { key: string }[] };
+  flight?: {
+    position: [number, number, number];
+    orientation: [number, number, number, number];
+    speed: number;
+    pitchRate: number;
+    rollRate: number;
+    torus: boolean;
+  };
+}
+
+function decode(raw: string | null): DecodedSave {
+  if (raw === null) throw new Error("the save record is absent");
+  return JSON.parse(raw) as DecodedSave;
 }
 
 test("F2 opens the Save/Load screen only while docked and closes on Return/Escape", async ({
@@ -135,5 +250,157 @@ test("F2 is inert while paused and in flight", async ({ page }) => {
   await page.keyboard.press("F2");
   await expect(page.locator("#save-load")).toBeHidden();
   expect((await getProbe(page)).saveScreen?.open).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test("a manual Save writes the one committed slot and the next Save asks before overwriting", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  await startNewGame(page);
+  await waitForDocked(page);
+
+  expect((await getProbe(page)).save?.status).toBe("absent");
+  await page.keyboard.press("F2");
+  await expect(page.locator("#save-load")).toBeVisible();
+  const clockBefore = Math.floor((await getProbe(page)).clock);
+
+  // An absent slot writes immediately: no confirmation on the first Save.
+  await page.keyboard.press("KeyS");
+  await waitForCommitted(page, 1);
+  const first = await getProbe(page);
+  expect(first.save?.writes).toBe(1);
+  expect(first.save?.committed).toBe(1);
+  // New game consumed a clear revision, so the first save is revision 2; the
+  // assertion below pins monotonic increments rather than the absolute value.
+  const firstRevision = first.save?.revision ?? 0;
+  expect(firstRevision).toBeGreaterThanOrEqual(1);
+  expect(first.save?.lastClock).toBe(clockBefore);
+  expect(first.saveScreen?.notice).toMatch(/^Saved at /);
+  await expect(page.locator('[data-field="save-load-slot"]')).toHaveText(
+    `Autosave · Lave · ${formatClock(first.save?.lastClock ?? 0)}`,
+  );
+
+  // The manual blob is a canonical v2 docked save: one market snapshot, no
+  // second seed encoding, no pose.
+  const manualRaw = await readRaw(page);
+  const blob = decode(manualRaw);
+  expect(blob.version).toBe(2);
+  expect(blob.mode).toBe("docked");
+  expect(blob.system.id).toBe(first.systemId);
+  expect(blob.clockSeconds).toBe(clockBefore);
+  expect(blob.credits).toBe(first.economy?.credits);
+  expect(blob.market?.systemId).toBe(first.systemId);
+  expect(blob.market?.goods).toHaveLength(17);
+  expect(blob.marketSeed).toBeUndefined();
+  expect(blob.flight).toBeUndefined();
+
+  // The second Save asks before replacing the committed slot.
+  await page.keyboard.press("KeyS");
+  await page.waitForFunction(
+    () => window.__wegolite?.saveScreen?.confirming === true,
+    undefined,
+    { timeout: 30_000 },
+  );
+  await expect(page.locator("#save-load-confirm")).toBeVisible();
+  await expect(page.locator("#save-load-confirm-cancel")).toBeFocused();
+  await expect(page.locator('[data-field="save-load-confirm"]')).toHaveText(
+    "Overwrite the autosave? [Y/N]",
+  );
+
+  // Cancel leaves the blob byte-identical and reports no new revision.
+  const bytesBeforeCancel = await readRaw(page);
+  await page.keyboard.press("KeyN");
+  await expect(page.locator("#save-load-confirm")).toBeHidden();
+  expect(await readRaw(page)).toBe(bytesBeforeCancel);
+  const afterCancel = await getProbe(page);
+  expect(afterCancel.save?.committed).toBe(1);
+  expect(afterCancel.save?.revision).toBe(firstRevision);
+
+  // Confirm writes exactly one new revision at the same committed clock.
+  await page.keyboard.press("KeyS");
+  await page.waitForFunction(
+    () => window.__wegolite?.saveScreen?.confirming === true,
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.keyboard.press("KeyY");
+  await waitForCommitted(page, 2);
+  const confirmed = await getProbe(page);
+  expect(confirmed.save?.committed).toBe(2);
+  expect(confirmed.save?.revision).toBe(firstRevision + 1);
+  expect(confirmed.save?.lastClock).toBe(clockBefore);
+  await expect(page.locator("#save-load-confirm")).toBeHidden();
+
+  // The manual shape is identical to an autosave from the same state: the
+  // pre-launch anchor writes the same bytes because it uses the same encoder.
+  const manualFinal = await readRaw(page);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#save-load")).toBeHidden();
+  await page.keyboard.press("Digit1");
+  await waitForCommitted(page, 3);
+  expect(await readRaw(page)).toBe(manualFinal);
+  expect(errors).toEqual([]);
+});
+
+test("a future or unreadable slot is refused and never overwritten", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  const futureRaw = JSON.stringify({ version: 3, future: true });
+  await writeRaw(page, futureRaw);
+
+  await page.reload();
+  await waitForReady(page);
+  await startNewGame(page);
+  await waitForDocked(page);
+  expect((await getProbe(page)).save?.status).toBe("future");
+
+  await page.keyboard.press("F2");
+  await expect(page.locator("#save-load")).toBeVisible();
+  await expect(page.locator('[data-field="save-load-notice"]')).toHaveText(
+    /read-only/,
+  );
+  await page.keyboard.press("KeyS");
+  await page.waitForFunction(
+    () => (window.__wegolite?.save?.attempts ?? 0) >= 1,
+    undefined,
+    { timeout: 30_000 },
+  );
+  const futureProbe = await getProbe(page);
+  expect(futureProbe.save?.writes).toBe(0);
+  expect(futureProbe.save?.committed).toBe(0);
+  expect(futureProbe.save?.skipReason).toBe("future");
+  expect(await readRaw(page)).toBe(futureRaw);
+  await expect(page.locator("#save-load")).toBeVisible();
+
+  // An unreadable (non-save) blob is equally untouchable.
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#save-load")).toBeHidden();
+  const unreadableRaw = "this is not a wegolite save";
+  await writeRaw(page, unreadableRaw);
+  await page.reload();
+  await waitForReady(page);
+  await startNewGame(page);
+  await waitForDocked(page);
+  expect((await getProbe(page)).save?.status).toBe("unreadable");
+
+  await page.keyboard.press("F2");
+  await expect(page.locator('[data-field="save-load-notice"]')).toHaveText(
+    /read-only/,
+  );
+  await page.keyboard.press("KeyS");
+  await page.waitForFunction(
+    () => (window.__wegolite?.save?.attempts ?? 0) >= 1,
+    undefined,
+    { timeout: 30_000 },
+  );
+  const unreadableProbe = await getProbe(page);
+  expect(unreadableProbe.save?.writes).toBe(0);
+  expect(unreadableProbe.save?.committed).toBe(0);
+  expect(unreadableProbe.save?.skipReason).toBe("unreadable");
+  expect(await readRaw(page)).toBe(unreadableRaw);
   expect(errors).toEqual([]);
 });
