@@ -4,6 +4,8 @@
 **Domain:** Oolite economy-only commodity market, cargo/pod accounting, equipment availability, keyboard-driven DOM station screens, additive save-schema extension
 **Confidence:** HIGH for the Oolite formulas, cargo/pod arithmetic, equipment gating and screen contents (read from the Oolite checkout and the vendored configs this session); HIGH for the existing repo seams (read this session); MEDIUM for the station-shell/keyboard design and the PRNG/fixture choice (new design over verified seams, within D-18's discretion)
 
+> **Owner amendment (2026-11-05) — supersedes the earlier draft text below.** The locked decisions changed after this research was written: D-10/D-15 adopt Oolite's missile-removal trade-in (200 dc charge + full catalogue-value refund of every mounted missile, net +700 dc at 3; berth removal stays 1000 dc with no refund); D-17 generates the market when the system is set, not on every docking; D-18 replaces the `(systemId, arrival)` hash with one persisted `marketSeed` (`marketSeedForSystem(systemId) = Number.parseInt(fnv1a32("<systemId>:0"), 16) >>> 0`); D-19 persists that seed in the save so a reload regenerates identical prices (stock may reset) and there is no arrival counter. **Note (2026-11-05 source check):** Oolite itself re-rolls on commander load from a time-seeded RNG (`GameController.m:93`); `market_rnd` is not the commodity-price seed. The persisted seed is a deliberate, owner-approved modernisation, not Oolite-exact. Wherever this document still says "arrival", "per-docking regeneration", "charge-only removal" or "no refund", read the amended decision and the six PLAN.md files. See `05-CONTEXT.md` D-10/D-15/D-17/D-18/D-19.
+
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
 
@@ -23,24 +25,24 @@
 - **D-09:** Credits render as one decimal plus `Cr`; the hold line shows used/capacity (20 t, or 35 t with the cargo bay).
 
 ### Outfitting (F3)
-- **D-10:** The screen only sells. "Removes" from ECON-05 is satisfied by catalogue removal entries (`EQ_PASSENGER_BERTH_REMOVAL`, `EQ_MISSILE_REMOVAL`) bought like any other item. Purchased equipment is never resold — this matches core Oolite and avoids a depreciation money loop.
+- **D-10:** The screen only sells. "Removes" from ECON-05 is satisfied by catalogue removal entries (`EQ_PASSENGER_BERTH_REMOVAL`, `EQ_MISSILE_REMOVAL`) bought like any other item. Purchased equipment is never resold. Removal economics follow Oolite: berth removal charges 1000 dc with no refund, while missile removal charges 200 dc and refunds the full catalogue value of every mounted missile (`PlayerEntity.m:9326-9330`, `:9410-9438`). **Amended 2026-11-05 by owner: supersedes the earlier no-refund reading for missiles.**
 - **D-11:** Visible set is the peaceful research set: Fuel (only when the tank is not full), Large Cargo Bay (+15 t), Docking Computers, Galactic Hyperdrive, Advanced Space Compass, Advanced Navigational Array, Missile, Passenger Berth, plus removal entries. Combat and defensive items (lasers, shields, ECM, scoops, escape pod, energy unit, fuel injection, targeting) are hidden entirely.
 - **D-12:** Purchase effects apply immediately and do not advance the clock: fuel tops up at 0.2 Cr per 0.1 LY without ship-mass scaling; the cargo bay raises capacity by 15 t at once; the docking computer becomes available at once. Oolite's `600 + price` seconds install delay is explicitly out of v1 because docked screens have no time model.
 - **D-13:** Purchasable items are listed normally. Items failing tech level or ship conditions are shown dimmed and non-interactive with a short reason (`Requires TL 9`); nothing unavailable is ever purchasable. Fuel is hidden when the tank is full. The selected item shows its description and price.
-- **D-14:** Missiles are multi-instance up to 3 at 30 Cr each, displayed `Missile (2/3)`. Passenger berths are 8250 dc (825.0 Cr) each as compiled from the catalogue — D-14's 82.5 Cr is arithmetically wrong and corrected in PROJECT.md — consume 5 t of cargo space each, and are buyable while space remains. Every other item is single-instance.
-- **D-15:** Removal entries appear as ordinary rows only when there is something to remove (`Remove Passenger Berth — 100 Cr`, `Remove Missile — 20 Cr`); they are selected and confirmed like any purchase, with no special keys.
+- **D-14:** Missiles are multi-instance up to 3 at 30 Cr each, displayed `Missile (2/3)`. Passenger berths are 825.0 Cr each (8250 dc, the compiled catalogue price; amended from the original "82.5 Cr" by user decision 2026-11-05, see PROJECT.md Key Decisions), consume 5 t of cargo space each, and are buyable while space remains. Every other item is single-instance.
+- **D-15:** Removal entries appear as ordinary rows only when there is something to remove (`Remove Passenger Berth — 100 Cr`, `Remove Missile — 20 Cr`); they are selected and confirmed like any purchase, with no special keys. **Amended 2026-11-05:** the missile-removal row description must state the full-value trade-in, not "No refund is paid".
 - **D-16:** F3 uses the same footer Y/N confirmation as F8 (`Buy Large Cargo Bay for 400.0 Cr? [Y/N]`); refusals (credits, tech level) use the same footer line.
 
 ### Market state & determinism
-- **D-17:** Prices and stock are generated on every docking event for the current system. Re-docking produces a fresh market, matching Oolite's `setSystemTo:` behaviour of destroying and regenerating the market. **Reversibility:** costly — moving generation to another moment changes fixture values and every screen test that observes stock.
-- **D-18:** The triangular random term comes from a deterministic PRNG seeded from a hash of `(systemId, arrival counter)`. Each docking differs, but the same arrival is reproducible; `Math.random` never enters `src/sim`. The counter is maintained by the session and starts at 0 on a new game or load.
-- **D-19:** Cargo and credits live in the persisted profile and are autosaved on every accepted trade; market stock lives only in memory and is regenerated on load as a new arrival. Cargo and balance are written together, so reloading cannot duplicate money. Market persistence and migrations stay in Phase 6. **Reversibility:** costly — extending the strict save schema is a published-contract change that Phase 6 must not have to undo.
-- **D-20:** Market fixtures are golden JSON files under `tests/golden/` for a few characteristic systems (Lave agricultural, Zaonce industrial, one high-tech system) with a fixed seed, covering all 17 commodities with price and stock, compared exactly like the existing content goldens.
+- **D-17:** Prices and stock are generated when the current system is set, matching Oolite's `setSystemTo:` (`Universe.m:7173-7191`), not on every docking. Docking in the same system reuses the market. **Amended 2026-11-05 by owner:** Oolite also regenerates on commander load (`PlayerEntity.m:1078`, `:2005`) from a non-persisted, time-seeded RNG (`GameController.m:93`), so its reload can re-roll prices; Wegolite deliberately persists the seed and keeps reload stable (modernisation, not Oolite behaviour). Supersedes per-docking regeneration. **Reversibility:** costly — moving generation to another moment changes fixture values and every screen test that observes stock.
+- **D-18:** Oolite's triangular random term draws from the global RANROT stream (`OOCommodities.m:389`, `:404`); `market_rnd` (`PlayerEntity.m:6527-6529`, saved `:844`/restored `:1415`) is **not** the commodity-price seed — it drives contracts, station update times, trade-in and reputation. Wegolite derives one deterministic persisted `marketSeed` per system; `Math.random` never enters `src/sim`. **Amended 2026-11-05 by owner: replaces the `(systemId, arrival)` hash seed; the persisted seed is a deliberate modernisation.**
+- **D-19:** Cargo and credits live in the persisted profile and are autosaved on every accepted trade; the market seed lives in the save and is regenerated deterministically on load, so prices cannot change across a reload. Player-caused stock changes may reset on load; prices do not. **Amended 2026-11-05 by owner:** this is a deliberate modernisation — Oolite re-rolls on load from a non-persisted time-seeded stream. Phase 5 owns the seed field; Phase 6 owns re-seeding on hyperspace arrival.
+- **D-20:** Market fixtures are golden JSON files under `tests/golden/` for a few characteristic systems (Lave agricultural, Zaonce industrial, one high-tech system) with a fixed `marketSeed`, covering all 17 commodities with price and stock, compared exactly like the existing content goldens.
 - **D-21:** Commodity `name` becomes the human-readable display name at build time, compiled from `descriptions.plist` (`Food`, `Gem-Stones`, …); `key` remains the identity. Screens read `name` directly with no UI-side resolution. Content goldens and the drift check must be regenerated. **Reversibility:** costly — changing the emitted content shape touches the drift baseline and any test asserting the localization key.
 
 ### the agent's Discretion
 - Save-schema mechanism for cargo (optional field on v1 versus a version bump): the chosen route must keep existing Phase 4 v1 blobs readable and must not invent a migration that belongs to Phase 6.
-- PRNG algorithm and hash construction, and where the arrival counter is stored in session state.
+- PRNG algorithm and hash construction, and where the persisted `marketSeed` is stored in session state.
 - Exact DOM structure, class names, focus model, and scroll behaviour of the station shell.
 - Where market generation lives, provided it is pure and deterministic and `src/sim` stays free of DOM and Three.js.
 - Numeric formatting helpers and column widths.
@@ -90,7 +92,7 @@ Phase 5 is almost entirely arithmetic and data projection over seams that alread
 
 The hard integration problem is state, not maths. The existing `PlayerProfile` is `{credits, equipment: string[]}` with **unique** equipment keys, and both `purchase()` and `SaveV1Schema` reject duplicates. Missiles (up to 3) and passenger berths (multi-instance) cannot be represented, and cargo/fuel do not exist at all. Phase 5 must therefore extend the profile and the strict v1 save with **optional additive fields** (cargo entries, fuel, missiles, berths) rather than a version bump, so Phase 4 blobs still parse and no Phase 6 migration is invented. The station shell is a new DOM controller over the existing `#docked` root, with a mode-aware keyboard layer so `Esc` can mean "back" inside a screen without also toggling pause, and `1` cannot launch from inside a section.
 
-The recommended build order is: content shape → pure economy/cargo modules with goldens → profile/save extension → outfitting rules → station view models → station shell + input contexts → session wiring → e2e keyboard proof. Three decisions need the planner's (or user's) confirmation before locking: the missile-removal net-refund semantics, whether fuel is autosaved with cargo, and how the arrival counter behaves on Continue (D-18 says 0, which means the first-arrival market is reproduced on every load).
+The recommended build order is: content shape → pure economy/cargo modules with goldens → profile/save extension → outfitting rules → station view models → station shell + input contexts → session wiring → e2e keyboard proof. Three decisions need the planner's (or user's) confirmation before locking: the missile-removal net-refund semantics (resolved 2026-11-05: full trade-in), whether fuel is autosaved with cargo (resolved: yes), and how the persisted `marketSeed` defaults on a Phase 4 blob (`restore.marketSeed ?? marketSeedForSystem(system.id)`; there is no arrival counter).
 
 **Primary recommendation:** Add `src/sim/economy/{ranrot,market,cargo,trade}.ts` and `src/sim/player/outfitting.ts` as pure modules; extend `CommoditySchema` with `peakExport`/`peakImport` and resolve `name` in the converter; extend `PlayerProfile` and `SaveV1Schema` with optional `cargo`/`fuel`/`missiles`/`passengerBerths`; build one `StationShell` DOM controller with a mode-aware action layer (`flight` / `dockHome` / `dockScreen`); prove every requirement with Node unit tests plus a keyboard-only Playwright spec that reads `window.__wegolite` probes.
 
@@ -105,7 +107,7 @@ The recommended build order is: content shape → pure economy/cargo modules wit
 | Equipment visibility, conditions, install/remove | `src/sim/player/outfitting.ts` (pure) | Content catalogue (read-only) | Availability is a function of profile + system TL + catalogue conditions |
 | Station screen layout, selection, focus | `src/ui/` (DOM) | — | DOM/CSS only; writes text via `textContent`; owns its `AbortController` |
 | Keyboard semantics for docked screens | `src/input/` (DOM-free core) | `src/app/game-session.ts` (mode) | Actions stay semantic and rebindable; context filtering prevents `Esc`/`1` double-meaning |
-| Session orchestration (arrival counter, market lifetime, autosave) | `src/app/game-session.ts` | `src/persistence/` | The only place that knows a docking happened and that a profile change must become durable |
+| Session orchestration (persisted `marketSeed`, market lifetime, autosave) | `src/app/game-session.ts` | `src/persistence/` | The only place that knows a docking happened and that a profile change must become durable |
 | Persist cargo/credits/fuel/counts | `src/persistence/` | `src/sim/player/profile.ts` | Strict zod schema + allow-lists; the profile is the single state object |
 | Screen evidence (`window.__wegolite`) | `src/app/probe.ts` | e2e | D-08 evidence is probes and console errors, never pixels |
 
@@ -194,7 +196,7 @@ No new libraries. This phase is TypeScript + existing zod + existing Vitest/Play
 
 `[VERIFIED: /home/opencode/git/oolite/src/Core/OOCommodities.h:29]` — `#define MAIN_SYSTEM_MARKET_LIMIT 127`.
 
-`[VERIFIED: /home/opencode/git/oolite/src/Core/Universe.m:7173-7191]` — regeneration is a side effect of `setSystemTo:` (`DESTROY(commodityMarket); commodityMarket = [[commodities generateMarketForSystemWithEconomy:economy andScript:scriptName] retain];`), which is D-17's upstream justification.
+`[VERIFIED: /home/opencode/git/oolite/src/Core/Universe.m:7173-7191]` — regeneration is a side effect of `setSystemTo:` (`DESTROY(commodityMarket); commodityMarket = [[commodities generateMarketForSystemWithEconomy:economy andScript:scriptName] retain];`), which is D-17's upstream justification for generating when the system is set (not for reload stability).
 
 ### Exact semantics to port
 
@@ -232,10 +234,10 @@ Port with `>>> 0` after each add/shift and `Math.imul` where a 32-bit multiply i
 
 ### Recommended PRNG + seed (D-18 discretion)
 
-- Reuse the repo's FNV-1a 32-bit hash: `fnv1a32(text)` returns a **hex string** `[VERIFIED: src/sim/hash.ts:12-21]`. Derive the numeric seed with `Number.parseInt(fnv1a32(`${systemId}:${arrival}`), 16) >>> 0`.
+- Reuse the repo's FNV-1a 32-bit hash: `fnv1a32(text)` returns a **hex string** `[VERIFIED: src/sim/hash.ts:12-21]`. Derive the numeric seed with `marketSeedForSystem(systemId) = Number.parseInt(fnv1a32("<systemId>:0"), 16) >>> 0`.
 - Seed RANROT with that 32-bit value (`low = seed`, `high = ~seed`, three mix rounds).
-- `arrival` is a session-owned `number` starting at 0 on new game and on load; increment **once per `docked` sim event**. On session start while already docked, generate with arrival 0.
-- Reproducible, per-arrival different, and `Math.random` never appears.
+- `marketSeed` is a session-owned `uint32` persisted in the save. A new game uses `marketSeedForSystem(system.id)`; a restore uses `save.marketSeed ?? marketSeedForSystem(system.id)`; a `docked` event reuses the in-memory market and never re-seeds. Phase 6 owns re-seeding on hyperspace arrival. There is no arrival counter.
+- Reproducible, stable across reloads and redocks, and `Math.random` never appears.
 
 ### Missing content fields (blocking)
 
@@ -264,7 +266,7 @@ Lave lines: `description` :1005, `economy` :1006, `government` :1008, `id` :1009
 Zaonce lines: `description` :18087, `economy` :18088, `government` :18090, `id` :18091, `name` :18102, `population` :18122, `productivity` :18165, `radiusKm` :18166, `techLevelRaw` :18197.
 Leesti lines: `description` :7727, `economy` :7728, `government` :7730, `id` :7731, `name` :7742, `population` :7762, `productivity` :7805, `radiusKm` :7806, `techLevelRaw` :7837.
 
-**Lave (economy 5), arrival 0 — computed reference `[ASSUMED]`**
+**Lave (economy 5), marketSeed 0 — computed reference `[ASSUMED]`**
 
 | key | price (dc/unit) | stock |
 |-----|-----------------|-------|
@@ -391,7 +393,7 @@ Pure module `src/sim/economy/trade.ts` (names are discretion, responsibilities a
 
 ```ts
 interface MarketGood { readonly key: string; readonly price: number; readonly stock: number }
-interface Market { readonly systemId: string; readonly arrival: number; readonly goods: readonly MarketGood[] }
+interface Market { readonly systemId: string; readonly marketSeed: number; readonly goods: readonly MarketGood[] }
 
 type TradeSide = "buy" | "sell";
 type TradeRefusal =
@@ -583,6 +585,8 @@ It owns `[data-field="system"|"credits"|"ship"|"fuel"|"message"|"dockcomp"|"dock
 
 Put the projections in a pure module (e.g. `src/ui/station-model.ts`), so the math and the copy can be tested without a DOM and the shell only writes strings:
 
+> **Superseded by 05-01 step 6 and 05-04 Task 3.** The live signatures are `buildMarketModel(market, profile, commodities, selection, feedback)` returning `{rows: {key,name,unit,price,priceText,stockText,heldText,exText,dimmed,selectable}[], cashText, loadText, selectedKey, confirmText, noticeText}` and `buildOutfittingModel(catalogue, profile, systemTechLevelRaw, selectedKey, unitByKey)`; the `pendingText`/`footerText` fields and the three-argument shape below are the earlier draft.
+
 ```ts
 buildMarketModel(market, profile, commodities): {
   rows: { key; name; unit; priceDc; stock; held; illegalExport; dimmed; stockText }[];
@@ -712,8 +716,8 @@ A Playwright spec must do the whole loop with `page.keyboard.press`/`down`/`up` 
 | State | Owner | Persisted? |
 |-------|-------|-----------|
 | credits, cargo, fuel, missiles, berths, unique equipment | `PlayerProfile` (beside `FlightState`) | yes, on every accepted trade/purchase |
-| current market (price + stock) | `GameSession` local (`Market`) | **no** — regenerated as a new arrival (D-19) |
-| arrival counter | `GameSession` local number | no; resets to 0 on new game and load (D-18) |
+| current market (price + stock) | `GameSession` local (`Market`) | **no** — regenerated from the persisted `marketSeed` on load; stock may reset, prices do not (D-19) |
+| `marketSeed` | `GameSession` local uint32, written through `snapshotForSave` | **yes** — additive optional save field; restored or defaulted to `marketSeedForSystem` (D-18) |
 | active screen, selection, pending trade | station controller (session) | no |
 | clock | `FlightState` | existing (unchanged by docked screens) |
 
@@ -809,7 +813,7 @@ Tests that must be updated: `tools/oolite-ingest/convert/commodities.test.ts` (d
                               │                        │ calls     │ actions
                               │            ┌───────────┴───────────▼─────────────┐
                               │            │            GameSession             │
-   system ─────────────────────┼──────────► │ profile · market · arrivalCounter   │
+   system ─────────────────────┼──────────► │ profile · market · marketSeed        │
    (galaxy0)                   │            │ commitProfile → autosave            │
                               │            └───────┬───────────────┬────────────┘
                               │                    │ pure          │ persistence
@@ -889,7 +893,7 @@ tests/golden/market/
 |---------|-------------|-------------|-----|
 | Commodity display names | A TypeScript name table or UI-side `[commodity-name x]` lookup | Build-time resolution from `descriptions.plist` (D-21) | Fidelity + drift gate; a second table silently diverges |
 | Price/stock formula | A new "reasonable" economy, or the obsolete 8-bit `Commodities.plist` formula | `OOCommodities.m` port (§Economy Formula) | The project's value is fidelity; the old formula is explicitly obsolete since 1.81 |
-| Randomness | `Math.random`, `crypto.getRandomValues`, `Date` | `src/sim/economy/ranrot.ts` seeded from `(systemId, arrival)` | Determinism + fixtures; ESLint already bans `Math.random` in `src/sim` `[VERIFIED: eslint.config.js:120-126]` |
+| Randomness | `Math.random`, `crypto.getRandomValues`, `Date` | `src/sim/economy/ranrot.ts` seeded from the persisted `marketSeed` | Determinism + fixtures; ESLint already bans `Math.random` in `src/sim` `[VERIFIED: eslint.config.js:120-126]` |
 | Money | floats, `toFixed` arithmetic, a decimal library | integer decicredits + integer formatter | Exact, no drift, matches Oolite's `pricePerUnit % 10` display |
 | Pod accounting | "divide by 1000" or "kg goods are tons" | `floor((500 + qty)/1000)` / `floor((500000 + qty)/1_000_000)` (§Cargo) | The 499-unit "safe" is the authored rule; plain division is wrong at the boundary |
 | Save validation | manual `JSON.parse` + `as` casts | zod strict schema + allow-lists (existing) | Already the project's trust boundary; keeps forged cargo/equipment out |
@@ -905,7 +909,7 @@ tests/golden/market/
 | Seam | Current behaviour | Phase 5 change |
 |------|-------------------|----------------|
 | `src/ui/docked.ts` | `createDockedPanel(root)`; show/hide, fields, one purchase line | Grow into `#docked` station shell; remove `setDockComputer`/`onBuyDockComputer`; keep launch/credits/message |
-| `src/app/game-session.ts` | `profile` local; `docked.show(system.name)` on start and `docked` event; `docked.hide()` on `launched` `[VERIFIED: src/app/game-session.ts:600-640,1156-1164]` | Load commodities; own `market` + `arrivalCounter`; generate on start/dock; route station actions; commit+autosave trades/fits |
+| `src/app/game-session.ts` | `profile` local; `docked.show(system.name)` on start and `docked` event; `docked.hide()` on `launched` `[VERIFIED: src/app/game-session.ts:600-640,1156-1164]` | Load commodities; own `market` + persisted `marketSeed`; generate once at session start/dock and never re-seed on `docked`; route station actions; commit+autosave trades/fits |
 | `src/sim/player/profile.ts` | `{credits, equipment}`; `canPurchase`, `purchase`, `formatCredits` `[VERIFIED: src/sim/player/profile.ts:42-45,98-145]` | Extend type; keep `canPurchase` for the single-instance TL/credits check; new `outfitting.ts` for conditions/multiplicity |
 | `src/input/actions.ts` | 13 flight actions; `SHIFT_REQUIRED_ACTIONS` `[VERIFIED: src/input/actions.ts:13-70]` | Add station actions + `ACTION_CONTEXTS`; preserve defaults |
 | `src/input/keyboard.ts` | `createInputState`/`createKeyboardInputSource`; edge commands `[VERIFIED: src/input/keyboard.ts:29-35]` | Add `setContext`; filter firing + zero axes outside `flight` |
@@ -942,7 +946,7 @@ tests/golden/market/
 20. **Negative credits.** The UI must never compute `credits - cost` before the plan approves it; `apply*` re-checks.
 21. **Selling past 127.** Clamp to `127 - stock`; a full market refuses that good with a reason.
 22. **Market lifetime.** Regenerating on F8 open (instead of docking) makes stock depend on screen navigation and breaks D-17.
-23. **Arrival counter reset.** D-18 says 0 on load; do not persist it in Phase 5 (Phase 6 owns SAVE-06).
+23. **Persisted `marketSeed`.** D-18/D-19 (amended 2026-11-05) persist one uint32 `marketSeed` in the save; there is no arrival counter. A new game derives `marketSeedForSystem(system.id)`, a restore uses `save.marketSeed ?? marketSeedForSystem(system.id)`, and a `docked` event never re-seeds. Phase 6 owns multi-system re-seeding.
 24. **Changing `newProfile()`** breaks many existing tests/typecheck; plan a mechanical sweep of `PlayerProfile` literals.
 25. **`buy-dockcomp` removal** breaks the Phase 4 browser test; update it in the same plan as the shell.
 26. **`status-hyperspace-system`/`status-unknown-system` are not in `labels.json`.** Only six arrays + `sysdata-*` are compiled `[VERIFIED: src/content/schemas/labels.ts:18-26]`; use app literals or extend the labels schema deliberately (a content change).
@@ -1107,9 +1111,9 @@ const firing = candidates.filter((a) => ACTION_CONTEXTS[a].includes(context));
 
 ## Open Questions (RESOLVED)
 
-1. **Missile-removal money rule (A3). — RESOLVED: charge-only, no trade-in.** D-10 and D-15 are locked and intentionally make removal entries ordinary catalogue purchases at their listed price with no net refund; the Oolite trade-in is deliberately not implemented. Plan 05-03 records the divergence and its locked-decision justification in PROJECT.md, and the exact-delta tests assert credits fall by the catalogue price with no credit add.
+1. **Missile-removal money rule (A3). — RESOLVED 2026-11-05: adopt Oolite's trade-in.** D-10/D-15 were amended by the owner: the missile-removal entry charges 200 dc and refunds the full catalogue value of every mounted missile (300 dc each, net +700 dc at three; berth removal stays 1000 dc with no refund). Plan 05-03 implements it with exact-delta tests and records it in PROJECT.md; the earlier charge-only reading is superseded.
 2. **Fuel persistence (A4). — RESOLVED: fuel is a persisted optional v1 field.** Plan 05-01 adds `fuel` (0..70) beside cargo/credits so a buy-then-reload cannot lose a credits-worth of fuel; it remains additive and Phase 6's SAVE-02 can extend it.
-3. **Arrival counter on Continue (D-18). — RESOLVED: 0 on load, as D-18 says literally.** Plan 05-01 resets the counter to 0 on restore and regenerates the arrival-0 market; `probe.economy.arrival` exposes the value so the Phase 6 SAVE-06 change is visible. Plan 05-06's reload case asserts `arrival === 0` and a fresh stock value.
+3. **Market seed on Continue (D-18/D-19). — RESOLVED 2026-11-05: persist one `marketSeed`.** Plan 05-01 adds the optional additive `marketSeed`; the boot uses `restore.marketSeed ?? marketSeedForSystem(system.id)`, a `docked` event reuses the in-memory market, and a reload regenerates identical prices from the persisted seed while stock may reset. There is no `probe.economy.arrival` field and no arrival counter. Plan 05-06's reload case asserts the seed and all 17 prices are unchanged. Oolite itself re-rolls on load from a time-seeded RNG; the persisted seed is a deliberate modernisation.
 4. **F-key suppression (A10). — RESOLVED: proven in the browser, Digit keys advertised.** Plan 05-05 asserts `performance.getEntriesByType("navigation").length === 1` after `page.keyboard.press("F5")`; the capture-phase listener cancels the reserved codes and the footer advertises the Digit aliases.
 5. **Save forward-compatibility. — RESOLVED: accept the caveat.** Plan 05-01/05-02 use optional additive fields (no `version: 2` union, no migration), and plan 05-02 records in PROJECT.md that an older build sees a newer v1 blob as corrupt.
 6. **New-game missile count. — RESOLVED: 3 missiles.** `newProfile()` sets `missiles: 3` and a field-less Phase 4 blob restores the same default; D-14 caps purchases at 3, so F3 shows `Missile (3/3)` dimmed with `Pylons full` until one is removed.
@@ -1150,7 +1154,7 @@ The phase is code/config-only; no service, database or runtime tool is added.
 
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| ECON-01 | Exact price/stock for Lave/Zaonce/Leesti at arrival 0; 127 cap; economy-only | unit + golden + drift | `docker compose run --rm test npx vitest run tests/sim/economy`; `docker compose run --rm assets npm run assets:check` | ❌ Wave 0 (`tests/sim/economy/market.test.ts`, `tests/golden/market/*.json`) |
+| ECON-01 | Exact price/stock for Lave/Zaonce/Leesti at `marketSeedForSystem`; 127 cap; economy-only | unit + golden + drift | `docker compose run --rm test npx vitest run tests/sim/economy`; `docker compose run --rm assets npm run assets:check` | ❌ Wave 0 (`tests/sim/economy/market.test.ts`, `tests/golden/market/*.json`) |
 | ECON-02 | Same price both ways; price unchanged by trades; integer dc | unit | `… vitest run tests/sim/economy/trade.test.ts` | ❌ Wave 0 |
 | ECON-03 | 20/35 t; 499/500 kg and 499,999/500,000 g boundaries; full-hold safe | unit | `… vitest run tests/sim/economy/cargo.test.ts tests/sim/economy/trade.test.ts` | ❌ Wave 0 |
 | ECON-04 | F8 columns/units/dimming/`—`/Alien Items; quantity + confirm | unit + e2e | `… vitest run tests/ui`; `docker compose run --rm e2e` | ❌ Wave 0 (`tests/ui/station-market.test.ts`, `tests/e2e/station.spec.ts`) |
@@ -1175,7 +1179,7 @@ The phase is code/config-only; no service, database or runtime tool is added.
 - [ ] `tests/sim/economy/cargo.test.ts` — pod thresholds, capacity with cargo bay/berths, full-hold safe.
 - [ ] `tests/sim/economy/trade.test.ts` — buy/sell clamps, refusal reasons, same price both ways, integer credits, never negative (add a fast-check property for random cargo/credit combos).
 - [ ] `tests/sim/player/outfitting.test.ts` — visible set, TL gate, conditions, multi-instance, removals, fuel price.
-- [ ] `tests/golden/market/{lave,zaonce,leesti}.json` — 17 rows each, `{version, systemId, arrival, seed, goods}`; generated by the implementation, compared exactly.
+- [ ] `tests/golden/market/{lave,zaonce,leesti}.json` — 17 rows each, `{version, systemId, marketSeed, goods}`; generated by the implementation, compared exactly.
 - [ ] `tests/helpers/commodities.ts` — Node `readFileSync(new URL("../../src/content/generated/commodities.json", import.meta.url))` helper so economy tests use the committed values, not a `?raw` Vite import (the existing content tests use the same read pattern).
 - [ ] `tests/ui/station-market.test.ts`, `tests/ui/station-outfitting.test.ts`, `tests/ui/station-status.test.ts`, `tests/ui/station-system-data.test.ts` — pure view models.
 - [ ] `tests/input/station-actions.test.ts` — context filtering, Escape not double-firing, Digit1 inert in `dockScreen`, Shift chords.
@@ -1206,7 +1210,7 @@ probe.economy = {
   cargo: Record<string, number>,
   holdPods: number,
   capacityPods: number,
-  arrival: number,
+  marketSeed: number,
   market: { key: string; price: number; stock: number }[],
   lastTrade: { side: "buy" | "sell"; key: string; amount: number; cost: number } | null,
 };

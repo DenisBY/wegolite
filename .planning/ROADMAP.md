@@ -191,13 +191,13 @@ Plans:
 - [ ] 05-02-PLAN.md — Trading breadth: exact kg/g capacity, sell, sequential clamps, overflow, regression goldens plus independent reference vectors, determinism, PROJECT.md decisions
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 05-03-PLAN.md — Outfitting rules: D-11 visible set, `notOffered`, fail-closed conditions, integer fuel, multi-instance, truthful no-refund removal copy
+- [ ] 05-03-PLAN.md — Outfitting rules: D-11 visible set, `notOffered`, fail-closed conditions, integer fuel, multi-instance, Oolite missile trade-in and non-refunding berth removal with truthful copy, `canPurchase`/`purchase` delegation
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 05-04-PLAN.md — Labels loader and pure view models for F8/F3/F5/F7, total-cost confirmation, truthful removal detail
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 05-05-PLAN.md — F3/F5/F7 screens, two-state confirm, keyboard-only navigation, sentinel no-reload proof, Tab focus containment
+- [ ] 05-05-PLAN.md — F3/F5/F7 screens, two-state confirm, keyboard-only navigation, `defaultPrevented` no-reload proof with a negative control, derived home fuel, Tab focus containment
 
 **Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 05-06-PLAN.md — Save hardening and writer parity, full keyboard loop with pause, economy-purity guard with correct paths, phase gate

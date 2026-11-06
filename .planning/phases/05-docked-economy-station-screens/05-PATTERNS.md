@@ -6,6 +6,8 @@
 
 **Source gate:** every analog path below was checked with `git ls-files` and is tracked repository source. No `.gsd/capabilities/**` mirror paths are used.
 
+> **Owner amendment (2026-11-05) — supersedes the seed/market patterns below.** The market is seeded by one persisted `marketSeed` (`marketSeedForSystem(systemId) = Number.parseInt(fnv1a32("<systemId>:0"), 16) >>> 0`), written through `snapshotForSave`; there is no `arrivalCounter` and a `docked` event never re-seeds. The missile-removal entry charges 200 dc then refunds the full catalogue value of every mounted missile; berth removal stays 1000 dc with no refund. Market goldens are `{ version, systemId, marketSeed, goods }`. Read the patterns below with those four corrections; see `05-CONTEXT.md` D-10/D-15/D-17/D-18/D-19.
+
 ---
 
 ## File Classification
@@ -102,7 +104,7 @@ export function fnv1a32(text: string): string {
 - File begins with `// SPDX-License-Identifier: GPL-2.0-or-later` and copyright.
 - Return an object/closure (`{ randf(): number }`), not a class.
 - Use `>>> 0` after every 32-bit add/shift; `Math.imul` for multiplies.
-- Seed from `Number.parseInt(fnv1a32(`${systemId}:${arrival}`), 16) >>> 0`.
+- Seed from the persisted `marketSeed`; a new game derives it with `marketSeedForSystem(systemId) = Number.parseInt(fnv1a32("<systemId>:0"), 16) >>> 0`.
 - Document the RANROT `MakeRanrotSeed` three-mix-round initialisation and that `randf()` is 16-bit granular.
 
 **Do not:** import `Math.random`, `Date`, `performance`, Three.js, or content runtime modules. Lint forbids them under `src/sim` (`eslint.config.js:120-126`).
@@ -134,7 +136,7 @@ export function deriveSystemLayout(
 **In-repo content boundary** (`src/content/types.ts:4-25`): `src/sim` may import **types only** from `src/content/types.js`. `market.ts` must therefore take `readonly Commodity[]` as an argument, never call `loadCommodities()`.
 
 **Rules to copy**
-- Signature `generateMarket(system, commodities, arrival): Market` with plain-data inputs.
+- Signature `generateMarket(system, commodities, seed): Market` with plain-data inputs.
 - Return a new immutable value (`readonly` fields; `readonly goods: readonly MarketGood[]`).
 - Put constants at module top with doc comments (`export const MARKET_LIMIT = 127`).
 - Include the Oolite provenance comment (`OOCommodities.m:383-411`, `MAIN_SYSTEM_MARKET_LIMIT`).
@@ -502,7 +504,7 @@ function handleEvent(event: SimEvent): void {
 **Guidance**
 - There is no existing standalone controller analog. The simplest faithful route is to keep screen/selection/pending state **inside `game-session.ts`** beside `profile` and `market`, and keep `src/ui/station.ts` purely presentational.
 - If the planner splits it out, follow session conventions: a `createX(options)` factory returning an interface, all mutable state in closure locals, no DOM reads, and injected callbacks for `onTrade`/`onPurchase`/`onBack`.
-- Either way, the session is the only owner of `market`, `arrivalCounter`, `profile`, `commitProfile`, and `autosave`.
+- Either way, the session is the only owner of `market`, `marketSeed`, `profile`, `commitProfile`, and `autosave`.
 
 ---
 
@@ -825,9 +827,9 @@ function onKeyDown(event: KeyboardEvent): void {
 ```
 
 **Rules to copy**
-- Add session locals: `let market: Market | undefined`, `let arrivalCounter = 0`, `let commodities: readonly Commodity[] | undefined`, `let labels: Labels | undefined`.
+- Add session locals: `let market: Market | undefined`, `let marketSeed: number | undefined`, `let commodities: readonly Commodity[] | undefined`, `let labels: Labels | undefined`.
 - Load commodities/labels where equipment is loaded (`src/app/game-session.ts:1010-1016`): `const equipment = await loadEquipment();` and set the local. Extend the same `Promise.all`/try-catch.
-- Generate the market on session start (while docked) and in the `docked` event; increment `arrivalCounter` once per docked event; reset to 0 on new game/load.
+- Generate the market once at session start (while docked) from `marketSeed = restore.marketSeed ?? marketSeedForSystem(system.id)`; a `docked` event reuses the in-memory market and never re-seeds or regenerates.
 - Trade/purchase path: shell action → `plan*`/`canFit` → footer text → confirm → session method → `apply*` → `commitProfile(next)` → `autosave()`.
 - Do **not** autosave on market generation, screen navigation, rejected actions, or selection changes.
 - Keep `Command` payload-free: trade requests are session calls, not new `Command` variants.
@@ -1029,7 +1031,7 @@ function validSave(overrides: Record<string, unknown> = {}): SaveV1 {
 
 **Rules to copy**
 - Unit tests live under `tests/<layer>/`; view-model tests go in the new `tests/ui/` directory.
-- Golden JSON goes under `tests/golden/market/`, versioned `{ version, systemId, arrival, seed, goods }`, compared exactly.
+- Golden JSON goes under `tests/golden/market/`, versioned `{ version, systemId, marketSeed, goods }`, compared exactly.
 - Each economy test reads the committed `commodities.json` through a `tests/helpers/commodities.ts` helper rather than a Vite import.
 - Extend the existing reject table for new save failures: unknown commodity key, duplicate cargo key, over-capacity hold.
 - E2E specs must boot through `startNewGame` / the existing probe helpers and assert `console.error` is empty.
@@ -1044,7 +1046,7 @@ function validSave(overrides: Record<string, unknown> = {}): SaveV1 {
 **Apply to:** `src/sim/economy/**`, `src/sim/player/outfitting.ts`.
 - No DOM, no Three.js, no `Math.random`, no `Date.now`, no `performance.now`.
 - Import content **types only** from `src/content/types.js`.
-- Seed from `(systemId, arrival)` through `fnv1a32`; never a wall clock.
+- Seed from the persisted `marketSeed` through `fnv1a32`; never a wall clock and never an arrival counter.
 
 ### Content trust boundary
 **Source:** `src/content/equipment.ts:41-73`.
@@ -1105,7 +1107,7 @@ function validSave(overrides: Record<string, unknown> = {}): SaveV1 {
 | `src/app/station-controller.ts` | controller | event-driven | No standalone UI state-machine module exists; the only event switch is inside `game-session.ts`. | Prefer keeping screen/selection/pending state in `game-session.ts`; only split if the file becomes unwieldy, and then follow the `createX(options)` closure/factory shape. |
 | `tests/ui/*` | test | unit (view models) | `tests/ui/` does not exist yet. | Create the directory; follow `tests/hud/format.test.ts` + `tests/sim/player-profile.test.ts` imports and `describe`/`it` style. |
 | `src/sim/economy/*` (as a family) | domain modules | pure transforms | No economy package exists; closest purity analog is `src/sim/world/layout.ts`. | Take plain data in, return plain data; no content loader; use only `src/content/types.js` type imports. |
-| `tests/golden/market/*.json` | fixture | data | No market goldens exist. | Generate from the implementation, commit `{ version, systemId, arrival, seed, goods }`, compare exactly; never hard-code RESEARCH's computed table. |
+| `tests/golden/market/*.json` | fixture | data | No market goldens exist. | Generate from the implementation, commit `{ version, systemId, marketSeed, goods }`, compare exactly; never hard-code RESEARCH's computed table. |
 | `src/ui/station.ts` DOM structure | controller | DOM | No multi-screen/terminal shell exists; only single panels. | Follow RESEARCH §Station Screens shell and the `docked.ts`/`pause.ts` lifecycle; keep `#docked` and `data-field="message"`. |
 | `index.html` station shell markup | markup | DOM | No full-screen terminal shell exists. | Build from RESEARCH §Station Screens and existing terminal tokens; do not add a CSS framework. |
 

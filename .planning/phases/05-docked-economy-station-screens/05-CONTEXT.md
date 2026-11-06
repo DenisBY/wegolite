@@ -13,7 +13,7 @@ Deliver the docked economy loop and the four station screens that expose it, all
 - **F5 Status** — two pages: ship/commander status and the cargo manifest.
 - **F7 System data** — structured system figures plus the compiled planetinfo description.
 
-Not in this phase: charts (F6), save/load (F2), market persistence or migrations, flight-state changes, combat equipment effects, legal consequences, resale, sound. Those belong to Phase 6, later phases, or are out of scope by PROJECT.md.
+Not in this phase: charts (F6), save/load (F2), full market-state persistence or migrations (Phase 5 persists only the `marketSeed`; stock regenerates), flight-state changes, combat equipment effects, legal consequences, general resale or depreciation (the D-15 missile trade-in is the one explicit exception), sound. Those belong to Phase 6, later phases, or are out of scope by PROJECT.md.
 
 </domain>
 
@@ -43,17 +43,17 @@ Not in this phase: charts (F6), save/load (F2), market persistence or migrations
 - **D-16:** F3 uses the same footer Y/N confirmation as F8 (`Buy Large Cargo Bay for 400.0 Cr? [Y/N]`); refusals (credits, tech level) use the same footer line.
 
 ### Market state & determinism
-- **D-17:** Prices and stock are generated when the current system is set (hyperspace arrival), matching Oolite's `setSystemTo:` (`Universe.m:7189-7190`), not on every docking. Docking and reloading in the same system reuse the same market. **Amended 2026-11-05 by owner: supersedes per-docking regeneration.** **Reversibility:** costly — moving generation to another moment changes fixture values and every screen test that observes stock.
-- **D-18:** The triangular random term comes from Oolite's RANROT stream seeded by `market_rnd` (`PlayerEntity.m:6527-6529`); `market_rnd` is stored in the save (`:844`/`:1415`) and restored on load. `Math.random` never enters `src/sim`. **Amended 2026-11-05 by owner: replaces the `(systemId, arrival)` hash seed.**
-- **D-19:** Cargo and credits live in the persisted profile and are autosaved on every accepted trade; the market seed lives in the save and is regenerated deterministically on load, so prices cannot change across a reload. Player-caused stock changes may reset on load as in Oolite; prices do not. **Amended 2026-11-05 by owner: supersedes no-market-persistence; Phase 5 owns the seed field, Phase 6 owns multi-system re-seeding.**
-- **D-20:** Market fixtures are golden JSON files under `tests/golden/` for a few characteristic systems (Lave agricultural, Zaonce industrial, one high-tech system) with a fixed `market_rnd` seed, covering all 17 commodities with price and stock, compared exactly like the existing content goldens.
+- **D-17:** Prices and stock are generated when the current system is set, matching Oolite's `setSystemTo:` (`Universe.m:7173-7191`), not on every docking. Docking in the same system reuses the market. **Amended 2026-11-06 by owner (confirmed stable prices after the source check):** Oolite also regenerates on commander load (`PlayerEntity.m:1078`, `:2005`) from a non-persisted, time-seeded RNG (`GameController.m:93`), so its reload can re-roll prices; Wegolite deliberately persists the seed and keeps reload stable (modernisation, not Oolite behaviour). Supersedes per-docking regeneration. **Reversibility:** costly — moving generation to another moment changes fixture values and every screen test that observes stock.
+- **D-18:** Oolite's triangular random term draws from the global RANROT stream (`OOCommodities.m:389`, `:404`); `market_rnd` (`PlayerEntity.m:6527-6529`, saved `:844`/restored `:1415`) is **not** the commodity-price seed — it drives contracts, station update times, trade-in and reputation. Wegolite derives one deterministic persisted `marketSeed` per system; `Math.random` never enters `src/sim`. **Amended 2026-11-05 by owner: replaces the `(systemId, arrival)` hash seed; the persisted seed is a deliberate modernisation.**
+- **D-19:** Cargo and credits live in the persisted profile and are autosaved on every accepted trade; the market seed lives in the save and is regenerated deterministically on load, so prices cannot change across a reload. Player-caused stock changes may reset on load; prices do not. **Amended 2026-11-06 by owner (confirmed stable prices after the source check):** this is a deliberate modernisation — Oolite re-rolls on load from a non-persisted time-seeded stream. Phase 5 owns the seed field; Phase 6 owns re-seeding on hyperspace arrival.
+- **D-20:** Market fixtures are golden JSON files under `tests/golden/` for a few characteristic systems (Lave agricultural, Zaonce industrial, one high-tech system) with a fixed `marketSeed`, covering all 17 commodities with price and stock, compared exactly like the existing content goldens.
 
 ### Content & display
 - **D-21:** Commodity `name` becomes the human-readable display name at build time, compiled from `descriptions.plist` (`Food`, `Gem-Stones`, …); `key` remains the identity. Screens read `name` directly with no UI-side resolution. Content goldens and the drift check must be regenerated. **Reversibility:** costly — changing the emitted content shape touches the drift baseline and any test asserting the localization key.
 
 ### the agent's Discretion
 - Save-schema mechanism for cargo (optional field on v1 versus a version bump): the chosen route must keep existing Phase 4 v1 blobs readable and must not invent a migration that belongs to Phase 6.
-- PRNG algorithm and hash construction, and where the `market_rnd` seed is stored in the save and session state.
+- PRNG algorithm and hash construction, and where the `marketSeed` is stored in the save and session state.
 - Exact DOM structure, class names, focus model, and scroll behaviour of the station shell.
 - Where market generation lives, provided it is pure and deterministic and `src/sim` stays free of DOM and Three.js.
 - Numeric formatting helpers and column widths.
@@ -94,7 +94,7 @@ Not in this phase: charts (F6), save/load (F2), market persistence or migrations
 - `src/app/game-session.ts` — docked/in-flight switch, panel lifecycle, profile commit and autosave hooks.
 - `index.html` — docked panel markup and the inline terminal styling to extend.
 - `src/input/actions.ts` — semantic action map and default bindings; screen actions belong here.
-- `src/sim/player/profile.ts` — `PlayerProfile`, `canPurchase`, `purchase`, `formatCredits`; reuse unchanged.
+- `src/sim/player/profile.ts` — `PlayerProfile`, `canPurchase`, `purchase`, `formatCredits`; `canPurchase`/`purchase` stay on the production path (05-03 delegates to them) and `purchase` spreads the extended profile fields.
 - `src/persistence/save.ts` — strict `SaveV1Schema`, allow-lists, encoding bounds.
 - `src/persistence/autosave.ts` — `snapshotForSave`, `restoreFromSave`.
 
@@ -114,7 +114,7 @@ Not in this phase: charts (F6), save/load (F2), market persistence or migrations
 
 ### Reusable Assets
 - `createDockedPanel(root)` / `DockedPanel` — already owns show/hide, field updates, message line, and action bindings via `[data-field]`/`[data-action]`; extend into the station shell rather than replacing it.
-- `canPurchase(profile, item, techLevelRaw)` and `purchase(profile, item)` — validated, refusal-returning purchase path; reuse unchanged so TL gating stays raw.
+- `canPurchase(profile, item, techLevelRaw)` and `purchase(profile, item)` — validated, refusal-returning purchase path; `checkFit`/`applyFit` delegate to them so the Phase 4 predicates are not dead code, and `purchase` spreads the new cargo/fuel/missiles/passengerBerths fields.
 - `formatCredits(dc)` — one-decimal `Cr` formatting already matches the locked display.
 - `loadEquipment()` / `findEquipment()` — cached strict-zod catalogue access for F3.
 - `labels.json` economy/government arrays and `sysdata-*` templates — ready-made F7 labels.
@@ -151,7 +151,7 @@ Not in this phase: charts (F6), save/load (F2), market persistence or migrations
 ## Deferred Ideas
 
 - **F6 Charts screen** — Phase 6 (NAV).
-- **F2 Save/load screen** and market persistence/migrations — Phase 6.
+- **F2 Save/load screen**, multi-system market re-seeding and save migrations — Phase 6. Phase 5 persists `marketSeed` only, so a reload keeps every price while stock may reset.
 - **Effects of Galactic Hyperdrive, Advanced Space Compass, Advanced Navigational Array** — bought in Phase 5, functional in Phase 6.
 - **F8 filter/sort** — roadmap marks it P2; fixed sort order in v1.
 - **Legal consequences for slaves, narcotics, firearms** — v1 shows the `Ex` flag only.
