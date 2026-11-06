@@ -105,7 +105,7 @@ export interface MarketModel {
   readonly selectedKey: string;
   readonly cashText: string;
   readonly loadText: string;
-  readonly confirmText: string;
+  readonly confirmText: string | null;
   readonly noticeText: string;
 }
 
@@ -122,12 +122,76 @@ export const MARKET_COLUMNS: readonly MarketColumn[] = Object.freeze([
 function confirmationText(
   pending: TradePlan | null,
   commodities: ReadonlyMap<string, Commodity>,
-): string {
-  if (pending === null || !pending.ok) return "";
+): string | null {
+  if (pending === null || !pending.ok) return null;
   const commodity = commodities.get(pending.key);
-  if (commodity === undefined) return "";
+  if (commodity === undefined) return null;
   const verb = pending.side === "buy" ? "Buy" : "Sell";
   return `${verb} ${String(pending.amount)} ${commodity.unit} ${commodity.name} for ${formatDecicredits(pending.cost)}? [Y/N]`;
+}
+
+/**
+ * The exact clamp/refusal copy (D-06, RESEARCH §Trading).
+ *
+ * A clamped plan names the feasible amount and the binding limit; a refusal is
+ * blunt because nothing can be bought. `zeroAmount` is never player-facing — it
+ * is a pure-plan guard for forged/direct callers and returns no copy.
+ */
+export function tradeNoticeText(
+  plan: TradePlan | null,
+  commodity: Commodity | undefined,
+): string {
+  if (plan === null) return "";
+  const unit = commodity?.unit ?? "t";
+
+  if (!plan.ok) {
+    switch (plan.refusal) {
+      case "noStock":
+        return `Only 0 ${unit} available`;
+      case "insufficientCredits":
+        return "Not enough credits";
+      case "holdFull":
+        return "Hold full";
+      case "marketFull":
+        return `Station can only take 0 ${unit}`;
+      case "nothingToSell":
+        return "Nothing to sell";
+      case "notTradeable":
+        return "Not traded here";
+      case "unknownCommodity":
+        return "Not traded here";
+      case "invalidPrice":
+        return "Price unavailable";
+      case "overflow":
+        return "Amount too large";
+      case "zeroAmount":
+        return "";
+    }
+  }
+
+  switch (plan.clamp) {
+    case "noStock":
+      return `Only ${String(plan.amount)} ${unit} available`;
+    case "insufficientCredits":
+      return "Not enough credits";
+    case "holdFull":
+      return `Only ${String(plan.amount)} ${unit} of hold space`;
+    case "marketFull":
+      return `Station can only take ${String(plan.amount)} ${unit}`;
+    case "nothingToSell":
+      return "Nothing to sell";
+    case "notTradeable":
+      return "Not traded here";
+    case "unknownCommodity":
+      return "Not traded here";
+    case "invalidPrice":
+      return "Price unavailable";
+    case "overflow":
+      return "Amount too large";
+    case "zeroAmount":
+    case undefined:
+      return "";
+  }
 }
 
 /**
@@ -165,9 +229,9 @@ export function buildMarketModel(
       price: good.price,
       priceText: formatDecicredits(good.price),
       stockText,
-      heldText: String(held),
-      exText: (commodity?.legalityExport ?? 0) > 0 ? "Ex" : "",
-      selectable: tradeable && (good.stock > 0 || held > 0),
+      heldText: held === 0 ? "—" : String(held),
+      exText: (commodity?.legalityExport ?? 0) > 0 ? "Ex" : "—",
+      selectable: tradeable,
       dimmed: !tradeable || good.stock <= 0,
     };
   });
@@ -177,15 +241,20 @@ export function buildMarketModel(
     profile.equipment,
     profile.passengerBerths,
   );
+  const pendingCommodity =
+    feedback.pending === null
+      ? undefined
+      : byKey.get(feedback.pending.key);
+  const clampNotice = tradeNoticeText(feedback.pending, pendingCommodity);
 
   return {
     columns: MARKET_COLUMNS,
     rows,
     selectedKey: selection,
-    cashText: formatDecicredits(profile.credits),
+    cashText: `Cash: ${formatDecicredits(profile.credits)}.`,
     loadText: `Load ${String(usedPods)} / ${String(capacityPods)} t`,
     confirmText: confirmationText(feedback.pending, byKey),
-    noticeText: feedback.notice,
+    noticeText: clampNotice === "" ? feedback.notice : clampNotice,
   };
 }
 

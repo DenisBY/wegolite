@@ -103,13 +103,9 @@ import {
   planBuy,
   planSell,
 } from "../sim/economy/trade.js";
-import type {
-  TradePlan,
-  TradeRefusal,
-  TradeSide,
-} from "../sim/economy/trade.js";
+import type { TradePlan, TradeSide } from "../sim/economy/trade.js";
 import { formatFuel } from "../ui/docked.js";
-import { buildMarketModel } from "../ui/station-model.js";
+import { buildMarketModel, tradeNoticeText } from "../ui/station-model.js";
 import { identity, sub, vec } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
 import type { InputFrame } from "../sim/state.js";
@@ -395,50 +391,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     stationNotice = "";
   }
 
-  function clampNotice(reason: TradeRefusal | undefined): string {
-    switch (reason) {
-      case "noStock":
-        return "Only the available stock can be bought";
-      case "insufficientCredits":
-        return "Not enough credits for more";
-      case "holdFull":
-        return "No cargo space for more";
-      case "marketFull":
-        return "The station cannot take any more";
-      case "nothingToSell":
-        return "You have none of that to sell";
-      case undefined:
-        return "";
-      default:
-        return "The request was reduced to the feasible amount";
-    }
-  }
-
-  function refusalNotice(reason: TradeRefusal | undefined): string {
-    switch (reason) {
-      case "noStock":
-        return "No stock available";
-      case "insufficientCredits":
-        return "Not enough credits";
-      case "holdFull":
-        return "No cargo space";
-      case "marketFull":
-        return "The station cannot take any more";
-      case "nothingToSell":
-        return "You have none of that to sell";
-      case "notTradeable":
-        return "This commodity cannot be traded";
-      case "invalidPrice":
-        return "Price unavailable";
-      case "overflow":
-        return "That sale would exceed the credit limit";
-      case "zeroAmount":
-        return "";
-      case undefined:
-        return "";
-      default:
-        return "That trade is not available";
-    }
+  /** The blunt refusal copy; a clamped plan's notice comes from the view model. */
+  function commodityFor(key: string): Commodity | undefined {
+    return commodities?.find((entry) => entry.key === key);
   }
 
   function pendingPlan(): TradePlan | null {
@@ -502,10 +457,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (plan === undefined) return;
     if (plan.ok) {
       stationPending = plan;
-      stationNotice = clampNotice(plan.clamp);
+      // A clamp's copy is derived by the view model from the plan itself.
+      stationNotice = "";
     } else {
       stationPending = null;
-      stationNotice = refusalNotice(plan.refusal);
+      stationNotice = tradeNoticeText(plan, commodityFor(plan.key));
     }
     renderStation();
   }
@@ -524,7 +480,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       stationNotice = "";
     } else {
       stationPending = null;
-      stationNotice = refusalNotice(plan.refusal);
+      stationNotice = tradeNoticeText(plan, commodityFor(plan.key));
     }
     renderStation();
   }
@@ -589,7 +545,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       fuelText: formatFuel(profile.fuel),
       message: stationMessage,
       keysText: keyHints(stationScreen),
-      confirmText: marketModel.confirmText,
+      confirmText: marketModel.confirmText ?? "",
       noticeText: marketModel.noticeText,
       saveText,
       market: marketModel,
