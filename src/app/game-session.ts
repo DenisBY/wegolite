@@ -60,9 +60,11 @@ import {
   restoreFromSave,
   snapshotForSave,
 } from "../persistence/autosave.js";
+import { parseSave } from "../persistence/save.js";
 import type {
   SaveAllowLists,
   SaveInputs,
+  SaveParseFailure,
   SaveV2,
 } from "../persistence/save.js";
 import type { SaveStore, SaveStatus } from "../persistence/store.js";
@@ -155,6 +157,7 @@ import { identity, sub, vec } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
 import type { InputFrame } from "../sim/state.js";
 import { DT } from "../sim/time.js";
+import { deriveSystemLayout } from "../sim/world/layout.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import { createKeyboardInputSource } from "../input/keyboard.js";
 import type { KeyboardInputSource } from "../input/keyboard.js";
@@ -357,6 +360,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   // double-press while the one write is in flight.
   let manualSavePending = false;
   let overwritePending = false;
+  let loadingSave = false;
   const saveProbe: WegoliteSaveProbe = {
     status: saveStatus,
     attempts: 0,
@@ -1109,6 +1113,177 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   /**
+   * D-23: the app-owned copy for a load that never touched the session.
+   * `absent` is not an error state; the rest explain why the blob was refused.
+   */
+  function loadFailureCopy(reason: SaveParseFailure): string {
+    switch (reason) {
+      case "absent":
+        return "No saved game to load";
+      case "future-version":
+        return "Save is from a newer version of Wegolite — cannot load";
+      case "corrupt":
+        return "Save is corrupt — cannot load";
+      case "unreadable":
+        return "Save could not be read";
+    }
+  }
+
+  /** Show a failed load on the open overlay; the session is untouched. */
+  function failLoad(copy: string): void {
+    setSaveNotice(copy);
+    updateProbe();
+  }
+
+  /**
+   * D-22/SAVE-05: in-session Load through the exact boot pipeline.
+   *
+   * Everything that can throw — the read, the schema/migration/validator, the
+   * saved system and layout, the restored state and the regenerated market —
+   * happens before any live reference moves. Only then is the destination
+   * scene built, and the install block that follows has no early return. A
+   * failure therefore leaves the current scene, state, profile, market and
+   * IndexedDB bytes exactly as they were (T-06-16).
+   */
+  async function loadFromSave(): Promise<void> {
+    const currentInput = input;
+    const currentStationDef = stationDef;
+    const catalogue = commodities;
+    if (
+      loadingSave ||
+      !saveScreenOpen ||
+      currentInput === undefined ||
+      currentStationDef === undefined ||
+      catalogue === undefined
+    ) {
+      return;
+    }
+    loadingSave = true;
+    try {
+      const read = await saveBoot.store.read();
+      if (disposed) return;
+      if (read.kind !== "ok") {
+        failLoad(
+          read.kind === "absent"
+            ? loadFailureCopy("absent")
+            : "Save could not be read",
+        );
+        return;
+      }
+      // SAVE-01: the same parser, migration and allow-lists as boot.
+      const parsed = parseSave(read.raw, saveBoot.allow);
+      if (!parsed.ok) {
+        failLoad(loadFailureCopy(parsed.reason));
+        return;
+      }
+      const saved = parsed.save;
+      const savedSystem = galaxyById.get(saved.system.id);
+      if (savedSystem === undefined) {
+        failLoad("Save is corrupt — cannot load");
+        return;
+      }
+
+      let restored;
+      let savedLayout;
+      let nextMarket;
+      let nextSeed;
+      let nextTarget: string | undefined;
+      try {
+        savedLayout = deriveSystemLayout(savedSystem, currentStationDef);
+        restored = restoreFromSave(saved, savedLayout, profileFromSave);
+        // One seed beside the market it generated: a later arrival chains to
+        // the market the player is actually looking at.
+        nextSeed =
+          restored.market?.seed ??
+          restored.marketSeed ??
+          marketSeedForSystem(saved.system.id);
+        nextMarket =
+          restored.market ?? generateMarket(savedSystem, catalogue, nextSeed);
+        nextTarget =
+          saved.targetSystem !== undefined && galaxyById.has(saved.targetSystem)
+            ? saved.targetSystem
+            : undefined;
+      } catch {
+        failLoad("Save could not be loaded");
+        return;
+      }
+
+      // Build the scene last: a failure here is caught, and the scene manager
+      // only retires the old scene once the new one exists.
+      let nextLayout: SystemLayout;
+      try {
+        nextLayout = enterSystemById(saved.system.id);
+      } catch {
+        failLoad("Save could not be loaded");
+        return;
+      }
+
+      // One synchronous install block: no early return after this point.
+      state = restored.state;
+      layout = nextLayout;
+      profile = restored.profile;
+      market = nextMarket;
+      marketSeed = nextSeed;
+      hyperspaceTargetId = nextTarget;
+      previousPose = poseOf(restored.state);
+      currentPose = previousPose;
+      previousCameraWorld = undefined;
+      stationScreen = "home";
+      stationPending = null;
+      stationNotice = "";
+      stationMessage = "";
+      stationPage = 1;
+      chartSelectedId = undefined;
+      lastTrade = null;
+      chartOpen = false;
+      chart?.hide();
+      saveScreenOpen = false;
+      overwritePending = false;
+      manualSavePending = false;
+      saveScreenNotice = "";
+      saveLoad?.cancelOverwrite();
+      saveLoad?.hide();
+      saveStatus = "valid";
+      saveLastClock = saved.clockSeconds;
+      saveSkipReason = "";
+      const restoredDocked = restored.state.mode === "docked";
+      currentInput.setContext(restoredDocked ? "dockHome" : "flight");
+      if (restoredDocked) {
+        docked.show(system.name);
+        hudCanvas.hidden = true;
+        ensureSelection();
+        renderStation();
+      } else {
+        docked.hide();
+        hudCanvas.hidden = false;
+        syncEconomyProbe();
+      }
+      // Publish the installed pose once, exactly like the boot restore, so a
+      // proof reads the saved numbers and not a resumed simulation.
+      probe.restore = {
+        mode: restoredDocked ? "docked" : "inFlight",
+        systemId: system.id,
+        position: toTuple(restored.state.position),
+        orientation: [
+          restored.state.orientation.w,
+          restored.state.orientation.x,
+          restored.state.orientation.y,
+          restored.state.orientation.z,
+        ],
+        speed: restored.state.speed,
+        clock: restored.state.clockSeconds,
+      };
+      syncSaveProbe();
+      // Hidden time is never replayed: discard the read latency.
+      loop?.reset();
+      lastMs = 0;
+      renderFrame(0);
+    } finally {
+      loadingSave = false;
+    }
+  }
+
+  /**
    * New game clears only a save this build understands. A future, unreadable,
    * unavailable or otherwise unknown blob is left byte-identical (WR-04,
    * D-14/T-04-47) and the write path stays disabled.
@@ -1410,7 +1585,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         }
         break;
       case "saveScreenLoad":
-        // The in-session Load lands in Task 3.
+        if (saveScreenOpen) void loadFromSave();
         break;
       default:
         break;
@@ -2366,6 +2541,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     });
     saveLoad.onSave(() => {
       manualSave();
+    });
+    saveLoad.onLoad(() => {
+      void loadFromSave();
     });
     saveLoad.onOverwriteConfirmed(() => {
       writeManualSave();

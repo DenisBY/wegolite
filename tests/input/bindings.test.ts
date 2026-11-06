@@ -442,3 +442,120 @@ describe("chart and hyperspace bindings", () => {
     expect(state.drainChartActions()).toEqual(["chart"]);
   });
 });
+
+describe("save screen bindings", () => {
+  it("registers F2, the rows and the direct Save/Load shortcuts", () => {
+    expect(ACTION_IDS).toContain("saveLoad");
+    expect(DEFAULT_BINDINGS.saveLoad).toEqual(["F2"]);
+    expect(DEFAULT_BINDINGS.saveScreenUp).toEqual(["ArrowUp"]);
+    expect(DEFAULT_BINDINGS.saveScreenDown).toEqual(["ArrowDown"]);
+    expect(DEFAULT_BINDINGS.saveScreenSave).toEqual(["KeyS"]);
+    expect(DEFAULT_BINDINGS.saveScreenLoad).toEqual(["KeyL"]);
+    expect(DEFAULT_BINDINGS.saveScreenReturn).toEqual(["Escape"]);
+    expect(DEFAULT_BINDINGS.saveScreenConfirm).toEqual(["Enter", "KeyY"]);
+    expect(DEFAULT_BINDINGS.saveScreenCancel).toEqual(["KeyN"]);
+    // The browser would otherwise open its own help/search panel on F2.
+    expect(RESERVED_F_KEYS.has("F2")).toBe(true);
+  });
+
+  it("scopes every screen action to saveScreen only", () => {
+    for (const action of [
+      "saveScreenUp",
+      "saveScreenDown",
+      "saveScreenSave",
+      "saveScreenLoad",
+      "saveScreenReturn",
+      "saveScreenConfirm",
+      "saveScreenCancel",
+    ] as const) {
+      expect(ACTION_CONTEXTS[action]).toEqual(["saveScreen"]);
+    }
+    // F2 is docked-only: never in flight, never over the chart or itself.
+    expect(ACTION_CONTEXTS.saveLoad).toEqual(["dockHome", "dockScreen"]);
+    expect(ACTION_CONTEXTS.pause).toContain("saveScreen");
+  });
+
+  it("queues F2 in the station contexts and keeps it inert in flight", () => {
+    const state = createInputState();
+    state.setContext("dockHome");
+    state.keyDown("F2");
+    expect(state.drainSaveScreenActions()).toEqual(["saveLoad"]);
+
+    state.setContext("dockScreen");
+    state.keyDown("F2");
+    expect(state.drainSaveScreenActions()).toEqual(["saveLoad"]);
+
+    state.setContext("flight");
+    expect(state.keyDown("F2")).toBe(true);
+    expect(state.drainSaveScreenActions()).toEqual([]);
+  });
+
+  it("Escape in saveScreen is Return and never pause; KeyP still pauses", () => {
+    const state = createInputState();
+    state.setContext("saveScreen");
+
+    expect(state.keyDown("Escape")).toBe(true);
+    expect(state.consumePauseToggle()).toBe(false);
+    expect(state.drainSaveScreenActions()).toEqual(["saveScreenReturn"]);
+
+    state.keyDown("KeyP");
+    expect(state.consumePauseToggle()).toBe(true);
+  });
+
+  it("never leaks Save/Load/Return into flight or the station computer", () => {
+    const state = createInputState();
+    state.setContext("flight");
+    // S is the flight speed-down action; L is unbound in flight.
+    state.keyDown("KeyS");
+    expect(state.drainSaveScreenActions()).toEqual([]);
+    expect(state.keyDown("KeyL")).toBe(false);
+    expect(state.drainSaveScreenActions()).toEqual([]);
+
+    state.keyUp("KeyS");
+    state.setContext("dockScreen");
+    state.keyDown("KeyS");
+    state.keyDown("KeyL");
+    state.keyDown("KeyY");
+    state.keyDown("KeyN");
+    expect(state.drainSaveScreenActions()).toEqual([]);
+    // Y/N and S/L keep their station meanings, never the save-screen ones.
+    expect(state.drainStationActions()).toEqual([
+      "stationConfirm",
+      "stationCancel",
+    ]);
+  });
+
+  it("drains save screen edges separately from the sim and chart queues", () => {
+    const state = createInputState();
+    state.setContext("saveScreen");
+
+    state.keyDown("ArrowDown");
+    state.keyDown("Enter");
+    state.keyDown("KeyS");
+    state.keyDown("KeyL");
+
+    expect(state.drainSaveScreenActions()).toEqual([
+      "saveScreenDown",
+      "saveScreenConfirm",
+      "saveScreenSave",
+      "saveScreenLoad",
+    ]);
+    expect(state.drainCommands()).toEqual([]);
+    expect(state.drainChartActions()).toEqual([]);
+    expect(state.drainStationActions()).toEqual([]);
+    expect(state.frame()).toEqual({
+      pitch: 0,
+      roll: 0,
+      speed: 0,
+      precision: false,
+    });
+  });
+
+  it("clears a queued save edge on a context change", () => {
+    const state = createInputState();
+    state.setContext("dockHome");
+    state.keyDown("F2");
+    state.setContext("saveScreen");
+    expect(state.drainSaveScreenActions()).toEqual([]);
+  });
+});

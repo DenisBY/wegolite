@@ -325,15 +325,20 @@ describe("the shell and session stay text-only and seed-bound", () => {
     expect(session).not.toMatch(/\bDate\.now\b/);
     expect(session).not.toMatch(/\bperformance\.now\b/);
 
-    // Exactly two producers: the boot system (resolved seed) and the arrival
-    // system (the seed chained from the market actually installed, D-10).
-    expect(session.match(/\bgenerateMarket\s*\(/g) ?? []).toHaveLength(2);
+    // Exactly three producers: the boot system (resolved seed), the arrival
+    // system (the seed chained from the market actually installed, D-10) and
+    // the in-session Load (restored snapshot or its saved seed, D-22).
+    expect(session.match(/\bgenerateMarket\s*\(/g) ?? []).toHaveLength(3);
     expect(session).toMatch(/\bgenerateMarket\s*\([^)]*\bmarketSeed\b[^)]*\)/);
     expect(session).toMatch(
       /nextSeed\s*=\s*arrivalMarketSeed\s*\(\s*destination\.id\s*,\s*previousSeed\s*\)/,
     );
     expect(session).toMatch(
       /generateMarket\s*\(\s*destination\s*,\s*catalogue\s*,\s*nextSeed\s*\)/,
+    );
+    // The F2 Load regenerates only from the restored snapshot's own seed.
+    expect(session).toMatch(
+      /generateMarket\s*\(\s*savedSystem\s*,\s*catalogue\s*,\s*nextSeed\s*\)/,
     );
     // A missing Phase 4 seed falls back to the deterministic system seed.
     expect(session).toMatch(

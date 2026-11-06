@@ -99,6 +99,40 @@ async function readRaw(
   );
 }
 
+/** Delete a raw value from the save database from outside the app. */
+async function deleteRaw(
+  page: Page,
+  key: string = AUTOSAVE_KEY,
+): Promise<void> {
+  await page.evaluate(
+    (payload: { key: string; db: string; store: string }) =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open(payload.db, 1);
+        request.onerror = () => {
+          reject(new Error(`open failed: ${String(request.error)}`));
+        };
+        request.onsuccess = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(payload.store)) {
+            db.close();
+            resolve();
+            return;
+          }
+          const transaction = db.transaction(payload.store, "readwrite");
+          transaction.objectStore(payload.store).delete(payload.key);
+          transaction.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          transaction.onerror = () => {
+            reject(new Error(`delete failed: ${String(transaction.error)}`));
+          };
+        };
+      }),
+    { key, db: SAVE_DB, store: SAVE_STORE },
+  );
+}
+
 /** Write a raw value into the save database from outside the app. */
 async function writeRaw(
   page: Page,
@@ -402,5 +436,204 @@ test("a future or unreadable slot is refused and never overwritten", async ({
   expect(unreadableProbe.save?.committed).toBe(0);
   expect(unreadableProbe.save?.skipReason).toBe("unreadable");
   expect(await readRaw(page)).toBe(unreadableRaw);
+  expect(errors).toEqual([]);
+});
+
+test("an in-session Load restores the saved docked session without reloading", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  // `?test=1` mutates the live profile so the load must put the saved one back.
+  await boot(page, "/?test=1");
+  await startNewGame(page);
+  await waitForDocked(page);
+
+  await page.keyboard.press("F2");
+  await page.keyboard.press("KeyS");
+  await waitForCommitted(page, 1);
+  const savedRaw = await readRaw(page);
+  const saved = decode(savedRaw);
+  expect(saved.mode).toBe("docked");
+
+  // Mutate after the save: the load must discard this live state.
+  const mutatedCredits = saved.credits + 50_000;
+  await page.evaluate((credits) => {
+    window.__wegolite?.test?.setCredits(credits);
+  }, mutatedCredits);
+  await page.waitForFunction(
+    (credits) => window.__wegolite?.economy?.credits === credits,
+    mutatedCredits,
+    { timeout: 30_000 },
+  );
+  // A page reload would drop this marker: Load must not navigate.
+  await page.evaluate(() => {
+    (window as unknown as { __loadMarker?: string }).__loadMarker = "alive";
+  });
+
+  await page.keyboard.press("KeyL");
+  await page.waitForFunction(
+    (credits) => {
+      const probe = window.__wegolite;
+      return (
+        probe !== undefined &&
+        probe.ready === true &&
+        probe.mode === "docked" &&
+        probe.economy?.credits === credits
+      );
+    },
+    saved.credits,
+    { timeout: 60_000 },
+  );
+
+  const after = await getProbe(page);
+  expect(after.mode).toBe("docked");
+  expect(after.systemId).toBe(saved.system.id);
+  expect(after.clock).toBe(saved.clockSeconds);
+  expect(after.economy?.credits).toBe(saved.credits);
+  expect(after.restore?.mode).toBe("docked");
+  expect(after.restore?.clock).toBe(saved.clockSeconds);
+  expect(after.saveScreen?.open).toBe(false);
+  expect(after.chart?.open).toBe(false);
+  // Load is read-only: the blob is byte-identical and the page never reloaded.
+  expect(await readRaw(page)).toBe(savedRaw);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __loadMarker?: string }).__loadMarker,
+    ),
+  ).toBe("alive");
+  await expect(page.locator("#save-load")).toBeHidden();
+  await expect(page.locator("#docked")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("an in-session Load of an in-flight save returns to flight with the station hidden", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  await startNewGame(page);
+  await waitForDocked(page);
+
+  // Produce a real v2 docked blob, then rewrite only the mode/pose fields so
+  // the save exercises the in-flight branch of the same parser/restore.
+  await page.keyboard.press("F2");
+  await page.keyboard.press("KeyS");
+  await waitForCommitted(page, 1);
+  const dockedBlob = decode(await readRaw(page));
+  const inFlightBlob = {
+    ...dockedBlob,
+    mode: "inFlight",
+    flight: {
+      position: [0, 0, 0],
+      orientation: [1, 0, 0, 0],
+      speed: 50,
+      pitchRate: 0,
+      rollRate: 0,
+      torus: false,
+    },
+  };
+  const stored = JSON.stringify(inFlightBlob);
+  await writeRaw(page, stored);
+  await page.evaluate(() => {
+    (window as unknown as { __loadMarker?: string }).__loadMarker = "alive";
+  });
+
+  await page.keyboard.press("KeyL");
+  await waitForMode(page, "inFlight");
+  await page.waitForFunction(
+    () => window.__wegolite?.restore?.mode === "inFlight",
+    undefined,
+    { timeout: 60_000 },
+  );
+
+  const after = await getProbe(page);
+  expect(after.mode).toBe("inFlight");
+  expect(after.restore?.systemId).toBe(dockedBlob.system.id);
+  expect(after.restore?.position).toEqual([0, 0, 0]);
+  expect(after.restore?.orientation).toEqual([1, 0, 0, 0]);
+  expect(after.restore?.speed).toBe(50);
+  expect(after.restore?.clock).toBe(dockedBlob.clockSeconds);
+  expect(after.saveScreen?.open).toBe(false);
+  // Flight is visible, the station overlay is not, and the blob is unchanged.
+  await expect(page.locator("#docked")).toBeHidden();
+  await expect(page.locator("#hud")).toBeVisible();
+  expect(await readRaw(page)).toBe(stored);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __loadMarker?: string }).__loadMarker,
+    ),
+  ).toBe("alive");
+  expect(errors).toEqual([]);
+});
+
+test("a failed Load shows the reason and leaves the session and bytes untouched", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  await startNewGame(page);
+  await waitForDocked(page);
+
+  await page.keyboard.press("F2");
+  await page.keyboard.press("KeyS");
+  await waitForCommitted(page, 1);
+  const baseline = await getProbe(page);
+
+  const corruptRaw = "this is not a wegolite save";
+  await writeRaw(page, corruptRaw);
+  await page.evaluate(() => {
+    (window as unknown as { __loadMarker?: string }).__loadMarker = "alive";
+  });
+  await page.keyboard.press("KeyL");
+  await page.waitForFunction(
+    () => window.__wegolite?.saveScreen?.notice === "Save could not be read",
+    undefined,
+    { timeout: 30_000 },
+  );
+  const afterCorrupt = await getProbe(page);
+  expect(afterCorrupt.mode).toBe(baseline.mode);
+  expect(afterCorrupt.systemId).toBe(baseline.systemId);
+  expect(afterCorrupt.clock).toBe(baseline.clock);
+  expect(afterCorrupt.economy?.credits).toBe(baseline.economy?.credits);
+  expect(afterCorrupt.save?.status).toBe("valid");
+  expect(afterCorrupt.save?.committed).toBe(baseline.save?.committed);
+  expect(afterCorrupt.saveScreen?.open).toBe(true);
+  expect(await readRaw(page)).toBe(corruptRaw);
+
+  // A future-version blob is refused by the same classifier and kept.
+  const futureRaw = JSON.stringify({ version: 3, future: true });
+  await writeRaw(page, futureRaw);
+  await page.keyboard.press("KeyL");
+  await page.waitForFunction(
+    () =>
+      window.__wegolite?.saveScreen?.notice ===
+      "Save is from a newer version of Wegolite — cannot load",
+    undefined,
+    { timeout: 30_000 },
+  );
+  expect(await readRaw(page)).toBe(futureRaw);
+
+  // An absent slot is a copy, not an error, and still changes nothing.
+  await deleteRaw(page);
+  await page.keyboard.press("KeyL");
+  await page.waitForFunction(
+    () => window.__wegolite?.saveScreen?.notice === "No saved game to load",
+    undefined,
+    { timeout: 30_000 },
+  );
+  expect(await readRaw(page)).toBeNull();
+  const after = await getProbe(page);
+  expect(after.mode).toBe(baseline.mode);
+  expect(after.systemId).toBe(baseline.systemId);
+  expect(after.clock).toBe(baseline.clock);
+  expect(after.economy?.credits).toBe(baseline.economy?.credits);
+  expect(after.save?.committed).toBe(baseline.save?.committed);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __loadMarker?: string }).__loadMarker,
+    ),
+  ).toBe("alive");
+  await expect(page.locator("#save-load")).toBeVisible();
+  await expect(page.locator("#docked")).toBeVisible();
   expect(errors).toEqual([]);
 });
