@@ -591,7 +591,9 @@ function multiCount(item: Equipment, profile: PlayerProfile): number | null {
  * detail and reason can be read, but `confirmable` is false. Removal rows use
  * D-15's whole-credit label while the detail and the confirmation keep the
  * exact decimal price. Removal detail copy is the truthful per-entry
- * `REMOVAL_DESCRIPTIONS` override, never the generated description.
+ * `REMOVAL_DESCRIPTIONS` override, never the generated description: the missile
+ * entry states the full catalogue value re-sale and the berth entry states that
+ * No refund is paid.
  */
 export function buildOutfittingModel(
   catalogue: readonly Equipment[],

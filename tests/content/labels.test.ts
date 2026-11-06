@@ -9,7 +9,7 @@
  * `sysdata-*` key the screen reads is pinned here; a malformed record throws a
  * named `LabelsError` instead of reaching the view model.
  *
- * This file deliberately imports no UI module: the `StationModelError` cases
+ * This file deliberately imports no UI module: the unknown-token model cases
  * belong to `tests/ui/station-system-data.test.ts`.
  */
 
