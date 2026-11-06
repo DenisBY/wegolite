@@ -330,10 +330,7 @@ describe("fixed-step hyperspace countdown", () => {
   const { layout, config } = fixture;
   const laveOrigin = { id: lave.id, x: lave.chartX, y: lave.chartY };
 
-  function optionsFor(
-    target: ChartSystem | undefined,
-    fuel = 70,
-  ): StepOptions {
+  function optionsFor(target: ChartSystem | undefined, fuel = 70): StepOptions {
     return {
       hyperspace: {
         fuel,
@@ -357,7 +354,15 @@ describe("fixed-step hyperspace countdown", () => {
     commands: readonly Command[] = [],
     options: StepOptions = optionsFor(diso),
   ): SimEvent[] {
-    return stepFlight(state, layout, config, ZERO_INTENT, commands, DT, options);
+    return stepFlight(
+      state,
+      layout,
+      config,
+      ZERO_INTENT,
+      commands,
+      DT,
+      options,
+    );
   }
 
   it("initialises the new fields and includes both in the replay hash", () => {
@@ -376,7 +381,9 @@ describe("fixed-step hyperspace countdown", () => {
 
     state.hyperspaceCountdown = 0;
     state.hyperspaceTarget = { id: diso.id, dist: 9, fuelCost: 36 };
-    expect(serializeFlight(state)).toContain(`hyperspaceTarget=${diso.id},9,36`);
+    expect(serializeFlight(state)).toContain(
+      `hyperspaceTarget=${diso.id},9,36`,
+    );
     expect(hashFlight(state)).not.toBe(hashed);
   });
 

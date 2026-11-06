@@ -74,9 +74,7 @@ function isFinitePoint(point: {
  * Never throws: grossly malformed input is reported as a refusal so the fixed
  * step loop cannot die on a forged or buggy step option.
  */
-export function canStartJump(
-  input: HyperspaceStartInput,
-): JumpStartResult {
+export function canStartJump(input: HyperspaceStartInput): JumpStartResult {
   const { origin, target, fuel } = input;
 
   if (target === undefined || target.id === origin.id) {

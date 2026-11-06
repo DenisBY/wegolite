@@ -56,8 +56,10 @@ export function arrivalMarketSeed(
   previousSeed: number,
 ): number {
   return (
-    Number.parseInt(fnv1a32(`${targetId}:${String(previousSeed)}:arrival`), 16) >>>
-    0
+    Number.parseInt(
+      fnv1a32(`${targetId}:${String(previousSeed)}:arrival`),
+      16,
+    ) >>> 0
   );
 }
 
