@@ -1,18 +1,18 @@
 ---
 gsd_state_version: "1.0"
-current_phase: 5
+current_phase: 05
 current_phase_name: Docked Economy & Station Screens
 status: executing
 stopped_at: Phase 5 context gathered
-last_updated: "2026-11-05T21:48:27.787Z"
-last_activity: 2026-11-05
-last_activity_desc: Phase 04 complete, transitioned to Phase 5
-state_head: 490bd1eb41be170a0d53c844b919f4e8c0ffc6d7
+last_updated: "2026-11-06T11:16:08.000Z"
+last_activity: 2026-11-06
+last_activity_desc: Completed 05-01-PLAN.md (market buy, autosave, reload)
+state_head: 1e5090da7b19ef00aa61b99d19185c67c9dfc5b1
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 44
-  completed_plans: 38
+  completed_plans: 39
   percent: 57
 ---
 
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-05)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 5 — Docked Economy & Station Screens
+**Current focus:** Phase 05 — Docked Economy & Station Screens
 
 ## Current Position
 
-Phase: 5 (Docked Economy & Station Screens) — READY TO EXECUTE
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-11-05 — Phase 04 complete, transitioned to Phase 5
+Phase: 05 (Docked Economy & Station Screens) — EXECUTING
+Plan: 2 of 6
+Status: Phase 05 executing — 05-01 complete
+Last activity: 2026-11-06 — 05-01 tracer complete
 
-Progress: [██████░░░░] 57% — 38/38 plans complete
+Progress: [██████░░░░] 57% — 39/44 plans complete
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ Progress: [██████░░░░] 57% — 38/38 plans complete
 | Phase 04 P06 | 15 min | 2 tasks | 8 files |
 | Phase 04 P08 | 14min | 2 tasks | 2 files |
 | Phase 04 P07 | 17 min | 2 tasks | 9 files |
+| Phase 05 P01 | 55 min | 2 tasks | 41 files |
 
 ## Accumulated Context
 
@@ -161,6 +162,11 @@ Recent decisions affecting current work:
 - [Phase 04]: Plan 04-07: onStart stores one handler gated by the confirmation requirement; accept is the only route to it while the requirement is set.
 - [Phase 04]: Plan 04-07: the shared e2e starter checks #title-confirm visibility, so prompted and unprompted boots use one New-game route.
 - [Phase 04]: Plan 04-07: PROJECT.md records the confirmation gate as a refinement of D-14 - the clear still happens, after explicit confirmation.
+- [Phase 05]: Plan 05-01: the market formula is Oolite's economy-only shape (quantity before price, four RANROT draws per good including Alien Items, float32 grouping, truncation, stock capped at 127), anchored by Food 38/16 and Computers 902/0 at Lave.
+- [Phase 05]: Plan 05-01: the persisted `marketSeed` is derived as `marketSeedForSystem(systemId) = Number.parseInt(fnv1a32("<systemId>:0"), 16) >>> 0`; a `docked` event reuses the in-memory market and Phase 6 owns re-seeding on a system change.
+- [Phase 05]: Plan 05-01: cargo is persisted as an entry array, validated by one `validateSaveSemantics` shared by `parseSave` and `isEncodedSaveValid`; capacity is compared before clamping and the Phase 4 berth/missile aliases are folded into counts.
+- [Phase 05]: Plan 05-01: the station footer is a `div.station-footer` with four independent fields; the global footer CSS is scoped to `body > footer`, so the document disclaimer stays the only `footer` element.
+- [Phase 05]: Plan 05-01: the `.agents` harness directory is excluded from the compliance source walk and Prettier, because it is environment configuration rather than repository source.
 
 ### Pending Todos
 
@@ -194,5 +200,5 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-05T15:23:38.336Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-docked-economy-station-screens/05-CONTEXT.md
+Stopped at: Completed 05-01-PLAN.md
+Resume file: .planning/phases/05-docked-economy-station-screens/05-02-PLAN.md

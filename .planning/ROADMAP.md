@@ -185,7 +185,7 @@ Plans:
   4. The outfitting screen lists only equipment whose tech level and conditions are met, and installs or removes legal items at the correct price.
 **Plans**: 6 plans
 **Wave 1**
-- [ ] 05-01-PLAN.md — Tracer: Lave market buy → autosave → reload; content peaks/names, economy core (buy), exact cargo/pods, shared reader/writer save semantics, bubble keyboard, F8; independent anchors and regression proofs
+- [x] 05-01-PLAN.md — Tracer: Lave market buy → autosave → reload; content peaks/names, economy core (buy), exact cargo/pods, shared reader/writer save semantics, bubble keyboard, F8; independent anchors and regression proofs
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 05-02-PLAN.md — Trading breadth: exact kg/g capacity, sell, sequential clamps, overflow, regression goldens plus independent reference vectors, determinism, PROJECT.md decisions
@@ -239,7 +239,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
 | 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
 | 4. Manual Docking | 8/8 | Complete    | 2026-11-05 |
-| 5. Docked Economy & Station Screens | 0/6 | Planning | - |
+| 5. Docked Economy & Station Screens | 1/6 | Executing | - |
 | 6. Hyperspace, Navigation & Persistence | 0/TBD | Not started | - |
 | 7. Hardening & Community Release | 0/TBD | Not started | - |
 
