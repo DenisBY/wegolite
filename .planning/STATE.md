@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 06
 current_phase_name: Hyperspace, Navigation & Persistence
 status: executing
-stopped_at: Phase 6 context gathered
-last_updated: "2026-11-06T17:12:27.975Z"
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-11-06T17:33:59.125Z"
 last_activity: 2026-11-06
-last_activity_desc: Phase 05 complete, transitioned to Phase 6
-state_head: 913e54dd87481a4cbe765529c013d4c777370273
+last_activity_desc: Phase 06 execution started
+state_head: d81e3d2131e2576fb2d1be0ed19fc197be82b7e3
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 50
-  completed_plans: 44
+  completed_plans: 45
   percent: 71
 ---
 
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-11-06)
 
 ## Current Position
 
-Phase: 06 (Hyperspace, Navigation & Persistence) — READY TO EXECUTE
-Plan: Not started
+Phase: 06 (Hyperspace, Navigation & Persistence) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-11-06 — Phase 05 complete, transitioned to Phase 6
+Last activity: 2026-11-06 — Phase 06 execution started
 
 Progress: [███████░░░] 71% — 44/44 plans complete
 
@@ -87,6 +87,7 @@ Progress: [███████░░░] 71% — 44/44 plans complete
 | Phase 05 P04 | 8 min | 3 tasks | 9 files |
 | Phase 05 P05 | 72 min | 2 tasks | 6 files |
 | Phase 05 P06 | 36 min | 3 tasks | 9 files |
+| Phase 06 P06-01 | 16 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -193,6 +194,9 @@ Recent decisions affecting current work:
 - [Phase 05]: Plan 05-06: the purity guard resolves the content door by module path (both content/types nesting depths, import type only) and tests its scanner directly; no temporary src/sim probe or probe lock is needed.
 - [Phase 05]: The economy is the fidelity anchor: the market, trade and cargo modules are pure and deterministic, so the review gate's only critical finding (CR-01, bulk buys ignoring held tonnes) was fixed without touching a single price.
 - [Phase 05]: One save validator serves the boot reader and the autosave writer; an over-capacity snapshot is refused before it replaces the last good blob, which is what keeps a trade accepted in memory from silently diverging from the saved hold.
+- [Phase 06]: Hyperspace arithmetic stays integer: fuelCost is 4*dist (1 at dist 0) and jumpTimeSeconds is 576*dist^2, never the 0.4*dist display float (06-01).
+- [Phase 06]: The countdown is integer steps with the skip-first-tick encoding; only the commit sets terminalTransition, so refusals and cancels add zero jump time (06-01).
+- [Phase 06]: Arrival is a deterministic FNV-1a word per route with the offset on X/Z; no global random source or wall clock (06-01).
 
 ### Pending Todos
 
@@ -228,6 +232,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-06T14:32:55.146Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-hyperspace-navigation-persistence/06-CONTEXT.md
+Last session: 2026-11-06T17:33:58.455Z
+Stopped at: Completed 06-01-PLAN.md
+Resume file: None
