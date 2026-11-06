@@ -20,9 +20,18 @@ import type {
   Labels,
   System,
 } from "../content/types.js";
-import { capacityPodsFor, holdPodsUsed } from "../sim/economy/cargo.js";
+import { capacityPodsFor, holdPodsUsed, availablePods } from "../sim/economy/cargo.js";
 import type { Market } from "../sim/economy/market.js";
 import type { TradePlan } from "../sim/economy/trade.js";
+import {
+  FUEL_CAPACITY,
+  MAX_MISSILES,
+  REMOVAL_DESCRIPTIONS,
+  VISIBLE_EQUIPMENT_KEYS,
+  checkFit,
+  fitPrice,
+} from "../sim/player/outfitting.js";
+import type { FitContext, FitRefusal } from "../sim/player/outfitting.js";
 import { formatDecicredits } from "../sim/player/profile.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
 
@@ -394,4 +403,204 @@ export function buildSystemDataModel(
     description: system.description,
   };
 }
+
+/** One F3 row; `dimmed`/`confirmable` are model flags so the shell never re-derives them. */
+export interface OutfittingRow {
+  readonly key: string;
+  /** The display string (may carry a count or the whole-credit removal price). */
+  readonly label: string;
+  /** The short confirmation name without the appended price. */
+  readonly name: string;
+  /** Integer decicredits: the catalogue price or the fuel fill cost. */
+  readonly cost: number;
+  readonly priceText: string;
+  readonly enabled: boolean;
+  readonly dimmed: boolean;
+  /** Empty when enabled; otherwise the exact short refusal copy. */
+  readonly reason: string;
+  readonly owned: boolean;
+  /** The current count for a multi-instance row, otherwise null. */
+  readonly multiCount: number | null;
+  readonly confirmable: boolean;
+}
+
+export interface OutfittingDetail {
+  readonly title: string;
+  readonly description: string;
+  readonly priceText: string;
+}
+
+export interface OutfittingModel {
+  readonly rows: readonly OutfittingRow[];
+  readonly detail: OutfittingDetail | null;
+  readonly fuelVisible: boolean;
+  readonly selectedKey: string;
+}
+
+const REMOVAL_KEYS: ReadonlySet<string> = new Set([
+  "EQ_PASSENGER_BERTH_REMOVAL",
+  "EQ_MISSILE_REMOVAL",
+]);
+
+/** The exact short F3 refusal copy, never a sentence. */
+function fitReason(reason: FitRefusal, item: Equipment): string {
+  switch (reason) {
+    case "notOffered":
+      return "Not offered";
+    case "techLevel":
+      return `Requires TL ${String(item.techLevel)}`;
+    case "owned":
+      return "Already installed";
+    case "insufficientCredits":
+      return "Not enough credits";
+    case "pylonsFull":
+      return "Pylons full";
+    case "cargoSpace":
+      return "No cargo space";
+    case "fullFuel":
+      return "Full tank";
+    case "nothingToRemove":
+      return "Nothing to remove";
+    case "invalidPrice":
+      return "Price unavailable";
+    case "invalidCondition":
+      return "Not available";
+    case "maxInstances":
+      return "Maximum reached";
+  }
+}
+
+function outfittingLabel(item: Equipment, profile: PlayerProfile): string {
+  switch (item.key) {
+    case "EQ_MISSILE":
+      return `Missile (${String(profile.missiles)}/${String(MAX_MISSILES)})`;
+    case "EQ_PASSENGER_BERTH":
+      return `Passenger Berth (${String(profile.passengerBerths)})`;
+    case "EQ_PASSENGER_BERTH_REMOVAL":
+      return `Remove Passenger Berth — ${formatWholeCredits(item.price)}`;
+    case "EQ_MISSILE_REMOVAL":
+      return `Remove Missile — ${formatWholeCredits(item.price)}`;
+    default:
+      return item.name;
+  }
+}
+
+function outfittingName(item: Equipment): string {
+  switch (item.key) {
+    case "EQ_MISSILE":
+      return "Missile";
+    case "EQ_PASSENGER_BERTH":
+      return "Passenger Berth";
+    case "EQ_PASSENGER_BERTH_REMOVAL":
+      return "Remove Passenger Berth";
+    case "EQ_MISSILE_REMOVAL":
+      return "Remove Missile";
+    default:
+      return item.name;
+  }
+}
+
+function isOwned(item: Equipment, profile: PlayerProfile): boolean {
+  if (item.key === "EQ_MISSILE") return profile.missiles > 0;
+  if (item.key === "EQ_PASSENGER_BERTH") return profile.passengerBerths > 0;
+  if (REMOVAL_KEYS.has(item.key)) return false;
+  return profile.equipment.includes(item.key);
+}
+
+function multiCount(item: Equipment, profile: PlayerProfile): number | null {
+  if (item.key === "EQ_MISSILE") return profile.missiles;
+  if (item.key === "EQ_PASSENGER_BERTH") return profile.passengerBerths;
+  return null;
+}
+
+/**
+ * Build the F3 outfitting row model (ECON-05, ECON-08, D-11..D-16).
+ *
+ * Rows follow `VISIBLE_EQUIPMENT_KEYS` exactly, omit Fuel at a full tank and
+ * each removal row at a zero count. A disabled row stays selectable so its
+ * detail and reason can be read, but `confirmable` is false. Removal rows use
+ * D-15's whole-credit label while the detail and the confirmation keep the
+ * exact decimal price. Removal detail copy is the truthful per-entry
+ * `REMOVAL_DESCRIPTIONS` override, never the generated description.
+ */
+export function buildOutfittingModel(
+  catalogue: readonly Equipment[],
+  profile: PlayerProfile,
+  systemTechLevelRaw: number,
+  selectedKey: string,
+  unitByKey: ReadonlyMap<string, CommodityUnit>,
+): OutfittingModel {
+  const byKey = new Map(catalogue.map((record) => [record.key, record]));
+  const missile = byKey.get("EQ_MISSILE");
+  if (missile === undefined) {
+    throw new StationModelError(
+      'Wegolite: the equipment catalogue has no "EQ_MISSILE" entry.',
+    );
+  }
+
+  const ctx: FitContext = {
+    techLevelRaw: systemTechLevelRaw,
+    fuelCapacity: FUEL_CAPACITY,
+    missileCapacity: MAX_MISSILES,
+    availablePods: availablePods(profile, unitByKey),
+    missilePrice: missile.price,
+  };
+  const fuelVisible = profile.fuel < FUEL_CAPACITY;
+
+  const rows: OutfittingRow[] = [];
+  for (const key of VISIBLE_EQUIPMENT_KEYS) {
+    if (key === "EQ_FUEL" && !fuelVisible) continue;
+    if (key === "EQ_PASSENGER_BERTH_REMOVAL" && profile.passengerBerths === 0) {
+      continue;
+    }
+    if (key === "EQ_MISSILE_REMOVAL" && profile.missiles === 0) continue;
+
+    const item = byKey.get(key);
+    if (item === undefined) {
+      throw new StationModelError(
+        `Wegolite: the equipment catalogue has no entry with key "${key}".`,
+      );
+    }
+
+    const check = checkFit(profile, item, ctx);
+    const cost = fitPrice(profile, item, ctx);
+    const removal = REMOVAL_KEYS.has(key);
+    const enabled = check.ok;
+    rows.push({
+      key,
+      label: outfittingLabel(item, profile),
+      name: outfittingName(item),
+      cost,
+      priceText: removal ? formatWholeCredits(cost) : formatDecicredits(cost),
+      enabled,
+      dimmed: !enabled,
+      reason: check.ok ? "" : fitReason(check.reason, item),
+      owned: isOwned(item, profile),
+      multiCount: multiCount(item, profile),
+      confirmable: enabled,
+    });
+  }
+
+  const selected = rows.find((row) => row.key === selectedKey);
+  let detail: OutfittingDetail | null = null;
+  if (selected !== undefined) {
+    const item = byKey.get(selected.key);
+    if (item === undefined) {
+      throw new StationModelError(
+        `Wegolite: the equipment catalogue has no entry with key "${selectedKey}".`,
+      );
+    }
+    const override = REMOVAL_KEYS.has(selected.key)
+      ? REMOVAL_DESCRIPTIONS.get(selected.key)
+      : undefined;
+    detail = {
+      title: item.name,
+      description: override ?? item.description,
+      priceText: selected.priceText,
+    };
+  }
+
+  return { rows, detail, fuelVisible, selectedKey };
+}
+
 
