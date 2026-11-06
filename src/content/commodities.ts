@@ -88,22 +88,3 @@ export function loadCommodities(): Promise<readonly Commodity[]> {
   })();
   return cachedCommodities;
 }
-
-/**
- * Find one record by key.
- *
- * @throws {CommoditiesError} naming the key; a silent `undefined` would become a
- * market row with no unit or coefficients.
- */
-export function findCommodity(
-  catalogue: readonly Commodity[],
-  key: string,
-): Commodity {
-  const entry = catalogue.find((candidate) => candidate.key === key);
-  if (entry === undefined) {
-    throw new CommoditiesError(
-      `Wegolite: the commodity catalogue has no entry with key "${key}".`,
-    );
-  }
-  return entry;
-}

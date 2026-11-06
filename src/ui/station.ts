@@ -54,7 +54,6 @@ export interface StationShell {
   setCredits(text: string): void;
   setFuel(text: string): void;
   onLaunch(handler: () => void): void;
-  setScreen(screen: StationScreen): void;
   render(view: StationView): void;
   dispose(): void;
 }
@@ -338,9 +337,6 @@ export function createStationShell(
     },
     onLaunch(handler: () => void): void {
       home.onLaunch(handler);
-    },
-    setScreen(screen: StationScreen): void {
-      applyScreen(screen);
     },
     render(view: StationView): void {
       home.setCredits(view.creditsText);

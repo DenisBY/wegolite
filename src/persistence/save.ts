@@ -347,8 +347,8 @@ export function validateSaveSemantics(
  *
  * `queueAutosave` runs this before `store.write`: a snapshot that would encode
  * to a blob this build rejects must never replace the last good save. The
- * allow-lists are not consulted here — they depend on boot content — only the
- * size cap and the strict schema the parser applies first.
+ * write-mode allow-lists and hold semantics are enforced through the same
+ * `validateSaveSemantics` the parser uses, after the size cap and strict schema.
  */
 export function isEncodedSaveValid(
   raw: string,

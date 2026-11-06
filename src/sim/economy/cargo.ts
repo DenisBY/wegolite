@@ -32,7 +32,6 @@ export const CARGO_BAY_PODS = 15;
 export const PASSENGER_BERTH_PODS = 5;
 
 export const CARGO_BAY_KEY = "EQ_CARGO_BAY";
-export const PASSENGER_BERTH_KEY = "EQ_PASSENGER_BERTH";
 
 /** A null-prototype cargo map keyed by commodity identity. */
 export type Cargo = Readonly<Record<string, number>>;
