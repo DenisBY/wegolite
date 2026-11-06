@@ -214,7 +214,7 @@ Plans:
   3. Fuel is deducted as exactly `10 × max(0.1, distance)`, never goes negative, and the Lave→Diso and Lave→Zaonce fixtures produce the expected cost and jump time.
   4. Reloading the page restores the exact docked or in-flight state — credits, cargo, fuel, equipment, location, clock, orientation, velocity — and the market keeps its prior stock and prices, so reloading cannot reroll for profit.
   5. An older save migrates forward and a corrupt save fails safely without wiping good data, while the F2 screen saves and loads while docked and the game autosaves on launch and arrival.
-**Plans**: 4/6 plans executed
+**Plans**: 5/6 plans executed
 **Wave 1**
 - [x] 06-01-PLAN.md — Hyperspace core: exact integer distance/fuel/time, 1800-step countdown, deterministic witchpoint arrival, Wave 0 fixtures
 - [x] 06-02-PLAN.md — Save v2: one schema, ordered v1→v2 migration, 17-key market allow-list, docked/in-flight restore
@@ -226,7 +226,7 @@ Plans:
 - [x] 06-04-PLAN.md — End-to-end tracer: F6 target → H countdown → arrival scene/market swap → arrival autosave → reload; pre-launch anchor and in-flight Continue
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 06-05-PLAN.md — F2 Save/Load screen: docked-only one slot, overwrite confirmation, in-session load, failed-load isolation
+- [x] 06-05-PLAN.md — F2 Save/Load screen: docked-only one slot, overwrite confirmation, in-session load, failed-load isolation
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 06-06-PLAN.md — Reload market/pose fidelity, autosave trigger matrix, future/corrupt safety, full container phase gate
@@ -255,7 +255,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
 | 4. Manual Docking | 8/8 | Complete    | 2026-11-05 |
 | 5. Docked Economy & Station Screens | 6/6 | Complete    | 2026-11-06 |
-| 6. Hyperspace, Navigation & Persistence | 4/6 | In Progress | - |
+| 6. Hyperspace, Navigation & Persistence | 5/6 | In Progress | - |
 | 7. Hardening & Community Release | 0/TBD | Not started | - |
 
 ## Roadmap Notes
