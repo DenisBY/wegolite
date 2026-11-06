@@ -35,6 +35,15 @@ A full Oolite source checkout is available at `/home/opencode/git/oolite` (outsi
 4. **Licensing.** Project code is GPL-2.0-or-later. Oolite-derived art and config remain CC BY-NC-SA 3.0: attribution required, non-commercial only, share-alike. Never add an asset without recording its provenance in `NOTICE`/`ASSETS.md`.
 5. **No OXP support.** Expansion packs are out of scope by definition.
 
+## Reviewer and subagent brief
+
+Include this block in every reviewer, verifier, auditor, explorer, or executor prompt:
+
+- **Tests and builds run in Docker only.** Host Node/npm/Playwright are not authoritative, and a green host run is not evidence.
+- Commands: `docker compose run --rm test` (Vitest), `docker compose run --rm test npx vitest run <file>` (targeted), `docker compose run --rm e2e sh -lc "npm run build && npx playwright test <spec>"` (browser), `docker compose run --rm typecheck`, `docker compose run --rm lint`, `docker compose run --rm verify` (full gate).
+- A reproduction that needs a scratch script or test must live under `/tmp` and be mounted into the container: `docker compose run --rm -v /tmp/<dir>:/scratch test ...`. Never add scratch files to the repository.
+- Read-only reviewers must not modify tracked files; report findings instead.
+
 ## Docker workflow
 
 The Compose file is the entry point for every task. Expected commands:
