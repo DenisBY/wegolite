@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "systemId": "g0-s129",
+  "marketSeed": 2997033482,
+  "goods": [
+    {
+      "key": "food",
+      "price": 70,
+      "stock": 8
+    },
+    {
+      "key": "textiles",
+      "price": 78,
+      "stock": 11
+    },
+    {
+      "key": "radioactives",
+      "price": 259,
+      "stock": 8
+    },
+    {
+      "key": "slaves",
+      "price": 151,
+      "stock": 4
+    },
+    {
+      "key": "liquor_wines",
+      "price": 344,
+      "stock": 7
+    },
+    {
+      "key": "luxuries",
+      "price": 829,
+      "stock": 47
+    },
+    {
+      "key": "narcotics",
+      "price": 541,
+      "stock": 21
+    },
+    {
+      "key": "computers",
+      "price": 682,
+      "stock": 43
+    },
+    {
+      "key": "machinery",
+      "price": 492,
+      "stock": 39
+    },
+    {
+      "key": "alloys",
+      "price": 367,
+      "stock": 44
+    },
+    {
+      "key": "firearms",
+      "price": 571,
+      "stock": 23
+    },
+    {
+      "key": "furs",
+      "price": 800,
+      "stock": 0
+    },
+    {
+      "key": "minerals",
+      "price": 130,
+      "stock": 54
+    },
+    {
+      "key": "gold",
+      "price": 409,
+      "stock": 6
+    },
+    {
+      "key": "platinum",
+      "price": 708,
+      "stock": 1
+    },
+    {
+      "key": "gem_stones",
+      "price": 203,
+      "stock": 1
+    },
+    {
+      "key": "alien_items",
+      "price": 294,
+      "stock": 0
+    }
+  ]
+}

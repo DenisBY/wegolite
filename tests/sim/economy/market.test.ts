@@ -9,6 +9,10 @@
  * the four-draw order and the system-economy indexing are all correct. Every
  * row is additionally checked as a finite safe integer in its documented range
  * so a malformed coefficient cannot pass on one lucky anchor.
+ *
+ * The committed `tests/golden/market/*.json` files are REGRESSION snapshots:
+ * the writer and this test both call `generateMarket`, so they are not
+ * correctness proof; `reference-vectors.test.ts` is the independent oracle.
  */
 
 import { readFileSync } from "node:fs";
@@ -44,6 +48,33 @@ function readSystems(): System[] {
 
 const systems = readSystems();
 
+interface MarketSnapshot {
+  readonly version: number;
+  readonly systemId: string;
+  readonly marketSeed: number;
+  readonly goods: ReadonlyArray<{
+    readonly key: string;
+    readonly price: number;
+    readonly stock: number;
+  }>;
+}
+
+/** Lave agricultural, Zaonce industrial, Leesti high-tech, all D-20 fixtures. */
+const GOLDENS = [
+  { systemId: "g0-s7", file: "lave.json" },
+  { systemId: "g0-s129", file: "zaonce.json" },
+  { systemId: "g0-s55", file: "leesti.json" },
+] as const;
+
+function readGolden(file: string): MarketSnapshot {
+  return JSON.parse(
+    readFileSync(
+      new URL(`../../golden/market/${file}`, import.meta.url),
+      "utf8",
+    ),
+  ) as MarketSnapshot;
+}
+
 function system(id: string): System {
   const record = systems.find((candidate) => candidate.id === id);
   if (record === undefined) throw new Error(`no system "${id}"`);
@@ -78,6 +109,28 @@ describe("Lave anchors", () => {
     });
   });
 
+  it("matches the research cross-checks at Zaonce and Leesti", () => {
+    // CROSS-CHECKS, not absolute truth: the expected values are the research
+    // table's, computed independently of this implementation. A one-decicredit
+    // or one-unit difference means the float32 grouping or the draw order is
+    // wrong — reconcile those first, never edit the anchor.
+    const zaonce = marketFor(system("g0-s129"));
+    expect(good(zaonce, "food")).toEqual({ key: "food", price: 70, stock: 8 });
+    expect(good(zaonce, "computers")).toEqual({
+      key: "computers",
+      price: 682,
+      stock: 43,
+    });
+
+    const leesti = marketFor(system("g0-s55"));
+    expect(good(leesti, "food")).toEqual({ key: "food", price: 62, stock: 10 });
+    expect(good(leesti, "computers")).toEqual({
+      key: "computers",
+      price: 731,
+      stock: 30,
+    });
+  });
+
   it("orders the 17 rows by commodity sortOrder", () => {
     const market = marketFor(lave);
     expect(market.goods.map((row) => row.key)).toEqual(
@@ -99,6 +152,35 @@ describe("Lave anchors", () => {
       }
     }
   });
+});
+
+describe("regression goldens (REGRESSION snapshots, not correctness proof)", () => {
+  // Both this test and `tests/helpers/write-market-goldens.ts` call
+  // `generateMarket`, so these fixtures detect drift only. The independent
+  // oracle is `reference-vectors.test.ts`.
+  for (const golden of GOLDENS) {
+    it(`matches tests/golden/market/${golden.file} exactly`, () => {
+      const target = system(golden.systemId);
+      const fixture = readGolden(golden.file);
+
+      expect(fixture.version).toBe(1);
+      expect(fixture.systemId).toBe(target.id);
+      expect(fixture.marketSeed).toBe(marketSeedForSystem(target.id));
+      expect(fixture.goods).toHaveLength(17);
+
+      // Row order is the catalogue's sortOrder, not the fixture's file order.
+      expect(fixture.goods.map((row) => row.key)).toEqual(
+        commodities.map((record) => record.key),
+      );
+      expect(fixture.goods.map((row) => commodity(row.key).sortOrder)).toEqual(
+        commodities.map((record) => record.sortOrder),
+      );
+
+      const market = marketFor(target);
+      expect(market.seed).toBe(fixture.marketSeed);
+      expect(market.goods).toEqual(fixture.goods);
+    });
+  }
 });
 
 describe("equal peaks (Narcotics)", () => {
