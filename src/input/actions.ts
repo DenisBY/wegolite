@@ -47,10 +47,19 @@ export type ActionId =
   | "chartRight"
   | "chartConfirm"
   | "chartRange"
-  | "chartBack";
+  | "chartBack"
+  | "saveLoad"
+  | "saveScreenUp"
+  | "saveScreenDown"
+  | "saveScreenSave"
+  | "saveScreenLoad"
+  | "saveScreenReturn"
+  | "saveScreenConfirm"
+  | "saveScreenCancel";
 
 /** The input modes that decide which actions may fire (ECON-09, D-03). */
-export type InputContext = "flight" | "dockHome" | "dockScreen" | "chart";
+export type InputContext =
+  "flight" | "dockHome" | "dockScreen" | "chart" | "saveScreen";
 
 /**
  * The contexts whose Escape is a screen Back action rather than pause
@@ -58,7 +67,7 @@ export type InputContext = "flight" | "dockHome" | "dockScreen" | "chart";
  * toggles pause, exactly as before the chart existed.
  */
 export const ESCAPE_SCREEN_CONTEXTS: ReadonlySet<InputContext> =
-  new Set<InputContext>(["dockScreen", "chart"]);
+  new Set<InputContext>(["dockScreen", "chart", "saveScreen"]);
 
 /**
  * The actions those contexts bind to Escape. The binding table's exemption is
@@ -68,6 +77,7 @@ export const ESCAPE_SCREEN_CONTEXTS: ReadonlySet<InputContext> =
 export const ESCAPE_SCREEN_ACTIONS: ReadonlySet<ActionId> = new Set<ActionId>([
   "stationBack",
   "chartBack",
+  "saveScreenReturn",
 ]);
 
 export const ACTION_IDS: readonly ActionId[] = [
@@ -108,6 +118,14 @@ export const ACTION_IDS: readonly ActionId[] = [
   "chartConfirm",
   "chartRange",
   "chartBack",
+  "saveLoad",
+  "saveScreenUp",
+  "saveScreenDown",
+  "saveScreenSave",
+  "saveScreenLoad",
+  "saveScreenReturn",
+  "saveScreenConfirm",
+  "saveScreenCancel",
 ];
 
 const ACTION_ID_SET: ReadonlySet<string> = new Set(ACTION_IDS);
@@ -162,6 +180,16 @@ export const DEFAULT_BINDINGS: Readonly<Record<ActionId, readonly string[]>> =
     chartConfirm: Object.freeze(["Enter"]),
     chartRange: Object.freeze(["Tab"]),
     chartBack: Object.freeze(["Escape"]),
+    // F2 opens the standalone Save/Load screen; only while docked.
+    saveLoad: Object.freeze(["F2"]),
+    saveScreenUp: Object.freeze(["ArrowUp"]),
+    saveScreenDown: Object.freeze(["ArrowDown"]),
+    // Direct shortcuts beside the row navigation: S saves, L loads.
+    saveScreenSave: Object.freeze(["KeyS"]),
+    saveScreenLoad: Object.freeze(["KeyL"]),
+    saveScreenReturn: Object.freeze(["Escape"]),
+    saveScreenConfirm: Object.freeze(["Enter", "KeyY"]),
+    saveScreenCancel: Object.freeze(["KeyN"]),
   });
 
 export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
@@ -202,6 +230,14 @@ export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
   chartConfirm: "Chart commit",
   chartRange: "Chart range",
   chartBack: "Chart close",
+  saveLoad: "Save / load",
+  saveScreenUp: "Save/load up",
+  saveScreenDown: "Save/load down",
+  saveScreenSave: "Save",
+  saveScreenLoad: "Load",
+  saveScreenReturn: "Return",
+  saveScreenConfirm: "Save/load confirm",
+  saveScreenCancel: "Save/load cancel",
 });
 
 /**
@@ -232,6 +268,7 @@ export const SHIFT_VARIANT_ACTIONS: Readonly<
 
 /** F-keys the browser would otherwise reload or open on. */
 export const RESERVED_F_KEYS: ReadonlySet<string> = new Set([
+  "F2",
   "F3",
   "F5",
   "F6",
@@ -261,7 +298,7 @@ export const ACTION_CONTEXTS: Readonly<
   speedUp: contexts("flight"),
   speedDown: contexts("flight"),
   torus: contexts("flight"),
-  pause: contexts("flight", "dockHome", "dockScreen", "chart"),
+  pause: contexts("flight", "dockHome", "dockScreen", "chart", "saveScreen"),
   launch: contexts("flight", "dockHome"),
   dockingComputer: contexts("flight"),
   targetStation: contexts("flight"),
@@ -276,6 +313,15 @@ export const ACTION_CONTEXTS: Readonly<
   chartConfirm: contexts("chart"),
   chartRange: contexts("chart"),
   chartBack: contexts("chart"),
+  // F2 is docked-only: never in flight, never over the chart.
+  saveLoad: contexts("dockHome", "dockScreen"),
+  saveScreenUp: contexts("saveScreen"),
+  saveScreenDown: contexts("saveScreen"),
+  saveScreenSave: contexts("saveScreen"),
+  saveScreenLoad: contexts("saveScreen"),
+  saveScreenReturn: contexts("saveScreen"),
+  saveScreenConfirm: contexts("saveScreen"),
+  saveScreenCancel: contexts("saveScreen"),
   stationMarket: contexts("dockHome", "dockScreen"),
   stationOutfitting: contexts("dockHome", "dockScreen"),
   stationStatus: contexts("dockHome", "dockScreen"),

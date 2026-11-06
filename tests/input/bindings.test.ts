@@ -344,7 +344,7 @@ describe("createInputState", () => {
     const state = createInputState();
 
     expect(state.isBound("KeyJ")).toBe(true);
-    expect(state.isBound("KeyL")).toBe(false);
+    expect(state.isBound("KeyZ")).toBe(false);
   });
 });
 

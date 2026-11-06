@@ -88,6 +88,8 @@ export interface InputState {
   drainStationActions(): ActionId[];
   /** Chart edges (open/close, selection, commit, range, back) for the drain. */
   drainChartActions(): ActionId[];
+  /** Save/Load screen edges (open/close, rows, save, load) for the drain. */
+  drainSaveScreenActions(): ActionId[];
   /** Release every held key (blur, visibility loss, pause, launch). */
   clearAll(): void;
   /** Replace the action table after a rebind. */
@@ -114,6 +116,7 @@ export function createInputState(
   const pending: Command[] = [];
   const stationActions: ActionId[] = [];
   const chartActions: ActionId[] = [];
+  const saveScreenActions: ActionId[] = [];
   let pauseToggle = false;
   let map = bindings;
   let codeToActions = buildCodeToActions(map);
@@ -197,6 +200,10 @@ export function createInputState(
           chartActions.push(action);
           continue;
         }
+        if (action === "saveLoad" || action.startsWith("saveScreen")) {
+          saveScreenActions.push(action);
+          continue;
+        }
         if (action.startsWith("station")) {
           stationActions.push(action);
           continue;
@@ -246,11 +253,17 @@ export function createInputState(
       chartActions.length = 0;
       return drained;
     },
+    drainSaveScreenActions() {
+      const drained = saveScreenActions.slice();
+      saveScreenActions.length = 0;
+      return drained;
+    },
     clearAll() {
       held.clear();
       pending.length = 0;
       stationActions.length = 0;
       chartActions.length = 0;
+      saveScreenActions.length = 0;
       pauseToggle = false;
     },
     setBindings(next) {
@@ -269,6 +282,7 @@ export function createInputState(
       pending.length = 0;
       stationActions.length = 0;
       chartActions.length = 0;
+      saveScreenActions.length = 0;
     },
     getContext() {
       return context;
@@ -280,6 +294,7 @@ export function createInputState(
         pending.length = 0;
         stationActions.length = 0;
         chartActions.length = 0;
+        saveScreenActions.length = 0;
       }
     },
     setStationScreenHandler(handler) {

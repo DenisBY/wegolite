@@ -372,6 +372,133 @@
         font-size: 0.85em;
       }
 
+      /* The F2 Save/Load screen is a standalone full-screen sibling of the
+         station shell at the station layer, below the pause overlay's z-index:
+         20. One slot only (the autosave key), Save/Load/Return rows and a
+         title-style overwrite confirmation. It reuses the station header/
+         footer language but is never a second <footer> element. */
+      #save-load {
+        position: absolute;
+        inset: 0;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        background: #000;
+        color: #33ff66;
+        font: 18px/1.7 monospace;
+      }
+
+      #save-load-screen {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem 2rem 12rem;
+        outline: none;
+      }
+
+      #save-load h2 {
+        margin: 0 0 1rem;
+        font-size: 24px;
+        letter-spacing: 0.08em;
+      }
+
+      #save-load .save-load-slot {
+        margin: 0 0 1.5rem;
+        color: #9f9;
+      }
+
+      #save-load .save-load-menu {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        max-width: 22rem;
+        margin: 0 0 1.5rem;
+      }
+
+      #save-load .save-load-row {
+        padding: 0.35rem 0.75rem;
+        border: 1px solid #1a5a2c;
+        cursor: pointer;
+      }
+
+      #save-load .save-load-row[data-selected="true"] {
+        background: #0a2a12;
+        border-color: #33ff66;
+      }
+
+      #save-load .save-load-notice {
+        min-height: 1.7em;
+        margin: 0;
+        color: #ffd966;
+      }
+
+      #save-load .station-footer {
+        bottom: 2rem;
+      }
+
+      #save-load .station-footer [data-field="save-load-keys"] {
+        color: #9a9;
+        font-size: 0.85em;
+      }
+
+      #save-load .station-footer [data-field="save-load-confirm"] {
+        color: #ffd966;
+      }
+
+      #save-load-confirm {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.78);
+      }
+
+      #save-load-confirm .save-load-confirm-panel {
+        max-width: 32rem;
+        padding: 1.5rem 2rem;
+        border: 1px solid #33ff66;
+        background: rgba(0, 0, 0, 0.92);
+        text-align: center;
+      }
+
+      #save-load-confirm h2 {
+        margin: 0 0 1rem;
+        font-size: 24px;
+        letter-spacing: 0.06em;
+      }
+
+      #save-load-confirm p {
+        margin: 0 0 1.5rem;
+        color: #9f9;
+        font-size: 15px;
+        line-height: 1.6;
+      }
+
+      #save-load-confirm .save-load-confirm-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 1rem;
+      }
+
+      #save-load-confirm button {
+        padding: 0.5rem 1rem;
+        border: 1px solid #33ff66;
+        border-radius: 0;
+        background: transparent;
+        color: #33ff66;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      #save-load-confirm button:hover,
+      #save-load-confirm button:focus-visible {
+        background: #33ff66;
+        color: #000;
+      }
+
       /* The pause overlay is the single home for Resume, Controls and Settings
          (D-14). It sits above the title, docked panel and HUD. */
       #pause {
@@ -622,6 +749,51 @@
         <p data-field="chart-distance"></p>
         <p data-field="chart-fuel"></p>
         <p data-field="chart-keys"></p>
+      </div>
+    </div>
+    <div id="save-load" hidden>
+      <header class="station-header">
+        <span class="station-header-system">Save / Load</span>
+        <span class="station-header-credits">F2</span>
+      </header>
+      <section id="save-load-screen" tabindex="-1">
+        <h2>Save / Load</h2>
+        <p class="save-load-slot" data-field="save-load-slot"></p>
+        <div class="save-load-menu">
+          <div class="save-load-row" data-save-action="save">Save</div>
+          <div class="save-load-row" data-save-action="load">Load</div>
+          <div class="save-load-row" data-save-action="return">Return</div>
+        </div>
+        <p
+          class="save-load-notice"
+          data-field="save-load-notice"
+          role="status"
+        ></p>
+      </section>
+      <div class="station-footer">
+        <p data-field="save-load-keys"></p>
+        <p data-field="save-load-confirm"></p>
+      </div>
+      <div
+        id="save-load-confirm"
+        hidden
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="save-load-confirm-title"
+        aria-describedby="save-load-confirm-detail"
+      >
+        <div class="save-load-confirm-panel">
+          <h2 id="save-load-confirm-title">Overwrite your saved game?</h2>
+          <p id="save-load-confirm-detail">
+            This replaces the only autosave for this commander. [Y/N]
+          </p>
+          <div class="save-load-confirm-actions">
+            <button id="save-load-confirm-cancel" type="button">Cancel</button>
+            <button id="save-load-confirm-accept" type="button">
+              Overwrite save
+            </button>
+          </div>
+        </div>
       </div>
     </div>
     <div

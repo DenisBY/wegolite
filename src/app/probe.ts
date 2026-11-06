@@ -181,6 +181,20 @@ export interface WegoliteSaveProbe {
   skipReason: string;
   /** True when IndexedDB could not be opened for this session. */
   unavailable: boolean;
+  /** The last app-owned save notice shown on the F2 screen / station footer. */
+  notice?: string;
+}
+
+/**
+ * The live F2 Save/Load screen (D-20..D-23). A manual Save publishes only the
+ * committed revision and clock through the save group; this group only proves
+ * the overlay, its highlighted row and the overwrite dialog state.
+ */
+export interface WegoliteSaveScreenProbe {
+  open: boolean;
+  row: "save" | "load" | "return";
+  confirming: boolean;
+  notice: string;
 }
 
 /** The live chart state (NAV-01/NAV-02, D-01/D-02). */
@@ -289,6 +303,8 @@ export interface WegoliteProbe {
   hyperspace?: WegoliteHyperspaceProbe;
   /** The pose the in-flight Continue installed (SAV-03). */
   restore?: WegoliteRestoreProbe;
+  /** The live F2 Save/Load overlay (D-20..D-23). */
+  saveScreen?: WegoliteSaveScreenProbe;
   /** The live current system id; the durable identity a reload proof reads. */
   systemId?: string;
   /**

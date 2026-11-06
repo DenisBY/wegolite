@@ -133,6 +133,9 @@ import type { FitContext } from "../sim/player/outfitting.js";
 import { formatFuel } from "../ui/docked.js";
 import { createChart } from "../ui/chart.js";
 import type { ChartOverlay } from "../ui/chart.js";
+import { createSaveLoadScreen } from "../ui/save-load.js";
+import type { SaveLoadScreen } from "../ui/save-load.js";
+import { formatClock } from "../render/hud/format.js";
 import { buildChartView, nearestInDirection } from "../ui/chart-model.js";
 import type { ChartRange, ChartView } from "../ui/chart-model.js";
 import {
@@ -327,6 +330,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let contextBeforeChart: InputContext = "flight";
   let lastJump: WegoliteHyperspaceLastJump | null = null;
   let lastRefusal: { reason: HyperspaceRefusal } | null = null;
+
+  // The F2 Save/Load screen (D-20..D-23). It is a standalone overlay with its
+  // own input context; F2 is docked-only and never opens beneath pause/chart.
+  let saveLoad: SaveLoadScreen | undefined;
+  let saveScreenOpen = false;
+  let contextBeforeSaveScreen: InputContext = "dockHome";
+  let saveScreenNotice = "";
 
   // DOCK-07: the boot status is sticky for the session. A future blob is never
   // cleared or overwritten, so the launch/purchase write path is skipped whole.
@@ -1207,6 +1217,89 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     updateProbe();
   }
 
+  /** The one slot line: the autosave key, the system and the live clock. */
+  function saveSlotText(): string {
+    const clock = state === undefined ? "" : formatClock(state.clockSeconds);
+    return `Autosave · ${system.name} · ${clock}`;
+  }
+
+  /**
+   * D-20: F2 opens the standalone screen only while docked. The keyboard only
+   * dispatches F2 from `dockHome`/`dockScreen`; this revalidates the live mode,
+   * the pause overlay and the chart, so no overlay can open over another one.
+   */
+  function openSaveScreen(): void {
+    const currentState = state;
+    const currentInput = input;
+    const screen = saveLoad;
+    if (
+      currentState === undefined ||
+      currentInput === undefined ||
+      screen === undefined
+    ) {
+      return;
+    }
+    if (paused || saveScreenOpen || chartOpen) return;
+    if (currentState.mode !== "docked") return;
+    saveScreenOpen = true;
+    contextBeforeSaveScreen = currentInput.getContext();
+    currentInput.setContext("saveScreen");
+    screen.show(saveSlotText());
+    saveScreenNotice = canOverwrite(saveStatus)
+      ? ""
+      : "Saving is disabled — this save is read-only";
+    screen.setNotice(saveScreenNotice);
+    updateProbe();
+  }
+
+  /** Hide F2 and restore the station context the player left. */
+  function closeSaveScreen(): void {
+    if (!saveScreenOpen) return;
+    saveScreenOpen = false;
+    saveLoad?.hide();
+    input?.setContext(contextBeforeSaveScreen);
+    // Return focus to the station screen the input context just restored.
+    const stationScreenElement = document.getElementById("station-screen");
+    stationScreenElement?.focus({ preventScroll: true });
+    updateProbe();
+  }
+
+  /**
+   * Apply one drained F2-screen edge. The live open flag is revalidated here so
+   * a queued action cannot act on a screen the player already closed.
+   */
+  function applySaveScreenAction(action: ActionId): void {
+    const screen = saveLoad;
+    if (screen === undefined) return;
+    switch (action) {
+      case "saveLoad":
+        if (saveScreenOpen) closeSaveScreen();
+        else openSaveScreen();
+        break;
+      case "saveScreenReturn":
+        closeSaveScreen();
+        break;
+      case "saveScreenUp":
+        if (saveScreenOpen) screen.moveSelection(-1);
+        break;
+      case "saveScreenDown":
+        if (saveScreenOpen) screen.moveSelection(1);
+        break;
+      case "saveScreenSave":
+      case "saveScreenLoad":
+      case "saveScreenConfirm":
+      case "saveScreenCancel":
+        // Save/Load semantics land in Task 2/3; Return is live from Task 1.
+        break;
+      default:
+        break;
+    }
+  }
+
+  function handleSaveScreenActions(actions: readonly ActionId[]): void {
+    for (const action of actions) applySaveScreenAction(action);
+  }
+
   function selectChartSystem(id: string): void {
     if (!chartOpen) return;
     chartSelectedId = id;
@@ -1600,6 +1693,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       lastJump,
       lastRefusal,
     };
+    probe.saveScreen = {
+      open: saveScreenOpen,
+      row: saveLoad?.selection() ?? "save",
+      confirming: saveLoad?.isConfirming() ?? false,
+      notice: saveScreenNotice,
+    };
 
     const currentState = state;
     if (currentState !== undefined) {
@@ -1846,9 +1945,23 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // D-01: consume the chart edges before the freeze branch, so F6 opens and
     // closes and a KeyP over the chart still reaches the pause handler above.
     handleChartActions(currentInput.drainChartActions());
+    // D-20: the F2 screen is another opaque edge-driven overlay; its actions
+    // are applied before the freeze so Save/Load can run and Return can close.
+    if (chartOpen) currentInput.drainSaveScreenActions();
+    else handleSaveScreenActions(currentInput.drainSaveScreenActions());
 
     if (chartOpen) {
       // The overlay is opaque: drain everything, advance nothing, paint nothing.
+      currentInput.drainCommands();
+      currentInput.drainStationActions();
+      pending.length = 0;
+      currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+      updateProbe();
+      return;
+    }
+
+    if (saveScreenOpen) {
+      // The save screen is opaque too: no fixed step runs behind it.
       currentInput.drainCommands();
       currentInput.drainStationActions();
       pending.length = 0;
@@ -2126,6 +2239,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     chart.onSelect((id) => {
       selectChartSystem(id);
     });
+    saveLoad = createSaveLoadScreen(document.body);
+    saveLoad.onReturn(() => {
+      closeSaveScreen();
+    });
 
     const loaded = loadSettings();
     const bindingMap = createBindingMap(loaded.bindings);
@@ -2332,6 +2449,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     chart?.dispose();
     chart = undefined;
     chartOpen = false;
+    saveLoad?.dispose();
+    saveLoad = undefined;
+    saveScreenOpen = false;
     docked.dispose();
     title.dispose();
 
@@ -2342,6 +2462,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     layout = undefined;
     delete probe.test;
     delete probe.save;
+    delete probe.saveScreen;
     saveBoot.store.dispose();
   }
 
