@@ -23,11 +23,12 @@
  *    equipment catalogue.
  *
  * An oversized, unparseable or unrecognised blob is `unreadable`, never
- * `corrupt`: only a provably v1-shaped-but-invalid blob may be backed up and
+ * `corrupt`: only a provably v1/v2-shaped-but-invalid blob may be backed up and
  * cleared by New game (T-04-47).
  *
- * The save carries no docked pose, no timestamp and no host data: the pose is
- * derived from the layout on restore (D-13).
+ * The save carries no docked pose, no timestamp and no host data: a docked pose
+ * is derived from the layout on restore. A v2 in-flight save additionally
+ * carries the sanitized flight pose and the market snapshot (D-13).
  */
 
 import { z } from "zod";
@@ -38,10 +39,11 @@ import {
   emptyCargo,
   holdPodsUsed,
 } from "../sim/economy/cargo.js";
+import { marketSeedForSystem } from "../sim/economy/market.js";
 import { CLOCK_START } from "../sim/flight/state.js";
 
-/** The schema version this build writes and accepts. */
-export const SAVE_VERSION = 1;
+/** The schema version this build writes and accepts (D-13). */
+export const SAVE_VERSION = 2 as const;
 
 /**
  * The largest raw blob the parser will even attempt to parse.
@@ -102,8 +104,14 @@ export const CargoEntrySchema = z.strictObject({
   quantity: z.number().int().min(1).max(MAX_SAVE_CARGO_QUANTITY),
 });
 
+/**
+ * The historical v1 schema (D-14).
+ *
+ * Its version stays `z.literal(1)` rather than following `SAVE_VERSION`: this
+ * is the migration input, so it must describe exactly what Phase 4/5 wrote.
+ */
 export const SaveV1Schema = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(1),
   mode: z.literal("docked"),
   clockSeconds: z
     .number()
@@ -129,7 +137,39 @@ export const SaveV1Schema = z.strictObject({
   marketSeed: z.number().int().min(0).max(0xffffffff).optional(),
 });
 
+/**
+ * The current v2 schema (D-13, D-15).
+ *
+ * Task 1 lands the discriminator and the preserved v1 fields; the market
+ * snapshot, target and flight pose are added in Task 2 on the same object.
+ */
+export const SaveV2Schema = z.strictObject({
+  version: z.literal(SAVE_VERSION),
+  mode: z.enum(["docked", "inFlight"]),
+  clockSeconds: z
+    .number()
+    .int()
+    .min(CLOCK_START)
+    .max(CLOCK_START + MAX_SAVE_CLOCK_DELTA),
+  credits: z.number().int().min(0).max(MAX_SAVE_CREDITS),
+  equipment: z
+    .array(z.string().min(1).max(MAX_SAVE_EQUIPMENT_KEY_CHARS))
+    .max(MAX_SAVE_EQUIPMENT),
+  system: z.strictObject({
+    id: z.string().min(1).max(MAX_SAVE_SYSTEM_ID_CHARS),
+  }),
+  station: z.strictObject({
+    key: z.string().min(1).max(MAX_SAVE_STATION_KEY_CHARS),
+  }),
+  cargo: z.array(CargoEntrySchema).max(MAX_SAVE_CARGO_ENTRIES).optional(),
+  fuel: z.number().int().min(0).max(MAX_SAVE_FUEL).optional(),
+  missiles: z.number().int().min(0).max(MAX_SAVE_MISSILES).optional(),
+  passengerBerths: z.number().int().min(0).max(MAX_SAVE_BERTHS).optional(),
+  marketSeed: z.number().int().min(0).max(0xffffffff).optional(),
+});
+
 export type SaveV1 = z.infer<typeof SaveV1Schema>;
+export type SaveV2 = z.infer<typeof SaveV2Schema>;
 export type SaveCargoEntry = z.infer<typeof CargoEntrySchema>;
 
 /** The catalogue facts a boot must supply before a blob can be trusted. */
@@ -139,13 +179,21 @@ export interface SaveAllowLists {
   readonly stations: ReadonlySet<string>;
   /** Tradeable commodity key → unit; Alien Items is deliberately absent. */
   readonly commodities: ReadonlyMap<string, CommodityUnit>;
+  /**
+   * Every commodity key a market snapshot may carry (D-15, T-06-07).
+   *
+   * Deliberately separate from `commodities`: the market emits 17 goods
+   * including Alien Items, while cargo can only ever hold the 16 tradeable
+   * ones. It becomes required when the market snapshot lands in Task 2.
+   */
+  readonly marketGoods?: ReadonlySet<string>;
 }
 
 export type SaveParseFailure =
   "corrupt" | "future-version" | "absent" | "unreadable";
 
 export type SaveParseResult =
-  | { readonly ok: true; readonly save: SaveV1 }
+  | { readonly ok: true; readonly save: SaveV2 }
   | { readonly ok: false; readonly reason: SaveParseFailure };
 
 /** The trusted values `encodeSave` projects into a `SaveV1`. */
@@ -199,6 +247,24 @@ function sniffVersion(raw: string): number | null {
 }
 
 /**
+ * The one ordered v1 → v2 migration (D-14).
+ *
+ * Pure and total: it never touches IndexedDB, a clock or the content loader,
+ * and it never mutates its input. A v1 blob has no market snapshot, so the
+ * migrated object carries exactly one seed (`marketSeed`); the session may
+ * generate the market from it before the first v2 write.
+ */
+export function migrateV1ToV2(v1: SaveV1): SaveV2 {
+  return {
+    ...v1,
+    version: SAVE_VERSION,
+    mode: "docked",
+    marketSeed: v1.marketSeed ?? marketSeedForSystem(v1.system.id),
+    // No `market` and no `flight`: a v1 save is always docked and has no snapshot.
+  };
+}
+
+/**
  * Validate an untrusted blob against the schema and the boot allow-lists.
  *
  * The order is load-bearing: absent, size cap (+ bounded version sniff),
@@ -246,17 +312,30 @@ export function parseSave(
     }
   }
 
-  const result = SaveV1Schema.safeParse(parsed);
-  if (!result.success) {
-    // A JSON value that does not carry this save family's numeric `version`
-    // field is an unknown shape, not a corrupt v1 save. Only the latter may be
-    // backed up and cleared by New game.
-    if (!isRecord(parsed) || typeof parsed["version"] !== "number") {
-      return { ok: false, reason: "unreadable" };
-    }
+  // A JSON value that does not carry this save family's numeric `version`
+  // field is an unknown shape, not a corrupt save. Only a positively recognised
+  // v1/v2 object may be backed up and cleared by New game.
+  if (!isRecord(parsed) || typeof parsed["version"] !== "number") {
+    return { ok: false, reason: "unreadable" };
+  }
+
+  const version = parsed["version"];
+  let save: SaveV2;
+  if (version === 1) {
+    // The historical schema is the migration input; a v1-shaped blob that
+    // fails it is positively corrupt.
+    const migrated = SaveV1Schema.safeParse(parsed);
+    if (!migrated.success) return { ok: false, reason: "corrupt" };
+    save = migrateV1ToV2(migrated.data);
+  } else if (version === 2) {
+    const current = SaveV2Schema.safeParse(parsed);
+    if (!current.success) return { ok: false, reason: "corrupt" };
+    save = current.data;
+  } else {
+    // A numeric version this build knows is historical/current (0, negative,
+    // fractional) but has no schema for: positively this family, so corrupt.
     return { ok: false, reason: "corrupt" };
   }
-  const save = result.data;
 
   // The schema proves the shape; the shared semantic validator proves the
   // referents, cargo accounting and canonical equipment. It is the same stage
@@ -293,7 +372,7 @@ export function parseSave(
  * the alias and a non-zero count together are ambiguous double-encoding.
  */
 export function validateSaveSemantics(
-  save: SaveV1,
+  save: SaveV2,
   allow: SaveAllowLists,
   mode: "read" | "write",
 ): boolean {
@@ -361,7 +440,7 @@ export function isEncodedSaveValid(
   } catch {
     return false;
   }
-  const result = SaveV1Schema.safeParse(parsed);
+  const result = SaveV2Schema.safeParse(parsed);
   if (!result.success) return false;
   try {
     return validateSaveSemantics(result.data, allow, "write");
@@ -396,7 +475,7 @@ export function boundCorruptBackup(raw: string): string {
  * applied). The docked pose is not written — it is derived from the layout.
  */
 export function encodeSave(inputs: SaveInputs): string {
-  const save: SaveV1 = {
+  const save: SaveV2 = {
     version: SAVE_VERSION,
     mode: "docked",
     clockSeconds: inputs.clockSeconds,

@@ -13,6 +13,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { CLOCK_START } from "../../src/sim/flight/state.js";
+import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import {
   CORRUPT_BACKUP_MARKER,
   MAX_SAVE_CHARS,
@@ -21,6 +22,27 @@ import {
   parseSave,
 } from "../../src/persistence/save.js";
 import type { SaveAllowLists, SaveV1 } from "../../src/persistence/save.js";
+
+/** The 17 commodity keys a market snapshot may carry (Alien Items included). */
+export const MARKET_GOODS: readonly string[] = [
+  "food",
+  "textiles",
+  "radioactives",
+  "slaves",
+  "liquor_wines",
+  "luxuries",
+  "narcotics",
+  "computers",
+  "machinery",
+  "alloys",
+  "firearms",
+  "furs",
+  "minerals",
+  "gold",
+  "platinum",
+  "gem_stones",
+  "alien_items",
+];
 
 const ALLOW: SaveAllowLists = {
   equipment: new Set([
@@ -39,6 +61,7 @@ const ALLOW: SaveAllowLists = {
     ["gold", "kg"],
     ["gem_stones", "g"],
   ]),
+  marketGoods: new Set(MARKET_GOODS),
 };
 
 function validSave(overrides: Record<string, unknown> = {}): SaveV1 {
@@ -58,21 +81,36 @@ function raw(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/** What a v1 blob becomes after the one ordered migration. */
+function migrated(save: SaveV1) {
+  return {
+    ...save,
+    version: 2,
+    mode: "docked",
+    marketSeed: save.marketSeed ?? marketSeedForSystem(save.system.id),
+  };
+}
+
 describe("parseSave accept path", () => {
-  it("accepts the exact blob this build writes", () => {
+  it("migrates the exact v1 blob this build's predecessor wrote", () => {
     const save = validSave({
       equipment: ["EQ_DOCK_COMP"],
       credits: 5000,
     });
     const result = parseSave(raw(save), ALLOW);
-    expect(result).toEqual({ ok: true, save });
+    expect(result).toEqual({ ok: true, save: migrated(save) });
+    if (!result.ok) return;
+    expect(result.save.version).toBe(2);
+    expect(result.save.mode).toBe("docked");
+    expect(result.save.market).toBeUndefined();
+    expect(result.save.flight).toBeUndefined();
   });
 
   it("reports null as absent rather than corrupt", () => {
     expect(parseSave(null, ALLOW)).toEqual({ ok: false, reason: "absent" });
   });
 
-  it("accepts the additive cargo, counts and seed fields", () => {
+  it("accepts the additive cargo, counts and seed fields through migration", () => {
     const save = validSave({
       equipment: ["EQ_DOCK_COMP"],
       cargo: [
@@ -84,6 +122,20 @@ describe("parseSave accept path", () => {
       passengerBerths: 1,
       marketSeed: 0x12345678,
     });
+    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save: migrated(save) });
+  });
+
+  it("accepts a minimal v2 docked object carrying one seed", () => {
+    const save = {
+      version: 2,
+      mode: "docked",
+      clockSeconds: CLOCK_START + 600,
+      credits: 1000,
+      equipment: [],
+      system: { id: "g0-s7" },
+      station: { key: "coriolis-station" },
+      marketSeed: 0x12345678,
+    };
     expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save });
   });
 });
@@ -105,9 +157,24 @@ describe("parseSave reject table", () => {
       reason: "corrupt",
     },
     {
-      name: "version 2",
-      raw: raw(validSave({ version: 2 })),
+      name: "version 3 is a future build",
+      raw: raw(validSave({ version: 3 })),
       reason: "future-version",
+    },
+    {
+      name: "v2 with an unknown top-level key",
+      raw: raw({
+        version: 2,
+        mode: "docked",
+        clockSeconds: CLOCK_START + 600,
+        credits: 1000,
+        equipment: [],
+        system: { id: "g0-s7" },
+        station: { key: "coriolis-station" },
+        marketSeed: 0x12345678,
+        futureBuild: "not this build",
+      }),
+      reason: "corrupt",
     },
     {
       name: "future version before schema validation",
@@ -323,7 +390,7 @@ describe("cargo and hold semantics", () => {
 
   it("accepts a lone Phase 4 berth alias and folds it in as one berth", () => {
     const save = validSave({ equipment: ["EQ_PASSENGER_BERTH"] });
-    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save });
+    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save: migrated(save) });
   });
 
   it("rejects a lone missile alias plus a non-zero missile count", () => {
@@ -343,7 +410,7 @@ describe("exact capacity boundaries and the optional seed", () => {
         { key: "gold", quantity: 499 },
       ],
     });
-    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save });
+    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save: migrated(save) });
   });
 
   it("rejects a 20 t hold plus 500 kg of gold", () => {
@@ -364,7 +431,10 @@ describe("exact capacity boundaries and the optional seed", () => {
       equipment: ["EQ_CARGO_BAY"],
       cargo: [{ key: "food", quantity: 25 }],
     });
-    expect(parseSave(raw(withBay), ALLOW)).toEqual({ ok: true, save: withBay });
+    expect(parseSave(raw(withBay), ALLOW)).toEqual({
+      ok: true,
+      save: migrated(withBay),
+    });
 
     const withoutBay = validSave({ cargo: [{ key: "food", quantity: 25 }] });
     expect(parseSave(raw(withoutBay), ALLOW)).toEqual({
@@ -378,12 +448,18 @@ describe("exact capacity boundaries and the optional seed", () => {
       equipment: ["EQ_CARGO_BAY"],
       passengerBerths: 7,
     });
-    expect(parseSave(raw(withBay), ALLOW)).toEqual({ ok: true, save: withBay });
+    expect(parseSave(raw(withBay), ALLOW)).toEqual({
+      ok: true,
+      save: migrated(withBay),
+    });
   });
 
   it("accepts the uint32 ceiling and rejects one above it", () => {
     const ceiling = validSave({ marketSeed: 0xffffffff });
-    expect(parseSave(raw(ceiling), ALLOW)).toEqual({ ok: true, save: ceiling });
+    expect(parseSave(raw(ceiling), ALLOW)).toEqual({
+      ok: true,
+      save: migrated(ceiling),
+    });
 
     const above = validSave({ marketSeed: 0x1_0000_0000 });
     expect(parseSave(raw(above), ALLOW)).toEqual({
@@ -392,13 +468,14 @@ describe("exact capacity boundaries and the optional seed", () => {
     });
   });
 
-  it("reads a Phase 4 blob without a seed as undefined", () => {
+  it("derives the seed for a Phase 4 blob that carried none", () => {
     const result = parseSave(raw(validSave()), ALLOW);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // The boot substitutes `marketSeedForSystem(system.id)`; the parser must not
-    // invent a seed of its own.
-    expect(result.save.marketSeed).toBeUndefined();
+    // D-14: the migration derives `marketSeedForSystem(system.id)` when the v1
+    // blob had no seed; the parser never invents a clock or random seed.
+    expect(result.save.marketSeed).toBe(marketSeedForSystem("g0-s7"));
+    expect(result.save.market).toBeUndefined();
   });
 });
 
@@ -420,7 +497,7 @@ describe("parseSave resource bound", () => {
     // CR-02: the version sniff runs on a bounded prefix *before* the blob is
     // classified, so a newer build's oversized save is untouchable, not
     // corrupt.
-    const oversized = `${raw(validSave({ version: 2 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
+    const oversized = `${raw(validSave({ version: 3 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
     expect(oversized.length).toBeGreaterThan(MAX_SAVE_CHARS);
 
     const parse = vi.spyOn(JSON, "parse");
@@ -435,7 +512,7 @@ describe("parseSave resource bound", () => {
   it("does not let a version marker beyond the sniff window defeat the bound", () => {
     // A hostile oversized blob cannot force a full parse by hiding the marker:
     // without a recognised prefix it is simply unreadable (still untouchable).
-    const hidden = `${" ".repeat(MAX_SAVE_CHARS)}${raw(validSave({ version: 2 }))}`;
+    const hidden = `${" ".repeat(MAX_SAVE_CHARS)}${raw(validSave({ version: 3 }))}`;
     expect(hidden.length).toBeGreaterThan(MAX_SAVE_CHARS);
     const parse = vi.spyOn(JSON, "parse");
     expect(parseSave(hidden, ALLOW)).toEqual({
