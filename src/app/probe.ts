@@ -97,11 +97,23 @@ export interface WegoliteProfileTestHook {
   grantEquipment(key: string): boolean;
 }
 
-/** The live station-computer state, tracer subset (plan 05-05 expands it). */
+/** The confirmation the station footer is currently waiting on. */
+export interface WegoliteStationPendingProbe {
+  readonly kind: "fit" | "trade";
+  readonly key: string;
+}
+
+/** The live station-computer state (ECON-04/ECON-05/ECON-06/ECON-07/ECON-09). */
 export interface WegoliteStationProbe {
   open: boolean;
   screen: "home" | "market" | "outfitting" | "status" | "systemData";
   selectedKey: string;
+  /** The active F5 page, always clamped to 1..2. */
+  page: 1 | 2;
+  /** The open `[Y/N]` confirmation, or null when no line is pending. */
+  pending: WegoliteStationPendingProbe | null;
+  /** The home screen's message line. */
+  message: string;
 }
 
 /** The market row evidence the e2e reads; never rebuilt per frame. */
@@ -111,12 +123,30 @@ export interface WegoliteEconomyMarketRow {
   stock: number;
 }
 
-/** The live economy state, tracer subset (plan 05-05 expands it). */
+/** The last accepted profile change, for the keyboard-loop proof. */
+export interface WegoliteLastTradeProbe {
+  readonly kind: "buy" | "sell" | "fit" | "removal";
+  readonly key: string;
+  /** Units for a trade; 1 for a fit or a removal. */
+  readonly amount: number;
+}
+
+/** The live economy state (ECON-01/ECON-02/ECON-03/ECON-05). */
 export interface WegoliteEconomyProbe {
   credits: number;
   cargo: Record<string, number>;
   marketSeed: number;
   market: WegoliteEconomyMarketRow[];
+  /** The tank in tenths of a light year (0..70). */
+  fuel: number;
+  missiles: number;
+  passengerBerths: number;
+  /** Pods the hold currently occupies. */
+  holdPods: number;
+  /** The hold's capacity in pods (20, or 35 with the cargo bay). */
+  capacityPods: number;
+  /** The last accepted buy/sell/fit/removal, or null before the first one. */
+  lastTrade: WegoliteLastTradeProbe | null;
 }
 
 /**

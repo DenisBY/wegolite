@@ -150,7 +150,12 @@
       }
 
       #station-screen[data-screen="home"] [data-station-panel="home"],
-      #station-screen[data-screen="market"] [data-station-panel="market"] {
+      #station-screen[data-screen="market"] [data-station-panel="market"],
+      #station-screen[data-screen="outfitting"]
+        [data-station-panel="outfitting"],
+      #station-screen[data-screen="status"] [data-station-panel="status"],
+      #station-screen[data-screen="systemData"]
+        [data-station-panel="systemData"] {
         display: block;
       }
 
@@ -219,6 +224,63 @@
 
       #docked .station-table tr.dimmed {
         color: #2a5a35;
+        opacity: 0.6;
+      }
+
+      #docked .station-outfitting {
+        display: grid;
+        grid-template-columns: minmax(22rem, 1fr) minmax(18rem, 1fr);
+        gap: 0.5rem 2rem;
+        align-items: start;
+      }
+
+      #docked .station-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+
+      #docked .station-row {
+        display: grid;
+        grid-template-columns: minmax(12rem, 1fr) auto auto;
+        gap: 1rem;
+        padding: 0.2rem 0.5rem;
+        border: 1px solid transparent;
+      }
+
+      #docked .station-row.selected {
+        background: #0a2a12;
+        border-color: #1a5a2c;
+      }
+
+      #docked .station-row.dimmed {
+        color: #2a5a35;
+        opacity: 0.6;
+      }
+
+      #docked .station-row-reason {
+        color: #9a9;
+        font-size: 0.85em;
+      }
+
+      #docked .station-detail {
+        padding-left: 1rem;
+        border-left: 1px solid #1a5a2c;
+      }
+
+      #docked .station-detail h3 {
+        margin: 0 0 0.5rem;
+        font-size: 20px;
+        letter-spacing: 0.04em;
+      }
+
+      #docked .station-equipment {
+        margin: 0 0 1rem;
+        padding-left: 1.2rem;
+      }
+
+      #docked [data-status-page] {
+        margin: 0 0 1rem;
       }
 
       #docked .station-cash,
@@ -462,6 +524,43 @@
           </table>
           <p class="station-cash" data-field="market-cash"></p>
           <p class="station-load" data-field="market-load"></p>
+        </div>
+        <div data-station-panel="outfitting" hidden>
+          <h2>Outfitting</h2>
+          <div class="station-outfitting">
+            <div class="station-list" data-outfitting-rows></div>
+            <div class="station-detail">
+              <h3 data-field="outfitting-title"></h3>
+              <p data-field="outfitting-description"></p>
+              <p data-field="outfitting-price"></p>
+            </div>
+          </div>
+        </div>
+        <div data-station-panel="status" hidden>
+          <h2>Status</h2>
+          <p data-field="status-page"></p>
+          <div data-status-page="1">
+            <dl data-status-fields></dl>
+            <ul class="station-equipment" data-status-equipment></ul>
+          </div>
+          <div data-status-page="2" hidden>
+            <table class="station-table">
+              <thead>
+                <tr>
+                  <th>Commodity</th>
+                  <th>Unit</th>
+                  <th>Hold</th>
+                </tr>
+              </thead>
+              <tbody data-manifest-rows></tbody>
+            </table>
+          </div>
+          <p class="station-load" data-field="status-load"></p>
+        </div>
+        <div data-station-panel="systemData" hidden>
+          <h2 data-field="system-data-title"></h2>
+          <dl data-system-data-fields></dl>
+          <p data-field="system-data-description"></p>
         </div>
       </section>
       <div class="station-footer">

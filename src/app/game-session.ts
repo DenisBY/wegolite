@@ -24,10 +24,12 @@ import {
 import { loadDockPort } from "../content/dock-port.js";
 import { loadEquipment } from "../content/equipment.js";
 import { loadCommodities } from "../content/commodities.js";
+import { loadLabels } from "../content/labels.js";
 import type {
   Commodity,
   CommodityUnit,
   Equipment,
+  Labels,
   ShipDef,
   System,
 } from "../content/types.js";
@@ -40,7 +42,11 @@ import { buildHudModel } from "./hud-model.js";
 import { createGameLoop } from "./game-loop.js";
 import type { GameLoop } from "./game-loop.js";
 import { createTestHook, publishFailure, readMemory } from "./probe.js";
-import type { WegoliteProbe, WegoliteSaveProbe } from "./probe.js";
+import type {
+  WegoliteLastTradeProbe,
+  WegoliteProbe,
+  WegoliteSaveProbe,
+} from "./probe.js";
 import type { SceneManager } from "./scene-manager.js";
 import { createHintController } from "./hints.js";
 import type { HintContext, HintController } from "./hints.js";
@@ -98,14 +104,33 @@ import type { PlayerProfile } from "../sim/player/profile.js";
 import { generateMarket, marketSeedForSystem } from "../sim/economy/market.js";
 import type { Market } from "../sim/economy/market.js";
 import {
+  availablePods,
+  capacityPodsFor,
+  holdPodsUsed,
+} from "../sim/economy/cargo.js";
+import {
   applyBuy,
   applySell,
   planBuy,
   planSell,
 } from "../sim/economy/trade.js";
 import type { TradePlan, TradeSide } from "../sim/economy/trade.js";
+import {
+  FUEL_CAPACITY,
+  MAX_MISSILES,
+  applyFit,
+  checkFit,
+} from "../sim/player/outfitting.js";
+import type { FitContext } from "../sim/player/outfitting.js";
 import { formatFuel } from "../ui/docked.js";
-import { buildMarketModel, tradeNoticeText } from "../ui/station-model.js";
+import {
+  buildMarketModel,
+  buildOutfittingModel,
+  buildStatusModel,
+  buildSystemDataModel,
+  tradeNoticeText,
+} from "../ui/station-model.js";
+import type { OutfittingModel } from "../ui/station-model.js";
 import { identity, sub, vec } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
 import type { InputFrame } from "../sim/state.js";
@@ -247,6 +272,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let settingsPanel: SettingsPanel | undefined;
   let equipmentCatalogue: readonly Equipment[] | undefined;
   let commodities: readonly Commodity[] | undefined;
+  let labels: Labels | undefined;
   let commodityUnits: ReadonlyMap<string, CommodityUnit> = new Map();
   let stationKey: string | undefined;
   // Economy state lives beside the flight state, never inside it (D-10).
@@ -265,6 +291,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let stationNotice = "";
   let stationMessage = "";
   let stationSaveNotice = "";
+  let stationPage: 1 | 2 = 1;
+  let lastTrade: WegoliteLastTradeProbe | null = null;
 
   // DOCK-07: the boot status is sticky for the session. A future blob is never
   // cleared or overwritten, so the launch/purchase write path is skipped whole.
@@ -391,6 +419,57 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     stationNotice = "";
   }
 
+  /** The live FitContext; every field is derived from the validated profile. */
+  function fitContext(): FitContext | undefined {
+    const catalogue = equipmentCatalogue;
+    const missile = catalogue?.find((entry) => entry.key === "EQ_MISSILE");
+    if (missile === undefined) return undefined;
+    return {
+      techLevelRaw: system.techLevelRaw,
+      fuelCapacity: FUEL_CAPACITY,
+      missileCapacity: MAX_MISSILES,
+      availablePods: availablePods(profile, commodityUnits),
+      missilePrice: missile.price,
+    };
+  }
+
+  function outfittingModel(): OutfittingModel | undefined {
+    const catalogue = equipmentCatalogue;
+    if (catalogue === undefined) return undefined;
+    return buildOutfittingModel(
+      catalogue,
+      profile,
+      system.techLevelRaw,
+      stationSelection,
+      commodityUnits,
+    );
+  }
+
+  /** Reset F3 to its first visible row (and clear its pending confirmation). */
+  function ensureOutfittingSelection(): void {
+    const model = outfittingModel();
+    if (model === undefined) {
+      stationSelection = "";
+      return;
+    }
+    if (!model.rows.some((row) => row.key === stationSelection)) {
+      stationSelection = model.rows[0]?.key ?? "";
+    }
+  }
+
+  /** Up/Down on F3; the list clamps at both ends and never wraps. */
+  function moveOutfittingSelection(delta: number): void {
+    const model = outfittingModel();
+    if (model === undefined || model.rows.length === 0) return;
+    let index = model.rows.findIndex((row) => row.key === stationSelection);
+    if (index === -1) index = 0;
+    const next = Math.min(model.rows.length - 1, Math.max(0, index + delta));
+    const row = model.rows[next];
+    if (row !== undefined) stationSelection = row.key;
+    stationPending = null;
+    stationNotice = "";
+  }
+
   /** The blunt refusal copy; a clamped plan's notice comes from the view model. */
   function commodityFor(key: string): Commodity | undefined {
     return commodities?.find((entry) => entry.key === key);
@@ -503,8 +582,92 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     market = applied.market;
     stationPending = null;
     stationNotice = "";
+    lastTrade = {
+      kind: plan.side,
+      key: plan.key,
+      amount: plan.amount,
+    };
     commitProfile(applied.profile);
     autosave();
+  }
+
+  /**
+   * F3 `[Y/N]` (D-16, ECON-05/ECON-08).
+   *
+   * Two states: the first confirm opens the prompt, the second re-checks the
+   * same key and applies it. A disabled row never sets a prompt and never
+   * reaches `applyFit`. After a committed removal the row is gone, so the
+   * selection clamps to the nearest surviving row and a further Y only re-opens
+   * the guard (or lands on a disabled row) — it can never buy the next row.
+   */
+  function confirmFit(): void {
+    if (stationScreen !== "outfitting") return;
+    const catalogue = equipmentCatalogue;
+    const ctx = fitContext();
+    if (catalogue === undefined || ctx === undefined) return;
+
+    const pendingFit =
+      stationPending !== null && "kind" in stationPending
+        ? stationPending
+        : null;
+    const key = pendingFit?.key ?? stationSelection;
+    const model = outfittingModel();
+    const item = catalogue.find((entry) => entry.key === key);
+    const row = model?.rows.find((entry) => entry.key === key);
+    if (item === undefined || row === undefined) {
+      stationPending = null;
+      stationNotice = "Not offered";
+      renderStation();
+      return;
+    }
+    if (!row.confirmable) {
+      stationPending = null;
+      stationNotice = row.reason;
+      renderStation();
+      return;
+    }
+    if (pendingFit === null) {
+      stationPending = { kind: "fit", key };
+      stationNotice = "";
+      renderStation();
+      return;
+    }
+
+    const indexBefore =
+      model?.rows.findIndex((entry) => entry.key === key) ?? -1;
+    const check = checkFit(profile, item, ctx);
+    if (!check.ok) {
+      stationPending = null;
+      stationNotice = row.reason;
+      renderStation();
+      return;
+    }
+    const next = applyFit(profile, item, ctx);
+    if (next === profile) {
+      stationPending = null;
+      stationNotice = row.reason;
+      renderStation();
+      return;
+    }
+    stationPending = null;
+    stationNotice = "";
+    lastTrade = {
+      kind: key.endsWith("_REMOVAL") ? "removal" : "fit",
+      key,
+      amount: 1,
+    };
+    commitProfile(next);
+    autosave();
+    // Clamp by position: a removed last row leaves the cursor on the new last row.
+    const after = outfittingModel();
+    if (
+      after !== undefined &&
+      !after.rows.some((entry) => entry.key === stationSelection)
+    ) {
+      const fallback = after.rows[Math.min(indexBefore, after.rows.length - 1)];
+      stationSelection = fallback?.key ?? "";
+    }
+    renderStation();
   }
 
   function cancelTrade(): void {
@@ -518,6 +681,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (screen === "market") {
       return "Up/Down select · Right buys +1 · Left sells +1 · Shift max · Y confirm · N cancel · Esc back · P pause";
     }
+    if (screen === "outfitting") {
+      return "Up/Down select · Y confirm · N cancel · Esc back · F8 market · F5 status · F7 system data · P pause";
+    }
+    if (screen === "status") {
+      return "Tab/PageDown next page · PageUp previous · Esc back · F8 market · F3 outfitting · F7 system data · P pause";
+    }
+    if (screen === "systemData") {
+      return "Esc back · F8 market · F3 outfitting · F5 status · P pause";
+    }
     return "F8 market · F3 outfitting · F5 status · F7 system data · 1 launch · P pause";
   }
 
@@ -526,6 +698,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const catalogue = commodities;
     if (currentMarket === undefined || catalogue === undefined) return;
 
+    const equipment = equipmentCatalogue;
     const marketModel = buildMarketModel(
       currentMarket,
       profile,
@@ -533,6 +706,47 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       stationSelection,
       { pending: pendingPlan(), notice: stationNotice },
     );
+    const outModel =
+      equipment === undefined
+        ? undefined
+        : buildOutfittingModel(
+            equipment,
+            profile,
+            system.techLevelRaw,
+            stationSelection,
+            commodityUnits,
+          );
+    const statusModel =
+      labels === undefined || equipment === undefined
+        ? undefined
+        : buildStatusModel(
+            profile,
+            system,
+            labels,
+            equipment,
+            catalogue,
+            stationPage,
+          );
+    const systemModel =
+      labels === undefined ? undefined : buildSystemDataModel(system, labels);
+
+    let confirmText = "";
+    let noticeText = stationNotice;
+    if (stationScreen === "market") {
+      confirmText = marketModel.confirmText ?? "";
+      noticeText = marketModel.noticeText;
+    } else if (stationScreen === "outfitting") {
+      const pendingFit =
+        stationPending !== null && "kind" in stationPending
+          ? stationPending
+          : null;
+      const row = outModel?.rows.find(
+        (entry) => entry.key === (pendingFit?.key ?? stationSelection),
+      );
+      if (pendingFit !== null && row !== undefined) {
+        confirmText = `Buy ${row.name} for ${formatDecicredits(row.cost)}? [Y/N]`;
+      }
+    }
 
     const saveText = canOverwrite(saveStatus)
       ? stationSaveNotice
@@ -545,10 +759,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       fuelText: formatFuel(profile.fuel),
       message: stationMessage,
       keysText: keyHints(stationScreen),
-      confirmText: marketModel.confirmText ?? "",
-      noticeText: marketModel.noticeText,
+      confirmText,
+      noticeText,
       saveText,
       market: marketModel,
+      outfitting: outModel,
+      status: statusModel,
+      systemData: systemModel,
     };
     docked.setFuel(formatFuel(profile.fuel));
     docked.render(view);
@@ -558,6 +775,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function syncEconomyProbe(): void {
     const currentMarket = market;
     if (currentMarket === undefined || marketSeed === undefined) return;
+    const pendingProbe =
+      stationPending === null
+        ? null
+        : "kind" in stationPending
+          ? { kind: "fit" as const, key: stationPending.key }
+          : { kind: "trade" as const, key: stationPending.key };
     probe.economy = {
       credits: profile.credits,
       cargo: { ...profile.cargo },
@@ -567,11 +790,20 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         price: good.price,
         stock: good.stock,
       })),
+      fuel: profile.fuel,
+      missiles: profile.missiles,
+      passengerBerths: profile.passengerBerths,
+      holdPods: holdPodsUsed(profile.cargo, commodityUnits),
+      capacityPods: capacityPodsFor(profile.equipment, profile.passengerBerths),
+      lastTrade,
     };
     probe.station = {
       open: state?.mode === "docked",
       screen: stationScreen,
       selectedKey: stationSelection,
+      page: stationPage,
+      pending: pendingProbe,
+      message: stationMessage,
     };
   }
 
@@ -799,17 +1031,42 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   /**
    * The synchronous screen-open sink (step 7): the input layer calls this
    * inside `keyDown`, so the context switches before the same-frame next key
-   * resolves. Wave 1 opens only the market; F3/F5/F7 arrive in later plans.
+   * resolves. F3/F5/F7/F8 are all reachable from home and from any section.
    */
   function openStationScreen(action: ActionId): void {
     const currentState = state;
     const currentInput = input;
     if (currentState?.mode !== "docked" || currentInput === undefined) return;
-    if (action !== "stationMarket") return;
-    stationScreen = "market";
+
+    let screen: StationScreen | undefined;
+    switch (action) {
+      case "stationMarket":
+        screen = "market";
+        break;
+      case "stationOutfitting":
+        screen = "outfitting";
+        break;
+      case "stationStatus":
+        screen = "status";
+        break;
+      case "stationSystemData":
+        screen = "systemData";
+        break;
+      default:
+        return;
+    }
+    if (screen === undefined) return;
+
+    stationScreen = screen;
     stationPending = null;
     stationNotice = "";
-    ensureSelection();
+    stationPage = 1;
+    if (screen === "market") ensureSelection();
+    if (screen === "outfitting") {
+      // Opening a screen always starts at the first row with no pending line.
+      stationSelection = "";
+      ensureOutfittingSelection();
+    }
     currentInput.setContext("dockScreen");
     renderStation();
   }
@@ -819,6 +1076,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     stationScreen = "home";
     stationPending = null;
     stationNotice = "";
+    stationPage = 1;
     input?.setContext("dockHome");
     renderStation();
   }
@@ -844,11 +1102,17 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         if (stationScreen === "market") {
           moveSelection(-1);
           renderStation();
+        } else if (stationScreen === "outfitting") {
+          moveOutfittingSelection(-1);
+          renderStation();
         }
         break;
       case "stationDown":
         if (stationScreen === "market") {
           moveSelection(1);
+          renderStation();
+        } else if (stationScreen === "outfitting") {
+          moveOutfittingSelection(1);
           renderStation();
         }
         break;
@@ -865,14 +1129,23 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         planMax("sell");
         break;
       case "stationConfirm":
-        confirmTrade();
+        if (stationScreen === "market") confirmTrade();
+        else if (stationScreen === "outfitting") confirmFit();
         break;
       case "stationCancel":
         cancelTrade();
         break;
       case "stationPageNext":
+        if (stationScreen === "status") {
+          stationPage = 2;
+          renderStation();
+        }
+        break;
       case "stationPagePrevious":
-        // Wave 2 has no paged screens.
+        if (stationScreen === "status") {
+          stationPage = 1;
+          renderStation();
+        }
         break;
       default:
         break;
@@ -939,6 +1212,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         stationPending = null;
         stationNotice = "";
         stationMessage = "";
+        stationPage = 1;
         input?.setContext("flight");
         docked.hide();
         hudCanvas.hidden = false;
@@ -965,6 +1239,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         stationPending = null;
         stationNotice = "";
         stationMessage = "";
+        stationPage = 1;
         input?.setContext("dockHome");
         docked.show(system.name);
         ensureSelection();
@@ -1373,13 +1648,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // coefficients. A missing or malformed record fails the boot visibly,
     // exactly like the ship catalogue.
     try {
-      const [equipment, loadedCommodities] = await Promise.all([
+      const [equipment, loadedCommodities, loadedLabels] = await Promise.all([
         loadEquipment(),
         loadCommodities(),
+        loadLabels(),
       ]);
       if (disposed) return;
       equipmentCatalogue = equipment;
       commodities = loadedCommodities;
+      labels = loadedLabels;
       commodityUnits = new Map(
         loadedCommodities.map((commodity) => [commodity.key, commodity.unit]),
       );
