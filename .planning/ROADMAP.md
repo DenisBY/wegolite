@@ -218,15 +218,17 @@ Plans:
 **Wave 1**
 - [ ] 06-01-PLAN.md — Hyperspace core: exact integer distance/fuel/time, 1800-step countdown, deterministic witchpoint arrival, Wave 0 fixtures
 - [ ] 06-02-PLAN.md — Save v2: one schema, ordered v1→v2 migration, 17-key market allow-list, docked/in-flight restore
-- [ ] 06-03-PLAN.md — Chart model and canvas overlay: 256 systems, 875 edges, both ranges, selection and label collision
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 06-04-PLAN.md — End-to-end tracer: F6 target → H countdown → arrival scene/market swap → arrival autosave → reload; pre-launch anchor and in-flight Continue
+- [ ] 06-03-PLAN.md — Chart model and canvas overlay: 256 systems, 875 edges, both ranges, selection and label collision
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 06-05-PLAN.md — F2 Save/Load screen: docked-only one slot, overwrite confirmation, in-session load, failed-load isolation
+- [ ] 06-04-PLAN.md — End-to-end tracer: F6 target → H countdown → arrival scene/market swap → arrival autosave → reload; pre-launch anchor and in-flight Continue
 
 **Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 06-05-PLAN.md — F2 Save/Load screen: docked-only one slot, overwrite confirmation, in-session load, failed-load isolation
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 06-06-PLAN.md — Reload market/pose fidelity, autosave trigger matrix, future/corrupt safety, full container phase gate
 
 ### Phase 7: Hardening & Community Release
