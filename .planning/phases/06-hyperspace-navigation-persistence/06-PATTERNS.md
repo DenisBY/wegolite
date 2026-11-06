@@ -278,6 +278,12 @@ export function buildStatusModel(
 
 **Analogs:** `src/ui/station.ts` (DOM shell conventions) + `src/render/hud/hud.ts` (Canvas2D lifecycle).
 
+**Revision note (plan 06-03 Task 3):** the painting is split out into `src/ui/chart-draw.ts`
+(`drawChart(context, view, size)` + `needsChartRepaint(previous, next)`), following the
+`src/render/hud/draw.ts` convention of pure draw functions that receive a ready context. That is
+what makes paint-on-change, draw order and the 0x0 skip unit-testable in the Node-only Vitest
+project; `chart.ts` keeps only the DOM shell, sizing, listeners and the `data-paints` counter.
+
 **DOM shell conventions** (`station.ts:61-84`, `:309-320`, `:364-367`):
 
 ```ts
