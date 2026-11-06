@@ -39,26 +39,30 @@ import {
   emptyCargo,
   holdPodsUsed,
 } from "../sim/economy/cargo.js";
-import { marketSeedForSystem } from "../sim/economy/market.js";
+import { MARKET_LIMIT, marketSeedForSystem } from "../sim/economy/market.js";
+import type { Market } from "../sim/economy/market.js";
 import { CLOCK_START } from "../sim/flight/state.js";
 
 /** The schema version this build writes and accepts (D-13). */
 export const SAVE_VERSION = 2 as const;
 
 /**
- * The largest raw blob the parser will even attempt to parse.
+ * The largest raw blob the parser will even attempt to parse (D-15, T-06-04).
  *
  * This is a true upper bound on what `encodeSave` can produce, including
- * worst-case JSON escaping. The largest v1 tuple is 64 equipment keys of 64
- * characters; a control character encodes to six characters (`\u00XX`), so the
- * equipment array alone is at most 64 × 64 × 6 = 24,576 characters. Seventeen
- * cargo entries add at most 17 × (64 × 6 + 8) ≈ 6,664 characters. Adding the
- * escaped system id (16 × 6), station key (64 × 6), 16-digit safe-integer
- * credits, a 13-digit clock, five scalar fields and the field envelope stays
- * below 32 KiB. 32 KiB keeps a comfortable margin while remaining a hard
- * resource bound before `JSON.parse` (T-04-27/T-04-49).
+ * worst-case JSON escaping. The v2 worst case is:
+ *
+ * - equipment, 64 keys of 64 characters: 64 × 64 × 6 = 24,576 characters
+ *   (a control character encodes to six characters, `\u00XX`);
+ * - cargo, 17 entries: 17 × (64 × 6 + 8) ≈ 6,664;
+ * - market, 17 goods: 17 × (64 × 6 + 28) ≈ 7,004;
+ * - pose: about 250; scalar/system/station envelope: about 400.
+ *
+ * That is ≈38.9 KB, comfortably under 65,536 while remaining a hard resource
+ * bound checked before `JSON.parse`. The version sniff copies at most
+ * `MAX_VERSION_SNIFF_CHARS` characters, never the whole stored string.
  */
-export const MAX_SAVE_CHARS = 32_768;
+export const MAX_SAVE_CHARS = 65_536;
 
 /** The most equipment keys one profile may carry. */
 export const MAX_SAVE_EQUIPMENT = 64;
@@ -99,6 +103,25 @@ export const MAX_SAVE_CLOCK_DELTA = 1_000_000_000_000;
  */
 export const MAX_SAVE_CREDITS = Number.MAX_SAFE_INTEGER;
 
+/**
+ * The largest position magnitude a save may carry, in metres (Pitfall 8).
+ *
+ * A finite-but-absurd position (1e30) is still finite, so `sanitizeFlightState`
+ * would not repair it; the save schema and validator bound it instead. The
+ * largest real coordinate is the system extent (tens of thousands of metres),
+ * so 1e9 leaves a very wide margin while keeping camera arithmetic sane.
+ */
+export const MAX_SAVE_POSITION_MAGNITUDE = 1e9;
+
+/** The largest scalar speed accepted (torus cap is 350 × 1024). */
+export const MAX_SAVE_SPEED = 1_000_000;
+
+/** The largest absolute pitch/roll rate accepted, in radians per second. */
+export const MAX_SAVE_RATE = 10;
+
+/** The exact number of market goods a snapshot carries (MARKET_LIMIT stock). */
+export const MAX_SAVE_MARKET_GOODS = 17;
+
 export const CargoEntrySchema = z.strictObject({
   key: z.string().min(1).max(MAX_SAVE_EQUIPMENT_KEY_CHARS),
   quantity: z.number().int().min(1).max(MAX_SAVE_CARGO_QUANTITY),
@@ -137,11 +160,64 @@ export const SaveV1Schema = z.strictObject({
   marketSeed: z.number().int().min(0).max(0xffffffff).optional(),
 });
 
+/** One persisted market good (D-13): key, decicredit price and shelf stock. */
+export const MarketGoodSchema = z.strictObject({
+  key: z.string().min(1).max(MAX_SAVE_EQUIPMENT_KEY_CHARS),
+  price: z.number().int().min(0).max(MAX_SAVE_CREDITS),
+  stock: z.number().int().min(0).max(MARKET_LIMIT),
+});
+
+/**
+ * The current market snapshot (D-13).
+ *
+ * Exactly the 17 known goods, no duplicates, and a system id equal to the saved
+ * system are enforced by the shared semantic validator, because `zod` alone
+ * cannot express "allow-listed and unique" without a second parser.
+ */
+export const MarketSchema = z.strictObject({
+  systemId: z.string().min(1).max(MAX_SAVE_SYSTEM_ID_CHARS),
+  seed: z.number().int().min(0).max(0xffffffff),
+  goods: z.array(MarketGoodSchema).length(MAX_SAVE_MARKET_GOODS),
+});
+
+const PositionComponentSchema = z
+  .number()
+  .min(-MAX_SAVE_POSITION_MAGNITUDE)
+  .max(MAX_SAVE_POSITION_MAGNITUDE);
+
+const Vec3TupleSchema = z.tuple([
+  PositionComponentSchema,
+  PositionComponentSchema,
+  PositionComponentSchema,
+]);
+const QuatTupleSchema = z.tuple([
+  z.number(),
+  z.number(),
+  z.number(),
+  z.number(),
+]);
+
+/**
+ * A sanitized in-flight pose (D-13, D-16, Pitfall 8).
+ *
+ * Presence is tied to `mode` by the semantic validator; the numeric bounds are
+ * in the schema so a finite-but-absurd value never reaches the renderer.
+ */
+export const FlightPoseSchema = z.strictObject({
+  position: Vec3TupleSchema,
+  orientation: QuatTupleSchema,
+  speed: z.number().min(0).max(MAX_SAVE_SPEED),
+  pitchRate: z.number().min(-MAX_SAVE_RATE).max(MAX_SAVE_RATE),
+  rollRate: z.number().min(-MAX_SAVE_RATE).max(MAX_SAVE_RATE),
+  torus: z.boolean(),
+});
+
 /**
  * The current v2 schema (D-13, D-15).
  *
- * Task 1 lands the discriminator and the preserved v1 fields; the market
- * snapshot, target and flight pose are added in Task 2 on the same object.
+ * One strict object: every v1 field plus `mode`, an optional committed target,
+ * exactly one seed encoding (`market` or `marketSeed`) and, for `inFlight`, a
+ * flight pose.
  */
 export const SaveV2Schema = z.strictObject({
   version: z.literal(SAVE_VERSION),
@@ -165,7 +241,13 @@ export const SaveV2Schema = z.strictObject({
   fuel: z.number().int().min(0).max(MAX_SAVE_FUEL).optional(),
   missiles: z.number().int().min(0).max(MAX_SAVE_MISSILES).optional(),
   passengerBerths: z.number().int().min(0).max(MAX_SAVE_BERTHS).optional(),
+  // Exactly one seed encoding: migration writes `marketSeed`, the canonical
+  // writer writes `market.seed`. The validator rejects both and neither.
   marketSeed: z.number().int().min(0).max(0xffffffff).optional(),
+  market: MarketSchema.optional(),
+  targetSystem: z.string().min(1).max(MAX_SAVE_SYSTEM_ID_CHARS).optional(),
+  // Required iff `mode === "inFlight"`; a docked save derives its pose.
+  flight: FlightPoseSchema.optional(),
 });
 
 export type SaveV1 = z.infer<typeof SaveV1Schema>;
@@ -184,9 +266,9 @@ export interface SaveAllowLists {
    *
    * Deliberately separate from `commodities`: the market emits 17 goods
    * including Alien Items, while cargo can only ever hold the 16 tradeable
-   * ones. It becomes required when the market snapshot lands in Task 2.
+   * ones.
    */
-  readonly marketGoods?: ReadonlySet<string>;
+  readonly marketGoods: ReadonlySet<string>;
 }
 
 export type SaveParseFailure =
@@ -196,7 +278,17 @@ export type SaveParseResult =
   | { readonly ok: true; readonly save: SaveV2 }
   | { readonly ok: false; readonly reason: SaveParseFailure };
 
-/** The trusted values `encodeSave` projects into a `SaveV1`. */
+/** A flight pose in the wire shape: tuples, not the sim's `{x,y,z}` objects. */
+export interface SaveFlightPose {
+  readonly position: readonly [number, number, number];
+  readonly orientation: readonly [number, number, number, number];
+  readonly speed: number;
+  readonly pitchRate: number;
+  readonly rollRate: number;
+  readonly torus: boolean;
+}
+
+/** The trusted values `encodeSave` projects into a `SaveV2`. */
 export interface SaveInputs {
   readonly clockSeconds: number;
   readonly credits: number;
@@ -205,7 +297,15 @@ export interface SaveInputs {
   readonly fuel: number;
   readonly missiles: number;
   readonly passengerBerths: number;
-  readonly marketSeed: number;
+  readonly mode: "docked" | "inFlight";
+  /** The committed hyperspace target, when one is selected (D-12). */
+  readonly targetSystem?: string;
+  /** The seed-only encoding; used by a v1 migration and as a fallback. */
+  readonly marketSeed?: number;
+  /** The canonical market snapshot; wins over `marketSeed` when present. */
+  readonly market?: Market;
+  /** Required iff `mode === "inFlight"`; never written for a docked save. */
+  readonly flight?: SaveFlightPose;
   readonly systemId: string;
   readonly stationKey: string;
 }
@@ -418,6 +518,73 @@ export function validateSaveSemantics(
   const usedPods = holdPodsUsed(cargo, allow.commodities);
   if (!Number.isSafeInteger(usedPods) || usedPods > capacityPods) return false;
 
+  // D-16/Pitfall 9: exactly one seed per encoding. Both present (a hand-edited
+  // save where `marketSeed` and `market.seed` disagree) or neither present is
+  // ambiguous, so it is corrupt.
+  if ((save.market === undefined) === (save.marketSeed === undefined)) {
+    return false;
+  }
+
+  if (save.market !== undefined) {
+    // D-16: the snapshot must describe the saved system, carry exactly the 17
+    // known goods with no duplicate, and stay inside the market bounds.
+    if (save.market.systemId !== save.system.id) return false;
+    if (save.market.goods.length !== MAX_SAVE_MARKET_GOODS) return false;
+    const seenGoods = new Set<string>();
+    for (const good of save.market.goods) {
+      if (seenGoods.has(good.key)) return false;
+      if (!allow.marketGoods.has(good.key)) return false;
+      if (!Number.isSafeInteger(good.price) || good.price < 0) return false;
+      if (
+        !Number.isInteger(good.stock) ||
+        good.stock < 0 ||
+        good.stock > MARKET_LIMIT
+      ) {
+        return false;
+      }
+      seenGoods.add(good.key);
+    }
+  }
+
+  // D-16: a committed target, when present, must be a system this build knows.
+  if (save.targetSystem !== undefined && !allow.systems.has(save.targetSystem)) {
+    return false;
+  }
+
+  // D-16: an in-flight save carries a pose, a docked save does not.
+  if ((save.flight !== undefined) !== (save.mode === "inFlight")) return false;
+
+  if (save.flight !== undefined) {
+    const { position, orientation } = save.flight;
+    if (!position.every((value) => Number.isFinite(value))) return false;
+    // Pitfall 8: finite-but-absurd positions are rejected here, not left for
+    // `sanitizeFlightState` (which only repairs non-finite values).
+    if (
+      Math.hypot(position[0], position[1], position[2]) >
+      MAX_SAVE_POSITION_MAGNITUDE
+    ) {
+      return false;
+    }
+    if (!orientation.every((value) => Number.isFinite(value))) return false;
+    const orientationLengthSquared =
+      orientation[0] ** 2 +
+      orientation[1] ** 2 +
+      orientation[2] ** 2 +
+      orientation[3] ** 2;
+    // D-16: normalized on read; zero length is corrupt and a true unit
+    // quaternion is exactly 1. The upper bound permits an unnormalized input.
+    if (!(orientationLengthSquared > 0 && orientationLengthSquared <= 4)) {
+      return false;
+    }
+    if (
+      !Number.isFinite(save.flight.speed) ||
+      !Number.isFinite(save.flight.pitchRate) ||
+      !Number.isFinite(save.flight.rollRate)
+    ) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -468,16 +635,31 @@ export function boundCorruptBackup(raw: string): string {
 }
 
 /**
- * Project trusted values into the canonical blob.
+ * Project trusted values into the canonical v2 blob.
  *
- * `mode` is always `"docked"`: a save written at launch records "resume docked
- * at this clock", which is the post-`beginLaunch` clock (+600 s already
- * applied). The docked pose is not written — it is derived from the layout.
+ * Exactly one seed is always emitted: the market snapshot wins when present
+ * (and `marketSeed` is omitted), otherwise the seed is written. A docked save
+ * never writes a pose; an in-flight save writes the sanitized pose the caller
+ * supplied. `snapshotForSave` is the only caller in the app, so these values are
+ * already trusted — the writer gate re-validates the encoded bytes anyway.
  */
 export function encodeSave(inputs: SaveInputs): string {
+  const market =
+    inputs.market === undefined
+      ? undefined
+      : {
+          systemId: inputs.market.systemId,
+          seed: inputs.market.seed,
+          goods: inputs.market.goods.map((good) => ({
+            key: good.key,
+            price: good.price,
+            stock: good.stock,
+          })),
+        };
+
   const save: SaveV2 = {
     version: SAVE_VERSION,
-    mode: "docked",
+    mode: inputs.mode,
     clockSeconds: inputs.clockSeconds,
     credits: inputs.credits,
     equipment: [...inputs.equipment],
@@ -488,9 +670,33 @@ export function encodeSave(inputs: SaveInputs): string {
     fuel: inputs.fuel,
     missiles: inputs.missiles,
     passengerBerths: inputs.passengerBerths,
-    marketSeed: inputs.marketSeed,
     system: { id: inputs.systemId },
     station: { key: inputs.stationKey },
+    ...(inputs.targetSystem === undefined
+      ? {}
+      : { targetSystem: inputs.targetSystem }),
+    ...(market !== undefined
+      ? { market }
+      : inputs.marketSeed === undefined
+        ? {}
+        : { marketSeed: inputs.marketSeed }),
+    ...(inputs.mode === "inFlight" && inputs.flight !== undefined
+      ? {
+          flight: {
+            position: [...inputs.flight.position] as [number, number, number],
+            orientation: [...inputs.flight.orientation] as [
+              number,
+              number,
+              number,
+              number,
+            ],
+            speed: inputs.flight.speed,
+            pitchRate: inputs.flight.pitchRate,
+            rollRate: inputs.flight.rollRate,
+            torus: inputs.flight.torus,
+          },
+        }
+      : {}),
   };
   return JSON.stringify(save);
 }

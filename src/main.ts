@@ -34,7 +34,7 @@ import { loadShipCatalogue } from "./content/ships.js";
 import { LAZY_GALAXY_COUNT, galaxy0 } from "./content/systems.js";
 import { createIndexedDbSaveStore } from "./persistence/idb-store.js";
 import { parseSave } from "./persistence/save.js";
-import type { SaveAllowLists, SaveV1 } from "./persistence/save.js";
+import type { SaveAllowLists, SaveV2 } from "./persistence/save.js";
 import type { SaveStatus } from "./persistence/store.js";
 import { createAssetCache } from "./render/asset-cache.js";
 import { applyViewport } from "./render/viewport.js";
@@ -117,12 +117,13 @@ if (!boot.ok) {
   // carry a dock subentity. A forged key can therefore never reach `findShip`.
   const saveStore = createIndexedDbSaveStore();
   let saveStatus: SaveStatus;
-  let bootSave: SaveV1 | undefined;
+  let bootSave: SaveV2 | undefined;
   let allowLists: SaveAllowLists = {
     equipment: new Set(),
     systems: new Set(),
     stations: new Set(),
     commodities: new Map(),
+    marketGoods: new Set(),
   };
   try {
     const [equipment, catalogue, commodities] = await Promise.all([
@@ -143,12 +144,16 @@ if (!boot.ok) {
           .map((entry) => entry.key),
       ),
       // Only tradeable goods can be persisted; Alien Items is visible but
-      // never held, so it is deliberately absent from the allow-list.
+      // never held, so it is deliberately absent from the cargo allow-list.
       commodities: new Map(
         commodities
           .filter((item) => item.tradeable && item.key !== "alien_items")
           .map((item) => [item.key, item.unit]),
       ),
+      // D-15/Pitfall 3: the market snapshot carries all 17 goods including
+      // Alien Items. It must not be derived from the 16-key cargo map, or every
+      // v2 save would be rejected as corrupt on the next reload.
+      marketGoods: new Set(commodities.map((item) => item.key)),
     };
     const read = await saveStore.read();
     if (read.kind === "ok") {

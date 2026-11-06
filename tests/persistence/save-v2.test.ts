@@ -10,17 +10,26 @@
  * market and pose rules land on the same validator in Task 2.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { CLOCK_START } from "../../src/sim/flight/state.js";
 import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import {
+  MAX_SAVE_CHARS,
+  MAX_SAVE_POSITION_MAGNITUDE,
   SaveV1Schema,
   SaveV2Schema,
+  encodeSave,
   migrateV1ToV2,
   parseSave,
 } from "../../src/persistence/save.js";
-import type { SaveAllowLists, SaveV1, SaveV2 } from "../../src/persistence/save.js";
+import type {
+  SaveAllowLists,
+  SaveFlightPose,
+  SaveInputs,
+  SaveV1,
+  SaveV2,
+} from "../../src/persistence/save.js";
 
 /** The 17 commodity keys a market snapshot may carry (Alien Items included). */
 export const MARKET_GOODS: readonly string[] = [
@@ -86,6 +95,54 @@ export function validV2(overrides: Record<string, unknown> = {}): SaveV2 {
     marketSeed: SEED,
     ...overrides,
   } as SaveV2;
+}
+
+/** The 17 market goods in sortOrder shape, with safe prices and stock. */
+function goods() {
+  return MARKET_GOODS.map((key, index) => ({
+    key,
+    price: 10 + index,
+    stock: index % 128,
+  }));
+}
+
+function marketSnapshot(overrides: Record<string, unknown> = {}) {
+  return {
+    systemId: "g0-s7",
+    seed: SEED,
+    goods: goods(),
+    ...overrides,
+  };
+}
+
+function flightPose(overrides: Record<string, unknown> = {}): SaveFlightPose {
+  return {
+    position: [1000, 2000, 3000],
+    orientation: [1, 0, 0, 0],
+    speed: 50,
+    pitchRate: 0,
+    rollRate: 0,
+    torus: false,
+    ...overrides,
+  } as SaveFlightPose;
+}
+
+/** A canonical encoder input; each test overrides the field under test. */
+function saveInputs(overrides: Partial<SaveInputs> = {}): SaveInputs {
+  return {
+    clockSeconds: CLOCK_START + 600,
+    credits: 1000,
+    equipment: [],
+    cargo: [],
+    fuel: 70,
+    missiles: 3,
+    passengerBerths: 0,
+    mode: "docked",
+    marketSeed: SEED,
+    systemId: "g0-s7",
+    stationKey: "coriolis-station",
+    ...overrides,
+  };
 }
 
 describe("v1 → v2 migration", () => {
@@ -217,5 +274,288 @@ describe("v2 classification", () => {
     for (const blob of ["{", "null", "[]", "42", '{"version":2']) {
       expect(() => parseSave(blob, ALLOW)).not.toThrow();
     }
+  });
+});
+
+describe("the market snapshot", () => {
+  it("accepts a docked save whose market matches the saved system", () => {
+    const save = validV2({ market: marketSnapshot(), marketSeed: undefined });
+    expect(parseSave(raw(save), ALLOW)).toEqual({
+      ok: true,
+      save: validV2({ market: marketSnapshot(), marketSeed: undefined }),
+    });
+  });
+
+  it("accepts an in-flight save with a pose and a market", () => {
+    const save = validV2({
+      mode: "inFlight",
+      market: marketSnapshot(),
+      marketSeed: undefined,
+      flight: flightPose(),
+    });
+    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save });
+  });
+
+  it("accepts an allow-listed committed target", () => {
+    const save = validV2({ targetSystem: "g0-s1" });
+    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save });
+  });
+
+  const corruptRows: ReadonlyArray<{
+    readonly name: string;
+    readonly save: SaveV2;
+  }> = [
+    {
+      name: "market system id disagrees with the saved system",
+      save: validV2({
+        market: marketSnapshot({ systemId: "g0-s1" }),
+        marketSeed: undefined,
+      }),
+    },
+    {
+      name: "an unknown market goods key",
+      save: validV2({
+        market: marketSnapshot({
+          goods: [...goods().slice(1), { key: "unobtainium", price: 1, stock: 1 }],
+        }),
+        marketSeed: undefined,
+      }),
+    },
+    {
+      name: "a duplicate market goods key",
+      save: validV2({
+        market: marketSnapshot({
+          goods: goods().map((good, index) =>
+            index === 1 ? { ...good, key: "food" } : good,
+          ),
+        }),
+        marketSeed: undefined,
+      }),
+    },
+    {
+      name: "stock 128",
+      save: validV2({
+        market: marketSnapshot({
+          goods: goods().map((good, index) =>
+            index === 0 ? { ...good, stock: 128 } : good,
+          ),
+        }),
+        marketSeed: undefined,
+      }),
+    },
+    {
+      name: "a negative price",
+      save: validV2({
+        market: marketSnapshot({
+          goods: goods().map((good, index) =>
+            index === 0 ? { ...good, price: -1 } : good,
+          ),
+        }),
+        marketSeed: undefined,
+      }),
+    },
+    {
+      name: "a fractional price",
+      save: validV2({
+        market: marketSnapshot({
+          goods: goods().map((good, index) =>
+            index === 0 ? { ...good, price: 1.5 } : good,
+          ),
+        }),
+        marketSeed: undefined,
+      }),
+    },
+    {
+      name: "fewer than 17 goods",
+      save: validV2({
+        market: marketSnapshot({ goods: goods().slice(0, 16) }),
+        marketSeed: undefined,
+      }),
+    },
+    {
+      name: "more than 17 goods",
+      save: validV2({
+        market: marketSnapshot({
+          goods: [...goods(), { key: "food", price: 1, stock: 1 }],
+        }),
+        marketSeed: undefined,
+      }),
+    },
+    {
+      name: "both market and marketSeed",
+      save: validV2({ market: marketSnapshot() }),
+    },
+    {
+      name: "neither market nor marketSeed",
+      save: validV2({ marketSeed: undefined }),
+    },
+    {
+      name: "a target system outside the allow-list",
+      save: validV2({ targetSystem: "g9-s1" }),
+    },
+  ];
+
+  for (const row of corruptRows) {
+    it(`rejects ${row.name}`, () => {
+      expect(parseSave(raw(row.save), ALLOW)).toEqual({
+        ok: false,
+        reason: "corrupt",
+      });
+    });
+  }
+});
+
+describe("the flight pose", () => {
+  const corruptRows: ReadonlyArray<{
+    readonly name: string;
+    readonly save: SaveV2;
+  }> = [
+    {
+      name: "a docked save carrying a pose",
+      save: validV2({ flight: flightPose() }),
+    },
+    {
+      name: "an in-flight save without a pose",
+      save: validV2({ mode: "inFlight" }),
+    },
+    {
+      name: "a position magnitude past 1e9 m",
+      save: validV2({
+        mode: "inFlight",
+        flight: flightPose({ position: [1e30, 0, 0] }),
+      }),
+    },
+    {
+      name: "a non-unit-able zero orientation",
+      save: validV2({
+        mode: "inFlight",
+        flight: flightPose({ orientation: [0, 0, 0, 0] }),
+      }),
+    },
+    {
+      name: "a speed past the torus cap",
+      save: validV2({
+        mode: "inFlight",
+        flight: flightPose({ speed: 1_000_001 }),
+      }),
+    },
+    {
+      name: "a pitch rate past the bound",
+      save: validV2({
+        mode: "inFlight",
+        flight: flightPose({ pitchRate: 10.5 }),
+      }),
+    },
+    {
+      name: "a non-boolean torus flag",
+      save: validV2({
+        mode: "inFlight",
+        flight: flightPose({ torus: "yes" }),
+      }),
+    },
+  ];
+
+  for (const row of corruptRows) {
+    it(`rejects ${row.name}`, () => {
+      expect(parseSave(raw(row.save), ALLOW)).toEqual({
+        ok: false,
+        reason: "corrupt",
+      });
+    });
+  }
+
+  it("accepts a finite position at the magnitude bound", () => {
+    const save = validV2({
+      mode: "inFlight",
+      flight: flightPose({
+        position: [MAX_SAVE_POSITION_MAGNITUDE, 0, 0],
+      }),
+    });
+    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save });
+  });
+});
+
+describe("encodeSave v2 projections", () => {
+  it("emits the market and omits marketSeed when a snapshot is supplied", () => {
+    const encoded = encodeSave(
+      saveInputs({
+        market: marketSnapshot(),
+        marketSeed: undefined,
+      }),
+    );
+    const parsed = JSON.parse(encoded) as Record<string, unknown>;
+    expect(parsed["market"]).toEqual(marketSnapshot());
+    expect(parsed["marketSeed"]).toBeUndefined();
+    expect(parsed["mode"]).toBe("docked");
+    expect(parsed["flight"]).toBeUndefined();
+  });
+
+  it("emits marketSeed and omits market when only a seed is supplied", () => {
+    const parsed = JSON.parse(encodeSave(saveInputs())) as Record<string, unknown>;
+    expect(parsed["marketSeed"]).toBe(SEED);
+    expect(parsed["market"]).toBeUndefined();
+  });
+
+  it("prefers the market snapshot when both are supplied (never two seeds)", () => {
+    const parsed = JSON.parse(
+      encodeSave(saveInputs({ market: marketSnapshot(), marketSeed: SEED })),
+    ) as Record<string, unknown>;
+    expect(parsed["market"]).toBeDefined();
+    expect(parsed["marketSeed"]).toBeUndefined();
+  });
+
+  it("emits targetSystem only when present", () => {
+    const withTarget = JSON.parse(
+      encodeSave(saveInputs({ targetSystem: "g0-s1" })),
+    ) as Record<string, unknown>;
+    expect(withTarget["targetSystem"]).toBe("g0-s1");
+
+    const withoutTarget = JSON.parse(encodeSave(saveInputs())) as Record<
+      string,
+      unknown
+    >;
+    expect(withoutTarget["targetSystem"]).toBeUndefined();
+  });
+
+  it("emits the pose only for mode inFlight and never for docked", () => {
+    const docked = JSON.parse(encodeSave(saveInputs())) as Record<string, unknown>;
+    expect(docked["flight"]).toBeUndefined();
+
+    const inFlight = JSON.parse(
+      encodeSave(
+        saveInputs({
+          mode: "inFlight",
+          flight: flightPose(),
+          market: marketSnapshot(),
+          marketSeed: undefined,
+        }),
+      ),
+    ) as Record<string, unknown>;
+    expect(inFlight["mode"]).toBe("inFlight");
+    expect(inFlight["flight"]).toEqual(flightPose());
+  });
+});
+
+describe("the v2 size bound", () => {
+  it("rejects a 65,537-character blob before JSON.parse runs", () => {
+    const oversized = `${raw(validV2({ targetSystem: "g0-s1" }))}${" ".repeat(
+      MAX_SAVE_CHARS,
+    )}`;
+    expect(oversized.length).toBeGreaterThan(MAX_SAVE_CHARS);
+    const parse = vi.spyOn(JSON, "parse");
+    expect(parseSave(oversized, ALLOW)).toEqual({
+      ok: false,
+      reason: "unreadable",
+    });
+    expect(parse).not.toHaveBeenCalled();
+    parse.mockRestore();
+  });
+
+  it("recognises an oversized version-3 prefix as future-version", () => {
+    const future = `${raw(validV2({ version: 3 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
+    expect(parseSave(future, ALLOW)).toEqual({
+      ok: false,
+      reason: "future-version",
+    });
   });
 });

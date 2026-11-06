@@ -550,6 +550,7 @@ describe("encodeSave", () => {
       fuel: 70,
       missiles: 3,
       passengerBerths: 0,
+      mode: "docked",
       marketSeed: 0x12345678,
       systemId: "g0-s7",
       stationKey: "coriolis-station",

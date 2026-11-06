@@ -476,7 +476,7 @@ test("New game clears a committed save before starting", async ({ page }) => {
 test("a future-version blob is never cleared or replaced", async ({ page }) => {
   await boot(page);
   const future = JSON.stringify({
-    version: 2,
+    version: 3,
     mode: "docked",
     clockSeconds: CLOCK_START + 600,
     credits: 999_999,
@@ -679,9 +679,9 @@ test("an oversized future-version blob is still recognised and untouched", async
   page,
 }) => {
   await boot(page);
-  // Version 2 appears in the first bytes; the rest is padding beyond the cap.
+  // Version 3 appears in the first bytes; the rest is padding beyond the cap.
   const future = `${JSON.stringify({
-    version: 2,
+    version: 3,
     mode: "docked",
     clockSeconds: CLOCK_START + 600,
     credits: 999_999,
@@ -739,6 +739,58 @@ test("duplicate equipment makes an otherwise valid blob corrupt", async ({
   await expect(page.locator("#title-continue")).toBeHidden();
   expect((await getProbe(page)).save?.status).toBe("corrupt");
   expect(await readRaw(page, CORRUPT_KEY)).toBe(duplicate);
+  expect(errors).toEqual([]);
+});
+
+test("a v2 blob with an unknown market good is corrupt and backed up", async ({
+  page,
+}) => {
+  await boot(page);
+  // Exactly the 17 market goods, with one key this build does not know: the
+  // shared validator rejects it and the blob is backed up before any clear.
+  const keys = [
+    "food",
+    "textiles",
+    "radioactives",
+    "slaves",
+    "liquor_wines",
+    "luxuries",
+    "narcotics",
+    "computers",
+    "machinery",
+    "alloys",
+    "firearms",
+    "furs",
+    "minerals",
+    "gold",
+    "platinum",
+    "gem_stones",
+    "alien_items",
+  ];
+  const goods = keys.map((key, index) => ({
+    key: index === keys.length - 1 ? "unobtainium" : key,
+    price: 10 + index,
+    stock: index % 128,
+  }));
+  const corrupt = JSON.stringify({
+    version: 2,
+    mode: "docked",
+    clockSeconds: CLOCK_START + 600,
+    credits: 1000,
+    equipment: [],
+    system: { id: "g0-s7" },
+    station: { key: "coriolis-station" },
+    market: { systemId: "g0-s7", seed: marketSeedForSystem("g0-s7"), goods },
+  });
+  await writeRaw(page, corrupt);
+
+  const errors = collectErrors(page);
+  await page.reload();
+  await waitForReady(page);
+
+  await expect(page.locator("#title-continue")).toBeHidden();
+  expect((await getProbe(page)).save?.status).toBe("corrupt");
+  expect(await readRaw(page, CORRUPT_KEY)).toBe(corrupt);
   expect(errors).toEqual([]);
 });
 
