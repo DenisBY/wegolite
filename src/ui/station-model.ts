@@ -102,6 +102,18 @@ export interface MarketFeedback {
   readonly notice: string;
 }
 
+/**
+ * The one definition of a reachable market row: the catalogue must trade it,
+ * and the hold must be able to buy it or already carry some of it.
+ */
+export function isMarketRowSelectable(
+  tradeable: boolean,
+  stock: number,
+  held: number,
+): boolean {
+  return tradeable && (stock > 0 || held > 0);
+}
+
 export interface MarketModel {
   readonly columns: readonly MarketColumn[];
   readonly rows: readonly MarketRow[];
@@ -234,7 +246,7 @@ export function buildMarketModel(
       stockText,
       heldText: held === 0 ? "—" : String(held),
       exText: (commodity?.legalityExport ?? 0) > 0 ? "Ex" : "—",
-      selectable: tradeable,
+      selectable: isMarketRowSelectable(tradeable, good.stock, held),
       dimmed: !tradeable || good.stock <= 0,
     };
   });

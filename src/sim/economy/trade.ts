@@ -174,11 +174,12 @@ export function planBuy(request: BuyRequest): TradePlan {
     return refusalPlan("buy", key, "holdFull");
   }
 
-  // Bulk goods take one pod per unit; kg/g goods may still ride in the safe of
+  // Bulk goods take one pod per unit, and the held bulk quantity already
+  // occupies `held` of those pods; kg/g goods may still ride in the safe of
   // the pod the held good occupies, which `maxAdditional` counts explicitly.
   const spaceLimit =
     commodity.unit === "t"
-      ? Math.max(0, capacityPods - otherPods)
+      ? Math.max(0, capacityPods - otherPods - held)
       : maxAdditional(commodity.unit, held, otherPods, capacityPods);
 
   const stockLimit = isSafeStock(good.stock) ? good.stock : 0;

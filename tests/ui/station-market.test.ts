@@ -93,11 +93,21 @@ describe("F8 rows", () => {
     expect(food.selectable).toBe(true);
   });
 
-  it("dims a zero-stock row but keeps it selectable", () => {
+  it("dims a zero-stock row with nothing held and refuses selection", () => {
     const computers = row(build(), "computers");
 
     expect(computers.stockText).toBe("—");
     expect(computers.priceText).toBe("90.2 Cr");
+    expect(computers.dimmed).toBe(true);
+    expect(computers.selectable).toBe(false);
+  });
+
+  it("keeps a zero-stock row selectable when the hold carries it", () => {
+    const computers = row(
+      build({ ...newProfile(), cargo: { computers: 1 } }),
+      "computers",
+    );
+
     expect(computers.dimmed).toBe(true);
     expect(computers.selectable).toBe(true);
   });

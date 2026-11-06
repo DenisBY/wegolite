@@ -21,7 +21,9 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import {
+  capacityPodsFor,
   emptyCargo,
+  holdPodsUsed,
   podsFor,
   setCargo,
 } from "../../../src/sim/economy/cargo.js";
@@ -286,6 +288,26 @@ describe("pod capacity boundaries in a buy", () => {
     const profile = profileWith(100_000, { gold: 1_499 });
     const plan = planBuy(buyRequest(market, profile, "gold", 100_000));
     expect(plan).toMatchObject({ ok: true, amount: 19_000 });
+  });
+
+  it("counts the held bulk tonne against the hold on every repeat buy", () => {
+    // CR-01: 25 one-tonne buys into an empty 20-pod hold used to leave 25 t.
+    const market = marketWith([{ key: "food", price: 38, stock: 1_000 }]);
+    let profile = profileWith(1_000_000);
+    for (let bought = 0; bought < 20; bought += 1) {
+      const request = buyRequest(market, profile, "food", 1);
+      const plan = planBuy(request);
+      expect(plan).toMatchObject({ ok: true, amount: 1 });
+      const applied = applyBuy(request, plan);
+      expect(applied).toBeDefined();
+      if (applied === undefined) return;
+      profile = applied.profile;
+    }
+    expect(profile.cargo.food).toBe(20);
+    expect(planBuy(buyRequest(market, profile, "food", 1))).toMatchObject({
+      ok: false,
+      refusal: "holdFull",
+    });
   });
 });
 
@@ -613,6 +635,18 @@ describe("money safety (property)", () => {
             expect(Number.isSafeInteger(quantity)).toBe(true);
             expect(quantity).toBeGreaterThanOrEqual(0);
           }
+          const units = new Map([
+            ["food", "t" as const],
+            ["gold", "kg" as const],
+          ]);
+          expect(
+            holdPodsUsed(applied.profile.cargo, units),
+          ).toBeLessThanOrEqual(
+            capacityPodsFor(
+              applied.profile.equipment,
+              applied.profile.passengerBerths,
+            ),
+          );
           const row = applied.market.goods[0];
           expect(row?.price).toBe(price);
           expect(row?.stock).toBe(stock - plan.amount);

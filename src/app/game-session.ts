@@ -128,6 +128,7 @@ import {
   buildOutfittingModel,
   buildStatusModel,
   buildSystemDataModel,
+  isMarketRowSelectable,
   tradeNoticeText,
 } from "../ui/station-model.js";
 import type { OutfittingModel } from "../ui/station-model.js";
@@ -376,8 +377,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const catalogue = commodities;
     if (catalogue === undefined) return false;
     const commodity = catalogue.find((entry) => entry.key === key);
-    if (commodity?.tradeable !== true) return false;
-    return stock > 0 || (profile.cargo[key] ?? 0) > 0;
+    if (commodity === undefined) return false;
+    return isMarketRowSelectable(
+      commodity.tradeable,
+      stock,
+      profile.cargo[key] ?? 0,
+    );
   }
 
   /** The first commodity a player can actually trade in this market. */
