@@ -71,7 +71,7 @@ Requirements for the initial release. Each maps to a roadmap phase.
 - [x] **ECON-06**: The F5 ship status screen shows credits, fuel, cargo, equipment, and ship identity
 - [x] **ECON-07**: The F7 system data screen shows economy, government, tech level, population, productivity, and radius
 - [x] **ECON-08**: Insufficient funds, hold space, or stock are blocked with clear messages, and credits can never go negative
-- [ ] **ECON-09**: All station screens are DOM/CSS, keyboard-navigable, and usable without a mouse
+- [x] **ECON-09**: All station screens are DOM/CSS, keyboard-navigable, and usable without a mouse
 
 ### Hyperspace, Navigation & Persistence
 
@@ -193,7 +193,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | ECON-06 | Phase 5 | Complete |
 | ECON-07 | Phase 5 | Complete |
 | ECON-08 | Phase 5 | Complete |
-| ECON-09 | Phase 5 | Pending |
+| ECON-09 | Phase 5 | Complete |
 | NAV-01 | Phase 6 | Pending |
 | NAV-02 | Phase 6 | Pending |
 | NAV-03 | Phase 6 | Pending |
