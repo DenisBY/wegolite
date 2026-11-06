@@ -20,6 +20,7 @@ import type { Page } from "@playwright/test";
 
 import { getProbe, waitForReady } from "./helpers/probe.js";
 import { chartScreenPoint, systemByName } from "./helpers/chart.js";
+import { readRaw } from "./helpers/save-store.js";
 import { startNewGame } from "./helpers/title.js";
 
 test.setTimeout(360_000);
@@ -296,8 +297,32 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
     price: good.price,
     stock: good.stock,
   }));
+  expect(arrivedMarket).toHaveLength(17);
 
-  // The reload proof: same system, same market, same committed target.
+  // SAVE-06/T-06-18: the raw autosave is the authoritative persisted pose. The
+  // live probe pose has already advanced since the jump commit, so only the
+  // blob is a stable comparison for the exact restore.
+  const arrivalRaw = await readRaw(page);
+  if (arrivalRaw === null) {
+    throw new Error("the arrival autosave is absent");
+  }
+  const arrivalBlob = JSON.parse(arrivalRaw) as {
+    mode: string;
+    clockSeconds: number;
+    flight?: {
+      position: [number, number, number];
+      orientation: [number, number, number, number];
+      speed: number;
+      torus: boolean;
+    };
+  };
+  expect(arrivalBlob.mode).toBe("inFlight");
+  if (arrivalBlob.flight === undefined) {
+    throw new Error("the arrival autosave has no flight pose");
+  }
+
+  // The reload proof: same system, same market, same committed target, and the
+  // pose the restore installed — not the live, resumed one.
   await page.reload();
   await waitForReady(page);
   await expect(page.locator("#title-continue")).toBeVisible();
@@ -314,6 +339,93 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   expect(probe.hud?.elements).toHaveLength(11);
   expect(
     (probe.economy?.market ?? []).map((good) => ({
+      key: good.key,
+      price: good.price,
+      stock: good.stock,
+    })),
+  ).toEqual(arrivedMarket);
+
+  // The install copies the sanitized blob numbers within 1e-9.
+  expect(probe.restore?.mode).toBe("inFlight");
+  expect(probe.restore?.systemId).toBe(DISO.id);
+  expect(probe.restore?.clock).toBe(arrivalBlob.clockSeconds);
+  expect(probe.restore?.position[0]).toBeCloseTo(
+    arrivalBlob.flight.position[0],
+    9,
+  );
+  expect(probe.restore?.position[1]).toBeCloseTo(
+    arrivalBlob.flight.position[1],
+    9,
+  );
+  expect(probe.restore?.position[2]).toBeCloseTo(
+    arrivalBlob.flight.position[2],
+    9,
+  );
+  expect(probe.restore?.orientation[0]).toBeCloseTo(
+    arrivalBlob.flight.orientation[0],
+    9,
+  );
+  expect(probe.restore?.orientation[1]).toBeCloseTo(
+    arrivalBlob.flight.orientation[1],
+    9,
+  );
+  expect(probe.restore?.orientation[2]).toBeCloseTo(
+    arrivalBlob.flight.orientation[2],
+    9,
+  );
+  expect(probe.restore?.orientation[3]).toBeCloseTo(
+    arrivalBlob.flight.orientation[3],
+    9,
+  );
+  expect(probe.restore?.speed).toBe(arrivalBlob.flight.speed);
+
+  // The live pose is compared only within the documented SAVE-03 tolerance:
+  // the resumed loop advances straight at the restored speed, so the live
+  // displacement from the blob is `speed * elapsed simulated seconds`; the
+  // residual is floating-point step error, not saved-state drift. This stays
+  // valid under CPU contention, where the first resumed frames may run late.
+  const live = probe.position;
+  const liveDistance = Math.hypot(
+    live[0] - arrivalBlob.flight.position[0],
+    live[1] - arrivalBlob.flight.position[1],
+    live[2] - arrivalBlob.flight.position[2],
+  );
+  const elapsed = probe.clock - arrivalBlob.clockSeconds;
+  expect(elapsed).toBeGreaterThanOrEqual(0);
+  const expectedTravel = probe.speed * elapsed;
+  expect(Math.abs(liveDistance - expectedTravel)).toBeLessThanOrEqual(
+    Math.max(1, expectedTravel) * 1e-6,
+  );
+  expect(probe.speed).toBe(arrivalBlob.flight.speed);
+  expect(probe.torus?.engaged).toBe(arrivalBlob.flight.torus);
+  expect(probe.orientation[0]).toBeCloseTo(
+    arrivalBlob.flight.orientation[0],
+    9,
+  );
+  expect(probe.orientation[1]).toBeCloseTo(
+    arrivalBlob.flight.orientation[1],
+    9,
+  );
+  expect(probe.orientation[2]).toBeCloseTo(
+    arrivalBlob.flight.orientation[2],
+    9,
+  );
+  expect(probe.orientation[3]).toBeCloseTo(
+    arrivalBlob.flight.orientation[3],
+    9,
+  );
+
+  // A second reload repeats the same market values: the snapshot is never
+  // regenerated from the seed once it exists.
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+  await page.click("#title-continue");
+  await waitForMode(page, "inFlight");
+  const second = await getProbe(page);
+  expect(second.systemId).toBe(DISO.id);
+  expect(
+    (second.economy?.market ?? []).map((good) => ({
       key: good.key,
       price: good.price,
       stock: good.stock,

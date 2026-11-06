@@ -17,13 +17,16 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  AUTOSAVE_KEY,
+  SAVE_DB,
+  SAVE_STORE,
+  readRaw,
+  writeRaw,
+} from "./helpers/save-store.js";
 import { formatClock } from "../../src/render/hud/format.js";
 
 test.setTimeout(360_000);
-
-const SAVE_DB = "wegolite";
-const SAVE_STORE = "saves";
-const AUTOSAVE_KEY = "autosave";
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -63,42 +66,6 @@ async function waitForDocked(page: Page): Promise<void> {
   await expect(page.locator("#docked")).toBeVisible();
 }
 
-/** Read a raw value, or `null` when the record is absent. */
-async function readRaw(
-  page: Page,
-  key: string = AUTOSAVE_KEY,
-): Promise<string | null> {
-  return page.evaluate(
-    (payload: { key: string; db: string; store: string }) =>
-      new Promise<string | null>((resolve, reject) => {
-        const request = indexedDB.open(payload.db, 1);
-        request.onerror = () => {
-          reject(new Error(`open failed: ${String(request.error)}`));
-        };
-        request.onsuccess = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains(payload.store)) {
-            db.close();
-            resolve(null);
-            return;
-          }
-          const transaction = db.transaction(payload.store, "readonly");
-          const get = transaction.objectStore(payload.store).get(payload.key);
-          get.onsuccess = () => {
-            const value: unknown = get.result;
-            db.close();
-            resolve(typeof value === "string" ? value : null);
-          };
-          get.onerror = () => {
-            db.close();
-            reject(new Error(`read failed: ${String(get.error)}`));
-          };
-        };
-      }),
-    { key, db: SAVE_DB, store: SAVE_STORE },
-  );
-}
-
 /** Delete a raw value from the save database from outside the app. */
 async function deleteRaw(
   page: Page,
@@ -133,45 +100,6 @@ async function deleteRaw(
   );
 }
 
-/** Write a raw value into the save database from outside the app. */
-async function writeRaw(
-  page: Page,
-  raw: string,
-  key: string = AUTOSAVE_KEY,
-): Promise<void> {
-  await page.evaluate(
-    (payload: { raw: string; key: string; db: string; store: string }) =>
-      new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open(payload.db, 1);
-        request.onupgradeneeded = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains(payload.store)) {
-            db.createObjectStore(payload.store);
-          }
-        };
-        request.onerror = () => {
-          reject(new Error(`open failed: ${String(request.error)}`));
-        };
-        request.onsuccess = () => {
-          const db = request.result;
-          const transaction = db.transaction(payload.store, "readwrite");
-          transaction.objectStore(payload.store).put(payload.raw, payload.key);
-          transaction.oncomplete = () => {
-            db.close();
-            resolve();
-          };
-          transaction.onerror = () => {
-            reject(new Error(`write failed: ${String(transaction.error)}`));
-          };
-          transaction.onabort = () => {
-            reject(new Error(`write aborted: ${String(transaction.error)}`));
-          };
-        };
-      }),
-    { raw, key, db: SAVE_DB, store: SAVE_STORE },
-  );
-}
-
 /** Wait for a committed save count. */
 async function waitForCommitted(page: Page, count: number): Promise<void> {
   await page.waitForFunction(
@@ -191,7 +119,11 @@ interface DecodedSave {
   station: { key: string };
   targetSystem?: string;
   marketSeed?: number;
-  market?: { systemId: string; seed: number; goods: { key: string }[] };
+  market?: {
+    systemId: string;
+    seed: number;
+    goods: { key: string; price: number; stock: number }[];
+  };
   flight?: {
     position: [number, number, number];
     orientation: [number, number, number, number];
@@ -492,6 +424,15 @@ test("an in-session Load restores the saved docked session without reloading", a
   expect(after.economy?.credits).toBe(saved.credits);
   expect(after.restore?.mode).toBe("docked");
   expect(after.restore?.clock).toBe(saved.clockSeconds);
+  // SAVE-06: the restored market is the persisted snapshot verbatim, all 17
+  // goods with the same key, price and stock — the seed is never re-run.
+  const savedMarket = (saved.market?.goods ?? []).map((good) => ({
+    key: good.key,
+    price: good.price,
+    stock: good.stock,
+  }));
+  expect(savedMarket).toHaveLength(17);
+  expect(after.economy?.market).toEqual(savedMarket);
   expect(after.saveScreen?.open).toBe(false);
   expect(after.chart?.open).toBe(false);
   // Load is read-only: the blob is byte-identical and the page never reloaded.
@@ -503,6 +444,19 @@ test("an in-session Load restores the saved docked session without reloading", a
   ).toBe("alive");
   await expect(page.locator("#save-load")).toBeHidden();
   await expect(page.locator("#docked")).toBeVisible();
+
+  // A reload after the in-session Load returns the same snapshot from the same
+  // untouched bytes: Load never re-encoded or re-seeded them.
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+  await page.click("#title-continue");
+  await waitForDocked(page);
+  const reloaded = await getProbe(page);
+  expect(reloaded.mode).toBe("docked");
+  expect(reloaded.systemId).toBe(saved.system.id);
+  expect(reloaded.economy?.market).toEqual(savedMarket);
+  expect(await readRaw(page)).toBe(savedRaw);
   expect(errors).toEqual([]);
 });
 
@@ -553,6 +507,14 @@ test("an in-session Load of an in-flight save returns to flight with the station
   expect(after.restore?.orientation).toEqual([1, 0, 0, 0]);
   expect(after.restore?.speed).toBe(50);
   expect(after.restore?.clock).toBe(dockedBlob.clockSeconds);
+  // The in-flight branch restores the same persisted market verbatim.
+  expect(after.economy?.market).toEqual(
+    (dockedBlob.market?.goods ?? []).map((good) => ({
+      key: good.key,
+      price: good.price,
+      stock: good.stock,
+    })),
+  );
   expect(after.saveScreen?.open).toBe(false);
   // Flight is visible, the station overlay is not, and the blob is unchanged.
   await expect(page.locator("#docked")).toBeHidden();
