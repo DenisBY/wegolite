@@ -205,6 +205,22 @@
 
 ---
 
+## Autosave timing (follow-up)
+
+The first decision saved an in-flight pose after `launchComplete`. The owner then asked whether saving just before departure would make any death return to the station.
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| In-flight after launch | Save at `launchComplete`; reload returns to the dock mouth. | |
+| Pre-launch docked anchor | Save docked before `beginLaunch`, save on docking, and save in-flight on arrival. Reload returns to the start of the current leg. | ✓ |
+| Periodic in-flight autosave | Write every N seconds so Continue is close to where the player was; death returns to deep space. | |
+| Station checkpoint with two states | Keep a docked checkpoint beside the current in-flight save. | |
+
+**User's choice:** Pre-launch docked anchor.
+**Notes:** The owner preferred a single-slot segment anchor: station -> witchpoint -> station. Death after a jump restores the post-jump state; death before the first jump restores the pre-launch station. The earlier claim that this loses 15 minutes of flight relative to the current design was corrected: the event-based design already loses mid-leg progress, and only a periodic autosave would change that. Pirates are out of scope; future encounters are expected to be random and system-weighted, with the reload/RNG policy deferred.
+
+---
+
 ## the agent's Discretion
 
 - Chart colours, marker shapes, label placement and short-range zoom factor.

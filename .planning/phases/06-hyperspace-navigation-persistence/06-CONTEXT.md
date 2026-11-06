@@ -49,7 +49,7 @@ Requirements covered: NAV-01..NAV-06, SAVE-01..SAVE-06, WORLD-06.
 - **D-09:** On jump completion the app resolves the destination system from the current galaxy, derives its layout, generates a fresh market with a new seed, builds the new `SystemScene` before swapping, installs it, and only then re-enables the loop. There is no asynchronous "jumping" mode and no page reload.
 - **D-10:** The market is regenerated on every hyperspace arrival, including repeat visits, matching Oolite. The arrival seed is derived deterministically by chaining the destination system id with the previous market seed (for example `fnv1a32(targetId + ":" + previousSeed + ":arrival")`), never from the clock or global randomness. A new game keeps Phase 5's `marketSeedForSystem` seed. The snapshot of the destination market is what is persisted; reload never regenerates it.
 - **D-11:** The countdown message line shows the destination and remaining whole seconds. Cancel, refusal and arrival messages are app-owned copy; the sim emits payload-free events. No audio is added.
-- **D-12:** The committed target system id is part of game state and is persisted in v2 so F5's "Hyperspace System" line and the HUD show the same target after reload. An active countdown is not persisted: autosaves occur only on launch completion and arrival, and F2 is docked-only.
+- **D-12:** The committed target system id is part of game state and is persisted in v2 so F5's "Hyperspace System" line and the HUD show the same target after reload. An active countdown is not persisted: autosaves only happen while docked, immediately before launch, or after arrival, never during a countdown, and F2 is docked-only.
 
 ### Save schema v2 and migration
 
@@ -64,7 +64,14 @@ Requirements covered: NAV-01..NAV-06, SAVE-01..SAVE-06, WORLD-06.
 - **D-14:** Migrations are ordered pure functions. `v1 -> v2` maps `mode` `"docked"`, keeps all v1 fields, drops no data, derives the market seed from the v1 `marketSeed` (or `marketSeedForSystem(system.id)` when absent), and leaves the market snapshot absent so the session can generate it from the seed before the first write. Legacy aliases keep their Phase 4 read-mode folding. Future versions (>2) remain untouched and unreadable-by-this-build. Corrupt blobs are still copied to `autosave.corrupt` before any clear and never read back.
 - **D-15:** The save size bound is raised only as far as needed for v2 (proposal: 65,536 characters). Existing bounds for equipment (64 keys), cargo (17 entries), fuel (0..70), missiles (0..3), berths (0..7), system id and station key remain. The market snapshot accepts exactly the 17 known commodity keys, no duplicates, stock 0..127 and safe non-negative integer prices. The target, when present, must be in the system allow-list. Unknown keys, non-finite poses or a zero-length orientation make the save corrupt.
 - **D-16:** One semantic validator remains the single source of truth for the boot reader, autosave writer, migration output and F2 load. `validateSaveSemantics` gains v2 rules: market system id equals the saved system id, goods keys are allow-listed, pose numbers are finite, orientation has non-zero length and is normalized before use, speed and rates are bounded, `targetSystem` is allow-listed, and an in-flight save has a pose while a docked save does not. Invalid snapshots leave the previous bytes untouched.
-- **D-17:** Autosave triggers become: launch completion (after the two-second exit, mode `inFlight`), hyperspace arrival (after the new scene and market are installed), accepted trade, accepted fit, and the manual F2 Save. The existing launch trigger at the `launched` event is replaced by a `launchComplete` trigger so the saved state is a stable in-flight pose rather than the launch cinematic. All triggers write the same `autosave` key and keep the future/unreadable protection.
+- **D-17:** The one save slot is a segment anchor, not a continuous position log. Autosave triggers are:
+  - a docked save on the `docked` event (manual and computer docking), once the station state is ready;
+  - a docked save immediately **before** the launch transition, taken while the state is still `docked` and before `beginLaunch` applies the +600 s clock and switches to `launching`. The snapshot must be taken from the real docked state, not reconstructed from the `launched` event;
+  - an in-flight save after hyperspace arrival, once the new scene and market are installed;
+  - the existing accepted-trade and accepted-fit saves;
+  - the manual F2 Save.
+
+  All triggers write the same `autosave` key. Reload therefore returns to the start of the current leg: the station before launch, or the witchpoint after a jump. It does not restore a mid-leg pose; that is intentional. In-flight restore is exercised by the arrival save. Because the pre-launch snapshot is docked, no `launching` state is persisted. The pre-launch write is queued before the launch step; awaiting the commit is allowed but not required (best-effort durability). Future/unreadable protection is unchanged.
 - **D-18:** Restore handles both modes. Docked restore creates a fresh docked flight state, applies the saved clock and derives the station pose. In-flight restore rebuilds the saved system scene, sanitizes and applies the saved pose, mode, speed, rates, torus and clock, and leaves the station UI hidden. Profile and market are restored beside the flight state. A saved market snapshot is used verbatim; a missing snapshot (v1 migration only) is generated from its seed. Corrupt, future or unreadable saves never destroy the current session.
 - **D-19:** Save/load remains a single versioned JSON object in IndexedDB, key `autosave`, with the existing `SaveStore` port and revision semantics. No database, ORM or server storage is introduced. `appVersion` stays diagnostics-only.
 
@@ -195,6 +202,8 @@ Requirements covered: NAV-01..NAV-06, SAVE-01..SAVE-06, WORLD-06.
   - Lave -> Riedquat: 6.8 LY, 68 fuel, 46.24 h;
   - Lave -> Tibedied: 17.6 LY, unreachable.
 - The owner approved interpreting SAVE-02's "per-system market snapshots" as the snapshot of the current system, replaced on every arrival. A map of every visited system was considered and explicitly rejected.
+- The autosave model is a single-slot segment anchor: station -> witchpoint -> station. Death after a jump returns to the post-jump state, losing the in-system flight to the station; death before the first jump returns to the pre-launch station. This is the owner's chosen death semantics, not a mid-flight resume feature.
+- Pirates and combat are out of scope for Phase 6. Any future encounter design is expected to be probabilistic and system-weighted, but the RNG/reload policy (persist and continue versus reseed and reroll) is deferred to the combat phase.
 
 </specifics>
 
@@ -207,6 +216,7 @@ Requirements covered: NAV-01..NAV-06, SAVE-01..SAVE-06, WORLD-06.
 - Persisting an active countdown or supporting save-anywhere — not needed while F2 is docked-only and autosaves happen on launch/arrival.
 - Multiple named save slots, save export/import and commander files — explicitly out of scope; one IndexedDB slot only.
 - Combat, NPC traffic, missions, legal status and sound remain outside this phase.
+- Pirates and encounter RNG policy — future combat phase. Probabilistic, system-weighted encounters are preferred over a fixed per-system script; allowing reload to reroll them requires deliberately not persisting or reseeding the encounter RNG, which conflicts with SAVE-02's persisted RNG state and needs a separate decision.
 
 </deferred>
 
