@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Data Pipeline & Content Compiler** - Pinned Oolite snapshot compiled at build time into typed content, GLB models, and a drift gate (completed 2026-11-03)
 - [x] **Phase 3: Flight in the Lave System** - Launch from Lave's Coriolis and fly the Cobra through a faithful, stably rendered system (completed 2026-11-04)
 - [x] **Phase 4: Manual Docking** - Skill-based docking with corridor feedback, plus the buyable docking computer (completed 2026-11-05)
-- [ ] **Phase 5: Docked Economy & Station Screens** - Market, outfitting, status, and system-data screens on Oolite's economy rules
+- [x] **Phase 5: Docked Economy & Station Screens** - Market, outfitting, status, and system-data screens on Oolite's economy rules (completed 2026-11-06)
 - [ ] **Phase 6: Hyperspace, Navigation & Persistence** - Chart targeting, fuel-gated jumps, and saves that resume exactly
 - [ ] **Phase 7: Hardening & Community Release** - 60 fps, three-browser support, end-to-end coverage, docs, and a licensing audit
 
@@ -183,7 +183,7 @@ Plans:
   2. Buying and selling respect the 20 t hold, available credits, and station stock; gold and platinum price per kg and gem-stones per g with correct pod conversions; credits can never go negative and every rejection states why.
   3. The F8 market, F3 outfitting, F5 status, and F7 system-data screens show correct names, units, prices, and figures, and are fully navigable and operable without a mouse.
   4. The outfitting screen lists only equipment whose tech level and conditions are met, and installs or removes legal items at the correct price.
-**Plans**: 6/6 plans executed
+**Plans**: 6/6 plans complete
 **Wave 1**
 - [x] 05-01-PLAN.md — Tracer: Lave market buy → autosave → reload; content peaks/names, economy core (buy), exact cargo/pods, shared reader/writer save semantics, bubble keyboard, F8; independent anchors and regression proofs
 
@@ -239,7 +239,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
 | 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
 | 4. Manual Docking | 8/8 | Complete    | 2026-11-05 |
-| 5. Docked Economy & Station Screens | 6/6 | Executing | - |
+| 5. Docked Economy & Station Screens | 6/6 | Complete    | 2026-11-06 |
 | 6. Hyperspace, Navigation & Persistence | 0/TBD | Not started | - |
 | 7. Hardening & Community Release | 0/TBD | Not started | - |
 

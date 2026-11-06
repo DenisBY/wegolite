@@ -63,9 +63,9 @@ Requirements for the initial release. Each maps to a roadmap phase.
 
 ### Docked Mode, Economy & Station Screens
 
-- [ ] **ECON-01**: Market prices and stock are computed with Oolite's economy-only formula and 127-unit cap, matching recorded fixtures
-- [ ] **ECON-02**: The 16 tradeable commodities buy and sell at the same price, trades do not move prices, and all money is integer decicredits
-- [ ] **ECON-03**: The 20 t cargo hold is enforced, with gold/platinum priced per kg and gem-stones per g using correct ton-pod conversions
+- [x] **ECON-01**: Market prices and stock are computed with Oolite's economy-only formula and 127-unit cap, matching recorded fixtures
+- [x] **ECON-02**: The 16 tradeable commodities buy and sell at the same price, trades do not move prices, and all money is integer decicredits
+- [x] **ECON-03**: The 20 t cargo hold is enforced, with gold/platinum priced per kg and gem-stones per g using correct ton-pod conversions
 - [x] **ECON-04**: The F8 market screen shows names, units, price, stock, and hold, and supports quantity selection with confirmation
 - [x] **ECON-05**: The F3 outfitting screen lists equipment with correct tech level and price, and installs/removes legal items
 - [x] **ECON-06**: The F5 ship status screen shows credits, fuel, cargo, equipment, and ship identity
@@ -185,9 +185,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | DOCK-05 | Phase 4 | Complete |
 | DOCK-06 | Phase 4 | Complete |
 | DOCK-07 | Phase 4 | Complete |
-| ECON-01 | Phase 5 | Pending |
-| ECON-02 | Phase 5 | Pending |
-| ECON-03 | Phase 5 | Pending |
+| ECON-01 | Phase 5 | Complete |
+| ECON-02 | Phase 5 | Complete |
+| ECON-03 | Phase 5 | Complete |
 | ECON-04 | Phase 5 | Complete |
 | ECON-05 | Phase 5 | Complete |
 | ECON-06 | Phase 5 | Complete |
