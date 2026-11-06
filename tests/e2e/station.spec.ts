@@ -4,7 +4,7 @@
 /**
  * The docked economy loop in the browser (ECON-01, ECON-02, ECON-04, ECON-09).
  *
- * Evidence is the probe and `textContent`, never a screenshot. The tracer buys
+ * Evidence is the probe and `textContent`, never a captured image. The tracer buys
  * one tonne of Food through the footer confirmation, proves the autosave, and
  * reloads into the same hold; the expansion proves the persisted seed and the
  * synchronous same-frame context switch.
@@ -688,5 +688,270 @@ test("station F-keys are inert in flight", async ({ page }) => {
   expect(after.mode).toBe("inFlight");
   expect(after.station?.screen).toBe("home");
   expect(after.economy?.cargo).toEqual(before.economy?.cargo);
+  expect(errors).toEqual([]);
+});
+
+test("the whole station computer is keyboard-only, and every accepted action writes once", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await bootToHome(page);
+
+  const start = await getProbe(page);
+  expect(start.save?.committed).toBe(0);
+  expect(start.economy?.credits).toBe(1000);
+  expect(start.economy?.cargo).toEqual({});
+
+  // F8: buy two tonnes of Food, then sell one back at the same unit price.
+  await page.keyboard.press("Digit8");
+  await waitForScreen(page, "market");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator('[data-field="station-confirm"]')).toHaveText(
+    "Buy 2 t Food for 7.6 Cr? [Y/N]",
+  );
+  await page.keyboard.press("KeyY");
+  await page.waitForFunction(
+    () =>
+      (window.__wegolite?.economy?.cargo?.food ?? 0) === 2 &&
+      (window.__wegolite?.save?.committed ?? 0) === 1,
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.locator('[data-field="station-confirm"]')).toHaveText(
+    "Sell 1 t Food for 3.8 Cr? [Y/N]",
+  );
+  await page.keyboard.press("KeyY");
+  await page.waitForFunction(
+    () =>
+      (window.__wegolite?.economy?.cargo?.food ?? 0) === 1 &&
+      (window.__wegolite?.save?.committed ?? 0) === 2,
+    undefined,
+    { timeout: 30_000 },
+  );
+  const afterSell = await getProbe(page);
+  expect(afterSell.economy?.credits).toBe(962);
+
+  // Digit1 is inert while a section is open, even the market.
+  await page.keyboard.press("Digit1");
+  await page.waitForTimeout(300);
+  const stillDocked = await getProbe(page);
+  expect(stillDocked.mode).toBe("docked");
+  expect(stillDocked.station?.screen).toBe("market");
+  expect(stillDocked.save?.committed).toBe(2);
+
+  // F3: one Y opens the prompt, one applies the removal, a third is inert.
+  await page.keyboard.press("Digit3");
+  await waitForScreen(page, "outfitting");
+  for (let presses = 0; presses < 7; presses += 1) {
+    await page.keyboard.press("ArrowDown");
+  }
+  await expect(
+    page.locator('[data-equipment-key="EQ_MISSILE_REMOVAL"]'),
+  ).toHaveClass(/selected/);
+  await page.keyboard.press("KeyY");
+  await expect(page.locator('[data-field="station-confirm"]')).toHaveText(
+    "Buy Remove Missile for 20.0 Cr? [Y/N]",
+  );
+  await page.keyboard.press("KeyY");
+  await page.waitForFunction(
+    () =>
+      (window.__wegolite?.economy?.missiles ?? 3) === 0 &&
+      (window.__wegolite?.save?.committed ?? 0) === 3,
+    undefined,
+    { timeout: 30_000 },
+  );
+  const afterRemoval = await getProbe(page);
+  expect(afterRemoval.economy?.credits).toBe(1662);
+  expect(afterRemoval.economy?.missiles).toBe(0);
+
+  await page.keyboard.press("KeyY");
+  await expect(page.locator('[data-field="station-confirm"]')).toHaveText("");
+  const afterThirdY = await getProbe(page);
+  expect(afterThirdY.economy?.credits).toBe(1662);
+  expect(afterThirdY.save?.committed).toBe(3);
+
+  // F5 pages, F7 opens system data, Escape returns home without pausing.
+  await page.keyboard.press("Digit5");
+  await waitForScreen(page, "status");
+  await page.keyboard.press("Tab");
+  await page.waitForFunction(() => window.__wegolite?.station?.page === 2);
+  await page.keyboard.press("PageUp");
+  await page.waitForFunction(() => window.__wegolite?.station?.page === 1);
+
+  await page.keyboard.press("Digit7");
+  await waitForScreen(page, "systemData");
+  await page.keyboard.press("Escape");
+  await waitForScreen(page, "home");
+  expect((await getProbe(page)).paused).toBe(false);
+
+  // Pause: station keys are inert, Tab stays inside #pause, Enter resumes.
+  await page.keyboard.press("KeyP");
+  await page.waitForFunction(() => window.__wegolite?.paused === true);
+  const pausedSnapshot = await getProbe(page);
+  await expect(page.locator('[data-pause-action="resume"]')).toBeFocused();
+
+  await page.keyboard.press("Digit8");
+  await page.keyboard.press("KeyY");
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(300);
+  const stillPaused = await getProbe(page);
+  expect(stillPaused.paused).toBe(true);
+  expect(stillPaused.station?.screen).toBe("home");
+  expect(stillPaused.economy?.credits).toBe(pausedSnapshot.economy?.credits);
+  expect(stillPaused.economy?.cargo).toEqual(pausedSnapshot.economy?.cargo);
+  expect(stillPaused.save?.committed).toBe(pausedSnapshot.save?.committed);
+
+  // Tab moves focus inside the overlay; Shift+Tab returns to Resume; Enter
+  // activates the focused control and must not open a station panel.
+  await page.keyboard.press("Tab");
+  const focusInsidePause = await page.evaluate(() => {
+    const pause = document.getElementById("pause");
+    return pause !== null && pause.contains(document.activeElement);
+  });
+  expect(focusInsidePause).toBe(true);
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.locator('[data-pause-action="resume"]')).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => window.__wegolite?.paused === false);
+  await waitForScreen(page, "home");
+  await expect(page.locator('[data-field="station-confirm"]')).toHaveText("");
+  expect((await getProbe(page)).save?.committed).toBe(3);
+
+  // KeyP is also a clean resume with no replayed action.
+  await page.keyboard.press("KeyP");
+  await page.waitForFunction(() => window.__wegolite?.paused === true);
+  await page.keyboard.press("KeyP");
+  await page.waitForFunction(() => window.__wegolite?.paused === false);
+  expect((await getProbe(page)).station?.screen).toBe("home");
+
+  // Capture the pre-reload market and the launch write.
+  const beforeLaunch = await getProbe(page);
+  expect(beforeLaunch.economy?.market).toHaveLength(17);
+  const seedBefore = beforeLaunch.economy?.marketSeed;
+  const pricesBefore =
+    beforeLaunch.economy?.market.map((row) => row.price) ?? [];
+  const foodStockBefore = beforeLaunch.economy?.market.find(
+    (row) => row.key === "food",
+  )?.stock;
+  expect(foodStockBefore).toBe(15);
+  const committedBeforeLaunch = beforeLaunch.save?.committed ?? 0;
+
+  // Digit1 launches only from home.
+  await page.keyboard.press("Digit1");
+  await page.waitForFunction(
+    () => window.__wegolite?.mode === "inFlight",
+    undefined,
+    { timeout: 60_000 },
+  );
+  await page.waitForFunction(
+    (expected) => (window.__wegolite?.save?.committed ?? 0) === expected,
+    committedBeforeLaunch + 1,
+    { timeout: 60_000 },
+  );
+
+  // Reload: credits, hold and every price come back from the persisted seed.
+  await page.reload();
+  await waitForReady(page);
+  await continueFromKeyboard(page);
+  await page.keyboard.press("Digit8");
+  await waitForScreen(page, "market");
+
+  const reloaded = await getProbe(page);
+  expect(reloaded.economy?.cargo?.food).toBe(1);
+  expect(reloaded.economy?.credits).toBe(1662);
+  expect(reloaded.economy?.marketSeed).toBe(seedBefore);
+  expect(reloaded.economy?.market.map((row) => row.price)).toEqual(
+    pricesBefore,
+  );
+  // Stock, not price, is regenerated from the seed: the buy and sell left 15 t
+  // in the live market while the seed's Lave starts at 16 t.
+  expect(
+    reloaded.economy?.market.find((row) => row.key === "food")?.stock,
+  ).toBe(16);
+
+  // Redock: a `docked` event reuses the in-memory market, so stock survives too.
+  await page.keyboard.press("Escape");
+  await waitForScreen(page, "home");
+  await page.keyboard.press("Digit1");
+  await page.waitForFunction(
+    () => window.__wegolite?.mode === "inFlight",
+    undefined,
+    { timeout: 60_000 },
+  );
+  const granted = await page.evaluate(() => {
+    const hook = window.__wegolite?.test;
+    if (hook === undefined) throw new Error("the ?test=1 hook is missing");
+    return hook.grantEquipment("EQ_DOCK_COMP");
+  });
+  expect(granted).toBe(true);
+  await page.waitForFunction(
+    () => window.__wegolite?.test?.tainted === true,
+    undefined,
+    { timeout: 10_000 },
+  );
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("KeyC");
+  await page.keyboard.up("Shift");
+  await page.waitForFunction(
+    () => window.__wegolite?.mode === "docked",
+    undefined,
+    { timeout: 60_000 },
+  );
+
+  const redocked = await getProbe(page);
+  expect(redocked.economy?.marketSeed).toBe(seedBefore);
+  expect(redocked.economy?.market.map((row) => row.price)).toEqual(
+    pricesBefore,
+  );
+  expect(
+    redocked.economy?.market.find((row) => row.key === "food")?.stock,
+  ).toBe(16);
+  expect(redocked.economy?.cargo?.food).toBe(1);
+  // There is no arrival counter, and no price was claimed to change.
+  expect(Object.keys(redocked.economy ?? {})).not.toContain("arrival");
+  expect(errors).toEqual([]);
+});
+
+test("the New-game confirmation is operable from the keyboard", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await bootToHome(page);
+
+  // Commit a save, then boot again so New game must confirm.
+  await page.keyboard.press("Digit1");
+  await page.waitForFunction(
+    (expected) => (window.__wegolite?.save?.committed ?? 0) >= expected,
+    1,
+    { timeout: 60_000 },
+  );
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+
+  for (let presses = 0; presses < 12; presses += 1) {
+    const active = await page.evaluate(() => document.activeElement?.id ?? "");
+    if (active === "title-start") break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(page.locator("#title-start")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#title-confirm")).toBeVisible();
+
+  await page.locator("#title-confirm-accept").focus();
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(
+    () => window.__wegolite?.mode === "docked",
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.waitForFunction(
+    () => window.__wegolite?.save?.status === "absent",
+    undefined,
+    { timeout: 30_000 },
+  );
   expect(errors).toEqual([]);
 });
