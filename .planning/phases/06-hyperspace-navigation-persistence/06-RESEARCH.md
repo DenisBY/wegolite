@@ -831,29 +831,31 @@ resume();
 
 **If this table is empty:** it is not — eight items need confirmation at plan time, four of them (A1, A2, A6, A7) change behaviour rather than only presentation.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All five are decided in the phase plans; the chosen contract is recorded beside each question.
 
 1. **Can the player start a jump while docked?**
    - What we know: Oolite starts the countdown only from `STATUS_IN_FLIGHT` (`PlayerEntityControls.m:1517-1535`), and D-06's gates never mention mode. D-01/D-02 let the chart open while docked so a route can be planned before launch.
    - What's unclear: whether committing a target and pressing H on the pad should launch-and-jump or be inert.
-   - Recommendation: inert while docked (Oolite-faithful, and the `launched` transition would otherwise have to preserve an active countdown). Confirm with the owner; if changed, the countdown tick must move out of the `inFlight` branch.
+   - **RESOLVED:** inert while docked. Plan 06-01 Task 2 gates `beginHyperspace` on `modeAtStart === "inFlight"` and emits no event otherwise; plan 06-04 records it as assumption A1 and every browser sequence launches before pressing H.
 
 2. **Does D-12 require a HUD element for the hyperspace target?**
    - What we know: the HUD set is exactly eleven elements and an e2e test asserts set equality (`tests/e2e/hud.spec.ts:109`). F5 already has a "Hyperspace System" line (`station-model.ts:334`).
    - What's unclear: "the HUD show the same target after reload" could mean the message line or a new element.
-   - Recommendation: no new element. Expose `probe.hyperspace.target` and use the countdown message line + chart marker.
+   - **RESOLVED:** no new element. `HUD_ELEMENTS`/`HUD_LAYOUT` stay unchanged and the committed target is drawn as a second text line inside the existing clock element (plan 06-04 Task 3, assumption A2), with `probe.hud.hyperspaceTarget` and the chart marker as the machine-readable proof.
 
 3. **Short-range zoom factor and whether short range scrolls.**
    - What we know: D-02 says no free pan; D-04 says the window must contain the 7 LY neighbourhood. The measured requirement is ±18 distance units; ±20 is safe.
-   - Recommendation: fixed ±20 distance units (40 × 40 on screen), no scrolling, no zoom keys. Oolite has zoom/scroll (`CHART_SCROLL_AT_X 25`, `CHART_MAX_ZOOM 4`) — do not port it this phase.
+   - **RESOLVED:** fixed ±20 distance units (implemented as chart-x ±40 and chart-y ±80, because two chart-y units span one distance unit), no scrolling and no zoom keys (plan 06-03 Tasks 1-2). Oolite's zoom/scroll is not ported this phase.
 
 4. **Should an in-session F2 Load re-write the save?**
    - What we know: D-22 says load, restore and resume; D-23 says the probe reflects the committed revision and clock after a *save*.
-   - Recommendation: Load does not write. The loaded blob already exists; rewriting it adds a revision for no benefit and would persist any clock normalisation (e.g. floored clock) back over the original.
+   - **RESOLVED:** Load does not write. The loaded blob already exists; plan 06-05 Task 3 installs the restored state and never calls `autosave()`/`store.write`, so any clock normalisation is not persisted back over the original (assumption A7).
 
 5. **What should happen when the player changes the target while a countdown is running?**
    - What we know: the sim snapshots the target at countdown start; Oolite would jump to the newly selected target because it re-reads `nextHopTargetSystemID` at commit.
-   - Recommendation: committing a new target cancels the countdown with the `hyperspaceCountdownCancelled` event and a message. It is the least surprising rule and keeps the sim's snapshot authoritative.
+   - **RESOLVED:** committing a new target cancels the countdown. Plan 06-01 Task 2 clears the countdown and emits `hyperspaceCountdownCancelled` when `options.hyperspace.target.id` differs from the snapshot, and the app puts the cancellation copy on the message line (D-11/D-25).
 
 ## Environment Availability
 
