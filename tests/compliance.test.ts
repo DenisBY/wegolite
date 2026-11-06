@@ -37,6 +37,9 @@ const SKIP_DIRECTORIES = new Set([
   "playwright-report",
   ".git",
   ".planning",
+  // Harness-provided agent skills are environment configuration, not repository
+  // source; their scripts carry their own headers.
+  ".agents",
 ]);
 
 const SOURCE_EXTENSIONS = [".ts", ".js", ".sh"];

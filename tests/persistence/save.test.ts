@@ -23,9 +23,19 @@ import {
 import type { SaveAllowLists, SaveV1 } from "../../src/persistence/save.js";
 
 const ALLOW: SaveAllowLists = {
-  equipment: new Set(["EQ_DOCK_COMP", "EQ_FUEL"]),
+  equipment: new Set([
+    "EQ_DOCK_COMP",
+    "EQ_FUEL",
+    "EQ_MISSILE",
+    "EQ_PASSENGER_BERTH",
+  ]),
   systems: new Set(["g0-s7"]),
   stations: new Set(["coriolis-station"]),
+  commodities: new Map([
+    ["food", "t"],
+    ["gold", "kg"],
+    ["gem_stones", "g"],
+  ]),
 };
 
 function validSave(overrides: Record<string, unknown> = {}): SaveV1 {
@@ -57,6 +67,21 @@ describe("parseSave accept path", () => {
 
   it("reports null as absent rather than corrupt", () => {
     expect(parseSave(null, ALLOW)).toEqual({ ok: false, reason: "absent" });
+  });
+
+  it("accepts the additive cargo, counts and seed fields", () => {
+    const save = validSave({
+      equipment: ["EQ_DOCK_COMP"],
+      cargo: [
+        { key: "food", quantity: 2 },
+        { key: "gold", quantity: 499 },
+      ],
+      fuel: 40,
+      missiles: 1,
+      passengerBerths: 1,
+      marketSeed: 0x12345678,
+    });
+    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save });
   });
 });
 
@@ -197,6 +222,88 @@ describe("parseSave reject table", () => {
   });
 });
 
+describe("cargo and hold semantics", () => {
+  const rows: ReadonlyArray<{ name: string; save: SaveV1 }> = [
+    {
+      name: "unknown commodity key",
+      save: validSave({ cargo: [{ key: "unobtainium", quantity: 1 }] }),
+    },
+    {
+      name: "duplicate cargo key",
+      save: validSave({
+        cargo: [
+          { key: "food", quantity: 1 },
+          { key: "food", quantity: 2 },
+        ],
+      }),
+    },
+    {
+      name: "zero quantity",
+      save: validSave({ cargo: [{ key: "food", quantity: 0 }] }),
+    },
+    {
+      name: "over-capacity hold",
+      save: validSave({ cargo: [{ key: "food", quantity: 21 }] }),
+    },
+    {
+      name: "cargo as a keyed object was already a schema failure",
+      save: validSave({ cargo: { food: 1 } }),
+    },
+    {
+      name: "marketSeed above uint32",
+      save: validSave({ marketSeed: 0x1_0000_0000 }),
+    },
+    {
+      name: "EQ_FUEL is canonical-only",
+      save: validSave({ equipment: ["EQ_FUEL"] }),
+    },
+    {
+      name: "missile removal is canonical-only",
+      save: validSave({ equipment: ["EQ_MISSILE_REMOVAL"] }),
+    },
+    {
+      name: "berth removal is canonical-only",
+      save: validSave({ equipment: ["EQ_PASSENGER_BERTH_REMOVAL"] }),
+    },
+    {
+      name: "alias plus a non-zero explicit count is ambiguous",
+      save: validSave({
+        equipment: ["EQ_PASSENGER_BERTH"],
+        passengerBerths: 1,
+      }),
+    },
+    {
+      name: "20 t plus a lone berth alias exceeds the effective 15 t",
+      save: validSave({
+        equipment: ["EQ_PASSENGER_BERTH"],
+        cargo: [{ key: "food", quantity: 20 }],
+      }),
+    },
+  ];
+
+  for (const row of rows) {
+    it(`rejects ${row.name}`, () => {
+      expect(parseSave(raw(row.save), ALLOW)).toEqual({
+        ok: false,
+        reason: "corrupt",
+      });
+    });
+  }
+
+  it("accepts a lone Phase 4 berth alias and folds it in as one berth", () => {
+    const save = validSave({ equipment: ["EQ_PASSENGER_BERTH"] });
+    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save });
+  });
+
+  it("rejects a lone missile alias plus a non-zero missile count", () => {
+    const save = validSave({ equipment: ["EQ_MISSILE"], missiles: 2 });
+    expect(parseSave(raw(save), ALLOW)).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+  });
+});
+
 describe("parseSave resource bound", () => {
   it("rejects an oversized non-save blob before JSON.parse runs", () => {
     // Padding is valid JSON whitespace, so the blob is syntactically a save; it
@@ -264,16 +371,26 @@ describe("encodeSave", () => {
       clockSeconds: CLOCK_START + 600,
       credits: 5000,
       equipment: ["EQ_DOCK_COMP"],
+      cargo: [{ key: "food", quantity: 2 }],
+      fuel: 70,
+      missiles: 3,
+      passengerBerths: 0,
+      marketSeed: 0x12345678,
       systemId: "g0-s7",
       stationKey: "coriolis-station",
     });
     const parsed = JSON.parse(encoded) as Record<string, unknown>;
 
     expect(Object.keys(parsed).sort()).toEqual([
+      "cargo",
       "clockSeconds",
       "credits",
       "equipment",
+      "fuel",
+      "marketSeed",
+      "missiles",
       "mode",
+      "passengerBerths",
       "station",
       "system",
       "version",

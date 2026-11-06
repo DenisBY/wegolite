@@ -22,8 +22,15 @@ import {
   stationShip,
 } from "../content/ships.js";
 import { loadDockPort } from "../content/dock-port.js";
-import { findEquipment, loadEquipment } from "../content/equipment.js";
-import type { Equipment, ShipDef, System } from "../content/types.js";
+import { loadEquipment } from "../content/equipment.js";
+import { loadCommodities } from "../content/commodities.js";
+import type {
+  Commodity,
+  CommodityUnit,
+  Equipment,
+  ShipDef,
+  System,
+} from "../content/types.js";
 import {
   createDockFeedback,
   shouldEmitScrapeMessage,
@@ -42,11 +49,12 @@ import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
 import {
   queueAutosave,
+  profileFromSave,
   restoreFromSave,
   snapshotForSave,
 } from "../persistence/autosave.js";
+import type { SaveAllowLists, SaveV1 } from "../persistence/save.js";
 import type { SaveStore, SaveStatus } from "../persistence/store.js";
-import type { SaveV1 } from "../persistence/save.js";
 import { createBreakPattern } from "../render/break-pattern.js";
 import type { BreakPattern } from "../render/break-pattern.js";
 import { createHud } from "../render/hud/hud.js";
@@ -69,7 +77,6 @@ import type { Command } from "../sim/commands.js";
 import type { SimEvent } from "../sim/events.js";
 import { createDockGeometry } from "../sim/dock/geometry.js";
 import type { DockGeometry } from "../sim/dock/geometry.js";
-import { DOCK_COMPUTER_KEY } from "../sim/dock/computer.js";
 import { deriveFlightConfig } from "../sim/flight/config.js";
 import type { FlightConfig } from "../sim/flight/config.js";
 import {
@@ -83,13 +90,17 @@ import { stepFlight } from "../sim/flight/step.js";
 import type { StepOptions } from "../sim/flight/step.js";
 import {
   MAX_EQUIPMENT_KEYS,
-  canPurchase,
-  formatCredits,
+  formatDecicredits,
   newProfile,
-  purchase,
   setCredits,
 } from "../sim/player/profile.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
+import { generateMarket, marketSeedForSystem } from "../sim/economy/market.js";
+import type { Market } from "../sim/economy/market.js";
+import { applyBuy, planBuy } from "../sim/economy/trade.js";
+import type { TradePlan, TradeRefusal } from "../sim/economy/trade.js";
+import { formatFuel } from "../ui/docked.js";
+import { buildMarketModel } from "../ui/station-model.js";
 import { identity, sub, vec } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
 import type { InputFrame } from "../sim/state.js";
@@ -97,7 +108,8 @@ import { DT } from "../sim/time.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import { createKeyboardInputSource } from "../input/keyboard.js";
 import type { KeyboardInputSource } from "../input/keyboard.js";
-import { ACTION_IDS } from "../input/actions.js";
+import { ACTION_CONTEXTS, ACTION_IDS } from "../input/actions.js";
+import type { ActionId } from "../input/actions.js";
 import { createBindingMap } from "../input/bindings.js";
 import type { BindingMap } from "../input/bindings.js";
 import {
@@ -112,9 +124,17 @@ import { createPauseOverlay } from "../ui/pause.js";
 import type { PauseOverlay } from "../ui/pause.js";
 import { createSettingsPanel } from "../ui/settings-panel.js";
 import type { SettingsPanel } from "../ui/settings-panel.js";
-import type { DockedPanel } from "../ui/docked.js";
-import type { DockComputerView } from "../ui/docked.js";
+import type {
+  StationScreen,
+  StationShell,
+  StationView,
+} from "../ui/station.js";
 import type { TitleScreen } from "../ui/title.js";
+
+/** A station transaction awaiting confirmation; plan 05-03 adds fit prompts. */
+export type FitPrompt = { readonly kind: "fit"; readonly key: string };
+
+export type StationPending = TradePlan | FitPrompt | null;
 
 export interface GameSessionSave {
   /** The injected port; the session never imports IndexedDB directly. */
@@ -123,6 +143,8 @@ export interface GameSessionSave {
   readonly status: SaveStatus;
   /** The validated save, present only when `status` is `valid`. */
   readonly save?: SaveV1;
+  /** The boot allow-lists the writer's semantic check uses (T-05-19). */
+  readonly allow: SaveAllowLists;
 }
 
 export interface StartOptions {
@@ -137,7 +159,7 @@ export interface GameSessionOptions {
   readonly assets: AssetCache;
   readonly scenes: SceneManager;
   readonly title: TitleScreen;
-  readonly docked: DockedPanel;
+  readonly docked: StationShell;
   readonly hudCanvas: HTMLCanvasElement;
   readonly probe: WegoliteProbe;
   readonly system: System;
@@ -219,11 +241,25 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let controlsPanel: ControlsPanel | undefined;
   let settingsPanel: SettingsPanel | undefined;
   let equipmentCatalogue: readonly Equipment[] | undefined;
-  let dockComputer: Equipment | undefined;
+  let commodities: readonly Commodity[] | undefined;
+  let commodityUnits: ReadonlyMap<string, CommodityUnit> = new Map();
   let stationKey: string | undefined;
   // Economy state lives beside the flight state, never inside it (D-10).
   let profile: PlayerProfile = newProfile();
   let lastDockClockDelta = 0;
+
+  // Market lifetime (D-17/D-18/D-19): generated once from the persisted seed,
+  // never regenerated on a `docked` event. Phase 6 owns re-seeding on a system change.
+  let market: Market | undefined;
+  let marketSeed: number | undefined;
+
+  // The station computer's own state; the UI is purely presentational.
+  let stationScreen: StationScreen = "home";
+  let stationSelection = "";
+  let stationPending: StationPending = null;
+  let stationNotice = "";
+  let stationMessage = "";
+  let stationSaveNotice = "";
 
   // DOCK-07: the boot status is sticky for the session. A future blob is never
   // cleared or overwritten, so the launch/purchase write path is skipped whole.
@@ -297,70 +333,259 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     return "Hull contact - pull away and line up with the slot";
   }
 
-  /** D-10: the panel line and its fixed refusal copy, from the live profile. */
-  function dockComputerView(): DockComputerView {
-    const item = dockComputer;
-    if (item === undefined) {
-      return {
-        line: "",
-        disabled: true,
-        reason: "Equipment unavailable",
-      };
+  /** The first commodity a player can actually trade in this market. */
+  function ensureSelection(): void {
+    const currentMarket = market;
+    const catalogue = commodities;
+    if (currentMarket === undefined || catalogue === undefined) return;
+    const selectedGood = currentMarket.goods.find(
+      (good) => good.key === stationSelection,
+    );
+    const selectedCommodity = catalogue.find(
+      (commodity) => commodity.key === stationSelection,
+    );
+    if (
+      selectedGood !== undefined &&
+      selectedCommodity?.tradeable === true &&
+      selectedGood.stock > 0
+    ) {
+      return;
     }
+    const first = currentMarket.goods.find((good) => {
+      const commodity = catalogue.find((entry) => entry.key === good.key);
+      return commodity?.tradeable === true && good.stock > 0;
+    });
+    stationSelection = first?.key ?? "";
+  }
 
-    const line = `${item.name} — ${formatCredits(item.price)} (TL ${String(item.techLevel)})`;
-    // Ownership is the most relevant reason once fitted, even at a system whose
-    // tech level would otherwise block a fresh purchase.
-    if (profile.equipment.includes(item.key)) {
-      return { line, disabled: true, reason: "Already fitted" };
-    }
-    const check = canPurchase(profile, item, system.techLevelRaw);
-    if (check.ok) return { line, disabled: false, reason: "" };
+  function selectableKeys(): readonly string[] {
+    const currentMarket = market;
+    const catalogue = commodities;
+    if (currentMarket === undefined || catalogue === undefined) return [];
+    return currentMarket.goods
+      .filter((good) => {
+        const commodity = catalogue.find((entry) => entry.key === good.key);
+        return commodity?.tradeable === true && good.stock > 0;
+      })
+      .map((good) => good.key);
+  }
 
-    switch (check.reason) {
-      case "techLevel":
-        return {
-          line,
-          disabled: true,
-          reason: `Requires TL ${String(item.techLevel)}`,
-        };
-      case "owned":
-        return { line, disabled: true, reason: "Already fitted" };
+  function moveSelection(delta: number): void {
+    const keys = selectableKeys();
+    if (keys.length === 0) return;
+    const current = keys.indexOf(stationSelection);
+    const base = current === -1 ? 0 : current;
+    const next = (base + delta + keys.length) % keys.length;
+    const nextKey = keys[next];
+    if (nextKey !== undefined) stationSelection = nextKey;
+    stationPending = null;
+    stationNotice = "";
+  }
+
+  function clampNotice(reason: TradeRefusal | undefined): string {
+    switch (reason) {
+      case "noStock":
+        return "Only the available stock can be bought";
       case "insufficientCredits":
-        return { line, disabled: true, reason: "Not enough credits" };
-      case "invalidPrice":
-        return { line, disabled: true, reason: "Price unavailable" };
+        return "Not enough credits for more";
+      case "noSpace":
+        return "No cargo space for more";
+      case undefined:
+        return "";
+      default:
+        return "The request was reduced to the feasible amount";
     }
   }
 
-  function refreshDockedProfile(): void {
-    docked.setCredits(formatCredits(profile.credits));
-    docked.setDockComputer(dockComputerView());
+  function refusalNotice(reason: TradeRefusal | undefined): string {
+    switch (reason) {
+      case "noStock":
+        return "No stock available";
+      case "insufficientCredits":
+        return "Not enough credits";
+      case "noSpace":
+        return "No cargo space";
+      case "notTradeable":
+        return "This commodity cannot be traded";
+      case "invalidPrice":
+        return "Price unavailable";
+      case "zeroAmount":
+        return "";
+      case undefined:
+        return "";
+      default:
+        return "That trade is not available";
+    }
+  }
+
+  function pendingPlan(): TradePlan | null {
+    return stationPending !== null && !("kind" in stationPending)
+      ? stationPending
+      : null;
+  }
+
+  function buyRequest(amount: number) {
+    const currentMarket = market;
+    const catalogue = commodities;
+    const commodity = catalogue?.find(
+      (entry) => entry.key === stationSelection,
+    );
+    if (currentMarket === undefined || commodity === undefined)
+      return undefined;
+    return {
+      market: currentMarket,
+      profile,
+      commodity,
+      units: commodityUnits,
+      amount,
+    };
+  }
+
+  /** D-06: step the pending amount, clamping and explaining in the footer. */
+  function stepAmount(direction: 1 | -1): void {
+    if (stationScreen !== "market") return;
+    const current = pendingPlan();
+    let amount: number;
+    if (current === null) {
+      if (direction < 0) return;
+      amount = 1;
+    } else {
+      amount = current.amount + direction;
+      if (amount <= 0) {
+        stationPending = null;
+        stationNotice = "";
+        renderStation();
+        return;
+      }
+    }
+
+    const request = buyRequest(amount);
+    if (request === undefined) return;
+    const plan = planBuy(request);
+    if (plan.ok) {
+      stationPending = plan;
+      stationNotice = clampNotice(plan.clamp);
+    } else {
+      stationPending = null;
+      stationNotice = refusalNotice(plan.refusal);
+    }
+    renderStation();
+  }
+
+  /** Shift+Right: plan the largest feasible buy. */
+  function planMaxBuy(): void {
+    if (stationScreen !== "market") return;
+    const request = buyRequest(Number.MAX_SAFE_INTEGER);
+    if (request === undefined) return;
+    const plan = planBuy(request);
+    if (plan.ok) {
+      stationPending = plan;
+      stationNotice = clampNotice(plan.clamp);
+    } else {
+      stationPending = null;
+      stationNotice = refusalNotice(plan.refusal);
+    }
+    renderStation();
+  }
+
+  function confirmTrade(): void {
+    if (stationScreen !== "market") return;
+    const plan = pendingPlan();
+    const request = buyRequest(plan?.amount ?? 0);
+    if (plan === null || request === undefined) return;
+    const applied = applyBuy(request, plan);
+    if (applied === undefined) {
+      stationPending = null;
+      stationNotice = "That trade is no longer available";
+      renderStation();
+      return;
+    }
+    market = applied.market;
+    stationPending = null;
+    stationNotice = "";
+    commitProfile(applied.profile);
+    autosave();
+  }
+
+  function cancelTrade(): void {
+    stationPending = null;
+    stationNotice = "";
+    renderStation();
+  }
+
+  /** Keys/messages for the persistent footer, one field per concern. */
+  function keyHints(screen: StationScreen): string {
+    if (screen === "market") {
+      return "Up/Down select · Right +1 · Shift+Right max · Y confirm · N cancel · Esc back · P pause";
+    }
+    return "F8 market · F3 outfitting · F5 status · F7 system data · 1 launch · P pause";
+  }
+
+  function renderStation(): void {
+    const currentMarket = market;
+    const catalogue = commodities;
+    if (currentMarket === undefined || catalogue === undefined) return;
+
+    const marketModel = buildMarketModel(
+      currentMarket,
+      profile,
+      catalogue,
+      stationSelection,
+      { pending: pendingPlan(), notice: stationNotice },
+    );
+
+    const saveText = canOverwrite(saveStatus)
+      ? stationSaveNotice
+      : "Saving is disabled — this save is read-only";
+
+    const view: StationView = {
+      screen: stationScreen,
+      systemName: system.name,
+      creditsText: formatDecicredits(profile.credits),
+      fuelText: formatFuel(profile.fuel),
+      message: stationMessage,
+      keysText: keyHints(stationScreen),
+      confirmText: marketModel.confirmText,
+      noticeText: marketModel.noticeText,
+      saveText,
+      market: marketModel,
+    };
+    docked.setFuel(formatFuel(profile.fuel));
+    docked.render(view);
+    syncEconomyProbe();
+  }
+
+  function syncEconomyProbe(): void {
+    const currentMarket = market;
+    if (currentMarket === undefined || marketSeed === undefined) return;
+    probe.economy = {
+      credits: profile.credits,
+      cargo: { ...profile.cargo },
+      marketSeed,
+      market: currentMarket.goods.map((good) => ({
+        key: good.key,
+        price: good.price,
+        stock: good.stock,
+      })),
+    };
+    probe.station = {
+      open: state?.mode === "docked",
+      screen: stationScreen,
+      selectedKey: stationSelection,
+    };
   }
 
   /**
    * Commit an accepted profile change: publish it to the 04-05 seam, then
-   * refresh the one panel that shows it. A refusal returns `false` and changes
+   * refresh the station header/market. A refusal returns `false` and changes
    * nothing.
    */
   function commitProfile(next: PlayerProfile): boolean {
     if (next === profile) return false;
     profile = next;
     onProfileChanged(profile);
-    refreshDockedProfile();
+    renderStation();
     return true;
-  }
-
-  function buyDockComputer(): void {
-    const item = dockComputer;
-    if (item === undefined) return;
-    // The gate is re-checked here, not trusted from the disabled button: the
-    // click path and the panel state share one rule (T-04-43).
-    if (!canPurchase(profile, item, system.techLevelRaw).ok) {
-      refreshDockedProfile();
-      return;
-    }
-    if (commitProfile(purchase(profile, item))) autosave();
   }
 
   /** `?test=1` seam: replace the balance; never persisted by the hook itself. */
@@ -376,7 +601,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (profile.equipment.includes(key)) return false;
     if (profile.equipment.length >= MAX_EQUIPMENT_KEYS) return false;
     return commitProfile({
-      credits: profile.credits,
+      ...profile,
       equipment: [...profile.equipment, key],
     });
   }
@@ -449,31 +674,55 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
     const currentState = state;
     const currentStationKey = stationKey;
-    if (currentState === undefined || currentStationKey === undefined) {
+    const currentMarketSeed = marketSeed;
+    const catalogue = commodities;
+    if (
+      currentState === undefined ||
+      currentStationKey === undefined ||
+      currentMarketSeed === undefined ||
+      catalogue === undefined
+    ) {
       saveSkipReason = "not-ready";
       syncSaveProbe();
       return;
     }
 
-    const inputs = snapshotForSave(currentState, profile, system, {
-      key: currentStationKey,
-    });
+    const inputs = snapshotForSave(
+      currentState,
+      profile,
+      system,
+      { key: currentStationKey },
+      currentMarketSeed,
+      catalogue,
+    );
     saveRevision += 1;
     const revision = saveRevision;
     saveWrites += 1;
     saveSkipReason = "";
     syncSaveProbe();
     // The frame loop never awaits this; `queueAutosave` cannot reject.
-    void queueAutosave(saveBoot.store, revision, inputs).then((result) => {
-      if (result.committed) {
-        saveCommitted += 1;
-        saveLastClock = inputs.clockSeconds;
-        saveStatus = "valid";
-      } else if (isStoreUnavailable(result.reason)) {
-        saveUnavailable = true;
-      }
-      syncSaveProbe();
-    });
+    void queueAutosave(saveBoot.store, revision, inputs, saveBoot.allow).then(
+      (result) => {
+        if (result.committed) {
+          saveCommitted += 1;
+          saveLastClock = inputs.clockSeconds;
+          saveStatus = "valid";
+          stationSaveNotice = "";
+          saveSkipReason = "";
+        } else if (isStoreUnavailable(result.reason)) {
+          saveUnavailable = true;
+          saveSkipReason = result.reason ?? "";
+          stationSaveNotice = "Save failed — progress not saved";
+        } else {
+          // A rejected snapshot (invalid-save) or a store failure is visible
+          // but non-blocking: the in-memory trade remains playable.
+          saveSkipReason = result.reason ?? "";
+          stationSaveNotice = "Save failed — progress not saved";
+        }
+        syncSaveProbe();
+        if (!disposed) renderStation();
+      },
+    );
   }
 
   /**
@@ -513,6 +762,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
     paused = true;
     input?.clearAll();
+    input?.setPaused(true);
     loop?.reset();
     pauseOverlay?.show();
   }
@@ -521,6 +771,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (!paused) return;
     paused = false;
     input?.clearAll();
+    input?.setPaused(false);
     // Hidden time is never replayed: the accumulator starts at zero and the
     // next frame delta is one rendered frame, not the time spent paused.
     loop?.reset();
@@ -543,6 +794,87 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function openSettings(): void {
     controlsPanel?.hide();
     settingsPanel?.show();
+  }
+
+  /**
+   * The synchronous screen-open sink (step 7): the input layer calls this
+   * inside `keyDown`, so the context switches before the same-frame next key
+   * resolves. Wave 1 opens only the market; F3/F5/F7 arrive in later plans.
+   */
+  function openStationScreen(action: ActionId): void {
+    const currentState = state;
+    const currentInput = input;
+    if (currentState?.mode !== "docked" || currentInput === undefined) return;
+    if (action !== "stationMarket") return;
+    stationScreen = "market";
+    stationPending = null;
+    stationNotice = "";
+    ensureSelection();
+    currentInput.setContext("dockScreen");
+    renderStation();
+  }
+
+  function backToHome(): void {
+    if (stationScreen === "home") return;
+    stationScreen = "home";
+    stationPending = null;
+    stationNotice = "";
+    input?.setContext("dockHome");
+    renderStation();
+  }
+
+  /**
+   * Apply one drained station action. The live mode, context and screen are
+   * revalidated here, so a queued action cannot apply a stale trade after a
+   * screen change, a dock or a pause.
+   */
+  function applyStationAction(action: ActionId): void {
+    const currentState = state;
+    const currentInput = input;
+    if (currentState?.mode !== "docked" || currentInput === undefined) return;
+    if (paused) return;
+    const contexts = ACTION_CONTEXTS[action];
+    if (!contexts.includes(currentInput.getContext())) return;
+
+    switch (action) {
+      case "stationBack":
+        backToHome();
+        break;
+      case "stationUp":
+        if (stationScreen === "market") {
+          moveSelection(-1);
+          renderStation();
+        }
+        break;
+      case "stationDown":
+        if (stationScreen === "market") {
+          moveSelection(1);
+          renderStation();
+        }
+        break;
+      case "stationRight":
+        stepAmount(1);
+        break;
+      case "stationLeft":
+        stepAmount(-1);
+        break;
+      case "stationBuyMax":
+        planMaxBuy();
+        break;
+      case "stationConfirm":
+        confirmTrade();
+        break;
+      case "stationCancel":
+        cancelTrade();
+        break;
+      case "stationSellMax":
+      case "stationPageNext":
+      case "stationPagePrevious":
+        // Wave 1 has no sell path and no paged screens.
+        break;
+      default:
+        break;
+    }
   }
 
   function resetAllSettings(): void {
@@ -601,12 +933,18 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     switch (event.kind) {
       case "launched":
         launchSequence.reset();
+        stationScreen = "home";
+        stationPending = null;
+        stationNotice = "";
+        stationMessage = "";
+        input?.setContext("flight");
         docked.hide();
         hudCanvas.hidden = false;
         messages.enqueue("Launching — stand by");
         // DOCK-07: the state is post-`beginLaunch`, so the saved clock already
         // carries the +600 s launch adjustment.
         autosave();
+        syncEconomyProbe();
         break;
       case "launchComplete":
         launchSequence.markSeen();
@@ -621,11 +959,18 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         // D-12: the exact delta is the event's, never a wall/frame comparison.
         lastDockClockDelta = event.clockDelta;
         launchSequence.reset();
+        stationScreen = "home";
+        stationPending = null;
+        stationNotice = "";
+        stationMessage = "";
+        input?.setContext("dockHome");
         docked.show(system.name);
-        refreshDockedProfile();
+        ensureSelection();
+        renderStation();
         if (event.via === "computer") {
           messages.enqueuePriority("Docking computers engaged");
-          docked.setMessage("Docking computers engaged");
+          stationMessage = "Docking computers engaged";
+          renderStation();
         }
         // D-09/D-15: stop any held input and collapse the interpolation window
         // onto the docked pose so the camera does not smear across the teleport.
@@ -888,8 +1233,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const hint = currentHints.maybeShow(context);
     if (hint === null) return;
     probe.hint = hint;
-    if (currentState.mode === "docked") docked.setMessage(hint);
-    else messages.enqueue(hint);
+    if (currentState.mode === "docked") {
+      stationMessage = hint;
+      renderStation();
+    } else messages.enqueue(hint);
   }
 
   function frame(now: number): void {
@@ -918,9 +1265,23 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       else pause();
     }
 
+    // Station actions are discarded while paused or in flight; in the docked
+    // mode each one is revalidated against the live screen and context.
+    const stationActions = currentInput.drainStationActions();
+    if (!paused && currentState.mode === "docked") {
+      for (const action of stationActions) applyStationAction(action);
+    }
+
     let alpha = 0;
     if (!paused) {
-      const commands: Command[] = [...currentInput.drainCommands(), ...pending];
+      const commands: Command[] = [
+        ...currentInput.drainCommands(),
+        ...pending,
+      ].filter(
+        (command) =>
+          command.kind !== "launch" ||
+          (currentState.mode === "docked" && stationScreen === "home"),
+      );
       pending.length = 0;
       // One immutable frame per rendered frame, shared by every fixed step.
       const frameInput = currentInput.frame();
@@ -1006,13 +1367,20 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (disposed) return;
 
     // D-10/T-04-43: the equipment catalogue is the only source of a price and a
-    // tech level. A missing or malformed record fails the boot visibly, exactly
-    // like the ship catalogue.
+    // tech level. The commodity catalogue is the only source of the market
+    // coefficients. A missing or malformed record fails the boot visibly,
+    // exactly like the ship catalogue.
     try {
-      const equipment = await loadEquipment();
+      const [equipment, loadedCommodities] = await Promise.all([
+        loadEquipment(),
+        loadCommodities(),
+      ]);
       if (disposed) return;
       equipmentCatalogue = equipment;
-      dockComputer = findEquipment(equipment, DOCK_COMPUTER_KEY);
+      commodities = loadedCommodities;
+      commodityUnits = new Map(
+        loadedCommodities.map((commodity) => [commodity.key, commodity.unit]),
+      );
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       showBootFailure(reason);
@@ -1051,11 +1419,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     let flightState: FlightState;
     let restoredProfile: PlayerProfile | undefined;
     if (restoring && restore !== undefined) {
-      const restored = restoreFromSave(
-        restore,
-        systemLayout,
-        (credits, equipment) => ({ credits, equipment }),
-      );
+      const restored = restoreFromSave(restore, systemLayout, profileFromSave);
       flightState = restored.state;
       restoredProfile = restored.profile;
     } else {
@@ -1067,6 +1431,16 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     config = flightConfig;
     scene = nextScene;
     profile = restoredProfile ?? newProfile();
+
+    // D-17/D-18/D-19: resolve the seed once and generate the market once. A
+    // later `docked` event reuses this market; only Phase 6's system change re-seeds.
+    const loadedCatalogue = commodities ?? [];
+    marketSeed =
+      restoring && restore !== undefined
+        ? (restore.marketSeed ?? marketSeedForSystem(system.id))
+        : marketSeedForSystem(system.id);
+    market = generateMarket(system, loadedCatalogue, marketSeed);
+    ensureSelection();
     hud = createHud(hudCanvas);
     hud.resize();
     breakPattern = createBreakPattern(hudCanvas);
@@ -1092,6 +1466,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     });
 
     input = createKeyboardInputSource(bindingMap);
+    input.setStationScreenHandler((action) => {
+      openStationScreen(action);
+    });
+    input.setContext("dockHome");
+    input.setPaused(false);
     input.attach();
     loop = createGameLoop();
     previousPose = poseOf(flightState);
@@ -1155,12 +1534,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     title.hide();
     docked.show(system.name);
-    refreshDockedProfile();
+    renderStation();
     docked.onLaunch(() => {
+      // D-03: the Launch button is only live on the home screen.
+      if (state?.mode !== "docked" || stationScreen !== "home") return;
       pending.push({ kind: "launch" });
-    });
-    docked.onBuyDockComputer(() => {
-      buyDockComputer();
     });
 
     renderFrame(0);

@@ -15,7 +15,7 @@
  */
 
 import { expect, test } from "@playwright/test";
-import type { Locator, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import {
   add,
@@ -368,7 +368,7 @@ test("a bounce shakes, flashes and messages, and a retry is immediate", async ({
   expect(errors).toEqual([]);
 });
 
-test("the docked panel shows real credits and refuses the TL 9 computer at Lave", async ({
+test("the docked home shows real credits, ship, fuel and the four screen entries", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -380,73 +380,52 @@ test("the docked panel shows real credits and refuses the TL 9 computer at Lave"
   await bootToDocked(page);
 
   const dockedPanel = page.locator("#docked");
-  await expect(dockedPanel).toContainText("100.0 Cr");
-  await expect(dockedPanel.locator('[data-field="dockcomp"]')).toHaveText(
-    "Docking Computers — 1500.0 Cr (TL 9)",
+  await expect(dockedPanel.locator('[data-field="credits"]')).toHaveText(
+    "100.0 Cr",
   );
+  await expect(dockedPanel.locator('[data-field="ship"]')).toHaveText(
+    "Cobra Mk III",
+  );
+  await expect(dockedPanel.locator('[data-field="fuel"]')).toHaveText("7.0 LY");
 
-  const buy = page.locator('button[data-action="buy-dockcomp"]');
-  const launch = page.locator('button[data-action="launch"]');
-  const reason = dockedPanel.locator("#dockcomp-message");
+  // The four screens are advertised on the home panel; only F8 is wired in
+  // wave 1, and the F3 TL-9 refusal moves to plan 05-05's station spec.
+  await expect(dockedPanel).toContainText("Market (F8)");
+  await expect(dockedPanel).toContainText("Outfitting (F3)");
+  await expect(dockedPanel).toContainText("Status (F5)");
+  await expect(dockedPanel).toContainText("System data (F7)");
+  await expect(page.locator('button[data-action="launch"]')).toBeVisible();
 
-  // Lave's raw tech level is 4, so the "(TL 9)" line is a real gate.
-  await expect(reason).toHaveText("Requires TL 9");
-  await expect(reason).toHaveClass(/docked-reason/);
-  await expect(buy).toBeDisabled();
-  await expect(buy).toHaveAttribute("aria-describedby", "dockcomp-message");
-
-  // The reason sits in the value cell beside the line it qualifies, never a
-  // stray dd in the label column.
-  expect(
-    await dockedPanel.evaluate(() => {
-      const line = document.querySelector('[data-field="dockcomp"]');
-      const message = document.getElementById("dockcomp-message");
-      return (
-        line !== null &&
-        message !== null &&
-        line.tagName === "SPAN" &&
-        message.tagName === "SPAN" &&
-        line.parentElement !== null &&
-        line.parentElement === message.parentElement &&
-        line.parentElement.tagName === "DD"
-      );
-    }),
-  ).toBe(true);
-
-  // Computed presentation: the disabled control must read as unavailable.
-  const computedStyle = (locator: Locator) =>
-    locator.evaluate((element) => {
-      const computed = getComputedStyle(element);
-      return {
-        cursor: computed.cursor,
-        opacity: Number(computed.opacity),
-        color: computed.color,
-        borderColor: computed.borderColor,
-        background: computed.backgroundColor,
-      };
-    });
-  const buyStyle = await computedStyle(buy);
-  const launchStyle = await computedStyle(launch);
-  expect(buyStyle.cursor).toBe("not-allowed");
-  expect(buyStyle.opacity).toBeLessThan(launchStyle.opacity);
-  expect(buyStyle.color).not.toBe(launchStyle.color);
-  expect(buyStyle.borderColor).not.toBe(launchStyle.borderColor);
-
-  const buyBox = await buy.boundingBox();
-  const launchBox = await launch.boundingBox();
-  expect(buyBox).not.toBeNull();
-  expect(launchBox).not.toBeNull();
-  if (buyBox !== null && launchBox !== null) {
-    // Hover the disabled control: it must not take the active fill.
-    await page.mouse.move(
-      buyBox.x + buyBox.width / 2,
-      buyBox.y + buyBox.height / 2,
-    );
-    expect((await computedStyle(buy)).background).toBe(buyStyle.background);
-
-    // A positive gap separates the secondary Buy control from Launch.
-    expect(launchBox.y - (buyBox.y + buyBox.height)).toBeGreaterThan(4);
+  // The station footer is a div, never a second footer: the document
+  // disclaimer stays the only element `locator("footer")` resolves to, and
+  // the two boxes must not overlap.
+  await expect(page.locator("footer")).toHaveCount(1);
+  const stationFooter = dockedPanel.locator(".station-footer");
+  await expect(stationFooter).toBeVisible();
+  const footerBox = await page.locator("footer").boundingBox();
+  const stationBox = await stationFooter.boundingBox();
+  expect(footerBox).not.toBeNull();
+  expect(stationBox).not.toBeNull();
+  if (footerBox !== null && stationBox !== null) {
+    const overlaps =
+      stationBox.y < footerBox.y + footerBox.height &&
+      footerBox.y < stationBox.y + stationBox.height;
+    expect(overlaps).toBe(false);
   }
+
+  expect(errors).toEqual([]);
+});
+
+test("docked Controls rebind keeps probe.mode docked and no pause", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await bootToDocked(page);
 
   // The same shift metadata drives the Controls row and the rebind feedback.
   await page.keyboard.press("KeyP");
@@ -457,10 +436,12 @@ test("the docked panel shows real credits and refuses the TL 9 computer at Lave"
   const dockComputerRow = page.locator(
     '.controls-row:has([data-rebind="dockingComputer"])',
   );
-  const dockComputerLabel = dockComputerRow.locator(".controls-label");
-  const dockComputerCodes = dockComputerRow.locator(".controls-codes");
-  await expect(dockComputerLabel).toHaveText("Docking computer");
-  await expect(dockComputerCodes).toHaveText("Shift+C");
+  await expect(dockComputerRow.locator(".controls-label")).toHaveText(
+    "Docking computer",
+  );
+  await expect(dockComputerRow.locator(".controls-codes")).toHaveText(
+    "Shift+C",
+  );
 
   await page.click('button[data-rebind="dockingComputer"]');
   await page.keyboard.press("KeyK");
@@ -468,7 +449,10 @@ test("the docked panel shows real credits and refuses the TL 9 computer at Lave"
     "Docking computer bound to Shift+K.",
   );
 
-  expect((await getProbe(page)).mode).toBe("docked");
+  const probe = await getProbe(page);
+  expect(probe.mode).toBe("docked");
+  // Rebinding a key never toggles the paused flag; only Resume may.
+  expect(probe.paused).toBe(true);
   expect(errors).toEqual([]);
 });
 
@@ -483,7 +467,8 @@ test("Shift+C with the computer granted docks instantly with exactly 1200 s", as
   page.on("pageerror", (error) => errors.push(String(error)));
 
   await bootToDocked(page);
-  await page.click('button[data-action="launch"]');
+  // Launch from the home screen with the advertised Digit1 key.
+  await page.keyboard.press("Digit1");
   await waitForMode(page, "inFlight");
 
   // D-10 test seam: the equipment is granted, never persisted (04-05 refuses a
@@ -522,9 +507,6 @@ test("Shift+C with the computer granted docks instantly with exactly 1200 s", as
   // counts the launch write only, even though the profile is tainted.
   expect(docked.save?.attempts).toBe(1);
   await expect(page.locator("#docked")).toBeVisible();
-  await expect(page.locator('[data-field="dockcomp-message"]')).toHaveText(
-    "Already fitted",
-  );
   await expect(page.locator("#hud")).toBeHidden();
   expect(docked.test?.tainted).toBe(true);
   expect(errors).toEqual([]);

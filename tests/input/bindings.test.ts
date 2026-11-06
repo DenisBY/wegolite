@@ -157,6 +157,31 @@ describe("labels and the code cap", () => {
   });
 });
 
+describe("context-aware conflicts", () => {
+  it("allows rebinding rollRight to ArrowRight because flight and dockScreen do not overlap", () => {
+    const map = createBindingMap();
+    // stationRight already owns ArrowRight in dockScreen; the flight action may
+    // share the code because the two contexts never coexist.
+    expect(bindAction(map, "rollRight", "ArrowRight")).toEqual({ ok: true });
+    expect(map.rollRight).toEqual(["ArrowRight"]);
+    expect(map.stationRight).toEqual(["ArrowRight"]);
+  });
+
+  it("drops a tampered duplicate whose contexts overlap", () => {
+    const map = createBindingMap({ stationConfirm: ["ArrowRight"] });
+    // stationRight comes first in ACTION_IDS and keeps the code; a confirm
+    // bound to the same arrow could otherwise commit on one arrow press.
+    expect(map.stationRight).toEqual(["ArrowRight"]);
+    expect(map.stationConfirm).toEqual([]);
+  });
+
+  it("keeps the documented Escape pair for pause and Back", () => {
+    const map = createBindingMap();
+    expect(map.pause).toEqual(["KeyP", "Escape"]);
+    expect(map.stationBack).toEqual(["Escape", "Backspace"]);
+  });
+});
+
 describe("createInputState", () => {
   it("turns held codes into axes in [-1, 1]", () => {
     const state = createInputState();

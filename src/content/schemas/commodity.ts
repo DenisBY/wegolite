@@ -11,7 +11,10 @@
  *
  * Money is integer decicredits (`priceAverage`); the five market ratios are
  * authored reals and must never be `.int()`-coerced. `podConversion` is carried
- * metadata for Phase 5 and is never applied here.
+ * metadata for Phase 5 and is never applied here. `name` is the resolved
+ * human-readable display string compiled from `descriptions.plist`; `key` stays
+ * the identity (D-21). `peakExport`/`peakImport` are Oolite's authored
+ * economy peaks (0..7) and feed only the market bias formula.
  */
 
 import { z } from "zod";
@@ -34,6 +37,8 @@ export const CommoditySchema = z.strictObject({
   quantityAverage: z.number(),
   quantityEconomic: z.number(),
   quantityRandom: z.number(),
+  peakExport: z.number().int().min(0).max(7),
+  peakImport: z.number().int().min(0).max(7),
   legalityExport: z.number().int(),
   legalityImport: z.number().int(),
   trumbleOpinion: z.number(),

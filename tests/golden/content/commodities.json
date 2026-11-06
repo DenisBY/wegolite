@@ -6,7 +6,9 @@
       "key": "food",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name food]",
+      "name": "Food",
+      "peakExport": 7,
+      "peakImport": 0,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -26,7 +28,9 @@
       "key": "textiles",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name textiles]",
+      "name": "Textiles",
+      "peakExport": 7,
+      "peakImport": 0,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -46,7 +50,9 @@
       "key": "radioactives",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name radioactives]",
+      "name": "Radioactives",
+      "peakExport": 7,
+      "peakImport": 0,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -71,7 +77,9 @@
       "key": "slaves",
       "legalityExport": 1,
       "legalityImport": 0,
-      "name": "[commodity-name slaves]",
+      "name": "Slaves",
+      "peakExport": 7,
+      "peakImport": 0,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -91,7 +99,9 @@
       "key": "liquor_wines",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name liquor_wines]",
+      "name": "Liquor/Wines",
+      "peakExport": 7,
+      "peakImport": 0,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -111,7 +121,9 @@
       "key": "luxuries",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name luxuries]",
+      "name": "Luxuries",
+      "peakExport": 0,
+      "peakImport": 7,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -136,7 +148,9 @@
       "key": "narcotics",
       "legalityExport": 2,
       "legalityImport": 0,
-      "name": "[commodity-name narcotics]",
+      "name": "Narcotics",
+      "peakExport": 0,
+      "peakImport": 0,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -156,7 +170,9 @@
       "key": "computers",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name computers]",
+      "name": "Computers",
+      "peakExport": 0,
+      "peakImport": 7,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -180,7 +196,9 @@
       "key": "machinery",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name machinery]",
+      "name": "Machinery",
+      "peakExport": 0,
+      "peakImport": 7,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -205,7 +223,9 @@
       "key": "alloys",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name alloys]",
+      "name": "Alloys",
+      "peakExport": 0,
+      "peakImport": 7,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -230,7 +250,9 @@
       "key": "firearms",
       "legalityExport": 1,
       "legalityImport": 0,
-      "name": "[commodity-name firearms]",
+      "name": "Firearms",
+      "peakExport": 0,
+      "peakImport": 7,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -255,7 +277,9 @@
       "key": "furs",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name furs]",
+      "name": "Furs",
+      "peakExport": 7,
+      "peakImport": 0,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -275,7 +299,9 @@
       "key": "minerals",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name minerals]",
+      "name": "Minerals",
+      "peakExport": 7,
+      "peakImport": 0,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },
@@ -300,7 +326,9 @@
       "key": "gold",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name gold]",
+      "name": "Gold",
+      "peakExport": 7,
+      "peakImport": 0,
       "podConversion": {
         "kilogramsPerUnit": 1
       },
@@ -325,7 +353,9 @@
       "key": "platinum",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name platinum]",
+      "name": "Platinum",
+      "peakExport": 7,
+      "peakImport": 0,
       "podConversion": {
         "kilogramsPerUnit": 1
       },
@@ -345,7 +375,9 @@
       "key": "gem_stones",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name gem_stones]",
+      "name": "Gem-Stones",
+      "peakExport": 7,
+      "peakImport": 0,
       "podConversion": {
         "kilogramsPerUnit": 0.001
       },
@@ -365,7 +397,9 @@
       "key": "alien_items",
       "legalityExport": 0,
       "legalityImport": 0,
-      "name": "[commodity-name alien_items]",
+      "name": "Alien Items",
+      "peakExport": 0,
+      "peakImport": 7,
       "podConversion": {
         "kilogramsPerUnit": 1000
       },

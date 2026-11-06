@@ -32,6 +32,12 @@
 
 import { z } from "zod";
 
+import type { CommodityUnit } from "../content/types.js";
+import {
+  capacityPodsFor,
+  emptyCargo,
+  holdPodsUsed,
+} from "../sim/economy/cargo.js";
 import { CLOCK_START } from "../sim/flight/state.js";
 
 /** The schema version this build writes and accepts. */
@@ -43,11 +49,12 @@ export const SAVE_VERSION = 1;
  * This is a true upper bound on what `encodeSave` can produce, including
  * worst-case JSON escaping. The largest v1 tuple is 64 equipment keys of 64
  * characters; a control character encodes to six characters (`\u00XX`), so the
- * equipment array alone is at most 64 × 64 × 6 = 24,576 characters. Adding the
+ * equipment array alone is at most 64 × 64 × 6 = 24,576 characters. Seventeen
+ * cargo entries add at most 17 × (64 × 6 + 8) ≈ 6,664 characters. Adding the
  * escaped system id (16 × 6), station key (64 × 6), 16-digit safe-integer
- * credits, a 13-digit clock and the field envelope stays below 25,600. 32 KiB
- * keeps a comfortable margin while remaining a hard resource bound before
- * `JSON.parse` (T-04-27/T-04-49).
+ * credits, a 13-digit clock, five scalar fields and the field envelope stays
+ * below 32 KiB. 32 KiB keeps a comfortable margin while remaining a hard
+ * resource bound before `JSON.parse` (T-04-27/T-04-49).
  */
 export const MAX_SAVE_CHARS = 32_768;
 
@@ -56,6 +63,21 @@ export const MAX_SAVE_EQUIPMENT = 64;
 
 /** The longest equipment key accepted. */
 export const MAX_SAVE_EQUIPMENT_KEY_CHARS = 64;
+
+/** The most cargo entries one profile may carry (17 commodities). */
+export const MAX_SAVE_CARGO_ENTRIES = 17;
+
+/** The largest quantity one cargo entry may hold. */
+export const MAX_SAVE_CARGO_QUANTITY = 36_000_000;
+
+/** The fuel tank cap in tenths of a light year. */
+export const MAX_SAVE_FUEL = 70;
+
+/** The missile pylon cap. */
+export const MAX_SAVE_MISSILES = 3;
+
+/** The passenger berth cap (a hard resource bound). */
+export const MAX_SAVE_BERTHS = 7;
 
 /** The longest system id accepted (`g0-s7` is the real shape). */
 export const MAX_SAVE_SYSTEM_ID_CHARS = 16;
@@ -75,6 +97,11 @@ export const MAX_SAVE_CLOCK_DELTA = 1_000_000_000_000;
  */
 export const MAX_SAVE_CREDITS = Number.MAX_SAFE_INTEGER;
 
+export const CargoEntrySchema = z.strictObject({
+  key: z.string().min(1).max(MAX_SAVE_EQUIPMENT_KEY_CHARS),
+  quantity: z.number().int().min(1).max(MAX_SAVE_CARGO_QUANTITY),
+});
+
 export const SaveV1Schema = z.strictObject({
   version: z.literal(SAVE_VERSION),
   mode: z.literal("docked"),
@@ -93,15 +120,25 @@ export const SaveV1Schema = z.strictObject({
   station: z.strictObject({
     key: z.string().min(1).max(MAX_SAVE_STATION_KEY_CHARS),
   }),
+  // Additive optional fields on the existing v1 blob (D-19): a Phase 4 save
+  // stays readable and no version bump invents a migration Phase 6 owns.
+  cargo: z.array(CargoEntrySchema).max(MAX_SAVE_CARGO_ENTRIES).optional(),
+  fuel: z.number().int().min(0).max(MAX_SAVE_FUEL).optional(),
+  missiles: z.number().int().min(0).max(MAX_SAVE_MISSILES).optional(),
+  passengerBerths: z.number().int().min(0).max(MAX_SAVE_BERTHS).optional(),
+  marketSeed: z.number().int().min(0).max(0xffffffff).optional(),
 });
 
 export type SaveV1 = z.infer<typeof SaveV1Schema>;
+export type SaveCargoEntry = z.infer<typeof CargoEntrySchema>;
 
 /** The catalogue facts a boot must supply before a blob can be trusted. */
 export interface SaveAllowLists {
   readonly equipment: ReadonlySet<string>;
   readonly systems: ReadonlySet<string>;
   readonly stations: ReadonlySet<string>;
+  /** Tradeable commodity key → unit; Alien Items is deliberately absent. */
+  readonly commodities: ReadonlyMap<string, CommodityUnit>;
 }
 
 export type SaveParseFailure =
@@ -116,9 +153,27 @@ export interface SaveInputs {
   readonly clockSeconds: number;
   readonly credits: number;
   readonly equipment: readonly string[];
+  readonly cargo: readonly SaveCargoEntry[];
+  readonly fuel: number;
+  readonly missiles: number;
+  readonly passengerBerths: number;
+  readonly marketSeed: number;
   readonly systemId: string;
   readonly stationKey: string;
 }
+
+/** The Phase 4 equipment alias for one passenger berth. */
+export const LEGACY_BERTH_ALIAS = "EQ_PASSENGER_BERTH";
+
+/** The Phase 4 equipment alias for one missile. */
+export const LEGACY_MISSILE_ALIAS = "EQ_MISSILE";
+
+/** Equipment keys a canonical snapshot never carries. */
+const FORBIDDEN_EQUIPMENT: ReadonlySet<string> = new Set([
+  "EQ_FUEL",
+  "EQ_MISSILE_REMOVAL",
+  "EQ_PASSENGER_BERTH_REMOVAL",
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -203,15 +258,21 @@ export function parseSave(
   }
   const save = result.data;
 
-  // The schema proves the shape; the allow-lists prove the referents exist. A
-  // duplicate key is corrupt because it would restore an ambiguous profile.
-  const seen = new Set<string>();
-  for (const key of save.equipment) {
-    if (seen.has(key) || !allow.equipment.has(key)) {
+  // The schema proves the shape; the shared semantic validator proves the
+  // referents, cargo accounting and canonical equipment. It is the same stage
+  // the writer runs before committing, so a snapshot cannot be written that the
+  // parser would reject (T-05-19).
+  try {
+    if (!validateSaveSemantics(save, allow, "read")) {
       return { ok: false, reason: "corrupt" };
     }
-    seen.add(key);
+  } catch {
+    // `parseSave` never throws: an internal error is an untrusted blob.
+    return { ok: false, reason: "corrupt" };
   }
+
+  // The allow-lists prove the referents exist; a forged id or key can never
+  // reach `findShip` or the system catalogue.
   if (!allow.systems.has(save.system.id)) {
     return { ok: false, reason: "corrupt" };
   }
@@ -223,6 +284,65 @@ export function parseSave(
 }
 
 /**
+ * The one semantic validation stage shared by the reader and the writer.
+ *
+ * Rejects unknown/duplicate equipment keys, the canonical-only exclusions,
+ * unknown/duplicate/zero cargo keys, an over-capacity hold and — in `"write"`
+ * mode — the Phase 4 equipment aliases a canonical snapshot never writes. In
+ * `"read"` mode one alias is accepted only when its explicit count is zero;
+ * the alias and a non-zero count together are ambiguous double-encoding.
+ */
+export function validateSaveSemantics(
+  save: SaveV1,
+  allow: SaveAllowLists,
+  mode: "read" | "write",
+): boolean {
+  const seenEquipment = new Set<string>();
+  let hasBerthAlias = false;
+  let hasMissileAlias = false;
+
+  for (const key of save.equipment) {
+    if (seenEquipment.has(key) || !allow.equipment.has(key)) return false;
+    seenEquipment.add(key);
+    if (FORBIDDEN_EQUIPMENT.has(key)) return false;
+    if (key === LEGACY_BERTH_ALIAS) {
+      if (mode === "write") return false;
+      hasBerthAlias = true;
+    }
+    if (key === LEGACY_MISSILE_ALIAS) {
+      if (mode === "write") return false;
+      hasMissileAlias = true;
+    }
+  }
+
+  if (hasBerthAlias && (save.passengerBerths ?? 0) !== 0) return false;
+  if (hasMissileAlias && (save.missiles ?? 0) !== 0) return false;
+
+  // Normalise the alias into the effective count BEFORE measuring the hold, so
+  // a 20 t hold plus a lone berth alias is corrupt at the effective 15 t.
+  const effectiveBerths = (save.passengerBerths ?? 0) + (hasBerthAlias ? 1 : 0);
+  const capacityPods = capacityPodsFor(save.equipment, effectiveBerths);
+  if (capacityPods < 0) return false;
+
+  const cargo = emptyCargo() as Record<string, number>;
+  const seenCargo = new Set<string>();
+  for (const entry of save.cargo ?? []) {
+    if (seenCargo.has(entry.key)) return false;
+    if (!allow.commodities.has(entry.key)) return false;
+    if (!Number.isSafeInteger(entry.quantity) || entry.quantity <= 0) {
+      return false;
+    }
+    seenCargo.add(entry.key);
+    cargo[entry.key] = entry.quantity;
+  }
+
+  const usedPods = holdPodsUsed(cargo, allow.commodities);
+  if (!Number.isSafeInteger(usedPods) || usedPods > capacityPods) return false;
+
+  return true;
+}
+
+/**
  * Validate an encoded blob against the writer's own contract.
  *
  * `queueAutosave` runs this before `store.write`: a snapshot that would encode
@@ -230,7 +350,10 @@ export function parseSave(
  * allow-lists are not consulted here — they depend on boot content — only the
  * size cap and the strict schema the parser applies first.
  */
-export function isEncodedSaveValid(raw: string): boolean {
+export function isEncodedSaveValid(
+  raw: string,
+  allow: SaveAllowLists,
+): boolean {
   if (raw.length > MAX_SAVE_CHARS) return false;
   let parsed: unknown;
   try {
@@ -238,7 +361,13 @@ export function isEncodedSaveValid(raw: string): boolean {
   } catch {
     return false;
   }
-  return SaveV1Schema.safeParse(parsed).success;
+  const result = SaveV1Schema.safeParse(parsed);
+  if (!result.success) return false;
+  try {
+    return validateSaveSemantics(result.data, allow, "write");
+  } catch {
+    return false;
+  }
 }
 
 /** Marker prefixed to a truncated `autosave.corrupt` backup. */
@@ -273,6 +402,14 @@ export function encodeSave(inputs: SaveInputs): string {
     clockSeconds: inputs.clockSeconds,
     credits: inputs.credits,
     equipment: [...inputs.equipment],
+    cargo: inputs.cargo.map((entry) => ({
+      key: entry.key,
+      quantity: entry.quantity,
+    })),
+    fuel: inputs.fuel,
+    missiles: inputs.missiles,
+    passengerBerths: inputs.passengerBerths,
+    marketSeed: inputs.marketSeed,
     system: { id: inputs.systemId },
     station: { key: inputs.stationKey },
   };

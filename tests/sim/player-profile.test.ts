@@ -41,6 +41,11 @@ import { laveFixture } from "../helpers/lave.js";
 
 const fixture = laveFixture();
 
+/** A profile with the new-game fields and only the fields a test overrides. */
+function makeProfile(overrides: Partial<PlayerProfile> = {}): PlayerProfile {
+  return { ...newProfile(), ...overrides };
+}
+
 const dockComputer: Equipment = {
   key: "EQ_DOCK_COMP",
   name: "Docking Computers",
@@ -64,7 +69,14 @@ describe("newProfile", () => {
   it("starts a new game with 1000 decicredits and no equipment", () => {
     const profile = newProfile();
 
-    expect(profile).toEqual({ credits: 1000, equipment: [] });
+    expect(profile).toEqual({
+      credits: 1000,
+      equipment: [],
+      cargo: {},
+      fuel: 70,
+      missiles: 3,
+      passengerBerths: 0,
+    });
     expect(NEW_GAME_CREDITS).toBe(1000);
     // A fresh array each call: a shared default would leak purchases between
     // games.
@@ -83,7 +95,7 @@ describe("formatCredits", () => {
 
 describe("canPurchase", () => {
   it("refuses a TL 9 item at Lave (raw techLevel 4) even with enough credits", () => {
-    const profile: PlayerProfile = { credits: 15000, equipment: [] };
+    const profile = makeProfile({ credits: 15000 });
 
     expect(fixture.system.techLevelRaw).toBe(4);
     expect(
@@ -92,17 +104,17 @@ describe("canPurchase", () => {
   });
 
   it("accepts a TL 9 item on a synthetic TL 9 system", () => {
-    const profile: PlayerProfile = { credits: 15000, equipment: [] };
+    const profile = makeProfile({ credits: 15000 });
 
     expect(canPurchase(profile, dockComputer, 9)).toEqual({ ok: true });
     expect(canPurchase(profile, dockComputer, 10)).toEqual({ ok: true });
   });
 
   it("refuses an already owned item before checking credits", () => {
-    const profile: PlayerProfile = {
+    const profile = makeProfile({
       credits: 0,
       equipment: ["EQ_DOCK_COMP"],
-    };
+    });
 
     expect(canPurchase(profile, dockComputer, 9)).toEqual({
       ok: false,
@@ -112,10 +124,10 @@ describe("canPurchase", () => {
 
   it("accredits exactly 15000 and refuses 14999", () => {
     expect(
-      canPurchase({ credits: 15000, equipment: [] }, dockComputer, 9),
+      canPurchase(makeProfile({ credits: 15000 }), dockComputer, 9),
     ).toEqual({ ok: true });
     expect(
-      canPurchase({ credits: 14999, equipment: [] }, dockComputer, 9),
+      canPurchase(makeProfile({ credits: 14999 }), dockComputer, 9),
     ).toEqual({ ok: false, reason: "insufficientCredits" });
   });
 
@@ -131,7 +143,7 @@ describe("canPurchase", () => {
 
     for (const price of invalidPrices) {
       const item = { ...dockComputer, price };
-      expect(canPurchase({ credits: 15000, equipment: [] }, item, 9)).toEqual({
+      expect(canPurchase(makeProfile({ credits: 15000 }), item, 9)).toEqual({
         ok: false,
         reason: "invalidPrice",
       });
@@ -141,43 +153,44 @@ describe("canPurchase", () => {
 
 describe("purchase", () => {
   it("deducts exactly the catalogue price and appends the key once", () => {
-    const before: PlayerProfile = { credits: 15000, equipment: [] };
+    const before = makeProfile({ credits: 15000 });
 
     const after = purchase(before, dockComputer);
 
-    expect(after).toEqual({ credits: 0, equipment: ["EQ_DOCK_COMP"] });
+    expect(after).toEqual(
+      makeProfile({ credits: 0, equipment: ["EQ_DOCK_COMP"] }),
+    );
     // The input profile is never mutated.
-    expect(before).toEqual({ credits: 15000, equipment: [] });
+    expect(before).toEqual(makeProfile({ credits: 15000 }));
   });
 
   it("refuses at 14999, on a double purchase and on an invalid price", () => {
-    const poor: PlayerProfile = { credits: 14999, equipment: [] };
+    const poor = makeProfile({ credits: 14999 });
     expect(purchase(poor, dockComputer)).toBe(poor);
 
-    const owned: PlayerProfile = {
+    const owned = makeProfile({
       credits: 15000,
       equipment: ["EQ_DOCK_COMP"],
-    };
+    });
     expect(purchase(owned, dockComputer)).toBe(owned);
 
     const forged = { ...dockComputer, price: 0 };
-    const flush: PlayerProfile = { credits: 15000, equipment: [] };
+    const flush = makeProfile({ credits: 15000 });
     expect(purchase(flush, forged)).toBe(flush);
   });
 
   it("never lets credits go negative or exceed a safe integer", () => {
-    const negative: PlayerProfile = { credits: -1, equipment: [] };
+    const negative = makeProfile({ credits: -1 });
     expect(purchase(negative, dockComputer)).toBe(negative);
 
-    const unsafe: PlayerProfile = {
+    const unsafe = makeProfile({
       credits: Number.MAX_SAFE_INTEGER + 1,
-      equipment: [],
-    };
+    });
     expect(purchase(unsafe, dockComputer)).toBe(unsafe);
   });
 
   it("refuses an invalid key and a sixty-fifth equipment key", () => {
-    const emptyKey: PlayerProfile = { credits: 15000, equipment: [] };
+    const emptyKey = makeProfile({ credits: 15000 });
     expect(purchase(emptyKey, { ...dockComputer, key: "" })).toBe(emptyKey);
 
     const tooLong = "K".repeat(MAX_EQUIPMENT_KEY_LENGTH + 1);
@@ -185,13 +198,13 @@ describe("purchase", () => {
       emptyKey,
     );
 
-    const full: PlayerProfile = {
+    const full = makeProfile({
       credits: 15000,
       equipment: Array.from(
         { length: MAX_EQUIPMENT_KEYS },
         (_, index) => `K${String(index)}`,
       ),
-    };
+    });
     expect(purchase(full, dockComputer)).toBe(full);
   });
 });
@@ -208,24 +221,19 @@ describe("credits grants", () => {
     expect(grantCredits(profile, -1)).toBe(profile);
     expect(grantCredits(profile, 0.5)).toBe(profile);
 
-    const nearlyFull: PlayerProfile = {
+    const nearlyFull = makeProfile({
       credits: Number.MAX_SAFE_INTEGER - 1,
-      equipment: [],
-    };
+    });
     expect(grantCredits(nearlyFull, 10)).toBe(nearlyFull);
   });
 
   it("sets a valid credit balance and grants a valid amount", () => {
     const profile = newProfile();
 
-    expect(setCredits(profile, 15000)).toEqual({
-      credits: 15000,
-      equipment: [],
-    });
-    expect(grantCredits(profile, 14000)).toEqual({
-      credits: 15000,
-      equipment: [],
-    });
+    expect(setCredits(profile, 15000)).toEqual(makeProfile({ credits: 15000 }));
+    expect(grantCredits(profile, 14000)).toEqual(
+      makeProfile({ credits: 15000 }),
+    );
   });
 });
 
@@ -245,13 +253,12 @@ describe("equipment catalogue", () => {
       parseEquipment(equipmentFile()),
       "EQ_DOCK_COMP",
     );
-    expect(canPurchase({ credits: 15000, equipment: [] }, found, 9)).toEqual({
+    expect(canPurchase(makeProfile({ credits: 15000 }), found, 9)).toEqual({
       ok: true,
     });
-    expect(purchase({ credits: 15000, equipment: [] }, found)).toEqual({
-      credits: 0,
-      equipment: ["EQ_DOCK_COMP"],
-    });
+    expect(purchase(makeProfile({ credits: 15000 }), found)).toEqual(
+      makeProfile({ credits: 0, equipment: ["EQ_DOCK_COMP"] }),
+    );
   });
 
   it("rejects a malformed record and a duplicate key with a named error", () => {

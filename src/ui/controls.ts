@@ -15,7 +15,11 @@
  * is ever parsed as HTML.
  */
 
-import { ACTION_IDS, ACTION_LABELS } from "../input/actions.js";
+import {
+  ACTION_IDS,
+  ACTION_LABELS,
+  DEFAULT_BINDINGS,
+} from "../input/actions.js";
 import type { ActionId } from "../input/actions.js";
 import {
   bindAction,
@@ -28,7 +32,10 @@ import type { BindingMap } from "../input/bindings.js";
 
 /** Keys the browser reserves; capturing them would break reload/fullscreen. */
 const RESERVED_CODES: ReadonlySet<string> = new Set([
+  "F3",
   "F5",
+  "F7",
+  "F8",
   "F11",
   "F12",
   "Tab",
@@ -183,6 +190,15 @@ export function createControlsPanel(
   function render(): void {
     list.replaceChildren();
     for (const action of ACTION_IDS) {
+      // A station action with no current binding and no default (the shift
+      // variants) is not a row: `(unbound)` would advertise a key that never
+      // existed.
+      if (
+        (bindings[action] ?? []).length === 0 &&
+        DEFAULT_BINDINGS[action].length === 0
+      ) {
+        continue;
+      }
       const row = document.createElement("div");
       row.className = "controls-row";
 

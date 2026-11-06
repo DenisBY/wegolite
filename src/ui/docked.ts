@@ -2,43 +2,37 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The docked status panel (D-09, D-10, WORLD-01).
+ * The reduced docked home panel (D-02, D-03, ECON-09).
  *
- * Exactly one panel: system name, real credits, ship and fuel, one docking
- * computer purchase line and one Launch control. Phase 4 replaces the Phase 3
- * constant `100.0 Cr` with the live profile balance and adds the single
- * D-10 line; Phase 5 will replace that line with the outfitting screen.
+ * Phase 4's single panel owned a docking-computer purchase line. Phase 5
+ * replaces that line with the Outfitting screen, so this module is reduced to
+ * the five retained fields (`system`, `credits`, `ship`, `fuel`, `message`) and
+ * the single Launch control. `src/ui/station.ts` composes it as the home screen
+ * of the station computer; it is not a second live path.
  *
  * Every dynamic string is written with `textContent` — never `innerHTML`
- * (Pitfall 16, T-04-23). The purchase reason lives in the value cell beside the
- * line it qualifies and is associated with the Buy control by
- * `aria-describedby`, so the launch hint on the message line cannot hide it.
+ * (Pitfall 16, T-04-23). The fuel value comes from the live profile now that
+ * the constant Phase 4 fuel string is gone.
  */
 
 export const DOCKED_SHIP = "Cobra Mk III";
-export const DOCKED_FUEL = "7.0 LY";
-
-/** The purchase line's view, computed by the session from the profile. */
-export interface DockComputerView {
-  /** e.g. "Docking Computers — 1500.0 Cr (TL 9)". */
-  readonly line: string;
-  readonly disabled: boolean;
-  /** A short, fixed reason when disabled ("Requires TL 9", …). */
-  readonly reason: string;
-}
 
 export interface DockedPanel {
   show(systemName: string): void;
   hide(): void;
-  /** D-11: the docked panel's message line, same monospace/green styling. */
+  /** D-11: the home screen's message line, same monospace/green styling. */
   setMessage(text: string): void;
-  /** The live profile balance, already formatted by `formatCredits`. */
+  /** The live profile balance, already formatted by `formatDecicredits`. */
   setCredits(text: string): void;
-  /** D-10: the one equipment line and its purchase control. */
-  setDockComputer(view: DockComputerView): void;
+  /** The live tank (0..70 tenths), formatted by `formatFuel`. */
+  setFuel(text: string): void;
   onLaunch(handler: () => void): void;
-  onBuyDockComputer(handler: () => void): void;
   dispose(): void;
+}
+
+/** Format tenths of a light year: `70` is `"7.0 LY"`. */
+export function formatFuel(fuel: number): string {
+  return `${(fuel / 10).toFixed(1)} LY`;
 }
 
 function requireField(root: HTMLElement, field: string): HTMLElement {
@@ -65,14 +59,9 @@ export function createDockedPanel(root: HTMLElement): DockedPanel {
   const shipField = requireField(root, "ship");
   const fuelField = requireField(root, "fuel");
   const messageField = requireField(root, "message");
-  const dockComputerField = requireField(root, "dockcomp");
-  const dockComputerMessageField = requireField(root, "dockcomp-message");
-
   const launch = requireButton(root, "launch");
-  const buyDockComputer = requireButton(root, "buy-dockcomp");
 
   shipField.textContent = DOCKED_SHIP;
-  fuelField.textContent = DOCKED_FUEL;
 
   const controller = new AbortController();
 
@@ -90,27 +79,11 @@ export function createDockedPanel(root: HTMLElement): DockedPanel {
     setCredits(text: string): void {
       creditsField.textContent = text;
     },
-    setDockComputer(view: DockComputerView): void {
-      dockComputerField.textContent = view.line;
-      dockComputerMessageField.textContent = view.reason;
-      buyDockComputer.disabled = view.disabled;
-      if (view.reason.length > 0) {
-        buyDockComputer.setAttribute("aria-describedby", "dockcomp-message");
-      } else {
-        buyDockComputer.removeAttribute("aria-describedby");
-      }
+    setFuel(text: string): void {
+      fuelField.textContent = text;
     },
     onLaunch(handler: () => void): void {
       launch.addEventListener(
-        "click",
-        () => {
-          handler();
-        },
-        { signal: controller.signal },
-      );
-    },
-    onBuyDockComputer(handler: () => void): void {
-      buyDockComputer.addEventListener(
         "click",
         () => {
           handler();

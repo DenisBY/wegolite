@@ -16,7 +16,7 @@
  * both the denial and this type-only door.
  */
 
-export type { Commodity } from "./schemas/commodity.js";
+export type { Commodity, CommodityUnit } from "./schemas/commodity.js";
 export type { System, SystemChunk } from "./schemas/system.js";
 export type { Equipment } from "./schemas/equipment.js";
 export type { Labels } from "./schemas/labels.js";

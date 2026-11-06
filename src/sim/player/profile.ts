@@ -19,6 +19,9 @@
  * Every operation returns a new profile; none mutates its input or throws.
  */
 
+import { emptyCargo } from "../economy/cargo.js";
+import type { Cargo } from "../economy/cargo.js";
+
 /** A price must be a positive safe integer no larger than this. */
 export const MAX_EQUIPMENT_PRICE = 1e9;
 
@@ -31,6 +34,12 @@ export const MAX_EQUIPMENT_KEY_LENGTH = 64;
 /** Oolite's new-game balance: 1,000 decicredits = 100.0 Cr. */
 export const NEW_GAME_CREDITS = 1000;
 
+/** A fresh ship's fuel tank, in tenths of a light year. */
+export const NEW_GAME_FUEL = 70;
+
+/** A fresh Cobra's missile pylons. */
+export const NEW_GAME_MISSILES = 3;
+
 /** The minimal catalogue shape the purchase rule reads. */
 export interface EquipmentRecord {
   readonly key: string;
@@ -42,6 +51,14 @@ export interface EquipmentRecord {
 export interface PlayerProfile {
   readonly credits: number;
   readonly equipment: readonly string[];
+  /** Commodity key → units held; a null-prototype map in practice. */
+  readonly cargo: Cargo;
+  /** Fuel in tenths of a light year (0..70). */
+  readonly fuel: number;
+  /** Mounted missiles (0..3). */
+  readonly missiles: number;
+  /** Passenger berths (0..7); each consumes five tonnes of capacity. */
+  readonly passengerBerths: number;
 }
 
 /** Why a purchase would be refused; the app maps each to fixed copy. */
@@ -52,19 +69,36 @@ export type PurchaseCheck =
   | { readonly ok: true }
   | { readonly ok: false; readonly reason: PurchaseRefusal };
 
-/** A fresh new-game profile; every call owns its own equipment array. */
+/** A fresh new-game profile; every call owns its own equipment array and cargo. */
 export function newProfile(): PlayerProfile {
-  return { credits: NEW_GAME_CREDITS, equipment: [] };
+  return {
+    credits: NEW_GAME_CREDITS,
+    equipment: [],
+    cargo: emptyCargo(),
+    fuel: NEW_GAME_FUEL,
+    missiles: NEW_GAME_MISSILES,
+    passengerBerths: 0,
+  };
 }
 
 /**
- * Format decicredits for the panel: one decimal place, never `toLocaleString`.
+ * Format decicredits exactly: integer quotient and remainder, one decimal.
  *
- * `(15000 / 10).toFixed(1)` is `"1500.0"`; the division is exact for the
- * integer balances this game stores.
+ * `toFixed` is deliberately not used for money: it rounds through a binary
+ * fraction and is not an exact formatter over the safe-integer domain. The
+ * integer split keeps every balance the game can represent exact.
  */
+export function formatDecicredits(decicredits: number): string {
+  const sign = decicredits < 0 ? "-" : "";
+  const absolute = Math.abs(decicredits);
+  const whole = Math.trunc(absolute / 10);
+  const tenth = absolute % 10;
+  return `${sign}${String(whole)}.${String(tenth)} Cr`;
+}
+
+/** Format decicredits for the panel: one decimal place, never `toLocaleString`. */
 export function formatCredits(decicredits: number): string {
-  return `${(decicredits / 10).toFixed(1)} Cr`;
+  return formatDecicredits(decicredits);
 }
 
 function isValidPrice(price: number): boolean {
@@ -141,7 +175,7 @@ export function purchase(
 
   const credits = profile.credits - item.price;
   if (!isSafeCredits(credits)) return profile;
-  return { credits, equipment: [...profile.equipment, item.key] };
+  return { ...profile, credits, equipment: [...profile.equipment, item.key] };
 }
 
 /**
@@ -153,7 +187,7 @@ export function setCredits(
   credits: number,
 ): PlayerProfile {
   if (!isSafeCredits(credits)) return profile;
-  return { credits, equipment: profile.equipment };
+  return { ...profile, credits };
 }
 
 /**

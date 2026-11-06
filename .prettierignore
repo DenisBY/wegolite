@@ -6,6 +6,7 @@ package-lock.json
 .planning
 # Agent runtime state written by the GSD harness, not project source.
 .gsd
+.agents
 LICENSE
 NOTICE
 # Generated canonical JSON: Prettier's array wrapping would break assets:check.

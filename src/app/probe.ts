@@ -97,6 +97,28 @@ export interface WegoliteProfileTestHook {
   grantEquipment(key: string): boolean;
 }
 
+/** The live station-computer state, tracer subset (plan 05-05 expands it). */
+export interface WegoliteStationProbe {
+  open: boolean;
+  screen: "home" | "market" | "outfitting" | "status" | "systemData";
+  selectedKey: string;
+}
+
+/** The market row evidence the e2e reads; never rebuilt per frame. */
+export interface WegoliteEconomyMarketRow {
+  key: string;
+  price: number;
+  stock: number;
+}
+
+/** The live economy state, tracer subset (plan 05-05 expands it). */
+export interface WegoliteEconomyProbe {
+  credits: number;
+  cargo: Record<string, number>;
+  marketSeed: number;
+  market: WegoliteEconomyMarketRow[];
+}
+
 /**
  * The live autosave state (DOCK-07, D-13, D-14).
  *
@@ -183,6 +205,10 @@ export interface WegoliteProbe {
   dock?: WegoliteDockProbe;
   /** Live autosave state; absent on the failure surface. */
   save?: WegoliteSaveProbe;
+  /** The station computer's screen state (ECON-04/ECON-09). */
+  station?: WegoliteStationProbe;
+  /** The live market and hold (ECON-01/ECON-02). */
+  economy?: WegoliteEconomyProbe;
   /**
    * The live active-camera aspect (WORLD-02). The e2e proof reads this instead
    * of a screenshot. Absent on the failure surface, where no camera renders.

@@ -123,18 +123,35 @@
         position: absolute;
         inset: 0;
         display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(0, 8, 3, 0.88);
+        flex-direction: column;
+        background: #000;
         color: #33ff66;
         font: 18px/1.7 monospace;
       }
 
-      #docked .panel {
-        min-width: 22rem;
-        padding: 1.5rem 2rem;
-        border: 1px solid #33ff66;
-        background: rgba(0, 0, 0, 0.7);
+      .station-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.75rem 2rem;
+        border-bottom: 1px solid #1a5a2c;
+        letter-spacing: 0.06em;
+      }
+
+      .station-header-credits {
+        color: #9f9;
+      }
+
+      #station-screen {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem 2rem 14rem;
+        outline: none;
+      }
+
+      #station-screen[data-screen="home"] [data-station-panel="home"],
+      #station-screen[data-screen="market"] [data-station-panel="market"] {
+        display: block;
       }
 
       #docked h2 {
@@ -165,24 +182,52 @@
         font: inherit;
       }
 
-      /* Beside the line it qualifies, in the value cell — never a stray grid
-         row in the label column. */
-      #docked .docked-reason {
-        display: block;
-        margin-top: 0.15rem;
-        color: #9c9;
-        font-size: 0.85em;
+      #docked .station-menu {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(12rem, 1fr));
+        gap: 0.5rem 1.5rem;
+        margin: 0 0 1.5rem;
       }
 
-      #docked .docked-actions {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
+      #docked .station-entry {
+        padding: 0.35rem 0.5rem;
+        border: 1px solid #1a5a2c;
+      }
+
+      #docked .station-entry.selected,
+      #docked .station-table tr.selected {
+        background: #0a2a12;
+      }
+
+      #docked .station-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0 0 1rem;
+      }
+
+      #docked .station-table th,
+      #docked .station-table td {
+        padding: 0.15rem 0.6rem;
+        text-align: left;
+        font: inherit;
+      }
+
+      #docked .station-table th {
+        border-bottom: 1px solid #1a5a2c;
+        opacity: 0.8;
+      }
+
+      #docked .station-table tr.dimmed {
+        color: #2a5a35;
+      }
+
+      #docked .station-cash,
+      #docked .station-load {
+        margin: 0.25rem 0;
       }
 
       #docked button {
-        width: 100%;
-        padding: 0.6rem;
+        padding: 0.6rem 1rem;
         border: 1px solid #33ff66;
         background: transparent;
         color: #33ff66;
@@ -190,19 +235,38 @@
         cursor: pointer;
       }
 
-      /* The disabled state must beat the author colour/cursor above. Native
-         `disabled` stays the only activation gate; this is presentation only. */
-      #docked button:disabled {
-        border-color: #2a5a35;
-        color: #2a5a35;
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-
-      #docked button:hover:not(:disabled),
-      #docked button:focus-visible:not(:disabled) {
+      #docked button:hover,
+      #docked button:focus-visible {
         background: #33ff66;
         color: #000;
+      }
+
+      /* One station footer above the fixed document disclaimer. It is a div,
+         never a second footer element: strict `footer` locators and the global CSS
+         must keep resolving to the single document element. */
+      .station-footer {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 6rem;
+        padding: 0.35rem 2rem;
+        border-top: 1px solid #1a5a2c;
+        background: #000;
+        color: #33ff66;
+        font: 15px/1.6 monospace;
+      }
+
+      .station-footer p {
+        min-height: 1.5em;
+        margin: 0;
+      }
+
+      .station-footer [data-field="station-notice"] {
+        color: #9c9;
+      }
+
+      .station-footer [data-field="station-save"] {
+        color: #9a9;
       }
 
       /* The pause overlay is the single home for Resume, Controls and Settings
@@ -307,8 +371,10 @@
         display: none !important;
       }
 
-      /* Fixed to the bottom so `overflow: hidden` on body cannot clip it. */
-      footer {
+      /* Fixed to the bottom so `overflow: hidden` on body cannot clip it. The
+         station footer is a div, so this selector deliberately names only the
+         document disclaimer. */
+      body > footer {
         position: fixed;
         bottom: 0;
         left: 0;
@@ -357,35 +423,53 @@
       </div>
     </div>
     <div id="docked" hidden>
-      <section class="panel" aria-labelledby="docked-title">
-        <h2 id="docked-title">Docked</h2>
-        <dl>
-          <dt>System</dt>
-          <dd data-field="system"></dd>
-          <dt>Credits</dt>
-          <dd data-field="credits"></dd>
-          <dt>Ship</dt>
-          <dd data-field="ship"></dd>
-          <dt>Fuel</dt>
-          <dd data-field="fuel"></dd>
-          <dt>Docking computer</dt>
-          <dd>
-            <span data-field="dockcomp"></span>
-            <span
-              id="dockcomp-message"
-              class="docked-reason"
-              data-field="dockcomp-message"
-            ></span>
-          </dd>
-        </dl>
-        <p class="docked-message" data-field="message" role="status"></p>
-        <div class="docked-actions">
-          <button type="button" data-action="buy-dockcomp">
-            Buy docking computer
-          </button>
+      <header class="station-header">
+        <span class="station-header-system" data-field="system"></span>
+        <span class="station-header-credits" data-field="credits"></span>
+      </header>
+      <section id="station-screen" data-screen="home" tabindex="-1">
+        <div data-station-panel="home">
+          <h2>Docked</h2>
+          <dl>
+            <dt>Ship</dt>
+            <dd data-field="ship"></dd>
+            <dt>Fuel</dt>
+            <dd data-field="fuel"></dd>
+          </dl>
+          <p class="docked-message" data-field="message" role="status"></p>
+          <div class="station-menu">
+            <div class="station-entry">Market (F8)</div>
+            <div class="station-entry">Outfitting (F3)</div>
+            <div class="station-entry">Status (F5)</div>
+            <div class="station-entry">System data (F7)</div>
+          </div>
           <button type="button" data-action="launch">Launch</button>
         </div>
+        <div data-station-panel="market" hidden>
+          <h2>Market</h2>
+          <table class="station-table">
+            <thead>
+              <tr>
+                <th>Commodity</th>
+                <th>Unit</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Hold</th>
+                <th>Ex</th>
+              </tr>
+            </thead>
+            <tbody data-market-rows></tbody>
+          </table>
+          <p class="station-cash" data-field="market-cash"></p>
+          <p class="station-load" data-field="market-load"></p>
+        </div>
       </section>
+      <div class="station-footer">
+        <p data-field="station-keys"></p>
+        <p data-field="station-confirm" role="status"></p>
+        <p data-field="station-notice"></p>
+        <p data-field="station-save"></p>
+      </div>
     </div>
     <div
       id="pause"

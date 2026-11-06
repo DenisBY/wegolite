@@ -28,6 +28,7 @@ import { publishFailure, publishProbe, readMemory } from "./app/probe.js";
 import type { WegoliteProbe } from "./app/probe.js";
 import { createSceneManager } from "./app/scene-manager.js";
 import manifest from "./content/generated/manifest.json";
+import { loadCommodities } from "./content/commodities.js";
 import { loadEquipment } from "./content/equipment.js";
 import { loadShipCatalogue } from "./content/ships.js";
 import { LAZY_GALAXY_COUNT, galaxy0 } from "./content/systems.js";
@@ -38,6 +39,7 @@ import type { SaveStatus } from "./persistence/store.js";
 import { createAssetCache } from "./render/asset-cache.js";
 import { applyViewport } from "./render/viewport.js";
 import { createDockedPanel } from "./ui/docked.js";
+import { createStationShell } from "./ui/station.js";
 import { createTitleScreen, shouldConfirmNewGame } from "./ui/title.js";
 
 function requireElement(id: string): HTMLElement {
@@ -98,7 +100,8 @@ if (!boot.ok) {
     });
 
   const title = createTitleScreen(requireElement("title-screen"));
-  const docked = createDockedPanel(requireElement("docked"));
+  const dockedRoot = requireElement("docked");
+  const station = createStationShell(dockedRoot, createDockedPanel(dockedRoot));
   const pauseRoot = requireElement("pause");
   const controlsRoot = requireElement("controls");
   const settingsRoot = requireElement("settings-panel");
@@ -115,12 +118,19 @@ if (!boot.ok) {
   const saveStore = createIndexedDbSaveStore();
   let saveStatus: SaveStatus;
   let bootSave: SaveV1 | undefined;
+  let allowLists: SaveAllowLists = {
+    equipment: new Set(),
+    systems: new Set(),
+    stations: new Set(),
+    commodities: new Map(),
+  };
   try {
-    const [equipment, catalogue] = await Promise.all([
+    const [equipment, catalogue, commodities] = await Promise.all([
       loadEquipment(),
       loadShipCatalogue(),
+      loadCommodities(),
     ]);
-    const allowLists: SaveAllowLists = {
+    allowLists = {
       equipment: new Set(equipment.map((item) => item.key)),
       systems: new Set(galaxy0().map((system) => system.id)),
       stations: new Set(
@@ -131,6 +141,13 @@ if (!boot.ok) {
             ),
           )
           .map((entry) => entry.key),
+      ),
+      // Only tradeable goods can be persisted; Alien Items is visible but
+      // never held, so it is deliberately absent from the allow-list.
+      commodities: new Map(
+        commodities
+          .filter((item) => item.tradeable && item.key !== "alien_items")
+          .map((item) => [item.key, item.unit]),
       ),
     };
     const read = await saveStore.read();
@@ -212,7 +229,7 @@ if (!boot.ok) {
     assets,
     scenes,
     title,
-    docked,
+    docked: station,
     hudCanvas,
     probe,
     system: lave,
@@ -224,6 +241,7 @@ if (!boot.ok) {
       store: saveStore,
       status: saveStatus,
       ...(bootSave === undefined ? {} : { save: bootSave }),
+      allow: allowLists,
     },
   });
 

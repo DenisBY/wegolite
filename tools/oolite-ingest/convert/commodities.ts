@@ -35,6 +35,14 @@ export const COMMODITIES_PATH = "src/content/generated/commodities.json";
 
 const FILE = "third_party/oolite/Config/trade-goods.plist";
 
+const DESCRIPTIONS_FILE = "third_party/oolite/Config/descriptions.plist";
+
+/** `descriptions.plist` keys that name a commodity for display (D-21). */
+const COMMODITY_NAME_PREFIX = "commodity-name ";
+
+/** A trade good's authored name is the bracketed localization token. */
+const COMMODITY_TOKEN = /^\[commodity-name ([^\]]+)\]$/;
+
 interface UnitDefinition {
   readonly unit: CommodityUnit;
   readonly kilogramsPerUnit: number;
@@ -202,6 +210,8 @@ function project(entryKey: string, dict: PlistDict): Commodity {
       "quantity_random",
       `${construct}.quantity_random`,
     ),
+    peakExport: readInteger(dict, "peak_export", `${construct}.peak_export`),
+    peakImport: readInteger(dict, "peak_import", `${construct}.peak_import`),
     legalityExport: readInteger(
       dict,
       "legality_export",
@@ -237,8 +247,62 @@ function project(entryKey: string, dict: PlistDict): Commodity {
   return result.data;
 }
 
+/**
+ * Resolve every display name from `descriptions.plist` (D-21).
+ *
+ * The authored `name` in `trade-goods.plist` is a localization token
+ * (`"[commodity-name food]"`). The token must name the same entry it belongs
+ * to, and the description must exist: falling back to the token would ship a
+ * raw localization key to the market screen.
+ */
+function commodityNames(descriptions: PlistValue): Map<string, string> {
+  const root = requireDict(descriptions, "descriptions");
+  const names = new Map<string, string>();
+  for (const entry of root.entries) {
+    if (!entry.key.startsWith(COMMODITY_NAME_PREFIX)) continue;
+    if (entry.value.kind !== "string") {
+      throw contentError("SCHEMA", DESCRIPTIONS_FILE, entry.key, {
+        line: entry.keyLine,
+        column: entry.keyColumn,
+        excerpt: `"${entry.key}" must be a quoted string`,
+      });
+    }
+    names.set(entry.key, entry.value.value);
+  }
+  return names;
+}
+
+function resolveName(
+  entryKey: string,
+  authoredName: string,
+  names: ReadonlyMap<string, string>,
+): string {
+  const match = COMMODITY_TOKEN.exec(authoredName);
+  const token = match?.[1];
+  if (token === undefined || token !== entryKey) {
+    throw contentError("SCHEMA", FILE, `commodities.${entryKey}.name`, {
+      excerpt: `expected "[commodity-name ${entryKey}]", found "${authoredName}"`,
+    });
+  }
+  const resolved = names.get(`${COMMODITY_NAME_PREFIX}${token}`);
+  if (resolved === undefined) {
+    throw contentError(
+      "SCHEMA",
+      DESCRIPTIONS_FILE,
+      `${COMMODITY_NAME_PREFIX}${token}`,
+      {
+        excerpt: `missing display name for commodity "${entryKey}"`,
+      },
+    );
+  }
+  return resolved;
+}
+
 /** Project every entry, sorted by ascending `sort_order`. */
-export function compileCommodities(parsed: PlistValue): Commodity[] {
+export function compileCommodities(
+  parsed: PlistValue,
+  descriptions: PlistValue,
+): Commodity[] {
   const root = requireDict(parsed, "root");
   if (root.entries.length === 0) {
     throw contentError("SCHEMA", FILE, "root", {
@@ -246,8 +310,9 @@ export function compileCommodities(parsed: PlistValue): Commodity[] {
     });
   }
 
-  const records = root.entries.map((entry) =>
-    project(
+  const names = commodityNames(descriptions);
+  const records = root.entries.map((entry) => {
+    const record = project(
       entry.key,
       requireDict(
         entry.value,
@@ -255,8 +320,12 @@ export function compileCommodities(parsed: PlistValue): Commodity[] {
         entry.keyLine,
         entry.keyColumn,
       ),
-    ),
-  );
+    );
+    return {
+      ...record,
+      name: resolveName(entry.key, record.name, names),
+    };
+  });
 
   records.sort((left, right) => left.sortOrder - right.sortOrder);
 
@@ -292,8 +361,11 @@ export function compileCommodities(parsed: PlistValue): Commodity[] {
 }
 
 /** Canonical JSON bytes for the compiled records. */
-export function emitCommodities(parsed: PlistValue): EmittedCommodities {
-  const records = compileCommodities(parsed);
+export function emitCommodities(
+  parsed: PlistValue,
+  descriptions: PlistValue,
+): EmittedCommodities {
+  const records = compileCommodities(parsed, descriptions);
   const json: PlistJson = records.map((record) => ({
     key: record.key,
     name: record.name,
@@ -306,6 +378,8 @@ export function emitCommodities(parsed: PlistValue): EmittedCommodities {
     quantityAverage: record.quantityAverage,
     quantityEconomic: record.quantityEconomic,
     quantityRandom: record.quantityRandom,
+    peakExport: record.peakExport,
+    peakImport: record.peakImport,
     legalityExport: record.legalityExport,
     legalityImport: record.legalityImport,
     trumbleOpinion: record.trumbleOpinion,

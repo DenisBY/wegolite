@@ -137,7 +137,7 @@ export async function generateContent({
   const models = await readModels(inputRoot);
 
   const emitted: EmittedFile[] = [
-    emitCommodities(commodities),
+    emitCommodities(commodities, descriptions),
     ...emitSystems(systems),
     emitEquipment(equipment),
     emitLabels(descriptions),

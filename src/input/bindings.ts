@@ -16,6 +16,7 @@
  */
 
 import {
+  ACTION_CONTEXTS,
   ACTION_IDS,
   DEFAULT_BINDINGS,
   SHIFT_REQUIRED_ACTIONS,
@@ -50,19 +51,59 @@ export function capCodes(codes: readonly string[]): string[] {
  * Build a fresh null-prototype map. An action present in `source` keeps its
  * value — including an explicit empty array, which means "unbound" and must not
  * be refilled with the default. A missing action takes the default.
+ *
+ * The result is sanitised deterministically: when two actions whose contexts
+ * overlap own the same code, the later `ACTION_IDS` entry loses it. A tampered
+ * or partially merged settings blob therefore cannot make one key both step a
+ * quantity and confirm a trade. The one documented exemption is `pause` and
+ * `stationBack` sharing `Escape`, which the input layer resolves by paused
+ * state.
  */
 export function createBindingMap(
   source?: Partial<Record<ActionId, readonly string[]>>,
 ): BindingMap {
   const map = Object.create(null) as unknown as BindingMap;
+  const owners = new Map<string, ActionId[]>();
   for (const action of ACTION_IDS) {
     const codes = source?.[action];
-    map[action] = capCodes(codes ?? DEFAULT_BINDINGS[action]);
+    const kept: string[] = [];
+    for (const code of capCodes(codes ?? DEFAULT_BINDINGS[action])) {
+      const existing = owners.get(code) ?? [];
+      const conflicts = existing.some(
+        (other) =>
+          contextsOverlap(other, action) && !isExemptPair(other, action, code),
+      );
+      if (conflicts) continue;
+      kept.push(code);
+      existing.push(action);
+      owners.set(code, existing);
+    }
+    map[action] = kept;
   }
   return map;
 }
 
-/** The action already holding `code`, or `undefined` when it is free. */
+/** Whether two actions can fire in the same input mode. */
+export function contextsOverlap(left: ActionId, right: ActionId): boolean {
+  const leftContexts = ACTION_CONTEXTS[left];
+  const rightContexts = ACTION_CONTEXTS[right];
+  return leftContexts.some((context) => rightContexts.includes(context));
+}
+
+/**
+ * The only pair allowed to share a code: `pause` and `stationBack` on Escape.
+ * The input layer resolves it by paused state, so it is not an ambiguity.
+ */
+function isExemptPair(left: ActionId, right: ActionId, code: string): boolean {
+  if (code !== "Escape") return false;
+  const pair = new Set<ActionId>([left, right]);
+  return pair.has("pause") && pair.has("stationBack");
+}
+
+/**
+ * The action already holding `code` in a context the requested action can
+ * fire in, or `undefined` when the code is free for it.
+ */
 export function detectConflict(
   map: BindingMap,
   action: ActionId,
@@ -70,7 +111,10 @@ export function detectConflict(
 ): ActionId | undefined {
   for (const other of ACTION_IDS) {
     if (other === action) continue;
-    if ((map[other] ?? []).includes(code)) return other;
+    if (!(map[other] ?? []).includes(code)) continue;
+    if (!contextsOverlap(other, action)) continue;
+    if (isExemptPair(other, action, code)) continue;
+    return other;
   }
   return undefined;
 }

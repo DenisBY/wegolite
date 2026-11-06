@@ -26,6 +26,7 @@ interface CommodityFixture {
 }
 
 const PLIST = "third_party/oolite/Config/trade-goods.plist";
+const DESCRIPTIONS_PLIST = "third_party/oolite/Config/descriptions.plist";
 
 const fixture = JSON.parse(
   readFileSync(
@@ -42,7 +43,21 @@ const source = readFileSync(
   "utf8",
 );
 
-const commodities = compileCommodities(parseOpenStep(source, PLIST));
+const descriptions = parseOpenStep(
+  readFileSync(
+    new URL(
+      "../../../third_party/oolite/Config/descriptions.plist",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+  DESCRIPTIONS_PLIST,
+);
+
+const commodities = compileCommodities(
+  parseOpenStep(source, PLIST),
+  descriptions,
+);
 
 function require(key: string): Commodity {
   const record = commodities.find((item) => item.key === key);
@@ -68,6 +83,34 @@ describe("commodity golden", () => {
     expect(require("gem_stones").unit).toBe("g");
     expect(require("gem_stones").priceAverage).toBe(196);
     expect(require("alien_items").tradeable).toBe(false);
+  });
+
+  it("resolves display names from descriptions.plist and keeps the key as identity", () => {
+    expect(require("food").name).toBe("Food");
+    expect(require("liquor_wines").name).toBe("Liquor/Wines");
+    expect(require("gem_stones").name).toBe("Gem-Stones");
+    expect(require("alien_items").name).toBe("Alien Items");
+    for (const record of commodities) {
+      // A raw localization token must never reach the screen (D-21).
+      expect(record.name).not.toMatch(/^\[commodity-name /);
+    }
+  });
+
+  it("projects both economy peaks onto every record", () => {
+    expect(require("food").peakExport).toBe(7);
+    expect(require("food").peakImport).toBe(0);
+    expect(require("narcotics").peakExport).toBe(0);
+    expect(require("narcotics").peakImport).toBe(0);
+    expect(require("alien_items").peakExport).toBe(0);
+    expect(require("alien_items").peakImport).toBe(7);
+    for (const record of commodities) {
+      expect(Number.isInteger(record.peakExport)).toBe(true);
+      expect(Number.isInteger(record.peakImport)).toBe(true);
+      expect(record.peakExport).toBeGreaterThanOrEqual(0);
+      expect(record.peakExport).toBeLessThanOrEqual(7);
+      expect(record.peakImport).toBeGreaterThanOrEqual(0);
+      expect(record.peakImport).toBeLessThanOrEqual(7);
+    }
   });
 
   it("tags every unit as t, kg or g with pod metadata carried but not applied", () => {

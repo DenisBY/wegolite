@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import { MemorySaveStore } from "../../src/persistence/memory-store.js";
 import {
+  profileFromSave,
   queueAutosave,
   restoreFromSave,
   snapshotForSave,
@@ -45,16 +46,25 @@ import {
   setCredits,
 } from "../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../src/sim/player/profile.js";
+import { commoditiesFixture } from "../helpers/commodities.js";
 import { DT } from "../../src/sim/time.js";
 import { laveFixture, scriptedFrame } from "../helpers/lave.js";
 
 const { layout, config } = laveFixture();
 const player = new PlayerController();
 
+const COMMODITIES = commoditiesFixture();
+const SEED = 0x12345678;
+
 const ALLOW: SaveAllowLists = {
   equipment: new Set(["EQ_DOCK_COMP"]),
   systems: new Set(["g0-s7"]),
   stations: new Set(["coriolis-station"]),
+  commodities: new Map([
+    ["food", "t"],
+    ["gold", "kg"],
+    ["gem_stones", "g"],
+  ]),
 };
 
 const SYSTEM = { id: "g0-s7" };
@@ -95,6 +105,7 @@ const MAX_ALLOW: SaveAllowLists = {
   equipment: new Set(MAX_EQUIPMENT),
   systems: new Set(["g0-s7"]),
   stations: new Set(["coriolis-station"]),
+  commodities: ALLOW.commodities,
 };
 
 describe("snapshotForSave", () => {
@@ -103,7 +114,14 @@ describe("snapshotForSave", () => {
     launch(state);
     const profile = newProfile();
 
-    const inputs = snapshotForSave(state, profile, SYSTEM, STATION);
+    const inputs = snapshotForSave(
+      state,
+      profile,
+      SYSTEM,
+      STATION,
+      SEED,
+      COMMODITIES,
+    );
     expect(inputs.clockSeconds).toBe(CLOCK_START + 600);
     expect(inputs.credits).toBe(1000);
     expect(inputs.equipment).toEqual([]);
@@ -138,8 +156,15 @@ describe("snapshotForSave", () => {
     expect(state.clockSeconds).toBeGreaterThan(liveClock + 599);
 
     const store = new MemorySaveStore();
-    const inputs = snapshotForSave(state, newProfile(), SYSTEM, STATION);
-    const result = await queueAutosave(store, 1, inputs);
+    const inputs = snapshotForSave(
+      state,
+      newProfile(),
+      SYSTEM,
+      STATION,
+      SEED,
+      COMMODITIES,
+    );
+    const result = await queueAutosave(store, 1, inputs, ALLOW);
     expect(result.committed).toBe(true);
 
     const parsed = parseSave(store.raw, ALLOW);
@@ -162,8 +187,10 @@ describe("snapshotForSave", () => {
       purchased,
       SYSTEM,
       STATION,
+      SEED,
+      COMMODITIES,
     );
-    const result = await queueAutosave(store, 1, inputs);
+    const result = await queueAutosave(store, 1, inputs, ALLOW);
     expect(result.committed).toBe(true);
 
     const parsed = parseSave(store.raw, ALLOW);
@@ -179,6 +206,11 @@ describe("writer bounds", () => {
     clockSeconds: CLOCK_START + MAX_SAVE_CLOCK_DELTA,
     credits: MAX_SAVE_CREDITS,
     equipment: MAX_EQUIPMENT,
+    cargo: [],
+    fuel: 70,
+    missiles: 3,
+    passengerBerths: 0,
+    marketSeed: SEED,
     systemId: "g0-s7",
     stationKey: "coriolis-station",
   };
@@ -186,11 +218,16 @@ describe("writer bounds", () => {
   it("fits the maximum tuple inside MAX_SAVE_CHARS even with worst-case escaping", async () => {
     const store = new MemorySaveStore();
     // Control characters double the pressure: every one encodes as `\u00XX`.
-    const result = await queueAutosave(store, 1, {
-      ...maximumInputs,
-      systemId: "\u0000".repeat(16),
-      stationKey: "\u0000".repeat(64),
-    });
+    const result = await queueAutosave(
+      store,
+      1,
+      {
+        ...maximumInputs,
+        systemId: "\u0000".repeat(16),
+        stationKey: "\u0000".repeat(64),
+      },
+      MAX_ALLOW,
+    );
 
     expect(result.committed).toBe(true);
     expect(store.raw).not.toBeNull();
@@ -199,7 +236,7 @@ describe("writer bounds", () => {
 
   it("round-trips the maximum equipment tuple through the parser", async () => {
     const store = new MemorySaveStore();
-    const result = await queueAutosave(store, 1, maximumInputs);
+    const result = await queueAutosave(store, 1, maximumInputs, MAX_ALLOW);
     expect(result.committed).toBe(true);
 
     const parsed = parseSave(store.raw, MAX_ALLOW);
@@ -219,8 +256,10 @@ describe("queueAutosave failure paths", () => {
       newProfile(),
       SYSTEM,
       STATION,
+      SEED,
+      COMMODITIES,
     );
-    const result = await queueAutosave(store, 1, inputs);
+    const result = await queueAutosave(store, 1, inputs, ALLOW);
     expect(result.committed).toBe(false);
     expect(result.reason).toContain("rejected");
   });
@@ -232,8 +271,10 @@ describe("queueAutosave failure paths", () => {
       newProfile(),
       SYSTEM,
       STATION,
+      SEED,
+      COMMODITIES,
     );
-    const result = await queueAutosave(store, 1, inputs);
+    const result = await queueAutosave(store, 1, inputs, ALLOW);
     expect(result).toMatchObject({ committed: false, revision: 1 });
     expect(result.reason).toBe("write-failed");
   });
@@ -245,9 +286,16 @@ describe("queueAutosave failure paths", () => {
       newProfile(),
       SYSTEM,
       STATION,
+      SEED,
+      COMMODITIES,
     );
     // A negative balance cannot be encoded into a blob `parseSave` accepts.
-    const result = await queueAutosave(store, 1, { ...valid, credits: -1 });
+    const result = await queueAutosave(
+      store,
+      1,
+      { ...valid, credits: -1 },
+      ALLOW,
+    );
 
     expect(result).toMatchObject({
       committed: false,
@@ -256,6 +304,45 @@ describe("queueAutosave failure paths", () => {
     });
     expect(store.writes).toHaveLength(0);
     expect(store.raw).toBeNull();
+  });
+
+  it("over-capacity snapshot is refused and leaves the previous bytes", async () => {
+    const store = new MemorySaveStore();
+    const valid = snapshotForSave(
+      initFlightState(layout),
+      newProfile(),
+      SYSTEM,
+      STATION,
+      SEED,
+      COMMODITIES,
+    );
+    expect((await queueAutosave(store, 1, valid, ALLOW)).committed).toBe(true);
+    const previous = store.raw;
+    expect(previous).not.toBeNull();
+
+    // 20 t of food already fills every pod; 500 kg of gold needs one more.
+    const overCapacity = {
+      ...valid,
+      cargo: [
+        { key: "food", quantity: 20 },
+        { key: "gold", quantity: 500 },
+      ],
+    };
+    const rejected = await queueAutosave(store, 2, overCapacity, ALLOW);
+    expect(rejected).toMatchObject({
+      committed: false,
+      revision: 2,
+      reason: "invalid-save",
+    });
+    expect(store.raw).toBe(previous);
+    expect(store.writes).toHaveLength(1);
+
+    // The rejected snapshot must not poison the next valid write.
+    const nextValid = { ...valid, credits: 900 };
+    expect((await queueAutosave(store, 3, nextValid, ALLOW)).committed).toBe(
+      true,
+    );
+    expect(store.writes).toHaveLength(2);
   });
 });
 
@@ -267,20 +354,24 @@ describe("revision ordering", () => {
       profileWithCredits(1000),
       SYSTEM,
       STATION,
+      SEED,
+      COMMODITIES,
     );
     const second = snapshotForSave(
       initFlightState(layout),
       profileWithCredits(2000),
       SYSTEM,
       STATION,
+      SEED,
+      COMMODITIES,
     );
 
-    expect((await queueAutosave(store, 1, first)).committed).toBe(true);
-    expect((await queueAutosave(store, 2, second)).committed).toBe(true);
+    expect((await queueAutosave(store, 1, first, ALLOW)).committed).toBe(true);
+    expect((await queueAutosave(store, 2, second, ALLOW)).committed).toBe(true);
     expect(store.writes).toHaveLength(2);
     expect(store.committedRevision).toBe(2);
 
-    const late = await queueAutosave(store, 1, first);
+    const late = await queueAutosave(store, 1, first, ALLOW);
     expect(late).toMatchObject({ committed: false, revision: 1 });
     expect(late.reason).toBe("stale");
 
@@ -303,10 +394,7 @@ describe("restoreFromSave", () => {
       station: { key: "coriolis-station" },
     };
 
-    const restored = restoreFromSave(save, layout, (credits, equipment) => ({
-      credits,
-      equipment,
-    }));
+    const restored = restoreFromSave(save, layout, profileFromSave);
 
     expect(restored.state.mode).toBe("docked");
     expect(restored.state.clockSeconds).toBe(CLOCK_START + 660);
