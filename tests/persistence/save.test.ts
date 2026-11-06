@@ -122,7 +122,10 @@ describe("parseSave accept path", () => {
       passengerBerths: 1,
       marketSeed: 0x12345678,
     });
-    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save: migrated(save) });
+    expect(parseSave(raw(save), ALLOW)).toEqual({
+      ok: true,
+      save: migrated(save),
+    });
   });
 
   it("accepts a minimal v2 docked object carrying one seed", () => {
@@ -390,7 +393,10 @@ describe("cargo and hold semantics", () => {
 
   it("accepts a lone Phase 4 berth alias and folds it in as one berth", () => {
     const save = validSave({ equipment: ["EQ_PASSENGER_BERTH"] });
-    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save: migrated(save) });
+    expect(parseSave(raw(save), ALLOW)).toEqual({
+      ok: true,
+      save: migrated(save),
+    });
   });
 
   it("rejects a lone missile alias plus a non-zero missile count", () => {
@@ -410,7 +416,10 @@ describe("exact capacity boundaries and the optional seed", () => {
         { key: "gold", quantity: 499 },
       ],
     });
-    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save: migrated(save) });
+    expect(parseSave(raw(save), ALLOW)).toEqual({
+      ok: true,
+      save: migrated(save),
+    });
   });
 
   it("rejects a 20 t hold plus 500 kg of gold", () => {

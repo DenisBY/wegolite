@@ -94,7 +94,7 @@ export function validV2(overrides: Record<string, unknown> = {}): SaveV2 {
     station: { key: "coriolis-station" },
     marketSeed: SEED,
     ...overrides,
-  } as SaveV2;
+  };
 }
 
 /** The 17 market goods in sortOrder shape, with safe prices and stock. */
@@ -124,7 +124,7 @@ function flightPose(overrides: Record<string, unknown> = {}): SaveFlightPose {
     rollRate: 0,
     torus: false,
     ...overrides,
-  } as SaveFlightPose;
+  };
 }
 
 /** A canonical encoder input; each test overrides the field under test. */
@@ -316,7 +316,10 @@ describe("the market snapshot", () => {
       name: "an unknown market goods key",
       save: validV2({
         market: marketSnapshot({
-          goods: [...goods().slice(1), { key: "unobtainium", price: 1, stock: 1 }],
+          goods: [
+            ...goods().slice(1),
+            { key: "unobtainium", price: 1, stock: 1 },
+          ],
         }),
         marketSeed: undefined,
       }),
@@ -480,7 +483,6 @@ describe("encodeSave v2 projections", () => {
     const encoded = encodeSave(
       saveInputs({
         market: marketSnapshot(),
-        marketSeed: undefined,
       }),
     );
     const parsed = JSON.parse(encoded) as Record<string, unknown>;
@@ -491,7 +493,10 @@ describe("encodeSave v2 projections", () => {
   });
 
   it("emits marketSeed and omits market when only a seed is supplied", () => {
-    const parsed = JSON.parse(encodeSave(saveInputs())) as Record<string, unknown>;
+    const parsed = JSON.parse(encodeSave(saveInputs())) as Record<
+      string,
+      unknown
+    >;
     expect(parsed["marketSeed"]).toBe(SEED);
     expect(parsed["market"]).toBeUndefined();
   });
@@ -518,7 +523,10 @@ describe("encodeSave v2 projections", () => {
   });
 
   it("emits the pose only for mode inFlight and never for docked", () => {
-    const docked = JSON.parse(encodeSave(saveInputs())) as Record<string, unknown>;
+    const docked = JSON.parse(encodeSave(saveInputs())) as Record<
+      string,
+      unknown
+    >;
     expect(docked["flight"]).toBeUndefined();
 
     const inFlight = JSON.parse(
@@ -527,7 +535,6 @@ describe("encodeSave v2 projections", () => {
           mode: "inFlight",
           flight: flightPose(),
           market: marketSnapshot(),
-          marketSeed: undefined,
         }),
       ),
     ) as Record<string, unknown>;

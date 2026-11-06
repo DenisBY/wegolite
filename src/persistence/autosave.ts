@@ -19,6 +19,8 @@ import { initFlightState } from "../sim/flight/state.js";
 import type { FlightState } from "../sim/flight/state.js";
 import type { Commodity } from "../content/types.js";
 import { emptyCargo } from "../sim/economy/cargo.js";
+import type { Market } from "../sim/economy/market.js";
+import { quat, normalize, vec } from "../sim/math.js";
 import { NEW_GAME_FUEL, NEW_GAME_MISSILES } from "../sim/player/profile.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
 import type { SystemLayout } from "../sim/world/layout.js";
@@ -28,7 +30,7 @@ import type {
   SaveAllowLists,
   SaveCargoEntry,
   SaveInputs,
-  SaveV1,
+  SaveV2,
 } from "./save.js";
 import type { SaveStore, WriteResult } from "./store.js";
 
@@ -42,21 +44,33 @@ export interface RestoredGame {
   readonly state: FlightState;
   readonly profile: PlayerProfile;
   /**
-   * The persisted market seed, when the blob carried one. A Phase 4 blob has
-   * none; the boot substitutes `marketSeedForSystem(system.id)`, never a clock
-   * or random value.
+   * The authoritative market snapshot, when the blob carried one. A v2
+   * canonical save always does; only a direct v1 migration has a seed instead.
+   */
+  readonly market?: Market;
+  /**
+   * The persisted market seed, when the blob carried one. A v1 migration and a
+   * seed-only write do; a canonical v2 write carries the snapshot instead.
    */
   readonly marketSeed?: number;
 }
 
-/** Build the schema inputs from the live state, profile and identities. */
+/**
+ * Build the schema inputs from the live state, profile, identities and market.
+ *
+ * `mode` is `inFlight` only for a live in-flight state: a `launching` snapshot
+ * is encoded as `docked`, because v2 has no `launching` mode and the pre-launch
+ * segment anchor is taken before the transition (D-17). The live market's goods
+ * are copied verbatim — this function never regenerates a price or a seed.
+ */
 export function snapshotForSave(
   state: FlightState,
   profile: PlayerProfile,
   system: { readonly id: string },
   station: { readonly key: string },
-  marketSeed: number,
+  market: Market | undefined,
   commodities: readonly Commodity[],
+  targetSystemId?: string,
 ): SaveInputs {
   const order = new Map(
     commodities.map((commodity) => [commodity.key, commodity.sortOrder]),
@@ -72,8 +86,10 @@ export function snapshotForSave(
     })
     .map(([key, quantity]) => ({ key, quantity }));
 
+  const mode = state.mode === "inFlight" ? "inFlight" : "docked";
+
   return {
-    // `SaveV1Schema.clockSeconds` is an integer; flight advances the clock by
+    // `SaveV2Schema.clockSeconds` is an integer; flight advances the clock by
     // `DT` (1/120), so a snapshot taken after any flight is fractional. Floor
     // it at the writer boundary: the save contract must never depend on how
     // long the player flew.
@@ -84,7 +100,31 @@ export function snapshotForSave(
     fuel: profile.fuel,
     missiles: profile.missiles,
     passengerBerths: profile.passengerBerths,
-    marketSeed,
+    mode,
+    ...(targetSystemId === undefined ? {} : { targetSystem: targetSystemId }),
+    // The canonical encoding: the live snapshot (seed + goods) verbatim.
+    ...(market === undefined ? {} : { market }),
+    ...(mode === "inFlight"
+      ? {
+          flight: {
+            position: [
+              state.position.x,
+              state.position.y,
+              state.position.z,
+            ] as [number, number, number],
+            orientation: [
+              state.orientation.w,
+              state.orientation.x,
+              state.orientation.y,
+              state.orientation.z,
+            ] as [number, number, number, number],
+            speed: state.speed,
+            pitchRate: state.pitchRate,
+            rollRate: state.rollRate,
+            torus: state.torus.engaged,
+          },
+        }
+      : {}),
     systemId: system.id,
     stationKey: station.key,
   };
@@ -141,7 +181,7 @@ function effectiveCount(
  * counts and removed from the equipment list; the dump is canonical from then
  * on.
  */
-export function profileFromSave(save: SaveV1): PlayerProfile {
+export function profileFromSave(save: SaveV2): PlayerProfile {
   const equipment: string[] = [];
   let hasBerthAlias = false;
   let hasMissileAlias = false;
@@ -173,20 +213,60 @@ export function profileFromSave(save: SaveV1): PlayerProfile {
 }
 
 /**
- * Restore a validated save: a fresh docked state at the saved clock, plus the
- * profile built by `profileFromSave`.
+ * Restore a validated save beside its profile and market (D-18).
+ *
+ * Docked: a fresh docked state at the saved clock; the station pose is derived
+ * from the layout, never stored. In-flight: the normalized saved pose, speed,
+ * rates, torus and clock with mode `inFlight`, `dockArmed` false,
+ * `stationAngle` 0, `launchElapsed` 0, `impulse` 0 and `compassMode` `auto`.
+ * `launchElapsed` is 0 because the only in-flight producer is the post-arrival
+ * save, whose producer also writes 0; the field is read only while
+ * `mode === "launching"`, so this preserves the saved producer exactly.
  */
 export function restoreFromSave(
-  save: SaveV1,
+  save: SaveV2,
   layout: SystemLayout,
-  profileFactory: (save: SaveV1) => PlayerProfile,
+  profileFactory: (save: SaveV2) => PlayerProfile,
 ): RestoredGame {
   const state = initFlightState(layout);
-  state.mode = "docked";
   state.clockSeconds = save.clockSeconds;
+
+  if (save.mode === "inFlight" && save.flight !== undefined) {
+    const pose = save.flight;
+    state.position = vec(pose.position[0], pose.position[1], pose.position[2]);
+    // D-16: normalize on read; the validator guarantees a non-zero length.
+    state.orientation = normalize(
+      quat(
+        pose.orientation[0],
+        pose.orientation[1],
+        pose.orientation[2],
+        pose.orientation[3],
+      ),
+    );
+    state.speed = pose.speed;
+    state.pitchRate = pose.pitchRate;
+    state.rollRate = pose.rollRate;
+    // Never persist a mid-torus factor: restoring 1 is the only safe value.
+    state.torus = {
+      engaged: pose.torus,
+      factor: 1,
+      massLocked: false,
+      lastFactor: 1,
+    };
+    state.mode = "inFlight";
+    state.dockArmed = false;
+    state.stationAngle = 0;
+    state.launchElapsed = 0;
+    state.impulse = vec(0, 0, 0);
+    state.compassMode = "auto";
+  } else {
+    state.mode = "docked";
+  }
+
   return {
     state,
     profile: profileFactory(save),
+    ...(save.market === undefined ? {} : { market: save.market }),
     ...(save.marketSeed === undefined ? {} : { marketSeed: save.marketSeed }),
   };
 }

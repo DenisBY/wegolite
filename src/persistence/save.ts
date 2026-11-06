@@ -547,7 +547,10 @@ export function validateSaveSemantics(
   }
 
   // D-16: a committed target, when present, must be a system this build knows.
-  if (save.targetSystem !== undefined && !allow.systems.has(save.targetSystem)) {
+  if (
+    save.targetSystem !== undefined &&
+    !allow.systems.has(save.targetSystem)
+  ) {
     return false;
   }
 

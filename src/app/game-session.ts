@@ -59,7 +59,7 @@ import {
   restoreFromSave,
   snapshotForSave,
 } from "../persistence/autosave.js";
-import type { SaveAllowLists, SaveV1 } from "../persistence/save.js";
+import type { SaveAllowLists, SaveV2 } from "../persistence/save.js";
 import type { SaveStore, SaveStatus } from "../persistence/store.js";
 import { createBreakPattern } from "../render/break-pattern.js";
 import type { BreakPattern } from "../render/break-pattern.js";
@@ -173,7 +173,7 @@ export interface GameSessionSave {
   /** The status boot derived from the one read; `future`/`unreadable` stop all writes. */
   readonly status: SaveStatus;
   /** The validated save, present only when `status` is `valid`. */
-  readonly save?: SaveV1;
+  readonly save?: SaveV2;
   /** The boot allow-lists the writer's semantic check uses (T-05-19). */
   readonly allow: SaveAllowLists;
 }
@@ -182,7 +182,7 @@ export interface StartOptions {
   /** New game is the default; a restore is Continue. */
   readonly fresh?: boolean;
   /** A validated blob to restore instead of starting at Lave. */
-  readonly restore?: SaveV1;
+  readonly restore?: SaveV2;
 }
 
 export interface GameSessionOptions {
@@ -911,12 +911,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
     const currentState = state;
     const currentStationKey = stationKey;
-    const currentMarketSeed = marketSeed;
+    const currentMarket = market;
     const catalogue = commodities;
     if (
       currentState === undefined ||
       currentStationKey === undefined ||
-      currentMarketSeed === undefined ||
+      currentMarket === undefined ||
       catalogue === undefined
     ) {
       saveSkipReason = "not-ready";
@@ -929,7 +929,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       profile,
       system,
       { key: currentStationKey },
-      currentMarketSeed,
+      currentMarket,
       catalogue,
     );
     saveRevision += 1;
@@ -1702,12 +1702,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     let flightState: FlightState;
     let restoredProfile: PlayerProfile | undefined;
+    let restoredMarket: Market | undefined;
     let restoredMarketSeed: number | undefined;
     if (restoring && restore !== undefined) {
       const restored = restoreFromSave(restore, systemLayout, profileFromSave);
       flightState = restored.state;
       restoredProfile = restored.profile;
-      restoredMarketSeed = restored.marketSeed;
+      restoredMarket = restored.market;
+      restoredMarketSeed = restored.market?.seed ?? restored.marketSeed;
     } else {
       flightState = initFlightState(systemLayout);
     }
@@ -1725,7 +1727,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       restoring && restore !== undefined
         ? (restoredMarketSeed ?? marketSeedForSystem(system.id))
         : marketSeedForSystem(system.id);
-    market = generateMarket(system, loadedCatalogue, marketSeed);
+    // D-18/SAVE-06: a saved snapshot is used verbatim; only a v1 migration or a
+    // fresh game regenerates from the seed. Plan 06-04 owns the system swap.
+    market =
+      restoredMarket ?? generateMarket(system, loadedCatalogue, marketSeed);
     ensureSelection();
     hud = createHud(hudCanvas);
     hud.resize();
