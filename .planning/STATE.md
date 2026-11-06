@@ -184,7 +184,8 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- [ ] Fix compassMode hash omission and negative frame delta — testing, minor (2026-11-05)
+- [2026-11-05] [testing] Fix compassMode hash omission and negative frame delta — [todo file](.planning/todos/pending/2026-11-05-fix-compassmode-hash-omission-and-negative-frame-delta.md)
+- [2026-11-06] [outfitting] Allow Cobra's fourth missile pylon — [todo file](.planning/todos/pending/2026-11-06-allow-cobras-fourth-missile-pylon.md)
 
 ### Blockers/Concerns
 
