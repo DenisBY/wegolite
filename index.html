@@ -331,6 +331,47 @@
         color: #9a9;
       }
 
+      /* The galactic chart is a sibling of the station shell at the station
+         layer, below the pause overlay's z-index: 20. It is a static canvas
+         plot: the shell paints on open/selection/range/resize, never per
+         animation frame. Unreachable markers are dimmed by chart-draw.ts; the
+         only DOM-side marker text is the footer readout below. */
+      #chart {
+        position: absolute;
+        inset: 0;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        background: #000;
+        color: #33ff66;
+        font: 18px/1.7 monospace;
+      }
+
+      #chart-canvas {
+        flex: 1;
+        display: block;
+        width: 100%;
+        min-height: 0;
+      }
+
+      #chart .station-footer {
+        bottom: 2rem;
+      }
+
+      #chart .station-footer [data-field="chart-target"] {
+        color: #ffd966;
+      }
+
+      #chart .station-footer [data-field="chart-distance"],
+      #chart .station-footer [data-field="chart-fuel"] {
+        color: #9f9;
+      }
+
+      #chart .station-footer [data-field="chart-keys"] {
+        color: #9a9;
+        font-size: 0.85em;
+      }
+
       /* The pause overlay is the single home for Resume, Controls and Settings
          (D-14). It sits above the title, docked panel and HUD. */
       #pause {
@@ -568,6 +609,19 @@
         <p data-field="station-confirm" role="status"></p>
         <p data-field="station-notice"></p>
         <p data-field="station-save"></p>
+      </div>
+    </div>
+    <div id="chart" hidden>
+      <header class="station-header">
+        <span class="station-header-system">Galactic chart</span>
+        <span class="station-header-credits">F6</span>
+      </header>
+      <canvas id="chart-canvas"></canvas>
+      <div class="station-footer">
+        <p data-field="chart-target"></p>
+        <p data-field="chart-distance"></p>
+        <p data-field="chart-fuel"></p>
+        <p data-field="chart-keys"></p>
       </div>
     </div>
     <div
