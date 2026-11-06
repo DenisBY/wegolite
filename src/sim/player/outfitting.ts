@@ -123,8 +123,7 @@ export type FitRefusal =
   | "invalidCondition";
 
 export type FitCheck =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly reason: FitRefusal };
+  { readonly ok: true } | { readonly ok: false; readonly reason: FitRefusal };
 
 /** The five condition values this v1 set understands. */
 interface ParsedConditions {
@@ -136,8 +135,7 @@ interface ParsedConditions {
 }
 
 type FlagResult =
-  | { readonly ok: true; readonly value: boolean }
-  | { readonly ok: false };
+  { readonly ok: true; readonly value: boolean } | { readonly ok: false };
 
 function readFlag(
   conditions: Equipment["conditions"],
@@ -166,12 +164,7 @@ function parseConditions(
   const mountedPylon = readFlag(conditions, "requires_mounted_pylon");
   const freeBerth = readFlag(conditions, "requires_free_passenger_berth");
   const nonFullFuel = readFlag(conditions, "requires_non_full_fuel");
-  if (
-    !emptyPylon.ok ||
-    !mountedPylon.ok ||
-    !freeBerth.ok ||
-    !nonFullFuel.ok
-  ) {
+  if (!emptyPylon.ok || !mountedPylon.ok || !freeBerth.ok || !nonFullFuel.ok) {
     return undefined;
   }
 
@@ -209,7 +202,9 @@ function isSafeCredits(credits: number): boolean {
 }
 
 function isBoundedMissilePrice(price: number): boolean {
-  return Number.isSafeInteger(price) && price >= 0 && price <= MAX_EQUIPMENT_PRICE;
+  return (
+    Number.isSafeInteger(price) && price >= 0 && price <= MAX_EQUIPMENT_PRICE
+  );
 }
 
 /** The pylons available to a purchase, bounded by both the save schema and D-14. */
@@ -383,8 +378,11 @@ export function checkFit(
  * The five single-instance keys delegate their append-and-charge to
  * `purchase`, keeping exactly one implementation on the production path.
  *
- * Task 2 completes the immediate effects for fuel, missiles, berths and the
- * two removal entries.
+ * Fuel fills to capacity, missiles and berths increment their counts, and the
+ * removal entries follow Oolite: `EQ_MISSILE_REMOVAL` charges 200 dc and then
+ * refunds the full catalogue value of every mounted missile
+ * (`PlayerEntity.m:9326-9330`, `:9410-9427`, `:9431-9438`); a passenger berth
+ * removal charges 1000 dc with no refund. Nothing advances the clock (D-12).
  */
 export function applyFit(
   profile: PlayerProfile,
@@ -394,5 +392,60 @@ export function applyFit(
   const check = checkFit(profile, item, ctx);
   if (!check.ok) return profile;
   if (SINGLE_INSTANCE_KEYS.has(item.key)) return purchase(profile, item);
+
+  const cost = fitPrice(profile, item, ctx);
+  if (!isValidPrice(cost)) return profile;
+
+  if (item.key === "EQ_FUEL") {
+    if (!Number.isSafeInteger(ctx.fuelCapacity)) return profile;
+    const credits = profile.credits - cost;
+    if (!isSafeCredits(credits)) return profile;
+    return { ...profile, credits, fuel: ctx.fuelCapacity };
+  }
+
+  if (item.key === "EQ_MISSILE") {
+    const missiles = profile.missiles + 1;
+    if (!Number.isSafeInteger(missiles) || missiles > MAX_MISSILES) {
+      return profile;
+    }
+    const credits = profile.credits - cost;
+    if (!isSafeCredits(credits)) return profile;
+    return { ...profile, credits, missiles };
+  }
+
+  if (item.key === "EQ_PASSENGER_BERTH") {
+    const passengerBerths = profile.passengerBerths + 1;
+    if (
+      !Number.isSafeInteger(passengerBerths) ||
+      passengerBerths > MAX_PASSENGER_BERTHS
+    ) {
+      return profile;
+    }
+    const credits = profile.credits - cost;
+    if (!isSafeCredits(credits)) return profile;
+    return { ...profile, credits, passengerBerths };
+  }
+
+  if (item.key === "EQ_PASSENGER_BERTH_REMOVAL") {
+    const passengerBerths = profile.passengerBerths - 1;
+    if (!Number.isSafeInteger(passengerBerths) || passengerBerths < 0) {
+      return profile;
+    }
+    const credits = profile.credits - cost;
+    if (!isSafeCredits(credits)) return profile;
+    return { ...profile, credits, passengerBerths };
+  }
+
+  if (item.key === "EQ_MISSILE_REMOVAL") {
+    // Compute the trade-in before zeroing the count: Oolite charges the fee,
+    // collects the full catalogue value of every mounted missile, then adds it
+    // back. The refund is never counted toward affordability.
+    const tradeIn = profile.missiles * ctx.missilePrice;
+    if (!Number.isSafeInteger(tradeIn)) return profile;
+    const credits = profile.credits - cost + tradeIn;
+    if (!isSafeCredits(credits)) return profile;
+    return { ...profile, credits, missiles: 0 };
+  }
+
   return profile;
 }
