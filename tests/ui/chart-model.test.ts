@@ -178,11 +178,34 @@ describe("the 7 LY graph", () => {
     );
 
     expect(view.markers).toHaveLength(256);
+    expect(view.markers.every((candidate) => candidate.visible)).toBe(true);
     expect(view.edges).toHaveLength(875);
     // A floor-based y delta produces 866 edges and a different graph.
     expect(floorCount).toBe(866);
     expect(view.edges).toHaveLength(875);
     expect(view.edges.length).not.toBe(floorCount);
+  });
+
+  it("keeps all 256 markers in the short range and only clips their visibility", () => {
+    const view = buildChartView(
+      systems,
+      lave.id,
+      undefined,
+      "short",
+      fullFuel,
+      viewport,
+      lave.id,
+    );
+    const hidden = view.markers.find((candidate) => !candidate.visible);
+
+    expect(view.markers).toHaveLength(256);
+    expect(marker(view, lave.id).visible).toBe(true);
+    expect(hidden).toBeDefined();
+    if (hidden !== undefined) {
+      expect(
+        hitTest(view, { x: hidden.screenX, y: hidden.screenY }, 10),
+      ).not.toBe(hidden);
+    }
   });
 
   it("derives the same graph regardless of the viewport", () => {
@@ -524,6 +547,7 @@ function chartMarker(overrides: {
     isCurrent: overrides.isCurrent ?? false,
     isTarget: overrides.isTarget ?? false,
     isSelected: overrides.isSelected ?? false,
+    visible: true,
   };
 }
 

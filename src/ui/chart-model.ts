@@ -66,6 +66,12 @@ export interface ChartMarker {
   readonly isCurrent: boolean;
   readonly isTarget: boolean;
   readonly isSelected: boolean;
+  /**
+   * True when the marker is inside the selected range window. Long range
+   * marks every system visible; short range keeps all 256 markers in the model
+   * but clips off-window systems out of clicks, labels and painting.
+   */
+  readonly visible: boolean;
 }
 
 export interface ChartEdge {
@@ -269,10 +275,13 @@ export function buildChartView(
   const ordered = [...systems].sort(
     (left, right) => left.systemIndex - right.systemIndex,
   );
-  const visible = ordered.filter(inWindow);
-  const visibleIds = new Set(visible.map((system) => system.id));
+  // D-04: all 256 systems stay in the model in both ranges, so every system
+  // keeps its name and stays reachable by arrow selection. `visible` only says
+  // whether the marker lies inside the range window and may be painted/clicked.
+  const windowed = ordered.filter(inWindow);
+  const visibleIds = new Set(windowed.map((system) => system.id));
 
-  const markers: ChartMarker[] = visible.map((system) => {
+  const markers: ChartMarker[] = ordered.map((system) => {
     const isCurrent = system.id === currentId;
     const route = isCurrent
       ? { distanceLy: 0, fuelCost: 0, reachable: true, dist: 0 }
@@ -303,6 +312,7 @@ export function buildChartView(
       isCurrent,
       isTarget: targetId !== undefined && system.id === targetId,
       isSelected: selectedId !== undefined && system.id === selectedId,
+      visible: inWindow(system),
     };
   });
 
@@ -384,6 +394,7 @@ export function hitTest(
   let best: ChartMarker | undefined;
   let bestDistance = radius * radius;
   for (const marker of view.markers) {
+    if (!marker.visible) continue;
     const dx = marker.screenX - point.x;
     const dy = marker.screenY - point.y;
     const distance = dx * dx + dy * dy;
@@ -494,6 +505,7 @@ export function selectLabels(
     const y = marker.screenY + LABEL_OFFSET_Y;
     const box = { x, y: y - LABEL_HEIGHT, width, height: LABEL_HEIGHT };
     const forced = marker.isCurrent || marker.isTarget;
+    if (!marker.visible && !forced) continue;
     if (!forced && accepted.some((other) => intersects(other, box))) {
       continue;
     }

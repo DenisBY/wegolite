@@ -121,6 +121,7 @@ export function drawChart(
   context.textAlign = "left";
   context.textBaseline = "alphabetic";
   for (const marker of view.markers) {
+    if (!marker.visible && !marker.isCurrent && !marker.isTarget) continue;
     context.fillStyle = markerColour(marker);
     context.beginPath();
     context.arc(
