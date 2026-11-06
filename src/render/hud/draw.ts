@@ -135,6 +135,8 @@ export interface HudModel {
   readonly speedText: string;
   readonly fuelText: string;
   readonly clockText: string;
+  /** The committed hyperspace target name, or "" when none (D-12). */
+  readonly hyperspaceTarget: string;
 }
 
 const CROSSHAIR_GAP = 10;
@@ -412,6 +414,16 @@ export function drawHud(
     model.clockText,
     HUD_LAYOUT.clock.x,
     HUD_LAYOUT.clock.y + 20,
+  );
+
+  // D-12/A2: the committed target is a second line inside the existing clock
+  // rectangle. HUD_ELEMENTS and every HUD_LAYOUT rectangle stay unchanged.
+  context.font = HUD_SMALL_FONT;
+  context.textAlign = "left";
+  context.fillText(
+    `Hyperspace: ${model.hyperspaceTarget === "" ? "(Unknown)" : model.hyperspaceTarget}`,
+    HUD_LAYOUT.clock.x,
+    HUD_LAYOUT.clock.y + 38,
   );
 
   if (model.message !== "") {

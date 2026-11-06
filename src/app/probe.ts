@@ -49,6 +49,8 @@ export interface WegoliteHudProbe {
   compass: WegoliteHudCompassProbe;
   aegis: AegisStatus;
   message: string;
+  /** The committed hyperspace target name, or "" when none (D-12). */
+  hyperspaceTarget?: string;
   /** Design-space bounding boxes, so the proof is numeric, never a screenshot. */
   bounds: Record<string, readonly [number, number, number, number]>;
 }
@@ -136,6 +138,8 @@ export interface WegoliteEconomyProbe {
   credits: number;
   cargo: Record<string, number>;
   marketSeed: number;
+  /** The live market's own system id (NAV-05 reload proof). */
+  marketSystemId?: string;
   market: WegoliteEconomyMarketRow[];
   /** The tank in tenths of a light year (0..70). */
   fuel: number;
@@ -177,6 +181,46 @@ export interface WegoliteSaveProbe {
   skipReason: string;
   /** True when IndexedDB could not be opened for this session. */
   unavailable: boolean;
+}
+
+/** The live chart state (NAV-01/NAV-02, D-01/D-02). */
+export interface WegoliteChartProbe {
+  open: boolean;
+  range: "short" | "long";
+  /** The committed target id, when one is set. */
+  targetId?: string;
+  /** The highlighted system id, when one is selected. */
+  selectedId?: string;
+}
+
+/** One completed jump, as the sim reported it (NAV-04/NAV-05). */
+export interface WegoliteHyperspaceLastJump {
+  destinationId: string;
+  clockDeltaSeconds: number;
+  fuelCost: number;
+}
+
+/** The live hyperspace state (NAV-03/NAV-04, D-06/D-11). */
+export interface WegoliteHyperspaceProbe {
+  /** The committed target id, when one is set. */
+  targetId?: string;
+  /** Integer fixed steps left; 0 when idle. */
+  countdown: number;
+  lastJump: WegoliteHyperspaceLastJump | null;
+  lastRefusal: { reason: "no target" | "too far" | "insufficient fuel" } | null;
+}
+
+/**
+ * The pose an in-flight Continue installed (SAV-03/D-18), written exactly once
+ * by the restore block and never overwritten by a resumed loop.
+ */
+export interface WegoliteRestoreProbe {
+  mode: "docked" | "inFlight";
+  systemId: string;
+  position: [number, number, number];
+  orientation: [number, number, number, number];
+  speed: number;
+  clock: number;
 }
 
 export interface WegoliteTestHook extends WegoliteSceneTestHook {
@@ -239,6 +283,14 @@ export interface WegoliteProbe {
   station?: WegoliteStationProbe;
   /** The live market and hold (ECON-01/ECON-02). */
   economy?: WegoliteEconomyProbe;
+  /** The live chart state (NAV-01/NAV-02). */
+  chart?: WegoliteChartProbe;
+  /** The live hyperspace state (NAV-03/NAV-04). */
+  hyperspace?: WegoliteHyperspaceProbe;
+  /** The pose the in-flight Continue installed (SAV-03). */
+  restore?: WegoliteRestoreProbe;
+  /** The live current system id; the durable identity a reload proof reads. */
+  systemId?: string;
   /**
    * The live active-camera aspect (WORLD-02). The e2e proof reads this instead
    * of a screenshot. Absent on the failure surface, where no camera renders.

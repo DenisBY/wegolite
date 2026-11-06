@@ -117,6 +117,7 @@ export function buildHudModel(
   config: FlightConfig,
   message: string,
   flashAlpha = 0,
+  hyperspaceTarget = "",
 ): HudModel {
   const aegis: AegisStatus = aegisStatus(state.position, layout);
 
@@ -137,5 +138,6 @@ export function buildHudModel(
     speedText: formatSpeed(state.speed),
     fuelText: formatFuel(config.maxFuel),
     clockText: formatClock(state.clockSeconds),
+    hyperspaceTarget,
   };
 }

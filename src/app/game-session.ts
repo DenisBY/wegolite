@@ -43,6 +43,7 @@ import { createGameLoop } from "./game-loop.js";
 import type { GameLoop } from "./game-loop.js";
 import { createTestHook, publishFailure, readMemory } from "./probe.js";
 import type {
+  WegoliteHyperspaceLastJump,
   WegoliteLastTradeProbe,
   WegoliteProbe,
   WegoliteSaveProbe,
@@ -101,8 +102,15 @@ import {
   setCredits,
 } from "../sim/player/profile.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
-import { generateMarket, marketSeedForSystem } from "../sim/economy/market.js";
+import {
+  arrivalMarketSeed,
+  generateMarket,
+  marketSeedForSystem,
+} from "../sim/economy/market.js";
 import type { Market } from "../sim/economy/market.js";
+import { applyWitchpointArrival } from "../sim/hyperspace/arrival.js";
+import { countdownSecondsRemaining } from "../sim/hyperspace/countdown.js";
+import type { HyperspaceRefusal } from "../sim/events.js";
 import {
   availablePods,
   capacityPodsFor,
@@ -123,6 +131,10 @@ import {
 } from "../sim/player/outfitting.js";
 import type { FitContext } from "../sim/player/outfitting.js";
 import { formatFuel } from "../ui/docked.js";
+import { createChart } from "../ui/chart.js";
+import type { ChartOverlay } from "../ui/chart.js";
+import { buildChartView, nearestInDirection } from "../ui/chart-model.js";
+import type { ChartRange, ChartView } from "../ui/chart-model.js";
 import {
   buildMarketModel,
   buildOutfittingModel,
@@ -140,7 +152,7 @@ import type { SystemLayout } from "../sim/world/layout.js";
 import { createKeyboardInputSource } from "../input/keyboard.js";
 import type { KeyboardInputSource } from "../input/keyboard.js";
 import { ACTION_CONTEXTS, ACTION_IDS } from "../input/actions.js";
-import type { ActionId } from "../input/actions.js";
+import type { ActionId, InputContext } from "../input/actions.js";
 import { createBindingMap } from "../input/bindings.js";
 import type { BindingMap } from "../input/bindings.js";
 import {
@@ -194,6 +206,12 @@ export interface GameSessionOptions {
   readonly hudCanvas: HTMLCanvasElement;
   readonly probe: WegoliteProbe;
   readonly system: System;
+  /**
+   * The validated galaxy catalogue (plan 06-04). Every target id resolves
+   * through this map; the chart plots the same records. Defaults to the boot
+   * system alone, which keeps a probe/unit harness working without content.
+   */
+  readonly galaxy?: readonly System[];
   readonly pauseRoot: HTMLElement;
   readonly controlsRoot: HTMLElement;
   readonly settingsRoot: HTMLElement;
@@ -241,7 +259,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     docked,
     hudCanvas,
     probe,
-    system,
     pauseRoot,
     controlsRoot,
     settingsRoot,
@@ -249,6 +266,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     save: saveBoot,
     onProfileChanged = () => undefined,
   } = options;
+
+  // D-01: the system is mutable once a jump can install a new scene.
+  let system = options.system;
+  const galaxy = options.galaxy ?? [options.system];
+  const galaxyById = new Map<string, System>();
 
   const player = new PlayerController();
   const scripted = new ScriptedLaunchController();
@@ -294,6 +316,17 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   let stationSaveNotice = "";
   let stationPage: 1 | 2 = 1;
   let lastTrade: WegoliteLastTradeProbe | null = null;
+
+  // Navigation state (D-01/D-02/D-06). The chart freezes the loop rather than
+  // pausing it; the committed target is session state and travels in every save.
+  let chart: ChartOverlay | undefined;
+  let chartOpen = false;
+  let chartRange: ChartRange = "short";
+  let chartSelectedId: string | undefined;
+  let hyperspaceTargetId: string | undefined;
+  let contextBeforeChart: InputContext = "flight";
+  let lastJump: WegoliteHyperspaceLastJump | null = null;
+  let lastRefusal: { reason: HyperspaceRefusal } | null = null;
 
   // DOCK-07: the boot status is sticky for the session. A future blob is never
   // cleared or overwritten, so the launch/purchase write path is skipped whole.
@@ -731,6 +764,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
             equipment,
             catalogue,
             stationPage,
+            targetSystem()?.name,
           );
     const systemModel =
       labels === undefined ? undefined : buildSystemDataModel(system, labels);
@@ -790,6 +824,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       credits: profile.credits,
       cargo: { ...profile.cargo },
       marketSeed,
+      marketSystemId: currentMarket.systemId,
       market: currentMarket.goods.map((good) => ({
         key: good.key,
         price: good.price,
@@ -931,6 +966,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       { key: currentStationKey },
       currentMarket,
       catalogue,
+      hyperspaceTargetId,
     );
     saveRevision += 1;
     const revision = saveRevision;
@@ -1086,6 +1122,222 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderStation();
   }
 
+  /** D-09: resolve and install a new system scene; never rebuild the dock port. */
+  function enterSystemById(id: string): SystemLayout {
+    const currentStationDef = stationDef;
+    if (currentStationDef === undefined) {
+      throw new Error(
+        "Wegolite: cannot enter a system before the station loads.",
+      );
+    }
+    const next = galaxyById.get(id);
+    if (next === undefined) {
+      throw new Error(`Wegolite: no system with id "${id}" in this galaxy.`);
+    }
+    const nextScene = scenes.enterSystem(next, currentStationDef);
+    const nextLayout = scenes.layout();
+    if (nextLayout === undefined) {
+      throw new Error(
+        `Wegolite: the scene manager entered "${id}" without a layout.`,
+      );
+    }
+    system = next;
+    scene = nextScene;
+    layout = nextLayout;
+    // The new dust field has no camera history; a stale delta would smear it.
+    previousCameraWorld = undefined;
+    return nextLayout;
+  }
+
+  /** The committed target record, resolved through the validated catalogue. */
+  function targetSystem(): System | undefined {
+    if (hyperspaceTargetId === undefined) return undefined;
+    return galaxyById.get(hyperspaceTargetId);
+  }
+
+  function currentChartView(overlay: ChartOverlay): ChartView {
+    return buildChartView(
+      galaxy,
+      system.id,
+      hyperspaceTargetId,
+      chartRange,
+      profile.fuel,
+      overlay.viewport(),
+      chartSelectedId,
+    );
+  }
+
+  function refreshChart(): void {
+    const overlay = chart;
+    if (overlay === undefined) return;
+    overlay.view(currentChartView(overlay));
+  }
+
+  function openChart(): void {
+    const currentState = state;
+    const currentInput = input;
+    const overlay = chart;
+    if (
+      currentState === undefined ||
+      currentInput === undefined ||
+      overlay === undefined
+    ) {
+      return;
+    }
+    // Pitfall 13: F6 is inert during the launch cinematic, and an overlay must
+    // never open beneath the pause overlay.
+    if (paused || chartOpen || currentState.mode === "launching") return;
+    chartOpen = true;
+    contextBeforeChart = currentInput.getContext();
+    currentInput.setContext("chart");
+    // The overlay is still `hidden` when the first view is built, so its
+    // client size is zero. Show it, then rebuild against the real viewport.
+    overlay.show(currentChartView(overlay));
+    overlay.view(currentChartView(overlay));
+    updateProbe();
+  }
+
+  function closeChart(): void {
+    if (!chartOpen) return;
+    chartOpen = false;
+    chart?.hide();
+    input?.setContext(contextBeforeChart);
+    // Hidden time is never replayed; the accumulator starts at zero.
+    loop?.reset();
+    updateProbe();
+  }
+
+  function selectChartSystem(id: string): void {
+    if (!chartOpen) return;
+    chartSelectedId = id;
+    refreshChart();
+  }
+
+  function moveChartSelection(dx: number, dy: number): void {
+    const base =
+      (chartSelectedId === undefined
+        ? undefined
+        : galaxyById.get(chartSelectedId)) ?? system;
+    const next = nearestInDirection(galaxy, base, dx, dy);
+    if (next !== undefined) chartSelectedId = next.id;
+    refreshChart();
+  }
+
+  /** Apply one drained chart edge; the live open flag is revalidated here. */
+  function applyChartAction(action: ActionId): void {
+    switch (action) {
+      case "chart":
+        if (chartOpen) closeChart();
+        else openChart();
+        break;
+      case "chartBack":
+        closeChart();
+        break;
+      case "chartRange":
+        if (!chartOpen) return;
+        chartRange = chartRange === "short" ? "long" : "short";
+        refreshChart();
+        break;
+      case "chartConfirm":
+        // A click only selects (D-02): Enter is the commit.
+        if (!chartOpen || chartSelectedId === undefined) return;
+        hyperspaceTargetId = chartSelectedId;
+        refreshChart();
+        break;
+      case "chartUp":
+        if (chartOpen) moveChartSelection(0, 1);
+        break;
+      case "chartDown":
+        if (chartOpen) moveChartSelection(0, -1);
+        break;
+      case "chartLeft":
+        if (chartOpen) moveChartSelection(-1, 0);
+        break;
+      case "chartRight":
+        if (chartOpen) moveChartSelection(1, 0);
+        break;
+      default:
+        break;
+    }
+  }
+
+  function handleChartActions(actions: readonly ActionId[]): void {
+    for (const action of actions) applyChartAction(action);
+  }
+
+  /** D-06 copy is app-owned; the sim event carries a payload-free reason. */
+  function refusalCopy(reason: HyperspaceRefusal): string {
+    switch (reason) {
+      case "no target":
+        return "No target selected";
+      case "too far":
+        return "Destination is too far";
+      case "insufficient fuel":
+        return "Insufficient fuel";
+    }
+  }
+
+  /** D-09: the synchronous arrival swap and its one seeded market. */
+  function handleHyperspaceJumped(event: {
+    destinationId: string;
+    clockDeltaSeconds: number;
+    fuelCost: number;
+  }): void {
+    const currentState = state;
+    const currentConfig = config;
+    const catalogue = commodities;
+    if (
+      currentState === undefined ||
+      currentConfig === undefined ||
+      catalogue === undefined
+    ) {
+      return;
+    }
+    // T-06-12: the destination is resolved only through the validated galaxy.
+    const destination = galaxyById.get(event.destinationId);
+    if (destination === undefined) {
+      lastRefusal = { reason: "too far" };
+      messages.enqueuePriority(refusalCopy("too far"));
+      return;
+    }
+    const originId = system.id;
+    const previousSeed = marketSeed ?? marketSeedForSystem(originId);
+    const nextSeed = arrivalMarketSeed(destination.id, previousSeed);
+    const nextFuel = Math.max(0, profile.fuel - event.fuelCost);
+
+    // Build the destination scene before retiring the origin (T-06-13), then
+    // install state, fuel, market and seed in one synchronous block.
+    const arrivedLayout = enterSystemById(destination.id);
+    profile = { ...profile, fuel: nextFuel };
+    market = generateMarket(destination, catalogue, nextSeed);
+    marketSeed = nextSeed;
+    applyWitchpointArrival(
+      currentState,
+      arrivedLayout,
+      currentConfig,
+      originId,
+      destination.id,
+    );
+    const arrivedPose = poseOf(currentState);
+    previousPose = arrivedPose;
+    currentPose = arrivedPose;
+    stationScreen = "home";
+    stationPending = null;
+    stationNotice = "";
+    stationMessage = "";
+    stationPage = 1;
+    chartSelectedId = undefined;
+    lastJump = {
+      destinationId: destination.id,
+      clockDeltaSeconds: event.clockDeltaSeconds,
+      fuelCost: event.fuelCost,
+    };
+    messages.enqueue(`Arrived at ${destination.name}`);
+    // The arrival anchor is a complete in-flight v2 snapshot.
+    autosave();
+    syncEconomyProbe();
+  }
+
   /**
    * Apply one drained station action. The live mode, context and screen are
    * revalidated here, so a queued action cannot apply a stale trade after a
@@ -1222,9 +1474,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         docked.hide();
         hudCanvas.hidden = false;
         messages.enqueue("Launching — stand by");
-        // DOCK-07: the state is post-`beginLaunch`, so the saved clock already
-        // carries the +600 s launch adjustment.
-        autosave();
+        // D-17: no write here. The pre-launch anchor was taken in `frame()`
+        // while the state was still docked.
         syncEconomyProbe();
         break;
       case "launchComplete":
@@ -1263,6 +1514,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           previousPose = dockedPose;
           currentPose = dockedPose;
         }
+        // D-17: both manual and computer docking anchor once, after the station
+        // screen, selection and docked pose are ready. No other path writes on
+        // docking.
+        autosave();
         break;
       }
       case "dockDenied":
@@ -1302,6 +1557,23 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       case "compassTargetChanged":
         messages.enqueue(`Compass target: ${event.target}`);
         break;
+      case "hyperspaceCountdownStarted": {
+        const name = galaxyById.get(event.destinationId)?.name ?? "(Unknown)";
+        messages.enqueue(
+          `Hyperspace to ${name} in ${String(countdownSecondsRemaining(event.countdownSteps))} seconds`,
+        );
+        break;
+      }
+      case "hyperspaceCountdownCancelled":
+        messages.enqueue("Hyperspace countdown cancelled");
+        break;
+      case "hyperspaceRefused":
+        lastRefusal = { reason: event.reason };
+        messages.enqueuePriority(refusalCopy(event.reason));
+        break;
+      case "hyperspaceJumped":
+        handleHyperspaceJumped(event);
+        break;
     }
   }
 
@@ -1311,6 +1583,23 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     probe.renders = renderer.info.render.frame;
     probe.memory = readMemory(renderer);
     probe.paused = paused;
+    probe.systemId = system.id;
+    probe.chart = {
+      open: chartOpen,
+      range: chartRange,
+      ...(hyperspaceTargetId === undefined
+        ? {}
+        : { targetId: hyperspaceTargetId }),
+      ...(chartSelectedId === undefined ? {} : { selectedId: chartSelectedId }),
+    };
+    probe.hyperspace = {
+      ...(hyperspaceTargetId === undefined
+        ? {}
+        : { targetId: hyperspaceTargetId }),
+      countdown: state?.hyperspaceCountdown ?? 0,
+      lastJump,
+      lastRefusal,
+    };
 
     const currentState = state;
     if (currentState !== undefined) {
@@ -1402,6 +1691,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
               },
         aegis: model === undefined ? "none" : model.aegis,
         message: model === undefined ? "" : model.message,
+        hyperspaceTarget: model === undefined ? "" : model.hyperspaceTarget,
         bounds: currentHud.bounds,
       };
     }
@@ -1486,12 +1776,18 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           currentState.launchCount,
         );
       } else {
+        const snapshot = currentState.hyperspaceTarget;
+        const message =
+          currentState.hyperspaceCountdown > 0 && snapshot !== null
+            ? `Hyperspace to ${galaxyById.get(snapshot.id)?.name ?? "(Unknown)"} in ${String(countdownSecondsRemaining(currentState.hyperspaceCountdown))} seconds`
+            : messages.current(currentState.flightTime);
         const model = buildHudModel(
           currentState,
           currentLayout,
           currentConfig,
-          messages.current(currentState.flightTime),
+          message,
           dockFeedback.flashAlpha(currentState.flightTime),
+          targetSystem()?.name ?? "",
         );
         currentHud.draw(model);
         lastModel = model;
@@ -1547,6 +1843,20 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       else pause();
     }
 
+    // D-01: consume the chart edges before the freeze branch, so F6 opens and
+    // closes and a KeyP over the chart still reaches the pause handler above.
+    handleChartActions(currentInput.drainChartActions());
+
+    if (chartOpen) {
+      // The overlay is opaque: drain everything, advance nothing, paint nothing.
+      currentInput.drainCommands();
+      currentInput.drainStationActions();
+      pending.length = 0;
+      currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+      updateProbe();
+      return;
+    }
+
     // Station actions are discarded while paused or in flight; in the docked
     // mode each one is revalidated against the live screen and context.
     const stationActions = currentInput.drainStationActions();
@@ -1565,27 +1875,71 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           (currentState.mode === "docked" && stationScreen === "home"),
       );
       pending.length = 0;
+      // D-17: the pre-launch anchor is taken while the state is still docked,
+      // before `beginLaunch` applies the +600 s transition.
+      if (
+        currentState.mode === "docked" &&
+        stationScreen === "home" &&
+        commands.some((command) => command.kind === "launch")
+      ) {
+        autosave();
+      }
+      // D-06: while a countdown runs, the same key aborts it at no cost. The
+      // mapping happens on the drained array, before the sim sees a redundant
+      // begin, so no app timer and no double command exist.
+      if (currentState.hyperspaceCountdown > 0) {
+        for (let index = 0; index < commands.length; index += 1) {
+          if (commands[index]?.kind === "beginHyperspace") {
+            commands[index] = { kind: "cancelHyperspace" };
+          }
+        }
+      }
       // One immutable frame per rendered frame, shared by every fixed step.
       const frameInput = currentInput.frame();
       currentFrame = frameInput;
 
       alpha = currentLoop.advance(delta, commands, (stepCommands) => {
+        // A jump can commit mid-frame; read the live session layout/system for
+        // every step after the swap (never a frame-captured origin layout).
+        const liveState = state;
+        const liveLayout = layout;
+        const liveConfig = config;
+        if (
+          liveState === undefined ||
+          liveLayout === undefined ||
+          liveConfig === undefined
+        ) {
+          return;
+        }
         previousPose = currentPose;
-        const modeBefore = currentState.mode;
-        const controller =
-          currentState.mode === "launching" ? scripted : player;
-        const intent = controller.update(flightView(currentState), frameInput);
+        const modeBefore = liveState.mode;
+        const controller = liveState.mode === "launching" ? scripted : player;
+        const intent = controller.update(flightView(liveState), frameInput);
         // Ownership travels beside the command, never inside it: one read-only
         // set per frame, derived from the profile (T-04-19).
         const equipment = new Set(profile.equipment);
+        const committedTarget = targetSystem();
+        const hyperspace = {
+          fuel: profile.fuel,
+          origin: { id: system.id, x: system.chartX, y: system.chartY },
+          ...(committedTarget === undefined
+            ? {}
+            : {
+                target: {
+                  id: committedTarget.id,
+                  x: committedTarget.chartX,
+                  y: committedTarget.chartY,
+                },
+              }),
+        };
         const stepOptions: StepOptions =
           dockGeometry === undefined
-            ? { equipment }
-            : { dock: dockGeometry, equipment };
+            ? { equipment, hyperspace }
+            : { dock: dockGeometry, equipment, hyperspace };
         const events = stepFlight(
-          currentState,
-          currentLayout,
-          currentConfig,
+          liveState,
+          liveLayout,
+          liveConfig,
           intent,
           stepCommands,
           DT,
@@ -1596,9 +1950,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         // and only after the step that entered `launching` (which does not move
         // the ship either).
         if (modeBefore === "launching") {
-          launchSequence.advance(DT, currentState.mode === "inFlight");
+          launchSequence.advance(DT, liveState.mode === "inFlight");
         }
-        currentPose = poseOf(currentState);
+        currentPose = poseOf(liveState);
       });
     } else {
       // A key pressed while paused must not become a queued edge command that
@@ -1618,6 +1972,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // could never fully cancel.
     if (state !== undefined || starting || disposed) return;
     starting = true;
+
+    // D-09/T-06-12: every target id is resolved through this validated map.
+    galaxyById.clear();
+    for (const entry of galaxy) galaxyById.set(entry.id, entry);
+    if (!galaxyById.has(system.id)) galaxyById.set(system.id, system);
 
     const restore = options.restore;
     const restoring = restore !== undefined && options.fresh !== true;
@@ -1679,6 +2038,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     stationKey = stationEntry.key;
 
     const flightConfig = deriveFlightConfig(playerDef);
+    // SAVE-03/D-18: resolve the saved system before the first scene is built,
+    // so a Continue never flashes Lave or builds the wrong layout.
+    if (restoring && restore !== undefined) {
+      const savedSystem = galaxyById.get(restore.system.id);
+      if (savedSystem !== undefined) system = savedSystem;
+    }
     const nextScene = scenes.enterSystem(system, station);
     const systemLayout = scenes.layout();
     if (systemLayout === undefined) {
@@ -1713,12 +2078,22 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     } else {
       flightState = initFlightState(systemLayout);
     }
+    const restoredInFlight = flightState.mode === "inFlight";
 
     state = flightState;
     layout = systemLayout;
     config = flightConfig;
     scene = nextScene;
     profile = restoredProfile ?? newProfile();
+    // SAV-03/D-18: the committed target travels with the save. Only an id the
+    // validated catalogue knows is installed (T-06-12).
+    if (restoring && restore !== undefined) {
+      const savedTarget = restore.targetSystem;
+      hyperspaceTargetId =
+        savedTarget !== undefined && galaxyById.has(savedTarget)
+          ? savedTarget
+          : undefined;
+    }
 
     // D-17/D-18/D-19: resolve the seed once and generate the market once. A
     // later `docked` event reuses this market; only Phase 6's system change re-seeds.
@@ -1736,6 +2111,21 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     hud.resize();
     breakPattern = createBreakPattern(hudCanvas);
     hudCanvas.hidden = true;
+    chart = createChart(document.body);
+    chart.setViewBuilder((viewport) =>
+      buildChartView(
+        galaxy,
+        system.id,
+        hyperspaceTargetId,
+        chartRange,
+        profile.fuel,
+        viewport,
+        chartSelectedId,
+      ),
+    );
+    chart.onSelect((id) => {
+      selectChartSystem(id);
+    });
 
     const loaded = loadSettings();
     const bindingMap = createBindingMap(loaded.bindings);
@@ -1760,7 +2150,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     input.setStationScreenHandler((action) => {
       openStationScreen(action);
     });
-    input.setContext("dockHome");
+    input.setContext(restoredInFlight ? "flight" : "dockHome");
     input.setPaused(false);
     input.attach();
     loop = createGameLoop();
@@ -1824,8 +2214,39 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
 
     title.hide();
-    docked.show(system.name);
-    renderStation();
+    if (restoredInFlight) {
+      // The last visibility decision: the station overlay must never reappear
+      // over an installed in-flight scene.
+      docked.hide();
+      hudCanvas.hidden = false;
+      input.setContext("flight");
+      // No station render runs on this path, so publish the live economy and
+      // durable identities explicitly for the reload proof.
+      syncEconomyProbe();
+      // Written once, by the install block; updateProbe never touches it, so a
+      // proof reads the pose the restore installed, not a resumed one.
+      probe.restore = {
+        mode: "inFlight",
+        systemId: system.id,
+        position: [
+          flightState.position.x,
+          flightState.position.y,
+          flightState.position.z,
+        ],
+        orientation: [
+          flightState.orientation.w,
+          flightState.orientation.x,
+          flightState.orientation.y,
+          flightState.orientation.z,
+        ],
+        speed: flightState.speed,
+        clock: flightState.clockSeconds,
+      };
+    } else {
+      input.setContext("dockHome");
+      docked.show(system.name);
+      renderStation();
+    }
     docked.onLaunch(() => {
       // D-03: the Launch button is only live on the home screen.
       if (state?.mode !== "docked" || stationScreen !== "home") return;
@@ -1908,6 +2329,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     breakPattern?.dispose();
     hud?.dispose();
+    chart?.dispose();
+    chart = undefined;
+    chartOpen = false;
     docked.dispose();
     title.dispose();
 

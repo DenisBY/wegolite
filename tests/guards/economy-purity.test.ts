@@ -317,7 +317,7 @@ describe("the shell and session stay text-only and seed-bound", () => {
     }
   });
 
-  it("generates the market once from the persisted seed and never on dock", () => {
+  it("generates the market only from a persisted or chained seed and never on dock", () => {
     const session = readFileSync(
       path.join(REPO_ROOT, "src", "app", "game-session.ts"),
       "utf8",
@@ -325,9 +325,16 @@ describe("the shell and session stay text-only and seed-bound", () => {
     expect(session).not.toMatch(/\bDate\.now\b/);
     expect(session).not.toMatch(/\bperformance\.now\b/);
 
-    // One generation call, and it is passed the session's resolved seed.
-    expect(session.match(/\bgenerateMarket\s*\(/g) ?? []).toHaveLength(1);
+    // Exactly two producers: the boot system (resolved seed) and the arrival
+    // system (the seed chained from the market actually installed, D-10).
+    expect(session.match(/\bgenerateMarket\s*\(/g) ?? []).toHaveLength(2);
     expect(session).toMatch(/\bgenerateMarket\s*\([^)]*\bmarketSeed\b[^)]*\)/);
+    expect(session).toMatch(
+      /nextSeed\s*=\s*arrivalMarketSeed\s*\(\s*destination\.id\s*,\s*previousSeed\s*\)/,
+    );
+    expect(session).toMatch(
+      /generateMarket\s*\(\s*destination\s*,\s*catalogue\s*,\s*nextSeed\s*\)/,
+    );
     // A missing Phase 4 seed falls back to the deterministic system seed.
     expect(session).toMatch(
       /restoredMarketSeed\s*\?\?\s*marketSeedForSystem\s*\(\s*system\.id\s*\)/,

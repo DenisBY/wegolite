@@ -19,6 +19,7 @@ import {
   ACTION_CONTEXTS,
   ACTION_IDS,
   DEFAULT_BINDINGS,
+  ESCAPE_SCREEN_ACTIONS,
   SHIFT_REQUIRED_ACTIONS,
 } from "./actions.js";
 import type { ActionId } from "./actions.js";
@@ -55,9 +56,9 @@ export function capCodes(codes: readonly string[]): string[] {
  * The result is sanitised deterministically: when two actions whose contexts
  * overlap own the same code, the later `ACTION_IDS` entry loses it. A tampered
  * or partially merged settings blob therefore cannot make one key both step a
- * quantity and confirm a trade. The one documented exemption is `pause` and
- * `stationBack` sharing `Escape`, which the input layer resolves by paused
- * state.
+ * quantity and confirm a trade. The documented exemption is `pause` sharing
+ * `Escape` with a screen Back action (`stationBack`, `chartBack`), which the
+ * input layer resolves by context and paused state.
  */
 export function createBindingMap(
   source?: Partial<Record<ActionId, readonly string[]>>,
@@ -91,13 +92,17 @@ export function contextsOverlap(left: ActionId, right: ActionId): boolean {
 }
 
 /**
- * The only pair allowed to share a code: `pause` and `stationBack` on Escape.
- * The input layer resolves it by paused state, so it is not an ambiguity.
+ * The only pair allowed to share a code: `pause` and a screen Back action on
+ * Escape. The input layer resolves it by context and paused state, so it is
+ * not an ambiguity.
  */
 function isExemptPair(left: ActionId, right: ActionId, code: string): boolean {
   if (code !== "Escape") return false;
-  const pair = new Set<ActionId>([left, right]);
-  return pair.has("pause") && pair.has("stationBack");
+  const pair = [left, right];
+  return (
+    pair.includes("pause") &&
+    pair.some((action) => ESCAPE_SCREEN_ACTIONS.has(action))
+  );
 }
 
 /**

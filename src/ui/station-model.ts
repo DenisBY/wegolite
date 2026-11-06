@@ -322,6 +322,7 @@ export function buildStatusModel(
   equipmentCatalogue: readonly Equipment[],
   commodities: readonly Commodity[],
   page: number,
+  targetSystemName?: string,
 ): StatusModel {
   const equipmentByKey = new Map(
     equipmentCatalogue.map((record) => [record.key, record]),
@@ -331,7 +332,10 @@ export function buildStatusModel(
     { label: "Commander", value: COMMANDER_NAME },
     { label: "Ship", value: SHIP_NAME },
     { label: "Present System", value: system.name },
-    { label: "Hyperspace System", value: UNKNOWN_HYPERSPACE_SYSTEM },
+    {
+      label: "Hyperspace System",
+      value: targetSystemName ?? UNKNOWN_HYPERSPACE_SYSTEM,
+    },
     { label: "Condition", value: DOCKED_CONDITION },
     { label: "Fuel", value: `${(profile.fuel / 10).toFixed(1)} Light Years` },
     { label: "Cash", value: formatDecicredits(profile.credits) },

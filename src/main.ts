@@ -238,6 +238,7 @@ if (!boot.ok) {
     hudCanvas,
     probe,
     system: lave,
+    galaxy: galaxy0(),
     pauseRoot,
     controlsRoot,
     settingsRoot,

@@ -38,10 +38,37 @@ export type ActionId =
   | "stationPageNext"
   | "stationPagePrevious"
   | "stationSellMax"
-  | "stationBuyMax";
+  | "stationBuyMax"
+  | "chart"
+  | "hyperspace"
+  | "chartUp"
+  | "chartDown"
+  | "chartLeft"
+  | "chartRight"
+  | "chartConfirm"
+  | "chartRange"
+  | "chartBack";
 
 /** The input modes that decide which actions may fire (ECON-09, D-03). */
-export type InputContext = "flight" | "dockHome" | "dockScreen";
+export type InputContext = "flight" | "dockHome" | "dockScreen" | "chart";
+
+/**
+ * The contexts whose Escape is a screen Back action rather than pause
+ * (RESEARCH Pitfall 12). `dockHome` deliberately stays out: Escape there still
+ * toggles pause, exactly as before the chart existed.
+ */
+export const ESCAPE_SCREEN_CONTEXTS: ReadonlySet<InputContext> =
+  new Set<InputContext>(["dockScreen", "chart"]);
+
+/**
+ * The actions those contexts bind to Escape. The binding table's exemption is
+ * keyed on the action pair, so a later screen action joins this set instead of
+ * changing the rule.
+ */
+export const ESCAPE_SCREEN_ACTIONS: ReadonlySet<ActionId> = new Set<ActionId>([
+  "stationBack",
+  "chartBack",
+]);
 
 export const ACTION_IDS: readonly ActionId[] = [
   "pitchForward",
@@ -72,6 +99,15 @@ export const ACTION_IDS: readonly ActionId[] = [
   "stationPagePrevious",
   "stationSellMax",
   "stationBuyMax",
+  "chart",
+  "hyperspace",
+  "chartUp",
+  "chartDown",
+  "chartLeft",
+  "chartRight",
+  "chartConfirm",
+  "chartRange",
+  "chartBack",
 ];
 
 const ACTION_ID_SET: ReadonlySet<string> = new Set(ACTION_IDS);
@@ -117,6 +153,15 @@ export const DEFAULT_BINDINGS: Readonly<Record<ActionId, readonly string[]>> =
     // because Plain+Shift resolves to them through SHIFT_VARIANT_ACTIONS.
     stationSellMax: Object.freeze([]),
     stationBuyMax: Object.freeze([]),
+    chart: Object.freeze(["F6"]),
+    hyperspace: Object.freeze(["KeyH"]),
+    chartUp: Object.freeze(["ArrowUp"]),
+    chartDown: Object.freeze(["ArrowDown"]),
+    chartLeft: Object.freeze(["ArrowLeft"]),
+    chartRight: Object.freeze(["ArrowRight"]),
+    chartConfirm: Object.freeze(["Enter"]),
+    chartRange: Object.freeze(["Tab"]),
+    chartBack: Object.freeze(["Escape"]),
   });
 
 export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
@@ -148,6 +193,15 @@ export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
   stationPagePrevious: "Previous page",
   stationSellMax: "Sell maximum",
   stationBuyMax: "Buy maximum",
+  chart: "Galactic chart",
+  hyperspace: "Hyperspace",
+  chartUp: "Chart up",
+  chartDown: "Chart down",
+  chartLeft: "Chart left",
+  chartRight: "Chart right",
+  chartConfirm: "Chart commit",
+  chartRange: "Chart range",
+  chartBack: "Chart close",
 });
 
 /**
@@ -180,6 +234,7 @@ export const SHIFT_VARIANT_ACTIONS: Readonly<
 export const RESERVED_F_KEYS: ReadonlySet<string> = new Set([
   "F3",
   "F5",
+  "F6",
   "F7",
   "F8",
 ]);
@@ -206,12 +261,21 @@ export const ACTION_CONTEXTS: Readonly<
   speedUp: contexts("flight"),
   speedDown: contexts("flight"),
   torus: contexts("flight"),
-  pause: contexts("flight", "dockHome", "dockScreen"),
+  pause: contexts("flight", "dockHome", "dockScreen", "chart"),
   launch: contexts("flight", "dockHome"),
   dockingComputer: contexts("flight"),
   targetStation: contexts("flight"),
   compassCycle: contexts("flight"),
   precision: contexts("flight"),
+  chart: contexts("flight", "dockHome", "dockScreen", "chart"),
+  hyperspace: contexts("flight"),
+  chartUp: contexts("chart"),
+  chartDown: contexts("chart"),
+  chartLeft: contexts("chart"),
+  chartRight: contexts("chart"),
+  chartConfirm: contexts("chart"),
+  chartRange: contexts("chart"),
+  chartBack: contexts("chart"),
   stationMarket: contexts("dockHome", "dockScreen"),
   stationOutfitting: contexts("dockHome", "dockScreen"),
   stationStatus: contexts("dockHome", "dockScreen"),

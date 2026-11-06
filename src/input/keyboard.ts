@@ -28,6 +28,7 @@ import type { InputFrame } from "../sim/state.js";
 import {
   ACTION_CONTEXTS,
   ACTION_IDS,
+  ESCAPE_SCREEN_CONTEXTS,
   RESERVED_F_KEYS,
   SHIFT_REQUIRED_ACTIONS,
   SHIFT_VARIANT_ACTIONS,
@@ -43,6 +44,9 @@ const EDGE_COMMANDS: Readonly<Partial<Record<ActionId, Command>>> = {
   dockingComputer: { kind: "dockingComputer" },
   compassCycle: { kind: "cycleCompass" },
   targetStation: { kind: "targetStation" },
+  // D-06: one payload-free command. The session gives the key its second
+  // meaning (abort an active countdown) before the sim sees it.
+  hyperspace: { kind: "beginHyperspace" },
 };
 
 /**
@@ -82,6 +86,8 @@ export interface InputState {
   consumePauseToggle(): boolean;
   /** Station actions queued for the session's drain (ECON-09). */
   drainStationActions(): ActionId[];
+  /** Chart edges (open/close, selection, commit, range, back) for the drain. */
+  drainChartActions(): ActionId[];
   /** Release every held key (blur, visibility loss, pause, launch). */
   clearAll(): void;
   /** Replace the action table after a rebind. */
@@ -107,6 +113,7 @@ export function createInputState(
   const held = new Set<string>();
   const pending: Command[] = [];
   const stationActions: ActionId[] = [];
+  const chartActions: ActionId[] = [];
   let pauseToggle = false;
   let map = bindings;
   let codeToActions = buildCodeToActions(map);
@@ -173,9 +180,10 @@ export function createInputState(
 
       for (const action of firing) {
         if (action === "pause") {
-          // Escape in a section is Back; the paused branch above owns Escape
-          // as Resume. KeyP remains the universal pause key.
-          if (context === "dockScreen" && code === "Escape") continue;
+          // Escape in a screen context is Back; the paused branch above owns
+          // Escape as Resume. KeyP remains the universal pause key.
+          if (ESCAPE_SCREEN_CONTEXTS.has(context) && code === "Escape")
+            continue;
           pauseToggle = true;
           continue;
         }
@@ -183,6 +191,10 @@ export function createInputState(
           // Synchronous: the session switches context before this key event
           // returns, so the next same-frame key resolves against the section.
           onStationScreen?.(action);
+          continue;
+        }
+        if (action.startsWith("chart")) {
+          chartActions.push(action);
           continue;
         }
         if (action.startsWith("station")) {
@@ -229,10 +241,16 @@ export function createInputState(
       stationActions.length = 0;
       return drained;
     },
+    drainChartActions() {
+      const drained = chartActions.slice();
+      chartActions.length = 0;
+      return drained;
+    },
     clearAll() {
       held.clear();
       pending.length = 0;
       stationActions.length = 0;
+      chartActions.length = 0;
       pauseToggle = false;
     },
     setBindings(next) {
@@ -250,6 +268,7 @@ export function createInputState(
       held.clear();
       pending.length = 0;
       stationActions.length = 0;
+      chartActions.length = 0;
     },
     getContext() {
       return context;
@@ -260,6 +279,7 @@ export function createInputState(
         held.clear();
         pending.length = 0;
         stationActions.length = 0;
+        chartActions.length = 0;
       }
     },
     setStationScreenHandler(handler) {
