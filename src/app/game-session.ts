@@ -1697,10 +1697,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     let flightState: FlightState;
     let restoredProfile: PlayerProfile | undefined;
+    let restoredMarketSeed: number | undefined;
     if (restoring && restore !== undefined) {
       const restored = restoreFromSave(restore, systemLayout, profileFromSave);
       flightState = restored.state;
       restoredProfile = restored.profile;
+      restoredMarketSeed = restored.marketSeed;
     } else {
       flightState = initFlightState(systemLayout);
     }
@@ -1716,7 +1718,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const loadedCatalogue = commodities ?? [];
     marketSeed =
       restoring && restore !== undefined
-        ? (restore.marketSeed ?? marketSeedForSystem(system.id))
+        ? (restoredMarketSeed ?? marketSeedForSystem(system.id))
         : marketSeedForSystem(system.id);
     market = generateMarket(system, loadedCatalogue, marketSeed);
     ensureSelection();

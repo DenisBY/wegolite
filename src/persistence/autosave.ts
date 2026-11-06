@@ -41,6 +41,12 @@ export interface SaveIdentity {
 export interface RestoredGame {
   readonly state: FlightState;
   readonly profile: PlayerProfile;
+  /**
+   * The persisted market seed, when the blob carried one. A Phase 4 blob has
+   * none; the boot substitutes `marketSeedForSystem(system.id)`, never a clock
+   * or random value.
+   */
+  readonly marketSeed?: number;
 }
 
 /** Build the schema inputs from the live state, profile and identities. */
@@ -181,5 +187,6 @@ export function restoreFromSave(
   return {
     state,
     profile: profileFactory(save),
+    ...(save.marketSeed === undefined ? {} : { marketSeed: save.marketSeed }),
   };
 }

@@ -18,6 +18,7 @@ import type { Page } from "@playwright/test";
 
 import { CLOCK_START } from "../../src/sim/flight/state.js";
 import { MAX_SAVE_CHARS } from "../../src/persistence/save.js";
+import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import {
   add,
   axisAngle,
@@ -76,6 +77,22 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
     mode,
     { timeout: 60_000 },
   );
+}
+
+/** Wait until a station section is the live one. */
+async function waitForStationScreen(page: Page, screen: string): Promise<void> {
+  await page.waitForFunction(
+    (expected) => window.__wegolite?.station?.screen === expected,
+    screen,
+    { timeout: 30_000 },
+  );
+}
+
+/** Continue a committed save from the title and wait for the docked pose. */
+async function continueGame(page: Page): Promise<void> {
+  await expect(page.locator("#title-continue")).toBeVisible();
+  await page.click("#title-continue");
+  await waitForMode(page, "docked");
 }
 
 /** Write a raw value into the save database from outside the app. */
@@ -490,6 +507,29 @@ test("a future-version blob is never cleared or replaced", async ({ page }) => {
   );
   expect(await readRaw(page)).toBe(future);
 
+  // A future blob disables the write path for the whole session, visibly.
+  await expect(page.locator('[data-field="station-save"]')).toContainText(
+    "Saving is disabled",
+  );
+  await page.keyboard.press("Digit8");
+  await waitForStationScreen(page, "market");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("KeyY");
+  await page.waitForFunction(
+    () => (window.__wegolite?.economy?.cargo?.food ?? 0) === 1,
+    undefined,
+    { timeout: 30_000 },
+  );
+  const futureProbe = await getProbe(page);
+  expect(futureProbe.save?.committed).toBe(0);
+  expect(futureProbe.save?.skipReason).toBe("future");
+  expect(await readRaw(page)).toBe(future);
+  await expect(page.locator('[data-field="station-save"]')).toContainText(
+    "Saving is disabled",
+  );
+  await page.keyboard.press("Escape");
+  await waitForStationScreen(page, "home");
+
   // A launch must not replace it either.
   await page.click('button[data-action="launch"]');
   await waitForMode(page, "launching");
@@ -730,5 +770,219 @@ test("a tainted ?test=1 profile is never autosaved", async ({ page }) => {
   expect(after.save?.writes).toBe(0);
   expect(after.save?.committed).toBe(0);
   expect(await readRaw(page)).toBeNull();
+  expect(errors).toEqual([]);
+});
+
+test("a Phase 4 blob without the new fields still restores and offers Continue", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+
+  const oldBlob = JSON.stringify({
+    version: 1,
+    mode: "docked",
+    clockSeconds: CLOCK_START + 600,
+    credits: 1000,
+    equipment: [],
+    system: { id: "g0-s7" },
+    station: { key: "coriolis-station" },
+  });
+  await writeRaw(page, oldBlob);
+
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+  const booted = await getProbe(page);
+  expect(booted.save?.status).toBe("valid");
+  expect(booted.save?.continueVisible).toBe(true);
+
+  await continueGame(page);
+  const probe = await getProbe(page);
+  expect(probe.economy?.credits).toBe(1000);
+  expect(probe.economy?.cargo).toEqual({});
+  expect(probe.economy?.fuel).toBe(70);
+  expect(probe.economy?.missiles).toBe(3);
+  expect(probe.economy?.passengerBerths).toBe(0);
+  expect(probe.economy?.capacityPods).toBe(20);
+  // The missing seed defaults to the system's deterministic seed, never a
+  // random or clock value.
+  expect(probe.economy?.marketSeed).toBe(marketSeedForSystem("g0-s7"));
+  await expect(page.locator('[data-field="credits"]')).toHaveText("100.0 Cr");
+  expect(errors).toEqual([]);
+});
+
+test("a v1 blob with 21 t of Food at Lave is corrupt, backed up and never offered", async ({
+  page,
+}) => {
+  await boot(page);
+  const overCapacity = JSON.stringify({
+    version: 1,
+    mode: "docked",
+    clockSeconds: CLOCK_START + 600,
+    credits: 1000,
+    equipment: [],
+    cargo: [{ key: "food", quantity: 21 }],
+    system: { id: "g0-s7" },
+    station: { key: "coriolis-station" },
+  });
+  await writeRaw(page, overCapacity);
+
+  const errors = collectErrors(page);
+  await page.reload();
+  await waitForReady(page);
+
+  await expect(page.locator("#title-continue")).toBeHidden();
+  expect((await getProbe(page)).save?.status).toBe("corrupt");
+  expect(await readRaw(page)).toBe(overCapacity);
+  expect(await readRaw(page, CORRUPT_KEY)).toBe(overCapacity);
+  // Never silently clamped into a smaller hold.
+  expect((await getProbe(page)).save?.continueVisible).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test("a failed IndexedDB write is visible in the station footer and leaves the blob intact", async ({
+  page,
+}) => {
+  // Wrap `put` before the app boots. `runTransaction` catches the synchronous
+  // throw and rejects the write, which is exactly the store-failure path the
+  // session reports.
+  await page.addInitScript(() => {
+    const failWindow = window as Window & { __failSaveWrites?: boolean };
+    // Kept as the native function and applied with the real store as `this`.
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- called with the store instance below
+    const original = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (
+      this: IDBObjectStore,
+      value: unknown,
+      key?: IDBValidKey,
+    ): IDBRequest {
+      if (failWindow.__failSaveWrites === true) {
+        throw new Error("injected write failure");
+      }
+      return original.call(this, value, key);
+    };
+  });
+
+  const errors = collectErrors(page);
+  await boot(page);
+  await startNewGame(page);
+  await launchAndAwaitCommit(page);
+  const previous = await readRaw(page);
+  expect(previous).not.toBeNull();
+
+  await page.reload();
+  await waitForReady(page);
+  await continueGame(page);
+  const committedBefore = (await getProbe(page)).save?.committed ?? 0;
+
+  await page.evaluate(() => {
+    (window as Window & { __failSaveWrites?: boolean }).__failSaveWrites = true;
+  });
+
+  await page.keyboard.press("Digit8");
+  await waitForStationScreen(page, "market");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("KeyY");
+
+  // The trade is playable in memory...
+  await page.waitForFunction(
+    () => (window.__wegolite?.economy?.cargo?.food ?? 0) === 1,
+    undefined,
+    { timeout: 30_000 },
+  );
+  // ...but the write failure is published, not silent.
+  await page.waitForFunction(
+    () =>
+      (window.__wegolite?.save?.skipReason ?? "") === "injected write failure",
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  const after = await getProbe(page);
+  expect(after.save?.committed).toBe(committedBefore);
+  expect(after.save?.skipReason).toBe("injected write failure");
+  await expect(page.locator('[data-field="station-save"]')).toHaveText(
+    "Save failed — progress not saved",
+  );
+  // The save notice owns its own field; the home hint is never clobbered.
+  await expect(page.locator('[data-field="message"]')).not.toContainText(
+    "Save failed",
+  );
+  expect(await readRaw(page)).toBe(previous);
+
+  // A fresh confirmation opened after the failure keeps both fields intact.
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator('[data-field="station-confirm"]')).toContainText(
+    "Buy",
+  );
+  await expect(page.locator('[data-field="station-save"]')).toHaveText(
+    "Save failed — progress not saved",
+  );
+  expect(errors).toEqual([]);
+});
+
+test("an accepted buy and removal each write exactly one autosave", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  await startNewGame(page);
+  await launchAndAwaitCommit(page);
+
+  await page.reload();
+  await waitForReady(page);
+  await continueGame(page);
+  const base = (await getProbe(page)).save?.committed ?? 0;
+
+  // Opening a screen and changing a selection never write.
+  await page.keyboard.press("Digit8");
+  await waitForStationScreen(page, "market");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowUp");
+  expect((await getProbe(page)).save?.committed).toBe(base);
+
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("KeyY");
+  await page.waitForFunction(
+    (expected) => (window.__wegolite?.save?.committed ?? 0) === expected,
+    base + 1,
+    { timeout: 30_000 },
+  );
+
+  // Switching screens and paging never write either.
+  await page.keyboard.press("Digit3");
+  await waitForStationScreen(page, "outfitting");
+  await page.keyboard.press("ArrowDown");
+  expect((await getProbe(page)).save?.committed).toBe(base + 1);
+
+  for (let presses = 0; presses < 6; presses += 1) {
+    await page.keyboard.press("ArrowDown");
+  }
+  await page.keyboard.press("KeyY");
+  await page.keyboard.press("KeyY");
+  await page.waitForFunction(
+    (expected) => (window.__wegolite?.save?.committed ?? 0) === expected,
+    base + 2,
+    { timeout: 30_000 },
+  );
+
+  const afterRemoval = await getProbe(page);
+  expect(afterRemoval.economy?.missiles).toBe(0);
+  expect(afterRemoval.economy?.cargo?.food).toBe(1);
+
+  // A third Y is a no-op: no prompt, no credits, no save.
+  const credits = afterRemoval.economy?.credits;
+  await page.keyboard.press("KeyY");
+  await expect(page.locator('[data-field="station-confirm"]')).toHaveText("");
+  const idle = await getProbe(page);
+  expect(idle.economy?.credits).toBe(credits);
+  expect(idle.save?.committed).toBe(base + 2);
+
+  await page.keyboard.press("Digit5");
+  await waitForStationScreen(page, "status");
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("PageUp");
+  expect((await getProbe(page)).save?.committed).toBe(base + 2);
   expect(errors).toEqual([]);
 });

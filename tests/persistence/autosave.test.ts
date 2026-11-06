@@ -201,6 +201,136 @@ describe("snapshotForSave", () => {
   });
 });
 
+describe("canonical snapshot and Phase 4 defaults", () => {
+  it("sorts cargo by commodity sortOrder and omits zero entries", () => {
+    const profile: PlayerProfile = {
+      ...newProfile(),
+      cargo: { gem_stones: 1000, food: 2, gold: 100, computers: 0 },
+    };
+    const inputs = snapshotForSave(
+      initFlightState(layout),
+      profile,
+      SYSTEM,
+      STATION,
+      SEED,
+      COMMODITIES,
+    );
+
+    const expected = COMMODITIES.filter(
+      (commodity) =>
+        commodity.key in profile.cargo && profile.cargo[commodity.key]! > 0,
+    )
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((commodity) => commodity.key);
+    expect(inputs.cargo.map((entry) => entry.key)).toEqual(expected);
+    expect(inputs.cargo.every((entry) => entry.quantity > 0)).toBe(true);
+    expect(inputs.marketSeed).toBe(SEED);
+  });
+
+  it("round-trips credits, cargo, counts and the seed exactly", () => {
+    const profile: PlayerProfile = {
+      ...newProfile(),
+      credits: 4321,
+      cargo: { food: 3, gold: 499 },
+      fuel: 42,
+      missiles: 2,
+      passengerBerths: 1,
+    };
+    const inputs = snapshotForSave(
+      initFlightState(layout),
+      profile,
+      SYSTEM,
+      STATION,
+      SEED,
+      COMMODITIES,
+    );
+
+    const parsed = parseSave(encodeSave(inputs), ALLOW);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.save.credits).toBe(4321);
+    expect(parsed.save.cargo).toEqual(inputs.cargo);
+    expect(parsed.save.fuel).toBe(42);
+    expect(parsed.save.missiles).toBe(2);
+    expect(parsed.save.passengerBerths).toBe(1);
+    expect(parsed.save.marketSeed).toBe(SEED);
+
+    const restored = profileFromSave(parsed.save);
+    expect(restored.credits).toBe(4321);
+    expect(restored.cargo).toEqual({ food: 3, gold: 499 });
+    expect(restored.fuel).toBe(42);
+    expect(restored.missiles).toBe(2);
+    expect(restored.passengerBerths).toBe(1);
+
+    const again = snapshotForSave(
+      initFlightState(layout),
+      restored,
+      SYSTEM,
+      STATION,
+      parsed.save.marketSeed ?? 0,
+      COMMODITIES,
+    );
+    expect(again).toEqual(inputs);
+  });
+
+  it("defaults a field-less Phase 4 blob to an empty hold and a fresh ship", () => {
+    const save: SaveV1 = {
+      version: 1,
+      mode: "docked",
+      clockSeconds: CLOCK_START + 600,
+      credits: 1000,
+      equipment: [],
+      system: { id: "g0-s7" },
+      station: { key: "coriolis-station" },
+    };
+    const profile = profileFromSave(save);
+
+    expect(profile.credits).toBe(1000);
+    expect(profile.cargo).toEqual({});
+    expect(Object.getPrototypeOf(profile.cargo)).toBeNull();
+    expect(profile.fuel).toBe(70);
+    expect(profile.missiles).toBe(3);
+    expect(profile.passengerBerths).toBe(0);
+    expect(profile.equipment).toEqual([]);
+  });
+
+  it("folds one legacy alias into its count and drops it", () => {
+    const save: SaveV1 = {
+      version: 1,
+      mode: "docked",
+      clockSeconds: CLOCK_START + 600,
+      credits: 1000,
+      equipment: ["EQ_DOCK_COMP", "EQ_MISSILE", "EQ_PASSENGER_BERTH"],
+      system: { id: "g0-s7" },
+      station: { key: "coriolis-station" },
+    };
+    const profile = profileFromSave(save);
+
+    expect(profile.equipment).toEqual(["EQ_DOCK_COMP"]);
+    expect(profile.missiles).toBe(1);
+    expect(profile.passengerBerths).toBe(1);
+  });
+
+  it("adds the alias to an explicit zero rather than replacing it", () => {
+    const save: SaveV1 = {
+      version: 1,
+      mode: "docked",
+      clockSeconds: CLOCK_START + 600,
+      credits: 1000,
+      equipment: ["EQ_MISSILE", "EQ_PASSENGER_BERTH"],
+      missiles: 0,
+      passengerBerths: 0,
+      system: { id: "g0-s7" },
+      station: { key: "coriolis-station" },
+    };
+    const profile = profileFromSave(save);
+
+    // The same rule the validator measures: never `max(count, 1)`.
+    expect(profile.missiles).toBe(1);
+    expect(profile.passengerBerths).toBe(1);
+  });
+});
+
 describe("writer bounds", () => {
   const maximumInputs: SaveInputs = {
     clockSeconds: CLOCK_START + MAX_SAVE_CLOCK_DELTA,
@@ -403,5 +533,24 @@ describe("restoreFromSave", () => {
     expect(restored.state.position).toEqual(initFlightState(layout).position);
     expect(restored.profile.credits).toBe(5000);
     expect(restored.profile.equipment).toEqual(["EQ_DOCK_COMP"]);
+    // A Phase 4 blob carries no seed; the boot defaults it, not this factory.
+    expect(restored.marketSeed).toBeUndefined();
+  });
+
+  it("returns the persisted market seed when the blob carries one", () => {
+    const save: SaveV1 = {
+      version: 1,
+      mode: "docked",
+      clockSeconds: CLOCK_START + 660,
+      credits: 5000,
+      equipment: [],
+      marketSeed: SEED,
+      system: { id: "g0-s7" },
+      station: { key: "coriolis-station" },
+    };
+
+    expect(restoreFromSave(save, layout, profileFromSave).marketSeed).toBe(
+      SEED,
+    );
   });
 });

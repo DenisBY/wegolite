@@ -24,10 +24,13 @@ import type { SaveAllowLists, SaveV1 } from "../../src/persistence/save.js";
 
 const ALLOW: SaveAllowLists = {
   equipment: new Set([
+    "EQ_CARGO_BAY",
     "EQ_DOCK_COMP",
     "EQ_FUEL",
     "EQ_MISSILE",
+    "EQ_MISSILE_REMOVAL",
     "EQ_PASSENGER_BERTH",
+    "EQ_PASSENGER_BERTH_REMOVAL",
   ]),
   systems: new Set(["g0-s7"]),
   stations: new Set(["coriolis-station"]),
@@ -194,6 +197,8 @@ describe("parseSave reject table", () => {
 
   for (const row of rows) {
     it(row.name, () => {
+      // A hostile blob may never throw out of the parser: only a reason.
+      expect(() => parseSave(row.raw, ALLOW)).not.toThrow();
       expect(parseSave(row.raw, ALLOW)).toEqual({
         ok: false,
         reason: row.reason,
@@ -242,8 +247,33 @@ describe("cargo and hold semantics", () => {
       save: validSave({ cargo: [{ key: "food", quantity: 0 }] }),
     },
     {
+      name: "negative quantity",
+      save: validSave({ cargo: [{ key: "food", quantity: -1 }] }),
+    },
+    {
+      name: "fractional quantity",
+      save: validSave({ cargo: [{ key: "food", quantity: 1.5 }] }),
+    },
+    {
+      name: "overflow quantity",
+      save: validSave({ cargo: [{ key: "food", quantity: 36_000_001 }] }),
+    },
+    {
+      name: "eighteen cargo entries",
+      save: validSave({
+        cargo: Array.from({ length: 18 }, (_, index) => ({
+          key: `k${index}`,
+          quantity: 1,
+        })),
+      }),
+    },
+    {
       name: "over-capacity hold",
       save: validSave({ cargo: [{ key: "food", quantity: 21 }] }),
+    },
+    {
+      name: "seven berths with no cargo bay and an empty hold",
+      save: validSave({ passengerBerths: 7 }),
     },
     {
       name: "cargo as a keyed object was already a schema failure",
@@ -283,6 +313,7 @@ describe("cargo and hold semantics", () => {
 
   for (const row of rows) {
     it(`rejects ${row.name}`, () => {
+      expect(() => parseSave(raw(row.save), ALLOW)).not.toThrow();
       expect(parseSave(raw(row.save), ALLOW)).toEqual({
         ok: false,
         reason: "corrupt",
@@ -301,6 +332,73 @@ describe("cargo and hold semantics", () => {
       ok: false,
       reason: "corrupt",
     });
+  });
+});
+
+describe("exact capacity boundaries and the optional seed", () => {
+  it("accepts a 20 t hold plus 499 kg of gold", () => {
+    const save = validSave({
+      cargo: [
+        { key: "food", quantity: 20 },
+        { key: "gold", quantity: 499 },
+      ],
+    });
+    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save });
+  });
+
+  it("rejects a 20 t hold plus 500 kg of gold", () => {
+    const save = validSave({
+      cargo: [
+        { key: "food", quantity: 20 },
+        { key: "gold", quantity: 500 },
+      ],
+    });
+    expect(parseSave(raw(save), ALLOW)).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+  });
+
+  it("accepts 25 t of Food with the cargo bay and rejects it without", () => {
+    const withBay = validSave({
+      equipment: ["EQ_CARGO_BAY"],
+      cargo: [{ key: "food", quantity: 25 }],
+    });
+    expect(parseSave(raw(withBay), ALLOW)).toEqual({ ok: true, save: withBay });
+
+    const withoutBay = validSave({ cargo: [{ key: "food", quantity: 25 }] });
+    expect(parseSave(raw(withoutBay), ALLOW)).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+  });
+
+  it("accepts seven berths only with the cargo bay", () => {
+    const withBay = validSave({
+      equipment: ["EQ_CARGO_BAY"],
+      passengerBerths: 7,
+    });
+    expect(parseSave(raw(withBay), ALLOW)).toEqual({ ok: true, save: withBay });
+  });
+
+  it("accepts the uint32 ceiling and rejects one above it", () => {
+    const ceiling = validSave({ marketSeed: 0xffffffff });
+    expect(parseSave(raw(ceiling), ALLOW)).toEqual({ ok: true, save: ceiling });
+
+    const above = validSave({ marketSeed: 0x1_0000_0000 });
+    expect(parseSave(raw(above), ALLOW)).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+  });
+
+  it("reads a Phase 4 blob without a seed as undefined", () => {
+    const result = parseSave(raw(validSave()), ALLOW);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // The boot substitutes `marketSeedForSystem(system.id)`; the parser must not
+    // invent a seed of its own.
+    expect(result.save.marketSeed).toBeUndefined();
   });
 });
 
