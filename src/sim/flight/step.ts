@@ -23,6 +23,11 @@ import type { SystemLayout } from "../world/layout.js";
 import { DOCK_COMPUTER_KEY, dockWithComputer } from "../dock/computer.js";
 import { stepDocking } from "../dock/step.js";
 import type { DockGeometry } from "../dock/geometry.js";
+import {
+  canStartJump,
+  HYPERSPACE_COUNTDOWN_STEPS,
+} from "../hyperspace/countdown.js";
+import { jumpTimeSecondsForDist, MAX_JUMP_DIST } from "../hyperspace/jump.js";
 import { stepAttitude } from "./attitude.js";
 import type { FlightConfig } from "./config.js";
 import type { ControlIntent } from "./controller.js";
@@ -41,6 +46,24 @@ export interface StepOptions {
    * profile, so a command never carries a forged ownership flag (T-04-19).
    */
   readonly equipment?: ReadonlySet<string>;
+  /**
+   * The read-only hyperspace facts (D-07). Fuel never enters `FlightState`;
+   * the app derives these from the profile and the committed target each step,
+   * exactly as it supplies equipment.
+   */
+  readonly hyperspace?: {
+    readonly fuel: number;
+    readonly origin: {
+      readonly id: string;
+      readonly x: number;
+      readonly y: number;
+    };
+    readonly target?: {
+      readonly id: string;
+      readonly x: number;
+      readonly y: number;
+    };
+  };
 }
 
 /**
@@ -78,6 +101,12 @@ export function stepFlight(
   // makes the computer dock exactly +1200 s (T-04-44).
   let terminalTransition = false;
   let torusToggle = false;
+  // The begin was drained on this step, so the countdown must not tick yet:
+  // that off-by-one is what makes the commit exactly 1800 steps later.
+  let startedThisStep = false;
+  // A committed jump ends the tick for docking too: the arrival pose belongs
+  // to the destination layout while step 6's geometry belongs to the origin.
+  let jumpedThisStep = false;
 
   // 1. Drain this frame's commands exactly once. Every mode-changing command
   // is gated on `modeAtStart`, so a dock and a launch drained on the same tick
@@ -115,7 +144,65 @@ export function stepFlight(
       case "targetStation":
         state.compassMode = "station";
         break;
+      case "beginHyperspace": {
+        // D-06 / A1: only a ship in flight can start a jump. A docked or
+        // launching key press is inert — no countdown and no false refusal.
+        if (modeAtStart !== "inFlight") break;
+        // A begin while a countdown is running is a no-op; the app maps the
+        // second key press to `cancelHyperspace` (plan 06-04).
+        if (state.hyperspaceCountdown > 0) break;
+        const facts = options?.hyperspace;
+        if (facts === undefined) {
+          events.push({ kind: "hyperspaceRefused", reason: "no target" });
+          break;
+        }
+        const start = canStartJump(facts);
+        if (!start.ok) {
+          events.push({ kind: "hyperspaceRefused", reason: start.reason });
+          break;
+        }
+        state.hyperspaceCountdown = HYPERSPACE_COUNTDOWN_STEPS;
+        state.hyperspaceTarget = {
+          id: start.target.id,
+          dist: start.dist,
+          fuelCost: start.fuelCost,
+        };
+        startedThisStep = true;
+        events.push({
+          kind: "hyperspaceCountdownStarted",
+          destinationId: start.target.id,
+          fuelCost: start.fuelCost,
+          countdownSteps: HYPERSPACE_COUNTDOWN_STEPS,
+        });
+        break;
+      }
+      case "cancelHyperspace": {
+        if (state.hyperspaceCountdown > 0 && state.hyperspaceTarget !== null) {
+          const destinationId = state.hyperspaceTarget.id;
+          state.hyperspaceCountdown = 0;
+          state.hyperspaceTarget = null;
+          events.push({ kind: "hyperspaceCountdownCancelled", destinationId });
+        }
+        break;
+      }
     }
+  }
+
+  // 1b. The app owns target changes. Committing a different target while a
+  // countdown runs cancels it (D-06, Open Question 5): the snapshot is the
+  // route actually committed, never a newly selected one.
+  const liveTarget = options?.hyperspace?.target;
+  if (
+    !startedThisStep &&
+    state.hyperspaceCountdown > 0 &&
+    state.hyperspaceTarget !== null &&
+    liveTarget !== undefined &&
+    liveTarget.id !== state.hyperspaceTarget.id
+  ) {
+    const destinationId = state.hyperspaceTarget.id;
+    state.hyperspaceCountdown = 0;
+    state.hyperspaceTarget = null;
+    events.push({ kind: "hyperspaceCountdownCancelled", destinationId });
   }
 
   // 2. Apply the mode transition.
@@ -144,6 +231,51 @@ export function stepFlight(
     stepSpeed(state, effectiveIntent, config, dt);
   }
 
+  // 4b. The countdown tick. The decrement starts on the step after the drain,
+  // so the commit lands exactly 1800 steps later. Only the commit is a
+  // terminal transition: a refusal or cancel leaves the ordinary DT as the
+  // tick's only clock effect, because steps 3/4 stay live (D-06).
+  if (
+    modeAtStart === "inFlight" &&
+    state.hyperspaceCountdown > 0 &&
+    !startedThisStep
+  ) {
+    state.hyperspaceCountdown -= 1;
+    if (state.hyperspaceCountdown === 0) {
+      const snapshot = state.hyperspaceTarget;
+      const fuel = options?.hyperspace?.fuel;
+      const fuelOk =
+        fuel !== undefined &&
+        Number.isSafeInteger(fuel) &&
+        fuel >= 0 &&
+        fuel >= (snapshot?.fuelCost ?? Number.POSITIVE_INFINITY);
+      if (snapshot !== null && snapshot.dist <= MAX_JUMP_DIST && fuelOk) {
+        const jumpTimeSeconds = jumpTimeSecondsForDist(snapshot.dist);
+        state.clockSeconds += jumpTimeSeconds;
+        events.push({
+          kind: "hyperspaceJumped",
+          destinationId: snapshot.id,
+          clockDeltaSeconds: jumpTimeSeconds,
+          fuelCost: snapshot.fuelCost,
+        });
+        state.hyperspaceTarget = null;
+        terminalTransition = true;
+        jumpedThisStep = true;
+      } else {
+        // The route or tank changed under the countdown: refuse at the point
+        // of no return, exactly as Oolite re-checks its jump checklist.
+        events.push({
+          kind: "hyperspaceRefused",
+          reason:
+            snapshot === null || snapshot.dist > MAX_JUMP_DIST
+              ? "too far"
+              : "insufficient fuel",
+        });
+        state.hyperspaceTarget = null;
+      }
+    }
+  }
+
   // 5. Station roll, flight time and the ship clock. A docked ship is static,
   // and a command-phase terminal transition does not advance anything else:
   // the +600 s launch and the +1200 s computer dock are the whole clock effect
@@ -166,8 +298,9 @@ export function stepFlight(
 
   // 6. Docking, after the post-increment station angle so the corridor never
   // lags the visible slot, and before the tick counter so the capture tick is
-  // the same tick the pose reached the weighted plane.
-  if (options?.dock !== undefined) {
+  // the same tick the pose reached the weighted plane. A jump commit skips it:
+  // the arrival pose belongs to the destination layout, not this geometry.
+  if (options?.dock !== undefined && !jumpedThisStep) {
     events.push(...stepDocking(state, layout, options.dock, dt));
   }
 

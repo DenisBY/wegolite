@@ -9,6 +9,9 @@
  */
 
 import type { CompassTarget } from "./flight/state.js";
+import type { HyperspaceRefusal } from "./hyperspace/countdown.js";
+
+export type { HyperspaceRefusal };
 
 export type TorusDisengageReason = "input" | "massLock" | "toggle";
 
@@ -30,6 +33,22 @@ export type SimEvent =
   | { kind: "compassTargetChanged"; target: CompassTarget }
   | { kind: "docked"; via: "manual" | "computer"; clockDelta: number }
   | { kind: "dockDenied"; reason: DockDeniedReason }
+  | {
+      kind: "hyperspaceCountdownStarted";
+      destinationId: string;
+      fuelCost: number;
+      countdownSteps: number;
+    }
+  | { kind: "hyperspaceCountdownCancelled"; destinationId: string }
+  | {
+      kind: "hyperspaceJumped";
+      destinationId: string;
+      /** Exactly `576 * dist^2`; the app adds it to the profile's clock. */
+      clockDeltaSeconds: number;
+      /** Exact integer fuel to deduct from the profile (never a float). */
+      fuelCost: number;
+    }
+  | { kind: "hyperspaceRefused"; reason: HyperspaceRefusal }
   | { kind: "scrape" }
   | {
       kind: "bounce";

@@ -26,6 +26,15 @@ export interface TorusState {
   lastFactor: number;
 }
 
+/** The target snapshotted when the 1800-step countdown started (D-06). */
+export interface HyperspaceTargetSnapshot {
+  readonly id: string;
+  /** Integer chart units between the origin and the target. */
+  readonly dist: number;
+  /** Exact integer fuel cost in tenths of a light year. */
+  readonly fuelCost: number;
+}
+
 export interface FlightState {
   tick: number;
   mode: FlightMode;
@@ -42,6 +51,10 @@ export interface FlightState {
   pitchRate: number;
   rollRate: number;
   torus: TorusState;
+  /** Steps left on the fixed-step witchspace countdown; 0 = idle. */
+  hyperspaceCountdown: number;
+  /** The target snapshot taken at countdown start; `null` when idle. */
+  hyperspaceTarget: HyperspaceTargetSnapshot | null;
   /** Radians the station has rolled about its local +Z. */
   stationAngle: number;
   launchElapsed: number;
@@ -91,6 +104,8 @@ export function initFlightState(layout: SystemLayout): FlightState {
     pitchRate: 0,
     rollRate: 0,
     torus: { engaged: false, factor: 1, massLocked: false, lastFactor: 1 },
+    hyperspaceCountdown: 0,
+    hyperspaceTarget: null,
     stationAngle: 0,
     launchElapsed: 0,
     launchCount: 0,
@@ -127,6 +142,12 @@ export function serializeFlight(state: FlightState): string {
     `pitchRate=${canon(state.pitchRate, 6)}`,
     `rollRate=${canon(state.rollRate, 6)}`,
     `torus=${String(state.torus.engaged)}:${canon(state.torus.factor, 6)}:${String(state.torus.massLocked)}:${canon(state.torus.lastFactor, 6)}`,
+    `hyperspaceCountdown=${canon(state.hyperspaceCountdown, 0)}`,
+    `hyperspaceTarget=${
+      state.hyperspaceTarget === null
+        ? "none"
+        : `${state.hyperspaceTarget.id},${canon(state.hyperspaceTarget.dist, 0)},${canon(state.hyperspaceTarget.fuelCost, 0)}`
+    }`,
     `stationAngle=${canon(state.stationAngle, 6)}`,
     `launchElapsed=${canon(state.launchElapsed, 6)}`,
     `launchCount=${canon(state.launchCount, 0)}`,

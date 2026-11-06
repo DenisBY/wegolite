@@ -22,4 +22,12 @@ export type Command =
    * through `StepOptions.equipment`, so a shared command object can never carry
    * a forged `installed` flag (T-04-46).
    */
-  | { kind: "dockingComputer" };
+  | { kind: "dockingComputer" }
+  /**
+   * D-06: the hyperspace key. Payload-free: fuel, origin and the committed
+   * target travel through `StepOptions.hyperspace`, exactly like equipment, so
+   * the command can never carry a forged route or tank.
+   */
+  | { kind: "beginHyperspace" }
+  /** D-06: a second press aborts the countdown at no cost. */
+  | { kind: "cancelHyperspace" };

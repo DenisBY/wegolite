@@ -22,6 +22,17 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import type { SimEvent } from "../../src/sim/events.js";
+import type { Command } from "../../src/sim/commands.js";
+import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
+import {
+  hashFlight,
+  initFlightState,
+  serializeFlight,
+} from "../../src/sim/flight/state.js";
+import type { FlightState } from "../../src/sim/flight/state.js";
+import { stepFlight } from "../../src/sim/flight/step.js";
+import type { StepOptions } from "../../src/sim/flight/step.js";
 import {
   canStartJump,
   countdownSecondsRemaining,
@@ -34,6 +45,13 @@ import {
   chartDistance,
   jumpBetween,
 } from "../../src/sim/hyperspace/jump.js";
+import { vec } from "../../src/sim/math.js";
+import { DT } from "../../src/sim/time.js";
+import {
+  laveDockGeometry,
+  placeShipInPortFrame,
+} from "../helpers/dock-pose.js";
+import { laveFixture } from "../helpers/lave.js";
 
 interface ChartSystem {
   readonly id: string;
@@ -304,5 +322,322 @@ describe("countdown rounding", () => {
   it("never returns a negative or non-finite second count", () => {
     expect(countdownSecondsRemaining(-10)).toBe(0);
     expect(countdownSecondsRemaining(Number.NaN)).toBe(0);
+  });
+});
+
+describe("fixed-step hyperspace countdown", () => {
+  const fixture = laveFixture();
+  const { layout, config } = fixture;
+  const laveOrigin = { id: lave.id, x: lave.chartX, y: lave.chartY };
+
+  function optionsFor(
+    target: ChartSystem | undefined,
+    fuel = 70,
+  ): StepOptions {
+    return {
+      hyperspace: {
+        fuel,
+        origin: laveOrigin,
+        ...(target === undefined
+          ? {}
+          : { target: { id: target.id, x: target.chartX, y: target.chartY } }),
+      },
+    };
+  }
+
+  function inFlightState(): FlightState {
+    const state = initFlightState(layout);
+    state.mode = "inFlight";
+    state.dockArmed = false;
+    return state;
+  }
+
+  function step(
+    state: FlightState,
+    commands: readonly Command[] = [],
+    options: StepOptions = optionsFor(diso),
+  ): SimEvent[] {
+    return stepFlight(state, layout, config, ZERO_INTENT, commands, DT, options);
+  }
+
+  it("initialises the new fields and includes both in the replay hash", () => {
+    const state = initFlightState(layout);
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.hyperspaceTarget).toBeNull();
+
+    const serialized = serializeFlight(state);
+    const hashed = hashFlight(state);
+    expect(serialized).toContain("hyperspaceCountdown=0");
+    expect(serialized).toContain("hyperspaceTarget=none");
+
+    state.hyperspaceCountdown = 1;
+    expect(serializeFlight(state)).not.toBe(serialized);
+    expect(hashFlight(state)).not.toBe(hashed);
+
+    state.hyperspaceCountdown = 0;
+    state.hyperspaceTarget = { id: diso.id, dist: 9, fuelCost: 36 };
+    expect(serializeFlight(state)).toContain(`hyperspaceTarget=${diso.id},9,36`);
+    expect(hashFlight(state)).not.toBe(hashed);
+  });
+
+  it("starts one countdown on begin and ignores a second begin", () => {
+    const state = inFlightState();
+    const options = optionsFor(diso);
+
+    const startEvents = step(state, [{ kind: "beginHyperspace" }], options);
+    expect(startEvents).toContainEqual({
+      kind: "hyperspaceCountdownStarted",
+      destinationId: diso.id,
+      fuelCost: 36,
+      countdownSteps: HYPERSPACE_COUNTDOWN_STEPS,
+    });
+    expect(state.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS);
+    expect(state.hyperspaceTarget).toEqual({
+      id: diso.id,
+      dist: 9,
+      fuelCost: 36,
+    });
+
+    const secondEvents = step(state, [{ kind: "beginHyperspace" }], options);
+    expect(
+      secondEvents.some((event) => event.kind.startsWith("hyperspace")),
+    ).toBe(false);
+    expect(state.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS - 1);
+  });
+
+  const COMMIT_ROUTES = [
+    { system: diso, fuelCost: 36, jumpTimeSeconds: 46_656 },
+    { system: leesti, fuelCost: 36, jumpTimeSeconds: 46_656 },
+    { system: zaonce, fuelCost: 56, jumpTimeSeconds: 112_896 },
+    { system: riedquat, fuelCost: 68, jumpTimeSeconds: 166_464 },
+  ] as const;
+
+  for (const route of COMMIT_ROUTES) {
+    it(`commits exactly 1800 steps after the drain (${route.system.name})`, () => {
+      const state = inFlightState();
+      const options = optionsFor(route.system);
+
+      step(state, [{ kind: "beginHyperspace" }], options);
+      const clockAfterStart = state.clockSeconds;
+
+      for (let index = 1; index <= HYPERSPACE_COUNTDOWN_STEPS; index += 1) {
+        const clockBefore = state.clockSeconds;
+        const events = step(state, [], options);
+        const delta = state.clockSeconds - clockBefore;
+
+        if (index < HYPERSPACE_COUNTDOWN_STEPS) {
+          expect(
+            events.some((event) => event.kind === "hyperspaceJumped"),
+          ).toBe(false);
+          expect(state.hyperspaceCountdown).toBe(
+            HYPERSPACE_COUNTDOWN_STEPS - index,
+          );
+        } else {
+          expect(events).toContainEqual({
+            kind: "hyperspaceJumped",
+            destinationId: route.system.id,
+            clockDeltaSeconds: route.jumpTimeSeconds,
+            fuelCost: route.fuelCost,
+          });
+          expect(state.hyperspaceCountdown).toBe(0);
+          // Exactly the jump time: terminalTransition must suppress step 5's
+          // +dt, or this delta would be jumpTimeSeconds + 1/120.
+          expect(delta).toBeCloseTo(route.jumpTimeSeconds, 2);
+          expect(delta).toBeLessThan(route.jumpTimeSeconds + 0.008);
+        }
+
+        expect(state.hyperspaceCountdown).toBeGreaterThanOrEqual(0);
+      }
+
+      // From the post-start clock: 1799 ordinary steps plus the jump time; the
+      // commit step itself adds no DT.
+      const total = state.clockSeconds - clockAfterStart;
+      expect(total).toBeCloseTo(1799 * DT + route.jumpTimeSeconds, 1);
+    });
+  }
+
+  it("aborts at no cost: exactly one DT on the cancel step, matching a control run", () => {
+    const options = optionsFor(diso);
+
+    const state = inFlightState();
+    step(state, [{ kind: "beginHyperspace" }], options);
+    step(state, [], options);
+    const before = state.clockSeconds;
+    const events = step(state, [{ kind: "cancelHyperspace" }], options);
+    const delta = state.clockSeconds - before;
+
+    expect(events).toContainEqual({
+      kind: "hyperspaceCountdownCancelled",
+      destinationId: diso.id,
+    });
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.hyperspaceTarget).toBeNull();
+    // A cancel is not terminal: the ordinary fixed step still advances the
+    // clock, and no jump time is added.
+    expect(delta).toBeCloseTo(DT, 3);
+    expect(delta).toBeLessThan(1);
+
+    const control = inFlightState();
+    step(control, [{ kind: "beginHyperspace" }], options);
+    step(control, [], options);
+    const controlBefore = control.clockSeconds;
+    step(control, [], options);
+    expect(delta).toBeCloseTo(control.clockSeconds - controlBefore, 9);
+
+    // No delayed commit: stepping past the original deadline adds no jump.
+    for (let index = 0; index < HYPERSPACE_COUNTDOWN_STEPS; index += 1) {
+      const later = step(state, [], options);
+      expect(later.some((event) => event.kind === "hyperspaceJumped")).toBe(
+        false,
+      );
+    }
+    expect(state.hyperspaceCountdown).toBe(0);
+  });
+
+  it("ignores a begin while docked, with no countdown and no false refusal", () => {
+    const state = initFlightState(layout);
+    const before = state.clockSeconds;
+    const events = step(state, [{ kind: "beginHyperspace" }], optionsFor(diso));
+
+    expect(events.some((event) => event.kind.startsWith("hyperspace"))).toBe(
+      false,
+    );
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.hyperspaceTarget).toBeNull();
+    expect(state.clockSeconds).toBe(before);
+  });
+
+  it("emits exactly one refusal with the matching reason and adds no jump time", () => {
+    const cases = [
+      { name: "no target", target: undefined, fuel: 70, reason: "no target" },
+      {
+        name: "too far",
+        target: tibedied,
+        fuel: 70,
+        reason: "too far",
+      },
+      {
+        name: "insufficient fuel",
+        target: diso,
+        fuel: 35,
+        reason: "insufficient fuel",
+      },
+    ] as const;
+
+    for (const row of cases) {
+      const state = inFlightState();
+      const before = state.clockSeconds;
+      const events = step(
+        state,
+        [{ kind: "beginHyperspace" }],
+        optionsFor(row.target, row.fuel),
+      );
+      const refusals = events.filter(
+        (event) => event.kind === "hyperspaceRefused",
+      );
+
+      expect(refusals, row.name).toEqual([
+        { kind: "hyperspaceRefused", reason: row.reason },
+      ]);
+      expect(state.hyperspaceCountdown).toBe(0);
+      expect(state.hyperspaceTarget).toBeNull();
+      expect(state.clockSeconds - before).toBeCloseTo(DT, 3);
+    }
+  });
+
+  it("cancels the countdown when a different target is committed", () => {
+    const state = inFlightState();
+    step(state, [{ kind: "beginHyperspace" }], optionsFor(diso));
+    expect(state.hyperspaceCountdown).toBeGreaterThan(0);
+
+    const events = step(state, [], optionsFor(zaonce));
+    expect(events).toContainEqual({
+      kind: "hyperspaceCountdownCancelled",
+      destinationId: diso.id,
+    });
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.hyperspaceTarget).toBeNull();
+  });
+
+  it("keeps pitch, roll and speed live during the countdown", () => {
+    const state = inFlightState();
+    const options = optionsFor(diso);
+    step(state, [{ kind: "beginHyperspace" }], options);
+
+    const orientationBefore = state.orientation;
+    const intent = {
+      pitch: 1,
+      roll: 1,
+      speed: 1,
+      precision: false,
+      torusToggle: false,
+    };
+    stepFlight(state, layout, config, intent, [], DT, options);
+
+    expect(state.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS - 1);
+    expect(Math.abs(state.pitchRate)).toBeGreaterThan(0);
+    expect(Math.abs(state.rollRate)).toBeGreaterThan(0);
+    expect(state.orientation).not.toEqual(orientationBefore);
+    expect(state.speed).toBeGreaterThan(0);
+  });
+
+  it("keeps the torus drive engaged during the countdown", () => {
+    const state = inFlightState();
+    // Far from every mass-locking body so the drive can engage.
+    state.position = vec(1e7, 0, 0);
+    const options = optionsFor(diso);
+    step(state, [{ kind: "beginHyperspace" }], options);
+
+    stepFlight(
+      state,
+      layout,
+      config,
+      { ...ZERO_INTENT, torusToggle: true },
+      [],
+      DT,
+      options,
+    );
+    expect(state.torus.engaged).toBe(true);
+    expect(state.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS - 1);
+
+    step(state, [], options);
+    expect(state.torus.engaged).toBe(true);
+    expect(state.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS - 2);
+  });
+
+  it("skips docking on the commit step even with a dock geometry supplied", () => {
+    const state = inFlightState();
+    // Start far away so the countdown can run without an early capture.
+    state.position = vec(1e7, 0, 0);
+    const options: StepOptions = {
+      ...optionsFor(diso),
+      dock: laveDockGeometry(),
+    };
+
+    step(state, [{ kind: "beginHyperspace" }], options);
+    for (let index = 1; index < HYPERSPACE_COUNTDOWN_STEPS; index += 1) {
+      step(state, [], options);
+    }
+    expect(state.hyperspaceCountdown).toBe(1);
+
+    // A capture pose would dock this tick without the jumpedThisStep guard.
+    const pose = placeShipInPortFrame(layout, laveDockGeometry(), {
+      nosePastPlane: 90,
+      rollFromMatched: 0,
+      lateral: 0,
+      forwardSpeed: 0,
+    });
+    state.position = pose.position;
+    state.orientation = pose.orientation;
+    state.speed = pose.speed;
+    state.dockArmed = true;
+
+    const events = step(state, [], options);
+    const kinds = events.map((event) => event.kind);
+    expect(kinds).toContain("hyperspaceJumped");
+    expect(kinds).not.toContain("docked");
+    expect(kinds).not.toContain("bounce");
+    expect(state.mode).toBe("inFlight");
+    expect(state.hyperspaceCountdown).toBe(0);
   });
 });

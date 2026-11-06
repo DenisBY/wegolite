@@ -96,6 +96,16 @@ export function chartDistance(from: ChartPoint, to: ChartPoint): number {
   return dist;
 }
 
+/**
+ * The exact clock advance for an integer chart distance.
+ *
+ * `(0.4 d)^2 * 3600 === 576 d^2`, so the commit path can derive it from the
+ * countdown snapshot without re-reading coordinates.
+ */
+export function jumpTimeSecondsForDist(dist: number): number {
+  return 576 * dist * dist;
+}
+
 /** Every jump fact for one route, all derived by exact integer algebra. */
 export function jumpBetween(from: ChartPoint, to: ChartPoint): JumpMath {
   const dist = chartDistance(from, to);
@@ -105,7 +115,7 @@ export function jumpBetween(from: ChartPoint, to: ChartPoint): JumpMath {
     // 10 * max(0.1, 0.4 d) == 4d for d >= 1; == 1 for d == 0.
     fuelCost: dist === 0 ? 1 : 4 * dist,
     // (0.4 d)^2 * 3600 == 576 d^2 exactly.
-    jumpTimeSeconds: 576 * dist * dist,
+    jumpTimeSeconds: jumpTimeSecondsForDist(dist),
     reachable: dist <= MAX_JUMP_DIST,
   };
 }
