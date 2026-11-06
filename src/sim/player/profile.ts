@@ -101,7 +101,12 @@ export function formatCredits(decicredits: number): string {
   return formatDecicredits(decicredits);
 }
 
-function isValidPrice(price: number): boolean {
+/**
+ * The one price predicate: a positive safe integer within
+ * `MAX_EQUIPMENT_PRICE`. Exported so outfitting validates fuel fill costs with
+ * the same bound instead of re-implementing it.
+ */
+export function isValidPrice(price: number): boolean {
   return (
     Number.isSafeInteger(price) && price > 0 && price <= MAX_EQUIPMENT_PRICE
   );
