@@ -43,6 +43,25 @@ export function marketSeedForSystem(systemId: string): number {
 }
 
 /**
+ * The stable uint32 seed for the market generated on hyperspace arrival
+ * (NAV-05, D-10).
+ *
+ * The destination id is chained with the seed of the market that was actually
+ * installed in the origin system, so a repeat visit produces a new market while
+ * the same route from the same chain always produces the same one. Never a
+ * clock and never global randomness.
+ */
+export function arrivalMarketSeed(
+  targetId: string,
+  previousSeed: number,
+): number {
+  return (
+    Number.parseInt(fnv1a32(`${targetId}:${String(previousSeed)}:arrival`), 16) >>>
+    0
+  );
+}
+
+/**
  * Oolite's `economicBiasForGood` (`OOCommodities.m:431-452`).
  *
  * The equal-peaks early return is load-bearing: Narcotics has

@@ -22,10 +22,12 @@ import { describe, expect, it } from "vitest";
 import type { Commodity, System } from "../../../src/content/types.js";
 import {
   MARKET_LIMIT,
+  arrivalMarketSeed,
   economicBias,
   generateMarket,
   marketSeedForSystem,
 } from "../../../src/sim/economy/market.js";
+import { fnv1a32 } from "../../../src/sim/hash.js";
 import type { Market } from "../../../src/sim/economy/market.js";
 import { createRanrot } from "../../../src/sim/economy/ranrot.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
@@ -230,6 +232,43 @@ describe("equal peaks (Narcotics)", () => {
         commodity("narcotics").peakImport,
       ),
     ).toBe(0);
+  });
+});
+
+describe("arrival market seed", () => {
+  const previousSeed = marketSeedForSystem(lave.id);
+
+  it("matches the exact FNV word for the route chain", () => {
+    const expected =
+      Number.parseInt(
+        fnv1a32(`${"g0-s147"}:${String(previousSeed)}:arrival`),
+        16,
+      ) >>> 0;
+    expect(arrivalMarketSeed("g0-s147", previousSeed)).toBe(expected);
+  });
+
+  it("is stable for the same destination and previous seed", () => {
+    expect(arrivalMarketSeed("g0-s129", previousSeed)).toBe(
+      arrivalMarketSeed("g0-s129", previousSeed),
+    );
+  });
+
+  it("differs for a different destination or a different previous seed", () => {
+    expect(arrivalMarketSeed("g0-s129", previousSeed)).not.toBe(
+      arrivalMarketSeed("g0-s147", previousSeed),
+    );
+    expect(arrivalMarketSeed("g0-s129", previousSeed)).not.toBe(
+      arrivalMarketSeed("g0-s129", previousSeed + 1),
+    );
+  });
+
+  it("always returns a uint32 safe integer", () => {
+    for (const target of ["g0-s7", "g0-s129", "g0-s147"]) {
+      const seed = arrivalMarketSeed(target, previousSeed);
+      expect(Number.isSafeInteger(seed)).toBe(true);
+      expect(seed).toBeGreaterThanOrEqual(0);
+      expect(seed).toBeLessThanOrEqual(0xff_ff_ff_ff);
+    }
   });
 });
 
