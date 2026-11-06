@@ -12,7 +12,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_BINDINGS } from "../../src/input/actions.js";
+import {
+  ACTION_CONTEXTS,
+  ACTION_IDS,
+  DEFAULT_BINDINGS,
+  RESERVED_F_KEYS,
+} from "../../src/input/actions.js";
 import {
   MAX_CODES_PER_ACTION,
   bindAction,
@@ -340,5 +345,100 @@ describe("createInputState", () => {
 
     expect(state.isBound("KeyJ")).toBe(true);
     expect(state.isBound("KeyL")).toBe(false);
+  });
+});
+
+describe("chart and hyperspace bindings", () => {
+  it("registers every new action with its default code", () => {
+    expect(ACTION_IDS).toContain("chart");
+    expect(ACTION_IDS).toContain("hyperspace");
+    expect(DEFAULT_BINDINGS.chart).toEqual(["F6"]);
+    expect(DEFAULT_BINDINGS.hyperspace).toEqual(["KeyH"]);
+    expect(DEFAULT_BINDINGS.chartConfirm).toEqual(["Enter"]);
+    expect(DEFAULT_BINDINGS.chartRange).toEqual(["Tab"]);
+    expect(DEFAULT_BINDINGS.chartBack).toEqual(["Escape"]);
+    // The browser would otherwise reload or cycle panels on F6.
+    expect(RESERVED_F_KEYS.has("F6")).toBe(true);
+  });
+
+  it("scopes every chart edge to the chart context only", () => {
+    for (const action of [
+      "chartUp",
+      "chartDown",
+      "chartLeft",
+      "chartRight",
+      "chartConfirm",
+      "chartRange",
+      "chartBack",
+    ] as const) {
+      expect(ACTION_CONTEXTS[action]).toEqual(["chart"]);
+    }
+    // The open/close toggle works in flight, docked and chart.
+    expect(ACTION_CONTEXTS.chart).toEqual([
+      "flight",
+      "dockHome",
+      "dockScreen",
+      "chart",
+    ]);
+    // H is flight-scoped: inert while docked.
+    expect(ACTION_CONTEXTS.hyperspace).toEqual(["flight"]);
+  });
+
+  it("keeps the arrow keys conflict-free across flight, dockScreen and chart", () => {
+    const map = createBindingMap();
+    expect(map.pitchForward).toEqual(["ArrowUp"]);
+    expect(map.stationUp).toEqual(["ArrowUp"]);
+    expect(map.chartUp).toEqual(["ArrowUp"]);
+    expect(map.chartDown).toEqual(["ArrowDown"]);
+    expect(map.chartLeft).toEqual(["ArrowLeft"]);
+    expect(map.chartRight).toEqual(["ArrowRight"]);
+  });
+
+  it("queues chart edges and never drains them as sim commands", () => {
+    const state = createInputState();
+    state.setContext("chart");
+
+    state.keyDown("ArrowUp");
+    state.keyDown("Enter");
+    state.keyDown("Tab");
+    state.keyDown("KeyH");
+
+    expect(state.drainChartActions()).toEqual([
+      "chartUp",
+      "chartConfirm",
+      "chartRange",
+    ]);
+    expect(state.drainCommands()).toEqual([]);
+  });
+
+  it("Escape in the chart is Back and never pause; KeyP still pauses", () => {
+    const state = createInputState();
+    state.setContext("chart");
+
+    expect(state.keyDown("Escape")).toBe(true);
+    expect(state.consumePauseToggle()).toBe(false);
+    expect(state.drainChartActions()).toEqual(["chartBack"]);
+
+    state.keyDown("KeyP");
+    expect(state.consumePauseToggle()).toBe(true);
+  });
+
+  it("Escape in dockHome still toggles pause", () => {
+    const state = createInputState();
+    state.setContext("dockHome");
+
+    state.keyDown("Escape");
+    expect(state.consumePauseToggle()).toBe(true);
+    expect(state.drainChartActions()).toEqual([]);
+  });
+
+  it("F6 opens and closes in flight and dockHome", () => {
+    const state = createInputState();
+    state.keyDown("F6");
+    expect(state.drainChartActions()).toEqual(["chart"]);
+
+    state.setContext("chart");
+    state.keyDown("F6");
+    expect(state.drainChartActions()).toEqual(["chart"]);
   });
 });

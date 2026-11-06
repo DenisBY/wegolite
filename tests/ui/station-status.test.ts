@@ -138,6 +138,42 @@ describe("buildStatusModel page 1", () => {
   });
 });
 
+describe("buildStatusModel hyperspace target", () => {
+  it("shows the committed target name and falls back to (Unknown) only when none", () => {
+    const withTarget = buildStatusModel(
+      newProfile(),
+      system,
+      labels,
+      catalogue,
+      commodities,
+      1,
+      "Diso",
+    );
+    expect(value(withTarget, "Hyperspace System")).toBe("Diso");
+
+    const withoutTarget = buildStatusModel(
+      newProfile(),
+      system,
+      labels,
+      catalogue,
+      commodities,
+      1,
+    );
+    expect(value(withoutTarget, "Hyperspace System")).toBe("(Unknown)");
+
+    const explicitlyUndefined = buildStatusModel(
+      newProfile(),
+      system,
+      labels,
+      catalogue,
+      commodities,
+      1,
+      undefined,
+    );
+    expect(value(explicitlyUndefined, "Hyperspace System")).toBe("(Unknown)");
+  });
+});
+
 describe("buildStatusModel page 2 manifest", () => {
   it("lists exactly the 16 tradeable commodities and never Alien Items", () => {
     const model = buildStatusModel(
