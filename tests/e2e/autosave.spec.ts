@@ -33,14 +33,18 @@ import {
 } from "../../src/sim/math.js";
 import { getProbe, waitForReady } from "./helpers/probe.js";
 import { chartScreenPoint, systemByName } from "./helpers/chart.js";
+import {
+  AUTOSAVE_KEY,
+  SAVE_DB,
+  SAVE_STORE,
+  readRaw,
+  writeRaw,
+} from "./helpers/save-store.js";
 
 test.setTimeout(360_000);
 
 const DISO_ID = systemByName("Diso").id;
 
-const SAVE_DB = "wegolite";
-const SAVE_STORE = "saves";
-const AUTOSAVE_KEY = "autosave";
 const CORRUPT_KEY = "autosave.corrupt";
 
 /** The authored Coriolis dock subentity offset and the Cobra's nose Z. */
@@ -82,6 +86,23 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
   );
 }
 
+/** Await `count` real animation frames, so a no-write window is frame-based. */
+async function waitFrames(page: Page, count: number): Promise<void> {
+  await page.evaluate(
+    (total) =>
+      new Promise<void>((resolve) => {
+        let seen = 0;
+        const tick = (): void => {
+          seen += 1;
+          if (seen >= total) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    count,
+  );
+}
+
 /** Wait until a station section is the live one. */
 async function waitForStationScreen(page: Page, screen: string): Promise<void> {
   await page.waitForFunction(
@@ -107,81 +128,6 @@ async function continueGame(page: Page): Promise<void> {
   await expect(page.locator("#title-continue")).toBeVisible();
   await page.click("#title-continue");
   await waitForMode(page, "docked");
-}
-
-/** Write a raw value into the save database from outside the app. */
-async function writeRaw(
-  page: Page,
-  raw: string,
-  key: string = AUTOSAVE_KEY,
-): Promise<void> {
-  await page.evaluate(
-    (payload: { raw: string; key: string; db: string; store: string }) =>
-      new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open(payload.db, 1);
-        request.onupgradeneeded = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains(payload.store)) {
-            db.createObjectStore(payload.store);
-          }
-        };
-        request.onerror = () => {
-          reject(new Error(`open failed: ${String(request.error)}`));
-        };
-        request.onsuccess = () => {
-          const db = request.result;
-          const transaction = db.transaction(payload.store, "readwrite");
-          transaction.objectStore(payload.store).put(payload.raw, payload.key);
-          transaction.oncomplete = () => {
-            db.close();
-            resolve();
-          };
-          transaction.onerror = () => {
-            reject(new Error(`write failed: ${String(transaction.error)}`));
-          };
-          transaction.onabort = () => {
-            reject(new Error(`write aborted: ${String(transaction.error)}`));
-          };
-        };
-      }),
-    { raw, key, db: SAVE_DB, store: SAVE_STORE },
-  );
-}
-
-/** Read a raw value, or `null` when the record is absent. */
-async function readRaw(
-  page: Page,
-  key: string = AUTOSAVE_KEY,
-): Promise<string | null> {
-  return page.evaluate(
-    (payload: { key: string; db: string; store: string }) =>
-      new Promise<string | null>((resolve, reject) => {
-        const request = indexedDB.open(payload.db, 1);
-        request.onerror = () => {
-          reject(new Error(`open failed: ${String(request.error)}`));
-        };
-        request.onsuccess = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains(payload.store)) {
-            db.close();
-            resolve(null);
-            return;
-          }
-          const transaction = db.transaction(payload.store, "readonly");
-          const get = transaction.objectStore(payload.store).get(payload.key);
-          get.onsuccess = () => {
-            const value: unknown = get.result;
-            db.close();
-            resolve(typeof value === "string" ? value : null);
-          };
-          get.onerror = () => {
-            db.close();
-            reject(new Error(`read failed: ${String(get.error)}`));
-          };
-        };
-      }),
-    { key, db: SAVE_DB, store: SAVE_STORE },
-  );
 }
 
 /** Write an arbitrary structured value (not necessarily a string). */
@@ -446,13 +392,50 @@ test("a tainted manual dock reaches the trigger but skips the write: Continue st
   expect(errors).toEqual([]);
 });
 
-test("an untainted dock writes exactly one committed revision and reloads to that station", async ({
+test("the autosave trigger matrix writes exactly one revision per trigger and never mid-flight", async ({
   page,
 }) => {
   const errors = collectErrors(page);
   await boot(page);
   await startNewGame(page);
   await waitForMode(page, "docked");
+
+  // Trigger row 1 — an accepted trade writes exactly one revision.
+  expect((await getProbe(page)).save?.committed).toBe(0);
+  await page.keyboard.press("Digit8");
+  await waitForStationScreen(page, "market");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("KeyY");
+  await page.waitForFunction(
+    () => (window.__wegolite?.economy?.cargo?.food ?? 0) === 1,
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.waitForFunction(
+    () => (window.__wegolite?.save?.committed ?? 0) === 1,
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.keyboard.press("Escape");
+  await waitForStationScreen(page, "home");
+
+  // Trigger row 2 — the manual F2 Save confirms the committed overwrite once.
+  await page.keyboard.press("F2");
+  await expect(page.locator("#save-load")).toBeVisible();
+  await page.keyboard.press("KeyS");
+  await page.waitForFunction(
+    () => window.__wegolite?.saveScreen?.confirming === true,
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.keyboard.press("KeyY");
+  await page.waitForFunction(
+    () => (window.__wegolite?.save?.committed ?? 0) === 2,
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#save-load")).toBeHidden();
 
   // D-17: no in-flight blob exists until an arrival, so jump first. H is
   // flight-scoped, so launch before starting the countdown.
@@ -483,8 +466,42 @@ test("an untainted dock writes exactly one committed revision and reloads to tha
 
   await page.keyboard.press("Digit1");
   await waitForMode(page, "inFlight");
-  const committedBeforeJump = (await getProbe(page)).save?.committed ?? 0;
+  // Trigger row 3 — the pre-launch anchor is the third committed write and is
+  // taken while the state is still docked.
+  await page.waitForFunction(
+    () => (window.__wegolite?.save?.committed ?? 0) === 3,
+    undefined,
+    { timeout: 60_000 },
+  );
+  const committedBeforeJump = 3;
+
+  // No write during ordinary in-flight frames.
+  await waitFrames(page, 60);
+  expect((await getProbe(page)).save?.committed).toBe(committedBeforeJump);
+
+  // No write during a countdown, and an abort costs no revision.
   await page.keyboard.press("KeyH");
+  await page.waitForFunction(
+    () => (window.__wegolite?.hyperspace?.countdown ?? 0) > 0,
+    undefined,
+    { timeout: 30_000 },
+  );
+  expect((await getProbe(page)).save?.committed).toBe(committedBeforeJump);
+  await page.keyboard.press("KeyH");
+  await page.waitForFunction(
+    () => window.__wegolite?.hyperspace?.countdown === 0,
+    undefined,
+    { timeout: 30_000 },
+  );
+  expect((await getProbe(page)).save?.committed).toBe(committedBeforeJump);
+
+  // Restart the countdown; the arrival writes row 4, exactly once.
+  await page.keyboard.press("KeyH");
+  await page.waitForFunction(
+    () => (window.__wegolite?.hyperspace?.countdown ?? 0) > 0,
+    undefined,
+    { timeout: 30_000 },
+  );
   await page.waitForFunction(
     (id) => window.__wegolite?.systemId === id,
     DISO_ID,
@@ -495,6 +512,7 @@ test("an untainted dock writes exactly one committed revision and reloads to tha
     committedBeforeJump,
     { timeout: 60_000 },
   );
+  expect((await getProbe(page)).save?.committed).toBe(4);
 
   const raw = await readRaw(page);
   expect(raw).not.toBeNull();
@@ -591,6 +609,8 @@ test("an untainted dock writes exactly one committed revision and reloads to tha
   const afterDock = await getProbe(page);
   expect(afterDock.mode).toBe("docked");
   expect(afterDock.systemId).toBe(DISO_ID);
+  // Trigger row 5 — the docked event writes exactly once in this fresh page;
+  // boot/Continue itself never writes.
   await page.waitForFunction(
     () => (window.__wegolite?.save?.committed ?? 0) === 1,
     undefined,
@@ -759,6 +779,27 @@ test("a future-version blob is never cleared or replaced", async ({ page }) => {
   );
   await page.keyboard.press("Escape");
   await waitForStationScreen(page, "home");
+
+  // Nor may a manual F2 Save replace it: the slot is read-only.
+  await page.keyboard.press("F2");
+  await expect(page.locator("#save-load")).toBeVisible();
+  await expect(page.locator('[data-field="save-load-notice"]')).toHaveText(
+    /read-only/,
+  );
+  await page.keyboard.press("KeyS");
+  await page.waitForFunction(
+    () => (window.__wegolite?.save?.attempts ?? 0) >= 2,
+    undefined,
+    { timeout: 30_000 },
+  );
+  const afterManual = await getProbe(page);
+  expect(afterManual.save?.writes).toBe(0);
+  expect(afterManual.save?.committed).toBe(0);
+  expect(afterManual.save?.skipReason).toBe("future");
+  expect(await readRaw(page)).toBe(future);
+  expect(await readRaw(page, CORRUPT_KEY)).toBeNull();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#save-load")).toBeHidden();
 
   // A launch must not replace it either.
   await page.click('button[data-action="launch"]');
