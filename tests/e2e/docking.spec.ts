@@ -503,9 +503,13 @@ test("Shift+C with the computer granted docks instantly with exactly 1200 s", as
   const docked = await getProbe(page);
   expect(docked.dock?.lastClockDelta).toBe(1200);
   expect(docked.dock?.dockCount).toBe(1);
-  // WR-03: the computer dock is not an autosave trigger either. `attempts`
-  // counts the launch write only, even though the profile is tainted.
-  expect(docked.save?.attempts).toBe(1);
+  // D-17: computer docking is now an autosave trigger, but this profile is
+  // tainted, so the dock attempt is recorded and the write is skipped. The only
+  // write is the pre-launch anchor from before the test seam tainted the profile.
+  expect(docked.save?.attempts).toBe(2);
+  expect(docked.save?.writes).toBe(1);
+  expect(docked.save?.committed).toBe(1);
+  expect(docked.save?.skipReason).toBe("tainted");
   await expect(page.locator("#docked")).toBeVisible();
   await expect(page.locator("#hud")).toBeHidden();
   expect(docked.test?.tainted).toBe(true);

@@ -228,6 +228,7 @@ test("launch and redock reuse the persisted seed, prices and stock", async ({
     "lastTrade",
     "market",
     "marketSeed",
+    "marketSystemId",
     "missiles",
     "passengerBerths",
   ]);
@@ -620,7 +621,9 @@ test("F5 pages, F7 fields and direct section switching stay keyboard-only", asyn
   // One document footer, and the station footer never overlaps it.
   await expect(page.locator("footer")).toHaveCount(1);
   const footerBox = await page.locator("body > footer").boundingBox();
-  const stationBox = await page.locator(".station-footer").boundingBox();
+  const stationBox = await page
+    .locator("#docked .station-footer")
+    .boundingBox();
   expect(footerBox).not.toBeNull();
   expect(stationBox).not.toBeNull();
   if (footerBox !== null && stationBox !== null) {
@@ -866,13 +869,14 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   expect(reloaded.economy?.market.map((row) => row.price)).toEqual(
     pricesBefore,
   );
-  // Stock, not price, is regenerated from the seed: the buy and sell left 15 t
-  // in the live market while the seed's Lave starts at 16 t.
+  // The v2 restore prefers the persisted market snapshot, so the buy and sell
+  // are visible after reload: 15 t, not the seed's fresh Lave stock of 16 t.
   expect(
     reloaded.economy?.market.find((row) => row.key === "food")?.stock,
-  ).toBe(16);
+  ).toBe(15);
 
-  // Redock: a `docked` event reuses the in-memory market, so stock survives too.
+  // Redock: a `docked` event reuses the in-memory market, so the restored
+  // stock (15 t) survives the round trip too.
   await page.keyboard.press("Escape");
   await waitForScreen(page, "home");
   await page.keyboard.press("Digit1");
@@ -908,7 +912,7 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   );
   expect(
     redocked.economy?.market.find((row) => row.key === "food")?.stock,
-  ).toBe(16);
+  ).toBe(15);
   expect(redocked.economy?.cargo?.food).toBe(1);
   // There is no arrival counter, and no price was claimed to change.
   expect(Object.keys(redocked.economy ?? {})).not.toContain("arrival");

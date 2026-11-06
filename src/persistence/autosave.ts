@@ -4,8 +4,8 @@
 /**
  * The autosave and restore glue (D-13, D-14, D-15, T-04-48).
  *
- * The snapshot is taken from the state *after* `beginLaunch`, so the saved
- * clock already carries the +600 s launch adjustment and the blob declares
+ * The snapshot is taken *before* `beginLaunch`, while the state is still
+ * docked, so the saved clock is the pre-launch clock and the blob declares
  * `mode: "docked"` ("resume docked at this clock"). The docked pose is never
  * written: `initFlightState` derives it from the layout, which is what keeps the
  * save free of float positions, quaternions and timestamps.
