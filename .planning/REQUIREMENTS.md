@@ -67,10 +67,10 @@ Requirements for the initial release. Each maps to a roadmap phase.
 - [ ] **ECON-02**: The 16 tradeable commodities buy and sell at the same price, trades do not move prices, and all money is integer decicredits
 - [ ] **ECON-03**: The 20 t cargo hold is enforced, with gold/platinum priced per kg and gem-stones per g using correct ton-pod conversions
 - [ ] **ECON-04**: The F8 market screen shows names, units, price, stock, and hold, and supports quantity selection with confirmation
-- [ ] **ECON-05**: The F3 outfitting screen lists equipment with correct tech level and price, and installs/removes legal items
+- [x] **ECON-05**: The F3 outfitting screen lists equipment with correct tech level and price, and installs/removes legal items
 - [ ] **ECON-06**: The F5 ship status screen shows credits, fuel, cargo, equipment, and ship identity
 - [ ] **ECON-07**: The F7 system data screen shows economy, government, tech level, population, productivity, and radius
-- [ ] **ECON-08**: Insufficient funds, hold space, or stock are blocked with clear messages, and credits can never go negative
+- [x] **ECON-08**: Insufficient funds, hold space, or stock are blocked with clear messages, and credits can never go negative
 - [ ] **ECON-09**: All station screens are DOM/CSS, keyboard-navigable, and usable without a mouse
 
 ### Hyperspace, Navigation & Persistence
@@ -189,10 +189,10 @@ Which phases cover which requirements. Populated during roadmap creation.
 | ECON-02 | Phase 5 | Pending |
 | ECON-03 | Phase 5 | Pending |
 | ECON-04 | Phase 5 | Pending |
-| ECON-05 | Phase 5 | Pending |
+| ECON-05 | Phase 5 | Complete |
 | ECON-06 | Phase 5 | Pending |
 | ECON-07 | Phase 5 | Pending |
-| ECON-08 | Phase 5 | Pending |
+| ECON-08 | Phase 5 | Complete |
 | ECON-09 | Phase 5 | Pending |
 | NAV-01 | Phase 6 | Pending |
 | NAV-02 | Phase 6 | Pending |

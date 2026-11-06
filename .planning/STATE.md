@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 current_phase: 05
 current_phase_name: Docked Economy & Station Screens
 status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-11-06T11:30:00.000Z"
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-11-06T11:40:04.573Z"
 last_activity: 2026-11-06
-last_activity_desc: Completed 05-02-PLAN.md (sell, exact kg/g capacity, market oracle)
-state_head: 1caaa46a843dceb4a26a366b697455a701c289cf
+last_activity_desc: Completed 05-03-PLAN.md (peaceful outfitting, removal economics)
+state_head: 9d6013946a01ca54a6837d593d4c4c3bf2498b24
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 44
-  completed_plans: 40
-  percent: 91
+  completed_plans: 41
+  percent: 57
 ---
 
 # Project State
@@ -28,18 +28,18 @@ See: .planning/PROJECT.md (updated 2026-11-05)
 ## Current Position
 
 Phase: 05 (Docked Economy & Station Screens) — EXECUTING
-Plan: 3 of 6
-Status: Phase 05 executing — 05-02 complete
-Last activity: 2026-11-06 — 05-02 sell, capacity and market oracle complete
+Plan: 4 of 6
+Status: Phase 05 executing — 05-03 complete
+Last activity: 2026-11-06 — 05-03 peaceful outfitting and removal economics complete
 
-Progress: [█████████░] 91% — 40/44 plans complete
+Progress: [██████░░░░] 57% — 41/44 plans complete
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 40
-- Average duration: 4.7 min
-- Total execution time: 3.1 hours
+- Total plans completed: 41
+- Average duration: 4.8 min
+- Total execution time: 3.3 hours
 
 **By Phase:**
 
@@ -82,6 +82,7 @@ Progress: [█████████░] 91% — 40/44 plans complete
 | Phase 04 P07 | 17 min | 2 tasks | 9 files |
 | Phase 05 P01 | 55 min | 2 tasks | 41 files |
 | Phase 05 P02 | 9 min | 2 tasks | 14 files |
+| Phase 05 P03 | 9 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -172,6 +173,10 @@ Recent decisions affecting current work:
 - [Phase 05]: Plan 05-02: clamps run stock -> affordability -> hold and `TradePlan.clamp` reports the last step that strictly reduced the request, so the footer names the binding limit.
 - [Phase 05]: Plan 05-02: a zero-stock market row the hold carries stays selectable, or the canonical run (sell Computers at a Lave with 0 stock) would be unreachable; `buildMarketModel.selectable` uses the same predicate.
 - [Phase 05]: Plan 05-02: `tests/golden/market/*.json` are REGRESSION snapshots written only by `tests/helpers/write-market-goldens.ts`; the correctness oracle is the hand-derived `reference-vectors.test.ts`, never regenerated from the generator.
+- [Phase 05]: Plan 05-03: the D-11 visible set is a money-path boundary; checkFit and applyFit refuse any other catalogue key with notOffered before price, tech or conditions are read.
+- [Phase 05]: Plan 05-03: the raw System.techLevelRaw gates (equality allowed); the five single-instance keys delegate tech/owned/credits to canPurchase and append-and-charge to purchase, keeping both Phase 4 predicates on the production path.
+- [Phase 05]: Plan 05-03: condition values fail closed (flags true/"true" only, requires_cargo_space integer 0..35); fuel shows (70-fuel)*2 and a full tank is fullFuel before invalidPrice.
+- [Phase 05]: Plan 05-03: missile removal charges 200 dc then refunds 300 dc per mounted missile (+700 dc at three); berth removal charges 1000 dc with no refund; missiles cap at 3 and berths at 7 as integer counts.
 
 ### Pending Todos
 
@@ -204,6 +209,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-06T11:30:00.000Z
-Stopped at: Completed 05-02-PLAN.md
-Resume file: .planning/phases/05-docked-economy-station-screens/05-03-PLAN.md
+Last session: 2026-11-06T11:40:04.038Z
+Stopped at: Completed 05-03-PLAN.md
+Resume file: None
