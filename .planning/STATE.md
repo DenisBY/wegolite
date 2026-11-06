@@ -20,10 +20,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-05)
+See: .planning/PROJECT.md (updated 2026-11-06)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 05 — Docked Economy & Station Screens
+**Current focus:** Phase 06 — Hyperspace, Navigation & Persistence
 
 ## Current Position
 
@@ -191,6 +191,8 @@ Recent decisions affecting current work:
 - [Phase 05]: Plan 05-06: the shared save validator already met the hardened contract from 05-01; this plan proves it with the full reject table, the writer-preserves-previous-bytes case, the old-blob restore and the injected-write-failure browser case.
 - [Phase 05]: Plan 05-06: restoreFromSave returns the optional marketSeed; the boot falls back to marketSeedForSystem only when a Phase 4 blob has none, so a reload reproduces every price from the persisted seed.
 - [Phase 05]: Plan 05-06: the purity guard resolves the content door by module path (both content/types nesting depths, import type only) and tests its scanner directly; no temporary src/sim probe or probe lock is needed.
+- [Phase 05]: The economy is the fidelity anchor: the market, trade and cargo modules are pure and deterministic, so the review gate's only critical finding (CR-01, bulk buys ignoring held tonnes) was fixed without touching a single price.
+- [Phase 05]: One save validator serves the boot reader and the autosave writer; an over-capacity snapshot is refused before it replaces the last good blob, which is what keeps a trade accepted in memory from silently diverging from the saved hold.
 
 ### Pending Todos
 
@@ -199,9 +201,11 @@ Recent decisions affecting current work:
 
 ### Blockers/Concerns
 
+- [Phase 4] The static dock-port schema's half-extents are not magnitude-bounded (verification warning W-01); harmless with the vendored asset but worth a schema bound if the aperture ever becomes data-driven.
+- [Phase 5 → Phase 6] The docking computer's install is proven at the pure-rule level only: Lave is raw TL 4, so the 15000 dc purchase cannot be shown end-to-end until Phase 6 reaches a raw TL 9 system. `checkFit`/`applyFit` delegate to the unchanged Phase 4 predicates; 05-06 records the temporary loss of the browser proof.
+- [Phase 5] Two review findings are deferred by decision: the missile-removal confirmation still states only the 20 Cr fee (IN-03; D-15 copy is satisfied and the row description states the full trade-in), and five fixed `waitForTimeout` calls remain in the inert-key browser proofs (IN-04; test-hardening for the e2e flake sweep).
 - [Phase 1] 23 code-review findings remain open (0 critical, 11 warning, 12 info) — quality/robustness debt, falsifying a Phase 1 must-have; triage before the next review gate.
 - [Phase 2] Byte-determinism of generated assets across arm64 Docker vs amd64 CI is unverified; decide per-image or per-arch comparison.
-- [Phase 4 → Phase 5] DOCK-05's purchase path is proven but not player-reachable at Lave: the raw tech level is 4, so the TL 9 docking computer is correctly refused. The player-visible purchase arrives with the Phase 5 equipment screen; `canPurchase` is reused unchanged.
 - [Phase 4] The static dock-port schema's half-extents are not magnitude-bounded (verification warning W-01); harmless with the vendored asset but worth a schema bound if the aperture ever becomes data-driven.
 - [Project] Licence election and trademark posture need a professional legal read before the first public post.
 - G-03-3 accepted as a known issue (2026-11-04, `PROJECT.md` Key Decisions): the loaded in-flight frame (369.4 ms at 2.71 fps under SwiftShader) is fill-bound and the planet fragment shader owns ~281 ms; the cheap fixes (`antialias:false` ~135 ms, half resolution ~199 ms) would change the approved look. The message-expiry spec is a correctness wait, so it now has a 300 s ceiling with `workers: 2` pinned; QUAL-01 (60 fps at 1080p, mid-range hardware) stays Phase 7's requirement on a real GPU. Do not re-open the octave budget: `BUDGET_CEILING = 9`.
@@ -224,6 +228,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-06T12:45:01.894Z
+Last session: 2026-11-06T14:05:00.000Z
 Stopped at: Phase 05 complete, ready to plan Phase 6
 Resume file: None

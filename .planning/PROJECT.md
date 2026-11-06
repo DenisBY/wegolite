@@ -15,6 +15,9 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 <!-- Shipped and confirmed valuable. -->
 
 - ✓ Player can manually dock with a station, with a buyable docking computer as an assist — Phase 4 (DOCK-01..DOCK-07)
+- ✓ Player can buy and sell the core commodity set at station markets, with prices driven by Oolite's economy rules — Phase 5 (ECON-01..ECON-03)
+- ✓ Player can view station screens: market, equipment, ship status, and system data — Phase 5 (ECON-04..ECON-09)
+- ✓ Ship, commodity, equipment, and system data is ported from Oolite's config files rather than invented — Phases 2 and 5 (DATA-01..DATA-05, ECON-01..ECON-09)
 
 ### Active
 
@@ -22,11 +25,9 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 - [ ] Player can launch from a Coriolis station into open space
 - [ ] Player can fly with a faithful pitch/roll flight model (Elite-style controls, no yaw)
-- [ ] Player can buy and sell the core commodity set at station markets, with prices driven by Oolite's economy rules
 - [ ] Player can hyperspace between star systems using fuel and the galactic chart
-- [ ] Player can view station screens: market, equipment, galactic chart, ship status
+- [ ] Player can view the galactic chart and select a destination system
 - [ ] Player can save and resume progress in the browser
-- [ ] Ship, commodity, equipment, and system data is ported from Oolite's config files rather than invented
 - [ ] Client maintains a steady frame rate on desktop hardware, with a clean separation between simulation and rendering
 
 ### Out of Scope
@@ -138,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-05 after Phase 4*
+*Last updated: 2026-11-06 after Phase 5*
