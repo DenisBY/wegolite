@@ -68,23 +68,48 @@ export function podsFor(unit: CommodityUnit, quantity: number): number {
 }
 
 /**
- * Pods used by a whole cargo map.
+ * Sum the pods of every cargo entry, optionally skipping one key.
  *
  * An unknown commodity is conservatively counted as a tonne per unit: the save
  * allow-list rejects it first, and an unknown must never be free space.
  */
-export function holdPodsUsed(
+function sumPods(
   cargo: Cargo,
   units: ReadonlyMap<string, CommodityUnit>,
+  exceptKey?: string,
 ): number {
   let pods = 0;
   for (const [key, quantity] of Object.entries(cargo)) {
+    if (key === exceptKey) continue;
     const unit = units.get(key) ?? "t";
     const used = podsFor(unit, quantity);
     if (!Number.isSafeInteger(used)) return Number.NaN;
     pods += used;
   }
   return pods;
+}
+
+/** Pods used by a whole cargo map. */
+export function holdPodsUsed(
+  cargo: Cargo,
+  units: ReadonlyMap<string, CommodityUnit>,
+): number {
+  return sumPods(cargo, units);
+}
+
+/**
+ * Pods used by every cargo entry **except** `exceptKey`.
+ *
+ * The kg/g buy limit needs the space taken by the other goods only: the pod
+ * already occupied by the good being bought is part of the feasible room
+ * (`maxAdditional` counts it), so subtracting it twice would under-allow.
+ */
+export function otherPodsFor(
+  cargo: Cargo,
+  units: ReadonlyMap<string, CommodityUnit>,
+  exceptKey: string,
+): number {
+  return sumPods(cargo, units, exceptKey);
 }
 
 /**
@@ -118,9 +143,16 @@ export function availablePods(
 /**
  * The largest additional kg/g quantity that fits the remaining hold.
  *
- * `available = capacityPods - otherPods`; the maximum total is
- * `available * podSize + safe`, so the additional quantity subtracts what is
- * already held. Never negative.
+ * `podsFor` uses the safe half-unit, so `n` pods hold `n * podSize + safe`
+ * units and the *additional* room is
+ *
+ *   `max(0, (capacityPods - otherPods + 1) * podSize - (podSize - safe - 1)
+ *         - alreadyHeld - 1)`
+ *
+ * The `+1` pod is the one the held good already occupies: when the hold is full
+ * of other cargo, 499 kg / 499,999 g still fit in that pod's safe. Subtracting
+ * `alreadyHeld` from `availablePods * podSize` instead would under-allow by a
+ * whole pod. Never negative.
  */
 export function maxAdditional(
   unit: CommodityUnit,

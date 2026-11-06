@@ -112,7 +112,7 @@ export function buildMarketModel(
       stockText,
       heldText: String(held),
       exText: (commodity?.legalityExport ?? 0) > 0 ? "Ex" : "",
-      selectable: tradeable && good.stock > 0,
+      selectable: tradeable && (good.stock > 0 || held > 0),
       dimmed: !tradeable || good.stock <= 0,
     };
   });

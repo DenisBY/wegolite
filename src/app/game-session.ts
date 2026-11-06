@@ -97,8 +97,17 @@ import {
 import type { PlayerProfile } from "../sim/player/profile.js";
 import { generateMarket, marketSeedForSystem } from "../sim/economy/market.js";
 import type { Market } from "../sim/economy/market.js";
-import { applyBuy, planBuy } from "../sim/economy/trade.js";
-import type { TradePlan, TradeRefusal } from "../sim/economy/trade.js";
+import {
+  applyBuy,
+  applySell,
+  planBuy,
+  planSell,
+} from "../sim/economy/trade.js";
+import type {
+  TradePlan,
+  TradeRefusal,
+  TradeSide,
+} from "../sim/economy/trade.js";
 import { formatFuel } from "../ui/docked.js";
 import { buildMarketModel } from "../ui/station-model.js";
 import { identity, sub, vec } from "../sim/math.js";
@@ -333,40 +342,44 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     return "Hull contact - pull away and line up with the slot";
   }
 
+  /**
+   * A market row is reachable when it can be bought **or** when the hold
+   * carries some of it. A zero-stock row you hold is dimmed but still
+   * selectable, or the canonical run (sell Computers at a Lave with no stock)
+   * would be unreachable.
+   */
+  function isSelectableGood(key: string, stock: number): boolean {
+    const catalogue = commodities;
+    if (catalogue === undefined) return false;
+    const commodity = catalogue.find((entry) => entry.key === key);
+    if (commodity?.tradeable !== true) return false;
+    return stock > 0 || (profile.cargo[key] ?? 0) > 0;
+  }
+
   /** The first commodity a player can actually trade in this market. */
   function ensureSelection(): void {
     const currentMarket = market;
-    const catalogue = commodities;
-    if (currentMarket === undefined || catalogue === undefined) return;
+    if (currentMarket === undefined) return;
     const selectedGood = currentMarket.goods.find(
       (good) => good.key === stationSelection,
     );
-    const selectedCommodity = catalogue.find(
-      (commodity) => commodity.key === stationSelection,
-    );
     if (
       selectedGood !== undefined &&
-      selectedCommodity?.tradeable === true &&
-      selectedGood.stock > 0
+      isSelectableGood(selectedGood.key, selectedGood.stock)
     ) {
       return;
     }
-    const first = currentMarket.goods.find((good) => {
-      const commodity = catalogue.find((entry) => entry.key === good.key);
-      return commodity?.tradeable === true && good.stock > 0;
-    });
+    const first = currentMarket.goods.find((good) =>
+      isSelectableGood(good.key, good.stock),
+    );
     stationSelection = first?.key ?? "";
   }
 
   function selectableKeys(): readonly string[] {
     const currentMarket = market;
-    const catalogue = commodities;
-    if (currentMarket === undefined || catalogue === undefined) return [];
+    if (currentMarket === undefined) return [];
     return currentMarket.goods
-      .filter((good) => {
-        const commodity = catalogue.find((entry) => entry.key === good.key);
-        return commodity?.tradeable === true && good.stock > 0;
-      })
+      .filter((good) => isSelectableGood(good.key, good.stock))
       .map((good) => good.key);
   }
 
@@ -388,8 +401,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         return "Only the available stock can be bought";
       case "insufficientCredits":
         return "Not enough credits for more";
-      case "noSpace":
+      case "holdFull":
         return "No cargo space for more";
+      case "marketFull":
+        return "The station cannot take any more";
+      case "nothingToSell":
+        return "You have none of that to sell";
       case undefined:
         return "";
       default:
@@ -403,12 +420,18 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         return "No stock available";
       case "insufficientCredits":
         return "Not enough credits";
-      case "noSpace":
+      case "holdFull":
         return "No cargo space";
+      case "marketFull":
+        return "The station cannot take any more";
+      case "nothingToSell":
+        return "You have none of that to sell";
       case "notTradeable":
         return "This commodity cannot be traded";
       case "invalidPrice":
         return "Price unavailable";
+      case "overflow":
+        return "That sale would exceed the credit limit";
       case "zeroAmount":
         return "";
       case undefined:
@@ -424,7 +447,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       : null;
   }
 
-  function buyRequest(amount: number) {
+  /**
+   * The plain-data request both plans read. `units` is ignored by `planSell`
+   * and required by `planBuy`, so one builder serves both.
+   */
+  function tradeRequest(amount: number) {
     const currentMarket = market;
     const catalogue = commodities;
     const commodity = catalogue?.find(
@@ -441,27 +468,38 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     };
   }
 
-  /** D-06: step the pending amount, clamping and explaining in the footer. */
+  function planFor(side: TradeSide, amount: number): TradePlan | undefined {
+    const request = tradeRequest(amount);
+    if (request === undefined) return undefined;
+    return side === "buy" ? planBuy(request) : planSell(request);
+  }
+
+  /**
+   * D-06: one unit per press. Right grows a buy and shrinks a sell; Left grows
+   * a sell and shrinks a buy. Reaching zero clears the pending trade silently —
+   * `zeroAmount` is never player-facing copy.
+   */
   function stepAmount(direction: 1 | -1): void {
     if (stationScreen !== "market") return;
     const current = pendingPlan();
-    let amount: number;
-    if (current === null) {
-      if (direction < 0) return;
-      amount = 1;
-    } else {
-      amount = current.amount + direction;
-      if (amount <= 0) {
-        stationPending = null;
-        stationNotice = "";
-        renderStation();
-        return;
-      }
+    // With no pending trade the press itself picks the side: Right buys, Left
+    // sells. With one pending, the press moves that trade in its own direction.
+    const side: TradeSide =
+      current === null ? (direction > 0 ? "buy" : "sell") : current.side;
+    const amount =
+      current === null
+        ? 1
+        : current.amount + (side === "buy" ? direction : -direction);
+
+    if (amount <= 0) {
+      stationPending = null;
+      stationNotice = "";
+      renderStation();
+      return;
     }
 
-    const request = buyRequest(amount);
-    if (request === undefined) return;
-    const plan = planBuy(request);
+    const plan = planFor(side, amount);
+    if (plan === undefined) return;
     if (plan.ok) {
       stationPending = plan;
       stationNotice = clampNotice(plan.clamp);
@@ -472,15 +510,18 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderStation();
   }
 
-  /** Shift+Right: plan the largest feasible buy. */
-  function planMaxBuy(): void {
+  /**
+   * Shift+arrow: plan the largest feasible trade. The request is "as much as
+   * possible", so a feasible plan carries no clamp — only a zero-feasible plan
+   * has a reason to state.
+   */
+  function planMax(side: TradeSide): void {
     if (stationScreen !== "market") return;
-    const request = buyRequest(Number.MAX_SAFE_INTEGER);
-    if (request === undefined) return;
-    const plan = planBuy(request);
+    const plan = planFor(side, Number.MAX_SAFE_INTEGER);
+    if (plan === undefined) return;
     if (plan.ok) {
-      stationPending = plan;
-      stationNotice = clampNotice(plan.clamp);
+      stationPending = { ...plan, clamp: undefined };
+      stationNotice = "";
     } else {
       stationPending = null;
       stationNotice = refusalNotice(plan.refusal);
@@ -491,9 +532,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function confirmTrade(): void {
     if (stationScreen !== "market") return;
     const plan = pendingPlan();
-    const request = buyRequest(plan?.amount ?? 0);
-    if (plan === null || request === undefined) return;
-    const applied = applyBuy(request, plan);
+    if (plan === null) return;
+    const request = tradeRequest(plan.amount);
+    if (request === undefined) return;
+
+    const applied =
+      plan.side === "buy" ? applyBuy(request, plan) : applySell(request, plan);
     if (applied === undefined) {
       stationPending = null;
       stationNotice = "That trade is no longer available";
@@ -516,7 +560,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   /** Keys/messages for the persistent footer, one field per concern. */
   function keyHints(screen: StationScreen): string {
     if (screen === "market") {
-      return "Up/Down select · Right +1 · Shift+Right max · Y confirm · N cancel · Esc back · P pause";
+      return "Up/Down select · Right buys +1 · Left sells +1 · Shift max · Y confirm · N cancel · Esc back · P pause";
     }
     return "F8 market · F3 outfitting · F5 status · F7 system data · 1 launch · P pause";
   }
@@ -859,7 +903,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         stepAmount(-1);
         break;
       case "stationBuyMax":
-        planMaxBuy();
+        planMax("buy");
+        break;
+      case "stationSellMax":
+        planMax("sell");
         break;
       case "stationConfirm":
         confirmTrade();
@@ -867,10 +914,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       case "stationCancel":
         cancelTrade();
         break;
-      case "stationSellMax":
       case "stationPageNext":
       case "stationPagePrevious":
-        // Wave 1 has no sell path and no paged screens.
+        // Wave 2 has no paged screens.
         break;
       default:
         break;

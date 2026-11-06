@@ -19,6 +19,7 @@ import {
   emptyCargo,
   holdPodsUsed,
   maxAdditional,
+  otherPodsFor,
   podsFor,
   setCargo,
 } from "../../../src/sim/economy/cargo.js";
@@ -52,6 +53,21 @@ describe("podsFor", () => {
   });
 });
 
+describe("otherPodsFor", () => {
+  it("sums every entry except the excluded commodity", () => {
+    const cargo = setCargo(setCargo(emptyCargo(), "food", 19), "gold", 600);
+    expect(otherPodsFor(cargo, units, "gold")).toBe(19);
+    expect(otherPodsFor(cargo, units, "food")).toBe(podsFor("kg", 600));
+    expect(otherPodsFor(cargo, units, "furs")).toBe(19 + podsFor("kg", 600));
+  });
+
+  it("returns 0 for an empty hold and for the only entry", () => {
+    expect(otherPodsFor(emptyCargo(), units, "gold")).toBe(0);
+    const gold = setCargo(emptyCargo(), "gold", 1_499);
+    expect(otherPodsFor(gold, units, "gold")).toBe(0);
+  });
+});
+
 describe("capacity", () => {
   it("is 20 t, plus 15 t for a cargo bay, minus 5 t per berth", () => {
     expect(capacityPodsFor([], 0)).toBe(BASE_CAPACITY_PODS);
@@ -75,6 +91,7 @@ describe("maxAdditional", () => {
 
   it("offers 20,499 kg in an empty 20-pod hold", () => {
     expect(maxAdditional("kg", 0, 0, 20)).toBe(20_499);
+    expect(maxAdditional("g", 0, 0, 20)).toBe(20_499_999);
   });
 
   it("subtracts goods of the same commodity already held", () => {
@@ -82,8 +99,19 @@ describe("maxAdditional", () => {
     expect(maxAdditional("kg", 100, 19, 20)).toBe(1399);
   });
 
+  it("counts the pod the held good already occupies (1,499 kg + free pods)", () => {
+    // 20 pods hold 20,499 kg, so 1,499 kg already aboard leave 19,000 more.
+    expect(maxAdditional("kg", 1_499, 0, 20)).toBe(19_000);
+    // 19 t of bulk goods + 600 kg of gold still leave 899 kg in the gold pod.
+    expect(maxAdditional("kg", 600, 19, 20)).toBe(899);
+    // The gram analog: 500,000 g aboard already uses one pod, so a 19-pod
+    // occupied hold leaves 1,499,999 g total, i.e. 999,999 g more.
+    expect(maxAdditional("g", 500_000, 19, 20)).toBe(999_999);
+  });
+
   it("never returns a negative amount", () => {
     expect(maxAdditional("kg", 5000, 20, 20)).toBe(0);
+    expect(maxAdditional("g", 25_000_000, 20, 20)).toBe(0);
   });
 });
 
