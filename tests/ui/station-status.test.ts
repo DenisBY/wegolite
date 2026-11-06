@@ -17,10 +17,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseEquipment } from "../../src/content/equipment.js";
 import type { Equipment } from "../../src/content/types.js";
-import {
-  formatDecicredits,
-  newProfile,
-} from "../../src/sim/player/profile.js";
+import { formatDecicredits, newProfile } from "../../src/sim/player/profile.js";
 import {
   buildStatusModel,
   formatDecicredits as stationFormatDecicredits,
@@ -135,7 +132,9 @@ describe("buildStatusModel page 1", () => {
       1,
     );
 
-    expect(model.fields.map((field) => field.label)).not.toContain("Population");
+    expect(model.fields.map((field) => field.label)).not.toContain(
+      "Population",
+    );
   });
 });
 

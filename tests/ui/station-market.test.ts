@@ -15,7 +15,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { Commodity } from "../../src/content/types.js";
-import { generateMarket, marketSeedForSystem } from "../../src/sim/economy/market.js";
+import {
+  generateMarket,
+  marketSeedForSystem,
+} from "../../src/sim/economy/market.js";
 import type { Market } from "../../src/sim/economy/market.js";
 import { planBuy, planSell } from "../../src/sim/economy/trade.js";
 import { newProfile } from "../../src/sim/player/profile.js";
@@ -162,9 +165,7 @@ describe("confirmation and notice", () => {
       commodity: commodityRecord,
       amount,
     };
-    return side === "buy"
-      ? planBuy({ ...base, units })
-      : planSell(base);
+    return side === "buy" ? planBuy({ ...base, units }) : planSell(base);
   };
 
   it("shows the total for a 1 t buy", () => {
@@ -236,11 +237,7 @@ describe("confirmation and notice", () => {
       commodity: commodity("food"),
       amount: 2,
     });
-    const model = build(
-      { ...newProfile(), cargo: { food: 2 } },
-      "food",
-      plan,
-    );
+    const model = build({ ...newProfile(), cargo: { food: 2 } }, "food", plan);
 
     expect(model.confirmText).toBe("Sell 2 t Food for 7.6 Cr? [Y/N]");
   });

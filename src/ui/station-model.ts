@@ -20,7 +20,11 @@ import type {
   Labels,
   System,
 } from "../content/types.js";
-import { capacityPodsFor, holdPodsUsed, availablePods } from "../sim/economy/cargo.js";
+import {
+  capacityPodsFor,
+  holdPodsUsed,
+  availablePods,
+} from "../sim/economy/cargo.js";
 import type { Market } from "../sim/economy/market.js";
 import type { TradePlan } from "../sim/economy/trade.js";
 import {
@@ -73,7 +77,6 @@ function equipmentName(
   }
   return record.name;
 }
-
 
 export interface MarketColumn {
   readonly key: "name" | "unit" | "price" | "stock" | "held" | "ex";
@@ -242,9 +245,7 @@ export function buildMarketModel(
     profile.passengerBerths,
   );
   const pendingCommodity =
-    feedback.pending === null
-      ? undefined
-      : byKey.get(feedback.pending.key);
+    feedback.pending === null ? undefined : byKey.get(feedback.pending.key);
   const clampNotice = tradeNoticeText(feedback.pending, pendingCommodity);
 
   return {
@@ -671,5 +672,3 @@ export function buildOutfittingModel(
 
   return { rows, detail, fuelVisible, selectedKey };
 }
-
-

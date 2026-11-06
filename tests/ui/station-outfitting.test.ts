@@ -109,9 +109,9 @@ describe("the D-11 row set at Lave", () => {
     expect(build().rows.map((entry) => entry.key)).not.toContain(
       "EQ_PASSENGER_BERTH_REMOVAL",
     );
-    expect(build(makeProfile({ missiles: 0 })).rows.map((e) => e.key)).not.toContain(
-      "EQ_MISSILE_REMOVAL",
-    );
+    expect(
+      build(makeProfile({ missiles: 0 })).rows.map((e) => e.key),
+    ).not.toContain("EQ_MISSILE_REMOVAL");
   });
 });
 
@@ -153,8 +153,10 @@ describe("short refusal reasons", () => {
     ).toBe("Already installed");
 
     expect(
-      row(build(makeProfile({ ...rich, cargo: { food: 20 } }), 11), "EQ_PASSENGER_BERTH")
-        .reason,
+      row(
+        build(makeProfile({ ...rich, cargo: { food: 20 } }), 11),
+        "EQ_PASSENGER_BERTH",
+      ).reason,
     ).toBe("No cargo space");
 
     expect(
@@ -205,11 +207,7 @@ describe("detail pane", () => {
   });
 
   it("states the full catalogue-value re-sale for missile removal", () => {
-    const model = build(
-      makeProfile(),
-      laveTechLevelRaw,
-      "EQ_MISSILE_REMOVAL",
-    );
+    const model = build(makeProfile(), laveTechLevelRaw, "EQ_MISSILE_REMOVAL");
 
     expect(model.detail?.description).toContain("full catalogue value");
     expect(model.detail?.description).not.toContain("No refund is paid");

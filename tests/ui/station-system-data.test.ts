@@ -24,9 +24,7 @@ import { laveFixture } from "../helpers/lave.js";
 const system = laveFixture().system;
 const labels = labelsFixture();
 
-function withTemplates(
-  overrides: Readonly<Record<string, string>>,
-): Labels {
+function withTemplates(overrides: Readonly<Record<string, string>>): Labels {
   return {
     ...labels,
     formatTemplates: { ...labels.formatTemplates, ...overrides },
@@ -49,9 +47,9 @@ describe("buildSystemDataModel", () => {
     const model = buildSystemDataModel(system, labels);
 
     expect(model.fields).toHaveLength(8);
-    expect(model.fields.filter((field) => field.label.endsWith(":"))).toHaveLength(
-      7,
-    );
+    expect(
+      model.fields.filter((field) => field.label.endsWith(":")),
+    ).toHaveLength(7);
     expect(labelOf(model, "Inhabitants")).toBe("(Human Colonials)");
   });
 
