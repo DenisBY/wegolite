@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 05
 current_phase_name: Docked Economy & Station Screens
 status: executing
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-11-06T11:40:04.573Z"
+stopped_at: Completed 05-04-PLAN.md
+last_updated: "2026-11-06T11:53:05.394Z"
 last_activity: 2026-11-06
-last_activity_desc: Completed 05-03-PLAN.md (peaceful outfitting, removal economics)
-state_head: 9d6013946a01ca54a6837d593d4c4c3bf2498b24
+last_activity_desc: Completed 05-04-PLAN.md (station view models and labels)
+state_head: e98476664503f6072994a9f73db204d0bde2d25a
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 44
-  completed_plans: 41
+  completed_plans: 42
   percent: 57
 ---
 
@@ -28,16 +28,16 @@ See: .planning/PROJECT.md (updated 2026-11-05)
 ## Current Position
 
 Phase: 05 (Docked Economy & Station Screens) — EXECUTING
-Plan: 4 of 6
-Status: Phase 05 executing — 05-03 complete
-Last activity: 2026-11-06 — 05-03 peaceful outfitting and removal economics complete
+Plan: 5 of 6
+Status: Phase 05 executing — 05-04 complete
+Last activity: 2026-11-06 — 05-04 station view models, labels and exact money complete
 
-Progress: [██████░░░░] 57% — 41/44 plans complete
+Progress: [██████░░░░] 57% — 42/44 plans complete
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 41
+- Total plans completed: 42
 - Average duration: 4.8 min
 - Total execution time: 3.3 hours
 
@@ -83,6 +83,7 @@ Progress: [██████░░░░] 57% — 41/44 plans complete
 | Phase 05 P01 | 55 min | 2 tasks | 41 files |
 | Phase 05 P02 | 9 min | 2 tasks | 14 files |
 | Phase 05 P03 | 9 min | 2 tasks | 4 files |
+| Phase 05 P04 | 8 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -177,6 +178,9 @@ Recent decisions affecting current work:
 - [Phase 05]: Plan 05-03: the raw System.techLevelRaw gates (equality allowed); the five single-instance keys delegate tech/owned/credits to canPurchase and append-and-charge to purchase, keeping both Phase 4 predicates on the production path.
 - [Phase 05]: Plan 05-03: condition values fail closed (flags true/"true" only, requires_cargo_space integer 0..35); fuel shows (70-fuel)*2 and a full tank is fullFuel before invalidPrice.
 - [Phase 05]: Plan 05-03: missile removal charges 200 dc then refunds 300 dc per mounted missile (+700 dc at three); berth removal charges 1000 dc with no refund; missiles cap at 3 and berths at 7 as integer counts.
+- [Phase 05]: Plan 05-04: labels.json is validated by LabelsSchema and F7 expands only the four documented value tokens in one literal replacer pass, throwing on any leftover token.
+- [Phase 05]: Plan 05-04: F3 removal rows use whole-credit labels while the detail and confirmation keep the decimal price; REMOVAL_DESCRIPTIONS is the truthful removal copy.
+- [Phase 05]: Plan 05-04: the F8 confirmation uses TradePlan.cost and the model derives the clamp notice from plan.clamp; tradeNoticeText is the one refusal/clamp copy source.
 
 ### Pending Todos
 
@@ -209,6 +213,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-06T11:40:04.038Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-11-06T11:53:04.869Z
+Stopped at: Completed 05-04-PLAN.md
 Resume file: None
