@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 current_phase: 05
 current_phase_name: Docked Economy & Station Screens
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-11-06T11:16:08.000Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-11-06T11:30:00.000Z"
 last_activity: 2026-11-06
-last_activity_desc: Completed 05-01-PLAN.md (market buy, autosave, reload)
-state_head: 1e5090da7b19ef00aa61b99d19185c67c9dfc5b1
+last_activity_desc: Completed 05-02-PLAN.md (sell, exact kg/g capacity, market oracle)
+state_head: 1caaa46a843dceb4a26a366b697455a701c289cf
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 44
-  completed_plans: 39
-  percent: 57
+  completed_plans: 40
+  percent: 91
 ---
 
 # Project State
@@ -28,18 +28,18 @@ See: .planning/PROJECT.md (updated 2026-11-05)
 ## Current Position
 
 Phase: 05 (Docked Economy & Station Screens) — EXECUTING
-Plan: 2 of 6
-Status: Phase 05 executing — 05-01 complete
-Last activity: 2026-11-06 — 05-01 tracer complete
+Plan: 3 of 6
+Status: Phase 05 executing — 05-02 complete
+Last activity: 2026-11-06 — 05-02 sell, capacity and market oracle complete
 
-Progress: [██████░░░░] 57% — 39/44 plans complete
+Progress: [█████████░] 91% — 40/44 plans complete
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 38
+- Total plans completed: 40
 - Average duration: 4.7 min
-- Total execution time: 0.55 hours
+- Total execution time: 3.1 hours
 
 **By Phase:**
 
@@ -81,6 +81,7 @@ Progress: [██████░░░░] 57% — 39/44 plans complete
 | Phase 04 P08 | 14min | 2 tasks | 2 files |
 | Phase 04 P07 | 17 min | 2 tasks | 9 files |
 | Phase 05 P01 | 55 min | 2 tasks | 41 files |
+| Phase 05 P02 | 9 min | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -167,6 +168,10 @@ Recent decisions affecting current work:
 - [Phase 05]: Plan 05-01: cargo is persisted as an entry array, validated by one `validateSaveSemantics` shared by `parseSave` and `isEncodedSaveValid`; capacity is compared before clamping and the Phase 4 berth/missile aliases are folded into counts.
 - [Phase 05]: Plan 05-01: the station footer is a `div.station-footer` with four independent fields; the global footer CSS is scoped to `body > footer`, so the document disclaimer stays the only `footer` element.
 - [Phase 05]: Plan 05-01: the `.agents` harness directory is excluded from the compliance source walk and Prettier, because it is environment configuration rather than repository source.
+- [Phase 05]: Plan 05-02: selling mirrors buying at the same price with `min(held, 127 - stock)`; `planSell` refuses `overflow` before adding proceeds and `applySell` returns `undefined` on every refusal, keeping the caller's profile object identical.
+- [Phase 05]: Plan 05-02: clamps run stock -> affordability -> hold and `TradePlan.clamp` reports the last step that strictly reduced the request, so the footer names the binding limit.
+- [Phase 05]: Plan 05-02: a zero-stock market row the hold carries stays selectable, or the canonical run (sell Computers at a Lave with 0 stock) would be unreachable; `buildMarketModel.selectable` uses the same predicate.
+- [Phase 05]: Plan 05-02: `tests/golden/market/*.json` are REGRESSION snapshots written only by `tests/helpers/write-market-goldens.ts`; the correctness oracle is the hand-derived `reference-vectors.test.ts`, never regenerated from the generator.
 
 ### Pending Todos
 
@@ -199,6 +204,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-05T15:23:38.336Z
-Stopped at: Completed 05-01-PLAN.md
-Resume file: .planning/phases/05-docked-economy-station-screens/05-02-PLAN.md
+Last session: 2026-11-06T11:30:00.000Z
+Stopped at: Completed 05-02-PLAN.md
+Resume file: .planning/phases/05-docked-economy-station-screens/05-03-PLAN.md
