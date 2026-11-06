@@ -322,11 +322,7 @@ describe("reachability", () => {
     expect(disoMarker.unreachableReason).toBe("insufficient fuel");
     expect(disoMarker.name).toBe("Diso");
     expect(
-      hitTest(
-        view,
-        { x: disoMarker.screenX, y: disoMarker.screenY },
-        10,
-      )?.id,
+      hitTest(view, { x: disoMarker.screenX, y: disoMarker.screenY }, 10)?.id,
     ).toBe(diso.id);
     expect(chartGoodsReadout(view, diso.id)).toEqual({
       systemId: diso.id,
@@ -364,9 +360,10 @@ describe("selectLabels", () => {
     const measure = (): number => 40;
 
     expect(
-      selectLabels(viewForMarkers([current, close, far], undefined), measure).map(
-        (label) => label.systemId,
-      ),
+      selectLabels(
+        viewForMarkers([current, close, far], undefined),
+        measure,
+      ).map((label) => label.systemId),
     ).toEqual(["current", "far"]);
 
     const targeted = chartMarker({
@@ -392,7 +389,10 @@ describe("selectLabels", () => {
       screenY: 100,
       reachable: false,
     });
-    const labels = selectLabels(viewForMarkers([unreachable], undefined), () => 20);
+    const labels = selectLabels(
+      viewForMarkers([unreachable], undefined),
+      () => 20,
+    );
 
     expect(labels).toHaveLength(1);
     expect(labels[0]?.dimmed).toBe(true);
@@ -520,8 +520,7 @@ function chartMarker(overrides: {
     distanceLy: 0,
     fuelCost: 0,
     reachable: overrides.reachable ?? true,
-    unreachableReason:
-      overrides.reachable === false ? "too far" : undefined,
+    unreachableReason: overrides.reachable === false ? "too far" : undefined,
     isCurrent: overrides.isCurrent ?? false,
     isTarget: overrides.isTarget ?? false,
     isSelected: overrides.isSelected ?? false,

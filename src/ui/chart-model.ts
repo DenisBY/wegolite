@@ -167,7 +167,10 @@ function projectionScale(
     );
   }
   // Two chart-y units span one distance unit, hence the halved y span.
-  return Math.min(viewport.width / chartSpanX, viewport.height / (chartSpanY / 2));
+  return Math.min(
+    viewport.width / chartSpanX,
+    viewport.height / (chartSpanY / 2),
+  );
 }
 
 /**
@@ -189,10 +192,7 @@ export function chartProjection(
   });
 }
 
-function centreFor(
-  range: ChartRange,
-  current: System,
-): ChartPoint {
+function centreFor(range: ChartRange, current: System): ChartPoint {
   return range === "short"
     ? { x: current.chartX, y: current.chartY }
     : { x: LONG_CENTRE_X, y: LONG_CENTRE_Y };
@@ -280,8 +280,7 @@ export function buildChartView(
           { x: current.chartX, y: current.chartY },
           { x: system.chartX, y: system.chartY },
         );
-    const reachable =
-      isCurrent || (route.reachable && fuel >= route.fuelCost);
+    const reachable = isCurrent || (route.reachable && fuel >= route.fuelCost);
     let unreachableReason: ChartUnreachableReason | undefined;
     if (!reachable) {
       unreachableReason =
@@ -314,7 +313,11 @@ export function buildChartView(
     for (let right = left + 1; right < ordered.length; right += 1) {
       const to = ordered[right];
       if (to === undefined) continue;
-      if (range === "short" && !visibleIds.has(from.id) && !visibleIds.has(to.id)) {
+      if (
+        range === "short" &&
+        !visibleIds.has(from.id) &&
+        !visibleIds.has(to.id)
+      ) {
         continue;
       }
       const dist = chartDistance(
@@ -445,8 +448,18 @@ export function chartGoodsReadout(
 }
 
 function intersects(
-  left: { readonly x: number; readonly y: number; readonly width: number; readonly height: number },
-  right: { readonly x: number; readonly y: number; readonly width: number; readonly height: number },
+  left: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  },
+  right: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  },
 ): boolean {
   return (
     left.x < right.x + right.width &&
