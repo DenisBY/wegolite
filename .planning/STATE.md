@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 current_phase: 05
 current_phase_name: Docked Economy & Station Screens
-status: executing
-stopped_at: Completed 05-05-PLAN.md
-last_updated: "2026-11-06T12:08:59.589Z"
+status: ready_for_verification
+stopped_at: Completed 05-06-PLAN.md
+last_updated: "2026-11-06T12:45:02.431Z"
 last_activity: 2026-11-06
-last_activity_desc: Completed 05-05-PLAN.md (station screens and keyboard proof)
-state_head: 069b7b685505be1cd3980cba42b846c036ba6ceb
+last_activity_desc: Completed 05-06-PLAN.md (save hardening, keyboard loop and phase gate)
+state_head: 8e77af25f4c7472eab17f3e1e9335e756cdbe89f
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 44
-  completed_plans: 43
+  completed_plans: 44
   percent: 57
 ---
 
@@ -29,17 +29,17 @@ See: .planning/PROJECT.md (updated 2026-11-05)
 
 Phase: 05 (Docked Economy & Station Screens) — EXECUTING
 Plan: 6 of 6
-Status: Phase 05 executing — 05-05 complete
-Last activity: 2026-11-06 — 05-05 F3/F5/F7 screens and keyboard proof complete
+Status: Phase 05 executing — 05-06 complete, ready for verification
+Last activity: 2026-11-06 — 05-06 save hardening, keyboard loop and phase gate complete
 
-Progress: [██████░░░░] 57% — 43/44 plans complete
+Progress: [██████░░░░] 57% — 44/44 plans complete
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 42
-- Average duration: 4.8 min
-- Total execution time: 3.3 hours
+- Total plans completed: 44
+- Average duration: 5.3 min
+- Total execution time: 3.9 hours
 
 **By Phase:**
 
@@ -85,6 +85,7 @@ Progress: [██████░░░░] 57% — 43/44 plans complete
 | Phase 05 P03 | 9 min | 2 tasks | 4 files |
 | Phase 05 P04 | 8 min | 3 tasks | 9 files |
 | Phase 05 P05 | 72 min | 2 tasks | 6 files |
+| Phase 05 P06 | 36 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -186,6 +187,9 @@ Recent decisions affecting current work:
 - [Phase 05]: Plan 05-05: stationSelection is shared per screen and reset on open; a committed removal clamps the cursor by position to the nearest surviving row, so the next Y meets a disabled row rather than buying a neighbour.
 - [Phase 05]: Plan 05-05: probe.station.pending is {kind,key} and probe.economy.lastTrade records the last accepted buy/sell/fit/removal; every field is published before an assertion.
 - [Phase 05]: Plan 05-05: the no-reload proof is event.defaultPrevented on synthetic F3/F5/F7/F8 with a body.dataset.capture negative control; the sentinel and navigation count stay secondary.
+- [Phase 05]: Plan 05-06: the shared save validator already met the hardened contract from 05-01; this plan proves it with the full reject table, the writer-preserves-previous-bytes case, the old-blob restore and the injected-write-failure browser case.
+- [Phase 05]: Plan 05-06: restoreFromSave returns the optional marketSeed; the boot falls back to marketSeedForSystem only when a Phase 4 blob has none, so a reload reproduces every price from the persisted seed.
+- [Phase 05]: Plan 05-06: the purity guard resolves the content door by module path (both content/types nesting depths, import type only) and tests its scanner directly; no temporary src/sim probe or probe lock is needed.
 
 ### Pending Todos
 
@@ -219,6 +223,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-06T12:08:59.028Z
-Stopped at: Completed 05-05-PLAN.md
+Last session: 2026-11-06T12:45:01.894Z
+Stopped at: Completed 05-06-PLAN.md
 Resume file: None

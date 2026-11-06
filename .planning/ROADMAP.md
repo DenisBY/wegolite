@@ -183,7 +183,7 @@ Plans:
   2. Buying and selling respect the 20 t hold, available credits, and station stock; gold and platinum price per kg and gem-stones per g with correct pod conversions; credits can never go negative and every rejection states why.
   3. The F8 market, F3 outfitting, F5 status, and F7 system-data screens show correct names, units, prices, and figures, and are fully navigable and operable without a mouse.
   4. The outfitting screen lists only equipment whose tech level and conditions are met, and installs or removes legal items at the correct price.
-**Plans**: 5/6 plans executed
+**Plans**: 6/6 plans executed
 **Wave 1**
 - [x] 05-01-PLAN.md — Tracer: Lave market buy → autosave → reload; content peaks/names, economy core (buy), exact cargo/pods, shared reader/writer save semantics, bubble keyboard, F8; independent anchors and regression proofs
 
@@ -200,7 +200,7 @@ Plans:
 - [x] 05-05-PLAN.md — F3/F5/F7 screens, two-state confirm, keyboard-only navigation, `defaultPrevented` no-reload proof with a negative control, derived home fuel, Tab focus containment
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 05-06-PLAN.md — Save hardening and writer parity, full keyboard loop with pause, economy-purity guard with correct paths, phase gate
+- [x] 05-06-PLAN.md — Save hardening and writer parity, full keyboard loop with pause, economy-purity guard with correct paths, phase gate
 **UI hint**: yes
 
 ### Phase 6: Hyperspace, Navigation & Persistence
@@ -239,7 +239,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Data Pipeline & Content Compiler | 9/9 | Complete    | 2026-11-03 |
 | 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
 | 4. Manual Docking | 8/8 | Complete    | 2026-11-05 |
-| 5. Docked Economy & Station Screens | 5/6 | Executing | - |
+| 5. Docked Economy & Station Screens | 6/6 | Executing | - |
 | 6. Hyperspace, Navigation & Persistence | 0/TBD | Not started | - |
 | 7. Hardening & Community Release | 0/TBD | Not started | - |
 
