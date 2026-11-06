@@ -16,7 +16,6 @@ import type { Page } from "@playwright/test";
 import { formatDecicredits } from "../../src/sim/player/profile.js";
 import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import { getProbe, waitForReady } from "./helpers/probe.js";
-import { startNewGame } from "./helpers/title.js";
 
 test.setTimeout(180_000);
 
@@ -51,9 +50,19 @@ async function startFromKeyboard(page: Page, url = "/?test=1"): Promise<void> {
 }
 
 async function bootToHome(page: Page): Promise<void> {
-  await page.goto("/?test=1");
+  await startFromKeyboard(page);
+}
+
+/** Continue a saved game from the title with Tab/Enter only. */
+async function continueFromKeyboard(page: Page): Promise<void> {
   await waitForReady(page);
-  await startNewGame(page);
+  for (let presses = 0; presses < 12; presses += 1) {
+    const active = await page.evaluate(() => document.activeElement?.id ?? "");
+    if (active === "title-continue") break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(page.locator("#title-continue")).toBeFocused();
+  await page.keyboard.press("Enter");
   await page.waitForFunction(
     () => window.__wegolite?.mode === "docked",
     undefined,
@@ -106,6 +115,12 @@ test("buys one tonne of Food, autosaves and reloads into the same hold", async (
   await expect(foodRow).toContainText("3.8 Cr");
   await expect(foodRow).toContainText("16");
 
+  // A zero-stock row is dimmed by CSS, not merely by a model flag: deleting the
+  // rule must fail this assertion.
+  const computersRow = page.locator('tr[data-key="computers"]');
+  await expect(computersRow).toHaveClass(/dimmed/);
+  await expect(computersRow).toHaveCSS("opacity", "0.6");
+
   await page.keyboard.press("ArrowRight");
   const price = food?.price ?? 38;
   await expect(page.locator('[data-field="station-confirm"]')).toHaveText(
@@ -138,12 +153,7 @@ test("buys one tonne of Food, autosaves and reloads into the same hold", async (
   await page.reload();
   await waitForReady(page);
   await expect(page.locator("#title-continue")).toBeVisible();
-  await page.click("#title-continue");
-  await page.waitForFunction(
-    () => window.__wegolite?.mode === "docked",
-    undefined,
-    { timeout: 30_000 },
-  );
+  await continueFromKeyboard(page);
 
   await page.keyboard.press("Digit8");
   await waitForScreen(page, "market");
@@ -259,33 +269,97 @@ test("dispatches Digit8 and the next key in one frame against the new context", 
   expect(errors).toEqual([]);
 });
 
-test("cancels a plain F5 but never a Ctrl+F5 or a rebind capture", async ({
+test("F3/F5/F7/F8 cancel their browser defaults with a capture negative control", async ({
   page,
 }) => {
   await bootToHome(page);
+  // Pause first: a synthetic key must not open a screen or mutate anything.
+  await page.keyboard.press("KeyP");
+  await page.waitForFunction(
+    () => window.__wegolite?.paused === true,
+    undefined,
+    { timeout: 10_000 },
+  );
 
-  const plain = await page.evaluate(() => {
-    const event = new KeyboardEvent("keydown", {
-      code: "F5",
-      bubbles: true,
-      cancelable: true,
+  type PreventedRecord = {
+    plain: Record<string, boolean>;
+    capturing: Record<string, boolean>;
+    chord: Record<string, boolean>;
+  };
+  type FKeyWindow = Window & { __fkeyPrevented?: PreventedRecord };
+
+  await page.evaluate(() => {
+    const target = window as FKeyWindow;
+    target.__fkeyPrevented = { plain: {}, capturing: {}, chord: {} };
+    window.addEventListener("keydown", (event) => {
+      const record = target.__fkeyPrevented;
+      if (record === undefined) return;
+      const bucket = event.ctrlKey
+        ? record.chord
+        : document.body.dataset.capture !== undefined
+          ? record.capturing
+          : record.plain;
+      bucket[event.code] = event.defaultPrevented;
     });
-    window.dispatchEvent(event);
-    return event.defaultPrevented;
   });
-  expect(plain).toBe(true);
 
+  const codes = ["F3", "F5", "F7", "F8"];
+
+  const plain = await page.evaluate((expectedCodes: string[]) => {
+    for (const code of expectedCodes) {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          code,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    }
+    return { ...((window as FKeyWindow).__fkeyPrevented?.plain ?? {}) };
+  }, codes);
+  for (const code of codes) expect(plain[code]).toBe(true);
+
+  // The negative control: while the Controls panel is capturing a rebind, the
+  // same key must NOT be prevented. If the capture listener is deleted or made
+  // unconditional, one of these two halves fails.
+  await page.evaluate(() => {
+    document.body.dataset.capture = "1";
+  });
+  const capturing = await page.evaluate((expectedCodes: string[]) => {
+    for (const code of expectedCodes) {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          code,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    }
+    return { ...((window as FKeyWindow).__fkeyPrevented?.capturing ?? {}) };
+  }, codes);
+  for (const code of codes) expect(capturing[code]).toBe(false);
+  await page.evaluate(() => {
+    delete document.body.dataset.capture;
+  });
+
+  // A browser chord (Ctrl+F5, a hard reload) is never blocked.
   const chord = await page.evaluate(() => {
-    const event = new KeyboardEvent("keydown", {
-      code: "F5",
-      ctrlKey: true,
-      bubbles: true,
-      cancelable: true,
-    });
-    window.dispatchEvent(event);
-    return event.defaultPrevented;
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        code: "F5",
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    return { ...((window as FKeyWindow).__fkeyPrevented?.chord ?? {}) };
   });
-  expect(chord).toBe(false);
+  expect(chord.F5).toBe(false);
+
+  // No synthetic key reached an action while paused.
+  const probe = await getProbe(page);
+  expect(probe.paused).toBe(true);
+  expect(probe.station?.screen).toBe("home");
 });
 
 test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confirm", async ({
@@ -321,6 +395,7 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   await expect(row("EQ_DOCK_COMP")).toContainText("Docking Computers");
   await expect(row("EQ_DOCK_COMP")).toContainText("Requires TL 9");
   await expect(row("EQ_DOCK_COMP")).toHaveClass(/dimmed/);
+  await expect(row("EQ_DOCK_COMP")).toHaveCSS("opacity", "0.6");
 
   await expect(row("EQ_MISSILE")).toContainText("Missile (3/3)");
   await expect(row("EQ_MISSILE")).toContainText("Pylons full");
@@ -398,5 +473,220 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   expect(probe.economy?.missiles).toBe(0);
   expect(probe.save?.committed).toBe(committedBefore + 1);
 
+  expect(errors).toEqual([]);
+});
+
+test("F5 pages, F7 fields and direct section switching stay keyboard-only", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await bootToHome(page);
+  const before = await getProbe(page);
+  const committedBefore = before.save?.committed ?? 0;
+
+  await page.keyboard.press("Digit5");
+  await waitForScreen(page, "status");
+  await expect(page.locator("#station-screen")).toHaveAttribute(
+    "data-screen",
+    "status",
+  );
+  await expect(page.locator('[data-field="status-page"]')).toHaveText(
+    "Page 1/2",
+  );
+
+  const statusFields = page.locator("[data-status-fields]");
+  for (const text of [
+    "Commander",
+    "Jameson",
+    "Ship",
+    "Cobra Mk III",
+    "Present System",
+    "Lave",
+    "Hyperspace System",
+    "(Unknown)",
+    "Condition",
+    "Docked",
+    "Fuel",
+    "7.0 Light Years",
+    "Cash",
+    "100.0 Cr",
+    "Legal Status",
+    "Clean",
+    "Rating",
+    "Harmless",
+  ]) {
+    await expect(statusFields).toContainText(text);
+  }
+  await expect(page.locator("[data-status-equipment]")).toContainText(
+    "Missile ×3",
+  );
+  await expect(page.locator('[data-status-page="2"]')).toBeHidden();
+
+  // Tab is page-next and is consumed: focus stays inside the station section.
+  await page.keyboard.press("Tab");
+  await page.waitForFunction(
+    () => window.__wegolite?.station?.page === 2,
+    undefined,
+    { timeout: 10_000 },
+  );
+  await expect(page.locator('[data-field="status-page"]')).toHaveText(
+    "Page 2/2",
+  );
+  await expect(page.locator('[data-status-page="2"]')).toBeVisible();
+  await expect(page.locator("[data-manifest-rows] tr")).toHaveCount(16);
+  await expect(page.locator('[data-field="status-load"]')).toHaveText(
+    "Load 0 of 20 t",
+  );
+  // 16 tradeable commodities only, each in its own unit; Alien Items is absent.
+  await expect(page.locator('[data-key="gold"]')).toContainText("kg");
+  await expect(page.locator('[data-key="gem_stones"]')).toContainText("g");
+  await expect(page.locator('[data-key="alien_items"]')).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () =>
+        document
+          .getElementById("station-screen")
+          ?.contains(document.activeElement) ?? false,
+    ),
+  ).toBe(true);
+
+  // PageUp returns to page 1; paging never mutates the profile or the save.
+  await page.keyboard.press("PageUp");
+  await page.waitForFunction(
+    () => window.__wegolite?.station?.page === 1,
+    undefined,
+    { timeout: 10_000 },
+  );
+  await expect(page.locator('[data-field="status-page"]')).toHaveText(
+    "Page 1/2",
+  );
+  let probe = await getProbe(page);
+  expect(probe.economy?.credits).toBe(before.economy?.credits);
+  expect(probe.economy?.cargo).toEqual(before.economy?.cargo);
+  expect(probe.save?.committed).toBe(committedBefore);
+
+  // KeyP pauses without leaving the section; KeyP resumes it.
+  await page.keyboard.press("KeyP");
+  await page.waitForFunction(() => window.__wegolite?.paused === true);
+  probe = await getProbe(page);
+  expect(probe.station?.screen).toBe("status");
+  await page.keyboard.press("KeyP");
+  await page.waitForFunction(() => window.__wegolite?.paused === false);
+  expect((await getProbe(page)).station?.screen).toBe("status");
+
+  // Digit1 is inert inside a section (it launches only from home).
+  await page.keyboard.press("Digit1");
+  await page.waitForTimeout(300);
+  probe = await getProbe(page);
+  expect(probe.mode).toBe("docked");
+  expect(probe.station?.screen).toBe("status");
+
+  // F7 opens directly from F5 without a trip home.
+  await page.keyboard.press("Digit7");
+  await waitForScreen(page, "systemData");
+  await expect(page.locator('[data-field="system-data-title"]')).toHaveText(
+    "Data on Lave",
+  );
+  const systemFields = page.locator("[data-system-data-fields]");
+  for (const text of [
+    "Rich Agricultural",
+    "Dictatorship",
+    "2.5 Billion",
+    "(Human Colonials)",
+    "7000 M₢",
+    "4116 km",
+    "0.0 ly",
+  ]) {
+    await expect(systemFields).toContainText(text);
+  }
+  // Exactly 7 sysdata fields plus the inhabitants row; tech level renders 5.
+  await expect(systemFields.locator("dt")).toHaveCount(8);
+  await expect(systemFields).toContainText("5");
+  await expect(
+    page.locator('[data-field="system-data-description"]'),
+  ).toContainText("Lave is most famous for its vast rain forests");
+
+  // Direct switching between sections and Esc back to home, never pause.
+  await page.keyboard.press("Digit3");
+  await waitForScreen(page, "outfitting");
+  await page.keyboard.press("Digit8");
+  await waitForScreen(page, "market");
+  await page.keyboard.press("Escape");
+  await waitForScreen(page, "home");
+  probe = await getProbe(page);
+  expect(probe.paused).toBe(false);
+  expect(probe.mode).toBe("docked");
+
+  // One document footer, and the station footer never overlaps it.
+  await expect(page.locator("footer")).toHaveCount(1);
+  const footerBox = await page.locator("body > footer").boundingBox();
+  const stationBox = await page.locator(".station-footer").boundingBox();
+  expect(footerBox).not.toBeNull();
+  expect(stationBox).not.toBeNull();
+  if (footerBox !== null && stationBox !== null) {
+    const overlaps =
+      stationBox.y < footerBox.y + footerBox.height &&
+      footerBox.y < stationBox.y + stationBox.height;
+    expect(overlaps).toBe(false);
+  }
+
+  expect(errors).toEqual([]);
+});
+
+test("real F3/F5/F7/F8 presses never reload the page", async ({ page }) => {
+  const errors = collectErrors(page);
+  await bootToHome(page);
+
+  type SentinelWindow = Window & { __stationSentinel?: string };
+  await page.evaluate(() => {
+    (window as SentinelWindow).__stationSentinel = "before";
+  });
+
+  const steps: [string, string][] = [
+    ["F5", "status"],
+    ["F3", "outfitting"],
+    ["F7", "systemData"],
+    ["F8", "market"],
+  ];
+  for (const [key, screen] of steps) {
+    await page.keyboard.press(key);
+    await waitForScreen(page, screen);
+    expect(
+      await page.evaluate(
+        () => (window as SentinelWindow).__stationSentinel ?? "",
+      ),
+    ).toBe("before");
+  }
+
+  // Secondary signals only: the capture `preventDefault` proof above is primary.
+  expect(
+    await page.evaluate(
+      () => performance.getEntriesByType("navigation").length,
+    ),
+  ).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test("station F-keys are inert in flight", async ({ page }) => {
+  const errors = collectErrors(page);
+  await bootToHome(page);
+  const before = await getProbe(page);
+
+  await page.keyboard.press("Digit1");
+  await page.waitForFunction(
+    () => window.__wegolite?.mode === "inFlight",
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  for (const key of ["F8", "F3", "F5", "F7"]) {
+    await page.keyboard.press(key);
+  }
+  await page.waitForTimeout(300);
+
+  const after = await getProbe(page);
+  expect(after.mode).toBe("inFlight");
+  expect(after.station?.screen).toBe("home");
+  expect(after.economy?.cargo).toEqual(before.economy?.cargo);
   expect(errors).toEqual([]);
 });

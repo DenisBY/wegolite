@@ -132,7 +132,16 @@ test("the docked view is exactly one status panel with the D-09 facts", async ({
   await expect(launch).toHaveCount(1);
   await expect(launch).toBeVisible();
 
-  // No Phase 4/5/6 screen may be reachable in this phase.
+  // The home panel advertises all four station screens, but the shell boots on
+  // `data-screen="home"`: no section is mounted or reachable until a key opens it.
+  await expect(page.locator("#station-screen")).toHaveAttribute(
+    "data-screen",
+    "home",
+  );
+  await expect(docked).toContainText("Market (F8)");
+  await expect(docked).toContainText("Outfitting (F3)");
+  await expect(docked).toContainText("Status (F5)");
+  await expect(docked).toContainText("System data (F7)");
   await expect(
     page.locator(
       '[data-screen="trade"], [data-screen="outfitting"], [data-screen="market"], [data-screen="missions"], [data-screen="status"]',
