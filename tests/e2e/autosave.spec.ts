@@ -32,8 +32,11 @@ import {
   vec,
 } from "../../src/sim/math.js";
 import { getProbe, waitForReady } from "./helpers/probe.js";
+import { chartScreenPoint, systemByName } from "./helpers/chart.js";
 
-test.setTimeout(240_000);
+test.setTimeout(360_000);
+
+const DISO_ID = systemByName("Diso").id;
 
 const SAVE_DB = "wegolite";
 const SAVE_STORE = "saves";
@@ -86,6 +89,17 @@ async function waitForStationScreen(page: Page, screen: string): Promise<void> {
     screen,
     { timeout: 30_000 },
   );
+}
+
+/** Read one F5 field value by its rendered label. */
+async function statusValue(page: Page, label: string): Promise<string | null> {
+  return page.evaluate((wanted) => {
+    const list = document.querySelector("[data-status-fields]");
+    if (list === null) return null;
+    const terms = Array.from(list.querySelectorAll("dt"));
+    const term = terms.find((candidate) => candidate.textContent === wanted);
+    return term?.nextElementSibling?.textContent ?? null;
+  }, label);
 }
 
 /** Continue a committed save from the title and wait for the docked pose. */
@@ -263,7 +277,24 @@ async function launchAndAwaitCommit(page: Page): Promise<number> {
   return clock;
 }
 
-test("a committed launch write offers Continue at exactly the saved clock", async ({
+/** Click the chart marker the pure view model places for `name`. */
+async function clickChartSystem(page: Page, name: string): Promise<void> {
+  const system = systemByName(name);
+  const probe = await getProbe(page);
+  const box = await page.locator("#chart-canvas").boundingBox();
+  if (box === null) throw new Error("the chart canvas has no bounding box");
+  const point = chartScreenPoint(system.id, {
+    currentId: probe.systemId ?? "",
+    targetId: probe.chart?.targetId,
+    range: probe.chart?.range ?? "short",
+    fuel: probe.economy?.fuel ?? 0,
+    viewport: { width: box.width, height: box.height },
+    selectedId: probe.chart?.selectedId,
+  });
+  await page.mouse.click(box.x + point.x, box.y + point.y);
+}
+
+test("a pre-launch write offers Continue at exactly the docked clock", async ({
   page,
 }) => {
   const errors = collectErrors(page);
@@ -271,7 +302,9 @@ test("a committed launch write offers Continue at exactly the saved clock", asyn
 
   await startNewGame(page);
   const savedClock = await launchAndAwaitCommit(page);
-  expect(savedClock).toBe(CLOCK_START + 600);
+  // D-17: the anchor is taken before `beginLaunch`, so the +600 s launch
+  // adjustment is not in the blob.
+  expect(savedClock).toBe(CLOCK_START);
 
   await page.reload();
   await waitForReady(page);
@@ -302,7 +335,31 @@ test("a committed launch write offers Continue at exactly the saved clock", asyn
   expect(errors).toEqual([]);
 });
 
-test("a manual dock does not autosave: Continue still restores the launch clock", async ({
+test("a launch reloads to the station at the pre-launch clock, not +600 s", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  await startNewGame(page);
+  const savedClock = await launchAndAwaitCommit(page);
+  expect(savedClock).toBe(CLOCK_START);
+  await waitForMode(page, "launching");
+
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+  await page.click("#title-continue");
+  await waitForMode(page, "docked");
+
+  const restored = await getProbe(page);
+  expect(restored.mode).toBe("docked");
+  expect(restored.clock).toBe(CLOCK_START);
+  expect(restored.clock).not.toBe(CLOCK_START + 600);
+  await expect(page.locator("#docked")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("a tainted manual dock reaches the trigger but skips the write: Continue still restores the pre-launch clock", async ({
   page,
 }) => {
   const errors = collectErrors(page);
@@ -355,15 +412,17 @@ test("a manual dock does not autosave: Continue still restores the launch clock"
   );
 
   await waitForMode(page, "docked");
-  // Docking is not an autosave trigger: the launch write is still the only one.
+  // D-17: docking IS an autosave trigger, but this case drives the dock through
+  // `?test=1` pose mutations, so the taint guard suppresses the write. The
+  // attempt is still recorded, which is what proves the trigger was reached.
   await page.waitForTimeout(600);
   const docked = await getProbe(page);
   expect(docked.mode).toBe("docked");
-  // `attempts` is incremented before the taint skip, so this proves the dock
-  // never called `autosave()` at all — not merely that the write was skipped.
-  expect(docked.save?.attempts).toBe(1);
+  // `attempts` is incremented before the taint skip: launch + dock.
+  expect(docked.save?.attempts).toBe(2);
   expect(docked.save?.writes).toBe(1);
   expect(docked.save?.committed).toBe(1);
+  expect(docked.save?.skipReason).toBe("tainted");
   expect(docked.save?.lastClock).toBe(savedClock);
 
   await page.reload();
@@ -384,6 +443,177 @@ test("a manual dock does not autosave: Continue still restores the launch clock"
     { timeout: 60_000 },
   );
   expect((await getProbe(page)).clock).toBe(savedClock);
+  expect(errors).toEqual([]);
+});
+
+test("an untainted dock writes exactly one committed revision and reloads to that station", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  await startNewGame(page);
+  await waitForMode(page, "docked");
+
+  // D-17: no in-flight blob exists until an arrival, so jump first. H is
+  // flight-scoped, so launch before starting the countdown.
+  await page.keyboard.press("F6");
+  await page.waitForFunction(() => window.__wegolite?.chart?.open === true, {
+    timeout: 30_000,
+  });
+  await page.keyboard.press("Tab");
+  await page.waitForFunction(() => window.__wegolite?.chart?.range === "long", {
+    timeout: 30_000,
+  });
+  await clickChartSystem(page, "Diso");
+  await page.waitForFunction(
+    (id) => window.__wegolite?.chart?.selectedId === id,
+    DISO_ID,
+    { timeout: 30_000 },
+  );
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(
+    (id) => window.__wegolite?.chart?.targetId === id,
+    DISO_ID,
+    { timeout: 30_000 },
+  );
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => window.__wegolite?.chart?.open === false, {
+    timeout: 30_000,
+  });
+
+  await page.keyboard.press("Digit1");
+  await waitForMode(page, "inFlight");
+  const committedBeforeJump = (await getProbe(page)).save?.committed ?? 0;
+  await page.keyboard.press("KeyH");
+  await page.waitForFunction(
+    (id) => window.__wegolite?.systemId === id,
+    DISO_ID,
+    { timeout: 180_000 },
+  );
+  await page.waitForFunction(
+    (expected) => (window.__wegolite?.save?.committed ?? 0) > expected,
+    committedBeforeJump,
+    { timeout: 60_000 },
+  );
+
+  const raw = await readRaw(page);
+  expect(raw).not.toBeNull();
+  const blob = JSON.parse(raw ?? "{}") as {
+    mode: string;
+    clockSeconds: number;
+    targetSystem?: string;
+    flight?: {
+      position: [number, number, number];
+      orientation: [number, number, number, number];
+      speed: number;
+      pitchRate: number;
+      rollRate: number;
+      torus: boolean;
+    };
+  };
+  expect(blob.mode).toBe("inFlight");
+  expect(blob.targetSystem).toBe(DISO_ID);
+  expect(blob.flight).toBeDefined();
+  if (blob.flight === undefined)
+    throw new Error("the arrival blob has no pose");
+
+  const arrived = await getProbe(page);
+  const station = arrived.world?.station;
+  const planet = arrived.world?.planet;
+  if (station === undefined || planet === undefined) {
+    throw new Error("the probe has no destination station/planet positions");
+  }
+
+  // The dock-mouth frame, computed from the destination layout (never Lave's).
+  const stationVec = vec(station[0], station[1], station[2]);
+  const planetVec = vec(planet[0], planet[1], planet[2]);
+  const stationToPlanet = normalizeVec(sub(planetVec, stationVec));
+  const mouth = add(stationVec, scale(stationToPlanet, DOCK_OFFSET));
+  const qPort = quatFromUnitVectors(vec(0, 0, -1), stationToPlanet);
+  const matched = normalize(axisAngle(1, 1, 0, Math.PI));
+  const orientation = normalize(mul(qPort, matched));
+  const k = rotate(qPort, vec(0, 0, -1));
+  // A restored ship is disarmed, so start outside the mouth (+k is toward the
+  // planet) and well clear of the contact proxy's outward face; it then flies
+  // in. The manual-dock case can sit inside the mouth because a launch has
+  // already armed the latch.
+  const position = add(mouth, scale(k, 120));
+
+  // Prove the in-flight Continue path copies the sanitized numbers exactly.
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+  await page.click("#title-continue");
+  await waitForMode(page, "inFlight");
+  const restored = await getProbe(page);
+  expect(restored.restore?.systemId).toBe(DISO_ID);
+  expect(restored.restore?.position[0]).toBeCloseTo(blob.flight.position[0], 9);
+  expect(restored.restore?.position[1]).toBeCloseTo(blob.flight.position[1], 9);
+  expect(restored.restore?.position[2]).toBeCloseTo(blob.flight.position[2], 9);
+  expect(restored.restore?.orientation[0]).toBeCloseTo(
+    blob.flight.orientation[0],
+    9,
+  );
+  expect(restored.restore?.orientation[1]).toBeCloseTo(
+    blob.flight.orientation[1],
+    9,
+  );
+  expect(restored.restore?.orientation[2]).toBeCloseTo(
+    blob.flight.orientation[2],
+    9,
+  );
+  expect(restored.restore?.orientation[3]).toBeCloseTo(
+    blob.flight.orientation[3],
+    9,
+  );
+  expect(restored.restore?.speed).toBe(blob.flight.speed);
+
+  // Rewrite only the pose and speed; keep mode, clock, market and target.
+  // A restore deliberately disarms the dock latch, so the ship needs forward
+  // speed to fly into the corridor exactly as a real player would.
+  const rewritten = {
+    ...blob,
+    flight: {
+      ...blob.flight,
+      position: [position.x, position.y, position.z],
+      orientation: [orientation.w, orientation.x, orientation.y, orientation.z],
+      speed: 50,
+    },
+  };
+  await page.reload();
+  await waitForReady(page);
+  await writeRaw(page, JSON.stringify(rewritten));
+  await page.reload();
+  await waitForReady(page);
+  await page.click("#title-continue");
+  await waitForMode(page, "docked");
+
+  const afterDock = await getProbe(page);
+  expect(afterDock.mode).toBe("docked");
+  expect(afterDock.systemId).toBe(DISO_ID);
+  await page.waitForFunction(
+    () => (window.__wegolite?.save?.committed ?? 0) === 1,
+    undefined,
+    { timeout: 60_000 },
+  );
+  const saved = await getProbe(page);
+  expect(saved.save?.committed).toBe(1);
+  expect(saved.save?.lastClock ?? 0).toBeGreaterThanOrEqual(blob.clockSeconds);
+
+  // D-12/NAV-02: F5 shows the target that survived the reload.
+  await page.keyboard.press("Digit5");
+  await waitForStationScreen(page, "status");
+  expect(await statusValue(page, "Hyperspace System")).toBe("Diso");
+  await page.keyboard.press("Escape");
+  await waitForStationScreen(page, "home");
+
+  // A second reload + Continue restores the station, not the witchpoint.
+  await page.reload();
+  await waitForReady(page);
+  await continueGame(page);
+  const again = await getProbe(page);
+  expect(again.mode).toBe("docked");
+  expect(again.systemId).toBe(DISO_ID);
   expect(errors).toEqual([]);
 });
 
