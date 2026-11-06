@@ -104,6 +104,13 @@ export default tseslint.config(
                 "**/content/index*",
                 "**/content/schemas/**",
                 "**/content/generated/**",
+                // The Phase 5 loaders are runtime content too: the sim receives
+                // a validated record or plain data, never a loader.
+                "**/content/commodities*",
+                "**/content/labels*",
+                "**/content/equipment*",
+                "**/content/dock-port*",
+                "**/content/systems*",
               ],
               message: "src/sim may only import src/sim and content/types.",
             },
