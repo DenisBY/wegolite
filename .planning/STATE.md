@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 current_phase: 7
 current_phase_name: Hardening & Community Release
-current_plan: 2
+current_plan: 3
 status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-11-07T21:41:25.733Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-11-07T22:01:00.223Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 complete, transitioned to Phase 7
-state_head: bcd6f439dad3d3b902660871bb743051be735f0e
+state_head: 41a0a1e0d61ba64d8c0f70535101c5c1e398689d
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 73
-  completed_plans: 62
-  percent: 85
+  completed_plans: 63
+  percent: 86
 ---
 
 # Project State
@@ -29,12 +29,12 @@ See: .planning/PROJECT.md (updated 2026-11-06)
 ## Current Position
 
 Phase: 7 (Hardening & Community Release) — EXECUTING
-Current Plan: 2
+Current Plan: 3
 Total Plans in Phase: 12
-Status: Executing
+Status: Ready to execute
 Last activity: 2026-11-07 — Completed 07-01 (licence shipping, release title, enforced CSP)
 
-Progress: [█████████░] 85% — 62/73 plans complete
+Progress: [█████████░] 86% — 62/73 plans complete
 
 ## Performance Metrics
 
@@ -98,6 +98,7 @@ Progress: [█████████░] 85% — 62/73 plans complete
 | Phase 06 P11 | ~30min | 3 tasks | 11 files |
 | Phase 06 P12 | 45min | 3 tasks | 8 files |
 | Phase 7 P01 | ~40 min | 3 tasks | 9 files |
+| Phase 7 P02 | ~20 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -222,6 +223,10 @@ Recent decisions affecting current work:
 - [Phase 06]: Chart stays north-up as a recorded divergence from Oolite vscale; mass-blockage jump check omitted in empty v1 space (06-12, G-9)
 - [Phase 7]: zod runs jitless (src/app/zod-csp.ts, first import of main.ts) because its new Function('') probe is refused by the shipped CSP — Strict policy script-src 'self' with no unsafe-eval; jitless is zod's documented path for strict CSPs
 - [Phase 7]: Shipped CSP is a meta tag: script-src 'self', connect-src 'self', object-src 'none', base-uri 'none', no remote origin and no unsafe-eval — QUAL-08 browser-enforced half (T-07-02, T-07-03); D-04
+- [Phase 7]: QUAL-05: a lost WebGL context pauses at once and resumes only by player action (D-15); the resume refusal sits in resume() so P, Escape and the Resume button share one guard
+- [Phase 7]: QUAL-05: the recovery state machine is DOM-free with an injected timer; the 10 s timeout reuses the former terminal sequence; the controller ignores every event after dispose
+- [Phase 7]: QUAL-05: autosave and manualSave skip with reason recovering before any other guard, so no snapshot is queued while the context is lost (research Pitfall 9)
+- [Phase 7]: QUAL-05: hidden-tab and stall proofs use a visibilityState override and a busy loop, not page.clock (research A13); the per-frame bound also requires simulated time to advance
 
 ### Pending Todos
 
@@ -257,6 +262,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-07T21:41:24.946Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-11-07T22:00:59.333Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None
