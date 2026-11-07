@@ -289,6 +289,12 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   // never the full tank the Phase 3 constant printed.
   expect(probe.hud?.fuelText).toBe("3.4 LY");
   expect(probe.hud?.fuel).toBeCloseTo(34 / 70, 6);
+  // G-7: the committed target survives the arrival (the snapshot and the HUD/F5
+  // line keep naming the destination), and the global overlay names the live
+  // system instead of the boot string `new game: Lave` (IN-02).
+  expect(probe.hyperspace?.targetId).toBe(DISO.id);
+  expect(probe.hud?.hyperspaceTarget).toBe("Diso");
+  await expect(page.locator("#status")).toHaveText("Wegolite — Diso");
 
   // D-17/SAVE-05: the arrival anchor is one complete in-flight v2 snapshot.
   await page.waitForFunction(
@@ -346,6 +352,8 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   expect(probe.systemId).toBe(DISO.id);
   expect(probe.economy?.marketSystemId).toBe(DISO.id);
   expect(probe.hyperspace?.targetId).toBe(DISO.id);
+  // IN-02: Continue installs the saved system into the global overlay.
+  await expect(page.locator("#status")).toHaveText("Wegolite — Diso");
   // D-12: the HUD carries the same target name F5 renders, inside the existing
   // eleven-element set (no twelfth element).
   expect(probe.hud?.hyperspaceTarget).toBe("Diso");

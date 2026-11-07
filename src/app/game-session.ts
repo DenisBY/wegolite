@@ -1230,6 +1230,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       market = nextMarket;
       marketSeed = nextSeed;
       hyperspaceTargetId = nextTarget;
+      syncStatusOverlay();
       previousPose = poseOf(restored.state);
       currentPose = previousPose;
       previousCameraWorld = undefined;
@@ -1716,12 +1717,37 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const nextSeed = arrivalMarketSeed(destination.id, previousSeed);
     const nextFuel = Math.max(0, profile.fuel - event.fuelCost);
 
-    // Build the destination scene before retiring the origin (T-06-13), then
-    // install state, fuel, market and seed in one synchronous block.
-    const arrivedLayout = enterSystemById(destination.id);
+    // G-7: the sim has already committed the jump (clock advanced, countdown
+    // cleared), so everything that can throw runs here, before any live
+    // reference moves: the destination market, then the destination scene
+    // (T-06-13: the scene manager retires the origin only once the new scene
+    // exists). A throw shows the failure surface and leaves profile, market,
+    // seed, target and the system/scene/layout triple untouched.
+    let nextMarket: Market;
+    let arrivedLayout: SystemLayout;
+    try {
+      nextMarket = generateMarket(destination, catalogue, nextSeed);
+      arrivedLayout = enterSystemById(destination.id);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      showBootFailure(
+        "Hyperspace arrival failed. Reload the page to restart Wegolite.",
+      );
+      publishFailure(detail);
+      // Freeze the sim behind the failure surface: no further steps, no
+      // autosave from the advancing clock.
+      paused = true;
+      return;
+    }
+
+    // One synchronous install block: plain assignments and the pure arrival
+    // pose. Nothing in it throws, so the session is never half-applied.
     profile = { ...profile, fuel: nextFuel };
-    market = generateMarket(destination, catalogue, nextSeed);
+    market = nextMarket;
     marketSeed = nextSeed;
+    // The committed `hyperspaceTargetId` is deliberately retained: the arrival
+    // snapshot carries it (PROJECT.md:126-127, Oolite's unchanged
+    // target_system_id), and the HUD/F5 target line keeps naming it.
     applyWitchpointArrival(
       currentState,
       arrivedLayout,
@@ -1743,10 +1769,22 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       clockDeltaSeconds: event.clockDeltaSeconds,
       fuelCost: event.fuelCost,
     };
+    syncStatusOverlay();
     messages.enqueue(`Arrived at ${destination.name}`);
     // The arrival anchor is a complete in-flight v2 snapshot.
     autosave();
     syncEconomyProbe();
+  }
+
+  /**
+   * IN-02: the global `#status` overlay names the live system. It is written
+   * from session state after the boot install, a jump and a Load, so it never
+   * claims a stale system.
+   */
+  function syncStatusOverlay(): void {
+    const element = document.getElementById("status");
+    if (element === null) return;
+    element.textContent = `Wegolite — ${system.name}`;
   }
 
   /**
@@ -2526,6 +2564,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           ? savedTarget
           : undefined;
     }
+    syncStatusOverlay();
 
     // D-17/D-18/D-19: resolve the seed once and generate the market once. A
     // later `docked` event reuses this market; only Phase 6's system change re-seeds.

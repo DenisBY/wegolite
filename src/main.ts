@@ -371,10 +371,8 @@ if (!boot.ok) {
     { signal: lifecycle.signal },
   );
 
-  const statusElement = document.getElementById("status");
-  if (statusElement !== null) {
-    statusElement.textContent = "Wegolite — new game: Lave";
-  }
+  // The `#status` overlay is owned by the session (IN-02): it names the live
+  // system once the session installs one, instead of a fixed boot string.
   const statsElement = document.getElementById("stats");
   if (statsElement !== null) {
     statsElement.hidden = true;
