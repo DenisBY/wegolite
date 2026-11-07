@@ -142,7 +142,11 @@ import type { ChartOverlay } from "../ui/chart.js";
 import { createSaveLoadScreen } from "../ui/save-load.js";
 import type { SaveLoadScreen } from "../ui/save-load.js";
 import { formatClock } from "../render/hud/format.js";
-import { buildChartView, nearestInDirection } from "../ui/chart-model.js";
+import {
+  buildChartView,
+  nearestInDirection,
+  visibleSystemIds,
+} from "../ui/chart-model.js";
 import type { ChartRange, ChartView } from "../ui/chart-model.js";
 import {
   buildMarketModel,
@@ -1612,7 +1616,19 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       (chartSelectedId === undefined
         ? undefined
         : galaxyById.get(chartSelectedId)) ?? system;
-    const next = nearestInDirection(galaxy, base, dx, dy);
+    // G-5: arrows walk only the systems the window paints, so a press can
+    // never land on an unpainted system. With no chart there is nothing to
+    // paint, and the whole galaxy is the fallback.
+    const overlay = chart;
+    const visibleIds =
+      overlay === undefined
+        ? undefined
+        : visibleSystemIds(currentChartView(overlay));
+    const candidates =
+      visibleIds === undefined
+        ? galaxy
+        : galaxy.filter((candidate) => visibleIds.has(candidate.id));
+    const next = nearestInDirection(candidates, base, dx, dy);
     if (next !== undefined) chartSelectedId = next.id;
     refreshChart();
   }

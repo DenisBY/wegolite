@@ -23,6 +23,7 @@ import {
   hitTest,
   nearestInDirection,
   selectLabels,
+  visibleSystemIds,
 } from "../../src/ui/chart-model.js";
 import type {
   ChartMarker,
@@ -305,6 +306,99 @@ describe("nearestInDirection", () => {
       "low",
     );
     expect(nearestInDirection([current], current, 0, 1)).toBeUndefined();
+  });
+
+  it("rejects a candidate whose lateral offset exceeds its forward progress", () => {
+    const current = chartSystem("current", 0, 0, 0);
+    // dx 2, dy 5 (distance space): lateral 5 is more than forward 2.
+    const steep = chartSystem("steep", 1, 2, 10);
+
+    expect(nearestInDirection([current, steep], current, 1, 0)).toBeUndefined();
+  });
+
+  it("picks the nearest squared distance inside the cone, not the most aligned", () => {
+    const current = chartSystem("current", 0, 0, 0);
+    const near = chartSystem("near", 1, 4, 4); // squared 20, lateral 2 <= 4
+    const aligned = chartSystem("aligned", 2, 7, 0); // squared 49
+    const far = chartSystem("far", 3, 20, 0); // squared 400
+
+    expect(
+      nearestInDirection([current, aligned, far, near], current, 1, 0)?.id,
+    ).toBe("near");
+  });
+});
+
+describe("short-range arrow selection", () => {
+  it("lists only visible systems, a strict subset of the galaxy at short range", () => {
+    const view = buildChartView(
+      systems,
+      lave.id,
+      undefined,
+      "short",
+      fullFuel,
+      viewport,
+      undefined,
+    );
+    const visible = visibleSystemIds(view);
+
+    expect(visible.size).toBeGreaterThan(0);
+    expect(visible.size).toBeLessThan(systems.length);
+    expect(visible.has(lave.id)).toBe(true);
+    expect(visible.has(byName("Ermaso").id)).toBe(false);
+  });
+
+  it("keeps every system visible at long range", () => {
+    const view = buildChartView(
+      systems,
+      lave.id,
+      undefined,
+      "long",
+      fullFuel,
+      viewport,
+      undefined,
+    );
+
+    expect(visibleSystemIds(view).size).toBe(systems.length);
+  });
+
+  it("steps from Lave to a system whose marker is painted, never Ermaso", () => {
+    const view = buildChartView(
+      systems,
+      lave.id,
+      undefined,
+      "short",
+      fullFuel,
+      viewport,
+      undefined,
+    );
+    const visible = visibleSystemIds(view);
+    const candidates = systems.filter((system) => visible.has(system.id));
+    const next = nearestInDirection(candidates, lave, 1, 0);
+
+    expect(next).toBeDefined();
+    if (next === undefined) return;
+    expect(next.id).not.toBe(byName("Ermaso").id);
+    expect(marker(view, next.id).visible).toBe(true);
+  });
+
+  it("keeps an off-window selection in the label set", () => {
+    const ermaso = byName("Ermaso");
+    const view = buildChartView(
+      systems,
+      lave.id,
+      undefined,
+      "short",
+      fullFuel,
+      viewport,
+      ermaso.id,
+    );
+
+    expect(marker(view, ermaso.id).visible).toBe(false);
+    expect(marker(view, ermaso.id).isSelected).toBe(true);
+    const labelled = selectLabels(view, () => 18).map(
+      (label) => label.systemId,
+    );
+    expect(labelled).toContain(ermaso.id);
   });
 });
 

@@ -69,7 +69,9 @@ export interface ChartMarker {
   /**
    * True when the marker is inside the selected range window. Long range
    * marks every system visible; short range keeps all 256 markers in the model
-   * but clips off-window systems out of clicks, labels and painting.
+   * but clips off-window systems out of clicks, arrow selection and painting.
+   * The one exception is the selected marker, which the painter and the label
+   * set keep visible even after a range toggle moves it off-window.
    */
   readonly visible: boolean;
 }
@@ -181,7 +183,13 @@ function projectionScale(
 
 /**
  * Map chart coordinates to screen coordinates on a centred, letterboxed 2:1
- * rectangle. `screenY` is negated so chart north is up.
+ * rectangle.
+ *
+ * Orientation is a recorded decision, not a bug to fix back. `screenY` negates
+ * the halved chart-y so chart north is up. Oolite's full chart uses a negative
+ * vertical scale (`GuiDisplayGen.m`, `drawStarChart`) and draws the other way.
+ * The divergence is recorded in PROJECT.md Key Decisions (plan 06-12), so keep
+ * the negation.
  */
 export function chartProjection(
   viewport: ChartViewport,
@@ -276,8 +284,9 @@ export function buildChartView(
     (left, right) => left.systemIndex - right.systemIndex,
   );
   // D-04: all 256 systems stay in the model in both ranges, so every system
-  // keeps its name and stays reachable by arrow selection. `visible` only says
-  // whether the marker lies inside the range window and may be painted/clicked.
+  // keeps its name. `visible` says whether the marker lies inside the range
+  // window. Only visible systems are arrow-selectable and clickable, and only
+  // visible markers are painted (plus the selected one, see chart-draw).
   const windowed = ordered.filter(inWindow);
   const visibleIds = new Set(windowed.map((system) => system.id));
 
@@ -412,10 +421,24 @@ export function hitTest(
 }
 
 /**
- * The nearest system that makes progress along `(dirX, dirY)` in distance
- * space. Candidates behind the current system are rejected; the score favours
- * straight-ahead travel, then proximity, and breaks exact ties by
- * `systemIndex`.
+ * The ids the player can see in the current range window. Arrow selection may
+ * only land on these, so a short-range press never names an unpainted system.
+ */
+export function visibleSystemIds(view: ChartView): ReadonlySet<string> {
+  return new Set(
+    view.markers.filter((marker) => marker.visible).map((marker) => marker.id),
+  );
+}
+
+/**
+ * The nearest system in the forward cone of `(dirX, dirY)`, in distance space.
+ *
+ * A candidate is in the cone only when it makes forward progress and its
+ * lateral offset is no larger than that progress (a 45-degree half-angle), so
+ * a system well off the requested axis is never chosen. Among cone candidates
+ * the score is the squared distance, so the nearest system wins and an
+ * alignment-dominated far system cannot beat a near one. Exact ties resolve by
+ * `systemIndex`. Pass only the visible systems to get a painted selection.
  */
 export function nearestInDirection(
   systems: readonly System[],
@@ -432,10 +455,15 @@ export function nearestInDirection(
     const forward = dx * dirX + dy * dirY;
     if (forward <= 0) continue;
     const lateral = Math.abs(dx * dirY - dy * dirX);
-    const score = lateral * 1000 + forward + candidate.systemIndex * 1e-6;
-    if (score < bestScore) {
-      bestScore = score;
+    if (lateral > forward) continue;
+    const score = dx * dx + dy * dy;
+    if (
+      best === undefined ||
+      score < bestScore ||
+      (score === bestScore && candidate.systemIndex < best.systemIndex)
+    ) {
       best = candidate;
+      bestScore = score;
     }
   }
   return best;
@@ -484,9 +512,10 @@ function intersects(
  * Fill `ChartView.labels` deterministically.
  *
  * Systems are visited in `systemIndex` order. A label is skipped when its
- * measured box intersects an already accepted box, but the current system and
- * the committed target always draw. Unreachable systems are dimmed, never
- * suppressed. Text measurement is injected because the model has no canvas.
+ * measured box intersects an already accepted box, but the current system, the
+ * committed target and the selection always draw; the selection is forced even
+ * when it is off-window. Unreachable systems are dimmed, never suppressed. Text
+ * measurement is injected because the model has no canvas.
  */
 export function selectLabels(
   view: ChartView,
@@ -504,7 +533,7 @@ export function selectLabels(
     const x = marker.screenX + LABEL_OFFSET_X;
     const y = marker.screenY + LABEL_OFFSET_Y;
     const box = { x, y: y - LABEL_HEIGHT, width, height: LABEL_HEIGHT };
-    const forced = marker.isCurrent || marker.isTarget;
+    const forced = marker.isCurrent || marker.isTarget || marker.isSelected;
     if (!marker.visible && !forced) continue;
     if (!forced && accepted.some((other) => intersects(other, box))) {
       continue;

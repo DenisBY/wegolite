@@ -150,6 +150,52 @@ describe("drawChart", () => {
   });
 });
 
+describe("drawChart off-window selection", () => {
+  it("paints and labels a selected marker that a range toggle left off-window", () => {
+    const ermaso = byName("Ermaso");
+    const offWindow = labelledView(lave.id, diso.id, "short", ermaso.id);
+    const selected = offWindow.markers.find(
+      (marker) => marker.id === ermaso.id,
+    );
+    expect(selected?.visible).toBe(false);
+    if (selected === undefined) return;
+
+    const { context, calls } = createRecorder();
+    drawChart(context, offWindow, viewport);
+
+    const painted = calls.some(
+      (call) =>
+        call.method === "arc" &&
+        call.args[0] === selected.screenX &&
+        call.args[1] === selected.screenY,
+    );
+    const labelled = calls.some(
+      (call) => call.method === "fillText" && call.args[0] === ermaso.name,
+    );
+    expect(painted).toBe(true);
+    expect(labelled).toBe(true);
+  });
+
+  it("does not paint an off-window system that is neither selected, current nor target", () => {
+    const ermaso = byName("Ermaso");
+    const offWindow = labelledView(lave.id, diso.id, "short", diso.id);
+    const hidden = offWindow.markers.find((marker) => marker.id === ermaso.id);
+    expect(hidden?.visible).toBe(false);
+    if (hidden === undefined) return;
+
+    const { context, calls } = createRecorder();
+    drawChart(context, offWindow, viewport);
+
+    const painted = calls.some(
+      (call) =>
+        call.method === "arc" &&
+        call.args[0] === hidden.screenX &&
+        call.args[1] === hidden.screenY,
+    );
+    expect(painted).toBe(false);
+  });
+});
+
 describe("needsChartRepaint", () => {
   it("is false for the same reference and for a fresh equal view", () => {
     expect(needsChartRepaint(view, view)).toBe(false);

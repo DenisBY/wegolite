@@ -121,7 +121,16 @@ export function drawChart(
   context.textAlign = "left";
   context.textBaseline = "alphabetic";
   for (const marker of view.markers) {
-    if (!marker.visible && !marker.isCurrent && !marker.isTarget) continue;
+    // G-5: a selection that a range toggle moved off-window still paints, so the
+    // readout never names a marker the player cannot see.
+    if (
+      !marker.visible &&
+      !marker.isCurrent &&
+      !marker.isTarget &&
+      !marker.isSelected
+    ) {
+      continue;
+    }
     context.fillStyle = markerColour(marker);
     context.beginPath();
     context.arc(
