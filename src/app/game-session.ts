@@ -145,10 +145,11 @@ import type { SaveLoadScreen } from "../ui/save-load.js";
 import { formatClock } from "../render/hud/format.js";
 import {
   buildChartView,
+  chartArrowVector,
   nearestInDirection,
   visibleSystemIds,
 } from "../ui/chart-model.js";
-import type { ChartRange, ChartView } from "../ui/chart-model.js";
+import type { ChartArrow, ChartRange, ChartView } from "../ui/chart-model.js";
 import {
   buildMarketModel,
   buildOutfittingModel,
@@ -1650,7 +1651,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     refreshChart();
   }
 
-  function moveChartSelection(dx: number, dy: number): void {
+  function moveChartSelection(arrow: ChartArrow): void {
     const base =
       (chartSelectedId === undefined
         ? undefined
@@ -1667,7 +1668,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       visibleIds === undefined
         ? galaxy
         : galaxy.filter((candidate) => visibleIds.has(candidate.id));
-    const next = nearestInDirection(candidates, base, dx, dy);
+    const { dirX, dirY } = chartArrowVector(arrow);
+    const next = nearestInDirection(candidates, base, dirX, dirY);
     if (next !== undefined) chartSelectedId = next.id;
     refreshChart();
   }
@@ -1694,16 +1696,16 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         refreshChart();
         break;
       case "chartUp":
-        if (chartOpen) moveChartSelection(0, 1);
+        if (chartOpen) moveChartSelection("up");
         break;
       case "chartDown":
-        if (chartOpen) moveChartSelection(0, -1);
+        if (chartOpen) moveChartSelection("down");
         break;
       case "chartLeft":
-        if (chartOpen) moveChartSelection(-1, 0);
+        if (chartOpen) moveChartSelection("left");
         break;
       case "chartRight":
-        if (chartOpen) moveChartSelection(1, 0);
+        if (chartOpen) moveChartSelection("right");
         break;
       default:
         break;

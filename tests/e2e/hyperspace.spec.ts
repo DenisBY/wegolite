@@ -27,6 +27,8 @@ import { DT } from "../../src/sim/time.js";
 test.setTimeout(360_000);
 
 const DISO = systemByName("Diso");
+const LAVE = systemByName("Lave");
+const REORTE = systemByName("Reorte");
 /** 9 integer chart units at 0.4 LY: 576 * 9^2 seconds of jump time. */
 const DISO_JUMP_SECONDS = 576 * 9 * 9;
 const DISO_FUEL_COST = 4 * 9;
@@ -76,13 +78,18 @@ async function paintCount(page: Page): Promise<number> {
   return Number(value ?? "0");
 }
 
-/** Click the marker the pure view model places for `name`. */
-async function clickSystem(page: Page, name: string): Promise<void> {
-  const system = systemByName(name);
+/**
+ * The page-pixel point the painter draws `systemId` at: the canvas box plus the
+ * CSS-pixel point the pure view model places for that marker.
+ */
+async function markerPoint(
+  page: Page,
+  systemId: string,
+): Promise<{ readonly x: number; readonly y: number }> {
   const probe = await getProbe(page);
   const box = await page.locator("#chart-canvas").boundingBox();
   if (box === null) throw new Error("the chart canvas has no bounding box");
-  const point = chartScreenPoint(system.id, {
+  const point = chartScreenPoint(systemId, {
     currentId: probe.systemId ?? "",
     targetId: probe.chart?.targetId,
     range: probe.chart?.range ?? "short",
@@ -90,7 +97,14 @@ async function clickSystem(page: Page, name: string): Promise<void> {
     viewport: { width: box.width, height: box.height },
     selectedId: probe.chart?.selectedId,
   });
-  await page.mouse.click(box.x + point.x, box.y + point.y);
+  return { x: box.x + point.x, y: box.y + point.y };
+}
+
+/** Click the marker the pure view model places for `name`. */
+async function clickSystem(page: Page, name: string): Promise<void> {
+  const system = systemByName(name);
+  const point = await markerPoint(page, system.id);
+  await page.mouse.click(point.x, point.y);
 }
 
 async function openChart(page: Page): Promise<void> {
@@ -465,5 +479,32 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
       stock: good.stock,
     })),
   ).toEqual(arrivedMarket);
+  expect(errors).toEqual([]);
+});
+
+test("chart arrow keys select the system drawn in the pressed direction", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await page.goto("/");
+  await waitForReady(page);
+  await startNewGame(page);
+  await waitForMode(page, "docked");
+
+  await openChart(page);
+  expect((await getProbe(page)).systemId).toBe(LAVE.id);
+
+  // GuiDisplayGen.m:1575: a larger chart-y is drawn lower, so the system drawn
+  // above Lave is the one ArrowUp selects. The pre-flip code selected Orerve.
+  await page.keyboard.press("ArrowUp");
+  await page.waitForFunction(
+    (id) => window.__wegolite?.chart?.selectedId === id,
+    REORTE.id,
+    { timeout: 30_000 },
+  );
+  expect((await markerPoint(page, REORTE.id)).y).toBeLessThan(
+    (await markerPoint(page, LAVE.id)).y,
+  );
+
   expect(errors).toEqual([]);
 });

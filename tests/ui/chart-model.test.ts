@@ -63,13 +63,16 @@ describe("chart projection", () => {
     const yStep = projection({ x: 0, y: 2 });
 
     expect(xStep.x - origin.x).toBeCloseTo(8, 10);
-    expect(origin.y - yStep.y).toBeCloseTo(8, 10);
+    // GuiDisplayGen.m:1575: the negative vscale draws a larger chart-y lower.
+    expect(yStep.y - origin.y).toBeCloseTo(8, 10);
   });
 
-  it("inverts screen y so chart north is up", () => {
+  it("draws a larger galaxy y lower on screen, as Oolite's negative vscale does", () => {
+    // GuiDisplayGen.m:1575 (negative vscale) and GuiDisplayGen.m:1948
+    // (star y = sys.y * vscale + voffset): a larger y is drawn lower.
     const projection = chartProjection(viewport, { x: 0, y: 0 }, 100, 100);
 
-    expect(projection({ x: 0, y: 2 }).y).toBeLessThan(
+    expect(projection({ x: 0, y: 2 }).y).toBeGreaterThan(
       projection({ x: 0, y: 0 }).y,
     );
   });
@@ -96,7 +99,8 @@ describe("chart projection", () => {
     );
 
     expect(projection({ x: 0, y: 0 })).toEqual({ x: 200, y: 500 });
-    expect(projection({ x: 0, y: 50 }).y).toBe(400);
+    // GuiDisplayGen.m:1575: a larger chart-y sits below the centre, so 500 + 100.
+    expect(projection({ x: 0, y: 50 }).y).toBe(600);
   });
 });
 
@@ -573,7 +577,9 @@ describe("purity and the fuel circle", () => {
 
     expect(circle.chartRadius).toBeCloseTo(17.5, 10);
     expect(xEdge.x - centre.x).toBeCloseTo(circle.radius, 10);
-    expect(centre.y - yEdge.y).toBeCloseTo(circle.radius, 10);
+    // GuiDisplayGen.m:1575: a larger chart-y is drawn lower, so the south edge
+    // of the circle sits below the centre.
+    expect(yEdge.y - centre.y).toBeCloseTo(circle.radius, 10);
   });
 });
 

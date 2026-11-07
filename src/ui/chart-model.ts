@@ -15,8 +15,9 @@
  * unit. This module letterboxes that rectangle and maps both axes
  * isotropically, so equal jump distances are equal on screen and the fuel
  * circle is a true circle. `screenX = width/2 + (x - centre.x) * k` and
- * `screenY = height/2 - ((y - centre.y) / 2) * k`, where
- * `k = min(width / chartSpanX, height / (chartSpanY / 2))`.
+ * `screenY = height/2 + ((y - centre.y) / 2) * k`, where
+ * `k = min(width / chartSpanX, height / (chartSpanY / 2))`. The chart follows
+ * Oolite's orientation, so screen y grows downward with galaxy y.
  *
  * Connectivity is **never** derived from pixels. Every edge and every
  * reachability decision comes from the integer `chartDistance` in
@@ -185,11 +186,11 @@ function projectionScale(
  * Map chart coordinates to screen coordinates on a centred, letterboxed 2:1
  * rectangle.
  *
- * Orientation is a recorded decision, not a bug to fix back. `screenY` negates
- * the halved chart-y so chart north is up. Oolite's full chart uses a negative
- * vertical scale (`GuiDisplayGen.m`, `drawStarChart`) and draws the other way.
- * The divergence is recorded in PROJECT.md Key Decisions (plan 06-12), so keep
- * the negation.
+ * The chart follows Oolite's orientation: screen y grows downward with galaxy
+ * y. Oolite's `drawStarChart` derives a negative vertical scale
+ * (`GuiDisplayGen.m:1575`) and places each star at `sys.y * vscale + voffset`
+ * (`GuiDisplayGen.m:1948`), so a larger galaxy y is drawn lower. Connectivity,
+ * distance and selection stay on chart coordinates and never read these pixels.
  */
 export function chartProjection(
   viewport: ChartViewport,
@@ -202,7 +203,7 @@ export function chartProjection(
   const originY = viewport.height / 2;
   return (point) => ({
     x: originX + (point.x - centre.x) * k,
-    y: originY - ((point.y - centre.y) / 2) * k,
+    y: originY + ((point.y - centre.y) / 2) * k,
   });
 }
 
@@ -467,6 +468,35 @@ export function nearestInDirection(
     }
   }
   return best;
+}
+
+/** The four arrow keys the galactic chart answers to. */
+export type ChartArrow = "up" | "down" | "left" | "right";
+
+/**
+ * The direction one arrow points, in distance space, for `nearestInDirection`.
+ *
+ * The chart follows Oolite's orientation (`GuiDisplayGen.m:1575`, negative
+ * vertical scale), so screen-up is decreasing chart-y: up is `dirY = -1` and
+ * down is `dirY = +1`. `nearestInDirection` halves chart-y itself, so only the
+ * sign of `dirY` depends on the orientation. The candidate rule and the
+ * distance metric do not.
+ */
+const CHART_ARROW_VECTORS: Readonly<
+  Record<ChartArrow, { readonly dirX: number; readonly dirY: number }>
+> = {
+  up: { dirX: 0, dirY: -1 },
+  down: { dirX: 0, dirY: 1 },
+  left: { dirX: -1, dirY: 0 },
+  right: { dirX: 1, dirY: 0 },
+};
+
+/** The distance-space direction an arrow key selects along. */
+export function chartArrowVector(arrow: ChartArrow): {
+  readonly dirX: number;
+  readonly dirY: number;
+} {
+  return { ...CHART_ARROW_VECTORS[arrow] };
 }
 
 /** The distance/fuel readout for one selected system, or `undefined`. */
