@@ -1,19 +1,19 @@
 ---
 gsd_state_version: "1.0"
-current_phase: 06
-current_phase_name: Hyperspace, Navigation & Persistence
-status: executing
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-11-07T11:23:30.650Z"
-last_activity: 2026-11-06
-last_activity_desc: Phase 06 execution started
-state_head: 50469b04c9c1f5c7abcf4f2e4054ecc3058d3376
+current_phase: 7
+current_phase_name: Hardening & Community Release
+status: planning
+stopped_at: Phase 6 complete, ready to plan Phase 7
+last_updated: "2026-11-07T17:56:47.159Z"
+last_activity: 2026-11-07
+last_activity_desc: Phase 6 complete, transitioned to Phase 7
+state_head: fda7f0aae44036f51b1ea1eea2d3b3bfa118ffd5
 progress:
   total_phases: 7
-  completed_phases: 5
-  total_plans: 56
-  completed_plans: 50
-  percent: 71
+  completed_phases: 6
+  total_plans: 61
+  completed_plans: 61
+  percent: 86
 ---
 
 # Project State
@@ -23,21 +23,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-06)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 06 — Hyperspace, Navigation & Persistence
+**Current focus:** Phase 6 — Hyperspace, Navigation & Persistence
 
 ## Current Position
 
-Phase: 06 (Hyperspace, Navigation & Persistence) — READY TO EXECUTE
-Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-11-06 — Phase 06 execution started
+Phase: 7 — Hardening & Community Release
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-07 — Phase 6 complete, transitioned to Phase 7
 
-Progress: [███████░░░] 71% — 44/44 plans complete
+Progress: [█████████░] 86% — 44/44 plans complete
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 44
+- Total plans completed: 61
 - Average duration: 5.3 min
 - Total execution time: 3.9 hours
 
@@ -50,6 +50,7 @@ Progress: [███████░░░] 71% — 44/44 plans complete
 | 03 | 14 | - | - |
 | 04 | 8 | - | - |
 | 05 | 6 | - | - |
+| 6 | 17 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: 01-03 3 min, 01-04 5 min, 01-05 9 min, 01-06 2 min, 01-07 6 min
@@ -88,6 +89,12 @@ Progress: [███████░░░] 71% — 44/44 plans complete
 | Phase 05 P05 | 72 min | 2 tasks | 6 files |
 | Phase 05 P06 | 36 min | 3 tasks | 9 files |
 | Phase 06 P06-01 | 16 min | 3 tasks | 11 files |
+| Phase 6 P07 | 23min | 3 tasks | 5 files |
+| Phase 6 P08 | 9min | 3 tasks | 7 files |
+| Phase 06 P09 | approx. 30 min | 3 tasks | 5 files |
+| Phase 06 P10 | 13min | 2 tasks | 11 files |
+| Phase 06 P11 | ~30min | 3 tasks | 11 files |
+| Phase 06 P12 | 45min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -197,6 +204,19 @@ Recent decisions affecting current work:
 - [Phase 06]: Hyperspace arithmetic stays integer: fuelCost is 4*dist (1 at dist 0) and jumpTimeSeconds is 576*dist^2, never the 0.4*dist display float (06-01).
 - [Phase 06]: The countdown is integer steps with the skip-first-tick encoding; only the commit sets terminalTransition, so refusals and cancels add zero jump time (06-01).
 - [Phase 06]: Arrival is a deterministic FNV-1a word per route with the offset on X/Z; no global random source or wall clock (06-01).
+- [Phase 6]: Plan 06-07: witchpoint arrival and in-flight restore arm dockArmed (the saved pose is outside the corridor); the disarmed tunnel-end clamp stays the departure unstick and is unchanged.
+- [Phase 6]: Plan 06-07: the reload proof's live-pose bound is the float64 clock-rounding grid per resumed fixed step times speed, not a relative 1e-6 bound; the clock sits near 1.8e11 s.
+- [Phase 6]: A dock cancels an active hyperspace countdown at no fuel or clock cost through one owner, clearHyperspaceAttempt; the tick requires the live inFlight mode (amends D-06, recorded in PROJECT.md)
+- [Phase 06]: SaveLoadScreen.isConfirming() is the only overwrite-dialog state; the session flag is removed (G-3)
+- [Phase 06]: Enter follows focus (saveScreenActivate, ordered before saveScreenConfirm); Y is the direct confirm (G-3)
+- [Phase 06]: Plan 06-10: buildHudModel takes the live fuelTenths as a required parameter before the defaulted ones, so the HUD bar and text share one source (G-4).
+- [Phase 06]: Plan 06-10: arrow selection walks only visible systems, inside a 45-degree cone, scored by squared distance with a systemIndex tie-break; the selected marker is painted and labelled off-window (G-5).
+- [Phase 06]: Same-frame H edges are mapped in input order (mapHyperspaceBeginEdges): a begin while live becomes a cancel; the mapper never mutates its input (06-11, G-6).
+- [Phase 06]: A committed jump keeps hyperspaceTargetId through the arrival, matching PROJECT.md v2 and Oolite target_system_id; a failed destination build shows the failure surface and freezes the sim (06-11, G-7).
+- [Phase 06]: In-session Load clears the message queue, resets the scrape throttle and dock feedback, re-checks F2 after the await, and rebinds the ?test=1 hook to the restored state; the testTainted latch is kept (06-11, G-8).
+- [Phase 06]: The fixed boot #status string is removed; the session owns #status via syncStatusOverlay (06-11, IN-02).
+- [Phase 06]: Writer gate enforces the reader system/station allow-lists (T-06-36); both rejections pinned to the reader's corrupt verdict (06-12)
+- [Phase 06]: Chart stays north-up as a recorded divergence from Oolite vscale; mass-blockage jump check omitted in empty v1 space (06-12, G-9)
 
 ### Pending Todos
 
@@ -232,6 +252,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-06T17:33:58.455Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-11-07T13:20:14.776Z
+Stopped at: Phase 6 complete, ready to plan Phase 7
 Resume file: None
