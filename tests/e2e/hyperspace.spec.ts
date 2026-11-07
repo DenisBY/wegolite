@@ -22,6 +22,7 @@ import { getProbe, waitForReady } from "./helpers/probe.js";
 import { chartScreenPoint, systemByName } from "./helpers/chart.js";
 import { readRaw } from "./helpers/save-store.js";
 import { startNewGame } from "./helpers/title.js";
+import { DT } from "../../src/sim/time.js";
 
 test.setTimeout(360_000);
 
@@ -328,6 +329,14 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   await expect(page.locator("#title-continue")).toBeVisible();
   await page.click("#title-continue");
   await waitForMode(page, "inFlight");
+  // The live pose is sampled only after a resumed fixed step has advanced the
+  // clock past the saved clock. A teleport on that first step therefore shows
+  // in the sample instead of hiding behind a pre-step reading.
+  await page.waitForFunction(
+    (savedClock) => (window.__wegolite?.clock ?? 0) > savedClock,
+    arrivalBlob.clockSeconds,
+    { timeout: 30_000 },
+  );
   probe = await getProbe(page);
   expect(probe.mode).toBe("inFlight");
   expect(probe.systemId).toBe(DISO.id);
@@ -382,8 +391,10 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   // The live pose is compared only within the documented SAVE-03 tolerance:
   // the resumed loop advances straight at the restored speed, so the live
   // displacement from the blob is `speed * elapsed simulated seconds`; the
-  // residual is floating-point step error, not saved-state drift. This stays
-  // valid under CPU contention, where the first resumed frames may run late.
+  // residual is floating-point step error, not saved-state drift. The wait
+  // above guarantees at least one resumed fixed step ran, so `elapsed` is
+  // strictly positive and a resumed teleport (hundreds of kilometres against a
+  // few metres of expected travel) fails this comparison.
   const live = probe.position;
   const liveDistance = Math.hypot(
     live[0] - arrivalBlob.flight.position[0],
@@ -391,10 +402,21 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
     live[2] - arrivalBlob.flight.position[2],
   );
   const elapsed = probe.clock - arrivalBlob.clockSeconds;
-  expect(elapsed).toBeGreaterThanOrEqual(0);
+  expect(elapsed).toBeGreaterThan(0);
   const expectedTravel = probe.speed * elapsed;
+  // The clock is a float64 near 1.8e11 s, so its last representable step is
+  // about 3e-5 s, and each resumed `clockSeconds += DT` rounds to that grid.
+  // The elapsed time therefore carries up to one grid step of error per fixed
+  // step, which is millimetres of travel at 50 m/s. The bound is that per-step
+  // rounding times the step count and speed; a resumed teleport of hundreds of
+  // kilometres exceeds it by many orders of magnitude.
+  const steps = Math.round(elapsed / DT);
+  const clockGrid =
+    Number.EPSILON *
+    Math.max(Math.abs(probe.clock), Math.abs(arrivalBlob.clockSeconds));
+  const clockRoundingBound = probe.speed * steps * clockGrid;
   expect(Math.abs(liveDistance - expectedTravel)).toBeLessThanOrEqual(
-    Math.max(1, expectedTravel) * 1e-6,
+    clockRoundingBound + Math.max(1, expectedTravel) * 1e-6,
   );
   expect(probe.speed).toBe(arrivalBlob.flight.speed);
   expect(probe.torus?.engaged).toBe(arrivalBlob.flight.torus);
