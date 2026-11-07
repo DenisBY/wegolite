@@ -21,7 +21,7 @@
 
 import { vec } from "../math.js";
 import type { SimEvent } from "../events.js";
-import { dockMouthPosition } from "../flight/state.js";
+import { clearHyperspaceAttempt, dockMouthPosition } from "../flight/state.js";
 import type { FlightState } from "../flight/state.js";
 import { aegisStatus } from "../world/aegis.js";
 import type { SystemLayout } from "../world/layout.js";
@@ -69,6 +69,9 @@ export function dockWithComputer(
   state.dockArmed = false;
   state.clockSeconds += DOCK_COMPUTER_CLOCK_DELTA;
   state.dockCount += 1;
+  // A computer dock ends the jump attempt too (gap G-2). Refused docks return
+  // above this point and leave the attempt untouched.
+  clearHyperspaceAttempt(state);
 
   return [
     {

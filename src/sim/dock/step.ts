@@ -42,7 +42,7 @@
 import { add, dot, rotate, scale, sub, vec } from "../math.js";
 import type { Vec3 } from "../math.js";
 import type { BounceAxis, BounceCause, SimEvent } from "../events.js";
-import { dockMouthPosition } from "../flight/state.js";
+import { clearHyperspaceAttempt, dockMouthPosition } from "../flight/state.js";
 import type { FlightState } from "../flight/state.js";
 import type { SystemLayout } from "../world/layout.js";
 import { classifyCorridor, dockSnapshot, isFiniteBox } from "./corridor.js";
@@ -182,6 +182,8 @@ export function stepDocking(
     };
     state.dockArmed = false;
     state.dockCount += 1;
+    // A dock ends the jump attempt; a relaunch must not resume the countdown.
+    clearHyperspaceAttempt(state);
     return [{ kind: "docked", via: "manual", clockDelta: 0 }];
   }
 

@@ -35,6 +35,7 @@ import { beginLaunch, completeLaunch, stepLaunch } from "./launch.js";
 import { sanitizeFlightState } from "./sanitize.js";
 import { stepSpeed } from "./speed.js";
 import { stepTorus } from "./torus.js";
+import { clearHyperspaceAttempt } from "./state.js";
 import type { FlightState } from "./state.js";
 
 /** Optional per-step systems. Plan 04-04 adds the owned-equipment set. */
@@ -179,8 +180,7 @@ export function stepFlight(
       case "cancelHyperspace": {
         if (state.hyperspaceCountdown > 0 && state.hyperspaceTarget !== null) {
           const destinationId = state.hyperspaceTarget.id;
-          state.hyperspaceCountdown = 0;
-          state.hyperspaceTarget = null;
+          clearHyperspaceAttempt(state);
           events.push({ kind: "hyperspaceCountdownCancelled", destinationId });
         }
         break;
@@ -200,8 +200,7 @@ export function stepFlight(
     liveTarget.id !== state.hyperspaceTarget.id
   ) {
     const destinationId = state.hyperspaceTarget.id;
-    state.hyperspaceCountdown = 0;
-    state.hyperspaceTarget = null;
+    clearHyperspaceAttempt(state);
     events.push({ kind: "hyperspaceCountdownCancelled", destinationId });
   }
 
@@ -234,9 +233,13 @@ export function stepFlight(
   // 4b. The countdown tick. The decrement starts on the step after the drain,
   // so the commit lands exactly 1800 steps later. Only the commit is a
   // terminal transition: a refusal or cancel leaves the ordinary DT as the
-  // tick's only clock effect, because steps 3/4 stay live (D-06).
+  // tick's only clock effect, because steps 3/4 stay live (D-06). The tick
+  // also requires the live mode: a command-phase dock has already ended the
+  // attempt, and this gate is the defence in depth if a future terminal
+  // transition does not.
   if (
     modeAtStart === "inFlight" &&
+    state.mode === "inFlight" &&
     state.hyperspaceCountdown > 0 &&
     !startedThisStep
   ) {

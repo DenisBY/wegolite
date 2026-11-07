@@ -121,6 +121,20 @@ export function initFlightState(layout: SystemLayout): FlightState {
   };
 }
 
+/**
+ * The single owner of the hyperspace attempt: clears the countdown and the
+ * target together, at no fuel or clock cost (D-06, amended in PROJECT.md).
+ *
+ * Callers that need the destination id for an event must read
+ * `state.hyperspaceTarget` before calling this, because the pair is gone after.
+ * Both dock transitions call it; a refused dock, a bounce, a scrape and an
+ * ordinary flight tick must not.
+ */
+export function clearHyperspaceAttempt(state: FlightState): void {
+  state.hyperspaceCountdown = 0;
+  state.hyperspaceTarget = null;
+}
+
 /** A read-only snapshot for the controller and the renderer. */
 export function poseOf(state: FlightState): FlightPose {
   return { position: state.position, orientation: state.orientation };
