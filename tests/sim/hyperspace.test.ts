@@ -707,7 +707,9 @@ describe("fixed-step hyperspace countdown", () => {
       [{ kind: "dockingComputer" }, { kind: "beginHyperspace" }],
       equipped,
     );
-    expect(frame).toEqual([{ kind: "docked", via: "computer", clockDelta: 1200 }]);
+    expect(frame).toEqual([
+      { kind: "docked", via: "computer", clockDelta: 1200 },
+    ]);
     expect(state.mode).toBe("docked");
     expect(state.hyperspaceCountdown).toBe(0);
     expect(state.hyperspaceTarget).toBeNull();
@@ -730,6 +732,74 @@ describe("fixed-step hyperspace countdown", () => {
       HYPERSPACE_COUNTDOWN_STEPS * DT,
       0,
     );
+  });
+
+  it("same-frame control: a begin drained before a dock starts, then the dock ends it", () => {
+    // Reverse drain order. The begin is drained first, so it starts a countdown
+    // on this step; the dock drained after it ends the attempt on the same
+    // frame. This pins the order that already holds, so a future change to the
+    // begin gate cannot silently reorder the dock and the begin.
+    const state = inFlightState();
+    const equipped: StepOptions = {
+      ...optionsFor(diso),
+      equipment: new Set([DOCK_COMPUTER_KEY]),
+    };
+
+    const frame = step(
+      state,
+      [{ kind: "beginHyperspace" }, { kind: "dockingComputer" }],
+      equipped,
+    );
+    expect(frame).toEqual([
+      {
+        kind: "hyperspaceCountdownStarted",
+        destinationId: diso.id,
+        fuelCost: 36,
+        countdownSteps: HYPERSPACE_COUNTDOWN_STEPS,
+      },
+      { kind: "docked", via: "computer", clockDelta: 1200 },
+    ]);
+    expect(state.mode).toBe("docked");
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.hyperspaceTarget).toBeNull();
+
+    step(state, [{ kind: "launch" }], equipped);
+    step(state, [{ kind: "skipLaunch" }], equipped);
+    expect(state.mode).toBe("inFlight");
+
+    const resumed: SimEvent[] = [];
+    for (let index = 0; index < HYPERSPACE_COUNTDOWN_STEPS; index += 1) {
+      resumed.push(...step(state, [], equipped));
+    }
+    expect(resumed.some((event) => event.kind === "hyperspaceJumped")).toBe(
+      false,
+    );
+    expect(state.hyperspaceCountdown).toBe(0);
+  });
+
+  it("same-frame control: a refused dock leaves the mode in flight, so a begin still starts", () => {
+    // The live-mode gate blocks only a begin that follows a dock which actually
+    // happened. A refused dock (no computer fitted) leaves the ship in flight,
+    // so a begin drained after it in the same frame must still start.
+    const state = inFlightState();
+
+    const frame = step(
+      state,
+      [{ kind: "dockingComputer" }, { kind: "beginHyperspace" }],
+      optionsFor(diso),
+    );
+    expect(frame).toContainEqual({
+      kind: "dockDenied",
+      reason: "notInstalled",
+    });
+    expect(frame).toContainEqual({
+      kind: "hyperspaceCountdownStarted",
+      destinationId: diso.id,
+      fuelCost: 36,
+      countdownSteps: HYPERSPACE_COUNTDOWN_STEPS,
+    });
+    expect(state.mode).toBe("inFlight");
+    expect(state.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS);
   });
 
   it("a manual capture ends an armed attempt through the same owner", () => {
