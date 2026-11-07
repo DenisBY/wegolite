@@ -24,6 +24,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SimEvent } from "../../src/sim/events.js";
 import type { Command } from "../../src/sim/commands.js";
+import { DOCK_COMPUTER_KEY } from "../../src/sim/dock/computer.js";
 import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
 import {
   hashFlight,
@@ -646,5 +647,71 @@ describe("fixed-step hyperspace countdown", () => {
     expect(kinds).not.toContain("bounce");
     expect(state.mode).toBe("inFlight");
     expect(state.hyperspaceCountdown).toBe(0);
+  });
+
+  it("a computer dock ends the attempt: 1800 steps after a relaunch emit no jump", () => {
+    // Gap G-2 regression. Before the fix the dock froze the countdown at 1798
+    // and the relaunch resumed it, so the commit fired with no player input.
+    const state = inFlightState();
+    const equipped: StepOptions = {
+      ...optionsFor(diso),
+      equipment: new Set([DOCK_COMPUTER_KEY]),
+    };
+
+    step(state, [{ kind: "beginHyperspace" }], equipped);
+    step(state, [], equipped);
+    step(state, [], equipped);
+    expect(state.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS - 2);
+
+    const docked = step(state, [{ kind: "dockingComputer" }], equipped);
+    expect(docked.map((event) => event.kind)).toEqual(["docked"]);
+    expect(state.mode).toBe("docked");
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.hyperspaceTarget).toBeNull();
+
+    step(state, [{ kind: "launch" }], equipped);
+    step(state, [{ kind: "skipLaunch" }], equipped);
+    expect(state.mode).toBe("inFlight");
+
+    const clockBeforeResume = state.clockSeconds;
+    const resumed: SimEvent[] = [];
+    for (let index = 0; index < HYPERSPACE_COUNTDOWN_STEPS; index += 1) {
+      resumed.push(...step(state, [], equipped));
+    }
+
+    expect(resumed.some((event) => event.kind === "hyperspaceJumped")).toBe(
+      false,
+    );
+    expect(state.hyperspaceCountdown).toBe(0);
+    // Only ordinary fixed steps advance the clock: about 15 s, never the
+    // 46,656 s jump the stale target would have added.
+    expect(state.clockSeconds - clockBeforeResume).toBeCloseTo(
+      HYPERSPACE_COUNTDOWN_STEPS * DT,
+      0,
+    );
+  });
+
+  it("a computer dock on the timer-at-1 tick emits docked only, with +1200 s", () => {
+    // Gap G-2 regression, commit-tick variant. Before the fix this tick emitted
+    // [docked, hyperspaceJumped] and left the station overlay over flight.
+    const state = inFlightState();
+    const equipped: StepOptions = {
+      ...optionsFor(diso),
+      equipment: new Set([DOCK_COMPUTER_KEY]),
+    };
+    state.hyperspaceCountdown = 1;
+    state.hyperspaceTarget = { id: diso.id, dist: 9, fuelCost: 36 };
+    const clockBefore = state.clockSeconds;
+
+    const events = step(state, [{ kind: "dockingComputer" }], equipped);
+
+    expect(events.map((event) => event.kind)).toEqual(["docked"]);
+    expect(events).toEqual([
+      { kind: "docked", via: "computer", clockDelta: 1200 },
+    ]);
+    expect(state.mode).toBe("docked");
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.hyperspaceTarget).toBeNull();
+    expect(state.clockSeconds - clockBefore).toBe(1200);
   });
 });

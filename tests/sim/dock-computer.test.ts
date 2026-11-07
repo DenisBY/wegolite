@@ -88,6 +88,22 @@ describe("dockWithComputer", () => {
     ]);
     expect(state.mode).toBe("inFlight");
   });
+
+  it("leaves an armed attempt untouched when the dock is refused", () => {
+    const state = inFlight();
+    state.hyperspaceCountdown = 500;
+    state.hyperspaceTarget = { id: "diso", dist: 9, fuelCost: 36 };
+
+    expect(dockWithComputer(state, layout, false)).toEqual([
+      { kind: "dockDenied", reason: "notInstalled" },
+    ]);
+    expect(state.hyperspaceCountdown).toBe(500);
+    expect(state.hyperspaceTarget).toEqual({
+      id: "diso",
+      dist: 9,
+      fuelCost: 36,
+    });
+  });
 });
 
 describe("Shift+C through stepFlight", () => {
@@ -101,6 +117,9 @@ describe("Shift+C through stepFlight", () => {
       lastFactor: 32,
     };
     state.speed = 120;
+    // An armed attempt must not survive a computer dock (gap G-2).
+    state.hyperspaceCountdown = 500;
+    state.hyperspaceTarget = { id: "diso", dist: 9, fuelCost: 36 };
 
     const before = {
       tick: state.tick,
@@ -129,6 +148,8 @@ describe("Shift+C through stepFlight", () => {
     expect(state.orientation).toEqual(layout.stationBaseQuat);
     expect(state.dockArmed).toBe(false);
     expect(state.dockCount).toBe(before.dockCount + 1);
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.hyperspaceTarget).toBeNull();
     expect(events).toEqual([
       { kind: "docked", via: "computer", clockDelta: 1200 },
     ]);
