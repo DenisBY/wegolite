@@ -26,9 +26,10 @@ import { readFileSync } from "node:fs";
 
 import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createSceneManager } from "../../src/app/scene-manager.js";
+import type { SceneManager } from "../../src/app/scene-manager.js";
 import { createAssetCache } from "../../src/render/asset-cache.js";
 import type { AssetCache } from "../../src/render/asset-cache.js";
 import { createBeacon } from "../../src/render/bodies/beacon.js";
@@ -603,6 +604,158 @@ describe("the menu Cobra survives a system swap", () => {
       cache.dispose();
       expect(cobraTextureDisposals()).toBe(1);
     } finally {
+      stub.restore();
+    }
+  });
+});
+
+/**
+ * Test-only observation of scene disposal (W-1). The wrapper calls the real
+ * `createSystemScene`, then counts how many times that scene's `dispose` runs.
+ * It changes no behaviour and is not a production seam.
+ */
+const built = vi.hoisted(() => ({
+  scenes: [] as { disposals: number }[],
+}));
+
+vi.mock("../../src/render/system-scene.js", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("../../src/render/system-scene.js")>();
+  return {
+    ...original,
+    createSystemScene: (
+      ...args: Parameters<typeof original.createSystemScene>
+    ) => {
+      const scene = original.createSystemScene(...args);
+      const record = { disposals: 0 };
+      const realDispose = scene.dispose.bind(scene);
+      scene.dispose = () => {
+        record.disposals += 1;
+        realDispose();
+      };
+      built.scenes.push(record);
+      return scene;
+    },
+  };
+});
+
+/** The renderer surface the manager reads: the viewport size and render lists. */
+interface SwapRenderer {
+  getSize: (target: THREE.Vector2) => THREE.Vector2;
+  renderLists: { dispose: () => void };
+}
+
+/** A manager on a real asset cache, with the Lave system already entered once. */
+async function enteredLave(): Promise<{
+  manager: SceneManager;
+  renderer: SwapRenderer;
+}> {
+  const coriolis = syntheticCoriolis();
+  const cobra = syntheticCobra();
+  const cache = createAssetCache("/", (url) =>
+    Promise.resolve(url.includes("cobra") ? cobra.gltf : coriolis.gltf),
+  );
+  await cache.preload();
+  const renderer: SwapRenderer = {
+    renderLists: { dispose: () => undefined },
+    getSize: (target: THREE.Vector2) => target.set(1600, 1000),
+  };
+  const manager = createSceneManager(
+    renderer as unknown as THREE.WebGLRenderer,
+    cache,
+  );
+  manager.enterSystem(system, stationDef);
+  return { manager, renderer };
+}
+
+describe("the scene swap is a commit point (W-1)", () => {
+  it("a throw before the install leaves the origin active (commit point)", async () => {
+    const stub = installCanvasStub();
+    try {
+      const { manager, renderer } = await enteredLave();
+      const origin = manager.active();
+      const originLayout = manager.layout();
+
+      const realGetSize = renderer.getSize;
+      renderer.getSize = (): never => {
+        throw new Error("commit point: forced viewport failure");
+      };
+      try {
+        expect(() => manager.enterSystem(system, stationDef)).toThrow(
+          "commit point: forced viewport failure",
+        );
+      } finally {
+        renderer.getSize = realGetSize;
+      }
+
+      expect(manager.active()).toBe(origin);
+      expect(manager.layout()).toBe(originLayout);
+    } finally {
+      stub.restore();
+    }
+  });
+
+  it("the destination built for a failed call is disposed (commit point)", async () => {
+    const stub = installCanvasStub();
+    try {
+      const { manager, renderer } = await enteredLave();
+      const origin = manager.active();
+      const originLayout = manager.layout();
+      const builtBefore = built.scenes.length;
+
+      const realGetSize = renderer.getSize;
+      renderer.getSize = (): never => {
+        throw new Error("commit point: forced viewport failure");
+      };
+      try {
+        expect(() => manager.enterSystem(system, stationDef)).toThrow(
+          "commit point: forced viewport failure",
+        );
+      } finally {
+        renderer.getSize = realGetSize;
+      }
+
+      expect(built.scenes.length).toBe(builtBefore + 1);
+      expect(built.scenes[builtBefore]?.disposals).toBe(1);
+      expect(manager.active()).toBe(origin);
+      expect(manager.layout()).toBe(originLayout);
+    } finally {
+      stub.restore();
+    }
+  });
+
+  it("a retire failure after the commit returns the destination (commit point)", async () => {
+    const stub = installCanvasStub();
+    const consoleSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    try {
+      const { manager, renderer } = await enteredLave();
+      const origin = manager.active();
+      const originLayout = manager.layout();
+
+      const realRenderListsDispose = renderer.renderLists.dispose;
+      renderer.renderLists.dispose = (): never => {
+        throw new Error("commit point: forced retire failure");
+      };
+      try {
+        let returned: unknown;
+        expect(() => {
+          returned = manager.enterSystem(system, stationDef);
+        }).not.toThrow();
+        expect(returned).toBeDefined();
+      } finally {
+        renderer.renderLists.dispose = realRenderListsDispose;
+      }
+
+      expect(manager.active()).not.toBe(origin);
+      expect(manager.layout()).toBeDefined();
+      expect(manager.layout()).not.toBe(originLayout);
+      expect(consoleSpy).toHaveBeenCalledTimes(1);
+      expect(String(consoleSpy.mock.calls[0]?.[0])).toMatch(/^Wegolite:/);
+      expect(consoleSpy.mock.calls[0]?.[1]).toBeInstanceOf(Error);
+    } finally {
+      consoleSpy.mockRestore();
       stub.restore();
     }
   });

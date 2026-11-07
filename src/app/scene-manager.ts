@@ -107,6 +107,41 @@ export function createSceneManager(
     }
   }
 
+  /**
+   * The commit point. `enterSystem` calls this once the destination, its layout
+   * and the cleared menu are assigned. The install is the commit point, so the
+   * call must return normally here: a failure while retiring the origin is
+   * logged, not thrown, because the destination is already active. A thrown
+   * error would tell the session the swap failed while the manager shows the
+   * destination (W-1).
+   */
+  function retireCommitted(
+    previousSystem: SystemScene | undefined,
+    previousMenu: MenuScene | undefined,
+  ): void {
+    try {
+      retire(previousSystem, previousMenu);
+    } catch (error) {
+      console.error("Wegolite: retiring the previous scene failed", error);
+    }
+  }
+
+  /**
+   * Dispose a destination built for a call that failed before its install. The
+   * caller rethrows the original error; a disposal failure is logged here so it
+   * cannot replace that error.
+   */
+  function disposeUninstalled(next: SystemScene): void {
+    try {
+      next.dispose();
+    } catch (error) {
+      console.error(
+        "Wegolite: disposing an uninstalled system scene failed",
+        error,
+      );
+    }
+  }
+
   return {
     enterMenu(): void {
       // Build first: a throwing menu factory must not leave the manager with no
@@ -128,13 +163,21 @@ export function createSceneManager(
       const next = createSystemScene(layout, assets, system);
       // `start()` and the `?test=1` swap both arrive here; applying the
       // viewport before the install is what makes the swap path safe too.
-      applyViewport(next.camera, rendererSize(renderer));
+      // Pre-install: nothing is installed yet. A failed viewport step disposes
+      // the destination built for this call and rethrows, so the origin scene,
+      // its layout and the menu stay active.
+      try {
+        applyViewport(next.camera, rendererSize(renderer));
+      } catch (error) {
+        disposeUninstalled(next);
+        throw error;
+      }
       const previousSystem = current;
       const previousMenu = menu;
       current = next;
       currentLayout = layout;
       menu = undefined;
-      retire(previousSystem, previousMenu);
+      retireCommitted(previousSystem, previousMenu);
       return next;
     },
     active(): ActiveScene {
