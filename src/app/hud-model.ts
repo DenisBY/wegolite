@@ -99,27 +99,49 @@ function buildCompass(state: FlightState, layout: SystemLayout): HudCompass {
   return { target, ...blip };
 }
 
-function buildBars(state: FlightState, config: FlightConfig): HudBars {
+/**
+ * The live tank in integer tenths of a light year. A non-finite or negative
+ * value is treated as an empty tank so neither the bar nor the text can lie
+ * about a state the sim never produces.
+ */
+function tankTenths(fuelTenths: number): number {
+  return Number.isFinite(fuelTenths) ? Math.max(0, fuelTenths) : 0;
+}
+
+function buildBars(
+  state: FlightState,
+  config: FlightConfig,
+  fuelTenths: number,
+): HudBars {
   return {
     speed: config.maxSpeed > 0 ? clamp(state.speed / config.maxSpeed, 0, 1) : 0,
     roll:
       config.maxRoll > 0 ? clamp(state.rollRate / config.maxRoll, -1, 1) : 0,
     pitch:
       config.maxPitch > 0 ? clamp(state.pitchRate / config.maxPitch, -1, 1) : 0,
-    // Phase 3 has no fuel consumption; the tank is the catalogue's full value.
-    fuel: 1,
+    // G-4: the bar is the live tank over the full tank, never a constant.
+    fuel:
+      config.maxFuel > 0
+        ? clamp(tankTenths(fuelTenths) / config.maxFuel, 0, 1)
+        : 0,
   };
 }
 
+/**
+ * Build the flight HUD. `fuelTenths` is the live profile tank (0..70) and is
+ * required: the bar and the fuel text are both derived from that one value.
+ */
 export function buildHudModel(
   state: FlightState,
   layout: SystemLayout,
   config: FlightConfig,
   message: string,
+  fuelTenths: number,
   flashAlpha = 0,
   hyperspaceTarget = "",
 ): HudModel {
   const aegis: AegisStatus = aegisStatus(state.position, layout);
+  const tank = tankTenths(fuelTenths);
 
   return {
     speed: state.speed,
@@ -134,9 +156,9 @@ export function buildHudModel(
     contacts: buildContacts(state, layout),
     compass: buildCompass(state, layout),
     aegis,
-    bars: buildBars(state, config),
+    bars: buildBars(state, config, tank),
     speedText: formatSpeed(state.speed),
-    fuelText: formatFuel(config.maxFuel),
+    fuelText: formatFuel(tank),
     clockText: formatClock(state.clockSeconds),
     hyperspaceTarget,
   };

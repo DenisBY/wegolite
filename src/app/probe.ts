@@ -49,6 +49,10 @@ export interface WegoliteHudProbe {
   compass: WegoliteHudCompassProbe;
   aegis: AegisStatus;
   message: string;
+  /** The live tank as the HUD prints it, e.g. "3.4 LY", or "" before a frame. */
+  fuelText: string;
+  /** The live tank as the HUD bar draws it: fuel tenths over 70, in 0..1. */
+  fuel: number;
   /** The committed hyperspace target name, or "" when none (D-12). */
   hyperspaceTarget?: string;
   /** Design-space bounding boxes, so the proof is numeric, never a screenshot. */
@@ -456,6 +460,8 @@ export function publishFailure(reason: string): void {
       compass: { target: "planet", forward: false },
       aegis: "none",
       message: "",
+      fuelText: "",
+      fuel: 0,
       bounds: {},
     },
     launch: { count: 0, elapsed: 0, seen: false },

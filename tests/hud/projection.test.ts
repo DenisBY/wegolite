@@ -135,7 +135,7 @@ describe("HUD contacts", () => {
   it("plots only the station, nav buoy and witchpoint — never planet or sun", () => {
     const fixture = laveFixture();
     const state = initFlightState(fixture.layout);
-    const model = buildHudModel(state, fixture.layout, fixture.config, "");
+    const model = buildHudModel(state, fixture.layout, fixture.config, "", 70);
 
     expect(model.contacts.map((contact) => contact.id)).toEqual([
       "station",
@@ -154,7 +154,7 @@ describe("HUD contacts", () => {
   it("starts with the station compass target and the docking-range aegis", () => {
     const fixture = laveFixture();
     const state = initFlightState(fixture.layout);
-    const model = buildHudModel(state, fixture.layout, fixture.config, "");
+    const model = buildHudModel(state, fixture.layout, fixture.config, "", 70);
 
     expect(model.compass.target).toBe("station");
     expect(model.aegis).toBe("dockingRange");

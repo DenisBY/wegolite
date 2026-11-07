@@ -2091,6 +2091,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
               },
         aegis: model === undefined ? "none" : model.aegis,
         message: model === undefined ? "" : model.message,
+        fuelText: model === undefined ? "" : model.fuelText,
+        fuel: model === undefined ? 0 : model.bars.fuel,
         hyperspaceTarget: model === undefined ? "" : model.hyperspaceTarget,
         bounds: currentHud.bounds,
       };
@@ -2186,6 +2188,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           currentLayout,
           currentConfig,
           message,
+          profile.fuel,
           dockFeedback.flashAlpha(currentState.flightTime),
           targetSystem()?.name ?? "",
         );

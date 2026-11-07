@@ -25,6 +25,7 @@ describe("buildHudModel hyperspace target", () => {
       fixture.layout,
       fixture.config,
       "",
+      70,
       0,
       "Diso",
     );
@@ -37,8 +38,43 @@ describe("buildHudModel hyperspace target", () => {
     const state = initFlightState(fixture.layout);
 
     expect(
-      buildHudModel(state, fixture.layout, fixture.config, "").hyperspaceTarget,
+      buildHudModel(state, fixture.layout, fixture.config, "", 70)
+        .hyperspaceTarget,
     ).toBe("");
+  });
+
+  it("derives the fuel bar and text from the live tank", () => {
+    const fixture = laveFixture();
+    const state = initFlightState(fixture.layout);
+
+    const half = buildHudModel(state, fixture.layout, fixture.config, "", 35);
+    expect(half.bars.fuel).toBe(0.5);
+    expect(half.fuelText).toBe("3.5 LY");
+
+    const empty = buildHudModel(state, fixture.layout, fixture.config, "", 0);
+    expect(empty.bars.fuel).toBe(0);
+    expect(empty.fuelText).toBe("0.0 LY");
+
+    const full = buildHudModel(state, fixture.layout, fixture.config, "", 70);
+    expect(full.bars.fuel).toBe(1);
+    expect(full.fuelText).toBe("7.0 LY");
+  });
+
+  it("keeps the fuel bar inside 0..1 for a non-finite or negative tank", () => {
+    const fixture = laveFixture();
+    const state = initFlightState(fixture.layout);
+
+    for (const tank of [Number.NaN, Number.NEGATIVE_INFINITY, -5]) {
+      const model = buildHudModel(
+        state,
+        fixture.layout,
+        fixture.config,
+        "",
+        tank,
+      );
+      expect(model.bars.fuel).toBe(0);
+      expect(model.fuelText).toBe("0.0 LY");
+    }
   });
 
   it("does not add a twelfth HUD element or resize the clock rectangle", () => {

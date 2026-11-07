@@ -285,6 +285,10 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   const fuelCost = probe.hyperspace?.lastJump?.fuelCost ?? 0;
   expect(fuelCost).toBe(DISO_FUEL_COST);
   expect(probe.economy?.fuel).toBe(fuelBefore - fuelCost);
+  // G-4: the HUD reads the live tank after the jump (70 - 36 = 34 tenths),
+  // never the full tank the Phase 3 constant printed.
+  expect(probe.hud?.fuelText).toBe("3.4 LY");
+  expect(probe.hud?.fuel).toBeCloseTo(34 / 70, 6);
 
   // D-17/SAVE-05: the arrival anchor is one complete in-flight v2 snapshot.
   await page.waitForFunction(
