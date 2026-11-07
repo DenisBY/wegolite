@@ -70,7 +70,13 @@ export const MAX_SAVE_EQUIPMENT = 64;
 /** The longest equipment key accepted. */
 export const MAX_SAVE_EQUIPMENT_KEY_CHARS = 64;
 
-/** The most cargo entries one profile may carry (17 commodities). */
+/**
+ * The schema ceiling for the cargo array: 17 entries.
+ *
+ * The allow-list caps valid cargo at the 16 tradeable commodities. Alien Items is
+ * a market good only, so a 17th cargo entry is rejected by `validateSaveSemantics`
+ * rather than by this bound.
+ */
 export const MAX_SAVE_CARGO_ENTRIES = 17;
 
 /** The largest quantity one cargo entry may hold. */
@@ -334,7 +340,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * many characters, never the whole (potentially megabyte) string. It only
  * needs to see the canonical `{"version":N,…}` prefix this app writes.
  */
-export const MAX_VERSION_SNIFF_CHARS = 256;
+const MAX_VERSION_SNIFF_CHARS = 256;
 
 const VERSION_SNIFF = /"version"\s*:\s*(\d{1,16})/;
 
@@ -612,6 +618,11 @@ export function isEncodedSaveValid(
   }
   const result = SaveV2Schema.safeParse(parsed);
   if (!result.success) return false;
+  // The reader's referent allow-lists (see `parseSave`) apply here too, so the
+  // writer can never replace a good blob with bytes the reader would classify as
+  // corrupt (T-06-36).
+  if (!allow.systems.has(result.data.system.id)) return false;
+  if (!allow.stations.has(result.data.station.key)) return false;
   try {
     return validateSaveSemantics(result.data, allow, "write");
   } catch {

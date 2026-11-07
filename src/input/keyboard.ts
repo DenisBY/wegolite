@@ -16,8 +16,9 @@
  *
  * The action dispatcher stays on the **bubble** phase: the Controls panel's
  * rebind capture stops propagation, so the game listener must not fire first.
- * A separate narrow capture listener only calls `preventDefault()` for the four
- * browser-reserved F-keys; it never dispatches and never stops propagation.
+ * A separate narrow capture listener only calls `preventDefault()` for the six
+ * browser-reserved F-keys (F2, F3, F5, F6, F7, F8); it never dispatches and never
+ * stops propagation.
  *
  * `createInputState` is the DOM-free core: Vitest drives keydown/keyup directly
  * without a browser, and `createKeyboardInputSource` is the thin listener layer.
@@ -347,9 +348,9 @@ export interface ReservedKeyState {
 /**
  * Whether the capture-phase guard should cancel this key's browser default.
  *
- * Only the four reserved F-keys qualify. A Ctrl/Meta/Alt chord belongs to the
- * browser (Ctrl+F5 is a hard reload), a capture session is rebinding, and a
- * text field is typing; none may be intercepted.
+ * Only the six reserved F-keys in `RESERVED_F_KEYS` qualify. A Ctrl/Meta/Alt
+ * chord belongs to the browser (Ctrl+F5 is a hard reload), a capture session is
+ * rebinding, and a text field is typing; none may be intercepted.
  */
 export function shouldCancelReservedKey(state: ReservedKeyState): boolean {
   if (!RESERVED_F_KEYS.has(state.code)) return false;

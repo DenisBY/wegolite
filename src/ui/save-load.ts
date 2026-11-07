@@ -28,7 +28,6 @@ export interface SaveLoadScreen {
   /** Show the overlay with the current slot line and focus its section. */
   show(slot: string): void;
   hide(): void;
-  isOpen(): boolean;
   setSlot(text: string): void;
   setNotice(text: string): void;
   /** Move the highlighted row; wraps in display order. */
@@ -283,9 +282,6 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
       open = false;
       setConfirming(false);
       overlay.hidden = true;
-    },
-    isOpen(): boolean {
-      return open;
     },
     setSlot(text: string): void {
       slotField.textContent = text;

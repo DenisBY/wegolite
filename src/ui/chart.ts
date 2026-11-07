@@ -49,7 +49,6 @@ export interface ChartOverlay {
   /** Route a marker click to the session. */
   onSelect(handler: (systemId: string) => void): void;
   dispose(): void;
-  readonly paintCount: number;
 }
 
 function requireElement<T extends HTMLElement>(
@@ -245,9 +244,6 @@ export function createChart(root: HTMLElement): ChartOverlay {
       builder = undefined;
       selectHandler = undefined;
       overlay.hidden = true;
-    },
-    get paintCount(): number {
-      return paints;
     },
   };
 }

@@ -4,10 +4,14 @@
 /**
  * The autosave contract (DOCK-07, D-13, D-15, T-04-48).
  *
- * These tests use the real Lave layout and the real `stepFlight`, so the launch
- * snapshot is the shipped one: post-`beginLaunch`, clock already +600 s, mode
- * `"docked"` in the blob. The memory store proves revision ordering; Playwright
- * proves the same contract against real IndexedDB.
+ * These tests use the real Lave layout and the real `stepFlight`. The shipped
+ * launch anchor is taken before `beginLaunch` (D-17): the state is still docked,
+ * the +600 s transition has not been applied, and the blob records mode
+ * `"docked"` with the pre-launch clock. `snapshotForSave` copies the clock of the
+ * state it is given, so the snapshot cases below prove that with both states:
+ * the pre-launch anchor (clock `CLOCK_START`) and a state already past
+ * `beginLaunch` (clock `CLOCK_START + 600`). The memory store proves revision
+ * ordering; Playwright proves the same contract against real IndexedDB.
  */
 
 import { describe, expect, it } from "vitest";
@@ -126,8 +130,30 @@ const MAX_ALLOW: SaveAllowLists = {
 };
 
 describe("snapshotForSave", () => {
-  it("records the post-launch clock, docked mode and identities", () => {
+  it("takes the pre-launch anchor while still docked, before beginLaunch (D-17)", () => {
     const state = initFlightState(layout);
+    const profile = newProfile();
+
+    const inputs = snapshotForSave(
+      state,
+      profile,
+      SYSTEM,
+      STATION,
+      MARKET,
+      COMMODITIES,
+    );
+    // No launch command has run, so beginLaunch has not applied +600 s yet.
+    expect(inputs.clockSeconds).toBe(CLOCK_START);
+    const parsed = parseSave(encodeSave(inputs), ALLOW);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.save.mode).toBe("docked");
+    expect(parsed.save.clockSeconds).toBe(CLOCK_START);
+  });
+
+  it("records the clock of the state it is given, docked mode and identities", () => {
+    const state = initFlightState(layout);
+    // A state already past beginLaunch: the snapshot copies its +600 s clock.
     launch(state);
     const profile = newProfile();
 
@@ -149,7 +175,7 @@ describe("snapshotForSave", () => {
     const parsed = parseSave(encoded, ALLOW);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    // The launch save says "resume docked at the post-launch clock".
+    // The snapshot resumes docked at the clock of the state it was given.
     expect(parsed.save.mode).toBe("docked");
     expect(parsed.save.clockSeconds).toBe(CLOCK_START + 600);
   });
@@ -369,6 +395,8 @@ describe("writer bounds", () => {
   it("fits the maximum tuple inside MAX_SAVE_CHARS even with worst-case escaping", async () => {
     const store = new MemorySaveStore();
     // Control characters double the pressure: every one encodes as `\u00XX`.
+    // The worst-case referents must also be allow-listed: the writer gate
+    // enforces the reader's system/station allow-lists (T-06-36).
     const result = await queueAutosave(
       store,
       1,
@@ -377,7 +405,11 @@ describe("writer bounds", () => {
         systemId: "\u0000".repeat(16),
         stationKey: "\u0000".repeat(64),
       },
-      MAX_ALLOW,
+      {
+        ...MAX_ALLOW,
+        systems: new Set(["\u0000".repeat(16)]),
+        stations: new Set(["\u0000".repeat(64)]),
+      },
     );
 
     expect(result.committed).toBe(true);

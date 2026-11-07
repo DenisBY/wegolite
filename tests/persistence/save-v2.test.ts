@@ -20,6 +20,7 @@ import {
   SaveV1Schema,
   SaveV2Schema,
   encodeSave,
+  isEncodedSaveValid,
   migrateV1ToV2,
   parseSave,
 } from "../../src/persistence/save.js";
@@ -563,6 +564,55 @@ describe("the v2 size bound", () => {
     expect(parseSave(future, ALLOW)).toEqual({
       ok: false,
       reason: "future-version",
+    });
+  });
+});
+
+describe("the writer gate (isEncodedSaveValid)", () => {
+  it("accepts a canonical blob under the full allow-list, as the reader does", () => {
+    const encoded = raw(validV2());
+    expect(isEncodedSaveValid(encoded, ALLOW)).toBe(true);
+    expect(parseSave(encoded, ALLOW).ok).toBe(true);
+  });
+
+  it("rejects a saved system the allow-list omits, as the reader does", () => {
+    const encoded = raw(validV2());
+    const systemsWithoutSaved: SaveAllowLists = {
+      ...ALLOW,
+      systems: new Set(["g0-s1"]),
+    };
+    expect(isEncodedSaveValid(encoded, systemsWithoutSaved)).toBe(false);
+    expect(parseSave(encoded, systemsWithoutSaved)).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+  });
+
+  it("rejects a station key the allow-list omits, as the reader does", () => {
+    const encoded = raw(validV2());
+    const stationsWithoutSaved: SaveAllowLists = {
+      ...ALLOW,
+      stations: new Set(["other-station"]),
+    };
+    expect(isEncodedSaveValid(encoded, stationsWithoutSaved)).toBe(false);
+    expect(parseSave(encoded, stationsWithoutSaved)).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+  });
+
+  it("rejects a market good the allow-list does not know, as the reader does", () => {
+    const encoded = raw(
+      validV2({ market: marketSnapshot(), marketSeed: undefined }),
+    );
+    const withoutFood: SaveAllowLists = {
+      ...ALLOW,
+      marketGoods: new Set(MARKET_GOODS.filter((key) => key !== "food")),
+    };
+    expect(isEncodedSaveValid(encoded, withoutFood)).toBe(false);
+    expect(parseSave(encoded, withoutFood)).toEqual({
+      ok: false,
+      reason: "corrupt",
     });
   });
 });
