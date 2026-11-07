@@ -38,6 +38,7 @@ import {
   shouldEmitScrapeMessage,
 } from "./dock-feedback.js";
 import type { DockFeedback } from "./dock-feedback.js";
+import { mapHyperspaceBeginEdges } from "./hyperspace-commands.js";
 import { buildHudModel } from "./hud-model.js";
 import { createGameLoop } from "./game-loop.js";
 import type { GameLoop } from "./game-loop.js";
@@ -2299,7 +2300,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     let alpha = 0;
     if (!paused) {
-      const commands: Command[] = [
+      const drained: Command[] = [
         ...currentInput.drainCommands(),
         ...pending,
       ].filter(
@@ -2313,20 +2314,18 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       if (
         currentState.mode === "docked" &&
         stationScreen === "home" &&
-        commands.some((command) => command.kind === "launch")
+        drained.some((command) => command.kind === "launch")
       ) {
         autosave();
       }
       // D-06: while a countdown runs, the same key aborts it at no cost. The
-      // mapping happens on the drained array, before the sim sees a redundant
-      // begin, so no app timer and no double command exist.
-      if (currentState.hyperspaceCountdown > 0) {
-        for (let index = 0; index < commands.length; index += 1) {
-          if (commands[index]?.kind === "beginHyperspace") {
-            commands[index] = { kind: "cancelHyperspace" };
-          }
-        }
-      }
+      // mapping walks the drained array in input order, so two presses drained
+      // into one frame start then cancel (G-6), and no app timer or double
+      // command exists.
+      const commands = mapHyperspaceBeginEdges(
+        drained,
+        currentState.hyperspaceCountdown > 0,
+      );
       // One immutable frame per rendered frame, shared by every fixed step.
       const frameInput = currentInput.frame();
       currentFrame = frameInput;
