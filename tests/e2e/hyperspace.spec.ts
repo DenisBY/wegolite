@@ -24,7 +24,10 @@ import { readRaw } from "./helpers/save-store.js";
 import { startNewGame } from "./helpers/title.js";
 import { DT } from "../../src/sim/time.js";
 
-test.setTimeout(360_000);
+// The sim advances at roughly 0.15 to 0.3 of wall-clock time under headless
+// SwiftShader with two workers (measured: 10.5 sim seconds in 44 wall seconds),
+// so the throttle fly-away and the 15 s countdowns need a wider budget than 360 s.
+test.setTimeout(600_000);
 
 const DISO = systemByName("Diso");
 const LAVE = systemByName("Lave");
@@ -156,6 +159,38 @@ async function commitTarget(
   await closeChart(page);
 }
 
+/**
+ * Hold the throttle (`KeyW`, the bound `speedUp` action in the flight context)
+ * until the ship is at least `metres` from `origin`, by a Euclidean norm over the
+ * three components. The key is released in a finally block, so a failed wait
+ * cannot leave it held. The budget: the ship starts the flight at 175 u/s and
+ * reaches the 350 u/s cap in about 1.1 s at 160 u/s^2, so 7,500 m takes about
+ * 21 s of simulated flight. Under SwiftShader that is roughly 90 to 130 s of
+ * wall time, so the wait is 240 s and sits inside the 600 s per-test budget
+ * (line 27).
+ */
+async function flyAwayFrom(
+  page: Page,
+  origin: readonly [number, number, number],
+  metres: number,
+): Promise<void> {
+  await page.keyboard.down("KeyW");
+  try {
+    await page.waitForFunction(
+      ({ from, distance }) => {
+        const probe = window.__wegolite;
+        if (probe === undefined) return false;
+        const [x, y, z] = probe.position;
+        return Math.hypot(x - from[0], y - from[1], z - from[2]) >= distance;
+      },
+      { from: origin, distance: metres },
+      { timeout: 240_000 },
+    );
+  } finally {
+    await page.keyboard.up("KeyW");
+  }
+}
+
 test("chart target, countdown, abort, refusal, arrival and reload", async ({
   page,
 }) => {
@@ -207,7 +242,9 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   expect(probe.hyperspace?.lastRefusal).toBeNull();
   expect(probe.hyperspace?.lastJump).toBeNull();
 
-  // Every jump sequence starts from flight.
+  // Every jump sequence starts from flight. The docked pose is recorded before
+  // the launch, so the fly-away below measures distance from the dock mouth.
+  const dockedPose = (await getProbe(page)).position;
   await page.keyboard.press("Digit1");
   await waitForMode(page, "inFlight");
 
@@ -277,6 +314,13 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   expect(ordinaryFlightTime).toBeGreaterThan(0);
   // The abort adds no jump-time; ordinary fixed steps are far below 46,656 s.
   expect(ordinaryFlightTime).toBeLessThan(DISO_JUMP_SECONDS);
+
+  // Fly clear of the station before the commit. The dock mouth lies about 500 m
+  // from the station centre, so a ship 7,500 m from the docked pose is at least
+  // 7,000 m from the station, beyond the 6,747.0 m blockage radius (the square
+  // root of 0.1 times 455,223,200, ShipEntity.m lines 12504-12511). A begin
+  // beside the station was never refused; only the completion is checked.
+  await flyAwayFrom(page, dockedPose, 7_500);
 
   // Restart and wait for the commit.
   const committedBeforeJump = probe.save?.committed ?? 0;
@@ -551,5 +595,66 @@ test("chart arrow keys select the system drawn in the pressed direction", async 
     (await markerPoint(page, ZAONCE.id)).x,
   );
 
+  expect(errors).toEqual([]);
+});
+
+test("a jump completed beside the station is refused as blocked", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await page.goto("/");
+  await waitForReady(page);
+  await startNewGame(page);
+  await waitForMode(page, "docked");
+
+  // Commit Diso as the target while docked, then record the pose and the tank.
+  await commitTarget(page, "Diso", "long");
+  const dockedPose = (await getProbe(page)).position;
+  const fuelBefore = (await getProbe(page)).economy?.fuel ?? 0;
+
+  await page.keyboard.press("Digit1");
+  await waitForMode(page, "inFlight");
+
+  // No throttle input: the 175 u/s launch speed holds for the whole countdown.
+  // The ship travels about 0.35 km in the 2 s launch and about 2.6 km in the
+  // 15 s countdown, so it completes about 3.0 km from the docked pose and about
+  // 3.5 km from the station, inside the 6,747.0 m blockage radius.
+  await page.keyboard.press("KeyH");
+  await page.waitForFunction(
+    () => (window.__wegolite?.hyperspace?.countdown ?? 0) > 0,
+    undefined,
+    { timeout: 30_000 },
+  );
+  // The completion is refused as blocked. The wait matches the 180 s commit
+  // wait used for the same 15 s countdown above, because both run on the
+  // headless loop under the same load.
+  await page.waitForFunction(
+    () => window.__wegolite?.hyperspace?.lastRefusal?.reason === "blocked",
+    undefined,
+    { timeout: 180_000 },
+  );
+  await page.waitForFunction(
+    () =>
+      (window.__wegolite?.hud?.message ?? "").includes(
+        "Witchspace jump aborted: too close to Coriolis Station",
+      ),
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  const probe = await getProbe(page);
+  expect(probe.mode).toBe("inFlight");
+  expect(probe.hyperspace?.lastRefusal?.reason).toBe("blocked");
+  expect(probe.hyperspace?.lastJump).toBeNull();
+  expect(probe.hyperspace?.countdown).toBe(0);
+  // A blocked completion spends no fuel.
+  expect(probe.economy?.fuel).toBe(fuelBefore);
+  const [x, y, z] = probe.position;
+  const fromDock = Math.hypot(
+    x - dockedPose[0],
+    y - dockedPose[1],
+    z - dockedPose[2],
+  );
+  expect(fromDock).toBeLessThan(6_000);
   expect(errors).toEqual([]);
 });
