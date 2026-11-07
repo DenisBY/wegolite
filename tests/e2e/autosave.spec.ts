@@ -41,7 +41,9 @@ import {
   writeRaw,
 } from "./helpers/save-store.js";
 
-test.setTimeout(360_000);
+// The fly-away below runs at the SwiftShader sim rate (about 0.15 to 0.3 of wall
+// time), so the budget is 600 s rather than 360 s. See hyperspace.spec.ts.
+test.setTimeout(600_000);
 
 const DISO_ID = systemByName("Diso").id;
 
@@ -392,6 +394,39 @@ test("a tainted manual dock reaches the trigger but skips the write: Continue st
   expect(errors).toEqual([]);
 });
 
+/**
+ * Hold the throttle (`KeyW`, the bound `speedUp` action in the flight context)
+ * until the ship is at least `metres` from `origin`, by a Euclidean norm over the
+ * three components. The key is released in a finally block. About 21 s of
+ * simulated throttle reaches the 7,500 m target (175 u/s at launch, 350 u/s cap,
+ * 160 u/s^2), which is roughly 90 to 130 s of wall time under SwiftShader. The
+ * 240 s wait sits inside the 600 s per-test budget (line 44). The
+ * fly-away is needed only so the completion is not refused as blocked: the dock
+ * mouth lies about 500 m from the Coriolis station centre, and the blockage
+ * radius is 6,747.0 m (ShipEntity.m lines 12504-12511).
+ */
+async function flyAwayFrom(
+  page: Page,
+  origin: readonly [number, number, number],
+  metres: number,
+): Promise<void> {
+  await page.keyboard.down("KeyW");
+  try {
+    await page.waitForFunction(
+      ({ from, distance }) => {
+        const probe = window.__wegolite;
+        if (probe === undefined) return false;
+        const [x, y, z] = probe.position;
+        return Math.hypot(x - from[0], y - from[1], z - from[2]) >= distance;
+      },
+      { from: origin, distance: metres },
+      { timeout: 240_000 },
+    );
+  } finally {
+    await page.keyboard.up("KeyW");
+  }
+}
+
 test("the autosave trigger matrix writes exactly one revision per trigger and never mid-flight", async ({
   page,
 }) => {
@@ -464,6 +499,8 @@ test("the autosave trigger matrix writes exactly one revision per trigger and ne
     timeout: 30_000,
   });
 
+  // The docked pose is recorded before the launch, for the fly-away below.
+  const dockedPose = (await getProbe(page)).position;
   await page.keyboard.press("Digit1");
   await waitForMode(page, "inFlight");
   // Trigger row 3 — the pre-launch anchor is the third committed write and is
@@ -494,6 +531,10 @@ test("the autosave trigger matrix writes exactly one revision per trigger and ne
     { timeout: 30_000 },
   );
   expect((await getProbe(page)).save?.committed).toBe(committedBeforeJump);
+
+  // Fly clear of the station with the keyboard throttle before the arrival
+  // commit. No write happens during the fly-away, which is in flight.
+  await flyAwayFrom(page, dockedPose, 7_500);
 
   // Restart the countdown; the arrival writes row 4, exactly once.
   await page.keyboard.press("KeyH");
