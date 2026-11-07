@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 current_phase: 7
 current_phase_name: Hardening & Community Release
-current_plan: 3
+current_plan: 4
 status: executing
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-11-07T22:01:00.223Z"
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-11-07T22:06:48.655Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 complete, transitioned to Phase 7
-state_head: 41a0a1e0d61ba64d8c0f70535101c5c1e398689d
+state_head: 15e7a3508130a57e0e0b6ab219b410062b01be94
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 73
-  completed_plans: 63
+  completed_plans: 64
   percent: 86
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-06)
 ## Current Position
 
 Phase: 7 (Hardening & Community Release) — EXECUTING
-Current Plan: 3
+Current Plan: 4
 Total Plans in Phase: 12
 Status: Ready to execute
 Last activity: 2026-11-07 — Completed 07-01 (licence shipping, release title, enforced CSP)
@@ -99,6 +99,7 @@ Progress: [█████████░] 86% — 62/73 plans complete
 | Phase 06 P12 | 45min | 3 tasks | 8 files |
 | Phase 7 P01 | ~40 min | 3 tasks | 9 files |
 | Phase 7 P02 | ~20 min | 3 tasks | 8 files |
+| Phase 7 P3 | ~10 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -227,6 +228,8 @@ Recent decisions affecting current work:
 - [Phase 7]: QUAL-05: the recovery state machine is DOM-free with an injected timer; the 10 s timeout reuses the former terminal sequence; the controller ignores every event after dispose
 - [Phase 7]: QUAL-05: autosave and manualSave skip with reason recovering before any other guard, so no snapshot is queued while the context is lost (research Pitfall 9)
 - [Phase 7]: QUAL-05: hidden-tab and stall proofs use a visibilityState override and a busy loop, not page.clock (research A13); the per-frame bound also requires simulated time to advance
+- [Phase 7]: Plan 07-03: the v1 save goldens are reviewed snapshots from migrateV1ToV2 (seed kept or derived, no market, cargo carried); parseSave and the validator are unchanged.
+- [Phase 7]: Plan 07-03: the Oolite route table is golden data with system-name endpoints; COMMIT_ROUTES stays inline as a separate commit-timing table.
 
 ### Pending Todos
 
@@ -262,6 +265,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-07T22:00:59.333Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-11-07T22:06:47.856Z
+Stopped at: Completed 07-03-PLAN.md
 Resume file: None
