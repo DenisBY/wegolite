@@ -75,9 +75,9 @@ Requirements for the initial release. Each maps to a roadmap phase.
 
 ### Hyperspace, Navigation & Persistence
 
-- [ ] **NAV-01**: The F6 galactic chart plots all 256 systems in the current galaxy with short/long range and 7 LY connection lines
-- [ ] **NAV-02**: The player can select a target and see its distance and fuel cost, and unreachable targets are blocked
-- [ ] **NAV-03**: Hyperspace requires fuel at least equal to the cost, with a 70-unit tank and a 7.0 LY maximum jump
+- [x] **NAV-01**: The F6 galactic chart plots all 256 systems in the current galaxy with short/long range and 7 LY connection lines
+- [x] **NAV-02**: The player can select a target and see its distance and fuel cost, and unreachable targets are blocked
+- [x] **NAV-03**: Hyperspace requires fuel at least equal to the cost, with a 70-unit tank and a 7.0 LY maximum jump
 - [ ] **NAV-04**: A 15-second countdown can be aborted with pilot input, and a completed jump advances the clock by distance² hours
 - [ ] **NAV-05**: Arrival occurs at the destination witchpoint with a freshly generated market and the new system scene
 - [ ] **NAV-06**: Fuel is deducted exactly `10 × max(0.1, distance)` and can never go negative
@@ -194,9 +194,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | ECON-07 | Phase 5 | Complete |
 | ECON-08 | Phase 5 | Complete |
 | ECON-09 | Phase 5 | Complete |
-| NAV-01 | Phase 6 | Pending |
-| NAV-02 | Phase 6 | Pending |
-| NAV-03 | Phase 6 | Pending |
+| NAV-01 | Phase 6 | Complete |
+| NAV-02 | Phase 6 | Complete |
+| NAV-03 | Phase 6 | Complete |
 | NAV-04 | Phase 6 | Pending |
 | NAV-05 | Phase 6 | Pending |
 | NAV-06 | Phase 6 | Pending |
