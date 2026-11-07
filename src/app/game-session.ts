@@ -395,9 +395,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   // Set by any accepted `?test=1` live-state mutation; plan 04-05 refuses to
   // autosave a tainted profile.
   let testTainted = false;
+  // `?test=1` is read once at boot. An in-session Load rebinds the hook to the
+  // replaced live state only when the hook was enabled (G-8).
+  let testHookEnabled = false;
   let lastScrapeMessageTime: number | null = null;
   const messages = createMessageQueue(4);
-  const dockFeedback: DockFeedback = createDockFeedback();
+  // Replaced, not cleared, on Load: a fresh instance drops both envelopes.
+  let dockFeedback: DockFeedback = createDockFeedback();
   const launchSequence: LaunchSequence = createLaunchSequence();
   let lastModel: HudModel | undefined;
   let lastMs = 0;
@@ -888,6 +892,24 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   /** `?test=1` seam: replace the balance; never persisted by the hook itself. */
+  /**
+   * Point the `?test=1` hook at `activeState`. Called at boot and after every
+   * in-session Load, so a hook never mutates a replaced state object (G-8).
+   */
+  function bindTestHook(activeState: FlightState): void {
+    probe.test = createTestHook(
+      activeState,
+      { swapSystem, disposeSystem },
+      () => {
+        testTainted = true;
+      },
+      {
+        setCredits: applyTestCredits,
+        grantEquipment: applyTestEquipment,
+      },
+    );
+  }
+
   function applyTestCredits(credits: number): boolean {
     return commitProfile(setCredits(profile, credits));
   }
@@ -1166,7 +1188,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     loadingSave = true;
     try {
       const read = await saveBoot.store.read();
-      if (disposed) return;
+      // G-8: F2 may have been closed during the IndexedDB await. A closed
+      // screen must not be overwritten by a save the player walked away from.
+      if (disposed || !saveScreenOpen) return;
       if (read.kind !== "ok") {
         failLoad(
           read.kind === "absent"
@@ -1231,6 +1255,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       marketSeed = nextSeed;
       hyperspaceTargetId = nextTarget;
       syncStatusOverlay();
+      // G-8: nothing from the replaced session may outlive the Load. The
+      // message queue is keyed to the old flight clock, so a stale line would
+      // survive the restored clock; the dock envelopes and scrape throttle are
+      // keyed the same way. A fresh feedback instance drops both envelopes.
+      messages.clear();
+      lastScrapeMessageTime = null;
+      dockFeedback = createDockFeedback();
+      if (testHookEnabled) bindTestHook(restored.state);
       previousPose = poseOf(restored.state);
       currentPose = previousPose;
       previousCameraWorld = undefined;
@@ -2095,6 +2127,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
 
     if (probe.test !== undefined) probe.test.tainted = testTainted;
+    // G-8: the queue depth is published so a proof can read a queued message
+    // before and after an in-session Load.
+    probe.messages = messages.size;
 
     const currentLayout = layout;
     const currentScene = scene;
@@ -2688,19 +2723,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     // The hook exists only when explicitly asked for with exactly `?test=1`,
     // and only mutates the live state: no save, no arbitrary code (T-04-08).
-    if (new URLSearchParams(window.location.search).get("test") === "1") {
-      probe.test = createTestHook(
-        flightState,
-        { swapSystem, disposeSystem },
-        () => {
-          testTainted = true;
-        },
-        {
-          setCredits: applyTestCredits,
-          grantEquipment: applyTestEquipment,
-        },
-      );
-    }
+    testHookEnabled =
+      new URLSearchParams(window.location.search).get("test") === "1";
+    if (testHookEnabled) bindTestHook(flightState);
 
     title.hide();
     if (restoredInFlight) {

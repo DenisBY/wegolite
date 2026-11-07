@@ -23,6 +23,12 @@ export interface MessageQueue {
   enqueuePriority(text: string): void;
   /** Drop every message whose expiry has passed at `flightTime`. */
   advance(flightTime: number): void;
+  /**
+   * Drop every queued message at once (G-8). An in-session Load calls this at
+   * install time: a message keyed to the replaced session's clock would
+   * otherwise outlive the restored flight time.
+   */
+  clear(): void;
   /** The one visible message at `flightTime`; `""` when the queue is empty. */
   current(flightTime: number): string;
   readonly size: number;
@@ -70,6 +76,9 @@ export function createMessageQueue(cap = 4): MessageQueue {
       if (queue.length > limit) queue.pop();
     },
     advance,
+    clear(): void {
+      queue.length = 0;
+    },
     current(flightTime: number): string {
       advance(flightTime);
       return queue[0]?.text ?? "";

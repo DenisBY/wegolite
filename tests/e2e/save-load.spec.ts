@@ -25,8 +25,71 @@ import {
   writeRaw,
 } from "./helpers/save-store.js";
 import { formatClock } from "../../src/render/hud/format.js";
+import {
+  add,
+  axisAngle,
+  mul,
+  normalize,
+  normalizeVec,
+  quatFromUnitVectors,
+  rotate,
+  scale,
+  sub,
+  vec,
+} from "../../src/sim/math.js";
 
 test.setTimeout(360_000);
+
+/** The authored Coriolis dock subentity offset and the Cobra's nose Z. */
+const DOCK_OFFSET = 500.2561;
+const COBRA_NOSE_Z = -43.4655;
+
+/**
+ * Place the ship at the dock mouth through the `?test=1` pose seam. This is the
+ * same independent dock frame docking.spec and autosave.spec use, inlined here
+ * rather than shared through a helper file.
+ */
+async function dockAtMouth(page: Page): Promise<void> {
+  const probe = await getProbe(page);
+  const station = probe.world?.station;
+  const planet = probe.world?.planet;
+  if (station === undefined || planet === undefined) {
+    throw new Error("the probe has no station/planet world positions");
+  }
+  const stationVec = vec(station[0], station[1], station[2]);
+  const planetVec = vec(planet[0], planet[1], planet[2]);
+  const stationToPlanet = normalizeVec(sub(planetVec, stationVec));
+  const mouth = add(stationVec, scale(stationToPlanet, DOCK_OFFSET));
+  const qPort = quatFromUnitVectors(vec(0, 0, -1), stationToPlanet);
+  const matched = normalize(axisAngle(1, 1, 0, Math.PI));
+  const orientation = normalize(mul(qPort, matched));
+  const k = rotate(qPort, vec(0, 0, -1));
+  const position = add(mouth, scale(k, -COBRA_NOSE_Z - 90));
+
+  await page.evaluate(
+    (payload: { position: number[]; orientation: number[] }) => {
+      const hook = window.__wegolite?.test;
+      if (hook === undefined) throw new Error("the ?test=1 hook is missing");
+      hook.setStationAngle(0);
+      hook.setOrientation(
+        payload.orientation[0] ?? 0,
+        payload.orientation[1] ?? 0,
+        payload.orientation[2] ?? 0,
+        payload.orientation[3] ?? 0,
+      );
+      hook.setPosition(
+        payload.position[0] ?? 0,
+        payload.position[1] ?? 0,
+        payload.position[2] ?? 0,
+      );
+      hook.setSpeed(0);
+    },
+    {
+      position: [position.x, position.y, position.z],
+      orientation: [orientation.w, orientation.x, orientation.y, orientation.z],
+    },
+  );
+}
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -544,7 +607,9 @@ test("an in-session Load of an in-flight save returns to flight with the station
   page,
 }) => {
   const errors = collectErrors(page);
-  await boot(page);
+  // `?test=1` is needed for the dock-mouth pose seam that puts a real message
+  // in the queue before the Load (G-8). Without a mutation the hook is inert.
+  await boot(page, "/?test=1");
   await startNewGame(page);
   await waitForDocked(page);
 
@@ -572,6 +637,44 @@ test("an in-session Load of an in-flight save returns to flight with the station
     (window as unknown as { __loadMarker?: string }).__loadMarker = "alive";
   });
 
+  // G-8 step 1: F2 is docked-only, so a pre-load message has to be queued in
+  // flight and then carried into a docked F2 screen. Close F2, launch, and wait
+  // for the launch's pre-launch autosave to commit (it writes a docked blob, so
+  // it must land before the `stored` rewrite below) and for a fresh message.
+  const committedBeforeLaunch = (await getProbe(page)).save?.committed ?? 0;
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#save-load")).toBeHidden();
+  await page.keyboard.press("Digit1");
+  await waitForMode(page, "inFlight");
+  await page.waitForFunction(
+    (before) => (window.__wegolite?.save?.committed ?? 0) > before,
+    committedBeforeLaunch,
+    { timeout: 60_000 },
+  );
+  await page.waitForFunction(
+    () => (window.__wegolite?.messages ?? 0) >= 1,
+    undefined,
+    { timeout: 60_000 },
+  );
+
+  // G-8 step 2: dock through the pose seam. The mutation taints the session, so
+  // the dock autosave is suppressed and cannot overwrite the rewritten slot.
+  await dockAtMouth(page);
+  await waitForMode(page, "docked");
+
+  // G-8 step 3: every autosave trigger has passed, so rewrite the slot, open F2
+  // and capture the pre-load message that is visible at the moment of the Load.
+  await writeRaw(page, stored);
+  await page.keyboard.press("F2");
+  const beforeLoad = await getProbe(page);
+  expect(beforeLoad.messages).toBeGreaterThanOrEqual(1);
+  const preLoadMessage = beforeLoad.hud?.message ?? "";
+  expect(preLoadMessage).not.toBe("");
+
+  // G-8 step 4: Load the in-flight blob and prove the captured message is gone.
+  // A first-use hint may legitimately be queued afterward, so only the
+  // specific pre-load text is asserted absent and the queue is bounded.
+  expect(await readRaw(page)).toBe(stored);
   await page.keyboard.press("KeyL");
   await waitForMode(page, "inFlight");
   await page.waitForFunction(
@@ -581,6 +684,13 @@ test("an in-session Load of an in-flight save returns to flight with the station
   );
 
   const after = await getProbe(page);
+  expect(after.hud?.message ?? "").not.toBe(preLoadMessage);
+  expect(after.hud?.message ?? "").not.toContain(preLoadMessage);
+  expect(after.messages).toBeLessThanOrEqual(1);
+  // The dock envelopes are replaced with the Load, so neither channel carries
+  // the replaced session's bounce or scrape feedback.
+  expect(after.dock?.shake ?? 0).toBe(0);
+  expect(after.dock?.flash ?? 0).toBe(0);
   expect(after.mode).toBe("inFlight");
   expect(after.restore?.systemId).toBe(dockedBlob.system.id);
   expect(after.restore?.position).toEqual([0, 0, 0]);
@@ -605,6 +715,31 @@ test("an in-session Load of an in-flight save returns to flight with the station
       () => (window as unknown as { __loadMarker?: string }).__loadMarker,
     ),
   ).toBe("alive");
+
+  // G-8 step 5: the ?test=1 hook must mutate the live state the Load installed,
+  // not the pre-Load object. Speed 0 keeps the restored clock from moving the
+  // ship, so the probe settles on the requested point.
+  await page.evaluate(() => {
+    const hook = window.__wegolite?.test;
+    if (hook === undefined) {
+      throw new Error("the ?test=1 hook is missing after the Load");
+    }
+    hook.setPosition(1, 2, 3);
+    hook.setSpeed(0);
+  });
+  await page.waitForFunction(
+    () => {
+      const position = window.__wegolite?.position;
+      if (position === undefined) return false;
+      return (
+        Math.abs(position[0] - 1) <= 1e-3 &&
+        Math.abs(position[1] - 2) <= 1e-3 &&
+        Math.abs(position[2] - 3) <= 1e-3
+      );
+    },
+    undefined,
+    { timeout: 30_000 },
+  );
   expect(errors).toEqual([]);
 });
 

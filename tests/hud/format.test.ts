@@ -120,4 +120,19 @@ describe("message queue", () => {
     expect(queue.size).toBe(0);
     expect(queue.current(0)).toBe("");
   });
+
+  it("clear drops a non-empty queue and later enqueues still show", () => {
+    const queue = createMessageQueue(4);
+    queue.enqueue("pre-load");
+    queue.enqueue("second");
+    expect(queue.size).toBe(2);
+
+    queue.clear();
+
+    expect(queue.size).toBe(0);
+    expect(queue.current(0)).toBe("");
+    queue.enqueue("after");
+    expect(queue.size).toBe(1);
+    expect(queue.current(0)).toBe("after");
+  });
 });

@@ -204,6 +204,7 @@ if (!boot.ok) {
     // D-14: galaxy 0 is eager, so it is in this bundle; g1-g7 are code-split.
     homeSystems: galaxy0().length,
     codeSplitGalaxies: LAZY_GALAXY_COUNT,
+    messages: 0,
     mode: "menu",
     paused: false,
     clock: 0,

@@ -269,6 +269,11 @@ export interface WegoliteProbe {
   renders: number;
   homeSystems: number;
   codeSplitGalaxies: number;
+  /**
+   * G-8: the HUD message-queue depth. Required, not optional, so a probe
+   * literal that forgets to publish the queue state fails to typecheck.
+   */
+  messages: number;
   mode: "menu" | FlightMode;
   paused: boolean;
   clock: number;
@@ -442,6 +447,7 @@ export function publishFailure(reason: string): void {
     renders: 0,
     homeSystems: 0,
     codeSplitGalaxies: 0,
+    messages: 0,
     mode: "menu",
     paused: true,
     clock: 0,
