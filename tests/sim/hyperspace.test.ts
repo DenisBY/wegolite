@@ -691,6 +691,47 @@ describe("fixed-step hyperspace countdown", () => {
     );
   });
 
+  it("a same-frame dock then begin starts no countdown, and no jump follows a relaunch", () => {
+    // Gap G-2 residual (NAV-04). Both edges drain in one frame: the dock sets
+    // the mode to docked and clears the attempt, so the begin drained after it
+    // must stay inert. Otherwise the countdown never ticks while docked and
+    // the relaunch commits a jump the player did not restart.
+    const state = inFlightState();
+    const equipped: StepOptions = {
+      ...optionsFor(diso),
+      equipment: new Set([DOCK_COMPUTER_KEY]),
+    };
+
+    const frame = step(
+      state,
+      [{ kind: "dockingComputer" }, { kind: "beginHyperspace" }],
+      equipped,
+    );
+    expect(frame).toEqual([{ kind: "docked", via: "computer", clockDelta: 1200 }]);
+    expect(state.mode).toBe("docked");
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.hyperspaceTarget).toBeNull();
+
+    step(state, [{ kind: "launch" }], equipped);
+    step(state, [{ kind: "skipLaunch" }], equipped);
+    expect(state.mode).toBe("inFlight");
+
+    const clockBeforeResume = state.clockSeconds;
+    const resumed: SimEvent[] = [];
+    for (let index = 0; index < HYPERSPACE_COUNTDOWN_STEPS; index += 1) {
+      resumed.push(...step(state, [], equipped));
+    }
+
+    expect(resumed.some((event) => event.kind === "hyperspaceJumped")).toBe(
+      false,
+    );
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.clockSeconds - clockBeforeResume).toBeCloseTo(
+      HYPERSPACE_COUNTDOWN_STEPS * DT,
+      0,
+    );
+  });
+
   it("a manual capture ends an armed attempt through the same owner", () => {
     // Threat T-06-23: the manual capture path must clear the pair too.
     const state = inFlightState();

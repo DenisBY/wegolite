@@ -148,7 +148,11 @@ export function stepFlight(
       case "beginHyperspace": {
         // D-06 / A1: only a ship in flight can start a jump. A docked or
         // launching key press is inert — no countdown and no false refusal.
-        if (modeAtStart !== "inFlight") break;
+        // The live mode is checked as well: a dock drained earlier in this same
+        // command loop has already ended the flight, and the amended D-06 rule
+        // (PROJECT.md, "Cancel an active hyperspace countdown when the ship
+        // docks") forbids a countdown that would then never tick while docked.
+        if (modeAtStart !== "inFlight" || state.mode !== "inFlight") break;
         // A begin while a countdown is running is a no-op; the app maps the
         // second key press to `cancelHyperspace` (plan 06-04).
         if (state.hyperspaceCountdown > 0) break;
