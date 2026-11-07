@@ -1237,8 +1237,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         return;
       }
 
-      // Build the scene last: a failure here is caught, and the scene manager
-      // only retires the old scene once the new one exists.
+      // enterSystemById derives the destination layout before the scene manager
+      // switches, so a failure there is caught and leaves the origin scene and
+      // the session untouched. The scene manager installs the new scene before
+      // it retires the old one, and a retire failure is logged there, not thrown.
       let nextLayout: SystemLayout;
       try {
         nextLayout = enterSystemById(saved.system.id);
@@ -1456,19 +1458,22 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (next === undefined) {
       throw new Error(`Wegolite: no system with id "${id}" in this galaxy.`);
     }
+    // Derive the destination layout before the scene manager switches. The
+    // scene manager derives the same layout from the same two arguments, so
+    // the two copies have equal content. A throw here leaves the scene
+    // manager, the scene and the session all on the origin.
+    const nextLayout = deriveSystemLayout(next, currentStationDef);
     const nextScene = scenes.enterSystem(next, currentStationDef);
-    const nextLayout = scenes.layout();
-    if (nextLayout === undefined) {
-      throw new Error(
-        `Wegolite: the scene manager entered "${id}" without a layout.`,
-      );
-    }
+    // Commit point: the scene manager has installed the destination. Nothing
+    // below can throw, so the session takes the system, scene and layout in
+    // the same step as the switch. The `??` fallback mirrors `performSwap`.
+    const assignedLayout = scenes.layout() ?? nextLayout;
     system = next;
     scene = nextScene;
-    layout = nextLayout;
+    layout = assignedLayout;
     // The new dust field has no camera history; a stale delta would smear it.
     previousCameraWorld = undefined;
-    return nextLayout;
+    return assignedLayout;
   }
 
   /** The committed target record, resolved through the validated catalogue. */
@@ -1751,10 +1756,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     // G-7: the sim has already committed the jump (clock advanced, countdown
     // cleared), so everything that can throw runs here, before any live
-    // reference moves: the destination market, then the destination scene
-    // (T-06-13: the scene manager retires the origin only once the new scene
-    // exists). A throw shows the failure surface and leaves profile, market,
-    // seed, target and the system/scene/layout triple untouched.
+    // reference moves: the destination market, then the destination scene.
+    // enterSystemById derives the destination layout before the scene manager
+    // switches, and the scene manager installs the destination before it
+    // retires the origin (T-06-13). A throw before the switch leaves the origin
+    // scene, the scene manager and the system/scene/layout triple untouched; a
+    // throw after the switch cannot happen inside enterSystemById. A throw
+    // shows the failure surface and leaves profile, market, seed and target
+    // untouched.
     let nextMarket: Market;
     let arrivedLayout: SystemLayout;
     try {
