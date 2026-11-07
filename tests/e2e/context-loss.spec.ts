@@ -19,6 +19,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import {
+  CONTEXT_LOST_NOTICE,
   CONTEXT_RESTORED_NOTICE,
   CONTEXT_RESTORE_FAILURE_COPY,
 } from "../../src/app/context-recovery.js";
@@ -119,6 +120,9 @@ test("a lost context pauses, a restore recreates render resources while paused, 
   );
   const lost = await getProbe(page);
   const flightAtLoss = lost.flightTime;
+  await expect(page.locator("[data-pause-notice]")).toHaveText(
+    CONTEXT_LOST_NOTICE,
+  );
   await page.waitForTimeout(1_500);
   expect((await getProbe(page)).flightTime).toBe(flightAtLoss);
 
