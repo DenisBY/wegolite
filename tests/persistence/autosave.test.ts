@@ -44,9 +44,15 @@ import type { FlightState } from "../../src/sim/flight/state.js";
 import { completeLaunch } from "../../src/sim/flight/launch.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
 import { stepDocking } from "../../src/sim/dock/step.js";
-import { applyWitchpointArrival } from "../../src/sim/hyperspace/arrival.js";
+import {
+  applyWitchpointArrival,
+  drawWitchpointExit,
+} from "../../src/sim/hyperspace/arrival.js";
 import type { Command } from "../../src/sim/commands.js";
-import { generateMarket } from "../../src/sim/economy/market.js";
+import {
+  generateMarket,
+  marketSeedForSystem,
+} from "../../src/sim/economy/market.js";
 import {
   newProfile,
   purchase,
@@ -715,7 +721,12 @@ describe("docked and in-flight round trips", () => {
     // back through the game's own writer and parser, so the reader contract is
     // exercised rather than a hand-built state.
     const arrived = initFlightState(layout);
-    applyWitchpointArrival(arrived, layout, config, "g0-s55", SYSTEM.id);
+    applyWitchpointArrival(
+      arrived,
+      layout,
+      config,
+      drawWitchpointExit(marketSeedForSystem("g0-s55")),
+    );
     const store = new MemorySaveStore();
     const inputs = snapshotForSave(
       arrived,

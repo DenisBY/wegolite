@@ -2,16 +2,18 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The deterministic witchpoint arrival (NAV-05, D-08).
+ * The seeded witchpoint arrival (NAV-05).
  *
- * Three properties are load-bearing and none can pass by accident:
+ * Four properties are load-bearing and none can pass by accident:
  *
- * 1. the same route produces a deep-equal pose, and the reversed route does
- *    not — so the pose is a function of the two ids, not of ambient state;
- * 2. the offset magnitude is clamped to the witchpoint safety distance and
- *    scanner range **by construction**, for every destination in galaxy 0;
- * 3. the source contains no global random source and no wall clock, which is
- *    what makes a replay reproducable across reloads.
+ * 1. the same seed produces a deep-equal draw and pose, and a different seed
+ *    produces a different one, so the pose is a function of the seed alone;
+ * 2. the offset is clamped to the witchpoint safety distance and the 12,800 m
+ *    half-range in three dimensions **by construction**, for a seed sweep;
+ * 3. the offset spreads over all three axes, with a unit direction, so the
+ *    placement is three-dimensional as Oolite's is;
+ * 4. the source contains no global random source and no wall clock, which is
+ *    what makes a replay reproducible across reloads.
  *
  * The source scan strips comments first, so prose about "no random source"
  * cannot satisfy or falsify it.
@@ -22,11 +24,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import type { System } from "../../src/content/types.js";
+import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import { stepDocking } from "../../src/sim/dock/step.js";
 import {
   ARRIVAL_SPEED,
   applyWitchpointArrival,
-  arrivalWord,
+  drawWitchpointExit,
   OOLITE_ORIENTATION_EPSILON,
 } from "../../src/sim/hyperspace/arrival.js";
 import { chartDistance, MAX_JUMP_DIST } from "../../src/sim/hyperspace/jump.js";
@@ -42,8 +45,12 @@ const fixture = laveFixture();
 const { layout, config } = fixture;
 const LAVE = LAVE_SYSTEM_ID;
 const LEESTI = "g0-s55";
+const LAVE_SEED = marketSeedForSystem(LAVE);
+const LEESTI_SEED = marketSeedForSystem(LEESTI);
 const SAFE_DISTANCE = layout.witchpoint.radius + 750;
-const SCANNER_HALF = layout.scannerRange * 0.5;
+const MAX_OFFSET = 12_800;
+const SEED_SWEEP = 2000;
+const TOLERANCE = 1e-9;
 
 /** One galaxy-0 system with the layout the shipped build derives for it. */
 interface RouteSystem {
@@ -95,14 +102,19 @@ function freshState(): FlightState {
   return initFlightState(layout);
 }
 
-function arrive(
-  originId: string,
-  destinationId: string,
-  flightConfig = config,
-): FlightState {
+function arrive(seed: number, flightConfig = config): FlightState {
   const state = freshState();
-  applyWitchpointArrival(state, layout, flightConfig, originId, destinationId);
+  applyWitchpointArrival(state, layout, flightConfig, drawWitchpointExit(seed));
   return state;
+}
+
+/** The signed offset of an arrival from the witchpoint, on each axis. */
+function offsetOf(state: FlightState): [number, number, number] {
+  return [
+    state.position.x - layout.witchpoint.position.x,
+    state.position.y - layout.witchpoint.position.y,
+    state.position.z - layout.witchpoint.position.z,
+  ];
 }
 
 /** Remove block comments and whole-line `//` comments before scanning. */
@@ -115,66 +127,109 @@ function withoutComments(source: string): string {
 }
 
 describe("arrival pose determinism", () => {
-  it("is deep-equal for the same origin and destination", () => {
-    const first = arrive(LAVE, LEESTI);
-    const second = arrive(LAVE, LEESTI);
+  it("draws the same offset for the same seed", () => {
+    expect(drawWitchpointExit(LAVE_SEED)).toEqual(
+      drawWitchpointExit(LAVE_SEED),
+    );
+  });
+
+  it("is deep-equal for the same seed", () => {
+    const first = arrive(LAVE_SEED);
+    const second = arrive(LAVE_SEED);
     expect(first.position).toEqual(second.position);
     expect(first.orientation).toEqual(second.orientation);
   });
 
-  it("differs for the reversed route", () => {
-    const forward = arrive(LAVE, LEESTI);
-    const reverse = arrive(LEESTI, LAVE);
-    expect(reverse.position).not.toEqual(forward.position);
-    expect(reverse.orientation).not.toEqual(forward.orientation);
+  it("differs for a different seed", () => {
+    const first = drawWitchpointExit(LAVE_SEED);
+    const second = drawWitchpointExit(LEESTI_SEED);
+    expect(second).not.toEqual(first);
+    expect(arrive(LEESTI_SEED).position).not.toEqual(
+      arrive(LAVE_SEED).position,
+    );
   });
 
-  it("derives the word from the route, stably and as a uint32", () => {
-    const word = arrivalWord(LAVE, LEESTI);
-    expect(arrivalWord(LAVE, LEESTI)).toBe(word);
-    expect(arrivalWord(LEESTI, LAVE)).not.toBe(word);
-    expect(Number.isSafeInteger(word)).toBe(true);
-    expect(word).toBeGreaterThanOrEqual(0);
-    expect(word).toBeLessThanOrEqual(0xff_ff_ff_ff);
+  it("draws values inside Oolite's ranges for every seed in the sweep", () => {
+    for (let seed = 1; seed <= SEED_SWEEP; seed += 1) {
+      const draw = drawWitchpointExit(seed);
+      // (Ranrot() & 255) / 256 - 0.5 is a multiple of 1/256 in [-0.5, 0.5).
+      expect(draw.radial, `seed ${seed}`).toBeGreaterThanOrEqual(-0.5);
+      expect(draw.radial, `seed ${seed}`).toBeLessThan(0.5);
+      expect(Math.abs(draw.radial * 256 - Math.round(draw.radial * 256))).toBe(
+        0,
+      );
+
+      const [dx, dy, dz] = draw.direction;
+      expect(
+        Math.sqrt(dx * dx + dy * dy + dz * dz),
+        `seed ${seed}`,
+      ).toBeCloseTo(1, 9);
+
+      for (const tilt of draw.tilt) {
+        expect(tilt, `seed ${seed}`).toBeGreaterThanOrEqual(-0.125);
+        expect(tilt, `seed ${seed}`).toBeLessThan(0.125);
+      }
+    }
   });
 });
 
 describe("arrival offset clamp", () => {
-  it("keeps every galaxy-0 destination inside the safety and scanner bounds", () => {
-    for (let index = 0; index < 256; index += 1) {
-      const destination = `g0-s${String(index)}`;
-      if (destination === LAVE) continue;
-      const state = arrive(LAVE, destination);
+  it("keeps every seed in the sweep inside the safety and half-range bounds in three dimensions", () => {
+    for (let seed = 1; seed <= SEED_SWEEP; seed += 1) {
+      const state = arrive(seed);
+      const [dx, dy, dz] = offsetOf(state);
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-      // The offset is horizontal: y is the witchpoint's y, so the distance is
-      // measured on X/Z (the planet lies on -Z).
-      expect(state.position.y).toBe(layout.witchpoint.position.y);
-      const dx = state.position.x - layout.witchpoint.position.x;
-      const dz = state.position.z - layout.witchpoint.position.z;
-      const horizontal = Math.sqrt(dx * dx + dz * dz);
-
-      expect(horizontal, destination).toBeGreaterThanOrEqual(SAFE_DISTANCE);
-      expect(horizontal, destination).toBeLessThanOrEqual(SCANNER_HALF);
+      expect(distance, `seed ${seed}`).toBeGreaterThanOrEqual(
+        SAFE_DISTANCE - TOLERANCE,
+      );
+      expect(distance, `seed ${seed}`).toBeLessThanOrEqual(
+        MAX_OFFSET + TOLERANCE,
+      );
     }
   });
 
-  it("places the Lave arrival on the witchpoint's horizontal plane", () => {
-    const state = arrive(LAVE, LEESTI);
-    // The offset is on X/Z only; y stays exactly the witchpoint's y.
-    expect(state.position.y).toBe(layout.witchpoint.position.y);
+  it("places the arrival at the draw's direction times the clamped distance", () => {
+    for (let seed = 1; seed <= SEED_SWEEP; seed += 1) {
+      const draw = drawWitchpointExit(seed);
+      const [dx, dy, dz] = offsetOf(arrive(seed));
+      const [ux, uy, uz] = draw.direction;
+      // The signed distance is the projection onto the unit direction.
+      const distance = dx * ux + dy * uy + dz * uz;
+      expect(Math.abs(distance), `seed ${seed}`).toBeGreaterThanOrEqual(
+        SAFE_DISTANCE - TOLERANCE,
+      );
+      expect(dx, `seed ${seed}`).toBeCloseTo(ux * distance, 6);
+      expect(dy, `seed ${seed}`).toBeCloseTo(uy * distance, 6);
+      expect(dz, `seed ${seed}`).toBeCloseTo(uz * distance, 6);
+    }
+  });
 
-    const dx = state.position.x - layout.witchpoint.position.x;
-    const dz = state.position.z - layout.witchpoint.position.z;
-    expect(Math.sqrt(dx * dx + dz * dz)).toBeGreaterThan(0);
+  it("spreads the Lave arrival over all three axes", () => {
+    const signs = {
+      x: new Set<number>(),
+      y: new Set<number>(),
+      z: new Set<number>(),
+    };
+    for (let seed = 1; seed <= SEED_SWEEP; seed += 1) {
+      const [dx, dy, dz] = offsetOf(arrive(seed));
+      signs.x.add(Math.sign(dx));
+      signs.y.add(Math.sign(dy));
+      signs.z.add(Math.sign(dz));
+    }
+    // The offset is three-dimensional: Y takes both signs, as X and Z do.
+    expect(signs.x).toEqual(new Set([-1, 1]));
+    expect(signs.y).toEqual(new Set([-1, 1]));
+    expect(signs.z).toEqual(new Set([-1, 1]));
   });
 });
 
 describe("arrival pose checklist", () => {
   it("normalises the near-identity orientation to unit length", () => {
-    const state = arrive(LAVE, LEESTI);
+    const state = arrive(LAVE_SEED);
     const { w, x, y, z } = state.orientation;
     expect(Math.sqrt(w * w + x * x + y * y + z * z)).toBeCloseTo(1, 12);
-    // Near identity: it faces the planet down -Z with only the Oolite tilt.
+    // Near identity: the Oolite tilt is small, so the ship keeps its attitude.
     expect(state.orientation.w).toBeGreaterThan(0.95);
     for (const component of [
       state.orientation.x,
@@ -186,7 +241,7 @@ describe("arrival pose checklist", () => {
   });
 
   it("takes exactly min(maxSpeed, 50) and zeroes the rates", () => {
-    const state = arrive(LAVE, LEESTI);
+    const state = arrive(LAVE_SEED);
     expect(state.speed).toBe(Math.min(config.maxSpeed, ARRIVAL_SPEED));
     if (config.maxSpeed >= ARRIVAL_SPEED) {
       expect(state.speed).toBe(50);
@@ -196,14 +251,14 @@ describe("arrival pose checklist", () => {
   });
 
   it("caps the speed on a slower ship", () => {
-    const state = arrive(LAVE, LEESTI, { ...config, maxSpeed: 30 });
+    const state = arrive(LAVE_SEED, { ...config, maxSpeed: 30 });
     expect(state.speed).toBe(30);
     expect(ARRIVAL_SPEED).toBe(50);
     expect(OOLITE_ORIENTATION_EPSILON).toBe(1 / 1024);
   });
 
   it("installs a complete in-flight pose with the dock latch armed", () => {
-    const state = arrive(LAVE, LEESTI);
+    const state = arrive(LAVE_SEED);
     expect(state.mode).toBe("inFlight");
     expect(state.dockArmed).toBe(true);
     expect(state.launchElapsed).toBe(0);
@@ -257,8 +312,7 @@ describe("arrival is stationary on every directed route", () => {
         state,
         destination.layout,
         config,
-        origin.system.id,
-        destination.system.id,
+        drawWitchpointExit(marketSeedForSystem(origin.system.id)),
       );
       const position = { ...state.position };
       const orientation = { ...state.orientation };

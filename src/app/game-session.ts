@@ -115,7 +115,10 @@ import {
   marketSeedForSystem,
 } from "../sim/economy/market.js";
 import type { Market } from "../sim/economy/market.js";
-import { applyWitchpointArrival } from "../sim/hyperspace/arrival.js";
+import {
+  applyWitchpointArrival,
+  drawWitchpointExit,
+} from "../sim/hyperspace/arrival.js";
 import { countdownSecondsRemaining } from "../sim/hyperspace/countdown.js";
 import type { HyperspaceRefusal } from "../sim/events.js";
 import {
@@ -1754,6 +1757,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const originId = system.id;
     const previousSeed = marketSeed ?? marketSeedForSystem(originId);
     const nextSeed = arrivalMarketSeed(destination.id, previousSeed);
+    // The arrival offset is drawn once, here at the jump commit, from the
+    // origin's persisted market seed. A reload restores the saved pose and
+    // never calls this draw, so a reload cannot re-roll the arrival. The draw
+    // is pure and cannot throw, so it stays outside the try block.
+    const exit = drawWitchpointExit(previousSeed);
     const nextFuel = Math.max(0, profile.fuel - event.fuelCost);
 
     // G-7: the sim has already committed the jump (clock advanced, countdown
@@ -1791,13 +1799,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // The committed `hyperspaceTargetId` is deliberately retained: the arrival
     // snapshot carries it (PROJECT.md:126-127, Oolite's unchanged
     // target_system_id), and the HUD/F5 target line keeps naming it.
-    applyWitchpointArrival(
-      currentState,
-      arrivedLayout,
-      currentConfig,
-      originId,
-      destination.id,
-    );
+    applyWitchpointArrival(currentState, arrivedLayout, currentConfig, exit);
     const arrivedPose = poseOf(currentState);
     previousPose = arrivedPose;
     currentPose = arrivedPose;
