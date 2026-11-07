@@ -50,6 +50,7 @@ import {
 } from "../../src/sim/hyperspace/arrival.js";
 import type { Command } from "../../src/sim/commands.js";
 import {
+  arrivalMarketSeed,
   generateMarket,
   marketSeedForSystem,
 } from "../../src/sim/economy/market.js";
@@ -755,6 +756,57 @@ describe("docked and in-flight round trips", () => {
     expect(restored.state.position).toEqual(position);
     expect(restored.state.orientation).toEqual(orientation);
     expect(restored.state.dockArmed).toBe(true);
+  });
+
+  it("a reloaded in-flight arrival keeps the drawn pose and does not re-draw it", async () => {
+    // The offset is drawn at the jump commit from the origin's market seed. The
+    // session then persists the arrival market seed, which is the seed a re-roll
+    // on reload would use.
+    const originSeed = marketSeedForSystem("g0-s55");
+    const arrived = initFlightState(layout);
+    applyWitchpointArrival(
+      arrived,
+      layout,
+      config,
+      drawWitchpointExit(originSeed),
+    );
+    const persistedMarket = {
+      ...MARKET,
+      seed: arrivalMarketSeed(SYSTEM.id, originSeed),
+    };
+    const store = new MemorySaveStore();
+    const inputs = snapshotForSave(
+      arrived,
+      newProfile(),
+      SYSTEM,
+      STATION,
+      persistedMarket,
+      COMMODITIES,
+    );
+    expect(inputs.mode).toBe("inFlight");
+
+    const written = await queueAutosave(store, 1, inputs, ALLOW);
+    expect(written.committed).toBe(true);
+
+    const parsed = parseSave(store.raw, ALLOW);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const restored = restoreFromSave(parsed.save, layout, profileFromSave);
+    // The restore installs the saved pose, within the SAVE-03 float tolerance.
+    expect(restored.state.position.x).toBeCloseTo(arrived.position.x, 6);
+    expect(restored.state.position.y).toBeCloseTo(arrived.position.y, 6);
+    expect(restored.state.position.z).toBeCloseTo(arrived.position.z, 6);
+
+    // A re-roll from the persisted seed gives a different pose, so the equality
+    // above proves the restore installed the saved pose and did not draw again.
+    const reroll = initFlightState(layout);
+    applyWitchpointArrival(
+      reroll,
+      layout,
+      config,
+      drawWitchpointExit(persistedMarket.seed),
+    );
+    expect(reroll.position).not.toEqual(restored.state.position);
   });
 
   it("refuses an invalid snapshot and never calls store.write", async () => {

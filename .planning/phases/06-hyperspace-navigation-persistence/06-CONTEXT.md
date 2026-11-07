@@ -212,7 +212,7 @@ Requirements covered: NAV-01..NAV-06, SAVE-01..SAVE-06, WORLD-06.
 
 - Advanced Navigational Array automatic route plotting, fewest-jumps/least-time search and chart filters — future progression feature.
 - Galactic Hyperdrive, the 8-galaxy ring and inter-galactic travel — out of scope for v1.
-- Oolite-style random witchpoint exit offset and orientation jitter — deferred in favour of a deterministic derivation so the simulation stays replayable.
+- Oolite-style random witchpoint exit offset and orientation jitter — deferred in favour of a deterministic derivation so the simulation stays replayable. **Superseded 2026-11-07 (owner direction; plan 06-15):** the Oolite-style random witchpoint exit offset and orientation jitter are now drawn at jump commit from the sim's seeded PRNG and persisted through the saved pose, so a reload never re-rolls the arrival and the simulation stays replayable from the seed; see PROJECT.md Key Decisions.
 - Persisting an active countdown or supporting save-anywhere — not needed while F2 is docked-only and autosaves happen on launch/arrival.
 - Multiple named save slots, save export/import and commander files — explicitly out of scope; one IndexedDB slot only.
 - Combat, NPC traffic, missions, legal status and sound remain outside this phase.
