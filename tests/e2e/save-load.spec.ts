@@ -310,6 +310,86 @@ test("a manual Save writes the one committed slot and the next Save asks before 
   expect(errors).toEqual([]);
 });
 
+/** Wait for the overwrite dialog to open on the probe (never a fixed sleep). */
+async function waitForConfirming(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => window.__wegolite?.saveScreen?.confirming === true,
+    undefined,
+    { timeout: 30_000 },
+  );
+}
+
+test("the overwrite dialog: mouse Cancel, mouse Accept and Enter on Cancel each resolve once (G-3)", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  await startNewGame(page);
+  await waitForDocked(page);
+  await page.keyboard.press("F2");
+  await expect(page.locator("#save-load")).toBeVisible();
+
+  // The absent slot writes at once; every Save below targets a committed slot.
+  await page.keyboard.press("KeyS");
+  await waitForCommitted(page, 1);
+
+  // 1. Mouse Cancel closes the dialog without writing, and the next Save asks
+  //    again rather than silently doing nothing.
+  await page.keyboard.press("KeyS");
+  await waitForConfirming(page);
+  await page.click("#save-load-confirm-cancel");
+  await expect(page.locator("#save-load-confirm")).toBeHidden();
+  await expect(page.locator('[data-field="save-load-confirm"]')).toHaveText("");
+  await expect(page.locator("#save-load-screen")).toBeFocused();
+  const afterMouseCancel = await getProbe(page);
+  expect(afterMouseCancel.saveScreen?.confirming).toBe(false);
+  expect(afterMouseCancel.save?.committed).toBe(1);
+  const bytesBeforeAccept = await readRaw(page);
+  const revisionBeforeAccept = afterMouseCancel.save?.revision ?? 0;
+
+  // 2. Mouse Accept writes exactly one new revision and keeps focus inside the
+  //    screen. The same docked state, with a frozen clock, encodes to the same
+  //    bytes, and the revision is store metadata outside the blob.
+  await page.keyboard.press("KeyS");
+  await waitForConfirming(page);
+  await page.click("#save-load-confirm-accept");
+  await waitForCommitted(page, 2);
+  await expect(page.locator("#save-load-confirm")).toBeHidden();
+  await expect(page.locator("#save-load-screen")).toBeFocused();
+  const afterAccept = await getProbe(page);
+  expect(afterAccept.saveScreen?.confirming).toBe(false);
+  expect(afterAccept.save?.committed).toBe(2);
+  expect(afterAccept.save?.revision).toBe(revisionBeforeAccept + 1);
+  expect(await readRaw(page)).toBe(bytesBeforeAccept);
+
+  // 3. Enter follows the focused control: on the safe Cancel it cancels. The
+  //    bytes stay identical and no revision commits.
+  await page.keyboard.press("KeyS");
+  await waitForConfirming(page);
+  await expect(page.locator("#save-load-confirm-cancel")).toBeFocused();
+  const bytesBeforeEnter = await readRaw(page);
+  const beforeEnter = await getProbe(page);
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#save-load-confirm")).toBeHidden();
+  await expect(page.locator("#save-load-screen")).toBeFocused();
+  expect(await readRaw(page)).toBe(bytesBeforeEnter);
+  const afterEnter = await getProbe(page);
+  expect(afterEnter.saveScreen?.confirming).toBe(false);
+  expect(afterEnter.save?.committed).toBe(beforeEnter.save?.committed);
+  expect(afterEnter.save?.revision).toBe(beforeEnter.save?.revision);
+
+  // Save is still live after the Enter cancel, and Y is the direct confirm.
+  await page.keyboard.press("KeyS");
+  await waitForConfirming(page);
+  await page.keyboard.press("KeyY");
+  await waitForCommitted(page, 3);
+  await expect(page.locator("#save-load-confirm")).toBeHidden();
+  const afterY = await getProbe(page);
+  expect(afterY.save?.committed).toBe(3);
+  expect(afterY.save?.revision).toBe((afterEnter.save?.revision ?? 0) + 1);
+  expect(errors).toEqual([]);
+});
+
 test("a future or unreadable slot is refused and never overwritten", async ({
   page,
 }) => {
