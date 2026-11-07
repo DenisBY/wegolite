@@ -452,7 +452,9 @@ describe("save screen bindings", () => {
     expect(DEFAULT_BINDINGS.saveScreenSave).toEqual(["KeyS"]);
     expect(DEFAULT_BINDINGS.saveScreenLoad).toEqual(["KeyL"]);
     expect(DEFAULT_BINDINGS.saveScreenReturn).toEqual(["Escape"]);
-    expect(DEFAULT_BINDINGS.saveScreenConfirm).toEqual(["Enter", "KeyY"]);
+    // Enter follows the focused control; Y is the direct confirm (G-3).
+    expect(DEFAULT_BINDINGS.saveScreenActivate).toEqual(["Enter"]);
+    expect(DEFAULT_BINDINGS.saveScreenConfirm).toEqual(["KeyY"]);
     expect(DEFAULT_BINDINGS.saveScreenCancel).toEqual(["KeyN"]);
     // The browser would otherwise open its own help/search panel on F2.
     expect(RESERVED_F_KEYS.has("F2")).toBe(true);
@@ -465,6 +467,7 @@ describe("save screen bindings", () => {
       "saveScreenSave",
       "saveScreenLoad",
       "saveScreenReturn",
+      "saveScreenActivate",
       "saveScreenConfirm",
       "saveScreenCancel",
     ] as const) {
@@ -473,6 +476,14 @@ describe("save screen bindings", () => {
     // F2 is docked-only: never in flight, never over the chart or itself.
     expect(ACTION_CONTEXTS.saveLoad).toEqual(["dockHome", "dockScreen"]);
     expect(ACTION_CONTEXTS.pause).toContain("saveScreen");
+  });
+
+  it("keeps Enter on saveScreenActivate when old settings still bind Enter to confirm", () => {
+    // Settings persist the full map, so a player who saved before the split
+    // carries Enter on saveScreenConfirm. Enter must still follow focus.
+    const map = createBindingMap({ saveScreenConfirm: ["Enter", "KeyY"] });
+    expect(map.saveScreenActivate).toEqual(["Enter"]);
+    expect(map.saveScreenConfirm).toEqual(["KeyY"]);
   });
 
   it("queues F2 in the station contexts and keeps it inert in flight", () => {
@@ -531,11 +542,13 @@ describe("save screen bindings", () => {
 
     state.keyDown("ArrowDown");
     state.keyDown("Enter");
+    state.keyDown("KeyY");
     state.keyDown("KeyS");
     state.keyDown("KeyL");
 
     expect(state.drainSaveScreenActions()).toEqual([
       "saveScreenDown",
+      "saveScreenActivate",
       "saveScreenConfirm",
       "saveScreenSave",
       "saveScreenLoad",

@@ -54,6 +54,7 @@ export type ActionId =
   | "saveScreenSave"
   | "saveScreenLoad"
   | "saveScreenReturn"
+  | "saveScreenActivate"
   | "saveScreenConfirm"
   | "saveScreenCancel";
 
@@ -124,6 +125,10 @@ export const ACTION_IDS: readonly ActionId[] = [
   "saveScreenSave",
   "saveScreenLoad",
   "saveScreenReturn",
+  // Activate sits before Confirm on purpose: when persisted settings still
+  // carry Enter on the old confirm binding, the later entry (Confirm) loses
+  // Enter in createBindingMap, so Enter always follows the focused control.
+  "saveScreenActivate",
   "saveScreenConfirm",
   "saveScreenCancel",
 ];
@@ -188,7 +193,10 @@ export const DEFAULT_BINDINGS: Readonly<Record<ActionId, readonly string[]>> =
     saveScreenSave: Object.freeze(["KeyS"]),
     saveScreenLoad: Object.freeze(["KeyL"]),
     saveScreenReturn: Object.freeze(["Escape"]),
-    saveScreenConfirm: Object.freeze(["Enter", "KeyY"]),
+    // Enter activates the focused control (Cancel cancels, Accept confirms);
+    // Y is the direct confirm and never depends on focus.
+    saveScreenActivate: Object.freeze(["Enter"]),
+    saveScreenConfirm: Object.freeze(["KeyY"]),
     saveScreenCancel: Object.freeze(["KeyN"]),
   });
 
@@ -236,6 +244,7 @@ export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
   saveScreenSave: "Save",
   saveScreenLoad: "Load",
   saveScreenReturn: "Return",
+  saveScreenActivate: "Save/load activate",
   saveScreenConfirm: "Save/load confirm",
   saveScreenCancel: "Save/load cancel",
 });
@@ -320,6 +329,7 @@ export const ACTION_CONTEXTS: Readonly<
   saveScreenSave: contexts("saveScreen"),
   saveScreenLoad: contexts("saveScreen"),
   saveScreenReturn: contexts("saveScreen"),
+  saveScreenActivate: contexts("saveScreen"),
   saveScreenConfirm: contexts("saveScreen"),
   saveScreenCancel: contexts("saveScreen"),
   stationMarket: contexts("dockHome", "dockScreen"),

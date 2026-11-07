@@ -1570,7 +1570,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       case "saveScreenSave":
         if (saveScreenOpen && !screen.isConfirming()) manualSave();
         break;
+      case "saveScreenActivate":
+        // Enter follows focus: on the open dialog it resolves whichever
+        // control holds focus, so a focused Cancel never overwrites.
+        if (!saveScreenOpen) break;
+        if (screen.isConfirming()) screen.confirmFocused();
+        else screen.activate();
+        break;
       case "saveScreenConfirm":
+        // Y is the direct confirm and confirms regardless of focus.
         if (!saveScreenOpen) break;
         if (screen.isConfirming()) screen.acceptOverwrite();
         else screen.activate();
