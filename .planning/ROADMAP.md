@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Flight in the Lave System** - Launch from Lave's Coriolis and fly the Cobra through a faithful, stably rendered system (completed 2026-11-04)
 - [x] **Phase 4: Manual Docking** - Skill-based docking with corridor feedback, plus the buyable docking computer (completed 2026-11-05)
 - [x] **Phase 5: Docked Economy & Station Screens** - Market, outfitting, status, and system-data screens on Oolite's economy rules (completed 2026-11-06)
-- [ ] **Phase 6: Hyperspace, Navigation & Persistence** - Chart targeting, fuel-gated jumps, and saves that resume exactly
+- [x] **Phase 6: Hyperspace, Navigation & Persistence** - Chart targeting, fuel-gated jumps, and saves that resume exactly (completed 2026-11-07)
 - [ ] **Phase 7: Hardening & Community Release** - 60 fps, three-browser support, end-to-end coverage, docs, and a licensing audit
 
 ## Phase Details
@@ -214,7 +214,7 @@ Plans:
   3. Fuel is deducted as exactly `10 × max(0.1, distance)`, never goes negative, and the Lave→Diso and Lave→Zaonce fixtures produce the expected cost and jump time.
   4. Reloading the page restores the exact docked or in-flight state — credits, cargo, fuel, equipment, location, clock, orientation, velocity — and the market keeps its prior stock and prices, so reloading cannot reroll for profit.
   5. An older save migrates forward and a corrupt save fails safely without wiping good data, while the F2 screen saves and loads while docked and the game autosaves on launch and arrival.
-**Plans**: 12/12 plans executed
+**Plans**: 17/17 plans complete
 - [x] 06-07-PLAN.md
 - [x] 06-08-PLAN.md
 - [x] 06-09-PLAN.md
@@ -261,7 +261,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Flight in the Lave System | 14/14 | Complete    | 2026-11-04 |
 | 4. Manual Docking | 8/8 | Complete    | 2026-11-05 |
 | 5. Docked Economy & Station Screens | 6/6 | Complete    | 2026-11-06 |
-| 6. Hyperspace, Navigation & Persistence | 12/12 | In Progress | - |
+| 6. Hyperspace, Navigation & Persistence | 17/17 | Complete    | 2026-11-07 |
 | 7. Hardening & Community Release | 0/TBD | Not started | - |
 
 ## Roadmap Notes

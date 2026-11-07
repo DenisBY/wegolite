@@ -68,7 +68,7 @@ Each deferral has a rationale. None is one of the nine failed truths in 06-VERIF
 
 | Finding | Disposition | Rationale | Owner |
 | --- | --- | --- | --- |
-| WR-04 browser negative control for the destination build throw | Deferred: the catch is typechecked and the success path is browser-proven; the throw path has no browser negative control | `GameSession` has no injection seam for `enterSystemById`, so a browser test cannot force a build throw without adding a test-only seam. The throw handling itself is fixed in G-7 | Phase 7 test-seam work |
+| WR-04 browser negative control for the destination build throw | Deferred to Phase 7; owner accepted the deferral 2026-11-07: the catch is typechecked and the success path is browser-proven; the throw path has no browser negative control | `GameSession` has no injection seam for `enterSystemById`, so a browser test cannot force a build throw without adding a test-only seam. The throw handling itself is fixed in G-7 | Phase 7 test-seam work |
 | IN-01 `?test=1` taint latch survives an in-session Load | Deferred by decision (intentional) | The latch is test-only reachability; it disables autosave only in the test session that loaded through the hook | Kept as designed |
 | WR-05 `onProfileChanged` has no producer | Deferred: dead wiring | Durability comes from the explicit trade, fit and docked autosaves, so there is no missing write; the dead hook is removed in a cleanup pass | Phase 7 cleanup |
 | WR-06 `destination === undefined` impossible-state guard | Accepted | It is an impossible-state guard with low risk; it is kept as defensive code, not a reachable path | Accepted |
