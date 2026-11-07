@@ -39,6 +39,8 @@ import { initFlightState, CLOCK_START } from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { completeLaunch } from "../../src/sim/flight/launch.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
+import { stepDocking } from "../../src/sim/dock/step.js";
+import { applyWitchpointArrival } from "../../src/sim/hyperspace/arrival.js";
 import type { Command } from "../../src/sim/commands.js";
 import { generateMarket } from "../../src/sim/economy/market.js";
 import {
@@ -49,6 +51,7 @@ import {
 import type { PlayerProfile } from "../../src/sim/player/profile.js";
 import { commoditiesFixture } from "../helpers/commodities.js";
 import { DT } from "../../src/sim/time.js";
+import { laveDockGeometry } from "../helpers/dock-pose.js";
 import { laveFixture, scriptedFrame } from "../helpers/lave.js";
 
 const lave = laveFixture();
@@ -664,14 +667,51 @@ describe("docked and in-flight round trips", () => {
       massLocked: false,
       lastFactor: 1,
     });
-    // Pitfall 7: the in-flight restore checklist.
-    expect(restored.state.dockArmed).toBe(false);
+    // Pitfall 7: the in-flight restore checklist; the restored state is
+    // corridor-clear, so its dock latch is armed.
+    expect(restored.state.dockArmed).toBe(true);
     expect(restored.state.stationAngle).toBe(0);
     expect(restored.state.launchElapsed).toBe(0);
     expect(restored.state.impulse).toEqual({ x: 0, y: 0, z: 0 });
     expect(restored.state.compassMode).toBe("auto");
     // SAVE-06: the goods are the live market's, not a regeneration.
     expect(restored.market?.goods).toEqual(MARKET.goods);
+  });
+
+  it("keeps a restored witchpoint arrival still through the first docking step", async () => {
+    // A real arrival at Lave from another galaxy-0 system, written and read
+    // back through the game's own writer and parser, so the reader contract is
+    // exercised rather than a hand-built state.
+    const arrived = initFlightState(layout);
+    applyWitchpointArrival(arrived, layout, config, "g0-s55", SYSTEM.id);
+    const store = new MemorySaveStore();
+    const inputs = snapshotForSave(
+      arrived,
+      newProfile(),
+      SYSTEM,
+      STATION,
+      MARKET,
+      COMMODITIES,
+    );
+    expect(inputs.mode).toBe("inFlight");
+
+    const written = await queueAutosave(store, 1, inputs, ALLOW);
+    expect(written.committed).toBe(true);
+
+    const parsed = parseSave(store.raw, ALLOW);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const restored = restoreFromSave(parsed.save, layout, profileFromSave);
+    expect(restored.state.mode).toBe("inFlight");
+    const position = { ...restored.state.position };
+    const orientation = { ...restored.state.orientation };
+
+    const events = stepDocking(restored.state, layout, laveDockGeometry(), 0);
+
+    expect(events).toEqual([]);
+    expect(restored.state.position).toEqual(position);
+    expect(restored.state.orientation).toEqual(orientation);
+    expect(restored.state.dockArmed).toBe(true);
   });
 
   it("refuses an invalid snapshot and never calls store.write", async () => {
