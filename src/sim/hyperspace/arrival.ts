@@ -89,7 +89,12 @@ export function applyWitchpointArrival(
     lastFactor: 1,
   };
   state.mode = "inFlight";
-  state.dockArmed = false;
+  // The witchpoint lies far outside the station corridor, so the clearance
+  // latch is armed exactly as a fresh state and a cleared launch hand-over
+  // are. The disarmed tunnel-end clamp in stepDocking is a departure unstick
+  // only; it must never act on an arrival, or open space reads as the tunnel
+  // end and the first fixed step moves the ship.
+  state.dockArmed = true;
   // No launch cinematic is in progress; the in-flight restore writes the same
   // 0, so a reload cannot change the pose.
   state.launchElapsed = 0;

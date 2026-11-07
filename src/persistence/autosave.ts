@@ -217,8 +217,11 @@ export function profileFromSave(save: SaveV2): PlayerProfile {
  *
  * Docked: a fresh docked state at the saved clock; the station pose is derived
  * from the layout, never stored. In-flight: the normalized saved pose, speed,
- * rates, torus and clock with mode `inFlight`, `dockArmed` false,
+ * rates, torus and clock with mode `inFlight`, `dockArmed` true,
  * `stationAngle` 0, `launchElapsed` 0, `impulse` 0 and `compassMode` `auto`.
+ * `dockArmed` is true for the same reason an arrival arms it: an in-flight save
+ * always holds a pose outside the station corridor, and a disarmed latch would
+ * let the tunnel-end clamp move that restored pose on its first fixed step.
  * `launchElapsed` is 0 because the only in-flight producer is the post-arrival
  * save, whose producer also writes 0; the field is read only while
  * `mode === "launching"`, so this preserves the saved producer exactly.
@@ -254,7 +257,9 @@ export function restoreFromSave(
       lastFactor: 1,
     };
     state.mode = "inFlight";
-    state.dockArmed = false;
+    // The saved pose is outside the corridor, so the latch is armed (see
+    // applyWitchpointArrival): the tunnel-end clamp must not act on it.
+    state.dockArmed = true;
     state.stationAngle = 0;
     state.launchElapsed = 0;
     state.impulse = vec(0, 0, 0);

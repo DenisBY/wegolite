@@ -21,15 +21,21 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import type { System } from "../../src/content/types.js";
+import { stepDocking } from "../../src/sim/dock/step.js";
 import {
   ARRIVAL_SPEED,
   applyWitchpointArrival,
   arrivalWord,
   OOLITE_ORIENTATION_EPSILON,
 } from "../../src/sim/hyperspace/arrival.js";
+import { chartDistance, MAX_JUMP_DIST } from "../../src/sim/hyperspace/jump.js";
 import { initFlightState } from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { vec } from "../../src/sim/math.js";
+import { deriveSystemLayout } from "../../src/sim/world/layout.js";
+import type { SystemLayout } from "../../src/sim/world/layout.js";
+import { laveDockGeometry } from "../helpers/dock-pose.js";
 import { LAVE_SYSTEM_ID, laveFixture } from "../helpers/lave.js";
 
 const fixture = laveFixture();
@@ -38,6 +44,50 @@ const LAVE = LAVE_SYSTEM_ID;
 const LEESTI = "g0-s55";
 const SAFE_DISTANCE = layout.witchpoint.radius + 750;
 const SCANNER_HALF = layout.scannerRange * 0.5;
+
+/** One galaxy-0 system with the layout the shipped build derives for it. */
+interface RouteSystem {
+  readonly system: System;
+  readonly layout: SystemLayout;
+}
+
+/** A directed route between two distinct galaxy-0 systems. */
+interface DirectedRoute {
+  readonly origin: RouteSystem;
+  readonly destination: RouteSystem;
+}
+
+/**
+ * The 256 galaxy-0 systems, read with `readFileSync` as `lave.ts` does, each
+ * with its layout derived once from the fixture's station and reused.
+ */
+const ROUTE_SYSTEMS: readonly RouteSystem[] = (
+  JSON.parse(
+    readFileSync(
+      new URL("../../src/content/generated/systems/g0.json", import.meta.url),
+      "utf8",
+    ),
+  ) as System[]
+).map((system) => ({
+  system,
+  layout: deriveSystemLayout(system, fixture.stationDef),
+}));
+
+/** Every ordered pair of distinct systems whose chart distance is in range. */
+function directedInRangeRoutes(): DirectedRoute[] {
+  const routes: DirectedRoute[] = [];
+  for (const origin of ROUTE_SYSTEMS) {
+    for (const destination of ROUTE_SYSTEMS) {
+      if (origin.system.id === destination.system.id) continue;
+      const dist = chartDistance(
+        { x: origin.system.chartX, y: origin.system.chartY },
+        { x: destination.system.chartX, y: destination.system.chartY },
+      );
+      if (dist <= MAX_JUMP_DIST) routes.push({ origin, destination });
+    }
+  }
+  return routes;
+}
 
 function freshState(): FlightState {
   // A docked state is the harshest input: arrival must overwrite every field
@@ -152,10 +202,10 @@ describe("arrival pose checklist", () => {
     expect(OOLITE_ORIENTATION_EPSILON).toBe(1 / 1024);
   });
 
-  it("installs a complete in-flight pose", () => {
+  it("installs a complete in-flight pose with the dock latch armed", () => {
     const state = arrive(LAVE, LEESTI);
     expect(state.mode).toBe("inFlight");
-    expect(state.dockArmed).toBe(false);
+    expect(state.dockArmed).toBe(true);
     expect(state.launchElapsed).toBe(0);
     expect(state.stationAngle).toBe(0);
     expect(state.impulse).toEqual(vec(0, 0, 0));
@@ -181,5 +231,44 @@ describe("arrival determinism source scan", () => {
     expect(source).not.toMatch(/Date\.now/);
     expect(source).not.toMatch(/performance\.now/);
     expect(source).not.toMatch(/new\s+Date/);
+  });
+});
+
+describe("arrival is stationary on every directed route", () => {
+  it("leaves every in-range galaxy-0 route undisplaced by one stepped docking tick", () => {
+    const routes = directedInRangeRoutes();
+    // Exactly 1,750 directed pairs (875 unordered edges, both ways). A content
+    // or distance-rule drift must not shrink the population silently.
+    expect(routes).toHaveLength(1750);
+    // The Lave -> Diso route is the measured 240.4 km snap; it stays in the set.
+    expect(
+      routes.some(
+        (route) =>
+          route.origin.system.id === LAVE &&
+          route.destination.system.name === "Diso",
+      ),
+    ).toBe(true);
+
+    const geometry = laveDockGeometry();
+    for (const { origin, destination } of routes) {
+      const label = `${origin.system.id}>${destination.system.id}`;
+      const state = initFlightState(destination.layout);
+      applyWitchpointArrival(
+        state,
+        destination.layout,
+        config,
+        origin.system.id,
+        destination.system.id,
+      );
+      const position = { ...state.position };
+      const orientation = { ...state.orientation };
+
+      const events = stepDocking(state, destination.layout, geometry, 0);
+
+      expect(events, label).toEqual([]);
+      expect(state.position, label).toEqual(position);
+      expect(state.orientation, label).toEqual(orientation);
+      expect(state.dockArmed, label).toBe(true);
+    }
   });
 });
