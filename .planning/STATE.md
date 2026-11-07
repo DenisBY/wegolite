@@ -2,18 +2,19 @@
 gsd_state_version: "1.0"
 current_phase: 7
 current_phase_name: Hardening & Community Release
+current_plan: 2
 status: executing
-stopped_at: Phase 7 context gathered
-last_updated: "2026-11-07T19:32:49.997Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-11-07T21:41:25.733Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 complete, transitioned to Phase 7
-state_head: 49932db689eff2a453230abb3a0e6f86b47864d9
+state_head: bcd6f439dad3d3b902660871bb743051be735f0e
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 73
-  completed_plans: 61
-  percent: 84
+  completed_plans: 62
+  percent: 85
 ---
 
 # Project State
@@ -27,12 +28,13 @@ See: .planning/PROJECT.md (updated 2026-11-06)
 
 ## Current Position
 
-Phase: 7 (Hardening & Community Release) — READY TO EXECUTE
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-11-07 — Phase 6 complete, transitioned to Phase 7
+Phase: 7 (Hardening & Community Release) — EXECUTING
+Current Plan: 2
+Total Plans in Phase: 12
+Status: Executing
+Last activity: 2026-11-07 — Completed 07-01 (licence shipping, release title, enforced CSP)
 
-Progress: [████████░░] 84% — 44/44 plans complete
+Progress: [█████████░] 85% — 62/73 plans complete
 
 ## Performance Metrics
 
@@ -95,6 +97,7 @@ Progress: [████████░░] 84% — 44/44 plans complete
 | Phase 06 P10 | 13min | 2 tasks | 11 files |
 | Phase 06 P11 | ~30min | 3 tasks | 11 files |
 | Phase 06 P12 | 45min | 3 tasks | 8 files |
+| Phase 7 P01 | ~40 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -217,6 +220,8 @@ Recent decisions affecting current work:
 - [Phase 06]: The fixed boot #status string is removed; the session owns #status via syncStatusOverlay (06-11, IN-02).
 - [Phase 06]: Writer gate enforces the reader system/station allow-lists (T-06-36); both rejections pinned to the reader's corrupt verdict (06-12)
 - [Phase 06]: Chart stays north-up as a recorded divergence from Oolite vscale; mass-blockage jump check omitted in empty v1 space (06-12, G-9)
+- [Phase 7]: zod runs jitless (src/app/zod-csp.ts, first import of main.ts) because its new Function('') probe is refused by the shipped CSP — Strict policy script-src 'self' with no unsafe-eval; jitless is zod's documented path for strict CSPs
+- [Phase 7]: Shipped CSP is a meta tag: script-src 'self', connect-src 'self', object-src 'none', base-uri 'none', no remote origin and no unsafe-eval — QUAL-08 browser-enforced half (T-07-02, T-07-03); D-04
 
 ### Pending Todos
 
@@ -252,6 +257,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-07T18:23:06.399Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-hardening-community-release/07-CONTEXT.md
+Last session: 2026-11-07T21:41:24.946Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None

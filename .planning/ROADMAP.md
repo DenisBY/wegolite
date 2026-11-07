@@ -247,9 +247,9 @@ Plans:
   2. The core loop plays through on current stable Chrome and current stable Firefox, and one end-to-end test covers new game → launch → trade → hyperspace → dock → save/load.
   3. Recovering a lost WebGL context or returning from a throttled tab resumes without corrupting simulation or save state, with no console errors and no runtime network calls during the loop.
   4. README and `FIDELITY.md` document build/run/test, controls, and each ported mechanic's Oolite source, and a licensing audit confirms `NOTICE`, `ASSETS.md`, the source offer, and the disclaimer all ship in the built site.
-**Plans**: 12 plans
+**Plans**: 1/12 plans executed
 **Wave 1**
-- [ ] 07-01-PLAN.md — Release shell: NOTICE/LICENSE/ASSETS.md shipped by a build plugin, footer links and source URL, `Wegolite 0.1.0` title, CSP meta tag (QUAL-07, QUAL-08)
+- [x] 07-01-PLAN.md — Release shell: NOTICE/LICENSE/ASSETS.md shipped by a build plugin, footer links and source URL, `Wegolite 0.1.0` title, CSP meta tag (QUAL-07, QUAL-08)
 - [ ] 07-02-PLAN.md — Context-loss recovery (pause, re-render on restore, resume by player, 10 s failure) and tab-throttle proof (QUAL-05)
 - [ ] 07-03-PLAN.md — Golden save-migration fixtures (v1 to v2 through the production reader) and Oolite route fixtures as golden data (QUAL-04)
 - [ ] 07-04-PLAN.md — Engine smoke spec plus a scratch Firefox/WebKit spike and the owner's e2e-cross mode decision (QUAL-02)
@@ -283,7 +283,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Manual Docking | 8/8 | Complete    | 2026-11-05 |
 | 5. Docked Economy & Station Screens | 6/6 | Complete    | 2026-11-06 |
 | 6. Hyperspace, Navigation & Persistence | 17/17 | Complete    | 2026-11-07 |
-| 7. Hardening & Community Release | 0/TBD | Not started | - |
+| 7. Hardening & Community Release | 1/12 | In Progress | - |
 
 ## Roadmap Notes
 
