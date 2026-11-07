@@ -25,6 +25,11 @@ import "./app/zod-csp.js";
 import { bootApp } from "./app/boot.js";
 import { showBootFailure } from "./app/boot-failure.js";
 import { showWebgl2Fallback } from "./app/fallback.js";
+import {
+  CONTEXT_RESTORE_FAILURE_COPY,
+  CONTEXT_RESTORE_TIMEOUT_MS,
+  createContextRecovery,
+} from "./app/context-recovery.js";
 import { createGameSession } from "./app/game-session.js";
 import { publishFailure, publishProbe, readMemory } from "./app/probe.js";
 import type { WegoliteProbe } from "./app/probe.js";
@@ -232,6 +237,7 @@ if (!boot.ok) {
     launch: { count: 0, elapsed: 0, seen: false },
     memory: { geometries: 0, textures: 0, programs: 0 },
     bodies: [],
+    recovery: { state: "live", losses: 0, restores: 0 },
   };
 
   const session = createGameSession({
@@ -350,23 +356,66 @@ if (!boot.ok) {
     focusOptions,
   );
 
-  // T-3-19: a lost context stops the loop and says so in plain text. Full
-  // restoration is Phase 7's QUAL-05; this phase does not claim it.
-  canvas.addEventListener("webglcontextlost", (event) => {
-    event.preventDefault();
-    lifecycle.abort();
-    focusController.abort();
-    stopSession();
-    const reason = "The WebGL2 context was lost.";
-    showBootFailure(`${reason} Reload the page to restart Wegolite.`);
-    publishFailure(reason);
+  // QUAL-05 (D-15, D-16): a lost context pauses and waits for the browser to
+  // restore it; the player resumes by action. Only a restore that never comes
+  // (10 s) reaches the failure surface, and the save is never written meanwhile.
+  // The state machine is DOM-free (context-recovery.ts); this module wires it.
+  const recovery = createContextRecovery({
+    timeoutMs: CONTEXT_RESTORE_TIMEOUT_MS,
+    schedule: (callback, ms) => window.setTimeout(callback, ms),
+    cancel: (handle) => window.clearTimeout(handle),
+    onLost: () => {
+      session.enterContextLoss();
+      probe.recovery = {
+        state: recovery.state(),
+        losses: recovery.losses(),
+        restores: recovery.restores(),
+      };
+    },
+    onRestored: () => {
+      session.exitContextLoss();
+      // Also redraws the menu scene when no game is running.
+      renderActiveScene();
+      probe.recovery = {
+        state: recovery.state(),
+        losses: recovery.losses(),
+        restores: recovery.restores(),
+      };
+    },
+    onTimeout: () => {
+      // The former terminal sequence: stop every listener and the session, then
+      // show the failure surface. The save bytes are never touched here.
+      lifecycle.abort();
+      focusController.abort();
+      stopSession();
+      showBootFailure(CONTEXT_RESTORE_FAILURE_COPY);
+      publishFailure("The WebGL2 context was not restored.");
+    },
   });
+
+  canvas.addEventListener(
+    "webglcontextlost",
+    (event) => {
+      // Without preventDefault the browser never offers a restore.
+      event.preventDefault();
+      recovery.lost();
+    },
+    { signal: lifecycle.signal },
+  );
+  canvas.addEventListener(
+    "webglcontextrestored",
+    () => {
+      recovery.restored();
+    },
+    { signal: lifecycle.signal },
+  );
 
   // T-3-22: release every listener, then the session (RAF, input, HUD, scene,
   // cache). `stopSession` is idempotent, so a second pagehide cannot double-free.
   window.addEventListener(
     "pagehide",
     () => {
+      recovery.dispose();
       lifecycle.abort();
       focusController.abort();
       stopSession();

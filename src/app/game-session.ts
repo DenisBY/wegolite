@@ -187,6 +187,10 @@ import { createControlsPanel } from "../ui/controls.js";
 import type { ControlsPanel } from "../ui/controls.js";
 import { createPauseOverlay } from "../ui/pause.js";
 import type { PauseOverlay } from "../ui/pause.js";
+import {
+  CONTEXT_LOST_NOTICE,
+  CONTEXT_RESTORED_NOTICE,
+} from "./context-recovery.js";
 import { createSettingsPanel } from "../ui/settings-panel.js";
 import type { SettingsPanel } from "../ui/settings-panel.js";
 import type {
@@ -263,6 +267,16 @@ export interface GameSession {
   /** Resume from pause and discard any hidden time (D-14). */
   resume(): void;
   isPaused(): boolean;
+  /**
+   * QUAL-05: the WebGL context was lost. Pauses at once, shows the recovery
+   * notice, and blocks resume and every save until `exitContextLoss`.
+   */
+  enterContextLoss(): void;
+  /**
+   * QUAL-05: the WebGL context was restored. Stays paused (D-15), redraws the
+   * live scene into the new context, and shows the resume notice.
+   */
+  exitContextLoss(): void;
   /** Clear every held key without changing the paused flag (focus loss). */
   clearInput(): void;
   dispose(): void;
@@ -398,6 +412,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     precision: false,
   };
   let paused = false;
+  // QUAL-05: set from the context-loss event until the restore. While set, the
+  // session never resumes and never writes a save (research Pitfall 9).
+  let contextLost = false;
   let launchSeen = false;
   // Set by any accepted `?test=1` live-state mutation; plan 04-05 refuses to
   // autosave a tainted profile.
@@ -1079,6 +1096,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // WR-03: recorded before every skip, so a test can prove that a dock never
     // even reached this function while the taint guard still suppresses writes.
     saveAttempts += 1;
+    // QUAL-05 (T-07-05): no write while the context is lost, before any other
+    // guard, and never a queued snapshot (research Pitfall 9).
+    if (contextLost) {
+      saveSkipReason = "recovering";
+      syncSaveProbe();
+      return;
+    }
     if (!canOverwrite(saveStatus)) {
       saveSkipReason = statusSkipReason(saveStatus);
       syncSaveProbe();
@@ -1105,6 +1129,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    */
   function manualSave(): void {
     saveAttempts += 1;
+    // QUAL-05 (T-07-05): the same recovery guard as autosave, ahead of every
+    // other check, so a lost context can never reach queueSnapshot.
+    if (contextLost) {
+      saveSkipReason = "recovering";
+      syncSaveProbe();
+      return;
+    }
     if (manualSavePending) {
       setSaveNotice("Save already in progress");
       return;
@@ -1373,6 +1404,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   function resume(): void {
     if (!paused) return;
+    // QUAL-05 (D-15): no resume without a context. P, Escape and the Resume
+    // button all reach this line, so the refusal covers every route.
+    if (contextLost) return;
     paused = false;
     input?.clearAll();
     input?.setPaused(false);
@@ -1380,8 +1414,27 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // next frame delta is one rendered frame, not the time spent paused.
     loop?.reset();
     pauseOverlay?.hide();
+    pauseOverlay?.setNotice("");
     controlsPanel?.hide();
     settingsPanel?.hide();
+  }
+
+  /** QUAL-05: the context went away; pause at once and say why. */
+  function enterContextLoss(): void {
+    contextLost = true;
+    pause();
+    pauseOverlay?.setNotice(CONTEXT_LOST_NOTICE);
+  }
+
+  /**
+   * QUAL-05 (D-15): the context is back. The session stays paused until the
+   * player resumes; the live scene is drawn once into the new context so every
+   * GPU resource is uploaded before the probe is read.
+   */
+  function exitContextLoss(): void {
+    contextLost = false;
+    pauseOverlay?.setNotice(CONTEXT_RESTORED_NOTICE);
+    if (state !== undefined) renderFrame(0);
   }
 
   function backToPause(): void {
@@ -2894,6 +2947,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     pause,
     resume,
     isPaused: () => paused,
+    enterContextLoss,
+    exitContextLoss,
     clearInput: () => {
       input?.clearAll();
     },

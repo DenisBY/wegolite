@@ -261,6 +261,13 @@ export interface WegoliteTestHook extends WegoliteSceneTestHook {
   tainted: boolean;
 }
 
+/** QUAL-05: the WebGL context-recovery state and its counters. */
+export interface WegoliteRecoveryProbe {
+  state: "live" | "lost" | "failed";
+  losses: number;
+  restores: number;
+}
+
 export interface WegoliteProbe {
   ready: boolean;
   calls: number;
@@ -304,6 +311,8 @@ export interface WegoliteProbe {
   dock?: WegoliteDockProbe;
   /** Live autosave state; absent on the failure surface. */
   save?: WegoliteSaveProbe;
+  /** QUAL-05: the WebGL context-recovery state; absent on the failure surface. */
+  recovery?: WegoliteRecoveryProbe;
   /** The station computer's screen state (ECON-04/ECON-09). */
   station?: WegoliteStationProbe;
   /** The live market and hold (ECON-01/ECON-02). */

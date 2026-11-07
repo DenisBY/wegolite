@@ -26,6 +26,11 @@ export interface PauseOverlay {
   show(): void;
   hide(): void;
   isOpen(): boolean;
+  /**
+   * Show one line of app-owned status text in the overlay (QUAL-05 recovery
+   * notice). An empty string hides the line.
+   */
+  setNotice(text: string): void;
   dispose(): void;
 }
 
@@ -46,6 +51,18 @@ export function createPauseOverlay(options: PauseOverlayOptions): PauseOverlay {
   const settings = requireButton(root, "settings");
   const controller = new AbortController();
   let open = false;
+  let noticeElement: HTMLParagraphElement | undefined;
+
+  function notice(): HTMLParagraphElement {
+    if (noticeElement !== undefined) return noticeElement;
+    const element = document.createElement("p");
+    element.setAttribute("data-pause-notice", "");
+    element.setAttribute("role", "status");
+    const host = root.querySelector("section.pause-menu") ?? root;
+    host.appendChild(element);
+    noticeElement = element;
+    return element;
+  }
 
   function focusables(): HTMLElement[] {
     return Array.from(
@@ -99,8 +116,15 @@ export function createPauseOverlay(options: PauseOverlayOptions): PauseOverlay {
     isOpen(): boolean {
       return !root.hidden;
     },
+    setNotice(text: string): void {
+      const element = notice();
+      element.textContent = text;
+      element.hidden = text === "";
+    },
     dispose(): void {
       controller.abort();
+      noticeElement?.remove();
+      noticeElement = undefined;
     },
   };
 }
