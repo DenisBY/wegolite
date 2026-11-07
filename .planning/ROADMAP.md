@@ -247,18 +247,19 @@ Plans:
   2. The core loop plays through on current Chrome, Firefox, and Safari, and one end-to-end test covers new game → launch → trade → hyperspace → dock → save/load.
   3. Recovering a lost WebGL context or returning from a throttled tab resumes without corrupting simulation or save state, with no console errors and no runtime network calls during the loop.
   4. README and `FIDELITY.md` document build/run/test, controls, and each ported mechanic's Oolite source, and a licensing audit confirms `NOTICE`, `ASSETS.md`, the source offer, and the disclaimer all ship in the built site.
-**Plans**: 11 plans
+**Plans**: 12 plans
 **Wave 1**
 - [ ] 07-01-PLAN.md — Release shell: NOTICE/LICENSE/ASSETS.md shipped by a build plugin, footer links and source URL, `Wegolite 0.1.0` title, CSP meta tag (QUAL-07, QUAL-08)
 - [ ] 07-02-PLAN.md — Context-loss recovery (pause, re-render on restore, resume by player, 10 s failure) and tab-throttle proof (QUAL-05)
+- [ ] 07-03-PLAN.md — Golden save-migration fixtures (v1 to v2 through the production reader) and Oolite route fixtures as golden data (QUAL-04)
 - [ ] 07-04-PLAN.md — Engine smoke spec plus a scratch Firefox/WebKit spike and the owner's e2e-cross mode decision (QUAL-02)
 - [ ] 07-05-PLAN.md — Draw-call/triangle budget gate across two systems, first-load ceiling, `docs/PERFORMANCE.md` reference-desktop protocol (QUAL-01)
 - [ ] 07-06-PLAN.md — `FIDELITY.md` with verbatim Oolite 7437f22 excerpts, ASSETS row and contract test (QUAL-06)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 07-03-PLAN.md — Golden save/route data, owner-checked `@vitest/coverage-v8`, thresholds from the measured baseline (QUAL-04)
 - [ ] 07-07-PLAN.md — Test-build-only destination-build fault seam and the Phase 6 WR-04 browser negative control (QUAL-05)
 - [ ] 07-08-PLAN.md — Core-loop journey (new game → launch → trade → hyperspace → dock → save/load) under network and console guards (QUAL-03, QUAL-08)
+- [ ] 07-12-PLAN.md — Owner-checked `@vitest/coverage-v8`, per-glob thresholds from the measured baseline, idb-store browser-only (QUAL-04)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 07-09-PLAN.md — `e2e-cross` service: Firefox in a `cross` image stage, Playwright projects, journey green on Firefox; `verify` stays Chromium-only (QUAL-02)
