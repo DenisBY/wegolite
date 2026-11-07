@@ -18,7 +18,10 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { CONTEXT_RESTORED_NOTICE } from "../../src/app/context-recovery.js";
+import {
+  CONTEXT_RESTORED_NOTICE,
+  CONTEXT_RESTORE_FAILURE_COPY,
+} from "../../src/app/context-recovery.js";
 import { getProbe, waitForReady } from "./helpers/probe.js";
 import { readRaw } from "./helpers/save-store.js";
 import { startNewGame } from "./helpers/title.js";
@@ -162,6 +165,126 @@ test("a lost context pauses, a restore recreates render resources while paused, 
     flightAtLoss,
     { timeout: 15_000 },
   );
+  expect(await readRaw(page)).toBe(bytesBefore);
+  expect(errors).toEqual([]);
+});
+
+/** Lose the context through the stored extension, or fetch it from a live context. */
+async function loseContext(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const stash = window as LoseContextWindow;
+    if (
+      stash.__loseContextExt === undefined ||
+      stash.__loseContextExt === null
+    ) {
+      const canvas = document.getElementById("view");
+      if (!(canvas instanceof HTMLCanvasElement)) {
+        throw new Error("the view canvas is missing");
+      }
+      const gl = canvas.getContext("webgl2");
+      if (gl === null) throw new Error("the WebGL2 context is missing");
+      stash.__loseContextExt = gl.getExtension("WEBGL_lose_context");
+    }
+    if (
+      stash.__loseContextExt === null ||
+      stash.__loseContextExt === undefined
+    ) {
+      throw new Error("WEBGL_lose_context is unavailable");
+    }
+    stash.__loseContextExt.loseContext();
+  });
+  await page.waitForFunction(
+    () =>
+      window.__wegolite?.recovery?.state === "lost" &&
+      window.__wegolite?.paused === true,
+    undefined,
+    { timeout: 15_000 },
+  );
+}
+
+async function restoreContext(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const extension = (window as LoseContextWindow).__loseContextExt;
+    if (extension === null || extension === undefined) {
+      throw new Error("the lose-context extension was not stored");
+    }
+    extension.restoreContext();
+  });
+  await page.waitForFunction(
+    () =>
+      window.__wegolite?.recovery?.state === "live" &&
+      (window.__wegolite?.calls ?? 0) > 0,
+    undefined,
+    { timeout: 20_000 },
+  );
+}
+
+test("a second loss after a restore recovers the same way, and a docked session resumes to a working station", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await page.goto("/");
+  await waitForReady(page);
+  await startNewGame(page);
+  await waitForMode(page, "docked");
+
+  const bytesBefore = await readRaw(page);
+  await loseContext(page);
+  await restoreContext(page);
+  await page.keyboard.press("KeyP");
+  await page.waitForFunction(
+    () => window.__wegolite?.paused === false,
+    undefined,
+    {
+      timeout: 15_000,
+    },
+  );
+
+  await loseContext(page);
+  await restoreContext(page);
+  const twice = await getProbe(page);
+  expect(twice.recovery).toEqual({ state: "live", losses: 2, restores: 2 });
+  expect(twice.paused).toBe(true);
+  expect(await readRaw(page)).toBe(bytesBefore);
+
+  await page.keyboard.press("KeyP");
+  await page.waitForFunction(
+    () => window.__wegolite?.paused === false,
+    undefined,
+    {
+      timeout: 15_000,
+    },
+  );
+  await page.keyboard.press("Digit8");
+  await page.waitForFunction(
+    () => window.__wegolite?.station?.screen === "market",
+    undefined,
+    { timeout: 15_000 },
+  );
+  expect(await readRaw(page)).toBe(bytesBefore);
+  expect(errors).toEqual([]);
+});
+
+test("no restore within 10 s shows the failure surface and keeps the save", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await page.goto("/");
+  await waitForReady(page);
+  await startNewGame(page);
+  await waitForMode(page, "docked");
+  await page.keyboard.press("Digit1");
+  await waitForMode(page, "inFlight");
+  await waitFrames(page, 6);
+
+  const bytesBefore = await readRaw(page);
+  await loseContext(page);
+
+  const failure = page.locator("#failure");
+  await expect(failure).toBeVisible({ timeout: 20_000 });
+  await expect(failure).toContainText(CONTEXT_RESTORE_FAILURE_COPY);
+  const failed = await page.evaluate(() => window.__wegolite?.ready);
+  expect(failed).toBe(false);
   expect(await readRaw(page)).toBe(bytesBefore);
   expect(errors).toEqual([]);
 });
