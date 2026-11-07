@@ -347,6 +347,17 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
     throw new Error("the arrival autosave has no flight pose");
   }
 
+  // The three-dimensional arrival clamp runs from the safety distance (witchpoint
+  // radius plus 750 m) to the 12,800 m half-range. The bounds are widened to
+  // 700 m and 13,000 m for the save latency after the arrival. The witchpoint
+  // sits at the origin of the system frame, so the offset is the position's norm.
+  // The exact seeded value is proven by the unit cases in
+  // tests/sim/hyperspace-arrival.test.ts.
+  const [arrivalX, arrivalY, arrivalZ] = arrivalBlob.flight.position;
+  const arrivalRadial = Math.hypot(arrivalX, arrivalY, arrivalZ);
+  expect(arrivalRadial).toBeGreaterThanOrEqual(700);
+  expect(arrivalRadial).toBeLessThanOrEqual(13_000);
+
   // The reload proof: same system, same market, same committed target, and the
   // pose the restore installed — not the live, resumed one.
   await page.reload();
