@@ -1732,8 +1732,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       case "insufficient fuel":
         return "Insufficient fuel";
       case "blocked":
-        // Only a Coriolis station blocks (witchspaceStationMass), so the name is fixed.
-        return "Witchspace jump aborted (too close to Coriolis Station).";
+        // Only a Coriolis station blocks (witchspaceStationMass), so the name is
+        // fixed. The copy is exactly MAX_MESSAGE_CHARS (54) long: the HUD clamps
+        // a longer line with an ellipsis, which would cut the station name.
+        return "Witchspace jump aborted: too close to Coriolis Station";
     }
   }
 
