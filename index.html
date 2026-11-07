@@ -615,6 +615,14 @@
         font: 12px/1.4 monospace;
         pointer-events: none;
       }
+      body > footer p {
+        margin: 0;
+      }
+      /* The links are the one clickable part of the footer. */
+      body > footer a {
+        pointer-events: auto;
+        color: #9c9;
+      }
     </style>
   </head>
   <body>
@@ -841,10 +849,21 @@
     </div>
     <div id="failure" role="alert" hidden></div>
     <footer>
-      Wegolite is an unofficial fan project. Not affiliated with, endorsed by,
-      or connected to the Oolite project, Frontier Developments plc, David
-      Braben or Ian Bell. Elite and Cobra are trademarks of Frontier
-      Developments plc.
+      <p class="footer-meta">
+        Wegolite 0.1.0 ·
+        <a href="./NOTICE">NOTICE</a> ·
+        <a href="./LICENSE">LICENSE</a> ·
+        <a href="./ASSETS.md">ASSETS.md</a> ·
+        <a href="https://github.com/DenisBY/wegolite" rel="noopener noreferrer"
+          >Source code</a
+        >
+      </p>
+      <p>
+        Wegolite is an unofficial fan project. Not affiliated with, endorsed by,
+        or connected to the Oolite project, Frontier Developments plc, David
+        Braben or Ian Bell. Elite and Cobra are trademarks of Frontier
+        Developments plc.
+      </p>
     </footer>
     <script type="module" src="/src/main.ts"></script>
   </body>

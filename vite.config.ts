@@ -1,9 +1,44 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Wegolite contributors
 
-import { defineConfig } from "vite";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { defineConfig, type Plugin } from "vite";
+
+/** The licence documents the built site must carry (QUAL-07). */
+const COMPLIANCE_DOCUMENTS = ["NOTICE", "LICENSE", "ASSETS.md"] as const;
+
+/**
+ * Ships NOTICE, LICENSE and ASSETS.md inside the build output (QUAL-07, D-03,
+ * research Pattern 1).
+ *
+ * The sources are the repository-root files, resolved from this config file's
+ * directory rather than `process.cwd()`. They are emitted as build assets, so
+ * `dist/` carries byte-identical copies. They never go under `public/`: every
+ * `public/` file needs an ASSETS.md row (tests/compliance-assets.test.ts), and a
+ * licence document is not an asset.
+ */
+function shipComplianceDocs(): Plugin {
+  const root = fileURLToPath(new URL(".", import.meta.url));
+  return {
+    name: "wegolite-compliance-docs",
+    apply: "build",
+    generateBundle() {
+      for (const fileName of COMPLIANCE_DOCUMENTS) {
+        this.emitFile({
+          type: "asset",
+          fileName,
+          source: readFileSync(join(root, fileName)),
+        });
+      }
+    },
+  };
+}
 
 export default defineConfig({
+  plugins: [shipComplianceDocs()],
   // Static hosting: every asset path is relative to index.html.
   base: "./",
   server: {
