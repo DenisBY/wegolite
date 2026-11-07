@@ -38,7 +38,7 @@ Requirements for the initial release. Each maps to a roadmap phase.
 - [x] **WORLD-03**: Starfield, lighting, and planet rendering produce a recognisably Oolite-like scene at v1 fidelity
 - [x] **WORLD-04**: The scene manager swaps systems without leaking GPU resources, verified by a dispose test
 - [x] **WORLD-05**: The app detects missing WebGL2 support and shows a clear fallback message instead of failing silently
-- [ ] **WORLD-06**: A pure hyperspace-math module computes distance, fuel cost, and jump time, matching Lave→Diso and Lave→Zaonce fixtures
+- [x] **WORLD-06**: A pure hyperspace-math module computes distance, fuel cost, and jump time, matching Lave→Diso and Lave→Zaonce fixtures
 
 ### Flight, Input & Launch
 
@@ -78,15 +78,15 @@ Requirements for the initial release. Each maps to a roadmap phase.
 - [x] **NAV-01**: The F6 galactic chart plots all 256 systems in the current galaxy with short/long range and 7 LY connection lines
 - [x] **NAV-02**: The player can select a target and see its distance and fuel cost, and unreachable targets are blocked
 - [x] **NAV-03**: Hyperspace requires fuel at least equal to the cost, with a 70-unit tank and a 7.0 LY maximum jump
-- [ ] **NAV-04**: A 15-second countdown can be aborted with pilot input, and a completed jump advances the clock by distance² hours
-- [ ] **NAV-05**: Arrival occurs at the destination witchpoint with a freshly generated market and the new system scene
-- [ ] **NAV-06**: Fuel is deducted exactly `10 × max(0.1, distance)` and can never go negative
-- [ ] **SAVE-01**: Saves are a single versioned JSON object with a numeric `version`, validated by a strict schema; older versions migrate in order, a newer version is left untouched, and a corrupt blob is backed up before any clear
-- [ ] **SAVE-02**: IndexedDB persists credits, cargo, fuel, equipment, location, clock, RNG state, and per-system market snapshots
-- [ ] **SAVE-03**: Loading restores the exact docked or in-flight state, including orientation and velocity
-- [ ] **SAVE-04**: Ordered migrations upgrade older saves, and corrupt saves fail safely without wiping good data
-- [ ] **SAVE-05**: The F2 save/load UI works while docked, with autosaves on launch and hyperspace arrival
-- [ ] **SAVE-06**: A reloaded market retains its prior stock and prices, so reloading cannot reroll for profit
+- [x] **NAV-04**: A 15-second countdown can be aborted with pilot input, and a completed jump advances the clock by distance² hours
+- [x] **NAV-05**: Arrival occurs at the destination witchpoint with a freshly generated market and the new system scene
+- [x] **NAV-06**: Fuel is deducted exactly `10 × max(0.1, distance)` and can never go negative
+- [x] **SAVE-01**: Saves are a single versioned JSON object with a numeric `version`, validated by a strict schema; older versions migrate in order, a newer version is left untouched, and a corrupt blob is backed up before any clear
+- [x] **SAVE-02**: IndexedDB persists credits, cargo, fuel, equipment, location, clock, RNG state, and per-system market snapshots
+- [x] **SAVE-03**: Loading restores the exact docked or in-flight state, including orientation and velocity
+- [x] **SAVE-04**: Ordered migrations upgrade older saves, and corrupt saves fail safely without wiping good data
+- [x] **SAVE-05**: The F2 save/load UI works while docked, with autosaves on launch and hyperspace arrival
+- [x] **SAVE-06**: A reloaded market retains its prior stock and prices, so reloading cannot reroll for profit
 
 ### Hardening & Community Release
 
@@ -169,7 +169,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | WORLD-03 | Phase 3 | Complete |
 | WORLD-04 | Phase 3 | Complete |
 | WORLD-05 | Phase 3 | Complete |
-| WORLD-06 | Phase 6 | Pending |
+| WORLD-06 | Phase 6 | Complete |
 | FLGT-01 | Phase 3 | Complete |
 | FLGT-02 | Phase 3 | Complete |
 | FLGT-03 | Phase 3 | Complete |
@@ -197,15 +197,15 @@ Which phases cover which requirements. Populated during roadmap creation.
 | NAV-01 | Phase 6 | Complete |
 | NAV-02 | Phase 6 | Complete |
 | NAV-03 | Phase 6 | Complete |
-| NAV-04 | Phase 6 | Pending |
-| NAV-05 | Phase 6 | Pending |
-| NAV-06 | Phase 6 | Pending |
-| SAVE-01 | Phase 6 | Pending |
-| SAVE-02 | Phase 6 | Pending |
-| SAVE-03 | Phase 6 | Pending |
-| SAVE-04 | Phase 6 | Pending |
-| SAVE-05 | Phase 6 | Pending |
-| SAVE-06 | Phase 6 | Pending |
+| NAV-04 | Phase 6 | Complete |
+| NAV-05 | Phase 6 | Complete |
+| NAV-06 | Phase 6 | Complete |
+| SAVE-01 | Phase 6 | Complete |
+| SAVE-02 | Phase 6 | Complete |
+| SAVE-03 | Phase 6 | Complete |
+| SAVE-04 | Phase 6 | Complete |
+| SAVE-05 | Phase 6 | Complete |
+| SAVE-06 | Phase 6 | Complete |
 | QUAL-01 | Phase 7 | Pending |
 | QUAL-02 | Phase 7 | Pending |
 | QUAL-03 | Phase 7 | Pending |
