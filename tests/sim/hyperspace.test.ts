@@ -691,6 +691,40 @@ describe("fixed-step hyperspace countdown", () => {
     );
   });
 
+  it("a manual capture ends an armed attempt through the same owner", () => {
+    // Threat T-06-23: the manual capture path must clear the pair too.
+    const state = inFlightState();
+    state.hyperspaceCountdown = 900;
+    state.hyperspaceTarget = { id: diso.id, dist: 9, fuelCost: 36 };
+    const pose = placeShipInPortFrame(layout, laveDockGeometry(), {
+      nosePastPlane: 90,
+      rollFromMatched: 0,
+      lateral: 0,
+      forwardSpeed: 0,
+    });
+    state.position = pose.position;
+    state.orientation = pose.orientation;
+    state.speed = pose.speed;
+    state.dockArmed = true;
+
+    const events = step(state, [], {
+      ...optionsFor(diso),
+      dock: laveDockGeometry(),
+    });
+
+    expect(events).toContainEqual({
+      kind: "docked",
+      via: "manual",
+      clockDelta: 0,
+    });
+    expect(events.some((event) => event.kind === "hyperspaceJumped")).toBe(
+      false,
+    );
+    expect(state.mode).toBe("docked");
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.hyperspaceTarget).toBeNull();
+  });
+
   it("a computer dock on the timer-at-1 tick emits docked only, with +1200 s", () => {
     // Gap G-2 regression, commit-tick variant. Before the fix this tick emitted
     // [docked, hyperspaceJumped] and left the station overlay over flight.
