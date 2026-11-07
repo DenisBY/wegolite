@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 import type { System } from "../../src/content/types.js";
 import {
   buildChartView,
+  chartArrowVector,
   chartGoodsReadout,
   chartProjection,
   hitTest,
@@ -26,6 +27,7 @@ import {
   visibleSystemIds,
 } from "../../src/ui/chart-model.js";
 import type {
+  ChartArrow,
   ChartMarker,
   ChartView,
   ChartViewport,
@@ -284,20 +286,16 @@ describe("the 7 LY graph", () => {
 
 describe("nearestInDirection", () => {
   it("returns a system that makes progress for each arrow", () => {
-    const directions: ReadonlyArray<readonly [string, number, number]> = [
-      ["up", 0, 1],
-      ["down", 0, -1],
-      ["left", -1, 0],
-      ["right", 1, 0],
-    ];
+    const arrows: readonly ChartArrow[] = ["up", "down", "left", "right"];
 
-    for (const [, dirX, dirY] of directions) {
+    for (const arrow of arrows) {
+      const { dirX, dirY } = chartArrowVector(arrow);
       const next = nearestInDirection(systems, lave, dirX, dirY);
-      expect(next).toBeDefined();
+      expect(next, arrow).toBeDefined();
       if (next === undefined) continue;
       const dx = next.chartX - lave.chartX;
       const dy = (next.chartY - lave.chartY) / 2;
-      expect(dx * dirX + dy * dirY).toBeGreaterThan(0);
+      expect(dx * dirX + dy * dirY, arrow).toBeGreaterThan(0);
     }
   });
 
@@ -403,6 +401,91 @@ describe("short-range arrow selection", () => {
       (label) => label.systemId,
     );
     expect(labelled).toContain(ermaso.id);
+  });
+});
+
+describe("chartArrowVector follows the drawn screen", () => {
+  /** The short-range view centred on Lave, with the candidates it paints. */
+  function shortRangeFromLave(): {
+    readonly view: ChartView;
+    readonly candidates: readonly System[];
+  } {
+    const view = buildChartView(
+      systems,
+      lave.id,
+      undefined,
+      "short",
+      fullFuel,
+      viewport,
+      undefined,
+    );
+    const visible = visibleSystemIds(view);
+    return {
+      view,
+      candidates: systems.filter((system) => visible.has(system.id)),
+    };
+  }
+
+  it("points up at decreasing chart-y, as GuiDisplayGen.m:1575 draws it", () => {
+    // GuiDisplayGen.m:1575: the negative vscale draws a larger chart-y lower,
+    // so screen-up is the smaller chart-y and dirY is -1.
+    expect(chartArrowVector("up")).toEqual({ dirX: 0, dirY: -1 });
+    expect(chartArrowVector("down")).toEqual({ dirX: 0, dirY: 1 });
+    expect(chartArrowVector("left")).toEqual({ dirX: -1, dirY: 0 });
+    expect(chartArrowVector("right")).toEqual({ dirX: 1, dirY: 0 });
+  });
+
+  it("picks, for each arrow from Lave, a system drawn in that direction", () => {
+    const { view, candidates } = shortRangeFromLave();
+    const laveMarker = marker(view, lave.id);
+    const expectations: ReadonlyArray<
+      readonly [ChartArrow, "screenX" | "screenY", -1 | 1]
+    > = [
+      ["up", "screenY", -1],
+      ["down", "screenY", 1],
+      ["left", "screenX", -1],
+      ["right", "screenX", 1],
+    ];
+
+    for (const [arrow, axis, sign] of expectations) {
+      const { dirX, dirY } = chartArrowVector(arrow);
+      const next = nearestInDirection(candidates, lave, dirX, dirY);
+      expect(next, arrow).toBeDefined();
+      if (next === undefined) continue;
+      const delta = marker(view, next.id)[axis] - laveMarker[axis];
+      expect(Math.sign(delta), arrow).toBe(sign);
+    }
+  });
+
+  it("selects Reorte above Lave on ArrowUp, the system the browser test presses", () => {
+    const { view, candidates } = shortRangeFromLave();
+    const { dirX, dirY } = chartArrowVector("up");
+    const reorte = byName("Reorte");
+    const up = nearestInDirection(candidates, lave, dirX, dirY);
+
+    expect(up?.id).toBe(reorte.id);
+    expect(marker(view, reorte.id).screenY).toBeLessThan(
+      marker(view, lave.id).screenY,
+    );
+  });
+
+  it("walks the browser chain: up to Reorte, down to Lave, right to Zaonce, left to Lave", () => {
+    const { candidates } = shortRangeFromLave();
+    const steps: ReadonlyArray<readonly [ChartArrow, string]> = [
+      ["up", "Reorte"],
+      ["down", "Lave"],
+      ["right", "Zaonce"],
+      ["left", "Lave"],
+    ];
+
+    let base = lave;
+    for (const [arrow, name] of steps) {
+      const { dirX, dirY } = chartArrowVector(arrow);
+      const next = nearestInDirection(candidates, base, dirX, dirY);
+      expect(next?.id, arrow).toBe(byName(name).id);
+      if (next === undefined) return;
+      base = next;
+    }
   });
 });
 

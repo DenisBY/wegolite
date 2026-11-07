@@ -29,6 +29,7 @@ test.setTimeout(360_000);
 const DISO = systemByName("Diso");
 const LAVE = systemByName("Lave");
 const REORTE = systemByName("Reorte");
+const ZAONCE = systemByName("Zaonce");
 /** 9 integer chart units at 0.4 LY: 576 * 9^2 seconds of jump time. */
 const DISO_JUMP_SECONDS = 576 * 9 * 9;
 const DISO_FUEL_COST = 4 * 9;
@@ -504,6 +505,39 @@ test("chart arrow keys select the system drawn in the pressed direction", async 
   );
   expect((await markerPoint(page, REORTE.id)).y).toBeLessThan(
     (await markerPoint(page, LAVE.id)).y,
+  );
+
+  // ArrowDown from Reorte selects Lave, the system drawn below it.
+  await page.keyboard.press("ArrowDown");
+  await page.waitForFunction(
+    (id) => window.__wegolite?.chart?.selectedId === id,
+    LAVE.id,
+    { timeout: 30_000 },
+  );
+  expect((await markerPoint(page, LAVE.id)).y).toBeGreaterThan(
+    (await markerPoint(page, REORTE.id)).y,
+  );
+
+  // ArrowRight from Lave selects Zaonce, the system drawn to its right.
+  await page.keyboard.press("ArrowRight");
+  await page.waitForFunction(
+    (id) => window.__wegolite?.chart?.selectedId === id,
+    ZAONCE.id,
+    { timeout: 30_000 },
+  );
+  expect((await markerPoint(page, ZAONCE.id)).x).toBeGreaterThan(
+    (await markerPoint(page, LAVE.id)).x,
+  );
+
+  // ArrowLeft from Zaonce selects Lave, the system drawn to its left.
+  await page.keyboard.press("ArrowLeft");
+  await page.waitForFunction(
+    (id) => window.__wegolite?.chart?.selectedId === id,
+    LAVE.id,
+    { timeout: 30_000 },
+  );
+  expect((await markerPoint(page, LAVE.id)).x).toBeLessThan(
+    (await markerPoint(page, ZAONCE.id)).x,
   );
 
   expect(errors).toEqual([]);
