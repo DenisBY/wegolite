@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "mode": "docked",
+  "clockSeconds": 180057946200,
+  "credits": 1000,
+  "equipment": ["EQ_DOCK_COMP"],
+  "system": {
+    "id": "g0-s7"
+  },
+  "station": {
+    "key": "coriolis-station"
+  },
+  "cargo": [
+    {
+      "key": "food",
+      "quantity": 2
+    },
+    {
+      "key": "gold",
+      "quantity": 499
+    },
+    {
+      "key": "gem_stones",
+      "quantity": 250
+    }
+  ],
+  "fuel": 40,
+  "missiles": 1,
+  "passengerBerths": 1,
+  "marketSeed": 3545325333
+}

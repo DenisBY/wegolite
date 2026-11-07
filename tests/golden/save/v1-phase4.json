@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "mode": "docked",
+  "clockSeconds": 180057946200,
+  "credits": 1000,
+  "equipment": ["EQ_DOCK_COMP"],
+  "system": {
+    "id": "g0-s7"
+  },
+  "station": {
+    "key": "coriolis-station"
+  }
+}
