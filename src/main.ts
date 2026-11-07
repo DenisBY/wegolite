@@ -20,6 +20,8 @@
  * returns before any scene, HUD or RAF exists.
  */
 
+// First on purpose: zod must run without JIT before any schema is built below.
+import "./app/zod-csp.js";
 import { bootApp } from "./app/boot.js";
 import { showBootFailure } from "./app/boot-failure.js";
 import { showWebgl2Fallback } from "./app/fallback.js";

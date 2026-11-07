@@ -203,6 +203,40 @@ describe("shipped shell", () => {
   });
 });
 
+describe("content security policy", () => {
+  /** Every CSP meta element in the source index.html, attributes unwrapped. */
+  function cspTags(): string[] {
+    return (
+      read("index.html").match(
+        /<meta\b[^>]*http-equiv="Content-Security-Policy"[^>]*>/gi,
+      ) ?? []
+    );
+  }
+
+  it("ships exactly one CSP meta element with the connect-src and script-src pins", () => {
+    const tags = cspTags();
+    expect(tags).toHaveLength(1);
+
+    const policy = /content="([^"]*)"/.exec(tags[0] ?? "")?.[1] ?? "";
+    expect(policy).toContain("connect-src 'self'");
+    expect(policy).toContain("script-src 'self'");
+    expect(policy).toContain("object-src 'none'");
+  });
+
+  it("names no remote origin and no eval-permitting keyword", () => {
+    const policy = /content="([^"]*)"/.exec(cspTags()[0] ?? "")?.[1] ?? "";
+
+    expect(policy).not.toMatch(/\bhttps?:/i);
+    expect(policy).not.toMatch(/unsafe-eval/i);
+  });
+
+  it("points the favicon at a data URL so the browser never requests /favicon.ico", () => {
+    const icon = /<link\b[^>]*\brel="icon"[^>]*>/.exec(read("index.html"));
+
+    expect(icon?.[0]).toContain('href="data:,"');
+  });
+});
+
 /** The `<footer>` element block of the source index.html (D-07 footer). */
 function footerBlock(): string {
   const match = /^ *<footer>([\s\S]*?)^ *<\/footer>/m.exec(read("index.html"));
