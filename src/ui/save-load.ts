@@ -38,14 +38,31 @@ export interface SaveLoadScreen {
   activate(): SaveRow;
   /** Show the overwrite dialog and focus the safe action. */
   confirmOverwrite(): void;
-  /** Hide the overwrite dialog without writing. */
+  /**
+   * Hide the overwrite dialog without invoking either handler. The session
+   * uses this when a path outside the dialog has already settled the question.
+   */
   cancelOverwrite(): void;
+  /**
+   * The one owner of the overwrite dialog's open state. The session reads this
+   * instead of keeping a second flag, so the dialog and the session cannot
+   * disagree.
+   */
   isConfirming(): boolean;
+  /** Accept the open overwrite dialog directly (Y, regardless of focus). */
+  acceptOverwrite(): void;
+  /**
+   * Resolve the open overwrite dialog from the focused control: Accept
+   * confirms, anything else (the safe Cancel) cancels. Enter routes here.
+   */
+  confirmFocused(): void;
   onSave(handler: () => void): void;
   onLoad(handler: () => void): void;
   onReturn(handler: () => void): void;
-  /** The overwrite dialog's accept action (Y/Enter while confirming). */
+  /** The overwrite dialog's accept resolution: the one new write. */
   onOverwriteConfirmed(handler: () => void): void;
+  /** The overwrite dialog's cancel resolution: no write, Save stays live. */
+  onOverwriteCancelled(handler: () => void): void;
   dispose(): void;
 }
 
@@ -74,7 +91,7 @@ function requireButton(root: HTMLElement, id: string): HTMLButtonElement {
 }
 
 const KEY_HINTS =
-  "Up/Down select · Enter/Y confirm · N cancel · S save · L load · Esc return";
+  "Up/Down select · Enter activate · Y confirm · N cancel · S save · L load · Esc return";
 
 export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
   const overlay = requireElement<HTMLElement>(
@@ -134,6 +151,7 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
   let loadHandler: (() => void) | undefined;
   let returnHandler: (() => void) | undefined;
   let overwriteHandler: (() => void) | undefined;
+  let overwriteCancelHandler: (() => void) | undefined;
 
   keysField.textContent = KEY_HINTS;
 
@@ -195,6 +213,9 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
   overlay.addEventListener(
     "click",
     (event) => {
+      // The open dialog owns input: a row click behind it is inert, the same
+      // as Up/Down/Save/Load from the keyboard.
+      if (confirming) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
       const row = target.closest<HTMLElement>("[data-save-action]");
@@ -210,10 +231,7 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
   cancelButton.addEventListener(
     "click",
     () => {
-      // Deliberately does not invoke the session: Cancel is a pure close.
-      confirming = false;
-      dialog.hidden = true;
-      section.focus({ preventScroll: true });
+      resolveConfirm(false);
     },
     { signal: controller.signal },
   );
@@ -221,9 +239,7 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
   acceptButton.addEventListener(
     "click",
     () => {
-      confirming = false;
-      dialog.hidden = true;
-      overwriteHandler?.();
+      resolveConfirm(true);
     },
     { signal: controller.signal },
   );
@@ -232,6 +248,24 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
     confirming = next;
     dialog.hidden = !next;
     confirmField.textContent = next ? "Overwrite the autosave? [Y/N]" : "";
+  }
+
+  /**
+   * The single close path for the overwrite dialog. The dialog hides, its
+   * text clears and focus returns to the section before any handler runs, so
+   * a handler that writes never sees a focused, hidden button.
+   */
+  function closeConfirm(): void {
+    setConfirming(false);
+    section.focus({ preventScroll: true });
+  }
+
+  /** Resolve the open dialog exactly once; a second call is a no-op. */
+  function resolveConfirm(accepted: boolean): void {
+    if (!confirming) return;
+    closeConfirm();
+    if (accepted) overwriteHandler?.();
+    else overwriteCancelHandler?.();
   }
 
   return {
@@ -280,11 +314,18 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
     },
     cancelOverwrite(): void {
       if (!confirming) return;
-      setConfirming(false);
-      section.focus({ preventScroll: true });
+      closeConfirm();
     },
     isConfirming(): boolean {
       return confirming;
+    },
+    acceptOverwrite(): void {
+      resolveConfirm(true);
+    },
+    confirmFocused(): void {
+      // Accept confirms only when it holds focus; any other focus, including
+      // the safe Cancel, cancels. A stray Enter can never overwrite.
+      resolveConfirm(document.activeElement === acceptButton);
     },
     onSave(handler: () => void): void {
       saveHandler = handler;
@@ -297,6 +338,9 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
     },
     onOverwriteConfirmed(handler: () => void): void {
       overwriteHandler = handler;
+    },
+    onOverwriteCancelled(handler: () => void): void {
+      overwriteCancelHandler = handler;
     },
     dispose(): void {
       controller.abort();

@@ -359,7 +359,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   // A manual Save is a single confirmed request; the flag coalesces a
   // double-press while the one write is in flight.
   let manualSavePending = false;
-  let overwritePending = false;
   let loadingSave = false;
   const saveProbe: WegoliteSaveProbe = {
     status: saveStatus,
@@ -1087,9 +1086,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       return;
     }
     if (saveStatus === "valid") {
-      // The committed slot is the only save: ask before replacing it.
-      if (!overwritePending) {
-        overwritePending = true;
+      // The committed slot is the only save: ask before replacing it. The
+      // dialog's own state is the only gate, so a second Save while it is open
+      // does nothing, and a Cancel that closed it leaves the next Save live.
+      if (saveLoad?.isConfirming() !== true) {
         saveLoad?.confirmOverwrite();
         updateProbe();
       }
@@ -1100,8 +1100,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   /** The confirmed (or absent-slot) manual write; never asks again. */
   function writeManualSave(): void {
-    overwritePending = false;
     saveLoad?.cancelOverwrite();
+    updateProbe();
     const inputs = buildSnapshotInputs();
     if (inputs === undefined) {
       saveSkipReason = "not-ready";
@@ -1238,7 +1238,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       chartOpen = false;
       chart?.hide();
       saveScreenOpen = false;
-      overwritePending = false;
       manualSavePending = false;
       saveScreenNotice = "";
       saveLoad?.cancelOverwrite();
@@ -1517,7 +1516,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (paused || saveScreenOpen || chartOpen) return;
     if (currentState.mode !== "docked") return;
     saveScreenOpen = true;
-    overwritePending = false;
     contextBeforeSaveScreen = currentInput.getContext();
     currentInput.setContext("saveScreen");
     screen.show(saveSlotText());
@@ -1532,7 +1530,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function closeSaveScreen(): void {
     if (!saveScreenOpen) return;
     saveScreenOpen = false;
-    overwritePending = false;
     saveLoad?.cancelOverwrite();
     saveLoad?.hide();
     input?.setContext(contextBeforeSaveScreen);
@@ -1556,36 +1553,36 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         break;
       case "saveScreenReturn":
         if (screen.isConfirming()) {
-          overwritePending = false;
           screen.cancelOverwrite();
           updateProbe();
         } else {
           closeSaveScreen();
         }
         break;
+      // While the overwrite dialog is open it owns input: row navigation and
+      // the Save/Load shortcuts are inert behind it.
       case "saveScreenUp":
-        if (saveScreenOpen) screen.moveSelection(-1);
+        if (saveScreenOpen && !screen.isConfirming()) screen.moveSelection(-1);
         break;
       case "saveScreenDown":
-        if (saveScreenOpen) screen.moveSelection(1);
+        if (saveScreenOpen && !screen.isConfirming()) screen.moveSelection(1);
         break;
       case "saveScreenSave":
-        if (saveScreenOpen) manualSave();
+        if (saveScreenOpen && !screen.isConfirming()) manualSave();
         break;
       case "saveScreenConfirm":
         if (!saveScreenOpen) break;
-        if (screen.isConfirming()) writeManualSave();
+        if (screen.isConfirming()) screen.acceptOverwrite();
         else screen.activate();
         break;
       case "saveScreenCancel":
         if (saveScreenOpen && screen.isConfirming()) {
-          overwritePending = false;
           screen.cancelOverwrite();
           updateProbe();
         }
         break;
       case "saveScreenLoad":
-        if (saveScreenOpen) void loadFromSave();
+        if (saveScreenOpen && !screen.isConfirming()) void loadFromSave();
         break;
       default:
         break;
@@ -2547,6 +2544,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     });
     saveLoad.onOverwriteConfirmed(() => {
       writeManualSave();
+    });
+    // A mouse Cancel closes the dialog on the screen alone; the session only
+    // needs to publish the state the dialog now reports.
+    saveLoad.onOverwriteCancelled(() => {
+      updateProbe();
     });
 
     const loaded = loadSettings();
