@@ -106,58 +106,40 @@ interface RouteFixture {
   readonly reachable: boolean;
 }
 
-const ROUTES: readonly RouteFixture[] = [
-  {
-    name: "Lave -> Diso (3.6 LY)",
-    from: lave,
-    to: diso,
-    dist: 9,
-    distanceLy: 3.6,
-    fuelCost: 36,
-    jumpTimeSeconds: 46_656,
-    reachable: true,
-  },
-  {
-    name: "Lave -> Leesti (3.6 LY)",
-    from: lave,
-    to: leesti,
-    dist: 9,
-    distanceLy: 3.6,
-    fuelCost: 36,
-    jumpTimeSeconds: 46_656,
-    reachable: true,
-  },
-  {
-    name: "Lave -> Zaonce (5.6 LY)",
-    from: lave,
-    to: zaonce,
-    dist: 14,
-    distanceLy: 5.6,
-    fuelCost: 56,
-    jumpTimeSeconds: 112_896,
-    reachable: true,
-  },
-  {
-    name: "Lave -> Riedquat (6.8 LY, the range boundary)",
-    from: lave,
-    to: riedquat,
-    dist: 17,
-    distanceLy: 6.8,
-    fuelCost: 68,
-    jumpTimeSeconds: 166_464,
-    reachable: true,
-  },
-  {
-    name: "Lave -> Tibedied (17.6 LY, too far)",
-    from: lave,
-    to: tibedied,
-    dist: 44,
-    distanceLy: 17.6,
-    fuelCost: 176,
-    jumpTimeSeconds: 1_115_136,
-    reachable: false,
-  },
-];
+/** One row of the golden route table: the endpoints are system names. */
+interface RouteRow {
+  readonly name: string;
+  readonly from: string;
+  readonly to: string;
+  readonly dist: number;
+  readonly distanceLy: number;
+  readonly fuelCost: number;
+  readonly jumpTimeSeconds: number;
+  readonly reachable: boolean;
+}
+
+/**
+ * The five Oolite route fixtures, read from checked-in golden data (QUAL-04).
+ * The expected numbers are unchanged from the original inline table; the file
+ * carries Oolite's values and this test resolves each endpoint by name.
+ */
+const ROUTE_ROWS = JSON.parse(
+  readFileSync(
+    new URL("../golden/hyperspace/routes.json", import.meta.url),
+    "utf8",
+  ),
+) as RouteRow[];
+
+const ROUTES: readonly RouteFixture[] = ROUTE_ROWS.map((row) => ({
+  name: row.name,
+  from: byName(row.from),
+  to: byName(row.to),
+  dist: row.dist,
+  distanceLy: row.distanceLy,
+  fuelCost: row.fuelCost,
+  jumpTimeSeconds: row.jumpTimeSeconds,
+  reachable: row.reachable,
+}));
 
 describe("Oolite chart arithmetic", () => {
   it("pins the exported constants", () => {

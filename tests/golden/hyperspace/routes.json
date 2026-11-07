@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Lave -> Diso (3.6 LY)",
+    "from": "Lave",
+    "to": "Diso",
+    "dist": 9,
+    "distanceLy": 3.6,
+    "fuelCost": 36,
+    "jumpTimeSeconds": 46656,
+    "reachable": true
+  },
+  {
+    "name": "Lave -> Leesti (3.6 LY)",
+    "from": "Lave",
+    "to": "Leesti",
+    "dist": 9,
+    "distanceLy": 3.6,
+    "fuelCost": 36,
+    "jumpTimeSeconds": 46656,
+    "reachable": true
+  },
+  {
+    "name": "Lave -> Zaonce (5.6 LY)",
+    "from": "Lave",
+    "to": "Zaonce",
+    "dist": 14,
+    "distanceLy": 5.6,
+    "fuelCost": 56,
+    "jumpTimeSeconds": 112896,
+    "reachable": true
+  },
+  {
+    "name": "Lave -> Riedquat (6.8 LY, the range boundary)",
+    "from": "Lave",
+    "to": "Riedquat",
+    "dist": 17,
+    "distanceLy": 6.8,
+    "fuelCost": 68,
+    "jumpTimeSeconds": 166464,
+    "reachable": true
+  },
+  {
+    "name": "Lave -> Tibedied (17.6 LY, too far)",
+    "from": "Lave",
+    "to": "Tibedied",
+    "dist": 44,
+    "distanceLy": 17.6,
+    "fuelCost": 176,
+    "jumpTimeSeconds": 1115136,
+    "reachable": false
+  }
+]
