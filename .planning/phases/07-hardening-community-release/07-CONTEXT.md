@@ -64,7 +64,7 @@ The owner did not discuss these. Recommended values apply; the planner may refin
 <open_items>
 ## Open Items for the Owner (not blocking planning)
 
-- **Reference machine (D-10):** the owner will name the GPU, CPU, browser and version of the current desktop before the manual 60 fps run.
+- **Reference machine (D-10), named by the owner:** desktop on mains power. CPU Intel Core i5-13400F 2.50 GHz; RAM 32 GB; GPU NVIDIA GeForce RTX 4060 8 GB, driver 32.0.16.1088; OS Windows 10 Pro 22H2, build 19045.6466; display 3840×2160 at 60 Hz, 32-bit; browsers Chrome 157.0.8103.39 and Firefox 159.0.1. The owner's preliminary runs use display scaling 175 % (`devicePixelRatio` 1.7647058823529411), which is informational only: the official run in plan 07-05 uses 100 % scaling (DPR 1) at a 1920×1080 client area, as D-10 requires. The preview is currently served from Docker on an Intel N150 host; the official run states where it is served from. The owner's macOS data (MacBook Pro 14″ Nov 2023, Apple M3 Pro, 18 GB, macOS 15.8.2, external 4K 60 Hz) is recorded as a secondary machine only.
 - **Public `.planning/` (D-02):** whether `.planning/` should be published in the public repo. Currently tracked and public on the remote.
 - **Restore copy (D-16):** the wording of the failure message after the 10 s timeout is the owner's. Planner may draft a placeholder and flag it.
 - **Hosting target (D-05):** not chosen yet.

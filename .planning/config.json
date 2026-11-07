@@ -1,5 +1,5 @@
 {
-  "model_profile": "budget",
+  "model_profile": "adaptive",
   "commit_docs": true,
   "parallelization": true,
   "search_gitignored": false,
@@ -24,7 +24,7 @@
     "plan_check": true,
     "verifier": true,
     "nyquist_validation": true,
-    "auto_advance": false,
+    "auto_advance": true,
     "node_repair": true,
     "node_repair_budget": 2,
     "ui_phase": true,
@@ -34,8 +34,8 @@
     "human_verify_mode": "end-of-phase",
     "context_guard_mode": "warn",
     "text_mode": false,
-    "compact_content": false,
-    "research_before_questions": false,
+    "compact_content": true,
+    "research_before_questions": true,
     "discuss_mode": "discuss",
     "skip_discuss": false,
     "code_review": true,
@@ -50,7 +50,10 @@
     "security_enforcement": true,
     "security_asvs_level": 1,
     "security_block_on": "high",
-    "_auto_chain_active": false
+    "_auto_chain_active": false,
+    "ui_review": true,
+    "tdd_mode": false,
+    "use_worktrees": true
   },
   "ship": {
     "pr_body_sections": [
@@ -90,7 +93,14 @@
     "source_grounding": true,
     "source_grounding_authority": "grep"
   },
-  "resolve_model_ids": "omit",
-  "mode": "yolo",
-  "granularity": "standard"
+  "resolve_model_ids": true,
+  "mode": "interactive",
+  "granularity": "standard",
+  "intel": {
+    "enabled": true
+  },
+  "graphify": {
+    "enabled": true,
+    "auto_update": true
+  }
 }
