@@ -119,7 +119,10 @@ import {
   applyWitchpointArrival,
   drawWitchpointExit,
 } from "../sim/hyperspace/arrival.js";
-import { countdownSecondsRemaining } from "../sim/hyperspace/countdown.js";
+import {
+  countdownSecondsRemaining,
+  witchspaceStationMass,
+} from "../sim/hyperspace/countdown.js";
 import type { HyperspaceRefusal } from "../sim/events.js";
 import {
   availablePods,
@@ -1728,6 +1731,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         return "Destination is too far";
       case "insufficient fuel":
         return "Insufficient fuel";
+      case "blocked":
+        // Only a Coriolis station blocks (witchspaceStationMass), so the name is fixed.
+        return "Witchspace jump aborted (too close to Coriolis Station).";
     }
   }
 
@@ -2437,6 +2443,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         // set per frame, derived from the profile (T-04-19).
         const equipment = new Set(profile.equipment);
         const committedTarget = targetSystem();
+        // The read-only station mass of the live system's station kind. Only a
+        // Coriolis station has a recorded mass; the others omit the fact.
+        const stationMass = witchspaceStationMass(system.station);
         const hyperspace = {
           fuel: profile.fuel,
           origin: { id: system.id, x: system.chartX, y: system.chartY },
@@ -2449,6 +2458,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
                   y: committedTarget.chartY,
                 },
               }),
+          ...(stationMass === undefined ? {} : { stationMass }),
         };
         const stepOptions: StepOptions =
           dockGeometry === undefined

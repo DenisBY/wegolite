@@ -26,6 +26,7 @@ import type { DockGeometry } from "../dock/geometry.js";
 import {
   canStartJump,
   HYPERSPACE_COUNTDOWN_STEPS,
+  witchspaceBlockedAt,
 } from "../hyperspace/countdown.js";
 import { jumpTimeSecondsForDist, MAX_JUMP_DIST } from "../hyperspace/jump.js";
 import { stepAttitude } from "./attitude.js";
@@ -64,6 +65,12 @@ export interface StepOptions {
       readonly x: number;
       readonly y: number;
     };
+    /**
+     * The read-only mass of the origin system's station kind (NAV-04, plan
+     * 06-16), supplied by the app each step. Absent means no blockage check, and
+     * the app omits it for station kinds with no recorded mass.
+     */
+    readonly stationMass?: number;
   };
 }
 
@@ -156,6 +163,10 @@ export function stepFlight(
         // A begin while a countdown is running is a no-op; the app maps the
         // second key press to `cancelHyperspace` (plan 06-04).
         if (state.hyperspaceCountdown > 0) break;
+        // The begin never consults the mass blockage: Oolite's checklist guards
+        // that clause on the countdown status (PlayerEntity.m line 6547), so a
+        // ship beside the station may start a countdown and fly out during it.
+        // The blockage is evaluated at completion only (see the tick below).
         const facts = options?.hyperspace;
         if (facts === undefined) {
           events.push({ kind: "hyperspaceRefused", reason: "no target" });
@@ -241,6 +252,10 @@ export function stepFlight(
   // also requires the live mode: a command-phase dock has already ended the
   // attempt, and this gate is the defence in depth if a future terminal
   // transition does not.
+  // The mass blockage is checked here, at countdown completion only, never at
+  // the H press and never during the countdown (PlayerEntity.m lines 6547 and
+  // 6772-6775). It runs before the route and fuel validation, as Oolite's
+  // enterWitchspace calls the checklist first.
   if (
     modeAtStart === "inFlight" &&
     state.mode === "inFlight" &&
@@ -256,7 +271,25 @@ export function stepFlight(
         Number.isSafeInteger(fuel) &&
         fuel >= 0 &&
         fuel >= (snapshot?.fuelCost ?? Number.POSITIVE_INFINITY);
-      if (snapshot !== null && snapshot.dist <= MAX_JUMP_DIST && fuelOk) {
+      const stationMass = options?.hyperspace?.stationMass;
+      if (
+        stationMass !== undefined &&
+        witchspaceBlockedAt(
+          state.position,
+          layout.station.position,
+          stationMass,
+          layout.scannerRange,
+        )
+      ) {
+        // Oolite's blocked jump failure: the countdown and target clear, and no
+        // fuel or jump time is spent. The ordinary per-step time still advances.
+        events.push({ kind: "hyperspaceRefused", reason: "blocked" });
+        state.hyperspaceTarget = null;
+      } else if (
+        snapshot !== null &&
+        snapshot.dist <= MAX_JUMP_DIST &&
+        fuelOk
+      ) {
         const jumpTimeSeconds = jumpTimeSecondsForDist(snapshot.dist);
         state.clockSeconds += jumpTimeSeconds;
         events.push({

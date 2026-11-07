@@ -225,7 +225,9 @@ export interface WegoliteHyperspaceProbe {
   /** Integer fixed steps left; 0 when idle. */
   countdown: number;
   lastJump: WegoliteHyperspaceLastJump | null;
-  lastRefusal: { reason: "no target" | "too far" | "insufficient fuel" } | null;
+  lastRefusal: {
+    reason: "no target" | "too far" | "insufficient fuel" | "blocked";
+  } | null;
 }
 
 /**
