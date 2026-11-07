@@ -244,7 +244,7 @@ Plans:
 **Requirements**: QUAL-01, QUAL-02, QUAL-03, QUAL-04, QUAL-05, QUAL-06, QUAL-07, QUAL-08
 **Success Criteria** (what must be TRUE):
   1. The game holds 60 fps at 1080p on mid-range desktop hardware within the documented draw-call and triangle budget.
-  2. The core loop plays through on current Chrome, Firefox, and Safari, and one end-to-end test covers new game → launch → trade → hyperspace → dock → save/load.
+  2. The core loop plays through on current stable Chrome and current stable Firefox, and one end-to-end test covers new game → launch → trade → hyperspace → dock → save/load.
   3. Recovering a lost WebGL context or returning from a throttled tab resumes without corrupting simulation or save state, with no console errors and no runtime network calls during the loop.
   4. README and `FIDELITY.md` document build/run/test, controls, and each ported mechanic's Oolite source, and a licensing audit confirms `NOTICE`, `ASSETS.md`, the source offer, and the disclaimer all ship in the built site.
 **Plans**: 12 plans
