@@ -32,6 +32,7 @@ const REPO_ROOT = process.cwd();
 
 interface PackageManifest {
   name?: string;
+  version: string;
   scripts: Record<string, string>;
   dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
@@ -43,6 +44,11 @@ function read(relativePath: string): string {
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(read(relativePath)) as T;
+}
+
+/** The release title `Wegolite <version>`, derived from package.json (D-06). */
+function releaseTitle(): string {
+  return `Wegolite ${readJson<PackageManifest>("package.json").version}`;
 }
 
 /**
@@ -215,7 +221,7 @@ describe("FOUND-02 production preview", () => {
     expect(serveAt).toBeGreaterThan(buildAt);
     expect(preview).toContain('"4173:4173"');
     // The preview smoke greps for this marker, so it has to exist in the page.
-    expect(read("index.html")).toContain("foundation build");
+    expect(read("index.html")).toContain(releaseTitle());
     expect(
       script(readJson<PackageManifest>("package.json"), "preview"),
     ).toContain("--port 4173");
@@ -226,7 +232,7 @@ describe("FOUND-02 production preview", () => {
 
     expect(smoke).toContain("docker compose up -d preview");
     expect(smoke).toContain("4173");
-    expect(smoke).toContain("foundation build");
+    expect(smoke).toContain(releaseTitle());
     expect(smoke).toContain("trap ");
   });
 });

@@ -167,7 +167,48 @@ describe("shipped shell", () => {
 
     expect(titleMatch?.[1] ?? "").not.toMatch(TRADEMARK);
   });
+
+  it("titles the document with the release version from package.json", () => {
+    const version = (JSON.parse(read("package.json")) as { version: string })
+      .version;
+    const titleMatch = /<title>([\s\S]*?)<\/title>/i.exec(read("index.html"));
+
+    expect(titleMatch?.[1]).toBe(`Wegolite ${version}`);
+    expect(titleMatch?.[1] ?? "").not.toMatch(TRADEMARK);
+  });
+
+  it("ships one footer that links the licence documents and the source", () => {
+    const version = (JSON.parse(read("package.json")) as { version: string })
+      .version;
+    const footer = footerBlock();
+
+    expect(footer).toContain(`Wegolite ${version}`);
+    for (const href of [
+      "./NOTICE",
+      "./LICENSE",
+      "./ASSETS.md",
+      "https://github.com/DenisBY/wegolite",
+    ]) {
+      expect(footer).toContain(`href="${href}"`);
+    }
+  });
+
+  it("keeps browser claims out of the footer and keeps a single footer element", () => {
+    // Anchored to line starts so the CSS comment that mentions `<footer>`
+    // mid-sentence is not counted as a second element.
+    const elements = read("index.html").match(/^ *<footer\b/gm) ?? [];
+
+    expect(elements).toHaveLength(1);
+    expect(footerBlock()).not.toMatch(/Safari|WebKit|macOS/i);
+  });
 });
+
+/** The `<footer>` element block of the source index.html (D-07 footer). */
+function footerBlock(): string {
+  const match = /^ *<footer>([\s\S]*?)^ *<\/footer>/m.exec(read("index.html"));
+  if (match === null) throw new Error("index.html has no footer element");
+  return match[1] ?? "";
+}
 
 describe("licence headers", () => {
   it("puts the S-6 SPDX header on every source file", () => {

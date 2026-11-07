@@ -30,7 +30,9 @@ trap 'docker compose down' EXIT
 # `--retry-connrefused` — and both wait instead of racing a fixed sleep.
 body=$(curl -fsS --retry 30 --retry-delay 1 --retry-connrefused --retry-all-errors http://localhost:4173/)
 
-if ! printf '%s' "$body" | grep -q 'foundation build'; then
+# The marker is the release title, `Wegolite <version>`, which must equal the
+# package.json version (pinned by tests/contract/container-contract.test.ts).
+if ! printf '%s' "$body" | grep -qF 'Wegolite 0.1.0'; then
   echo "preview smoke: 4173 did not serve the production bundle" >&2
   exit 1
 fi
