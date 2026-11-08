@@ -4,3 +4,8 @@ test-results/
 playwright-report/
 .env
 .DS_Store
+
+# Local agent tooling. Its third-party licences are not recorded, so it is never
+# distributed (QUAL-07, research Pitfall 8; ASSETS.md "not-distributed" rows).
+.agents/
+skills-lock.json
