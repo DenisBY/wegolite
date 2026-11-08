@@ -40,7 +40,7 @@ A full Oolite source checkout is available at `/home/opencode/git/oolite` (outsi
 Include this block in every reviewer, verifier, auditor, explorer, or executor prompt:
 
 - **Tests and builds run in Docker only.** Host Node/npm/Playwright are not authoritative, and a green host run is not evidence.
-- Commands: `docker compose run --rm test` (Vitest), `docker compose run --rm test npx vitest run <file>` (targeted), `docker compose run --rm e2e sh -lc "npm run build && npx playwright test <spec>"` (browser), `docker compose run --rm typecheck`, `docker compose run --rm lint`, `docker compose run --rm verify` (full gate).
+- Commands: `docker compose run --rm test` (Vitest), `docker compose run --rm test npx vitest run <file>` (targeted), `docker compose run --rm e2e sh -lc "npm run build && npx playwright test <spec>"` (browser), `docker compose run --rm e2e-cross` (Firefox browser tests, outside verify), `docker compose run --rm typecheck`, `docker compose run --rm lint`, `docker compose run --rm verify` (full gate).
 - A reproduction that needs a scratch script or test must live under `/tmp` and be mounted into the container: `docker compose run --rm -v /tmp/<dir>:/scratch test ...`. Never add scratch files to the repository.
 - Read-only reviewers must not modify tracked files; report findings instead.
 
@@ -60,6 +60,9 @@ docker compose run --rm test
 
 # Run browser/end-to-end tests (Playwright, headless)
 docker compose run --rm e2e
+
+# Run the Firefox engine smoke and core-loop journey (headed under xvfb; not part of verify)
+docker compose run --rm e2e-cross
 
 # Run everything CI runs
 docker compose run --rm verify
@@ -108,6 +111,7 @@ If Compose is not yet present (early scaffolding), creating it is part of the fi
 | Production preview (port 4173) | `docker compose up preview`                           |
 | Unit tests                     | `docker compose run --rm test`                        |
 | Browser tests                  | `docker compose run --rm e2e`                         |
+| Firefox browser tests          | `docker compose run --rm e2e-cross`                   |
 | Content build (regenerate)     | `docker compose run --rm assets`                      |
 | Content drift check            | `docker compose run --rm assets npm run assets:check` |
 | Full verification              | `docker compose run --rm verify`                      |

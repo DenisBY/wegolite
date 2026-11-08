@@ -26,6 +26,7 @@ contract.
 | Production preview (port 4173)   | `docker compose up preview`                           |
 | Unit tests                       | `docker compose run --rm test`                        |
 | Browser tests                    | `docker compose run --rm e2e`                         |
+| Firefox browser tests            | `docker compose run --rm e2e-cross`                   |
 | Content build (regenerate)       | `docker compose run --rm assets`                      |
 | Content drift check              | `docker compose run --rm assets npm run assets:check` |
 | Full verification                | `docker compose run --rm verify`                      |
@@ -73,11 +74,11 @@ browser never parses a plist and never downloads the snapshot.
 
 ## Operational notes
 
-- **Ports.** The dev server publishes `5173` and the production preview `4173`. The test services (`test`, `e2e`, `lint`, `typecheck`, `assets`, `verify`) publish no ports — Playwright starts its own `vite preview` inside the container.
+- **Ports.** The dev server publishes `5173` and the production preview `4173`. The test services (`test`, `e2e`, `e2e-cross`, `lint`, `typecheck`, `assets`, `verify`) publish no ports — Playwright starts its own `vite preview` inside the container.
 - **Definition of done.** The only definition of done is `docker compose run --rm verify`: it runs `lint`, then `typecheck`, then `assets:check`, then `test`, then `build`, then `e2e`, as one fail-fast chain in one container, exiting non-zero at the first failing stage. A green host run is not evidence; tests pass only in the container.
 - **Dependency changes.** After any `package.json` or `package-lock.json` change run `docker compose build --no-cache` **and** `docker compose down --volumes`. A rebuild alone is not enough: the named `node_modules` volume is populated from the image once and otherwise keeps its old contents.
 - **Hot reload on WSL2/macOS.** If host edits stop triggering a reload, opt in to file polling with `VITE_USE_POLLING=1` (see `.env.example`). Polling is opt-in because it costs CPU.
-- **Chromium posture.** Browser tests run the image's baked Chromium as root with its sandbox disabled, and the preview under test loads only content this repository serves. No third-party page is ever opened.
+- **Chromium posture.** Browser tests run the image's baked Chromium as root with its sandbox disabled, and the preview under test loads only content this repository serves. No third-party page is ever opened. Firefox in the `e2e-cross` image runs under the same localhost-only posture, and `e2e-cross` is not part of `verify`, which stays Chromium-only.
 - **Working tree, not image.** `docker compose run --rm verify` bind-mounts the repository at `/app`, so it checks the edits you can see. Run `docker compose build` first when you need the committed tree verified instead.
 
 ## Repository layout

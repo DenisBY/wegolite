@@ -242,6 +242,7 @@ describe("FOUND-03 container-only verification", () => {
     for (const name of [
       "test",
       "e2e",
+      "e2e-cross",
       "lint",
       "typecheck",
       "assets",
@@ -256,6 +257,7 @@ describe("FOUND-03 container-only verification", () => {
     for (const name of [
       "test",
       "e2e",
+      "e2e-cross",
       "lint",
       "typecheck",
       "assets",
@@ -264,6 +266,27 @@ describe("FOUND-03 container-only verification", () => {
       expect(executable(service(name))).not.toMatch(/^\s*ports:/m);
     }
     expect(COMPOSE_TEXT).not.toMatch(/^\s*depends_on:/m);
+  });
+
+  it("builds the cross stage only from e2e-cross and keeps it out of verify", () => {
+    // Only one service may override the shared `target: ci` anchor.
+    const overriding = [...SERVICES.keys()].filter((name) =>
+      /^\s*target:/m.test(executable(service(name))),
+    );
+    expect(overriding).toEqual(["e2e-cross"]);
+
+    const cross = executable(service("e2e-cross"));
+    expect(cross).toMatch(/^\s*target:\s*cross\s*$/m);
+    expect(cross).toMatch(/^\s*image:\s*wegolite-cross\s*$/m);
+    expect(cross).toMatch(/^\s*ipc:\s*host\s*$/m);
+    expect(cross).toContain('WEGOLITE_E2E_WAIT_SCALE: "1"');
+    expect(cross).toContain(
+      'command: ["sh", "-lc", "npm run build && npm run test:e2e:cross"]',
+    );
+
+    // D-09: the Firefox gate never joins the Chromium-only verify chain.
+    const verify = executable(service("verify"));
+    expect(verify).not.toMatch(/e2e-cross|test:e2e:cross/);
   });
 
   it("maps each service to its documented npm script", () => {
@@ -288,7 +311,14 @@ describe("FOUND-03 container-only verification", () => {
     expect(script(manifest, "typecheck")).toBe(
       "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.sim.json --noEmit",
     );
-    expect(script(manifest, "test:e2e")).toBe("playwright test");
+    // D-09: verify runs the Chromium project only; the Firefox project is a
+    // separate script, and its xvfb-run wrapper is the owner's firefox-xvfb mode.
+    expect(script(manifest, "test:e2e")).toBe(
+      "playwright test --project=chromium",
+    );
+    expect(script(manifest, "test:e2e:cross")).toBe(
+      "xvfb-run -a playwright test --project=firefox",
+    );
   });
 
   it("runs verify as one fail-fast chain in dependency order", () => {
@@ -331,16 +361,17 @@ describe("FOUND-04 pinned and baked image", () => {
       .filter((line) => line.startsWith("FROM "));
     const pinned = fromLines.filter((line) => line.includes("@sha256:"));
 
-    // Five stages are fine; exactly one may pull an external image, and that
-    // image must be the digest-pinned Node baseline. Every other stage must
-    // build on an earlier stage of this Dockerfile.
-    expect(fromLines).toHaveLength(5);
+    // Six stages (the cross stage was added for e2e-cross, D-09). Exactly one
+    // may pull an external image, and that image must be the digest-pinned Node
+    // baseline. Every other stage must build on an earlier stage of this
+    // Dockerfile.
+    expect(fromLines).toHaveLength(6);
     expect(pinned).toHaveLength(1);
     expect(pinned[0]).toMatch(
       /^FROM node:24-bookworm-slim@sha256:[0-9a-f]{64} AS base$/,
     );
     for (const line of fromLines.filter((line) => !line.includes("@sha256:"))) {
-      expect(line).toMatch(/^FROM (base|deps|ci|preview|dev) AS [a-z]+$/);
+      expect(line).toMatch(/^FROM (base|deps|ci|preview|dev|cross) AS [a-z]+$/);
     }
     expect(dockerfile).not.toMatch(/^FROM [^\n]*:latest/m);
   });
@@ -392,6 +423,31 @@ describe("FOUND-04 pinned and baked image", () => {
     }
   });
 
+  it("installs Firefox only in the cross stage and Chromium only in ci", () => {
+    const dockerfile = read("Dockerfile");
+    const stages = dockerfile
+      .split(/^(?=FROM )/m)
+      .filter((stage) => stage.startsWith("FROM "));
+    const nameOf = (stage: string): string =>
+      /^FROM \S+ AS (\S+)$/m.exec(stage)?.[1] ?? "";
+
+    const installing = stages
+      .filter((stage) => /playwright install/.test(stage))
+      .map(nameOf);
+    expect(installing).toEqual(["ci", "cross"]);
+
+    const ci = stages.find((stage) => nameOf(stage) === "ci") ?? "";
+    const cross = stages.find((stage) => nameOf(stage) === "cross") ?? "";
+    expect(ci).toMatch(/^RUN npx playwright install --with-deps chromium/m);
+    expect(ci).not.toMatch(/firefox/i);
+    expect(cross).toMatch(/^FROM ci AS cross$/m);
+    expect(cross).toMatch(/npx playwright install --with-deps firefox/);
+    expect(cross).toMatch(
+      /apt-get install -y --no-install-recommends xvfb xauth/,
+    );
+    expect(cross).not.toMatch(/playwright install --with-deps chromium/);
+  });
+
   it("resolves the baked Chromium from this container's image", () => {
     // This test runs in the `ci` image. The path and its Chromium directory
     // can only exist if the browser was installed at image-build time.
@@ -417,6 +473,20 @@ describe("FOUND-09 documented container-only workflow", () => {
       // Exact set equality: an undocumented service or a documented service
       // that no longer exists both fail.
       expect(targets, `${guide} command targets`).toEqual(declared);
+    }
+  });
+
+  it("names no browser beyond Chromium and Firefox in the files it writes", () => {
+    // D-07 claims only current stable Chrome and Firefox (T-07-26).
+    for (const path of [
+      "README.md",
+      "AGENTS.md",
+      "compose.yaml",
+      "Dockerfile",
+    ]) {
+      expect(read(path), `${path} must not claim another browser`).not.toMatch(
+        /safari|webkit/i,
+      );
     }
   });
 
