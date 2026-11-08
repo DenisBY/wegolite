@@ -127,20 +127,28 @@ If a scenario misses the criterion, measure further and record the result. Furth
 
 Record the DevTools Network "Load" time of a cold start, with the cache disabled, on the reference desktop. The load-time budget is for the owner to state, and none is set here. Texture compression stays deferred unless that stated budget fails (D-14).
 
+Cold-start Load time, cache disabled (not supplied by the owner yet):
+
 ### Results
 
-Status: awaiting the owner's reference-desktop run.
+Status: partial, Firefox measured, Chrome and first-load pending the owner's run; QUAL-01 60 fps is not yet evidenced.
 
 | Scenario           | Browser | Count | p50 (ms) | p95 (ms) | p99 (ms) | max (ms) | Share above 16.7 ms | Share above 33.3 ms | Pass |
 | ------------------ | ------- | ----- | -------- | -------- | -------- | -------- | ------------------- | ------------------- | ---- |
 | Lave docked        | Chrome  |       |          |          |          |          |                     |                     |      |
-| Lave docked        | Firefox |       |          |          |          |          |                     |                     |      |
+| Lave docked        | Firefox | 1800  | 16.66    | 16.68    | 16.68    | 16.68    | 0 %                 | 0 %                 | pass |
 | Launch sequence    | Chrome  |       |          |          |          |          |                     |                     |      |
-| Launch sequence    | Firefox |       |          |          |          |          |                     |                     |      |
+| Launch sequence    | Firefox | 1798  | 16.66    | 16.68    | 16.68    | 50.00    | 0.11 %              | 0.11 %              | pass |
 | Lave in flight     | Chrome  |       |          |          |          |          |                     |                     |      |
-| Lave in flight     | Firefox |       |          |          |          |          |                     |                     |      |
+| Lave in flight     | Firefox | 1790  | 16.66    | 16.68    | 16.68    | 183.32   | 0.06 %              | 0.06 %              | pass |
 | Hyperspace arrival | Chrome  |       |          |          |          |          |                     |                     |      |
-| Hyperspace arrival | Firefox |       |          |          |          |          |                     |                     |      |
+| Hyperspace arrival | Firefox | 1798  | 16.66    | 16.68    | 16.68    | 33.34    | 0.11 %              | 0.11 %              | pass |
+
+The four Firefox rows are the owner's readings, taken in Firefox 159.0.1 at 100 % display scaling and `devicePixelRatio` 1, with the Launch sequence sampled at start delay 0. The Pass column is judged against the proposed criterion (p95 at or below 17.5 ms and p99 at or below 33.3 ms). The owner has not yet confirmed that criterion, so the Pass column is provisional. The max column is recorded as given and is not part of the criterion.
+
+The simulation-rate note (share of frames slower than 41.7 ms, that is below 24 fps) was 0.00 %, 0.06 %, 0.06 % and 0.00 % for Lave docked, Launch sequence, Lave in flight and Hyperspace arrival respectively.
+
+The Chrome rows are empty because Chrome has not been measured.
 
 ### Preliminary runs (not official)
 
@@ -168,12 +176,12 @@ These readings are not evaluated against the proposed pass criterion. The offici
 
 ### Machine
 
-Template dated 2026-11-08. The values stay empty until the owner's run.
+The owner's desktop, from the reference machine named in `07-CONTEXT.md` line 67. The values below are for the Firefox run. Display scaling was 100 % and `devicePixelRatio` 1, per the owner. The preview was served from Docker on an Intel N150 host over the LAN, as the owner confirmed for this setup. That location is not otherwise recorded.
 
-- GPU and driver version:
-- CPU:
-- RAM:
-- OS and version:
-- Browser and exact version (Chrome):
-- Browser and exact version (Firefox):
-- Monitor refresh rate:
+- GPU and driver version: NVIDIA GeForce RTX 4060 8 GB, driver 32.0.16.1088
+- CPU: Intel Core i5-13400F 2.50 GHz
+- RAM: 32 GB
+- OS and version: Windows 10 Pro 22H2, build 19045.6466
+- Browser and exact version (Chrome): Chrome 157.0.8103.39 (installed; not measured, so the Chrome Results rows are empty)
+- Browser and exact version (Firefox): Firefox 159.0.1
+- Monitor refresh rate: 60 Hz (display 3840x2160 at 60 Hz)
