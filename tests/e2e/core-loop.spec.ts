@@ -18,6 +18,25 @@
  * IndexedDB fixture rewritten from the game's own arrival blob, as the Phase 6
  * trigger matrix does; no other fixture is used.
  *
+ * Steps, in order. Each save-relevant step waits for its committed revision, and
+ * the count is the write number within the page that makes it:
+ *   1. New game; Digit8 market; buy one tonne of Food at Lave (committed 1).
+ *   2. F6 chart, Tab to long range, select and commit Diso, Escape.
+ *   3. Digit1 launch; the pre-launch anchor is taken while docked (committed 2).
+ *   4. Fly 7,500 m clear on KeyW; KeyH; the arrival writes the in-flight save
+ *      (committed 3). The save is read back and must be inFlight, targeting Diso.
+ *   5. Rewrite only the arrival save's pose and speed to the Diso dock mouth;
+ *      reload, write, reload, Continue; the docked event writes once (committed 1
+ *      in the fresh page), and the docked state equals the arrival state.
+ *   6. Digit8 market; sell one tonne of Food at Diso (committed 2 in that page).
+ *   7. Escape home and record the state; F2, KeyS, KeyY overwrites the slot
+ *      (committed 3).
+ *   8. Reload, Continue; the system, credits, cargo and every market row equal
+ *      the recorded state exactly. expectCleanRun covers the whole run.
+ *
+ * Observed wall time: 3.3 min for the whole journey on one worker, headless
+ * Chromium under SwiftShader, with `WEGOLITE_E2E_WAIT_SCALE` unset.
+ *
  * Waits: `WEGOLITE_E2E_WAIT_SCALE` (default 1) multiplies every timeout, including
  * the test budget, so a slower engine can be given more time without editing this
  * file. The journey starts from an empty IndexedDB and never depends on an earlier
@@ -377,5 +396,37 @@ test("new game to launch to trade to hyperspace to dock to save and reload", asy
   );
   await waitForCommitted(page, 2);
 
+  // Return home and record the state the manual save must restore exactly.
+  await page.keyboard.press("Escape");
+  await waitForStationScreen(page, "home");
+  const recorded = await snapshot(page);
+
+  // Manual save: the slot is committed, so the overwrite dialog asks first; Y
+  // then writes the third revision.
+  await page.keyboard.press("F2");
+  await expect(page.locator("#save-load")).toBeVisible({ timeout: UI_WAIT });
+  await page.keyboard.press("KeyS");
+  await page.waitForFunction(
+    () => window.__wegolite?.saveScreen?.confirming === true,
+    undefined,
+    { timeout: UI_WAIT },
+  );
+  await page.keyboard.press("KeyY");
+  await waitForCommitted(page, 3);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#save-load")).toBeHidden({ timeout: UI_WAIT });
+
+  // Reload and Continue: the docked system, credits, cargo and every market row
+  // equal the values recorded just before the manual save.
+  await page.reload();
+  await waitReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible({
+    timeout: UI_WAIT,
+  });
+  await page.click("#title-continue");
+  await waitForMode(page, "docked");
+  expect(await snapshot(page)).toEqual(recorded);
+
+  // The guards cover the whole journey, including both reloads.
   expectCleanRun(network, consoleProblems);
 });
