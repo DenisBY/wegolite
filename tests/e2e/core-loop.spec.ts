@@ -24,16 +24,29 @@
  * run's save.
  */
 
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+import {
+  add,
+  axisAngle,
+  mul,
+  normalize,
+  normalizeVec,
+  quatFromUnitVectors,
+  rotate,
+  scale,
+  sub,
+  vec,
+} from "../../src/sim/math.js";
 import { chartScreenPoint, systemByName } from "./helpers/chart.js";
-import { getProbe } from "./helpers/probe.js";
 import {
   expectCleanRun,
   watchConsole,
   watchNetwork,
 } from "./helpers/guards.js";
+import { getProbe } from "./helpers/probe.js";
+import { readRaw, writeRaw } from "./helpers/save-store.js";
 import { startNewGame } from "./helpers/title.js";
 
 const BASE_URL = "http://127.0.0.1:4173";
@@ -161,6 +174,75 @@ async function setChartTarget(page: Page, name: string): Promise<void> {
   );
 }
 
+const DISO_ID = systemByName("Diso").id;
+
+/** The authored Coriolis dock subentity offset (the value autosave.spec.ts derives the pose from). */
+const DOCK_OFFSET = 500.2561;
+
+/** The fields of the game's own arrival save that the dock fixture reads and rewrites. */
+interface ArrivalBlob {
+  mode: string;
+  clockSeconds: number;
+  targetSystem?: string;
+  flight?: {
+    position: [number, number, number];
+    orientation: [number, number, number, number];
+    speed: number;
+    pitchRate: number;
+    rollRate: number;
+    torus: boolean;
+  };
+}
+
+/** The state the journey compares across a save and a reload: where, what, how much and the market. */
+interface JourneySnapshot {
+  systemId: string | undefined;
+  credits: number | undefined;
+  cargo: Record<string, number>;
+  market: { key: string; price: number; stock: number }[];
+}
+
+async function snapshot(page: Page): Promise<JourneySnapshot> {
+  const probe = await getProbe(page);
+  return {
+    systemId: probe.systemId,
+    credits: probe.economy?.credits,
+    cargo: { ...probe.economy?.cargo },
+    market: (probe.economy?.market ?? []).map((good) => ({
+      key: good.key,
+      price: good.price,
+      stock: good.stock,
+    })),
+  };
+}
+
+/**
+ * Hold the throttle (`KeyW`) until the ship is at least `metres` from `origin`.
+ * About 21 s of simulated throttle reaches 7,500 m, which is roughly 90 to 130 s
+ * of wall time under SwiftShader. The key is released in a finally block.
+ */
+async function flyAwayFrom(
+  page: Page,
+  origin: readonly [number, number, number],
+  metres: number,
+): Promise<void> {
+  await page.keyboard.down("KeyW");
+  try {
+    await page.waitForFunction(
+      ({ from, distance }) => {
+        const probe = window.__wegolite;
+        if (probe === undefined) return false;
+        const [x, y, z] = probe.position;
+        return Math.hypot(x - from[0], y - from[1], z - from[2]) >= distance;
+      },
+      { from: origin, distance: metres },
+      { timeout: scaled(240_000) },
+    );
+  } finally {
+    await page.keyboard.up("KeyW");
+  }
+}
+
 test("new game to launch to trade to hyperspace to dock to save and reload", async ({
   page,
 }) => {
@@ -194,8 +276,105 @@ test("new game to launch to trade to hyperspace to dock to save and reload", asy
   // Target Diso on the long-range chart, then launch. The pre-launch anchor is
   // the second committed write and is taken while the ship is still docked.
   await setChartTarget(page, "Diso");
+  const dockedPose = (await getProbe(page)).position;
   await page.keyboard.press("Digit1");
   await waitForMode(page, "inFlight");
+  await waitForCommitted(page, 2);
+
+  // Clear the station on the throttle, so the completing jump is outside the
+  // Coriolis blockage radius (6,747.0 m). Then jump to Diso: the arrival is the
+  // third committed write, and the only one in flight.
+  await flyAwayFrom(page, dockedPose, 7_500);
+  await page.keyboard.press("KeyH");
+  await page.waitForFunction(
+    () => (window.__wegolite?.hyperspace?.countdown ?? 0) > 0,
+    undefined,
+    { timeout: UI_WAIT },
+  );
+  await page.waitForFunction(
+    (id) => window.__wegolite?.systemId === id,
+    DISO_ID,
+    { timeout: scaled(180_000) },
+  );
+  await waitForCommitted(page, 3);
+
+  // Read the arrival save the game wrote, and record the state it carries.
+  const arrival = await snapshot(page);
+  const raw = await readRaw(page);
+  expect(raw).not.toBeNull();
+  const blob = JSON.parse(raw ?? "{}") as ArrivalBlob;
+  expect(blob.mode).toBe("inFlight");
+  expect(blob.targetSystem).toBe(DISO_ID);
+  if (blob.flight === undefined) {
+    throw new Error("the arrival blob has no pose");
+  }
+
+  // The dock-mouth frame, computed from the destination layout (never Lave's).
+  const arrivedProbe = await getProbe(page);
+  const station = arrivedProbe.world?.station;
+  const planet = arrivedProbe.world?.planet;
+  if (station === undefined || planet === undefined) {
+    throw new Error("the probe has no destination station or planet position");
+  }
+  const stationVec = vec(station[0], station[1], station[2]);
+  const planetVec = vec(planet[0], planet[1], planet[2]);
+  const stationToPlanet = normalizeVec(sub(planetVec, stationVec));
+  const mouth = add(stationVec, scale(stationToPlanet, DOCK_OFFSET));
+  const qPort = quatFromUnitVectors(vec(0, 0, -1), stationToPlanet);
+  const matched = normalize(axisAngle(1, 1, 0, Math.PI));
+  const orientation = normalize(mul(qPort, matched));
+  const k = rotate(qPort, vec(0, 0, -1));
+  // A restored ship is disarmed, so start outside the mouth (+k is toward the
+  // planet) and well clear of the contact proxy; it then flies in at speed 50.
+  const position = add(mouth, scale(k, 120));
+
+  // Rewrite only the flight pose and speed; mode, clock, market and target are
+  // the game's own values. Then dock through a fresh Continue (D-21).
+  const rewritten = {
+    ...blob,
+    flight: {
+      ...blob.flight,
+      position: [position.x, position.y, position.z],
+      orientation: [orientation.w, orientation.x, orientation.y, orientation.z],
+      speed: 50,
+    },
+  };
+  await page.reload();
+  await waitReady(page);
+  await writeRaw(page, JSON.stringify(rewritten));
+  await page.reload();
+  await waitReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible({
+    timeout: UI_WAIT,
+  });
+  await page.click("#title-continue");
+  await waitForMode(page, "docked");
+  // The docked event is the one write in this fresh page. The docked state
+  // carries the arrival's system, credits, cargo and market unchanged.
+  await waitForCommitted(page, 1);
+  expect(await snapshot(page)).toEqual(arrival);
+
+  // Sell the tonne of Food at Diso. The sale is the second write in this page.
+  await page.keyboard.press("Digit8");
+  await waitForStationScreen(page, "market");
+  await page.waitForFunction(
+    () => window.__wegolite?.station?.selectedKey === "food",
+    undefined,
+    { timeout: UI_WAIT },
+  );
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.locator('[data-field="station-confirm"]')).toHaveText(
+    /^Sell 1 t Food for [0-9.]+ Cr\? \[Y\/N\]$/,
+    { timeout: UI_WAIT },
+  );
+  await page.keyboard.press("KeyY");
+  await page.waitForFunction(
+    () =>
+      (window.__wegolite?.economy?.cargo?.food ?? 0) === 0 &&
+      window.__wegolite?.economy?.lastTrade?.kind === "sell",
+    undefined,
+    { timeout: UI_WAIT },
+  );
   await waitForCommitted(page, 2);
 
   expectCleanRun(network, consoleProblems);
