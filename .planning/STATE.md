@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 current_phase: 7
 current_phase_name: Hardening & Community Release
-current_plan: 4
+current_plan: 5
 status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-11-07T22:06:48.655Z"
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-11-08T08:13:53.585Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 complete, transitioned to Phase 7
-state_head: 15e7a3508130a57e0e0b6ab219b410062b01be94
+state_head: 70ff7824a5c2c83067fa650a05335bec64505b5d
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 73
-  completed_plans: 64
+  completed_plans: 65
   percent: 86
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-06)
 ## Current Position
 
 Phase: 7 (Hardening & Community Release) — EXECUTING
-Current Plan: 4
+Current Plan: 5
 Total Plans in Phase: 12
 Status: Ready to execute
 Last activity: 2026-11-07 — Completed 07-01 (licence shipping, release title, enforced CSP)
@@ -100,6 +100,7 @@ Progress: [█████████░] 86% — 62/73 plans complete
 | Phase 7 P01 | ~40 min | 3 tasks | 9 files |
 | Phase 7 P02 | ~20 min | 3 tasks | 8 files |
 | Phase 7 P3 | ~10 min | 2 tasks | 8 files |
+| Phase 7 P4 | 60min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -230,6 +231,9 @@ Recent decisions affecting current work:
 - [Phase 7]: QUAL-05: hidden-tab and stall proofs use a visibilityState override and a busy loop, not page.clock (research A13); the per-frame bound also requires simulated time to advance
 - [Phase 7]: Plan 07-03: the v1 save goldens are reviewed snapshots from migrateV1ToV2 (seed kept or derived, no market, cargo carried); parseSave and the validator are unchanged.
 - [Phase 7]: Plan 07-03: the Oolite route table is golden data with system-name endpoints; COMMIT_ROUTES stays inline as a separate commit-timing table.
+- [Phase 7]: Engine smoke asserts WebGL2, ready probe, advancing docked frames and a clean console on Chromium; renderer and cadence recorded as annotations (QUAL-02)
+- [Phase 7]: Owner chose firefox-xvfb for e2e-cross: headless Firefox has no WebGL2 in the container, xvfb-headed Firefox is green (11.72 fps, llvmpipe); no Dockerfile or compose change in 07-04
+- [Phase 7]: WebKit is recorded as webkit (Playwright) engine evidence only, never Safari evidence (D-07)
 
 ### Pending Todos
 
@@ -265,6 +269,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-07T22:06:47.856Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-11-08T08:13:52.738Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
