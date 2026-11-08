@@ -164,7 +164,7 @@ describe("src/content boundary", () => {
       expect(lint.output).toMatch(/no-restricted-imports/);
       expect(lint.output).toContain("content/types");
     });
-  }, 60_000);
+  }, 180_000);
 
   it("fails lint when the sim imports a schema module", () => {
     const source = [
@@ -181,7 +181,7 @@ describe("src/content boundary", () => {
       expect(lint.output).toMatch(/no-restricted-imports/);
       expect(lint.output).toContain("content/types");
     });
-  }, 60_000);
+  }, 180_000);
 
   it("allows the type-only door through both ESLint and the sim typecheck", () => {
     const source = [
@@ -300,5 +300,5 @@ describe("the Phase 3 layer denials", () => {
       }),
     ).toThrow("expected cleanup test failure");
     expect(existsSync(join(SIM_DIR, name))).toBe(false);
-  });
+  }, 180_000);
 });

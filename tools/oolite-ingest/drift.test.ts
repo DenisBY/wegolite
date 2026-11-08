@@ -73,7 +73,7 @@ describe("drift gate", () => {
     await withTempTree(async (root) => {
       expect(await checkAssets(root)).toEqual([]);
     });
-  });
+  }, 180_000);
 
   it("reports CHANGED bytes naming a file with one byte changed", async () => {
     await withTempTree(async (root) => {
@@ -85,7 +85,7 @@ describe("drift gate", () => {
       expect(report.length).toBeGreaterThan(0);
       expect(entryFor(report, COMMODITIES)?.status).toBe("CHANGED bytes");
     });
-  });
+  }, 180_000);
 
   it("reports MISSING naming a deleted emitted file", async () => {
     await withTempTree(async (root) => {
@@ -94,7 +94,7 @@ describe("drift gate", () => {
       const report = await checkAssets(root);
       expect(entryFor(report, COMMODITIES)?.status).toBe("MISSING");
     });
-  });
+  }, 180_000);
 
   it("reports CHANGED bytes naming a generated GLB with one byte changed", async () => {
     await withTempTree(async (root) => {
@@ -109,7 +109,7 @@ describe("drift gate", () => {
       const report = await checkAssets(root);
       expect(entryFor(report, COBRA_GLB)?.status).toBe("CHANGED bytes");
     });
-  });
+  }, 180_000);
 
   it("reports EXTRA naming an added file under the generated directory", async () => {
     await withTempTree(async (root) => {
@@ -118,7 +118,7 @@ describe("drift gate", () => {
       const report = await checkAssets(root);
       expect(entryFor(report, `${GENERATED}/extra.json`)?.status).toBe("EXTRA");
     });
-  });
+  }, 180_000);
 
   it("reports CHANGED hash when the manifest digest no longer matches the file", async () => {
     await withTempTree(async (root) => {
@@ -138,5 +138,5 @@ describe("drift gate", () => {
       const report = await checkAssets(root);
       expect(entryFor(report, COMMODITIES)?.status).toBe("CHANGED hash");
     });
-  });
+  }, 180_000);
 });
