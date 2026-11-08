@@ -29,7 +29,7 @@ import { publishFailure } from "./probe.js";
 
 /** Short, app-owned, plain text: no HTML, no stack, no host path. */
 export const WEBGL2_FALLBACK_MESSAGE =
-  "Wegolite needs WebGL2. Try a current Chrome, Firefox or Safari with hardware acceleration enabled.";
+  "Wegolite needs WebGL2. Try a current Chrome or Firefox with hardware acceleration enabled.";
 
 /** Show the visible WebGL2 explanation and publish the failure probe. */
 export function showWebgl2Fallback(reason: string): void {
