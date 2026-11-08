@@ -223,6 +223,19 @@ export interface StartOptions {
   readonly restore?: SaveV2;
 }
 
+/**
+ * Test-only failure injection (Phase 6 WR-04, D-18). Nothing in this shape is
+ * read from a URL: `src/main.ts` builds it from a page global, and only inside
+ * the test-only build where `__WEGOLITE_TEST_SEAMS__` is compiled in.
+ */
+export interface SessionFaults {
+  readonly failDestinationBuild?: boolean;
+}
+
+/** The message the injected destination-build fault throws (WR-04). */
+export const DESTINATION_BUILD_FAULT_MESSAGE =
+  "Injected destination-build failure (test seam)";
+
 export interface GameSessionOptions {
   readonly renderer: THREE.WebGLRenderer;
   readonly assets: AssetCache;
@@ -251,6 +264,12 @@ export interface GameSessionOptions {
    * undo it without re-opening the panel code.
    */
   readonly onProfileChanged?: (profile: PlayerProfile) => void;
+  /**
+   * Test-only fault injection (D-18). Consumed only inside the committed-arrival
+   * build in `handleHyperspaceJumped`. Never read from a URL, and passed only by
+   * the test-only build (`vite.seams.config.ts`), never by the shipped bundle.
+   */
+  readonly faults?: SessionFaults;
 }
 
 export interface GameSession {
@@ -303,6 +322,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     onProfileChanged = () => undefined,
   } = options;
 
+  // D-18: test-only failure injection, read once here and consumed only by the
+  // committed-arrival build in handleHyperspaceJumped.
+  const faults = options.faults;
   // D-01: the system is mutable once a jump can install a new scene.
   let system = options.system;
   const galaxy = options.galaxy ?? [options.system];
@@ -1839,6 +1861,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     let arrivedLayout: SystemLayout;
     try {
       nextMarket = generateMarket(destination, catalogue, nextSeed);
+      // D-18 / WR-04: the injected fault sits between the destination market
+      // build and the scene switch, so it exercises the same failure surface.
+      if (faults?.failDestinationBuild === true) {
+        throw new Error(DESTINATION_BUILD_FAULT_MESSAGE);
+      }
       arrivedLayout = enterSystemById(destination.id);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

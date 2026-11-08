@@ -65,4 +65,9 @@ export default defineConfig({
     // Deliberate: the source is GPL and public by design.
     sourcemap: true,
   },
+  define: {
+    // D-18: every shipped build compiles the test-fault read out entirely. Only
+    // vite.seams.config.ts (the test-only build) defines this as "true".
+    __WEGOLITE_TEST_SEAMS__: "false",
+  },
 });

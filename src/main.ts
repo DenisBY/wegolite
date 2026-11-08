@@ -31,6 +31,7 @@ import {
   createContextRecovery,
 } from "./app/context-recovery.js";
 import { createGameSession } from "./app/game-session.js";
+import type { SessionFaults } from "./app/game-session.js";
 import { publishFailure, publishProbe, readMemory } from "./app/probe.js";
 import type { WegoliteProbe } from "./app/probe.js";
 import { createSceneManager } from "./app/scene-manager.js";
@@ -48,6 +49,32 @@ import { applyViewport } from "./render/viewport.js";
 import { createDockedPanel } from "./ui/docked.js";
 import { createStationShell } from "./ui/station.js";
 import { createTitleScreen, shouldConfirmNewGame } from "./ui/title.js";
+
+/**
+ * D-18: a compile-time switch. Vite's `define` replaces this identifier with a
+ * literal at build time: `false` in every shipped build (vite.config.ts), `true`
+ * only in the test-only build (vite.seams.config.ts). In the shipped bundle the
+ * guarded read below is dead code and is removed entirely.
+ */
+declare const __WEGOLITE_TEST_SEAMS__: boolean;
+
+/**
+ * Read the test-only fault global. It accepts exactly one shape,
+ * `{ failDestinationBuild: true }`; any other value yields no faults (T-07-20).
+ * It never reads the URL.
+ */
+function readSessionFaults(target: Window): SessionFaults | undefined {
+  const value: unknown = Reflect.get(target, "__wegoliteFaults");
+  if (typeof value !== "object" || value === null) return undefined;
+  if (!Object.hasOwn(value, "failDestinationBuild")) return undefined;
+  const failDestinationBuild: unknown = Reflect.get(
+    value,
+    "failDestinationBuild",
+  );
+  return failDestinationBuild === true
+    ? { failDestinationBuild: true }
+    : undefined;
+}
 
 function requireElement(id: string): HTMLElement {
   const element = document.getElementById(id);
@@ -240,6 +267,9 @@ if (!boot.ok) {
     recovery: { state: "live", losses: 0, restores: 0 },
   };
 
+  const sessionFaults = __WEGOLITE_TEST_SEAMS__
+    ? readSessionFaults(window)
+    : undefined;
   const session = createGameSession({
     renderer,
     assets,
@@ -260,6 +290,7 @@ if (!boot.ok) {
       ...(bootSave === undefined ? {} : { save: bootSave }),
       allow: allowLists,
     },
+    ...(sessionFaults === undefined ? {} : { faults: sessionFaults }),
   });
 
   function stopSession(): void {

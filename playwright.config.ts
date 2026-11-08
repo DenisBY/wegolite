@@ -22,12 +22,23 @@ export default defineConfig({
     trace: "off",
     screenshot: "off",
   },
-  webServer: {
-    // `vite preview` serves dist/, so the caller must build first (`npm run build`
-    // in the e2e/verify service command).
-    command: "npx vite preview --host 127.0.0.1 --port 4173 --strictPort",
-    url: "http://127.0.0.1:4173",
-    reuseExistingServer: false,
-    timeout: 60_000,
-  },
+  webServer: [
+    {
+      // `vite preview` serves dist/, so the caller must build first (`npm run build`
+      // in the e2e/verify service command).
+      command: "npx vite preview --host 127.0.0.1 --port 4173 --strictPort",
+      url: "http://127.0.0.1:4173",
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
+      // The test-only build (D-18, WR-04). It is built and served here and never
+      // written to dist/, so the fault seam is reachable only from this origin.
+      command:
+        "npx vite build -c vite.seams.config.ts && npx vite preview -c vite.seams.config.ts --host 127.0.0.1 --port 4175 --strictPort",
+      url: "http://127.0.0.1:4175",
+      reuseExistingServer: false,
+      timeout: 300_000,
+    },
+  ],
 });
