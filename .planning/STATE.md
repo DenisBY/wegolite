@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 current_phase: 7
 current_phase_name: Hardening & Community Release
-current_plan: 5
+current_plan: 6
 status: executing
-stopped_at: Completed 07-06-PLAN.md
-last_updated: "2026-11-08T08:27:08.621Z"
+stopped_at: Completed 07-08-PLAN.md
+last_updated: "2026-11-08T09:17:34.084Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 complete, transitioned to Phase 7
-state_head: b91327e94163d5fb42564d2cea110a424f946e55
+state_head: 708b1de96c8e0611a52e394e8aa98fcdc00e268c
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 73
-  completed_plans: 66
+  completed_plans: 67
   percent: 86
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-06)
 ## Current Position
 
 Phase: 7 (Hardening & Community Release) — EXECUTING
-Current Plan: 5
+Current Plan: 6
 Total Plans in Phase: 12
 Status: Ready to execute
 Last activity: 2026-11-07 — Completed 07-01 (licence shipping, release title, enforced CSP)
@@ -102,6 +102,7 @@ Progress: [█████████░] 86% — 62/73 plans complete
 | Phase 7 P3 | ~10 min | 2 tasks | 8 files |
 | Phase 7 P4 | 60min | 3 tasks | 3 files |
 | Phase 07 P06 | unknown | 2 tasks | 3 files |
+| Phase 07 P08 | unknown | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -237,6 +238,9 @@ Recent decisions affecting current work:
 - [Phase 7]: WebKit is recorded as webkit (Playwright) engine evidence only, never Safari evidence (D-07)
 - [Phase 07]: QUAL-06 FIDELITY.md: 26 mechanics mapped to pinned Oolite 7437f22 with verbatim excerpts; 9 divergences each quote a PROJECT.md Key Decisions row checked by the contract test
 - [Phase 07]: Planet row (E-26) covers PlanetMix thresholds only; the planet noise budget has no Key Decisions row and is an open item in FIDELITY.md
+- [Phase 07]: Core-loop journey keeps D-21: no in-page test hook, each save step waits for a committed revision, and the dock fixture is the game's own arrival blob rewritten at the Diso dock mouth
+- [Phase 07]: Chromium GL driver ReadPixels stall is allowlisted by one exact pattern: browser-emitted, carries no Wegolite or THREE text, and no readPixels call exists under src/ or tests/e2e/
+- [Phase 07]: Journey compares cargo and market exactly with no normalisation: zero-quantity cargo keys are absent on both the live state and the save
 
 ### Pending Todos
 
@@ -272,6 +276,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T08:27:07.796Z
-Stopped at: Completed 07-06-PLAN.md
+Last session: 2026-11-08T09:17:33.276Z
+Stopped at: Completed 07-08-PLAN.md
 Resume file: None
