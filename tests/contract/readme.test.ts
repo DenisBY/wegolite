@@ -213,9 +213,9 @@ describe("QUAL-06 README sections", () => {
     const body = section(readme, "Troubleshooting");
     expect(body).toContain("WebGL2");
     expect(body).toMatch(/pauses/);
-    expect(body).toMatch(/P or Esc/);
+    expect(body).toMatch(/press P to continue/);
     expect(body).toContain(`${CONTEXT_RESTORE_TIMEOUT_MS / 1000} seconds`);
-    expect(body).toMatch(/last save is unchanged/i);
+    expect(body).toMatch(/last save is safe/i);
     expect(body).toMatch(/hidden/);
   });
 

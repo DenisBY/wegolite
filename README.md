@@ -159,9 +159,10 @@ real GPU, by the protocol in that document.
   provide it, the page shows a plain message in place of the game. Enable
   hardware acceleration in the browser, then reload the page.
 - **The graphics context is lost.** The game pauses at once. When the browser
-  restores the graphics, the pause overlay says so; press P or Esc to resume.
-  If no restore arrives within 10 seconds, the page asks you to reload
-  Wegolite. Your last save is unchanged.
+  restores the graphics, the pause overlay says "Graphics restored. The game is
+  paused — press P to continue." If no restore arrives within 10 seconds, the
+  page says "Wegolite could not restore the graphics. Your last save is safe.
+  Reload the page to continue."
 - **A hidden tab pauses the game.** Switching to another tab pauses Wegolite.
   Return to the tab and press P or Esc to carry on.
 

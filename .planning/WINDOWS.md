@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 1
+open_count: 0
 waived_count: 0
-fixed_count: 1
+fixed_count: 2
 total_count: 2
-last_updated: 2026-11-07T22:00:22.319Z
+last_updated: 2026-11-08T17:26:07.404Z
 ---
 
 # Broken Windows Ledger
@@ -16,7 +16,7 @@ last_updated: 2026-11-07T22:00:22.319Z
 | id | phase | kind | file | line | description | status | reason | recorded_at | resolved_at |
 |----|-------|------|------|------|-------------|--------|--------|-------------|-------------|
 | 1 | 02 | unrun-verify | public/models/coriolis.glb |  | Visual letterbox check (dock opening reads correctly, not mirrored; faceplate proud of the hull) is deferred to end-of-phase verification because workflow.human_verify_mode is end-of-phase. | fixed |  | 2026-11-03T12:21:05.714Z | 2026-11-03T13:45:38.860Z |
-| 2 | 07 | stub | src/app/context-recovery.ts | 33 | QUAL-05 recovery copy (CONTEXT_LOST_NOTICE, CONTEXT_RESTORED_NOTICE, CONTEXT_RESTORE_FAILURE_COPY) is placeholder wording awaiting owner copy (D-16) | open |  | 2026-11-07T22:00:22.319Z |  |
+| 2 | 07 | stub | src/app/context-recovery.ts | 33 | QUAL-05 recovery copy (CONTEXT_LOST_NOTICE, CONTEXT_RESTORED_NOTICE, CONTEXT_RESTORE_FAILURE_COPY) is placeholder wording awaiting owner copy (D-16) | fixed | Owner-approved copy (D-16) now in CONTEXT_RESTORED_NOTICE and CONTEXT_RESTORE_FAILURE_COPY in src/app/context-recovery.ts. CONTEXT_LOST_NOTICE stays placeholder: the owner supplied no replacement. Commit hash recorded in 07-11-SUMMARY.md. | 2026-11-07T22:00:22.319Z | 2026-11-08T17:26:07.404Z |
 
 ````json
 [
@@ -40,10 +40,10 @@ last_updated: 2026-11-07T22:00:22.319Z
     "file": "src/app/context-recovery.ts",
     "line": 33,
     "description": "QUAL-05 recovery copy (CONTEXT_LOST_NOTICE, CONTEXT_RESTORED_NOTICE, CONTEXT_RESTORE_FAILURE_COPY) is placeholder wording awaiting owner copy (D-16)",
-    "status": "open",
-    "reason": "",
+    "status": "fixed",
+    "reason": "Owner-approved copy (D-16) now in CONTEXT_RESTORED_NOTICE and CONTEXT_RESTORE_FAILURE_COPY in src/app/context-recovery.ts. CONTEXT_LOST_NOTICE stays placeholder: the owner supplied no replacement. Commit hash recorded in 07-11-SUMMARY.md.",
     "recorded_at": "2026-11-07T22:00:22.319Z",
-    "resolved_at": null,
+    "resolved_at": "2026-11-08T17:26:07.404Z",
     "milestone": null
   }
 ]

@@ -19,17 +19,18 @@
 /** D-16: a restore that does not arrive within this window fails the session. */
 export const CONTEXT_RESTORE_TIMEOUT_MS = 10_000;
 
-// Placeholder copy (D-16 open item). The owner's wording replaces these three
-// constants in this one module and nowhere else.
+// Copy (D-16). The owner's wording replaces these three constants in this one
+// module and nowhere else. CONTEXT_LOST_NOTICE is still placeholder wording:
+// the owner has not supplied a replacement for it.
 
 /** Placeholder: pause-overlay notice while the context is lost. */
 export const CONTEXT_LOST_NOTICE = "Graphics interrupted. Restoring...";
-/** Placeholder: pause-overlay notice once the context is back. */
+/** Owner-approved copy (D-16): pause-overlay notice once the context is back. */
 export const CONTEXT_RESTORED_NOTICE =
-  "Graphics restored. Press P or Esc to resume.";
-/** Placeholder: failure-surface copy when no restore arrives in time. */
+  "Graphics restored. The game is paused — press P to continue.";
+/** Owner-approved copy (D-16): failure-surface copy when no restore arrives in time. */
 export const CONTEXT_RESTORE_FAILURE_COPY =
-  "The graphics context was lost and did not come back within 10 seconds. Reload the page to restart Wegolite. Your last save is unchanged.";
+  "Wegolite could not restore the graphics. Your last save is safe. Reload the page to continue.";
 
 export type ContextRecoveryState = "live" | "lost" | "failed";
 
