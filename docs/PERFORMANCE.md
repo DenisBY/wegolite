@@ -142,6 +142,30 @@ Status: awaiting the owner's reference-desktop run.
 | Hyperspace arrival | Chrome  |       |          |          |          |          |                     |                     |      |
 | Hyperspace arrival | Firefox |       |          |          |          |          |                     |                     |      |
 
+### Preliminary runs (not official)
+
+Recorded 2026-11-07, 20:48 to 21:00, from the owner's session 9675446a. These readings are informational only. They were taken at display scaling 175 % (`devicePixelRatio` 1.7647058823529411), not at 100 % scaling with a 1920x1080 client area (DPR 1), so they do not fill the Results rows above and are not evidence for QUAL-01. The official 1920x1080 DPR 1 run is still pending.
+
+Machine: the owner's reference desktop named in `.planning/phases/07-hardening-community-release/07-CONTEXT.md` (open item, line 67). CPU Intel Core i5-13400F 2.50 GHz; RAM 32 GB; GPU NVIDIA GeForce RTX 4060 8 GB, driver 32.0.16.1088; OS Windows 10 Pro 22H2; display 3840x2160 at 60 Hz; Chrome 157.0.8103.39 and Firefox 159.0.1. The owner's pastes do not record which browser each reading came from.
+
+Labelled readings, with the owner's label as written:
+
+| Owner label                                                                        | Count | p50 (ms) | p95 (ms) | p99 (ms) | max (ms) | Over 16.7 ms | Over 33.3 ms |
+| ---------------------------------------------------------------------------------- | ----- | -------- | -------- | -------- | -------- | ------------ | ------------ |
+| "в меню на станции" (station menu, docked)                                         | 1800  | 16.66    | 16.68    | 16.68    | 16.68    | 0.0%         | 0.0%         |
+| "вылет со станции, лицом к планете" (launch out of the station, facing the planet) | 1797  | 16.66    | 16.68    | 16.68    | 33.34    | 0.2%         | 0.2%         |
+| "lave in flight" (the owner notes it is not clearly different from the launch row) | 1800  | 16.66    | 16.68    | 16.68    | 16.68    | 0.0%         | 0.0%         |
+| "прибытие к leetsi" (arrival at leetsi after a jump)                               | 1799  | 16.66    | 16.68    | 16.68    | 33.32    | 0.1%         | 0.1%         |
+
+Unlabelled readings, with timing uncertain. The owner wrote that it is unclear when the sampler script was started, so these readings may be inaccurate. They are not assigned to any scenario, and fields the paste did not include are marked as not recorded.
+
+| Reading | Count | p50 (ms)     | p95 (ms) | p99 (ms)     | max (ms) | Over 16.7 ms | Over 33.3 ms |
+| ------- | ----- | ------------ | -------- | ------------ | -------- | ------------ | ------------ |
+| A       | 1800  | not recorded | 16.68    | not recorded | 16.68    | not recorded | not recorded |
+| B       | 1774  | not recorded | 16.68    | not recorded | 450      | 0.1%         | 0.1%         |
+
+These readings are not evaluated against the proposed pass criterion. The official run at 1920x1080 and DPR 1, per the protocol above, is still required.
+
 ### Machine
 
 Template dated 2026-11-08. The values stay empty until the owner's run.
