@@ -5,10 +5,10 @@ current_phase_name: Hardening & Community Release
 current_plan: 11
 status: executing
 stopped_at: Completed 07-10-PLAN.md
-last_updated: "2026-11-08T11:16:03.490Z"
+last_updated: "2026-11-08T20:53:22.073Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 complete, transitioned to Phase 7
-state_head: 7b4c2ba97af7e439ac5dfdb8cf8cd3d8e3506781
+state_head: 7c35c086cae048565a6a18d857f6788b6f14a2d1
 progress:
   total_phases: 7
   completed_phases: 6
@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-07 — Completed 07-01 (licence shipping, release title, enforced CSP)
+Last activity: 2026-11-08 - Completed quick task 261108-tez: focus-loss pause toggle in Settings
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -273,6 +273,7 @@ Recent decisions affecting current work:
 |---|-------------|------|--------|-----------|
 | 261104-oif | Diagnose the loaded per-frame render cost of the Lave flight scene: GL context attributes, MSAA A/B, resolution scaling, hidden-planet arm, and split launch vs in-flight frame timing | 2026-11-04 | ddad140 | [261104-oif-diagnose-the-loaded-per-frame-render-cos](./quick/261104-oif-diagnose-the-loaded-per-frame-render-cos/) |
 | 261104-p2m | Stabilise the message-expiry browser gate (300 s wait, `workers: 2` pinned), update the frozen-contract guard, and record G-03-3 as an accepted known issue | 2026-11-04 | 313a2bf | [261104-p2m-stabilize-the-message-expiry-browser-gat](./quick/261104-p2m-stabilize-the-message-expiry-browser-gat/) |
+| 261108-tez | Переключатель паузы при потере фокуса вкладки в настройках | 2026-11-08 | 7c35c08 | [261108-tez-sdelat-postanovku-na-pauzu-pri-potere-fo](./quick/261108-tez-sdelat-postanovku-na-pauzu-pri-potere-fo/) |
 
 ## Deferred Items
 
