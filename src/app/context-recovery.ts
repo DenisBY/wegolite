@@ -20,11 +20,11 @@
 export const CONTEXT_RESTORE_TIMEOUT_MS = 10_000;
 
 // Copy (D-16). The owner's wording replaces these three constants in this one
-// module and nowhere else. CONTEXT_LOST_NOTICE is still placeholder wording:
-// the owner has not supplied a replacement for it.
+// module and nowhere else. All three constants now hold owner-approved wording.
 
-/** Placeholder: pause-overlay notice while the context is lost. */
-export const CONTEXT_LOST_NOTICE = "Graphics interrupted. Restoring...";
+/** Owner-approved copy (D-16): pause-overlay notice while the context is lost. */
+export const CONTEXT_LOST_NOTICE =
+  "Graphics interrupted. The game is paused and your progress is safe. Restoring...";
 /** Owner-approved copy (D-16): pause-overlay notice once the context is back. */
 export const CONTEXT_RESTORED_NOTICE =
   "Graphics restored. The game is paused — press P to continue.";
