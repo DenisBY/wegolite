@@ -91,7 +91,7 @@ Requirements for the initial release. Each maps to a roadmap phase.
 ### Hardening & Community Release
 
 - [x] **QUAL-01**: The game holds 60 fps at 1080p on mid-range desktop hardware within a documented draw-call/triangle budget
-- [ ] **QUAL-02**: The core loop passes on current stable Chrome and current stable Firefox (Safari is not claimed in Phase 7)
+- [x] **QUAL-02**: The core loop passes on current stable Chrome and current stable Firefox (Safari is not claimed in Phase 7)
 - [x] **QUAL-03**: An end-to-end test covers new game → launch → trade → hyperspace → dock → save/load
 - [x] **QUAL-04**: Simulation, economy, hyperspace, and save migrations have unit coverage, alongside golden content tests
 - [x] **QUAL-05**: WebGL context loss and tab throttling recover without corrupting simulation or save state
@@ -207,7 +207,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SAVE-05 | Phase 6 | Complete |
 | SAVE-06 | Phase 6 | Complete |
 | QUAL-01 | Phase 7 | Complete |
-| QUAL-02 | Phase 7 | Pending |
+| QUAL-02 | Phase 7 | Complete |
 | QUAL-03 | Phase 7 | Complete |
 | QUAL-04 | Phase 7 | Complete |
 | QUAL-05 | Phase 7 | Complete |

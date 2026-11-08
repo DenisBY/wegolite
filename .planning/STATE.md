@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 current_phase: 7
 current_phase_name: Hardening & Community Release
-current_plan: 9
+current_plan: 10
 status: executing
-stopped_at: Completed 07-12-PLAN.md
-last_updated: "2026-11-08T10:49:05.413Z"
+stopped_at: Completed 07-09-PLAN.md
+last_updated: "2026-11-08T11:08:07.334Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 complete, transitioned to Phase 7
-state_head: e244b4e8f8f080bfca23a276b449e447489061fc
+state_head: fbbfeca5a46818581822580b8b23f3573800c819
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 73
-  completed_plans: 68
+  completed_plans: 71
   percent: 86
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-06)
 ## Current Position
 
 Phase: 7 (Hardening & Community Release) — EXECUTING
-Current Plan: 9
+Current Plan: 10
 Total Plans in Phase: 12
 Status: Ready to execute
 Last activity: 2026-11-07 — Completed 07-01 (licence shipping, release title, enforced CSP)
@@ -104,6 +104,7 @@ Progress: [█████████░] 86% — 62/73 plans complete
 | Phase 07 P06 | unknown | 2 tasks | 3 files |
 | Phase 07 P08 | unknown | 3 tasks | 2 files |
 | Phase 7 P12 | unknown | 3 tasks | 6 files |
+| Phase 7 P09 | ~60 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -244,6 +245,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Journey compares cargo and market exactly with no normalisation: zero-quantity cargo keys are absent on both the live state and the save
 - [Phase 7]: Owner approved @vitest/coverage-v8@5.0.5 conditionally; the executor verified the registry metadata in the container (repository, peers, eight dependencies, integrity) before installing
 - [Phase 7]: Coverage thresholds are the floor of one unthresholded measured baseline (2026-11-08) per glob; idb-store.ts stays excluded (D-20) and fake-indexeddb is not installed
+- [Phase 7]: Plan 07-09: firefox-xvfb implemented (xvfb and xauth in cross stage, headed firefox project, xvfb-run -a in test:e2e:cross)
+- [Phase 7]: Plan 07-09: test:e2e:cross passes --workers=1; two headed Firefox windows on one xvfb display starve the engine smoke (0 renders), each spec passes alone
+- [Phase 7]: Plan 07-09: WEGOLITE_E2E_WAIT_SCALE 1 (Chromium/Firefox cadence ratio 0.45 rounds up to 1); no Firefox warning, allowlist unchanged
 
 ### Pending Todos
 
@@ -279,6 +283,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T09:34:20.750Z
-Stopped at: Completed 07-12-PLAN.md
+Last session: 2026-11-08T11:08:06.319Z
+Stopped at: Completed 07-09-PLAN.md
 Resume file: None
