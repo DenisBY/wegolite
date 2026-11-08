@@ -19,7 +19,7 @@ result: pass
 expected: New game, launch, and fly toward Lave's planet and station at 1080p. The planet reads green/mauve (authored land bytes 92,150,31; sea 150,100,146) with polar ice and a terminator fixed relative to the sun; the sun is white with a thin corona; stars are sparse; the Coriolis lit faces read around 190/255 — not lime-green, not near-black, not an Earth-like blue marble.
 why_human: Visual fidelity is a judgement; the phase deliberately forbids pixel evidence and GPU rasterisation varies.
 result: pass
-reported: "User, real-GPU browser: \"выглядит всё без тормозов\" — no regression reported after relief 3→1 and cloud 4→1."
+reported: "User, real-GPU browser: \"everything looks smooth, no lag\" — no regression reported after relief 3→1 and cloud 4→1."
 
 ### 2. Real-GPU aspect check
 expected: At 2222x1000 (and an ultrawide window), launch and fly. The planet limb is a circle, the Coriolis is not squashed, and rotation traces circles. The e2e proves `probe.aspect` equals 2.222 numerically; this check confirms the rasterised result on a real GPU.
@@ -37,7 +37,7 @@ reported: "pass"
 expected: Inspect the polar cap edge at ~50° latitude. The ice cap currently begins at |lat| 49.59°; Oolite's `(latitude/90°)²` reading of the same threshold would begin nearer 68°. Confirm the cap does not encroach on temperate land enough to break the "reads as Oolite" truth; if it does, switch both the shader and the mirror to the latitude parameterisation.
 why_human: The pinned measurement is internally consistent and tested, but its fidelity to Oolite's texture-row parameterisation is a judgement the tests cannot make.
 result: pass
-reported: "не знаю как должно быть, но выглядит нормально" (ice caps judged normal on two views)
+reported: "I don't know how it should be, but it looks fine" (ice caps judged normal on two views)
 
 ### 5. Browser-gate decision (message-expiry timeout)
 expected: Run `docker compose run --rm e2e` and decide whether the message-expiry timeout must be fixed before merge. The suite currently reports 28 passed / 1 failed: `tests/e2e/hud.spec.ts` "the message line is one clamped line and expires on flightTime" exceeds its 150 s simulated-time wait under parallel load. It passes when run alone and the pre-gap commit passes 26/26 under the same conditions, so this is a timing/performance regression from the heavier planet shader, not a broken feature.
@@ -66,7 +66,7 @@ blocked: 0
 - gap_id: G-03-3
   truth: "The message line is one clamped line and expires on flightTime — the full browser suite passes under parallel load without exceeding its wait."
   status: resolved
-  reason: "User reported: исправь (fix the red browser gate)"
+  reason: "User reported: fix it (fix the red browser gate)"
   severity: major
   test: 5
   root_cause: "Phase-03 gap closure raised the planet fragment shader from 7 to 16 value-noise evaluations per pixel (~2.3x cost). Under headless SwiftShader that is 4.3 fps solo and ~1.9 fps with a second Playwright worker competing. The game loop caps catch-up at MAX_STEPS_PER_FRAME=5 with DT=1/120, so simulated time advances at only fps*5/120 (0.08-0.18x wall). The launch/hint queue needs ~12.9 s simulated, i.e. ~161 s wall under load, past the test's fixed 150 s wait."

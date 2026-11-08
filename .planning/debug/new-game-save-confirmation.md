@@ -1,6 +1,6 @@
 ---
 status: diagnosed
-trigger: "просто стёрла ничего не спросив и я начал на Lave станции. нужно бы добавить подтверждение."
+trigger: "just wiped it without asking anything and I started at the Lave station. We should add a confirmation."
 created: 2026-11-05T00:00:00Z
 updated: 2026-11-05T00:00:00Z
 ---
@@ -17,7 +17,7 @@ next_action: Diagnosis complete — return root cause to the caller.
 <!-- Written during gathering, then IMMUTABLE -->
 
 expected: With a committed (valid) save present, clicking "New game" once either raises a confirmation prompt or preserves the only save as a one-slot backup before starting a fresh game. Only after the player confirms should the save be discarded.
-actual: User reported: "просто стёрла ничего не спросив и я начал на Lave станции. нужно бы добавить подтверждение." — one click on New game wiped the save immediately and started at Lave station.
+actual: User reported: "just wiped it without asking anything and I started at the Lave station. We should add a confirmation." — one click on New game wiped the save immediately and started at Lave station.
 errors: None reported.
 reproduction: Commit a save (dock at Lave), return to the title screen, click "New game" once.
 started: Discovered during UAT for Phase 04 (manual docking).

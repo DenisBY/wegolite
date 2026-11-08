@@ -5,193 +5,193 @@
 
 **Date:** 2026-11-04
 **Phase:** 04-Manual Docking
-**Areas discussed:** Допуск стыковки, Цена ошибки, Док-компьютер, Автосейв на старте, Скорость захода
+**Areas discussed:** Docking tolerance, Cost of error, Docking computer, Autosave on start, Approach speed
 
 ---
 
-## Допуск стыковки
+## Docking tolerance
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Портировать правило Oolite | Коридор выводится из меша dock-узла, затем расширяется под bbox корабля теми же шагами ×1.25 до 90 % вписывания. Совпадает с оригиналом, но требует измерить меш (research-флаг в ROADMAP). | ✓ |
-| Фиксированный проём + допуск | Один фиксированный прямоугольник по видимому проёму с ручным запасом. Проще тестировать, но крупный/смещённый корабль ведёт себя иначе, чем в Oolite. | |
-| Прощающий режим | Заметно больше видимого проёма и огромный safety-пояс: стыковка почти всегда удаётся. Дружелюбно, но дальше от оригинала. | |
+| Port the Oolite rule | The corridor is derived from the dock node mesh, then widened to the ship's bbox in the same ×1.25 steps up to 90 % fit. Matches the original, but requires measuring the mesh (research flag in ROADMAP). | ✓ |
+| Fixed opening + tolerance | One fixed rectangle over the visible opening with a manual margin. Simpler to test, but a large or offset ship behaves differently than in Oolite. | |
+| Forgiving mode | Noticeably larger than the visible opening and a huge safety zone: docking almost always succeeds. Friendly, but further from the original. | |
 
-**User's choice:** Портировать правило Oolite
-**Notes:** Опора на `shipIsInDockingCorridor:` — расширение проёма шагами ×1.25, тест в коридоре, 50 % safety-полоса, захват на 90 %.
+**User's choice:** Port the Oolite rule
+**Notes:** Relies on `shipIsInDockingCorridor:` — widening the opening in ×1.25 steps, a test inside the corridor, a 50 % safety band, capture at 90 %.
 
 ---
 
-## Крен
+## Roll
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Как в Oolite: только bbox | Никакого отдельного порога крена: решение принимает bbox в системе координат проёма. Крен наказывается только тем, что корабль становится шире и хуже влезает. | ✓ |
-| Явный допуск крена | Явная проверка ±25–30° от вертикали щели: при большем крене сообщение «align roll» и скрежет/отскок. Понятнее новичку, но это добавленное правило. | |
-| Игнорировать крен | Крен вообще не учитывается в геометрии коридора. Максимально просто, но не соответствует ни Oolite, ни геометрии проёма. | |
+| As in Oolite: bbox only | No separate roll threshold: the bbox in the opening's coordinate system decides. Roll is penalised only by the ship becoming wider and fitting worse. | ✓ |
+| Explicit roll tolerance | Explicit check of ±25–30° from the slot's vertical: at greater roll, an "align roll" message and scrape/bounce. Clearer to a newcomer, but it is an added rule. | |
+| Ignore roll | Roll is not considered in the corridor geometry at all. Maximally simple, but matches neither Oolite nor the geometry of the opening. | |
 
-**User's choice:** Как в Oolite: только bbox
-**Notes:** Отдельного угла крена в модели нет; щель почти квадратная, поэтому крен влияет мягко.
+**User's choice:** As in Oolite: bbox only
+**Notes:** The model has no separate roll angle; the slot is almost square, so roll has a mild effect.
 
 ---
 
-## Автодоводка
+## Auto-alignment
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Как в Oolite: коррекция + скрежет | Непрерывная пропорциональная коррекция x/y внутри 50 %-полосы + scrape за каждый тик + захват на 90 %. | ✓ |
-| Магнитная доводка без урона | В последних метрах корабль плавно притягивается к центру без урона; скрежет только на краю. | |
-| Только финальный снап | Коррекция только в последний кадр, до этого жёсткие границы проёма. | |
+| As in Oolite: correction + scrape | Continuous proportional x/y correction inside the 50 % band + scrape on every tick + capture at 90 %. | ✓ |
+| Magnetic alignment without damage | In the last metres the ship is smoothly pulled toward the centre without damage; scrape only at the edge. | |
+| Final snap only | Correction only in the last frame; before that, hard opening boundaries. | |
 
-**User's choice:** Как в Oolite: коррекция + скрежет
-**Notes:** Именно доводка объясняет, почему можно стыковаться при вращающейся станции.
+**User's choice:** As in Oolite: correction + scrape
+**Notes:** It is precisely this alignment that explains why docking is possible while the station is rotating.
 
 ---
 
-## Цена ошибки
+## Cost of error
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Отскок + фидбек, без урона | Упругий отскок от корпуса/края проёма + scrape-вспышка и сообщение. Риск — потерянные время и позиция, никаких выдуманных статов. Урон придёт в v2 вместе с энергией. | ✓ |
-| Целостность корпуса + гибель | Счётчик целостности только для столкновений, на нуле — «корабль уничтожен» и загрузка автосейва. Даёт настоящий риск, но это механика, которой нет в Oolite без энергии. | |
-| Только косметика | Вспышка/тряска и сообщение без физического отскока. Противоречит «real feedback». | |
+| Bounce + feedback, no damage | Elastic bounce off the hull/edge of the opening + scrape flash and a message. The risk is lost time and position; no invented stats. Damage will come in v2 together with energy. | ✓ |
+| Hull integrity + destruction | An integrity counter only for collisions; at zero — "ship destroyed" and loading the autosave. Gives real risk, but it is a mechanic that does not exist in Oolite without energy. | |
+| Cosmetics only | Flash/shake and a message without a physical bounce. Contradicts "real feedback". | |
 
-**User's choice:** Отскок + фидбек, без урона
-**Notes:** Никакого счётчика целостности; риск выражается временем и позицией.
+**User's choice:** Bounce + feedback, no damage
+**Notes:** No integrity counter; risk is expressed through time and position.
 
 ---
 
-## Физика отскока
+## Bounce physics
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Упругий отскок с демпфированием | Скорость отражается от нормали с потерей энергии, ориентация сохраняется, управление сразу возвращается. | ✓ |
-| Жёсткий стоп | Скорость обнуляется, корабль выталкивается по нормали. Предсказуемо, но ощущается как прилипание. | |
-| Возврат на точку подхода | Телепорт на точку входа в коридор с нулевой скоростью. Безопасно, но ломает ощущение полёта. | |
+| Elastic bounce with damping | Velocity is reflected from the normal with energy loss, orientation is kept, control returns immediately. | ✓ |
+| Hard stop | Velocity is zeroed, the ship is pushed out along the normal. Predictable, but feels like sticking. | |
+| Return to the approach point | Teleport to the corridor entry point with zero velocity. Safe, but breaks the sense of flight. | |
 
-**User's choice:** Упругий отскок с демпфированием
+**User's choice:** Elastic bounce with damping
 **Notes:** —
 
 ---
 
-## Фидбек
+## Feedback
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Сообщение + тряска + вспышка | Message line + короткая тряска камеры + красная вспышка рамки HUD на 0.3–0.5 с. Дёшево, без новых ассетов, читается в probe. | ✓ |
-| Только сообщение | Только текст в message line, как остальные подсказки D-11. Легко пропустить в горячке захода. | |
-| Сообщение + искры | Эффект искр/частиц у точки контакта — новая система частиц и лишняя нагрузка на fill-bound сцену. | |
+| Message + shake + flash | Message line + a short camera shake + a red flash of the HUD frame for 0.3–0.5 s. Cheap, no new assets, readable in the probe. | ✓ |
+| Message only | Text only in the message line, like the other D-11 hints. Easy to miss in the heat of an approach. | |
+| Message + sparks | Spark/particle effect at the contact point — a new particle system and extra load on the fill-bound scene. | |
 
-**User's choice:** Сообщение + тряска + вспышка
-**Notes:** Звук в v1 не используется.
+**User's choice:** Message + shake + flash
+**Notes:** Sound is not used in v1.
 
 ---
 
-## Покупка док-компьютера
+## Buying the docking computer
 
-Ограничение, найденное при обсуждении: стартовые кредиты 100.0 Cr, цена 1500.0 Cr, заработка до фазы 5 нет.
+Constraint found during discussion: starting credits 100.0 Cr, price 1500.0 Cr, no income before phase 5.
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Мини-покупка в docked-панели | Одна строка «Docking Computers — 1500.0 Cr» с проверкой TL 9, кредитов и списанием; в e2e кредиты выдаются через существующий probe/dev-seam. Продукт по умолчанию остаётся с 100 Cr. | ✓ |
-| Покупка целиком в фазе 5 | В фазе 4 только поведение и флаг оборудования; DOCK-05 закрывается не в своей фазе. | |
-| Мини-outfitting сейчас | Полноценный экран outfitting — объём фазы 5 и дублирование работы. | |
+| Mini-purchase in the docked panel | A single line "Docking Computers — 1500.0 Cr" with a check of TL 9, credits and deduction; in e2e the credits are granted through the existing probe/dev-seam. The default product stays at 100 Cr. | ✓ |
+| Full purchase in phase 5 | In phase 4 only the behaviour and the equipment flag; DOCK-05 is not closed in its own phase. | |
+| Mini-outfitting now | A full outfitting screen — phase 5 scope and duplicated work. | |
 
-**User's choice:** Мини-покупка в docked-панели
-**Notes:** Фаза 5 заменит строку экраном outfitting.
+**User's choice:** Mini-purchase in the docked panel
+**Notes:** Phase 5 will replace the line with the outfitting screen.
 
 ---
 
-## Условия Shift+C
+## Shift+C conditions
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Из любой точки, мгновенно | Нажатие из любой точки системы: сразу docked + 20 минут. Ровно как в DOCK-05. | |
-| Только в зоне станции | Работает только внутри aegis станции (51 200); иначе сообщение «слишком далеко». | ✓ |
-| Нужна видимость/курс | Требует отсутствия torus/mass-lock и примерного курса на станцию. | |
+| From any point, instantly | Pressing from any point in the system: immediately docked + 20 minutes. Exactly as in DOCK-05. | |
+| Only within the station zone | Works only inside the station's aegis (51 200); otherwise a "too far" message. | ✓ |
+| Requires visibility/heading | Requires the absence of torus/mass-lock and an approximate heading toward the station. | |
 
-**User's choice:** Только в зоне станции
-**Notes:** Используется существующий `stationAegisRange = 51 200` (2 × дальность сканера).
+**User's choice:** Only within the station zone
+**Notes:** Uses the existing `stationAegisRange = 51 200` (2 × scanner range).
 
 ---
 
-## Переход при Shift+C
+## Transition on Shift+C
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Мгновенно, без анимации | В тот же тик mode → docked, панель, часы +20 минут, сообщение. Легко проверяется в e2e. | ✓ |
-| Мгновенно + затемнение | 0.3 с затемнения поверх, чтобы срезать склейку кадра. | |
-| Скриптовый залёт | Короткий залёт ~2 с (зеркало launch), пропускаемый клавишей. Противоречит «instantly». | |
+| Instant, no animation | In the same tick: mode → docked, panel, clock +20 minutes, message. Easy to verify in e2e. | ✓ |
+| Instant + fade | A 0.3 s fade overlaid to cut the frame splice. | |
+| Scripted approach | A short ~2 s approach (mirror of launch), skippable with a key. Contradicts "instantly". | |
 
-**User's choice:** Мгновенно, без анимации
+**User's choice:** Instant, no animation
 **Notes:** —
 
 ---
 
-## Скорость захода
+## Approach speed
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Как в Oolite: скорость не важна | Скорость в коридоре не проверяется: решает только геометрия. Быстрый ровный заход стыкуется. | ✓ |
-| Порог 0.5 max speed | Выше 175 u/s — отскок со scrape-фидбеком и сообщением «Too fast to dock». | |
-| Не захватывать на скорости | Корабль проносит сквозь проём, пока не сбросит скорость. | |
+| As in Oolite: speed does not matter | Speed in the corridor is not checked: only geometry decides. A fast, steady approach docks. | ✓ |
+| 0.5 max speed threshold | Above 175 u/s — bounce with scrape feedback and a "Too fast to dock" message. | |
+| Do not capture at speed | The ship passes through the opening until it sheds speed. | |
 
-**User's choice:** Как в Oolite: скорость не важна
-**Notes:** «Too fast» из критерия 3 трактуется как «не успел выровняться».
+**User's choice:** As in Oolite: speed does not matter
+**Notes:** "Too fast" from criterion 3 is interpreted as "did not manage to align".
 
 ---
 
-## Скоуп автосейва
+## Autosave scope
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Автосейв + восстановление | Запись в IndexedDB на старте и восстановление docked-состояния при загрузке страницы. DOCK-07 действительно проверяется в этой фазе. | ✓ |
-| Только запись | Пишем сейв, но не читаем до фазы 6. «Resumable» остаётся непроверенным. | |
-| Отложить до фазы 6 | Требование закрывается не в своей фазе; надо править ROADMAP. | |
+| Autosave + restore | Write to IndexedDB on start and restore the docked state on page load. DOCK-07 is genuinely verified in this phase. | ✓ |
+| Write only | We write the save but do not read it until phase 6. "Resumable" remains unverified. | |
+| Defer to phase 6 | The requirement is not closed in its own phase; ROADMAP must be edited. | |
 
-**User's choice:** Автосейв + восстановление
-**Notes:** Фаза 6 добавляет полёт, рынок, миграции и F2.
+**User's choice:** Autosave + restore
+**Notes:** Phase 6 adds flight, market, migrations and F2.
 
 ---
 
-## Что попадает в сейв
+## What goes into the save
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Минимальное состояние игрока | Версия схемы, режим, часы, кредиты, оборудование, система/станция. Поза выводится из layout. | ✓ |
-| Полный снимок FlightState | Весь FlightState целиком; фаза 6 получит больше готового, но сейчас это мёртвый груз. | |
-| Полный снимок, docked-восстановление | Полный FlightState, но восстанавливается только docked-часть. | |
+| Minimal player state | Schema version, mode, clock, credits, equipment, system/station. Pose is derived from the layout. | ✓ |
+| Full FlightState snapshot | The entire FlightState; phase 6 will get more ready-made, but right now it is dead weight. | |
+| Full snapshot, docked restore | Full FlightState, but only the docked part is restored. | |
 
-**User's choice:** Минимальное состояние игрока
-**Notes:** Никаких сохранённых float-кватернионов.
+**User's choice:** Minimal player state
+**Notes:** No saved float quaternions.
 
 ---
 
-## Загрузка: сейв или новая игра
+## Loading: save or new game
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Continue / New game на титуле | При наличии сейва титульный экран предлагает Continue и New game; Continue восстанавливает docked, New game стирает сейв. | ✓ |
-| Молчаливый авторестор | Игра молча загружает сейв; новой игры нет до фазы 6. | |
-| Всегда новая игра | Восстановление только через явный механизм в фазе 6. | |
+| Continue / New game on the title screen | When a save exists, the title screen offers Continue and New game; Continue restores docked, New game erases the save. | ✓ |
+| Silent auto-restore | The game silently loads the save; there is no new game until phase 6. | |
+| Always a new game | Restoration only through an explicit mechanism in phase 6. | |
 
-**User's choice:** Continue / New game на титуле
-**Notes:** Расширяет D-09 фазы 3, не заменяет.
+**User's choice:** Continue / New game on the title screen
+**Notes:** Extends phase 3 D-09, does not replace it.
 
 ---
 
 ## the agent's Discretion
 
-- Метод измерения проёма из `coriolis.glb` (research-флаг ROADMAP) и допуск на численный шум у плоскости.
-- Коэффициент восстановления при отскоке, амплитуда тряски и тайминг вспышки в пределах 0.3–0.5 с.
-- Имя ключа сейва, внутренняя валидация и обработка повреждённого/будущего сейва.
-- Место нового действия `dockingComputer` в списке управления.
+- The method of measuring the opening from `coriolis.glb` (ROADMAP research flag) and the tolerance for numerical noise at the plane.
+- The bounce restitution coefficient, the shake amplitude and the flash timing within 0.3–0.5 s.
+- The save key name, internal validation, and handling of a corrupted/future save.
+- The place of the new `dockingComputer` action in the control list.
 
 ## Deferred Ideas
 
-- Экран outfitting и торговля — фаза 5.
-- Полная персистентность полёта, рынок, миграции, F2 — фаза 6.
-- Урон, энергия, щиты, гибель — модель v2.
-- Автопилотный залёт док-компьютера как в Oolite — вместо мгновенной стыковки, возможно позже.
-- Звук скрежета/удара — вне v1.
-- NPC-трафик и очереди на стыковку — вне v1.
+- Outfitting screen and trading — phase 5.
+- Full flight persistence, market, migrations, F2 — phase 6.
+- Damage, energy, shields, destruction — model v2.
+- Autopilot docking-computer approach as in Oolite — instead of instant docking, perhaps later.
+- Scrape/impact sound — out of v1.
+- NPC traffic and docking queues — out of v1.

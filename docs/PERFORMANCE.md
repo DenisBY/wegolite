@@ -164,10 +164,10 @@ Labelled readings, with the owner's label as written:
 
 | Owner label                                                                        | Count | p50 (ms) | p95 (ms) | p99 (ms) | max (ms) | Over 16.7 ms | Over 33.3 ms |
 | ---------------------------------------------------------------------------------- | ----- | -------- | -------- | -------- | -------- | ------------ | ------------ |
-| "в меню на станции" (station menu, docked)                                         | 1800  | 16.66    | 16.68    | 16.68    | 16.68    | 0.0%         | 0.0%         |
-| "вылет со станции, лицом к планете" (launch out of the station, facing the planet) | 1797  | 16.66    | 16.68    | 16.68    | 33.34    | 0.2%         | 0.2%         |
+| "in the station menu, docked"                                                      | 1800  | 16.66    | 16.68    | 16.68    | 16.68    | 0.0%         | 0.0%         |
+| "launch out of the station, facing the planet"                                     | 1797  | 16.66    | 16.68    | 16.68    | 33.34    | 0.2%         | 0.2%         |
 | "lave in flight" (the owner notes it is not clearly different from the launch row) | 1800  | 16.66    | 16.68    | 16.68    | 16.68    | 0.0%         | 0.0%         |
-| "прибытие к leetsi" (arrival at leetsi after a jump)                               | 1799  | 16.66    | 16.68    | 16.68    | 33.32    | 0.1%         | 0.1%         |
+| "arrival at leetsi after a jump"                                                   | 1799  | 16.66    | 16.68    | 16.68    | 33.32    | 0.1%         | 0.1%         |
 
 Unlabelled readings, with timing uncertain. The owner wrote that it is unclear when the sampler script was started, so these readings may be inaccurate. They are not assigned to any scenario, and fields the paste did not include are marked as not recorded.
 

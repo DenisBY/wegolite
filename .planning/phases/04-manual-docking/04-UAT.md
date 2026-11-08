@@ -22,14 +22,14 @@ result: pass
 expected: Dock at Lave and inspect the docking-computer line, the disabled Buy control and the Controls screen. The line reads "Docking Computers — 1500.0 Cr (TL 9)", the refusal reads "Requires TL 9", the disabled control is visually distinct, and Controls tells the player the chord is Shift+C.
 why_human: Layout, colour and discoverability are visual judgements. The current UI review reports the Controls label renders "C" rather than "Shift+C", the disabled Buy control looks active, and the reason sits in the label column.
 result: issue
-reported: "не похоже на disabled [screenshot of Docked screen: Buy docking computer button styled identically to Launch, Requires TL 9 under the label column]"
+reported: "does not look disabled [screenshot of Docked screen: Buy docking computer button styled identically to Launch, Requires TL 9 under the label column]"
 severity: major
 
 ### 3. New game save deletion decision
 expected: With a committed save, click New game once. Either a confirmation or one-slot backup protects the only save, or the project records an explicit product decision that one-click deletion is intended.
 why_human: This is a product/UX decision, not a DOCK-01..07 functional assertion. The current path deletes the only save with no confirmation, undo or backup; the UI review rates it a blocking UX defect.
 result: issue
-reported: "просто стёрла ничего не спросив и я начал на Lave станции. нужно бы добавить подтверждение."
+reported: "just wiped it without asking anything and I started at the Lave station. We should add a confirmation."
 severity: major
 
 ### 4. Committed regression test for the disarmed tunnel-end clamp
@@ -60,7 +60,7 @@ blocked: 0
 - gap_id: G-04-2
   truth: "The disabled Buy docking-computer control is visually distinct from an active control, and the refusal reason reads with the control rather than in the label column"
   status: failed
-  reason: "User reported: \"не похоже на disabled\" — the Buy docking computer button is styled identically to the Launch button; Requires TL 9 sits under the label column"
+  reason: "User reported: \"does not look disabled\" — the Buy docking computer button is styled identically to the Launch button; Requires TL 9 sits under the label column"
   severity: major
   test: 2
   root_cause: "Presentation only: index.html has no :disabled rule, so #docked button and its hover/focus fill give the disabled control the same green border/text as Launch; the refusal is a bare <dd> with no <dt> and auto-places into column 1 of the #docked dl grid; Controls cannot print Shift+C because REQUIRES_SHIFT is private in src/input/keyboard.ts and ACTION_LABELS.dockingComputer is \"Docking computer (Shift+)\"."
@@ -85,7 +85,7 @@ blocked: 0
 - gap_id: G-04-3
   truth: "Clicking New game with a committed save asks for confirmation (or protects the save with a one-slot backup) before discarding it"
   status: failed
-  reason: "User reported: \"просто стёрла ничего не спросив и я начал на Lave станции. нужно бы добавить подтверждение.\""
+  reason: "User reported: \"just wiped it without asking anything and I started at the Lave station. We should add a confirmation.\""
   severity: major
   test: 3
   root_cause: "The title click is wired straight to the destructive path: src/ui/title.ts onStart fires immediately, src/main.ts wires it to session.start(), and src/app/game-session.ts start() awaits clearSaveForNewGame() before asset preload. clearSaveForNewGame() calls store.clear(revision) for any 'absent | valid | corrupt' status and src/persistence/idb-store.ts clear() deletes AUTOSAVE_KEY. No confirmation gate or backup exists, and PROJECT.md records no product decision accepting one-click deletion."

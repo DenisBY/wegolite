@@ -20,8 +20,9 @@ expected: >
   Geometry keeps a correct aspect ratio across the system extent — the planet limb and
   station read as circles/spheres, and rotation moves the starfield along circular paths.
 actual: >
-  User reported (Russian): "дрожания не наблюдается, но планета вместо круга выглядит как
-  элипс, станция тоже сплюснута и при врашении звезды перемещаются по элипсу вместо круга" —
+  User reported (in Russian): "no jitter is observed, but the planet looks like an
+  ellipse instead of a circle, the station is also squashed, and when rotating the stars move along an
+  ellipse instead of a circle" —
   "No jitter observed, but the planet looks like an ellipse instead of a circle, the station
   is also squashed, and when rotating the stars move along an ellipse instead of a circle."
   The 2D HUD stays circular, so the mismatch is between the WebGL camera/scene projection

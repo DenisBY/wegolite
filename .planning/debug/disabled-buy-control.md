@@ -15,7 +15,7 @@ next_action: Report root cause; no fix in this mode
 ## Symptoms
 
 expected: On the Docked screen at Lave with 100.0 Cr, the "Buy docking computer" control is visually distinct from an active control (the Launch button), and the refusal reason "Requires TL 9" is presented with the control rather than floating under the label column. The Controls screen shows the docking-computer chord as "Shift+C".
-actual: User reported "не похоже на disabled" with a screenshot where "Buy docking computer" is styled identically to "Launch" (same bright green border and text), and "Requires TL 9" sits under the label column, outside the Buy row.
+actual: User reported "does not look disabled" with a screenshot where "Buy docking computer" is styled identically to "Launch" (same bright green border and text), and "Requires TL 9" sits under the label column, outside the Buy row.
 errors: None reported.
 reproduction: Dock at Lave, open the Docked screen panel.
 started: Discovered during UAT for Phase 04 (manual docking).
