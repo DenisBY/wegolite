@@ -350,9 +350,11 @@ if (!boot.ok) {
     });
   }
 
-  // D-15: focus loss auto-pauses and clears held input. `session.pause()` is a
-  // no-op on the title/menu (there is no simulation yet) apart from clearing
-  // input. Pointer-lock and fullscreen changes clear input even while paused.
+  // D-15: focus loss (window blur or a hidden tab) always clears held input.
+  // It pauses the game only when the player's pause-on-focus-loss setting is
+  // on, which is the default. With the setting off the simulation keeps
+  // running. On the title/menu there is no simulation, so only input clears.
+  // Pointer-lock and fullscreen changes clear input even while paused.
   const focusController = new AbortController();
   const focusOptions: AddEventListenerOptions = {
     signal: focusController.signal,
@@ -361,14 +363,14 @@ if (!boot.ok) {
   window.addEventListener(
     "blur",
     () => {
-      session.pause();
+      session.focusLost();
     },
     focusOptions,
   );
   document.addEventListener(
     "visibilitychange",
     () => {
-      if (document.visibilityState === "hidden") session.pause();
+      if (document.visibilityState === "hidden") session.focusLost();
     },
     focusOptions,
   );

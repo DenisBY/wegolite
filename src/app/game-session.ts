@@ -298,6 +298,12 @@ export interface GameSession {
   exitContextLoss(): void;
   /** Clear every held key without changing the paused flag (focus loss). */
   clearInput(): void;
+  /**
+   * D-15: the window lost focus or the tab was hidden. Held input is always
+   * cleared. The game pauses only when the pause-on-focus-loss setting is on,
+   * which is the default.
+   */
+  focusLost(): void;
   dispose(): void;
 }
 
@@ -1424,6 +1430,20 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     pauseOverlay?.show();
   }
 
+  /**
+   * D-15 focus loss. Held input is always cleared. The pause step runs only
+   * when the stored toggle is on (the default); with it off the simulation
+   * keeps running. The game-loop frame-delta clamp bounds the catch-up after a
+   * stalled hidden tab, so no loop reset is needed here.
+   */
+  function focusLost(): void {
+    if (settings === undefined || settings.pauseOnFocusLoss) {
+      pause();
+      return;
+    }
+    input?.clearAll();
+  }
+
   function resume(): void {
     if (!paused) return;
     // QUAL-05 (D-15): no resume without a context. P, Escape and the Resume
@@ -1470,8 +1490,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     controlsPanel?.show();
   }
 
+  /** Push the stored focus-loss toggle into the checkbox; absent reads as on. */
+  function syncPauseOnFocusLossToggle(): void {
+    settingsPanel?.setPauseOnFocusLoss(settings?.pauseOnFocusLoss ?? true);
+  }
+
   function openSettings(): void {
     controlsPanel?.hide();
+    syncPauseOnFocusLossToggle();
     settingsPanel?.show();
   }
 
@@ -2004,6 +2030,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       settings = fresh;
     }
     launchSeen = false;
+    syncPauseOnFocusLossToggle();
   }
 
   function onSubpanelKeyDown(event: KeyboardEvent): void {
@@ -2824,6 +2851,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       onReset: () => {
         resetAllSettings();
       },
+      onPauseOnFocusLossChange: (enabled) => {
+        if (settings === undefined) return;
+        settings.pauseOnFocusLoss = enabled;
+        persistSettings();
+      },
     });
 
     // The hook exists only when explicitly asked for with exactly `?test=1`,
@@ -2979,6 +3011,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     clearInput: () => {
       input?.clearAll();
     },
+    focusLost,
     dispose,
   };
 }
