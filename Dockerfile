@@ -42,3 +42,18 @@ FROM ci AS dev
 # here; compose.yaml keeps building `target: ci` for every service. This CMD is
 # the fallback for running the image with no mount.
 CMD ["npm", "run", "dev"]
+
+FROM ci AS cross
+# D-09: Firefox for the e2e-cross service only. The `ci` image that every other
+# service uses stays Chromium-only, and `verify` never runs this stage. The same
+# root-and-sandbox posture as T-01-02 applies: Firefox runs as root in this
+# container and loads only the repository's own localhost preview.
+#
+# Owner decision firefox-xvfb (07-04): headless Firefox has no WebGL2 context in
+# this container, so the project runs headed under xvfb-run. xvfb supplies the
+# display and xauth is the cookie helper xvfb-run requires. Both are installed
+# here, at image-build time, so no test downloads a browser or a display helper.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends xvfb xauth \
+ && npx playwright install --with-deps firefox \
+ && rm -rf /var/lib/apt/lists/*

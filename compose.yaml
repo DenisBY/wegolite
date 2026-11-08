@@ -53,6 +53,23 @@ services:
     # calls `npm run test:e2e` directly instead of rebuilding.
     command: ["sh", "-lc", "npm run build && npm run test:e2e"]
 
+  # D-09: the Firefox gate. Deliberately NOT part of `verify`, which stays
+  # Chromium-only. It builds the `cross` stage (FROM ci, plus Firefox and xvfb),
+  # so the image every other service uses is unchanged. It publishes no port.
+  e2e-cross:
+    <<: *workspace
+    build:
+      context: .
+      target: cross
+    image: wegolite-cross
+    ipc: host
+    # Firefox renders more slowly than Chromium here (07-04 cadence: Chromium
+    # 5.33 fps, Firefox xvfb 11.72 fps). The ratio rounds up to 1, so the waits
+    # keep their default length.
+    environment:
+      WEGOLITE_E2E_WAIT_SCALE: "1"
+    command: ["sh", "-lc", "npm run build && npm run test:e2e:cross"]
+
   lint:
     <<: *workspace
     command: ["npm", "run", "lint"]

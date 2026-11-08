@@ -12,16 +12,30 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"]],
   use: {
-    // Spread the device descriptor first: it carries its own `viewport`, and a
-    // later explicit key would be flagged as overwritten (TS2783). The Desktop
-    // Chrome viewport is already 1280x720, which is the size every assertion in
-    // tests/e2e was written against.
-    ...devices["Desktop Chrome"],
     baseURL: "http://127.0.0.1:4173",
     // D-08 forbids pixel diffing, so no traces or screenshots.
     trace: "off",
     screenshot: "off",
   },
+  projects: [
+    {
+      // The device descriptor sets its own `viewport`, and a later explicit key
+      // would be flagged as overwritten (TS2783), so it is spread first. Desktop
+      // Chrome and Desktop Firefox are both 1280x720, the size every assertion
+      // in tests/e2e was written against.
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      // Firefox runs headed (firefox-xvfb, the 07-04 owner decision): headless
+      // Firefox has no WebGL2 context in this container. `npm run test:e2e:cross`
+      // wraps the run in xvfb-run, which supplies the display. Only the engine
+      // smoke and the core-loop journey run here.
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"], headless: false },
+      testMatch: /(engine|core-loop)\.spec\.ts$/,
+    },
+  ],
   webServer: [
     {
       // `vite preview` serves dist/, so the caller must build first (`npm run build`
