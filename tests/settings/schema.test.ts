@@ -92,6 +92,10 @@ describe("defaults", () => {
   it("creates a null-prototype binding map", () => {
     expect(Object.getPrototypeOf(defaults().bindings)).toBeNull();
   });
+
+  it("turns the focus-loss pause on", () => {
+    expect(defaults().pauseOnFocusLoss).toBe(true);
+  });
 });
 
 describe("validateSettings", () => {
@@ -201,6 +205,39 @@ describe("validateSettings", () => {
     expect(settingsProblem(blob)).toContain("boolean");
   });
 
+  it("reads a blob without pauseOnFocusLoss as the toggle on", () => {
+    const blob = validBlob();
+    expect(blob).not.toHaveProperty("pauseOnFocusLoss");
+
+    const settings = validateSettings(blob);
+    expect(settings?.pauseOnFocusLoss).toBe(true);
+  });
+
+  it("keeps an explicit false for pauseOnFocusLoss", () => {
+    const blob = validBlob();
+    blob.pauseOnFocusLoss = false;
+
+    expect(validateSettings(blob)?.pauseOnFocusLoss).toBe(false);
+    expect(settingsProblem(blob)).toBeNull();
+  });
+
+  it("rejects a string pauseOnFocusLoss and names the field", () => {
+    const blob = validBlob();
+    blob.pauseOnFocusLoss = "false";
+
+    expect(validateSettings(blob)).toBeNull();
+    expect(settingsProblem(blob)).toContain("settings.pauseOnFocusLoss");
+    expect(settingsProblem(blob)).toContain("expected a boolean");
+  });
+
+  it("rejects a null pauseOnFocusLoss the way launchSeen rejects null", () => {
+    const blob = validBlob();
+    blob.pauseOnFocusLoss = null;
+
+    expect(validateSettings(blob)).toBeNull();
+    expect(settingsProblem(blob)).toContain("settings.pauseOnFocusLoss");
+  });
+
   it("rejects a version other than 1 and names the expected value", () => {
     const blob = validBlob();
     blob.version = 2;
@@ -217,6 +254,7 @@ describe("mergeDefaults", () => {
       bindings: { rollRight: [], speedUp: ["KeyI"] },
       hintsSeen: ["speed"],
       launchSeen: false,
+      pauseOnFocusLoss: true,
     });
 
     expect(merged.bindings.rollRight).toEqual([]);
@@ -274,6 +312,37 @@ describe("loadSettings", () => {
     warn.mockRestore();
   });
 
+  it("keeps pauseOnFocusLoss false across save and load", () => {
+    const storage = new FakeStorage();
+    saveSettings({ ...defaults(), pauseOnFocusLoss: false }, storage);
+
+    const parsed = JSON.parse(storage.getItem(SETTINGS_KEY) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    expect(parsed.version).toBe(1);
+    expect(parsed.pauseOnFocusLoss).toBe(false);
+    expect(loadSettings(storage).pauseOnFocusLoss).toBe(false);
+  });
+
+  it("loads a blob with no pauseOnFocusLoss key with the toggle on", () => {
+    const storage = new FakeStorage();
+    storage.setItem(SETTINGS_KEY, JSON.stringify(validBlob()));
+
+    expect(loadSettings(storage).pauseOnFocusLoss).toBe(true);
+  });
+
+  it("backs up a blob with a non-boolean pauseOnFocusLoss and uses defaults", () => {
+    const storage = new FakeStorage();
+    const raw = JSON.stringify({ ...validBlob(), pauseOnFocusLoss: 0 });
+    storage.setItem(SETTINGS_KEY, raw);
+
+    const settings = loadSettings(storage);
+
+    expect(settings.pauseOnFocusLoss).toBe(true);
+    expect(storage.getItem(SETTINGS_CORRUPT_KEY)).toBe(raw);
+  });
+
   it("returns defaults when getItem throws", () => {
     const storage = new FakeStorage();
     storage.failGet = true;
@@ -304,6 +373,7 @@ describe("saveSettings and resetSettings", () => {
       "bindings",
       "hintsSeen",
       "launchSeen",
+      "pauseOnFocusLoss",
       "version",
     ]);
     expect(parsed.version).toBe(1);

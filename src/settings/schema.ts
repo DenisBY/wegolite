@@ -5,7 +5,7 @@
  * The versioned settings schema (D-12, D-13, T-3-13, Pitfall 16).
  *
  * `localStorage` is attacker-controlled in a browser. This module is the one
- * validator: it accepts exactly four top-level keys, exactly the allowlisted
+ * validator: it accepts exactly five top-level keys, exactly the allowlisted
  * action and hint IDs, capped arrays and non-empty strings, and it builds fresh
  * null-prototype maps rather than merging parsed JSON into an object.
  *
@@ -52,6 +52,11 @@ export interface SettingsV1 {
   bindings: Partial<Record<ActionId, string[]>>;
   hintsSeen: HintId[];
   launchSeen: boolean;
+  /**
+   * D-15 focus-loss pause. Absent in blobs written before this field existed,
+   * where it reads as `true`; a stored value must be a boolean.
+   */
+  pauseOnFocusLoss: boolean;
 }
 
 type ParseResult =
@@ -77,6 +82,7 @@ function parseSettings(value: unknown): ParseResult {
     "bindings",
     "hintsSeen",
     "launchSeen",
+    "pauseOnFocusLoss",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedTopLevel.has(key)) {
@@ -151,6 +157,17 @@ function parseSettings(value: unknown): ParseResult {
     return fail("settings.launchSeen: expected a boolean");
   }
 
+  // A blob that predates the field has no key: the toggle defaults to on. The
+  // strict `=== undefined` test rejects a stored null the same way launchSeen
+  // rejects one.
+  let pauseOnFocusLoss = true;
+  if (value.pauseOnFocusLoss !== undefined) {
+    if (typeof value.pauseOnFocusLoss !== "boolean") {
+      return fail("settings.pauseOnFocusLoss: expected a boolean");
+    }
+    pauseOnFocusLoss = value.pauseOnFocusLoss;
+  }
+
   return {
     ok: true,
     settings: {
@@ -158,6 +175,7 @@ function parseSettings(value: unknown): ParseResult {
       bindings,
       hintsSeen,
       launchSeen: value.launchSeen,
+      pauseOnFocusLoss,
     },
   };
 }
@@ -185,6 +203,7 @@ export function defaults(): SettingsV1 {
     bindings: createBindingMap(),
     hintsSeen: [],
     launchSeen: false,
+    pauseOnFocusLoss: true,
   };
 }
 
@@ -198,6 +217,7 @@ export function mergeDefaults(settings: SettingsV1): SettingsV1 {
     bindings: createBindingMap(settings.bindings),
     hintsSeen: [...settings.hintsSeen],
     launchSeen: settings.launchSeen,
+    pauseOnFocusLoss: settings.pauseOnFocusLoss,
   };
 }
 

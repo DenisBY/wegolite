@@ -87,6 +87,7 @@ export function saveSettings(
     bindings: normalized.bindings,
     hintsSeen: normalized.hintsSeen,
     launchSeen: normalized.launchSeen,
+    pauseOnFocusLoss: normalized.pauseOnFocusLoss,
   };
   try {
     storage.setItem(SETTINGS_KEY, JSON.stringify(blob));
