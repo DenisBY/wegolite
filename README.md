@@ -15,6 +15,83 @@ configuration files remain CC BY-NC-SA 3.0 (attribution required, non-commercial
 only, share-alike). See [`NOTICE`](./NOTICE), [`LICENSE`](./LICENSE) and
 [`ASSETS.md`](./ASSETS.md).
 
+## Controls
+
+The tables show the default keys, spelled the way the game labels them. The
+pause menu's Controls panel rebinds any of them; a rebind replaces the default
+for that action.
+
+**Flight**
+
+| Action           | Keys                     |
+| ---------------- | ------------------------ |
+| Pitch forward    | `Up arrow`               |
+| Pitch back       | `Down arrow`             |
+| Roll left        | `Left arrow`             |
+| Roll right       | `Right arrow`            |
+| Increase speed   | `W`                      |
+| Decrease speed   | `S`                      |
+| Torus drive      | `J`                      |
+| Launch           | `1 / F1`                 |
+| Docking computer | `Shift+C`                |
+| Target station   | `R`                      |
+| Cycle compass    | `\`                      |
+| Precision        | `Left Ctrl / Right Ctrl` |
+| Hyperspace       | `H`                      |
+
+**Galactic chart**
+
+| Action         | Keys          |
+| -------------- | ------------- |
+| Galactic chart | `F6`          |
+| Chart up       | `Up arrow`    |
+| Chart down     | `Down arrow`  |
+| Chart left     | `Left arrow`  |
+| Chart right    | `Right arrow` |
+| Chart commit   | `Enter`       |
+| Chart range    | `Tab`         |
+| Chart close    | `Esc`         |
+
+**Docked station**
+
+| Action        | Keys                |
+| ------------- | ------------------- |
+| Market        | `F8 / 8`            |
+| Outfitting    | `F3 / 3`            |
+| Status        | `F5 / 5`            |
+| System data   | `F7 / 7`            |
+| Back          | `Esc / Backspace`   |
+| Up            | `Up arrow`          |
+| Down          | `Down arrow`        |
+| Left          | `Left arrow`        |
+| Right         | `Right arrow`       |
+| Confirm       | `Enter / Y`         |
+| Cancel        | `N`                 |
+| Next page     | `Tab / PageDown`    |
+| Previous page | `PageUp`            |
+| Sell maximum  | `Shift+Left arrow`  |
+| Buy maximum   | `Shift+Right arrow` |
+
+**Save and load**
+
+| Action             | Keys         |
+| ------------------ | ------------ |
+| Save / load        | `F2`         |
+| Save/load up       | `Up arrow`   |
+| Save/load down     | `Down arrow` |
+| Save               | `S`          |
+| Load               | `L`          |
+| Return             | `Esc`        |
+| Save/load activate | `Enter`      |
+| Save/load confirm  | `Y`          |
+| Save/load cancel   | `N`          |
+
+**Anywhere**
+
+| Action | Keys      |
+| ------ | --------- |
+| Pause  | `P / Esc` |
+
 ## Commands
 
 These are the same commands `AGENTS.md` documents; the service names are the
