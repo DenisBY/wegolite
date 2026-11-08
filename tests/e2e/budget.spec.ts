@@ -21,6 +21,9 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+import { systemByName } from "./helpers/chart.js";
+import { dockedSaveAt } from "./helpers/save-fixtures.js";
+import { writeRaw } from "./helpers/save-store.js";
 import { getProbe, press, waitForReady } from "./helpers/probe.js";
 import { startNewGame } from "./helpers/title.js";
 
@@ -32,6 +35,16 @@ const DRAW_CALL_BUDGET = 50;
 const TRIANGLE_BUDGET = 250_000;
 /** Rendered frames to wait for after a scene is reached, so counters settle. */
 const SETTLE_FRAMES = 3;
+/** The Diso system, reached through an IndexedDB save fixture. */
+const DISO_ID = systemByName("Diso").id;
+/** One MiB, the rounding unit of the first-load ceiling. */
+const MIB = 1_048_576;
+/**
+ * Regression ceiling for the cold-start transfer to the first in-flight frame
+ * (T-07-14, D-14). The measured baseline was 20 996 848 bytes (20.03 MiB) on
+ * 2026-11-08, rounded up to the next MiB.
+ */
+const FIRST_LOAD_BYTES_CEILING = 21 * MIB;
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -113,4 +126,55 @@ test("Lave docked, launching and in-flight scenes stay within the draw-call and 
   await waitForMode(page, "inFlight");
   await expectWithinBudget(page, "lave-in-flight", "inFlight");
   expect(errors).toEqual([]);
+});
+
+test("a second system's docked and in-flight scenes stay within the budget", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await page.goto("/");
+  await waitForReady(page);
+  await writeRaw(page, dockedSaveAt("Diso"));
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+  await page.click("#title-continue");
+  await waitForMode(page, "docked");
+  expect((await getProbe(page)).systemId).toBe(DISO_ID);
+  await expectWithinBudget(page, "diso-docked", "docked");
+  await press(page, "Digit1");
+  await waitForMode(page, "inFlight");
+  expect((await getProbe(page)).systemId).toBe(DISO_ID);
+  await expectWithinBudget(page, "diso-in-flight", "inFlight");
+  expect(errors).toEqual([]);
+});
+
+test("a cold start to the first in-flight frame stays under the first-load bytes ceiling", async ({
+  page,
+  baseURL,
+}) => {
+  const origin = new URL(baseURL ?? "http://127.0.0.1:4173").origin;
+  const transferred: Promise<number>[] = [];
+  page.on("requestfinished", (request) => {
+    if (new URL(request.url()).origin !== origin) return;
+    transferred.push(request.sizes().then((sizes) => sizes.responseBodySize));
+  });
+  await page.goto("/");
+  await waitForReady(page);
+  await startNewGame(page);
+  await waitForMode(page, "docked");
+  await press(page, "Digit1");
+  await waitForMode(page, "inFlight");
+  const total = (await Promise.all(transferred)).reduce(
+    (sum, bytes) => sum + bytes,
+    0,
+  );
+  test.info().annotations.push({
+    type: "first-load-bytes",
+    description: `${total} bytes (ceiling ${FIRST_LOAD_BYTES_CEILING})`,
+  });
+  expect(total, "first-load bytes").toBeGreaterThan(0);
+  expect(total, "first-load bytes ceiling").toBeLessThanOrEqual(
+    FIRST_LOAD_BYTES_CEILING,
+  );
 });
