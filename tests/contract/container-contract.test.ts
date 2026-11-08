@@ -283,7 +283,7 @@ describe("FOUND-03 container-only verification", () => {
     expect(blocks.e2e).toContain("npm run build");
     expect(blocks.e2e).toContain("npm run test:e2e");
 
-    expect(script(manifest, "test")).toBe("vitest run");
+    expect(script(manifest, "test")).toBe("vitest run --coverage");
     expect(script(manifest, "lint")).toBe("eslint . && prettier --check .");
     expect(script(manifest, "typecheck")).toBe(
       "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.sim.json --noEmit",
