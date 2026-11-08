@@ -4,16 +4,16 @@ current_phase: 7
 current_phase_name: Hardening & Community Release
 current_plan: 5
 status: executing
-stopped_at: Completed 07-04-PLAN.md
-last_updated: "2026-11-08T08:13:53.585Z"
+stopped_at: Completed 07-06-PLAN.md
+last_updated: "2026-11-08T08:27:08.621Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 complete, transitioned to Phase 7
-state_head: 70ff7824a5c2c83067fa650a05335bec64505b5d
+state_head: b91327e94163d5fb42564d2cea110a424f946e55
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 73
-  completed_plans: 65
+  completed_plans: 66
   percent: 86
 ---
 
@@ -101,6 +101,7 @@ Progress: [█████████░] 86% — 62/73 plans complete
 | Phase 7 P02 | ~20 min | 3 tasks | 8 files |
 | Phase 7 P3 | ~10 min | 2 tasks | 8 files |
 | Phase 7 P4 | 60min | 3 tasks | 3 files |
+| Phase 07 P06 | unknown | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -234,6 +235,8 @@ Recent decisions affecting current work:
 - [Phase 7]: Engine smoke asserts WebGL2, ready probe, advancing docked frames and a clean console on Chromium; renderer and cadence recorded as annotations (QUAL-02)
 - [Phase 7]: Owner chose firefox-xvfb for e2e-cross: headless Firefox has no WebGL2 in the container, xvfb-headed Firefox is green (11.72 fps, llvmpipe); no Dockerfile or compose change in 07-04
 - [Phase 7]: WebKit is recorded as webkit (Playwright) engine evidence only, never Safari evidence (D-07)
+- [Phase 07]: QUAL-06 FIDELITY.md: 26 mechanics mapped to pinned Oolite 7437f22 with verbatim excerpts; 9 divergences each quote a PROJECT.md Key Decisions row checked by the contract test
+- [Phase 07]: Planet row (E-26) covers PlanetMix thresholds only; the planet noise budget has no Key Decisions row and is an open item in FIDELITY.md
 
 ### Pending Todos
 
@@ -269,6 +272,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T08:13:52.738Z
-Stopped at: Completed 07-04-PLAN.md
+Last session: 2026-11-08T08:27:07.796Z
+Stopped at: Completed 07-06-PLAN.md
 Resume file: None
