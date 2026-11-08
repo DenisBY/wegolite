@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 current_phase: 7
 current_phase_name: Hardening & Community Release
-current_plan: 6
+current_plan: 7
 status: executing
-stopped_at: Completed 07-08-PLAN.md
-last_updated: "2026-11-08T09:17:34.084Z"
+stopped_at: Completed 07-12-PLAN.md
+last_updated: "2026-11-08T09:34:21.578Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 6 complete, transitioned to Phase 7
-state_head: 708b1de96c8e0611a52e394e8aa98fcdc00e268c
+state_head: c9ed37afc738f816eff13e5309c79f44861790bc
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 73
-  completed_plans: 67
+  completed_plans: 68
   percent: 86
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-06)
 ## Current Position
 
 Phase: 7 (Hardening & Community Release) — EXECUTING
-Current Plan: 6
+Current Plan: 7
 Total Plans in Phase: 12
 Status: Ready to execute
 Last activity: 2026-11-07 — Completed 07-01 (licence shipping, release title, enforced CSP)
@@ -103,6 +103,7 @@ Progress: [█████████░] 86% — 62/73 plans complete
 | Phase 7 P4 | 60min | 3 tasks | 3 files |
 | Phase 07 P06 | unknown | 2 tasks | 3 files |
 | Phase 07 P08 | unknown | 3 tasks | 2 files |
+| Phase 7 P12 | unknown | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -241,6 +242,8 @@ Recent decisions affecting current work:
 - [Phase 07]: Core-loop journey keeps D-21: no in-page test hook, each save step waits for a committed revision, and the dock fixture is the game's own arrival blob rewritten at the Diso dock mouth
 - [Phase 07]: Chromium GL driver ReadPixels stall is allowlisted by one exact pattern: browser-emitted, carries no Wegolite or THREE text, and no readPixels call exists under src/ or tests/e2e/
 - [Phase 07]: Journey compares cargo and market exactly with no normalisation: zero-quantity cargo keys are absent on both the live state and the save
+- [Phase 7]: Owner approved @vitest/coverage-v8@5.0.5 conditionally; the executor verified the registry metadata in the container (repository, peers, eight dependencies, integrity) before installing
+- [Phase 7]: Coverage thresholds are the floor of one unthresholded measured baseline (2026-11-08) per glob; idb-store.ts stays excluded (D-20) and fake-indexeddb is not installed
 
 ### Pending Todos
 
@@ -276,6 +279,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-08T09:17:33.276Z
-Stopped at: Completed 07-08-PLAN.md
+Last session: 2026-11-08T09:34:20.750Z
+Stopped at: Completed 07-12-PLAN.md
 Resume file: None
