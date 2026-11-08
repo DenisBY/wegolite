@@ -131,7 +131,7 @@ Cold-start Load time, cache disabled: not supplied by the owner, who skipped thi
 
 ### Results
 
-Status: measured 2026-11-08 on the machine below; criterion confirmed by the owner; first-load time not supplied (owner skipped).
+Status: manual reference-desktop run deferred by the owner on 2026-11-08 to a later phase; results recorded above are partial; QUAL-01 is not evidenced in this phase.
 
 | Scenario           | Browser | Count | p50 (ms) | p95 (ms) | p99 (ms) | max (ms) | Share above 16.7 ms | Share above 33.3 ms | Pass |
 | ------------------ | ------- | ----- | -------- | -------- | -------- | -------- | ------------------- | ------------------- | ---- |
