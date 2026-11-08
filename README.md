@@ -15,6 +15,21 @@ configuration files remain CC BY-NC-SA 3.0 (attribution required, non-commercial
 only, share-alike). See [`NOTICE`](./NOTICE), [`LICENSE`](./LICENSE) and
 [`ASSETS.md`](./ASSETS.md).
 
+## Play
+
+Release: **Wegolite 0.1.0**. The version is read from `package.json`, and the
+release title is derived from it, so the two cannot drift apart.
+
+Build the production bundle and serve it:
+
+```sh
+docker compose up preview
+```
+
+then open <http://localhost:4173>. For development with hot reload, run
+`docker compose up app` and open <http://localhost:5173> instead. Saves stay in
+your browser's IndexedDB; they are not uploaded anywhere.
+
 ## Controls
 
 The tables show the default keys, spelled the way the game labels them. The
@@ -92,6 +107,17 @@ for that action.
 | ------ | --------- |
 | Pause  | `P / Esc` |
 
+## Supported browsers
+
+Wegolite supports two desktop browsers: current stable Chrome and current stable Firefox. Both need WebGL2, so hardware acceleration must be enabled.
+
+Two commands check the release. `docker compose run --rm verify` runs the full
+suite on Chromium. `docker compose run --rm e2e-cross` runs the core loop on
+Firefox under a virtual display. Real-GPU frame rate is measured by the protocol
+in [`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md), never inside Docker.
+
+No other browser is tested for this release.
+
 ## Commands
 
 These are the same commands `AGENTS.md` documents; the service names are the
@@ -111,6 +137,33 @@ contract.
 | Typecheck                        | `docker compose run --rm typecheck`                   |
 | Rebuild after dependency changes | `docker compose build --no-cache`                     |
 | Stop and clean up                | `docker compose down --volumes --remove-orphans`      |
+
+## Fidelity
+
+[`FIDELITY.md`](./FIDELITY.md) maps each ported mechanic to the Oolite source
+that defines it, at the pinned commit `7437f22`. It also lists every recorded
+divergence, and each divergence names its row in the PROJECT.md Key Decisions
+table.
+
+## Performance
+
+[`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md) holds the frame budget and the
+measurement protocol. Each rendered frame may use at most 50 draw calls and at
+most 250 000 triangles, and the planet may spend at most 9 noise evaluations.
+The container checks the first two on SwiftShader. Frame rate is judged only on a
+real GPU, by the protocol in that document.
+
+## Troubleshooting
+
+- **WebGL2 is unavailable.** Wegolite needs WebGL2. When the browser does not
+  provide it, the page shows a plain message in place of the game. Enable
+  hardware acceleration in the browser, then reload the page.
+- **The graphics context is lost.** The game pauses at once. When the browser
+  restores the graphics, the pause overlay says so; press P or Esc to resume.
+  If no restore arrives within 10 seconds, the page asks you to reload
+  Wegolite. Your last save is unchanged.
+- **A hidden tab pauses the game.** Switching to another tab pauses Wegolite.
+  Return to the tab and press P or Esc to carry on.
 
 ## Content pipeline
 
@@ -170,3 +223,18 @@ browser never parses a plist and never downloads the snapshot.
   specs under `tests/e2e/`.
 - `third_party/oolite/` — the pinned Oolite snapshot; `public/` holds the
   compiled GLB models and textures served by URL.
+
+## Licence and source
+
+Wegolite's own source code is licensed under GPL-2.0-or-later; the unmodified
+licence text is in [`LICENSE`](./LICENSE). Oolite-derived artwork and
+configuration files are licensed under CC BY-NC-SA 3.0: attribution is required,
+use is non-commercial only, and derivatives must be shared alike. Every such file
+has a row in [`ASSETS.md`](./ASSETS.md), and [`NOTICE`](./NOTICE) gives the
+attribution.
+
+The built site ships `NOTICE`, `LICENSE` and `ASSETS.md`, and its footer links
+all three.
+
+The complete corresponding source for every distributed build is at
+https://github.com/DenisBY/wegolite.

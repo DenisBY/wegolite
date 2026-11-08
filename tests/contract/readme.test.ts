@@ -15,11 +15,12 @@
  * a check that fails when the claim or its source drifts (T-07-27).
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { CONTEXT_RESTORE_TIMEOUT_MS } from "../../src/app/context-recovery.js";
 import type { ActionId } from "../../src/input/actions.js";
 import {
   ACTION_IDS,
@@ -37,6 +38,11 @@ const MIN_CONTROL_ROWS = 30;
 
 function read(relativePath: string): string {
   return readFileSync(join(REPO_ROOT, relativePath), "utf8");
+}
+
+function readVersion(): string {
+  const manifest = JSON.parse(read("package.json")) as { version: string };
+  return manifest.version;
 }
 
 /** The body of a `## ` section: from its heading to the next `## ` heading. */
@@ -155,5 +161,89 @@ describe("QUAL-06 Controls table is derived from the bindings", () => {
     expect(keysByLabel.get(ACTION_LABELS.stationBuyMax)).toBe(
       "Shift+Right arrow",
     );
+  });
+});
+
+describe("QUAL-06 README sections", () => {
+  const readme = read("README.md");
+  const headings = [
+    "Play",
+    "Supported browsers",
+    "Controls",
+    "Fidelity",
+    "Performance",
+    "Troubleshooting",
+    "Licence and source",
+  ];
+
+  it.each(headings)("has the ## %s heading exactly once", (heading) => {
+    const count = readme
+      .split("\n")
+      .filter((line) => line === `## ${heading}`).length;
+    expect(count).toBe(1);
+  });
+
+  it("states the release title taken from package.json", () => {
+    expect(readme).toContain(`Wegolite ${readVersion()}`);
+  });
+
+  it("names the Play commands and the two local URLs", () => {
+    const body = section(readme, "Play");
+    expect(body).toContain("docker compose up preview");
+    expect(body).toContain("http://localhost:4173");
+    expect(body).toContain("docker compose up app");
+    expect(body).toContain("http://localhost:5173");
+  });
+
+  it("claims exactly current stable Chrome and Firefox with no version numbers", () => {
+    const body = section(readme, "Supported browsers");
+    expect(body).toContain("current stable Chrome");
+    expect(body).toContain("current stable Firefox");
+    expect(body).not.toMatch(/safari|webkit|macos/i);
+    expect(body).not.toMatch(/(Chrome|Firefox)\s+\d/);
+  });
+
+  it("names the two browser check commands", () => {
+    const body = section(readme, "Supported browsers");
+    expect(body).toContain("docker compose run --rm verify");
+    expect(body).toContain("docker compose run --rm e2e-cross");
+  });
+
+  it("states the WebGL2 requirement and the shipped recovery behaviour", () => {
+    const body = section(readme, "Troubleshooting");
+    expect(body).toContain("WebGL2");
+    expect(body).toMatch(/pauses/);
+    expect(body).toMatch(/P or Esc/);
+    expect(body).toContain(`${CONTEXT_RESTORE_TIMEOUT_MS / 1000} seconds`);
+    expect(body).toMatch(/last save is unchanged/i);
+    expect(body).toMatch(/hidden/);
+  });
+
+  it("links FIDELITY.md and docs/PERFORMANCE.md, and both files exist", () => {
+    expect(readme).toContain("](./FIDELITY.md)");
+    expect(readme).toContain("](./docs/PERFORMANCE.md)");
+    expect(existsSync(join(REPO_ROOT, "FIDELITY.md"))).toBe(true);
+    expect(existsSync(join(REPO_ROOT, "docs", "PERFORMANCE.md"))).toBe(true);
+  });
+
+  it("states the frame budget numbers the performance document defines", () => {
+    const body = section(readme, "Performance");
+    expect(body).toContain("50 draw calls");
+    expect(body).toContain("250 000 triangles");
+    expect(body).toContain("9");
+  });
+
+  it("names the Firefox command and the source URL", () => {
+    expect(readme).toContain("docker compose run --rm e2e-cross");
+    expect(readme).toContain("https://github.com/DenisBY/wegolite");
+  });
+
+  it("names NOTICE, LICENSE and ASSETS.md and says the site links them", () => {
+    const body = section(readme, "Licence and source");
+    expect(body).toContain("NOTICE");
+    expect(body).toContain("LICENSE");
+    expect(body).toContain("ASSETS.md");
+    expect(body).toMatch(/footer/);
+    expect(body).toContain("https://github.com/DenisBY/wegolite");
   });
 });
