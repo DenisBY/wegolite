@@ -16,7 +16,7 @@
     "lint": "eslint . && prettier --check .",
     "test": "vitest run --coverage",
     "test:e2e": "playwright test --project=chromium",
-    "test:e2e:cross": "xvfb-run -a playwright test --project=firefox"
+    "test:e2e:cross": "xvfb-run -a playwright test --project=firefox --workers=1"
   },
   "dependencies": {
     "three": "0.187.0",

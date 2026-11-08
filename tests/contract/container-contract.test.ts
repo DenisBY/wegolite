@@ -317,7 +317,7 @@ describe("FOUND-03 container-only verification", () => {
       "playwright test --project=chromium",
     );
     expect(script(manifest, "test:e2e:cross")).toBe(
-      "xvfb-run -a playwright test --project=firefox",
+      "xvfb-run -a playwright test --project=firefox --workers=1",
     );
   });
 

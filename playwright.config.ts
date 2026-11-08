@@ -29,8 +29,10 @@ export default defineConfig({
     {
       // Firefox runs headed (firefox-xvfb, the 07-04 owner decision): headless
       // Firefox has no WebGL2 context in this container. `npm run test:e2e:cross`
-      // wraps the run in xvfb-run, which supplies the display. Only the engine
-      // smoke and the core-loop journey run here.
+      // wraps the run in xvfb-run, which supplies the display, and passes
+      // --workers=1: two headed Firefox windows on one display starve the engine
+      // smoke's frame sampling (0 renders in 5 s), while each passes alone. Only
+      // the engine smoke and the core-loop journey run here.
       name: "firefox",
       use: { ...devices["Desktop Firefox"], headless: false },
       testMatch: /(engine|core-loop)\.spec\.ts$/,
