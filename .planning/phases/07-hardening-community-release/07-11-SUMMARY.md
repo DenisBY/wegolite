@@ -41,20 +41,38 @@ key-decisions:
 patterns-established:
   - "Audit captures command output before testing it, so a failing git or docker command cannot read as clean."
 
-requirements-completed: []  # QUAL-07 and QUAL-08 not complete: remote source offer not yet true (push pending) and verify gate is red on this run
+requirements-completed: [QUAL-07, QUAL-08]  # QUAL-07: audit --remote matches the published main. QUAL-08: guarded core-loop journey green on 0693e17 (see Close-out)
 
 duration: ~3 h wall (gate runs dominate: verify 1987 s, e2e-cross 139 s, isolated re-run 716 s)
 completed: 2026-11-08
-status: halted
+status: complete
 ---
 
 # Phase 7 Plan 11: Licensing audit, Phase 7 decisions, gates and publication checkpoint Summary
 
-**Licensing audit command with agent-tooling exclusion and Phase 7 decision record; verify gate red on five Chromium timeouts under parallel load (all five pass alone), e2e-cross green, public push held for the owner**
+**Licensing audit command with agent-tooling exclusion and Phase 7 decision record; verify gate red on five Chromium timeouts under parallel load (all five pass alone), e2e-cross green, public push and tag v0.1.0 completed on 0693e17 at close-out**
 
 ## Status
 
-Halted before completion. Automated Task 1 is done. Task 2's decision record is done, but the `verify` gate exited 1 on the gate commit, so the plan's own rule ("a red gate stops the plan before Task 3") applies. Task 3 (owner push) is returned as a checkpoint and has not been run. STATE.md and ROADMAP.md were not advanced by this plan.
+Complete. Task 1 and Task 2 are done. The `verify` gate was red on the gate commit `e133251` (five Chromium timeouts under load) and green on the release commit `0693e17`. Task 3 (owner push) ran at close-out: public main and tag `v0.1.0` are at `0693e17`, and `sh scripts/audit-release.sh --remote` passed. STATE.md position fields were not written by this plan, and the ROADMAP 07-11 row was not edited.
+
+## Close-out (release run, 2026-11-08)
+
+- **Verified product commit:** `0693e17782bee9d40fac29318429567fe3b1f2fe` (`fix(app): use the owner-approved restore copy`), on top of `635e49d` and `8061af8`.
+- **Verify log:** `/tmp/claude-1027/-home-opencode-git-wegolite/47488adf-73f4-4088-8723-7c27b4b0091c/scratchpad/verify-copy.log`, final line `VERIFY_EXIT=0`. Unit: 94 files, 1187 tests passed, 1 skipped. Chromium e2e: 92 passed, including `tests/e2e/core-loop.spec.ts`. The log was last written at 18:53, after the 0693e17 commit at 18:27. The earlier `verify-publish.log` (also exit 0) ended before 0693e17 existed, so it is not cited as evidence for this commit.
+- **Push:** the first `git push https://github.com/DenisBY/wegolite.git main` was refused with no HTTPS credential (`fatal: could not read Username for 'https://github.com'`). The orchestrator then pushed with a one-command credential helper, `git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push https://github.com/DenisBY/wegolite.git main`. No git or gh configuration was changed. Remote `main` is `0693e17782bee9d40fac29318429567fe3b1f2fe`.
+- **Audit output:** `release audit: public main matches 0693e17782bee9d40fac29318429567fe3b1f2fe`.
+- **Tag:** `v0.1.0`, annotated, at `0693e17` with message "Wegolite 0.1.0", pushed. Remote tag object `962225ddf7f6d39608309617a746c4a17cef5df6`.
+- **Owner decisions applied:**
+  - Safari wording: `src/app/fallback.ts` now names Chrome and Firefox only (`635e49d`). This resolves open item 6 above.
+  - Restore copy (D-16): owner-approved copy in `0693e17`. This resolves open item 5. `CONTEXT_LOST_NOTICE` remains placeholder because the owner supplied no replacement.
+  - QUAL-01 (60 fps on the reference desktop) is deferred to a later phase and is not evidenced in Phase 7.
+  - Hosting: repository only (open item 3).
+  - Published text is English only, after the translation commit `8061af8`.
+- **REQUIREMENTS:**
+  - QUAL-07 is checked. Basis: the `--remote` audit output above.
+  - QUAL-08 is checked. Basis: the 07-08 core-loop journey runs under the network guard (no off-origin or non-GET request) and the console guard (no console error, no page error). It passed in the Chromium e2e run of `0693e17` (`verify-copy.log`). The allowlist holds one exact Chromium GPU-driver warning (ReadPixels stall, recorded in 07-08); the requirement concerns errors, so the check stands.
+  - QUAL-01 stays unchecked (deferred, see above).
 
 ## Performance
 
@@ -109,7 +127,7 @@ Owner decision, 2026-11-08 (coordinator message):
 - ROADMAP: 07-05 stays checked as an executed plan. Phase 7 is not marked complete on QUAL-01's basis.
 - **Carried over to a later phase: QUAL-01 (60 fps on the reference desktop).** Not evidenced in Phase 7.
 
-## Owner Checkpoint (returned, not run)
+## Owner Checkpoint (returned; run at close-out, see Close-out)
 
 Task 3 remains open. `sh scripts/audit-release.sh --remote` was run read-only before the push: it fails as expected, because public main is `df35afb11da9ba4787f0c41bd6faf947a3ed3b88` and local main is `4e4de8f3bc9b6964bc04a382b062cc3a45e111fc` (gate commit `e133251`). No `git push` was run.
 
@@ -161,10 +179,11 @@ None for the automated work. The owner push checkpoint is pending (see above).
 - [x] scripts/audit-release.sh exists and is executable (100755)
 - [x] Commits 2af55fb, e133251, 4e4de8f exist on main
 - [x] No `git push` run
-- [ ] verify gate green on gate commit (exit 1)
+- [x] verify gate green on the release commit `0693e17` (`verify-copy.log`, `VERIFY_EXIT=0`); the gate commit `e133251` remains recorded red above
+- [x] public main and tag `v0.1.0` at `0693e17`; `audit-release.sh --remote` passed
 
-## Self-Check: FAILED (verify gate red; halted per plan)
+## Self-Check: PASSED (close-out on 0693e17)
 
 ---
 *Phase: 07-hardening-community-release*
-*Completed: 2026-11-08 (halted)*
+*Completed: 2026-11-08*

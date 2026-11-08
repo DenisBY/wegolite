@@ -96,8 +96,8 @@ Requirements for the initial release. Each maps to a roadmap phase.
 - [x] **QUAL-04**: Simulation, economy, hyperspace, and save migrations have unit coverage, alongside golden content tests
 - [x] **QUAL-05**: WebGL context loss and tab throttling recover without corrupting simulation or save state
 - [x] **QUAL-06**: README covers build/run/test, controls, and fidelity notes, and `FIDELITY.md` maps ported mechanics to Oolite sources
-- [ ] **QUAL-07**: A licensing audit confirms NOTICE, ASSETS.md, source offer, and disclaimer ship in the built site
-- [ ] **QUAL-08**: The shipped build makes no runtime network calls and logs no console errors during the core loop
+- [x] **QUAL-07**: A licensing audit confirms NOTICE, ASSETS.md, source offer, and disclaimer ship in the built site
+- [x] **QUAL-08**: The shipped build makes no runtime network calls and logs no console errors during the core loop
 
 ## v2 Requirements
 
@@ -212,8 +212,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | QUAL-04 | Phase 7 | Complete |
 | QUAL-05 | Phase 7 | Complete |
 | QUAL-06 | Phase 7 | Complete |
-| QUAL-07 | Phase 7 | Pending |
-| QUAL-08 | Phase 7 | Pending |
+| QUAL-07 | Phase 7 | Complete |
+| QUAL-08 | Phase 7 | Complete |
 
 **Coverage:**
 - v1 requirements: 68 total
