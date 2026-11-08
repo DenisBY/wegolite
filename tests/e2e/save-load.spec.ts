@@ -306,7 +306,15 @@ test("a manual Save writes the one committed slot and the next Save asks before 
   const firstRevision = first.save?.revision ?? 0;
   expect(firstRevision).toBeGreaterThanOrEqual(1);
   expect(first.save?.lastClock).toBe(clockBefore);
-  expect(first.saveScreen?.notice).toMatch(/^Saved at /);
+  // The notice is set synchronously on commit, but the probe's saveScreen
+  // snapshot refreshes once per frame; wait for the frame that carries it.
+  await page.waitForFunction(
+    () =>
+      (window.__wegolite?.saveScreen?.notice ?? "").startsWith("Saved at "),
+    undefined,
+    { timeout: 30_000 },
+  );
+  expect((await getProbe(page)).saveScreen?.notice).toMatch(/^Saved at /);
   await expect(page.locator('[data-field="save-load-slot"]')).toHaveText(
     `Autosave · Lave · ${formatClock(first.save?.lastClock ?? 0)}`,
   );
