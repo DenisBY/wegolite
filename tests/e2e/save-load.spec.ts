@@ -309,8 +309,7 @@ test("a manual Save writes the one committed slot and the next Save asks before 
   // The notice is set synchronously on commit, but the probe's saveScreen
   // snapshot refreshes once per frame; wait for the frame that carries it.
   await page.waitForFunction(
-    () =>
-      (window.__wegolite?.saveScreen?.notice ?? "").startsWith("Saved at "),
+    () => (window.__wegolite?.saveScreen?.notice ?? "").startsWith("Saved at "),
     undefined,
     { timeout: 30_000 },
   );
