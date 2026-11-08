@@ -18,6 +18,7 @@ import { startNewGame } from "./helpers/title.js";
 interface StoredSettings {
   version: number;
   bindings: Record<string, string[]>;
+  pauseOnFocusLoss?: boolean;
 }
 
 async function startAndLaunch(
@@ -252,6 +253,93 @@ test("blur and visibility hidden auto-pause and clear held input", async ({
     Reflect.deleteProperty(document, "visibilityState");
   });
 
+  expect(errors).toEqual([]);
+});
+
+test("the focus-loss toggle decides whether blur and a hidden tab pause the game", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await startAndLaunch(page);
+
+  // a. The checkbox reflects the default, which is on.
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeVisible();
+  await page.click('#pause button[data-pause-action="settings"]');
+  await expect(page.locator("#settings-panel")).toBeVisible();
+  const toggle = page.locator('[data-settings-toggle="pauseOnFocusLoss"]');
+  await expect(toggle).toBeChecked();
+
+  // b. Switching it off saves to the blob at once.
+  await toggle.uncheck();
+  expect((await storedSettings(page)).pauseOnFocusLoss).toBe(false);
+
+  // c. Back to the pause menu, then resume.
+  await page.click('#settings-panel button[data-settings-action="back"]');
+  await page.click('#pause button[data-pause-action="resume"]');
+  await expect(page.locator("#pause")).toBeHidden();
+
+  // d. Window blur with the toggle off: the clock keeps advancing, no overlay.
+  const beforeBlur = (await getProbe(page)).clock;
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("blur"));
+  });
+  await page.waitForFunction(
+    (before: number) => (window.__wegolite?.clock ?? 0) > before,
+    beforeBlur,
+    { timeout: 15_000 },
+  );
+  await expect(page.locator("#pause")).toBeHidden();
+  expect((await getProbe(page)).paused).toBe(false);
+
+  // e. A hidden tab with the toggle off behaves the same way.
+  const beforeHidden = (await getProbe(page)).clock;
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await page.waitForFunction(
+    (before: number) => (window.__wegolite?.clock ?? 0) > before,
+    beforeHidden,
+    { timeout: 15_000 },
+  );
+  await expect(page.locator("#pause")).toBeHidden();
+  expect((await getProbe(page)).paused).toBe(false);
+  await page.evaluate(() => {
+    Reflect.deleteProperty(document, "visibilityState");
+  });
+
+  // f. A reload keeps the stored value: the checkbox is still off.
+  await page.reload();
+  await startAndLaunch(page);
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeVisible();
+  await page.click('#pause button[data-pause-action="settings"]');
+  await expect(page.locator("#settings-panel")).toBeVisible();
+  await expect(toggle).not.toBeChecked();
+
+  // g. Switch it back on: blur pauses again, the default-on path.
+  await toggle.check();
+  expect((await storedSettings(page)).pauseOnFocusLoss).toBe(true);
+  await page.click('#settings-panel button[data-settings-action="back"]');
+  await page.click('#pause button[data-pause-action="resume"]');
+  await expect(page.locator("#pause")).toBeHidden();
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("blur"));
+  });
+  await expect(page.locator("#pause")).toBeVisible();
+  expect((await getProbe(page)).paused).toBe(true);
+
+  // h. No console or page errors.
   expect(errors).toEqual([]);
 });
 
