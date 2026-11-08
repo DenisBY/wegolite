@@ -102,6 +102,7 @@ If Compose is not yet present (early scaffolding), creating it is part of the fi
 - Rendering, input, and UI are downstream of the simulation through commands and events.
 - Content data is compiled from Oolite configs at build time; do not hand-edit generated data.
 - Record significant decisions in `.planning/PROJECT.md` under Key Decisions.
+- All project documentation is written in English, whatever language the conversation with the user uses: `docs/`, `.planning/`, `README.md`, planning artifacts, SUMMARY/UAT/debug notes, commit messages and PR text. The game UI is exempt, because it may be localised later.
 
 ## Commands quick reference
 
