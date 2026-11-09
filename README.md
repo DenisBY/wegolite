@@ -64,7 +64,7 @@ for that action.
 | Chart left     | `Left arrow`  |
 | Chart right    | `Right arrow` |
 | Chart commit   | `Enter`       |
-| Chart range    | `Tab`         |
+| Chart preset   | `Tab`         |
 | Chart close    | `Esc`         |
 
 **Docked station**

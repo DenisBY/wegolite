@@ -429,10 +429,10 @@
       }
 
       /* The galactic chart is a sibling of the station shell at the station
-         layer, below the pause overlay's z-index: 20. It is a static canvas
-         plot: the shell paints on open/selection/range/resize, never per
-         animation frame. Unreachable markers are dimmed by chart-draw.ts; the
-         only DOM-side marker text is the footer readout below. */
+         layer, below the pause overlay's z-index: 20. It is a canvas plot: the
+         shell paints on open/selection/camera/resize; wheel and drag paints are
+         coalesced with requestAnimationFrame. Unreachable markers are dimmed by
+         chart-draw.ts; the only DOM-side marker text is the footer readout. */
       #chart {
         position: absolute;
         inset: 0;
@@ -449,6 +449,11 @@
         display: block;
         width: 100%;
         min-height: 0;
+        cursor: grab;
+      }
+
+      #chart-canvas.dragging {
+        cursor: grabbing;
       }
 
       #chart .station-footer {
@@ -861,12 +866,6 @@
     <div id="chart" hidden>
       <header class="station-header">
         <span class="station-header-system">Galactic chart</span>
-        <div
-          class="station-subnav"
-          role="group"
-          aria-label="Chart range"
-          data-station-subnav="chart"
-        ></div>
         <span class="station-header-credits" data-field="chart-credits"></span>
       </header>
       <nav

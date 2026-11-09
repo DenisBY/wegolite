@@ -14,8 +14,9 @@
  *
  * Paint order is fixed: clear, graph edges, the fuel circle, the
  * current-to-target line, the markers, then the labels. The chart is a static
- * plot: the shell paints on open, selection, range and resize only, never per
- * animation frame (T-06-10).
+ * plot: the shell paints on open, selection, camera and resize only. Wheel and
+ * drag gestures are coalesced by the shell into one requestAnimationFrame; this
+ * module never schedules a frame itself (T-06-10, D-09).
  */
 
 import type { ChartView } from "./chart-model.js";
@@ -121,8 +122,8 @@ export function drawChart(
   context.textAlign = "left";
   context.textBaseline = "alphabetic";
   for (const marker of view.markers) {
-    // G-5: a selection that a range toggle moved off-window still paints, so the
-    // readout never names a marker the player cannot see.
+    // G-5: a selection that a pan or zoom moved off-viewport still paints, so
+    // the readout never names a marker the player cannot see.
     if (
       !marker.visible &&
       !marker.isCurrent &&
@@ -160,7 +161,8 @@ export function drawChart(
  *
  * False for the same reference, for a structurally equal view, and whenever
  * the next viewport is 0x0. True for a first paint and for any change in the
- * range, current/target/selection, the marker/edge/label set or the viewport.
+ * camera centre or span, current/target/selection, the marker/edge/label set
+ * or the viewport (D-09).
  */
 export function needsChartRepaint(
   previous: ChartView | undefined,
@@ -170,7 +172,10 @@ export function needsChartRepaint(
   if (previous === undefined) return true;
   if (previous === next) return false;
   return (
-    previous.range !== next.range ||
+    previous.centre.x !== next.centre.x ||
+    previous.centre.y !== next.centre.y ||
+    previous.chartSpanX !== next.chartSpanX ||
+    previous.chartSpanY !== next.chartSpanY ||
     previous.currentId !== next.currentId ||
     previous.targetId !== next.targetId ||
     previous.selectedId !== next.selectedId ||

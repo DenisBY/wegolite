@@ -152,10 +152,13 @@ import { formatClock } from "../render/hud/format.js";
 import {
   buildChartView,
   chartArrowVector,
+  clampChartCamera,
+  galaxyPreset,
+  localPreset,
   nearestInDirection,
   visibleSystemIds,
 } from "../ui/chart-model.js";
-import type { ChartArrow, ChartRange, ChartView } from "../ui/chart-model.js";
+import type { ChartArrow, ChartCamera, ChartView } from "../ui/chart-model.js";
 import {
   buildMarketModel,
   buildOutfittingModel,
@@ -400,7 +403,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   // pausing it; the committed target is session state and travels in every save.
   let chart: ChartOverlay | undefined;
   let chartOpen = false;
-  let chartRange: ChartRange = "short";
+  // D-01/D-06: one continuous camera; the local and galaxy views are presets.
+  let chartCamera: ChartCamera = galaxyPreset();
+  let chartPreset: "local" | "galaxy" = "local";
   let chartSelectedId: string | undefined;
   let hyperspaceTargetId: string | undefined;
   let contextBeforeChart: InputContext = "flight";
@@ -848,7 +853,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       overlay: saveScreenOpen ? "saveScreen" : chartOpen ? "chart" : "none",
       screen: stationScreen,
       page: stationPage,
-      range: chartRange,
     };
   }
 
@@ -1702,20 +1706,26 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderStation();
   }
 
-  /** The Short | Long sub-tab of the open chart. */
-  function setChartRange(range: ChartRange): void {
-    if (
-      disposed ||
-      paused ||
-      contextLost ||
-      !chartOpen ||
-      chartRange === range
-    ) {
-      return;
-    }
-    chartRange = range;
+  /** Apply a wheel/drag camera from the chart shell (D-03/D-04/D-09). */
+  function setChartCamera(camera: ChartCamera): void {
+    if (disposed || paused || contextLost || !chartOpen) return;
+    chartCamera = clampChartCamera(camera);
     refreshChart();
-    syncStationNav();
+    updateProbe();
+  }
+
+  /** Tab toggles the local preset and the whole-galaxy preset (D-06/D-07). */
+  function toggleChartPreset(): void {
+    if (disposed || paused || contextLost || !chartOpen) return;
+    if (chartPreset === "local") {
+      chartPreset = "galaxy";
+      chartCamera = galaxyPreset();
+    } else {
+      chartPreset = "local";
+      chartCamera = localPreset(system);
+    }
+    refreshChart();
+    updateProbe();
   }
 
   /** D-09: resolve and install a new system scene; never rebuild the dock port. */
@@ -1759,7 +1769,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       galaxy,
       system.id,
       hyperspaceTargetId,
-      chartRange,
+      chartCamera,
       profile.fuel,
       overlay.viewport(),
       chartSelectedId,
@@ -1789,6 +1799,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     chartOpen = true;
     contextBeforeChart = currentInput.getContext();
     currentInput.setContext("chart");
+    // D-06: every open starts at the local preset around the current system.
+    chartCamera = localPreset(system);
+    chartPreset = "local";
     // The chart nav's hidden state must be final before the first paint
     // measures the canvas.
     syncStationNav();
@@ -1962,10 +1975,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         closeChart();
         break;
       case "chartRange":
-        if (!chartOpen) return;
-        chartRange = chartRange === "short" ? "long" : "short";
-        refreshChart();
-        syncStationNav();
+        toggleChartPreset();
         break;
       case "chartConfirm":
         // A click only selects (D-02): Enter is the commit.
@@ -2369,7 +2379,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     probe.systemId = system.id;
     probe.chart = {
       open: chartOpen,
-      range: chartRange,
+      camera: {
+        centre: { x: chartCamera.centre.x, y: chartCamera.centre.y },
+        spanX: chartCamera.spanX,
+        spanY: 2 * chartCamera.spanX,
+      },
       ...(hyperspaceTargetId === undefined
         ? {}
         : { targetId: hyperspaceTargetId }),
@@ -2929,7 +2943,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         galaxy,
         system.id,
         hyperspaceTargetId,
-        chartRange,
+        chartCamera,
         profile.fuel,
         viewport,
         chartSelectedId,
@@ -2937,6 +2951,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     );
     chart.onSelect((id) => {
       selectChartSystem(id);
+    });
+    chart.onCamera((camera) => {
+      setChartCamera(camera);
     });
     saveLoad = createSaveLoadScreen(document.body);
     saveLoad.onReturn(() => {
@@ -2962,9 +2979,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       },
       onStatusPage: (page) => {
         setStationPage(page);
-      },
-      onChartRange: (range) => {
-        setChartRange(range);
       },
     });
 

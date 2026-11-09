@@ -528,23 +528,25 @@ test("sub-tabs mirror the real Oolite sub-pages and stay in sync with the keys",
 
   await tab(page, "docked", "chart").click();
   await waitForChart(page, true);
-  const chartSub = (value: string): Locator =>
-    page.locator(`#chart [data-station-subtab="${value}"]`);
-  await expect(chartSub("short")).toHaveAttribute("aria-pressed", "true");
-  await chartSub("long").click();
+  // The chart opens at the local preset; Tab toggles the whole-galaxy one.
   await page.waitForFunction(
-    () => window.__wegolite?.chart?.range === "long",
+    () => window.__wegolite?.chart?.camera.spanX === 80,
     undefined,
     { timeout: 10_000 },
   );
-  await expect(chartSub("long")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#chart .station-subnav")).toHaveCount(0);
   await page.keyboard.press("Tab");
   await page.waitForFunction(
-    () => window.__wegolite?.chart?.range === "short",
+    () => window.__wegolite?.chart?.camera.spanX === 256,
     undefined,
     { timeout: 10_000 },
   );
-  await expect(chartSub("short")).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Tab");
+  await page.waitForFunction(
+    () => window.__wegolite?.chart?.camera.spanX === 80,
+    undefined,
+    { timeout: 10_000 },
+  );
 
   // A marker click still selects with the nav visible.
   await page.waitForFunction(
@@ -565,7 +567,7 @@ test("sub-tabs mirror the real Oolite sub-pages and stay in sync with the keys",
     const point = chartScreenPoint(system.id, {
       currentId: probe.systemId ?? "",
       targetId: probe.chart?.targetId,
-      range: probe.chart?.range ?? "short",
+      camera: probe.chart?.camera ?? { centre: { x: 128, y: 128 }, spanX: 256 },
       fuel: probe.economy?.fuel ?? 0,
       viewport: { width: box.width, height: box.height },
       selectedId: probe.chart?.selectedId,
@@ -593,8 +595,7 @@ test("in flight the chart opens without the station strip", async ({
   await waitForChart(page, true);
   await expect(page.locator("#chart")).toBeVisible();
   await expect(page.locator("#chart .station-nav")).toBeHidden();
-  await expect(page.locator("#chart .station-subnav button")).toHaveCount(2);
-  await expect(page.locator("#chart .station-subnav")).toBeVisible();
+  await expect(page.locator("#chart .station-subnav")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await waitForChart(page, false);
 

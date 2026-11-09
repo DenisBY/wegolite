@@ -241,7 +241,7 @@ export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
   chartLeft: "Chart left",
   chartRight: "Chart right",
   chartConfirm: "Chart commit",
-  chartRange: "Chart range",
+  chartRange: "Chart preset",
   chartBack: "Chart close",
   saveLoad: "Save / load",
   saveScreenUp: "Save/load up",

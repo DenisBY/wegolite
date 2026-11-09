@@ -234,7 +234,7 @@ async function clickChartSystem(page: Page, name: string): Promise<void> {
   const point = chartScreenPoint(system.id, {
     currentId: probe.systemId ?? "",
     targetId: probe.chart?.targetId,
-    range: probe.chart?.range ?? "short",
+    camera: probe.chart?.camera ?? { centre: { x: 128, y: 128 }, spanX: 256 },
     fuel: probe.economy?.fuel ?? 0,
     viewport: { width: box.width, height: box.height },
     selectedId: probe.chart?.selectedId,
@@ -479,9 +479,12 @@ test("the autosave trigger matrix writes exactly one revision per trigger and ne
     timeout: 30_000,
   });
   await page.keyboard.press("Tab");
-  await page.waitForFunction(() => window.__wegolite?.chart?.range === "long", {
-    timeout: 30_000,
-  });
+  await page.waitForFunction(
+    () => window.__wegolite?.chart?.camera.spanX === 256,
+    {
+      timeout: 30_000,
+    },
+  );
   await clickChartSystem(page, "Diso");
   await page.waitForFunction(
     (id) => window.__wegolite?.chart?.selectedId === id,

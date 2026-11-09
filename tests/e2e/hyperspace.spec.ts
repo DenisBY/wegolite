@@ -96,7 +96,7 @@ async function markerPoint(
   const point = chartScreenPoint(systemId, {
     currentId: probe.systemId ?? "",
     targetId: probe.chart?.targetId,
-    range: probe.chart?.range ?? "short",
+    camera: probe.chart?.camera ?? { centre: { x: 128, y: 128 }, spanX: 256 },
     fuel: probe.economy?.fuel ?? 0,
     viewport: { width: box.width, height: box.height },
     selectedId: probe.chart?.selectedId,
@@ -129,17 +129,17 @@ async function closeChart(page: Page): Promise<void> {
 async function commitTarget(
   page: Page,
   name: string,
-  range?: "short" | "long",
+  galaxy = false,
 ): Promise<void> {
   const system = systemByName(name);
   await openChart(page);
-  if (range !== undefined) {
-    const current = (await getProbe(page)).chart?.range;
-    if (current !== range) {
+  if (galaxy) {
+    const spanX = (await getProbe(page)).chart?.camera.spanX;
+    if (spanX !== 256) {
       await page.keyboard.press("Tab");
       await page.waitForFunction(
-        (expected) => window.__wegolite?.chart?.range === expected,
-        range,
+        () => window.__wegolite?.chart?.camera.spanX === 256,
+        undefined,
         { timeout: 30_000 },
       );
     }
@@ -256,7 +256,7 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   await closeChart(page);
 
   // A committed out-of-range target is refused at H with the exact reason.
-  await commitTarget(page, "Tibedied", "long");
+  await commitTarget(page, "Tibedied", true);
   await page.keyboard.press("KeyH");
   await page.waitForFunction(
     () => window.__wegolite?.hyperspace?.lastRefusal?.reason === "too far",
@@ -276,7 +276,7 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   expect(probe.hyperspace?.lastJump).toBeNull();
 
   // Commit the reachable target and start the countdown.
-  await commitTarget(page, "Diso", "long");
+  await commitTarget(page, "Diso", true);
   await page.keyboard.press("KeyH");
   await page.waitForFunction(
     () => (window.__wegolite?.hyperspace?.countdown ?? 0) > 0,
@@ -608,7 +608,7 @@ test("a jump completed beside the station is refused as blocked", async ({
   await waitForMode(page, "docked");
 
   // Commit Diso as the target while docked, then record the pose and the tank.
-  await commitTarget(page, "Diso", "long");
+  await commitTarget(page, "Diso", true);
   const dockedPose = (await getProbe(page)).position;
   const fuelBefore = (await getProbe(page)).economy?.fuel ?? 0;
 

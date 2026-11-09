@@ -15,7 +15,6 @@ import {
 } from "../../src/input/actions.js";
 import type { ActionId } from "../../src/input/actions.js";
 import {
-  CHART_SUBTABS,
   STATION_TAB_REGISTRY,
   STATUS_SUBTABS,
   activeTabId,
@@ -59,7 +58,6 @@ function nav(overrides: Partial<StationNavState> = {}): StationNavState {
     overlay: "none",
     screen: "home",
     page: 1,
-    range: "short",
     ...overrides,
   };
 }
@@ -261,10 +259,6 @@ describe("sub-tab data", () => {
     expect(STATUS_SUBTABS).toEqual([
       { page: 1, label: "Status" },
       { page: 2, label: "Manifest" },
-    ]);
-    expect(CHART_SUBTABS).toEqual([
-      { range: "short", label: "Short" },
-      { range: "long", label: "Long" },
     ]);
   });
 });

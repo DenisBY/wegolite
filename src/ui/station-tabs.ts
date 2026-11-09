@@ -21,7 +21,6 @@ import { ACTION_CONTEXTS } from "../input/actions.js";
 import type { ActionId, InputContext } from "../input/actions.js";
 import { codeLabel } from "../input/bindings.js";
 import type { FlightMode } from "../sim/flight/state.js";
-import type { ChartRange } from "./chart-model.js";
 import type { StationScreen } from "./station.js";
 
 export type StationTabId =
@@ -145,7 +144,6 @@ export interface StationNavState {
   readonly overlay: StationOverlay;
   readonly screen: StationScreen;
   readonly page: 1 | 2;
-  readonly range: ChartRange;
 }
 
 /** The input context the station would have with no overlay open. */
@@ -244,13 +242,4 @@ export const STATUS_SUBTABS: readonly {
 }[] = Object.freeze([
   { page: 1, label: "Status" },
   { page: 2, label: "Manifest" },
-]);
-
-/** The two chart ranges of F6. */
-export const CHART_SUBTABS: readonly {
-  readonly range: ChartRange;
-  readonly label: string;
-}[] = Object.freeze([
-  { range: "short", label: "Short" },
-  { range: "long", label: "Long" },
 ]);

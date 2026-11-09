@@ -15,9 +15,7 @@
  * written with `textContent`.
  */
 
-import type { ChartRange } from "./chart-model.js";
 import {
-  CHART_SUBTABS,
   STATUS_SUBTABS,
   activeTabId,
   isTabEnabled,
@@ -33,7 +31,6 @@ import type {
 export interface StationNavHandlers {
   onNavigate(id: StationTabId): void;
   onStatusPage(page: 1 | 2): void;
-  onChartRange(range: ChartRange): void;
 }
 
 export interface StationNav {
@@ -42,7 +39,7 @@ export interface StationNav {
 }
 
 const NAV_HOSTS = ["docked", "chart", "saveLoad"] as const;
-const SUBNAV_HOSTS = ["status", "chart"] as const;
+const SUBNAV_HOSTS = ["status"] as const;
 
 function requireHost(root: ParentNode, selector: string): HTMLElement {
   const element = root.querySelector(selector);
@@ -85,7 +82,6 @@ export function createStationNav(
     readonly button: HTMLButtonElement;
   }[] = [];
   const subButtons: {
-    readonly host: string;
     readonly value: string;
     readonly button: HTMLButtonElement;
   }[] = [];
@@ -101,23 +97,17 @@ export function createStationNav(
     element.replaceChildren(...buttons);
   }
 
-  for (const { name, element } of subnavs) {
-    const entries: readonly { value: string; label: string }[] =
-      name === "status"
-        ? STATUS_SUBTABS.map((entry) => ({
-            value: String(entry.page),
-            label: entry.label,
-          }))
-        : CHART_SUBTABS.map((entry) => ({
-            value: entry.range,
-            label: entry.label,
-          }));
+  for (const { element } of subnavs) {
+    const entries = STATUS_SUBTABS.map((entry) => ({
+      value: String(entry.page),
+      label: entry.label,
+    }));
     const buttons = entries.map((entry) => {
       const button = makeButton();
       button.dataset.stationSubtab = entry.value;
       button.textContent = entry.label;
       button.setAttribute("aria-pressed", "false");
-      subButtons.push({ host: name, value: entry.value, button });
+      subButtons.push({ value: entry.value, button });
       return button;
     });
     element.replaceChildren(...buttons);
@@ -149,7 +139,7 @@ export function createStationNav(
     );
   }
 
-  for (const { name, element } of subnavs) {
+  for (const { element } of subnavs) {
     element.addEventListener(
       "click",
       (event) => {
@@ -160,12 +150,8 @@ export function createStationNav(
         );
         if (button === null || !element.contains(button)) return;
         const value = button.dataset.stationSubtab;
-        if (name === "status") {
-          if (value === "1") handlers.onStatusPage(1);
-          else if (value === "2") handlers.onStatusPage(2);
-        } else if (value === "short" || value === "long") {
-          handlers.onChartRange(value);
-        }
+        if (value === "1") handlers.onStatusPage(1);
+        else if (value === "2") handlers.onStatusPage(2);
       },
       { signal },
     );
@@ -182,7 +168,6 @@ export function createStationNav(
         state.overlay,
         state.screen,
         state.page,
-        state.range,
         ...tabs.map((tab) =>
           tab.action === null ? "" : (bindings[tab.action] ?? []).join(","),
         ),
@@ -209,11 +194,8 @@ export function createStationNav(
         chartNav.element.hidden = state.mode !== "docked";
       }
 
-      for (const { host, value, button } of subButtons) {
-        const pressed =
-          host === "status"
-            ? value === String(state.page)
-            : value === state.range;
+      for (const { value, button } of subButtons) {
+        const pressed = value === String(state.page);
         setAttribute(button, "aria-pressed", pressed ? "true" : "false");
       }
     },

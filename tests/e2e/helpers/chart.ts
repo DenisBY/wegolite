@@ -35,7 +35,10 @@ export function systemByName(name: string): System {
 export interface ChartScreenOptions {
   readonly currentId: string;
   readonly targetId: string | undefined;
-  readonly range: "short" | "long";
+  readonly camera: {
+    readonly centre: { readonly x: number; readonly y: number };
+    readonly spanX: number;
+  };
   readonly fuel: number;
   readonly viewport: { readonly width: number; readonly height: number };
   readonly selectedId: string | undefined;
@@ -53,7 +56,7 @@ export function chartScreenPoint(
     GALAXY0,
     options.currentId,
     options.targetId,
-    options.range,
+    options.camera,
     options.fuel,
     options.viewport,
     options.selectedId,

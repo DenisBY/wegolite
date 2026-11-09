@@ -144,7 +144,7 @@ async function clickChartSystem(page: Page, name: string): Promise<void> {
   const point = chartScreenPoint(system.id, {
     currentId: probe.systemId ?? "",
     targetId: probe.chart?.targetId,
-    range: probe.chart?.range ?? "short",
+    camera: probe.chart?.camera ?? { centre: { x: 128, y: 128 }, spanX: 256 },
     fuel: probe.economy?.fuel ?? 0,
     viewport: { width: box.width, height: box.height },
     selectedId: probe.chart?.selectedId,
@@ -152,7 +152,7 @@ async function clickChartSystem(page: Page, name: string): Promise<void> {
   await page.mouse.click(box.x + point.x, box.y + point.y);
 }
 
-/** Open the chart, switch to long range, select `name`, commit it with Enter, and close. */
+/** Open the chart, switch to the galaxy preset, select `name`, commit it with Enter, and close. */
 async function setChartTarget(page: Page, name: string): Promise<void> {
   const system = systemByName(name);
   await page.keyboard.press("F6");
@@ -163,10 +163,10 @@ async function setChartTarget(page: Page, name: string): Promise<void> {
       timeout: UI_WAIT,
     },
   );
-  if ((await getProbe(page)).chart?.range !== "long") {
+  if ((await getProbe(page)).chart?.camera.spanX !== 256) {
     await page.keyboard.press("Tab");
     await page.waitForFunction(
-      () => window.__wegolite?.chart?.range === "long",
+      () => window.__wegolite?.chart?.camera.spanX === 256,
       undefined,
       { timeout: UI_WAIT },
     );

@@ -16,8 +16,17 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import type { System } from "../../src/content/types.js";
-import { buildChartView, selectLabels } from "../../src/ui/chart-model.js";
-import type { ChartView, ChartViewport } from "../../src/ui/chart-model.js";
+import {
+  buildChartView,
+  galaxyPreset,
+  localPreset,
+  selectLabels,
+} from "../../src/ui/chart-model.js";
+import type {
+  ChartCamera,
+  ChartView,
+  ChartViewport,
+} from "../../src/ui/chart-model.js";
 import { drawChart, needsChartRepaint } from "../../src/ui/chart-draw.js";
 
 interface RecordedCall {
@@ -86,7 +95,7 @@ const viewport: ChartViewport = { width: 1200, height: 600 };
 function labelledView(
   currentId = lave.id,
   targetId: string | undefined = diso.id,
-  range: "short" | "long" = "long",
+  camera: ChartCamera = galaxyPreset(),
   selectedId: string | undefined = diso.id,
   size: ChartViewport = viewport,
 ): ChartView {
@@ -94,7 +103,7 @@ function labelledView(
     systems,
     currentId,
     targetId,
-    range,
+    camera,
     70,
     size,
     selectedId,
@@ -151,9 +160,14 @@ describe("drawChart", () => {
 });
 
 describe("drawChart off-window selection", () => {
-  it("paints and labels a selected marker that a range toggle left off-window", () => {
+  it("paints and labels a selected marker that a camera move left off-window", () => {
     const ermaso = byName("Ermaso");
-    const offWindow = labelledView(lave.id, diso.id, "short", ermaso.id);
+    const offWindow = labelledView(
+      lave.id,
+      diso.id,
+      localPreset(lave),
+      ermaso.id,
+    );
     const selected = offWindow.markers.find(
       (marker) => marker.id === ermaso.id,
     );
@@ -178,7 +192,12 @@ describe("drawChart off-window selection", () => {
 
   it("does not paint an off-window system that is neither selected, current nor target", () => {
     const ermaso = byName("Ermaso");
-    const offWindow = labelledView(lave.id, diso.id, "short", diso.id);
+    const offWindow = labelledView(
+      lave.id,
+      diso.id,
+      localPreset(lave),
+      diso.id,
+    );
     const hidden = offWindow.markers.find((marker) => marker.id === ermaso.id);
     expect(hidden?.visible).toBe(false);
     if (hidden === undefined) return;
@@ -211,18 +230,21 @@ describe("needsChartRepaint", () => {
     ).toBe(false);
   });
 
-  it("is true for a selection, target, range, marker or size change", () => {
+  it("is true for a selection, target, camera, marker or size change", () => {
     expect(
       needsChartRepaint(
         view,
-        labelledView(lave.id, diso.id, "long", leesti.id),
+        labelledView(lave.id, diso.id, galaxyPreset(), leesti.id),
       ),
     ).toBe(true);
     expect(needsChartRepaint(view, labelledView(lave.id, leesti.id))).toBe(
       true,
     );
     expect(
-      needsChartRepaint(view, labelledView(lave.id, diso.id, "short")),
+      needsChartRepaint(
+        view,
+        labelledView(lave.id, diso.id, localPreset(lave)),
+      ),
     ).toBe(true);
     expect(
       needsChartRepaint(view, { ...view, markers: view.markers.slice(0, 1) }),

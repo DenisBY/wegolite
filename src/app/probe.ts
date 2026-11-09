@@ -205,7 +205,12 @@ export interface WegoliteSaveScreenProbe {
 /** The live chart state (NAV-01/NAV-02, D-01/D-02). */
 export interface WegoliteChartProbe {
   open: boolean;
-  range: "short" | "long";
+  /** The continuous camera the shell paints (D-10). */
+  camera: {
+    centre: { x: number; y: number };
+    spanX: number;
+    spanY: number;
+  };
   /** The committed target id, when one is set. */
   targetId?: string;
   /** The highlighted system id, when one is selected. */
