@@ -201,30 +201,13 @@ export function primaryKeyLabel(
   return code === undefined ? undefined : codeLabel(code);
 }
 
-/** The strip text of a tab: key label, a space and the label (Home has no key). */
+/**
+ * The strip text of a tab: key label, a space and the label (Home has no key).
+ */
 export function tabText(tab: StationTab, bindings: BindingLookup): string {
   if (tab.action === null) return tab.label;
   const key = tabKeyLabel(bindings, tab.action);
   return key === undefined ? tab.label : `${key} ${tab.label}`;
-}
-
-/**
- * The footer list of the other station screens and the keys that reach them,
- * for example `F3 outfitting · F4 interfaces`. The current screen is excluded.
- */
-export function screenSwitchHints(
-  current: StationScreen,
-  bindings: BindingLookup,
-): string {
-  const parts: string[] = [];
-  for (const tab of LIVE_TABS) {
-    if (tab.kind !== "screen" || tab.screen === current) continue;
-    if (tab.action === null) continue;
-    const key = tabKeyLabel(bindings, tab.action);
-    const label = tab.label.toLowerCase();
-    parts.push(key === undefined ? label : `${key} ${label}`);
-  }
-  return parts.join(" · ");
 }
 
 /** The two real Oolite sub-pages of F5 (stationPage 1 and 2). */

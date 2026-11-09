@@ -17,6 +17,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The F6 chart and F2 Save/Load headers show the live credit balance instead of
   a static key label.
+- The station footer no longer repeats the screen-switch key list already shown
+  in the tab strip.
 
 ### Removed
 

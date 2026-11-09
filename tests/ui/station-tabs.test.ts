@@ -20,7 +20,6 @@ import {
   activeTabId,
   isTabEnabled,
   liveStationTabs,
-  screenSwitchHints,
   tabById,
   tabKeyLabel,
   tabText,
@@ -224,29 +223,6 @@ describe("tabText", () => {
     expect(
       tabText(tab("market"), { ...DEFAULT_BINDINGS, stationMarket: [] }),
     ).toBe("Market");
-  });
-});
-
-describe("screenSwitchHints", () => {
-  it("lists the other screens for market", () => {
-    expect(screenSwitchHints("market", DEFAULT_BINDINGS)).toBe(
-      "F3 outfitting · F4 interfaces · F5 status",
-    );
-  });
-
-  it("lists all four sections for home", () => {
-    const hints = screenSwitchHints("home", DEFAULT_BINDINGS);
-    expect(hints.split(" · ")).toHaveLength(4);
-    expect(hints.endsWith("F8 market")).toBe(true);
-  });
-
-  it("shows a rebound key", () => {
-    expect(
-      screenSwitchHints("home", {
-        ...DEFAULT_BINDINGS,
-        stationMarket: ["KeyM"],
-      }),
-    ).toContain("M market");
   });
 });
 

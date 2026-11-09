@@ -616,9 +616,9 @@ test("the footer hints fit one line and the disabled and selected states are leg
   }
   await tab(page, "docked", "status").click();
   await waitForScreen(page, "status");
-  await expect(keys).toContainText("F3 outfitting");
-  await expect(keys).toContainText("F8 market");
-  await expect(keys).not.toContainText("F5 status");
+  await expect(keys).toContainText("Tab/PageDown next page");
+  await expect(keys).not.toContainText("outfitting");
+  await expect(keys).not.toContainText("market");
 
   // A disabled tab reaches 3:1 against the opaque chart panel.
   await tab(page, "docked", "chart").click();
