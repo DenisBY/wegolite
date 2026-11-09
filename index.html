@@ -124,9 +124,12 @@
         gap: 1rem;
       }
 
+      /* Cover the whole viewport: the bottom padding reserves the document
+         disclaimer strip, so the 3D scene never shows between them. */
       #docked {
         position: absolute;
-        inset: 0 0 6rem;
+        inset: 0;
+        padding-bottom: 6rem;
         display: flex;
         flex-direction: column;
         background: #000;

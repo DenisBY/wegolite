@@ -29,5 +29,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The station footer no longer covers the bottom of long Market and Manifest
   lists; the screen scrolls above it.
+- The docked shell now covers the full viewport, so the planet no longer shows
+  through the strip reserved for the document disclaimer.
 - The F6 hover card now places its description and distance beside the pointer
   without clipping at the overlay edges.

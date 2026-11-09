@@ -625,6 +625,16 @@ test("the footer hints fit one line and the disabled and selected states are leg
         footerBox.y + 1,
       );
     }
+    // The docked shell covers the whole viewport, including the strip reserved
+    // for the document disclaimer, so the 3D scene cannot show through.
+    const viewportHeight = await page.evaluate(() => window.innerHeight);
+    const dockedBox = await page.locator("#docked").boundingBox();
+    expect(dockedBox).not.toBeNull();
+    if (dockedBox !== null) {
+      expect(dockedBox.y + dockedBox.height).toBeGreaterThanOrEqual(
+        viewportHeight - 1,
+      );
+    }
   }
   await tab(page, "docked", "status").click();
   await waitForScreen(page, "status");
