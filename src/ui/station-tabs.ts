@@ -184,7 +184,7 @@ export function activeTabId(nav: StationNavState): StationTabId {
   return "home";
 }
 
-type BindingLookup = Readonly<Record<ActionId, readonly string[]>>;
+export type BindingLookup = Readonly<Record<ActionId, readonly string[]>>;
 
 const F_KEY_PATTERN = /^F\d{1,2}$/;
 

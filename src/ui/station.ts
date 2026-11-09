@@ -21,6 +21,7 @@
 
 import type { DockedPanel } from "./docked.js";
 import type {
+  InterfacesModel,
   LabelledField,
   MarketModel,
   OutfittingModel,
@@ -45,6 +46,7 @@ export interface StationView {
   readonly outfitting?: OutfittingModel | undefined;
   readonly status?: StatusModel | undefined;
   readonly systemData?: SystemDataModel | undefined;
+  readonly interfaces?: InterfacesModel | undefined;
 }
 
 export interface StationShell {
@@ -125,6 +127,21 @@ export function createStationShell(
     root,
     '[data-station-panel="systemData"]',
     "the system-data panel",
+  );
+  const interfacesPanel = requireElement<HTMLElement>(
+    root,
+    '[data-station-panel="interfaces"]',
+    "the interfaces panel",
+  );
+  const interfacesTitle = requireElement<HTMLElement>(
+    root,
+    '[data-field="interfaces-title"]',
+    "the interfaces title",
+  );
+  const interfacesEmpty = requireElement<HTMLElement>(
+    root,
+    '[data-field="interfaces-empty"]',
+    "the interfaces empty-state line",
   );
   const marketBody = requireElement<HTMLElement>(
     root,
@@ -313,6 +330,7 @@ export function createStationShell(
     outfittingPanel.hidden = screen !== "outfitting";
     statusPanel.hidden = screen !== "status";
     systemDataPanel.hidden = screen !== "systemData";
+    interfacesPanel.hidden = screen !== "interfaces";
     if (screen !== previousScreen) {
       previousScreen = screen;
       section.focus({ preventScroll: true });
@@ -354,6 +372,10 @@ export function createStationShell(
       }
       if (view.screen === "systemData" && view.systemData !== undefined) {
         renderSystemData(view.systemData);
+      }
+      if (view.screen === "interfaces" && view.interfaces !== undefined) {
+        interfacesTitle.textContent = view.interfaces.title;
+        interfacesEmpty.textContent = view.interfaces.emptyText;
       }
       // One writer per field. A save failure writes only `station-save`.
       keysField.textContent = view.keysText;

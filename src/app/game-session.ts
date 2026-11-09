@@ -160,11 +160,22 @@ import {
   buildMarketModel,
   buildOutfittingModel,
   buildStatusModel,
+  buildInterfacesModel,
   buildSystemDataModel,
   isMarketRowSelectable,
   tradeNoticeText,
 } from "../ui/station-model.js";
 import type { OutfittingModel } from "../ui/station-model.js";
+import { createStationNav } from "../ui/station-nav.js";
+import type { StationNav } from "../ui/station-nav.js";
+import {
+  activeTabId,
+  isTabEnabled,
+  primaryKeyLabel,
+  screenSwitchHints,
+  tabById,
+} from "../ui/station-tabs.js";
+import type { StationNavState, StationTabId } from "../ui/station-tabs.js";
 import { identity, sub, vec } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
 import type { InputFrame } from "../sim/state.js";
@@ -173,7 +184,11 @@ import { deriveSystemLayout } from "../sim/world/layout.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import { createKeyboardInputSource } from "../input/keyboard.js";
 import type { KeyboardInputSource } from "../input/keyboard.js";
-import { ACTION_CONTEXTS, ACTION_IDS } from "../input/actions.js";
+import {
+  ACTION_CONTEXTS,
+  ACTION_IDS,
+  DEFAULT_BINDINGS,
+} from "../input/actions.js";
 import type { ActionId, InputContext } from "../input/actions.js";
 import { createBindingMap } from "../input/bindings.js";
 import type { BindingMap } from "../input/bindings.js";
@@ -395,6 +410,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   // The F2 Save/Load screen (D-20..D-23). It is a standalone overlay with its
   // own input context; F2 is docked-only and never opens beneath pause/chart.
   let saveLoad: SaveLoadScreen | undefined;
+  let stationNav: StationNav | undefined;
   let saveScreenOpen = false;
   let contextBeforeSaveScreen: InputContext = "dockHome";
   let saveScreenNotice = "";
@@ -797,21 +813,59 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderStation();
   }
 
-  /** Keys/messages for the persistent footer, one field per concern. */
+  /**
+   * Keys/messages for the persistent footer, one field per concern. The list of
+   * the other screens is generated from the tab registry and the live bindings,
+   * so a rebind or a new tab never leaves a hard-coded key behind; the
+   * screen-specific hints are a suffix.
+   */
   function keyHints(screen: StationScreen): string {
+    const map = bindings ?? DEFAULT_BINDINGS;
+    const switchList = screenSwitchHints(screen, map);
     if (screen === "market") {
       return "Up/Down select · Right buys +1 · Left sells +1 · Shift max · Y confirm · N cancel · Esc back · P pause";
     }
     if (screen === "outfitting") {
-      return "Up/Down select · Y confirm · N cancel · Esc back · F8 market · F5 status · F7 system data · P pause";
+      return `${switchList} · Up/Down select · Y confirm · N cancel · Esc back · P pause`;
     }
     if (screen === "status") {
-      return "Tab/PageDown next page · PageUp previous · Esc back · F8 market · F3 outfitting · F7 system data · P pause";
+      return `${switchList} · Tab/PageDown next page · PageUp previous · Esc back · P pause`;
     }
-    if (screen === "systemData") {
-      return "Esc back · F8 market · F3 outfitting · F5 status · P pause";
+    if (screen === "systemData" || screen === "interfaces") {
+      return `${switchList} · Esc back · P pause`;
     }
-    return "F8 market · F3 outfitting · F5 status · F7 system data · 1 launch · P pause";
+    const launchKey = primaryKeyLabel(map, "launch");
+    const launchHint =
+      launchKey === undefined ? "launch" : `${launchKey} launch`;
+    return `${switchList} · ${launchHint} · P pause`;
+  }
+
+  /** The tab strip's inputs: the base station screen plus the overlay flag. */
+  function currentNavState(currentState: FlightState): StationNavState {
+    return {
+      mode: currentState.mode,
+      paused,
+      overlay: saveScreenOpen ? "saveScreen" : chartOpen ? "chart" : "none",
+      screen: stationScreen,
+      page: stationPage,
+      range: chartRange,
+    };
+  }
+
+  /** Mutate the strip in place; cheap and idempotent (the hydrator caches). */
+  function syncStationNav(): void {
+    const currentState = state;
+    if (stationNav === undefined || currentState === undefined) return;
+    stationNav.sync(
+      currentNavState(currentState),
+      bindings ?? DEFAULT_BINDINGS,
+    );
+  }
+
+  /** Refresh the strip and the registry-generated hints after a rebind. */
+  function refreshStationChrome(): void {
+    if (state?.mode === "docked") renderStation();
+    syncStationNav();
   }
 
   function renderStation(): void {
@@ -888,9 +942,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       outfitting: outModel,
       status: statusModel,
       systemData: systemModel,
+      interfaces: buildInterfacesModel(),
     };
     docked.setFuel(formatFuel(profile.fuel));
     docked.render(view);
+    syncStationNav();
     syncEconomyProbe();
   }
 
@@ -1363,6 +1419,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         hudCanvas.hidden = false;
         syncEconomyProbe();
       }
+      syncStationNav();
       // Publish the installed pose once, exactly like the boot restore, so a
       // proof reads the saved numbers and not a resumed simulation.
       probe.restore = {
@@ -1428,6 +1485,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     input?.setPaused(true);
     loop?.reset();
     pauseOverlay?.show();
+    syncStationNav();
   }
 
   /**
@@ -1459,6 +1517,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     pauseOverlay?.setNotice("");
     controlsPanel?.hide();
     settingsPanel?.hide();
+    syncStationNav();
   }
 
   /** QUAL-05: the context went away; pause at once and say why. */
@@ -1525,6 +1584,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       case "stationSystemData":
         screen = "systemData";
         break;
+      case "stationInterfaces":
+        screen = "interfaces";
+        break;
       default:
         return;
     }
@@ -1552,6 +1614,91 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     stationPage = 1;
     input?.setContext("dockHome");
     renderStation();
+  }
+
+  /**
+   * The one click sink of the station tab strip. It routes through the same
+   * open paths the keys use, but adds the guards those paths get implicitly
+   * from the input context: openStationScreen and backToHome know nothing of
+   * pause, overlays or the overwrite dialog, and a DOM `disabled` attribute is
+   * not a trust boundary (a button can be force-enabled from page script).
+   */
+  function navigateStation(tabId: StationTabId): void {
+    const currentState = state;
+    if (
+      disposed ||
+      contextLost ||
+      paused ||
+      currentState === undefined ||
+      saveLoad?.isConfirming() === true
+    ) {
+      return;
+    }
+    const nav = currentNavState(currentState);
+    if (!isTabEnabled(tabId, nav) || tabId === activeTabId(nav)) return;
+    const tab = tabById(tabId);
+    if (tab === undefined) return;
+
+    if (tab.kind === "launch") {
+      // The same command the Home button queues; the frame filter on the home
+      // screen remains the last guard (D-03).
+      pending.push({ kind: "launch" });
+      return;
+    }
+
+    // Close an open overlay first: both closers restore the station input
+    // context they recorded, and openSaveScreen refuses while the chart is up.
+    if (chartOpen) closeChart();
+    if (saveScreenOpen) closeSaveScreen();
+
+    if (tab.kind === "home") {
+      backToHome();
+    } else if (tab.kind === "screen") {
+      // The screen underneath an overlay keeps its selection, page and pending
+      // state: only a different screen goes through openStationScreen.
+      if (tab.action !== null && tab.screen !== stationScreen) {
+        openStationScreen(tab.action);
+      }
+    } else if (tab.kind === "chart") {
+      openChart();
+    } else if (tab.kind === "saveLoad") {
+      openSaveScreen();
+    }
+    syncStationNav();
+  }
+
+  /** The Status | Manifest sub-tab: the same effect as the Tab key's paging. */
+  function setStationPage(page: 1 | 2): void {
+    if (
+      disposed ||
+      paused ||
+      contextLost ||
+      state?.mode !== "docked" ||
+      stationScreen !== "status" ||
+      chartOpen ||
+      saveScreenOpen ||
+      stationPage === page
+    ) {
+      return;
+    }
+    stationPage = page;
+    renderStation();
+  }
+
+  /** The Short | Long sub-tab of the open chart. */
+  function setChartRange(range: ChartRange): void {
+    if (
+      disposed ||
+      paused ||
+      contextLost ||
+      !chartOpen ||
+      chartRange === range
+    ) {
+      return;
+    }
+    chartRange = range;
+    refreshChart();
+    syncStationNav();
   }
 
   /** D-09: resolve and install a new system scene; never rebuild the dock port. */
@@ -1625,6 +1772,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     chartOpen = true;
     contextBeforeChart = currentInput.getContext();
     currentInput.setContext("chart");
+    // The chart nav's hidden state must be final before the first paint
+    // measures the canvas.
+    syncStationNav();
     // The overlay is still `hidden` when the first view is built, so its
     // client size is zero. Show it, then rebuild against the real viewport.
     overlay.show(currentChartView(overlay));
@@ -1639,6 +1789,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     input?.setContext(contextBeforeChart);
     // Hidden time is never replayed; the accumulator starts at zero.
     loop?.reset();
+    syncStationNav();
     updateProbe();
   }
 
@@ -1669,6 +1820,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     saveScreenOpen = true;
     contextBeforeSaveScreen = currentInput.getContext();
     currentInput.setContext("saveScreen");
+    syncStationNav();
     screen.show(saveSlotText());
     saveScreenNotice = canOverwrite(saveStatus)
       ? ""
@@ -1687,6 +1839,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // Return focus to the station screen the input context just restored.
     const stationScreenElement = document.getElementById("station-screen");
     stationScreenElement?.focus({ preventScroll: true });
+    syncStationNav();
     updateProbe();
   }
 
@@ -1795,6 +1948,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         if (!chartOpen) return;
         chartRange = chartRange === "short" ? "long" : "short";
         refreshChart();
+        syncStationNav();
         break;
       case "chartConfirm":
         // A click only selects (D-02): Enter is the commit.
@@ -2031,6 +2185,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
     launchSeen = false;
     syncPauseOnFocusLossToggle();
+    refreshStationChrome();
   }
 
   function onSubpanelKeyDown(event: KeyboardEvent): void {
@@ -2081,6 +2236,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         stationPage = 1;
         input?.setContext("flight");
         docked.hide();
+        syncStationNav();
         hudCanvas.hidden = false;
         messages.enqueue("Launching — stand by");
         // D-17: no write here. The pre-launch anchor was taken in `frame()`
@@ -2109,6 +2265,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         docked.show(system.name);
         ensureSelection();
         renderStation();
+        syncStationNav();
         if (event.via === "computer") {
           messages.enqueuePriority("Docking computers engaged");
           stationMessage = "Docking computers engaged";
@@ -2782,6 +2939,17 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     saveLoad.onOverwriteCancelled(() => {
       updateProbe();
     });
+    stationNav = createStationNav(document.body, {
+      onNavigate: (id) => {
+        navigateStation(id);
+      },
+      onStatusPage: (page) => {
+        setStationPage(page);
+      },
+      onChartRange: (range) => {
+        setChartRange(range);
+      },
+    });
 
     const loaded = loadSettings();
     const bindingMap = createBindingMap(loaded.bindings);
@@ -2832,6 +3000,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       onChange: (next) => {
         input?.setBindings(next);
         persistSettings();
+        refreshStationChrome();
       },
       onReset: () => {
         resetAllSettings();
@@ -2898,6 +3067,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       docked.show(system.name);
       renderStation();
     }
+    // The chart nav is hidden when the session boots in flight.
+    syncStationNav();
     docked.onLaunch(() => {
       // D-03: the Launch button is only live on the home screen.
       if (state?.mode !== "docked" || stationScreen !== "home") return;
@@ -2968,6 +3139,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // also releases the sub-panel controllers' listeners through their own
     // disposers below.
     uiController.abort();
+    stationNav?.dispose();
+    stationNav = undefined;
     input?.clearAll();
     input?.dispose();
     pauseOverlay?.dispose();

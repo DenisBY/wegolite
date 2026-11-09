@@ -416,6 +416,83 @@ test("the docked home shows real credits, ship, fuel and the four screen entries
   expect(errors).toEqual([]);
 });
 
+test("the station tab strip navigates between screens and overlays", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await bootToDocked(page);
+
+  const nav = page.locator('#docked nav[aria-label="Station computer"]');
+  await expect(nav).toBeVisible();
+  const buttons = nav.locator("button");
+  await expect(buttons).toHaveText([
+    "Home",
+    "F1 Launch",
+    "F2 Save/Load",
+    "F3 Outfitting",
+    "F4 Interfaces",
+    "F5 Status",
+    "F6 Chart",
+    "F7 System data",
+    "F8 Market",
+  ]);
+  await expect(nav.locator('[data-station-tab="home"]')).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  // The Launch tab never carries data-action, so the Home button stays unique.
+  await expect(nav.locator("[data-action]")).toHaveCount(0);
+  await expect(page.locator('button[data-action="launch"]')).toHaveCount(1);
+
+  const waitForStation = async (screen: string): Promise<void> => {
+    await page.waitForFunction(
+      (expected) => window.__wegolite?.station?.screen === expected,
+      screen,
+      { timeout: 10_000 },
+    );
+  };
+
+  await nav.locator('[data-station-tab="systemData"]').click();
+  await waitForStation("systemData");
+  await expect(nav.locator('[data-station-tab="systemData"]')).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(nav.locator('[data-station-tab="launch"]')).toBeDisabled();
+
+  await nav.locator('[data-station-tab="home"]').click();
+  await waitForStation("home");
+  await expect(nav.locator('[data-station-tab="launch"]')).toBeEnabled();
+
+  await nav.locator('[data-station-tab="chart"]').click();
+  await page.waitForFunction(() => window.__wegolite?.chart?.open === true, {
+    timeout: 10_000,
+  });
+  await page.locator('#chart [data-station-tab="saveLoad"]').click();
+  await page.waitForFunction(
+    () =>
+      window.__wegolite?.saveScreen?.open === true &&
+      window.__wegolite?.chart?.open === false,
+    undefined,
+    { timeout: 10_000 },
+  );
+
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(
+    () => window.__wegolite?.saveScreen?.open === false,
+    undefined,
+    { timeout: 10_000 },
+  );
+  await waitForStation("home");
+
+  expect(errors).toEqual([]);
+});
+
 test("docked Controls rebind keeps probe.mode docked and no pause", async ({
   page,
 }) => {
