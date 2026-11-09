@@ -160,7 +160,7 @@ real GPU, by the protocol in that document.
 
 These limits describe the default Standard quality. The pause menu's Settings
 panel has a "High-quality planet" option, off by default, that adds an
-atmosphere glow and finer cloud and relief detail. High spends up to 16 noise
+atmosphere glow and finer cloud and relief detail. High spends up to 17 noise
 evaluations and one more draw call, and it is not measured by the budget tests.
 
 ## Troubleshooting

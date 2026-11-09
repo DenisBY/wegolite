@@ -370,21 +370,49 @@ export interface PlanetShaderOctaves {
 const STANDARD_RELIEF_DEFINE = "#define RELIEF_OCTAVES 1";
 const STANDARD_CLOUD_DEFINE = "#define CLOUD_OCTAVES 1";
 
+/** Standard's cloud cut: a narrow smoothstep at the calibrated threshold. */
+const STANDARD_CLOUD_CUT = `  float cloud = smoothstep(
+    uCloudThreshold - 0.02,
+    uCloudThreshold + 0.02,
+    cloudField
+  ) * uCloudAlpha;`;
+
 /**
- * The fragment shader with other relief and cloud octave counts.
+ * High's cloud cut: Oolite's `CloudMix` alpha ramp
+ * (`OOPlanetTextureGenerator.m:591-634`).
  *
- * Only the two `#define` lines change, so the surface field, the colour bands
- * and the terminator are the Standard shader's. `fbm` bounds its loop by
- * `SURFACE_OCTAVES`, so a count above that would be silently truncated; it is
- * rejected here instead. Standard never calls this: it uses
- * `PLANET_FRAGMENT_SHADER` unchanged.
+ * Oolite does not threshold its cloud field. The alpha runs linearly from
+ * `AIR_ALPHA` (0.05, a thin haze where the sky is clear) to `CLOUD_ALPHA` (2.0)
+ * across `CLOUD_BOUNDARY`, and is then clamped to 1. The clamp is what makes a
+ * solid cloud core with a long soft fringe: the ramp crosses 1 at its midpoint,
+ * which is placed on the calibrated threshold here, so the opaque share is
+ * still the authored `cloud_fraction` and the fringe lies outside it.
+ * `HIGH_CLOUD_RAMP` is the ramp's half-width in units of the normalised field.
+ */
+const HIGH_CLOUD_CUT = `  float cloudRamp = clamp(
+    (cloudField - uCloudThreshold) / HIGH_CLOUD_RAMP * 0.5 + 0.5,
+    0.0,
+    1.0
+  );
+  float cloud = min(mix(0.05, 2.0, cloudRamp), 1.0) * uCloudAlpha;`;
+
+/** Half-width of High's cloud ramp, in units of the normalised cloud field. */
+export const HIGH_CLOUD_RAMP = 0.3;
+
+/**
+ * The High-quality fragment shader, derived from the Standard source.
+ *
+ * Three edits and nothing else: the relief and cloud octave `#define` lines,
+ * and the cloud cut (a soft alpha ramp instead of a narrow smoothstep). The
+ * surface field, the colour bands and the terminator are the Standard
+ * shader's. `fbm` bounds its loop by `SURFACE_OCTAVES`, so a count above that
+ * would be silently truncated; it is rejected here instead. Standard never
+ * calls this: it uses `PLANET_FRAGMENT_SHADER` unchanged.
  *
  * @throws {RangeError} when a count is not an integer in `1..6`, or when the
- * Standard `#define` lines are no longer present to replace.
+ * Standard text to replace is no longer present.
  */
-export function planetFragmentShaderWithOctaves(
-  octaves: PlanetShaderOctaves,
-): string {
+export function highPlanetFragmentShader(octaves: PlanetShaderOctaves): string {
   for (const [label, value] of [
     ["relief", octaves.relief],
     ["cloud", octaves.cloud],
@@ -395,19 +423,24 @@ export function planetFragmentShaderWithOctaves(
       );
     }
   }
-  if (
-    !PLANET_FRAGMENT_SHADER.includes(STANDARD_RELIEF_DEFINE) ||
-    !PLANET_FRAGMENT_SHADER.includes(STANDARD_CLOUD_DEFINE)
-  ) {
-    throw new RangeError(
-      "Wegolite: the planet shader no longer carries the octave #define lines the quality variant replaces.",
-    );
+  for (const anchor of [
+    STANDARD_RELIEF_DEFINE,
+    STANDARD_CLOUD_DEFINE,
+    STANDARD_CLOUD_CUT,
+  ]) {
+    if (!PLANET_FRAGMENT_SHADER.includes(anchor)) {
+      throw new RangeError(
+        "Wegolite: the planet shader no longer carries the text the High variant replaces.",
+      );
+    }
   }
   return PLANET_FRAGMENT_SHADER.replace(
     STANDARD_RELIEF_DEFINE,
     `#define RELIEF_OCTAVES ${String(octaves.relief)}`,
-  ).replace(
-    STANDARD_CLOUD_DEFINE,
-    `#define CLOUD_OCTAVES ${String(octaves.cloud)}`,
-  );
+  )
+    .replace(
+      STANDARD_CLOUD_DEFINE,
+      `#define CLOUD_OCTAVES ${String(octaves.cloud)}\n#define HIGH_CLOUD_RAMP ${HIGH_CLOUD_RAMP.toFixed(4)}`,
+    )
+    .replace(STANDARD_CLOUD_CUT, HIGH_CLOUD_CUT);
 }

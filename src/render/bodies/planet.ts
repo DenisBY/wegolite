@@ -37,7 +37,7 @@ import {
 import {
   PLANET_FRAGMENT_SHADER,
   PLANET_VERTEX_SHADER,
-  planetFragmentShaderWithOctaves,
+  highPlanetFragmentShader,
 } from "../shaders/planet.glsl.js";
 
 /** The GPU-facing planet: the mesh, its material, and the spin step. */
@@ -206,7 +206,7 @@ export function createPlanet(
     },
     vertexShader: PLANET_VERTEX_SHADER,
     fragmentShader: high
-      ? planetFragmentShaderWithOctaves({
+      ? highPlanetFragmentShader({
           relief: HIGH_RELIEF_OCTAVES,
           cloud: HIGH_CLOUD_OCTAVES,
         })

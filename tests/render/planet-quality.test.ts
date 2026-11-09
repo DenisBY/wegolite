@@ -6,16 +6,17 @@
  *
  * Standard must stay the original render path: the same fragment source, the
  * same calibration and no atmosphere shell. High may only change the relief and
- * cloud octave `#define`s and add the shell; the surface field (the continents)
- * is shared by both levels.
+ * cloud octave `#define`s and the cloud cut, and add the shell; the surface
+ * field (the continents) is shared by both levels.
  */
 
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
 import {
+  ATMOSPHERE_DEPTH,
   ATMOSPHERE_NAME,
-  ATMOSPHERE_SHELL_SCALE,
+  atmosphereCosThreshold,
   createAtmosphere,
 } from "../../src/render/bodies/atmosphere.js";
 import { createPlanet } from "../../src/render/bodies/planet.js";
@@ -37,8 +38,9 @@ import {
   ATMOSPHERE_VERTEX_SHADER,
 } from "../../src/render/shaders/atmosphere.glsl.js";
 import {
+  HIGH_CLOUD_RAMP,
   PLANET_FRAGMENT_SHADER,
-  planetFragmentShaderWithOctaves,
+  highPlanetFragmentShader,
 } from "../../src/render/shaders/planet.glsl.js";
 import { createSystemScene } from "../../src/render/system-scene.js";
 import { LayoutError } from "../../src/sim/world/layout.js";
@@ -107,21 +109,35 @@ describe("Standard quality is the original planet", () => {
 describe("the High planet shader variant", () => {
   const high = planet("high").material.fragmentShader;
 
-  it("changes only the relief and cloud octave defines", () => {
+  it("changes only the octave defines and the cloud cut", () => {
     expect(define(high, "SURFACE_OCTAVES")).toBe(SURFACE_OCTAVES);
     expect(define(high, "RELIEF_OCTAVES")).toBe(HIGH_RELIEF_OCTAVES);
     expect(define(high, "CLOUD_OCTAVES")).toBe(HIGH_CLOUD_OCTAVES);
 
-    const standardLines = PLANET_FRAGMENT_SHADER.split("\n");
-    const highLines = high.split("\n");
-    expect(highLines).toHaveLength(standardLines.length);
-    const changed = highLines.filter(
-      (line, index) => line !== standardLines[index],
+    // Everything Standard has, High has too, except the two define lines and
+    // the five lines of the narrow smoothstep cloud cut.
+    const highLines = new Set(high.split("\n"));
+    const dropped = PLANET_FRAGMENT_SHADER.split("\n").filter(
+      (line) => !highLines.has(line),
     );
-    expect(changed).toEqual([
-      `#define RELIEF_OCTAVES ${String(HIGH_RELIEF_OCTAVES)}`,
-      `#define CLOUD_OCTAVES ${String(HIGH_CLOUD_OCTAVES)}`,
+    expect(dropped).toEqual([
+      "#define RELIEF_OCTAVES 1",
+      "#define CLOUD_OCTAVES 1",
+      "  float cloud = smoothstep(",
+      "    uCloudThreshold - 0.02,",
+      "    uCloudThreshold + 0.02,",
+      "    cloudField",
+      "  ) * uCloudAlpha;",
     ]);
+    expect(high).toContain(
+      `#define HIGH_CLOUD_RAMP ${HIGH_CLOUD_RAMP.toFixed(4)}`,
+    );
+    // Oolite's CloudMix: AIR_ALPHA 0.05 to CLOUD_ALPHA 2.0, clamped to 1.
+    expect(high).toContain("min(mix(0.05, 2.0, cloudRamp), 1.0) * uCloudAlpha");
+    // The surface and relief code is untouched: the same noise call sites.
+    const calls = (source: string): number =>
+      (source.match(/\b(?:fbm|fbmSurface)\s*\(/g) ?? []).length;
+    expect(calls(high)).toBe(calls(PLANET_FRAGMENT_SHADER));
   });
 
   it("has more detail than Standard and a derived evaluation count", () => {
@@ -136,15 +152,15 @@ describe("the High planet shader variant", () => {
   });
 
   it("rejects an octave count the fbm loop bound would truncate", () => {
-    expect(() =>
-      planetFragmentShaderWithOctaves({ relief: 7, cloud: 1 }),
-    ).toThrow(RangeError);
-    expect(() =>
-      planetFragmentShaderWithOctaves({ relief: 1, cloud: 0 }),
-    ).toThrow(RangeError);
-    expect(() =>
-      planetFragmentShaderWithOctaves({ relief: 1.5, cloud: 1 }),
-    ).toThrow(RangeError);
+    expect(() => highPlanetFragmentShader({ relief: 7, cloud: 1 })).toThrow(
+      RangeError,
+    );
+    expect(() => highPlanetFragmentShader({ relief: 1, cloud: 0 })).toThrow(
+      RangeError,
+    );
+    expect(() => highPlanetFragmentShader({ relief: 1.5, cloud: 1 })).toThrow(
+      RangeError,
+    );
   });
 
   it("keeps the surface calibration, so the continents do not move", () => {
@@ -164,7 +180,7 @@ describe("the High planet shader variant", () => {
     }
   });
 
-  it("recalibrates the cloud threshold so coverage matches cloud_fraction", () => {
+  it("recalibrates the cloud threshold so the opaque share matches cloud_fraction", () => {
     const material = planet("high").material;
     const seed = uniformNumber(material, "uSeed");
     const lo = uniformNumber(material, "uCloudNoiseLo");
@@ -187,53 +203,73 @@ describe("the High planet shader variant", () => {
 });
 
 describe("the High atmosphere shell", () => {
-  it("is a child of the planet mesh, named and slightly larger", () => {
+  it("is a child of the planet mesh, named and just above the surface", () => {
     const body = planet("high");
     const shell = body.atmosphere;
     expect(shell).toBeDefined();
     if (shell === undefined) return;
     expect(shell.name).toBe(ATMOSPHERE_NAME);
     expect(shell.parent).toBe(body.mesh);
-    expect(shell.geometry.parameters.radius).toBeCloseTo(
-      layout.planet.radius * ATMOSPHERE_SHELL_SCALE,
-      6,
+    // Oolite's ATMOSPHERE_DEPTH.
+    expect(ATMOSPHERE_DEPTH).toBe(500);
+    expect(shell.geometry.parameters.radius).toBe(
+      layout.planet.radius + ATMOSPHERE_DEPTH,
     );
-    expect(ATMOSPHERE_SHELL_SCALE).toBeGreaterThan(1);
-    // The station orbits at two planet radii; the shell must stay well inside.
-    expect(ATMOSPHERE_SHELL_SCALE).toBeLessThan(1.5);
+    // The faceted shell must clear the planet sphere everywhere: its lowest
+    // point is a face centre, one half segment angle off a vertex.
+    const { widthSegments, heightSegments } = shell.geometry.parameters;
+    const lowest =
+      (layout.planet.radius + ATMOSPHERE_DEPTH) *
+      Math.cos(Math.PI / widthSegments) *
+      Math.cos(Math.PI / (2 * heightSegments));
+    expect(lowest).toBeGreaterThan(layout.planet.radius);
   });
 
-  it("is additive, depth-tested and never writes depth", () => {
+  it("is alpha-blended, depth-tested and never writes depth", () => {
     const material = createAtmosphere(
       system,
       layout.planet.radius,
       layout.sunDir,
     ).material;
     expect(material.transparent).toBe(true);
-    expect(material.blending).toBe(THREE.AdditiveBlending);
+    expect(material.blending).toBe(THREE.NormalBlending);
     expect(material.depthTest).toBe(true);
     expect(material.depthWrite).toBe(false);
     expect(material.side).toBe(THREE.FrontSide);
   });
 
-  it("carries the planet radius, the shell radius and the world sun direction", () => {
+  it("carries the authored air values and the world sun direction", () => {
     const material = createAtmosphere(
       system,
       layout.planet.radius,
       layout.sunDir,
     ).material;
-    expect(uniformNumber(material, "uPlanetRadius")).toBe(layout.planet.radius);
-    expect(uniformNumber(material, "uShellRadius")).toBeCloseTo(
-      layout.planet.radius * ATMOSPHERE_SHELL_SCALE,
-      6,
+    const shellRadius = layout.planet.radius + ATMOSPHERE_DEPTH;
+    expect(uniformNumber(material, "uShellRadius")).toBe(shellRadius);
+    expect(uniformNumber(material, "uAirDensity")).toBe(system.air_density);
+    expect(uniformNumber(material, "uAirColorMixRatio")).toBe(
+      system.air_color_mix_ratio,
     );
+    expect(uniformNumber(material, "uAmbient")).toBe(system.ambient_level);
+    expect(uniformNumber(material, "uCosThreshold")).toBe(
+      atmosphereCosThreshold(shellRadius),
+    );
+    // Oolite: exponent 3 above a 40 km radius, 5 below.
+    expect(uniformNumber(material, "uRimExponent")).toBe(3);
     const sun = material.uniforms["uSunDir"]?.value as THREE.Vector3;
     expect([sun.x, sun.y, sun.z]).toEqual([
       layout.sunDir.x,
       layout.sunDir.y,
       layout.sunDir.z,
     ]);
-    expect(uniformNumber(material, "uStrength")).toBeGreaterThan(0);
+  });
+
+  it("derives Oolite's rim threshold and keeps it away from zero", () => {
+    // -1.333333e-6 * radius + 0.21333333: 0.17 at 32.5 km, 0.13 at 62.5 km.
+    expect(atmosphereCosThreshold(32_500)).toBeCloseTo(0.17, 3);
+    expect(atmosphereCosThreshold(62_500)).toBeCloseTo(0.13, 3);
+    expect(atmosphereCosThreshold(1e9)).toBe(0.05);
+    expect(atmosphereCosThreshold(0)).toBeCloseTo(0.2133, 3);
   });
 
   it("writes logarithmic depth and the output colour contract", () => {
@@ -251,7 +287,7 @@ describe("the High atmosphere shell", () => {
     ]) {
       expect(ATMOSPHERE_FRAGMENT_SHADER).toContain(chunk);
     }
-    // The halo is analytic and evaluates no noise.
+    // The haze is analytic and evaluates no noise.
     expect(ATMOSPHERE_FRAGMENT_SHADER).not.toContain("valueNoise");
   });
 

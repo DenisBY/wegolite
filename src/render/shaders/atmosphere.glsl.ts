@@ -4,42 +4,65 @@
 /**
  * The High-quality atmosphere shell (PROJECT.md Key Decisions).
  *
- * A second, slightly larger sphere drawn additively over the planet. It is the
- * one deliberate departure from Phase 3 D-02 ("one sphere, one material"), and
- * it exists only at `high` quality.
+ * A second sphere just above the planet, alpha-blended over it. It is the one
+ * deliberate departure from Phase 3 D-02 ("one sphere, one material"), and it
+ * exists only at `high` quality.
  *
- * The glow is analytic, not a Fresnel term on the shell's own normal: a Fresnel
- * rim is brightest at the shell's silhouette and stops dead there. Instead the
- * fragment reconstructs its view ray (the camera is the origin of
- * camera-relative space) and measures how close that ray passes to the planet
- * centre:
+ * The opacity and colour follow Oolite's own atmosphere shader,
+ * `Resources/Shaders/oolite-default-atmosphere.fragment` (pinned 7437f22):
  *
- * - a ray that misses the planet fades from full strength at the planet's limb
- *   to zero at the shell's outer edge, so the halo has no hard border;
- * - a ray that hits the planet adds a haze that rises toward the limb and meets
- *   the outside value there, so the two branches are continuous.
+ * - across the disc the haze is a Fresnel term, thin at the centre and dense
+ *   toward the limb, which is what makes the planet read as a lit ball under
+ *   air rather than a flat disc;
+ * - past `cosThreshold` (the outermost ring of the shell) the opacity falls to
+ *   zero and the colour turns to the authored air colour, which is the thin
+ *   coloured rim;
+ * - everything is scaled by the sun's angle on the shell, so the night side
+ *   has no haze;
+ * - the haze fades out as the camera comes within a few kilometres of the
+ *   shell (`quant`), so it never pops when the camera crosses it.
  *
- * Lighting uses the planet's authored per-channel terminator thresholds, with
- * the lower edge moved below zero so the glow wraps a little past the
- * terminator, as scattered light does. The night side stays dark.
+ * That shader is (c) 2009-2013 Jens Ayton and is distributed under the MIT
+ * licence: "Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including without
+ * limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to
+ * whom the Software is furnished to do so, subject to the following
+ * conditions: The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software. THE SOFTWARE
+ * IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+ * IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE."
  *
- * The planet centre is read from the model matrix translation in the vertex
- * stage, so no per-frame uniform is needed. The Three log-depth chunks are
- * load-bearing for the same reason as in the planet shader: without them the
- * shell would not depth-test correctly against the station.
+ * Differences from Oolite: the light is a constant white (Wegolite has no
+ * per-system light colour in this shader), and `uBrightness` replaces Oolite's
+ * `dot(normalize(fresnel), vec3(NdotL))` gain of sqrt(3), because Wegolite
+ * renders without tone mapping and that gain clips the lit limb to white.
+ *
+ * The Three log-depth chunks are load-bearing for the same reason as in the
+ * planet shader: without them the shell would not depth-test correctly against
+ * the station.
  */
 
 export const ATMOSPHERE_VERTEX_SHADER = /* glsl */ `
 #include <common>
 #include <logdepthbuf_pars_vertex>
 
-varying vec3 vWorld;
-varying vec3 vCentre;
+varying vec3 vNormalW;
+varying vec3 vViewDirW;
+varying float vCentreDistance;
 
 void main() {
   vec4 world = modelMatrix * vec4(position, 1.0);
-  vWorld = world.xyz;
-  vCentre = modelMatrix[3].xyz;
+  vNormalW = normalize(mat3(modelMatrix) * normal);
+  // The camera sits at the origin of camera-relative space.
+  vViewDirW = normalize(-world.xyz);
+  vCentreDistance = length(modelMatrix[3].xyz);
   gl_Position = projectionMatrix * viewMatrix * world;
 
   #include <logdepthbuf_vertex>
@@ -52,57 +75,56 @@ export const ATMOSPHERE_FRAGMENT_SHADER = /* glsl */ `
 
 uniform vec3 uAirColor;
 uniform vec3 uSunDir;
-uniform vec3 uTerminatorThreshold;
-uniform float uPlanetRadius;
+uniform float uAirColorMixRatio;
+uniform float uAirDensity;
+uniform float uAmbient;
 uniform float uShellRadius;
-uniform float uStrength;
+uniform float uCosThreshold;
+uniform float uRimExponent;
+uniform float uBrightness;
 
-varying vec3 vWorld;
-varying vec3 vCentre;
+varying vec3 vNormalW;
+varying vec3 vViewDirW;
+varying float vCentreDistance;
 
-// How far past the geometric terminator the glow reaches, as a cosine.
-#define TERMINATOR_WRAP 0.25
-// Falloff exponents: outside the limb and across the planet's disc.
-// The haze exponent is steep on purpose: at 8 it washed out the lit disc well
-// inside the limb; at 24 it is under a tenth of full strength once the ray
-// passes 10% of the radius inside the limb.
-#define HALO_FALLOFF 2.5
-#define HAZE_FALLOFF 24.0
+// Oolite's constants ('oolite-default-atmosphere.fragment').
+#define FRESNEL_EXPONENT 5.0
+#define LIGHT_RADIANCE 1.035
+#define NEAR_FADE_START 3500.0
+#define NEAR_FADE_LENGTH 2000.0
 
 void main() {
-  vec3 dir = normalize(vWorld);
-  float along = dot(vCentre, dir);
-  // From the planet centre to the point of the view ray nearest to it.
-  vec3 nearest = dir * along - vCentre;
-  float miss = length(nearest);
+  vec3 normal = normalize(vNormalW);
+  vec3 eye = normalize(vViewDirW);
+  float NdotV = clamp(dot(normal, eye), 0.0, 1.0);
+  float NdotL = max(0.0, dot(normal, normalize(uSunDir)));
 
-  vec3 normal;
-  float glow;
-  if (miss >= uPlanetRadius) {
-    float t = clamp(
-      (miss - uPlanetRadius) / max(uShellRadius - uPlanetRadius, 0.0001),
-      0.0,
-      1.0
-    );
-    glow = pow(1.0 - t, HALO_FALLOFF);
-    normal = nearest / max(miss, 0.0001);
-  } else {
-    float halfChord = sqrt(
-      max(uPlanetRadius * uPlanetRadius - miss * miss, 0.0)
-    );
-    vec3 hit = dir * (along - halfChord) - vCentre;
-    normal = hit / uPlanetRadius;
-    glow = pow(miss / uPlanetRadius, HAZE_FALLOFF);
-  }
-
-  float ndotl = dot(normal, normalize(uSunDir));
-  vec3 light = smoothstep(
-    vec3(-TERMINATOR_WRAP),
-    uTerminatorThreshold,
-    vec3(ndotl)
+  // Fade the haze out as the camera approaches the shell.
+  float quant = clamp(
+    (vCentreDistance - (uShellRadius + NEAR_FADE_START)) / NEAR_FADE_LENGTH,
+    0.0,
+    1.0
   );
 
-  gl_FragColor = vec4(uAirColor * light * glow * uStrength, 1.0);
+  float fresnel = pow(1.0 - NdotV * (1.0 - uAirDensity), FRESNEL_EXPONENT);
+  float shape = NdotV > uCosThreshold
+    ? pow(fresnel * uCosThreshold / max(NdotV, 0.0001), 0.8)
+    : min(1.0, uAirDensity * 2.0) * pow(NdotV / uCosThreshold, uRimExponent);
+  float opacity = clamp(
+    quant * pow(max(0.01, NdotL), 0.203333) * shape,
+    0.0,
+    1.0
+  );
+
+  vec3 light = vec3(0.85, 0.85, 1.0) * LIGHT_RADIANCE;
+  vec3 color = light * mix(light, uAirColor, uAirColorMixRatio)
+    * uBrightness * NdotL;
+  if (NdotV < uCosThreshold) {
+    color = mix(uAirColor * NdotL, color, opacity);
+  }
+  color += vec3(uAmbient) * NdotL;
+
+  gl_FragColor = vec4(color, opacity);
 
   #include <tonemapping_fragment>
   #include <colorspace_fragment>

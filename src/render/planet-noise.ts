@@ -69,7 +69,7 @@ export const NOISE_EVAL_BUDGET =
  * run, which renders at Standard.
  */
 export const HIGH_RELIEF_OCTAVES = 3;
-export const HIGH_CLOUD_OCTAVES = 4;
+export const HIGH_CLOUD_OCTAVES = 5;
 
 /** High's worst-case value-noise evaluations per pixel, derived like the above. */
 export const HIGH_NOISE_EVAL_BUDGET =

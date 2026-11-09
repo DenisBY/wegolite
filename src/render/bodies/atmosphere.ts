@@ -4,16 +4,16 @@
 /**
  * The High-quality atmosphere shell mesh (PROJECT.md Key Decisions).
  *
- * One additive, depth-tested, non-depth-writing sphere a little larger than the
- * planet. It is built only at `high` quality and is parented to the planet
- * mesh, so it follows the planet's camera-relative placement without a second
- * sync step. The planet's spin reaches it too, which is harmless: the shader
- * works from world positions and a world-space sun direction, and a sphere is
- * symmetric under rotation.
+ * One alpha-blended, depth-tested, non-depth-writing sphere just above the
+ * planet surface. It is built only at `high` quality and is parented to the
+ * planet mesh, so it follows the planet's camera-relative placement without a
+ * second sync step. The planet's spin reaches it too, which is harmless: the
+ * shader works from world-space normals and a world-space sun direction, and a
+ * sphere is symmetric under rotation.
  *
  * Depth: the shell is transparent, so Three draws it after every opaque body.
  * It tests against the depth buffer and never writes to it, so the station
- * hides the part of the halo behind it and nothing is hidden by the halo.
+ * hides the haze behind it and nothing is hidden by the haze.
  */
 
 import * as THREE from "three";
@@ -27,32 +27,37 @@ import {
 } from "../shaders/atmosphere.glsl.js";
 
 /**
- * The shell radius as a multiple of the planet radius.
+ * How far the shell sits above the surface, in metres.
  *
- * Presentation tuning. Oolite's own shell is `ATMOSPHERE_DEPTH` (500 m,
- * `OOStellarBody.h:48`) above the surface, about 1.2% of Lave's radius, and its
- * shader treats ten times that as the mesosphere (`OOPlanetEntity.m:82`). 4%
- * sits between the two and is wide enough to read as a halo from the station.
+ * Oolite's `ATMOSPHERE_DEPTH` (`OOStellarBody.h:48`); its shader atmosphere is
+ * always `collision_radius + ATMOSPHERE_DEPTH` (`OOPlanetEntity.m:155`).
  */
-export const ATMOSPHERE_SHELL_SCALE = 1.04;
+export const ATMOSPHERE_DEPTH = 500;
 
 /**
- * How much of the authored air colour is replaced by white.
+ * Colour gain, replacing Oolite's sqrt(3). Presentation tuning.
  *
- * Presentation tuning. Lave's `air_color` is pure blue `(0, 0, 1)`; a fully
- * saturated additive halo reads as a neon ring, so a small white share stands
- * in for the broadband part of scattered light.
+ * Oolite multiplies the haze by `dot(normalize(fresnel), vec3(NdotL))`, a gain
+ * of 1.732, and relies on its tone mapping. Wegolite renders without tone
+ * mapping, where that gain clips the lit limb to white.
  */
-export const ATMOSPHERE_WHITE_MIX = 0.2;
+export const ATMOSPHERE_BRIGHTNESS = 1.0;
 
-/** Glow strength per unit of authored `air_density`. Presentation tuning. */
-export const ATMOSPHERE_STRENGTH = 0.6;
-
-const SHELL_SEGMENTS = 96;
-const SHELL_RINGS = 48;
+const SHELL_SEGMENTS = 128;
+const SHELL_RINGS = 64;
 
 /** The mesh name, read by the probe and the tests. */
 export const ATMOSPHERE_NAME = "atmosphere";
+
+/**
+ * Oolite's rim threshold: the cosine of the view angle past which the shell is
+ * the thin coloured rim rather than the haze (0.17 for a small planet, 0.13
+ * for a large one). Clamped so an out-of-range radius cannot make it zero or
+ * negative, which would divide by zero in the shader.
+ */
+export function atmosphereCosThreshold(shellRadius: number): number {
+  return Math.min(Math.max(-1.333333e-6 * shellRadius + 0.21333333, 0.05), 0.3);
+}
 
 /**
  * Build the atmosphere shell for one planet.
@@ -71,28 +76,26 @@ export function createAtmosphere(
     );
   }
 
-  const shellRadius = planetRadius * ATMOSPHERE_SHELL_SCALE;
+  const shellRadius = planetRadius + ATMOSPHERE_DEPTH;
   const [red, green, blue] = decodeColor3(system.air_color);
-  const air = new THREE.Vector3(red, green, blue).lerp(
-    new THREE.Vector3(1, 1, 1),
-    ATMOSPHERE_WHITE_MIX,
-  );
 
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      uAirColor: { value: air },
+      uAirColor: { value: new THREE.Vector3(red, green, blue) },
       uSunDir: { value: new THREE.Vector3(sunDir.x, sunDir.y, sunDir.z) },
-      uTerminatorThreshold: {
-        value: new THREE.Vector3(...system.terminatorThresholdVector),
-      },
-      uPlanetRadius: { value: planetRadius },
+      uAirColorMixRatio: { value: system.air_color_mix_ratio },
+      uAirDensity: { value: system.air_density },
+      uAmbient: { value: system.ambient_level },
       uShellRadius: { value: shellRadius },
-      uStrength: { value: system.air_density * ATMOSPHERE_STRENGTH },
+      uCosThreshold: { value: atmosphereCosThreshold(shellRadius) },
+      // Oolite: a sharper rim on a small planet.
+      uRimExponent: { value: shellRadius > 40_000 ? 3 : 5 },
+      uBrightness: { value: ATMOSPHERE_BRIGHTNESS },
     },
     vertexShader: ATMOSPHERE_VERTEX_SHADER,
     fragmentShader: ATMOSPHERE_FRAGMENT_SHADER,
     transparent: true,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
     depthWrite: false,
     depthTest: true,
     side: THREE.FrontSide,
