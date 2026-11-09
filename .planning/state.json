@@ -36,13 +36,13 @@
     {
       "number": "7",
       "name": "Hardening & Community Release",
-      "status": "pending"
+      "status": "in_progress"
     }
   ],
   "next": {
     "command": "/gsd-progress --next",
     "label": "Advance to the next step",
-    "reason": "Phase 7 of 7 · 84% · executing"
+    "reason": "Phase 7 of 7 · 86% · executing"
   },
-  "updated_at": "2026-11-07T19:32:50.022Z"
+  "updated_at": "2026-11-08T10:48:10.897Z"
 }
