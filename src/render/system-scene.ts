@@ -31,6 +31,8 @@ import type { SystemLayout } from "../sim/world/layout.js";
 import type { AssetCache } from "./asset-cache.js";
 import { createBeacon } from "./bodies/beacon.js";
 import { createDust } from "./bodies/dust.js";
+import { createNebulae } from "./bodies/nebulae.js";
+import type { NebulaBody } from "./bodies/nebulae.js";
 import type { Dust } from "./bodies/dust.js";
 import { createPlanet } from "./bodies/planet.js";
 import type { PlanetBody } from "./bodies/planet.js";
@@ -119,6 +121,8 @@ export interface SystemScene {
   ship: THREE.Group;
   /** D-04: camera-local speed dust; `sync.ts`/the session feed it the camera delta. */
   dust: Dust;
+  /** The sky nebulae, present only at `high` quality. */
+  nebulae?: NebulaBody;
   dispose(): void;
 }
 
@@ -132,6 +136,7 @@ export interface SystemSceneParts {
   navBuoy: THREE.Group;
   witchpoint: THREE.Group;
   dust: Dust;
+  nebulae?: NebulaBody;
 }
 
 /**
@@ -160,6 +165,7 @@ export interface SystemSceneFactories {
   ship(gltf: GLTF): THREE.Group;
   beacon(radius: number): THREE.Group;
   dust(): Dust;
+  nebulae(count: number, seed: string): NebulaBody;
 }
 
 const REAL_FACTORIES: SystemSceneFactories = {
@@ -170,6 +176,7 @@ const REAL_FACTORIES: SystemSceneFactories = {
   ship: createShip,
   beacon: createBeacon,
   dust: () => createDust(),
+  nebulae: (count, seed) => createNebulae(count, seed),
 };
 
 /** Dispose a beacon's own geometry and materials (never a shared asset). */
@@ -278,6 +285,7 @@ export function assembleSystemScene(
     parts.witchpoint,
     parts.dust.object,
   );
+  if (parts.nebulae !== undefined) scene.add(parts.nebulae.object);
 
   const disposer = createDisposer([
     disposePlanet(parts.planet),
@@ -288,6 +296,7 @@ export function assembleSystemScene(
     disposeBeacon(parts.navBuoy),
     disposeBeacon(parts.witchpoint),
     parts.dust,
+    ...(parts.nebulae === undefined ? [] : [parts.nebulae]),
   ]);
 
   return {
@@ -301,6 +310,7 @@ export function assembleSystemScene(
     witchpoint: parts.witchpoint,
     ship: parts.ship,
     dust: parts.dust,
+    ...(parts.nebulae === undefined ? {} : { nebulae: parts.nebulae }),
     dispose(): void {
       disposer.dispose();
       scene.clear();
@@ -367,8 +377,25 @@ export function createSystemScene(
     witchpoint.name = "witchpoint";
     built.add(disposeBeacon(witchpoint));
 
+    // High only: `sky_n_blurs` nebula quads behind everything else.
+    const nebulae =
+      quality === "high"
+        ? f.nebulae(system.sky_n_blurs, system.random_seed)
+        : undefined;
+    if (nebulae !== undefined) built.add(nebulae);
+
     return assembleSystemScene(
-      { planet, sun, starfield, station, ship, navBuoy, witchpoint, dust },
+      {
+        planet,
+        sun,
+        starfield,
+        station,
+        ship,
+        navBuoy,
+        witchpoint,
+        dust,
+        ...(nebulae === undefined ? {} : { nebulae }),
+      },
       layout.sunDir,
       system.ambient_level,
       scene,

@@ -11,6 +11,26 @@
       "sha256": "98f7666a53192b4c561ccfc94ccd91dfadd1225c829251c9559f798433bb7789"
     },
     {
+      "bytes": 29515,
+      "path": "public/textures/oolite-nebula-1.png",
+      "sha256": "60760e7d6d20261b26445e0a695d624f097103648240cf4f2c1c8e8125a82e7b"
+    },
+    {
+      "bytes": 14740,
+      "path": "public/textures/oolite-nebula-2.png",
+      "sha256": "037893917a83276d36680c5239e668de02a11e9423717502acc56286a2f5e512"
+    },
+    {
+      "bytes": 14483,
+      "path": "public/textures/oolite-nebula-3.png",
+      "sha256": "79f3d7557539f2424fa627f6a77347fd10118c7e3fbfe13b64bc68c83758f1bc"
+    },
+    {
+      "bytes": 22545,
+      "path": "public/textures/oolite-nebula-4.png",
+      "sha256": "13ace709dbe03813285340556bd8b526a15b88b35eb89b6ea3e9820b0363548f"
+    },
+    {
       "bytes": 1590699,
       "path": "public/textures/oolite_cobra3_diffuse.png",
       "sha256": "348a0f9394baba4ec1ac0a37a775850e964d496078e5c4f136c479425eb4aa11"

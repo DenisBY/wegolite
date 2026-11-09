@@ -76,6 +76,10 @@ Models/oolite_coriolis.dat
 Models/oolite_coriolis_dock.dat
 Models/oolite_coriolis_faceplate.dat
 Models/oolite_coriolis_tris.dat
+Textures/oolite-nebula-1.png
+Textures/oolite-nebula-2.png
+Textures/oolite-nebula-3.png
+Textures/oolite-nebula-4.png
 Textures/oolite_cobra3_diffuse.png
 Textures/oolite_cobra3_normal.png
 Textures/oolite_cobra3_specular.png

@@ -12,10 +12,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   including the planet description and distance from the current system.
 - Mouse-wheel zoom and drag-to-pan on the F6 chart.
 - A clickable, F-key-ordered station tab strip with an Interfaces screen.
-- A "High-quality planet" setting, off by default. It follows Oolite's planet
+- A "High-quality graphics" setting, off by default. It follows Oolite's
   rendering more closely: sun-angle shading that makes the planet read as a
-  sphere, muted colours, soft layered clouds and an atmosphere haze with a thin
-  coloured rim. The default rendering is unchanged.
+  sphere, muted colours, soft layered clouds, an atmosphere haze with a thin
+  coloured rim, and nebulae in the sky. The default rendering is unchanged.
 
 ### Changed
 

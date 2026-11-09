@@ -336,6 +336,8 @@ export interface WegoliteProbe {
   quality?: GraphicsQuality;
   /** True when the installed scene carries the High-quality atmosphere shell. */
   atmosphere?: boolean;
+  /** How many nebula quads the installed scene draws; 0 at Standard. */
+  nebulae?: number;
   /**
    * The live active-camera aspect (WORLD-02). The e2e proof reads this instead
    * of a screenshot. Absent on the failure surface, where no camera renders.

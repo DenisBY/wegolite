@@ -243,12 +243,42 @@ export async function copyTextures({
   inputRoot,
   outRoot,
 }: CopyTexturesOptions): Promise<EmittedTextureFile[]> {
+  return copyNamedTextures(VENDORED_TEXTURES, { inputRoot, outRoot });
+}
+
+/**
+ * The sky textures the High graphics quality draws its nebulae with.
+ *
+ * They are listed in `Config/nebulatextures.plist` and are not referenced by a
+ * ship material, so they sit outside `VENDORED_TEXTURES` and its "referenced by
+ * an emitted GLB" rule. They are copied byte-for-byte by the same hash-verified
+ * path.
+ */
+export const SKY_TEXTURES: readonly string[] = [
+  "oolite-nebula-1.png",
+  "oolite-nebula-2.png",
+  "oolite-nebula-3.png",
+  "oolite-nebula-4.png",
+];
+
+/** Copy the sky textures byte-for-byte into `public/textures/`. */
+export async function copySkyTextures({
+  inputRoot,
+  outRoot,
+}: CopyTexturesOptions): Promise<EmittedTextureFile[]> {
+  return copyNamedTextures(SKY_TEXTURES, { inputRoot, outRoot });
+}
+
+async function copyNamedTextures(
+  names: readonly string[],
+  { inputRoot, outRoot }: CopyTexturesOptions,
+): Promise<EmittedTextureFile[]> {
   const sourceBase = resolve(inputRoot, TEXTURES_DIR);
   const targetBase = resolve(outRoot, EMITTED_TEXTURES_DIR);
   await mkdir(targetBase, { recursive: true });
 
   const emitted: EmittedTextureFile[] = [];
-  for (const name of VENDORED_TEXTURES) {
+  for (const name of names) {
     const source = resolveUnder(sourceBase, name, name);
     let bytes: Buffer;
     try {

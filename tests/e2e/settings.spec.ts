@@ -411,6 +411,8 @@ test("the High-quality toggle rebuilds the planet, persists and resets", async (
       quality: window.__wegolite?.quality,
       atmosphere: window.__wegolite?.atmosphere,
     }));
+  const nebulaQuads = (): Promise<number | undefined> =>
+    page.evaluate(() => window.__wegolite?.nebulae);
 
   // In flight after a launch the planet is in view, so the High shader and the
   // atmosphere shell are compiled and drawn; a GLSL error would reach the
@@ -428,11 +430,13 @@ test("the High-quality toggle rebuilds the planet, persists and resets", async (
   await expect(page.locator("#settings-panel")).toBeVisible();
   const toggle = page.locator('[data-settings-toggle="highQuality"]');
   await expect(toggle).not.toBeChecked();
+  expect(await nebulaQuads()).toBe(0);
 
   // b. Switching it on rebuilds the scene at once and saves the choice.
   await toggle.check();
   await page.waitForFunction(() => window.__wegolite?.quality === "high");
   expect(await sceneQuality()).toEqual({ quality: "high", atmosphere: true });
+  expect(await nebulaQuads()).toBeGreaterThan(0);
   const stored = await page.evaluate(() =>
     localStorage.getItem("wegolite.settings"),
   );
@@ -469,6 +473,7 @@ test("the High-quality toggle rebuilds the planet, persists and resets", async (
   await expect(
     page.locator('[data-settings-toggle="highQuality"]'),
   ).not.toBeChecked();
+  expect(await nebulaQuads()).toBe(0);
 
   expect(errors).toEqual([]);
 });

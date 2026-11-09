@@ -2403,6 +2403,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     probe.systemId = system.id;
     probe.quality = scenes.quality();
     probe.atmosphere = scene?.planet.atmosphere !== undefined;
+    probe.nebulae = scene?.nebulae?.quadCount ?? 0;
     probe.chart = {
       open: chartOpen,
       camera: {

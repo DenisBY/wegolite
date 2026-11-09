@@ -31,7 +31,11 @@ import { emitEquipment } from "./convert/equipment.js";
 import { emitLabels } from "./convert/labels.js";
 import { compileShips, emitShipsFromCatalogue } from "./convert/ships.js";
 import { emitSystems } from "./convert/systems.js";
-import { copyTextures, emitTextures } from "./convert/textures.js";
+import {
+  copySkyTextures,
+  copyTextures,
+  emitTextures,
+} from "./convert/textures.js";
 import { parseOpenStep } from "./openstep/parser.js";
 import type { PlistValue } from "./openstep/plist-value.js";
 
@@ -161,7 +165,11 @@ export async function generateContent({
     catalogue: catalogue.entries,
   });
 
-  return [...emitted, ...textures, ...emissives];
+  // The nebula textures for the High graphics quality: listed in
+  // nebulatextures.plist, not referenced by a ship material.
+  const skyTextures = await copySkyTextures({ inputRoot, outRoot });
+
+  return [...emitted, ...textures, ...emissives, ...skyTextures];
 }
 
 /**

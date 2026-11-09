@@ -159,9 +159,9 @@ The container checks the first two on SwiftShader. Frame rate is judged only on 
 real GPU, by the protocol in that document.
 
 These limits describe the default Standard quality. The pause menu's Settings
-panel has a "High-quality planet" option, off by default, that adds
-sun-angle shading, soft layered clouds and an atmosphere haze. High spends up to 17 noise
-evaluations and one more draw call, and it is not measured by the budget tests.
+panel has a "High-quality graphics" option, off by default, that adds
+sun-angle shading, soft layered clouds, an atmosphere haze and sky nebulae. High spends up to 17 noise
+evaluations and up to five more draw calls, and it is not measured by the budget tests.
 
 ## Troubleshooting
 
