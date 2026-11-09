@@ -28,6 +28,7 @@ export type ActionId =
   | "stationOutfitting"
   | "stationStatus"
   | "stationSystemData"
+  | "stationInterfaces"
   | "stationBack"
   | "stationUp"
   | "stationDown"
@@ -99,6 +100,7 @@ export const ACTION_IDS: readonly ActionId[] = [
   "stationOutfitting",
   "stationStatus",
   "stationSystemData",
+  "stationInterfaces",
   "stationBack",
   "stationUp",
   "stationDown",
@@ -163,6 +165,8 @@ export const DEFAULT_BINDINGS: Readonly<Record<ActionId, readonly string[]>> =
     stationOutfitting: Object.freeze(["F3", "Digit3"]),
     stationStatus: Object.freeze(["F5", "Digit5"]),
     stationSystemData: Object.freeze(["F7", "Digit7"]),
+    // Digit4 is Oolite's own alias for the interfaces screen.
+    stationInterfaces: Object.freeze(["F4", "Digit4"]),
     stationBack: Object.freeze(["Escape", "Backspace"]),
     stationUp: Object.freeze(["ArrowUp"]),
     stationDown: Object.freeze(["ArrowDown"]),
@@ -218,6 +222,7 @@ export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
   stationOutfitting: "Outfitting",
   stationStatus: "Status",
   stationSystemData: "System data",
+  stationInterfaces: "Interfaces",
   stationBack: "Back",
   stationUp: "Up",
   stationDown: "Down",
@@ -275,10 +280,18 @@ export const SHIFT_VARIANT_ACTIONS: Readonly<
   stationRight: "stationBuyMax",
 });
 
-/** F-keys the browser would otherwise reload or open on. */
+/**
+ * F-keys the browser would otherwise reload or open on. F1 (the browser help
+ * key) and F4 are included because the station tab strip advertises F1 Launch
+ * and F4 Interfaces on every docked screen, so neither may ever act on the
+ * browser while docked. No test exercises the real browser help-page behaviour;
+ * only the cancellation of the (synthetic) event is proven.
+ */
 export const RESERVED_F_KEYS: ReadonlySet<string> = new Set([
+  "F1",
   "F2",
   "F3",
+  "F4",
   "F5",
   "F6",
   "F7",
@@ -336,6 +349,7 @@ export const ACTION_CONTEXTS: Readonly<
   stationOutfitting: contexts("dockHome", "dockScreen"),
   stationStatus: contexts("dockHome", "dockScreen"),
   stationSystemData: contexts("dockHome", "dockScreen"),
+  stationInterfaces: contexts("dockHome", "dockScreen"),
   stationBack: contexts("dockScreen"),
   stationUp: contexts("dockScreen"),
   stationDown: contexts("dockScreen"),
@@ -349,10 +363,11 @@ export const ACTION_CONTEXTS: Readonly<
   stationBuyMax: contexts("dockScreen"),
 });
 
-/** The four actions that open a station section synchronously. */
+/** The five actions that open a station section synchronously. */
 export const STATION_SCREEN_ACTIONS: ReadonlySet<ActionId> = new Set<ActionId>([
   "stationMarket",
   "stationOutfitting",
   "stationStatus",
   "stationSystemData",
+  "stationInterfaces",
 ]);

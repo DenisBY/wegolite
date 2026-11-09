@@ -16,9 +16,9 @@
  *
  * The action dispatcher stays on the **bubble** phase: the Controls panel's
  * rebind capture stops propagation, so the game listener must not fire first.
- * A separate narrow capture listener only calls `preventDefault()` for the six
- * browser-reserved F-keys (F2, F3, F5, F6, F7, F8); it never dispatches and never
- * stops propagation.
+ * A separate narrow capture listener only calls `preventDefault()` for the eight
+ * browser-reserved F-keys (F1, F2, F3, F4, F5, F6, F7, F8); it never dispatches
+ * and never stops propagation.
  *
  * `createInputState` is the DOM-free core: Vitest drives keydown/keyup directly
  * without a browser, and `createKeyboardInputSource` is the thin listener layer.
@@ -103,7 +103,7 @@ export interface InputState {
   /** While paused only `pause` resolves; every other code is ignored. */
   setPaused(paused: boolean): void;
   /**
-   * Register the synchronous sink for the four screen-open actions. The session
+   * Register the synchronous sink for the five screen-open actions. The session
    * opens the section and switches context inside the same key event, so a
    * following same-frame arrow resolves against `dockScreen`.
    */
@@ -348,7 +348,7 @@ export interface ReservedKeyState {
 /**
  * Whether the capture-phase guard should cancel this key's browser default.
  *
- * Only the six reserved F-keys in `RESERVED_F_KEYS` qualify. A Ctrl/Meta/Alt
+ * Only the eight reserved F-keys in `RESERVED_F_KEYS` (F1 to F8) qualify. A Ctrl/Meta/Alt
  * chord belongs to the browser (Ctrl+F5 is a hard reload), a capture session is
  * rebinding, and a text field is typing; none may be intercepted.
  */
@@ -413,9 +413,10 @@ export function createKeyboardInputSource(
   }
 
   /**
-   * The narrow capture guard. Its only job is the browser default for F3/F5/
-   * F7/F8 so a station screen opens instead of reloading or find-on-page. It
-   * never calls an action and never stops propagation.
+   * The narrow capture guard. Its only job is the browser default for the
+   * reserved F1 to F8 keys so a station screen opens instead of reloading,
+   * opening help or find-on-page. It never calls an action and never stops
+   * propagation.
    */
   function onReservedKeyDown(event: KeyboardEvent): void {
     const capturing =

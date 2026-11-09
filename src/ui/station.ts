@@ -29,7 +29,7 @@ import type {
 } from "./station-model.js";
 
 export type StationScreen =
-  "home" | "market" | "outfitting" | "status" | "systemData";
+  "home" | "market" | "outfitting" | "status" | "systemData" | "interfaces";
 
 export interface StationView {
   readonly screen: StationScreen;

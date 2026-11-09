@@ -175,7 +175,7 @@ describe("reserved F-key guard", () => {
   }
 
   it("cancels a plain reserved F-key but never dispatches", () => {
-    for (const code of ["F3", "F5", "F7", "F8"]) {
+    for (const code of ["F1", "F3", "F4", "F5", "F7", "F8"]) {
       const sample = event(code);
       cancelReservedKey(sample);
       expect(sample.defaultPrevented).toBe(true);
@@ -219,6 +219,41 @@ describe("reserved F-key guard", () => {
     // F8's action is dockHome/dockScreen only, but the browser default must
     // still be ours to cancel so the capture guard and keyDown agree.
     expect(state.keyDown("F8")).toBe(true);
+  });
+});
+
+describe("F1 outside the home screen", () => {
+  it("is handled but fires nothing in dockScreen, chart and saveScreen", () => {
+    for (const context of ["dockScreen", "chart", "saveScreen"] as const) {
+      const state = createInputState();
+      state.setContext(context);
+      expect(state.keyDown("F1")).toBe(true);
+      expect(state.drainCommands()).toEqual([]);
+      expect(state.drainStationActions()).toEqual([]);
+    }
+  });
+
+  it("still queues exactly one launch command at home", () => {
+    const state = createInputState();
+    state.setContext("dockHome");
+    expect(state.keyDown("F1")).toBe(true);
+    expect(state.drainCommands()).toEqual([{ kind: "launch" }]);
+  });
+
+  it("leaves a Ctrl+F1 chord and a capturing session alone", () => {
+    const base = {
+      code: "F1",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      capturing: false,
+      textTarget: false,
+    };
+    expect(shouldCancelReservedKey(base)).toBe(false);
+    expect(
+      shouldCancelReservedKey({ ...base, ctrlKey: false, capturing: true }),
+    ).toBe(false);
+    expect(shouldCancelReservedKey({ ...base, ctrlKey: false })).toBe(true);
   });
 });
 

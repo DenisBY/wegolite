@@ -15,8 +15,10 @@ import { describe, expect, it } from "vitest";
 import {
   ACTION_CONTEXTS,
   ACTION_IDS,
+  ACTION_LABELS,
   DEFAULT_BINDINGS,
   RESERVED_F_KEYS,
+  STATION_SCREEN_ACTIONS,
 } from "../../src/input/actions.js";
 import {
   MAX_CODES_PER_ACTION,
@@ -570,5 +572,54 @@ describe("save screen bindings", () => {
     state.keyDown("F2");
     state.setContext("saveScreen");
     expect(state.drainSaveScreenActions()).toEqual([]);
+  });
+});
+
+describe("interfaces screen action", () => {
+  it("registers F4 and Digit4 as a docked-only screen-open action", () => {
+    expect(ACTION_IDS).toContain("stationInterfaces");
+    expect(DEFAULT_BINDINGS.stationInterfaces).toEqual(["F4", "Digit4"]);
+    expect(ACTION_CONTEXTS.stationInterfaces).toEqual([
+      "dockHome",
+      "dockScreen",
+    ]);
+    expect(STATION_SCREEN_ACTIONS.has("stationInterfaces")).toBe(true);
+    expect(ACTION_LABELS.stationInterfaces).toBe("Interfaces");
+  });
+
+  it("keeps every action label unique", () => {
+    const labels = ACTION_IDS.map((action) => ACTION_LABELS[action]);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("reserves F1 and F4 beside the existing F-keys", () => {
+    for (const code of ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"]) {
+      expect(RESERVED_F_KEYS.has(code)).toBe(true);
+    }
+  });
+
+  it("opens through the synchronous station-screen handler", () => {
+    for (const code of ["F4", "Digit4"]) {
+      for (const context of ["dockHome", "dockScreen"] as const) {
+        const state = createInputState();
+        const opened: string[] = [];
+        state.setStationScreenHandler((action) => opened.push(action));
+        state.setContext(context);
+        expect(state.keyDown(code)).toBe(true);
+        expect(opened).toEqual(["stationInterfaces"]);
+        expect(state.drainStationActions()).toEqual([]);
+      }
+    }
+  });
+
+  it("fires nothing in flight, but F4 still reports handled", () => {
+    const state = createInputState();
+    const opened: string[] = [];
+    state.setStationScreenHandler((action) => opened.push(action));
+    expect(state.keyDown("F4")).toBe(true);
+    expect(state.keyDown("Digit4")).toBe(false);
+    expect(opened).toEqual([]);
+    expect(state.drainCommands()).toEqual([]);
+    expect(state.drainStationActions()).toEqual([]);
   });
 });

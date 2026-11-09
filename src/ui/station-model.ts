@@ -690,3 +690,29 @@ export function buildOutfittingModel(
 
   return { rows, detail, fuelVisible, selectedKey };
 }
+
+/**
+ * The F4 Interfaces screen (a live screen with Oolite's empty state).
+ *
+ * Source: Oolite `PlayerEntity.m` `setGuiToInterfacesScreen`, which titles the
+ * screen with `DESC(@"interfaces-title")` and, when no interface entry exists,
+ * shows `DESC(@"interfaces-no-interfaces-available-for-use")`. Both keys live in
+ * `descriptions.plist` (vendored copy at
+ * `third_party/oolite/Config/descriptions.plist`). The content build does not
+ * compile these keys and the labels schema is strict, so the text is a literal
+ * here and `tests/ui/station-interfaces.test.ts` pins both strings to the
+ * vendored plist.
+ */
+export const INTERFACES_TITLE = "Ship and System Interfaces";
+export const INTERFACES_EMPTY_TEXT =
+  "No interfaces are installed on your ship or enabled at this station";
+
+export interface InterfacesModel {
+  readonly title: string;
+  readonly emptyText: string;
+}
+
+/** The Interfaces screen model: Oolite's title and empty-state line. */
+export function buildInterfacesModel(): InterfacesModel {
+  return { title: INTERFACES_TITLE, emptyText: INTERFACES_EMPTY_TEXT };
+}

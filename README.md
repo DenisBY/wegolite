@@ -75,6 +75,7 @@ for that action.
 | Outfitting    | `F3 / 3`            |
 | Status        | `F5 / 5`            |
 | System data   | `F7 / 7`            |
+| Interfaces    | `F4 / 4`            |
 | Back          | `Esc / Backspace`   |
 | Up            | `Up arrow`          |
 | Down          | `Down arrow`        |
