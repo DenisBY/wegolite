@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-09 - Completed quick task 11: added CHANGELOG.md and the SemVer/changelog policy in AGENTS.md
+Last activity: 2026-11-09 - Completed quick task 12: removed the duplicate screen-switch key list from the station footer
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -282,6 +282,7 @@ Recent decisions affecting current work:
 | 9 | Add the system description to the chart hover card and refresh F7 after the chart closes | 2026-11-09 | 2976b0f | — |
 | 10 | Remove the redundant F7 system data screen; the F6 hover card now carries the same fields and description | 2026-11-09 | c1c9897 | — |
 | 11 | Add a Keep a Changelog file and record the SemVer and changelog policy in AGENTS.md | 2026-11-09 | 232c313 | — |
+| 12 | Remove the duplicate screen-switch key list from the station footer; the tab strip already shows it | 2026-11-09 | c07433b | — |
 
 ## Deferred Items
 
