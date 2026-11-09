@@ -111,8 +111,8 @@ for that action.
 
 Wegolite supports two desktop browsers: current stable Chrome and current stable Firefox. Both need WebGL2, so hardware acceleration must be enabled.
 
-Two commands check the release. `docker compose run --rm verify` runs the full
-suite on Chromium. `docker compose run --rm e2e-cross` runs the core loop on
+Two commands check the release. `docker compose run --rm verify-full` runs the
+full suite on Chromium. `docker compose run --rm e2e-cross` runs the core loop on
 Firefox under a virtual display. Real-GPU frame rate is measured by the protocol
 in [`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md), never inside Docker.
 
@@ -132,7 +132,8 @@ contract.
 | Firefox browser tests            | `docker compose run --rm e2e-cross`                   |
 | Content build (regenerate)       | `docker compose run --rm assets`                      |
 | Content drift check              | `docker compose run --rm assets npm run assets:check` |
-| Full verification                | `docker compose run --rm verify`                      |
+| Fast verification gate           | `docker compose run --rm verify`                      |
+| Full release gate                | `docker compose run --rm verify-full`                 |
 | Lint                             | `docker compose run --rm lint`                        |
 | Typecheck                        | `docker compose run --rm typecheck`                   |
 | Rebuild after dependency changes | `docker compose build --no-cache`                     |
@@ -205,8 +206,8 @@ browser never parses a plist and never downloads the snapshot.
 
 ## Operational notes
 
-- **Ports.** The dev server publishes `5173` and the production preview `4173`. The test services (`test`, `e2e`, `e2e-cross`, `lint`, `typecheck`, `assets`, `verify`) publish no ports — Playwright starts its own `vite preview` inside the container.
-- **Definition of done.** The only definition of done is `docker compose run --rm verify`: it runs `lint`, then `typecheck`, then `assets:check`, then `test`, then `build`, then `e2e`, as one fail-fast chain in one container, exiting non-zero at the first failing stage. A green host run is not evidence; tests pass only in the container.
+- **Ports.** The dev server publishes `5173` and the production preview `4173`. The test services (`test`, `e2e`, `e2e-cross`, `lint`, `typecheck`, `assets`, `verify`, `verify-full`) publish no ports — Playwright starts its own `vite preview` inside the container.
+- **Definition of done.** The definition of done for everyday changes is `docker compose run --rm verify`, the fast gate: it runs `lint`, then `typecheck`, then `assets:check`, then `test`, then `build`, then the e2e smoke subset (`test:e2e:fast`: the scene, docking and save/load specs), as one fail-fast chain in one container, exiting non-zero at the first failing stage. `docker compose run --rm verify-full` runs the same fail-fast chain with the full Chromium suite (`test:e2e`); run it before a release and when render, input, persistence or network-guard code changes, and CI runs it. A green host run is not evidence; tests pass only in the container.
 - **Dependency changes.** After any `package.json` or `package-lock.json` change run `docker compose build --no-cache` **and** `docker compose down --volumes`. A rebuild alone is not enough: the named `node_modules` volume is populated from the image once and otherwise keeps its old contents.
 - **Hot reload on WSL2/macOS.** If host edits stop triggering a reload, opt in to file polling with `VITE_USE_POLLING=1` (see `.env.example`). Polling is opt-in because it costs CPU.
 - **Chromium posture.** Browser tests run the image's baked Chromium as root with its sandbox disabled, and the preview under test loads only content this repository serves. No third-party page is ever opened. Firefox in the `e2e-cross` image runs under the same localhost-only posture, and `e2e-cross` is not part of `verify`, which stays Chromium-only.

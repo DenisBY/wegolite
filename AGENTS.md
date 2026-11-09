@@ -64,8 +64,11 @@ docker compose run --rm e2e
 # Run the Firefox engine smoke and core-loop journey (headed under xvfb; not part of verify)
 docker compose run --rm e2e-cross
 
-# Run everything CI runs
+# Run the fast gate (lint, typecheck, content drift, unit tests, build, e2e smoke subset)
 docker compose run --rm verify
+
+# Run the full release gate (the same chain with the full Chromium e2e suite; CI runs this)
+docker compose run --rm verify-full
 
 # Rebuild after dependency changes, then drop the stale named volume
 docker compose build --no-cache
@@ -74,6 +77,8 @@ docker compose down --volumes
 # Stop and clean up
 docker compose down --volumes --remove-orphans
 ```
+
+`verify` is the fast gate and runs on every change; `verify-full` is the release gate and runs before a release and when render, input, persistence or network-guard code changes. CI runs `verify-full`.
 
 Rules:
 
@@ -115,7 +120,8 @@ If Compose is not yet present (early scaffolding), creating it is part of the fi
 | Firefox browser tests          | `docker compose run --rm e2e-cross`                   |
 | Content build (regenerate)     | `docker compose run --rm assets`                      |
 | Content drift check            | `docker compose run --rm assets npm run assets:check` |
-| Full verification              | `docker compose run --rm verify`                      |
+| Fast verification gate         | `docker compose run --rm verify`                      |
+| Full release gate              | `docker compose run --rm verify-full`                 |
 | Lint                           | `docker compose run --rm lint`                        |
 | Typecheck                      | `docker compose run --rm typecheck`                   |
 

@@ -247,6 +247,7 @@ describe("FOUND-03 container-only verification", () => {
       "typecheck",
       "assets",
       "verify",
+      "verify-full",
     ]) {
       expect(executable(service(name))).toContain("<<: *workspace");
     }
@@ -262,6 +263,7 @@ describe("FOUND-03 container-only verification", () => {
       "typecheck",
       "assets",
       "verify",
+      "verify-full",
     ]) {
       expect(executable(service(name))).not.toMatch(/^\s*ports:/m);
     }
@@ -287,6 +289,9 @@ describe("FOUND-03 container-only verification", () => {
     // D-09: the Firefox gate never joins the Chromium-only verify chain.
     const verify = executable(service("verify"));
     expect(verify).not.toMatch(/e2e-cross|test:e2e:cross/);
+    expect(executable(service("verify-full"))).not.toMatch(
+      /e2e-cross|test:e2e:cross/,
+    );
   });
 
   it("maps each service to its documented npm script", () => {
@@ -319,6 +324,19 @@ describe("FOUND-03 container-only verification", () => {
     expect(script(manifest, "test:e2e:cross")).toBe(
       "xvfb-run -a playwright test --project=firefox --workers=1",
     );
+
+    // Owner option B (2026-11-08): the fast gate ends in a Chromium-only smoke
+    // subset (D-09) made of whole spec files. Pin the exact script and require
+    // each listed spec to exist, so a rename or delete cannot silently shrink it.
+    const fast = script(manifest, "test:e2e:fast");
+    expect(fast).toBe(
+      "playwright test --project=chromium tests/e2e/scene.spec.ts tests/e2e/docking.spec.ts tests/e2e/save-load.spec.ts",
+    );
+    const specPaths = fast.match(/tests\/e2e\/[a-z-]+\.spec\.ts/g) ?? [];
+    expect(specPaths).toHaveLength(3);
+    for (const specPath of specPaths) {
+      expect(existsSync(join(REPO_ROOT, specPath))).toBe(true);
+    }
   });
 
   it("runs verify as one fail-fast chain in dependency order", () => {
@@ -331,6 +349,19 @@ describe("FOUND-03 container-only verification", () => {
     // The exact chain is the contract: `&&` (not `;`) is what makes the first
     // failing stage short-circuit (D-03).
     expect(verify.slice(chainAt)).toBe(
+      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build && npm run test:e2e:fast",
+    );
+  });
+
+  it("runs verify-full as the same fail-fast chain with the full browser suite", () => {
+    const verifyFull = executable(service("verify-full"))
+      .replace(/\s+/g, " ")
+      .trim();
+    const chainAt = verifyFull.indexOf("npm run lint");
+
+    expect(verifyFull).toMatch(/command: - sh - -lc - >- npm run lint/);
+    expect(chainAt).toBeGreaterThanOrEqual(0);
+    expect(verifyFull.slice(chainAt)).toBe(
       "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build && npm run test:e2e",
     );
   });

@@ -154,6 +154,7 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 | Exclude `.agents/` and `skills-lock.json` from the repository and the distribution | Their third-party licences are not recorded (research Pitfall 8). They are local developer tooling, recorded as not-distributed in ASSETS.md | ✓ Phase 7 plan 07-11 — both paths are ignored by `.gitignore`, absent from `git ls-files`, and checked by `scripts/audit-release.sh` |
 | Defer WR-05 and IN-06 from Phase 6 review, and the chart footer, contrast and typography debt | Owner decision (D-23, D-24, D-25). These items are recorded only, with no change to that code in this phase | ✓ Phase 7 planning — recorded in 07-CONTEXT Open Items; no plan in Phase 7 changes that code |
 | Publish the source only at the owner's explicit confirmation, at the moment of push | A public push cannot be recalled once cloned or indexed (D-01). No agent runs `git push` in this phase; the owner checkpoint is the only route | ⏳ Phase 7 plan 07-11 — pending the owner's push; `scripts/audit-release.sh --remote` is the check that follows it |
+| Split the verification gate: `verify` is the fast gate; `verify-full` is the release gate and runs before release and when render, input, persistence or network-guard code changes | Owner choice (option B) to keep the everyday loop short while keeping the full suite before release | ⏳ Pending — owner decision 2026-11-08; quick task 261109-d1s adds the `verify-full` service and the `test:e2e:fast` subset |
 
 ## Evolution
 

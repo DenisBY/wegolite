@@ -88,6 +88,26 @@ services:
     # D-03: one fail-fast shell chain in one container. `&&` (not `;`, not
     # `set -e` with semicolons) is what makes the first failing stage
     # short-circuit. No depends_on fan-in and no orchestration script.
+    # This is the fast gate (owner option B, 2026-11-08): it ends in the e2e
+    # smoke subset, and the full browser suite runs in `verify-full`.
+    command:
+      - sh
+      - -lc
+      - >-
+        npm run lint &&
+        npm run typecheck &&
+        npm run assets:check &&
+        npm run test &&
+        npm run build &&
+        npm run test:e2e:fast
+
+  # Release gate (owner option B, 2026-11-08): run before a release and when
+  # render, input, persistence or network-guard code changes. The same D-03
+  # fail-fast chain as `verify`, ending in the full Chromium suite. The Firefox
+  # gate stays the separate `e2e-cross` service (D-09).
+  verify-full:
+    <<: *workspace
+    ipc: host
     command:
       - sh
       - -lc

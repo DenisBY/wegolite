@@ -15,4 +15,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Full gate (unit, e2e, lint, typecheck, assets, contract)
-        run: docker compose run --rm verify
+        run: docker compose run --rm verify-full
