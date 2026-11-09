@@ -75,7 +75,7 @@ Requirements for the initial release. Each maps to a roadmap phase.
 
 ### Hyperspace, Navigation & Persistence
 
-- [x] **NAV-01**: The F6 galactic chart plots all 256 systems in the current galaxy with short/long range and 7 LY connection lines
+- [x] **NAV-01**: The F6 galactic chart plots all 256 systems in the current galaxy with continuous wheel zoom, drag panning and 7 LY connection lines; it opens on the local view around the current system and Tab toggles the whole-galaxy view
 - [x] **NAV-02**: The player can select a target and see its distance and fuel cost, and unreachable targets are blocked
 - [x] **NAV-03**: Hyperspace requires fuel at least equal to the cost, with a 70-unit tank and a 7.0 LY maximum jump
 - [x] **NAV-04**: A 15-second countdown can be aborted with pilot input, and a completed jump advances the clock by distance² hours

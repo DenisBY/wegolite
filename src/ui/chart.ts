@@ -35,7 +35,7 @@ const MAX_DEVICE_PIXEL_RATIO = 2;
 const HIT_RADIUS = 14;
 const DRAG_THRESHOLD = 3;
 const KEY_HINT =
-  "Click: select  Arrows: next  Tab: preset  Enter: commit  Esc: close";
+  "Click: select · Arrows: next · Tab: preset · Enter: commit · Esc: close";
 
 /** The chart shell was handed markup it cannot drive. */
 export class ChartError extends Error {

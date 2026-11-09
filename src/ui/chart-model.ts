@@ -197,10 +197,10 @@ function finiteViewport(viewport: ChartViewport): boolean {
  * Force a camera into the galaxy's finite 0..256 extent (D-05, T-261109-02).
  *
  * Non-finite input falls back to the whole-galaxy preset. `spanX` clamps to
- * `[CHART_MIN_SPAN_X, CHART_GALAXY_SPAN_X]`; the centre then clamps per axis so
- * the visible window cannot leave the galaxy. The x window is `spanX` wide and
- * the y window is `spanY` tall, where `spanY / 2 === spanX`; at whole-galaxy
- * zoom both axes pin the centre to 128.
+ * `[CHART_MIN_SPAN_X, CHART_GALAXY_SPAN_X]`; the centre clamps to the galaxy
+ * extent on both axes. The visible window may extend past an edge, so a player
+ * can pan until that edge sits in the middle of the screen (manual UAT
+ * 2026-11-09); the centre itself never leaves 0..256.
  */
 export function clampChartCamera(camera: ChartCamera): ChartCamera {
   if (
@@ -215,16 +215,8 @@ export function clampChartCamera(camera: ChartCamera): ChartCamera {
     CHART_GALAXY_SPAN_X,
     Math.max(CHART_MIN_SPAN_X, camera.spanX),
   );
-  const halfX = spanX / 2;
-  const halfY = spanX; // spanY / 2, because spanY = 2 * spanX.
-  const x = Math.min(
-    Math.max(camera.centre.x, Math.min(128, halfX)),
-    Math.max(128, 256 - halfX),
-  );
-  const y = Math.min(
-    Math.max(camera.centre.y, Math.min(128, halfY)),
-    Math.max(128, 256 - halfY),
-  );
+  const x = Math.min(256, Math.max(0, camera.centre.x));
+  const y = Math.min(256, Math.max(0, camera.centre.y));
   return { centre: { x, y }, spanX };
 }
 

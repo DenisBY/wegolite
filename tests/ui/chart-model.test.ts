@@ -131,9 +131,9 @@ describe("buildChartView", () => {
     const disoMarker = marker(view, diso.id);
 
     expect(laveMarker.isCurrent).toBe(true);
-    // Lave's chart-x is 20, so the local preset's centre clamps to x=40 and
-    // keeps the whole ±40 window inside the galaxy (D-05).
-    expect(laveMarker.screenX).toBeCloseTo(300, 10);
+    // Lave's chart-x is 20 and the centre may reach the galaxy edge, so the
+    // local preset puts Lave at the middle of the viewport.
+    expect(laveMarker.screenX).toBeCloseTo(400, 10);
     expect(laveMarker.screenY).toBeCloseTo(200, 10);
     expect(disoMarker.distanceLy).toBeCloseTo(3.6, 10);
     expect(disoMarker.fuelCost).toBe(36);
@@ -685,11 +685,12 @@ describe("chart camera presets and clamping", () => {
     expect(chartSpanY(camera)).toBe(512);
   });
 
-  it("opens the local preset at spanX 80, clamped inside the galaxy", () => {
+  it("opens the local preset at spanX 80 centred on the system", () => {
     const camera = localPreset(lave);
 
-    // Lave sits at chart-x 20, so the ±40 window clamps its centre to x=40.
-    expect(camera).toEqual({ centre: { x: 40, y: 173 }, spanX: 80 });
+    // Lave sits at chart-x 20; the centre may reach the galaxy edge, so it
+    // stays on the system and the view extends into the empty margin.
+    expect(camera).toEqual({ centre: { x: 20, y: 173 }, spanX: 80 });
     expect(chartSpanY(camera)).toBe(160);
   });
 
@@ -702,23 +703,24 @@ describe("chart camera presets and clamping", () => {
     ).toBe(256);
   });
 
-  it("clamps the centre so the window stays inside the 0..256 galaxy", () => {
-    // spanX 80: x window is 80 wide (40..216), y window is 160 tall (80..176).
+  it("clamps the centre into 0..256 and lets the window overhang an edge", () => {
+    // The centre can reach an edge, so that edge can sit in the middle of the
+    // screen; it may not leave the galaxy entirely.
     expect(
       clampChartCamera({ centre: { x: -50, y: -50 }, spanX: 80 }).centre,
-    ).toEqual({ x: 40, y: 80 });
+    ).toEqual({ x: 0, y: 0 });
     expect(
       clampChartCamera({ centre: { x: 400, y: 400 }, spanX: 80 }).centre,
-    ).toEqual({ x: 216, y: 176 });
+    ).toEqual({ x: 256, y: 256 });
   });
 
-  it("pins the whole-galaxy centre regardless of the input", () => {
+  it("leaves a galaxy-preset centre pannable inside 0..256", () => {
     expect(
       clampChartCamera({ centre: { x: 0, y: 0 }, spanX: 256 }).centre,
-    ).toEqual({ x: 128, y: 128 });
+    ).toEqual({ x: 0, y: 0 });
     expect(
       clampChartCamera({ centre: { x: 255, y: 255 }, spanX: 400 }).centre,
-    ).toEqual({ x: 128, y: 128 });
+    ).toEqual({ x: 255, y: 255 });
   });
 
   it("replaces non-finite input with the galaxy preset", () => {
@@ -810,7 +812,7 @@ describe("panChartCamera", () => {
     const once = panChartCamera(camera, viewport, 10_000, 10_000);
     const twice = panChartCamera(once, viewport, 10_000, 10_000);
 
-    expect(once.centre).toEqual({ x: 40, y: 80 });
+    expect(once.centre).toEqual({ x: 0, y: 0 });
     expect(twice.centre).toEqual(once.centre);
   });
 });

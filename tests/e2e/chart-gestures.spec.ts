@@ -113,8 +113,8 @@ test("the chart opens on the local preset without Short/Long sub-tabs", async ({
   const camera = (await getProbe(page)).chart?.camera;
   expect(camera?.spanX).toBe(80);
   expect(camera?.spanY).toBe(160);
-  // Lave is at chart-x 20, so the local window clamps its centre to x=40.
-  expect(camera?.centre).toEqual({ x: 40, y: 173 });
+  // Lave is at chart-x 20; the centre can reach the edge, so it stays on Lave.
+  expect(camera?.centre).toEqual({ x: 20, y: 173 });
   await expect(page.locator("#chart .station-subnav")).toHaveCount(0);
 
   expect(errors).toEqual([]);
@@ -258,7 +258,7 @@ test("Tab toggles the local and whole-galaxy presets", async ({ page }) => {
     { timeout: 30_000 },
   );
   const local = (await getProbe(page)).chart?.camera;
-  expect(local?.centre).toEqual({ x: 40, y: 173 });
+  expect(local?.centre).toEqual({ x: 20, y: 173 });
 
   expect(errors).toEqual([]);
 });
