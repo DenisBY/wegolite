@@ -669,3 +669,58 @@ test("the footer hints fit one line and the disabled and selected states are leg
 
   expect(errors).toEqual([]);
 });
+
+test("the chart and Save/Load headers show the live balance, not the key label", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+
+  const stationCredits = page.locator('#docked [data-field="credits"]');
+  const chartCredits = page.locator('#chart [data-field="chart-credits"]');
+  const saveCredits = page.locator('#save-load [data-field="save-credits"]');
+  await expect(stationCredits).not.toHaveText("");
+  const balance = (await stationCredits.textContent()) ?? "";
+
+  await page.keyboard.press("F6");
+  await waitForChart(page, true);
+  await expect(chartCredits).toHaveText(balance);
+  await expect(chartCredits).not.toHaveText("F6");
+  await page.keyboard.press("Escape");
+  await waitForChart(page, false);
+
+  await page.keyboard.press("F2");
+  await waitForSaveScreen(page, true);
+  await expect(saveCredits).toHaveText(balance);
+  await expect(saveCredits).not.toHaveText("F2");
+  await page.keyboard.press("Escape");
+  await waitForSaveScreen(page, false);
+
+  // A changed balance reaches both overlays the next time they open.
+  await page.evaluate(() => {
+    window.__wegolite?.test?.setCredits(123_456);
+  });
+  await expect(stationCredits).not.toHaveText(balance);
+  const changed = (await stationCredits.textContent()) ?? "";
+  await page.keyboard.press("F6");
+  await waitForChart(page, true);
+  await expect(chartCredits).toHaveText(changed);
+  await page.keyboard.press("Escape");
+  await waitForChart(page, false);
+  await page.keyboard.press("F2");
+  await waitForSaveScreen(page, true);
+  await expect(saveCredits).toHaveText(changed);
+  await page.keyboard.press("Escape");
+  await waitForSaveScreen(page, false);
+
+  // The chart also opens in flight and still shows the balance.
+  await page.keyboard.press("Digit1");
+  await waitForMode(page, "inFlight");
+  await page.keyboard.press("F6");
+  await waitForChart(page, true);
+  await expect(chartCredits).toHaveText(changed);
+  await page.keyboard.press("Escape");
+  await waitForChart(page, false);
+
+  expect(errors).toEqual([]);
+});

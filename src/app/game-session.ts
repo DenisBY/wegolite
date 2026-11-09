@@ -852,8 +852,25 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     };
   }
 
+  /**
+   * Keep the balance in the chart and Save/Load headers current. The station
+   * header owns `[data-field="credits"]` through the shell; these two overlays
+   * cover it, so they carry their own fields. The chart also opens in flight,
+   * where the balance is still the live profile's.
+   */
+  function syncHeaderCredits(): void {
+    const text = formatDecicredits(profile.credits);
+    for (const field of ["chart-credits", "save-credits"]) {
+      const element = document.querySelector(`[data-field="${field}"]`);
+      if (element instanceof HTMLElement && element.textContent !== text) {
+        element.textContent = text;
+      }
+    }
+  }
+
   /** Mutate the strip in place; cheap and idempotent (the hydrator caches). */
   function syncStationNav(): void {
+    syncHeaderCredits();
     const currentState = state;
     if (stationNav === undefined || currentState === undefined) return;
     stationNav.sync(
