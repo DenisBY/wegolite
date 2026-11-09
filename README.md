@@ -78,7 +78,6 @@ the left button pans.
 | Market        | `F8 / 8`            |
 | Outfitting    | `F3 / 3`            |
 | Status        | `F5 / 5`            |
-| System data   | `F7 / 7`            |
 | Interfaces    | `F4 / 4`            |
 | Back          | `Esc / Backspace`   |
 | Up            | `Up arrow`          |

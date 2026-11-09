@@ -31,7 +31,6 @@ export type StationTabId =
   | "interfaces"
   | "status"
   | "chart"
-  | "systemData"
   | "market";
 
 /** Reserved registry slots that are never rendered (sub-pages of a live tab). */
@@ -94,13 +93,6 @@ export const STATION_TAB_REGISTRY: readonly StationTab[] = Object.freeze([
   ),
   liveTab("status", "screen", "Status", "stationStatus", "status"),
   liveTab("chart", "chart", "Chart", "chart", null),
-  liveTab(
-    "systemData",
-    "screen",
-    "System data",
-    "stationSystemData",
-    "systemData",
-  ),
   liveTab("market", "screen", "Market", "stationMarket", "market"),
   {
     id: "marketInfo",

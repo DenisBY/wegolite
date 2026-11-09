@@ -150,37 +150,6 @@ test("hovering a system opens its information card and leaving closes it", async
   expect(errors).toEqual([]);
 });
 
-test("F7 refreshes to the chart selection when the chart closes", async ({
-  page,
-}) => {
-  const errors = collectErrors(page);
-  await bootDocked(page);
-
-  await page.keyboard.press("Digit7");
-  await page.waitForFunction(
-    () => window.__wegolite?.station?.screen === "systemData",
-    undefined,
-    { timeout: 30_000 },
-  );
-  const title = page.locator('[data-field="system-data-title"]');
-  await expect(title).toHaveText("Data on Lave");
-
-  await openChart(page);
-  const diso = systemByName("Diso");
-  const point = await markerPoint(page, diso.id);
-  await page.mouse.click(point.x, point.y);
-  await page.keyboard.press("Escape");
-  await page.waitForFunction(() => window.__wegolite?.chart?.open === false, {
-    timeout: 30_000,
-  });
-
-  await expect(title).toHaveText("Data on Diso");
-  await expect(page.locator("[data-system-data-fields]")).toContainText(
-    "3.6 ly",
-  );
-  expect(errors).toEqual([]);
-});
-
 test("mouse wheel zooms around the cursor and clamps at both spans", async ({
   page,
 }) => {

@@ -479,7 +479,7 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   expect(errors).toEqual([]);
 });
 
-test("F5 pages, F7 fields and direct section switching stay keyboard-only", async ({
+test("F5 pages and direct section switching stay keyboard-only", async ({
   page,
 }) => {
   const errors = collectErrors(page);
@@ -584,31 +584,6 @@ test("F5 pages, F7 fields and direct section switching stay keyboard-only", asyn
   expect(probe.mode).toBe("docked");
   expect(probe.station?.screen).toBe("status");
 
-  // F7 opens directly from F5 without a trip home.
-  await page.keyboard.press("Digit7");
-  await waitForScreen(page, "systemData");
-  await expect(page.locator('[data-field="system-data-title"]')).toHaveText(
-    "Data on Lave",
-  );
-  const systemFields = page.locator("[data-system-data-fields]");
-  for (const text of [
-    "Rich Agricultural",
-    "Dictatorship",
-    "2.5 Billion",
-    "(Human Colonials)",
-    "7000 M₢",
-    "4116 km",
-    "0.0 ly",
-  ]) {
-    await expect(systemFields).toContainText(text);
-  }
-  // Exactly 7 sysdata fields plus the inhabitants row; tech level renders 5.
-  await expect(systemFields.locator("dt")).toHaveCount(8);
-  await expect(systemFields).toContainText("5");
-  await expect(
-    page.locator('[data-field="system-data-description"]'),
-  ).toContainText("Lave is most famous for its vast rain forests");
-
   // Direct switching between sections and Esc back to home, never pause.
   await page.keyboard.press("Digit3");
   await waitForScreen(page, "outfitting");
@@ -651,7 +626,7 @@ test("F5 pages, F7 fields and direct section switching stay keyboard-only", asyn
   expect(errors).toEqual([]);
 });
 
-test("real F3/F5/F7/F8 presses never reload the page", async ({ page }) => {
+test("real F3/F5/F8 presses never reload the page", async ({ page }) => {
   const errors = collectErrors(page);
   await bootToHome(page);
 
@@ -663,7 +638,6 @@ test("real F3/F5/F7/F8 presses never reload the page", async ({ page }) => {
   const steps: [string, string][] = [
     ["F5", "status"],
     ["F3", "outfitting"],
-    ["F7", "systemData"],
     ["F8", "market"],
   ];
   for (const [key, screen] of steps) {
@@ -697,7 +671,7 @@ test("station F-keys are inert in flight", async ({ page }) => {
     { timeout: 30_000 },
   );
 
-  for (const key of ["F8", "F3", "F5", "F7"]) {
+  for (const key of ["F8", "F3", "F5"]) {
     await page.keyboard.press(key);
   }
   await page.waitForTimeout(300);
@@ -791,7 +765,7 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   expect(afterThirdY.economy?.credits).toBe(1662);
   expect(afterThirdY.save?.committed).toBe(3);
 
-  // F5 pages, F7 opens system data, Escape returns home without pausing.
+  // F5 pages, Escape returns home without pausing.
   await page.keyboard.press("Digit5");
   await waitForScreen(page, "status");
   await page.keyboard.press("Tab");
@@ -799,8 +773,6 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   await page.keyboard.press("PageUp");
   await page.waitForFunction(() => window.__wegolite?.station?.page === 1);
 
-  await page.keyboard.press("Digit7");
-  await waitForScreen(page, "systemData");
   await page.keyboard.press("Escape");
   await waitForScreen(page, "home");
   expect((await getProbe(page)).paused).toBe(false);

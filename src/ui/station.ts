@@ -26,11 +26,10 @@ import type {
   MarketModel,
   OutfittingModel,
   StatusModel,
-  SystemDataModel,
 } from "./station-model.js";
 
 export type StationScreen =
-  "home" | "market" | "outfitting" | "status" | "systemData" | "interfaces";
+  "home" | "market" | "outfitting" | "status" | "interfaces";
 
 export interface StationView {
   readonly screen: StationScreen;
@@ -45,7 +44,6 @@ export interface StationView {
   readonly market?: MarketModel | undefined;
   readonly outfitting?: OutfittingModel | undefined;
   readonly status?: StatusModel | undefined;
-  readonly systemData?: SystemDataModel | undefined;
   readonly interfaces?: InterfacesModel | undefined;
 }
 
@@ -122,11 +120,6 @@ export function createStationShell(
     root,
     '[data-station-panel="status"]',
     "the status panel",
-  );
-  const systemDataPanel = requireElement<HTMLElement>(
-    root,
-    '[data-station-panel="systemData"]',
-    "the system-data panel",
   );
   const interfacesPanel = requireElement<HTMLElement>(
     root,
@@ -212,21 +205,6 @@ export function createStationShell(
     root,
     '[data-field="status-load"]',
     "the status load line",
-  );
-  const systemDataTitle = requireElement<HTMLElement>(
-    root,
-    '[data-field="system-data-title"]',
-    "the system-data title",
-  );
-  const systemDataFields = requireElement<HTMLElement>(
-    root,
-    "[data-system-data-fields]",
-    "the system-data field list",
-  );
-  const systemDataDescription = requireElement<HTMLElement>(
-    root,
-    '[data-field="system-data-description"]',
-    "the system-data description",
   );
   const keysField = requireElement<HTMLElement>(
     root,
@@ -316,20 +294,12 @@ export function createStationShell(
     statusPageTwo.hidden = model.page !== 2;
   }
 
-  function renderSystemData(model: SystemDataModel): void {
-    systemDataTitle.textContent = model.title;
-    systemDataFields.replaceChildren();
-    for (const field of model.fields) appendField(systemDataFields, field);
-    systemDataDescription.textContent = model.description;
-  }
-
   function applyScreen(screen: StationScreen): void {
     section.dataset.screen = screen;
     homePanel.hidden = screen !== "home";
     marketPanel.hidden = screen !== "market";
     outfittingPanel.hidden = screen !== "outfitting";
     statusPanel.hidden = screen !== "status";
-    systemDataPanel.hidden = screen !== "systemData";
     interfacesPanel.hidden = screen !== "interfaces";
     if (screen !== previousScreen) {
       previousScreen = screen;
@@ -369,9 +339,6 @@ export function createStationShell(
       }
       if (view.screen === "status" && view.status !== undefined) {
         renderStatus(view.status);
-      }
-      if (view.screen === "systemData" && view.systemData !== undefined) {
-        renderSystemData(view.systemData);
       }
       if (view.screen === "interfaces" && view.interfaces !== undefined) {
         interfacesTitle.textContent = view.interfaces.title;

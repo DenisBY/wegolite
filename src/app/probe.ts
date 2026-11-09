@@ -112,8 +112,7 @@ export interface WegoliteStationPendingProbe {
 /** The live station-computer state (ECON-04/ECON-05/ECON-06/ECON-07/ECON-09). */
 export interface WegoliteStationProbe {
   open: boolean;
-  screen:
-    "home" | "market" | "outfitting" | "status" | "systemData" | "interfaces";
+  screen: "home" | "market" | "outfitting" | "status" | "interfaces";
   selectedKey: string;
   /** The active F5 page, always clamped to 1..2. */
   page: 1 | 2;

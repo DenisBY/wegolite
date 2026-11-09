@@ -836,7 +836,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (screen === "status") {
       return `${switchList} · Tab/PageDown next page · PageUp previous · Esc back · P pause`;
     }
-    if (screen === "systemData" || screen === "interfaces") {
+    if (screen === "interfaces") {
       return `${switchList} · Esc back · P pause`;
     }
     const launchKey = primaryKeyLabel(map, "launch");
@@ -924,11 +924,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
             stationPage,
             targetSystem()?.name,
           );
-    const systemModel =
-      labels === undefined
-        ? undefined
-        : buildSystemDataModel(infoSystem(), system, labels);
-
     let confirmText = "";
     let noticeText = stationNotice;
     if (stationScreen === "market") {
@@ -964,7 +959,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       market: marketModel,
       outfitting: outModel,
       status: statusModel,
-      systemData: systemModel,
       interfaces: buildInterfacesModel(),
     };
     docked.setFuel(formatFuel(profile.fuel));
@@ -1586,7 +1580,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   /**
    * The synchronous screen-open sink (step 7): the input layer calls this
    * inside `keyDown`, so the context switches before the same-frame next key
-   * resolves. F3/F5/F7/F8 are all reachable from home and from any section.
+   * resolves. F3/F4/F5/F8 are all reachable from home and from any section.
    */
   function openStationScreen(action: ActionId): void {
     const currentState = state;
@@ -1603,9 +1597,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         break;
       case "stationStatus":
         screen = "status";
-        break;
-      case "stationSystemData":
-        screen = "systemData";
         break;
       case "stationInterfaces":
         screen = "interfaces";
@@ -1766,19 +1757,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     return galaxyById.get(hyperspaceTargetId);
   }
 
-  /**
-   * The F7 info system (Oolite's `info_system_id`): the chart cursor when one
-   * has been moved, else the committed target, else the docked system. The
-   * chart already owns this selection, so F7 never invents a second one.
-   */
-  function infoSystem(): System {
-    if (chartSelectedId !== undefined) {
-      const selected = galaxyById.get(chartSelectedId);
-      if (selected !== undefined) return selected;
-    }
-    return targetSystem() ?? system;
-  }
-
   function currentChartView(overlay: ChartOverlay): ChartView {
     return buildChartView(
       galaxy,
@@ -1831,11 +1809,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (!chartOpen) return;
     chartOpen = false;
     chart?.hide();
-    // The chart owns the F7 info-system cursor. If F7 was left open behind the
-    // overlay, refresh it now so it shows the system selected last.
-    if (state?.mode === "docked" && stationScreen === "systemData") {
-      renderStation();
-    }
     input?.setContext(contextBeforeChart);
     // Hidden time is never replayed; the accumulator starts at zero.
     loop?.reset();

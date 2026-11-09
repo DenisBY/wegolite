@@ -39,7 +39,6 @@ const LIVE_ORDER: readonly StationTabId[] = [
   "interfaces",
   "status",
   "chart",
-  "systemData",
   "market",
 ];
 
@@ -47,7 +46,6 @@ const SECTIONS: readonly StationScreen[] = [
   "market",
   "outfitting",
   "status",
-  "systemData",
   "interfaces",
 ];
 
@@ -73,7 +71,7 @@ function tab(id: StationTabId) {
 }
 
 describe("registry order", () => {
-  it("lists nine live tabs in F-key order", () => {
+  it("lists eight live tabs in F-key order", () => {
     expect(liveStationTabs().map((entry) => entry.id)).toEqual(LIVE_ORDER);
   });
 
@@ -106,7 +104,7 @@ describe("drift against the input layer", () => {
       expect(fKey, entry.id).toBeDefined();
       numbers.push(Number((fKey ?? "").slice(1)));
     }
-    expect(numbers).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(numbers).toEqual([1, 2, 3, 4, 5, 6, 8]);
   });
 
   it("gives every screen, chart, save and launch action exactly one tab", () => {
@@ -139,7 +137,7 @@ describe("drift against the input layer", () => {
 });
 
 describe("availability", () => {
-  it("enables all nine tabs on Home with no overlay", () => {
+  it("enables all eight tabs on Home with no overlay", () => {
     expect(enabledSet(nav())).toEqual(LIVE_ORDER);
   });
 
@@ -188,7 +186,6 @@ describe("activeTabId", () => {
   it("reports the station screen with no overlay", () => {
     expect(activeTabId(nav())).toBe("home");
     expect(activeTabId(nav({ screen: "market" }))).toBe("market");
-    expect(activeTabId(nav({ screen: "systemData" }))).toBe("systemData");
     expect(activeTabId(nav({ screen: "interfaces" }))).toBe("interfaces");
     expect(activeTabId(nav({ screen: "outfitting" }))).toBe("outfitting");
     expect(activeTabId(nav({ screen: "status" }))).toBe("status");
@@ -207,7 +204,6 @@ describe("tabText", () => {
       "F4 Interfaces",
       "F5 Status",
       "F6 Chart",
-      "F7 System data",
       "F8 Market",
     ]);
   });
@@ -234,13 +230,13 @@ describe("tabText", () => {
 describe("screenSwitchHints", () => {
   it("lists the other screens for market", () => {
     expect(screenSwitchHints("market", DEFAULT_BINDINGS)).toBe(
-      "F3 outfitting · F4 interfaces · F5 status · F7 system data",
+      "F3 outfitting · F4 interfaces · F5 status",
     );
   });
 
-  it("lists all five sections for home", () => {
+  it("lists all four sections for home", () => {
     const hints = screenSwitchHints("home", DEFAULT_BINDINGS);
-    expect(hints.split(" · ")).toHaveLength(5);
+    expect(hints.split(" · ")).toHaveLength(4);
     expect(hints.endsWith("F8 market")).toBe(true);
   });
 

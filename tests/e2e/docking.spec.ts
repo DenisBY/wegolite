@@ -388,12 +388,11 @@ test("the docked home shows real credits, ship, fuel and the four screen entries
   );
   await expect(dockedPanel.locator('[data-field="fuel"]')).toHaveText("7.0 LY");
 
-  // The four screens are advertised on the home panel; only F8 is wired in
+  // The three screens are advertised on the home panel; only F8 is wired in
   // wave 1, and the F3 TL-9 refusal moves to plan 05-05's station spec.
   await expect(dockedPanel).toContainText("Market (F8)");
   await expect(dockedPanel).toContainText("Outfitting (F3)");
   await expect(dockedPanel).toContainText("Status (F5)");
-  await expect(dockedPanel).toContainText("System data (F7)");
   await expect(page.locator('button[data-action="launch"]')).toBeVisible();
 
   // The station footer is a div, never a second footer: the document
@@ -438,7 +437,6 @@ test("the station tab strip navigates between screens and overlays", async ({
     "F4 Interfaces",
     "F5 Status",
     "F6 Chart",
-    "F7 System data",
     "F8 Market",
   ]);
   await expect(nav.locator('[data-station-tab="home"]')).toHaveAttribute(
@@ -457,9 +455,9 @@ test("the station tab strip navigates between screens and overlays", async ({
     );
   };
 
-  await nav.locator('[data-station-tab="systemData"]').click();
-  await waitForStation("systemData");
-  await expect(nav.locator('[data-station-tab="systemData"]')).toHaveAttribute(
+  await nav.locator('[data-station-tab="status"]').click();
+  await waitForStation("status");
+  await expect(nav.locator('[data-station-tab="status"]')).toHaveAttribute(
     "aria-current",
     "page",
   );

@@ -272,7 +272,7 @@ export function buildMarketModel(
   };
 }
 
-/** One labeled field on the F5 status page or the F7 system-data page. */
+/** One labeled field on the F5 status page or a system information card. */
 export interface LabelledField {
   readonly label: string;
   readonly value: string;
@@ -385,7 +385,7 @@ export function buildStatusModel(
   };
 }
 
-/** The F7 system-data model: a separate title, seven sysdata rows and the description. */
+/** The system information model: a title, seven sysdata rows and the description. */
 export interface SystemDataModel {
   readonly title: string;
   readonly fields: readonly LabelledField[];
@@ -436,7 +436,7 @@ function expandTitle(labels: Labels, system: System): string {
 }
 
 /**
- * The F7 distance from the current system to the displayed system.
+ * The distance from the current system to the displayed system.
  *
  * Oolite measures `info_system_id` from `galaxy_coordinates`
  * (`PlayerEntity.m:7579-7584`). A different system that shares the current
@@ -452,11 +452,11 @@ function distanceText(current: System, info: System): string {
 }
 
 /**
- * Build the F7 system-data model (ECON-07, D-05).
+ * Build the system information model used by the chart hover card.
  *
- * `info` is the system the chart cursor or committed target selected, not
- * necessarily the docked system: Oolite's F7 screen describes `info_system_id`
- * and measures the distance from the current system (`PlayerEntity.m:7506`).
+ * `info` is the chart system under the pointer, not necessarily the docked
+ * system: the card describes `info_system_id` and measures the distance from
+ * the current system (`PlayerEntity.m:7506`).
  * The title and the seven field labels come from `labels.json`; the four value
  * templates are expanded once, and the description is the compiled
  * `System.description` verbatim. Nothing here generates prose.

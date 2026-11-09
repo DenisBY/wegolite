@@ -27,7 +27,6 @@ export type ActionId =
   | "stationMarket"
   | "stationOutfitting"
   | "stationStatus"
-  | "stationSystemData"
   | "stationInterfaces"
   | "stationBack"
   | "stationUp"
@@ -99,7 +98,6 @@ export const ACTION_IDS: readonly ActionId[] = [
   "stationMarket",
   "stationOutfitting",
   "stationStatus",
-  "stationSystemData",
   "stationInterfaces",
   "stationBack",
   "stationUp",
@@ -164,7 +162,6 @@ export const DEFAULT_BINDINGS: Readonly<Record<ActionId, readonly string[]>> =
     stationMarket: Object.freeze(["F8", "Digit8"]),
     stationOutfitting: Object.freeze(["F3", "Digit3"]),
     stationStatus: Object.freeze(["F5", "Digit5"]),
-    stationSystemData: Object.freeze(["F7", "Digit7"]),
     // Digit4 is Oolite's own alias for the interfaces screen.
     stationInterfaces: Object.freeze(["F4", "Digit4"]),
     stationBack: Object.freeze(["Escape", "Backspace"]),
@@ -221,7 +218,6 @@ export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
   stationMarket: "Market",
   stationOutfitting: "Outfitting",
   stationStatus: "Status",
-  stationSystemData: "System data",
   stationInterfaces: "Interfaces",
   stationBack: "Back",
   stationUp: "Up",
@@ -348,7 +344,6 @@ export const ACTION_CONTEXTS: Readonly<
   stationMarket: contexts("dockHome", "dockScreen"),
   stationOutfitting: contexts("dockHome", "dockScreen"),
   stationStatus: contexts("dockHome", "dockScreen"),
-  stationSystemData: contexts("dockHome", "dockScreen"),
   stationInterfaces: contexts("dockHome", "dockScreen"),
   stationBack: contexts("dockScreen"),
   stationUp: contexts("dockScreen"),
@@ -363,11 +358,10 @@ export const ACTION_CONTEXTS: Readonly<
   stationBuyMax: contexts("dockScreen"),
 });
 
-/** The five actions that open a station section synchronously. */
+/** The four actions that open a station section synchronously. */
 export const STATION_SCREEN_ACTIONS: ReadonlySet<ActionId> = new Set<ActionId>([
   "stationMarket",
   "stationOutfitting",
   "stationStatus",
-  "stationSystemData",
   "stationInterfaces",
 ]);

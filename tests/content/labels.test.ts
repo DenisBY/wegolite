@@ -5,9 +5,9 @@
  * The label record loader (ECON-07, D-05).
  *
  * `labels.json` is a build artifact, so the loader is the trust boundary
- * between the emitted templates and the F7 screen. Every array length and every
- * `sysdata-*` key the screen reads is pinned here; a malformed record throws a
- * named `LabelsError` instead of reaching the view model.
+ * between the emitted templates and the system information card. Every array
+ * length and every `sysdata-*` key the card reads is pinned here; a malformed
+ * record throws a named `LabelsError` instead of reaching the view model.
  *
  * This file deliberately imports no UI module: the unknown-token model cases
  * belong to `tests/ui/station-system-data.test.ts`.
@@ -27,7 +27,7 @@ const SIX_ARRAY_KEYS = [
   "systemDescription",
 ] as const;
 
-const F7_TEMPLATE_KEYS = [
+const SYSTEM_TEMPLATE_KEYS = [
   "sysdata-data-on-system",
   "sysdata-eco",
   "sysdata-govt",
@@ -54,10 +54,10 @@ describe("parseLabels", () => {
     expect(labels.systemDescription).toHaveLength(36);
   });
 
-  it("carries every template the F7 screen reads", () => {
+  it("carries every template the system information card reads", () => {
     const labels = labelsFixture();
 
-    for (const key of F7_TEMPLATE_KEYS) {
+    for (const key of SYSTEM_TEMPLATE_KEYS) {
       expect(labels.formatTemplates[key], key).toBeTypeOf("string");
     }
   });

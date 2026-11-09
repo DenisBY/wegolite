@@ -27,7 +27,6 @@ const TAB_TEXTS = [
   "F4 Interfaces",
   "F5 Status",
   "F6 Chart",
-  "F7 System data",
   "F8 Market",
 ];
 
@@ -130,7 +129,7 @@ function contrast(foreground: string, background: string): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-test("the strip is nine tabs in F-key order on one row at 1280x720", async ({
+test("the strip is eight tabs in F-key order on one row at 1280x720", async ({
   page,
 }) => {
   const errors = collectErrors(page);
@@ -138,7 +137,7 @@ test("the strip is nine tabs in F-key order on one row at 1280x720", async ({
 
   const nav = page.locator('#docked nav[aria-label="Station computer"]');
   await expect(nav.locator("button")).toHaveText(TAB_TEXTS);
-  await expect(nav.locator("button")).toHaveCount(9);
+  await expect(nav.locator("button")).toHaveCount(8);
   await expect(nav).not.toHaveAttribute("role", "tablist");
   await expect(page.locator('[role="tablist"]')).toHaveCount(0);
 
@@ -195,7 +194,6 @@ test("section tabs open their screens, Launch stays disabled and F4 shows the em
     ["market", "market"],
     ["outfitting", "outfitting"],
     ["status", "status"],
-    ["systemData", "systemData"],
     ["interfaces", "interfaces"],
   ] as const;
   for (const [id, screen] of sections) {
@@ -311,9 +309,9 @@ test("overlay-to-overlay navigation restores the input context", async ({
   await page.keyboard.press("Escape");
   await waitForSaveScreen(page, false);
   expect((await getProbe(page)).station?.screen).toBe("market");
-  // The restored context is dockScreen: Digit7 opens System data directly.
-  await page.keyboard.press("Digit7");
-  await waitForScreen(page, "systemData");
+  // The restored context is dockScreen: Digit3 opens Outfitting directly.
+  await page.keyboard.press("Digit3");
+  await waitForScreen(page, "outfitting");
 
   // From Home: Home -> F2 -> F6 -> Esc lands on Home, then Digit8 opens Market.
   await tab(page, "docked", "home").click();
@@ -609,14 +607,7 @@ test("the footer hints fit one line and the disabled and selected states are leg
   await boot(page);
 
   const keys = page.locator('#docked [data-field="station-keys"]');
-  for (const id of [
-    "home",
-    "market",
-    "outfitting",
-    "status",
-    "systemData",
-    "interfaces",
-  ]) {
+  for (const id of ["home", "market", "outfitting", "status", "interfaces"]) {
     await tab(page, "docked", id).click();
     await waitForScreen(page, id);
     const box = await keys.boundingBox();

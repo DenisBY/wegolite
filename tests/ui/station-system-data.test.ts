@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The F7 system-data view model (ECON-07, D-05).
+ * The system information view model (ECON-07, D-05).
  *
  * The title and the seven field labels come from the compiled `sysdata-*`
  * templates; the four value templates are expanded in one pass with a replacer

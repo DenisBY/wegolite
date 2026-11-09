@@ -159,8 +159,6 @@
       #station-screen[data-screen="outfitting"]
         [data-station-panel="outfitting"],
       #station-screen[data-screen="status"] [data-station-panel="status"],
-      #station-screen[data-screen="systemData"]
-        [data-station-panel="systemData"],
       #station-screen[data-screen="interfaces"]
         [data-station-panel="interfaces"] {
         display: block;
@@ -834,7 +832,6 @@
             <div class="station-entry">Market (F8)</div>
             <div class="station-entry">Outfitting (F3)</div>
             <div class="station-entry">Status (F5)</div>
-            <div class="station-entry">System data (F7)</div>
           </div>
           <button type="button" data-action="launch">Launch</button>
         </div>
@@ -893,11 +890,6 @@
             </table>
           </div>
           <p class="station-load" data-field="status-load"></p>
-        </div>
-        <div data-station-panel="systemData" hidden>
-          <h2 data-field="system-data-title"></h2>
-          <dl data-system-data-fields></dl>
-          <p data-field="system-data-description"></p>
         </div>
         <div data-station-panel="interfaces" hidden>
           <h2 data-field="interfaces-title"></h2>

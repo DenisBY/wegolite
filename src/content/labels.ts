@@ -7,8 +7,8 @@
  * `generated/labels.json` is a shipped static asset, so it is loaded as a
  * `?raw` string and `JSON.parse`d like `equipment.ts`. Unlike the equipment
  * catalogue the record is an object, not an entry array; it is validated with
- * the strict `LabelsSchema` because its templates become F7 screen text and the
- * view model must never expand a malformed record.
+ * the strict `LabelsSchema` because its templates become system information card
+ * text and the view model must never expand a malformed record.
  *
  * `parseLabels` is exported so a Node test can exercise the same validation
  * against the committed bytes without `import.meta.glob`.
