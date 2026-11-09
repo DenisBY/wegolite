@@ -270,7 +270,7 @@ test("dispatches Digit8 and the next key in one frame against the new context", 
   expect(errors).toEqual([]);
 });
 
-test("F3/F5/F7/F8 cancel their browser defaults with a capture negative control", async ({
+test("F1/F3/F4/F5/F7/F8 cancel their browser defaults with a capture negative control", async ({
   page,
 }) => {
   await bootToHome(page);
@@ -304,7 +304,9 @@ test("F3/F5/F7/F8 cancel their browser defaults with a capture negative control"
     });
   });
 
-  const codes = ["F3", "F5", "F7", "F8"];
+  // The assertion proves the page cancels the synthetic event. It does not
+  // prove any real browser help-page behaviour for F1 or F4: that is untested.
+  const codes = ["F1", "F3", "F4", "F5", "F7", "F8"];
 
   const plain = await page.evaluate((expectedCodes: string[]) => {
     for (const code of expectedCodes) {
@@ -631,6 +633,19 @@ test("F5 pages, F7 fields and direct section switching stay keyboard-only", asyn
       stationBox.y < footerBox.y + footerBox.height &&
       footerBox.y < stationBox.y + stationBox.height;
     expect(overlaps).toBe(false);
+  }
+
+  // The tab strip sits fully above the scrolling section and inside the
+  // viewport, so it never covers a station row or the fixed footer.
+  const navBox = await page.locator("#docked .station-nav").boundingBox();
+  const sectionBox = await page.locator("#station-screen").boundingBox();
+  expect(navBox).not.toBeNull();
+  expect(sectionBox).not.toBeNull();
+  if (navBox !== null && sectionBox !== null) {
+    expect(navBox.y).toBeGreaterThanOrEqual(0);
+    expect(navBox.y + navBox.height).toBeLessThanOrEqual(sectionBox.y + 1);
+    expect(navBox.x).toBeGreaterThanOrEqual(0);
+    expect(navBox.x + navBox.width).toBeLessThanOrEqual(1280);
   }
 
   expect(errors).toEqual([]);
