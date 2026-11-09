@@ -23,6 +23,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a static key label.
 - The station footer no longer repeats the screen-switch key list already shown
   in the tab strip.
+- The game downloads about 0.7 MB less at start: it now loads only the two
+  ship records it uses instead of the whole ship catalogue.
 
 ### Removed
 

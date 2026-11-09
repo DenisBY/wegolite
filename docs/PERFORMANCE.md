@@ -42,6 +42,8 @@ The first-load test in `tests/e2e/budget.spec.ts` records the same-origin respon
 | Entry chunk, gzip at level 9                     | 311 972 bytes                |
 | STACK.md target for initial JavaScript           | 250 KB gzip                  |
 
+These figures predate quick task 261109-s8k, which trimmed the client ship catalogue from 706 617 to 15 196 bytes raw; the table has not been re-measured since.
+
 The ceiling is the measured transfer rounded up to the next MiB, so it is a regression ceiling and not a load budget. The entry chunk was measured inside the container on 2026-11-08 with `node:zlib` `gzipSync`.
 
 The entry chunk is over the STACK.md target of 250 KB gzip. That finding is recorded here and is not gated or fixed. It is outside QUAL-01's draw-call and triangle budget, and D-14 defers load optimisation until a stated load budget fails.

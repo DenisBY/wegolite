@@ -1,0 +1,672 @@
+[
+  {
+    "extras": {
+      "ai_type": "oolite-stationAI.js",
+      "allegiance": "galcop",
+      "cargo_type": "CARGO_NOT_CARGO",
+      "energy_recharge_rate": 100,
+      "forward_weapon_type": "WEAPON_NONE",
+      "frangible": 0,
+      "has_ecm": true,
+      "has_escape_pod": false,
+      "has_scoop": false,
+      "market_monitored": true,
+      "max_energy": 25000,
+      "max_flight_pitch": 8,
+      "max_flight_roll": 8,
+      "max_flight_speed": 0,
+      "missiles": 0,
+      "name": "Coriolis Station",
+      "roles": "coriolis station",
+      "rotating": true,
+      "scan_class": "CLASS_STATION",
+      "station_roll": "0.08",
+      "subentities": [
+        {
+          "is_dock": "false",
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "subentity_key": "oolite_coriolis_faceplate"
+        },
+        {
+          "is_dock": "false",
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "subentity_key": "oolite_coriolis_tris"
+        },
+        {
+          "is_dock": "true",
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            500.2561
+          ],
+          "subentity_key": "oolite_coriolis_dock"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": "0 110 475",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": "0 110 425",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": "0 110 375",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": "0 110 325",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": "0 110 275",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": "0 -110 475",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": "0 -110 425",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": "0 -110 375",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": "0 -110 325",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": "0 -110 275",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": "0 -16 252.0",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": "0 16 252.0",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": "-16 0 252.0",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": "16 0 252.0",
+          "size": 10,
+          "type": "flasher"
+        }
+      ],
+      "thrust": 100,
+      "weapon_energy": 0
+    },
+    "isTemplate": false,
+    "key": "coriolis-station",
+    "marketDefinition": {
+      "kind": "empty"
+    },
+    "model": "oolite_coriolis.dat",
+    "modelVendored": true,
+    "roles": [
+      "coriolis",
+      "station"
+    ],
+    "shipDef": {
+      "energyRecharge": 100,
+      "materials": {
+        "oolite_coriolis_diffuse.png": {
+          "emission_map": {
+            "extract_channel": "a",
+            "name": "oolite_coriolis_diffuse.png"
+          },
+          "emission_modulate_color": {
+            "blue": 3280.8824,
+            "green": 6780.963,
+            "red": 6750.952
+          },
+          "gloss": 1,
+          "normal_map": "oolite_coriolis_normal.png",
+          "shininess": 42,
+          "specular_color": [
+            0.25,
+            0.25,
+            0.25
+          ],
+          "specular_map": "oolite_coriolis_specular.png"
+        }
+      },
+      "maxFlightPitch": 8,
+      "maxFlightRoll": 8,
+      "maxFlightSpeed": 0,
+      "model": "oolite_coriolis.dat",
+      "roles": [
+        "coriolis",
+        "station"
+      ],
+      "rotating": true,
+      "smooth": false,
+      "stationRoll": 0.08,
+      "subentities": [
+        {
+          "isDock": false,
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "subentity_key": "oolite_coriolis_faceplate"
+        },
+        {
+          "isDock": false,
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "subentity_key": "oolite_coriolis_tris"
+        },
+        {
+          "isDock": true,
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            500.2561
+          ],
+          "subentity_key": "oolite_coriolis_dock"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": [
+            0,
+            110,
+            475
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": [
+            0,
+            110,
+            425
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": [
+            0,
+            110,
+            375
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": [
+            0,
+            110,
+            325
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": [
+            0,
+            110,
+            275
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": [
+            0,
+            -110,
+            475
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": [
+            0,
+            -110,
+            425
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": [
+            0,
+            -110,
+            375
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": [
+            0,
+            -110,
+            325
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": [
+            0,
+            -110,
+            275
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": [
+            0,
+            -16,
+            252
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": [
+            0,
+            16,
+            252
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": [
+            -16,
+            0,
+            252
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": [
+            16,
+            0,
+            252
+          ],
+          "size": 10,
+          "type": "flasher"
+        }
+      ],
+      "thrust": 100
+    },
+    "usable": true
+  },
+  {
+    "extras": {
+      "aft_eject_position": "0.0 -13.25 -23.8",
+      "ai_type": "oolite-traderAI.js",
+      "auto_ai": true,
+      "auto_weapons": true,
+      "cargo_type": "CARGO_NOT_CARGO",
+      "custom_views": [
+        {
+          "view_description": "Rear View",
+          "view_orientation": "1.0 0.0 0.0 0.0",
+          "view_position": "0.0 30.0 -200.0",
+          "weapon_facing": "FORWARD"
+        },
+        {
+          "view_description": "Rear Right View",
+          "view_orientation": "0.9239 0.0 0.3827 0.0",
+          "view_position": "141.42 30.0 -141.42",
+          "weapon_facing": "FORWARD"
+        },
+        {
+          "view_description": "Right View",
+          "view_orientation": "0.7071 0.0 0.7071 0.0",
+          "view_position": "200.0 30.0 0.0",
+          "weapon_facing": "FORWARD"
+        },
+        {
+          "view_description": "Front Right View",
+          "view_orientation": "0.3827 0.0 0.9239 0.0",
+          "view_position": "141.42 30.0 141.42",
+          "weapon_facing": "FORWARD"
+        },
+        {
+          "view_description": "Front View",
+          "view_orientation": "0.0 0.0 1.0 0.0",
+          "view_position": "0.0 30.0 200.0",
+          "weapon_facing": "FORWARD"
+        },
+        {
+          "view_description": "Front Left View",
+          "view_orientation": "0.3827 0.0 -0.9239 0.0",
+          "view_position": "-141.42 30.0 141.42",
+          "weapon_facing": "FORWARD"
+        },
+        {
+          "view_description": "Left View",
+          "view_orientation": "0.7071 0.0 -0.7071 0.0",
+          "view_position": "-200.0 30.0 0.0",
+          "weapon_facing": "FORWARD"
+        },
+        {
+          "view_description": "Rear Left View",
+          "view_orientation": "0.9239 0.0 -0.3827 0.0",
+          "view_position": "-141.42 30.0 -141.42",
+          "weapon_facing": "FORWARD"
+        },
+        {
+          "view_description": "Top View",
+          "view_orientation": "-0.7071 0.7071 0.0 0.0",
+          "view_position": "0.0 200.0 -15.0",
+          "weapon_facing": "FORWARD"
+        },
+        {
+          "view_description": "Bottom View",
+          "view_orientation": "0.0 0.0 0.7071 0.7071",
+          "view_position": "0.0 -200.0 -15.0",
+          "weapon_facing": "FORWARD"
+        }
+      ],
+      "energy_recharge_rate": 4,
+      "exhaust": [
+        "10.7601 6.3008 -33.8587  6.3 5.6 1.0",
+        "-10.7601 6.3008 -33.8587 6.3 5.6 1.0"
+      ],
+      "forward_weapon_type": "WEAPON_PULSE_LASER",
+      "frangible": 0,
+      "fuel": 70,
+      "has_ecm": 0.15,
+      "has_escape_pod": 0.95,
+      "has_scoop": 0.95,
+      "likely_cargo": 15,
+      "max_cargo": 20,
+      "max_energy": 256,
+      "max_flight_pitch": 1,
+      "max_flight_roll": 2,
+      "max_flight_speed": 350,
+      "max_missiles": 4,
+      "missile_launch_position": "0.0 -15.5 -24.5",
+      "missiles": 3,
+      "name": "Cobra Mark III",
+      "roles": "player",
+      "scoop_position": "0.0 -5.5 25.0",
+      "thrust": 32,
+      "view_position_aft": "0.0 6.0 -35.5",
+      "view_position_forward": "0.0 7.25 31.0",
+      "view_position_port": "-35.5 7.5 0.0",
+      "view_position_starboard": "35.5 7.5 0.0",
+      "weapon_facings": 15,
+      "weapon_position_aft": "0.0 0.0 -33.5",
+      "weapon_position_forward": "-0.0961 0.9367 43.4655",
+      "weapon_position_port": "-47.4 -2.3 0.0",
+      "weapon_position_starboard": "47.4 -2.3 0.0"
+    },
+    "isTemplate": true,
+    "key": "oolite_template_cobra3-player",
+    "marketDefinition": {
+      "kind": "absent"
+    },
+    "model": "oolite_cobra3.dat",
+    "modelVendored": true,
+    "roles": [
+      "player"
+    ],
+    "shipDef": {
+      "energyRecharge": 4,
+      "fuel": 70,
+      "materials": {
+        "Gun": {
+          "diffuse_map": "oolite_cobra3_subents.png",
+          "gloss": 0.622,
+          "normal_map": "oolite_cobra3_subents_normal.png",
+          "shininess": 42,
+          "specular_color": [
+            0.25,
+            0.25,
+            0.25
+          ]
+        },
+        "Hull": {
+          "diffuse_map": "oolite_cobra3_diffuse.png",
+          "emission_map": {
+            "extract_channel": "a",
+            "name": "oolite_cobra3_diffuse.png"
+          },
+          "emission_modulate_color": [
+            0.9926,
+            0.9686,
+            0.7325,
+            1
+          ],
+          "gloss": 0.8,
+          "normal_map": "oolite_cobra3_normal.png",
+          "shininess": 42,
+          "specular_color": [
+            0.25,
+            0.25,
+            0.25
+          ],
+          "specular_map": "oolite_cobra3_specular.png"
+        }
+      },
+      "maxCargo": 20,
+      "maxFlightPitch": 1,
+      "maxFlightRoll": 2,
+      "maxFlightSpeed": 350,
+      "model": "oolite_cobra3.dat",
+      "roles": [
+        "player"
+      ],
+      "smooth": false,
+      "subentities": [],
+      "thrust": 32
+    },
+    "usable": false
+  }
+]

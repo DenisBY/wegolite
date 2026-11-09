@@ -518,6 +518,48 @@ export function emitShipsFromCatalogue(catalogue: ShipCatalogue): EmittedShips {
   };
 }
 
+/** Where the client's trimmed catalogue is written, repository-relative. */
+export const CLIENT_SHIPS_PATH = "src/content/generated/ships-client.json";
+
+/**
+ * The entries the game client reads: the station and the player ship.
+ *
+ * The full catalogue is 194 entries and about 700 KB; the client uses these
+ * two (`src/content/ships.ts`). `ships.json` stays the compiler's complete
+ * output for the golden and the tests, and is not imported by the client.
+ * Sorted by code unit, like the catalogue.
+ */
+export const CLIENT_SHIP_KEYS: readonly string[] = [
+  "coriolis-station",
+  "oolite_template_cobra3-player",
+];
+
+/**
+ * Serialise only the client's entries, in catalogue order.
+ *
+ * @throws {Error} when a client key is not in the compiled catalogue, so a
+ * renamed shipdata entry fails the content build instead of the game's boot.
+ */
+export function emitClientShips(catalogue: ShipCatalogue): EmittedShips {
+  const entries = catalogue.entries.filter((entry) =>
+    CLIENT_SHIP_KEYS.includes(entry.key),
+  );
+  for (const key of CLIENT_SHIP_KEYS) {
+    if (!entries.some((entry) => entry.key === key)) {
+      throw new Error(
+        `Wegolite: the compiled ship catalogue has no "${key}" entry for ${CLIENT_SHIPS_PATH}.`,
+      );
+    }
+  }
+  return {
+    path: CLIENT_SHIPS_PATH,
+    bytes: Buffer.from(
+      canonicalJson(entries.map((entry) => entryToJson(entry))),
+      "utf8",
+    ),
+  };
+}
+
 /** Compile then serialise; the one-call form used by the generator. */
 export function emitShips(
   parsedShipdata: PlistValue,

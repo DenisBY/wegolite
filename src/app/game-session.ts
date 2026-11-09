@@ -561,6 +561,22 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   /** The live FitContext; every field is derived from the validated profile. */
+  /**
+   * The profile's equipment as a set, rebuilt only when the list changes.
+   *
+   * Profiles are immutable, so the array identity is the cache key. The fixed
+   * step asks for this 120 times a second.
+   */
+  let equipmentSetSource: readonly string[] | undefined;
+  let equipmentSetCache: ReadonlySet<string> = new Set();
+  function equipmentSet(): ReadonlySet<string> {
+    if (equipmentSetSource !== profile.equipment) {
+      equipmentSetSource = profile.equipment;
+      equipmentSetCache = new Set(profile.equipment);
+    }
+    return equipmentSetCache;
+  }
+
   function fitContext(): FitContext | undefined {
     const catalogue = equipmentCatalogue;
     const missile = catalogue?.find((entry) => entry.key === "EQ_MISSILE");
@@ -2765,7 +2781,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         const intent = controller.update(flightView(liveState), frameInput);
         // Ownership travels beside the command, never inside it: one read-only
         // set per frame, derived from the profile (T-04-19).
-        const equipment = new Set(profile.equipment);
+        const equipment = equipmentSet();
         const committedTarget = targetSystem();
         // The read-only station mass of the live system's station kind. Only a
         // Coriolis station has a recorded mass; the others omit the fact.

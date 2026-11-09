@@ -29,7 +29,11 @@ import { MODEL_SOURCE_FILES, emitModels } from "./convert/glb.js";
 import type { ShipEntry } from "./convert/glb.js";
 import { emitEquipment } from "./convert/equipment.js";
 import { emitLabels } from "./convert/labels.js";
-import { compileShips, emitShipsFromCatalogue } from "./convert/ships.js";
+import {
+  compileShips,
+  emitClientShips,
+  emitShipsFromCatalogue,
+} from "./convert/ships.js";
 import { emitSystems } from "./convert/systems.js";
 import {
   copySkyTextures,
@@ -146,6 +150,7 @@ export async function generateContent({
     emitEquipment(equipment),
     emitLabels(descriptions),
     emitShipsFromCatalogue(catalogue),
+    emitClientShips(catalogue),
     emitDockPort(models),
     ...emitModels(models, entries),
   ];

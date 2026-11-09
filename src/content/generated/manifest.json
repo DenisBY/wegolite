@@ -156,6 +156,11 @@
       "sha256": "d0302d18161a8e3477976d7a5db93d074856b8ec0ead83c852ca1d9c98528ebc"
     },
     {
+      "bytes": 15196,
+      "path": "src/content/generated/ships-client.json",
+      "sha256": "72f679280670126a522e86c8bc6cb482047c2d8e26a43a452e6c6c7c0d73ab5b"
+    },
+    {
       "bytes": 706617,
       "path": "src/content/generated/ships.json",
       "sha256": "f4b0f7ae2ee54b4342978aef3f450d332efb8fec3764ca887134bddc7987ac81"
