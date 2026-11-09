@@ -38,7 +38,9 @@ import {
   ATMOSPHERE_VERTEX_SHADER,
 } from "../../src/render/shaders/atmosphere.glsl.js";
 import {
+  HIGH_ALBEDO,
   HIGH_CLOUD_RAMP,
+  HIGH_SUN_GAIN,
   PLANET_FRAGMENT_SHADER,
   highPlanetFragmentShader,
 } from "../../src/render/shaders/planet.glsl.js";
@@ -109,13 +111,14 @@ describe("Standard quality is the original planet", () => {
 describe("the High planet shader variant", () => {
   const high = planet("high").material.fragmentShader;
 
-  it("changes only the octave defines and the cloud cut", () => {
+  it("changes only the octave defines, the cloud cut, the lighting and the rim", () => {
     expect(define(high, "SURFACE_OCTAVES")).toBe(SURFACE_OCTAVES);
     expect(define(high, "RELIEF_OCTAVES")).toBe(HIGH_RELIEF_OCTAVES);
     expect(define(high, "CLOUD_OCTAVES")).toBe(HIGH_CLOUD_OCTAVES);
 
     // Everything Standard has, High has too, except the two define lines and
-    // the five lines of the narrow smoothstep cloud cut.
+    // the five lines of the narrow smoothstep cloud cut, the lighting line and
+    // the air rim line.
     const highLines = new Set(high.split("\n"));
     const dropped = PLANET_FRAGMENT_SHADER.split("\n").filter(
       (line) => !highLines.has(line),
@@ -128,7 +131,17 @@ describe("the High planet shader variant", () => {
       "    uCloudThreshold + 0.02,",
       "    cloudField",
       "  ) * uCloudAlpha;",
+      "  color *= dayLight + uAmbientTint * uAmbient;",
+      "  color += uAirColor * rim * uAirDensity * lit;",
     ]);
+    // Oolite's diffuse term and albedo sit under the terminator factor.
+    expect(high).toContain(`#define HIGH_ALBEDO ${HIGH_ALBEDO.toFixed(4)}`);
+    expect(high).toContain(`#define HIGH_SUN_GAIN ${HIGH_SUN_GAIN.toFixed(4)}`);
+    expect(high).toContain("dayLight * diffuse * HIGH_SUN_GAIN");
+    expect(high).toContain("uniform mat4 modelMatrix;");
+    expect(PLANET_FRAGMENT_SHADER).not.toContain("uniform mat4 modelMatrix;");
+    // Oolite's ALBEDO_FACTOR.
+    expect(HIGH_ALBEDO).toBe(0.7);
     expect(high).toContain(
       `#define HIGH_CLOUD_RAMP ${HIGH_CLOUD_RAMP.toFixed(4)}`,
     );

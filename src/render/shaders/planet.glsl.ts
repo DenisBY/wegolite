@@ -396,16 +396,59 @@ const HIGH_CLOUD_CUT = `  float cloudRamp = clamp(
   );
   float cloud = min(mix(0.05, 2.0, cloudRamp), 1.0) * uCloudAlpha;`;
 
+/** Standard's lighting: the terminator factor alone, with no sun-angle term. */
+const STANDARD_LIGHTING = "  color *= dayLight + uAmbientTint * uAmbient;";
+
+/**
+ * High's lighting: Oolite's diffuse term under the terminator factor
+ * (`oolite-default-planet.fragment`, `diffuseOrenNayar` and `main`).
+ *
+ * Oolite multiplies the surface by an Oren-Nayar diffuse term (sun angle) and
+ * only then by the per-channel terminator smoothstep. Standard has the
+ * smoothstep alone, so its whole day side is equally bright up to the
+ * terminator: the planet reads as a flat disc and the terminator's colour band
+ * shows at full strength, where in Oolite it falls on an already dark zone.
+ * The constants are Oolite's for a non-specular surface: gloss
+ * `max(SPECULAR_FACTOR * 0.64, 0.2) = 0.2`, so roughness 0.8, A = 0.6701 and
+ * B = 0.3945. `HIGH_ALBEDO` is Oolite's `ALBEDO_FACTOR`
+ * (`OOPlanetTextureGenerator.m:35`). `HIGH_SUN_GAIN` is presentation tuning:
+ * it stands in for Oolite's light radiance and exposure, which Wegolite's
+ * untone-mapped output cannot reproduce.
+ */
+const HIGH_LIGHTING = `  vec3 sunW = normalize(mat3(modelMatrix) * normalize(uSunDir));
+  vec3 eyeW = normalize(vViewDirW);
+  float ndotv = dot(normalW, eyeW);
+  float sunFacing = max(ndotl, 0.0);
+  float gamma = dot(eyeW - normalW * ndotv, sunW - normalW * ndotl);
+  float diffuse = sunFacing * (
+    0.6701 + 0.3945 * max(0.0, gamma)
+      * sqrt(max((1.0 - ndotv * ndotv) * (1.0 - ndotl * ndotl), 0.0))
+      / max(max(ndotl, ndotv), 0.001)
+  );
+  color *= HIGH_ALBEDO
+    * (dayLight * diffuse * HIGH_SUN_GAIN + uAmbientTint * uAmbient);`;
+
+/** Standard's own air rim; at High the atmosphere shell draws the rim. */
+const STANDARD_RIM = "  color += uAirColor * rim * uAirDensity * lit;";
+const HIGH_RIM = "  // High: the atmosphere shell draws the rim.";
+
+/** Oolite's `ALBEDO_FACTOR`: an overall darkening of the planet's colours. */
+export const HIGH_ALBEDO = 0.7;
+
+/** Sun gain under High's diffuse term. Presentation tuning. */
+export const HIGH_SUN_GAIN = 1.9;
+
 /** Half-width of High's cloud ramp, in units of the normalised cloud field. */
 export const HIGH_CLOUD_RAMP = 0.3;
 
 /**
  * The High-quality fragment shader, derived from the Standard source.
  *
- * Three edits and nothing else: the relief and cloud octave `#define` lines,
- * and the cloud cut (a soft alpha ramp instead of a narrow smoothstep). The
- * surface field, the colour bands and the terminator are the Standard
- * shader's. `fbm` bounds its loop by `SURFACE_OCTAVES`, so a count above that
+ * Five edits and nothing else: the relief and cloud octave `#define` lines,
+ * the cloud cut (a soft alpha ramp instead of a narrow smoothstep), the
+ * lighting (Oolite's diffuse term and albedo under the terminator factor) and
+ * the air rim (left to the atmosphere shell). The surface field, the colour
+ * bands and the terminator thresholds are the Standard shader's. `fbm` bounds its loop by `SURFACE_OCTAVES`, so a count above that
  * would be silently truncated; it is rejected here instead. Standard never
  * calls this: it uses `PLANET_FRAGMENT_SHADER` unchanged.
  *
@@ -427,6 +470,8 @@ export function highPlanetFragmentShader(octaves: PlanetShaderOctaves): string {
     STANDARD_RELIEF_DEFINE,
     STANDARD_CLOUD_DEFINE,
     STANDARD_CLOUD_CUT,
+    STANDARD_LIGHTING,
+    STANDARD_RIM,
   ]) {
     if (!PLANET_FRAGMENT_SHADER.includes(anchor)) {
       throw new RangeError(
@@ -440,7 +485,17 @@ export function highPlanetFragmentShader(octaves: PlanetShaderOctaves): string {
   )
     .replace(
       STANDARD_CLOUD_DEFINE,
-      `#define CLOUD_OCTAVES ${String(octaves.cloud)}\n#define HIGH_CLOUD_RAMP ${HIGH_CLOUD_RAMP.toFixed(4)}`,
+      [
+        `#define CLOUD_OCTAVES ${String(octaves.cloud)}`,
+        `#define HIGH_CLOUD_RAMP ${HIGH_CLOUD_RAMP.toFixed(4)}`,
+        `#define HIGH_ALBEDO ${HIGH_ALBEDO.toFixed(4)}`,
+        `#define HIGH_SUN_GAIN ${HIGH_SUN_GAIN.toFixed(4)}`,
+        // Three declares this for the vertex stage only; High's lighting needs
+        // it to bring the object-space sun direction into world space.
+        "uniform mat4 modelMatrix;",
+      ].join("\n"),
     )
-    .replace(STANDARD_CLOUD_CUT, HIGH_CLOUD_CUT);
+    .replace(STANDARD_CLOUD_CUT, HIGH_CLOUD_CUT)
+    .replace(STANDARD_LIGHTING, HIGH_LIGHTING)
+    .replace(STANDARD_RIM, HIGH_RIM);
 }
