@@ -45,11 +45,27 @@ export class ChartError extends Error {
   }
 }
 
+/** One labelled row in the hover card. */
+export interface ChartTooltipField {
+  readonly label: string;
+  readonly value: string;
+}
+
+/** The hover card contents, built by the session from the system record. */
+export interface ChartTooltipModel {
+  readonly title: string;
+  readonly fields: readonly ChartTooltipField[];
+}
+
 export interface ChartOverlay {
   /** Reveal the overlay and paint one frame. */
   show(view: ChartView): void;
   /** Install the session's view builder for the current viewport. */
   setViewBuilder(build: (viewport: ChartViewport) => ChartView): void;
+  /** Install the session's hover-card builder. */
+  setTooltipBuilder(
+    build: (systemId: string) => ChartTooltipModel | undefined,
+  ): void;
   /** The current CSS-pixel canvas size. */
   viewport(): ChartViewport;
   /** Offer a new view; repaint only when the policy agrees. */
@@ -125,6 +141,21 @@ export function createChart(root: HTMLElement): ChartOverlay {
     '[data-field="chart-keys"]',
     'the "chart-keys" field',
   );
+  const tooltip = requireElement<HTMLElement>(
+    overlay,
+    "#chart-tooltip",
+    'the "#chart-tooltip" card',
+  );
+  const tooltipTitle = requireElement<HTMLElement>(
+    tooltip,
+    '[data-field="chart-tooltip-title"]',
+    'the "chart-tooltip-title" field',
+  );
+  const tooltipFields = requireElement<HTMLElement>(
+    tooltip,
+    "[data-chart-tooltip-fields]",
+    'the "chart-tooltip-fields" list',
+  );
 
   const context = requireContext2d(canvas);
   const controller = new AbortController();
@@ -132,6 +163,11 @@ export function createChart(root: HTMLElement): ChartOverlay {
   let builder: ((viewport: ChartViewport) => ChartView) | undefined;
   let selectHandler: ((systemId: string) => void) | undefined;
   let cameraHandler: ((camera: ChartCamera) => void) | undefined;
+  let tooltipBuilder:
+    ((systemId: string) => ChartTooltipModel | undefined) | undefined;
+  let hoveredId: string | undefined;
+  let hoverClient:
+    { readonly clientX: number; readonly clientY: number } | undefined;
   let paints = 0;
   let lastSize: ChartViewport = { width: 0, height: 0 };
   // Gesture state. A candidate camera is computed per event and flushed once
@@ -176,6 +212,82 @@ export function createChart(root: HTMLElement): ChartOverlay {
     fuelField.textContent =
       readout === undefined ? "--" : `${String(readout.fuelCost)} fuel units`;
     keysField.textContent = KEY_HINT;
+  }
+
+  /** Hide the hover card without forgetting where the pointer is. */
+  function clearTooltip(): void {
+    hoveredId = undefined;
+    tooltip.hidden = true;
+    canvas.classList.remove("over-marker");
+  }
+
+  function renderTooltipContent(model: ChartTooltipModel): void {
+    tooltipTitle.textContent = model.title;
+    tooltipFields.replaceChildren();
+    for (const field of model.fields) {
+      const term = document.createElement("dt");
+      const value = document.createElement("dd");
+      term.textContent = field.label;
+      value.textContent = field.value;
+      tooltipFields.append(term, value);
+    }
+  }
+
+  /** Place the card beside the pointer, clamped inside the overlay. */
+  function positionTooltip(clientX: number, clientY: number): void {
+    const rect = overlay.getBoundingClientRect();
+    const gap = 16;
+    const margin = 8;
+    let left = clientX - rect.left + gap;
+    let top = clientY - rect.top + gap;
+    if (left + tooltip.offsetWidth + margin > rect.width) {
+      left = clientX - rect.left - tooltip.offsetWidth - gap;
+    }
+    if (top + tooltip.offsetHeight + margin > rect.height) {
+      top = clientY - rect.top - tooltip.offsetHeight - gap;
+    }
+    tooltip.style.left = `${Math.max(margin, left)}px`;
+    tooltip.style.top = `${Math.max(margin, top)}px`;
+  }
+
+  /**
+   * Resolve the marker under a client point and refresh the card when the
+   * hovered system changes. The session owns the contents; the shell owns the
+   * positioning and the show/hide policy.
+   */
+  function refreshHover(clientX: number, clientY: number): void {
+    hoverClient = { clientX, clientY };
+    if (drag !== undefined || current === undefined) {
+      clearTooltip();
+      return;
+    }
+    const point = clientToCanvas(clientX, clientY);
+    if (point === undefined) {
+      clearTooltip();
+      return;
+    }
+    const marker = hitTest(current, point, HIT_RADIUS);
+    if (marker === undefined) {
+      clearTooltip();
+      return;
+    }
+    canvas.classList.add("over-marker");
+    if (marker.id !== hoveredId) {
+      hoveredId = marker.id;
+      const model = tooltipBuilder?.(marker.id);
+      if (model === undefined) {
+        clearTooltip();
+        return;
+      }
+      renderTooltipContent(model);
+    }
+    tooltip.hidden = false;
+    positionTooltip(clientX, clientY);
+  }
+
+  function refreshHoverAtPointer(): void {
+    if (hoverClient === undefined) return;
+    refreshHover(hoverClient.clientX, hoverClient.clientY);
   }
 
   function paint(view: ChartView): void {
@@ -245,6 +357,8 @@ export function createChart(root: HTMLElement): ChartOverlay {
 
   function onWheel(event: WheelEvent): void {
     event.preventDefault();
+    hoverClient = undefined;
+    clearTooltip();
     const base = gestureCamera();
     if (base === undefined) return;
     const size = viewport();
@@ -277,11 +391,19 @@ export function createChart(root: HTMLElement): ChartOverlay {
   }
 
   function onPointerMove(event: PointerEvent): void {
-    if (drag === undefined || event.pointerId !== drag.pointerId) return;
+    if (drag === undefined) {
+      if (event.pointerType !== "touch") {
+        refreshHover(event.clientX, event.clientY);
+      }
+      return;
+    }
+    if (event.pointerId !== drag.pointerId) return;
     const totalX = event.clientX - drag.startX;
     const totalY = event.clientY - drag.startY;
     if (!drag.moved && Math.hypot(totalX, totalY) > DRAG_THRESHOLD) {
       drag.moved = true;
+      hoverClient = undefined;
+      clearTooltip();
     }
     const dx = event.clientX - drag.lastX;
     const dy = event.clientY - drag.lastY;
@@ -308,6 +430,12 @@ export function createChart(root: HTMLElement): ChartOverlay {
     // A drag must not select the marker it started on; suppress the click that
     // the browser fires after pointerup (D-04).
     if (moved) suppressClick = true;
+  }
+
+  function onPointerLeave(): void {
+    if (drag !== undefined) return;
+    hoverClient = undefined;
+    clearTooltip();
   }
 
   /** Drop gesture state without touching the painted view. */
@@ -355,6 +483,9 @@ export function createChart(root: HTMLElement): ChartOverlay {
   canvas.addEventListener("pointermove", onPointerMove, {
     signal: controller.signal,
   });
+  canvas.addEventListener("pointerleave", onPointerLeave, {
+    signal: controller.signal,
+  });
   canvas.addEventListener("pointerup", endDrag, { signal: controller.signal });
   canvas.addEventListener("pointercancel", endDrag, {
     signal: controller.signal,
@@ -378,6 +509,8 @@ export function createChart(root: HTMLElement): ChartOverlay {
   return {
     show(view: ChartView): void {
       resetGestures();
+      hoverClient = undefined;
+      clearTooltip();
       overlay.hidden = false;
       lastSize = { width: 0, height: 0 };
       const size = viewport();
@@ -388,15 +521,25 @@ export function createChart(root: HTMLElement): ChartOverlay {
     setViewBuilder(build: (viewport: ChartViewport) => ChartView): void {
       builder = build;
     },
+    setTooltipBuilder(
+      build: (systemId: string) => ChartTooltipModel | undefined,
+    ): void {
+      tooltipBuilder = build;
+    },
     viewport,
     view(next: ChartView): void {
       const completed = complete(next);
       if (!needsChartRepaint(current, completed)) return;
       current = completed;
-      if (!overlay.hidden) paint(completed);
+      if (!overlay.hidden) {
+        paint(completed);
+        refreshHoverAtPointer();
+      }
     },
     hide(): void {
       resetGestures();
+      hoverClient = undefined;
+      clearTooltip();
       overlay.hidden = true;
     },
     onSelect(handler: (systemId: string) => void): void {
@@ -414,8 +557,11 @@ export function createChart(root: HTMLElement): ChartOverlay {
       context.clearRect(0, 0, canvas.width, canvas.height);
       current = undefined;
       builder = undefined;
+      tooltipBuilder = undefined;
       selectHandler = undefined;
       cameraHandler = undefined;
+      hoverClient = undefined;
+      clearTooltip();
       overlay.hidden = true;
     },
   };

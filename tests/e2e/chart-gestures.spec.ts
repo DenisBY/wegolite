@@ -120,6 +120,31 @@ test("the chart opens on the local preset without Short/Long sub-tabs", async ({
   expect(errors).toEqual([]);
 });
 
+test("hovering a system opens its information card and leaving closes it", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await bootDocked(page);
+  await openChart(page);
+
+  const lave = systemByName("Lave");
+  const point = await markerPoint(page, lave.id);
+  await page.mouse.move(point.x, point.y);
+
+  const tooltip = page.locator("#chart-tooltip");
+  await expect(tooltip).toBeVisible();
+  await expect(
+    tooltip.locator('[data-field="chart-tooltip-title"]'),
+  ).toHaveText("Lave");
+  await expect(tooltip).toContainText("Rich Agricultural");
+  await expect(tooltip).toContainText("Dictatorship");
+  await expect(tooltip).toContainText("0.0 ly");
+
+  await page.mouse.move(1, 1);
+  await expect(tooltip).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
 test("mouse wheel zooms around the cursor and clamps at both spans", async ({
   page,
 }) => {

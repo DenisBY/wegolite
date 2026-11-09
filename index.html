@@ -456,6 +456,49 @@
         cursor: grabbing;
       }
 
+      #chart-canvas.over-marker {
+        cursor: pointer;
+      }
+
+      /* The hover card is painted by chart.ts from a session-built model. It is
+         pointer-transparent so the canvas keeps receiving moves and clicks. */
+      #chart-tooltip {
+        position: absolute;
+        z-index: 3;
+        min-width: 14rem;
+        max-width: min(24rem, calc(100% - 2rem));
+        padding: 0.55rem 0.75rem;
+        border: 1px solid #33ff66;
+        background: #001a0a;
+        box-shadow:
+          0 0 0 1px #000,
+          0 0 14px #000;
+        pointer-events: none;
+        font: 14px/1.45 monospace;
+      }
+
+      #chart-tooltip [data-field="chart-tooltip-title"] {
+        margin: 0 0 0.4rem;
+        color: #ffd966;
+        font-weight: bold;
+      }
+
+      #chart-tooltip dl {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.12rem 0.8rem;
+        margin: 0;
+      }
+
+      #chart-tooltip dt {
+        color: #9a9;
+      }
+
+      #chart-tooltip dd {
+        margin: 0;
+        color: #33ff66;
+      }
+
       #chart .station-footer {
         bottom: 2rem;
       }
@@ -874,6 +917,10 @@
         data-station-nav="chart"
       ></nav>
       <canvas id="chart-canvas"></canvas>
+      <div id="chart-tooltip" role="tooltip" hidden>
+        <p data-field="chart-tooltip-title"></p>
+        <dl data-chart-tooltip-fields></dl>
+      </div>
       <div class="station-footer">
         <p data-field="chart-target"></p>
         <p data-field="chart-distance"></p>

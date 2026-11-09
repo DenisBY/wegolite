@@ -2964,6 +2964,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         chartSelectedId,
       ),
     );
+    chart.setTooltipBuilder((id) => {
+      const info = galaxyById.get(id);
+      if (info === undefined || labels === undefined) return undefined;
+      return {
+        title: info.name,
+        fields: buildSystemDataModel(info, system, labels).fields,
+      };
+    });
     chart.onSelect((id) => {
       selectChartSystem(id);
     });
