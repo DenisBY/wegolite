@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-09 - Completed quick task 8: show a system information card when hovering a marker on the F6 chart
+Last activity: 2026-11-09 - Completed quick task 9: add the system description to the chart hover card and refresh F7 after the chart closes
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -279,6 +279,7 @@ Recent decisions affecting current work:
 | 261109-lsz | Add mouse-wheel zoom and drag-to-pan to the F6 chart with local and whole-galaxy presets | 2026-11-09 | ea3d15b | [261109-lsz-add-mouse-wheel-zoom-and-drag-to-pan-to-](./quick/261109-lsz-add-mouse-wheel-zoom-and-drag-to-pan-to-/) |
 | 7 | Show the selected chart system and the distance from the docked system on the F7 system-data screen | 2026-11-09 | fda6f22 | — |
 | 8 | Show a system information card when hovering a marker on the F6 chart | 2026-11-09 | 3dd6dda | — |
+| 9 | Add the system description to the chart hover card and refresh F7 after the chart closes | 2026-11-09 | 2976b0f | — |
 
 ## Deferred Items
 
