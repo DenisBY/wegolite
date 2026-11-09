@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-09 - Completed quick task 7: show the selected chart system and the distance from the docked system on the F7 system-data screen
+Last activity: 2026-11-09 - Completed quick task 8: show a system information card when hovering a marker on the F6 chart
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -278,6 +278,7 @@ Recent decisions affecting current work:
 | 5 | Show the live credit balance in the F6 chart and F2 Save/Load headers instead of the static key labels | 2026-11-09 | ba42edc | — |
 | 261109-lsz | Add mouse-wheel zoom and drag-to-pan to the F6 chart with local and whole-galaxy presets | 2026-11-09 | ea3d15b | [261109-lsz-add-mouse-wheel-zoom-and-drag-to-pan-to-](./quick/261109-lsz-add-mouse-wheel-zoom-and-drag-to-pan-to-/) |
 | 7 | Show the selected chart system and the distance from the docked system on the F7 system-data screen | 2026-11-09 | fda6f22 | — |
+| 8 | Show a system information card when hovering a marker on the F6 chart | 2026-11-09 | 3dd6dda | — |
 
 ## Deferred Items
 
