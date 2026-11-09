@@ -67,6 +67,10 @@ for that action.
 | Chart preset   | `Tab`         |
 | Chart close    | `Esc`         |
 
+The chart opens on the local view around the current system; Tab toggles the
+whole-galaxy view, the mouse wheel zooms around the cursor, and dragging with
+the left button pans.
+
 **Docked station**
 
 | Action        | Keys                |
