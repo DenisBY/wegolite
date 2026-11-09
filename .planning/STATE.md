@@ -5,10 +5,10 @@ current_phase_name: Hardening & Community Release
 current_plan: 11
 status: executing
 stopped_at: Completed 07-10-PLAN.md
-last_updated: "2026-11-09T14:14:42.387Z"
-last_activity: 2026-11-08
+last_updated: "2026-11-09T14:31:47.876Z"
+last_activity: 2026-11-09
 last_activity_desc: Phase 6 complete, transitioned to Phase 7
-state_head: 8564ded5cc6013487cf7b7e9d897ae6ad15d970a
+state_head: ba42edc57920216e90b53d162a01d4235908983e
 progress:
   total_phases: 7
   completed_phases: 6
@@ -275,6 +275,7 @@ Recent decisions affecting current work:
 | 261104-p2m | Stabilise the message-expiry browser gate (300 s wait, `workers: 2` pinned), update the frozen-contract guard, and record G-03-3 as an accepted known issue | 2026-11-04 | 313a2bf | [261104-p2m-stabilize-the-message-expiry-browser-gat](./quick/261104-p2m-stabilize-the-message-expiry-browser-gat/) |
 | 261108-tez | Переключатель паузы при потере фокуса вкладки в настройках | 2026-11-08 | 7c35c08 | [261108-tez-sdelat-postanovku-na-pauzu-pri-potere-fo](./quick/261108-tez-sdelat-postanovku-na-pauzu-pri-potere-fo/) |
 | 261109-h8t | Clickable F-key-ordered tab strip for the docked station computer (Home, F1-F8) with a live F4 Interfaces screen | 2026-11-09 | 8564ded | [261109-h8t-add-a-clickable-f-key-ordered-tab-strip-](./quick/261109-h8t-add-a-clickable-f-key-ordered-tab-strip-/) |
+| 5 | Show the live credit balance in the F6 chart and F2 Save/Load headers instead of the static key labels | 2026-11-09 | ba42edc | — |
 
 ## Deferred Items
 
