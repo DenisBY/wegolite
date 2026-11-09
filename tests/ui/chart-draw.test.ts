@@ -257,6 +257,38 @@ describe("needsChartRepaint", () => {
     ).toBe(true);
   });
 
+  it("is false for two independently built identical camera views", () => {
+    expect(needsChartRepaint(labelledView(), labelledView())).toBe(false);
+  });
+
+  it("is true for a camera centre, spanX or spanY change", () => {
+    const camera = { centre: { x: 100, y: 100 }, spanX: 100 };
+    const moved = { centre: { x: 110, y: 100 }, spanX: 100 };
+    const zoomed = { centre: { x: 100, y: 100 }, spanX: 120 };
+
+    expect(
+      needsChartRepaint(labelledView(), labelledView(lave.id, diso.id, camera)),
+    ).toBe(true);
+    expect(
+      needsChartRepaint(
+        labelledView(lave.id, diso.id, camera),
+        labelledView(lave.id, diso.id, moved),
+      ),
+    ).toBe(true);
+    expect(
+      needsChartRepaint(
+        labelledView(lave.id, diso.id, camera),
+        labelledView(lave.id, diso.id, zoomed),
+      ),
+    ).toBe(true);
+    expect(
+      needsChartRepaint(labelledView(lave.id, diso.id, camera), {
+        ...labelledView(lave.id, diso.id, camera),
+        chartSpanY: 202,
+      }),
+    ).toBe(true);
+  });
+
   it("is true for a first paint", () => {
     expect(needsChartRepaint(undefined, view)).toBe(true);
   });

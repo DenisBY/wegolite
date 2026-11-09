@@ -21,15 +21,20 @@ import {
   chartArrowVector,
   chartGoodsReadout,
   chartProjection,
+  chartSpanY,
+  clampChartCamera,
   galaxyPreset,
   hitTest,
   localPreset,
   nearestInDirection,
+  panChartCamera,
   selectLabels,
   visibleSystemIds,
+  zoomChartCamera,
 } from "../../src/ui/chart-model.js";
 import type {
   ChartArrow,
+  ChartCamera,
   ChartMarker,
   ChartView,
   ChartViewport,
@@ -56,6 +61,8 @@ function marker(view: ChartView, id: string) {
 
 const lave = byName("Lave");
 const diso = byName("Diso");
+const leesti = byName("Leesti");
+const ermaso = byName("Ermaso");
 const viewport: ChartViewport = { width: 800, height: 400 };
 const fullFuel = 70;
 
@@ -670,6 +677,240 @@ describe("purity and the fuel circle", () => {
   });
 });
 
+describe("chart camera presets and clamping", () => {
+  it("exposes the galaxy preset as centre 128,128, spanX 256 and spanY 512", () => {
+    const camera = galaxyPreset();
+
+    expect(camera).toEqual({ centre: { x: 128, y: 128 }, spanX: 256 });
+    expect(chartSpanY(camera)).toBe(512);
+  });
+
+  it("opens the local preset at spanX 80, clamped inside the galaxy", () => {
+    const camera = localPreset(lave);
+
+    // Lave sits at chart-x 20, so the ±40 window clamps its centre to x=40.
+    expect(camera).toEqual({ centre: { x: 40, y: 173 }, spanX: 80 });
+    expect(chartSpanY(camera)).toBe(160);
+  });
+
+  it("clamps spanX into 20..256", () => {
+    expect(
+      clampChartCamera({ centre: { x: 128, y: 128 }, spanX: 1 }).spanX,
+    ).toBe(20);
+    expect(
+      clampChartCamera({ centre: { x: 128, y: 128 }, spanX: 999 }).spanX,
+    ).toBe(256);
+  });
+
+  it("clamps the centre so the window stays inside the 0..256 galaxy", () => {
+    // spanX 80: x window is 80 wide (40..216), y window is 160 tall (80..176).
+    expect(
+      clampChartCamera({ centre: { x: -50, y: -50 }, spanX: 80 }).centre,
+    ).toEqual({ x: 40, y: 80 });
+    expect(
+      clampChartCamera({ centre: { x: 400, y: 400 }, spanX: 80 }).centre,
+    ).toEqual({ x: 216, y: 176 });
+  });
+
+  it("pins the whole-galaxy centre regardless of the input", () => {
+    expect(
+      clampChartCamera({ centre: { x: 0, y: 0 }, spanX: 256 }).centre,
+    ).toEqual({ x: 128, y: 128 });
+    expect(
+      clampChartCamera({ centre: { x: 255, y: 255 }, spanX: 400 }).centre,
+    ).toEqual({ x: 128, y: 128 });
+  });
+
+  it("replaces non-finite input with the galaxy preset", () => {
+    expect(
+      clampChartCamera({ centre: { x: Number.NaN, y: 0 }, spanX: 80 }),
+    ).toEqual(galaxyPreset());
+    expect(
+      clampChartCamera({
+        centre: { x: 0, y: 0 },
+        spanX: Number.POSITIVE_INFINITY,
+      }),
+    ).toEqual(galaxyPreset());
+  });
+});
+
+describe("zoomChartCamera", () => {
+  it("keeps the chart point under the anchor fixed, within 1e-9", () => {
+    const camera: ChartCamera = { centre: { x: 128, y: 128 }, spanX: 100 };
+    const scale = Math.min(
+      viewport.width / camera.spanX,
+      viewport.height / camera.spanX,
+    );
+
+    for (const anchor of [
+      { x: 0, y: 0 },
+      { x: 100, y: 100 },
+      { x: 400, y: 200 },
+      { x: 799, y: 399 },
+    ]) {
+      // The chart point the current camera draws under the anchor.
+      const chartX = camera.centre.x + (anchor.x - viewport.width / 2) / scale;
+      const chartY =
+        camera.centre.y + (2 * (anchor.y - viewport.height / 2)) / scale;
+      const zoomed = zoomChartCamera(camera, viewport, anchor, 0.7);
+      const projected = chartProjection(
+        viewport,
+        zoomed.centre,
+        zoomed.spanX,
+        chartSpanY(zoomed),
+      )({ x: chartX, y: chartY });
+
+      expect(projected.x, `anchor x ${anchor.x}`).toBeCloseTo(anchor.x, 9);
+      expect(projected.y, `anchor y ${anchor.y}`).toBeCloseTo(anchor.y, 9);
+    }
+  });
+
+  it("never leaves the 20..256 span range", () => {
+    let camera: ChartCamera = { centre: { x: 128, y: 128 }, spanX: 256 };
+    for (let step = 0; step < 20; step += 1) {
+      camera = zoomChartCamera(camera, viewport, { x: 400, y: 200 }, 0.5);
+      expect(camera.spanX).toBeGreaterThanOrEqual(20);
+    }
+    expect(camera.spanX).toBe(20);
+    for (let step = 0; step < 20; step += 1) {
+      camera = zoomChartCamera(camera, viewport, { x: 400, y: 200 }, 2);
+      expect(camera.spanX).toBeLessThanOrEqual(256);
+    }
+    expect(camera.spanX).toBe(256);
+  });
+
+  it("clamps the zoom factor to 0.5..2 before applying", () => {
+    const camera: ChartCamera = { centre: { x: 128, y: 128 }, spanX: 80 };
+
+    expect(
+      zoomChartCamera(camera, viewport, { x: 400, y: 200 }, 0.1).spanX,
+    ).toBe(40);
+    expect(
+      zoomChartCamera(camera, viewport, { x: 400, y: 200 }, 100).spanX,
+    ).toBe(160);
+  });
+});
+
+describe("panChartCamera", () => {
+  it("moves the centre opposite the pixel delta and halves the y effect", () => {
+    const camera: ChartCamera = { centre: { x: 128, y: 128 }, spanX: 80 };
+    // viewport 800x400 at spanX 80 gives a scale of 5 CSS px per chart-x.
+    expect(panChartCamera(camera, viewport, 50, 0).centre).toEqual({
+      x: 118,
+      y: 128,
+    });
+    expect(panChartCamera(camera, viewport, 0, 50).centre).toEqual({
+      x: 128,
+      y: 108,
+    });
+  });
+
+  it("clamps at the galaxy edge and a pan at the clamp is idempotent", () => {
+    const camera: ChartCamera = { centre: { x: 128, y: 128 }, spanX: 80 };
+    const once = panChartCamera(camera, viewport, 10_000, 10_000);
+    const twice = panChartCamera(once, viewport, 10_000, 10_000);
+
+    expect(once.centre).toEqual({ x: 40, y: 80 });
+    expect(twice.centre).toEqual(once.centre);
+  });
+});
+
+describe("buildChartView camera visibility", () => {
+  it("keeps an off-screen current/target/selected marker but hides it from hit-testing and arrows", () => {
+    // A tight camera far from Lave and Ermaso leaves both off-screen.
+    const camera: ChartCamera = { centre: { x: 200, y: 200 }, spanX: 20 };
+    const view = buildChartView(
+      systems,
+      lave.id,
+      ermaso.id,
+      camera,
+      fullFuel,
+      viewport,
+      ermaso.id,
+    );
+    const laveMarker = marker(view, lave.id);
+    const ermasoMarker = marker(view, ermaso.id);
+
+    expect(laveMarker.isCurrent).toBe(true);
+    expect(laveMarker.visible).toBe(false);
+    expect(ermasoMarker.isTarget).toBe(true);
+    expect(ermasoMarker.isSelected).toBe(true);
+    expect(ermasoMarker.visible).toBe(false);
+    expect(
+      hitTest(view, { x: laveMarker.screenX, y: laveMarker.screenY }, 14),
+    ).toBeUndefined();
+    expect(visibleSystemIds(view).has(lave.id)).toBe(false);
+    expect(visibleSystemIds(view).has(ermaso.id)).toBe(false);
+  });
+
+  it("marks every system visible at galaxy zoom", () => {
+    const view = buildChartView(
+      systems,
+      lave.id,
+      undefined,
+      galaxyPreset(),
+      fullFuel,
+      viewport,
+      undefined,
+    );
+
+    expect(view.markers).toHaveLength(256);
+    expect(view.markers.every((candidate) => candidate.visible)).toBe(true);
+  });
+});
+
+describe("selectLabels zoom policy", () => {
+  it("at galaxy zoom keeps at most 12 non-forced labels plus current/target/selected", () => {
+    const view = buildChartView(
+      systems,
+      lave.id,
+      diso.id,
+      galaxyPreset(),
+      fullFuel,
+      viewport,
+      leesti.id,
+    );
+    const labels = selectLabels(view, () => 18);
+    const forcedIds = new Set([lave.id, diso.id, leesti.id]);
+    const forced = labels
+      .map((label) => label.systemId)
+      .filter((id) => forcedIds.has(id));
+    const nonForced = labels.filter((label) => !forcedIds.has(label.systemId));
+
+    expect(forced.sort()).toEqual([...forcedIds].sort());
+    expect(nonForced.length).toBeLessThanOrEqual(12);
+  });
+
+  it("at local zoom applies collision culling and can return more than 12 names", () => {
+    const markers = Array.from({ length: 20 }, (_, index) =>
+      chartMarker({
+        id: `system-${String(index)}`,
+        systemIndex: index,
+        screenX: 20 + index * 30,
+        screenY: 100,
+      }),
+    );
+    const view = viewForMarkers(markers, undefined, 80);
+
+    expect(selectLabels(view, () => 5)).toHaveLength(20);
+  });
+
+  it("is deterministic across two calls", () => {
+    const view = buildChartView(
+      systems,
+      lave.id,
+      diso.id,
+      galaxyPreset(),
+      fullFuel,
+      viewport,
+      leesti.id,
+    );
+    const measure = (text: string): number => text.length * 6;
+
+    expect(selectLabels(view, measure)).toEqual(selectLabels(view, measure));
+  });
+});
+
 function floorDistance(left: System, right: System): number {
   const dx = left.chartX - right.chartX;
   const dy = Math.floor((left.chartY - right.chartY) / 2);
@@ -741,6 +982,7 @@ function chartMarker(overrides: {
 function viewForMarkers(
   markers: readonly ChartMarker[],
   targetId: string | undefined,
+  spanX = 256,
 ): ChartView {
   return {
     markers,
@@ -753,7 +995,7 @@ function viewForMarkers(
     selectedId: undefined,
     viewport: { width: 800, height: 400 },
     centre: { x: 0, y: 0 },
-    chartSpanX: 256,
-    chartSpanY: 256,
+    chartSpanX: spanX,
+    chartSpanY: 2 * spanX,
   };
 }
