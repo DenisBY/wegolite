@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-09 - Completed quick task 14: kept the docked shell opaque across the disclaimer strip so the 3D planet no longer shows at the bottom
+Last activity: 2026-11-09 - Completed quick task 261109-q7h: opt-in High graphics quality (atmosphere shell, finer clouds and relief)
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -50,6 +50,7 @@ Progress: [█████████░] 86% — 62/73 plans complete
 | 01 | 7 | - | - |
 | 02 | 9 | - | - |
 | 03 | 14 | - | - |
+| 261109-q7h | Add an opt-in High graphics quality: finer cloud and relief detail and an atmosphere shell, with Standard unchanged | 2026-11-09 | 133b59b | [261109-q7h-add-opt-in-high-graphics-quality](./quick/261109-q7h-add-opt-in-high-graphics-quality/) |
 | 04 | 8 | - | - |
 | 05 | 6 | - | - |
 | 6 | 17 | - | - |
