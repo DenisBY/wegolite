@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-09 - Completed quick task 261109-q7h: opt-in High graphics quality (atmosphere shell, finer clouds and relief)
+Last activity: 2026-11-09 - Completed quick task 261109-r4n: sky nebulae at High graphics quality
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -51,6 +51,7 @@ Progress: [█████████░] 86% — 62/73 plans complete
 | 02 | 9 | - | - |
 | 03 | 14 | - | - |
 | 261109-q7h | Add an opt-in High graphics quality: finer cloud and relief detail and an atmosphere shell, with Standard unchanged | 2026-11-09 | 133b59b | [261109-q7h-add-opt-in-high-graphics-quality](./quick/261109-q7h-add-opt-in-high-graphics-quality/) |
+| 261109-r4n | Draw Oolite's sky nebulae at High graphics quality, with the four nebula textures vendored from the pinned commit | 2026-11-09 | 99a889b | [261109-r4n-add-sky-nebulae-to-high-quality](./quick/261109-r4n-add-sky-nebulae-to-high-quality/) |
 | 04 | 8 | - | - |
 | 05 | 6 | - | - |
 | 6 | 17 | - | - |
