@@ -158,6 +158,11 @@ most 250 000 triangles, and the planet may spend at most 9 noise evaluations.
 The container checks the first two on SwiftShader. Frame rate is judged only on a
 real GPU, by the protocol in that document.
 
+These limits describe the default Standard quality. The pause menu's Settings
+panel has a "High-quality planet" option, off by default, that adds an
+atmosphere glow and finer cloud and relief detail. High spends up to 16 noise
+evaluations and one more draw call, and it is not measured by the budget tests.
+
 ## Troubleshooting
 
 - **WebGL2 is unavailable.** Wegolite needs WebGL2. When the browser does not

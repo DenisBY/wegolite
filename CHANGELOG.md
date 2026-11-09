@@ -12,6 +12,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   including the planet description and distance from the current system.
 - Mouse-wheel zoom and drag-to-pan on the F6 chart.
 - A clickable, F-key-ordered station tab strip with an Interfaces screen.
+- A "High-quality planet" setting, off by default. It adds an atmosphere glow
+  around the planet and finer cloud and terrain relief detail. The default
+  rendering is unchanged.
 
 ### Changed
 

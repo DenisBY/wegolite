@@ -255,6 +255,7 @@ describe("mergeDefaults", () => {
       hintsSeen: ["speed"],
       launchSeen: false,
       pauseOnFocusLoss: true,
+      quality: "standard",
     });
 
     expect(merged.bindings.rollRight).toEqual([]);
@@ -358,6 +359,63 @@ describe("loadSettings", () => {
 
     expect(() => loadSettings(storage)).not.toThrow();
     expect(loadSettings(storage).bindings.rollRight).toEqual(["ArrowRight"]);
+  });
+});
+
+describe("graphics quality", () => {
+  it("defaults to standard", () => {
+    expect(defaults().quality).toBe("standard");
+  });
+
+  it("reads a blob without quality as standard", () => {
+    const blob = validBlob();
+    expect(blob).not.toHaveProperty("quality");
+    expect(validateSettings(blob)?.quality).toBe("standard");
+  });
+
+  it("keeps an explicit high", () => {
+    const blob: Record<string, unknown> = validBlob();
+    blob.quality = "high";
+    expect(validateSettings(blob)?.quality).toBe("high");
+  });
+
+  it("rejects an unknown quality and names the field", () => {
+    for (const value of ["ultra", "", 1, null, true]) {
+      const blob: Record<string, unknown> = validBlob();
+      blob.quality = value;
+      expect(validateSettings(blob)).toBeNull();
+      expect(settingsProblem(blob)).toContain("settings.quality");
+    }
+  });
+
+  it("omits quality from a blob saved at standard", () => {
+    const storage = new FakeStorage();
+    saveSettings({ ...defaults(), quality: "standard" }, storage);
+    const parsed = JSON.parse(storage.getItem(SETTINGS_KEY) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    expect(parsed).not.toHaveProperty("quality");
+    expect(loadSettings(storage).quality).toBe("standard");
+  });
+
+  it("keeps high across save and load", () => {
+    const storage = new FakeStorage();
+    saveSettings({ ...defaults(), quality: "high" }, storage);
+    const parsed = JSON.parse(storage.getItem(SETTINGS_KEY) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    expect(parsed.quality).toBe("high");
+    expect(loadSettings(storage).quality).toBe("high");
+  });
+
+  it("backs up a blob with an unknown quality and uses defaults", () => {
+    const storage = new FakeStorage();
+    const raw = JSON.stringify({ ...validBlob(), quality: "ultra" });
+    storage.setItem(SETTINGS_KEY, raw);
+    expect(loadSettings(storage).quality).toBe("standard");
+    expect(storage.getItem(SETTINGS_CORRUPT_KEY)).toBe(raw);
   });
 });
 

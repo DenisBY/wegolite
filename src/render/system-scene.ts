@@ -25,6 +25,7 @@
 import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import type { System } from "../content/types.js";
+import type { GraphicsQuality } from "../settings/schema.js";
 import type { Vec3 } from "../sim/math.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import type { AssetCache } from "./asset-cache.js";
@@ -143,6 +144,7 @@ export interface SystemSceneFactories {
     radius: number,
     sunDir: Vec3,
     rotationSpeed: number,
+    quality: GraphicsQuality,
   ): PlanetBody;
   sun(
     system: System,
@@ -190,6 +192,9 @@ function disposePlanet(planet: PlanetBody): Disposable {
     dispose(): void {
       planet.mesh.geometry.dispose();
       planet.material.dispose();
+      // The High-quality shell is a child of the planet mesh.
+      planet.atmosphere?.geometry.dispose();
+      planet.atmosphere?.material.dispose();
     },
   };
 }
@@ -314,6 +319,7 @@ export function createSystemScene(
   assets: AssetCache,
   system: System,
   factories: Partial<SystemSceneFactories> = {},
+  quality: GraphicsQuality = "standard",
 ): SystemScene {
   const f: SystemSceneFactories = { ...REAL_FACTORIES, ...factories };
   const scene = new THREE.Scene();
@@ -329,6 +335,7 @@ export function createSystemScene(
       layout.planet.radius,
       layout.sunDir,
       layout.rotationSpeed,
+      quality,
     );
     built.add(disposePlanet(planet));
 

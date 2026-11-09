@@ -25,16 +25,30 @@ import { axisAngle, clamp, rotateInverse } from "../../sim/math.js";
 import type { Vec3 } from "../../sim/math.js";
 import { LayoutError } from "../../sim/world/layout.js";
 import { decodeColor3 } from "../color.js";
-import { calibrateClouds, calibrateSurface } from "../planet-noise.js";
+import { createAtmosphere } from "./atmosphere.js";
+import type { GraphicsQuality } from "../../settings/schema.js";
+import {
+  CLOUD_OCTAVES,
+  HIGH_CLOUD_OCTAVES,
+  HIGH_RELIEF_OCTAVES,
+  calibrateClouds,
+  calibrateSurface,
+} from "../planet-noise.js";
 import {
   PLANET_FRAGMENT_SHADER,
   PLANET_VERTEX_SHADER,
+  planetFragmentShaderWithOctaves,
 } from "../shaders/planet.glsl.js";
 
 /** The GPU-facing planet: the mesh, its material, and the spin step. */
 export interface PlanetBody {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.ShaderMaterial;
+  /**
+   * The atmosphere shell, present only at `high` quality. It is a child of
+   * `mesh`; whoever disposes the planet must dispose its geometry and material.
+   */
+  readonly atmosphere?: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
   /** Spin the surface and rotate the sun direction into object space. */
   update(elapsedSeconds: number): void;
 }
@@ -99,6 +113,9 @@ function color3(
 /**
  * Build the planet body.
  *
+ * `quality` selects the shader variant. `standard` (the default) is the
+ * original material; `high` adds relief and cloud octaves.
+ *
  * @throws {LayoutError} when `planetRadius` is not a positive finite number — a
  * zero-radius sphere would silently render nothing (V5 input validation).
  */
@@ -107,6 +124,7 @@ export function createPlanet(
   planetRadius: number,
   sunDir: Vec3,
   rotationSpeed: number,
+  quality: GraphicsQuality = "standard",
 ): PlanetBody {
   if (!Number.isFinite(planetRadius) || planetRadius <= 0) {
     throw new LayoutError(
@@ -124,7 +142,15 @@ export function createPlanet(
   // shader draws, so `land_fraction`, `cloud_fraction` and `percent_ice` are
   // true shares rather than threshold guesses (debug report 00:25).
   const surface = calibrateSurface(seed, system.land_fraction, polarFraction);
-  const clouds = calibrateClouds(seed, system.cloud_fraction);
+  // High compiles more relief and cloud octaves. The cloud threshold is
+  // recalibrated at the same octave count, so coverage still equals the
+  // authored `cloud_fraction`; the surface field is untouched.
+  const high = quality === "high";
+  const clouds = calibrateClouds(
+    seed,
+    system.cloud_fraction,
+    high ? HIGH_CLOUD_OCTAVES : CLOUD_OCTAVES,
+  );
   const sunDirUniform = {
     value: new THREE.Vector3(sunDir.x, sunDir.y, sunDir.z),
   };
@@ -179,7 +205,12 @@ export function createPlanet(
       uTime: timeUniform,
     },
     vertexShader: PLANET_VERTEX_SHADER,
-    fragmentShader: PLANET_FRAGMENT_SHADER,
+    fragmentShader: high
+      ? planetFragmentShaderWithOctaves({
+          relief: HIGH_RELIEF_OCTAVES,
+          cloud: HIGH_CLOUD_OCTAVES,
+        })
+      : PLANET_FRAGMENT_SHADER,
     depthWrite: true,
     side: THREE.FrontSide,
   });
@@ -190,9 +221,17 @@ export function createPlanet(
   );
   mesh.name = "planet";
 
+  // High only: the halo is a second draw call and a transparent body, which
+  // Standard's one-sphere contract (Phase 3 D-02) does not allow.
+  const atmosphere = high
+    ? createAtmosphere(system, planetRadius, sunDir)
+    : undefined;
+  if (atmosphere !== undefined) mesh.add(atmosphere);
+
   return {
     mesh,
     material,
+    ...(atmosphere === undefined ? {} : { atmosphere }),
     update(elapsedSeconds: number): void {
       const planetQuat = axisAngle(0, 1, 0, rotationSpeed * elapsedSeconds);
       mesh.quaternion.set(

@@ -88,6 +88,11 @@ export function saveSettings(
     hintsSeen: normalized.hintsSeen,
     launchSeen: normalized.launchSeen,
     pauseOnFocusLoss: normalized.pauseOnFocusLoss,
+    // Written only when it differs from the default, so a blob saved at
+    // `standard` keeps the exact shape older builds accept.
+    ...(normalized.quality === "standard"
+      ? {}
+      : { quality: normalized.quality }),
   };
   try {
     storage.setItem(SETTINGS_KEY, JSON.stringify(blob));

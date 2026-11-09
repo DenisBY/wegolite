@@ -392,3 +392,83 @@ test("the overlay traps focus and Escape backs out one level", async ({
 
   expect(errors).toEqual([]);
 });
+
+test("the High-quality toggle rebuilds the planet, persists and resets", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  const sceneQuality = (): Promise<{
+    quality: string | undefined;
+    atmosphere: boolean | undefined;
+  }> =>
+    page.evaluate(() => ({
+      quality: window.__wegolite?.quality,
+      atmosphere: window.__wegolite?.atmosphere,
+    }));
+
+  // In flight after a launch the planet is in view, so the High shader and the
+  // atmosphere shell are compiled and drawn; a GLSL error would reach the
+  // console.
+  await startAndLaunch(page);
+
+  // a. Standard is the default: no shell, and the toggle is off.
+  expect(await sceneQuality()).toEqual({
+    quality: "standard",
+    atmosphere: false,
+  });
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeVisible();
+  await page.click('#pause button[data-pause-action="settings"]');
+  await expect(page.locator("#settings-panel")).toBeVisible();
+  const toggle = page.locator('[data-settings-toggle="highQuality"]');
+  await expect(toggle).not.toBeChecked();
+
+  // b. Switching it on rebuilds the scene at once and saves the choice.
+  await toggle.check();
+  await page.waitForFunction(() => window.__wegolite?.quality === "high");
+  expect(await sceneQuality()).toEqual({ quality: "high", atmosphere: true });
+  const stored = await page.evaluate(() =>
+    localStorage.getItem("wegolite.settings"),
+  );
+  expect((JSON.parse(stored ?? "{}") as { quality?: string }).quality).toBe(
+    "high",
+  );
+
+  // c. The simulation is untouched and frames keep rendering at High.
+  await page.click('#settings-panel button[data-settings-action="back"]');
+  await page.click('#pause button[data-pause-action="resume"]');
+  await expect(page.locator("#pause")).toBeHidden();
+  expect((await getProbe(page)).mode).toBe("inFlight");
+  await waitForFlightAdvance(page, 0.25);
+
+  // d. Reload: the first scene of the new session is already built at High.
+  await page.reload();
+  await startAndLaunch(page);
+  expect(await sceneQuality()).toEqual({ quality: "high", atmosphere: true });
+  await waitForFlightAdvance(page, 0.25);
+
+  // e. Reset all settings returns to Standard and removes the shell.
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeVisible();
+  await page.click('#pause button[data-pause-action="settings"]');
+  await expect(
+    page.locator('[data-settings-toggle="highQuality"]'),
+  ).toBeChecked();
+  await page.click('[data-settings-action="reset"]');
+  await page.waitForFunction(() => window.__wegolite?.quality === "standard");
+  expect(await sceneQuality()).toEqual({
+    quality: "standard",
+    atmosphere: false,
+  });
+  await expect(
+    page.locator('[data-settings-toggle="highQuality"]'),
+  ).not.toBeChecked();
+
+  expect(errors).toEqual([]);
+});

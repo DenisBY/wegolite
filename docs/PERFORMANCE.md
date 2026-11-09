@@ -12,6 +12,8 @@ Each rendered frame must stay inside these limits. Each row names the gate that 
 | Triangles per rendered frame  | at most 250 000 | STACK.md lines 442-443 (research target) | `tests/e2e/budget.spec.ts` (`TRIANGLE_BUDGET`)              |
 | Planet noise evaluations      | at most 9       | `BUDGET_CEILING` (D-12, unchanged)       | `tests/render/planet-budget.test.ts` (`BUDGET_CEILING = 9`) |
 
+The budget applies to the default Standard quality, which is what every test renders. The opt-in High quality (the "High-quality planet" setting) spends up to 16 planet noise evaluations (`HIGH_NOISE_EVAL_BUDGET`) and adds one draw call for the atmosphere shell. It has no frame-rate evidence yet; measure it with the reference-desktop protocol below before changing the default.
+
 Both draw-call and triangle comparisons are inclusive: 50 calls and 250 000 triangles pass, while 51 calls and 250 001 triangles fail. A scene that reports zero calls or zero triangles also fails, so a blank frame cannot pass the budget.
 
 ## Container measurements

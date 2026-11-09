@@ -199,7 +199,7 @@ import {
   resetSettings,
   saveSettings,
 } from "../settings/store.js";
-import type { SettingsV1 } from "../settings/schema.js";
+import type { GraphicsQuality, SettingsV1 } from "../settings/schema.js";
 import { createControlsPanel } from "../ui/controls.js";
 import type { ControlsPanel } from "../ui/controls.js";
 import { createPauseOverlay } from "../ui/pause.js";
@@ -1568,9 +1568,40 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     settingsPanel?.setPauseOnFocusLoss(settings?.pauseOnFocusLoss ?? true);
   }
 
+  /** Mirror the stored graphics quality into the Settings toggle. */
+  function syncQualityToggle(): void {
+    settingsPanel?.setQuality(settings?.quality ?? "standard");
+  }
+
+  /**
+   * Apply a graphics quality to the running game.
+   *
+   * The quality is a property of the built scene (shader variant and the
+   * atmosphere shell), so the current system is re-entered, exactly as the
+   * `?test=1` swap does. Nothing in the simulation changes. A failed rebuild
+   * leaves the previous scene installed (`enterSystem` commits last) and
+   * restores the previous quality, so the toggle never lies.
+   */
+  function applyQuality(quality: GraphicsQuality): boolean {
+    const previous = scenes.quality();
+    if (quality === previous) return true;
+    scenes.setQuality(quality);
+    if (state === undefined || stationDef === undefined) return true;
+    try {
+      performSwap();
+    } catch (error) {
+      scenes.setQuality(previous);
+      console.error("Wegolite: applying the graphics quality failed", error);
+      return false;
+    }
+    renderFrame(0);
+    return true;
+  }
+
   function openSettings(): void {
     controlsPanel?.hide();
     syncPauseOnFocusLossToggle();
+    syncQualityToggle();
     settingsPanel?.show();
   }
 
@@ -2202,6 +2233,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
     launchSeen = false;
     syncPauseOnFocusLossToggle();
+    // Reset returns the quality to its default; rebuild the scene to match.
+    applyQuality(fresh.quality);
+    syncQualityToggle();
     refreshStationChrome();
   }
 
@@ -2367,6 +2401,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     probe.memory = readMemory(renderer);
     probe.paused = paused;
     probe.systemId = system.id;
+    probe.quality = scenes.quality();
+    probe.atmosphere = scene?.planet.atmosphere !== undefined;
     probe.chart = {
       open: chartOpen,
       camera: {
@@ -2859,6 +2895,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       const savedSystem = galaxyById.get(restore.system.id);
       if (savedSystem !== undefined) system = savedSystem;
     }
+    // The graphics quality selects the planet's shader variant and the
+    // atmosphere shell, so the settings are read before the first scene is
+    // built; a Continue at High never flashes the Standard planet.
+    const loaded = loadSettings();
+    scenes.setQuality(loaded.quality);
     const nextScene = scenes.enterSystem(system, station);
     const systemLayout = scenes.layout();
     if (systemLayout === undefined) {
@@ -2982,7 +3023,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       },
     });
 
-    const loaded = loadSettings();
     const bindingMap = createBindingMap(loaded.bindings);
     settings = { ...loaded, bindings: bindingMap };
     bindings = bindingMap;
@@ -3055,6 +3095,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         if (settings === undefined) return;
         settings.pauseOnFocusLoss = enabled;
         persistSettings();
+      },
+      onQualityChange: (quality) => {
+        if (settings === undefined) return;
+        // Persist only what was applied; on failure the toggle snaps back.
+        if (applyQuality(quality)) {
+          settings.quality = quality;
+          persistSettings();
+        }
+        syncQualityToggle();
       },
     });
 

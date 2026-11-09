@@ -7,8 +7,11 @@
  * A deliberately small panel inside the pause overlay. It explains that
  * settings are local, links to Controls rather than duplicating the rebinding
  * list, owns the reset-all action, and holds one requested toggle: whether
- * losing window or tab focus pauses the game (D-15, on by default).
+ * losing window or tab focus pauses the game (D-15, on by default). A second
+ * toggle selects the High graphics quality (off by default).
  */
+
+import type { GraphicsQuality } from "../settings/schema.js";
 
 export interface SettingsPanelOptions {
   readonly root: HTMLElement;
@@ -16,6 +19,7 @@ export interface SettingsPanelOptions {
   readonly onControls: () => void;
   readonly onReset: () => void;
   readonly onPauseOnFocusLossChange: (enabled: boolean) => void;
+  readonly onQualityChange: (quality: GraphicsQuality) => void;
 }
 
 export interface SettingsPanel {
@@ -24,6 +28,8 @@ export interface SettingsPanel {
   isOpen(): boolean;
   /** Set the focus-loss checkbox to the stored value without firing a change. */
   setPauseOnFocusLoss(enabled: boolean): void;
+  /** Reflect the stored graphics quality in the toggle without firing a change. */
+  setQuality(quality: GraphicsQuality): void;
   dispose(): void;
 }
 
@@ -39,13 +45,13 @@ function requireButton(root: HTMLElement, action: string): HTMLButtonElement {
   return element;
 }
 
-function requirePauseOnFocusLossToggle(root: HTMLElement): HTMLInputElement {
+function requireToggle(root: HTMLElement, name: string): HTMLInputElement {
   const element = root.querySelector(
-    'input[type="checkbox"][data-settings-toggle="pauseOnFocusLoss"]',
+    `input[type="checkbox"][data-settings-toggle="${name}"]`,
   );
   if (!(element instanceof HTMLInputElement)) {
     throw new Error(
-      'Wegolite: the settings panel is missing its "pauseOnFocusLoss" toggle.',
+      `Wegolite: the settings panel is missing its "${name}" toggle.`,
     );
   }
   return element;
@@ -54,12 +60,19 @@ function requirePauseOnFocusLossToggle(root: HTMLElement): HTMLInputElement {
 export function createSettingsPanel(
   options: SettingsPanelOptions,
 ): SettingsPanel {
-  const { root, onBack, onControls, onReset, onPauseOnFocusLossChange } =
-    options;
+  const {
+    root,
+    onBack,
+    onControls,
+    onReset,
+    onPauseOnFocusLossChange,
+    onQualityChange,
+  } = options;
   const controls = requireButton(root, "controls");
   const reset = requireButton(root, "reset");
   const back = requireButton(root, "back");
-  const pauseToggle = requirePauseOnFocusLossToggle(root);
+  const pauseToggle = requireToggle(root, "pauseOnFocusLoss");
+  const qualityToggle = requireToggle(root, "highQuality");
   const controller = new AbortController();
 
   controls.addEventListener("click", onControls, { signal: controller.signal });
@@ -69,6 +82,13 @@ export function createSettingsPanel(
     "change",
     () => {
       onPauseOnFocusLossChange(pauseToggle.checked);
+    },
+    { signal: controller.signal },
+  );
+  qualityToggle.addEventListener(
+    "change",
+    () => {
+      onQualityChange(qualityToggle.checked ? "high" : "standard");
     },
     { signal: controller.signal },
   );
@@ -86,6 +106,9 @@ export function createSettingsPanel(
     },
     setPauseOnFocusLoss(enabled: boolean): void {
       pauseToggle.checked = enabled;
+    },
+    setQuality(quality: GraphicsQuality): void {
+      qualityToggle.checked = quality === "high";
     },
     dispose(): void {
       controller.abort();

@@ -47,6 +47,28 @@ export const HINT_IDS: readonly HintId[] = [
 
 const HINT_ID_SET: ReadonlySet<string> = new Set(HINT_IDS);
 
+/**
+ * The graphics quality levels.
+ *
+ * `standard` is the original render path and the default. `high` adds planet
+ * detail and an atmosphere shell (PROJECT.md Key Decisions, revising Phase 3
+ * D-02 for this level only).
+ */
+export type GraphicsQuality = "standard" | "high";
+
+export const GRAPHICS_QUALITIES: readonly GraphicsQuality[] = [
+  "standard",
+  "high",
+];
+
+/** Narrow an untrusted value to the quality allowlist. */
+export function isGraphicsQuality(value: unknown): value is GraphicsQuality {
+  return (
+    typeof value === "string" &&
+    (GRAPHICS_QUALITIES as readonly string[]).includes(value)
+  );
+}
+
 export interface SettingsV1 {
   version: typeof SETTINGS_VERSION;
   bindings: Partial<Record<ActionId, string[]>>;
@@ -57,6 +79,12 @@ export interface SettingsV1 {
    * where it reads as `true`; a stored value must be a boolean.
    */
   pauseOnFocusLoss: boolean;
+  /**
+   * Graphics quality. Absent in blobs written before this field existed and in
+   * every blob written at `standard`, where it reads as `standard`; a stored
+   * value must be one of `GRAPHICS_QUALITIES`.
+   */
+  quality: GraphicsQuality;
 }
 
 type ParseResult =
@@ -83,6 +111,7 @@ function parseSettings(value: unknown): ParseResult {
     "hintsSeen",
     "launchSeen",
     "pauseOnFocusLoss",
+    "quality",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedTopLevel.has(key)) {
@@ -168,6 +197,18 @@ function parseSettings(value: unknown): ParseResult {
     pauseOnFocusLoss = value.pauseOnFocusLoss;
   }
 
+  // The same rule as pauseOnFocusLoss: an absent key is the default, and a
+  // stored value outside the allowlist rejects the blob.
+  let quality: GraphicsQuality = "standard";
+  if (value.quality !== undefined) {
+    if (!isGraphicsQuality(value.quality)) {
+      return fail(
+        `settings.quality: expected one of ${GRAPHICS_QUALITIES.join(", ")}`,
+      );
+    }
+    quality = value.quality;
+  }
+
   return {
     ok: true,
     settings: {
@@ -176,6 +217,7 @@ function parseSettings(value: unknown): ParseResult {
       hintsSeen,
       launchSeen: value.launchSeen,
       pauseOnFocusLoss,
+      quality,
     },
   };
 }
@@ -204,6 +246,7 @@ export function defaults(): SettingsV1 {
     hintsSeen: [],
     launchSeen: false,
     pauseOnFocusLoss: true,
+    quality: "standard",
   };
 }
 
@@ -218,6 +261,7 @@ export function mergeDefaults(settings: SettingsV1): SettingsV1 {
     hintsSeen: [...settings.hintsSeen],
     launchSeen: settings.launchSeen,
     pauseOnFocusLoss: settings.pauseOnFocusLoss,
+    quality: settings.quality,
   };
 }
 

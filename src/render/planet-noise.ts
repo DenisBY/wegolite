@@ -59,6 +59,22 @@ export const CLOUD_OCTAVES = 1;
 export const NOISE_EVAL_BUDGET =
   SURFACE_OCTAVES + 2 * RELIEF_OCTAVES + CLOUD_OCTAVES;
 
+/**
+ * The High-quality octave counts (PROJECT.md Key Decisions).
+ *
+ * The surface field keeps `SURFACE_OCTAVES`, so the continents, the coastline
+ * level set and the polar cap are the same planet at both levels. Only the
+ * relief taps and the cloud field gain octaves. High is opt-in and is not held
+ * to `NOISE_EVAL_BUDGET`: that ceiling protects the software-rasterised test
+ * run, which renders at Standard.
+ */
+export const HIGH_RELIEF_OCTAVES = 3;
+export const HIGH_CLOUD_OCTAVES = 4;
+
+/** High's worst-case value-noise evaluations per pixel, derived like the above. */
+export const HIGH_NOISE_EVAL_BUDGET =
+  SURFACE_OCTAVES + 2 * HIGH_RELIEF_OCTAVES + HIGH_CLOUD_OCTAVES;
+
 /** Directions on the deterministic sample sphere (a Fibonacci lattice). */
 export const SURFACE_SAMPLES = 4096;
 
@@ -242,7 +258,11 @@ export function sampleSurface(dir: Vec3Like, seed: number): number {
 }
 
 /** The cloud field the shader evaluates (the shader adds a time drift). */
-export function sampleCloud(dir: Vec3Like, seed: number): number {
+export function sampleCloud(
+  dir: Vec3Like,
+  seed: number,
+  octaves: number = CLOUD_OCTAVES,
+): number {
   const offset = seed * 1.7 + 13;
   return fbm(
     {
@@ -250,7 +270,7 @@ export function sampleCloud(dir: Vec3Like, seed: number): number {
       y: dir.y * CLOUD_SCALE + offset,
       z: dir.z * CLOUD_SCALE + offset,
     },
-    CLOUD_OCTAVES,
+    octaves,
   );
 }
 
@@ -359,15 +379,19 @@ export function calibrateSurface(
  * The shader normalises the cloud field exactly as it normalises the surface,
  * so the threshold is the `1 - cloudFraction` quantile of that normalised
  * field; coverage then equals the authored fraction instead of the pre-fix
- * ~2.7% speckle.
+ * ~2.7% speckle. `octaves` must be the count the shader variant in use
+ * evaluates, because a different octave sum has a different distribution.
  */
 export function calibrateClouds(
   seed: number,
   cloudFraction: number,
+  octaves: number = CLOUD_OCTAVES,
 ): CloudCalibration {
   const fraction = clamp(cloudFraction, 0, 1);
   const directions = fibonacciDirections();
-  const raw = directions.map((direction) => sampleCloud(direction, seed));
+  const raw = directions.map((direction) =>
+    sampleCloud(direction, seed, octaves),
+  );
 
   const noiseLo = quantile(sortedAscending(raw), 0.001);
   const noiseHi = quantile(sortedAscending(raw), 0.999);

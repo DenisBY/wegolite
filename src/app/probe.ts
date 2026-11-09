@@ -23,7 +23,7 @@ import type { FlightMode } from "../sim/flight/state.js";
 import type { CompassTarget, FlightState } from "../sim/flight/state.js";
 import type { AegisStatus } from "../sim/world/aegis.js";
 import { vec } from "../sim/math.js";
-import type { HintId } from "../settings/schema.js";
+import type { GraphicsQuality, HintId } from "../settings/schema.js";
 
 export interface WegoliteWorldProbe {
   planet: [number, number, number];
@@ -332,6 +332,10 @@ export interface WegoliteProbe {
   saveScreen?: WegoliteSaveScreenProbe;
   /** The live current system id; the durable identity a reload proof reads. */
   systemId?: string;
+  /** The graphics quality the installed scene was built at. */
+  quality?: GraphicsQuality;
+  /** True when the installed scene carries the High-quality atmosphere shell. */
+  atmosphere?: boolean;
   /**
    * The live active-camera aspect (WORLD-02). The e2e proof reads this instead
    * of a screenshot. Absent on the failure surface, where no camera renders.

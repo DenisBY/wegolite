@@ -20,6 +20,7 @@
 
 import * as THREE from "three";
 import type { ShipDef, System } from "../content/types.js";
+import type { GraphicsQuality } from "../settings/schema.js";
 import { deriveSystemLayout } from "../sim/world/layout.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import type { AssetCache } from "../render/asset-cache.js";
@@ -42,6 +43,12 @@ export interface ActiveScene {
 export interface SceneManager {
   enterMenu(): void;
   enterSystem(system: System, stationDef: ShipDef): SystemScene;
+  /**
+   * Set the graphics quality used by the next `enterSystem`. It does not
+   * rebuild the installed scene; the caller re-enters the system to apply it.
+   */
+  setQuality(quality: GraphicsQuality): void;
+  quality(): GraphicsQuality;
   active(): ActiveScene;
   /** The layout of the active system scene, or undefined while in the menu. */
   layout(): SystemLayout | undefined;
@@ -91,6 +98,7 @@ export function createSceneManager(
   let current: SystemScene | undefined;
   let currentLayout: SystemLayout | undefined;
   let menu: MenuScene | undefined;
+  let currentQuality: GraphicsQuality = "standard";
 
   /** Dispose a swapped-out scene and clear the renderer's list cache. */
   function retire(
@@ -160,7 +168,13 @@ export function createSceneManager(
     },
     enterSystem(system, stationDef): SystemScene {
       const layout = deriveSystemLayout(system, stationDef);
-      const next = createSystemScene(layout, assets, system);
+      const next = createSystemScene(
+        layout,
+        assets,
+        system,
+        {},
+        currentQuality,
+      );
       // `start()` and the `?test=1` swap both arrive here; applying the
       // viewport before the install is what makes the swap path safe too.
       // Pre-install: nothing is installed yet. A failed viewport step disposes
@@ -179,6 +193,12 @@ export function createSceneManager(
       menu = undefined;
       retireCommitted(previousSystem, previousMenu);
       return next;
+    },
+    setQuality(quality): void {
+      currentQuality = quality;
+    },
+    quality(): GraphicsQuality {
+      return currentQuality;
     },
     active(): ActiveScene {
       return current ?? menu ?? empty;

@@ -360,3 +360,54 @@ void main() {
   #include <logdepthbuf_fragment>
 }
 `;
+
+/** The octave `#define`s a quality level compiles the fragment shader with. */
+export interface PlanetShaderOctaves {
+  readonly relief: number;
+  readonly cloud: number;
+}
+
+const STANDARD_RELIEF_DEFINE = "#define RELIEF_OCTAVES 1";
+const STANDARD_CLOUD_DEFINE = "#define CLOUD_OCTAVES 1";
+
+/**
+ * The fragment shader with other relief and cloud octave counts.
+ *
+ * Only the two `#define` lines change, so the surface field, the colour bands
+ * and the terminator are the Standard shader's. `fbm` bounds its loop by
+ * `SURFACE_OCTAVES`, so a count above that would be silently truncated; it is
+ * rejected here instead. Standard never calls this: it uses
+ * `PLANET_FRAGMENT_SHADER` unchanged.
+ *
+ * @throws {RangeError} when a count is not an integer in `1..6`, or when the
+ * Standard `#define` lines are no longer present to replace.
+ */
+export function planetFragmentShaderWithOctaves(
+  octaves: PlanetShaderOctaves,
+): string {
+  for (const [label, value] of [
+    ["relief", octaves.relief],
+    ["cloud", octaves.cloud],
+  ] as const) {
+    if (!Number.isInteger(value) || value < 1 || value > 6) {
+      throw new RangeError(
+        `Wegolite: the planet shader ${label} octave count must be an integer from 1 to 6 (received ${String(value)}).`,
+      );
+    }
+  }
+  if (
+    !PLANET_FRAGMENT_SHADER.includes(STANDARD_RELIEF_DEFINE) ||
+    !PLANET_FRAGMENT_SHADER.includes(STANDARD_CLOUD_DEFINE)
+  ) {
+    throw new RangeError(
+      "Wegolite: the planet shader no longer carries the octave #define lines the quality variant replaces.",
+    );
+  }
+  return PLANET_FRAGMENT_SHADER.replace(
+    STANDARD_RELIEF_DEFINE,
+    `#define RELIEF_OCTAVES ${String(octaves.relief)}`,
+  ).replace(
+    STANDARD_CLOUD_DEFINE,
+    `#define CLOUD_OCTAVES ${String(octaves.cloud)}`,
+  );
+}
