@@ -109,6 +109,16 @@ If Compose is not yet present (early scaffolding), creating it is part of the fi
 - Record significant decisions in `.planning/PROJECT.md` under Key Decisions.
 - All project documentation is written in English, whatever language the conversation with the user uses: `docs/`, `.planning/`, `README.md`, planning artifacts, SUMMARY/UAT/debug notes, commit messages and PR text. The game UI is exempt, because it may be localised later.
 
+## Versioning and changelog
+
+- Follow [Semantic Versioning](https://semver.org/) for the version in `package.json`: `MAJOR.MINOR.PATCH`.
+- Keep `CHANGELOG.md` at the repository root in [Keep a Changelog](https://keepachangelog.com/) format.
+- Add every user-visible change under `## [Unreleased]` in the appropriate group (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`) in the same commit as the change.
+- Before a release, move the `Unreleased` entries under a new `## [x.y.z] - YYYY-MM-DD` heading, bump `package.json`, and commit both together.
+- Pre-1.0 (`0.y.z`): a breaking change may ship in a minor release, but it must be called out explicitly. From `1.0.0` on, breaking changes require a major version.
+- Internal-only changes (tests, refactors, build tooling) may be omitted unless they affect contributors or released behaviour.
+- Do not rewrite released changelog sections.
+
 ## Commands quick reference
 
 | Task                           | Command                                               |
