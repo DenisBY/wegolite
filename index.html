@@ -499,6 +499,11 @@
         color: #33ff66;
       }
 
+      #chart-tooltip [data-field="chart-tooltip-description"] {
+        margin: 0.5rem 0 0;
+        color: #9f9;
+      }
+
       #chart .station-footer {
         bottom: 2rem;
       }
@@ -920,6 +925,7 @@
       <div id="chart-tooltip" role="tooltip" hidden>
         <p data-field="chart-tooltip-title"></p>
         <dl data-chart-tooltip-fields></dl>
+        <p data-field="chart-tooltip-description"></p>
       </div>
       <div class="station-footer">
         <p data-field="chart-target"></p>

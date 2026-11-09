@@ -139,9 +139,45 @@ test("hovering a system opens its information card and leaving closes it", async
   await expect(tooltip).toContainText("Rich Agricultural");
   await expect(tooltip).toContainText("Dictatorship");
   await expect(tooltip).toContainText("0.0 ly");
+  await expect(
+    tooltip.locator('[data-field="chart-tooltip-description"]'),
+  ).toHaveText(
+    "Lave is most famous for its vast rain forests and the Laveian tree grub.",
+  );
 
   await page.mouse.move(1, 1);
   await expect(tooltip).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test("F7 refreshes to the chart selection when the chart closes", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await bootDocked(page);
+
+  await page.keyboard.press("Digit7");
+  await page.waitForFunction(
+    () => window.__wegolite?.station?.screen === "systemData",
+    undefined,
+    { timeout: 30_000 },
+  );
+  const title = page.locator('[data-field="system-data-title"]');
+  await expect(title).toHaveText("Data on Lave");
+
+  await openChart(page);
+  const diso = systemByName("Diso");
+  const point = await markerPoint(page, diso.id);
+  await page.mouse.click(point.x, point.y);
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => window.__wegolite?.chart?.open === false, {
+    timeout: 30_000,
+  });
+
+  await expect(title).toHaveText("Data on Diso");
+  await expect(page.locator("[data-system-data-fields]")).toContainText(
+    "3.6 ly",
+  );
   expect(errors).toEqual([]);
 });
 

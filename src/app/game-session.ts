@@ -1831,6 +1831,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     if (!chartOpen) return;
     chartOpen = false;
     chart?.hide();
+    // The chart owns the F7 info-system cursor. If F7 was left open behind the
+    // overlay, refresh it now so it shows the system selected last.
+    if (state?.mode === "docked" && stationScreen === "systemData") {
+      renderStation();
+    }
     input?.setContext(contextBeforeChart);
     // Hidden time is never replayed; the accumulator starts at zero.
     loop?.reset();
@@ -2967,9 +2972,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     chart.setTooltipBuilder((id) => {
       const info = galaxyById.get(id);
       if (info === undefined || labels === undefined) return undefined;
+      const model = buildSystemDataModel(info, system, labels);
       return {
         title: info.name,
-        fields: buildSystemDataModel(info, system, labels).fields,
+        fields: model.fields,
+        description: model.description,
       };
     });
     chart.onSelect((id) => {

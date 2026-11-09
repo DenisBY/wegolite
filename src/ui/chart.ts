@@ -55,6 +55,7 @@ export interface ChartTooltipField {
 export interface ChartTooltipModel {
   readonly title: string;
   readonly fields: readonly ChartTooltipField[];
+  readonly description?: string | undefined;
 }
 
 export interface ChartOverlay {
@@ -156,6 +157,11 @@ export function createChart(root: HTMLElement): ChartOverlay {
     "[data-chart-tooltip-fields]",
     'the "chart-tooltip-fields" list',
   );
+  const tooltipDescription = requireElement<HTMLElement>(
+    tooltip,
+    '[data-field="chart-tooltip-description"]',
+    'the "chart-tooltip-description" field',
+  );
 
   const context = requireContext2d(canvas);
   const controller = new AbortController();
@@ -231,6 +237,9 @@ export function createChart(root: HTMLElement): ChartOverlay {
       value.textContent = field.value;
       tooltipFields.append(term, value);
     }
+    const description = model.description?.trim() ?? "";
+    tooltipDescription.textContent = description;
+    tooltipDescription.hidden = description.length === 0;
   }
 
   /** Place the card beside the pointer, clamped inside the overlay. */
