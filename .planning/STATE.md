@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-09 - Completed quick task 12: removed the duplicate screen-switch key list from the station footer
+Last activity: 2026-11-09 - Completed quick task 13: moved the docked station footer into the flex layout so it no longer covers long lists
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -283,6 +283,7 @@ Recent decisions affecting current work:
 | 10 | Remove the redundant F7 system data screen; the F6 hover card now carries the same fields and description | 2026-11-09 | c1c9897 | — |
 | 11 | Add a Keep a Changelog file and record the SemVer and changelog policy in AGENTS.md | 2026-11-09 | 232c313 | — |
 | 12 | Remove the duplicate screen-switch key list from the station footer; the tab strip already shows it | 2026-11-09 | c07433b | — |
+| 13 | Make the docked station footer a flex row so long Market and Manifest lists scroll above it | 2026-11-09 | c191dfa | — |
 
 ## Deferred Items
 
