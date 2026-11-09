@@ -126,7 +126,7 @@
 
       #docked {
         position: absolute;
-        inset: 0;
+        inset: 0 0 6rem;
         display: flex;
         flex-direction: column;
         background: #000;
@@ -149,8 +149,9 @@
 
       #station-screen {
         flex: 1;
+        min-height: 0;
         overflow-y: auto;
-        padding: 1rem 2rem 14rem;
+        padding: 1rem 2rem;
         outline: none;
       }
 
@@ -411,6 +412,13 @@
         background: #000;
         color: #33ff66;
         font: 15px/1.6 monospace;
+      }
+
+      /* The docked shell reserves the footer's height as a flex row, so
+         #station-screen scrolls above it instead of under a fixed overlay. */
+      #docked .station-footer {
+        position: static;
+        flex: 0 0 auto;
       }
 
       .station-footer p {

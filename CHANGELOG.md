@@ -27,5 +27,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The station footer no longer covers the bottom of long Market and Manifest
+  lists; the screen scrolls above it.
 - The F6 hover card now places its description and distance beside the pointer
   without clipping at the overlay edges.

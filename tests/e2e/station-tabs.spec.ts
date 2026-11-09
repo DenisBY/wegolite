@@ -613,6 +613,18 @@ test("the footer hints fit one line and the disabled and selected states are leg
     const box = await keys.boundingBox();
     expect(box).not.toBeNull();
     expect(box?.height ?? 999).toBeLessThan(36);
+    const screenBox = await page.locator("#station-screen").boundingBox();
+    const footerBox = await page
+      .locator("#docked .station-footer")
+      .boundingBox();
+    expect(screenBox).not.toBeNull();
+    expect(footerBox).not.toBeNull();
+    if (screenBox !== null && footerBox !== null) {
+      // The scrolling section ends above the footer instead of passing under it.
+      expect(screenBox.y + screenBox.height).toBeLessThanOrEqual(
+        footerBox.y + 1,
+      );
+    }
   }
   await tab(page, "docked", "status").click();
   await waitForScreen(page, "status");
