@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { Labels } from "../../src/content/types.js";
+import type { Labels, System } from "../../src/content/types.js";
 import {
   StationModelError,
   buildSystemDataModel,
@@ -23,6 +23,21 @@ import { laveFixture } from "../helpers/lave.js";
 
 const system = laveFixture().system;
 const labels = labelsFixture();
+const diso: System = {
+  ...system,
+  id: "g0-s147",
+  name: "Diso",
+  chartX: 11,
+  chartY: 174,
+  economy: 6,
+  government: 6,
+  techLevelRaw: 7,
+  population: 41,
+  productivity: 13120,
+  radiusKm: 6155,
+  description:
+    "This planet is mildly noted for its ancient Ouza tulip plantations but ravaged by frequent earthquakes.",
+};
 
 function withTemplates(overrides: Readonly<Record<string, string>>): Labels {
   return {
@@ -40,11 +55,13 @@ function labelOf(
 
 describe("buildSystemDataModel", () => {
   it("renders the separate Lave title", () => {
-    expect(buildSystemDataModel(system, labels).title).toBe("Data on Lave");
+    expect(buildSystemDataModel(system, system, labels).title).toBe(
+      "Data on Lave",
+    );
   });
 
   it("renders exactly seven sysdata fields plus the inhabitants row", () => {
-    const model = buildSystemDataModel(system, labels);
+    const model = buildSystemDataModel(system, system, labels);
 
     expect(model.fields).toHaveLength(8);
     expect(
@@ -54,7 +71,7 @@ describe("buildSystemDataModel", () => {
   });
 
   it("renders every Lave value verbatim", () => {
-    const model = buildSystemDataModel(system, labels);
+    const model = buildSystemDataModel(system, system, labels);
 
     expect(labelOf(model, "Economy:")).toBe("Rich Agricultural");
     expect(labelOf(model, "Government:")).toBe("Dictatorship");
@@ -65,14 +82,41 @@ describe("buildSystemDataModel", () => {
     expect(labelOf(model, "Distance:")).toBe("0.0 ly");
   });
 
+  it("renders the selected system and its distance from the current system", () => {
+    const model = buildSystemDataModel(diso, system, labels);
+
+    expect(model.title).toBe("Data on Diso");
+    expect(labelOf(model, "Economy:")).toBe("Average Agricultural");
+    expect(labelOf(model, "Government:")).toBe("Democracy");
+    expect(labelOf(model, "Tech Level:")).toBe("8");
+    expect(labelOf(model, "Population:")).toBe("4.1 Billion");
+    expect(labelOf(model, "Gross productivity:")).toBe("13120 M₢");
+    expect(labelOf(model, "Average radius:")).toBe("6155 km");
+    expect(labelOf(model, "Distance:")).toBe("3.6 ly");
+    expect(model.description).toBe(diso.description);
+  });
+
+  it("reports 0.1 ly for a different system at the current chart position", () => {
+    const coLocated: System = {
+      ...system,
+      id: "g0-s999",
+      name: "Co-located",
+    };
+
+    expect(
+      labelOf(buildSystemDataModel(coLocated, system, labels), "Distance:"),
+    ).toBe("0.1 ly");
+  });
+
   it("returns the compiled system description verbatim", () => {
-    expect(buildSystemDataModel(system, labels).description).toBe(
+    expect(buildSystemDataModel(system, system, labels).description).toBe(
       "Lave is most famous for its vast rain forests and the Laveian tree grub.",
     );
   });
 
   it("expands a value containing `$&`, `$'` and `$1` verbatim", () => {
     const model = buildSystemDataModel(
+      system,
       system,
       withTemplates({
         "sysdata-prod-value": "[productivity] $& $' $1",
@@ -86,6 +130,7 @@ describe("buildSystemDataModel", () => {
     expect(() =>
       buildSystemDataModel(
         system,
+        system,
         withTemplates({ "sysdata-radius-value": "[radius] [mystery]" }),
       ),
     ).toThrow(StationModelError);
@@ -96,7 +141,10 @@ describe("buildSystemDataModel", () => {
     delete templates["sysdata-eco"];
 
     expect(() =>
-      buildSystemDataModel(system, { ...labels, formatTemplates: templates }),
+      buildSystemDataModel(system, system, {
+        ...labels,
+        formatTemplates: templates,
+      }),
     ).toThrow(StationModelError);
   });
 });

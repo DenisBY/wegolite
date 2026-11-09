@@ -27,6 +27,7 @@ import {
 } from "../sim/economy/cargo.js";
 import type { Market } from "../sim/economy/market.js";
 import type { TradePlan } from "../sim/economy/trade.js";
+import { jumpBetween } from "../sim/hyperspace/jump.js";
 import {
   FUEL_CAPACITY,
   MAX_MISSILES,
@@ -435,23 +436,43 @@ function expandTitle(labels: Labels, system: System): string {
 }
 
 /**
+ * The F7 distance from the current system to the displayed system.
+ *
+ * Oolite measures `info_system_id` from `galaxy_coordinates`
+ * (`PlayerEntity.m:7579-7584`). A different system that shares the current
+ * chart position is forced to 0.1 ly rather than 0.0 ly.
+ */
+function distanceText(current: System, info: System): string {
+  if (info.id === current.id) return "0.0 ly";
+  const { dist, distanceLy } = jumpBetween(
+    { x: current.chartX, y: current.chartY },
+    { x: info.chartX, y: info.chartY },
+  );
+  return `${(dist === 0 ? 0.1 : distanceLy).toFixed(1)} ly`;
+}
+
+/**
  * Build the F7 system-data model (ECON-07, D-05).
  *
+ * `info` is the system the chart cursor or committed target selected, not
+ * necessarily the docked system: Oolite's F7 screen describes `info_system_id`
+ * and measures the distance from the current system (`PlayerEntity.m:7506`).
  * The title and the seven field labels come from `labels.json`; the four value
  * templates are expanded once, and the description is the compiled
  * `System.description` verbatim. Nothing here generates prose.
  */
 export function buildSystemDataModel(
-  system: System,
+  info: System,
+  current: System,
   labels: Labels,
 ): SystemDataModel {
   const values = new Map<string, string>([
-    ["[techLevel]", String(system.techLevelRaw + 1)],
-    ["[productivity]", String(system.productivity)],
-    ["[radius]", String(system.radiusKm)],
+    ["[techLevel]", String(info.techLevelRaw + 1)],
+    ["[productivity]", String(info.productivity)],
+    ["[radius]", String(info.radiusKm)],
     [
       "[population|multiply:0.1|precision:1]",
-      (system.population * 0.1).toFixed(1),
+      (info.population * 0.1).toFixed(1),
     ],
   ]);
 
@@ -469,24 +490,27 @@ export function buildSystemDataModel(
   const fields: LabelledField[] = [
     {
       label: template(labels, "sysdata-eco"),
-      value: labels.economy[system.economy] ?? "",
+      value: labels.economy[info.economy] ?? "",
     },
     {
       label: template(labels, "sysdata-govt"),
-      value: labels.government[system.government] ?? "",
+      value: labels.government[info.government] ?? "",
     },
     field("sysdata-tl", "sysdata-tl-value", ""),
     field("sysdata-pop", "sysdata-pop-value", ""),
-    { label: "Inhabitants", value: `(${system.inhabitants})` },
+    { label: "Inhabitants", value: `(${info.inhabitants})` },
     field("sysdata-prod", "sysdata-prod-value", ""),
     field("sysdata-radius", "sysdata-radius-value", ""),
-    { label: template(labels, "sysdata-distance"), value: "0.0 ly" },
+    {
+      label: template(labels, "sysdata-distance"),
+      value: distanceText(current, info),
+    },
   ];
 
   return {
-    title: expandTitle(labels, system),
+    title: expandTitle(labels, info),
     fields,
-    description: system.description,
+    description: info.description,
   };
 }
 

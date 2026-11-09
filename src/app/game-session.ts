@@ -925,7 +925,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
             targetSystem()?.name,
           );
     const systemModel =
-      labels === undefined ? undefined : buildSystemDataModel(system, labels);
+      labels === undefined
+        ? undefined
+        : buildSystemDataModel(infoSystem(), system, labels);
 
     let confirmText = "";
     let noticeText = stationNotice;
@@ -1762,6 +1764,19 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function targetSystem(): System | undefined {
     if (hyperspaceTargetId === undefined) return undefined;
     return galaxyById.get(hyperspaceTargetId);
+  }
+
+  /**
+   * The F7 info system (Oolite's `info_system_id`): the chart cursor when one
+   * has been moved, else the committed target, else the docked system. The
+   * chart already owns this selection, so F7 never invents a second one.
+   */
+  function infoSystem(): System {
+    if (chartSelectedId !== undefined) {
+      const selected = galaxyById.get(chartSelectedId);
+      if (selected !== undefined) return selected;
+    }
+    return targetSystem() ?? system;
   }
 
   function currentChartView(overlay: ChartOverlay): ChartView {
