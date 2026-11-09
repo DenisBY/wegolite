@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-09 - Completed quick task 10: removed the redundant F7 system data screen; the F6 hover card carries the same system fields and description
+Last activity: 2026-11-09 - Completed quick task 11: added CHANGELOG.md and the SemVer/changelog policy in AGENTS.md
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -281,6 +281,7 @@ Recent decisions affecting current work:
 | 8 | Show a system information card when hovering a marker on the F6 chart | 2026-11-09 | 3dd6dda | — |
 | 9 | Add the system description to the chart hover card and refresh F7 after the chart closes | 2026-11-09 | 2976b0f | — |
 | 10 | Remove the redundant F7 system data screen; the F6 hover card now carries the same fields and description | 2026-11-09 | c1c9897 | — |
+| 11 | Add a Keep a Changelog file and record the SemVer and changelog policy in AGENTS.md | 2026-11-09 | 232c313 | — |
 
 ## Deferred Items
 
