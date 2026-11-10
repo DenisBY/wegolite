@@ -237,6 +237,7 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
   function setConfirming(next: boolean): void {
     confirming = next;
     dialog.hidden = !next;
+    overlay.dataset["confirming"] = String(next);
     // Never hide the status line: clearing the confirm part leaves the reserved
     // line in flow with the live hints above it.
     footer.setStatus({

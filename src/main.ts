@@ -96,6 +96,27 @@ function requireCanvas(id: string): HTMLCanvasElement {
   return element;
 }
 
+/**
+ * Measure the fixed document disclaimer so every station overlay can reserve
+ * exactly its height. The CSS fallback keeps the strip reserved until this
+ * runs; the observer keeps it exact when the text wraps at a different width.
+ */
+function trackDocumentFooterHeight(signal: AbortSignal): void {
+  const footer = document.querySelector<HTMLElement>("body > footer");
+  if (footer === null) return;
+  const root = document.documentElement;
+  const sync = (): void => {
+    root.style.setProperty(
+      "--document-footer-height",
+      `${footer.getBoundingClientRect().height}px`,
+    );
+  };
+  const observer = new ResizeObserver(sync);
+  observer.observe(footer);
+  signal.addEventListener("abort", () => observer.disconnect(), { once: true });
+  sync();
+}
+
 const canvas = requireCanvas("view");
 const boot = await bootApp({ manifest, canvas });
 
@@ -117,6 +138,7 @@ if (!boot.ok) {
   // release them in a single abort (T-3-22). `resize` is registered through it
   // below, before the first render.
   const lifecycle = new AbortController();
+  trackDocumentFooterHeight(lifecycle.signal);
 
   // The title scene needs the shared Cobra, which only exists once the GLBs
   // have loaded. Warm the cache in the background so the menu becomes a real

@@ -101,6 +101,46 @@ async function settleFrames(page: Page): Promise<void> {
   );
 }
 
+/**
+ * The fixed document disclaimer must stay visible and clickable under every
+ * station overlay, with the station footer ending exactly at its top edge.
+ */
+async function expectFlushDocumentFooter(
+  page: Page,
+  surface: Surface,
+): Promise<void> {
+  const stationFooter = page.locator(`#${surface} .station-footer`);
+  const documentFooter = page.locator("body > footer");
+  await expect(stationFooter).toBeVisible();
+  await expect(documentFooter).toBeVisible();
+
+  const stationBox = await stationFooter.boundingBox();
+  const documentBox = await documentFooter.boundingBox();
+  expect(stationBox).not.toBeNull();
+  expect(documentBox).not.toBeNull();
+  if (stationBox !== null && documentBox !== null) {
+    expect(
+      Math.abs(stationBox.y + stationBox.height - documentBox.y),
+    ).toBeLessThanOrEqual(1);
+  }
+
+  // A link is the one pointer-active part of the disclaimer. If the station
+  // overlay painted above it, elementFromPoint would return the overlay.
+  const hit = await page.evaluate(() => {
+    const link = document.querySelector("body > footer a");
+    if (!(link instanceof HTMLAnchorElement)) return null;
+    const box = link.getBoundingClientRect();
+    const top = document.elementFromPoint(
+      box.x + box.width / 2,
+      box.y + box.height / 2,
+    );
+    return { same: top === link, tag: top?.tagName ?? "" };
+  });
+  expect(hit).not.toBeNull();
+  expect(hit?.same).toBe(true);
+  expect(hit?.tag).toBe("A");
+}
+
 /** Force a (possibly disabled) button enabled and click it from page script. */
 async function forceClick(locator: Locator): Promise<void> {
   await locator.evaluate((element) => {
@@ -443,6 +483,24 @@ test("navigation is refused while paused and while the overwrite dialog is open"
   const probe = await getProbe(page);
   expect(probe.saveScreen?.open).toBe(true);
   expect(probe.saveScreen?.confirming).toBe(true);
+  await expect(page.locator("#save-load")).toHaveAttribute(
+    "data-confirming",
+    "true",
+  );
+  // The modal owns the screen: the document disclaimer's links are not
+  // clickable through the dialog's dim layer.
+  const disclaimerHit = await page.evaluate(() => {
+    const link = document.querySelector("body > footer a");
+    if (!(link instanceof HTMLAnchorElement)) return null;
+    const box = link.getBoundingClientRect();
+    return (
+      document.elementFromPoint(
+        box.x + box.width / 2,
+        box.y + box.height / 2,
+      ) === link
+    );
+  });
+  expect(disclaimerHit).toBe(false);
 
   expect(errors).toEqual([]);
 });
@@ -790,6 +848,7 @@ test("the chart and Save/Load footers stay in flow and never cover content", asy
 }) => {
   const errors = collectErrors(page);
   await boot(page);
+  await expectFlushDocumentFooter(page, "docked");
 
   await page.keyboard.press("F6");
   await waitForChart(page, true);
@@ -824,6 +883,7 @@ test("the chart and Save/Load footers stay in flow and never cover content", asy
       viewportHeight + 1,
     );
   }
+  await expectFlushDocumentFooter(page, "chart");
   const backing = await page.evaluate(() => {
     const canvas = document.getElementById("chart-canvas");
     if (!(canvas instanceof HTMLCanvasElement)) {
@@ -862,6 +922,7 @@ test("the chart and Save/Load footers stay in flow and never cover content", asy
       viewportHeight + 1,
     );
   }
+  await expectFlushDocumentFooter(page, "save-load");
   await expect(
     page.locator('#save-load [data-footer-role="hints"]'),
   ).toContainText("Esc return");

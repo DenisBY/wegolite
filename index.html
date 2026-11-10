@@ -10,6 +10,13 @@
     <title>Wegolite 0.1.0</title>
     <link rel="icon" href="data:," />
     <style>
+      /* Measured at runtime so every station overlay can reserve exactly the
+         fixed document disclaimer's height. The fallback keeps the strip
+         reserved if scripting has not run yet. */
+      :root {
+        --document-footer-height: 6rem;
+      }
+
       html,
       body {
         margin: 0;
@@ -124,12 +131,13 @@
         gap: 1rem;
       }
 
-      /* Cover the whole viewport: the bottom padding reserves the document
-         disclaimer strip, so the 3D scene never shows between them. */
+      /* Cover the whole viewport: the bottom padding reserves exactly the
+         measured document disclaimer strip, so the 3D scene never shows
+         between them and the station footer sits flush above the disclaimer. */
       #docked {
         position: absolute;
         inset: 0;
-        padding-bottom: 6rem;
+        padding-bottom: var(--document-footer-height, 6rem);
         display: flex;
         flex-direction: column;
         background: #000;
@@ -461,6 +469,7 @@
         position: absolute;
         inset: 0;
         z-index: 10;
+        padding-bottom: var(--document-footer-height, 6rem);
         display: flex;
         flex-direction: column;
         background: #000;
@@ -537,11 +546,18 @@
         position: absolute;
         inset: 0;
         z-index: 10;
+        padding-bottom: var(--document-footer-height, 6rem);
         display: flex;
         flex-direction: column;
         background: #000;
         color: #33ff66;
         font: 18px/1.7 monospace;
+      }
+
+      /* The overwrite dialog is modal. While it is open it covers the document
+         disclaimer and its links, keeping the focus trap authoritative. */
+      #save-load[data-confirming="true"] {
+        z-index: 16;
       }
 
       #save-load-screen {
@@ -745,14 +761,16 @@
         display: none !important;
       }
 
-      /* Fixed to the bottom so `overflow: hidden` on body cannot clip it. The
-         station footer is a div, so this selector deliberately names only the
-         document disclaimer. */
+      /* Fixed to the bottom so `overflow: hidden` on body cannot clip it. It
+         paints above the station overlays (z-index 10) but below pause (20).
+         The station footer is a div, so this selector deliberately names only
+         the document disclaimer. */
       body > footer {
         position: fixed;
         bottom: 0;
         left: 0;
         right: 0;
+        z-index: 15;
         padding: 0.35rem 1rem;
         background: rgba(0, 0, 0, 0.8);
         color: #9a9;

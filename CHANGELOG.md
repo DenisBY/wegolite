@@ -46,6 +46,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The fixed document disclaimer now stays visible and clickable under the F6
+  chart and F2 Save/Load screens, not only under the docked station. Every
+  station footer ends exactly at the disclaimer's top edge, with the reserved
+  height measured at runtime instead of a fixed gap.
 - The F6 chart plot is no longer partly hidden under the footer; the canvas and
   the station and Save/Load content end above it at 1280x720.
 - The station footer no longer covers the bottom of long Market and Manifest

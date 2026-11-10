@@ -129,3 +129,26 @@ describe("index.html station footer template", () => {
     expect(documentFooters).toHaveLength(1);
   });
 });
+
+describe("index.html document disclaimer reservation", () => {
+  it("reserves the measured disclaimer height on every station overlay", () => {
+    expect(HTML).toContain("--document-footer-height: 6rem");
+    for (const id of ["docked", "chart", "save-load"]) {
+      const rule = new RegExp(`#${id} \\{[\\s\\S]*?\\}`).exec(HTML)?.[0] ?? "";
+      expect(rule).not.toBe("");
+      expect(rule).toContain(
+        "padding-bottom: var(--document-footer-height, 6rem)",
+      );
+    }
+  });
+
+  it("paints the disclaimer above the station overlays but below pause", () => {
+    const footerRule = /body > footer \{[\s\S]*?\}/.exec(HTML)?.[0] ?? "";
+    expect(footerRule).toContain("z-index: 15");
+    expect(footerRule).toContain("position: fixed");
+    // The pause overlay is z-index 20; the chart and Save/Load are 10.
+    const saveDialogRule =
+      /#save-load\[data-confirming="true"\] \{[\s\S]*?\}/.exec(HTML)?.[0] ?? "";
+    expect(saveDialogRule).toContain("z-index: 16");
+  });
+});
