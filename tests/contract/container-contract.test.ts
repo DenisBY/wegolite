@@ -324,6 +324,11 @@ describe("FOUND-03 container-only verification", () => {
     expect(script(manifest, "test:e2e:cross")).toBe(
       "xvfb-run -a playwright test --project=firefox --workers=1",
     );
+    // WR-04: the seam spec has its own config, so it can be invoked separately
+    // instead of building the test-only bundle on every Playwright run.
+    expect(script(manifest, "test:e2e:seams")).toBe(
+      "playwright test --config=playwright.seams.config.ts",
+    );
 
     // Owner option B (2026-11-08): the fast gate ends in a Chromium-only smoke
     // subset (D-09) made of whole spec files. Pin the exact script and require
@@ -362,7 +367,7 @@ describe("FOUND-03 container-only verification", () => {
     expect(verifyFull).toMatch(/command: - sh - -lc - >- npm run lint/);
     expect(chainAt).toBeGreaterThanOrEqual(0);
     expect(verifyFull.slice(chainAt)).toBe(
-      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build && npm run test:e2e",
+      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build && npm run test:e2e && npm run test:e2e:seams",
     );
   });
 
@@ -493,6 +498,30 @@ describe("FOUND-04 pinned and baked image", () => {
     expect(
       entries.some((entry) => entry.startsWith("chromium_headless_shell-")),
     ).toBe(true);
+  });
+});
+
+describe("WR-04 seam build split", () => {
+  it("keeps the test-only bundle out of the ordinary Playwright run", () => {
+    const main = read("playwright.config.ts");
+    const seams = read("playwright.seams.config.ts");
+    const compose = read("compose.yaml");
+
+    // The ordinary suite must not start the 4175 server: that was a second
+    // full Vite build on every run, including the fast smoke subset and
+    // single-spec invocations.
+    expect(main).toContain("testIgnore: /hyperspace-failure");
+    expect(main).not.toContain("4175");
+    expect(main).not.toContain("vite.seams.config.ts");
+
+    // The WR-04 spec keeps its own config, its own test-only build and its own
+    // origin, so the positive control still has a freshly built bundle.
+    expect(seams).toContain("testMatch: /hyperspace-failure");
+    expect(seams).toContain("vite.seams.config.ts");
+    expect(seams).toContain("4175");
+
+    // The dedicated config is actually reachable from the container chains.
+    expect(compose).toContain("npm run test:e2e:seams");
   });
 });
 

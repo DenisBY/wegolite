@@ -6,7 +6,8 @@
  *
  * This config compiles the test-fault read in (`__WEGOLITE_TEST_SEAMS__` is
  * `"true"`) and writes the bundle under `node_modules/.wegolite-seams`, never
- * under `dist/`. Only Playwright serves it, on 127.0.0.1:4175 (playwright.config.ts).
+ * under `dist/`. Only Playwright serves it, on 127.0.0.1:4175
+ * (playwright.seams.config.ts).
  * It is never deployed, so the seam is unreachable from a URL of the shipped site.
  *
  * The output sits under `node_modules/` because tests/compliance.test.ts skips

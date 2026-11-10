@@ -3,8 +3,20 @@
 
 import { defineConfig, devices } from "@playwright/test";
 
+// `CI=1` is baked into the Wegolite image (Dockerfile), so `!process.env["CI"]`
+// alone cannot turn preview reuse on inside a container. `WEGOLITE_REUSE_PREVIEW=1`
+// is the explicit local opt-in: keep one `npm run preview` alive in the same
+// container as Playwright and reuse it across targeted spec runs. CI stays
+// `false`, so a stale server fails loudly instead of being silently reused.
+const reusePreview =
+  process.env["WEGOLITE_REUSE_PREVIEW"] === "1" || !process.env["CI"];
+
 export default defineConfig({
   testDir: "./tests/e2e",
+  // The WR-04 seam spec needs its own test-only bundle and origin. It runs from
+  // playwright.seams.config.ts (npm run test:e2e:seams), so the ordinary suite
+  // no longer pays for a second full Vite build on every run.
+  testIgnore: /hyperspace-failure\.spec\.ts$/,
   fullyParallel: false,
   // The browser gate is measured on a 4-CPU host with two concurrent pages, and
   // pinning makes that contention reproducible instead of depending on the runner's core count.
@@ -38,23 +50,12 @@ export default defineConfig({
       testMatch: /(engine|core-loop)\.spec\.ts$/,
     },
   ],
-  webServer: [
-    {
-      // `vite preview` serves dist/, so the caller must build first (`npm run build`
-      // in the e2e/verify service command).
-      command: "npx vite preview --host 127.0.0.1 --port 4173 --strictPort",
-      url: "http://127.0.0.1:4173",
-      reuseExistingServer: false,
-      timeout: 60_000,
-    },
-    {
-      // The test-only build (D-18, WR-04). It is built and served here and never
-      // written to dist/, so the fault seam is reachable only from this origin.
-      command:
-        "npx vite build -c vite.seams.config.ts && npx vite preview -c vite.seams.config.ts --host 127.0.0.1 --port 4175 --strictPort",
-      url: "http://127.0.0.1:4175",
-      reuseExistingServer: false,
-      timeout: 300_000,
-    },
-  ],
+  webServer: {
+    // `vite preview` serves dist/, so the caller must build first (`npm run build`
+    // in the e2e/verify service command).
+    command: "npx vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    url: "http://127.0.0.1:4173",
+    reuseExistingServer: reusePreview,
+    timeout: 60_000,
+  },
 });

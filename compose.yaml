@@ -49,9 +49,16 @@ services:
     # run out of shared memory and crash.
     ipc: host
     # `vite preview` serves dist/, so the bundle must exist before the browser
-    # test starts. Inside `verify` the chain already built, so that service
-    # calls `npm run test:e2e` directly instead of rebuilding.
-    command: ["sh", "-lc", "npm run build && npm run test:e2e"]
+    # test starts. The WR-04 seam spec has its own config and its own test-only
+    # build, so it runs as a separate step instead of forcing every Playwright
+    # invocation to build the seam bundle.
+    command:
+      - sh
+      - -lc
+      - >-
+        npm run build &&
+        npm run test:e2e &&
+        npm run test:e2e:seams
 
   # D-09: the Firefox gate. Deliberately NOT part of `verify`, which stays
   # Chromium-only. It builds the `cross` stage (FROM ci, plus Firefox and xvfb),
@@ -103,7 +110,8 @@ services:
 
   # Release gate (owner option B, 2026-11-08): run before a release and when
   # render, input, persistence or network-guard code changes. The same D-03
-  # fail-fast chain as `verify`, ending in the full Chromium suite. The Firefox
+  # fail-fast chain as `verify`, ending in the full Chromium suite followed by
+  # the WR-04 seam spec, which builds its own test-only bundle. The Firefox
   # gate stays the separate `e2e-cross` service (D-09).
   verify-full:
     <<: *workspace
@@ -117,7 +125,8 @@ services:
         npm run assets:check &&
         npm run test &&
         npm run build &&
-        npm run test:e2e
+        npm run test:e2e &&
+        npm run test:e2e:seams
 
 volumes:
   wegolite-node-modules:

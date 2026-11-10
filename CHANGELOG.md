@@ -38,6 +38,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The game no longer redraws the scene while docked or paused. The image does
   not change in those states, so it is drawn once and the GPU is left idle,
   which lowers power use and fan noise on the station screens.
+- The e2e loop is faster: the WR-04 fault-seam spec now runs from its own
+  `playwright.seams.config.ts` via `npm run test:e2e:seams`, so ordinary and
+  targeted Playwright runs (including the `verify` fast gate) no longer build
+  the test-only Vite bundle. Set `WEGOLITE_REUSE_PREVIEW=1` to reuse a long-lived
+  preview in the local loop; CI keeps preview reuse off.
 
 ### Removed
 
