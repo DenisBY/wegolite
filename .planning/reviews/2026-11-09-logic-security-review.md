@@ -505,7 +505,8 @@ download size, fragment shading and work done when nothing changes.
   on some paths (`commitProfile` then the caller). None of this is likely to
   show in a profile; fix it when the file is split.
 
-- **P8 — The specular colour is shipped and not used.** Found while choosing
+- **P8 — The specular colour is shipped and not used.** *Colour done in quick
+  task 261110-c4d (`specularColorTexture`); alpha as gloss is still open.* Found while choosing
   the texture encodings (2026-11-10). Oolite's shader multiplies the specular
   colour by the map's RGB and the gloss by its alpha
   (`oolite-default-shader.fragment:419-451`). The GLB writer puts the map in
