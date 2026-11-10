@@ -474,6 +474,7 @@ For the v1 peaceful set that reduces to:
 
 - `requires_empty_pylon` (Missile): refuse if `missiles >= 3`.
   - **Deliberate deviation:** Oolite's Cobra has `PLAYER_MAX_MISSILES 16` / `PLAYER_STARTING_MAX_MISSILES 4` `[VERIFIED: /home/opencode/git/oolite/src/Core/Entities/PlayerEntity.h:284-286]`, so Oolite would allow a fourth missile. D-14 caps Wegolite at 3; record the cap in PROJECT.md and do not "fix" it back to 4.
+  - **Superseded 2026-11-10 (quick task 261110-e8p):** the cap is now Oolite's four pylons; see PROJECT.md Key Decisions.
 - `requires_mounted_pylon` (Remove Missile): row visible only if `missiles > 0`.
 - `requires_cargo_space: 5` (Passenger Berth): refuse if `availablePods < 5`.
 - `requires_free_passenger_berth` (Remove Passenger Berth): row visible only if `passengerBerths > 0`.

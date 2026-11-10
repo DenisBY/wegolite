@@ -588,7 +588,7 @@ are easy to lose now that phase 7 is closing.
   writes only `compass=${compassTarget}`), so two states that behave
   differently on the next `cycleCompass` hash equal. `runToSteps`
   (`src/sim/loop.ts:42`) caps a frame delta above but not below zero.
-- The Cobra's fourth missile pylon (`MAX_MISSILES = 3`,
+- *Done in quick task 261110-e8p.* The Cobra's fourth missile pylon (`MAX_MISSILES = 3`,
   `src/sim/player/outfitting.ts:43`), filed as major. It changes the save bound
   `MAX_SAVE_MISSILES` too, so it is cheaper to decide before v1 saves exist in
   the wild.
