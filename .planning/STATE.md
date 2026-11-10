@@ -5,10 +5,10 @@ current_phase_name: Hardening & Community Release
 current_plan: 11
 status: executing
 stopped_at: Completed 07-10-PLAN.md
-last_updated: "2026-11-09T16:33:28.382Z"
+last_updated: "2026-11-10T14:56:27.167Z"
 last_activity: 2026-11-10
-last_activity_desc: Completed quick task 261110-hzd: the document disclaimer stays visible on every station overlay and each station footer sits flush above it
-state_head: fda6f22f8a251a8df954c96c1829e283e5a6ff95
+last_activity_desc: Completed quick task 261110-l2x: share one ESLint Node API across the guard tests and add a coverage-free local unit loop
+state_head: f2e2cb888c2e38f760cb92a446c52b1d5dd8d06c
 progress:
   total_phases: 7
   completed_phases: 6
@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-10 - Completed quick task 261110-hzd: the document disclaimer stays visible on every station overlay and each station footer sits flush above it
+Last activity: 2026-11-10 - Completed quick task 261110-l2x: share one ESLint Node API across the guard tests and add a coverage-free local unit loop
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -292,6 +292,7 @@ Recent decisions affecting current work:
 | 261110-b7w | Serve the ship and station textures as WebP instead of PNG, revising Phase 2 D-20 | 2026-11-10 | 0a955ed | [261110-b7w-re-encode-ship-textures-as-webp](./quick/261110-b7w-re-encode-ship-textures-as-webp/) |
 | 261110-fnh | Unify the docked, chart and Save/Load footer on one two-line template with live key hints and a priority status line | 2026-11-10 | 9963c66 | [261110-fnh-unify-docked-screen-footer-hints-with-a-](./quick/261110-fnh-unify-docked-screen-footer-hints-with-a-/) |
 | 261110-hzd | Keep the document disclaimer visible on the chart and Save/Load screens and align each station footer flush above it | 2026-11-10 | 07d6371 | [261110-hzd-keep-the-document-disclaimer-visible-on-](./quick/261110-hzd-keep-the-document-disclaimer-visible-on-/) |
+| 261110-l2x | Speed up the unit-test loop: share one ESLint Node API across the guard tests and add a coverage-free local script | 2026-11-10 | f2e2cb8 | [261110-l2x-speed-up-unit-tests-replace-guard-test-e](./quick/261110-l2x-speed-up-unit-tests-replace-guard-test-e/) |
 
 ## Deferred Items
 
