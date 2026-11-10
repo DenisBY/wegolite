@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-10 - Completed quick task 261110-a3k: a docked or paused scene is drawn once, then left alone
+Last activity: 2026-11-10 - Completed quick task 261110-b7w: ship and station textures served as WebP
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -54,6 +54,7 @@ Progress: [█████████░] 86% — 62/73 plans complete
 | 261109-r4n | Draw Oolite's sky nebulae at High graphics quality, with the four nebula textures vendored from the pinned commit | 2026-11-09 | 99a889b | [261109-r4n-add-sky-nebulae-to-high-quality](./quick/261109-r4n-add-sky-nebulae-to-high-quality/) |
 | 261109-s8k | Trim the client ship catalogue to the two entries the game reads and cache the per-step equipment set | 2026-11-09 | 2bf8607 | [261109-s8k-trim-the-client-ship-catalogue](./quick/261109-s8k-trim-the-client-ship-catalogue/) |
 | 261110-a3k | Stop drawing the scene while docked or paused: draw it once, then skip until something changes | 2026-11-10 | 3091706 | [261110-a3k-stop-drawing-unchanging-frames](./quick/261110-a3k-stop-drawing-unchanging-frames/) |
+| 261110-b7w | Serve the ship and station textures as WebP instead of PNG, revising Phase 2 D-20 | 2026-11-10 | 0a955ed | [261110-b7w-re-encode-ship-textures-as-webp](./quick/261110-b7w-re-encode-ship-textures-as-webp/) |
 | 04 | 8 | - | - |
 | 05 | 6 | - | - |
 | 6 | 17 | - | - |
