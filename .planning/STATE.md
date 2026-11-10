@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 current_phase: 7
 current_phase_name: Hardening & Community Release
-current_plan: 11
-status: executing
-stopped_at: Completed 07-10-PLAN.md
-last_updated: "2026-11-10T14:56:27.167Z"
+current_plan: 12
+status: complete
+stopped_at: Completed 07-11-PLAN.md
+last_updated: "2026-11-10T20:00:00.000Z"
 last_activity: 2026-11-10
-last_activity_desc: Completed quick task 261110-l2x: share one ESLint Node API across the guard tests and add a coverage-free local unit loop
+last_activity_desc: Closed the Phase 7 bookkeeping; last quick task 261110-f2r
 state_head: f2e2cb888c2e38f760cb92a446c52b1d5dd8d06c
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 73
-  completed_plans: 72
-  percent: 86
+  completed_plans: 73
+  percent: 100
 ---
 
 # Project State
@@ -24,17 +24,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-06)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 6 — Hyperspace, Navigation & Persistence
+**Current focus:** All seven v1 phases are complete and `v0.1.0` is published. Open: QUAL-01 (frame-rate evidence on the reference desktop, deferred by the owner on 2026-11-08). Work since the tag is recorded as quick tasks below and is unreleased.
 
 ## Current Position
 
-Phase: 7 (Hardening & Community Release) — EXECUTING
-Current Plan: 11
+Phase: 7 (Hardening & Community Release) — COMPLETE
+Current Plan: 12 of 12
 Total Plans in Phase: 12
-Status: Ready to execute
-Last activity: 2026-11-10 - Completed quick task 261110-l2x: share one ESLint Node API across the guard tests and add a coverage-free local unit loop
+Status: Phase complete; milestone v1 not yet archived
+Last activity: 2026-11-10 - Closed the Phase 7 bookkeeping (plan 07-11 was completed on 2026-11-08 at release commit 0693e17); last quick task 261110-f2r
 
-Progress: [█████████░] 86% — 62/73 plans complete
+Progress: [██████████] 100% — 73/73 plans complete
 
 ## Performance Metrics
 
