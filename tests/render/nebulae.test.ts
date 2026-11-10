@@ -177,6 +177,23 @@ describe("createNebulae", () => {
     expect(quadTotal).toBe(body.quadCount);
   });
 
+  it("changes its revision when a texture finishes loading", () => {
+    const loader = fakeLoader();
+    const body = createNebulae(
+      system.sky_n_blurs,
+      system.random_seed,
+      "/",
+      loader.load,
+    );
+    const before = body.revision();
+    // `THREE.TextureLoader` sets `needsUpdate` when the image arrives.
+    const first = loader.textures[0];
+    if (first === undefined) throw new Error("expected a nebula texture");
+    first.needsUpdate = true;
+    expect(body.revision()).toBe(before + 1);
+    expect(body.revision()).toBe(before + 1);
+  });
+
   it("sits inside the starfield shell and the far plane", () => {
     const body = createNebulae(
       system.sky_n_blurs,

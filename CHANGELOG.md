@@ -25,6 +25,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   in the tab strip.
 - The game downloads about 0.7 MB less at start: it now loads only the two
   ship records it uses instead of the whole ship catalogue.
+- The game no longer redraws the scene while docked or paused. The image does
+  not change in those states, so it is drawn once and the GPU is left idle,
+  which lowers power use and fan noise on the station screens.
 
 ### Removed
 

@@ -235,6 +235,7 @@ if (!boot.ok) {
     depthBits,
     webgl2: true,
     renders: 0,
+    frames: 0,
     // D-14: galaxy 0 is eager, so it is in this bundle; g1-g7 are code-split.
     homeSystems: galaxy0().length,
     codeSplitGalaxies: LAZY_GALAXY_COUNT,
@@ -371,6 +372,7 @@ if (!boot.ok) {
     "visibilitychange",
     () => {
       if (document.visibilityState === "hidden") session.focusLost();
+      else session.shown();
     },
     focusOptions,
   );

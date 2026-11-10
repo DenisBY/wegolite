@@ -53,6 +53,7 @@ import type { SceneManager } from "./scene-manager.js";
 import { createHintController } from "./hints.js";
 import type { HintContext, HintController } from "./hints.js";
 import { createLaunchSequence } from "./launch-sequence.js";
+import { createRedrawGate } from "./redraw-gate.js";
 import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
 import {
@@ -321,6 +322,12 @@ export interface GameSession {
    * which is the default.
    */
   focusLost(): void;
+  /**
+   * The tab became visible again. A docked or paused session has stopped
+   * drawing, and a browser may drop a hidden tab's canvas, so the next frames
+   * are drawn again.
+   */
+  shown(): void;
   dispose(): void;
 }
 
@@ -460,6 +467,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     precision: false,
   };
   let paused = false;
+  // Skips the draw of a frame that would repeat the last one (docked, paused).
+  const redrawGate = createRedrawGate();
   // QUAL-05: set from the context-loss event until the restore. While set, the
   // session never resumes and never writes a save (research Pitfall 9).
   let contextLost = false;
@@ -1040,6 +1049,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       { swapSystem, disposeSystem },
       () => {
         testTainted = true;
+        // The hook moved the live state under a possibly quiet loop.
+        redrawGate.request();
       },
       {
         setCredits: applyTestCredits,
@@ -2550,7 +2561,32 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     probe.hints = hints === undefined ? [] : [...hints.seen];
   }
 
-  function renderFrame(alpha: number): void {
+  /**
+   * What the drawn image depends on besides the simulation: the flight state
+   * object (replaced by a Load), the scene (replaced by a jump, a quality
+   * change or a test swap) and the nebula textures, which arrive after the
+   * scene is built.
+   */
+  function drawKeys(): readonly unknown[] {
+    return [state, scene, scene?.nebulae?.revision() ?? 0];
+  }
+
+  /**
+   * Whether the loop's next frame has to reach the GPU (see `redraw-gate.ts`).
+   * A docked or paused session simulates nothing, so its image cannot change.
+   */
+  function shouldDraw(): boolean {
+    return redrawGate.next(paused || state?.mode === "docked", drawKeys());
+  }
+
+  /**
+   * Bring the scene graph, the HUD and the probe up to date, and draw them.
+   *
+   * @param draw False skips the WebGL draw and the HUD canvas draw; only the
+   *   frame loop passes it, for a frame `shouldDraw` found unchanged. Every
+   *   direct caller draws.
+   */
+  function renderFrame(alpha: number, draw = true): void {
     const currentState = state;
     const currentLayout = layout;
     const currentConfig = config;
@@ -2609,12 +2645,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // it is toggled, never rebuilt.
     currentScene.ship.visible = currentState.mode === "launching";
 
-    renderer.render(currentScene.scene, currentScene.camera);
+    if (draw) {
+      renderer.render(currentScene.scene, currentScene.camera);
+      redrawGate.drawn(drawKeys());
+    }
 
     // The flight HUD is not drawn while docked (D-09 shows the status panel).
     const isDocked = currentState.mode === "docked";
     hudCanvas.hidden = isDocked;
-    if (!isDocked) {
+    if (!isDocked && draw) {
       const currentBreakPattern = breakPattern;
       if (
         currentState.mode === "launching" &&
@@ -2671,6 +2710,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   function frame(now: number): void {
     rafId = requestAnimationFrame(frame);
+    probe.frames += 1;
 
     const currentState = state;
     const currentLayout = layout;
@@ -2709,6 +2749,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       currentInput.drainStationActions();
       pending.length = 0;
       currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+      redrawGate.request();
       updateProbe();
       return;
     }
@@ -2719,6 +2760,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       currentInput.drainStationActions();
       pending.length = 0;
       currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+      redrawGate.request();
       updateProbe();
       return;
     }
@@ -2830,7 +2872,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
     }
 
-    renderFrame(alpha);
+    renderFrame(alpha, shouldDraw());
   }
 
   async function start(options: StartOptions = {}): Promise<void> {
@@ -3178,6 +3220,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   function resize(): void {
     hud?.resize();
+    // A resize clears both canvases, and the caller redraws only the scene.
+    redrawGate.request();
   }
 
   /**
@@ -3282,6 +3326,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       input?.clearAll();
     },
     focusLost,
+    shown: () => {
+      redrawGate.request();
+    },
     dispose,
   };
 }

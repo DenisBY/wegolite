@@ -531,6 +531,9 @@ test("an in-session Load restores the saved docked session without reloading", a
   await waitForDocked(page);
 
   await page.keyboard.press("F2");
+  // The screen opens on the next loop frame, and S is a Save only once it is
+  // open: a docked loop is quick enough for a back-to-back S to arrive first.
+  await expect(page.locator("#save-load")).toBeVisible();
   await page.keyboard.press("KeyS");
   await waitForCommitted(page, 1);
   const savedRaw = await readRaw(page);
@@ -623,6 +626,9 @@ test("an in-session Load of an in-flight save returns to flight with the station
   // Produce a real v2 docked blob, then rewrite only the mode/pose fields so
   // the save exercises the in-flight branch of the same parser/restore.
   await page.keyboard.press("F2");
+  // The screen opens on the next loop frame, and S is a Save only once it is
+  // open: a docked loop is quick enough for a back-to-back S to arrive first.
+  await expect(page.locator("#save-load")).toBeVisible();
   await page.keyboard.press("KeyS");
   await waitForCommitted(page, 1);
   const dockedBlob = decode(await readRaw(page));
@@ -673,6 +679,8 @@ test("an in-session Load of an in-flight save returns to flight with the station
   // and capture the pre-load message that is visible at the moment of the Load.
   await writeRaw(page, stored);
   await page.keyboard.press("F2");
+  // L is a Load only once the screen is open (see the note on S above).
+  await expect(page.locator("#save-load")).toBeVisible();
   const beforeLoad = await getProbe(page);
   expect(beforeLoad.messages).toBeGreaterThanOrEqual(1);
   const preLoadMessage = beforeLoad.hud?.message ?? "";
@@ -759,6 +767,9 @@ test("a failed Load shows the reason and leaves the session and bytes untouched"
   await waitForDocked(page);
 
   await page.keyboard.press("F2");
+  // The screen opens on the next loop frame, and S is a Save only once it is
+  // open: a docked loop is quick enough for a back-to-back S to arrive first.
+  await expect(page.locator("#save-load")).toBeVisible();
   await page.keyboard.press("KeyS");
   await waitForCommitted(page, 1);
   const baseline = await getProbe(page);

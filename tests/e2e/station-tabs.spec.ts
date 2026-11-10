@@ -244,7 +244,16 @@ test("re-clicking the active tab is a no-op and the screen under an overlay keep
 
   await tab(page, "docked", "market").click();
   await waitForScreen(page, "market");
+  // The arrow is applied on the next loop frame, so wait for the selection to
+  // move before reading it: a docked loop leaves the main thread idle between
+  // frames, and an immediate read would see the row the screen opened on.
+  const openedOn = (await getProbe(page)).station?.selectedKey;
   await page.keyboard.press("ArrowDown");
+  await page.waitForFunction(
+    (previous) => window.__wegolite?.station?.selectedKey !== previous,
+    openedOn,
+    { timeout: 10_000 },
+  );
   const selected = (await getProbe(page)).station?.selectedKey;
   expect(selected).toBeTruthy();
   const initialKey = selected ?? "";

@@ -171,9 +171,14 @@ test("a forced destination-build throw after a committed jump stops in the origi
   expect(kept.save?.committed).toBe(committedBefore);
 
   // The session is paused behind the failure, so the flight clock is frozen,
-  // while the origin scene keeps rendering (nothing was half-swapped).
+  // while the frame loop keeps running over the origin scene (nothing was
+  // half-swapped). A paused scene is drawn once and then left alone, so the
+  // loop counter advances and the draw counters stay those of the origin scene.
   const flightBefore = kept.flightTime;
-  const rendersBefore = kept.renders;
+  const framesBefore = kept.frames;
+  const callsBefore = kept.calls;
+  const trianglesBefore = kept.triangles;
+  expect(callsBefore).toBeGreaterThan(0);
   await page.evaluate(
     () => new Promise<void>((resolve) => setTimeout(resolve, 2000)),
   );
@@ -183,7 +188,9 @@ test("a forced destination-build throw after a committed jump stops in the origi
         .__probeBeforeFault,
   );
   expect(after?.flightTime).toBe(flightBefore);
-  expect(after?.renders ?? 0).toBeGreaterThan(rendersBefore);
+  expect(after?.frames ?? 0).toBeGreaterThan(framesBefore);
+  expect(after?.calls).toBe(callsBefore);
+  expect(after?.triangles).toBe(trianglesBefore);
 
   // WR-04: a failed arrival writes no save bytes.
   expect(await readRaw(page)).toBe(savedBeforeJump);

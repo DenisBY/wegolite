@@ -152,6 +152,13 @@ export type TextureLoader = (url: string) => THREE.Texture;
 export interface NebulaBody {
   readonly object: THREE.Group;
   readonly quadCount: number;
+  /**
+   * A number that changes whenever one of the textures finishes loading.
+   *
+   * The textures arrive after the body is built. A session that stops redrawing
+   * an unchanging scene reads this to know it owes one more draw.
+   */
+  revision(): number;
   dispose(): void;
 }
 
@@ -427,6 +434,11 @@ export function createNebulae(
   return {
     object,
     quadCount: quads.length,
+    revision(): number {
+      let total = 0;
+      for (const texture of textures) total += texture.version;
+      return total;
+    },
     dispose(): void {
       for (const mesh of meshes) {
         mesh.geometry.dispose();

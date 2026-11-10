@@ -13,7 +13,10 @@
  *
  * The probe publishes `renderer.info.render.calls` and `.triangles` for the most
  * recently rendered frame (src/app/game-session.ts). A scene is read only after
- * three further rendered frames, so the counters describe a settled scene. Every
+ * three further loop frames, so the counters describe a settled scene. The wait
+ * counts loop frames (`probe.frames`), not rendered ones: a docked scene is
+ * drawn when it is entered and then left alone (src/app/redraw-gate.ts), so its
+ * `renders` counter stops while its counters stay those of the last draw. Every
  * comparison is inclusive: 50 calls and 250 000 triangles pass, 51 and 250 001
  * fail.
  */
@@ -33,7 +36,7 @@ test.setTimeout(300_000);
 const DRAW_CALL_BUDGET = 50;
 /** Triangles per rendered frame (STACK.md lines 442-443, research target). */
 const TRIANGLE_BUDGET = 250_000;
-/** Rendered frames to wait for after a scene is reached, so counters settle. */
+/** Loop frames to wait for after a scene is reached, so counters settle. */
 const SETTLE_FRAMES = 3;
 /** The Diso system, reached through an IndexedDB save fixture. */
 const DISO_ID = systemByName("Diso").id;
@@ -77,14 +80,14 @@ async function expectWithinBudget(
   scene: string,
   mode: string,
 ): Promise<void> {
-  const before = (await getProbe(page)).renders;
+  const before = (await getProbe(page)).frames;
   await page.waitForFunction(
     (wait: { since: number; frames: number }) => {
       const probe = window.__wegolite;
       return (
         probe !== undefined &&
         probe.ready === true &&
-        probe.renders >= wait.since + wait.frames
+        probe.frames >= wait.since + wait.frames
       );
     },
     { since: before, frames: SETTLE_FRAMES },
@@ -96,6 +99,8 @@ async function expectWithinBudget(
     description: `${probe.calls} calls, ${probe.triangles} triangles`,
   });
   expect(probe.mode, `${scene}: flight mode`).toBe(mode);
+  // The counters must come from a real draw, not from a scene never drawn.
+  expect(probe.renders, `${scene}: rendered frames`).toBeGreaterThan(0);
   expect(probe.calls, `${scene}: draw calls (vacuity guard)`).toBeGreaterThan(
     0,
   );

@@ -28,6 +28,8 @@ These are the per-scene counts from the `budget.spec.ts` annotations, recorded o
 | Diso docked    | 9          | 38714     | 2026-11-08 |
 | Diso in flight | 6          | 38308     | 2026-11-08 |
 
+Since quick task 261110-a3k a docked or paused scene is drawn when it is entered and then left alone until something changes (`src/app/redraw-gate.ts`). The docked rows above are the counts of that last draw; they are no longer a per-frame cost. `budget.spec.ts` therefore settles on loop frames (`probe.frames`), not on rendered frames.
+
 The Diso scenes are reached through an IndexedDB save fixture (`tests/e2e/helpers/save-fixtures.ts`) and the spec asserts the live `systemId` is Diso's before reading the counts. Their counts match Lave's because the docked and in-flight scenes have the same structure.
 
 ## Load size
@@ -70,6 +72,8 @@ Each row is sampled for 30 seconds. The row labels are exact.
 | Launch sequence    | Press the launch key (`Digit1`)    | Start the sampler with start delay 0 and press the launch key as it starts, so the animation falls inside the 30 s window |
 | Lave in flight     | After launch, facing the planet    | Settle 5 s, then sample 30 s                                                                                              |
 | Hyperspace arrival | In flight after a completed jump   | Settle 5 s, then sample 30 s                                                                                              |
+
+The sampler measures the interval between animation frames. In the `Lave docked` row the session now draws nothing after the first frames, so that row shows the cost of the loop and the station screen, not of the scene; docked figures recorded before 2026-11-10 included a full scene draw per frame and are not comparable with later ones.
 
 Paste this sampler into the console for each row. Set `START_DELAY_MS` to `5000` for the settled rows and to `0` for `Launch sequence`.
 

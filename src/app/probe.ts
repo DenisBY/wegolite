@@ -281,6 +281,14 @@ export interface WegoliteProbe {
   depthBits: number;
   webgl2: boolean;
   renders: number;
+  /**
+   * Animation frames the session loop has run, drawn or not.
+   *
+   * `renders` stops advancing while the session is docked or paused, because
+   * an unchanging scene is drawn once and then left alone. A wait that only
+   * needs time to pass in the loop reads this field instead.
+   */
+  frames: number;
   homeSystems: number;
   codeSplitGalaxies: number;
   /**
@@ -467,6 +475,7 @@ export function publishFailure(reason: string): void {
     depthBits: 0,
     webgl2: false,
     renders: 0,
+    frames: 0,
     homeSystems: 0,
     codeSplitGalaxies: 0,
     messages: 0,
