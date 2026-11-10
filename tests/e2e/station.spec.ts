@@ -470,12 +470,25 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   expect(probe.save?.committed).toBe(committedBefore + 1);
 
   // The cursor clamps to the new last row (passenger berth, now unaffordable).
-  // A third Y is therefore a no-op: no prompt, no credits, no save.
+  // A third Y is therefore a no-op: no prompt, no credits, no save. The key is
+  // applied on a later loop frame, so let two pass before reading: an
+  // immediate read would see the footer as it was before the press. The row is
+  // disabled, so the status line shows its reason and never a [Y/N] prompt.
+  const framesAtPress = (await getProbe(page)).frames;
   await page.keyboard.press("KeyY");
-  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
-    "",
+  await page.waitForFunction(
+    (since) => (window.__wegolite?.frames ?? 0) >= since + 2,
+    framesAtPress,
+    { timeout: 10_000 },
   );
+  await expect(
+    page.locator('#docked [data-footer-role="status"]'),
+  ).not.toContainText("[Y/N]");
+  await expect(
+    page.locator('#docked [data-footer-role="status"]'),
+  ).toHaveAttribute("data-status-tone", "notice");
   probe = await getProbe(page);
+  expect(probe.station?.pending).toBeNull();
   expect(probe.economy?.credits).toBe(1700);
   expect(probe.economy?.missiles).toBe(0);
   expect(probe.save?.committed).toBe(committedBefore + 1);
