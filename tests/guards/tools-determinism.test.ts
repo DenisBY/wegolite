@@ -6,10 +6,11 @@
  *
  * A clean-tree `lint` proves the zone is green on this tree; it cannot prove it
  * would notice a banned API. Each case here writes a probe under
- * `tools/oolite-ingest/` at test time, runs the real ESLint gate against it,
- * asserts the specific diagnostic, and removes the probe again in a `finally`
- * block. One positive case proves the zone does not over-reach: the safe Math
- * surface (`sqrt`, `min`, `imul`, `fround`) still passes.
+ * `tools/oolite-ingest/` at test time, lints it with the real root config
+ * through the shared ESLint Node API, asserts the specific diagnostic, and
+ * removes the probe again in a `finally` block. One positive case proves the
+ * zone does not over-reach: the safe Math surface (`sqrt`, `min`, `imul`,
+ * `fround`) still passes.
  *
  * The probes are generated rather than committed on purpose: a committed file
  * calling `Math.sin` inside the zone would fail the clean-tree `lint` run.
@@ -17,62 +18,41 @@
  * while the suite is mid-run.
  */
 
-import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { lintProbe } from "./eslint-gate.js";
+
 const REPO_ROOT = process.cwd();
 const TOOLS_DIR = join(REPO_ROOT, "tools", "oolite-ingest");
 
-interface GateRun {
-  status: number | null;
-  output: string;
-}
-
-/** Run a gate in the repo root and return its exit status and combined output. */
-function runGate(command: string, args: readonly string[]): GateRun {
-  const result = spawnSync(command, [...args], {
-    cwd: REPO_ROOT,
-    encoding: "utf8",
-    timeout: 180_000,
-  });
-  return {
-    status: result.status,
-    output: `${result.stdout ?? ""}${result.stderr ?? ""}`,
-  };
-}
-
 /** Write a probe under tools/oolite-ingest/ and make sure it is never left behind. */
-function withProbe(
+async function withProbe(
   name: string,
   source: string,
-  body: (file: string) => void,
-): void {
+  body: (file: string) => Promise<void> | void,
+): Promise<void> {
   mkdirSync(TOOLS_DIR, { recursive: true });
   const file = join("tools", "oolite-ingest", name);
   writeFileSync(join(REPO_ROOT, file), source);
   try {
-    body(file);
+    await body(file);
   } finally {
     // Remove the file only: `tools/oolite-ingest/` is a real source directory.
     rmSync(join(REPO_ROOT, file), { force: true });
   }
 }
 
-/** Lint one probe through the real root config, zone included. */
-function lintProbe(file: string): GateRun {
-  return runGate("npx", ["eslint", file]);
-}
-
 describe("tools determinism zone", () => {
-  // Each case spawns the real gate, which builds a type-aware ESLint program;
-  // that is several seconds on a loaded container, past Vitest's 5s default.
-  it("Math.sin fails lint with the determinism reason", () => {
+  // The first lint builds the type-aware ESLint program (~3.5 s); the shared
+  // instance then reuses it for every probe. Keep a generous timeout for a
+  // cold, loaded container.
+  it("Math.sin fails lint with the determinism reason", async () => {
     const source = ["export const value = Math.sin(1);", ""].join("\n");
 
-    withProbe("__purity_math_probe.ts", source, (file) => {
-      const lint = lintProbe(file);
+    await withProbe("__purity_math_probe.ts", source, async (file) => {
+      const lint = await lintProbe(file);
 
       expect(lint.status).not.toBe(0);
       expect(lint.output).toMatch(/no-restricted-properties/);
@@ -80,11 +60,11 @@ describe("tools determinism zone", () => {
     });
   }, 30_000);
 
-  it("toFixed fails lint", () => {
+  it("toFixed fails lint", async () => {
     const source = ["export const value = (1.5).toFixed(2);", ""].join("\n");
 
-    withProbe("__purity_tofixed_probe.ts", source, (file) => {
-      const lint = lintProbe(file);
+    await withProbe("__purity_tofixed_probe.ts", source, async (file) => {
+      const lint = await lintProbe(file);
 
       expect(lint.status).not.toBe(0);
       expect(lint.output).toMatch(/no-restricted-syntax/);
@@ -92,11 +72,11 @@ describe("tools determinism zone", () => {
     });
   }, 30_000);
 
-  it("new Date() fails lint", () => {
+  it("new Date() fails lint", async () => {
     const source = ["export const value = new Date();", ""].join("\n");
 
-    withProbe("__purity_date_probe.ts", source, (file) => {
-      const lint = lintProbe(file);
+    await withProbe("__purity_date_probe.ts", source, async (file) => {
+      const lint = await lintProbe(file);
 
       expect(lint.status).not.toBe(0);
       expect(lint.output).toMatch(/no-restricted-syntax/);
@@ -104,14 +84,14 @@ describe("tools determinism zone", () => {
     });
   }, 30_000);
 
-  it("Intl.NumberFormat fails lint via no-restricted-globals", () => {
+  it("Intl.NumberFormat fails lint via no-restricted-globals", async () => {
     const source = [
       'export const format = new Intl.NumberFormat("en");',
       "",
     ].join("\n");
 
-    withProbe("__purity_intl_probe.ts", source, (file) => {
-      const lint = lintProbe(file);
+    await withProbe("__purity_intl_probe.ts", source, async (file) => {
+      const lint = await lintProbe(file);
 
       expect(lint.status).not.toBe(0);
       expect(lint.output).toMatch(/no-restricted-globals/);
@@ -119,7 +99,7 @@ describe("tools determinism zone", () => {
     });
   }, 30_000);
 
-  it("the safe Math surface passes lint", () => {
+  it("the safe Math surface passes lint", async () => {
     const source = [
       "export const root = Math.sqrt(2);",
       "export const min = Math.min(1, 2);",
@@ -133,12 +113,15 @@ describe("tools determinism zone", () => {
       "",
     ].join("\n");
 
-    withProbe("__purity_safe_math_probe.ts", source, (file) => {
-      const lint = lintProbe(file);
+    await withProbe("__purity_safe_math_probe.ts", source, async (file) => {
+      const lint = await lintProbe(file);
 
       expect(lint.output).not.toMatch(/no-restricted-properties/);
       expect(lint.output).not.toMatch(/no-restricted-syntax/);
       expect(lint.status).toBe(0);
+      // An ignored probe would only produce a warning (status 0), so prove the
+      // lint actually saw the file instead of passing on an empty result.
+      expect(lint.messages).toEqual([]);
     });
   }, 30_000);
 });

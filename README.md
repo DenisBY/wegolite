@@ -132,6 +132,7 @@ contract.
 | Dev server (port 5173)           | `docker compose up app`                               |
 | Production preview (port 4173)   | `docker compose up preview`                           |
 | Unit tests                       | `docker compose run --rm test`                        |
+| Unit tests (local, no coverage)  | `docker compose run --rm test npm run test:fast`      |
 | Browser tests                    | `docker compose run --rm e2e`                         |
 | Firefox browser tests            | `docker compose run --rm e2e-cross`                   |
 | Content build (regenerate)       | `docker compose run --rm assets`                      |
@@ -230,6 +231,7 @@ browser never parses a plist and never downloads the snapshot.
 - **Chromium posture.** Browser tests run the image's baked Chromium as root with its sandbox disabled, and the preview under test loads only content this repository serves. No third-party page is ever opened. Firefox in the `e2e-cross` image runs under the same localhost-only posture, and `e2e-cross` is not part of `verify`, which stays Chromium-only.
 - **Working tree, not image.** `docker compose run --rm verify` bind-mounts the repository at `/app`, so it checks the edits you can see. Run `docker compose build` first when you need the committed tree verified instead.
 - **Reusing the local preview.** The image sets `CI=1`, so `reuseExistingServer: !process.env.CI` alone cannot turn preview reuse on inside a container. Set `WEGOLITE_REUSE_PREVIEW=1` and keep a `npm run preview` process alive in the **same** container as the Playwright process to reuse it across targeted spec runs; CI leaves reuse off so a stale server fails loudly. Compose services do not share a network namespace, so a preview in a separate container is not visible at `127.0.0.1:4173`.
+- **Local unit loop.** `npm run test:fast` runs Vitest without coverage for a quick local check; `npm run test`, the one `verify` uses, keeps the measured D-19 coverage thresholds. Run it in the container, e.g. `docker compose run --rm test npm run test:fast`. The guard tests now share one ESLint Node API instance instead of spawning `npx eslint` per assertion, which removes most of the unit stage's cold-start cost. The browser suite remains the slow part on SwiftShader.
 
 ## Repository layout
 

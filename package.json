@@ -15,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.sim.json --noEmit",
     "lint": "eslint . && prettier --check .",
     "test": "vitest run --coverage",
+    "test:fast": "vitest run",
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:fast": "playwright test --project=chromium tests/e2e/scene.spec.ts tests/e2e/docking.spec.ts tests/e2e/save-load.spec.ts",
     "test:e2e:cross": "xvfb-run -a playwright test --project=firefox --workers=1",

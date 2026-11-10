@@ -5,10 +5,10 @@ current_phase_name: Hardening & Community Release
 current_plan: 11
 status: executing
 stopped_at: Completed 07-10-PLAN.md
-last_updated: "2026-11-10T13:08:40.898Z"
+last_updated: "2026-11-10T14:56:27.167Z"
 last_activity: 2026-11-10
-last_activity_desc: "Completed quick task 261110-hzd: the document disclaimer stays visible on every station overlay and each station footer sits flush above it"
-state_head: 2c69e9c72a7641619a5da003e7d09a862b49d41d
+last_activity_desc: Completed quick task 261110-l2x: share one ESLint Node API across the guard tests and add a coverage-free local unit loop
+state_head: f2e2cb888c2e38f760cb92a446c52b1d5dd8d06c
 progress:
   total_phases: 7
   completed_phases: 6
@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-10 - Completed quick task 261110-j89: speed up e2e by splitting the WR-04 seam spec into its own Playwright config and making preview reuse an explicit local opt-in
+Last activity: 2026-11-10 - Completed quick task 261110-l2x: share one ESLint Node API across the guard tests and add a coverage-free local unit loop
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -293,6 +293,7 @@ Recent decisions affecting current work:
 | 261110-fnh | Unify the docked, chart and Save/Load footer on one two-line template with live key hints and a priority status line | 2026-11-10 | 9963c66 | [261110-fnh-unify-docked-screen-footer-hints-with-a-](./quick/261110-fnh-unify-docked-screen-footer-hints-with-a-/) |
 | 261110-hzd | Keep the document disclaimer visible on the chart and Save/Load screens and align each station footer flush above it | 2026-11-10 | 07d6371 | [261110-hzd-keep-the-document-disclaimer-visible-on-](./quick/261110-hzd-keep-the-document-disclaimer-visible-on-/) |
 | 261110-j89 | Speed up e2e: split the WR-04 seam spec into its own Playwright config and make preview reuse an explicit local opt-in | 2026-11-10 | 2c69e9c | [261110-j89-speed-up-e2e-split-the-wr-04-seam-spec-i](./quick/261110-j89-speed-up-e2e-split-the-wr-04-seam-spec-i/) |
+| 261110-l2x | Speed up the unit-test loop: share one ESLint Node API across the guard tests and add a coverage-free local script | 2026-11-10 | f2e2cb8 | [261110-l2x-speed-up-unit-tests-replace-guard-test-e](./quick/261110-l2x-speed-up-unit-tests-replace-guard-test-e/) |
 
 ## Deferred Items
 
