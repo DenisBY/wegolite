@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-10 - Completed quick task 261110-b7w: ship and station textures served as WebP
+Last activity: 2026-11-10 - Completed quick task 261110-fnh: docked, chart and Save/Load footers share one two-line template with live key hints
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -55,6 +55,7 @@ Progress: [█████████░] 86% — 62/73 plans complete
 | 261109-s8k | Trim the client ship catalogue to the two entries the game reads and cache the per-step equipment set | 2026-11-09 | 2bf8607 | [261109-s8k-trim-the-client-ship-catalogue](./quick/261109-s8k-trim-the-client-ship-catalogue/) |
 | 261110-a3k | Stop drawing the scene while docked or paused: draw it once, then skip until something changes | 2026-11-10 | 3091706 | [261110-a3k-stop-drawing-unchanging-frames](./quick/261110-a3k-stop-drawing-unchanging-frames/) |
 | 261110-b7w | Serve the ship and station textures as WebP instead of PNG, revising Phase 2 D-20 | 2026-11-10 | 0a955ed | [261110-b7w-re-encode-ship-textures-as-webp](./quick/261110-b7w-re-encode-ship-textures-as-webp/) |
+| 261110-fnh | Unify the docked, chart and Save/Load footer on one two-line template with live key hints and a priority status line | 2026-11-10 | 9963c66 | [261110-fnh-unify-docked-screen-footer-hints-with-a-](./quick/261110-fnh-unify-docked-screen-footer-hints-with-a-/) |
 | 04 | 8 | - | - |
 | 05 | 6 | - | - |
 | 6 | 17 | - | - |
