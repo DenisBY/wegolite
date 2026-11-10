@@ -6,8 +6,8 @@ current_plan: 11
 status: executing
 stopped_at: Completed 07-10-PLAN.md
 last_updated: "2026-11-09T16:33:28.382Z"
-last_activity: 2026-11-09
-last_activity_desc: Phase 6 complete, transitioned to Phase 7
+last_activity: 2026-11-10
+last_activity_desc: Completed quick task 261110-hzd: the document disclaimer stays visible on every station overlay and each station footer sits flush above it
 state_head: fda6f22f8a251a8df954c96c1829e283e5a6ff95
 progress:
   total_phases: 7
@@ -32,7 +32,7 @@ Phase: 7 (Hardening & Community Release) — EXECUTING
 Current Plan: 11
 Total Plans in Phase: 12
 Status: Ready to execute
-Last activity: 2026-11-10 - Completed quick task 261110-fnh: docked, chart and Save/Load footers share one two-line template with live key hints
+Last activity: 2026-11-10 - Completed quick task 261110-hzd: the document disclaimer stays visible on every station overlay and each station footer sits flush above it
 
 Progress: [█████████░] 86% — 62/73 plans complete
 
@@ -50,12 +50,6 @@ Progress: [█████████░] 86% — 62/73 plans complete
 | 01 | 7 | - | - |
 | 02 | 9 | - | - |
 | 03 | 14 | - | - |
-| 261109-q7h | Add an opt-in High graphics quality: finer cloud and relief detail and an atmosphere shell, with Standard unchanged | 2026-11-09 | 133b59b | [261109-q7h-add-opt-in-high-graphics-quality](./quick/261109-q7h-add-opt-in-high-graphics-quality/) |
-| 261109-r4n | Draw Oolite's sky nebulae at High graphics quality, with the four nebula textures vendored from the pinned commit | 2026-11-09 | 99a889b | [261109-r4n-add-sky-nebulae-to-high-quality](./quick/261109-r4n-add-sky-nebulae-to-high-quality/) |
-| 261109-s8k | Trim the client ship catalogue to the two entries the game reads and cache the per-step equipment set | 2026-11-09 | 2bf8607 | [261109-s8k-trim-the-client-ship-catalogue](./quick/261109-s8k-trim-the-client-ship-catalogue/) |
-| 261110-a3k | Stop drawing the scene while docked or paused: draw it once, then skip until something changes | 2026-11-10 | 3091706 | [261110-a3k-stop-drawing-unchanging-frames](./quick/261110-a3k-stop-drawing-unchanging-frames/) |
-| 261110-b7w | Serve the ship and station textures as WebP instead of PNG, revising Phase 2 D-20 | 2026-11-10 | 0a955ed | [261110-b7w-re-encode-ship-textures-as-webp](./quick/261110-b7w-re-encode-ship-textures-as-webp/) |
-| 261110-fnh | Unify the docked, chart and Save/Load footer on one two-line template with live key hints and a priority status line | 2026-11-10 | 9963c66 | [261110-fnh-unify-docked-screen-footer-hints-with-a-](./quick/261110-fnh-unify-docked-screen-footer-hints-with-a-/) |
 | 04 | 8 | - | - |
 | 05 | 6 | - | - |
 | 6 | 17 | - | - |
@@ -291,6 +285,13 @@ Recent decisions affecting current work:
 | 12 | Remove the duplicate screen-switch key list from the station footer; the tab strip already shows it | 2026-11-09 | c07433b | — |
 | 13 | Make the docked station footer a flex row so long Market and Manifest lists scroll above it | 2026-11-09 | c191dfa | — |
 | 14 | Keep the docked shell opaque across the disclaimer strip so the 3D planet no longer shows at the bottom | 2026-11-09 | e43c63e | — |
+| 261109-q7h | Add an opt-in High graphics quality: finer cloud and relief detail and an atmosphere shell, with Standard unchanged | 2026-11-09 | 133b59b | [261109-q7h-add-opt-in-high-graphics-quality](./quick/261109-q7h-add-opt-in-high-graphics-quality/) |
+| 261109-r4n | Draw Oolite's sky nebulae at High graphics quality, with the four nebula textures vendored from the pinned commit | 2026-11-09 | 99a889b | [261109-r4n-add-sky-nebulae-to-high-quality](./quick/261109-r4n-add-sky-nebulae-to-high-quality/) |
+| 261109-s8k | Trim the client ship catalogue to the two entries the game reads and cache the per-step equipment set | 2026-11-09 | 2bf8607 | [261109-s8k-trim-the-client-ship-catalogue](./quick/261109-s8k-trim-the-client-ship-catalogue/) |
+| 261110-a3k | Stop drawing the scene while docked or paused: draw it once, then skip until something changes | 2026-11-10 | 3091706 | [261110-a3k-stop-drawing-unchanging-frames](./quick/261110-a3k-stop-drawing-unchanging-frames/) |
+| 261110-b7w | Serve the ship and station textures as WebP instead of PNG, revising Phase 2 D-20 | 2026-11-10 | 0a955ed | [261110-b7w-re-encode-ship-textures-as-webp](./quick/261110-b7w-re-encode-ship-textures-as-webp/) |
+| 261110-fnh | Unify the docked, chart and Save/Load footer on one two-line template with live key hints and a priority status line | 2026-11-10 | 9963c66 | [261110-fnh-unify-docked-screen-footer-hints-with-a-](./quick/261110-fnh-unify-docked-screen-footer-hints-with-a-/) |
+| 261110-hzd | Keep the document disclaimer visible on the chart and Save/Load screens and align each station footer flush above it | 2026-11-10 | 07d6371 | [261110-hzd-keep-the-document-disclaimer-visible-on-](./quick/261110-hzd-keep-the-document-disclaimer-visible-on-/) |
 
 ## Deferred Items
 
