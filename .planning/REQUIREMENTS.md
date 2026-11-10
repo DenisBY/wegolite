@@ -105,6 +105,8 @@ Deferred to a future release. Tracked but not in the current roadmap.
 
 ### Combat
 
+Combat comes first in v2: without danger, trading carries no risk, credits only grow and there is nothing to spend them on. CBT-01 and CBT-02 give the rest of the progression its weight.
+
 - **CBT-01**: Player can fire lasers and manage shields, energy, and missiles
 - **CBT-02**: Pirate and police NPC ships spawn with AI and bounty
 - **CBT-03**: Damage, destruction, and escape-pod outcomes work
@@ -121,9 +123,12 @@ Deferred to a future release. Tracked but not in the current roadmap.
 - **PRES-01**: Sound effects and music with autoplay-safe handling
 - **PRES-02**: Mobile and touch controls
 - **PRES-03**: Tutorial overlay guiding launch, torus, compass, docking, and the first trade run
-- **PRES-04**: Multiple save slots with JSON export/import
+- **PRES-04**: Multiple save slots with JSON export/import (until then a manual save writes the same single slot as the autosave, so its overwrite prompt protects nothing; export also gives a way out of two tabs overwriting each other)
 - **PRES-05**: Slow autopilot docking behaviour for the docking computer
 - **PRES-06**: ANA route plotting and advanced compass modes
+- **PRES-07**: Gamepad and mouse flight controls (manual docking on an analogue stick)
+- **PRES-08**: Offline play as an installable PWA (the shipped build already makes no runtime network calls)
+- **PRES-09**: Trading conveniences that do not change the rules: remembered prices of visited systems on the chart, and the profit on the cargo in the hold
 
 ## Out of Scope
 

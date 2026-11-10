@@ -2,6 +2,44 @@
 
 Reviewed at commit `d685c25` (branch `main`).
 
+## Status on 2026-11-10
+
+This file is a dated review, not a live tracker. The findings below are kept as
+written, with a note under each one that has since been acted on. Line numbers
+are those of commit `d685c25` and no longer match `src/app/game-session.ts`,
+which has changed since.
+
+| ID  | Status                                                                        |
+| --- | ----------------------------------------------------------------------------- |
+| M1  | Open by decision D-11; lowered to Low                                         |
+| M2  | Fixed, quick task 261110-d6m                                                  |
+| M3  | Fixed, quick task 261110-d6m                                                  |
+| M4  | Open; still unverified in a browser                                           |
+| M5  | Accepted by the owner (local-network testing); see PROJECT.md Key Decisions   |
+| M6  | Fixed, quick task 261110-d6m; not yet exercised on GitHub                     |
+| L7  | Mostly fixed by quick task 261110-fnh (live footer hints); see the note at L7 |
+| P1  | Done, quick task 261110-b7w                                                   |
+| P2  | Done, quick task 261109-s8k                                                   |
+| P3  | Measured and left; see `docs/PERFORMANCE.md`                                  |
+| P4  | Done, quick task 261110-a3k                                                   |
+| P6  | Partly: a quality setting exists (261109-q7h); no Low level for weak GPUs     |
+| P7  | Equipment set cached (261109-s8k); the rest open                              |
+| P8  | Colour done, quick task 261110-c4d; gloss open                                |
+
+Section 4 (visual gaps): both gaps are closed at the High graphics quality
+(quick tasks 261109-q7h and 261109-r4n); Standard is unchanged by design.
+
+The gameplay suggestions of sections 2 and 3 were moved into the backlog on
+2026-11-10: four files under `.planning/todos/pending/2026-11-10-*.md` (planet
+and sun collision, the chart pausing the flight, the torus refusal message,
+behaviour below 24 fps) and `REQUIREMENTS.md` (PRES-07 to PRES-09, notes on
+PRES-04 and on the order of combat in v2).
+
+Not re-checked against the current code: L1 to L6, L8 to L13, I1 to I4, P5,
+and sections 2, 3 and 6. They were true at `d685c25`; the station footer, the
+tab strip and the test tooling have been reworked since by other tasks, so
+confirm each against the source before acting on it.
+
 ## Scope and method
 
 Static read of the source; nothing was executed, so no finding here has been
@@ -89,6 +127,9 @@ note in the row description is enough), and correct the README sentence.
 
 ### M2 — A newer-version settings blob is overwritten on the first persist
 
+*Fixed in quick task 261110-d6m: `saveSettings` reads the stored blob at every
+write and refuses to replace a newer one.*
+
 `loadSettings` (`src/settings/store.ts`, the `isNewerSettingsVersion` branch)
 returns defaults for a blob written by a newer build and logs that it is "using
 defaults without overwriting it". `saveSettings` has no such guard, and the
@@ -105,6 +146,9 @@ Fix: remember that the stored blob was newer and make `persistSettings` a no-op
 for the session, as the save path does.
 
 ### M3 — A failed `start()` leaves a dead title screen, and New game clears the save first
+
+*Fixed in quick task 261110-d6m: `start()` reports every throw on the failure
+surface, and the clear runs after the last load that can fail.*
 
 Two related problems in `start()` (`src/app/game-session.ts:2783`).
 
@@ -146,6 +190,9 @@ run before the store closes.
 
 ### M5 — Dev and preview servers are published on every host interface
 
+*Accepted by the owner on 2026-11-10 and left as it is: the game is tested from
+another machine on the local network. See PROJECT.md Key Decisions.*
+
 `compose.yaml` publishes `"5173:5173"` and `"4173:4173"`, which Docker binds to
 `0.0.0.0` on the host. Anyone on the same network can reach the Vite dev server,
 which serves the bind-mounted working tree and has a history of file-read
@@ -156,6 +203,10 @@ Fix: publish on loopback only, `"127.0.0.1:5173:5173"` and
 `"127.0.0.1:4173:4173"`. The in-container `host: "0.0.0.0"` stays as it is.
 
 ### M6 — The Pages deploy is not gated on the verify workflow
+
+*Fixed in quick task 261110-d6m: `pages.yml` runs on a successful `verify` run
+for a push to `main` and builds the commit that run checked. Not exercised on
+GitHub yet.*
 
 `.github/workflows/pages.yml` and `.github/workflows/verify.yml` both trigger on
 a push to `main` and run independently. `pages.yml` only builds; it runs no
@@ -239,6 +290,11 @@ Fix: refuse to clear `pause`, or keep `Escape`/`KeyP` as a fixed fallback.
 `CONTEXT_RESTORED_NOTICE` ("press P", `src/app/context-recovery.ts:29-30`) print
 default key names. Only the launch hint uses `primaryKeyLabel`. After a rebind
 the footer tells the player to press keys that no longer work.
+
+*Mostly fixed by quick task 261110-fnh: `src/ui/station-hints.ts` builds the
+footer hints from the live binding map. Still literal: the `[Y/N]` in the
+confirmation prompts (`src/ui/station-model.ts`, `src/ui/save-load.ts`) and the
+"press P" in `CONTEXT_RESTORED_NOTICE`.*
 
 ### L8 — The launch-skip handler swallows every unmodified key
 
@@ -412,6 +468,9 @@ The cheap items from the findings above, plus one that widens M1.
 
 ### 4. Visual gaps against Oolite
 
+*Both gaps below are closed at the opt-in High graphics quality (quick tasks
+261109-q7h and 261109-r4n). The text is kept as the reasoning behind them.*
+
 Neither gap below is a WebGL2 limit. Both are recorded scope choices.
 
 - **No nebulae in the sky.** Oolite draws `sky_n_blurs` textured nebula quads
@@ -489,7 +548,9 @@ download size, fragment shading and work done when nothing changes.
   whole scene graph in `maxRelativeMagnitude` (`src/render/sync.ts:138-149`).
   Only the e2e suite reads the result. Update the cheap scalar fields each
   frame and compute the rest on demand (getters), or only under `?test=1`.
-- **P6 — No quality control for weak GPUs.** The renderer uses MSAA and a pixel
+- **P6 — No quality control for weak GPUs.** *A quality setting exists since
+  quick task 261109-q7h, but it raises quality (High) rather than lowering it;
+  a pixel-ratio cap or a Low level for weak GPUs is still open.* The renderer uses MSAA and a pixel
   ratio of up to 2 (`src/app/boot.ts:50-57`, `:85`), and the planet shader runs
   nine noise evaluations per covered pixel. Near a planet on a 4K display that
   is a full-screen expensive shader, and below 24 fps the game runs in slow
