@@ -166,6 +166,9 @@ export function serializeFlight(state: FlightState): string {
     `launchElapsed=${canon(state.launchElapsed, 6)}`,
     `launchCount=${canon(state.launchCount, 0)}`,
     `compass=${state.compassTarget}`,
+    // The mode decides what the next `cycleCompass` does, so two states that
+    // differ only in it must not hash equal.
+    `compassMode=${state.compassMode}`,
     `dockArmed=${String(state.dockArmed)}`,
     `dockCount=${canon(state.dockCount, 0)}`,
     `scrapeTicks=${canon(state.scrapeTicks, 0)}`,

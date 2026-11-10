@@ -18,11 +18,8 @@ import type { ControlIntent } from "../../src/sim/flight/controller.js";
 import { hashFlight, initFlightState } from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
-import {
-  DT,
-  MAX_FRAME_DELTA,
-  MAX_STEPS_PER_FRAME,
-} from "../../src/sim/time.js";
+import { DT, MAX_STEPS_PER_FRAME } from "../../src/sim/time.js";
+import { clampFrameDelta } from "../../src/sim/loop.js";
 import { laveFixture } from "../helpers/lave.js";
 
 const fixture = laveFixture();
@@ -66,7 +63,7 @@ function runFlightToSteps(
     if (frameIndex >= frames.length) {
       throw new Error("frame list exhausted before target step count");
     }
-    accumulator += Math.min(frames[frameIndex++] ?? 0, MAX_FRAME_DELTA);
+    accumulator += clampFrameDelta(frames[frameIndex++] ?? 0);
 
     let stepsThisFrame = 0;
     while (

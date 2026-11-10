@@ -11,6 +11,25 @@ export interface LoopResult {
 }
 
 /**
+ * The time one frame may add to the accumulator: the delta, held to
+ * `[0, MAX_FRAME_DELTA]`. A negative delta would take time back out of the
+ * accumulator and a non-finite one would poison it, so a replay fed either
+ * would hash a state no real run can reach. The live loop
+ * (`src/app/game-loop.ts`) clamps the same way.
+ *
+ * @throws {RangeError} when `delta` is NaN or infinite: a frame log that holds
+ *   one is damaged, and clamping it would hide that.
+ */
+export function clampFrameDelta(delta: number): number {
+  if (!Number.isFinite(delta)) {
+    throw new RangeError(
+      `Wegolite: a frame delta must be finite (received ${String(delta)}).`,
+    );
+  }
+  return Math.min(Math.max(delta, 0), MAX_FRAME_DELTA);
+}
+
+/**
  * Drive the accumulator with explicit frame deltas.
  *
  * The input log is indexed by TICK, not by frame: a determinism harness must
@@ -39,7 +58,7 @@ export function runToSteps(
     if (frameIndex >= frames.length) {
       throw new Error("frame list exhausted before target step count");
     }
-    accumulator += Math.min(frames[frameIndex++] ?? 0, MAX_FRAME_DELTA);
+    accumulator += clampFrameDelta(frames[frameIndex++] ?? 0);
 
     let stepsThisFrame = 0;
     while (
