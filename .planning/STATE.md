@@ -3,11 +3,11 @@ gsd_state_version: "1.0"
 current_phase: 7
 current_phase_name: Hardening & Community Release
 current_plan: 12
-status: complete
-stopped_at: Completed 07-11-PLAN.md
-last_updated: "2026-11-10T20:00:00.000Z"
+status: milestone_archived
+stopped_at: Milestone v1.0 archived; no milestone in progress
+last_updated: "2026-11-10T21:00:00.000Z"
 last_activity: 2026-11-10
-last_activity_desc: Closed the Phase 7 bookkeeping; last quick task 261110-f2r
+last_activity_desc: Archived milestone v1.0 to .planning/milestones/ (ROADMAP and REQUIREMENTS copies, MILESTONES.md entry); QUAL-01 left open
 state_head: f2e2cb888c2e38f760cb92a446c52b1d5dd8d06c
 progress:
   total_phases: 7
@@ -24,15 +24,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-06)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** All seven v1 phases are complete and `v0.1.0` is published. Open: QUAL-01 (frame-rate evidence on the reference desktop, deferred by the owner on 2026-11-08). Work since the tag is recorded as quick tasks below and is unreleased.
+**Current focus:** No milestone is in progress. Milestone v1.0 (Phases 1-7) shipped as `v0.1.0` on 2026-11-08 and is archived in `.planning/milestones/v1.0-ROADMAP.md` and `.planning/milestones/v1.0-REQUIREMENTS.md`. Open: QUAL-01 (frame-rate evidence on the reference desktop, deferred by the owner on 2026-11-08). Start the next milestone with `/gsd-new-milestone`. Work since the tag is recorded as quick tasks below and is unreleased in this milestone.
 
 ## Current Position
 
-Phase: 7 (Hardening & Community Release) — COMPLETE
-Current Plan: 12 of 12
+Phase: none in progress (last completed: Phase 7, Hardening & Community Release)
+Current Plan: none (v1.0 archived)
 Total Plans in Phase: 12
-Status: Phase complete; milestone v1 not yet archived
-Last activity: 2026-11-10 - Closed the Phase 7 bookkeeping (plan 07-11 was completed on 2026-11-08 at release commit 0693e17); last quick task 261110-f2r
+Status: Milestone v1.0 archived on 2026-11-10; no milestone in progress
+Last activity: 2026-11-10 - Archived milestone v1.0 (73 of 73 plans; 67 of 68 v1 requirements complete, QUAL-01 open and deferred)
 
 Progress: [██████████] 100% — 73/73 plans complete
 
@@ -305,7 +305,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 | Category | Item | Status | Deferred At | Milestone |
 |----------|------|--------|-------------|-----------|
-| *(none)* | | | | |
+| requirement | QUAL-01: 60 fps at 1080p on mid-range desktop hardware (Phase 7) | Open, deferred by the owner | 2026-11-08 | v1.0 |
 
 ## Session Continuity
 

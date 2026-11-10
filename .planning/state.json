@@ -2,6 +2,19 @@
   "contract": "1.0.0",
   "flavor": "core",
   "milestone": null,
+  "milestone_status": "none_in_progress",
+  "archived_milestones": [
+    {
+      "version": "v1.0",
+      "name": "Wegolite v1 Core Loop",
+      "shipped": "2026-11-08",
+      "archived": "2026-11-10",
+      "release_tag": "v0.1.0",
+      "roadmap_archive": ".planning/milestones/v1.0-ROADMAP.md",
+      "requirements_archive": ".planning/milestones/v1.0-REQUIREMENTS.md",
+      "open_requirements": ["QUAL-01"]
+    }
+  ],
   "phases": [
     {
       "number": "1",
@@ -40,9 +53,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 7 of 7 · 86% · executing"
+    "command": "/gsd-new-milestone",
+    "label": "Start the next milestone",
+    "reason": "Milestone v1.0 archived 2026-11-10; no milestone in progress; QUAL-01 open and deferred"
   },
-  "updated_at": "2026-11-08T10:48:10.897Z"
+  "updated_at": "2026-11-10T21:00:00.000Z"
 }
