@@ -44,6 +44,26 @@ Include this block in every reviewer, verifier, auditor, explorer, or executor p
 - A reproduction that needs a scratch script or test must live under `/tmp` and be mounted into the container: `docker compose run --rm -v /tmp/<dir>:/scratch test ...`. Never add scratch files to the repository.
 - Read-only reviewers must not modify tracked files; report findings instead.
 
+## Delegating simple tasks
+
+Always hand a simple task to the cheapest available model (a subagent on the
+smallest model tier) instead of doing it on the main, expensive model.
+
+- A task is simple when it is mechanical and its result is easy to check:
+  bookkeeping in `.planning/` (archiving, status rows, moving todos), renames
+  and other find-and-replace edits, formatting, bumping a version string,
+  copying a pattern that already exists, collecting facts from named files.
+- Keep on the main model anything that needs judgement or carries risk:
+  design and debugging, simulation and rendering code, save-format and
+  persistence changes, security, licensing and provenance, and any decision
+  that revises a recorded one.
+- The brief must stand on its own: the goal, the exact files in scope, what
+  must not be touched, and the "Reviewer and subagent brief" block above. Say
+  explicitly that the subagent must not commit, push or tag unless that is the
+  task.
+- The main agent stays responsible for the result: read the subagent's changes
+  before committing them, and run the checks the change calls for.
+
 ## Docker workflow
 
 The Compose file is the entry point for every task. Expected commands:
