@@ -660,9 +660,12 @@ test("the footer hints fit one line and the disabled and selected states are leg
   await tab(page, "docked", "status").click();
   await waitForScreen(page, "status");
   await expect(hints).toContainText("Tab/PageDown next page");
+  await expect(footer).toContainText("Tab/PageDown next page");
   // The footer never repeats the tab strip's screen-switch list.
   await expect(hints).not.toContainText("outfitting");
   await expect(hints).not.toContainText("market");
+  await expect(footer).not.toContainText("outfitting");
+  await expect(footer).not.toContainText("market");
 
   // A confirmation raises the status line without changing either height: the
   // empty line and the text line are the same reserved line box.
@@ -770,12 +773,100 @@ test("a rebind refreshes the docked and chart footer hints without a reload", as
   await expect(dockedHints).toContainText("K confirm");
   await expect(dockedHints).not.toContainText("Enter/Y confirm");
 
-  // The same refresh path reaches the chart overlay once Task 3 mounts its
-  // footer; here the docked footer proves the live rebind.
+  // The same refresh path reaches the chart overlay's footer.
   await page.keyboard.press("F6");
   await waitForChart(page, true);
+  const chartHints = page.locator('#chart [data-footer-role="hints"]');
+  await expect(chartHints).toContainText("G: preset");
+  await expect(chartHints).not.toContainText("Tab: preset");
   await page.keyboard.press("Escape");
   await waitForChart(page, false);
+
+  expect(errors).toEqual([]);
+});
+
+test("the chart and Save/Load footers stay in flow and never cover content", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+
+  await page.keyboard.press("F6");
+  await waitForChart(page, true);
+  await page.waitForFunction(
+    () =>
+      Number(
+        document.getElementById("chart-canvas")?.getAttribute("data-paints") ??
+          "0",
+      ) >= 1,
+    undefined,
+    { timeout: 30_000 },
+  );
+  await settleFrames(page);
+
+  const chartFooter = page.locator("#chart .station-footer");
+  await expect(chartFooter).toHaveCount(1);
+  await expect(chartFooter.locator("[data-footer-role]")).toHaveCount(2);
+  expect(
+    await chartFooter.evaluate((element) => getComputedStyle(element).position),
+  ).toBe("static");
+  const canvasBox = await page.locator("#chart-canvas").boundingBox();
+  const chartFooterBox = await chartFooter.boundingBox();
+  const viewportHeight = await page.evaluate(() => window.innerHeight);
+  expect(canvasBox).not.toBeNull();
+  expect(chartFooterBox).not.toBeNull();
+  if (canvasBox !== null && chartFooterBox !== null) {
+    // The plot ends above the in-flow footer: no occlusion of the canvas.
+    expect(canvasBox.y + canvasBox.height).toBeLessThanOrEqual(
+      chartFooterBox.y + 1,
+    );
+    expect(chartFooterBox.y + chartFooterBox.height).toBeLessThanOrEqual(
+      viewportHeight + 1,
+    );
+  }
+  const backing = await page.evaluate(() => {
+    const canvas = document.getElementById("chart-canvas");
+    if (!(canvas instanceof HTMLCanvasElement)) {
+      throw new Error("the chart canvas is missing");
+    }
+    return {
+      height: canvas.height,
+      expected: Math.round(
+        canvas.clientHeight * Math.min(window.devicePixelRatio || 1, 2),
+      ),
+    };
+  });
+  // The backing store follows the shrunken CSS box, so the plot is painted at
+  // the height that is actually visible.
+  expect(backing.height).toBe(backing.expected);
+  await expect(page.locator('#chart [data-footer-role="hints"]')).toContainText(
+    "Tab: preset",
+  );
+  await page.keyboard.press("Escape");
+  await waitForChart(page, false);
+
+  await page.keyboard.press("F2");
+  await waitForSaveScreen(page, true);
+  const saveFooter = page.locator("#save-load .station-footer");
+  await expect(saveFooter).toHaveCount(1);
+  await expect(saveFooter.locator("[data-footer-role]")).toHaveCount(2);
+  const saveSectionBox = await page.locator("#save-load-screen").boundingBox();
+  const saveFooterBox = await saveFooter.boundingBox();
+  expect(saveSectionBox).not.toBeNull();
+  expect(saveFooterBox).not.toBeNull();
+  if (saveSectionBox !== null && saveFooterBox !== null) {
+    expect(saveSectionBox.y + saveSectionBox.height).toBeLessThanOrEqual(
+      saveFooterBox.y + 1,
+    );
+    expect(saveFooterBox.y + saveFooterBox.height).toBeLessThanOrEqual(
+      viewportHeight + 1,
+    );
+  }
+  await expect(
+    page.locator('#save-load [data-footer-role="hints"]'),
+  ).toContainText("Esc return");
+  await page.keyboard.press("Escape");
+  await waitForSaveScreen(page, false);
 
   expect(errors).toEqual([]);
 });

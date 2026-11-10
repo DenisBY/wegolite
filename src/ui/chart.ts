@@ -18,7 +18,9 @@
  *
  * Every dynamic string is written with `textContent`. The overlay is a sibling
  * of `#docked` and contains no `<footer>` element; the document disclaimer
- * stays the only one.
+ * stays the only one. Its bottom area is the shared two-line station footer:
+ * the session pushes the live key hints, and the readout is one info status
+ * line.
  */
 
 import { CHART_FONT, drawChart, needsChartRepaint } from "./chart-draw.js";
@@ -30,12 +32,11 @@ import {
   zoomChartCamera,
 } from "./chart-model.js";
 import type { ChartCamera, ChartView, ChartViewport } from "./chart-model.js";
+import { createStationFooter } from "./station-footer.js";
 
 const MAX_DEVICE_PIXEL_RATIO = 2;
 const HIT_RADIUS = 14;
 const DRAG_THRESHOLD = 3;
-const KEY_HINT =
-  "Click: select · Arrows: next · Tab: preset · Enter: commit · Esc: close";
 
 /** The chart shell was handed markup it cannot drive. */
 export class ChartError extends Error {
@@ -69,6 +70,8 @@ export interface ChartOverlay {
   ): void;
   /** The current CSS-pixel canvas size. */
   viewport(): ChartViewport;
+  /** Write the live key-hint line; the session owns the binding map. */
+  setHints(text: string): void;
   /** Offer a new view; repaint only when the policy agrees. */
   view(next: ChartView): void;
   hide(): void;
@@ -122,26 +125,7 @@ export function createChart(root: HTMLElement): ChartOverlay {
     "#chart-canvas",
     'the "#chart-canvas" canvas',
   );
-  const targetField = requireElement<HTMLElement>(
-    overlay,
-    '[data-field="chart-target"]',
-    'the "chart-target" field',
-  );
-  const distanceField = requireElement<HTMLElement>(
-    overlay,
-    '[data-field="chart-distance"]',
-    'the "chart-distance" field',
-  );
-  const fuelField = requireElement<HTMLElement>(
-    overlay,
-    '[data-field="chart-fuel"]',
-    'the "chart-fuel" field',
-  );
-  const keysField = requireElement<HTMLElement>(
-    overlay,
-    '[data-field="chart-keys"]',
-    'the "chart-keys" field',
-  );
+  const footer = createStationFooter(overlay);
   const tooltip = requireElement<HTMLElement>(
     overlay,
     "#chart-tooltip",
@@ -211,13 +195,15 @@ export function createChart(root: HTMLElement): ChartOverlay {
       readout !== undefined && readout.reason !== undefined
         ? ` (${readout.reason})`
         : "";
-    targetField.textContent =
+    // One information line: target · distance · fuel. The old separate amber
+    // target line is intentionally replaced by this single info-tone line.
+    const target =
       readout === undefined ? "No system" : `${readout.name}${reason}`;
-    distanceField.textContent =
+    const distance =
       readout === undefined ? "--" : `${readout.distanceLy.toFixed(1)} LY`;
-    fuelField.textContent =
+    const fuel =
       readout === undefined ? "--" : `${String(readout.fuelCost)} fuel units`;
-    keysField.textContent = KEY_HINT;
+    footer.setStatus({ info: `${target} · ${distance} · ${fuel}` });
   }
 
   /** Hide the hover card without forgetting where the pointer is. */
@@ -508,7 +494,11 @@ export function createChart(root: HTMLElement): ChartOverlay {
     resizeObserver = new ResizeObserver(() => {
       handleResize();
     });
+    // The in-flow footer changes the canvas height on mount and on any footer
+    // reflow; observing it as well makes that resize repaint the plot at the
+    // new viewport instead of leaving a stale projection.
     resizeObserver.observe(canvas);
+    resizeObserver.observe(footer.element);
   } else {
     window.addEventListener("resize", handleResize, {
       signal: controller.signal,
@@ -536,6 +526,9 @@ export function createChart(root: HTMLElement): ChartOverlay {
       tooltipBuilder = build;
     },
     viewport,
+    setHints(text: string): void {
+      footer.setHints(text);
+    },
     view(next: ChartView): void {
       const completed = complete(next);
       if (!needsChartRepaint(current, completed)) return;
@@ -562,6 +555,7 @@ export function createChart(root: HTMLElement): ChartOverlay {
       resetGestures();
       resizeObserver?.disconnect();
       resizeObserver = undefined;
+      footer.dispose();
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.clearRect(0, 0, canvas.width, canvas.height);
       current = undefined;

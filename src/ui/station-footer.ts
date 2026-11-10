@@ -89,7 +89,7 @@ export function createStationFooter(host: HTMLElement): StationFooter {
 
   host.append(element);
 
-  let parts: FooterStatusParts = {};
+  const parts: FooterStatusParts = {};
   let disposed = false;
 
   return {

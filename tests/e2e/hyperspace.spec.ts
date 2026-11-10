@@ -216,12 +216,13 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
     DISO.id,
     { timeout: 30_000 },
   );
-  await expect(page.locator('[data-field="chart-distance"]')).toHaveText(
-    DISO_DISTANCE_LY,
-  );
-  await expect(page.locator('[data-field="chart-fuel"]')).toHaveText(
+  const chartStatus = page.locator('#chart [data-footer-role="status"]');
+  await expect(chartStatus).toContainText("Diso");
+  await expect(chartStatus).toContainText(DISO_DISTANCE_LY);
+  await expect(chartStatus).toContainText(
     `${String(DISO_FUEL_COST)} fuel units`,
   );
+  await expect(chartStatus).toHaveAttribute("data-status-tone", "info");
   // A click only selects (D-02); it is a repaint, not a new frame loop.
   expect(await paintCount(page)).toBeGreaterThan(paintsBefore);
 

@@ -293,6 +293,10 @@ test("a manual Save writes the one committed slot and the next Save asks before 
   expect((await getProbe(page)).save?.status).toBe("absent");
   await page.keyboard.press("F2");
   await expect(page.locator("#save-load")).toBeVisible();
+  const saveStatus = page.locator('#save-load [data-footer-role="status"]');
+  await expect(saveStatus).toHaveText("");
+  const emptyStatusBox = await saveStatus.boundingBox();
+  expect(emptyStatusBox).not.toBeNull();
   const clockBefore = Math.floor((await getProbe(page)).clock);
 
   // An absent slot writes immediately: no confirmation on the first Save.
@@ -341,14 +345,26 @@ test("a manual Save writes the one committed slot and the next Save asks before 
   );
   await expect(page.locator("#save-load-confirm")).toBeVisible();
   await expect(page.locator("#save-load-confirm-cancel")).toBeFocused();
-  await expect(page.locator('[data-field="save-load-confirm"]')).toHaveText(
-    "Overwrite the autosave? [Y/N]",
-  );
+  await expect(saveStatus).toHaveText("Overwrite the autosave? [Y/N]");
+  await expect(saveStatus).toHaveAttribute("data-status-tone", "confirm");
+  const confirmStatusBox = await saveStatus.boundingBox();
+  expect(confirmStatusBox).not.toBeNull();
+  expect(
+    Math.abs((confirmStatusBox?.height ?? 0) - (emptyStatusBox?.height ?? 0)),
+  ).toBeLessThanOrEqual(1);
 
   // Cancel leaves the blob byte-identical and reports no new revision.
   const bytesBeforeCancel = await readRaw(page);
   await page.keyboard.press("KeyN");
   await expect(page.locator("#save-load-confirm")).toBeHidden();
+  await expect(saveStatus).toHaveText("");
+  await expect(saveStatus).toHaveAttribute("data-status-tone", "");
+  const afterCancelStatusBox = await saveStatus.boundingBox();
+  expect(
+    Math.abs(
+      (afterCancelStatusBox?.height ?? 0) - (emptyStatusBox?.height ?? 0),
+    ),
+  ).toBeLessThanOrEqual(1);
   expect(await readRaw(page)).toBe(bytesBeforeCancel);
   const afterCancel = await getProbe(page);
   expect(afterCancel.save?.committed).toBe(1);
@@ -409,7 +425,9 @@ test("the overwrite dialog: mouse Cancel, mouse Accept and Enter on Cancel each 
   await waitForConfirming(page);
   await page.click("#save-load-confirm-cancel");
   await expect(page.locator("#save-load-confirm")).toBeHidden();
-  await expect(page.locator('[data-field="save-load-confirm"]')).toHaveText("");
+  await expect(
+    page.locator('#save-load [data-footer-role="status"]'),
+  ).toHaveText("");
   await expect(page.locator("#save-load-screen")).toBeFocused();
   const afterMouseCancel = await getProbe(page);
   expect(afterMouseCancel.saveScreen?.confirming).toBe(false);

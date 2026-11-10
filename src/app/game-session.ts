@@ -149,7 +149,7 @@ import { createChart } from "../ui/chart.js";
 import type { ChartOverlay } from "../ui/chart.js";
 import { createSaveLoadScreen } from "../ui/save-load.js";
 import type { SaveLoadScreen } from "../ui/save-load.js";
-import { dockedHints } from "../ui/station-hints.js";
+import { chartHints, dockedHints, saveLoadHints } from "../ui/station-hints.js";
 import { formatClock } from "../render/hud/format.js";
 import {
   buildChartView,
@@ -876,9 +876,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     );
   }
 
-  /** Refresh the strip and the registry-generated hints after a rebind. */
+  /** Refresh the strip and every footer's live hints after a rebind. */
   function refreshStationChrome(): void {
+    const map = bindings ?? DEFAULT_BINDINGS;
     if (state?.mode === "docked") renderStation();
+    chart?.setHints(chartHints(map));
+    saveLoad?.setHints(saveLoadHints(map));
     syncStationNav();
   }
 
@@ -3056,6 +3059,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const bindingMap = createBindingMap(loaded.bindings);
     settings = { ...loaded, bindings: bindingMap };
     bindings = bindingMap;
+    // Both overlay footers get their default hints before first open, and a
+    // restored in-flight session (which never runs renderStation) still gets
+    // the chart and Save/Load hint lines.
+    refreshStationChrome();
     launchSeen = loaded.launchSeen;
     if (launchSeen) launchSequence.markSeen();
     hints = createHintController({

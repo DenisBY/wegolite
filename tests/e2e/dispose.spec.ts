@@ -107,6 +107,8 @@ test("pagehide tears the session down and a reload starts from the same baseline
   // Teardown withdraws the test surface with the session: the hook belongs to
   // the session it can drive, so it cannot outlive it.
   expect(await page.evaluate(() => window.__wegolite?.test)).toBeUndefined();
+  // All three shared footer clones are disposed with their overlay components.
+  expect(await page.locator(".station-footer").count()).toBe(0);
 
   // A fresh document boots cleanly and the counters start from the same
   // baseline rather than accumulating across loads.

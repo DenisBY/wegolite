@@ -11,13 +11,16 @@
  *
  * Every dynamic string goes through `textContent`. The screen reuses the
  * station header/footer language but its footer is a `div`: the document keeps
- * exactly one `<footer>` element.
+ * exactly one `<footer>` element. The footer is the shared two-line component;
+ * the overwrite prompt is its `confirm` status part.
  *
  * The overwrite confirmation copies `title.ts`: a static `alertdialog`, the
  * safe action (`Cancel`) takes focus so a stray Enter cannot replace the only
  * save, Escape is handled by the session's `saveScreenReturn` action (it
  * cancels the dialog while it is open), and Tab is trapped inside the panel.
  */
+
+import { createStationFooter } from "./station-footer.js";
 
 /** The three rows of the screen, in display order. */
 export type SaveRow = "save" | "load" | "return";
@@ -30,6 +33,8 @@ export interface SaveLoadScreen {
   hide(): void;
   setSlot(text: string): void;
   setNotice(text: string): void;
+  /** Write the live key-hint line; the session owns the binding map. */
+  setHints(text: string): void;
   /** Move the highlighted row; wraps in display order. */
   moveSelection(delta: number): SaveRow;
   selection(): SaveRow;
@@ -89,9 +94,6 @@ function requireButton(root: HTMLElement, id: string): HTMLButtonElement {
   return element;
 }
 
-const KEY_HINTS =
-  "Up/Down select · Enter activate · Y confirm · N cancel · S save · L load · Esc return";
-
 export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
   const overlay = requireElement<HTMLElement>(
     root,
@@ -113,16 +115,7 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
     '[data-field="save-load-notice"]',
     "the notice line",
   );
-  const keysField = requireElement<HTMLElement>(
-    overlay,
-    '[data-field="save-load-keys"]',
-    "the key hints",
-  );
-  const confirmField = requireElement<HTMLElement>(
-    overlay,
-    '[data-field="save-load-confirm"]',
-    "the confirmation line",
-  );
+  const footer = createStationFooter(overlay);
   const dialog = requireElement<HTMLElement>(
     overlay,
     "#save-load-confirm",
@@ -151,8 +144,6 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
   let returnHandler: (() => void) | undefined;
   let overwriteHandler: (() => void) | undefined;
   let overwriteCancelHandler: (() => void) | undefined;
-
-  keysField.textContent = KEY_HINTS;
 
   function applySelection(): void {
     for (const row of ROWS) {
@@ -246,7 +237,11 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
   function setConfirming(next: boolean): void {
     confirming = next;
     dialog.hidden = !next;
-    confirmField.textContent = next ? "Overwrite the autosave? [Y/N]" : "";
+    // Never hide the status line: clearing the confirm part leaves the reserved
+    // line in flow with the live hints above it.
+    footer.setStatus({
+      confirm: next ? "Overwrite the autosave? [Y/N]" : "",
+    });
   }
 
   /**
@@ -288,6 +283,9 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
     },
     setNotice(text: string): void {
       noticeField.textContent = text;
+    },
+    setHints(text: string): void {
+      footer.setHints(text);
     },
     moveSelection(delta: number): SaveRow {
       const index = ROWS.indexOf(selected);
@@ -340,6 +338,7 @@ export function createSaveLoadScreen(root: HTMLElement): SaveLoadScreen {
     },
     dispose(): void {
       controller.abort();
+      footer.dispose();
     },
   };
 }

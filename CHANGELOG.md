@@ -19,6 +19,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The docked station, F6 chart and F2 Save/Load screens share one two-line
+  footer: live key hints above a single status line. The footer height no
+  longer changes when a confirmation or save notice appears, and every key
+  label follows a rebound key.
 - The F6 chart and F2 Save/Load headers show the live credit balance instead of
   a static key label.
 - The station footer no longer repeats the screen-switch key list already shown
@@ -42,6 +46,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The F6 chart plot is no longer partly hidden under the footer; the canvas and
+  the station and Save/Load content end above it at 1280x720.
 - The station footer no longer covers the bottom of long Market and Manifest
   lists; the screen scrolls above it.
 - The docked shell now covers the full viewport, so the planet no longer shows
