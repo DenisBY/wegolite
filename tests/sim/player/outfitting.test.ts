@@ -10,7 +10,7 @@
  * never the 2 dc unit price.
  *
  * Boundary cases are exact: TL equal vs one below, credits equal vs one short,
- * missile 2/3 vs 3/3, berth 6/7 vs 7/7, a 20 t fifth berth (4 free pods) vs a
+ * missile 3/4 vs 4/4, berth 6/7 vs 7/7, a 20 t fifth berth (4 free pods) vs a
  * 35 t seventh berth (5 free pods), and 72/140 dc fuel fills.
  */
 
@@ -264,17 +264,17 @@ describe("fuel", () => {
 });
 
 describe("multi-instance counts", () => {
-  it("refuses a fourth missile at 3/3 and allows 2/3", () => {
+  it("refuses a fifth missile at 4/4 and allows the fourth at 3/4", () => {
     expect(
       checkFit(
-        makeProfile({ missiles: 3, credits: 300 }),
+        makeProfile({ missiles: 4, credits: 300 }),
         missile,
         makeContext(),
       ),
     ).toEqual({ ok: false, reason: "pylonsFull" });
     expect(
       checkFit(
-        makeProfile({ missiles: 2, credits: 300 }),
+        makeProfile({ missiles: 3, credits: 300 }),
         missile,
         makeContext(),
       ),
@@ -584,8 +584,8 @@ describe("applyFit: fuel", () => {
 });
 
 describe("applyFit: missiles and berths", () => {
-  it("adds one missile for 300 dc up to 3", () => {
-    const before = makeProfile({ missiles: 2, credits: 300 });
+  it("adds one missile for 300 dc up to 4", () => {
+    const before = makeProfile({ missiles: 3, credits: 300 });
     const after = applyFit(before, missile, makeContext());
 
     expect(after.missiles).toBe(MAX_MISSILES);
@@ -593,7 +593,7 @@ describe("applyFit: missiles and berths", () => {
     expect(after.equipment).toEqual([]);
   });
 
-  it("refuses a fourth missile, a short balance and a full pylon set", () => {
+  it("refuses a fifth missile, a short balance and a full pylon set", () => {
     const fullPylons = makeProfile({ missiles: MAX_MISSILES, credits: 300 });
     expect(applyFit(fullPylons, missile, makeContext())).toBe(fullPylons);
 
@@ -654,6 +654,14 @@ describe("applyFit: Oolite removal economics", () => {
     expect(after.credits).toBe(1700);
     expect(after.missiles).toBe(0);
     expect(after.credits - before.credits).toBe(700);
+  });
+
+  it("refunds all four at a full pylon set, netting +1000 dc", () => {
+    const before = makeProfile({ missiles: 4, credits: 1000 });
+    const after = applyFit(before, missileRemoval, makeContext());
+
+    expect(after.credits).toBe(2000);
+    expect(after.missiles).toBe(0);
   });
 
   it("nets +100 dc at one missile", () => {

@@ -400,8 +400,9 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   await expect(row("EQ_DOCK_COMP")).toHaveClass(/dimmed/);
   await expect(row("EQ_DOCK_COMP")).toHaveCSS("opacity", "0.6");
 
-  await expect(row("EQ_MISSILE")).toContainText("Missile (3/3)");
-  await expect(row("EQ_MISSILE")).toContainText("Pylons full");
+  // Three missiles on four pylons, as in Oolite: the fourth can be bought.
+  await expect(row("EQ_MISSILE")).toContainText("Missile (3/4)");
+  await expect(row("EQ_MISSILE")).not.toContainText("Pylons full");
 
   await expect(row("EQ_MISSILE_REMOVAL")).toContainText(
     "Remove Missile — 20 Cr",

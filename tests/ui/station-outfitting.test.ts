@@ -126,7 +126,11 @@ describe("short refusal reasons", () => {
     expect(row(model, "EQ_ADVANCED_NAVIGATIONAL_ARRAY").reason).toBe(
       "Requires TL 6",
     );
-    expect(row(model, "EQ_MISSILE").reason).toBe("Pylons full");
+    // A new Cobra carries three missiles on four pylons, as in Oolite.
+    expect(row(model, "EQ_MISSILE").reason).toBe("");
+    expect(row(build(makeProfile({ missiles: 4 })), "EQ_MISSILE").reason).toBe(
+      "Pylons full",
+    );
     expect(row(model, "EQ_PASSENGER_BERTH").reason).toBe("Requires TL 5");
     expect(row(model, "EQ_MISSILE_REMOVAL").reason).toBe("");
   });
@@ -172,7 +176,10 @@ describe("labels, names and prices", () => {
   it("labels missiles with the pylon count and hides the price suffix from the name", () => {
     const missile = row(build(), "EQ_MISSILE");
 
-    expect(missile.label).toBe("Missile (3/3)");
+    expect(missile.label).toBe("Missile (3/4)");
+    expect(row(build(makeProfile({ missiles: 4 })), "EQ_MISSILE").label).toBe(
+      "Missile (4/4)",
+    );
     expect(missile.name).toBe("Missile");
     expect(missile.multiCount).toBe(3);
     expect(missile.cost).toBe(300);

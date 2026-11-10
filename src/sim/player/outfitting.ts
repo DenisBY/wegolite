@@ -39,8 +39,12 @@ import type { PlayerProfile } from "./profile.js";
 /** Oolite's `PLAYER_MAX_FUEL`, in tenths of a light year. */
 export const FUEL_CAPACITY = 70;
 
-/** D-14's deliberate cap (Oolite's starting maximum is four). */
-export const MAX_MISSILES = 3;
+/**
+ * The Cobra's missile pylons: Oolite's `PLAYER_STARTING_MAX_MISSILES`
+ * (`PlayerEntity.h:285`) and the compiled Cobra record's `max_missiles`. A new
+ * commander starts with three (`NEW_GAME_MISSILES`) and can buy the fourth.
+ */
+export const MAX_MISSILES = 4;
 
 /** Seven berths consume a fully extended 35 t hold. */
 export const MAX_PASSENGER_BERTHS = 7;

@@ -85,8 +85,11 @@ export const MAX_SAVE_CARGO_QUANTITY = 36_000_000;
 /** The fuel tank cap in tenths of a light year. */
 export const MAX_SAVE_FUEL = 70;
 
-/** The missile pylon cap. */
-export const MAX_SAVE_MISSILES = 3;
+/**
+ * The missile pylon cap, equal to `MAX_MISSILES`. It was 3 until 2026-11-10;
+ * raising it keeps every older save valid.
+ */
+export const MAX_SAVE_MISSILES = 4;
 
 /** The passenger berth cap (a hard resource bound). */
 export const MAX_SAVE_BERTHS = 7;

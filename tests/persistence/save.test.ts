@@ -409,6 +409,18 @@ describe("cargo and hold semantics", () => {
 });
 
 describe("exact capacity boundaries and the optional seed", () => {
+  it("accepts four missiles, the Cobra's pylon count, and rejects five", () => {
+    const four = validSave({ missiles: 4 });
+    expect(parseSave(raw(four), ALLOW)).toEqual({
+      ok: true,
+      save: migrated(four),
+    });
+    expect(parseSave(raw(validSave({ missiles: 5 })), ALLOW)).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+  });
+
   it("accepts a 20 t hold plus 499 kg of gold", () => {
     const save = validSave({
       cargo: [

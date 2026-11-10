@@ -37,7 +37,7 @@ export const NEW_GAME_CREDITS = 1000;
 /** A fresh ship's fuel tank, in tenths of a light year. */
 export const NEW_GAME_FUEL = 70;
 
-/** A fresh Cobra's missile pylons. */
+/** A fresh Cobra's mounted missiles; one of its four pylons starts empty. */
 export const NEW_GAME_MISSILES = 3;
 
 /** The minimal catalogue shape the purchase rule reads. */
@@ -55,7 +55,7 @@ export interface PlayerProfile {
   readonly cargo: Cargo;
   /** Fuel in tenths of a light year (0..70). */
   readonly fuel: number;
-  /** Mounted missiles (0..3). */
+  /** Mounted missiles (0..4). */
   readonly missiles: number;
   /** Passenger berths (0..7); each consumes five tonnes of capacity. */
   readonly passengerBerths: number;

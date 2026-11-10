@@ -37,6 +37,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   picture is not exactly the previous one, but no difference is visible in
   side-by-side screenshots. A browser without WebP support can no longer load
   the models; every current Chrome, Firefox and Safari has it.
+- The Cobra has four missile pylons, as in Oolite and the original Elite. A new
+  commander still starts with three missiles and can buy the fourth on the F3
+  screen. Existing saves are unaffected.
 - For contributors: the GitHub Pages deploy now runs only after the `verify`
   workflow passes on `main`, and publishes the commit that run checked. It used
   to publish every push, passing or not.
