@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
+Two changes in this release are not backward compatible:
+
+- The ship and station models now need a browser that decodes WebP. Every
+  current Chrome, Firefox and Safari does.
+- A save that holds four missiles cannot be read by 0.1.0, which allowed
+  three. Saves written by 0.1.0 load in this release unchanged.
+
 ### Added
 
 - A system information card when hovering a marker on the F6 galactic chart,
@@ -83,3 +92,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   through the strip reserved for the document disclaimer.
 - The F6 hover card now places its description and distance beside the pointer
   without clipping at the overlay edges.
+
+## [0.1.0] - 2026-11-08
+
+The first public release: launch from Lave, manual docking, the docked market
+and outfitting screens, hyperspace within the first galaxy, and saves. This
+file was started after it, so its changes are not itemised here.
