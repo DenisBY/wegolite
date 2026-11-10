@@ -1,7 +1,12 @@
 name: pages
 
+# The deploy follows a successful `verify` run on `main`, so a commit that fails
+# the full gate is never published. `workflow_dispatch` stays as the manual
+# override for republishing the current `main`.
 on:
-  push:
+  workflow_run:
+    workflows: [verify]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -16,10 +21,18 @@ concurrency:
 
 jobs:
   build:
+    # `verify` also runs on pull requests; only its push runs may publish.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Build exactly the commit the gate passed, not a later `main`.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Build the production bundle in Docker
         run: docker compose run --rm e2e sh -lc "npm run build"
       - uses: actions/configure-pages@v5

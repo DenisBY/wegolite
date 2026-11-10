@@ -72,15 +72,35 @@ export function loadSettings(storage: Storage = localStorage): SettingsV1 {
   return mergeDefaults(settings);
 }
 
+/** True when the stored blob was written by a newer build. Never throws. */
+function storedBlobIsNewer(storage: Storage): boolean {
+  try {
+    const raw = storage.getItem(SETTINGS_KEY);
+    if (raw === null) return false;
+    return isNewerSettingsVersion(JSON.parse(raw) as unknown);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Write exactly one JSON blob with `version: 1`, no timestamps and no host
  * data. This is the only writer of `wegolite.settings`. A storage exception is
  * swallowed: a full quota must not break the running game.
+ *
+ * Nothing is written over a blob from a newer build. `loadSettings` promises
+ * to leave such a blob alone, and the session persists within seconds of
+ * starting (the first hint), so without this check that promise would not
+ * hold. The stored blob is read at every write, not remembered from load, so
+ * a newer build that writes from another tab is respected too. The running
+ * session keeps its in-memory settings. An explicit `resetSettings` still
+ * removes the blob: that is the player's own choice.
  */
 export function saveSettings(
   settings: SettingsV1,
   storage: Storage = localStorage,
 ): void {
+  if (storedBlobIsNewer(storage)) return;
   const normalized = mergeDefaults(settings);
   const blob = {
     version: SETTINGS_VERSION,

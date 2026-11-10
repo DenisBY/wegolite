@@ -155,6 +155,25 @@ test("the docked view is exactly one status panel with the D-09 facts", async ({
   expect(errors).toEqual([]);
 });
 
+test("a ship catalogue that fails to load shows the failure surface, not a dead title", async ({
+  page,
+}) => {
+  // This load sits outside the session's own handlers. Before `start()` was
+  // guarded its rejection went unhandled and the title stayed up with both
+  // buttons dead.
+  await page.route("**/assets/ships-client-*.js", (route) => route.abort());
+
+  await page.goto("/");
+  await waitForReady(page);
+  await page.click("#title-start");
+
+  const failure = page.locator("#failure");
+  await expect(failure).toBeVisible({ timeout: 30_000 });
+  await expect(failure).toHaveAttribute("role", "alert");
+  const published = await page.evaluate(() => window.__wegolite);
+  expect(published?.ready).toBe(false);
+});
+
 test("a missing Coriolis model shows a plain-text failure, never a blank canvas", async ({
   page,
 }) => {

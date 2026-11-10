@@ -37,6 +37,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   picture is not exactly the previous one, but no difference is visible in
   side-by-side screenshots. A browser without WebP support can no longer load
   the models; every current Chrome, Firefox and Safari has it.
+- For contributors: the GitHub Pages deploy now runs only after the `verify`
+  workflow passes on `main`, and publishes the commit that run checked. It used
+  to publish every push, passing or not.
 - Highlights on the Cobra and the station now take their colour from Oolite's
   specular maps, as Oolite does. Before, only the map's strength channel was
   used and every highlight was white.
@@ -59,6 +62,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Starting a New game no longer deletes the previous save when the game then
+  fails to load. The old save is replaced only once the new game has started.
+- A failure while starting a game always shows the error screen. Some failures
+  used to leave the title screen up with buttons that did nothing.
+- Settings saved by a newer version of the game are no longer overwritten by
+  an older version opened in the same browser.
 - The fixed document disclaimer now stays visible and clickable under the F6
   chart and F2 Save/Load screens, not only under the docked station. Every
   station footer ends exactly at the disclaimer's top edge, with the reserved

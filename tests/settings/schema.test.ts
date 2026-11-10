@@ -313,6 +313,47 @@ describe("loadSettings", () => {
     warn.mockRestore();
   });
 
+  it("never writes over a blob from a newer build", () => {
+    // The session persists within seconds of starting (the first hint), so
+    // the promise `loadSettings` makes is only kept if the writer refuses too.
+    const storage = new FakeStorage();
+    const raw =
+      '{"version":2,"bindings":{"rollRight":["KeyL"]},"hintsSeen":[],"launchSeen":false}';
+    storage.setItem(SETTINGS_KEY, raw);
+
+    saveSettings({ ...defaults(), launchSeen: true }, storage);
+
+    expect(storage.getItem(SETTINGS_KEY)).toBe(raw);
+  });
+
+  it("still writes over a current, an absent and an unreadable blob", () => {
+    for (const stored of [
+      null,
+      "not json",
+      JSON.stringify({ version: 1, bindings: {}, hintsSeen: [] }),
+    ]) {
+      const storage = new FakeStorage();
+      if (stored !== null) storage.setItem(SETTINGS_KEY, stored);
+
+      saveSettings({ ...defaults(), launchSeen: true }, storage);
+
+      const written = JSON.parse(
+        storage.getItem(SETTINGS_KEY) ?? "{}",
+      ) as Record<string, unknown>;
+      expect(written["version"]).toBe(1);
+      expect(written["launchSeen"]).toBe(true);
+    }
+  });
+
+  it("lets an explicit reset remove a newer blob", () => {
+    const storage = new FakeStorage();
+    storage.setItem(SETTINGS_KEY, '{"version":2}');
+
+    resetSettings(storage);
+
+    expect(storage.getItem(SETTINGS_KEY)).toBeNull();
+  });
+
   it("keeps pauseOnFocusLoss false across save and load", () => {
     const storage = new FakeStorage();
     saveSettings({ ...defaults(), pauseOnFocusLoss: false }, storage);

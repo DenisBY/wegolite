@@ -767,6 +767,40 @@ test("New game clears a committed save before starting", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("a New game that fails to start leaves the committed save in place", async ({
+  page,
+}) => {
+  await boot(page);
+  await startNewGame(page);
+  await launchAndAwaitCommit(page);
+
+  // The station model fails to load. The route is installed before the
+  // reload because the title screen already preloads the models. The clear
+  // runs only once every load has succeeded, so the old save must survive a
+  // new game that never started, even after the player accepted the overwrite.
+  await page.route("**/models/coriolis.glb", (route) =>
+    route.fulfill({ status: 404, contentType: "text/plain", body: "gone" }),
+  );
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+  const before = await readRaw(page);
+  expect(before).not.toBeNull();
+
+  await page.click("#title-start");
+  await expect(page.locator("#title-confirm")).toBeVisible();
+  await page.click("#title-confirm-accept");
+  await expect(page.locator("#failure")).toBeVisible({ timeout: 60_000 });
+  expect(await readRaw(page)).toBe(before);
+
+  await page.unroute("**/models/coriolis.glb");
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+  expect((await getProbe(page)).save?.status).toBe("valid");
+  expect(await readRaw(page)).toBe(before);
+});
+
 test("a future-version blob is never cleared or replaced", async ({ page }) => {
   await boot(page);
   const future = JSON.stringify({

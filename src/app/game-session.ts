@@ -2849,7 +2849,25 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderFrame(alpha, shouldDraw());
   }
 
+  /**
+   * Start the session. Never rejects: a step that throws outside its own
+   * handler (the ship catalogue, the scene build, a restore) is shown on the
+   * failure surface, exactly like a failed asset load. Without this the title
+   * screen would stay up with both buttons dead, because `starting` is set.
+   */
   async function start(options: StartOptions = {}): Promise<void> {
+    try {
+      await startSession(options);
+    } catch (error) {
+      if (disposed) return;
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error("Wegolite: the session failed to start", error);
+      showBootFailure(reason);
+      publishFailure(reason);
+    }
+  }
+
+  async function startSession(options: StartOptions): Promise<void> {
     // The guard is set synchronously: `state` is only assigned after two
     // awaits, so a second click during the load would otherwise start a second
     // frame loop (two RAF chains, two HUDs, two input sources) that `dispose()`
@@ -2864,13 +2882,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     const restore = options.restore;
     const restoring = restore !== undefined && options.fresh !== true;
-    if (!restoring) {
-      // New game: the clear must commit before this promise resolves, so a
-      // reload after the click cannot resurrect the old blob. A future blob is
-      // never touched (T-04-47).
-      await clearSaveForNewGame();
-      if (disposed) return;
-    }
 
     try {
       await assets.preload();
@@ -2952,6 +2963,16 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       showBootFailure(reason);
       publishFailure(reason);
       return;
+    }
+
+    if (!restoring) {
+      // New game: the clear must commit before this promise resolves, so a
+      // reload after the click cannot resurrect the old blob. A future blob is
+      // never touched (T-04-47). It runs only here, after every load that can
+      // fail has succeeded: a new game that cannot start must not have
+      // deleted the save it was going to replace.
+      await clearSaveForNewGame();
+      if (disposed) return;
     }
 
     let flightState: FlightState;
