@@ -13,7 +13,9 @@
  *
  * The lock is a directory (`mkdir` is atomic across threads and processes) and
  * is released in `finally`. A lock older than `STALE_MS` is treated as a crashed
- * run and reclaimed, so a killed test cannot block the suite forever.
+ * run and reclaimed, so a killed test cannot block the suite forever. Bodies may
+ * be async (the guard probes now lint through the ESLint Node API); the lock is
+ * held until their promise settles.
  */
 
 import { mkdirSync, rmSync, statSync } from "node:fs";
@@ -31,7 +33,7 @@ function sleep(milliseconds: number): void {
   Atomics.wait(sleeper, 0, 0, milliseconds);
 }
 
-export function withProbeLock<T>(body: () => T): T {
+export async function withProbeLock<T>(body: () => Promise<T> | T): Promise<T> {
   const started = Date.now();
   for (;;) {
     try {
@@ -55,7 +57,9 @@ export function withProbeLock<T>(body: () => T): T {
   }
 
   try {
-    return body();
+    // `await` is essential: releasing the lock before an async body settles
+    // would let a parallel guard file glob a probe mid-run again.
+    return await body();
   } finally {
     rmSync(LOCK_PATH, { recursive: true, force: true });
   }

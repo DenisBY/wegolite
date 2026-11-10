@@ -7,8 +7,9 @@
  *
  * A clean-tree `verify` proves the gates are green on this tree; it cannot prove
  * they would notice a violation. Each case here writes a probe into `src/sim/`
- * at test time, runs the real gate against it, asserts the specific diagnostic,
- * and removes the probe again in a `finally` block.
+ * at test time, runs the real gate (the shared ESLint Node API) against it,
+ * asserts the specific diagnostic, and removes the probe again in a `finally`
+ * block.
  *
  * The probes are generated rather than committed on purpose: a committed file
  * importing Three inside the zone would fail the clean-tree `lint` run.
@@ -31,6 +32,7 @@ import {
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { lintProbe } from "./eslint-gate.js";
 import { withProbeLock } from "./probe-lock.js";
 
 const REPO_ROOT = process.cwd();
@@ -62,17 +64,17 @@ function runGate(command: string, args: readonly string[]): GateRun {
 function withProbe(
   name: string,
   source: string,
-  body: (file: string) => void,
-): void {
+  body: (file: string) => Promise<void> | void,
+): Promise<void> {
   // `tsconfig.sim.json` globs `src/sim/**`, so a probe written by a parallel
   // guard file can be globbed and then deleted mid-run (TS6053). Serialise.
-  withProbeLock(() => {
+  return withProbeLock(async () => {
     const file = join("src", "sim", name);
     const absolute = join(REPO_ROOT, file);
     mkdirSync(dirname(absolute), { recursive: true });
     writeFileSync(absolute, source);
     try {
-      body(file);
+      await body(file);
     } finally {
       // Remove the file only: `src/sim/` and its real subdirectories must stay.
       rmSync(absolute, { force: true });
@@ -143,9 +145,10 @@ function importSpecifiers(source: string): string[] {
 }
 
 describe("sim purity gates", () => {
-  // Each case spawns the real gate, which builds a type-aware ESLint program;
-  // that is several seconds on a loaded container, well past Vitest's 5s default.
-  it("Three import fails lint", () => {
+  // The first lint builds the type-aware ESLint program (~3.5 s); the shared
+  // instance then reuses it, so the per-test timeout covers only a cold, loaded
+  // container plus the `tsc` spawn.
+  it("Three import fails lint", async () => {
     const source = [
       'import * as THREE from "three";',
       "",
@@ -153,8 +156,8 @@ describe("sim purity gates", () => {
       "",
     ].join("\n");
 
-    withProbe("__purity_three_probe.ts", source, (file) => {
-      const lint = runGate("npx", ["eslint", file]);
+    await withProbe("__purity_three_probe.ts", source, async (file) => {
+      const lint = await lintProbe(file);
 
       expect(lint.status).not.toBe(0);
       expect(lint.output).toMatch(/no-restricted-imports/);
@@ -162,7 +165,7 @@ describe("sim purity gates", () => {
     });
   }, 120_000);
 
-  it("DOM identifier fails typecheck", () => {
+  it("DOM identifier fails typecheck", async () => {
     const source = [
       "// A DOM identifier in the sim zone: TS2584 against tsconfig.sim.json,",
       "// and no-restricted-globals against the ESLint zone.",
@@ -170,7 +173,7 @@ describe("sim purity gates", () => {
       "",
     ].join("\n");
 
-    withProbe("__purity_dom_probe.ts", source, (file) => {
+    await withProbe("__purity_dom_probe.ts", source, async (file) => {
       const typecheck = runGate("npx", [
         "tsc",
         "-p",
@@ -184,7 +187,7 @@ describe("sim purity gates", () => {
 
       // The compiler gate alone is not the whole story: ESLint must also name
       // the rule, so a future `lib` addition cannot quietly unenforce the zone.
-      const lint = runGate("npx", ["eslint", file]);
+      const lint = await lintProbe(file);
 
       expect(lint.status).not.toBe(0);
       expect(lint.output).toMatch(/no-restricted-globals/);
@@ -197,7 +200,7 @@ describe("sim purity covers the flight and world modules", () => {
   // The zone globs already cover them, but a probe inside each directory proves
   // the coverage is live rather than assumed.
   for (const directory of ["flight", "world"] as const) {
-    it(`${directory}/ Three import fails lint`, () => {
+    it(`${directory}/ Three import fails lint`, async () => {
       const source = [
         'import * as THREE from "three";',
         "",
@@ -205,37 +208,45 @@ describe("sim purity covers the flight and world modules", () => {
         "",
       ].join("\n");
 
-      withProbe(join(directory, "__purity_three_probe.ts"), source, (file) => {
-        const lint = runGate("npx", ["eslint", file]);
+      await withProbe(
+        join(directory, "__purity_three_probe.ts"),
+        source,
+        async (file) => {
+          const lint = await lintProbe(file);
 
-        expect(lint.status, lint.output).not.toBe(0);
-        expect(lint.output).toMatch(/no-restricted-imports/);
-        expect(lint.output).toMatch(/renderer-free/);
-      });
+          expect(lint.status, lint.output).not.toBe(0);
+          expect(lint.output).toMatch(/no-restricted-imports/);
+          expect(lint.output).toMatch(/renderer-free/);
+        },
+      );
     }, 120_000);
 
-    it(`${directory}/ DOM identifier fails typecheck`, () => {
+    it(`${directory}/ DOM identifier fails typecheck`, async () => {
       const source = [
         'export const el = document.createElement("div");',
         "",
       ].join("\n");
 
-      withProbe(join(directory, "__purity_dom_probe.ts"), source, (file) => {
-        const typecheck = runGate("npx", [
-          "tsc",
-          "-p",
-          "tsconfig.sim.json",
-          "--noEmit",
-        ]);
+      await withProbe(
+        join(directory, "__purity_dom_probe.ts"),
+        source,
+        async (file) => {
+          const typecheck = runGate("npx", [
+            "tsc",
+            "-p",
+            "tsconfig.sim.json",
+            "--noEmit",
+          ]);
 
-        expect(typecheck.status, typecheck.output).not.toBe(0);
-        expect(typecheck.output).toMatch(/TS2584/);
-        expect(typecheck.output).toMatch(/document/);
+          expect(typecheck.status, typecheck.output).not.toBe(0);
+          expect(typecheck.output).toMatch(/TS2584/);
+          expect(typecheck.output).toMatch(/document/);
 
-        const lint = runGate("npx", ["eslint", file]);
-        expect(lint.status, lint.output).not.toBe(0);
-        expect(lint.output).toMatch(/no-restricted-globals/);
-      });
+          const lint = await lintProbe(file);
+          expect(lint.status, lint.output).not.toBe(0);
+          expect(lint.output).toMatch(/no-restricted-globals/);
+        },
+      );
     }, 120_000);
   }
 });

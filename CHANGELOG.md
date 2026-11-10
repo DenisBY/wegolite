@@ -16,6 +16,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rendering more closely: sun-angle shading that makes the planet read as a
   sphere, muted colours, soft layered clouds, an atmosphere haze with a thin
   coloured rim, and nebulae in the sky. The default rendering is unchanged.
+- A coverage-free `npm run test:fast` script for quick local unit runs;
+  `npm run test`, the one `verify` uses, keeps the measured coverage thresholds.
 
 ### Changed
 
@@ -38,6 +40,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The game no longer redraws the scene while docked or paused. The image does
   not change in those states, so it is drawn once and the GPU is left idle,
   which lowers power use and fan noise on the station screens.
+- Guard tests now lint their probes through one shared ESLint Node API instance
+  instead of spawning `npx eslint` for each assertion, removing most of the unit
+  stage's repeated ESLint program builds. Assertions and coverage are unchanged.
 
 ### Removed
 
