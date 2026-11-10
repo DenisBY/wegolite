@@ -59,9 +59,10 @@ deviations: 0
 | `docker compose run --rm test npx vitest run tests/ui/station-footer.test.ts` | 7 passed |
 | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test --project=chromium tests/e2e/station-tabs.spec.ts"` | 14 passed |
 | `docker compose run --rm lint` | passed after Prettier formatting |
+| `docker compose run --rm verify-full` | passed — 1366 unit tests (1 skipped) and 116 Chromium e2e |
 
-`verify`, `verify-full` and `e2e-cross` were intentionally not run; the user
-asked to inspect the change visually first.
+`e2e-cross` (Firefox) was not run. `verify-full` was run after the user
+approved the visual check.
 
 ## Visual check
 
@@ -74,4 +75,4 @@ Save/Load overwrite dialog covers the disclaimer until the dialog closes.
 
 - Removing or restyling the document disclaimer.
 - Reworking the unified footer template or hint strings.
-- `verify`, `verify-full` and `e2e-cross` until the user asks.
+- `e2e-cross` (Firefox) until the user asks.
