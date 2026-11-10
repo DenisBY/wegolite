@@ -46,10 +46,13 @@ export interface CheckEntry {
 
 export type CheckReport = CheckEntry[];
 
-const USAGE = `Usage: tsx tools/oolite-ingest/cli.ts [--check | --help]
+const USAGE = `Usage: tsx tools/oolite-ingest/cli.ts [--check | --reencode | --help]
 
-  (no flags)  regenerate src/content/generated/ and the manifest in place
+  (no flags)  regenerate src/content/generated/ and the manifest in place;
+              an encoded texture whose source and encoder arguments are
+              unchanged is kept as committed
   --check     regenerate into a temporary directory and report any drift
+  --reencode  regenerate in place and encode every texture again with cwebp
   --help      show this message`;
 
 function compareCodeUnits(a: string, b: string): number {
@@ -217,6 +220,9 @@ export async function checkAssets(root: string): Promise<CheckReport> {
     const emitted = await generateContent({
       inputRoot: root,
       outRoot: tempRoot,
+      // The committed encoded textures are the reference: see
+      // `convert/texture-encode.ts` for what the gate proves about them.
+      reuseRoot: root,
     });
     const manifest = buildManifest(emitted, await readPin(root));
     await writeManifest(tempRoot, manifest);
@@ -227,8 +233,12 @@ export async function checkAssets(root: string): Promise<CheckReport> {
   }
 }
 
-async function buildAssets(root: string): Promise<void> {
-  const emitted = await generateContent({ inputRoot: root, outRoot: root });
+async function buildAssets(root: string, reencode = false): Promise<void> {
+  const emitted = await generateContent({
+    inputRoot: root,
+    outRoot: root,
+    ...(reencode ? {} : { reuseRoot: root }),
+  });
   const manifest = buildManifest(emitted, await readPin(root));
   await writeManifest(root, manifest);
   console.log(
@@ -252,6 +262,11 @@ export async function main(argv: readonly string[]): Promise<number> {
     }
     for (const entry of report) console.error(entry.message);
     return 1;
+  }
+
+  if (first === "--reencode" && rest.length === 0) {
+    await buildAssets(process.cwd(), true);
+    return 0;
   }
 
   if ((first === "--help" || first === "-h") && rest.length === 0) {

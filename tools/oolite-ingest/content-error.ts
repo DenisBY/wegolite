@@ -21,6 +21,7 @@ export type ContentErrorCode =
   | "DAT_MESH"
   | "SCHEMA"
   | "TEXTURE_MISSING"
+  | "TEXTURE_ENCODE"
   | "MESH_BOUNDS";
 
 export interface ContentErrorOptions {

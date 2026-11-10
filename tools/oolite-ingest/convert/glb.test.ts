@@ -30,6 +30,7 @@ import {
   buildCobraGlb,
   buildCoriolisGlb,
   convertMesh,
+  encodedTextureFile,
   materialFor,
   writeGlb,
 } from "./glb.js";
@@ -152,7 +153,10 @@ interface GlbJson {
     alphaMode?: string;
   }[];
   images: { uri: string }[];
-  textures: { source: number }[];
+  textures: {
+    source?: number;
+    extensions?: { EXT_texture_webp?: { source: number } };
+  }[];
   accessors: {
     componentType: number;
     count: number;
@@ -163,6 +167,7 @@ interface GlbJson {
   bufferViews: { byteOffset: number; byteLength: number }[];
   buffers: { byteLength: number }[];
   extensionsUsed?: string[];
+  extensionsRequired?: string[];
 }
 
 interface GlbChunks {
@@ -208,7 +213,9 @@ function readChunks(bytes: Uint8Array): GlbChunks {
 function imageUri(json: GlbJson, textureIndex: number | undefined): string {
   if (textureIndex === undefined) throw new Error("expected a texture index");
   const texture = at(json.textures, textureIndex);
-  return at(json.images, texture.source).uri;
+  const source = texture.source ?? texture.extensions?.EXT_texture_webp?.source;
+  if (source === undefined) throw new Error("the texture names no image");
+  return at(json.images, source).uri;
 }
 
 /**
@@ -223,6 +230,13 @@ function imageUri(json: GlbJson, textureIndex: number | undefined): string {
  * bytes still name the real files, and plan 07 vendors and byte-asserts them.
  * The material test also pins the `readBinary` refusal, so external references
  * cannot silently become embedded ones.
+ *
+ * The files name their WebP images through `EXT_texture_webp` and list it as
+ * required. The reader here is the core package, which has no implementation
+ * of that extension and refuses a required one it does not know. The copy it
+ * receives therefore has each extension source moved to the core `source` and
+ * the extension dropped from both lists. That is a change to the reader's
+ * input only; the WebP references themselves are asserted on the raw JSON.
  */
 async function readWithReader(bytes: Uint8Array): Promise<Document> {
   const chunks = readChunks(bytes);
@@ -237,6 +251,19 @@ async function readWithReader(bytes: Uint8Array): Promise<Document> {
   for (const image of json.images ?? []) {
     if (image.uri !== undefined) resources[image.uri] = new Uint8Array(0);
   }
+  json.textures = (json.textures ?? []).map((texture) => {
+    const webp = (
+      texture.extensions as
+        { EXT_texture_webp?: { source: number } } | undefined
+    )?.EXT_texture_webp;
+    return webp === undefined ? texture : { source: webp.source };
+  });
+  const withoutWebp = (names: string[] | undefined): string[] =>
+    (names ?? []).filter((name) => name !== "EXT_texture_webp");
+  json.extensionsUsed = withoutWebp(json.extensionsUsed);
+  const required = withoutWebp(json.extensionsRequired);
+  if (required.length > 0) json.extensionsRequired = required;
+  else delete json.extensionsRequired;
   return new NodeIO().readJSON({ json, resources });
 }
 
@@ -742,10 +769,10 @@ describe("GLB container", () => {
     }
 
     expect(hullMaterial.getBaseColorTexture()?.getURI()).toBe(
-      "../textures/oolite_cobra3_diffuse.png",
+      "../textures/oolite_cobra3_diffuse.webp",
     );
     expect(hullMaterial.getNormalTexture()?.getURI()).toBe(
-      "../textures/oolite_cobra3_normal.png",
+      "../textures/oolite_cobra3_normal.webp",
     );
     expect(hullMaterial.getEmissiveTexture()?.getURI()).toBe(
       "../textures/oolite_cobra3_diffuse_emissive.png",
@@ -762,16 +789,37 @@ describe("GLB container", () => {
     expect(hullJson.pbrMetallicRoughness.metallicFactor).toBe(0);
     expect(hullJson.pbrMetallicRoughness.roughnessFactor).toBeCloseTo(0.2, 9);
     expect(imageUri(json, hullJson.normalTexture?.index)).toBe(
-      "../textures/oolite_cobra3_normal.png",
+      "../textures/oolite_cobra3_normal.webp",
     );
     expect(
       imageUri(
         json,
         hullJson.extensions?.KHR_materials_specular?.specularTexture?.index,
       ),
-    ).toBe("../textures/oolite_cobra3_specular.png");
+    ).toBe("../textures/oolite_cobra3_specular.webp");
     expect(gunJson.extensions?.KHR_materials_specular).toBeUndefined();
-    expect(json.extensionsUsed).toEqual(["KHR_materials_specular"]);
+    expect(json.extensionsUsed).toEqual([
+      "KHR_materials_specular",
+      "EXT_texture_webp",
+    ]);
+    // There is no PNG fallback, so a loader without WebP support must refuse
+    // the file instead of drawing untextured.
+    expect(json.extensionsRequired).toEqual(["EXT_texture_webp"]);
+    for (const texture of json.textures) {
+      const webp = texture.extensions?.EXT_texture_webp;
+      const index = texture.source ?? webp?.source;
+      if (index === undefined) throw new Error("a texture names no image");
+      const uri = at(json.images, index).uri;
+      if (uri.endsWith(".webp")) {
+        // Core glTF images are PNG or JPEG: a WebP has no core `source`.
+        expect(texture.source, uri).toBeUndefined();
+        expect(webp, uri).toBeDefined();
+      } else {
+        expect(uri).toMatch(/_emissive\.png$/);
+        expect(texture.source, uri).toBeDefined();
+        expect(webp, uri).toBeUndefined();
+      }
+    }
 
     // D-20 keeps the textures out of the container. The reader refuses a GLB
     // with external images, which is exactly the proof that they stayed
@@ -926,13 +974,13 @@ describe("GLB container", () => {
           json,
           jsonMaterial.pbrMetallicRoughness.baseColorTexture?.index,
         ),
-      ).toBe(`../textures/${at(maps, 0)}`);
+      ).toBe(`../textures/${encodedTextureFile(at(maps, 0))}`);
       expect(imageUri(json, jsonMaterial.normalTexture?.index)).toBe(
-        `../textures/${at(maps, 1)}`,
+        `../textures/${encodedTextureFile(at(maps, 1))}`,
       );
       if (maps.length === 4) {
         expect(imageUri(json, jsonMaterial.emissiveTexture?.index)).toBe(
-          `../textures/${at(maps, 3)}`,
+          `../textures/${encodedTextureFile(at(maps, 3))}`,
         );
         expect(
           imageUri(
@@ -940,12 +988,12 @@ describe("GLB container", () => {
             jsonMaterial.extensions?.KHR_materials_specular?.specularTexture
               ?.index,
           ),
-        ).toBe(`../textures/${at(maps, 2)}`);
+        ).toBe(`../textures/${encodedTextureFile(at(maps, 2))}`);
       } else {
         // The dock authors no specular map at all.
         expect(jsonMaterial.extensions?.KHR_materials_specular).toBeUndefined();
         expect(imageUri(json, jsonMaterial.emissiveTexture?.index)).toBe(
-          `../textures/${at(maps, 2)}`,
+          `../textures/${encodedTextureFile(at(maps, 2))}`,
         );
       }
       // The alpha channel is an emission mask, never opacity.
@@ -958,10 +1006,10 @@ describe("GLB container", () => {
       imageUri(json, material.pbrMetallicRoughness.baseColorTexture?.index),
     );
     expect(baseColours).toEqual([
-      "../textures/oolite_coriolis_diffuse.png",
-      "../textures/oolite_coriolis_faceplate_diffuse.png",
-      "../textures/oolite_coriolis_tris_diffuse.png",
-      "../textures/oolite_coriolis_dock_diffuse.png",
+      "../textures/oolite_coriolis_diffuse.webp",
+      "../textures/oolite_coriolis_faceplate_diffuse.webp",
+      "../textures/oolite_coriolis_tris_diffuse.webp",
+      "../textures/oolite_coriolis_dock_diffuse.webp",
     ]);
 
     const hullMaterial = document
@@ -973,7 +1021,7 @@ describe("GLB container", () => {
     if (hullMaterial === undefined)
       throw new Error("the hull material is missing");
     expect(hullMaterial.getBaseColorTexture()?.getURI()).toBe(
-      "../textures/oolite_coriolis_diffuse.png",
+      "../textures/oolite_coriolis_diffuse.webp",
     );
 
     const hull = json.materials.find(

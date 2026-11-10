@@ -25,6 +25,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   in the tab strip.
 - The game downloads about 0.7 MB less at start: it now loads only the two
   ship records it uses instead of the whole ship catalogue.
+- The first load is about 13 MB smaller: the ship and station textures are
+  served as WebP (6.3 MB) instead of PNG (19.7 MB). The diffuse and specular
+  maps are lossy at quality 90 and the normal maps are near-lossless, so the
+  picture is not exactly the previous one, but no difference is visible in
+  side-by-side screenshots. A browser without WebP support can no longer load
+  the models; every current Chrome, Firefox and Safari has it.
 - The game no longer redraws the scene while docked or paused. The image does
   not change in those states, so it is drawn once and the GPU is left idle,
   which lowers power use and fan noise on the station screens.

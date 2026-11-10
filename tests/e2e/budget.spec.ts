@@ -44,10 +44,12 @@ const DISO_ID = systemByName("Diso").id;
 const MIB = 1_048_576;
 /**
  * Regression ceiling for the cold-start transfer to the first in-flight frame
- * (T-07-14, D-14). The measured baseline was 20 996 848 bytes (20.03 MiB) on
- * 2026-11-08, rounded up to the next MiB.
+ * (T-07-14, D-14). The measured baseline is 7 490 424 bytes (7.14 MiB) on
+ * 2026-11-10, rounded up to the next MiB. It was 20 996 848 bytes before the
+ * ship and station textures were re-encoded to WebP and the client ship
+ * catalogue was trimmed.
  */
-const FIRST_LOAD_BYTES_CEILING = 21 * MIB;
+const FIRST_LOAD_BYTES_CEILING = 8 * MIB;
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];

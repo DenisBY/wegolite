@@ -53,9 +53,16 @@ The baked greyscale emissive maps under `public/textures/*_emissive.png` are
 derived from Oolite's PNG textures by Wegolite's build, which reads the source
 alpha channel and writes a new greyscale image; they are derivative works of
 those textures and remain CC BY-NC-SA 3.0, never GPL, under the same
-attribution, non-commercial and share-alike terms. The source PNGs copied under
-`public/textures/` are byte-identical to the vendored originals and are
-redistributed unmodified under the same licence.
+attribution, non-commercial and share-alike terms. The ship and station
+textures under `public/textures/*.webp` are the same Oolite PNG textures
+re-encoded to WebP by Wegolite's build (lossy for the diffuse and specular
+maps, near-lossless for the normal maps, with the unused alpha channel of the
+diffuse and normal maps dropped); they are derivative works of those textures
+and remain CC BY-NC-SA 3.0, never GPL, under the same attribution,
+non-commercial and share-alike terms. The four sky textures
+`public/textures/oolite-nebula-*.png` are byte-identical to the vendored
+originals and are redistributed unmodified under the same licence. The
+unmodified source PNGs are kept under `third_party/oolite/Textures/`.
 
 The generated dock-port record `src/content/generated/dock-port.json` is
 measured at build time from the vendored Oolite `.dat` models (`oolite_coriolis`,

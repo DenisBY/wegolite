@@ -32,8 +32,10 @@
  *
  * The material model is approximate metallic-roughness (D-08): `metalness` is
  * fixed at 0, `roughness` is `clamp(1 - gloss, 0.04, 1)`, textures are separate
- * files referenced by the relative URI `../textures/<file>.png` (which resolves
- * from `public/models/<name>.glb` to `public/textures/<file>.png`), and every
+ * files referenced by a relative URI under `../textures/` (which resolves from
+ * `public/models/<name>.glb` to `public/textures/`): the re-encoded
+ * `<file>.webp` through `EXT_texture_webp` for a vendored texture, and the
+ * baked `<file>_emissive.png` for an emission mask (`encodedTextureFile`). Every
  * authored Oolite value is preserved under `extras.oolite` so a later phase can
  * refine the look without re-extracting the snapshot. The Coriolis alpha
  * channel is an emission mask, not opacity: no `alphaMode` is ever emitted.
@@ -110,6 +112,8 @@ const TRIANGLES = 4;
 
 const TEXTURE_URI_PREFIX = "../textures/";
 const EMISSIVE_SUFFIX = "_emissive.png";
+const WEBP_SUFFIX = ".webp";
+const WEBP_EXTENSION = "EXT_texture_webp";
 
 export interface GlbBounds {
   readonly min: readonly [number, number, number];
@@ -258,6 +262,15 @@ interface PrimitiveJson {
   readonly mode: number;
 }
 
+/** A texture names its image directly (PNG) or through the WebP extension. */
+type TextureJson =
+  | { readonly source: number }
+  | {
+      readonly extensions: {
+        readonly EXT_texture_webp: { readonly source: number };
+      };
+    };
+
 interface MaterialJson {
   readonly name: string;
   readonly pbrMetallicRoughness: {
@@ -304,14 +317,24 @@ export function writeGlb(scene: GlbScene): Uint8Array {
   };
 
   const images: { readonly uri: string }[] = [];
-  const textures: { readonly source: number }[] = [];
+  const textures: TextureJson[] = [];
   const imageIndex = new Map<string, number>();
+  let usesWebpExtension = false;
   const textureRef = (file: string): number => {
     const existing = imageIndex.get(file);
     if (existing !== undefined) return existing;
     const created = images.length;
-    images.push({ uri: `${TEXTURE_URI_PREFIX}${file}` });
-    textures.push({ source: created });
+    const served = encodedTextureFile(file);
+    images.push({ uri: `${TEXTURE_URI_PREFIX}${served}` });
+    if (served.endsWith(WEBP_SUFFIX)) {
+      // Core glTF allows PNG and JPEG only. A WebP image is named through the
+      // extension, with no core `source`: there is no PNG fallback to offer,
+      // so the extension is also listed as required.
+      usesWebpExtension = true;
+      textures.push({ extensions: { [WEBP_EXTENSION]: { source: created } } });
+    } else {
+      textures.push({ source: created });
+    }
     imageIndex.set(file, created);
     return created;
   };
@@ -453,9 +476,15 @@ export function writeGlb(scene: GlbScene): Uint8Array {
     meshes,
     materials,
     ...(images.length > 0 ? { textures, images } : {}),
-    ...(usesSpecularExtension
-      ? { extensionsUsed: ["KHR_materials_specular"] }
+    ...(usesSpecularExtension || usesWebpExtension
+      ? {
+          extensionsUsed: [
+            ...(usesSpecularExtension ? ["KHR_materials_specular"] : []),
+            ...(usesWebpExtension ? [WEBP_EXTENSION] : []),
+          ],
+        }
       : {}),
+    ...(usesWebpExtension ? { extensionsRequired: [WEBP_EXTENSION] } : {}),
     accessors,
     bufferViews,
     buffers: [{ byteLength: binLength }],
@@ -675,6 +704,19 @@ function normalizedColour(
  */
 export function emissiveFile(name: string): string {
   return `${name.endsWith(".png") ? name.slice(0, -".png".length) : name}${EMISSIVE_SUFFIX}`;
+}
+
+/**
+ * The file a material's authored texture name is served as.
+ *
+ * A vendored texture is re-encoded to `<basename>.webp` by
+ * `convert/texture-encode.ts`; a baked emissive map stays the PNG the bake
+ * writes. This is the single naming rule the GLB image URI and the encoder
+ * share, so an emitted URI and a written file cannot drift apart.
+ */
+export function encodedTextureFile(name: string): string {
+  if (name.endsWith(EMISSIVE_SUFFIX) || !name.endsWith(".png")) return name;
+  return `${name.slice(0, -".png".length)}${WEBP_SUFFIX}`;
 }
 
 function clampRoughness(value: number): number {

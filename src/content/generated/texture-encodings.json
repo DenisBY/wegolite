@@ -1,0 +1,278 @@
+{
+  "files": [
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 234860,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_cobra3_diffuse.webp",
+      "sha256": "d99dead966f0195b94bcda549dd485290790f4c98f43f79217c1da6dab58555f",
+      "source": "third_party/oolite/Textures/oolite_cobra3_diffuse.png",
+      "sourceSha256": "348a0f9394baba4ec1ac0a37a775850e964d496078e5c4f136c479425eb4aa11"
+    },
+    {
+      "args": [
+        "-near_lossless",
+        "60",
+        "-z",
+        "9",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 241220,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_cobra3_normal.webp",
+      "sha256": "b759b021ad6fe6b4a4b818226ce48c7218231b0fe8efdd76a1c7ea36b1c5e7af",
+      "source": "third_party/oolite/Textures/oolite_cobra3_normal.png",
+      "sourceSha256": "fd3f733f97c406f418880352825b92720fedff9951200aca918fa710eba3daa6"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-exact",
+        "-alpha_q",
+        "100",
+        "-quiet"
+      ],
+      "bytes": 1034476,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_cobra3_specular.webp",
+      "sha256": "f73bc0370f7ece76a23d022b12f38521c485ca1087e6b865e8dd5b578835ad99",
+      "source": "third_party/oolite/Textures/oolite_cobra3_specular.png",
+      "sourceSha256": "4dc706d2ceb93093c27b000fa03834557e91a08fbc636a567b032cee61ac9798"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 13722,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_cobra3_subents.webp",
+      "sha256": "7851c55025043f0a5b9a608abbc145c33aa095ec6e31d80978613a6c341880b4",
+      "source": "third_party/oolite/Textures/oolite_cobra3_subents.png",
+      "sourceSha256": "be0dedb1d34d3425b1f7a92d2ac56f174938f8157aab56509e227bba26721da5"
+    },
+    {
+      "args": [
+        "-near_lossless",
+        "60",
+        "-z",
+        "9",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 6108,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_cobra3_subents_normal.webp",
+      "sha256": "494a70604c826e9b9cdf4a5b7a2b0168b06b8e56495359b8b617d38ee7560b75",
+      "source": "third_party/oolite/Textures/oolite_cobra3_subents_normal.png",
+      "sourceSha256": "13607e4bb2b8ac69a83a2af86d4326786ecd8dcaee103ba1ec63a47932c64670"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 80470,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_coriolis_diffuse.webp",
+      "sha256": "a78b3419401bf7fdd700107f08947341d7c0bad079834033663b1a71eff88ee4",
+      "source": "third_party/oolite/Textures/oolite_coriolis_diffuse.png",
+      "sourceSha256": "4d37a45710fd88798b7ff5a109e6b1fc0a9088166f05fc66a28540a31eaabf13"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 129900,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_coriolis_dock_diffuse.webp",
+      "sha256": "1e3ede6692cf9c6d9729aa88b58d21809e8c52088dcd3bda518dc77bccc55e81",
+      "source": "third_party/oolite/Textures/oolite_coriolis_dock_diffuse.png",
+      "sourceSha256": "64bda5ab0b7c00548d6ce335de4d4de63156f4507ab8ce8352adfd15fa490693"
+    },
+    {
+      "args": [
+        "-near_lossless",
+        "60",
+        "-z",
+        "9",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 913610,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_coriolis_dock_normal.webp",
+      "sha256": "a483e42e75c349335dfc6c8b130833ea8934d8caa30b2d61f9ba398ffae97cbd",
+      "source": "third_party/oolite/Textures/oolite_coriolis_dock_normal.png",
+      "sourceSha256": "9863395167650e295669c831a9bc57d6ba3c0a27de8ffe7add87c9d4a17250b7"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 316148,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_coriolis_faceplate_diffuse.webp",
+      "sha256": "6bacbc5f655ba38359e0203cac196928ad9e18a00b32e43639671ba20a15e96f",
+      "source": "third_party/oolite/Textures/oolite_coriolis_faceplate_diffuse.png",
+      "sourceSha256": "9edd6dee6d90101e55392c6897b395846519d16d21503bc229846d3a5511188a"
+    },
+    {
+      "args": [
+        "-near_lossless",
+        "60",
+        "-z",
+        "9",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 1038512,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_coriolis_faceplate_normal.webp",
+      "sha256": "66e465c8dd9e84f34dc0baa3b015507f8fc955829a471a8490429a90b45fceea",
+      "source": "third_party/oolite/Textures/oolite_coriolis_faceplate_normal.png",
+      "sourceSha256": "3908e10c05211bb66b7c6deb675de79b91a7fc7dae3f0259fec5c0ea5b55ab3a"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-exact",
+        "-alpha_q",
+        "100",
+        "-quiet"
+      ],
+      "bytes": 873668,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_coriolis_faceplate_specular.webp",
+      "sha256": "c63523614222b3ace627e76a978ec961eaeb9e6b9344ad3eac3e5d40e8e72ec7",
+      "source": "third_party/oolite/Textures/oolite_coriolis_faceplate_specular.png",
+      "sourceSha256": "0125056880902023aba4cc20c3b273bba184f445d661fe1ef9ab3873770bd353"
+    },
+    {
+      "args": [
+        "-near_lossless",
+        "60",
+        "-z",
+        "9",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 242806,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_coriolis_normal.webp",
+      "sha256": "361420e68988395e46a814f441544feba18cdb93a107f713ba4181ee6091f1cc",
+      "source": "third_party/oolite/Textures/oolite_coriolis_normal.png",
+      "sourceSha256": "c051af90ea73c2318b3104ee5110e619de5195ed9a41a982e1a73b90f136ecf4"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-exact",
+        "-alpha_q",
+        "100",
+        "-quiet"
+      ],
+      "bytes": 197402,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_coriolis_specular.webp",
+      "sha256": "312e15b0c9c267d9bcd19934b1fdcdcaef634c9d3442a2a742be085deb6c5347",
+      "source": "third_party/oolite/Textures/oolite_coriolis_specular.png",
+      "sourceSha256": "5f46f01778043d81434396fb7eca492ea8e3bf7d0158be22377292a88c001036"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 159512,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_coriolis_tris_diffuse.webp",
+      "sha256": "cd33fd0b1a50104cf3465573b4af19af33307cd2211f1ad4373142b67a6acd9e",
+      "source": "third_party/oolite/Textures/oolite_coriolis_tris_diffuse.png",
+      "sourceSha256": "729917a5f1c32d1f8cb9fd52788131ad713a6d8a2284e956d224ca2b5901088f"
+    },
+    {
+      "args": [
+        "-near_lossless",
+        "60",
+        "-z",
+        "9",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 416686,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_coriolis_tris_normal.webp",
+      "sha256": "1b68c5756cf03c0e8d2ce9e40a021a084c35e0b8c247528dee706f5be0d2f278",
+      "source": "third_party/oolite/Textures/oolite_coriolis_tris_normal.png",
+      "sourceSha256": "c6aecd20e89e6373b3c1734ed04f1cfc1043864e485132b25fb2766640fa47b5"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-exact",
+        "-alpha_q",
+        "100",
+        "-quiet"
+      ],
+      "bytes": 351916,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_coriolis_tris_specular.webp",
+      "sha256": "23c371b4a9f56f3ee18586bcd2c453f03673b5ee7c9cfd667c872a1210751f64",
+      "source": "third_party/oolite/Textures/oolite_coriolis_tris_specular.png",
+      "sourceSha256": "281ada9fa9ece3a36adc0bd905ac0366f88ae83afacc548174cc42f3997c50a7"
+    }
+  ]
+}

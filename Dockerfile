@@ -28,6 +28,13 @@ FROM deps AS ci
 # navigates to an untrusted URL.
 RUN npx playwright install --with-deps chromium \
  && rm -rf /var/lib/apt/lists/*
+# `cwebp` re-encodes the vendored textures in the content build
+# (tools/oolite-ingest/convert/texture-encode.ts). It is needed only when a
+# texture source or the encoder arguments change: an unchanged texture is
+# re-used as committed, so the drift gate does not depend on this version.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends webp \
+ && rm -rf /var/lib/apt/lists/*
 COPY . .
 
 FROM ci AS preview

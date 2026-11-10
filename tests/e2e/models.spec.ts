@@ -20,7 +20,8 @@
  * than this property needs.
  *
  * Handoff from plan 07: this case now fetches every `images[].uri` over the
- * preview server and asserts its PNG signature. A URI that points at a missing
+ * preview server and asserts its signature (WebP for the re-encoded ship and
+ * station textures, PNG for the baked emissive maps). A URI that points at a missing
  * file, or at the wrong directory after a `base: "./"` regression, fails here.
  */
 
@@ -29,6 +30,9 @@ import { expect, test } from "@playwright/test";
 const GLB_MAGIC = 0x46546c67;
 const TEXTURES_PREFIX = "/textures/";
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+/** "RIFF", four size bytes, then "WEBP". */
+const RIFF_TAG = [0x52, 0x49, 0x46, 0x46];
+const WEBP_TAG = [0x57, 0x45, 0x42, 0x50];
 
 interface ImageCheck {
   readonly path: string;
@@ -83,7 +87,7 @@ const result = async (): Promise<ReadResult> => {
         return {
           path: url.pathname,
           status: response.status,
-          signature: Array.from(bytes.subarray(0, 8)),
+          signature: Array.from(bytes.subarray(0, 12)),
         };
       }),
     );
@@ -127,8 +131,27 @@ test("the preview serves both GLBs and the Coriolis graph reads correctly", asyn
         TEXTURES_PREFIX,
       );
       expect(check.status, `${label} ${check.path}`).toBe(200);
-      expect(check.signature, `${label} ${check.path}`).toEqual(PNG_SIGNATURE);
+      if (check.path.endsWith(".webp")) {
+        expect(check.signature.slice(0, 4), `${label} ${check.path}`).toEqual(
+          RIFF_TAG,
+        );
+        expect(check.signature.slice(8, 12), `${label} ${check.path}`).toEqual(
+          WEBP_TAG,
+        );
+      } else {
+        expect(check.path, `${label} texture reference`).toMatch(
+          /_emissive\.png$/,
+        );
+        expect(check.signature.slice(0, 8), `${label} ${check.path}`).toEqual(
+          PNG_SIGNATURE,
+        );
+      }
     }
+    // The ship and station textures are served re-encoded, never as the PNGs.
+    expect(
+      glb.imagePaths.filter((path) => path.endsWith(".webp")).length,
+      label,
+    ).toBeGreaterThan(0);
   }
 
   const coriolis = glbs.coriolis.json;

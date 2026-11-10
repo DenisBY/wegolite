@@ -2,17 +2,17 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The texture reference closure, the byte-identical copy and the emissive bake
- * (DATA-04, DATA-07, DATA-09, D-03, D-20, D-21, T-02-19, T-02-20).
+ * The texture reference closure, the emitted texture tree and the emissive bake
+ * (DATA-04, DATA-07, DATA-09, D-03, D-21, T-02-19, T-02-20; D-20 as revised).
  *
  * The closure is asserted in both directions against the two emitted GLBs: a
  * referenced-but-absent texture and an allowlisted-but-unreferenced texture each
- * fail. Copied bytes are compared with their source bytes, so "vendored
- * verbatim" is a test result rather than a promise.
+ * fail. The WebP re-encode of the sixteen files is covered by
+ * `texture-encode.test.ts`.
  */
 
 import { readFileSync, readdirSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -23,16 +23,16 @@ import { sha256Hex } from "../canonical/hash.js";
 import { parseOpenStep } from "../openstep/parser.js";
 import { compileShips } from "./ships.js";
 import {
+  SKY_TEXTURES,
   VENDORED_TEXTURES,
   bakeEmissive,
-  copyTextures,
   decodeGreyscalePng,
   decodePng,
   emitTextures,
   resolveReferencedTextures,
   sampleNearest,
 } from "./textures.js";
-import { convertMesh } from "./glb.js";
+import { convertMesh, emissiveFile, encodedTextureFile } from "./glb.js";
 import type { Face, MeshMaterial, ParsedMesh } from "./dat.js";
 import type { ShipCatalogue } from "../../../src/content/schemas/ship.js";
 
@@ -159,34 +159,30 @@ describe("texture reference closure", () => {
   });
 });
 
-describe("copyTextures", () => {
-  it("copies all 16 files byte-for-byte and reports their paths", async () => {
-    const outRoot = await mkdtemp(join(tmpdir(), "wegolite-textures-"));
-    try {
-      const emitted = await copyTextures({ inputRoot: REPO_ROOT, outRoot });
-      expect(emitted.map((file) => file.path)).toEqual(
-        [...VENDORED_TEXTURES].map((name) => `public/textures/${name}`).sort(),
-      );
-      for (const name of VENDORED_TEXTURES) {
-        const source = readFileSync(
-          join(REPO_ROOT, "third_party/oolite/Textures", name),
-        );
-        const copied = await readFile(join(outRoot, "public/textures", name));
-        expect(copied.equals(source), name).toBe(true);
-      }
-    } finally {
-      await rm(outRoot, { recursive: true, force: true });
+describe("the emitted texture tree", () => {
+  it("serves each vendored texture as WebP only, beside the bakes and the sky", () => {
+    const entries = readdirSync(join(REPO_ROOT, "public/textures")).sort();
+    const expected = [
+      ...VENDORED_TEXTURES.map((name) => encodedTextureFile(name)),
+      ...VENDORED_TEXTURES.filter((name) =>
+        (resolveReferencedTextures(catalogue()).get(name) ?? []).some(
+          (reference) => reference.mapKind === "emission",
+        ),
+      ).map((name) => emissiveFile(name)),
+      ...SKY_TEXTURES,
+    ].sort();
+    expect(entries).toEqual(expected);
+    // The byte-for-byte PNG copies of Phase 2 D-20 are gone from the client.
+    for (const name of VENDORED_TEXTURES) {
+      expect(entries).not.toContain(name);
     }
   });
 
-  it("keeps the committed copies identical to their vendored sources", () => {
-    for (const name of VENDORED_TEXTURES) {
-      const source = readFileSync(
-        join(REPO_ROOT, "third_party/oolite/Textures", name),
-      );
-      const copied = readFileSync(join(REPO_ROOT, "public/textures", name));
-      expect(copied.equals(source), name).toBe(true);
-    }
+  it("keeps the vendored sources where the encoder reads them", () => {
+    const vendored = readdirSync(
+      join(REPO_ROOT, "third_party/oolite/Textures"),
+    );
+    for (const name of VENDORED_TEXTURES) expect(vendored).toContain(name);
   });
 });
 

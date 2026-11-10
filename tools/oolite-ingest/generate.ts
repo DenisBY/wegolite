@@ -35,11 +35,8 @@ import {
   emitShipsFromCatalogue,
 } from "./convert/ships.js";
 import { emitSystems } from "./convert/systems.js";
-import {
-  copySkyTextures,
-  copyTextures,
-  emitTextures,
-} from "./convert/textures.js";
+import { copySkyTextures, emitTextures } from "./convert/textures.js";
+import { encodeTextures } from "./convert/texture-encode.js";
 import { parseOpenStep } from "./openstep/parser.js";
 import type { PlistValue } from "./openstep/plist-value.js";
 
@@ -67,6 +64,12 @@ export interface EmittedFile {
 export interface GenerateOptions {
   readonly inputRoot: string;
   readonly outRoot: string;
+  /**
+   * The tree whose committed encoded textures may be re-used when their source
+   * and encoder arguments are unchanged (see `convert/texture-encode.ts`).
+   * Omit it to encode every texture again.
+   */
+  readonly reuseRoot?: string;
 }
 
 /** Resolve a vendored input path, refusing anything outside the snapshot. */
@@ -116,6 +119,7 @@ async function readConfig(
 export async function generateContent({
   inputRoot,
   outRoot,
+  reuseRoot,
 }: GenerateOptions): Promise<EmittedFile[]> {
   const [
     commodities,
@@ -161,9 +165,15 @@ export async function generateContent({
     await writeFile(target, file.bytes);
   }
 
-  // Textures own their own copy step: the closure is asserted before a byte is
-  // read, and each copy is hash-verified in `copyTextures` (D-20, D-21).
-  const textures = await copyTextures({ inputRoot, outRoot });
+  // The ship and station textures are re-encoded to WebP; the closure is
+  // asserted before a byte is read, and the record of how each file was
+  // produced is emitted beside them (D-21; D-20 as revised).
+  const textures = await encodeTextures({
+    inputRoot,
+    outRoot,
+    catalogue: catalogue.entries,
+    ...(reuseRoot === undefined ? {} : { reuseRoot }),
+  });
   const emissives = await emitTextures({
     inputRoot,
     outRoot,

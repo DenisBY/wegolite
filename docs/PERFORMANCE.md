@@ -36,19 +36,19 @@ The Diso scenes are reached through an IndexedDB save fixture (`tests/e2e/helper
 
 The first-load test in `tests/e2e/budget.spec.ts` records the same-origin response body bytes of every request from a cold start (a fresh browser context, no cache) to the first in-flight frame.
 
-| Measure                                          | Value                        |
-| ------------------------------------------------ | ---------------------------- |
-| Cold-start transfer to the first in-flight frame | 20 996 848 bytes (20.03 MiB) |
-| Regression ceiling (`FIRST_LOAD_BYTES_CEILING`)  | 22 020 096 bytes (21 MiB)    |
-| Entry chunk `dist/assets/index-BzvG01ob.js`, raw | 1 582 446 bytes              |
-| Entry chunk, gzip at level 9                     | 311 972 bytes                |
-| STACK.md target for initial JavaScript           | 250 KB gzip                  |
+| Measure                                          | Value                      |
+| ------------------------------------------------ | -------------------------- |
+| Cold-start transfer to the first in-flight frame | 7 490 424 bytes (7.14 MiB) |
+| Regression ceiling (`FIRST_LOAD_BYTES_CEILING`)  | 8 388 608 bytes (8 MiB)    |
+| Entry chunk `dist/assets/index-*.js`, raw        | 1 615 497 bytes            |
+| Entry chunk, gzip at level 9                     | 319 971 bytes              |
+| STACK.md target for initial JavaScript           | 250 KB gzip                |
 
-These figures predate quick task 261109-s8k, which trimmed the client ship catalogue from 706 617 to 15 196 bytes raw; the table has not been re-measured since.
+Measured on 2026-11-10. The transfer was 20 996 848 bytes (20.03 MiB) on 2026-11-08. Two quick tasks account for the difference: 261109-s8k trimmed the client ship catalogue from 706 617 to 15 196 bytes, and 261110-b7w re-encoded the sixteen ship and station textures from PNG (19 727 075 bytes) to WebP (6 251 016 bytes). The preview server does not compress responses, so these are uncompressed body sizes.
 
-The ceiling is the measured transfer rounded up to the next MiB, so it is a regression ceiling and not a load budget. The entry chunk was measured inside the container on 2026-11-08 with `node:zlib` `gzipSync`.
+The ceiling is the measured transfer rounded up to the next MiB, so it is a regression ceiling and not a load budget. The entry chunk was measured inside the container with `node:zlib` `gzipSync`.
 
-The entry chunk is over the STACK.md target of 250 KB gzip. That finding is recorded here and is not gated or fixed. It is outside QUAL-01's draw-call and triangle budget, and D-14 defers load optimisation until a stated load budget fails.
+The entry chunk is over the STACK.md target of 250 KB gzip. That finding is recorded here and is not gated or fixed. It is outside QUAL-01's draw-call and triangle budget. About 700 KB of the raw chunk is the galaxy 0 data, which is imported eagerly; loading it like galaxies 1 to 7 would bring the chunk under the target but would not reduce what a player downloads before the first flight, so it was left as it is.
 
 ## Reference-desktop protocol
 

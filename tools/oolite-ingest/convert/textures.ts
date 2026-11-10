@@ -2,9 +2,14 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * Vendored textures: the reference closure, the byte-identical copy, and (below)
- * the greyscale emissive bake (DATA-04, DATA-07, DATA-08, DATA-09, D-03, D-20,
- * D-21, T-02-20).
+ * Vendored textures: the reference closure, the byte-identical copy of the sky
+ * textures, and (below) the greyscale emissive bake (DATA-04, DATA-07, DATA-08,
+ * DATA-09, D-03, D-20, D-21, T-02-20).
+ *
+ * The sixteen ship and station textures are no longer copied: they are
+ * re-encoded to WebP by `convert/texture-encode.ts`, which revises D-20 (see
+ * PROJECT.md Key Decisions). This module still owns their allowlist and the
+ * reference closure, which the encoder reads.
  *
  * The set is driven by `EMITTED_ENTRIES` from `convert/glb.ts`, never restated
  * here: the files this module copies are exactly the files the two emitted GLBs
@@ -14,10 +19,9 @@
  * An allowlisted file that no emitted material references is a failure too, so
  * a stale entry cannot ship silently.
  *
- * Copying is literal: bytes in, the same bytes out, verified by SHA-256. No
- * decode, no resize, no colour conversion — only the derived `_emissive.png` is
- * generated, and it is built from the source alpha channel with `node:zlib`
- * rather than an image dependency.
+ * Copying (the sky textures) is literal: bytes in, the same bytes out, verified
+ * by SHA-256. The derived `_emissive.png` is built from the source alpha
+ * channel with `node:zlib` rather than an image dependency.
  *
  * The closure is scoped to the material sets the two GLBs emit, not every
  * `modelVendored` entry. `cobra3-alternate` and `cobra3-pirate` reference
@@ -50,9 +54,10 @@ export const TEXTURES_DIR = "third_party/oolite/Textures";
 export const EMITTED_TEXTURES_DIR = "public/textures";
 
 /**
- * The 16 files the two emitted GLBs reference, sorted by code unit. Explicit by
- * design: a texture becomes vendorable by being added here **and** referenced by
- * an emitted material, and both directions are asserted.
+ * The 16 source files the two emitted GLBs reference, sorted by code unit.
+ * Explicit by design: a texture becomes vendorable by being added here **and**
+ * referenced by an emitted material, and both directions are asserted. These
+ * are the vendored names; the client is served the re-encoded `.webp` of each.
  */
 export const VENDORED_TEXTURES: readonly string[] = [
   "oolite_cobra3_diffuse.png",
@@ -233,26 +238,13 @@ function resolveUnder(base: string, name: string, construct: string): string {
 }
 
 /**
- * Copy every allowlisted texture byte-for-byte into `public/textures/`.
- *
- * The source and the written file are both hashed and the digests compared, so
- * a partial write or a transform on the copy path fails the build instead of
- * shipping a subtly different image (D-20).
- */
-export async function copyTextures({
-  inputRoot,
-  outRoot,
-}: CopyTexturesOptions): Promise<EmittedTextureFile[]> {
-  return copyNamedTextures(VENDORED_TEXTURES, { inputRoot, outRoot });
-}
-
-/**
  * The sky textures the High graphics quality draws its nebulae with.
  *
  * They are listed in `Config/nebulatextures.plist` and are not referenced by a
  * ship material, so they sit outside `VENDORED_TEXTURES` and its "referenced by
- * an emitted GLB" rule. They are copied byte-for-byte by the same hash-verified
- * path.
+ * an emitted GLB" rule. They are small greyscale masks, so they are copied
+ * byte-for-byte: the source and the written file are both hashed and the
+ * digests compared, so a partial write fails the build.
  */
 export const SKY_TEXTURES: readonly string[] = [
   "oolite-nebula-1.png",

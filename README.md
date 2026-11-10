@@ -188,8 +188,16 @@ browser never parses a plist and never downloads the snapshot.
   sanctioned way those bytes enter the repository.
 - **Regenerate.** `docker compose run --rm assets` compiles the snapshot into
   `src/content/generated/` (typed JSON and the manifest) and `public/models/`,
-  `public/textures/` (GLB and PNG). The output is committed: it is the reviewed
-  baseline, not a build cache.
+  `public/textures/` (GLB, WebP and PNG). The output is committed: it is the
+  reviewed baseline, not a build cache.
+- **Textures.** The ship and station textures are re-encoded from the vendored
+  PNGs to WebP with `cwebp`, which is baked into the image.
+  `src/content/generated/texture-encodings.json` records the source hash, the
+  encoder arguments and the output hash of each file. A file whose source and
+  arguments are unchanged is kept exactly as committed, so the output does not
+  depend on the encoder version or the CPU;
+  `docker compose run --rm assets npm run assets:build -- --reencode` encodes
+  every texture again.
 - **Drift gate.** `docker compose run --rm assets npm run assets:check`
   regenerates into a temporary directory and compares the file set, the bytes
   and each SHA-256 against the committed tree. It runs inside
