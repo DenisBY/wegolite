@@ -37,6 +37,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   picture is not exactly the previous one, but no difference is visible in
   side-by-side screenshots. A browser without WebP support can no longer load
   the models; every current Chrome, Firefox and Safari has it.
+- Highlights on the Cobra and the station now take their colour from Oolite's
+  specular maps, as Oolite does. Before, only the map's strength channel was
+  used and every highlight was white.
 - The game no longer redraws the scene while docked or paused. The image does
   not change in those states, so it is drawn once and the GPU is left idle,
   which lowers power use and fan noise on the station screens.

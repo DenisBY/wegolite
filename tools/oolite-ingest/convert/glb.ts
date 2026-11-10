@@ -286,6 +286,8 @@ interface MaterialJson {
     readonly KHR_materials_specular: {
       readonly specularFactor: number;
       readonly specularTexture: { readonly index: number };
+      readonly specularColorFactor: readonly number[];
+      readonly specularColorTexture: { readonly index: number };
     };
   };
   readonly extras?: { readonly oolite: OoliteExtras };
@@ -384,10 +386,19 @@ export function writeGlb(scene: GlbScene): Uint8Array {
         : {
             // Core glTF has no specular slot; the standard extension carries it
             // and `extras.oolite.specular_map` keeps the authored name beside it.
+            // One image feeds both slots, as in Oolite's shader
+            // (`oolite-default-shader.fragment:419-451`): `specularColorTexture`
+            // reads its RGB, which Oolite multiplies into the specular colour,
+            // and `specularTexture` reads its alpha. Oolite uses that alpha as
+            // gloss; reading it as strength is the D-08 approximation.
             extensions: {
               KHR_materials_specular: {
                 specularFactor: 1,
                 specularTexture: {
+                  index: textureRef(material.specularTexture),
+                },
+                specularColorFactor: [1, 1, 1],
+                specularColorTexture: {
                   index: textureRef(material.specularTexture),
                 },
               },

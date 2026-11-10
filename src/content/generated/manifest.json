@@ -1,14 +1,14 @@
 {
   "files": [
     {
-      "bytes": 120064,
+      "bytes": 120128,
       "path": "public/models/cobra3.glb",
-      "sha256": "b488a7afb1a20a6d7f430ba6813bdb05427a67337e9f99e079b24034e15d2a47"
+      "sha256": "f274befa4ba8553f8a1bf51878f6b1c321a091c8c1e8e7253bf24eeaf1321959"
     },
     {
-      "bytes": 248916,
+      "bytes": 249112,
       "path": "public/models/coriolis.glb",
-      "sha256": "e32ca66ec29fe8de77a2347582a630a88ca9b6269c84e2e7bc29046c6ca991bf"
+      "sha256": "8e18eff0955f2cd80cded32dd2c4568174a812d68f7c3b27d1cec7fb7793b4f1"
     },
     {
       "bytes": 29515,

@@ -147,7 +147,11 @@ interface GlbJson {
     normalTexture?: { index: number };
     emissiveTexture?: { index: number };
     extensions?: {
-      KHR_materials_specular?: { specularTexture?: { index: number } };
+      KHR_materials_specular?: {
+        specularTexture?: { index: number };
+        specularColorFactor?: number[];
+        specularColorTexture?: { index: number };
+      };
     };
     extras?: { oolite?: Record<string, unknown> };
     alphaMode?: string;
@@ -797,6 +801,12 @@ describe("GLB container", () => {
         hullJson.extensions?.KHR_materials_specular?.specularTexture?.index,
       ),
     ).toBe("../textures/oolite_cobra3_specular.webp");
+    // The same image drives the specular colour (RGB) and strength (alpha).
+    const hullSpecular = hullJson.extensions?.KHR_materials_specular;
+    expect(hullSpecular?.specularColorTexture?.index).toBe(
+      hullSpecular?.specularTexture?.index,
+    );
+    expect(hullSpecular?.specularColorFactor).toEqual([1, 1, 1]);
     expect(gunJson.extensions?.KHR_materials_specular).toBeUndefined();
     expect(json.extensionsUsed).toEqual([
       "KHR_materials_specular",
