@@ -584,7 +584,7 @@ download size, fragment shading and work done when nothing changes.
 Two pending todos in `.planning/todos/pending/` are still true in the code and
 are easy to lose now that phase 7 is closing.
 
-- `serializeFlight` omits `compassMode` (`src/sim/flight/state.ts:147-176`
+- *Done in quick task 261110-f2r.* `serializeFlight` omits `compassMode` (`src/sim/flight/state.ts:147-176`
   writes only `compass=${compassTarget}`), so two states that behave
   differently on the next `cycleCompass` hash equal. `runToSteps`
   (`src/sim/loop.ts:42`) caps a frame delta above but not below zero.
