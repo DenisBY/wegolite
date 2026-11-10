@@ -149,6 +149,7 @@ import { createChart } from "../ui/chart.js";
 import type { ChartOverlay } from "../ui/chart.js";
 import { createSaveLoadScreen } from "../ui/save-load.js";
 import type { SaveLoadScreen } from "../ui/save-load.js";
+import { dockedHints } from "../ui/station-hints.js";
 import { formatClock } from "../render/hud/format.js";
 import {
   buildChartView,
@@ -172,12 +173,7 @@ import {
 import type { OutfittingModel } from "../ui/station-model.js";
 import { createStationNav } from "../ui/station-nav.js";
 import type { StationNav } from "../ui/station-nav.js";
-import {
-  activeTabId,
-  isTabEnabled,
-  primaryKeyLabel,
-  tabById,
-} from "../ui/station-tabs.js";
+import { activeTabId, isTabEnabled, tabById } from "../ui/station-tabs.js";
 import type { StationNavState, StationTabId } from "../ui/station-tabs.js";
 import { identity, sub, vec } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
@@ -842,31 +838,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderStation();
   }
 
-  /**
-   * Keys/messages for the persistent footer, one field per concern. The tab
-   * strip already labels every screen and its key, so the footer carries only
-   * screen-specific controls and never repeats the switch list.
-   */
-  function keyHints(screen: StationScreen): string {
-    const map = bindings ?? DEFAULT_BINDINGS;
-    if (screen === "market") {
-      return "Up/Down select · Right buys +1 · Left sells +1 · Shift max · Y confirm · N cancel · Esc back · P pause";
-    }
-    if (screen === "outfitting") {
-      return "Up/Down select · Y confirm · N cancel · Esc back · P pause";
-    }
-    if (screen === "status") {
-      return "Tab/PageDown next page · PageUp previous · Esc back · P pause";
-    }
-    if (screen === "interfaces") {
-      return "Esc back · P pause";
-    }
-    const launchKey = primaryKeyLabel(map, "launch");
-    const launchHint =
-      launchKey === undefined ? "launch" : `${launchKey} launch`;
-    return `${launchHint} · P pause`;
-  }
-
   /** The tab strip's inputs: the base station screen plus the overlay flag. */
   function currentNavState(currentState: FlightState): StationNavState {
     return {
@@ -974,7 +945,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       creditsText: formatDecicredits(profile.credits),
       fuelText: formatFuel(profile.fuel),
       message: stationMessage,
-      keysText: keyHints(stationScreen),
+      keysText: dockedHints(bindings ?? DEFAULT_BINDINGS, stationScreen),
       confirmText,
       noticeText,
       saveText,

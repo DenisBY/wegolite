@@ -404,7 +404,9 @@
 
       /* One station footer above the fixed document disclaimer. It is a div,
          never a second footer element: strict `footer` locators and the global CSS
-         must keep resolving to the single document element. */
+         must keep resolving to the single document element. Each overlay owns
+         one clone of #station-footer-template: a dim key-hint line above one
+         status line, both always present so the footer height never jumps. */
       .station-footer {
         position: fixed;
         left: 0;
@@ -421,19 +423,39 @@
          #station-screen scrolls above it instead of under a fixed overlay. */
       #docked .station-footer {
         position: static;
+        display: flex;
+        flex-direction: column;
         flex: 0 0 auto;
       }
 
+      /* The two lines share one line box height: an empty reserved line and a
+         text line are identical, so a status appearing never reflows the
+         footer. Hints ellipsise rather than wrap (the market line is the
+         longest one at 1280x720). */
       .station-footer p {
         min-height: 1.5em;
         margin: 0;
+        line-height: 1.5;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
-      .station-footer [data-field="station-notice"] {
+      .station-footer [data-footer-role="hints"] {
+        color: #9a9;
+        font-size: 0.85em;
+      }
+
+      .station-footer [data-footer-role="status"][data-status-tone="confirm"] {
+        color: #ffd966;
+      }
+
+      .station-footer [data-footer-role="status"][data-status-tone="notice"] {
         color: #9c9;
       }
 
-      .station-footer [data-field="station-save"] {
+      .station-footer [data-footer-role="status"][data-status-tone="save"],
+      .station-footer [data-footer-role="status"][data-status-tone="info"] {
         color: #9a9;
       }
 
@@ -913,12 +935,6 @@
           <p data-field="interfaces-empty"></p>
         </div>
       </section>
-      <div class="station-footer">
-        <p data-field="station-keys"></p>
-        <p data-field="station-confirm" role="status"></p>
-        <p data-field="station-notice"></p>
-        <p data-field="station-save"></p>
-      </div>
     </div>
     <div id="chart" hidden>
       <header class="station-header">

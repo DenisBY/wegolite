@@ -123,7 +123,7 @@ test("buys one tonne of Food, autosaves and reloads into the same hold", async (
 
   await page.keyboard.press("ArrowRight");
   const price = food?.price ?? 38;
-  await expect(page.locator('[data-field="station-confirm"]')).toHaveText(
+  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
     `Buy 1 t Food for ${formatDecicredits(price)}? [Y/N]`,
   );
 
@@ -252,9 +252,9 @@ test("dispatches Digit8 and the next key in one frame against the new context", 
     fire("ArrowRight");
   });
   await waitForScreen(page, "market");
-  await expect(page.locator('[data-field="station-confirm"]')).toContainText(
-    "Buy 1 t Food",
-  );
+  await expect(
+    page.locator('#docked [data-footer-role="status"]'),
+  ).toContainText("Buy 1 t Food");
 
   await page.evaluate(() => {
     const fire = (code: string): void => {
@@ -416,10 +416,12 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   await page.keyboard.press("ArrowDown");
   await expect(row("EQ_DOCK_COMP")).toHaveClass(/selected/);
   await page.keyboard.press("KeyY");
-  await expect(page.locator('[data-field="station-confirm"]')).toHaveText("");
-  await expect(page.locator('[data-field="station-notice"]')).toHaveText(
+  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
     "Requires TL 9",
   );
+  await expect(
+    page.locator('#docked [data-footer-role="status"]'),
+  ).toHaveAttribute("data-status-tone", "notice");
   let probe = await getProbe(page);
   expect(probe.economy?.credits).toBe(1000);
   expect(probe.save?.committed).toBe(committedBefore);
@@ -438,7 +440,7 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
 
   // First Y opens the prompt; the second commits.
   await page.keyboard.press("KeyY");
-  await expect(page.locator('[data-field="station-confirm"]')).toHaveText(
+  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
     "Buy Remove Missile for 20.0 Cr? [Y/N]",
   );
   await expect(row("EQ_MISSILE_REMOVAL")).toHaveClass(/selected/);
@@ -470,7 +472,9 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   // The cursor clamps to the new last row (passenger berth, now unaffordable).
   // A third Y is therefore a no-op: no prompt, no credits, no save.
   await page.keyboard.press("KeyY");
-  await expect(page.locator('[data-field="station-confirm"]')).toHaveText("");
+  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
+    "",
+  );
   probe = await getProbe(page);
   expect(probe.economy?.credits).toBe(1700);
   expect(probe.economy?.missiles).toBe(0);
@@ -699,7 +703,7 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   await waitForScreen(page, "market");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
-  await expect(page.locator('[data-field="station-confirm"]')).toHaveText(
+  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
     "Buy 2 t Food for 7.6 Cr? [Y/N]",
   );
   await page.keyboard.press("KeyY");
@@ -712,7 +716,7 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   );
 
   await page.keyboard.press("ArrowLeft");
-  await expect(page.locator('[data-field="station-confirm"]')).toHaveText(
+  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
     "Sell 1 t Food for 3.8 Cr? [Y/N]",
   );
   await page.keyboard.press("KeyY");
@@ -744,7 +748,7 @@ test("the whole station computer is keyboard-only, and every accepted action wri
     page.locator('[data-equipment-key="EQ_MISSILE_REMOVAL"]'),
   ).toHaveClass(/selected/);
   await page.keyboard.press("KeyY");
-  await expect(page.locator('[data-field="station-confirm"]')).toHaveText(
+  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
     "Buy Remove Missile for 20.0 Cr? [Y/N]",
   );
   await page.keyboard.press("KeyY");
@@ -760,7 +764,12 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   expect(afterRemoval.economy?.missiles).toBe(0);
 
   await page.keyboard.press("KeyY");
-  await expect(page.locator('[data-field="station-confirm"]')).toHaveText("");
+  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
+    "Requires TL 5",
+  );
+  await expect(
+    page.locator('#docked [data-footer-role="status"]'),
+  ).toHaveAttribute("data-status-tone", "notice");
   const afterThirdY = await getProbe(page);
   expect(afterThirdY.economy?.credits).toBe(1662);
   expect(afterThirdY.save?.committed).toBe(3);
@@ -807,7 +816,9 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => window.__wegolite?.paused === false);
   await waitForScreen(page, "home");
-  await expect(page.locator('[data-field="station-confirm"]')).toHaveText("");
+  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
+    "",
+  );
   expect((await getProbe(page)).save?.committed).toBe(3);
 
   // KeyP is also a clean resume with no replayed action.

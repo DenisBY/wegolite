@@ -241,6 +241,7 @@ test("re-clicking the active tab is a no-op and the screen under an overlay keep
 }) => {
   const errors = collectErrors(page);
   await boot(page);
+  const dockedStatus = page.locator('#docked [data-footer-role="status"]');
 
   await tab(page, "docked", "market").click();
   await waitForScreen(page, "market");
@@ -280,13 +281,11 @@ test("re-clicking the active tab is a no-op and the screen under an overlay keep
     undefined,
     { timeout: 10_000 },
   );
-  await expect(page.locator('[data-field="station-confirm"]')).not.toHaveText(
-    "",
-  );
+  await expect(dockedStatus).not.toHaveText("");
   await tab(page, "docked", "status").click();
   await waitForScreen(page, "status");
   expect((await getProbe(page)).station?.pending).toBeNull();
-  await expect(page.locator('[data-field="station-confirm"]')).toHaveText("");
+  await expect(dockedStatus).toHaveText("");
 
   expect(errors).toEqual([]);
 });
@@ -615,11 +614,24 @@ test("the footer hints fit one line and the disabled and selected states are leg
   const errors = collectErrors(page);
   await boot(page);
 
-  const keys = page.locator('#docked [data-field="station-keys"]');
+  const footer = page.locator("#docked .station-footer");
+  const hints = footer.locator('[data-footer-role="hints"]');
+  const status = footer.locator('[data-footer-role="status"]');
+  await expect(footer).toHaveCount(1);
+  await expect(footer.locator("[data-footer-role]")).toHaveCount(2);
+  // The status line is always present and reserves one line even when empty.
+  await expect(status).toHaveText("");
+  await expect(status).toHaveAttribute("data-status-tone", "");
+  const emptyStatusBox = await status.boundingBox();
+  expect(emptyStatusBox).not.toBeNull();
+  expect(emptyStatusBox?.height ?? 0).toBeGreaterThan(0);
+  const homeFooterBox = await footer.boundingBox();
+  expect(homeFooterBox).not.toBeNull();
+
   for (const id of ["home", "market", "outfitting", "status", "interfaces"]) {
     await tab(page, "docked", id).click();
     await waitForScreen(page, id);
-    const box = await keys.boundingBox();
+    const box = await hints.boundingBox();
     expect(box).not.toBeNull();
     expect(box?.height ?? 999).toBeLessThan(36);
     const screenBox = await page.locator("#station-screen").boundingBox();
@@ -647,9 +659,36 @@ test("the footer hints fit one line and the disabled and selected states are leg
   }
   await tab(page, "docked", "status").click();
   await waitForScreen(page, "status");
-  await expect(keys).toContainText("Tab/PageDown next page");
-  await expect(keys).not.toContainText("outfitting");
-  await expect(keys).not.toContainText("market");
+  await expect(hints).toContainText("Tab/PageDown next page");
+  // The footer never repeats the tab strip's screen-switch list.
+  await expect(hints).not.toContainText("outfitting");
+  await expect(hints).not.toContainText("market");
+
+  // A confirmation raises the status line without changing either height: the
+  // empty line and the text line are the same reserved line box.
+  const footerHeight = homeFooterBox?.height ?? 0;
+  const statusHeight = emptyStatusBox?.height ?? 0;
+  await tab(page, "docked", "market").click();
+  await waitForScreen(page, "market");
+  await page.keyboard.press("ArrowRight");
+  await page.waitForFunction(
+    () => window.__wegolite?.station?.pending !== null,
+    undefined,
+    { timeout: 10_000 },
+  );
+  await expect(status).toContainText("Buy");
+  await expect(status).toHaveAttribute("data-status-tone", "confirm");
+  expect(await status.locator("*").count()).toBe(0);
+  const confirmFooterBox = await footer.boundingBox();
+  const confirmStatusBox = await status.boundingBox();
+  expect(confirmFooterBox).not.toBeNull();
+  expect(confirmStatusBox).not.toBeNull();
+  expect(
+    Math.abs((confirmFooterBox?.height ?? 0) - footerHeight),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs((confirmStatusBox?.height ?? 0) - statusHeight),
+  ).toBeLessThanOrEqual(1);
 
   // A disabled tab reaches 3:1 against the opaque chart panel.
   await tab(page, "docked", "chart").click();
@@ -689,6 +728,54 @@ test("the footer hints fit one line and the disabled and selected states are leg
   expect(styles.current.outline).toBe("none");
   expect(styles.focused.outline).not.toBe("none");
   expect(styles.current).not.toEqual(styles.focused);
+
+  expect(errors).toEqual([]);
+});
+
+test("a rebind refreshes the docked and chart footer hints without a reload", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+
+  await tab(page, "docked", "market").click();
+  await waitForScreen(page, "market");
+  const dockedHints = page.locator('#docked [data-footer-role="hints"]');
+  await expect(dockedHints).toContainText("Enter/Y confirm");
+
+  // Pause -> Controls -> Rebind -> Back -> Resume is the one rebind path.
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeVisible();
+  await page.click('#pause button[data-pause-action="controls"]');
+  await expect(page.locator("#controls")).toBeVisible();
+
+  await page.click('button[data-rebind="stationConfirm"]');
+  await page.keyboard.press("KeyK");
+  await expect(page.locator("#controls-status")).toContainText(
+    "Confirm bound to K",
+  );
+
+  await page.click('button[data-rebind="chartRange"]');
+  await page.keyboard.press("KeyG");
+  await expect(page.locator("#controls-status")).toContainText(
+    "Chart preset bound to G",
+  );
+
+  await page.click('button[data-controls-action="back"]');
+  await page.click('#pause button[data-pause-action="resume"]');
+  await page.waitForFunction(() => window.__wegolite?.paused === false);
+  await waitForScreen(page, "market");
+
+  // refreshStationChrome pushed the live labels to the docked footer.
+  await expect(dockedHints).toContainText("K confirm");
+  await expect(dockedHints).not.toContainText("Enter/Y confirm");
+
+  // The same refresh path reaches the chart overlay once Task 3 mounts its
+  // footer; here the docked footer proves the live rebind.
+  await page.keyboard.press("F6");
+  await waitForChart(page, true);
+  await page.keyboard.press("Escape");
+  await waitForChart(page, false);
 
   expect(errors).toEqual([]);
 });

@@ -9,17 +9,21 @@
  * second `<footer>`: the global document disclaimer stays the only `<footer>`
  * element, so strict locators and the global CSS keep resolving to it.
  *
- * The four footer fields are independent writers — keys, confirmation, notice,
- * save state — so a failed autosave can never clear a pending `[Y/N]` line.
- * Every dynamic string goes through `textContent`; section rows are
- * non-focusable `tr`/`div` elements, never buttons or anchors, so native
- * Enter/Space cannot bypass the semantic action layer (T-05-25).
+ * The footer is the shared two-line component (`station-footer.ts`): a live
+ * key-hint line above one status line. It has three independent status writers —
+ * confirmation, notice, save state — rendered by priority
+ * `confirm > notice > save > info`, so a failed autosave can never clear a
+ * pending `[Y/N]` line. Every dynamic string goes through `textContent`;
+ * section rows are non-focusable `tr`/`div` elements, never buttons or anchors,
+ * so native Enter/Space cannot bypass the semantic action layer (T-05-25).
  *
  * The reduced Phase 4 panel is composed as the home renderer: this module never
  * owns a second home path.
  */
 
+import { createStationFooter } from "./station-footer.js";
 import type { DockedPanel } from "./docked.js";
+
 import type {
   InterfacesModel,
   LabelledField,
@@ -206,26 +210,7 @@ export function createStationShell(
     '[data-field="status-load"]',
     "the status load line",
   );
-  const keysField = requireElement<HTMLElement>(
-    root,
-    '[data-field="station-keys"]',
-    "the station key hints",
-  );
-  const confirmField = requireElement<HTMLElement>(
-    root,
-    '[data-field="station-confirm"]',
-    "the station confirmation line",
-  );
-  const noticeField = requireElement<HTMLElement>(
-    root,
-    '[data-field="station-notice"]',
-    "the station notice line",
-  );
-  const saveField = requireElement<HTMLElement>(
-    root,
-    '[data-field="station-save"]',
-    "the station save line",
-  );
+  const footer = createStationFooter(root);
 
   const controller = new AbortController();
   let previousScreen: StationScreen = "home";
@@ -344,14 +329,19 @@ export function createStationShell(
         interfacesTitle.textContent = view.interfaces.title;
         interfacesEmpty.textContent = view.interfaces.emptyText;
       }
-      // One writer per field. A save failure writes only `station-save`.
-      keysField.textContent = view.keysText;
-      confirmField.textContent = view.confirmText;
-      noticeField.textContent = view.noticeText;
-      saveField.textContent = view.saveText;
+      // One footer, two lines, independent parts. The component chooses which
+      // status part is visible; passing all three every render clears a part
+      // that the session cleared.
+      footer.setHints(view.keysText);
+      footer.setStatus({
+        confirm: view.confirmText,
+        notice: view.noticeText,
+        save: view.saveText,
+      });
     },
     dispose(): void {
       controller.abort();
+      footer.dispose();
       home.dispose();
     },
   };

@@ -802,9 +802,12 @@ test("a future-version blob is never cleared or replaced", async ({ page }) => {
   expect(await readRaw(page)).toBe(future);
 
   // A future blob disables the write path for the whole session, visibly.
-  await expect(page.locator('[data-field="station-save"]')).toContainText(
-    "Saving is disabled",
-  );
+  await expect(
+    page.locator('#docked [data-footer-role="status"]'),
+  ).toContainText("Saving is disabled");
+  await expect(
+    page.locator('#docked [data-footer-role="status"]'),
+  ).toHaveAttribute("data-status-tone", "save");
   await page.keyboard.press("Digit8");
   await waitForStationScreen(page, "market");
   await page.keyboard.press("ArrowRight");
@@ -818,9 +821,12 @@ test("a future-version blob is never cleared or replaced", async ({ page }) => {
   expect(futureProbe.save?.committed).toBe(0);
   expect(futureProbe.save?.skipReason).toBe("future");
   expect(await readRaw(page)).toBe(future);
-  await expect(page.locator('[data-field="station-save"]')).toContainText(
-    "Saving is disabled",
-  );
+  await expect(
+    page.locator('#docked [data-footer-role="status"]'),
+  ).toContainText("Saving is disabled");
+  await expect(
+    page.locator('#docked [data-footer-role="status"]'),
+  ).toHaveAttribute("data-status-tone", "save");
   await page.keyboard.press("Escape");
   await waitForStationScreen(page, "home");
 
@@ -1269,23 +1275,24 @@ test("a failed IndexedDB write is visible in the station footer and leaves the b
   const after = await getProbe(page);
   expect(after.save?.committed).toBe(committedBefore);
   expect(after.save?.skipReason).toBe("injected write failure");
-  await expect(page.locator('[data-field="station-save"]')).toHaveText(
-    "Save failed — progress not saved",
-  );
-  // The save notice owns its own field; the home hint is never clobbered.
+  const stationStatus = page.locator('#docked [data-footer-role="status"]');
+  await expect(stationStatus).toHaveText("Save failed — progress not saved");
+  await expect(stationStatus).toHaveAttribute("data-status-tone", "save");
+  // The save notice owns the status line; the home hint is never clobbered.
   await expect(page.locator('[data-field="message"]')).not.toContainText(
     "Save failed",
   );
   expect(await readRaw(page)).toBe(previous);
 
-  // A fresh confirmation opened after the failure keeps both fields intact.
+  // A confirmation opened after the failure takes priority over the save part,
+  // and cancelling it reveals the retained save failure. The parts are
+  // independent, so a failed autosave never cleared a pending [Y/N].
   await page.keyboard.press("ArrowRight");
-  await expect(page.locator('[data-field="station-confirm"]')).toContainText(
-    "Buy",
-  );
-  await expect(page.locator('[data-field="station-save"]')).toHaveText(
-    "Save failed — progress not saved",
-  );
+  await expect(stationStatus).toContainText("Buy");
+  await expect(stationStatus).toHaveAttribute("data-status-tone", "confirm");
+  await page.keyboard.press("KeyN");
+  await expect(stationStatus).toHaveText("Save failed — progress not saved");
+  await expect(stationStatus).toHaveAttribute("data-status-tone", "save");
   expect(errors).toEqual([]);
 });
 
@@ -1338,10 +1345,16 @@ test("an accepted buy and removal each write exactly one autosave", async ({
   expect(afterRemoval.economy?.missiles).toBe(0);
   expect(afterRemoval.economy?.cargo?.food).toBe(1);
 
-  // A third Y is a no-op: no prompt, no credits, no save.
+  // A third Y is a no-op: no prompt, no credits, no save. The cursor now sits
+  // on the unaffordable passenger berth, so its notice is the visible status.
   const credits = afterRemoval.economy?.credits;
   await page.keyboard.press("KeyY");
-  await expect(page.locator('[data-field="station-confirm"]')).toHaveText("");
+  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
+    "Requires TL 5",
+  );
+  await expect(
+    page.locator('#docked [data-footer-role="status"]'),
+  ).toHaveAttribute("data-status-tone", "notice");
   const idle = await getProbe(page);
   expect(idle.economy?.credits).toBe(credits);
   expect(idle.save?.committed).toBe(base + 2);
