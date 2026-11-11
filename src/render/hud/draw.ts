@@ -52,7 +52,7 @@ const LOLLIPOP_HEAD_WIDTH = 8.75;
 const LOLLIPOP_HEAD_HEIGHT = 5.25;
 const LOLLIPOP_HEAD_LEFT_OFFSET = 5.25;
 const LOLLIPOP_STALK_WIDTH = 3.5;
-const LOLLIPOP_STALK_ALPHA = 1 / 3;
+const LOLLIPOP_STALK_ALPHA = 0.65;
 
 export type HudElementId =
   | "crosshair"
