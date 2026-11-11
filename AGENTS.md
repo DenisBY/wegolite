@@ -33,7 +33,7 @@ A full Oolite source checkout is available at `/home/opencode/git/oolite` (outsi
 2. **Tests pass only in the container.** A green host run is not evidence. The command below is the source of truth.
 3. **No database.** The client is static and persists saves in IndexedDB. Do not add a database, ORM, or server-side storage without an explicit decision recorded in `.planning/PROJECT.md`.
 4. **Licensing.** Project code is GPL-2.0-or-later. Oolite-derived art and config remain CC BY-NC-SA 3.0: attribution required, non-commercial only, share-alike. Never add an asset without recording its provenance in `NOTICE`/`ASSETS.md`.
-5. **No OXP support.** Expansion packs are out of scope by definition.
+5. **No OXP support for now.** Expansion packs are out of scope until an explicit decision in `.planning/PROJECT.md` brings them in (revised at v2.0 from "by definition").
 
 ## Reviewer and subagent brief
 

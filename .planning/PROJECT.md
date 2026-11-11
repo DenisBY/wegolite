@@ -2,11 +2,23 @@
 
 ## What This Is
 
-Wegolite is a browser-based reimplementation of Oolite's core single-player experience — the open-source Elite clone. Players fly a Cobra Mk III out of a Coriolis station, dock manually, trade commodities between star systems, and improve their ship, all inside a desktop web browser with no install. It is an open-source fan project for the Oolite/Elite community; expansion packs (OXPs) are explicitly out of scope.
+Wegolite is a browser-based reimplementation of Oolite's core single-player experience — the open-source Elite clone. Players fly a Cobra Mk III out of a Coriolis station, dock manually, trade commodities between star systems, and improve their ship, all inside a desktop web browser with no install. It is an open-source fan project for the Oolite/Elite community. The long-term goal is to port all of Oolite's single-player functionality, and possibly add Wegolite's own features; expansion packs (OXPs) are out of scope for now.
 
 ## Core Value
 
 A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
+
+## Current Milestone: v2.0 Foundation & Combat
+
+**Goal:** Space stops being empty: traders, pirates and police fly each system with Oolite's AI, the player can fight, die or eject, and their actions change their legal status — built on a new multi-entity world model.
+
+**Target features:**
+- Foundation: split `src/app/game-session.ts` into subsystems; a multi-entity world model (stable ids, collision broadphase, world serialisation into saves and determinism hashes); typed `ShipControl`/`WorldView` interfaces between AI and the sim
+- NPC AI and traffic, hand-ported to TypeScript from Oolite's JavaScript (the originals are the reference only): the AILib `PriorityAIController` framework, the combat-relevant role AIs (trader, pirate, police, scavenger, shuttle, station, missile), the native `ShipEntity` behaviours they drive, the populator, and the `nullAI`/`dumbAI` plist AIs
+- Combat: lasers, fore/aft shields, energy banks, missiles and ECM, damage and destruction, wreckage and cargo pods with scooping, bounties and legal status (clean/offender/fugitive) with a police response
+- Escape pod and insurance as the player-death outcome, as in Oolite
+- Collisions with the planet and the sun, with cabin/hull temperature
+- Sound and music through the Web Audio API, from `customsounds.plist`, with autoplay-safe start
 
 ## Requirements
 
@@ -18,29 +30,38 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 - ✓ Player can buy and sell the core commodity set at station markets, with prices driven by Oolite's economy rules — Phase 5 (ECON-01..ECON-03)
 - ✓ Player can view station screens: market, equipment, ship status, and system data — Phase 5 (ECON-04..ECON-09)
 - ✓ Ship, commodity, equipment, and system data is ported from Oolite's config files rather than invented — Phases 2 and 5 (DATA-01..DATA-05, ECON-01..ECON-09)
+- ✓ Player can launch from a Coriolis station into open space — v1.0 (Phase 3)
+- ✓ Player can fly with a faithful pitch/roll flight model (Elite-style controls, no yaw) — v1.0 (Phase 3)
+- ✓ Player can hyperspace between star systems using fuel and the galactic chart — v1.0 (Phase 6)
+- ✓ Player can view the galactic chart and select a destination system — v1.0 (Phase 6)
+- ✓ Player can save and resume progress in the browser — v1.0 (Phase 6)
+- ✓ Clean separation between simulation and rendering — v1.0 (Phases 1 and 3); the steady-frame-rate half is QUAL-01, still open
 
 ### Active
 
-<!-- Current scope. Building toward these. -->
+<!-- Current scope. Building toward these. Milestone v2.0 Foundation & Combat. -->
 
-- [ ] Player can launch from a Coriolis station into open space
-- [ ] Player can fly with a faithful pitch/roll flight model (Elite-style controls, no yaw)
-- [ ] Player can hyperspace between star systems using fuel and the galactic chart
-- [ ] Player can view the galactic chart and select a destination system
-- [ ] Player can save and resume progress in the browser
-- [ ] Client maintains a steady frame rate on desktop hardware, with a clean separation between simulation and rendering
+- [ ] The simulation holds many entities (ships, stations, missiles, cargo pods, wreckage) with stable ids, serialised into saves and determinism hashes
+- [ ] NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
+- [ ] NPC ships fly and fight with Oolite's priority AI, hand-ported to TypeScript
+- [ ] Player can fight with lasers, shields, energy banks, missiles and ECM, and destroy or be destroyed
+- [ ] Player can scoop cargo pods, earn bounties, and gain or lose legal status, with police responding
+- [ ] Player can eject in an escape pod and continue on insurance, as in Oolite
+- [ ] Player can collide with the planet and the sun and overheat
+- [ ] The game plays Oolite's sound effects and music, autoplay-safe
+- [ ] Client maintains a steady frame rate on desktop hardware (QUAL-01, carried forward)
 
 ### Out of Scope
 
 <!-- Explicit boundaries. Includes reasoning to prevent re-adding. -->
 
-- Combat, pirates, missiles, shields, energy banks — deferred to v2; v1 proves flight, navigation, and economy first
-- NPC ship traffic and AI — deferred to v2 alongside combat; v1 space is intentionally empty
-- Missions, contracts, ranking, and legal status — deferred; they depend on combat and a mature economy
-- Expansion packs (OXPs) and scripting support — explicitly excluded from the project's premise
+- Missions, contracts, and passenger/parcel work — next milestone; they need combat, traffic and legal status first
+- Shipyard with multiple purchasable ships, galactic hyperdrive — later milestone
+- Thargoids and witchspace interception — later milestone; the base combat and AI come first
+- Expansion packs (OXPs) and runtime scripting — out of scope for now; the typed `ShipControl`/`WorldView` seam keeps a later JS facade possible
+- Running Oolite's original JavaScript at runtime — rejected for v2.0: closure-held AI and timer state cannot be serialised into saves or determinism hashes (see Key Decisions)
 - Multiplayer or any server component — static client only, no backend
 - Mobile and touch controls — deferred, but input and UI must sit behind abstractions that allow it
-- Sound and music — deferred until the core loop is playable; asset pipeline will be added later
 
 ## Context
 
@@ -63,7 +84,7 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 - **Containers**: The application (dev server and production preview) and the entire test suite run in Docker via Docker Compose. This includes headless browser tests — the image must ship the browsers, not download them on the host. Tests are only considered passing when they pass in the container. Host-side `npm test` is a convenience at most and never the source of truth.
 - **Container reproducibility**: Compose must work from a clean checkout with one command, pin base images, and cache dependency layers. No service may require a manually installed host dependency beyond Docker itself.
 - **Data fidelity**: System, commodity, equipment, and ship values come from Oolite's config, not from invention. Where the original is ambiguous, prefer documented Oolite behavior over guesswork.
-- **Scope**: No expansion pack support. Ever, in this project's definition.
+- **Scope**: No expansion pack support for now. Revised at v2.0 from "Ever": the owner's long-term goal is to port all Oolite functionality, so OXP support may be reconsidered in a later milestone through an explicit decision.
 
 ## Key Decisions
 
@@ -168,6 +189,9 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 | Split the WR-04 fault-seam spec into its own Playwright config and make preview reuse an explicit local opt-in | Playwright starts every `webServer` entry before any test, so the test-only Vite build on 4175 was a second full build on every run, including the `verify` fast gate and single-spec invocations. The seam spec is excluded from `playwright.config.ts` via `testIgnore` and runs from `playwright.seams.config.ts` (`test:e2e:seams`), appended to the `e2e` and `verify-full` chains. `CI=1` is baked into the image, so `reuseExistingServer: !process.env.CI` is a no-op in every container; `WEGOLITE_REUSE_PREVIEW=1` is the explicit local opt-in and CI keeps reuse off | ✓ Quick task 261110-j89 — `playwright.seams.config.ts`, `test:e2e:seams`, updated Compose chains and contract guards |
 
 | Share one ESLint Node API instance across the guard tests, and add a coverage-free local unit script | The four `tests/guards/` files proved the zone rules by writing transient probe files and spawning `npx eslint` once per case (17 spawns) plus 5 `tsc -p tsconfig.sim.json` calls; each CLI invocation rebuilt a type-aware ESLint program at roughly 3.9 s. Measured baselines on 2026-11-10: `npm test` 92.6 s with coverage, 78.7 s without, and the guards alone 62.2 s of that. A scratch spike on 17 created-and-deleted probe files showed one `ESLint` instance reuses its program across all of them (first `lintText` 3.5 s, the rest 60–117 ms, 4.7 s total), so `tests/guards/eslint-gate.ts` now holds one instance per Vitest worker and lints with `lintText`; `withProbeLock` became async so its directory lock spans the awaited lint. `npm run test:fast` (`vitest run`, no coverage) is a local-loop convenience only: `npm test` keeps the D-19 thresholds and both verification chains are unchanged. Guard tests now prove the root config and the rules through the Node API, not that the ESLint CLI works — the `lint` stage (`eslint .`) still covers the CLI indirectly | ✓ Quick task 261110-l2x — guards 62.2 s to 16.7 s; `npm test` 92.6 s to 65.9 s (~29 %); `test:fast` 36.8 s, so the local loop goes 92.6 s to 36.8 s (~2.5×). The whole-suite gain is smaller than the ~54 s projection because three cold ESLint programs contend with the texture, drift and property tests under the 103-file parallel run. `verify` passed end to end: 103 files / 1366 passed / 1 skipped and 19 browser tests |
+| Port Oolite's gameplay JavaScript (AILib, role AIs, populator) to TypeScript by hand; the vendored originals are the reference only | Owner choice for v2.0 after an external review by four models (GPT-6.1 Terra, Gemini 4 Argon, DeepSeek V4 Pro, Grok 4.7), all of which recommended a TypeScript port. The native `ShipEntity` behaviours must be ported in either option; AILib keeps its state in closures, caches and `Timer` callbacks, which cannot be serialised into saves or determinism hashes; a SpiderMonkey-compatible facade would cost about as much as the port. Role priority trees are written as typed TS literals rather than extracted at build time | — Pending |
+| Put typed `ShipControl` and `WorldView` interfaces between the AI decision layer and the simulation | Keeps the AI port testable as pure functions and leaves a seam a later JS facade (OXP) could bind to unchanged | — Pending |
+| Revise the "No expansion pack support. Ever" constraint to "not for now" | The owner's goal is now a port of all Oolite functionality; OXP stays out of v2.0 but may return through an explicit decision | — Pending |
 
 ## Evolution
 
@@ -187,4 +211,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-10 after quick task 261110-hzd (the document disclaimer is visible on every station overlay, with each station footer flush above it)*
+*Last updated: 2026-11-11 at the start of milestone v2.0 Foundation & Combat*

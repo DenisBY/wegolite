@@ -1,20 +1,16 @@
 ---
 gsd_state_version: "1.0"
-current_phase: 7
-current_phase_name: Hardening & Community Release
-current_plan: 12
-status: milestone_archived
-stopped_at: Milestone v1.0 archived; no milestone in progress
-last_updated: "2026-11-10T21:00:00.000Z"
-last_activity: 2026-11-10
-last_activity_desc: Archived milestone v1.0 to .planning/milestones/ (ROADMAP and REQUIREMENTS copies, MILESTONES.md entry); QUAL-01 left open
-state_head: f2e2cb888c2e38f760cb92a446c52b1d5dd8d06c
+milestone: v2.0
+milestone_name: Foundation & Combat
+status: planning
+last_updated: "2026-11-11T16:53:05.808Z"
+last_activity: 2026-11-11
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 73
-  completed_plans: 73
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,13 +24,10 @@ See: .planning/PROJECT.md (updated 2026-11-06)
 
 ## Current Position
 
-Phase: none in progress (last completed: Phase 7, Hardening & Community Release)
-Current Plan: none (v1.0 archived)
-Total Plans in Phase: 12
-Status: Milestone v1.0 archived on 2026-11-10; no milestone in progress
-Last activity: 2026-11-10 - Archived milestone v1.0 (73 of 73 plans; 67 of 68 v1 requirements complete, QUAL-01 open and deferred)
-
-Progress: [██████████] 100% — 73/73 plans complete
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-11-11 — Milestone v2.0 started
 
 ## Performance Metrics
 

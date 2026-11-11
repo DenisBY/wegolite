@@ -1,61 +1,12 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": null,
-  "milestone_status": "none_in_progress",
-  "archived_milestones": [
-    {
-      "version": "v1.0",
-      "name": "Wegolite v1 Core Loop",
-      "shipped": "2026-11-08",
-      "archived": "2026-11-10",
-      "release_tag": "v0.1.0",
-      "roadmap_archive": ".planning/milestones/v1.0-ROADMAP.md",
-      "requirements_archive": ".planning/milestones/v1.0-REQUIREMENTS.md",
-      "open_requirements": ["QUAL-01"]
-    }
-  ],
-  "phases": [
-    {
-      "number": "1",
-      "name": "Foundation, Containers & Compliance",
-      "status": "complete"
-    },
-    {
-      "number": "2",
-      "name": "Data Pipeline & Content Compiler",
-      "status": "complete"
-    },
-    {
-      "number": "3",
-      "name": "Flight in the Lave System",
-      "status": "complete"
-    },
-    {
-      "number": "4",
-      "name": "Manual Docking",
-      "status": "complete"
-    },
-    {
-      "number": "5",
-      "name": "Docked Economy & Station Screens",
-      "status": "complete"
-    },
-    {
-      "number": "6",
-      "name": "Hyperspace, Navigation & Persistence",
-      "status": "complete"
-    },
-    {
-      "number": "7",
-      "name": "Hardening & Community Release",
-      "status": "complete"
-    }
-  ],
+  "milestone": "v2.0",
+  "phases": [],
   "next": {
-    "command": "/gsd-new-milestone",
-    "label": "Start the next milestone",
-    "reason": "Milestone v1.0 archived 2026-11-10; no milestone in progress; QUAL-01 open and deferred"
+    "command": "/gsd-discuss-phase",
+    "label": "Discuss the first phase",
+    "reason": "Project initialized — plan your first phase"
   },
-  "updated_at": "2026-11-10T21:00:00.000Z"
+  "updated_at": "2026-11-11T16:53:05.815Z"
 }
