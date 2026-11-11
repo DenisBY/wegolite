@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: Foundation & Combat
 status: planning
-last_updated: "2026-11-11T16:53:05.808Z"
+last_updated: "2026-11-11T18:53:26.000Z"
 last_activity: 2026-11-11
 progress:
-  total_phases: 0
+  total_phases: 16
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-06)
+See: .planning/PROJECT.md (updated 2026-11-11)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** No milestone is in progress. Milestone v1.0 (Phases 1-7) shipped as `v0.1.0` on 2026-11-08 and is archived in `.planning/milestones/v1.0-ROADMAP.md` and `.planning/milestones/v1.0-REQUIREMENTS.md`. Open: QUAL-01 (frame-rate evidence on the reference desktop, deferred by the owner on 2026-11-08). Start the next milestone with `/gsd-new-milestone`. Work since the tag is recorded as quick tasks below and is unreleased in this milestone.
+**Current focus:** Milestone v2.0 Foundation & Combat. Phase 8 (Session Split and World Core) is next; Phases 9 (NPC Content and Sound Provenance) and 10 (Hull Octrees and Ship Mass) can run beside it. The roadmap is Phases 8-23 in `.planning/ROADMAP.md`, restructured after two rounds of external review (critical path 8 → 11 → 12 → (13 ∥ 14) → 18 → 19 → 20 → 22 → 23). Milestone v1.0 (Phases 1-7) is archived in `.planning/milestones/`; QUAL-01 is carried into Phase 23.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-11-11 — Milestone v2.0 started
+Phase: 8 (Session Split and World Core)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-11 — v2.0 roadmap round-2 fixes applied: 16 phases (8-23), 60 of 60 requirements mapped
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -107,6 +109,14 @@ Last activity: 2026-11-11 — Milestone v2.0 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [v2.0 Roadmap, revised]: 16 phases (8-23), above the 4-6 standard-granularity guide, by owner direction after four external reviews ("accept everything, ~16 phases"). The 12-phase draft's combat, AI and law phases were each split, the octree runtime became its own phase, and 10 requirements were added (60 total). Critical path 8 → 11 → 12 → (13 ∥ 14) → 18 → 19 → 20 → 22 → 23; the combat track continues 13 → 15 → 16, and Phase 16 also depends on 14. ROADMAP.md "Review changes" lists every change and its reviewer.
+- [v2.0 Roadmap, revised]: The octree runtime and ship mass are Phase 10 (DATA-11), startable beside Phase 8 and landing before jump blockage by ships (12) and the first hit test (13, D4). Phases 10 and 11 carry one requirement each, by owner direction, as separately verifiable risks.
+- [v2.0 Roadmap, revised]: The Escape/P/R binding migration (INPUT-01) lands in Phase 13 with views and lasers, before the escape pod (Phase 16). Hyperspace clearing and repopulation (WORLD-14) lands with the inert ships in Phase 12. AI-08 completes in Phase 16, where pods and wreckage tumble (`nullAI` is a staged check in 12), and WORLD-07 completes in Phase 14, where ships move (drawn and on the scanner is a staged check in 12).
+- [v2.0 Roadmap, revised]: The AI is gated. Phase 14 (AI-01) proves NPC flight and native steering against source-cited oracles and runs the bounded differential-harness spike; Phase 18 (framework, peaceful roles, station queue, generated manifest) is planned only after the owner accepts the Phase 14 fidelity report and selects the decision oracle (the dev-only differential harness by default; source-cited traces only if the owner accepts that fallback). The Phase 14 oracle fixtures are authored independently of the port and cited to Oolite source lines. The location-generator spike is a noted task in Phase 18 that feeds Phase 22.
+- [v2.0 Roadmap, revised]: Staged verification. SAVE-08 is checked in Phases 11 (schema and anchor), 12 (regenerated inert world) and 22 (full traffic; mapped there). DATA-11 stats are in 9 and mass in 10. CBT-07 (shared hit rule, Phase 13) is separate from CBT-15 (police-versus-player fire staged in Phase 19 as part of AI-05, completed with pirate, hunter and NPC-versus-NPC fire in Phase 20). AUD-01 completes in Phase 17, and its scoop, missile and ECM sounds are proven in play in Phase 21.
+- [v2.0 Roadmap, revised]: Audio (17) starts after combat (15), not after missiles. Hardening (23) has an entry gate: the numeric simulation bound, container workload, triangle budget and reference-desktop protocol are declared in `docs/PERFORMANCE.md` and signed off before it is planned, and a breach becomes a follow-up phase with no in-phase Web Worker pivot.
+- [v2.0 Roadmap, revised]: The F3 visible set grows by phase as the money-path boundary: lasers (13), fuel scoop (15, first needed for sun-skimming), escape pod (16), and the hardened missile (`EQ_HARDENED_MISSILE`), ECM (`EQ_ECM`), energy unit, shield boosters and heat shield (21), each with purchase, persistence and normal-play tests.
+- [v2.0 Roadmap, round 2]: Owner-directed fixes after the second review round (Gemini approve; DeepSeek, GPT-6 Luna, Kimi approve with changes). Capsules leave AI-08 (they fly under `oolite-shuttleAI.js`, so they belong to AI-10). `tractored` joins AI-01. Phase 21 now depends on Phase 20. Every combat and AI phase (13-16, 18-22) carries the acceptance criterion that at least 90 % of new behavioural assertions are Vitest scenarios, with browser specs as opt-in smoke or journey checks only. ROADMAP.md "Review changes" lists all 11 fixes.
 - [Roadmap]: Seven phases at standard granularity; research suggested eight — world rendering and flight merged into one phase because the first playable flight is one user-visible capability.
 - [Roadmap]: WORLD-06 (hyperspace distance/fuel/jump-time math) scheduled in Phase 6 with NAV-03/NAV-06 so one module owns the fuel rule.
 - [Roadmap]: Phase 1 must author the Compose topology from PROJECT.md constraints — research is silent on containers and its own install commands (`npx playwright install`, host `npm ci`) violate the constraint.
@@ -245,13 +255,19 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- [2026-11-05] [testing] Fix compassMode hash omission and negative frame delta — [todo file](.planning/todos/pending/2026-11-05-fix-compassmode-hash-omission-and-negative-frame-delta.md)
-- [2026-11-06] [outfitting] Allow Cobra's fourth missile pylon — [todo file](.planning/todos/pending/2026-11-06-allow-cobras-fourth-missile-pylon.md)
-- [2026-11-11] [ui] Add terminal color palette switcher in game settings — [todo file](.planning/todos/pending/2026-11-11-terminal-color-palette-setting.md)
-- [2026-11-11] [economy] Track cargo purchase cost basis for profit/loss display — [todo file](.planning/todos/pending/2026-11-11-cargo-purchase-cost-basis-tracking.md)
+Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassMode and fourth-pylon todos are in `.planning/todos/completed/`.
+
+- [2026-11-11] [testing] Check CI after 0.2.0 and the Shift+C docking timeout — before Phase 8 — [todo file](.planning/todos/pending/2026-11-11-check-ci-after-0-2-0-and-the-shift-c-docking-timeout.md)
+- [2026-11-10] [app] Decide whether the F6 chart should pause the flight — Phase 12 (WORLD-11) — [todo file](.planning/todos/pending/2026-11-10-keep-simulating-behind-the-chart.md)
+- [2026-11-10] [flight] Do not report "Torus disengaged" when the torus never engaged — Phase 12 — [todo file](.planning/todos/pending/2026-11-10-fix-torus-refusal-message-under-mass-lock.md)
+- [2026-11-10] [app] Decide what happens below 24 fps — decide in Phase 12, evidence in Phase 23 — [todo file](.planning/todos/pending/2026-11-10-decide-behaviour-below-24-fps.md)
+- [2026-11-10] [flight] Stop the player flying through the planet, the sun and the buoys — Phase 15 (DEATH-03, CBT-08) — [todo file](.planning/todos/pending/2026-11-10-add-planet-and-sun-collision.md)
+- [2026-11-11] [economy] Track cargo purchase cost basis — unscheduled; joins the Phase 11 save bump only by owner decision — [todo file](.planning/todos/pending/2026-11-11-cargo-purchase-cost-basis-tracking.md)
+- [2026-11-11] [ui] Add terminal color palette switcher in game settings — unscheduled — [todo file](.planning/todos/pending/2026-11-11-terminal-color-palette-setting.md)
 
 ### Blockers/Concerns
 
+- [v2.0 Roadmap] Open owner items: D1 world seed policy (SAVE-07 assumes a saved world epoch; confirm in Phase 8, before Phase 11); D10 music provenance (decided in Phase 9, gates AUD-03 in Phase 17); D11 first-load ceiling (raise only on a recorded measurement, Phases 9 and 23); the octree float precision and whether the buoy and the dodecahedron and icosahedron stations gain an octree mass (Phase 10); the Coriolis blockage mass if the octree value differs from 455,223,200 (Phase 10); the below-24-fps behaviour (Phase 12); the buoy collision radius (Phase 15); acceptance of the Phase 14 fidelity report and the choice of decision oracle (gates Phase 18); the Phase 23 budgets and protocol (signed off before Phase 23 is planned).
 - [Phase 4] The static dock-port schema's half-extents are not magnitude-bounded (verification warning W-01); harmless with the vendored asset but worth a schema bound if the aperture ever becomes data-driven.
 - [Phase 5 → Phase 6] The docking computer's install is proven at the pure-rule level only: Lave is raw TL 4, so the 15000 dc purchase cannot be shown end-to-end until Phase 6 reaches a raw TL 9 system. `checkFit`/`applyFit` delegate to the unchanged Phase 4 predicates; 05-06 records the temporary loss of the browser proof.
 - [Phase 5] Two review findings are deferred by decision: the missile-removal confirmation still states only the 20 Cr fee (IN-03; D-15 copy is satisfied and the row description states the full trade-in), and five fixed `waitForTimeout` calls remain in the inert-key browser proofs (IN-04; test-hardening for the e2e flake sweep).
@@ -301,10 +317,10 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 | Category | Item | Status | Deferred At | Milestone |
 |----------|------|--------|-------------|-----------|
-| requirement | QUAL-01: 60 fps at 1080p on mid-range desktop hardware (Phase 7) | Open, deferred by the owner | 2026-11-08 | v1.0 |
+| requirement | QUAL-01: 60 fps at 1080p on mid-range desktop hardware (Phase 7) | Open, deferred by the owner; carried into v2.0 Phase 23 | 2026-11-08 | v1.0 |
 
 ## Session Continuity
 
-Last session: 2026-11-08T11:16:01.015Z
-Stopped at: Completed 07-10-PLAN.md
+Last session: 2026-11-11T18:53:26.000Z
+Stopped at: v2.0 roadmap round-2 fixes applied (16 phases, 8-23; 60 of 60 requirements mapped); next is `/gsd-discuss-phase 8` or `/gsd-plan-phase 8`
 Resume file: None

@@ -13,7 +13,7 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 **Goal:** Space stops being empty: traders, pirates and police fly each system with Oolite's AI, the player can fight, die or eject, and their actions change their legal status — built on a new multi-entity world model.
 
 **Target features:**
-- Foundation: split `src/app/game-session.ts` into subsystems; a multi-entity world model (stable ids, collision broadphase, world serialisation into saves and determinism hashes); typed `ShipControl`/`WorldView` interfaces between AI and the sim
+- Foundation: split `src/app/game-session.ts` into subsystems; a multi-entity world model (stable ids, collision broadphase, world serialisation into determinism hashes and test snapshots (saves carry only the world seed and counters)); typed `ShipControl`/`WorldView` interfaces between AI and the sim
 - NPC AI and traffic, hand-ported to TypeScript from Oolite's JavaScript (the originals are the reference only): the AILib `PriorityAIController` framework, the combat-relevant role AIs (trader, pirate, police, scavenger, shuttle, station, missile), the native `ShipEntity` behaviours they drive, the populator, and the `nullAI`/`dumbAI` plist AIs
 - Combat: lasers, fore/aft shields, energy banks, missiles and ECM, damage and destruction, wreckage and cargo pods with scooping, bounties and legal status (clean/offender/fugitive) with a police response
 - Escape pod and insurance as the player-death outcome, as in Oolite
@@ -41,7 +41,7 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 <!-- Current scope. Building toward these. Milestone v2.0 Foundation & Combat. -->
 
-- [ ] The simulation holds many entities (ships, stations, missiles, cargo pods, wreckage) with stable ids, serialised into saves and determinism hashes
+- [ ] The simulation holds many entities (ships, stations, missiles, cargo pods, wreckage) with stable ids, serialised into determinism hashes and test snapshots; saves carry only the world seed and counters, and the world is regenerated from them
 - [ ] NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
 - [ ] NPC ships fly and fight with Oolite's priority AI, hand-ported to TypeScript
 - [ ] Player can fight with lasers, shields, energy banks, missiles and ECM, and destroy or be destroyed
@@ -199,6 +199,8 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 | Keep the simulation running behind the galactic chart in flight (D3) | Matches Oolite and prevents pausing a fight by opening the chart; supersedes the v1 freeze; hyperspace e2e tests change accordingly | — Pending |
 | Hit-test lasers and ship contact against Oolite octrees built at build time; use an oriented box for missile and pod proximity (D4) | Octrees are needed for ship mass anyway; the runtime port of `Octree.m` is about 400 lines | — Pending |
 | Include in v2.0 the hardened missile, energy unit, shield booster, heat shield, NPC escape capsules with rescue rewards, pirate cargo demands, asteroid fields, rock hermit and mining laser | Owner choice at requirements scoping | — Pending |
+| Allow a dev-only differential harness that runs Oolite's original AI JavaScript in Node against a stub host as the test oracle for the hand port | The only independent check of the ported decision layer (research PITFALLS 5); the originals never reach the browser, so this is consistent with the hand-port decision; the stub's scope is bounded by a spike in the AI phase | — Pending |
+| Restructure the v2.0 roadmap after an external review (Gemini 4 Argon, DeepSeek V4 Pro, GPT-6 Luna, Kimi K3.1 Pro; all "approve with changes"): split the octree runtime, combat, AI and law phases; move the Escape/P bindings before the escape pod; verify CBT-07 and SAVE-08 in stages; add red alert, slot-scrape damage, docking restoration, sun-skimming and atmospheric heat, contraband and fast-dock fines, rock hermit AI, NPC capsules and hyperspace world clearing | Each reviewer found the 12-phase plan's AI, combat and law phases too large to verify, and the same ordering faults | — Pending |
 
 ## Evolution
 
