@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The flight scanner now matches Oolite's layout and projection: red oval grid
+  with 5 km range graduation ticks and forward field-of-view cone lines,
+  forward contacts plotted in the upper half of the disc, and lollipop markers
+  with translucent vertical stalks and solid rectangular caps at the contact's
+  elevation (green for the station, yellow for the navigation buoy and
+  witchpoint beacon).
+
 ### Changed
 
 - The navigation buoy in front of the station and the beacon at the witchpoint

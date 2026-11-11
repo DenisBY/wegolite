@@ -19,7 +19,7 @@
 import { clamp } from "../../sim/math.js";
 import type { CompassTarget } from "../../sim/flight/state.js";
 import type { AegisStatus } from "../../sim/world/aegis.js";
-import { aegisLabel } from "./projection.js";
+import { SCANNER_MAX_RANGE, aegisLabel } from "./projection.js";
 import type { CompassBlip, ScannerBlip } from "./projection.js";
 
 export const HUD_DESIGN_WIDTH = 1920;
@@ -29,6 +29,10 @@ export const HUD_DESIGN_HEIGHT = 1080;
 export const HUD_COLOR = "#33ff66";
 export const HUD_AMBER = "#ffb000";
 export const HUD_RED = "#ff4444";
+/** Oolite's default red scanner grid (`hud.plist` `drawScanner:` `rgb_color = (1, 0, 0)`). */
+export const HUD_SCANNER_GRID_COLOR = "#cc2222";
+/** Oolite's neutral/buoy lollipop colour (`ShipEntity.m` `neutral_color`). */
+export const HUD_SCANNER_NEUTRAL_COLOR = "#ffee33";
 export const HUD_FONT =
   "28px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
 export const HUD_SMALL_FONT =
@@ -38,6 +42,15 @@ export const HUD_SMALL_FONT =
 export const SCANNER_WIDTH = 360;
 export const SCANNER_HEIGHT = 80;
 export const COMPASS_RADIUS = 48;
+
+/** Oolite's default vertical field-of-view in degrees (`MyOpenGLView.m:1287`, `57.2°`). */
+const SCANNER_FOV_DEG = 57.2;
+/** Lollipop geometry scaled from Oolite's 288x64 scanner (`HeadUpDisplay.m:1265-1275`) to 360x80 (1.25x). */
+const LOLLIPOP_HEAD_WIDTH = 6.25;
+const LOLLIPOP_HEAD_HEIGHT = 3.75;
+const LOLLIPOP_HEAD_LEFT_OFFSET = 3.75;
+const LOLLIPOP_STALK_WIDTH = 2.5;
+const LOLLIPOP_STALK_ALPHA = 1 / 3;
 
 export type HudElementId =
   | "crosshair"
@@ -162,59 +175,130 @@ function drawCrosshair(context: CanvasRenderingContext2D): void {
   context.stroke();
 }
 
-function drawScanner(context: CanvasRenderingContext2D, model: HudModel): void {
-  const rect = HUD_LAYOUT.scanner;
-  const { x, y } = rectCentre(rect);
+function scannerContactColor(kind: HudContact["kind"]): string {
+  switch (kind) {
+    case "station":
+      return HUD_COLOR;
+    case "buoy":
+    case "beacon":
+      return HUD_SCANNER_NEUTRAL_COLOR;
+  }
+}
 
-  // Clip the whole scanner so a tall tail can never cross the message line.
-  context.save();
-  context.beginPath();
-  context.rect(rect.x, rect.y, rect.width, rect.height);
-  context.clip();
-
-  context.strokeStyle = HUD_COLOR;
+/**
+ * Oolite's `drawScannerGrid` (`HeadUpDisplay.m:3914-4048`):
+ * - outer ellipse at 2x stroke width
+ * - central horizontal/vertical crosshair axes
+ * - 5 km range graduation ticks along the vertical axis (doubled at 10/20 km)
+ * - forward view-cone lines in the upper (forward) half of the ellipse
+ */
+function drawScannerGrid(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  ww: number,
+  hh: number,
+  scannerRange: number,
+): void {
+  context.strokeStyle = HUD_SCANNER_GRID_COLOR;
   context.lineWidth = 2;
+  context.globalAlpha = 0.9;
   context.beginPath();
-  context.ellipse(x, y, rect.width / 2, rect.height / 2, 0, 0, Math.PI * 2);
+  context.ellipse(x, y, ww, hh, 0, 0, Math.PI * 2);
   context.stroke();
 
-  // The two grid lines Oolite draws through the ellipse's centre.
-  context.globalAlpha = 0.45;
+  context.lineWidth = 1;
+  context.globalAlpha = 0.65;
   context.beginPath();
-  context.moveTo(rect.x, y);
-  context.lineTo(rect.x + rect.width, y);
-  context.moveTo(x, rect.y);
-  context.lineTo(x, rect.y + rect.height);
+
+  // Central horizontal and vertical axes.
+  context.moveTo(x - ww, y);
+  context.lineTo(x + ww, y);
+  context.moveTo(x, y - hh);
+  context.lineTo(x, y + hh);
+
+  // Range graduation ticks (HeadUpDisplay.m:3977-4001).
+  const kmScan = 0.001 * (scannerRange > 0 ? scannerRange : SCANNER_MAX_RANGE);
+  const hdiv = hh / kmScan;
+  let wdiv = (0.5 * ww) / kmScan;
+  let stepKm = 1;
+  if (wdiv < 4) {
+    wdiv *= 2;
+    stepKm = 5;
+  }
+  for (let i = stepKm; hdiv * i < hh; i += stepKm) {
+    const h1 = i * hdiv;
+    let w1 = wdiv;
+    if (i % 5 === 0) w1 *= 2.5;
+    if (i % 10 === 0) w1 *= 2;
+    context.moveTo(x - w1, y - h1);
+    context.lineTo(x + w1, y - h1);
+    context.moveTo(x - w1, y + h1);
+    context.lineTo(x + w1, y + h1);
+  }
+
+  // Forward field-of-view V-cone lines (HeadUpDisplay.m:4005-4012).
+  const tanFov = Math.tan((SCANNER_FOV_DEG * Math.PI) / 360);
+  const cosFov = 1 / Math.hypot(1, tanFov);
+  const sinFov = tanFov * cosFov;
+  context.moveTo(x - ww * sinFov, y - hh * cosFov);
+  context.lineTo(x, y);
+  context.lineTo(x + ww * sinFov, y - hh * cosFov);
+
   context.stroke();
   context.globalAlpha = 1;
+}
 
-  for (const contact of model.contacts) {
+/**
+ * Oolite's `drawScanner` lollipop loop (`HeadUpDisplay.m:1211-1277`):
+ * - translucent vertical stalk (`alpha = 1/3`) from `(baseX, baseY)` on the
+ *   XZ scanner plane to the elevated lollipop head `(baseX, headY)`
+ * - solid rectangular lollipop cap at `(baseX, headY)`
+ */
+function drawScannerContacts(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  contacts: readonly HudContact[],
+): void {
+  for (const contact of contacts) {
     if (!contact.visible) continue;
     const baseX = x + contact.x;
     const baseY = y + contact.yBase;
-    context.beginPath();
-    context.moveTo(baseX, baseY);
-    context.lineTo(baseX, baseY + contact.yTail);
-    context.stroke();
+    const headY = baseY + contact.yTail;
+    const color = scannerContactColor(contact.kind);
 
-    if (contact.kind === "station") {
-      // A diamond for the Coriolis, a dot for the beacons.
-      context.beginPath();
-      context.moveTo(baseX, baseY - 4);
-      context.lineTo(baseX + 4, baseY);
-      context.lineTo(baseX, baseY + 4);
-      context.lineTo(baseX - 4, baseY);
-      context.closePath();
-      context.fillStyle = HUD_COLOR;
-      context.fill();
-    } else {
-      context.beginPath();
-      context.arc(baseX, baseY, 3, 0, Math.PI * 2);
-      context.fillStyle = HUD_COLOR;
-      context.fill();
+    context.fillStyle = color;
+    const stalkHeight = Math.abs(contact.yTail);
+    if (stalkHeight > 0.5) {
+      context.globalAlpha = LOLLIPOP_STALK_ALPHA;
+      context.fillRect(
+        baseX,
+        Math.min(baseY, headY),
+        LOLLIPOP_STALK_WIDTH,
+        stalkHeight,
+      );
     }
-  }
 
+    context.globalAlpha = 1;
+    context.fillRect(
+      baseX - LOLLIPOP_HEAD_LEFT_OFFSET,
+      headY - LOLLIPOP_HEAD_HEIGHT,
+      LOLLIPOP_HEAD_WIDTH,
+      LOLLIPOP_HEAD_HEIGHT,
+    );
+  }
+}
+
+function drawScanner(context: CanvasRenderingContext2D, model: HudModel): void {
+  const rect = HUD_LAYOUT.scanner;
+  const { x, y } = rectCentre(rect);
+  const ww = rect.width / 2;
+  const hh = rect.height / 2;
+
+  context.save();
+  drawScannerGrid(context, x, y, ww, hh, model.scannerRange);
+  drawScannerContacts(context, x, y, model.contacts);
   context.restore();
 }
 

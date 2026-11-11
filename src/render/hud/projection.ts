@@ -5,14 +5,15 @@
  * Pure scanner and compass projection (FLGT-05, D-07).
  *
  * Oolite's scanner is a 3D ellipse: the ship-local frame is compressed
- * non-uniformly so a contact's forward distance plots downward and its height
- * plots upward as a vertical tail. The exact maths from `HeadUpDisplay.m`:
+ * non-uniformly so a contact's forward distance plots into the upper half of
+ * the ellipse (inside the forward FOV cone) and its elevation plots as a
+ * vertical lollipop stalk. The exact maths from `HeadUpDisplay.m`:
  *
  *   zFactor = height / width          (64 / 288 ~= 0.222)
  *   yFactor = 1 - sqrt(zFactor)       (~0.529)
  *   scale   = 0.5 * width / range
  *   x       = local.x * scale
- *   yBase   = forward * zFactor * scale   (positive forward plots down)
+ *   yBase   = -forward * zFactor * scale  (positive forward plots up)
  *   yTail   = -local.y * yFactor * scale  (positive up plots up)
  *
  * This module is DOM-free and Three-free, so Vitest can pin every numeric edge
@@ -29,9 +30,9 @@ export const SCANNER_MAX_RANGE = 25_600;
 export interface ScannerBlip {
   /** Offset from the scanner centre in design pixels. */
   readonly x: number;
-  /** Vertical offset of the blip base; positive is down the canvas. */
+  /** Vertical offset of the blip foot on the XZ plane; negative is up (ahead). */
   readonly yBase: number;
-  /** Tail length; negative points up the canvas. */
+  /** Elevation offset from `yBase` to the lollipop head; negative points up (above). */
   readonly yTail: number;
   readonly visible: boolean;
   /** True 3D distance from the ship, in metres. */
@@ -118,7 +119,7 @@ export function projectToScanner(
 
   return {
     x: plottedX * scannerScale,
-    yBase: forward * zFactor * scannerScale,
+    yBase: -forward * zFactor * scannerScale,
     yTail: -plottedY * yFactor * scannerScale,
     visible: distance - radius <= range,
     distance,

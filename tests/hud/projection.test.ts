@@ -5,18 +5,24 @@
  * Scanner and compass projection (FLGT-05, D-07).
  *
  * The scanner is Oolite's non-uniform ellipse: a dead-ahead contact at the
- * range sits at the bottom centre, a contact above has an upward tail, and a
- * contact behind sits above the centre. A contact just outside the range but
- * whose collision sphere still intersects it is pinned to the rim; beyond
- * `range + radius` it is omitted.
+ * range sits at the top centre (inside the forward FOV cone), a contact above
+ * has an upward tail, and a contact behind sits below the centre. A contact
+ * just outside the range but whose collision sphere still intersects it is
+ * pinned to the rim; beyond `range + radius` it is omitted.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildHudModel } from "../../src/app/hud-model.js";
 import { identity, vec } from "../../src/sim/math.js";
 import type { Vec3 } from "../../src/sim/math.js";
 import { initFlightState } from "../../src/sim/flight/state.js";
+import {
+  HUD_COLOR,
+  HUD_SCANNER_GRID_COLOR,
+  HUD_SCANNER_NEUTRAL_COLOR,
+  drawHud,
+} from "../../src/render/hud/draw.js";
 import {
   aegisLabel,
   projectToCompass,
@@ -37,11 +43,11 @@ function scanner(relative: Vec3, radius = 0) {
 }
 
 describe("projectToScanner", () => {
-  it("puts a dead-ahead contact at the bottom centre with no tail", () => {
+  it("puts a dead-ahead contact at the top centre with no tail", () => {
     const blip = scanner(vec(0, 0, -RANGE));
     expect(blip.visible).toBe(true);
     expect(blip.x).toBeCloseTo(0, 12);
-    expect(blip.yBase).toBeCloseTo(HALF_HEIGHT, 12);
+    expect(blip.yBase).toBeCloseTo(-HALF_HEIGHT, 12);
     expect(blip.yTail).toBeCloseTo(0, 12);
     expect(blip.distance).toBe(RANGE);
   });
@@ -57,12 +63,12 @@ describe("projectToScanner", () => {
     );
   });
 
-  it("draws a contact behind above the centre", () => {
+  it("draws a contact behind below the centre", () => {
     const blip = scanner(vec(0, 0, 10_000));
     expect(blip.visible).toBe(true);
-    expect(blip.yBase).toBeLessThan(0);
+    expect(blip.yBase).toBeGreaterThan(0);
     expect(blip.yBase).toBeCloseTo(
-      (-10_000 * (HEIGHT / WIDTH) * (0.5 * WIDTH)) / RANGE,
+      (10_000 * (HEIGHT / WIDTH) * (0.5 * WIDTH)) / RANGE,
       12,
     );
   });
@@ -77,8 +83,8 @@ describe("projectToScanner", () => {
     const radius = 500;
     const blip = scanner(vec(0, 0, -(RANGE + radius)), radius);
     expect(blip.visible).toBe(true);
-    // distance - radius === range, so the base is exactly the bottom edge.
-    expect(blip.yBase).toBeCloseTo(HALF_HEIGHT, 12);
+    // distance - radius === range, so the base is exactly the top edge.
+    expect(blip.yBase).toBeCloseTo(-HALF_HEIGHT, 12);
     expect(blip.distance).toBe(RANGE + radius);
   });
 
@@ -158,5 +164,112 @@ describe("HUD contacts", () => {
 
     expect(model.compass.target).toBe("station");
     expect(model.aegis).toBe("dockingRange");
+  });
+
+  it("draws Oolite's scanner grid and lollipop contacts at their elevated heads", () => {
+    const fixture = laveFixture();
+    const state = initFlightState(fixture.layout);
+    const baseModel = buildHudModel(
+      state,
+      fixture.layout,
+      fixture.config,
+      "",
+      70,
+    );
+    const model = {
+      ...baseModel,
+      contacts: [
+        {
+          id: "station" as const,
+          kind: "station" as const,
+          x: -20,
+          yBase: 8,
+          yTail: -16,
+          visible: true,
+          distance: 1_500,
+        },
+        {
+          id: "navBuoy" as const,
+          kind: "buoy" as const,
+          x: 15,
+          yBase: -12,
+          yTail: 18,
+          visible: true,
+          distance: 8_500,
+        },
+      ],
+    };
+
+    const fillRectCalls: Array<{
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      fillStyle: string;
+      alpha: number;
+    }> = [];
+    const strokeStyles: string[] = [];
+
+    const context = {
+      save: vi.fn(),
+      restore: vi.fn(),
+      clearRect: vi.fn(),
+      beginPath: vi.fn(),
+      closePath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      ellipse: vi.fn(),
+      arc: vi.fn(),
+      stroke: vi.fn(function (this: { strokeStyle: string }) {
+        strokeStyles.push(this.strokeStyle);
+      }),
+      fill: vi.fn(),
+      strokeRect: vi.fn(),
+      fillRect: vi.fn(function (
+        this: { fillStyle: string; globalAlpha: number },
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+      ) {
+        fillRectCalls.push({
+          x,
+          y,
+          w,
+          h,
+          fillStyle: this.fillStyle,
+          alpha: this.globalAlpha,
+        });
+      }),
+      fillText: vi.fn(),
+      strokeStyle: "",
+      fillStyle: "",
+      lineWidth: 1,
+      globalAlpha: 1,
+      font: "",
+      textAlign: "left",
+    } as unknown as CanvasRenderingContext2D;
+
+    drawHud(context, model);
+
+    expect(strokeStyles).toContain(HUD_SCANNER_GRID_COLOR);
+    // Station lollipop: centre (960, 930), base (940, 938), head (940, 922)
+    expect(fillRectCalls).toContainEqual({
+      x: 940 - 3.75,
+      y: 922 - 3.75,
+      w: 6.25,
+      h: 3.75,
+      fillStyle: HUD_COLOR,
+      alpha: 1,
+    });
+    // Nav buoy lollipop: centre (960, 930), base (975, 918), head (975, 936)
+    expect(fillRectCalls).toContainEqual({
+      x: 975 - 3.75,
+      y: 936 - 3.75,
+      w: 6.25,
+      h: 3.75,
+      fillStyle: HUD_SCANNER_NEUTRAL_COLOR,
+      alpha: 1,
+    });
   });
 });
