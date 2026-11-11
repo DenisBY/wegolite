@@ -21,7 +21,7 @@ Deferred to a future release. Tracked but not in the current roadmap.
 
 Combat comes first in v2: without danger, trading carries no risk, credits only grow and there is nothing to spend them on. CBT-01 and CBT-02 give the rest of the progression its weight.
 
-- **CBT-01**: Player can fire lasers and manage shields, energy, and missiles
+- **CBT-01**: Player can fire lasers and manage shields, energy, and missiles (also unblocks the deferred planet, sun and buoy collision todo)
 - **CBT-02**: Pirate and police NPC ships spawn with AI and bounty
 - **CBT-03**: Damage, destruction, and escape-pod outcomes work
 
