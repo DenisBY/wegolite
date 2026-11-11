@@ -1,636 +1,412 @@
-# Feature Research
+# Feature Landscape: v2.0 Foundation & Combat
 
-**Domain:** Browser-based faithful reimplementation of Oolite's core single-player trading/navigation loop
-**Researched:** 2026-11-02
-**Confidence:** HIGH for Oolite mechanics and data (read from Oolite's own config/source); MEDIUM for scope judgements (opinionated calls about what preserves "feel")
+**Domain:** Faithful browser port of Oolite's NPC traffic, priority AI, combat, legal status, death/escape and sound
+**Milestone:** v2.0 Foundation & Combat (subsequent milestone; v1 flight, docking, trading, outfitting, hyperspace and saves already ship)
+**Researched:** 2026-11-11
+**Overall confidence:** HIGH for every number cited to a source line (read directly from the Oolite checkout); MEDIUM for derived arithmetic (marked "derived"); LOW items are flagged inline.
 
-## Feature Landscape
+## How to read this file
 
-### Table Stakes (Users Expect These)
+- **Source of truth.** The Oolite checkout at `/home/opencode/git/oolite` (HEAD `4bb1f53de`). FIDELITY.md pins `7437f22`. Between the pin and HEAD only `PlayerEntityControls.m`, `PlayerEntityKeyMapper.m`, `PlayerEntityLoadSave.m`, `PlayerEntityStickMapper.m`, `HeadUpDisplay.m`, joystick files and `descriptions.plist` (47 lines) changed. Rules in `PlayerEntity.m`, `ShipEntity.m`, `StationEntity.m`, `DockEntity.m`, `Universe.m`, all other plists in `Resources/Config`, and all `Resources/Scripts` / `Resources/AIs` are identical at both commits. **Citations to `PlayerEntityControls.m` and `HeadUpDisplay.m` are pin (`7437f22`) line numbers**; `descriptions.plist` strings are cited by key.
+- **Path shorthand.** `E/` = `src/Core/Entities/`, `C/` = `src/Core/`, `Cfg/` = `Resources/Config/`, `S/` = `Resources/Scripts/`, `AI/` = `Resources/AIs/`.
+- **Units.** Oolite credits are integer decicredits (dc). A `bounty` of 50 pays `10 * 50 = 500 dc = 50.0 Cr`. Distances are metres. `SCANNER_MAX_RANGE` = 25 600 m (`E/Entity.h:49`).
+- **Complexity** is for a TypeScript port inside the new multi-entity world model: Low (data plus a few lines), Med (a subsystem with several rules), High (new infrastructure or a long tail of rules).
+- **Test-first.** Each area ends with a **Player can ...** list that can be lifted into requirements as testable statements.
 
-Features users assume exist. Missing these = product feels incomplete.
+---
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Cobra Mk III flight model (pitch/roll, no yaw) | This is the physical feel of Elite/Oolite. Yaw or Newtonian drift instantly reads as "not Elite". | HIGH | Port `oolite_template_cobra3-player`: `max_flight_speed = 350`, `thrust = 32`, `max_flight_pitch = 1`, `max_flight_roll = 2`, `max_cargo = 20`, `fuel = 70`. Acceleration is `SHIP_THRUST_FACTOR (5.0) × thrust = 160 u/s²`; speed approaches the w/s target at that rate. Turn rates ramp at 2 rad/s² roll and 4 rad/s² pitch, with 4× faster reversal when reversing the stick. Flight is Aristotelian (velocity is forward speed only), not Newtonian. |
-| Launch from a Coriolis station | The game starts docked; the first verb is "launch". | MEDIUM | Docked state, `1`/`F1` launches. Oolite adds 10 minutes to the ship clock on launch, spawns you in the slot with the station's spin (`launchRoll = -station roll`), then a short break-pattern transition. Station roll is `0.08 rad/s` (Coriolis), so the slot is visibly rotating. |
-| In-system scene and navigation | After a jump there must be a planet, sun, station, nav buoy and witchpoint to fly between; the compass/scanner need real targets. | MEDIUM | Minimum core bodies: sun, main planet, main station in orbit, navigation buoy in front of the dock, witchpoint buoy at the hyperspace arrival point. No asteroids, rock hermits, or NPC traffic required. System positions/radii come from `planetinfo.plist` (`planet_distance`, `sun_distance`, `station_vector`, `radius`). |
-| Torus jump drive (in-system cruise) | Witchpoint-to-station distances are minutes of real time at 350 m/s; without the torus drive the loop is unplayable. | MEDIUM | `j` toggles. Base factor 32×, rising with distance to the nearest object: `32 × sqrt(distance / (4 × 25.6 km))`, capped at 1024×. Mass-locked by nearby ships/stations/planets (in v1 effectively station/planet). This is not optional polish; it is core navigation. |
-| Manual docking | The skill/tension centrepiece of the original loop and explicitly locked in scope. | HIGH | Approach from in front of the slot, align the slot horizontally, match the station's roll, enter at moderate speed. Oolite docks you when the ship's bounding box is inside the port and 90% past the port plane. Misalignment scrapes and pushes the ship back; crossing opposite edges at once is fatal. Coriolis hull is ~1000 m across; dock corridor is 250 m deep; the dock mesh bounding box is ~103 × 242 × 250 (verify orientation in-engine; Oolite widens the effective gate for wide ships). |
-| Hyperspace jump | The only way to reach a second market; locked in scope. | MEDIUM | Target selected on the chart, `h` starts a 15 s countdown (abortable). Checks: not current system, distance ≤ 7.0 LY, fuel ≥ cost. Cost is `10 × max(0.1, distance)` fuel units, where 70 units = 7.0 LY, so a 5.6 LY jump costs 56 units. Jump advances the clock by `distance²` hours. Arrival is at the destination's witchpoint, not the station. |
-| Galactic chart (short-range + long-range) | Players must see where they can go and what the target system is like. | MEDIUM | 256 systems per galaxy at integer coordinates 0–255; Oolite draws connection lines between systems ≤ 7 LY apart. Show current system, selected target, distance in LY, fuel cost, and a fuel-range circle. Short-range is centred on the current system; long-range shows the whole galaxy. Target selection drives `h`. |
-| 17-commodity market with Oolite's price/quantity rules | The economy is the reason the trading loop exists; invented prices break route knowledge. | HIGH | Data-driven from `trade-goods.plist`. Prices and stock are generated from the system's **economy only** (0–7), not tech level/government/population/productivity. Formula details and all 17 goods are in the reference appendix. Stock cap is 127 per good. Buy and sell at the same displayed price; trades do not move the price. |
-| Market screen and trade transactions | The primary station interface; players expect the Oolite column layout. | MEDIUM | Columns: Commodity, Extras, Price, For Sale, In Hold, Legal. Bottom line: cash and cargo load. Buy 1 / buy max, sell 1 / sell max. Buying is limited by stock, credits, and cargo space; selling is limited by hold and station capacity (can't flood past 127). |
-| Cargo hold and manifest | Trading is meaningless without capacity and a visible hold. | MEDIUM | Cobra base 20 t; Large Cargo Bay adds +15 t (`extra_cargo = 15`) → 35 t. Gold/platinum are kg and gem-stones are g: 1000 kg or 1,000,000 g per ton pod; 499 kg / 499,999 g fit in the "safe" without consuming a pod. Treating these as 1 unit = 1 t destroys the economy (a ton of gold is ~38,800 Cr). |
-| Outfitting screen and equipment purchase | Locked scope includes equipment; the docking computer must be buyable. | MEDIUM | Item list with name, price, install time; info pane. Availability = item in the Cobra's `optional_equipment` list (or `available_to_all`) AND station tech level ≥ item tech level AND `canAddEquipment` (cargo space, incompatibilities, prerequisites). No equipment resale in core Oolite. Fuel is a special row priced for the missing amount only. |
-| Ship status screen | The "who am I / what do I own" screen; locked in scope. | LOW | Commander name, ship name, present system, hyperspace target, condition, fuel (LY, one decimal), cash (one decimal), legal status, rating, equipment list. v1 can omit legal/rating lines or show neutral placeholders; keep fuel/cash/equipment/system/target. A second page shows the cargo manifest. |
-| Save/resume in the browser | Locked scope; without it a browser game is a demo. | MEDIUM | Oolite saves only while docked (autosave on launch when enabled). Persist at minimum: galaxy index, system index, target system, credits (decicredits), fuel, cargo amounts, owned equipment, max cargo, ship clock, commander/save name, data version. Recommend snapshotting the current market too (see appendix: Oolite rerolls the main market on reload). |
-| Authentic starting state | The community will immediately check "do I start at Lave with 100 Cr in a Cobra III?". | LOW | Galaxy 0, system 7 (Lave, coords 20,173), Cobra Mk III, 100.0 Cr (1000 decicredits), full 7.0 LY fuel, 20 t hold, forward pulse laser, 3 missiles (missiles cosmetic only in v1). Lave is Rich Agricultural, Dictatorship, raw TL 4 (displayed TL 5). |
-| Flight HUD (v1 subset) | The HUD is the cockpit; its absence reads as a tech demo. | MEDIUM | Keep: crosshair, scanner (25.6 km range), compass (planet → station, plus witchpoint), aegis indicator, speed bar, roll bar, pitch bar, fuel bar, clock, message line, condition light, scanner zoom. Drop combat-only dials: shields, energy, cabin/weapon temperature, missiles, target reticle, weapons-offline text, MFDs. |
-| Docking computer as a buyable assist | Locked scope; also the intended escape hatch from manual docking difficulty. | MEDIUM | `EQ_DOCK_COMP`, TL 9, 1500 Cr. `c` engages a slow autopilot that requests clearance, flies the approach and docks; `c` again aborts. `Shift+C` instant-docks at main stations (main stations always set `allows_fast_docking = true`) and adds 20 minutes to the clock. v1 can ship instant dock first and the scripted autopilot immediately after. |
-| Pause, options, and remappable input | Desktop browser players expect to pause and configure controls. | LOW | `p` pause. Keep input behind an abstraction (keyboard now; gamepad/touch later). Settings that matter for v1: pitch invert, mouse control toggle, sensitivity, fullscreen, save-slot management. |
-| Data ingestion from Oolite config | "Ported from Oolite's config files rather than invented" is a project requirement; it is also the cheapest fidelity win. | MEDIUM | Build-time conversion of `planetinfo.plist` (2048 systems), `trade-goods.plist`, `equipment.plist`, `shipdata.plist` (Cobra/Coriolis templates), `shipyard.plist` (Cobra optional equipment), `descriptions.plist` (names, economy/government strings), `hud.plist`, `keyconfig.plist` to typed JSON/TS. Do not parse plists at runtime. |
+## Table Stakes
 
-### Differentiators (Competitive Advantage)
+Missing any of these and the game does not feel like Oolite combat.
 
-Features that set the product apart. Not required, but valuable.
+### TS-1 View directions and weapon facings
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Dual-mode docking computer with clearance ritual | Reproduces the actual Oolite ritual: watch the ship request permission, line up and slide in, or pay the clock cost for instant docking. | MEDIUM | `c` = autopilot approach (target station or main station); `Shift+C` = fast dock where allowed (+20 min). Autopilot should request clearance, fly to a point in front of the slot, match roll, and enter. With no NPC traffic, the path can be a simple scripted approach. |
-| Docking clearance protocol (optional, default off) | The ritual of requesting permission and getting a window adds station-life flavour at low cost. | LOW | Oolite's code defaults clearance on if the key is absent, but the shipped `planetinfo.plist` universal block sets `stations_require_docking_clearance = no`, so current Oolite master is effectively off by default (wiki/readthedocs still say "on since 1.81" — the data wins). Implement as an option: `L` request, immediate grant, 2-minute window, warning if entering without. No fines in v1. |
-| System data screen (F7) | Lets players inspect economy/government/TL/population/productivity before committing to a route; makes the galaxy feel authored. | LOW | All fields already exist in `planetinfo.plist`, including per-system descriptions. Layout: economy, government, displayed tech level, population (raw × 0.1 billion), inhabitants, gross productivity, radius, distance, description. |
-| Advanced Navigational Array route plotting | Turns the chart into a route planner (fewest jumps / least time), which is the natural progression reward for a trader. | MEDIUM | `EQ_ADVANCED_NAVIGATIONAL_ARRAY`, TL 6, 2250 Cr. Route search over the 7 LY graph, minimising jumps or `distance²` time. Also enables chart economy/government/TL filters. Without it, chart works but shows only direct jumps. |
-| Advanced Space Compass | Target cycling (planet, station, sun, witchpoint, selected target) is genuinely useful when the station is hidden behind the planet. | LOW | `EQ_ADVANCED_COMPASS`, TL 7, 650 Cr. Basic compass (free) only tracks planet then station; advanced adds modes. |
-| All 8 galaxies and the one-way galactic ring | "8 galaxies" is part of the Oolite identity and the chart data already covers all 2048 systems. | LOW–MEDIUM | Galactic Hyperdrive (`EQ_GAL_DRIVE`, TL 10, 5000 Cr, one-shot). `g` jumps to the next galaxy, wrapping 7→0, no fuel. Destination is the nearest connected system to the current coordinates in the new galaxy. Legal status resets (irrelevant in v1). |
-| Time simulation: jump/launch/dock/outfitting clocks | Small details that make the world feel simulated rather than menu-driven. | LOW | Jump time = `distance²` hours; launch +10 min; fast dock +20 min; equipment install time defaults to `600 + price` seconds. Display a ship clock. No time-critical content in v1, so this is flavour plus a foundation for v2 missions. |
-| Mass-dependent fuel price | A subtle Oolite detail: a laden Cobra pays more to refuel. Rewards keeping reserve fuel. | LOW | Base 0.2 Cr per 0.1 LY, multiplied by a rate of `0.65 × shipMass/baseMass + 0.35`, clamped 0.33–3.0. Full tank from empty ≈ 14 Cr unladen. |
-| Multiple save slots + export/import JSON + autosave | Browser-native convenience without a backend; protects against localStorage loss. | LOW–MEDIUM | Autosave on launch (Oolite behaviour), manual save while docked, named slots, download/upload JSON. No cloud. |
-| Input and accessibility options | Desktop-only v1 still benefits from pitch invert, mouse flight, sensitivity, and remapping; same abstraction enables touch later. | LOW–MEDIUM | Oolite supports mouse control (`Shift+M`, X = roll), Ctrl precision modifier, and full key remapping. Keep actions semantic (`pitchUp`, `rollLeft`, `hyperspace`) rather than key codes. |
-| Deterministic seeded PRNG for market generation | Makes economy tests reproducible and enables replay/debug fixtures; players still get a fresh roll per arrival. | LOW | Seed per system visit (or per save) and use the same seed for all 17 goods. Do not use `Math.random()` scattered through the economy module. |
-| Authentic presentation layer (CRT/HUD typography, scanner tails) | The look is a large part of "feels like Oolite" and is cheap relative to simulation work. | MEDIUM | Green vector HUD, elliptical scanner with vertical tails, planet/station wireframe or low-poly models from Oolite assets (CC BY-NC-SA), docking tunnel break pattern. Do not let presentation work precede flight/docking correctness. |
+| Feature | Rule and numbers | Source | Cx |
+|---|---|---|---|
+| Four flight views | Keys `1` forward, `2` aft, `3` port, `4` starboard (F1-F4 are alternate codes in flight). A switch shows a 3 s message "Forward View" / "Aft View" / "Port View" / "Starboard View". From a GUI screen the switch first returns to the main view. | `PlayerEntityControls.m:368-371, 1075-1089`; `C/Universe.m:6074-6130`; `descriptions.plist` keys `forward-view-string` ... | Low |
+| View selects the weapon facing | `switchToThisView` sets `currentWeaponFacing` to the matching facing and reloads that weapon's stats. Each of the four facings owns its laser type, heat and shot timer. | `PlayerEntityControls.m:4608-4645`; `E/PlayerEntity.m:2481-2510` | Low |
+| Facing without a laser | `fireMainWeapon` returns NO for `WEAPON_NONE`: no heat, no sound, no message. A new Cobra has a **pulse** laser forward only (`oolite_template_cobra3-player` overrides the Cobra III's beam); `weapon_facings = 15` allows all four mounts. | `E/PlayerEntity.m:5452-5480`; `Cfg/shipdata.plist:1348, 1441` | Low |
+| Targeting follows the view | `firstEntityTargetedByPlayer` rotates the aim axis by the view (aft 180 deg, port +90, starboard -90) and picks the nearest ship or wormhole whose collision radius contains the axis, within `SCANNER_MAX_RANGE - 100` m. | `C/Universe.m:5649-5722` | Med |
+| Alert condition | Docked, green, yellow (mass lock), red when any of: hull temperature > 0.90, altitude dial < 0.10 (under 4 km), energy < 64 and < 80 % of max, a ship hostile and targeting the player, or a cascade weapon. Entering red plays `warning.ogg` once. | `E/PlayerEntity.h:223-229`; `E/PlayerEntity.m:2893-2994, 5122-5143` | Med |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+**Player can ...**
+- press 1/2/3/4 in flight and see the camera look forward/aft/port/starboard with the matching view message;
+- fire the laser mounted on the facing they are looking along, and fire nothing (no heat, no sound) on a facing with no laser;
+- see the condition indicator go red when a hostile ship targets them, when energy is critical, when hull temperature is above 90 %, or when they are below 4 km altitude.
 
-Features that seem good but create problems.
+### TS-2 Lasers: types, firing, heat
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Combat, shields, energy banks, weapons, missiles | "It's Elite, where are the pirates?" | Pulls in damage, energy recharge, hit detection, AI, targeting, death/respawn, and balance. It is a second game, not a feature. v1 is explicitly proving flight/navigation/economy first. | Ship a peaceful trade simulator; add combat as v2 with its own milestone. Keep the Cobra's pulse laser as a model detail only. |
-| NPC traffic and AI | Empty space can feel lifeless. | NPCs require spawning, AI, collision, docking queues, mass-lock interactions, and performance work; they also invalidate "empty space" test assumptions. | Use celestial bodies, station rotation, and the scanner for life. Add a small number of non-interactive ambient ships only after v2 AI exists. |
-| Legal status, bounty, police, fines | Illegal goods and smuggling are core Elite fantasy. | Needs market monitoring, patrol spawning, scanning, fines, fugitive docking refusal, and reputation. Without police it is bookkeeping with no teeth. | Show market legality flags (`Ex`/`Im`/`Re`) as information, but do not implement consequences in v1. |
-| Missions, contracts, passengers, parcels | Gives the player goals. | Requires destinations, deadlines, reputation, contract UI, cargo-space reservations, and failure states; all depend on a mature economy and clock. | Let the trade loop be the goal. Add contracts in v1.x only after the loop is validated. |
-| Shipyard / buying other ships | Oolite's F3 has a shipyard; players expect progression. | Requires multiple ship models, stats, trade-in valuation, equipment transfer rules, and rebalancing the whole economy. The Cobra is the canonical start. | Fixed Cobra Mk III in v1; equipment progression only. |
-| OXPs / scripting / mod support | The Oolite community lives on OXPs. | Explicitly excluded by the project premise; a scripting API is a platform project, not a game feature. | Publish the data schema and keep systems data-driven for future internal expansions, but no runtime mod loading. |
-| Multiplayer, accounts, cloud saves, backend | "Play with friends / sync saves." | Violates the static-client, no-backend constraint and adds auth, cheating, and operational cost. | Local saves + export/import JSON. |
-| Mobile/touch controls in v1 | "Browser game should work on phones." | Touch flight and a 17-row market UI need separate design; scope is desktop. | Keep input/UI behind abstractions so touch can be added later without rewriting the simulation. |
-| Audio and music | Atmosphere; docking music is iconic. | Deferred by the project; asset licensing, autoplay policies, and mixing add scope before the loop is proven. | Silent v1; design an audio event bus (launch, dock, hyperspace, purchase) so sound can be dropped in later. |
-| Dynamic supply/demand and price impact from trades | "Realistic economy." | Oolite's core market does **not** move price when you buy/sell; stock is capped and prices are fixed for the visit. Dynamic pricing destroys learned routes and makes the 17-good table unrecognisable. | Keep the Oolite formula exactly. Only stock quantity changes with trades. |
-| Save anywhere / mid-flight save | Convenience. | Oolite saves only docked; mid-flight save requires serialising the whole in-system world (positions, timers, market state) and removes docking risk. | Save at stations only; autosave on launch; optionally a "suspend" snapshot that resumes at the station. |
-| Yaw, Newtonian drift, free-look aiming | "Modernise the flight model." | Directly contradicts the locked no-yaw decision and the original feel. Newtonian physics changes combat/navigation balance and makes docking trivial or impossible. | Pitch/roll only, Aristotelian velocity, fixed forward crosshair. Ctrl precision modifier instead of yaw. |
-| Fuel scoops, sun skimming, fuel injectors, afterburner | Fuel management depth. | Requires solar heat/damage, scoop physics, fuel fractions, and a reason to leave the station without fuel. v1 fuel is a jump budget. | Fuel from station only; full tank 14 Cr; plan jumps on the chart. |
-| Interstellar space, misjumps, Thargoids, wormholes | Iconic Elite moments. | All are combat/edge-case content requiring special systems, spawn tables, and failure handling. | Normal-space jumps only; no misjump chance in v1. |
-| Trade-profit optimiser, price database, quest markers | "Quality of life." | Oolite deliberately gives you a chart and a market, not a solver. A profit overlay removes the exploration/knowledge loop and makes the economy a spreadsheet. | Let players take notes; optionally a local "visited prices" notebook as a v2 differentiator, clearly not automatic route solving. |
-| Autodock without buying the computer | New-player accessibility. | Removes the equipment progression and the reason to earn 1500 Cr; also undermines manual docking as a skill. | Manual docking is always available; offer a clear tutorial and the purchasable computer. |
-| Rebalancing starting credits or prices for convenience | "100 Cr and 20 t is a grind." | Breaks fidelity with Oolite/Elite and invalidates known routes. The grind is the game's pacing. | Keep 100 Cr; improve onboarding (a short "how to trade" briefing) instead of changing numbers. |
+Tuples in `equipment.plist` are `(techLevel, priceDc, name, key, description, {...})`; `weapon_info` carries the rest.
+
+| Laser | TL | Price dc | Range m | Energy/shot | Damage | Recharge s | Heat/shot | Continuous fire to cutout (derived) | Colour |
+|---|---|---|---|---|---|---|---|---|---|
+| Pulse `EQ_WEAPON_PULSE_LASER` | 3 | 4000 | 12 500 | 0.8 | 15 | 0.5 | 7.0 | about 27 s | red |
+| Beam `EQ_WEAPON_BEAM_LASER` | 4 | 10 000 | 15 000 | 0.5 | 6 | 0.1 | 3.2 | about 8.4 s | yellow |
+| Military `EQ_WEAPON_MILITARY_LASER` | 10 | 60 000 | 30 000 | 1.1 | 12 | 0.1 | 4.25 | about 6.0 s | magenta |
+| Mining `EQ_WEAPON_MINING_LASER` | 10 | 8000 | 12 500 | 1.4 | 50 | 2.5 | 10.0 | never (4/s heat < 6/s cooling) | blue |
+
+Source: `Cfg/equipment.plist:126-205` (pulse :126, beam :144, mining :164, military :185). The Thargoid laser (:357) is NPC-only. Derivation: net heat rate = `heat/recharge - 6`; time to the 217.6 cutout = `217.6 / net`.
+
+| Feature | Rule and numbers | Source | Cx |
+|---|---|---|---|
+| Fire gate | Key `a` (held). Allowed when `shot_time > weapon_recharge_rate` (strict) for the current facing, weapons online, temperature below the cutout, and `energy > energy_use`. | `PlayerEntityControls.m:1185-1190`; `E/PlayerEntity.m:5452-5500` | Low |
+| Heat model | Per-facing temperature, max 256. Cooling `6.0/s` on all four facings every update. Cutout at `0.85 * 256 = 217.6`: fire refused with "Weapon system overheated." (3 s). `[weapon-overheat]` has no mapped sound. | `E/ShipEntity.h:115-117`; `E/PlayerEntity.h:277`; `E/PlayerEntity.m:2481-2485, 5460-5465` | Low |
+| Energy cost | `energy -= weapon_energy_use`; if `energy <= use` the shot is refused with "Weapon system inactive (no energy left)." (3 s). | `E/PlayerEntity.m:5472-5480` | Low |
+| Hit-scan | An instant ray from the facing's weapon-port offset along the facing axis (no convergence). It tests every collidable ship (bounding-sphere gate, then hull octree), takes the nearest hit within laser range and applies `weapon_damage` via `takeEnergyDamage`. **Planets and suns never block it.** A miss that passes within cosine 0.995 of the player's locked target warns that ship (`ATTACKER_MISSED`). | `C/Universe.m:5549-5648`; `E/ShipEntity.m:10360-10450` | High (ray vs hull in the world model) |
+| Beam visual | The shot entity lives 0.09 s as a flickering beam in the laser colour; a hit also spawns a flash, or, if the target is below 50 % energy, a hull-spark cloud and (probability `energy*rand < damage`) a wreckage chunk. | `E/OOLaserShotEntity.m:36-51`; `C/Universe.m:5528-5547` | Med |
+| Buying lasers | Outfitting shows the laser, then a facing sub-list (Forward / Aft / Port / Starboard) with price per facing. The old laser on that facing is traded in at full catalogue price. "Remove Laser" (`EQ_WEAPON_NONE`) is free. | `E/PlayerEntity.m:8410-8470, 9190-9215, 9345-9390`; `Cfg/equipment.plist:109-125` | Med |
+
+**Player can ...**
+- hold `a` and see a red pulse beam fire twice per second, with the laser-temperature gauge rising, and the shot refused with "Weapon system overheated." after roughly 27 s of continuous fire;
+- see a beam laser fire ten times per second and overheat in about 8 s;
+- fire again once the laser temperature has fallen below 85 %;
+- hit a ship at 12.4 km with a pulse laser but not at 12.6 km;
+- buy a beam laser for the aft mount in F3 and have the old aft laser refunded at full price.
+
+### TS-3 Energy banks and shields
+
+| Feature | Rule and numbers | Source | Cx |
+|---|---|---|---|
+| Player pools | Cobra `max_energy = 256`, `energy_recharge_rate = 4`/s. Forward and aft shields start and max at 128 (`BASELINE_SHIELD_LEVEL`), recharge 2.0/s each. The HUD draws `max_energy/64` = 4 energy-bank bars. | `Cfg/shipdata.plist:1296, 1333`; `E/ShipEntity.h:101`; `E/PlayerEntity.m:1533-1537`; `HeadUpDisplay.m:1974-2000` | Low |
+| Recharge allocation | Each update: `energy += recharge*dt`; each shield's deficit capped at `shield_rate*dt`. If either shield is under 25 % of max, all banked energy may go to shields; otherwise shields only take energy above `0.1 + 25 % of max_energy`. The weaker shield is charged first. Energy given to shields is deducted from the banks. | `E/PlayerEntity.m:2575-2630` | Med |
+| Which shield takes a hit | The side is the sign of the attacker's forward offset (`d_forward >= 0` is forward, else aft). Shield absorbs first, overflow reduces `energy`; `energy <= 0` is death. | `E/PlayerEntity.m:5646-5690` | Low |
+| Damage heats the cabin | Damage that reaches the banks adds `amount * (mass > 400000 ? 200000/mass : 0.5) / heatInsulation` to cabin temperature, never above 256 from this source. | `E/PlayerEntity.m:5668-5678`; `E/ShipEntity.h:64-67` | Low |
+| NPC "shields" | NPCs have no shield pools. `EQ_SHIELD_BOOSTER` adds +256 to an NPC's max energy; `EQ_SHIELD_ENHANCER` also x1.5 recharge. NPCs lose `energy` directly. | `E/ShipEntity.m:3240-3250, 3290-3305, 11418-11570` | Low |
+| Docking restores | On docking: shields and energy to max, laser temperature 0, cabin temperature 60. | `E/PlayerEntity.m:6321-6325` | Low |
+| Gauges | Shield bars red < 25 %, yellow < 80 %, else green. Cabin temperature bar green to 25 %, yellow to 80 %, red above, flashing above 90 %. Laser temperature green to 25 %, yellow to 80 %, red above. | `HeadUpDisplay.m:2045-2075, 2188-2250` | Med (HUD) |
+
+**Player can ...**
+- see forward and aft shield bars full on launch, and four energy-bank bars;
+- take a hit from the front and see only the forward shield drop, then recover at about 2 units/s;
+- take a hit from behind and see only the aft shield drop;
+- see the energy bars drop only after the facing shield reaches zero;
+- dock and find shields, energy and laser temperature fully restored.
+
+### TS-4 Damage, equipment damage, destruction
+
+| Feature | Rule and numbers | Source | Cx |
+|---|---|---|---|
+| Internal damage rolls | When damage reaches the banks, repeat while `amount > 0`: internal hit if `(rand & 31) < amount`, then `amount -= 32`. Damage of at least 32 always rolls once. | `E/PlayerEntity.m:5690-5698`; `E/PlayerEntity.h:331` | Low |
+| What an internal hit breaks | `n_considered = (maxCargo + mass/10000) * tradeInFactor/100`; `rand % n_considered` below the pod count destroys that pod ("X destroyed.", 4.5 s); then equipment, weighted by `damage_probability` (default 1.0; 0 for missiles, large cargo bay, passenger berths, trumbles); then cosmetic trade-in loss. | `E/PlayerEntity.m:6097-6185`; `Cfg/equipment.plist` `damage_probability` | Med (needs ship mass) |
+| Equipment damage effect | The item is removed and `<KEY>_DAMAGED` added; message "X damaged." (4.5 s). The function stops (ECM will not fire, scoops stop, docking computer fails). F3 offers "Repair: X" at **50 %** of catalogue price; F5 shows "X (N/A)". | `E/PlayerEntity.m:6144-6170, 8372-8412, 9113-9119, 9333-9340`; keys `@-damaged`, `equip-repair-@`, `equipment-@-not-available` | Med |
+| Collision damage | Ship vs ship (including the station hull): each side takes `otherMass * closingSpeedAlongLoc^2 / 50 000 000` when > 0.05, through shields for the player. A Coriolis (mass 455 223 200) at 10 m/s is about 910 damage. | `E/ShipEntity.m:11020-11182, 12504` | High (mass plus hull contact) |
+| Dock-slot scrape damage | In the docking slot a scrape applies `5 * dt * flightSpeed` damage per tick; a ship straddling opposite slot edges is a fatal collision. **v1 deliberately has no damage here** (`src/sim/dock/step.ts` emits `scrape` only). | `E/DockEntity.m:698, 730-740` | Med |
+| NPC death | `energy <= 0`: `noteTargetDestroyed` credits the killer, then `becomeExplosion`. Before that, a ship under 12.5 % energy (or under 64 and under twice the hit) with an escape pod ejects 25 % of the time. | `E/ShipEntity.m:11555-11585, 7768-7772` | Med |
+| NPC explosion | Cloud + flash; ships above 500 000 mass add a ring 25 % of the time; sub-entities explode; `dealMomentumWithinDesiredRange(0.125*mass)` shoves neighbours. **Explosions are silent in core Oolite.** | `E/ShipEntity.m:7891-8130, 7680-7700` | Med |
+| Wreckage | `n_alloys = (mass/6000)^0.25`; wrecks `floor(rand*(n_alloys+2))` capped at 3, only when entity count < 50 % of max. Wreck mass is 10 % of the ship (cube-root rescale), temperature 1000, huge insulation, energy = half a 100-850 lifetime, so heat damage (`dt*1000`) burns it out fast (derived 0.05-0.4 s, LOW confidence: verify in-engine); non-colliding, non-scoopable. | `E/ShipEntity.m:8040-8070, 1858-1870, 2272`; `C/Universe.m:5497-5526` | Med |
+| Scrap metal | `floor(rand*n_alloys)` scoopable `alloys` pods (1 t, `CLASS_CARGO`); a Cobra III (about 215 000 mass) yields 0-2. | `E/ShipEntity.m:7916, 8078-8107` | Low |
+
+**Player can ...**
+- be hit with shields down and occasionally see "X damaged.", then find that system dead (a damaged ECM does not fire) until repaired;
+- see a destroyed cargo pod listed ("Food destroyed.") and lose that pod from the hold;
+- repair a damaged ECM from the F3 screen at half its original price;
+- shoot a trader to zero energy and see it explode with a flash, loose cargo pods and a few alloy pods;
+- scrape the docking slot at speed and lose shield, then energy.
+
+### TS-5 Missiles and ECM
+
+| Feature | Rule and numbers | Source | Cx |
+|---|---|---|---|
+| Arm / lock / fire / safe / cycle | `t` arms the active pylon; with a ship in the crosshair it locks ("Missile locked onto X."), otherwise "Missile armed." `m` fires **only when locked**. `u` makes all missiles safe ("Missiles on safety."). `y` selects the next pylon. HUD icons: green safe, yellow armed, red locked. Weapons offline blocks it all. | `PlayerEntityControls.m:1216-1232, 1393-1425, 4775-4810`; `HeadUpDisplay.m:2370-2390` | Med |
+| Lock acquisition and loss | While armed with no target, every update scans the view cone. A locked target beyond scanner range, cloaked, docked, entering witchspace or scooped is dropped: "Target lost." + boop; status reverts to armed. | `E/PlayerEntity.m:3595-3640, 3699-3740` | Med |
+| Launch | New ship from role `EQ_MISSILE` at the pylon, velocity = forward * (speed + 250), initial speed 150, owner = player, target = locked ship. The target gets `INCOMING_MISSILE` (a player victim sees "Incoming missile." 4.5 s and hears `warning.ogg`). Not collidable for its first 0.25 s. | `E/PlayerEntity.m:5230-5270, 5160-5166`; `E/ShipEntity.m:10563-10675, 1858-1870` | Med |
+| Missile stats | `ai_type oolite-missileAI.js`, max speed 750, thrust 250, `max_energy 5`, `CLASS_MISSILE`, `oolite_missile_range 30000`, `proximity 25`, `blastPower 180`, `blastRadius 32.5`, `blastShaping 0.1`. | `Cfg/shipdata.plist:2680-2722` (energy :2701, speed :2704, blast :2712-2716, thrust :2718) | Low (data) |
+| Missile behaviour | Priorities: self-destruct beyond 30 km travelled; intercept target; if target cloaks, fly to last known coordinates; with no target, self-destruct. Within `proximity` 25 m it "achieves desired range": blast and explode. | `AI/oolite-missileAI.js:33-85`; `S/oolite-priorityai.js:2690-2700, 3738-3765, 5755-5775` | High (AI port plus steering) |
+| Blast damage | `dealEnergyDamage(180, 32.5, 0.1)`: every entity within `min(range*sqrt(180), 25 600)` m takes 180 within 32.5 m of its surface, `180/d^2` beyond (d = surface distance / 32.5). Credited to the missile's owner. 180 on a full-shield Cobra: shield 128 to 0, 52 to energy. | `E/ShipEntity.m:7599-7650` | Med |
+| Lasers kill missiles | A missile has 5 energy: any laser hit (>= 6 damage) destroys it (plain explosion, no blast). | `Cfg/shipdata.plist:2701`; `E/ShipEntity.m:11418-11570` | Low (falls out of damage) |
+| ECM (player) | `e` with `EQ_ECM` fitted, weapons online, not already running: `ecm.ogg`, "ECM system activated." (3 s). Drains 20 energy/s for at most 2.5 s (about 50) or until energy runs out ("ECM system deactivated (no energy left)."). | `PlayerEntityControls.m:1426-1437`; `E/PlayerEntity.m:2540-2556`; `E/PlayerEntity.h:270-271` | Low |
+| ECM effect | An invisible blast entity emits 4 pulses at 0.5 s steps with radii 6400, 12 800, 19 200, 25 600 m. Every ship in radius gets the `ECM` message: standard missiles explode on the first pulse that reaches them; hardened missiles ignore 90 % of pulses (of the 10 %, half detonate in place, half explode harmlessly). A ship hit plays `[player-hit-by-ecm]`; the player's scanner fuzzes for 1.25 s. | `E/OOECMBlastEntity.m:33-100`; `S/oolite-priorityai.js:5669-5715`; `AI/oolite-missileAI.js:90-106`; `E/PlayerEntity.m:5172-5174, 5367-5382`; `E/PlayerEntity.h:329` | Med |
+| NPC use | Ships with `EQ_ECM` fire it when attacked with a missile (stations too); `has_ecm` is a fuzzy probability per ship (0.15 on a Cobra III). | `S/oolite-priorityai.js:5250-5290, 5740-5775`; `E/ShipEntity.m:336-343` | Med (AI port) |
+| Purchase | `EQ_ECM` TL2 6000 dc; `EQ_HARDENED_MISSILE` TL9 3500 dc (launch sound `[ecm-missile-launch]`); standard missile 300 dc already in F3. | `Cfg/equipment.plist:37-44, 278-292` | Low |
+
+**Player can ...**
+- press `t` with a ship in the crosshair, see "Missile locked onto <ship>." and the missile icon turn red, press `m` and see the missile leave the pylon and hit;
+- press `m` with no lock and see no missile leave;
+- press `u` and see "Missiles on safety.";
+- press `e` and see standard missiles within 25 km explode, with about 50 energy drained;
+- see "Incoming missile." and hear a warning when an enemy fires at them;
+- shoot a missile with the laser and see it explode.
+
+### TS-6 Cargo pods, scooping, jettison
+
+| Feature | Rule and numbers | Source | Cx |
+|---|---|---|---|
+| Cargo on death | Each pod survives with chance 70 %, reduced after each success by 30 points for NPCs (70, 40, 10, 10 ...) or 20 for the player (70, 50, 30, 10), never below 10 %; at most 15 pods. Pods appear at random points in the hull box with +/-10 m/s drift plus ship velocity, random orientation, `CLASS_CARGO`. | `E/ShipEntity.m:7814-7888` | Med |
+| What NPCs carry | `setCargoFlag`: `num = likely_cargo*(0.5+rand)` capped by hold size (and 200); plentiful/scarce/contraband/pirate pools by role (traders plentiful or scarce goods; pirates `rand % (1 + num/2)` illegal pods). | `E/ShipEntity.m:7320-7370`; `S/oolite-populator.js:1383-1450, 1696-1735` | Med |
+| Scoop eligibility | The ship needs a cargo scoop (`EQ_FUEL_SCOOPS` provides `EQ_CARGO_SCOOPS`), a hold that is not full, a target of `CLASS_CARGO` with a cargo type, **in front** of the ship and, for the player, **below** the up axis (underside). | `E/ShipEntity.m:11183-11210, 3537-3548`; `E/PlayerEntity.m:4430-4435`; `Cfg/equipment.plist:45-53` | Med |
+| Tractor sequence | On contact the pod gets `BEHAVIOUR_TRACTORED` (AI suspended); spring forces (`TRACTOR_FORCE` 2500 / mass) pull it in; it is taken in at `2 * radius`, and lost if more than 250 m from the scooper or the scoop stops working. | `E/ShipEntity.m:3729-3800, 11211-11245`; `E/ShipEntity.h:94` | Med |
+| Scooped result | Commodity message (e.g. "1 t Food", 4.5 s); `scoop.ogg` every 0.5 s while scooping; pod goes to the front of the hold. A full hold gives `[hold-full]` boop and "Cargo hold full." (4.5 s). On docking, goods enter the manifest as ordinary cargo. | `E/ShipEntity.m:11249-11350`; `E/PlayerEntity.m:3099-3110, 5152-5160`; `E/PlayerEntitySound.m:386-400` | Med |
+| Jettison | `D` (Shift-d) ejects the front pod ("X ejected."); refused above 4x max speed ("Cargo ejection system offline (speed too high)."); 0.5 s between pods; `R` rotates the next commodity. Ejected pods can be re-scooped. | `E/PlayerEntity.m:5928-5945`; `PlayerEntityControls.m:1467-1480` | Low |
+| Hold bookkeeping | Pods load into the hold at launch and unload into the manifest on docking. | `E/PlayerEntity.m:6336, 6425` | Med (v1 manifest) |
+
+**Player can ...**
+- destroy a loaded freighter and see up to 15 cargo pods drift from the wreck;
+- fly the underside of a Cobra with fuel scoops over a pod and see it pulled in with "1 t <Commodity>" and a scoop sound;
+- fly a pod above the nose and see it not scooped;
+- see "Cargo hold full." with a full hold;
+- dock and find the scooped goods in the F5 manifest and sellable at F8;
+- press Shift-D to eject cargo and re-scoop it.
+
+### TS-7 Legal status, bounty, police, kills, rating
+
+| Feature | Rule and numbers | Source | Cx |
+|---|---|---|---|
+| Status bands | `legalStatus` int: 0 **Clean**, 1-50 **Offender**, 51 and above **Fugitive** (`< 1`, `< 51`). F5 shows the band. Saved as `legal_status`. | `C/OOConstToString.m:404-422`; key `legal_status`; `E/PlayerEntity.m:843, 1414` | Low |
+| Offences are bit flags | `markAsOffender(v)` does `legalStatus \|= v` (**bitwise OR, not addition**). Values: **7** seen by police (hitting a clean ship in sight), **8** distress-call aggressor, **15** attacked a police ship, **63** attacked the main station (native path also marks 64, or 96 for a mine, x1.5 when the attacker's bounty is already at least that), **64** killed a police ship (`collectBountyFor`), contraband exports = sum of legality x tons. | `E/PlayerEntity.m:6024-6040, 6042-6075`; `S/oolite-priorityai.js:5161-5170, 5362-5372, 5987, 6033`; `E/StationEntity.m:1116-1145`; `E/ShipEntity.m:8338-8345, 11520-11535` | Med |
+| Who sees an offence | Hitting a ship whose `bounty` is already > 0 is not an offence. For a clean victim of class neutral/station/buoy/police/military/player: the **main station, only if the victim is inside station aegis**, and every **police ship within scanner range of the victim** get `offenceCommittedNearby` and mark the attacker. Both-clean fights are re-attributed when the victim is already fighting. | `E/ShipEntity.m:12261-12304`; `S/oolite-priorityai.js:5111-5172` | Med |
+| New-system amnesty | Every hyperspace arrival (and wormhole exit) halves legal status. | `E/PlayerEntity.m:6887`; `C/Universe.m:1061` | Low |
+| Escape-pod reset | Ejecting sets legal status 0. | `E/PlayerEntity.m:5893-5894` | Low |
+| Smuggling | Every Coriolis, dodecahedron and icosahedron station is `market_monitored`. Leaving the dock marks the player with the sum of `legality_export * tons held` (`slaves` 1, `firearms` 1, `narcotics` 2 per ton). Import legality is 0. | `E/PlayerEntity.m:6407-6416`; `Cfg/shipdata.plist:1706, 1895, 2352`; `Cfg/trade-goods.plist` | Low |
+| Police response (AI) | Priority list: fight; respond to distress; **attack any fugitive (bounty > 50)** on sight; attack "serious" offenders (bounty > `fineThreshold`); "fine" offenders with `0 < bounty <= fineThreshold` that are neutral ships or the player (`markTargetForFines`); collect escape pods. `fineThreshold = 50 - government*6` (Anarchy 50 ... Corporate State 8; Lave, a Dictatorship, 32). | `AI/oolite-policeAI.js:60-100`; `S/oolite-priorityai.js:841-848, 2185-2225, 3146-3160` | High (AI port) |
+| Fines | A police ship marks the player (`being_fined`). At the next dock at the **main** station: `fine = (500 + (gov < 2 or gov > 5 ? 500 : 0)) * legalStatus` dc. If credits fall short, status drops by the proportion paid and credits go to 0; otherwise status resets to 0 and credits fall by the fine. Costs 24 h. `being_fined` clears on witchspace exit. | `E/PlayerEntity.m:10450-10478, 6363-6369, 6980`; `E/ShipEntity.m:12434-12440`; keys `fined-@-credits`, `oolite-comms-markForFines` | Med |
+| Docking computer and fines | A fast autodock with `legalStatus > 0` marks the player for fines when `((rand & 1023) / (1 + government)) < legalStatus`. It also costs 20 min. | `PlayerEntityControls.m:4724-4740` | Low |
+| Station refuses | The main station refuses docking instructions and docking-computer use to a **fugitive** (`legalStatus > 50`): "Station refuses to issue docking instructions." (4.5 s), `warning.ogg`, autopilot disengages; comms `[station-docking-refused-to-fugitive]` ("%H Station does NOT welcome fugitives!"). **Manual docking through the slot is not blocked.** NPC fugitives dock as normal. | `E/StationEntity.m:401-416`; `PlayerEntityControls.m:4700-4715`; `E/PlayerEntity.m:5174-5186` | Low |
+| Red-alert lockout | Fast autodock (Shift-C, Wegolite's `dockingComputer`) is refused while alert is red: "Red Alert! Cannot engage autopilot." This changes the existing v1 docking computer. | `PlayerEntityControls.m:4653-4665`; key `autopilot-red-alert` | Low |
+| Attacking the main station | Marks the attacker (63 / 64+), raises station alert, launches police. The main station cannot be destroyed (damage is dropped when `amount >= energy`). | `E/StationEntity.m:1116-1160` | Med |
+| Bounty payout | On a kill, `credits += 10 * victim.bounty` dc; message "Bounty: N / Total: M" when the payout is at least 1.0 Cr. Missile and mine kills credit the owner. | `E/PlayerEntity.m:6042-6096`; `E/ShipEntity.m:7599-7650` | Low |
+| Kill count | `ship_kills++` for every kill whose ship has `counts_as_kill` (default YES), **including clean innocents (who pay nothing)**. Cargo-class kills with contents, buoys and rocks pay 1/10 and do not count. Every 256 kills: "Right On, Commander!". | `E/PlayerEntity.m:6042-6096`; `E/ShipEntity.m:1527-1530` | Low |
+| Rating | `ship_kills`: Harmless < 8, Mostly Harmless < 16, Poor < 32, Average < 64, Above Average < 128, Competent < 512, Dangerous < 2560, Deadly < 6400, ELITE above. Shown on F5 and the game-over screen ("rating (kills)"). | `C/OOConstToString.m:373-402`; key `rating` | Low |
+
+**Player can ...**
+- see "Clean" on F5 at start, and "Offender" after shooting an innocent trader in sight of police or inside station aegis;
+- shoot a pirate (bounty > 0) in front of police and stay Clean;
+- shoot a clean trader with no police and no station nearby and stay Clean (no witness);
+- see police turn hostile to a fugitive, and be left alone as a minor offender until police scan them in a lax system;
+- jump to another system and see their legal status halved;
+- dock after being scanned and see "You have been fined ... Cr" for `500 * status` dc (1000 per point in Anarchy, Feudal, Democracy, Corporate State);
+- use the docking computer as a fugitive, read "Station refuses to issue docking instructions.", then dock manually;
+- kill a pirate with bounty 35 and see "Bounty: 35.0", the kill count rise, and the F5 rating change at 8 kills.
+
+### TS-8 Player death, escape pod, game over
+
+| Feature | Rule and numbers | Source | Cx |
+|---|---|---|---|
+| Death | `energy <= 0` after shields, heat death or planet/sun collision: view forced aft, large explosion (4.0), ship stops, equipment wiped, `[game-over]` (`bigbang.ogg`). Cannot die while docked. | `E/PlayerEntity.m:6187-6224` | Med |
+| Game-over screen | Fades to black and white over 5 s; shows "Game Over", "Score: <rating> (<kills>), <credits> Cr", "Press Space"; restarts after 30 s or on Space, back to the last save or title. | `E/PlayerEntity.m:99, 3551-3650`; keys `gameoverscreen-*` | Med |
+| Eject | Escape key (double press within `KEY_REPEAT_INTERVAL` unless `escape-pod-activation-immediate`) with `EQ_ESCAPE_POD` fitted, any time not docked. **There is no automatic ejection for the player**: the key must be pressed before energy reaches 0. | `PlayerEntityControls.m:1439-1466`; `E/PlayerEntity.m:5599-5700` | Low |
+| Eject effects | Clock `+43 200 + 5400*(rand & 127)` s (12 h to about 8.2 days); a doppelganger of the ship drifts on; the pod gets an impulse (up 15, back 90); one `EQ_ESCAPE_POD` is removed; **legal status 0**; **cargo and trumbles wiped**; player roles partly forgotten; energy 25; "Escape sequence active." (4.5 s). Ship, equipment, missiles, fuel, credits, kills are kept. | `E/PlayerEntity.m:5806-5925` | Med |
+| Pod flight and rescue | For 10 s (`ESCAPE_SEQUENCE_TIME`) the pod coasts, then the player docks at the main station (doppelganger destroyed, ship restored, shields and energy refilled). With no station (interstellar) it ends in game over "Life Support Failure!". | `E/PlayerEntity.m:2678-2745` | Med |
+| What "insurance" means | **No cash payout to the player.** Insurance is (a) the pod keeping ship and equipment and (b) rewards for rescuing NPC pods: a rescuee with `insuranceCredits` pays `10 * insuranceCredits` dc; with a bounty it pays the bounty or insurance minus bounty depending on a government roll; no insurance and a bounty pays `(5 + gov) * legalStatus`; neither gives a slave (+1 `slaves`). Processed on docking. | `E/PlayerEntityContracts.m:61-125`; `E/ShipEntity.m:11318-11334` | Med |
+
+**Player can ...**
+- fly to zero energy with no pod and see the explosion, aft view, "Game Over / Score: ... / Press Space", then return to the title or last save;
+- buy an escape pod in F3 (TL6, 10 000 dc), press Escape twice quickly while taking fire, see "Escape sequence active.", and be docked about 10 s later with the same ship and equipment, no cargo, a Clean record and a clock jump of at least 12 h.
+
+### TS-9 Planet and sun collision, cabin temperature, solar scooping
+
+| Feature | Rule and numbers | Source | Cx |
+|---|---|---|---|
+| Collision = death | A ship overlapping a stellar body's collision radius is destroyed immediately (`HitAPlanet` / `HitASun`); shields are irrelevant and there is no time to eject. | `E/ShipEntity.m:10991, 11006` | Low |
+| Cabin temperature | Starts 60 (`SHIP_MIN_CABIN_TEMP`); heat damage above 256. Each update: `T += speed*airFriction*dt/ins`; if `ext > 100*ins` and `ext > T`: `T += (ext-T)*0.00175*dt/ins`; else if `T > 60`: `T += (ext - 100*ins - T)*0.1*dt/ins`. `ext = 1250*(sunRadius/distance)^2`, x3 if the sun will go nova, x100 if gone nova. | `E/PlayerEntity.m:2605-2680`; `E/ShipEntity.h:63-74` | Med |
+| Atmospheric friction | Only planets with an atmosphere: within `10*500 = 5000` m of the surface `airResistanceFactor = clamp(1 - altitude/5000)`; heating uses `0.5*factor` (ignored below 0.005). At 350 m/s near the surface that is +175/s, overheating in about a second. | `E/OOPlanetEntity.m:82, 189, 515-570`; `E/PlayerEntity.m:2461-2475, 2658-2672` | Med |
+| Overheat damage | When `T > 256`: `takeHeatDamage(dt*T)` every update, half to each shield, then energy (about 256/s): death within seconds. | `E/PlayerEntity.m:2675, 5755-5790`; `E/ShipEntity.m:11678-11700` | Low |
+| Worked sun numbers (derived) | Skimming at `(R/d)^2 = 0.75` gives ext 937.5: from 60 the cabin reaches 256 in about 145 s with insulation 1 and about 290 s with `EQ_HEAT_SHIELD` (insulation 2.0, TL4, 15 000 dc). | arithmetic on the rules above | Low |
+| Fuel scoops at the sun | With `EQ_FUEL_SCOOPS`, `(R/d)^2 > 0.75` (distance < 1.155 R) and fuel below capacity: `accumulator += dt*speed*0.01/fuelChargeRate`; +1 fuel unit (0.1 LY) per whole unit; speed must exceed 0.1. "Fuel scoop active." (1 s) and the scoop sound. | `E/PlayerEntity.m:2638-2655, 3099-3110`; `E/PlayerEntitySound.m:386-400` | Low |
+| Gauges | Cabin bar = T/256; altitude dial = nearest stellar altitude / 40 000 clamped 0..1; red alert under 0.10 (4 km). | `E/ShipEntity.m:8399-8403`; `E/PlayerEntity.m:4330-4345`; `E/PlayerEntity.h:287` | Low |
+
+**Player can ...**
+- see the cabin temperature bar rise as they dive towards the sun and fall as they leave;
+- be destroyed by flying into the planet or the sun, with the explosion, aft view and game-over screen;
+- see "Fuel scoop active." and the fuel gauge climb when skimming the corona with scoops while the temperature bar reddens;
+- lose shields and then energy and die when the cabin passes the limit;
+- survive longer near the sun with External Heat Shielding fitted.
+
+### TS-10 Populator: who flies the system
+
+Oolite computes traffic **rates per hour** from the system's government (0 Anarchy ... 7 Corporate State), economy (0-7), tech level, and the systems within **7 LY (`locals`)** and **3.5 LY (`verylocals`)**. It spawns an initial population along the lanes (`LANE_WP` witchpoint-planet, `LANE_PS` planet-sun, `LANE_WS` witchpoint-sun, `LANE_WPS` triangle) and every 20 s of game time repopulates with probability `rate/180` per frequency key. Repopulation keeps running while the player is docked.
+
+| Population | Rule (hourly rate unless noted) | Source | Cx |
+|---|---|---|---|
+| Update loop | `SYSTEM_REPOPULATION_INTERVAL = 20` s; first delay `rand*20`; each key tested with `Math.random() < freq/180`. | `C/Universe.h:167`; `C/Universe.m:1293, 6410-6430`; `S/oolite-populator.js:612-625, 1027-1310` | Med |
+| Freighters | For each neighbour: economy match `m = -(ecoHere-3.5)(ecoThere-3.5)`; danger `d = (4-gov)*2.5` when gov < 4, plus the same for the neighbour; rate `60/(30+d)` if `m > 0`, else `60/(120+2d)`. Initial count `freighters * lane/600000`, reduced 15 % per government step below 4. | `S/oolite-populator.js:268-304, 640-670` | High (neighbour graph) |
+| Couriers, smugglers | Couriers `20/(10+(14-neighbourTL)*5)/secondsCount`; smugglers `20/(10+neighbourTL*5)/secondsCount`. | `S/oolite-populator.js:305-326` | Med |
+| Independent pirates | `(1 - gov/12) * totalTraders`, x1.2 at gov < 2 and x1.2 again at gov 0; groups of 2-6 (safer systems may have lost ships); bounty `20 + gov + size + rand(8)`. | `S/oolite-populator.js:343-380, 1696-1735` | Med |
+| Organised pirate packs | Light 0.6/h if gov < 6, +0.6 if < 4, +1.2 if < 2; medium 0.375 if < 4, +0.375 if < 2; heavy 0.125 if < 2; Anarchy x1.5 / x1.5 / x2; packs also arrive from lower-government neighbours. Lave (gov 3): light 1.2, medium 0.375, heavy 0 (domestic). | `S/oolite-populator.js:344-470` | Med |
+| Hunters | Light `60/(10+5(abs(gov-4.5)-0.5))`, capped at twice the pirate rate, then /3, peaking at Communist/Confederacy; medium from Corporate/Democracy to neighbours <= 5; heavy toward Feudal/Anarchy neighbours. | `S/oolite-populator.js:472-565, 1578-1690` | Med |
+| Police | `60/(5*(8-gov))`, capped by `traders + pirates`, then /3. **Government <= 1 gets no patrols**; the rate becomes hunters. Patrol group `2 + floor(2*rand)` of role `police`, or `interceptor` when `9 + rand*6 < techlevel`; TL >= 14 add missiles. One **station-patrol** police ship is always placed at the aegis (up to 16 escorts). | `S/oolite-populator.js:568-584, 943-955, 2052-2125` | Med |
+| Interceptors | TL >= 9 systems add `pflightremote/2 + pfmediumremote + 2*pfheavyremote` wings (`viper-interceptor`), half at the witchpoint. | `S/oolite-populator.js:585-593, 930-960` | Low |
+| Assassins | `couriers*(rand+rand)*2/(gov+1)`, capped at 2 initial groups at the witchpoint (more only with high-risk contracts: out of scope). | `S/oolite-populator.js:595-601, 855-940` | Low |
+| Scenery | Navigation buoy 10 km ahead of the station and a witchpoint buoy (already in v1); `2*(1+floor(4*rand))` rock clusters of 1-11 rocks; a rock hermit with probability `size/31`; always at least one hermit. | `S/oolite-populator.js:97-232` | Med (assets) |
+| Station launches | Stations launch traders, pirates (pirate/chaotic stations), hunters and police by `allegiance`, only if the dock queue has room (`_launchReady`, space >= 8). | `S/oolite-populator.js:2639-2736`; `AI/oolite-stationAI.js:39-69` | Med |
+
+**Player can ...**
+- fly the witchpoint-planet lane and meet traders, police patrols and occasional pirate packs, with more pirates and fewer police in Anarchy and Feudal systems and many police in Corporate State and Democracy;
+- see a station-patrol Viper at the station;
+- see new traders arrive from the witchpoint over time and leave through it;
+- arrive in the same system twice and see traffic drawn from the same rates (not identical ships).
+
+### TS-11 Sound and music
+
+All player-audible sounds are keys in `Cfg/customsounds.plist`; files are in `Resources/Sounds` (26 `.ogg`, 412 KB) and `Resources/Music` (2 tracks, 7.9 MB). Core Oolite plays **no sound for NPC lasers, NPC explosions or NPC missile launches**: only the player's own actions and hits are audible.
+
+| Trigger | Key and file | Source |
+|---|---|---|
+| Player laser fires: miss / hit | `[player-laser-miss]` `laser.ogg` / `[player-laser-hit]` `laserhits.ogg`; beam `beamlaser_laser` / `_laserhits`; military `millaser_*`; mining `mininglaser_*`; pulse uses the generic pair | `PlayerEntityControls.m:1187-1189`; `customsounds.plist:75-76, 107-114`; `equipment.plist:144-205` |
+| Player hit, shields up / down | `[player-hit-by-weapon]` `hit.ogg`; shields down also `[player-direct-hit]` `hullbang.ogg` (both play) | `E/PlayerEntity.m:5639, 5668`; `customsounds.plist:70-71` |
+| Scrape / collision | `[player-scrape-damage]` `hullbang.ogg` | `E/PlayerEntity.m:5725`; `customsounds.plist:72` |
+| Missile armed / locked / safe / next | armed and locked = `beep.ogg`; safe = `boop.ogg`; next = `guiclick.ogg` | `PlayerEntityControls.m:4775-4810`; `customsounds.plist:15-22` |
+| Missile launched | `[missile-launched]` `missile.ogg`; hardened `[ecm-missile-launch]` `ecm_missile_launch.ogg` | `E/PlayerEntity.m:5265`; `customsounds.plist:18, 115`; `equipment.plist:278-292` |
+| ECM fired / hit by ECM | `[player-fired-ecm]` / `[player-hit-by-ecm]` both `ecm.ogg` | `customsounds.plist:97-98`; `E/PlayerEntity.m:5172` |
+| Warnings | `[incoming-missile]`, `[alert-condition-red]`, `[hostile-warning]`, `[autopilot-denied]` = `warning.ogg`; `[energy-low]` and `[weapon-overheat]` are unmapped (silent) | `customsounds.plist:81-85`; `E/PlayerEntity.m:5143, 5160-5166` |
+| Scooping | `[scoop]` `scoop.ogg` every 0.5 s while scooping; `[hold-full]` boop | `E/PlayerEntitySound.m:386-400`; `customsounds.plist:57` |
+| Jettison / weapons toggle | `[cargo-jettisoned]` beep; `[weapons-online]` beep, `[weapons-offline]` boop | `customsounds.plist:24-25, 36` |
+| Death | `[game-over]` `bigbang.ogg` (not played when the player ejects) | `E/PlayerEntity.m:2731, 6218`; `customsounds.plist:100` |
+| Ident, target lost | `[ident-on]` beep, `[ident-off]` boop, `[target-lost]` boop | `customsounds.plist:14-17, 42` |
+| Break pattern | `[player-launch-from-station]`, `[player-dock-with-station]`, `[player-exit-witchspace]` = `breakpattern.ogg` | `customsounds.plist:91-94` |
+| Station UI (built, silent today) | `buy.ogg`, `sell.ogg`, `guiclick.ogg`, beep/boop for refusals | `customsounds.plist:26-40, 52-56` |
+| Hyperspace (built, silent today) | countdown beep, abort boop, jump refusals `witchabort.ogg` | `customsounds.plist:60-66` |
+| Music | Title: `OoliteTheme.ogg` looped. While the docking computer flies: `BlueDanube.ogg` looped (stopped on disengage, abort or dock). Docked music requests `OoliteDocked.ogg`, which is **not shipped**. | `C/OOMusicController.m:106-135`; `E/PlayerEntity.m:3302, 3326, 5183, 6354` |
+
+**Player can ...**
+- hear a laser shot when firing and a different sound when it hits;
+- hear a hit sound when shot, with an added thud when shields are down;
+- hear a beep on arming or locking a missile and a boop on safing it;
+- hear a warning tone on an incoming missile and on red alert;
+- hear the scoop sound while collecting pods;
+- hear the Blue Danube while the docking computer docks them;
+- start audio only after the first key press or click (autoplay-safe) and silence it from settings.
+
+### TS-12 Existing surfaces that must change (v1 to v2)
+
+| Surface | v1 state | v2 requirement | Source |
+|---|---|---|---|
+| F5 status | Legal status and Rating hard-coded to label index 0 (Clean, Harmless); Condition hard-coded "Docked" | Real legal band, kills/rating, condition (Docked/Green/Yellow/Red), damaged equipment as "X (N/A)" | `src/ui/station-model.ts:344-345`; `C/OOConstToString.m:373-422` |
+| HUD | 11 pinned elements: crosshair, scanner, compass, aegis, speed, roll, pitch, fuel, clock, condition, message | Add forward/aft shield bars, 4 energy-bank bars, cabin and laser temperature, altitude, missile icons and lock state, scoop status, weapons-offline text | `src/render/hud/draw.ts:71-83`; `HeadUpDisplay.m:2045-2400` |
+| F3 outfitting | Ten visible keys; the money path refuses everything else (`notOffered`) | Open ECM, fuel scoops, escape pod, lasers (with facing choice), energy unit, shield booster, heat shield, hardened missile, repair rows | `src/sim/player/outfitting.ts:55-66` |
+| Scanner | Stations, planet, sun | Ship blips coloured by class (police blue and flashing when hostile, cargo, missile, neutral, hostile) | `E/ShipEntity.m:5592-5690` |
+| Mass lock | Bodies and station | Police, military, missile, neutral ships within scanner range mass-lock; cargo, rocks, buoys do not | `E/PlayerEntity.m:3014-3073` |
+| Jump blockage | Coriolis only | Any mass-locking ship blocks a completing jump | `E/ShipEntity.m:12498-12531`; PROJECT.md 06-16 |
+| Docking computer | Works when in range | Refuses in red alert and for fugitives; may mark for fines; 20 min | `PlayerEntityControls.m:4653-4740` |
+| Dock contact | Non-damaging scrape/bounce | Scrape damage through shields | `E/DockEntity.m:698, 739-740` |
+| Saves | Credits, cargo, fuel, missile count, equipment keys, pose | Legal status, kills, per-facing lasers, missile roles, damaged flags, pod state, world entities, populator timer | `E/PlayerEntity.m:809-870, 1387-1420` |
+
+---
+
+## Differentiators
+
+Valued and faithful but the game plays without them. All are cheap once the world model and damage rules exist.
+
+| Feature | Value | Cx | Notes |
+|---|---|---|---|
+| Hardened missile and ECM-proof response | Counter-play to ECM | Low | TL9, 3500 dc; 10 % pulse response (`AI/oolite-missileAI.js:90-106`) |
+| Energy unit, shield booster, heat shield | Visible progression after first fights | Low | Energy unit x1.8 recharge (TL8, 15 000 dc); booster +128 shields (TL10, 147 500 dc); heat shield +1.0 insulation (TL4, 15 000 dc) via `script_info`: `equipment.plist:65-84, 388-399, 419-430`; `S/oolite-equipment-control.js:96-240` |
+| Weapons-online toggle (`_`) | Safeties; blocks fire and missiles | Low | `PlayerEntityControls.m:1193-1210` |
+| Pirate demands and cargo jettison | Drop cargo to appease pirates, who scoop it and break off | Med | `AI/oolite-pirateAI.js:40-62`; `S/oolite-priorityai.js:2028-2060, 3686` |
+| NPC escape pods and rescue | Scoop pods for insurance, capture bounty or slaves | Med | `E/PlayerEntityContracts.m:61-125`; pods launched at `E/ShipEntity.m:10808-10850, 11569-11600` |
+| Smuggling check on launch | Contraband export raises status | Low | `E/PlayerEntity.m:6407-6416`; goods already tradeable in v1 |
+| Fast-dock fine chance and 20-min cost | Makes the computer a risk when wanted | Low | `PlayerEntityControls.m:4724-4740` |
+| ECM scanner fuzz | Cosmetic reaction to being ECM'd (1.25 s) | Low | `E/PlayerEntity.m:5367-5382` |
+| Asteroid field and rock hermit as scenery plus collision | Looks right; scavengers need them | Med | `S/oolite-populator.js:97-232`; no models vendored |
+| Mining laser (TL10, 8000 dc) | Needs asteroids, boulders, splinters, minerals | Med | `Cfg/equipment.plist:164-184`; defer until mining content exists |
+| Aegis raiders and assassins | Pirate variety | Low | `S/oolite-populator.js:1954-2050` |
+| Sun-skimming traders | Distinct NPC route | Med | `AI/route2sunskimAI.plist`, role `sunskim-trader` |
+| Hull sparks and shield flashes | Feel | Med | `C/Universe.m:5528-5547` |
+| Station defence ships and salvage launches | Rich station response | Med | `AI/oolite-stationAI.js:39-69` |
+| Docking music (`BlueDanube.ogg`) | Atmosphere | Low | 7.9 MB: lazy-load |
+
+---
+
+## Anti-Features
+
+Do not build in v2.0.
+
+| Anti-feature | Why avoid | What to do instead |
+|---|---|---|
+| Missions, contracts, passengers, parcels, assassin contracts | Out of milestone scope | Leave the populator's parcel/passenger risk bonuses off |
+| Thargoids, witchspace interception, Thargoid laser, thargons, Quirium cascade mines, energy bomb | Out of scope; need witchspace and chain-reaction rules | Keep roles in data; omit `_addThargoid*` populators |
+| Cloaking device, military jammer (MASC'M), scanner filter, naval energy unit and shield boosters, shield enhancer for the player | Gated by mission scripts or a TL 99 hack in core | Not purchasable (`S/oolite-conditions.js:40-95`) |
+| Trumbles | Out of scope; novelty | Omit `[trumble-*]` sounds |
+| Cosmetic trade-in damage and Maintenance Overhaul (`EQ_RENOVATION`) | Needs the shipyard and trade-in model (PROG-03) | Skip `ship_trade_in_factor`; equipment damage and repair still ship |
+| Docking-clearance protocol (`L` request, clearance fines) | `stations_require_docking_clearance = no` in `Cfg/planetinfo.plist:17` | Honour only the fugitive refusal on autopilot |
+| Target memory, multi-target, integrated targeting, advanced scanner display | Not in the v2 scope | Omit (`Cfg/equipment.plist:302-356`) |
+| Custom views and view pan/rotate | Not needed for combat | Four fixed views |
+| NPC laser, explosion and missile-launch sounds | Core Oolite has none; inventing them breaks fidelity | Keep NPC combat silent; only player-bound sounds |
+| Simulating the world in real time while docked | v1 freezes the clock docked; Oolite keeps running | Re-roll traffic at launch; record as a deviation |
+| Octree-exact hull hit test as a hard requirement | Wegolite has only OBB/SAT for the dock | Bounding-sphere gate plus a per-ship oriented box or coarse hull; record as a divergence |
+| Joystick or touch fire controls | Deferred | Keep input abstract |
+
+---
 
 ## Feature Dependencies
 
 ```
-Oolite config data (systems, commodities, equipment, ship stats)
-    ├──requires──> Market generation ──requires──> Docked state ──requires──> Dock/launch
-    ├──requires──> Outfitting catalog ──requires──> Docked state
-    ├──requires──> Chart data ──requires──> Hyperspace targeting
-    └──requires──> Save schema
+World model (stable ids, broadphase, world serialisation)
+  -> NPC ships, missiles, cargo pods, wreckage, buoys
+       -> Ray test (laser) and sphere/box collision (collision, scoop, missile fuse)
+       -> Ship mass (density * 20 * octree volume) [content build must emit it]
+            -> internal-damage odds, collision damage, alloy and wreckage counts
+  -> Seeded sim PRNG for every roll (damage, cargo survival, wreckage, populator, fine chance)
 
-Flight model
-    └──requires──> Launch ──requires──> In-system flight
-                            ├──requires──> Torus jump drive (playable travel time)
-                            └──requires──> Manual docking ──requires──> Docked state
-
-Docked state
-    ├──requires──> Station screens (market, outfitting, status, chart, save)
-    └──requires──> Save/load
-
-Equipment ownership
-    ├──requires──> Docking computer ──requires──> Docking + autopilot approach
-    ├──requires──> Large Cargo Bay ──enhances──> Trading capacity
-    ├──requires──> Advanced Nav Array ──enhances──> Chart
-    └──requires──> Galactic Hyperdrive ──enhances──> 8-galaxy traversal
-
-Hyperspace ──requires──> Chart target + fuel + new-system market generation
-Market ──requires──> Cargo capacity + credits + commodity data
+Views 1-4 -> weapon facing -> per-facing laser state (type, heat, shot timer)
+Laser fire -> energy banks -> shields -> takeEnergyDamage -> internal damage -> equipment damage -> F3 repair
+Missiles -> targeting (view cone) -> missile AI (intercept, proximity, range) -> blast damage
+ECM -> blast entity (4 pulses) -> missile response (explode / 10 % hardened)
+Damage -> death -> game over / escape pod
+Kill -> bounty + ship_kills -> rating (F5)
+Offence rules -> legalStatus bits -> F5 band + police AI + fines at main-station docking
+  + hyperspace halving (v1 hyperspace) + smuggling on launch (v1 market goods)
+Hazards: planet/sun collision (existing bodies) -> death; cabin temperature (existing sun) -> heat damage
+Populator -> neighbour systems (7 LY / 3.5 LY from the v1 chart) -> roles -> ship models
+Sound -> Web Audio, autoplay-safe start -> keys from customsounds.plist
 ```
 
-### Dependency Notes
-
-- **Everything requires the data layer.** Systems, commodities, equipment and ship stats must be ingested and typed before any screen or simulation is built. This is the lowest-risk first phase because it is pure TypeScript and unit-testable without rendering.
-- **Market requires docked state, but not flight.** The market screen and transactions can be built and tested before docking exists (start the player docked). Do not let this reorder the roadmap into "economy first, flight later": the core value is the full launch → fly → dock → trade run, so market UI should follow or accompany flight/docking, not replace it.
-- **Hyperspace requires the chart, fuel, and market generation.** Arriving in a system must regenerate that system's market (`setSystemTo` in Oolite does exactly this), so the hyperspace phase cannot be completed before market generation exists.
-- **Manual docking requires the flight model and station scene.** Docking is the hardest coupling: input, collision, station rotation, camera, and dock state must all agree. Keep it as its own phase after launch/flight.
-- **Docking computer requires equipment ownership + docking + an autopilot path.** Instant dock also depends on the main-station `allows_fast_docking` flag. Build it after manual docking is solid; it is an assist, not a replacement.
-- **Save requires every state model it serialises.** If credits, cargo, fuel, equipment or location are still in ad-hoc globals, save will calcify the wrong schema. Define the save schema in the data phase and extend it per phase.
-- **Chart requires no flight, but hyperspace does.** The chart screen can be built from data alone; the jump can only be tested once arrival/market generation exists.
-- **Galactic Hyperdrive enhances, not gates, the 8 galaxies.** All 8 charts can be present in data from day one; only inter-galactic travel needs the item.
-- **Torus drive conflicts with nothing, but is required by pacing.** It is the one "travel convenience" that is not an anti-feature because Oolite itself has it and the alternative is minutes of empty flying.
-- **No combat conflicts with the HUD.** The default `hud.plist` includes shields/energy/missiles; using it unmodified would show inert combat instruments. A v1 HUD variant is a dependency of the no-combat decision.
-
-### Recommended build order
-
-| Phase | Build | Why here | Exit criterion |
-|-------|-------|----------|----------------|
-| 1 | Data + economy core: ingest all Oolite config, typed system/commodity/equipment/ship models, deterministic price/quantity functions, cargo/credit math, save schema | Pure TypeScript, no rendering; every later phase depends on these numbers | Unit tests reproduce the commodity table, Lave/Zaonce example prices, jump distances and stock caps |
-| 2 | Flight + launch + in-system scene + HUD + torus | Proves the "fly" half of the core value and the riskiest feel-sensitive code early | Player launches from Lave, flies with pitch/roll only, finds the station via compass/scanner, torus cruises |
-| 3 | Manual docking + docked state | Hardest coupling (input, collision, station rotation, camera); must be solid before screens depend on "docked" | A human can dock manually; failed approaches bounce/scrape; docked state opens the station UI |
-| 4 | Station screens + trading: market, outfitting, status, manifest | Now that "docked" exists, the economy loop can be played end-to-end at one station | Buy/sell changes credits, stock and hold exactly per formula; equipment purchase changes ship state |
-| 5 | Chart + hyperspace: short/long chart, target, countdown, fuel, arrival, market regeneration | Closes the loop; depends on market generation and system scene | Lave → Zaonce → Lave round trip with correct fuel, clock, prices and stock |
-| 6 | Save/load + autosave + slots | Every state model now exists; schema can be finalised | Reload restores exact credits, fuel, cargo, equipment, system and (optionally) market |
-| 7 | Polish: docking computer autopilot, F7, ANA, advanced compass, gal drive, accessibility, performance | Enhances a working loop; does not block validation | v1.0 checklist complete; 60 fps target met |
-
-The ordering rule is simple: **data → flight → docking → screens → travel → persistence → polish**. Anything that needs "docked" comes after docking; anything that needs a second market comes after hyperspace; anything that needs the full state comes after the state models settle.
-
-## MVP Definition
-
-### Launch With (v1)
-
-Minimum viable product — what's needed to validate the concept.
-
-- [ ] Data pipeline: all 8 galaxies / 2048 systems, 17 commodities, Cobra + Coriolis stats, v1 equipment, descriptions — the source of truth for every number.
-- [ ] Deterministic economy module: Oolite price/quantity formula, stock cap 127, buy/sell transactions, cargo capacity (including kg/g pods).
-- [ ] Cobra flight model + launch from Lave: pitch/roll only, speed control, 160 u/s² acceleration, 350 max speed, station spin on launch.
-- [ ] In-system scene: sun, Lave, Coriolis station, nav buoy, witchpoint; scanner + compass.
-- [ ] Torus drive with mass lock — otherwise the first jump arrival is a 20-minute flight.
-- [ ] Manual docking with slot alignment, station-roll matching, collision feedback, and docked transition.
-- [ ] Docking computer purchase and instant dock (`Shift+C`, +20 min); slow autopilot if schedule allows.
-- [ ] Station screens: F8 market, F3 outfitting, F5 status, F6 chart; F2 save/load.
-- [ ] Hyperspace: chart target, 15 s countdown, 7 LY/70-unit fuel rules, arrival at witchpoint, clock advance.
-- [ ] Save/resume at stations (localStorage), autosave on launch, one manual slot minimum.
-- [ ] HUD subset and pause/options with semantic input actions.
-
-### Add After Validation (v1.x)
-
-Features to add once core is working.
-
-- [ ] F7 system data screen — cheap, data already present, improves route decisions.
-- [ ] Advanced Navigational Array route plotting + chart filters — progression reward.
-- [ ] Advanced Space Compass — quality-of-life target cycling.
-- [ ] Full slow-autopilot docking with approach path and clearance ritual — if instant-only shipped.
-- [ ] Galactic Hyperdrive + all-8-galaxy traversal — completes the "8 galaxies" promise.
-- [ ] Multiple save slots, export/import JSON, save metadata (system, cash, playtime).
-- [ ] External/aft views for docking alignment; mouse flight and remapping presets.
-- [ ] Mass-dependent fuel pricing and equipment install-time clock advances.
-- [ ] Tutorial/onboarding overlay: launch, torus, compass, docking, first trade run.
-
-### Future Consideration (v2+)
-
-Features to defer until product-market fit is established.
-
-- [ ] Combat, shields/energy, weapons, missiles, damage and death — the v2 milestone.
-- [ ] NPC traffic, pirates, police, escorts, docking queues — depends on AI and combat.
-- [ ] Missions, contracts, passengers, parcels, ranking, legal status — depend on combat + mature economy.
-- [ ] Shipyard and multiple playable ships — requires models, trade-in valuation, balance.
-- [ ] Fuel scoops, sun skimming, injectors, afterburner — fuel-system depth.
-- [ ] Interstellar space, misjumps, Thargoids, wormholes — edge-case content.
-- [ ] Audio/music and mobile/touch — deferred by project constraints.
-- [ ] OXPs/scripting — explicitly never in this project's definition.
-
-## Feature Prioritization Matrix
-
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Data ingestion (systems/commodities/equipment/ships) | HIGH | MEDIUM | P1 |
-| Oolite market generation + trading transactions | HIGH | MEDIUM | P1 |
-| Cargo hold, manifest, kg/g pod accounting | HIGH | MEDIUM | P1 |
-| Cobra flight model (pitch/roll/no yaw) | HIGH | HIGH | P1 |
-| Launch from Coriolis | HIGH | MEDIUM | P1 |
-| In-system scene (sun/planet/station/buoy/witchpoint) | HIGH | MEDIUM | P1 |
-| Torus jump drive + mass lock | HIGH | MEDIUM | P1 |
-| Manual docking | HIGH | HIGH | P1 |
-| Hyperspace jump + countdown + fuel | HIGH | MEDIUM | P1 |
-| Galactic chart (short/long range, target selection) | HIGH | MEDIUM | P1 |
-| Market screen (F8) | HIGH | MEDIUM | P1 |
-| Outfitting screen + fuel/cargo bay/dock computer | HIGH | MEDIUM | P1 |
-| Ship status screen (F5) | MEDIUM | LOW | P1 |
-| Save/load at station + autosave | HIGH | MEDIUM | P1 |
-| HUD subset + pause/options | HIGH | MEDIUM | P1 |
-| Docking computer instant dock | HIGH | LOW | P1 |
-| Docking computer slow autopilot | MEDIUM | MEDIUM | P2 |
-| Docking clearance protocol (optional) | LOW | LOW | P2 |
-| System data screen (F7) | MEDIUM | LOW | P2 |
-| Advanced Navigational Array route plotting | MEDIUM | MEDIUM | P2 |
-| Advanced Space Compass | MEDIUM | LOW | P2 |
-| Galactic Hyperdrive + 8-galaxy travel | MEDIUM | LOW–MEDIUM | P2 |
-| Multiple save slots + export/import | MEDIUM | LOW | P2 |
-| Mass-dependent fuel pricing | LOW | LOW | P2 |
-| External/aft views, mouse flight, remapping presets | MEDIUM | LOW–MEDIUM | P2 |
-| Tutorial / onboarding | HIGH | MEDIUM | P2 |
-| Combat/NPCs/missions/legal status | HIGH (for v2) | HIGH | P3 |
-
-**Priority key:**
-- P1: Must have for launch
-- P2: Should have, add when possible
-- P3: Nice to have, future consideration
-
-## Competitor Feature Analysis
-
-| Feature | Oolite (desktop reference) | Classic Elite (1984) | Endless Sky (open-source Elite-like) | Our Approach |
-|---------|----------------------------|----------------------|--------------------------------------|--------------|
-| Flight model | Pitch/roll (yaw added 1.66), Aristotelian speed, torus drive | Pitch/roll only, torus drive | 2D top-down, Newtonian-ish thrust | Cobra pitch/roll only, Aristotelian, torus drive — closest to Classic Elite with Oolite numbers |
-| Docking | Manual slot alignment + rotating station; docking computer (slow + instant) | Manual slot alignment; docking computer | Automatic landing when close | Manual docking preserved; buyable computer with both behaviours |
-| Economy | 17 goods, economy-only price formula, 127 stock cap, no price impact | 17 goods, 8-bit economy formula | Many goods, dynamic local economies, missions | Exact Oolite `trade-goods.plist` formula and stock rules |
-| Galaxy | 8 × 256 systems, 7 LY limit, one-way galactic ring | 8 × 256 systems, 7 LY limit | Hand-authored map, many systems | Oolite's 2048 systems and coordinates, 7 LY graph |
-| Progression | Credits → equipment → ships → combat rank | Credits → equipment → ships → rating | Credits → ships/outfits → story | Credits → v1 equipment only (cargo bay, computer, compass/ANA, gal drive) |
-| Persistence | Desktop save files, docked only | Tape/disk save, docked only | Local save files | Browser localStorage/IndexedDB, docked only, export/import |
-| Scope | Everything + OXPs | Core loop + combat | Trading/combat/missions | Core trading/navigation loop, no combat/NPCs/OXPs |
-
-## Oolite Mechanics Reference (planning inputs)
-
-This appendix is deliberately concrete: a planner should be able to turn each row into a data file or acceptance test without re-deriving Oolite. All values are from Oolite `master` config/source unless marked otherwise.
-
-### A. The 17 commodities
-
-Source: `Resources/Config/trade-goods.plist`, names from `descriptions.plist`, legality semantics from the Elite Wiki `Trade-goods (abridged)` page.
-
-| # | Key | Display name | Unit | Avg price | Base stock | Cheapest at (peak export) | Dearest at (peak import) | Export legality |
-|---|-----|--------------|------|-----------|------------|---------------------------|--------------------------|-----------------|
-| 1 | `food` | Food | t | 5.0 Cr | 13.5 | 7 Poor Agricultural | 0 Rich Industrial | 0 |
-| 2 | `textiles` | Textiles | t | 7.1 Cr | 15 | 7 Poor Agricultural | 0 Rich Industrial | 0 |
-| 3 | `radioactives` | Radioactives | t | 23.1 Cr | 16 | 7 Poor Agricultural | 0 Rich Industrial | 0 |
-| 4 | `slaves` | Slaves | t | 15.2 Cr | 9.75 | 7 Poor Agricultural | 0 Rich Industrial | 1 (illegal export) |
-| 5 | `liquor_wines` | Liquor/Wines | t | 29.1 Cr | 20 | 7 Poor Agricultural | 0 Rich Industrial | 0 |
-| 6 | `luxuries` | Luxuries | t | 90.2 Cr | 27.5 | 0 Rich Industrial | 7 Poor Agricultural | 0 |
-| 7 | `narcotics` | Narcotics | t | 51.2 Cr | 32 | 0 (both peaks) | 0 (both peaks) | 2 (illegal export) |
-| 8 | `computers` | Computers | t | 81.8 Cr | 8.5 | 0 Rich Industrial | 7 Poor Agricultural | 0 |
-| 9 | `machinery` | Machinery | t | 56.0 Cr | 22.5 | 0 Rich Industrial | 7 Poor Agricultural | 0 |
-| 10 | `alloys` | Alloys | t | 38.8 Cr | 29 | 0 Rich Industrial | 7 Poor Agricultural | 0 |
-| 11 | `firearms` | Firearms | t | 69.2 Cr | 1 | 0 Rich Industrial | 7 Poor Agricultural | 1 (illegal export) |
-| 12 | `furs` | Furs | t | 70.4 Cr | 27.5 | 7 Poor Agricultural | 0 Rich Industrial | 0 |
-| 13 | `minerals` | Minerals | t | 12.0 Cr | 58 | 7 Poor Agricultural | 0 Rich Industrial | 0 |
-| 14 | `gold` | Gold | kg | 38.8 Cr/kg | 9 kg | 7 Poor Agricultural | 0 Rich Industrial | 0 |
-| 15 | `platinum` | Platinum | kg | 71.8 Cr/kg | 13.5 kg | 7 Poor Agricultural | 0 Rich Industrial | 0 |
-| 16 | `gem_stones` | Gem-Stones | g | 19.6 Cr/g | 6.75 g | 7 Poor Agricultural | 0 Rich Industrial | 0 |
-| 17 | `alien_items` | Alien Items | t | 43.6 Cr | 0 | 0 Rich Industrial | 7 Poor Agricultural | 0 |
-
-Critical details:
-
-- **Alien Items have zero stock in the core game.** `quantity_average`, `quantity_economic` and `quantity_random` are all 0, so every main station generates 0 for sale. They are only obtainable by scooping in Oolite; v1 cannot buy or sell them. Keep the row for completeness, but expect an empty line.
-- **Gold, platinum and gem-stones are fractional tons.** One pod = 1000 kg (gold/platinum) or 1,000,000 g (gem-stones). 499 kg / 499,999 g fit in the "safe" without consuming a pod; crossing that threshold consumes a pod. Price is per kg/g, so one ton of gold is ~38,800 Cr. Do not model these as 1 unit = 1 t.
-- **Only three goods are export-illegal:** slaves (1), narcotics (2), firearms (1). No core good is import-illegal. Oolite applies `legality_export × units` as an offender mark when leaving a monitored station; v1 shows the `Ex` flag but has no legal consequences.
-- Sorting is by `sort_order` (100, 200, … 1700), which is the table order above.
-
-### B. Price and quantity generation (the exact core formula)
-
-Oolite 1.81+ no longer uses the old 8-bit `commodities.plist` formula (the wiki's `Commodities.plist` page is obsolete and should not be ported). The current formula is `OOCommodities.m`:
-
-```
-bias = economicBias(good, economy)       // +1 = ideal exporter, -1 = ideal importer, 0 = neutral
-
-price_dc = trunc(
-    price_average
-  + price_average * price_economic * (-bias)
-  + price_average * price_random * (randf() - randf())
-)
-
-quantity = trunc(
-    quantity_average
-  + quantity_average * quantity_economic * bias
-  + quantity_average * quantity_random * (randf() - randf())
-)
-quantity = clamp(quantity, 0, 127)        // MAIN_SYSTEM_MARKET_LIMIT = 127
-```
-
-`economicBias` uses the raw economy index 0–7 and the good's `peak_export` / `peak_import` indices:
-
-```
-exDiff = abs(economy - peak_export) * 2
-imDiff = abs(economy - peak_import) * 2
-distance = (exDiff + imDiff) / 2          // integer division
-if exDiff == imDiff: return 0
-if exDiff > imDiff:  return -(1 - imDiff / distance)   // closer to importer => negative
-else:                return 1 - exDiff / distance      // closer to exporter => positive
-```
-
-Key properties:
-
-- **Only economy affects price and stock.** Tech level, government, population, productivity and radius do not enter the formula. They affect equipment availability, flavour text, and (in full Oolite) piracy/legal behaviour.
-- **The random term is triangular**, not uniform: `randf() - randf()` has range (-1, +1) with a peak at 0. `price_random` is a fraction of average (e.g. food 0.04 = ±0.2 Cr), while narcotics is 1.0 = ±100%.
-- **Prices are stored in decicredits** (integer tenths of a credit) and truncated toward zero. Display divides by 10 with one decimal.
-- **Buy and sell use the same price.** There is no bid/ask spread. Buying removes stock; selling adds stock up to 127; neither changes the price.
-- **Stock is generated per arrival, not persisted for the main market.** `Universe setSystemTo:` destroys and regenerates the market on every jump. Buying/selling persists only for the current visit.
-- **Selling can be blocked by station capacity.** If station stock is already 127, you cannot sell that good there.
-
-Worked examples (all ignoring the small random term, using `OOCommodities.m` exactly):
-
-| System | Economy | Good | Bias | Expected price | Expected stock |
-|--------|---------|------|------|----------------|----------------|
-| Lave | 5 Rich Agricultural | Food | +0.429 | 3.82 Cr/t | ~16 t |
-| Lave | 5 Rich Agricultural | Computers | −0.429 | 90.21 Cr/t | 0 t |
-| Zaonce | 1 Average Industrial | Computers | +0.714 | 67.78 Cr/t | ~43.5 t |
-| Zaonce | 1 Average Industrial | Food | −0.714 | 6.96 Cr/t | ~8.5 t |
-| Any | any | Narcotics | 0 always | 0–102.4 Cr/t | 0–64 t |
-
-The canonical first run is therefore: buy Food at Lave (~3.8 Cr), sell at Zaonce (~7.0 Cr), buy Computers at Zaonce (~67.8 Cr), sell at Lave (~90.2 Cr). Twenty tons of computers is ~448 Cr profit before randomness — enough to make the 1500 Cr docking computer a real goal, not a formality. Note that Lave's food stock is only ~16 t, less than the Cobra's 20 t hold, so the first outbound run often cannot fill the hold; that is normal Oolite behaviour, not a bug.
-
-### C. Economies, governments, systems and tech levels
-
-**Economy IDs** (this order matters; it is not monotonic in "agricultural-ness"):
-
-| ID | Name |
-|----|------|
-| 0 | Rich Industrial |
-| 1 | Average Industrial |
-| 2 | Poor Industrial |
-| 3 | Mainly Industrial |
-| 4 | Mainly Agricultural |
-| 5 | Rich Agricultural |
-| 6 | Average Agricultural |
-| 7 | Poor Agricultural |
-
-Note that 5 is Rich Agricultural, before Average (6) and Poor (7). `peak_export` / `peak_import` reference these IDs directly, so e.g. food's peaks are 7 and 0 (the two ends of the line).
-
-**Government IDs:**
-
-| ID | Name |
-|----|------|
-| 0 | Anarchy |
-| 1 | Feudal |
-| 2 | Multi-Government |
-| 3 | Dictatorship |
-| 4 | Communist |
-| 5 | Confederacy |
-| 6 | Democracy |
-| 7 | Corporate State |
-
-**System data ranges** (from `planetinfo.plist`, 2048 systems):
-
-| Field | Range | Display rule |
-|-------|-------|--------------|
-| `techlevel` | 0–14 | Displayed as raw + 1 (1–15). Equipment gating uses the raw value. |
-| `economy` | 0–7 | Name from table above. |
-| `government` | 0–7 | Name from table above. |
-| `population` | 8–64 | Tenths of a billion; display `raw × 0.1` with one decimal (0.8–6.4 billion). |
-| `productivity` | 768–56320 | Display as `M₢` (gross productivity). |
-| `radius` | 2817–6911 | Kilometres. |
-| `coordinates` | 0–255 per axis | Integer chart coordinates, 256 systems per galaxy, 8 galaxies. |
-
-**Tech-level trap:** the system data screen displays `TL + 1`, but `setGuiToEquipShipScreen` compares the raw `techlevel` against the equipment's raw `minTechLevel`. If you use the displayed number for equipment availability you will be one TL too generous. Port the raw value and apply the display offset only in the UI.
-
-### D. Flight model and controls
-
-Cobra Mk III player template (`oolite_template_cobra3-player`, inherits `oolite_template_cobra3`):
-
-| Property | Value | Meaning |
-|----------|-------|---------|
-| `max_flight_speed` | 350 | Top speed in world units/s (treat as m/s). |
-| `thrust` | 32 | Acceleration input; actual accel = `5 × 32 = 160 u/s²`. |
-| `max_flight_pitch` | 1 | Max pitch rate in rad/s (~57°/s). |
-| `max_flight_roll` | 2 | Max roll rate in rad/s (~115°/s). |
-| `max_cargo` | 20 | Tons; +15 with Large Cargo Bay. |
-| `max_energy` | 256 | Combat stat; not used in v1. |
-| `fuel` | 70 | Tenths of a light year (7.0 LY). |
-| `max_missiles` / `missiles` | 4 / 3 | Cosmetic in v1. |
-| `forward_weapon_type` | `WEAPON_PULSE_LASER` | Cosmetic in v1. |
-| Hull size | 130 × 35 × 81 m | From the Cobra model bounding box. |
-
-Turn behaviour (`ShipEntity applySticks:`): stick input sets a target rate; the current rate chases it at `2 rad/s²` for roll and `4 rad/s²` for pitch, and reversal is 4× faster. This ramp is why Oolite turns feel weighty rather than binary. Speed chases the w/s target at 160 u/s² in both directions; there is no inertia.
-
-Default flight controls (`keyconfig.plist`; v1 keeps the semantic actions, not necessarily the exact keys):
-
-| Action | Key | Notes |
-|--------|-----|-------|
-| Pitch forward (dive) | ↑ | Counterintuitive: up arrow noses down. |
-| Pitch back (climb) | ↓ | Down arrow noses up. |
-| Roll left / right | ← / → | Roll anticlockwise / clockwise. |
-| Increase / decrease speed | `w` / `s` | Sets target speed, not instantaneous velocity. |
-| Precision modifier | `Ctrl` | Hold for finer turn authority; useful for docking. |
-| Torus jump drive | `j` | Toggle; mass-locked near objects. |
-| Hyperspace | `h` | 15 s countdown; abortable. |
-| Galactic hyperspace | `g` | Requires Galactic Hyperdrive. |
-| Autopilot / docking computer | `c` | Slow approach; `c` again aborts. |
-| Fast dock | `Shift+C` | Instant at main stations; +20 min clock. |
-| Target station (ident) | `r` | Needed to choose a non-main station for autopilot. |
-| Cycle compass mode | `\` | Advanced compass adds modes. |
-| Scanner zoom / reset | `z` / `Z` | Optional in v1. |
-| Launch (docked) | `1` or `F1` | |
-| Status / chart / system data / market | `5`/`6`/`7`/`8` or `F5`–`F8` | |
-| Outfitting / save-load | `3`/`2` or `F3`/`F2` | |
-| Pause | `p` | |
-| External view | `v` | Optional in v1. |
-| Mouse control toggle | `Shift+M` | X = roll, Y = pitch; optional. |
-
-**No yaw.** Current Oolite has yaw (`,`/`.`), but the locked design is Elite-style pitch/roll only. Do not add a yaw axis "for accessibility"; use the Ctrl precision modifier and a larger dead zone instead.
-
-### E. Fuel, hyperspace, chart and time
-
-- **Fuel capacity:** 70 units = 7.0 LY. Display `fuel / 10` with one decimal.
-- **Jump cost:** `10 × max(0.1, distance)` units. Distance is quantised to 0.4 LY, so costs come in 4-unit steps: 0.4 LY = 4 units, 5.6 LY = 56 units, 7.0 LY = 70 units. A jump shorter than 0.1 LY still costs 1 unit.
-- **Distance formula** (`legacy_random.h`):
-
-```
-dx = x1 - x2
-dy = (y1 - y2) / 2        // integer division, truncates toward zero
-dist = (int)sqrt(dx*dx + dy*dy)
-ly = 0.4 * dist
-```
-
-This is why a system at ~7.15 "true" LY can be reachable and reported as 6.8 LY. Reproduce the integer truncation exactly; using `hypot` will change the galaxy's connectivity.
-
-- **Maximum range:** 7.0 LY (`MAX_JUMP_RANGE`).
-- **Countdown:** 15 s (`DEFAULT_HYPERSPACE_SPIN_TIME`), display "witchspace in N seconds", abortable; checks for current system, range, fuel.
-- **Jump time:** `distance²` hours added to the ship clock. 5.6 LY = 31.36 h; 7.0 LY = 49 h. This is non-linear and surprising; it is used for route-time displays.
-- **Arrival:** at the destination's witchpoint (a buoy), not the station. The player must torus/ cruise to the planet and station.
-- **Galactic jump:** `g`, requires one-shot `EQ_GAL_DRIVE`, consumes it, no fuel, advances to galaxy `(current + 1) mod 8`. Standard behaviour picks the nearest system to the current coordinates that is connected to system 0 in the new galaxy, so the player is not stranded. All 8 galaxies are a one-way ring.
-- **Chart connectivity:** draw an edge between two systems when the 0.4 LY formula gives ≤ 7.0. The chart is a graph, not a distance field; do not draw lines based on Euclidean pixel distance.
-- **Chart modes:** short range centred on the current system (7 LY neighbourhood), long range whole galaxy. Show current system, target, distance, fuel cost, and fuel-range circle. Advanced Nav Array adds multi-jump route search (fewest jumps or least `distance²` time) and filters.
-
-Test fixtures from Galaxy 0 (use these as chart/jump unit tests):
-
-| Route | Coordinates | Distance | Fuel cost | Jump time |
-|-------|-------------|----------|-----------|-----------|
-| Lave → Diso | (20,173) → (11,174) | 3.6 LY | 36 | 12.96 h |
-| Lave → Leesti | (20,173) → (13,186) | 3.6 LY | 36 | 12.96 h |
-| Lave → Zaonce | (20,173) → (33,185) | 5.6 LY | 56 | 31.36 h |
-| Lave → Riedquat | (20,173) → (3,181) | 6.8 LY | 68 | 46.24 h |
-| Lave → Tibedied | (20,173) → (2,90) | 17.6 LY | unreachable | — |
-
-### F. Cargo, credits and the v1 equipment set
-
-- **Credits are decicredits internally.** `credits = 1000` at start = 100.0 Cr. All config prices are decicredits; display with one decimal. Use integer decicredits for all transactions to avoid floating-point money.
-- **Starting hold:** 20 t, empty. Large Cargo Bay (`EQ_CARGO_BAY`, TL 1, 400 Cr) adds `extra_cargo = 15` → 35 t.
-- **Cargo pod accounting:** tons for ordinary goods; kg/g goods consume pods only at the 1000 kg / 1,000,000 g boundaries. A market row's "For Sale" and "In Hold" units must match the commodity unit (t/kg/g), not always tons.
-- **Station stock cap:** 127 units per good. Selling is rejected/limited when it would exceed capacity.
-
-v1-relevant equipment (from `equipment.plist`; tech levels are raw, prices decicredits → credits):
-
-| Item | Key | TL | Price | Effect / notes |
-|------|-----|----|-------|----------------|
-| Fuel | `EQ_FUEL` | 0 | 0.2 Cr per 0.1 LY | Only sold for the missing amount; hidden when full. Full tank from empty ≈ 14 Cr; price scales with ship mass (0.33–3.0×). |
-| Large Cargo Bay | `EQ_CARGO_BAY` | 1 | 400 Cr | +15 t. |
-| Docking Computers | `EQ_DOCK_COMP` | 9 | 1500 Cr | Enables `c` autopilot and `Shift+C` fast dock. |
-| Galactic Hyperdrive | `EQ_GAL_DRIVE` | 10 | 5000 Cr | One-shot; `g` to next galaxy. |
-| Advanced Space Compass | `EQ_ADVANCED_COMPASS` | 7 | 650 Cr | Target cycling. |
-| Advanced Navigational Array | `EQ_ADVANCED_NAVIGATIONAL_ARRAY` | 6 | 2250 Cr | Route plotting and chart filters; `available_to_all`. |
-| Fuel Scoops | `EQ_FUEL_SCOOPS` | 5 | 525 Cr | Excluded from v1 (no sun-skimming). |
-| Escape Pod | `EQ_ESCAPE_POD` | 6 | 1000 Cr | Excluded (no death/combat). |
-| Extra Energy Unit | `EQ_ENERGY_UNIT` | 8 | 1500 Cr | Excluded (no energy model). |
-| Pulse/Beam/Mining/Military Laser | various | 3–10 | 400–6000 Cr | Excluded (no combat). Starting pulse laser is cosmetic. |
-| Shield Boosters / Military Shield | various | 10/13 | 14750/47550 Cr | Excluded (no shields). |
-
-Cobra Mk III `optional_equipment` includes cargo bay, ECM, fuel scoops, passenger berth, escape pod, energy unit, docking computer, all lasers, fuel injection, scanner targeting, multi-target, gal drive, advanced compass, shield boosters, heat shield. It does **not** list ANA, but ANA is `available_to_all` so it still appears. In v1, filter the catalog to functional items rather than showing inert combat equipment.
-
-**Equipment is buy-only in core Oolite.** There is no resale path in the outfitting screen; do not add one in v1 (it would create a money loop and requires depreciation rules). Buying advances the clock by the install time (default `600 + price` seconds).
-
-### G. Station screens and what each contains
-
-| Screen | Oolite key | Contents | v1 treatment |
-|--------|------------|----------|--------------|
-| Outfitting | `3` / `F3` | Cash; scrollable list of available equipment with name, price, install time; selected-item info pane; fuel row only when not full; purchase confirmation/error. Availability is TL + ship-option + prerequisite gated. | Ship. Hide combat-only items. Keep fuel, cargo bay, docking computer, gal drive, advanced compass, ANA. |
-| Status | `5` / `F5` | Commander name title; ship name; present system; hyperspace target; condition; fuel in LY; cash; legal status; rating; equipment list (damaged first). Page 2: cargo manifest with units and capacity, plus contracts in full Oolite. | Ship the first page; omit legal/rating or show "—". Include a manifest page because trading needs it. |
-| Charts | `6` / `F6` | Short-range and long-range chart; current-system marker; target marker; system names (or gov/eco/TL codes in info mode); 7 LY connection lines; distance; fuel range; ANA route; filter/sort with ANA. | Ship both zoom levels, target selection, distance and fuel cost. ANA route/filters P2. |
-| System data | `7` / `F7` | System name; economy; government; displayed TL; population; inhabitants; gross productivity; average radius; distance; multi-line description. | P2; all data exists in `planetinfo.plist`. |
-| Market | `8` / `F8` | Commodity, extras/short comment, price, for sale, in hold, legality; cash and load line; buy/sell 1 or max; filter/sort. | P1. Keep all columns; filter/sort P2. |
-| Save/load | `2` / `F2` | Save commander (name entry), load commander, overwrite confirmation, autosave option in game options. | P1 browser equivalent: slot list, save, load, delete, export/import. |
-
-Screen flow detail: when docked, `1`/`F1` launches and the number keys select screens; in flight, `1`–`4` switch views and `5`–`8` open the same screens. Do not bind F1 to both launch and forward view without a clear docked/in-flight state check.
-
-### H. HUD elements
-
-Oolite's default `hud.plist` draws, in order: targeting reticle (with Scanner Targeting Enhancement), waypoint/advanced-compass markers, scanner (288×64, red), scanner zoom indicator, stick sensitivity indicator, compass (blue), station aegis indicator, fuel-scoop status, speed bar, roll bar, pitch bar, energy gauge, forward shield bar, aft shield bar, fuel bar, cabin temperature, weapon temperature, altitude, missile display, status light, clock, primed equipment, advanced-compass target, weapons-offline text, FPS counter. It also has a message GUI, comms log, and two MFDs.
-
-v1 HUD subset:
-
-| Element | Keep? | Why |
-|---------|-------|-----|
-| Crosshair | Yes | Aiming/flying reference. |
-| Scanner (25.6 km, 3D ellipse with vertical tails) | Yes | Iconic; shows station/planet/buoy and orientation. |
-| Scanner zoom | Optional | Nice for docking/approach. |
-| Compass (planet → station, plus witchpoint) | Yes | The primary "where is the station" instrument. |
-| Aegis indicator | Yes | Tells you when you are in station space; cheap. |
-| Speed / roll / pitch bars | Yes | Direct feedback on the flight model. |
-| Fuel bar | Yes | Jump budget. |
-| Clock | Yes | Jump/launch/dock time. |
-| Status light / condition | Yes (green only) | Placeholder for future alert states. |
-| Message line | Yes | Docking clearance, jump countdown, purchase results. |
-| Shields, energy, cabin/weapon temp, missiles, target reticle, weapons-offline, MFDs | No | Combat systems not in v1; inert dials are worse than absent dials. |
-| Altitude | Optional | Only matters near planet surface, which v1 does not land on. |
-
-### I. Docking mechanics and the docking computer
-
-**Manual docking** (Coriolis):
-
-1. Approach from the front of the station. The slot faces along the station's forward axis; the nav buoy sits in front of it.
-2. Align the slot horizontally in view, then roll to match the station's rotation. Coriolis `station_roll = 0.08 rad/s` (~4.6°/s, one revolution ~78 s).
-3. Enter at moderate speed. Oolite's `DockEntity` treats the ship as docked when its bounding box is inside the port opening and `0.90 × max.z + 0.10 × min.z < 0` (90% past the port plane).
-4. Misalignment: the ship scrapes (damage proportional to speed), is pushed back toward the port centre, and can be rejected. Crossing opposite edges of the port at once is fatal.
-5. The port is a corridor ~250 m deep; the Coriolis hull is ~1000 m across; the dock mesh bounding box is ~103 × 242 × 250, and Oolite widens the effective gate for ships wider than the nominal opening. Derive the actual opening from the dock mesh and verify orientation in-engine rather than hard-coding a "192 × 64" number from memory.
-
-**Docking clearance:** request with `L` after targeting the station. Oolite grants a 2-minute window, warns 20 s before expiry, and allows renewal/cancel. The code default is on `if the key is absent`, but the shipped `planetinfo.plist` universal block sets `stations_require_docking_clearance = no`, so current master is effectively **off**. Treat clearance as an optional P2 ritual; if enabled, grant instantly in v1 (no NPC traffic) and warn rather than fine.
-
-**Docking computer** (`EQ_DOCK_COMP`):
-
-- `c`: engage autopilot to the targeted station (or main station if none targeted). It requests clearance, flies an approach path, matches roll and docks. Press `c` again to abort. This is real-time, not instant.
-- `Shift+C`: fast dock. Only works where `allows_fast_docking` is true; main stations always set it true in `Universe setUpSpace`. Adds 20 minutes to the clock.
-- Denied if the station is hostile or the player is a fugitive (not applicable in v1).
-- No fuel cost.
-
-**The damage-model gap:** v1 excludes shields/energy, but manual docking's tension comes from collision damage. Decide explicitly:
-- (a) bounce-only with strong camera shake and a "docking aborted" message (safe, low tension),
-- (b) a small v1-only hull-integrity pool used solely for collisions, with destruction → reload last save (preserves tension, adds a tiny subsystem),
-- (c) auto-abort on bad alignment (forgiving, least faithful).
-
-Recommendation: (b) if schedule allows, otherwise (a) plus a clear "practice docking" onboarding. Do not build the full shield/energy model just for docking.
-
-### J. Save format and browser persistence
-
-Oolite saves only while docked, as an XML plist (`commanderDataDictionary` → `writeOOXMLToFile`). The v1 browser save can be JSON, but keep the same semantics and field names where sensible:
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `version` | string | Save schema version + Oolite data version. |
-| `player_name` / `save_name` | string | Commander and slot name. |
-| `galaxy_number` | int 0–7 | Current galaxy. |
-| `system_id` | int 0–255 | Current system. |
-| `target_id` | int 0–255 | Selected hyperspace target. |
-| `credits` | int decicredits | Store integer; Oolite stores a float due to a GNUstep bug, do not copy that. |
-| `fuel` | int 0–70 | Tenths of a LY. |
-| `max_cargo` | int | 20 or 35; recompute from equipment on load and validate. |
-| `cargo` | `{good: units}[]` | All 17 keys, zero-filled. |
-| `equipment` | string[] | Equipment keys; include damage flags only if v1 adds damage. |
-| `ship_clock` | number seconds | Jump/launch/dock/install time. |
-| `market` | snapshot | Recommended addition: `{good: {price, quantity}}` for the current station, so reload does not reroll prices. Oolite only saves non-main station markets; this is a small, defensible QoL deviation. |
-| `docked` | true | v1 only saves docked; validate on load. |
-| `settings` | object | Pitch invert, mouse control, sensitivity, audio (future). |
-
-Persistence mechanics:
-
-- Use `localStorage` for the active autosave and a small number of slots; use IndexedDB if you want many slots or export blobs. A save is a few KB.
-- Autosave on launch (Oolite behaviour) and manual save while docked. Do not autosave in flight.
-- Keep a schema version and migrate or reject old saves with a clear message. A broken save in a browser has no file manager to fall back on.
-- Export/import JSON gives players a backup and makes bug reports reproducible.
-
-### K. Data files to ingest, and counterintuitive behaviours checklist
-
-| File | Contents | v1 use |
-|------|----------|--------|
-| `Resources/Config/planetinfo.plist` | 2048 system blocks (8 × 256): name, coordinates, economy, government, techlevel, population, productivity, radius, description, inhabitants, station, positions/colours | Systems + chart + F7. ~2.7 MB; convert at build time and split per galaxy for lazy loading. |
-| `Resources/Config/trade-goods.plist` | 17 commodity definitions | Market generation; all numeric fields. |
-| `Resources/Config/equipment.plist` | Equipment tuples (TL, price, name, key, description, conditions) | Outfitting catalog. |
-| `Resources/Config/shipdata.plist` | Ship templates incl. Cobra Mk III, Coriolis, dock | Flight stats, station geometry. |
-| `Resources/Config/shipyard.plist` | `cobra3-player` optional equipment + price/TL | Outfitting availability. |
-| `Resources/Config/descriptions.plist` | Commodity names, economy/government names, UI strings, system-data labels, legality labels | Names and screen text. |
-| `Resources/Config/hud.plist` | Default HUD layout | Reference for the v1 HUD subset. |
-| `Resources/Config/keyconfig.plist` / `keyconfig2.plist` | Default bindings | Default control map. |
-| `Resources/Models/*.dat`, `Textures/*` | Models/textures (CC BY-NC-SA) | Cobra, Coriolis, planet/station visuals. |
-
-**Counterintuitive behaviours to encode deliberately (and test):**
-
-1. Prices/stock depend only on economy; TL/government/population/productivity do not.
-2. Buy and sell at the same price; trades change stock, not price.
-3. The main market rerolls on every arrival; stock is not persistent across visits.
-4. Alien Items always have zero stock.
-5. Narcotics has `peak_export == peak_import == 0`, so bias is always 0 and price is 100% random (0–102.4 Cr).
-6. Gold/platinum/gem-stones are kg/g with fractional pods; a ton of gold is ~38,800 Cr.
-7. Selling is capped by station stock capacity 127; a full market cannot absorb more.
-8. Displayed system TL = raw + 1; equipment gating uses raw TL.
-9. "Bargain tech days" can reduce an item's minimum TL by up to 3 on roughly 1/8 of days (`dayRnd & 7`), based on day + item index + system id. Optional flavour, but do not be surprised by it in source.
-10. Jump distance is quantised to 0.4 LY via integer truncation; `hypot` changes connectivity.
-11. Jump time is `distance²` hours, not linear.
-12. Fuel cost is 10 units per LY, minimum 1 unit, so a 5.6 LY jump costs 56 of 70.
-13. Full-tank refuel is only ~14 Cr, but the price per LY scales with ship mass (0.33–3.0×).
-14. Main stations always allow instant docking; other stations default to no.
-15. Docking clearance is off in the shipped config despite wiki/readthedocs saying "on since 1.81".
-16. Launch adds 10 min, fast dock adds 20 min, equipment install adds `600 + price` seconds.
-17. Equipment cannot be sold back; the Cobra's starting pulse laser and missiles are not a progression currency.
-18. Lave is raw TL 4 (displayed 5), so the TL 9 docking computer requires leaving the starting system.
-
-### Confidence and gaps
-
-- **HIGH:** commodity table, price/quantity formula, ship/station stats, fuel/hyperspace rules, docking trigger, equipment prices/TLs, save fields, screen contents. These were read directly from Oolite `master` source and config.
-- **MEDIUM:** the exact Coriolis portal opening/orientation. The model bounding box is documented above, but the effective gate is widened at runtime; verify visually before hard-coding collision geometry.
-- **MEDIUM:** whether current Oolite's shipped docking-clearance default should be treated as "off" for the port. The config says off; the wiki says on since 1.81. Follow the config, expose a toggle.
-- **MEDIUM:** product judgement about the exact v1 cut line (e.g. F7 and ANA as P2). These are scope calls, not data claims.
-- **LOW/UNKNOWN:** Oolite's planet/station visual scale and witchpoint distance are compressed for playability; the rendering/architecture research should decide the world scale. This does not affect the feature set.
-- **Not investigated:** Oolite's shipyard trade-in valuation, missions/contracts, legal-status maths, NPC AI, and OXP scripting — all deliberately out of scope, but relevant if v2 expands.
-
-## Sources
-
-Primary source (authoritative for numbers and formulas; all paths on `master`, read 2026-11-02):
-
-- [Oolite source repository](https://github.com/OoliteProject/oolite)
-- [trade-goods.plist](https://github.com/OoliteProject/oolite/blob/master/Resources/Config/trade-goods.plist) — 17 commodity definitions, peaks, averages, random/economic factors, legality.
-- [equipment.plist](https://github.com/OoliteProject/oolite/blob/master/Resources/Config/equipment.plist) — tech levels, prices, fuel/cargo bay/dock computer/gal drive/compass/ANA.
-- [shipdata.plist](https://github.com/OoliteProject/oolite/blob/master/Resources/Config/shipdata.plist) — Cobra Mk III player template, Coriolis station and dock.
-- [shipyard.plist](https://github.com/OoliteProject/oolite/blob/master/Resources/Config/shipyard.plist) — `cobra3-player` optional equipment.
-- [planetinfo.plist](https://github.com/OoliteProject/oolite/blob/master/Resources/Config/planetinfo.plist) — 2048 systems, coordinates, economy/government/TL/population/productivity/radius/descriptions, universal docking-clearance setting.
-- [hud.plist](https://github.com/OoliteProject/oolite/blob/master/Resources/Config/hud.plist) — default HUD dials and layout.
-- [keyconfig.plist](https://github.com/OoliteProject/oolite/blob/master/Resources/Config/keyconfig.plist) — default bindings.
-- [OOCommodities.m](https://github.com/OoliteProject/oolite/blob/master/src/Core/OOCommodities.m) — `generatePriceForGood`, `generateQuantityForGood`, `economicBiasForGood`, market generation.
-- [OOCommodityMarket.m](https://github.com/OoliteProject/oolite/blob/master/src/Core/OOCommodityMarket.m) — stock/price storage, capacity, save/load amounts.
-- [PlayerEntity.m](https://github.com/OoliteProject/oolite/blob/master/src/Core/Entities/PlayerEntity.m) — start state, commander save fields, buy/sell commodity logic, outfitting screen, chart/status/system-data screens, jump distance/fuel, jump clock.
-- [PlayerEntityControls.m](https://github.com/OoliteProject/oolite/blob/master/src/Core/Entities/PlayerEntityControls.m) — launch/dock controls, autopilot/fast-dock entry points.
-- [PlayerEntityLoadSave.m](https://github.com/OoliteProject/oolite/blob/master/src/Core/Entities/PlayerEntityLoadSave.m) — save/load flow.
-- [DockEntity.m](https://github.com/OoliteProject/oolite/blob/master/src/Core/Entities/DockEntity.m) — docking corridor, port dimensions, dock trigger, docking instructions.
-- [StationEntity.m](https://github.com/OoliteProject/oolite/blob/master/src/Core/Entities/StationEntity.m) — market monitoring, docking clearance, fast-dock flag.
-- [ShipEntity.m](https://github.com/OoliteProject/oolite/blob/master/src/Core/Entities/ShipEntity.m) — thrust/acceleration, stick rates, max jump range, damage.
-- [Universe.m](https://github.com/OoliteProject/oolite/blob/master/src/Core/Universe.m) — system setup/market regeneration, main station fast-dock, clearance default, galactic jump.
-- [legacy_random.h](https://github.com/OoliteProject/oolite/blob/master/src/Core/legacy_random.h) — 0.4 LY distance formula and jump-time helper.
-
-Secondary sources (cross-checks and player-facing descriptions):
-
-- [Elite Wiki: Trade-goods (abridged)](https://wiki.alioth.net/index.php/Trade-goods_(abridged)) — semantics of peak_export/peak_import, legality, price_average, price_economic, price_random.
-- [Elite Wiki: Commodities.plist](https://wiki.alioth.net/index.php/Commodities.plist) — explicitly notes the old 8-bit formula is obsolete since 1.81; do not port it.
-- [Elite Wiki: Hyperspace Drive](https://wiki.alioth.net/index.php/Hyperspace_Drive) — 7 LY limit, galaxy geography, one-way ring.
-- [Elite Wiki: Docking](https://wiki.alioth.net/index.php/Docking) and [How to Dock](https://wiki.alioth.net/index.php/How_to_Dock) — manual docking procedure, rotation matching.
-- [Elite Wiki: Docking Computers](https://wiki.alioth.net/index.php/Docking_Computers) — `c` autopilot behaviour, targeting non-main stations.
-- [Elite Wiki: Docking Clearance Protocol](https://wiki.alioth.net/index.php/Oolite_Docking_Clearance_Protocol_%28v1.72_or_later%29) — request/window/renew behaviour (note the config discrepancy above).
-- [Elite Wiki: HUD](https://wiki.alioth.net/index.php/HUD) — scanner/compass/speed/roll/pitch descriptions.
-- [Elite Wiki: Oolite Keyboard Controls](https://wiki.alioth.net/index.php/Oolite_Keyboard_Controls) — default bindings, pitch-forward semantics, autopilot/fast-dock keys.
-- [Elite Wiki: Roll vs Yaw crusades](https://wiki.alioth.net/index.php/Roll_vs_Yaw_crusades) — yaw history and why pitch/roll is the Elite feel.
-- [Elite Wiki: Oolite JavaScript Reference: Station](https://wiki.alioth.net/index.php/Oolite_JavaScript_Reference:_Station) — `allowsFastDocking` default and main-station exception.
-- [Oolite readthedocs: In Dock Commands](https://oolite.readthedocs.io/en/latest/) — F-key screen map and market buy/sell controls.
-- [Oolite starting guide](https://oolite.space/html/starting) — Lave start, compass-to-station, docking practice, torus drive.
+### Dependencies on existing Wegolite
+
+| Existing feature | Needed change |
+|---|---|
+| `src/app/game-session.ts` (single session) | Split into subsystems; world entities serialise into saves and determinism hashes |
+| Mass lock (bodies only) and Coriolis jump blockage | Extend to NPC ships (`checkEntityForMassLock`, blockage predicate) |
+| Docking computer (`dockingComputer`, Shift-C fast dock) | Refuse on red alert and for fugitives; 20 min clock; fine chance |
+| Dock contact scrape/bounce | Add scrape damage |
+| Hyperspace | Halve legal status on arrival; repopulate the new system |
+| Outfitting `VISIBLE_EQUIPMENT_KEYS` money-path gate (D-11) | Open lasers (per facing), ECM, scoops, escape pod, energy unit, shield booster, heat shield, hardened missile |
+| F5 labels and the 11 pinned HUD elements | Real values; add gauges (changes the pinned element set) |
+| Saves v2 | v3 with combat, legal and world state and an ordered migration |
+| Key bindings (`src/input/actions.ts`) | `Escape` is **pause** in v1 but is Oolite's **escape-pod** key; `KeyR` is `targetStation` in v1 but Oolite's ident key. Choose a pod binding and an ident/target scheme |
+| Assets | **Only 17 of 194 ship records have a model vendored** (Cobra family, Coriolis, dock parts). Populator roles need about 37 more models: adder, anaconda, asp, boa, boa-mk2, cobramk1, ferdelance, gecko, krait, mamba, moray, python, python-trader, sidewinder, viper, viper-interceptor, shuttle, transporter, worm, missile, ecm-proof missile, barrel, alloy, escape capsule, asteroid/boulder/splinter (two variants each), rock hermit, five wreckage models. Sounds (26 files, 412 KB) and music (7.9 MB) are not vendored |
 
 ---
 
-*Feature research for: Wegolite (browser Oolite core-loop port)*
-*Researched: 2026-11-02*
+## MVP Recommendation
+
+Prioritise (each slice leaves a playable game):
+
+1. **Foundation plus hazards that need no NPCs:** world model; planet/sun collision death; cabin temperature and gauges; shield/energy gauges; death to game-over screen. Testable alone with existing bodies.
+2. **Player lasers against a target:** four views and facings; pulse laser; heat; energy; shield recharge; ray hit against a drone or NPC; fire and hit sounds.
+3. **Legal and kill loop with a minimal NPC set:** Viper police, Cobra trader, Cobra pirate (Cobra models are already vendored); offence rules; bounty, kills, rating; fines; fugitive refusal; scoopable cargo.
+4. **Missiles and ECM:** missile model, lock/fire/blast, ECM pulses, incoming-missile warning, hardened missile.
+5. **Escape pod and equipment damage/repair:** pod flow and F3 repair rows.
+6. **Populator and role AIs:** traders, pirates, hunters, police, scavengers, shuttles, station patrols, interceptors, by the rates above.
+7. **Sound and music:** player-bound sounds can start in slice 2; music last.
+
+Defer: mining laser, asteroids and hermits as gameplay, NPC pod rescue, pirate demands, sun-skimmer routes, station defence launches, docking music.
+
+Everything in TS-1 to TS-12 is table stakes for a faithful release; the Differentiators list is the cut line.
+
+---
+
+## Open Questions and Risks
+
+- **Meaning of "insurance".** Core Oolite pays the player no insurance: it keeps the ship through the pod and pays rescuers for NPC pods (`E/PlayerEntityContracts.m:61-125`). Requirements must say which meaning is intended; recommendation: keep Oolite's.
+- **Ship mass** is `density * 20 * octree volume` (`E/ShipEntity.m:417-419`). The content build must emit it per ship, as `dock-port.json` does for geometry, or internal-damage odds, collision damage and wreckage counts cannot be faithful.
+- **Wreckage lifetime** (derived 0.05-0.4 s) looks shorter than the original feels. LOW confidence: verify in the engine or set a visual lifetime and record a divergence.
+- **Determinism.** Every Oolite `Ranrot()` / `randf()` becomes a draw from the sim's seeded PRNG; its state must be saved.
+- **Docked-world rule.** Oolite repopulates while docked; v1 freezes the clock. Pick repopulate-on-launch and record it.
+- **Hit geometry.** Oolite tests each hull's octree; a lighter proxy will change hit feel for small missiles and pods.
+- **Performance and size.** 37 models, textures and 8 MB of music against the 20 MiB cold start and the 60 fps budget (QUAL-01) need lazy loading and a draw-call budget for traffic.
+- **Clock jumps.** Escape pod (12 h to 8 d), fines (24 h), fast dock (20 min) and repair time advance the clock; confirm the v1 clock model accepts them.
+
+---
+
+## Sources
+
+All Oolite paths are relative to `/home/opencode/git/oolite` (HEAD `4bb1f53de`, pin `7437f22`).
+
+- `Resources/Config/equipment.plist` (lasers :109-205, ECM :37, scoops :45, escape pod :54, energy units :65-84, shield boosters :388-412, heat shield :419, hardened missile :278)
+- `Resources/Config/shipdata.plist` (`oolite_template_cobra3` :1226-1350, `-player` :1437, missile :2680-2722, ecm-proof missile :2054-2084, stations :1706, 1895, 2352)
+- `Resources/Config/customsounds.plist`, `trade-goods.plist` (`legality_export`), `planetinfo.plist:17`, `descriptions.plist`
+- `Resources/Scripts/oolite-populator.js` (rates :97-1310, spawners :1383-2736), `oolite-priorityai.js` (:841-848, :2185-2225, :5111-5172, :5250-5290, :5300-5380, :5669-5775, :5960-6040), `oolite-equipment-control.js:96-240`, `oolite-conditions.js`
+- `Resources/AIs/oolite-policeAI.js`, `oolite-missileAI.js`, `oolite-pirateAI.js`, `oolite-stationAI.js`
+- `src/Core/Entities/PlayerEntity.m`, `PlayerEntity.h`, `PlayerEntityControls.m` (pin), `PlayerEntityContracts.m`, `PlayerEntitySound.m`, `ShipEntity.m`, `ShipEntity.h`, `StationEntity.m`, `DockEntity.m`, `OOECMBlastEntity.m`, `OOLaserShotEntity.m`, `OOPlanetEntity.m`
+- `src/Core/Universe.m`, `Universe.h`, `HeadUpDisplay.m` (pin), `OOConstToString.m`, `OOMusicController.m`
+- Wegolite v1 context: `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `FIDELITY.md`, `src/input/actions.ts`, `src/sim/player/outfitting.ts`, `src/sim/dock/step.ts`, `src/ui/station-model.ts`, `src/render/hud/draw.ts`, `src/content/generated/ships.json`, `src/content/generated/systems/g0.json`

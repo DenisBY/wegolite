@@ -1,420 +1,539 @@
-# Pitfalls Research
+# Pitfalls Research — Milestone v2.0 Foundation & Combat
 
-**Domain:** Browser-based faithful reimplementation of Oolite (Elite-style space trading), TypeScript + Three.js, static hosting
-**Researched:** 2026-11-02
-**Confidence:** HIGH for engine/data facts grounded in Oolite source and `LICENSE.md`; MEDIUM for legal interpretation, browser quirks, and community judgement
+**Domain:** Adding a multi-entity world, hand-ported Oolite priority AI and traffic, combat, death/insurance, planet/sun collisions and Web Audio to an existing deterministic, golden-hashed, Docker-tested browser port of Oolite (TypeScript, Three.js, IndexedDB saves).
+**Researched:** 2026-11-11
+**Confidence:** HIGH for facts read from this repository and the Oolite checkout (cited by file and line or by count); MEDIUM for browser audio behaviour and performance projections (not measured here); LOW only where flagged.
 
-> Scope note: this file assumes the v1 scope in `.planning/PROJECT.md`: one Cobra Mk III, one Coriolis station per system, manual docking, core commodities, hyperspace, station screens, save/resume, no combat/NPCs/OXPs. Legal statements below are engineering-risk findings, not legal advice; a lawyer should review the final distribution.
+> Scope: this file replaces the v1 pitfalls file (which assumed no combat, NPCs or audio; its licensing and data-fidelity findings still hold and remain in git history). It covers only the mistakes specific to *adding* the v2.0 features to the system as it stands. Every pitfall names the phase that should prevent it.
+>
+> Oolite reference: `/home/opencode/git/oolite` (never the network). Wegolite facts were checked against the tree at commit `3c6c2ef`.
+
+## Phase key used in this file
+
+The roadmap does not exist yet. These labels are a *proposed* decomposition so every pitfall can point at a phase; the roadmapper may rename or merge them, but the ordering constraints in "Phase-Specific Warnings" should survive.
+
+| Label | Scope |
+|-------|-------|
+| **P-A Foundation** | Split `game-session.ts`; entity world model (ids, broadphase, serialisation, hashing); `ShipControl`/`WorldView`; PRNG and clock contracts; test-runtime strategy |
+| **P-B AI core** | `PriorityAIController` port, native `BEHAVIOUR_*` steering, plist `nullAI`/`dumbAI`, scanner |
+| **P-C Roles and traffic** | Role AIs, populator, station launch/dock queue, NPC models and assets |
+| **P-D Combat** | Lasers, shields, energy, missiles, ECM, damage, wreckage, pods, scooping |
+| **P-E Death and law** | Bounty, legal status, police response, escape pod, insurance, save v3 |
+| **P-F Collisions** | Planet, sun, buoys, cabin and hull temperature |
+| **P-G Audio** | Web Audio, `customsounds.plist`, music |
+| **P-H Hardening** | QUAL-01 on real hardware, performance, test budget, release gates |
+
+---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Treating Oolite's code licence and asset licence as one licence
+### Pitfall 1: Iteration order silently differs between the live world and a restored or replayed world
 
 **What goes wrong:**
-The repository ends up with a single `LICENSE` file, copied models/textures/plists, and no asset-specific notice. The project then either (a) claims everything is GPL-2.0-or-later when some assets are only CC BY-NC-SA 3.0, (b) claims everything is CC BY-NC-SA and accidentally imposes non-commercial terms on GPL code, or (c) ships a built site with no corresponding-source offer. Any of these makes distribution indefensible, and a community project is especially exposed because the first DMCA/takedown request kills momentum.
+Two runs of the "same" simulation diverge because a `Map`/`Set`/object is iterated in a different order, or because ids are reused. Typical forms: the live world iterates in spawn order (with holes from deletions) while a world rebuilt from a save iterates in serialised order; a `Record` keyed by numeric-looking ids iterates ascending (integer keys are sorted by the engine) but string ids iterate in insertion order; a free-list reuses an id so id order no longer equals age order; `Array.sort` without a total-order comparator is used on distances (ties between ships at equal range); collision pairs come out of a spatial hash in bucket order.
 
 **Why it happens:**
-Oolite's `LICENSE.md` is unusual. It says the work is GPL-2.0-or-later, and then says artwork (models, images, sounds) *and configuration files* are **also** licensed under CC BY-NC-SA 3.0, and that those files may be distributed under either licence at the distributor's discretion. Developers read the first paragraph, see "GPL", and stop. They also assume "assets are CC BY-NC-SA only", which is the opposite mistake: the dual licence is what lets a GPL project reuse the art at all, because CC BY-NC-SA 3.0 is not GPL-compatible.
-
-There are additional wrinkles: the same file carves out some sounds under CC0 and CC BY 3.0 (military/mining/beam laser sounds), and bundled libraries under BSD/zlib-style licences. The blanket dual licence does not automatically relicense third-party contributions that were never Oolite's to dual-license.
+v1 had one entity, so no code path ever depended on order. `src/sim/**` has ESLint rules against `Math.random`, `Date` and `performance.now`, but nothing against order-dependent constructs. Oolite itself is order-dependent in ways that are *not* reproducible: scan results come out in z-list order (`ShipEntity.m` `checkScanner`, walking `z_previous` then `z_next`, capped by `MAX_SCAN_NUMBER 32`), and the update loop walks `entities` with a mid-loop bubble sort by `zero_distance` (`Universe.m` ~6540-6590). A literal port inherits an order that depends on the player's position.
 
 **How to avoid:**
-- Make an explicit licensing decision and write it down: **take Oolite code, data, models, textures and sounds under GPL-2.0-or-later**, and record the CC BY-NC-SA 3.0 option only as provenance. This avoids the non-commercial restriction and the GPL/CC incompatibility for the combined work.
-- Put the following in the repo root: `LICENSE` (GPL-2.0 text), `LICENSE-ASSETS` (CC BY-NC-SA 3.0 text or canonical URI plus a plain-language summary), `NOTICE` (Oolite copyright and dual-licence statement), `AUTHORS`, `THIRD_PARTY_NOTICES` (sound exceptions and libraries), `TRADEMARKS.md` (see Pitfall 2), and `assets-manifest.json` with one row per imported file: Oolite source path, licence, modifications, and the preferred form for modification (`.dat`, `.plist`, original PNG).
-- Keep raw source formats in the repo. If `.dat` is converted to glTF and PNGs to KTX2, the converted files are not the preferred form for modification; ship the `.dat`/PNG sources too, or provide a documented conversion script and the originals in a source archive.
-- Publish the corresponding source for the deployed bundle: public repo link in the footer and `README`, plus build scripts. If the repo is private, a written offer is not enough for a frictionless fan project; make the source public.
-- For the CC BY-NC-SA option, attribution needs the creator, title, source URI, licence URI and an indication of modifications; ShareAlike applies to modified assets. Put the same information in `NOTICE` and in each row of `assets-manifest.json`, and mark modified files as modified. If you choose the GPL option for assets, keep the CC notice as provenance but make the GPL election explicit.
-- Audit dependencies for licence compatibility. GPL-2.0-**only** is incompatible with Apache-2.0; because Oolite is "or later", licensing Wegolite as `GPL-3.0-or-later` is a legitimate escape hatch if an Apache-2.0 runtime dependency appears. Three.js (MIT), Vite (MIT) and Vitest (MIT) are fine.
-- Do not advertise, sell, or gate access behind payment/donations if any asset is taken under the CC BY-NC-SA option. The clean GPL route avoids this, but donation perks and "early access" can still look commercial; keep the project free.
+- Define one canonical order and write it in the world model's header comment: **ascending entity id**. Ids are monotonic integers from a persisted `nextId`, **never reused**, never derived from an array index.
+- Store entities in a dense array plus an `id -> index` lookup, or a `Map<number, Entity>` whose insertion order is ascending by construction (spawn always appends the next id). Serialise in ascending id; on restore rebuild in that order. Add a unit test: *a live world after N spawns and M deaths* and *a world restored from its own serialisation* must produce the same per-tick hash for 1,000 ticks.
+- Every query that returns "several entities" (`scan`, `shipsWithRole`, broadphase pairs, nearest-X) returns them sorted by `(distanceSquared, id)` or by `id`; ties are broken by id, never by engine order. Never call `.sort()` without a comparator. Never iterate `Object.keys`/`for..in` over data that can come from JSON.
+- Add ESLint `no-restricted-syntax` rules for `ForInStatement` and for zero-argument `.sort()` inside `src/sim/**` (the `tests/guards/` tests already prove zone rules with probe files; add two probes).
+- Deaths are *marked* during a tick and *swept* at the end of the tick in id order (Oolite does the same with `entitiesDeadThisUpdate`). Never delete from the collection being iterated.
+- Record the deviation from Oolite's order once in `PROJECT.md` Key Decisions, like the fixed 1/120 s step.
 
 **Warning signs:**
-- GitHub's licence detector says "Unknown" or shows only one licence while `Resources/Models` and `Resources/Config` are committed.
-- No `NOTICE`, no `assets-manifest.json`, or a manifest that lists only file names and no source/licence.
-- A contributor asks "can I use this texture?" and the answer is a Slack guess.
-- The built site has no source link, or the source link points at a repo that does not contain the plist/DAT sources.
-- Anyone describes the project as "CC BY-NC-SA" in one place and "GPL" in another.
+- A hash test passes on a fresh run but fails after save/restore or after the world "warms up".
+- A golden changes when one NPC is added *later* in the list.
+- A fix that "sorts to make it stable" in one query and not in the others.
 
-**Phase to address:**
-Phase 1 (Foundation & Compliance), before the first asset is committed. Re-audit in Phase 8 before public release.
+**Phase to address:** P-A Foundation (contract and lint rules); re-verified in P-B and P-C when scanning and populating arrive.
 
 ---
 
-### Pitfall 2: Using "Elite", "Cobra" or "Oolite" as branding and implying endorsement
+### Pitfall 2: PRNG call-order shifts, and RNG state that cannot be hashed or saved
 
 **What goes wrong:**
-The project is published as "Wegolite — Elite in your browser", uses the Elite logo or a Cobra badge, and puts "Oolite" in the page title. Frontier Developments' published legal notices list **Elite, the Elite logo, Cobra and the Cobra logo** as trademarks. Oolite's GPL/CC licences grant copyright permissions, not trademark permissions, and they do not grant rights to Frontier's marks. A fan project can still be asked to rename or take down a site even if its copyright position is perfect.
+Adding one ship, one damage roll or one wreckage spawn changes every later random number in the world, so every golden hash and every "same seed, same fight" expectation breaks. Worse, `createSeededRandom` (`src/sim/math.ts`) returns a closure: its 32-bit state is invisible, so it can be neither hashed nor serialised. A world hash that omits RNG state lets two diverged worlds hash equal until the divergence surfaces much later.
 
 **Why it happens:**
-"Elite" is the fastest way to explain the genre, and search-engine optimisation rewards it. Fan projects also assume that because Oolite has existed for decades, the name is safe. Oolite's own community says there are no trademarks associated with Oolite, but that is a statement about Oolite, not about Frontier's marks or about a new project's name.
+Oolite draws from global, unseeded streams: `Math.random()` in JS (counts in the reference: 36 in `oolite-priorityai.js`, 95 in `oolite-populator.js`, 4 across the role AIs) and `randf()`/`ranrot_rand()` in `ShipEntity.m` (about 78 call sites). Destruction alone draws a data-dependent number of values: wreck counts `randf() * (n_alloys + 2)`, per-wreck velocities, lifetimes `750 * randf() + 250 * i + 100`, `ranrot_rand() % 7` jitter (`ShipEntity.m` 8013-8099). With one shared stream the draw count depends on branch history. Even `checkScannerWithPredicate` (`oolite-priorityai.js:705`) draws a number per scan only to pick a start offset, so *how often AIs scan* shifts everyone else's randomness.
 
 **How to avoid:**
-- Keep the product name **Wegolite**; do not put "Elite" or "Oolite" in the domain, page title, logo, app icon, store listing, or social handle. Use descriptive text only: "a fan-made browser tribute to the 1984 space trading game", "inspired by Oolite".
-- Add a prominent `TRADEMARKS.md` and a footer line: "Wegolite is an unofficial fan project. It is not affiliated with, endorsed by, or connected to the Oolite project, Frontier Developments plc, David Braben or Ian Bell. Elite and Cobra are trademarks of Frontier Developments plc. Oolite is a separate open-source project."
-- Do not use the Oolite logo, the Elite logo, the Cobra logo, or Frontier/Oolite screenshots as marketing art. Screenshots of your own build are fine; screenshots of Oolite are not automatically fine.
-- Treat ship names such as "Cobra Mk III" as franchise-derived names. They are probably low-risk in a non-commercial fan project with a disclaimer, but they are not licensed by Oolite's copyright licence; get a legal read before using them in a commercial-adjacent context (ads, merch, app-store listing).
-- Do not imply that Oolite's developers endorse the port. A "thanks to the Oolite contributors" credit is attribution, not endorsement.
+- Replace the closure with an explicit state object (`{ state: uint32 }`) and pure functions, so state is hashed and serialised. Keep `createSeededRandom` for render-only uses (starfield, nebulae, break pattern) untouched.
+- **Fork streams, do not share one.** Each entity owns a stream seeded from `hash32(worldSeed, entityId, "ai")`; damage and accuracy draws use `hash32(worldSeed, entityId, "dmg")`; the populator uses `hash32(worldSeed, systemId, arrivalCount)`; destruction and wreckage use a stream keyed by the dying entity's id. Spawning ship N+1, or a ship dying, can then never shift anyone else's numbers, and a ship's behaviour is reproducible in isolation (unit-testable without the world).
+- Do not try to reproduce RANROT sequences for combat (the market does, `src/sim/economy/ranrot.ts`, because prices are seed-defined; combat is not).
+- Roll at the same *logical* point every time: when the decision is made, not lazily inside a cached or conditional path.
+- Extend the `src/sim/**` Math.random ban explicitly to the new AI/world directories (add a guard probe for `src/sim/ai/`).
+- Include every stream's `state` in the world serialisation and the hash.
 
 **Warning signs:**
-- The browser tab reads "Elite" or "Oolite".
-- The first Google result for the project is a page titled "Play Elite online".
-- The repo uses an Oolite/Frontier logo in `public/` or `og-image.png`.
-- A community post says "Is this official?" or "Did Frontier approve this?"
-- The disclaimer is buried in `README` instead of visible on the landing page.
+- A golden changes when the populator adds a bystander far from the action.
+- Two fights with the same seed differ after one ship was added.
+- Code reaches for `Math.random()` "temporarily" while porting a function that has it in Oolite.
 
-**Phase to address:**
-Phase 1 (Foundation & Compliance), and again in Phase 8 before any public launch or store listing.
+**Phase to address:** P-A Foundation (RNG object, fork scheme, hash); enforced in every later phase.
 
 ---
 
-### Pitfall 3: Trusting `PROJECT.md`'s data file names and units instead of the current Oolite data
+### Pitfall 3: Time bases, float accumulation and time-sliced AI
 
 **What goes wrong:**
-The implementation looks for `Resources/Config/commodities.plist`, which does not exist in current Oolite; the real file is `trade-goods.plist`. Or it treats every credit value as credits and displays food at 50.0 Cr instead of 5.0 Cr, equipment at 300 Cr instead of 30 Cr, and a Cobra at 150,000 Cr when the shipyard value is already credits. Or it treats `max_flight_speed = 350` as 350 m/s and prints "350 LS" instead of 0.350 LS. These are not cosmetic bugs; they break the economy and the fan credibility simultaneously.
+(a) AI timers keyed to the player's *game clock* fire in bursts: `FlightState.clockSeconds` jumps by 600 s at launch and by hours at hyperspace arrival, so a timer written as `clock + 60` expires at once, caches clear, distress and wormhole expiries trip. (b) Timers decremented by `dt` accumulate float error and drift against tick counts. (c) "Spreading the AI cost" by thinking every N-th frame or by wall clock reintroduces frame-rate dependence and breaks the 30/60/120/144 Hz cross-cadence hash test. (d) Sound or render code reads sim time and feeds something back.
 
 **Why it happens:**
-Oolite's data is a palimpsest. Names changed across versions (`commodities.plist` → `trade-goods.plist`), and units are mixed by subsystem:
-- `trade-goods.plist`: `price_average`, `price_economic`, `price_random` are **decicredits** (tenths of a credit). Food's `price_average = 50` is 5.0 Cr.
-- `equipment.plist`: prices are **decicredits**. A missile at 300 is 30.0 Cr; a large cargo bay at 4000 is 400.0 Cr.
-- `shipyard.plist`: `price` is **credits**. A Cobra Mk III at 150000 is 150,000 Cr.
-- `planetinfo.plist`: `radius` is **kilometres**, but `OOPlanetEntity` multiplies by 10 to get game units (`collision_radius = radius_km * 10.0`), a deliberate 1:100 scale-down.
-- Fuel is stored in **tenths of a light year** (`fuel / 10.0` is displayed); hyperspace checks use `distance * 10.0 <= fuel`.
-- Flight speeds are game units/second; Oolite 1.9x displays `0.001 * top_speed` as **LS** (so a Cobra's 350 is 0.350 LS). Older Elite/Oolite guides use **LM** for the same 1000-units/s convention. Pick one label, define it in the UI doc, and do not mix LS and LM in the same build.
-- Pitch/roll rates are **radians/second**, not degrees/second.
-`PROJECT.md` was written before the data audit and names `commodities.plist`; the current repo (1.93.1-241, commit 7437f22) has `trade-goods.plist`. The stale name is a warning that other assumptions are stale too.
+Oolite's AI uses `clock.adjustedSeconds` (the player clock) for `__ltcachestart`, `AIScriptWakeTime`, distress timestamps and wormhole expiry (`oolite-priorityai.js` 205-208, 234, 348-393, 2015). Oolite's `delta_t` is variable (capped only at `MINIMUM_GAME_TICK 0.25`); the legacy plist AI thinks every `AI_THINK_INTERVAL 0.125` s (`AI.h:31`, `Universe.m:6576`), and the JS AI wakes when the player clock passes `AIScriptWakeTime` (`ShipEntity.m:2479`). Wegolite has a fixed `DT = 1/120`, and a clock that is not monotonic in flight terms.
 
 **How to avoid:**
-- Update `PROJECT.md`'s data inventory from `commodities.plist` to `trade-goods.plist` in Phase 1, and record the Oolite commit hash used for the snapshot.
-- Build a **units and provenance table** in `docs/DATA-FIDELITY.md` before writing the economy code: file, key, unit, conversion, display format, source line. Treat it as a contract.
-- Use integer decicredits internally for money, and format at the UI edge (`(decicredits / 10).toFixed(1)`). Never use floating-point credits for transactions.
-- Normalise all imported values at the loader boundary into a single internal unit system: metres for lengths, radians/second for angular rates, units/second for speed, decicredits for money, tenths of LY for fuel. Name the fields with the unit (`priceDecicredits`, `speedUnitsPerSecond`, `radiusKm`).
-- Add golden tests for known values: food price 5.0 Cr at a neutral economy; Cobra max speed 0.350 LS; Coriolis station radius 500 units; planet radius = `planetinfo.radius * 10`; fuel display `fuel/10`.
-- Do not "fix" Oolite's compressed astronomical scale. Planet radii, planet distances and sun distances are internally consistent; converting to real kilometres destroys the look and the travel times.
+- Use the monotonic integer sim tick (`FlightState.tick`) as the only AI time base: `wakeTick = simTick + Math.ceil(delaySeconds * 120)`; the legacy think interval is exactly 15 ticks. Timers are integer tick counters (`ticksRemaining -= 1`), never `seconds -= dt`. Convert Oolite seconds to ticks in one function with one rounding rule and unit-test it.
+- Never use `clockSeconds` in AI, populator or combat timers. Use it only where Oolite semantics really mean the in-universe date.
+- AI work may be staggered only if the slot is a pure function of `(simTick, entityId)` *and* Oolite's own wake/think times are honoured (so the stagger is invisible). Never skip AI work by frame count. Prefer making each think cheap (one cached scan per think) over staggering.
+- Extend the `tests/sim/flight-cadence.test.ts` style to the world: the same tick-indexed input log at 30, 60, 120 and 144 Hz frame deltas must give identical world hashes, including a scenario that crosses a launch (+600 s) and a hyperspace arrival.
+- Several behaviours use `delta_t` inside formulas (see Pitfall 6); record each such site.
 
 **Warning signs:**
-- Food sells for 50 Cr or equipment for 10× the expected price.
-- The Cobra's speed readout is 350 LS, or its turn rate is 1 degree/s.
-- The planet is either a tiny ball or engulfing the station.
-- A grep for `commodities.plist` succeeds in the code but the file is absent from the vendored Oolite snapshot.
-- New data keys get added with no unit suffix and no test.
+- Any `clockSeconds`, `Date`, `performance.now` or `dt`-subtraction timer in a new `src/sim/ai` file.
+- A cadence test that covers the player only.
+- AI behaviour that changes when the launch autosave (+600 s) happens.
 
-**Phase to address:**
-Phase 2 (Data Pipeline & Fidelity), with the unit contract written in Phase 1.
+**Phase to address:** P-A Foundation (tick-based scheduler contract); P-B uses it.
 
 ---
 
-### Pitfall 4: Parsing Oolite's legacy plists as JSON/XML and ignoring inheritance
+### Pitfall 4: One NaN, one `canon` throw, one engine-specific transcendental
 
 **What goes wrong:**
-The loader calls `JSON.parse` or an XML plist parser on `shipdata.plist` and fails immediately, or a hand-rolled regex parser "works" on one file and silently drops comments, trailing commas, or unquoted keys. Even after parsing, the player Cobra is wrong because the entry is a template (`is_template = 1`) with a `like_ship` chain; the Coriolis market is empty because `market_definition = ()` was ignored; equipment appears that should be unavailable because `condition_script = "oolite-conditions.js"` was ignored.
+`canon()` (`src/sim/hash.ts`) *throws* on a non-finite number. That was a deliberate trap for the single-entity probe, but with dozens of AI ships one degenerate geometry (target at exactly the same position, `normalize` of a zero vector, `acos` of 1.0000000002, division by `desired_range = 0`) becomes an uncaught exception inside the frame loop and the game dies. The player already has `sanitizeFlightState`; NPCs do not.
 
 **Why it happens:**
-Oolite uses the OpenStep/NeXTSTEP ASCII property-list dialect, not JSON and not XML:
-- `{ key = value; }`, `( a, b, c )`, `//` and `/* */` comments, unquoted keys, trailing commas, and `yes`/`no`/`true`/`1` booleans.
-- Vectors are inconsistent: `position = "0 0 500.2561"` is a **string**, while `orientation = (1, 0, 0, 0)` is an **array**. A generic parser cannot know which is which without schema.
-- `equipment.plist` is an array of positional arrays: `(tech_level, price, name, key, description, conditions)`. It is not a dictionary keyed by equipment ID.
-- `shipdata.plist` uses `like_ship` inheritance, `is_template`, `shipdata-overrides.plist`, and `shiplibrary.plist`. The player Cobra is `oolite_template_cobra3-player`, which inherits `oolite_template_cobra3` (350 speed, 32 thrust), while the pirate/trader variants override speed to 300. Picking the first "cobra3" entry gives the wrong ship.
-- The Coriolis station has `market_definition = ( )`, whose comment says an empty array matches system prices and leaving the key out means a blank market. Ignoring that distinction gives either an empty market or the wrong one.
-- Equipment availability is partly scripted (`requires_non_full_fuel`, `requires_empty_pylon`, `available_to_all`, `condition_script`). A data-only port shows fuel when the tank is full and missiles when pylons are occupied.
+Oolite tolerates NaN and guards only some cases (`trackDestination` sets `relPos.z = 1.0` when `relPos` is zero). Ports replicate the formula and skip the guard. Also, `src/sim/math.ts` documents that `Math.sin/cos` replay is bit-identical *within one JS engine only*; NPC steering adds `acos`, `atan2` and `pow`, which can differ by an ULP between V8 and SpiderMonkey and diverge chaotically.
 
 **How to avoid:**
-- Write or vendor a real OpenStep plist parser, and fuzz it against every file in `Resources/Config/`. Add fixtures for comments, trailing commas, quoted keys with spaces, negative numbers, nested arrays/dicts, and `yes`/`no`.
-- Parse once at build time into a typed JSON intermediate, not at runtime on every load. Keep the raw plists in the repo for provenance and regeneration.
-- Validate the intermediate with a schema (zod/valibot/manual) and fail the build on unknown/missing required keys. Do not use `any`.
-- Implement `like_ship` resolution with cycle detection and overlay order: base → template → variant → `shipdata-overrides.plist`. Resolve the player Cobra explicitly and assert speed 350, thrust 32, pitch 1.0, roll 2.0, cargo 20.
-- Model `market_definition` as a tri-state: absent (blank market), empty array (system prices), explicit definitions. Do the same for `equipment.plist` conditions: implement the small set actually used by core equipment, or hide items whose conditions you cannot evaluate.
-- Parse the `planetinfo.plist` keys as two-integer `galaxy system` IDs (for example, `"0 7"` is galaxy 0, system 7, which is Lave), with `coordinates` as a separate chart position. Do not assume the key is the chart coordinate; system `"0 0"` is at chart coordinates `"2 90"`. Skip `"universal"` and `"interstellar space"` when iterating systems.
-- Keep a `data/oolite-snapshot.json` with the upstream commit hash, so a future Oolite update can be diffed deliberately.
+- A per-entity `sanitizeShip` (finite check, clamp speed and position, renormalise orientation, count repairs like the player's `repairCount`) runs once per tick *before* hashing, and the repair count is published to the probe. A repaired ship is a bug to fix: tests assert zero repairs over the golden scenarios.
+- Port each `ShipEntity.m` guard literally and add guards Oolite lacks where an input can be zero (distance, normalisation, `acos` argument clamped to [-1, 1]).
+- Keep the hash claim narrow: golden fixtures are generated and replayed inside the same container engine only (already documented). Never compare NPC hashes between Chromium and Firefox. Saves must not depend on NPC bit-reproduction (Pitfall 10).
+- Prefer dot-product comparisons over angles in hot steering code.
 
 **Warning signs:**
-- `JSON.parse` appears anywhere near `.plist`.
-- The parser has a regex for `key = value` and no tests for comments/arrays.
-- The Coriolis market is empty, or every station has identical stock.
-- The player Cobra has 300 speed instead of 350, or no model.
-- Equipment list shows fuel at full tank, or missiles with full pylons.
-- System names and chart positions are shifted by one or scrambled.
+- `non-finite value in state` in a browser console after a dogfight.
+- A "fix" that wraps the hash in try/catch.
 
-**Phase to address:**
-Phase 2 (Data Pipeline & Fidelity). The parser and schema are prerequisites for Phase 6 (Economy) and Phase 7 (Hyperspace).
+**Phase to address:** P-A Foundation (sanitiser, soak scenario), P-B (guards in steering).
 
 ---
 
-### Pitfall 5: Importing `.dat` models and Oolite materials as if they were glTF
+### Pitfall 5: Hand-port drift of the AILib framework, and no way to see it
 
 **What goes wrong:**
-The Cobra is invisible (wrong winding/backface culling), flies backwards (wrong forward axis), has a one-colour hull (UVs interpreted as normalised when they are texel units), looks smooth/plastic instead of faceted (recomputed vertex normals), or the Coriolis station glows all over (alpha emission map treated as transparency). The station's docking tunnel is a black void because the dock/faceplate/tris subentities were skipped. The model may also be the wrong Cobra variant.
+The TS port compiles and each function "looks like" the JS, yet ships behave differently: traders never flee, police never reconsider, pirates stay attached to a dead target, a role works until the first save/restore. Drift is invisible because no test compares against the original and about 12k lines are involved (`oolite-priorityai.js` 6,838 lines with about 266 function definitions, `Resources/AIs/*.js` 2,427, `oolite-populator.js` 2,736).
 
-**Why it happens:**
-Oolite's legacy `.dat` format is not a standard mesh format, and the engine does non-obvious things with it:
-- **UVs are in texel units divided by the declared texture size.** Each `TEXTURES` line is `filename max_x max_y u1 v1 u2 v2 u3 v3`. The Cobra declares `1.0 1.0` (already normalised), while the Coriolis declares `256 256` and uses values 0–256. Dividing by `max_x/max_y` is mandatory. If you treat the values as normalised, the Coriolis samples a tiny corner of its atlas.
-- **The first three integers on a `FACES` line are colours, not a texture index.** Oolite stores the first as `smoothGroup`; `127,127,127` is the common untextured value. Treating them as a material index produces nonsense.
-- **Faces with more than three vertices are truncated to the first three** (`OOMesh.m` logs a warning and drops the rest). If you support quads, you diverge from Oolite's silhouette.
-- **Normals are per-face, not per-vertex.** `smooth` defaults to `NO`; the Cobra's faceted look depends on that. Recomputing vertex normals with `computeVertexNormals()` smooths the hull and destroys the style. If `smooth = yes`, Oolite averages within the `smoothGroup`; implement that separately.
-- **Oolite is +Z-forward, Y-up, and its models assume that convention.** Three.js cameras look down **−Z**; `Object3D.lookAt` points a mesh's +Z at the target but a camera's −Z. Attaching a `PerspectiveCamera` as a child of the ship without a 180° yaw makes it look out of the tail. Importing vertices without a defined axis conversion can also mirror the model and invert winding.
-- **Oolite's material system can use a texture's alpha channel as an emission mask.** In `shipdata.plist`, `emission_map = { name = "oolite_coriolis_diffuse.png"; extract_channel = "a"; }`; for the Coriolis, the alpha channel is not transparency. Three.js `emissiveMap` uses RGB and ignores alpha, so assigning the diffuse map as `emissiveMap` makes the whole hull glow.
-- **The station is a composite.** `oolite_coriolis.dat` is the hull; `oolite_coriolis_faceplate`, `oolite_coriolis_tris` and `oolite_coriolis_dock` are subentities at the same origin (dock at `z = 500.2561`). Skipping subentities removes the letterbox and tunnel.
-- **The base template uses `oolite_cobra3.dat`, not `cobra3_redux.dat`.** Both exist. The `cobra3_redux` file is a legacy/alternate model; using it changes the silhouette and texture layout.
+**Why it happens (mechanics a port loses):**
+1. **Closure caches.** `__cache` is cleared on every `_reconsider`; `__ltcache` only when the player clock passes `__ltcachestart` (60 s) and holds `oolite_nearestStation`, `oolite_homeStation`, `oolite_cruiseSpeed`, `oolite_sentDistressMessage`, `oolite_fineThreshold`, `oolite_shipInRoleCategory` (`oolite-priorityai.js` 48-50, 203-212, 676-680, 731-775, 843-947, 1318). Some conditions consume randomness *and* are cached: dropping the cache re-rolls the condition inside one priority walk; adding a cache where Oolite has none freezes a roll for too long.
+2. **`this` dispatch.** Conditions, configurations and behaviours are plain functions stored in the priority table (`condition: ai.conditionLosingCombat`, `behaviour: ai.behaviourFleeCombat`) and invoked with `.call(this, ...)`; role scripts choose variants at `aiStarted` by `primaryRole` (`oolite-traderAI.js`: `cautionscan` differs for `trader-smuggler`). Binding to the wrong object, or resolving the variant at module load, runs the wrong function for subroles.
+3. **Condition side effects and short-circuit order.** `_reconsiderList` walks the tree and stops at the first usable entry. Conditions have side effects: `checkScannerWithPredicate` sets `oolite_scanResultSpecific`, may call `reconsiderIn(5)` and draws a random offset; `preconfiguration`/`configuration` entries mutate parameters. Evaluating all conditions eagerly (for logging, "pure function" refactors, memoisation) changes parameters and RNG consumption.
+4. **Reconsideration timing.** `setPriorities` resets reconsideration to `Math.random()` seconds when no delay is given (`:578`); `_resetReconsideration` only ever makes the wake *earlier*, never later (`:229-239`); every priority entry carries its own `reconsider: n`. "Reconsider every n seconds" loses both the stagger and the earlier-only rule.
+5. **Handler sets per behaviour.** `applyHandlers` installs a different set of event handlers for each behaviour and deletes the old ones. An event (`shipBeingAttacked`, `shipTargetLost`, `shipAchievedDesiredRange`, `entityDestroyed`) arriving while the current behaviour registered no handler is *dropped* in Oolite. A port with one global handler set reacts in states where Oolite is deaf.
+6. **Dead and stale references.** Oolite holds weak references and tests `isValid`/`isInSpace` constantly (`_reconsider` returns early if the ship is not in space, `:195-199`). A port that stores objects in AI parameters (`oolite_scanResults`, `oolite_selectedPlanet`, home station) keeps dead ships alive, breaks hashing and cannot be saved.
+7. **Parameters as an untyped bag.** `setParameter("oolite_...")` accepts anything, including entities and functions; a straight port is an untyped map that cannot be validated, hashed or serialised.
 
 **How to avoid:**
-- Write a dedicated DAT importer with an explicit conversion contract: source axes → Three.js axes, winding flip, UV divide by declared size, V flip (test with an asymmetric texture), per-face normals, material grouping, and a `flipY` decision documented in code.
-- Keep faces as triangles (or explicitly document quad support as a divergence) and preserve the `smoothGroup` value. Provide two normal modes: per-face (default) and Oolite-style smooth-group averaging.
-- Build a test model with a known orientation: the Coriolis letterbox and the Cobra's asymmetric nose/gun. If the letterbox is on the wrong face or the ship flies tail-first, the transform is wrong. Do not validate with a symmetric asteroid.
-- Implement Oolite material conversion explicitly: diffuse (`map`), normal (`normalMap`, linear colour space), specular/gloss (`MeshPhongMaterial` or a calibrated PBR conversion), and alpha-emission via `onBeforeCompile` or a preprocessed emissive texture. Do not use `transparent: true` for the alpha emission. Oolite's `gloss`, `shininess` and `specular_color` are fixed-function Phong parameters; mapping them directly to PBR `roughness`/`metalness` usually produces plastic or dull hulls. Start with `MeshPhongMaterial` if fidelity matters more than modern PBR, or calibrate the conversion against reference screenshots.
-- Load subentities from `shipdata.plist` and attach them in local space. For the station, render hull + faceplate + tris + dock, and keep the dock's local `z` offset.
-- Pick the model by resolving `like_ship` and the player template, then assert the expected bounding box (`~130 × 35 × 81` for `oolite_cobra3.dat`; the legacy `cobra3_redux.dat` is `130 × 30 × 65`, and the Coriolis hull is `1000 × 1000 × ~996`). A bbox assertion catches the wrong variant immediately.
-- Set `side: THREE.FrontSide` only after verifying winding; use `DoubleSide` selectively for the dock tunnel if its interior faces are single-sided.
+- Model AI state as an explicit typed record per ship: `{ treeId, behaviourId, params, cache, ltCache, wakeTick, handlers }`, with every entity reference an `EntityId | null` resolved through `WorldView` at use time (an `undefined` result is a dead target, handled as Oolite handles `!isValid`). No closures, object references or functions in state. Priority trees are immutable typed literals (as already decided); state stores the tree id.
+- Port `_reconsiderList` once as a generic interpreter with the *exact* short-circuit semantics. Keep every condition/configuration/behaviour a separate function with the same name as the original so a reviewer can grep one against the other. Do not "clean up" conditions into a different shape in this milestone.
+- Implement `__cache`/`__ltcache` as explicit objects cleared at the same points (each reconsider; every 60 simulated seconds counted in ticks, Pitfall 3) with a test per cached key.
+- Model `applyHandlers` as a set of event names set at behaviour entry; the event dispatcher checks it.
+- **Detect drift mechanically (in P-B, before any role):**
+  1. *Coverage manifest.* A script lists every `PriorityAIController.prototype.*` and `this.*` name from the JS and checks the TS port has a same-named entry or an explicit `notPorted: <reason>` row (thargoid, mission, contract, OXP hooks). CI fails on an unclassified name.
+  2. *Priority-tree structural diff.* A dev-only script extracts the ordered `condition`/`behaviour`/`reconsider` identifiers from each role AI's `setPriorities` literal and compares them with the TS literal, catching omitted branches.
+  3. *Differential trace harness (dev/test only, never shipped).* Load the original `oolite-priorityai.js` plus one role AI in Node `vm` with a small mocked host (`ship`, `system`, `clock`, `Timer`, `Vector3D`, `log`, `worldScripts`, and `Math.random` replaced by a scripted sequence); drive it and the TS port with the same scripted world fixtures and compare the *sequence of chosen behaviours and parameter writes*. The originals are plain ES5-style code, so the mock surface is the cost to budget. It is the only check that proves the port and it is cheaper than finding drift in play.
+  4. *Scenario goldens.* For each role, 5-10 hand-built fixtures ("trader, hostile in scanner, no friendly station" -> flee-combat behaviour) whose expected values come from the harness, committed as data.
+- Record the pinned Oolite commit and the original line range in each ported file's header.
 
 **Warning signs:**
-- The ship is invisible from outside but visible from inside, or vice versa.
-- The Cobra flies tail-first, or the station's letterbox is on the back.
-- The Coriolis texture looks like a solid colour or a 1-pixel sample.
-- The hull looks smooth and rounded instead of faceted.
-- The station glows uniformly, or the letterbox is a black hole.
-- The model's bounding box is not within a few percent of the expected Oolite dimensions.
-- `smooth` is absent from the loader's data model.
+- A role "mostly works" but never exercises half its tree.
+- Any `any`, `unknown` bag, `Map<string, unknown>` or entity object inside AI state.
+- Behaviour changes when conditions are reordered "for readability".
+- A handler present in a state where the original removed it.
 
-**Phase to address:**
-Phase 2 (Data Pipeline & Fidelity) for the importer, Phase 4 (World Rendering & Scale) for axis/material validation. Do not defer the orientation test to Phase 5; docking depends on the dock being on +Z.
+**Phase to address:** P-B AI core (framework, manifest, harness); P-C re-uses the harness per role.
 
 ---
 
-### Pitfall 6: Rendering an Oolite-sized system with one float32 camera and one depth range
+### Pitfall 6: The native `BEHAVIOUR_*` steering is the real fidelity risk
 
 **What goes wrong:**
-The station jitters or z-fights when the camera moves, the planet flickers through the station, the docking slot shimmers, and distant objects pop. On a 4K/Retina display the problem is worse. The team "fixes" it with `logarithmicDepthBuffer`, which helps depth but not vertex jitter, or with a larger near plane, which clips the cockpit. The result is a port that looks unstable at exactly the moment the player is trying to line up a docking slot.
+The AI chooses the right behaviour and the ship still does not look or fight like Oolite: dogfights orbit instead of circling, ships overshoot stations, escorts never form up, fleeing traders wobble, collision avoidance jitters. AILib decisions are a thin layer over about 30 native behaviours in `ShipEntity.m` (from `behaviour_stop_still` at line 3700 onward, dispatched at 2490-2624) plus their helpers (`trackDestination`, `trackPrimaryTarget`, `applySticks`, `applyAttitudeChanges`, `avoidCollision`, `hasProximityAlertIgnoringTarget`).
 
 **Why it happens:**
-Oolite's system is large in game units: planet `collision_radius` is `radius_km * 10` (e.g. 46,100 units), planet distance is ~500,000 units, sun distance can exceed 1,300,000 units, and the scanner range is 25,600 units. Oolite uses `HPVector` (double precision) for positions precisely because of this. WebGL/Three.js vertex data and matrices reach the GPU as float32, which has ~7 significant decimal digits: at 1,000,000 units the spacing is ~0.06 units; at 10,000,000 it is ~1 unit. A single camera with `near = 1`, `far = 2,000,000` gives a depth ratio of 2,000,000:1, far beyond a 24-bit depth buffer's ability to separate the station hull, faceplate, and dock subentities at ~500 units.
-
-Three.js does multiply `modelViewMatrix` on the CPU in JS float64, so rigid objects can survive better than raw WebGL; but the GPU still sees float32 matrix entries, and any custom shader that computes absolute world positions, any `InstancedMesh` with large translations, and any world-space effect will lose precision. Depth precision is independent and will still z-fight.
+- The behaviours are emergent: they match only when the *flight model underneath* matches. NPC `max_flight_pitch/roll`, `thrust` (`SHIP_THRUST_FACTOR 5.0`), speed approach and stick smoothing must be Oolite's ship physics, not the player's Wegolite flight model from Phase 3 (a scalar-speed Aristotelian model with its own constants).
+- Numeric details are load-bearing: in `trackDestination` (`ShipEntity.m` 9450+) `int factor = sqrt(fabs(d_right)/fabs(min_d))` truncates to an int and caps at 8; `MAX_COS 0.995`; `precision` 0.9025 vs 0.25 when docking; the `stick_pitch = 0.01` "turn anyway" fallback; the `frustration` counters that trigger `noteFrustration`; the `COMBAT_*_FACTOR` ranges; `COMBAT_JINK_OFFSET 500`. Wrong rounding or a missing fallback shifts behaviour.
+- **Variable vs fixed `delta_t`.** Oolite computes with the real frame time (typically 1/30-1/60 s); formulas divide by it, for example the overshoot limiter `fabs(d_right) / delta_t`. At 120 Hz the thresholds are reached at different angles, so steering critically damped at 1/60 s can ring at 1/120 s. The docking auto-centre already needed a recorded divergence for the same reason ("apply once per fixed tick").
+- Oolite stores orientation and velocity as `GLfloat` and position as a double `HPVector`; thresholds like `max_cos >= 0.99999` are float-tuned.
+- Behaviours read state not in the first design: `dockingInstructions`, `docking_match_rotation`, `pitching_over`, `success_factor`, `frustration`, jink, `weaponTemperature`, `accuracy`, group and escort leader positions.
 
 **How to avoid:**
-- Keep simulation positions in JS `number` (float64) and define a **camera-relative rendering** boundary: subtract the camera origin in double precision before building render transforms; keep the camera at the origin for rendering. This is the floating-origin pattern.
-- Do not put absolute system coordinates into `InstancedMesh` instance matrices or custom shader uniforms. If you need instancing, store camera-relative offsets.
-- Use a **two-pass depth strategy**: a local pass for the ship/station (near ~0.5, far ~20,000) and a distant pass for planet/sun/skybox (far ~2,000,000), with depth cleared between passes or a logarithmic/reversed depth buffer. If using `logarithmicDepthBuffer`, test it with all materials; it can disable early-Z and interact badly with some shaders.
-- Prefer `reversedDepthBuffer` where `EXT_clip_control` is available; Three.js exposes it, but it is not universal. Always have a fallback.
-- Give coplanar station layers (`hull`, `faceplate`, `tris`, `dock`) explicit `polygonOffset` or render order; the dock sits only 0.2561 units outside the hull, which is below comfortable depth precision at 500 units.
-- Test at the real scale: put the camera at the station, the planet at 500,000, and the sun at 1,300,000, then move and rotate. Add a debug overlay for camera position, depth range, and float32 ULP. Test at 1080p and 4K/Retina.
-- Do not "fix" the scale by making the planet real-sized. Oolite's 1:100 planet compression is intentional; changing it breaks the visual and travel-time design.
-- Do not give the planet a generic Earth texture or a flat colour. Oolite generates its surface from `planetinfo.plist` parameters (`land_color`, `sea_color`, `cloud_color`, `polar_color`, `land_fraction`, etc.) plus noise. Either port that generator or bake per-system textures from those parameters; a generic blue marble is an obvious "not Oolite" signal even when the flight model is right.
+- Port each behaviour as its own function with the Oolite line range in a header, in dependency order: stop/idle/tumble -> track_target -> fly_to_destination / fly_range_from_destination -> intercept -> attack_target (+ break_off, slow_dogfight, fly_to/from_target) -> evasive/flee -> avoid_collision -> formation -> broadside/sniper -> navpoints/land/tractored. Ship a behaviour only with its tests.
+- Keep all per-ship steering state (`stick_pitch/roll`, `desired_speed`, `desired_range`, `frustration`, `pitching_over`, flags) in one typed record that is serialised and hashed.
+- Take per-ship constants from `shipdata.plist` through the content pipeline; never tune by eye.
+- Oracle tests: implement the Oolite formula for `trackDestination` as a standalone reference over a grid of relative positions and compare stick outputs with the port at 1/60 s and 1/120 s. For each `delta_t` site decide whether to keep Oolite's form (accepting different oscillation) or adapt it, and record the decision as for the auto-centre.
+- Write behavioural acceptance tests, not "looks": "a pirate 4 km away reaches firing range within X s and fires", "a trader at cruise speed docks at Lave without collision", "an escort holds formation within Y m for 60 s", over 20 seeds, with bounds taken from Oolite where possible.
+- Budget this honestly: it is the largest single risk of the milestone and should not share a phase with the framework.
 
 **Warning signs:**
-- The station edge crawls or sparkles when the camera moves even slightly.
-- The planet appears in front of the station at some angles.
-- The docking slot has a moiré/zipper pattern.
-- Objects snap in a grid pattern as you fly away from the origin.
-- The problem disappears when you move the world so the station is at (0,0,0), which confirms an origin-precision issue.
-- A custom shader uses `modelMatrix`/`worldPosition` and looks fine near the origin but breaks at 500,000 units.
+- Fights end instantly or never; NPCs spiral toward a target indefinitely.
+- "Looks wrong" feedback with no test that can say why.
+- Constants in AI files that are in neither `shipdata.plist` nor an Oolite header (invented tuning).
 
-**Phase to address:**
-Phase 4 (World Rendering & Scale), with the coordinate contract established in Phase 1 and exercised in Phase 5 (Docking) and Phase 7 (Hyperspace).
+**Phase to address:** P-B AI core (own phase, or first half of it); P-D re-checks combat steering with weapons.
 
 ---
 
-### Pitfall 7: Implementing "realistic" Newtonian flight instead of Oolite's kinematic flight-assist model
+### Pitfall 7: Synchronous cross-entity events and re-entrancy
 
 **What goes wrong:**
-The ship drifts sideways when the player turns, keeps translating after the nose has rotated, and feels like an asteroid with a thruster. Or the opposite: the ship snaps to maximum turn rate instantly, stops instantly when the key is released, and feels like a first-person shooter. Either way, Oolite players say "this doesn't fly like Oolite" within ten seconds, which is the single fastest way to lose the audience.
+Damage to ship A triggers messages to its group, to police, to its AI and to the player's legal status in the middle of the tick, mutating entities that have or have not been updated yet this tick. Results depend on update order and can recurse (A hits B, B's handler hits A).
 
 **Why it happens:**
-Oolite is explicitly non-Newtonian: the wiki describes it as an "aeroplane in space" with a flight computer masking the underlying physics; real Newtonian behaviour appears mainly in collisions and debris. The implementation is a kinematic model, not a force model:
-- `flightSpeed` is a scalar. Thrust changes it at `SHIP_THRUST_FACTOR (5.0) * thrust` units/s². The Cobra's `thrust = 32` therefore gives 160 units/s² and takes ~2.2 s to reach 350 units/s.
-- Position advances along the ship's **+Z** forward vector by `flightSpeed * dt` (`moveForward:`). There is no persistent lateral velocity from turning; residual `velocity` exists mainly for collisions and special cases.
-- Pitch/roll are **angular rates** in radians/second. Keyboard input ramps the rate at `2 * max_flight_*` per second, so full roll takes ~0.5 s; when the key is released, the rate damps at 1.0 rad/s². `Ctrl` multiplies the input by 0.5 for precision.
-- Orientation is composed as roll about local Z, then pitch about local X (and yaw about local Y in modern Oolite). The order matters; applying pitch then roll feels different at extreme attitudes.
-- Oolite clamps a game tick to 0.25 s to survive pauses. A browser tab can be throttled for minutes; without a clamp, the ship tunnels through the station on return.
-
-A developer who "knows physics" writes `velocity += forward * thrust * dt; position += velocity * dt`, which is the intuitive model and the wrong one. A developer who "knows arcade games" writes `angularVelocity = input * maxRate`, which is also wrong because Oolite has a ramp and damping.
+Oolite delivers these synchronously: `takeEnergyDamage` calls `broadcastHitByLaserFrom` and `respondToAttackFrom`, sets `foundTarget`/`primaryAggressor` on group members, with `randf() < 0.5` for pirate groups (`ShipEntity.m` 11418-11520), and `doScriptEvent:andReactToAIMessage:` runs script handlers immediately.
 
 **How to avoid:**
-- Implement the Oolite model explicitly and name it: `flightSpeed` scalar, `thrustAcceleration = 5.0 * thrust`, `position += forward * flightSpeed * dt`, `angularRate` with `2 * maxRate` ramp and `1.0 rad/s²` damping.
-- Keep a separate `collisionVelocity` vector for collision impulses and special effects; do not let it contaminate normal flight.
-- Use a fixed simulation timestep (e.g. 60 Hz) with an accumulator, and interpolate render transforms. Clamp the frame delta to 0.1–0.25 s. Never integrate with raw `requestAnimationFrame` deltas.
-- Apply roll and pitch in the same order as Oolite; use local-axis quaternion rotations, not world-axis Euler angles. Normalise the quaternion each step.
-- Expose the constants from data, not code: `max_flight_speed`, `max_flight_pitch`, `max_flight_roll`, `thrust` come from `shipdata.plist`. Add a debug HUD showing `flightSpeed` (units/s and LS), pitch/roll rate (rad/s and deg/s), and acceleration.
-- Measure input-to-photon latency. Keep the render loop lean, avoid DOM layout/text updates in the same frame as input, and prefer pointer-lock relative movement with a self-centring virtual stick. A 2-frame delay is fine for a trade game; a 150 ms delay makes docking feel unresponsive even with the right physics.
-- Add a "flight feel" test harness: scripted key sequences (full roll 1 s, release; full pitch 0.5 s; accelerate 5 s) with expected rate/time curves. Compare side-by-side with Oolite recordings.
-- Treat the "no yaw" decision as a deliberate divergence from **modern Oolite** (yaw was added in v1.66), not as "faithful to Oolite". Either add an optional yaw binding later or state the choice explicitly in the README and options screen.
+- Decide the pattern in P-A and encode it in the `WorldView`/`ShipControl` types: during a tick, updates *emit* typed events into a per-tick queue; the queue is delivered at one fixed point (after movement and combat resolution, ordered by `(sourceId, sequence)`); events caused by handlers go to the *next* tick's queue. The cost is one tick (8.3 ms) of latency; record it as a deliberate deviation.
+- Handlers may mutate only the receiving entity and enqueue events; they never call into other entities' state.
+- Write the per-tick order down and pin it with an ordering test: commands -> player step -> AI thinks (by id) -> behaviours (by id) -> movement -> broadphase and collisions -> weapon resolution -> deliver events -> sweep dead -> sanitise -> hash.
 
 **Warning signs:**
-- Turning the ship changes the direction of travel only gradually (drift), or not at all.
-- The ship reaches max turn rate in one frame, or keeps spinning after key release.
-- At 144 Hz the ship moves ~2.4× faster than at 60 Hz; at 30 Hz it turns slower.
-- `Ctrl`/precision does nothing, or the mouse snaps the nose to the cursor.
-- The Cobra's top speed reads 350 LS or takes 10+ seconds to reach.
-- A player says "it feels like Asteroids, not Elite".
+- A handler imports another entity's module and calls it.
+- Results change when entity creation order changes.
+- Stack depth or infinite loops in a dogfight with groups.
 
-**Phase to address:**
-Phase 3 (Flight & Input), with the constants and units contract from Phase 2. Do not tune feel in Phase 5; docking depends on predictable low-speed control.
+**Phase to address:** P-A Foundation (queue and tick order); P-D Combat uses it.
 
 ---
 
-### Pitfall 8: Making docking either a trigger sphere or a strict mesh collision
+### Pitfall 8: Refactoring `game-session.ts` (3,365 lines) while 121 e2e tests read its probe
 
 **What goes wrong:**
-Two opposite failures:
-- **Too easy:** a sphere/box trigger in front of the station docks the ship from any angle, at any speed, without matching the station's roll. The player never learns the skill, and the docking computer is pointless.
-- **Too hard:** the port is treated as a solid mesh with exact collision. The Cobra is 130 m wide and ~35 m high; the Coriolis slot is 192 × 64 m (long axis 192 m), and the station is rotating at 0.08 rad/s. Tiny float/geometry errors, a 1 m/s misalignment, or a frame-rate spike cause a scrape or death. Players bounce off endlessly and refund the game.
-
-Oolite is neither. It uses an invisible docking corridor with deliberate forgiveness: collision is relaxed inside the corridor, the ship is auto-centred when its nose is inside, contact scrapes and damages, crossing opposite edges is fatal, and docking triggers only when ~90% of the ship's bounding box is past the port plane. This is why manual docking is famously hard but learnable.
+The split breaks e2e tests for reasons unrelated to behaviour, or silently changes behaviour, because the probe, the `?test=1` hook, the redraw gate and the frame order are all entangled in one closure. Concrete traps in this file:
+- `probe.test = createTestHook(activeState, ...)` captures the `FlightState` *object*. The code already re-runs `bindTestHook` after every Load because "a hook never mutates a replaced state object (G-8)". Any new owner of `state` (a world object holding the player) that reassigns it reopens that bug.
+- `updateProbe()` (about lines 2413-2550) runs every frame and is read by 25 specs (`probe.frames`, `probe.renders`, `probe.position`, `probe.hud.*`, `probe.station`, `probe.save`). `probe.renders` stopped advancing while idle after the redraw-gate change and tests were burned once by exactly that kind of semantic shift.
+- Frame order is load-bearing: the chart and save-screen branches drain commands and return before the fixed step; autosave is taken "before `beginLaunch`" and "on the docked event"; pause resets the accumulator; commands apply on the first step of a frame only.
+- `handleEvent` is a 100-line switch mixing UI, autosave and sim concerns, and audio will be added to it.
 
 **Why it happens:**
-Developers see the visible letterbox model and assume docking is mesh collision. Or they see "docking trigger" in a wiki article and implement a simple distance check. The actual logic is in `DockEntity.m`: port dimensions come from the dock subentity's **bounding box**, not the visible slit. For `oolite_coriolis_dock.dat` the bbox is roughly 103 × 242 × 250, while the visible opening is about 192 × 64; the invisible corridor is therefore larger than the hole you see. Oolite then applies a 50% safety envelope (`safety = 1.5`), x/y auto-centring proportional to penetration, scrape damage at `5 * dt * flightSpeed`, and a `0.90 * max.z + 0.10 * min.z < 0` threshold to pull the ship in. The station's dock is a subentity at `z = 500.2561`, not at the station centre, and the station spins about its local **Z** axis (`station_roll = 0.08` rad/s for the Coriolis; default 0.4). If you rotate the station about Y instead, the slot sweeps around and docking becomes impossible.
+The file is a closure over about 100 local functions and many `let`s (`state`, `layout`, `paused`, `chartOpen`, `profile`); extraction changes capture semantics.
 
 **How to avoid:**
-- Model the dock as a **corridor**, not a point: a local +Z axis, a cross-section derived from the dock subentity's bounding box (not the visible slit), a depth of 250 m, and a capture plane at the back. Put the trigger at the dock subentity's local position (`z ≈ 500.2561`), not the station origin. If you want the visible slit to be the collision box, you are making docking harder than Oolite.
-- Implement Oolite's forgiveness: 1.5× safety envelope, auto-centre x/y when the nose is inside, scrape damage scaled by speed, fatal only when the ship crosses opposite edges. Capture when ~90% of the ship is past the plane.
-- Spin the station about local **Z** so the slot rotates in place. Match the player's roll to the station's roll; show an alignment/roll indicator, not just a crosshair.
-- Tune approach speed: Oolite's docking tutorial flags "too fast", and scrape damage scales with speed; a practical target is <0.1 LS (100 units/s), roughly one-third throttle. Add a "too fast" warning and a scrape/damage cue.
-- Make the docking computer fly the same corridor with the same constraints, not teleport. Oolite's standard docking computer engages an autopilot; fast docking (Shift-C) is an explicit convenience that costs 20 minutes of ship clock and can incur a fine. Do not make fast docking free.
-- Docking clearance is **off by default** in Oolite (`stations_require_docking_clearance = no` in `planetinfo.plist`). If you implement it, make it optional and faithful: target station, request, timeout, fine; do not make v1 players request clearance before they can dock.
-- Add a docking test harness with scripted approaches: perfect, 10° off, 1 m/s too fast, rolled 90° out of alignment with the slot's long axis, station at 0.08 rad/s. Assert dock/scrape/death outcomes. Validate the required roll against the actual dock model's local axes, not a guess from a screenshot; `DockEntity` has a `portUpVectorForShipsBoundingBox:` twist rule for ports whose long axis differs from the ship's.
+- **Split first, add features second, in separate commits.** The refactor must be behaviour-preserving, proven by (a) all goldens unchanged, (b) `docker compose run --rm verify-full` green at each step, and (c) a new **probe-shape snapshot test**: record the keys and value types of `window.__wegolite` at menu, docked, in-flight, paused, chart-open and after-save states as a committed fixture and require the refactor not to change it. (`tests/guards/probe-lock.ts` serialises lint probes; it is not a probe-shape check.)
+- Extract along seams the code already has: the `handleEvent` router, the autosave policy, the station screen controller, the pause/context wiring (partly out already: `context-recovery.ts`, `redraw-gate.ts`, `launch-sequence.ts`), and the frame orchestration *last*. Give each extracted module explicit dependencies and unit-test it with fakes, as `tests/app/*` does.
+- Keep `window.__wegolite` publication in one module with the same field names. New world data goes into *new* probe sub-objects (counts plus an on-demand query function), not per-frame rebuilt arrays (Pitfall 12; review item P5 already flagged `updateProbe` cost).
+- One object owns "the live simulation state" and its *fields* are mutated in place, never replaced; the test hook binds to that instance.
+- Keep `?test=1` semantics (taint, autosave skip, `probe.save.skipReason`) intact.
+- Do not bundle unrelated behaviour changes (chart pauses flight, torus refusal message) into the refactor commits; fold in only the P7 per-step `Set` allocation fix the review suggested "when the file is split".
 
 **Warning signs:**
-- The player can dock from behind, upside down, or at full speed.
-- The player cannot dock even when visually centred; the slot looks like a wall.
-- The station rotates but the slot does not, or the slot moves around the station.
-- The docking computer docks instantly from 20 km away.
-- No scrape/damage feedback; docking is binary.
-- The station's dock trigger is at (0,0,0) while the visible slot is at z=500.
+- An e2e failure that disappears with a longer timeout.
+- A diff touching probe field names in a "pure refactor".
+- Two sources of truth for `paused`, `mode` or `state`.
 
-**Phase to address:**
-Phase 5 (Docking & Launch), with the station geometry and +Z axis validated in Phase 4. The docking computer is also the first `AIController` test for the v2 combat architecture.
+**Phase to address:** P-A Foundation (first plan, before the world model lands).
 
 ---
 
-### Pitfall 9: Building a player-only game and calling the combat-shaped hole "v2"
+### Pitfall 9: Putting the world into `hashFlight` invalidates every existing golden at once
 
 **What goes wrong:**
-v1 ships with a `Player` class that owns the camera, input, physics, collision, market and UI. Adding combat in v2 requires an `Enemy` that can move, shoot, take damage, target, and be targeted; none of that exists. The team either rewrites the core (months) or bolts on a parallel enemy system that duplicates physics and collision (permanent divergence). The same hole appears earlier for the docking computer, the navigation buoy, and the station: anything that is not the player is a special case.
+Adding world state to `serializeFlight`/`hashFlight` changes the canonical text, so `flight-cadence`, `dock-cadence`, `replay-integrity`, `hyperspace` and the kinematic golden fail together; the "fix" is regenerating them, which destroys their value as regression evidence for player-only behaviour.
 
 **Why it happens:**
-"Just the core loop" feels like it needs only one ship. The shortest path is a monolithic `Player` with `if (isPlayer)` branches. Combat is declared out of scope, so entity/AI/weapon interfaces are deferred. But the *architecture* still has to be shaped for them, because combat is not a separate screen; it is the same entity/physics/collision loop with more actors. Oolite itself is built around `Entity`/`ShipEntity`/`StationEntity`/`PlayerEntity`, and its docking computer is an AI flying the same ship. A player-only port cannot reuse any of that.
+`serializeFlight` is one fixed key list with no slot for a variable-size section.
 
 **How to avoid:**
-- Define a thin entity model in Phase 1/2 even if it has one instance: `Entity` (position float64, orientation quaternion, velocity, collision radius, mass, energy, status, subentities), `Ship` (flightSpeed, max rates, thrust, weapons/mounts, target, controller), `Station` (docks, market, rotation), `PlayerShip` (input + save state). Keep it small; do not build a full ECS.
-- Separate **simulation** from **rendering** from **input**. The simulation must be runnable headlessly in Vitest: spawn a ship, step 10 seconds, assert position/orientation. If it needs a DOM/WebGL to run, the boundary is wrong.
-- Make the controller an interface: `ShipController` with `PlayerController`, `AIController`, `DockingController`. Implement the docking computer as a `DockingController` flying the same `Ship`; this proves the interface before combat exists.
-- Parse the combat-shaped data now even if unused: `weapon_position_forward`, `weapon_facings`, `max_missiles`, `missiles`, `max_energy`, `energy_recharge_rate`, `has_ecm`, `has_scoop`. It costs nothing and avoids a data-model migration.
-- Implement sphere-sphere broadphase and a narrowphase hook from day one. v1 only needs station collision and docking scrape, but the same `collide(a, b)` path must accept two ships later.
-- Define failure states now: station collision damage, hull/energy depletion, fuel exhaustion/stranding, save corruption. A v1 with no combat still needs a death/insurance/restart path, or ramming the station is a no-op and the world feels fake.
-- Keep a `v2-backlog.md` and a hard v1 scope lock. Every "just one more" feature (shipyard, missions, legal status, passengers, mining, fuel scoops, escape pod, galactic hyperdrive, sound, key remapping, gamepad, mobile) goes there with a reason.
+- Compose, do not extend: `hashWorld = fnv1a32(serializeFlight(player) + "\n" + serializeWorld(entities))`, with `serializeWorld(empty) = ""` defined so that an empty world hashes byte-for-byte like today's `hashFlight`. Existing goldens then stay untouched and prove the refactor.
+- Populated-world goldens are additive files under `tests/golden/world/`.
+- `serializeWorld` follows the existing rules: fixed key order, `canon` for every number, never `JSON.stringify`, explicit ascending-id order (Pitfall 1), RNG states and AI state included (Pitfalls 2 and 5), integers for tick counters.
+- Hash per entity and combine, so a failing test can name the first diverging entity id.
 
 **Warning signs:**
-- One `Game`/`Player` file exceeds ~1,000 lines and contains rendering, input, physics, economy and UI.
-- `if (isPlayer)` appears in collision, market or AI code.
-- Adding a navigation buoy or asteroid requires touching five files.
-- The docking computer is a `teleportToStation()` special case.
-- Save/load serialises Three.js objects or the whole `Player` instance.
-- The v1 backlog grows every week with "small" features.
+- A PR that regenerates existing golden files "to add world state".
+- A golden diff touching unrelated tests.
 
-**Phase to address:**
-Phase 1 (Foundation & Compliance) for the module boundaries, Phase 3 (Flight & Input) for the controller interface, Phase 5 (Docking) for the first non-player controller, Phase 7 for the failure states.
+**Phase to address:** P-A Foundation.
 
 ---
 
-### Pitfall 10: Saving only credits and cargo, then regenerating the market on load
+### Pitfall 10: Save-format growth, migration and the scope of "serialise the world"
 
 **What goes wrong:**
-The player buys low, saves, reloads, and the market has re-rolled to a better price. Or the player sells, saves, reloads, and the stock is restored. Or the save stores prices but not the RNG seed, so every reload changes quantities and the "same" system feels different. Worse, the save is a JSON blob of the live `Player` object with circular references; a schema change breaks every existing save.
+(a) Serialising live NPC state into the single IndexedDB slot overflows `MAX_SAVE_CHARS = 65,536`. The constant's own comment derives a worst case of about 38.9 KB for the v2 profile; 30-60 ships with AI state, parameters, caches and RNG states at 400-800 JSON bytes each add roughly 12-48 KB, plus pods and wreckage. The bound is checked before `JSON.parse` and the semantic validator is shared by reader and writer, so an oversized world is rejected and the writer refuses to replace the last good blob: the player silently stops saving. (b) A v3 save opened by a v2 build is read as corrupt (strict zod object); the cost is known and accepted for v1/v2 but a world section enlarges it. (c) Restoring mid-fight state exposes every non-serialisable AI detail (Pitfall 5) as a save bug. (d) Combat adds profile fields (legal status, bounty, kills, laser mounts, shield and energy equipment, insurance, escape pod) that do not fit the uniqueness-keyed `equipment` list (four laser mounts; the validator asserts allow-lists and caps).
 
 **Why it happens:**
-The visible state is credits, cargo, fuel and location. Market state looks derivable from the system seed, so it is tempting to regenerate on load. But Oolite saves `localMarket` and `station_markets` explicitly, and its prices use a seeded RNG (`randf()` from the Ranrot generator), not `Math.random()`. If you regenerate with the browser's RNG, prices are not reproducible; if you regenerate with a different call order, even a seeded RNG gives different values. Regenerating also enables the save/reload arbitrage exploit.
+PROJECT.md's active requirement says "serialised into saves and determinism hashes". The current save is a *leg anchor* (docked, or witchpoint arrival), written on launch, docking, purchase and arrival; at those moments the world is empty (docked) or freshly populated (arrival). Oolite itself saves no NPC state; it re-populates on load.
 
 **How to avoid:**
-- Save a versioned, plain DTO, never live objects: `{ schemaVersion, commander, creditsDecicredits, fuelTenths, galaxy, systemId, dockedStationId, shipKey, equipment, cargo, market: { prices, quantities }, rngState, gameTime }`.
-- Persist the market prices and quantities for stations the player has visited/docked at. Persist the RNG state (or a deterministic seed plus call-order discipline) for future generation.
-- Use a seedable PRNG ported from Oolite's Ranrot if exact reproducibility matters; otherwise use a documented seeded PRNG and accept divergence. Do not mix `Math.random()` into economy generation.
-- Store saves in IndexedDB (quota-managed, structured clone, larger than 5 MiB), with a schema version and migration function. Offer JSON export/import as a file so a browser cache clear does not destroy a commander.
-- Handle `QuotaExceededError`, private-mode storage failures, and eviction. Show a clear "your progress is stored in this browser; export a backup" message.
-- Write load/save round-trip tests: save at a station, reload, assert credits/cargo/fuel/market/prices/quantities/location are identical; save mid-flight, reload, assert position/orientation/velocity.
+- Interpret "world serialisation into saves" narrowly and record it in `PROJECT.md`: **the save carries the world seed, the arrival counter and `nextEntityId` (plus the profile), not the entities.** Re-populating from the seed at the anchor reproduces the same arrival world (Pitfall 2's forked populator stream makes this exact). Full-entity serialisation is needed only for the *hash* and for tests (round-trip, replay), where the size cap does not apply.
+- Keep autosave triggers as they are; do not add "save in the middle of a fight". If a mid-leg save is ever required, make it a separate decision with a bounded entity count, a rewritten `MAX_SAVE_CHARS` derivation and a test that fills the world to its cap and asserts the encoded size.
+- Profile additions ship as **save v3 with an ordered migration** (v2 -> v3 defaults: clean legal status, zero bounty, standard shield state, laser mounts derived from existing equipment), using the strict-schema and shared-validator pattern (`validateSaveSemantics`, allow-lists, caps on every new field) and new golden blobs next to `tests/golden/save/v2-from-v1-*.json`. Record the forward-compatibility cost in Key Decisions as the v1 -> v2 step did.
+- Dying in space is a profile change at a save anchor: write the post-death profile (insurance payout, equipment lost, legal status) atomically in one snapshot, as `snapshotForSave` does for credits and cargo, or a reload re-offers the same death.
+- Any new test-hook mutation must taint the profile so a granted weapon never becomes durable (existing rule).
 
 **Warning signs:**
-- Reloading changes prices or stock.
-- Buying and selling at the same station can be exploited by save/reload.
-- The save file contains Three.js objects, `Vector3`, `Quaternion`, or circular references.
-- Changing a field name breaks old saves with no migration.
-- `localStorage.setItem` is the only persistence call; no quota/error handling.
-- Safari private mode silently fails to save.
+- `isEncodedSaveValid` fails for a normal mid-game profile after a combat change.
+- The save probe shows an `invalid-save` or unreadable status after a fight.
+- A save blob above about 40 KB.
 
-**Phase to address:**
-Phase 6 (Economy, Screens & Save), with the DTO/schema defined in Phase 1 and the RNG decision in Phase 2.
+**Phase to address:** P-A Foundation (decision, ids and seed fields); P-E Death and law (profile v3 and migration).
 
 ---
 
-### Pitfall 11: Assuming the browser behaves like a desktop game runtime
+### Pitfall 11: Test-suite runtime explosion under SwiftShader (the sim runs at about 0.1x real time in the browser)
 
 **What goes wrong:**
-Sound is silent because the `AudioContext` was created before a user gesture. The ship keeps turning after the player alt-tabs because `keyup` was lost. The player returns to a dead ship because the simulation ran for five minutes in a throttled tab. The canvas goes black after a GPU switch because `webglcontextlost` was unhandled. Safari renders at half the frame rate or fails on a texture format. The game works on the developer's M1 Chrome and is broken for a meaningful share of the audience.
+Every e2e wait on *simulated* time becomes minutes. This is already measured: a loaded in-flight frame is 369 ms (2.71 fps) on SwiftShader, and `MAX_STEPS_PER_FRAME = 5` allows at most 5 x 1/120 s = 41.7 ms of simulation per rendered frame, so the game advances about 13.5 steps (0.11 s) per wall second. The message-expiry spec needed a 300 s ceiling and still took 152-160 s. NPC traffic and combat make frames costlier (more draw calls, more fill) and push that ratio lower; every spec that waits for a pirate to arrive, fire, die, be scooped or a pod to expire multiplies. The suite is already 121 browser tests in 25 specs plus about 1,366 unit tests (`npm test` about 66 s), and CI runs `verify-full`.
 
 **Why it happens:**
-Browser platform rules are not game-engine rules:
-- **Audio autoplay:** Web Audio and audible media are blocked until a user gesture/transient activation; an `AudioContext` created at load starts suspended. Creating it is not enough.
-- **Pointer lock/fullscreen:** both require a user gesture; pointer lock exits on Esc; the browser may not deliver `keyup` after focus loss. If you don't clear input state on `blur`/`visibilitychange`/`pointerlockchange`, the ship spins forever.
-- **Tab throttling:** `requestAnimationFrame` stops or is heavily throttled in background tabs; timers are clamped; `performance.now()` jumps. A raw delta can be minutes.
-- **Context loss:** WebGL contexts can be lost on GPU reset, driver update, tab discard, or macOS GPU switching. Without `webglcontextlost`/`webglcontextrestored` handlers, the game is a black canvas.
-- **Safari/WebKit:** WebGL2 is supported in Safari 15+ (2021); older Safari is WebGL1 only. Compression extensions, float texture support, canvas size/DPR limits, fullscreen behaviour and performance differ from Chrome/Firefox. Safari private mode can make storage throw. Lockdown Mode can disable WebGL.
-- **Static hosting:** `.dat`, `.plist`, `.ktx2` and `.wasm` need correct MIME types; a mis-served `.wasm` breaks streaming; a mis-served `.plist` may download instead of fetch.
+The natural style for AI features is "set up, wait, observe", and the existing `?test=1` hook can move, rotate and set speed but cannot advance the sim.
 
 **How to avoid:**
-- Create/resume the `AudioContext` from the "Start" / "Launch" button; resume it after visibility/fullscreen/pointer-lock transitions; show a mute/volume control. Test with the tab backgrounded and restored.
-- On `blur`, `visibilitychange`, `pointerlockchange`, and `fullscreenchange`, clear all held keys/buttons and pause the simulation. On resume, require a click/keypress and show "click to resume".
-- Clamp `dt` and/or pause on `document.hidden`; use a fixed timestep with a max catch-up. Never simulate a multi-minute gap in one step.
-- Handle `webglcontextlost` (preventDefault, stop the loop, show a message) and `webglcontextrestored` (recreate renderer resources, reload textures/geometry). Test with `WEBGL_lose_context.loseContext()`.
-- Cap `devicePixelRatio` at 2 (or expose a quality setting); test at 1080p, 1440p and Retina. Do not assume `powerPreference: "high-performance"` is honoured.
-- Use cross-browser texture compression (KTX2/Basis transcoding) rather than a single GPU family's format. Test Safari, Chrome and Firefox early, not at the end.
-- Serve `.wasm` as `application/wasm`, `.ktx2` as `image/ktx2`, `.json` as `application/json`; prefer JSON intermediates over runtime plist parsing so MIME mistakes cannot break the game.
-- Add a WebGL2 capability check with a human-readable error page; don't leave a blank canvas.
+- **Prove combat, AI and traffic in Vitest, not in the browser.** The world is pure TypeScript with no DOM, so scenario tests run thousands of ticks in milliseconds. Target at least 90 % of new behavioural assertions in unit and scenario tests; browser specs prove wiring only (the HUD scanner shows a hostile, a hit changes the shield bar, the death screen appears, the audio-start counter increments).
+- Add a **test-only fast-forward** to the `?test=1` hook: `advanceTicks(n)` runs sim steps directly (bypassing the render loop), taints the profile and returns. Browser waits then count ticks, not seconds. Keep it behind the same gate as the existing hook; the fault-seam build pattern is the precedent for anything stricter.
+- Add a **test-only world preset** (`spawnShip(role, position, ...)`, `setWorld(fixture)`) and keep the populator **off by default in e2e**, so docking, hyperspace, HUD and chart specs do not suddenly share Lave with traders. The default e2e world stays empty, exactly as today. This single decision protects the 121 existing tests.
+- Set a wall-clock budget in each plan (for example at most 60 s per new browser spec, at most about 10 new browser tests in the milestone), measured under the pinned `workers: 2`. Put new browser specs in the `verify-full` chain and at most one or two in the fast `verify` subset.
+- Do not tune the shipped planet or scene to fit the test (the project rejected that in G-03-3).
+- Fix the pending Shift+C docking timeout first and keep its lesson: a probe read racing a loop frame. Never raise a timeout; wait on `probe.frames` or ticks.
 
 **Warning signs:**
-- No sound until the second click, or sound stops after a tab switch.
-- The ship is spinning when the player returns to the tab.
-- The player dies while the tab is in the background.
-- A black canvas after a GPU/driver event, with no error in the console.
-- Works in Chrome, broken in Safari; works on a desktop GPU, broken on integrated.
-- 404/MIME errors for `.dat`/`.wasm` in the network panel.
-- Input test: press a key, alt-tab, release, return; the key is still "down".
+- A new spec using `waitForFunction` with a timeout above 30 s.
+- `verify-full` wall time growing by minutes in one phase.
+- A timeout raised to make a new test pass.
 
-**Phase to address:**
-Phase 1 for the platform checklist, Phase 6 for save/audio, Phase 8 (Hardening & Community Release) for the cross-browser matrix. Do not leave Safari to the last week.
+**Phase to address:** P-A Foundation (hook, empty-world default, budget rule); every phase obeys it.
 
 ---
 
-### Pitfall 12: Shipping a technically correct port that Oolite fans dismiss on first contact
+### Pitfall 12: Performance: per-tick allocation, O(n^2) scanning, draw calls and load size
 
 **What goes wrong:**
-The flight model is close, the data is right, but the first feedback is "where's the sound?", "why can't I yaw?", "food costs 50 credits", "the station is empty", "this is a tech demo, not Oolite". The project is judged in the first 60 seconds by people who have played Oolite for years, and the things they notice are not the things the team spent time on.
+At 120 Hz with up to 5 catch-up steps, 30-60 AI ships and an entity list that also holds wreckage, pods, missiles and asteroids, cost per rendered frame grows by orders of magnitude.
 
-**Why it happens:**
-Oolite fans have strong, specific expectations:
-- **Flight feel** is the first test: pitch/roll rates, speed, inertia, and the absence of yaw (modern Oolite has yaw since v1.66, so "no yaw" is a divergence from Oolite, not a faithful copy).
-- **The Cobra and Coriolis** are iconic; a wrong silhouette, texture, or station letterbox is immediately visible.
-- **Docking** is a shared skill and a shared joke; if it is trivial or impossible, the community notices.
-- **Sound** is part of the identity: the docking music, laser sounds, station ambience. v1 defers sound, but silence reads as "unfinished".
-- **The market numbers** are memorised by traders; a wrong decicredit conversion is an instant credibility loss.
-- **OXPs** are the reason many fans still play Oolite. The project explicitly excludes them, so it must be positioned as a vanilla core-loop tribute, not an Oolite replacement.
-- **"Elite" branding** attracts the wrong legal attention and the wrong expectations.
+Known numbers: `Vec3`/`Quat` are immutable object literals created by `vec()`/`quat()`/`mul()` (`src/sim/math.ts`); every operation allocates. Steering at 50-100 vector operations per ship per tick is 60 x 100 x 120 = 720k short-lived objects per second at 60 fps (more during catch-up): minor-GC pressure and hitches. Oolite scans are O(n) per ship through a z-sorted list capped at 32 results, but proximity checks and `entitiesWithinRange` run per tick; a naive all-pairs scan is O(n^2) per tick. Rendering: the in-flight scene draws 10 calls against a gate of 50, and each multi-material NPC ship can cost 2-6 calls. Assets: cold-start transfer is 8,814,224 bytes against a gate (`FIRST_LOAD_BYTES_CEILING`) of 9,437,184, only 623 KB of headroom, while Oolite's `Resources/Music` is about 7.9 MB, `Resources/Sounds` about 412 KB, and each NPC model brings textures.
 
 **How to avoid:**
-- Put a short, visible "What this is / what this isn't" panel on the landing page: vanilla core loop, no combat/NPCs/OXPs yet, assets/data from Oolite with attribution, unofficial fan project.
-- Default to **classic Elite/Oolite keys** (arrow keys pitch/roll, A/Z speed, J jump, C docking computer, F1 view, 1–4 screens) and offer a modern WASD/mouse layout as an option. Do not make WASD-only the default.
-- Add a "flight feel" and "docking" feedback pass with actual Oolite players before polishing graphics. Record side-by-side comparisons.
-- Do not ship silence as "done". If sound is out of scope for v1, say so explicitly and plan a sound spike early (at minimum UI clicks, launch/dock, docking music) rather than "asset pipeline later".
-- Publish `docs/FIDELITY.md`: source file/line for every ported number, known divergences (yaw, sound, no NPCs, no OXPs, RNG not bit-identical), and a "last verified against Oolite commit" line. This turns "you got it wrong" into "we know, here is the evidence".
-- Add ambient life that costs little: station flashers, navigation buoy, planet, sun, starfield, dust, engine glow. An empty but visually rich system reads better than an empty black box.
-- Do not promise OXP support, multiplayer, mobile, or "full Oolite" in marketing. Under-promise and let the core loop speak.
-- Get a trademark/licence review before the first public post; a takedown or rename request in week one is unrecoverable momentum loss.
+- Hot-path entity data uses **struct-of-arrays or mutable scratch fields** (`Float64Array` pools for position, velocity and orientation; preallocated scratch vectors in steering). Keep the immutable `Vec3` API for cold paths and tests; add an in-place `math-mut.ts` rather than rewriting `math.ts`.
+- Run AI *thinks* at Oolite's cadence (every 15 ticks) and steering per tick; cache one scan per ship per think; cap results at 32 like Oolite (the cap is also a fidelity constant).
+- Broadphase: a uniform grid or one-axis sweep (like Oolite's z-list) with **deterministic pair order** `(idA, idB)`, rebuilt per tick into reused arrays. Test pair-order stability against shuffled spawn order (Pitfall 1).
+- A sim cost test in Vitest: 64 ships for 10 simulated seconds under a generous bound (use `performance.now` in the *test*, not in `src/sim`), and pool-size growth checks. It is an early-warning, not proof of 60 fps (the project already separates container evidence from the reference-desktop run for QUAL-01).
+- Render: **instance** NPC meshes by model (`InstancedMesh`), share geometry and materials across ships of one model (today's per-ship `cloneMaterials` is right for the single player mesh and wrong for traffic), cull beyond scanner range and by distance, and add a populated-scene row to `budget.spec.ts` inside the existing 50-call / 250,000-triangle gates.
+- Do not publish entity arrays through `updateProbe` every frame; expose counts and an on-demand snapshot function.
+- Assets: load NPC models, sounds and music **lazily after first flight** and only for roles present in the system; keep the cold-start gate meaningful (empty-population default). Re-encode textures with the existing `cwebp` pipeline. Update `docs/PERFORMANCE.md` rows and any ceiling *deliberately*, as a recorded decision.
+- The planet fragment shader dominates SwiftShader frame cost (about 281 of 369 ms); more ships do not change that, but more *test frames* do (Pitfall 11).
 
 **Warning signs:**
-- The first community reply is about sound, yaw, or a price number, not the thing you demoed.
-- Players ask "is this Oolite?" or "can I install OXPs?"
-- The landing page has no disclaimer and no "what this isn't".
-- The default controls are WASD + mouse only.
-- The station/system is visibly empty; no buoy, no flashers, no planet detail.
-- A fan quotes a different Cobra speed or commodity price than the build shows.
-- The project is described as "Oolite in the browser" rather than "a tribute to the 1984 game".
+- `probe.frames` falls while `probe.renders` is stable.
+- Visible 20-40 ms hitches (GC) in the QUAL-01 sampler p99.
+- `budget.spec.ts` ceilings edited in a feature commit.
 
-**Phase to address:**
-Phase 8 (Hardening & Community Release), with the controls/defaults and fidelity matrix starting in Phase 3 and Phase 6. The disclaimer and licence notices are Phase 1.
+**Phase to address:** P-A (pools, broadphase contract), P-C (instancing, lazy assets), P-H (QUAL-01 measurement with traffic).
+
+---
+
+### Pitfall 13: Audio autoplay, context resume and the hidden-tab / pause interplay
+
+**What goes wrong:**
+(a) An `AudioContext` created at module load or game start is `suspended`; the first sounds are lost and Chrome logs "The AudioContext was not allowed to start". (b) Music and engine loops keep playing while the game is paused, the tab is hidden or the WebGL context is lost, because audio is not coupled to the pause machinery. (c) With `pauseOnFocusLoss` off, the sim stops anyway because rAF stops in a hidden tab, but sounds continue. (d) Resume after pause floods queued sounds. (e) Sim events at 120 Hz (a laser every few ticks; 5-step catch-up in one frame) produce bursts and overlapping voices. (f) Headless Chromium in the test container has no audio device, so assertions on `currentTime` or audible output are impossible or flaky. (g) Eagerly loaded music (about 7.9 MB) and sounds break the first-load gate. (h) The CSP is `default-src 'self'; connect-src 'self'` with no `media-src` or `blob:` allowance.
+
+**Why it happens:**
+Audio is output-only and easy to bolt on late, but pause, focus-loss, visibility and context-recovery logic in `game-session.ts` (`pause`, `focusLost`, `resume`, `enterContextLoss`) was written without it.
+
+**How to avoid:**
+- Create the `AudioContext` lazily inside the first user gesture that already exists (New game / Continue click, or first key) and call `resume()` there; guard on `ctx.state`. Never construct at import. Chrome's autoplay policy keys on sticky user activation, so create and resume at the click and load buffers afterwards, even on the Continue path that awaits IndexedDB.
+- Make audio a **subscriber to existing state**: `pause()`, `enterContextLoss()` and `document.visibilitychange` (independent of `pauseOnFocusLoss`, because a hidden tab must be quiet regardless) call `ctx.suspend()`; `resume()` calls `ctx.resume()` only after a player action and with the same `contextLost` refusal as the sim resume. One owner function, like `clearHyperspaceAttempt`.
+- Sound is **derived from `SimEvent`s** (new typed events: laser fired, hit, explosion, scooped, missile launched, ECM...) and **never feeds back into the sim or the hash**. Coalesce per rendered frame; enforce a voice limit and a per-sound retrigger interval. Keep the mapping data-driven from the vendored `customsounds.plist`.
+- Load with `fetch` + `decodeAudioData` (allowed by `connect-src 'self'`), not `<audio src=blob:>`. Keep the CSP unchanged unless a decision records why.
+- Staged loading: UI blips and the laser/explosion/hit set after first flight begins (about 412 KB for all `Resources/Sounds`); music after the first gesture and after the first in-flight frame. The cold-start gate in `budget.spec.ts` must keep measuring "to first in-flight frame" with audio deferred; record music bytes on a separate `docs/PERFORMANCE.md` line.
+- Test through a **probe**, not the speaker: `probe.audio = { state, started, suspendedBy, voices }`, plus a fake `AudioContext` in unit tests recording `start` calls. Add one e2e checking `state` is `running` after a click and `suspended` while paused and after a stubbed `visibilitychange`. Whether headless Chromium reaches `running` in the container without an audio device or without `--autoplay-policy=no-user-gesture-required` is **unverified** (MEDIUM/LOW): confirm it in the first audio plan and keep the e2e assertion only if it is stable.
+- Provenance: the vendored sounds carry mixed licences (v1 research found CC0 and CC BY exceptions); add `ASSETS.md` and `NOTICE` rows per sound and for music before shipping.
+- Add a volume/mute setting as an additive settings field (default on), mindful of the recorded `parseSettings` downgrade caveat.
+
+**Warning signs:**
+- A console warning that an audio context was not allowed to start.
+- Sound continuing in a backgrounded tab.
+- Sound code importing `src/sim` internals, or `src/sim` importing audio.
+- `budget.spec.ts` first-load gate edited.
+
+**Phase to address:** P-G Audio (with the event types reserved in P-A so combat does not change the event union twice).
+
+---
+
+### Pitfall 14: Combat balance drift from Oolite's numbers
+
+**What goes wrong:**
+Combat feels too easy, too hard or unfair because a number came from the wrong place: a plist value used but a hard-coded engine constant invented; a unit mismatch (decicredits vs credits, energy units vs per second); a macro ported with the wrong precedence; a per-second rule applied per tick.
+
+**Why it happens:**
+Fidelity data sits in three places: plists (`shipdata.plist` `weapon_energy`, `energy_recharge_rate`, `max_energy`; `equipment.plist`), header macros and literals inside methods. Verified in the checkout: `BASELINE_SHIELD_LEVEL 128` (`ShipEntity.h:101`), `SHIP_MAX_CABIN_TEMP 256`, `SHIP_COOLING_FACTOR 0.1`, `NPC_MAX_WEAPON_TEMP 256`, `WEAPON_COOLING_CUTOUT 0.85`, `SHIP_ENERGY_DAMAGE_TO_HEAT_FACTOR (mass > 400000 ? 200000 / mass : 0.5)` (depends on instance mass), `COMBAT_AI_CONFIDENCE_FACTOR 1250000`, and *unparenthesised* macros such as `COMBAT_AI_WEAPON_TEMP_USABLE WEAPON_COOLING_CUTOUT* NPC_MAX_WEAPON_TEMP` and `COMBAT_AI_WEAPON_TEMP_READY 0.25f * NPC_MAX_WEAPON_TEMP`. The naval energy unit multiplies recharge by 1.5 (`ShipEntity.m:3248`), energy damage also adds heat (`ShipEntity.m:11418+`), and blast damage has a distance falloff (`ShipEntity.m` ~7666-7674). The project rule "numbers come from config" does not cover header macros.
+
+**How to avoid:**
+- Keep a **constants ledger** (typed `combat-constants.ts` plus a doc table): value, unit, Oolite file:line, pinning test. Extend `FIDELITY.md` with combat rows; each divergence (fixed step, one-tick event latency, scan order) cites its Key Decisions row, as the existing contract test already requires for the 26 mechanics.
+- Port macros by *expansion*, then parenthesise explicitly and test against a value hand-computed from Oolite's expansion.
+- Write combat arithmetic as small pure functions with table-driven tests built from worked examples taken from Oolite's code (damage of a given laser into a given shield, recharge per second, heat per hit, kill thresholds). Time-based quantities use ticks (Pitfall 3); verify each per-second rate by simulating 1 s.
+- One damage function shared by player and NPC; test the same hit on a trader and on the player.
+- No feel-tuning in this milestone. An Oolite number that plays badly is a finding, recorded as an owner-approved deviation.
+- Put accuracy and break-off randomness (`randf() < 0.75`, `0.3`, `qbomb_chance`) in the per-entity combat stream (Pitfall 2) so fights reproduce.
+
+**Warning signs:**
+- A constant in combat code without a source comment.
+- Test fixtures with values that appear in no Oolite file.
+- Commits titled "balance".
+
+**Phase to address:** P-D Combat (ledger and tests); P-F reuses it for collision and heat damage.
+
+---
+
+### Pitfall 15: Scope creep into missions, contracts, thargoids and the rest of the populator
+
+**What goes wrong:**
+AILib and the populator are shared code, so porting "the whole file" drags in mission, contract, thargoid, nova, hermit, constrictor and OXP-facing code and stretches the milestone. In the reference, `oolite-populator.js` has 89 lines mentioning thargoid, contract, mission, assassin, hermit, nova or interstellar; `oolite-priorityai.js` has 58 lines mentioning thargoid, contract, mission, passenger or parcel, and `oolite_entityContracts` reads `worldScripts["oolite-contracts-helpers"]` (line 2800). The populator also registers interstellar thargoid populators, a nova mission cancellation path and rock hermits (a station role), and the AILib has comms personalities (`_getCommunication...`) and 18 `worldScripts`/`player.`/`mission.` references.
+
+**How to avoid:**
+- Use the Pitfall 5 coverage manifest as the scope control: every JS symbol is `port`, `stub` (inert, returns Oolite's default) or `notPorted: <milestone>`; reviewers reject unlisted additions.
+- State the v2.0 role list explicitly: trader (with courier and smuggler variants only where the populator weights need them), pirate (fighter, freighter, interceptor), police, bounty hunter only if the populator's hunter packs are in, scavenger, shuttle, station, missile, escort, buoy, null, dumb. Thargoid, thargon, constrictor, contract assassin, rock hermit, miner, qbomb, tutorial and defense ship are recorded non-goals with reasons.
+- Populator: port the default-system populator and the repopulate frequency tables; omit interstellar, nova and mission hooks and any special-case spawn of an out-of-scope role. Document each skipped branch in the manifest rather than in comments.
+- Comms and chatter are cosmetic: stub as "no message" and list it, unless a plan wants a few distress or pay-off strings for the HUD message line.
+- Scoop and bounty only far enough to make combat coherent (pods and contents from Oolite's tables, bounty from `shipdata.plist`, fines and legal status per Oolite rules); contracts, passengers and parcels stay in the next milestone (already Out of Scope).
+
+**Warning signs:**
+- A new file named after a mission, contract or thargoid role.
+- The manifest has more `stub` than `port` entries.
+- A task starting "to support the XYZ OXP".
+
+**Phase to address:** P-C Roles and traffic (manifest and role list); restate Out of Scope in the milestone requirements.
+
+---
+
+### Pitfall 16: The populator and the AIs assume a station that launches and accepts ships
+
+**What goes wrong:**
+Traders and police "fly to the station and dock" and "launch from the station", but Wegolite's docking code is player-specific: port frame, corridor, hull contact proxy, SAT, auto-centre, docking computer. Populator callbacks call `_launchReady(station)`, which reads `docks[i].launchingQueueLength` (`oolite-populator.js` ~2640), and `behaviourDockWithStation` relies on `dockingInstructions`, station-side queues and `fly_thru_navpoints` (`StationEntity.m` 2,192 lines, `DockEntity.m` 1,176, `ShipEntityAI.m` 2,558). The milestone lists the `ShipEntity` behaviours and a station AI role but not the native station docking-queue machinery.
+
+**How to avoid:**
+- Make an explicit P-C decision before role work: (a) port the station docking queue and `dockingInstructions` faithfully (large, medium-high risk), or (b) deliberately simplify NPC docking to "approach the port mouth, then remove" and NPC launching to "spawn at the launch point under Oolite's launch-queue limit", recorded as a deviation. Either way NPCs must not trap the player or touch the player's corridor logic (the existing `no-trap` property tests stay green).
+- Reuse `DockGeometry`/`PortFrame`; do not duplicate geometry.
+- Treat NPCs near the slot as obstacles in a limited way (queue or hold position), not through the hull-contact proxy meant for the station.
+
+**Warning signs:**
+- NPCs fly through the station hull or the slot.
+- NPCs spawn inside the player during launch.
+- Dock proof tests start failing once traffic is enabled.
+
+**Phase to address:** P-C Roles and traffic (decision before role work); P-D re-checks launch safety.
+
+---
+
+### Pitfall 17: Moving static bodies into the world, collision shapes, and the deferred collision todo
+
+**What goes wrong:**
+(a) The planet, sun, station and two buoys live in `SystemLayout` (`src/sim/world/layout.ts`) and are consumed by aegis, compass, mass lock, docking and rendering. Making them world entities *as well* creates duplicates (two buoys; wrong compass order: the populator comment says the buoys "need to be added first, in this order" for the compass) or a second source of truth. (b) Oolite collides ships through per-model octrees and `collisionRadius` (`Universe.m` collision regions, `Octree.m`); Wegolite's station contact is already a conservative OBB/AABB SAT proxy. Spheres for all ships give different fights; octrees are a large port. (c) The pending todo (planet, sun, buoys) is deliberately deferred until shields exist, and the buoy sim radius is 10 m while the drawn model is about 100 m across, so a collision radius decision is open. (d) The sun needs to be queryable for cabin temperature and for NPC sun avoidance (24 `system.sun` references in `oolite-priorityai.js`). (e) Player death can arise from several causes (energy, heat, collision) with different messages and consequences.
+
+**How to avoid:**
+- Keep `SystemLayout` as the authority for static bodies; the world exposes them through `WorldView` as read-only static entities with **fixed ids** (for example 1 planet, 2 sun, 3 main station, 4-5 buoys, player 100, dynamic ids above) so AI conditions can query "nearest station/planet/sun" without duplication. Aegis and compass keep reading the layout.
+- Decide the collision shape once. Recommended: sphere or OBB proxies per ship derived from the compiled ship bounds (`tests/golden/content/ship-bounds.json` exists), recorded as a deviation from octrees; keep the existing station SAT for the station; do not mix.
+- Implement the collision todo in P-F only after shields and energy exist (P-D), as the owner decided, using the shared damage function (Pitfall 14), and decide the buoy collision radius against the drawn model in the same plan.
+- Planet and sun contact use float64 world coordinates like the camera-relative decision.
+- A single `die(cause, ...)` path for energy, heat, collision and ejection so insurance and legal consequences are computed once.
+
+**Warning signs:**
+- The compass cycles to a buoy that is not the nav buoy.
+- Two physical buoys in the scene, or a scene/world mismatch.
+- Collision tests that need a `?test=1` hack to reach the planet.
+
+**Phase to address:** P-A (static-body ids and read-only views), P-F Collisions.
+
+---
+
+### Pitfall 18: Player death, escape pod and insurance interact with autosave, pause and the title flow
+
+**What goes wrong:**
+The player dies in the middle of a tick after an autosave anchor and the flow has no defined state: autosave writes a dead profile; the pod launches into a world full of hostile AIs; "Continue" reloads the pre-fight anchor and undoes the death (arguably authentic, but a design decision with Wegolite's leg anchors); the death screen is not covered by the pause and context-recovery guards; pods and wreckage survive hyperspace.
+
+**How to avoid:**
+- Add modes (`dead`, `pod`/`ejected`) to the flight state machine in the style of `docked | launching | inFlight`, with a single transition owner and explicit autosave rules (never autosave in those modes; autosave once on the post-death dock, like the existing docked-event anchor).
+- Insurance and legal effects are applied in one atomic profile update (Pitfall 10), covered by golden save fixtures.
+- Re-check pause, context-loss, chart and save-screen guards for the new modes, and route the new screen through the same `ACTION_CONTEXTS` filters.
+- On hyperspace, clear every non-static entity at jump commit and repopulate on arrival from a forked seed; assert `probe.memory` does not grow across jumps.
+
+**Warning signs:**
+- A reload puts the player back into a fight.
+- The pause menu opens over the death screen.
+
+**Phase to address:** P-E Death and law.
+
+---
+
+## Moderate Pitfalls
+
+### Pitfall 19: `ShipControl`/`WorldView` interfaces that leak the sim or become the old JS API
+
+**What goes wrong:** `WorldView` exposes mutable entities so AI mutates other ships; or it mirrors Oolite's JS object model (`ship.target.position.distanceTo`) with allocation-heavy objects; or it grows one method per condition.
+**Prevention:** `WorldView` is read-only, id-based and returns plain data; `ShipControl` is an intent set (`setTarget`, `setBehaviour`, `setDesiredSpeed`, `fire`, `dock`, `message`) applied by the sim at a fixed point. Add methods only when a ported condition needs them, with the Oolite JS name in a comment. The existing zone rule (sim imports only sim and `content/types`) must cover `src/sim/ai`.
+**Phase:** P-A Foundation.
+
+### Pitfall 20: Ship data not yet in the client catalogue
+
+**What goes wrong:** the client ship catalogue was trimmed to 15,196 bytes (quick task 261109-s8k) for the Cobra and station; NPC roles need `shipdata.plist` fields (speed, pitch/roll, `roles`, `weapon_energy`, `bounty`, `likely_cargo`, `ai_type`, `escorts`, `scan_class`) and many models. Ad hoc additions bypass the content drift gate.
+**Prevention:** extend the content compiler and `tests/golden/content/ships.json` with an explicit field list, regenerate with `docker compose run --rm assets`, never hand-edit generated files, and vendor only models for roles on the v2.0 list (provenance in `ASSETS.md`/`NOTICE`).
+**Phase:** P-C.
+
+### Pitfall 21: HUD element growth
+
+**What goes wrong:** the HUD is a fixed eleven-element set with pinned rectangles; scanner contacts, shields, energy banks, missile state, ECM and legal status need elements, and adding them shifts layout assertions.
+**Prevention:** reuse existing elements where Oolite does (the scanner exists); add elements deliberately with new layout fixtures; do not renumber existing ones (the hyperspace target went on a second line inside the clock element for this reason).
+**Phase:** P-D.
+
+### Pitfall 22: The chart freezes the simulation
+
+**What goes wrong:** the chart and save screen stop the sim (the `chartOpen` branch returns before the step). With NPCs and combat that is an exploit (open the chart to pause a fight) and a fidelity gap, because Oolite keeps running behind its chart. The pending todo becomes a combat rule.
+**Prevention:** decide with the owner in P-A or P-D: keep stepping behind the opaque chart, or keep the freeze with a visible "Paused" notice. Update the hyperspace e2e tests that depend on it.
+**Phase:** P-D (decision), P-A (note).
+
+### Pitfall 23: Below-24-fps slow motion with heavier frames
+
+**What goes wrong:** heavier frames hit the `MAX_STEPS_PER_FRAME` cap and the game runs in slow motion (known todo); the player can be killed in slow motion by AI whose cost caused the slowdown.
+**Prevention:** bound AI cost per tick (Pitfall 12) and decide the low-fps behaviour with the todo (graphics level, pixel-ratio cap or notice) before enabling traffic by default.
+**Phase:** decision in P-C, verified in P-H.
+
+### Pitfall 24: Hyperspace blockage and mass lock now have real blockers
+
+**What goes wrong:** blockage and mass lock treat the Coriolis station as the only blocker; the 06-12 decision said "revisit when a later phase adds ships". With traffic, Oolite's checks include ships (`checkShipsInVicinityForWitchJumpExit`), and a countdown can be cancelled by damage.
+**Prevention:** extend blockage and mass lock to world ships with Oolite's rules, add in/out-of-radius tests, and update the Key Decisions note.
+**Phase:** P-C or P-D (with the first mass-lockable NPC).
+
+### Pitfall 25: Torus, launch and docking regress under traffic
+
+**What goes wrong:** torus disengage on mass lock, the launch queue and dock capture interact with NPCs; the pending torus message bug (a refused attempt reported as "Torus disengaged") becomes more visible.
+**Prevention:** keep the existing suites as regression suites with an *empty world*, add traffic variants as unit tests only, and fix the refusal message as a small decoupled task early.
+**Phase:** P-A / P-C.
+
+## Minor Pitfalls
+
+### Pitfall 26: Message line flood
+**What goes wrong:** combat produces many messages per second; the single HUD message queue grows and collides with hints.
+**Prevention:** rate-limit per message kind (as scrape messages already are, one per simulated second) and cap the queue.
+
+### Pitfall 27: Test hook becomes a god object
+**What goes wrong:** `createTestHook` gains spawn, kill, set-shield and set-legal until tests bypass real flows.
+**Prevention:** hooks only for setup and fast-forward; every mutation taints the profile; keep one e2e per feature that uses real input.
+
+### Pitfall 28: Gating on SwiftShader timing
+**What goes wrong:** a millisecond assertion in a browser test fails on a loaded CI runner (CI already recorded five Chromium timeouts under load).
+**Prevention:** assert counts (draw calls, triangles, entities, pool sizes) in e2e, never milliseconds; time assertions only in unit cost tests with generous bounds.
+
+### Pitfall 29: Licence and provenance of new assets
+**What goes wrong:** NPC models, textures, sounds and music added without `NOTICE`/`ASSETS.md` rows; sound licence exceptions overlooked.
+**Prevention:** the compliance tests (`compliance-assets.test.ts`) must cover new files; add rows with each asset.
+
+### Pitfall 30: Changelog and version discipline
+**What goes wrong:** a multi-phase milestone with no `CHANGELOG.md` entries (AGENTS.md rule); save v3 ships without calling out the forward-compatibility cost in a `0.y.z` release.
+**Prevention:** add an `Unreleased` line in the same commit as each user-visible change and call out the save version bump explicitly.
 
 ---
 
@@ -422,183 +541,165 @@ Phase 8 (Hardening & Community Release), with the controls/defaults and fidelity
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Hard-code the Cobra's speed/thrust/cargo in TS "just for now" | First flight in a day | The data pipeline never becomes authoritative; every ship is a special case; fidelity claims are unverifiable | Only in a throwaway spike; never on the main branch after Phase 2 |
-| Parse plists with regex/`JSON.parse` | No parser dependency | Silent data loss, wrong inheritance, untraceable fidelity bugs | Never for Oolite config; acceptable only for a one-file prototype with a TODO |
-| One `Game`/`Player` class owning input, physics, render, market and UI | Fast vertical slice | Blocks NPCs, combat, docking computer, headless tests; every feature touches one 2,000-line file | Only before Phase 3; split by the end of Phase 3 |
-| Use `Math.random()` for prices/stock | Zero setup | Non-reproducible markets, save/reload exploits, cannot reproduce bug reports | Never for economy; use a seeded PRNG |
-| Store absolute world positions in `InstancedMesh`/shader uniforms | Simple instancing | Float32 jitter at 500k+ units; visible snapping | Never at system scale; use camera-relative offsets |
-| One `Mesh` per DAT face | Trivial importer | Hundreds of draw calls/state changes; collapses when asteroids/NPCs arrive | Only for a single-model viewer; merge by material before Phase 4 |
-| `localStorage` for saves | One-line persistence | 5 MiB cap, synchronous jank, quota errors, Safari private-mode failures | Only for a settings blob; saves go to IndexedDB |
-| Regenerate the market from the system seed on load | Smaller save | Save/reload arbitrage; non-reproducible prices; no visited-market state | Never; persist market state or a deterministic RNG state |
-| Copy Oolite source line-by-line without port notes | Fast porting | Licence/provenance ambiguity; impossible to review or update | Never; keep a `PORT_NOTES.md` mapping file/function to the TS module |
-| Defer Safari/cross-browser testing to the end | More feature time now | Late renderer/texture/audio/storage rewrites; launch slips | Never; run a Safari smoke test from Phase 1 |
-| Defer all sound to "asset pipeline later" | Focus on the loop | Community reads silence as unfinished; audio architecture is retrofitted | Acceptable only if clearly labelled, with a scheduled sound spike |
+| One shared PRNG stream for the whole world | Minimal code | Every golden changes with any spawn; AI not reproducible in isolation | Never |
+| AI state as an untyped parameter map mirroring `setParameter` | Fast literal port | Cannot validate, hash or save; leaks object references | Never (typed record) |
+| Entity references stored as objects | Simple | Dead-target bugs, no serialisation | Never (ids) |
+| Skipping the differential trace harness | Saves days | Drift found by players; endless "feels off" debugging | Only if AI scope is cut to a few roles covered by scenario goldens |
+| Populating the default e2e world with traffic | Realism everywhere | Breaks and slows 121 tests | Never |
+| Serialising all NPCs into the autosave | "Complete" save | Size cap overflow, migration burden | Only with a bounded-count design decision |
+| Raising `MAX_SAVE_CHARS` without re-deriving the bound | Quick fix | The "true upper bound" guarantee becomes false | Never |
+| Editing budget ceilings to pass | Green CI | QUAL-01 evidence meaningless | Only as a recorded decision |
+| Tuning combat by feel | Fun sooner | Loses the fidelity premise | Only as an owner-approved, recorded deviation |
+| Per-tick `vec()` allocation everywhere | Readable code | GC hitches under traffic | Cold paths only |
+| Silently stubbing comms and contract hooks | Fewer lines | Hidden behaviour gaps | Only if listed in the manifest |
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Oolite `Resources/Config/*.plist` | `JSON.parse`, XML plist parser, or a regex parser | OpenStep ASCII parser with fixtures; build-time conversion to typed JSON; schema validation |
-| Oolite `shipdata.plist` | Read one entry and ignore `like_ship`/`is_template`/overrides | Resolve inheritance chains with cycle detection and overlay order; assert the player Cobra values |
-| Oolite `trade-goods.plist` | Treat `price_average` as credits; ignore `market_definition` | Integer decicredits internally; tri-state market definition (absent/empty/explicit) |
-| Oolite `equipment.plist` | Read it as a dict; ignore `condition_script` | Positional array parsing; implement the core conditions (`requires_non_full_fuel`, `requires_empty_pylon`, `available_to_all`) |
-| Oolite `.dat` → Three.js | Assume normalised UVs, vertex normals, −Z forward | Divide UVs by declared texture size, preserve per-face normals, define an axis/winding conversion, test with an asymmetric model |
-| Oolite textures → Three.js materials | Use the diffuse map as `emissiveMap`; mark it `transparent` | Extract the alpha channel into a separate emissive texture or custom shader; keep diffuse opaque |
-| Oolite `planetinfo.plist` | Treat the key as a chart coordinate or iterate special keys | Key is `galaxy system` ID; `coordinates` is the chart position; skip `universal`/`interstellar space` |
-| Browser save → IndexedDB | Store live objects or unversioned JSON | Plain versioned DTO; migrations; quota/error handling; export/import |
-| Audio → Web Audio | Create `AudioContext` at load and expect sound | Create/resume on a user gesture; resume after visibility/fullscreen changes; mute control |
-| Pointer lock → input | Assume `keyup` always arrives | Clear input state on `blur`, `visibilitychange`, `pointerlockchange`, `fullscreenchange` |
-| Static host → assets | Wrong MIME types for `.wasm`, `.ktx2`, `.dat` | Prefer `.json` intermediates; configure MIME types; test the production host, not just Vite dev |
-| Oolite JS scripting engine | Evaluate OXP/world scripts to reuse logic | Do not execute Oolite JS in v1; port the needed logic to TS; if ever added, sandbox and never run untrusted OXPs |
+| World model and `stepFlight` | Growing `stepFlight`'s signature again (layout, config, intent, commands, dt, options) | A `World` step that composes `stepFlight` for the player then NPCs; keep `stepFlight` unit tests intact |
+| World and `SystemLayout` | Duplicating planet, sun, station, buoys | Static entities with fixed ids that reference layout data (Pitfall 17) |
+| AI and content | Hard-coding numeric role data in TS | Priority trees as typed literals (decided); numeric data from the content pipeline |
+| Events and UI/audio/autosave | One growing `handleEvent` switch | A router with subscriber modules; sim events stay in `src/sim/events.ts` and are hash-irrelevant |
+| Save and world | Persisting entities | Persist seed, counters and ids; re-populate (Pitfall 10) |
+| Render and world | Rebuilding scene objects per ship per frame | Pool and instance by model, sync by id, dispose on removal; extend `dispose.spec.ts` and `probe.memory` to NPC meshes |
+| Test hook and world | Hook holds a stale state reference | Bind to a stable world instance (Pitfall 8) |
+| Redraw gate and NPCs | Idle redraw skipped while NPCs move | In-flight always draws; any visible-NPC change requests a redraw; assert `probe.renders` |
+| Hyperspace and world | World not cleared or rebuilt on jump | Clear non-static entities at jump commit, repopulate on arrival from a forked seed |
+| Autosave and `?test=1` | A spawn hook that does not taint | Every hook mutation taints (existing rule) |
 
 ## Performance Traps
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Loading every Oolite texture at startup | Multi-second blank screen, hundreds of MB to multiple GB of VRAM, laptop crashes | Ship only Cobra/Coriolis/planet/skybox for v1; lazy-load; KTX2/Basis; texture budget | Breaks on 2 GB integrated GPUs and most laptops with 256 uncompressed 2048² textures |
-| One draw call per DAT face/material | 100+ draw calls for a station; frame time spikes when subentities/flashers are added | Group faces by material into `BufferGeometry` groups; merge static subentities; instanced flashers | Breaks when asteroids/NPCs arrive, or on low-end GPUs at 1440p |
-| Per-frame allocations (`new Vector3`, `new Quaternion`, arrays) | GC sawtooth, stutter every few seconds | Reuse scratch objects; pool projectiles/particles later; profile with the Chrome performance panel | Breaks at 60 fps on mid-range laptops, especially with HUD/DOM updates |
-| `setPixelRatio(devicePixelRatio)` uncapped | 4K/Retina renders 3–4× the pixels; 20–30 fps | Cap at 2; expose quality settings; render HUD at CSS resolution | Breaks on MacBook Retina and 4K monitors |
-| Full-resolution bloom/SSAO/shadows in space | 30 fps on integrated GPUs; fan noise | Skip shadows; selective/quarter-res bloom for station lights; bake emissive | Breaks on Intel Iris/AMD integrated and Safari |
-| DOM HUD updated every frame | Layout thrash, input latency | Canvas/SVG HUD or throttled DOM updates; batch text changes | Breaks at 60 fps with multiple text nodes and CSS transitions |
-| Parsing 1 MB plists/JSON every load or frame | Long startup, jank | Build-time conversion; parse once; cache in IndexedDB/Cache API | Breaks on low-end CPUs and repeat visits |
-| Loading all 2,048 systems and planet textures eagerly | Slow first paint; memory spike | Load galaxy metadata once (small); lazy planet textures; stream on approach | Breaks on 4 GB machines and slow networks |
-| Variable `dt` with no clamp | Ship tunnels through station after tab return; physics explodes | Fixed timestep + accumulator; clamp to 0.1–0.25 s; pause on hidden | Breaks the first time a laptop sleeps or a tab is backgrounded |
-| `preserveDrawingBuffer: true` or `antialias: true` everywhere | Slower compositing, memory cost | Only enable when needed (screenshots); MSAA only if budget allows | Breaks on integrated GPUs at high DPR |
+| Immutable `Vec3` allocation in steering | p99 spikes, GC | Mutable scratch and typed arrays | About 30+ active ships at 120 Hz with catch-up |
+| All-pairs proximity and collision | Sim ms/tick grows quadratically | Grid or sweep, scan cap 32, think every 15 ticks | About 40+ entities including pods and wreckage |
+| One draw call per ship part | `budget.spec.ts` calls above 50 | Instancing, shared geometry and materials, culling, scanner dots | About 10+ visible NPCs |
+| Per-frame probe arrays | Test-only cost in production | Counts plus on-demand snapshot | Any size, constant waste |
+| Eager music, sound or model loading | First-load ceiling (623 KB headroom) | Lazy staged loading | Immediately when music is added |
+| Pods and wreckage never removed | Entity count grows (Oolite wreck lifetimes `750*randf()+250*i+100` s) | Lifetimes in ticks, hard cap, oldest-first removal by id | Long fights |
+| SwiftShader frame cost | Sim at about 0.1x in e2e | Unit-level sim tests, `advanceTicks` hook | Every browser wait on game time |
 
 ## Security Mistakes
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| `eval`/`new Function` to parse plists or execute Oolite scripts | Arbitrary code execution from tampered data or a malicious save/OXP | Use a data-only parser; never execute Oolite JS in v1; if scripting returns, sandbox it and never load untrusted OXPs |
-| `innerHTML` for commodity descriptions, system descriptions or save names | DOM XSS from data files or imported saves | Use `textContent`/typed rendering; sanitise/escape at the UI boundary |
-| Importing a save JSON without validation | Prototype pollution (`__proto__`), huge payload DoS, crashes | Schema validation, size limit, reject unknown keys, `Object.create(null)` for maps |
-| Trusting client-side credits/cargo for anything competitive | Cheating; meaningless leaderboards | Keep v1 single-player and offline; do not add online leaderboards without server validation (out of scope) |
-| Loading Three.js/plugins from a CDN without pinning | Supply-chain compromise; unreproducible builds | Self-host dependencies, lockfile, SRI if a CDN is unavoidable, vendor licences |
-| Serving source maps/source with secrets | No secrets exist, but stray API keys in build env | Keep `.env` out of the repo; GPL source is public by design, but audit for secrets |
-| `postMessage`/iframe integrations without origin checks | Cross-origin control of the game | Validate `event.origin`; avoid iframes; no backend means no auth surface |
-| Running Oolite's JS engine on imported OXP data | RCE and data exfiltration in the browser | Explicitly out of scope; if ever added, use a Worker + SES/realms-style isolation and no network |
+| Trusting a forged world or entity count from a save | Resource exhaustion, id collisions | Saves carry seed and counters only; validate and cap every new field; allow-list roles and equipment keys |
+| `?test=1` spawn or advance hook reachable in production | Cheating, fault injection | Keep it behind the existing gate; test-build-only for fault seams |
+| Audio loaded from a URL or blob | CSP violation or injection | Same-origin `fetch` + `decodeAudioData` only |
+| Unbounded message or event queues from many NPCs | Memory growth | Caps per tick and per kind |
 
 ## UX Pitfalls
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| No clear "click to start" gate | Audio and pointer lock are blocked; the game looks broken | Start screen with a single "Launch" button that unlocks audio and requests fullscreen/pointer lock |
-| WASD + mouse only as the default | Oolite fans bounce immediately; muscle memory fails | Classic keys default (arrows pitch/roll, A/Z speed, J, C, F1, 1–4), modern layout optional and remembered |
-| Mouse flight with no sensitivity/self-centring/deadzone | Nose snaps or drifts; docking is impossible | Relative virtual stick with sensitivity, deadzone, invert-Y, self-centre; pointer lock optional |
-| No pause/blur handling | Player returns to a dead ship or an spinning ship | Auto-pause on `blur`/`visibilitychange`; "click to resume"; clear held keys |
-| No docking feedback | Player cannot tell if aligned, too fast, or about to scrape | Port alignment indicator, roll-match cue, speed warning, scrape/damage audio-visual cue |
-| HUD fixed at one resolution | Tiny at 4K, huge at 1080p | Scale by CSS/DPR; test at 1280×720, 1920×1080, 2560×1440, Retina |
-| No save/export visibility | Browser cache clear loses hours; user blames the game | Show "saved locally" status; export/import save file; warn on private mode |
-| No loading progress for large assets | Blank screen; user assumes a crash | Loading screen with progress, asset count and a retry/error path |
-| No WebGL2/unsupported-browser message | Blank canvas | Capability check + human-readable error + browser requirements |
-| No "what this is" / disclaimer | Users think it is official Oolite/Elite; community/legal friction | Visible fan-project disclaimer and scope statement on the landing page |
-| Unskippable launch/dock sequences | Repeated play becomes tedious | Allow skip after first view; keep the option to replay |
-| Colour-only scanner/target cues | Accessibility gap; colour-blind players miss threats | Shape/label cues in addition to colour; reduced-motion option |
+| Death with no explanation or recovery path | Feels like lost progress | A death/pod screen showing the insurance result and Oolite's landing semantics |
+| Sound at full volume on first interaction | Startle | Sensible default gain, mute/volume setting, music ducking |
+| Police firing without warning | Confusing legal status | Oolite warning messages and the offender/fugitive status on F5 |
+| Hostile ships invisible on the scanner | Cannot fight | Scanner contacts with Oolite colours, tested through a pure projection test |
+| Autosave during a fight | Reload into death | Leg-anchor autosave only |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Flight:** The ship moves and turns — verify fixed timestep, input ramp/damping, `5.0 * thrust`, local-axis roll/pitch order, and that alt-tab does not leave a key stuck.
-- [ ] **Docking:** The ship can dock — verify the slot is on the station's +Z, the station spins about Z, the 1.5× safety corridor auto-centres, 90% capture triggers, and scraping at speed damages.
-- [ ] **Docking computer:** It docks the ship — verify it flies the corridor (not teleports), respects hostile/fugitive/range rules, and fast-dock costs ship clock.
-- [ ] **Market:** Prices and stock display — verify decicredits, `market_definition` tri-state, buy/sell quantity/cargo limits, and persistence across save/reload.
-- [ ] **Hyperspace:** The jump works — verify distance in LY, fuel in tenths, tank limit 7 LY, target selection, arrival orientation, and a second system with its own market.
-- [ ] **Save/load:** Progress survives a refresh — verify market prices/quantities, RNG state, equipment, ship damage, location, schema version and migration.
-- [ ] **Data fidelity:** The Cobra looks right — verify model variant (`oolite_cobra3.dat`, bbox ~`130×35×81`, not the legacy `cobra3_redux.dat` at `130×30×65`), speed 350/pitch 1.0/roll 2.0/thrust 32, cargo 20, and correct texture set.
-- [ ] **Station:** The Coriolis looks right — verify hull + faceplate + tris + dock subentities, letterbox size 192×64, dock at z≈500.2561, and no black void inside the slot.
-- [ ] **Materials:** Textures are visible — verify UV divide by declared size, V orientation, sRGB vs linear, per-face normals, alpha emission, and no uniform glow.
-- [ ] **Rendering scale:** The planet/station are stable — verify camera-relative transforms, near/far split or log/reversed depth, no z-fighting on the station faceplate, and 4K/Retina.
-- [ ] **Licensing:** `LICENSE` exists — verify `NOTICE`, `LICENSE-ASSETS`, `THIRD_PARTY_NOTICES`, `TRADEMARKS.md`, asset manifest, raw source formats, and a source link on the deployed site.
-- [ ] **Trademark:** The name is Wegolite — verify no "Elite"/"Oolite" in title/domain/logo/store listing, and a visible non-affiliation disclaimer.
-- [ ] **Browser:** It runs in Chrome — verify Firefox and Safari, audio unlock, context-loss recovery, IndexedDB, fullscreen/pointer lock, and background-tab pause.
-- [ ] **Performance:** 60 fps on the dev machine — verify 1080p/1440p on integrated graphics, capped DPR, texture memory, and no per-frame allocations.
-- [ ] **Community:** A fan can play it — verify classic keys, a visible scope statement, a fidelity/divergence doc, and at least one Oolite player has completed a trade run.
+- [ ] **World model:** save, restore, then 1,000 ticks gives the same hash as the uninterrupted run (live order vs restored order).
+- [ ] **PRNG:** adding a bystander ship does not change another ship's trace; RNG state is in the hash and serialisation.
+- [ ] **Cadence:** 30/60/120/144 Hz replays of a populated, fighting world hash equal, including across launch (+600 s) and arrival.
+- [ ] **No `clockSeconds`** in AI or combat timers (grep gate or lint).
+- [ ] **AI manifest:** every Oolite AILib, role and populator symbol is `port`, `stub` or `notPorted` with a reason; CI fails on unclassified.
+- [ ] **Differential or scenario goldens** exist for the first three priority branches of every shipped role.
+- [ ] **Dead target:** every AI parameter holding an entity holds an id; killing the target mid-pursuit does not throw and the AI reconsiders within its Oolite delay.
+- [ ] **Sanitiser:** `repairCount === 0` for NPCs over all golden scenarios; no `non-finite` throw over a 10-minute simulated soak with 40 ships.
+- [ ] **Probe-shape snapshot** unchanged by the `game-session.ts` split; `verify-full` green after each step.
+- [ ] **Existing goldens untouched** (empty-world hash equals `hashFlight`).
+- [ ] **Save:** v2 -> v3 migration golden; worst-case profile encoded size under the bound; death and insurance profile update atomic; `?test=1` taint verified.
+- [ ] **Browser suite wall time** within the phase budget; no new wait over 30 s; populated-world specs opt in.
+- [ ] **Budget gates:** draw calls, triangles and first-load bytes inside the documented ceilings with traffic present and audio deferred; any ceiling change is a recorded decision.
+- [ ] **Audio:** context created in a gesture; suspended on pause, on `visibilitychange` and on context loss; silent in a hidden tab; `probe.audio` exists; no console error in the e2e console guard.
+- [ ] **Combat numbers:** every constant in the ledger has an Oolite file:line and a test; macros parenthesised.
+- [ ] **NPC docking and launching** decision recorded; the player's dock and launch tests pass with traffic enabled in unit scenarios.
+- [ ] **Scope:** no thargoid, mission, contract, hermit or OXP code in `src/`.
+- [ ] **Compliance:** every new model, texture, sound and music file has `ASSETS.md`/`NOTICE` rows and passes the compliance tests.
+- [ ] **CHANGELOG** entries and an explicit save-version bump call-out.
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Licence collapse | HIGH | Stop distribution; audit every asset; add `NOTICE`/`LICENSE-ASSETS`/manifest; remove or replace assets that cannot be relicensed; publish corresponding source; re-release with a clear changelog |
-| Trademark/naming | MEDIUM | Rename the product/domain/handles; remove logos; add a visible disclaimer; update store listings; get a legal read before re-launch |
-| Wrong data units/file names | MEDIUM | Freeze economy code; build the unit table; add golden tests; regenerate the data snapshot; diff old/new prices and ship stats |
-| Plist parser/inheritance bug | MEDIUM | Replace the parser with a tested OpenStep implementation; add fixtures; add schema validation; re-run fidelity tests for every ship/station/commodity |
-| DAT/orientation/material bug | MEDIUM | Add an axis/winding contract; test with the Coriolis letterbox and Cobra nose; re-import; add bbox/UV assertions; compare screenshots side-by-side |
-| Float32/depth instability | HIGH | Introduce camera-relative rendering/floating origin; split near/far passes; add log/reversed depth; retest at 500k/1.3M units; profile |
-| Flight feel wrong | MEDIUM | Replace force-based integration with the kinematic model; restore constants; add ramp/damping; clamp dt; playtest against Oolite; expose tuning only as a last resort |
-| Docking too easy/hard | MEDIUM | Replace the trigger with the corridor model; fix station spin axis; add alignment/roll/speed feedback; tune safety/capture thresholds; add a docking computer |
-| Scope/architecture hole | HIGH | Stop feature work; split simulation/render/input; introduce `Entity`/`Ship`/`Station`/controller interfaces; move player-only special cases; port the docking computer first |
-| Save regeneration exploit | MEDIUM | Add market/RNG persistence; version the DTO; write round-trip tests; migrate existing saves or invalidate with a warning |
-| Browser breakage | MEDIUM | Add visibility/blur pause; audio unlock; context-loss handlers; Safari test matrix; cap DPR; fix MIME types; ship a capability error page |
-| Community rejection | MEDIUM | Publish fidelity/divergence docs; change defaults to classic keys; add sound/ambience spike; add visible disclaimer; solicit Oolite playtesters before the next demo |
+| Shared RNG already in goldens | HIGH | Introduce forked streams, regenerate world goldens only (player-only goldens unchanged), record why |
+| Order-dependent hashing found late | MEDIUM | Introduce canonical id order, add the restore-equivalence test, regenerate world goldens |
+| AI drift found in play | MEDIUM-HIGH | Build the trace harness then; diff role by role; fix from the first diverging decision |
+| Save overflow | MEDIUM | Revert to seed-only world persistence; do not raise the cap without re-deriving the bound |
+| Refactor broke e2e semantics | MEDIUM | Bisect with the probe-shape snapshot; restore field semantics, not the tests |
+| Test runtime explosion | MEDIUM | Move assertions to Vitest scenarios; add `advanceTicks`; make the populator opt-in |
+| Draw-call blow-up | MEDIUM | Instancing and culling retrofit; render side only, sim unaffected |
+| Audio policy failure | LOW | Move context creation into the gesture handler; add visibility and pause hooks |
+| Scope creep | MEDIUM | Re-run the manifest; delete unlisted code; record a decision before re-adding |
 
 ## Pitfall-to-Phase Mapping
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Licence collapse | Phase 1 (Foundation & Compliance) | `LICENSE`, `NOTICE`, `LICENSE-ASSETS`, `THIRD_PARTY_NOTICES`, `TRADEMARKS.md`, asset manifest and source link exist; a licence audit passes |
-| Trademark/naming | Phase 1 | Title/domain/logo/store listing contain no "Elite"/"Oolite"; visible non-affiliation disclaimer |
-| Data units/file names | Phase 2 (Data Pipeline & Fidelity) | Golden tests: food 5.0 Cr, missile 30.0 Cr, Cobra speed 0.350 LS, planet radius `km*10`, fuel `tenths` |
-| Plist parsing/inheritance | Phase 2 | Parser fixtures pass; player Cobra resolves to 350/32/1.0/2.0/20; Coriolis market is non-empty |
-| DAT/model/material import | Phase 2 and Phase 4 | Coriolis letterbox on +Z; Cobra bbox ~`130×35×81` for `oolite_cobra3.dat`; UV/texture orientation correct; per-face normals; alpha emission works |
-| Float32/depth instability | Phase 4 (World Rendering & Scale) | No jitter/z-fighting at 500k/1.3M units; 4K/Retina smoke test; depth strategy documented |
-| Flight feel | Phase 3 (Flight & Input) | Scripted rate/acceleration curves match Oolite; 60/144 Hz parity; alt-tab key-stuck test; Oolite player feedback |
-| Docking too easy/hard | Phase 5 (Docking & Launch) | Scripted approaches: perfect docks, 10° off scrapes, wrong roll fails, too-fast crashes; computer flies corridor |
-| Scope/combat-shaped hole | Phase 1/3/5, reviewed Phase 7 | Headless simulation test; `ShipController` interface; docking computer is an AI; entity model supports two ships |
-| Save/reload exploit | Phase 6 (Economy, Screens & Save) | Save/reload round-trip preserves prices/quantities/RNG; no arbitrage; migration test; IndexedDB quota handling |
-| Browser platform breakage | Phase 1 checklist, Phase 6, Phase 8 (Hardening & Community Release) | Chrome/Firefox/Safari pass; audio unlock; visibility pause; context-loss recovery; MIME types; WebGL2 error page |
-| Community rejection | Phase 8 | Classic-key defaults; visible scope/disclaimer; fidelity doc; one Oolite player completes a trade run; sound plan published |
+| 1 Iteration order and ids | P-A | Restore-equivalence hash test; lint probes for `for..in` and bare `.sort()` |
+| 2 PRNG shifts, unserialisable RNG | P-A | Bystander-independence test; RNG state in hash |
+| 3 Time bases, time slicing | P-A (contract), P-B | Cadence test with world; grep for `clockSeconds` in `src/sim/ai` |
+| 4 NaN and transcendentals | P-A, P-B | Zero-repair soak; no `non-finite` throw |
+| 5 AILib drift | P-B | Manifest, structural diff, trace harness, scenario goldens |
+| 6 BEHAVIOUR_* steering | P-B | Per-behaviour oracle tests; behavioural acceptance over 20 seeds |
+| 7 Event ordering and re-entrancy | P-A, P-D | Ordering test; no handler calls into other entities |
+| 8 `game-session.ts` split | P-A (first) | Probe-shape snapshot; goldens unchanged; `verify-full` per step |
+| 9 Hash and golden invalidation | P-A | Empty-world hash equals `hashFlight` |
+| 10 Save size and migration | P-A (decision), P-E | v3 migration golden; worst-case size test |
+| 11 Test runtime under SwiftShader | P-A (hook, defaults), all | Spec wall-time budget; no waits above 30 s; populator opt-in |
+| 12 Performance | P-A, P-C, P-H | Sim cost test; populated `budget.spec.ts` row; reference-desktop run |
+| 13 Audio | P-G (events reserved in P-A) | `probe.audio`; fake context unit tests; gesture and visibility tests |
+| 14 Combat balance drift | P-D, P-F | Constants ledger; worked-example tests; FIDELITY rows |
+| 15 Scope creep | P-C | Manifest `notPorted` list; reviewer rejection rule |
+| 16 NPC docking and launching | P-C | Recorded decision; dock and launch regression tests with traffic |
+| 17 Static bodies, collisions | P-A, P-F | Fixed ids; no duplicate buoys; collision tests after shields |
+| 18 Death, pod, insurance flow | P-E | Mode transition tests; atomic profile update golden |
+| 19 Leaky interfaces | P-A | Zone lint; read-only types |
+| 20 Ship catalogue growth | P-C | Content golden and drift gate |
+| 21 HUD element growth | P-D | Layout fixtures |
+| 22 Chart freezes sim | P-A / P-D | Decision recorded; hyperspace e2e updated |
+| 23 Low-fps slow motion | P-C / P-H | Decision with the todo; AI cost bound test |
+| 24 Mass lock and blockage with ships | P-C / P-D | Tests with ships in and out of the radius |
+| 25 Torus, launch, docking under traffic | P-A / P-C | Empty-world regression suites; unit traffic variants |
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| P-A split | Probe and hook semantics change | Probe-shape snapshot first; behaviour-preserving commits |
+| P-A world model | Order, ids, RNG, hash composition | Canonical id order; forked RNG objects; empty-world hash identity |
+| P-B AI framework | Cache, `this`, handler drift | Typed state, generic interpreter, manifest, trace harness |
+| P-B steering | Variable vs fixed `delta_t`, float32 | Per-behaviour oracle tests; record each deviation |
+| P-C roles and populator | Scope creep, docking queue, assets | Manifest, explicit docking decision, lazy assets |
+| P-C performance | Draw calls and GC | Instancing, scratch buffers, grid broadphase |
+| P-D combat | Constants, macros, synchronous events | Ledger, parenthesised macros, deferred event queue |
+| P-E law and death | Save v3, atomic profile update, flow modes | Ordered migration, single `die()` path |
+| P-F collisions | Duplicated static bodies, shapes | Fixed ids, one collision-shape decision, after shields |
+| P-G audio | Autoplay, pause coupling, load size | Gesture-created context, one suspend owner, lazy loading, `probe.audio` |
+| P-H hardening | QUAL-01 with traffic | Reference-desktop pass with populated rows; record ceilings deliberately |
+
+**Ordering constraints that follow from the above:** P-A (split first, then world model) before everything; the AI framework and the steering port (P-B) before roles (P-C); shields and the damage function (P-D) before collisions (P-F); the save v3 profile fields land with P-E, not earlier; audio event types are reserved in P-A but the audio subsystem can follow combat.
 
 ## Sources
 
-### Primary Oolite sources (HIGH confidence)
-- Oolite `LICENSE.md`, master, commit `7437f22` (2026-11-01): GPL-2.0-or-later; artwork and configuration files dual-licensed CC BY-NC-SA 3.0; separate sound/library notices. `https://raw.githubusercontent.com/OoliteProject/oolite/master/LICENSE.md`
-- `Resources/Config/trade-goods.plist` (commodity keys, `price_average` decicredits, `peak_export`/`peak_import`, `market_definition` context).
-- `Resources/Config/equipment.plist` (positional array format; prices in decicredits; `requires_non_full_fuel`, `requires_empty_pylon`, `condition_script`).
-- `Resources/Config/shipdata.plist` (player Cobra template at ~line 1226: speed 350, pitch 1.0, roll 2.0, thrust 32, cargo 20; Coriolis template at ~line 1690: `station_roll = 0.08`, `market_definition = ()`, subentities at `z=500.2561`; `smooth = 0` for dock; `emission_map` alpha extraction).
-- `Resources/Config/shipyard.plist` (ship prices in credits; Cobra Mk III 150000).
-- `Resources/Config/planetinfo.plist` (system keys as `galaxy system`, `coordinates` separate; `radius` in km; `stations_require_docking_clearance = no`; planet/sun distances).
-- `src/Core/OOMesh.m` (DAT parser: `NVERTS`/`NFACES`/`VERTEX`/`FACES`/`TEXTURES`; first three ints are colours and first is `smoothGroup`; faces >3 vertices truncated; UVs divided by `max_x`/`max_y`; per-face normals; `smooth` mode).
-- `src/Core/Entities/ShipEntity.m` (max flight values at ~264–271; `SHIP_THRUST_FACTOR` at `ShipEntity.h:46`; `flightSpeed`/`flightRoll`/`flightPitch` setters at ~7405–7483; `moveForward` at ~5810).
-- `src/Core/Entities/PlayerEntity.m` (`applyRoll:andClimb:` at ~3814–3854; `enterDock:` at ~6258; `flightRoll = launchRoll` at ~3522; fuel display `fuel/10.0` at ~7064).
-- `src/Core/Entities/PlayerEntityControls.m` (thrust `SHIP_THRUST_FACTOR` at ~1054; input ramp/damping at ~3726–3835; docking computer/fast dock at ~4655–4755).
-- `src/Core/Entities/DockEntity.m` (port dimensions, `canAcceptShipForDocking`, 1.5× safety, auto-centring, 90% capture, scrape damage at ~685–790).
-- `src/Core/Entities/OOPlanetEntity.m` (`collision_radius = radius_km * 10.0` at ~119–120).
-- `src/Core/GameController.h:36` (`MINIMUM_GAME_TICK 0.25`); `src/Core/GameController.m` ~340–345 (tick clamp).
-- `src/Core/OOCommodities.m` (~383–411 price/quantity generation with `randf() - randf()`; ~431–452 economic bias).
-- `src/Core/OOQuaternion.m` (~50–80 forward = +Z).
-- `src/Core/Entities/PlayerEntityLoadSave.m` (~614–621 `localMarket` and `station_markets` persistence).
-- `Resources/Models/oolite_cobra3.dat` (player model, bbox `130 × 34.965 × 81.373`), `Resources/Models/cobra3_redux.dat` (legacy Cobra model, bbox `130 × 30 × 65`), `Resources/Models/oolite_coriolis.dat` (hull bbox 1000×1000×~996), `Resources/Models/oolite_coriolis_dock.dat` (slot/tunnel geometry), `Resources/Models/new_coriolis.dat` (legacy model with a 64×192 opening at z=500; local axes may be rotated).
-- `src/Core/Universe.m` (~5039–5045 `station_roll` override; `STANDARD_STATION_ROLL 0.4`; ~1440–1464 planet/sun distances).
+Repository (HIGH confidence, read directly):
+- `/home/opencode/git/wegolite/.planning/PROJECT.md` (milestone goal; Key Decisions including the AI port, save schema, SwiftShader, load and budget decisions)
+- `/home/opencode/git/wegolite/AGENTS.md` (Docker-only gates, conventions)
+- `/home/opencode/git/wegolite/.planning/todos/pending/*.md` (collision deferral, chart pause, torus message, below-24-fps, docking test flake)
+- `/home/opencode/git/wegolite/src/app/game-session.ts` (3,365 lines; `bindTestHook`, `frame`, `updateProbe`, `pause`/`resume`/`focusLost`, `handleEvent`)
+- `/home/opencode/git/wegolite/src/sim/{math,hash,loop,step,time}.ts`, `src/sim/flight/state.ts`, `src/app/game-loop.ts`, `src/app/probe.ts`, `src/persistence/save.ts` (`MAX_SAVE_CHARS` and its worst-case derivation)
+- `/home/opencode/git/wegolite/eslint.config.js` (sim zone rules), `playwright.config.ts`, `vitest.config.ts`, `docs/PERFORMANCE.md`, `.planning/reviews/2026-11-09-logic-security-review.md` (P5, P7), `index.html` (CSP), `.planning/STATE.md` (G-03-3 SwiftShader measurements)
 
-### Secondary/community sources (MEDIUM confidence)
-- Elite Wiki, "Docking": manual docking method, slot rotation, speed guidance, docking clearance. `https://wiki.alioth.net/index.php/Docking`
-- Elite Wiki, "How to Dock": navigation beacon alignment, roll matching, low-speed approach guidance (the wiki uses the older LM label; current Oolite displays LS). `https://wiki.alioth.net/index.php/How_to_Dock`
-- Elite Wiki, "OXP howto dockable stations": invisible docking sphere/corridor, slit dimensions, +Z requirement. `https://wiki.alioth.net/index.php/OXP_howto_dockable_stations`
-- Elite Wiki, "Oolite": non-Newtonian flight model, "aeroplane in space". `https://wiki.alioth.net/index.php/Oolite`
-- Elite Wiki, "Roll vs Yaw crusades": yaw added to Oolite in v1.66 (2007); Oolite favours roll/pitch. `https://wiki.alioth.net/index.php/Roll_vs_Yaw_crusades`
-- Oolite Bulletin Board, "JavaScript/Emscripten" (2015) and "WebGPU Reboot" (2023): community interest in browser ports; OXP support is a top expectation. `https://bb.oolite.space/viewtopic.php?t=17433`, `https://bb.oolite.space/viewtopic.php?t=21483`
-- Frontier Developments, "Legal Notices": Elite, Elite logo, Cobra, Cobra logo are trademarks. `https://www.frontier.co.uk/legal/legal-notices`
-- Wikipedia, "Oolite (video game)": source GPL-2.0-or-later, resources dual-licensed GPL/CC BY-NC-SA-3.0. `https://en.wikipedia.org/wiki/Oolite_(video_game)`
+Oolite checkout (HIGH confidence, read directly from `/home/opencode/git/oolite`):
+- `Resources/Scripts/oolite-priorityai.js` (caches 48-50 and 203-212; `_reconsider`; `_resetReconsideration` 229-239; `applyHandlers` ~250-300; `setPriorities` 570-580; `checkScannerWithPredicate` 689-725; `Math.random` call sites)
+- `Resources/Scripts/oolite-populator.js` (priority populators with `deterministic`, `scrambledPseudoRandomNumber`, repopulate frequency tables, station selection and `launchingQueueLength` ~2640)
+- `Resources/AIs/oolite-traderAI.js` (priority tree structure, subrole overrides) and the `Resources/AIs/` listing
+- `src/Core/Entities/ShipEntity.m` (`update:` 2380-2485; behaviour dispatch 2490-2624; `behaviour_intercept_target` 3817+; `checkScanner` 8448+; `trackDestination` 9450+; `takeEnergyDamage` 11418+; destruction randomness 8013-8099), `ShipEntity.h` (constants and macros), `AI.h:31`, `Universe.m` (update loop 6540-6590), `GameController.h:36`, `Entity.h:49`
+- `Resources/Sounds`, `Resources/Music` (sizes), `Resources/Config/customsounds.plist` (vendored copy in `third_party/oolite/Config/`)
 
-### Browser/platform sources (MEDIUM confidence; cross-checked)
-- MDN, "Autoplay guide for media and Web Audio APIs": audio blocked until user gesture; `AudioContext` subject to autoplay rules. `https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay`
-- MDN, "Pointer Lock API": user-gesture requirement, Esc exit. `https://developer.mozilla.org/en-US/docs/Web/API/Pointer_Lock_API`
-- MDN, "Page Visibility API": hidden tabs, throttling. `https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API`
-- MDN, "Storage quotas and eviction criteria": 5 MiB localStorage/sessionStorage, 10 MiB total Web Storage, `QuotaExceededError`, IndexedDB quotas/eviction. `https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria`
-- MDN, "WebGL best practices": precision, context loss, `WEBGL_lose_context`. `https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices`
-- MDN, "webglcontextlost event": `preventDefault`, restore flow. `https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/webglcontextlost_event`
-- Three.js `WebGLRenderer` source: `logarithmicDepthBuffer` for huge scale differences, `reversedDepthBuffer` requires `EXT_clip_control`, `outputColorSpace` defaults to sRGB. `https://github.com/mrdoob/three.js/blob/dev/src/renderers/WebGLRenderer.js`
-- Float32 precision references: "The Perils of World Space" (`https://nicolbolas.github.io/oldtut/Positioning/Tut07%20The%20Perils%20of%20World%20Space.html`), "WebGL Precision Issues" (`https://webglfundamentals.org/webgl/lessons/webgl-precision-issues.html`), Godot's large-world precision article (`https://godotengine.org/article/emulating-double-precision-gpu-render-large-worlds/`), OVGrid floating-origin write-up (`https://ovgrid.com/engineering-a-planet-in-the-browser-the-decisions-behind-ovgrid`).
-
-### Prior art (MEDIUM confidence; use as design reference, not authority)
-- `atomic14/harmless`: browser Elite tribute; classic keys default, modern layout optional; docking letterbox roll-match, bounce/damage, docking computer. `https://github.com/atomic14/harmless`
-- `JamesRandall/webGLite`: TypeScript/WebGL port of BBC Elite. `https://github.com/JamesRandall/webGLite`
-- `KeithTheDev/elite-js`: Three.js Elite recreation with a Frontier disclaimer. `https://github.com/KeithTheDev/elite-js`
-- `0bOne/obelite`: browser Elite/Oolite experiment linked from the Oolite forum. `https://github.com/0bOne/obelite`
-- `fesh0r/newkind`: Elite: The New Kind port with instant/auto docking options. `https://github.com/fesh0r/newkind`
-
----
-
-*Pitfalls research for: Wegolite — browser-based faithful Oolite core-loop reimplementation*
-*Researched: 2026-11-02*
-
+External (MEDIUM/LOW, not decisive):
+- [Web Audio, Autoplay Policy and Games (Chrome Developers)](https://developer.chrome.com/blog/web-audio-autoplay) — contexts start suspended unless autoplay is allowed; resume after a user gesture (MEDIUM).
+- [Autoplay media in headless / devtools protocol (chromium headless-dev)](https://groups.google.com/a/chromium.org/g/headless-dev/c/zxPyN5f8MAQ) — `--autoplay-policy=no-user-gesture-required` switch for headless; behaviour with no audio device not confirmed (LOW; verify in the container).
