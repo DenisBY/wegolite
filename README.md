@@ -17,7 +17,7 @@ only, share-alike). See [`NOTICE`](./NOTICE), [`LICENSE`](./LICENSE) and
 
 ## Play
 
-Release: **Wegolite 0.2.0**. The version is read from `package.json`, and the
+Release: **Wegolite 0.3.0**. The version is read from `package.json`, and the
 release title is derived from it, so the two cannot drift apart.
 
 Build the production bundle and serve it:

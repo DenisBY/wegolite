@@ -61,7 +61,7 @@ test("the shipped footer links the licence documents and the source", async ({
   const footers = page.locator("footer");
   await expect(footers).toHaveCount(1);
   const footerText = (await footers.textContent()) ?? "";
-  expect(footerText).toContain("Wegolite 0.2.0");
+  expect(footerText).toContain("Wegolite 0.3.0");
   expect(footerText).toContain("unofficial fan project");
 
   const hrefs = await page
