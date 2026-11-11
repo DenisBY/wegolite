@@ -97,16 +97,16 @@ export const HUD_LAYOUT: Readonly<Record<HudElementId, HudRect>> = {
     height: SCANNER_HEIGHT,
   },
   compass: {
-    x: 1450 - COMPASS_RADIUS,
-    y: 940 - COMPASS_RADIUS,
+    x: 1196 - COMPASS_RADIUS,
+    y: 930 - COMPASS_RADIUS,
     width: COMPASS_RADIUS * 2,
     height: COMPASS_RADIUS * 2,
   },
-  aegis: { x: 410, y: 890, width: 120, height: 100 },
-  speed: { x: 1500, y: 740, width: 200, height: 45 },
-  roll: { x: 1500, y: 680, width: 200, height: 45 },
-  pitch: { x: 1500, y: 620, width: 200, height: 45 },
-  fuel: { x: 220, y: 740, width: 200, height: 45 },
+  aegis: { x: 676, y: 890, width: 96, height: 80 },
+  speed: { x: 1276, y: 885, width: 304, height: 24 },
+  roll: { x: 1276, y: 918, width: 304, height: 24 },
+  pitch: { x: 1276, y: 951, width: 304, height: 24 },
+  fuel: { x: 340, y: 918, width: 304, height: 24 },
   clock: { x: 60, y: 40, width: 360, height: 40 },
   condition: { x: 1848, y: 48, width: 24, height: 24 },
   message: { x: 510, y: 980, width: 900, height: 40 },
@@ -319,11 +319,12 @@ function drawCompass(
 ): void {
   const rect = HUD_LAYOUT.compass;
   const { x, y } = rectCentre(rect);
+  const ringRadius = SCANNER_HEIGHT / 2;
 
   context.strokeStyle = HUD_COLOR;
   context.lineWidth = 2;
   context.beginPath();
-  context.arc(x, y, COMPASS_RADIUS, 0, Math.PI * 2);
+  context.arc(x, y, ringRadius, 0, Math.PI * 2);
   context.stroke();
 
   context.beginPath();
@@ -345,7 +346,7 @@ function drawCompass(
   context.fillStyle = HUD_COLOR;
   context.font = HUD_SMALL_FONT;
   context.textAlign = "center";
-  context.fillText(compassLabel(compass.target), x, rect.y + rect.height - 4);
+  context.fillText(compassLabel(compass.target), x, y + ringRadius - 10);
 }
 
 function drawAegis(
@@ -368,34 +369,50 @@ function drawAegis(
   context.fillText(aegisLabel(status), x, y + 26);
 }
 
+const BAR_GAUGE_WIDTH = 160;
+const BAR_GAUGE_HEIGHT = 14;
+const BAR_LABEL_GAP = 12;
+
 function drawBar(
   context: CanvasRenderingContext2D,
   rect: HudRect,
   value: number,
   signed: boolean,
   label: string,
+  side: "left" | "right",
   text?: string,
 ): void {
+  const centerY = rect.y + rect.height / 2;
+  const barX = side === "left" ? rect.x + rect.width - BAR_GAUGE_WIDTH : rect.x;
+  const barY = Math.round(centerY - BAR_GAUGE_HEIGHT / 2);
+
   context.fillStyle = HUD_COLOR;
   context.strokeStyle = HUD_COLOR;
   context.lineWidth = 2;
   context.font = HUD_SMALL_FONT;
-  context.textAlign = "left";
-  context.fillText(label, rect.x, rect.y + 8);
 
-  if (text !== undefined) {
-    context.textAlign = "right";
-    context.fillText(text, rect.x + rect.width, rect.y + 8);
+  if (side === "left") {
+    context.textAlign = "left";
+    context.fillText(label, rect.x, centerY);
+    if (text !== undefined) {
+      context.textAlign = "right";
+      context.fillText(text, barX - BAR_LABEL_GAP, centerY);
+    }
+  } else {
+    context.textAlign = "left";
+    context.fillText(label, barX + BAR_GAUGE_WIDTH + BAR_LABEL_GAP, centerY);
+    if (text !== undefined) {
+      context.textAlign = "right";
+      context.fillText(text, rect.x + rect.width, centerY);
+    }
   }
 
-  const barY = rect.y + 20;
-  const barHeight = 14;
-  context.strokeRect(rect.x, barY, rect.width, barHeight);
+  context.strokeRect(barX, barY, BAR_GAUGE_WIDTH, BAR_GAUGE_HEIGHT);
 
-  const innerX = rect.x + 2;
+  const innerX = barX + 2;
   const innerY = barY + 2;
-  const innerWidth = rect.width - 4;
-  const innerHeight = barHeight - 4;
+  const innerWidth = BAR_GAUGE_WIDTH - 4;
+  const innerHeight = BAR_GAUGE_HEIGHT - 4;
 
   if (signed) {
     const centre = innerX + innerWidth / 2;
@@ -408,7 +425,7 @@ function drawBar(
     );
     context.beginPath();
     context.moveTo(centre, barY - 2);
-    context.lineTo(centre, barY + barHeight + 2);
+    context.lineTo(centre, barY + BAR_GAUGE_HEIGHT + 2);
     context.stroke();
   } else {
     context.fillRect(
@@ -477,16 +494,18 @@ export function drawHud(
     model.bars.speed,
     false,
     "SPD",
+    "right",
     model.speedText,
   );
-  drawBar(context, HUD_LAYOUT.roll, model.bars.roll, true, "ROLL");
-  drawBar(context, HUD_LAYOUT.pitch, model.bars.pitch, true, "PITCH");
+  drawBar(context, HUD_LAYOUT.roll, model.bars.roll, true, "ROLL", "right");
+  drawBar(context, HUD_LAYOUT.pitch, model.bars.pitch, true, "PITCH", "right");
   drawBar(
     context,
     HUD_LAYOUT.fuel,
     model.bars.fuel,
     false,
     "FUEL",
+    "left",
     model.fuelText,
   );
   drawCondition(context, model.condition);

@@ -19,6 +19,7 @@ import type { Vec3 } from "../../src/sim/math.js";
 import { initFlightState } from "../../src/sim/flight/state.js";
 import {
   HUD_COLOR,
+  HUD_LAYOUT,
   HUD_SCANNER_GRID_COLOR,
   HUD_SCANNER_NEUTRAL_COLOR,
   drawHud,
@@ -271,5 +272,31 @@ describe("HUD contacts", () => {
       fillStyle: HUD_SCANNER_NEUTRAL_COLOR,
       alpha: 1,
     });
+  });
+
+  it("aligns the dashboard instruments on the scanner's horizontal grid", () => {
+    const scannerTop = HUD_LAYOUT.scanner.y;
+    const scannerBottom = HUD_LAYOUT.scanner.y + HUD_LAYOUT.scanner.height;
+    const scannerCenterY = scannerTop + HUD_LAYOUT.scanner.height / 2;
+
+    // Speed, roll, and pitch stack top-to-bottom within the scanner's vertical band.
+    expect(HUD_LAYOUT.speed.y).toBeLessThan(HUD_LAYOUT.roll.y);
+    expect(HUD_LAYOUT.roll.y).toBeLessThan(HUD_LAYOUT.pitch.y);
+    expect(
+      HUD_LAYOUT.speed.y + HUD_LAYOUT.speed.height / 2,
+    ).toBeGreaterThanOrEqual(scannerTop);
+    expect(
+      HUD_LAYOUT.pitch.y + HUD_LAYOUT.pitch.height / 2,
+    ).toBeLessThanOrEqual(scannerBottom);
+
+    // Fuel, roll, aegis, and compass share the scanner's horizontal centreline.
+    expect(HUD_LAYOUT.fuel.y + HUD_LAYOUT.fuel.height / 2).toBe(scannerCenterY);
+    expect(HUD_LAYOUT.roll.y + HUD_LAYOUT.roll.height / 2).toBe(scannerCenterY);
+    expect(HUD_LAYOUT.aegis.y + HUD_LAYOUT.aegis.height / 2).toBe(
+      scannerCenterY,
+    );
+    expect(HUD_LAYOUT.compass.y + HUD_LAYOUT.compass.height / 2).toBe(
+      scannerCenterY,
+    );
   });
 });
