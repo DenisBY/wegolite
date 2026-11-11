@@ -740,3 +740,242 @@ export interface InterfacesModel {
 export function buildInterfacesModel(): InterfacesModel {
   return { title: INTERFACES_TITLE, emptyText: INTERFACES_EMPTY_TEXT };
 }
+
+export interface HomeCargoSummaryItem {
+  readonly name: string;
+  readonly quantityText: string;
+  readonly diffText: string;
+  readonly diffKind: "pos" | "neg" | "neutral";
+}
+
+export interface HomeMarketHighlight {
+  readonly key: string;
+  readonly name: string;
+  readonly priceText: string;
+  readonly stockText: string;
+  readonly badgeText: string;
+  readonly badgeKind: "surplus" | "demand";
+}
+
+export interface HomeModel {
+  readonly systemName: string;
+  readonly stationSubtitle: string;
+  readonly economy: string;
+  readonly government: string;
+  readonly techLevel: string;
+  readonly population: string;
+  readonly productivity: string;
+  readonly radius: string;
+  readonly description: string;
+  readonly fuelText: string;
+  readonly fuelPercent: number;
+  readonly fuelFull: boolean;
+  readonly refuelButtonText: string;
+  readonly refuelCostText: string;
+  readonly canRefuel: boolean;
+  readonly jumpTargetName: string;
+  readonly jumpDistanceText: string;
+  readonly jumpRequiredPercent: number;
+  readonly jumpStatusText: string;
+  readonly jumpStatusKind: "ready" | "warn" | "none";
+  readonly cargoSummaryText: string;
+  readonly cargoPercent: number;
+  readonly cargoItems: readonly HomeCargoSummaryItem[];
+  readonly marketHighlights: readonly HomeMarketHighlight[];
+}
+
+export interface BuildHomeModelInput {
+  readonly profile: PlayerProfile;
+  readonly system: System;
+  readonly targetSystem: System | undefined;
+  readonly labels: Labels;
+  readonly equipment: readonly Equipment[];
+  readonly commodities: readonly Commodity[];
+  readonly market: Market;
+}
+
+/**
+ * Build the Variant 1B docked home screen model (Arrival Report & Ship Berth).
+ *
+ * Combines live ship berth status (fuel gauge, top-up cost, hyperspace beacon
+ * readiness, cargo hold summary) with the current system's GalCop registry
+ * report and top local market surplus/demand highlights.
+ */
+export function buildHomeModel(input: BuildHomeModelInput): HomeModel {
+  const {
+    profile,
+    system,
+    targetSystem,
+    labels,
+    equipment,
+    commodities,
+    market,
+  } = input;
+
+  const sysData = buildSystemDataModel(system, system, labels);
+
+  const fuelTenths = Math.max(0, Math.min(FUEL_CAPACITY, profile.fuel));
+  const fuelPercent = Math.round((fuelTenths / FUEL_CAPACITY) * 100);
+  const fuelFull = fuelTenths >= FUEL_CAPACITY;
+  const neededTenths = Math.max(0, FUEL_CAPACITY - fuelTenths);
+  const fuelItem = equipment.find((entry) => entry.key === "EQ_FUEL");
+  const missileItem = equipment.find((entry) => entry.key === "EQ_MISSILE");
+  const unitByKey = new Map<string, CommodityUnit>(
+    commodities.map((entry) => [entry.key, entry.unit]),
+  );
+
+  let refuelCost = neededTenths * 2;
+  let canRefuel = false;
+  if (!fuelFull && fuelItem !== undefined && missileItem !== undefined) {
+    const ctx: FitContext = {
+      techLevelRaw: system.techLevelRaw,
+      fuelCapacity: FUEL_CAPACITY,
+      missileCapacity: MAX_MISSILES,
+      availablePods: availablePods(profile, unitByKey),
+      missilePrice: missileItem.price,
+    };
+    refuelCost = fitPrice(profile, fuelItem, ctx);
+    canRefuel = checkFit(profile, fuelItem, ctx).ok;
+  }
+
+  const refuelButtonText = fuelFull
+    ? "✓ Quirium Fuel Tank Full (7.0 LY)"
+    : `⚡ Refuel to 7.0 LY (+${(neededTenths / 10).toFixed(1)} LY)`;
+  const refuelCostText = fuelFull ? "FULL" : formatDecicredits(refuelCost);
+
+  let jumpTargetName = "None";
+  let jumpDistanceText = "0.0 LY";
+  let jumpRequiredPercent = 0;
+  let jumpStatusText = "NO BEACON";
+  let jumpStatusKind: "ready" | "warn" | "none" = "none";
+
+  if (targetSystem !== undefined && targetSystem.id !== system.id) {
+    const jump = jumpBetween(
+      { x: system.chartX, y: system.chartY },
+      { x: targetSystem.chartX, y: targetSystem.chartY },
+    );
+    jumpTargetName = targetSystem.name;
+    jumpDistanceText = `${(jump.dist === 0 ? 0.1 : jump.distanceLy).toFixed(1)} LY`;
+    jumpRequiredPercent = Math.min(
+      100,
+      Math.round((jump.fuelCost / FUEL_CAPACITY) * 100),
+    );
+    if (jump.fuelCost > FUEL_CAPACITY) {
+      jumpStatusText = "OUT OF RANGE";
+      jumpStatusKind = "warn";
+    } else if (profile.fuel >= jump.fuelCost) {
+      jumpStatusText = "JUMP READY";
+      jumpStatusKind = "ready";
+    } else {
+      jumpStatusText = "LOW FUEL";
+      jumpStatusKind = "warn";
+    }
+  }
+
+  const capacity = capacityPodsFor(profile.equipment, profile.passengerBerths);
+  const used = holdPodsUsed(profile.cargo, unitByKey);
+  const cargoPercent =
+    capacity > 0 ? Math.min(100, Math.round((used / capacity) * 100)) : 0;
+  const cargoSummaryText = `${String(used)} / ${String(capacity)} TC`;
+
+  const quoteByKey = new Map(market.goods.map((good) => [good.key, good]));
+  const cargoItems: HomeCargoSummaryItem[] = [];
+  for (const commodity of [...commodities].sort(
+    (left, right) => left.sortOrder - right.sortOrder,
+  )) {
+    const held = profile.cargo[commodity.key] ?? 0;
+    if (held <= 0) continue;
+    const quote = quoteByKey.get(commodity.key);
+    let diffText = "—";
+    let diffKind: "pos" | "neg" | "neutral" = "neutral";
+    if (quote !== undefined && commodity.priceAverage > 0) {
+      const diffDeci = quote.price - commodity.priceAverage;
+      if (diffDeci > 0) {
+        diffText = `+${(diffDeci / 10).toFixed(1)} Cr vs avg`;
+        diffKind = "pos";
+      } else if (diffDeci < 0) {
+        diffText = `${(diffDeci / 10).toFixed(1)} Cr vs avg`;
+        diffKind = "neg";
+      } else {
+        diffText = "±0.0 Cr vs avg";
+        diffKind = "neutral";
+      }
+    }
+    cargoItems.push({
+      name: commodity.name,
+      quantityText: `${String(held)} ${commodity.unit}`,
+      diffText,
+      diffKind,
+    });
+  }
+
+  const scoredHighlights: Array<{
+    readonly score: number;
+    readonly item: HomeMarketHighlight;
+  }> = [];
+
+  for (const commodity of commodities) {
+    if (!commodity.tradeable || commodity.unit !== "t") continue;
+    const quote = quoteByKey.get(commodity.key);
+    if (quote === undefined || commodity.priceAverage <= 0) continue;
+    const ratio =
+      (quote.price - commodity.priceAverage) / commodity.priceAverage;
+    if (ratio <= -0.08 && quote.stock > 0) {
+      scoredHighlights.push({
+        score: Math.abs(ratio) + (quote.stock >= 15 ? 0.15 : 0),
+        item: {
+          key: commodity.key,
+          name: commodity.name,
+          priceText: formatDecicredits(quote.price),
+          stockText: `${String(quote.stock)} t`,
+          badgeText: "EXPORT SURPLUS",
+          badgeKind: "surplus",
+        },
+      });
+    } else if (ratio >= 0.08) {
+      scoredHighlights.push({
+        score: Math.abs(ratio),
+        item: {
+          key: commodity.key,
+          name: commodity.name,
+          priceText: formatDecicredits(quote.price),
+          stockText: `${String(quote.stock)} t`,
+          badgeText: "HIGH DEMAND",
+          badgeKind: "demand",
+        },
+      });
+    }
+  }
+
+  scoredHighlights.sort((a, b) => b.score - a.score);
+  const marketHighlights = scoredHighlights
+    .slice(0, 4)
+    .map((entry) => entry.item);
+
+  return {
+    systemName: system.name,
+    stationSubtitle: "Coriolis Station · Docked",
+    economy: sysData.fields[0]?.value ?? "",
+    government: sysData.fields[1]?.value ?? "",
+    techLevel: sysData.fields[2]?.value ?? "",
+    population: sysData.fields[3]?.value ?? "",
+    productivity: sysData.fields[5]?.value ?? "",
+    radius: sysData.fields[6]?.value ?? "",
+    description: sysData.description,
+    fuelText: `${(fuelTenths / 10).toFixed(1)} LY`,
+    fuelPercent,
+    fuelFull,
+    refuelButtonText,
+    refuelCostText,
+    canRefuel,
+    jumpTargetName,
+    jumpDistanceText,
+    jumpRequiredPercent,
+    jumpStatusText,
+    jumpStatusKind,
+    cargoSummaryText,
+    cargoPercent,
+    cargoItems,
+    marketHighlights,
+  };
+}

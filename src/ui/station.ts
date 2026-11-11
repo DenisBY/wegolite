@@ -25,6 +25,7 @@ import { createStationFooter } from "./station-footer.js";
 import type { DockedPanel } from "./docked.js";
 
 import type {
+  HomeModel,
   InterfacesModel,
   LabelledField,
   MarketModel,
@@ -45,6 +46,7 @@ export interface StationView {
   readonly confirmText: string;
   readonly noticeText: string;
   readonly saveText: string;
+  readonly home?: HomeModel | undefined;
   readonly market?: MarketModel | undefined;
   readonly outfitting?: OutfittingModel | undefined;
   readonly status?: StatusModel | undefined;
@@ -58,6 +60,7 @@ export interface StationShell {
   setCredits(text: string): void;
   setFuel(text: string): void;
   onLaunch(handler: () => void): void;
+  onRefuel?(handler: () => void): void;
   render(view: StationView): void;
   dispose(): void;
 }
@@ -311,10 +314,16 @@ export function createStationShell(
     onLaunch(handler: () => void): void {
       home.onLaunch(handler);
     },
+    onRefuel(handler: () => void): void {
+      home.onRefuel?.(handler);
+    },
     render(view: StationView): void {
       home.setCredits(view.creditsText);
       home.setFuel(view.fuelText);
       home.setMessage(view.message);
+      if (view.home !== undefined) {
+        home.setHome?.(view.home);
+      }
       applyScreen(view.screen);
       if (view.screen === "market" && view.market !== undefined) {
         renderMarketRows(view.market);

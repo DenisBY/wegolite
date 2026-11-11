@@ -25,6 +25,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The docked `Home` screen is now a three-column station berth and arrival
+  report dashboard (`Service & Berth — Bay 04` with one-click fuel top-up and
+  jump range readout, `Cargo Hold Manifest` with local price deltas against
+  the galactic average, a vector Coriolis Docking Bay 04 viewport, `System
+Arrival Report`, and `Local Market Highlights`).
 - The navigation buoy in front of the station and the beacon at the witchpoint
   are now Oolite's own buoy model with its flashing lights, slowly tumbling.
   They were a plain turquoise marker before. The first load grows by about

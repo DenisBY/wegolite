@@ -254,6 +254,8 @@ Recent decisions affecting current work:
 
 - [2026-11-05] [testing] Fix compassMode hash omission and negative frame delta — [todo file](.planning/todos/pending/2026-11-05-fix-compassmode-hash-omission-and-negative-frame-delta.md)
 - [2026-11-06] [outfitting] Allow Cobra's fourth missile pylon — [todo file](.planning/todos/pending/2026-11-06-allow-cobras-fourth-missile-pylon.md)
+- [2026-11-11] [ui] Add terminal color palette switcher in game settings — [todo file](.planning/todos/pending/2026-11-11-terminal-color-palette-setting.md)
+- [2026-11-11] [economy] Track cargo purchase cost basis for profit/loss display — [todo file](.planning/todos/pending/2026-11-11-cargo-purchase-cost-basis-tracking.md)
 
 ### Blockers/Concerns
 

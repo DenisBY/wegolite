@@ -1,0 +1,97 @@
+/* Wegolite Station Terminal Theme — Phosphor Green (Default)
+   Mirrors index.html #docked palette and typography tokens */
+
+:root {
+  --font-sans: ui-monospace, "Cascadia Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.85rem;
+  --text-base: 0.95rem;
+  --text-lg: 1.1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 0.85rem;
+  --space-lg: 1.25rem;
+  --space-xl: 1.75rem;
+
+  /* Core Wegolite terminal palette */
+  --color-surface: #000000;
+  --color-surface-alt: rgba(4, 18, 9, 0.78);
+  --color-surface-elevated: rgba(8, 32, 15, 0.86);
+  --color-surface-hover: #0a2a12;
+  --color-text: #33ff66;
+  --color-text-secondary: #99ff99;
+  --color-text-muted: #7ab889;
+  --color-accent: #33ff66;
+  --color-accent-hover: #66ff8c;
+  --color-amber: #ffd966;
+  --color-amber-surface: rgba(42, 34, 8, 0.82);
+  --color-border: #2f8a47;
+  --color-border-subtle: #1a5a2c;
+  --color-glow: rgba(51, 255, 102, 0.22);
+
+  /* Canvas / SVG accent RGB components for dynamic shaders */
+  --rgb-primary: 51, 255, 102;
+  --rgb-secondary: 153, 255, 153;
+  --rgb-amber: 255, 217, 102;
+  --rgb-hull-lit: 26, 98, 48;
+  --rgb-hull-dark: 5, 22, 11;
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --shadow-sm: 0 0 12px rgba(51, 255, 102, 0.08);
+  --shadow-md: 0 0 24px rgba(51, 255, 102, 0.14);
+}
+
+/* Amber CRT alternate theme */
+[data-theme="amber"] {
+  --color-surface: #050300;
+  --color-surface-alt: rgba(22, 14, 3, 0.80);
+  --color-surface-elevated: rgba(36, 22, 5, 0.88);
+  --color-surface-hover: #2c1b06;
+  --color-text: #ffb636;
+  --color-text-secondary: #ffd88a;
+  --color-text-muted: #b89047;
+  --color-accent: #ffb636;
+  --color-accent-hover: #ffd073;
+  --color-amber: #7affb2;
+  --color-amber-surface: rgba(10, 38, 22, 0.82);
+  --color-border: #9e6b18;
+  --color-border-subtle: #593b0b;
+  --color-glow: rgba(255, 182, 54, 0.22);
+
+  --rgb-primary: 255, 182, 54;
+  --rgb-secondary: 255, 216, 138;
+  --rgb-amber: 122, 255, 178;
+  --rgb-hull-lit: 110, 72, 16;
+  --rgb-hull-dark: 24, 15, 3;
+}
+
+/* XenonUI Cyan alternate theme */
+[data-theme="xenon"] {
+  --color-surface: #01060a;
+  --color-surface-alt: rgba(5, 20, 30, 0.80);
+  --color-surface-elevated: rgba(8, 30, 46, 0.88);
+  --color-surface-hover: #0c2c42;
+  --color-text: #4deeea;
+  --color-text-secondary: #a6f7f5;
+  --color-text-muted: #6caab5;
+  --color-accent: #4deeea;
+  --color-accent-hover: #8bf7f4;
+  --color-amber: #ffd966;
+  --color-amber-surface: rgba(42, 34, 8, 0.82);
+  --color-border: #287a8c;
+  --color-border-subtle: #154754;
+  --color-glow: rgba(77, 238, 234, 0.22);
+
+  --rgb-primary: 77, 238, 234;
+  --rgb-secondary: 166, 247, 245;
+  --rgb-amber: 255, 217, 102;
+  --rgb-hull-lit: 22, 86, 104;
+  --rgb-hull-dark: 4, 19, 26;
+}

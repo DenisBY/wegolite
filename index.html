@@ -143,6 +143,74 @@
         background: #000;
         color: #33ff66;
         font: 18px/1.7 monospace;
+        overflow: hidden;
+      }
+
+      .home-viewport-bg {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        overflow: hidden;
+      }
+
+      .home-viewport-bg svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        opacity: 0.92;
+      }
+
+      .home-viewport-bg::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          repeating-linear-gradient(
+            to bottom,
+            rgba(0, 0, 0, 0) 0px,
+            rgba(0, 0, 0, 0) 2px,
+            rgba(0, 0, 0, 0.28) 3px,
+            rgba(0, 0, 0, 0) 4px
+          ),
+          radial-gradient(
+            ellipse at 50% 50%,
+            transparent 55%,
+            rgba(0, 0, 0, 0.65) 100%
+          );
+        pointer-events: none;
+      }
+
+      @keyframes bay-stars-rotate {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes bay-beacon-pulse {
+        0%,
+        100% {
+          opacity: 0.25;
+        }
+        50% {
+          opacity: 0.95;
+        }
+      }
+
+      .bay-slot-stars {
+        transform-origin: 280px 148px;
+        animation: bay-stars-rotate 110s linear infinite;
+      }
+
+      .bay-beacon-a {
+        animation: bay-beacon-pulse 2.4s ease-in-out infinite;
+      }
+
+      .bay-beacon-b {
+        animation: bay-beacon-pulse 2.4s ease-in-out 1.2s infinite;
       }
 
       .station-header {
@@ -151,6 +219,7 @@
         gap: 1rem;
         padding: 0.75rem 2rem;
         border-bottom: 1px solid #1a5a2c;
+        background: rgba(0, 8, 3, 0.82);
         letter-spacing: 0.06em;
       }
 
@@ -162,7 +231,7 @@
         flex: 1;
         min-height: 0;
         overflow-y: auto;
-        padding: 1rem 2rem;
+        padding: 0.85rem 2rem;
         outline: none;
       }
 
@@ -318,6 +387,434 @@
       #docked button:focus-visible {
         background: #33ff66;
         color: #000;
+      }
+
+      /* Variant 1B: 3-column Arrival Report & Ship Berth dashboard over
+         Coriolis Bay 04 vector background. */
+      .home-1b-grid {
+        display: grid;
+        grid-template-columns:
+          minmax(17.5rem, 1fr) minmax(18rem, 1.15fr)
+          minmax(17.5rem, 1fr);
+        gap: 0.9rem;
+        align-items: stretch;
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      @media (max-width: 1120px) {
+        .home-1b-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      .home-col {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+      }
+
+      .home-col > .home-card:last-child {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .home-card {
+        position: relative;
+        padding: 0.65rem 0.85rem;
+        border: 1px solid #2f8a47;
+        background: rgba(0, 10, 4, 0.78);
+        backdrop-filter: blur(2px);
+      }
+
+      .home-card::before,
+      .home-card::after {
+        content: "";
+        position: absolute;
+        width: 7px;
+        height: 7px;
+        border-color: #33ff66;
+        pointer-events: none;
+      }
+
+      .home-card::before {
+        top: -1px;
+        left: -1px;
+        border-top: 2px solid #33ff66;
+        border-left: 2px solid #33ff66;
+      }
+
+      .home-card::after {
+        bottom: -1px;
+        right: -1px;
+        border-bottom: 2px solid #33ff66;
+        border-right: 2px solid #33ff66;
+      }
+
+      .home-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.5rem;
+        margin: 0 0 0.45rem;
+        padding-bottom: 0.25rem;
+        border-bottom: 1px solid #1a5a2c;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #9f9;
+      }
+
+      .home-card-tag {
+        padding: 0.05rem 0.35rem;
+        border: 1px solid #2f8a47;
+        background: #0a2a12;
+        color: #33ff66;
+        font-size: 11px;
+      }
+
+      .home-card-tag[data-jump-status="warn"],
+      .home-card-tag[data-jump-status="none"] {
+        border-color: #ffd966;
+        color: #ffd966;
+      }
+
+      .home-ship-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.5rem;
+        margin-bottom: 0.45rem;
+      }
+
+      .home-ship-label {
+        color: #9a9;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .home-ship-value {
+        font-size: 15px;
+        font-weight: bold;
+        color: #33ff66;
+      }
+
+      .home-gauge-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .home-gauge-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.5rem;
+        font-size: 13px;
+      }
+
+      .home-gauge-track {
+        position: relative;
+        height: 11px;
+        border: 1px solid #2f8a47;
+        background: rgba(0, 20, 8, 0.85);
+        overflow: hidden;
+      }
+
+      .home-gauge-fill {
+        height: 100%;
+        width: 100%;
+        background: repeating-linear-gradient(
+          90deg,
+          #33ff66 0px,
+          #33ff66 7px,
+          rgba(0, 12, 4, 0.9) 7px,
+          rgba(0, 12, 4, 0.9) 9px
+        );
+        transition: width 160ms ease-out;
+      }
+
+      .home-gauge-marker {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #ffd966;
+      }
+
+      .home-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+
+      #docked .home-btn-refuel {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.42rem 0.7rem;
+        border: 1px solid #ffd966;
+        background: rgba(18, 13, 0, 0.72);
+        color: #ffd966;
+        font-size: 13px;
+        text-align: left;
+        box-shadow: inset 0 0 8px rgba(255, 217, 102, 0.08);
+      }
+
+      #docked .home-btn-refuel:hover:not(:disabled),
+      #docked .home-btn-refuel:focus-visible:not(:disabled) {
+        border-color: #ffe699;
+        background: rgba(255, 217, 102, 0.16);
+        color: #ffe699;
+        box-shadow: inset 0 0 12px rgba(255, 217, 102, 0.22);
+      }
+
+      #docked .home-btn-refuel:disabled,
+      #docked .home-btn-refuel[data-fuel-state="full"] {
+        border-color: rgba(178, 150, 68, 0.52);
+        background: rgba(12, 9, 0, 0.45);
+        color: rgba(196, 168, 78, 0.72);
+        box-shadow: none;
+        cursor: default;
+      }
+
+      #docked .home-btn-refuel-cost {
+        font-weight: bold;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+
+      #docked .home-btn-launch {
+        width: 100%;
+        padding: 0.45rem 0.75rem;
+        border: 1px solid #33ff66;
+        background: rgba(10, 42, 18, 0.72);
+        color: #33ff66;
+        font-size: 14px;
+        font-weight: bold;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      #docked .home-btn-launch:hover,
+      #docked .home-btn-launch:focus-visible {
+        background: #33ff66;
+        color: #000;
+      }
+
+      .home-cargo-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        font-size: 12px;
+      }
+
+      .home-cargo-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.4rem;
+        padding: 0.16rem 0.25rem;
+        border-bottom: 1px dashed rgba(47, 138, 71, 0.35);
+      }
+
+      .home-cargo-meta {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.45rem;
+        white-space: nowrap;
+      }
+
+      .home-cargo-diff {
+        font-size: 11px;
+        padding: 0.02rem 0.3rem;
+        border: 1px solid transparent;
+      }
+
+      .home-cargo-diff.pos {
+        color: #33ff66;
+        border-color: rgba(51, 255, 102, 0.45);
+        background: rgba(10, 42, 18, 0.45);
+      }
+
+      .home-cargo-diff.neg {
+        color: #ffd966;
+        border-color: rgba(255, 217, 102, 0.45);
+        background: rgba(45, 32, 0, 0.35);
+      }
+
+      .home-cargo-diff.neutral {
+        color: #9a9;
+        border-color: rgba(153, 170, 153, 0.3);
+      }
+
+      .home-cargo-empty {
+        margin: 0;
+        color: #9a9;
+        font-size: 12px;
+      }
+
+      .home-viewport {
+        position: relative;
+        flex: 1;
+        min-height: 19rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 0.65rem 0.8rem;
+        border: 1px solid #2f8a47;
+        background:
+          radial-gradient(
+            ellipse at 50% 42%,
+            rgba(12, 48, 22, 0.34) 0%,
+            rgba(2, 12, 5, 0.9) 70%,
+            #000 100%
+          ),
+          #000;
+        overflow: hidden;
+      }
+
+      .home-viewport-top {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        color: #9a9;
+      }
+
+      .home-viewport-badge {
+        padding: 0.15rem 0.45rem;
+        border: 1px solid #1a5a2c;
+        background: rgba(0, 8, 3, 0.84);
+      }
+
+      .home-viewport-bottom {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        padding: 0.45rem 0.65rem;
+        border: 1px solid #1a5a2c;
+        background: rgba(0, 8, 3, 0.86);
+      }
+
+      #docked .home-viewport-bottom .docked-message {
+        min-height: 1.35em;
+        margin: 0;
+        font-size: 14px;
+        font-weight: bold;
+        color: #33ff66;
+      }
+
+      .home-viewport-telemetry {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.5rem;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        color: #9a9;
+      }
+
+      .home-sys-banner {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.5rem;
+        margin-bottom: 0.45rem;
+      }
+
+      .home-sys-name {
+        margin: 0;
+        font-size: 18px;
+        letter-spacing: 0.06em;
+        color: #33ff66;
+      }
+
+      .home-sys-sub {
+        color: #9a9;
+        font-size: 12px;
+      }
+
+      .home-sys-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.3rem 0.65rem;
+        margin-bottom: 0.45rem;
+      }
+
+      .home-sys-stat {
+        padding: 0.2rem 0.4rem;
+        border-left: 2px solid #2f8a47;
+        background: rgba(10, 42, 18, 0.35);
+      }
+
+      .home-sys-stat-label {
+        display: block;
+        color: #9a9;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .home-sys-stat-val {
+        font-size: 13px;
+        color: #33ff66;
+      }
+
+      .home-sys-desc {
+        margin: 0;
+        padding: 0.35rem 0.5rem;
+        border: 1px solid #1a5a2c;
+        background: rgba(0, 14, 5, 0.65);
+        color: #9f9;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .home-market-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+
+      .home-market-table th,
+      .home-market-table td {
+        padding: 0.18rem 0.35rem;
+        text-align: left;
+        border-bottom: 1px solid rgba(26, 90, 44, 0.55);
+      }
+
+      .home-market-table th {
+        color: #9a9;
+        font-weight: normal;
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+
+      .home-market-tag {
+        display: inline-block;
+        padding: 0.02rem 0.3rem;
+        border: 1px solid #2f8a47;
+        font-size: 10px;
+        letter-spacing: 0.04em;
+      }
+
+      .home-market-tag.surplus {
+        background: #0a2a12;
+        color: #33ff66;
+      }
+
+      .home-market-tag.demand {
+        border-color: #ffd966;
+        color: #ffd966;
       }
 
       /* The station tab strip and its sub-tabs. Every rule is scoped by the
@@ -840,20 +1337,469 @@
       ></nav>
       <section id="station-screen" data-screen="home" tabindex="-1">
         <div data-station-panel="home">
-          <h2>Docked</h2>
-          <dl>
-            <dt>Ship</dt>
-            <dd data-field="ship"></dd>
-            <dt>Fuel</dt>
-            <dd data-field="fuel"></dd>
-          </dl>
-          <p class="docked-message" data-field="message" role="status"></p>
-          <div class="station-menu">
-            <div class="station-entry">Market (F8)</div>
-            <div class="station-entry">Outfitting (F3)</div>
-            <div class="station-entry">Status (F5)</div>
+          <div class="home-1b-grid">
+            <!-- Left column: Ship Berth, Fuel, Jump Target, Cargo Hold -->
+            <div class="home-col">
+              <div class="home-card">
+                <div class="home-card-header">
+                  <span>Service &amp; Berth — Bay 04</span>
+                  <span class="home-card-tag">ALL CLEAR</span>
+                </div>
+                <div class="home-ship-row">
+                  <span class="home-ship-label">Vessel</span>
+                  <span class="home-ship-value" data-field="ship"></span>
+                </div>
+                <div class="home-gauge-row">
+                  <div class="home-gauge-label">
+                    <span>Witchspace Fuel</span>
+                    <span><strong data-field="fuel"></strong> / 7.0 LY</span>
+                  </div>
+                  <div class="home-gauge-track">
+                    <div
+                      class="home-gauge-fill"
+                      data-field="home-fuel-fill"
+                    ></div>
+                  </div>
+                </div>
+                <div class="home-actions">
+                  <button
+                    type="button"
+                    class="home-btn-refuel"
+                    data-action="refuel"
+                    data-fuel-state="full"
+                  >
+                    <span class="home-btn-refuel-label"
+                      >✓ Quirium Fuel Tank Full (7.0 LY)</span
+                    >
+                    <strong class="home-btn-refuel-cost">FULL</strong>
+                  </button>
+                  <button
+                    type="button"
+                    class="home-btn-launch"
+                    data-action="launch"
+                  >
+                    Launch
+                  </button>
+                </div>
+              </div>
+
+              <div class="home-card">
+                <div class="home-card-header">
+                  <span>Hyperspace Target</span>
+                  <span
+                    class="home-card-tag"
+                    data-field="home-jump-status"
+                    data-jump-status="none"
+                  >
+                    NO BEACON
+                  </span>
+                </div>
+                <div class="home-gauge-row">
+                  <div class="home-gauge-label">
+                    <span
+                      >Beacon:
+                      <strong data-field="home-jump-target">None</strong></span
+                    >
+                    <span data-field="home-jump-distance">0.0 LY</span>
+                  </div>
+                  <div class="home-gauge-track">
+                    <div
+                      class="home-gauge-fill"
+                      data-field="home-jump-fill"
+                    ></div>
+                    <div
+                      class="home-gauge-marker"
+                      data-field="home-jump-marker"
+                      hidden
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="home-card">
+                <div class="home-card-header">
+                  <span>Cargo Hold Manifest</span>
+                  <span class="home-card-tag" data-field="home-cargo-summary">
+                    0 / 20 TC
+                  </span>
+                </div>
+                <div class="home-gauge-row">
+                  <div class="home-gauge-track">
+                    <div
+                      class="home-gauge-fill"
+                      data-field="home-cargo-fill"
+                      style="width: 0%"
+                    ></div>
+                  </div>
+                </div>
+                <div class="home-cargo-list" data-home-cargo-rows></div>
+              </div>
+            </div>
+
+            <!-- Center column: Coriolis Bay 04 Viewport -->
+            <div class="home-col">
+              <div class="home-viewport">
+                <div class="home-viewport-bg" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 560 440"
+                    preserveAspectRatio="xMidYMid meet"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <defs>
+                      <linearGradient
+                        id="bay-floor-grad"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stop-color="#0a2a12"
+                          stop-opacity="0.12"
+                        />
+                        <stop
+                          offset="100%"
+                          stop-color="#33ff66"
+                          stop-opacity="0.24"
+                        />
+                      </linearGradient>
+                      <radialGradient id="slot-glow" cx="50%" cy="34%" r="46%">
+                        <stop
+                          offset="0%"
+                          stop-color="#33ff66"
+                          stop-opacity="0.22"
+                        />
+                        <stop
+                          offset="65%"
+                          stop-color="#0a2a12"
+                          stop-opacity="0.1"
+                        />
+                        <stop
+                          offset="100%"
+                          stop-color="#000000"
+                          stop-opacity="0"
+                        />
+                      </radialGradient>
+                      <clipPath id="bay-slot-clip">
+                        <rect x="164" y="121" width="232" height="54" />
+                      </clipPath>
+                    </defs>
+
+                    <rect
+                      x="0"
+                      y="0"
+                      width="560"
+                      height="440"
+                      fill="url(#slot-glow)"
+                    />
+
+                    <!-- Vaulted bay structural ribs centered in the middle viewport -->
+                    <g
+                      stroke="#1a5a2c"
+                      stroke-width="1.2"
+                      fill="none"
+                      opacity="0.78"
+                    >
+                      <polygon points="12,12 548,12 450,82 110,82" />
+                      <polygon
+                        points="12,428 548,428 450,290 110,290"
+                        fill="url(#bay-floor-grad)"
+                      />
+                      <line x1="12" y1="12" x2="12" y2="428" />
+                      <line x1="548" y1="12" x2="548" y2="428" />
+                      <line x1="110" y1="82" x2="110" y2="290" />
+                      <line x1="450" y1="82" x2="450" y2="290" />
+                      <polygon
+                        points="56,44 504,44 450,290 110,290"
+                        stroke-dasharray="5 5"
+                      />
+                      <!-- Overhead crane gantry trusses -->
+                      <line x1="70" y1="36" x2="490" y2="36" />
+                      <line x1="94" y1="62" x2="466" y2="62" />
+                      <line x1="160" y1="12" x2="195" y2="82" />
+                      <line x1="280" y1="12" x2="280" y2="82" />
+                      <line x1="400" y1="12" x2="365" y2="82" />
+                      <!-- Bay deck perspective grid -->
+                      <line
+                        x1="280"
+                        y1="290"
+                        x2="280"
+                        y2="428"
+                        stroke="#2f8a47"
+                      />
+                      <line x1="215" y1="290" x2="140" y2="428" />
+                      <line x1="345" y1="290" x2="420" y2="428" />
+                      <line x1="155" y1="290" x2="45" y2="428" />
+                      <line x1="405" y1="290" x2="515" y2="428" />
+                      <line x1="88" y1="322" x2="472" y2="322" />
+                      <line x1="54" y1="362" x2="506" y2="362" />
+                      <line x1="24" y1="404" x2="536" y2="404" />
+                    </g>
+
+                    <!-- Coriolis docking slot opening into rotating starfield (cx = 280) -->
+                    <g>
+                      <rect
+                        x="156"
+                        y="114"
+                        width="248"
+                        height="68"
+                        fill="#010904"
+                        stroke="#2f8a47"
+                        stroke-width="1.8"
+                      />
+                      <rect
+                        x="164"
+                        y="121"
+                        width="232"
+                        height="54"
+                        fill="#000502"
+                        stroke="#33ff66"
+                        stroke-width="1.3"
+                      />
+                      <g clip-path="url(#bay-slot-clip)">
+                        <g class="bay-slot-stars" fill="#33ff66">
+                          <circle cx="195" cy="136" r="1.4" opacity="0.9" />
+                          <circle cx="235" cy="158" r="1.1" opacity="0.65" />
+                          <circle cx="272" cy="130" r="1.6" opacity="0.95" />
+                          <circle cx="312" cy="152" r="1.2" opacity="0.7" />
+                          <circle cx="354" cy="140" r="1.5" opacity="0.85" />
+                          <circle cx="216" cy="166" r="1.2" opacity="0.75" />
+                          <circle cx="292" cy="167" r="1.3" opacity="0.8" />
+                          <circle cx="376" cy="161" r="1.1" opacity="0.65" />
+                          <circle cx="254" cy="116" r="1.4" opacity="0.8" />
+                          <circle cx="302" cy="182" r="1.3" opacity="0.75" />
+                        </g>
+                        <line
+                          x1="164"
+                          y1="148"
+                          x2="396"
+                          y2="148"
+                          stroke="#33ff66"
+                          stroke-width="0.7"
+                          stroke-dasharray="4 6"
+                          opacity="0.45"
+                        />
+                      </g>
+                      <g fill="#33ff66" class="bay-beacon-a">
+                        <rect x="144" y="122" width="5" height="8" />
+                        <rect x="144" y="144" width="5" height="8" />
+                        <rect x="144" y="166" width="5" height="8" />
+                        <rect x="411" y="122" width="5" height="8" />
+                        <rect x="411" y="144" width="5" height="8" />
+                        <rect x="411" y="166" width="5" height="8" />
+                      </g>
+                      <g fill="#ffd966" class="bay-beacon-b">
+                        <circle cx="156" cy="114" r="2.6" />
+                        <circle cx="404" cy="114" r="2.6" />
+                        <circle cx="156" cy="182" r="2.6" />
+                        <circle cx="404" cy="182" r="2.6" />
+                      </g>
+                    </g>
+
+                    <!-- Berthed Cobra Mk III wireframe silhouette on Pad 04 (cx = 280) -->
+                    <g
+                      transform="translate(280, 266)"
+                      stroke="#33ff66"
+                      fill="none"
+                    >
+                      <ellipse
+                        cx="0"
+                        cy="36"
+                        rx="148"
+                        ry="36"
+                        stroke="#2f8a47"
+                        stroke-width="1.2"
+                        stroke-dasharray="7 5"
+                        opacity="0.78"
+                      />
+                      <ellipse
+                        cx="0"
+                        cy="36"
+                        rx="112"
+                        ry="25"
+                        stroke="#1a5a2c"
+                        stroke-width="1"
+                        opacity="0.68"
+                      />
+                      <polygon
+                        points="0,-46 66,-12 124,20 108,38 -108,38 -124,20 -66,-12"
+                        fill="#04190a"
+                        fill-opacity="0.82"
+                        stroke="#33ff66"
+                        stroke-width="1.7"
+                      />
+                      <polygon
+                        points="0,-46 32,7 -32,7"
+                        fill="#0a2a12"
+                        fill-opacity="0.58"
+                        stroke="#33ff66"
+                        stroke-width="1.2"
+                      />
+                      <line
+                        x1="0"
+                        y1="-46"
+                        x2="0"
+                        y2="38"
+                        stroke="#2f8a47"
+                        stroke-width="1.1"
+                      />
+                      <line
+                        x1="-32"
+                        y1="7"
+                        x2="-108"
+                        y2="38"
+                        stroke="#2f8a47"
+                        stroke-width="1.1"
+                      />
+                      <line
+                        x1="32"
+                        y1="7"
+                        x2="108"
+                        y2="38"
+                        stroke="#2f8a47"
+                        stroke-width="1.1"
+                      />
+                      <line
+                        x1="-32"
+                        y1="7"
+                        x2="-66"
+                        y2="-12"
+                        stroke="#2f8a47"
+                        stroke-width="1.1"
+                      />
+                      <line
+                        x1="32"
+                        y1="7"
+                        x2="66"
+                        y2="-12"
+                        stroke="#2f8a47"
+                        stroke-width="1.1"
+                      />
+                      <rect
+                        x="-52"
+                        y="29"
+                        width="32"
+                        height="9"
+                        fill="#33ff66"
+                        fill-opacity="0.35"
+                        stroke="#33ff66"
+                        stroke-width="1.1"
+                      />
+                      <rect
+                        x="20"
+                        y="29"
+                        width="32"
+                        height="9"
+                        fill="#33ff66"
+                        fill-opacity="0.35"
+                        stroke="#33ff66"
+                        stroke-width="1.1"
+                      />
+                    </g>
+                  </svg>
+                </div>
+                <div class="home-viewport-top">
+                  <span class="home-viewport-badge">
+                    BAY 04 // PRESSURIZED · GRAV-LOCK ENGAGED
+                  </span>
+                  <span class="home-viewport-badge">PAD-04</span>
+                </div>
+                <div class="home-viewport-bottom">
+                  <p
+                    class="docked-message"
+                    data-field="message"
+                    role="status"
+                  ></p>
+                  <div class="home-viewport-telemetry">
+                    <span>HULL: NOMINAL</span>
+                    <span>SHIELDS: 100%</span>
+                    <span>ENERGY: 4/4 BANKS</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right column: System Arrival Report & Local Market Highlights -->
+            <div class="home-col">
+              <div class="home-card">
+                <div class="home-card-header">
+                  <span>System Arrival Report</span>
+                  <span class="home-card-tag">GALCOP REGISTRY</span>
+                </div>
+                <div class="home-sys-banner">
+                  <h2 class="home-sys-name" data-field="home-system-title"></h2>
+                  <span
+                    class="home-sys-sub"
+                    data-field="home-station-subtitle"
+                  ></span>
+                </div>
+                <div class="home-sys-grid">
+                  <div class="home-sys-stat">
+                    <span class="home-sys-stat-label">Economy</span>
+                    <span
+                      class="home-sys-stat-val"
+                      data-field="home-economy"
+                    ></span>
+                  </div>
+                  <div class="home-sys-stat">
+                    <span class="home-sys-stat-label">Government</span>
+                    <span
+                      class="home-sys-stat-val"
+                      data-field="home-government"
+                    ></span>
+                  </div>
+                  <div class="home-sys-stat">
+                    <span class="home-sys-stat-label">Tech Level</span>
+                    <span
+                      class="home-sys-stat-val"
+                      data-field="home-tech-level"
+                    ></span>
+                  </div>
+                  <div class="home-sys-stat">
+                    <span class="home-sys-stat-label">Population</span>
+                    <span
+                      class="home-sys-stat-val"
+                      data-field="home-population"
+                    ></span>
+                  </div>
+                  <div class="home-sys-stat">
+                    <span class="home-sys-stat-label">Productivity</span>
+                    <span
+                      class="home-sys-stat-val"
+                      data-field="home-productivity"
+                    ></span>
+                  </div>
+                  <div class="home-sys-stat">
+                    <span class="home-sys-stat-label">Avg Radius</span>
+                    <span
+                      class="home-sys-stat-val"
+                      data-field="home-radius"
+                    ></span>
+                  </div>
+                </div>
+                <p class="home-sys-desc" data-field="home-description"></p>
+              </div>
+
+              <div class="home-card">
+                <div class="home-card-header">
+                  <span>Local Market Highlights</span>
+                  <span class="home-card-tag">SURPLUS &amp; DEMAND</span>
+                </div>
+                <table class="home-market-table">
+                  <thead>
+                    <tr>
+                      <th>Commodity</th>
+                      <th>Price</th>
+                      <th>Stock</th>
+                      <th>Profile</th>
+                    </tr>
+                  </thead>
+                  <tbody data-home-market-highlights></tbody>
+                </table>
+              </div>
+            </div>
           </div>
-          <button type="button" data-action="launch">Launch</button>
         </div>
         <div data-station-panel="market" hidden>
           <h2>Market</h2>

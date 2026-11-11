@@ -16,9 +16,14 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { parseEquipment } from "../../src/content/equipment.js";
-import type { Equipment } from "../../src/content/types.js";
+import type { Equipment, System } from "../../src/content/types.js";
+import {
+  generateMarket,
+  marketSeedForSystem,
+} from "../../src/sim/economy/market.js";
 import { formatDecicredits, newProfile } from "../../src/sim/player/profile.js";
 import {
+  buildHomeModel,
   buildStatusModel,
   formatDecicredits as stationFormatDecicredits,
 } from "../../src/ui/station-model.js";
@@ -270,5 +275,142 @@ describe("formatDecicredits", () => {
     expect(formatDecicredits(Number.MAX_SAFE_INTEGER - 2)).toBe(
       "900719925474098.9 Cr",
     );
+  });
+});
+
+describe("buildHomeModel", () => {
+  const market = generateMarket(
+    system,
+    commodities,
+    marketSeedForSystem(system.id),
+  );
+  const diso: System = {
+    ...system,
+    id: "g0-s147",
+    name: "Diso",
+    chartX: 11,
+    chartY: 174,
+  };
+  const farSystem: System = {
+    ...system,
+    id: "g0-s99",
+    name: "Reorte",
+    chartX: 200,
+    chartY: 200,
+  };
+
+  it("renders full fuel state and Lave system arrival report", () => {
+    const model = buildHomeModel({
+      profile: newProfile(),
+      system,
+      targetSystem: undefined,
+      labels,
+      equipment: catalogue,
+      commodities,
+      market,
+    });
+
+    expect(model.systemName).toBe("Lave");
+    expect(model.economy).toBe("Rich Agricultural");
+    expect(model.government).toBe("Dictatorship");
+    expect(model.techLevel).toBe("5");
+    expect(model.fuelFull).toBe(true);
+    expect(model.canRefuel).toBe(false);
+    expect(model.refuelButtonText).toBe("✓ Quirium Fuel Tank Full (7.0 LY)");
+    expect(model.refuelCostText).toBe("FULL");
+    expect(model.jumpStatusKind).toBe("none");
+    expect(model.marketHighlights.length).toBeGreaterThan(0);
+  });
+
+  it("computes refuel label/cost, jump readiness, and cargo price diff vs Galactic Average", () => {
+    const foodAvg = commodities.find((c) => c.key === "food")!.priceAverage;
+    const computersAvg = commodities.find(
+      (c) => c.key === "computers",
+    )!.priceAverage;
+    const textilesAvg = commodities.find(
+      (c) => c.key === "textiles",
+    )!.priceAverage;
+
+    const customMarket = {
+      ...market,
+      goods: market.goods.map((good) => {
+        if (good.key === "food") {
+          return { ...good, price: foodAvg - 54 };
+        }
+        if (good.key === "computers") {
+          return { ...good, price: computersAvg + 82 };
+        }
+        if (good.key === "textiles") {
+          return { ...good, price: textilesAvg };
+        }
+        return good;
+      }),
+    };
+
+    const model = buildHomeModel({
+      profile: {
+        ...newProfile(),
+        fuel: 56,
+        cargo: { food: 3, computers: 2, textiles: 1 },
+      },
+      system,
+      targetSystem: diso,
+      labels,
+      equipment: catalogue,
+      commodities,
+      market: customMarket,
+    });
+
+    expect(model.fuelFull).toBe(false);
+    expect(model.canRefuel).toBe(true);
+    expect(model.refuelButtonText).toBe("⚡ Refuel to 7.0 LY (+1.4 LY)");
+    expect(model.refuelCostText).toBe("2.8 Cr");
+    expect(model.jumpTargetName).toBe("Diso");
+    expect(model.jumpStatusKind).toBe("ready");
+    expect(model.cargoSummaryText).toBe("6 / 20 TC");
+    expect(model.cargoItems).toEqual([
+      {
+        name: "Food",
+        quantityText: "3 t",
+        diffText: "-5.4 Cr vs avg",
+        diffKind: "neg",
+      },
+      {
+        name: "Textiles",
+        quantityText: "1 t",
+        diffText: "±0.0 Cr vs avg",
+        diffKind: "neutral",
+      },
+      {
+        name: "Computers",
+        quantityText: "2 t",
+        diffText: "+8.2 Cr vs avg",
+        diffKind: "pos",
+      },
+    ]);
+
+    const lowFuelModel = buildHomeModel({
+      profile: { ...newProfile(), fuel: 10 },
+      system,
+      targetSystem: diso,
+      labels,
+      equipment: catalogue,
+      commodities,
+      market,
+    });
+    expect(lowFuelModel.jumpStatusText).toBe("LOW FUEL");
+    expect(lowFuelModel.jumpStatusKind).toBe("warn");
+
+    const outOfRangeModel = buildHomeModel({
+      profile: newProfile(),
+      system,
+      targetSystem: farSystem,
+      labels,
+      equipment: catalogue,
+      commodities,
+      market,
+    });
+    expect(outOfRangeModel.jumpStatusText).toBe("OUT OF RANGE");
+    expect(outOfRangeModel.jumpStatusKind).toBe("warn");
   });
 });

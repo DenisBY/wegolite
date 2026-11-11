@@ -162,6 +162,7 @@ import {
 } from "../ui/chart-model.js";
 import type { ChartArrow, ChartCamera, ChartView } from "../ui/chart-model.js";
 import {
+  buildHomeModel,
   buildMarketModel,
   buildOutfittingModel,
   buildStatusModel,
@@ -920,6 +921,18 @@ export function createGameSession(options: GameSessionOptions): GameSession {
             stationPage,
             targetSystem()?.name,
           );
+    const homeModel =
+      labels === undefined || equipment === undefined
+        ? undefined
+        : buildHomeModel({
+            profile,
+            system,
+            targetSystem: targetSystem(),
+            labels,
+            equipment,
+            commodities: catalogue,
+            market: currentMarket,
+          });
     let confirmText = "";
     let noticeText = stationNotice;
     if (stationScreen === "market") {
@@ -952,6 +965,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       confirmText,
       noticeText,
       saveText,
+      home: homeModel,
       market: marketModel,
       outfitting: outModel,
       status: statusModel,
@@ -3211,6 +3225,24 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       // D-03: the Launch button is only live on the home screen.
       if (state?.mode !== "docked" || stationScreen !== "home") return;
       pending.push({ kind: "launch" });
+    });
+    docked.onRefuel?.(() => {
+      if (state?.mode !== "docked" || stationScreen !== "home") return;
+      const catalogue = equipmentCatalogue;
+      const ctx = fitContext();
+      if (catalogue === undefined || ctx === undefined) return;
+      const item = catalogue.find((entry) => entry.key === "EQ_FUEL");
+      if (item === undefined) return;
+      const check = checkFit(profile, item, ctx);
+      if (!check.ok) return;
+      const next = applyFit(profile, item, ctx);
+      if (next === profile) return;
+      stationPending = null;
+      stationNotice = "Tanks topped up to 7.0 LY";
+      lastTrade = { kind: "fit", key: "EQ_FUEL", amount: 1 };
+      commitProfile(next);
+      autosave();
+      renderStation();
     });
 
     renderFrame(0);
