@@ -3,6 +3,7 @@ created: 2026-11-11T09:00:00.000Z
 title: Check CI after 0.2.0 and the Shift+C docking test timeout
 area: testing
 severity: major
+resolves_phase: 8
 files:
   - tests/e2e/docking.spec.ts:594-650
   - .github/workflows/pages.yml

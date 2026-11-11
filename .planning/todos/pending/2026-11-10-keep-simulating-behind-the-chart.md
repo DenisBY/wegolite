@@ -3,6 +3,7 @@ created: 2026-11-10T12:00:00.000Z
 title: Decide whether the F6 chart should pause the flight
 area: app
 severity: minor
+resolves_phase: 12
 files:
   - src/app/game-session.ts
 ---

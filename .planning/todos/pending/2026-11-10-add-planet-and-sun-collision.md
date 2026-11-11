@@ -3,6 +3,7 @@ created: 2026-11-10T12:00:00.000Z
 title: Stop the player flying through the planet, the sun and the navigation buoys
 area: flight
 severity: major
+resolves_phase: 15
 files:
   - src/sim/flight/step.ts
   - src/sim/world/layout.ts

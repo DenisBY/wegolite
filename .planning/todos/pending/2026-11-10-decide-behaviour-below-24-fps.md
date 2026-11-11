@@ -3,6 +3,7 @@ created: 2026-11-10T12:00:00.000Z
 title: Decide what happens when the frame rate falls below 24 fps
 area: app
 severity: minor
+resolves_phase: 12
 files:
   - src/sim/time.ts
   - src/app/game-loop.ts

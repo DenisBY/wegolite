@@ -3,6 +3,7 @@ created: 2026-11-10T12:00:00.000Z
 title: Do not report "Torus disengaged" when the torus never engaged
 area: flight
 severity: minor
+resolves_phase: 12
 files:
   - src/app/game-session.ts
   - src/sim/flight/torus.ts
