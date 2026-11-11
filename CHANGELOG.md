@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Visual placeholders on the flight HUD for the remaining Oolite dashboard
+  gauges (`FWD`, `AFT`, `CT`, `LT`, `ALT`, `MISS` missile pylons, and `E1`–`E4`
+  energy banks) alongside the live `FUEL`, `SPD`, `ROLL`, and `PITCH` gauges.
+
 ### Fixed
 
 - The flight scanner and dashboard instruments now match Oolite's layout and
@@ -13,8 +19,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   field-of-view cone lines, forward contacts plotted in the upper half of the
   disc, lollipop markers with translucent vertical stalks and solid rectangular
   caps at the contact's elevation (green for the station, yellow for the
-  navigation buoy and witchpoint beacon), and inline `FUEL`, `AEGIS`, `COMPASS`,
-  and `SPD` / `ROLL` / `PITCH` gauges aligned on the scanner's horizontal band.
+  navigation buoy and witchpoint beacon), and `FUEL`, `AEGIS`, `COMPASS`, and
+  `SPD` / `ROLL` / `PITCH` (with yellow diamond indicators) aligned on the
+  scanner's horizontal band.
 
 ### Changed
 

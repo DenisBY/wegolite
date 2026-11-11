@@ -37,6 +37,8 @@ export const HUD_FONT =
   "28px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
 export const HUD_SMALL_FONT =
   "20px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
+const HUD_GAUGE_FONT =
+  "15px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
 
 /** Oolite's 288x64 ellipse, enlarged to 360x80 for readability (D-08). */
 export const SCANNER_WIDTH = 360;
@@ -103,10 +105,10 @@ export const HUD_LAYOUT: Readonly<Record<HudElementId, HudRect>> = {
     height: COMPASS_RADIUS * 2,
   },
   aegis: { x: 676, y: 890, width: 96, height: 80 },
-  speed: { x: 1276, y: 885, width: 304, height: 24 },
-  roll: { x: 1276, y: 918, width: 304, height: 24 },
-  pitch: { x: 1276, y: 951, width: 304, height: 24 },
-  fuel: { x: 340, y: 918, width: 304, height: 24 },
+  speed: { x: 1272, y: 890, width: 308, height: 16 },
+  roll: { x: 1272, y: 910, width: 308, height: 13 },
+  pitch: { x: 1272, y: 923, width: 308, height: 13 },
+  fuel: { x: 340, y: 932, width: 308, height: 14 },
   clock: { x: 60, y: 40, width: 360, height: 40 },
   condition: { x: 1848, y: 48, width: 24, height: 24 },
   message: { x: 510, y: 980, width: 900, height: 40 },
@@ -369,71 +371,228 @@ function drawAegis(
   context.fillText(aegisLabel(status), x, y + 26);
 }
 
-const BAR_GAUGE_WIDTH = 160;
-const BAR_GAUGE_HEIGHT = 14;
-const BAR_LABEL_GAP = 12;
+const GAUGE_BAR_WIDTH = 160;
+const GAUGE_BAR_HEIGHT = 10;
+const GAUGE_SURROUND_PAD = 3;
+const GAUGE_SURROUND_WIDTH = GAUGE_BAR_WIDTH + GAUGE_SURROUND_PAD * 2;
+const LEFT_SURROUND_X = 480;
+const LEFT_BAR_X = LEFT_SURROUND_X + GAUGE_SURROUND_PAD;
+const LEFT_LABEL_X = LEFT_SURROUND_X - 12;
+const RIGHT_SURROUND_X =
+  HUD_DESIGN_WIDTH - LEFT_SURROUND_X - GAUGE_SURROUND_WIDTH;
+const RIGHT_BAR_X = RIGHT_SURROUND_X + GAUGE_SURROUND_PAD;
+const RIGHT_LABEL_X = RIGHT_SURROUND_X + GAUGE_SURROUND_WIDTH + 12;
 
-function drawBar(
+function drawFillGauge(
   context: CanvasRenderingContext2D,
-  rect: HudRect,
+  barX: number,
+  barY: number,
   value: number,
-  signed: boolean,
-  label: string,
-  side: "left" | "right",
-  text?: string,
+  fillColor: string,
+  surroundColor?: string,
 ): void {
-  const centerY = rect.y + rect.height / 2;
-  const barX = side === "left" ? rect.x + rect.width - BAR_GAUGE_WIDTH : rect.x;
-  const barY = Math.round(centerY - BAR_GAUGE_HEIGHT / 2);
-
-  context.fillStyle = HUD_COLOR;
-  context.strokeStyle = HUD_COLOR;
-  context.lineWidth = 2;
-  context.font = HUD_SMALL_FONT;
-
-  if (side === "left") {
-    context.textAlign = "left";
-    context.fillText(label, rect.x, centerY);
-    if (text !== undefined) {
-      context.textAlign = "right";
-      context.fillText(text, barX - BAR_LABEL_GAP, centerY);
-    }
-  } else {
-    context.textAlign = "left";
-    context.fillText(label, barX + BAR_GAUGE_WIDTH + BAR_LABEL_GAP, centerY);
-    if (text !== undefined) {
-      context.textAlign = "right";
-      context.fillText(text, rect.x + rect.width, centerY);
-    }
+  if (surroundColor !== undefined) {
+    context.strokeStyle = surroundColor;
+    context.lineWidth = 1.5;
+    context.strokeRect(
+      barX - GAUGE_SURROUND_PAD,
+      barY - GAUGE_SURROUND_PAD,
+      GAUGE_SURROUND_WIDTH,
+      GAUGE_BAR_HEIGHT + GAUGE_SURROUND_PAD * 2,
+    );
   }
+  const fillWidth = GAUGE_BAR_WIDTH * clamp(value, 0, 1);
+  if (fillWidth > 0) {
+    context.fillStyle = fillColor;
+    context.fillRect(barX, barY, fillWidth, GAUGE_BAR_HEIGHT);
+  }
+}
 
-  context.strokeRect(barX, barY, BAR_GAUGE_WIDTH, BAR_GAUGE_HEIGHT);
+/**
+ * Oolite's `hudDrawIndicatorAt` (`HeadUpDisplay.m:3135-3146`):
+ * green surround with a yellow diamond indicator for signed `-1..1` axes (`ROLL`, `PITCH`).
+ */
+function drawSignedDiamondGauge(
+  context: CanvasRenderingContext2D,
+  surroundX: number,
+  surroundY: number,
+  surroundHeight: number,
+  value: number,
+): void {
+  context.strokeStyle = HUD_COLOR;
+  context.lineWidth = 1.5;
+  context.strokeRect(
+    surroundX,
+    surroundY,
+    GAUGE_SURROUND_WIDTH,
+    surroundHeight,
+  );
 
-  const innerX = barX + 2;
-  const innerY = barY + 2;
-  const innerWidth = BAR_GAUGE_WIDTH - 4;
-  const innerHeight = BAR_GAUGE_HEIGHT - 4;
+  const centerX = surroundX + GAUGE_SURROUND_WIDTH / 2;
+  const centerY = surroundY + surroundHeight / 2;
+  const position = centerX + clamp(value, -1, 1) * ((GAUGE_BAR_WIDTH - 6) / 2);
+  const halfHeight = Math.max(3, surroundHeight / 2 - 2);
 
-  if (signed) {
-    const centre = innerX + innerWidth / 2;
-    const half = (innerWidth / 2) * clamp(value, -1, 1);
-    context.fillRect(
-      half >= 0 ? centre : centre + half,
-      innerY,
-      Math.abs(half),
-      innerHeight,
-    );
-    context.beginPath();
-    context.moveTo(centre, barY - 2);
-    context.lineTo(centre, barY + BAR_GAUGE_HEIGHT + 2);
-    context.stroke();
+  context.fillStyle = HUD_SCANNER_NEUTRAL_COLOR;
+  context.beginPath();
+  context.moveTo(position, centerY - halfHeight);
+  context.lineTo(position + 3.5, centerY);
+  context.lineTo(position, centerY + halfHeight);
+  context.lineTo(position - 3.5, centerY);
+  context.closePath();
+  context.fill();
+}
+
+function drawMissileIcon(
+  context: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  filled: boolean,
+  selected: boolean,
+): void {
+  context.beginPath();
+  context.moveTo(cx, cy - 8);
+  context.lineTo(cx + 6, cy - 1);
+  context.lineTo(cx + 2.5, cy - 1);
+  context.lineTo(cx + 3.5, cy + 7);
+  context.lineTo(cx - 3.5, cy + 7);
+  context.lineTo(cx - 2.5, cy - 1);
+  context.lineTo(cx - 6, cy - 1);
+  context.closePath();
+
+  if (filled) {
+    context.fillStyle = HUD_COLOR;
+    context.fill();
+    if (selected) {
+      context.strokeStyle = HUD_SCANNER_NEUTRAL_COLOR;
+      context.lineWidth = 1.25;
+      context.stroke();
+    }
   } else {
-    context.fillRect(
-      innerX,
-      innerY,
-      innerWidth * clamp(value, 0, 1),
-      innerHeight,
-    );
+    context.strokeStyle = "rgba(180, 190, 180, 0.55)";
+    context.lineWidth = 1.25;
+    context.stroke();
+  }
+}
+
+/**
+ * Left-hand Oolite gauge stack (`hud.plist` LHS):
+ * - `FWD` and `AFT` shield bars (green surrounds, 100% placeholder fill)
+ * - yellow system surround enclosing `FUEL` (live yellow bar), `CT`, `LT`, `ALT`
+ * - `MISS` missile pylon display placeholder below the yellow surround
+ */
+function drawLeftGauges(
+  context: CanvasRenderingContext2D,
+  model: HudModel,
+): void {
+  context.font = HUD_GAUGE_FONT;
+  context.textAlign = "right";
+
+  // FWD shield placeholder (top aligned with scanner top y = 890).
+  drawFillGauge(context, LEFT_BAR_X, 893, 1, HUD_COLOR, HUD_COLOR);
+  context.fillStyle = HUD_COLOR;
+  context.fillText("FWD", LEFT_LABEL_X, 898);
+
+  // AFT shield placeholder.
+  drawFillGauge(context, LEFT_BAR_X, 913, 1, HUD_COLOR, HUD_COLOR);
+  context.fillStyle = HUD_COLOR;
+  context.fillText("AFT", LEFT_LABEL_X, 918);
+
+  // Shared yellow surround for FUEL, CT, LT, ALT (hud.plist drawSurround:).
+  context.strokeStyle = HUD_SCANNER_NEUTRAL_COLOR;
+  context.lineWidth = 1.5;
+  context.strokeRect(LEFT_SURROUND_X, 930, GAUGE_SURROUND_WIDTH, 66);
+
+  // Live FUEL bar (yellow, with fuelText to the left of the label).
+  drawFillGauge(
+    context,
+    LEFT_BAR_X,
+    934,
+    model.bars.fuel,
+    HUD_SCANNER_NEUTRAL_COLOR,
+  );
+  context.fillStyle = HUD_COLOR;
+  context.fillText("FUEL", LEFT_LABEL_X, 939);
+  context.fillText(model.fuelText, LEFT_LABEL_X - 52, 939);
+
+  // Cabin temperature (CT), laser temperature (LT), altitude (ALT) placeholders.
+  drawFillGauge(context, LEFT_BAR_X, 949, 0.22, HUD_COLOR);
+  context.fillStyle = HUD_COLOR;
+  context.fillText("CT", LEFT_LABEL_X, 954);
+
+  drawFillGauge(context, LEFT_BAR_X, 964, 0, HUD_COLOR);
+  context.fillStyle = HUD_COLOR;
+  context.fillText("LT", LEFT_LABEL_X, 969);
+
+  drawFillGauge(context, LEFT_BAR_X, 979, 0.92, HUD_COLOR);
+  context.fillStyle = HUD_COLOR;
+  context.fillText("ALT", LEFT_LABEL_X, 984);
+
+  // Missile display placeholder (MISS + 4 pylons).
+  context.fillStyle = HUD_COLOR;
+  context.fillText("MISS", LEFT_LABEL_X, 1012);
+  for (let i = 0; i < 4; i += 1) {
+    drawMissileIcon(context, LEFT_BAR_X + 10 + i * 22, 1012, i < 3, i === 0);
+  }
+}
+
+/**
+ * Right-hand Oolite gauge stack (`hud.plist` RHS):
+ * - `SPD` speed bar (live, top aligned with scanner top y = 890)
+ * - `ROLL` and `PITCH` signed yellow-diamond indicators (live)
+ * - yellow energy surround enclosing 4 energy banks `E1`..`E4` (placeholders)
+ */
+function drawRightGauges(
+  context: CanvasRenderingContext2D,
+  model: HudModel,
+): void {
+  context.font = HUD_GAUGE_FONT;
+  context.textAlign = "left";
+
+  // Live SPD bar.
+  drawFillGauge(
+    context,
+    RIGHT_BAR_X,
+    893,
+    model.bars.speed,
+    HUD_COLOR,
+    HUD_COLOR,
+  );
+  context.fillStyle = HUD_COLOR;
+  context.fillText("SPD", RIGHT_LABEL_X, 898);
+  context.fillText(model.speedText, RIGHT_LABEL_X + 44, 898);
+
+  // Live ROLL and PITCH diamond indicators sharing their middle border.
+  drawSignedDiamondGauge(
+    context,
+    RIGHT_SURROUND_X,
+    HUD_LAYOUT.roll.y,
+    HUD_LAYOUT.roll.height,
+    model.bars.roll,
+  );
+  context.fillStyle = HUD_COLOR;
+  context.fillText("ROLL", RIGHT_LABEL_X, 916.5);
+
+  drawSignedDiamondGauge(
+    context,
+    RIGHT_SURROUND_X,
+    HUD_LAYOUT.pitch.y,
+    HUD_LAYOUT.pitch.height,
+    model.bars.pitch,
+  );
+  context.fillStyle = HUD_COLOR;
+  context.fillText("PITCH", RIGHT_LABEL_X, 929.5);
+
+  // Shared yellow surround for energy banks E1..E4 (hud.plist drawEnergyGauge:).
+  context.strokeStyle = HUD_SCANNER_NEUTRAL_COLOR;
+  context.lineWidth = 1.5;
+  context.strokeRect(RIGHT_SURROUND_X, 940, GAUGE_SURROUND_WIDTH, 56);
+
+  for (let i = 0; i < 4; i += 1) {
+    const bankY = 944 + i * 13;
+    drawFillGauge(context, RIGHT_BAR_X, bankY, 1, HUD_SCANNER_NEUTRAL_COLOR);
+    context.fillStyle = HUD_COLOR;
+    context.fillText(`E${String(i + 1)}`, RIGHT_LABEL_X, bankY + 5);
   }
 }
 
@@ -488,26 +647,8 @@ export function drawHud(
   drawScanner(context, model);
   drawCompass(context, model.compass);
   drawAegis(context, model.aegis);
-  drawBar(
-    context,
-    HUD_LAYOUT.speed,
-    model.bars.speed,
-    false,
-    "SPD",
-    "right",
-    model.speedText,
-  );
-  drawBar(context, HUD_LAYOUT.roll, model.bars.roll, true, "ROLL", "right");
-  drawBar(context, HUD_LAYOUT.pitch, model.bars.pitch, true, "PITCH", "right");
-  drawBar(
-    context,
-    HUD_LAYOUT.fuel,
-    model.bars.fuel,
-    false,
-    "FUEL",
-    "left",
-    model.fuelText,
-  );
+  drawLeftGauges(context, model);
+  drawRightGauges(context, model);
   drawCondition(context, model.condition);
 
   context.fillStyle = HUD_COLOR;

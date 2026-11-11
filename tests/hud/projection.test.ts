@@ -211,6 +211,8 @@ describe("HUD contacts", () => {
     }> = [];
     const strokeStyles: string[] = [];
 
+    const fillTextLabels: string[] = [];
+
     const context = {
       save: vi.fn(),
       restore: vi.fn(),
@@ -242,7 +244,9 @@ describe("HUD contacts", () => {
           alpha: this.globalAlpha,
         });
       }),
-      fillText: vi.fn(),
+      fillText: vi.fn((text: string) => {
+        fillTextLabels.push(text);
+      }),
       strokeStyle: "",
       fillStyle: "",
       lineWidth: 1,
@@ -254,6 +258,24 @@ describe("HUD contacts", () => {
     drawHud(context, model);
 
     expect(strokeStyles).toContain(HUD_SCANNER_GRID_COLOR);
+    expect(fillTextLabels).toEqual(
+      expect.arrayContaining([
+        "FWD",
+        "AFT",
+        "FUEL",
+        "CT",
+        "LT",
+        "ALT",
+        "MISS",
+        "SPD",
+        "ROLL",
+        "PITCH",
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+      ]),
+    );
     // Station lollipop: centre (960, 930), base (940, 938), head (940, 922)
     expect(fillRectCalls).toContainEqual({
       x: 940 - 3.75,
@@ -280,18 +302,18 @@ describe("HUD contacts", () => {
     const scannerCenterY = scannerTop + HUD_LAYOUT.scanner.height / 2;
 
     // Speed, roll, and pitch stack top-to-bottom within the scanner's vertical band.
+    expect(HUD_LAYOUT.speed.y).toBe(scannerTop);
     expect(HUD_LAYOUT.speed.y).toBeLessThan(HUD_LAYOUT.roll.y);
     expect(HUD_LAYOUT.roll.y).toBeLessThan(HUD_LAYOUT.pitch.y);
-    expect(
-      HUD_LAYOUT.speed.y + HUD_LAYOUT.speed.height / 2,
-    ).toBeGreaterThanOrEqual(scannerTop);
-    expect(
-      HUD_LAYOUT.pitch.y + HUD_LAYOUT.pitch.height / 2,
-    ).toBeLessThanOrEqual(scannerBottom);
+    expect(HUD_LAYOUT.pitch.y + HUD_LAYOUT.pitch.height).toBeLessThanOrEqual(
+      scannerBottom,
+    );
 
-    // Fuel, roll, aegis, and compass share the scanner's horizontal centreline.
-    expect(HUD_LAYOUT.fuel.y + HUD_LAYOUT.fuel.height / 2).toBe(scannerCenterY);
-    expect(HUD_LAYOUT.roll.y + HUD_LAYOUT.roll.height / 2).toBe(scannerCenterY);
+    // Fuel sits inside the scanner's vertical band, and aegis/compass share its centreline.
+    expect(HUD_LAYOUT.fuel.y).toBeGreaterThanOrEqual(scannerTop);
+    expect(HUD_LAYOUT.fuel.y + HUD_LAYOUT.fuel.height).toBeLessThanOrEqual(
+      scannerBottom,
+    );
     expect(HUD_LAYOUT.aegis.y + HUD_LAYOUT.aegis.height / 2).toBe(
       scannerCenterY,
     );
