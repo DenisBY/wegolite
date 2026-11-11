@@ -276,21 +276,21 @@ describe("HUD contacts", () => {
         "E4",
       ]),
     );
-    // Station lollipop: centre (960, 930), base (940, 938), head (940, 922)
+    // Station lollipop: centre (960, 868), base (940, 876), head (940, 860)
     expect(fillRectCalls).toContainEqual({
-      x: 940 - 3.75,
-      y: 922 - 3.75,
-      w: 6.25,
-      h: 3.75,
+      x: 940 - 5.25,
+      y: 860 - 5.25,
+      w: 8.75,
+      h: 5.25,
       fillStyle: HUD_COLOR,
       alpha: 1,
     });
-    // Nav buoy lollipop: centre (960, 930), base (975, 918), head (975, 936)
+    // Nav buoy lollipop: centre (960, 868), base (975, 856), head (975, 874)
     expect(fillRectCalls).toContainEqual({
-      x: 975 - 3.75,
-      y: 936 - 3.75,
-      w: 6.25,
-      h: 3.75,
+      x: 975 - 5.25,
+      y: 874 - 5.25,
+      w: 8.75,
+      h: 5.25,
       fillStyle: HUD_SCANNER_NEUTRAL_COLOR,
       alpha: 1,
     });

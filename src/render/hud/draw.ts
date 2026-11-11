@@ -38,20 +38,20 @@ export const HUD_FONT =
 export const HUD_SMALL_FONT =
   "20px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
 const HUD_GAUGE_FONT =
-  "15px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
+  "20px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
 
-/** Oolite's 288x64 ellipse, enlarged to 360x80 for readability (D-08). */
-export const SCANNER_WIDTH = 360;
-export const SCANNER_HEIGHT = 80;
+/** Oolite's 288x64 ellipse, scaled 1.75x to 504x112 for 1080p readability (D-08). */
+export const SCANNER_WIDTH = 504;
+export const SCANNER_HEIGHT = 112;
 export const COMPASS_RADIUS = 48;
 
 /** Oolite's default vertical field-of-view in degrees (`MyOpenGLView.m:1287`, `57.2°`). */
 const SCANNER_FOV_DEG = 57.2;
-/** Lollipop geometry scaled from Oolite's 288x64 scanner (`HeadUpDisplay.m:1265-1275`) to 360x80 (1.25x). */
-const LOLLIPOP_HEAD_WIDTH = 6.25;
-const LOLLIPOP_HEAD_HEIGHT = 3.75;
-const LOLLIPOP_HEAD_LEFT_OFFSET = 3.75;
-const LOLLIPOP_STALK_WIDTH = 2.5;
+/** Lollipop geometry scaled from Oolite's 288x64 scanner (`HeadUpDisplay.m:1265-1275`) to 504x112 (1.75x). */
+const LOLLIPOP_HEAD_WIDTH = 8.75;
+const LOLLIPOP_HEAD_HEIGHT = 5.25;
+const LOLLIPOP_HEAD_LEFT_OFFSET = 5.25;
+const LOLLIPOP_STALK_WIDTH = 3.5;
 const LOLLIPOP_STALK_ALPHA = 1 / 3;
 
 export type HudElementId =
@@ -94,24 +94,24 @@ export const HUD_LAYOUT: Readonly<Record<HudElementId, HudRect>> = {
   crosshair: { x: 920, y: 500, width: 80, height: 80 },
   scanner: {
     x: 960 - SCANNER_WIDTH / 2,
-    y: 930 - SCANNER_HEIGHT / 2,
+    y: 868 - SCANNER_HEIGHT / 2,
     width: SCANNER_WIDTH,
     height: SCANNER_HEIGHT,
   },
   compass: {
-    x: 1196 - COMPASS_RADIUS,
-    y: 930 - COMPASS_RADIUS,
+    x: 1276 - COMPASS_RADIUS,
+    y: 868 - COMPASS_RADIUS,
     width: COMPASS_RADIUS * 2,
     height: COMPASS_RADIUS * 2,
   },
-  aegis: { x: 676, y: 890, width: 96, height: 80 },
-  speed: { x: 1272, y: 890, width: 308, height: 16 },
-  roll: { x: 1272, y: 910, width: 308, height: 13 },
-  pitch: { x: 1272, y: 923, width: 308, height: 13 },
-  fuel: { x: 340, y: 932, width: 308, height: 14 },
+  aegis: { x: 596, y: 820, width: 96, height: 96 },
+  speed: { x: 1356, y: 812, width: 404, height: 22 },
+  roll: { x: 1356, y: 840, width: 404, height: 18 },
+  pitch: { x: 1356, y: 858, width: 404, height: 18 },
+  fuel: { x: 160, y: 872, width: 404, height: 18 },
   clock: { x: 60, y: 40, width: 360, height: 40 },
   condition: { x: 1848, y: 48, width: 24, height: 24 },
-  message: { x: 510, y: 980, width: 900, height: 40 },
+  message: { x: 510, y: 944, width: 900, height: 40 },
 };
 
 export interface HudContact extends ScannerBlip {
@@ -219,12 +219,12 @@ function drawScannerGrid(
   context.moveTo(x, y - hh);
   context.lineTo(x, y + hh);
 
-  // Range graduation ticks (HeadUpDisplay.m:3977-4001).
+  // Range graduation ticks (HeadUpDisplay.m:3977-4001, scaled from Oolite's 288px width).
   const kmScan = 0.001 * (scannerRange > 0 ? scannerRange : SCANNER_MAX_RANGE);
   const hdiv = hh / kmScan;
   let wdiv = (0.5 * ww) / kmScan;
   let stepKm = 1;
-  if (wdiv < 4) {
+  if (wdiv < (4 * ww) / 144) {
     wdiv *= 2;
     stepKm = 5;
   }
@@ -321,7 +321,7 @@ function drawCompass(
 ): void {
   const rect = HUD_LAYOUT.compass;
   const { x, y } = rectCentre(rect);
-  const ringRadius = SCANNER_HEIGHT / 2;
+  const ringRadius = COMPASS_RADIUS;
 
   context.strokeStyle = HUD_COLOR;
   context.lineWidth = 2;
@@ -342,7 +342,7 @@ function drawCompass(
 
   context.fillStyle = compass.forward ? HUD_COLOR : HUD_AMBER;
   context.beginPath();
-  context.arc(x + compass.x, y + compass.y, 4, 0, Math.PI * 2);
+  context.arc(x + compass.x, y + compass.y, 4.5, 0, Math.PI * 2);
   context.fill();
 
   context.fillStyle = HUD_COLOR;
@@ -361,27 +361,27 @@ function drawAegis(
   const { x, y } = rectCentre(rect);
 
   context.strokeStyle = HUD_COLOR;
-  context.lineWidth = 2;
-  context.strokeRect(x - 12, y - 18, 24, 24);
-  context.strokeRect(x - 6, y - 12, 12, 12);
+  context.lineWidth = 2.5;
+  context.strokeRect(x - 16, y - 22, 32, 32);
+  context.strokeRect(x - 8, y - 14, 16, 16);
 
   context.fillStyle = HUD_COLOR;
   context.font = HUD_SMALL_FONT;
   context.textAlign = "center";
-  context.fillText(aegisLabel(status), x, y + 26);
+  context.fillText(aegisLabel(status), x, y + 28);
 }
 
-const GAUGE_BAR_WIDTH = 160;
-const GAUGE_BAR_HEIGHT = 10;
-const GAUGE_SURROUND_PAD = 3;
+const GAUGE_BAR_WIDTH = 220;
+const GAUGE_BAR_HEIGHT = 14;
+const GAUGE_SURROUND_PAD = 4;
 const GAUGE_SURROUND_WIDTH = GAUGE_BAR_WIDTH + GAUGE_SURROUND_PAD * 2;
-const LEFT_SURROUND_X = 480;
+const LEFT_SURROUND_X = 336;
 const LEFT_BAR_X = LEFT_SURROUND_X + GAUGE_SURROUND_PAD;
-const LEFT_LABEL_X = LEFT_SURROUND_X - 12;
+const LEFT_LABEL_X = LEFT_SURROUND_X - 14;
 const RIGHT_SURROUND_X =
   HUD_DESIGN_WIDTH - LEFT_SURROUND_X - GAUGE_SURROUND_WIDTH;
 const RIGHT_BAR_X = RIGHT_SURROUND_X + GAUGE_SURROUND_PAD;
-const RIGHT_LABEL_X = RIGHT_SURROUND_X + GAUGE_SURROUND_WIDTH + 12;
+const RIGHT_LABEL_X = RIGHT_SURROUND_X + GAUGE_SURROUND_WIDTH + 14;
 
 function drawFillGauge(
   context: CanvasRenderingContext2D,
@@ -393,7 +393,7 @@ function drawFillGauge(
 ): void {
   if (surroundColor !== undefined) {
     context.strokeStyle = surroundColor;
-    context.lineWidth = 1.5;
+    context.lineWidth = 1.75;
     context.strokeRect(
       barX - GAUGE_SURROUND_PAD,
       barY - GAUGE_SURROUND_PAD,
@@ -420,7 +420,7 @@ function drawSignedDiamondGauge(
   value: number,
 ): void {
   context.strokeStyle = HUD_COLOR;
-  context.lineWidth = 1.5;
+  context.lineWidth = 1.75;
   context.strokeRect(
     surroundX,
     surroundY,
@@ -430,15 +430,15 @@ function drawSignedDiamondGauge(
 
   const centerX = surroundX + GAUGE_SURROUND_WIDTH / 2;
   const centerY = surroundY + surroundHeight / 2;
-  const position = centerX + clamp(value, -1, 1) * ((GAUGE_BAR_WIDTH - 6) / 2);
-  const halfHeight = Math.max(3, surroundHeight / 2 - 2);
+  const position = centerX + clamp(value, -1, 1) * ((GAUGE_BAR_WIDTH - 8) / 2);
+  const halfHeight = Math.max(4, surroundHeight / 2 - 2.5);
 
   context.fillStyle = HUD_SCANNER_NEUTRAL_COLOR;
   context.beginPath();
   context.moveTo(position, centerY - halfHeight);
-  context.lineTo(position + 3.5, centerY);
+  context.lineTo(position + 4.5, centerY);
   context.lineTo(position, centerY + halfHeight);
-  context.lineTo(position - 3.5, centerY);
+  context.lineTo(position - 4.5, centerY);
   context.closePath();
   context.fill();
 }
@@ -451,13 +451,13 @@ function drawMissileIcon(
   selected: boolean,
 ): void {
   context.beginPath();
-  context.moveTo(cx, cy - 8);
-  context.lineTo(cx + 6, cy - 1);
-  context.lineTo(cx + 2.5, cy - 1);
-  context.lineTo(cx + 3.5, cy + 7);
-  context.lineTo(cx - 3.5, cy + 7);
-  context.lineTo(cx - 2.5, cy - 1);
-  context.lineTo(cx - 6, cy - 1);
+  context.moveTo(cx, cy - 11);
+  context.lineTo(cx + 8, cy - 1);
+  context.lineTo(cx + 3.5, cy - 1);
+  context.lineTo(cx + 5, cy + 10);
+  context.lineTo(cx - 5, cy + 10);
+  context.lineTo(cx - 3.5, cy - 1);
+  context.lineTo(cx - 8, cy - 1);
   context.closePath();
 
   if (filled) {
@@ -465,12 +465,12 @@ function drawMissileIcon(
     context.fill();
     if (selected) {
       context.strokeStyle = HUD_SCANNER_NEUTRAL_COLOR;
-      context.lineWidth = 1.25;
+      context.lineWidth = 1.5;
       context.stroke();
     }
   } else {
     context.strokeStyle = "rgba(180, 190, 180, 0.55)";
-    context.lineWidth = 1.25;
+    context.lineWidth = 1.5;
     context.stroke();
   }
 }
@@ -488,57 +488,57 @@ function drawLeftGauges(
   context.font = HUD_GAUGE_FONT;
   context.textAlign = "right";
 
-  // FWD shield placeholder (top aligned with scanner top y = 890).
-  drawFillGauge(context, LEFT_BAR_X, 893, 1, HUD_COLOR, HUD_COLOR);
+  // FWD shield placeholder (top aligned with scanner top y = 812).
+  drawFillGauge(context, LEFT_BAR_X, 816, 1, HUD_COLOR, HUD_COLOR);
   context.fillStyle = HUD_COLOR;
-  context.fillText("FWD", LEFT_LABEL_X, 898);
+  context.fillText("FWD", LEFT_LABEL_X, 823);
 
   // AFT shield placeholder.
-  drawFillGauge(context, LEFT_BAR_X, 913, 1, HUD_COLOR, HUD_COLOR);
+  drawFillGauge(context, LEFT_BAR_X, 844, 1, HUD_COLOR, HUD_COLOR);
   context.fillStyle = HUD_COLOR;
-  context.fillText("AFT", LEFT_LABEL_X, 918);
+  context.fillText("AFT", LEFT_LABEL_X, 851);
 
   // Shared yellow surround for FUEL, CT, LT, ALT (hud.plist drawSurround:).
   context.strokeStyle = HUD_SCANNER_NEUTRAL_COLOR;
-  context.lineWidth = 1.5;
-  context.strokeRect(LEFT_SURROUND_X, 930, GAUGE_SURROUND_WIDTH, 66);
+  context.lineWidth = 1.75;
+  context.strokeRect(LEFT_SURROUND_X, 868, GAUGE_SURROUND_WIDTH, 88);
 
   // Live FUEL bar (yellow, with fuelText to the left of the label).
   drawFillGauge(
     context,
     LEFT_BAR_X,
-    934,
+    874,
     model.bars.fuel,
     HUD_SCANNER_NEUTRAL_COLOR,
   );
   context.fillStyle = HUD_COLOR;
-  context.fillText("FUEL", LEFT_LABEL_X, 939);
-  context.fillText(model.fuelText, LEFT_LABEL_X - 52, 939);
+  context.fillText("FUEL", LEFT_LABEL_X, 881);
+  context.fillText(model.fuelText, LEFT_LABEL_X - 66, 881);
 
   // Cabin temperature (CT), laser temperature (LT), altitude (ALT) placeholders.
-  drawFillGauge(context, LEFT_BAR_X, 949, 0.22, HUD_COLOR);
+  drawFillGauge(context, LEFT_BAR_X, 894, 0.22, HUD_COLOR);
   context.fillStyle = HUD_COLOR;
-  context.fillText("CT", LEFT_LABEL_X, 954);
+  context.fillText("CT", LEFT_LABEL_X, 901);
 
-  drawFillGauge(context, LEFT_BAR_X, 964, 0, HUD_COLOR);
+  drawFillGauge(context, LEFT_BAR_X, 914, 0, HUD_COLOR);
   context.fillStyle = HUD_COLOR;
-  context.fillText("LT", LEFT_LABEL_X, 969);
+  context.fillText("LT", LEFT_LABEL_X, 921);
 
-  drawFillGauge(context, LEFT_BAR_X, 979, 0.92, HUD_COLOR);
+  drawFillGauge(context, LEFT_BAR_X, 934, 0.92, HUD_COLOR);
   context.fillStyle = HUD_COLOR;
-  context.fillText("ALT", LEFT_LABEL_X, 984);
+  context.fillText("ALT", LEFT_LABEL_X, 941);
 
-  // Missile display placeholder (MISS + 4 pylons).
+  // Missile display placeholder (MISS + 4 pylons), kept clear of the bottom HTML footer.
   context.fillStyle = HUD_COLOR;
-  context.fillText("MISS", LEFT_LABEL_X, 1012);
+  context.fillText("MISS", LEFT_LABEL_X, 978);
   for (let i = 0; i < 4; i += 1) {
-    drawMissileIcon(context, LEFT_BAR_X + 10 + i * 22, 1012, i < 3, i === 0);
+    drawMissileIcon(context, LEFT_BAR_X + 14 + i * 30, 978, i < 3, i === 0);
   }
 }
 
 /**
  * Right-hand Oolite gauge stack (`hud.plist` RHS):
- * - `SPD` speed bar (live, top aligned with scanner top y = 890)
+ * - `SPD` speed bar (live, top aligned with scanner top y = 812)
  * - `ROLL` and `PITCH` signed yellow-diamond indicators (live)
  * - yellow energy surround enclosing 4 energy banks `E1`..`E4` (placeholders)
  */
@@ -553,14 +553,14 @@ function drawRightGauges(
   drawFillGauge(
     context,
     RIGHT_BAR_X,
-    893,
+    816,
     model.bars.speed,
     HUD_COLOR,
     HUD_COLOR,
   );
   context.fillStyle = HUD_COLOR;
-  context.fillText("SPD", RIGHT_LABEL_X, 898);
-  context.fillText(model.speedText, RIGHT_LABEL_X + 44, 898);
+  context.fillText("SPD", RIGHT_LABEL_X, 823);
+  context.fillText(model.speedText, RIGHT_LABEL_X + 54, 823);
 
   // Live ROLL and PITCH diamond indicators sharing their middle border.
   drawSignedDiamondGauge(
@@ -571,7 +571,7 @@ function drawRightGauges(
     model.bars.roll,
   );
   context.fillStyle = HUD_COLOR;
-  context.fillText("ROLL", RIGHT_LABEL_X, 916.5);
+  context.fillText("ROLL", RIGHT_LABEL_X, 849);
 
   drawSignedDiamondGauge(
     context,
@@ -581,18 +581,18 @@ function drawRightGauges(
     model.bars.pitch,
   );
   context.fillStyle = HUD_COLOR;
-  context.fillText("PITCH", RIGHT_LABEL_X, 929.5);
+  context.fillText("PITCH", RIGHT_LABEL_X, 867);
 
   // Shared yellow surround for energy banks E1..E4 (hud.plist drawEnergyGauge:).
   context.strokeStyle = HUD_SCANNER_NEUTRAL_COLOR;
-  context.lineWidth = 1.5;
-  context.strokeRect(RIGHT_SURROUND_X, 940, GAUGE_SURROUND_WIDTH, 56);
+  context.lineWidth = 1.75;
+  context.strokeRect(RIGHT_SURROUND_X, 884, GAUGE_SURROUND_WIDTH, 88);
 
   for (let i = 0; i < 4; i += 1) {
-    const bankY = 944 + i * 13;
+    const bankY = 890 + i * 20;
     drawFillGauge(context, RIGHT_BAR_X, bankY, 1, HUD_SCANNER_NEUTRAL_COLOR);
     context.fillStyle = HUD_COLOR;
-    context.fillText(`E${String(i + 1)}`, RIGHT_LABEL_X, bankY + 5);
+    context.fillText(`E${String(i + 1)}`, RIGHT_LABEL_X, bankY + 7);
   }
 }
 
