@@ -123,6 +123,7 @@ export function applyFrame(
   setQuaternion(scene.ship, pose.orientation);
   placeRelative(scene.navBuoy, layout.navBuoy.position, cameraWorld);
   placeRelative(scene.witchpoint, layout.witchpoint.position, cameraWorld);
+  for (const buoy of scene.buoys) buoy.update(elapsedSeconds);
 
   // The starfield is camera-locked: it stays at the origin, so its points never
   // leave the frustum however far the ship travels.

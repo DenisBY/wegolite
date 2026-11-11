@@ -18,15 +18,15 @@ Both draw-call and triangle comparisons are inclusive: 50 calls and 250 000 tria
 
 ## Container measurements
 
-These are the per-scene counts from the `budget.spec.ts` annotations, recorded on 2026-11-08 in the containerised build. They are SwiftShader counts of draw calls and triangles per rendered frame. They are not frame rates, and they say nothing about how fast a player's GPU renders these scenes.
+These are the per-scene counts from the `budget.spec.ts` annotations, recorded in the containerised build on the dates shown. The two buoys add four draw calls and about 2 700 triangles to every scene that draws them. They are SwiftShader counts of draw calls and triangles per rendered frame. They are not frame rates, and they say nothing about how fast a player's GPU renders these scenes.
 
 | Scene          | Draw calls | Triangles | Recorded   |
 | -------------- | ---------- | --------- | ---------- |
-| Lave docked    | 9          | 38714     | 2026-11-08 |
-| Lave launching | 8          | 3302      | 2026-11-08 |
-| Lave in flight | 6          | 38308     | 2026-11-08 |
-| Diso docked    | 9          | 38714     | 2026-11-08 |
-| Diso in flight | 6          | 38308     | 2026-11-08 |
+| Lave docked    | 13         | 41418     | 2026-11-11 |
+| Lave launching | 8          | 3302      | 2026-11-11 |
+| Lave in flight | 10         | 41012     | 2026-11-11 |
+| Diso docked    | 13         | 41418     | 2026-11-11 |
+| Diso in flight | 10         | 41012     | 2026-11-11 |
 
 Since quick task 261110-a3k a docked or paused scene is drawn when it is entered and then left alone until something changes (`src/app/redraw-gate.ts`). The docked rows above are the counts of that last draw; they are no longer a per-frame cost. `budget.spec.ts` therefore settles on loop frames (`probe.frames`), not on rendered frames.
 
@@ -38,13 +38,13 @@ The first-load test in `tests/e2e/budget.spec.ts` records the same-origin respon
 
 | Measure                                          | Value                      |
 | ------------------------------------------------ | -------------------------- |
-| Cold-start transfer to the first in-flight frame | 7 490 424 bytes (7.14 MiB) |
-| Regression ceiling (`FIRST_LOAD_BYTES_CEILING`)  | 8 388 608 bytes (8 MiB)    |
+| Cold-start transfer to the first in-flight frame | 8 814 224 bytes (8.41 MiB) |
+| Regression ceiling (`FIRST_LOAD_BYTES_CEILING`)  | 9 437 184 bytes (9 MiB)    |
 | Entry chunk `dist/assets/index-*.js`, raw        | 1 615 497 bytes            |
 | Entry chunk, gzip at level 9                     | 319 971 bytes              |
 | STACK.md target for initial JavaScript           | 250 KB gzip                |
 
-Measured on 2026-11-10. The transfer was 20 996 848 bytes (20.03 MiB) on 2026-11-08. Two quick tasks account for the difference: 261109-s8k trimmed the client ship catalogue from 706 617 to 15 196 bytes, and 261110-b7w re-encoded the sixteen ship and station textures from PNG (19 727 075 bytes) to WebP (6 251 016 bytes). The preview server does not compress responses, so these are uncompressed body sizes.
+The transfer was measured on 2026-11-11 and the entry chunk on 2026-11-10. The transfer was 7 490 424 bytes on 2026-11-10; quick task 261111-g5n added the navigation buoy model and its six texture files (1 322 175 bytes on disk). It was 20 996 848 bytes (20.03 MiB) on 2026-11-08. Two quick tasks account for the difference: 261109-s8k trimmed the client ship catalogue from 706 617 to 15 196 bytes, and 261110-b7w re-encoded the sixteen ship and station textures from PNG (19 727 075 bytes) to WebP (6 251 016 bytes). The preview server does not compress responses, so these are uncompressed body sizes.
 
 The ceiling is the measured transfer rounded up to the next MiB, so it is a regression ceiling and not a load budget. The entry chunk was measured inside the container with `node:zlib` `gzipSync`.
 

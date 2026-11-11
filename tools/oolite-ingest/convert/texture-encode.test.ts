@@ -19,7 +19,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -84,23 +84,20 @@ function source(name: string): Uint8Array {
   return new Uint8Array(readFileSync(join(REPO_ROOT, SOURCE_DIR, name)));
 }
 
-/** Decode a committed WebP to RGBA with `dwebp -pam`. */
-function decodeWebp(name: string): {
+interface Rgba {
   readonly width: number;
   readonly height: number;
   readonly data: Uint8Array;
-} {
-  const pam = execFileSync(
-    "dwebp",
-    [
-      "-quiet",
-      "-pam",
-      join(REPO_ROOT, OUT_DIR, encodedTextureFile(name)),
-      "-o",
-      "-",
-    ],
-    { maxBuffer: 64 * 1024 * 1024 },
-  );
+}
+
+/**
+ * Decode a WebP file to RGBA with `dwebp -pam`. The PAM output is always
+ * four-channel, so an opaque file decodes with alpha 255.
+ */
+function decodePam(path: string, name: string): Rgba {
+  const pam = execFileSync("dwebp", ["-quiet", "-pam", path, "-o", "-"], {
+    maxBuffer: 64 * 1024 * 1024,
+  });
   const marker = "ENDHDR\n";
   const end = pam.indexOf(marker);
   if (end < 0) throw new Error(`${name}: dwebp wrote no PAM header`);
@@ -117,6 +114,38 @@ function decodeWebp(name: string): {
     height: field("HEIGHT"),
     data: new Uint8Array(pam.subarray(end + marker.length)),
   };
+}
+
+/** Decode a committed WebP to RGBA. */
+function decodeWebp(name: string): Rgba {
+  return decodePam(join(REPO_ROOT, OUT_DIR, encodedTextureFile(name)), name);
+}
+
+/**
+ * The source's RGBA pixels. `decodePng` reads only 8-bit RGBA, so an RGB or
+ * palette source falls back to a lossless WebP round trip: `cwebp -lossless
+ * -exact` stores every pixel and `dwebp` returns it unchanged.
+ */
+function sourcePixels(name: string): Rgba {
+  try {
+    return decodePng(source(name), name);
+  } catch {
+    const dir = mkdtempSync(join(tmpdir(), "wegolite-source-"));
+    try {
+      const webp = join(dir, "source.webp");
+      execFileSync("cwebp", [
+        "-quiet",
+        "-lossless",
+        "-exact",
+        join(REPO_ROOT, SOURCE_DIR, name),
+        "-o",
+        webp,
+      ]);
+      return decodePam(webp, name);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 }
 
 /** A recording encoder that serves the committed bytes for each source. */
@@ -211,7 +240,7 @@ describe("profiles and encoder arguments", () => {
     }
   });
 
-  it("classifies the sixteen vendored textures by their material slots", () => {
+  it("classifies every vendored texture by its material slots", () => {
     const lossless = VENDORED_TEXTURES.filter(
       (name) => profileOf(name).lossless,
     );
@@ -222,8 +251,8 @@ describe("profiles and encoder arguments", () => {
     expect(alpha).toEqual(
       VENDORED_TEXTURES.filter((name) => name.includes("specular")),
     );
-    expect(lossless).toHaveLength(6);
-    expect(alpha).toHaveLength(4);
+    expect(lossless).toHaveLength(7);
+    expect(alpha).toHaveLength(5);
   });
 });
 
@@ -237,7 +266,10 @@ describe("the committed encoded textures", () => {
       );
       const profile = profileOf(name);
       expect(info.format === "lossless").toBe(profile.lossless);
-      expect(info.alpha).toBe(profile.alpha);
+      // An opaque palette source (oolite_buoy_specular.png) is written without
+      // an alpha channel, so alpha may be absent when the profile keeps it. The
+      // exact-alpha test below still compares every alpha value.
+      if (!profile.alpha) expect(info.alpha).toBe(false);
     },
   );
 
@@ -250,7 +282,7 @@ describe("the committed encoded textures", () => {
   it.each(VENDORED_TEXTURES.filter((name) => profileOf(name).lossless))(
     "%s decodes to within the near-lossless bound on every channel",
     (name) => {
-      const original = decodePng(source(name), name);
+      const original = sourcePixels(name);
       const decoded = decodeWebp(name);
       expect(decoded.width).toBe(original.width);
       expect(decoded.height).toBe(original.height);
@@ -272,7 +304,7 @@ describe("the committed encoded textures", () => {
   it.each(VENDORED_TEXTURES.filter((name) => profileOf(name).alpha))(
     "%s decodes to exactly the source alpha",
     (name) => {
-      const original = decodePng(source(name), name);
+      const original = sourcePixels(name);
       const decoded = decodeWebp(name);
       let different = 0;
       for (let index = 3; index < original.data.length; index += 4) {
@@ -286,7 +318,7 @@ describe("the committed encoded textures", () => {
   it.each(VENDORED_TEXTURES.filter((name) => !profileOf(name).lossless))(
     "%s keeps its colour within the lossy error ceiling",
     (name) => {
-      const original = decodePng(source(name), name);
+      const original = sourcePixels(name);
       const decoded = decodeWebp(name);
       let total = 0;
       for (let index = 0; index < original.data.length; index += 4) {

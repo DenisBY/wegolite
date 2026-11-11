@@ -32,7 +32,8 @@ import { createSceneManager } from "../../src/app/scene-manager.js";
 import type { SceneManager } from "../../src/app/scene-manager.js";
 import { createAssetCache } from "../../src/render/asset-cache.js";
 import type { AssetCache } from "../../src/render/asset-cache.js";
-import { createBeacon } from "../../src/render/bodies/beacon.js";
+import { createBuoy } from "../../src/render/bodies/buoy.js";
+import type { BuoyBody } from "../../src/render/bodies/buoy.js";
 import { createDust } from "../../src/render/bodies/dust.js";
 import { createPlanet } from "../../src/render/bodies/planet.js";
 import { createShip } from "../../src/render/bodies/ship.js";
@@ -43,12 +44,7 @@ import {
   ambientIntensityFor,
   DISPLAY_SUN_INTENSITY,
 } from "../../src/render/exposure.js";
-import {
-  isMesh,
-  isPoints,
-  materialList,
-  meshMaterials,
-} from "../../src/render/mesh.js";
+import { isMesh, materialList, meshMaterials } from "../../src/render/mesh.js";
 import { createMenuScene } from "../../src/render/menu-scene.js";
 import {
   assembleSystemScene,
@@ -109,15 +105,59 @@ function syntheticCobra(): SyntheticModel {
 }
 
 /**
+ * A buoy model with the `hull` and `core` nodes the buoy factory requires, and
+ * one valid flasher light per role in the extras the build writes.
+ */
+function syntheticBuoy(): SyntheticModel {
+  const texture = new THREE.Texture();
+  const material = new THREE.MeshStandardMaterial({ map: texture });
+  const geometry = new THREE.BoxGeometry(1, 1, 1);
+  const scene = new THREE.Group();
+  for (const name of ["hull", "core"]) {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = name;
+    scene.add(mesh);
+  }
+  const light = {
+    position: [0, 0, 0.5],
+    size: 1,
+    frequency: 0.5,
+    phase: 0,
+    brightFraction: 0.5,
+    colors: [[1, 1, 1]],
+  };
+  scene.userData = {
+    oolite: {
+      flashers: { buoy: [light], "buoy-witchpoint": [light] },
+    },
+  };
+  return { gltf: { scene } as unknown as GLTF, geometry, material, texture };
+}
+
+/** Route a fake loader to the fake model for each cache path. */
+function loaderFor(
+  cobra: GLTF,
+  coriolis: GLTF,
+  buoy: GLTF,
+): (url: string) => Promise<GLTF> {
+  return (url) =>
+    Promise.resolve(
+      url.includes("cobra") ? cobra : url.includes("buoy") ? buoy : coriolis,
+    );
+}
+
+/**
  * A cache stand-in whose `dispose` throws: if any scene ever calls it, the
  * ownership split is broken and the test fails at the call site.
  */
-function guardCache(cobra: GLTF, coriolis: GLTF): AssetCache {
+function guardCache(cobra: GLTF, coriolis: GLTF, buoy: GLTF): AssetCache {
   return {
     loadCobra: () => Promise.resolve(cobra),
     loadCoriolis: () => Promise.resolve(coriolis),
+    loadBuoy: () => Promise.resolve(buoy),
     cobra: () => cobra,
     coriolis: () => coriolis,
+    buoy: () => buoy,
     preload: () => Promise.resolve(),
     loaded: () => true,
     dispose: () => {
@@ -257,6 +297,7 @@ describe("SystemScene owns only what it created", () => {
   interface Built {
     readonly parts: SystemSceneParts;
     readonly cached: SyntheticModel;
+    readonly cachedBuoy: SyntheticModel;
     readonly sun: ReturnType<typeof fakeSun>;
     /** Scene-owned resources, each expected to be freed exactly once. */
     readonly sceneOwned: Record<string, () => number>;
@@ -279,10 +320,11 @@ describe("SystemScene owns only what it created", () => {
     const cobra = syntheticCobra();
     const ship = createShip(cobra.gltf);
     const dust = createDust(64);
-    const navBuoy = createBeacon(layout.navBuoy.radius);
-    navBuoy.name = "navBuoy";
-    const witchpoint = createBeacon(layout.witchpoint.radius);
-    witchpoint.name = "witchpoint";
+    const buoy = syntheticBuoy();
+    const navBuoy = createBuoy(buoy.gltf, "buoy");
+    navBuoy.root.name = "navBuoy";
+    const witchpoint = createBuoy(buoy.gltf, "buoy-witchpoint");
+    witchpoint.root.name = "witchpoint";
     const sun = fakeSun();
 
     const sceneOwned: Record<string, () => number> = {
@@ -303,28 +345,33 @@ describe("SystemScene owns only what it created", () => {
         countDisposals(material);
     }
 
-    /** Count a beacon's own geometry and materials (scene-owned). */
-    const countBeacon = (prefix: string, root: THREE.Object3D): void => {
-      root.traverse((object) => {
+    /**
+     * Count a buoy's own resources: the cloned materials of its model, its
+     * flasher sprite materials, and the blob texture its sprites share. The
+     * model's geometry and textures are cached and are not counted here.
+     */
+    const countBuoy = (prefix: string, buoy: BuoyBody): void => {
+      let sprites = 0;
+      buoy.root.traverse((object) => {
         if (isMesh(object)) {
-          sceneOwned[`${prefix}Geometry`] = countDisposals(object.geometry);
           for (const [index, material] of meshMaterials(object).entries()) {
-            sceneOwned[`${prefix}Material${String(index)}`] =
-              countDisposals(material);
+            sceneOwned[
+              `${prefix}CloneMaterial${String(object.name)}${String(index)}`
+            ] = countDisposals(material);
           }
-        } else if (isPoints(object)) {
-          sceneOwned[`${prefix}Geometry`] = countDisposals(object.geometry);
-          for (const [index, material] of materialList(
-            object.material,
-          ).entries()) {
-            sceneOwned[`${prefix}Material${String(index)}`] =
-              countDisposals(material);
+        } else if (object instanceof THREE.Sprite) {
+          sceneOwned[`${prefix}SpriteMaterial${String(sprites)}`] =
+            countDisposals(object.material);
+          const blob = object.material.map;
+          if (blob !== null && sprites === 0) {
+            sceneOwned[`${prefix}Blob`] = countDisposals(blob);
           }
+          sprites += 1;
         }
       });
     };
-    countBeacon("navBuoy", navBuoy);
-    countBeacon("witchpoint", witchpoint);
+    countBuoy("navBuoy", navBuoy);
+    countBuoy("witchpoint", witchpoint);
 
     /**
      * Count only the *cloned* materials of a GLB body. Its geometry and its
@@ -357,6 +404,7 @@ describe("SystemScene owns only what it created", () => {
         dust,
       },
       cached: coriolis,
+      cachedBuoy: buoy,
       sun,
       sceneOwned,
     };
@@ -392,10 +440,13 @@ describe("SystemScene owns only what it created", () => {
   });
 
   it("frees scene resources once and never a cached GLB resource", () => {
-    const { parts, cached, sun, sceneOwned } = buildParts();
+    const { parts, cached, cachedBuoy, sun, sceneOwned } = buildParts();
     const cachedMaterialDisposals = countDisposals(cached.material);
     const cachedTextureDisposals = countDisposals(cached.texture);
     const cachedGeometryDisposals = countDisposals(cached.geometry);
+    const buoyMaterialDisposals = countDisposals(cachedBuoy.material);
+    const buoyTextureDisposals = countDisposals(cachedBuoy.texture);
+    const buoyGeometryDisposals = countDisposals(cachedBuoy.geometry);
 
     const scene = assembleSystemScene(
       parts,
@@ -416,6 +467,9 @@ describe("SystemScene owns only what it created", () => {
     expect(cachedMaterialDisposals()).toBe(0);
     expect(cachedTextureDisposals()).toBe(0);
     expect(cachedGeometryDisposals()).toBe(0);
+    expect(buoyMaterialDisposals()).toBe(0);
+    expect(buoyTextureDisposals()).toBe(0);
+    expect(buoyGeometryDisposals()).toBe(0);
 
     expect(scene.scene.children).toHaveLength(0);
 
@@ -428,6 +482,9 @@ describe("SystemScene owns only what it created", () => {
     expect(cachedMaterialDisposals()).toBe(0);
     expect(cachedTextureDisposals()).toBe(0);
     expect(cachedGeometryDisposals()).toBe(0);
+    expect(buoyMaterialDisposals()).toBe(0);
+    expect(buoyTextureDisposals()).toBe(0);
+    expect(buoyGeometryDisposals()).toBe(0);
   });
 
   it("disposes a half-built scene and rethrows the named error", () => {
@@ -457,7 +514,7 @@ describe("SystemScene owns only what it created", () => {
     expect(() =>
       createSystemScene(
         layout,
-        guardCache(cobra.gltf, coriolis.gltf),
+        guardCache(cobra.gltf, coriolis.gltf, syntheticBuoy().gltf),
         system,
         factories,
       ),
@@ -475,8 +532,10 @@ describe("AssetCache is the single owner of the shared GLBs", () => {
   it("frees each shared geometry, material and texture exactly once", async () => {
     const coriolis = syntheticCoriolis();
     const cobra = syntheticCobra();
-    const cache = createAssetCache("/", (url) =>
-      Promise.resolve(url.includes("cobra") ? cobra.gltf : coriolis.gltf),
+    const buoy = syntheticBuoy();
+    const cache = createAssetCache(
+      "/",
+      loaderFor(cobra.gltf, coriolis.gltf, buoy.gltf),
     );
 
     expect(cache.loaded()).toBe(false);
@@ -493,6 +552,9 @@ describe("AssetCache is the single owner of the shared GLBs", () => {
       coriolisGeometry: countDisposals(coriolis.geometry),
       coriolisMaterial: countDisposals(coriolis.material),
       coriolisTexture: countDisposals(coriolis.texture),
+      buoyGeometry: countDisposals(buoy.geometry),
+      buoyMaterial: countDisposals(buoy.material),
+      buoyTexture: countDisposals(buoy.texture),
     };
 
     cache.dispose();
@@ -525,8 +587,10 @@ describe("the menu Cobra survives a system swap", () => {
     try {
       const coriolis = syntheticCoriolis();
       const cobra = syntheticCobra();
-      const cache = createAssetCache("/", (url) =>
-        Promise.resolve(url.includes("cobra") ? cobra.gltf : coriolis.gltf),
+      const buoy = syntheticBuoy();
+      const cache = createAssetCache(
+        "/",
+        loaderFor(cobra.gltf, coriolis.gltf, buoy.gltf),
       );
       await cache.preload();
 
@@ -652,8 +716,10 @@ async function enteredLave(): Promise<{
 }> {
   const coriolis = syntheticCoriolis();
   const cobra = syntheticCobra();
-  const cache = createAssetCache("/", (url) =>
-    Promise.resolve(url.includes("cobra") ? cobra.gltf : coriolis.gltf),
+  const buoy = syntheticBuoy();
+  const cache = createAssetCache(
+    "/",
+    loaderFor(cobra.gltf, coriolis.gltf, buoy.gltf),
   );
   await cache.preload();
   const renderer: SwapRenderer = {

@@ -77,6 +77,7 @@ export const SHIPDATA_SOURCE_FILE = "third_party/oolite/Config/shipdata.plist";
  * never be retextured by an entry that does not own it.
  */
 export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
+  "buoy.glb": ["buoy", "oolite_buoy_subentity"],
   "cobra3.glb": ["cobra3-player"],
   "coriolis.glb": [
     "coriolis-station",
@@ -88,6 +89,7 @@ export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
 
 /** The vendored `.dat` files each emitted GLB is built from, in node order. */
 export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
+  "buoy.glb": ["oolite_buoy.dat", "oolite_buoy_subents.dat"],
   "cobra3.glb": ["oolite_cobra3.dat"],
   "coriolis.glb": [
     "oolite_coriolis.dat",
@@ -96,6 +98,10 @@ export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
     "oolite_coriolis_dock.dat",
   ],
 };
+
+/** The shipdata keys of the two buoys that share `buoy.glb`. */
+export const BUOY_STATION_ROLE = "buoy";
+export const BUOY_WITCHPOINT_ROLE = "buoy-witchpoint";
 
 const GLB_MAGIC = 0x46546c67;
 const GLB_VERSION = 2;
@@ -174,6 +180,119 @@ export interface GlbMaterial {
 export interface GlbScene {
   readonly nodes: readonly GlbNode[];
   readonly materials: readonly GlbMaterial[];
+  /** Written as the glTF scene's `extras`; the loader exposes it as userData. */
+  readonly extras?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * One Oolite `flasher` subentity, resolved at build time.
+ *
+ * The client draws it as an additive billboard and animates it with the
+ * formula of `OOFlasherEntity.m`; nothing here is a mesh.
+ */
+export interface FlasherLight {
+  /** glTF coordinates: Oolite's position with Z negated. */
+  readonly position: readonly [number, number, number];
+  /** Oolite's `size`: the billboard spans twice this on each axis. */
+  readonly size: number;
+  /** Oolite's `frequency` as authored; the wave runs at twice this. */
+  readonly frequency: number;
+  readonly phase: number;
+  readonly brightFraction: number;
+  /** Display-space RGB in 0..1, one entry per colour of the cycle. */
+  readonly colors: readonly (readonly [number, number, number])[];
+}
+
+/** Oolite's flasher colours are desaturated by this factor (`setUpColors`). */
+const FLASHER_SATURATION_FACTOR = 0.75;
+
+function hsbToRgb(
+  hueDegrees: number,
+  saturation: number,
+  brightness: number,
+): [number, number, number] {
+  const hue = (((hueDegrees % 360) + 360) % 360) / 60;
+  const s = Math.min(Math.max(saturation, 0), 1);
+  const v = Math.min(Math.max(brightness, 0), 1);
+  const sector = Math.floor(hue);
+  const f = hue - sector;
+  const p = v * (1 - s);
+  const q = v * (1 - s * f);
+  const t = v * (1 - s * (1 - f));
+  switch (sector) {
+    case 0:
+      return [v, t, p];
+    case 1:
+      return [q, v, p];
+    case 2:
+      return [p, v, t];
+    case 3:
+      return [p, q, v];
+    case 4:
+      return [t, p, v];
+    default:
+      return [v, p, q];
+  }
+}
+
+function flasherColour(
+  specifier: unknown,
+  shipKey: string,
+): [number, number, number] {
+  const record =
+    typeof specifier === "object" && specifier !== null
+      ? (specifier as Record<string, unknown>)
+      : null;
+  const hue = record === null ? null : asNumber(record["hue"]);
+  if (hue === null) {
+    // Oolite also accepts named and RGB colours; the buoys author HSB only.
+    glbFailure(
+      `${SHIPDATA_SOURCE_FILE} subentities`,
+      `"${shipKey}" has a flasher colour that is not an HSB dictionary`,
+    );
+  }
+  return hsbToRgb(
+    hue,
+    (asNumber(record?.["saturation"]) ?? 1) * FLASHER_SATURATION_FACTOR,
+    asNumber(record?.["brightness"]) ?? asNumber(record?.["value"]) ?? 1,
+  );
+}
+
+/**
+ * Resolve the `flasher` subentities of one shipdata entry.
+ *
+ * Defaults are Oolite's (`OOFlasherEntity.m`): size 1, frequency 1, phase 0,
+ * bright fraction 0.5. A single `color` is a one-entry cycle.
+ */
+export function flasherLights(entry: ShipEntry): FlasherLight[] {
+  const lights: FlasherLight[] = [];
+  for (const subentity of entry.shipDef.subentities) {
+    if (subentity.type !== "flasher") continue;
+    const record = subentity as Record<string, unknown>;
+    const position = subentity.position ?? [0, 0, 0];
+    const specifiers = Array.isArray(record["colors"])
+      ? (record["colors"] as unknown[])
+      : record["color"] === undefined
+        ? []
+        : [record["color"]];
+    if (specifiers.length === 0) {
+      glbFailure(
+        `${SHIPDATA_SOURCE_FILE} subentities`,
+        `"${entry.key}" has a flasher with no colour`,
+      );
+    }
+    lights.push({
+      position: [position[0], position[1], -position[2]],
+      size: asNumber(record["size"]) ?? 1,
+      frequency: asNumber(record["frequency"]) ?? 1,
+      phase: asNumber(record["phase"]) ?? 0,
+      brightFraction: asNumber(record["bright_fraction"]) ?? 0.5,
+      colors: specifiers.map((specifier) =>
+        flasherColour(specifier, entry.key),
+      ),
+    });
+  }
+  return lights;
 }
 
 export interface ShipEntry {
@@ -482,7 +601,12 @@ export function writeGlb(scene: GlbScene): Uint8Array {
   const jsonDocument: Record<string, unknown> = {
     asset: { version: "2.0", generator: GLB_GENERATOR },
     scene: 0,
-    scenes: [{ nodes: nodes.map((_node, index) => index) }],
+    scenes: [
+      {
+        nodes: nodes.map((_node, index) => index),
+        ...(scene.extras === undefined ? {} : { extras: scene.extras }),
+      },
+    ],
     nodes,
     meshes,
     materials,
@@ -774,6 +898,9 @@ export function materialFor(
     typeof emissionMap === "object" && emissionMap !== null
       ? asString((emissionMap as Record<string, unknown>).name)
       : null;
+  // A bare file name is an RGB illumination map: the image itself is the
+  // emitted light, not a mask held in another map's alpha channel (the buoy).
+  const illuminationName = asString(emissionMap);
   const emissionChannel =
     typeof emissionMap === "object" && emissionMap !== null
       ? asString((emissionMap as Record<string, unknown>).extract_channel)
@@ -787,7 +914,8 @@ export function materialFor(
     baseColorTexture,
     normalTexture: asString(config.normal_map),
     specularTexture: asString(config.specular_map),
-    emissiveTexture: emissionName === null ? null : emissiveFile(emissionName),
+    emissiveTexture:
+      emissionName !== null ? emissiveFile(emissionName) : illuminationName,
     roughnessFactor: clampRoughness(1 - gloss),
     extrasOolite: {
       sourceFile: SHIPDATA_SOURCE_FILE,
@@ -802,7 +930,7 @@ export function materialFor(
       diffuse_map: authoredDiffuse,
       normal_map: asString(config.normal_map),
       specular_map: asString(config.specular_map),
-      emission_map: emissionName,
+      emission_map: emissionName ?? illuminationName,
     },
   };
 }
@@ -986,6 +1114,56 @@ export function buildCoriolisGlb(
   return writeGlb({ nodes, materials });
 }
 
+/**
+ * The navigation buoy: the hull and its one mesh subentity, each textured by
+ * its own shipdata entry, as in the Coriolis composite. The flasher
+ * subentities are lights, not meshes: they travel in the scene `extras`, one
+ * list per buoy role, because the station buoy and the witchpoint beacon share
+ * this model and differ only in their lights.
+ */
+export function buildBuoyGlb(
+  meshes: { readonly hull: ParsedMesh; readonly core: ParsedMesh },
+  entries: {
+    readonly hull: ShipEntry;
+    readonly core: ShipEntry;
+    readonly witchpoint: ShipEntry;
+  },
+): Uint8Array {
+  const parts: readonly [string, ParsedMesh, ShipEntry, string][] = [
+    ["hull", meshes.hull, entries.hull, "oolite_buoy"],
+    ["core", meshes.core, entries.core, "oolite_buoy_subents"],
+  ];
+
+  const materials: GlbMaterial[] = [];
+  const nodes: GlbNode[] = [];
+  for (const [name, mesh, entry, meshName] of parts) {
+    const built = buildNodeMesh(meshName, mesh, entry);
+    for (const primitive of built.primitives) {
+      materials.push(
+        materialFor(primitive.materialName, entry.shipDef, entry.key),
+      );
+    }
+    const translation: readonly [number, number, number] =
+      name === "hull"
+        ? [0, 0, 0]
+        : subentityTranslation(entries.hull, entry.key, meshName);
+    nodes.push({ name, translation, mesh: built });
+  }
+
+  return writeGlb({
+    nodes,
+    materials,
+    extras: {
+      oolite: {
+        flashers: {
+          [BUOY_STATION_ROLE]: flasherLights(entries.hull),
+          [BUOY_WITCHPOINT_ROLE]: flasherLights(entries.witchpoint),
+        },
+      },
+    },
+  });
+}
+
 function requireModel(
   models: Readonly<Record<string, ParsedMesh>>,
   filename: string,
@@ -1071,5 +1249,34 @@ export function emitModels(
     ),
   });
 
-  return emitted;
+  const buoyFiles = MODEL_SOURCE_FILES["buoy.glb"] ?? [];
+  const buoyOwners = EMITTED_ENTRIES["buoy.glb"] ?? [];
+  const [buoyHullFile, buoyCoreFile] = buoyFiles;
+  const [buoyHullOwner, buoyCoreOwner] = buoyOwners;
+  if (
+    buoyHullFile === undefined ||
+    buoyCoreFile === undefined ||
+    buoyHullOwner === undefined ||
+    buoyCoreOwner === undefined
+  ) {
+    glbFailure("buoy.glb", "the buoy needs two source meshes and two owners");
+  }
+  emitted.push({
+    path: `${EMITTED_MODELS_DIR}/buoy.glb`,
+    bytes: buildBuoyGlb(
+      {
+        hull: requireModel(models, buoyHullFile),
+        core: requireModel(models, buoyCoreFile),
+      },
+      {
+        hull: requireEntry(entries, buoyHullOwner),
+        core: requireEntry(entries, buoyCoreOwner),
+        witchpoint: requireEntry(entries, BUOY_WITCHPOINT_ROLE),
+      },
+    ),
+  });
+
+  return emitted.sort((left, right) =>
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+  );
 }

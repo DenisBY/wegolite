@@ -116,6 +116,8 @@ const PLUS_Z: Vec3 = { x: 0, y: 0, z: 1 };
  * by filename. Every value is the authored geometry, before the axis conversion.
  */
 export const MODEL_BOUNDS: Readonly<Record<string, Vec3>> = {
+  "oolite_buoy.dat": { x: 108.613, y: 91.176, z: 101.848 },
+  "oolite_buoy_subents.dat": { x: 42.79, y: 41.046, z: 42.451 },
   "oolite_cobra3.dat": { x: 130, y: 34.9649, z: 81.3726 },
   "oolite_coriolis.dat": { x: 1000, y: 1000, z: 995.918 },
   "oolite_coriolis_dock.dat": { x: 103.4123, y: 241.888, z: 250 },

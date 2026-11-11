@@ -60,6 +60,11 @@ export const EMITTED_TEXTURES_DIR = "public/textures";
  * are the vendored names; the client is served the re-encoded `.webp` of each.
  */
 export const VENDORED_TEXTURES: readonly string[] = [
+  "oolite_buoy_diffuse.png",
+  "oolite_buoy_illumination.png",
+  "oolite_buoy_normal.png",
+  "oolite_buoy_specular.png",
+  "oolite_buoy_subents.png",
   "oolite_cobra3_diffuse.png",
   "oolite_cobra3_normal.png",
   "oolite_cobra3_specular.png",
@@ -79,7 +84,14 @@ export const VENDORED_TEXTURES: readonly string[] = [
 ];
 
 /** Which authored material slot produced a reference. */
-export type TextureMapKind = "diffuse" | "normal" | "specular" | "emission";
+export type TextureMapKind =
+  | "diffuse"
+  | "normal"
+  | "specular"
+  /** The alpha channel of the named file is an emission mask (baked apart). */
+  | "emission"
+  /** The named file is itself an RGB emission image. */
+  | "illumination";
 
 /** One material slot that names a texture file. */
 export interface TextureReference {
@@ -194,6 +206,14 @@ export function resolveReferencedTextures(
           pushReference(references, emission, {
             ...base,
             mapKind: "emission",
+          });
+        }
+        // A bare file name is an RGB illumination map, served as it is.
+        const illumination = asString(emissionMap);
+        if (illumination !== null) {
+          pushReference(references, illumination, {
+            ...base,
+            mapKind: "illumination",
           });
         }
       }

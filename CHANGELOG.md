@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The navigation buoy in front of the station and the beacon at the witchpoint
+  are now Oolite's own buoy model with its flashing lights, slowly tumbling.
+  They were a plain turquoise marker before. The first load grows by about
+  1.6 MB.
+
 ## [0.2.0] - 2026-11-10
 
 Two changes in this release are not backward compatible:

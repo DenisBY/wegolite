@@ -41,7 +41,8 @@ Every reused asset and every reused configuration file is recorded, with its
 origin and licence, in `ASSETS.md`. Wegolite's own source code is
 GPL-2.0-or-later and is not covered by the CC BY-NC-SA 3.0 terms above.
 
-The generated meshes under `public/models/` (`cobra3.glb`, `coriolis.glb`) are
+The generated meshes under `public/models/` (`buoy.glb`, `cobra3.glb`,
+`coriolis.glb`) are
 converted with Wegolite's own code from the Oolite `.dat` models, and they are
 derivative works of those models: they remain CC BY-NC-SA 3.0, never GPL, with
 attribution to the Oolite contributors, non-commercial use only, and
@@ -53,7 +54,7 @@ The baked greyscale emissive maps under `public/textures/*_emissive.png` are
 derived from Oolite's PNG textures by Wegolite's build, which reads the source
 alpha channel and writes a new greyscale image; they are derivative works of
 those textures and remain CC BY-NC-SA 3.0, never GPL, under the same
-attribution, non-commercial and share-alike terms. The ship and station
+attribution, non-commercial and share-alike terms. The ship, station and navigation buoy
 textures under `public/textures/*.webp` are the same Oolite PNG textures
 re-encoded to WebP by Wegolite's build (lossy for the diffuse and specular
 maps, near-lossless for the normal maps, with the unused alpha channel of the

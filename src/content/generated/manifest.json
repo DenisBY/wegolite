@@ -1,6 +1,11 @@
 {
   "files": [
     {
+      "bytes": 297204,
+      "path": "public/models/buoy.glb",
+      "sha256": "6d3014f6c251c766877d3b0d46af03ad2680d7b889eedb33df1017a1c140c904"
+    },
+    {
       "bytes": 120128,
       "path": "public/models/cobra3.glb",
       "sha256": "f274befa4ba8553f8a1bf51878f6b1c321a091c8c1e8e7253bf24eeaf1321959"
@@ -29,6 +34,36 @@
       "bytes": 22545,
       "path": "public/textures/oolite-nebula-4.png",
       "sha256": "13ace709dbe03813285340556bd8b526a15b88b35eb89b6ea3e9820b0363548f"
+    },
+    {
+      "bytes": 149994,
+      "path": "public/textures/oolite_buoy_diffuse.webp",
+      "sha256": "98b15c645196bd869f98ad7a27d269ac12d02ca26260ba73566b21c5d46f849c"
+    },
+    {
+      "bytes": 79632,
+      "path": "public/textures/oolite_buoy_illumination.webp",
+      "sha256": "2227bc7ed519caaa2c5aff20bb5d875ee12599121f9ca9fee9a0b30780b220af"
+    },
+    {
+      "bytes": 669356,
+      "path": "public/textures/oolite_buoy_normal.webp",
+      "sha256": "8fcd7927ad4cc16cbf178deb4d0f8fd5047d1fe5bc5894652dbb2ee1e3ec62c8"
+    },
+    {
+      "bytes": 107046,
+      "path": "public/textures/oolite_buoy_specular.webp",
+      "sha256": "b84ff803d0081d1a58f13928e8615cc399af2fa63cdd91ea91e57cea6da5c9ba"
+    },
+    {
+      "bytes": 9026,
+      "path": "public/textures/oolite_buoy_subents.webp",
+      "sha256": "796707254db86233e62c67dd180db2f9d03806cfeb5e42e3d0360281ff4ec08a"
+    },
+    {
+      "bytes": 9917,
+      "path": "public/textures/oolite_buoy_subents_emissive.png",
+      "sha256": "c99078181099b5693ec872e541c2802bae392685a5d9714f3139fa2f897994c6"
     },
     {
       "bytes": 234860,
@@ -206,9 +241,9 @@
       "sha256": "40f906335a3a074acb0db3cae5cc034e9acb7554950a9f3cfd1b4aedff9af5b4"
     },
     {
-      "bytes": 8464,
+      "bytes": 11039,
       "path": "src/content/generated/texture-encodings.json",
-      "sha256": "b8b546611471254290771dda0dcd834821076e198881950448b1a0ed1185e01d"
+      "sha256": "12ca117d579e81c73e2e86031752967fd5eb0189982d9809079049854cdc4f97"
     }
   ],
   "format": "wegolite-content-manifest",

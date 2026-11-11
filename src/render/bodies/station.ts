@@ -114,7 +114,9 @@ function applyNeutralEmissive(material: THREE.MeshStandardMaterial): void {
  * `userData`, and GLTFLoader copies the GLB `extras` object straight onto
  * `material.userData`, so production and the test fixture take one path.
  */
-function applyAuthoredEmissive(material: THREE.MeshStandardMaterial): void {
+export function applyAuthoredEmissive(
+  material: THREE.MeshStandardMaterial,
+): void {
   const extras = (material.userData as { oolite?: OoliteMaterialExtras })
     .oolite;
   const triple = extras?.emissionModulateColorNormalized;

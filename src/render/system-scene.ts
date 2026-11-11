@@ -29,7 +29,8 @@ import type { GraphicsQuality } from "../settings/schema.js";
 import type { Vec3 } from "../sim/math.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import type { AssetCache } from "./asset-cache.js";
-import { createBeacon } from "./bodies/beacon.js";
+import { createBuoy } from "./bodies/buoy.js";
+import type { BuoyBody, BuoyRole } from "./bodies/buoy.js";
 import { createDust } from "./bodies/dust.js";
 import { createNebulae } from "./bodies/nebulae.js";
 import type { NebulaBody } from "./bodies/nebulae.js";
@@ -43,7 +44,7 @@ import { createSystemStarfield } from "./bodies/starfield.js";
 import { createSun } from "./bodies/sun.js";
 import type { SunBody } from "./bodies/sun.js";
 import { ambientIntensityFor, DISPLAY_SUN_INTENSITY } from "./exposure.js";
-import { isMesh, isPoints, materialList, meshMaterials } from "./mesh.js";
+import { materialList } from "./mesh.js";
 
 /** Oolite's default vertical field of view (Universe.m). */
 export const CAMERA_FOV_DEGREES = 57.2;
@@ -118,6 +119,8 @@ export interface SystemScene {
   station: StationBody;
   navBuoy: THREE.Group;
   witchpoint: THREE.Group;
+  /** Both buoys, for the per-frame tumble and flasher update. */
+  buoys: readonly BuoyBody[];
   ship: THREE.Group;
   /** D-04: camera-local speed dust; `sync.ts`/the session feed it the camera delta. */
   dust: Dust;
@@ -133,8 +136,8 @@ export interface SystemSceneParts {
   starfield: THREE.Points;
   station: StationBody;
   ship: THREE.Group;
-  navBuoy: THREE.Group;
-  witchpoint: THREE.Group;
+  navBuoy: BuoyBody;
+  witchpoint: BuoyBody;
   dust: Dust;
   nebulae?: NebulaBody;
 }
@@ -163,7 +166,7 @@ export interface SystemSceneFactories {
   ): THREE.Points;
   station(layout: SystemLayout, gltf: GLTF): StationBody;
   ship(gltf: GLTF): THREE.Group;
-  beacon(radius: number): THREE.Group;
+  buoy(gltf: GLTF, role: BuoyRole): BuoyBody;
   dust(): Dust;
   nebulae(count: number, seed: string): NebulaBody;
 }
@@ -174,25 +177,10 @@ const REAL_FACTORIES: SystemSceneFactories = {
   starfield: createSystemStarfield,
   station: createStation,
   ship: createShip,
-  beacon: createBeacon,
+  buoy: createBuoy,
   dust: () => createDust(),
   nebulae: (count, seed) => createNebulae(count, seed),
 };
-
-/** Dispose a beacon's own geometry and materials (never a shared asset). */
-function disposeBeaconResources(root: THREE.Object3D): void {
-  root.traverse((object) => {
-    if (isMesh(object)) {
-      object.geometry.dispose();
-      for (const material of meshMaterials(object)) material.dispose();
-      return;
-    }
-    if (isPoints(object)) {
-      object.geometry.dispose();
-      for (const material of materialList(object.material)) material.dispose();
-    }
-  });
-}
 
 function disposePlanet(planet: PlanetBody): Disposable {
   return {
@@ -222,14 +210,6 @@ function disposeShipClone(ship: THREE.Group): Disposable {
   return {
     dispose(): void {
       disposeClonedMaterials(ship);
-    },
-  };
-}
-
-function disposeBeacon(root: THREE.Object3D): Disposable {
-  return {
-    dispose(): void {
-      disposeBeaconResources(root);
     },
   };
 }
@@ -281,8 +261,8 @@ export function assembleSystemScene(
     parts.starfield,
     parts.station.root,
     parts.ship,
-    parts.navBuoy,
-    parts.witchpoint,
+    parts.navBuoy.root,
+    parts.witchpoint.root,
     parts.dust.object,
   );
   if (parts.nebulae !== undefined) scene.add(parts.nebulae.object);
@@ -293,8 +273,8 @@ export function assembleSystemScene(
     disposeStarfield(parts.starfield),
     parts.station,
     disposeShipClone(parts.ship),
-    disposeBeacon(parts.navBuoy),
-    disposeBeacon(parts.witchpoint),
+    parts.navBuoy,
+    parts.witchpoint,
     parts.dust,
     ...(parts.nebulae === undefined ? [] : [parts.nebulae]),
   ]);
@@ -306,8 +286,9 @@ export function assembleSystemScene(
     sun: parts.sun,
     starfield: parts.starfield,
     station: parts.station,
-    navBuoy: parts.navBuoy,
-    witchpoint: parts.witchpoint,
+    navBuoy: parts.navBuoy.root,
+    witchpoint: parts.witchpoint.root,
+    buoys: [parts.navBuoy, parts.witchpoint],
     ship: parts.ship,
     dust: parts.dust,
     ...(parts.nebulae === undefined ? {} : { nebulae: parts.nebulae }),
@@ -368,14 +349,14 @@ export function createSystemScene(
     const dust = f.dust();
     built.add(dust);
 
-    // D-04: a nav buoy in front of the dock and the witchpoint beacon at the
-    // arrival point. Procedural markers, no new asset.
-    const navBuoy = f.beacon(layout.navBuoy.radius);
-    navBuoy.name = "navBuoy";
-    built.add(disposeBeacon(navBuoy));
-    const witchpoint = f.beacon(layout.witchpoint.radius);
-    witchpoint.name = "witchpoint";
-    built.add(disposeBeacon(witchpoint));
+    // A navigation buoy in front of the dock and one at the witchpoint, as in
+    // Oolite: one shared model, two sets of flasher lights.
+    const navBuoy = f.buoy(assets.buoy(), "buoy");
+    navBuoy.root.name = "navBuoy";
+    built.add(navBuoy);
+    const witchpoint = f.buoy(assets.buoy(), "buoy-witchpoint");
+    witchpoint.root.name = "witchpoint";
+    built.add(witchpoint);
 
     // High only: `sky_n_blurs` nebula quads behind everything else.
     const nebulae =

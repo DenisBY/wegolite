@@ -27,6 +27,7 @@ import { isMesh, meshMaterials } from "./mesh.js";
 
 const COBRA_PATH = "models/cobra3.glb";
 const CORIOLIS_PATH = "models/coriolis.glb";
+const BUOY_PATH = "models/buoy.glb";
 
 /** The one seam the Node disposal test injects; production uses `GLTFLoader`. */
 export type ModelLoader = (url: string) => Promise<GLTF>;
@@ -36,6 +37,10 @@ export interface AssetCache {
   loadCobra(): Promise<GLTF>;
   /** Memoised Coriolis load; the promise rejects with a path-named error. */
   loadCoriolis(): Promise<GLTF>;
+  /** Memoised buoy load; the promise rejects with a path-named error. */
+  loadBuoy(): Promise<GLTF>;
+  /** The navigation buoy model; throws when called before the load resolved. */
+  buoy(): GLTF;
   /** The Cobra model; throws when called before the load resolved. */
   cobra(): GLTF;
   /** The Coriolis model; throws when called before the load resolved. */
@@ -79,6 +84,8 @@ export function createAssetCache(
 ): AssetCache {
   let cobraModel: GLTF | undefined;
   let coriolisModel: GLTF | undefined;
+  let buoyModel: GLTF | undefined;
+  let buoyPromise: Promise<GLTF> | undefined;
   let cobraPromise: Promise<GLTF> | undefined;
   let coriolisPromise: Promise<GLTF> | undefined;
   let pending: Promise<void> | undefined;
@@ -106,14 +113,31 @@ export function createAssetCache(
     return coriolisPromise;
   }
 
+  function loadBuoy(): Promise<GLTF> {
+    buoyPromise ??= load(BUOY_PATH).then((gltf) => {
+      buoyModel = gltf;
+      return gltf;
+    });
+    return buoyPromise;
+  }
+
   return {
     loadCobra,
     loadCoriolis,
+    loadBuoy,
     preload(): Promise<void> {
-      pending ??= Promise.all([loadCobra(), loadCoriolis()]).then(
+      pending ??= Promise.all([loadCobra(), loadCoriolis(), loadBuoy()]).then(
         () => undefined,
       );
       return pending;
+    },
+    buoy(): GLTF {
+      if (buoyModel === undefined) {
+        throw new Error(
+          "Wegolite: the buoy model was requested before AssetCache.preload() resolved.",
+        );
+      }
+      return buoyModel;
     },
     cobra(): GLTF {
       if (cobraModel === undefined) {
@@ -132,7 +156,11 @@ export function createAssetCache(
       return coriolisModel;
     },
     loaded(): boolean {
-      return cobraModel !== undefined && coriolisModel !== undefined;
+      return (
+        cobraModel !== undefined &&
+        coriolisModel !== undefined &&
+        buoyModel !== undefined
+      );
     },
     dispose(): void {
       // Dedupe by identity: the GLBs share one material across many meshes, and
@@ -142,7 +170,7 @@ export function createAssetCache(
       const materials = new Set<THREE.Material>();
       const textures = new Set<THREE.Texture<unknown>>();
 
-      for (const model of [cobraModel, coriolisModel]) {
+      for (const model of [cobraModel, coriolisModel, buoyModel]) {
         if (model === undefined) continue;
         model.scene.traverse((object) => {
           if (!isMesh(object)) return;
@@ -162,6 +190,8 @@ export function createAssetCache(
       // `preload()` re-loads from scratch.
       cobraModel = undefined;
       coriolisModel = undefined;
+      buoyModel = undefined;
+      buoyPromise = undefined;
       cobraPromise = undefined;
       coriolisPromise = undefined;
       pending = undefined;

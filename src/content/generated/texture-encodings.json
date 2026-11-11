@@ -10,6 +10,92 @@
         "-noalpha",
         "-quiet"
       ],
+      "bytes": 149994,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_buoy_diffuse.webp",
+      "sha256": "98b15c645196bd869f98ad7a27d269ac12d02ca26260ba73566b21c5d46f849c",
+      "source": "third_party/oolite/Textures/oolite_buoy_diffuse.png",
+      "sourceSha256": "cfeb237a63c9b044f30bb9c6889f5437475ef2f1215557b91b0a3d032657829b"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 79632,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_buoy_illumination.webp",
+      "sha256": "2227bc7ed519caaa2c5aff20bb5d875ee12599121f9ca9fee9a0b30780b220af",
+      "source": "third_party/oolite/Textures/oolite_buoy_illumination.png",
+      "sourceSha256": "5bad36ffbf1e1c6978ba39b7bf2a8bb16e10d61f222a910cd884c4db4a7f8fad"
+    },
+    {
+      "args": [
+        "-near_lossless",
+        "60",
+        "-z",
+        "9",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 669356,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_buoy_normal.webp",
+      "sha256": "8fcd7927ad4cc16cbf178deb4d0f8fd5047d1fe5bc5894652dbb2ee1e3ec62c8",
+      "source": "third_party/oolite/Textures/oolite_buoy_normal.png",
+      "sourceSha256": "c61d96aa1435284974f450a5cbdd0f0ffd667bc0405e1415edcb3f134e6bfd94"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-exact",
+        "-alpha_q",
+        "100",
+        "-quiet"
+      ],
+      "bytes": 107046,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_buoy_specular.webp",
+      "sha256": "b84ff803d0081d1a58f13928e8615cc399af2fa63cdd91ea91e57cea6da5c9ba",
+      "source": "third_party/oolite/Textures/oolite_buoy_specular.png",
+      "sourceSha256": "7404efa5b73ef85fc731546c26803dd75d762117329b92c780f0d1538658ce69"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 9026,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_buoy_subents.webp",
+      "sha256": "796707254db86233e62c67dd180db2f9d03806cfeb5e42e3d0360281ff4ec08a",
+      "source": "third_party/oolite/Textures/oolite_buoy_subents.png",
+      "sourceSha256": "2d032a4010e33ee74f482cfc133de93794953374fa56c6f4488c36d70da7f357"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
       "bytes": 234860,
       "encoder": "cwebp 1.2.4",
       "path": "public/textures/oolite_cobra3_diffuse.webp",

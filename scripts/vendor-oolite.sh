@@ -71,6 +71,8 @@ Config/trade-goods.plist
 Config/verifyOXP.plist
 Config/whitelist.plist
 Config/world-scripts.plist
+Models/oolite_buoy.dat
+Models/oolite_buoy_subents.dat
 Models/oolite_cobra3.dat
 Models/oolite_coriolis.dat
 Models/oolite_coriolis_dock.dat
@@ -80,6 +82,11 @@ Textures/oolite-nebula-1.png
 Textures/oolite-nebula-2.png
 Textures/oolite-nebula-3.png
 Textures/oolite-nebula-4.png
+Textures/oolite_buoy_diffuse.png
+Textures/oolite_buoy_illumination.png
+Textures/oolite_buoy_normal.png
+Textures/oolite_buoy_specular.png
+Textures/oolite_buoy_subents.png
 Textures/oolite_cobra3_diffuse.png
 Textures/oolite_cobra3_normal.png
 Textures/oolite_cobra3_specular.png

@@ -7,7 +7,7 @@
  *
  * The closure is asserted in both directions against the two emitted GLBs: a
  * referenced-but-absent texture and an allowlisted-but-unreferenced texture each
- * fail. The WebP re-encode of the sixteen files is covered by
+ * fail. The WebP re-encode of every vendored file is covered by
  * `texture-encode.test.ts`.
  */
 
@@ -74,12 +74,12 @@ function caught(body: () => void): { message: string; code?: string } {
 }
 
 describe("texture reference closure", () => {
-  it("resolves exactly the 16 allowlisted names, in both directions", () => {
+  it("resolves exactly the 21 allowlisted names, in both directions", () => {
     const references = resolveReferencedTextures(catalogue());
 
     expect(nameList(references)).toEqual([...VENDORED_TEXTURES].sort());
     expect([...VENDORED_TEXTURES].sort()).toEqual(nameList(references));
-    expect(references.size).toBe(16);
+    expect(references.size).toBe(21);
   });
 
   it("keeps the Cobra variant textures out of the closure and both trees", () => {
@@ -254,6 +254,7 @@ function emissiveUri(json: GlbJson, material: GlbMaterialJson): string | null {
 }
 
 const EMISSIVE_FILES = [
+  "oolite_buoy_subents_emissive.png",
   "oolite_cobra3_diffuse_emissive.png",
   "oolite_coriolis_diffuse_emissive.png",
   "oolite_coriolis_dock_diffuse_emissive.png",
@@ -341,7 +342,7 @@ describe("bakeEmissive", () => {
 });
 
 describe("emitTextures", () => {
-  it("bakes exactly the five emissive maps the two GLBs reference", async () => {
+  it("bakes exactly the six emissive maps the three GLBs reference", async () => {
     const outRoot = await mkdtemp(join(tmpdir(), "wegolite-emissive-"));
     try {
       const emitted = await emitTextures({
@@ -355,7 +356,8 @@ describe("emitTextures", () => {
 
       const cobra = readGlbJson("public/models/cobra3.glb");
       const coriolis = readGlbJson("public/models/coriolis.glb");
-      const glbEmissive = [...cobra.images, ...coriolis.images]
+      const buoy = readGlbJson("public/models/buoy.glb");
+      const glbEmissive = [...cobra.images, ...coriolis.images, ...buoy.images]
         .map((image) => image.uri.replace("../textures/", ""))
         .filter((name) => name.endsWith("_emissive.png"))
         .sort();
