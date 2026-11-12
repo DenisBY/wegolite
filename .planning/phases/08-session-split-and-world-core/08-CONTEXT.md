@@ -9,7 +9,7 @@
 The game plays exactly as in v1, but it runs on new foundations:
 
 - `src/app/game-session.ts` (3,365 lines) is split into subsystems under `src/app/session/`.
-- A multi-entity world model exists in `src/sim/`: stable never-reused ids, id-order iteration, serialisable seeded random streams forked per entity and purpose, a world hash, and a snapshot/restore codec for tests.
+- A multi-entity world model exists in `src/sim/`: stable ids never reused within the world that issued them (D-06, amended 2026-11-12), id-order iteration, serialisable seeded random streams forked per entity and purpose, a world hash, and a snapshot/restore codec for tests.
 - A typed seam for AI exists: read-only `WorldView` and write-only `ShipControl`.
 - Tests can step the simulation by N ticks through the `?test=1` hook. NPC traffic is off by default in browser tests and specs opt in.
 
@@ -32,7 +32,8 @@ Out of scope (later phases): any NPC in play (Phase 12+), the populator (Phases 
 - **D-05:** `epoch` and the entity-id counter advance identically whether traffic is on or off, so the seed and the ids never depend on the test traffic flag.
 
 ### Fixed entity id table
-- **D-06:** Fixed ids: `0` = `NO_ENTITY`; `1` planet; `2` sun; `3` main station; `4` witchpoint buoy; `5` station navigation buoy; `6..99` reserved for future static bodies; `100` player (Oolite's player UID); dynamic entities (NPCs, pods, missiles, wreckage) from `101`, monotonic and never reused. This supersedes ARCHITECTURE.md §5.1's draft `PLAYER_ID = 1`. — **Reversibility:** costly — ids appear in world hashes, golden fixtures and every AI/test reference; renumbering regenerates goldens.
+- **D-06:** Fixed ids: `0` = `NO_ENTITY`; `1` planet; `2` sun; `3` main station; `4` witchpoint buoy; `5` station navigation buoy; `6..99` reserved for future static bodies; `100` player (Oolite's player UID); dynamic entities (NPCs, pods, missiles, wreckage) from `101`, monotonic and never reused within the world that issued them. This supersedes ARCHITECTURE.md §5.1's draft `PLAYER_ID = 1`. — **Reversibility:** costly — ids appear in world hashes, golden fixtures and every AI/test reference; renumbering regenerates goldens.
+  - **Owner amendment 2026-11-12 (id scope):** id uniqueness is per world. Within one world, dynamic ids are monotonic and never reused. `nextId` restarts at `101` for each new world: each launch, each hyperspace arrival, and each in-flight Continue or Load. No entity id may outlive the world that issued it, so nothing outside the world (saves, HUD, logs, mission state, targeting across a jump) stores or transports one. Rationale: a world stays a pure function of its seed (D-02), so the world hash, snapshots and browser/Vitest parity stay reproducible. ROADMAP Phase 8 success criterion 2 and REQUIREMENTS FOUND-11 carry the same scope ("within the world that issued it"). Oolite contrast: its `OOUniversalID` comes from a wrapping counter that reuses freed slots even within one system (`Universe.m:5016-5020`), so Wegolite is deliberately stricter within a world. Plans 08-05 (`createWorld`) and 08-15 (the world lifecycle) implement it; plan 08-05 records it as Key Decisions row (d).
 - **D-07:** Both buoys are world entities with fixed ids, visible through `WorldView` (and later to the scanner, collision and AI "nearest buoy" queries). Static bodies are not duplicated: their entities reference `SystemLayout` data, which stays the single authority (PITFALLS 17). Aegis and the compass keep reading the layout.
 - **D-08:** With no NPC present, the world hash equals the v1 flight hash (success criterion 2). Static bodies are derived from the layout and must not change that hash.
 
@@ -121,7 +122,7 @@ Out of scope (later phases): any NPC in play (Phase 12+), the populator (Phases 
 ## Deferred Ideas
 
 - A scenario-spawn test tool (place a named ship at a pose) for combat and law specs, owned by Phase 13 or the first phase that needs it.
-- Persisting `epoch` and `nextEntityId` in the save: Phase 11 (SAVE-07, SAVE-08 stage 1).
+- Persisting `epoch` and `nextEntityId` in the save: Phase 11 (SAVE-07, SAVE-08 stage 1). Reconciled with D-06 (amended 2026-11-12): the persisted `nextEntityId` is the issuing world's own counter, saved so that the same world regenerates at the leg anchor; it names no entity, so it does not carry an entity id across worlds.
 
 ### Reviewed Todos (not folded)
 - `2026-11-11-check-ci-after-0-2-0-and-the-shift-c-docking-timeout.md`: the owner chose to ignore it for Phase 8 (local `verify-full` is the baseline; the GitHub failure is judged a slow-runner timeout). The todo file is left untouched.
