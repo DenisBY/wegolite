@@ -1,12 +1,27 @@
 ---
 phase: 8
-reviewers: [opencode]
-reviewed_at: 2026-11-12T08:53:31Z
+reviewers: [reviewer-architect-kimi-k3-1-pro, reviewer-correctness-glm-5-3, reviewer-algorithm-deepseek-v4-pro, reviewer-adversarial-grok-4-7, reviewer-context-gemini-4-argon, reviewer-triage-glm-5-3-flash]
+reviewed_at: 2026-11-12T10:41:06Z
 plans_reviewed: [08-01-PLAN.md, 08-02-PLAN.md, 08-03-PLAN.md, 08-04-PLAN.md, 08-05-PLAN.md, 08-06-PLAN.md, 08-07-PLAN.md, 08-08-PLAN.md, 08-09-PLAN.md, 08-10-PLAN.md, 08-11-PLAN.md, 08-12-PLAN.md, 08-13-PLAN.md, 08-14-PLAN.md, 08-15-PLAN.md, 08-16-PLAN.md]
 models:
-  opencode: "unknown"
+  reviewer-architect-kimi-k3-1-pro: "opencode-go/kimi-k3.1-pro"
+  reviewer-correctness-glm-5-3: "opencode-go/glm-5.3"
+  reviewer-algorithm-deepseek-v4-pro: "opencode-go/deepseek-v4-pro"
+  reviewer-adversarial-grok-4-7: "opencode-go/grok-4.7"
+  reviewer-context-gemini-4-argon: "opencode-go/gemini-4-argon"
+  reviewer-triage-glm-5-3-flash: "opencode-go/glm-5.3-flash"
 model_sources:
-  opencode: "unknown"
+  reviewer-architect-kimi-k3-1-pro: "config"
+  reviewer-correctness-glm-5-3: "config"
+  reviewer-algorithm-deepseek-v4-pro: "config"
+  reviewer-adversarial-grok-4-7: "config"
+  reviewer-context-gemini-4-argon: "config"
+  reviewer-triage-glm-5-3-flash: "config"
+refused_reviewers:
+  claude:
+    estimated_tokens: 152123
+    cap: 130000
+    cap_source: lane
 ---
 
 # Cross-AI Plan Review — Phase 8
@@ -15,424 +30,677 @@ model_sources:
 ## Plan-Revision Conflicts
 <!-- gsd:plan-revision-conflicts:end -->
 
-## OpenCode Review
+## Claude Review
 
-# Cross-AI Plan Review: Phase 8 (Session Split and World Core)
+claude review did not run: prompt exceeds this lane's context cap (estimated 152123 tokens exceeds the 130000-token cap for lane 'claude' (source: context-window, 200000-token context window); raise review.context_window_tokens.claude if this lane's model has a larger window, or set it to 0 to remove the cap)
 
-**Verification note:** I reviewed the 16 plans against the current source in `/home/opencode/git/wegolite` as a read-only reviewer (no tracked files modified). Evidence is cited as `path:line`. I did not run Docker builds/tests (host Node/npm is not authoritative per AGENTS.md); where I assert a gate outcome is plausible I base it on source/test contracts visible in the repo.
+---
 
-## 08-01
-
-### Summary
-Plan 08-01 correctly front-loads the two safety nets the split needs: a frozen browser-observable probe shape and order/vacuity-safe text scans over the session source, plus a recorded clean verify-full baseline on an uncontaminated worktree. It is well grounded in the current monolith and guard contracts.
-
-### Strengths
-- Correctly targets the real source-scan hazards: `tests/app/redraw-gate.test.ts:113-126` reads only `src/app/game-session.ts` and asserts an ordered pair of comma-containing `renderFrame(...)` matches, while `tests/guards/economy-purity.test.ts:201-207,312,322-353` uses `switchCaseBody` on the first `case "docked":` and scans the single session file twice. Making these helpers order-independent and vacuous-failure-safe is necessary before any extraction.
-- Freezing `window.__wegolite` before step 1 matches the current probe surface (`src/app/probe.ts:276-358`, hook factory `390-460`, failure surface `469-509`) and the fact that many e2e specs consume it; adding the spec to `test:e2e:fast` (`package.json:20`, currently 3 specs) and updating the exact pinned string in `tests/contract/container-contract.test.ts:336-344` is the right mechanical coupling.
-- Baseline isolation is strong: running `verify-full` on a detached worktree of `5b189e4` under a separate Compose project avoids contamination from parallel wave-1 plans and shared bind-mount side effects, consistent with the repo’s Docker-only evidence rule.
-- Scope note is reasonable: the 10-file bundle is cohesive (probe pin + step-0 re-point) and avoids renumbering the rest of the chain.
-
-### Concerns
-- **MEDIUM:** The probe-shape capture plan must be careful about timing-volatile/optional fields (`hint`, `restore`, `dust`, `world`, `shipVisible` per `src/app/probe.ts:314-322,338`) and about sampling states deterministically; under-specifying the optional-key/record-path policy could make the “frozen shape” either flaky or too permissive. The plan names `hint` and record paths, which is good, but fixture generation must be done against the unmodified monolith in the stated states to be trustworthy.
-- **MEDIUM:** `test:e2e:fast` is currently a fixed 3-spec list (`package.json:20`) and `tests/contract/container-contract.test.ts:336-344` asserts count `3` and the exact string; 08-01 plans to change both, which is correct, but any split step that forgets this coupling will break `verify`/contract tests. The plan acknowledges it; execution must keep them in lockstep.
-- **LOW:** The baseline allows a documented fallback if worktree gating is infeasible in-repo; that is pragmatic (D-01), but it weakens attribution compared to the primary path and must be recorded clearly in the SUMMARY.
-
-### Suggestions
-- In `probeShapeOf`/`compareProbeShapes`, explicitly document and test treatment of arrays, function-valued leaves (`probe.test` methods in `src/app/probe.ts:251-267`), and `null` vs missing to avoid ambiguous diffs.
-- Make `tests/helpers/session-source.ts` fail if it finds duplicate `case "docked":` labels across concatenated sources (only one exists today at `src/app/game-session.ts:2321`), since `switchCaseBody` in `tests/guards/economy-purity.test.ts:201-207` always scans the first match.
-- Record the exact `verify-full` command, worktree path/project name, commit/tree SHA, duration, and any docking-spec rerun in the SUMMARY as specified.
-
-### Risk Assessment
-**LOW.** The plan adds tests/helpers and a script-string update without touching `src/`; risks are mostly fixture precision and gate bookkeeping, which are explicitly called out.
-
-## 08-02
+## Architecture Review (reviewer-architect-kimi-k3-1-pro)
 
 ### Summary
-Plan 08-02 is a high-value determinism pin: it captures pre-change flight hashes and RNG vectors, then introduces a serialisable RNG and the locked `mix32`-based world/fork seed derivation with owner confirmation. It is mostly sound, but it carries a real one-way decision and a subtle contract about where sim randomness lives.
+
+Commit `83c9b5c` materially addresses the Round 1 findings on paper: it adds explicit seed vectors, live-object and ordering characterisations, gate attribution, hot-path measurement, schema/sanitiser properties, and browser/Vitest parity diagnostics. Two cross-plan contracts remain unsafe: warm in-session Loads reuse the wrong world epoch, and the “total” sanitiser does not cover every hashed/snapshotted value. **NEEDS REVISION** before execution; the required changes are local in concept but affect the phase’s core determinism and failure-propagation guarantees.
 
 ### Strengths
-- Pins evidence from the unmodified implementation first: `createSeededRandom` is currently a closure over mulberry32 state (`src/sim/math.ts:227-236`) and the only sim caller is `drawWitchpointExit` (`src/sim/hyperspace/arrival.ts:73`), whose exact draw sequence matters to existing arrival/golden behavior.
-- Correctly preserves the call sites and FIDELITY-sensitive files by delegating inside `src/sim/math.ts` rather than editing `src/sim/hyperspace/arrival.ts` (and render callers remain untouched), aligning with RESEARCH/CONTEXT.
-- Uses the existing hash primitives correctly: `hashFlight` is `fnv1a32(serializeFlight(state))` and `serializeFlight` is fixed-order labelled text ending at `repairCount` (`src/sim/flight/state.ts:147-183`, `src/sim/hash.ts:13-35`), so “v1 flight hash” is a concrete, replayable concept.
-- The Task 2 checkpoint makes the D-02 one-way seed format explicit and records vectors before Phase 11 persistence, which is the right governance for a save-migration boundary.
-- Good adjacency/edge coverage intent: distinct forks for adjacent ids/purposes, 1000 distinct epochs, JSON round-trip of stream state, and keeping existing goldens/tests green.
 
-### Concerns
-- **HIGH:** Seed derivation is a locked, one-way contract (D-02). If the implemented `fmix32/mix32/worldSeedFor/forkSeed` arithmetic or purpose codes diverge from what Phase 11 later assumes (or from the owner-confirmed option), worlds become unrecoverable without migration. Task 2 mitigates this, but execution must pin exact literal vectors immediately.
-- **MEDIUM:** FOUND-12 states “All simulation randomness comes from serialisable seeded streams…”; after delegation only `drawWitchpointExit` in `src/sim` is shown to use `createSeededRandom` (`src/sim/hyperspace/arrival.ts:73`) and it holds state for one jump-commit call (not across ticks), which the plan explicitly records. This is a reasonable interpretation, but later phases must not introduce other closure-held or untracked sim draws.
-- **MEDIUM:** The recorded-flight helper replays session/arrival behavior in Node and must mirror session semantics (e.g. arrival draw uses `drawWitchpointExit(previousSeed)` at `src/app/game-session.ts:2084-2133` and applies `applyWitchpointArrival` in `src/sim/hyperspace/arrival.ts:118-162`). Any mismatch in StepOptions/layout/config/dock geometry would pin the wrong “v1” hashes.
-- **LOW:** `tests/golden/world/` is new/additive (fine), but the plan must keep `tests/golden/content|hyperspace|market|save|kinematic-probe.json` untouched as stated.
+- The dependency chain is complete and coherent: `08-01..08-03` establish safety nets; each split/core chain converges through `08-10/08-11`, `08-12/08-13`, and `08-14`; `08-15` integrates them and `08-16` is the sole downstream probe change. Same-wave `files_modified` ownership avoids cross-track file collisions.
+- `FlightState` remains the player authority and `World` remains dynamic-entity state. Static bodies reference `SystemLayout`, the player is supplied to views per call, and empty-world hashing composes with rather than modifies `serializeFlight` (`08-05`, `08-07`, `08-11`).
+- The AI seam has useful structural enforcement: copied views, actor-bound controls, type-only public interfaces, narrow imports, queued cross-entity events, integer timers, and separate registry dispatch (`08-07`, `08-09`, `08-11`). These are stronger than conventions alone.
+- The split preserves the actual runtime ordering found in `src/app/game-session.ts`: the pre-launch save precedes launch (`src/app/game-session.ts:2765-2795`), events are handled immediately after stepping (`src/app/game-session.ts:2837-2853`), and the arrival install/autosave order is atomic (`src/app/game-session.ts:2125-2152`). The revised plans pin those paths with behavioural tests rather than relying only on compilation.
+- Snapshot discipline is unusually thorough: strict typed boundary errors, id gaps and killed-highest-id cases, key-order independence, an exhaustive entity-field table, and a 1,000-tick equality run (`08-13`). The one additive probe change is also properly sequenced after the freeze (`08-16`).
 
-### Suggestions
-- In Task 3, include explicit literal vectors for `fmix32/mix32` and for `worldSeedFor/forkSeed` on representative inputs (including the Lave market seed and epochs 0/1/2) and assert them in `tests/sim/rng.test.ts` as the canonical contract.
-- Add a small assertion that `rngNext` state remains a uint32 (`>>> 0`) across many draws and that `createSeededRandom`’s first-N outputs for several seeds match the pre-delegation capture exactly (bit-for-bit), not approximately.
-- Document in the Key Decisions row that render-side closure RNGs remain allowed outside `src/sim` (they already exist in render code) while `src/sim` randomness is serialisable by construction.
+### Issues Found
 
-### Risk Assessment
-**MEDIUM.** Technically straightforward, but it establishes irreversible seed semantics and new “golden” evidence that future phases depend on.
+#### 1. **Severity: BLOCKER** — Warm `Load` carries the previous session's epoch into a save that never contained it
 
-## 08-03
+- **Plan/Task:** `08-15`, Tasks 2 and 3 (also missing from the lifecycle proof in `08-13`, Task 3).
+- **Description:** `createWorldLifecycle` starts at epoch 0 and `resume` deliberately leaves the current epoch unchanged (`08-15-PLAN.md:127,162-164`). Start-up constructs a fresh lifecycle, but the in-session `loadFromSave` integration only calls `resume(seed)` for in-flight saves or `end()` for docked saves (`08-15-PLAN.md:171,202`). Its mandatory test explicitly blesses “leaves epoch unchanged” (`08-15-PLAN.md:205`). That is not equivalent to a cold Continue of the same save once the current session has advanced its counter. D-03 keeps epoch out of Phase 8 saves (`08-CONTEXT.md:29-30`), while D-02 promises that reloading and launching reproduces the world (`08-CONTEXT.md:28-30`; `.planning/research/ARCHITECTURE.md:471`). The live loader is intended to follow the exact boot pipeline (`src/app/game-session.ts:1316-1324`), so retaining prior-session world state conflicts with that boundary as well.
+- **Concrete failure:** Launch (epoch 1), jump (epoch 2), then use F2 to load an older v2 save. Warm Load leaves epoch 2; a cold page load of the same save creates a lifecycle at 0. The next launch produces epoch 3 in the warm path versus epoch 1 in the cold path. `worldSeedFor` therefore derives different worlds and `probe.sim.epoch` disagrees; once traffic exists, entity streams, ids, hashes, and gameplay diverge solely because Load happened in an existing tab. A docked Load has the same defect on its next launch because `end()` also preserves epoch.
+- **Fix:** Introduce an explicit restore/reset operation that sets the save anchor's epoch before creating/ending the restored world. In Phase 8 that value should be whatever a fresh boot of the same v2 save would use (0 under D-03); Phase 11 can supply the persisted anchor value. Apply it only in the successful synchronous install block, for both docked and in-flight Loads, leaving failed parses untouched. Add a test comparing cold Continue versus warm in-session Load of the same blob, followed by another launch and arrival, asserting identical epoch, world seed, next id, and hashes.
+
+#### 2. **Severity: BLOCKER** — The total sanitiser/schema invariant excludes values that the hash serialises
+
+- **Plan/Task:** `08-05`, Task 1; `08-09`, Task 1; `08-11`, Task 2; `08-13`, Tasks 1-2.
+- **Description:** `serializeEntity` hashes every entity field and canonicalises every number (`08-05-PLAN.md:135,138`), while `canon` throws on non-finite input (`src/sim/hash.ts:29-34`). Yet `sanitizeEntity` repairs only position, orientation, destination, speed, desired speed/range, and AI timers (`08-11-PLAN.md:160-165`). It does not cover radius, owner id, spawn tick, RNG states, repairs, or numbers inside `AiComponent.params` and its arrays, even though those fields are part of the entity and snapshot (`08-13-PLAN.md:107,139-140`). The fast-check property avoids the contradiction by generating those other fields only from valid domains and never generating non-finite AI params (`08-13-PLAN.md:140`). Thus “no non-finite value can reach the hash” (`08-11-PLAN.md:179`) and “every sanitized world snapshots to JSON the parser accepts” (`08-13-PLAN.md:24`) are stronger than the actual design.
+- **Concrete failure:** An AI module computes an overflowing value and stores `NaN` or `Infinity` in `ctx.ai.params`, or a spawn/content mistake produces `radius = Infinity`. The next `worldHash()` still reaches `canon` and throws, despite the per-tick sanitiser. JSON snapshotting changes the same value to `null`, after which the strict parser rejects rather than restores it. The Round 1 NaN-injection test covers position only, so this failure survives every planned proof.
+- **Fix:** Make finite validity a field-complete contract, not a selected-field repair list. Validate constructor-only numeric fields at `spawnEntity`, and either validate/repair all mutable serialised numerics (including nested AI params/arrays) or explicitly exclude them from hashing/snapshot with a recorded decision. Extend the exhaustive `Record<keyof Entity, ...>` mechanism to generate invalid-domain cases for every numeric leaf, and test `stepWorld -> hashWorld` and `sanitize -> JSON -> parse` for each path. Keep constructor invariants and repair-count semantics explicit so normalisation does not silently hide corrupt content.
+
+#### 3. **Severity: WARNING** — `08-10` and `08-15` require incompatible event-router ownership tests
+
+- **Plan/Task:** `08-10`, Task 2; `08-15`, Task 1.
+- **Description:** `08-10` requires every one of the 14 existing event kinds to have exactly one subscriber and tests one handled entry per dispatch (`08-10-PLAN.md:28,33,155,160-161,174`). `08-15` changes `launched` and `docked` into ordered fan-out to `stationFlow` plus `worldLifecycle` (`08-15-PLAN.md:130`) but simultaneously instructs the executor to preserve the one-handler-per-kind assertions unchanged (`08-15-PLAN.md:131`). Those requirements cannot all pass. Removing the assertion without replacing its routing guarantee would also permit accidental extra business side effects.
+- **Fix:** Replace the invariant with an explicit ordered routing table: each kind has exactly one gameplay subscriber, and only `launched`/`docked` additionally have the whitelisted lifecycle subscriber. Update the `08-10` truth accordingly. In `08-15`, assert exact per-kind subscriber sequences for all 14 kinds, and add full side-effect logs for launched and docked proving `stationFlow` completes before `worldLifecycle`; retain the emission-order and reserved-kind pass-through tests.
+
+#### 4. **Severity: SUGGESTION** — Do not make the whole mutable `SessionState` the permanent boundary of every extracted module
+
+- **Plan/Task:** `08-04`, Task 1, propagated by `08-06`, `08-08`, `08-10`, `08-12`, `08-14`, and `08-15`.
+- **Description:** The extraction moves the closure's variables into one shared object (`08-04-PLAN.md:115-119`) and every controller factory receives that same object. This removes stale lexical captures but does not constrain authority: a render/probe controller can write flight, save, or world state; a station/save controller can bypass the sim driver; and later changes can introduce hidden ordering dependencies that the type system cannot catch. The file split would otherwise look complete while retaining the monolith's coupling.
+- **Fix:** Keep the concrete shared `SessionState` for behaviour-neutral extraction, but give each factory a narrow structural context facet (`Pick`/nested picks) plus explicit command/callback capabilities. In particular, reserve world mutation for lifecycle and sim-driver contexts and give read-only publishers read-oriented facades. This can be introduced without changing runtime objects or the nine-name public facade, and will make the boundary enforceable rather than merely documented.
+
+### Missing Coverage
+
+- **Warm-versus-cold restore equivalence:** No planned test loads the same old save through both boot Continue and in-session Load and then performs another populate. Current tests only assert the incorrect “epoch unchanged” behaviour.
+- **Full numeric-domain failure propagation:** There is no NaN/Infinity case for AI params (including arrays), radius, owner id, spawn tick, stream states, repairs, or world-level numeric fields, despite those fields entering the hash/snapshot schema.
+- **Non-vacuous traffic parity:** The D-05 checks use `populateNothing` or a recording callback (`08-15-PLAN.md:33,162`). They prove the lifecycle itself has no conditional, not that a real traffic-on populator and traffic-off path consume identical id/epoch sequences. Record this as a deferred integration proof or add a conditional spawning fake with the intended off-path id reservation semantics.
+- **Manual-launch handshake:** The browser parity case clicks Launch and immediately calls `advanceTicks(1)` (`08-16-PLAN.md:162`) without waiting for a frame to transfer the station action into the driver's pending commands. On a slow frame the launch can be applied one tick later than the Node script, making parity timing-dependent. Wait on `probe.frames` after the click before stepping.
+- **Lifecycle side effects inside tick stepping:** `08-16` explicitly leaves hyperspace parity unproven (`08-16-PLAN.md:189`). At least one successful and one failed jump through `advanceTicks` should compare tick, epoch, world identity/seed, pause state, and hash so the shared event path is proven beyond launch/fly.
+
+### Recommendations
+
+1. Resolve the save-anchor epoch contract first and add warm/cold equivalence tests before implementing `08-15`; otherwise later world determinism will depend on tab history.
+2. Define one field-complete validity invariant across `Entity`, `hashWorld`, `sanitizeEntity`, and `WorldSnapshot`; drive invalid-domain tests from that same field map in `08-05`, `08-11`, and `08-13`.
+3. Make event routing a declarative ordered table and align `08-10`/`08-15` before changing the router; test both individual arm order and whole-event side-effect order.
+4. Treat shared `SessionState` as an implementation carrier, not a public capability bundle; add per-module facets as each controller is extracted rather than allowing all modules unconstrained writes.
+5. Close the remaining non-vacuity gaps: a real conditional-populator parity proof when traffic exists, an explicit launch-drain wait in browser parity, and one jump lifecycle case through `advanceTicks`.
+
+### Overall Assessment
+
+**NEEDS REVISION.** The Round 1 architectural warnings and high-risk execution concerns are mostly resolved with concrete, source-grounded gates, and the wave/dependency plan is sound. The two blockers are nevertheless in foundational contracts: restoring a world must not depend on the previous tab's epoch, and every value admitted to the hash/snapshot path must have defined non-finite handling. The router contradiction and broad mutable context should also be corrected during revision so the split remains executable and creates maintainable boundaries.
+
+### Reviewed Plans
+
+- 08-01
+- 08-02
+- 08-03
+- 08-04
+- 08-05
+- 08-06
+- 08-07
+- 08-08
+- 08-09
+- 08-10
+- 08-11
+- 08-12
+- 08-13
+- 08-14
+- 08-15
+- 08-16
+
+---
+
+## Behavioral Correctness Review (reviewer-correctness-glm-5-3)
 
 ### Summary
-Plan 08-03 is a necessary determinism hardening step: it extends the sim lint zone with bans for `Date` value use, timers/process/crypto, `for..in`, and bare `sort/toSorted`, while factoring rule lists to survive later AI-zone overrides. The approach matches ESLint’s replace-not-merge behavior and current repo tooling.
+
+All 16 Phase 8 plans (`08-01`–`08-16`) are behaviorally faithful to FOUND-10..FOUND-14, the locked CONTEXT decisions (D-01..D-14 including the 2026-11-12 D-06 per-world id amendment), and the five ROADMAP success criteria. Every Round 1 correctness concern I re-checked against live source is genuinely addressed in commit-verified, acceptance-gated plan text (pinned literals confirmed at the cited lines in `src/app/game-session.ts`; RNG arithmetic in `src/sim/math.ts:227-237`; hash composition in `src/sim/flight/state.ts:147-183`; the 39/16 Oolite vocabulary tables; the 14-kind SimEvent union; the 5 `redrawGate.request()` sites). I found no BLOCKER-level contract mismatch. The residual risk sits in a handful of under-specified edge cases at the integration seams — most notably the `pending` command-queue freeze-branch semantics that the sim-driver tests do not fully pin, and a few proven-but-unproven assumptions carried between plans — which are WARNINGs and SUGGESTIONs, not design defects.
 
 ### Strengths
-- Correctly identifies the current gap: `eslint.config.js:71-152` bans `Math.random`, `Date.now`, `performance.now`, and `new Date` in `src/sim`, but does not ban `Date` as a value/global broadly, `for..in`, bare `.sort()`, timers, `process`, or `crypto`.
-- Factoring `SIM_SYNTAX_BANS`, `SIM_GLOBAL_BANS`, `SIM_RESTRICTED_PROPERTIES` is the right fix for ESLint’s later-block replacement semantics (critical for 08-09’s AI zone), and aligns with RESEARCH Pattern 8.
-- Using the existing guard infrastructure (`tests/guards/eslint-gate.ts:41-68`, `tests/guards/probe-lock.ts:36-66`) and writing probes under `src/sim` with cleanup is consistent with established negative-proof patterns (cf. `tests/guards/sim-purity.test.ts:64-83`).
-- Positive controls (comparator sort/toSorted, for..of, `Date` as type-only) reduce over-broad enforcement risk.
 
-### Concerns
-- **MEDIUM:** Banning `Date`/`process`/`crypto`/timers globally in `src/sim` can produce false positives if any existing or future sim code legitimately references them as types or in ways not intended (plan allows type refs; probes should prove it). A quick scan motivation is stated, but execution must verify the full tree still lints.
-- **MEDIUM:** The known alias gap (`const m = Math; m.random()`) remains; `Math["random"]` is covered, but aliasing is not. That’s acceptable for this phase but means lint is necessary, not sufficient, for determinism.
-- **LOW:** Probes under `src/sim` interact with parallel `tsc`/guard runs; the shared lock pattern is correct, but tests must be careful to always clean up directories created for nested probes.
+- **Round 1 findings are verifiably fixed.** Every disposition-ledger claim I spot-checked against the repository holds: exactly one `case "docked":` (`src/app/game-session.ts:2321`), exactly three `generateMarket(` producers, 77 closure-level `let`s, 9 exports in the facade, `spanY: 2 * chartCamera.spanX` (`game-session.ts:2427`), the renderer's base-then-roll station composition (`src/render/bodies/station.ts:210-215`), and the unconditional `state.tick += 1` before `return events` (`src/sim/flight/step.ts:347,350`).
+- **D-08 hash identity is structurally protected**: one exported `isNeverSpawned` predicate (08-05), the serializer forbidden from re-spelling it, worlds seeded for epochs 0–2 all hashed as `hashFlight`, and 08-11's three-way `stepFlight`/`stepSim(undefined)`/`stepSim(emptyWorld)` trace comparison.
+- **The D-02 one-way seed derivation is properly gated**: an owner checkpoint (08-02 Task 2) before any code lands, literal vectors from an *independent* scratch re-implementation in the same commit, a durable source-scan guard against new closure-held sim streams, and a cross-check vector quoted in PROJECT.md for Phase 11.
+- **Per-world id scope (D-06 as amended 2026-11-12) is enforced end to end**: `createWorld` starts every store at 101, no module-level counter exists, 08-15's lifecycle invariant gate forbids `EntityId` in `world-lifecycle.ts`, and save leakage is checked by the anchored-save describe plus the encoded-save key scan.
+- **The split's evidence discipline is strong**: worktree-attributed `verify-full` at steps 3/6/9 with commit+tree SHAs, the pinned-literal audit table before the step-9 gate, the `--repeat-each=3` probe-shape fixture flake check, and the subtractive-diff proof for the one D-13 probe commit.
+- **Reserved SimEvent kinds (08-11) cannot break consumers**: the router has no exhaustive `never` check or throwing default (invariant-gated), unknown-kind pass-through is tested (08-10 case (d)), and 08-15 dispatches every `RESERVED_EVENT_KINDS` kind through the real router.
+- **Determinism lint (08-03) closes the alias gap** Round 1 flagged (`const m = Math`), bans `globalThis`/timers/`process`/`crypto`, factors the rule lists into spreadable constants for the 08-09 AI zone, and honestly documents the residual laundered-value forms with the behavioral proofs that cover them.
+- **Snapshot codec (08-13) is contract-tight**: the `Record<keyof Entity, ...>` field-coverage table makes a field-add a typecheck failure, the sanitizer-parser fast-check property aligns the -0/NaN/Infinity boundary, and the two distinct refusal reasons (`uncommitted`, `queue-not-empty`) are separately tested.
+- **08-15 adds the step-cost benchmark** (Round 1's HIGH concern) with a hard bound (1.2× stepFlight + 2 µs), a conditional hash-neutral fast path, and a verify-full wall-time comparison against the split baseline.
 
-### Suggestions
-- Add a guard case ensuring a comparator `[].sort((a,b)=>a-b)` and `[].toSorted(...)` remain allowed (market code already sorts with comparators elsewhere in the repo style), and that `new Map().forEach`/`Object.keys(...).sort(cmp)` patterns remain viable.
-- Include a probe in a subdirectory (`src/sim/world/__ban_probe.ts`) for each class of ban to prove glob coverage, as the plan states.
-- Keep rule messages actionable and stable because guard tests assert message fragments.
+### Issues Found
 
-### Risk Assessment
-**LOW.** This is localized tooling hardening with strong negative/positive tests; main risk is over-restriction caught by running lint on the repo.
+- **Severity**: WARNING
+  **Plan/Task**: 08-10 / Task 2 (sim-driver)
+  **Description**: The `pending` command queue is cleared in *three* places in the current `frame()` — the not-paused drain (`game-session.ts:2773`), the chart-open freeze branch (2744), and the save-screen freeze branch (2755) — plus the paused branch (2852). Plan 08-10's sim-driver test list pins the drain-once contract for `advanceFrame` (case (e)) but never pins that the chart/save-screen freeze branches (which stay in `frame()` until step 9) still clear `pending`. If the freeze branches' `pending.length = 0` is lost or reordered during the extraction, a launch queued in the frame the chart opens would fire on chart close — a real behavioral change no listed test catches (the probe-shape and e2e specs would not reliably catch it either).
+  **Fix**: Add one sim-driver/frame-order test case: with `ctx.chart.chartOpen` true and `pending = [launch]`, one frame clears `pending` and a subsequent frame with the chart closed steps no launch; same for `saveScreenOpen`. Add `pending.length = 0` to the 08-12 pinned-literal/phase-order audit checklist.
 
-## 08-04
+- **Severity**: WARNING
+  **Plan/Task**: 08-02 / Task 3 (`rng.ts` RangeError contract)
+  **Description**: `worldSeedFor`/`forkSeed` throw RangeError for inputs outside `[0, 0xffffffff]`, but the plan never states what happens when `nextId` itself reaches 2^32 (a fork with `entityId = 4294967296` would throw inside a fixed step, killing the frame loop — exactly the DoS class 08-15's T-08-27 guards for marketSeed). It is practically unreachable (the 256-entity cap bounds `nextId` ≈ 357 per world), but the contract is asymmetric: `begin`/`resume` in 08-15 are made non-throwing for non-finite seeds, while the id path has no equivalent guarantee statement.
+  **Fix**: One sentence in 08-05 or 08-02 stating the invariant (spawn refuses at `MAX_ENTITIES`, so `entityId < FIRST_DYNAMIC_ID + MAX_ENTITIES + slack` forever, and `forkSeed` can never see an out-of-range id), or a defensive clamp in `spawnEntity`. Optionally a test asserting `nextId < FIRST_DYNAMIC_ID + 2^16` after any spawn/kill/commit sequence in the fast-check property.
+
+- **Severity**: WARNING
+  **Plan/Task**: 08-16 / Task 2 (tick parity scope)
+  **Description**: The parity proof covers a New-game launch-and-fly script only; the plan's own flagged assumption notes "a jump inside advanceTicks runs the same event path but has no parity fixture in this phase." This means the single most event-heavy transition reachable under `advanceTicks` (a hyperspace jump: world teardown, atomic install block, arrival draw, epoch bump, world recreation) is never exercised through the manual clock in a hash-parity setting. The 08-13 cadence test does cover a jump, but through a hand-rolled lifecycle in the test, not the session's real `worldLifecycle` wiring from 08-15.
+  **Fix**: Either promote the flagged assumption to a recorded, accepted gap in PROJECT.md (it currently sits only in the plan's "Flagged assumptions" block and would be easy to lose), or add one Vitest case driving the real driver through a scripted jump (teleport to a mass-lock-free point via the existing hook `setPosition`, `beginHyperspace`, advance through `hyperspaceJumped`) and compare against `runTickScript` with a matching jump script.
+
+- **Severity**: SUGGESTION
+  **Plan/Task**: 08-09 / Task 1–2 (test-pilot wake/think interaction)
+  **Description**: The pilot schedules a wake of 12–204 ticks (`ticks(0.1 + random()*1.5)`) but thinks every 15 ticks (`nextThinkTick = view.tick + 15`); a wake of 12 fires *before* the next think is due, and the 08-11 wake semantics (`wakeTick > 0 && tick >= ai.wakeTick`, cleared to 0 when due) mean an early wake triggers an extra think, which then re-schedules both timers. The behavior is well-defined by the rules, but no test pins the "wake fires before nextThinkTick" interleaving (the 200-think test uses a fake view advancing by exactly 15, so the two timers never diverge).
+  **Fix**: One test-pilot or stepWorld case where the random returns 0 (wake at tick+12) and the view advances by 6, then 6, then 3: assert the think fires on the wake tick, not the think tick, and both timers are re-armed to integers afterwards.
+
+- **Severity**: SUGGESTION
+  **Plan/Task**: 08-01 / Task 1 (probe-shape optional-key audit)
+  **Description**: The optional-key audit table is required to cover all 21 optional `WegoliteProbe` keys and the acceptance gate greps for each `| <key> |` cell, but the classification itself ("state-determined" vs "timing-dependent") is executor judgment recorded only in comments. `hint` is pre-classified as the sole timing-dependent key; if the executor finds another (e.g., `restore` racing the in-flight Continue), the plan allows adding it to `PROBE_SHAPE_OPTIONAL_KEYS` with a reason row — but there is no second reviewer checkpoint on that judgment, and an over-broad optional list silently weakens the D-13 freeze.
+  **Fix**: Require the SUMMARY to list any key *beyond* `hint` that was classified timing-dependent, with the repetition-failure evidence that motivated it, so the phase-level review can audit the classification.
+
+- **Severity**: SUGGESTION
+  **Plan/Task**: 08-06 / Task 2 (listener-total gate)
+  **Description**: The `addEventListener`/`removeEventListener` totals gate catches count drift but not *pairing* drift (a handler moved from an abort-signal to `window` keeps the count). The plan does require "registration still happens from the same start-up call site," but that part is SUMMARY-recorded, not mechanically gated, and dispose idempotence for the settings/chart listeners is only proven generically in 08-12's "dispose order" test (which uses its own doubles, not the real controllers).
+  **Fix**: In the 08-12 dispose-order test, build the real settings and chart controllers (with fake overlays) once so their real listener registrations are covered by the idempotence assertion, or add an explicit assertion that every `addEventListener` site moved in 08-06 has a matching teardown path listed in the recorded teardown order.
+
+- **Severity**: SUGGESTION
+  **Plan/Task**: 08-14 / Task 1 (manual-clock chart-freeze interaction)
+  **Description**: Under `?test=1&clock=manual`, the frame loop keeps the chart-open and save-screen freeze branches (which set `currentFrame` to an idle frame and request a redraw). If a spec opens the chart while the manual clock is active and then calls `advanceTicks`, the driver's refusal path (chart open → unchanged tick) is unit-proven — good — but the *converse* (chart opened mid-`advanceTicks`, i.e., between steps) relies on the early-stop rule. The behavior "a step that opens the chart stops the loop" is listed in the must-haves truth but the Task 2 behavior list only tests the pause case for the early stop ("A failed arrival that sets paused during the second of five steps"), not the chart case.
+  **Fix**: Add the chart-open variant of the early-stop test (a step that opens the chart stops after that step, tick reflects only the completed steps).
+
+### Missing Coverage
+
+- **`pending` cleared by the freeze branches** — the only frame()-side state mutation not pinned by a named test (see first WARNING above).
+- **A jump under the manual clock / in the parity fixture** — 08-16's flagged assumption; not promoted to a recorded PROJECT.md gap.
+- **`tests/app/dispose.test.ts` line 687 region** — flagged as `parse_partial` in the parent's coverage evidence; 08-12's dispose-order test design assumes the current dispose sequence is correctly understood, so the executor should read that file directly rather than rely on the index (procedural, not a plan defect).
+- **Cross-engine (Firefox) world-hash equality** — deliberately scoped out by 08-11 Key Decisions row (f) with the V8-only claim; correctly recorded, but worth restating at `/gsd-verify-work` so nobody later cites 08-16's parity as engine-independent.
+- **`advanceTicks` while `mode === "docked"` with a *pending* non-launch command** (e.g., `skipLaunch` pushed at `game-session.ts:2285`) — the docked-step behavior under the manual clock is asserted only for the launch case; a stray `skipLaunch` drained in docked mode is untested (low risk, since the launch filter's sibling logic gates it, but unproven).
+- **`probe.sim.entities` when the world exists but the store is at cap / mid-commit** — the doc comment fixes the contract (live non-dead dynamics only); no test pins the value *during* the same tick an entity dies but before commit (the probe publishes per frame, after the step, so this is likely vacuous — the plan should say so).
+
+### Recommendations
+
+1. (High, cheap) Add the two freeze-branch `pending`-clearing test cases to 08-10 Task 2 before execution — this is the only identified path where a correct-looking split could change launch timing with no test failing.
+2. (Medium) Record 08-16's jump-parity gap in PROJECT.md Key Decisions (or add the jump parity case), so the assumption survives context resets between now and Phase 11.
+3. (Medium) State the `forkSeed`/`nextId` range invariant explicitly in 08-05's ids.ts doc comment alongside the per-world scope text.
+4. (Low) Add the wake-before-think and chart-early-stop test cases noted above; both are single-test additions to already-specified describes.
+5. (Low) During execution, read `tests/app/dispose.test.ts` directly (index parse gap at line 687) before writing 08-12's dispose-order expectations.
+
+### Overall Assessment
+
+**READY** — with the first WARNING (`pending` freeze-branch clearing in 08-10) recommended as a pre-execution plan edit, since it is a two-line test addition that closes the only realistic untested behavior change in the split. All Round 1 correctness issues are verified fixed against live source; the remaining findings are edge-case hardening within well-designed contracts.
+
+### Reviewed Plans
+
+- 08-01
+- 08-02
+- 08-03
+- 08-04
+- 08-05
+- 08-06
+- 08-07
+- 08-08
+- 08-09
+- 08-10
+- 08-11
+- 08-12
+- 08-13
+- 08-14
+- 08-15
+- 08-16
+
+---
+
+## Algorithm & Determinism Review (reviewer-algorithm-deepseek-v4-pro)
+
+# Phase 8 — Algorithms, Determinism & Performance Peer Review (Round 2)
+
+**Reviewer:** subagent (independent, read-only). **Scope:** all 16 plans `08-01`..`08-16` in `.planning/phases/08-session-split-and-world-core/`. **Evidence:** plan files at HEAD `83c9b5c` ("docs(08): replan phase 8 incorporating cross-AI review"), the Round 1 review `08-REVIEWS.md` (commit `10b4108`), and live source (`src/sim/math.ts`, `src/sim/hash.ts`, `src/sim/flight/state.ts`, `src/sim/hyperspace/arrival.ts`). Live `src/sim/rng.ts`, `src/sim/ai/`, `src/sim/world/` and `src/app/session/` do **not** exist yet — this phase has not been implemented, so the review is of the plan contracts.
+
+**Round 1 resolution check:** the four Round 1 concerns named in the brief are resolved in `83c9b5c`:
+
+- **RNG (L61/L62 @10b4108):** `08-02` Task 3 now lands `src/sim/rng.ts` and its literal `fmix32/mix32/worldSeedFor/forkSeed` vectors in one commit, expected values from an independent scratch re-implementation, plus a permanent "only serialisable streams in src/sim" source-scan guard. Resolved.
+- **Spatial index / Map-order (Pitfall 7, L136):** `08-05` replaces the RESEARCH Pattern 4 lookup `Map` with binary search over the ascending `live` array (`rg "new (Map|Set)"` gate), so no container iteration order can ever decide anything. Stronger than Round 1 asked. Resolved.
+- **Hashing (L135 @10b4108, consensus HIGH):** `08-05` introduces one exported `isNeverSpawned` predicate used by the serializer (re-spelled conditions gated out), epoch 0/1/2 worlds, and the spawn-kill-commit boundary case. Resolved.
+- **Determinism lint (L87):** `08-03` adds Math-alias/computed-member/`globalThis` bans with positive controls. Resolved. **Hot path (L374):** `08-15` adds the `step-cost` benchmark with a hard bound. Resolved.
+
+I verified the delegation arithmetic is bit-exact: `src/sim/math.ts:227-236` and `rngNext` (RESEARCH Code Example 1) share the identical mulberry32 sequence (`+0x6d2b79f5`, `imul(t^t>>>15, t|1)`, `t ^= t + imul(t^t>>>7, t|61)`, `(t^t>>>14)>>>0 / 2^32`). `fnv1a32`, `canon` (`-0`→`0`, throws on non-finite), `hashFlight`/`serializeFlight` all match the plans' descriptions.
+
+---
 
 ### Summary
-Plan 08-04 starts the mechanical split correctly by introducing a typed session context (step 1) and extracting the probe publisher (step 2) behind the frozen probe contract. It is high-effort but low-conceptual-risk if done as a pure rewrite with live-field access through `ctx`.
+
+The 16 plans form a coherent, unusually well-specified deterministic-simulation design: a bit-exact serialisable mulberry32 stream, monotonic per-world entity ids with binary-search lookup (no Map/Set ordering), a composed world hash that is byte-identical to `hashFlight` while no NPC has ever spawned, a strict snapshot codec, and a narrow AI seam. Round 1's determinism, RNG, spatial-index and hashing findings are all addressed with concrete gates. I found **no blockers**; the remaining findings are execution-time pitfalls and forward-looking performance notes, the most material being a latent determinism hole around drawing the *world* stream before the first spawn, and an unconditional per-tick `createWorldView` allocation on the NPC-free hot path.
 
 ### Strengths
-- Addresses the core monolith reality: `src/app/game-session.ts` is 3365 lines with `createGameSession` at `335`, a large closure state (`356+`), and many subsystems; centralizing live state into `SessionState` is the prerequisite for safe extraction (G-8).
-- Preserves the probe’s behavioral contract: `updateProbe` currently publishes counters, chart/save/hud/world/dock/economy state and queue depth (`src/app/game-session.ts:2412-2550`, `probe.messages` set at `2521`), and `bindTestHook`/taint semantics (`1034-1064`, hook created via `src/app/probe.ts:390-460`) are critical for test isolation and autosave skipping.
-- Correctly insists on keeping pinned literals verbatim (e.g. `renderFrame(alpha, shouldDraw())` at `2863`, gate key/condition at `2567`, draw keys at `2558-2564`, 5 `redrawGate.request()` sites at `1041,2740,2751,3255,3361`, `probe.frames += 1` at `2701`, `probe.renders = renderer.info.render.frame;` at `2415`) so scan tests and redraw/probe semantics remain intact.
-- Splitting into two commits, each `verify`-green, matches D-12 and makes bisection feasible.
 
-### Concerns
-- **HIGH:** Step 1 is a large mechanical rewrite across 3k+ lines; a missed `ctx.<group>` indirection, accidental capture of a stale value, or changed object identity (important for `drawKeys()` at `src/app/game-session.ts:2558-2564` and redraw gate behavior in `tests/app/redraw-gate.test.ts:63-103`) can introduce subtle regressions. The plan’s aliasing guidance helps, but review discipline is essential.
-- **MEDIUM:** Probe publisher extraction must preserve call ordering/positions (boot bind at `3184-3186`, load rebind behavior elsewhere in session) and taint side effects (`redrawGate.request()` in the mutate callback at `1041`). Moving functions can accidentally change when `syncEconomyProbe`/`syncSaveProbe` run.
-- **MEDIUM:** `tests/guards/sim-purity.test.ts` also scans `src/app` for “frame-like” type declarations containing `pitch` and `roll` (`tests/guards/sim-purity.test.ts:108-125,269-279` context); introducing poorly named types during extraction could trip unrelated guards.
-- **LOW:** Running `verify` in a shared tree with parallel 08-05 requires careful staging/gate attribution as the plan states.
+- **Bit-exact RNG delegation** (`08-02`): `createSeededRandom` re-implemented on `rngNext` inside `math.ts`, `arrival.ts` byte-identical (FIDELITY pin), and the sequence pinned with literal vectors captured *before* the edit. The `mix32` bijection claim is correct — `fmix32` is invertible and `b ↦ (b + 0x9e3779b9)>>>0`, the XOR, and `fmix32` are each bijections, so fixed `a` gives injective `mix32(a, ·)` and vice-versa.
+- **Correct withdrawal of FNV-1a seed derivation** (`08-02`, RESEARCH Pattern 6): fork seeds use integer `mix32` per locked D-02, not string FNV-1a; `fnv1a32` remains only as the integrity checksum, cleanly separated from seed mixing. Purpose codes are fixed integers (world 1, ai 2, combat 3), never derived from array order.
+- **Deterministic ordering is structural, not just tested** (`08-05`, `08-07`, `08-11`): id-ascending dense array + binary search (no Map/Set), `scan` sorted by `(distance², id)` — a *total* order, so the result is stable under any (even unstable) sort; bare `.sort()` is lint-banned while comparator sort stays legal; `for..in` banned; `Object.keys(...).sort(cmp)` blessed as the positive control.
+- **Monotonic never-reused ids** (`08-05`): `nextId` is stored state that only increments; `commit` never recomputes `max(live)+1`; the per-world restart at `FIRST_DYNAMIC_ID=101` is documented in `ids.ts`, enforced by `createWorld`, and gated (`EntityId` scan of `world-lifecycle.ts` must be empty).
+- **`isNeverSpawned` as the single D-08 predicate** (`08-05`): serializer may not re-spell the condition; epoch bumps (launch/arrival) proven hash-neutral; a spawn-then-kill-all world correctly *not* never-spawned.
+- **Strict boundary parser** (`08-13`): 20+ typed `SnapshotError` reasons, `__proto__`/`Object.create(null)` params, and the `ENTITY_FIELDS` `Record<keyof Entity, …>` table forcing hash↔codec agreement at typecheck.
+- **Hot-path cost is a hard gate** (`08-15`): `step-cost` scratch benchmark with `STEP-COST FAIL` exit, plus a conditional hash-neutral fast path, and `verify-full` wall-time comparison against the split baseline.
+- **Parity is diagnosable** (`08-16`): shared `runTickScript` with per-tick `trace`, both sides also checked against `hashFlight`, and the "same wrong hash" failure mode explicitly closed.
 
-### Suggestions
-- Perform step 1 in small internal passes (group-by-group) with `typecheck` between, and avoid renaming locals used in pinned string literals except via block-local aliases exactly as planned.
-- Add/keep a unit test that proves `bindTestHook` rebound mutates only the new `FlightState` and taints (G-8), since this is easy to regress during extraction.
-- After each commit, run the targeted scan tests (`tests/app/redraw-gate.test.ts`, `tests/guards/economy-purity.test.ts`) before the full `verify` to catch literal drift early.
+### Issues Found
 
-### Risk Assessment
-**MEDIUM.** Pure refactor in intent, but breadth of edits in the session monolith creates regression risk despite strong gates.
+- **Severity**: WARNING
+  - **Plan/Task**: `08-05` (Task 1 `createWorld`/`world.rng`), `08-11` (Task 2 `aiDropped` section), `08-13` (snapshot `rng` field)
+  - **Description**: The world-level stream `world.rng` is initialised at `createWorld` (`createRngState(forkSeed(worldSeed, NO_ENTITY, "world"))`) but is **excluded from the hash and section while `isNeverSpawned` holds**. The invariant that keeps this safe is that the world stream is only drawn *at or after* the first spawn (which flips `isNeverSpawned` in the same tick). Phase 8 is safe only because `populateNothing` never draws. If Phase 12's populator draws `world.rng` and then fails to spawn (or runs with `traffic:false` while still drawing), the stream state diverges **without changing the hash** — a genuine determinism hole. This implicit co-commitment ("draw `world.rng` ⟹ first spawn in the same tick") is nowhere stated or tested.
+  - **Fix**: Document the invariant in `world.ts`/`serialize.ts` (world stream draws are co-committed with the first spawn), and add a test asserting that any world whose `world.rng` state advanced but `isNeverSpawned` is still true is either unreachable by construction or reflected in `serializeWorldSection`. Alternatively, include `rng` in the section the moment the stream state differs from its seed value.
 
-## 08-05
+- **Severity**: WARNING
+  - **Plan/Task**: `08-11` (Task 1 `stepWorld` think phase), `08-15` (Task 3 step 5 fast path)
+  - **Description**: `stepWorld`'s think phase unconditionally builds `createWorldView(world, player, layout)` "for the tick", even when the length snapshot `n === 0` (the NPC-free Phase 8 production path for every flight). Each call allocates the view closure plus layout references. The remedy ("build the per-tick WorldView only when an entity with an AI component is due") is gated **behind a benchmark failure** rather than being the default, so the shipped path allocates a view object every tick it will never use. This is precisely the hot-path allocation the focus area flags.
+  - **Fix**: Make the lazy construction the default: build the view (and per-actor `createShipControl`) only when `n > 0` and at least one live entity has an AI component whose wake/think is due; keep the benchmark as verification, not as the trigger for the fast path.
+
+- **Severity**: WARNING
+  - **Plan/Task**: `08-13` (Task 1 step 2 mismatch reporting)
+  - **Description**: The 1,000-tick equality reports "the first diverging id from `entityHashes`" on a `hashWorld` mismatch. `entityHashes` covers only world entities. If the divergence is in the **player** (`serializeFlight(player)`), all per-entity hashes match and the diagnostic reports nothing, misleading the failing test. Since `hashWorld = fnv1a32(serializeFlight(player) + section)`, a player-only drift is the single most likely Phase 8 divergence (the world is NPC-free and empty).
+  - **Fix**: On mismatch, also compare `hashFlight(player)` / the `serializeFlight` text of live vs restored before consulting `entityHashes`, and report "player diverged" vs "entity <id> diverged" explicitly.
+
+- **Severity**: WARNING
+  - **Plan/Task**: `08-05` (Task 1 `allocate` cap), `08-13` (snapshot `MAX_ENTITIES` check)
+  - **Description**: `allocate` refuses "when the count of **non-dead** stored entities is already MAX_ENTITIES", but `live` includes killed-not-yet-committed entities. A naive `live.length >= MAX_ENTITIES` check would refuse spawns prematurely for a world at 256 live + several dead-uncommitted, and (worse) the property test "the live count never exceeds MAX_ENTITIES" must count non-dead, not `live.length`. The spec is correct but the trap is subtle and the words "257th live spawn" could be read either way.
+  - **Fix**: In `store.ts` maintain/derive an explicit non-dead count (or count during `allocate`), and make the property test's cap assertion operate on non-dead count; add a dedicated case: 256 non-dead + 3 killed-uncommitted ⇒ spawn still refuses only after a `commit`, then succeeds.
+
+- **Severity**: WARNING
+  - **Plan/Task**: `08-13` (world-level fields vs `ENTITY_FIELDS`), `08-05` (`World.rng: RngState`)
+  - **Description**: `World.rng` is an `RngState { s }` **object** while per-entity streams are plain `uint32` **numbers** (`EntityStreams { ai, combat }`). The snapshot's `rng` field and `serializeWorldSection`'s `rng=` line must encode the world stream consistently. The `ENTITY_FIELDS` table pins entity fields but the world-level fields only get "the same two checks against `serializeWorldSection`" — the *shape* of `rng` (is it `{s:123}` or `123`?) is left to executor discretion, which is a latent Phase 11 format-contract divergence.
+  - **Fix**: Pin the world stream to the same primitive form as entity streams (a plain `uint32` `s` value) in `snapshotWorld`/`serializeWorldSection`, and add an explicit world-level-field row to the codec agreement test asserting `snapshot.rng === world.rng.s`.
+
+- **Severity**: SUGGESTION
+  - **Plan/Task**: `08-02` (Task 1 step 1)
+  - **Description**: The plan states `drawWitchpointExit` "draws nine values". The source (`src/sim/hyperspace/arrival.ts:72-103`) draws **eight** (radial, w, x, y, z, tiltX, tiltY, tiltZ). Harmless (delegation preserves the sequence regardless), but the pinned documentation should be exact.
+  - **Fix**: Correct the count to eight in the plan prose and any SUMMARY/comment that repeats it.
+
+- **Severity**: SUGGESTION
+  - **Plan/Task**: `08-07` (`scan`), forward-looking
+  - **Description**: `scan(self, range)` is O(n) per call and the test pilot calls it every think; with n pilots this is O(n²) per think tick. Fine for Phase 8 (0–8 entities; `MAX_ENTITIES=256` keeps even the worst case at ~65k distance² per 15-tick interval), but there is deliberately no spatial index — broadphase is Phase 10. The "spatial index query invariants" in the focus are, in Phase 8, the binary-search id store plus the linear `scan`; no `queryRadius`/`nearest` primitive exists yet, which is correct scope.
+  - **Fix**: No action for Phase 8. Note for Phase 10/12 that the copy-on-read `WorldView` contract (fresh vectors/quats) will need a scratch-buffer or results-reuse API if profiling shows allocation pressure, without relaxing the no-reference-leak contract.
+
+- **Severity**: SUGGESTION
+  - **Plan/Task**: `08-03` (Task 2 alias selectors)
+  - **Description**: The Math-alias bans (`VariableDeclarator[init.name="Math"]`, etc.) also reject benign destructuring such as `const { floor } = Math`, forcing `Math.floor(...)` everywhere in `src/sim`. This is a deliberate, documented over-breadth (no current file trips it) but a future contributor may be surprised.
+  - **Fix**: Already mitigated by the rule message and the positive-control for direct `Math.floor`; optionally note in the config comment that destructuring is intentionally disallowed to keep the `Math.random` ban visible.
+
+- **Severity**: SUGGESTION
+  - **Plan/Task**: `08-16` ("Flagged assumptions")
+  - **Description**: The browser/Vitest parity fixture covers only a New-game launch-and-fly script; a hyperspace jump inside `advanceTicks` (which draws randomness via `drawWitchpointExit` and re-derives the world from `arrivalMarketSeed`) has no parity fixture this phase. Explicitly acknowledged, so not a defect, but it leaves the arrival stream untested end-to-end in the tick hook.
+  - **Fix**: Defer as planned; when the jump parity is added, reuse `recorded-flights.ts`'s Leesti arrival sequence and assert against `hashFlight` too, matching the existing pattern.
+
+- **Severity**: SUGGESTION
+  - **Plan/Task**: `08-02` (Task 3), assumption A2
+  - **Description**: The `mix32` seed tests prove *distinctness* (adjacent ids/purposes, 1,000 epochs) but not stream *independence/quality*. For a game this is sufficient and A2 already records the risk; no blocker.
+  - **Fix**: Keep the assumption; optionally add one long-range check (e.g., first 16 draws of fork id 101 vs id 102 have no visible period/lockstep) if cheap, purely as a tripwire.
+
+### Missing Coverage
+
+- **World-stream draw ⟹ first-spawn co-commitment** — the single most important unstated invariant (see WARNING #1). Not covered by any test.
+- **Player-divergence isolation in the 1,000-tick reporter** — `entityHashes` alone cannot name a player-side drift (WARNING #3).
+- **Non-dead vs `live.length` cap semantics** — the property test asserts a cap but the wording does not force the non-dead interpretation (WARNING #4).
+- **World-stream shape (`{s}` vs `s`) in snapshot/hash** — world-level fields are only "same two checks", not a pinned encoding (WARNING #5).
+- **`advanceTicks` crossing a hyperspace jump** — no parity fixture (acknowledged in `08-16`).
+- **Cross-engine determinism** — correctly deferred (PITFALLS 4, row (f)); the claim is V8-only, which is the right and documented scope.
+
+### Recommendations
+
+1. Default the `stepWorld` empty/`AI-due`-only fast path (do not gate it behind a benchmark failure), then keep the benchmark as verification — eliminates the per-tick `createWorldView` allocation in the NPC-free hot path (WARNING #2).
+2. Document and test the world-stream/`isNeverSpawned` co-commitment invariant before Phase 12 introduces a real populator (WARNING #1).
+3. Make the equality-test reporter isolate player-vs-entity divergence via `hashFlight`/`serializeFlight` (WARNING #3).
+4. Pin the world `rng` snapshot/hash encoding to a plain `uint32` and cover it with a world-level-field codec row (WARNING #5).
+5. Clarify the store cap as non-dead-count with an explicit 256-non-dead-plus-dead-uncommitted case (WARNING #4).
+
+### Overall Assessment
+
+**READY** — the plan set is coherent, deterministic-by-construction, and Round 1 is fully absorbed. The five WARNINGs are execution-time pitfalls (not design defects) that the existing gates will catch at build/test time if the executor follows the letter of the plans; the two most valuable to act on before Phase 12 are the world-stream/`isNeverSpawned` invariant and the hot-path view allocation.
+
+### Reviewed Plans
+
+- 08-01
+- 08-02
+- 08-03
+- 08-04
+- 08-05
+- 08-06
+- 08-07
+- 08-08
+- 08-09
+- 08-10
+- 08-11
+- 08-12
+- 08-13
+- 08-14
+- 08-15
+- 08-16
+
+---
+
+## Adversarial & Trust-Boundary Review (reviewer-adversarial-grok-4-7)
+
+# Adversarial / Trust-Boundary Review — Phase 8 Plans (Round 2)
+
+Read-only review of plans `08-01` through `08-16` as revised by `83c9b5c` (`docs(08): replan phase 8 incorporating cross-AI review`), checked against the live session, probe, purity, and save paths. No Docker gate was run; host Node is not evidence. `tests/meta/sim-purity.test.ts` and `tests/meta/session-size.test.ts` are not in the tree and no plan adds them. The live purity gate is `tests/guards/sim-purity.test.ts`. Graph evidence was taken from the parent Tier-2 bundle; this review confirmed the cited paths by reading source.
 
 ### Summary
-Plan 08-05 lays the world-core foundation (ids, vocabularies, entities/store, static body records, forked streams, and composed hash) with the right determinism invariants. It is conceptually solid, but it introduces several contracts (id scope, hash composition, static handling) that must be implemented exactly.
+
+`83c9b5c` closed the Round 1 items that were actually specified as code: the simple `Math` alias selectors, the single `case "docked":` count, G-8 rebind-after-load, WorldView `copyVec`/`copyQuat`, spawn-time vector copies, the dispose-order Node test, and a large `parseWorldSnapshot` rejection table including a params `__proto__` row. It did not close the trust-boundary holes an executor will now implement on purpose. The probe-shape comparator is specified to treat an empty array as equal to any element set, which blinds the FOUND-10 freeze. The snapshot codec that Phase 11 is told to reuse still accepts non-integer `nextId`, unbounded strings, unknown keys, and shared nested objects after restore. Async teardown (`clearSaveForNewGame`, the autosave completion, `swapSystem`'s untracked frame) is not covered by the new dispose test, and `advanceTicks` never reads `disposed`.
 
 ### Strengths
-- Aligns with locked decisions: fixed ids and static bodies (`D-06/D-07`), forked per-entity RNG streams (`D-04`), and empty-world hash identity with `hashFlight` (`D-08`). The building blocks exist in-repo (`src/sim/hash.ts:13-35`, `src/sim/flight/state.ts:147-183`, `src/sim/world/layout.ts:47-68`).
-- Good store semantics: monotonic never-reused dynamic ids within a world, id-order iteration, snapshot-length/update discipline, and no `Map`/`Set` iteration for sim decisions are all appropriate for deterministic replay and snapshot equality.
-- Treating statics as layout-referencing records (not copied geometry, not hashed/stored in dynamic store) correctly reconciles D-07 visibility with D-08 hash stability.
-- Property-test intent (fast-check is available in `package.json:37` and used in the repo ecosystem) is the right tool for spawn/kill/commit/id invariants.
 
-### Concerns
-- **HIGH:** Hash composition is fragile: `hashWorld` must equal `hashFlight` for absent/never-spawned worlds (including static-only worlds) and only append a section after first spawn; including `worldSeed/epoch/nextId/statics` too early will break D-08 and recorded pins (08-02). `canon` throws on non-finite (`src/sim/hash.ts:29-35`), so sanitize discipline later matters, but the serializer must also be careful now.
-- **MEDIUM:** The “per-world id scope” clarification (restart at 101 each world, ids never outlive world) is sensible for reproducibility, but it must be consistently enforced by `createWorld` and documented so downstream code never persists/transports ids across worlds. Misinterpretation could leak into later save/HUD logic.
-- **MEDIUM:** Closed vocabularies (39 behaviours, 16 scan classes) are cited from Oolite; if arrays/types drift from upstream tables, later ports and registries will mismatch. The plan’s optional OOLITE_SRC re-read test is good but conditional.
-- **LOW:** `src/sim` coverage floors are high (`vitest.config.ts:36-41`), so new world modules need thorough tests (including error branches) to avoid threshold regressions.
+- Round 1's one-way seed pin is now a same-commit literal-vector requirement (`08-02`), and a source scan forbids a second `createSeededRandom(` in `src/sim` outside `math.ts` and `arrival.ts`.
+- `08-03` factors `SIM_SYNTAX_BANS` / `SIM_GLOBAL_BANS` / `SIM_RESTRICTED_PROPERTIES` so the AI zone cannot silently drop them, and it probes `const m = Math`, destructuring, computed `Math` members, and `globalThis`.
+- `08-01` makes the docked-arm scan file-local and requires exactly one `case "docked":` across session sources, which closes the first-match `switchCaseBody` bypass (`tests/guards/economy-purity.test.ts:201-207`).
+- `08-04` / `08-08` / `08-16` keep the hook on the live `FlightState`: rebind after Load is an identity assertion, and `worldHash()` is specified to read `ctx` at call time, with a replacement test.
+- `08-05` says `spawnEntity` stores copied vectors; `08-07` requires `copyVec`/`copyQuat` at every view return and a mutation test for position, orientation, and destination; `08-09` passes AI an `EntityId`, not the live `Entity`.
+- `08-11` keeps `stepFlight` unchanged, skips the world when it was never spawned, and defines `aiDropped` and repair-versus-normalise so those counters cannot drift silently into the hash.
+- `08-13` rejects uncommitted dead entities and a non-empty AI queue as distinct reasons, rebuilds params with `Object.create(null)`, and ties the codec to `keyof Entity` so a new field fails typecheck.
+- `08-14` taints before the first `advanceTicks` step, caps `n` at 200_000, and refuses non-integers, pause, and overlays. `08-16` exposes `advanceTicks` only under `?test=1&clock=manual` and does not put the live store on `probe.sim`.
+- `08-15` keeps `src/persistence/**` unchanged, calls `begin` before the arrival autosave, and deep-equals `SaveInputs` with and without a live world.
 
-### Suggestions
-- Make “never spawned” an explicit predicate in serializer/hash code/tests (`nextId === FIRST_DYNAMIC_ID` and no live entities) and test it across epoch bumps/launch-like scenarios as the plan notes.
-- Assert `world.statics` are the exact constant records (ids 1-5, kinds/scan classes/layout keys) and that they never appear in serialized world sections or entity hashes.
-- Add a test that `get()`/lookups never return dead or static ids from the dynamic store and that spawn refusal at cap leaves `nextId` unchanged (as specified).
+### Issues Found
 
-### Risk Assessment
-**MEDIUM.** Foundational and mostly pure, but small mistakes in hashing/id/store semantics would cascade into many downstream proofs.
+- **Severity**: BLOCKER
+- **Plan/Task**: `08-01` Task 1
+- **Description**: The FOUND-10 probe freeze is specified to ignore array drift. `compareProbeShapes` says an empty `"[]"` set on either side matches any element set, and the unit test requires an empty array versus a non-empty string array to report nothing (`08-01-PLAN.md` Task 1 steps 1-2). That contradicts the same step's claim that a new element type is reported. `window.__wegolite` publishes several arrays whose element types are the behaviour under test (`hud.elements`, `hud.contacts`, `bodies`, `hints`). A split that publishes `[]` for a fixture array, or that fills an array the fixture recorded empty, stays green. Preconditions: any later plan moves probe publishing (`08-04`, `08-12`, `08-16`) and the fast gate trusts this comparator. Impact: the safety net every split step gates on cannot see a dropped or invented array payload, so FOUND-10 can pass while the published probe lies.
+- **Fix**: Empty matches empty only. A missing or added element shape is a difference in both directions. If one named path is genuinely timing-volatile, add it to an explicit allow-list with a reason, the same way `hint` is the only optional key. Delete the "empty versus non-empty string array reports nothing" case.
 
-## 08-06
+- **Severity**: WARNING
+- **Plan/Task**: `08-03` Task 2; inherited by `08-09` Task 3 and not re-checked by `08-16`
+- **Description**: `83c9b5c` closed `const m = Math` and `globalThis.Math.random()`, then marked T-08-38 mitigated. The selectors do not cover the forms a later sim file can still use: `Reflect.get(Math, "random")()`, `Array.prototype.sort.call(xs)` / `.apply` (callee property is `call`, so `arguments.length=0` on `sort` never matches), and `self.crypto.getRandomValues` (`crypto` is banned as an identifier, `self` is not in `DOM_GLOBALS`, `queueMicrotask` is not banned). The plan only documents "Math passed as an argument" and "a value laundered through another module". `tests/guards/sim-purity.test.ts` is not extended: `declaredFrameTypes` only inspects the next 24 lines and `withoutLineComments` only strips `//` lines (`tests/guards/sim-purity.test.ts:99-125`). Plans `08-04`, `08-06`, and `08-14` tell the executor not to name a type `Frame`, but the gate they run will not notice a `*Frame*` type whose `pitch`/`roll` sit past that window or inside a block comment. There is still no `tests/meta/session-size.test.ts`, so a facade that re-grows past the split is invisible to lint. Preconditions: a contributor (or a later phase) lands one of those forms under `src/sim` or `src/sim/ai`. Impact: FOUND-12's "lint rejects Math.random / bare sort / platform randomness" claim is false for those forms; the 1,000-tick proof does not run on every future file.
+- **Fix**: Add probes for `Reflect.get(Math, "random")`, `Array.prototype.sort.call`, `queueMicrotask`, and `self.crypto.getRandomValues`, and either ban them or list them next to T-08-38 as accepted residuals with a behavioural test that fails if they appear under `src/sim`. Widen the Frame scan to the whole type body (brace-matched, block comments stripped), or drop the 24-line window. Do not call the alias gap closed.
+
+- **Severity**: WARNING
+- **Plan/Task**: `08-09` Task 3
+- **Description**: The AI import zone is two non-recursive globs, `src/sim/ai/*.ts` and `src/sim/ai/pilots/*.ts`. A file at `src/sim/ai/framework/priority.ts` or `src/sim/ai/pilots/roles/trader.ts` still matches `src/sim/**/*.ts`, so the determinism bans apply, but the allow-list does not. It can import `../world/store.js` or `../../flight/step.js` and FOUND-13's lint proof stays green. Separately, the allow-list permits value imports of `world/ids.js` and `math.js`, and nothing seals those modules against `export * from "./store.js"`. The specifier table never imports through a re-export. Preconditions: Phase 14 adds a nested AI file, or a one-line re-export lands in an allowed module. Impact: hand-ported AI can read and write the store while the zone guard reports clean.
+- **Fix**: Use recursive globs and a depth-independent check (or one block per real depth), and add a probe at `src/sim/ai/nested/probe.ts` that must fail. Add a guard that the export specifiers of `ids.ts`, `view.ts`, `control.ts`, and `math.ts` do not name store, world, entity, flight, or events modules.
+
+- **Severity**: WARNING
+- **Plan/Task**: `08-13` Task 1 and Task 2; consumed by `08-11` serialize and by Phase 11 as specified
+- **Description**: T-08-24 calls `parseWorldSnapshot` a strict boundary for untrusted JSON and says Phase 11 reuses it. The rejection list does not match `parseSave` (`src/persistence/save.ts:390-407, 569-578`). Missing checks, each with a reachable input once a snapshot is parsed from a save or a test fixture: `nextId` may be a non-integer or an unsafe integer as long as it is greater than every id (`101.5`, `2**53+3`); position and radius have no magnitude cap (`1e308` is finite, then `canon` throws or the hash string explodes); `specKey`, param strings, and param arrays have no length cap; unknown own keys on the root, entity, nav, and ai objects are not rejected; `__proto__` is rejected only as a params key, not on the root or entity object that an `Object.assign` / spread restore would copy; a params value that is an object or an array of objects is not in the rejection table. `restoreWorld` is specified as "copied entities" but the anti-alias test only mutates the raw input after `parseWorldSnapshot`, not the parsed snapshot after `restoreWorld`. A shallow copy shares `position`, `orientation`, `nav.destination`, and `ai.params` with the caller. Preconditions: Phase 11 feeds a save blob, or any caller mutates the object `restoreWorld` just consumed. Impact: a crafted snapshot becomes live sim state (non-deterministic ids, hash DoS, prototype-key injection) or a later mutation of the parsed object changes the restored world and splits the 1,000-tick proof.
+- **Fix**: Reject unless `nextId` is a safe integer `>= 101` and strictly greater than every id; reject unknown keys; cap string and array lengths and position/radius magnitude using the same idea as `MAX_SAVE_CHARS` / `MAX_SAVE_POSITION_MAGNITUDE`; reject `__proto__`, `constructor`, and `prototype` on every object, not only params; reject non-`ParamValue` nested values. `restoreWorld` must deep-copy every nested vector, quat, nav, rng, and params object. Add a test that mutates the parsed snapshot after restore and asserts the live world and `entityHashes` do not change. Keep `restoreWorld` from being a second, unchecked entry point: it should accept only a value `parseWorldSnapshot` just returned, or re-run the same validators.
+
+- **Severity**: WARNING
+- **Plan/Task**: `08-08` Task 2, `08-12` Task 2, `08-14` Task 1, `08-15` Task 2
+- **Description**: `83c9b5c` added a sync "dispose order" test and an `addEventListener` / `removeEventListener` count. Neither sees the failure paths that already exist in `src/app/game-session.ts` and that the plans move verbatim. `loadFromSave` checks `disposed` only after its one await (`game-session.ts:1341-1344`); the new order test toggles `saveScreenOpen`, not `disposed`, so an executor can drop `disposed ||` and still pass. `clearSaveForNewGame` awaits `store.clear` and then writes `saveStatus` with no `disposed` check (`game-session.ts:1482-1497`). `queueSnapshot`'s completion handler updates save counters and calls `syncSaveProbe` after dispose; only `renderStation` is guarded (`game-session.ts:1167-1197`). `swapSystem` schedules a `requestAnimationFrame` that is not stored in `rafId` (`game-session.ts:3288-3293`), so `dispose`'s `cancelAnimationFrame(rafId)` does not cancel it, and the continuation calls `renderFrame(0)` with no `disposed` check. `advanceTicks` (`08-14`) refuses a missing `state` but never reads `ctx.runtime.disposed`. Dispose sets `disposed = true` before it clears `state` (`game-session.ts:3303-3340`); a hook closure captured before `delete probe.test` can still step mid-teardown. Listener totals are bypassable: a new `addEventListener` without `uiController.signal` plus a matching `removeEventListener` string keeps the counts equal. `08-15` adds `end()` inside dispose and does not say to extend the pinned teardown list, so the idempotence proof will not cover the world drop. Preconditions: F2 Load or New Game, then `pagehide` / `dispose` during the await; a scene swap overlapping dispose (the existing dispose e2e); `advanceTicks` invoked from a closure after dispose starts. Impact: a disposed session still clears or commits IndexedDB, draws a frame, or steps the world; a second `dispose` is idempotent only for the collaborators the Node double recorded.
+- **Fix**: After every await in `loadFromSave` and `clearSaveForNewGame`, return before any install or status write if `disposed` is set, and pin that with a recording test. In the autosave completion and the `swapSystem` frame callback, return immediately when `disposed` is set; track that frame id and cancel it from `dispose`. `advanceTicks` must refuse when `disposed` is set, before taint and before drain. Replace the listener-count gate with an assertion that every `addEventListener` in `src/app/session` passes `signal: ctx` abort signal (the two window keydown sites at `game-session.ts:2268` and `2289` are the pattern). Extend the dispose-order list when `08-15` adds `end()`, and assert a second `end()` is a no-op.
+
+- **Severity**: WARNING
+- **Plan/Task**: `08-05` Task 1, `08-11` Task 1, `08-16` Task 1
+- **Description**: Shared mutable tables are still the world's identity. `STATIC_ENTITIES` is one array assigned into every world (`statics = STATIC_ENTITIES`), described as a "frozen table" with no `Object.freeze`. `restoreWorld` points restored worlds at the same array. A write to `world.statics[0].scanClass` changes every live and restored world, and the snapshot cannot repair it because statics are not serialized. `AI_REGISTRY` is a mutable object typed `Readonly`. `stepWorld` reads `world.store.live` by index, which is correct only while `kill` does not splice before commit; the plan does not say `get` returns the live `Entity` and that no session module may hold that reference. `08-16` counts entities from the live store inside `updateProbe`. If that count is implemented as a filter that returns the array and the publisher assigns it, `window.__wegolite` becomes a mutation handle. The type says `number`, but no test mutates `probe.sim` and asserts the store is unchanged. Preconditions: any session or test code writes a static field, or `updateProbe` leaks `store.live`. Impact: cross-world hash coupling, or a page script under `?test=1` mutating entity position without taint.
+- **Fix**: `Object.freeze` the static table and each record, and freeze `AI_REGISTRY`. State that `store.get` / `store.live` are sim-internal and that `src/app` must not import them (a guard, not a comment). In `08-16`, compute `entities` as a number local and add a test that replacing `probe.sim` or writing `probe.sim.entities` does not change `world.store`.
+
+- **Severity**: SUGGESTION
+- **Plan/Task**: `08-15` Task 3
+- **Description**: The anchored-save check `JSON.stringify(snapshotForSave(inputs))` contains none of `"epoch"`, `"worldSeed"`, `"nextId"`, or `"entities"` is a substring search. A leak under another name passes; an incidental commodity or message containing those letters fails. The deep-equal of `SaveInputs` is the real gate, and only if both sides are built from the field list in `src/persistence`, not from two calls that share a buggy builder.
+- **Fix**: Assert `Object.keys` of the encoded save against the v2 allow-list, and assert `buildSnapshotInputs` does not read `worldLifecycle`. Keep the substring check only as a backstop.
+
+- **Severity**: SUGGESTION
+- **Plan/Task**: `08-12` Task 1
+- **Description**: The monolith has no `setTimeout` / `setInterval` (`rg` over `src/app/game-session.ts` shows only the two `addEventListener` sites). The split plans never forbid a new timer in `src/app/session`, and `dispose` has no timer-id list to clear. A helper added during extraction would survive `uiController.abort()`.
+- **Fix**: Gate `rg` for `setTimeout` / `setInterval` / `queueMicrotask` under `src/app/session` at zero, or require each id to be cleared in the recorded teardown list.
+
+### Missing Coverage
+
+- No plan adds `tests/meta/sim-purity.test.ts` or `tests/meta/session-size.test.ts`. The Frame-window and comment-stripping holes in `tests/guards/sim-purity.test.ts` are untested. There is no budget gate that the facade stays a facade after step 9.
+- `parseWorldSnapshot` has no fixture for extra keys, unsafe `nextId`, huge `specKey`, nested param objects, `__proto__` on the entity object, or post-restore mutation. Those are the cases `parseSave` already treats as untrusted.
+- Dispose coverage does not include dispose during `loadFromSave`, during `clearSaveForNewGame`, during an in-flight `queueAutosave`, or during `swapSystem`'s second frame. `tests/app/dispose.test.ts` (parse gap at the `vi.mock` around line 687) is not extended by these plans.
+- `advanceTicks` refusal table omits `disposed === true` and omits a hook closure invoked after `delete probe.test`.
+- AI-zone proofs never place a file outside the two globs, and never prove the allowed modules' export surface.
+- `08-16` parity does not include a jump inside `advanceTicks` (the plan flags this). A jump is also the path that bumps epoch and replaces the world; a stale `worldHash` closure would only show up there.
+- No plan checks that `createTestHook`'s existing mutators (`setPosition`, `setSpeed`, `grantEquipment`) still taint when `advanceTicks` is absent (`?test=1` without `clock=manual`). `08-04` tests `setSpeed`; `08-16` should re-run that after the fifth parameter is added so the new argument cannot shift `onMutate`.
+
+### Recommendations
+
+1. Fix the `08-01` empty-array wildcard before any split step treats the probe-shape spec as evidence. That is the one change that invalidates later gates if left as written.
+2. Tighten `parseWorldSnapshot` / `restoreWorld` to the `parseSave` standard (safe integers, magnitude and length caps, unknown-key rejection, deep copy, post-restore alias test) in `08-13`, not in Phase 11. The plan already says Phase 11 reuses this parser.
+3. Add the `disposed` short-circuit tests to `08-08`, `08-12`, and `08-14` before the bodies are moved. Verbatim move will otherwise freeze the `clearSaveForNewGame` and `swapSystem` holes.
+4. Make the AI zone recursive and seal the allowed modules' exports (`08-09`). Do not treat the `08-03` alias work as a complete determinism lint.
+5. Freeze `STATIC_ENTITIES` and `AI_REGISTRY`, and keep `store.live` off the probe (`08-05`, `08-11`, `08-16`).
+
+### Overall Assessment
+
+NEEDS REVISION
+
+The phase is executable after the probe-shape comparator is corrected and the snapshot and dispose gaps above are written into the plans. Round 1's guard, purity, disposal, and save notes were only partly resolved by `83c9b5c`: the simple alias and the Load rebind are specified; the empty-array wildcard, the incomplete snapshot boundary, and the async dispose paths are not. No plan should be treated as READY while the FOUND-10 comparator is defined to ignore array drift.
+
+### Reviewed Plans
+
+- 08-01
+- 08-02
+- 08-03
+- 08-04
+- 08-05
+- 08-06
+- 08-07
+- 08-08
+- 08-09
+- 08-10
+- 08-11
+- 08-12
+- 08-13
+- 08-14
+- 08-15
+- 08-16
+
+---
+
+## Broad-Context & Blast-Radius Review (reviewer-context-gemini-4-argon)
 
 ### Summary
-Plan 08-06 continues the split with the render driver (step 3) and chart/settings controllers (step 4), which is a sensible extraction order. It correctly treats the redraw gate and probe-visible rendering behavior as invariants and adds worktree-attributed `verify-full` for the render-touching step.
+
+Round 2 broad-context blast-radius and cross-plan review of `08-01-PLAN.md` through `08-16-PLAN.md` confirms that commit `83c9b5c` thoroughly resolved the Round 1 (`08-REVIEWS.md`) findings, with every plan carrying a traced disposition ledger, disjoint same-wave `files_modified` ownership under D-14, and worktree-isolated `verify-full` gates at baseline and split steps 3, 6, and 9. Whole-repository verification against the live codebase (`src/app/game-session.ts`, `src/app/probe.ts`, `src/sim/**`, `eslint.config.js`, and `tests/**`) uncovered no architectural blockers, four concrete cross-module boundary warnings (`__purity_` probe naming vs `tests/compliance.test.ts` and parallel `src/sim` directory walks; unguarded `document`/`window` globals in extracted session controllers tested under Node Vitest; `createEventRouter` wiring in `08-15` where `src/app/game-session.ts` is outside `files_modified`; and `sanitizeEntity` vs `parseWorldSnapshot` numeric domain alignment for `08-13`'s fast-check property), and two minor suggestions.
 
 ### Strengths
-- Preserves the exact redraw/render contract the repo already pins: single gated call `renderFrame(alpha, shouldDraw())` at `src/app/game-session.ts:2863`, gate condition `redrawGate.next(paused || state?.mode === "docked", drawKeys())` at `2567`, draw keys `[state, scene, scene?.nebulae?.revision() ?? 0]` at `2558-2564`, and the 5 `redrawGate.request()` sites (`1041,2740,2751,3255,3361`) checked by `tests/app/redraw-gate.test.ts:116-147`.
-- Extracting render/chart/settings is lower coupling than station/save/hyperspace and fits ARCHITECTURE’s order; keeping `probe.frames`/`probe.renders` semantics intact matters (`2701`, `2415`, `tests/app/redraw-gate.test.ts:149-152`).
-- Step-3 `verify-full` on a detached worktree of the step commit (with cleanup) is good evidence hygiene under parallel core-track work.
-- Fake-context unit tests for idle settle, identity-based redraw keys, context-loss resume refusal, focus-loss pause, and chart preset/close behavior target real session rules.
 
-### Concerns
-- **MEDIUM:** The render driver must keep reading live `ctx` fields (state/scene/nebula revision identity) rather than snapshots; any caching/capture would break redraw correctness after load/jump/quality changes, a class of bug the redraw gate explicitly guards (`tests/app/redraw-gate.test.ts:79-103`).
-- **MEDIUM:** Moving chart/settings code risks disturbing freeze-branch behavior in `frame()` (`src/app/game-session.ts:2735-2761` drains/returns with redraw requests) and overlay/input context transitions; unit tests help, but e2e in `verify-full` is the real backstop.
-- **LOW:** Keeping the comma-containing `renderFrame(...)` declaration/call texts identical after extraction can be fiddly with TypeScript types/interfaces; the plan’s `ReturnType` guidance is appropriate.
+- **Complete Round 1 resolution (`83c9b5c`):** Every Round 1 concern in `08-REVIEWS.md` is addressed with concrete verification gates: the 21-key optional-probe audit table and `--repeat-each=3` check (`08-01`), same-commit independent scratch vectors and permanent `createSeededRandom` source scan (`08-02`), AST alias/computed-member/`globalThis` bans (`08-03`), closure/factory capture scans (`08-04`, `08-06`), single exported `isNeverSpawned` predicate and read-only `OOLITE_SRC` table verification (`08-05`), `THREE.Quaternion` station-roll parity and `Record<keyof ...>` narrow-seam pins (`08-07`), `loadFromSave` and `handleEvent` call-order characterization tests (`08-08`, `08-10`), `ESLint#calculateConfigForFile` regex allow/reject tables (`08-09`), explicit `sanitizeEntity`/`aiDropped` tables (`08-11`), `Record<keyof Entity, ...>` hash/codec field parity (`08-13`), test-title preservation diffs (`08-14`), `/tmp` hot-path step-cost benchmark (`08-15`), and per-tick trace + `hashFlight` parity checks (`08-16`).
+- **Strict wave isolation and zero same-wave file collisions:** Across Waves 1–6, every parallel pair (`08-01`/`08-02`/`08-03`, `08-04`/`08-05`, `08-06`/`08-07`, `08-08`/`08-09`, `08-10`/`08-11`, `08-12`/`08-13`) has completely disjoint `files_modified` sets, respecting D-14's split-track (`src/app/**`) vs core-track (`src/sim/**`, `eslint.config.js`) boundary.
+- **Caller blast radius preserved across all public and test seams:**
+  - `createGameSession` (`src/app/game-session.ts:335-3365`, imported only by `src/main.ts:33-34`) keeps all 9 exported symbols and its exact 11-method `GameSession` return shape through `08-04`..`08-16`, shrinking `src/app/game-session.ts` from 3,365 lines to ~330 lines (< 600 gate in `08-12`).
+  - `createSeededRandom` (`src/sim/math.ts:227-236`) keeps its signature and mulberry32 draw sequence via delegation to `rngNext`, leaving `src/sim/hyperspace/arrival.ts:73` (and its `FIDELITY.md` line pin at `:125`) plus all four render callers (`src/render/bodies/{nebulae,dust,starfield}.ts`, `src/render/break-pattern.ts`) byte-identical.
+  - `stepFlight` (`src/sim/flight/step.ts:83-351`), `serializeFlight` (`src/sim/flight/state.ts:147-179`), and `hashFlight` (`src/sim/flight/state.ts:181-183`) remain untouched across all 17 existing `tests/sim/*.test.ts` callers while `stepSim` and `hashWorld` compose cleanly on top of them.
+  - `CHANGELOG.md` and `src/persistence/**` are appropriately left untouched in Phase 8 (internal-only refactor and NPC-free foundation; save schema v3 is Phase 11).
 
-### Suggestions
-- Ensure `renderFrame(alpha: number, draw = true)` remains the only two-parameter signature text in session sources so `tests/app/redraw-gate.test.ts:120-126` continues to pass without edits.
-- In chart/settings tests, assert `redrawGate.request()` effects through observable gate behavior rather than counting source text only, to complement the string-scan guards.
-- Keep listener registration/cleanup ordering for settings/pause panels identical to today to avoid duplicate handlers after start/dispose.
+### Issues Found
 
-### Risk Assessment
-**MEDIUM.** Behavior-neutral in goal, but render/overlay code is user-visible and sensitive to ordering and object identity.
+- **Severity**: WARNING
+  - **Plan/Task**: `08-03` (Tasks 1–2), `08-09` (Task 3), and `08-02` (Task 3)
+  - **Description**: Temporary ESLint probe files written under `src/sim/` by `withSimProbe` (`tests/guards/sim-probe.ts`) in `08-03` (`__ban_for_in.ts`, `__ok_for_of.ts`, etc. at `08-03-PLAN.md:102`) and `08-09` (`08-09-PLAN.md:186`) do not use the `__purity_` filename prefix. In the live codebase, `tests/compliance.test.ts:74` walks the entire repository during `docker compose run --rm test` and only skips `if (entry.name.startsWith("__purity_")) continue;` (as documented in `tests/guards/tools-determinism.test.ts:17-18`). Furthermore, `08-02` Task 3 (`08-02-PLAN.md:201`) adds a recursive `src/sim` file scan in `tests/sim/rng.test.ts` (`describe("only serialisable streams in src/sim")`), and `tests/guards/sim-purity.test.ts:254-292` also walks `src/sim` without `withProbeLock`. During parallel Vitest worker execution (`docker compose run --rm test`), `tests/compliance.test.ts` will either fail the SPDX header check (`tests/compliance.test.ts:259`) on `__ban_*`/`__ok_*` probes or throw `ENOENT` when a probe file or temporary subdirectory (such as `src/sim/world/` in Wave 1 before `08-05` lands) is removed in `finally` between `readdirSync` and `readFileSync`.
+  - **Fix**: In `tests/guards/sim-probe.ts` (`08-03` Task 1), normalize every probe filename so its basename starts with `__purity_` (e.g., `__purity_ban_for_in.ts`) and prepend the two-line SPDX header automatically inside `withSimProbe`. In `tests/sim/rng.test.ts` (`08-02` Task 3), skip any file whose name starts with `__purity_` (or run the recursive `src/sim` scan inside `withProbeLock` from `tests/guards/probe-lock.ts`).
 
-## 08-07
+- **Severity**: WARNING
+  - **Plan/Task**: `08-06` (Task 2), `08-08` (Tasks 1–2), `08-10` (Task 1), `08-12` (Task 1), and `08-15` (Task 3)
+  - **Description**: All unit tests run in Node (`vitest.config.ts:73`, `environment: "node"`), where `window` and `document` are `undefined`. In `src/app/game-session.ts`, four places outside `startSession` touch `document` or `window` directly:
+    1. `syncHeaderCredits()` (`src/app/game-session.ts:862`) calls `document.querySelector(...)` and is invoked synchronously by `syncStationNav()` (`:871`) <- `renderStation()` (`:976`) <- `stepAmount()`, `confirmTrade()`, `cancelTrade()`, and `commitProfile()`. When `08-08` Task 1 (`08-08-PLAN.md:106`) tests `confirmTrade()` and `cancelTrade()` in Node (`tests/app/session/station-controller.test.ts`), moving `syncHeaderCredits` verbatim will throw `ReferenceError: document is not defined`.
+    2. `syncStatusOverlay()` (`src/app/game-session.ts:2161`) calls `document.getElementById("status")` and is invoked directly inside the install block of `handleHyperspaceJumped` (`:2148`). While `08-10` Task 1 only tests a *failed* arrival in Node, `08-15` Task 3 (`08-15-PLAN.md:204`) tests a *successful* `handleHyperspaceJumped` in Node (`tests/app/session/world-lifecycle.test.ts`), which reaches `:2148` and will throw `ReferenceError: document is not defined`.
+    3. `closeSaveScreen()` (`src/app/game-session.ts:1906`) calls `document.getElementById("station-screen")`.
+    4. `window.addEventListener("keydown", onSubpanelKeyDown, ...)` (`:2268`) and `window.addEventListener("keydown", onLaunchKeyDown, ...)` (`:2289`) currently sit at the top level of `createGameSession` (not inside `startSession`), and `onLaunchKeyDown` (`:2279-2292`) is not explicitly listed in `08-06` or `08-12`'s moved-function lists. Calling `window.addEventListener` inside `createSettingsController` on construction would break `tests/app/session/settings-controller.test.ts` in Node (`08-06-PLAN.md:152`).
+  - **Fix**: Guard `document` access in `syncHeaderCredits`, `syncStatusOverlay`, and `closeSaveScreen` with `if (typeof document === "undefined") return;` (or inject a DOM lookup helper via `deps`); keep the `window.addEventListener` registrations out of `createSettingsController` construction (leaving them in `game-session.ts` during `08-06` and moving both `onSubpanelKeyDown` and `onLaunchKeyDown` listener registrations into `start-session.ts` in `08-12`); and explicitly list `onLaunchKeyDown` (`src/app/game-session.ts:2279-2292`) in `08-12` Task 1 (or `08-06` Task 2).
+
+- **Severity**: WARNING
+  - **Plan/Task**: `08-10` (Task 2), `08-12` (Task 1), and `08-15` (Task 1)
+  - **Description**: `08-10` Task 2 (`08-10-PLAN.md:155`) defines `createEventRouter(subscribers)` taking the subscriber map (`stationFlow`, `hudMessages`, `dockFeedback`, `hyperspaceFlow`), and `08-12` Task 1 (`08-12-PLAN.md:119`) wires all session modules together inside `src/app/game-session.ts`. Then `08-15` Task 1 (`08-15-PLAN.md:130`) adds the 5th subscriber `worldLifecycle` (which needs `ctx.core.marketSeed` and `ctx.core.worldLifecycle`) in `src/app/session/event-router.ts`, but `src/app/game-session.ts` is **not** in `08-15-PLAN.md`'s `files_modified` (`08-15-PLAN.md:7-18`). If `createGameSession` in `src/app/game-session.ts` constructs the subscriber map without passing `ctx` into `event-router.ts`, `08-15` cannot wire `worldLifecycle` into the live session without editing `src/app/game-session.ts` (violating `08-15`'s `files_modified` gate-attribution check).
+  - **Fix**: Either have `src/app/session/event-router.ts` in `08-10` accept `ctx` (or export a `createSessionEventRouter(ctx, deps)` factory called by `src/app/game-session.ts`) so `08-15` can wire the `worldLifecycle` subscriber inside `src/app/session/event-router.ts` without touching `src/app/game-session.ts`, or add `src/app/game-session.ts` to `08-15-PLAN.md`'s `files_modified`.
+
+- **Severity**: WARNING
+  - **Plan/Task**: `08-11` (Task 2) and `08-13` (Task 2)
+  - **Description**: In `08-13` Task 2 (`08-13-PLAN.md:140`), the fast-check property draws per-tick numeric fields (`position`, `destination`, `orientation` components, `speed`, `desiredSpeed`, `desiredRange`, AI timers) from arbitrary `finite values, -0, NaN, Infinity and -Infinity`, runs `sanitizeEntity(entity)`, and asserts `parseWorldSnapshot` never throws. Two edge cases between `08-11`'s `sanitizeEntity` (`08-11-PLAN.md:160`) and `08-13`'s `parseWorldSnapshot` (`08-13-PLAN.md:133`) can cause this property to fail:
+    1. When `fc.double()` generates large finite quaternion components (e.g. `1e200`), `w*w + x*x + y*y + z*z` overflows to `Infinity`, and `src/sim/math.ts:54` `normalize(q)` divides `1e200 / Infinity = 0`, producing an all-zero quaternion `{ w: 0, x: 0, y: 0, z: 0 }`.
+    2. When `fc.double()` generates negative finite values for `speed`, `desiredSpeed`, or `desiredRange`, `08-11` Task 2 only specifies repairing *non-finite* `speed`/`desiredSpeed`/`desiredRange` to `0`, whereas `08-07` (`control-impl.ts`) and `src/sim/flight/sanitize.ts:96-99` require non-negative speeds/ranges. If `parseWorldSnapshot` rejects negative `speed`/`desiredSpeed`/`desiredRange` or zero-norm quaternions, the fast-check property will fail immediately.
+  - **Fix**: In `08-11` Task 2 (`src/sim/world/sanitize.ts`), check `!Number.isFinite(normSq) || !(normSq > 0)` on the quaternion squared norm (matching `src/sim/flight/sanitize.ts:57-59`) to repair overflowed/underflowed quaternions to `identity()`, and repair negative `speed`, `desiredSpeed`, and `desiredRange` (`< 0`) to `0` so `sanitizeEntity` and `parseWorldSnapshot` enforce the exact same numeric domain.
+
+- **Severity**: SUGGESTION
+  - **Plan/Task**: `08-16` (Task 1 & Task 2)
+  - **Description**: In `08-16` Task 1 step 1 (`08-16-PLAN.md:125`), `WegoliteProbe.sim` is optional (`absent on the failure surface and before the session starts`), while step 2 (`08-16-PLAN.md:126`) states `updateProbe publishes probe.sim each frame from ctx: tick = state.tick...`. Because `tests/app/session/probe-publisher.test.ts` (`08-04` Task 2, re-run by `08-16` Task 1's verify command) calls `updateProbe()` on a fresh `createSessionState` where `ctx.core.state` is `undefined`, reading `ctx.core.state.tick` outside the `if (currentState !== undefined)` guard would throw a `TypeError` and would publish `probe.sim` before a session starts. Additionally, `08-16` Task 2 step 3 case (c) (`08-16-PLAN.md:162`, `/?clock=manual&traffic=0`) reads `probe.sim.clock`, `probe.sim.traffic`, and `probe.sim.tick` advancing while docked, which requires calling `startNewGame(page)` first so the session leaves `"menu"` mode.
+  - **Fix**: Publish `probe.sim` inside the `if (currentState !== undefined)` block of `updateProbe()` (and `delete probe.sim` in `dispose()` alongside `delete probe.test; delete probe.save; delete probe.saveScreen;` at `src/app/game-session.ts:3342-3344`), add the `| sim |` row to the optional-key audit comment table in `tests/e2e/probe-shape.spec.ts`, and call `startNewGame(page)` in `tests/e2e/tick-hook.spec.ts` case (c) before asserting `probe.sim` fields.
+
+- **Severity**: SUGGESTION
+  - **Plan/Task**: `08-05` (frontmatter) and `08-15` (frontmatter)
+  - **Description**: `08-05-PLAN.md` (`wave: 2`) lists `depends_on: ["08-02"]` but relies on `08-03`'s determinism lint rules in its Task 2 verify block (`08-05-PLAN.md:195`), and `08-15-PLAN.md` (`wave: 8`) lists `depends_on: ["08-14", "08-11"]` but runs `08-13`'s `tests/sim/world` snapshot suite in Task 3 step 5 (`08-15-PLAN.md:208`).
+  - **Fix**: Add `"08-03"` to `08-05-PLAN.md`'s `depends_on` (`["08-02", "08-03"]`) and `"08-13"` to `08-15-PLAN.md`'s `depends_on` (`["08-14", "08-11", "08-13"]`) so the frontmatter dependency graph is complete independently of wave numbers.
+
+### Missing Coverage
+
+- No requirement (`FOUND-10` through `FOUND-14`) or roadmap success criterion (SC1–SC5) lacks automated test coverage. The only uncovered runtime edge cases are the Node-environment `document`/`window` guards in extracted session controllers (`08-06`, `08-08`, `08-15`) and the `__purity_` probe-prefix exclusion in `tests/guards/sim-probe.ts` (`08-03`) when the full Vitest suite runs in parallel.
+
+### Recommendations
+
+1. **Prefix all `withSimProbe` temporary files with `__purity_` and include the SPDX header (`08-03`, `08-09`, `08-02`):** Ensure `withSimProbe` in `tests/guards/sim-probe.ts` automatically prefixes the probe filename with `__purity_` and prepends the two-line GPL-2.0-or-later header, and have `tests/sim/rng.test.ts`'s `src/sim` scan ignore `__purity_*` files so parallel runs with `tests/compliance.test.ts` and `tests/guards/*` never race or fail header checks.
+2. **Guard `document`/`window` in extracted session modules (`08-06`, `08-08`, `08-10`, `08-12`, `08-15`):** Add `if (typeof document === "undefined") return;` in `syncHeaderCredits`, `syncStatusOverlay`, and `closeSaveScreen`, keep `window.addEventListener` registrations in the composition root (`game-session.ts` -> `start-session.ts`), and explicitly assign `onLaunchKeyDown` (`src/app/game-session.ts:2279-2292`) in the split plans.
+3. **Align `createEventRouter` wiring (`08-10`, `08-15`) and `sanitizeEntity` / `parseWorldSnapshot` domains (`08-11`, `08-13`):** Pass `ctx` into `event-router.ts` in `08-10` (or add `src/app/game-session.ts` to `08-15`'s `files_modified`), and handle quaternion `normSq` overflow/underflow (`!Number.isFinite(normSq) || !(normSq > 0)`) and negative speeds/ranges in `sanitizeEntity` (`08-11`).
+
+### Overall Assessment
+
+READY
+
+*(No blocking defects; the four warnings above are localized guard/wiring precautions that can be applied directly during plan execution or as a small pre-execution polish.)*
+
+### Reviewed Plans
+
+- 08-01
+- 08-02
+- 08-03
+- 08-04
+- 08-05
+- 08-06
+- 08-07
+- 08-08
+- 08-09
+- 08-10
+- 08-11
+- 08-12
+- 08-13
+- 08-14
+- 08-15
+- 08-16
+
+---
+
+## Fast Triage Review (reviewer-triage-glm-5-3-flash)
+
+# Round 2 Triage Review — Phase 8 Plans (08-01 … 08-16)
+
+**Reviewer role:** fast triage peer review (Round 2). Read-only; no tracked files modified.
+**Evidence tier:** Verify (Tier 2) — parent-supplied graph evidence (project `wegolite`, generation 2026-11-12T10:03:36Z, fresh) plus direct `rg`/file spot-checks of the load-bearing anchors cited by the plans.
 
 ### Summary
-Plan 08-07 defines and implements the AI seam (`WorldView`/`ShipControl`) as read-only/write-only, type-constrained interfaces over the live world/layout/player. It is a clean design for FOUND-13 and correctly emphasizes copies, actor-only writes, and live reads.
+
+All 16 plans are internally consistent, correctly sequenced in 9 waves, and every Round-1 (10b4108) finding I traced has been folded into the plan text, must_haves, acceptance gates and threat registers — the dispositions ledgers are accurate, not cosmetic. I independently re-verified the load-bearing source anchors (9 exports and 3,365 lines in `src/app/game-session.ts`, the single `case "docked":` at 2321, 5 `redrawGate.request()` sites, `renderFrame(alpha, shouldDraw())` at 2863, the inline `URLSearchParams` read at 3185, `marketSeedForSystem`/`arrivalMarketSeed`/`witchspaceStationMass`/`InputFrame`/`mapHyperspaceBeginEdges`/`GameLoop.advance`, the ESLint baseline bans, the single sim-side `createSeededRandom` caller at `src/sim/hyperspace/arrival.ts:73`, and all referenced e2e spec and helper filenames — all exist and match). Oolite `OOScanClass.tbl` has exactly 16 entries including `CLASS_PLAYER` (100), so plan 08-05's vocabulary and 08-07's player scan class are mutually consistent. I found **no blocker**; two warnings deserve attention before execution starts, one of them a latent contract inconsistency at the boot-Continue boundary.
 
 ### Strengths
-- Correctly separates type-only seam modules from implementations so later lint zoning (08-09) can allow exactly the intended imports, supporting FOUND-13’s boundary.
-- Resolves statics/player visibility coherently with 08-05 and D-06/D-07: static bodies 1-5 come from `world.statics` + `SystemLayout` (`src/sim/world/layout.ts:47-52`) at call time, player 100 is an adapter over live `FlightState` (no stored player), and ids 6-99/0 are invalid.
-- Enforces key safety invariants: returned vectors/quats are fresh copies, scan ordering is total and deterministic `(distanceSquared, id)`, invalid inputs yield empty/no-op behavior, and `ShipControl` is actor-bound with never-later wake semantics.
-- Avoids holding `FlightState` inside the world/view (G-8), which is important across load/arrival replacements.
 
-### Concerns
-- **MEDIUM:** Station orientation must match the renderer’s composition using `FlightState.stationAngle` and `layout.stationBaseQuat` (`src/sim/world/layout.ts:56-58`); a small math mismatch will break view correctness/tests and later AI assumptions. The plan calls for reproducing renderer composition in sim math, which is right but must be verified carefully.
-- **MEDIUM:** Scan/filter behavior over mixed static/player/dynamic entities (and exclusion of `self`) needs precise handling; off-by-one range checks (`<= range^2`) and invalid-range/self cases are easy to get subtly wrong.
-- **LOW:** The seam is intentionally narrow now (deferred methods for missiles/ECM/etc.), which is good, but 08-09’s pilot and later phases will pressure it; interface growth must stay disciplined (Pitfall 19).
+- **Round-1 dispositions are real.** Every HIGH concern from the consensus summary is now concrete plan machinery, not prose: 08-02's same-commit vector pinning with an independent scratch re-implementation; 08-05's exported `isNeverSpawned` predicate with an anti-re-spelling gate; 08-08's recorded `loadFromSave` sequence driven through injectable `SaveControllerDeps`; 08-10's six pre-launch-autosave cases and no-`never`-check gate; 08-12's pinned-literal audit table and lifecycle-order header comments; 08-15's step-cost benchmark with a hard bound and a conditional hash-neutral fast path.
+- **Gate-attribution discipline is uniform and executable.** Every plan shares the same porcelain/docker-ps precondition plus detached-worktree fallback with commit + tree SHA recording; split-step gates (08-06 step 3, 08-08 step 6, 08-12 step 9) also gate on no stray containers/volumes.
+- **Acceptance criteria are mechanically checkable.** Nearly every gate is an `rg`/`node -e`/`git diff` one-liner with a stated HEAD baseline, which makes execution drift detectable without running the slow gates.
+- **The determinism story closes its known gaps.** 08-03 bans the Math-alias forms Round 1 flagged, documents the residual laundered-value gap, and points to the behavioural proofs; 08-11 records the within-one-engine (V8) scope as Key Decisions row (f) instead of overclaiming; 08-16's parity asserts equality to `hashFlight` too, so browser and Node cannot agree on the same wrong hash.
+- **Anti-overfitting guards are explicit.** 08-11 pins the placeholder integrator with exactly one labelled test, forbids goldens that pin a populated world, and gates `git diff --name-only 5b189e4 -- tests/golden` to the single new world golden; 08-13's `Record<keyof Entity, …>` field table keeps the hash serializer and the Phase 11 codec from drifting.
+- **Scope notes and the no-renumbering rule are consistently applied**, with owner-accepted over-budget estimates recorded per plan rather than hidden.
 
-### Suggestions
-- Add tests that mutate every returned nested object from `body/ship/scan`-derived views and assert no mutation of layout, player state, or stored entities.
-- Include tests for `isValid` across missing, dead, static, reserved, and player ids, and for scan with a `kinds` filter and equal-distance tie-break by ascending id.
-- Implement a single internal “copy vec/quat” helper to avoid accidental reference leaks.
+### Issues Found
 
-### Risk Assessment
-**LOW.** Pure sim/types work with clear invariants and good unit-testability; main risk is geometric/orientation fidelity.
+- **Severity: WARNING**
+  **Plan/Task:** 08-15, Task 2 (step 2) and Task 3 (Key Decisions row)
+  **Description:** A fresh `createWorldLifecycle` (epoch 0) is created at every `startSession` *before* the restore branch, and a boot-time Continue of an **in-flight** save then calls `resume(marketSeed)` without a bump — so the recreated world is `worldSeedFor(ms, 0)` while the world the player actually saved in was `worldSeedFor(ms, ≥1)` (every begin bumps to ≥1). The D-05 parity test in Task 2 only exercises `resume` on a *continuing* lifecycle (epoch 3 → 3), which is the in-session Load case; the boot-Continue-after-quit case is not tested and silently yields a different world seed than the pre-save world. In Phase 8 this is unobservable (NPC-free never-spawned worlds hash as `hashFlight` regardless of seed, `populateNothing` adds nothing), but it contradicts the leg-anchor rationale quoted in 08-05 row (d) and CONTEXT's deferred note ("the persisted `nextEntityId` is the issuing world's own counter, saved so that the same world regenerates at the leg anchor") unless Phase 11's persisted epoch is consumed by `resume`. As written, nothing in the plans tells Phase 11 that the start-up wiring must change.
+  **Fix:** Add one sentence to 08-15's Key Decisions row and the `WorldLifecycle` doc comment: "In Phase 8 a boot-time Continue of an in-flight save resumes at epoch 0 (the lifecycle is fresh at start-up), so the recreated seed can differ from the saved world's; this is Phase-8-only and Phase 11 (SAVE-07) must make `resume` take the persisted epoch (and `startSession` must not pre-reset it)." Optionally add a lifecycle test asserting `createWorldLifecycle({traffic}).resume(s)` leaves epoch 0, documenting the stand-in.
 
-## 08-08
+- **Severity: WARNING**
+  **Plan/Task:** 08-15, Task 1 step 1 (`begin`) vs 08-02 Task 3 (`worldSeedFor` RangeError)
+  **Description:** 08-15 promises "a non-finite marketSeed leaves the state unchanged and never throws" because lifecycle methods run inside a fixed step (threat T-08-27: "a throw would stop the frame loop"). But `worldSeedFor` (08-02) deliberately throws `RangeError` for `epoch` outside `[0, 0xffffffff]` — and `begin` does `epoch += 1` with no upper guard, so an epoch at 2^32 throws inside router dispatch inside `stepOnce`, crashing the frame loop. Probability is negligible in practice (4 billion launches), but the plan's own safety invariant ("lifecycle methods must not throw inside fixed-step execution", Task 3) is not actually total.
+  **Fix:** One line in `begin`: refuse (leave state unchanged) when `epoch` would exceed `0xffffffff`, matching the non-finite-seed treatment, and add a lifecycle behaviour row for it.
 
-### Summary
-Plan 08-08 extracts the station and save controllers (steps 5 and 6), which are the most stateful UI/session subsystems after render. The plan is appropriately cautious: it preserves save/persistence invariants, hook rebind behavior, and runs `verify-full` after the persistence-touching step.
+- **Severity: SUGGESTION**
+  **Plan/Task:** 08-09, Task 1 step 3 / Task 2
+  **Description:** The test pilot calls `ctl.scheduleWake(self, ticks(0.1 + random()*1.5))` at the end of *every* think while thinking every 15 ticks; with the never-later rule, after the first think `wakeTick` is pinned at the earliest ever scheduled value (~12) and thereafter either is already past (cleared) or merely duplicates the 15-tick cadence. The wake-earlier-than-next-think path is therefore never meaningfully exercised by the pilot (stepWorld's `wakeDue` branch is tested only by 08-11's injected-registry tests). Harmless for Phase 8, but the pilot is the Phase 13 shooter and the wake mechanism's only real-code user.
+  **Fix:** Either have the pilot skip `scheduleWake` when a wake is already pending, or add one pilot test that a wake due before `nextThinkTick` produces an earlier think through `stepWorld` (an integration case in 08-11 Task 1's tracer list).
 
-### Strengths
-- Correctly targets critical persistence seams: `loadFromSave` must reinstall live state/layout/scene/market/profile and rebind the test hook when enabled (G-8; boot bind at `src/app/game-session.ts:3184-3186`), and `autosave` guards must preserve order (context-lost/tainted/unavailable/attempt counting) as encoded in session behavior and probe fields (`src/app/probe.ts:167-190`).
-- Preserves economy seed/market invariants guarded by `tests/guards/economy-purity.test.ts:320-353` (exactly 3 `generateMarket(` producers, arrival chaining via `arrivalMarketSeed(destination.id, previousSeed)`, load fallback `restoredMarketSeed ?? marketSeedForSystem(system.id)`, no market regen in docked arm at `2321+`).
-- Keeping `src/persistence/**` unchanged and proving save behavior via `verify-full` (save-load/autosave/core-loop) is the right risk control for step 6.
-- Unit tests for trade refusal/acceptance and autosave guard ordering against fake contexts provide fast feedback independent of DOM/WebGL.
+- **Severity: SUGGESTION**
+  **Plan/Task:** 08-16, Task 2 step 1 (vs 08-02 `recorded-flights.ts`, 08-13 Task 3)
+  **Description:** By phase end the repo holds three independent Node replays of session semantics: `tests/helpers/recorded-flights.ts` (v1 hash pins), the world-cadence test's inline lifecycle, and `tests/helpers/tick-script.ts`. Each mirrors `game-session.ts`/session modules separately, so they can drift independently of the session and of each other. 08-16 mitigates for its own script (setup-value header mapping + per-tick trace) but not against the other two.
+  **Fix:** In tick-script's header, state explicitly that it supersedes `recorded-flights.ts` for *post-split session semantics* and that 08-02's pins remain the frozen v1 evidence; note in 08-02's helper that it is a phase-baseline artifact not to be updated after the split.
 
-### Concerns
-- **HIGH:** `loadFromSave` ordering is delicate (async read/parse/restore, scene/system/market reinstall, message/reset behavior, F2 re-check after await, hook rebind). A small reorder can break G-8, save correctness, or probe/UI state while still compiling.
-- **MEDIUM:** Station controller extraction moves many cross-cutting functions (`commitProfile`, selection, rendering, actions) used by event handling and start-up callbacks; missing a call-site reroute can cause stale UI or broken flows not fully covered by unit tests.
-- **MEDIUM:** Step-6 `verify-full` in a worktree is good, but the plan depends on earlier step-0/step-3 gate conventions; inconsistent cleanup/project naming would leave stray volumes/containers and confuse attribution.
+- **Severity: SUGGESTION**
+  **Plan/Task:** 08-05, Task 1 step 6
+  **Description:** The sentence "returning '' while `isNeverSpawned(world)` holds (… worldSeed, epoch and nextId are deliberately excluded so D-08 survives …), otherwise lines `worldSeed=`, `nextId=`, `rng=` …" reads as self-contradictory on first pass (excluded vs emitted). The intent is clear (excluded only in the never-spawned case), but an executor implementing the serializer could mis-read it.
+  **Fix:** Split into two sentences: "While `isNeverSpawned` holds the section is empty — no `worldSeed`/`nextId`/`rng` lines, which is what keeps D-08 across launch and arrival. Once anything has spawned, the section begins with `worldSeed=`, `nextId=`, `rng=`."
 
-### Suggestions
-- Write characterization-like unit tests for `buildSnapshotInputs` equivalence on representative docked/in-flight states (derived from existing persistence test patterns) to ensure no save bytes/fields change.
-- Explicitly test that a tainted profile or lost context increments attempts and records the expected skip reason without queuing a write (matching `WegoliteSaveProbe` semantics in `src/app/probe.ts:167-190`).
-- During extraction, keep all three `generateMarket(` call-site texts/regex shapes intact (`src/app/game-session.ts` currently contains 3 per grep) to satisfy the guard scan.
+### Missing Coverage
 
-### Risk Assessment
-**MEDIUM-HIGH.** Functionally sensitive refactor touching persistence-adjacent session logic and in-session restore; mitigated by strong existing guards and planned `verify-full`.
+- **Jump parity inside `advanceTicks`** — 08-16's flagged assumption honestly records that hash parity is proven only for the New-game launch-and-fly script; a jump run through `advanceTicks` (arrival path) has no parity fixture this phase. Acceptable, but it should also appear in the Phase 12 hand-off notes since chart-in-flight simulation (Phase 12) will change exactly that path.
+- **`epoch` overflow in `begin`** — see WARNING 2 above (an edge the "never throws inside a fixed step" invariant claims but does not deliver).
+- **Boot-Continue epoch semantics** — see WARNING 1; no test pins what `resume` on a fresh lifecycle does.
+- **Coverage floors for `src/app/session/**`** — the split adds ~10 new app modules; the plans repeatedly gate `src/sim` floors but never state whether the app glob's thresholds apply to the new session modules and whether the extracted controllers (partially moved bodies) can meet them. If app floors exist in `vitest.config.ts`, several Node-only-tested modules (e.g. `world-lifecycle.ts`) may land short. Worth a one-line check when 08-04 lands.
+- **`probe.sim` publication cost** — `entities` is computed by iterating the store every `updateProbe` per frame; O(≤256) and negligible, but a one-line comment ("live-count is O(n), n ≤ MAX_ENTITIES") would preempt a later "why is probe slow" investigation.
 
-## 08-09
+### Recommendations
 
-### Summary
-Plan 08-09 adds the AI runtime scaffolding (types/time/registry/test pilot) and enforces the AI import seam in ESLint. It is a strong fit for FOUND-13: it proves the seam with a real, serialisable pilot and mechanically confines future AI code.
+1. (Before 08-15 execution) Resolve the two WARNINGs: record the boot-Continue epoch-0 caveat in the Key Decisions row/doc comment, and make `begin` total against epoch overflow. Both are one-to-three-line plan text edits.
+2. (Before 08-09 execution) Decide the pilot's `scheduleWake`-every-think semantics (skip-when-pending vs keep) so the pilot's recorded call lists in Task 2's 200-think test are stable rather than accidental.
+3. (During 08-04) Confirm whether `vitest.config.ts` coverage thresholds cover `src/app/session/**` and record the answer in 08-04's SUMMARY so later split plans don't discover it at the step-9 worktree gate.
+4. Keep the plan numbering and waves exactly as they are — the dependency graph (08-04←08-01, 08-05←08-02, 08-07←08-05, 08-09←08-07+08-03, 08-10←08-08, 08-11←08-09, 08-12←08-10, 08-13←08-11, 08-14←08-12, 08-15←08-14+08-11, 08-16←08-15) is acyclic, matches the ROADMAP wave table line-for-line, and the shared-tree conflict pairs (08-04/08-05, 08-06/08-07, 08-08/08-09, 08-10/08-11, 08-12/08-13) each touch disjoint file sets under D-14.
+5. No further round of plan revision is needed for the other 14 findings-less plans; proceed to execution with the two plan-text patches above.
 
-### Strengths
-- Makes the seam real, not aspirational: the scripted pilot lives under `src/sim/ai/`, uses only `WorldView`/`ShipControl` plus allowed constants/math/types, and is registry-driven—exactly what FOUND-13 needs.
-- Integer-tick timing (`TICKS_PER_SECOND`, `THINK_INTERVAL_TICKS = 15`) and JSON-round-trippable `AiComponent` state align with determinism/snapshot goals; the plan’s 200-think and restore-then-continue checks are good.
-- AI lint zoning is designed correctly around ESLint replace-not-merge behavior: depth-specific allow-lists, `ImportExpression` ban, and spreading `SIM_SYNTAX_BANS` so bans like `for..in`/bare sort remain active (08-03 baseline in `eslint.config.js:145-151` currently only bans `new Date` syntax in sim).
-- Reusing `tests/guards/eslint-gate.ts` and probe-lock patterns for negative proofs is consistent with repo practice.
+### Overall Assessment
 
-### Concerns
-- **MEDIUM:** Regex allow-lists per depth are easy to get slightly wrong (allowing an unintended climb like `./../...` or rejecting valid sibling forms). The plan constrains names and includes positive/negative probes, which is necessary.
-- **MEDIUM:** Because AI blocks redefine rules, forgetting to keep inherited/required restrictions (especially syntax bans) would silently weaken determinism in `src/sim/ai/**` (Pitfall 5). The shared-const spread and explicit probes mitigate this.
-- **LOW:** The pilot’s behavior is intentionally simple/placeholder; tests must be specified against the pilot’s own rules/constants (not implementation accidents) to remain stable.
+**READY** — with the two small WARNING-level plan-text patches (08-15 boot-Continue epoch caveat; 08-15 epoch-overflow totality) recommended before the Wave 8 integration plan executes. No blocker; no structural rework needed.
 
-### Risk Assessment
-**LOW-MEDIUM.** Contained to new sim/guard/tooling code with clear proofs; main risk is lint-rule configuration correctness.
+### Reviewed Plans
 
-## 08-10
-
-### Summary
-Plan 08-10 performs the riskiest split steps (7 and 8): hyperspace controller extraction, ordered event routing, and the sim driver/step-options seam. It is well planned because it preserves atomicity/ordering and creates the single stepping integration point needed for the world core.
-
-### Strengths
-- Keeps `handleHyperspaceJumped` as one synchronous install block (currently `src/app/game-session.ts:2061-2153`), preserving G-7: failure before commit must not mutate live session/profile/market/seed/target, and arrival autosave remains last. This is crucial for correctness and for later world lifecycle insertion.
-- Creates a single `stepFlight` call site in `sim-driver` (today called in the frame step callback at `src/app/game-session.ts:2827-2835`) and a pure `buildStepOptions` function, which is exactly the seam D-14/08-15/08-16 need.
-- Pins event handling order explicitly (subscriber order and one-kind-to-one-subscriber mapping) and centralizes the only `case "docked":` in stationFlow (currently only at `2321`), protecting `tests/guards/economy-purity.test.ts:201-207,348-353`.
-- Preserves frame/command semantics from the current loop: commands to first step only, launch filter, pre-launch autosave before applying launch, shared per-frame input, and launch timeline advance rules (`src/app/game-session.ts:2763-2864`, `src/app/game-loop.ts:40-57`).
-
-### Concerns
-- **HIGH:** Event dispatch order and side-effect sequencing are behaviorally significant (messages, screen transitions, autosaves, system swaps). Any reordering or duplicate handling can break gameplay flow and persistence timing even if types compile.
-- **HIGH:** The pre-launch autosave and command-drain semantics are easy to regress when introducing `advanceFrame`/`stepOnce` (especially “one autosave per accepted launch drain before first step”). Browser/manual-clock behavior later depends on this being exact.
-- **MEDIUM:** `buildStepOptions` must remain pure and Node-importable (no DOM/Three/Vite-only imports) while matching current option construction (`src/app/game-session.ts:2814-2836`, including dock geometry, equipment set, hyperspace facts/target/station mass). Drift would break replay/parity work in 08-16.
-- **MEDIUM:** Moving the arrival’s `generateMarket(destination, catalogue, nextSeed)` and `nextSeed = arrivalMarketSeed(...)` texts (currently in the arrival block around `2084-2133`) must satisfy the economy-purity regex/count contract (`tests/guards/economy-purity.test.ts:330-339`).
-
-### Suggestions
-- In `tests/app/session-order.test.ts`, assert the full fixed subscriber list and an explicit kind-to-subscriber table for all currently handled 14 kinds so accidental reclassification is caught.
-- Add a unit test that a failed destination build path leaves profile/market/marketSeed/target unchanged and triggers failure handling without autosave (mirroring the current catch/paused behavior at `src/app/game-session.ts:2116-2133`).
-- Verify `stepFlight` appears exactly once in `src/app` after the step (currently once at `src/app/game-session.ts:2827`).
-
-### Risk Assessment
-**HIGH.** This plan reorganizes core runtime control flow and side effects; strong tests/gates are planned, but regression impact would be broad.
-
-## 08-11
-
-### Summary
-Plan 08-11 implements the world stepping model (after flight), queued AI events, sanitization, and reserved presentation events, creating `stepSim` as the composition seam. It is ambitious but largely well-reasoned for deterministic multi-entity simulation.
-
-### Strengths
-- Correct composition: `stepSim` calls unchanged `stepFlight` first (`src/sim/flight/step.ts:83-351`), then `stepWorld` only for active flight modes, preserving existing flight behavior and enabling empty-world hash identity (D-08).
-- Deterministic update rules are appropriate: id-order iteration over a length snapshot, spawned-this-tick deferred to next tick, queued FIFO AI events with bounded passes, per-actor RNG streams, and commit/sanitize before hashing (canon throws on non-finite at `src/sim/hash.ts:29-33`).
-- Reserving event kinds in `src/sim/events.ts` (currently 14 kinds at `27-59`) with self-contained payloads and no UI copy is forward-compatible and aligns with ARCHITECTURE §7.6/Phase 13+ needs.
-- Recording explicit divergences (id order vs Oolite distance order, queued events, skip killed-in-tick, placeholder motion, transcendental scope) in Key Decisions is good engineering hygiene.
-
-### Concerns
-- **MEDIUM:** `src/sim/events.ts` is currently a closed union consumed by app/session handlers (`src/app/game-session.ts:2294-2410` and the router to be built in 08-10). Adding many reserved kinds is fine if all handlers ignore unknowns, but any exhaustive `switch` without a safe default in app code/tests/types could break compilation or behavior.
-- **MEDIUM:** Placeholder motion (`position += forward * speed * dt`) and AI-driven nav writes make the 1,000-tick equality meaningful, but they also define temporary semantics that later phases will replace; tests must not overfit to placeholder physics beyond what Phase 8 needs.
-- **MEDIUM:** Queue cap/overflow accounting (`aiDropped`) and sanitizer repair counting become part of hashed/snapshotted state; underspecified edge behavior (e.g. what constitutes a repair vs normalization) can cause brittle hashes.
-- **LOW:** `Math` transcendentals remain in sim helpers (`src/sim/math.ts:72-81,184-196`) and are used by flight/layout math; the plan’s “within one engine family” scope is reasonable but must be stated consistently (as proposed).
-
-### Suggestions
-- Ensure every new event payload follows the discriminant rule (`kind` remains the union tag; e.g. `laserKind` not `kind`) and add compile-time assignment tests as planned.
-- Add tests proving `stepSim` with `world === undefined` and with an empty/never-spawned world produces identical `serializeFlight`/`hashFlight` traces over scripted ticks (extending D-08 under stepping).
-- Keep `sanitizeEntity` deterministic and total: define repair increments precisely and include `aiDropped`/queue-empty invariants at tick boundaries in tests.
-
-### Risk Assessment
-**MEDIUM.** Core simulation semantics are introduced correctly on paper, but event/type ripple and determinism edge cases require careful implementation and tests.
-
-## 08-12
-
-### Summary
-Plan 08-12 completes the structural split (step 9) by extracting the frame loop and startup/lifecycle wiring into session modules and shrinking `game-session.ts` to a facade. It is the right end-state for FOUND-10, with strong verification (worktree `verify-full`) and order pinning.
-
-### Strengths
-- Preserves the session’s observable contracts: `createGameSession` remains the only public entry (currently `src/app/game-session.ts:335`, returns object at `3348-3364`), `src/main.ts` can keep importing from the facade, and the export set stays unchanged.
-- Pins the critical runtime phase order from the current `frame()` (`src/app/game-session.ts:2699-2864`): RAF/frame count, pause toggle, chart/save drains, freeze branches, station actions gating, sim advance vs paused drain, and the single gated render.
-- Worktree-based `verify-full` for step 9, plus checks that no golden/probe/scan evidence was weakened, provides strong end-of-split assurance.
-- Adding frame-order and scene-swap regression tests addresses common extraction hazards (lost redraw requests, broken freeze branches, stale layout after swap).
-
-### Concerns
-- **HIGH:** Step 9 is a wide integration of all prior extracted modules; dependency wiring/order in `createSessionLifecycle` and `createFrameLoop` can break startup, overlays, hook binding, disposal, or rendering even when individual modules are correct.
-- **MEDIUM:** The facade must keep exact pinned literals and counts (`renderFrame(alpha, shouldDraw())`, 5 redraw requests total, single `probe.frames += 1`, etc.) across moved files to satisfy `tests/app/redraw-gate.test.ts` and `tests/guards/economy-purity.test.ts` once re-pointed in 08-01.
-- **MEDIUM:** `dispose`/listener teardown ordering is easy to regress in a rewrite; leaks or double-frees may only appear in browser specs or long runs.
-
-### Suggestions
-- Add an explicit assertion that `game-session.ts` exports only the 9 intended names and that no non-`src/app` module imports `src/app/session/*`, as planned.
-- Keep construction and teardown order documented in code comments mirroring today’s sequence (`startSession` currently ~`2884-3250`, dispose ~`3303+`) to aid future maintenance.
-- After Task 1, run a quick targeted grep audit for the pinned literals/counts before the worktree `verify-full` to catch mechanical misses early.
-
-### Risk Assessment
-**MEDIUM-HIGH.** This is the final structural integration of the split; correctness depends on composition/wiring as much as module logic.
-
-## 08-13
-
-### Summary
-Plan 08-13 delivers the snapshot codec and the 1,000-tick live-vs-restored equality/cadence proofs, which are central to FOUND-12. The design is appropriately strict (boundary parsing, typed errors) and targets the right determinism pitfalls.
-
-### Strengths
-- Directly proves the strongest determinism claim: snapshot + JSON round-trip + restore produces identical hashes over long runs, including id gaps, killed-highest-id behavior, and tick continuity (no repeat/skip).
-- Treats snapshot parsing as a boundary with typed `SnapshotError` and exhaustive validation (shape, versions, ids/order/uniqueness/cap, finite numbers, integer timers, uint32 streams, closed vocabularies, `__proto__` handling), which is good preparation for Phase 11 save reuse.
-- Correctly excludes non-persisted/transient runtime artifacts from snapshot semantics (e.g. AI queue empty at boundaries, statics derived from layout/constant table not serialized as geometry) consistent with 08-05/08-11.
-- Cross-cadence world-hash test extending the existing cadence discipline (flight cadence tests exist; `src/sim/loop.ts` and app loop semantics are established) is valuable and aligned with project determinism decisions.
-
-### Concerns
-- **MEDIUM:** Snapshot format choices (fields, key ordering in emitted records, how params/timers/streams are encoded) become a de facto contract; 08-11’s serializer/hash and 08-13’s codec must agree exactly, or equality proofs will be flaky/brittle.
-- **MEDIUM:** `src/sim` cannot use `structuredClone` (`tsconfig.sim.json` has no DOM; tests can), and JSON cannot represent `-0/NaN/Infinity`; the plan accounts for this, but sanitizer behavior and parser rejection rules must be perfectly aligned to avoid hidden divergence.
-- **LOW:** High `src/sim` coverage floors (`vitest.config.ts:36-41`) mean the parser needs many rejection-branch tests (planned as 20+ cases), which is good but adds implementation burden.
-
-### Suggestions
-- Include explicit tests for “uncommitted dead entity” and “non-empty AI queue” snapshot refusal reasons, since both indicate invalid boundaries.
-- In cadence tests, assert the world is actually live/populated at compared ticks (as planned) so equal hashes are not vacuously equal to flight-only traces.
-- Keep snapshot version/format constants centralized and documented for Phase 11 reuse.
-
-### Risk Assessment
-**MEDIUM.** Pure-sim and well-specified, but correctness hinges on exact data-shape and validation parity across multiple modules.
-
-## 08-14
-
-### Summary
-Plan 08-14 introduces the test-only manual clock and exact tick stepping on the driver side (flags parsed once, frame-loop branch, `advanceTicks` with bounds/refusals/taint) without changing the probe shape yet. It is a careful, incremental step toward FOUND-14.
-
-### Strengths
-- Correctly parses flags once at startup and replaces the inline `test=1` read (currently at `src/app/game-session.ts:3184-3186`), enforcing D-09/D-10 semantics and preventing runtime toggles.
-- Reuses/extends the existing stepping architecture: `createGameLoop` already drains commands to the first step only (`src/app/game-loop.ts:40-57`), and the plan’s shared drain path for realtime/manual modes is the right way to avoid divergence (Pitfall 3).
-- Strong safety posture: `advanceTicks` bounds (`MAX_ADVANCE_TICKS`), refusal conditions (not manual, paused, overlays, invalid n), early stop on pause/overlay transitions, and taint-before-first-step to prevent durable saves from hooked/manual runs.
-- Keeps D-13 intact by deferring hook/probe surface changes to 08-16 and explicitly gating on probe-shape/scan invariants.
-
-### Concerns
-- **MEDIUM:** Factoring the drain/filter/pre-launch-autosave/hyperspace-edge/input-frame logic out of the current `frame()` (`src/app/game-session.ts:2763-2855`) is behavior-critical; any change in order (especially pre-launch autosave while still docked) can break save anchors and later parity.
-- **MEDIUM:** `markHookMutation`/taint wiring must remain equivalent to the current hook mutate callback behavior (`src/app/game-session.ts:1041-1048` requests redraw and sets taint) so autosave skip rules stay effective.
-- **LOW:** Manual-clock rendering at fixed alpha and not self-stepping can affect visual smoothness in test mode, but that is acceptable given the stated purpose.
-
-### Suggestions
-- Unit-test `advanceTicks` with a recording log proving: `markHookMutation` before autosave, autosave before first step, commands only on first step, one drain for the whole call, and identical input frame object passed per step (or the specified sharing contract).
-- Add refusal-table tests for all named cases (0, -1, 1.5, NaN, Infinity, cap+1, paused, chart/save open, non-manual flag, no state) asserting no taint and unchanged tick.
-- Keep the manual branch in `frame-loop` structurally close to the existing code (pause toggle, overlay drains, freeze branches, single render) to minimize regression surface.
-
-### Risk Assessment
-**MEDIUM.** Driver-level refactor of stepping control flow, but scoped to test-mode behavior and backed by clear unit contracts.
-
-## 08-15
-
-### Summary
-Plan 08-15 is the D-14 integration: it swaps the session to `stepSim`, adds world lifecycle/epoch bump points and traffic-seam plumbing, and explicitly keeps the world out of saves. It is the phase’s key runtime convergence point and is mostly well specified.
-
-### Strengths
-- Single integration point is respected: replace the only `stepFlight` call in the sim driver (post-08-10/08-12 structure) with `stepSim(liveState, world, ...)`, leaving all other modules as callers through the driver.
-- Lifecycle rules are coherent with D-02/D-03/D-05/D-08 and the anchored-save decision: world exists only in launching/inFlight, bumped/recreated at launch and arrival (arrival inside install block before autosave, `src/app/game-session.ts:2061-2153` shows current ordering), resumed without bump on in-flight continue/load, dropped on dock/dispose, and never written to saves.
-- Correctly handles failure safety: failed arrival must not bump epoch or replace world, and lifecycle methods must not throw inside fixed-step execution.
-- Good parity discipline: D-05 requires epoch/ids independent of traffic flag in this phase; plan 08-15 wires `traffic` from `ctx.runtime.testFlags` (08-14) and uses `populateNothing`.
-- Keeps `src/persistence/**` unchanged and adds anchored-save assertions (no `epoch/worldSeed/nextId/entities` leakage), which is important before Phase 11.
-
-### Concerns
-- **HIGH:** Integrating world stepping into the live session can affect runtime performance and timing behavior even if hashes/logic are correct; the plan relies on `verify-full` and existing gates but does not add a perf measurement. Phase goal includes no NPCs now, so risk is limited, but the path becomes hot every tick.
-- **MEDIUM:** Event-router insertion of a `worldLifecycle` subscriber must not create a second `case "docked":` label and must preserve subscriber order semantics; plan 08-10/08-12 pinned this, but 08-15 modifies it (and updates tests) so regressions are possible.
-- **MEDIUM:** In-session load handling is subtle (resume vs end depending on restored mode) and interacts with hook rebinding and installed state; if the save-controller doubles in tests diverge from real behavior, the browser save-load specs become the only proof.
-- **LOW:** The Oolite comparison for launch repopulation is noted as a deliberate divergence; documenting it (as planned) is important to avoid later “fixes” that break D-02/hash reproducibility.
-
-### Suggestions
-- Add an explicit test that on arrival, `begin(nextSeed)` happens before `autosave()` in the hyperspace controller install path (call-order recording), as planned.
-- In the sim driver, read `ctx.core.worldLifecycle?.world` live per step (not cached) so launch/arrival/load changes take effect exactly on the intended boundaries.
-- Ensure router “unknown kind ignored” behavior remains intact after subscriber refactors, since 08-11 adds reserved event kinds to `src/sim/events.ts`.
-
-### Risk Assessment
-**HIGH.** This plan changes the live stepping and session lifecycle at the core integration seam; correctness and ordering are critical even though feature-visible behavior should remain unchanged.
-
-## 08-16
-
-### Summary
-Plan 08-16 finishes FOUND-14 by exposing the manual-clock/world-hash surface in one additive probe commit, proving browser/Vitest tick-hash parity, and validating traffic flag behavior and inertness without `test=1`. It is a strong closing plan with good reconciliation of the probe-shape freeze.
-
-### Strengths
-- Correctly reconciles ROADMAP success criterion 1 with D-13: probe shape frozen through 08-15, then one additive commit updates `src/app/probe.ts` (current interfaces at `276-358`, hook at `251-267`, factory at `390-460`) and the shape fixture/spec together.
-- Reuses the 08-14 driver primitives rather than reimplementing stepping logic: hook `advanceTicks` delegates to the driver’s bounded/tainting/refusing method, and `worldHash` is computed on demand from live state/world (no per-frame hashing, consistent with ARCHITECTURE §16).
-- Parity strategy is pragmatic: a pure Node replay helper shared by Vitest and Playwright (or a documented fallback fixture) can compare hashes computed through the same sim/session stepping rules and `buildStepOptions`.
-- Covers important flag semantics: manual clock does not self-step, `advanceTicks` exactness/refusals, traffic opt-in default/off behavior under `?test=1`, and inertness of `clock/manual` and `traffic` without `test=1`.
-
-### Concerns
-- **MEDIUM:** Extending `createTestHook` and probe publishing must preserve G-8 (read live state/world at call time, no captured references) and avoid adding redraw/request side effects beyond existing taint behavior; 5 `redrawGate.request()` sites are currently pinned (`src/app/game-session.ts:1041,2740,2751,3255,3361`).
-- **MEDIUM:** Browser/Vitest parity depends on identical setup (New game, Lave layout/config/dock geometry, launch sequence, input frame, StepOptions, lifecycle reactions). `tests/helpers/lave.ts:40-72` and session `buildStepOptions` help, but any mismatch (especially dock geometry/equipment/hyperspace facts or controller choice while launching) will cause false failures.
-- **LOW:** Re-recording the probe-shape fixture is inherently sensitive; the required subtractive diff check (only `sim`, `worldHash`, `advanceTicks` additions) is essential and must be automated/documented in the commit evidence.
-- **LOW:** Tick-hook e2e under SwiftShader/manual clock should wait on probe fields (`sim.tick`, `frames`, `mode`) and not wall time (plan states this), consistent with existing e2e style.
-
-### Suggestions
-- In parity tests, assert both equality to the Node replay hash and (for the no-NPC launch/fly case) equality to `hashFlight`/expected D-08 behavior to catch “same wrong hash” comparisons.
-- Add a spec assertion that `probe.test.worldHash` exists under plain `?test=1` but `probe.test.advanceTicks` exists only under `?test=1&clock=manual`, as planned.
-- Ensure `probe.sim.entities` counts only live dynamic/non-dead entities (excluding statics) if that is the chosen contract, and document it in the probe type/comment to avoid ambiguity for future specs.
-
-### Risk Assessment
-**MEDIUM.** Additive test surface on top of completed integration, but parity setup and probe-contract changes must be exact to avoid flaky or misleading end-of-phase proof.
+- 08-01
+- 08-02
+- 08-03
+- 08-04
+- 08-05
+- 08-06
+- 08-07
+- 08-08
+- 08-09
+- 08-10
+- 08-11
+- 08-12
+- 08-13
+- 08-14
+- 08-15
+- 08-16
 
 ---
 
 ## Consensus Summary
 
-Only one external reviewer ran (OpenCode). Claude was skipped because the review ran inside Claude Code, and no other reviewer CLIs (codex, qwen, cursor, agy, coderabbit, kimi, local model servers) are installed. So there is no multi-reviewer consensus. The points below are OpenCode's highest-priority findings. Its review is source-grounded: findings cite `path:line` evidence throughout, and it covered all 16 plans. It found no blocking design defects. The risk sits in execution ordering at the integration seams.
+Six independent, source-grounded specialist reviewers (`reviewer-architect-kimi-k3-1-pro` on Kimi K3.1 Pro, `reviewer-correctness-glm-5-3` on GLM-5.3, `reviewer-algorithm-deepseek-v4-pro` on DeepSeek V4 Pro, `reviewer-adversarial-grok-4-7` on Grok 4.7, `reviewer-context-gemini-4-argon` on Gemini 4 Argon, and `reviewer-triage-glm-5-3-flash` on GLM-5.3-Flash) reviewed all 16 Phase 8 plans (`08-01` through `08-16`) against the live repository after Round 1 replanning (`83c9b5c`). The external `claude` CLI lane refused the 152,123-token prompt at its 130,000-token lane cap.
+
+All 6 reviewers confirmed that every Round 1 finding from commit `10b4108` was genuinely addressed in commit `83c9b5c` with concrete plan actions, automated verification checks, and per-plan `Review Dispositions Ledger` tables. Four reviewers returned `READY` (with targeted pre-execution warnings) and two (`reviewer-architect-kimi-k3-1-pro` and `reviewer-adversarial-grok-4-7`) returned `NEEDS REVISION` for 3 specific blocker defects uncovered by cross-plan and trust-boundary analysis.
 
 ### Agreed Strengths
-(single reviewer; no cross-reviewer agreement possible)
-- 08-01 sets up order-independent and vacuity-safe source-scan guards, a frozen `window.__wegolite` probe shape and a clean verify-full baseline before any extraction starts.
-- 08-02 pins flight hashes and RNG vectors before the determinism changes.
-- 08-13 gives a strong snapshot round-trip proof: id gaps, killed highest id, tick continuity.
-- 08-16 adds probe fields in one commit after the freeze (D-13) and reuses the 08-14 driver for browser/Vitest parity.
+
+- **Complete Round 1 resolution (`83c9b5c`)**: All 6 reviewers independently verified that all 16 Round 1 findings were resolved in executable plan tasks and tests — including pinned `fmix32`/`mix32`/`worldSeedFor`/`forkSeed` literal vectors (`08-02`), AST-based `Math`-alias and determinism lint + negative probe harness (`08-03`), single-predicate `isNeverSpawned` hash identity and binary-search entity store lookup (`08-05`), single `case "docked":` invariant across `src/app` (`08-01`, `08-06`, `08-10`, `08-12`), `loadFromSave` async ordering and hook rebind (`08-08`), pre-launch autosave call-order proofs (`08-10`, `08-14`), and per-tick world step-cost benchmark (`08-15`).
+- **Incremental session split with frozen browser contract (D-12, D-13, D-14)**: All 6 reviewers praised the step-0 safety net (`08-01` freezing `window.__wegolite` across all 5 session states and making `redraw-gate`/`economy-purity` scans order- and file-boundary-independent before `08-04` touches `src/app/game-session.ts`), keeping waves 2–6 strictly parallel between `src/app/session/*` and `src/sim/world/*` + `src/sim/ai/*` with disjoint same-wave `files_modified` sets, and postponing the additive probe expansion to a single commit in `08-16`.
+- **Bit-exact mulberry32 delegation & 600-tick flight hash pin (`08-02`)**: Verified by `algorithm`, `correctness`, `context`, and `triage` against `src/sim/math.ts:227-236` and `src/sim/hyperspace/arrival.ts:72-104`: delegating `createSeededRandom` to `createRng`/`rngNext` preserves exact draw sequences for `drawWitchpointExit` and all render callers without touching `FIDELITY.md`-pinned modules.
+- **Data-oriented AI component and world store isolation (`08-05`, `08-07`, `08-09`, `08-11`, `08-13`)**: Reviewers agreed the pure-data `AiComponent` table, ascending-id `EntityStore` with two-phase `kill`/`commitKills`, read-only `WorldView` defensive copies, and 1,000-tick midpoint snapshot/restore round-trip proof provide a clean foundation for Phases 9–12.
 
 ### Agreed Concerns
-(single reviewer; highest-severity items)
-- **HIGH: 08-10 event dispatch and side-effect order.** Pre-launch autosave semantics ("one autosave per accepted launch drain before first step") and the order of messages, screen transitions and system swaps can regress while types still compile.
-- **HIGH: 08-15 live world stepping in the session.** This path now runs every tick, and no perf measurement is planned. The reviewer suggests one.
-- **HIGH: 08-05 hash composition.** `hashWorld` must equal `hashFlight` for absent or never-spawned worlds. Including world fields too early breaks D-08 and the 08-02 pins.
-- **HIGH: 08-04 and 08-12 wide mechanical rewrite and final composition.** Watch for stale captures and object-identity changes (`drawKeys()`, redraw gate), and for wiring order in `createSessionLifecycle` and `createFrameLoop`. Literal pins must survive the moves: 5 `redrawGate.request()` sites, `renderFrame(alpha, shouldDraw())` and a single `probe.frames += 1`.
-- **HIGH: 08-08 `loadFromSave` ordering.** This covers the async read/parse/restore, reinstall, the F2 re-check after await, and hook rebind.
-- **HIGH: 08-02 one-way seed derivation (D-02).** Pin exact literal vectors for `fmix32/mix32/worldSeedFor/forkSeed` immediately.
-- **MEDIUM: 08-11 adds reserved event kinds.** Any exhaustive `switch` in app code without a safe default breaks.
-- **MEDIUM: 08-11 and 08-13 must agree exactly on the snapshot format.** The sanitizer must handle `-0`, NaN and Infinity, and the parser's rejection rules must match it.
-- **MEDIUM: 08-03 lint has a known alias gap.** `const m = Math; m.random()` gets past the lint, so lint alone cannot prove determinism.
+
+#### Blockers & Multi-Reviewer Converged Concerns (Highest Priority)
+
+1. **BLOCKER (`08-11` Task 2, `08-13` Tasks 1–2, `08-05` Task 1) — `sanitizeEntity` / `parseWorldSnapshot` numeric domain & quaternion overflow mismatch** *(flagged by `architect` [Blocker 2], `context` [Warning 4], and `adversarial` [Warning 3])*:
+   - `serializeEntity` hashes every numeric field via `canon` (`src/sim/hash.ts:29-34`, which throws `Error("Cannot canonise non-finite number")` on `NaN`/`Infinity`), and `snapshotWorld` serializes every field to JSON (where `NaN`/`Infinity` become `null` and fail `parseWorldSnapshot`).
+   - However, `sanitizeEntity` (`08-11-PLAN.md:160-165`) only repairs `position`, `orientation`, `destination`, `speed`, `desiredSpeed`, `desiredRange`, and AI timers (`nextThinkTick`, `wakeTick`). It omits `radius`, `ownerId`, `spawnTick`, `repairs`, stream states, and numbers/number-arrays inside `AiComponent.params`.
+   - Furthermore, `08-13` Task 2's `fast-check` property draws arbitrary finite doubles (`fc.double()`) and asserts `parseWorldSnapshot(JSON.stringify(snapshotWorld(world)))` never throws after `sanitizeEntity`, yet: (a) for large finite quaternion components (e.g. `1e200`), `w*w + x*x + y*y + z*z` overflows to `Infinity`, so checking only `normSq === 0` produces `{0, 0, 0, 0}` instead of repairing to `identity()` (unlike `src/sim/flight/sanitize.ts:57-59` which checks `!Number.isFinite(normSq) || !(normSq > 0)`), and (b) negative finite `speed`/`desiredSpeed`/`desiredRange` are left negative by `sanitizeEntity` if not clamped to `>= 0`, causing `parseWorldSnapshot` to reject them.
+   - **Required fix**: In `08-05` `spawnEntity`, validate constructor-only numeric fields (`radius > 0 && Number.isFinite(radius)`, finite non-negative integer `spawnTick`, valid `ownerId`); in `08-11` `sanitizeEntity`, check `!Number.isFinite(normSq) || !(normSq > 0)` for quaternion normalization, clamp negative `speed`/`desiredSpeed`/`desiredRange` to `0`, and recursively sanitize/fallback numeric leaves and number arrays in `ai.params` (incrementing `repairs`); in `08-13` Tasks 1–2, align `parseWorldSnapshot` bounds with `sanitizeEntity` output and inject non-finite values across all mutable numeric leaves in the `fast-check` generator.
+
+2. **BLOCKER (`08-15` Tasks 2–3, `08-13` Task 3) — Warm in-session `Load` vs cold boot `Continue` epoch divergence** *(flagged by `architect` [Blocker 1] and `triage` [Warning 1])*:
+   - Under D-03, Phase 8 saves remain v2-byte-identical and do not persist `epoch` (Phase 11 `SAVE-07` adds `epoch` to the v3 save schema).
+   - In `08-15` Task 2, a cold boot `Continue` starts a fresh `createWorldLifecycle` at `epoch = 0`, whereas an in-session `Load` (`loadFromSave`) calls `resume(restored.seed)` (if `inFlight`/`launching`) or `end()` (if `docked`), both of which preserve whatever `epoch` counter had accumulated in the prior session before `Load` was clicked.
+   - Consequently, loading the exact same v2 save blob via warm `Load` vs cold `Continue` and then launching produces `epoch = priorEpoch + 1` in the warm path vs `epoch = 1` in the cold path — deriving different `worldSeedFor(marketSeed, epoch)` worlds and publishing different `probe.sim.epoch` values from the same save.
+   - **Required fix**: Have `loadFromSave` reset the lifecycle epoch to the Phase 8 save-anchor baseline (`0`) inside the synchronous install block (e.g. a `resetForLoad(mode, marketSeed)` or `reset()` operation on `worldLifecycle` before `resume(restored.seed)` / `end()`, while keeping normal `docked` event handling on `end()` so normal dock->launch still increments `epoch`), document that Phase 11 `SAVE-07` will pass the persisted `save.epoch` into `restore`, and add a unit test in `08-15` proving warm `Load` after `N` launches and cold `Continue` from the same save produce identical `epoch` and `worldSeed` on the next launch.
+
+3. **BLOCKER (`08-01` Task 1) — `compareProbeShapes` wildcard empty-array rule blinds the FOUND-10 probe freeze to dropped or invented array elements** *(flagged by `adversarial` [Blocker 1], related to `correctness` [Suggestion 2])*:
+   - `08-01-PLAN.md` Task 1 steps 1–2 specify that `probeShapeOf` collapses non-empty arrays to `{"[]": unionOfElementShapes}` and empty arrays to `{"[]": []}`, and that `compareProbeShapes` treats an empty `"[]"` set on either side as matching any element set.
+   - Under that wildcard rule, if any refactor in `08-04` through `08-15` accidentally empties a populated array (`hud.elements`, `hud.contacts`, `bodies`, `station.views`) to `[]` or populates a previously empty array (`hints`) with arbitrary objects, `compareProbeShapes` reports zero diff.
+   - **Required fix**: Remove the global "empty `[]` matches any element shape" wildcard from `compareProbeShapes` so empty arrays match empty arrays and populated arrays must match their element shape set; if a specific array path is legitimately empty in one state and populated in another only due to timing, allow-list that exact dot-path in `compareProbeShapes` with an explicit comment. Also verify whether any optional key besides `hint` (e.g. `restore`, `dust`, `world`, `shipVisible` in `src/app/probe.ts:314-338`) changes presence across states and list only verified keys in `OPTIONAL_KEYS`.
+
+4. **HIGH (`08-10` Task 2, `08-12` Task 1, `08-15` Task 1) — `event-router.ts` subscriber count assertion, `ctx` wiring, and `08-15` `files_modified` mismatch** *(flagged by `architect` [Warning 1] and `context` [Warning 3])*:
+   - `08-10` Task 2 creates `createEventRouter(deps)` taking only `{ stationFlow, hyperspace, messages }` and tests that each of the 14 existing event kinds has **exactly one** subscriber.
+   - `08-15` Task 1 then adds a `worldLifecycle` subscriber to `launched` (after `stationFlow`) and `docked` (after `stationFlow`), which requires access to `ctx.core.worldLifecycle` (or a `worldLifecycle` dep passed from `src/app/game-session.ts`, which is **not** in `08-15`'s `files_modified`) and changes `launched` and `docked` from 1 subscriber to an ordered 2-subscriber fan-out while `08-15` says to preserve `08-10`'s assertions unchanged.
+   - **Required fix**: Pass `ctx` (or an optional `worldLifecycle` slot on `ctx.core`) into `createEventRouter` already in `08-10` (or add `src/app/game-session.ts` to `08-15`'s `files_modified`), and in `08-15` update `tests/app/session/event-router.test.ts` to assert an explicit subscriber table where 12 kinds have 1 subscriber and only `launched` and `docked` have the ordered pair `[stationFlow, worldLifecycle]`.
+
+5. **HIGH (`08-02` Task 3, `08-05` Task 1, `08-15` Task 1) — `worldSeedFor` / `forkSeed` uint32 `RangeError` vs `never throws inside a fixed step`** *(flagged by `triage` [Warning 2] and `correctness` [Warning 2])*:
+   - `08-02` specifies that `worldSeedFor(marketSeed, epoch)` and `forkSeed(worldSeed, purpose, entityId)` throw `RangeError` if `epoch >= 2^32` or `entityId >= 2^32`.
+   - `08-15` Task 1 states `begin`/`resume`/`end` in `world-lifecycle.ts` "never throw inside a fixed step", and `08-05` increments `nextId` monotonically across the life of a world.
+   - **Required fix**: Guard `begin` in `world-lifecycle.ts` so `epoch` saturates or refuses before `0xffffffff`, and document/guard in `08-05` that `nextId` is bounded (or refused before `0xffffffff`) so neither `worldSeedFor` nor `forkSeed` can ever throw inside `stepSim`.
+
+6. **HIGH (`08-05` Task 1, `08-11` Task 2, `08-13` Tasks 1–2) — `isNeverSpawned`, `world.rng` serialization shape, and `MAX_ENTITIES` non-dead cap semantics** *(flagged by `algorithm` [Warnings 1, 4, 5] and `triage` [Suggestion 3])*:
+   - **World RNG vs `isNeverSpawned`**: `serializeWorldSection(world)` returns `""` whenever `world.store.size === 0 && world.store.peekNextId() === 101`. If any future caller draws from `world.rng` without spawning an entity on the same tick, `world.rng.s` mutates without changing `hashWorld`. State and test the invariant that `world.rng` draws must co-commit with `spawnEntity` (or include `world.rng.s !== world.seed` in the predicate).
+   - **Plain `uint32` `rng` encoding**: Pin both `serializeWorldSection` (`rng=<uint32>`) and `WorldSnapshot.rng` (`number`) to the plain `uint32` integer `world.rng.s` (matching `AiComponent.rng: number`) and assert agreement in `08-13`'s codec parity test. Also clarify the contradictory sentence in `08-05` Task 1 step 6 so it unambiguously states `serializeWorldSection` returns `""` when never-spawned and the header+entity lines otherwise.
+   - **Non-dead cap check**: Because `store.live` contains killed-but-uncommitted entities (`e.dead === true`) until `commitKills()` at the end of `stepWorld`, `spawnEntity`'s `MAX_ENTITIES = 256` check and `08-13`'s property tests must count non-dead entities (`!e.dead`), not raw `live.length`. Add a unit test in `08-05` with 256 live non-dead entities + 3 killed-uncommitted entities where `kill` frees capacity for an immediate same-tick `spawn`.
+
+#### Single-Specialist Warnings Worth Incorporating Before Execution
+
+7. **WARNING (`08-03` Tasks 1–2, `08-09` Task 3, `08-02` Task 3) — `withSimProbe` temporary file prefix vs `tests/compliance.test.ts` and parallel Vitest `src/sim` scans** *(flagged by `context` [Warning 1] and `adversarial` [Warning 1–2])*:
+   - `tests/compliance.test.ts:74` walks the repo during `docker compose run --rm test` and only skips files starting with `__purity_`. Naming temporary files `__ban_*` / `__ok_*` (`08-03-PLAN.md:102`) will fail the SPDX header check (`tests/compliance.test.ts:259`) or race with `ENOENT` across parallel Vitest workers (including `08-02`'s recursive `src/sim` scan in `tests/sim/rng.test.ts`).
+   - **Required fix**: Force `withSimProbe` in `tests/guards/sim-probe.ts` to prefix all temporary basenames with `__purity_` and prepend the two-line GPL SPDX header; make `tests/sim/rng.test.ts` skip `__purity_*` files; use recursive globs (`src/sim/ai/**/*.ts`) in `08-09`'s ESLint AI-zone config; and widen `declaredFrameTypes` in `tests/guards/sim-purity.test.ts` beyond its current 24-line window while adding probes/bans for `Reflect.get(Math, "random")`, `Array.prototype.sort.call`, and `queueMicrotask`.
+
+8. **WARNING (`08-06` Task 2, `08-08` Tasks 1–2, `08-10` Task 1, `08-12` Task 1, `08-15` Task 3) — Unguarded `document`/`window` globals in Node Vitest unit tests** *(flagged by `context` [Warning 2])*:
+   - Vitest runs under `environment: "node"` (`vitest.config.ts:6`). `syncHeaderCredits` (`src/app/game-session.ts:862`, called via `renderStation()` during `confirmTrade()`/`cancelTrade()`), `syncStatusOverlay` (`:2161`, called inside `handleHyperspaceJumped` at `:2148`), and `closeSaveScreen` (`:1906`) call `document.querySelector`/`document.getElementById`/`document.activeElement` without a `typeof document !== "undefined"` guard (unlike line 825 which already guards `typeof document !== "undefined"`). Similarly, `window.addEventListener` for `onSubpanelKeyDown` (`:2268`) and `onLaunchKeyDown` (`:2289`) run at session construction time, and `onLaunchKeyDown` was omitted from the explicit function inventories of `08-06` and `08-12`.
+   - **Required fix**: Guard `typeof document !== "undefined"` in `syncHeaderCredits`, `syncStatusOverlay`, and `closeSaveScreen`; keep `window.addEventListener`/`removeEventListener` registration in the composition root (`game-session.ts` -> `start-session.ts`); and list `onLaunchKeyDown` explicitly in `08-06`/`08-12`.
+
+9. **WARNING (`08-13` Tasks 1–2, `08-08` Task 2, `08-12` Task 2, `08-14` Task 1, `08-15` Task 2, `08-05` Task 1, `08-16` Task 1) — Snapshot parser hardening, post-`dispose` async guards, and static/probe immutability** *(flagged by `adversarial` [Warnings 3, 4, 5])*:
+   - **`parseWorldSnapshot` & `restoreWorld` (`08-13`)**: Require `Number.isSafeInteger(nextId) && nextId >= 101`, cap string/array lengths and position/radius magnitudes, reject unknown keys and `__proto__`/`constructor`/`prototype` across all nested objects (matching `src/persistence/schema.ts`), reject nested objects inside `AiComponent.params`, and deep-copy all nested objects in `restoreWorld` (verified by mutating the snapshot object after `restoreWorld`).
+   - **Post-`dispose()` async & hook guards (`08-08`, `08-12`, `08-14`, `08-15`)**: Check `if (ctx.runtime.disposed) return;` after `await` in `clearSaveForNewGame` and `queueSnapshot`, track or guard `swapSystem`'s `requestAnimationFrame` callback against `disposed`, refuse `advanceTicks` when `ctx.runtime.disposed === true`, and include `worldLifecycle.end()` in `08-15`'s dispose-order test.
+   - **Immutability (`08-05`, `08-11`, `08-16`)**: `Object.freeze` `STATIC_ENTITIES` (and each static entity record + vectors) and `AI_REGISTRY`, and verify in `08-16` that mutating `window.__wegolite.sim` does not mutate `world.store`.
+
+10. **WARNING (`08-10` Task 2, `08-11` Task 1, `08-13` Task 1, `08-16` Tasks 1–2) — Freeze-branch `pending` clear test, default lazy `WorldView`, player-first mismatch reporting, and `probe.sim` menu-mode guard** *(flagged by `correctness` [Warnings 1, 3], `algorithm` [Warnings 2, 3], and `context` [Suggestions 1, 2])*:
+    - Add a unit test in `08-10` asserting `pending` is cleared when `chartOpen` or `saveScreenOpen` is true (`src/app/game-session.ts:2744,2755`) and add `pending.length = 0` to `08-12`'s pinned-literal audit table.
+    - Make lazy `createWorldView` construction in `stepWorld` (`08-11` Task 1 — allocate view only when `n > 0` and at least one AI entity has a wake or think due on that tick) the default implementation rather than waiting for `08-15`'s benchmark to fail.
+    - In `08-13` Task 1's 1,000-tick mismatch reporter, check `hashFlight(playerA) !== hashFlight(playerB)` first and report the first differing `serializeFlight` line before checking `entityHashes`.
+    - In `08-16`, publish `probe.sim` inside `if (currentState !== undefined)` in `updateProbe()` (so `menu` state has no `sim` key and `08-04`'s `probe-publisher.test.ts` does not crash when `ctx.core.state === undefined`), add `| sim |` to `probe-shape.spec.ts`'s audit table, call `startNewGame(page)` in `tick-hook.spec.ts` case (c), and add `"08-03"` to `08-05` `depends_on` and `"08-13"` to `08-15` `depends_on`.
 
 ### Divergent Views
-None, since only one reviewer ran. To get real cross-model consensus, install another reviewer CLI (e.g. codex) and run `/gsd-review --phase 8` again.
+
+- **Narrow per-controller TypeScript `Pick<SessionState, ...>` facets (`architect` Suggestion 1) vs shared `SessionState` bag (D-12)**: `reviewer-architect-kimi-k3-1-pro` suggested narrowing each controller's parameter type to a per-controller `Pick` facet to prevent cross-sub-bag coupling, whereas `08-CONTEXT.md` D-12 explicitly chose a single typed `SessionState` bag grouped into 6 sub-bags (`core`, `station`, `chart`, `flightUi`, `Save`, `runtime`) to avoid getter/setter ceremony during the mechanical split. **Resolution**: Keep the D-12 `SessionState` bag for Phase 8 so the 5-commit mechanical extraction stays low-risk; optional read-only type aliases can be considered post-split without changing runtime shapes.
+- **Handling of `world.rng` draws prior to first spawn (`algorithm` Warning 1)**: `reviewer-algorithm-deepseek-v4-pro` noted two options for closing the gap between `world.rng` draws and `isNeverSpawned`: either enforce that `world.rng` is never drawn without spawning an entity in the same step, or include `world.rng.s !== world.seed` in the `isNeverSpawned` predicate. **Resolution**: Both are compatible with D-08 (since Phase 8's `populateNothing` neither draws `world.rng` nor spawns entities); documenting the co-commitment rule and checking `world.rng.s === world.seed` in `isNeverSpawned` closes the hole cleanly without affecting NPC-free hash identity.
