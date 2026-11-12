@@ -1,8 +1,10 @@
 # Phase 8: Session Split and World Core - Research
 
-**Researched:** 2026-11-11
-**Domain:** Behaviour-preserving refactor of a 3,365-line TypeScript closure, plus a pure-TypeScript deterministic multi-entity world core (ids, store, seeded streams, hash, snapshot codec, AI seam), ESLint zone enforcement, and a Playwright tick-stepping test hook
-**Confidence:** HIGH (nearly everything is first-party code and planning artefacts read this session; two ESLint behaviours were proven by a container experiment)
+**Researched:** 2026-11-12 (forced refresh; supersedes the 2026-11-11 file)
+**Domain:** Behaviour-preserving split of a 3,365-line TypeScript closure, plus a pure-TypeScript deterministic multi-entity world core (ids, store, seeded streams, hash, snapshot codec, AI seam), ESLint zone enforcement, and a Playwright tick-stepping test hook
+**Confidence:** HIGH (nearly everything is first-party code and planning artefacts read this session; the ESLint zone behaviours were re-proven by a container experiment this session)
+
+**Revision note (read first).** Re-derived from the current `08-CONTEXT.md`. What moved against the 2026-11-11 file: (1) D-06 was amended on 2026-11-12: entity ids are unique **per world**, each new world restarts dynamic ids at 101, and no id outlives its world; the new section "Per-world id scope" below carries the consequences (lifecycle, what may and may not hold an id, hash, snapshot, tests, forward hazards). (2) D-07 is now stated the way the plans implement it: the five static bodies are **world entities** (records in `world.statics`, ids 1-5, referencing `SystemLayout` by key, never hashed, never in the dynamic store). The old file's diagram said "not stored"; that wording is withdrawn. (3) D-02 stays `mix32` (already corrected on 2026-11-12). (4) Round 1-4 cross-AI review findings that shaped the 16 plans are folded in as constraints (limits file, `advanceTicks` always a function, enum validation at spawn, `worldSeed` uint32, exact-JSON restore comparison, delivery cap, Firefox run). (5) Every in-repo discrete value below was re-read this session and is quoted verbatim.
 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
@@ -19,7 +21,8 @@
 - **D-05:** `epoch` and the entity-id counter advance identically whether traffic is on or off, so the seed and the ids never depend on the test traffic flag.
 
 **Fixed entity id table**
-- **D-06:** Fixed ids: `0` = `NO_ENTITY`; `1` planet; `2` sun; `3` main station; `4` witchpoint buoy; `5` station navigation buoy; `6..99` reserved for future static bodies; `100` player (Oolite's player UID); dynamic entities (NPCs, pods, missiles, wreckage) from `101`, monotonic and never reused. This supersedes ARCHITECTURE.md §5.1's draft `PLAYER_ID = 1`. — **Reversibility:** costly — ids appear in world hashes, golden fixtures and every AI/test reference; renumbering regenerates goldens.
+- **D-06:** Fixed ids: `0` = `NO_ENTITY`; `1` planet; `2` sun; `3` main station; `4` witchpoint buoy; `5` station navigation buoy; `6..99` reserved for future static bodies; `100` player (Oolite's player UID); dynamic entities (NPCs, pods, missiles, wreckage) from `101`, monotonic and never reused within the world that issued them. This supersedes ARCHITECTURE.md §5.1's draft `PLAYER_ID = 1`. — **Reversibility:** costly — ids appear in world hashes, golden fixtures and every AI/test reference; renumbering regenerates goldens.
+  - **Owner amendment 2026-11-12 (id scope):** id uniqueness is per world. Within one world, dynamic ids are monotonic and never reused. `nextId` restarts at `101` for each new world: each launch, each hyperspace arrival, and each in-flight Continue or Load. No entity id may outlive the world that issued it, so nothing outside the world (saves, HUD, logs, mission state, targeting across a jump) stores or transports one. Rationale: a world stays a pure function of its seed (D-02), so the world hash, snapshots and browser/Vitest parity stay reproducible. ROADMAP Phase 8 success criterion 2 and REQUIREMENTS FOUND-11 carry the same scope ("within the world that issued it"). Oolite contrast: its `OOUniversalID` comes from a wrapping counter that reuses freed slots even within one system (`Universe.m:5016-5020`), so Wegolite is deliberately stricter within a world. Plans 08-05 (`createWorld`) and 08-15 (the world lifecycle) implement it; plan 08-05 records it as Key Decisions row (d).
 - **D-07:** Both buoys are world entities with fixed ids, visible through `WorldView` (and later to the scanner, collision and AI "nearest buoy" queries). Static bodies are not duplicated: their entities reference `SystemLayout` data, which stays the single authority (PITFALLS 17). Aegis and the compass keep reading the layout.
 - **D-08:** With no NPC present, the world hash equals the v1 flight hash (success criterion 2). Static bodies are derived from the layout and must not change that hash.
 
@@ -46,9 +49,9 @@
 
 ### Deferred Ideas (OUT OF SCOPE)
 - A scenario-spawn test tool (place a named ship at a pose) for combat and law specs, owned by Phase 13 or the first phase that needs it.
-- Persisting `epoch` and `nextEntityId` in the save: Phase 11 (SAVE-07, SAVE-08 stage 1).
-- Out of scope for this phase (from the phase boundary): any NPC in play (Phase 12+), the populator (Phases 12 and 22), save schema v3 and persisting `epoch` (Phase 11, SAVE-07), collision (Phases 10, 13 and 15), chart-in-flight simulation (Phase 12), scenario spawning for combat specs (Phase 13+).
-- Reviewed todos not folded: the Shift+C CI timeout todo (ignored for Phase 8), the three Phase 12 todos, the Phase 15 planet/sun collision todo, the cost-basis and palette todos.
+- Persisting `epoch` and `nextEntityId` in the save: Phase 11 (SAVE-07, SAVE-08 stage 1). Reconciled with D-06 (amended 2026-11-12): the persisted `nextEntityId` is the issuing world's own counter, saved so that the same world regenerates at the leg anchor; it names no entity, so it does not carry an entity id across worlds.
+- Out of scope (phase boundary): any NPC in play (Phase 12+), the populator (Phases 12 and 22), save schema v3 and persisting `epoch` (Phase 11, SAVE-07), collision (Phases 10, 13 and 15), chart-in-flight simulation (Phase 12), scenario spawning for combat specs (Phase 13+).
+- Reviewed todos not folded: the Shift+C CI timeout todo (D-01: ignored for Phase 8), the three Phase 12 todos, the Phase 15 planet/sun collision todo, the cost-basis and palette todos.
 </user_constraints>
 
 <phase_requirements>
@@ -56,86 +59,87 @@
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| FOUND-10 | Existing v1 play is unchanged after `src/app/game-session.ts` is split into subsystems: every v1 golden, unit and e2e test passes without regeneration, and the probe shape is unchanged | Split table and hazards (Architecture Patterns 1-3), source-scan test impact, probe-shape spec design, Pitfalls 1-5, 12 |
-| FOUND-11 | The simulation holds many entities with stable, never-reused ids and canonical id-order iteration; with no NPCs present the world hash equals the v1 flight hash | Entity model and store (Pattern 4), hash composition (Pattern 5, Code Example 2), fixed-id table, Pitfalls 6-8 |
-| FOUND-12 | All simulation randomness comes from serialisable seeded streams forked per entity and purpose; `src/sim` has no `Math.random`, `Date` or wall clock; live and restored worlds hash identically after 1,000 ticks | RNG (Pattern 6, Code Example 1), snapshot codec (Pattern 7), lint bans (Pattern 8, Code Example 3, container-verified) |
-| FOUND-13 | AI code reads the world only through a typed `WorldView` and acts only through a typed `ShipControl`; AI state is plain serialisable data with integer tick timers | Seam types and AI zone (Pattern 9, Code Example 4), test pilot design |
-| FOUND-14 | Tests can advance the simulation by N ticks through the test hook, and NPC traffic is off by default in browser tests and opt-in per spec | Manual clock and flags (Pattern 10), sim-driver seam, e2e spec design |
+| FOUND-10 | Existing v1 play is unchanged after `src/app/game-session.ts` is split into subsystems: every v1 golden, unit and e2e test passes without regeneration, and the probe shape is unchanged | Patterns 1-3 (current structure, source-scan tests, probe-shape snapshot), Pitfalls 1-4, 12, 13 |
+| FOUND-11 | The simulation holds many entities with stable ids, never reused within the world that issued them (each new world restarts its dynamic ids, and no entity id outlives its world; D-06 as amended 2026-11-12), canonical id-order iteration; with no NPCs present the world hash equals the v1 flight hash | "Per-world id scope", Patterns 4-5 (entity model and store, composed hash), Pitfalls 5-8 |
+| FOUND-12 | All simulation randomness comes from serialisable seeded streams forked per entity and purpose; `src/sim` has no `Math.random`, `Date` or wall clock; live and restored worlds hash identically after 1,000 ticks | Patterns 6-8 (RNG and `mix32`, snapshot codec, lint bans), Pitfalls 8-10 |
+| FOUND-13 | AI code reads the world only through a typed `WorldView` and acts only through a typed `ShipControl`; AI state is plain serialisable data with integer tick timers | Pattern 9 (seam, pilot, AI zone), Pitfall 5 |
+| FOUND-14 | Tests can advance the simulation by N ticks through the test hook, and NPC traffic is off by default in browser tests and opt-in per spec | Pattern 10 (manual clock, flags, lifecycle, parity), Pitfalls 3, 11 |
 </phase_requirements>
 
 ## Project Constraints (from CLAUDE.md / AGENTS.md)
 
-`./CLAUDE.md` does not exist. `AGENTS.md` (project guide) is authoritative and carries the same weight as locked decisions. Directives that bind this phase:
+`./CLAUDE.md` and `./.claude/CLAUDE.md` do not exist at the repo root; the project guide is `AGENTS.md`, authoritative with the same weight as locked decisions. [VERIFIED: AGENTS.md read this session] Directives that bind this phase:
 
-- **Everything runs in Docker.** A green host run is not evidence. Commands: `docker compose run --rm test` (Vitest), `docker compose run --rm test npx vitest run <file>`, `docker compose run --rm e2e sh -lc "npm run build && npx playwright test <spec>"`, `docker compose run --rm typecheck`, `lint`, `verify` (fast gate), `verify-full` (release gate; CI runs it).
+- **Everything runs in Docker.** A green host run is not evidence. Commands: `docker compose run --rm test` (Vitest), `docker compose run --rm test npx vitest run <file>`, `docker compose run --rm e2e sh -lc "npm run build && npx playwright test <spec>"`, `docker compose run --rm e2e-cross` (Firefox, outside `verify`), `typecheck`, `lint`, `verify` (fast gate), `verify-full` (release gate; CI runs it).
 - **`src/sim/` is pure TypeScript**: no Three.js, no DOM, fixed-timestep, deterministic, unit-testable. Rendering, input and UI are downstream through commands and events.
-- **No database, no new server storage.** Saves stay in IndexedDB; Phase 8 does not touch the save schema.
-- **Licensing/provenance:** no new asset is added in this phase (no `NOTICE`/`ASSETS.md` change expected).
-- **No OXP support.**
-- **Documentation language:** all `.planning/`, docs, commit messages and PR text in English.
-- **Changelog:** user-visible changes go under `## [Unreleased]` in the same commit; internal-only changes (tests, refactors, build tooling) may be omitted.
-- **Decisions:** record significant decisions in `.planning/PROJECT.md` under Key Decisions.
-- **Scratch files** live under `/tmp` and are mounted into the container; never add scratch files to the repo.
-- **GSD workflow:** file changes go through a GSD command; subagents get the reviewer/subagent brief block and the Oolite checkout path (`/home/opencode/git/oolite`).
-- **Simple mechanical tasks** (status rows, renames, version bumps) are delegated to the cheapest model tier; design, simulation code, persistence and licensing stay on the main model.
-- Project skills read: `principle-boundary-discipline` (validate at boundaries, trust internal types), `principle-test-behavior-not-implementation` (assert observable behaviour; derive expected values from the requirement, not from the code under test), `principle-type-system-discipline` (make illegal states unrepresentable, parse JSON at the boundary).
+- **No database, no new server-side storage.** Saves stay in IndexedDB; Phase 8 does not touch the save schema.
+- **Licensing/provenance:** no asset is added in this phase (no `NOTICE`/`ASSETS.md` change). **No OXP support.**
+- **Documentation language:** English for `.planning/`, docs, commit messages and PR text.
+- **Changelog:** user-visible changes under `## [Unreleased]` in the same commit; internal-only changes (tests, refactors, build tooling) may be omitted. This phase is internal-only.
+- **Key Decisions:** record significant decisions in `.planning/PROJECT.md`.
+- **Scratch files** live under `/tmp` (or the session scratchpad) and are mounted into the container; never add scratch files to the repo.
+- **GSD workflow:** edits go through a GSD command; subagents get the reviewer/subagent brief block and the Oolite checkout path (`/home/opencode/git/oolite`); simple mechanical tasks go to the cheapest model tier, design/simulation/persistence/licensing stay on the main model.
+- **Codebase memory:** use the codebase-memory index first; prefer `rg` over `grep`.
+- Project skills read earlier: `principle-boundary-discipline` (validate at boundaries, trust internal types), `principle-test-behavior-not-implementation` (assert observable behaviour; derive expected values from the requirement, not from the code under test), `principle-type-system-discipline` (make illegal states unrepresentable, parse JSON at the boundary).
 
 ## Summary
 
-Phase 8 is two independent tracks joined at one seam. The **split track** mechanically decomposes `src/app/game-session.ts` (3,365 lines, one closure) into `src/app/session/*` modules in ten bisectable commits, guarded by a new probe-shape snapshot and by re-pointing the two tests that read the session file as text. The **core track** builds, in pure `src/sim`, a dense id-ordered entity store with never-reused ids, a serialisable mulberry32 stream with forked seeds, a composed world hash that is byte-identical to `hashFlight` when no NPC has ever existed, a strict snapshot codec, the read-only `WorldView` / write-only `ShipControl` seam, a scripted test pilot under `src/sim/ai/`, and ESLint rules that enforce all of it. One integration plan after split step 8 plugs `stepSim` into `sim-driver`, adds the world lifecycle (create at launch/arrival/in-flight restore, drop at dock, bump `epoch`), the `?test=1&clock=manual` / `&traffic=1` flags, `advanceTicks`, and one deliberate probe addition.
+Phase 8 is two independent tracks joined at one seam (D-14). The **split track** mechanically decomposes `src/app/game-session.ts` (3,365 lines, one closure) into `src/app/session/*` modules in ten bisectable commits, guarded by a probe-shape snapshot and by re-pointing the two tests that read the session file as text. The **core track** builds, in pure `src/sim`, a dense id-ordered entity store whose ids are never reused within a world, a serialisable mulberry32 stream with `mix32`-forked seeds, a composed world hash that is byte-identical to `hashFlight` while nothing has ever spawned, a strict snapshot codec, the read-only `WorldView` / write-only `ShipControl` seam, a scripted test pilot under `src/sim/ai/`, and ESLint rules that enforce all of it. One integration plan after split step 8 plugs `stepSim` into `sim-driver`, adds the **world lifecycle** (a brand-new world at every launch, arrival and in-flight Continue/Load; dropped at dock; `epoch` bumped at launch and arrival), the `?test=1&clock=manual` / `&traffic=1` flags, `advanceTicks`, and, in a final plan, one deliberate additive probe commit.
 
-The riskiest facts found in the code: (1) the two session-text scanning tests are order-sensitive (`toEqual` on an ordered two-element array of `renderFrame(` matches) and `switchCaseBody` picks the *first* `case "docked":` in the concatenation, so the step-0 helper must be written to be order-independent and the event-router file must be the only place with that `case`; (2) the existing `no-restricted-syntax` / `no-restricted-imports` configs are replaced, not merged, by a later config block that sets the same rule key (verified), so the AI-zone block must restate what it needs; (3) `tests/guards/sim-purity.test.ts` source-scans `src/sim` for any import specifier containing the substring `input` and for type names containing `Frame` — new sim files must avoid both; (4) the `?test=1` hook captures `FlightState` by identity (G-8), so `advanceTicks` and the world must read live session fields through the context, never capture them; (5) FIDELITY.md pins `src/sim/hyperspace/arrival.ts:125` and `src/sim/flight/step.ts:218`, so leave those files byte-identical by re-implementing `createSeededRandom` on top of the new RNG inside `math.ts` instead of editing `arrival.ts`.
+The amended D-06 makes the world a **pure function of `(worldSeed, ordered inputs)`**: because `nextId` restarts at 101 in every new world, a world has no memory of earlier worlds, and nothing may carry an id across the boundary. That is the property that keeps the world hash, snapshots and browser/Vitest parity reproducible, and it is cheap to honour in Phase 8 because no NPC exists yet. It becomes a live hazard from Phase 12 (scene maps keyed by id, queued events, HUD target) and is documented below as a standing rule.
+
+The riskiest facts found in the code: (1) the two session-text scanning tests are order-sensitive (`toEqual` on an ordered two-element array of `renderFrame(` matches) and `switchCaseBody` picks the *first* `case "docked":` in the text it is given; (2) a later ESLint config block that sets the same rule key **replaces** the earlier block's options (re-proven this session), so the AI-zone block must restate what it needs; (3) `tests/guards/sim-purity.test.ts` source-scans `src/sim` for import specifiers containing `input` and for declared type names containing `Frame` (also in `src/app`); (4) the `?test=1` hook captures `FlightState` by identity (the G-8 bug class), so `advanceTicks` and the world must read live context fields, never captured ones; (5) FIDELITY.md pins `src/sim/hyperspace/arrival.ts:125` and `src/sim/flight/step.ts:218`, so those files stay byte-identical: re-implement `createSeededRandom` on top of the new RNG inside `math.ts`.
 
 No external package is needed: everything uses the existing toolchain (TypeScript 6.0.2, Vitest 5.0.5, fast-check 4.10.2, ESLint 10.14.0, typescript-eslint 8.72.1, Playwright 1.64.1). The Package Legitimacy Gate is therefore not triggered.
 
-**Primary recommendation:** Pin the safety nets first (verify-full baseline, probe-shape spec, session-source helper, recorded v1 flight-hash pins), then run the split (A track) and the core (B track) in parallel under the D-14 file ownership, and join them in one integration plan that only touches `sim-driver`, the world lifecycle hooks, the hook/flags and one probe-snapshot update.
+**Primary recommendation:** Pin the safety nets first (verify-full baseline, probe-shape spec, session-source helper, recorded v1 flight-hash and RNG vectors), run the split (track A) and the core (track B) in parallel under the D-14 file ownership, and join them in one integration plan that only touches `sim-driver`, the world lifecycle, the flags and the single post-split probe update.
 
 ## Architectural Responsibility Map
 
 | Capability | Primary Tier | Secondary Tier | Rationale |
 |------------|-------------|----------------|-----------|
-| Entity ids, store, iteration order, hash, snapshot codec, RNG, AI seam types | `src/sim` (pure) | — | Determinism product; must run in Node with no DOM/Three (AGENTS.md constraint 3 of Conventions) |
-| Static-body entities (ids 1-5) | `src/sim` view over `SystemLayout` | — | `SystemLayout` stays the single authority (D-07); not stored, not hashed (D-08) |
-| Player as entity id 100 | `src/sim` adapter over `FlightState` | — | Storage stays `FlightState` (ARCH §5.4); uniform read interface only |
+| Entity ids, store, iteration order, hash, snapshot codec, RNG, AI seam types | `src/sim` (pure) | — | Determinism product; must run in Node with no DOM/Three (AGENTS.md Conventions) |
+| Static-body entities (ids 1-5) | `src/sim` records in `world.statics` that reference `SystemLayout` by key | — | D-07: entities with fixed ids, `SystemLayout` stays the single authority; never hashed (D-08) |
+| Player as entity id 100 | `src/sim` adapter over `FlightState` | — | Storage stays `FlightState`; uniform read interface only |
 | Per-tick orchestration (`stepSim`) | `src/sim` | `src/app/session/sim-driver` calls it | `stepFlight` runs first, world after; the app only drives and routes events |
-| World lifecycle (create at launch/arrival, drop at dock, bump `epoch`) | `src/app/session` (hyperspace, station-flow, sim-driver) | `src/sim` supplies `createWorld`/`worldSeed` | Lifecycle is session policy keyed on events; derivation is sim |
-| Manual clock, `advanceTicks`, traffic flag | `src/app/session` (test-flags, sim-driver, probe hook) | — | URL flags are an app boundary; the sim never sees them |
-| Lint bans and AI zone | `eslint.config.js` + `tests/guards/*` | — | Mechanical enforcement; proven by generated probes |
+| World lifecycle (create at launch/arrival/Continue/Load, drop at dock, bump `epoch`) | `src/app/session` (world-lifecycle, hyperspace, event-router) | `src/sim` supplies `createWorld`/`worldSeedFor` | Lifecycle is session policy keyed on events; derivation is sim. Per-world id scope is enforced here by never reusing a `World` object |
+| Manual clock, `advanceTicks`, traffic flag | `src/app/session` (test-flags, sim-driver) and the hook in `src/app/probe.ts` | — | URL flags are an app boundary; the sim never sees them |
+| Lint bans and AI zone | `eslint.config.js` + `tests/guards/*` | — | Mechanical enforcement, proven by generated probes |
 | Probe shape pin and tick-hook parity | Playwright (`tests/e2e`) | Vitest for the pure parts | Only a browser can read the real `window.__wegolite` |
-| Session split bookkeeping tests | Vitest (`tests/app`, `tests/helpers`) | — | Source-scan tests read text, no browser |
+| Split bookkeeping tests | Vitest (`tests/app`, `tests/helpers`) | — | Source-scan tests read text, no browser |
 
 ## Standard Stack
 
 ### Core
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| TypeScript | 6.0.2 | Types for the world model, branded-free `EntityId` | Project toolchain [VERIFIED: package.json devDependencies] |
-| Vitest | 5.0.5 | Unit/integration incl. world property tests | Project toolchain; `include` covers `src/**/*.test.ts`, `tests/**/*.test.ts` [VERIFIED: vitest.config.ts] |
-| fast-check | 4.10.2 | Property tests for store invariants (ids monotonic, never reused, snapshot round trip) | Already a devDependency [VERIFIED: package.json] |
-| ESLint + typescript-eslint | 10.14.0 / 8.72.1 | Zone enforcement via core rules `no-restricted-imports/-globals/-properties/-syntax` | Existing mechanism; no plugin needed (container experiment, Pattern 8) |
-| Playwright | 1.64.1 | Probe-shape spec and tick-hook spec | Project e2e toolchain [VERIFIED: package.json, playwright.config.ts] |
+| TypeScript | 6.0.2 | World model types; plain-alias `EntityId` | Project toolchain [VERIFIED: package.json] |
+| Vitest | 5.0.5 | Unit/integration incl. world property tests | `npm test` is `"test": "vitest run --coverage"` [VERIFIED: package.json:17] |
+| fast-check | 4.10.2 | Property tests for store invariants (unique ids per world, ascending order, snapshot round trip) | Already a devDependency [VERIFIED: package.json] |
+| ESLint + typescript-eslint | 10.14.0 / 8.72.1 | Zone enforcement via core rules `no-restricted-imports/-globals/-properties/-syntax` | Existing mechanism; no plugin needed (Pattern 8, container-proven) [VERIFIED: package.json:35,42] |
+| Playwright | 1.64.1 | Probe-shape spec and tick-hook spec | Project e2e toolchain [VERIFIED: package.json] |
 
 ### Supporting
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `src/sim/hash.ts` (`fnv1a32`, `canon`) | in-repo | World hash text (not seed mixing: world and fork seeds use `mix32` per D-02, see Pattern 6) | All hashing; never `JSON.stringify` for hashed text |
+| `src/sim/hash.ts` (`fnv1a32`, `canon`) | in-repo | World hash text | Never `JSON.stringify` for hashed text |
 | `tests/guards/eslint-gate.ts` (`lintProbe`) + `probe-lock.ts` (`withProbeLock`) | in-repo | Generated-probe lint proofs for the new bans | One guard test per ban and for the AI zone |
 | `tests/helpers/lave.ts` (`laveFixture`) | in-repo | Real layout/config for world tests and Node-side expected hashes | Any test needing a `SystemLayout` |
 
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| Hand-rolled store | bitecs / miniplex / koota | Rejected in STACK.md Decision 1: bitecs recycles ids, miniplex has no ids/serialisation, koota has no documented snapshot API [CITED: .planning/research/STACK.md:56-86] |
-| `eslint-plugin-import` `no-restricted-paths` for the AI zone | core `no-restricted-imports` with `regex` allow-list | Plugin would add a dependency and a Docker rebuild; the core rule with a negative-lookahead regex was proven to work (Pattern 8) |
-| Branded `EntityId` | plain `number` alias | ARCH §5.1 uses a plain alias; ids cross JSON and fixtures constantly. Recommend plain alias; the skill's "brand semantic primitives" is satisfied adequately by the named alias plus the `NO_ENTITY` constant (discretion) |
+| Hand-rolled store | bitecs / miniplex / koota | Rejected in STACK.md Decision 1: bitecs recycles ids, miniplex has no ids/serialisation, koota has no documented snapshot API [CITED: .planning/research/STACK.md "Decision 1: Entity store"] |
+| `eslint-plugin-import` `no-restricted-paths` for the AI zone | core `no-restricted-imports` with a `regex` allow-list | A plugin adds a dependency and a Docker rebuild; the regex allow-list was proven this session |
+| Branded `EntityId` | plain `number` alias | ARCHITECTURE §5.1 uses a plain alias; ids cross JSON and fixtures constantly. Use the alias plus `NO_ENTITY` |
 
-**Installation:** none. No `package.json` change is expected, so no `docker compose down --volumes` is needed for dependencies.
+**Installation:** none. No `package.json` dependency change, so no `docker compose down --volumes` for dependencies. (Plan 08-01 edits one `package.json` *script*, `test:e2e:fast`; that needs no volume reset.)
 
-**Version verification:** versions read from `package.json` this session; the container reports Node `v24.22.2` [VERIFIED: `docker compose run --rm lint node --version`]. No registry query is needed because nothing new is installed.
+**Version verification:** versions read from `package.json` this session; the container reports Node `v24.22.2` [VERIFIED: `docker compose run --rm lint node --version` this session]. Nothing new is installed, so no registry query applies.
 
 ## Package Legitimacy Audit
 
-This phase installs no external packages. `package-legitimacy check` was therefore not run.
+This phase installs no external packages; `package-legitimacy check` was not run.
 
 | Package | Registry | Age | Downloads | Source Repo | Verdict | Disposition |
 |---------|----------|-----|-----------|-------------|---------|-------------|
@@ -149,174 +153,175 @@ This phase installs no external packages. `package-legitimacy check` was therefo
 ### System Architecture Diagram
 
 ```
-                           URL: ?test=1 [&clock=manual] [&traffic=1]   (read once at boot)
-                                         |
-                                 parseTestFlags()  (pure, Node-testable)
-                                         |
-  keyboard/UI ---> input.drainCommands() |        window.__wegolite  <--- probe-publisher (shape frozen until the
-       |                 |               v                                  one deliberate post-split commit)
-       |                 v        +--------------+                              ^
-       |         frame-loop ----> | sim-driver   |----> stepOnce(commands) -----+  (probe.sim.tick/entities/epoch)
-       |         (render always)  | realtime:    |        |
-       |                          |  GameLoop.advance     |  1. stepFlight(player,...)     [unchanged]
-       |                          | manual clock:         |  2. world live? stepWorld(world, player, ...)
-       |                          |  advanceTicks(n) ---->|  3. events -> event-router (ordered subscribers)
-       |                          +--------------+        v
-       |                                                 SimEvent[] --> hudMessages, stationFlow, dockFeedback,
-       |                                                                 hyperspaceFlow (lifecycle hooks), autosave
-       v
-  render-driver (single gated renderFrame call site; redrawGate.request x5)
+            URL: ?test=1 [&clock=manual] [&traffic=1]     (parsed ONCE at boot by parseTestFlags)
+                                   |
+ keyboard/UI -> frame-loop (render always; probe.frames += 1)           window.__wegolite  <- probe-publisher
+                   |                                                    (shape frozen until the ONE deliberate
+        realtime:  |  manual clock: no GameLoop.advance,                 additive commit of plan 08-16)
+        GameLoop.advance          advanceTicks(n) only                          ^
+                   \                 /                                          |
+                    +-> sim-driver.stepOnce(commands) -------------------------+  probe.sim {tick, epoch, entities, ...}
+                            |
+                            | 1. stepFlight(player, ...)                  [unchanged, owns FlightState]
+                            | 2. world live? stepWorld(world, player,...) [id order, length snapshot, AI think, FIFO event drain]
+                            | 3. SimEvent[] -> event-router (ordered subscribers)
+                            v
+        hudMessages, stationFlow, dockFeedback, hyperspaceFlow, worldLifecycle, autosave
 
-  stepWorld (pure, src/sim):  W0 tick/commands -> W1 update (id order, length snapshot) -> W2 AI think
-                              (id order; WorldView read, ShipControl write; queued events drained FIFO)
-                              -> W5 commit (compact dead, rebuild id index)
-  World = { store (dense array ascending id + id->index Map for lookup only), nextId, world rng, aiQueue }
-  Static ids 1..5 and player id 100 are NOT stored: WorldView synthesises them from SystemLayout / FlightState.
-  hashWorld(player, world?) = fnv1a32( serializeFlight(player) + section ), section = "" until anything ever spawned
+ World lifecycle (session policy, one World object per world, never reused):
+   launched event            -> epoch += 1; world = createWorld(worldSeedFor(marketSeed, epoch)); populate(world,{traffic})
+   hyperspaceJumped install  -> epoch += 1; world = createWorld(worldSeedFor(newMarketSeed, epoch)); populate(...)
+   in-flight Continue / Load -> world = createWorld(worldSeedFor(marketSeed, epoch)) [no bump]; populate(...)
+   docked event / dispose    -> world = undefined          (hashWorld(player, undefined) === hashFlight(player))
+   every createWorld starts its dynamic ids at 101 (D-06 as amended); no id crosses a boundary above
+
+ World = { worldSeed, statics[5] (frozen records -> SystemLayout keys), store (ascending array, nextId), rng }
+ hashWorld(player, world?) = fnv1a32( serializeFlight(player) + section ),  section = "" until anything ever spawned
 ```
 
 ### Recommended Project Structure
 ```
 src/sim/
-  rng.ts                  # RngState, rngNext, forkSeed, mix32 (new; core track)
-  math.ts                 # createSeededRandom delegates to rng.ts (core track; same bit sequence)
+  rng.ts                  # RngState, rngNext, fmix32, mix32, worldSeedFor, forkSeed, purposes (core track)
+  math.ts                 # createSeededRandom delegates to rngNext (same bit sequence; core track owns it)
   events.ts               # + reserved presentation/audio event types (core track)
-  sim.ts                  # stepSim(player, world, ...) composes stepFlight + stepWorld (core track)
+  sim.ts                  # stepSim(player, world, ...) composes stepFlight + stepWorld
   world/
-    ids.ts                # EntityId, NO_ENTITY, fixed ids, FIRST_DYNAMIC_ID, MAX_ENTITIES (no imports; AI-importable)
-    entity.ts             # Entity, components, EntityKind, ScanClass, BehaviourId unions
-    store.ts              # EntityStore (spawn, kill, commit, get, live)
-    world.ts              # World, createWorld(layout, worldSeed), worldSeedFor(marketSeed, epoch)
-    view.ts               # WorldView interface + ShipView (TYPES ONLY; AI-importable)
-    control.ts            # ShipControl interface (TYPES ONLY; AI-importable)
-    view-impl.ts          # createWorldView(world, player, layout) (imports internals)
-    control-impl.ts       # createShipControl(world, actorId)
-    serialize.ts          # serializeWorldSection, hashWorld
-    snapshot.ts           # snapshotWorld, restoreWorld, parseWorldSnapshot (boundary validation)
-    sanitize.ts           # sanitizeEntity (finite check, -0, renormalise, repair count)
-    step.ts               # stepWorld
-  ai/
-    types.ts              # AiComponent, ParamValue, AiThink signature
-    time.ts               # ticks(seconds) rounding in one place
-    registry.ts           # AI_REGISTRY: aiKey -> think (world/step.ts imports this)
-    pilots/test-pilot.ts  # D-11
-src/app/session/          # split track: context, probe-publisher, render-driver, chart-controller,
-                          # settings-controller, station-controller, save-controller, hyperspace-controller,
-                          # event-router, sim-driver, frame-loop, start-session, test-flags
+    ids.ts                # EntityId, NO_ENTITY, fixed ids, FIRST_DYNAMIC_ID, MAX_ENTITIES, closed vocabularies (no imports)
+    limits.ts             # the ONE owner of shared numeric/string limits (review R4 item 4)
+    entity.ts, store.ts, world.ts (createWorld, STATIC_ENTITIES, worldSeedFor re-export)
+    view.ts, control.ts   # TYPES ONLY; the only world files AI code may import (with ids.ts)
+    view-impl.ts, control-impl.ts
+    serialize.ts          # serializeEntity, serializeWorldSection, entityHashes, hashWorld
+    sanitize.ts, snapshot.ts, step.ts
+  ai/                     # types.ts, time.ts, registry.ts, pilots/test-pilot.ts (D-11)
+src/app/session/          # context, probe-publisher, render-driver, chart/settings/station/save/hyperspace controllers,
+                          # event-router, sim-driver, step-options, frame-loop, start-session, test-flags, world-lifecycle
 src/app/game-session.ts   # shrinks to the facade; createGameSession stays the only public export
-tests/helpers/session-source.ts   # step 0 helper
-tests/sim/world/, tests/sim/ai/, tests/guards/ (new bans + AI zone), tests/e2e/probe-shape.spec.ts, tests/e2e/tick-hook.spec.ts
+tests/helpers/session-source.ts, tests/helpers/recorded-flights.ts, tests/helpers/tick-script.ts
+tests/sim/world/, tests/sim/ai/, tests/sim/rng.test.ts, tests/guards/ (sim-determinism-bans, ai-zone),
+tests/e2e/probe-shape.spec.ts, tests/e2e/tick-hook.spec.ts, tests/golden/world/flight-hash-pins.json
 ```
-Avoid file or specifier names containing the substring `input` anywhere in `src/sim` and avoid declaring type names containing `Frame` in `src/sim` or `src/app` (Pitfall 4).
+Avoid file names or import specifiers containing the substring `input` anywhere in `src/sim`, and avoid declaring type names containing `Frame` in `src/sim` or `src/app` (Pitfall 4).
 
 ### Pattern 1: The current session structure (what the split moves)
-**What:** `createGameSession` is one closure from line 335 with about 100 `let` fields (356-487) and about 120 inner functions. Section line ranges in ARCHITECTURE §4.1 still match the file: `handleEvent` at 2294, `updateProbe` at 2412, `frame` at 2699, `startSession` at 2884, `performSwap` at 3265, `dispose` at 3303 [VERIFIED: rg of `^  function` lines in src/app/game-session.ts]. `createGameSession` returns `start, resize, pause, resume, isPaused, enterContextLoss, exitContextLoss, clearInput, focusLost, shown, dispose` [VERIFIED: src/app/game-session.ts:3348-3364].
-**When to use:** follow ARCH §4.1 module table and §4.2 order exactly (D-12). Each step: one commit, `docker compose run --rm verify` green; `verify-full` at steps 3, 6, 9.
-**Behaviour that must survive (read this session):**
-- `frame()` order: `rafId = requestAnimationFrame(frame); probe.frames += 1;` then guard on undefined live fields; pause toggle; chart drain; save-screen drain; chart-open branch (drains, `redrawGate.request()`, `updateProbe()`, return); save-screen branch (same); station actions applied only when `!paused && mode === "docked"`; commands drained and the `launch` filter applied; **pre-launch `autosave()` while still docked**; `mapHyperspaceBeginEdges`; one `currentInput.frame()` per rendered frame shared by every step; `currentLoop.advance(delta, commands, stepCb)`; `renderFrame(alpha, shouldDraw())` [VERIFIED: src/app/game-session.ts:2699-2864].
-- The step callback re-reads `state/layout/config` live for every step (a jump can swap them mid-frame), sets `previousPose = currentPose`, picks `scripted` controller when `mode === "launching"`, derives `equipmentSet()`, `targetSystem()`, `witchspaceStationMass(system.station)`, builds `StepOptions` with `dock: dockGeometry` when present, calls `stepFlight(...)`, runs `handleEvent` per event, advances `launchSequence` only when `modeBefore === "launching"`, then `currentPose = poseOf(liveState)` [VERIFIED: src/app/game-session.ts:2795-2854].
-- `handleHyperspaceJumped` is called from inside the step (via `handleEvent`), is the single synchronous install block, sets `paused = true` on a failed arrival, and calls `autosave()` last [VERIFIED: src/app/game-session.ts:2061-2158]. World teardown/populate and the `epoch` bump join this block and must not throw inside it.
-- The hook binds to the live `FlightState` object: `bindTestHook(activeState)` is called at boot (`testHookEnabled = new URLSearchParams(window.location.search).get("test") === "1"`) and again after every in-session Load (`if (testHookEnabled) bindTestHook(restored.state)`) [VERIFIED: src/app/game-session.ts:1034-1048, 1418, 3184-3186]. The new hook methods must read live context fields, never a captured state.
+**What:** `createGameSession` is one closure of about 100 `let` fields and about 120 inner functions. Anchors re-read this session [VERIFIED: `rg '^  function ...' src/app/game-session.ts`]: `handleHyperspaceJumped` at 2061, `handleEvent` at 2294, `updateProbe` at 2412, `frame` at 2699, `performSwap` at 3265, `dispose` at 3303; file length 3365 lines. Line anchors go stale after every extraction: executors locate code by pattern, not line.
+**Behaviour that must survive (read this session, `src/app/game-session.ts:2790-2864`):** one immutable frame per rendered frame, `const frameInput = currentInput.frame(); currentFrame = frameInput;` shared by every fixed step; the step callback is `alpha = currentLoop.advance(delta, commands, (stepCommands) => {` and re-reads `const liveState = state; const liveLayout = layout; const liveConfig = config;` per step (a jump can swap them mid-frame), returns early when any is `undefined`, sets `previousPose = currentPose`, picks `const controller = liveState.mode === "launching" ? scripted : player;`, derives `equipmentSet()`, `targetSystem()` and `witchspaceStationMass(system.station)`, builds `StepOptions` (`dock: dockGeometry` only when defined), calls `stepFlight(liveState, liveLayout, liveConfig, intent, stepCommands, DT, stepOptions)`, runs `handleEvent(event)` per event, then `launchSequence.advance(DT, liveState.mode === "inFlight")` only when `modeBefore === "launching"`, then `currentPose = poseOf(liveState);`. The paused branch drains `currentInput.drainCommands(); pending.length = 0;` and zeroes `currentFrame`, and the frame ends with `renderFrame(alpha, shouldDraw());`.
+**Hook binding (G-8):** the test-flag line is `testHookEnabled =\n      new URLSearchParams(window.location.search).get("test") === "1";` followed by `if (testHookEnabled) bindTestHook(flightState);` [VERIFIED: src/app/game-session.ts:3184-3186]; `bindTestHook(activeState: FlightState)` is at 1034 and is re-called after an in-session Load at 1418 (`if (testHookEnabled) bindTestHook(restored.state);`). New hook methods must read live context fields, never a captured `FlightState`.
+**Single install block:** `handleHyperspaceJumped` (2061-2158) is the synchronous install on a jump; world teardown/creation and the `epoch` bump join it and must not throw inside it.
+**When to use:** follow ARCHITECTURE §4.1 module table and §4.2 order exactly (D-12). Each step: one commit, `docker compose run --rm verify` green; `verify-full` at steps 3, 6, 9.
 
 ### Pattern 2: Step 0 and the source-scan tests
 **What:** two tests read the session as text.
-- `tests/app/redraw-gate.test.ts:113-155`: exactly one `renderFrame(alpha, shouldDraw())`; the list of comma-containing `renderFrame(...)` calls must `toEqual` the **ordered** pair `["renderFrame(alpha: number, draw = true)", "renderFrame(alpha, shouldDraw()"]`; exactly five `redrawGate.request();`; `redrawGate.next(paused || state?.mode === "docked", drawKeys())`; `return [state, scene, scene?.nebulae?.revision() ?? 0];`; `probe.frames += 1;`; `probe.renders = renderer.info.render.frame;` [VERIFIED: tests/app/redraw-gate.test.ts:112-155].
-- `tests/guards/economy-purity.test.ts:201-207, 311-353`: `switchCaseBody(source, "docked")` takes the **first** `case "docked":` in the text; exactly three `generateMarket(` producers; three regexes on `arrivalMarketSeed`/`savedSystem`/`restoredMarketSeed`; no `Date.now`/`performance.now`; also the two-field profile literal scan reads `src/app/game-session.ts` [VERIFIED: tests/guards/economy-purity.test.ts:201-207, 307-353].
-**Implication for the helper (`tests/helpers/session-source.ts`):** concatenate `game-session.ts` plus `src/app/session/**/*.ts` in a fixed sorted order (a comparator, not bare `.sort()` is fine in tests, but keep it deterministic). Make the redraw-gate assertion order-independent (assert the pair as a set/length-2 with both members) because after the split the declaration (in `render-driver.ts`) and the gated call (in `frame-loop.ts`) land in alphabetical order frame-loop < render-driver, reversing the current order. Keep `case "docked":` unique across the concatenation: today it exists once (`src/app/game-session.ts:2321`) [VERIFIED: rg]; after the split it must stay once (in the event-router `stationFlow` subscriber). If a second `switch` over `"docked"` is introduced elsewhere, `switchCaseBody` may scan the wrong body. Step 0 must be green against the unmodified monolith.
+- `tests/app/redraw-gate.test.ts:113-155` [VERIFIED, read this session]: `const source = readFileSync("src/app/game-session.ts", "utf8");` then exactly one `renderFrame(alpha, shouldDraw())`, and
+  `expect(gated).toEqual([\n      "renderFrame(alpha: number, draw = true)",\n      "renderFrame(alpha, shouldDraw()",\n    ]);` (an **ordered** pair), the string `redrawGate.next(paused || state?.mode === "docked", drawKeys())`, `return [state, scene, scene?.nebulae?.revision() ?? 0];`, `source.match(/redrawGate\.request\(\);/g)).toHaveLength(5)`, `probe.frames += 1;` and `probe.renders = renderer.info.render.frame;`.
+- `tests/guards/economy-purity.test.ts:201-207` [VERIFIED]: `switchCaseBody` uses `source.search(new RegExp(\`case\\s+"${name}"\\s*:\`))`, i.e. the **first** match; `:311-353` read `src/app/game-session.ts` for the two-field profile literal and `generateMarket` producers (`toHaveLength(3)`), then `const docked = switchCaseBody(session, "docked");`.
+**Implication for `tests/helpers/session-source.ts`:** concatenate `game-session.ts` plus `src/app/session/**/*.ts` in a deterministic comparator order (a comparator is fine in tests). After the split the `renderFrame(alpha: number, draw = true)` declaration (render-driver) and the gated call (frame-loop) concatenate in alphabetical order frame-loop then render-driver, which reverses the pair; make the assertion order-independent. `case "docked":` exists once today (`src/app/game-session.ts:2321`) [VERIFIED: `rg 'case "docked":' src/app`] and must stay once across the concatenation (in the event-router's station-flow subscriber), or `switchCaseBody` may scan the wrong body. The helper must fail loudly on zero session sources (vacuity guard). Step 0 must be green against the unmodified monolith.
 
 ### Pattern 3: Probe-shape snapshot (before step 1) and the post-split deliberate commit
-**What:** `tests/guards/probe-lock.ts` is the guard-probe lock, not a probe-shape check [VERIFIED: file header]. A new Playwright spec `tests/e2e/probe-shape.spec.ts` serialises the shape of `window.__wegolite` (recursive: sorted keys, `typeof` per leaf, `null` kept distinct, arrays as the sorted set of element shapes, functions as `"function"` for `probe.test`) at: menu, docked, in-flight, paused, chart-open, after a save. It must wait on `probe.frames` increments, never on wall time (PITFALLS 11). The expected shapes are committed JSON fixtures (prettier will format them; `.prettierignore` does not exclude `tests/golden` generally, so write them formatted or add an ignore line like the existing `dock-port.json` precedent).
-**Volatile optional keys:** fields that appear only after time passes (`hint`, `restore`, `dust`, `world`, `shipVisible`) must be handled by sampling at a deterministic point or by an explicit allow-list; the spec must still fail on any added/removed/renamed key (D-13) in the sampled states.
-**Fast-gate membership:** `verify` runs `npm run test:e2e:fast` = `playwright test --project=chromium tests/e2e/scene.spec.ts tests/e2e/docking.spec.ts tests/e2e/save-load.spec.ts` [VERIFIED: package.json scripts]. Because D-12 requires `verify` green per split step, add `tests/e2e/probe-shape.spec.ts` to `test:e2e:fast` in the step-0 plan (split track owns `package.json` scripts for this).
-**Post-split deliberate commit:** add `probe.sim = { tick, epoch, entities, traffic, clock }` (cheap integers/booleans, published every frame) and hook methods `advanceTicks(n)` / `worldHash()` (functions, under `?test=1` only), and update the shape fixture in that same commit. Do not compute the hash per frame (28 KB text at 40 ships, ARCH §16).
+**What:** a Playwright spec `tests/e2e/probe-shape.spec.ts` serialises the recursive shape of `window.__wegolite` (sorted keys, `typeof` per leaf, `null` distinct, arrays as the sorted set of element shapes, `probe.test` members as `"function"`) at menu, docked, in-flight, paused, chart-open and after a save; fixtures are committed JSON; waits use `probe.frames` increments, never wall time (PITFALLS 11). Volatile optional keys (`hint`, `restore`, `dust`, `world`, `shipVisible`) are sampled at deterministic points or allow-listed, but the spec must still fail on any added, removed or renamed key.
+**Fast-gate membership:** `verify` runs `"test:e2e:fast": "playwright test --project=chromium tests/e2e/scene.spec.ts tests/e2e/docking.spec.ts tests/e2e/save-load.spec.ts"` [VERIFIED: package.json:20]; the step-0 plan adds `tests/e2e/probe-shape.spec.ts` to it, paired with `tests/contract/container-contract.test.ts` (plan 08-01).
+**Post-split deliberate commit (plan 08-16 only):** add `probe.sim` (cheap integers/booleans: `tick`, `epoch`, `entities` count, `traffic`, `clock`) and hook members `advanceTicks` and `worldHash` **as always-present functions** (R4 consensus 3: `advanceTicks` refuses outside the manual clock but is never `undefined`, so 08-01's "every `probe.test` member reads `function`" contract survives). Update the shape fixture in that same commit. Never compute the hash per frame (28 KB of text at 40 ships, ARCHITECTURE §16 [CITED: .planning/research/ARCHITECTURE.md]). The additive-only rule is machine-checked by a subtractive diff of the fixture.
 
-### Pattern 4: Entity model and store
-**What (ARCH §5, adapted to the locked ids):**
+### Pattern 4: Entity model and store (ids per D-06)
+**What (ARCHITECTURE §5 adapted to the locked ids):**
 ```ts
-export type EntityId = number;                  // plain alias (discretion)
+export type EntityId = number;                  // plain alias
 export const NO_ENTITY = 0;
 export const PLANET_ID = 1; export const SUN_ID = 2; export const MAIN_STATION_ID = 3;
 export const WITCHPOINT_BUOY_ID = 4; export const STATION_NAV_BUOY_ID = 5;
-export const PLAYER_ID = 100;                   // supersedes ARCH §5.1's PLAYER_ID = 1 (D-06)
-export const FIRST_DYNAMIC_ID = 101;
-export const MAX_ENTITIES = 256;                // dynamic entities only; statics are never stored
+export const PLAYER_ID = 100;                   // supersedes ARCHITECTURE §5.1's PLAYER_ID = 1 (D-06)
+export const FIRST_DYNAMIC_ID = 101;            // every NEW WORLD restarts here (D-06 amended 2026-11-12)
+export const MAX_ENTITIES = 256;                // dynamic entities only
 ```
-- Store = dense array ascending by id (spawns append the next monotonic id) plus an `id -> index` `Map` used **for lookup only**; `kill` sets `dead`, `commit()` compacts in place and rebuilds the index and returns removed ids; `live` includes entities spawned this tick; `get(id)` returns `undefined` for missing or dead; `spawn` returns `undefined` when `live.length >= MAX_ENTITIES` and does **not** advance `nextId` on failure (decision for the planner to confirm; D-05 only requires counter parity between traffic on/off).
-- Update passes capture `const n = store.live.length` first and iterate `0..n-1`; spawned-this-tick entities are first updated next tick (ARCH §5.3, Oolite `Universe.m:6432-6439` retained copy) [VERIFIED: /home/opencode/git/oolite/src/Core/Universe.m:6432-6439 "use a retained copy so this can't be changed under us"].
-- Oolite facts behind the id design (quoted): `MIN_ENTITY_UID = 100`, `NO_TARGET = 0`, `UNIVERSE_MAX_ENTITIES = 2048` [VERIFIED: oolite/src/Core/OOTypes.h:168-171]; `if (u_id == 100) return PLAYER;` [VERIFIED: Universe.m:4841-4846]; allocation scans `while (entity_for_uid[next_universal_id] != nil)` and wraps, which permits stale-id aliasing — the monotonic counter is the deliberate divergence [VERIFIED: Universe.m:5014-5029].
-- Static bodies: `WorldView.body(id)` synthesises ids 1-5 from `SystemLayout` (`planet`, `sun`, `station`, `witchpoint`, `navBuoy` each `{ position, radius }`) [VERIFIED: src/sim/world/layout.ts:46-52 `readonly planet: Body; readonly sun: Body; readonly station: Body; readonly navBuoy: Body; readonly witchpoint: Body;`]. Mapping: id 4 -> `layout.witchpoint`, id 5 -> `layout.navBuoy`. The station's orientation must apply `FlightState.stationAngle` (rolled about local +Z) on top of `layout.stationBaseQuat`; read the angle from the player state passed to the view. Player id 100 is an adapter over `FlightState` (position, orientation, `speed` scalar plus `impulse`).
-- Cap and ids: the cap counts dynamic entities only (statics are not stored). Reserve ids 6..99 by never allocating below `FIRST_DYNAMIC_ID`.
+- **Store** = a dense array strictly ascending by id (a spawn appends the next id) with a stored `nextId` that only increases within its world; lookups by binary search over the ascending array (plan 08-05), so no `Map`/`Set` whose iteration order could decide anything exists. `kill` marks dead, `commit()` compacts in place and returns removed ids ascending; `live` includes entities spawned this tick; `get(id)` is `undefined` for a missing, dead or static id; a failed spawn (cap, `nextId` overflow, validation refusal) allocates no id and does not advance `nextId`.
+- **Update passes** capture `const n = store.live.length` first and iterate `0..n-1`; entities spawned this tick are first updated next tick (ARCHITECTURE §5.3). Oolite retains a copy for the same reason [VERIFIED: /home/opencode/git/oolite/src/Core/Universe.m:6430-6440, `// use a retained copy so this can't be changed under us.`].
+- **Oolite id facts (quoted):** `typedef uint16_t OOUniversalID; // Valid IDs range from 100 to 1000.` with `UNIVERSE_MAX_ENTITIES = 2048, NO_TARGET = 0, MIN_ENTITY_UID = 100, MAX_ENTITY_UID = MIN_ENTITY_UID + UNIVERSE_MAX_ENTITIES + 1` [VERIFIED: oolite/src/Core/OOTypes.h:165-172]; `if (u_id == 100) return PLAYER; // the player` [VERIFIED: Universe.m:4841-4844]; allocation is `while (entity_for_uid[next_universal_id] != nil) // skip allocated numbers` with `if (next_universal_id >= MAX_ENTITY_UID) { next_universal_id = MIN_ENTITY_UID; }` [VERIFIED: Universe.m:5016-5020], so a wrapped counter reuses freed slots even within one system. The monotonic per-world counter is the deliberate stricter divergence; record it in PROJECT.md Key Decisions (plan 08-05 row (d)). ARCHITECTURE §5 already says `Allocation is a saved counter, nextId++, never reused within a world` [VERIFIED: .planning/research/ARCHITECTURE.md:207]; D-06's amendment aligns the decision with that wording and removes the later reading "never reused, ever".
+- **Statics (D-07):** each world carries `world.statics`, five frozen records `{ id, kind, scanClass, layoutKey }` in ascending id (1 planet / layoutKey `planet`, 2 sun / `sun`, 3 station / `station`, 4 witchpoint buoy / `witchpoint`, 5 nav buoy / `navBuoy`), never copying geometry. `SystemLayout` fields: `readonly planet: Body; readonly sun: Body; readonly station: Body; readonly navBuoy: Body; readonly witchpoint: Body;` with `interface Body { readonly position: Vec3; readonly radius: number; }` [VERIFIED: src/sim/world/layout.ts:42-52]. `WorldView.body(id)` resolves a static record through the layout; the station's pose applies `FlightState.stationAngle` ("Radians the station has rolled about its local +Z", [VERIFIED: src/sim/flight/state.ts:58-59]) on top of `layout.stationBaseQuat`. Player id 100 is an adapter over `FlightState` (`position`, `orientation`, scalar `speed`, `impulse`). Statics never enter the dynamic store, the cap, or the hash.
+- **Reserved ids 6..99** are never allocated: dynamic allocation starts at `FIRST_DYNAMIC_ID`.
 
 ### Pattern 5: World hash composed so an empty world equals `hashFlight` (D-08)
-**What:** `hashFlight(state)` is `fnv1a32(serializeFlight(state))` and `serializeFlight` ends with the line `repairCount=...` (no trailing newline) [VERIFIED: src/sim/flight/state.ts:147-181]. Compose, never extend:
-`hashWorld(player, world) = fnv1a32(serializeFlight(player) + section)` where `section === ""` when the world is absent **or has never spawned anything**, otherwise `"\n" + lines.join("\n")`.
-- "Never spawned" = `world.nextId === FIRST_DYNAMIC_ID` (and no live entity). Do **not** include `worldSeed`, `epoch`, static bodies, or `nextId` while that holds: `epoch` is bumped at every launch/arrival (D-02) and would otherwise break D-08 on the first launch. Once anything has spawned, include `nextId`, the world stream state, and one labelled line per live entity in ascending id (position/orientation via `canon`, integer ticks via `canon(n, 0)`, every RNG stream state, AI component with params emitted in a comparator-sorted key order, `repairs`).
-- Hash per entity as well (a failing test should name the first diverging id): expose `entityHashes(world): readonly [EntityId, string][]` for tests.
-- `canon` throws on non-finite input and normalises `-0` [VERIFIED: src/sim/hash.ts:29-35 `if (!Number.isFinite(n)) { throw new Error(...) }` and `return (r === 0 ? 0 : r).toFixed(digits);`]. A NaN entity therefore crashes the frame loop: run `sanitizeEntity` once per tick before hashing (Pitfall 9).
-- No pinned flight-hash constants exist today (the cadence tests assert equality across cadences only; goldens are the kinematic probe, hyperspace routes, market, content and saves) [VERIFIED: rg `hashFlight` in tests; ls tests/golden]. To make "v1 flight hash" an actual regression pin, record a few `hashFlight` values from the **unmodified** tree (Wave 0) into a new additive golden, e.g. `tests/golden/world/flight-v1-hashes.json`, and assert both `hashFlight` and `hashWorld(player, emptyWorld)` equal them at sampled ticks of three recorded flights (the `flight-cadence` script, a dock approach, a hyperspace jump). New golden files are additive; do not regenerate existing ones.
+**What:** `serializeFlight` ends with `` `repairCount=${canon(state.repairCount, 0)}`, `` followed by `].join("\n");` and `hashFlight(state)` is `return fnv1a32(serializeFlight(state));` [VERIFIED: src/sim/flight/state.ts:177-183]. Compose, never extend: `hashWorld(player, world) = fnv1a32(serializeFlight(player) + section)`, where `section === ""` when the world is absent **or has never spawned anything**, otherwise `"\n" + section`.
+- "Never spawned" is one exported predicate `isNeverSpawned(world)` (plan 08-05): the store's `nextId` is still `FIRST_DYNAMIC_ID`, its live array is empty, **and** `world.rng.s` equals the initial `forkSeed(worldSeed, NO_ENTITY, "world")` state, so any world-stream draw or spawn flips it. While it holds, no `worldSeed=`, `nextId=`, `rng=` line, no statics and no `epoch` appear: this is what keeps D-08 across every launch and arrival bump. Once it is false the section begins with `worldSeed=<uint32>`, `nextId=<int>`, `rng=<uint32>` then one line per live non-dead dynamic entity in ascending id (position/orientation via `canon`, integer ticks via `canon(n, 0)`, every RNG stream state, AI component with params in comparator-sorted key order and type-tagged values, repair count).
+- Because `worldSeed` and `nextId` are in the section once anything spawned, two *different* worlds that both issue id 101 cannot hash equal by accident (per-world id scope): the id alone never identifies an entity across worlds, the pair (worldSeed, id) does.
+- Expose `entityHashes(world): readonly [EntityId, string][]` so a failing test names the first diverging id.
+- `canon` is `export function canon(n: number, digits = 6): string {` with `if (!Number.isFinite(n)) { throw new Error(\`non-finite value in state: ${String(n)}\`); }` and `return (r === 0 ? 0 : r).toFixed(digits);` [VERIFIED: src/sim/hash.ts:29-35]. A NaN entity therefore crashes the frame loop: a per-tick `sanitizeEntity` runs before any hash (Pitfall 9). `canon(.., 6)` rounds to 1e-6, so a hash comparison is a *rounded* comparison: the restore proof also compares `JSON.stringify(snapshotWorld(world))` exactly (R4 item 10).
+- No pinned flight-hash constants exist today (the cadence tests assert equality across cadences only; `rg hashFlight tests` hits `tests/sim/{flight-controller,replay-integrity,hyperspace,flight-cadence,dock-cadence}.test.ts`; goldens are `tests/golden/{content,hyperspace,market,save}` and `kinematic-probe.json`). Record `hashFlight` values from the **unmodified** tree in Wave 0 into a new additive golden `tests/golden/world/flight-hash-pins.json` (plan 08-02) and assert both `hashFlight` and `hashWorld(player, world)` equal them on three recorded flights (a cadence script, a dock approach, a hyperspace jump) including a launch and an arrival bump.
 
-### Pattern 6: Serialisable RNG and forked streams (FOUND-12)
-**What:** `createSeededRandom` is mulberry32 with the state in a closure [VERIFIED: src/sim/math.ts:227-237]. ARCH Pattern 4's `rngNext` is the same arithmetic (`state + 0x6d2b79f5`, `imul(t ^ t>>>15, t|1)`, `t ^= t + imul(t ^ t>>>7, t|61)`, `(t ^ t>>>14) >>> 0) / 4_294_967_296`) [VERIFIED by comparing both listings]. Implement `createSeededRandom(seed)` as a thin wrapper over `rngNext` inside `math.ts` (core track owns `math.ts`), so `drawWitchpointExit` keeps its exact draw order with **zero edits to `arrival.ts`** (FIDELITY.md pins `src/sim/hyperspace/arrival.ts:125`; the contract test only checks the line is inside the file, but not touching the file avoids any churn) [VERIFIED: src/sim/hyperspace/arrival.ts:73 `const next = createSeededRandom(seed);`; FIDELITY.md references `src/sim/hyperspace/arrival.ts:125` and `src/sim/flight/step.ts:218`; tests/contract/fidelity.test.ts header].
-- Pin the algorithm with literal vectors captured from the **current** closure in Wave 0 (first N outputs for a few seeds) so delegation can never drift; the existing hyperspace arrival tests and `tests/golden/hyperspace/routes.json` give a second, independent proof.
-- Seed derivation (one-way once Phase 11 lands, D-02). **Superseded guidance (revised 2026-11-12):** an earlier draft of this section recommended string-FNV seeds after the repo precedent of `marketSeedForSystem` (`Number.parseInt(fnv1a32(`${systemId}:0`), 16) >>> 0`, [VERIFIED: src/sim/economy/market.ts:41-43]), that is `worldSeedFor` and `forkSeed` as `parseInt(fnv1a32(...), 16) >>> 0` over colon-joined strings. That recommendation contradicts locked decision D-02 and is withdrawn: D-02 fixes `worldSeed = mix32(marketSeed, epoch)`, and plan 08-02 (option-a, the default the owner confirms at its Task 2 checkpoint) implements it in `src/sim/rng.ts` with integer arithmetic only: `fmix32` (the MurmurHash3 finaliser), `mix32(a, b) = fmix32((a >>> 0) ^ fmix32((b + 0x9e3779b9) >>> 0))`, `worldSeedFor(marketSeed, epoch) = mix32(marketSeed, epoch)` and `forkSeed(worldSeed, entityId, purpose) = mix32(mix32(worldSeed, entityId), RNG_PURPOSE_CODES[purpose])` with `purpose` a closed union and fixed purpose codes world 1, ai 2, combat 3 (D-04). `marketSeedForSystem` stays the producer of the uint32 `marketSeed` input only; a string-FNV world or fork seed exists only if the owner explicitly revises D-02 (08-02 option-c). **Pin `fmix32`, `mix32`, `worldSeedFor` and `forkSeed` with literal test vectors the moment they exist (plan 08-02 Task 3): the exact arithmetic is the contract.**
-- Per-entity state: a fixed-shape record per `RngPurpose` (closed union, iterated through a `const RNG_PURPOSES` array, never `Object.keys`), every state a `uint32` number stored in the entity and included in the hash and snapshot. World-level stream `world.rng` forked as `(worldSeed, 0, "world")`.
-- Tests: spawning/killing entity B leaves entity A's draw sequence unchanged; same `(worldSeed, id, purpose)` reproduces; two purposes differ.
+### Pattern 6: Serialisable RNG, `mix32` seeds and forked streams (FOUND-12, D-02, D-04)
+**What:** `createSeededRandom` is mulberry32 with state in a closure [VERIFIED: src/sim/math.ts:227-236]:
+```ts
+export function createSeededRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+```
+Implement `createSeededRandom(seed)` as a thin wrapper over `rngNext` inside `math.ts` (core track owns `math.ts`) so `drawWitchpointExit` keeps its exact draw order with **zero edits to `arrival.ts`**: the only sim-side user is `const next = createSeededRandom(seed);` at `src/sim/hyperspace/arrival.ts:73` [VERIFIED]; render callers (`src/render/bodies/{nebulae,dust,starfield}.ts`) keep the closure API [VERIFIED: rg]. FIDELITY.md pins `src/sim/hyperspace/arrival.ts:125` and `src/sim/flight/step.ts:218` [VERIFIED: FIDELITY.md:19,37], so leave both files byte-identical.
+- Pin the algorithm with literal vectors captured from the **current** closure before any edit (plan 08-02); `tests/golden/hyperspace/routes.json` and the existing arrival tests give a second proof.
+- **Seed derivation (D-02, one-way after Phase 11):** `worldSeedFor(marketSeed, epoch) = mix32(marketSeed, epoch)` with integer-only arithmetic in `src/sim/rng.ts`: `fmix32` (the MurmurHash3 finaliser), `mix32(a, b) = fmix32((a >>> 0) ^ fmix32((b + 0x9e3779b9) >>> 0))`, `forkSeed(worldSeed, entityId, purpose) = mix32(mix32(worldSeed, entityId), RNG_PURPOSE_CODES[purpose])` with a closed `purpose` union and fixed codes world 1, ai 2, combat 3 (plan 08-02, option-a; the owner confirms at its Task 2 checkpoint; option-c = a string-FNV revision of D-02, only on explicit owner request). `marketSeedForSystem` stays the producer of the uint32 `marketSeed` input only: `Number.parseInt(fnv1a32(\`${systemId}:0\`), 16) >>> 0` [CITED: src/sim/economy/market.ts:41-43, read in the prior session]. **Pin `fmix32`, `mix32`, `worldSeedFor` and `forkSeed` with literal vectors the moment they exist: the exact arithmetic is the contract.** `worldSeed` must be a uint32 integer (validated at `createWorld` and in `parseWorldSnapshot`, R4 item 7).
+- **Per-world id scope and streams:** because ids restart at 101 per world, `forkSeed(worldSeed, entityId, purpose)` yields different streams for "id 101" in different worlds only because `worldSeed` differs (it changes with every `epoch`). Two worlds with the same `(marketSeed, epoch)` are *the same world* and correctly give identical draws for id 101; that is the point of D-02 ("reloading a save and launching reproduces the same world").
+- Per-entity state: a fixed-shape record per `RngPurpose`, iterated through a closed `const` array, never `Object.keys`; every state a uint32 stored in the entity, hashed and snapshotted. The world-level stream is forked as `(worldSeed, 0, "world")`.
+- Tests: spawning/killing entity B leaves entity A's draw sequence unchanged; the same `(worldSeed, id, purpose)` reproduces; two purposes differ; adjacent ids and 1,000 consecutive epochs give distinct seeds.
 
 ### Pattern 7: Snapshot codec and the 1,000-tick equality (FOUND-12 criterion 3)
-**What:** `snapshotWorld(world): WorldSnapshot` (plain JSON-safe data: `nextId`, world stream, entities ascending, per-entity components, RNG states, AI component) and `restoreWorld(layout, worldSeed, snapshot)`; `parseWorldSnapshot(unknown)` validates at the boundary (principle-boundary-discipline): ids unique and strictly ascending and `>= FIRST_DYNAMIC_ID`, `nextId > maxId`, count `<= MAX_ENTITIES`, all numbers finite, tick timers integers, RNG states uint32, known `specKey`/`aiKey`/`BehaviourId` values. It is test-only this phase but Phase 11 will reuse it for saves, so make failures typed (`SnapshotError`).
-- The player is not part of the world snapshot. The equality test clones the `FlightState` (`structuredClone` in tests; it is plain data) alongside the snapshot.
-- Equality test shape: a scenario with entities spawned and killed so id gaps exist and `nextId` exceeds the live count; run to tick k live, `JSON.stringify` the snapshot, `JSON.parse`, restore, then run both worlds to tick 1,000 comparing `hashWorld` at every 50-100 ticks and at the end. Include a restore into a store built in a **different insertion order** to prove no `Map`-order decision exists (PITFALLS 1; ARCH §5.3 rule 5), a killed-highest-id case (the id must not return after restore), and a `-0` case.
-- JSON cannot carry `-0`, `NaN` or `Infinity` (`-0` becomes `0`; others become `null`). `canon` hides `-0` in the hash, but a later `Math.atan2(-0, -1)` differs from `Math.atan2(0, -1)`, so `sanitizeEntity` should normalise `-0` to `0` every tick. [ASSUMED: -0 divergence risk is low in Phase 8 because no steering is ported yet; the guard is cheap.]
+**What:** `snapshotWorld(world)` returns plain JSON-safe data (`worldSeed`, `nextId`, world stream state, dynamic entities ascending with components, RNG states, AI component; **not** statics, which are a frozen constant, and **not** the player); `restoreWorld(snapshot)` rebuilds the same world; `parseWorldSnapshot(unknown)` validates at the boundary (principle-boundary-discipline) and throws a typed `SnapshotError`: ids unique, strictly ascending and `>= FIRST_DYNAMIC_ID`, `nextId > maxId`, count `<= MAX_ENTITIES`, `worldSeed` a uint32 integer, all numbers finite and within the shared limits, tick timers integers, RNG states uint32, known `specKey`/`aiKey`/`BehaviourId`/`scanClass`/`kind` values, quaternions unit within tolerance. It is test-only this phase; Phase 11 reuses it, so failures are typed.
+- **Per-world scope:** a snapshot is the state of **one world**; `nextId` in it is that world's own counter (the Phase 11 reconciliation in CONTEXT Deferred). Restoring never "continues" an earlier world's numbering into a different world; a restored world and its live twin hold the same ids because they are the same world.
+- Equality test shape: a scenario with entities spawned and killed so id gaps exist and `nextId` exceeds the live count; run to tick k live, `JSON.stringify` the snapshot, `JSON.parse`, restore, then run both to tick 1,000 comparing `hashWorld` every 50-100 ticks **and** `JSON.stringify(snapshotWorld(...))` exactly at each checkpoint. Include a restore into a store built in a different insertion order, a killed-highest-id case (the id must not return after restore: `nextId` is stored, never recomputed as `max+1`), and a `-0` case.
+- JSON cannot carry `-0`, `NaN` or `Infinity` (`-0` becomes `0`; the others become `null`). `snapshotWorld` itself refuses non-finite numbers before serialising (R4 item 1: a NaN scalar param and a legal `null` param are identical after `JSON.parse`, so a "reject after JSON" test row cannot pass for scalars; keep that row for NaN inside param arrays only, and give the fast-check generator `null` and `boolean` params). `sanitizeEntity` normalises `-0` to `0` each tick. [ASSUMED: the `-0` divergence risk is low in Phase 8 because no steering is ported yet; the guard is cheap.]
+- Quaternion discipline (R4 item 6): spawn requires unit quaternions; sanitize treats a norm below a threshold as degenerate (reset to identity) and re-checks after normalising, so "every sanitized world parses" holds.
 
-### Pattern 8: Lint bans and the AI zone (container-verified)
-**Existing zone:** `files: ["src/sim/**/*.ts"]` sets `no-restricted-imports` (three, settings, content catalogue, render/ui/input/app/persistence, content loaders), `no-restricted-globals` (the `DOM_GLOBALS` list incl. `performance`, `fetch`), `no-restricted-properties` (`Math.random`, `Date.now`, `performance.now`) and `no-restricted-syntax` (only `NewExpression[callee.name="Date"]`) [VERIFIED: eslint.config.js:15-30, 71-160]. Today nothing bans `for..in`, bare `.sort()`, or `Date.UTC`/`Date.parse`/`Date()`.
-**Experiment (container, ESLint 10.14.0 + typescript-eslint, config mirroring the real rule shapes; scripts kept under the session scratchpad, not in the repo):**
+### Pattern 8: Lint bans and the AI zone (container-proven this session)
+**Existing zone** [VERIFIED: eslint.config.js:67-153]: `files: ["src/sim/**/*.ts"]` sets `no-restricted-imports` (three, settings, content catalogue, render/ui/input/app/persistence and the content loaders), `no-restricted-globals` over `DOM_GLOBALS` (lines 15-31: `window`, `document`, `navigator`, `localStorage`, `sessionStorage`, `indexedDB`, `HTMLElement`, `HTMLCanvasElement`, `CanvasRenderingContext2D`, `WebGLRenderingContext`, `requestAnimationFrame`, `cancelAnimationFrame`, `performance`, `Image`, `fetch`), `no-restricted-properties` (`Math.random`, `Date.now`, `performance.now`) and `no-restricted-syntax` with only `{ selector: 'NewExpression[callee.name="Date"]', message: "No Date inside src/sim." }`. Nothing bans `for..in`, bare `.sort()`/`.toSorted()`, `Date.UTC`/`Date()`, timers, `process` or `crypto` today. The generator zone (lines 154-243) already adds `localeCompare`, `toFixed`, `toPrecision`, `Intl`, `no-eval`, `no-new-func`.
+**Current violations to expect: none.** [VERIFIED: `rg` over `src/sim` for `\bDate\b`, `for (... in`, bare `.sort()`/`.toSorted()`, timers, `process`, `crypto` finds only a comment in `hash.ts:8` and a comparator-bearing `[...commodities].sort(` at `economy/market.ts:169`.]
+**Experiment re-run this session (container, ESLint 10.14.0 + typescript-eslint, config mirroring the real rule shapes; script kept in the session scratchpad, not in the repo; output verbatim):**
 ```
-for-in          => no-restricted-syntax: no for..in
-sort0           => no-restricted-syntax: bare sort          (a.sort())
-sort1           => clean                                     (a.sort((x,y)=>x-y))
-toSorted0       => no-restricted-syntax: bare toSorted
-Date.now / Date.UTC / Date() / new Date => no-restricted-globals: Unexpected use of 'Date'
-Date type ref (f(d: Date))              => clean
-performance.now => no-restricted-globals: Unexpected use of 'performance'
-Math.random, Math['random']             => no-restricted-properties
-const m = Math; m.random()              => clean   (known gap; optional extra selector)
-ai: ../flight/state.js, ../world/store.js, ../../content/types.js, `import type` of ../flight/state.js, export-from => no-restricted-imports (allow-list regex)
-ai: ../world/view.js, ../math.js        => clean
-ai: dynamic import('../flight/state.js') => CLEAN  (needs an ImportExpression selector)
-ai block only restates no-restricted-imports: sim-zone three-ban message was NOT reported => the later block REPLACES the rule options, it does not merge
+sim/a.ts => no-restricted-syntax:no for..in
+sim/b.ts => no-restricted-syntax:bare sort
+sim/c.ts => no-restricted-globals:Unexpected use of 'Date'. | no-restricted-syntax:No Date. | no-restricted-globals:Unexpected use of 'Date'.
+sim/ai/d.ts => no-restricted-imports:'../flight/state.js' import is restricted from being used by a pattern. AI allow-list | no-restricted-syntax:no for..in
+sim/ai/e.ts => clean            (import type from ../world/view.js and import from ../math.js)
+sim/ai/f.ts => no-restricted-syntax:no dynamic import | no-restricted-syntax:no dynamic import
+sim/ai/g.ts => no-restricted-imports:'three' import is restricted from being used by a pattern. AI allow-list
 ```
+Reading: (a) `ForInStatement` and the argument-less `sort` selector work; (b) a regex allow-list in `no-restricted-imports` rejects value and type-only imports of simulation internals and bare packages; (c) dynamic `import()` needs an `ImportExpression` selector; (d) the later AI block **replaced** the sim block's `no-restricted-imports`: the sim block's "three ban" message was not reported for `sim/ai/g.ts`, only the allow-list message. Because the same replace-not-merge applies to `no-restricted-syntax` and `-globals`, the AI block must restate the sim bans.
 **Rules to add (core track owns `eslint.config.js`):**
-1. In the `src/sim/**/*.ts` block: `no-restricted-syntax` gets `ForInStatement`, `CallExpression[callee.property.name="sort"][arguments.length=0]` (and `toSorted`), keeping the existing `new Date` selector. `no-restricted-globals` gets `Date` (and recommended `setTimeout`, `setInterval`, `setImmediate`, `process`, `crypto`) in addition to `DOM_GLOBALS`. Rejecting only the *value* `Date` is fine: type positions stay legal. No existing file in `src/sim` uses any of these [VERIFIED: rg for `\bDate\b`, `for (... in`, `.sort()`, timers, `process`, `crypto` in `src/sim`: only a comment in `hash.ts` and a comparator `sort` in `economy/market.ts:169`]. `Math.sin/cos/acos` are used in `math.ts` and are intentionally **not** banned (the file documents the within-engine claim; PITFALLS 4 says keep the hash claim narrow).
-2. AI zone: a block `files: ["src/sim/ai/*.ts"]` and a second `files: ["src/sim/ai/pilots/*.ts"]` (a regex cannot know the importing file's depth), each with `no-restricted-imports` using one `patterns: [{ regex, message }]` allow-list: relative `./` siblings, `../` AI-level siblings for pilots, and exactly `math`, `world/ids`, `world/view`, `world/control` of the sim root. Because the later block replaces the rule, anything not on the allow-list (bare packages, `three`, `zod`, `../flight/**`, `../world/store`, `../../content/**`, even `import type`) is rejected. Add `no-restricted-syntax: ImportExpression` for the AI zone, **repeating** the sim-zone selectors, because that rule is also replaced.
-3. Factor the shared pattern list and syntax selectors into `const` arrays at the top of `eslint.config.js` (`SIM_IMPORT_PATTERNS`, `SIM_SYNTAX_BANS`) and spread them in both blocks, so a future edit cannot silently diverge.
-**Proofs:** one guard test file per concern (`tests/guards/sim-determinism-bans.test.ts`, `tests/guards/ai-zone.test.ts`) using the existing `withProbe`/`lintProbe` pattern: write a probe under `src/sim/...` (or `src/sim/ai/...`), lint through the real config, assert the rule id/message, delete in `finally`, serialised by `withProbeLock`. Add a **positive control** per rule (a compliant probe lints clean) so the test can see both outcomes. The real `src/sim/ai/pilots/test-pilot.ts` is the live proof that a conforming module lints clean.
+1. `src/sim/**/*.ts`: `no-restricted-syntax` gains `ForInStatement`, `CallExpression[callee.property.name="sort"][arguments.length=0]` and the same for `toSorted`; `no-restricted-globals` gains `Date` (covers `Date.UTC`, `Date()`), plus `setTimeout`, `setInterval`, `setImmediate`, `process`, `crypto`; add `no-eval` and `no-new-func` as in the generator zone (R4 item 9). `Math.sin/cos/acos` are used in `math.ts` and stay **unbanned** (PITFALLS 4: keep the hash claim narrow to "within one engine"). Known gap: `const m = Math; m.random()` passes; an optional extra selector can close it.
+2. AI zone: `files: ["src/sim/ai/*.ts"]` and `["src/sim/ai/pilots/*.ts"]` (a regex cannot know the importing file's depth), each with one `patterns: [{ regex, message }]` allow-list: `./` siblings, `../` AI siblings for pilots, and exactly `math`, `world/ids`, `world/view`, `world/control` of the sim root; use `importNames` so the AI zone cannot import `createSeededRandom` from `math` under an alias (R4 item 9: AI randomness comes only from its forked stream). Add `ImportExpression` and repeat the sim syntax bans.
+3. Factor the shared pattern list and syntax selectors into `const` arrays at the top (`SIM_IMPORT_PATTERNS`, `SIM_SYNTAX_BANS`) and spread them into both blocks.
+**Proofs:** one guard file per concern (`tests/guards/sim-determinism-bans.test.ts`, `tests/guards/ai-zone.test.ts`) using the existing `lintProbe`/`withProbeLock` pattern (probe under `src/sim/...`, lint through the real config, assert, delete in `finally`), with a **positive control** per rule. The real `src/sim/ai/pilots/test-pilot.ts` is the live proof that a conforming module lints clean.
 
 ### Pattern 9: The AI seam and the test pilot (FOUND-13)
-- `WorldView` (types only, `src/sim/world/view.ts`): `tick`, `playerId`, `isValid(id)`, `ship(id): ShipView | undefined`, `body(id)` for statics/player, `scan(self, range, filter?)` returning ids sorted by `(distanceSquared, id)` with an explicit comparator, `mainStation()`, `mainPlanet()`, `sun()`, `nearestStation(self)`, `countWithRole(role)` (ARCH §7.3). Add methods only when needed (Pitfall 19); Phase 8 needs `tick`, `isValid`, `ship/body`, `scan`, and the three static getters. Return fresh plain objects with copied vectors so no live reference leaks.
-- `ShipControl` (types only): keep the ARCH id-addressed signatures for the writes the pilot needs (`setTarget`, `setDestination`, `setDesiredRange`, `setDesiredSpeed`, `perform(BehaviourId)`, `scheduleWake`); omit `fireMissile`, `fireECM`, `launchPod`, `dumpCargo`, `setBounty`, `say` until a later phase needs them (each can be a one-line addition). Implement `createShipControl(world, actorId)` so a call whose `id !== actorId` is a no-op: Pitfall 7 ("handlers may mutate only the receiving entity") becomes structural.
-- `BehaviourId`: a closed string union mirroring `OOBehaviour.tbl` (39 `ENTRY` lines, e.g. `IDLE`, `TRACK_TARGET`, `STOP_STILL`, `ATTACK_TARGET`, `FLEE_TARGET`, `AVOID_COLLISION`, `FLY_RANGE_FROM_DESTINATION`, `FLY_TO_DESTINATION`, `FACE_DESTINATION`, `LAND_ON_PLANET`, `INTERCEPT_TARGET`, `FORMATION_FORM_UP`, `TRACTORED`, `SCRIPTED_AI`) [VERIFIED: oolite/src/Core/Tables/OOBehaviour.tbl, `rg -c ENTRY` = 39]. Declare the full union now (cheap, closed); implement only a minimal set in `stepWorld`. `ScanClass` likewise from `OOScanClass.tbl` (`CLASS_NO_DRAW`, `NEUTRAL`, `STATION`, `TARGET`, `CARGO`, `MISSILE`, `ROCK`, `MINE`, `THARGOID`, `BUOY`, `VISUAL_EFFECT`, `WORMHOLE`, `PLAYER`, `POLICE`, `MILITARY`) [VERIFIED: Tables/OOScanClass.tbl].
-- `AiComponent` per ARCH §7.2 (`roleAi`/`aiKey`, `params: Record<string, ParamValue>`, `wakeTick`, `nextThinkTick`, ...). Phase 8 needs only the fields the pilot uses; anything with `Record` keys is serialised in comparator-sorted key order. Timers are absolute integer ticks compared with `view.tick` (the player's `FlightState.tick`, which increments every `stepFlight` in every mode: `state.tick += 1;` is the unconditional last statement before `return events;`) [VERIFIED: src/sim/flight/step.ts:347,351 region; rg shows a single `return events`]. A single `ticks(seconds)` helper (`Math.max(1, Math.round(seconds * 120))`, ARCH Pattern 3) owns seconds-to-ticks; the legacy AI think interval is 15 ticks (0.125 s at 1/120) [CITED: ARCH §7.1].
-- Test pilot (`src/sim/ai/pilots/test-pilot.ts`): a small state machine (for example `seek -> hold`) that on each think reads `view.scan(self, range)`, picks the first id (distance, then id), calls `ctl.setTarget/setDestination/setDesiredSpeed/perform`, draws its reconsider jitter from the per-entity `"ai"` stream, and `ctl.scheduleWake` with integer ticks. Proofs: (1) JSON round trip of `AiComponent` is deep-equal and produces identical subsequent behaviour; (2) every timer field is an integer after every think; (3) with a recording `ShipControl` and a fake `WorldView` the pilot is a pure function (testability goal); (4) adding another entity does not change its RNG draws; (5) lint rejects an AI probe importing `../flight/state.js`.
-- `stepWorld` AI phase dispatches through `AI_REGISTRY[ai.aiKey]` (in `src/sim/ai/registry.ts`); `src/sim/world/step.ts` imports the registry, the AI files import only seam types and constants, so there is no import cycle.
-- Placeholder motion: a 1,000-tick equality test is only meaningful if state evolves. Evolution can come from the pilot's nav writes, per-tick RNG draws and a minimal kinematic update (`position += forward * speed * DT`) in W1, flagged in FIDELITY/PROJECT as a placeholder replaced by the Phase 12/13 motion port. See Open Question 5.
+- `WorldView` (types only): `tick`, `playerId`, `isValid(id)`, `ship(id)`, `body(id)` for statics and the player, `scan(self, range, filter?)` returning ids ordered by `(distanceSquared, id)` with an explicit comparator, `mainStation()`, `mainPlanet()`, `sun()`, `nearestStation(self)`, `countWithRole(role)`. Add methods only when needed (Pitfall 19); return fresh plain objects with copied vectors so no live reference leaks.
+- `ShipControl` (types only): id-addressed signatures kept from ARCHITECTURE §7.3 for the writes the pilot needs (`setTarget`, `setDestination`, `setDesiredRange`, `setDesiredSpeed`, `perform(BehaviourId)`, `scheduleWake`); `fireMissile`, `fireECM`, `launchPod`, `dumpCargo`, `setBounty`, `say` are omitted until a later phase. `createShipControl(world, actorId, tick)` makes a call whose `id !== actorId` a no-op, so "handlers mutate only the receiving entity" (Pitfall 7) is structural; writes outside the shared limits are clamped or refused at the seam (R4 item 12).
+- **Ids inside the seam are world-scoped:** an `EntityId` returned by `scan` or stored by `setTarget` is valid only for the world that issued it. `isValid(id)` answers for the current world only. A pilot never persists an id beyond its own world (its `AiComponent` lives inside that world's snapshot).
+- `BehaviourId`: a closed string union mirroring `OOBehaviour.tbl`; `rg -c ENTRY` over it reports 39 [VERIFIED: /home/opencode/git/oolite/src/Core/Tables/OOBehaviour.tbl]. `ScanClass` mirrors `OOScanClass.tbl`; 16 lines match `ENTRY` [VERIFIED: Tables/OOScanClass.tbl]. Declare both unions now (cheap, closed); `kind`, `scanClass`, `nav.behaviour` and `ai.aiKey` are validated at `spawnEntity` and repaired or killed by `sanitizeEntity`; AI dispatch goes through `Object.hasOwn(registry, aiKey)` so an `aiKey` of `"constructor"` cannot throw inside the fixed step (R4 item 5).
+- Timers are absolute integer ticks compared with `view.tick` (the player's `FlightState.tick`, incremented once per `stepFlight` in every mode: `state.tick += 1;` at `src/sim/flight/step.ts:347`, `return events;` at :350 [VERIFIED]). One `ticks(seconds)` helper owns seconds-to-ticks (`Math.max(1, Math.round(seconds * 120))`); the legacy AI think interval is 15 ticks [CITED: ARCHITECTURE §7.1].
+- Test pilot (`src/sim/ai/pilots/test-pilot.ts`): a small state machine (for example `seek -> hold`) reading `view.scan`, writing through `ctl`, drawing reconsider jitter from the per-entity `"ai"` stream, scheduling wakes in integer ticks. Proofs: JSON round trip of `AiComponent` deep-equal with identical subsequent behaviour; every timer an integer after every think; a recording `ShipControl` plus a fake `WorldView` make it a pure function; adding another entity does not change its draws; lint rejects an AI probe importing `../flight/state.js`.
+- `stepWorld` dispatches through `AI_REGISTRY` in `src/sim/ai/registry.ts`; `world/step.ts` imports the registry; AI files import only seam types and constants (no cycle). Queued cross-entity events are drained FIFO with a cap on **total deliveries per tick**, not only on passes (R4 item 11: fan-out grows as `N·f^8`).
+- Placeholder motion: a 1,000-tick equality is only meaningful if state evolves, so W1 applies a clearly labelled constant-speed integrator (`position += forward * speed * DT`) replaced by the Oolite thrust/attitude port in Phases 12-13 (plan 08-11, Key Decisions row (d) there).
 
-### Pattern 10: Manual clock, `advanceTicks`, traffic flag, and the join plan (FOUND-14)
-- **Flags:** a pure `parseTestFlags(search: string): { hook: boolean; manualClock: boolean; traffic: boolean }` (Node-testable, new `src/app/session/test-flags.ts`): `hook` iff `test === "1"` exactly (the existing rule); `manualClock` iff `hook && clock === "manual"`; `traffic` iff `hook && traffic === "1"`. Unknown values are false. Read once at boot next to the existing `testHookEnabled` line.
-- **Manual-clock frame:** `frame()` keeps rendering and the probe update but never calls `GameLoop.advance` and never drains the keyboard command queue; it uses alpha `1` so the latest pose is drawn. `advanceTicks(n)` owns the drain-filter-autosave-hyperspace-edge mapping that the realtime branch does today, then calls the same `stepOnce(commands)` n times with commands on the first step only. Do **not** re-run the "drained contains launch -> pre-launch autosave" rule on every frame while a launch is still pending (it would autosave every frame in manual mode); run it once, at drain time inside `advanceTicks`.
-- **Extract `stepOnce`** from the `loop.advance` callback in the split's step 8 so realtime and manual share one code path; `GameLoop` and `src/sim/loop.ts` stay untouched (their tests pin them).
-- **`advanceTicks(n)` contract:** validate `Number.isSafeInteger(n) && n >= 1 && n <= MAX_ADVANCE_TICKS`; return the new tick; no-op returning the unchanged tick when paused or a chart/save screen is open (they freeze the sim today); taint the profile and call `redrawGate.request()` (every hook mutation taints; autosave skips a tainted profile). Events produced by each tick go through the same `handleEvent` path (messages, station show, autosave-skip), so a launch/dock/jump inside `advanceTicks` behaves as in play.
-- **`worldHash()`:** a hook function `() => string` that returns `hashWorld(player, world)`, computed on demand. `probe.sim.tick` publishes `state.tick` each frame.
-- **Traffic:** `populate` is an injected seam `(world, { traffic }) => void` invoked at each bump (launch, arrival, in-flight restore), a no-op in Phase 8 even with `traffic: true`. `epoch` and `nextId` advance identically for both settings (D-05). A Vitest test asserts the seam is not called for `traffic:false` and called once per bump for `traffic:true`; the browser spec asserts `probe.sim.traffic` and `probe.sim.entities === 0` by default.
-- **World lifecycle (Phase 8):** the world exists while mode is `launching` or `inFlight` (ARCH §8.2). `createWorld` at the `launched` event (bump `epoch`), at hyperspace arrival inside the atomic install block (bump `epoch`), and at in-flight Continue (no bump, see Open Question 2); drop at `docked`. Hash while no world exists is `hashFlight(player)`. The world must never hold the `FlightState` reference: pass the live player into `stepWorld`/`createWorldView` per call (G-8).
-- **Browser/Vitest parity (criterion 5):** put the scripted tick plan (start from a new game, queue `launch`, `advanceTicks(1)`, then `advanceTicks(K)` with idle input) in one shared helper (`tests/helpers/tick-script.ts`) that both a Vitest test and the Playwright spec execute against pure `src/sim` (the spec can compute the expected hash in Node: existing specs already import `src/` modules through `tests/e2e/helpers/chart.ts`, which imports `src/content/types.js` and `src/ui/chart-model.js`). The Node replay must use the same `StepOptions` as the browser (`dock: createDockGeometry(...)`, equipment, hyperspace facts); the cleanest guarantee is that `sim-driver` builds options through one pure exported function that the Node replay also calls (no THREE, no DOM, no Vite-only import such as `import.meta.glob`). If the dock geometry affects the compared window, load the dock-port JSON with `readFileSync` like `laveFixture` does.
+### Pattern 10: Manual clock, `advanceTicks`, traffic flag, lifecycle and parity (FOUND-14)
+- **Flags:** a pure `parseTestFlags(search)` returning `{ hook, manualClock, traffic }` (new `src/app/session/test-flags.ts`): `hook` iff `test === "1"` exactly (the existing rule), `manualClock` iff `hook && clock === "manual"`, `traffic` iff `hook && traffic === "1"`; unknown values are false; read once at boot next to the existing `testHookEnabled` line.
+- **Manual-clock frame:** `frame()` keeps rendering and the probe update but never calls `GameLoop.advance` and never drains the keyboard queue; it uses alpha `1`. `advanceTicks(n)` owns the drain, launch filter, pre-launch autosave decision and hyperspace edge mapping once, then runs the same `stepOnce(commands)` n times with commands on the **first step only** and one shared input frame. `GameLoop` (`src/app/game-loop.ts`, `while (accumulator >= DT && steps < MAX_STEPS_PER_FRAME)` [VERIFIED: game-loop.ts:45]) and `src/sim/loop.ts` stay untouched.
+- **`advanceTicks(n)` contract** (plan 08-14): an always-present hook function; it refuses (returns the unchanged tick, no step, no taint) unless the manual clock is on, for a non-integer `n`, `n < 1`, `n > MAX_ADVANCE_TICKS` (200,000), when disposed, paused, a chart or save screen is open, or no state; otherwise it taints the profile **first** (so every autosave inside or after the call skips), steps exactly `n` ticks, stops early if a step pauses/disposes or opens an overlay, returns the live tick, and does not catch step exceptions (test-only hook, documented).
+- **`worldHash()`:** an always-present hook function returning `hashWorld(player, world)` (a string; `hashFlight` returns a hex string), computed on demand from live context fields. `probe.sim.tick` publishes `state.tick` each frame.
+- **Traffic:** `populate(world, { traffic })` is an injected seam called at every world creation (launch, arrival, Continue/Load) in **both** modes; in Phase 8 it adds nothing, so after every populate `liveEntityCount(world) === 0` and `world.store.nextId === 101`. `epoch` and the fresh-world `nextId` sequences are identical with traffic on and off (D-05); the browser spec asserts `probe.sim.traffic` and `probe.sim.entities === 0` by default.
+- **World lifecycle (plan 08-15):** see the diagram: new `World` at `launched` (bump), at the arrival install block (bump), at in-flight Continue/Load (no bump; Open Question 2); dropped at `docked` and on dispose. The world never holds the `FlightState` reference: the live player is passed into `stepWorld`/`createWorldView` per call (G-8).
+- **Browser/Vitest parity (criterion 5):** the scripted tick plan (new game, queue `launch`, `advanceTicks(1)`, then `advanceTicks(K)`) lives in one shared helper (`tests/helpers/tick-script.ts`) executed by a Vitest test and the Playwright spec against pure `src/sim`; the Node replay must use the same `StepOptions` as the browser, so `sim-driver` builds options through one pure exported `step-options.ts`. **Scope honesty:** with no populator the browser world is empty, so `hashWorld === hashFlight` there; browser parity proves tick control and option parity, while non-empty-world determinism is proven in Vitest (criterion 3). That is an inherent Phase 8 limit, not a gap to close here.
 
-### Pattern 11: Suggested plan decomposition (planner's call)
-Wave 0: baseline `verify-full` (record time), probe-shape spec + fixtures, session-source helper + re-pointed tests, pinned v1 flight-hash and RNG vectors. Track A (split): steps 1-9 as sequential plans (1 commit each, `verify-full` at 3/6/9), 8 includes `stepOnce` extraction and the pure step-options builder. Track B (core, parallel): B1 rng + lint bans (touches `math.ts`, `eslint.config.js`), B2 ids/entity/store, B3 hash/world/view/control/sanitize/snapshot, B4 AI seam + test pilot + AI zone proofs + reserved events, B5 `stepWorld`/`stepSim` + cadence + 1,000-tick equality. Integration (after A8 and B5): `stepSim` in `sim-driver`, lifecycle hooks, flags, `advanceTicks`, `worldHash`, `probe.sim`, fixture update, e2e `tick-hook.spec.ts`, Key Decisions rows. Record each deliberate divergence from Oolite (id-order updates instead of distance order; queued AI events; monotonic ids) in `.planning/PROJECT.md` Key Decisions; the FIDELITY contract test requires every divergence to quote a Key Decisions row, so add FIDELITY rows only if a new ported mechanic is mapped (Phase 8 ports none).
+### Pattern 11: Plan decomposition (already fixed: 16 plans in 9 waves)
+Wave 1: 08-01 safety nets (verify-full baseline, probe-shape, session-source), 08-02 RNG/pins/`mix32`, 08-03 lint bans. Wave 2: 08-04 split steps 1-2, 08-05 world foundation. Wave 3: 08-06 split 3-4, 08-07 seam. Wave 4: 08-08 split 5-6, 08-09 AI types/pilot/zone. Wave 5: 08-10 split 7-8, 08-11 world step. Wave 6: 08-12 split 9, 08-13 snapshot codec. Wave 7: 08-14 flags + manual clock. Wave 8: 08-15 integration. Wave 9: 08-16 probe commit + parity [CITED: ROADMAP.md Phase 8 plan list]. Research constraint for the planner: keep this wave graph; the review rounds found no wave-ordering, file-ownership or import-cycle defect.
 
 ### Anti-Patterns to Avoid
-- **Editing `arrival.ts` or `flight/step.ts`** just to use the new RNG/world; they carry FIDELITY pins.
+- **Editing `arrival.ts` or `flight/step.ts`** to use the new RNG/world; they carry FIDELITY pins.
 - **Capturing `state`/`layout`/`scene` in a module-level variable** of an extracted controller (G-8, `drawKeys()` identity compares).
+- **A module-level id counter, a `World` object reused across launches, or any registry that survives a world change** (breaks per-world scope and the pure-function-of-seed property).
 - **Putting the world, epoch, seed or statics into `serializeFlight`/`hashFlight`** (invalidates the cadence/dock/hyperspace tests at once, PITFALLS 9).
 - **Iterating a `Map`/`Set`/object for any sim decision**, bare `.sort()`, `for..in`, `Math.random`, `Date`.
 - **One shared RNG stream**, or streams keyed by array index instead of id.
@@ -324,96 +329,128 @@ Wave 0: baseline `verify-full` (record time), probe-shape spec + fixtures, sessi
 - **A `toEqual` on an ordered concatenation** in the re-pointed scan tests.
 - **Regenerating any existing golden** (`tests/golden/**`) to make the split pass.
 
+## Per-world id scope (D-06 as amended 2026-11-12)
+
+The one new design topic of this refresh. The rule: ids are unique and never reused **within** the world that issued them; **every new world restarts dynamic ids at 101**; **no id outlives its world.**
+
+**World boundaries (when a new `World` exists):** each launch, each hyperspace arrival, each in-flight Continue, each in-session Load. The world is dropped at dock and on dispose. `createWorld(worldSeed)` always builds an empty store at `FIRST_DYNAMIC_ID`; there is no module-level counter that could carry ids across worlds (plan 08-05 asserts this; plan 08-15 constructs a fresh `World` at every boundary and never resets an old one).
+
+**What may hold an `EntityId`, and for how long:**
+
+| Holder | Allowed? | Lifetime / rule |
+|--------|----------|-----------------|
+| Entity fields and `AiComponent` (`target`, `destination`) inside the world | yes | die with the world; included in that world's snapshot |
+| `SimEvent` payloads (reserved audio/presentation types naming a shooter, target, cargo) | yes, **same tick** | consumed synchronously by the event router in the tick that produced them; the lifecycle teardown must discard any queued world events (the AI event queue lives in the world, so it dies with it) |
+| `WorldView` / `ShipControl` return values | yes, within one think | never cached by AI across worlds |
+| Snapshot JSON (test-only now, Phase 11 later) | yes, for that one world | the persisted `nextId` is the issuing world's own counter, not a transportable id (CONTEXT Deferred) |
+| Save file (IndexedDB), HUD state, probe, logs, mission state, chart, profile, targeting across a jump | **no** | `probe.sim.entities` is a **count**; `FlightState` holds no entity id today (`hyperspaceTarget.id` is a chart *system id string*, and `compassTarget` is the union `"planet" \| "station" \| "witchpoint"`) [VERIFIED: src/sim/flight/state.ts:20,29-36,57] |
+| Render/audio-side maps keyed by id (future scene entity registry, emitters) | **no, unless cleared on every world change or keyed with the world's `worldSeed`** | id 101 of the next world is a different entity; a stale mesh keyed 101 would alias it. Not reachable in Phase 8 (no NPC render); it becomes a standing review rule from Phase 12 |
+| Browser spec across a world boundary | **no** | a spec that reads an id, then `advanceTicks` across a launch/arrival/Continue, must re-read |
+
+**Determinism consequences.** A world is a pure function of `(worldSeed, ordered inputs)`: the hash, snapshots and the Vitest/browser parity depend on that. Concretely: (1) `hashWorld` includes `worldSeed` and `nextId` once anything has spawned (Pattern 5), so identical id sets in two different worlds hash differently; (2) streams are forked from `worldSeed`, so id 101 in world A and in world B draw differently unless A and B are the same `(marketSeed, epoch)`, in which case they are meant to be identical (reload reproduces the world, D-02); (3) a Continue/Load builds the world from the *session's* current `epoch` without bumping (Open Question 2), so the world is regenerated, never "continued".
+
+**Testable assertions (all unit-level; plans 08-05 and 08-15 already carry most):**
+- Two `createWorld` calls back to back each issue 101 as the first dynamic id (restart, the intended negative control for "never reused").
+- Within one world, spawn then kill then commit 101 never returns 101, including after the highest id is killed and after snapshot/restore.
+- The world lifecycle test drives launch, dock, launch, arrival, Continue and asserts a fresh `World` object (identity differs), `store.nextId === 101` at each creation, and the epoch sequence `[1, 1, 2, 3, 3]`, identical with `traffic` true and false (D-05).
+- A guard can assert that no `EntityId` or `world/ids` import appears under `src/persistence` (and none of `EntityId` in the probe's published shape). [ASSUMED: a lightweight `rg`-based guard test is an acceptable enforcement form; the plans may prefer a lint `no-restricted-imports` ban.]
+
+**D-05 forward note (not a Phase 8 defect).** D-05 requires `epoch` and the entity-id counter to advance identically with traffic on or off. In Phase 8 the populator is a no-op in both modes, so the fresh-world `nextId` is 101 either way and the proof is exact. From Phase 12 a real populator spawns entities only when traffic is on, which makes the *post-populate* `nextId` differ by mode. The phase that adds the populator must decide whether D-05 then means "the seed and the starting counter are mode-independent" (the reading Phase 8 proves) or whether populate must burn ids with traffic off. Flag to the owner at Phase 12 planning; it does not block this phase.
+
 ## Don't Hand-Roll
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
 | Hash text | New hash or `JSON.stringify` | `fnv1a32` + `canon` from `src/sim/hash.ts`, fixed key order | Throws on non-finite (a feature), normalises `-0`, matches `hashFlight` |
 | Seeded draws | New PRNG algorithm | mulberry32 already in `math.ts`, object-state form with the identical sequence | v1 arrival goldens depend on the exact stream |
-| Seed derivation | A new or ad-hoc mixer, or string-FNV world seeds (superseded guidance, revised 2026-11-12: an earlier draft recommended the `economy/market.ts` string-FNV precedent here) | `mix32` from `src/sim/rng.ts` exactly as locked D-02 names it (plan 08-02: the MurmurHash3 finaliser `fmix32`, `worldSeedFor = mix32(marketSeed, epoch)`, `forkSeed = mix32(mix32(worldSeed, entityId), purpose code)`) | Integer-only and engine-independent (`Math.imul`, unsigned shifts), fixed by D-02, test-vector pinned |
-| Zone enforcement | A plugin or custom ESLint rule | Core `no-restricted-imports` (`regex` allow-list), `-globals`, `-syntax` | Verified in the container; no dependency change |
-| Probe lint proofs | Ad-hoc `spawnSync eslint` | `lintProbe` + `withProbe` + `withProbeLock` | Shared program, serialised against `tsc` globbing |
+| Seed derivation | An ad-hoc mixer, or string-FNV world seeds | `mix32`/`fmix32` in `src/sim/rng.ts` exactly as D-02 names it (`worldSeedFor`, `forkSeed`) | Integer-only, engine-independent (`Math.imul`, unsigned shifts), fixed by D-02, vector-pinned |
+| Zone enforcement | A plugin or custom ESLint rule | Core `no-restricted-imports` (`regex` allow-list), `-globals`, `-syntax` | Proven in the container; no dependency change |
+| Probe lint proofs | Ad-hoc `spawnSync eslint` | `lintProbe` + `withProbeLock` | Shared program, serialised against `tsc` globbing |
 | Store invariants tests | Hand-written case lists only | fast-check properties over random spawn/kill/commit/snapshot sequences | Already installed; finds id-reuse and order bugs |
 | ECS | bitecs/miniplex/koota | Hand-rolled dense array store | STACK.md Decision 1 |
 | Snapshot validation | Trust `JSON.parse` | Strict hand-written `parseWorldSnapshot` returning typed data or `SnapshotError` | Boundary discipline; Phase 11 reuses it |
+| Shared limits | Inline literals in `world.ts`, `sanitize.ts`, `snapshot.ts` | One `src/sim/world/limits.ts` (owned by plan 08-05) | Three copies drifted in review round 4 |
 
-**Key insight:** the value of this phase is the *contracts and their mechanical proofs* (hash identity, id order, snapshot equality, lint zones), not the amount of simulation. Prefer the smallest world step that makes those proofs non-vacuous.
+**Key insight:** the value of this phase is the *contracts and their mechanical proofs* (hash identity, id order, per-world id scope, snapshot equality, lint zones), not the amount of simulation. Prefer the smallest world step that makes those proofs non-vacuous.
 
 ## Runtime State Inventory
 
 This phase is a refactor (the session split) plus additive world code, so the five categories are answered explicitly.
 
 | Category | Items Found | Action Required |
-|----------|-------------|------------------|
-| Stored data | IndexedDB save blob (schema v2, `MAX_SAVE_CHARS = 65,536`) and settings in localStorage. Phase 8 does not change either schema (`epoch` is session-memory only, D-03; Phase 11 persists it). | None — verified by scope (CONTEXT D-03, boundary text). Add a regression test only if a split step touches `snapshotForSave` inputs (the save-controller step must keep `buildSnapshotInputs` byte-for-byte equivalent). |
-| Live service config | None — static client, no external service (AGENTS.md: no backend). | None |
+|----------|-------------|-----------------|
+| Stored data | IndexedDB save blob (schema v2, `MAX_SAVE_CHARS = 65,536`) and settings in localStorage. Phase 8 changes neither schema: `epoch` is session memory only (D-03), and no entity id is stored anywhere (D-06 amendment). | None, verified by scope (CONTEXT D-03, D-06). Keep `buildSnapshotInputs`/`snapshotForSave` inputs byte-for-byte equivalent in the save-controller step. |
+| Live service config | None: static client, no external service. | None |
 | OS-registered state | None. | None |
-| Secrets / env vars | None read by the app; Compose env only (`WEGOLITE_E2E_WAIT_SCALE`, `WEGOLITE_REUSE_PREVIEW`, `CI`). | None |
-| Build artifacts / installed packages | `dist/` (rebuilt by `npm run build`), the named `wegolite-node-modules` volume (unchanged because `package.json` is not edited), `test-results/`. New files need no reinstall. A stale Vite preview server is reused locally only with `WEGOLITE_REUSE_PREVIEW=1`; rebuild before every e2e run. | None beyond rebuilding before e2e |
+| Secrets / env vars | None read by the app; Compose env only (`WEGOLITE_E2E_WAIT_SCALE`, `WEGOLITE_REUSE_PREVIEW`, `CI`); the probe-shape fixture writer adds the opt-in `WEGOLITE_PROBE_SHAPE_WRITE=1` (plan 08-01). | None |
+| Build artifacts / installed packages | `dist/` (rebuilt by `npm run build`), the named `wegolite-node-modules` volume (unchanged: no dependency edit), `test-results/`. A stale Vite preview is reused locally only with `WEGOLITE_REUSE_PREVIEW=1`. | Rebuild before every e2e run |
 
-**Canonical question:** after every file in the repo is updated, what runtime systems still hold the old shape? Only the browser's already-written v2 save, which is untouched. The `window.__wegolite` probe is rebuilt each page load.
+**Canonical question:** after every file is updated, what runtime systems still hold the old shape? Only the browser's already-written v2 save, which is untouched. The `window.__wegolite` probe is rebuilt each page load.
 
 ## Common Pitfalls
 
 ### Pitfall 1: Order-dependent source-scan tests break on a correct split
-**What goes wrong:** `redraw-gate.test.ts` `toEqual`s an ordered pair and `economy-purity.test.ts` scans the first `case "docked":`; concatenating files alphabetically reverses the pair and a stray `case "docked":` elsewhere changes the scanned body.
-**Why it happens:** the tests were written against one file.
-**How to avoid:** step 0 makes the assertions order-independent and structurally equivalent, proves them green on the monolith, and keeps `case "docked":` in exactly one file; the helper must fail loudly if it finds zero or more than one session source (vacuity guard).
+**What goes wrong:** `redraw-gate.test.ts` `toEqual`s an ordered pair and `economy-purity.test.ts` scans the first `case "docked":`; alphabetical concatenation reverses the pair and a stray `case "docked":` changes the scanned body.
+**How to avoid:** step 0 makes the assertions order-independent and structurally equivalent, proves them green on the monolith, keeps `case "docked":` in exactly one file, and fails loudly on zero or ambiguous session sources.
 **Warning signs:** a split step that "fixes" a count by editing a regex.
 
 ### Pitfall 2: Probe shape drifts silently
-**What goes wrong:** a refactor adds, renames or drops a probe key, or changes `probe.renders` semantics while idle; 25 specs read the probe.
-**How to avoid:** the pre-split shape spec (Pattern 3), added to `test:e2e:fast`; `publishProbe` stays once and the probe object is mutated in place.
+**What goes wrong:** a refactor adds, renames or drops a probe key, or changes `probe.renders` semantics while idle; 25 spec files read the probe.
+**How to avoid:** the pre-split shape spec (Pattern 3) in `test:e2e:fast`; `publishProbe` stays once and the probe object is mutated in place.
 **Warning signs:** any diff touching `src/app/probe.ts` field names or `updateProbe` assignments during steps 1-9.
 
-### Pitfall 3: `commands go to the first step only` and pre-launch autosave break in the manual clock
+### Pitfall 3: Manual clock mishandles commands and the pre-launch autosave
 **What goes wrong:** re-evaluating the launch-drain autosave every manual frame, applying commands to every tick, or rendering at alpha 0 after `advanceTicks`.
-**How to avoid:** Pattern 10; unit-test `sim-driver` with fakes: commands appear on tick 1 only, autosave decision runs once per drain, `advanceTicks(0)`/negative/NaN/huge rejected.
+**How to avoid:** Pattern 10; `sim-driver` unit tests with fakes: commands on tick 1 only, autosave decision once per drain, `advanceTicks(0)`/negative/NaN/huge rejected.
 
 ### Pitfall 4: New sim/app files trip the source-scan guards
-**What goes wrong:** `tests/guards/sim-purity.test.ts` fails if any file under `src/sim` has an import specifier containing `input`, or if any file under `src/sim` (other than `state.ts`), `src/input` or `src/app` declares a type whose name contains `Frame` and whose next 24 lines mention both `pitch` and `roll` [VERIFIED: tests/guards/sim-purity.test.ts `declaredFrameTypes`, `importSpecifiers`, and the "never imports the input layer from src/sim" test].
-**How to avoid:** name files/specifiers without `input` (use `controls`, `ctl`, `intent`) and avoid `*Frame*` type names near `pitch`/`roll` text.
+**What goes wrong:** `tests/guards/sim-purity.test.ts` fails if any `src/sim` import specifier contains `input` (`.filter((specifier) => specifier.includes("input"))` [VERIFIED: tests/guards/sim-purity.test.ts:286-288]) or if any file under `src/sim` (other than `state.ts`), `src/input` or `src/app` declares a type whose name contains `Frame` near `pitch`/`roll` (`declaredFrameTypes`, :114, :257-275).
+**How to avoid:** name files and specifiers without `input` (use `controls`, `ctl`, `intent`) and avoid `*Frame*` type names near `pitch`/`roll` text.
 
-### Pitfall 5: Later ESLint config block silently drops the zone's other bans
-**What goes wrong:** adding `no-restricted-syntax` or `no-restricted-imports` to the AI block replaces the sim block's list (verified: the three-ban message disappeared). A banned `Date` or `for..in` could then pass in `src/sim/ai/**`.
+### Pitfall 5: A later ESLint block silently drops the zone's other bans
+**What goes wrong:** adding `no-restricted-syntax`/`-imports`/`-globals` to the AI block replaces the sim block's list (re-proven this session). A banned `Date` or `for..in` could then pass in `src/sim/ai/**`.
 **How to avoid:** shared `const` arrays spread into both blocks; a guard test that a probe in `src/sim/ai/` with `for (const k in o)` and `Date.now()` still fails lint.
 
 ### Pitfall 6: Hash identity broken by seed/epoch/statics
-**What goes wrong:** including `epoch`, `worldSeed`, static bodies or `nextId` in the empty-world section changes the v1 hash on the first launch.
-**How to avoid:** Pattern 5 rule (section empty until anything ever spawned); the recorded-flight equality test must cover a launch (epoch bump) and an arrival (second bump).
+**What goes wrong:** including `epoch`, `worldSeed`, statics or `nextId` in the empty-world section changes the v1 hash on the first launch.
+**How to avoid:** Pattern 5 (section empty until anything ever spawned); the recorded-flight equality test covers a launch (epoch bump) and an arrival (second bump).
 
-### Pitfall 7: Id reuse and Map-order after restore
-**What goes wrong:** `commit()` or restore recomputes `nextId` as `max(live)+1`, handing a dead entity's id back; or code iterates the id index `Map`.
-**How to avoid:** `nextId` is stored state and only increments; restore uses the stored value (validated `> maxId`); fast-check property "ids ever allocated are unique"; restore-in-reversed-order test.
+### Pitfall 7: Id reuse, `max+1` recomputation and Map-order after restore
+**What goes wrong:** `commit()` or restore recomputes `nextId` as `max(live)+1`, handing a dead entity's id back inside the same world; or code iterates an id index `Map`.
+**How to avoid:** `nextId` is stored state and only increments; restore uses the stored value (validated `> maxId`); fast-check "ids ever allocated in one world are unique"; restore-in-reversed-order test. The per-world restart is the *only* way a number repeats, and only across worlds.
 
-### Pitfall 8: Per-entity RNG streams keyed by index or created lazily
-**What goes wrong:** a stream seeded from array position, or forked at first use, so spawn order or call order shifts draws; a stream state omitted from the hash lets diverged worlds hash equal.
+### Pitfall 8: Stale world state or ids leaking across a world boundary
+**What goes wrong:** a `World` object reused (or its queued events, AI wake list, or a lifecycle cache) survives a launch/arrival/Load, so id 101 of the new world aliases the old one, or a pending event names a dead world's entity.
+**How to avoid:** a fresh `World` per boundary (never `reset`), world-owned queues, no id in any out-of-world holder (table above), a lifecycle test asserting object identity changes and `nextId === 101` at every creation.
+
+### Pitfall 9: Per-entity RNG streams keyed by index, forked lazily, or missing from the hash
+**What goes wrong:** a stream seeded from array position, or forked at first use, so spawn order shifts draws; an omitted stream state lets diverged worlds hash equal.
 **How to avoid:** fork at spawn from `(worldSeed, id, purpose)`; include every state in hash and snapshot; isolation tests.
 
-### Pitfall 9: NaN/`-0` entity crashes the loop
+### Pitfall 10: NaN/`-0` entity crashes the loop
 **What goes wrong:** `canon` throws on a non-finite value, which inside `frame()` kills the game; `-0` does not survive JSON.
-**How to avoid:** `sanitizeEntity` before hashing, repair count in the entity line and asserted zero in the golden scenarios; guards for zero vectors in any steering added later.
+**How to avoid:** `sanitizeEntity` before hashing, a repair count in the entity line asserted zero in golden scenarios, spawn/control-seam bounds from `limits.ts`.
 
-### Pitfall 10: The test hook captures state
-**What goes wrong:** a hook or world holding the `FlightState` object goes stale after a Load or arrival (the G-8 bug).
-**How to avoid:** the hook methods read live context getters; the world takes the player per call; keep the existing rebind after Load.
-
-### Pitfall 11: `advanceTicks` stalls the page or hides a hang
-**What goes wrong:** an unbounded `n` blocks the main thread; a promise-less hook hides errors.
-**How to avoid:** hard cap, synchronous, returns the tick; e2e waits on `probe.frames`/`probe.sim.tick`, never on wall time or raised timeouts (PITFALLS 11).
+### Pitfall 11: The test hook captures state, or `advanceTicks` stalls the page
+**What goes wrong:** a hook or world holding the `FlightState` object goes stale after a Load or arrival (G-8); an unbounded `n` blocks the main thread.
+**How to avoid:** hook methods read live context getters; the world takes the player per call; hard cap and safe-integer check; e2e waits on `probe.frames`/`probe.sim.tick`, never wall time or raised timeouts (PITFALLS 11).
 
 ### Pitfall 12: Behaviour change smuggled into the refactor
 **What goes wrong:** folding fixes (chart pauses flight, torus message, per-step `Set` allocation) into split commits makes bisecting useless.
-**How to avoid:** none of the deferred todos are in scope; the only permitted opportunistic fix is the per-step `Set` allocation (`equipmentSet()` is built every step at `src/app/game-session.ts:2814`), and only if behaviour-neutral [CITED: PITFALLS.md:231].
+**How to avoid:** none of the deferred todos are in scope; the only opportunistic fix permitted is the per-step `Set` allocation (`equipmentSet()` is built each step), and only if behaviour-neutral [CITED: PITFALLS.md:231]. New `disposed` guards and `swapSystem` rAF tracking that go beyond a verbatim move are recorded as deliberate deviations (R4 item 14).
+
+### Pitfall 13: Firefox is not in `verify`
+**What goes wrong:** the frame-loop rewrite (plan 08-12) and the manual-clock path (08-14) change `window.addEventListener` wiring and the rAF loop; `verify` and `verify-full` run Chromium only.
+**How to avoid:** record a non-blocking `docker compose run --rm e2e-cross` run at the 08-12 gate and after 08-15 in the SUMMARY (R4 item 13).
 
 ## Code Examples
 
-Sketches only; none was compiled in this session (marked `[ASSUMED]` where a signature is a recommendation). The ESLint snippets were exercised by the container experiment.
+Sketches only; none compiled this session (signatures marked `[ASSUMED]` are recommendations). The ESLint shapes were exercised by the container experiment above.
 
-### Code Example 1: Serialisable stream with the identical sequence
+### Serialisable stream, identical sequence
 ```ts
-// src/sim/rng.ts  — same arithmetic as createSeededRandom (src/sim/math.ts:227-237)
-export interface RngState { s: number }                 // uint32, plain data
+// src/sim/rng.ts — same arithmetic as createSeededRandom (src/sim/math.ts:227-236)
+export interface RngState { s: number }            // uint32, plain data
 export function rngNext(r: RngState): number {
   r.s = (r.s + 0x6d2b79f5) >>> 0;
   let t = r.s;
@@ -426,20 +463,32 @@ export function createSeededRandom(seed: number): () => number {
   const state: RngState = { s: seed >>> 0 };
   return () => rngNext(state);
 }
-// Source: ARCHITECTURE.md Pattern 4 + src/sim/math.ts (read this session). [ASSUMED: module name rng.ts]
 ```
 
-### Code Example 2: Composed hash (empty section equals `hashFlight`)
+### Composed hash (empty section equals `hashFlight`)
 ```ts
 export function hashWorld(player: FlightState, world: World | undefined): string {
-  const section = world === undefined ? "" : serializeWorldSection(world); // "" until anything spawned
+  const section = world === undefined ? "" : serializeWorldSection(world); // "" while isNeverSpawned(world)
   return fnv1a32(serializeFlight(player) + (section === "" ? "" : `\n${section}`));
 }
-// hashFlight(state) === fnv1a32(serializeFlight(state))  (src/sim/flight/state.ts:181-183)
 // Test: for every sampled tick of each recorded flight, hashWorld(player, world) === hashFlight(player).
 ```
 
-### Code Example 3: Zone rules (container-verified shapes)
+### Per-world construction (id scope)
+```ts
+export function createWorld(worldSeed: number): World {
+  if (!Number.isSafeInteger(worldSeed) || worldSeed < 0 || worldSeed > MAX_UINT32) throw new RangeError("worldSeed");
+  return {
+    worldSeed,
+    statics: STATIC_ENTITIES,                                   // frozen, layout-referencing, never hashed
+    store: createEntityStore({ nextId: FIRST_DYNAMIC_ID, entities: [] }),   // ids restart at 101 per world
+    rng: createRngState(forkSeed(worldSeed, NO_ENTITY, "world")),
+  };
+}
+// lifecycle: world = createWorld(worldSeedFor(marketSeed, epoch)) at EVERY boundary; never reuse the old object.  [ASSUMED names]
+```
+
+### Zone rules (container-proven shapes)
 ```js
 const SIM_SYNTAX_BANS = [
   { selector: 'NewExpression[callee.name="Date"]', message: "No Date inside src/sim." },
@@ -447,31 +496,30 @@ const SIM_SYNTAX_BANS = [
   { selector: 'CallExpression[callee.property.name="sort"][arguments.length=0]', message: "Bare .sort() is lexicographic; pass a total-order comparator." },
   { selector: 'CallExpression[callee.property.name="toSorted"][arguments.length=0]', message: "Bare .toSorted() is lexicographic; pass a comparator." },
 ];
-// src/sim/**: "no-restricted-globals": [...DOM_GLOBALS, "Date", "setTimeout", "setInterval", "setImmediate", "process", "crypto"]
 // src/sim/ai/*.ts (depth 1):
 "no-restricted-imports": ["error", { patterns: [{
   regex: "^(?!\\./|\\.\\./(math|world/(ids|view|control))\\.js$)",
   message: "AI modules may import only the WorldView/ShipControl seam, ids and math." }] }],
 "no-restricted-syntax": ["error", ...SIM_SYNTAX_BANS, { selector: "ImportExpression", message: "No dynamic import in the AI zone." }],
-// Source: container experiment, ESLint 10.14.0 (outputs quoted in Pattern 8)
 ```
 
-### Code Example 4: Entity store invariants (property test outline)
-```ts
-// fast-check: arbitrary sequence of spawn | kill(id) | commit | snapshot+restore
-// invariants after every op: live ids strictly ascending; get(deadId) === undefined;
-// the multiset of every id ever returned by spawn has no duplicates; nextId > every id ever issued;
-// restore(snapshot(world)) has equal entityHashes and equal nextId.
-```
-
-### Code Example 5: Flags parser
+### Flags parser
 ```ts
 export function parseTestFlags(search: string): { hook: boolean; manualClock: boolean; traffic: boolean } {
   const q = new URLSearchParams(search);
   const hook = q.get("test") === "1";
   return { hook, manualClock: hook && q.get("clock") === "manual", traffic: hook && q.get("traffic") === "1" };
 }
-// Mirrors the existing: new URLSearchParams(window.location.search).get("test") === "1" (game-session.ts:3184-3185)
+// Mirrors the existing line at src/app/game-session.ts:3184-3185 (new URLSearchParams(window.location.search).get("test") === "1").
+```
+
+### Store invariant property test (outline)
+```ts
+// fast-check: arbitrary sequence of spawn | kill(id) | commit | snapshot+restore, within ONE world
+// after every op: live ids strictly ascending; get(deadId) === undefined;
+// every id ever returned by spawn in this world is unique; nextId > every id ever issued;
+// restore(snapshot(world)) has equal entityHashes, equal nextId and identical exact snapshot JSON.
+// plus (outside the property): two createWorld() calls each issue FIRST_DYNAMIC_ID (the per-world restart).
 ```
 
 ## State of the Art
@@ -479,118 +527,100 @@ export function parseTestFlags(search: string): { hook: boolean; manualClock: bo
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
 | Player-only `FlightState` hash | World hash composed on top (empty == v1) | This phase | Existing goldens remain valid evidence |
-| Closure PRNG | Object-state PRNG with forked streams | This phase | Hashable, snapshot-able, isolated |
-| Probe-only hook | `advanceTicks` under `?test=1&clock=manual` | This phase | Browser specs count ticks, not seconds (SwiftShader runs the sim at roughly 0.1x real time) |
+| Closure PRNG | Object-state PRNG with `mix32`-forked streams | This phase | Hashable, snapshot-able, isolated |
+| Ids "never reused" globally (ARCHITECTURE 2a reading, player = 1) | Per-world ids from 101, player 100, statics 1-5 | D-06, amended 2026-11-12 | A world is a pure function of its seed; nothing carries an id across worlds |
+| Probe-only hook | `advanceTicks` under `?test=1&clock=manual` | This phase | Browser specs count ticks, not seconds (SwiftShader runs the sim at roughly 0.1x real time [CITED: PITFALLS.md Pitfall 11]) |
 
-**Deprecated/outdated:** ARCH §5.1's `PLAYER_ID = 1` (superseded by D-06). ARCH §12's wording that `Rng` lives "in `math.ts`" is satisfied by delegation, with the state type in `rng.ts`.
+**Deprecated/outdated:** ARCHITECTURE §5.1's `PLAYER_ID = 1` (superseded by D-06); `08-PATTERNS.md` line 93 ("never-reused monotonic id from 101") and "`Map` for lookup only" predate the per-world wording and the binary-search store; read them as "never reused within its world" and "no Map".
 
 ## Assumptions Log
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | `MAX_ADVANCE_TICKS` of about 200,000 is a sensible per-call cap | Pattern 10 | Too low blocks a long e2e wait (raise it); too high allows a multi-second main-thread stall |
-| A2 | `mix32` seed derivation (locked D-02; plan 08-02) gives adequate stream independence for mulberry32 seeding. Superseded wording (revised 2026-11-12): an earlier draft assumed string-FNV seeds (`fnv1a32` over colon-joined strings), which contradicts D-02 and is withdrawn | Pattern 6 | Correlated streams; mitigated by plan 08-02's tests (distinct seeds and first draws for adjacent ids and purposes, 1,000 distinct world seeds over consecutive epochs) and by pinning `mix32`, `worldSeedFor` and `forkSeed` vectors before Phase 11 |
-| A3 | A minimal kinematic update in W1 is acceptable scope and a placeholder for Phase 12/13 | Pattern 9, Open Q5 | If the owner wants no motion, the 1,000-tick test relies on pilot nav writes and RNG draws only |
-| A4 | `-0` normalisation and per-tick `sanitizeEntity` are worth including now | Pattern 7 | Small extra code; omit if the planner judges it premature |
-| A5 | New `src/sim/world/**` and `src/sim/ai/**` code can be tested enough to keep the `src/sim/**` coverage floors (lines 93, statements 91, functions 97, branches 86) | Validation | `npm test` (`vitest run --coverage`) fails the threshold; add tests for error branches (snapshot parse failures) |
-| A6 | Probe additions are `probe.sim = {tick, epoch, entities, traffic, clock}` plus hook `advanceTicks`/`worldHash` | Pattern 3, 10 | Naming is discretion; changing it changes the one post-split fixture update only |
-| A7 | The Playwright Node runner can import pure `src/sim` modules (and a THREE/DOM/Vite-free `sim-driver` helper) | Pattern 10 | If not, the spec reads a Vitest-written expected-hash fixture instead; evidence for the import mechanism is existing specs importing `src/ui/chart-model.js` and `src/content/types.js` [VERIFIED: tests/e2e/helpers/chart.ts:12-14] |
+| A1 | `MAX_ADVANCE_TICKS = 200,000` is a sensible per-call cap | Pattern 10 | Too low blocks a long e2e wait (raise it); too high allows a multi-second main-thread stall |
+| A2 | `mix32` derivation gives adequate stream independence for mulberry32 seeding | Pattern 6 | Correlated streams; mitigated by plan 08-02 tests (distinct seeds for adjacent ids/purposes, 1,000 distinct world seeds over consecutive epochs) and vector pinning before Phase 11 |
+| A3 | A constant-speed placeholder integrator in `stepWorld` is acceptable scope until Phases 12-13 | Pattern 9 | If the owner wants no motion, the 1,000-tick test relies on pilot writes and RNG draws only |
+| A4 | `-0` normalisation and per-tick `sanitizeEntity` are worth including now | Pattern 7 | Small extra code; omit only if judged premature |
+| A5 | New `src/sim/world/**` and `src/sim/ai/**` code can be tested enough to keep the `src/sim/**` coverage floors (lines 93, statements 91, functions 97, branches 86) | Validation | `npm test` fails the threshold; add error-branch tests (snapshot parse failures) |
+| A6 | Probe additions are `probe.sim = {tick, epoch, entities, traffic, clock}` plus always-present hook `advanceTicks`/`worldHash` | Pattern 3 | Naming is discretion; a rename only changes the one post-split fixture update |
+| A7 | The Playwright Node runner can import pure `src/sim` modules and a Three/DOM/Vite-free `step-options` helper | Pattern 10 | Plan 08-16 has the fallback (a Vitest-written expected-hash fixture); precedent: existing specs import `src/` modules via `tests/e2e/helpers/chart.ts` [CITED: prior session read] |
+| A8 | A lightweight guard (an `rg`-style test or a lint ban) is an acceptable way to enforce "no EntityId outside src/sim" | Per-world id scope | If omitted, the per-world rule is enforced by review and the lifecycle test only |
+| A9 | The in-flight Continue/Load world is regenerated without an `epoch` bump | Open Question 2 | Unobservable in Phase 8 (no NPC); Phase 11 revisits when `epoch` persists |
 
 ## Open Questions (RESOLVED)
 
-Every question below was settled during planning; each entry names the decision or plan that resolves it.
+Every question below was settled during planning; each names the decision or plan that resolves it.
 
-1. **Does the world exist while docked?**
-   - What we know: ARCH §8.2 says no (docked tears it down; launch creates it); D-08 needs `hashWorld(player, undefined) === hashFlight(player)`.
-   - What's unclear: whether the owner wants a permanent `World` object holding statics for the whole session instead.
-   - Recommendation: world absent while docked, present in `launching`/`inFlight`; `hashWorld` accepts `undefined`.
-   - **RESOLVED:** no world while docked; the `launched` event creates it and the `docked` event drops it, and `hashWorld(player, undefined)` equals `hashFlight(player)`. Decided by D-02 (a populate happens at each launch and arrival) and D-08; implemented by plan 08-15 Task 1 (the `worldLifecycle` subscriber) and proven by plan 08-05 Task 1 (`hashWorld` with an absent world). The static bodies are stored in each world as fixed-id entities that reference `SystemLayout` (D-07, plan 08-05), so nothing static needs a session-long world.
-
-2. **`epoch` on an in-flight Continue.** D-03 says the counter lives in session memory (starts at 0). A reload of an in-flight save has no saved epoch; bumping gives epoch 1, not bumping leaves 0.
-   - Recommendation: create the world without bumping (the world is NPC-free in Phase 8, so unobservable); revisit in Phase 11 when `epoch` is persisted. Confirm with the owner only if a plan wants a stricter rule.
-   - **RESOLVED:** an in-flight Continue or Load recreates the world with `resume(marketSeed)`, without a bump; Phase 11 (SAVE-07) revisits it when `epoch` is persisted. Decided under D-03 (session-memory epoch); implemented by plan 08-15 Tasks 2 and 3 and recorded in its Key Decisions row.
-
-3. **Does `advanceTicks` taint the profile?** PITFALLS 11 says it "taints the profile and returns". Taint blocks autosave for the rest of the session, which is fine for determinism specs but means a manual-clock spec cannot also prove autosave.
-   - Recommendation: taint (conservative, matches the hook rule); a spec that needs autosave uses the realtime clock.
-   - **RESOLVED:** `advanceTicks` taints before its first step, so every autosave inside or after the call skips. Decided by the existing `?test=1` taint rule (PROJECT.md Key Decisions) and D-09; implemented and unit-proven by plan 08-14 Tasks 1 and 2.
-
-4. **ShipControl addressing.** ARCH §7.3 is id-addressed; Pitfall 7 wants handlers to mutate only the receiving entity.
-   - Recommendation: keep id-addressed signatures, enforce actor-only in `createShipControl(world, actorId)`.
-   - **RESOLVED:** id-addressed signatures with actor-only enforcement in `createShipControl(world, actorId, tick)`; every write for another id is a no-op. Implemented and proven by plan 08-07 Tasks 1 and 2.
-
-5. **Placeholder motion in Phase 8.** No motion model is ported until Phase 12/13.
-   - Recommendation: a clearly labelled `position += forward * speed * DT` placeholder in W1 so the 1,000-tick equality, scan ordering and the pilot are non-vacuous; do not port `BEHAVIOUR_*` steering here.
-   - **RESOLVED:** Phase 8 moves dynamic entities at their desired speed along their facing (a constant-speed integrator), and the Oolite thrust and attitude port stays in Phase 12/13. Implemented by plan 08-11 Task 1 and recorded as Key Decisions row (d) by plan 08-11 Task 3.
-
-6. **Where does `stepSim` live and what is its signature?** Not fixed by any decision. Recommendation: `src/sim/sim.ts` exporting `stepSim(player, world | undefined, layout, config, intent, commands, dt, options): SimEvent[]` that calls `stepFlight` first and `stepWorld` only when a world is passed.
-   - **RESOLVED:** `src/sim/sim.ts` exports `stepSim(player, world, layout, config, intent, commands, dt, options?)`; it calls the unchanged `stepFlight` first and `stepWorld` only when a world is passed and the player is launching or in flight. Implemented by plan 08-11 Task 1; plugged into the session's sim driver by plan 08-15 (D-14).
-
-7. **Observable effect of `?traffic=1` in Phase 8.** No populator exists. Recommendation: the injected `populate` seam plus `probe.sim.traffic`; a Vitest spy proves call counts; the browser spec proves the flag is read once and off by default.
-   - **RESOLVED:** the flag is parsed once at start-up by `parseTestFlags` (plan 08-14); the world lifecycle calls an injected `populate(world, { traffic })` at every world creation in both modes, and epoch and ids advance identically (D-05, D-10; plan 08-15 Task 2); `probe.sim.traffic` and the browser opt-in spec prove the default and the opt-in (plan 08-16).
+1. **Does the world exist while docked?** RESOLVED: no; the `launched` event creates it and `docked` drops it; `hashWorld(player, undefined)` equals `hashFlight(player)` (D-02, D-08; plans 08-05, 08-15). The statics live in each world as layout-referencing records (D-07), so nothing static needs a session-long world.
+2. **`epoch` on an in-flight Continue/Load.** RESOLVED: the world is recreated (fresh ids from 101, per D-06 as amended) with `worldSeedFor(marketSeed, epoch)` **without** a bump; Phase 11 revisits when `epoch` is persisted (D-03; plan 08-15).
+3. **Does `advanceTicks` taint the profile?** RESOLVED: yes, before its first step, so every autosave inside or after the call skips (existing `?test=1` taint rule, D-09; plan 08-14).
+4. **`ShipControl` addressing.** RESOLVED: id-addressed signatures with actor-only enforcement in `createShipControl(world, actorId, tick)` (plan 08-07).
+5. **Placeholder motion.** RESOLVED: a constant-speed integrator, thrust/attitude port in Phases 12-13 (plan 08-11, Key Decisions row (d) there).
+6. **Where does `stepSim` live?** RESOLVED: `src/sim/sim.ts`, `stepSim(player, world, layout, config, intent, commands, dt, options?)`; calls the unchanged `stepFlight` first, `stepWorld` only when a world is passed and the player is launching or in flight (plans 08-11, 08-15).
+7. **Observable effect of `?traffic=1` in Phase 8.** RESOLVED: the injected `populate` seam, `probe.sim.traffic`, and parity of `epoch` and fresh-world `nextId` in both modes (D-05, D-10; plans 08-14, 08-15, 08-16). See the D-05 forward note for Phase 12.
 
 ## Environment Availability
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| Docker | every test/build/lint | yes | 29.8.2 | — |
-| Docker Compose | `docker compose run --rm <service>` | yes | 5.6.0 | — |
-| Container Node | all tooling | yes | v24.22.2 (`docker compose run --rm lint node --version`) | — |
-| `wegolite-ci` image (Chromium, Playwright, deps) | e2e specs | yes (image present; `lint` service ran) | pinned by `compose.yaml`/`Dockerfile` | `docker compose build` |
-| Host Node | not authoritative | v26.10.0, no `node_modules` | — | do not use for evidence |
-| Oolite checkout | reading upstream facts | yes (`/home/opencode/git/oolite`) | pin `7437f22` per ARCH | — |
+| Docker | every test/build/lint | yes | 29.8.2 [VERIFIED: `docker --version` this session] | — |
+| Docker Compose | `docker compose run --rm <service>` | yes | 5.6.0 [VERIFIED: `docker compose version`] | — |
+| Container Node | all tooling | yes | v24.22.2 [VERIFIED: `docker compose run --rm lint node --version`] | — |
+| `lint` service image (ESLint, typescript-eslint, TS) | lint experiments and guards | yes (ran this session) | pinned by `compose.yaml`/`Dockerfile` | `docker compose build` |
+| Oolite checkout | reading upstream facts | yes: `/home/opencode/git/oolite` (HEAD `4bb1f53de`) | — | do not fetch over the network |
+| Host Node | not authoritative | not used | — | do not use for evidence |
 
 **Missing dependencies with no fallback:** none.
 **Missing dependencies with fallback:** none.
 
 ## Validation Architecture
 
-`workflow.nyquist_validation` is `true` in `.planning/config.json` [VERIFIED: file read], so this section applies.
+`workflow.nyquist_validation` is `true` in `.planning/config.json` [VERIFIED: file read this session], so this section applies.
 
 ### Test Framework
 | Property | Value |
 |----------|-------|
-| Framework | Vitest 5.0.5 (unit/integration, one `unit` project, Node env) and Playwright 1.64.1 (Chromium; Firefox only for engine/core-loop) |
-| Config file | `vitest.config.ts` (coverage thresholds on `src/sim/**` etc.), `playwright.config.ts` (workers 2, `testDir ./tests/e2e`) |
+| Framework | Vitest 5.0.5 (unit/integration, Node env) and Playwright 1.64.1 (Chromium in `verify`/`verify-full`; Firefox only via `e2e-cross`) |
+| Config file | `vitest.config.ts` (per-glob coverage thresholds; `src/sim/**` lines 93, statements 91, functions 97, branches 86 [VERIFIED: vitest.config.ts:35-41]), `playwright.config.ts` |
 | Quick run command | `docker compose run --rm test npx vitest run <file>` |
-| Full suite command | `docker compose run --rm verify` (per commit/wave); `docker compose run --rm verify-full` (phase gate; split steps 3, 6, 9) |
+| Full suite command | `docker compose run --rm verify` (per commit/wave); `docker compose run --rm verify-full` (phase gate; split steps 3, 6, 9 and after 08-15) |
 
 ### Phase Requirements -> Test Map
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| FOUND-10 | Probe shape unchanged across the split (menu, docked, in-flight, paused, chart, saved) | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/probe-shape.spec.ts"` | No - Wave 0 |
-| FOUND-10 | Redraw-gate structure and economy-purity scans hold across concatenated session sources | unit | `docker compose run --rm test npx vitest run tests/app/redraw-gate.test.ts tests/guards/economy-purity.test.ts` | Yes (re-point in step 0) |
-| FOUND-10 | No golden changed | process | `git diff --exit-code -- tests/golden` after each split step (plan verify step) | n/a |
-| FOUND-10 | Frame phase order and event-router subscriber order pinned | unit | `... vitest run tests/app/session-order.test.ts` | No - Wave 0 (A1/A8) |
-| FOUND-10 | Per-controller fake-context unit tests | unit | `... vitest run tests/app/session` | No - each split step |
-| FOUND-11 | Ids monotonic, never reused, ascending iteration; kill/commit/spawn-this-tick semantics | unit + property | `... vitest run tests/sim/world/store.test.ts` | No - Wave 0 |
-| FOUND-11 | Fixed id table and static/player views (ids 1-5, 100; statics not stored) | unit | `... vitest run tests/sim/world/view.test.ts` | No - Wave 0 |
-| FOUND-11 | `hashWorld === hashFlight` on recorded flights incl. launch, dock, jump; pinned v1 values | unit/golden | `... vitest run tests/sim/world/hash.test.ts` | No - Wave 0 |
-| FOUND-12 | `createSeededRandom` vectors unchanged; fork isolation; serialisable state | unit | `... vitest run tests/sim/rng.test.ts` | No - Wave 0 |
+| FOUND-10 | Probe shape unchanged across the split (menu, docked, in-flight, paused, chart, saved) | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/probe-shape.spec.ts"` | No - 08-01 |
+| FOUND-10 | Redraw-gate and economy-purity scans hold across concatenated session sources | unit | `docker compose run --rm test npx vitest run tests/app/redraw-gate.test.ts tests/guards/economy-purity.test.ts tests/app/session-source.test.ts` | Partly (re-point in 08-01) |
+| FOUND-10 | No golden changed | process | `git diff --exit-code -- tests/golden` after each split step, only the additive `tests/golden/world/` may appear | n/a |
+| FOUND-10 | Frame phase order and event-router subscriber order pinned; per-controller fake-context tests | unit | `docker compose run --rm test npx vitest run tests/app/session-order.test.ts tests/app/session` | No - 08-04..08-12 |
+| FOUND-11 | Ids unique and never reused within a world; per-world restart at 101; ascending iteration; cap | unit + property | `docker compose run --rm test npx vitest run tests/sim/world/store.test.ts tests/app/session/world-lifecycle.test.ts` | No - 08-05, 08-15 |
+| FOUND-11 | Fixed id table; statics as layout-referencing records; player view | unit | `... vitest run tests/sim/world/view.test.ts tests/sim/world/hash.test.ts` | No - 08-05, 08-07 |
+| FOUND-11 | `hashWorld === hashFlight` on recorded flights incl. launch, dock, jump; pinned v1 values; epoch bumps | unit/golden | `... vitest run tests/sim/world/hash.test.ts tests/sim/world/flight-hash-pins.test.ts` | No - 08-02, 08-05 |
+| FOUND-12 | `createSeededRandom` vectors unchanged; `mix32`/`forkSeed` vectors; fork isolation | unit | `... vitest run tests/sim/rng.test.ts` | No - 08-02 |
 | FOUND-12 | Arrival goldens unchanged | unit | `... vitest run tests/sim/hyperspace-arrival.test.ts tests/persistence/autosave.test.ts` | Yes |
-| FOUND-12 | Live vs restored world hash equal over 1,000 ticks (reversed insertion order, killed-highest-id, -0) | unit | `... vitest run tests/sim/world/snapshot.test.ts` | No - Wave 0 |
-| FOUND-12 | Lint rejects `Math.random`, `Date`, wall clock, `for..in`, bare `.sort()` (+ positive controls) | guard | `... vitest run tests/guards/sim-determinism-bans.test.ts` | No - Wave 0 |
-| FOUND-12 | Cadence: same world hash at 30/60/144 Hz including a launch and an arrival | unit | `... vitest run tests/sim/world/world-cadence.test.ts` | No - Wave 0 |
-| FOUND-13 | Pilot via fake `WorldView` + recording `ShipControl`; JSON round trip; integer timers | unit | `... vitest run tests/sim/ai/test-pilot.test.ts` | No - Wave 0 |
-| FOUND-13 | AI zone rejects simulation-internal imports (type and value, export-from, dynamic) | guard | `... vitest run tests/guards/ai-zone.test.ts` | No - Wave 0 |
-| FOUND-14 | `parseTestFlags` and `advanceTicks` contract (bounds, first-step commands, taint, paused no-op) | unit | `... vitest run tests/app/session/test-flags.test.ts tests/app/session/sim-driver.test.ts` | No - Wave 0 |
-| FOUND-14 | Browser `advanceTicks(N)` hash equals Node run of the same N; manual clock does not self-step; traffic off by default | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/tick-hook.spec.ts"` | No - Wave 0 |
+| FOUND-12 | Live vs restored world equal over 1,000 ticks (hash and exact snapshot JSON; reversed insertion, killed-highest-id, -0) | unit | `... vitest run tests/sim/world/snapshot.test.ts tests/sim/world/snapshot-codec.test.ts` | No - 08-13 |
+| FOUND-12 | Lint rejects `Math.random`, `Date`, wall clock, `for..in`, bare `.sort()` (+ positive controls) | guard | `... vitest run tests/guards/sim-determinism-bans.test.ts` | No - 08-03 |
+| FOUND-12 | Same world hash at 30/60/144 Hz including a launch and an arrival | unit | `... vitest run tests/sim/world/world-cadence.test.ts` | No - 08-13 |
+| FOUND-13 | Pilot via fake `WorldView` + recording `ShipControl`; JSON round trip; integer timers | unit | `... vitest run tests/sim/ai/test-pilot.test.ts tests/sim/ai/time.test.ts` | No - 08-09 |
+| FOUND-13 | AI zone rejects simulation-internal imports (value, type, export-from, dynamic) and keeps the sim bans | guard | `... vitest run tests/guards/ai-zone.test.ts` | No - 08-09 |
+| FOUND-14 | `parseTestFlags` and `advanceTicks` contract (bounds, first-step commands, taint, refusal outside manual clock) | unit | `... vitest run tests/app/session/test-flags.test.ts tests/app/session/sim-driver.test.ts` | No - 08-14 |
+| FOUND-14 | Browser `advanceTicks(N)` hash equals the Node run of the same N; manual clock does not self-step; traffic off by default and opt-in | e2e + unit | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/tick-hook.spec.ts"`; `... vitest run tests/app/session/tick-parity.test.ts` | No - 08-16 |
 
 ### Sampling Rate
 - **Per task commit:** the targeted `vitest run <file>` for the files touched; split steps run `docker compose run --rm verify` (D-12).
-- **Per wave merge:** `docker compose run --rm verify`; `verify-full` at split steps 3, 6, 9 and after the integration plan.
-- **Phase gate:** local `docker compose run --rm verify-full` green (the D-01 baseline), with `git diff --exit-code -- tests/golden` clean, before `/gsd-verify-work`. Budget: at most one new browser spec per concern, each under about 60 s under `workers: 2`.
+- **Per wave merge:** `docker compose run --rm verify`; `verify-full` at split steps 3, 6, 9 and after 08-15.
+- **Phase gate:** local `docker compose run --rm verify-full` green (the D-01 baseline), `git diff --exit-code -- tests/golden` clean apart from the additive `tests/golden/world/`, a non-blocking `e2e-cross` run recorded after 08-12 and 08-15, then `/gsd-verify-work`. Budget: at most one new browser spec per concern, each under about 60 s under `workers: 2`.
 
 ### Wave 0 Gaps
-- [ ] Local `verify-full` baseline run, with duration recorded (D-01).
-- [ ] `tests/e2e/probe-shape.spec.ts` plus shape fixtures, added to `test:e2e:fast`.
-- [ ] `tests/helpers/session-source.ts`; `redraw-gate.test.ts` and `economy-purity.test.ts` re-pointed and made order-independent.
-- [ ] Recorded v1 `hashFlight` pins (additive golden) and current-closure RNG vectors, captured **before** any `math.ts`/`flight` edit.
-- [ ] `tests/sim/world/*`, `tests/sim/ai/*`, `tests/sim/rng.test.ts`, the two guard files, `tests/helpers/tick-script.ts`, `tests/e2e/tick-hook.spec.ts`.
-- [ ] Framework install: none (all tools present).
+- [ ] Local `verify-full` baseline run, duration recorded (D-01) — plan 08-01.
+- [ ] `tests/e2e/probe-shape.spec.ts` + fixtures, added to `test:e2e:fast` — 08-01.
+- [ ] `tests/helpers/session-source.ts`; `redraw-gate.test.ts` and `economy-purity.test.ts` re-pointed and made order-independent — 08-01.
+- [ ] Recorded v1 `hashFlight` pins (additive golden) and current-closure RNG vectors, captured **before** any `math.ts`/`flight` edit — 08-02.
+- [ ] `tests/sim/world/*`, `tests/sim/ai/*`, `tests/sim/rng.test.ts`, the two guard files, `tests/helpers/tick-script.ts`, `tests/e2e/tick-hook.spec.ts` — created by their owning plans.
+- [ ] Framework install: none.
 
 ## Security Domain
 
-`security_enforcement` is enabled (absent = enabled; config shows `true`, ASVS level 1, block on high) [VERIFIED: .planning/config.json]. There is no authentication, session, or server surface; the relevant controls are input validation at the two new boundaries (URL flags and the hook argument; the snapshot JSON parser) and keeping the test seams narrow.
+`security_enforcement` is `true` (ASVS level 1, block on high) [VERIFIED: .planning/config.json]. There is no authentication, session or server surface; the relevant controls are input validation at the new boundaries (URL flags, the hook argument, the snapshot JSON parser) and keeping the test seams narrow.
 
 ### Applicable ASVS Categories
 
@@ -598,35 +628,37 @@ Every question below was settled during planning; each entry names the decision 
 |---------------|---------|-----------------|
 | V2 Authentication | no | static client, no accounts |
 | V3 Session Management | no | no server sessions |
-| V4 Access Control | no | no multi-user surface; the hook is gated by `?test=1`, taints the profile, and never writes saves |
-| V5 Input Validation | yes | exact-value URL flag parsing (`"1"`, `"manual"`); `advanceTicks` integer/range check; strict `parseWorldSnapshot` (finite numbers, integer ticks, ascending unique ids, bounded counts, known enum values) |
-| V6 Cryptography | no | FNV is an integrity checksum, not a security control (documented in `hash.ts`); no new crypto, and `crypto` is added to the sim globals ban |
-| V12 Files / V14 Config | marginal | the shipped bundle includes the hook behind `?test=1`; the read-once rule and the absence of any save write keep it inert for players |
+| V4 Access Control | no | no multi-user surface; the hook is gated by `?test=1`, taints the profile, never writes saves |
+| V5 Input Validation | yes | exact-value URL flag parsing (`"1"`, `"manual"`); `advanceTicks` integer/range check; strict `parseWorldSnapshot` (finite numbers, integer ticks, ascending unique ids, bounded counts, uint32 `worldSeed`, known enum values) |
+| V6 Cryptography | no | FNV is an integrity checksum, not a security control (documented in `hash.ts:5-6`); no new crypto; `crypto` is added to the sim globals ban |
+| V12 Files / V14 Config | marginal | the shipped bundle includes the hook behind `?test=1`; read-once flags and the absence of any save write keep it inert for players |
 
 ### Known Threat Patterns for this stack
 
 | Pattern | STRIDE | Standard Mitigation |
 |---------|--------|---------------------|
-| A shared link `?test=1&clock=manual` freezes a player's session | Denial of service (self-inflicted) | Flags only honoured with `test=1`; no persistence effect; documented as test-only |
-| Oversized `advanceTicks` argument freezes the tab | Denial of service | Hard cap and safe-integer check; synchronous bounded loop |
-| Hook mutation makes a durable save from hooked state | Tampering | Existing taint rule; `advanceTicks` taints; autosave skips a tainted profile |
+| A shared link `?test=1&clock=manual` freezes a player's session | Denial of service (self-inflicted) | Flags honoured only with `test=1`; no persistence effect; documented as test-only |
+| Oversized `advanceTicks` argument freezes the tab | Denial of service | Hard cap, safe-integer check, synchronous bounded loop |
+| Hook mutation makes a durable save from hooked state | Tampering | Existing taint rule; `advanceTicks` taints before its first step; autosave skips a tainted profile |
 | Malformed snapshot JSON reused by Phase 11 | Tampering | Boundary parser with typed failure; `MAX_ENTITIES` and size bounds now |
+| `aiKey` such as `"constructor"` throws in the fixed step | DoS | `Object.hasOwn(registry, aiKey)` dispatch; enum validation at spawn and sanitize |
 | A NaN entity throws inside the frame loop | DoS | `sanitizeEntity` before hash; never wrap the hash in try/catch |
+| A stale id from a previous world aliases a new entity | Spoofing/Tampering (logic) | Per-world scope: fresh `World` per boundary, no id in any out-of-world holder |
 | Unseeded randomness or wall clock sneaks into `src/sim` | Repudiation of determinism | Lint bans plus probe proofs with positive controls |
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `/home/opencode/git/wegolite/src/app/game-session.ts` (read: header, options/interfaces, state `let` block 335-487, `frame` 2699-2864, `handleEvent` 2294-2410, `updateProbe` 2412-2550, `handleHyperspaceJumped` 2061-2158, `startSession` 2884-3250, `dispose` and return 3303-3364)
-- `/home/opencode/git/wegolite/src/app/probe.ts`, `src/app/game-loop.ts`, `src/sim/{hash,step,time,loop,events,commands,math}.ts`, `src/sim/flight/{state,step}.ts`, `src/sim/world/layout.ts`, `src/sim/hyperspace/arrival.ts`, `src/sim/economy/{market,ranrot}.ts`
-- `/home/opencode/git/wegolite/eslint.config.js`, `package.json`, `vitest.config.ts`, `playwright.config.ts`, `tsconfig.sim.json`, `compose.yaml`, `.prettierignore`
-- `/home/opencode/git/wegolite/tests/{app/redraw-gate,guards/economy-purity,guards/sim-purity,guards/eslint-gate,guards/probe-lock,contract/fidelity,sim/flight-cadence,sim/replay-integrity,helpers/lave}.test|.ts`, `tests/e2e/helpers/{probe,chart}.ts`
-- `.planning/research/{ARCHITECTURE,PITFALLS,STACK,SUMMARY}.md`, `.planning/ROADMAP.md` (Phase 8), `.planning/REQUIREMENTS.md` (FOUND-10..14), `.planning/STATE.md`, `.planning/PROJECT.md`, `08-CONTEXT.md`
-- Oolite checkout `/home/opencode/git/oolite/src/Core`: `OOTypes.h:160-172`, `Universe.m:4841-4846, 5000-5032, 6430-6445, 6530-6545`, `Tables/OOBehaviour.tbl`, `Tables/OOScanClass.tbl`
-- Container experiments (`docker compose run --rm lint node --input-type=module -`, scripts in the session scratchpad, not the repo): ESLint rule shapes and replace-not-merge semantics (outputs quoted in Pattern 8)
+- Read this session: `.planning/phases/08-session-split-and-world-core/08-CONTEXT.md`, prior `08-RESEARCH.md`, `08-PATTERNS.md`, `08-REVIEWS.md` (round 4 consensus), `.planning/{REQUIREMENTS,ROADMAP,STATE,PROJECT}.md` (Phase 8 and FOUND-10..14 rows), `.planning/config.json`, `AGENTS.md`.
+- `/home/opencode/git/wegolite/src/sim/{math.ts:215-236, hash.ts, events.ts, world/layout.ts:25-64, flight/state.ts:20-183, flight/step.ts:347-350, hyperspace/arrival.ts:66-76}`, `src/app/game-loop.ts`, `src/app/game-session.ts:2790-2864, 3184-3186` and anchor greps, `eslint.config.js` (whole file), `package.json` scripts, `vitest.config.ts:30-64`, `compose.yaml` services, `FIDELITY.md:19,37`.
+- `/home/opencode/git/wegolite/tests/app/redraw-gate.test.ts:100-153`, `tests/guards/economy-purity.test.ts:196-207, 305-354`, `tests/guards/sim-purity.test.ts` (greps), `tests/guards/eslint-gate.ts`, `tests/contract/fidelity.test.ts`.
+- `.planning/research/ARCHITECTURE.md` (§4.2 line 173, §5.1 line 204, allocation and cap lines 207-209, mapping table line 550), `PITFALLS.md` (pitfall headings 1-4, 7-11, 13, 17, 19, 27), STACK.md Decision 1.
+- Oolite checkout `/home/opencode/git/oolite/src/Core`: `OOTypes.h:165-172`, `Universe.m:4841-4844, 5016-5020, 6430-6440`, `Tables/OOBehaviour.tbl`, `Tables/OOScanClass.tbl`.
+- Container experiment this session (`docker compose run --rm lint`, ESLint 10.14.0, script in the session scratchpad; output quoted in Pattern 8) for replace-not-merge semantics and selector behaviour.
 
 ### Secondary (MEDIUM confidence)
-- PITFALLS.md/ARCHITECTURE.md quantitative claims (about 121 e2e tests, about 1,366 unit tests, SwiftShader about 0.1x) carried as cited; the repo currently lists 25 spec files and about 118 `test(`/`it(` lines under `tests/e2e` by a rough count.
+- ARCHITECTURE/PITFALLS quantitative claims (about 121 e2e tests, about 1,366 unit tests, SwiftShader about 0.1x) carried as cited; the repo lists 25 spec files under `tests/e2e`.
+- `src/sim/economy/market.ts:41-43` (`marketSeedForSystem`) read in the prior session, not re-read this session.
 
 ### Tertiary (LOW confidence)
 - None used as authority.
@@ -635,8 +667,9 @@ Every question below was settled during planning; each entry names the decision 
 
 **Confidence breakdown:**
 - Standard stack: HIGH — no new packages; versions read from `package.json`.
-- Architecture: HIGH — locked by CONTEXT plus ARCHITECTURE sections whose line ranges were re-verified against the current file.
-- Pitfalls: HIGH — each was found in code or confirmed by experiment; the manual-clock autosave hazard and the order-sensitive scan tests are derived from reading `frame()` and the tests.
+- Architecture: HIGH — locked by CONTEXT plus ARCHITECTURE sections whose anchors were re-verified against the current file; no `src/` commit landed since the prior research (last source commit is the 0.3.0 release).
+- Pitfalls: HIGH — each found in code or confirmed by experiment; the manual-clock autosave hazard and the order-sensitive scan tests are derived from reading `frame()` and the tests.
+- Per-world id scope: HIGH for Phase 8 behaviour (no NPC, no id holder outside the world exists in v1 code); MEDIUM for the Phase 12+ forward hazards (scene maps, event timing, D-05 reading), which are rules for later phases to honour.
 
-**Research date:** 2026-11-11
-**Valid until:** about 30 days (the split target file changes whenever another phase edits `game-session.ts`; re-check the line ranges before step 1 if other work lands first).
+**Research date:** 2026-11-12
+**Valid until:** about 30 days (the split target file changes whenever another phase edits `game-session.ts`; re-check the anchors before step 1 if other work lands first).
