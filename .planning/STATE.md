@@ -2,14 +2,14 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: Foundation & Combat
-current_phase: 08
+current_phase: 8
 current_phase_name: Session Split and World Core
 status: executing
 stopped_at: Phase 8 context gathered
-last_updated: "2026-11-12T08:44:03.389Z"
+last_updated: "2026-11-12T14:51:40.234Z"
 last_activity: 2026-11-11
 last_activity_desc: "v2.0 roadmap round-2 fixes applied: 16 phases (8-23), 60 of 60 requirements mapped"
-state_head: 5b189e43325a151d49bcda0b35a96399d882681c
+state_head: 6f4ae07033b19af5f70efe7794f683332870a845
 progress:
   total_phases: 16
   completed_phases: 0
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-11)
 
 ## Current Position
 
-Phase: 08 (Session Split and World Core) — READY TO EXECUTE
+Phase: 8 (Session Split and World Core) — READY TO EXECUTE
 Plan: Not started
 Status: Ready to execute
 Last activity: 2026-11-11 — v2.0 roadmap round-2 fixes applied: 16 phases (8-23), 60 of 60 requirements mapped
