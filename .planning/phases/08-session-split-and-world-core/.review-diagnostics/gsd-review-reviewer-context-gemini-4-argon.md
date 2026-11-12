@@ -1,0 +1,76 @@
+### Summary
+
+Commit `45c689b` cleanly and completely resolves all Round 2 findings from `08-REVIEWS.md` across all 16 Phase 8 plans (`08-01` through `08-16`), including all three Round 2 consensus blockers (`08-01` empty-array probe-shape wildcard, `08-11`/`08-13`/`08-05` field-complete numeric sanitization and quaternion overflow handling, and `08-15` warm-`Load` vs cold-`Continue` epoch equivalence via `resetForRestore(0)`) and all four Round 2 blast-radius warnings (`__purity_` probe filename prefixing + SPDX headers in `08-03`/`08-02`/`08-09`; recursive AI-zone ESLint globs and allowed-seam export sealing in `08-09`; headless Node `typeof document !== "undefined"` / `typeof window !== "undefined"` guards across `08-06`/`08-08`/`08-10`/`08-12`/`08-15`; and `createEventRouter(ctx, subscribers)` wiring plus `depends_on` frontmatter completion in `08-05`/`08-10`/`08-15`).
+
+Whole-repository verification against the live tree confirms that `45c689b` introduces **zero** new cross-module contract conflicts, **zero** same-wave `files_modified` collisions across Waves 1–9, and **zero** BLOCKER, HIGH, or WARNING issues. All 16 plans (`08-01` through `08-16`) are **READY** for execution.
+
+### Round 2 Resolution Verification
+
+1. **`tests/compliance.test.ts` SPDX header requirement & `tests/sim/rng.test.ts` / `tests/guards/sim-purity.test.ts` `__purity_` exclusion (`08-02`, `08-03`, `08-09`) — RESOLVED:**
+   - `08-03-PLAN.md` (Task 1 steps 2–4, lines 105–109; `files_modified` line 11) now requires `withSimProbe` in `tests/guards/sim-probe.ts` to normalize every probe basename to start with `__purity_` (matching `tests/compliance.test.ts:74` `if (entry.name.startsWith("__purity_")) continue;`) and automatically prepend the two-line GPL-2.0-or-later SPDX header.
+   - `08-03-PLAN.md` (Task 1 step 3, lines 106–108) updates `listTsFiles` in `tests/guards/sim-purity.test.ts:86-97` to skip `__purity_*` entries and ignore transient `ENOENT`, and widens `declaredFrameTypes` (`tests/guards/sim-purity.test.ts:114-127`) to strip `/* ... */` block comments and scan the full brace-matched `*Frame*` declaration body.
+   - `08-02-PLAN.md` (Task 3 step 3, line 201) updates `describe("only serialisable streams in src/sim")` in `tests/sim/rng.test.ts` to skip any file or directory entry whose basename starts with `__purity_` and ignore transient `ENOENT` during parallel Vitest worker execution.
+   - `08-09-PLAN.md` (Task 3 step 2, line 187) uses `__purity_`-prefixed probe names for all AI-zone negative probes.
+
+2. **Recursive globs (`src/sim/ai/**/*.ts`, `src/sim/**/*.ts`) across purity and architecture guards (`08-03`, `08-09`) — RESOLVED:**
+   - `08-09-PLAN.md` (Task 3 step 1, lines 181–185) replaces the non-recursive AI-zone globs in `eslint.config.js` with three blocks that partition `src/sim/ai/**/*.ts` completely (`src/sim/ai/*.ts`, `src/sim/ai/*/*.ts`, `src/sim/ai/*/*/**/*.ts`), all spreading `SIM_SYNTAX_BANS` + `ImportExpression` and inheriting `SIM_GLOBAL_BANS` and `SIM_RESTRICTED_PROPERTIES`.
+   - `08-09-PLAN.md` (Task 3 step 2, lines 187–188) tests depth-1 (`ai/`), depth-2 (`ai/pilots/` and `ai/nested/`), and depth-3 (`ai/pilots/roles/`), and seals `src/sim/world/ids.ts`, `src/sim/math.ts`, `src/sim/world/view.ts`, and `src/sim/world/control.ts` against `export ... from` re-exports.
+
+3. **Headless Vitest `document` / `window` guards across extracted session modules (`08-06`, `08-08`, `08-10`, `08-12`, `08-15`) — RESOLVED:**
+   - `08-06-PLAN.md` (Task 2 step 2, line 149) keeps both `window.addEventListener("keydown", ...)` registrations (`onSubpanelKeyDown` and `onLaunchKeyDown`) out of `createSettingsController` / `createChartController` construction.
+   - `08-08-PLAN.md` (Task 1 step 1, line 105; Task 2 step 1, lines 142–144) adds `if (typeof document === "undefined") return;` at the top of `syncHeaderCredits()` and `closeSaveScreen()`, and adds post-`await` `if (ctx.runtime.disposed) return;` guards to `loadFromSave`, `clearSaveForNewGame`, and `queueSnapshot`.
+   - `08-10-PLAN.md` (Task 1 step 1, line 121) adds `if (typeof document === "undefined") return;` at the top of `syncStatusOverlay()`.
+   - `08-12-PLAN.md` (Task 1 step 2, line 117) places `onLaunchKeyDown` and both `window.addEventListener("keydown", ...)` calls in `src/app/session/start-session.ts` guarded by `if (typeof window !== "undefined")` and carrying `{ capture: true, signal: uiController.signal }`.
+
+4. **`files_modified` and `depends_on` frontmatter accuracy across parallel waves (`08-05`, `08-10`, `08-15`) — RESOLVED:**
+   - `08-05-PLAN.md` frontmatter (line 6) declares `depends_on: ["08-02", "08-03"]`.
+   - `08-10-PLAN.md` (Task 2 step 2, line 155) defines `createEventRouter(ctx: SessionState, subscribers: EventRouterSubscribers)` so `src/app/game-session.ts` passes `ctx` in Wave 5, and `08-15-PLAN.md` (Task 1 step 4, line 130) wires the `worldLifecycle` subscriber inside `src/app/session/event-router.ts` (which is in `08-15`'s `files_modified`) without touching `src/app/game-session.ts`.
+   - `08-15-PLAN.md` frontmatter (line 6) declares `depends_on: ["08-14", "08-11", "08-13"]`.
+
+5. **E2E and unit test consumer compatibility (`window.__wegolite`, `SaveState`, `FlightState`, `createGameSession`) — RESOLVED:**
+   - `08-01-PLAN.md` removes the empty-array wildcard in `compareProbeShapes`.
+   - `08-04-PLAN.md` adds `withdrawProbe()` to `createProbePublisher`, which `08-12` calls in `dispose()` and `08-16` extends with `delete probe.sim`.
+   - `08-11-PLAN.md` and `08-13-PLAN.md` align `sanitizeEntity` and `parseWorldSnapshot` across numeric leaves of `Entity` and `World`.
+   - `08-15-PLAN.md` adds `resetForRestore(0)` to `WorldLifecycle` and calls it in `loadFromSave`'s synchronous install block before `resume(nextSeed)` or leaving `world === undefined`.
+   - `08-16-PLAN.md` publishes `probe.sim` inside `if (currentState !== undefined)` in `updateProbe()`, adds `| sim |` to the optional-key audit table in `tests/e2e/probe-shape.spec.ts`, calls `await startNewGame(page)` in `tests/e2e/tick-hook.spec.ts` case (c), waits one frame after clicking Launch before calling `advanceTicks(1)`, and adds a Vitest scripted-jump parity case under `advanceTicks`.
+
+### Plan-by-Plan Assessment (08-01 through 08-16)
+
+| Plan ID | Wave | `depends_on` | Track / Scope | Round 2 Dispositions in `45c689b` | Blast-Radius & Cross-Module Verdict |
+| :--- | :---: | :--- | :--- | :--- | :--- |
+| **`08-01`** | 1 | `[]` | Split safety net (`probe-shape.spec.ts`, `session-source.ts`) | Removed empty-array wildcard in `compareProbeShapes`; added `PROBE_SHAPE_VOLATILE_EMPTY_ARRAY_PATHS = []` and SUMMARY justification rule | **READY** — Disjoint Wave 1 files; strict probe freeze across all 6 states. |
+| **`08-02`** | 1 | `[]` | Core RNG (`src/sim/rng.ts`, `math.ts`, flight hash pins) | `__purity_` skip + `ENOENT` guard in `tests/sim/rng.test.ts` file walk; `drawWitchpointExit` 8-draw doc fix; `RangeError` caller-guard doc; `recorded-flights.ts` baseline header | **READY** — Bit-exact `createSeededRandom` delegation; `arrival.ts` untouched. |
+| **`08-03`** | 1 | `[]` | Core determinism lint (`eslint.config.js`, `sim-probe.ts`, `sim-purity.test.ts`) | `withSimProbe` enforces `__purity_` prefix + SPDX header; `Reflect.get`, `.sort.call`/`.apply`, `self`, `queueMicrotask` bans; block-comment stripping + full-body `*Frame*` scan in `sim-purity.test.ts` | **READY** — Safe under parallel Vitest worker runs with `tests/compliance.test.ts`. |
+| **`08-04`** | 2 | `["08-01"]` | Split steps 1–2 (`context.ts`, `probe-publisher.ts`) | Added `withdrawProbe()` to `createProbePublisher`; added `vitest.config.ts` coverage-glob verification note for `src/app/session/**` | **READY** — Disjoint from `08-05`; preserves all 9 exports of `src/app/game-session.ts`. |
+| **`08-05`** | 2 | `["08-02", "08-03"]` | Core store & world (`ids.ts`, `entity.ts`, `store.ts`, `world.ts`, `serialize.ts`) | Added `"08-03"` to `depends_on`; `Object.freeze` on `STATIC_ENTITIES`; `spawnEntity` numeric validation; non-dead `MAX_ENTITIES` cap test; `world.rng.s` check in `isNeverSpawned` | **READY** — Disjoint from `08-04`; D-06 per-world IDs and D-08 hash identity enforced. |
+| **`08-06`** | 3 | `["08-04"]` | Split steps 3–4 (`render-driver.ts`, `chart-controller.ts`, `settings-controller.ts`) | Kept `window.addEventListener` registrations (`onSubpanelKeyDown`, `onLaunchKeyDown`) out of factory construction so Node unit tests never touch `window` | **READY** — Disjoint from `08-07`; worktree-isolated Step 3 `verify-full` gate. |
+| **`08-07`** | 3 | `["08-05"]` | Core AI seam (`view.ts`, `control.ts`, `view-impl.ts`, `control-impl.ts`) | Recorded Round 2 ledger confirming no changes needed (`scan` linear cost scoped to Phase 10 broadphase) | **READY** — Disjoint from `08-06`; defensive copies and `Record<keyof ...>` seam pins intact. |
+| **`08-08`** | 4 | `["08-06"]` | Split steps 5–6 (`station-controller.ts`, `save-controller.ts`) | Added `typeof document === "undefined"` guards in `syncHeaderCredits` and `closeSaveScreen`; added post-`await` `ctx.runtime.disposed` short-circuits in `loadFromSave`, `clearSaveForNewGame`, and `queueSnapshot` | **READY** — Disjoint from `08-09`; worktree-isolated Step 6 `verify-full` gate. |
+| **`08-09`** | 4 | `["08-07", "08-03"]` | Core AI (`time.ts`, `registry.ts`, `test-pilot.ts`, `ai-zone.test.ts`) | Recursive AI-zone ESLint blocks (`ai/*.ts`, `ai/*/*.ts`, `ai/*/*/**/*.ts`); sealed exports of `ids.ts`/`math.ts`/`view.ts`/`control.ts`; `Object.freeze` on `AI_REGISTRY` and `TEST_PILOT`; early-wake test | **READY** — Disjoint from `08-08`; closes nested subdirectory and re-export bypasses. |
+| **`08-10`** | 5 | `["08-08"]` | Split steps 7–8 (`hyperspace-controller.ts`, `event-router.ts`, `sim-driver.ts`, `step-options.ts`) | Added `typeof document === "undefined"` guard in `syncStatusOverlay`; passed `ctx` to `createEventRouter(ctx, subscribers)`; defined tuple-valued `EVENT_KIND_SUBSCRIBER`; pinned 4 `pending.length = 0` sites | **READY** — Disjoint from `08-11`; prepares `event-router.ts` for `08-15` without facade edits. |
+| **`08-11`** | 5 | `["08-09"]` | Core world step (`step.ts`, `sim.ts`, `sanitize.ts`, `events.ts`) | Field-complete `sanitizeEntity` across all numeric leaves + `!Number.isFinite(normSq) \|\| !(normSq > 0)` quaternion check; default lazy `createWorldView` in `stepWorld`; early-wake test | **READY** — Disjoint from `08-10`; zero `WorldView` allocation on the NPC-free hot path. |
+| **`08-12`** | 6 | `["08-10"]` | Split step 9 (`frame-loop.ts`, `start-session.ts`, `game-session.ts` facade) | Placed `onLaunchKeyDown` and `typeof window !== "undefined"`-guarded `window.addEventListener` calls in `start-session.ts`; tracked/guarded `swapSystem` rAF on `disposed`; tested `pending` clearing in freeze branches; banned timers in `src/app/session` | **READY** — Disjoint from `08-13`; worktree-isolated Step 9 `verify-full` gate and `< 600` line facade budget. |
+| **`08-13`** | 6 | `["08-11"]` | Core world snapshot (`snapshot.ts`, `snapshot-codec.test.ts`, `world-cadence.test.ts`) | Plain `uint32` `snapshot.rng`; hardened `parseWorldSnapshot` (safe-int `nextId`, `1e12` magnitude cap, string/array caps, unknown-key and `__proto__`/`constructor`/`prototype` rejection); deep-copy `restoreWorld`; full-leaf `fast-check` arbitrary; player-first mismatch reporter | **READY** — Disjoint from `08-12`; `sanitizeEntity` and `parseWorldSnapshot` numeric domains match. |
+| **`08-14`** | 7 | `["08-12"]` | Manual clock & test flags (`test-flags.ts`, `sim-driver.ts`, `frame-loop.ts`) | `advanceTicks(n)` refuses when `ctx.runtime.disposed` is true (before taint and drain) and stops early if a step sets `disposed`, `paused`, or opens an overlay (including chart-open early-stop test) | **READY** — Single-plan wave; probe shape remains untouched until `08-16`. |
+| **`08-15`** | 8 | `["08-14", "08-11", "08-13"]` | World lifecycle integration (`world-lifecycle.ts`, `sim-driver.ts`, `event-router.ts`, `save-controller.ts`, `hyperspace-controller.ts`, `start-session.ts`) | Added `"08-13"` to `depends_on`; added `resetForRestore(0)` called by `loadFromSave` for warm/cold restore equivalence; guarded `epoch < 0xffffffff` in `begin`; updated `EVENT_KIND_SUBSCRIBER` for `launched`/`docked`; added v2 save key allow-list check and `dispose()` `end()` test | **READY** — Single-plan wave; `files_modified` matches every touched file without editing `src/app/game-session.ts`. |
+| **`08-16`** | 9 | `["08-15"]` | Additive probe & tick-hook parity (`probe.ts`, `probe-publisher.ts`, `tick-script.ts`, `tick-parity.test.ts`, `tick-hook.spec.ts`) | Published `probe.sim` inside `if (currentState !== undefined)` and deleted in `withdrawProbe()`; added `\| sim \|` audit row; gated `src/app` against importing `world/store.js`; waited 1 frame after Launch click in e2e parity; called `startNewGame` in case (c); added Vitest jump-parity case | **READY** — Single-plan wave; single additive D-13 probe commit verified by subtractive diff. |
+
+### Strengths
+
+- **Complete traceability of Round 1 and Round 2 review feedback:** Every plan from `08-01` through `08-16` carries both `### Round 1 — 10b4108` and `### Round 2 — 820a435` disposition tables mapping each specialist finding to concrete task actions, `must_haves.truths`, `<acceptance_criteria>`, and `<threat_model>` rows (`T-08-40` through `T-08-46`).
+- **End-to-end contract alignment across module boundaries:**
+  - **Save-anchor & lifecycle epoch invariant (`08-02` -> `08-05` -> `08-08` -> `08-15` -> `08-16`):** `resetForRestore(0)` in `loadFromSave` guarantees that a warm in-session `Load` and a cold boot `Continue` of any v2 save produce identical `epoch` (`0` at restore, `1` on the next launch or arrival) and identical `worldSeedFor(marketSeed, epoch)`, while `src/persistence/**` and v2 save bytes remain untouched.
+  - **Node Vitest vs Browser DOM isolation (`08-04` -> `08-06` -> `08-08` -> `08-10` -> `08-12` -> `08-15` -> `08-16`):** All extracted session controllers can be instantiated and exercised in Node (`vitest.config.ts` `environment: "node"`) without `window` or `document` globals, while `updateProbe()` only publishes `probe.sim` when `currentState !== undefined` and `withdrawProbe()` cleans up `probe.sim`, `probe.test`, `probe.save`, and `probe.saveScreen` on `dispose()`.
+
+### Issues Found
+
+None. No BLOCKER, HIGH, WARNING, or INFO blast-radius defects remain in `08-01-PLAN.md` through `08-16-PLAN.md` at commit `45c689b`.
+
+### Recommendations
+
+1. **Execute waves in strict topological order (`Wave 1` -> `Wave 9`):** Keep the detached-worktree `verify-full` gates at `08-01` (baseline), `08-06` (Step 3), `08-08` (Step 6), and `08-12` (Step 9), and the main-tree `verify-full` gates at `08-15` and `08-16`, as specified.
+2. **Pause at `08-02` Task 2 (`checkpoint:decision`):** Confirm the owner's `option-a` (`fmix32`/`mix32`) selection before executing `08-02` Task 3 and downstream core-track plans (`08-05`, `08-07`, `08-09`, `08-11`, `08-13`, `08-15`, `08-16`).
+
+### Overall Assessment
+
+**READY** — All 16 Phase 8 plans (`08-01` through `08-16`) at commit `45c689b` have resolved every Round 1 and Round 2 blast-radius and cross-module contract concern.
