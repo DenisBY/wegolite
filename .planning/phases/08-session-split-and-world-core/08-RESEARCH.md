@@ -118,7 +118,7 @@ No external package is needed: everything uses the existing toolchain (TypeScrip
 ### Supporting
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `src/sim/hash.ts` (`fnv1a32`, `canon`) | in-repo | World hash text and seed mixing | All hashing; never `JSON.stringify` for hashed text |
+| `src/sim/hash.ts` (`fnv1a32`, `canon`) | in-repo | World hash text (not seed mixing: world and fork seeds use `mix32` per D-02, see Pattern 6) | All hashing; never `JSON.stringify` for hashed text |
 | `tests/guards/eslint-gate.ts` (`lintProbe`) + `probe-lock.ts` (`withProbeLock`) | in-repo | Generated-probe lint proofs for the new bans | One guard test per ban and for the AI zone |
 | `tests/helpers/lave.ts` (`laveFixture`) | in-repo | Real layout/config for world tests and Node-side expected hashes | Any test needing a `SystemLayout` |
 
@@ -258,7 +258,7 @@ export const MAX_ENTITIES = 256;                // dynamic entities only; static
 ### Pattern 6: Serialisable RNG and forked streams (FOUND-12)
 **What:** `createSeededRandom` is mulberry32 with the state in a closure [VERIFIED: src/sim/math.ts:227-237]. ARCH Pattern 4's `rngNext` is the same arithmetic (`state + 0x6d2b79f5`, `imul(t ^ t>>>15, t|1)`, `t ^= t + imul(t ^ t>>>7, t|61)`, `(t ^ t>>>14) >>> 0) / 4_294_967_296`) [VERIFIED by comparing both listings]. Implement `createSeededRandom(seed)` as a thin wrapper over `rngNext` inside `math.ts` (core track owns `math.ts`), so `drawWitchpointExit` keeps its exact draw order with **zero edits to `arrival.ts`** (FIDELITY.md pins `src/sim/hyperspace/arrival.ts:125`; the contract test only checks the line is inside the file, but not touching the file avoids any churn) [VERIFIED: src/sim/hyperspace/arrival.ts:73 `const next = createSeededRandom(seed);`; FIDELITY.md references `src/sim/hyperspace/arrival.ts:125` and `src/sim/flight/step.ts:218`; tests/contract/fidelity.test.ts header].
 - Pin the algorithm with literal vectors captured from the **current** closure in Wave 0 (first N outputs for a few seeds) so delegation can never drift; the existing hyperspace arrival tests and `tests/golden/hyperspace/routes.json` give a second, independent proof.
-- Seed derivation (one-way once Phase 11 lands, D-02): follow the repo precedent of string-based FNV seeds, e.g. `marketSeedForSystem` uses `Number.parseInt(fnv1a32(`${systemId}:0`), 16) >>> 0` [VERIFIED: src/sim/economy/market.ts:41-43]. Recommended: `worldSeedFor(marketSeed, epoch) = parseInt(fnv1a32(`${marketSeed}:${epoch}:world`), 16) >>> 0` and `forkSeed(worldSeed, entityId, purpose) = parseInt(fnv1a32(`${worldSeed}:${entityId}:${purpose}`), 16) >>> 0`, with `purpose` a closed string union. **Pin both with test vectors the moment they exist: the exact format is the contract.**
+- Seed derivation (one-way once Phase 11 lands, D-02). **Superseded guidance (revised 2026-11-12):** an earlier draft of this section recommended string-FNV seeds after the repo precedent of `marketSeedForSystem` (`Number.parseInt(fnv1a32(`${systemId}:0`), 16) >>> 0`, [VERIFIED: src/sim/economy/market.ts:41-43]), that is `worldSeedFor` and `forkSeed` as `parseInt(fnv1a32(...), 16) >>> 0` over colon-joined strings. That recommendation contradicts locked decision D-02 and is withdrawn: D-02 fixes `worldSeed = mix32(marketSeed, epoch)`, and plan 08-02 (option-a, the default the owner confirms at its Task 2 checkpoint) implements it in `src/sim/rng.ts` with integer arithmetic only: `fmix32` (the MurmurHash3 finaliser), `mix32(a, b) = fmix32((a >>> 0) ^ fmix32((b + 0x9e3779b9) >>> 0))`, `worldSeedFor(marketSeed, epoch) = mix32(marketSeed, epoch)` and `forkSeed(worldSeed, entityId, purpose) = mix32(mix32(worldSeed, entityId), RNG_PURPOSE_CODES[purpose])` with `purpose` a closed union and fixed purpose codes world 1, ai 2, combat 3 (D-04). `marketSeedForSystem` stays the producer of the uint32 `marketSeed` input only; a string-FNV world or fork seed exists only if the owner explicitly revises D-02 (08-02 option-c). **Pin `fmix32`, `mix32`, `worldSeedFor` and `forkSeed` with literal test vectors the moment they exist (plan 08-02 Task 3): the exact arithmetic is the contract.**
 - Per-entity state: a fixed-shape record per `RngPurpose` (closed union, iterated through a `const RNG_PURPOSES` array, never `Object.keys`), every state a `uint32` number stored in the entity and included in the hash and snapshot. World-level stream `world.rng` forked as `(worldSeed, 0, "world")`.
 - Tests: spawning/killing entity B leaves entity A's draw sequence unchanged; same `(worldSeed, id, purpose)` reproduces; two purposes differ.
 
@@ -330,7 +330,7 @@ Wave 0: baseline `verify-full` (record time), probe-shape spec + fixtures, sessi
 |---------|-------------|-------------|-----|
 | Hash text | New hash or `JSON.stringify` | `fnv1a32` + `canon` from `src/sim/hash.ts`, fixed key order | Throws on non-finite (a feature), normalises `-0`, matches `hashFlight` |
 | Seeded draws | New PRNG algorithm | mulberry32 already in `math.ts`, object-state form with the identical sequence | v1 arrival goldens depend on the exact stream |
-| Seed derivation | Bit-twiddling mixer | `fnv1a32` string seeds (repo precedent in `economy/market.ts`) | Engine-independent, readable, test-vector pinned |
+| Seed derivation | A new or ad-hoc mixer, or string-FNV world seeds (superseded guidance, revised 2026-11-12: an earlier draft recommended the `economy/market.ts` string-FNV precedent here) | `mix32` from `src/sim/rng.ts` exactly as locked D-02 names it (plan 08-02: the MurmurHash3 finaliser `fmix32`, `worldSeedFor = mix32(marketSeed, epoch)`, `forkSeed = mix32(mix32(worldSeed, entityId), purpose code)`) | Integer-only and engine-independent (`Math.imul`, unsigned shifts), fixed by D-02, test-vector pinned |
 | Zone enforcement | A plugin or custom ESLint rule | Core `no-restricted-imports` (`regex` allow-list), `-globals`, `-syntax` | Verified in the container; no dependency change |
 | Probe lint proofs | Ad-hoc `spawnSync eslint` | `lintProbe` + `withProbe` + `withProbeLock` | Shared program, serialised against `tsc` globbing |
 | Store invariants tests | Hand-written case lists only | fast-check properties over random spawn/kill/commit/snapshot sequences | Already installed; finds id-reuse and order bugs |
@@ -489,35 +489,44 @@ export function parseTestFlags(search: string): { hook: boolean; manualClock: bo
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
 | A1 | `MAX_ADVANCE_TICKS` of about 200,000 is a sensible per-call cap | Pattern 10 | Too low blocks a long e2e wait (raise it); too high allows a multi-second main-thread stall |
-| A2 | String-FNV seed derivation (`fnv1a32(`${a}:${b}:world`)`) gives adequate stream independence for mulberry32 seeding | Pattern 6 | Correlated streams; mitigated by a unit test comparing the first draws of several forks, and by pinning vectors before Phase 11 |
+| A2 | `mix32` seed derivation (locked D-02; plan 08-02) gives adequate stream independence for mulberry32 seeding. Superseded wording (revised 2026-11-12): an earlier draft assumed string-FNV seeds (`fnv1a32` over colon-joined strings), which contradicts D-02 and is withdrawn | Pattern 6 | Correlated streams; mitigated by plan 08-02's tests (distinct seeds and first draws for adjacent ids and purposes, 1,000 distinct world seeds over consecutive epochs) and by pinning `mix32`, `worldSeedFor` and `forkSeed` vectors before Phase 11 |
 | A3 | A minimal kinematic update in W1 is acceptable scope and a placeholder for Phase 12/13 | Pattern 9, Open Q5 | If the owner wants no motion, the 1,000-tick test relies on pilot nav writes and RNG draws only |
 | A4 | `-0` normalisation and per-tick `sanitizeEntity` are worth including now | Pattern 7 | Small extra code; omit if the planner judges it premature |
 | A5 | New `src/sim/world/**` and `src/sim/ai/**` code can be tested enough to keep the `src/sim/**` coverage floors (lines 93, statements 91, functions 97, branches 86) | Validation | `npm test` (`vitest run --coverage`) fails the threshold; add tests for error branches (snapshot parse failures) |
 | A6 | Probe additions are `probe.sim = {tick, epoch, entities, traffic, clock}` plus hook `advanceTicks`/`worldHash` | Pattern 3, 10 | Naming is discretion; changing it changes the one post-split fixture update only |
 | A7 | The Playwright Node runner can import pure `src/sim` modules (and a THREE/DOM/Vite-free `sim-driver` helper) | Pattern 10 | If not, the spec reads a Vitest-written expected-hash fixture instead; evidence for the import mechanism is existing specs importing `src/ui/chart-model.js` and `src/content/types.js` [VERIFIED: tests/e2e/helpers/chart.ts:12-14] |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+Every question below was settled during planning; each entry names the decision or plan that resolves it.
 
 1. **Does the world exist while docked?**
    - What we know: ARCH §8.2 says no (docked tears it down; launch creates it); D-08 needs `hashWorld(player, undefined) === hashFlight(player)`.
    - What's unclear: whether the owner wants a permanent `World` object holding statics for the whole session instead.
    - Recommendation: world absent while docked, present in `launching`/`inFlight`; `hashWorld` accepts `undefined`.
+   - **RESOLVED:** no world while docked; the `launched` event creates it and the `docked` event drops it, and `hashWorld(player, undefined)` equals `hashFlight(player)`. Decided by D-02 (a populate happens at each launch and arrival) and D-08; implemented by plan 08-15 Task 1 (the `worldLifecycle` subscriber) and proven by plan 08-05 Task 1 (`hashWorld` with an absent world). The static bodies are stored in each world as fixed-id entities that reference `SystemLayout` (D-07, plan 08-05), so nothing static needs a session-long world.
 
 2. **`epoch` on an in-flight Continue.** D-03 says the counter lives in session memory (starts at 0). A reload of an in-flight save has no saved epoch; bumping gives epoch 1, not bumping leaves 0.
    - Recommendation: create the world without bumping (the world is NPC-free in Phase 8, so unobservable); revisit in Phase 11 when `epoch` is persisted. Confirm with the owner only if a plan wants a stricter rule.
+   - **RESOLVED:** an in-flight Continue or Load recreates the world with `resume(marketSeed)`, without a bump; Phase 11 (SAVE-07) revisits it when `epoch` is persisted. Decided under D-03 (session-memory epoch); implemented by plan 08-15 Tasks 2 and 3 and recorded in its Key Decisions row.
 
 3. **Does `advanceTicks` taint the profile?** PITFALLS 11 says it "taints the profile and returns". Taint blocks autosave for the rest of the session, which is fine for determinism specs but means a manual-clock spec cannot also prove autosave.
    - Recommendation: taint (conservative, matches the hook rule); a spec that needs autosave uses the realtime clock.
+   - **RESOLVED:** `advanceTicks` taints before its first step, so every autosave inside or after the call skips. Decided by the existing `?test=1` taint rule (PROJECT.md Key Decisions) and D-09; implemented and unit-proven by plan 08-14 Tasks 1 and 2.
 
 4. **ShipControl addressing.** ARCH §7.3 is id-addressed; Pitfall 7 wants handlers to mutate only the receiving entity.
    - Recommendation: keep id-addressed signatures, enforce actor-only in `createShipControl(world, actorId)`.
+   - **RESOLVED:** id-addressed signatures with actor-only enforcement in `createShipControl(world, actorId, tick)`; every write for another id is a no-op. Implemented and proven by plan 08-07 Tasks 1 and 2.
 
 5. **Placeholder motion in Phase 8.** No motion model is ported until Phase 12/13.
    - Recommendation: a clearly labelled `position += forward * speed * DT` placeholder in W1 so the 1,000-tick equality, scan ordering and the pilot are non-vacuous; do not port `BEHAVIOUR_*` steering here.
+   - **RESOLVED:** Phase 8 moves dynamic entities at their desired speed along their facing (a constant-speed integrator), and the Oolite thrust and attitude port stays in Phase 12/13. Implemented by plan 08-11 Task 1 and recorded as Key Decisions row (d) by plan 08-11 Task 3.
 
 6. **Where does `stepSim` live and what is its signature?** Not fixed by any decision. Recommendation: `src/sim/sim.ts` exporting `stepSim(player, world | undefined, layout, config, intent, commands, dt, options): SimEvent[]` that calls `stepFlight` first and `stepWorld` only when a world is passed.
+   - **RESOLVED:** `src/sim/sim.ts` exports `stepSim(player, world, layout, config, intent, commands, dt, options?)`; it calls the unchanged `stepFlight` first and `stepWorld` only when a world is passed and the player is launching or in flight. Implemented by plan 08-11 Task 1; plugged into the session's sim driver by plan 08-15 (D-14).
 
 7. **Observable effect of `?traffic=1` in Phase 8.** No populator exists. Recommendation: the injected `populate` seam plus `probe.sim.traffic`; a Vitest spy proves call counts; the browser spec proves the flag is read once and off by default.
+   - **RESOLVED:** the flag is parsed once at start-up by `parseTestFlags` (plan 08-14); the world lifecycle calls an injected `populate(world, { traffic })` at every world creation in both modes, and epoch and ids advance identically (D-05, D-10; plan 08-15 Task 2); `probe.sim.traffic` and the browser opt-in spec prove the default and the opt-in (plan 08-16).
 
 ## Environment Availability
 

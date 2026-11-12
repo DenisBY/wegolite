@@ -132,7 +132,41 @@ Ordering rules (research ARCHITECTURE section 12, the PITFALLS ordering constrai
 **Pitfalls to address**: 8 (split behind a probe-shape snapshot; re-point `tests/app/redraw-gate.test.ts` and `tests/guards/economy-purity.test.ts`, which read the session file as text), 9 (empty-world hash identity), 1 (id order), 2 (forked `(worldSeed, entityId, purpose)` streams), 3 (integer tick time base), 4 (NaN and transcendentals), 7 (cross-entity events queued, never synchronous), 19 (narrow, read-only AI seam), 17 (fixed ids for planet, sun, station and buoys), 11 and 27 (`advanceTicks`, traffic off by default, a test hook that does not become a god object), 13 (audio event types reserved now, including missile, ECM and scoop events), 10 (the anchored-save decision only)
 **Decisions to settle**: D1 world seed policy (SAVE-07's saved world epoch implies the recommended `mix32(marketSeed, epoch)`; confirm in discuss-phase); the fixed id table for static bodies
 **Todos**: `2026-11-11-check-ci-after-0-2-0-and-the-shift-c-docking-timeout.md` — FOUND-10's baseline is a green `verify-full`, so the Shift+C docking flake is settled before the split starts
-**Plans**: TBD
+**Plans**: 0/16 plans complete
+Plans:
+**Wave 1**
+- [ ] 08-01-PLAN.md — Split safety nets: verify-full baseline, probe-shape snapshot, order-independent session-source scans (D-01, D-12 step 0, D-13)
+- [ ] 08-02-PLAN.md — Pinned v1 flight hashes and RNG vectors, serialisable seeded stream, mix32 world/fork seeds (D-02 checkpoint)
+- [ ] 08-03-PLAN.md — Determinism lint bans in src/sim (Math.random, Date, wall clock, for..in, bare sort) with guard tests
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 08-04-PLAN.md — Split steps 1-2: typed session context and first controller extraction
+- [ ] 08-05-PLAN.md — World foundation: ids (per-world uniqueness), entities, five static entities, store, world hash
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 08-06-PLAN.md — Split steps 3-4: render driver, chart and settings controllers (verify-full gate)
+- [ ] 08-07-PLAN.md — AI seam: read-only WorldView and write-only ShipControl
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 08-08-PLAN.md — Split steps 5-6: station controller, save controller (verify-full gate)
+- [ ] 08-09-PLAN.md — AI types, integer tick timers, registry, scripted test pilot, AI lint zone
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 08-10-PLAN.md — Split steps 7-8: hyperspace controller, event router and sim driver
+- [ ] 08-11-PLAN.md — World step: id-order pass after the flight step, queued AI events, sanitize, reserved SimEvents
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 08-12-PLAN.md — Split step 9: frame loop and start-up wiring, thin facade (verify-full gate)
+- [ ] 08-13-PLAN.md — Snapshot codec, 1,000-tick live-vs-restored equality, world cadence
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 08-14-PLAN.md — Test flags and manual-clock sim driver with advanceTicks
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 08-15-PLAN.md — Single integration plan (D-14): world lifecycle, epoch bump points, anchored-save check
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [ ] 08-16-PLAN.md — One deliberate probe commit (D-13): probe.sim, worldHash, advanceTicks; browser/Vitest hash parity
 
 ### Phase 9: NPC Content and Sound Provenance
 **Goal**: Every ship, pod, missile, capsule, asteroid and sound v2.0 needs is compiled from the pinned Oolite snapshot with provenance and Oolite's combat stats, kept out of the first load, and each music track has an audited provenance decision
