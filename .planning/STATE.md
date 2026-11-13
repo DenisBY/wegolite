@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: World Population Base
-current_phase: 9
-current_phase_name: NPC Content; first of 4 phases in v2.1  , and Phase 11 can run beside it
-status: planning
-stopped_at: Phase 9 context gathered
-last_updated: "2026-11-13T21:22:34.657Z"
+current_phase: 09
+current_phase_name: NPC Content
+status: executing
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-11-13T22:34:22.518Z"
 last_activity: 2026-11-13
-last_activity_desc: v2.1 roadmap created (Phases 9-12, 12/12 requirements mapped)
-state_head: 58ef6c03af8aee2ccb74fce321390a2903e76ab4
+last_activity_desc: Phase 09 execution started
+state_head: 88eb5172a913473a800d192124457ba8e0455603
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 5
+  completed_plans: 1
   percent: 0
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-13)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Milestone v2.1 World Population Base (Phases 9-12, trimmed to what the inert world needs): NPC content without sound, build-time ship mass, a minimal save schema v3, and inert ships with the world lifecycle (WR-01 and IN-02 first). Former v2.1 Phases 13-23 stay an unscheduled backlog; their requirements remain in `.planning/milestones/v2.0-REQUIREMENTS.md`.
+**Current focus:** Phase 09 — NPC Content
 
 ## Current Position
 
-Phase: 9 (not started) — NPC Content; first of 4 phases in v2.1 (Phases 9-12), and Phase 11 can run beside it
-Plan: —
-Status: Ready to plan
-Last activity: 2026-11-13 — v2.1 roadmap created (Phases 9-12, 12/12 requirements mapped)
+Phase: 09 (NPC Content) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-11-13 — Phase 09 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -124,6 +124,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 08 P14 | 20 min | 2 tasks | 10 files |
 | Phase 08 P15 | 48 min | 3 tasks | 10 files |
 | Phase 08 P16 | 70min | 2 tasks | 11 files |
+| Phase 09 P01 | 3 min | 3 tasks | 45 files |
 
 ## Accumulated Context
 
@@ -305,6 +306,7 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-14: advanceTicks refuses before it taints (disposed first, then flag, count, pause, overlays, state and input), so a refused call leaves no trace; traffic flag is the effective setting (true without the hook)
 - [Phase 08]: 08-15: worldLifecycle is an optional router subscriber built from ctx, so game-session.ts and the 08-10 and 08-12 tests keep their four-subscriber objects — The plan wires the subscriber inside event-router.ts without touching the facade; the optional override exists only for a recording test
 - [Phase 08]: 08-15: begin and resume build the world before committing epoch and world; a warm Load re-anchors with resetForRestore(0) like a cold Continue — A throwing future populator leaves the lifecycle unchanged; Phase 11 SAVE-07 passes the saved epoch into resetForRestore at both Continue and Load
+- [Phase 09]: 09-01: NPC role ship sources vendored via the sanctioned network script at 7437f22 (42 files), cross-checked byte-identical to the Oolite checkout; host-shell cross-check is a recorded exception (to be written to PROJECT.md in 09-05)
 
 ### Pending Todos
 
@@ -398,9 +400,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T21:22:34.599Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-npc-content/09-CONTEXT.md
+Last session: 2026-11-13T22:34:22.459Z
+Stopped at: Completed 09-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
