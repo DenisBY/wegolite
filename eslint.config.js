@@ -37,6 +37,32 @@ const DOM_GLOBALS = [
  * `no-restricted-properties` for a src/sim subtree silently drops every entry
  * listed here. Any such block must spread these constants, so the bans stay in
  * force.
+ *
+ * What lint can and cannot prove (FOUND-12). The selectors below close the
+ * simple alias and reflection routes around the Math.random and bare-sort bans:
+ * binding or assigning `Math` (which deliberately also rejects destructuring
+ * such as `const { floor } = Math`, so every `Math.<fn>` call stays visible to
+ * the rules), computed `Math` members with a non-literal key, `Reflect.get` and
+ * `Reflect.apply`, and `.sort`/`.toSorted` reached through `.call`, `.apply` or
+ * `.bind`, in dot and computed form.
+ *
+ * Residual forms lint cannot see: `Math` or `Reflect` passed as a call
+ * argument, a function or value laundered through an intermediate variable or
+ * another module, and an identifier-receiver `xs.sort.call(xs2)` where `sort`
+ * is not reached through `Array.prototype`. Lint also checks only that a sort
+ * comparator is PRESENT, not that it is a total order, so comparators must be
+ * total and NaN keys impossible by construction (sanitize) or broken by id.
+ * Lint is therefore a necessary guard, not the whole determinism proof:
+ * behaviour is proven by plan 08-02's pinned flight hashes and stream
+ * source-scan, and plan 08-13's 1,000-tick live-versus-restored equality and
+ * cross-cadence hashes.
+ *
+ * `toFixed` and `toPrecision` are deliberately not banned here (the generator
+ * zone bans them): src/sim/hash.ts canon formats through `toFixed` with a fixed
+ * digit count, which is the v1 hash format.
+ *
+ * The messages are asserted by fragment in tests/guards/sim-determinism-bans
+ * and reused by the AI-zone guard (plan 08-09); do not reword them.
  */
 const SIM_SYNTAX_BANS = [
   {
@@ -48,12 +74,126 @@ const SIM_SYNTAX_BANS = [
     message:
       "for..in order depends on property insertion; iterate an array or a comparator-sorted key list.",
   },
+  {
+    selector: 'CallExpression[callee.property.name="sort"][arguments.length=0]',
+    message:
+      "Bare .sort() is lexicographic and engine-defined for mixed values; pass a total-order comparator.",
+  },
+  {
+    selector:
+      'CallExpression[callee.property.name="toSorted"][arguments.length=0]',
+    message:
+      "Bare .toSorted() is lexicographic; pass a total-order comparator.",
+  },
+  {
+    selector:
+      "CallExpression[callee.computed=true][callee.property.value=/^(sort|toSorted)$/][arguments.length=0]",
+    message:
+      "Bare .sort() is lexicographic and engine-defined for mixed values; pass a total-order comparator.",
+  },
+  {
+    selector:
+      'CallExpression[callee.property.name=/^(sort|toSorted)$/][arguments.0.type="Identifier"][arguments.0.name="undefined"]',
+    message:
+      "Passing undefined to sort/toSorted is a bare sort; pass a total-order comparator.",
+  },
+  {
+    selector:
+      'CallExpression[callee.property.name=/^(sort|toSorted)$/][arguments.0.type="UnaryExpression"][arguments.0.operator="void"]',
+    message:
+      "Passing undefined to sort/toSorted is a bare sort; pass a total-order comparator.",
+  },
+  {
+    selector: 'VariableDeclarator[init.type="Identifier"][init.name="Math"]',
+    message:
+      "Do not alias Math in src/sim; call Math.<fn> directly so the Math.random ban can see it.",
+  },
+  {
+    selector:
+      'AssignmentExpression[right.type="Identifier"][right.name="Math"]',
+    message:
+      "Do not alias Math in src/sim; call Math.<fn> directly so the Math.random ban can see it.",
+  },
+  {
+    selector:
+      'MemberExpression[object.name="Math"][computed=true][property.type!="Literal"]',
+    message:
+      "No computed Math member with a non-literal key in src/sim; name the function.",
+  },
+  {
+    selector:
+      'MemberExpression[object.name="Reflect"][property.name=/^(get|apply)$/]',
+    message:
+      "Do not use Reflect.get or Reflect.apply in src/sim; it would bypass the Math.random, property and sort bans.",
+  },
+  {
+    selector: 'MemberExpression[object.name="Reflect"][computed=true]',
+    message:
+      "Do not use Reflect.get or Reflect.apply in src/sim; it would bypass the Math.random, property and sort bans.",
+  },
+  {
+    selector:
+      "MemberExpression[object.property.name=/^(sort|toSorted)$/][property.name=/^(call|apply|bind)$/]",
+    message:
+      "Do not invoke sort/toSorted via .call/.apply/.bind in src/sim; call .sort(cmp) directly with a total-order comparator.",
+  },
+  {
+    selector:
+      "MemberExpression[object.property.value=/^(sort|toSorted)$/][property.name=/^(call|apply|bind)$/]",
+    message:
+      "Do not invoke sort/toSorted via .call/.apply/.bind in src/sim; call .sort(cmp) directly with a total-order comparator.",
+  },
+  {
+    selector:
+      "MemberExpression[object.property.name=/^(sort|toSorted)$/][property.value=/^(call|apply|bind)$/]",
+    message:
+      "Do not invoke sort/toSorted via .call/.apply/.bind in src/sim; call .sort(cmp) directly with a total-order comparator.",
+  },
+  {
+    selector:
+      "MemberExpression[object.property.value=/^(sort|toSorted)$/][property.value=/^(call|apply|bind)$/]",
+    message:
+      "Do not invoke sort/toSorted via .call/.apply/.bind in src/sim; call .sort(cmp) directly with a total-order comparator.",
+  },
+  {
+    selector: 'CallExpression[callee.property.name="localeCompare"]',
+    message:
+      "localeCompare is ICU- and locale-dependent; sort with a code-unit comparison in src/sim.",
+  },
 ];
 
-const SIM_GLOBAL_BANS = DOM_GLOBALS.map((name) => ({
-  name,
-  message: "src/sim must not touch the DOM.",
-}));
+const SIM_GLOBAL_BANS = [
+  ...DOM_GLOBALS.map((name) => ({
+    name,
+    message: "src/sim must not touch the DOM.",
+  })),
+  { name: "Date", message: "No Date inside src/sim; use the fixed-step tick." },
+  ...["setTimeout", "setInterval", "setImmediate", "queueMicrotask"].map(
+    (name) => ({
+      name,
+      message: "No timers inside src/sim; schedule with integer ticks.",
+    }),
+  ),
+  {
+    name: "process",
+    message: "src/sim must not read the process environment.",
+  },
+  {
+    name: "crypto",
+    message:
+      "No platform randomness inside src/sim; use the seeded stream in sim/rng.",
+  },
+  ...["globalThis", "self"].map((name) => ({
+    name,
+    message:
+      "src/sim must not reach the global object; it would bypass the Math and Date bans.",
+  })),
+  {
+    name: "Intl",
+    message:
+      "Intl is locale/ICU-dependent; src/sim emits no locale formatting.",
+  },
+];
 
 const SIM_RESTRICTED_PROPERTIES = [
   {
@@ -163,6 +303,13 @@ export default tseslint.config(
       "no-restricted-globals": ["error", ...SIM_GLOBAL_BANS],
       "no-restricted-properties": ["error", ...SIM_RESTRICTED_PROPERTIES],
       "no-restricted-syntax": ["error", ...SIM_SYNTAX_BANS],
+      // Code evaluation is not a global-name restriction, so the core rules are
+      // enabled on their own, as in the generator zone. They are deliberately
+      // not part of the shared constants: a later block never redefines them,
+      // so it inherits them.
+      "no-eval": "error",
+      "no-new-func": "error",
+      "no-implied-eval": "error",
     },
   },
   {
