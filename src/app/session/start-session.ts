@@ -42,6 +42,7 @@ import type { SceneManager } from "../scene-manager.js";
 import type { GameSessionSave, StartOptions } from "../game-session.js";
 import type { AssetCache } from "../../render/asset-cache.js";
 import { parseTestFlags } from "./test-flags.js";
+import { createWorldLifecycle } from "./world-lifecycle.js";
 import {
   profileFromSave,
   restoreFromSave,
@@ -297,6 +298,12 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     // exactly `?test=1` enables the hook (T-04-08, T-08-26).
     ctx.runtime.testFlags = parseTestFlags(window.location.search);
     ctx.runtime.testHookEnabled = ctx.runtime.testFlags.hook;
+    // D-05/D-10: the world lifecycle carries the traffic setting parsed above
+    // and the default populator (nothing in Phase 8). It exists before the
+    // restore branch, so a Continue and a launch both reach it.
+    ctx.core.worldLifecycle = createWorldLifecycle({
+      traffic: ctx.runtime.testFlags.traffic,
+    });
 
     // D-09/T-06-12: every target id is resolved through this validated map.
     galaxyById.clear();
@@ -447,6 +454,12 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     ctx.core.market =
       restoredMarket ??
       generateMarket(ctx.core.system, loadedCatalogue, ctx.core.marketSeed);
+    // RESEARCH A9: an in-flight Continue recreates the world from the resolved
+    // seed without an epoch bump; a docked start has no world until it launches.
+    const resumedSeed = ctx.core.marketSeed;
+    if (restoredInFlight && resumedSeed !== undefined) {
+      ctx.core.worldLifecycle?.resume(resumedSeed);
+    }
     ensureSelection();
     ctx.runtime.hud = createHud(hudCanvas);
     ctx.runtime.hud.resize();
@@ -747,7 +760,8 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
    *   5. the scene manager, then the asset cache that owns its shared GLBs;
    *   6. the break pattern, the HUD, the chart (chart closed), the Save/Load
    *      screen (screen closed), the docked shell and the title screen;
-   *   7. the live state, scene and layout are dropped;
+   *   7. the live state, scene and layout are dropped, then the world ends
+   *      (plan 08-15);
    *   8. the probe publisher withdraws the test hook, save probe and Save/Load
    *      probe from the page object;
    *   9. the boot save store is disposed.
@@ -801,6 +815,8 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     ctx.core.state = undefined;
     ctx.core.scene = undefined;
     ctx.core.layout = undefined;
+    // The world dies with the live state; the epoch stays (plan 08-15).
+    ctx.core.worldLifecycle?.end();
     probePublisher.withdrawProbe();
     saveBoot.store.dispose();
   }
