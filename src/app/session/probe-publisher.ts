@@ -50,6 +50,11 @@ export interface ProbePublisher {
   updateProbe: () => void;
   /** Point the `?test=1` hook at `activeState`; boot and every in-session Load. */
   bindTestHook: (activeState: FlightState) => void;
+  /**
+   * Record a `?test=1` live-state mutation: taint the profile and request a
+   * redraw. The hook's mutate callback is this function itself.
+   */
+  markHookMutation: () => void;
   /** Publish the live economy and station probes. */
   syncEconomyProbe: () => void;
   /** Publish the save bookkeeping into the save probe. */
@@ -119,6 +124,17 @@ export function createProbePublisher(
   }
 
   /**
+   * The one place a `?test=1` live-state mutation is recorded: the profile is
+   * tainted (autosave refuses a tainted profile) and a redraw is requested. The
+   * hook's mutate callback and the sim driver's `advanceTicks` both call it.
+   */
+  function markHookMutation(): void {
+    ctx.runtime.testTainted = true;
+    // The hook moved the live state under a possibly quiet loop.
+    redrawGate.request();
+  }
+
+  /**
    * Point the `?test=1` hook at `activeState`. Called at boot and after every
    * in-session Load, so a hook never mutates a replaced state object (G-8).
    */
@@ -126,11 +142,7 @@ export function createProbePublisher(
     probe.test = createTestHook(
       activeState,
       { swapSystem, disposeSystem },
-      () => {
-        ctx.runtime.testTainted = true;
-        // The hook moved the live state under a possibly quiet loop.
-        redrawGate.request();
-      },
+      markHookMutation,
       {
         setCredits: applyTestCredits,
         grantEquipment: applyTestEquipment,
@@ -325,6 +337,7 @@ export function createProbePublisher(
   return {
     updateProbe,
     bindTestHook,
+    markHookMutation,
     syncEconomyProbe,
     syncSaveProbe,
     withdrawProbe,

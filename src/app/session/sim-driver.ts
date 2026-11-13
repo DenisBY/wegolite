@@ -20,12 +20,14 @@
  */
 
 import type { System } from "../../content/types.js";
+import type { KeyboardInputSource } from "../../input/keyboard.js";
 import type { Command } from "../../sim/commands.js";
 import type {
   PlayerController,
   ScriptedLaunchController,
 } from "../../sim/flight/controller.js";
 import { flightView } from "../../sim/flight/controller.js";
+import type { FlightState } from "../../sim/flight/state.js";
 import { poseOf } from "../../sim/flight/state.js";
 import { stepFlight } from "../../sim/flight/step.js";
 import type { InputFrame } from "../../sim/state.js";
@@ -51,6 +53,24 @@ export interface SimDriverDeps {
   readonly targetSystem: () => System | undefined;
   /** The pre-launch anchor write (D-17). */
   readonly autosave: () => void;
+  /**
+   * Record a `?test=1` live-state mutation (the probe publisher's taint
+   * callback): `advanceTicks` calls it before its first step so every autosave
+   * during and after the call is skipped.
+   */
+  readonly markHookMutation: () => void;
+}
+
+/**
+ * The most ticks one `advanceTicks` call steps (RESEARCH A1): a synchronous
+ * bounded loop, so a bad argument cannot freeze the tab for long.
+ */
+export const MAX_ADVANCE_TICKS = 200_000;
+
+/** What one drain hands to the fixed steps. */
+interface Drained {
+  readonly commands: readonly Command[];
+  readonly frameInput: InputFrame;
 }
 
 export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
@@ -63,6 +83,7 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
     equipmentSet,
     targetSystem,
     autosave,
+    markHookMutation,
   } = deps;
 
   /**
@@ -117,22 +138,15 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
   }
 
   /**
-   * The not-paused branch of a rendered frame: drain, filter, anchor, map, take
-   * one input frame and run the whole fixed steps the delta owes. Returns the
-   * interpolation alpha.
+   * The drain both entry points share (Pitfall 3): the keyboard commands plus
+   * `pending`, the launch filter, the pre-launch autosave, the hyperspace edge
+   * mapping and one input frame stored in `ctx.core.currentFrame`. Keeping one
+   * path means the manual clock cannot drift from the realtime one.
    */
-  function advanceFrame(delta: number): number {
-    const currentState = ctx.core.state;
-    const currentInput = ctx.runtime.input;
-    const currentLoop = ctx.runtime.loop;
-    if (
-      currentState === undefined ||
-      currentInput === undefined ||
-      currentLoop === undefined
-    ) {
-      return 0;
-    }
-
+  function drain(
+    currentState: FlightState,
+    currentInput: KeyboardInputSource,
+  ): Drained {
     const drained: Command[] = [
       ...currentInput.drainCommands(),
       ...pending,
@@ -163,13 +177,86 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
     // One immutable frame per rendered frame, shared by every fixed step.
     const frameInput = currentInput.frame();
     ctx.core.currentFrame = frameInput;
+    return { commands, frameInput };
+  }
 
+  /**
+   * The not-paused branch of a rendered frame: drain, filter, anchor, map, take
+   * one input frame and run the whole fixed steps the delta owes. Returns the
+   * interpolation alpha.
+   */
+  function advanceFrame(delta: number): number {
+    const currentState = ctx.core.state;
+    const currentInput = ctx.runtime.input;
+    const currentLoop = ctx.runtime.loop;
+    if (
+      currentState === undefined ||
+      currentInput === undefined ||
+      currentLoop === undefined
+    ) {
+      return 0;
+    }
+
+    const { commands, frameInput } = drain(currentState, currentInput);
     return currentLoop.advance(delta, commands, (stepCommands) => {
       stepOnce(stepCommands, frameInput);
     });
   }
 
-  return { advanceFrame, stepOnce };
+  /**
+   * The manual clock (D-09): step exactly `n` fixed ticks synchronously and
+   * return the new tick. Honoured only under `?test=1&clock=manual`; every
+   * unsafe call is refused with the tick unchanged and nothing stepped, drained
+   * or tainted: a disposed session (checked first), a flag-less session, an `n`
+   * that is not a safe integer in 1..`MAX_ADVANCE_TICKS`, a paused session, an
+   * open chart or Save/Load screen, or a session without a state.
+   *
+   * The session is tainted before the first step (so the pre-launch autosave
+   * and every docked or arrival autosave inside or after the call skip), the
+   * drain runs once, the drained commands go to the first tick only and every
+   * tick shares the one input frame. The loop stops early when a step disposes
+   * or pauses the session or opens an overlay.
+   *
+   * A step that throws is not caught: the error reaches the caller (a test
+   * spec). The session is already tainted, so no save can be written, and
+   * `ctx.core.currentFrame` and `pending` stay as the drain left them; that is
+   * accepted for a test-only hook.
+   */
+  function advanceTicks(n: number): number {
+    const currentState = ctx.core.state;
+    const currentInput = ctx.runtime.input;
+    if (
+      ctx.runtime.disposed ||
+      !ctx.runtime.testFlags.manualClock ||
+      !Number.isSafeInteger(n) ||
+      n < 1 ||
+      n > MAX_ADVANCE_TICKS ||
+      ctx.runtime.paused ||
+      ctx.chart.chartOpen ||
+      ctx.save.saveScreenOpen ||
+      currentState === undefined ||
+      currentInput === undefined
+    ) {
+      return currentState?.tick ?? 0;
+    }
+
+    markHookMutation();
+    const { commands, frameInput } = drain(currentState, currentInput);
+    for (let step = 0; step < n; step += 1) {
+      stepOnce(step === 0 ? commands : [], frameInput);
+      if (
+        ctx.runtime.disposed ||
+        ctx.runtime.paused ||
+        ctx.chart.chartOpen ||
+        ctx.save.saveScreenOpen
+      ) {
+        break;
+      }
+    }
+    return ctx.core.state?.tick ?? 0;
+  }
+
+  return { advanceFrame, advanceTicks, stepOnce };
 }
 
 export type SimDriver = ReturnType<typeof createSimDriver>;

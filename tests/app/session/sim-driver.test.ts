@@ -13,7 +13,7 @@
 
 import { readFileSync } from "node:fs";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createGameLoop } from "../../../src/app/game-loop.js";
 import {
@@ -22,7 +22,9 @@ import {
 } from "../../../src/app/session/event-router.js";
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
+import { createFrameLoop } from "../../../src/app/session/frame-loop.js";
 import { createSimDriver } from "../../../src/app/session/sim-driver.js";
+import { parseTestFlags } from "../../../src/app/session/test-flags.js";
 import { buildStepOptions } from "../../../src/app/session/step-options.js";
 import type { System } from "../../../src/content/types.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
@@ -74,7 +76,11 @@ interface Harness {
 }
 
 function harness(
-  options: { readonly mode?: "docked" | "inFlight" } = {},
+  options: {
+    readonly mode?: "docked" | "inFlight";
+    /** Parse `?test=1&clock=manual` into the session's flags. */
+    readonly manual?: boolean;
+  } = {},
 ): Harness {
   const ctx = createSessionState({
     system: lave.system,
@@ -86,6 +92,9 @@ function harness(
   ctx.core.state = state;
   ctx.core.layout = lave.layout;
   ctx.core.config = lave.config;
+  if (options.manual === true) {
+    ctx.runtime.testFlags = parseTestFlags("?test=1&clock=manual");
+  }
 
   const log: string[] = [];
   const pending: Command[] = [];
@@ -155,6 +164,10 @@ function harness(
     targetSystem: () => undefined,
     autosave: () => {
       log.push(`autosave ${ctx.core.state?.mode ?? "none"}`);
+    },
+    markHookMutation: () => {
+      log.push("markHookMutation");
+      ctx.runtime.testTainted = true;
     },
   });
   return {
@@ -330,6 +343,62 @@ describe("stepOnce, the single flight step", () => {
     driver.stepOnce([], { pitch: 0, roll: 0, speed: 1, precision: false });
     expect(ctx.core.previousPose).toBe(before);
     expect(ctx.core.currentPose).not.toBe(before);
+  });
+});
+
+describe("the manual clock (tracer)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("advanceTicks steps exactly n ticks, taints before the pre-launch autosave, and a frame then leaves the tick alone", () => {
+    const { ctx, driver, log, pending } = harness({ manual: true });
+    ctx.station.stationScreen = "home";
+    pending.push(launch);
+    const startTick = ctx.core.state?.tick ?? -1;
+
+    const tick = driver.advanceTicks(5);
+
+    expect(tick).toBe(startTick + 5);
+    expect(ctx.core.state?.tick).toBe(startTick + 5);
+    expect(ctx.core.state?.mode).toBe("launching");
+    expect(log.indexOf("markHookMutation")).toBeGreaterThanOrEqual(0);
+    expect(log.indexOf("markHookMutation")).toBeLessThan(
+      log.indexOf("autosave docked"),
+    );
+    expect(ctx.runtime.testTainted).toBe(true);
+
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    const renders: number[] = [];
+    const input = ctx.runtime.input as unknown as Record<string, unknown>;
+    ctx.runtime.input = {
+      ...input,
+      consumePauseToggle: () => false,
+      drainChartActions: () => [],
+      drainSaveScreenActions: () => [],
+      drainStationActions: () => [],
+    } as unknown as KeyboardInputSource;
+    const frame = createFrameLoop(ctx, {
+      probe: { frames: 0 },
+      pending,
+      redrawGate: { request: () => undefined },
+      simDriver: driver,
+      renderFrame: (alpha) => {
+        renders.push(alpha);
+      },
+      shouldDraw: () => true,
+      pause: () => undefined,
+      resume: () => undefined,
+      handleChartActions: () => undefined,
+      handleSaveScreenActions: () => undefined,
+      applyStationAction: () => undefined,
+      updateProbe: () => undefined,
+    });
+    frame(1000);
+    frame(2000);
+
+    expect(ctx.core.state?.tick).toBe(startTick + 5);
+    expect(renders).toEqual([1, 1]);
   });
 });
 

@@ -15,7 +15,9 @@
  *   5. the save-screen freeze branch: drain, empty `pending`, return;
  *   6. station actions, applied only when docked and not paused;
  *   7. the sim driver (drain, launch autosave, fixed steps) when not paused, or
- *      the paused drain, which empties `pending` and never steps;
+ *      the paused drain, which empties `pending` and never steps; under the
+ *      manual clock (`?test=1&clock=manual`, D-09) the not-paused branch skips
+ *      the sim driver and draws at alpha 1;
  *   8. the single gated draw call.
  *
  * Everything else a frame does (the steps, the events, the render) lives in the
@@ -138,7 +140,12 @@ export function createFrameLoop(
 
     let alpha = 0;
     if (!ctx.runtime.paused) {
-      alpha = simDriver.advanceFrame(delta);
+      // D-09: under `?test=1&clock=manual` the loop never self-steps (no
+      // command drain, no loop advance) and draws the latest pose at alpha 1;
+      // `advanceTicks` is the only thing that moves the simulation.
+      alpha = ctx.runtime.testFlags.manualClock
+        ? 1
+        : simDriver.advanceFrame(delta);
     } else {
       // A key pressed while paused must not become a queued edge command that
       // fires on resume.

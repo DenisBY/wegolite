@@ -41,6 +41,7 @@ import type { RedrawGate } from "../redraw-gate.js";
 import type { SceneManager } from "../scene-manager.js";
 import type { GameSessionSave, StartOptions } from "../game-session.js";
 import type { AssetCache } from "../../render/asset-cache.js";
+import { parseTestFlags } from "./test-flags.js";
 import {
   profileFromSave,
   restoreFromSave,
@@ -272,7 +273,8 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
    *      flag and the hint controller;
    *  12. the keyboard input source and the game loop, the poses;
    *  13. the pause overlay, the controls panel and the settings panel;
-   *  14. the `?test=1` read and, only when enabled, the hook binding;
+   *  14. the hook binding, only when `?test=1` enabled it (the flags are read
+   *      at the top of the function, right after the guard);
    *  15. the title is hidden, then the restore branch or the docked branch
    *      (the station overlay or the in-flight probe), the station nav sync;
    *  16. the Launch and Refuel handlers;
@@ -290,6 +292,11 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     )
       return;
     ctx.runtime.starting = true;
+
+    // D-10: the test flags are read from the URL exactly once, here, and only
+    // exactly `?test=1` enables the hook (T-04-08, T-08-26).
+    ctx.runtime.testFlags = parseTestFlags(window.location.search);
+    ctx.runtime.testHookEnabled = ctx.runtime.testFlags.hook;
 
     // D-09/T-06-12: every target id is resolved through this validated map.
     galaxyById.clear();
@@ -592,10 +599,9 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
       },
     });
 
-    // The hook exists only when explicitly asked for with exactly `?test=1`,
-    // and only mutates the live state: no save, no arbitrary code (T-04-08).
-    ctx.runtime.testHookEnabled =
-      new URLSearchParams(window.location.search).get("test") === "1";
+    // The hook exists only when explicitly asked for with exactly `?test=1`
+    // (read at the top of startSession), and only mutates the live state: no
+    // save, no arbitrary code (T-04-08).
     if (ctx.runtime.testHookEnabled) probePublisher.bindTestHook(flightState);
 
     title.hide();

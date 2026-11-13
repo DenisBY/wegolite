@@ -439,6 +439,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     equipmentSet,
     targetSystem,
     autosave,
+    // Late-bound so the construction order never matters (08-14).
+    markHookMutation: () => {
+      probePublisher.markHookMutation();
+    },
   });
 
   // D-12 step 9: the frame shell, then the lifecycle (start-up, resize, the

@@ -47,6 +47,7 @@ import type {
 } from "../probe.js";
 import type { RedrawGate } from "../redraw-gate.js";
 import type { SceneManager } from "../scene-manager.js";
+import type { TestFlags } from "./test-flags.js";
 import type { KeyboardInputSource } from "../../input/keyboard.js";
 import type { InputContext } from "../../input/actions.js";
 import type { BindingMap } from "../../input/bindings.js";
@@ -191,6 +192,11 @@ export interface SessionRuntime {
   testTainted: boolean;
   /** `?test=1` is read once at boot; a Load rebinds the hook only when enabled (G-8). */
   testHookEnabled: boolean;
+  /**
+   * The `?test=1` flag family, parsed once at start-up from the page URL
+   * (D-10); the manual clock and the traffic setting read it from here.
+   */
+  testFlags: TestFlags;
   lastMs: number;
   rafId: number;
   /**
@@ -344,6 +350,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       contextLost: false,
       testTainted: false,
       testHookEnabled: false,
+      testFlags: { hook: false, manualClock: false, traffic: true },
       lastMs: 0,
       rafId: 0,
       swapRafId: 0,
