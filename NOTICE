@@ -41,14 +41,13 @@ Every reused asset and every reused configuration file is recorded, with its
 origin and licence, in `ASSETS.md`. Wegolite's own source code is
 GPL-2.0-or-later and is not covered by the CC BY-NC-SA 3.0 terms above.
 
-The generated meshes under `public/models/` (`buoy.glb`, `cobra3.glb`,
-`coriolis.glb`) are
-converted with Wegolite's own code from the Oolite `.dat` models, and they are
-derivative works of those models: they remain CC BY-NC-SA 3.0, never GPL, with
-attribution to the Oolite contributors, non-commercial use only, and
-share-alike terms. The conversion is a format change (glTF binary), an axis
-convention change and a material projection — no authorship of the geometry is
-claimed.
+Every generated mesh under `public/models/` (`*.glb`; `ASSETS.md` names the
+Oolite `.dat` model or models each file is converted from) is converted with
+Wegolite's own code from the Oolite `.dat` models, and each is a derivative work
+of those models: it remains CC BY-NC-SA 3.0, never GPL, with attribution to the
+Oolite contributors, non-commercial use only, and share-alike terms. The
+conversion is a format change (glTF binary), an axis convention change and a
+material projection — no authorship of the geometry is claimed.
 
 The baked greyscale emissive maps under `public/textures/*_emissive.png` are
 derived from Oolite's PNG textures by Wegolite's build, which reads the source

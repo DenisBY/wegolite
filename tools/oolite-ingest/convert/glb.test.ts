@@ -11,15 +11,17 @@
  * assertion is made on the committed output.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import { NodeIO } from "@gltf-transform/core";
 import type { Document, GLTF } from "@gltf-transform/core";
 import { describe, expect, it } from "vitest";
 
 import { sha256Hex } from "../canonical/hash.js";
+import { ContentError } from "../content-error.js";
 import { parseOpenStep } from "../openstep/parser.js";
 import {
+  MODEL_BOUNDS,
   boundingBox,
   parseDat,
   repairWinding,
@@ -27,11 +29,17 @@ import {
 } from "./dat.js";
 import type { ParsedMesh, Vec3 } from "./dat.js";
 import {
+  EMITTED_ENTRIES,
+  MODEL_SOURCE_FILES,
+  NPC_SHIP_GLBS,
   buildCobraGlb,
   buildCoriolisGlb,
+  buildShipGlb,
   convertMesh,
+  emissiveFile,
   encodedTextureFile,
   materialFor,
+  shipGlbFile,
   writeGlb,
 } from "./glb.js";
 import type {
@@ -42,6 +50,7 @@ import type {
   ShipEntry,
 } from "./glb.js";
 import { compileShips } from "./ships.js";
+import { resolveReferencedTextures } from "./textures.js";
 
 const SHIPDATA = "third_party/oolite/Config/shipdata.plist";
 const OVERRIDES = "third_party/oolite/Config/shipdata-overrides.plist";
@@ -1143,5 +1152,163 @@ describe("GLB container", () => {
       }
       expect(emitted).toBe(mesh.faces.length * 3);
     }
+  });
+});
+
+function readRepoBytes(relative: string): Uint8Array {
+  return new Uint8Array(
+    readFileSync(new URL(`../../../${relative}`, import.meta.url)),
+  );
+}
+
+function stem(file: string, suffix: string): string {
+  expect(file.endsWith(suffix), `${file} ends with ${suffix}`).toBe(true);
+  return file.slice(0, -suffix.length);
+}
+
+function soleElement(list: readonly string[] | undefined): string {
+  expect(list).toHaveLength(1);
+  return at(list ?? [], 0);
+}
+
+describe("NPC ship GLBs", () => {
+  it.each([...NPC_SHIP_GLBS])(
+    "%s is pinned by rows, bytes and geometry",
+    async (file) => {
+      const source = soleElement(MODEL_SOURCE_FILES[file]);
+      const owner = soleElement(EMITTED_ENTRIES[file]);
+      const entry = shipEntry(owner);
+
+      // (a) one owner, one source, and the naming rule closes the loop.
+      expect(shipGlbFile(source)).toBe(file);
+      expect(entry.shipDef.model).toBe(source);
+
+      // (b) the committed bytes are a fresh build of the row.
+      const committed = readRepoBytes(`public/models/${file}`);
+      const mesh = loadMesh(source);
+      const rebuilt = buildShipGlb(
+        stem(file, ".glb"),
+        stem(source, ".dat"),
+        mesh,
+        entry,
+      );
+      expect(sha256Hex(committed)).toBe(sha256Hex(rebuilt));
+
+      // (c) one node (the hull), one mesh, one primitive and material per authored
+      // material, every name a key of the owner's material table.
+      const { json } = readChunks(committed);
+      expect(json.nodes).toHaveLength(1);
+      expect(at(json.nodes, 0).name).toBe(stem(file, ".glb"));
+      expect(json.meshes).toHaveLength(1);
+      const jsonMesh = at(json.meshes, 0);
+      expect(jsonMesh.name).toBe(stem(source, ".dat"));
+      expect(jsonMesh.primitives).toHaveLength(mesh.materials.length);
+      expect(json.materials).toHaveLength(mesh.materials.length);
+      for (const material of json.materials) {
+        expect(Object.keys(entry.shipDef.materials)).toContain(material.name);
+      }
+
+      // (d) every image is an existing sibling texture and the set is exactly the
+      // owner's closure: emissive PNG for an emission map, the WebP otherwise.
+      const uris = json.images.map((image) => image.uri);
+      for (const uri of uris) {
+        expect(uri.startsWith("../textures/"), uri).toBe(true);
+        expect(
+          existsSync(
+            new URL(
+              `../../../public/textures/${uri.slice("../textures/".length)}`,
+              import.meta.url,
+            ),
+          ),
+          uri,
+        ).toBe(true);
+      }
+      expect(uris.some((uri) => uri.endsWith(".webp"))).toBe(true);
+      const expectedUris = new Set<string>();
+      for (const [name, references] of resolveReferencedTextures(
+        catalogue.entries,
+      )) {
+        for (const reference of references) {
+          if (reference.shipKey !== owner) continue;
+          expectedUris.add(
+            `../textures/${
+              reference.mapKind === "emission"
+                ? emissiveFile(name)
+                : encodedTextureFile(name)
+            }`,
+          );
+        }
+      }
+      expect([...new Set(uris)].sort()).toEqual([...expectedUris].sort());
+
+      // (e) the independent reader accepts the committed bytes.
+      await expect(readWithReader(committed)).resolves.toBeDefined();
+
+      // (f) every face fronts Oolite's converted normal.
+      const checked = assertFrontFaces(loadMesh(source), entry.shipDef.smooth);
+      expect(checked).toBe(mesh.faces.length);
+      expect(checked).toBeGreaterThan(0);
+
+      // (g) the converted span equals the recorded MODEL_BOUNDS span per axis (the
+      // axis conversion only mirrors z, so spans are unchanged).
+      const recorded = MODEL_BOUNDS[source];
+      if (recorded === undefined) {
+        throw new Error(`no MODEL_BOUNDS for ${source}`);
+      }
+      const min = [Infinity, Infinity, Infinity];
+      const max = [-Infinity, -Infinity, -Infinity];
+      for (const primitive of jsonMesh.primitives) {
+        const accessor = at(json.accessors, primitive.attributes.POSITION);
+        for (let axis = 0; axis < 3; axis++) {
+          min[axis] = Math.min(at(min, axis), at(accessor.min ?? [], axis));
+          max[axis] = Math.max(at(max, axis), at(accessor.max ?? [], axis));
+        }
+      }
+      [recorded.x, recorded.y, recorded.z].forEach((target, axis) => {
+        const measured = at(max, axis) - at(min, axis);
+        expect(
+          Math.abs(measured - target) / target,
+          `axis ${String(axis)}`,
+        ).toBeLessThan(1e-3);
+      });
+    },
+  );
+});
+
+describe("the NPC GLB naming rule", () => {
+  it("maps oolite_<name>.dat to <name>.glb", () => {
+    expect(shipGlbFile("oolite_viper.dat")).toBe("viper.glb");
+    expect(shipGlbFile("oolite_cobramk1.dat")).toBe("cobramk1.glb");
+  });
+
+  it.each([
+    "viper.dat",
+    "oolite_viper.obj",
+    "../oolite_viper.dat",
+    "oolite_Viper.dat",
+    "oolite_.dat",
+  ])("refuses %s as a content error", (model) => {
+    let caught: unknown;
+    try {
+      shipGlbFile(model);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(ContentError);
+    expect((caught as ContentError).code).toBe("SCHEMA");
+  });
+
+  it("keeps the row sets consistent in both directions", () => {
+    const composites = ["buoy.glb", "cobra3.glb", "coriolis.glb"];
+    expect([...NPC_SHIP_GLBS]).toEqual(
+      [...NPC_SHIP_GLBS].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+    );
+    expect(new Set(NPC_SHIP_GLBS).size).toBe(NPC_SHIP_GLBS.length);
+    for (const composite of composites) {
+      expect(NPC_SHIP_GLBS).not.toContain(composite);
+    }
+    const expected = [...composites, ...NPC_SHIP_GLBS].sort();
+    expect(Object.keys(EMITTED_ENTRIES).sort()).toEqual(expected);
+    expect(Object.keys(MODEL_SOURCE_FILES).sort()).toEqual(expected);
   });
 });
