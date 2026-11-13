@@ -16,12 +16,17 @@
  * Indexing the table with a `SimEvent` kind would compile against 14 kinds and
  * fail once plan 08-11 widens the union, so this file indexes it only through
  * `ROUTED_EVENT_KINDS` (typed `RoutedKind`) or after `isRoutedKind`.
+ *
+ * The last describe pins the frame shell's phase order (Phase 8, D-12 step 9,
+ * RESEARCH Pattern 1): the drains, the two freeze branches, the station
+ * actions, the sim driver and the single gated render.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createSessionState } from "../../src/app/session/context.js";
 import type { SessionState } from "../../src/app/session/context.js";
+import { createFrameLoop } from "../../src/app/session/frame-loop.js";
 import {
   EVENT_KIND_SUBSCRIBER,
   EVENT_SUBSCRIBER_ORDER,
@@ -39,10 +44,14 @@ import type {
   SubscriberName,
 } from "../../src/app/session/event-router.js";
 import type { DockFeedback } from "../../src/app/dock-feedback.js";
+import type { GameLoop } from "../../src/app/game-loop.js";
+import type { ActionId } from "../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../src/input/keyboard.js";
+import type { Command } from "../../src/sim/commands.js";
 import type { SettingsV1 } from "../../src/settings/schema.js";
 import type { SimEvent } from "../../src/sim/events.js";
 import { initFlightState, poseOf } from "../../src/sim/flight/state.js";
+import type { FlightState } from "../../src/sim/flight/state.js";
 import { countdownSecondsRemaining } from "../../src/sim/hyperspace/countdown.js";
 import { laveFixture } from "../helpers/lave.js";
 
@@ -507,5 +516,311 @@ describe("an unrouted kind", () => {
     expect(isRoutedKind("reservedFutureKind")).toBe(false);
     expect(isRoutedKind("constructor")).toBe(false);
     expect(isRoutedKind("toString")).toBe(false);
+  });
+});
+
+describe("frame phase order", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  interface FrameHarness {
+    readonly ctx: SessionState;
+    readonly frame: (now: number) => void;
+    readonly log: string[];
+    readonly pending: Command[];
+    readonly probe: { frames: number };
+    readonly advanceDeltas: number[];
+    readonly handled: {
+      chart: (readonly ActionId[])[];
+      saveScreen: (readonly ActionId[])[];
+    };
+    readonly toggle: { pause: boolean };
+    /** What `requestAnimationFrame` was asked to run, in call order. */
+    readonly scheduled: FrameRequestCallback[];
+  }
+
+  /**
+   * A frame loop over a docked Lave state with recording doubles. Every
+   * collaborator appends its name to one log, written out literally in the
+   * expectations from the pre-move `frame()` (never derived from the code
+   * under test).
+   */
+  function frameHarness(
+    options: {
+      readonly mode?: FlightState["mode"];
+      readonly stationActions?: readonly ActionId[];
+    } = {},
+  ): FrameHarness {
+    const ctx = createSessionState({
+      system: lave.system,
+      saveStatus: "absent",
+      saveSkipReason: "",
+    });
+    const state = initFlightState(lave.layout);
+    if (options.mode !== undefined) state.mode = options.mode;
+    ctx.core.state = state;
+    ctx.core.layout = lave.layout;
+    ctx.core.config = lave.config;
+
+    const log: string[] = [];
+    const pending: Command[] = [];
+    const probe = { frames: 0 };
+    const advanceDeltas: number[] = [];
+    const handled: FrameHarness["handled"] = { chart: [], saveScreen: [] };
+    const toggle = { pause: false };
+    const scheduled: FrameRequestCallback[] = [];
+    let nextRafId = 100;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      scheduled.push(callback);
+      nextRafId += 1;
+      return nextRafId;
+    });
+
+    const chartActions: readonly ActionId[] = ["chartUp"];
+    const saveScreenActions: readonly ActionId[] = ["saveScreenUp"];
+    ctx.runtime.input = {
+      consumePauseToggle: () => {
+        log.push("consumePauseToggle");
+        return toggle.pause;
+      },
+      drainChartActions: () => {
+        log.push("drainChartActions");
+        return chartActions;
+      },
+      drainSaveScreenActions: () => {
+        log.push("drainSaveScreenActions");
+        return saveScreenActions;
+      },
+      drainStationActions: () => {
+        log.push("drainStationActions");
+        return options.stationActions ?? [];
+      },
+      drainCommands: () => {
+        log.push("drainCommands");
+        return [];
+      },
+    } as unknown as KeyboardInputSource;
+    ctx.runtime.loop = {} as unknown as GameLoop;
+
+    const frame = createFrameLoop(ctx, {
+      probe,
+      pending,
+      redrawGate: {
+        request: () => {
+          log.push("redrawGate.request");
+        },
+      },
+      simDriver: {
+        advanceFrame: (delta) => {
+          log.push("advanceFrame");
+          advanceDeltas.push(delta);
+          return 0.5;
+        },
+      },
+      renderFrame: (alpha, draw) => {
+        log.push(`renderFrame ${String(alpha)} ${String(draw)}`);
+      },
+      shouldDraw: () => {
+        log.push("shouldDraw");
+        return true;
+      },
+      pause: () => {
+        log.push("pause");
+      },
+      resume: () => {
+        log.push("resume");
+      },
+      handleChartActions: (actions) => {
+        handled.chart.push(actions);
+      },
+      handleSaveScreenActions: (actions) => {
+        handled.saveScreen.push(actions);
+      },
+      applyStationAction: () => {
+        log.push("applyStationAction");
+      },
+      updateProbe: () => {
+        log.push("updateProbe");
+      },
+    });
+    return {
+      ctx,
+      frame,
+      log,
+      pending,
+      probe,
+      advanceDeltas,
+      handled,
+      toggle,
+      scheduled,
+    };
+  }
+
+  const LAUNCH: Command = { kind: "launch" };
+
+  it("runs a normal docked frame in the pinned phase order", () => {
+    const { frame, log, probe, handled, advanceDeltas } = frameHarness({
+      stationActions: ["stationMarket"],
+    });
+
+    frame(1000);
+
+    expect(log).toEqual([
+      "consumePauseToggle",
+      "drainChartActions",
+      "drainSaveScreenActions",
+      "drainStationActions",
+      "applyStationAction",
+      "advanceFrame",
+      "shouldDraw",
+      "renderFrame 0.5 true",
+    ]);
+    // The drained edges reach their handlers, once each.
+    expect(handled.chart).toEqual([["chartUp"]]);
+    expect(handled.saveScreen).toEqual([["saveScreenUp"]]);
+    expect(advanceDeltas).toEqual([0]);
+    expect(probe.frames).toBe(1);
+  });
+
+  it("reschedules itself before anything else and records the id", () => {
+    const { ctx, frame, scheduled } = frameHarness();
+
+    frame(1000);
+
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0]).toBe(frame);
+    expect(ctx.runtime.rafId).toBe(101);
+  });
+
+  it("passes the elapsed seconds, and zero on the first frame, to the sim driver", () => {
+    const { frame, advanceDeltas } = frameHarness();
+
+    frame(1000);
+    frame(1016);
+
+    expect(advanceDeltas).toHaveLength(2);
+    expect(advanceDeltas[0]).toBe(0);
+    expect(advanceDeltas[1]).toBeCloseTo(0.016, 10);
+  });
+
+  it("toggles pause before any drain: pause when running, resume when paused", () => {
+    const running = frameHarness();
+    running.toggle.pause = true;
+    running.frame(1000);
+    expect(running.log.slice(0, 2)).toEqual(["consumePauseToggle", "pause"]);
+
+    const paused = frameHarness();
+    paused.ctx.runtime.paused = true;
+    paused.toggle.pause = true;
+    paused.frame(1000);
+    expect(paused.log.slice(0, 2)).toEqual(["consumePauseToggle", "resume"]);
+  });
+
+  it("applies no station action in flight", () => {
+    const { frame, log } = frameHarness({
+      mode: "inFlight",
+      stationActions: ["stationMarket"],
+    });
+
+    frame(1000);
+
+    expect(log).not.toContain("applyStationAction");
+    expect(log).toContain("advanceFrame");
+  });
+
+  it("freezes behind the open chart: drains, empties pending, never steps or draws", () => {
+    const { ctx, frame, log, pending, probe, handled } = frameHarness();
+    ctx.chart.chartOpen = true;
+    pending.push(LAUNCH);
+
+    frame(1000);
+
+    expect(log).toEqual([
+      "consumePauseToggle",
+      "drainChartActions",
+      "drainSaveScreenActions",
+      "drainCommands",
+      "drainStationActions",
+      "redrawGate.request",
+      "updateProbe",
+    ]);
+    // The chart wins a tie: the Save/Load actions are drained, not handled.
+    expect(handled.chart).toEqual([["chartUp"]]);
+    expect(handled.saveScreen).toEqual([]);
+    expect(pending.length).toBe(0);
+    expect(log).not.toContain("advanceFrame");
+    expect(log.some((entry) => entry.startsWith("renderFrame"))).toBe(false);
+    expect(probe.frames).toBe(1);
+  });
+
+  it("freezes behind the open save screen: drains, empties pending, never steps or draws", () => {
+    const { ctx, frame, log, pending, probe, handled } = frameHarness();
+    ctx.save.saveScreenOpen = true;
+    pending.push(LAUNCH);
+
+    frame(1000);
+
+    expect(log).toEqual([
+      "consumePauseToggle",
+      "drainChartActions",
+      "drainSaveScreenActions",
+      "drainCommands",
+      "drainStationActions",
+      "redrawGate.request",
+      "updateProbe",
+    ]);
+    expect(handled.saveScreen).toEqual([["saveScreenUp"]]);
+    expect(pending.length).toBe(0);
+    expect(log).not.toContain("advanceFrame");
+    expect(log.some((entry) => entry.startsWith("renderFrame"))).toBe(false);
+    expect(probe.frames).toBe(1);
+  });
+
+  it("does not fire a launch queued behind the chart once the chart closes", () => {
+    const { ctx, frame, log, pending } = frameHarness();
+    ctx.chart.chartOpen = true;
+    pending.push(LAUNCH);
+
+    frame(1000);
+    ctx.chart.chartOpen = false;
+    log.length = 0;
+    frame(1016);
+
+    expect(pending.length).toBe(0);
+    expect(log).toContain("advanceFrame");
+  });
+
+  it("drains commands, empties pending, never steps, but still draws while paused", () => {
+    const { ctx, frame, log, pending, probe } = frameHarness({
+      stationActions: ["stationMarket"],
+    });
+    ctx.runtime.paused = true;
+    pending.push(LAUNCH);
+
+    frame(1000);
+
+    expect(log).toEqual([
+      "consumePauseToggle",
+      "drainChartActions",
+      "drainSaveScreenActions",
+      "drainStationActions",
+      "drainCommands",
+      "shouldDraw",
+      "renderFrame 0 true",
+    ]);
+    expect(pending.length).toBe(0);
+    expect(probe.frames).toBe(1);
+  });
+
+  it("counts every frame but does nothing else before the session has started", () => {
+    const { ctx, frame, log, probe } = frameHarness();
+    ctx.core.state = undefined;
+
+    frame(1000);
+    frame(1016);
+
+    expect(probe.frames).toBe(2);
+    expect(log).toEqual([]);
   });
 });
