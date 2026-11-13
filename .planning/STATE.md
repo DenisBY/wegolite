@@ -1,20 +1,16 @@
 ---
 gsd_state_version: "1.0"
-milestone: v2.0
-milestone_name: Foundation
-status: Awaiting next milestone
-stopped_at: Phase 8 complete — all phases complete
-last_updated: "2026-11-13T20:49:38.013Z"
+milestone: v2.1
+milestone_name: World Population Base
+status: planning
+last_updated: "2026-11-13T21:02:53.127Z"
 last_activity: 2026-11-13
-last_activity_desc: Milestone v2.0 completed and archived
-state_head: 73341abe3155f2ddc3d835abf8c8f5c86bf03e62
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 16
-  completed_plans: 16
-  percent: 100
-current_phase: 8
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -24,14 +20,15 @@ current_phase: 8
 See: .planning/PROJECT.md (updated 2026-11-13)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Planning the next milestone. Milestone v2.0 Foundation (Phase 8, Session Split and World Core) shipped and was archived on 2026-11-13. The next candidate is v2.1 Combat & Traffic (Phases 9-23, 55 requirements, unscheduled); its requirements are archived in `.planning/milestones/v2.0-REQUIREMENTS.md` until `/gsd-new-milestone` re-states them. The AI seam, snapshot codec and reserved events are provisional until Phases 12-14 exercise them; QUAL-01 stays with v2.1 Phase 23.
+**Current focus:** Milestone v2.1 World Population Base (Phases 9-12, trimmed to what the inert world needs): NPC content without sound, build-time ship mass, a minimal save schema v3, and inert ships with the world lifecycle (WR-01 and IN-02 first). Former v2.1 Phases 13-23 stay an unscheduled backlog; their requirements remain in `.planning/milestones/v2.0-REQUIREMENTS.md`.
 
 ## Current Position
 
-Phase: Milestone v2.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-11-13 — Milestone v2.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-11-13 — Milestone v2.1 started
+
 
 ## Performance Metrics
 

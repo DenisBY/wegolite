@@ -14,9 +14,19 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 v2.0 changed nothing the player sees. The game plays exactly as v1 does, but `src/app/game-session.ts` is split into typed controllers behind a 532-line facade, and the simulation runs a multi-entity world: stable per-world ids, seeded per-entity streams, a world hash, restorable test snapshots, a typed `WorldView`/`ShipControl` AI seam with a scripted test pilot, and a tick-stepping test hook (`advanceTicks`, `worldHash`, `probe.sim`). The AI seam, the snapshot codec and the reserved SimEvent types have only the test pilot as a consumer, so they stay provisional until Phases 12-14 exercise them.
 
-## Next Milestone Goals
+## Current Milestone: v2.1 World Population Base
 
-**v2.1 Combat & Traffic (unscheduled):** NPC content and octrees (Phases 9-10), save schema v3 (11), inert ships and the world lifecycle (12), combat and the AI fidelity gate (13-16), audio (17), priority AI and role traffic (18-20), missiles and equipment (21), full traffic, asteroids and mining (22), and performance hardening with the QUAL-01 evidence (23). Its 55 requirements are archived with v2.0 in `.planning/milestones/v2.0-REQUIREMENTS.md` (the traceability table keeps their phase mapping); `/gsd-new-milestone` re-states them in a fresh `REQUIREMENTS.md`. Before planning, re-check the phase order against what Phase 8 proved, and contain a throwing AI module (review WR-01) before Phases 12, 13 and 22.
+**Goal:** The world can hold real NPC ships: compiled from Oolite's data, given Oolite's mass, regenerated from the save's seed rather than saved, populated deterministically on arrival, and counted by mass lock and jump blockage. No NPC flight, AI or combat yet.
+
+**Scope rule:** the necessary technical minimum, not player-visible features (owner, 2026-11-13: "less, but better"). Each phase is trimmed to what Phase 12 consumes; phase numbers 9-12 are kept from the former v2.1 plan so existing references stay valid.
+
+**Target features:**
+- Phase 9, NPC content: models, textures and combat stats of the NPC ships compiled from the pinned Oolite snapshot with provenance, lazily loaded outside the first load. Sounds and music (DATA-12) are deferred to the audio phase.
+- Phase 10, ship mass: build-time hull octrees and Oolite's mass (`density * 20 * octree volume`), with the Coriolis mass checked against 455,223,200. Runtime ray and hull queries are deferred to the combat phase.
+- Phase 11, minimal save schema v3: only the world epoch, the world counters and the next entity id, with leg-anchor semantics and an ordered v1 → v2 → v3 migration. Combat and law fields get their own later bumps.
+- Phase 12, inert ships and the world lifecycle: inert NPC ships drawn and on the scanner within budget, mass lock and jump blockage by ships, the world running behind the chart, cleared at jump commit and repopulated deterministically on arrival, and a reload that regenerates the same world. Its first plan contains a throwing AI module (review WR-01) and makes `spawnEntity` refuse malformed input instead of throwing (IN-02).
+
+**Deferred (unscheduled backlog, numbers unchanged):** Phases 13-23 of the former v2.1 Combat & Traffic plan: lasers and views, NPC flight and the AI fidelity gate, destruction and death, bounties and the escape pod, audio, priority AI and role traffic, police and law, pirates, missiles, full traffic and mining, and performance hardening with QUAL-01. Their requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`.
 
 ## Requirements
 
@@ -38,18 +48,24 @@ v2.0 changed nothing the player sees. The game plays exactly as v1 does, but `sr
 
 ### Active
 
-<!-- Next scope. Milestone v2.0 Foundation is complete; the v2.1 items below are planned, unscheduled. -->
+<!-- Current scope: milestone v2.1 World Population Base. -->
 
-- [ ] (v2.1, planned) Saves carry only the world seed and counters, and the world is regenerated from them (Phase 11; Phase 8 delivered the world model, the world is not saved in v2.0)
-- [ ] (v2.1, planned) Before real AI modules land (Phases 12, 13, 22), a throwing AI module is contained inside the world step (Phase 8 review WR-01)
-- [ ] (v2.1, planned) NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
-- [ ] (v2.1, planned) NPC ships fly and fight with Oolite's priority AI, hand-ported to TypeScript
-- [ ] (v2.1, planned) Player can fight with lasers, shields, energy banks, missiles and ECM, and destroy or be destroyed
-- [ ] (v2.1, planned) Player can scoop cargo pods, earn bounties, and gain or lose legal status, with police responding
-- [ ] (v2.1, planned) Player can eject in an escape pod and continue on insurance, as in Oolite
-- [ ] (v2.1, planned) Player can collide with the planet and the sun and overheat
-- [ ] (v2.1, planned) The game plays Oolite's sound effects and music, autoplay-safe
-- [ ] (v2.1, planned) Client maintains a steady frame rate on desktop hardware (QUAL-01, carried forward; deferred again on 2026-11-13)
+- [ ] (v2.1) NPC ship models, textures and Oolite combat stats are compiled with provenance and loaded lazily (Phase 9)
+- [ ] (v2.1) Every NPC hull has Oolite's mass from a build-time octree (Phase 10)
+- [ ] (v2.1) Saves carry only the world seed, epoch and counters of a leg anchor, in a minimal schema v3, and the world is regenerated from them (Phases 11-12)
+- [ ] (v2.1) A throwing AI module is contained inside the world step, and `spawnEntity` refuses malformed input (Phase 12, reviews WR-01 and IN-02)
+- [ ] (v2.1) Inert NPC ships are placed, drawn and on the scanner; mass lock and jump blockage count them; the world runs behind the chart and is cleared and repopulated deterministically across jumps (Phase 12)
+
+<!-- Later, unscheduled (former v2.1 Phases 13-23). -->
+
+- [ ] (later) NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
+- [ ] (later) NPC ships fly and fight with Oolite's priority AI, hand-ported to TypeScript
+- [ ] (later) Player can fight with lasers, shields, energy banks, missiles and ECM, and destroy or be destroyed
+- [ ] (later) Player can scoop cargo pods, earn bounties, and gain or lose legal status, with police responding
+- [ ] (later) Player can eject in an escape pod and continue on insurance, as in Oolite
+- [ ] (later) Player can collide with the planet and the sun and overheat
+- [ ] (later) The game plays Oolite's sound effects and music, autoplay-safe
+- [ ] (later) Client maintains a steady frame rate on desktop hardware (QUAL-01, carried forward; deferred again on 2026-11-13)
 
 ### Out of Scope
 
@@ -219,6 +235,8 @@ v2.0 changed nothing the player sees. The game plays exactly as v1 does, but `sr
 | (h) The world is not stepped on the tick whose flight step emits hyperspaceJumped: the arrival replaces it | On that step the player has already moved to the destination while the layout is still the origin's, so stepping the old world would let its entities think against the destination player and the origin layout. Oolite rebuilds the universe on witchspace arrival (`Universe.m:1162-1181`), so no origin-system ship acts in the destination. The rule reads only the step's own events, so it is deterministic and identical at every frame cadence | ✓ Phase 8 plan 08-11 |
 | World lifecycle and epoch bump points: no world while docked; the launched event and a hyperspace arrival bump epoch, then derive worldSeedFor(marketSeed, epoch) and create the world (the arrival does it inside the install block before the arrival autosave); a cold boot Continue or warm in-session Load resets the lifecycle anchor via resetForRestore(0) before recreating an in-flight world with resume(marketSeed) or ending a docked world, so warm Load and cold Continue of the same v2 save always produce identical epoch (0 at restore, 1 on the next launch or arrival) and identical worldSeed; in Phase 8 epoch lives in session memory starting at 0 because v2 saves do not persist it (D-03), and Phase 11 (SAVE-07) will pass the persisted save.epoch into resetForRestore(save.epoch) at both boot Continue and warm Load (D-02, D-03); populate runs at every creation with the traffic flag and never changes epoch or ids differently by flag (D-05) | D-05 as proven in Phase 8 means the seed and each fresh world's starting counter are independent of the traffic flag; once the Phase 12 populator spawns only with traffic on, the post-populate counter will differ by mode, and the Phase 12 plan must settle with the owner whether D-05 keeps this reading or requires populate to burn ids with traffic off. Every recreated world restarts dynamic ids at 101 and no entity id crosses a world change (per-world id scope: CONTEXT D-06 as amended 2026-11-12, recorded in the plan 08-05 row 'Entity id uniqueness is per world'). The world never enters the save in Phase 8: SaveInputs and the encoded save are unchanged with a live world, which keeps the anchored-save decision of the 'Do not save NPCs' row (ROADMAP pitfall 10). Oolite comparison: Oolite repopulates on witchspace arrival (setUpUniverseFromWitchspace, Universe.m:1162-1181) and on a load or reset (reinitAndShowDemo, Universe.m:9374-9462), but setUpUniverseFromStation (Universe.m:1088-1160) repopulates only in its witchspace branch (Universe.m:1090-1124), so a normal-space launch keeps the system's ships; rebuilding the NPC-free world at every launch is a deliberate divergence that follows D-02 and the leg-anchor save | ✓ Phase 8 plan 08-15 |
 | Test-only manual clock and tick stepping: `?test=1&clock=manual` stops self-stepping; advanceTicks(n) (integer 1..200000) steps exactly n ticks with commands on the first tick, taints first and refuses while disposed, paused or behind an overlay; the hook method is always present under `?test=1` (so the frozen probe shape keeps every probe.test member a function) and outside the manual clock it refuses (returns the current tick, steps nothing, does not taint); worldHash() reads the world hash on demand and returns "" when no session state exists or the session is disposed; probe.sim publishes tick, epoch, entities, worldLive, traffic and clock (only when a session state exists); `&traffic=1` opts a spec into traffic and both flags are inert without `test=1` (D-09, D-10) | Browser/Vitest tick-hash parity is proven in Phase 8 for New-game launch-and-fly (`tests/helpers/tick-script.ts`), and Vitest proves jump-lifecycle epoch bump and world recreation under `advanceTicks`; full browser jump-parity with populated traffic is deferred to Phase 12, when chart-in-flight simulation and the populator land. The Node replay and the session share buildStepOptions and createWorldLifecycle, so a bug in either is invisible to the parity test; the extra hashFlight cross-check covers the flight half only, and once entities exist (Phase 12) a parity pass proves less than it does for the NPC-free world. Scope of success criterion 5 in Phase 8: with no populator the browser world is empty (hashWorld equals hashFlight there), so browser parity proves tick control, option parity and the lifecycle's epoch bumps and world creation; non-empty-world determinism is proven in Vitest only (plans 08-11 and 08-13, success criterion 3), and Phase 12, which adds the populator, extends browser parity to a populated world. In Phase 8 `&traffic=1` changes only probe.sim.traffic and the flag the populate seam receives; what D-05 means once a populator spawns only with traffic on is a Phase 12 decision (the D-05 forward note in the plan 08-15 row). ROADMAP Phase 8 success criterion 1 (probe shape unchanged) governs the session split and every plan through 08-15; D-13 sanctions this one additive post-split probe commit (plan 08-16 Task 1), which adds probe.sim and the two hook methods (worldHash, advanceTicks) and removes or renames nothing | ✓ Phase 8 plans 08-14 and 08-16 |
+| Scope v2.1 to the minimum the inert world needs: Phases 9-12, each trimmed to what Phase 12 consumes (no sounds or music in 9, no runtime octree queries in 10, a minimal v3 in 11); Phases 13-23 stay an unscheduled backlog with their numbers | Owner direction on 2026-11-13: scope to the necessary minimum, not to player-visible features ("less, but better"). Phase 12 is the first consumer of content, mass and the regenerated save, so the chain 9 → 10 → 11 → 12 is the smallest unit with no speculative part; WR-01 and IN-02 must land before the first populator, so they open Phase 12 | — Pending (v2.1) |
+| Make save schema v3 minimal (world epoch, counters, next entity id, leg anchor); supersede the "one bump with every v2.0 field" rule of SAVE-07 and ROADMAP pitfall 10 | Combat and law fields (legal status, kills, rating, laser mounts, pylons, new equipment) would be shaped before any code uses them, and a wrong shape costs a migration anyway. The ordered v1 → v2 migration chain already exists and is tested, so each later bump is cheap; each lands with the code that consumes its fields | — Pending (v2.1, owner decision 2026-11-13) |
 
 ## Evolution
 
@@ -238,4 +256,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-13 after v2.0 Foundation milestone*
+*Last updated: 2026-11-13 at the start of milestone v2.1 World Population Base*
