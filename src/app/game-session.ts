@@ -319,6 +319,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     disposeSystem: () => {
       lifecycle.disposeSystem();
     },
+    // Late-bound: the sim driver is built after the publisher (08-16).
+    advanceTicks: (n) => simDriver.advanceTicks(n),
   });
 
   // D-12 step 3: the redraw gate's decision and the per-frame scene, HUD and

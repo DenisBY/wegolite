@@ -81,6 +81,7 @@ function harness(): Harness {
     commitProfile: () => false,
     swapSystem: () => Promise.resolve(),
     disposeSystem: () => undefined,
+    advanceTicks: () => 0,
   });
   return { ctx, probe, saveProbe, gate, messages, publisher, renderer };
 }

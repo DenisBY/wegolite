@@ -5,9 +5,10 @@
  * The frozen `window.__wegolite` shape (D-12 step 0, D-13, FOUND-10).
  *
  * 25 browser specs read the probe, and the Phase 8 session split must not move
- * a key or change a leaf type. This spec samples six states, reduces each live
- * probe to a value-free shape in the page (`probeShapeOf`), and compares it with
- * tests/fixtures/probe-shape.json recorded from the unmodified monolith. Every
+ * a key or change a leaf type. This spec samples seven states (six recorded
+ * from the unmodified monolith in plan 08-01, plus testHookManualDocked from
+ * plan 08-16), reduces each live probe to a value-free shape in the page
+ * (`probeShapeOf`), and compares it with tests/fixtures/probe-shape.json. Every
  * wait is `page.waitForFunction` on probe fields; no wall-time wait is used.
  *
  * Write mode: with WEGOLITE_PROBE_SHAPE_WRITE=1 the spec records the fixture
@@ -17,9 +18,10 @@
  * empty.
  *
  * Standing contract: every `probe.test` member except the boolean `tainted`
- * reads "function" in testHookDocked. Plan 08-16 adds its hook members
- * (worldHash, advanceTicks) as always-present functions, so the contract
- * survives the one deliberate probe commit (Round 4 review 6f4ae07 consensus 3).
+ * reads "function" in testHookDocked and testHookManualDocked. Plan 08-16 added
+ * its hook members (worldHash, advanceTicks) as always-present functions, so the
+ * contract survives the one deliberate probe commit (Round 4 review 6f4ae07
+ * consensus 3). `probe.sim` is the third addition of that commit.
  *
  * Optional-key audit (Round 1 review 10b4108 L36; Round 2 review 820a435 L162).
  * Each optional WegoliteProbe key, the condition that publishes it, and where it
@@ -31,26 +33,27 @@
  *
  * | key | publishing condition | states where expected |
  * | --- | --- | --- |
- * | shipVisible | updateProbe once a layout and a system scene exist | docked, paused, chart, inFlight, testHookDocked; absent in menu |
- * | dust | updateProbe once a layout and a system scene exist | docked, paused, chart, inFlight, testHookDocked; absent in menu |
- * | hints | updateProbe on every call (empty list when no controller) | docked, paused, chart, inFlight, testHookDocked; absent in menu |
+ * | shipVisible | updateProbe once a layout and a system scene exist | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | dust | updateProbe once a layout and a system scene exist | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | hints | updateProbe on every call (empty list when no controller) | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
  * | hint | the hint controller decides when to show the first hint: TIMING-DEPENDENT, optional | may appear in any session state; never pinned |
- * | world | updateProbe once a layout and a system scene exist | docked, paused, chart, inFlight, testHookDocked; absent in menu |
- * | dock | updateProbe once a flight state exists | docked, paused, chart, inFlight, testHookDocked; absent in menu |
- * | save | the session publishes its save probe when it starts | docked, paused, chart, inFlight, testHookDocked; absent in menu |
+ * | world | updateProbe once a layout and a system scene exist | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | dock | updateProbe once a flight state exists | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | save | the session publishes its save probe when it starts | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
  * | recovery | main.ts publishes it with the initial probe (QUAL-05) | every state |
- * | station | syncEconomyProbe once a market exists (docked render or flight start) | docked, paused, chart, inFlight, testHookDocked; absent in menu |
- * | economy | syncEconomyProbe once a market exists | docked, paused, chart, inFlight, testHookDocked; absent in menu |
- * | chart | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked; absent in menu |
- * | hyperspace | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked; absent in menu |
+ * | station | syncEconomyProbe once a market exists (docked render or flight start) | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | economy | syncEconomyProbe once a market exists | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | chart | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | hyperspace | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
  * | restore | only after a Continue installs a saved pose (boot or in-session) | never: every sample is a fresh New game |
- * | saveScreen | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked; absent in menu |
- * | systemId | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked; absent in menu |
- * | quality | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked; absent in menu |
- * | atmosphere | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked; absent in menu |
- * | nebulae | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked; absent in menu |
+ * | saveScreen | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | systemId | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | quality | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | atmosphere | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | nebulae | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
  * | aspect | main.ts resize before a session, renderFrame once a scene exists | every state |
- * | test | createTestHook, only under ?test=1 | testHookDocked only |
+ * | sim | updateProbe once a flight state exists (plan 08-16): STATE-DETERMINED | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
+ * | test | createTestHook, only under ?test=1 | testHookDocked and testHookManualDocked |
  * | error | publishFailure only, on the failure surface | never |
  *
  * Nested optional keys are state-determined too: hud.hyperspaceTarget (set with
@@ -83,6 +86,7 @@ const STATE_NAMES = [
   "chart",
   "inFlight",
   "testHookDocked",
+  "testHookManualDocked",
 ] as const;
 type StateName = (typeof STATE_NAMES)[number];
 
@@ -93,6 +97,7 @@ const SESSION_KEYS = [
   "hints",
   "world",
   "dock",
+  "sim",
   "save",
   "recovery",
   "station",
@@ -306,4 +311,29 @@ test("docked probe shape under ?test=1", async ({ page }, testInfo) => {
   }
   expect(Object.keys(members).length).toBeGreaterThan(1);
   await checkState(page, "testHookDocked", testInfo);
+});
+
+test("docked probe shape under ?test=1&clock=manual", async ({
+  page,
+}, testInfo) => {
+  await bootDocked(page, "/?test=1&clock=manual");
+  await waitForState(page, "docked", [...SESSION_KEYS, "test"]);
+  const members = await page.evaluate(() => {
+    const hook = window.__wegolite?.test as unknown as
+      Record<string, unknown> | undefined;
+    return hook === undefined
+      ? {}
+      : Object.fromEntries(
+          Object.entries(hook).map(([key, value]) => [key, typeof value]),
+        );
+  });
+  for (const [key, kind] of Object.entries(members)) {
+    expect(kind, `probe.test.${key}`).toBe(
+      key === "tainted" ? "boolean" : "function",
+    );
+  }
+  // advanceTicks is always present, so the manual clock adds no new member.
+  expect(members["advanceTicks"]).toBe("function");
+  expect(members["worldHash"]).toBe("function");
+  await checkState(page, "testHookManualDocked", testInfo);
 });

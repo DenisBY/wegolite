@@ -14,6 +14,12 @@
  * The publisher owns no state of its own. `updateProbe`, `syncEconomyProbe` and
  * `syncSaveProbe` only read the session; `bindTestHook` is the one writer, and
  * it only points the hook at the live flight state.
+ *
+ * Plan 08-16 (D-13, the one deliberate post-split probe change) adds `probe.sim`
+ * (published only while a flight state exists, deleted otherwise and on
+ * `withdrawProbe`) and the two sim hook members, `worldHash` (computed on demand
+ * from the live state and world, never per frame) and `advanceTicks` (delegated
+ * to the sim driver, which owns the manual-clock refusal rule).
  */
 
 import type * as THREE from "three";
@@ -22,10 +28,16 @@ import type { FlightState } from "../../sim/flight/state.js";
 import type { Vec3 } from "../../sim/math.js";
 import { MAX_EQUIPMENT_KEYS, setCredits } from "../../sim/player/profile.js";
 import type { PlayerProfile } from "../../sim/player/profile.js";
+import { hashWorld } from "../../sim/world/serialize.js";
+import { liveEntityCount } from "../../sim/world/world.js";
 import { maxRelativeMagnitude } from "../../render/sync.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
 import { createTestHook, readMemory } from "../probe.js";
-import type { WegoliteProbe, WegoliteSaveProbe } from "../probe.js";
+import type {
+  WegoliteProbe,
+  WegoliteSaveProbe,
+  WegoliteSimTestHook,
+} from "../probe.js";
 import type { RedrawGate } from "../redraw-gate.js";
 import type { SceneManager } from "../scene-manager.js";
 import type { SessionState } from "./context.js";
@@ -43,6 +55,11 @@ export interface ProbePublisherDeps {
   /** The two scene operations the `?test=1` hook drives. */
   readonly swapSystem: () => Promise<void>;
   readonly disposeSystem: () => void;
+  /**
+   * The sim driver's `advanceTicks`, late-bound by the facade so construction
+   * order never matters. The driver owns the refusal rule.
+   */
+  readonly advanceTicks: (n: number) => number;
 }
 
 export interface ProbePublisher {
@@ -81,6 +98,7 @@ export function createProbePublisher(
     commitProfile,
     swapSystem,
     disposeSystem,
+    advanceTicks,
   } = deps;
 
   function syncEconomyProbe(): void {
@@ -135,6 +153,24 @@ export function createProbePublisher(
   }
 
   /**
+   * The world hash, read on demand from the live state and the live lifecycle
+   * world (G-8: nothing captured). It is a read: no taint, no redraw request.
+   * A stale hook (menu mode, or after dispose) gets the `""` sentinel rather
+   * than a TypeError from `hashWorld`.
+   */
+  function worldHash(): string {
+    const liveState = ctx.core.state;
+    if (liveState === undefined || ctx.runtime.disposed) return "";
+    return hashWorld(liveState, ctx.core.worldLifecycle?.world);
+  }
+
+  /** The sim members of the hook, bound at call time (G-8). */
+  const simHook: WegoliteSimTestHook = {
+    worldHash,
+    advanceTicks: (n) => advanceTicks(n),
+  };
+
+  /**
    * Point the `?test=1` hook at `activeState`. Called at boot and after every
    * in-session Load, so a hook never mutates a replaced state object (G-8).
    */
@@ -147,6 +183,7 @@ export function createProbePublisher(
         setCredits: applyTestCredits,
         grantEquipment: applyTestEquipment,
       },
+      simHook,
     );
   }
 
@@ -260,6 +297,20 @@ export function createProbePublisher(
         outcome: currentState.mode === "docked" ? "docked" : "inFlight",
         lastClockDelta: ctx.core.lastDockClockDelta,
       };
+      // Plan 08-16: a fresh plain object of primitives, so no property is a
+      // reference into the world, and no hash is computed per frame.
+      const lifecycle = ctx.core.worldLifecycle;
+      probe.sim = {
+        tick: currentState.tick,
+        epoch: lifecycle?.epoch ?? 0,
+        entities:
+          lifecycle?.world === undefined ? 0 : liveEntityCount(lifecycle.world),
+        worldLive: lifecycle?.world !== undefined,
+        traffic: ctx.runtime.testFlags.traffic,
+        clock: ctx.runtime.testFlags.manualClock ? "manual" : "realtime",
+      };
+    } else {
+      delete probe.sim;
     }
 
     if (probe.test !== undefined) probe.test.tainted = ctx.runtime.testTainted;
@@ -329,6 +380,7 @@ export function createProbePublisher(
   }
 
   function withdrawProbe(): void {
+    delete probe.sim;
     delete probe.test;
     delete probe.save;
     delete probe.saveScreen;

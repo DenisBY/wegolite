@@ -14,7 +14,10 @@
  * A retired field must not keep returning a plausible value.
  *
  * `test` is exposed only under `?test=1` and carries no save mutation and no
- * arbitrary code.
+ * arbitrary code. Besides the live-state mutators and the scene operations it
+ * carries two read/step members (plan 08-16, D-13: the one deliberate additive
+ * post-split probe change): `worldHash()` reads the world hash on demand and
+ * `advanceTicks(n)` steps the manual clock (`?test=1&clock=manual` only).
  */
 
 import type * as THREE from "three";
@@ -248,7 +251,49 @@ export interface WegoliteRestoreProbe {
   clock: number;
 }
 
-export interface WegoliteTestHook extends WegoliteSceneTestHook {
+/**
+ * The simulation facts the session publishes as `probe.sim` (plan 08-16, D-13).
+ * Every field is a primitive, so no property is a reference into the world.
+ */
+export interface WegoliteSimProbe {
+  /** The simulation tick of the live flight state (`FlightState.tick`). */
+  tick: number;
+  /** The session-memory world epoch; 0 until the first launch or arrival. */
+  epoch: number;
+  /**
+   * The count of live, non-dead dynamic entities of the current world only (ids
+   * from 101). It never counts the five static entities or the player, and it is
+   * 0 while no world exists (docked, or before the first launch).
+   */
+  entities: number;
+  /** Whether a world currently exists (it does not while docked). */
+  worldLive: boolean;
+  /** The effective NPC-traffic setting (true without the hook; `traffic=1` under it). */
+  traffic: boolean;
+  /** `"manual"` only under `?test=1&clock=manual`, otherwise `"realtime"`. */
+  clock: "realtime" | "manual";
+}
+
+/** The two sim members the `?test=1` hook gains (plan 08-16). */
+export interface WegoliteSimTestHook {
+  /**
+   * The world hash (`hashWorld` of the live state and world), computed on
+   * demand, never per frame. Returns `""`, a sentinel no real hash (eight hex
+   * digits) can equal, when no session state exists or the session is disposed.
+   */
+  worldHash(): string;
+  /**
+   * Step exactly `n` fixed ticks and return the tick afterwards. Always present
+   * on the hook, but it steps only under `?test=1&clock=manual`: outside the
+   * manual clock, for an invalid `n`, while disposed, paused or behind an
+   * overlay, or without a state, it returns the current tick (0 without a
+   * state), steps nothing and does not taint.
+   */
+  advanceTicks(n: number): number;
+}
+
+export interface WegoliteTestHook
+  extends WegoliteSceneTestHook, WegoliteSimTestHook {
   setPosition(x: number, y: number, z: number): void;
   setSpeed(speed: number): void;
   /** Replace the ship orientation after normalising; a zero-length is ignored. */
@@ -351,6 +396,11 @@ export interface WegoliteProbe {
    * of a screenshot. Absent on the failure surface, where no camera renders.
    */
   aspect?: number;
+  /**
+   * The simulation facts (plan 08-16); published while a session state exists,
+   * absent in `menu` mode, after `dispose()` and on the failure surface.
+   */
+  sim?: WegoliteSimProbe;
   /** Present only under `?test=1`. */
   test?: WegoliteTestHook;
   /** Present only on the failure surface. */
@@ -390,9 +440,11 @@ export function readMemory(renderer: THREE.WebGLRenderer): WegoliteMemoryProbe {
 export function createTestHook(
   state: FlightState,
   scenes: WegoliteSceneTestHook,
-  onMutate: () => void = () => {},
-  profile?: WegoliteProfileTestHook,
+  onMutate: (() => void) | undefined,
+  profile: WegoliteProfileTestHook | undefined,
+  sim: WegoliteSimTestHook,
 ): WegoliteTestHook {
+  const mutated = onMutate ?? ((): void => undefined);
   const hook: WegoliteTestHook = {
     tainted: false,
     setPosition(x: number, y: number, z: number): void {
@@ -401,13 +453,13 @@ export function createTestHook(
       }
       state.position = vec(x, y, z);
       hook.tainted = true;
-      onMutate();
+      mutated();
     },
     setSpeed(speed: number): void {
       if (!Number.isFinite(speed)) return;
       state.speed = speed;
       hook.tainted = true;
-      onMutate();
+      mutated();
     },
     setOrientation(w: number, x: number, y: number, z: number): void {
       if (
@@ -428,7 +480,7 @@ export function createTestHook(
         z: z / length,
       };
       hook.tainted = true;
-      onMutate();
+      mutated();
     },
     setStationAngle(radians: number): void {
       if (!Number.isFinite(radians)) return;
@@ -436,25 +488,27 @@ export function createTestHook(
       // Normalise into [0, 2*pi) so a caller cannot inject an unbounded phase.
       state.stationAngle = ((radians % twoPi) + twoPi) % twoPi;
       hook.tainted = true;
-      onMutate();
+      mutated();
     },
     setCredits(credits: number): void {
       // `isSafeInteger` rejects NaN, infinities and fractions in one predicate.
       if (!Number.isSafeInteger(credits) || credits < 0) return;
       if (profile === undefined || !profile.setCredits(credits)) return;
       hook.tainted = true;
-      onMutate();
+      mutated();
     },
     grantEquipment(key: string): boolean {
       if (profile === undefined || !profile.grantEquipment(key)) return false;
       hook.tainted = true;
-      onMutate();
+      mutated();
       return true;
     },
     swapSystem: () => scenes.swapSystem(),
     disposeSystem: () => {
       scenes.disposeSystem();
     },
+    worldHash: () => sim.worldHash(),
+    advanceTicks: (n: number) => sim.advanceTicks(n),
   };
   return hook;
 }
