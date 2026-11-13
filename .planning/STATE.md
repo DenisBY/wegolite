@@ -288,7 +288,7 @@ Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassM
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 261113-cm9 | Narrow milestone v2.0 to Phase 8 only; Phases 9-23 move to unscheduled v2.1 (planning docs only) | 2026-11-13 | eccb94f | [261113-cm9-narrow-milestone-v2-0-to-phase-8-only-pl](./quick/261113-cm9-narrow-milestone-v2-0-to-phase-8-only-pl/) |
+| 261113-cm9 | Narrow milestone v2.0 to Phase 8 only; Phases 9-23 move to unscheduled v2.1 (planning docs only) | 2026-11-13 | 54fba65 | [261113-cm9-narrow-milestone-v2-0-to-phase-8-only-pl](./quick/261113-cm9-narrow-milestone-v2-0-to-phase-8-only-pl/) |
 | 261104-oif | Diagnose the loaded per-frame render cost of the Lave flight scene: GL context attributes, MSAA A/B, resolution scaling, hidden-planet arm, and split launch vs in-flight frame timing | 2026-11-04 | ddad140 | [261104-oif-diagnose-the-loaded-per-frame-render-cos](./quick/261104-oif-diagnose-the-loaded-per-frame-render-cos/) |
 | 261104-p2m | Stabilise the message-expiry browser gate (300 s wait, `workers: 2` pinned), update the frozen-contract guard, and record G-03-3 as an accepted known issue | 2026-11-04 | 313a2bf | [261104-p2m-stabilize-the-message-expiry-browser-gat](./quick/261104-p2m-stabilize-the-message-expiry-browser-gat/) |
 | 261108-tez | Переключатель паузы при потере фокуса вкладки в настройках | 2026-11-08 | 7c35c08 | [261108-tez-sdelat-postanovku-na-pauzu-pri-potere-fo](./quick/261108-tez-sdelat-postanovku-na-pauzu-pri-potere-fo/) |
