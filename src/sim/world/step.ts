@@ -123,8 +123,9 @@ export function stepWorld(
     if (entity !== undefined && !entity.dead) sanitizeEntity(entity);
   }
 
-  // Commit.
-  commitWorld(world);
+  // Commit. One entityRemoved per removal, ascending (Pitfall 13).
+  for (const id of commitWorld(world))
+    events.push({ kind: "entityRemoved", id });
   return events;
 }
 

@@ -14,6 +14,8 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import type { SimEvent } from "../../../src/sim/events.js";
+import { RESERVED_EVENT_KINDS } from "../../../src/sim/events.js";
 import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
 import { AI_REGISTRY } from "../../../src/sim/ai/registry.js";
 import type {
@@ -774,5 +776,69 @@ describe("per-tick sanitising", () => {
     (entity as unknown as { kind: string }).kind = "constructor";
     stepWorld(world, player, layout, DT);
     expect(world.store.live).toHaveLength(0);
+  });
+});
+
+describe("entityRemoved and the reserved event kinds", () => {
+  it("emits one entityRemoved per committed removal, ascending, and none the next tick", () => {
+    const player = flyingPlayer();
+    const world = createWorld(51);
+    for (let i = 0; i < 4; i += 1) spawnOk(world, shipInit(vec(i, 0, 0)));
+    killEntity(world, 103);
+    killEntity(world, 101);
+    expect(stepWorld(world, player, layout, DT)).toEqual([
+      { kind: "entityRemoved", id: 101 },
+      { kind: "entityRemoved", id: 103 },
+    ]);
+    expect(stepWorld(world, player, layout, DT)).toEqual([]);
+  });
+
+  it("emits entityRemoved through stepSim after the flight events", () => {
+    const player = flyingPlayer();
+    const world = createWorld(51);
+    spawnOk(world, shipInit(vec(0, 0, 0)));
+    killEntity(world, 101);
+    const events = stepSim(player, world, layout, config, ZERO_INTENT, [], DT);
+    expect(events.at(-1)).toEqual({ kind: "entityRemoved", id: 101 });
+  });
+
+  it("holds one literal of every reserved kind with the section 7.6 field names", () => {
+    const origin = vec(0, 0, 0);
+    // Object-literal excess-property checks make a renamed or extra field a
+    // typecheck error, so these spellings are the pinned field names.
+    const literals: SimEvent[] = [
+      {
+        kind: "laserFired",
+        shooter: 101,
+        from: origin,
+        to: origin,
+        laserKind: "pulse",
+      },
+      { kind: "shipHit", target: 101, source: 102, amount: 5, shield: true },
+      {
+        kind: "shipDestroyed",
+        id: 101,
+        position: origin,
+        radius: 50,
+        specKey: "viper",
+        killer: 0,
+      },
+      { kind: "entityRemoved", id: 101 },
+      { kind: "commsMessage", from: 101, key: "greeting", params: {} },
+      { kind: "missileLaunched", missile: 103, shooter: 101, target: 102 },
+      { kind: "missileDetonated", missile: 103, position: origin },
+      { kind: "ecmFired", source: 101, position: origin },
+      { kind: "cargoScooped", scooper: 100, commodity: "food", amount: 1 },
+      { kind: "shipSpawned", id: 101, specKey: "viper" },
+      { kind: "legalStatusChanged", from: "clean", to: "offender" },
+      { kind: "playerDestroyed", position: origin },
+      { kind: "podEjected", pod: 104, owner: 101 },
+      { kind: "proximityWarning", id: 101, other: 102 },
+      { kind: "energyLow", id: 101 },
+    ];
+    const kinds = literals.map((event) => event.kind);
+    expect(new Set(RESERVED_EVENT_KINDS).size).toBe(15);
+    expect(RESERVED_EVENT_KINDS).toHaveLength(15);
+    expect([...RESERVED_EVENT_KINDS].sort()).toEqual([...kinds].sort());
   });
 });
