@@ -44,7 +44,7 @@ Scope: narrowed on 2026-11-13 from Phases 8-23 to Phase 8 alone (PROJECT.md Key 
 
 **Scope rule:** the necessary technical minimum, not player-visible features (owner, 2026-11-13: "less, but better"). Each phase is trimmed to what Phase 12 consumes. Phase numbers 9-12 are kept from the former plan so existing references (todos, Key Decisions, review notes) stay valid; the former Phases 13-23 keep their numbers in the unscheduled backlog.
 
-- [ ] **Phase 9: NPC Content** - Ship models and textures of the six populator roles compiled from Oolite with provenance and the record fields the inert world uses, loaded lazily outside the first load
+- [x] **Phase 9: NPC Content** - Ship models and textures of the six populator roles compiled from Oolite with provenance and the record fields the inert world uses, loaded lazily outside the first load (completed 2026-11-14)
 - [ ] **Phase 10: Ship Mass** - Build-time hull octrees give every role ship, the Cobra Mk III and the Coriolis Oolite's mass, and jump blockage uses one recorded Coriolis mass
 - [ ] **Phase 11: Minimal Save Schema v3** - The world epoch, world counters and next entity id in schema v3, with an ordered v1 → v2 → v3 migration and leg-anchor semantics
 - [ ] **Phase 12: Inert Ships and the World Lifecycle** - A contained AI fault and refused malformed spawns first; then inert ships drawn and on the scanner, mass lock and blockage by ships, the world running behind the chart, cleared at jump commit, repopulated on arrival and regenerated on reload
@@ -84,7 +84,7 @@ Ordering rules:
 **Research flag**: Medium — the ship list per role comes from `shipdata.plist` `roles`; 17 of 194 ship records have a vendored model today. The former estimate of about 37 more models also counted pods, missiles, capsules, wreckage and asteroids, which are now DATA-14 and deferred
 **Pitfalls to address**: 20 (catalogue growth behind the content golden and the drift gate; the client catalogue was trimmed to two entries by quick task 261109-s8k, so extend it with an explicit field list and never hand-edit generated data), 29 (licence and provenance of every new asset), 12 (first-load size: lazy role loading, D11)
 **Decisions to settle**: which ship records represent each role (every record that carries the role, or the subset the first populator places); D11 first-load ceiling (raise only on a recorded measurement). D10 (music provenance) leaves this phase with DATA-12 and goes to the audio phase
-**Plans**: 5/5 plans executed
+**Plans**: 5/5 plans complete
 
 Plans:
 - [x] 09-01-PLAN.md — Vendor the nine NPC ships' 42 source files through the sanctioned script at 7437f22, with provenance rows, checksums and an owner-confirmed checkout cross-check
@@ -178,7 +178,7 @@ Pending todos outside v2.1, which can run as quick tasks or join a phase by owne
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 8. Session Split and World Core | v2.0 | 16/16 | Complete | 2026-11-13 |
-| 9. NPC Content | v2.1 | 5/5 | In Progress | - |
+| 9. NPC Content | v2.1 | 5/5 | Complete    | 2026-11-14 |
 | 10. Ship Mass | v2.1 | 0/TBD | Not started | - |
 | 11. Minimal Save Schema v3 | v2.1 | 0/TBD | Not started | - |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 0/TBD | Not started | - |
