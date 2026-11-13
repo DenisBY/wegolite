@@ -5,16 +5,16 @@ milestone_name: Foundation
 current_phase: 08
 current_phase_name: Session Split and World Core
 status: executing
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-11-13T09:41:42.742Z"
+stopped_at: Completed 08-05-PLAN.md
+last_updated: "2026-11-13T09:57:22.400Z"
 last_activity: 2026-11-13
 last_activity_desc: v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1
-state_head: 7a102b03b1a5eb3479ac12ceb963a5a3aea51164
+state_head: 7c78110f1105eeb1e8ffb1afa3d5a9b90aebd6ed
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 16
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 08 (Session Split and World Core) — EXECUTING
-Plan: 4 of 16 complete (08-01 to 08-04 done; wave 1 finished, wave 2 has 08-05 left)
+Plan: 5 of 16 complete (08-01 to 08-05 done; waves 1 and 2 finished, wave 3 is next)
 Status: Executing
-Last activity: 2026-11-13 — Completed 08-04 (split steps 1-2: typed SessionState and the extracted probe publisher)
+Last activity: 2026-11-13 — Completed 08-05 (world core: ids, limits, entity store, spawn validation, composed world hash)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -110,6 +110,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 08 P03 | 13 min | 3 tasks | 5 files |
 | Phase 08 P02 | 22 min | 3 tasks | 8 files |
 | Phase 08 P04 | 18 min | 2 tasks | 5 files |
+| Phase 08 P05 | 15 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -269,6 +270,11 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-02: mix32 world-seed derivation confirmed by the owner as option-a (fmix32 = MurmurHash3 finaliser; worldSeedFor = mix32(marketSeed, epoch); forkSeed = mix32(mix32(worldSeed, entityId), purpose code 1/2/3)); pinned by independently computed literal vectors — One-way once Phase 11 persists epoch; bijection in each argument; B2 unknown purpose keys throw RangeError; B1 stream-overlap bound M^2*D/2^32 recorded in PROJECT.md
 - [Phase 08]: 08-04: SessionDeps is a declared type only; the publisher takes a narrower ProbePublisherDeps and reads hints and the equipment catalogue through ctx at call time
 - [Phase 08]: 08-04: toTuple is exported from probe-publisher.ts and publisher interface members are function-typed properties so the call-count scan holds literally
+- [Phase 08]: Fixed entity ids 0 none, 1-5 statics, 6-99 reserved, 100 player, dynamic from 101 (D-06)
+- [Phase 08]: Monotonic never-reused entity ids per world with binary-search lookup; nextId restarts at 101 in every new world (D-06 amended 2026-11-12)
+- [Phase 08]: Static bodies are frozen layout references (world.statics), never hashed or stored dynamically; world hash equals the flight hash until the first spawn (D-07, D-08)
+- [Phase 08]: Entity id uniqueness is per world: nextId restarts at 101 in every new world and no id outlives its world (CONTEXT D-06 amended 2026-11-12; PROJECT.md row recorded by 08-05)
+- [Phase 08]: One limits module (src/sim/world/limits.ts) owns the shared serialised-domain limits; spawnEntity refuses out-of-domain inits before allocating
 
 ### Pending Todos
 
@@ -340,6 +346,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T09:41:42.672Z
-Stopped at: Completed 08-04-PLAN.md
+Last session: 2026-11-13T09:57:22.332Z
+Stopped at: Completed 08-05-PLAN.md
 Resume file: None
