@@ -5,16 +5,16 @@ milestone_name: Foundation
 current_phase: 08
 current_phase_name: Session Split and World Core
 status: executing
-stopped_at: Completed 08-09-PLAN.md
-last_updated: "2026-11-13T13:00:27.301Z"
+stopped_at: Completed 08-10-PLAN.md
+last_updated: "2026-11-13T13:22:19.473Z"
 last_activity: 2026-11-13
 last_activity_desc: v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1
-state_head: f841decb397d765aedc3c7291021bed4da0edbaa
+state_head: 5a3e617e1fa8a87572ae55fd2a82213d972737f1
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 16
-  completed_plans: 9
+  completed_plans: 10
   percent: 0
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 08 (Session Split and World Core) — EXECUTING
-Plan: 9 of 16 complete (08-01 to 08-09 done; wave 4 is complete, wave 5 starts with 08-10)
+Plan: 10 of 16 complete (08-01 to 08-10 done; wave 5 has 08-11 left, the core track)
 Status: Executing
-Last activity: 2026-11-13 — Completed 08-09 (AI types, integer tick time base, frozen registry, scripted test pilot and the AI lint zone: case-sensitive per-depth import allow-lists, createSeededRandom and module-level state bans, 106 guard probes; full test, lint and typecheck green on the task-3 commit b040c39)
+Last activity: 2026-11-13 — Completed 08-10 (split steps 7 and 8: hyperspace controller, ordered event router keyed to RoutedKind and read through isRoutedKind, sim driver with the single flight-step call site, pure buildStepOptions; verify green on 18aba4b and 329b9f8, 08-11 events.ts not yet landed). Earlier: Completed 08-09 (AI types, integer tick time base, frozen registry, scripted test pilot and the AI lint zone: case-sensitive per-depth import allow-lists, createSeededRandom and module-level state bans, 106 guard probes; full test, lint and typecheck green on the task-3 commit b040c39)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -115,6 +115,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 08 P07 | 20 min | 2 tasks | 6 files |
 | Phase 08 P08 | 49 min | 2 tasks | 5 files |
 | Phase 08 P09 | 70min | 3 tasks | 8 files |
+| Phase 08 P10 | 20 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -285,6 +286,8 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-08: the station controller is built first; later-built owners (probe publisher, chart controller, save controller) are reached through call-time wrappers — the probe publisher, render driver and controllers take commitProfile, renderStation and syncStationNav, while the station controller needs their functions back; wrappers avoid a temporal-dead-zone read
 - [Phase 08]: 08-08: canOverwrite is a station-controller dependency, and the pure save-status helpers are module-level exports of the save controller — the two controllers do not import each other, and the facade can call statusSkipReason before the context exists
 - [Phase 08]: 08-09: AI zone is an allow-list regex per depth (case-sensitive), createSeededRandom banned by name, module-level mutable state banned; test pilot clears its target and returns to seek on target loss
+- [Phase 08]: 08-10: the event router is keyed to its own literal RoutedKind union and read only through isRoutedKind, so plan 08-11 widening SimEvent cannot break src/app typecheck in either commit order — The plans share wave 5 with no depends_on edge; 08-10 committed first and typecheck passed against the 14-kind union.
+- [Phase 08]: 08-10: the hyperspace controller is built before the station controller and render driver (both take targetSystem); its autosave and economy-probe deps are call-time wrappers — Keeps construction free of temporal-dead-zone reads without changing any call order.
 
 ### Pending Todos
 
@@ -356,6 +359,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T13:00:27.220Z
-Stopped at: Completed 08-09-PLAN.md
+Last session: 2026-11-13T13:22:19.397Z
+Stopped at: Completed 08-10-PLAN.md
 Resume file: None
