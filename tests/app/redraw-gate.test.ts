@@ -19,6 +19,7 @@ import {
   createRedrawGate,
   IDLE_SETTLE_DRAWS,
 } from "../../src/app/redraw-gate.js";
+import { sessionSource } from "../helpers/session-source.js";
 
 const STATE = { name: "state" };
 const SCENE = { name: "scene" };
@@ -110,7 +111,9 @@ describe("createRedrawGate", () => {
 });
 
 describe("the session wiring", () => {
-  const source = readFileSync("src/app/game-session.ts", "utf8");
+  // Every session file (the facade and src/app/session/**), so moving code
+  // between them cannot change the verdict (Phase 8, D-12 step 0).
+  const source = sessionSource();
 
   it("asks the gate in exactly one place: the frame loop", () => {
     expect(source.match(/renderFrame\(alpha, shouldDraw\(\)\)/g)).toHaveLength(
@@ -119,10 +122,15 @@ describe("the session wiring", () => {
     // Every other caller passes one argument and therefore always draws.
     const calls = source.match(/renderFrame\([^)]*\)/g) ?? [];
     const gated = calls.filter((call) => call.includes(","));
-    expect(gated).toEqual([
-      "renderFrame(alpha: number, draw = true)",
-      "renderFrame(alpha, shouldDraw()",
-    ]);
+    // Compared as a sorted set: the two sites may end up in different files.
+    const byCodeUnit = (a: string, b: string): number =>
+      a < b ? -1 : a > b ? 1 : 0;
+    expect([...gated].sort(byCodeUnit)).toEqual(
+      [
+        "renderFrame(alpha: number, draw = true)",
+        "renderFrame(alpha, shouldDraw()",
+      ].sort(byCodeUnit),
+    );
   });
 
   it("treats exactly docked and paused as idle", () => {

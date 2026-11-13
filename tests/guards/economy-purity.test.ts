@@ -27,6 +27,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { sessionSource, sessionSources } from "../helpers/session-source.js";
+
 const REPO_ROOT = process.cwd();
 const SIM_DIR = path.join(REPO_ROOT, "src", "sim");
 const ECONOMY_DIR = path.join(SIM_DIR, "economy");
@@ -308,20 +310,26 @@ describe("the shell and session stay text-only and seed-bound", () => {
       ),
     ).toBe(false);
 
-    for (const file of [
-      path.join(REPO_ROOT, "src", "app", "game-session.ts"),
-      path.join(SIM_DIR, "player", "profile.ts"),
-    ]) {
-      const cleaned = withoutLineComments(readFileSync(file, "utf8"));
-      expect(cleaned, file).not.toMatch(TWO_FIELD_PROFILE_LITERAL);
+    const scanned = [
+      ...sessionSources().map((entry) => ({
+        file: entry.path,
+        text: entry.text,
+      })),
+      {
+        file: "src/sim/player/profile.ts",
+        text: readFileSync(path.join(SIM_DIR, "player", "profile.ts"), "utf8"),
+      },
+    ];
+    for (const { file, text } of scanned) {
+      expect(withoutLineComments(text), file).not.toMatch(
+        TWO_FIELD_PROFILE_LITERAL,
+      );
     }
   });
 
   it("generates the market only from a persisted or chained seed and never on dock", () => {
-    const session = readFileSync(
-      path.join(REPO_ROOT, "src", "app", "game-session.ts"),
-      "utf8",
-    );
+    // Every session file, so the split cannot hide a producer in a new module.
+    const session = sessionSource();
     expect(session).not.toMatch(/\bDate\.now\b/);
     expect(session).not.toMatch(/\bperformance\.now\b/);
 
@@ -346,7 +354,15 @@ describe("the shell and session stay text-only and seed-bound", () => {
     );
 
     // The docked arm reuses the in-memory market: no generation, no re-seed.
-    const docked = switchCaseBody(session, "docked");
+    // The label must live in exactly one file, exactly once, so the cut never
+    // runs from one file into the next of the concatenation.
+    const dockedLabel = /case\s+"docked"\s*:/;
+    const holders = sessionSources().filter((entry) =>
+      dockedLabel.test(entry.text),
+    );
+    expect(holders).toHaveLength(1);
+    expect(session.match(/case\s+"docked"\s*:/g) ?? []).toHaveLength(1);
+    const docked = switchCaseBody(holders[0]?.text ?? "", "docked");
     expect(docked).not.toMatch(/generateMarket/);
     expect(docked).not.toMatch(/marketSeedForSystem/);
     expect(docked).not.toMatch(/\bmarketSeed\s*=/);
