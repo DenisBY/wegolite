@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: World Population Base
 status: planning
-last_updated: "2026-11-13T21:02:53.127Z"
+last_updated: "2026-11-13T21:08:40.000Z"
 last_activity: 2026-11-13
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -24,10 +24,12 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 9 (not started) — NPC Content; first of 4 phases in v2.1 (Phases 9-12), and Phase 11 can run beside it
 Plan: —
-Status: Defining requirements
-Last activity: 2026-11-13 — Milestone v2.1 started
+Status: Ready to plan
+Last activity: 2026-11-13 — v2.1 roadmap created (Phases 9-12, 12/12 requirements mapped)
+
+Progress: [░░░░░░░░░░] 0%
 
 
 ## Performance Metrics
@@ -306,9 +308,9 @@ Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassM
 - [2026-11-11] [testing] Check CI after 0.2.0 and the Shift+C docking timeout — before Phase 8 — [todo file](.planning/todos/pending/2026-11-11-check-ci-after-0-2-0-and-the-shift-c-docking-timeout.md)
 - [2026-11-10] [app] Decide whether the F6 chart should pause the flight — Phase 12 (WORLD-11) — [todo file](.planning/todos/pending/2026-11-10-keep-simulating-behind-the-chart.md)
 - [2026-11-10] [flight] Do not report "Torus disengaged" when the torus never engaged — Phase 12 — [todo file](.planning/todos/pending/2026-11-10-fix-torus-refusal-message-under-mass-lock.md)
-- [2026-11-10] [app] Decide what happens below 24 fps — decide in Phase 12, evidence in Phase 23 — [todo file](.planning/todos/pending/2026-11-10-decide-behaviour-below-24-fps.md)
-- [2026-11-10] [flight] Stop the player flying through the planet, the sun and the buoys — Phase 15 (DEATH-03, CBT-08) — [todo file](.planning/todos/pending/2026-11-10-add-planet-and-sun-collision.md)
-- [2026-11-11] [economy] Track cargo purchase cost basis — unscheduled; joins the Phase 11 save bump (v2.1) only by owner decision — [todo file](.planning/todos/pending/2026-11-11-cargo-purchase-cost-basis-tracking.md)
+- [2026-11-10] [app] Decide what happens below 24 fps — decide in Phase 12, evidence in the later performance phase (former Phase 23, unscheduled) — [todo file](.planning/todos/pending/2026-11-10-decide-behaviour-below-24-fps.md)
+- [2026-11-10] [flight] Stop the player flying through the planet, the sun and the buoys — later, former Phase 15 (DEATH-03, CBT-08), unscheduled — [todo file](.planning/todos/pending/2026-11-10-add-planet-and-sun-collision.md)
+- [2026-11-11] [economy] Track cargo purchase cost basis — unscheduled; not in the minimal v3; needs its own save bump — [todo file](.planning/todos/pending/2026-11-11-cargo-purchase-cost-basis-tracking.md)
 - [2026-11-11] [ui] Add terminal color palette switcher in game settings — unscheduled — [todo file](.planning/todos/pending/2026-11-11-terminal-color-palette-setting.md)
 
 ### Blockers/Concerns
@@ -326,7 +328,7 @@ Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassM
 - [Phase 8] Review WR-01: `invoke()` in `src/sim/world/step.ts` does not contain a throwing AI module (latent; the only module cannot throw). Decide containment before Phases 12, 13 and 22 register real AI. Also IN-02 (`spawnEntity` throws on malformed input instead of refusing) before the Phase 12 populator. See `08-REVIEW.md` and `08-SECURITY.md`.
 - [Phase 8] Flakes under host load (deferred-items D-2): launch.spec.ts:129, save-load.spec.ts:634, plus hyperspace.spec.ts:194 and the probe-shape in-flight state seen once in 08-16; rerun once before treating as real.
 - [Phase 8] 08-VALIDATION.md is still draft (Nyquist audit not run); optional `/gsd-validate-phase 8`.
-- [v2.0 close] REQUIREMENTS.md was removed at the milestone close; the v2.1 requirement list and its phase mapping live in `.planning/milestones/v2.0-REQUIREMENTS.md` until `/gsd-new-milestone` writes a fresh one.
+- [v2.1 start] REQUIREMENTS.md is fresh for v2.1 (12 requirements); the former v2.1 Combat & Traffic requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`.
 
 ### Quick Tasks Completed
 
@@ -391,10 +393,12 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T19:45:00Z
-Stopped at: Milestone v2.0 Foundation completed and archived (19 audit items acknowledged; no tag by owner decision)
+Last session: 2026-11-13T21:08:40Z
+Stopped at: v2.1 World Population Base roadmap created (Phases 9-12; critical path 9 → 10 → 12, Phase 11 beside 9 and 10)
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Discuss and plan Phase 9 with /gsd-discuss-phase 9, then /gsd-plan-phase 9; Phase 11 can be discussed and planned beside it
+- Phase 10's build-time octree port can start on the vendored v1 models before Phase 9 lands
+- Phase 12's first plan delivers FOUND-15 (WR-01) and FOUND-16 (IN-02) before any populator code

@@ -30,7 +30,7 @@
 - [ ] **WORLD-10**: Mass lock and hyperspace jump blockage take nearby NPC ships into account as in Oolite, and the torus refusal message is correct when the torus never engaged
 - [ ] **WORLD-11**: The simulation keeps running while the galactic chart is open in flight, as in Oolite (supersedes the v1 freeze), including a running hyperspace countdown
 - [ ] **WORLD-14**: A hyperspace jump clears every non-static entity at jump commit, and the destination is populated deterministically on arrival: the same route and seed give the same ships, ids and world hash
-- [ ] **WORLD-16**: With traffic on, launch, manual docking, the docking computer and torus flight behave as in v1; browser tests run with traffic off by default and every existing browser test passes unchanged
+- [ ] **WORLD-16**: With traffic on, launch, manual docking, the docking computer and torus flight behave as in v1; browser tests run with traffic off by default and every existing browser test passes unchanged, except the v1 chart-freeze check in `tests/e2e/hyperspace.spec.ts`, which WORLD-11 inverts (owner, 2026-11-13)
 
 ## Future Requirements
 
@@ -60,23 +60,26 @@ Deferred. The former v2.1 Combat & Traffic requirements (Phases 13-23) stay in `
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-15 | — | Pending |
-| FOUND-16 | — | Pending |
-| DATA-10 | — | Pending |
-| DATA-11 | — | Pending |
-| DATA-13 | — | Pending |
-| SAVE-07 | — | Pending |
-| SAVE-08 | — | Pending |
-| WORLD-15 | — | Pending |
-| WORLD-10 | — | Pending |
-| WORLD-11 | — | Pending |
-| WORLD-14 | — | Pending |
-| WORLD-16 | — | Pending |
+| FOUND-15 | Phase 12 | Pending |
+| FOUND-16 | Phase 12 | Pending |
+| DATA-10 | Phase 9 | Pending |
+| DATA-11 | Phase 10 | Pending |
+| DATA-13 | Phase 9 | Pending |
+| SAVE-07 | Phase 11 | Pending |
+| SAVE-08 | Phase 12 | Pending |
+| WORLD-15 | Phase 12 | Pending |
+| WORLD-10 | Phase 12 | Pending |
+| WORLD-11 | Phase 12 | Pending |
+| WORLD-14 | Phase 12 | Pending |
+| WORLD-16 | Phase 12 | Pending |
+
+Each requirement maps to the phase that completes it. Staged checks in earlier phases: DATA-11 stage 1 (the record fields: roles, AI name, scan class, model) in Phase 9, completed by the octree mass in Phase 10; SAVE-08 stage 1 (schema and leg-anchor semantics) in Phase 11, completed by the regenerated inert world in Phase 12. FOUND-15 and FOUND-16 are delivered by Phase 12's first plan, before any populator code.
 
 **Coverage:**
 - v2.1 requirements: 12 total
-- Mapped to phases: 0 (filled by the roadmap)
+- Mapped to phases: 12 (Phase 9: 2, Phase 10: 1, Phase 11: 1, Phase 12: 8)
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-11-13*
-*Last updated: 2026-11-13 after initial definition*
+*Last updated: 2026-11-13 after roadmap creation (Phases 9-12, 12/12 mapped)*
