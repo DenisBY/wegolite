@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Wegolite contributors
 
+import { createRngState, rngNext } from "./rng.js";
+
 /**
- * Pure vector/quaternion helpers for the simulation core. No imports, no DOM,
- * no clock, no randomness.
+ * Pure vector/quaternion helpers for the simulation core. No DOM, no clock, no
+ * unseeded randomness; the one import is the plain-data stream in `./rng.ts`.
  *
  * Determinism scope: `axisAngle` uses `Math.sin`/`Math.cos` of the half angle,
  * so replay is bit-identical *within one JS engine only*. The golden fixture is
@@ -223,14 +225,10 @@ export function sign(value: number): number {
  * Seeded PRNG (mulberry32). The ESLint zone already promises "the seeded PRNG
  * in sim/math", so the promise lives here: render code that needs a stable
  * starfield/dust layout takes a seed from content and never calls Math.random.
+ * The closure now wraps a plain `RngState` from `./rng.ts`; the draw sequence is
+ * unchanged.
  */
 export function createSeededRandom(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
-  };
+  const state = createRngState(seed);
+  return () => rngNext(state);
 }
