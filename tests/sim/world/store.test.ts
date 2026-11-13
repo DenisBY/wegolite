@@ -471,7 +471,7 @@ describe("createWorld seed and the shared limits", () => {
     rngNext(world.rng);
     expect(isNeverSpawned(world)).toBe(false);
     expect(serializeWorldSection(world)).toBe(
-      `worldSeed=21\nnextId=101\nrng=${world.rng.s}`,
+      `worldSeed=21\nnextId=101\nrng=${world.rng.s}\naiDropped=0`,
     );
   });
 });

@@ -16,8 +16,8 @@
  * one world into the next.
  */
 
-import type { AiComponent, ParamValue } from "../ai/types.js";
-import { AI_KEYS } from "../ai/types.js";
+import type { AiComponent, AiEvent, ParamValue } from "../ai/types.js";
+import { AI_EVENT_NAMES, AI_KEYS } from "../ai/types.js";
 import type { Quat, Vec3 } from "../math.js";
 import { createRngState, forkSeed } from "../rng.js";
 import type { RngState } from "../rng.js";
@@ -86,12 +86,29 @@ export const STATIC_ENTITIES: readonly StaticEntity[] = Object.freeze([
   }),
 ]);
 
+/**
+ * The most AI events the world queue holds at any moment. A well-formed event
+ * posted while the queue is full is dropped and counted in `aiDropped`.
+ */
+export const MAX_AI_QUEUE_LENGTH = 4096;
+
 export interface World {
   readonly worldSeed: number;
   readonly statics: readonly StaticEntity[];
   readonly store: EntityStore;
   /** The world-level stream (entity id 0, purpose "world"). */
   rng: RngState;
+  /**
+   * Queued AI events, first in first out. World-owned (no module-level queue),
+   * so an event naming an entity id dies with its world (per-world id scope).
+   * Empty at every tick boundary, so it is never hashed or saved.
+   */
+  aiQueue: AiEvent[];
+  /**
+   * Well-formed AI events dropped by the pass cap, the per-drain delivery
+   * budget or the queue-length cap. Hashed state; saturates at `MAX_UINT32`.
+   */
+  aiDropped: number;
 }
 
 /**
@@ -116,6 +133,8 @@ export function createWorld(worldSeed: number): World {
     statics: STATIC_ENTITIES,
     store: createEntityStore(),
     rng: createRngState(forkSeed(worldSeed, NO_ENTITY, "world")),
+    aiQueue: [],
+    aiDropped: 0,
   };
 }
 
@@ -138,12 +157,14 @@ export function staticEntity(
  * this to false. A world that spawned and then lost every entity is not
  * "never spawned": its counter and streams are part of its identity (D-08
  * covers worlds where no NPC has existed and `world.rng` has not been drawn).
+ * A world that dropped an AI event (`aiDropped` above 0) is hashed too.
  */
 export function isNeverSpawned(world: World): boolean {
   return (
     world.store.nextId === FIRST_DYNAMIC_ID &&
     world.store.live.length === 0 &&
-    world.rng.s === forkSeed(world.worldSeed, NO_ENTITY, "world")
+    world.rng.s === forkSeed(world.worldSeed, NO_ENTITY, "world") &&
+    world.aiDropped === 0
   );
 }
 
@@ -314,6 +335,46 @@ export function spawnEntity(
       ai: init.ai === undefined || init.ai === null ? null : copyAi(init.ai),
       repairs: 0,
     };
+  });
+}
+
+/** Add `count` dropped events to `aiDropped`, saturating at `MAX_UINT32`. */
+export function countAiDropped(world: World, count: number): void {
+  world.aiDropped = Math.min(MAX_UINT32, world.aiDropped + count);
+}
+
+/** Whether `event` is well formed: every field inside the shared domain. */
+function isWellFormedAiEvent(event: AiEvent): boolean {
+  if (!Number.isSafeInteger(event.to) || event.to < 1) return false;
+  if (event.to > MAX_UINT32) return false;
+  if (!(AI_EVENT_NAMES as readonly string[]).includes(event.name)) {
+    return false;
+  }
+  if (event.a !== undefined && !isUint32(event.a)) return false;
+  if (event.b !== undefined && !isUint32(event.b)) return false;
+  return event.n === undefined || isBounded(event.n);
+}
+
+/**
+ * Queue an AI event for the next AI phase; nothing is delivered synchronously.
+ * A malformed event (an id or `name` outside the shared domain, a non-finite or
+ * over-large `n`) is ignored and not counted. A well-formed event posted while
+ * the queue holds `MAX_AI_QUEUE_LENGTH` events is dropped and counted in
+ * `aiDropped`. Otherwise a copy holding only `to`, `name` and the present `a`,
+ * `b` and `n` is appended, so no extra field travels with it.
+ */
+export function postAiEvent(world: World, event: AiEvent): void {
+  if (!isWellFormedAiEvent(event)) return;
+  if (world.aiQueue.length >= MAX_AI_QUEUE_LENGTH) {
+    countAiDropped(world, 1);
+    return;
+  }
+  world.aiQueue.push({
+    to: event.to,
+    name: event.name,
+    ...(event.a === undefined ? {} : { a: event.a }),
+    ...(event.b === undefined ? {} : { b: event.b }),
+    ...(event.n === undefined ? {} : { n: event.n }),
   });
 }
 

@@ -20,7 +20,7 @@
  */
 
 import { AI_REGISTRY } from "../ai/registry.js";
-import type { AiModule } from "../ai/types.js";
+import type { AiContext, AiEvent, AiModule } from "../ai/types.js";
 import type { SimEvent } from "../events.js";
 import type { FlightState } from "../flight/state.js";
 import { add, rotate, scale, vec } from "../math.js";
@@ -28,10 +28,18 @@ import { createRngState, rngNext } from "../rng.js";
 import { createShipControl } from "./control-impl.js";
 import type { Entity } from "./entity.js";
 import type { SystemLayout } from "./layout.js";
+import { MAX_UINT32 } from "./limits.js";
+import { sanitizeEntity } from "./sanitize.js";
 import { createWorldView } from "./view-impl.js";
 import type { WorldView } from "./view.js";
-import { commitWorld } from "./world.js";
+import { commitWorld, countAiDropped } from "./world.js";
 import type { World } from "./world.js";
+
+/** The most passes one AI event drain makes; events posted in a pass arrive in the next. */
+export const MAX_AI_EVENT_PASSES = 8;
+
+/** The most events one drain dequeues, counting events skipped at delivery. */
+export const MAX_AI_EVENTS_PER_DRAIN = 4096;
 
 /** Local forward (-Z) in ship space. */
 const FORWARD = vec(0, 0, -1);
@@ -67,6 +75,7 @@ export function stepWorld(
   }
   const tick = player.tick;
   const events: SimEvent[] = [];
+  repairWorldFields(world);
   // The length snapshot: spawns made during the tick land at indices >= n.
   const n = world.store.live.length;
 
@@ -85,8 +94,14 @@ export function stepWorld(
   }
 
   // Think. The view is built lazily, only when a module is about to run, so a
-  // world with no due AI allocates no closures per tick.
+  // world with no due AI allocates no closures per tick. Queued AI events are
+  // delivered first in first out before and after the thinks (Pitfall 7):
+  // nothing is delivered synchronously, and the queue is empty when the step
+  // returns.
   let view: WorldView | undefined;
+  const getView = (): WorldView =>
+    (view ??= createWorldView(world, player, layout));
+  drainAiEvents(world, registry, tick, getView);
   for (let i = 0; i < n; i += 1) {
     const entity = world.store.live[i];
     if (entity === undefined || entity.dead || entity.ai === null) continue;
@@ -97,8 +112,15 @@ export function stepWorld(
     if (wakeDue) ai.wakeTick = 0;
     const module = aiModuleFor(registry, ai.aiKey);
     if (module === undefined) continue;
-    view ??= createWorldView(world, player, layout);
-    runThink(world, entity, module, view, tick);
+    invoke(world, entity, getView(), tick, (ctx) => module.think(ctx));
+  }
+  drainAiEvents(world, registry, tick, getView);
+
+  // Sanitize every live entity before the commit, so no non-finite or
+  // out-of-domain value reaches a hash or a snapshot (T-08-21, T-08-44).
+  for (let i = 0; i < world.store.live.length; i += 1) {
+    const entity = world.store.live[i];
+    if (entity !== undefined && !entity.dead) sanitizeEntity(entity);
   }
 
   // Commit.
@@ -106,17 +128,32 @@ export function stepWorld(
   return events;
 }
 
-/** Run one think for `entity` with its own control and its own stream. */
-function runThink(
+/** Repair the world-level hashed scalars: the stream state and the drop count. */
+function repairWorldFields(world: World): void {
+  const s = world.rng.s;
+  if (!Number.isSafeInteger(s) || s < 0 || s > MAX_UINT32) world.rng.s = 0;
+  if (!Number.isSafeInteger(world.aiDropped) || world.aiDropped < 0) {
+    world.aiDropped = 0;
+  } else if (world.aiDropped > MAX_UINT32) {
+    world.aiDropped = MAX_UINT32;
+  }
+}
+
+/**
+ * Run `call` with `entity`'s context: its own control and a random closure over
+ * a local copy of its own "ai" stream, written back after the call, so another
+ * entity's spawn or death never changes its draws (D-04).
+ */
+function invoke(
   world: World,
   entity: Entity,
-  module: AiModule,
   view: WorldView,
   tick: number,
+  call: (ctx: AiContext) => void,
 ): void {
   if (entity.ai === null) return;
   const stream = createRngState(entity.rng.ai);
-  module.think({
+  call({
     self: entity.id,
     view,
     ctl: createShipControl(world, entity.id, tick),
@@ -124,4 +161,49 @@ function runThink(
     random: () => rngNext(stream),
   });
   entity.rng.ai = stream.s;
+}
+
+/**
+ * Deliver the queued events first in first out, in passes: a pass takes the
+ * events queued when it starts, and events posted during it arrive in the next.
+ * At most `MAX_AI_EVENT_PASSES` passes and `MAX_AI_EVENTS_PER_DRAIN` dequeued
+ * events (an event skipped at delivery still spends one unit of the budget);
+ * when either bound is reached every event still queued is dropped and
+ * counted in `world.aiDropped`, so a fan-out handler costs bounded work.
+ */
+function drainAiEvents(
+  world: World,
+  registry: AiRegistry,
+  tick: number,
+  getView: () => WorldView,
+): void {
+  let passes = 0;
+  let dequeued = 0;
+  while (world.aiQueue.length > 0) {
+    if (passes >= MAX_AI_EVENT_PASSES || dequeued >= MAX_AI_EVENTS_PER_DRAIN) {
+      countAiDropped(world, world.aiQueue.length);
+      world.aiQueue.length = 0;
+      return;
+    }
+    passes += 1;
+    const batch = world.aiQueue.splice(0, MAX_AI_EVENTS_PER_DRAIN - dequeued);
+    dequeued += batch.length;
+    for (const event of batch)
+      deliverAiEvent(world, registry, tick, getView, event);
+  }
+}
+
+/** Deliver one event to a live entity with an AI whose module handles events. */
+function deliverAiEvent(
+  world: World,
+  registry: AiRegistry,
+  tick: number,
+  getView: () => WorldView,
+  event: AiEvent,
+): void {
+  const target = world.store.get(event.to);
+  if (target === undefined || target.ai === null) return;
+  const onEvent = aiModuleFor(registry, target.ai.aiKey)?.onEvent;
+  if (onEvent === undefined) return;
+  invoke(world, target, getView(), tick, (ctx) => onEvent(ctx, event));
 }

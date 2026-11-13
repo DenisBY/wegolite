@@ -19,6 +19,7 @@ import { AI_REGISTRY } from "../../../src/sim/ai/registry.js";
 import type {
   AiComponent,
   AiContext,
+  AiEvent,
   AiKey,
   AiModule,
 } from "../../../src/sim/ai/types.js";
@@ -37,16 +38,25 @@ import { identity, vec } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import type { SpawnInit } from "../../../src/sim/world/entity.js";
+import { MAX_UINT32 } from "../../../src/sim/world/limits.js";
 import {
   entityHashes,
   hashWorld,
   serializeEntity,
+  serializeWorldSection,
 } from "../../../src/sim/world/serialize.js";
-import { stepWorld } from "../../../src/sim/world/step.js";
+import {
+  MAX_AI_EVENT_PASSES,
+  MAX_AI_EVENTS_PER_DRAIN,
+  stepWorld,
+} from "../../../src/sim/world/step.js";
 import type { AiRegistry } from "../../../src/sim/world/step.js";
 import {
+  MAX_AI_QUEUE_LENGTH,
   createWorld,
+  isNeverSpawned,
   killEntity,
+  postAiEvent,
   spawnEntity,
 } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
@@ -439,5 +449,330 @@ describe("the hyperspace jump step", () => {
       }
     }
     expect(jumped).toBe(true);
+  });
+});
+
+describe("queued AI events", () => {
+  const WELL_FORMED = { to: 101, name: "shipAttacked" } as const;
+
+  function twoPilots() {
+    const player = flyingPlayer();
+    const world = createWorld(9);
+    // Far-future timers: only events, never thinks, run in these tests.
+    const a = spawnOk(world, shipInit(vec(0, 0, 0), aiDueAt(1e6)));
+    const b = spawnOk(world, shipInit(vec(10, 0, 0), aiDueAt(1e6)));
+    return { player, world, a, b };
+  }
+
+  it("ignores a malformed event without counting it", () => {
+    const { world } = twoPilots();
+    const bad: unknown[] = [
+      { ...WELL_FORMED, to: 0 },
+      { ...WELL_FORMED, to: -1 },
+      { ...WELL_FORMED, to: 1.5 },
+      { ...WELL_FORMED, to: 2 ** 32 },
+      { ...WELL_FORMED, name: "noSuchEvent" },
+      { ...WELL_FORMED, name: "constructor" },
+      { ...WELL_FORMED, a: -1 },
+      { ...WELL_FORMED, a: 1.5 },
+      { ...WELL_FORMED, a: 2 ** 32 },
+      { ...WELL_FORMED, b: -1 },
+      { ...WELL_FORMED, b: 1.5 },
+      { ...WELL_FORMED, b: 2 ** 32 },
+      { ...WELL_FORMED, n: Number.NaN },
+      { ...WELL_FORMED, n: Number.POSITIVE_INFINITY },
+      { ...WELL_FORMED, n: 1e13 },
+    ];
+    for (const event of bad) postAiEvent(world, event as AiEvent);
+    expect(world.aiQueue).toHaveLength(0);
+    expect(world.aiDropped).toBe(0);
+  });
+
+  it("queues a copy holding only to, name and the present a, b and n", () => {
+    const { world } = twoPilots();
+    const event = { ...WELL_FORMED, a: 102, n: 2.5, extra: "x" };
+    postAiEvent(world, event);
+    expect(world.aiQueue).toHaveLength(1);
+    const queued = world.aiQueue[0] as AiEvent;
+    expect(queued).not.toBe(event);
+    expect(Object.keys(queued).sort()).toEqual(["a", "n", "name", "to"]);
+    expect(queued).toEqual({ to: 101, name: "shipAttacked", a: 102, n: 2.5 });
+    postAiEvent(world, { to: 102, name: "shipCloseContact", b: 0 });
+    expect(Object.keys(world.aiQueue[1] as AiEvent).sort()).toEqual([
+      "b",
+      "name",
+      "to",
+    ]);
+  });
+
+  it("delivers first in first out, never synchronously, and gives a handler only its own control", () => {
+    const { player, world, a, b } = twoPilots();
+    const seen: string[] = [];
+    const registry: AiRegistry = {
+      "test-pilot": {
+        think: () => undefined,
+        onEvent: (ctx, event) => {
+          const other = world.store.get(ctx.self === a.id ? b.id : a.id);
+          seen.push(
+            `${ctx.self}:${event.name}:other-mark=${String(other?.ai?.params.mark)}`,
+          );
+          ctx.ai.params.mark = ctx.self;
+          // A handler can steer only itself.
+          ctx.ctl.setDesiredSpeed(ctx.self === a.id ? b.id : a.id, 77);
+        },
+      },
+    };
+    postAiEvent(world, { to: a.id, name: "shipAttacked" });
+    postAiEvent(world, { to: b.id, name: "shipTargetLost" });
+    // Posting changes no entity state until the AI phase.
+    expect(a.ai?.params.mark).toBeUndefined();
+    expect(world.aiQueue).toHaveLength(2);
+    advance(player, world, registry);
+    expect(seen).toEqual([
+      `${a.id}:shipAttacked:other-mark=undefined`,
+      `${b.id}:shipTargetLost:other-mark=${a.id}`,
+    ]);
+    expect(a.nav.desiredSpeed).toBe(0);
+    expect(b.nav.desiredSpeed).toBe(0);
+    expect(world.aiQueue).toHaveLength(0);
+  });
+
+  it("delivers an event posted in a handler in the next pass of the same tick", () => {
+    const { player, world, a } = twoPilots();
+    const order: string[] = [];
+    const registry: AiRegistry = {
+      "test-pilot": {
+        think: () => undefined,
+        onEvent: (_ctx, event) => {
+          order.push(event.name);
+          if (event.name === "shipAttacked") {
+            postAiEvent(world, { to: a.id, name: "shipTargetLost" });
+            expect(world.aiQueue).toHaveLength(1);
+          }
+        },
+      },
+    };
+    postAiEvent(world, { to: a.id, name: "shipAttacked" });
+    postAiEvent(world, { to: a.id, name: "shipCloseContact" });
+    advance(player, world, registry);
+    expect(order).toEqual([
+      "shipAttacked",
+      "shipCloseContact",
+      "shipTargetLost",
+    ]);
+  });
+
+  it("stops a handler that re-posts forever after the pass cap and counts the remainder", () => {
+    const { player, world, a } = twoPilots();
+    let delivered = 0;
+    const registry: AiRegistry = {
+      "test-pilot": {
+        think: () => undefined,
+        onEvent: () => {
+          delivered += 1;
+          postAiEvent(world, { to: a.id, name: "shipAttacked" });
+        },
+      },
+    };
+    postAiEvent(world, { to: a.id, name: "shipAttacked" });
+    advance(player, world, registry);
+    expect(delivered).toBe(MAX_AI_EVENT_PASSES);
+    expect(MAX_AI_EVENT_PASSES).toBe(8);
+    expect(world.aiDropped).toBe(1);
+    expect(world.aiQueue).toHaveLength(0);
+  });
+
+  it("bounds a times-four fan-out by the delivery budget and the queue cap, with exact accounting", () => {
+    const { player, world, a } = twoPilots();
+    let calls = 0;
+    let wellFormedPosts = 0;
+    let maxQueue = 0;
+    const registry: AiRegistry = {
+      "test-pilot": {
+        think: () => undefined,
+        onEvent: () => {
+          calls += 1;
+          for (let k = 0; k < 4; k += 1) {
+            wellFormedPosts += 1;
+            postAiEvent(world, {
+              to: k % 2 === 0 ? a.id : a.id + 1,
+              name: "shipAttacked",
+            });
+            maxQueue = Math.max(maxQueue, world.aiQueue.length);
+          }
+        },
+      },
+    };
+    postAiEvent(world, { to: a.id, name: "shipAttacked" });
+    const queuedBefore = 1;
+    advance(player, world, registry);
+    expect(world.aiQueue).toHaveLength(0);
+    expect(calls).toBe(MAX_AI_EVENTS_PER_DRAIN);
+    expect(MAX_AI_EVENTS_PER_DRAIN).toBe(4096);
+    expect(maxQueue).toBeLessThanOrEqual(MAX_AI_QUEUE_LENGTH);
+    expect(maxQueue).toBe(MAX_AI_QUEUE_LENGTH);
+    // Every well-formed event is either dequeued or counted as dropped.
+    expect(world.aiDropped).toBe(queuedBefore + wellFormedPosts - calls);
+    expect(world.aiDropped).toBeGreaterThan(0);
+  });
+
+  it("drops and counts a well-formed post while the queue is full, saturating at MAX_UINT32", () => {
+    const { world, a } = twoPilots();
+    expect(MAX_AI_QUEUE_LENGTH).toBe(4096);
+    for (let i = 0; i < MAX_AI_QUEUE_LENGTH; i += 1) {
+      postAiEvent(world, { to: a.id, name: "shipAttacked" });
+    }
+    expect(world.aiQueue).toHaveLength(MAX_AI_QUEUE_LENGTH);
+    expect(world.aiDropped).toBe(0);
+    postAiEvent(world, { to: a.id, name: "shipAttacked" });
+    expect(world.aiQueue).toHaveLength(MAX_AI_QUEUE_LENGTH);
+    expect(world.aiDropped).toBe(1);
+    // A malformed event at the cap is still not counted.
+    postAiEvent(world, { to: 0, name: "shipAttacked" });
+    expect(world.aiDropped).toBe(1);
+    world.aiDropped = MAX_UINT32 - 1;
+    postAiEvent(world, { to: a.id, name: "shipAttacked" });
+    postAiEvent(world, { to: a.id, name: "shipAttacked" });
+    expect(world.aiDropped).toBe(MAX_UINT32);
+  });
+
+  it("counts no drop for events to a dead, missing, static, player or AI-less entity", () => {
+    const { player, world, a } = twoPilots();
+    const plain = spawnOk(world, shipInit(vec(20, 0, 0)));
+    const dead = spawnOk(world, shipInit(vec(30, 0, 0), aiDueAt(1e6)));
+    killEntity(world, dead.id);
+    let delivered = 0;
+    const registry: AiRegistry = {
+      "test-pilot": {
+        think: () => undefined,
+        onEvent: () => {
+          delivered += 1;
+        },
+      },
+    };
+    for (const to of [999, 1, 3, 100, plain.id, dead.id]) {
+      postAiEvent(world, { to, name: "shipAttacked" });
+    }
+    postAiEvent(world, { to: a.id, name: "shipAttacked" });
+    advance(player, world, registry);
+    expect(delivered).toBe(1);
+    expect(world.aiDropped).toBe(0);
+    expect(world.aiQueue).toHaveLength(0);
+  });
+
+  it("skips an event for a corrupted aiKey without throwing, and the tick's sanitize nulls its ai", () => {
+    const { player, world, a } = twoPilots();
+    (a.ai as AiComponent).aiKey = "constructor" as AiKey;
+    postAiEvent(world, { to: a.id, name: "shipAttacked" });
+    expect(() =>
+      stepWorld(world, player, layout, DT, AI_REGISTRY),
+    ).not.toThrow();
+    expect(a.ai).toBeNull();
+    expect(a.repairs).toBe(1);
+    postAiEvent(world, { to: a.id, name: "shipAttacked" });
+    expect(() =>
+      stepWorld(world, player, layout, DT, AI_REGISTRY),
+    ).not.toThrow();
+    expect(world.aiDropped).toBe(0);
+  });
+
+  it("flips isNeverSpawned and the hash for a world whose only state is a drop count", () => {
+    const world = createWorld(21);
+    const player = initFlightState(layout);
+    expect(isNeverSpawned(world)).toBe(true);
+    expect(hashWorld(player, world)).toBe(hashFlight(player));
+    world.aiDropped = 5;
+    expect(isNeverSpawned(world)).toBe(false);
+    expect(hashWorld(player, world)).not.toBe(hashFlight(player));
+    expect(serializeWorldSection(world)).toContain("aiDropped=5");
+  });
+});
+
+describe("per-entity streams under stepping", () => {
+  it("keeps an entity's draws identical whether another entity is spawned and killed or never exists", () => {
+    function draws(withOther: boolean): number[] {
+      const player = flyingPlayer();
+      const world = createWorld(31);
+      const subject = spawnOk(world, shipInit(vec(0, 0, 0), aiDueAt(0)));
+      const log: number[] = [];
+      const registry = registryOf((ctx: AiContext) => {
+        const value = ctx.random();
+        if (ctx.self === subject.id) log.push(value);
+      });
+      let otherId = 0;
+      for (let i = 0; i < 200; i += 1) {
+        if (withOther && i === 10) {
+          otherId = spawnOk(world, shipInit(vec(5, 0, 0), aiDueAt(0))).id;
+        }
+        if (withOther && i === 50) killEntity(world, otherId);
+        advance(player, world, registry);
+      }
+      return log;
+    }
+    const alone = draws(false);
+    const accompanied = draws(true);
+    expect(alone).toHaveLength(200);
+    expect(accompanied).toEqual(alone);
+  });
+});
+
+describe("per-tick sanitising", () => {
+  it("repairs injected poison before the hash, so hashWorld never throws and repairs enter the hash", () => {
+    const player = flyingPlayer();
+    const world = createWorld(41);
+    const entity = spawnOk(
+      world,
+      shipInit(vec(0, 0, 0), aiDueAt(player.tick + 1e6)),
+    );
+    // Spawn refuses poison, so it is injected after spawning (a hook, a bad
+    // restore or an arithmetic error would do the same).
+    const params = (entity.ai as AiComponent).params;
+    params.list = Array.from({ length: 65 }, (_, i) => i);
+    params.bad = Number.NaN;
+    const nav = entity.nav;
+    nav.desiredSpeed = Number.NaN;
+    entity.speed = -5;
+    entity.orientation = { w: 1e200, x: 0, y: 0, z: 0 };
+    entity.repairs = 1e13;
+    entity.specKey = "k".repeat(129);
+    stepWorld(world, player, layout, DT, AI_REGISTRY);
+    expect(() => hashWorld(player, world)).not.toThrow();
+    expect(entity.repairs).toBe(1);
+    expect(serializeEntity(entity)).toContain("repairs:1");
+    expect(entity.specKey).toHaveLength(128);
+    expect(entity.orientation).toEqual({ w: 1, x: 0, y: 0, z: 0 });
+    expect((entity.ai?.params.list as number[]).length).toBe(64);
+    expect(entity.ai?.params.bad).toBe(0);
+    // A clean tick repairs nothing more.
+    stepWorld(world, player, layout, DT, AI_REGISTRY);
+    expect(entity.repairs).toBe(1);
+  });
+
+  it("repairs the world-level hashed scalars", () => {
+    const player = flyingPlayer();
+    const world = createWorld(41);
+    world.rng.s = -5;
+    world.aiDropped = Number.NaN;
+    stepWorld(world, player, layout, DT);
+    expect(world.rng.s).toBe(0);
+    expect(world.aiDropped).toBe(0);
+    world.aiDropped = 1e13;
+    stepWorld(world, player, layout, DT);
+    expect(world.aiDropped).toBe(MAX_UINT32);
+    world.aiDropped = -3;
+    stepWorld(world, player, layout, DT);
+    expect(world.aiDropped).toBe(0);
+    world.rng.s = 2 ** 32;
+    stepWorld(world, player, layout, DT);
+    expect(world.rng.s).toBe(0);
+  });
+
+  it("removes an entity of an unknown kind at the tick's commit", () => {
+    const player = flyingPlayer();
+    const world = createWorld(41);
+    const entity = spawnOk(world, shipInit(vec(0, 0, 0)));
+    (entity as unknown as { kind: string }).kind = "constructor";
+    stepWorld(world, player, layout, DT);
+    expect(world.store.live).toHaveLength(0);
   });
 });

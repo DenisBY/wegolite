@@ -104,8 +104,9 @@ export function serializeEntity(entity: Entity): string {
 
 /**
  * The world's contribution to the hash text: "" while the world has never
- * spawned anything, otherwise `worldSeed=`, `nextId=` and `rng=` lines followed
- * by one entity line per live non-dead entity in ascending id order.
+ * spawned anything, otherwise `worldSeed=`, `nextId=`, `rng=` and `aiDropped=`
+ * lines followed by one entity line per live non-dead entity in ascending id
+ * order. The AI queue is never printed: it is empty at every tick boundary.
  */
 export function serializeWorldSection(world: World): string {
   if (isNeverSpawned(world)) return "";
@@ -113,6 +114,7 @@ export function serializeWorldSection(world: World): string {
     `worldSeed=${int(world.worldSeed)}`,
     `nextId=${int(world.store.nextId)}`,
     `rng=${int(world.rng.s)}`,
+    `aiDropped=${int(world.aiDropped)}`,
   ];
   for (const entity of world.store.live) {
     if (!entity.dead) lines.push(serializeEntity(entity));

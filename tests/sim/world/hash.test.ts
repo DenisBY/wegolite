@@ -171,7 +171,7 @@ describe("empty-world hash identity (D-08)", () => {
     const state = firstFlightState();
     expect(hashWorld(state, world)).not.toBe(hashFlight(state));
     expect(serializeWorldSection(world)).toBe(
-      `worldSeed=1234\nnextId=102\nrng=${world.rng.s}`,
+      `worldSeed=1234\nnextId=102\nrng=${world.rng.s}\naiDropped=0`,
     );
   });
 
