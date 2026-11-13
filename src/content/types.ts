@@ -22,4 +22,5 @@ export type { Equipment } from "./schemas/equipment.js";
 export type { Labels } from "./schemas/labels.js";
 export type { CatalogEntry, ShipCatalogue } from "./schemas/ship.js";
 export type { ShipDef, Subentity } from "./schemas/ship.js";
+export type { NpcShip, NpcShipCatalogue } from "./schemas/ship-npc.js";
 export type { ContentManifest, ManifestFileEntry } from "./schemas/manifest.js";
