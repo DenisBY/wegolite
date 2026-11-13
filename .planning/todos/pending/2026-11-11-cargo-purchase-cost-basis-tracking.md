@@ -8,6 +8,9 @@ files:
   - src/persistence/save-schema.ts
   - src/ui/station-model.ts
   - src/ui/docked.ts
+audit_acknowledged:
+  milestone: v2.0
+  at: 2026-11-13
 ---
 
 ## Problem

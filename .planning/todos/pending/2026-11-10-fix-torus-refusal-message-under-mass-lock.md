@@ -7,6 +7,9 @@ resolves_phase: 12
 files:
   - src/app/game-session.ts
   - src/sim/flight/torus.ts
+audit_acknowledged:
+  milestone: v2.0
+  at: 2026-11-13
 ---
 
 ## Problem

@@ -3,6 +3,10 @@ status: diagnosed
 trigger: "just wiped it without asking anything and I started at the Lave station. We should add a confirmation."
 created: 2026-11-05T00:00:00Z
 updated: 2026-11-05T00:00:00Z
+audit_acknowledged:
+  milestone: v2.0
+  at: 2026-11-13
+  status: diagnosed
 ---
 
 ## Current Focus

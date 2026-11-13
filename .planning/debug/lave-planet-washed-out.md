@@ -3,6 +3,10 @@ status: diagnosed
 trigger: "lave-planet-washed-out — Lave reads as a washed-out lime-green sphere with soft blobby continents and no clear polar ice; Coriolis reads very dark/low-contrast"
 created: 2026-11-04T00:00:00Z
 updated: 2026-11-04T01:05:00Z
+audit_acknowledged:
+  milestone: v2.0
+  at: 2026-11-13
+  status: diagnosed
 ---
 
 ## Current Focus

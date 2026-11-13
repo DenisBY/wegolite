@@ -3,6 +3,10 @@ status: diagnosed
 trigger: "Investigate issue: e2e-message-expiry-timeout — Playwright message-expiry test times out in full e2e suite (28 passed / 1 failed); passes alone; regression appeared after phase-03 gap closure (heavier planet shader)."
 created: 2026-11-04T00:00:00Z
 updated: 2026-11-04T15:10:00Z
+audit_acknowledged:
+  milestone: v2.0
+  at: 2026-11-13
+  status: diagnosed
 ---
 
 ## Current Focus

@@ -7,6 +7,9 @@ resolves_phase: 15
 files:
   - src/sim/flight/step.ts
   - src/sim/world/layout.ts
+audit_acknowledged:
+  milestone: v2.0
+  at: 2026-11-13
 ---
 
 ## Problem

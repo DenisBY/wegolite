@@ -3,6 +3,10 @@ status: diagnosed
 trigger: "The disabled \"Buy docking computer\" control on the Docked screen must look clearly disabled and carry its refusal reason."
 created: 2026-11-05T00:00:00Z
 updated: 2026-11-05T00:00:00Z
+audit_acknowledged:
+  milestone: v2.0
+  at: 2026-11-13
+  status: diagnosed
 ---
 
 ## Current Focus

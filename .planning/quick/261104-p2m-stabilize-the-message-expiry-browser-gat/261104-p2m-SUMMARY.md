@@ -17,10 +17,10 @@ requires:
     provides: plan 03-14's 9-evaluation planet budget, its halted cadence-gate record, and the frozen-delivery-contract guard
 
 provides:
-  - tests/e2e/hud.spec.ts — 300 s correctness wait under a 330 s test timeout with a diagnostic timeout message (renders/flightTime plus the original error as cause)
-  - playwright.config.ts — workers: 2 pinned with the 4-CPU / two-page rationale
-  - tests/render/planet-budget.test.ts — frozenContractViolations now requires test.setTimeout(330_000), timeout: 300_000 and workers: 2, with four message-specific negative controls
-  - the accepted-known-issue decision recorded in PROJECT.md, 03-UAT.md, 03-14-SUMMARY.md and 03-VERIFICATION.md
+  - "tests/e2e/hud.spec.ts — 300 s correctness wait under a 330 s test timeout with a diagnostic timeout message (renders/flightTime plus the original error as cause)"
+  - "playwright.config.ts — workers: 2 pinned with the 4-CPU / two-page rationale"
+  - "tests/render/planet-budget.test.ts — frozenContractViolations now requires test.setTimeout(330_000), timeout: 300_000 and workers: 2, with four message-specific negative controls"
+  - "the accepted-known-issue decision recorded in PROJECT.md, 03-UAT.md, 03-14-SUMMARY.md and 03-VERIFICATION.md"
 
 affects:
   - G-03-3 — resolved as an accepted known issue, not a fixed defect; the product is unchanged

@@ -1,5 +1,48 @@
 # Project Milestones: Wegolite
 
+## v2.0 Foundation (Shipped: 2026-11-13)
+
+**Delivered:** v1 play unchanged on a multi-entity world core: `game-session.ts` split into typed controllers, stable per-world entity ids, seeded per-entity streams, a world hash, restorable test snapshots, a typed `WorldView`/`ShipControl` AI seam and a tick-stepping test hook. No player-visible feature ships in this milestone.
+
+**Release:** no release tag at close (owner decision: milestone versions are not git tags; releases stay semver). The latest release is `v0.3.0`; Phase 8 work is on `main` after it.
+
+**Scope:** narrowed on 2026-11-13 from Phases 8-23 to Phase 8 alone; Phases 9-23 and their 55 requirements are the unscheduled v2.1 Combat & Traffic (see PROJECT.md Key Decisions).
+
+**Phases completed:** 8 (16 plans, 36 tasks); requirements FOUND-10 to FOUND-14, 5/5 complete.
+
+**Key accomplishments:**
+- `createGameSession` split in nine verified steps into a typed `SessionState` and controllers (render, chart, settings, station, save, hyperspace, event router, sim driver, frame loop), leaving a 532-line facade with the same exports and an unchanged probe shape
+- Multi-entity world in `src/sim/world`: fixed ids for the five static bodies and the player (100), monotonic per-world dynamic ids from 101, a binary-search store, and a world hash that equals the v1 flight hash until the first spawn
+- Determinism base: plain-data mulberry32 `RngState`, owner-confirmed `mix32(marketSeed, epoch)` world seeds and forked per-entity streams, and lint bans on unseeded randomness, wall clock, `for..in` and bare sort in `src/sim`
+- Typed AI seam: read-only `WorldView`, write-only `ShipControl`, integer-tick timers, a frozen registry with a scripted test pilot, and an id-ordered world step with a bounded FIFO AI event queue
+- Strict snapshot codec: a restored world stays bit-identical to its live twin for 1,000 ticks, and the world hash matches at 30, 60 and 144 Hz
+- Test hook `advanceTicks`, `worldHash` and `probe.sim`: a browser run, a Node replay and the real sim driver read the same hash after a launch and 600 ticks
+
+**Stats:**
+- 1 phase, 16 plans, 36 tasks; 5 v2.0 requirements, all complete
+- 85 files changed in `src/` and `tests/` (+26,612 / -3,256); about 32,000 lines of TypeScript in `src/` at close
+- 2,407 unit tests and 128 Chromium specs green under `verify-full`; UAT passed; security 60/60 threats closed (2 accepted risks)
+- 3 days, 2026-11-11 (phase context) to 2026-11-13 (close)
+
+**Git range:** `fb40195` (docs(08): capture phase context) to `73341ab` (docs(phase-08): close 1 resolved todo(s)), 92 commits.
+
+**Archive:**
+- `milestones/v2.0-ROADMAP.md` (full roadmap at close, including the v2.1 phase details)
+- `milestones/v2.0-REQUIREMENTS.md` (FOUND-10..14 complete, plus the 55 v2.1 requirements with their phase mapping)
+- Phase directory `phases/08-session-split-and-world-core/` stays in place, as v1.0's phases did
+
+**Pre-close audit (`audit-open`, 2026-11-13):** 20 items open. One (quick task `261104-p2m`) was already complete and cleared once its SUMMARY frontmatter YAML was fixed. Known verification overrides: 19 newly acknowledged, 0 carried forward from a prior close (see STATE.md Deferred Items): 8 debug sessions, 2 UAT files (phases 01 and 04), 6 pending todos and 3 deferred items (Phase 7 Safari wording; Phase 8 D-1, already fixed in the specs; Phase 8 D-2 flakes).
+
+**Known issues carried forward:**
+- WR-01: a throwing AI module is not contained by the world step; fix before Phases 12, 13 and 22
+- Intermittent e2e flakes under host load (D-2, `hyperspace.spec.ts:194`, probe-shape in-flight state)
+- `08-VALIDATION.md` is still a draft (Nyquist audit not run)
+- QUAL-01 (60 fps evidence) stays deferred to v2.1 Phase 23
+
+**What's next:** `/gsd-new-milestone` for v2.1 Combat & Traffic.
+
+---
+
 ## v1.0 Wegolite v1 Core Loop (Shipped: 2026-11-08, archived 2026-11-10)
 
 **Delivered:** A browser-only, faithful reimplementation of Oolite's core single-player loop: launch from Lave's Coriolis station, fly the Cobra Mk III, dock manually or with a docking computer, trade at station markets, hyperspace on fuel, and save or resume in IndexedDB.

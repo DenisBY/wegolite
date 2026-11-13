@@ -8,6 +8,9 @@ files:
   - src/ui/settings-panel.ts
   - src/app/game-session.ts
   - index.html
+audit_acknowledged:
+  milestone: v2.0
+  at: 2026-11-13
 ---
 
 ## Problem

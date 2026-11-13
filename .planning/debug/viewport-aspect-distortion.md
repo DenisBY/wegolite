@@ -3,6 +3,10 @@ status: diagnosed
 trigger: "viewport-aspect-distortion — 3D scene non-uniformly scaled: planet limb reads as ellipse, Coriolis squashed, starfield rotates along ellipse; 2D HUD stays circular. Viewport 2222x1000 (~2.22:1)."
 created: 2026-11-04T00:00:00Z
 updated: 2026-11-04T00:55:00Z
+audit_acknowledged:
+  milestone: v2.0
+  at: 2026-11-13
+  status: diagnosed
 ---
 
 ## Current Focus

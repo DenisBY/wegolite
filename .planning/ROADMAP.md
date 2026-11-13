@@ -6,7 +6,10 @@
   - Full phase details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   - Requirements: [.planning/milestones/v1.0-REQUIREMENTS.md](milestones/v1.0-REQUIREMENTS.md)
   - Open at archive: QUAL-01 (60 fps evidence on the reference desktop), deferred by the owner on 2026-11-08; deferred again on 2026-11-13; carried into v2.1 Phase 23
-- 🚧 **v2.0 Foundation** — Phase 8 only (in progress; roadmap created 2026-11-11, narrowed to Phase 8 on 2026-11-13 by owner decision)
+- ✅ **v2.0 Foundation** — Phase 8 (shipped 2026-11-13; no release tag, the latest release is `v0.3.0`)
+  - Full phase details: [.planning/milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
+  - Requirements: [.planning/milestones/v2.0-REQUIREMENTS.md](milestones/v2.0-REQUIREMENTS.md) (also holds the 55 v2.1 requirements and their phase mapping)
+  - Open at archive: review WR-01 (contain a throwing AI module before Phases 12, 13 and 22); e2e flakes under load (D-2)
 - 📋 **v2.1 Combat & Traffic** — Phases 9-23 (next milestone, unscheduled; the former v2.0 scope beyond Phase 8, phase numbers kept)
 
 ## Phases
@@ -26,80 +29,18 @@ Total: 73 of 73 plans complete. Phase directories remain in `.planning/phases/`.
 
 </details>
 
-## 🚧 v2.0 — Foundation
+<details>
+<summary>✅ v2.0 Foundation (Phase 8) — SHIPPED 2026-11-13</summary>
 
-**Milestone goal:** The game plays exactly as v1 does, but runs on a multi-entity world model with stable ids, seeded per-entity random streams, a world hash, a typed seam for AI and a tick-stepping test hook, so that every later combat and traffic phase builds on a proven base. No player-visible feature ships in this milestone.
+- [x] Phase 8: Session Split and World Core (16/16 plans) — completed 2026-11-13; v1 play unchanged on a multi-entity world (stable ids, seeded streams, a world hash, the typed AI seam and a tick-stepping test hook)
 
-**Sources:** the 5 v2.0 requirements in `.planning/REQUIREMENTS.md` (FOUND-10 to FOUND-14), all completed by Phase 8; research in `.planning/research/SUMMARY.md` (with `STACK.md`, `FEATURES.md`, `ARCHITECTURE.md` and `PITFALLS.md`). Pitfall numbers are the numbers in `PITFALLS.md`.
+Scope: narrowed on 2026-11-13 from Phases 8-23 to Phase 8 alone (PROJECT.md Key Decisions). Requirements FOUND-10 to FOUND-14, 5/5 complete. The AI seam, the snapshot codec and the reserved events are provisional until Phases 12-14 exercise them. Phase directory remains in `.planning/phases/`.
 
-**Scope decision (2026-11-13):** the owner narrowed v2.0 from 16 phases (8-23, 60 requirements) to Phase 8 alone, with quality over speed. Three independent model reviews (Opus, Fable, Sonnet) reached the same conclusion. Reasons, also recorded in PROJECT.md Key Decisions: Phases 9 and 10 have no consumer before Phases 12 and 13; Phase 11 is deferred because the D-02 seed policy becomes one-way once persisted and a narrowed v3 would break the one-bump rule (Pitfall 10); and there is no coherent stopping point between Phase 8 and roughly Phases 16-20, because D-10 requires traffic in production. The AI seam, the snapshot codec and the reserved events ship with only the scripted test pilot as a consumer, so they are **provisional** until Phases 12-14 exercise them; D-05 and the D-02 derivation stay revisable until Phase 12. QUAL-01 is deferred again (owner, 2026-11-13).
-
-**Phase numbering:** continues from v1.0, so v2.0 starts at Phase 8. Decimal phases (for example 8.1) are urgent insertions.
-
-### Phase list
-
-- [x] **Phase 8: Session Split and World Core** - v1 play unchanged on a multi-entity world: stable ids, seeded streams, a world hash, the typed AI seam and a tick-stepping test hook (completed 2026-11-13)
-
-### Execution order
-
-Phase 8 is the only phase. Its 16 plans run in the nine waves listed under Phase Details.
-
-## Phase Details
-
-### Phase 8: Session Split and World Core
-**Goal**: The game plays exactly as before, but runs on a multi-entity world model with stable ids, seeded per-entity random streams, a world hash and a typed seam for AI, and tests can step the simulation by ticks
-**Depends on**: Nothing in v2.0 (builds on the shipped v1.0 code)
-**Parallel track**: None in v2.0 (Phases 9 and 10 moved to v2.1 on 2026-11-13; they have no consumer before Phases 12 and 13)
-**Requirements**: FOUND-10, FOUND-11, FOUND-12, FOUND-13, FOUND-14
-**Success Criteria** (what must be TRUE):
-  1. A player can start, launch, fly, dock, trade, hyperspace, save and reload exactly as before `src/app/game-session.ts` is split into subsystems: every v1 golden, unit and e2e test passes without regeneration, and the published probe shape is unchanged through the split and the world integration (plans 08-01 to 08-15); after that, D-13 allows exactly one deliberate, additive probe commit (plan 08-16) that adds fields and renames or removes none.
-  2. With no NPC present, a recorded flight produces the same world hash as its v1 flight hash, entity ids are never reused within the world that issued them (a removed entity's id never comes back in that world; each new world restarts dynamic ids at 101 and no id outlives its world, D-06 as amended 2026-11-12), and every simulation pass visits entities in id order.
-  3. A world restored from a snapshot and the live world it came from hash identically after 1,000 ticks, and lint rejects `Math.random`, `Date`, wall-clock reads, `for..in` and bare `.sort()` anywhere in `src/sim`.
-  4. A scripted test pilot reads the world only through `WorldView` and acts only through `ShipControl`; its state survives a JSON round trip, its timers are integer ticks, and lint rejects an AI module that imports simulation internals.
-  5. A browser spec can advance the simulation by N ticks through the test hook and reads the same hash as a Vitest run of the same N ticks, and NPC traffic stays off unless the spec opts in.
-**Research flag**: Low — standard patterns (research ARCHITECTURE sections 4-7)
-**Pitfalls to address**: 8 (split behind a probe-shape snapshot; re-point `tests/app/redraw-gate.test.ts` and `tests/guards/economy-purity.test.ts`, which read the session file as text), 9 (empty-world hash identity), 1 (id order), 2 (forked `(worldSeed, entityId, purpose)` streams), 3 (integer tick time base), 4 (NaN and transcendentals), 7 (cross-entity events queued, never synchronous), 19 (narrow, read-only AI seam), 17 (fixed ids for planet, sun, station and buoys), 11 and 27 (`advanceTicks`, traffic off by default, a test hook that does not become a god object), 13 (audio event types reserved now, including missile, ECM and scoop events), 10 (the anchored-save decision only)
-**Decisions to settle**: D1 world seed policy (SAVE-07's saved world epoch implies the recommended `mix32(marketSeed, epoch)`; confirm in discuss-phase); the fixed id table for static bodies
-**Todos**: `2026-11-11-check-ci-after-0-2-0-and-the-shift-c-docking-timeout.md` — FOUND-10's baseline is a green `verify-full`, so the Shift+C docking flake is settled before the split starts
-**Plans**: 16/16 plans complete
-Plans:
-**Wave 1**
-- [x] 08-01-PLAN.md — Split safety nets: verify-full baseline, probe-shape snapshot, order-independent session-source scans (D-01, D-12 step 0, D-13)
-- [x] 08-02-PLAN.md — Pinned v1 flight hashes and RNG vectors, serialisable seeded stream, mix32 world/fork seeds (D-02 checkpoint)
-- [x] 08-03-PLAN.md — Determinism lint bans in src/sim (Math.random, Date, wall clock, for..in, bare sort) with guard tests
-
-**Wave 2** *(blocked on Wave 1 completion)*
-- [x] 08-04-PLAN.md — Split steps 1-2: typed session context and first controller extraction
-- [x] 08-05-PLAN.md — World foundation: ids (per-world uniqueness), entities, five static entities, store, world hash
-
-**Wave 3** *(blocked on Wave 2 completion)*
-- [x] 08-06-PLAN.md — Split steps 3-4: render driver, chart and settings controllers (verify-full gate)
-- [x] 08-07-PLAN.md — AI seam: read-only WorldView and write-only ShipControl
-
-**Wave 4** *(blocked on Wave 3 completion)*
-- [x] 08-08-PLAN.md — Split steps 5-6: station controller, save controller (verify-full gate)
-- [x] 08-09-PLAN.md — AI types, integer tick timers, registry, scripted test pilot, AI lint zone
-
-**Wave 5** *(blocked on Wave 4 completion)*
-- [x] 08-10-PLAN.md — Split steps 7-8: hyperspace controller, event router and sim driver
-- [x] 08-11-PLAN.md — World step: id-order pass after the flight step, queued AI events, sanitize, reserved SimEvents
-
-**Wave 6** *(blocked on Wave 5 completion)*
-- [x] 08-12-PLAN.md — Split step 9: frame loop and start-up wiring, thin facade (verify-full gate)
-- [x] 08-13-PLAN.md — Snapshot codec, 1,000-tick live-vs-restored equality, world cadence
-
-**Wave 7** *(blocked on Wave 6 completion)*
-- [x] 08-14-PLAN.md — Test flags and manual-clock sim driver with advanceTicks
-
-**Wave 8** *(blocked on Wave 7 completion)*
-- [x] 08-15-PLAN.md — Single integration plan (D-14): world lifecycle, epoch bump points, anchored-save check
-
-**Wave 9** *(blocked on Wave 8 completion)*
-- [x] 08-16-PLAN.md — One deliberate probe commit (D-13): probe.sim, worldHash, advanceTicks; browser/Vitest hash parity
+</details>
 
 ## 📋 v2.1 — Combat & Traffic (next milestone, unscheduled)
 
-**Not started and not yet planned for execution.** This section holds the former v2.0 scope beyond Phase 8, moved here on 2026-11-13 with phase numbers and requirement mappings unchanged. The text below was written when these phases belonged to v2.0: read "v2.0" in it as "the milestone that carries these phases" and Phase 8 as already shipped. Before v2.1 starts, run the milestone workflow again and re-check the order against what Phase 8's world core actually proved (see the provisional list in the v2.0 scope decision above).
+**Not started and not yet planned for execution.** This section holds the former v2.0 scope beyond Phase 8, moved here on 2026-11-13 with phase numbers and requirement mappings unchanged. The text below was written when these phases belonged to v2.0: read "v2.0" in it as "the milestone that carries these phases" and Phase 8 as already shipped. Before v2.1 starts, run the milestone workflow again (`.planning/REQUIREMENTS.md` was archived to `milestones/v2.0-REQUIREMENTS.md` at the v2.0 close) and re-check the order against what Phase 8's world core actually proved (see the provisional list in the v2.0 scope decision, PROJECT.md Key Decisions and `milestones/v2.0-ROADMAP.md`).
 
 **Milestone goal (planned):** Space stops being empty: traders, pirates and police fly each system with Oolite's AI, the player can fight, die or eject, and their actions change their legal status.
 
@@ -436,7 +377,7 @@ These pending todos are not part of any scheduled phase. They can run as quick t
 
 ### Coverage
 
-**v2.0:** 5 of 5 requirements are mapped to Phase 8 (FOUND-10, FOUND-11, FOUND-12, FOUND-13, FOUND-14). The traceability table is in `.planning/REQUIREMENTS.md`.
+**v2.0 (shipped):** 5 of 5 requirements were mapped to Phase 8 (FOUND-10 to FOUND-14) and are complete. The traceability table is archived in `.planning/milestones/v2.0-REQUIREMENTS.md`.
 
 **v2.1 (planned, unscheduled):** the other 55 requirements keep their phase mapping below; each maps to exactly one phase (the phase that completes it), and staged checks are named in the earlier phases' success criteria.
 
@@ -466,7 +407,7 @@ Phases 10 and 11 carry one requirement each by owner direction: each is a separa
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 8. Session Split and World Core | v2.0 | 16/16 | Ready to execute | - |
+| 8. Session Split and World Core | v2.0 | 16/16 | Complete | 2026-11-13 |
 | 9. NPC Content and Sound Provenance | v2.1 (planned) | 0/TBD | Not started | - |
 | 10. Hull Octrees and Ship Mass | v2.1 (planned) | 0/TBD | Not started | - |
 | 11. Save Schema v3 | v2.1 (planned) | 0/TBD | Not started | - |

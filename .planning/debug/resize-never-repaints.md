@@ -3,6 +3,10 @@ status: diagnosed
 trigger: "Resizing the browser window re-renders the scene, so the starfield stays visible at the new size and after restoring the original size."
 created: 2026-11-02T00:00:00Z
 updated: 2026-11-02T00:00:00Z
+audit_acknowledged:
+  milestone: v2.0
+  at: 2026-11-13
+  status: diagnosed
 ---
 
 ## Current Focus

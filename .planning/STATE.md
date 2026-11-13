@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: Foundation
-current_phase: 8
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 8 complete — all phases complete
-last_updated: "2026-11-13T19:39:31.756Z"
+last_updated: "2026-11-13T20:49:38.013Z"
 last_activity: 2026-11-13
-last_activity_desc: Phase 8 complete
-state_head: 7c15114aa7b78b57abc9964c2a66ad1dae05a31a
+last_activity_desc: Milestone v2.0 completed and archived
+state_head: 73341abe3155f2ddc3d835abf8c8f5c86bf03e62
 progress:
   total_phases: 1
   completed_phases: 1
   total_plans: 16
   completed_plans: 16
   percent: 100
+current_phase: 8
 ---
 
 # Project State
@@ -24,16 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-13)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Milestone v2.0 Foundation complete (Phase 8 verified 2026-11-13); next is milestone completion. Milestone v2.0 was narrowed on 2026-11-13 to Phase 8 (Session Split and World Core) alone, with quality over speed. Phases 9-23 and their 55 requirements are the unscheduled v2.1 (Combat & Traffic) in `.planning/ROADMAP.md`. The AI seam, snapshot codec and reserved events are provisional until Phases 12-14 exercise them. Milestone v1.0 (Phases 1-7) is archived in `.planning/milestones/`; QUAL-01 is deferred again and stays with v2.1 Phase 23.
+**Current focus:** Planning the next milestone. Milestone v2.0 Foundation (Phase 8, Session Split and World Core) shipped and was archived on 2026-11-13. The next candidate is v2.1 Combat & Traffic (Phases 9-23, 55 requirements, unscheduled); its requirements are archived in `.planning/milestones/v2.0-REQUIREMENTS.md` until `/gsd-new-milestone` re-states them. The AI seam, snapshot codec and reserved events are provisional until Phases 12-14 exercise them; QUAL-01 stays with v2.1 Phase 23.
 
 ## Current Position
 
-Phase: 8
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-11-13 — Phase 8 complete
-
-Progress: [██████████] 100%
+Phase: Milestone v2.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-11-13 — Milestone v2.0 completed and archived
 
 ## Performance Metrics
 
@@ -331,6 +329,7 @@ Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassM
 - [Phase 8] Review WR-01: `invoke()` in `src/sim/world/step.ts` does not contain a throwing AI module (latent; the only module cannot throw). Decide containment before Phases 12, 13 and 22 register real AI. Also IN-02 (`spawnEntity` throws on malformed input instead of refusing) before the Phase 12 populator. See `08-REVIEW.md` and `08-SECURITY.md`.
 - [Phase 8] Flakes under host load (deferred-items D-2): launch.spec.ts:129, save-load.spec.ts:634, plus hyperspace.spec.ts:194 and the probe-shape in-flight state seen once in 08-16; rerun once before treating as real.
 - [Phase 8] 08-VALIDATION.md is still draft (Nyquist audit not run); optional `/gsd-validate-phase 8`.
+- [v2.0 close] REQUIREMENTS.md was removed at the milestone close; the v2.1 requirement list and its phase mapping live in `.planning/milestones/v2.0-REQUIREMENTS.md` until `/gsd-new-milestone` writes a fresh one.
 
 ### Quick Tasks Completed
 
@@ -372,10 +371,33 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 | Category | Item | Status | Deferred At | Milestone |
 |----------|------|--------|-------------|-----------|
+| debug_sessions | bounce-orientation-preservation | unknown | 2026-11-13 | v2.0 |
+| debug_sessions | disabled-buy-control | diagnosed | 2026-11-13 | v2.0 |
+| debug_sessions | disarmed-tunnel-end-clamp | unknown | 2026-11-13 | v2.0 |
+| debug_sessions | e2e-message-expiry-timeout | diagnosed | 2026-11-13 | v2.0 |
+| debug_sessions | lave-planet-washed-out | diagnosed | 2026-11-13 | v2.0 |
+| debug_sessions | new-game-save-confirmation | diagnosed | 2026-11-13 | v2.0 |
+| debug_sessions | resize-never-repaints | diagnosed | 2026-11-13 | v2.0 |
+| debug_sessions | viewport-aspect-distortion | diagnosed | 2026-11-13 | v2.0 |
+| uat_gaps | 01/01-UAT.md | diagnosed | 2026-11-13 | v2.0 |
+| uat_gaps | 04/04-UAT.md | diagnosed | 2026-11-13 | v2.0 |
+| todos | 2026-11-10-add-planet-and-sun-collision.md | (presence-only) | 2026-11-13 | v2.0 |
+| todos | 2026-11-10-decide-behaviour-below-24-fps.md | (presence-only) | 2026-11-13 | v2.0 |
+| todos | 2026-11-10-fix-torus-refusal-message-under-mass-lock.md | (presence-only) | 2026-11-13 | v2.0 |
+| todos | 2026-11-10-keep-simulating-behind-the-chart.md | (presence-only) | 2026-11-13 | v2.0 |
+| todos | 2026-11-11-cargo-purchase-cost-basis-tracking.md | (presence-only) | 2026-11-13 | v2.0 |
+| todos | 2026-11-11-terminal-color-palette-setting.md | (presence-only) | 2026-11-13 | v2.0 |
+| deferred_items | 07/deferred-items.md: Shipped WebGL2 fallback names Safari (README hardening, 07-10) | acknowledged | 2026-11-13 | v2.0 |
+| deferred_items | 08/deferred-items.md: D-1 two stale docked-home assertions (specs already updated to "F8 Market") | acknowledged | 2026-11-13 | v2.0 |
+| deferred_items | 08/deferred-items.md: D-2 flaky e2e tests under load | acknowledged | 2026-11-13 | v2.0 |
 | requirement | QUAL-01: 60 fps at 1080p on mid-range desktop hardware (Phase 7) | Open, deferred by the owner; deferred again on 2026-11-13; carried into v2.1 Phase 23 | 2026-11-08 | v1.0 |
 
 ## Session Continuity
 
 Last session: 2026-11-13T19:45:00Z
-Stopped at: Phase 8 complete (UAT passed, security verified); milestone v2.0 ready to complete
+Stopped at: Milestone v2.0 Foundation completed and archived (19 audit items acknowledged; no tag by owner decision)
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
