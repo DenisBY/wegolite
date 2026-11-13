@@ -482,3 +482,22 @@ Phases 10 and 11 carry one requirement each by owner direction: each is a separa
 | 21. Missiles, ECM and Defensive Equipment | v2.1 (planned) | 0/TBD | Not started | - |
 | 22. Full Traffic, Asteroids and Mining | v2.1 (planned) | 0/TBD | Not started | - |
 | 23. Performance Hardening with Traffic | v2.1 (planned) | 0/TBD | Not started | - |
+
+## Backlog
+
+### Phase 999.1: Narrow renderer interface and WebGPU migration estimate (BACKLOG)
+
+**Goal:** Reduce the cost of a possible future move from `THREE.WebGLRenderer` (WebGL2) to `THREE.WebGPURenderer` (WebGPU with its built-in WebGL2 fallback) without migrating anything now. Two parts, both to be scheduled after Phase 8 so they do not collide with the `game-session.ts` split:
+
+1. Type the renderer through a narrow interface (`render`, `setSize`, `info`, plus whatever the probe memory read needs) instead of `THREE.WebGLRenderer`. Current direct uses: `src/app/boot.ts`, `src/app/scene-manager.ts`, `src/app/game-session.ts`, `src/app/probe.ts` (`readMemory`), `src/render/exposure.ts`, and after the split `src/app/session/render-driver.ts`, `probe-publisher.ts`, `context.ts`.
+2. Estimate the real migration scope before any decision. Custom GLSL today: `src/render/shaders/planet.glsl.ts`, `src/render/bodies/planet.ts`, `atmosphere.ts` and `nebulae.ts` (`ShaderMaterial` / `onBeforeCompile`). `WebGPURenderer` does not accept GLSL, so each needs a TSL (or WGSL) port. The Playwright probes and WebGL memory counters would also need a backend-neutral path. Optional spike: a throwaway branch with `WebGPURenderer` for one effect only.
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Constraints and notes:
+- The stack decision (Three.js, WebGL2) stays in force; adopting `WebGPURenderer` needs an explicit Key Decisions row in `.planning/PROJECT.md` first.
+- Three.js is at 0.187.0. `WebGLRenderer` is WebGL2 only; only `WebGPURenderer` selects a backend (WebGPU, else WebGL2, or `forceWebGL: true`).
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
