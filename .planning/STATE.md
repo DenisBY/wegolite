@@ -5,16 +5,16 @@ milestone_name: Foundation
 current_phase: 08
 current_phase_name: Session Split and World Core
 status: executing
-stopped_at: Completed 08-07-PLAN.md
-last_updated: "2026-11-13T11:49:13.518Z"
+stopped_at: Completed 08-08-PLAN.md
+last_updated: "2026-11-13T12:41:42.191Z"
 last_activity: 2026-11-13
 last_activity_desc: v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1
-state_head: 6644124ef2713cd912fb6a61a53c1b60677188ab
+state_head: 878fd9947f990e7162c559dd14def5d91f78baa7
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 16
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 08 (Session Split and World Core) — EXECUTING
-Plan: 7 of 16 complete (08-01 to 08-07 done; wave 3 is in progress)
+Plan: 8 of 16 complete (08-01 to 08-08 done; wave 4 is in progress, 08-09 is next)
 Status: Executing
-Last activity: 2026-11-13 — Completed 08-07 (WorldView and ShipControl seam: type-only interfaces, view and control implementations, 46 tests; full unit run, typecheck and lint green)
+Last activity: 2026-11-13 — Completed 08-08 (split steps 5 and 6: station controller and save controller extracted; fake-context proofs of the trade rules, the save guard order and the loadFromSave order; verify-full green on a worktree of the step-6 commit b9c8f76)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -113,6 +113,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 08 P05 | 15 min | 2 tasks | 10 files |
 | Phase 08 P06 | 110 min | 2 tasks | 8 files |
 | Phase 08 P07 | 20 min | 2 tasks | 6 files |
+| Phase 08 P08 | 49 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -280,6 +281,8 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-06: render driver, chart and settings controllers take later-moving owners (updateProbe, renderStation, targetSystem, syncStationNav, refreshStationChrome, performSwap, renderFrame) as dependency functions, and register no listener on construction; the two window keydown registrations stay in createGameSession until split step 9
 - [Phase 08]: 08-06: closeChart keeps not requesting a redraw itself; frame()'s chart-open branch requests one every frame while open, and the pinned total of five redrawGate.request() statements holds
 - [Phase 08]: 08-07: WorldView.scan resolves statics, player and dynamic entities through one locate(); ShipControl ignores (never clamps) out-of-domain writes and validates setTarget's uint32 domain only
+- [Phase 08]: 08-08: the station controller is built first; later-built owners (probe publisher, chart controller, save controller) are reached through call-time wrappers — the probe publisher, render driver and controllers take commitProfile, renderStation and syncStationNav, while the station controller needs their functions back; wrappers avoid a temporal-dead-zone read
+- [Phase 08]: 08-08: canOverwrite is a station-controller dependency, and the pure save-status helpers are module-level exports of the save controller — the two controllers do not import each other, and the facade can call statusSkipReason before the context exists
 
 ### Pending Todos
 
@@ -351,6 +354,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T11:49:13.446Z
-Stopped at: Completed 08-07-PLAN.md
+Last session: 2026-11-13T12:41:42.114Z
+Stopped at: Completed 08-08-PLAN.md
 Resume file: None
