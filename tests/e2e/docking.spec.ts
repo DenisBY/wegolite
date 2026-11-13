@@ -390,9 +390,9 @@ test("the docked home shows real credits, ship, fuel and the four screen entries
 
   // The station screens are advertised in the top station nav bar, and the
   // home panel displays the Bay 04 berth, arrival report, and market summary.
-  await expect(dockedPanel).toContainText("Market [F8]");
-  await expect(dockedPanel).toContainText("Outfitting [F3]");
-  await expect(dockedPanel).toContainText("Status [F5]");
+  await expect(dockedPanel).toContainText("F8 Market");
+  await expect(dockedPanel).toContainText("F3 Outfitting");
+  await expect(dockedPanel).toContainText("F5 Status");
   await expect(dockedPanel).toContainText("Service & Berth — Bay 04");
   await expect(dockedPanel).toContainText("System Arrival Report");
   await expect(page.locator('button[data-action="launch"]')).toBeVisible();

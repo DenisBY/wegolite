@@ -138,9 +138,9 @@ test("the docked view is exactly one status panel with the D-09 facts", async ({
     "data-screen",
     "home",
   );
-  await expect(docked).toContainText("Market (F8)");
-  await expect(docked).toContainText("Outfitting (F3)");
-  await expect(docked).toContainText("Status (F5)");
+  await expect(docked).toContainText("F8 Market");
+  await expect(docked).toContainText("F3 Outfitting");
+  await expect(docked).toContainText("F5 Status");
   await expect(
     page.locator(
       '[data-screen="trade"], [data-screen="outfitting"], [data-screen="market"], [data-screen="missions"], [data-screen="status"]',
