@@ -5,16 +5,16 @@ milestone_name: Foundation
 current_phase: 08
 current_phase_name: Session Split and World Core
 status: executing
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-11-13T09:02:42.885Z"
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-11-13T09:19:54.311Z"
 last_activity: 2026-11-13
 last_activity_desc: v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1
-state_head: 099e7a89c8438af93d0fc893ad0770da7bfa034c
+state_head: 04350a3cc84944457bffe339214f928c73d9133d
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 16
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 08 (Session Split and World Core) — EXECUTING
-Plan: 2 of 16 complete (08-01 and 08-03 done; 08-02 pending in wave 1)
+Plan: 3 of 16 complete (08-01, 08-02 and 08-03 done; wave 1 finished)
 Status: Executing
-Last activity: 2026-11-13 — Completed 08-03 (determinism bans and the entity-id scope guard)
+Last activity: 2026-11-13 — Completed 08-02 (flight hash pins, serialisable RngState and the mix32 world-seed derivation)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -108,6 +108,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P10 | approx. 15 min | 2 tasks | 3 files |
 | Phase 08 P01 | 43 min | 2 tasks | 10 files |
 | Phase 08 P03 | 13 min | 3 tasks | 5 files |
+| Phase 08 P02 | 22 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -264,6 +265,7 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-01: verify-full baseline of 5b189e4 is red on two stale docked-home specs (scene.spec.ts:111, docking.spec.ts:371, labels changed by 46c9305); recorded as measured, logged as deferred-items D-1, not fixed by 08-01
 - [Phase 08]: Per-world entity-id scope (CONTEXT D-06 amended 2026-11-12) is enforced by a source-scan test (tests/guards/entity-id-scope.test.ts), not an ESLint ban — The scan also catches the EntityId type name and needs no new config block for non-sim code whose rule keys a later block would silently replace (RESEARCH Pattern 8)
 - [Phase 08]: src/sim lint bans live in SIM_SYNTAX_BANS, SIM_GLOBAL_BANS, SIM_RESTRICTED_PROPERTIES; any later block redefining those rules must spread them; toFixed stays legal in src/sim — ESLint replaces rather than merges a redefined rule; src/sim/hash.ts canon formats through toFixed with a fixed digit count
+- [Phase 08]: 08-02: mix32 world-seed derivation confirmed by the owner as option-a (fmix32 = MurmurHash3 finaliser; worldSeedFor = mix32(marketSeed, epoch); forkSeed = mix32(mix32(worldSeed, entityId), purpose code 1/2/3)); pinned by independently computed literal vectors — One-way once Phase 11 persists epoch; bijection in each argument; B2 unknown purpose keys throw RangeError; B1 stream-overlap bound M^2*D/2^32 recorded in PROJECT.md
 
 ### Pending Todos
 
@@ -335,6 +337,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T09:02:42.819Z
-Stopped at: Completed 08-03-PLAN.md
+Last session: 2026-11-13T09:19:54.228Z
+Stopped at: Completed 08-02-PLAN.md
 Resume file: None
