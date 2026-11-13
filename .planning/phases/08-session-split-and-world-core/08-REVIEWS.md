@@ -1,7 +1,7 @@
 ---
 phase: 8
 reviewers: [reviewer-architect-opus, reviewer-correctness-opus, reviewer-algorithm-opus, reviewer-adversarial-opus, reviewer-context-sonnet, reviewer-triage-haiku]
-reviewed_at: 2026-11-12T14:08:09Z
+reviewed_at: 2026-11-13T00:00:00Z
 plans_reviewed: [08-01-PLAN.md, 08-02-PLAN.md, 08-03-PLAN.md, 08-04-PLAN.md, 08-05-PLAN.md, 08-06-PLAN.md, 08-07-PLAN.md, 08-08-PLAN.md, 08-09-PLAN.md, 08-10-PLAN.md, 08-11-PLAN.md, 08-12-PLAN.md, 08-13-PLAN.md, 08-14-PLAN.md, 08-15-PLAN.md, 08-16-PLAN.md]
 models:
   reviewer-architect-opus: "claude-opus-5-5"
@@ -18,12 +18,16 @@ model_sources:
   reviewer-context-sonnet: "config"
   reviewer-triage-haiku: "config"
 skipped_reviewers:
-  opencode: "Not run per user instruction (use Claude models as reviewers this round)"
+  opencode: "Not run per user instruction (use Claude models as reviewers)"
+  claude-cli: "Skipped for independence: running inside Claude Code"
+plan_coverage:
+  reviewer-context-sonnet:
+    note: "Read 08-12, 08-15, 08-16 and part of 08-01 in full; other plans at frontmatter, objective and Round 4 row level plus source cross-checks"
 ---
 
-# Cross-AI Plan Review — Phase 8 (Round 4)
+# Cross-AI Plan Review — Phase 8 (Round 5)
 
-Reviewed at commit `0aa747a` (Round 3 feedback incorporated). Reviewers ran as Claude Code subagents, one specialist lens each, read-only against the repository.
+Reviewed at commit `afc4fe0` (plans revised against refreshed research). Reviewers ran as Claude Code subagents, one specialist lens each, read-only against the repository. The algorithm and correctness runs hit a usage limit mid-run; the correctness reviewer was resumed and finished, and the algorithm report on disk was complete. Raw reports: `.review-diagnostics/20261113T000000Z-claude-subagents-round5/`.
 
 <!-- gsd:plan-revision-conflicts:begin -->
 ## Plan-Revision Conflicts
@@ -32,1560 +36,1905 @@ Reviewed at commit `0aa747a` (Round 3 feedback incorporated). Reviewers ran as C
 ## Architecture Review (reviewer-architect-opus)
 
 
-Scope: module boundaries, layering (`src/sim` free of Three.js and the DOM), wave and dependency order, file ownership inside each wave, contracts between plans, and whether the 16 plans together deliver the Phase 8 goal. I checked the plans at commit `0aa747a` against the repository source. I used codebase-memory coverage on every source file cited below. It reported `no_recorded_issue` for all of them, with the usual best-effort caveat.
+Commit reviewed: `afc4fe0`. Lens: module boundaries, layering (`src/sim` free of Three.js and the DOM), wave and dependency order, same-wave file ownership, contracts and signatures between plans, and whether the 16 plans together deliver the Phase 8 goal.
 
-### Round 3 resolution check
+Method: I read the frontmatter (`must_haves`, artifacts, key_links), the `<interfaces>` blocks and the relevant task text of every plan. I then checked the claims against source: `eslint.config.js:67-160`, `src/sim/math.ts:227-237`, `src/sim/flight/step.ts:122-128`, `src/sim/flight/controller.ts:14-17`, `src/app/probe.ts:390-395`, `src/app/game-session.ts:1035,1167,1341,1490,2805-2840,3345`, `src/content/types.ts:20`, `src/sim/hyperspace/countdown.ts:63`, `src/sim/dock/geometry.ts:70`, `tests/helpers/lave.ts:13-54`, `compose.yaml:46,66` and `package.json:19-44`. I also confirmed that `5b189e4` is an ancestor of HEAD and that `src/`, `tests/`, `eslint.config.js` and `package.json` have no diff between `5b189e4` and `afc4fe0`, so every source anchor in the plans is still valid for Wave 1. No file in the repository was modified.
 
-| Round 3 finding | Status at 0aa747a | Evidence |
-|---|---|---|
-| 1. Fast-check post-spawn mutation (08-13) | Resolved | `08-13-PLAN.md:23` and the Task 2 behaviour bullet "first spawns 1..4 entities with valid constructor arguments … then mutates … in place" |
-| 1. Counter, tick and owner bounds aligned (08-05/11/13) | Resolved | `08-05-PLAN.md:137` (tick, ownerId ≤ 0xffffffff; specKey 1..128), `08-11-PLAN.md:166-169` (rules 5-8 with saturating `repairs`), `08-13-PLAN.md:26` |
-| 1. Quaternion tolerance plus underflow row | Resolved | `08-13-PLAN.md:26` (accepts `1 + 5e-10`, rejects `{1e-200 ×4}`), and the Task 2 rejection table |
-| 1. Caps, nested arrays and proto keys at every level | Resolved | `08-13-PLAN.md:26`, Task 2 table; `08-11-PLAN.md:168` |
-| 1. `restoreWorld` validates through the parser; anti-alias test | Resolved | `08-13-PLAN.md:23` and the Task 2 "shares no nested object" bullet |
-| 2. `snapshotForSave(inputs)` call shape (08-15) | Resolved | `08-15-PLAN.md:35,106,206` now inspect `inputs` directly plus `encodeSave(inputs)`. `encodeSave(inputs: SaveInputs)` exists at `src/persistence/save.ts:663`, and the `SaveInputs` keys at `save.ts:301-320` match the allow-list at `08-15-PLAN.md:206` |
-| 3. `createTestHook` 5th parameter required; `probe.sim` holds only primitives | Resolved, but the new gate is broken (see 08-16 H-1) | `08-16-PLAN.md` Task 1 steps 1-2. The only call site is `src/app/game-session.ts:1035` |
-| 4. Citation of 1e12 versus 1e9 | Resolved | `08-11-PLAN.md:162`, `08-05-PLAN.md:137` |
-| 5. Store `2**32` row, reflection residuals in 08-03, listener `signal`, stale anchors | Resolved | `08-05-PLAN.md:180`; 08-03 Round 3 row; 08-12 truths. The four `pending.length = 0` sites match `src/app/game-session.ts:2738/2749/2773/2859`. Both keydown listeners carry `signal` (`game-session.ts:2268-2293`) |
+### Round 4 consensus items
 
-Every Round 3 finding has been dealt with. Two new architectural issues stand out: one acceptance gate that cannot pass, and duplicated ownership of the validation domain.
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| 1 | NaN in `ai.params` cannot be rejected after JSON | **Resolved** | `08-13-PLAN.md:23`: `snapshotWorld` throws `SnapshotError("non-finite")` for any non-finite leaf, including a scalar param, *before* serialization. `08-13-PLAN.md:24`: the generator produces `null`/`boolean` scalars, and the converse is limited to where it can be decided. `08-05-PLAN.md:148`: one `ParamValue` domain (null/boolean legal, non-finite never legal), shared by all three validators. |
+| 2 | `.store\b` gate can never pass | **Resolved** | `08-16-PLAN.md:146` narrows the gate to `sim/world/store\|world\??\.store\b\|\.store\??\.(live\|get\|allocate\|kill\|commit\|nextId)\b\|\bEntityStore\b`. I ran this regex against current `src/app`: it exits 1. The four `saveBoot.store` sites (`game-session.ts:1167,1341,1490,3345`) call `read`/`clear`/`dispose`/`queueAutosave(saveBoot.store…)`, and none of these is in the method list. |
+| 3 | `advanceTicks` undefined outside the manual clock | **Resolved** | `08-16-PLAN.md:30,128`: a required member of `WegoliteSimTestHook`/`WegoliteTestHook`, always copied, and the driver refuses outside the manual clock. `08-16-PLAN.md:143`: the fixture check requires `"function"` in both hook states. `08-14-PLAN.md:274` records that 08-14 adds no hook member. |
+| 4 | Shared limits defined three times | **Resolved** | `08-05-PLAN.md:31,45,146`: `src/sim/world/limits.ts` (no imports) is the single owner. Importers: `08-07-PLAN.md:90,175`, `08-11-PLAN.md:47,62,111,202`, `08-13-PLAN.md:34,45,91`. Each one gates "never declare or re-export". |
+| 5 | Enum fields unchecked at spawn and sanitize; prototype dispatch | **Resolved** | Spawn: `08-05-PLAN.md:30,153` (`includes` over ENTITY_KINDS/SCAN_CLASSES/AI_KEYS). Sanitize: `08-11-PLAN.md:32,185` (unknown kind → dead, scanClass → CLASS_NOT_SET, behaviour → IDLE, aiKey → `ai = null`). Dispatch: `08-11-PLAN.md:35,62` (`Object.hasOwn(registry, aiKey)`). |
+| 6 | Quaternions that pass spawn or sanitize but fail the parser | **Resolved** | `08-05-PLAN.md:146` (`MIN_QUAT_NORM_SQ = 1e-12`, `QUAT_UNIT_TOLERANCE = 1e-9`) and `:157` (spawn requires a unit quaternion). `08-11-PLAN.md:32,178` (degenerate → identity; renormalise then re-check). `08-13-PLAN.md:26` (the parser uses the same tolerance). |
+| 7 | `worldSeed` never checked as uint32 | **Resolved** | `08-05-PLAN.md:32,151` (`createWorld` throws `RangeError` outside `0..MAX_UINT32`). `08-13-PLAN.md:26` (the parser rejects 1.5, -1, 2**32 and null). |
+| 8 | `createEventRouter` signature contradicts itself | **Resolved** | `08-10-PLAN.md:40,158,219` and `08-15-PLAN.md:108,133` now all read `createEventRouter(ctx, subscribers)` with `ctx` required. |
+| 9 | Lint guard gaps (alias of `createSeededRandom`, module state, eval/Intl/localeCompare, computed sort) | **Resolved** | `08-03-PLAN.md:139-142` (Round 4 selectors live inside `SIM_SYNTAX_BANS`, so the AI blocks, which spread that constant, inherit them; `no-eval`/`no-new-func`/`no-implied-eval` are separate rules that the AI blocks never redefine). `08-09-PLAN.md:30,192-194` (`paths`+`importNames` ban; `AI_MODULE_STATE_BANS`). `08-02-PLAN.md:29` (import-aware source scan). |
+| 10 | Restore check is a rounded-hash comparison | **Resolved** | `08-13-PLAN.md:22`: exact `JSON.stringify(snapshotWorld(…))` equality plus `toStrictEqual` players at every checkpoint. |
+| 11 | AI drain bounds passes, not deliveries | **Resolved** | `08-11-PLAN.md:30,43,171`: `MAX_AI_EVENTS_PER_DRAIN (4096)` and `MAX_AI_QUEUE_LENGTH (4096)`, with drops counted in `aiDropped`. |
+| 12 | `ShipControl` accepts out-of-domain values | **Resolved** | `08-07-PLAN.md:30,117,175`: every write is checked against `limits.ts`; `perform` uses `includes`. |
+| 13 | No Firefox run | **Resolved** | `08-12-PLAN.md:123,137` (step-9 worktree) and `08-15-PLAN.md:36,216,232`. Both are non-blocking and recorded in the SUMMARY. `compose.yaml:66` defines `e2e-cross`. |
+| 14 | Deviations from a verbatim move, best-of-N, stale anchors | **Resolved** | `08-08-PLAN.md:146,260` and `08-12-PLAN.md:266` (deliberate-deviation SUMMARY sections). `08-15-PLAN.md:39,214` (best of 3 attempts, threshold unchanged). The executor briefs in 08-04/06/08/10/12 say to locate code by pattern (`08-04:262`, `08-06:260`, `08-08:261`, `08-10:280`, `08-12:267`). |
 
-### Wave and file-ownership audit
+All 14 Round 4 consensus items are resolved in the plan text.
 
-- **Wave 1** (08-01, 08-02, 08-03): no shared files. 08-01 touches `package.json`, 08-02 touches `src/sim/math.ts` and `PROJECT.md`, and 08-03 touches `eslint.config.js`. 08-03's new bans do not fire on current code. The only `.sort(` in `src/sim` is `src/sim/economy/market.ts:169`, which takes a comparator, and `Math.random` appears only in a comment at `src/sim/math.ts:225`.
-- **Wave 2** (08-04 split, 08-05 core): no shared files.
-- **Wave 3** (08-06, 08-07): no shared files.
-- **Wave 4** (08-08, 08-09): no shared files. 08-09 changes `src/sim/ai/types.ts` after 08-05 created it, so the order is sequential.
-- **Wave 5** (08-10, 08-11): no shared files. The two plans do have a type-level coupling: 08-11 widens `SimEvent` while 08-10 moves `handleEvent`. This is safe because `EVENT_KIND_SUBSCRIBER` is typed `Record<string, readonly string[]>` (`08-10-PLAN.md:155`) and the router has no `never` default.
-- **Wave 6** (08-12, 08-13): no shared files.
-- **Waves 7-9** each hold one plan.
-- Import graph across the planned modules: `rng.ts` imports nothing, `math → rng`, `world/entity → ai/types → world/{ids,view,control}`, and `world/step → ai/registry, world/view-impl`. There is no cycle, and the `world → ai` direction agrees with the AI zone, which allows only `ids/view/control/math`.
+### Cross-cutting architecture verification
+
+**Wave and dependency graph.** Each plan's wave is one more than the highest wave among its `depends_on`. Edges: 01→04, {02,03}→05, 04→06, 05→07, 06→08, {07,03}→09, 08→10, 09→11, 10→12, 11→13, 12→14, {14,11,13}→15, 15→16. The graph has no cycles. The split track (01→04→06→08→10→12→14) and the core track (02/03→05→07→09→11→13) join only at 08-15, as D-14 requires ("plugged in at one point … after split step 8").
+
+**Same-wave file ownership.** I compared the `files_modified` sets wave by wave and found no overlap:
+
+- W1: 01 = tests/, package.json; 02 = rng/math/PROJECT.md; 03 = eslint/guards.
+- W2: 04 = app/session; 05 = sim/world, sim/ai/types, PROJECT.md.
+- W3: 06 = app; 07 = sim/world view/control.
+- W4: 08 = app; 09 = sim/ai, eslint, guards.
+- W5: 10 = app; 11 = sim/world, sim.ts, events.ts, PROJECT.md.
+- W6: 12 = app; 13 = snapshot.ts, tests.
+- W7 to W9 each hold a single plan.
+
+Shared files are always edited in different waves: `PROJECT.md` (W1, W2, W5, W8, W9), `eslint.config.js` (W1, W4), `context.ts`/`game-session.ts` (W2 through W9), `session-order.test.ts` (W5 through W8). The one same-wave semantic coupling is 08-10/08-11 over `SimEvent`. It is defused by the `RoutedKind` + `isRoutedKind` design (`08-10-PLAN.md:33`). I confirmed that no exhaustive `never` check over `SimEvent` exists in `src` (`rg ": never =|assertNever"` finds nothing), so widening the union cannot break `src/app`.
+
+**Layering.**
+- `src/sim` purity is enforced by the existing zone (`eslint.config.js:71-157`) plus 08-03's bans.
+- The AI zone's `no-restricted-imports` *replaces* the sim block's list for AI files. The allow-list regex is strictly narrower (it rejects `three`, `**/app/**` and the other banned paths), so nothing is lost.
+- Import directions:
+  - `world/entity.ts` → `ai/types.ts` → `world/ids.ts` (no imports) plus type-only `world/view.ts`/`control.ts` → `ids`/`math`.
+  - `world/step.ts` → `ai/registry.ts` → `pilots/test-pilot.ts` → type-only `world/view`/`control`.
+  - None of these closes a cycle. `math.ts` → `rng.ts` is one-way, and 08-09's seal test (`08-09-PLAN.md:197`) pins it.
+- In `src/app`, `world-lifecycle.ts` and `step-options.ts` stay Node-importable through a durable guard (`08-15-PLAN.md:38,136`). Their dependencies resolve inside `src/sim` or to a type-only `src/content/types.ts` (`witchspaceStationMass` at `src/sim/hyperspace/countdown.ts:63`, `DockGeometry` at `src/sim/dock/geometry.ts:70`, `System` re-exported at `src/content/types.ts:20`).
+- `tests/helpers/tick-script.ts` needs `PlayerController`/`ScriptedLaunchController`, which are in `src/sim/flight/controller.ts:74,92` (imports only `../math.js`, `../state.js`, `./state.js`). The Playwright-import precondition holds.
+
+**Contracts.**
+- `createTestHook(state, scenes, onMutate, profile, sim)`: 08-16 rewrites `profile?` as `profile: … | undefined` (`08-16-PLAN.md:128`), which avoids TS1016 ("a required parameter cannot follow an optional parameter"). `rg -ln createTestHook src tests` finds only `probe.ts` and `game-session.ts`, so there is a single call site to update.
+- `stepSim(player, world | undefined, …)` is the same in 08-11, 08-13 and 08-15.
+- `launched` is pushed at the start of the launch (`src/sim/flight/step.ts:124-126`). The world is therefore created by the router *after* the launch step and first stepped on the next tick. 08-15 documents this ("one-tick latency", `08-15-PLAN.md:130,145`), and 08-16 requires the replay to mirror it.
+- `SessionRuntime.testFlags` gets a default in `createSessionState` (`08-14-PLAN.md:119`), and `worldLifecycle` starts as `undefined` (`08-15-PLAN.md:131`). Test fakes built through `createSessionState` keep typechecking.
+
+**Goal coverage.**
+- SC1/FOUND-10: 08-01 (probe-shape snapshot, re-pointed scans) and 08-04/06/08/10/12 (steps 1-9 with verify-full at 3, 6 and 9).
+- SC2/FOUND-11: 08-02 (pinned flight hashes), 08-05 (ids, store, hash identity) and 08-11 (id-order pass).
+- SC3/FOUND-12: 08-03 (lint) and 08-13 (1,000-tick exact restore).
+- SC4/FOUND-13: 08-07 (seam) and 08-09 (pilot plus AI zone).
+- SC5/FOUND-14: 08-14 (manual clock), 08-15 (lifecycle, traffic flag) and 08-16 (hook, parity).
+
+Every criterion has an owning plan and a gate.
+
+### New findings (Round 5)
+
+Every finding is LOW or LOW-MEDIUM. None blocks execution.
+
+- **A5-1 (LOW-MEDIUM): the lifecycle reactions are written three times, and only one copy is checked against the real session.**
+  - The world lifecycle reactions (launch → `begin`, dock → `end`, arrival → `begin` inside the install block, restore → `resetForRestore`/`resume`) live in:
+    1. the real session: `event-router.ts`, `hyperspace-controller.ts`, `save-controller.ts` and `start-session.ts` (08-15);
+    2. `tests/helpers/tick-script.ts` (08-16, `08-16-PLAN.md:163`);
+    3. the test-local lifecycle in 08-13's `world-cadence.test.ts` (`08-13-PLAN.md:190`, "keeps its own lifecycle state in the test").
+  - Only (2) is checked against (1), by `tick-parity.test.ts`, and only at a single cadence.
+  - The populated-world cadence proof (08-13) never runs through the real driver/router path. 08-13 cannot import `createWorldLifecycle` (it is created two waves later), so this is a consequence of the ordering, not an error. The result is that, at Phase 8 exit, no test steps a non-empty world through the real `createSimDriver` → `stepSim` → router → lifecycle chain.
+  - The `Populate` seam (`08-15-PLAN.md:130`, `createWorldLifecycle({ traffic, populate })`) makes this cheap to close.
+  - **Suggestion (08-16 Task 2, optional):** add one Vitest case to `tick-parity.test.ts`:
+    - inject a `populate` that spawns two or three test pilots;
+    - drive the real driver once via `advanceTicks(601)` and once via `advanceFrame` at 30 Hz and 144 Hz frame deltas (manual clock off);
+    - assert equal `hashWorld` and equal `snapshotWorld` JSON.
+  - This would be the first proof through the session path that a populated world is deterministic, and it would retire the 08-13 mirror as the only cadence proof before Phase 12 relies on it.
+
+- **A5-2 (LOW): the uint32 bound is still spelled as a literal outside the one-owner zone.** The Round 4 "single owner" rule (`08-05-PLAN.md:31`) gates only `src/sim/world` and `src/sim/ai`. The bound is still written as a literal in:
+  - `src/sim/rng.ts` (08-02, `08-02-PLAN.md:193`). This is unavoidable, because 08-02 is in Wave 1 and `limits.ts` does not exist yet.
+  - `src/app/session/world-lifecycle.ts` (`epoch < 0xffffffff`, `08-15-PLAN.md:130`).
+
+  **Suggestion:** have `world-lifecycle.ts` import `MAX_UINT32` from `src/sim/world/limits.js`. The Node-importable guard allows `src/sim` imports, so this costs nothing and keeps the begin, restore and parser domains on one constant. Optionally add a comment in `limits.ts` noting that `rng.ts` predates it and uses the same literal.
+
+- **A5-3 (LOW): a declared exception to the D-14 core ownership.** 08-15 lists `src/sim/world/step.ts` as conditionally modified (`08-15-PLAN.md:17`), which crosses D-14's core-track ownership of `src/sim/world/**`. It is harmless for ordering: Wave 8 holds one plan and the core track finished in Wave 6. However, the remedy (an empty-world fast path) would change `stepWorld` after 08-11/08-13 proved it.
+  - verify-full reruns those unit tests, so correctness is covered.
+  - **Suggestion:** if the remedy fires, require the SUMMARY to record it as a D-14 deviation and to name the 08-11/08-13 test files that passed on the edited tree.
+
+- **A5-4 (LOW, informational): the test pilot ships in the production bundle.** `world/step.ts` imports `AI_REGISTRY` as its default registry (`08-11-PLAN.md:62`), so the scripted test pilot is in the production bundle even though only tests reach it (`08-09-PLAN.md:35`). This matches D-11 ("a real AI module", reused by Phase 13) and is structurally guarded (no `src` file outside `src/sim/ai` names it). No change needed; it is noted so that Phase 12's populator plan does not treat the registry's contents as spawnable roles.
 
 ### 08-01
 
-**Summary:** Pins the probe shape in six states, adds the strict comparator, re-points the session scans at a helper that concatenates the session sources, and records the `verify-full` baseline.
+**Summary:** Split safety nets: a six-state probe-shape snapshot added to `test:e2e:fast`, an order-independent session-source helper with the two text-reading tests re-pointed at it, and a verify-full baseline taken on a detached worktree of `5b189e4`.
+**Strengths:**
+- The probe-shape contract states that every `probe.test` member reads `"function"` (`08-01-PLAN.md:28`). 08-16 now honours this without revising it (R4-3).
+- The baseline runs on an isolated worktree under its own Compose project (`:34`), so it is independent of Wave 1 siblings.
+- `package.json:20` is the only script changed, and its contract test is in the same plan.
 
-**Strengths:** Building the safety net before step 1 is the right order for D-12/D-13. The comparator treats an empty array as matching only an empty array. The concatenating source helper makes the redraw-gate and economy scans independent of where code lives, which every later split step relies on.
-
-**Concerns:** None at architecture level.
-
+**Concerns:** None new.
 **Suggestions:** None.
-
-**Risk:** LOW
+**Risk:** LOW.
 
 ### 08-02
 
-**Summary:** Pins the v1 flight hashes and the `createSeededRandom` vectors, then adds `rng.ts`, a plain uint32 stream that can be serialised, together with the `mix32` derivation of world and fork seeds, which the owner confirms at a checkpoint.
-
-**Strengths:** `rng.ts` imports nothing and `math.ts` imports `rng.ts`, so there is no cycle. `arrival.ts` stays byte-identical (`src/sim/hyperspace/arrival.ts:73` is the only call in `src/sim`). The "createSeededRandom( appears exactly twice" scan also covers a gap in the AI zone: `../math.js` is allowed there and still exports the closure RNG, so this scan is the only thing stopping an AI module from creating a stream nobody can serialise.
+**Summary:** Pinned v1 flight hashes and RNG vectors; `rng.ts` with a plain-integer `RngState`, `mix32`, `worldSeedFor` and `forkSeed`; `createSeededRandom` delegates to it with an identical sequence; an import-aware source scan.
+**Strengths:**
+- `math.ts` → `rng.ts` is one-way, and 08-09's seal test pins it.
+- `arrival.ts` and the render callers stay byte-identical, which protects the arrival goldens. The closure at `src/sim/math.ts:227-237` matches the interface text exactly.
+- `autonomous: false` with a blocking checkpoint correctly gates the one-way D-02 arithmetic before any consumer exists.
 
 **Concerns:**
-- LOW: That protection lives in a Vitest scan, not in lint. If a later phase legitimately adds another caller, someone will likely bump the count from 2 to 3, and the protection is gone.
+- LOW: the `0xffffffff` literal in `rng.ts` duplicates the later `MAX_UINT32`. This is unavoidable in Wave 1 (A5-2).
 
-**Suggestions:** Add a short comment in the test that `math.ts` is on the AI allow-list, so that raising the count needs an AI-zone review.
-
-**Risk:** LOW
+**Suggestions:** None required.
+**Risk:** LOW (gated by the human checkpoint).
 
 ### 08-03
 
-**Summary:** Adds the determinism lint bans and guard probes for `src/sim`.
+**Summary:** Determinism lint bans in `src/sim` (named constants spreadable by later blocks), probe infrastructure, the stronger `sim-purity` scan, and the entity-id-scope guard from Wave 1.
+**Strengths:**
+- All Round 4 selectors are placed inside `SIM_SYNTAX_BANS` (`08-03-PLAN.md:139-142`). Because ESLint *replaces* a redefined rule (Pattern 8), placing them anywhere else would have silently dropped them from 08-09's AI blocks.
+- `no-eval`, `no-new-func` and `no-implied-eval` are separate rules that the AI blocks never redefine.
+- The entity-id-scope guard is in place before `ids.ts` exists.
 
-**Strengths:** The rule constants (`SIM_SYNTAX_BANS`) can be reused, and 08-09 spreads them into the AI blocks, so redefining the rule there does not silently drop the sim bans (Pitfall 5). The Round 3 reflection residuals are either covered by probes or documented.
-
-**Concerns:** None.
-
+**Concerns:** None new.
 **Suggestions:** None.
-
-**Risk:** LOW
+**Risk:** LOW.
 
 ### 08-04
 
-**Summary:** Split steps 1-2: the typed session context and the probe publisher, with `withdrawProbe()` wired into `dispose()` straight away.
+**Summary:** Split steps 1-2: the typed `SessionState`/`createSessionState`, and the probe publisher.
+**Strengths:**
+- One context object with live reads at call time (G-8).
+- An exact facade export set is pinned.
+- No probe-publisher call site moves, which is gated by neighbouring statements.
 
-**Strengths:** The context type becomes the one shared seam that every later split step builds on. Wiring `withdrawProbe` into dispose immediately means 08-12 can move it as-is.
-
-**Concerns:** None.
-
+**Concerns:** None new. Later plans (08-14, 08-15) add fields with defaults in `createSessionState`, so test fakes built through it stay valid.
 **Suggestions:** None.
-
-**Risk:** MEDIUM. This is inherent to a 185k-token mechanical move, not a plan defect.
+**Risk:** LOW.
 
 ### 08-05
 
-**Summary:** Fixed ids, closed vocabularies, entity and static records, a store with binary-search lookup, `createWorld`, `isNeverSpawned`, `liveEntityCount`, a validating `spawnEntity`, and a serializer whose hash equals `hashFlight` while nothing has spawned.
-
+**Summary:** World foundation: `ids.ts`, `limits.ts` (single owner), `ai/types.ts`, entity, store, world, and serialization/hash with empty-world identity to `hashFlight`.
 **Strengths:**
-- Static bodies hold only `layoutKey` references and never reach the hash (`08-05-PLAN.md:35`). This is a clean way to satisfy D-07 and D-08 together.
-- There is one never-spawned predicate, and the serializer is gated from re-spelling it.
-- The ban on `Map`/`Set` in the store removes any lookup whose iteration order could change after a restore.
-- `liveEntityCount` gives `src/app` a primitive read, so the app never sees the store.
+- `limits.ts` has no imports and is the only definition site, so all four validators (spawn, control, sanitize, parser) share one domain.
+- `ai/types.ts` imports only `world/ids.js` (`:148`), so `entity.ts` → `ai/types.ts` cannot form a cycle.
+- `StaticEntity` holds `layoutKey` only, which keeps `SystemLayout` the single authority (D-07).
+- The binary-search store has no Map or Set.
 
-**Concerns:**
-- **MEDIUM (A-1): no single owner for the validation domain.** `spawnEntity` writes the domain as inline literals: `MAX_SNAPSHOT_STRING_LENGTH = 128`, `1e12`, `32` keys, `64` elements (`08-05-PLAN.md:137`). Plan 08-11 then exports `MAX_ENTITY_MAGNITUDE`, `MAX_SNAPSHOT_STRING_LENGTH`, `MAX_SNAPSHOT_PARAM_LENGTH` and `MAX_AI_PARAMS_KEYS` from `sanitize.ts` (`08-11-PLAN.md:45,277`). Plan 08-13 exports the same three names again, plus `MAX_SNAPSHOT_MAGNITUDE`, from `snapshot.ts` (`08-13-PLAN.md:34,107`). So one domain is defined in three files by three plans in three waves, two modules export identically named constants, and the 1e12 cap has two names. Round 3 fixed the values, but nothing structural keeps them equal: a later change to one copy (for example Phase 11 raising the string cap for save reuse) passes every test of the other two modules. 08-05 is the first consumer, so it should own the constants.
-- **MEDIUM (A-2): enum leaves are unchecked at spawn.** `spawnEntity` checks numbers, strings, timers and params, but not whether `kind` is in `ENTITY_KINDS`, `scanClass` is in `SCAN_CLASSES`, or `ai.aiKey` is in `AI_KEYS`. `parseWorldSnapshot` rejects all three (`08-13-PLAN.md:26`, rows "kind planet / CLASS_FOO / aiKey trader"). Callers that compile in TypeScript are protected, but Phase 12 will spawn from `shipdata.plist` strings (`scan_class`), which come in through a cast. A world spawned that way hashes fine but refuses to snapshot.
-
-**Suggestions:**
-- A-1: Create `src/sim/world/limits.ts` in this plan, with no imports: `MAX_ENTITY_MAGNITUDE`, `MAX_SNAPSHOT_STRING_LENGTH`, `MAX_SNAPSHOT_PARAM_LENGTH`, `MAX_AI_PARAMS_KEYS`, `MAX_UINT32`, and optionally a pure `isValidParamValue`/`isValidParams` predicate. `world.ts` imports it now. Change 08-11 and 08-13 to import (and, if wanted, re-export) these constants instead of declaring them, and alias `MAX_SNAPSHOT_MAGNITUDE = MAX_ENTITY_MAGNITUDE`. Add an acceptance gate: `rg -c "= 128\b|= 1e12\b" src/sim/world/{world,sanitize,snapshot}.ts` prints 0.
-- A-2: Add membership checks for `kind`, `scanClass` and `ai.aiKey` to the refusal list, using `includes` over the const arrays from `ids.ts`/`ai/types.ts`. Add three refusal rows to Task 2.
-
-**Risk:** MEDIUM
+**Concerns:** None new.
+**Suggestions:** None.
+**Risk:** LOW-MEDIUM (130k estimate over budget, accepted by the owner).
 
 ### 08-06
 
-**Summary:** Split steps 3-4: the render driver, the chart and settings controllers, and the `verify-full` gate.
+**Summary:** Split steps 3-4: render driver, chart and settings controllers; verify-full at step 3.
+**Strengths:**
+- The single gated `renderFrame(alpha, shouldDraw())` call is preserved and pinned by the re-pointed redraw-gate scan.
+- The listener totals are tied to `git grep` at the step SHA (R4 triage fix).
 
-**Strengths:** The Round 3 note on when listeners are registered is folded in. Running `verify-full` at step 3 is as D-12 requires.
-
-**Concerns:** None.
-
+**Concerns:** None new.
 **Suggestions:** None.
-
-**Risk:** MEDIUM. This comes from the size of the move, not from the plan.
+**Risk:** LOW.
 
 ### 08-07
 
-**Summary:** Adds the type-only `WorldView`/`ShipControl` and their implementations over the world, the layout and the live player.
-
+**Summary:** AI seam: type-only `WorldView`/`ShipControl`, plus implementations that read static geometry from the layout at call time and validate writes against `limits.ts`.
 **Strengths:**
-- `view.ts` and `control.ts` are type-only and import only `ids` and `math` (`08-07-PLAN.md` Task 1 acceptance). That is what makes the 08-09 allow-list sound.
-- The `Record<keyof …, true>` member pins make any growth of the seam a deliberate act (Pitfall 19).
-- The player is passed per call, so the world never holds `FlightState` (G-8).
-- The station orientation is checked against an independent three.js computation in tests only, so `src/sim` stays free of Three.
+- `view.ts` and `control.ts` take only type imports from `./ids.js` and `../math.js` (`:110-111`). That makes them safe items on the AI allow-list, and 08-09's seal test pins it.
+- The world never holds the `FlightState` (the player is passed per call).
+- Exhaustive `Record<keyof …>` literals keep the seam narrow.
 
-**Concerns:**
-- **LOW-MEDIUM (A-3): `ShipControl` is a fourth write boundary that does not share the aligned domain.** `setTarget` accepts any non-negative safe integer, so values up to 2^53 pass. `setDestination`, `setDesiredRange` and `setDesiredSpeed` accept any finite non-negative number with no 1e12 cap (`08-07-PLAN.md:113`). The 08-11 sanitizer (rules 1, 3 and 5) then quietly repairs those values and increments `repairs`. The result: a buggy AI write is not refused at the seam; it becomes hashed repair noise one tick later. That runs against the seam's own rule that invalid arguments are ignored.
-
-**Suggestions:** Bound `setTarget` to `0..0xffffffff` and the magnitudes to `≤ MAX_ENTITY_MAGNITUDE` (from `limits.ts`, see A-1), and add rows for `1e13` and `2**32` to the Task 2 control tests.
-
-**Risk:** LOW
+**Concerns:** None new.
+**Suggestions:** None.
+**Risk:** LOW.
 
 ### 08-08
 
-**Summary:** Split steps 5-6: the station controller and the save controller, with the `verify-full` gate.
+**Summary:** Split steps 5-6: station and save controllers; verify-full at step 6.
+**Strengths:**
+- The new `disposed` guards are recorded as deliberate deviations (R4-14).
+- `saveBoot.store` is kept verbatim, and the narrowed 08-16 gate no longer matches it.
 
-**Strengths:** `buildSnapshotInputs` moves unchanged (`src/app/game-session.ts:1131-1152`), and 08-15's anchored-save proof depends on exactly that.
-
-**Concerns:** See 08-16 H-1. This plan moves `saveBoot.store` (`game-session.ts:1167,1341,1490,3345`) into `src/app/session/`, which 08-16's gate later trips over.
-
-**Suggestions:** None for this plan.
-
-**Risk:** MEDIUM. This comes from the size of the move.
+**Concerns:** None new.
+**Suggestions:** None.
+**Risk:** LOW.
 
 ### 08-09
 
-**Summary:** Adds the AI types, the integer tick time base, a frozen registry, the scripted test pilot, and recursive AI-zone lint with a table-driven regex check.
-
+**Summary:** AI types (`AiContext`, `AiModule`, `AiEvent`), integer tick timers, a frozen registry, the scripted test pilot, and the recursive AI lint zone with allow-list regexes, the closure-RNG import ban and the module-state ban.
 **Strengths:**
-- The zone covers every depth, including a reject-all catch-all at depth 3 and below.
-- Reading the regexes back through `calculateConfigForFile` tests the effective config rather than a copy.
-- The "allowed seam modules do not re-export" scan closes the bridge-module hole.
-- The real modules act as the positive control (D-11).
+- The AI blocks spread `SIM_SYNTAX_BANS` and do not redefine the global, property or eval rules. All 08-03 bans therefore still reach the zone, and probes prove it (`:196`).
+- The allow-list table is read from `calculateConfigForFile`, which pins the effective config rather than the source text.
+- The seal test stops `ids`/`math`/`view`/`control` from becoming re-export bridges.
 
 **Concerns:**
-- LOW: `src/sim/ai/types.ts` is changed by two plans in two waves (08-05 creates it, 08-09 extends it). The order is correct, but `entity.ts` (08-05) imports `AiComponent` from the AI zone. The world model therefore depends on an AI-zone file, and the AI-zone lint (08-09) later constrains that file's imports. This works because `types.ts` imports only `world/ids`, `view` and `control`.
+- LOW (A5-4): the pilot ships in production through the default registry. This is consistent with D-11.
 
-**Suggestions:** Add a one-line comment in `types.ts` that `world/entity.ts` depends on it, so it must stay free of anything outside the allow-list.
-
-**Risk:** LOW
+**Suggestions:** None required.
+**Risk:** LOW-MEDIUM (135k estimate, accepted).
 
 ### 08-10
 
-**Summary:** Split steps 7-8: the hyperspace controller with its atomic install block, the event router with a declarative routing table, `sim-driver` holding the single `stepFlight` call, and a pure `step-options`.
-
+**Summary:** Split steps 7-8: hyperspace controller (moved as one atomic unit), ordered event router, sim driver with `stepOnce`, and the pure `buildStepOptions`.
 **Strengths:**
-- Putting the only step call in `stepOnce` creates exactly the single D-14 plug-in point that 08-15 swaps.
-- `buildStepOptions` is pure, so the Node replay in 08-16 can reuse it rather than re-derive it.
-- The router ignores unknown kinds, so 08-11's widening of `SimEvent` in the same wave is safe.
+- `RoutedKind`/`isRoutedKind` makes the commit order with 08-11 irrelevant. I verified that no exhaustive switch over `SimEvent` exists in `src`.
+- `step-options.ts` reproduces `game-session.ts:2814-2836` exactly (checked against the source), and its imports resolve inside `src/sim` or to a type-only `content/types`.
+- The signature is now consistent (R4-8).
 
-**Concerns:**
-- **LOW (A-4): the router signature is still ambiguous.** Step 2 says `createEventRouter(ctx: SessionState, subscribers)` "or an optional `ctx?: SessionState`" (`08-10-PLAN.md:155`). The artifacts list (`:39`), the Artifacts section (`:212`) and 08-15's interfaces block (`08-15-PLAN.md:105`) still say `createEventRouter(subscribers)`. 08-15 Task 1 step 4 needs `ctx` to be passed. If the executor picks the optional form and the facade omits it, `ctx.core.worldLifecycle?.begin` turns into a silent no-op.
-- LOW: `Record<string, readonly string[]>` gives up compile-time completeness of the routing table.
-
-**Suggestions:** Make `ctx` required and fix the three stale signatures. Type the table as `Readonly<Record<RoutedKind, readonly SubscriberName[]>>`, where `SubscriberName` is `typeof EVENT_SUBSCRIBER_ORDER[number]` and `RoutedKind` is a literal union of the 14 kinds, so it does not depend on 08-11's wider union.
-
-**Risk:** MEDIUM
+**Concerns:** None new.
+**Suggestions:** None.
+**Risk:** LOW.
 
 ### 08-11
 
-**Summary:** Adds `stepWorld` (update, think and commit in id order), `stepSim` wrapping the unchanged `stepFlight`, the queued AI events, `sanitizeEntity`, and the reserved `SimEvent` kinds.
-
+**Summary:** `stepWorld` and `stepSim` (flight first, then world, skipped on the jump tick), the bounded FIFO AI queue held by the world, field-complete idempotent sanitize, own-key dispatch, and reserved `SimEvent` kinds.
 **Strengths:**
-- `stepSim` runs `stepFlight` first and never passes the world in, so the flight step stays byte-identical.
-- Iterating over a length snapshot, with a grep gate that forbids a `for…of` over `live`, enforces the id-order rule.
-- `WorldView` is built lazily, so the hot path without NPCs stays allocation-free.
-- Reserved events use only ids, vectors and keys.
+- `stepSim` never mutates `FlightState` from the world side.
+- The queue lives on `World`, so events die with their world.
+- Lazy `WorldView` construction keeps the NPC-free hot path free of allocation.
+- The no-step-on-`hyperspaceJumped` rule fits cleanly with 08-15's begin-in-install-block.
 
 **Concerns:**
-- **MEDIUM (A-1, continued):** `sanitize.ts` declares and exports the shared constants (`08-11-PLAN.md:45,277`) instead of importing them.
-- **MEDIUM (A-2, continued): the truth overstates coverage.** The truth at `08-11-PLAN.md:32` says sanitize is "field-complete across every numeric, string, array, and structural value that … `parseWorldSnapshot` read[s]" and that "every sanitized world snapshots to JSON that `parseWorldSnapshot` accepts". Rules 1-8 (`:162-169`) never check `kind`, `scanClass`, `nav.behaviour` or `ai.aiKey`, and the parser rejects unknown values of all four. The 08-13 property never mutates those leaves, so the claim is only true for numeric and length leaves.
+- LOW: Key Decisions labels are local to each plan (`row (d)` means the placeholder integrator here, `08-11-PLAN.md:107`, but per-world id scope in 08-05). Every cross-plan reference I found qualifies the plan (`08-15:216`, `08-16:31`, `08-03:60`), so this is not a defect. Executors should not copy the bare letters into `PROJECT.md`.
 
-**Suggestions:** Either add rule 9 (unknown `nav.behaviour` becomes `"IDLE"`; unknown `ai.aiKey` sets `ai = null`, counted as a repair; `kind` and `scanClass` are guaranteed at spawn per A-2), or limit the truth to "numeric, string-length and structural leaves; enum leaves are guaranteed at spawn and by `ShipControl.perform`". Import the constants from `limits.ts`.
-
-**Risk:** MEDIUM
+**Suggestions:** None required.
+**Risk:** MEDIUM (155k estimate, accepted; the largest core plan).
 
 ### 08-12
 
-**Summary:** Split step 9: `frame-loop`, `start-session`, the thin facade, the pinned frame-phase order, and the `verify-full` gate in a worktree.
-
+**Summary:** Split step 9: frame loop and start-up wiring; the facade builds every module's deps; verify-full plus a non-blocking `e2e-cross` on the step-9 worktree.
 **Strengths:**
-- The facade still builds the router, so 08-15's "no `game-session.ts` edit" holds.
-- Construction and teardown order are recorded and pinned.
-- The listener `signal` invariant matches the source (`game-session.ts:2268-2293`).
+- The facade remains the only public entry point, and later plans (08-14, 08-16) add late-bound deps only there.
+- The rAF tracking deviation is recorded.
+- Firefox now runs where the listeners move.
 
 **Concerns:** None new.
-
 **Suggestions:** None.
-
-**Risk:** MEDIUM. This comes from the size of the move.
+**Risk:** LOW-MEDIUM (frame-loop rewrite; gated by verify-full).
 
 ### 08-13
 
-**Summary:** Snapshot codec, a strict parser, a validating `restoreWorld`, equality of live and restored worlds over 1,000 ticks, and world-hash equality across frame cadences.
-
+**Summary:** Snapshot codec (`snapshotWorld`/`parseWorldSnapshot`/`restoreWorld`), the 1,000-tick exact live-versus-restored equality, and the cross-cadence world hash with launch and arrival.
 **Strengths:**
-- The `Record<keyof Entity, …>` table ties the serializer and the codec together at compile time.
-- `restoreWorld` goes through the parser, so there is only one entry point.
-- Importing `SANITIZE_QUAT_TOLERANCE` from `./sanitize.js` already shows the right pattern for sharing a constant.
+- Refusing non-finite values before JSON, together with exact JSON equality, closes R4-1 and R4-10.
+- `restoreWorld` goes through the parser.
+- `restoreWorld` keeps the stored `nextId`, which is correct for per-world scope.
 
 **Concerns:**
-- **MEDIUM (A-1, continued):** `snapshot.ts` exports `MAX_SNAPSHOT_STRING_LENGTH`, `MAX_SNAPSHOT_PARAM_LENGTH` and `MAX_AI_PARAMS_KEYS` again (`08-13-PLAN.md:34,107`), the same names `sanitize.ts` exports. This is the third copy of the same domain, and auto-import can bind either one.
-- LOW: The cadence test (Task 3) carries its own lifecycle (bump-then-derive). That is unavoidable in wave 6, because `createWorldLifecycle` only arrives in 08-15. It is a second copy of the lifecycle rule, after the real lifecycle and before `tick-script.ts`.
+- LOW-MEDIUM (A5-1): the cadence test uses a test-local lifecycle that is never checked against 08-15's real one. This is unavoidable in Wave 6.
 
-**Suggestions:** Import the constants (and re-export them if Phase 11 should see a single "snapshot contract" module). Note in Task 3 that 08-16's tick-parity test is what checks the real lifecycle against a replay.
-
-**Risk:** MEDIUM
+**Suggestions:** Cross-reference A5-1. A follow-up case in 08-16 closes the gap.
+**Risk:** LOW-MEDIUM.
 
 ### 08-14
 
-**Summary:** Test flags read once, a manual-clock frame-loop branch, and `advanceTicks` sharing one drain path with `advanceFrame`.
+**Summary:** Test flags parsed once, a manual-clock frame-loop branch, and `advanceTicks` on the driver sharing one drain path with `advanceFrame`; the probe shape is unchanged.
+**Strengths:**
+- One drain path for both entry points.
+- The refusal rule has one owner (the driver), which 08-16 inherits.
+- `testFlags` gets a default in `createSessionState`.
+- Late-bound `markHookMutation` breaks the construction-order coupling between the publisher and the driver.
 
-**Strengths:** The shared private drain path stops the manual clock drifting from the realtime one (Pitfall 3). The hook is not touched until 08-16 (D-13).
-
-**Concerns:** None.
-
+**Concerns:** None new.
 **Suggestions:** None.
-
-**Risk:** LOW
+**Risk:** LOW.
 
 ### 08-15
 
-**Summary:** The single integration plan: a pure `world-lifecycle` module, the `stepSim` swap in `stepOnce`, a lifecycle subscriber on `launched`/`docked`, the arrival and restore bump points, D-05 parity, the anchored-save proof, and a hot-path cost check.
-
+**Summary:** The single integration: `stepOnce` calls `stepSim` with the live world; the world lifecycle (epoch bump points, `resetForRestore`, `resume`) is wired through the router, hyperspace, save and start-up; the anchored-save proof; a Node-importable guard; a step-cost benchmark.
 **Strengths:**
-- There is exactly one call to `stepSim` (D-14).
-- Equivalence of a warm Load and a cold Continue through `resetForRestore(0)` is proven in Node.
-- The no-`EntityId` gate on the lifecycle enforces the per-world id scope.
-- The anchored-save test now uses the real API (`save.ts:301,663`).
+- The world is read live on each step (gated against a factory-level alias).
+- The lifecycle has no per-world state beyond `world`/`epoch`, so no id can cross worlds.
+- Warm Load and cold Continue are proven equivalent in Node.
+- The durable purity guard protects the Playwright Node runner.
+- It does not edit `game-session.ts` (the router receives `ctx`).
 
 **Concerns:**
-- LOW (A-5): Lifecycle changes are spread across five modules: the router (`begin`/`end`), the hyperspace controller (`begin` inside the install block), `start-session` (create, `resume`, dispose `end`), the save controller (`resetForRestore` + `resume`/`end`), and the duplicate reaction in `tick-script.ts`. In addition, `begin` runs `populate` inside the arrival install block. In Phase 8 `populateNothing` cannot throw, but the Phase 12 populator can. If it throws after live references have moved, the "everything that can throw runs first" invariant of 08-10 breaks.
-- LOW (A-6): The purity of `world-lifecycle.ts` and `step-options.ts` matters because the Playwright Node runner imports them. It is enforced only by one-time `rg` acceptance gates (`08-15-PLAN.md:143`, `08-10-PLAN.md:173`). A later DOM import would only show up as a confusing Playwright import failure.
+- LOW (A5-2): `0xffffffff` is written inline in `world-lifecycle.ts` instead of importing `MAX_UINT32`.
+- LOW (A5-3): the conditional edit to `src/sim/world/step.ts` crosses D-14 ownership.
 
-**Suggestions:** Document in `world-lifecycle.ts` that a future populator must be split into a fallible prepare step that runs before the install block and a commit that cannot fail. Add a durable guard test, or an ESLint `files` block that reuses the sim import restrictions, for these two `src/app/session` files.
-
-**Risk:** MEDIUM
+**Suggestions:** Import `MAX_UINT32`. If the fast-path remedy fires, record the D-14 deviation and the re-proven 08-11/08-13 tests in the SUMMARY.
+**Risk:** MEDIUM (155k estimate; it changes the runtime path of every flight; gated by verify-full plus Firefox).
 
 ### 08-16
 
-**Summary:** The one additive probe commit (`probe.sim`, `worldHash`, `advanceTicks`) and hash parity between the browser and Vitest through `tick-script.ts`.
-
+**Summary:** One deliberate probe commit (`probe.sim`, `worldHash`, an always-present `advanceTicks`), the Node replay `tick-script.ts`, Vitest parity, the tick-hook browser spec, and the SC1/D-13 reconciliation in `PROJECT.md`.
 **Strengths:**
-- Every value in `probe.sim` is a primitive, read through `liveEntityCount`.
-- The hash is computed on demand.
-- The subtractive fixture diff proves the commit is additive.
-- The triangulation is sound: the real-driver Vitest run matches the replay, and the browser matches the replay, so the duplicated replay logic is checked.
+- The `createTestHook` signature avoids TS1016 (`profile: … | undefined`), and the call site is unique (`src/app/game-session.ts:1035`).
+- The narrowed store gate is verified to exit 1 on the current tree.
+- `probe.sim` exposes only primitives.
+- The criterion-5 scope is stated honestly: the browser world is empty.
 
 **Concerns:**
-- **HIGH (H-1): the acceptance gate `rg -n "world/store|\.store\b" src/app` cannot pass** (`08-16-PLAN.md:143`, Task 1 acceptance). `\.store\b` matches the IndexedDB save store `saveBoot.store`, which exists today at `src/app/game-session.ts:1167`, `:1341`, `:1490` and `:3345`, and which 08-08 and 08-12 move into `src/app/session/save-controller.ts` and `start-session.ts`. The gate fails on unrelated persistence code. An executor will either record a failed criterion or rename working save code to satisfy it, which goes beyond this plan's `files_modified`.
+- LOW-MEDIUM (A5-1): the replay and the session share `buildStepOptions`/`createWorldLifecycle`, as the plan itself states (`:167`), and no populated world is stepped through the real session path.
 
-**Suggestions:** Narrow the gate to what the rule means: `rg -n "sim/world/store(\.js)?\"|world\.store\b|\.store\.(live|get|allocate|kill|commit|nextId)\b" src/app` prints nothing. `saveBoot.store.read()` and similar calls do not match it. Mirror the corrected regex in threat `T-08-46` and in the Round 3 disposition row.
+**Suggestions:** Add the optional injected-populate cross-cadence case described in A5-1 to `tick-parity.test.ts`.
+**Risk:** LOW-MEDIUM.
 
-**Risk:** MEDIUM
+### Overall Risk Assessment
 
-### Cross-plan summary
+**LOW** on architecture.
+- The wave graph has no cycles and matches D-12/D-14.
+- No two plans in the same wave edit the same file.
+- The `src/sim` purity boundary and the AI zone are structurally sound.
+- The three Round 4 HIGH contract mismatches (the NaN/JSON domain, the `.store` gate, `advanceTicks`) and every other Round 4 consensus item are resolved in the plan text, with source-verified evidence.
 
-- **Layering:** sound. `src/sim` gets no Three or DOM import from any plan. The AI zone allows only type-only seams plus `ids` and `math`. `src/app` reaches the world only through `world.ts` (`liveEntityCount`, lifecycle), `serialize.ts` (`hashWorld`) and `sim.ts`.
-- **Waves:** no file collisions inside any wave. Every `depends_on` edge needed for interface use is present, directly or transitively. The critical path is the 9-wave split track, as designed.
-- **Contracts:** the validation domain has no single owner (A-1/A-2/A-3), one signature is stale (A-4), and one gate is broken (H-1). None of these changes wave structure or file ownership. The fixes are text edits to 08-05, 08-07, 08-10, 08-11, 08-13 and 08-16, and adding `limits.ts` to 08-05's `files_modified`.
-- **Phase goal:** criteria 1 to 5 are each owned by a plan with an executable proof. Criterion 3's "restored equals live" depends on the sanitize/parse domain agreeing; A-2 is the remaining hole there, and it is latent until Phase 12 spawns entities from content data.
+The remaining findings are LOW or LOW-MEDIUM hardening suggestions. The main execution risk is size: 08-05, 08-09, 08-11 and 08-15 run 130k-155k tokens against a 100k budget. The owner has accepted this, and per-task commits limit the damage of a context reset.
 
-### Verdict: NEEDS REVISION
-
-The change is small and targeted: fix the 08-16 `.store` gate (H-1); move the domain constants into one `src/sim/world/limits.ts` owned by 08-05 and imported by 08-11 and 08-13 (A-1); either validate the enum leaves at spawn or limit the sanitize/parse truth to the leaves it covers (A-2). A-3 to A-6 are optional hardening. Waves 1 to 4 can start once the 08-05 edits for A-1 and A-2 are in.
+**Verdict: READY**
 
 ---
 
 ## Behavioral Correctness Review (reviewer-correctness-opus)
 
 
-Round 4, plans at `0aa747a`. I checked the plans against the real source: `src/app/game-session.ts` (3365 lines), `src/app/probe.ts`, `src/persistence/{autosave,save}.ts`, `src/sim/{math,events,step}.ts`, `src/sim/flight/{state,launch}.ts`, `eslint.config.js`, `tests/app/redraw-gate.test.ts` and `tests/guards/economy-purity.test.ts`. I did not run the Docker gate, because this is a plan review.
+Lens: behavioural correctness. I checked whether the acceptance criteria, grep gates and tests can pass or fail as each plan claims, whether the game-session extraction preserves the current behaviour of `src/app/game-session.ts` (3365 lines at afc4fe0), and whether the "verbatim move" claims are true.
 
-### Round 3 resolution check
+All evidence was read from source at afc4fe0. I ran nothing in Docker. Every `rg` baseline below was run read-only against the tree.
 
-| R3 finding | Status | Evidence |
-|---|---|---|
-| 1. Post-spawn in-place mutation in the 08-13 fast-check | Resolved | `.planning/phases/08-session-split-and-world-core/08-13-PLAN.md:140` spawns valid entities (`radius = 10`, `specKey = "ship"`), then mutates every leaf in place before `sanitizeEntity`. |
-| 1. Counter, id and tick bounds aligned | Resolved | 08-05:137 (`tick`/`ownerId` in `0..0xffffffff`), 08-11:166-169 (saturating `repairs`), 08-13:26 (all counters in `0..0xffffffff`). |
-| 1. Quaternion tolerance in the parser | Resolved | 08-13:26,107 use `Math.abs(normSq - 1) <= SANITIZE_QUAT_TOLERANCE`. The rows for `1 + 5e-10` (accept) and `1e-200` (reject) are at 08-13:133. |
-| 1. String, array and key caps, nested arrays, proto keys on every object | Resolved | 08-13:26,133; 08-11:165,168; 08-05:137. |
-| 1. `restoreWorld` validates its input; `snapshotWorld` anti-alias test | Resolved | 08-13:22,107,138. |
-| 2. `snapshotForSave(inputs)` in the 08-15 anchored-save test | Resolved | 08-15:35,206 assert on `inputs` and `encodeSave(inputs)` directly. The Round 3 premise was partly wrong: `buildSnapshotInputs()` already returns the result of `snapshotForSave(...)` (`src/app/game-session.ts:1131-1152`), so `SaveInputs` is `{clockSeconds, credits, …}` (`src/persistence/save.ts:301-320`), not `{state, profile, …}`. The fix is right either way, and the 14-key allow-list at 08-15:206 matches `SaveInputs` exactly. |
-| 3. `createTestHook` `sim` parameter required; `probe.sim` anti-alias | Resolved in the spec, but the new gate cannot pass (see 08-16 H1). | 08-16:125,162 |
-| 4. `1e12` vs `1e9` wording, `1e308` and `.slice()` wording | Resolved | 08-11:162, 08-05:137, 08-13:107,133 |
-| 5. Allocate row at `2 ** 32`; Reflect and `.sort.apply`/`.bind` probes; listener `signal`; line anchors | Resolved | 08-05:180,186; 08-03:141-143; 08-12:117,120. I checked the anchors against the source: the four `pending.length = 0;` sites are at `:2738/:2749/:2773/:2859`, the listeners at `:2268/:2289` (both already pass `signal: uiController.signal`), `onLaunchKeyDown` at `:2279`, `swapSystem` at `:3284`, `handleEvent` at `:2294`, `syncStatusOverlay`'s `getElementById` at `:2161`, and step options at `:2814`. There are exactly 14 `SimEvent` kinds (`src/sim/events.ts:28-54`). The literal counts at 08-12:120 match the source: `redrawGate.request();` ×5, `generateMarket(` ×3, `stepFlight(` ×1. |
+### Round 4 consensus check
 
-All Round 3 findings are addressed in the plan text. New findings follow, per plan.
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| 1 | NaN in `ai.params` cannot be "rejected after JSON" | **Resolved** | `08-13-PLAN.md:115`: `snapshotWorld` walks every number leaf and throws `SnapshotError("non-finite")`. `:151`: refusal rows. `:155`: post-JSON rows limited to number slots and array elements; a scalar `null` is accepted. `:154`: the generator yields `null`/`true`/`false`. `:172`: gate `fc\.(constant\|constantFrom\|boolean)\(`. `08-05-PLAN.md:148`: the `ParamValue` domain doc. |
+| 2 | The `\.store\b` gate can never print nothing | **Resolved** | `08-16-PLAN.md` Task 1 acceptance: the new regex `sim/world/store\|world\??\.store\b\|\.store\??\.(live\|get\|allocate\|kill\|commit\|nextId)\b\|\bEntityStore\b`. I ran it against `src/app` and it prints nothing. The save-store uses at `game-session.ts:1167,1341,1490,3345` are `.read/.clear/.dispose` or a bare `saveBoot.store` argument, so none matches. |
+| 3 | `advanceTicks` is undefined outside the manual clock | **Resolved** | `08-16-PLAN.md:126` (Task 1 step 1): both members are required and always present, and outside the manual clock the call refuses. `08-01-PLAN.md:138`: the standing contract is written into the spec header. Fixture gate: `testHookDocked.test.advanceTicks === "function"`. |
+| 4 | Shared limits defined three times | **Resolved** | `08-05-PLAN.md:146` adds `limits.ts`. `:185`: the redefinition gate. I checked its baseline: no match today, and `src/sim/ai` is absent. `08-11` Task 2 acceptance and `08-13` Task 1 acceptance repeat the gate. The planned constants (`MAX_ENTITIES = 256`, `MAX_AI_QUEUE_LENGTH = 4096`, `THINK_INTERVAL_TICKS = 15`, `TICKS_PER_SECOND = 120`) do not collide with its `\b` alternation. |
+| 5 | Enum leaves not checked or repaired; `registry[aiKey]` | **Resolved** | Spawn: `08-05-PLAN.md:30,211`. Sanitize rule 9: `08-11-PLAN.md` Task 2 behaviour item 9. `aiModuleFor` with `Object.hasOwn`, plus the gate `registry\[[^\]]+\]\.(think\|onEvent)`: `08-11` Task 1 acceptance. Case (d) uses four prototype names. |
+| 6 | Quaternions that pass spawn or sanitize can fail the parser | **Resolved** | `MIN_QUAT_NORM_SQ = 1e-12`, plus a re-check after normalising (`08-11` rule 2). Spawn requires a unit quaternion (`08-05-PLAN.md:157`). I checked the arithmetic: `{w:7e-158}` gives normSq ≈ 4.9e-315, which is below 1e-12, so it becomes identity. `{w:1e-5}` normalises to exactly `w = 1` (`src/sim/math.ts:53-57`). `{w:1+2.5e-10}` has \|normSq−1\| = 5e-10, which is inside the 1e-9 tolerance. |
+| 7 | `worldSeed` never checked as uint32 | **Resolved** | `08-05-PLAN.md:212` (`createWorld` throws RangeError). The parser half is at `08-13-PLAN.md:26,143`. |
+| 8 | `createEventRouter` signature contradiction | **Resolved** | `08-10-PLAN.md:40,158`, `08-15-PLAN.md:108,133`: every mention reads `(ctx, subscribers)`. Gate: `ctx\?: SessionState` must not appear. |
+| 9 | Lint guard gaps | **Resolved** | `08-03` Task 2 adds `no-eval`, `no-new-func`, `no-implied-eval`, `Intl`, `localeCompare`, the computed sort/call forms, and `sort(undefined)`. The baselines it states (`no-eval`/`no-new-func`/`localeCompare`/`Intl` = 1; `property.value=` and `no-implied-eval` = 0) match `eslint.config.js` today. `08-09` Task 3 adds `importNames` and `AI_MODULE_STATE_BANS`. `08-02` Task 3 adds the import-aware scan; `arrival.ts:30` matches its regex. |
+| 10 | Restore check uses a rounded hash | **Resolved** | `08-13-PLAN.md:116`: exact `JSON.stringify(snapshotWorld(...))` and `toStrictEqual` at every checkpoint, with a gate. |
+| 11 | AI event drain limits passes, not deliveries | **Resolved** | `08-11` Task 2: `MAX_AI_EVENTS_PER_DRAIN = 4096` and `MAX_AI_QUEUE_LENGTH = 4096`, with a conservation-law test row. |
+| 12 | `ShipControl` accepts out-of-domain values | **Resolved** | `08-07-PLAN.md:117`: the seam ignores values outside the domain, using `limits.js`. Task 2 has the domain rows. |
+| 13 | No Firefox run | **Resolved** | `08-12-PLAN.md:123,137`; `08-15-PLAN.md:216,232`. |
+| 14 | Verbatim deviations, best-of-N, stale anchors | **Resolved** | `08-08-PLAN.md:146,165`; `08-12-PLAN.md:118,137`; `08-15-PLAN.md:214` (best of 3); `08-04` executor brief ("locate every site by name"). |
+
+All 14 are resolved in the plan text.
+
+### New findings (summary)
+
+1. **MEDIUM (`08-15` Task 1 step 4 vs `08-01` Task 2 step 4 and `tests/guards/economy-purity.test.ts:201-207,350-352`): the `worldLifecycle` subscriber can land inside the cut of the economy-purity "docked arm".**
+   - `switchCaseBody` cuts from `case "docked":` to the next `\n\s*case\s+["']` in that file, or to the end of the file.
+   - In 08-10's `event-router.ts`, `docked` is the last case of the stationFlow switch (source order is launched, launchComplete, docked; see `game-session.ts:2296-2353`). The cut therefore runs into whatever code follows, up to the first `case` label of the next switch.
+   - 08-15 places the `worldLifecycle` subscriber "right after `stationFlow`" and calls `begin(ctx.core.marketSeed)` only "when `ctx.core.marketSeed` is a number". The natural spelling, `typeof ctx.core.marketSeed === "number"`, matches the guard's `/\bmarketSeed\s*=/`, because `\s*=` matches the first `=` of `===`. So does `const marketSeed = ctx.core.marketSeed`.
+   - If that code sits physically between the stationFlow switch and the hudMessages switch, `docked).not.toMatch(/\bmarketSeed\s*=/)` fails. It is a false failure: the docked arm itself never re-seeds.
+   - The executor may not edit the scan (FOUND-10 prohibition), so they must find the cause.
+   - **Fix:** in 08-15, require the `worldLifecycle` subscriber to be declared after every other subscriber's `case` labels (or before the stationFlow switch). Alternatively, read the seed with a spelling that cannot match, for example `const seed = ctx.core.marketSeed; if (seed !== undefined) …begin(seed)`. Add an acceptance line: `docker compose run --rm test npx vitest run tests/guards/economy-purity.test.ts` passes, and the SUMMARY names where the subscriber sits relative to the `case "docked":` arm.
+
+2. **MEDIUM (`08-06` Task 2 step 5 and `must_haves` truth 4): "closing the chart requests a redraw" is false for the function being moved.**
+   - `closeChart` (`game-session.ts:1851-1860`) never calls `redrawGate.request()`.
+   - The five request sites are `:1041` (hook taint), `:2740` (chart-open freeze branch in `frame()`), `:2751` (save-screen freeze), `:3255` (`resize`) and `:3361` (`shown`). The comment in `tests/app/redraw-gate.test.ts:139-141` confirms this list.
+   - The redraw after the chart closes comes from the freeze branch requesting on every open-chart frame.
+   - The planned unit test therefore has two possible outcomes:
+     - (a) It passes vacuously. A fresh `createRedrawGate` returns `true` on its first `next()`, because `seen === undefined` (`src/app/redraw-gate.ts`).
+     - (b) If the test first settles the gate, it fails against the verbatim body.
+   - An executor who "fixes" this by adding a request in `closeChart` breaks the pinned count of five.
+   - **Fix:** rewrite the row as "`closeChart` sets `chartOpen` false, restores the input context and resets the loop". Move the redraw property to `08-12`'s frame-order test: a chart-open frame calls `redrawGate.request()`, so the first frame after closing draws.
+
+3. **LOW (`08-04` Task 1 step 1 and the interfaces block): the context field list misses two closure-level `let`s.**
+   - The list of 75 names omits `equipmentSetSource` and `equipmentSetCache` (`game-session.ts:576-577`).
+   - The interfaces block says "77 closure-level lets 365-490", but 75 are in 356-490 and two are at 576-577.
+   - The `! rg -q "^  let "` gate (baseline 77, confirmed) forces both to move. The plan's fallback ("if a let is missing, add it") covers this, so the risk is low.
+   - **Fix:** name both, in the core group (or as a memo inside the station controller, which 08-08 says "keeps its caching"), and correct the anchor text.
+
+4. **LOW (`08-04` Task 1): a local `ctx` shadows the new session `ctx`.**
+   - `confirmFit` (`game-session.ts:769`) and the `onRefuel` callback (`:3232`) declare `const ctx = fitContext();` after reads of session fields in the same block (`stationScreen`, `equipmentCatalogue`, `profile`, `stationPending`).
+   - After the rewrite to `ctx.station.*` and `ctx.core.*`, those reads refer to the block-scoped FitContext and hit the TDZ, so typecheck fails with TS2448/TS2339. The plan does not name the collision.
+   - This is a forced rename inside a "verbatim" body.
+   - **Fix:** tell the executor to rename the local (for example `fit`) and list it in the SUMMARY.
+
+5. **LOW (`08-04` Task 2 step 2): the order wording is reversed relative to the source.**
+   - The plan says the hook callback "keeps `redrawGate.request();` and the taint assignment in that order".
+   - The source order is the taint first (`testTainted = true`, `:1039`) and then the request (`:1041`).
+   - **Fix:** say "the taint assignment, then `redrawGate.request();`".
+
+6. **LOW (`08-12` Task 1 acceptance, last bullet): the listener gate counts every mention of `uiController.signal`.**
+   - The gate requires the count of `addEventListener(` to equal the count of `uiController\.signal` across the facade and the session modules.
+   - Today both counts are 2 (`:2268-2271`, `:2289-2292`). Any doc comment, or any extra use of `uiController.signal` (for example passing it to a sub-panel), breaks the equality even though every listener is correct.
+   - **Fix:** count `signal: (deps\.|ctx\.runtime\.)?uiController\.signal` and compare that with `addEventListener(`.
+
+7. **LOW (`08-14` Task 2, the "manual-clock frame" row): the "no drainCommands" assertion is vacuous.**
+   - At frame-loop level, `drainCommands` is called only by the sim driver (since 08-10) and by the paused or freeze branches. With a sim-driver double, a normal realtime frame records no `drainCommands` either.
+   - The meaningful assertion is "no `advanceFrame`".
+   - **Fix:** keep the `advanceFrame` and alpha-1 assertions and drop the `drainCommands` claim. Alternatively, drive the real sim driver in that row.
+
+8. **Note (`08-08` Task 2 guard iii, no change needed):** the new `disposed` early return at the top of `queueSnapshot`'s `.then` skips `manualSavePending = false` and the committed counters after dispose. Today those still update (`game-session.ts:1168-1194`), and only `renderStation` is guarded. Nothing reads them after dispose (`probe.save` is deleted at `:3343`). The plan already records this as a deliberate deviation, which is correct.
+
+---
 
 ### 08-01
-**Summary:** Adds the probe-shape freeze and re-points the text scans at a helper that concatenates the session sources.
+
+**Summary:** The probe-shape pin and the session-source helper (step 0).
+
 **Strengths:**
-- Strict empty-array matching. `PROBE_SHAPE_VOLATILE_EMPTY_ARRAY_PATHS` starts empty and is tested in both directions (08-01:142-143).
-- The base commit `5b189e4` exists, and `git diff 5b189e4 HEAD -- src` is empty, so the `src/app`-unchanged gate (08-01:174) holds.
-- The scans being re-pointed are exactly the regexes and counts in `tests/guards/economy-purity.test.ts:320-353` and `tests/app/redraw-gate.test.ts:112-140`.
+- Every scan baseline holds:
+  - `readFileSync("src/app/game-session.ts"` occurs once in `redraw-gate.test.ts` (`:113`).
+  - `"src", "app", "game-session.ts"` occurs twice in `economy-purity.test.ts` (`:312`, `:322`).
+  - `case "docked":` occurs once (`:2321`).
+  - `renderFrame(alpha, shouldDraw())` occurs once (`:2863`).
+- The 21 optional `WegoliteProbe` keys in the audit gate match `src/app/probe.ts` exactly.
+- Cutting the docked arm from the one file that holds the label is correct for the step-0 tree.
 
-**Concerns:** None new.
+**Concerns:**
+- LOW: the economy-purity scan of `sessionSource()` and the redraw-gate scan do not strip comments. A later module doc comment that mentions `performance.now`, `renderFrame(alpha, …)` or `generateMarket(` changes the verdict. This is pre-existing behaviour, but the split adds about ten new files.
 
-**Risk:** LOW
+**Suggestions:** Add one line to the executor brief of each split plan: "do not quote pinned literals in comments".
+
+**Risk:** LOW.
 
 ### 08-02
-**Summary:** Pins the v1 flight hashes and RNG vectors, adds the serialisable mulberry32 stream and the `mix32` world and fork seeds.
+
+**Summary:** Flight-hash pins, `RngState`, mix32, and the `createSeededRandom` delegation.
+
 **Strengths:**
-- `createSeededRandom` (`src/sim/math.ts:227-235`) is a pure mulberry32 closure, so delegating it to `rngNext` over a plain `s` state is bit-exact.
-- The only `src/sim` caller is `src/sim/hyperspace/arrival.ts:73`, as the plan's scan claims. The render callers sit outside `src/sim`.
-- `hashFlight` returns a string (`src/sim/flight/state.ts:181`), which matches the `worldHash(): string` used later.
+- The interfaces quote `createSeededRandom` exactly (`src/sim/math.ts:227-237`).
+- `arrival.ts:73` is the only call outside `math.ts`, and `arrival.ts:15` has no parenthesis, so the gate prints one line.
+- The "1,000 distinct" rows are guaranteed, not probabilistic: `mix32` is a bijection in each argument, and the composition of bijections in epoch, then id, then purpose is a bijection.
+- `LAUNCH_DURATION = 2` (240 steps) and `"g0-s55"` (Leesti) are confirmed.
 
-**Concerns:** None.
+**Concerns:** None new.
 
-**Risk:** LOW (the owner checkpoint covers the one-way door).
+**Risk:** LOW.
 
 ### 08-03
-**Summary:** Adds the determinism lint bans with probes.
+
+**Summary:** Determinism lint bans and the entity-id scope guard.
+
 **Strengths:**
-- No `src/sim` file uses `Reflect`, `globalThis`, `self`, a bare `.sort()` or `toSorted()`, or a Math alias (rg over `src/sim`; the `= Math` hits are calls like `Math.trunc`, not aliases).
-- The Reflect selectors (08-03:141) cover `Reflect["get"]` through `[computed=true]`.
+- The stated baselines hold, and no file in `src/sim` uses `globalThis`, `self`, `process`, timers, `for..in`, bare sort, `Date` or `Reflect` (rg confirms). The new bans therefore cannot fail on existing code.
+- My count of the listed probes is 43, which meets the ≥ 42 floor.
+- The real-tree floor of 50 is met: there are 90 `.ts` files outside `src/sim`, and none names `EntityId`.
 
-**Concerns:**
-- LOW: `MemberExpression[object.property.name=/^(sort|toSorted)$/][property.name=/^(call|apply|bind)$/]` misses the computed form `Array.prototype.sort["call"]`. Add it to the documented residuals or match `property.value` too.
+**Concerns:** None new.
 
-**Risk:** LOW
+**Risk:** LOW.
 
 ### 08-04
-**Summary:** Split steps 1-2: the typed context and the first controller.
-**Strengths:** The `^  (const|let) … = ctx.` alias guard (08-04:119,131) is a sound textual check against closure-level captures of live fields.
 
-**Concerns:** None new.
+**Summary:** Split steps 1 and 2 (context and probe publisher).
 
-**Risk:** LOW
+**Strengths:**
+- The export baseline of 9 and the closure-level `let` baseline of 77 are confirmed.
+- `updateProbe` publishes `spanY: 2 * chartCamera.spanX` (`:2427`) and `probe.test.tainted = testTainted` (`:2487`), so the publisher unit-test rows are satisfiable.
+- `setSpeed(NaN)` returns before tainting (`probe.ts:407`).
+
+**Concerns:** Findings 3 and 4 (LOW: missing `let`s, `ctx` shadowing) and finding 5 (LOW: reversed order wording).
+
+**Suggestions:** As in those findings.
+
+**Risk:** LOW.
 
 ### 08-05
-**Summary:** Builds the world foundation: ids, entities, the store, the five statics and the world hash.
+
+**Summary:** The world core: ids, limits, store, world, serialize.
+
 **Strengths:**
-- `hashWorld` is composed over the unchanged `serializeFlight`, with an empty section while `isNeverSpawned` holds, which keeps D-08.
-- The allocate refusal at `2 ** 32` is unit-pinned (08-05:180).
-- `liveEntityCount` is exported for 08-16 (08-05:137).
+- `OOBehaviour.tbl` has 39 entries and `OOScanClass.tbl` has 16 (checked in the Oolite checkout).
+- The limit redefinition gate has a clean baseline.
+- The spawn rows agree with sanitize and the parser.
 
-**Concerns:**
-- MEDIUM (domain drift): the shared caps are defined in three places:
-  - 08-05 hard-codes `128`, `1e12`, `32` and `64` inside `spawnEntity` (08-05:137);
-  - 08-11 exports `MAX_ENTITY_MAGNITUDE` and `MAX_SNAPSHOT_*` from `sanitize.ts` (08-11:45,277);
-  - 08-13 exports `MAX_SNAPSHOT_MAGNITUDE`, `MAX_SNAPSHOT_STRING_LENGTH`, `MAX_SNAPSHOT_PARAM_LENGTH` and `MAX_AI_PARAMS_KEYS` again from `snapshot.ts` (08-13:34,107).
+**Concerns:** None new.
 
-  The Round 3 alignment holds today only because the literals happen to match. Define them once in 08-05 (for example in `src/sim/world/limits.ts` or `ids.ts`) and import them in `world.ts`, `sanitize.ts` and `snapshot.ts`. Gate this with `rg -c "= 128\b|= 1e12\b" src/sim/world/{sanitize,snapshot}.ts` printing nothing.
-- LOW: `spawnEntity` checks that the orientation is finite and has `normSq > 0`, but not that it is a unit quaternion (08-05:137). `parseWorldSnapshot` requires `|normSq-1| <= 1e-9` (08-13:26). Two consequences:
-  - An entity spawned with `{w:2,…}` and snapshotted before its first `stepWorld`/`sanitizeEntity` is refused by the parser.
-  - The first update tick moves it by a non-unit forward axis.
-
-  Normalise at spawn (`normalize(init.orientation)`), or reject outside the tolerance, so all three domains agree.
-
-**Risk:** MEDIUM
+**Risk:** LOW.
 
 ### 08-06
-**Summary:** Split steps 3-4: the render driver and the chart and settings controllers.
-**Strengths:** The alias guard on `render-driver.ts` (08-06:112,125).
 
-**Concerns:** None new.
+**Summary:** Split steps 3 and 4 (render driver, chart and settings controllers).
 
-**Risk:** LOW
+**Strengths:**
+- The render-driver unit rows match the real gate semantics (`redraw-gate.ts` `next`/`drawn`/`request`).
+- There are two `addEventListener` sites today, both at closure level, and they correctly stay in place.
+
+**Concerns:**
+- MEDIUM, finding 2: the `closeChart` redraw row is vacuous or impossible.
+- LOW: the `focusLost` row ("pauses only when pauseOnFocusLoss is on") omits that `settings === undefined` also pauses (`:1527`). A test that leaves `settings` undefined will see a pause.
+
+**Suggestions:** As in finding 2. Set `ctx.runtime.settings` explicitly in the `focusLost` row.
+
+**Risk:** MEDIUM until reworded.
 
 ### 08-07
-**Summary:** The AI seam: a read-only `WorldView` and a write-only `ShipControl`.
+
+**Summary:** The `WorldView` and `ShipControl` seam.
+
 **Strengths:**
-- The view takes the player per call (G-8).
-- The `Record<keyof …>` member pins.
-- The station orientation is cross-checked against `src/render/bodies/station.ts:210-215`.
+- `mul` and `axisAngle` exist in `math.ts`.
+- The renderer composes base and roll in that order (`src/render/bodies/station.ts:211-214`).
+- Using three.js in tests has precedent (`tests/sim/aegis.test.ts`).
 
 **Concerns:** None new.
 
-**Risk:** LOW
+**Risk:** LOW.
 
 ### 08-08
-**Summary:** Split steps 5-6: the station and save controllers.
-**Strengths:** The existing post-`await` guard `if (disposed || !saveScreenOpen) return;` is real (`src/app/game-session.ts:1341-1344`) and is kept.
+
+**Summary:** Split steps 5 and 6 (station and save controllers).
+
+**Strengths:**
+- The guard order in `autosave` (`:1208-1236`) is attempts, then contextLost, then canOverwrite, then tainted. This matches the truth.
+- The post-read `disposed || !saveScreenOpen` check exists (`:1344`).
+- The deviations are recorded.
 
 **Concerns:**
-- LOW: 08-08:144 items (ii) and (iii) add new `disposed` short-circuits after `await saveBoot.store.clear(...)` (`src/app/game-session.ts:1490`) and in `queueSnapshot`'s `.then`. Neither exists today, and both sit inside a commit described as a verbatim move. They are harmless to v1 play, because they only act after dispose. Record them as deliberate deviations in the SUMMARY so a bisect does not attribute them to the move.
+- LOW: the "tainted" row needs a fake `saveStatus` for which `canOverwrite` is true. Otherwise the skip reason is the status reason, not "tainted".
+- Finding 8 is a note only.
 
-**Risk:** LOW
+**Risk:** LOW.
 
 ### 08-09
-**Summary:** AI types, integer tick timers, the registry, the scripted test pilot and the AI lint zone.
-**Strengths:** Recursive zone globs, a sealed re-export surface, and inherited bans proven inside the zone.
 
-**Concerns:**
-- LOW: the zone lets AI modules import `sim math`, and `src/sim/math.ts:227` exports `createSeededRandom`, a closure-held random source. That contradicts the truth "the pilot … imports no random source" (08-09 truths). The 08-02 scan catches a `createSeededRandom(` call, but not an aliased import (`import { createSeededRandom as r }`). Add `importNames: ["createSeededRandom"]` to the zone's `no-restricted-imports` for `math.js`, with one probe.
+**Summary:** The AI zone and the test pilot.
 
-**Risk:** LOW
+**Strengths:**
+- `AI_THINK_INTERVAL 0.125` (`oolite/src/Core/AI.h:31`) × 120 = 15.
+- The positive control `as const` arrays parse as `TSAsExpression` and escape the state-ban selectors as intended.
+- The depth-3 glob `src/sim/ai/*/*/**/*.ts` matches depth 3 and deeper only.
+
+**Concerns:** None new.
+
+**Risk:** LOW.
 
 ### 08-10
-**Summary:** Split steps 7-8: the hyperspace controller, the event router and the sim driver.
+
+**Summary:** Split steps 7 and 8 (hyperspace controller, router, sim driver, step-options).
+
 **Strengths:**
-- The 14-kind `EVENT_KIND_SUBSCRIBER` map matches `src/sim/events.ts`.
-- The step-option parity cases are written against `game-session.ts:2814-2836`.
-- The pre-launch autosave cases match the real drain at `:2763-2781`.
+- The 14 kinds and the four subscriber groups match the `handleEvent` arms (`:2294-2410`).
+- The `pending.length = 0;` count of 4 is right (`:2738`, `:2749`, `:2773`, `:2859`).
+- `stepFlight(` has one call site (`:2837`).
+- The arrival failure path leaves profile, market, seed and target untouched (`:2105-2124`).
 
-**Concerns:** None new.
+**Concerns:**
+- Finding 1 originates here. Because `docked` ends up last in the stationFlow switch, any code placed after that switch falls into the economy-purity cut until the next `case` label. 08-10 itself is safe, since nothing market-related lives there yet.
 
-**Risk:** LOW
+**Suggestions:** Pin in 08-10 that the stationFlow switch is followed directly by a subscriber that has `case` labels, or note the constraint for 08-15.
+
+**Risk:** LOW.
 
 ### 08-11
-**Summary:** The world step, the AI queue, the sanitiser and the reserved events.
+
+**Summary:** `stepWorld`, AI events, sanitize, and the reserved events.
+
 **Strengths:**
-- `sanitizeEntity`'s output domain now matches the parser row for row: radius in `(0, 1e12]`, `specKey` of 1-128 characters, counters in `0..0xffffffff`, renormalisation outside 1e-9, and `repairs` saturating.
-- The table test has a repairs-delta column.
+- The sanitize table rows agree with the parser domain in every leaf I traced (magnitude, tolerance, enums, timers).
+- The wake case arithmetic (T+2 → `nextThinkTick` T+17) is consistent with 08-09's re-arm rule.
 
-**Concerns:** See 08-05 MEDIUM (the duplicated constants).
+**Concerns:** None new.
 
-**Risk:** LOW
-
-### 08-13
-**Summary:** The snapshot codec, the 1,000-tick live-versus-restored equality and the world cadence test.
-**Strengths:**
-- The Round 3 non-vacuity fix is in place.
-- `restoreWorld` validates through `parseWorldSnapshot`.
-- An exhaustive `ENTITY_FIELDS` table.
-- `snapshot.rng === world.rng.s` is asserted.
-
-**Concerns:**
-- HIGH (an assertion that cannot pass as written): the converse check at 08-13:140 says that a NaN mutated into `position`, `radius` **or `ai.params`**, without sanitising, "is refused by `parseWorldSnapshot` after JSON (`null` in a number slot)". For a scalar `ai.params` value, `JSON.stringify(NaN)` gives `null`, and `null` is a legal `ParamValue` (`null | boolean | number | string | …[]`, 08-05:137 step 2). The parser does not reject it (08-13:26 lists no null-param rejection). So that variant either fails, or pushes the implementer to reject `null` params and break the `ParamValue` round trip. Fix one of two ways:
-  - restrict the `ai.params` variant to a NaN element inside a param **array**, and state that a `null` array element is rejected, because elements are `number | string`;
-  - or have `snapshotWorld` refuse non-finite numbers itself, with its own reason (`non-finite`), before JSON.
-- LOW: the `ENTITY_FIELDS` row for `orientation` must use a mutation that stays unit within 1e-9, or "reproduce the mutated value exactly" fails at the parser. State this in the row guidance.
-- LOW: the parser spec does not say whether `boolean` or `null` elements inside a param array are rejected. `sanitizeEntity` filters them out (08-11:168), so the parser should reject them, and a row should pin that.
-
-**Risk:** MEDIUM
+**Risk:** LOW.
 
 ### 08-12
-**Summary:** Split step 9: the frame loop, the start-up wiring and the thin facade.
+
+**Summary:** Split step 9 (frame loop, start-session, facade).
+
 **Strengths:**
-- The pinned-literal audit counts match the source exactly.
-- No timers in `src/app` today (rg returns nothing), so the gate at 08-12:141 can pass.
-- Both listeners already pass `signal: uiController.signal`.
+- The frame-order assertions match `frame()` (`:2699-2864`): pause toggle, chart drain, save drain, freeze branches with `pending.length = 0`, station actions, sim, then render. The paused branch does render.
+- After `dispose`, `swapSystem`'s second `renderFrame(0)` is already a no-op (`state = undefined`, `:3337`), so the guard is safe.
 
 **Concerns:**
-- LOW: the `swapSystem` change (08-12:117) tracks the settlement rAF and resolves it on abort, which goes beyond a verbatim move (`src/app/game-session.ts:3284-3294`). It is acceptable, but should be recorded as a deliberate deviation.
+- LOW, finding 6: the `uiController.signal` count equality.
 
-**Risk:** LOW
+**Risk:** LOW.
+
+### 08-13
+
+**Summary:** The snapshot codec and the cadence test.
+
+**Strengths:**
+- The parser, sanitize and spawn domains are mutually consistent, including the acceptance of `nextId = 2**32` and the tolerance row.
+- The cadence replay follows the tick-indexed precedent (`tests/sim/flight-cadence.test.ts:3-10`).
+
+**Concerns:** None new.
+
+**Risk:** LOW.
 
 ### 08-14
-**Summary:** Test flags and the manual-clock sim driver with `advanceTicks`.
+
+**Summary:** Test flags, the manual clock and `advanceTicks`.
+
 **Strengths:**
-- `parseTestFlags` replaces the existing exact `get("test") === "1"` read (`src/app/game-session.ts:3185`).
-- The manual branch keeps the station-action drain (`:2757-2760`), so a launch click lands in `pending` and the next `advanceTicks` drains it.
-- The docked tick advances under the realtime clock, because `loop.advance` runs in every non-paused mode (`:2763-2795`). This supports 08-16 case (c).
-
-**Concerns:** None new.
-
-**Risk:** LOW
-
-### 08-15
-**Summary:** The single integration plan: world lifecycle, epoch bump points and the anchored-save check.
-**Strengths:**
-- The anchored-save test is now type-correct against `encodeSave(inputs: SaveInputs): string` (`src/persistence/save.ts:663`).
-- The `stepFlight(` count in `src/app` goes from 1 to 0, and no existing test pins `stepFlight` in session source (the redraw-gate and economy-purity scans do not reference it).
-- The empty-world performance bound is realistic: an empty `stepWorld` does no per-entity work.
-
-**Concerns:** None new.
-
-**Risk:** LOW
-
-### 08-16
-**Summary:** The one deliberate probe commit: `probe.sim`, `worldHash` and `advanceTicks`, plus browser/Vitest parity.
-**Strengths:**
-- `createTestHook` gets a required fifth parameter, and there is one call site today (`src/app/game-session.ts:1035`, which moves to `probe-publisher.ts`).
-- `worldHash(): string` matches `hashFlight`'s string return.
-- `probe.sim` is published only inside `if (currentState !== undefined)`.
-- 600 ticks clear the 2 s (240-tick) launch (`src/sim/flight/launch.ts:23`, `src/sim/step.ts:8`).
+- There is exactly one `new URLSearchParams` today (`:3185`).
+- Moving the flag read earlier is behaviour-neutral, because `testHookEnabled` is otherwise read only in `loadFromSave` (`:1418`).
+- Taint equivalence holds through `updateProbe`'s `probe.test.tainted = testTainted`.
 
 **Concerns:**
-- HIGH (an acceptance criterion that cannot pass): 08-16:143 requires `rg -n "world/store|\.store\b" src/app` to print nothing and exit 1. `\.store\b` already matches four lines of save-boot code: `saveBoot.store` at `src/app/game-session.ts:1167`, `:1341`, `:1490` and `:3345`. 08-08:144 moves that code into `src/app/session/save-controller.ts` while keeping `saveBoot.store.read()`, so the gate fails on the persistence store and has nothing to do with the world store. Narrow it to `rg -n "sim/world/store|world\.store\b|worldLifecycle[^;]*\.store\b" src/app`, or ban the import with an ESLint `no-restricted-imports` pattern `**/sim/world/store*` scoped to `src/app/**`.
+- LOW, finding 7: the `drainCommands` assertion is vacuous.
 
-**Risk:** MEDIUM. The fix is trivial, but an executor that hits the gate would either rename save code or weaken the gate on the spot.
+**Risk:** LOW.
 
-### Overall
+### 08-15
 
-All Round 3 findings are resolved in the plan text, and the line anchors and literal counts are accurate against the current source. Three new correctness defects remain:
-1. 08-16:143: the `\.store\b` gate collides with `saveBoot.store` and cannot pass.
-2. 08-13:140: the converse-NaN check for a scalar `ai.params` value cannot pass, because a JSON-nulled NaN is a legal `null` `ParamValue`.
-3. 08-05, 08-11 and 08-13: the domain caps are defined three times. They should come from one module to keep the Round 3 alignment from drifting.
+**Summary:** World lifecycle integration.
 
-There are also minor items: spawn-time quaternion normalisation (08-05), the `createSeededRandom` import in the AI zone (08-09), and deviations from the verbatim move to record (08-08, 08-12). None of this affects v1 play. The fixes are small text edits.
+**Strengths:**
+- The epoch sequence `[1,1,2,3,3]` and the reset-on-load semantics are internally consistent.
+- `marketSeed` is always set at boot (`:3026`).
 
-**Verdict: NEEDS REVISION** (targeted edits to 08-16 and 08-13, plus the 08-05 constants module; no architectural change).
+**Concerns:**
+- MEDIUM, finding 1: placing the subscriber against the economy-purity docked-arm cut.
+
+**Risk:** MEDIUM until the placement or spelling rule is added.
+
+### 08-16
+
+**Summary:** The deliberate probe commit and tick parity.
+
+**Strengths:**
+- The narrowed store gate is clean at HEAD.
+- The flag inertness row matches the 08-14 table (`?clock=manual&traffic=0` gives `{false, false, true}`).
+- The `advanceTicks` contract is consistent with 08-01.
+
+**Concerns:** None new.
+
+**Risk:** LOW.
+
+---
+
+### Overall Risk Assessment: LOW-MEDIUM
+
+All 14 Round 4 items are resolved. Two new MEDIUM findings are targeted text edits:
+- 08-15/08-10: the subscriber placement can trigger a false failure of a frozen scan.
+- 08-06: the `closeChart` redraw test is vacuous or impossible.
+
+Five LOW wording and gate-precision items remain. There are no wave, ownership or layering problems.
+
+**Verdict: NEEDS REVISION** (minor: two text edits before 08-06 and 08-15 execute).
 
 ---
 
 ## Algorithm & Determinism Review (reviewer-algorithm-opus)
 
 
-Round 4 review of the Phase 8 plans at commit `0aa747a`. Lens: seeded RNG streams and forking, uint32 arithmetic, world hashing, fixed-timestep stepping, entity id allocation, numeric bounds and sanitising, and fast-check soundness.
+Commit reviewed: `afc4fe0`. Lens: fixed-timestep determinism, seeded RNG and forking, hashing and canonicalization, numeric edge cases (NaN, -0, quaternions, float rounding, bounds), snapshot and restore equivalence, complexity bounds.
 
-Evidence base: every plan file was read from disk (the algorithm-heavy plans 08-02, 08-05, 08-11 and 08-13 in full; the split-track plans through their must-haves and tasks). The claims were checked against `src/sim/hash.ts:13-35` (fnv1a32, canon), `src/sim/math.ts:53-57` (quaternion `normalize`) and `:227-237` (mulberry32), `src/sim/flight/sanitize.ts:50-63`, `src/persistence/save.ts:123,301-320,663` and `src/persistence/autosave.ts:66-74`, and `src/app/game-session.ts:1131-1153`. Two arithmetic claims were checked in the test container: `docker compose run --rm -v <scratchpad>/algo:/scratch test node /scratch/q.mjs`. The output is quoted under 08-11 and 08-13.
+Method: I read 08-05, 08-11 and 08-13 in full, and the algorithm-bearing parts of 08-02, 08-03, 08-07, 08-09, 08-14, 08-15 and 08-16. For the split plans (08-01, 08-04, 08-06, 08-08, 08-10, 08-12) I read the objectives and the Round 4 disposition rows. I traced each claim to source: `src/sim/hash.ts:13-35` (fnv1a32 low byte, canon), `src/sim/math.ts:53-57` (normalize), `src/sim/math.ts:227-236` (mulberry32), `src/sim/loop.ts` (accumulator) and the four `saveBoot.store` sites in `src/app/game-session.ts`. I ran one scratch check in the test container: `docker compose run --rm -v /tmp/r5algo:/scratch test node /scratch/k.mjs`. Its output is quoted under 08-13. I modified nothing in the repository.
 
-### Round 3 consensus: resolution check
+---
 
-| R3 item | Status | Evidence |
-|---|---|---|
-| 1a. fast-check property spawns valid entities, then mutates them in place | Resolved | `08-13-PLAN.md:140` |
-| 1b. Counter, tick and ownerId bounds aligned (`0..0xffffffff`, `repairs` saturates) | Resolved | `08-05-PLAN.md:137`, `08-11-PLAN.md:166-169`, `08-13-PLAN.md:26` |
-| 1c. Parser quaternion tolerance tied to `SANITIZE_QUAT_TOLERANCE`, with an accept row (1+5e-10) and an underflow reject row | Resolved for the parser. A residual gap remains in sanitize and spawn; see new finding A1 |
-| 1d. String, array and key caps; forbidden keys at every object level; non-integer ids | Resolved | `08-13-PLAN.md:26,133`, `08-11-PLAN.md:168` |
-| 1e. `restoreWorld` validates through the parser; anti-alias tests | Resolved | `08-13-PLAN.md:23,107,138` |
-| 2. `snapshotForSave(inputs)` call shape | Resolved: 08-15 now asserts on the `SaveInputs` object and `encodeSave(inputs)`. `encodeSave(inputs: SaveInputs)` is at `src/persistence/save.ts:663`, and `buildSnapshotInputs` returns `SaveInputs` at `game-session.ts:1131`. The key allow-list matches `save.ts:301-320` |
-| 3. `createTestHook` `sim` parameter required; `probe.sim` holds primitives only | Resolved | 08-16 Task 1 step 1, Task 2 step 2 |
-| 4. 1e12 versus 1e9 wording | Resolved | `08-05-PLAN.md:137`, `08-11-PLAN.md:163` |
-| 5. Store `nextId = 2**32` test row; Reflect and `.sort.call` selectors; listener `signal` | Resolved | `08-05-PLAN.md:180,186`; 08-03 Task 2 step 1 |
+### Round 4 consensus items: status
 
-All Round 3 items are closed. The new findings below come from following the arithmetic itself, not the plan text.
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| 1 | NaN in `ai.params` cannot be rejected after JSON | **Resolved** | `08-05-PLAN.md:148` fixes the ParamValue domain: null and boolean scalars are legal, array elements are finite numbers or strings, and no number is non-finite. `08-13-PLAN.md:23` and `:115`: `snapshotWorld` walks every number leaf and throws `SnapshotError("non-finite")` before it builds output. `08-13-PLAN.md:154-155`: the post-JSON converse is narrowed to number slots and array elements (ii), a scalar null is accepted (iii), and the generator now emits null and boolean params (gated on `fc.constant/constantFrom/boolean`). |
+| 2 | `\.store\b` gate can never print nothing | **Resolved** | `08-16-PLAN.md:146` narrows the regex to `sim/world/store\|world\??\.store\b\|\.store\??\.(live\|get\|allocate\|kill\|commit\|nextId)\b\|\bEntityStore\b`. I ran it on the current tree: it exits 1, and the four `saveBoot.store` uses (`read`, `clear`, `dispose`, `queueAutosave(saveBoot.store, …)`) do not match. |
+| 3 | `test.advanceTicks` undefined outside the manual clock | **Resolved** | `08-16-PLAN.md:30` and `:128-129` keep it always a function that delegates to the driver, which refuses (`08-14-PLAN.md:29`). The fixture check at `08-16-PLAN.md:143` asserts `"function"` in both hook states. |
+| 4 | Shared limits defined three times | **Resolved** | `08-05-PLAN.md:31` and `:146` define one `limits.ts` with no imports. The redefinition gate appears at `08-05-PLAN.md:185`, `08-11-PLAN.md:205-206` and `08-13-PLAN.md:193`, and `sanitize.ts` and `snapshot.ts` import every limit and export none. |
+| 5 | Enum leaves unchecked; `registry[aiKey]` prototype dispatch | **Resolved** | Spawn uses `includes` (`08-05-PLAN.md:153`). Sanitize rule 9 (`08-11-PLAN.md:185`) kills on an unknown kind and resets an unknown scanClass, behaviour or aiKey. Dispatch goes through `aiModuleFor` with `Object.hasOwn` (`08-11-PLAN.md:35`, `:139`), and the gate `registry\[[^\]]+\]\.(think\|onEvent)` must print nothing (`:152`). The parser rejects unknown vocab (`08-13-PLAN.md:26`). |
+| 6 | Quaternions that pass spawn or sanitize fail the parser | **Resolved** | Spawn requires `\|normSq-1\| <= QUAT_UNIT_TOLERANCE` (`08-05-PLAN.md:157`). Sanitize rule 2 (`08-11-PLAN.md:178`) treats non-finite components, or `normSq` non-finite or `< MIN_QUAT_NORM_SQ`, as identity. It renormalises, re-checks, and falls back to identity. The table includes `1e-160`, `3e-161`, `7e-158` and `1e200`. I checked the 1e-12 floor: for `normSq >= 1e-12`, `length >= 1e-6`, so correctly rounded `sqrt` and division give a result `normSq` within a few ulp of 1, far inside 1e-9. Sanitize, spawn and the parser now share one domain. |
+| 7 | `worldSeed` never checked as uint32 | **Resolved** | `createWorld` throws a RangeError (`08-05-PLAN.md:32`, `:151`; rows at `:212`). The parser rejects 1.5, -1, 2**32 and null (`08-13-PLAN.md:26`, `:152`). |
+| 8 | `createEventRouter` signature contradiction | **Resolved** | `08-10-PLAN.md:40`, `:158` and `:177` (gate `createEventRouter\(ctx,`), and `08-15-PLAN.md:108`. `rg "createEventRouter\((subscribers\|\))"` finds only the R4 ledger row. |
+| 9 | Lint guard gaps (alias import, module state, eval/Intl/localeCompare, computed sort) | **Resolved** | `08-03-PLAN.md:27`, `:150`, `:170` (eval, new Function, Intl, localeCompare, `sort(undefined)`, computed `["sort"]`/`sort["call"]`). `08-09-PLAN.md:30-31`, `:192-194`, `:211` (`importNames: ["createSeededRandom"]` at depth 1 and depth 2; `AI_MODULE_STATE_BANS`). Residual forms are documented, with the 1,000-tick equality as the behavioural backstop. |
+| 10 | Restore check compared only rounded hashes | **Resolved in intent, but the new exact check has a defect** | `08-13-PLAN.md:22` and `:116` add `JSON.stringify(snapshotWorld(live)) === JSON.stringify(snapshotWorld(restored))` and `toStrictEqual` on players. The exact comparison as specified is order-sensitive and fails on test-pilot params. See NEW finding A1 under 08-13. |
+| 11 | AI drain limits passes, not deliveries | **Resolved** | `08-11-PLAN.md:30`, `:171`, `:191`: `MAX_AI_EVENTS_PER_DRAIN = 4096` per drain, `MAX_AI_QUEUE_LENGTH = 4096` at post, saturating `aiDropped`, and an exact conservation-law test. I checked the conservation identity: Δ`aiDropped` = capped-at-post + (pre + accepted − dequeued), with the queue empty at return. |
+| 12 | `ShipControl` accepts out-of-domain values | **Resolved** | `08-07-PLAN.md:30` and `:117`: every argument is checked against `limits.ts`, and out-of-domain calls are ignored rather than clamped. `perform` uses `includes`. `scheduleWake` requires `tick + ticks <= MAX_UINT32`. |
+| 13 | No Firefox run | **Resolved** | `08-12-PLAN.md:137` and `08-15-PLAN.md:36`, `:216`, `:232` record a non-blocking `e2e-cross` run. |
+| 14 | Deviations, benchmark rerun, stale anchors | **Resolved** | `08-08-PLAN.md:165` and `08-12-PLAN.md:137` record the deliberate deviations. `08-15-PLAN.md:233` and `:334` allow best of three. `08-08-PLAN.md:80`, `08-10-PLAN.md:95` and `08-12-PLAN.md:91` tell the executor to locate code by name or pattern. |
+
+All 14 Round 4 items are addressed in the plan text. Item 10's new exact comparison has a defect of its own, reported as finding A1.
+
+---
 
 ### 08-01
 
-**Summary:** Split safety nets: the verify-full baseline, the probe-shape snapshot and order-independent session-source scans.
-**Strengths:** Session sources are concatenated in code-unit path order and the gated `renderFrame` pair is compared as a sorted set. The verdict therefore cannot depend on file layout, which is the right kind of order-independence.
-**Concerns:** None from the algorithm lens.
-**Suggestions:** None.
-**Risk:** LOW.
+**Summary.** Pins the safety nets for the split: the probe-shape fixture, session-source helpers and the `test:e2e:fast` contract.
+
+**Strengths.** The probe-shape contract that every `probe.test` member reads `"function"` is what 08-16 now honours for `advanceTicks` (Round 4 item 3), so the two plans agree.
+
+**Concerns.** No new algorithmic concerns. This plan has no simulation arithmetic.
+
+**Suggestions.** None.
+
+**Risk.** LOW.
 
 ### 08-02
 
-**Summary:** Pins v1 flight hashes and the mulberry32 vectors. Adds `RngState`, `fmix32`, `mix32`, `worldSeedFor` and `forkSeed`.
+**Summary.** Records flight-hash pins from the unmodified tree, then makes the stream state plain data (mulberry32 with `RngState`) and adds the D-02/D-04 `mix32` derivation behind an owner checkpoint.
 
-**Strengths**
-- The bijection argument is correct. `mix32(a,b) = fmix32(a ^ fmix32((b+0x9e3779b9)>>>0))` is a composition of bijections in each argument. So for one market seed, epochs 0 to 999 cannot collide, and for one world seed and purpose, entity ids cannot collide. The "1,000 distinct seeds" test is guaranteed by construction, which makes it a regression pin rather than a statistical claim. That is fine.
-- `(b + 0x9e3779b9)` is at most about 2^33, which is exact in a double before `>>> 0`. Only `Math.imul` and unsigned shifts are used, so results are identical across engines.
-- The vectors come from an independent scratch implementation and land in the same commit as `rng.ts` (`08-02-PLAN.md:200,217`). This is exactly what a one-way format needs.
-- The delegated `createSeededRandom` preserves the closure arithmetic (`src/sim/math.ts:227-237`) and is pinned with `toBe` literals before the edit.
+**Strengths.**
+- `mix32(a, b) = fmix32((a>>>0) ^ fmix32((b + 0x9e3779b9)>>>0))` (`08-02-PLAN.md:160`, `:191`) is a bijection in each argument, because `fmix32`, XOR with a constant and `+C mod 2^32` are each bijections on uint32. The 1,000-epoch and "id 101 across worlds" distinctness rows (`:195`) are therefore guaranteed by construction rather than probabilistic. `forkSeed = mix32(mix32(ws, id), code)` is injective in `ws` for fixed `(id, code)` and in `id` for fixed `(ws, code)`.
+- Pinning vectors from an independent scratch re-implementation in the same commit as `rng.ts` (`:196`, gate `:214`) is the right control for a one-way format.
+- The Weyl-cycle caveat is recorded (`:198`).
 
-**Concerns**
-- LOW / INFO. All mulberry32 streams lie on a single Weyl cycle of period 2^32 (state += 0x6d2b79f5). Two forked streams are therefore the same sequence at different offsets. The streams overlap only if one entity consumes on the order of (offset distance) draws. At Phase 8 and 12 draw rates, roughly a few draws per 15-tick think, this is negligible. It should still be stated in the Key Decisions rationale, so that Phase 13+ does not treat per-entity streams as statistically independent generators for, for example, Monte-Carlo damage.
-- LOW. `worldSeedFor` and `forkSeed` coerce `marketSeed` and `worldSeed` with `>>> 0` (`08-02-PLAN.md:197`): a finite non-integer such as 1.5 silently becomes 1. That is acceptable inside the module, but it interacts with 08-05 and 08-13; see B1.
+**Concerns.**
+- **LOW (B1): the "safe at Phase 8-12 draw rates" claim is not quantified** (`08-02-PLAN.md:198`). Every mulberry32 stream walks the single cycle `s += 0x6d2b79f5`, which has an odd step and so full period. Two streams overlap as shifted copies when `(s_B − s_A)·G⁻¹ mod 2^32` falls within the draw count D. For M streams that each draw D values in one world, P(any overlap) ≈ M²·D / 2³². With the test pilot's rate of about 8 draws/s, D ≈ 4,800 in a 10-minute visit, and with M = 256 the probability is about 7%. This does not affect determinism, but it is a real statistical correlation that later phases (Monte-Carlo damage, Phase 13+) should be able to check against a stated budget.
+- **LOW (B2):** `RNG_PURPOSE_CODES[purpose]` is a plain-object lookup (`:192`). An untyped caller passing `"constructor"` would get a function, and `(fn + C) >>> 0` is 0, a silent degenerate fork instead of a RangeError. Today only typed internal callers reach it.
 
-**Suggestions:** Add one sentence to the D-02/D-04 Key Decisions row: the forked streams are offsets on one 2^32 cycle, not independent generators.
-**Risk:** LOW.
+**Suggestions.** In the Key Decisions row, state the bound `M²·D/2³² ≪ 1` with the Phase 8 figures, so a later phase raising D or M must re-check it. Make `RNG_PURPOSE_CODES` a frozen null-prototype object, or look it up with `Object.hasOwn` and throw RangeError otherwise, matching the other `forkSeed` argument checks.
+
+**Risk.** LOW.
 
 ### 08-03
 
-**Summary:** Lint bans in `src/sim` for Math.random, Date, wall clock, timers, `for..in`, bare and reflective sort, plus Math aliasing and computed access.
-**Strengths:** `performance` is already in `DOM_GLOBALS` (`eslint.config.js:28`), so `performance.now` is covered, along with `globalThis`, `self`, `crypto` and `process`. Using shared rule constants prevents the flat-config override from silently dropping a ban.
-**Concerns**
-- LOW. The bans stop *argument-less* sort, but nothing checks that a comparator is a *total* order. For example, `(a,b) => a.d - b.d` with a NaN distance is not a consistent comparator, and its result is engine-defined. Phase 8 sorts only finite values (`scan` uses squared distances of sanitized positions, then ids), so this is a documentation item, not a gate.
-**Suggestions:** In the documented-residuals comment, add: "comparators must be total; NaN keys must be impossible by construction (sanitize) or broken by id".
-**Risk:** LOW.
+**Summary.** Mechanical determinism bans in `src/sim` (Math.random, Date, timers, for..in, bare sort, Math aliasing, eval, Intl, localeCompare, computed sort forms), each proven by a probe.
+
+**Strengths.** The Round 4 additions (`08-03-PLAN.md:27`, `:150`, `:170`) close the computed-member and `undefined`-argument sort bypasses. Comparator totality is listed as a documented residual (T-08-48, `:228`). `Array.prototype.sort` has been stable since ES2019, so a total comparator is deterministic across engines.
+
+**Concerns.** No new findings. A comparator that can return NaN (for example `(a, b) => a.d - b.d` with a NaN distance) makes the sort order implementation-defined. This is already a documented residual, and 08-07's scan guards against NaN by refusing a non-finite range and only ever sees finite positions.
+
+**Suggestions.** None beyond the existing residual note.
+
+**Risk.** LOW.
 
 ### 08-04
 
-**Summary:** Split steps 1-2: typed session context and the probe publisher.
-**Strengths/Concerns:** No determinism-relevant arithmetic. The closure-alias scan protects live-read semantics, which the later hash reads depend on.
-**Risk:** LOW.
+**Summary.** Split steps 1-2: typed session context and the read-only probe publisher.
+
+**Concerns.** None in this lens.
+
+**Risk.** LOW.
 
 ### 08-05
 
-**Summary:** Ids, entity records, static entities, the monotonic store, forked streams, `isNeverSpawned` and `hashWorld`.
+**Summary.** Ids, vocabularies, `limits.ts`, entity and static records, the binary-search store, per-entity forked streams, the injective world hash line, and the D-08 empty-world identity.
 
-**Strengths**
-- The monotonic counter with a per-world restart at 101, plus binary search over an ascending array, gives no Map/Set iteration order. Ids are unique per world, and the fast-check bound `nextId <= 101 + commands.length` is tight and correct (`08-05-PLAN.md:186`).
-- The cap counts non-dead entities and refuses at `nextId > 0xffffffff` without advancing the counter. `forkSeed` can therefore never throw inside a step.
-- `isNeverSpawned` includes the `world.rng.s` initial-state check, so a draw from the world stream with no spawn is not hash-invisible.
+**Strengths.**
+- Store complexity is sound: append-only allocation (new id > max), O(log n) `get` by binary search, O(n) in-place `commit`, and no Map or Set whose iteration order could decide anything (`08-05-PLAN.md:150`).
+- The hash line is now injective over printed fields. `encodeHashString` = `JSON.stringify` plus `\uXXXX` for code units above 0x7e (`:161`). A literal backslash in the input is emitted as `\\`, so an escape sequence cannot be forged by input text. Well-formed `JSON.stringify` already escapes lone surrogates in lower case, so the output is ASCII and fnv1a32's low-byte hashing (`src/sim/hash.ts:16`) loses nothing. The type tags `z`/`b:`/`n:`/`s:`/`a[...]` (`:162`) separate `1`, `"1"` and `true`.
+- `isNeverSpawned` includes the world-stream state and, after 08-11, `aiDropped`, so D-08 holds exactly when nothing observable has happened.
+- `createWorld` rejects non-uint32 seeds (`:151`), which removes the `canon(n,0)` rounding versus `>>> 0` truncation ambiguity.
 
-**Concerns**
+**Concerns.**
+- **LOW (C1): `spawnEntity` copies `ai.params` "onto `Object.create(null)`" (`08-05-PLAN.md:159`) without fixing the key insertion order.** The hash is unaffected because it sorts (`:160`). However, the unsorted order propagates into `snapshotWorld`'s output and causes finding A1 under 08-13. Inserting in code-unit sorted order at spawn would be one of the two possible fixes; the more robust fix is in 08-13.
+- **LOW (C2):** canon's six-decimal rounding makes the entity line non-injective over values below 1e-6. For example, radius `5e-324` and `1e-7` print identically. This is acknowledged and deferred to 08-13's exact JSON comparison, which is correct as long as A1 is fixed.
 
-- **MEDIUM (A1, shared with 08-11 and 08-13). The quaternion domain is still misaligned at spawn.** `spawnEntity` accepts any orientation with finite `normSq > 0` (`08-05-PLAN.md:137`). It does not require unit length and does not normalise. `parseWorldSnapshot` requires `|normSq − 1| ≤ 1e-9` (`08-13-PLAN.md:26`). Sanitize runs only inside `stepWorld`, after think (`08-11-PLAN.md:170`). As a result:
-  - A world snapshotted after a spawn but before a step is not accepted by its own parser if the spawn quaternion was non-unit. Examples: an `advanceTicks`-free test, or 08-13's "kill the highest id, snapshot, restore" case if it spawns with `{w:2,…}`.
-  - The first update after the spawn moves the entity with a non-unit `rotate`, so the forward vector is scaled by |q|².
+**Suggestions.** Optionally insert `ai.params` keys in code-unit sorted order at spawn, so live and restored params objects have the same shape. This complements the 08-13 fix but does not replace it.
 
-  Fix: `spawnEntity` should either refuse `|normSq − 1| > SANITIZE_QUAT_TOLERANCE` or normalise deterministically (via `normalize`, whose `Math.sqrt` is correctly rounded) and then re-check. It also needs the low-norm guard in A1-b under 08-11.
-
-- **MEDIUM (B1). `worldSeed` is never validated as uint32, and the hash disagrees with the fork derivation for non-integer seeds.**
-  - `createWorld(worldSeed)` stores the argument as given (`08-05-PLAN.md:137`).
-  - `serializeWorldSection` prints it with `canon(n, 0)`, which *rounds*: `canon(1.5, 0)` is `"2"` (`src/sim/hash.ts:33-34`).
-  - `forkSeed` *truncates* with `>>> 0`, so 1.5 forks from 1.
-
-  So worldSeed 1.5 and worldSeed 2 produce identical `worldSeed=` hash lines but different entity streams: the hash is blind to a real state difference. Conversely, worldSeed −1 and 0xffffffff behave identically but hash differently.
-  - 08-13's parser lists no worldSeed check (`08-13-PLAN.md:26` covers counters and stream states, not `worldSeed`).
-  - The lifecycle always passes a `worldSeedFor` output, so production is safe today. `restoreWorld` is the Phase 11 save boundary, though.
-
-  Fix: `createWorld` throws a RangeError or coerces with `>>> 0` *before* storing. `parseWorldSnapshot` requires `worldSeed` to be a safe integer in `0..0xffffffff`, with a rejection row for 1.5, −1 and 2**32.
-
-- **LOW (B2). The param-value and string encoding in `serializeEntity` is under-specified.** `ParamValue = null | boolean | number | string | (number|string)[]` (`08-05-PLAN.md:134`). Step 6 says only "AI params emitted in code-unit sorted key order". As written, an implementation could emit number 1, string "1" and boolean `true`/"true" identically, or emit a raw string containing `\n` or `e101=` that forges another line. `fnv1a32` also hashes only the low byte of each code unit (`src/sim/hash.ts:16`), so `"Ā"` (U+0100) and `"\0"` collide.
-  - None of this breaks determinism, because identical states still hash identically.
-  - It does weaken the hash as a divergence detector, and the `ENTITY_FIELDS` "every field changes its hash" test would not catch it.
-
-  Fix: type-tag param values (`n:`, `s:`, `b:`, `z`, `a[…]`) and emit strings, including `specKey`, through `JSON.stringify`, so the line grammar is injective.
-
-- LOW. `isNeverSpawned` ignores `aiDropped`, which 08-11 adds. A parsed snapshot `{entities: [], nextId: 101, rng: initial, aiDropped: 5}` restores to a world that hashes as `hashFlight` but is not equal to `createWorld`. Either add `aiDropped === 0` to the predicate (08-11 extends `world.ts` anyway), or have the parser reject `aiDropped ≠ 0` when `nextId === 101`.
-
-**Suggestions:** A1 and B1 above; B2 as a one-line serializer rule plus one `ENTITY_FIELDS` row that changes a param's *type* without changing its printed value.
-**Risk:** MEDIUM. B1 and A1 are cheap to fix now and expensive once Phase 11 freezes the snapshot format.
+**Risk.** LOW.
 
 ### 08-06
 
-**Summary:** Split steps 3-4: render driver, chart and settings controllers.
-**Concerns:** None from this lens. The redraw gate keys on identity, which does not affect sim determinism.
-**Risk:** LOW.
+**Summary.** Split steps 3-4: render driver, chart and settings controllers.
+
+**Concerns.** None in this lens.
+
+**Risk.** LOW.
 
 ### 08-07
 
-**Summary:** Read-only `WorldView`, write-only `ShipControl`.
-**Strengths:** `scan` orders by squared distance, then id, with an explicit comparator, so ties resolve totally. It needs no `Math.sqrt`. `scheduleWake` treats 0 as "none pending" before taking the minimum (`08-07-PLAN.md:113`), which avoids the min(0, x) trap.
-**Concerns**
-- LOW (domain alignment). `ShipControl` accepts values that 08-11's sanitize then counts as corruption:
-  - `setDesiredSpeed` and `setDesiredRange` accept any finite non-negative number, with no 1e12 cap.
-  - `setDestination` accepts any finite vector, with no 1e12 cap.
-  - `setTarget` accepts any non-negative safe integer, with no 0xffffffff cap.
-  - `scheduleWake` sets `tick + ticks` with no upper bound (`08-07-PLAN.md:113`).
+**Summary.** `WorldView` (read-only, fresh copies) and `ShipControl` (write-only, actor-only, domain-checked), with scan ordered by squared distance and then id.
 
-  A legitimate AI write of, say, speed 1e13 is turned into 0 by sanitize and increments the hashed `repairs` counter. That is deterministic, but `repairs` stops meaning "corruption was repaired". An overflowing `scheduleWake` silently cancels the wake: it is repaired to 0, which means none.
+**Strengths.**
+- Scan uses squared distances against `range²` with an explicit comparator (distance, then id) (`08-07-PLAN.md:28`), so the order is total and deterministic. Positions are bounded by 1e12, so squared distances stay below about 1.2e25, with no overflow and no NaN. A non-finite or negative range returns `[]` (`:150`).
+- `ShipControl` refuses out-of-domain writes instead of clamping (`:30`, `:117`), so there is no hashed repair noise.
+- Station orientation uses the renderer's `mul(base, axisAngle)` composition, checked against three.js within 1e-12 (`:26`, `:147`).
 
-**Suggestions:** Clamp or ignore in `createShipControl` with the same constants (`MAX_ENTITY_MAGNITUDE`, `0xffffffff`). Ignore `scheduleWake` when `tick + ticks > 0xffffffff`.
-**Risk:** LOW.
+**Concerns.**
+- **LOW (D1): scan cost.** Each call is O(N log N) over up to 262 bodies. With 08-11's per-tick bounds (up to 256 thinks plus 2 × 4,096 deliveries, each of which may scan), the worst case is about 8.4k scans × 262·log 262, roughly 2×10⁷ comparisons per tick. That is not reachable in Phase 8, because the test pilot has no `onEvent`, but it is the actual per-tick bound the queue caps permit.
+
+**Suggestions.** Record the worst-case per-tick scan cost next to the queue bounds, so Phase 12's populator and real AI modules have a stated budget.
+
+**Risk.** LOW.
 
 ### 08-08
 
-**Summary:** Split steps 5-6: station and save controllers.
-**Concerns:** None from this lens. `buildSnapshotInputs` being unchanged keeps the save bytes and the market seed (a `worldSeedFor` input) stable.
-**Risk:** LOW.
+**Summary.** Split steps 5-6: station and save controllers.
+
+**Concerns.** None in this lens. The deliberate `disposed` guards are recorded (`08-08-PLAN.md:165`).
+
+**Risk.** LOW.
 
 ### 08-09
 
-**Summary:** AI types, integer tick timers, the registry and the scripted test pilot.
-**Strengths:** `ticks(s) = max(1, Math.round(s * 120))` uses round, not ceil. The container shows `0.1*120 === 12` and `Math.round` gives 12, and a ceil-based variant would have mis-rounded some decimal-second inputs upward. The pilot's randomness comes only from the context's per-entity stream, and its state round-trips through JSON.
-**Concerns**
-- INFO. Timers are absolute player ticks bounded to `0..0xffffffff` by sanitize and the parser. At 120 Hz that wraps the domain after about 414 days of cumulative ticks. This is irrelevant in practice but worth one comment in `time.ts`.
-**Risk:** LOW.
+**Summary.** AI types, integer-tick time, the frozen registry, the test pilot, and the AI lint zone.
+
+**Strengths.**
+- `ticks(s) = max(1, round(s·120))` keeps every timer an integer. The wake draw `ticks(0.1 + random()·1.5)` is in [12, 192] (`08-09-PLAN.md:122`, `:156`).
+- All pilot state lives in `AiComponent.params`, with a JSON round-trip test (`:26`). The closure-stream import ban and the module-state ban (`:30-31`) close the two ways hidden state could escape the snapshot.
+
+**Concerns.**
+- **LOW (E1):** the test pilot targets the first scan result and then flies straight, because Phase 8's integrator never changes orientation (08-11 `:139`). Its distance only shrinks if it already faces the target, so "hold" is rarely reached in the 1,000-tick scenario. That is harmless for determinism, but the 08-13 equality then exercises mostly the "seek" branch plus wake draws. This was a deliberate scoping choice (A3), noted here only so nobody reads the 1,000-tick test as covering the hold transition.
+
+**Suggestions.** Optionally, in 08-13's scenario, spawn one pilot within `holdRange` of a body so that both phases and the target-lost path run inside the compared window.
+
+**Risk.** LOW.
 
 ### 08-10
 
-**Summary:** Split steps 7-8: hyperspace controller, event router and sim driver (`stepOnce`, one input frame per frame).
-**Strengths:** `stepOnce` is the single step call site, and commands reach only the first step of a frame. Together these make the fixed-step sequence independent of frame cadence, which 08-13 Task 3 then proves for the world. The arrival stays one synchronous install block.
-**Concerns:** None from this lens.
-**Risk:** LOW.
+**Summary.** Split steps 7-8: atomic hyperspace controller, ordered event router, sim driver with `stepOnce`, and the pure step-options builder.
+
+**Concerns.** None in this lens. The signature is aligned (Round 4 item 8). The fixed-step accumulator stays in `src/sim/loop.ts`, which these plans do not touch.
+
+**Risk.** LOW.
 
 ### 08-11
 
-**Summary:** `stepWorld` (an id-order update and think over a length snapshot, then commit), the queued AI events, `sanitizeEntity`, and the reserved SimEvents.
+**Summary.** `stepWorld` (update, think, sanitize, commit), `stepSim` composition with the jump-step rule, the bounded AI event queue, field-complete idempotent `sanitizeEntity`, and the reserved event kinds.
 
-**Strengths**
-- The length snapshot plus index iteration gives a precise "spawned this tick acts next tick" rule, and the acceptance grep bans `for…of world.store.live` (`08-11-PLAN.md:125`).
-- Each think gets a local `RngState` seeded from `entity.rng.ai`, which is written back afterwards. Stream isolation therefore holds by construction, and the 200-tick spawn/kill test proves it.
-- `-0` is normalised in sanitize, so the JSON `-0 → 0` loss cannot split live and restored runs once a tick has run. The container confirms `JSON.stringify({a:-0}) === '{"a":0}'`.
-- `repairs` saturates and the clean-entity bit-identity rule is pinned by a repairs-delta table.
+**Strengths.**
+- Id order over a length snapshot, with spawns this tick first visited next tick (`08-11-PLAN.md:29`, gate `:151`).
+- The jump-step and dock-step rules make stepping independent of cadence. `stepSim` checks `player.mode` after `stepFlight`, so the docking step and the `hyperspaceJumped` step never step a world against the wrong layout (`:36`, `:140`).
+- Sanitize rule 2 (`:178`) now gives one domain with spawn and the parser. The "second call" column with `Object.is` (`:186`) makes idempotence falsifiable at the ulp and -0 level.
+- The queue bounds turn the earlier `N·f^8` into O(8,192) deliveries per tick, with exact accounting (`:171-172`).
+- The transcendental gate covers `hypot`, `cbrt`, `pow` and the rest (`:250`).
 
-**Concerns**
+**Concerns.**
+- **LOW (F1): queue drain cost depends on the dequeue primitive.** The plan says the queue "drains first-in first-out" (`:191`) but does not say how. A naive `aiQueue.shift()` is O(n) per dequeue in V8 once the array leaves the fast path, so one 4,096-event drain costs up to about 8×10⁶ element moves. Swapping in a fresh buffer per pass (`const batch = world.aiQueue; world.aiQueue = []`) also gives exactly the plan's "posted during a pass arrive in the next pass" semantics.
+- **LOW (F2): the transcendental gate misses the `**` operator** (`:250`). Its semantics are `Math.pow` (implementation-approximated), so `x ** 0.5` in a world-core module would pass the gate and break the cross-engine promise of row (f) once Firefox replay is claimed.
+- **LOW (F3): sanitize normalises -0 only at the end of the tick.** During the think phase, before sanitize, a -0 injected between ticks (as the 08-13 variant does) is visible to AI code. The test pilot uses only squared distances, so this is safe today. A future AI using `Math.atan2`, `Math.sign`, `1/x` or `Object.is` on a coordinate could diverge between a live world holding -0 and a restored world holding +0, because JSON cannot carry -0. In normal stepping no -0 survives a tick boundary, so the risk exists only with external mutation.
 
-- **MEDIUM (A1-b). Renormalisation is not guaranteed to land inside the tolerance the parser enforces.** Sanitize treats only `normSq` that is non-finite or ≤ 0 as degenerate, and otherwise calls `normalize(orientation)` (`08-11-PLAN.md:163`). For a subnormal `normSq`, `Math.sqrt` of an imprecise subnormal gives a length with only a few significant bits, and the "normalised" quaternion stays far from unit length. Measured in the test container with the exact `normalize` arithmetic of `src/sim/math.ts:53-57`:
+**Suggestions.**
+- F1: specify per-pass buffer swapping in `step.ts` and add one sentence on the drain's complexity.
+- F2: extend the gate with `\*\*` (for example `rg -n "\*\*\s*[^*/ ]" src/sim/world/*.ts src/sim/ai src/sim/sim.ts src/sim/rng.ts`, excluding comment lines), or note the operator in row (f).
+- F3: either document in `sanitize.ts` and row (f) that AI code must not branch on the sign of zero, or have `snapshotWorld` refuse -0 so external injection is caught at the boundary, as it already is for non-finite values.
 
-  ```
-  {w:1e-160}  normSq 1e-320  -> after normalize 1.0000111329412578  (dev 1.1e-5, rejected at 1e-9)
-  {w:3e-161}  normSq 9e-322  -> after normalize 1.00089026360758    (dev 8.9e-4, rejected)
-  {w:7e-158}  normSq 4.9e-315 -> 1.00000000020753 (accepted, barely)
-  ```
-
-  The consequences:
-  - This breaks 08-11's must-have "every sanitized world snapshots to JSON that `parseWorldSnapshot` accepts" (`08-11-PLAN.md:32`).
-  - It is a valid counterexample for 08-13's 200-run property, because the plan explicitly mutates orientation components with arbitrary `fc.double()`.
-  - It makes sanitize non-idempotent: a second call renormalises again and changes bits, contradicting "a clean entity is left bit-identical" on the following tick.
-
-  Fix (pick one and apply it in spawn, sanitize and the parser):
-  - (a) Treat `normSq < MIN_QUAT_NORM_SQ` (e.g. 1e-12) as degenerate, which means repair to identity, counted, and refusal at spawn. Add rows `{w:1e-160,…}` and `{w:3e-161,…}` to the sanitize table and to the parser rejection table.
-  - (b) After `normalize`, re-check `|normSq − 1| ≤ tol` and fall back to identity.
-
-- **MEDIUM (C1). The AI event drain is bounded in passes but not in work.** `postAiEvent` only appends, and a drain runs at most 8 passes (`08-11-PLAN.md:30,174`), but no per-pass or per-drain event cap exists. A handler that posts *f* events per delivered event produces about N·f^8 deliveries before the drop: with 256 entities and f = 10, that is 2.6×10^10. The claim "overflow is dropped and counted" covers only what is left after pass 8, not the cost of passes 1-8. This is not a Phase 8 production risk, because the test pilot has no fan-out. It is the Pitfall 7 mechanism, though, and Phase 12+ AIs (group broadcasts such as `helpRequestReceived` to escorts, or police) do fan out.
-
-  Fix: add `MAX_AI_EVENTS_PER_DRAIN` (e.g. 4096). Events posted beyond it are dropped and counted in `aiDropped`. Add a test with a handler that fans out ×4 forever.
-
-- LOW. `aiDropped` above 0xffffffff is *reset* to 0 by `stepWorld` (`08-11-PLAN.md:170`), whereas `repairs` saturates. A counter that silently wraps to 0 is a worse diagnostic than one that saturates. Saturate `aiDropped` at 0xffffffff for consistency.
-- LOW. Sanitize does not cover the enum-typed fields (`kind`, `scanClass`, `nav.behaviour`, `ai.aiKey`), yet the must-have calls it "field-complete" and the parser rejects unknown values. Either scope the claim to "numeric, string-length and structural leaves" or add an enum repair (for example, an unknown behaviour becomes "IDLE", counted). Today only a cast can produce a bad enum, because ShipControl validates `perform`.
-
-**Suggestions:** A1-b and C1 above. Also state in the sanitize doc comment that sanitize is idempotent: `sanitizeEntity(e)` twice returns false the second time with no bit change. Add that idempotence as a fast-check property in 08-13, since the subnormal case above is precisely what it would catch.
-**Risk:** MEDIUM.
+**Risk.** LOW.
 
 ### 08-12
 
-**Summary:** Split step 9: the frame loop, start-up wiring and the thin facade.
-**Concerns:** None from this lens. The frame phase order is pinned, and the freeze branches clear `pending`, so no command fires on a later frame after an unpause. That keeps command-to-tick mapping deterministic.
-**Risk:** LOW.
+**Summary.** Split step 9: frame loop and session start-up, with `game-session.ts` left as a facade.
+
+**Concerns.** None in this lens. The Firefox run and the deviations are recorded (`08-12-PLAN.md:137`).
+
+**Risk.** LOW.
 
 ### 08-13
 
-**Summary:** Snapshot codec, the strict parser, the 1,000-tick live-versus-restored equality, and world cadence.
+**Summary.** The strict snapshot codec, the 1,000-tick live-versus-restored equality (hash plus exact JSON plus `toStrictEqual`), the parser rejection table, the sanitizer and parser agreement property, and cross-cadence world hashes with a launch and an arrival.
 
-**Strengths**
-- Restore goes through the parser, and every level is deep-copied in both directions.
-- The `Record<keyof Entity, …>` table makes field coverage a typecheck obligation.
-- The cadence test includes both epoch bumps and asserts the world is non-empty at the compared ticks.
-- The mismatch reporter checks the player before the entities.
+**Strengths.**
+- The non-finite refusal in `snapshotWorld` (`08-13-PLAN.md:23`, `:115`) and the decidable converse (`:155`) resolve the Round 4 contradiction cleanly.
+- `nextId` is accepted up to `2**32`, so the codec accepts every state `allocate` can reach (`:26`, `:152`).
+- The parser reads each property once into a checked local (`:26`, `:153`), which is the correct anti-TOCTOU design.
+- The property test spawns valid entities and then mutates fields in place, so `spawnEntity` validation never makes it vacuous (`:154`).
+- The cross-cadence test pins the jump-step rule (`:205`).
 
-**Concerns**
+**Concerns.**
+- **HIGH (A1): the exact checkpoint comparison `JSON.stringify(snapshotWorld(live)) === JSON.stringify(snapshotWorld(restored))` (`08-13-PLAN.md:22`, `:116`, gate `:191`) fails for any test-pilot world under the behaviour the plans specify.** The mechanism has three parts:
+  - The live params object keeps the insertion order of `createTestPilotAi`'s literal `{ phase, targetId, scanRange, holdRange, cruiseSpeed }` (`08-09-PLAN.md:122`). Spawn copies it onto `Object.create(null)` without sorting (`08-05-PLAN.md:159`), and sanitize re-sorts only when it repairs (`08-11-PLAN.md:184`).
+  - `parseWorldSnapshot` "copies keys in code-unit sorted order" (`08-13-PLAN.md:115`), and `restoreWorld` deep-copies that order.
+  - `snapshotWorld` is specified only to "deep-copy every value" (`:115`). It is not told to emit keys in a canonical order, and `JSON.stringify` follows insertion order for string keys.
 
-- **HIGH (D1). The converse NaN check is false for scalar `ai.params` values, and the must-have it backs is unsound as written.** `08-13-PLAN.md:140` requires that a NaN mutated in place "in `position`, `radius`, or `ai.params`" without sanitize "is refused by `parseWorldSnapshot` after JSON (`null` in a number slot) with the non-finite reason, never silently accepted". `ParamValue` includes `null` (`08-05-PLAN.md:134`), and `JSON.stringify` turns a NaN param into `null`; the container shows `JSON.parse(JSON.stringify({p:{n:NaN}}))` gives `{ p: { n: null } }`. The parser must accept that `null` as a legal param. So:
-  - the test row as specified fails, or invites a parser special-case that rejects legitimate `null` params; and
-  - more importantly, `snapshotWorld` silently changes the state (NaN becomes null) on its way out. The live world would throw in `canon` while the restored world hashes cleanly.
+  So the two strings differ at the very first checkpoint, even though the states are identical. Container evidence from the scratch script described in the Method section:
+  ```
+  live   {"params":{"phase":"seek","targetId":0,"scanRange":25600,"holdRange":1000,"cruiseSpeed":100}}
+  parsed {"params":{"cruiseSpeed":100,"holdRange":1000,"phase":"seek","scanRange":25600,"targetId":0}}
+  equal? false
+  ```
+  The same hazard applies to entity field order if `snapshotWorld` copies entities generically (for example by spreading) rather than with one fixed literal, because `spawnEntity` and `restoreWorld` each build entities with their own literal order. The must-have "Edge (FOUND-12, ordering): … snapshot, hash and restore never depend on object key order" (`08-13-PLAN.md:28`) is therefore false for `snapshotWorld`'s bytes as specified. I rate this HIGH under the Round 4 Priority-1 criterion: it is an acceptance check that fails deterministically under the plans' own specified behaviour. The obvious executor "fix" is to drop or weaken the exact comparison, which would reopen Round 4 item 10. A non-canonical byte form would also become Phase 11's save format (SAVE-07/08).
+- **LOW (A2):** integer-like param keys such as `"9"` and `"10"` are enumerated in ascending numeric order whatever the insertion order (container output `{"9":3,"10":2,"b":1}`). Both sides of the comparison go through the same emitter, so equality holds once A1 is fixed. The "code-unit sorted" wording should still not be read as a promise about JSON byte order for such keys. Phase 11 should know this if it hashes save bytes.
+- **LOW (A3):** the -0 variant (`:116`) holds for the test pilot but depends on 08-11 F3, because the live world holds -0 during the first post-restore think phase.
 
-  NaN *inside a param array* is rejected correctly, because arrays hold number or string only. Fix:
-  - make `snapshotWorld` itself refuse any non-finite number leaf, with a new reason such as `"non-finite"`, since it is the only point that still sees the NaN; and
-  - restrict the converse parse check to number-only slots (position, radius, param *array* elements); and
-  - add a scalar-param NaN row asserting that `snapshotWorld` throws.
+**Suggestions.**
+- A1, the fix: in Task 1 step 1, make `snapshotWorld` emit a canonical form. Build every object (root, entity, vectors, quaternion, rng, nav, ai) as one fixed literal in a documented field order, and insert `ai.params` keys in code-unit sorted order, the same comparator the parser and the hash use. State that `snapshotWorld(restoreWorld(parseWorldSnapshot(JSON.parse(t))))` stringifies back to `t` for any `t = JSON.stringify(snapshotWorld(w))` (canonical fixpoint), and add that as a Task 2 row taken at tick 0, before the 1,000-tick run. It fails fast with a clear message instead of failing at checkpoint 50. Add to the ordering edge (`:28`) that the snapshot's JSON bytes are canonical, not merely that the hashes agree.
+- Optionally pair this with 08-05 C1 (sorted insertion at spawn). Do not rely on that alone, because sanitize and AI writes can add keys later.
 
-- **MEDIUM (A1, A1-b).** The 200-run property mutates orientation components with `fc.double()`. With the sanitize as specified, `{w:1e-160, x:0, y:0, z:0}` is a real counterexample: it sanitises to normSq 1.0000111, which the parser rejects. See 08-11. Snapshots taken before any step can also carry spawn-time non-unit quaternions (see 08-05). Add both rows to Task 2's tables once 08-05 and 08-11 are fixed.
-
-- **MEDIUM (B1). `worldSeed` is missing from the parser's checks.** Add `worldSeed` to be a safe integer in `0..0xffffffff`, with rejection rows for 1.5, −1 and 2**32. Without this, `restoreWorld` can build a world whose hash line (rounded by `canon`) and whose fork derivation (`>>> 0` truncation) disagree. See 08-05.
-
-- **MEDIUM (E1). The 1,000-tick equality compares quantised hashes only.** `hashWorld` formats every non-integer with `canon(n, 6)`, which rounds to 1e-6. So "live and restored hash identically" proves agreement to 6 decimals, not bit equality. A 1-ulp divergence from a lost or extra operation in the restored path stays invisible until it grows past 1e-6, and Phase 8's constant-speed integrator never amplifies it. JSON round-trips doubles exactly, so a strictly stronger, essentially free check is available.
-
-  Fix: at every 50th tick and at the end, also assert `JSON.stringify(snapshotWorld(live)) === JSON.stringify(snapshotWorld(restored))`, and `serializeFlight`-independent exact equality of the player (for example, `expect(restoredPlayer).toStrictEqual(livePlayer)`, or `Object.is` per numeric leaf). The same reasoning applies to the `ENTITY_FIELDS` table: mutations must differ by more than 1e-6 to "change the entity hash", or a row such as `+1e-9` will appear to fail coverage.
-
-- LOW. The domain end-point is off by one. `store.allocate` may issue id 0xffffffff, after which `nextId` is 2**32. `snapshotWorld` then emits `nextId = 2**32`, which the parser rejects (`nextId in 101..0xffffffff`, `08-13-PLAN.md:26,107`). This is unreachable in practice, but the codec should accept any state the store can reach. Use the parser range `nextId ∈ 101..2**32`.
-
-- LOW. `restoreWorld(parseWorldSnapshot(x))` (Task 2's anti-alias row) feeds the parser a value with null-prototype `ai.params`, the parser's own output. Pin in the parser doc comment that an object check uses `typeof === "object" && !Array.isArray` plus `Object.hasOwn`, and never `Object.getPrototypeOf(o) === Object.prototype`. Otherwise `restoreWorld` rejects its own validated input.
-
-**Suggestions:** D1, B1, E1 and the A1 rows. Also add a fast-check idempotence property: `sanitizeEntity(e)` then `sanitizeEntity(e)` returns false and changes no bit.
-**Risk:** MEDIUM. The codec is the de facto Phase 11 format (`08-13-PLAN.md:107`), so tightening it now is cheap.
+**Risk.** MEDIUM until A1 is fixed. LOW after a one-paragraph text edit.
 
 ### 08-14
 
-**Summary:** Test flags, the manual clock and `advanceTicks(n)`.
-**Strengths:**
-- `advanceTicks` reuses the realtime drain, so commands go on tick 1 only and one input frame is shared.
-- It refuses non-integer, out-of-range, disposed, paused or overlay states without tainting.
-- It stops early on a pause or overlay opened mid-run.
+**Summary.** Test flags read once, the manual-clock frame branch, and `advanceTicks(n)` with refusals, taint first and a shared drain path.
 
-These make `advanceTicks(1)×601` and `advanceTicks(1); advanceTicks(600)` equivalent for idle input, and 08-16 relies on that.
-**Concerns**
-- LOW. "the same input frame object on every call" (Task 1 step 5) is safe only if `stepOnce` and the controllers never mutate the frame. Add one assertion in the sim-driver test that the frame object is deep-equal before and after `advanceTicks(3)`. Otherwise a future controller that writes into the frame (for example, edge latching) would make the n-tick call differ from n single-tick calls.
-**Risk:** LOW.
+**Strengths.**
+- `MAX_ADVANCE_TICKS = 200000` bounds a synchronous call. Commands go on the first tick only, and one immutable input frame is shared (structuredClone row, `08-14-PLAN.md:159`), which makes `advanceTicks(n)` equivalent to n single steps.
+- The row for a step that throws (`:160`) defines the partial state precisely.
+
+**Concerns.** None new. Worst-case cost with an empty world is negligible. With a populated world it is bounded by 200,000 × the per-tick bound noted under 08-07 D1, which only matters from Phase 12.
+
+**Risk.** LOW.
 
 ### 08-15
 
-**Summary:** World lifecycle, the epoch bump points, warm/cold restore equivalence and the anchored-save check.
-**Strengths**
-- Bump-then-derive is placed correctly: `begin` checks `epoch < 0xffffffff` before `epoch += 1`, so `worldSeedFor` is total.
-- `resetForRestore(0)` aligns warm Load and cold Continue.
-- The D-05 parity sequence `[1,1,2,3,3]` with identical seeds is the right shape.
-- The Round 3 `SaveInputs` fix is verified against `src/persistence/save.ts:301-320,663`.
-**Concerns**
-- LOW. The world is created in the router reaction to `launched`, so it first steps on the tick *after* the launch step. 08-13 Task 3 and 08-16's `tick-script.ts` must mirror that exactly. Both already say "launched begins". State the one-tick latency once in the lifecycle doc comment, because it is the parity-critical detail.
-- INFO. `resume` uses `worldSeedFor(seed, 0)`, a seed that no `begin` ever produces (`begin` yields epoch ≥ 1). This is consistent with D-03 and needs no change; noting it for Phase 11, where `resetForRestore(save.epoch)` replaces it.
-**Risk:** LOW.
+**Summary.** The world lifecycle (bump-then-derive epochs, fresh worlds at 101, resume on Continue or Load), `stepSim` plugged into `stepOnce`, the no-save-leak checks, the step-cost benchmark, and the Firefox run.
+
+**Strengths.**
+- Every world is a pure function of `(marketSeed, epoch)` with ids restarting at 101 (`08-15-PLAN.md:31-32`). Warm and cold restores reset to epoch 0 identically (`:30`, `:39`), which is the right determinism shape before Phase 11 persists epoch.
+- `begin` refuses `epoch >= 0xffffffff` and a non-finite `marketSeed` without throwing (`:31`), so `worldSeedFor`'s RangeError cannot fire in the frame loop. `resetForRestore` accepts exactly `0..0xfffffffe` (`:38`).
+- The benchmark threshold is unchanged and best of three is allowed (`:37`, `:233`).
+
+**Concerns.**
+- **LOW (G1):** an in-flight resume derives its world from epoch 0 (`:30`), while the save was taken in some world at epoch k ≥ 1. So in Phase 8 a resumed in-flight world is never the world that was saved. This is acknowledged as the Phase 8 baseline, with Phase 11 passing `save.epoch`, and it is harmless while worlds are empty. Recording it explicitly in the lifecycle header would help Phase 11 avoid an off-by-one, since `resume(seed)` must derive from the restored epoch without bumping while `begin` bumps first.
+
+**Suggestions.** In the `world-lifecycle.ts` header, state that `resume` uses `worldSeedFor(marketSeed, epoch)` without bumping, and why (it regenerates the anchored world), so Phase 11 keeps the leg-anchor semantics.
+
+**Risk.** LOW.
 
 ### 08-16
 
-**Summary:** The one probe commit (`probe.sim`, `worldHash`, `advanceTicks`) and browser/Vitest hash parity.
-**Strengths**
-- The parity check has three legs (browser, Vitest real driver, Node replay), each also checked against `hashFlight`. The first-diverging-tick trace and the V8-only scope (PITFALLS 4, 08-11 row (f)) are stated honestly.
-**Concerns**
-- LOW. Parity compares quantised `hashWorld` strings (see E1). For an NPC-free world that is just `hashFlight`, so the assertion matches the v1 cadence tests and is acceptable for success criterion 5. If the browser ever exposes a snapshot through the hook in Phase 12, prefer exact JSON equality there.
-**Risk:** LOW.
+**Summary.** The one deliberate probe commit (`probe.sim`, `worldHash`, `advanceTicks`), the Node replay helper, Vitest and browser tick parity, and the narrowed store gate.
 
-### Cross-plan summary
+**Strengths.**
+- `worldHash` reads live state on demand and returns `""` when stale (`08-16-PLAN.md:35`). `""` cannot collide with an eight-hex fnv1a32 value.
+- The parity claim is honestly scoped to one engine family and to an empty browser world (`:31-32`). The replay-equals-`hashFlight` cross-check (`:166`) stops both sides agreeing on the same wrong hash.
+- The narrowed gate passes on the current tree, as verified above.
 
-| ID | Severity | Plans | Finding |
-|---|---|---|---|
-| D1 | HIGH | 08-13 (08-05 `ParamValue`) | A scalar NaN param becomes JSON `null`, which is a legal `ParamValue`. The converse "refused" check is false and `snapshotWorld` silently changes state. `snapshotWorld` should refuse non-finite leaves |
-| A1 / A1-b | MEDIUM | 08-05, 08-11, 08-13 | Spawn accepts non-unit quaternions; sanitize's `normalize` of a subnormal `normSq` (e.g. `{w:1e-160}` gives normSq 1.0000111, measured) stays outside the parser's 1e-9 tolerance. The property has a real counterexample and sanitize is not idempotent. Add a minimum-norm guard or a post-normalise check |
-| B1 | MEDIUM | 08-05, 08-13 | `worldSeed` is never validated as uint32. `canon(n,0)` rounds while `forkSeed` truncates, so worldSeed 1.5 and 2 hash identically but fork differently |
-| C1 | MEDIUM | 08-11 | The AI event drain caps passes but not deliveries (N·f^8 growth). Add a per-drain event budget counted in `aiDropped` |
-| E1 | MEDIUM | 08-13 (08-16) | The live-versus-restored proof compares `canon(·,6)`-quantised hashes. Add an exact `JSON.stringify(snapshotWorld(·))` equality and exact player equality |
-| — | LOW | 08-05, 08-07, 08-11, 08-13, 08-14 | Type-tag and escape param and string encoding in the hash; align ShipControl caps with sanitize; saturate `aiDropped`; include `aiDropped` in `isNeverSpawned`; parser `nextId` up to 2**32; null-prototype params accepted by the parser; frame-object immutability in `advanceTicks` |
+**Concerns.** None new in this lens.
 
-Dependency ordering is sound. All the MEDIUM and HIGH items fall in the core-track plans of waves 2, 5 and 6 (08-05, 08-11, 08-13) and change no wave boundary. Waves 1, 3 and 4 can start as planned.
+**Risk.** LOW.
 
-### Overall verdict: NEEDS REVISION
+---
 
-The three headline findings are D1, A1-b and B1. They are small text edits to 08-05, 08-11 and 08-13, but each one makes a stated must-have false or untestable: "unsanitized non-finite is refused", "every sanitized world parses", and "the hash covers every field". They also sit on the snapshot format that Phase 11 freezes. Once they are applied, along with C1 and E1, the plan set is READY. Nothing else in the 16 plans needs to change.
+### Overall Risk Assessment
+
+**LOW-MEDIUM.** All 14 Round 4 consensus items are resolved in the plan text with verifiable anchors, and the determinism architecture holds up:
+- per-entity bijective forks
+- plain uint32 stream state
+- id-ordered passes over a length snapshot
+- a bounded FIFO queue with exact accounting
+- one shared numeric domain across spawn, control, sanitize and parse
+- an injective ASCII hash line
+- exact-JSON restore checks
+
+One new finding blocks an acceptance criterion: **A1 (HIGH, 08-13)**. `snapshotWorld` does not emit a canonical key order, so the exact live-versus-restored JSON comparison fails on the first checkpoint for test-pilot params, which I demonstrated in the container. It needs a one-paragraph edit to 08-13 Task 1 step 1, plus a canonical-fixpoint row in Task 2, with an optional supporting edit in 08-05. Everything else is LOW: an unquantified Weyl-overlap bound, the drain primitive's complexity, the `**` gate gap, -0 visibility during think, the purpose-code lookup, scan cost bounds, and resume-epoch documentation.
+
+**Verdict: NEEDS REVISION.** The revision is limited to 08-13 (A1). No wave, dependency or file-ownership change is needed. The other plans are ready as written.
 
 ---
 
 ## Adversarial & Trust-Boundary Review (reviewer-adversarial-opus)
 
 
-Round 4 review of the 16 Phase 8 plans at `0aa747a`. Lens: untrusted input (snapshots now, IndexedDB saves in Phase 11, the `?test=1` window hook), prototype pollution, validators that disagree, guards that can be bypassed, lifecycle races, and tests that pass while the bug remains. Claims were checked against the source at HEAD (`src/sim/hash.ts`, `src/sim/math.ts`, `eslint.config.js`, `src/app/game-session.ts`, `src/app/probe.ts`, `src/persistence/{save,autosave}.ts`) and across the plans.
+Lens: adversarial input and trust boundaries. That covers hostile or corrupt snapshot and save input, prototype keys, caps, validators versus sanitizers, lint-guard evasion, ways determinism can escape, test hooks reaching production, and persistence and security risks.
 
-### Round 3 disposition check
+Commit reviewed: `afc4fe0`. I read all of 08-05 and 08-13 in full. For 08-07, 08-09, 08-11, 08-14, 08-15 and 08-16 I read the must_haves and the tasks this lens touches. For 08-01, 08-02, 08-03, 08-04, 08-06, 08-08, 08-10 and 08-12 I read the objectives plus targeted `rg` sections. I checked source anchors in `src/app/game-session.ts`, `src/app/probe.ts`, `src/persistence/save.ts`, `src/persistence/autosave.ts` and `src/sim/math.ts`; codebase-memory coverage reports `no_recorded_issue` for all five. I ran no container. Every finding below comes from reading plan text against source.
 
-| Round 3 finding | Status | Evidence |
-|---|---|---|
-| 1a. fast-check must mutate in place after a valid spawn | Resolved | `08-13-PLAN.md:140` spawns with `radius = 10`, `tick = 0`, `specKey = "ship"`, then mutates leaves in place |
-| 1b. Counter, id and tick bounds aligned | Resolved | `08-05-PLAN.md:137` (spawn), `08-11-PLAN.md:166-169` (sanitize), `08-13-PLAN.md:27` (parser): all `0..0xffffffff`, `repairs` saturating. `NO_ENTITY = 0` (`08-05:133`) makes the `-1` sentinel unnecessary |
-| 1c. Quaternion tolerance pinned, underflow row | Resolved | `08-13-PLAN.md:27,107,133` |
-| 1d. Caps, nested arrays, `__proto__`/`constructor`/`prototype` at every level | Resolved | `08-13-PLAN.md:27,133`; sanitizer `08-11-PLAN.md:167` |
-| 1e. `restoreWorld` validates; `snapshotWorld` anti-alias test | Resolved | `08-13-PLAN.md:23,107,138` |
-| 2. `snapshotForSave(inputs)` call shape | Resolved | `08-15-PLAN.md:35,206` inspects `inputs` and `encodeSave(inputs)` (`src/persistence/save.ts:663` takes one `SaveInputs`) |
-| 3. `createTestHook` `sim` parameter required; `probe.sim` primitives | Resolved | `08-16-PLAN.md:125-126`, Task 2 step 2. `worldHash(): string` is correct: `hashFlight` returns a string (`src/sim/flight/state.ts:181`) |
-| 4. `1e12` vs `1e9` citation | Resolved | `08-05-PLAN.md:137`, `08-11-PLAN.md:166` |
-| 5. Store `2 ** 32` row, Reflect/sort residuals, listener signal, line anchors | Resolved | `08-05-PLAN.md:180`, `08-03-PLAN.md:141-145`, `08-12` truths; anchors `:2738/:2749/:2773/:2859` match HEAD |
+### Round 4 consensus check (items 1-14)
 
-All Round 3 findings are closed. The findings below are new.
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| 1 | NaN in `ai.params` cannot be rejected after JSON | **Resolved** | `08-05-PLAN.md:148` defines the ParamValue domain: null and boolean are legal, a non-finite number never is. `08-13-PLAN.md:23,115` makes `snapshotWorld` throw `SnapshotError("non-finite")` before it serializes anything. `08-13-PLAN.md:154-155` adds null and boolean to the generator, and the converse is checked only where it is decidable: (i) refusal before JSON, (ii) a null inside an array or a number slot, (iii) a scalar null is accepted. |
+| 2 | `\.store\b` gate can never pass | **Resolved** | `08-16-PLAN.md:146` narrows the regex to `sim/world/store`, `world\??\.store\b`, store method calls and `EntityStore`. The IndexedDB `saveBoot.store` sites no longer match. |
+| 3 | `advanceTicks` undefined outside the manual clock | **Resolved** | `08-16-PLAN.md:30,143,212`: the method is always present and refuses outside `clock=manual`. The fixture check asserts `"function"` in both hook states. |
+| 4 | Shared limits defined three times | **Resolved** | `08-05-PLAN.md:31,146,184-185`: a single `limits.ts` with seven exact-value gates and a redefinition regex. `08-13-PLAN.md:115,129` imports and never re-exports. `08-11-PLAN.md:32` imports from `./limits.js`. |
+| 5 | Enum leaves unchecked; `registry[aiKey]` throws | **Resolved** | Spawn checks with `includes` (`08-05-PLAN.md:153`). Sanitize repairs or kills (`08-11-PLAN.md:183` rule 9). Dispatch goes through `Object.hasOwn(registry, …)` with a gate (`08-11-PLAN.md:35,136,152`). The parser checks all four (`08-13-PLAN.md:26`). |
+| 6 | Quaternions passing spawn or sanitize but failing the parser | **Resolved** | Spawn requires a unit quaternion (`08-05-PLAN.md:157`). Sanitize resets a norm below `MIN_QUAT_NORM_SQ` to identity and re-checks after normalizing (`08-11-PLAN.md:177`, rule 2). The property includes `{w:1e-160}` and `{w:3e-161}` as constants (`08-13-PLAN.md:154`). |
+| 7 | `worldSeed` never checked as uint32 | **Resolved** | `createWorld` throws `RangeError` (`08-05-PLAN.md:32,151,212`). The parser rejects 1.5, -1, 2^32 and null (`08-13-PLAN.md:26,143`). |
+| 8 | `createEventRouter` signature contradiction | **Resolved** | `08-10-PLAN.md:40,158` and `08-15-PLAN.md:108,133` both use `(ctx, subscribers)`. `rg "createEventRouter\(subscribers"` finds only the ledger row. |
+| 9 | Lint guard gaps | **Resolved** | 08-03 adds `no-eval`, `no-new-func`, `no-implied-eval`, `Intl` and `localeCompare` bans plus the computed sort/call forms (`08-03-PLAN.md:27,150,170`). 08-09 adds `importNames: ["createSeededRandom"]` at depths 1 and 2 and `AI_MODULE_STATE_BANS` (`08-09-PLAN.md:30-31,192-194,211`). |
+| 10 | Restore check relies on a rounded hash | **Resolved** | Exact `JSON.stringify(snapshotWorld(…))` comparison plus `toStrictEqual` on the player (`08-13-PLAN.md:22,116,128`). See the new finding N1, which shows this exact check fails as specified. |
+| 11 | Drain caps passes, not deliveries | **Resolved** | `MAX_AI_EVENTS_PER_DRAIN = 4096`, `MAX_AI_QUEUE_LENGTH = 4096`, validated `a`/`b`/`n`, and a conservation-law test (`08-11-PLAN.md:30,168,171-172,191`). |
+| 12 | ShipControl accepts out-of-domain values | **Resolved** | `08-07-PLAN.md:30,117,154`: every argument is checked against `limits.ts`, and `perform` uses `includes`. |
+| 13 | No Firefox run | **Resolved** | A non-blocking `e2e-cross` run at step 9 (`08-12-PLAN.md:137`) and after verify-full (`08-15-PLAN.md:36,216,232`). |
+| 14 | LOW items (deviation records, best-of-N, stale anchors) | **Resolved** | Deviations are recorded at `08-08-PLAN.md:146,165` and `08-12-PLAN.md:137,266`. Best of three: `08-15-PLAN.md:39`. Locate by pattern: `08-08-PLAN.md:80`, `08-12-PLAN.md:91`. |
+
+All 14 Round 4 consensus items are resolved in the plan text.
+
+### New findings (summary)
+
+| ID | Severity | Plans | Finding |
+|----|----------|-------|---------|
+| N1 | **HIGH** | 08-13 (08-05) | The order of `ai.params` keys differs between the live and restored worlds. The exact snapshot-JSON checkpoint check fails as written, and an AI that uses `Object.keys` on its params is a determinism escape. |
+| N2 | MEDIUM | 08-05, 08-13, 08-11 (Phase 11 boundary) | Nothing caps the total size of a world. The per-field caps allow about 67 M string chars of params, so a legal world can produce a snapshot or hash text near V8's string limit, which makes the save fail. |
+| N3 | MEDIUM | 08-13 | `snapshotWorld` refuses only non-finite values. A finite but out-of-domain world produces a snapshot its own parser rejects, which would be an unloadable save in Phase 11. |
+| N4 | LOW | 08-05, 08-11, 08-13 | Sparse param arrays (holes) and a non-object `ai.params` are not specified. Iterating with `every` or `filter` skips holes, and `Object.keys(null)` throws. |
+| N5 | LOW | 08-05 | `spawnEntity` validates, then copies, reading getters twice (TOCTOU). The parser already pins single-read. |
+| N6 | LOW | 08-11, 08-13 | The live `params` prototype is not canonicalized. An AI that replaces `ctx.ai.params` with a literal keeps `Object.prototype` live, while the restored object has a null prototype. |
+| N7 | LOW | 08-04, 08-08 | `testTainted` is now a writable field on the shared `ctx`. No gate keeps it monotonic. |
+| N8 | LOW | 08-03, 08-11 | The entity-id-scope guard is a token scan. Ids reach `src/app` as plain numbers through `SimEvent` payloads and `Entity["id"]`. That residual is not documented. |
+| N9 | LOW | 08-09 | Function-object properties (`think.count = …`) are a form of module-level state that neither the module-state lint nor its documented residual list mentions. |
 
 ### 08-01
 
-**Summary.** Sets up the split's safety nets: a verify-full baseline, a strict probe-shape snapshot and order-independent session-source scans.
+**Summary:** Step 0: a concatenating source helper, the probe-shape pin and the local verify-full baseline on a worktree.
 
-**Strengths.** The comparator treats `[]` as matching only `[]`, and `PROBE_SHAPE_VOLATILE_EMPTY_ARRAY_PATHS` starts empty. Optional keys are sorted into state-determined and timing-dependent, and the fixture must pass three assert-mode runs, which closes the "permissive fixture" bypass. The baseline runs on a detached worktree of `5b189e4` under its own Compose project, so another plan's edits cannot leak into the evidence.
+**Strengths:** The probe-shape snapshot is the trust anchor for every later hook change. `08-16-PLAN.md:143` builds a subtractive check on it. `advanceTicks` stays a function, so the Round 4 contract holds.
 
-**Concerns.**
-- LOW: the probe-shape spec checks key sets and leaf types, not values. That is by design, but nothing in this plan stops a later plan from publishing a live object reference (an alias) under an existing key. 08-16 adds its own primitive-only check for `probe.sim`; the existing `probe.*` keys have none.
+**Concerns:** None new under this lens.
 
-**Suggestions.** None blocking.
+**Suggestions:** None.
 
-**Risk.** LOW.
+**Risk:** LOW.
 
 ### 08-02
 
-**Summary.** Pins the v1 flight hashes and RNG vectors, adds a serialisable mulberry32 `RngState`, and defines the `mix32` world and fork seeds.
+**Summary:** A serialisable mulberry32 `RngState`, mix32/fmix32, `worldSeedFor`/`forkSeed`, and `createSeededRandom` delegating to it.
 
-**Strengths.** The vectors are captured from the unmodified closure and compared with `toBe`. `forkSeed` and `worldSeedFor` throw `RangeError` at the boundary, and the fixed-step callers guard their inputs so the throw cannot be reached from the frame loop (`08-02-PLAN.md:197`).
+**Strengths:** Literal vectors land in the same commit as `rng.ts` (`08-02-PLAN.md:196,214`). `forkSeed` throws `RangeError` on a bad epoch or entityId, and the fixed-step callers pre-guard (`08-02-PLAN.md:193`). mulberry32 has no zero fixed point (`src/sim/math.ts:227-235`), so an arbitrary uint32 state from a snapshot is safe. The ledger correctly notes that every stream walks the same Weyl cycle (`08-02-PLAN.md:198`).
 
-**Concerns.**
-- MEDIUM (feeds the 08-09 finding): the permanent guard against closure-held streams is a text scan for `createSeededRandom\(` (`08-02-PLAN.md:220`). An aliased import (`import { createSeededRandom as r } from "../math.js"`) or a namespace import (`m.createSeededRandom(...)` written through a variable) gets past it. `createSeededRandom` is still exported from `src/sim/math.ts:227`, and 08-09 lets AI modules import that file.
-- LOW: `worldSeedFor`/`forkSeed` coerce `worldSeed` with `>>> 0` (`:197`), so `1.5`, `-1` and `2**32 + 7` all quietly become different but valid seeds. This matters only because the 08-13 parser does not require a `uint32` `worldSeed` (see 08-13).
+**Concerns:** None new.
 
-**Suggestions.** Make the scan import-aware: fail on any `import` of `createSeededRandom` outside `arrival.ts`, whatever the local name. Better, move `createSeededRandom` out of `math.ts` into a module the AI zone cannot import.
+**Suggestions:** None.
 
-**Risk.** LOW-MEDIUM.
+**Risk:** LOW.
 
 ### 08-03
 
-**Summary.** Adds determinism lint bans in `src/sim` and proves each one with a probe.
+**Summary:** The src/sim determinism bans, the reflection and alias selectors, and the `entity-id-scope` source-scan guard.
 
-**Strengths.** Every ban has a real-config probe and a positive control. Probes are written under a lock, prefixed `__purity_`, carry the SPDX header, and are cleaned up afterwards. The Reflect and `.sort.call/.apply/.bind` forms are now caught or documented as residual.
+**Strengths:** The Round 4 additions close the eval, Function, Intl, localeCompare and computed-sort gaps, each with a probe (`08-03-PLAN.md:27,150,170`). The guard lands in wave 1, before `ids.ts` exists (`08-03-PLAN.md:32,60`).
 
-**Concerns.**
-- MEDIUM: the `src/sim` block (`eslint.config.js:71-150`) has no `no-eval`, `no-new-func`, `localeCompare` or `Intl` ban. The repository already applies all four to the generator zone (`eslint.config.js:208-241`, `files: ["tools/oolite-ingest/**/*.ts"]`), and 08-03 does not carry them over. Each of these passes the planned rules:
-  - `new Function("return Math.random()")()`
-  - `(0, eval)("Date.now()")`
-  - `xs.sort((a, b) => a.localeCompare(b))`, which is ICU- and locale-dependent and so breaks cross-machine replay. It has a comparator, so the bare-sort ban never fires.
+**Concerns:**
+- **LOW (N8):** `findEntityIdLeaks` (`08-03-PLAN.md:194`) reports only imports that resolve to `src/sim/world/ids` and the `EntityId` token. In Phase 8, ids already cross into `src/app` as plain numbers in two ways. First, `SimEvent` payloads such as `entityRemoved {id}` and `shipDestroyed {id, killer}` (`08-11-PLAN.md:39`) pass through the app's event router. Second, `Entity["id"]` or `WorldView`-derived types can name an id without the token. The rule "consumers never store the id" (`08-11-PLAN.md:39`) is documentation only. The plan documents residuals for the lint guards (T-08-38) but not for this guard.
 
-  The globals ban on `globalThis` and `self` does not catch `Function` or `eval`.
-- LOW: `.sort(undefined)` and `.toSorted(void 0)` behave exactly like a bare sort but pass the `arguments.length=0` selector. `Array.prototype["sort"].call(xs)` uses a computed `Literal` property, so `object.property.name` is undefined and the `.sort.call` selector misses it.
+**Suggestions:** Add a residual note to the guard header and to Key Decisions row (d). The guard is "necessary, not sufficient": ids arrive as `number` through `SimEvent` payloads, and the first app subscriber that stores one (a Phase 12 HUD target) must arrive with the boundary-clearing row that `08-05-PLAN.md:224` already requires.
 
-**Suggestions.**
-- Add `no-eval`, `no-new-func`, `no-implied-eval`, `Intl` (global) and `CallExpression[callee.property.name="localeCompare"]` to `SIM_GLOBAL_BANS`/`SIM_SYNTAX_BANS`, each with a probe.
-- Extend the sort selector to an `Identifier[name="undefined"]` argument or a `UnaryExpression[operator="void"]` argument, and add a `[property.value=/^(sort|toSorted)$/]` computed variant. Otherwise, list both forms as documented residuals.
-
-**Risk.** MEDIUM. The determinism proof leans on lint for future AI ports.
+**Risk:** LOW.
 
 ### 08-04
 
-**Summary.** Split steps 1 and 2: a typed session context and the probe publisher extraction.
+**Summary:** Split steps 1 and 2. The closure state moves into a typed `SessionState` ctx, and the probe publisher is extracted.
 
-**Strengths.** A closure-level-alias scan ensures no live field is copied at factory scope (G-8). Publisher call sites are pinned by count and position, and the hook's mutate callback keeps both its taint and its redraw (`src/app/game-session.ts:1035-1042`).
+**Strengths:** The probe publisher builds fresh plain objects, and `withdrawProbe` deletes the test, save and saveScreen fields (`08-04-PLAN.md:154`).
 
-**Concerns.** None new. The taint flag survives an in-session Load: `loadFromSave` never resets `testTainted` (`game-session.ts:1326-1430`), which is the safe direction.
+**Concerns:**
+- **LOW (N7):** Before the split, `testTainted` is a closure `let` (`src/app/game-session.ts:475`). Its only writes are the initializer and `= true` in the hook callback (`:1039`), so the taint latches by construction. After step 1 it becomes the field `ctx.runtime.testTainted`, writable by every module that receives `ctx` (station, save, hyperspace, sim driver, frame loop). Every durable-save guard (`src/app/game-session.ts:1224,1261`) depends on it never going back to false. No plan gates that.
 
-**Risk.** LOW.
+**Suggestions:** Add a cheap gate to 08-04, re-asserted in 08-08 and 08-12. `rg -n "testTainted\s*=\s*false" src/app` must print nothing; the initial value is set only in `createSessionState`'s object literal. Alternatively, expose a setter that latches only (`markTainted()`).
+
+**Risk:** LOW.
 
 ### 08-05
 
-**Summary.** The world foundation: ids, entities, the five static entities, the store and the world hash.
+**Summary:** Ids, `limits.ts`, the vocabularies, the entity and static records, the store, `createWorld`, `spawnEntity` validation and the injective world hash.
 
-**Strengths.**
-- `spawnEntity` validates against the shared domain before calling `allocate` (`08-05-PLAN.md:137`).
-- `allocate` counts non-dead entities and refuses at `nextId > 0xffffffff`.
-- `STATIC_ENTITIES` is frozen.
-- `ai.params` is copied onto `Object.create(null)`.
-- `isNeverSpawned` is one predicate, and a source scan stops the serializer from re-spelling it.
+**Strengths:** One limits module, with redefinition gated (`08-05-PLAN.md:184-185`). Enum membership always uses `includes`, never `in` or indexing (`:153`). Params are enumerated with `Object.keys` plus `hasOwn`, forbidden keys are refused, and params are copied onto `Object.create(null)` (`:158-159`). `encodeHashString` keeps the hash text ASCII and injective: JSON escapes the backslash, so the literal text `Ł` and the character `Ł` stay distinct, and lone surrogates are escaped by well-formed `JSON.stringify`. Type tags separate `1`, `"1"` and `true` (`:160-162`). A refused spawn never advances `nextId` (`:29`).
 
-**Concerns.**
-- HIGH (shared with 08-11 and 08-13, detailed under 08-13): `ParamValue = null | boolean | number | string | readonly (number | string)[]` (`08-05-PLAN.md:134`) makes `null` a legal param value. The parser plan treats `null` as "a NaN that went through JSON". The three plans disagree on whether `null` and `boolean` are valid.
-- MEDIUM: the hash text can be ambiguous, and the hash is coarse, so equality proofs can pass while a bug is present.
-  - `serializeEntity` emits strings (`specKey`, param keys, string params) into a labelled line with no escaping or type tags (`08-05-PLAN.md:138`). A param string containing `\n`, `=` or the field separator can produce the same text as a different entity. A number `1` and a string `"1"` (both legal `ParamValue`s) may print the same.
-  - `fnv1a32` hashes only the low byte of each UTF-16 code unit (`src/sim/hash.ts:13-16`), so `"A"` and `"Ł"` (U+0141) hash identically.
-  - `canon` rounds to 6 decimals (`src/sim/hash.ts:29-33`).
+**Concerns:**
+- **HIGH via 08-13 (N1, root cause here):** `spawnEntity` copies `ai.params` "onto `Object.create(null)`" with no key order specified (`08-05-PLAN.md:159`), so live params keep insertion order. `createTestPilotAi` inserts `phase, targetId, scanRange, holdRange, cruiseSpeed` (`08-09-PLAN.md:122`), which is not code-unit sorted. The parser rebuilds params in sorted order (`08-13-PLAN.md:115`). See 08-13.
+- **MEDIUM (N2):** The caps apply per field only. One entity can carry 32 keys × 64 elements × 128 chars, about 262 k chars of params. With 256 entities that is about 67 M chars. `encodeHashString` writes each code unit above 0x7e as six characters, so `hashWorld` text for a legal world can reach about 400 M chars, close to V8's maximum string length (about 2^29). The snapshot JSON (lone surrogates are escaped as six characters) can do the same. A legal, sanitize-clean world (AI code may write params up to the caps) can therefore make `worldHash()` or a Phase 11 save throw `RangeError: Invalid string length`, or write a blob of hundreds of MB to IndexedDB.
+- **LOW (N4):** Holes and container shape are unspecified. A param array such as `[1, , 2]` built in process passes a validator written with `Array.prototype.every`, because `every` skips holes. `.slice()` keeps the hole, `JSON.stringify` writes `null` there, and the parser then rejects the element. Separately, `init.ai.params` set to `null` throws a `TypeError` from `Object.keys`, and an array value is accepted and stored as index keys. Spawn runs inside the fixed step once the Phase 12 populator exists.
+- **LOW (N5):** Spawn validates a field, then copies it, reading accessor properties twice. The parser explicitly pins single-read (`08-13-PLAN.md:26,144`). Spawn callers are trusted code, so this is LOW.
 
-  As a result, the `ENTITY_FIELDS` table (`08-13:139`) and the 1,000-tick equality can pass for a codec that loses precision below 1e-6, splits or merges param strings, or drops the high byte of a character.
-- LOW: `allocate` accepts `nextId = 0xffffffff`, hands out that id and leaves `nextId = 2**32`. `snapshotWorld` then emits a `nextId` that the 08-13 parser rejects (`101..0xffffffff`, `08-13-PLAN.md:27`). The two validators disagree at the edge. It cannot happen in practice, but it is exactly the kind of disagreement this lens looks for.
+**Suggestions:**
+- Copy params in code-unit sorted key order at spawn, the same order the parser uses, and say so in the step 5 text.
+- Add an aggregate budget to `limits.ts`, for example `MAX_AI_PARAMS_CHARS` per entity (total chars across keys, strings and string elements, around 4 k), enforced at spawn, in sanitize and in the parser. Or lower the string-array caps. Record that changing it bumps `WORLD_SNAPSHOT_VERSION`.
+- Require `ai.params` to be a non-array, non-null object. Validate arrays with index loops (`for (let i = 0; i < a.length; i++)`), and add a hole row (`[1, , 2]`) to the refusal table.
+- Read each init leaf once into a local, then validate and copy that local.
 
-**Suggestions.**
-- Emit every string leaf as `JSON.stringify(s)`, which is deterministic for strings, and give each param value a type tag (`n:`, `s:`, `b:`, `z:` for null, `a:[...]`).
-- Either make `allocate` refuse at `nextId >= 0xffffffff`, or let the parser accept `nextId <= 2**32`.
-
-**Risk.** MEDIUM.
+**Risk:** MEDIUM.
 
 ### 08-06
 
-**Summary.** Split steps 3 and 4: the render driver, and the chart and settings controllers.
+**Summary:** Split steps 3 and 4: the render driver, then the chart and settings controllers.
 
-**Strengths.** The redraw gate keys on live identities read at call time. Listener totals and registration sites are pinned. verify-full runs on a detached worktree of the step commit.
+**Strengths:** These are UI-only moves. No new trust boundary, and the redraw-gate count is pinned.
 
-**Concerns.** None new. Resume is refused while the WebGL context is lost, and the chart preset is test-pinned.
+**Concerns:** None under this lens.
 
-**Risk.** LOW.
+**Suggestions:** None.
+
+**Risk:** LOW.
 
 ### 08-07
 
-**Summary.** The AI seam: a read-only `WorldView` and a write-only `ShipControl`.
+**Summary:** A read-only `WorldView` and a write-only `ShipControl` over the world, the layout and the live player.
 
-**Strengths.**
-- Every returned vector and quaternion goes through one `copyVec`/`copyQuat` pair (`08-07-PLAN.md:112`).
-- Calls are honoured only for the actor.
-- The view takes the player on each call, so a Load or arrival cannot leave it reading a stale object (G-8).
-- Member sets are pinned by `Record<keyof ...>` tests.
+**Strengths:** The view returns fresh plain copies (`08-07-PLAN.md:24`). Control writes are limited to the actor and validated against `limits.ts`. `scheduleWake` requires a safe integer of at least 1 that cannot overflow uint32 (`:117,153-154`). Ids are world-scoped, with a cross-world negative test (`:32`).
 
-**Concerns.**
-- MEDIUM: `ShipControl` accepts a wider domain than spawn, sanitize and parse (`08-07-PLAN.md:113`).
-  - `setDesiredSpeed` and `setDesiredRange` accept any finite non-negative number, with no `1e12` cap.
-  - `setDestination` accepts any finite vector, with no `1e12` cap.
-  - `setTarget` accepts any safe integer up to `2**53`.
-  - `scheduleWake` accepts any safe integer number of ticks, so `wakeTick` can exceed `0xffffffff`.
+**Concerns:**
+- **LOW (residual, feeds N6):** The seam's validation covers only `ShipControl`. `AiContext.ai` is the actor's live, mutable `AiComponent` (`08-09-PLAN.md:120`), so an AI can write NaN, a nested object or an over-long string straight into `ai.params` and the timers. That bypasses the item 12 guarantee ("a legitimate AI write is never turned into hashed sanitize repair noise") and lands as a `repairs` increment one tick later. This is acceptable by design, but it is not stated.
 
-  These values are accepted, then silently rewritten to `0` by `sanitizeEntity` at the end of the tick (`08-11-PLAN.md:164-168`) and counted in `repairs`, which is hashed. An AI that calls `setDesiredSpeed(2e12)` stops dead, and a wake scheduled too far ahead silently disappears. In between, other thinkers on the same tick see positions near `1e298`. This is the "validators disagree" pattern: the seam meant to be narrow and validated lets in values the next layer treats as corruption.
-- LOW: `perform` checks membership in `BEHAVIOUR_IDS`. Nothing says the check must be `includes` rather than `in`/indexing, and with `in`, `perform("constructor")` would pass.
+**Suggestions:** State in `control.ts` or `types.ts` that writes to `ai.params` and the timers through `ctx.ai` are trusted, and that sanitize repairs them (counted in `repairs`). Alternatively, offer a `ctl.setParam` that validates.
 
-**Suggestions.**
-- Bound `ShipControl` to the shared domain and ignore out-of-range calls: speeds and ranges `<= MAX_ENTITY_MAGNITUDE`, destination components `<= 1e12`, `setTarget` within `0..0xffffffff`, and `tick + ticks <= 0xffffffff`.
-- Add rows to the Task 2 table proving those calls are ignored.
-
-**Risk.** MEDIUM.
+**Risk:** LOW.
 
 ### 08-08
 
-**Summary.** Split steps 5 and 6: the station controller and the save controller.
+**Summary:** Split steps 5 and 6: the station controller, then the save controller with the in-session Load.
 
-**Strengths.** The save guard order is pinned: recovering, then status, then tainted (`game-session.ts:1212-1228,1261`). After each `await` in Load, Clear and Write, the code re-checks `disposed` (and `saveScreenOpen` for Load) before going on. A failed parse changes no live field. `document` access is guarded for Node tests.
+**Strengths:** The order of the save guards is unit-proven: `recovering` first, then `tainted`, with the attempt counter incremented first (`08-08-PLAN.md:26,150`). `src/persistence` is unchanged (T-08-14). The added `disposed` guards are recorded as deliberate deviations (`:146,165`).
 
-**Concerns.**
-- LOW: the post-await re-check covers `disposed` and `!saveScreenOpen`. A Load that resolves after the player closed and reopened F2 still installs, because the check is a boolean and not a generation counter. This is pre-existing (`game-session.ts:1344`) and not a regression. Phase 11 will feed untrusted epochs through the same path, so a `saveScreenGeneration` token is worth recording as a follow-up.
+**Concerns:**
+- **LOW (N7, continued):** The save controller is the main reader of `ctx.runtime.testTainted`. Nothing proves the move adds no `testTainted = false` (for example an in-session Load that "resets" state). Today the taint latches across a Load (`06-REVIEW` IN-01).
 
-**Risk.** LOW.
+**Suggestions:** Re-run the N7 gate at step 6. Add one Node row: after a Load on a tainted session, `ctx.runtime.testTainted` is still true.
+
+**Risk:** LOW.
 
 ### 08-09
 
-**Summary.** AI types, integer tick timers, the registry, the scripted test pilot and the AI lint zone.
+**Summary:** The AI types, the time base, the frozen registry, the scripted test pilot and the AI lint zone.
 
-**Strengths.** The allow-list regexes are case-sensitive and pinned by a table read from `calculateConfigForFile`. A depth-3 catch-all rejects deeper files. Dynamic `import()` is banned. A seal test checks that the seam modules cannot re-export internals. The registry and modules are frozen.
+**Strengths:** Exact `paths`/`importNames` bans on `createSeededRandom`, covering the alias and namespace-import forms (`08-09-PLAN.md:192`). A depth-3 catch-all rejects every import (`:191`). Case-sensitive allow-list regexes are pinned by a table read from the effective config (`:198`). `AI_MODULE_STATE_BANS` is spread into every block, and its residuals are documented (`:193`). The re-export surface of the four seam modules is sealed (`:197`).
 
-**Concerns.**
-- MEDIUM-HIGH: success criterion 4 ("state survives a JSON round trip") is proven for the test pilot only. The lint zone, which is meant to protect the 14-22 AI ports, leaves two holes for closure-held state:
-  1. The zone allows `../math.js` (`08-09-PLAN.md:182`), and `src/sim/math.ts:227` exports `createSeededRandom(seed): () => number`, a closure-held stream. 08-02's text scan can be bypassed with an alias (see 08-02).
-  2. Nothing bans module-level mutable state in `src/sim/ai/**`: a top-level `let`, or a top-level `const` holding an array, Map or object that a think mutates. Freezing `TEST_PILOT` (`:119`) does not freeze the module's other bindings.
+**Concerns:**
+- **LOW (N9):** Function-object properties are module-level state the lint cannot see: `function think(ctx) { think.calls = (think.calls ?? 0) + 1 }`, or `TEST_PILOT`-adjacent helpers carrying expando fields. They are not in the documented residual list (`:193` lists IIFE, `as const`, shallow freeze and class statics). `Object.freeze(TEST_PILOT)` freezes the module object, not the function objects it references.
+- **Cross-ref (N1):** The pilot's params insertion order (`:122`) is the concrete trigger for the 08-13 failure.
 
-  An AI can therefore keep hidden state that the snapshot does not carry, which is exactly why running Oolite JS was rejected. The 1,000-tick test would catch it only if that AI ran in the test.
-- LOW: the seal test looks for `export ... from`. A two-step re-export (`import { x } from "./store.js"; export { x }`) in `math.ts`, `view.ts` or `control.ts` gets past it. The "imports only `./rng.js`" check on `math.ts` covers that file, but `view.ts`/`control.ts` are checked only for `import type`, which is enough. This is a minor gap.
+**Suggestions:** Add "properties assigned on function objects" to the residual comment. Optionally add a selector, `AssignmentExpression[left.type="MemberExpression"][left.object.type="Identifier"]`, restricted to identifiers bound to top-level function declarations. Or freeze the functions that `TEST_PILOT` references.
 
-**Suggestions.**
-- In the AI blocks, add `no-restricted-imports` `paths` with `importNames: ["createSeededRandom"]` for `../math.js` and `../../math.js`. Alternatively, move the function out of `math.ts`.
-- Add `no-restricted-syntax` selectors `Program > VariableDeclaration[kind=/^(let|var)$/]` and `Program > ExportNamedDeclaration > VariableDeclaration[kind=/^(let|var)$/]`, each with a probe.
-
-**Risk.** MEDIUM.
+**Risk:** LOW.
 
 ### 08-10
 
-**Summary.** Split steps 7 and 8: the hyperspace controller, the event router and the sim driver.
+**Summary:** Split steps 7 and 8: the atomic hyperspace move, the ordered event router and the sim driver with `stepOnce` and the step-options builder.
 
-**Strengths.**
-- The arrival is one synchronous install block: everything that can throw runs before any live reference moves.
-- The routing table is declarative.
-- Frozen frames empty `pending`.
-- `buildStepOptions` is pure, so the Node replay calls the same code.
+**Strengths:** `isRoutedKind` rejects `"constructor"` and `"toString"` (`08-10-PLAN.md:165`), so the routing table cannot be read through the prototype. The signature is aligned.
 
-**Concerns.** None new. The router passes unknown kinds through harmlessly.
+**Concerns:** None new.
 
-**Risk.** LOW.
+**Suggestions:** None.
+
+**Risk:** LOW.
 
 ### 08-11
 
-**Summary.** The world step: an id-order pass after the flight step, queued AI events, per-tick sanitizing, and reserved `SimEvent` kinds.
+**Summary:** `stepWorld`/`stepSim`, the bounded AI event queue, field-complete idempotent `sanitizeEntity`, own-key dispatch and the reserved events.
 
-**Strengths.**
-- The pass length is snapshotted, so an entity spawned this tick does not think until the next tick.
-- The event queue drains first-in first-out, at most 8 passes, and is empty at every tick boundary.
-- The view is built lazily.
-- `sanitizeEntity` is table-pinned with a repairs-delta column.
-- Cross-engine equality is explicitly not claimed.
+**Strengths:** Own-key dispatch with a gate (`08-11-PLAN.md:35,152`). Validated, copy-only `postAiEvent` with a three-bound drop accounting (`:30,168-172,191`). Sanitize rules 1-9 take every bound from `limits.ts` and are idempotent (`:177-185`). The jump-step rule skips the world on the step that emits `hyperspaceJumped` (`:36,140`). That step is sound because the arrival installs synchronously inside `handleEvent` (`src/app/game-session.ts:2406-2407,2061-2112`) and each step reads the live layout (`:2797-2800`).
 
-**Concerns.**
-- HIGH (detailed under 08-13): the sanitizer keeps `null` and `boolean` params (`08-11-PLAN.md:167`, step 7). Its guarantee that "every sanitized world snapshots to JSON that `parseWorldSnapshot` accepts" (`:32`) therefore depends on the parser accepting both, which 08-13's converse test contradicts.
-- MEDIUM: the sanitizer is not field-complete for the closed-vocabulary fields the parser rejects. It never checks `kind`, `scanClass`, `nav.behaviour` or `ai.aiKey`. `AiContext.ai` is the live, mutable component (`08-09-PLAN.md:116`), `aiKey` is not `readonly`, and dispatch is `registry[ai.aiKey].think(ctx)` (`08-11-PLAN.md:126`, and `.onEvent` at `:174`). A wrong `aiKey` therefore throws a `TypeError` inside the fixed step. That includes a prototype key such as `"constructor"` on the frozen plain-object registry, where the lookup resolves through the prototype to `Object` and `.think` is undefined. The sanitizer would not repair it, and the parser would reject the snapshot. TypeScript prevents this only for code that does not cast. The fast-check property in 08-13 never mutates these four fields, so the claim that "sanitizer and parser agree" is untested for them.
-- LOW: `postAiEvent` validates `to` and `name` only. `a`, `b` and `n` are copied unchecked (`:174`). Per-pass queue size is unbounded: a buggy handler that posts many events in one pass grows the array without limit before the 8-pass cap applies.
-- LOW: on the arrival tick, `stepSim` runs `stepWorld` on the old world with the post-jump player and the pre-jump `layout`, before the router replaces the world. This is deterministic and harmless with no NPCs, but Phase 12 NPCs would think once against the destination player and the origin layout. Document it, or skip `stepWorld` when `stepFlight` emitted `hyperspaceJumped`.
+**Concerns:**
+- **LOW (N6):** Rule 7 rebuilds params onto `Object.create(null)` in sorted order "when repairing" only (`:183`). A clean params object that an AI replaced through `ctx.ai.params = { … }` keeps `Object.prototype` and insertion order in the live world. The restored world has a null prototype and sorted keys (`08-13-PLAN.md:115`). If an AI reads an inherited name (`params.constructor`, `"toString" in params`) or iterates `Object.keys(params)`, live and restored worlds diverge. The exact-JSON check cannot see the prototype difference.
+- **LOW (N4):** Rule 7's "filtered out of the copied array" step, done with `Array.prototype.filter`, silently drops holes. Whether that counts as a repair is unspecified, so idempotence and repair accounting depend on the implementation. Sanitize also does not handle structural replacement: if a cast sets `position`, `nav`, `rng` or `ai.params` to null or a non-object, sanitize throws a `TypeError` inside the fixed step, although the truth at `:32` claims totality.
 
-**Suggestions.**
-- Dispatch through `Object.hasOwn(registry, key) ? registry[key] : undefined` and skip, or null the AI and count a repair, when the key is unknown.
-- Have `sanitizeEntity` repair `nav.behaviour` to `"IDLE"` and an unknown `aiKey` to `ai = null`, and assert `kind`/`scanClass` membership.
-- Add those four fields to the 08-13 fast-check mutation set.
-- Cap the queue length per pass (for example 256) and count overflow in `aiDropped`.
-- Validate `a`/`b` as safe-integer ids and `n` as finite.
+**Suggestions:**
+- Make the params rebuild unconditional when `Object.getPrototypeOf(params) !== null` or the keys are out of sorted order, and treat that as a normalisation (not counted), the same way `-0` is handled.
+- Specify index loops for arrays and add a hole row.
+- Either narrow "total" to "total over typed shapes" or add structural rows (a null `position`, `nav` or `params`) that repair to defaults or kill the entity.
 
-**Risk.** MEDIUM-HIGH.
+**Risk:** LOW-MEDIUM.
 
 ### 08-12
 
-**Summary.** Split step 9: the frame loop, start-up wiring and the thin facade.
+**Summary:** Split step 9: the frame loop and session start-up wiring, with game-session.ts left as a facade.
 
-**Strengths.** Every `addEventListener` carries `uiController.signal`. No timers exist in `src/app/session`. `swapSystem`'s rAF continuation is guarded against `disposed`. Dispose is idempotent and its order is test-pinned. The pinned-literal audit runs before the gates.
+**Strengths:** Firefox is run (non-blocking). The deviations are recorded. The facade export set is pinned.
 
-**Concerns.** None new.
+**Concerns:** The N7 gate should hold after step 9 (start-session now builds `ctx`).
 
-**Risk.** LOW.
+**Suggestions:** Include the `testTainted = false` gate in the step-9 pinned-literal audit (`08-12-PLAN.md:121`).
+
+**Risk:** LOW.
 
 ### 08-13
 
-**Summary.** The snapshot codec, the 1,000-tick live-versus-restored equality, and the world cadence test.
+**Summary:** The strict snapshot codec, the 1,000-tick live-versus-restored equality, the rejection table and cross-cadence world hashes.
 
-**Strengths.** The parser is strict on every object level, uses `Object.hasOwn`, and rejects proto keys. `restoreWorld` re-validates. There are bidirectional anti-alias tests. `ENTITY_FIELDS` is typecheck-enforced, and the fast-check property is non-vacuous.
+**Strengths:** This is the strongest boundary in the phase. `parseWorldSnapshot` uses `Object.hasOwn`, never compares prototypes, reads each property once into a fresh tree, rejects unknown keys and `__proto__`/`constructor`/`prototype` at every level, bounds every counter, and applies every cap from `limits.ts` (`08-13-PLAN.md:26,115,143-144`). `restoreWorld` validates through the parser and shares no references (`:23,152`). Three distinct `snapshotWorld` refusals (`:25,150-151`). Correct use of JSON.parse semantics: an own `__proto__` key is caught.
 
-**Concerns.**
-- HIGH: `null` and `boolean` in `ai.params` contradict each other across three plans.
-  - `ParamValue` includes `null` and `boolean` (`08-05:134`), and the sanitizer keeps both (`08-11:167`).
-  - The converse check at `08-13-PLAN.md:140` requires that "mutating a `NaN` field in place (in … `ai.params`) without calling `sanitizeEntity` is refused by `parseWorldSnapshot` after JSON (`null` in a number slot)". `ai.params` values have no number slot: after JSON, a NaN and a legitimate `null` are the same bytes.
+**Concerns:**
+- **HIGH (N1):** The must-have at `:22` and the Task 1 step at `:116`/`:128` require `JSON.stringify(snapshotWorld(live)) === JSON.stringify(snapshotWorld(restored))` at every checkpoint, in a scenario where four entities run `createTestPilotAi`. With the plans as written:
+  - `spawnEntity` keeps the insertion order `phase, targetId, scanRange, holdRange, cruiseSpeed` (`08-05-PLAN.md:159`, `08-09-PLAN.md:122`);
+  - `snapshotWorld` "deep-copies … `ai.params` on `Object.create(null)`" without specifying an order (`08-13-PLAN.md:115`);
+  - `parseWorldSnapshot`, and therefore `restoreWorld`, "copies keys in code-unit sorted order" (`:115`).
 
-  If the executor rejects `null` in params to make the converse test pass, every world holding a legal `null` param (or a `boolean`, which the rejection table at `:133` never mentions as accepted) can no longer be snapshotted. The fast-check arbitrary generates only numbers, strings and arrays (`:140`), so the suite stays green while the codec rejects valid worlds. This is the "test passes while the bug remains" case, and Phase 11 will inherit it.
-- MEDIUM: the parser does not validate `worldSeed`. The must-have list (`:27`) bounds `rng`, ids, counters and timers, but not `worldSeed`. A snapshot with `worldSeed: 1.5`, `-1`, `2**40` or `1e300` is accepted. `forkSeed` coerces it with `>>> 0` (`08-02:197`), so the restored world behaves like a different seed than the one recorded and hashed, and two distinct snapshots alias one world. A `null` (NaN) `worldSeed` must at least fail the non-finite check; the plan should say so explicitly.
-- MEDIUM: hash equality is too coarse to prove a bit-exact restore (`src/sim/hash.ts:13-33`: 6-decimal `canon`, low-byte FNV, see 08-05). The 1,000-tick test compares only `hashWorld` and `entityHashes`, so a restore that perturbs a coordinate by less than 1e-6 passes until the drift grows.
-- LOW: `restoreWorld` validates through `parseWorldSnapshot` and then copies from "the validated deep copy" (`:23`). The plan does not say that `parseWorldSnapshot` builds its output while it validates, reading each leaf once. If it validates the input and then copies, an in-process caller passing getters or a Proxy can pass validation and supply different values to the copy (a read-time race). Phase 11 input comes from `JSON.parse`, so this is low-risk, but the rule costs one sentence.
+  So the live JSON lists `"phase"` first and the restored JSON lists `"cruiseSpeed"` first. The strings differ while every value is equal, and the exact check fails on the first checkpoint. The key-order edge test (`:147`) compares only `entityHashes`, which sort keys, so it cannot reveal this. The underlying issue is also a real determinism escape. Nothing in the src/sim or AI lint bans `Object.keys`, `Object.entries` or `Object.values` order dependence (only `for..in`; `08-03-PLAN.md:23` keeps a "comparator-sorted Object.keys" positive control but does not require the sort). A future AI that iterates its params would behave differently after a restore, and a sorted `snapshotWorld` would then hide it.
+- **MEDIUM (N3):** `snapshotWorld` refuses `uncommitted`, `queue-not-empty` and `non-finite` only (`:23,115`). A finite but out-of-domain world (radius -1, a 200-char specKey, aiKey `"trader"`, position 1e13, a nested param object, a sparse array) is emitted, and the plan's own parser rejects it. In Phase 8 this is test-only. For Phase 11 (SAVE-07/08), whose snapshot this codec "is the de facto contract" for (`:115`), it means the codec can write a save it cannot load: a save-loss path. The sanitize-then-snapshot property (`:154`) proves only that sanitized worlds parse.
+- **MEDIUM (N2, continued):** The parser has no aggregate size bound (see 08-05). A hostile or legal Phase 11 blob of 256 entities at full caps is accepted, then every `hashWorld` and every save re-stringifies it.
 
-**Suggestions.**
-- Pick one of these:
-  - (a) Remove `null` from `ParamValue`. Change 08-05:134, the sanitizer list, and the converse test.
-  - (b) Keep `null`, and limit the converse NaN check to typed number slots (position, radius, an element of a param array) instead of `ai.params` scalar values. Add `null`, `true`/`false` and mixed arrays to the fast-check arbitrary and to an acceptance row.
-- Add a parser rule and a rejection row: `worldSeed` must be a safe integer in `0..0xffffffff` (`1.5`, `-1`, `2**32` rejected).
-- At every 50th-tick checkpoint, also assert `JSON.stringify(snapshotWorld(live)) === JSON.stringify(snapshotWorld(restored))`. This compares bit-exactly and does not depend on the hash.
-- State that `parseWorldSnapshot` returns a fresh tree built during validation, and add a test that a getter-backed input is read once.
+**Suggestions:**
+- Specify that `snapshotWorld` emits `ai.params` in code-unit sorted key order. Make `spawnEntity` (08-05) and the sanitize rebuild (08-11) store params in the same canonical order, so the live and restored objects are identical, not just their serializations.
+- Add a test row: two worlds whose params differ only in insertion order give byte-equal `JSON.stringify(snapshotWorld(…))`, and a pilot restored from a snapshot sees the same `Object.keys(ctx.ai.params)` as the live one.
+- Add `Object.keys`/`Object.entries`/`Object.values` without a following comparator `sort` to the documented AI-zone residuals, or ban them in the AI zone.
+- Make `snapshotWorld` end with `parseWorldSnapshot(out)` (at most 256 entities, so it is cheap) and add an "out-of-domain" refusal reason, so the codec never emits what it cannot read. Add rows: an unsanitized radius -1 and an unsanitized aiKey `"trader"` both make `snapshotWorld` throw.
 
-**Risk.** MEDIUM-HIGH.
+**Risk:** MEDIUM-HIGH. The fix is small, but the acceptance criterion fails as written.
 
 ### 08-14
 
-**Summary.** Test flags and a manual-clock sim driver with `advanceTicks`.
+**Summary:** `parseTestFlags`, the manual-clock frame branch, `advanceTicks` with `MAX_ADVANCE_TICKS`, and the shared drain path.
 
-**Strengths.**
-- Flags are parsed once, by exact string comparison, and are inert without `test=1`.
-- `advanceTicks` checks `disposed` first, then bounds `n` and refuses while paused, behind an overlay, or without a state.
-- It taints before the first drain or step, so the pre-launch autosave and every later autosave skip.
-- It stops early when a step pauses, disposes or opens an overlay.
-- The drain path is shared and title-preserving tests stop the realtime path from drifting.
+**Strengths:** The flags are exact-match and inert without `test=1` (`08-14-PLAN.md:27,118,152`). `advanceTicks` taints before its first step, so the pre-launch autosave inside the shared drain skips (`:58,125`). Refusals do not taint (`:153`). A throw mid-run leaves the session tainted with the tick advanced by exactly one (`:160`). The self-DoS residual is documented (T-08-29).
 
-**Concerns.**
-- LOW: the hook is live in production builds whenever `?test=1` is in the URL (the threat model accepts this). Each `advanceTicks` call is capped at 200,000 ticks, but nothing limits how often it is called. Combined with Phase 12 populated worlds, a crafted page script can freeze the tab. The taint flag keeps saves safe, so this is a self-DoS only. The acceptance is reasonable; note it in T-08-29.
-- LOW: `advanceTicks` does not catch an exception thrown inside `stepOnce`. If one throws partway through a call, the taint is already set (good), but `currentFrame` and `pending` stay in whatever state the drain left. Say whether that is acceptable.
+**Concerns:** None new. The synchronous arrival install (see 08-11) means `advanceTicks` across a jump steps the new world with the destination layout, so no mid-call mismatch arises.
 
-**Risk.** LOW.
+**Suggestions:** None.
+
+**Risk:** LOW.
 
 ### 08-15
 
-**Summary.** The single integration plan: world lifecycle, epoch bump points, and the anchored-save check.
+**Summary:** The world lifecycle (begin, resume, end, `resetForRestore`), the `stepSim` plug-in at `stepOnce`, the save allow-list proof and the Firefox run.
 
-**Strengths.**
-- `resetForRestore(0)` runs inside the synchronous install block of both warm Load and cold Continue.
-- `begin` refuses a non-finite seed or a saturated epoch.
-- `dispose()` calls `end()` idempotently.
-- The world is never in `SaveInputs`, and `src/persistence` is unchanged.
-- The anchored-save test now inspects `inputs` and `encodeSave(inputs)` correctly.
+**Strengths:**
+- The world is read live on every step, and a gate forbids caching it (`08-15-PLAN.md:132,149`).
+- `begin` refuses `epoch >= 0xffffffff` and a non-finite seed. `resetForRestore` accepts only `0..0xfffffffe` (`:31,39`). That is good preparation for a corrupt Phase 11 epoch.
+- `resume(marketSeed)` receives a seed already validated as an integer in `0..0xffffffff` by the save schema (`src/persistence/save.ts:169,255`).
+- The no-world-in-save proof checks both the top-level allow-list and the key substrings (`:35`).
 
-**Concerns.**
-- LOW: the epoch ranges disagree. `resetForRestore` and `resume` accept an epoch up to and including `0xffffffff`, but `begin` refuses at `>= 0xffffffff` (`08-15-PLAN.md:127`). In Phase 11, a save carrying `epoch = 0xffffffff` (untrusted IndexedDB data) restores, and then every later launch or arrival silently refuses to create a world, leaving the session NPC-free with no error. This cannot happen in Phase 8, but the API is being shaped for Phase 11 now.
-- LOW: the anchored-save string check forbids "any epoch, worldSeed, nextId or entity field" (`:35`). "Entity field" is not a list of tokens, and `position`/`orientation` legitimately appear in `flight` (`src/persistence/autosave.ts:104-110`). Name the exact forbidden substrings (`"epoch"`, `"worldSeed"`, `"nextId"`, `"entities"`, `"specKey"`, `"aiDropped"`) so the check is neither vacuous nor falsely failing.
+**Concerns:** None new under this lens. N2 and N3 are Phase 11 inheritances; this plan writes no world state to the save.
 
-**Suggestions.**
-- Make `resetForRestore` clamp to `< 0xffffffff`, the same domain as `begin`. Better, have it return a refusal that Phase 11 can surface to the player.
+**Suggestions:** Add a forward note to the Key Decisions row: before Phase 11 persists a world snapshot, N2 (aggregate budget) and N3 (`snapshotWorld` self-validation) must be closed.
 
-**Risk.** LOW.
+**Risk:** LOW.
 
 ### 08-16
 
-**Summary.** The one deliberate probe commit: `probe.sim`, `worldHash` and `advanceTicks`, with browser/Vitest hash parity.
+**Summary:** The one deliberate probe commit (`probe.sim`, `worldHash`, `advanceTicks`), the Node replay, Vitest parity and the tick-hook browser spec.
 
-**Strengths.**
-- The commit is purely additive, proven by a subtractive diff whose script is kept in the SUMMARY.
-- `probe.sim` holds only primitives, has a mutation-isolation test, and is absent in menu mode.
-- `worldHash` reads the live state and world and neither taints nor requests a redraw.
-- Both sides of the parity test also check against `hashFlight`, so they cannot agree on the same wrong value.
-- `advanceTicks` appears on the hook only under the manual clock.
+**Strengths:** `worldHash` returns `""` without a state or after dispose (`08-16-PLAN.md:129,212`). `probe.sim` is a fresh plain object with no references, and the test proves it (`:165`). The store gate is now correct (`:146`). Hook growth is limited to two methods (T-08-32). `probe.sim` is also published in production, because the probe is always installed (`src/app/probe.ts:368`), but it carries only scalars, so nothing writable reaches page script.
 
-**Concerns.**
-- LOW: a spec that keeps a reference to an old `probe.test` after `dispose()`, or calls it during menu mode, gets `worldHash()` with `ctx.core.state === undefined`. That reaches `hashWorld(undefined, …)` and throws an untyped `TypeError`. Return a sentinel (for example `""`) or throw a named error when the state is absent or `disposed` is set, and add one Node row.
-- LOW: the replay and the session share `buildStepOptions` and `createWorldLifecycle`, so a bug in either is invisible to the parity test. The extra `hashFlight` cross-check covers the flight half only; once entities exist (Phase 12), equality between the two sides proves less. Note this in the Key Decisions row.
+**Concerns:**
+- **LOW (N2, continued):** `worldHash()` is a synchronous `hashWorld`. With a cap-filled world it can throw `RangeError` (string length). Phase 8 has no populator, so this is latent.
 
-**Risk.** LOW.
+**Suggestions:** None beyond N2.
 
-### Cross-plan summary
+**Risk:** LOW.
 
-| # | Severity | Plans | Finding |
-|---|---|---|---|
-| 1 | HIGH | 08-05, 08-11, 08-13 | `null`/`boolean` `ParamValue` vs the "NaN becomes null in a number slot" converse check: the plans contradict each other, and the fast-check never generates `null`/`boolean`, so a codec that rejects valid worlds stays green |
-| 2 | MEDIUM-HIGH | 08-11, 08-13 | The sanitizer skips `kind`/`scanClass`/`nav.behaviour`/`ai.aiKey`, which the parser rejects; `registry[ai.aiKey]` dispatch has no own-key guard and throws inside the fixed step |
-| 3 | MEDIUM | 08-09, 08-02 | The AI zone lets `../math.js` import `createSeededRandom` (closure stream; the text-scan guard can be bypassed with an alias) and has no ban on module-level mutable state, so serialisable AI state is unenforced for Phases 14-22 |
-| 4 | MEDIUM | 08-03 | The `src/sim` lint lacks `no-eval`/`no-new-func`/`localeCompare`/`Intl`, which already exist for `tools/oolite-ingest` (`eslint.config.js:208-241`) |
-| 5 | MEDIUM | 08-05, 08-13 | Unescaped, untyped string leaves in the hash text, plus a low-byte FNV and 6-digit `canon`, mean the equality proofs can pass while precision or string splitting is broken; add a bit-exact snapshot-JSON comparison |
-| 6 | MEDIUM | 08-07 | `ShipControl` accepts values outside the shared `1e12`/`uint32` domain, which the sanitizer then silently zeroes |
-| 7 | MEDIUM | 08-13 | `worldSeed` is not validated as `uint32` by the parser |
-| 8 | LOW | 08-05/13, 08-15, 08-11, 08-16 | Edge disagreements: `nextId = 2**32` after allocating id `0xffffffff`; `resetForRestore(0xffffffff)` vs `begin`; unbounded per-pass AI queue; arrival-tick world step against the old layout; `worldHash()` after dispose |
+### Overall Risk Assessment
 
-### Overall verdict
+**MEDIUM.** All 14 Round 4 consensus items are resolved with concrete plan text. The trust boundaries (parser, sanitizer, spawn, control and dispatch) are now aligned on one limits module and use own-key, `includes`-based membership throughout.
 
-**NEEDS REVISION.** All Round 3 findings are resolved and the architecture is sound. Finding 1 is a concrete contradiction between plans: whichever way the executor resolves it, the test suite stays green while the Phase 11 save boundary is wrong. Findings 2-7 are targeted text edits to 08-03, 08-05, 08-07, 08-09, 08-11 and 08-13, and none changes waves or dependencies. Waves 1-4 can start after the 08-03 lint additions and the 08-05 `ParamValue` decision.
+One new HIGH (N1) remains, and it is an acceptance criterion that cannot pass as written. 08-13's exact snapshot-JSON checkpoint compares a live world whose test-pilot params keep insertion order with a restored world whose params the parser rebuilds in sorted order. The same gap is a latent determinism escape for any AI that iterates its params. The fix is a few sentences in 08-05, 08-11 and 08-13: canonical sorted params order at spawn, at sanitize and in `snapshotWorld`.
+
+The two MEDIUMs (N2 aggregate world size, N3 `snapshotWorld` emitting what its parser rejects) matter mainly at the Phase 11 save boundary, which this codec explicitly feeds. They should be fixed now while the format is version 1. The LOWs are documentation or one-line gates.
+
+**Verdict: NEEDS REVISION.** These are targeted text edits to 08-05, 08-11 and 08-13 (N1 required; N2 and N3 strongly recommended), plus optional LOW gates in 08-03, 08-04, 08-08, 08-09 and 08-12. No wave, dependency or ownership change is needed.
 
 ---
 
 ## Broad-Context & Blast-Radius Review (reviewer-context-sonnet)
 
 
-Scope: Round 4 review of Phase 8 plans 08-01..08-16 at commit 0aa747a, through the lens of existing callers, e2e tests, save format, CI/verify gate, CHANGELOG/NOTICE obligations, Docker workflow, and consistency with PROJECT.md / CONTEXT.md / REQUIREMENTS.
+Commit under review: `afc4fe0`. Lens: what existing code, tests, e2e specs, docs, CHANGELOG/NOTICE and Docker gates the 16 plans touch or break; requirement and roadmap coverage; scope creep; executor ergonomics.
 
-Method: I did not re-read all 4,500 plan lines line by line. I read CONTEXT in full, then traced the Round 3 consensus items and the cross-cutting blast-radius points against the repo source. Per-plan sections below are therefore brief where I found nothing in my lens. Coverage-index checks were not run (graph returned only planning symbols for the source files I relied on, so I read the files directly).
+### Coverage statement (read this first)
 
-### Round 3 verification (all five consensus items)
+The 16 plans total about 1.05 MB of text (`08-05` and `08-11` alone are 73-75 KB). I did **not** read every line of every plan. What I did read:
 
-1. Domain alignment spawnEntity / sanitizeEntity / parseWorldSnapshot (08-05, 08-11, 08-13): RESOLVED. 08-11-PLAN.md:165-169 now bounds ownerId/spawnTick/nav.targetId/rng/ai timers/repairs at `0..0xffffffff` with `repairs` saturating; 08-11-PLAN.md:162 clarifies 1e12 is a world-local cap wider than `MAX_SAVE_POSITION_MAGNITUDE = 1e9` (confirmed `src/persistence/save.ts:123` is 1e9); `MAX_AI_PARAMS_KEYS` is exported from 08-11 and 08-13 (08-13-PLAN.md:34,107); 08-05-PLAN.md:181 adds `specKey.repeat(129)`, `tick = 2**32`, `ownerId = 2**32` rows. Post-spawn in-place mutation is carried in the 08-13 R3-01 disposition (08-13-PLAN.md:258).
-2. 08-15 anchored-save call shape: RESOLVED. 08-15-PLAN.md:206 now inspects `Object.keys(inputs)` / `JSON.stringify(inputs)` / `encodeSave(inputs)` on the `SaveInputs` object. I checked the key allow-list against `src/persistence/save.ts:301-320`: the 14 `SaveInputs` keys listed in the plan match the interface exactly (including optional `targetSystem`, `marketSeed`, `market`, `flight`).
-3. 08-16 `createTestHook`: RESOLVED. 08-16-PLAN.md:125 makes `sim` a required fifth parameter; `createTestHook` has exactly one call site (`src/app/game-session.ts:1035`), so the blast radius is one line. NOTE: the Round 3 consensus text says `worldHash(): number`; the plan correctly uses `string` because `hashFlight`/`fnv1a32` return `string` (`src/sim/flight/state.ts:181`, `src/sim/hash.ts:13`). The consensus text was wrong, the plan is right.
-4. MAX_SAVE_POSITION_MAGNITUDE citation: RESOLVED (see 1).
-5. Guard precision: 08-03-PLAN.md:141,161 add `Reflect["get"]`, `Reflect.apply`, `.sort.apply/.bind`; line-anchor refresh recorded in 08-10/08-12 dispositions. I confirmed `pending.length = 0;` is at `src/app/game-session.ts:2738` today, matching the refreshed anchors (the old `:2744` citation was stale). Note: the plans' line anchors will drift again as soon as 08-04..08-10 land; they are only useful as pre-move references.
+- The frontmatter (`files_modified`, `depends_on`, `wave`, `requirements`, `estimate`, `must_haves.artifacts`, `key_links`) and objective of all 16 plans.
+- Every Round 4 disposition row (`| R4-nn |`) in all 16 plans, each followed up with an `rg -n` into the current plan text for the claimed edit.
+- The full `<action>`, acceptance and verify text of `08-15` (all three tasks) and `08-16` (both tasks), and `08-12` Task 1 steps 2 to 6 and Task 2, plus `08-01` Task 1 step 6.
+- `08-VALIDATION.md` (first 60 lines), the ROADMAP Phase 8 section (goal, success criteria, wave list) and PROJECT.md lines 1-80.
+
+Plans `08-02`, `08-04`, `08-05`, `08-06`, `08-07`, `08-08`, `08-09`, `08-10`, `08-11`, `08-13` and `08-14` were read at frontmatter, objective and Round 4 row level only; their verdicts below rest on those rows, on source checks of their cited claims, and on the cross-plan checks listed. Treat their "Strengths" as source-verified claims, not a line-by-line audit.
+
+### Round 4 consensus items (1-14) against the current plan text
+
+| # | Item | Status | Evidence (current plan text) |
+|---|------|--------|------------------------------|
+| 1 | NaN in `ai.params` cannot be "rejected after JSON"; generator lacks null/boolean | **Resolved** | `08-13-PLAN.md:25` (`non-finite` is a third `SnapshotError` reason thrown by `snapshotWorld` before serialization), `:35`, `:154`; domain half at `08-05-PLAN.md:351` (R4-05: `ParamValue` null/boolean legal scalars, no non-finite anywhere); `08-13-PLAN.md:290` (R4-01) lists all three parts. |
+| 2 | `rg "world/store\|\.store\b" src/app` can never print nothing | **Resolved** | Gate narrowed at `08-16-PLAN.md:146` to `sim/world/store\|world\??\.store\b\|\.store\??\.(live\|get\|allocate\|kill\|commit\|nextId)\b\|\bEntityStore\b`. I ran it against current `src/app`: no match, exit 1 (baseline holds). The `SaveStore` interface (`src/persistence/store.ts:34-45`) has only `read/write/clear/backupCorrupt/dispose`, so `saveBoot.store.*` (`src/app/game-session.ts:1167,1341,1490,3345`) can never match `.store.(live\|get\|...)`. `08-08-PLAN.md:262` records the no-change disposition. |
+| 3 | `advanceTicks` must be an always-present function | **Resolved** | `08-16-PLAN.md:128` (`WegoliteSimTestHook.advanceTicks` required; refuses by returning the current tick, never `undefined`), `:146` (fixture check: `advanceTicks === "function"` in both `testHookDocked` and the new `testHookManualDocked`), `08-01-PLAN.md:138` (standing contract recorded in the spec header), `08-14-PLAN.md:274`. Source check: `createTestHook` has exactly one call site (`src/app/game-session.ts:1035`) and is referenced nowhere in `tests/`, so the new required 5th parameter breaks nothing else. |
+| 4 | Shared limits defined three times | **Resolved** | `08-05-PLAN.md` frontmatter lists `src/sim/world/limits.ts` (single definition site); `08-11-PLAN.md:202` and `08-13-PLAN.md:129` gate `from "./limits.js"` and forbid `^export const` in `sanitize.ts`/`snapshot.ts`. |
+| 5 | Enum fields unchecked at spawn / not repaired / `registry[aiKey]` | **Resolved** | `08-05-PLAN.md:348` (spawn `includes` over closed vocabularies); `08-11-PLAN.md:35` and `:355` (`Object.hasOwn` own-key lookup via `aiModuleFor`, sanitize rule 9); `08-13-PLAN.md:295` (property mutates all four leaves with `"constructor"`, `"__proto__"`). |
+| 6 | Non-unit quaternions pass spawn/sanitize but fail the parser | **Resolved** | `08-05-PLAN.md:349` (spawn refuses `abs(normSq-1) > QUAT_UNIT_TOLERANCE`, `MIN_QUAT_NORM_SQ` defined), `08-11-PLAN.md:178` and `:356` (degenerate-norm rule plus re-check), `08-13-PLAN.md:292` (`{w:1e-160}`, `{w:3e-161}` rows). |
+| 7 | `worldSeed` never checked as uint32 | **Resolved** | `08-05-PLAN.md:350` (`createWorld` throws `RangeError` outside `0..MAX_UINT32`), `08-13-PLAN.md:293` (parser integer in `0..MAX_UINT32`, rows 1.5, -1, 2**32, null). |
+| 8 | `createEventRouter` signature contradicts itself | **Resolved** | `08-10-PLAN.md:40` and `:277` (`createEventRouter(ctx, subscribers)`, ctx required), `08-15-PLAN.md:133` and `:332`. No `createEventRouter(subscribers)` form remains in either plan. |
+| 9 | Lint guard gaps | **Resolved** | `08-03-PLAN.md:27,152,170,300-301` (`no-eval`, `no-new-func`, `Intl`, `localeCompare`, computed `sort["call"]`); `08-09-PLAN.md:303-308` (`importNames` ban on `createSeededRandom`, `AI_MODULE_STATE_BANS`, inherited bans re-proved inside the zone); `08-02-PLAN.md:315` (text scan covers aliases). Existing `src/sim` has no violators of the new bans (I searched `src/sim` for `.sort(`, `for..in`, `localeCompare`, `Intl`, `Date`, `performance.now`, `setTimeout`: only a comparator sort at `src/sim/economy/market.ts:169`, which passes). |
+| 10 | Restore check is a rounded-hash comparison | **Resolved** | `08-13-PLAN.md:22`, `:116`, `:294` (exact `JSON.stringify(snapshotWorld(...))` equality at every checkpoint plus `toStrictEqual` on players). |
+| 11 | AI drain limits passes, not deliveries | **Resolved** | `08-11-PLAN.md:43` (`MAX_AI_EVENTS_PER_DRAIN = 4096`), `:171`, `:358` (`MAX_AI_QUEUE_LENGTH`, `postAiEvent` validates `a`, `b`, `n`). |
+| 12 | `ShipControl` accepts out-of-domain values | **Resolved** | `08-07-PLAN.md:154` ("control domain" row: 1e13 ignored) and `:268` (checked against `limits.ts`; ignored, not clamped). |
+| 13 | No Firefox run | **Resolved** | `08-12-PLAN.md:123,137` (non-blocking `e2e-cross` on the step-9 worktree), `08-15-PLAN.md:216,232` (repeated after verify-full). Source check: `compose.yaml:66-77` `e2e-cross` builds then runs `npm run test:e2e:cross`; `playwright.config.ts` Firefox project matches only `engine` and `core-loop` specs, so the run costs little and is correctly kept out of the gates (`tests/contract/container-contract.test.ts:273-293` pins that). |
+| 14 | Deliberate deviations, best-of-N benchmark, stale anchors | **Resolved** | `08-08-PLAN.md:260-261`, `08-12-PLAN.md:118,266-267` (SUMMARY section "Deliberate deviations from a verbatim move"), `08-15-PLAN.md:214` (best of 3 attempts, unchanged threshold), "locate by name or pattern" in the executor briefs of `08-04`, `08-06`, `08-08`, `08-10`, `08-12`. Anchors checked and accurate at HEAD: `pending.length = 0;` x4 at `game-session.ts:2738,2749,2773,2859`; `redrawGate.request();` x5; `generateMarket(` x3; `swapSystem` at `:3284`; the two `window.addEventListener` sites at `:2268,2289`. |
+
+All 14 are closed in the plan text. I found no regression of a Round 3 item.
 
 ### 08-01
-Summary: verify-full baseline, probe-shape snapshot, order-independent session-source scans for `tests/app/redraw-gate.test.ts` and `tests/guards/economy-purity.test.ts` (the only two tests that read `game-session.ts` as text; I confirmed with `rg`, plus two comment-only mentions in `tests/e2e/budget.spec.ts:15` and `hyperspace-failure.spec.ts:43` that need no change).
-Strengths: `test:e2e:fast` change is paired with the pinned string in `tests/contract/container-contract.test.ts:336` (plan 08-01-PLAN.md:140,253). Strict `[]` comparator.
-Concerns: LOW - the plan sits at the 10-file threshold (08-01-PLAN.md:75); acceptable.
-Suggestions: none.
-Risk: LOW.
+
+**Summary.** Test-only safety nets (probe-shape spec, fixture, comparator, `sessionSource()` helper, re-pointed scans, `test:e2e:fast` gets the new spec, D-01 baseline on a detached worktree). No `src/` change.
+
+**Strengths.**
+- The blast radius on text-reading tests is exactly as claimed: only `tests/guards/economy-purity.test.ts:312,322` and `tests/app/redraw-gate.test.ts:113` read `game-session.ts`; `tests/e2e/budget.spec.ts:15` and `tests/e2e/hyperspace-failure.spec.ts:43` only mention it in comments. Both real readers are re-pointed here.
+- The `test:e2e:fast` edit is paired with its pin: `tests/contract/container-contract.test.ts:336-343` pins the exact script string and spec count 3, and the plan names that file in `files_modified`. The new spec name `probe-shape.spec.ts` matches that test's regex `tests/e2e/[a-z-]+\.spec\.ts`.
+- Baseline-worktree route (`-p wegolite-baseline`, no `--build`) is sound against `compose.yaml:1-30`: `name: wegolite` is overridden by `-p`, the named `node_modules` volume becomes project-scoped, and the `image: wegolite-ci` tag is reused. `5b189e4` is a docs-only commit; `git diff --stat 5b189e4 HEAD -- src tests package.json compose.yaml eslint.config.js` is empty, so the baseline is the current code.
+
+**Concerns.**
+- LOW: ROADMAP.md (Phase 8 "Todos" line) still says the Shift+C docking flake "is settled before the split starts", while CONTEXT `D-01` (`08-CONTEXT.md:26,128`) says the owner chose to ignore it and the todo stays untouched (`todos/pending/2026-11-11-check-ci-after-0-2-0-and-the-shift-c-docking-timeout.md` still carries `resolves_phase: 8`). `08-01` follows D-01 correctly (one rerun, recorded), but nothing reconciles the ROADMAP wording or the todo's `resolves_phase`. A later `/gsd-verify-work` could flag the todo as unresolved for Phase 8.
+- LOW (unverified): the objective says "25 browser specs read `window.__wegolite`"; `rg -l "__wegolite|getProbe" tests/e2e/*.spec.ts` finds 24 of 25 spec files. Probably a counting nuance; not load-bearing.
+
+**Suggestions.** Add one sentence to the `08-01` SUMMARY requirements (or edit the ROADMAP todo line) saying the Shift+C todo is deliberately carried past Phase 8 under D-01.
+
+**Risk:** LOW.
 
 ### 08-02
-Summary: pinned v1 flight hashes, serialisable RNG, `mix32` seeds.
-Strengths: Does not regenerate goldens; respects CONTEXT discretion on `arrival.ts`.
-Concerns: LOW - `src/sim/**` coverage floors (`vitest.config.ts:35-41`: lines 93, branches 86) apply to all new sim code; defensive-branch-heavy modules can dip. Plan relies on tests-first, which is fine.
-Risk: LOW.
+
+**Summary.** Pins pre-phase flight hashes and RNG vectors, makes `createSeededRandom` delegate to `rngNext`, adds `mix32`/`worldSeedFor`/`forkSeed`, scan test banning closure-held streams.
+
+**Strengths.**
+- Golden policy respected: `tests/golden/world/` is a new directory; no existing golden is regenerated (`08-02-PLAN.md:90`). `.prettierignore` does not cover `tests/golden/world`, and the plan runs `npx prettier --write tests/golden/world` (`:132`), so `npm run lint` (`prettier --check .`) stays green.
+- Edits `src/sim/math.ts` only through delegation with an identical sequence, pinned by the new goldens taken against the unmodified file.
+
+**Concerns.** None new. (Frontmatter: `autonomous: false`, three tasks, estimate 115k accepted by the owner.)
+
+**Suggestions.** None.
+
+**Risk:** LOW.
 
 ### 08-03
-Summary: determinism bans in `src/sim` plus guard tests.
-Strengths: Named constants spread by later blocks, so the AI-zone override does not silently drop bans (flat-config replace semantics). The bans partly pre-exist in `eslint.config.js:127-149` (Math.random, Date, wall clock), so the plan is additive rather than a rewrite.
-Concerns: LOW - the guards write probe files under `src/sim` and run real `tsc` on `tsconfig.sim.json`; `withProbeLock` (`tests/guards/probe-lock.ts`) serialises them. New guard files in 08-03/08-09 must use it; the plan states `__purity_` prefix via `withSimProbe`. Fine.
-Risk: LOW.
+
+**Summary.** Determinism lint bans in `src/sim`, shared probe helper `withSimProbe`, entity-id scope guard.
+
+**Strengths.**
+- Existing helpers the plan builds on exist: `tests/guards/eslint-gate.ts`, `tests/guards/probe-lock.ts`, and `__purity_` is the prefix `tests/compliance.test.ts` already skips.
+- The new bans do not break current code (see item 9 above), and `Date`/wall-clock bans already existed at `eslint.config.js:137-149`, so the new work is additive.
+
+**Concerns.**
+- **MEDIUM: transient probe directories race with `tests/compliance.test.ts`, which no plan edits.** `withSimProbe` creates and then removes "every missing directory on the way" (`08-03-PLAN.md:112`), and `08-09-PLAN.md:196,235` adds nested probes at `src/sim/ai/nested/` and `src/sim/ai/pilots/roles/`. The `__purity_` prefix protects only *files*. `tests/compliance.test.ts:66-77` (`collectSourceFiles`) walks the whole repo with an unguarded `readdirSync` recursion: it skips only `.planning`, `node_modules`, etc., and has no `try/catch`. If a parallel Vitest worker removes `src/sim/ai/nested/` between the compliance walk's `readdirSync(parent)` and its `readdirSync(nested)`, the compliance test throws `ENOENT`. `withProbeLock` (`tests/guards/probe-lock.ts`) serialises only guard tests that call it, and Vitest runs files in parallel (`vitest.config.ts` sets no `fileParallelism`). The plan fixes the same hazard for `sim-purity.test.ts` `listTsFiles` (`:114`) and `entity-id-scope` (`:195`) but not for compliance. The `.probe-lock` directory at the repo root already carries the same latent race today, so this widens an existing flake class rather than creating one; with dozens of probes it becomes visible in `docker compose run --rm test`, the very command that is the source of truth.
+- LOW: the sub-task count is three tasks and about 90k tokens, within budget, but `eslint.config.js` is later edited again by `08-09`; both plans say so explicitly, so this is only an executor note.
+
+**Suggestions.** Either add `tests/compliance.test.ts` to `08-03` `files_modified` and make `collectSourceFiles` tolerate `ENOENT` (and skip `__purity_*` directories), or have `withSimProbe` take the same lock around nothing but create probe files into directories that already exist (pre-create `src/sim/ai/nested`-style fixtures permanently, or use a single flat probe directory).
+
+**Risk:** LOW-MEDIUM (one flake source, easy edit).
 
 ### 08-04
-Summary: typed session context and probe-publisher extraction (split steps 1-2).
-Strengths: Gate attribution rule for a shared tree; stale-capture audit.
-Concerns: LOW - no CHANGELOG entry needed, matches AGENTS.md internal-only rule.
-Risk: MEDIUM (inherent to a 3,365-line split; mitigated by probe-shape snapshot and goldens).
+
+**Summary.** Split steps 1-2: typed `SessionState` context and the probe publisher out of `game-session.ts`; first use of `createSessionState`.
+
+**Strengths.**
+- Source anchors verified (see Round 4 item 14). Coverage thresholds are checked: `vitest.config.ts:19-61` covers only `src/sim`, `src/persistence`, `src/content`, so new `src/app/session/**` files cannot fail a threshold; `08-04-PLAN.md:237` already records that check (R2-01).
+- Prohibition block (`08-04-PLAN.md` frontmatter) forbids editing `probe.ts`, the fixture, the two re-pointed tests or any golden to make a step pass.
+
+**Concerns.** None new. Estimate 185k tokens against a 100k smart zone is an accepted risk (owner, 2026-11-12), noted below under scope.
+
+**Suggestions.** None.
+
+**Risk:** LOW-MEDIUM (3k-line mechanical rewrite; the guard set is strong).
 
 ### 08-05
-Summary: ids, entities, five static entities, store, world hash.
-Strengths: Per-world id scope matches the 2026-11-12 D-06 amendment in CONTEXT, ROADMAP SC2 and REQUIREMENTS FOUND-11 (all three already worded consistently; I checked REQUIREMENTS.md:23). `liveEntityCount` exported for the app layer, which keeps `src/app` off `world.store`.
-Concerns: LOW - `PROJECT.md` Key Decisions row 'Entity id uniqueness is per world' is a required edit in this plan; confirm the row lands in the same commit as the code (the plan says so).
-Risk: LOW.
+
+**Summary.** World foundation: `ids.ts`, `limits.ts`, `ai/types.ts`, entity, store, world, serialize/hash; PROJECT.md decision rows.
+
+**Strengths.**
+- Round 4 items 4-7 are all landed here (see table). `liveEntityCount` is exported as a primitive count so `src/app` never needs the store (feeds `08-16`).
+- Existing `src/sim/world/` already holds `layout.ts` and `aegis.ts`; the new files do not collide with them, and `src/sim/flight/sanitize.ts` has a different name from the planned `src/sim/world/sanitize.ts`.
+
+**Concerns.** None new; the 75 KB plan is the largest in the set (executor ergonomics note below).
+
+**Suggestions.** None.
+
+**Risk:** LOW-MEDIUM.
 
 ### 08-06
-Summary: render driver, chart, settings controllers; verify-full gate.
-Strengths: The gate runs in a clean worktree from a recorded SHA.
-Concerns: MEDIUM - see cross-plan item C1 (Firefox).
-Risk: MEDIUM.
+
+**Summary.** Split steps 3-4: render driver, chart controller, settings controller; `verify-full` gate on a worktree.
+
+**Strengths.**
+- Keeps the single pinned `renderFrame(alpha, shouldDraw())` call and redraw-gate literals; R4-02/R4-03 dispositions explain why no Firefox run is added at this step (rAF and window listeners do not move until step 9).
+
+**Concerns.** None new.
+
+**Suggestions.** None.
+
+**Risk:** LOW-MEDIUM.
 
 ### 08-07
-Summary: read-only `WorldView`, write-only `ShipControl`.
-Strengths: Explicitly pins coverage floors via `docker compose run --rm test`.
-Concerns: LOW.
-Risk: LOW.
+
+**Summary.** `WorldView`/`ShipControl` types and implementations, control-domain checks against `limits.ts`.
+
+**Strengths.** Pure `src/sim`, no new dependency; ignore-not-clamp semantics are stated and tested (`08-07-PLAN.md:154,268`).
+
+**Concerns.** None new.
+
+**Suggestions.** None.
+
+**Risk:** LOW.
 
 ### 08-08
-Summary: station and save controllers; verify-full gate. Injects `SaveControllerDeps` so `loadFromSave` is Node-testable, which 08-15 then reuses.
-Strengths: Save format untouched; Round 3 disposition says no findings.
-Concerns: LOW - `src/persistence/idb-store.ts` is coverage-excluded (`vitest.config.ts:21`), so the doubles in 08-08 are the only unit proof of load order; the browser save-load specs in verify-full are the second proof, as the plan states.
-Risk: MEDIUM (save path).
+
+**Summary.** Split steps 5-6: station and save controllers, `verify-full` gate.
+
+**Strengths.** Moves `saveBoot.store` verbatim, which the narrowed `08-16` gate now tolerates; deliberate `disposed` guards are recorded as deviations (`:260`).
+
+**Concerns.** None new.
+
+**Suggestions.** None.
+
+**Risk:** LOW-MEDIUM.
 
 ### 08-09
-Summary: AI types, tick timers, registry, scripted test pilot, AI lint zone.
-Strengths: Rule replacement is handled (`...SIM_SYNTAX_BANS` spread, 08-09-PLAN.md:185). Depth-3 catch-all rejects deeper nesting instead of leaving a bypass. The AI `no-restricted-imports` regex rejects `three` and `zod` as well, so replacing the sim-zone import rule loses nothing.
-Concerns: LOW - `TEST_PILOT` and `AI_REGISTRY` ship in the production bundle (nothing imports them from `src/app` until 08-14/16, so Vite will tree-shake; if `AI_REGISTRY` is later imported by the session, the test pilot rides along). Informational only.
-Risk: LOW.
+
+**Summary.** AI types, integer-tick time, registry, scripted test pilot, AI lint zone with `importNames` and module-state bans.
+
+**Strengths.** Probe basenames use `__purity_` (`08-09-PLAN.md:196`) and re-prove inherited bans inside the zone.
+
+**Concerns.** MEDIUM (shared with `08-03`): the nested probe directories named at `:196,235` are the ones that can race `tests/compliance.test.ts` (see `08-03`). Resolve in `08-03`; nothing else to change here.
+
+**Suggestions.** None beyond the `08-03` fix.
+
+**Risk:** LOW-MEDIUM.
 
 ### 08-10
-Summary: hyperspace controller as one atomic unit, event router, sim driver.
-Strengths: Declarative `EVENT_KIND_SUBSCRIBER` map with ordered fan-out.
-Concerns: LOW - line anchors in the plan are stale again once earlier steps land; the executor must re-find sites by pattern, not line.
-Risk: MEDIUM.
+
+**Summary.** Split steps 7-8: hyperspace controller, event router, sim driver, step options.
+
+**Strengths.** One `createEventRouter(ctx, subscribers)` signature (`:40,:277`); declared no-edge same-wave ordering with `08-11` is argued in the plan and in `08-VALIDATION.md`.
+
+**Concerns.** None new.
+
+**Suggestions.** None.
+
+**Risk:** LOW-MEDIUM.
 
 ### 08-11
-Summary: world step after the flight step, queued AI events, sanitizer.
-Strengths: Domain table closed against 08-13.
-Concerns: LOW - `sanitize` repair counts become hashed state (08-11-PLAN.md:34); acceptable and tested.
-Risk: MEDIUM.
+
+**Summary.** `stepWorld`, `stepSim`, `sanitizeEntity`, reserved `SimEvent` kinds, AI event drain with delivery and queue caps.
+
+**Strengths.**
+- `src/sim/sim.ts` does not exist today (verified), so `stepSim` is a new symbol and no existing caller or test needs a signature change; the "v1 goldens untouched" claim is not endangered by it.
+- Widening `SimEvent` in `src/sim/events.ts` is safe against current consumers: only `src/sim/{flight,dock}/*`, `src/app/game-session.ts` and three tests reference it, and the router keys on `RoutedKind` (`08-10`), so no exhaustive switch breaks.
+
+**Concerns.** None new.
+
+**Suggestions.** None.
+
+**Risk:** LOW-MEDIUM.
 
 ### 08-12
-Summary: frame loop and start-up wiring, thin facade; verify-full gate.
-Strengths: Construction/teardown order recorded as header comments; pinned-literal audit.
-Concerns: MEDIUM - this is the step that rewrites rAF/frame timing and `window.addEventListener` registration (`game-session.ts:2268,2289` are the only two window listeners). The Firefox journey (`e2e-cross`) is outside `verify`/`verify-full` and no plan runs it (`rg e2e-cross` over all 16 plans: zero hits). See C1.
-Risk: MEDIUM.
+
+**Summary.** Split step 9: frame loop, `start-session.ts`, thin facade; step-9 `verify-full` plus non-blocking Firefox run.
+
+**Strengths.**
+- `window.addEventListener` sites and the unguarded `swapSystem` (`game-session.ts:3284-3294`) match the plan's description exactly, so "deliberate deviation" bookkeeping is accurate.
+- Worktree gate cleanup is spelled out (worktree, volumes, containers).
+
+**Concerns.**
+- LOW: the acceptance check "`rg -c "addEventListener\("` equals `rg -c "uiController\.signal"` at the listener sites" compares per-file counts across several files; today both are 2 in one file (`game-session.ts:2268,2270,2289,2291`), but `uiController.signal` is also passed to other modules after the split, so a naive equality can fail or pass by accident. State it as "every `addEventListener(` call site has `signal: ...uiController.signal` in the same call" and check call by call.
+
+**Suggestions.** Reword that acceptance line as above.
+
+**Risk:** LOW-MEDIUM.
 
 ### 08-13
-Summary: snapshot codec, 1,000-tick live-vs-restored equality, world cadence.
-Strengths: Parser/restore share one validator; constants exported once.
-Concerns: LOW.
-Risk: LOW.
+
+**Summary.** Snapshot codec with `non-finite` refusal, exact 1,000-tick live-vs-restored equality, cross-cadence world hash.
+
+**Strengths.** Closes Round 4 items 1, 4, 5, 6, 7, 10 in text (see table). Uses the existing `fast-check` devDependency (`package.json`), so no CHANGELOG, NOTICE or `ASSETS.md` entry is needed.
+
+**Concerns.** None new.
+
+**Suggestions.** None.
+
+**Risk:** LOW-MEDIUM.
 
 ### 08-14
-Summary: test flags and manual-clock sim driver with `advanceTicks`.
-Strengths: URL flags read once at boot, no runtime toggle (D-09, D-10); matches CONTEXT.
-Concerns: LOW - `?test=1&clock=manual` and `traffic=1` are new documented test surface; no README/docs mention is planned (AGENTS.md only requires CHANGELOG for user-visible changes, so this is optional).
-Risk: LOW.
+
+**Summary.** `parseTestFlags`, manual-clock frame branch, `advanceTicks` in the driver, no probe change.
+
+**Strengths.** Driver-level refusal is the single owner of the refusal rule that `08-16` inherits; ten-file scope note is explicit.
+
+**Concerns.** None new. (CHANGELOG: query flags behind `?test=1`, no player-visible change; the stated "no entry" matches the AGENTS.md rule.)
+
+**Suggestions.** None.
+
+**Risk:** LOW.
 
 ### 08-15
-Summary: single integration plan; epoch bump points; anchored-save check; hot-path cost check.
-Strengths: Warm `Load` and cold `Continue` produce identical epoch/worldSeed via `resetForRestore(0)`; Phase 11 hand-off recorded in PROJECT.md. This is consistent with CONTEXT D-02 ("reloading a save and launching reproduces the same world") and D-03 (epoch in memory only). Anchored-save test is now correctly shaped. Perf scratch script lives in `/tmp/wegolite-perf`, in line with AGENTS.md.
-Concerns: LOW - the 1.2x + 2 us threshold is a wall-clock microbenchmark inside a container; flaky on a loaded runner. The plan says never relax the threshold; recommend a small re-run allowance (best of N) so a noisy host does not block the phase.
-Risk: MEDIUM (first plan that changes the production runtime path).
+
+**Summary.** The one integration plan: lifecycle module, epoch bump points, `stepSim` in the driver, anchored-save proof, step-cost check, `verify-full`, Firefox run.
+
+**Strengths.**
+- Anchored-save test uses an exact key allow-list rather than a vacuous substring check, and the plan states the six forbidden keys were checked absent in `src/persistence` at planning time.
+- The hot-path benchmark lives in `/tmp/wegolite-perf` and is mounted with `-v` (AGENTS.md scratch rule), best of 3, threshold unchanged (Round 4 item 14).
+- Durable purity guard for the two Node-importable session files lives in a Vitest file, so it runs in every `docker compose run --rm test`.
+
+**Concerns.**
+- LOW: the benchmark verdict is recorded only in the SUMMARY; `docs/PERFORMANCE.md` (exists) is the project's frame-budget document, and QUAL-01 is still open. A one-line pointer there would keep Phase 23's budget work from rediscovering the numbers. Optional.
+
+**Suggestions.** Optional pointer in `docs/PERFORMANCE.md`; otherwise no change.
+
+**Risk:** MEDIUM (it changes the runtime path of every flight, but it is the most heavily gated plan: lifecycle unit tests, `verify-full`, Firefox, benchmark, hash identity).
 
 ### 08-16
-Summary: one deliberate additive probe commit (D-13): `probe.sim`, `worldHash`, `advanceTicks`; browser/Vitest parity.
-Strengths: `sim` required on `createTestHook`; `probe.sim` deleted on failure surface and dispose; `tests/helpers/tick-script.ts` limited to DOM-free modules, the same pattern `tests/helpers/lave.ts` already uses from the Playwright runner. Probe-shape snapshot and optional-key audit table updated in the same commit, so D-13 holds.
-Concerns: LOW - parity depends on `runTickScript` mirroring the session's New-game setup (profile, market seed, dock geometry). The plan lists each mirrored value with its source line; any later change to New-game defaults will break parity, but it will do so loudly (hash mismatch), which is the desired behaviour.
-Risk: LOW.
 
-### Cross-plan items (new)
+**Summary.** The one deliberate probe commit: `probe.sim`, `worldHash`, `advanceTicks`, fixture update, tick-hook spec, browser/Node parity.
 
-C1 (MEDIUM): No plan runs the Firefox suite (`docker compose run --rm e2e-cross`). AGENTS.md puts it outside `verify`, but 08-12 rewrites the frame loop and 08-14 adds a manual-clock mode that bypasses it, and the Firefox core-loop journey is the only second-engine check. Suggest one run at the step-9 gate (08-12) and one after 08-15, recorded in the SUMMARY; do not make it a blocking gate if Firefox is known flaky.
+**Strengths.**
+- Round 4 items 2 and 3 both land here with source-consistent regex and a defined refusal contract (`:128,:146`). Five tests are enumerated in `tick-hook.spec.ts` and the verify line demands at least five passes (`Task 2 <verify>`), consistent.
+- Precedent for a Playwright spec importing pure `src` modules with `.js` specifiers exists (`tests/e2e/helpers/chart.ts:16-17`, `tests/e2e/hud.spec.ts:16`, `tests/e2e/throttle.spec.ts:19`), and A7 has a fixture fallback.
+- The new JSON fixtures live under `tests/fixtures`, formatted by Prettier in the plan; `tests/compliance.test.ts` only walks `.ts/.js/.sh`, so JSON needs no SPDX header.
 
-C2 (LOW): Coverage floors (`vitest.config.ts:35-41`, src/sim lines 93 / branches 86) are global to `src/sim/**`. 16 plans add a lot of defensive parsing code under `src/sim`; only 08-07 mentions floors. Suggest 08-13 and 08-15 each confirm `docker compose run --rm test` (with coverage) passes, which the verify gate already does, so this is a reminder rather than a gap.
+**Concerns.** None new.
 
-C3 (LOW): CHANGELOG/NOTICE/ASSETS: every plan states "no entry", consistent with AGENTS.md (internal only, no new assets, no dependency change; `fast-check` 4.10.2 is already a devDependency per `package.json:37`). The only test-hook surface change (`probe.sim`, `advanceTicks`) is behind `?test=1`, so omitting it is defensible.
+**Suggestions.** None.
 
-C4 (LOW): Several plans cite `game-session.ts` line numbers. They are accurate today (verified one) but each extraction commit invalidates the rest. Executors should locate by pattern.
+**Risk:** LOW-MEDIUM.
 
-C5 (INFO): Docker workflow is respected throughout: all commands use `docker compose run --rm ...`, scratch files in `/tmp`, no host installs, no new ports, no new packages.
+### New findings (summary, severity ordered)
 
-### Overall verdict
+1. **MEDIUM (`08-03-PLAN.md:112`, `08-09-PLAN.md:196,235`; `tests/compliance.test.ts:66-77`)**: transient probe *directories* under `src/sim` race the unguarded repo walk in `tests/compliance.test.ts`; `__purity_` protects files only and compliance is in no plan's `files_modified`. Fix by making `collectSourceFiles` ENOENT-tolerant and `__purity_`-directory-aware, or by not creating transient directories.
+2. **LOW (`08-01`, ROADMAP Phase 8 Todos line, `todos/pending/...shift-c...`)**: ROADMAP says the Shift+C flake is "settled before the split"; CONTEXT D-01 says ignore it and the todo (`resolves_phase: 8`) stays open. Reconcile the wording.
+3. **LOW (`08-12-PLAN.md` Task 1 acceptance)**: per-file `rg -c` equality between `addEventListener(` and `uiController.signal` counts is fragile after the split; check per call site instead.
+4. **LOW (`08-15` Task 3 step 5)**: optional pointer from the benchmark result into `docs/PERFORMANCE.md`.
 
-READY. All five Round 3 consensus items are genuinely resolved in the plan text, and the ones I could check against source (SaveInputs keys, `MAX_SAVE_POSITION_MAGNITUDE`, `hashFlight` return type, `createTestHook` call site, `pending.length = 0` anchor, window listeners) match. Remaining items are advisory: run `e2e-cross` once around 08-12/08-15, tolerate benchmark noise in 08-15, and locate session code by pattern rather than line number.
+### Blast radius, requirements and ergonomics (cross-cutting)
+
+- **Existing tests and specs.** Only two Vitest files read `game-session.ts` as text, both re-pointed in `08-01`. No test imports `createTestHook`. `tests/app/*.test.ts` import individual modules, not session internals, so the public facade staying unchanged (`08-12`) protects them. The 25 e2e specs read the probe, which is frozen by `08-01` until the single additive commit in `08-16`.
+- **Docker gates.** `verify` (`compose.yaml:92-109`) and `verify-full` are untouched; `container-contract.test.ts` pins both chains and the Firefox exclusion, and `08-01` updates the one script pin it must. Using `-p wegolite-gate-<id>` worktrees works with `compose.yaml` (`name: wegolite` overridden, tagged `wegolite-ci` image reused, no published ports on test services). New scratch scripts (`/tmp/wegolite-perf`, `/tmp/wegolite-baseline`) respect the AGENTS.md rule that nothing scratch enters the repository.
+- **Coverage thresholds.** Only `src/sim`, `src/persistence`, `src/content` are gated (`vitest.config.ts:19-61`, `src/sim/**` floors lines 93, branches 86). `08-05`, `08-07`, `08-09`, `08-11`, `08-13` all list a coverage-failure line in their verify; the large defensive-branch surface in `sanitize.ts`/`snapshot.ts` is covered by the table-driven rows. No plan touches the thresholds, correctly.
+- **CHANGELOG / NOTICE / ASSETS.** No user-visible change and no new asset or dependency (`fast-check` already a devDependency); each plan states "no entry", consistent with AGENTS.md. Documentation language is English throughout the sampled plans.
+- **Requirements and roadmap.** FOUND-10..14 each map to at least one plan (`08-01`/`04`/`06`/`08`/`10`/`12`/`16` for -10; `05`/`11`/`13`/`15` for -11; `02`/`03`/`05`/`11`/`13` for -12; `07`/`09`/`11` for -13; `14`/`15`/`16` for -14). The ROADMAP wave list and each plan's `wave:`/`depends_on:` agree (checked wave by wave). Success criterion 1's "one deliberate probe commit" is reconciled in `08-16` Task 2 step 4 and in PROJECT.md. No same-wave `files_modified` overlap: waves 4, 5 and 6 pair a session plan with a sim plan; `PROJECT.md` is edited by `08-02`, `08-05`, `08-11`, `08-15`, `08-16`, always in different waves.
+- **Scope creep.** Every addition this round (limits module, drain caps, enum validation, module-state lint, restore-domain checks) is tied to a Round 4 finding and to a success criterion, but the plan set grew by 769 insertions this round and ten of 16 plans exceed the 100k smart-zone estimate (`08-04` 185k, `08-10` 185k, `08-08` 175k, `08-12` 165k, `08-06` 160k, `08-11` 155k, `08-15` 155k, `08-13` 150k, `08-09` 135k, `08-05` 130k), accepted by the owner on 2026-11-12. Much of the defensive validation (AI queue caps, sanitizer, snapshot parser limits) has no consumer until Phases 12 to 14; it is justified by FOUND-12/13 and the Phase 11 save work, but further hardening rounds should stop adding scope and be treated as executor-time concerns.
+- **Executor ergonomics.** Single bullets in `<action>` run to several thousand characters and are saturated with review back-references (`Round 2 review 820a435 L...`), which hides the instruction in the citation. This is workable (the Round 4 table rows and "locate by name or pattern" briefs help) but an executor should be told to treat the back-references as provenance, not requirements. The 75 KB plans (`08-05`, `08-11`) are the highest risk of context overrun; the estimate already acknowledges it.
+
+### Overall Risk Assessment
+
+**LOW-MEDIUM.** All 14 Round 4 consensus items are closed in the current plan text, verified by `path:line` and, where a gate is a regex, by running it against source. No wave-ordering, same-wave ownership, import-cycle or purity problem found. The only new item that could change a green `docker compose run --rm test` is the compliance directory race (MEDIUM, one-file fix); the rest are LOW wording or ergonomics.
+
+### Verdict
+
+**READY**, with one recommended targeted edit before execution of Wave 1: make `tests/compliance.test.ts` tolerant of transient `src/sim` probe directories (or avoid creating them) in `08-03`. Caveat: I did not read all plan text in full (see the coverage statement), so for `08-02`, `08-04` to `08-11`, `08-13` and `08-14` this verdict rests on frontmatter, Round 4 rows and source cross-checks rather than a line-by-line read.
 
 ---
 
 ## Fast Triage Review (reviewer-triage-haiku)
 
 
-Scope: Phase 8 plans 08-01 to 08-16 at commit 0aa747a (Round 4). Read-only. Method: each plan's frontmatter, must_haves, task headers, acceptance criteria and Round 3 ledger were read; numeric constants, file names, symbols and line anchors were checked against the repo (`src/`, `tests/`, the Oolite checkout). Not read line by line: 08-05 Task 2 behaviour list, 08-02 Tasks 2-3 bodies, 08-15 Task 3 bodies beyond the anchored-save and lifecycle text. Those are triaged only for consistency.
+Reviewer: reviewer-triage-haiku (fast cross-plan consistency lens)
+Commit reviewed: afc4fe0
+Scope: 08-01 .. 08-16 plans, cross-checked against 08-REVIEWS.md Consensus Summary (Round 4, items 1-14), ROADMAP.md Phase 8, REQUIREMENTS.md FOUND-10..14, 08-CONTEXT.md D-01..D-14, and source at HEAD.
 
-Overall verdict: NEEDS REVISION. All nine Round 3 consensus items are present in the text, but three cross-plan contradictions remain (advanceTicks optional vs the probe-shape invariant; createEventRouter signature; constant ownership). They are text fixes, not architecture changes.
+Method and limits: I read the frontmatter of all 16 plans, the Round 4 consensus, and the ROADMAP and REQUIREMENTS entries. I then grepped every named contract (constants, factory signatures, ShipControl and WorldView members, event kinds, Key Decisions row letters, requirement ids, file ownership, wave and depends_on edges, and file:line anchors) across all 16 plans. I verified anchors and identifiers against src/ and eslint.config.js at HEAD. I did not read every plan line end to end (the plans total roughly 800 KB), so an absence of a finding is not proof of absence. Items I could not fully trace are marked as open questions.
 
-### Round 3 disposition check
+Tests and builds: none were run. This is a text-consistency review, and no Docker gate applies to it.
 
-| Round 3 finding | Status | Evidence |
-|---|---|---|
-| C1 08-13 post-spawn in-place mutation, counter/quat/string/key caps, restoreWorld via parser, anti-alias test | Resolved in text | 08-13-PLAN.md:133 (1+5e-10 accept row, underflow reject row, 257 entities, 101.5, 2**53), :138 (snapshot anti-alias test), :140 (sanitizer/parser agreement), :202 (restoreWorld validates through parseWorldSnapshot). Counter bounds match 08-11:166-169 and 08-05:137. |
-| C2 08-15 anchored save uses SaveInputs object | Resolved | 08-15-PLAN.md:206 asserts `Object.keys(inputs).sort()` and `JSON.stringify(inputs)`. Allow-list of 14 keys equals SaveInputs (src/persistence/save.ts:301-320). Ledger at :297 still quotes the superseded `snapshotForSave(inputs)` wording (LOW). |
-| C3 08-16 createTestHook sim required, probe.sim anti-mutation, liveEntityCount | Resolved in text, with a new conflict | 08-16-PLAN.md:38, :267 (required 5th param), :125 (liveEntityCount), :162 and :206 (typeof, no aliasing). New conflict on advanceTicks, see X1. |
-| C4 MAX_SAVE_POSITION_MAGNITUDE 1e9 vs 1e12 | Resolved | 08-11-PLAN.md:162 and 08-05-PLAN.md:137 explain the world-local cap. src/persistence/save.ts:123 is 1e9. 08-13-PLAN.md:133 uses "(exceeding MAX_SNAPSHOT_MAGNITUDE (`1e12`))" with the 1e308 example. |
-| C5 08-03 Reflect/apply/sort.call, 08-05 nextId 2**32, 08-12 addEventListener signal, stale anchors | Resolved | 08-03-PLAN.md:141-142; 08-05-PLAN.md:180 (2**32 allocate test) and :293; 08-12-PLAN.md acceptance (addEventListener count = uiController.signal count) and :250. Anchors 2738/2749/2773/2859 in 08-10-PLAN.md:258 match src/app/game-session.ts. |
-| 08-13 `slices any param arrays` wording | Resolved | 08-13-PLAN.md:107 now says "copies (via `.slice()`) any param arrays". |
+---
 
-### Cross-plan findings
+### Round 4 consensus status (items 1-14)
 
-- **X1 (HIGH). advanceTicks optional vs the probe-shape invariant.** 08-16-PLAN.md:126 sets `advanceTicks: ctx.runtime.testFlags.manualClock ? ... : undefined`, and :221 calls it optional. But 08-01-PLAN.md:27 requires that in the docked `?test=1` state "every probe.test method reads as function", and 08-01-PLAN.md:153 checks the fixture keys. 08-16 step 4 also claims `test.advanceTicks` is an addition to the existing states. Under plain `?test=1` the key is absent, so the subtractive check and the comparator would fail or would silently record a missing key. Fix: either always publish a function (for example, one that refuses outside the manual clock), or restate the 08-01 must-have and the 08-16 subtractive check for the plain `testHookDocked` state.
-- **X2 (MEDIUM). createEventRouter signature contradicts itself.** 08-10-PLAN.md:28 and :155 (and the ledger at :244) use `createEventRouter(ctx, subscribers)`. 08-10-PLAN.md:39 and :212 (the artifacts lists) still say `createEventRouter(subscribers)`. 08-15-PLAN.md:105 says `(subscribers)` and :130 says `(ctx, subscribers)`. Fix the three artifact and interface lines to match the body.
-- **X3 (MEDIUM). Constant ownership is split and runs forward.** `MAX_ENTITY_MAGNITUDE` (1e12), `MAX_SNAPSHOT_STRING_LENGTH` (128), `MAX_SNAPSHOT_PARAM_LENGTH` (64) and `MAX_AI_PARAMS_KEYS` (32) are used by the wave-2 spawn validator in 08-05-PLAN.md:137 and 08-05 artifacts (:39-49 do not define them). They are provided by 08-11-PLAN.md:45 and :277 (src/sim/world/sanitize.ts) and by 08-13-PLAN.md:107 (src/sim/world/snapshot.ts, which also redefines the same names and `MAX_SNAPSHOT_MAGNITUDE = 1e12`). So 08-05 cannot import them when it runs, and two modules define the same constants. Fix: one owner, defined in 08-05 (for example in ids.ts or a constants module), imported by 08-11 and 08-13.
-- **X4 (LOW). Dependency edges.** 08-11 depends_on lists only 08-09, but Task 1 calls `createWorldView` from 08-07. The dependency is transitive. Name 08-07 explicitly.
+| # | Item | Status | Evidence (current plan text and source) |
+|---|------|--------|------------------------------------------|
+| 1 | NaN in ai.params cannot be rejected after JSON | Resolved | 08-13-PLAN.md:151 (snapshotWorld throws SnapshotError "non-finite" before output), 08-13-PLAN.md:155 (converse limited to decidable slots), 08-05-PLAN.md:148 (ParamValue doc: null and boolean scalars legal), 08-13-PLAN.md:290 (R4-01 row: generator to cover null/boolean params). |
+| 2 | `rg "world/store\|\.store\b" src/app` gate can never pass | Resolved | 08-16-PLAN.md:146 narrows the gate to `sim/world/store\|world\??\.store\b\|\.store\??\.(live\|get\|allocate\|kill\|commit\|nextId)\b\|\bEntityStore\b`. Checked: src/app/game-session.ts:1341, :1490, :3345 use only `saveBoot.store.read/clear/dispose`, which the narrowed pattern does not match. |
+| 3 | `test.advanceTicks` undefined outside manual clock | Resolved | 08-01-PLAN.md:27 keeps the "every probe.test member reads function" contract. 08-16-PLAN.md:30 makes advanceTicks always a function that refuses outside `clock=manual`. 08-14-PLAN.md:32 adds no hook member. |
+| 4 | Shared limits defined three times | Partial | Single definition site now 08-05-PLAN.md:31 and :146 (src/sim/world/limits.ts). Consumers import it at 08-07-PLAN.md:90, 08-11-PLAN.md:111, 08-13-PLAN.md:92. Residual problems: literal `1e12` still used at 08-11-PLAN.md:177 and :180 and 08-07-PLAN.md:200 (see L-2); the meaning of MAX_SNAPSHOT_PARAM_LENGTH is described inconsistently (see M-2). |
+| 5 | Enum fields unchecked and registry prototype dispatch | Resolved | 08-05-PLAN.md:211 (spawn refuses kind, scanClass, ai.aiKey outside closed vocabularies), 08-11-PLAN.md:35 (Object.hasOwn dispatch), 08-11-PLAN.md:185 (sanitize rule 9), 08-11-PLAN.md:152 (grep gate forbids `registry[...].think`). |
+| 6 | Quaternion normalisation and tolerance | Resolved | 08-05-PLAN.md:157 (spawn requires unit quaternion, does not normalise), 08-11-PLAN.md:178 (below MIN_QUAT_NORM_SQ treated as degenerate), 08-13-PLAN.md:143 (rejects {w:1e-160} and {w:3e-161}). |
+| 7 | worldSeed not a uint32 | Resolved | 08-05-PLAN.md:212 (createWorld throws RangeError for 1.5, -1, 2**32, NaN), 08-13-PLAN.md:26 and :143 (parser rejects the same). |
+| 8 | createEventRouter signature contradicts itself | Resolved | 08-10-PLAN.md:158 and :40 (`createEventRouter(ctx, subscribers)`), 08-15-PLAN.md:108 and :133 (same). No `createEventRouter(subscribers)` remains (grep over all 16 plans). |
+| 9 | Lint guard gaps in src/sim and AI zone | Resolved | 08-09-PLAN.md:30, :192, :211 (`importNames: ["createSeededRandom"]` in both depth zones), 08-09-PLAN.md:193 (module-level mutable state ban), 08-03-PLAN.md:27 and :150 (no-eval, no-new-func, Intl, localeCompare, computed sort forms). |
+| 10 | Restore check compared rounded hashes | Resolved | 08-13-PLAN.md:22 (checkpoint every 50th tick plus 1,000 ticks), 08-13-PLAN.md:128 (`JSON.stringify(snapshotWorld(` compared with toStrictEqual at each checkpoint). |
+| 11 | AI event drain bounded by passes only | Resolved | 08-11-PLAN.md:191 (MAX_AI_EVENT_PASSES = 8 and MAX_AI_EVENTS_PER_DRAIN = 4096, remaining events dropped and counted), 08-11-PLAN.md:172 (aiDropped accounting). |
+| 12 | ShipControl accepts out-of-domain values | Resolved | 08-07-PLAN.md:30 and :117 (arguments checked against limits.ts and ignored), 08-07-PLAN.md:154 (1e13 ignored, 1e12 accepted, 2**32 ignored). |
+| 13 | No Firefox run | Resolved | 08-12-PLAN.md:123 and :137 (non-blocking e2e-cross at step 9), 08-15-PLAN.md:216 and :232 (non-blocking e2e-cross after verify-full). |
+| 14 | LOW items (deviations recorded, flaky benchmark, stale anchors) | Partial | Deviations recorded: 08-12-PLAN.md:137. Best-of-N benchmark: 08-15-PLAN.md:334 (R4-03 row). Stale anchors: 26 `game-session.ts:NNNN` anchors remain across 08-02, 04, 06, 08, 10, 11, 12, 16. I spot-checked 19 of them against HEAD and all match today (e.g. 08-12-PLAN.md:28 onLaunchKeyDown 2279-2292, 08-10-PLAN.md:158 2814-2836, 08-08-PLAN.md:1490). They will go stale as the split proceeds. |
 
-Verified in source (no findings): game-session.ts is 3365 lines with 77 closure `let`s (`^  let`), exports 9 names, `generateMarket(` 3 times, `case "docked":` once. Anchors: renderFrame 2577, drawKeys 2558, shouldDraw 2566, showHint 2680, frame 2699, refusalCopy 2044, handleHyperspaceJumped 2061, syncStatusOverlay 2160, closeSaveScreen 1899 (document access at 1906), loadFromSave 1326, clearSaveForNewGame 1482, enterSystemById 1768, onSubpanelKeyDown 2257, onLaunchKeyDown 2279-2292, pending.length sites 2738/2749/2773/2859. `createTestHook` at src/app/probe.ts:390 (4 params today). SimEvent has 14 kinds (src/sim/events.ts) and the 08-11 reserved list has 15. DT = 1/120 (src/sim/step.ts:8) and AI_THINK_INTERVAL 0.125 (src/Core/AI.h:31) give 15 ticks. `Math.round(0.1*120) = 12`, and `120*(1/120) === 1` holds. Oolite anchors OOTypes.h:168-170, Universe.m:4841-4846 and 1162, OOPlanetEntity.m:94 and OOSunEntity.m:131 match. `createSeededRandom` is defined once (src/sim/math.ts:227) and called once in src/sim (src/sim/hyperspace/arrival.ts:73). src/sim has no `Date`, timers, `process`, `Reflect`, `globalThis`, `for..in`, bare sort, or `Math.random`. market.ts:169 is a comparator sort and hash.ts:8 mentions crypto only in a comment. Files cited as existing exist (lave.ts, dock-pose.ts `laveDockGeometry`, redraw-gate.ts `IDLE_SETTLE_DRAWS`, `createMessageQueue`, `createLaunchSequence`, src/render/sync.ts:80, src/render/bodies/station.ts roll at 203-216). Files that do not exist yet (session-source.ts, context.ts, start-session.ts, tick-script.ts, rng.ts, recorded-flights.ts, world/ and ai/ trees, golden/world) are all created by the plan that cites them.
+Round 4 verdict from this lens: 13 of 14 items resolved in plan text, one partial (item 4, residual literal and naming, carried below) and one partial (item 14, anchors). No Round 4 item is Open.
+
+---
+
+### Summary of new findings (this round)
+
+| ID | Severity | Plans | Finding |
+|----|----------|-------|---------|
+| M-1 | MEDIUM | 08-05, 08-11, 08-03, 08-15 | Key Decisions row letter (d) is claimed for two different rows. |
+| M-2 | MEDIUM | 08-05, 08-11, 08-13, FOUND-10 (REQUIREMENTS.md) | REQUIREMENTS.md:22 (FOUND-10) says the probe shape is unchanged, but 08-16 (which carries FOUND-10) deliberately adds probe fields. 08-16 does not list REQUIREMENTS.md in files_modified. |
+| M-3 | MEDIUM | 08-16, 08-14, ROADMAP SC5 | ROADMAP Phase 8 success criterion 5 (browser hash equals Vitest hash for N ticks, with traffic off) is narrowed by 08-16 to an empty-world parity claim. The plan flags this itself as unresolved. |
+| L-1 | LOW | 08-05, 08-13 | MAX_SNAPSHOT_PARAM_LENGTH is documented as a per-element limit in one place and as an array-length limit in others (naming and doc drift). |
+| L-2 | LOW | 08-11, 08-07 | Literal 1e12 used where the shared limit is required. |
+| L-3 | LOW | 08-13, 08-05, 08-11 | MIN_QUAT_NORM_SQ is in the import list of 08-05 and 08-11 but not in 08-13's list. The parser test still holds because QUAT_UNIT_TOLERANCE rejects the subnormal cases. |
+| L-4 | LOW | 08-15 | A superseded `snapshotForSave(inputs)` call is quoted in a Round 2 row (08-15-PLAN.md:308). Line 341 supersedes it, but a reader could copy the stale form. |
+| L-5 | LOW | 08-15, CONTEXT D-14 | The single integration plan conditionally edits a core-track file (08-15-PLAN.md:18, src/sim/world/step.ts). D-14 allows one integration plan, so this is probably intended, but it should be stated. |
+| L-6 | LOW | 08-02, 04, 06, 08, 10, 11, 12, 16 | Pre-split game-session.ts line anchors (26 occurrences) will go stale as extraction proceeds (Round 4 item 14, still open in part). |
 
 ---
 
 ### 08-01
 
-**Summary.** Split safety nets: the probe-shape comparator and spec, the fixture recorded from the monolith, and the re-pointed session-source scans.
+**Summary.** Split safety nets: verify-full baseline, probe-shape snapshot, session-source scans. Wave 1, no dependencies.
 
-**Strengths.** The comparator rules are explicit (empty array, null versus missing, function leaf). The fixture is recorded before any split. The fast gate gets the spec (`package.json` change, container-contract update).
+**Strengths.**
+- Its probe.test contract (08-01-PLAN.md:27, "six states", every probe.test member a function) is the anchor that 08-16 now honours (08-16-PLAN.md:30, :143). Round 4 item 3 is closed by keeping this plan's text unchanged.
+- The frontmatter requirement id (FOUND-10) matches ROADMAP Phase 8.
 
 **Concerns.**
-- MEDIUM. Must-have at 08-01-PLAN.md:27 ("every probe.test method reads as function" in docked `?test=1`) conflicts with 08-16-PLAN.md:126 (advanceTicks undefined outside manual clock). See X1.
-- LOW. 08-01-PLAN.md:153 hard-codes six state keys and `Object.keys(f).length===6`. That is correct for 08-01, but 08-16 adds a seventh state. Note it in 08-16's subtractive check.
+- MEDIUM: REQUIREMENTS.md:22 (FOUND-10) still reads "the probe shape is unchanged". This plan carries FOUND-10 in its frontmatter. Once 08-16 adds probe fields (M-2), the requirement text and the plan that claims it disagree. This plan is the earliest place to note the planned reconciliation, but it does not need to change.
+- LOW: 08-01-PLAN.md:184 names the verify-full run after 08-02 and 08-03. Consistent with wave 1 ordering. No issue.
 
-**Suggestions.** Resolve X1 here (the state's `test` object shape is decided in this plan).
+**Suggestions.** Leave as is. M-2 is fixed in 08-16 by also editing REQUIREMENTS.md.
 
 **Risk.** LOW.
+
+---
 
 ### 08-02
 
-**Summary.** Pinned v1 flight hashes and RNG vectors, serialisable stream state, mix32 world and fork seeds.
+**Summary.** Pinned v1 flight hashes, RNG vectors, serialisable seeded stream, mix32 world and fork seeds. Wave 1, autonomous false.
 
-**Strengths.** Pins are captured from the unmodified closure before delegation. The single-caller invariant is checkable: `createSeededRandom` has one call in src/sim (arrival.ts:73). The render callers are left untouched, as the truth at 08-02-PLAN.md:34 requires.
-
-**Concerns.**
-- LOW. Must-have :27 mentions "a Lave to Leesti jump with the session's arrival draw". The fixture and helper (`tests/helpers/recorded-flights.ts`) do not exist yet. Check that the route is reachable with the existing scripted-flight helpers, or name the helper.
-- LOW. Estimate 115k over the budget with `autonomous: false`. The accepted-risk note covers it.
-
-**Suggestions.** Name the golden file path in one place (08-05 and 08-11 both cite `tests/golden/world/flight-hash-pins.json`, consistent so far).
-
-**Risk.** MEDIUM (one-way D-02 arithmetic pinned literally; a mistake here propagates to every later plan).
-
-### 08-03
-
-**Summary.** Determinism lint bans in src/sim, with probes and positive controls.
-
-**Strengths.** Every banned construct is backed by a probe and a positive control. The Round 3 Reflect/apply/sort.call/bind forms are present (08-03-PLAN.md:141-142). The repo has no current violations (I checked `.sort()`, `for..in`, `Date`, timers, `process`, `Reflect`, `globalThis`, `Math` aliasing in src/sim). `market.ts:169` is the comparator sort that must stay legal.
+**Strengths.**
+- Identifiers are consistent with later plans: `worldSeedFor(marketSeed, epoch)`, `forkSeed(worldSeed, entityId, purpose)`, `RngPurpose = "world" | "ai" | "combat"` (08-02-PLAN.md:192-193) match the uses in 08-05-PLAN.md:118 and 08-13-PLAN.md:93 and the NO_ENTITY "world" call in 08-05-PLAN.md:38.
+- File anchors I checked hold at HEAD: stepFlight at src/sim/flight/step.ts:83 (08-02-PLAN.md:116), hashFlight at src/sim/flight/state.ts:181, createSeededRandom at src/sim/math.ts:227 (08-02-PLAN.md:31), game-session.ts:2084-2133 and 2814-2836 (08-02-PLAN.md:120, :131).
 
 **Concerns.**
-- LOW. Step 143 lets the executor "adjust the selector until its probe fails". The probe expectations are fixed, but the selector is not. Acceptable, but state that a selector change needs a review note.
-- LOW. The `Reflect["get"]` and `.sort.apply` forms are in the acceptance count (≥31 failing cases, :161), which is a count, not a list. Consider listing the probe names.
+- LOW: 08-02 modifies `.planning/PROJECT.md` in wave 1, and 08-05 modifies it in wave 2 (08-05-PLAN.md:17), both adding Key Decisions rows. The lettering collision (M-1) starts with rows written by these plans; 08-02 uses unlettered rows, so no collision here, but the row-letter convention should be fixed in one place.
+- LOW: 08-02-PLAN.md:31 forbids any createSeededRandom( call outside math.ts and arrival.ts. This matches 08-09's zone rule (08-09-PLAN.md:192). No contradiction.
 
-**Suggestions.** Keep the message strings frozen as the plan says (they are reused by 08-09).
+**Suggestions.** Keep unlettered Key Decisions rows here and cite them by title in later plans (see M-1).
 
 **Risk.** LOW.
 
-### 08-04
+---
 
-**Summary.** Split steps 1-2: typed SessionState and extraction of the probe publisher.
+### 08-03
 
-**Strengths.** The anchors all match: 3365 lines, 77 lets, saveProbe 441, redrawGate 468, messages 480, launchSequence 483, commitProfile 1021, bindTestHook 1034, applyTestCredits 1050, applyTestEquipment 1055, syncSaveProbe 1067, updateProbe 2412. The pinned renderFrame signature matches game-session.ts:2577. The `withdrawProbe` wiring is explicit.
+**Summary.** Determinism lint bans in src/sim and entity-id scope guard. Wave 1, autonomous true.
+
+**Strengths.**
+- Round 4 item 9 is closed: the src/sim zone gains no-eval, no-new-func, Intl and localeCompare bans (08-03-PLAN.md:27, :150, :170), mirroring eslint.config.js:208-241 (the generator zone; line anchor verified).
+- The entity-id guard (08-03-PLAN.md:32, tests/guards/entity-id-scope.test.ts) is consistent with 08-15-PLAN.md:148, which forbids EntityId in world-lifecycle.ts.
+- tests/guards/eslint-gate.ts exists at HEAD (checked), so the reuse claim at 08-03-PLAN.md:99 is valid.
 
 **Concerns.**
-- LOW. The rejected R2-03 (narrow Pick facets) is a judgement call under D-12; it is recorded, so this is only a note.
+- MEDIUM (M-1): 08-03-PLAN.md:60 says "plan 08-05's Key Decisions row (d) cites it". Row (d) is also claimed by 08-11 for a different decision (see M-1 under 08-05 and 08-11). Cross-reference is ambiguous until the letters are fixed.
+- LOW: the guard prohibits `src/sim/world/ids` imports outside src/sim. 08-15 and 08-16 do not import it (checked), so no conflict.
 
-**Suggestions.** None blocking.
+**Suggestions.** Cite Key Decisions rows by title, not by letter.
 
-**Risk.** MEDIUM (3.3k-line mechanical rewrite; guarded by the scans and the stale-capture audit).
+**Risk.** LOW.
+
+---
+
+### 08-04
+
+**Summary.** Split steps 1-2: typed session context and first controller extraction (probe publisher). Wave 2, depends on 08-01.
+
+**Strengths.**
+- Declared depends_on (08-01) matches the text. File ownership is disjoint from wave 2 peer 08-05 (08-05 owns src/sim/world/**).
+- `createProbePublisher(ctx: SessionState, deps: ProbePublisherDeps)` (08-04-PLAN.md:154) is the same name and shape that 08-14 and 08-16 extend.
+
+**Concerns.**
+- LOW (L-6): game-session.ts:356-490 (08-04-PLAN.md) is a pre-split anchor. Anchors are checked at HEAD and match, but they will go stale after this plan commits.
+
+**Suggestions.** Keep "locate by name" wording alongside line anchors (as 08-08 already does).
+
+**Risk.** LOW.
+
+---
 
 ### 08-05
 
-**Summary.** World foundation: ids, entities, five static entities, store, world hash, D-08 proof.
+**Summary.** World foundation: ids, entities, five static entities, store, world hash, and the shared limits module src/sim/world/limits.ts. Wave 2, depends on 08-02 and 08-03.
 
-**Strengths.** Fixed ids (1-5, 100, 101) are consistent with 08-07, 08-09, 08-13 and 08-15. The 256 cap counts non-dead entities. The `nextId <= 0xffffffff` guard is in the acceptance criteria. Oolite anchors OOTypes.h:168-170 and Universe.m:4841-4846 are correct.
+**Strengths.**
+- Round 4 items 4, 6, 7 are closed here: limits.ts has one definition site with no imports (08-05-PLAN.md:31, :146); spawnEntity refuses non-unit quaternions (08-05-PLAN.md:157); createWorld refuses invalid worldSeed (08-05-PLAN.md:212).
+- Id table is consistent with CONTEXT D-06: NO_ENTITY 0, statics 1-5, ids 6-99 reserved, PLAYER_ID 100, FIRST_DYNAMIC_ID 101 (08-05-PLAN.md:28, :147; CONTEXT D-06 at 08-CONTEXT.md:35).
+- nextId bounds are consistent with 08-13. The store refuses allocate at nextId > MAX_UINT32 (08-05-PLAN.md:150) but may be constructed with nextId = 2**32 (08-05-PLAN.md:209), and the parser accepts 2**32 (08-13-PLAN.md:143, :299). These agree because the parser accepts a state the store can hold without allocating.
 
 **Concerns.**
-- MEDIUM. Forward references (X3). 08-05-PLAN.md:137 validates `specKey` against `MAX_SNAPSHOT_STRING_LENGTH (128)`, `ai.params` against `MAX_AI_PARAMS_KEYS (32)`, and radius and pose against `MAX_ENTITY_MAGNITUDE (1e12)`. None of these is in the 08-05 artifacts list (:39-49). They are defined later, in 08-11 (sanitize.ts) and 08-13 (snapshot.ts). Define them in 08-05.
-- LOW. The must-have at :28 is one very long clause. Split it so an executor can test each rule.
+- MEDIUM (M-1): Key Decisions row (d) collision. 08-05-PLAN.md:34 and :224 record per-world entity id uniqueness as "row (d)". 08-11-PLAN.md:234 writes a different "(d)" row ("Phase 8 moves dynamic entities at their desired speed along their facing"). Plans 08-03-PLAN.md:60 and 08-15-PLAN.md (the row (d) citations) rely on the 08-05 meaning.
+- LOW (L-1): 08-05-PLAN.md:146 defines `MAX_SNAPSHOT_PARAM_LENGTH = 64` as "(param array elements)". The same plan at 08-05-PLAN.md:158 and :210 uses it as an array-length cap ("a 65-element param array"), and 08-11-PLAN.md:111 and :191 call it "param array lengths", and 08-13-PLAN.md:115 calls it "param array exceeding MAX_SNAPSHOT_PARAM_LENGTH". The doc comment should say maximum array length.
+- LOW (L-3): 08-05-PLAN.md:31 and :146 list MIN_QUAT_NORM_SQ as a shared limit, and 08-11-PLAN.md:111 imports it. 08-13-PLAN.md:92 and :115 do not list it.
 
-**Suggestions.** Put the caps in ids.ts (or a `limits.ts`) owned by 08-05.
+**Suggestions.** Rename the 08-05 row to "(d) per-world entity ids" and have 08-11 use a distinct letter or title. Replace "(param array elements)" with "maximum array length (elements)" at 08-05-PLAN.md:146.
 
-**Risk.** MEDIUM.
+**Risk.** LOW (text-only).
+
+---
 
 ### 08-06
 
-**Summary.** Split steps 3-4: render driver, chart and settings controllers, with a verify-full gate on a detached worktree.
+**Summary.** Split steps 3-4: render driver, chart and settings controllers. Wave 3, depends on 08-04.
 
-**Strengths.** The live-read rule is explicit. The redraw-gate literals are pinned. The verify-full step runs on the step's own commit.
+**Strengths.**
+- Factory signatures match the 08-04 pattern: `createRenderDriver(ctx, deps)`, `createChartController(ctx, deps)`, `createSettingsController(ctx, deps)` (08-06-PLAN.md:35-39, :110, :149-150).
+- The window keydown anchor at game-session.ts:2268 matches HEAD (`window.addEventListener("keydown", onSubpanelKeyDown, ...`).
+- Firefox run is placed at 08-12 per the consensus (08-06-PLAN.md:265).
 
 **Concerns.**
-- LOW. Worktree path `/tmp/wegolite-gate-08-06-step3` (Task 1 step 5). Acceptable under the AGENTS.md mount rule, but a worktree in the scratchpad would avoid a shared /tmp name collision.
-- LOW. The listener totals (`addEventListener`/`removeEventListener`) are "recorded in the SUMMARY" rather than fixed numbers. That is intentional, but the acceptance is then self-referential.
+- LOW: 08-06-PLAN.md:90 says pre-split anchors "before plan 08-04". Consistent. No new issue.
 
-**Suggestions.** None blocking.
+**Suggestions.** None beyond L-6.
 
-**Risk.** MEDIUM.
+**Risk.** LOW.
+
+---
 
 ### 08-07
 
-**Summary.** The AI seam: type-only WorldView and ShipControl with implementations.
+**Summary.** AI seam: read-only WorldView and write-only ShipControl. Wave 3, depends on 08-05.
 
-**Strengths.** Both interfaces are pinned by exhaustive `Record<keyof ...>` literals. The world holds no FlightState, so G-8 holds by construction. The station roll must match the renderer's base-then-roll composition, and `src/render/sync.ts:80` and `src/render/bodies/station.ts` (roll at 203-216) are the reference.
+**Strengths.**
+- ShipControl method set is consistent across 08-07 and its consumers: `setTarget, setDestination, setDesiredRange, setDesiredSpeed, perform(id, behaviour), scheduleWake(id, ticks)` (08-07-PLAN.md:115, :29); 08-09-PLAN.md:96 and :150-156 use the same names. Round 4 item 12 closed (08-07-PLAN.md:30, :117, :154).
+- Imports from ./limits.js (08-07-PLAN.md:90) match 08-05's single definition site.
+- Per-world id scope is stated consistently (08-07-PLAN.md:32, :152).
 
 **Concerns.**
-- LOW. Frontmatter depends_on lists only 08-05. This is correct for its own inputs.
+- LOW (L-2): 08-07-PLAN.md:200 (T-08-51) says "magnitudes at most 1e12" as a literal rather than MAX_ENTITY_MAGNITUDE. Same value, but the plan's own rule (08-07-PLAN.md:90) says import, never redefine.
+
+**Suggestions.** Replace the literal with `MAX_ENTITY_MAGNITUDE` in the threat row.
+
+**Risk.** LOW.
+
+---
+
+### 08-08
+
+**Summary.** Split steps 5-6: station controller and save controller. Wave 4, depends on 08-06.
+
+**Strengths.**
+- Named export set matches HEAD and later plans: saveBoot.store read/clear at game-session.ts:1341 and :1490, `buildSnapshotInputs` (game-session.ts:1131), `snapshotForSave` imported from src/persistence/autosave.ts (game-session.ts:63-65 and autosave.ts:66) and `parseSave` from save.ts (game-session.ts:69). The 08-08 references to these modules are correct.
+- Anchors 825, 862, 1344, 1906 match HEAD (outfittingModel at 825, data-field query at 862, saveScreenOpen check at 1344, station-screen lookup at 1906).
+
+**Concerns.**
+- LOW (L-6): five game-session.ts line anchors remain in 08-08-PLAN.md. They match HEAD today, but they go stale once 08-08 itself moves the code. The plan already says "pre-split anchors; locate by name" (08-08-PLAN.md:87), so this is handled.
 
 **Suggestions.** None.
 
 **Risk.** LOW.
 
-### 08-08
-
-**Summary.** Split steps 5-6: station controller and save controller, with a verify-full gate at step 6.
-
-**Strengths.** The save guard order is pinned by a "loadFromSave order" test. `closeSaveScreen` (game-session.ts:1899) and its `document` access (:1906) match the plan. The loadFromSave, clearSaveForNewGame and renderStation anchors (1326, 1482, 889) match.
-
-**Concerns.**
-- LOW. The station block range "492-1020" in the interfaces section is approximate. The plan says to locate by name, so this is only a note.
-- LOW. Worktree path `/tmp/wegolite-gate-08-08-step6`, as in 08-06.
-
-**Suggestions.** None blocking.
-
-**Risk.** MEDIUM (175k estimate; persistence-adjacent).
+---
 
 ### 08-09
 
-**Summary.** AI types, integer tick time base, registry, scripted test pilot, and the AI lint zone.
+**Summary.** AI types, integer tick timers, registry, scripted test pilot, AI lint zone. Wave 4, depends on 08-07 and 08-03.
 
-**Strengths.** Time constants are correct: `DT = 1/120` (src/sim/step.ts:8), `AI_THINK_INTERVAL 0.125` (src/Core/AI.h:31), so 15 ticks. `ticks(seconds) = max(1, round(seconds*120))` gives `ticks(0.1)=12`, `ticks(0.125)=15`, `ticks(0)=1`, which matches the behaviour list. The AI zone covers nested directories recursively.
+**Strengths.**
+- Round 4 item 9 is closed for the AI zone: depth-1 and depth-2 import rules forbid createSeededRandom under alias (08-09-PLAN.md:192, :211), and module-level mutable state is banned (08-09-PLAN.md:193).
+- The transitive edge claim is correct: 08-09 depends on 08-07, which depends on 08-05, so 08-05's limits are available (08-09-PLAN.md:314).
+- Oolite comment for the scanner range (src/Core/Entities/ShipEntity.m:12161, "25600 km") supports the default scanRange 25600 in 08-09-PLAN.md:122.
 
 **Concerns.**
-- LOW. 08-09-PLAN.md:33 ("the populator never spawns the test pilot") cannot be tested in Phase 8, because the populator is Phase 12. The claim is only checkable by grep for `AI_REGISTRY` usage. State that.
-- LOW. Frontmatter depends_on includes 08-07 and 08-03 but not 08-05, which the spawn-based tests use. It is transitive through 08-07.
+- MEDIUM (M-1): 08-03-PLAN.md:60 cites "row (d)" of 08-05 (see M-1 under 08-05), and this plan does not state its own row letter.
+- LOW: the AI module type is `AiModule { think, onEvent? }` (08-09-PLAN.md:120), and 08-11-PLAN.md:114 uses the same. Consistent. No issue.
 
-**Suggestions.** Change :33 to a grep-based acceptance criterion.
+**Suggestions.** Give the AI zone rule a title in PROJECT.md rather than a letter.
 
 **Risk.** LOW.
-
-### 08-10
-
-**Summary.** Split steps 7-8: hyperspace controller (atomic), event router, sim driver with `stepOnce`, and the pure step-options builder.
-
-**Strengths.** The hyperspace install block is moved as one unit. `stepFlight` ends up with one call site. The 14 existing SimEvent kinds (src/sim/events.ts) match the `EVENT_KIND_SUBSCRIBER` map. The anchors (refusalCopy 2044, handleHyperspaceJumped 2061, syncStatusOverlay 2160, enterSystemById 1768) and the four `pending.length = 0` sites (2738/2749/2773/2859) are correct, so R3-01 is resolved.
-
-**Concerns.**
-- MEDIUM. Router signature contradicts itself (X2): :28 and :155 say `(ctx, subscribers)`, but :39 and :212 (artifacts) say `createEventRouter(subscribers)`.
-- LOW. Two names for the order table (`EVENT_SUBSCRIBER_ORDER` and `EVENT_KIND_SUBSCRIBER`). Both are used, but the artifacts list only one of them with a clear purpose.
-
-**Suggestions.** Fix the artifact lines. Use the same signature in 08-15.
-
-**Risk.** MEDIUM (185k estimate; event order is a regression hazard, and the plan covers it with pinned tests).
-
-### 08-11
-
-**Summary.** The world step: stepWorld after stepFlight, id-ordered passes, queued AI events, per-tick sanitising, reserved SimEvent kinds.
-
-**Strengths.** `git diff --quiet 5b189e4 -- src/sim/flight` keeps the flight step unchanged, and 5b189e4 exists in the repo. The reserved list has 15 kinds, consistent with the ARCHITECTURE §7.6 names in the plan. The `MAX_SAVE_POSITION_MAGNITUDE` clarification (:162) is present. Repair counting is pinned per field.
-
-**Concerns.**
-- MEDIUM. Duplicate constant ownership (X3): :45 and :277 (sanitize.ts) provide `MAX_SNAPSHOT_STRING_LENGTH`, `MAX_SNAPSHOT_PARAM_LENGTH` and `MAX_AI_PARAMS_KEYS`, and 08-13:107 exports the same names from snapshot.ts. Define them once.
-- LOW. `MAX_ENTITY_MAGNITUDE` (1e12, here) and `MAX_SNAPSHOT_MAGNITUDE` (1e12, in 08-13) have the same value under two names. Make one an alias of the other.
-- LOW. depends_on omits 08-07 (X4).
-
-**Suggestions.** Single owner for all limits, imported by 08-13.
-
-**Risk.** MEDIUM (140k estimate; field-complete sanitiser is wide).
-
-### 08-12
-
-**Summary.** Split step 9: frame loop, start-up wiring, and the facade; frame-order and dispose-order tests; verify-full on a worktree.
-
-**Strengths.** The facade export set (9 names) matches game-session.ts:219-335. The listener registrations at game-session.ts:2268 and :2289 carry `signal: uiController.signal`, and the plan's acceptance checks that count against it, so R3-01 is resolved. The pinned-literal audit is a concrete gate.
-
-**Concerns.**
-- LOW. `wc -l < src/app/game-session.ts` below 600 is a target not tied to a rule. A facade that fails only on size would be a false failure. Keep it as a note, not a gate.
-- LOW. Task 2 read_first (08-12-PLAN.md:153) points at `tests/app/dispose.test.ts` near line 687 "where codebase-memory reported parse_partial". That is a tool artifact, not a verified reference. Replace with a `rg` check.
-- LOW. Worktree path, as in 08-06.
-
-**Suggestions.** Drop the parse_partial reference.
-
-**Risk.** MEDIUM (165k estimate; widest split step).
-
-### 08-13
-
-**Summary.** Snapshot codec with a 1,000-tick live-versus-restored equality, a rejection table, and edge cases.
-
-**Strengths.** The round-trip equality is non-vacuous (the test asserts equality at the final tick). The Round 3 items are present: the quaternion tolerance rows (:133), the anti-alias test (:138), restoreWorld through parseWorldSnapshot (:202), and the `.slice()` wording at :107. The rejection table is large and each case has a named reason.
-
-**Concerns.**
-- MEDIUM. Duplicate constants (X3): :107 exports `MAX_SNAPSHOT_STRING_LENGTH`, `MAX_SNAPSHOT_PARAM_LENGTH`, `MAX_AI_PARAMS_KEYS` and `MAX_SNAPSHOT_MAGNITUDE`. Import them from the single owner instead.
-- LOW. `structuredClone` is used in tests to clone the player (:22). That is fine under tsconfig.sim (src/sim is not affected), but state that it is test-only.
-
-**Suggestions.** Import the caps.
-
-**Risk.** MEDIUM (135k estimate; the codec must match the entity hash field for field).
-
-### 08-14
-
-**Summary.** `?test=1&clock=manual`: flags read once, manual frame loop, `advanceTicks(n)` on the driver.
-
-**Strengths.** `MAX_ADVANCE_TICKS = 200_000` agrees with 08-16's "integer 1..200000". The prohibition (advanceTicks taints before the first step so no durable save is written) is explicit and tested.
-
-**Concerns.**
-- LOW. Task 1 step 6 says "game-session.ts (or wherever plan 08-12 builds the driver's deps)". Name the file. The same hedge appears in 08-16-PLAN.md:127.
-- LOW. Estimate exactly at the 100k budget, so no accepted-risk note is needed.
-
-**Suggestions.** Name the file.
-
-**Risk.** LOW.
-
-### 08-15
-
-**Summary.** Integration: world lifecycle, the launch, arrival and Load bump points, the anchored-save check, and the decision record.
-
-**Strengths.** The anchored-save test now uses the `SaveInputs` object, and its 14-key allow-list matches `SaveInputs` in src/persistence/save.ts:301-320 exactly, so R3-02 is resolved. `populateNothing` is explicit and scoped to Phase 8. The `begin` guards (`epoch < 0xffffffff`, finite marketSeed) keep `worldSeedFor` from throwing.
-
-**Concerns.**
-- MEDIUM. Router signature (X2): :105 says `createEventRouter(subscribers)`, but :130 says `createEventRouter(ctx, subscribers)`.
-- LOW. The R2-04 ledger entry at :297 still quotes `snapshotForSave(inputs)`, which R3-01 superseded. Annotate it as superseded so the ledger does not contradict the body.
-- LOW. The must-have at :33 ("populate runs ... in both traffic modes") depends on `populateNothing`. Say that it spawns nothing in both modes, so the statement is checkable.
-
-**Suggestions.** Fix the router line. Annotate the superseded ledger line.
-
-**Risk.** HIGH (integration across eight files in three layers, at wave 8, with a ten-line invariant set). The triage found only text issues.
-
-### 08-16
-
-**Summary.** The one deliberate probe commit: `probe.sim`, `worldHash`, `advanceTicks`, the fixture update, browser and Vitest hash parity, and the decision record.
-
-**Strengths.** `probe.sim` is published only inside `if (currentState !== undefined)` and is a fresh plain object. Writes to `probe.sim` are tested not to affect the live world. `entities` is read through `liveEntityCount`, and there is no `.store` access from src/app. The subtractive diff check is documented with a script. Parity is asserted for the same ticks in browser and Vitest.
-
-**Concerns.**
-- HIGH. `advanceTicks` is optional and undefined outside the manual clock (X1; 08-16-PLAN.md:126, :221). This conflicts with 08-01-PLAN.md:27 and :153 and with the subtractive check, which expects `test.advanceTicks` added in `testHookDocked`. Choose one behaviour and update all three.
-- LOW. Hedge "game-session.ts (or wherever plan 08-12 builds the publisher's deps)" at :127. Name the file.
-- LOW. The fixture grows from six to seven states (`testHookManualDocked`, :128 and :140). That is an addition, so it is covered by D-13's "adds fields" rule, but the commit must name it, which the plan does.
-
-**Suggestions.** Make `advanceTicks` always a function and make it throw or no-op when not under the manual clock. Then the fixture and the subtractive check hold without changes to 08-01.
-
-**Risk.** MEDIUM.
 
 ---
 
-### Overall
+### 08-10
 
-Verdict: NEEDS REVISION. Required text fixes before Wave 1 starts, or before Wave 8 for the items that touch its plans:
-1. X1: make `advanceTicks` always a function (08-16:126, :221), or revise 08-01:27 and 08-16's subtractive check.
-2. X2: one `createEventRouter` signature in 08-10 (:39, :212) and 08-15 (:105).
-3. X3: one owner for the caps, defined in 08-05 and imported by 08-11 and 08-13.
-4. Smaller items: X4 (08-11 depends_on), the superseded ledger line at 08-15:297, the file hedges in 08-14:123 and 08-16:127, and the tool-artifact reference in 08-12 Task 2.
+**Summary.** Split steps 7-8: hyperspace controller, event router, sim driver, step options. Wave 5, depends on 08-08. Declared no edge to 08-11 (same wave).
+
+**Strengths.**
+- Round 4 item 8 closed: `createEventRouter(ctx, subscribers)` at 08-10-PLAN.md:40 and :158; 08-15 uses the same at 08-15-PLAN.md:108 and :133. No `(subscribers)`-only form remains.
+- "14 routed kinds" matches HEAD: src/sim/events.ts has 14 `kind:` members in the SimEvent union (checked, lines 27-59).
+- Order independence with 08-11 is stated and justified (08-10-PLAN.md:34, :159; 08-11-PLAN.md:366). The RoutedKind table is literal over 14 kinds, so 08-11's 15 reserved kinds do not change it.
+
+**Concerns.**
+- LOW: game-session.ts:2161 (`document.getElementById("status")`, cited in 08-10-PLAN.md) is a pre-split anchor and will move (L-6).
+
+**Suggestions.** None beyond L-6.
+
+**Risk.** LOW.
+
+---
+
+### 08-11
+
+**Summary.** World step: id-order pass, queued AI events with bounds, sanitize, reserved SimEvents, sim.ts stepSim. Wave 5, depends on 08-09.
+
+**Strengths.**
+- Round 4 items 1 (sanitizer side), 5, 6, 11 are closed here: own-key dispatch and enum repair (08-11-PLAN.md:35, :185), degenerate quaternion rule (08-11-PLAN.md:178), event budgets MAX_AI_EVENT_PASSES = 8 and MAX_AI_EVENTS_PER_DRAIN = 4096 (08-11-PLAN.md:191).
+- Limits are imported from limits.ts and not redeclared (08-11-PLAN.md:111, :191), matching 08-05.
+- The reserved SimEvent set is consistent with 08-10 (see above) and with ARCHITECTURE.md:450 section 7.6.
+
+**Concerns.**
+- MEDIUM (M-1): 08-11-PLAN.md:234 writes Key Decisions rows (a)-(h) into PROJECT.md. Its row (d) ("Phase 8 moves dynamic entities at their desired speed along their facing") collides with 08-05's row (d) (per-world entity ids, 08-05-PLAN.md:34, :224). Two rows with the same letter in one PROJECT.md is a direct contradiction in the identifiers the plans rely on.
+- LOW (L-2): 08-11-PLAN.md:177 uses `Math.abs(c) > 1e12` and 08-11-PLAN.md:180 uses `entity.radius > 1e12` as literals, while 08-11-PLAN.md:111 says the limits are imported. Same value as MAX_ENTITY_MAGNITUDE, so no behaviour gap, but it breaks the single-source rule.
+- LOW: 08-11-PLAN.md:230 says "these 15 kinds" for RESERVED_EVENT_KINDS. I did not count the ARCHITECTURE section 7.6 list to the end, so I cannot confirm 15 from the source (open question, not a contradiction).
+
+**Suggestions.** Rename 08-11's row to a title-based reference, or re-letter it (for example (i)). Replace the literal 1e12 with MAX_ENTITY_MAGNITUDE at :177 and :180.
+
+**Risk.** LOW (text-only), but M-1 must be fixed before PROJECT.md rows are written.
+
+---
+
+### 08-12
+
+**Summary.** Split step 9: frame loop and start-up wiring, thin facade. Wave 6, depends on 08-10.
+
+**Strengths.**
+- Anchors hold at HEAD: onLaunchKeyDown at game-session.ts:2279-2292 (08-12-PLAN.md:28), swapSystem at :3284-3294 (08-12-PLAN.md:27), pending.length at :2738.
+- Non-blocking Firefox run is recorded at step 9 (08-12-PLAN.md:123, :137), per Round 4 item 13.
+- Deliberate deviations (disposed guards, swapSystem rAF tracking) are recorded in the SUMMARY (08-12-PLAN.md:137), per Round 4 item 14.
+
+**Concerns.**
+- LOW (L-6): 08-12 holds four game-session.ts anchors, all accurate today, to be used before step 9 commits.
+- LOW: 08-12-PLAN.md:123 uses `git worktree add --detach /tmp/wegolite-gate-08-12-step9`. It creates a worktree outside the repository, which is acceptable under the scratch rule, but it writes metadata into .git. Not a plan contradiction.
+
+**Suggestions.** None beyond the above.
+
+**Risk.** LOW.
+
+---
+
+### 08-13
+
+**Summary.** Snapshot codec, 1,000-tick live-versus-restored equality, cadence test. Wave 6, depends on 08-11.
+
+**Strengths.**
+- Round 4 items 1, 7, 10 are closed here: non-finite refusal (08-13-PLAN.md:151), worldSeed bound (08-13-PLAN.md:26, :143), exact JSON equality at checkpoints (08-13-PLAN.md:128).
+- nextId handling agrees with 08-05: parser accepts up to 2**32 (08-13-PLAN.md:143, :299), and the store refuses allocate beyond MAX_UINT32 (08-05-PLAN.md:150).
+- Imports from ./limits.js and no constant re-export (08-13-PLAN.md:115, :92).
+
+**Concerns.**
+- LOW (L-3): 08-13-PLAN.md:92 and :115 list the imported limits without MIN_QUAT_NORM_SQ, which 08-05-PLAN.md:31 and 08-11-PLAN.md:111 include. The subnormal-norm rows at 08-13-PLAN.md:143 still hold because the tolerance check rejects them, so this is a list omission, not a behaviour gap.
+- LOW (M-2 partial): the 08-13 snapshot `rng` field is pinned as "a plain uint32 number equal to world.rng.s" (08-13-PLAN.md:23). Consistent with 08-05. No issue.
+
+**Suggestions.** Add MIN_QUAT_NORM_SQ to the list at 08-13-PLAN.md:92 and :115 so that the import list matches 08-05.
+
+**Risk.** LOW.
+
+---
+
+### 08-14
+
+**Summary.** Test flags and manual-clock sim driver with advanceTicks. Wave 7, depends on 08-12.
+
+**Strengths.**
+- advanceTicks contract is consistent with 08-16: refuses outside the manual clock, refuses while disposed, taints first (08-14-PLAN.md:29, :153-160). 08-16 delegates to it (08-16-PLAN.md:30, :58).
+- MAX_ADVANCE_TICKS = 200_000 is stated at 08-14-PLAN.md:135 and is the bound used by the refusal rows at 08-14-PLAN.md:153. 08-16 inherits it through the driver and adds no value of its own.
+- "No change in this plan" for the hook (08-14-PLAN.md:274, R4-05) is consistent with 08-16 owning the one probe commit (D-13).
+
+**Concerns.**
+- LOW: 08-14-PLAN.md:98 states a "D-10 refinement" (`traffic: hook && traffic === "1"` vs "true without the hook"). CONTEXT D-10 (08-CONTEXT.md:42) says production always has traffic once a populator exists. The refinement is consistent with D-10 but it changes what `testFlags.traffic` means for production; 08-15-PLAN.md:177 relies on the production meaning. Stated, but worth one sentence in the header comment.
+
+**Suggestions.** Make the production meaning of `testFlags.traffic` explicit in the 08-14 doc comment.
+
+**Risk.** LOW.
+
+---
+
+### 08-15
+
+**Summary.** Single integration plan (D-14): world lifecycle, epoch bump points, anchored-save check, step-cost benchmark, Firefox run. Wave 8, depends on 08-14, 08-11, 08-13.
+
+**Strengths.**
+- Declared depends_on now includes 08-13 (08-15-PLAN.md:6), matching the R2-04 request.
+- snapshotForSave signature at 08-15-PLAN.md:109 (`snapshotForSave(state, profile, system, station, market, commodities, targetSystemId?)`) matches source (game-session.ts:1144-1152 and autosave.ts:66). createEventRouter(ctx, subscribers) and createSimDriver(ctx, deps) match 08-10.
+- EntityId is kept out of world-lifecycle.ts (08-15-PLAN.md:148), consistent with the 08-03 guard.
+
+**Concerns.**
+- LOW (L-4): 08-15-PLAN.md:308 quotes the superseded `snapshotForSave(inputs)` call in an R2-04 row. Line 341 (R4-10) supersedes it and says so, so it is not a live contradiction, but the stale form is still in the plan.
+- LOW (L-5): 08-15-PLAN.md:18 lists src/sim/world/step.ts as a conditional edit. This is a core-track file under CONTEXT D-14 (08-CONTEXT.md:50). 08-15 is the integration plan, so this is probably permitted, but D-14 does not say so and the wording should.
+- MEDIUM (M-1): 08-15-PLAN.md:213 (and the row-(d) references at 08-15-PLAN.md:35 and :308) cite "Key Decisions row (d)" for the per-world id rule. That is the 08-05 meaning, which 08-11 contradicts (see M-1).
+- LOW: 08-15-PLAN.md:208-213 and 08-16-PLAN.md:28 both rely on the claim that plans 08-04 to 08-15 leave probe.ts untouched. Verified: none of 08-04 to 08-15 lists src/app/probe.ts in files_modified.
+
+**Suggestions.** Remove the stale snapshotForSave(inputs) quote from the R2-04 row. State in D-14 or in 08-15 that the integration plan may edit core files only for the conditional step-cost fast path.
+
+**Risk.** LOW.
+
+---
+
+### 08-16
+
+**Summary.** One deliberate probe commit (D-13): probe.sim, worldHash, advanceTicks, browser and Vitest hash parity. Wave 9, depends on 08-15.
+
+**Strengths.**
+- Round 4 items 2 and 3 are closed here: narrowed gate (08-16-PLAN.md:146, verified against src/app), always-present advanceTicks (08-16-PLAN.md:30, :143).
+- Fixture state count is consistent with 08-01: six states before, seven after adding testHookManualDocked (08-01-PLAN.md:27; 08-16-PLAN.md:143).
+- createTestHook gains a fifth parameter (08-16-PLAN.md:40, :227). Current source is `createTestHook(state, scenes, onMutate, profile?)` (src/app/probe.ts:390). The new call site at game-session.ts:1035 matches the consensus anchor.
+- Transitive dependency on 08-14 is valid (08-16 depends on 08-15, which depends on 08-14).
+
+**Concerns.**
+- MEDIUM (M-2): REQUIREMENTS.md:22 (FOUND-10) says "the probe shape is unchanged". The 08-16 frontmatter (08-16-PLAN.md:19) lists FOUND-10 for this plan, and 08-16-PLAN.md:183 records the SC1/D-13 reconciliation only in PROJECT.md. REQUIREMENTS.md is not in files_modified. The requirement text and the plan's own deliverable contradict each other until someone edits REQUIREMENTS.md. ROADMAP SC1 (08-16-PLAN.md:28 quotes it) already states the reconciliation, so the fix is a one-line REQUIREMENTS.md edit.
+- MEDIUM (M-3): ROADMAP Phase 8 success criterion 5 says a browser spec "reads the same hash as a Vitest run of the same N ticks". 08-16-PLAN.md:32 claims parity "at its honest Phase 8 scope" (empty world, entities 0). 08-16-PLAN.md:195 states this as "FOUND-14 (unclassified, unresolved)" and asks for confirmation at verification. The plan is open about it, but the roadmap wording is not amended and the requirement is not formally narrowed.
+- LOW: 08-16-PLAN.md:146 and :211 quote the gate regex. Checked: `\.store\??\.(live|get|allocate|kill|commit|nextId)\b` does not match the IndexedDB calls at game-session.ts:1341, :1490, :3345 today. Correct, but the pattern will need re-checking after 08-08 moves those calls.
+
+**Suggestions.** Add REQUIREMENTS.md to files_modified and change FOUND-10 text to "the probe shape changes only by the one additive commit of D-13". Either amend ROADMAP SC5 or record the narrowing in REQUIREMENTS.md with a classification (this is the unresolved FOUND-14 question).
+
+**Risk.** MEDIUM (requirement text and roadmap wording, not code).
+
+---
+
+### Overall Risk Assessment
+
+**MEDIUM.**
+
+- No HIGH cross-plan contradiction was found. The wave graph, depends_on edges, file ownership within each wave, requirement coverage (FOUND-10..14 each claimed by at least one plan, and every plan's requirements match its text), and the central contracts (createEventRouter, createTestHook, advanceTicks, shared limits, ShipControl and WorldView members, createSeededRandom ban) are consistent at the text level.
+- Three MEDIUM items need text edits before execution:
+  1. M-1: Key Decisions row letter (d) is claimed for two different rows (08-05-PLAN.md:34, :224 vs 08-11-PLAN.md:234). Fix by titles or re-lettering.
+  2. M-2: REQUIREMENTS.md:22 (FOUND-10) contradicts 08-16's probe change. 08-16 must also edit REQUIREMENTS.md.
+  3. M-3: ROADMAP SC5 is narrowed by 08-16 without an amendment or classification (08-16-PLAN.md:32, :195).
+- The LOW items are naming and doc-comment drift (MAX_SNAPSHOT_PARAM_LENGTH, MIN_QUAT_NORM_SQ import list, literal 1e12), one stale superseded quote (08-15-PLAN.md:308), and advisory stale anchors.
+- Round 4: 13 of 14 consensus items resolved in plan text; items 4 and 14 partial. None open.
+
+### Verdict
+
+**NEEDS REVISION** (text-only; no wave, dependency or file-ownership change is required). The three MEDIUM items are small edits: rename or re-letter one Key Decisions row, add REQUIREMENTS.md to 08-16 and amend FOUND-10, and either amend ROADMAP SC5 or classify the FOUND-14 narrowing.
+
+### Open questions (not verified)
+
+- Whether ARCHITECTURE.md section 7.6 lists exactly the 15 reserved kinds named at 08-11-PLAN.md:230 (I did not count to the end of the list).
+- Whether 08-15's conditional src/sim/world/step.ts edit (L-5) is intended under D-14. Probably yes, as the single integration plan; the plans do not say so.
+- Whether the 26 game-session.ts anchors (L-6) survive each wave; I checked only HEAD.
 
 ---
 
 ## Consensus Summary
 
-Six source-grounded specialist reviewers ran as Claude subagents at commit `0aa747a`: `reviewer-architect-opus`, `reviewer-correctness-opus`, `reviewer-algorithm-opus` and `reviewer-adversarial-opus` on Claude Opus 5.5, `reviewer-context-sonnet` on Claude Sonnet 5.5, and `reviewer-triage-haiku` on Claude Haiku 5.5. They reviewed all 16 Phase 8 plans (`08-01` through `08-16`). Every review has its own section for every plan id. `reviewer-context-sonnet` reports that it did not read all of the plan text in full; it traced the Round 3 items and cross-cutting concerns against source. Its READY verdict is weighted accordingly.
+Six source-grounded specialist reviewers ran as Claude subagents at commit `afc4fe0`: `reviewer-architect-opus`, `reviewer-correctness-opus`, `reviewer-algorithm-opus` and `reviewer-adversarial-opus` on Claude Opus 5.5, `reviewer-context-sonnet` on Claude Sonnet 5.5, and `reviewer-triage-haiku` on Claude Haiku 5.5. They reviewed all 16 plans (`08-01` through `08-16`); `reviewer-context-sonnet` read only part of the plan text in full (see its coverage statement), so its READY carries less weight.
 
-All six reviewers confirmed that **every Round 3 consensus item** (the `08-05`/`08-11`/`08-13` domain alignment, the `08-15` `snapshotForSave(inputs)` call, the `08-16` `createTestHook` signature, the `MAX_SAVE_POSITION_MAGNITUDE` citation, and the guard/test precision items) is resolved in the plan text of `0aa747a`. `reviewer-context-sonnet` additionally notes that the Round 3 consensus text described `worldHash` as returning `number`, while `hashFlight` returns a string. The `08-16` plan is correct and the consensus text was wrong.
-
-Verdicts: five of six reviewers returned **NEEDS REVISION** (architect, correctness, algorithm, adversarial, triage); `reviewer-context-sonnet` returned **READY**. Every new finding is a targeted text edit to a plan. No reviewer found a wave-ordering problem, a same-wave file-ownership conflict, an import cycle, or a Three.js/DOM import into `src/sim`.
+All six confirmed that **every Round 4 consensus item (1-14) is resolved or closed** in the current plan text. Verdicts: **READY** (architect, context), **NEEDS REVISION** (correctness, algorithm, adversarial, triage). Overall risk is LOW-MEDIUM. No reviewer found a wave-ordering problem, a same-wave file-ownership conflict, an import cycle, or a Three.js/DOM import into `src/sim`. Every new finding is a targeted text edit; none changes a wave or dependency.
 
 ### Agreed Strengths
 
-- **Round 3 is fully closed.** All six reviewers traced the Round 3 dispositions to concrete plan text and source anchors (e.g. the `SaveInputs` key allow-list against `src/persistence/save.ts:301-320`, `MAX_SAVE_POSITION_MAGNITUDE = 1e9` at `src/persistence/save.ts:123`, and the single `createTestHook` call site at `src/app/game-session.ts:1035`).
-- **Sound wave graph and layering** (architect, context): disjoint same-wave file ownership, no cycles, and the `src/sim` purity boundary holds across all 16 plans.
-- **Low blast radius on v1 play** (context, correctness): only two existing tests read `game-session.ts` as text, and both are re-pointed in `08-01`. The `test:e2e:fast` change is paired with its pinned contract test. `fast-check` is already a devDependency, so no CHANGELOG or NOTICE entry is needed.
+- **Round 4 is closed**: the NaN/`null` `ai.params` contract, the `.store` gate, the always-a-function `advanceTicks`, the shared limits module, enum checks, quaternion/`worldSeed` domains and the `createEventRouter(ctx, subscribers)` signature all trace to concrete plan text (all six).
+- **Sound layering and ordering**: disjoint same-wave ownership, no cycles, `src/sim` purity intact (architect, context, triage).
+- **Exact-JSON restore checks, injective ASCII hash line and bounded event queue** are now specified (algorithm, adversarial).
 
 ### Agreed Concerns
 
-#### Priority 1 — Acceptance criteria that cannot pass, or pass vacuously (fix before executing the owning plan)
+#### Priority 1 — Acceptance criteria that cannot pass as written (fix before executing the owning plan)
 
-1. **HIGH (`08-13` Task 2, `08-13-PLAN.md:140`; `08-05-PLAN.md:134`; `08-11-PLAN.md:167`) — NaN in `ai.params` cannot be "rejected after JSON"** *(correctness HIGH 2, algorithm HIGH 1, adversarial HIGH 1)*. `JSON.stringify` turns `NaN` into `null`, and `null` (and `boolean`) is a legal `ParamValue` that the sanitizer preserves. After a JSON round trip, a NaN scalar param and a legal `null` param are identical, so the converse test cannot pass as written. The `fast-check` generator never produces `null` or `boolean` params, so a codec that wrongly rejects valid worlds would also stay green. The algorithm reviewer confirmed this in the test container. **Fix:** make `snapshotWorld` refuse non-finite numbers itself (before serialization). Limit the post-JSON rejection row to a NaN inside a param array, or drop it. Add `null` and `boolean` params to the generator.
+1. **HIGH (`08-13-PLAN.md:22,116,191`; `08-05-PLAN.md:159`) — live vs restored `snapshotWorld` JSON is not byte-identical** *(algorithm A1 HIGH, adversarial N1 HIGH; algorithm reproduced it in the container)*. `ai.params` keys keep insertion order in the live world but come back sorted after `restoreWorld`, so the exact checkpoint comparison fails on the first checkpoint, and an AI using `Object.keys(params)` is a determinism escape. **Fix:** make `snapshotWorld` emit one canonical field order and code-unit-sorted `ai.params` keys (the comparator the parser and hash use), state the canonical fixpoint `snapshotWorld(restoreWorld(parseWorldSnapshot(JSON.parse(t)))) === t`, and add it as a Task 2 row. Optionally insert params in sorted order at spawn (algorithm C1).
+2. **MEDIUM (`08-15` Task 1 step 4; `tests/guards/economy-purity.test.ts:201-207,350-352`) — the lifecycle subscriber can fall inside the economy-purity "docked arm" cut** *(correctness)*. `typeof ctx.core.marketSeed === "number"` matches that guard's `/\bmarketSeed\s*=/`, a false failure the executor may not fix by editing the scan. **Fix:** place the subscriber after every other `case` label, or read the seed as `const seed = ctx.core.marketSeed`; add `vitest run tests/guards/economy-purity.test.ts` to the acceptance list.
+3. **MEDIUM (`08-06` Task 2 step 5, `must_haves` truth 4) — "closeChart requests a redraw" is vacuous or fails** *(correctness)*. `closeChart` (`game-session.ts:1851-1860`) never calls `redrawGate.request()`; a fresh gate returns `true` on first `next()`. **Fix:** reword to "sets `chartOpen` false, restores input context, resets the loop"; move the redraw property to `08-12`'s frame-order test. Do not add a sixth request site.
+4. **MEDIUM (`08-03-PLAN.md:112`, `08-09-PLAN.md:196,235`; `tests/compliance.test.ts:66-77`) — transient probe directories race the unguarded repo walk** *(context)*. `__purity_` protects files only. **Fix:** make `collectSourceFiles` ENOENT-tolerant and `__purity_`-directory-aware (add the file to `files_modified`), or avoid transient directories.
 
-2. **HIGH (`08-16` Task 2, `08-16-PLAN.md:143`) — the `rg -n "world/store|\.store\b" src/app` gate can never print nothing** *(correctness HIGH 1, architect HIGH 1; verified by the orchestrator)*. `\.store\b` already matches the save store at `src/app/game-session.ts:1167`, `:1341`, `:1490` and `:3345` (`saveBoot.store`), and that code moves into the session modules in `08-08`/`08-12`. **Fix:** narrow the gate to `sim/world/store` imports and `world\.store` reads, or use an ESLint `no-restricted-imports` ban.
+#### Priority 2 — Domain and trust-boundary gaps
 
-3. **HIGH (`08-16-PLAN.md:126` vs `08-01-PLAN.md:27`) — `test.advanceTicks` is `undefined` outside the manual clock** *(triage X1; verified by the orchestrator)*. `08-01`'s probe-shape spec requires every `probe.test` method to read as `"function"` in docked `?test=1`, and `08-16`'s subtractive fixture check builds on it. **Fix:** keep `advanceTicks` always a function (refusing or no-op outside manual-clock mode), or revise the `08-01` and `08-16` shape contracts together.
+5. **MEDIUM (`08-05`, `08-11`, `08-13`) — no cap on total world size, and `snapshotWorld` refuses only non-finite values** *(adversarial N2, N3)*. Per-field caps allow ~67 M param chars, and a finite out-of-domain world yields a snapshot its own parser rejects (an unloadable Phase 11 save). **Fix:** add a world-level budget, and have `snapshotWorld` validate against the parser's domain.
+6. **MEDIUM (`08-05` D-key letter (d), `08-11`, `08-03`, `08-15`) — Key Decisions row letter (d) is claimed twice** *(triage M-1)*, and **FOUND-10 (`REQUIREMENTS.md:22`) says the probe shape is unchanged while `08-16` adds fields** without listing `REQUIREMENTS.md` in `files_modified` (triage M-2).
+7. **MEDIUM (`08-16`, `08-14`, ROADMAP SC5) — ROADMAP success criterion 5 is narrowed to an empty-world parity claim**, which the plan flags as unresolved *(triage M-3)*. Record an explicit decision or amend the criterion.
 
-#### Priority 2 — Validator domain alignment (finish the Round 3 work)
+#### Priority 3 — Targeted warnings and wording
 
-4. **MEDIUM (`08-05`, `08-11`, `08-13`) — the shared limits are defined three times** *(architect MEDIUM 2, correctness MEDIUM 3, triage X3)*. `MAX_ENTITY_MAGNITUDE (1e12)`, `MAX_SNAPSHOT_STRING_LENGTH (128)`, `MAX_SNAPSHOT_PARAM_LENGTH (64)` and `MAX_AI_PARAMS_KEYS (32)` are written inline in `world.ts` (`08-05`, Wave 2) and exported again from `sanitize.ts` (`08-11`) and `snapshot.ts` (`08-13`). **Fix:** create one `src/sim/world/limits.ts` owned by `08-05`, imported by the other two.
-
-5. **MEDIUM-HIGH (`08-05`, `08-11`, `08-11-PLAN.md:126`) — enum fields are neither checked at spawn nor repaired by the sanitizer** *(architect MEDIUM 3, adversarial MEDIUM-HIGH 2)*. `kind`, `scanClass`, `nav.behaviour` and `ai.aiKey` are rejected by `parseWorldSnapshot` when unknown, so `08-11`'s "every sanitized world parses" truth is overstated. AI dispatch `registry[ai.aiKey].think(ctx)` has no own-key check, so an `aiKey` such as `"constructor"` throws a `TypeError` inside the fixed step. **Fix:** validate these four at `spawnEntity`, repair or kill them in `sanitizeEntity`, and dispatch through `Object.hasOwn(registry, aiKey)`.
-
-6. **MEDIUM (`08-05-PLAN.md:137`, `08-11-PLAN.md:163`, `08-13-PLAN.md:26,140`) — quaternions that pass spawn or sanitize can still fail the parser** *(algorithm MEDIUM 2, correctness LOW)*. `spawnEntity` accepts non-unit quaternions without normalizing them. The sanitizer's normalize of a tiny-norm quaternion is inaccurate: `{w: 1e-160}` comes out with `normSq ≈ 1.0000111`, measured with the real `normalize`, which is outside the parser's `1e-9` tolerance. This gives the 200-run property a real counterexample and makes sanitize non-idempotent. **Fix:** treat a norm below a threshold as degenerate (reset to identity), re-check after normalizing, and require unit quaternions at spawn.
-
-7. **MEDIUM (`08-05-PLAN.md:137`, `08-13-PLAN.md:26`) — `worldSeed` is never checked as a uint32** *(algorithm MEDIUM 3, adversarial MEDIUM)*. The hash canonicalizes `1.5` to `"2"` while `forkSeed` truncates it to `1`, so seeds `1.5` and `2` hash identically but produce different streams. **Fix:** validate `worldSeed` as an integer in `0..0xffffffff` at world creation and in `parseWorldSnapshot`.
-
-#### Priority 3 — Targeted warnings
-
-8. **MEDIUM (`08-10-PLAN.md:28,212` vs `:155`; `08-15-PLAN.md:105,130`) — the `createEventRouter` signature contradicts itself** *(triage X2, architect LOW; verified by the orchestrator)*. The task body says `createEventRouter(ctx, subscribers)`, but the `provides`/artifact lines say `createEventRouter(subscribers)`. Align them on `(ctx, subscribers)`.
-
-9. **MEDIUM (`08-09`, `08-02`, `08-03`) — lint guard gaps** *(adversarial MEDIUM, correctness LOW)*. The AI zone can import `createSeededRandom` from `src/sim/math.ts:227` under an alias, which defeats the text scan. Nothing bans module-level mutable state in AI modules. The `src/sim` lint lacks `no-eval`, `no-new-func` and the `localeCompare`/`Intl` bans that the generator zone already has (`eslint.config.js:208-241`). The computed `sort["call"]` form is not covered either. Use `no-restricted-imports` with `importNames` for the math seam, and copy the generator-zone rules.
-
-10. **MEDIUM (`08-13`) — the restore check is a rounded-hash comparison** *(algorithm MEDIUM, adversarial MEDIUM)*. The 1,000-tick live-versus-restored check compares hashes rounded to `1e-6` (`src/sim/hash.ts`). Also compare `JSON.stringify(snapshotWorld(world))` exactly at each checkpoint.
-
-11. **MEDIUM (`08-11`) — the AI event drain limits passes, not deliveries** *(algorithm MEDIUM)*. With a fan-out handler the work grows as `N·f^8`. Add a total-deliveries cap per tick.
-
-12. **MEDIUM (`08-07-PLAN.md:113`) — `ShipControl` accepts values outside the shared limits**, which the sanitizer then silently zeroes *(adversarial MEDIUM, architect LOW)*. Clamp or refuse them at the control seam, using the shared limits from item 4.
-
-13. **MEDIUM (`08-12`, `08-15`) — no Firefox run** *(context MEDIUM)*. `rg` finds no `e2e-cross` in any plan, although `08-12` rewrites the frame loop and the `window.addEventListener` wiring, and `08-14` adds a manual-clock path. Record a non-blocking `docker compose run --rm e2e-cross` run at the `08-12` gate and after `08-15` in the SUMMARY.
-
-14. **LOW** — `08-08`/`08-12`: the new `disposed` guards and the `swapSystem` rAF tracking go beyond a verbatim move; record them as deliberate deviations (correctness). `08-15`: allow a best-of-N rerun for the microbenchmark threshold (1.2x plus 2 µs) (context). Plan line anchors into `game-session.ts` go stale after each extraction; executors should locate code by pattern (context).
+8. **LOW-MEDIUM (`08-13`, `08-15`, `08-16`) — the lifecycle reactions exist in three copies and only one is checked against the real session** *(architect A5-1)*. Optional: add a `tick-parity.test.ts` case with an injected `populate` spawning 2-3 test pilots, comparing `hashWorld` and `snapshotWorld` JSON through the real driver at 30 Hz and 144 Hz.
+9. **LOW (`08-04` Task 1) — the context list omits `equipmentSetSource`/`equipmentSetCache` (`game-session.ts:576-577`); local `const ctx = fitContext()` shadows the session `ctx` at `:769` and `:3232`; the hook "taint then request" order is reversed in the plan** *(correctness)*.
+10. **LOW (`08-12` Task 1) — the listener gate equating `addEventListener(` and `uiController.signal` counts is fragile** *(correctness, context)*. Count `signal: (deps\.|ctx\.runtime\.)?uiController\.signal` instead.
+11. **LOW (`08-14` Task 2) — the "no drainCommands" assertion is vacuous**; assert "no `advanceFrame`" instead *(correctness)*.
+12. **LOW — uint32 bound spelled as a literal in `world-lifecycle.ts` (`08-15-PLAN.md:130`) instead of importing `MAX_UINT32`** (architect A5-2); `08-15` conditionally edits `src/sim/world/step.ts`, a D-14 core-track file, so record any use as a deviation (architect A5-3, triage L-5); literal `1e12` in `08-11`/`08-07` and `MIN_QUAT_NORM_SQ` import-list drift (triage L-2, L-3).
+13. **LOW — adversarial residuals**: sparse param arrays and non-object `ai.params` unspecified (N4); `spawnEntity` double-reads getters (N5); live `params` prototype not canonicalized (N6); `testTainted` writable on shared `ctx` (N7); entity-id guard is a token scan (N8); function-object properties as module state (N9).
+14. **LOW — stale text and anchors**: superseded `snapshotForSave(inputs)` quote at `08-15-PLAN.md:308` (triage L-4); 26 pre-split `game-session.ts` line anchors will go stale (triage L-6; locate by pattern); ROADMAP "Shift+C settled before the split" vs CONTEXT D-01 (context); optional `docs/PERFORMANCE.md` pointer from the `08-15` benchmark (context); `MAX_SNAPSHOT_PARAM_LENGTH` naming drift (triage L-1).
 
 ### Divergent Views
 
-- **READY vs NEEDS REVISION.** `reviewer-context-sonnet` judged the set READY; it did not read all plan text and did not examine the `ai.params`, `.store` gate or `advanceTicks` contracts. The other five returned NEEDS REVISION. Items 1–3 were each found by at least one Opus reviewer, and items 2 and 3 were checked directly against source by the orchestrator, so the NEEDS REVISION verdict stands.
-- **How to fix the NaN `ai.params` contradiction.** The algorithm reviewer prefers `snapshotWorld` to refuse non-finite values. The correctness reviewer accepts either that or narrowing the test row to array elements. The adversarial reviewer stresses adding `null`/`boolean` to the generator. These are compatible: do all three.
-- **Scope of the enum-field fix.** The architect allows narrowing `08-11`'s claim as an alternative. The adversarial reviewer treats the `registry[aiKey]` dispatch as a fixed-step crash, which needs the own-key check regardless.
-- **Resolution.** None of the findings affect Wave 1 (`08-01`..`08-04`) except the `08-01`/`08-16` `advanceTicks` shape contract (item 3) and the `08-03` lint residuals (item 9). Items 1–13 are text edits to `08-05`, `08-07`, `08-09`, `08-10`, `08-11`, `08-12`, `08-13`, `08-15` and `08-16` and do not change any wave or dependency.
+- **READY vs NEEDS REVISION.** The two READY verdicts (architect, context) did not examine the `snapshotWorld` canonical-order contract, which algorithm demonstrated in the container and adversarial found independently. Item 1 blocks an acceptance criterion in `08-13`, so the NEEDS REVISION verdict stands for that plan; the other 15 plans are ready after the text edits above.
+- **Where to fix item 1.** Algorithm prefers canonical emission in `snapshotWorld` (more robust); a spawn-time sorted insert alone would not cover AI code that replaces `ctx.ai.params`. Do the `snapshotWorld` fix; the spawn-time sort is optional.
+- **Severity of the 08-15 purity-scan collision (item 2).** Raised by one reviewer only, but it is a false test failure the executor is forbidden to fix at the source, so it is worth the one-line plan edit.
+
+To incorporate feedback into planning: `/gsd-plan-phase 8 --reviews`
