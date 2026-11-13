@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The content build now compiles nine Oolite NPC ships for the six traffic
+  roles (Viper, Adder, Moray, Cobra Mk I, Sidewinder, Mamba, Krait, Gecko and
+  Shuttle), with their models, WebP textures and role records. They are loaded
+  only on demand, so the first load is unchanged, and they do not appear in the
+  game until ships are placed in space.
+
 ## [0.3.0] - 2026-11-11
 
 ### Added
