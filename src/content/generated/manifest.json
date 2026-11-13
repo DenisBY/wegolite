@@ -456,6 +456,11 @@
       "sha256": "72f679280670126a522e86c8bc6cb482047c2d8e26a43a452e6c6c7c0d73ab5b"
     },
     {
+      "bytes": 2859,
+      "path": "src/content/generated/ships-npc.json",
+      "sha256": "a6099120d0762f22c51b53addce798ebfe178473c3904498c3710590cdddd7c3"
+    },
+    {
       "bytes": 706570,
       "path": "src/content/generated/ships.json",
       "sha256": "ca0cbb04378823ff7027dc4a24bda5ac783f5421629a2d93d3843620679e3e60"

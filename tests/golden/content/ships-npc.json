@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "keys": [
+    "adder",
+    "cobramk1",
+    "gecko",
+    "krait",
+    "mamba",
+    "moray",
+    "shuttle",
+    "sidewinder",
+    "viper"
+  ],
+  "fields": ["aiType", "glb", "key", "model", "roles", "scanClass"],
+  "defaults": {
+    "aiType": "nullAI.plist",
+    "scanClass": "CLASS_NEUTRAL"
+  },
+  "examples": [
+    {
+      "key": "viper",
+      "roles": ["police"],
+      "aiType": "oolite-policeAI.js",
+      "scanClass": "CLASS_POLICE",
+      "model": "oolite_viper.dat",
+      "glb": "models/viper.glb"
+    },
+    {
+      "key": "adder",
+      "roles": [
+        "trader(0.25)",
+        "trader-courier(0.5)",
+        "trader-smuggler",
+        "pirate-light-fighter(0.25)",
+        "pirate(0.2)",
+        "scavenger",
+        "shuttle",
+        "hermit-ship"
+      ],
+      "aiType": "oolite-scavengerAI.js",
+      "scanClass": "CLASS_NEUTRAL",
+      "model": "oolite_adder.dat",
+      "glb": "models/adder.glb"
+    },
+    {
+      "key": "sidewinder",
+      "roles": ["pirate(0.75)", "pirate-light-fighter(0.25)", "hunter"],
+      "aiType": "oolite-pirateAI.js",
+      "scanClass": "CLASS_NEUTRAL",
+      "model": "oolite_sidewinder.dat",
+      "glb": "models/sidewinder.glb"
+    },
+    {
+      "key": "shuttle",
+      "roles": ["shuttle"],
+      "aiType": "oolite-shuttleAI.js",
+      "scanClass": "CLASS_NEUTRAL",
+      "model": "oolite_shuttle.dat",
+      "glb": "models/shuttle.glb"
+    },
+    {
+      "key": "gecko",
+      "roles": [
+        "hunter(0.75)",
+        "pirate-light-fighter(0.5)",
+        "pirate-medium-fighter(0.75)",
+        "pirate(0.5)",
+        "escort(0.25)",
+        "escort-medium(0.5)",
+        "escort-heavy"
+      ],
+      "aiType": "oolite-pirateAI.js",
+      "scanClass": "CLASS_NEUTRAL",
+      "model": "oolite_gecko.dat",
+      "glb": "models/gecko.glb"
+    }
+  ],
+  "sources": [
+    "viper: third_party/oolite/Config/shipdata.plist lines 3834 (ai_type), 3883 (model), 3885 (roles), 3886 (scan_class) of oolite_template_viper, resolved through the like_ship child viper at lines 4537-4540",
+    "adder: shipdata.plist lines 50 (ai_type), 151 (model), 153 (roles) of oolite_template_adder, child adder at lines 4260-4263; no scan_class, so the CLASS_NEUTRAL default of ShipEntity.m:520, 2126-2127; an absent ai_type would be the nullAI.plist default of ShipEntity.m:564",
+    "sidewinder: shipdata.plist lines 3562 (ai_type), 3594 (model), 3596 (roles) of oolite_template_sidewinder, child sidewinder at lines 4505-4508; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127)",
+    "shuttle: shipdata.plist lines 3503 (ai_type), 3538 (model), 3540 (roles) of oolite_template_shuttle, child shuttle at lines 4501-4504; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127)",
+    "gecko: shipdata.plist lines 2279 (ai_type), 2325 (model), 2327 (roles) of oolite_template_gecko, child gecko at lines 4426-4428; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127)"
+  ]
+}

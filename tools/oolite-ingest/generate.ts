@@ -29,6 +29,7 @@ import { MODEL_SOURCE_FILES, emitModels } from "./convert/glb.js";
 import type { ShipEntry } from "./convert/glb.js";
 import { emitEquipment } from "./convert/equipment.js";
 import { emitLabels } from "./convert/labels.js";
+import { emitNpcShips } from "./convert/npc-ships.js";
 import {
   compileShips,
   emitClientShips,
@@ -155,6 +156,7 @@ export async function generateContent({
     emitLabels(descriptions),
     emitShipsFromCatalogue(catalogue),
     emitClientShips(catalogue),
+    emitNpcShips(catalogue),
     emitDockPort(models),
     ...emitModels(models, entries),
   ];

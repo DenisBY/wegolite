@@ -1,0 +1,131 @@
+[
+  {
+    "aiType": "oolite-scavengerAI.js",
+    "glb": "models/adder.glb",
+    "key": "adder",
+    "model": "oolite_adder.dat",
+    "roles": [
+      "trader(0.25)",
+      "trader-courier(0.5)",
+      "trader-smuggler",
+      "pirate-light-fighter(0.25)",
+      "pirate(0.2)",
+      "scavenger",
+      "shuttle",
+      "hermit-ship"
+    ],
+    "scanClass": "CLASS_NEUTRAL"
+  },
+  {
+    "aiType": "oolite-traderAI.js",
+    "glb": "models/cobramk1.glb",
+    "key": "cobramk1",
+    "model": "oolite_cobramk1.dat",
+    "roles": [
+      "pirate(0.5)",
+      "pirate-medium-fighter",
+      "hunter-medium",
+      "scavenger",
+      "trader",
+      "trader-smuggler",
+      "hermit-ship",
+      "escort-medium(0.75)",
+      "escort(0.25)",
+      "assassin-light"
+    ],
+    "scanClass": "CLASS_NEUTRAL"
+  },
+  {
+    "aiType": "oolite-pirateAI.js",
+    "glb": "models/gecko.glb",
+    "key": "gecko",
+    "model": "oolite_gecko.dat",
+    "roles": [
+      "hunter(0.75)",
+      "pirate-light-fighter(0.5)",
+      "pirate-medium-fighter(0.75)",
+      "pirate(0.5)",
+      "escort(0.25)",
+      "escort-medium(0.5)",
+      "escort-heavy"
+    ],
+    "scanClass": "CLASS_NEUTRAL"
+  },
+  {
+    "aiType": "oolite-pirateAI.js",
+    "glb": "models/krait.glb",
+    "key": "krait",
+    "model": "oolite_krait.dat",
+    "roles": [
+      "pirate",
+      "pirate-light-fighter(0.75)",
+      "hunter(0.5)",
+      "escort(0.25)",
+      "assassin-light"
+    ],
+    "scanClass": "CLASS_NEUTRAL"
+  },
+  {
+    "aiType": "oolite-pirateAI.js",
+    "glb": "models/mamba.glb",
+    "key": "mamba",
+    "model": "oolite_mamba.dat",
+    "roles": [
+      "pirate",
+      "pirate-light-fighter(0.5)",
+      "hunter"
+    ],
+    "scanClass": "CLASS_NEUTRAL"
+  },
+  {
+    "aiType": "oolite-pirateAI.js",
+    "glb": "models/moray.glb",
+    "key": "moray",
+    "model": "oolite_moray.dat",
+    "roles": [
+      "trader(0.5)",
+      "trader-courier(0.25)",
+      "trader-smuggler",
+      "hunter-medium",
+      "pirate-medium-fighter",
+      "pirate-interceptor(0.25)",
+      "pirate(0.5)",
+      "pirate-light-freighter(0.5)",
+      "escort-medium(0.25)",
+      "assassin-light"
+    ],
+    "scanClass": "CLASS_NEUTRAL"
+  },
+  {
+    "aiType": "oolite-shuttleAI.js",
+    "glb": "models/shuttle.glb",
+    "key": "shuttle",
+    "model": "oolite_shuttle.dat",
+    "roles": [
+      "shuttle"
+    ],
+    "scanClass": "CLASS_NEUTRAL"
+  },
+  {
+    "aiType": "oolite-pirateAI.js",
+    "glb": "models/sidewinder.glb",
+    "key": "sidewinder",
+    "model": "oolite_sidewinder.dat",
+    "roles": [
+      "pirate(0.75)",
+      "pirate-light-fighter(0.25)",
+      "hunter"
+    ],
+    "scanClass": "CLASS_NEUTRAL"
+  },
+  {
+    "aiType": "oolite-policeAI.js",
+    "glb": "models/viper.glb",
+    "key": "viper",
+    "model": "oolite_viper.dat",
+    "roles": [
+      "police"
+    ],
+    "scanClass": "CLASS_POLICE"
+  }
+]

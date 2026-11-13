@@ -71,6 +71,13 @@ measured at build time from the vendored Oolite `.dat` models (`oolite_coriolis`
 CC BY-NC-SA 3.0, never GPL, with attribution to the Oolite contributors,
 non-commercial use only and share-alike terms.
 
+The generated NPC ship record file `src/content/generated/ships-npc.json` is
+compiled at build time from the vendored Oolite `shipdata.plist` (the roles, AI
+name, scan class and model of nine NPC ships, with `like_ship` resolved). It is
+a derivative work of that file and remains CC BY-NC-SA 3.0, never GPL, with
+attribution to the Oolite contributors, non-commercial use only and
+share-alike terms.
+
 ## 4. Corresponding source
 
 The complete corresponding source for every distributed build of Wegolite is
