@@ -10,10 +10,10 @@
  * `CatalogEntrySchema`. All file reading and writing stays in `generate.ts`.
  *
  * The catalogue records Oolite's facts; it does not repeat its prune. Oolite
- * deletes any entry whose `.dat` is missing, which would delete 95 of the 102
- * usable entries because only five models are vendored. Instead every entry is
- * kept, `usable` mirrors Oolite's predicate without pruning, and
- * `modelVendored` makes the difference explicit (DATA-07).
+ * deletes any entry whose `.dat` is missing, which would delete most of the
+ * usable entries because only the models of `MODEL_SOURCE_FILES` are vendored.
+ * Instead every entry is kept, `usable` mirrors Oolite's predicate without
+ * pruning, and `modelVendored` makes the difference explicit (DATA-07).
  *
  * `extras` carries every resolved key that the typed projection does not
  * consume, verbatim. Nothing is interpreted: a value that looks like a condition
@@ -41,19 +41,20 @@ import type {
   ShipDef,
   Subentity,
 } from "../../../src/content/schemas/ship.js";
+import { MODEL_SOURCE_FILES } from "./glb.js";
 
 export const SHIPS_PATH = "src/content/generated/ships.json";
 export const SHIPDATA_FILE = "third_party/oolite/Config/shipdata.plist";
 export const MODELS_DIR = "third_party/oolite/Models";
 
-/** The five model files vendored by plan 04. */
-export const VENDORED_MODEL_FILES = [
-  "oolite_cobra3.dat",
-  "oolite_coriolis.dat",
-  "oolite_coriolis_dock.dat",
-  "oolite_coriolis_faceplate.dat",
-  "oolite_coriolis_tris.dat",
-] as const;
+/**
+ * Every `.dat` an emitted GLB is built from: the code-unit sorted, de-duplicated
+ * union of `MODEL_SOURCE_FILES`. Derived, never restated, so `modelVendored`
+ * cannot drift from what the content build converts.
+ */
+export const VENDORED_MODEL_FILES: readonly string[] = [
+  ...new Set(Object.values(MODEL_SOURCE_FILES).flat()),
+].sort(compareCodeUnits);
 
 /**
  * Resolved keys that are consumed by the typed top-level record or by
@@ -70,7 +71,7 @@ const PROJECTED_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 export interface CompileShipsOptions {
-  /** Override the vendored-model set; defaults to the five pinned files. */
+  /** Override the vendored-model set; defaults to `VENDORED_MODEL_FILES`. */
   readonly modelFiles?: readonly string[];
 }
 

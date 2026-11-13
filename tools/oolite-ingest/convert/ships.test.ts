@@ -6,7 +6,7 @@
  * T-02-16, T-02-17).
  *
  * Measured on the pinned snapshot: 194 resolved entries, 81 templates, 102
- * usable, seven usable entries whose model we vendor, and a `market_definition`
+ * usable, the usable entries whose model an emitted GLB is built from, and a `market_definition`
  * tri-state of 180 absent / 8 empty / 6 explicit. The two representative
  * entries are the player's Cobra and the Coriolis station, because they are the
  * two models plan 06 converts into GLBs.
@@ -22,7 +22,13 @@ import { isContentError } from "../content-error.js";
 import type { ContentError } from "../content-error.js";
 import { parseOpenStep } from "../openstep/parser.js";
 import type { PlistValue } from "../openstep/plist-value.js";
-import { compileShips, emitShips, SHIPS_PATH } from "./ships.js";
+import { MODEL_SOURCE_FILES } from "./glb.js";
+import {
+  compileShips,
+  emitShips,
+  SHIPS_PATH,
+  VENDORED_MODEL_FILES,
+} from "./ships.js";
 import type { ShipCatalogue } from "./ships.js";
 
 const SHIPDATA = "third_party/oolite/Config/shipdata.plist";
@@ -158,21 +164,55 @@ describe("shipdata catalogue", () => {
     });
   });
 
-  it("marks exactly seven usable entries as vendored", () => {
+  it("marks the usable entries whose model an emitted GLB is built from", () => {
     const vendored = catalogue.entries
       .filter((entry) => entry.usable && entry.modelVendored)
       .map((entry) => entry.key)
       .sort();
 
     expect(vendored).toEqual([
+      "adder",
+      "adder-player",
+      "buoy",
+      "buoy-witchpoint",
       "cobra3-alternate",
       "cobra3-pirate",
       "cobra3-player",
       "cobra3-trader",
+      "cobramk1",
+      "cobramk1-alt",
+      "cobramk1-miner",
+      "cobramk1-player",
       "coriolis-station",
+      "gecko",
+      "krait",
+      "mamba",
+      "mamba-escort",
+      "moray",
+      "moray-player",
+      "morayMED",
+      "morayMED-player",
       "oolite-cobra3-strict",
+      "oolite-tutorial-buoy",
+      "oolite-tutorial-krait",
+      "oolite-tutorial-krait-wave1",
       "oolite-tutorial-station",
+      "oolite_buoy_subentity",
+      "oolite_template_tutorial-krait-wave1",
+      "shuttle",
+      "sidewinder",
+      "viper",
+      "viper-pursuit",
     ]);
+  });
+
+  it("derives the vendored model list from the converted models", () => {
+    const expected = [
+      ...new Set(Object.values(MODEL_SOURCE_FILES).flat()),
+    ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+
+    expect([...VENDORED_MODEL_FILES]).toEqual(expected);
+    expect(VENDORED_MODEL_FILES).toHaveLength(16);
   });
 
   it("keeps every remaining resolved key in extras", () => {
@@ -266,7 +306,7 @@ const shipFixture = JSON.parse(
 ) as ShipFixture;
 
 describe("ship golden fixture", () => {
-  it("pins the version, the four counts and the seven vendored entries", () => {
+  it("pins the version, the four counts and the vendored entries", () => {
     expect(shipFixture.version).toBe(1);
     expect(shipFixture.entryCount).toBe(194);
     expect(catalogue.entries).toHaveLength(shipFixture.entryCount);

@@ -106,7 +106,7 @@
       "kind": "absent"
     },
     "model": "oolite_adder.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.25)",
       "trader-courier(0.5)",
@@ -272,7 +272,7 @@
       "kind": "absent"
     },
     "model": "oolite_adder.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -3208,7 +3208,7 @@
       "kind": "absent"
     },
     "model": "oolite_buoy.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "buoy"
     ],
@@ -3434,7 +3434,7 @@
       "kind": "absent"
     },
     "model": "oolite_buoy.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "buoy-witchpoint"
     ],
@@ -4436,7 +4436,7 @@
       "kind": "absent"
     },
     "model": "oolite_cobramk1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate(0.5)",
       "pirate-medium-fighter",
@@ -4608,7 +4608,7 @@
       "kind": "absent"
     },
     "model": "oolite_cobramk1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate(0.25)",
       "pirate-light-freighter(0.5)",
@@ -4766,7 +4766,7 @@
       "kind": "absent"
     },
     "model": "oolite_cobramk1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "miner"
     ],
@@ -4918,7 +4918,7 @@
       "kind": "absent"
     },
     "model": "oolite_cobramk1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -6689,7 +6689,7 @@
       "kind": "absent"
     },
     "model": "oolite_gecko.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "hunter(0.75)",
       "pirate-light-fighter(0.5)",
@@ -7332,7 +7332,7 @@
       "kind": "absent"
     },
     "model": "oolite_krait.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate",
       "pirate-light-fighter(0.75)",
@@ -7426,7 +7426,7 @@
       "kind": "absent"
     },
     "model": "oolite_mamba.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate",
       "pirate-light-fighter(0.5)",
@@ -7526,7 +7526,7 @@
       "kind": "absent"
     },
     "model": "oolite_mamba.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate-light-fighter(0.5)",
       "escort",
@@ -7773,7 +7773,7 @@
       "kind": "absent"
     },
     "model": "oolite_moray.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.5)",
       "trader-courier(0.25)",
@@ -7964,7 +7964,7 @@
       "kind": "absent"
     },
     "model": "oolite_moray.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -8137,7 +8137,7 @@
       "kind": "absent"
     },
     "model": "oolite_moray.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.5)",
       "sunskim-trader"
@@ -8311,7 +8311,7 @@
       "kind": "absent"
     },
     "model": "oolite_moray.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -9256,7 +9256,7 @@
       "kind": "absent"
     },
     "model": "oolite_buoy.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite-tutorial-buoy"
     ],
@@ -9407,7 +9407,7 @@
       "kind": "absent"
     },
     "model": "oolite_krait.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite-tutorial-fighter"
     ],
@@ -9496,7 +9496,7 @@
       "kind": "absent"
     },
     "model": "oolite_krait.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite-tutorial-fighter-wave1"
     ],
@@ -10097,7 +10097,7 @@
       "kind": "absent"
     },
     "model": "oolite_buoy_subents.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite_buoy_subent"
     ],
@@ -10699,7 +10699,7 @@
       "kind": "absent"
     },
     "model": "oolite_adder.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.25)",
       "trader-courier(0.5)",
@@ -10865,7 +10865,7 @@
       "kind": "absent"
     },
     "model": "oolite_adder.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -13720,7 +13720,7 @@
       "kind": "absent"
     },
     "model": "oolite_buoy.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "buoy"
     ],
@@ -13946,7 +13946,7 @@
       "kind": "absent"
     },
     "model": "oolite_buoy.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "buoy-witchpoint"
     ],
@@ -15378,7 +15378,7 @@
       "kind": "absent"
     },
     "model": "oolite_cobramk1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate(0.5)",
       "pirate-medium-fighter",
@@ -15550,7 +15550,7 @@
       "kind": "absent"
     },
     "model": "oolite_cobramk1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate(0.25)",
       "pirate-light-freighter(0.5)",
@@ -15708,7 +15708,7 @@
       "kind": "absent"
     },
     "model": "oolite_cobramk1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "miner"
     ],
@@ -15860,7 +15860,7 @@
       "kind": "absent"
     },
     "model": "oolite_cobramk1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -17577,7 +17577,7 @@
       "kind": "absent"
     },
     "model": "oolite_gecko.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "hunter(0.75)",
       "pirate-light-fighter(0.5)",
@@ -18166,7 +18166,7 @@
       "kind": "absent"
     },
     "model": "oolite_krait.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate",
       "pirate-light-fighter(0.75)",
@@ -18260,7 +18260,7 @@
       "kind": "absent"
     },
     "model": "oolite_mamba.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate",
       "pirate-light-fighter(0.5)",
@@ -18360,7 +18360,7 @@
       "kind": "absent"
     },
     "model": "oolite_mamba.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate-light-fighter(0.5)",
       "escort",
@@ -18607,7 +18607,7 @@
       "kind": "absent"
     },
     "model": "oolite_moray.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.5)",
       "trader-courier(0.25)",
@@ -18798,7 +18798,7 @@
       "kind": "absent"
     },
     "model": "oolite_moray.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -18971,7 +18971,7 @@
       "kind": "absent"
     },
     "model": "oolite_moray.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.5)",
       "sunskim-trader"
@@ -19145,7 +19145,7 @@
       "kind": "absent"
     },
     "model": "oolite_moray.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -20701,7 +20701,7 @@
       "kind": "absent"
     },
     "model": "oolite_shuttle.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "shuttle"
     ],
@@ -20779,7 +20779,7 @@
       "kind": "absent"
     },
     "model": "oolite_sidewinder.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate(0.75)",
       "pirate-light-fighter(0.25)",
@@ -21516,7 +21516,7 @@
       "kind": "absent"
     },
     "model": "oolite_buoy.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite-tutorial-buoy"
     ],
@@ -21667,7 +21667,7 @@
       "kind": "absent"
     },
     "model": "oolite_krait.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite-tutorial-fighter"
     ],
@@ -21756,7 +21756,7 @@
       "kind": "absent"
     },
     "model": "oolite_krait.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite-tutorial-fighter-wave1"
     ],
@@ -22466,7 +22466,7 @@
       "kind": "absent"
     },
     "model": "oolite_viper.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "police"
     ],
@@ -23157,7 +23157,7 @@
       "kind": "absent"
     },
     "model": "oolite_viper.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "wingman"
     ],
@@ -25086,7 +25086,7 @@
       "kind": "absent"
     },
     "model": "oolite_shuttle.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "shuttle"
     ],
@@ -25164,7 +25164,7 @@
       "kind": "absent"
     },
     "model": "oolite_sidewinder.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate(0.75)",
       "pirate-light-fighter(0.25)",
@@ -25920,7 +25920,7 @@
       "kind": "absent"
     },
     "model": "oolite_viper.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "police"
     ],
@@ -26611,7 +26611,7 @@
       "kind": "absent"
     },
     "model": "oolite_viper.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "wingman"
     ],
