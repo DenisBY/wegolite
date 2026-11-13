@@ -455,15 +455,18 @@ A new `tests/e2e/npc-assets.spec.ts` covers "fetched on demand and decodes" (che
 | A5 | Dropping the Python (D-01 "and/or") is acceptable | Standard Stack | Low: reversible; adding it back is one row per list plus 5 textures |
 | A6 | The scan class `CLASS_NEUTRAL` default belongs in the compiled record rather than leaving the field absent | Pattern 3 | Low-medium: a different reading (absent field, populator applies the default) changes the golden and Phase 12's code but not Phase 9's pipeline |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **How may the vendor script obtain the 42 files given AGENTS.md's "do not fetch over the network"?**
    - What we know: `scripts/vendor-oolite.sh` is documented as the only sanctioned way bytes enter `third_party/oolite/` and it downloads each file from `raw.githubusercontent.com` at the pinned commit. It has "no --force, no allowlist and no environment-variable escape". All 48 required files are byte-identical in the Oolite checkout at `7437f22` and at checkout HEAD. [VERIFIED: sha256 comparison this session]
    - What's unclear: whether the rule against network fetches was meant to cover the vendor script.
    - Recommendation: run the sanctioned script through `docker compose run --rm assets sh scripts/vendor-oolite.sh` (it re-downloads all 75 existing files too and rewrites the same bytes), then cross-check `CHECKSUMS.sha256` against the checkout. Raise it as a `checkpoint:human-verify` in the vendoring plan. Do not add an offline escape to the script without an owner decision.
+   - **RESOLVED** by the owner on 2026-11-13: the sanctioned script runs over the network at the pinned commit `7437f22` only, for the 42 files of the nine ships (no Python), followed by a mandatory SHA-256 cross-check of every new file against the local checkout (`git show 7437f22:` and the working tree), and the owner confirms the report at the `checkpoint:human-verify` of plan 09-01 Task 3. No offline escape is added to the script. The cross-check runs on the host because the `wegolite-ci` image has no `git` (plan 09-01 objective). Plan 09-05 Task 3 records the exception in `.planning/PROJECT.md` Key Decisions.
 2. **Python or not?** RESOLVED by the owner on 2026-11-13: no Python; nine models.
 3. **Does Phase 12 need `auto_ai` and the role-to-AI map in the record?** Out of scope by D-06; recorded so Phase 12 planning does not assume the compiled `aiType` is the effective spawn AI.
+   - **RESOLVED** (out of scope, D-06): the record compiles the authored `ai_type` only; `auto_ai` and the role-to-AI map are applied at spawn and are Phase 12's concern. Plan 09-04 Task 1 never reads `auto_ai`, and its objective states that the compiled `aiType` is not the effective spawn AI.
 4. **Should the buoy models join `VENDORED_MODEL_FILES`?** The recommended derivation does it implicitly (it is the single-source fix). If the planner keeps the five-file list, the golden changes less but `modelVendored` stays inconsistent with the vendored buoy files.
+   - **RESOLVED** in plan 09-03 Task 2: `VENDORED_MODEL_FILES` becomes the sorted, de-duplicated union of `MODEL_SOURCE_FILES` (16 `.dat` files, both buoy models included), so the 32 usable entries whose model an emitted GLB is built from are marked vendored and pinned by `tests/golden/content/ships.json`. Plan 09-05 Task 3 records it in Key Decisions ("modelVendored derives from MODEL_SOURCE_FILES").
 
 ## Environment Availability
 
