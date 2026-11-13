@@ -42,13 +42,108 @@ const NAME_RULE =
   "names EntityId: no entity id outlives its world (CONTEXT D-06, amended 2026-11-12)";
 
 /**
+ * Drop `//` line comments and block comments while keeping string and template
+ * literals intact and preserving every newline, so prose cannot trip the scan
+ * and line numbers stay meaningful. Local on purpose: this guard stays
+ * independent of the sim-purity guard's helper.
+ */
+function withoutComments(source: string): string {
+  let out = "";
+  let index = 0;
+  while (index < source.length) {
+    const char = source[index] as string;
+    const next = source[index + 1];
+    if (char === "/" && next === "/") {
+      while (index < source.length && source[index] !== "\n") index += 1;
+    } else if (char === "/" && next === "*") {
+      index += 2;
+      while (
+        index < source.length &&
+        !(source[index] === "*" && source[index + 1] === "/")
+      ) {
+        if (source[index] === "\n") out += "\n";
+        index += 1;
+      }
+      index += 2;
+      out += " ";
+    } else if (char === '"' || char === "'" || char === "`") {
+      out += char;
+      index += 1;
+      while (index < source.length && source[index] !== char) {
+        if (source[index] === "\\") {
+          out += source[index] as string;
+          index += 1;
+        }
+        out += source[index] ?? "";
+        index += 1;
+      }
+      out += char;
+      index += 1;
+    } else {
+      out += char;
+      index += 1;
+    }
+  }
+  return out;
+}
+
+/** The 1-based line of character offset `offset` in `text`. */
+function lineOf(text: string, offset: number): number {
+  let line = 1;
+  for (let index = 0; index < offset; index += 1) {
+    if (text[index] === "\n") line += 1;
+  }
+  return line;
+}
+
+/** Static import, `export ... from`, side-effect import and dynamic `import(`. */
+const SPECIFIER_PATTERNS = [
+  /\bfrom\s+["']([^"']+)["']/g,
+  /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+  /\bimport\s+["']([^"']+)["']/g,
+];
+
+/** Whether `specifier`, written in the file at `path`, resolves to the id module. */
+function resolvesToIds(path: string, specifier: string): boolean {
+  const bare = specifier.replace(/\.(?:js|ts)$/, "");
+  if (specifier.startsWith(".")) {
+    return (
+      posix.normalize(posix.join(posix.dirname(path), bare)) === IDS_MODULE
+    );
+  }
+  // A non-relative alias or package-style path to the same module.
+  return bare === IDS_MODULE || bare.endsWith("/sim/world/ids");
+}
+
+/**
  * Findings for one file: `<path>:<line>: <rule>`. `path` is repo-relative and
- * posix (`src/app/x.ts`); `text` is the file's source.
+ * posix (`src/app/x.ts`); `text` is the file's source. Comments never count; the
+ * token rule is the whole word `EntityId`.
  */
 function findEntityIdLeaks(path: string, text: string): string[] {
-  void path;
-  void text;
-  return [];
+  const cleaned = withoutComments(text);
+  const found: { line: number; rule: string }[] = [];
+
+  for (const pattern of SPECIFIER_PATTERNS) {
+    for (const match of cleaned.matchAll(pattern)) {
+      const specifier = match[1];
+      if (specifier === undefined || !resolvesToIds(path, specifier)) continue;
+      // Report at the specifier's own line, not the start of the statement.
+      const offset = match.index + match[0].lastIndexOf(specifier);
+      found.push({ line: lineOf(cleaned, offset), rule: IMPORT_RULE });
+    }
+  }
+  for (const match of cleaned.matchAll(/\bEntityId\b/g)) {
+    found.push({ line: lineOf(cleaned, match.index), rule: NAME_RULE });
+  }
+
+  // Import findings before name findings on a shared line; otherwise by line.
+  found.sort(
+    (a, b) =>
+      a.line - b.line ||
+      (a.rule === b.rule ? 0 : a.rule === IMPORT_RULE ? -1 : 1),
+  );
+  return found.map((entry) => `${path}:${entry.line}: ${entry.rule}`);
 }
 
 /** Every `.ts` file under `src` outside `src/sim`, repo-relative, code-unit ordered. */
@@ -186,5 +281,3 @@ describe("entity ids stay inside src/sim", () => {
     expect(leaks, leaks.join("\n")).toEqual([]);
   });
 });
-
-export { IDS_MODULE, posix };
