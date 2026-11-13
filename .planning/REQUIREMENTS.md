@@ -20,11 +20,11 @@ TypeScript; it is never executed at runtime.
 
 ### Foundation
 
-- [ ] **FOUND-10**: Existing v1 play is unchanged after `src/app/game-session.ts` is split into subsystems: every v1 golden, unit and e2e test passes without regeneration, and the probe shape is unchanged
+- [x] **FOUND-10**: Existing v1 play is unchanged after `src/app/game-session.ts` is split into subsystems: every v1 golden, unit and e2e test passes without regeneration, and the probe shape is unchanged
 - [x] **FOUND-11**: The simulation holds many entities (ships, stations, missiles, cargo pods, wreckage) with stable ids, never reused within the world that issued them (each new world restarts its dynamic ids, and no entity id outlives its world; owner decision 2026-11-12, Phase 8 CONTEXT D-06), and canonical id-order iteration; with no NPCs present the world hash equals the v1 flight hash
 - [x] **FOUND-12**: All simulation randomness comes from serialisable seeded streams forked per entity and purpose; `src/sim` has no `Math.random`, `Date` or wall clock, and a live world and a restored world hash identically after 1,000 ticks
 - [x] **FOUND-13**: AI code reads the world only through a typed `WorldView` and acts only through a typed `ShipControl`; AI state is plain serialisable data with integer tick timers
-- [ ] **FOUND-14**: Tests can advance the simulation by N ticks through the test hook, and NPC traffic is off by default in browser tests and opt-in per spec
+- [x] **FOUND-14**: Tests can advance the simulation by N ticks through the test hook, and NPC traffic is off by default in browser tests and opt-in per spec
 
 ## v2.1 Requirements — Combat & Traffic (planned, unscheduled)
 
@@ -164,11 +164,11 @@ Which phases cover which requirements. Filled by the v2.0 roadmap on 2026-11-11,
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-10 | Phase 8 | Pending |
+| FOUND-10 | Phase 8 | Complete |
 | FOUND-11 | Phase 8 | Complete |
 | FOUND-12 | Phase 8 | Complete |
 | FOUND-13 | Phase 8 | Complete |
-| FOUND-14 | Phase 8 | Pending |
+| FOUND-14 | Phase 8 | Complete |
 
 ### v2.1 — Combat & Traffic (planned, unscheduled)
 

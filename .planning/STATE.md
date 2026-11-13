@@ -5,16 +5,16 @@ milestone_name: Foundation
 current_phase: 08
 current_phase_name: Session Split and World Core
 status: executing
-stopped_at: Completed 08-15-PLAN.md
-last_updated: "2026-11-13T16:17:25.161Z"
+stopped_at: Completed 08-16-PLAN.md
+last_updated: "2026-11-13T17:29:45.730Z"
 last_activity: 2026-11-13
 last_activity_desc: v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1
-state_head: c2bf3bb1275ae0bd9216958a8e5eaa9745bee2cb
+state_head: 3ece12e076c8b5ccbf000a44891e33a0e81113f4
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 16
-  completed_plans: 15
+  completed_plans: 16
   percent: 0
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 08 (Session Split and World Core) — EXECUTING
-Plan: 15 of 16 complete (08-01 to 08-15 done; the world core is plugged into the game; next 08-16)
+Plan: 16 of 16 complete (08-01 to 08-16 done; the tick hook and browser/Vitest parity are in; next is phase verification by the orchestrator)
 Status: Ready to execute
-Last activity: 2026-11-13 — Completed 08-15 (the world lifecycle: stepOnce runs stepSim over ctx.core.worldLifecycle?.world, the single integration point; the launched event and a hyperspace arrival bump epoch then derive worldSeedFor(marketSeed, epoch) and create a world, docked and dispose end it keeping the epoch, and a cold Continue or warm Load re-anchors at resetForRestore(0) so both give the same epoch and seed; the world never enters the save, proven on SaveInputs and the encoded save; the NPC-free world costs 1.28 us per tick against 0.62 us for stepFlight, within the 1.2x plus 2 us bound; verify-full green on 925b161 in 28m58s and the Firefox journey green; FOUND-11 ready, FOUND-14 still blocked on 08-16). Earlier: Completed 08-14 (the test flags are read once into ctx.runtime.testFlags by parseTestFlags; under ?test=1&clock=manual the frame loop never self-steps and draws at alpha 1; advanceTicks(n) steps exactly n ticks through a drain shared with advanceFrame, taints first, refuses every unsafe call and stops early on pause, overlay or dispose; markHookMutation is the hook's taint callback; probe unchanged; verify green on 83b112e, FOUND-14 still blocked on 08-15 and 08-16). Earlier: Completed 08-12 (split step 9: frame shell in frame-loop.ts, start-up, resize, scene swap and dispose in start-session.ts, game-session.ts a 532-line facade with the same nine exports; frame phase order, swap layout re-read, both window keydown registrations and the recorded teardown order pinned by Node tests; swapSystem now tracks and guards its settlement frame and dispose releases it; verify-full green on its second run on a detached worktree of 391e788, tree 20834c20, flaky textures timeout on the first; Firefox core-loop journey green, FOUND-10 still blocked on the other plans declaring it). Earlier: Completed 08-13 (the world is plain restorable data: snapshotWorld, parseWorldSnapshot and restoreWorld with a 23-reason SnapshotError, a strict boundary parser that builds a fresh tree and reads each property once, and the three-way 1,000-tick live-versus-restored equality by hash, exact snapshot JSON and toStrictEqual players; 94-row rejection table, Record<keyof Entity, ...> field coverage and a 300-run sanitizer-parser property; world hash identical at 30, 60 and 144 Hz across a launch and an arrival; full test, lint and typecheck green on 211a543, FOUND-12 ready). Earlier: Completed 08-11 (stepSim composes the unchanged flight step with an id-ordered stepWorld; AI events queue first in first out under 8 passes, 4096 dequeued events and a 4096-event queue with every drop counted in the hashed aiDropped; sanitizeEntity is field-complete and idempotent; 15 reserved SimEvent kinds, entityRemoved emitted, Key Decisions rows (a) to (h); full test, lint and typecheck green on 40260b0, 08-10 committed first and no src/app edit was needed). Earlier: Completed 08-10 (split steps 7 and 8: hyperspace controller, ordered event router keyed to RoutedKind and read through isRoutedKind, sim driver with the single flight-step call site, pure buildStepOptions; verify green on 18aba4b and 329b9f8, 08-11 events.ts not yet landed). Earlier: Completed 08-09 (AI types, integer tick time base, frozen registry, scripted test pilot and the AI lint zone: case-sensitive per-depth import allow-lists, createSeededRandom and module-level state bans, 106 guard probes; full test, lint and typecheck green on the task-3 commit b040c39)
+Last activity: 2026-11-13 — Completed 08-16 (the one deliberate D-13 probe commit e5756cf adds probe.sim, test.worldHash and an always-present test.advanceTicks that steps only under ?test=1&clock=manual, plus the seventh probe-shape state testHookManualDocked, proven subtractive against the old fixture; a launch plus 600 ticks read the same world hash in the browser, in the Node replay tests/helpers/tick-script.ts and in the real sim driver, equal to hashFlight; traffic is opt-in with &traffic=1 and both flags are inert without test=1; verify-full green on 3ece12e at its second run in 28m23s after five host-load timeouts passed on rerun; FOUND-10 and FOUND-14 ready). Earlier: Completed 08-15 (the world lifecycle: stepOnce runs stepSim over ctx.core.worldLifecycle?.world, the single integration point; the launched event and a hyperspace arrival bump epoch then derive worldSeedFor(marketSeed, epoch) and create a world, docked and dispose end it keeping the epoch, and a cold Continue or warm Load re-anchors at resetForRestore(0) so both give the same epoch and seed; the world never enters the save, proven on SaveInputs and the encoded save; the NPC-free world costs 1.28 us per tick against 0.62 us for stepFlight, within the 1.2x plus 2 us bound; verify-full green on 925b161 in 28m58s and the Firefox journey green; FOUND-11 ready, FOUND-14 still blocked on 08-16). Earlier: Completed 08-14 (the test flags are read once into ctx.runtime.testFlags by parseTestFlags; under ?test=1&clock=manual the frame loop never self-steps and draws at alpha 1; advanceTicks(n) steps exactly n ticks through a drain shared with advanceFrame, taints first, refuses every unsafe call and stops early on pause, overlay or dispose; markHookMutation is the hook's taint callback; probe unchanged; verify green on 83b112e, FOUND-14 still blocked on 08-15 and 08-16). Earlier: Completed 08-12 (split step 9: frame shell in frame-loop.ts, start-up, resize, scene swap and dispose in start-session.ts, game-session.ts a 532-line facade with the same nine exports; frame phase order, swap layout re-read, both window keydown registrations and the recorded teardown order pinned by Node tests; swapSystem now tracks and guards its settlement frame and dispose releases it; verify-full green on its second run on a detached worktree of 391e788, tree 20834c20, flaky textures timeout on the first; Firefox core-loop journey green, FOUND-10 still blocked on the other plans declaring it). Earlier: Completed 08-13 (the world is plain restorable data: snapshotWorld, parseWorldSnapshot and restoreWorld with a 23-reason SnapshotError, a strict boundary parser that builds a fresh tree and reads each property once, and the three-way 1,000-tick live-versus-restored equality by hash, exact snapshot JSON and toStrictEqual players; 94-row rejection table, Record<keyof Entity, ...> field coverage and a 300-run sanitizer-parser property; world hash identical at 30, 60 and 144 Hz across a launch and an arrival; full test, lint and typecheck green on 211a543, FOUND-12 ready). Earlier: Completed 08-11 (stepSim composes the unchanged flight step with an id-ordered stepWorld; AI events queue first in first out under 8 passes, 4096 dequeued events and a 4096-event queue with every drop counted in the hashed aiDropped; sanitizeEntity is field-complete and idempotent; 15 reserved SimEvent kinds, entityRemoved emitted, Key Decisions rows (a) to (h); full test, lint and typecheck green on 40260b0, 08-10 committed first and no src/app edit was needed). Earlier: Completed 08-10 (split steps 7 and 8: hyperspace controller, ordered event router keyed to RoutedKind and read through isRoutedKind, sim driver with the single flight-step call site, pure buildStepOptions; verify green on 18aba4b and 329b9f8, 08-11 events.ts not yet landed). Earlier: Completed 08-09 (AI types, integer tick time base, frozen registry, scripted test pilot and the AI lint zone: case-sensitive per-depth import allow-lists, createSeededRandom and module-level state bans, 106 guard probes; full test, lint and typecheck green on the task-3 commit b040c39)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -121,6 +121,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 08 P12 | 50 min | 2 tasks | 6 files |
 | Phase 08 P14 | 20 min | 2 tasks | 10 files |
 | Phase 08 P15 | 48 min | 3 tasks | 10 files |
+| Phase 08 P16 | 70min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -373,6 +374,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T16:17:25.079Z
-Stopped at: Completed 08-15-PLAN.md
+Last session: 2026-11-13T17:29:45.650Z
+Stopped at: Completed 08-16-PLAN.md
 Resume file: None
