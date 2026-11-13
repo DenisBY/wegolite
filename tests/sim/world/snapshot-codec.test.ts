@@ -1,0 +1,1364 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2026 Wegolite contributors
+
+/**
+ * The snapshot codec as a boundary (FOUND-12, T-08-24, T-08-25, T-08-55,
+ * T-08-56): the parser's rejection table, the acceptance rows, the three
+ * `snapshotWorld` refusals, the anti-alias checks, the field coverage table
+ * that keeps the hash and the codec in agreement, and a property that keeps the
+ * sanitizer and the parser in agreement. Expected reasons and values come from
+ * the rules in `limits.ts` and `snapshot.ts`, never from running the code
+ * under test.
+ */
+
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
+
+import type { AiComponent, ParamValue } from "../../../src/sim/ai/types.js";
+import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
+import { hashFlight, initFlightState } from "../../../src/sim/flight/state.js";
+import { identity, normalize, quat, vec } from "../../../src/sim/math.js";
+import type { Entity, SpawnInit } from "../../../src/sim/world/entity.js";
+import {
+  BEHAVIOUR_IDS,
+  ENTITY_KINDS,
+  MAX_ENTITIES,
+  SCAN_CLASSES,
+} from "../../../src/sim/world/ids.js";
+import {
+  MAX_AI_PARAMS_KEYS,
+  MAX_SNAPSHOT_PARAM_LENGTH,
+  MAX_SNAPSHOT_STRING_LENGTH,
+  MAX_UINT32,
+} from "../../../src/sim/world/limits.js";
+import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
+import {
+  entityHashes,
+  hashWorld,
+  serializeWorldSection,
+} from "../../../src/sim/world/serialize.js";
+import {
+  SnapshotError,
+  parseWorldSnapshot,
+  restoreWorld,
+  snapshotWorld,
+} from "../../../src/sim/world/snapshot.js";
+import type {
+  EntitySnapshot,
+  SnapshotErrorReason,
+  WorldSnapshot,
+} from "../../../src/sim/world/snapshot.js";
+import {
+  commitWorld,
+  createWorld,
+  isNeverSpawned,
+  killEntity,
+  postAiEvent,
+  spawnEntity,
+} from "../../../src/sim/world/world.js";
+import type { World } from "../../../src/sim/world/world.js";
+import { laveFixture } from "../../helpers/lave.js";
+
+const { layout } = laveFixture();
+
+type Plain = Record<string, unknown>;
+
+// ---------------------------------------------------------------------------
+// Fixtures
+
+function shipInit(index: number, ai: AiComponent | null): SpawnInit {
+  return {
+    kind: "ship",
+    specKey: "viper",
+    scanClass: "CLASS_NEUTRAL",
+    position: vec(100 * (index + 1), -20 * index, 30),
+    orientation: identity(),
+    radius: 35,
+    speed: 12.5,
+    ai,
+  };
+}
+
+function spawnOk(world: World, init: SpawnInit, tick = 0): Entity {
+  const entity = spawnEntity(world, init, tick);
+  if (entity === undefined) throw new Error("spawn refused");
+  return entity;
+}
+
+function aiOf(entity: Entity): AiComponent {
+  if (entity.ai === null) throw new Error("entity has no AI");
+  return entity.ai;
+}
+
+/**
+ * Three entities (ids 101 to 103) with every kind of field set to a non-default
+ * value, and a spawned-then-removed fourth (id 104), so `nextId` is 105.
+ */
+function richWorld(): World {
+  const world = createWorld(0x1234abcd);
+  const rich: AiComponent = {
+    aiKey: "test-pilot",
+    params: {
+      flag: true,
+      flagOff: false,
+      nothing: null,
+      label: "patrol",
+      gain: 3.5,
+      one: 1,
+      list: [1, "a", 2.5],
+    },
+    wakeTick: 3,
+    nextThinkTick: 9,
+  };
+  const a = spawnOk(world, shipInit(0, rich), 7);
+  const b = spawnOk(world, shipInit(1, null), 8);
+  const c = spawnOk(world, shipInit(2, createTestPilotAi(9)), 9);
+  a.nav.behaviour = "FLY_TO_DESTINATION";
+  a.nav.targetId = b.id;
+  a.nav.destination = vec(5, 6, 7);
+  a.nav.desiredRange = 500;
+  a.nav.desiredSpeed = 75.25;
+  a.repairs = 2;
+  a.ownerId = 3;
+  a.speed = 80.125;
+  b.orientation = quat(0.5, 0.5, 0.5, 0.5);
+  c.position = vec(-42.5, 0.25, 1e6);
+  const gone = spawnOk(world, shipInit(3, null), 10);
+  killEntity(world, gone.id);
+  commitWorld(world);
+  return world;
+}
+
+/** The JSON text of a snapshot, parsed back: what the save path will see. */
+function jsonOf(world: World): Plain {
+  return JSON.parse(JSON.stringify(snapshotWorld(world))) as Plain;
+}
+
+function reasonOf(input: unknown): SnapshotErrorReason | "accepted" {
+  try {
+    parseWorldSnapshot(input);
+    return "accepted";
+  } catch (error) {
+    if (error instanceof SnapshotError) return error.reason;
+    throw error;
+  }
+}
+
+function getAt(root: unknown, path: string): unknown {
+  let node = root;
+  if (path === "") return node;
+  for (const key of path.split(".")) node = (node as Plain)[key];
+  return node;
+}
+
+function setAt(root: unknown, path: string, value: unknown): void {
+  const keys = path.split(".");
+  const last = keys[keys.length - 1] as string;
+  (getAt(root, keys.slice(0, -1).join(".")) as Plain)[last] = value;
+}
+
+/** An own `key` made by JSON.parse, the way a hostile save would carry it. */
+function withOwnKey(target: unknown, key: string): void {
+  const source = JSON.parse(`{"${key}": 1}`) as Plain;
+  Object.defineProperty(
+    target as object,
+    key,
+    Object.getOwnPropertyDescriptor(source, key) as PropertyDescriptor,
+  );
+}
+
+function hashOf(world: World, id: number): string | undefined {
+  return entityHashes(world).find(([entityId]) => entityId === id)?.[1];
+}
+
+type Mutator = (snapshot: Plain) => void;
+
+const set =
+  (path: string, value: unknown): Mutator =>
+  (snapshot) => {
+    setAt(snapshot, path, value);
+  };
+
+// ---------------------------------------------------------------------------
+// The parser's rejection table
+
+const E0 = "entities.0";
+const NAV = `${E0}.nav`;
+const AI = `${E0}.ai`;
+const PARAMS = `${AI}.params`;
+
+function manyEntities(count: number): Mutator {
+  return (snapshot) => {
+    const first = JSON.stringify(getAt(snapshot, E0));
+    snapshot.entities = Array.from({ length: count }, (_, i) => {
+      const entity = JSON.parse(first) as Plain;
+      entity.id = 101 + i;
+      return entity;
+    });
+    snapshot.nextId = 101 + count;
+  };
+}
+
+const REJECTIONS: readonly (readonly [string, Mutator, SnapshotErrorReason])[] =
+  [
+    // The root and the format.
+    ["a wrong format tag", set("format", "other"), "format"],
+    ["version 2", set("version", 2), "version"],
+    ["worldSeed 1.5", set("worldSeed", 1.5), "world-seed"],
+    ["worldSeed -1", set("worldSeed", -1), "world-seed"],
+    ["worldSeed 2 ** 32", set("worldSeed", 2 ** 32), "world-seed"],
+    ["worldSeed null (a NaN after JSON)", set("worldSeed", null), "world-seed"],
+    ["nextId 2 ** 32 + 1", set("nextId", 2 ** 32 + 1), "next-id"],
+    ["nextId 101.5", set("nextId", 101.5), "next-id"],
+    ["nextId 2 ** 53 + 3", set("nextId", 2 ** 53 + 3), "next-id"],
+    ["nextId 100", set("nextId", 100), "next-id"],
+    ["nextId equal to the highest id", set("nextId", 103), "next-id"],
+    ["entities missing", (s) => void delete s.entities, "entities"],
+    ["entities not an array", set("entities", {}), "entities"],
+    [
+      "more than MAX_ENTITIES entities",
+      manyEntities(MAX_ENTITIES + 1),
+      "too-many-entities",
+    ],
+    ["world rng 2 ** 32", set("rng", 2 ** 32), "stream"],
+    ["world rng -1", set("rng", -1), "stream"],
+    ["aiDropped 2 ** 32", set("aiDropped", 2 ** 32), "counter"],
+    ["aiDropped 1.5", set("aiDropped", 1.5), "counter"],
+    ["an unknown root key", set("extra", 1), "unknown-key"],
+    // Entity ids.
+    [
+      "ids 102 then 101",
+      (s) => {
+        setAt(s, `${E0}.id`, 102);
+        setAt(s, "entities.1.id", 101);
+      },
+      "entity-order",
+    ],
+    ["id 101 twice", set("entities.1.id", 101), "entity-order"],
+    ["id 100", set(`${E0}.id`, 100), "entity-id"],
+    ["id 101.5", set(`${E0}.id`, 101.5), "entity-id"],
+    ["id 2 ** 53", set(`${E0}.id`, 2 ** 53), "entity-id"],
+    ["id 2 ** 32", set(`${E0}.id`, 2 ** 32), "entity-id"],
+    // Number slots.
+    [
+      "position.x null (a NaN after JSON)",
+      set(`${E0}.position.x`, null),
+      "non-finite",
+    ],
+    ["position.x NaN", set(`${E0}.position.x`, Number.NaN), "non-finite"],
+    [
+      "position.y Infinity",
+      set(`${E0}.position.y`, Number.POSITIVE_INFINITY),
+      "non-finite",
+    ],
+    ["position.x as a string", set(`${E0}.position.x`, "1"), "type"],
+    ["position.x 1e308", set(`${E0}.position.x`, 1e308), "magnitude"],
+    ["position.z -1e13", set(`${E0}.position.z`, -1e13), "magnitude"],
+    ["radius null", set(`${E0}.radius`, null), "non-finite"],
+    ["radius 1e308", set(`${E0}.radius`, 1e308), "magnitude"],
+    ["radius 0", set(`${E0}.radius`, 0), "range"],
+    ["radius -1", set(`${E0}.radius`, -1), "range"],
+    ["speed -1", set(`${E0}.speed`, -1), "range"],
+    ["nav.desiredSpeed -1", set(`${NAV}.desiredSpeed`, -1), "range"],
+    ["nav.desiredRange -1", set(`${NAV}.desiredRange`, -1), "range"],
+    ["nav.desiredRange 1e13", set(`${NAV}.desiredRange`, 1e13), "magnitude"],
+    ["nav.destination.y null", set(`${NAV}.destination.y`, null), "non-finite"],
+    ["nav.destination.x 1e13", set(`${NAV}.destination.x`, 1e13), "magnitude"],
+    // Orientation.
+    [
+      "a zero quaternion",
+      set(`${E0}.orientation`, { w: 0, x: 0, y: 0, z: 0 }),
+      "quaternion",
+    ],
+    [
+      "an underflowed quaternion",
+      set(`${E0}.orientation`, { w: 1e-200, x: 1e-200, y: 1e-200, z: 1e-200 }),
+      "quaternion",
+    ],
+    [
+      "a subnormal quaternion w 1e-160",
+      set(`${E0}.orientation`, { w: 1e-160, x: 0, y: 0, z: 0 }),
+      "quaternion",
+    ],
+    [
+      "a subnormal quaternion w 3e-161",
+      set(`${E0}.orientation`, { w: 3e-161, x: 0, y: 0, z: 0 }),
+      "quaternion",
+    ],
+    [
+      "a non-unit quaternion",
+      set(`${E0}.orientation`, { w: 2, x: 0, y: 0, z: 0 }),
+      "quaternion",
+    ],
+    [
+      "an overflowing quaternion",
+      set(`${E0}.orientation`, { w: 1e200, x: 1e200, y: 0, z: 0 }),
+      "quaternion",
+    ],
+    [
+      "a quaternion component null",
+      set(`${E0}.orientation.w`, null),
+      "non-finite",
+    ],
+    // Counters, timers and streams.
+    ["wakeTick -1", set(`${AI}.wakeTick`, -1), "counter"],
+    ["wakeTick 1.5", set(`${AI}.wakeTick`, 1.5), "counter"],
+    ["wakeTick 2 ** 32", set(`${AI}.wakeTick`, 2 ** 32), "counter"],
+    ["nextThinkTick 2 ** 32", set(`${AI}.nextThinkTick`, 2 ** 32), "counter"],
+    ["repairs 1e13", set(`${E0}.repairs`, 1e13), "counter"],
+    ["repairs 2 ** 32", set(`${E0}.repairs`, 2 ** 32), "counter"],
+    ["spawnTick 2 ** 32", set(`${E0}.spawnTick`, 2 ** 32), "counter"],
+    ["ownerId 2 ** 32", set(`${E0}.ownerId`, 2 ** 32), "counter"],
+    ["nav.targetId 2 ** 32", set(`${NAV}.targetId`, 2 ** 32), "counter"],
+    ["rng.ai -1", set(`${E0}.rng.ai`, -1), "stream"],
+    ["rng.ai 2 ** 32", set(`${E0}.rng.ai`, 2 ** 32), "stream"],
+    ["rng.combat 2 ** 32", set(`${E0}.rng.combat`, 2 ** 32), "stream"],
+    // Closed vocabularies.
+    ["kind planet", set(`${E0}.kind`, "planet"), "vocabulary"],
+    ["kind constructor", set(`${E0}.kind`, "constructor"), "vocabulary"],
+    ["scanClass CLASS_FOO", set(`${E0}.scanClass`, "CLASS_FOO"), "vocabulary"],
+    ["behaviour WARP", set(`${NAV}.behaviour`, "WARP"), "vocabulary"],
+    ["aiKey trader", set(`${AI}.aiKey`, "trader"), "vocabulary"],
+    // Strings and params.
+    ["an empty specKey", set(`${E0}.specKey`, ""), "string"],
+    [
+      "a specKey over the string cap",
+      set(`${E0}.specKey`, "k".repeat(MAX_SNAPSHOT_STRING_LENGTH + 1)),
+      "string",
+    ],
+    [
+      "a param string over the string cap",
+      set(`${PARAMS}.label`, "k".repeat(MAX_SNAPSHOT_STRING_LENGTH + 1)),
+      "string",
+    ],
+    [
+      "a param key over the string cap",
+      set(`${PARAMS}.${"k".repeat(MAX_SNAPSHOT_STRING_LENGTH + 1)}`, 1),
+      "string",
+    ],
+    ["an empty param key", set(`${PARAMS}.`, 1), "string"],
+    [
+      "a param array over the length cap",
+      set(
+        `${PARAMS}.list`,
+        Array.from({ length: MAX_SNAPSHOT_PARAM_LENGTH + 1 }, () => 1),
+      ),
+      "param",
+    ],
+    [
+      "a param array element string over the cap",
+      set(`${PARAMS}.list`, ["k".repeat(MAX_SNAPSHOT_STRING_LENGTH + 1)]),
+      "string",
+    ],
+    [
+      "more than MAX_AI_PARAMS_KEYS keys",
+      (s) => {
+        const params: Plain = {};
+        for (let i = 0; i < MAX_AI_PARAMS_KEYS + 1; i += 1)
+          params[`k${String(i)}`] = i;
+        setAt(s, PARAMS, params);
+      },
+      "param",
+    ],
+    ["a nested object param", set(`${PARAMS}.nested`, { a: 1 }), "param"],
+    ["a nested array param", set(`${PARAMS}.nested`, [[1]]), "param"],
+    [
+      "an object inside a param array",
+      set(`${PARAMS}.list`, [{ a: 1 }]),
+      "param",
+    ],
+    ["an array inside a param array", set(`${PARAMS}.list`, [[1]]), "param"],
+    [
+      "a null element in a param array",
+      set(`${PARAMS}.list`, [1, null]),
+      "param",
+    ],
+    [
+      "a true element in a param array",
+      set(`${PARAMS}.list`, [1, true]),
+      "param",
+    ],
+    [
+      "a false element in a param array",
+      set(`${PARAMS}.list`, [false]),
+      "param",
+    ],
+    [
+      "a NaN element in a param array",
+      set(`${PARAMS}.list`, [Number.NaN]),
+      "non-finite",
+    ],
+    [
+      "a param number over the magnitude cap",
+      set(`${PARAMS}.gain`, 1e13),
+      "magnitude",
+    ],
+    [
+      "a NaN scalar param (in process)",
+      set(`${PARAMS}.gain`, Number.NaN),
+      "non-finite",
+    ],
+    // Unknown keys at every object level.
+    ["an unknown entity key", set(`${E0}.extra`, 1), "unknown-key"],
+    ["an unknown position key", set(`${E0}.position.extra`, 1), "unknown-key"],
+    [
+      "an unknown orientation key",
+      set(`${E0}.orientation.extra`, 1),
+      "unknown-key",
+    ],
+    ["an unknown rng key", set(`${E0}.rng.extra`, 1), "unknown-key"],
+    ["an unknown nav key", set(`${NAV}.extra`, 1), "unknown-key"],
+    [
+      "an unknown nav.destination key",
+      set(`${NAV}.destination.extra`, 1),
+      "unknown-key",
+    ],
+    ["an unknown ai key", set(`${AI}.extra`, 1), "unknown-key"],
+    // Missing objects.
+    [
+      "position missing",
+      (s) => void delete (getAt(s, E0) as Plain).position,
+      "not-object",
+    ],
+    ["nav not an object", set(NAV, []), "not-object"],
+    ["ai as a number", set(AI, 5), "not-object"],
+    ["params as an array", set(PARAMS, []), "not-object"],
+  ];
+
+const FORBIDDEN_LEVELS = [
+  "",
+  E0,
+  `${E0}.position`,
+  `${E0}.orientation`,
+  `${E0}.rng`,
+  NAV,
+  `${NAV}.destination`,
+  AI,
+  PARAMS,
+] as const;
+
+describe("parseWorldSnapshot rejections", () => {
+  it("accepts the unmodified rich snapshot", () => {
+    expect(reasonOf(jsonOf(richWorld()))).toBe("accepted");
+  });
+
+  it("has at least twenty rows", () => {
+    expect(REJECTIONS.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it.each(REJECTIONS.map((row) => [...row]))(
+    "rejects %s with its own reason",
+    (_name, mutate, reason) => {
+      const snapshot = jsonOf(richWorld());
+      mutate(snapshot);
+      expect(reasonOf(snapshot)).toBe(reason);
+      // restoreWorld validates through the parser, so it refuses the same input.
+      expect(() => restoreWorld(snapshot as unknown as WorldSnapshot)).toThrow(
+        SnapshotError,
+      );
+    },
+  );
+
+  it.each([null, 42, "text", true, []])(
+    "rejects the non-object input %j as not-object",
+    (input) => {
+      expect(reasonOf(input)).toBe("not-object");
+    },
+  );
+
+  const forbiddenRows = FORBIDDEN_LEVELS.flatMap((level) =>
+    ["__proto__", "constructor", "prototype"].map(
+      (key) => [level === "" ? "root" : level, key] as const,
+    ),
+  );
+  it.each(forbiddenRows.map((row) => [...row]))(
+    "rejects an own %s key named %s as forbidden-key",
+    (level, key) => {
+      const snapshot = jsonOf(richWorld());
+      withOwnKey(getAt(snapshot, level === "root" ? "" : level), key);
+      expect(reasonOf(snapshot)).toBe("forbidden-key");
+    },
+  );
+
+  it("rejects an own __proto__ key in a whole JSON text", () => {
+    const text = JSON.stringify(jsonOf(richWorld())).replace(
+      '"format"',
+      '"__proto__":{"polluted":true},"format"',
+    );
+    const input = JSON.parse(text) as unknown;
+    expect(reasonOf(input)).toBe("forbidden-key");
+    expect(({} as Plain).polluted).toBeUndefined();
+  });
+
+  it("rejects a tampered snapshot passed straight to restoreWorld", () => {
+    for (const mutate of [set(`${E0}.id`, 101.5), set(`${E0}.radius`, -1)]) {
+      const snapshot = jsonOf(richWorld());
+      mutate(snapshot);
+      expect(() => restoreWorld(snapshot as unknown as WorldSnapshot)).toThrow(
+        SnapshotError,
+      );
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Acceptance rows
+
+describe("parseWorldSnapshot acceptance", () => {
+  it("accepts a quaternion within QUAT_UNIT_TOLERANCE and keeps it exactly", () => {
+    const snapshot = jsonOf(richWorld());
+    const orientation = { w: 1 + 2.5e-10, x: 0, y: 0, z: 0 };
+    setAt(snapshot, `${E0}.orientation`, orientation);
+    expect(reasonOf(snapshot)).toBe("accepted");
+    const restored = restoreWorld(snapshot as unknown as WorldSnapshot);
+    expect(restored.store.live[0]?.orientation).toEqual(orientation);
+  });
+
+  it("accepts scalar params null, true and false and a mixed array", () => {
+    const snapshot = jsonOf(richWorld());
+    const params = getAt(snapshot, PARAMS) as Plain;
+    params.a = null;
+    params.b = true;
+    params.c = false;
+    params.mixed = [1, "x"];
+    const restored = restoreWorld(
+      parseWorldSnapshot(JSON.parse(JSON.stringify(snapshot)) as unknown),
+    );
+    const restoredParams = aiOf(restored.store.live[0] as Entity).params;
+    expect(restoredParams.a).toBeNull();
+    expect(restoredParams.b).toBe(true);
+    expect(restoredParams.c).toBe(false);
+    expect(restoredParams.mixed).toEqual([1, "x"]);
+  });
+
+  it("accepts a JSON text whose scalar param is null and restores that null", () => {
+    const snapshot = jsonOf(richWorld());
+    expect(getAt(snapshot, `${PARAMS}.nothing`)).toBeNull();
+    const text = JSON.stringify(snapshot);
+    expect(text).toContain('"nothing":null');
+    const restored = restoreWorld(
+      parseWorldSnapshot(JSON.parse(text) as unknown),
+    );
+    expect(aiOf(restored.store.live[0] as Entity).params.nothing).toBeNull();
+  });
+
+  it("accepts nextId 2 ** 32 with an entity of id 0xffffffff, the state allocate reaches", () => {
+    const snapshot = jsonOf(richWorld());
+    snapshot.entities = [{ ...(getAt(snapshot, E0) as Plain), id: MAX_UINT32 }];
+    snapshot.nextId = 2 ** 32;
+    expect(reasonOf(snapshot)).toBe("accepted");
+    const restored = restoreWorld(snapshot as unknown as WorldSnapshot);
+    expect(restored.store.nextId).toBe(2 ** 32);
+    // The counter cannot issue another id: allocation is refused.
+    expect(spawnEntity(restored, shipInit(0, null), 0)).toBeUndefined();
+  });
+
+  it.each([0, MAX_UINT32])("accepts worldSeed %i", (worldSeed) => {
+    const snapshot = jsonOf(richWorld());
+    snapshot.worldSeed = worldSeed;
+    expect(reasonOf(snapshot)).toBe("accepted");
+    expect(restoreWorld(snapshot as unknown as WorldSnapshot).worldSeed).toBe(
+      worldSeed,
+    );
+  });
+
+  it("parses its own output again (the null-prototype params are accepted)", () => {
+    const text = JSON.stringify(snapshotWorld(richWorld()));
+    const once = parseWorldSnapshot(JSON.parse(text) as unknown);
+    const twice = parseWorldSnapshot(once);
+    expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
+    expect(twice).toEqual(once);
+    expect(
+      Object.getPrototypeOf(
+        aiOf(restoreWorld(twice).store.live[0] as Entity).params,
+      ),
+    ).toBeNull();
+  });
+
+  it("reads each input property exactly once and copies what it read", () => {
+    const input = parseWorldSnapshot(jsonOf(richWorld()));
+    const entity = input.entities[0] as EntitySnapshot;
+    let reads = 0;
+    Object.defineProperty(entity, "radius", {
+      enumerable: true,
+      configurable: true,
+      get() {
+        reads += 1;
+        // A getter that changes its answer cannot pass one value and supply another.
+        return reads === 1 ? 25 : -1;
+      },
+    });
+    const parsed = parseWorldSnapshot(input);
+    expect(reads).toBe(1);
+    expect(parsed.entities[0]?.radius).toBe(25);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The edges
+
+describe("snapshot edges", () => {
+  it("restores a snapshot whose keys were written in reverse order to the same hashes", () => {
+    const world = richWorld();
+    const reverse = (value: unknown): unknown => {
+      if (Array.isArray(value)) return (value as unknown[]).map(reverse);
+      if (typeof value === "object" && value !== null) {
+        const out: Plain = {};
+        for (const key of Object.keys(value).reverse()) {
+          out[key] = reverse((value as Plain)[key]);
+        }
+        return out;
+      }
+      return value;
+    };
+    const reversed = reverse(jsonOf(world));
+    const restored = restoreWorld(parseWorldSnapshot(reversed));
+    expect(entityHashes(restored)).toEqual(entityHashes(world));
+    expect(JSON.stringify(snapshotWorld(restored))).toBe(
+      JSON.stringify(snapshotWorld(world)),
+    );
+  });
+
+  it("round-trips a never-spawned world and hashes it exactly as hashFlight", () => {
+    const player = initFlightState(layout);
+    const world = createWorld(99);
+    const restored = restoreWorld(parseWorldSnapshot(jsonOf(world)));
+    expect(isNeverSpawned(restored)).toBe(true);
+    expect(hashWorld(player, restored)).toBe(hashFlight(player));
+  });
+
+  it("restores an empty world with aiDropped 5 as not never-spawned and hashes it differently", () => {
+    const player = initFlightState(layout);
+    const world = createWorld(99);
+    world.aiDropped = 5;
+    const snapshot = parseWorldSnapshot(jsonOf(world));
+    expect(snapshot.entities).toEqual([]);
+    expect(snapshot.nextId).toBe(101);
+    const restored = restoreWorld(snapshot);
+    expect(restored.aiDropped).toBe(5);
+    expect(isNeverSpawned(restored)).toBe(false);
+    expect(hashWorld(player, restored)).not.toBe(hashFlight(player));
+    expect(hashWorld(player, restored)).toBe(hashWorld(player, world));
+  });
+
+  it("gives the same next id after killing the highest id, never the killed id", () => {
+    const world = createWorld(5);
+    for (let i = 0; i < 3; i += 1) spawnOk(world, shipInit(i, null));
+    killEntity(world, 103);
+    commitWorld(world);
+    const restored = restoreWorld(parseWorldSnapshot(jsonOf(world)));
+    expect(restored.store.nextId).toBe(world.store.nextId);
+    const live = spawnOk(world, shipInit(4, null));
+    const again = spawnOk(restored, shipInit(4, null));
+    expect(again.id).toBe(live.id);
+    expect(live.id).toBe(104);
+    expect(live.id).not.toBe(103);
+  });
+
+  it("restores per-world restore scope: the stored counter, a fresh world at 101, no shared store", () => {
+    const original = createWorld(77);
+    for (let i = 0; i < 5; i += 1) spawnOk(original, shipInit(i, null));
+    killEntity(original, 105);
+    commitWorld(original);
+    const snapshot = snapshotWorld(original);
+    expect(snapshot.nextId).toBe(106);
+    const restored = restoreWorld(snapshot);
+    expect(restored).not.toBe(original);
+    expect(restored.store).not.toBe(original.store);
+    expect(spawnOk(restored, shipInit(7, null)).id).toBe(106);
+    // The restart belongs to new worlds: the same seed issues 101 first.
+    expect(spawnOk(createWorld(77), shipInit(7, null)).id).toBe(101);
+    // Spawning in the restored world never touched the original.
+    expect(original.store.nextId).toBe(106);
+    expect(original.store.live.map((e) => e.id)).toEqual([101, 102, 103, 104]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// snapshotWorld refusals
+
+describe("snapshotWorld refusals", () => {
+  function reasonOfSnapshot(world: World): SnapshotErrorReason | "ok" {
+    try {
+      snapshotWorld(world);
+      return "ok";
+    } catch (error) {
+      if (error instanceof SnapshotError) return error.reason;
+      throw error;
+    }
+  }
+
+  it("refuses an uncommitted dead entity", () => {
+    const world = richWorld();
+    killEntity(world, 102);
+    expect(reasonOfSnapshot(world)).toBe("uncommitted");
+    commitWorld(world);
+    expect(reasonOfSnapshot(world)).toBe("ok");
+  });
+
+  it("refuses an undrained AI event", () => {
+    const world = richWorld();
+    postAiEvent(world, { to: 101, name: "shipAttacked" });
+    expect(reasonOfSnapshot(world)).toBe("queue-not-empty");
+    world.aiQueue.length = 0;
+    expect(reasonOfSnapshot(world)).toBe("ok");
+  });
+
+  const POISON: readonly (readonly [string, (world: World) => void])[] = [
+    [
+      "position.x NaN",
+      (w) => {
+        (w.store.live[0] as Entity).position = vec(Number.NaN, 0, 0);
+      },
+    ],
+    [
+      "radius Infinity",
+      (w) => {
+        (w.store.live[1] as Entity).radius = Number.POSITIVE_INFINITY;
+      },
+    ],
+    [
+      "a scalar param NaN",
+      (w) => {
+        aiOf(w.store.live[0] as Entity).params.gain = Number.NaN;
+      },
+    ],
+    [
+      "an array param element -Infinity",
+      (w) => {
+        aiOf(w.store.live[0] as Entity).params.list = [
+          1,
+          Number.NEGATIVE_INFINITY,
+        ];
+      },
+    ],
+    [
+      "nav.destination.z NaN",
+      (w) => {
+        (w.store.live[0] as Entity).nav.destination = vec(0, 0, Number.NaN);
+      },
+    ],
+    [
+      "orientation.w NaN",
+      (w) => {
+        (w.store.live[2] as Entity).orientation = quat(Number.NaN, 0, 0, 0);
+      },
+    ],
+    [
+      "rng.combat NaN",
+      (w) => {
+        (w.store.live[0] as Entity).rng.combat = Number.NaN;
+      },
+    ],
+    [
+      "wakeTick Infinity",
+      (w) => {
+        aiOf(w.store.live[0] as Entity).wakeTick = Number.POSITIVE_INFINITY;
+      },
+    ],
+    [
+      "world rng NaN",
+      (w) => {
+        w.rng.s = Number.NaN;
+      },
+    ],
+    [
+      "aiDropped NaN",
+      (w) => {
+        w.aiDropped = Number.NaN;
+      },
+    ],
+  ];
+
+  it.each(POISON.map((row) => [...row]))(
+    "refuses %s with the non-finite reason and returns nothing",
+    (_name, poison) => {
+      const world = richWorld();
+      poison(world);
+      let returned: unknown = "never ran";
+      expect(() => {
+        returned = snapshotWorld(world);
+      }).toThrow(SnapshotError);
+      expect(returned).toBe("never ran");
+      expect(reasonOfSnapshot(world)).toBe("non-finite");
+    },
+  );
+
+  it("refuses a valid-then-poisoned entity rather than emitting a null", () => {
+    const world = createWorld(3);
+    const entity = spawnOk(world, shipInit(0, createTestPilotAi(0)));
+    entity.position = vec(Number.NaN, 0, 0);
+    expect(() => JSON.stringify(snapshotWorld(world))).toThrow(SnapshotError);
+  });
+
+  it("refuses an unsanitised NaN while the JSON text of a hand-built null is refused by the parser", () => {
+    const snapshot = jsonOf(richWorld());
+    setAt(snapshot, `${E0}.position.x`, null);
+    expect(reasonOf(snapshot)).toBe("non-finite");
+    const params = jsonOf(richWorld());
+    setAt(params, `${PARAMS}.list`, [1, null]);
+    expect(reasonOf(params)).toBe("param");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// No aliasing
+
+describe("snapshotWorld, parseWorldSnapshot and restoreWorld share no references", () => {
+  it("leaves the live world unchanged when the returned snapshot is mutated", () => {
+    const world = richWorld();
+    const before = entityHashes(world);
+    const sectionBefore = serializeWorldSection(world);
+    const snapshot = snapshotWorld(world);
+    const first = snapshot.entities[0] as EntitySnapshot;
+    first.position.x = 999_999;
+    first.orientation.w = 0;
+    first.nav.destination.y = 999_999;
+    first.rng.ai = 1;
+    const ai = first.ai as AiComponent;
+    ai.params.gain = 123;
+    (ai.params.list as (number | string)[])[0] = 999;
+    ai.params.added = 1;
+    snapshot.entities.length = 0;
+    expect(entityHashes(world)).toEqual(before);
+    expect(serializeWorldSection(world)).toBe(sectionBefore);
+    expect(aiOf(world.store.live[0] as Entity).params.gain).toBe(3.5);
+    expect(aiOf(world.store.live[0] as Entity).params.list).toEqual([
+      1,
+      "a",
+      2.5,
+    ]);
+  });
+
+  it("leaves the parsed output untouched by later mutation of the raw input", () => {
+    const raw = jsonOf(richWorld());
+    const parsed = parseWorldSnapshot(raw);
+    const text = JSON.stringify(parsed);
+    setAt(raw, `${E0}.position.x`, 5);
+    setAt(raw, `${PARAMS}.list`, [9]);
+    (getAt(raw, `${E0}.orientation`) as Plain).w = 0;
+    expect(JSON.stringify(parsed)).toBe(text);
+  });
+
+  it("leaves the restored world unchanged when the snapshot is mutated afterwards", () => {
+    const parsed = parseWorldSnapshot(jsonOf(richWorld()));
+    const restored = restoreWorld(parsed);
+    const before = entityHashes(restored);
+    const sectionBefore = serializeWorldSection(restored);
+    const first = parsed.entities[0] as EntitySnapshot;
+    first.position.x = 999_999;
+    first.orientation.w = 0;
+    first.nav.destination.y = 999_999;
+    const ai = first.ai as AiComponent;
+    ai.params.gain = 123;
+    ai.params.added = 1;
+    (ai.params.list as (number | string)[])[0] = 999;
+    parsed.entities.length = 0;
+    expect(entityHashes(restored)).toEqual(before);
+    expect(serializeWorldSection(restored)).toBe(sectionBefore);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The hash and the codec cover the same fields
+
+interface Mutation {
+  readonly name: string;
+  readonly apply: (entity: Entity) => void;
+}
+
+/**
+ * One row per `Entity` field: adding a field to `Entity` fails typecheck here
+ * until a row exists. `id` is the identity and `dead` is never snapshotted (an
+ * uncommitted dead entity is refused), so both have no mutation. Every numeric
+ * mutation changes its value by at least 1, far above `canon`'s 1e-6
+ * resolution, and the orientation stays a unit quaternion.
+ */
+const ENTITY_FIELDS: Record<keyof Entity, readonly Mutation[]> = {
+  id: [],
+  dead: [],
+  kind: [
+    {
+      name: "ship to cargo",
+      apply: (e) => {
+        (e as { kind: string }).kind = "cargo";
+      },
+    },
+  ],
+  position: [
+    {
+      name: "x + 1",
+      apply: (e) => {
+        e.position = vec(e.position.x + 1, e.position.y, e.position.z);
+      },
+    },
+  ],
+  orientation: [
+    {
+      name: "another unit quaternion",
+      apply: (e) => {
+        e.orientation = quat(0, 1, 0, 0);
+      },
+    },
+  ],
+  radius: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.radius += 1;
+      },
+    },
+  ],
+  speed: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.speed += 1;
+      },
+    },
+  ],
+  scanClass: [
+    {
+      name: "neutral to cargo",
+      apply: (e) => {
+        e.scanClass = "CLASS_CARGO";
+      },
+    },
+  ],
+  specKey: [
+    {
+      name: "append x",
+      apply: (e) => {
+        e.specKey += "x";
+      },
+    },
+  ],
+  ownerId: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.ownerId += 1;
+      },
+    },
+  ],
+  spawnTick: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.spawnTick += 1;
+      },
+    },
+  ],
+  rng: [
+    {
+      name: "rng.ai",
+      apply: (e) => {
+        e.rng.ai = (e.rng.ai + 1) >>> 0;
+      },
+    },
+    {
+      name: "rng.combat",
+      apply: (e) => {
+        e.rng.combat = (e.rng.combat + 1) >>> 0;
+      },
+    },
+  ],
+  nav: [
+    {
+      name: "behaviour",
+      apply: (e) => {
+        e.nav.behaviour = "STOP_STILL";
+      },
+    },
+    {
+      name: "targetId",
+      apply: (e) => {
+        e.nav.targetId += 1;
+      },
+    },
+    {
+      name: "destination.x",
+      apply: (e) => {
+        e.nav.destination = vec(
+          e.nav.destination.x + 1,
+          e.nav.destination.y,
+          e.nav.destination.z,
+        );
+      },
+    },
+    {
+      name: "desiredRange",
+      apply: (e) => {
+        e.nav.desiredRange += 1;
+      },
+    },
+    {
+      name: "desiredSpeed",
+      apply: (e) => {
+        e.nav.desiredSpeed += 1;
+      },
+    },
+  ],
+  ai: [
+    {
+      name: "a number param",
+      apply: (e) => {
+        aiOf(e).params.gain = 4.5;
+      },
+    },
+    {
+      name: 'the number 1 replaced by the string "1" (same digits, other type)',
+      apply: (e) => {
+        aiOf(e).params.one = "1";
+      },
+    },
+    {
+      name: "null replaced by false",
+      apply: (e) => {
+        aiOf(e).params.nothing = false;
+      },
+    },
+    {
+      name: "an array element",
+      apply: (e) => {
+        aiOf(e).params.list = [1, "b", 2.5];
+      },
+    },
+    {
+      name: "an added param key",
+      apply: (e) => {
+        aiOf(e).params.extra = 7;
+      },
+    },
+    {
+      name: "wakeTick",
+      apply: (e) => {
+        aiOf(e).wakeTick += 1;
+      },
+    },
+    {
+      name: "nextThinkTick",
+      apply: (e) => {
+        aiOf(e).nextThinkTick += 1;
+      },
+    },
+    {
+      name: "the component removed",
+      apply: (e) => {
+        e.ai = null;
+      },
+    },
+  ],
+  repairs: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.repairs += 1;
+      },
+    },
+  ],
+};
+
+const ENTITY_FIELD_CASES = Object.keys(ENTITY_FIELDS)
+  .sort()
+  .flatMap((field) =>
+    ENTITY_FIELDS[field as keyof Entity].map(
+      (mutation) => [`${field}: ${mutation.name}`, mutation] as const,
+    ),
+  );
+
+describe("the serializer and the codec cover the same entity fields", () => {
+  it("has a mutation for every field except the identity and the dead flag", () => {
+    const empty = Object.keys(ENTITY_FIELDS)
+      .filter((field) => ENTITY_FIELDS[field as keyof Entity].length === 0)
+      .sort();
+    expect(empty).toEqual(["dead", "id"]);
+  });
+
+  it.each(ENTITY_FIELD_CASES.map((row) => [...row]))(
+    "%s changes only that entity's hash and survives the round trip",
+    (_name, mutation) => {
+      const world = richWorld();
+      const target = world.store.live[0] as Entity;
+      const others = world.store.live
+        .slice(1)
+        .map((entity) => [entity.id, hashOf(world, entity.id)]);
+      const before = hashOf(world, target.id);
+      mutation.apply(target);
+      expect(hashOf(world, target.id)).not.toBe(before);
+      expect(others).toEqual(
+        world.store.live
+          .slice(1)
+          .map((entity) => [entity.id, hashOf(world, entity.id)]),
+      );
+      const text = JSON.stringify(snapshotWorld(world));
+      const restored = restoreWorld(
+        parseWorldSnapshot(JSON.parse(text) as unknown),
+      );
+      expect(entityHashes(restored)).toEqual(entityHashes(world));
+      expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+    },
+  );
+});
+
+describe("the serializer and the codec cover the same world-level fields", () => {
+  const WORLD_FIELDS: Record<
+    "worldSeed" | "nextId" | "rng" | "aiDropped",
+    (world: World) => void
+  > = {
+    worldSeed: (w) => {
+      (w as { worldSeed: number }).worldSeed = w.worldSeed + 1;
+    },
+    nextId: (w) => {
+      const extra = spawnOk(w, shipInit(9, null));
+      killEntity(w, extra.id);
+      commitWorld(w);
+    },
+    rng: (w) => {
+      w.rng.s = (w.rng.s + 1) >>> 0;
+    },
+    aiDropped: (w) => {
+      w.aiDropped += 1;
+    },
+  };
+
+  it.each(Object.keys(WORLD_FIELDS))(
+    "%s changes the world section and survives the round trip",
+    (field) => {
+      const world = richWorld();
+      const before = serializeWorldSection(world);
+      WORLD_FIELDS[field as keyof typeof WORLD_FIELDS](world);
+      expect(serializeWorldSection(world)).not.toBe(before);
+      const snapshot = snapshotWorld(world);
+      expect(typeof snapshot.rng).toBe("number");
+      expect(snapshot.rng).toBe(world.rng.s);
+      expect(snapshot.worldSeed).toBe(world.worldSeed);
+      expect(snapshot.nextId).toBe(world.store.nextId);
+      expect(snapshot.aiDropped).toBe(world.aiDropped);
+      const restored = restoreWorld(
+        parseWorldSnapshot(JSON.parse(JSON.stringify(snapshot)) as unknown),
+      );
+      expect(serializeWorldSection(restored)).toBe(
+        serializeWorldSection(world),
+      );
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// The sanitizer and the parser agree
+
+const EDGE_NUMBERS = [
+  Number.NaN,
+  Number.POSITIVE_INFINITY,
+  Number.NEGATIVE_INFINITY,
+  -0,
+  0,
+  1e200,
+  -1e200,
+  1e13,
+  1e12,
+  -1,
+  1.5,
+  2 ** 32,
+  2 ** 32 - 1,
+  Number.MAX_SAFE_INTEGER,
+  1e-200,
+];
+
+const num = fc.oneof(
+  fc.double(),
+  fc.double({ min: -1e6, max: 1e6, noNaN: true }),
+  fc.constantFrom(...EDGE_NUMBERS),
+  fc.integer({ min: -1000, max: 1000 }),
+);
+
+const vecArb = fc.record({ x: num, y: num, z: num });
+
+const QUAT_CASES = [
+  { w: 1, x: 0, y: 0, z: 0 },
+  { w: 0, x: 1, y: 0, z: 0 },
+  { w: 1e-160, x: 0, y: 0, z: 0 },
+  { w: 3e-161, x: 0, y: 0, z: 0 },
+  { w: 1 + 2.5e-10, x: 0, y: 0, z: 0 },
+  { w: 1e-200, x: 1e-200, y: 1e-200, z: 1e-200 },
+  { w: 2, x: 0, y: 0, z: 0 },
+  { w: 0, x: 0, y: 0, z: 0 },
+];
+
+const unitQuat = fc
+  .tuple(
+    fc.double({ min: -1, max: 1, noNaN: true }),
+    fc.double({ min: -1, max: 1, noNaN: true }),
+    fc.double({ min: -1, max: 1, noNaN: true }),
+    fc.double({ min: -1, max: 1, noNaN: true }),
+  )
+  .map(([w, x, y, z]) => normalize(quat(w, x, y, z)));
+
+const quatArb = fc.oneof(
+  fc.constantFrom(...QUAT_CASES),
+  fc.record({ w: num, x: num, y: num, z: num }),
+  unitQuat,
+);
+
+const enumLeaf = (valid: readonly string[]) =>
+  fc.oneof(
+    fc.constantFrom(...valid),
+    fc.string({ maxLength: 12 }),
+    fc.constantFrom("constructor", "__proto__", "toString", ""),
+  );
+
+const paramKey = fc.oneof(
+  fc.string({ maxLength: 6 }),
+  fc.constantFrom(
+    "",
+    "__proto__",
+    "constructor",
+    "prototype",
+    "toString",
+    "k".repeat(MAX_SNAPSHOT_STRING_LENGTH + 1),
+  ),
+);
+
+const paramScalar = fc.oneof(
+  fc.constant(null),
+  fc.boolean(),
+  num,
+  fc.string({ maxLength: MAX_SNAPSHOT_STRING_LENGTH + 40 }),
+);
+
+const paramArray = fc.array(
+  fc.oneof(num, fc.string({ maxLength: 160 }), fc.constant(null), fc.boolean()),
+  { maxLength: MAX_SNAPSHOT_PARAM_LENGTH + 16 },
+);
+
+const paramsArb = fc
+  .oneof(
+    fc.array(fc.tuple(paramKey, fc.oneof(paramScalar, paramArray)), {
+      maxLength: MAX_AI_PARAMS_KEYS + 8,
+    }),
+    fc.constant(
+      Array.from(
+        { length: MAX_AI_PARAMS_KEYS + 8 },
+        (_, i) => [`key${String(i)}`, i] as const,
+      ),
+    ),
+  )
+  .map((pairs) => {
+    const params = Object.create(null) as Record<string, ParamValue>;
+    for (const [key, value] of pairs) params[key] = value as ParamValue;
+    return params;
+  });
+
+const fieldsArb = fc.record(
+  {
+    kind: enumLeaf(ENTITY_KINDS),
+    scanClass: enumLeaf(SCAN_CLASSES),
+    behaviour: enumLeaf(BEHAVIOUR_IDS),
+    aiKey: enumLeaf(["test-pilot"]),
+    position: vecArb,
+    destination: vecArb,
+    orientation: quatArb,
+    radius: num,
+    speed: num,
+    desiredSpeed: num,
+    desiredRange: num,
+    specKey: fc.oneof(
+      fc.string({ maxLength: 200 }),
+      fc.constantFrom("", "k".repeat(MAX_SNAPSHOT_STRING_LENGTH + 1), "ship"),
+    ),
+    ownerId: num,
+    spawnTick: num,
+    targetId: num,
+    rngAi: num,
+    rngCombat: num,
+    repairs: num,
+    wakeTick: num,
+    nextThinkTick: num,
+    params: paramsArb,
+  },
+  { requiredKeys: [] },
+);
+
+type Fields = typeof fieldsArb extends fc.Arbitrary<infer T> ? T : never;
+
+/** Write the generated values straight onto the live entity, bypassing spawn. */
+function applyFields(entity: Entity, f: Fields): void {
+  if (f.kind !== undefined) (entity as { kind: string }).kind = f.kind;
+  if (f.scanClass !== undefined) {
+    (entity as { scanClass: string }).scanClass = f.scanClass;
+  }
+  if (f.behaviour !== undefined) {
+    (entity.nav as { behaviour: string }).behaviour = f.behaviour;
+  }
+  if (f.position !== undefined) entity.position = f.position;
+  if (f.destination !== undefined) entity.nav.destination = f.destination;
+  if (f.orientation !== undefined) entity.orientation = f.orientation;
+  if (f.radius !== undefined) entity.radius = f.radius;
+  if (f.speed !== undefined) entity.speed = f.speed;
+  if (f.desiredSpeed !== undefined) entity.nav.desiredSpeed = f.desiredSpeed;
+  if (f.desiredRange !== undefined) entity.nav.desiredRange = f.desiredRange;
+  if (f.specKey !== undefined) entity.specKey = f.specKey;
+  if (f.ownerId !== undefined) entity.ownerId = f.ownerId;
+  if (f.spawnTick !== undefined) entity.spawnTick = f.spawnTick;
+  if (f.targetId !== undefined) entity.nav.targetId = f.targetId;
+  if (f.rngAi !== undefined) entity.rng.ai = f.rngAi;
+  if (f.rngCombat !== undefined) entity.rng.combat = f.rngCombat;
+  if (f.repairs !== undefined) entity.repairs = f.repairs;
+  if (entity.ai !== null) {
+    const ai = entity.ai;
+    if (f.aiKey !== undefined) (ai as { aiKey: string }).aiKey = f.aiKey;
+    if (f.wakeTick !== undefined) ai.wakeTick = f.wakeTick;
+    if (f.nextThinkTick !== undefined) ai.nextThinkTick = f.nextThinkTick;
+    if (f.params !== undefined) ai.params = f.params;
+  }
+}
+
+describe("sanitizer and parser agree across every entity leaf", () => {
+  it("snapshots, parses and restores every sanitized world, and sanitizing twice changes nothing", () => {
+    const player = initFlightState(layout);
+    let survivors = 0;
+    let withAi = 0;
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 0, max: MAX_UINT32 }),
+        fc.array(fc.tuple(fc.boolean(), fieldsArb), {
+          minLength: 1,
+          maxLength: 4,
+        }),
+        (seed, specs) => {
+          const world = createWorld(seed);
+          specs.forEach(([ai], index) => {
+            spawnOk(world, shipInit(index, ai ? createTestPilotAi(0) : null));
+          });
+          expect(world.store.live.length).toBe(specs.length);
+          world.store.live.forEach((entity, index) => {
+            applyFields(entity, (specs[index] as (typeof specs)[number])[1]);
+          });
+          for (const entity of world.store.live) sanitizeEntity(entity);
+          // An unknown kind makes sanitize kill the entity; commit removes it.
+          commitWorld(world);
+          survivors += world.store.live.length;
+          withAi += world.store.live.filter((e) => e.ai !== null).length;
+
+          expect(() => hashWorld(player, world)).not.toThrow();
+          const text = JSON.stringify(snapshotWorld(world));
+          const parsed = parseWorldSnapshot(JSON.parse(text) as unknown);
+          const restored = restoreWorld(parsed);
+          expect(entityHashes(restored)).toEqual(entityHashes(world));
+          expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+
+          // Sanitize is idempotent: a second call repairs nothing.
+          for (const entity of world.store.live) {
+            expect(sanitizeEntity(entity)).toBe(false);
+          }
+          expect(JSON.stringify(snapshotWorld(world))).toBe(text);
+        },
+      ),
+      { numRuns: 300 },
+    );
+    // The property was not vacuous: entities and AI components survived.
+    expect(survivors).toBeGreaterThan(0);
+    expect(withAi).toBeGreaterThan(0);
+  });
+});
