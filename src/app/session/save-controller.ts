@@ -433,6 +433,14 @@ export function createSaveController(
       ctx.core.market = nextMarket;
       ctx.core.marketSeed = nextSeed;
       ctx.core.hyperspaceTargetId = nextTarget;
+      // D-02/D-03: a v2 save does not persist the epoch, so a warm Load
+      // re-anchors the lifecycle exactly like a cold boot Continue (epoch 0,
+      // no world), then recreates an in-flight world without a bump. Phase 11
+      // (SAVE-07) passes the saved epoch here instead of 0.
+      ctx.core.worldLifecycle?.resetForRestore(0);
+      if (restored.state.mode !== "docked") {
+        ctx.core.worldLifecycle?.resume(nextSeed);
+      }
       syncStatusOverlay();
       // G-8: nothing from the replaced session may outlive the Load. The
       // message queue is keyed to the old flight clock, so a stale line would

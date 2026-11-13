@@ -20,6 +20,10 @@ import type { GameLoop } from "../../../src/app/game-loop.js";
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import { createEventRouter } from "../../../src/app/session/event-router.js";
+import { createHyperspaceController } from "../../../src/app/session/hyperspace-controller.js";
+import type { HyperspaceControllerDeps } from "../../../src/app/session/hyperspace-controller.js";
+import { createSaveController } from "../../../src/app/session/save-controller.js";
+import type { SaveController } from "../../../src/app/session/save-controller.js";
 import { createSimDriver } from "../../../src/app/session/sim-driver.js";
 import { createSessionLifecycle } from "../../../src/app/session/start-session.js";
 import type { LifecycleDeps } from "../../../src/app/session/start-session.js";
@@ -28,19 +32,42 @@ import type {
   Populate,
   WorldLifecycle,
 } from "../../../src/app/session/world-lifecycle.js";
+import type { System } from "../../../src/content/types.js";
+import type { InputContext } from "../../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
+import { snapshotForSave } from "../../../src/persistence/autosave.js";
+import { encodeSave } from "../../../src/persistence/save.js";
+import type { SaveAllowLists } from "../../../src/persistence/save.js";
+import type {
+  SaveReadResult,
+  SaveStore,
+} from "../../../src/persistence/store.js";
+import type { SaveLoadScreen } from "../../../src/ui/save-load.js";
 import type { Command } from "../../../src/sim/commands.js";
 import { DOCK_COMPUTER_KEY } from "../../../src/sim/dock/computer.js";
+import {
+  arrivalMarketSeed,
+  generateMarket,
+  marketSeedForSystem,
+} from "../../../src/sim/economy/market.js";
 import { identity, vec } from "../../../src/sim/math.js";
+import { newProfile } from "../../../src/sim/player/profile.js";
+import { stepSim } from "../../../src/sim/sim.js";
 import { worldSeedFor } from "../../../src/sim/rng.js";
 import { liveEntityCount, spawnEntity } from "../../../src/sim/world/world.js";
 import {
   PlayerController,
   ScriptedLaunchController,
+  ZERO_INTENT,
 } from "../../../src/sim/flight/controller.js";
 import { hashFlight, initFlightState } from "../../../src/sim/flight/state.js";
 import { DT } from "../../../src/sim/time.js";
+import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
+import {
+  commoditiesFixture,
+  commodityUnits,
+} from "../../helpers/commodities.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const lave = laveFixture();
@@ -473,6 +500,507 @@ describe("session wiring (start-up and dispose)", () => {
     expect(resumed).toBeGreaterThan(seed);
     expect(source.slice(seed, resumed)).toContain("restoredInFlight");
     expect(source.match(/createWorldLifecycle\(/g)).toHaveLength(1);
+  });
+});
+
+/** The Lave save fixtures the Load and anchored-save cases share. */
+const catalogue = commoditiesFixture();
+const MARKET_SEED_LAVE = 0x12345678;
+const laveMarket = generateMarket(lave.system, catalogue, MARKET_SEED_LAVE);
+
+const galaxy = JSON.parse(
+  readFileSync(
+    new URL("../../../src/content/generated/systems/g0.json", import.meta.url),
+    "utf8",
+  ),
+) as System[];
+const destination = galaxy.find((entry) => entry.id !== lave.system.id);
+if (destination === undefined) throw new Error("the galaxy has one system");
+
+/** The lifecycle plus a log of every call that reached it, in call order. */
+function logged(
+  real: WorldLifecycle,
+  log: string[],
+): WorldLifecycle & { readonly real: WorldLifecycle } {
+  return {
+    real,
+    get world() {
+      return real.world;
+    },
+    get epoch() {
+      return real.epoch;
+    },
+    begin: (seed) => {
+      log.push(`worldLifecycle.begin ${String(seed)}`);
+      real.begin(seed);
+    },
+    resume: (seed) => {
+      log.push(`worldLifecycle.resume ${String(seed)}`);
+      real.resume(seed);
+    },
+    end: () => {
+      log.push("worldLifecycle.end");
+      real.end();
+    },
+    resetForRestore: (epoch) => {
+      log.push(`worldLifecycle.resetForRestore ${String(epoch)}`);
+      return real.resetForRestore(epoch);
+    },
+  };
+}
+
+describe("arrival", () => {
+  interface ArrivalHarness {
+    readonly ctx: SessionState;
+    readonly controller: ReturnType<typeof createHyperspaceController>;
+    readonly calls: string[];
+    readonly lifecycle: WorldLifecycle;
+  }
+
+  /** Doubles copied from tests/app/session/hyperspace-controller.test.ts. */
+  function arrivalHarness(failDestinationBuild = false): ArrivalHarness {
+    const ctx = createSessionState({
+      system: lave.system,
+      saveStatus: "absent",
+      saveSkipReason: "",
+    });
+    const calls: string[] = [];
+    const state = initFlightState(lave.layout);
+    state.mode = "inFlight";
+    ctx.core.state = state;
+    ctx.core.layout = lave.layout;
+    ctx.core.config = lave.config;
+    ctx.core.stationDef = lave.stationDef;
+    ctx.core.commodities = catalogue;
+    ctx.core.marketSeed = marketSeedForSystem(lave.system.id);
+    ctx.core.market = generateMarket(
+      lave.system,
+      catalogue,
+      ctx.core.marketSeed,
+    );
+    ctx.core.hyperspaceTargetId = destination?.id;
+    // A world that exists at epoch 1, as after a launch from Lave.
+    const real = createWorldLifecycle({ traffic: false });
+    real.begin(ctx.core.marketSeed);
+    const lifecycle = logged(real, calls);
+    ctx.core.worldLifecycle = lifecycle;
+
+    const deps: HyperspaceControllerDeps = {
+      scenes: {
+        enterSystem: (system) => {
+          calls.push(`enterSystem ${system.id}`);
+          return {} as ReturnType<
+            HyperspaceControllerDeps["scenes"]["enterSystem"]
+          >;
+        },
+        layout: () =>
+          deriveSystemLayout(destination ?? lave.system, lave.stationDef),
+      },
+      galaxyById: new Map(galaxy.map((entry) => [entry.id, entry])),
+      messages: {
+        enqueue: (text) => calls.push(`enqueue ${text}`),
+        enqueuePriority: (text) => calls.push(`enqueuePriority ${text}`),
+      },
+      faults: failDestinationBuild ? { failDestinationBuild: true } : undefined,
+      showBootFailure: () => calls.push("showBootFailure"),
+      publishFailure: () => calls.push("publishFailure"),
+      autosave: () => calls.push("autosave"),
+      syncEconomyProbe: () => calls.push("syncEconomyProbe"),
+    };
+    return {
+      ctx,
+      controller: createHyperspaceController(ctx, deps),
+      calls,
+      lifecycle,
+    };
+  }
+
+  const jumped = {
+    destinationId: destination?.id ?? "",
+    clockDeltaSeconds: 576,
+    fuelCost: 10,
+  };
+
+  it("a successful arrival bumps the epoch, replaces the world from the destination seed and begins before the autosave", () => {
+    const { ctx, controller, calls, lifecycle } = arrivalHarness();
+    const previousSeed = ctx.core.marketSeed ?? 0;
+    const before = lifecycle.world;
+    expect(lifecycle.epoch).toBe(1);
+    calls.length = 0;
+
+    controller.handleHyperspaceJumped(jumped);
+
+    const nextSeed = arrivalMarketSeed(destination?.id ?? "", previousSeed);
+    expect(ctx.core.marketSeed).toBe(nextSeed);
+    expect(lifecycle.epoch).toBe(2);
+    expect(lifecycle.world).toBeDefined();
+    expect(lifecycle.world).not.toBe(before);
+    expect(lifecycle.world?.worldSeed).toBe(worldSeedFor(nextSeed, 2));
+    expect(lifecycle.world?.store.nextId).toBe(101);
+    expect(calls).toEqual([
+      `enterSystem ${destination?.id ?? ""}`,
+      `worldLifecycle.begin ${String(nextSeed)}`,
+      `enqueue Arrived at ${destination?.name ?? ""}`,
+      "autosave",
+      "syncEconomyProbe",
+    ]);
+  });
+
+  it("a failed arrival leaves the epoch and the world unchanged and writes no autosave", () => {
+    const { controller, calls, lifecycle } = arrivalHarness(true);
+    const before = lifecycle.world;
+    expect(before).toBeDefined();
+    calls.length = 0;
+
+    controller.handleHyperspaceJumped(jumped);
+
+    expect(lifecycle.epoch).toBe(1);
+    expect(lifecycle.world).toBe(before);
+    expect(calls).not.toContain("autosave");
+    expect(calls.some((entry) => entry.startsWith("worldLifecycle"))).toBe(
+      false,
+    );
+  });
+});
+
+/** The blob of a Lave save, docked or in flight, with the fixture market. */
+function laveBlob(mode: "docked" | "inFlight"): string {
+  const state = initFlightState(lave.layout);
+  if (mode === "inFlight") {
+    state.mode = "inFlight";
+    state.position = { x: 1200.5, y: -40.25, z: 8000.75 };
+    state.speed = 123.5;
+  }
+  return encodeSave(
+    snapshotForSave(
+      state,
+      { ...newProfile(), credits: 987 },
+      lave.system,
+      { key: "coriolis-station" },
+      laveMarket,
+      catalogue,
+      undefined,
+    ),
+  );
+}
+
+const SAVE_ALLOW: SaveAllowLists = {
+  equipment: new Set(["EQ_DOCK_COMP"]),
+  systems: new Set([lave.system.id]),
+  stations: new Set(["coriolis-station"]),
+  commodities: new Map(
+    catalogue
+      .filter((commodity) => commodity.tradeable)
+      .map((commodity) => [commodity.key, commodity.unit]),
+  ),
+  marketGoods: new Set(catalogue.map((commodity) => commodity.key)),
+};
+
+interface LoadHarness {
+  readonly ctx: SessionState;
+  readonly controller: SaveController;
+  readonly log: string[];
+  readonly lifecycle: WorldLifecycle;
+  readonly read: { current: SaveReadResult };
+}
+
+/**
+ * A save controller over doubles copied from tests/app/session/save-controller.test.ts,
+ * with a real lifecycle (wrapped to log) that has already launched (epoch 1)
+ * and arrived (epoch 2).
+ */
+function loadHarness(options: { readonly hook?: boolean } = {}): LoadHarness {
+  const ctx = createSessionState({
+    system: lave.system,
+    saveStatus: "valid",
+    saveSkipReason: "",
+  });
+  const log: string[] = [];
+  const read = { current: { kind: "absent" } as SaveReadResult };
+  ctx.core.state = initFlightState(lave.layout);
+  ctx.core.stationDef = lave.stationDef;
+  ctx.core.stationKey = "coriolis-station";
+  ctx.core.commodities = catalogue;
+  ctx.core.commodityUnits = commodityUnits(catalogue);
+  ctx.core.market = laveMarket;
+  ctx.core.marketSeed = laveMarket.seed;
+  ctx.core.layout = lave.layout;
+  ctx.runtime.testHookEnabled = options.hook === true;
+  for (const key of ["state", "layout", "marketSeed"] as const) {
+    let value: unknown = ctx.core[key];
+    Object.defineProperty(ctx.core, key, {
+      configurable: true,
+      enumerable: true,
+      get: () => value,
+      set: (next: unknown) => {
+        log.push(`install ${key}`);
+        value = next;
+      },
+    });
+  }
+
+  const real = createWorldLifecycle({ traffic: false });
+  real.begin(MARKET_SEED_LAVE);
+  real.begin(0x0badf00d);
+  expect(real.epoch).toBe(2);
+  const lifecycle = logged(real, log);
+  ctx.core.worldLifecycle = lifecycle;
+
+  let current: InputContext = "dockScreen";
+  ctx.runtime.input = {
+    getContext: () => current,
+    setContext: (next: InputContext) => {
+      current = next;
+    },
+  } as unknown as KeyboardInputSource;
+  ctx.runtime.loop = { reset: () => undefined } as unknown as GameLoop;
+  ctx.save.saveLoad = {
+    show: () => undefined,
+    hide: () => undefined,
+    setSlot: () => undefined,
+    setNotice: () => undefined,
+    cancelOverwrite: () => undefined,
+    isConfirming: () => false,
+  } as unknown as SaveLoadScreen;
+  ctx.save.saveScreenOpen = true;
+  ctx.save.contextBeforeSaveScreen = "dockHome";
+
+  const store: SaveStore = {
+    read: () => Promise.resolve(read.current),
+    write: () => Promise.resolve({ committed: true, revision: 1 }),
+    clear: () => Promise.resolve({ committed: true, revision: 1 }),
+    backupCorrupt: () => Promise.resolve(),
+    dispose: () => undefined,
+  };
+  const controller = createSaveController(ctx, {
+    saveBoot: { store, status: "valid", allow: SAVE_ALLOW },
+    galaxyById: new Map([[lave.system.id, lave.system]]),
+    docked: { show: () => undefined, hide: () => undefined },
+    hudCanvas: { hidden: false },
+    probe: {},
+    messages: { clear: () => undefined },
+    enterSystemById: () => lave.layout,
+    syncStatusOverlay: () => undefined,
+    renderFrame: () => undefined,
+    renderStation: () => undefined,
+    syncStationNav: () => undefined,
+    ensureSelection: () => undefined,
+    updateProbe: () => undefined,
+    syncSaveProbe: () => undefined,
+    syncEconomyProbe: () => undefined,
+    bindTestHook: () => {
+      log.push("bindTestHook");
+    },
+  });
+  return { ctx, controller, log, lifecycle, read };
+}
+
+describe("load", () => {
+  const ARRIVAL_SEED = 0x0badf00d;
+
+  it("an in-flight Load re-anchors at epoch 0 and resumes after the seed install, like a cold Continue", async () => {
+    const h = loadHarness();
+    h.read.current = { kind: "ok", raw: laveBlob("inFlight") };
+    const before = h.lifecycle.world;
+
+    await h.controller.loadFromSave();
+
+    // The call order: installs first, then the re-anchor, then the resume.
+    const reset = h.log.indexOf("worldLifecycle.resetForRestore 0");
+    const resume = h.log.indexOf(
+      `worldLifecycle.resume ${String(MARKET_SEED_LAVE)}`,
+    );
+    expect(h.log.indexOf("install marketSeed")).toBeGreaterThan(-1);
+    expect(reset).toBeGreaterThan(h.log.indexOf("install marketSeed"));
+    expect(resume).toBe(reset + 1);
+    expect(h.log.filter((entry) => entry.startsWith("worldLifecycle"))).toEqual(
+      [
+        "worldLifecycle.resetForRestore 0",
+        `worldLifecycle.resume ${String(MARKET_SEED_LAVE)}`,
+      ],
+    );
+
+    // The cold boot Continue of the same save: a fresh lifecycle, then resume.
+    const cold = createWorldLifecycle({ traffic: false });
+    cold.resume(MARKET_SEED_LAVE);
+    expect(h.lifecycle.epoch).toBe(0);
+    expect(cold.epoch).toBe(0);
+    expect(h.lifecycle.world).toBeDefined();
+    expect(h.lifecycle.world).not.toBe(before);
+    expect(h.lifecycle.world?.worldSeed).toBe(
+      worldSeedFor(MARKET_SEED_LAVE, 0),
+    );
+    expect(h.lifecycle.world?.worldSeed).toBe(cold.world?.worldSeed);
+    expect(h.lifecycle.world?.store.nextId).toBe(101);
+
+    // A subsequent arrival gives epoch 1 and the same seed on both paths.
+    h.lifecycle.begin(ARRIVAL_SEED);
+    cold.begin(ARRIVAL_SEED);
+    expect(h.lifecycle.epoch).toBe(1);
+    expect(cold.epoch).toBe(1);
+    expect(h.lifecycle.world?.worldSeed).toBe(worldSeedFor(ARRIVAL_SEED, 1));
+    expect(h.lifecycle.world?.worldSeed).toBe(cold.world?.worldSeed);
+  });
+
+  it("a docked Load re-anchors at epoch 0 and ends the world, like a cold Continue", async () => {
+    const h = loadHarness();
+    h.read.current = { kind: "ok", raw: laveBlob("docked") };
+
+    await h.controller.loadFromSave();
+
+    expect(h.log.filter((entry) => entry.startsWith("worldLifecycle"))).toEqual(
+      ["worldLifecycle.resetForRestore 0"],
+    );
+    expect(h.lifecycle.epoch).toBe(0);
+    expect(h.lifecycle.world).toBeUndefined();
+
+    // The next launch: epoch 1 and the launch seed, ids from 101, as cold.
+    const cold = createWorldLifecycle({ traffic: false });
+    h.lifecycle.begin(MARKET_SEED_LAVE);
+    cold.begin(MARKET_SEED_LAVE);
+    expect(h.lifecycle.epoch).toBe(1);
+    expect(cold.epoch).toBe(1);
+    expect(h.lifecycle.world?.worldSeed).toBe(
+      worldSeedFor(MARKET_SEED_LAVE, 1),
+    );
+    expect(h.lifecycle.world?.worldSeed).toBe(cold.world?.worldSeed);
+    expect(h.lifecycle.world?.store.nextId).toBe(101);
+  });
+
+  it("a failed parse touches neither the epoch nor the world", async () => {
+    const h = loadHarness({ hook: true });
+    const before = h.lifecycle.world;
+    h.read.current = { kind: "ok", raw: "{ not a save" };
+
+    await h.controller.loadFromSave();
+
+    expect(h.lifecycle.epoch).toBe(2);
+    expect(h.lifecycle.world).toBe(before);
+    expect(h.log).toEqual([]);
+  });
+
+  it("an absent slot touches neither the epoch nor the world", async () => {
+    const h = loadHarness();
+    const before = h.lifecycle.world;
+    h.read.current = { kind: "absent" };
+
+    await h.controller.loadFromSave();
+
+    expect(h.lifecycle.epoch).toBe(2);
+    expect(h.lifecycle.world).toBe(before);
+    expect(h.log).toEqual([]);
+  });
+
+  it("with the hook enabled the rebind still follows the state install", async () => {
+    const h = loadHarness({ hook: true });
+    h.read.current = { kind: "ok", raw: laveBlob("inFlight") };
+
+    await h.controller.loadFromSave();
+
+    expect(h.log.indexOf("bindTestHook")).toBeGreaterThan(
+      h.log.indexOf("install state"),
+    );
+  });
+});
+
+describe("anchored save: the world never enters the save", () => {
+  /** The exact v2 allow-lists the plan names (SaveInputs and the encoded SaveV2). */
+  const INPUT_KEYS = [
+    "cargo",
+    "clockSeconds",
+    "credits",
+    "equipment",
+    "flight",
+    "fuel",
+    "market",
+    "marketSeed",
+    "missiles",
+    "mode",
+    "passengerBerths",
+    "stationKey",
+    "systemId",
+    "targetSystem",
+  ];
+  const SAVE_KEYS = [
+    "version",
+    "mode",
+    "clockSeconds",
+    "credits",
+    "equipment",
+    "cargo",
+    "fuel",
+    "missiles",
+    "passengerBerths",
+    "system",
+    "station",
+    "market",
+    "marketSeed",
+    "targetSystem",
+    "flight",
+  ];
+  const WORLD_KEYS = [
+    '"epoch":',
+    '"worldSeed":',
+    '"nextId":',
+    '"entities":',
+    '"specKey":',
+    '"aiDropped":',
+  ];
+
+  it("SaveInputs and the encoded save are identical with and without a live world", () => {
+    const h = loadHarness();
+    const state = initFlightState(lave.layout);
+    state.mode = "inFlight";
+    state.position = { x: 1200.5, y: -40.25, z: 8000.75 };
+    state.speed = 123.5;
+    h.ctx.core.state = state;
+    h.ctx.core.hyperspaceTargetId = destination?.id;
+
+    // A live world that has been stepped, with an NPC in it.
+    h.lifecycle.begin(MARKET_SEED_LAVE);
+    const world = h.lifecycle.world;
+    expect(world).toBeDefined();
+    if (world === undefined) return;
+    const pilot = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "test-pilot",
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(state.position.x + 400, state.position.y, 0),
+        orientation: identity(),
+        radius: 40,
+        speed: 0,
+      },
+      state.tick,
+    );
+    expect(pilot?.id).toBe(101);
+    for (let tick = 0; tick < 50; tick += 1) {
+      stepSim(state, world, lave.layout, lave.config, ZERO_INTENT, [], DT);
+    }
+
+    const withWorld = h.controller.buildSnapshotInputs();
+    expect(withWorld).toBeDefined();
+    if (withWorld === undefined) return;
+    expect(Object.keys(withWorld).sort()).toEqual(
+      expect.arrayContaining(["flight", "market", "mode", "systemId"]),
+    );
+    for (const key of Object.keys(withWorld)) {
+      expect(INPUT_KEYS).toContain(key);
+    }
+    const encoded = encodeSave(withWorld);
+    for (const key of Object.keys(JSON.parse(encoded) as object)) {
+      expect(SAVE_KEYS).toContain(key);
+    }
+    for (const needle of WORLD_KEYS) {
+      expect(JSON.stringify(withWorld)).not.toContain(needle);
+      expect(encoded).not.toContain(needle);
+    }
+
+    h.lifecycle.end();
+    const withoutWorld = h.controller.buildSnapshotInputs();
+    expect(withWorld).toEqual(withoutWorld);
+    expect(encoded).toBe(encodeSave(withoutWorld ?? withWorld));
   });
 });
 

@@ -218,6 +218,11 @@ export function createHyperspaceController(
     // snapshot carries it (PROJECT.md:126-127, Oolite's unchanged
     // target_system_id), and the HUD/F5 target line keeps naming it.
     applyWitchpointArrival(currentState, arrivedLayout, currentConfig, exit);
+    // D-02: the arrival bumps the epoch and derives the new world from the
+    // destination's market seed, here and not later, so the arrival autosave
+    // below follows the new world. It cannot throw: `nextSeed` is finite and
+    // the populator of this phase adds nothing.
+    ctx.core.worldLifecycle?.begin(nextSeed);
     const arrivedPose = poseOf(currentState);
     ctx.core.previousPose = arrivedPose;
     ctx.core.currentPose = arrivedPose;
