@@ -1,0 +1,82 @@
+# Requirements: Wegolite
+
+**Defined:** 2026-11-13
+**Milestone:** v2.1 World Population Base
+**Core Value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
+
+**Scope rule:** the necessary technical minimum for an inert, populated world (owner, 2026-11-13: "less, but better"). Each requirement is trimmed to what Phase 12 consumes. Requirement IDs reused from the v2.0 archive (`.planning/milestones/v2.0-REQUIREMENTS.md`) keep their ID but carry the trimmed text below; the parts cut from them are listed under Future Requirements with new IDs.
+
+## v2.1 Requirements
+
+### Foundation hardening
+
+- [ ] **FOUND-15**: A world-step AI module that throws is contained: the entity is handled by a recorded rule, the step completes, and the world hash stays deterministic (Phase 8 review WR-01)
+- [ ] **FOUND-16**: `spawnEntity` refuses malformed input with a reason instead of throwing, and a refused spawn does not advance the id counter (Phase 8 review IN-02)
+
+### Content
+
+- [ ] **DATA-10**: The ship models and textures of the six populator roles (traders, pirates, police Vipers, hunters, shuttles, scavengers) are compiled from the pinned Oolite snapshot with provenance in `ASSETS.md`/`NOTICE`, behind the drift gate
+- [ ] **DATA-11**: Each of those ships carries the fields the inert world uses, taken from `shipdata.plist`: roles, AI name, scan class, model, and its mass computed from a build-time octree as Oolite does (`density * 20 * octree volume`), checked by worked examples for the Cobra Mk III, the Coriolis station and the Viper; the Coriolis octree mass is compared with the 455,223,200 used by jump blockage, and one value is kept by owner decision if they differ
+- [ ] **DATA-13**: NPC models and textures are lazily loaded outside the first-load set, and the cold-start transfer stays under the 9,437,184-byte ceiling
+
+### Saves
+
+- [ ] **SAVE-07**: Saves move to a minimal schema v3 that adds only the world epoch, the world counters and the next entity id; v1 and v2 saves migrate in order, older builds treat a v3 save as an inert future-version save, and the worst-case v3 save stays under the 65,536-character cap
+- [ ] **SAVE-08**: NPCs are not saved: loading a save regenerates the inert world at the saved leg anchor (the docked station or the witchpoint arrival), hashing identically to the world a fresh arrival at that anchor builds; a save taken in flight resumes at its leg anchor, never mid-leg
+
+### World
+
+- [ ] **WORLD-15**: After launch and after an arrival, a first populator places inert NPC ships of the six roles; they are drawn with their Oolite models and shown on the scanner without a new HUD element, a populated scene stays within the 50 draw-call budget, and `nullAI` ships stay inert as in Oolite
+- [ ] **WORLD-10**: Mass lock and hyperspace jump blockage take nearby NPC ships into account as in Oolite, and the torus refusal message is correct when the torus never engaged
+- [ ] **WORLD-11**: The simulation keeps running while the galactic chart is open in flight, as in Oolite (supersedes the v1 freeze), including a running hyperspace countdown
+- [ ] **WORLD-14**: A hyperspace jump clears every non-static entity at jump commit, and the destination is populated deterministically on arrival: the same route and seed give the same ships, ids and world hash
+- [ ] **WORLD-16**: With traffic on, launch, manual docking, the docking computer and torus flight behave as in v1; browser tests run with traffic off by default and every existing browser test passes unchanged
+
+## Future Requirements
+
+Deferred. The former v2.1 Combat & Traffic requirements (Phases 13-23) stay in `.planning/milestones/v2.0-REQUIREMENTS.md` with their IDs and are re-stated when their milestone starts. Parts cut from requirements re-stated above:
+
+- **DATA-12**: Sound effects and music vendored with provenance (with the audio phase)
+- **DATA-14**: Models for missiles, cargo pods, escape capsules, wreckage, asteroids, the rock hermit and the ships it launches (with combat and mining)
+- **DATA-15**: Combat and flight stats for NPC ships: energy, recharge, speed, thrust, weapons, missiles, bounty (with NPC flight and combat)
+- **DATA-16**: Runtime octree ray and hull-against-hull queries that match Oolite (before the first hit test)
+- **SAVE-09**: Save fields for combat and law (legal status, kills, rating, missile pylons, laser mounts, new equipment), each added in its own ordered schema bump with the code that consumes it
+- **SAVE-10**: Reloading regenerates the full-traffic world at its anchor (final stage of the former SAVE-08)
+- **WORLD-07**: NPC ships seen flying (with NPC flight)
+- **AI-08**: `dumbAI` tumble of pods and wreckage (with salvage)
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| NPC flight, steering and priority AI | Former Phases 14 and 18; this milestone stops at an inert world |
+| Lasers, shields, destruction, death | Former Phases 13, 15 and 16 |
+| Audio and music | Former Phase 17; sounds have no consumer yet |
+| Populator role rates and repopulation timing | Former Phase 22; the first populator here only places ships |
+| Cargo purchase cost basis (todo 2026-11-11) | Was tied to the one-bump v3; with minimal v3 it waits for its own bump |
+| Performance hardening and QUAL-01 evidence | Former Phase 23 |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| FOUND-15 | — | Pending |
+| FOUND-16 | — | Pending |
+| DATA-10 | — | Pending |
+| DATA-11 | — | Pending |
+| DATA-13 | — | Pending |
+| SAVE-07 | — | Pending |
+| SAVE-08 | — | Pending |
+| WORLD-15 | — | Pending |
+| WORLD-10 | — | Pending |
+| WORLD-11 | — | Pending |
+| WORLD-14 | — | Pending |
+| WORLD-16 | — | Pending |
+
+**Coverage:**
+- v2.1 requirements: 12 total
+- Mapped to phases: 0 (filled by the roadmap)
+
+---
+*Requirements defined: 2026-11-13*
+*Last updated: 2026-11-13 after initial definition*
