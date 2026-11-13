@@ -424,7 +424,9 @@ describe("emitTextures", () => {
     } finally {
       await rm(outRoot, { recursive: true, force: true });
     }
-  });
+    // 16 emissive maps are baked since the NPC models landed; the full suite
+    // under load passed the 5 s default (same behaviour, longer budget).
+  }, 180_000);
 
   it("writes the committed baked files byte-for-byte", () => {
     for (const name of EMISSIVE_FILES) {
@@ -442,7 +444,7 @@ describe("emitTextures", () => {
       expect(committed.equals(Buffer.from(expected)), name).toBe(true);
       expect(source.width).toBeGreaterThan(0);
     }
-  });
+  }, 180_000);
 });
 
 /**
