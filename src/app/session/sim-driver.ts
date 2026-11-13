@@ -9,10 +9,11 @@
  * the hyperspace edge mapping, one input frame shared by every step, the game
  * loop's accumulator and the single place a flight step is taken.
  *
- * `stepOnce` is that single place: the session has exactly one flight-step call
- * site, so plan 08-15 can swap it for the world step and plans 08-14 and 08-16
- * can share the per-step options through `buildStepOptions`. The bodies are the
- * ones `frame()` carried before the split, in the same order.
+ * `stepOnce` is that single place: the session has exactly one step call site.
+ * Since plan 08-15 it is `stepSim` (the flight step, then the world step over the
+ * live world, which is absent while docked); plans 08-14 and 08-16 share the
+ * per-step options through `buildStepOptions`. The bodies are the ones `frame()`
+ * carried before the split, in the same order.
  *
  * The other phases of `frame()` (the pause toggle, the chart and save-screen
  * freezes, the station actions, the paused branch and the render) stay in the
@@ -29,8 +30,8 @@ import type {
 import { flightView } from "../../sim/flight/controller.js";
 import type { FlightState } from "../../sim/flight/state.js";
 import { poseOf } from "../../sim/flight/state.js";
-import { stepFlight } from "../../sim/flight/step.js";
 import type { InputFrame } from "../../sim/state.js";
+import { stepSim } from "../../sim/sim.js";
 import { DT } from "../../sim/time.js";
 import { mapHyperspaceBeginEdges } from "../hyperspace-commands.js";
 import type { LaunchSequence } from "../launch-sequence.js";
@@ -118,8 +119,11 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
       equipment: equipmentSet(),
       dock: ctx.core.dockGeometry,
     });
-    const events = stepFlight(
+    // The one integration point (D-14): the world is read live on every step,
+    // so a launch in one step creates the world the next step runs.
+    const events = stepSim(
       liveState,
+      ctx.core.worldLifecycle?.world,
       liveLayout,
       liveConfig,
       intent,

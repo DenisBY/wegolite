@@ -1,0 +1,168 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2026 Wegolite contributors
+
+/**
+ * The world lifecycle (Phase 8, plan 08-15; D-02, D-03, D-05, D-06 as amended
+ * 2026-11-12, D-14).
+ *
+ * The session owns at most one `World` and the `epoch` that seeded it. There is
+ * no world while the ship is docked: the `launched` event and a hyperspace
+ * arrival `begin` one (bump the epoch, then derive `worldSeedFor(marketSeed,
+ * epoch)`), a cold boot Continue or a warm in-session Load of an in-flight save
+ * `resume`s one without a bump, and the `docked` event and `dispose()` `end` it
+ * while preserving the epoch, so a normal dock then launch keeps advancing it.
+ *
+ * Epoch lives in session memory and starts at 0 (D-03): a Phase 8 v2 save does
+ * not persist it. `resetForRestore(0)` is the one place a restore re-anchors it,
+ * so loading the same v2 save warm or cold gives the same epoch (0 after the
+ * restore, 1 at the next launch or arrival) and the same world seed. Phase 11
+ * (SAVE-07) will pass the persisted `save.epoch` into `resetForRestore` at both
+ * the boot Continue and the warm Load.
+ *
+ * Every creation builds a fresh `World` through `createWorld`, so dynamic ids
+ * restart at 101 in each new world, and this module holds no entity id and
+ * imports no id type: no id survives `end`, `resetForRestore`, `begin` or
+ * `resume` (per-world id scope, CONTEXT D-06 as amended 2026-11-12). A world is
+ * never reset or reused, so its queued AI events and every entity's AI state
+ * die with it.
+ *
+ * Three rules for later phases:
+ *
+ * (i) The one-tick latency is the parity-critical detail. The world is created in the
+ * router's reaction to the `launched` event, which runs after the launch step,
+ * so it is first stepped on the tick after the launch step. Every replay (plan
+ * 08-13's cadence test, plan 08-16's tick script) must mirror that.
+ *
+ * (ii) `begin` runs `populate` inside the arrival's synchronous install block,
+ * whose invariant is that everything that can throw runs before any live
+ * reference moves. `populateNothing` cannot throw. A later populator that can
+ * must be split into a fallible prepare step that runs before the install block
+ * and a commit that cannot fail.
+ *
+ * (iii) The D-05 forward note. Phase 8 proves that the epoch and each fresh
+ * world's starting counter (next id 101 before populate) are the same with
+ * traffic on and off, because `populateNothing` spawns nothing in either mode.
+ * A real populator that spawns only with traffic on makes the post-populate
+ * counter differ by mode, so the phase that adds it must decide with the owner
+ * whether D-05 keeps the starting-counter reading or requires populate to burn
+ * ids with traffic off.
+ *
+ * The module must stay importable by the Playwright Node runner (plan 08-16):
+ * pure, no DOM, no Three, and nothing beyond `src/sim`. A Vitest guard in
+ * tests/app/session/world-lifecycle.test.ts enforces that.
+ */
+
+import { worldSeedFor } from "../../sim/rng.js";
+import { createWorld } from "../../sim/world/world.js";
+import type { World } from "../../sim/world/world.js";
+
+/** The largest epoch value (uint32): `worldSeedFor` accepts exactly 0..this. */
+const MAX_EPOCH = 0xffffffff;
+
+/**
+ * Fill a freshly created world. Phase 8 supplies `populateNothing` in both
+ * traffic modes; Phase 12 supplies the inert populator and Phase 22 full
+ * traffic.
+ */
+export type Populate = (
+  world: World,
+  options: { readonly traffic: boolean },
+) => void;
+
+/** Adds nothing, in either traffic mode. */
+export const populateNothing: Populate = () => undefined;
+
+export interface WorldLifecycle {
+  /** The live world, or undefined while docked or before the first launch. */
+  readonly world: World | undefined;
+  /** The session-memory epoch (D-03); 0 until the first `begin`. */
+  readonly epoch: number;
+  /**
+   * Bump the epoch, derive `worldSeedFor(marketSeed, epoch)` and create a
+   * world. Refuses (epoch and world unchanged, no throw) when `marketSeed` is
+   * not finite or the epoch has reached 0xffffffff.
+   */
+  begin(marketSeed: number): void;
+  /**
+   * Create a world from the current epoch without a bump (an in-flight
+   * Continue or Load). Refuses like `begin` for a non-finite seed.
+   */
+  resume(marketSeed: number): void;
+  /** Drop the world and keep the epoch. */
+  end(): void;
+  /**
+   * Re-anchor a restored session: drop the world and set the epoch. Accepts
+   * exactly the epochs from which `begin` can still bump (0..0xfffffffe) and
+   * returns true; any other value sets epoch 0 and returns false, so a saturated
+   * or corrupt epoch can be surfaced rather than silently disabling worlds.
+   * Phase 8 calls it only with 0 and ignores the result.
+   */
+  resetForRestore(epoch?: number): boolean;
+}
+
+/** A lifecycle with epoch 0 and no world (D-03). `populate` defaults to nothing. */
+export function createWorldLifecycle(options: {
+  readonly traffic: boolean;
+  readonly populate?: Populate;
+}): WorldLifecycle {
+  const { traffic } = options;
+  const populate = options.populate ?? populateNothing;
+  let epoch = 0;
+  let world: World | undefined;
+
+  function create(marketSeed: number, worldEpoch: number): World {
+    const created = createWorld(worldSeedFor(marketSeed, worldEpoch));
+    populate(created, { traffic });
+    return created;
+  }
+
+  return {
+    get world() {
+      return world;
+    },
+    get epoch() {
+      return epoch;
+    },
+    begin(marketSeed) {
+      if (
+        !Number.isFinite(marketSeed) ||
+        !Number.isSafeInteger(epoch) ||
+        epoch < 0 ||
+        epoch >= MAX_EPOCH
+      ) {
+        return;
+      }
+      // Build first, commit after: a throwing populator leaves both unchanged.
+      const next = epoch + 1;
+      world = create(marketSeed, next);
+      epoch = next;
+    },
+    resume(marketSeed) {
+      if (
+        !Number.isFinite(marketSeed) ||
+        !Number.isSafeInteger(epoch) ||
+        epoch < 0 ||
+        epoch > MAX_EPOCH
+      ) {
+        return;
+      }
+      world = create(marketSeed, epoch);
+    },
+    end() {
+      world = undefined;
+    },
+    resetForRestore(restoredEpoch = 0) {
+      world = undefined;
+      if (
+        Number.isSafeInteger(restoredEpoch) &&
+        restoredEpoch >= 0 &&
+        restoredEpoch < MAX_EPOCH
+      ) {
+        epoch = restoredEpoch;
+        return true;
+      }
+      epoch = 0;
+      return false;
+    },
+  };
+}

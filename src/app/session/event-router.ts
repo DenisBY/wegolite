@@ -6,13 +6,14 @@
  *
  * `handleEvent` used to be one switch over every `SimEvent` kind. It is now four
  * gameplay subscribers (`stationFlow`, `hudMessages`, `dockFeedback`,
- * `hyperspaceFlow`) and a router that offers each event to them in
+ * `hyperspaceFlow`), the world lifecycle subscriber the router builds itself
+ * (`worldLifecycle`, plan 08-15) and a router that offers each event to them in
  * `EVENT_SUBSCRIBER_ORDER`. Which subscribers handle which kind is the
- * declarative table `EVENT_KIND_SUBSCRIBER`; the order tests pin it, and plan
- * 08-15 extends it (a `worldLifecycle` subscriber after `stationFlow` on
- * `launched` and `docked`) inside this module, without touching the facade.
- * Every arm body is the one `handleEvent` carried before the split, with its
- * statement order unchanged.
+ * declarative table `EVENT_KIND_SUBSCRIBER`; the order tests pin it. The
+ * `worldLifecycle` subscriber runs right after `stationFlow` on `launched` and
+ * `docked`, so every station side effect completes before the world is begun
+ * or ended. Every gameplay arm body is the one `handleEvent` carried before the
+ * split, with its statement order unchanged.
  *
  * Order independence with plan 08-11 (which widens `SimEvent` with reserved
  * kinds in the same wave): the table is keyed to the literal `RoutedKind` union
@@ -39,12 +40,16 @@ import type { SessionState } from "./context.js";
 /** The dispatch order: each event is offered to the subscribers in this order. */
 export const EVENT_SUBSCRIBER_ORDER = [
   "stationFlow",
+  "worldLifecycle",
   "hudMessages",
   "dockFeedback",
   "hyperspaceFlow",
 ] as const;
 
 export type SubscriberName = (typeof EVENT_SUBSCRIBER_ORDER)[number];
+
+/** The subscribers the facade supplies; the router builds `worldLifecycle`. */
+export type GameplaySubscriberName = Exclude<SubscriberName, "worldLifecycle">;
 
 /**
  * The event kinds the router handles: a literal list, so it does not depend on
@@ -78,9 +83,9 @@ export type RoutedKind = (typeof ROUTED_EVENT_KINDS)[number];
 export const EVENT_KIND_SUBSCRIBER: Readonly<
   Record<RoutedKind, readonly SubscriberName[]>
 > = {
-  launched: ["stationFlow"],
+  launched: ["stationFlow", "worldLifecycle"],
   launchComplete: ["stationFlow"],
-  docked: ["stationFlow"],
+  docked: ["stationFlow", "worldLifecycle"],
   dockDenied: ["hudMessages"],
   torusEngaged: ["hudMessages"],
   torusDisengaged: ["hudMessages"],
@@ -102,9 +107,14 @@ export function isRoutedKind(kind: string): kind is RoutedKind {
 /** A subscriber handles the kinds it owns and ignores every other event. */
 export type EventSubscriber = (event: SimEvent) => void;
 
+/**
+ * What the facade passes: the four gameplay subscribers. `worldLifecycle` is
+ * optional and only for a test that records it; the router builds the real one
+ * from `ctx` when it is absent, so the facade never changes.
+ */
 export type EventRouterSubscribers = Readonly<
-  Record<SubscriberName, EventSubscriber>
->;
+  Record<GameplaySubscriberName, EventSubscriber>
+> & { readonly worldLifecycle?: EventSubscriber };
 
 /** What the station subscriber calls outside the session context. */
 export interface StationFlowDeps {
@@ -337,17 +347,34 @@ export interface EventRouter {
 }
 
 /**
- * Build the router. `ctx` is required, never optional: plan 08-15 wires its
- * `worldLifecycle` subscriber here, reading `ctx.core.worldLifecycle` and
- * `ctx.core.marketSeed`, so the facade never has to change when that lands.
+ * The world lifecycle subscriber (plan 08-15; D-02): `launched` begins a world
+ * from the live market seed, `docked` ends it. It tests the kind with `if`, not
+ * a `case` label, and reads the lifecycle and the seed from `ctx` at call time.
+ */
+export function createWorldLifecycleFlow(ctx: SessionState): EventSubscriber {
+  return (event) => {
+    if (event.kind === "launched") {
+      const seed = ctx.core.marketSeed;
+      if (seed !== undefined) ctx.core.worldLifecycle?.begin(seed);
+    } else if (event.kind === "docked") {
+      ctx.core.worldLifecycle?.end();
+    }
+  };
+}
+
+/**
+ * Build the router. `ctx` is required, never optional: the `worldLifecycle`
+ * subscriber is wired here from `ctx.core.worldLifecycle` and
+ * `ctx.core.marketSeed`, so the facade never has to change for it.
  */
 export function createEventRouter(
   ctx: SessionState,
   subscribers: EventRouterSubscribers,
 ): EventRouter {
-  // Held for plan 08-15's lifecycle subscriber; the four gameplay subscribers
-  // close over `ctx` themselves.
-  void ctx;
+  const all: Readonly<Record<SubscriberName, EventSubscriber>> = {
+    ...subscribers,
+    worldLifecycle: subscribers.worldLifecycle ?? createWorldLifecycleFlow(ctx),
+  };
   return {
     dispatch(event) {
       // An unrouted kind (a reserved or unknown one) is ignored, never thrown.
@@ -355,7 +382,7 @@ export function createEventRouter(
       if (!isRoutedKind(kind)) return;
       const handlers = EVENT_KIND_SUBSCRIBER[kind];
       for (const name of EVENT_SUBSCRIBER_ORDER) {
-        if (handlers.includes(name)) subscribers[name](event);
+        if (handlers.includes(name)) all[name](event);
       }
     },
   };

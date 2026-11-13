@@ -50,7 +50,10 @@ import type { ActionId } from "../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../src/input/keyboard.js";
 import type { Command } from "../../src/sim/commands.js";
 import type { SettingsV1 } from "../../src/settings/schema.js";
+import { RESERVED_EVENT_KINDS } from "../../src/sim/events.js";
 import type { SimEvent } from "../../src/sim/events.js";
+import type { WorldLifecycle } from "../../src/app/session/world-lifecycle.js";
+import { createWorldLifecycle } from "../../src/app/session/world-lifecycle.js";
 import { initFlightState, poseOf } from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { countdownSecondsRemaining } from "../../src/sim/hyperspace/countdown.js";
@@ -90,9 +93,10 @@ const EVENTS: Readonly<Record<RoutedKind, SimEvent>> = {
 };
 
 describe("the pinned subscriber order and routing table", () => {
-  it("dispatches in the order stationFlow, hudMessages, dockFeedback, hyperspaceFlow", () => {
+  it("dispatches in the order stationFlow, worldLifecycle, hudMessages, dockFeedback, hyperspaceFlow", () => {
     expect([...EVENT_SUBSCRIBER_ORDER]).toEqual([
       "stationFlow",
+      "worldLifecycle",
       "hudMessages",
       "dockFeedback",
       "hyperspaceFlow",
@@ -101,9 +105,9 @@ describe("the pinned subscriber order and routing table", () => {
 
   it("maps each of the 14 existing kinds to exactly one subscriber tuple", () => {
     expect(EVENT_KIND_SUBSCRIBER).toEqual({
-      launched: ["stationFlow"],
+      launched: ["stationFlow", "worldLifecycle"],
       launchComplete: ["stationFlow"],
-      docked: ["stationFlow"],
+      docked: ["stationFlow", "worldLifecycle"],
       dockDenied: ["hudMessages"],
       torusEngaged: ["hudMessages"],
       torusDisengaged: ["hudMessages"],
@@ -120,8 +124,18 @@ describe("the pinned subscriber order and routing table", () => {
     expect(Object.keys(EVENT_KIND_SUBSCRIBER).sort()).toEqual(
       [...ROUTED_EVENT_KINDS].sort(),
     );
+    // Twelve kinds have one subscriber; launched and docked have the ordered
+    // pair (plan 08-15), so the world lifecycle runs after the station flow.
+    const pair = ["launched", "docked"];
     for (const kind of ROUTED_EVENT_KINDS) {
-      expect(EVENT_KIND_SUBSCRIBER[kind]).toHaveLength(1);
+      if (pair.includes(kind)) {
+        expect(EVENT_KIND_SUBSCRIBER[kind]).toEqual([
+          "stationFlow",
+          "worldLifecycle",
+        ]);
+      } else {
+        expect(EVENT_KIND_SUBSCRIBER[kind]).toHaveLength(1);
+      }
     }
   });
 
@@ -148,6 +162,7 @@ describe("the pinned subscriber order and routing table", () => {
       };
       const router = createEventRouter(ctx, {
         stationFlow: record("stationFlow"),
+        worldLifecycle: record("worldLifecycle"),
         hudMessages: record("hudMessages"),
         dockFeedback: record("dockFeedback"),
         hyperspaceFlow: record("hyperspaceFlow"),
@@ -492,6 +507,83 @@ describe("a multi-event sequence", () => {
   });
 });
 
+describe("the world lifecycle subscriber (plan 08-15)", () => {
+  /** A recording lifecycle double on the same log as the station collaborators. */
+  function withLifecycle(): Harness & { readonly lifecycle: WorldLifecycle } {
+    const built = harness();
+    built.ctx.core.marketSeed = 4321;
+    const lifecycle: WorldLifecycle = {
+      world: undefined,
+      epoch: 0,
+      begin: (seed) => {
+        built.log.push(`worldLifecycle.begin ${String(seed)}`);
+      },
+      resume: () => {
+        built.log.push("worldLifecycle.resume");
+      },
+      end: () => {
+        built.log.push("worldLifecycle.end");
+      },
+      resetForRestore: () => {
+        built.log.push("worldLifecycle.resetForRestore");
+        return true;
+      },
+    };
+    built.ctx.core.worldLifecycle = lifecycle;
+    return { ...built, lifecycle };
+  }
+
+  it("launched: begins the world with the live market seed after every station side effect", () => {
+    const { log, router } = withLifecycle();
+    router.dispatch(EVENTS.launched);
+    expect(log).toEqual([...LAUNCHED, "worldLifecycle.begin 4321"]);
+  });
+
+  it("docked: ends the world after every station side effect, the autosave included", () => {
+    const { log, router } = withLifecycle();
+    router.dispatch(EVENTS.docked);
+    expect(log).toEqual([...DOCKED_MANUAL, "worldLifecycle.end"]);
+  });
+
+  it("launched without a market seed begins nothing", () => {
+    const { ctx, log, router } = withLifecycle();
+    ctx.core.marketSeed = undefined;
+    router.dispatch(EVENTS.launched);
+    expect(log).toEqual(LAUNCHED);
+  });
+
+  it("does nothing without a lifecycle and for every other routed kind", () => {
+    const bare = harness();
+    bare.router.dispatch(EVENTS.launched);
+    bare.router.dispatch(EVENTS.docked);
+    expect(bare.log).toEqual([...LAUNCHED, ...DOCKED_MANUAL]);
+
+    for (const kind of ROUTED_EVENT_KINDS) {
+      if (kind === "launched" || kind === "docked") continue;
+      const { log, router } = withLifecycle();
+      router.dispatch(EVENTS[kind]);
+      expect(log.some((entry) => entry.startsWith("worldLifecycle"))).toBe(
+        false,
+      );
+    }
+  });
+
+  it("drives the real lifecycle: launch begins epoch 1, a second launch is dock-separated", () => {
+    const { ctx, router } = harness();
+    ctx.core.marketSeed = 99;
+    const real = createWorldLifecycle({ traffic: false });
+    ctx.core.worldLifecycle = real;
+    router.dispatch(EVENTS.launched);
+    expect(real.epoch).toBe(1);
+    expect(real.world).toBeDefined();
+    router.dispatch(EVENTS.docked);
+    expect(real.world).toBeUndefined();
+    expect(real.epoch).toBe(1);
+    router.dispatch(EVENTS.launched);
+    expect(real.epoch).toBe(2);
+  });
+});
+
 describe("an unrouted kind", () => {
   it("is offered to no subscriber and never throws", () => {
     const { log, router } = harness();
@@ -500,6 +592,86 @@ describe("an unrouted kind", () => {
       router.dispatch(reserved);
     }).not.toThrow();
     expect(log).toEqual([]);
+  });
+
+  it("reserved kinds pass through", () => {
+    const events: Readonly<
+      Record<(typeof RESERVED_EVENT_KINDS)[number], SimEvent>
+    > = {
+      laserFired: {
+        kind: "laserFired",
+        shooter: 101,
+        from: { x: 0, y: 0, z: 0 },
+        to: { x: 0, y: 0, z: 1 },
+        laserKind: "pulse",
+      },
+      shipHit: {
+        kind: "shipHit",
+        target: 101,
+        source: 102,
+        amount: 1,
+        shield: false,
+      },
+      shipDestroyed: {
+        kind: "shipDestroyed",
+        id: 101,
+        position: { x: 0, y: 0, z: 0 },
+        radius: 1,
+        specKey: "x",
+        killer: 0,
+      },
+      entityRemoved: { kind: "entityRemoved", id: 101 },
+      commsMessage: { kind: "commsMessage", from: 101, key: "k", params: {} },
+      missileLaunched: {
+        kind: "missileLaunched",
+        missile: 102,
+        shooter: 101,
+        target: 103,
+      },
+      missileDetonated: {
+        kind: "missileDetonated",
+        missile: 102,
+        position: { x: 0, y: 0, z: 0 },
+      },
+      ecmFired: {
+        kind: "ecmFired",
+        source: 101,
+        position: { x: 0, y: 0, z: 0 },
+      },
+      cargoScooped: {
+        kind: "cargoScooped",
+        scooper: 100,
+        commodity: "x",
+        amount: 1,
+      },
+      shipSpawned: { kind: "shipSpawned", id: 101, specKey: "x" },
+      legalStatusChanged: {
+        kind: "legalStatusChanged",
+        from: "clean",
+        to: "offender",
+      },
+      playerDestroyed: {
+        kind: "playerDestroyed",
+        position: { x: 0, y: 0, z: 0 },
+      },
+      podEjected: { kind: "podEjected", pod: 101, owner: 102 },
+      proximityWarning: { kind: "proximityWarning", id: 101, other: 102 },
+      energyLow: { kind: "energyLow", id: 101 },
+    };
+    for (const kind of RESERVED_EVENT_KINDS) {
+      const { ctx, log, router } = harness();
+      ctx.core.marketSeed = 7;
+      const real = createWorldLifecycle({ traffic: false });
+      real.begin(7);
+      const worldBefore = real.world;
+      ctx.core.worldLifecycle = real;
+      expect(() => {
+        router.dispatch(events[kind]);
+      }).not.toThrow();
+      expect(log).toEqual([]);
+      expect(real.epoch).toBe(1);
+      expect(real.world).toBe(worldBefore);
+    }
   });
 
   it("does not treat inherited object keys as routed kinds", () => {

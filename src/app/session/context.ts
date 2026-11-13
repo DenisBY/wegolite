@@ -48,6 +48,7 @@ import type {
 import type { RedrawGate } from "../redraw-gate.js";
 import type { SceneManager } from "../scene-manager.js";
 import type { TestFlags } from "./test-flags.js";
+import type { WorldLifecycle } from "./world-lifecycle.js";
 import type { KeyboardInputSource } from "../../input/keyboard.js";
 import type { InputContext } from "../../input/actions.js";
 import type { BindingMap } from "../../input/bindings.js";
@@ -126,6 +127,11 @@ export interface SessionCore {
   /** Replaced, not cleared, on Load: a fresh instance drops both envelopes. */
   dockFeedback: DockFeedback;
   lastModel: HudModel | undefined;
+  /**
+   * The world lifecycle (plan 08-15): undefined until start-up creates it, then
+   * read live by the sim driver and the lifecycle points. Never copied.
+   */
+  worldLifecycle: WorldLifecycle | undefined;
 }
 
 /** The station computer's own state; the UI is purely presentational. */
@@ -298,6 +304,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       lastScrapeMessageTime: null,
       dockFeedback: createDockFeedback(),
       lastModel: undefined,
+      worldLifecycle: undefined,
     },
     station: {
       stationScreen: "home",
