@@ -5,16 +5,16 @@ milestone_name: World Population Base
 current_phase: 09
 current_phase_name: NPC Content
 status: executing
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-11-13T22:40:28.259Z"
+stopped_at: Completed 09-03-PLAN.md
+last_updated: "2026-11-13T22:49:23.070Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 09 execution started
-state_head: 76ace5db1064fe52009deb41089c93986ab82f43
+state_head: 50ee03d4847e4e6af8c6fec2473e2819d6034692
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 09 (NPC Content) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-11-13 — Phase 09 execution started
 
@@ -126,6 +126,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 08 P16 | 70min | 2 tasks | 11 files |
 | Phase 09 P01 | 3 min | 3 tasks | 45 files |
 | Phase 09 P02 | 8 min | 2 tasks | 16 files |
+| Phase 09 P03 | 25 min | 2 tasks | 62 files |
 
 ## Accumulated Context
 
@@ -309,6 +310,7 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-15: begin and resume build the world before committing epoch and world; a warm Load re-anchors with resetForRestore(0) like a cold Continue — A throwing future populator leaves the lifecycle unchanged; Phase 11 SAVE-07 passes the saved epoch into resetForRestore at both Continue and Load
 - [Phase 09]: 09-01: NPC role ship sources vendored via the sanctioned network script at 7437f22 (42 files), cross-checked byte-identical to the Oolite checkout; host-shell cross-check is a recorded exception (to be written to PROJECT.md in 09-05)
 - [Phase 09]: NPC GLBs have exactly one node (hull); sub-entities are not compiled (D-04); one naming rule oolite_<name>.dat -> <name>.glb via shipGlbFile
+- [Phase 09]: modelVendored derives from MODEL_SOURCE_FILES (VENDORED_MODEL_FILES is the sorted union, 16 .dat files); 32 usable catalogue entries are vendored
 
 ### Pending Todos
 
@@ -402,8 +404,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T22:40:28.201Z
-Stopped at: Completed 09-02-PLAN.md
+Last session: 2026-11-13T22:49:23.010Z
+Stopped at: Completed 09-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
