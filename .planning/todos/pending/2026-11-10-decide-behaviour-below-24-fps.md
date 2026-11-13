@@ -23,3 +23,5 @@ Options: a Low graphics level or a pixel-ratio cap (review item P6), an
 automatic drop from High to Standard when frames stay slow, or a one-line
 notice. Measure on a weak GPU first; there is no evidence yet of how often
 this happens.
+
+> Note (2026-11-13): v2.0 was narrowed to Phase 8; this todo now belongs to v2.1 (Phase 12 in the v2.1 section of ROADMAP.md).

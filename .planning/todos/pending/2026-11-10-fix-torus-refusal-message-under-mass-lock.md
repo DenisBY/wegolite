@@ -23,3 +23,5 @@ emits before changing anything.
 Give a refused attempt its own copy (Oolite's wording, from
 `descriptions.plist`), or emit a distinct event for a refusal and keep
 "Torus disengaged" for a drive that was running.
+
+> Note (2026-11-13): v2.0 was narrowed to Phase 8; this todo now belongs to v2.1 (Phase 12 in the v2.1 section of ROADMAP.md).

@@ -1,17 +1,17 @@
 ---
 gsd_state_version: "1.0"
 milestone: v2.0
-milestone_name: Foundation & Combat
+milestone_name: Foundation
 current_phase: 08
 current_phase_name: Session Split and World Core
 status: executing
 stopped_at: Phase 8 context gathered
 last_updated: "2026-11-12T20:36:38.389Z"
-last_activity: 2026-11-11
-last_activity_desc: "v2.0 roadmap round-2 fixes applied: 16 phases (8-23), 60 of 60 requirements mapped"
+last_activity: 2026-11-13
+last_activity_desc: "v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1"
 state_head: 92f2681c8ea160cba125010db61e1cdaefb28644
 progress:
-  total_phases: 16
+  total_phases: 1
   completed_phases: 0
   total_plans: 16
   completed_plans: 0
@@ -22,17 +22,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-11)
+See: .planning/PROJECT.md (updated 2026-11-13)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Milestone v2.0 Foundation & Combat. Phase 8 (Session Split and World Core) is next; Phases 9 (NPC Content and Sound Provenance) and 10 (Hull Octrees and Ship Mass) can run beside it. The roadmap is Phases 8-23 in `.planning/ROADMAP.md`, restructured after two rounds of external review (critical path 8 → 11 → 12 → (13 ∥ 14) → 18 → 19 → 20 → 22 → 23). Milestone v1.0 (Phases 1-7) is archived in `.planning/milestones/`; QUAL-01 is carried into Phase 23.
+**Current focus:** Milestone v2.0 Foundation, narrowed on 2026-11-13 to Phase 8 (Session Split and World Core) alone, with quality over speed. Phases 9-23 and their 55 requirements are the unscheduled v2.1 (Combat & Traffic) in `.planning/ROADMAP.md`. The AI seam, snapshot codec and reserved events are provisional until Phases 12-14 exercise them. Milestone v1.0 (Phases 1-7) is archived in `.planning/milestones/`; QUAL-01 is deferred again and stays with v2.1 Phase 23.
 
 ## Current Position
 
 Phase: 08 (Session Split and World Core) — READY TO EXECUTE
 Plan: Not started
 Status: Ready to execute
-Last activity: 2026-11-11 — v2.0 roadmap round-2 fixes applied: 16 phases (8-23), 60 of 60 requirements mapped
+Last activity: 2026-11-13 — v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -121,6 +121,7 @@ Recent decisions affecting current work:
 - [v2.0 Roadmap, revised]: Staged verification. SAVE-08 is checked in Phases 11 (schema and anchor), 12 (regenerated inert world) and 22 (full traffic; mapped there). DATA-11 stats are in 9 and mass in 10. CBT-07 (shared hit rule, Phase 13) is separate from CBT-15 (police-versus-player fire staged in Phase 19 as part of AI-05, completed with pirate, hunter and NPC-versus-NPC fire in Phase 20). AUD-01 completes in Phase 17, and its scoop, missile and ECM sounds are proven in play in Phase 21.
 - [v2.0 Roadmap, revised]: Audio (17) starts after combat (15), not after missiles. Hardening (23) has an entry gate: the numeric simulation bound, container workload, triangle budget and reference-desktop protocol are declared in `docs/PERFORMANCE.md` and signed off before it is planned, and a breach becomes a follow-up phase with no in-phase Web Worker pivot.
 - [v2.0 Roadmap, revised]: The F3 visible set grows by phase as the money-path boundary: lasers (13), fuel scoop (15, first needed for sun-skimming), escape pod (16), and the hardened missile (`EQ_HARDENED_MISSILE`), ECM (`EQ_ECM`), energy unit, shield boosters and heat shield (21), each with purchase, persistence and normal-play tests.
+- [v2.0 Scope, 2026-11-13]: v2.0 narrowed to Phase 8 alone (owner: reduce to the necessary minimum, quality over speed), after three independent model reviews (Opus, Fable, Sonnet) agreed. Phases 9-23 and 55 requirements moved to unscheduled v2.1; the AI seam, snapshot codec and reserved events are provisional until Phases 12-14; D-05 and D-02 stay revisable until Phase 12; QUAL-01 deferred again. See PROJECT.md Key Decisions.
 - [v2.0 Roadmap, round 2]: Owner-directed fixes after the second review round (Gemini approve; DeepSeek, GPT-6 Luna, Kimi approve with changes). Capsules leave AI-08 (they fly under `oolite-shuttleAI.js`, so they belong to AI-10). `tractored` joins AI-01. Phase 21 now depends on Phase 20. Every combat and AI phase (13-16, 18-22) carries the acceptance criterion that at least 90 % of new behavioural assertions are Vitest scenarios, with browser specs as opt-in smoke or journey checks only. ROADMAP.md "Review changes" lists all 11 fixes.
 - [Roadmap]: Seven phases at standard granularity; research suggested eight — world rendering and flight merged into one phase because the first playable flight is one user-visible capability.
 - [Roadmap]: WORLD-06 (hyperspace distance/fuel/jump-time math) scheduled in Phase 6 with NAV-03/NAV-06 so one module owns the fuel rule.
@@ -267,7 +268,7 @@ Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassM
 - [2026-11-10] [flight] Do not report "Torus disengaged" when the torus never engaged — Phase 12 — [todo file](.planning/todos/pending/2026-11-10-fix-torus-refusal-message-under-mass-lock.md)
 - [2026-11-10] [app] Decide what happens below 24 fps — decide in Phase 12, evidence in Phase 23 — [todo file](.planning/todos/pending/2026-11-10-decide-behaviour-below-24-fps.md)
 - [2026-11-10] [flight] Stop the player flying through the planet, the sun and the buoys — Phase 15 (DEATH-03, CBT-08) — [todo file](.planning/todos/pending/2026-11-10-add-planet-and-sun-collision.md)
-- [2026-11-11] [economy] Track cargo purchase cost basis — unscheduled; joins the Phase 11 save bump only by owner decision — [todo file](.planning/todos/pending/2026-11-11-cargo-purchase-cost-basis-tracking.md)
+- [2026-11-11] [economy] Track cargo purchase cost basis — unscheduled; joins the Phase 11 save bump (v2.1) only by owner decision — [todo file](.planning/todos/pending/2026-11-11-cargo-purchase-cost-basis-tracking.md)
 - [2026-11-11] [ui] Add terminal color palette switcher in game settings — unscheduled — [todo file](.planning/todos/pending/2026-11-11-terminal-color-palette-setting.md)
 
 ### Blockers/Concerns
@@ -287,6 +288,7 @@ Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassM
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 261113-cm9 | Narrow milestone v2.0 to Phase 8 only; Phases 9-23 move to unscheduled v2.1 (planning docs only) | 2026-11-13 | eccb94f | [261113-cm9-narrow-milestone-v2-0-to-phase-8-only-pl](./quick/261113-cm9-narrow-milestone-v2-0-to-phase-8-only-pl/) |
 | 261104-oif | Diagnose the loaded per-frame render cost of the Lave flight scene: GL context attributes, MSAA A/B, resolution scaling, hidden-planet arm, and split launch vs in-flight frame timing | 2026-11-04 | ddad140 | [261104-oif-diagnose-the-loaded-per-frame-render-cos](./quick/261104-oif-diagnose-the-loaded-per-frame-render-cos/) |
 | 261104-p2m | Stabilise the message-expiry browser gate (300 s wait, `workers: 2` pinned), update the frozen-contract guard, and record G-03-3 as an accepted known issue | 2026-11-04 | 313a2bf | [261104-p2m-stabilize-the-message-expiry-browser-gat](./quick/261104-p2m-stabilize-the-message-expiry-browser-gat/) |
 | 261108-tez | Переключатель паузы при потере фокуса вкладки в настройках | 2026-11-08 | 7c35c08 | [261108-tez-sdelat-postanovku-na-pauzu-pri-potere-fo](./quick/261108-tez-sdelat-postanovku-na-pauzu-pri-potere-fo/) |
@@ -322,7 +324,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 | Category | Item | Status | Deferred At | Milestone |
 |----------|------|--------|-------------|-----------|
-| requirement | QUAL-01: 60 fps at 1080p on mid-range desktop hardware (Phase 7) | Open, deferred by the owner; carried into v2.0 Phase 23 | 2026-11-08 | v1.0 |
+| requirement | QUAL-01: 60 fps at 1080p on mid-range desktop hardware (Phase 7) | Open, deferred by the owner; deferred again on 2026-11-13; carried into v2.1 Phase 23 | 2026-11-08 | v1.0 |
 
 ## Session Continuity
 

@@ -22,3 +22,5 @@ Either keep stepping while the chart is open (the chart is opaque, so only the
 simulation runs, not the scene draw), or keep the freeze and say "Paused" on
 the chart. The first matches Oolite; check what it means for the autosave and
 for the hyperspace countdown tests in `tests/e2e/hyperspace.spec.ts`.
+
+> Note (2026-11-13): v2.0 was narrowed to Phase 8; this todo now belongs to v2.1 (Phase 12 in the v2.1 section of ROADMAP.md).

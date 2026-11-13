@@ -43,3 +43,5 @@ unit tests on the fixed step. The simulation radius of both buoys is 10 m
 (`NAV_BUOY_RADIUS` and `WITCHPOINT_RADIUS` in `src/sim/world/layout.ts`) while
 the drawn model is about 100 m across, so the collision radius has to be
 decided as part of this work.
+
+> Note (2026-11-13): v2.0 was narrowed to Phase 8; this todo now belongs to v2.1 (Phase 15 in the v2.1 section of ROADMAP.md).

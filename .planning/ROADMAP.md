@@ -5,8 +5,9 @@
 - ✅ **v1.0 Wegolite v1 Core Loop** — Phases 1-7 (shipped 2026-11-08 as `v0.1.0`; archived 2026-11-10)
   - Full phase details: [.planning/milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   - Requirements: [.planning/milestones/v1.0-REQUIREMENTS.md](milestones/v1.0-REQUIREMENTS.md)
-  - Open at archive: QUAL-01 (60 fps evidence on the reference desktop), deferred by the owner on 2026-11-08; carried into v2.0 Phase 23
-- 🚧 **v2.0 Foundation & Combat** — Phases 8-23 (in progress; roadmap created 2026-11-11, restructured the same day after external review)
+  - Open at archive: QUAL-01 (60 fps evidence on the reference desktop), deferred by the owner on 2026-11-08; deferred again on 2026-11-13; carried into v2.1 Phase 23
+- 🚧 **v2.0 Foundation** — Phase 8 only (in progress; roadmap created 2026-11-11, narrowed to Phase 8 on 2026-11-13 by owner decision)
+- 📋 **v2.1 Combat & Traffic** — Phases 9-23 (next milestone, unscheduled; the former v2.0 scope beyond Phase 8, phase numbers kept)
 
 ## Phases
 
@@ -25,102 +26,30 @@ Total: 73 of 73 plans complete. Phase directories remain in `.planning/phases/`.
 
 </details>
 
-## 🚧 v2.0 — Foundation & Combat
+## 🚧 v2.0 — Foundation
 
-**Milestone goal:** Space stops being empty: traders, pirates and police fly each system with Oolite's AI, the player can fight, die or eject, and their actions change their legal status, built on a new multi-entity world model.
+**Milestone goal:** The game plays exactly as v1 does, but runs on a multi-entity world model with stable ids, seeded per-entity random streams, a world hash, a typed seam for AI and a tick-stepping test hook, so that every later combat and traffic phase builds on a proven base. No player-visible feature ships in this milestone.
 
-**Sources:** the 60 v2.0 requirements in `.planning/REQUIREMENTS.md`, each mapped to exactly one phase below (the phase that completes it); research in `.planning/research/SUMMARY.md` (with `STACK.md`, `FEATURES.md`, `ARCHITECTURE.md` and `PITFALLS.md`). Pitfall numbers below are the numbers in `PITFALLS.md`. Owner decisions D2-D8 and the v2.0 extras are recorded in PROJECT.md Key Decisions.
+**Sources:** the 5 v2.0 requirements in `.planning/REQUIREMENTS.md` (FOUND-10 to FOUND-14), all completed by Phase 8; research in `.planning/research/SUMMARY.md` (with `STACK.md`, `FEATURES.md`, `ARCHITECTURE.md` and `PITFALLS.md`). Pitfall numbers are the numbers in `PITFALLS.md`.
 
-**Phase numbering:** continues from v1.0, so v2.0 starts at Phase 8. Decimal phases (for example 15.1) are urgent insertions. The numeric order is a valid execution order: every phase depends only on lower-numbered phases.
+**Scope decision (2026-11-13):** the owner narrowed v2.0 from 16 phases (8-23, 60 requirements) to Phase 8 alone, with quality over speed. Three independent model reviews (Opus, Fable, Sonnet) reached the same conclusion. Reasons, also recorded in PROJECT.md Key Decisions: Phases 9 and 10 have no consumer before Phases 12 and 13; Phase 11 is deferred because the D-02 seed policy becomes one-way once persisted and a narrowed v3 would break the one-bump rule (Pitfall 10); and there is no coherent stopping point between Phase 8 and roughly Phases 16-20, because D-10 requires traffic in production. The AI seam, the snapshot codec and the reserved events ship with only the scripted test pilot as a consumer, so they are **provisional** until Phases 12-14 exercise them; D-05 and the D-02 derivation stay revisable until Phase 12. QUAL-01 is deferred again (owner, 2026-11-13).
 
-**Staged verification:** a requirement maps to the phase that completes it. Where an earlier phase delivers part of it, that phase states the part in its success criteria: SAVE-08 (Phases 11, 12 and 22), DATA-11 (stats in 9, mass in 10), WORLD-07 (inert ships drawn in 12, flying in 14), AI-08 (`nullAI` in 12, `dumbAI` tumble in 16), CBT-07 and CBT-15 (the shared hit rule in 13, police-versus-player fire in 19, pirate, hunter and NPC-versus-NPC fire in 20), AUD-01 (the sound map in 17, scoop, missile and ECM sounds in play in 21).
-
-### Review changes
-
-The first draft had 12 phases (8-19). Four external reviews (Gemini 4 Argon, DeepSeek V4 Pro, GPT-6 Luna, Kimi K3.1 Pro) all returned "approve with changes", and the owner accepted every finding on 2026-11-11 ("accept everything, ~16 phases"). REQUIREMENTS.md grew from 50 to 60 requirements. What changed and why:
-
-- **Octree runtime split from content** (DeepSeek, Kimi). Build-time octrees, ship mass and the runtime hull queries are Phase 10. It can start beside Phase 8 and lands before the first hit test (D4). DATA-11 now completes there.
-- **Combat split in two** (all four reviews: the old Phase 12 had 7 requirements across three systems). Phase 13 covers views, lasers, shields, the octree hit rule for any `ShipControl` shooter and docking restoration (DOCK-10). Phase 15 covers destruction, collisions, hazards, alerts and death.
-- **Escape/P/R bindings moved earlier** (Gemini, DeepSeek, Kimi). INPUT-01 moves from the old Phase 16 to Phase 13, before the escape pod (Phase 16), so the pause, ident and target-station migration and the browser specs that use those keys settle once.
-- **AI split into a fidelity gate and the framework** (all four; PITFALLS 6 says steering must not share a phase with the framework). Phase 14 is NPC flight and native steering with source-cited oracles, stated stuck and tunnelling thresholds, a bounded differential-harness spike and an owner gate. Phase 18 is the priority-AI framework, peaceful roles, the station queue and the manifest. The manifest is now a complete inventory generated from the pinned sources, and the priority-tree structural diff is a criterion (DeepSeek, Kimi). The dev-only harness stays by owner Key Decision, although Kimi and GPT-6 Luna suggested dropping it. Native steering is Objective-C and is checked by source-cited traces, as they asked.
-- **Inert-ship AIs and world lifecycle moved to the inert phase** (Gemini, DeepSeek). The new AI-08 (`nullAI`/`dumbAI`, split from AI-06) and the new WORLD-14 (clear at jump commit, repopulate on arrival) land in Phase 12, where those ships first exist. Round 2 below moves AI-08's completion to Phase 16.
-- **NPC fire got its own requirement** (GPT-6 Luna, Kimi). A test pilot proves the shared rule, not autonomous fire. The new CBT-15 lands in Phase 20 with NPC-versus-player and NPC-versus-NPC scenarios.
-- **Law split in two** (DeepSeek, Kimi). Phase 19 covers police, legal status, fines, fugitive refusal, and the new LAW-07 for contraband on launch and fast-dock fines (Gemini). Phase 20 covers pirates, hunters, demands and rescue, plus the new AI-10 for NPC escape capsules, with an end-to-end rescue scenario (Kimi).
-- **SAVE-08 verified in stages, anchor-based** (GPT-6 Luna, Kimi). The schema and anchor stage is in Phase 11, the regenerated inert world in Phase 12, and full traffic in Phase 22, which completes it. The comparison is always against a fresh arrival at the saved leg anchor, never the mid-leg world.
-- **Missing table-stakes rules placed** (Gemini). The new DOCK-08 (red alert and the docking-computer lockout), DOCK-09 (slot scrape damage) and DEATH-05 (sun-skimming and atmospheric heat) are in Phase 15. The new DOCK-10 (docking restoration) is in Phase 13. Phase 15 also owns wreckage lifetime and the entity cap (DeepSeek) and the cargo rule for pods. Phase 16 owns tractor scooping (Gemini).
-- **Rock hermit AI and the location-generator spike** (Gemini, Kimi). The new AI-09 joins asteroids and mining in Phase 22. A time-boxed location-generator spike is a noted task in Phase 18, so Phase 22 starts with named-system golden vectors.
-- **Escape-pod clock pinned** (GPT-6 Luna). DEATH-02 states Oolite's rule, 43,200 s plus 5,400 s times a 7-bit draw (`PlayerEntity.m:5830`), tested at 43,200 s and 729,000 s.
-- **Music provenance decided in content, played in audio** (GPT-6 Luna). Phase 9 delivers only the audited decision; Phase 17 plays music if the decision allows it.
-- **Audio no longer waits for missiles** (Kimi). Phase 17 starts after Phase 15, when the player combat sounds exist.
-- **Hardening has fixed budgets** (DeepSeek, GPT-6 Luna, Kimi). The numeric simulation bound, the container workload, the triangle budget and the reference-desktop protocol are declared before Phase 23 starts (QUAL-10). A breach becomes a follow-up phase; there is no in-phase Web Worker pivot.
-- **Kept unchanged:** Phase 8 (owner direction; Kimi's proposed split of Phase 8 was declined), the inert-before-AI order, traffic off by default in browser tests, and anchored saves without NPCs. Gemini's PROJECT.md wording fix was already applied.
-
-**Round 2** (2026-11-11; Gemini 4 Argon approve, DeepSeek V4 Pro, GPT-6 Luna and Kimi K3.1 Pro approve with changes; the owner asked for these targeted fixes, keeping 16 phases and 60/60 coverage):
-
-1. AI-08 no longer covers capsules: Oolite's escape capsule flies under `oolite-shuttleAI.js` (`shipdata.plist`, `oolite_template_escape-capsule`), so capsules stay with AI-10. AI-08 now completes in Phase 16, where pods and wreckage (released from Phase 15) tumble. Phase 12 keeps a staged check that `nullAI` ships stay inert.
-2. Phase 16 now depends on Phase 14, because tumbling and tractor scooping are native steering behaviours. `tractored` (`BEHAVIOUR_TRACTORED`, `ShipEntity.m:11217`) is added to AI-01's behaviour list.
-3. WORLD-07 ("NPC ships flying") now completes in Phase 14, where ships move. Phase 12 keeps a staged check: inert ships drawn within budget and on the scanner.
-4. Phase 14's oracles run against synthetic `WorldView`/`ShipControl` targets with fixed seeds, independent of content that arrives later. The fixtures are authored independently of the port, in a separate plan by a separate agent from the porter, and each is cited to Oolite source lines, so the port cannot validate itself.
-5. Phase 19 proves police-versus-player autonomous fire as part of AI-05, as a staged check of CBT-15. Phase 20 completes CBT-15 with the pirate, hunter and NPC-versus-NPC scenarios.
-6. Phase 21 now depends on Phase 20: pirates and hunters are the main hostile missile launchers, and criterion 2 names the launcher roles.
-7. Phase 21 adds `EQ_ECM` and `EQ_HARDENED_MISSILE` to the F3 visible set (the money-path boundary in `src/sim/player/outfitting.ts`), with purchase, persistence and normal-play firing tests. The F3 ordering rule is updated.
-8. AI-07: ported decisions are checked against the oracle the owner selects at the Phase 14 gate. The default is the dev-only differential harness; source-cited traces are used only if the owner accepts that fallback. Phases 14 and 18 say the same.
-9. Phase 17 proves the scoop sound with a synthetic event, like the missile and ECM sounds, and still does not depend on Phase 16. Phase 21, the first phase that depends on both 16 and 17, proves all three sounds in play.
-10. The critical path is now 8 → 11 → 12 → (13 ∥ 14) → 18 → 19 → 20 → 22 → 23, and Phase 16 depends on 14.
-11. The Vitest rule is now an acceptance criterion in every combat and AI phase (13, 14, 15, 16, 18, 19, 20, 21, 22): at least 90 % of new behavioural assertions are Vitest scenarios, and browser specs are opt-in smoke or journey checks only. To keep five criteria per phase, closely related criteria were merged in Phases 13, 14, 15 and 22.
+**Phase numbering:** continues from v1.0, so v2.0 starts at Phase 8. Decimal phases (for example 8.1) are urgent insertions.
 
 ### Phase list
 
 - [ ] **Phase 8: Session Split and World Core** - v1 play unchanged on a multi-entity world: stable ids, seeded streams, a world hash, the typed AI seam and a tick-stepping test hook
-- [ ] **Phase 9: NPC Content and Sound Provenance** - Ships, pods, capsules, asteroids and sounds compiled from Oolite with provenance and combat stats, kept out of the first load; an audited music decision
-- [ ] **Phase 10: Hull Octrees and Ship Mass** - Build-time octrees and Oolite's mass for every v2.0 hull, and runtime ray and hull queries that match Oolite
-- [ ] **Phase 11: Save Schema v3** - One bump with every v2.0 field, ordered migration, and saves that carry only the seed and counters of a leg anchor
-- [ ] **Phase 12: Inert Ships and the World Lifecycle** - Inert NPC ships drawn and on the scanner within budget, mass lock and jump blockage by ships, the world running behind the chart, cleared at each jump and repopulated on arrival
-- [ ] **Phase 13: Views, Lasers and Shields** - Four views, Oolite's lasers hitting octree hulls, shields and energy banks, docking restoration, and Oolite's keys for eject, pause and ident
-- [ ] **Phase 14: NPC Flight and Steering Fidelity Gate** - NPC ships seen flying with Oolite's flight model and native steering, proven against independently authored source-cited oracles; the harness spike and the owner's oracle choice gate the AI port
-- [ ] **Phase 15: Destruction, Hazards and Death** - Damage, wreckage and cargo, collisions, slot scrapes, heat, sun-skimming, planet and sun contact, the alert condition, and death
-- [ ] **Phase 16: Bounties, Salvage and the Escape Pod** - Bounties and combat rating, tumbling pods and wreckage, tractor scooping and jettison, repairs, and ejecting to continue on Oolite's terms
-- [ ] **Phase 17: Audio and Music** - Oolite's player-bound sound effects through Web Audio, autoplay-safe, with volume settings, and music where its provenance allows
-- [ ] **Phase 18: Priority AI, Peaceful Traffic and the Station Queue** - The priority-AI framework, traders, shuttles, scavengers and escorts, the simplified station queue, the differential check and the complete AI manifest
-- [ ] **Phase 19: Police, Legal Status and Fines** - Offences and legal status, police and station defence, fines, fugitive refusal, contraband on launch and fast-dock fines
-- [ ] **Phase 20: Pirates, Hunters and Rescue** - Pirates and hunters, cargo demands, NPC fire against the player and each other, NPC escape capsules and rescue rewards
-- [ ] **Phase 21: Missiles, ECM and Defensive Equipment** - Standard and hardened missiles, the missile AI, ECM, energy unit, shield boosters and heat shield, with hardened missiles and the ECM now sold at F3
-- [ ] **Phase 22: Full Traffic, Asteroids and Mining** - Oolite's populator rates and repopulation, regenerated traffic on reload, asteroid fields, the rock hermit and its AI, and mining
-- [ ] **Phase 23: Performance Hardening with Traffic** - Combat draw-call and triangle budgets, a pre-declared simulation-cost bound, lazy first load, and 60 fps evidence on the reference desktop
 
-### Execution Order and Parallel Tracks
+### Execution order
 
-Critical path: **8 → 11 → 12 → (13 ∥ 14) → 18 → 19 → 20 → 22 → 23**. Phases 13 and 14 run side by side after Phase 12, and Phase 18 needs both. The AI track is the riskiest chain, so its fidelity gate (14) starts right after the first inert ships. The combat track continues 13 → 15 → 16. Phase 16 also depends on Phase 14 (tumbling and tractor scooping are native steering), Phase 19 needs 15, and Phase 20 needs 16.
-
-| Track | Phases | Can run beside | Must land before |
-|-------|--------|----------------|------------------|
-| Critical path | 8 → 11 → 12 → (13 ∥ 14) → 18 → 19 → 20 → 22 → 23 | — | — |
-| Content (build time) | 9 | 8, 10, 11 | 12 |
-| Octree runtime and mass | 10 | 8, 9, 11 | 12 (ship masses for blockage), 13 (first hit test, D4) |
-| Combat | 13 → 15 → 16 (16 also needs 14) | 14 beside 13 and 15 | 18 (needs 13), 19 (needs 15), 20 (needs 16) |
-| Audio | 17 | 16, 18, 19, 20 | 21 (missile sounds in play), 23 |
-| Missiles and equipment | 21 (after 20) | 22 | 23 |
-
-Ordering rules (research ARCHITECTURE section 12, the PITFALLS ordering constraints and the external reviews):
-
-- The session split comes first and changes no behaviour; the world core follows it in the same phase (Phase 8, unchanged).
-- No AI motion (Phase 14) before inert ships are on screen (Phase 12): the first visible ships test the render and budget assumptions.
-- The octree runtime (Phase 10) lands before the first hit test (Phase 13), per owner decision D4. Ship masses from it are needed by jump blockage in Phase 12.
-- Save v3 (Phase 11) lands before the first new persisted field (the laser mounts of Phase 13) and before the inert world is regenerated from a save (Phase 12).
-- The Escape/P/R binding migration (INPUT-01, Phase 13) lands before the escape pod (Phase 16).
-- The priority-AI port and the role phases (18-20, 22) start only after the owner accepts the Phase 14 fidelity report and selects the decision oracle. Phase 16 needs Phase 14 because pod and wreckage tumbling and tractor scooping are native steering behaviours.
-- Shields and the damage function (Phase 13) come before planet, sun and buoy collisions (Phase 15), per the owner's deferral of the collision todo.
-- NPC docking is the simplified queue (owner decision D8). It lands with the trader AI in Phase 18, before any trader docks, and police launches reuse it in Phase 19.
-- Audio (Phase 17) starts once the player combat sounds exist (Phase 15). It does not wait for missiles, whose event types are reserved in Phase 8.
-- Bulk AI and combat verification runs as Vitest scenarios: at least 90 % of new behavioural assertions. Browser specs stay opt-in smoke and journey coverage, with traffic off by default (Pitfalls 11 and 28). Every combat and AI phase (13, 14, 15, 16, 18, 19, 20, 21, 22) carries this as an acceptance criterion.
-- Every phase that adds buyable equipment extends the F3 visible set, which is the money-path boundary (PROJECT.md Key Decisions): lasers in 13, fuel scoop (`EQ_FUEL_SCOOPS`) in 15, escape pod (`EQ_ESCAPE_POD`) in 16, and in 21 the hardened missile (`EQ_HARDENED_MISSILE`), ECM (`EQ_ECM`), energy unit, shield boosters and heat shield. Each addition has purchase, persistence and normal-play tests.
+Phase 8 is the only phase. Its 16 plans run in the nine waves listed under Phase Details.
 
 ## Phase Details
 
 ### Phase 8: Session Split and World Core
 **Goal**: The game plays exactly as before, but runs on a multi-entity world model with stable ids, seeded per-entity random streams, a world hash and a typed seam for AI, and tests can step the simulation by ticks
 **Depends on**: Nothing in v2.0 (builds on the shipped v1.0 code)
-**Parallel track**: Phases 9 and 10 can run beside this phase
+**Parallel track**: None in v2.0 (Phases 9 and 10 moved to v2.1 on 2026-11-13; they have no consumer before Phases 12 and 13)
 **Requirements**: FOUND-10, FOUND-11, FOUND-12, FOUND-13, FOUND-14
 **Success Criteria** (what must be TRUE):
   1. A player can start, launch, fly, dock, trade, hyperspace, save and reload exactly as before `src/app/game-session.ts` is split into subsystems: every v1 golden, unit and e2e test passes without regeneration, and the published probe shape is unchanged through the split and the world integration (plans 08-01 to 08-15); after that, D-13 allows exactly one deliberate, additive probe commit (plan 08-16) that adds fields and renames or removes none.
@@ -167,6 +96,98 @@ Plans:
 
 **Wave 9** *(blocked on Wave 8 completion)*
 - [ ] 08-16-PLAN.md — One deliberate probe commit (D-13): probe.sim, worldHash, advanceTicks; browser/Vitest hash parity
+
+## 📋 v2.1 — Combat & Traffic (next milestone, unscheduled)
+
+**Not started and not yet planned for execution.** This section holds the former v2.0 scope beyond Phase 8, moved here on 2026-11-13 with phase numbers and requirement mappings unchanged. The text below was written when these phases belonged to v2.0: read "v2.0" in it as "the milestone that carries these phases" and Phase 8 as already shipped. Before v2.1 starts, run the milestone workflow again and re-check the order against what Phase 8's world core actually proved (see the provisional list in the v2.0 scope decision above).
+
+**Milestone goal (planned):** Space stops being empty: traders, pirates and police fly each system with Oolite's AI, the player can fight, die or eject, and their actions change their legal status.
+
+**Critical path in v2.1:** Phase 8 is done, so the path starts with Phases 9, 10 and 11 (9 and 10 beside each other, 11 before 12): **(9 ∥ 10) → 11 → 12 → (13 ∥ 14) → 18 → 19 → 20 → 22 → 23**.
+
+**Staged verification:** a requirement maps to the phase that completes it. Where an earlier phase delivers part of it, that phase states the part in its success criteria: SAVE-08 (Phases 11, 12 and 22), DATA-11 (stats in 9, mass in 10), WORLD-07 (inert ships drawn in 12, flying in 14), AI-08 (`nullAI` in 12, `dumbAI` tumble in 16), CBT-07 and CBT-15 (the shared hit rule in 13, police-versus-player fire in 19, pirate, hunter and NPC-versus-NPC fire in 20), AUD-01 (the sound map in 17, scoop, missile and ECM sounds in play in 21).
+
+### Review changes
+
+The first draft had 12 phases (8-19). Four external reviews (Gemini 4 Argon, DeepSeek V4 Pro, GPT-6 Luna, Kimi K3.1 Pro) all returned "approve with changes", and the owner accepted every finding on 2026-11-11 ("accept everything, ~16 phases"). REQUIREMENTS.md grew from 50 to 60 requirements. What changed and why:
+
+- **Octree runtime split from content** (DeepSeek, Kimi). Build-time octrees, ship mass and the runtime hull queries are Phase 10. It can start beside Phase 8 and lands before the first hit test (D4). DATA-11 now completes there.
+- **Combat split in two** (all four reviews: the old Phase 12 had 7 requirements across three systems). Phase 13 covers views, lasers, shields, the octree hit rule for any `ShipControl` shooter and docking restoration (DOCK-10). Phase 15 covers destruction, collisions, hazards, alerts and death.
+- **Escape/P/R bindings moved earlier** (Gemini, DeepSeek, Kimi). INPUT-01 moves from the old Phase 16 to Phase 13, before the escape pod (Phase 16), so the pause, ident and target-station migration and the browser specs that use those keys settle once.
+- **AI split into a fidelity gate and the framework** (all four; PITFALLS 6 says steering must not share a phase with the framework). Phase 14 is NPC flight and native steering with source-cited oracles, stated stuck and tunnelling thresholds, a bounded differential-harness spike and an owner gate. Phase 18 is the priority-AI framework, peaceful roles, the station queue and the manifest. The manifest is now a complete inventory generated from the pinned sources, and the priority-tree structural diff is a criterion (DeepSeek, Kimi). The dev-only harness stays by owner Key Decision, although Kimi and GPT-6 Luna suggested dropping it. Native steering is Objective-C and is checked by source-cited traces, as they asked.
+- **Inert-ship AIs and world lifecycle moved to the inert phase** (Gemini, DeepSeek). The new AI-08 (`nullAI`/`dumbAI`, split from AI-06) and the new WORLD-14 (clear at jump commit, repopulate on arrival) land in Phase 12, where those ships first exist. Round 2 below moves AI-08's completion to Phase 16.
+- **NPC fire got its own requirement** (GPT-6 Luna, Kimi). A test pilot proves the shared rule, not autonomous fire. The new CBT-15 lands in Phase 20 with NPC-versus-player and NPC-versus-NPC scenarios.
+- **Law split in two** (DeepSeek, Kimi). Phase 19 covers police, legal status, fines, fugitive refusal, and the new LAW-07 for contraband on launch and fast-dock fines (Gemini). Phase 20 covers pirates, hunters, demands and rescue, plus the new AI-10 for NPC escape capsules, with an end-to-end rescue scenario (Kimi).
+- **SAVE-08 verified in stages, anchor-based** (GPT-6 Luna, Kimi). The schema and anchor stage is in Phase 11, the regenerated inert world in Phase 12, and full traffic in Phase 22, which completes it. The comparison is always against a fresh arrival at the saved leg anchor, never the mid-leg world.
+- **Missing table-stakes rules placed** (Gemini). The new DOCK-08 (red alert and the docking-computer lockout), DOCK-09 (slot scrape damage) and DEATH-05 (sun-skimming and atmospheric heat) are in Phase 15. The new DOCK-10 (docking restoration) is in Phase 13. Phase 15 also owns wreckage lifetime and the entity cap (DeepSeek) and the cargo rule for pods. Phase 16 owns tractor scooping (Gemini).
+- **Rock hermit AI and the location-generator spike** (Gemini, Kimi). The new AI-09 joins asteroids and mining in Phase 22. A time-boxed location-generator spike is a noted task in Phase 18, so Phase 22 starts with named-system golden vectors.
+- **Escape-pod clock pinned** (GPT-6 Luna). DEATH-02 states Oolite's rule, 43,200 s plus 5,400 s times a 7-bit draw (`PlayerEntity.m:5830`), tested at 43,200 s and 729,000 s.
+- **Music provenance decided in content, played in audio** (GPT-6 Luna). Phase 9 delivers only the audited decision; Phase 17 plays music if the decision allows it.
+- **Audio no longer waits for missiles** (Kimi). Phase 17 starts after Phase 15, when the player combat sounds exist.
+- **Hardening has fixed budgets** (DeepSeek, GPT-6 Luna, Kimi). The numeric simulation bound, the container workload, the triangle budget and the reference-desktop protocol are declared before Phase 23 starts (QUAL-10). A breach becomes a follow-up phase; there is no in-phase Web Worker pivot.
+- **Kept unchanged:** Phase 8 (owner direction; Kimi's proposed split of Phase 8 was declined), the inert-before-AI order, traffic off by default in browser tests, and anchored saves without NPCs. Gemini's PROJECT.md wording fix was already applied.
+
+**Round 2** (2026-11-11; Gemini 4 Argon approve, DeepSeek V4 Pro, GPT-6 Luna and Kimi K3.1 Pro approve with changes; the owner asked for these targeted fixes, keeping 16 phases and 60/60 coverage):
+
+1. AI-08 no longer covers capsules: Oolite's escape capsule flies under `oolite-shuttleAI.js` (`shipdata.plist`, `oolite_template_escape-capsule`), so capsules stay with AI-10. AI-08 now completes in Phase 16, where pods and wreckage (released from Phase 15) tumble. Phase 12 keeps a staged check that `nullAI` ships stay inert.
+2. Phase 16 now depends on Phase 14, because tumbling and tractor scooping are native steering behaviours. `tractored` (`BEHAVIOUR_TRACTORED`, `ShipEntity.m:11217`) is added to AI-01's behaviour list.
+3. WORLD-07 ("NPC ships flying") now completes in Phase 14, where ships move. Phase 12 keeps a staged check: inert ships drawn within budget and on the scanner.
+4. Phase 14's oracles run against synthetic `WorldView`/`ShipControl` targets with fixed seeds, independent of content that arrives later. The fixtures are authored independently of the port, in a separate plan by a separate agent from the porter, and each is cited to Oolite source lines, so the port cannot validate itself.
+5. Phase 19 proves police-versus-player autonomous fire as part of AI-05, as a staged check of CBT-15. Phase 20 completes CBT-15 with the pirate, hunter and NPC-versus-NPC scenarios.
+6. Phase 21 now depends on Phase 20: pirates and hunters are the main hostile missile launchers, and criterion 2 names the launcher roles.
+7. Phase 21 adds `EQ_ECM` and `EQ_HARDENED_MISSILE` to the F3 visible set (the money-path boundary in `src/sim/player/outfitting.ts`), with purchase, persistence and normal-play firing tests. The F3 ordering rule is updated.
+8. AI-07: ported decisions are checked against the oracle the owner selects at the Phase 14 gate. The default is the dev-only differential harness; source-cited traces are used only if the owner accepts that fallback. Phases 14 and 18 say the same.
+9. Phase 17 proves the scoop sound with a synthetic event, like the missile and ECM sounds, and still does not depend on Phase 16. Phase 21, the first phase that depends on both 16 and 17, proves all three sounds in play.
+10. The critical path is now 8 → 11 → 12 → (13 ∥ 14) → 18 → 19 → 20 → 22 → 23, and Phase 16 depends on 14.
+11. The Vitest rule is now an acceptance criterion in every combat and AI phase (13, 14, 15, 16, 18, 19, 20, 21, 22): at least 90 % of new behavioural assertions are Vitest scenarios, and browser specs are opt-in smoke or journey checks only. To keep five criteria per phase, closely related criteria were merged in Phases 13, 14, 15 and 22.
+
+### Phase list (v2.1)
+
+- [ ] **Phase 9: NPC Content and Sound Provenance** - Ships, pods, capsules, asteroids and sounds compiled from Oolite with provenance and combat stats, kept out of the first load; an audited music decision
+- [ ] **Phase 10: Hull Octrees and Ship Mass** - Build-time octrees and Oolite's mass for every v2.0 hull, and runtime ray and hull queries that match Oolite
+- [ ] **Phase 11: Save Schema v3** - One bump with every v2.0 field, ordered migration, and saves that carry only the seed and counters of a leg anchor
+- [ ] **Phase 12: Inert Ships and the World Lifecycle** - Inert NPC ships drawn and on the scanner within budget, mass lock and jump blockage by ships, the world running behind the chart, cleared at each jump and repopulated on arrival
+- [ ] **Phase 13: Views, Lasers and Shields** - Four views, Oolite's lasers hitting octree hulls, shields and energy banks, docking restoration, and Oolite's keys for eject, pause and ident
+- [ ] **Phase 14: NPC Flight and Steering Fidelity Gate** - NPC ships seen flying with Oolite's flight model and native steering, proven against independently authored source-cited oracles; the harness spike and the owner's oracle choice gate the AI port
+- [ ] **Phase 15: Destruction, Hazards and Death** - Damage, wreckage and cargo, collisions, slot scrapes, heat, sun-skimming, planet and sun contact, the alert condition, and death
+- [ ] **Phase 16: Bounties, Salvage and the Escape Pod** - Bounties and combat rating, tumbling pods and wreckage, tractor scooping and jettison, repairs, and ejecting to continue on Oolite's terms
+- [ ] **Phase 17: Audio and Music** - Oolite's player-bound sound effects through Web Audio, autoplay-safe, with volume settings, and music where its provenance allows
+- [ ] **Phase 18: Priority AI, Peaceful Traffic and the Station Queue** - The priority-AI framework, traders, shuttles, scavengers and escorts, the simplified station queue, the differential check and the complete AI manifest
+- [ ] **Phase 19: Police, Legal Status and Fines** - Offences and legal status, police and station defence, fines, fugitive refusal, contraband on launch and fast-dock fines
+- [ ] **Phase 20: Pirates, Hunters and Rescue** - Pirates and hunters, cargo demands, NPC fire against the player and each other, NPC escape capsules and rescue rewards
+- [ ] **Phase 21: Missiles, ECM and Defensive Equipment** - Standard and hardened missiles, the missile AI, ECM, energy unit, shield boosters and heat shield, with hardened missiles and the ECM now sold at F3
+- [ ] **Phase 22: Full Traffic, Asteroids and Mining** - Oolite's populator rates and repopulation, regenerated traffic on reload, asteroid fields, the rock hermit and its AI, and mining
+- [ ] **Phase 23: Performance Hardening with Traffic** - Combat draw-call and triangle budgets, a pre-declared simulation-cost bound, lazy first load, and 60 fps evidence on the reference desktop
+
+### Execution Order and Parallel Tracks
+
+Critical path: **8 → 11 → 12 → (13 ∥ 14) → 18 → 19 → 20 → 22 → 23**. Phases 13 and 14 run side by side after Phase 12, and Phase 18 needs both. The AI track is the riskiest chain, so its fidelity gate (14) starts right after the first inert ships. The combat track continues 13 → 15 → 16. Phase 16 also depends on Phase 14 (tumbling and tractor scooping are native steering), Phase 19 needs 15, and Phase 20 needs 16.
+
+| Track | Phases | Can run beside | Must land before |
+|-------|--------|----------------|------------------|
+| Critical path | 8 → 11 → 12 → (13 ∥ 14) → 18 → 19 → 20 → 22 → 23 | — | — |
+| Content (build time) | 9 | 8, 10, 11 | 12 |
+| Octree runtime and mass | 10 | 8, 9, 11 | 12 (ship masses for blockage), 13 (first hit test, D4) |
+| Combat | 13 → 15 → 16 (16 also needs 14) | 14 beside 13 and 15 | 18 (needs 13), 19 (needs 15), 20 (needs 16) |
+| Audio | 17 | 16, 18, 19, 20 | 21 (missile sounds in play), 23 |
+| Missiles and equipment | 21 (after 20) | 22 | 23 |
+
+Ordering rules (research ARCHITECTURE section 12, the PITFALLS ordering constraints and the external reviews):
+
+- The session split comes first and changes no behaviour; the world core follows it in the same phase (Phase 8, unchanged).
+- No AI motion (Phase 14) before inert ships are on screen (Phase 12): the first visible ships test the render and budget assumptions.
+- The octree runtime (Phase 10) lands before the first hit test (Phase 13), per owner decision D4. Ship masses from it are needed by jump blockage in Phase 12.
+- Save v3 (Phase 11) lands before the first new persisted field (the laser mounts of Phase 13) and before the inert world is regenerated from a save (Phase 12).
+- The Escape/P/R binding migration (INPUT-01, Phase 13) lands before the escape pod (Phase 16).
+- The priority-AI port and the role phases (18-20, 22) start only after the owner accepts the Phase 14 fidelity report and selects the decision oracle. Phase 16 needs Phase 14 because pod and wreckage tumbling and tractor scooping are native steering behaviours.
+- Shields and the damage function (Phase 13) come before planet, sun and buoy collisions (Phase 15), per the owner's deferral of the collision todo.
+- NPC docking is the simplified queue (owner decision D8). It lands with the trader AI in Phase 18, before any trader docks, and police launches reuse it in Phase 19.
+- Audio (Phase 17) starts once the player combat sounds exist (Phase 15). It does not wait for missiles, whose event types are reserved in Phase 8.
+- Bulk AI and combat verification runs as Vitest scenarios: at least 90 % of new behavioural assertions. Browser specs stay opt-in smoke and journey coverage, with traffic off by default (Pitfalls 11 and 28). Every combat and AI phase (13, 14, 15, 16, 18, 19, 20, 21, 22) carries this as an acceptance criterion.
+- Every phase that adds buyable equipment extends the F3 visible set, which is the money-path boundary (PROJECT.md Key Decisions): lasers in 13, fuel scoop (`EQ_FUEL_SCOOPS`) in 15, escape pod (`EQ_ESCAPE_POD`) in 16, and in 21 the hardened missile (`EQ_HARDENED_MISSILE`), ECM (`EQ_ECM`), energy unit, shield boosters and heat shield. Each addition has purchase, persistence and normal-play tests.
+
+
+### Phase Details (v2.1)
 
 ### Phase 9: NPC Content and Sound Provenance
 **Goal**: Every ship, pod, missile, capsule, asteroid and sound v2.0 needs is compiled from the pinned Oolite snapshot with provenance and Oolite's combat stats, kept out of the first load, and each music track has an audited provenance decision
@@ -408,18 +429,19 @@ Plans:
 
 ### Unscheduled Todos
 
-These pending todos are not part of any v2.0 phase. They can run as quick tasks, or join a phase by owner decision.
+These pending todos are not part of any scheduled phase. They can run as quick tasks, or join a phase by owner decision.
 
 - `2026-11-11-terminal-color-palette-setting.md` — a UI setting with no v2.0 requirement.
-- `2026-11-11-cargo-purchase-cost-basis-tracking.md` — no v2.0 requirement; it adds a save field, so if the owner wants it in v2.0 it joins the single v3 bump in Phase 11.
+- `2026-11-11-cargo-purchase-cost-basis-tracking.md` — no v2.0 requirement; it adds a save field, so if the owner wants it, it joins the v3 bump in Phase 11 (v2.1).
 
 ### Coverage
 
-60 of 60 v2.0 requirements are mapped, each to exactly one phase (the phase that completes it); staged checks are named in the earlier phases' success criteria. The traceability table is in `.planning/REQUIREMENTS.md`.
+**v2.0:** 5 of 5 requirements are mapped to Phase 8 (FOUND-10, FOUND-11, FOUND-12, FOUND-13, FOUND-14). The traceability table is in `.planning/REQUIREMENTS.md`.
+
+**v2.1 (planned, unscheduled):** the other 55 requirements keep their phase mapping below; each maps to exactly one phase (the phase that completes it), and staged checks are named in the earlier phases' success criteria.
 
 | Phase | Count | Requirements |
 |-------|-------|--------------|
-| 8 | 5 | FOUND-10, FOUND-11, FOUND-12, FOUND-13, FOUND-14 |
 | 9 | 2 | DATA-10, DATA-12 |
 | 10 | 1 | DATA-11 |
 | 11 | 1 | SAVE-07 |
@@ -436,27 +458,27 @@ These pending todos are not part of any v2.0 phase. They can run as quick tasks,
 | 22 | 5 | WORLD-08, WORLD-12, AI-09, DEATH-04, SAVE-08 |
 | 23 | 3 | QUAL-01, QUAL-09, QUAL-10 |
 
-Phases 10 and 11 carry one requirement each by owner direction: each is a separately verifiable risk (octree fidelity, the one save bump) that the reviews asked to isolate. Phase 14 carries AI-01 and the completion of WORLD-07.
+Phases 10 and 11 carry one requirement each by owner direction: each is a separately verifiable risk (octree fidelity, the save bump) that the reviews asked to isolate. Phase 14 carries AI-01 and the completion of WORLD-07.
 
 ## Progress
 
-**Execution order:** 8 → (9 and 10 beside 8) → 11 → 12 → (13 ∥ 14; 14 may continue beside 15) → 15 → 16 → (17 beside 16-20) → 18 → 19 → 20 → (21 ∥ 22) → 23
+**Execution order:** v2.0: Phase 8. v2.1 (planned): (9 ∥ 10) → 11 → 12 → (13 ∥ 14; 14 may continue beside 15) → 15 → 16 → (17 beside 16-20) → 18 → 19 → 20 → (21 ∥ 22) → 23
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 8. Session Split and World Core | v2.0 | 0/TBD | Not started | - |
-| 9. NPC Content and Sound Provenance | v2.0 | 0/TBD | Not started | - |
-| 10. Hull Octrees and Ship Mass | v2.0 | 0/TBD | Not started | - |
-| 11. Save Schema v3 | v2.0 | 0/TBD | Not started | - |
-| 12. Inert Ships and the World Lifecycle | v2.0 | 0/TBD | Not started | - |
-| 13. Views, Lasers and Shields | v2.0 | 0/TBD | Not started | - |
-| 14. NPC Flight and Steering Fidelity Gate | v2.0 | 0/TBD | Not started | - |
-| 15. Destruction, Hazards and Death | v2.0 | 0/TBD | Not started | - |
-| 16. Bounties, Salvage and the Escape Pod | v2.0 | 0/TBD | Not started | - |
-| 17. Audio and Music | v2.0 | 0/TBD | Not started | - |
-| 18. Priority AI, Peaceful Traffic and the Station Queue | v2.0 | 0/TBD | Not started | - |
-| 19. Police, Legal Status and Fines | v2.0 | 0/TBD | Not started | - |
-| 20. Pirates, Hunters and Rescue | v2.0 | 0/TBD | Not started | - |
-| 21. Missiles, ECM and Defensive Equipment | v2.0 | 0/TBD | Not started | - |
-| 22. Full Traffic, Asteroids and Mining | v2.0 | 0/TBD | Not started | - |
-| 23. Performance Hardening with Traffic | v2.0 | 0/TBD | Not started | - |
+| 8. Session Split and World Core | v2.0 | 0/16 | Ready to execute | - |
+| 9. NPC Content and Sound Provenance | v2.1 (planned) | 0/TBD | Not started | - |
+| 10. Hull Octrees and Ship Mass | v2.1 (planned) | 0/TBD | Not started | - |
+| 11. Save Schema v3 | v2.1 (planned) | 0/TBD | Not started | - |
+| 12. Inert Ships and the World Lifecycle | v2.1 (planned) | 0/TBD | Not started | - |
+| 13. Views, Lasers and Shields | v2.1 (planned) | 0/TBD | Not started | - |
+| 14. NPC Flight and Steering Fidelity Gate | v2.1 (planned) | 0/TBD | Not started | - |
+| 15. Destruction, Hazards and Death | v2.1 (planned) | 0/TBD | Not started | - |
+| 16. Bounties, Salvage and the Escape Pod | v2.1 (planned) | 0/TBD | Not started | - |
+| 17. Audio and Music | v2.1 (planned) | 0/TBD | Not started | - |
+| 18. Priority AI, Peaceful Traffic and the Station Queue | v2.1 (planned) | 0/TBD | Not started | - |
+| 19. Police, Legal Status and Fines | v2.1 (planned) | 0/TBD | Not started | - |
+| 20. Pirates, Hunters and Rescue | v2.1 (planned) | 0/TBD | Not started | - |
+| 21. Missiles, ECM and Defensive Equipment | v2.1 (planned) | 0/TBD | Not started | - |
+| 22. Full Traffic, Asteroids and Mining | v2.1 (planned) | 0/TBD | Not started | - |
+| 23. Performance Hardening with Traffic | v2.1 (planned) | 0/TBD | Not started | - |

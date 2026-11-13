@@ -1,16 +1,17 @@
 # Requirements: Wegolite
 
 **Defined:** 2026-11-02
-**Milestone v2.0 defined:** 2026-11-11
+**Milestone v2.0 defined:** 2026-11-11; narrowed to Phase 8 only on 2026-11-13 (owner decision, see `.planning/ROADMAP.md` and PROJECT.md Key Decisions)
 **Core Value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
 
 ## v1 Requirements (archived)
 
 The v1.0 milestone (Phases 1-7) shipped as `v0.1.0` on 2026-11-08 and was archived on 2026-11-10.
 The full v1 requirement list (68 requirements, 67 complete) and its traceability table are in
-`.planning/milestones/v1.0-REQUIREMENTS.md`. QUAL-01, still open, is carried into v2.0 below.
+`.planning/milestones/v1.0-REQUIREMENTS.md`. QUAL-01, still open, is deferred again (2026-11-13) and carried into v2.1 below.
 
-## v2.0 Requirements — Foundation & Combat
+## v2.0 Requirements — Foundation
+
 
 Research: `.planning/research/SUMMARY.md` (and STACK, FEATURES, ARCHITECTURE, PITFALLS in the same directory).
 Oolite (pinned `7437f22`) is the behavioural and data source of truth. Every ported mechanic gets a `FIDELITY.md` row;
@@ -24,6 +25,12 @@ TypeScript; it is never executed at runtime.
 - [ ] **FOUND-12**: All simulation randomness comes from serialisable seeded streams forked per entity and purpose; `src/sim` has no `Math.random`, `Date` or wall clock, and a live world and a restored world hash identically after 1,000 ticks
 - [ ] **FOUND-13**: AI code reads the world only through a typed `WorldView` and acts only through a typed `ShipControl`; AI state is plain serialisable data with integer tick timers
 - [ ] **FOUND-14**: Tests can advance the simulation by N ticks through the test hook, and NPC traffic is off by default in browser tests and opt-in per spec
+
+## v2.1 Requirements — Combat & Traffic (planned, unscheduled)
+
+Moved out of v2.0 on 2026-11-13 with their phase mappings unchanged (Phases 9-23 in the v2.1 section of `.planning/ROADMAP.md`). They are tracked, not scheduled: before v2.1 starts, the milestone workflow re-checks them against what Phase 8's world core proved. Wording that says "v2.0" below was written before the move.
+
+QUAL-01 (carried from v1) is deferred again by the owner on 2026-11-13; it stays with Phase 23 and its "measured with traffic" wording.
 
 ### Content
 
@@ -151,7 +158,9 @@ Superseded by v2.0 requirements: CBT-01 (→ CBT-04..CBT-10), CBT-02 (→ WORLD-
 
 ## Traceability
 
-Which phases cover which requirements. Filled by the v2.0 roadmap on 2026-11-11 and revised the same day after external review (Phases 8-23 in `.planning/ROADMAP.md`). Each requirement maps to the phase that completes it.
+Which phases cover which requirements. Filled by the v2.0 roadmap on 2026-11-11, revised after external review the same day, and split on 2026-11-13 when v2.0 was narrowed to Phase 8. Each requirement maps to the phase that completes it.
+
+### v2.0 — Foundation
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -160,6 +169,11 @@ Which phases cover which requirements. Filled by the v2.0 roadmap on 2026-11-11 
 | FOUND-12 | Phase 8 | Pending |
 | FOUND-13 | Phase 8 | Pending |
 | FOUND-14 | Phase 8 | Pending |
+
+### v2.1 — Combat & Traffic (planned, unscheduled)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
 | DATA-10 | Phase 9 | Pending |
 | DATA-11 | Phase 10 | Pending |
 | DATA-12 | Phase 9 | Pending |
@@ -216,7 +230,7 @@ Which phases cover which requirements. Filled by the v2.0 roadmap on 2026-11-11 
 | QUAL-09 | Phase 23 | Pending |
 | QUAL-10 | Phase 23 | Pending |
 
-**Staged checks** (an earlier phase delivers part of a requirement and states that part in its success criteria):
+**Staged checks** (all v2.1) (an earlier phase delivers part of a requirement and states that part in its success criteria):
 - SAVE-08: stage 1, schema and leg-anchor semantics, in Phase 11; stage 2, the regenerated inert world, in Phase 12; final stage, full traffic and repopulation, in Phase 22.
 - DATA-11: Oolite combat stats compiled in Phase 9; the octree mass that completes it in Phase 10.
 - WORLD-07: inert ships drawn within the draw-call budget and on the scanner in Phase 12; ships seen flying, which completes it, in Phase 14.
@@ -226,11 +240,9 @@ Which phases cover which requirements. Filled by the v2.0 roadmap on 2026-11-11 
 - AI-07: the generated manifest and the decision check land in Phase 18, against the oracle the owner selects at the Phase 14 gate; Phases 19-22 keep them green as roles are ported.
 
 **Coverage:**
-- v2.0 requirements: 60 total
-- Mapped to phases: 60
-- Unmapped: 0
-- Per phase:
-  - Phase 8: 5 (FOUND-10, FOUND-11, FOUND-12, FOUND-13, FOUND-14)
+- v2.0 requirements: 5 total, 5 mapped to Phase 8 (FOUND-10, FOUND-11, FOUND-12, FOUND-13, FOUND-14), 0 unmapped
+- v2.1 requirements (planned): 55 total, 55 mapped, 0 unmapped
+- Per v2.1 phase:
   - Phase 9: 2 (DATA-10, DATA-12)
   - Phase 10: 1 (DATA-11)
   - Phase 11: 1 (SAVE-07)
@@ -249,4 +261,4 @@ Which phases cover which requirements. Filled by the v2.0 roadmap on 2026-11-11 
 
 ---
 *Requirements defined: 2026-11-02*
-*Last updated: 2026-11-11 for milestone v2.0 Foundation & Combat; traceability revised for the 16-phase roadmap (Phases 8-23) after two rounds of external review*
+*Last updated: 2026-11-13: v2.0 narrowed to Phase 8 (5 requirements); the other 55 moved to v2.1, unscheduled*

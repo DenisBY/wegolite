@@ -1,93 +1,18 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v2.0 — Foundation & Combat",
+  "milestone": "v2.0 — Foundation",
   "phases": [
     {
       "number": "8",
       "name": "Session Split and World Core",
-      "status": "pending"
-    },
-    {
-      "number": "9",
-      "name": "NPC Content and Sound Provenance",
-      "status": "pending"
-    },
-    {
-      "number": "10",
-      "name": "Hull Octrees and Ship Mass",
-      "status": "pending"
-    },
-    {
-      "number": "11",
-      "name": "Save Schema v3",
-      "status": "pending"
-    },
-    {
-      "number": "12",
-      "name": "Inert Ships and the World Lifecycle",
-      "status": "pending"
-    },
-    {
-      "number": "13",
-      "name": "Views, Lasers and Shields",
-      "status": "pending"
-    },
-    {
-      "number": "14",
-      "name": "NPC Flight and Steering Fidelity Gate",
-      "status": "pending"
-    },
-    {
-      "number": "15",
-      "name": "Destruction, Hazards and Death",
-      "status": "pending"
-    },
-    {
-      "number": "16",
-      "name": "Bounties, Salvage and the Escape Pod",
-      "status": "pending"
-    },
-    {
-      "number": "17",
-      "name": "Audio and Music",
-      "status": "pending"
-    },
-    {
-      "number": "18",
-      "name": "Priority AI, Peaceful Traffic and the Station Queue",
-      "status": "pending"
-    },
-    {
-      "number": "19",
-      "name": "Police, Legal Status and Fines",
-      "status": "pending"
-    },
-    {
-      "number": "20",
-      "name": "Pirates, Hunters and Rescue",
-      "status": "pending"
-    },
-    {
-      "number": "21",
-      "name": "Missiles, ECM and Defensive Equipment",
-      "status": "pending"
-    },
-    {
-      "number": "22",
-      "name": "Full Traffic, Asteroids and Mining",
-      "status": "pending"
-    },
-    {
-      "number": "23",
-      "name": "Performance Hardening with Traffic",
       "status": "pending"
     }
   ],
   "next": {
     "command": "/gsd-progress --next",
     "label": "Advance to the next step",
-    "reason": "Phase 1 of 16 · 0% · executing"
+    "reason": "Phase 1 of 1 · 0% · executing"
   },
-  "updated_at": "2026-11-12T08:44:03.415Z"
+  "updated_at": "2026-11-12T20:36:38.412Z"
 }

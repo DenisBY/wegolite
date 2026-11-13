@@ -8,17 +8,14 @@ Wegolite is a browser-based reimplementation of Oolite's core single-player expe
 
 A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
 
-## Current Milestone: v2.0 Foundation & Combat
+## Current Milestone: v2.0 Foundation
 
-**Goal:** Space stops being empty: traders, pirates and police fly each system with Oolite's AI, the player can fight, die or eject, and their actions change their legal status — built on a new multi-entity world model.
+**Goal:** The game plays exactly as v1 does, but runs on a multi-entity world model (stable ids, seeded per-entity random streams, a world hash, a typed AI seam and a tick-stepping test hook), so that the combat and traffic work after it builds on a proven base. Quality over speed: no player-visible feature ships in this milestone.
 
 **Target features:**
-- Foundation: split `src/app/game-session.ts` into subsystems; a multi-entity world model (stable ids, collision broadphase, world serialisation into determinism hashes and test snapshots (saves carry only the world seed and counters)); typed `ShipControl`/`WorldView` interfaces between AI and the sim
-- NPC AI and traffic, hand-ported to TypeScript from Oolite's JavaScript (the originals are the reference only): the AILib `PriorityAIController` framework, the combat-relevant role AIs (trader, pirate, police, scavenger, shuttle, station, missile), the native `ShipEntity` behaviours they drive, the populator, and the `nullAI`/`dumbAI` plist AIs
-- Combat: lasers, fore/aft shields, energy banks, missiles and ECM, damage and destruction, wreckage and cargo pods with scooping, bounties and legal status (clean/offender/fugitive) with a police response
-- Escape pod and insurance as the player-death outcome, as in Oolite
-- Collisions with the planet and the sun, with cabin/hull temperature
-- Sound and music through the Web Audio API, from `customsounds.plist`, with autoplay-safe start
+- Foundation (Phase 8, FOUND-10 to FOUND-14): split `src/app/game-session.ts` into subsystems; a multi-entity world model (stable ids, world serialisation into determinism hashes and test snapshots (saves carry only the world seed and counters; the world is not saved in v2.0)); typed `ShipControl`/`WorldView` interfaces between AI and the sim; `advanceTicks` in the test hook
+
+**Next milestone (v2.1 Combat & Traffic, unscheduled):** NPC content and octrees (Phases 9-10), save schema v3 (11), inert ships and the world lifecycle (12), combat and the AI fidelity gate (13-16), audio (17), priority AI and role traffic (18-20), missiles and equipment (21), full traffic, asteroids and mining (22), and performance hardening with the QUAL-01 evidence (23). The scope decision of 2026-11-13 moved all of it out of v2.0; see Key Decisions.
 
 ## Requirements
 
@@ -39,17 +36,17 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 ### Active
 
-<!-- Current scope. Building toward these. Milestone v2.0 Foundation & Combat. -->
+<!-- Current scope. Building toward these. Milestone v2.0 Foundation (Phase 8). The v2.1 items below are planned, unscheduled. -->
 
-- [ ] The simulation holds many entities (ships, stations, missiles, cargo pods, wreckage) with stable ids, serialised into determinism hashes and test snapshots; saves carry only the world seed and counters, and the world is regenerated from them
-- [ ] NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
-- [ ] NPC ships fly and fight with Oolite's priority AI, hand-ported to TypeScript
-- [ ] Player can fight with lasers, shields, energy banks, missiles and ECM, and destroy or be destroyed
-- [ ] Player can scoop cargo pods, earn bounties, and gain or lose legal status, with police responding
-- [ ] Player can eject in an escape pod and continue on insurance, as in Oolite
-- [ ] Player can collide with the planet and the sun and overheat
-- [ ] The game plays Oolite's sound effects and music, autoplay-safe
-- [ ] Client maintains a steady frame rate on desktop hardware (QUAL-01, carried forward)
+- [ ] (v2.0) The simulation holds many entities (ships, stations, missiles, cargo pods, wreckage) with stable ids, serialised into determinism hashes and test snapshots; saves carry only the world seed and counters, and the world is regenerated from them
+- [ ] (v2.1, planned) NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
+- [ ] (v2.1, planned) NPC ships fly and fight with Oolite's priority AI, hand-ported to TypeScript
+- [ ] (v2.1, planned) Player can fight with lasers, shields, energy banks, missiles and ECM, and destroy or be destroyed
+- [ ] (v2.1, planned) Player can scoop cargo pods, earn bounties, and gain or lose legal status, with police responding
+- [ ] (v2.1, planned) Player can eject in an escape pod and continue on insurance, as in Oolite
+- [ ] (v2.1, planned) Player can collide with the planet and the sun and overheat
+- [ ] (v2.1, planned) The game plays Oolite's sound effects and music, autoplay-safe
+- [ ] (v2.1, planned) Client maintains a steady frame rate on desktop hardware (QUAL-01, carried forward; deferred again on 2026-11-13)
 
 ### Out of Scope
 
@@ -192,15 +189,16 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 | Port Oolite's gameplay JavaScript (AILib, role AIs, populator) to TypeScript by hand; the vendored originals are the reference only | Owner choice for v2.0 after an external review by four models (GPT-6.1 Terra, Gemini 4 Argon, DeepSeek V4 Pro, Grok 4.7), all of which recommended a TypeScript port. The native `ShipEntity` behaviours must be ported in either option; AILib keeps its state in closures, caches and `Timer` callbacks, which cannot be serialised into saves or determinism hashes; a SpiderMonkey-compatible facade would cost about as much as the port. Role priority trees are written as typed TS literals rather than extracted at build time | — Pending |
 | Put typed `ShipControl` and `WorldView` interfaces between the AI decision layer and the simulation | Keeps the AI port testable as pure functions and leaves a seam a later JS facade (OXP) could bind to unchanged | — Pending |
 | Revise the "No expansion pack support. Ever" constraint to "not for now" | The owner's goal is now a port of all Oolite functionality; OXP stays out of v2.0 but may return through an explicit decision | — Pending |
-| Do not save NPCs; saves carry the world seed, counters and next entity id, and traffic is regenerated deterministically (v2.0 research D2) | Oolite removes every non-player entity on launch and repopulates (`Universe.m:5155`) and saves no NPC state; the v2 save already uses ~38.9 KB of the 65,536-character cap | — Pending |
-| Follow Oolite's bindings for the new actions: Escape (double press) ejects, P pauses, R is ident; target-station moves to a free key (D5) | Owner choice for fidelity; supersedes v1's Escape-as-pause and R-as-target-station; all bindings stay rebindable | — Pending |
-| Escape pod and insurance follow Oolite: ship and equipment kept, cargo and legal status wiped, clock advanced, no cash payout; without a pod death is game over (D6) | Core Oolite pays the player no insurance (`PlayerEntityContracts.m:61-125`) | — Pending |
-| Simplify NPC docking and launching in v2.0 (launch from the port, removal on docking through a simple queue); a faithful `StationEntity`/`DockEntity` port is a later milestone (D8) | The faithful queue is ~3,400 lines of Objective-C; recorded as a divergence | — Pending |
-| Keep the simulation running behind the galactic chart in flight (D3) | Matches Oolite and prevents pausing a fight by opening the chart; supersedes the v1 freeze; hyperspace e2e tests change accordingly | — Pending |
-| Hit-test lasers and ship contact against Oolite octrees built at build time; use an oriented box for missile and pod proximity (D4) | Octrees are needed for ship mass anyway; the runtime port of `Octree.m` is about 400 lines | — Pending |
+| Do not save NPCs; saves carry the world seed, counters and next entity id, and traffic is regenerated deterministically (v2.0 research D2) | Oolite removes every non-player entity on launch and repopulates (`Universe.m:5155`) and saves no NPC state; the v2 save already uses ~38.9 KB of the 65,536-character cap | — Pending (v2.1) |
+| Follow Oolite's bindings for the new actions: Escape (double press) ejects, P pauses, R is ident; target-station moves to a free key (D5) | Owner choice for fidelity; supersedes v1's Escape-as-pause and R-as-target-station; all bindings stay rebindable | — Pending (v2.1) |
+| Escape pod and insurance follow Oolite: ship and equipment kept, cargo and legal status wiped, clock advanced, no cash payout; without a pod death is game over (D6) | Core Oolite pays the player no insurance (`PlayerEntityContracts.m:61-125`) | — Pending (v2.1) |
+| Simplify NPC docking and launching in v2.0 (launch from the port, removal on docking through a simple queue); a faithful `StationEntity`/`DockEntity` port is a later milestone (D8) | The faithful queue is ~3,400 lines of Objective-C; recorded as a divergence | — Pending (v2.1) |
+| Keep the simulation running behind the galactic chart in flight (D3) | Matches Oolite and prevents pausing a fight by opening the chart; supersedes the v1 freeze; hyperspace e2e tests change accordingly | — Pending (v2.1) |
+| Hit-test lasers and ship contact against Oolite octrees built at build time; use an oriented box for missile and pod proximity (D4) | Octrees are needed for ship mass anyway; the runtime port of `Octree.m` is about 400 lines | — Pending (v2.1) |
 | Include in v2.0 the hardened missile, energy unit, shield booster, heat shield, NPC escape capsules with rescue rewards, pirate cargo demands, asteroid fields, rock hermit and mining laser | Owner choice at requirements scoping | — Pending |
 | Allow a dev-only differential harness that runs Oolite's original AI JavaScript in Node against a stub host as the test oracle for the hand port | The only independent check of the ported decision layer (research PITFALLS 5); the originals never reach the browser, so this is consistent with the hand-port decision; the stub's scope is bounded by a spike in the AI phase | — Pending |
 | Restructure the v2.0 roadmap after an external review (Gemini 4 Argon, DeepSeek V4 Pro, GPT-6 Luna, Kimi K3.1 Pro; all "approve with changes"): split the octree runtime, combat, AI and law phases; move the Escape/P bindings before the escape pod; verify CBT-07 and SAVE-08 in stages; add red alert, slot-scrape damage, docking restoration, sun-skimming and atmospheric heat, contraband and fast-dock fines, rock hermit AI, NPC capsules and hyperspace world clearing | Each reviewer found the 12-phase plan's AI, combat and law phases too large to verify, and the same ordering faults | — Pending |
+| Narrow v2.0 to Phase 8 alone (foundation first, quality over speed); everything else (Phases 9-23, 55 requirements) moves to an unscheduled v2.1 with phase numbers and mappings unchanged. Phases 9 and 10 have no consumer before Phases 12 and 13; Phase 11 is deferred because the D-02 seed policy (`mix32(marketSeed, epoch)`) becomes one-way once persisted and a narrowed v3 would break the one-bump rule (Pitfall 10); there is no coherent stopping point between Phase 8 and roughly Phases 16-20, because D-10 requires traffic in production. The AI seam, the snapshot codec and the reserved SimEvent types ship with only the scripted test pilot as a consumer, so they are provisional until Phases 12-14 exercise them; D-05 and the D-02 derivation stay revisable until Phase 12. QUAL-01 is deferred again | Owner decision on 2026-11-13 ("reduce to the necessary minimum"), after three independent model reviews (Opus, Fable, Sonnet) reached the same scope; the earlier candidates (phases 8-11, 8/9/10/12, 8-12) were rejected on dependencies (Phase 12 needs 11) and on speculative persistence | — Pending |
 
 ## Evolution
 
@@ -220,4 +218,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-11 at the start of milestone v2.0 Foundation & Combat*
+*Last updated: 2026-11-13: milestone v2.0 narrowed to Phase 8 (Foundation); the rest of the former scope is v2.1, unscheduled*
