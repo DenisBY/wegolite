@@ -27,6 +27,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSessionState } from "../../src/app/session/context.js";
 import type { SessionState } from "../../src/app/session/context.js";
 import { createFrameLoop } from "../../src/app/session/frame-loop.js";
+import { parseTestFlags } from "../../src/app/session/test-flags.js";
 import {
   EVENT_KIND_SUBSCRIBER,
   EVENT_SUBSCRIBER_ORDER,
@@ -550,6 +551,8 @@ describe("frame phase order", () => {
     options: {
       readonly mode?: FlightState["mode"];
       readonly stationActions?: readonly ActionId[];
+      /** Parse `?test=1&clock=manual` into the session's flags. */
+      readonly manualClock?: boolean;
     } = {},
   ): FrameHarness {
     const ctx = createSessionState({
@@ -562,6 +565,9 @@ describe("frame phase order", () => {
     ctx.core.state = state;
     ctx.core.layout = lave.layout;
     ctx.core.config = lave.config;
+    if (options.manualClock === true) {
+      ctx.runtime.testFlags = parseTestFlags("?test=1&clock=manual");
+    }
 
     const log: string[] = [];
     const pending: Command[] = [];
@@ -681,6 +687,36 @@ describe("frame phase order", () => {
     expect(handled.saveScreen).toEqual([["saveScreenUp"]]);
     expect(advanceDeltas).toEqual([0]);
     expect(probe.frames).toBe(1);
+  });
+
+  it("under the manual clock keeps every phase except the sim driver and draws at alpha 1", () => {
+    const { frame, log, probe, advanceDeltas } = frameHarness({
+      manualClock: true,
+      stationActions: ["stationMarket"],
+    });
+
+    frame(1000);
+
+    expect(log).toEqual([
+      "consumePauseToggle",
+      "drainChartActions",
+      "drainSaveScreenActions",
+      "drainStationActions",
+      "applyStationAction",
+      "shouldDraw",
+      "renderFrame 1 true",
+    ]);
+    expect(log).not.toContain("drainCommands");
+    expect(log).not.toContain("advanceFrame");
+    expect(advanceDeltas).toEqual([]);
+    expect(probe.frames).toBe(1);
+  });
+
+  it("without the manual clock the flag-less frame still reaches the sim driver", () => {
+    const { frame, log } = frameHarness();
+    frame(1000);
+    expect(log).toContain("advanceFrame");
+    expect(log).toContain("renderFrame 0.5 true");
   });
 
   it("reschedules itself before anything else and records the id", () => {

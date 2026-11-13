@@ -23,11 +23,18 @@ import {
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import { createFrameLoop } from "../../../src/app/session/frame-loop.js";
-import { createSimDriver } from "../../../src/app/session/sim-driver.js";
+import { createRedrawGate } from "../../../src/app/redraw-gate.js";
+import { createProbePublisher } from "../../../src/app/session/probe-publisher.js";
+import {
+  createSimDriver,
+  MAX_ADVANCE_TICKS,
+} from "../../../src/app/session/sim-driver.js";
 import { parseTestFlags } from "../../../src/app/session/test-flags.js";
 import { buildStepOptions } from "../../../src/app/session/step-options.js";
 import type { System } from "../../../src/content/types.js";
+import type { WegoliteProbe } from "../../../src/app/probe.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
+import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { Command } from "../../../src/sim/commands.js";
 import {
   PlayerController,
@@ -399,6 +406,316 @@ describe("the manual clock (tracer)", () => {
 
     expect(ctx.core.state?.tick).toBe(startTick + 5);
     expect(renders).toEqual([1, 1]);
+  });
+});
+
+describe("advanceTicks, the refusal table", () => {
+  const unsafe: readonly [string, number][] = [
+    ["zero", 0],
+    ["a negative count", -1],
+    ["a fraction", 1.5],
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+    ["one past the cap", MAX_ADVANCE_TICKS + 1],
+  ];
+
+  /** Nothing stepped, drained, tainted or autosaved; the tick is unchanged. */
+  function expectRefused(h: Harness, tick: number, result: number): void {
+    expect(result).toBe(tick);
+    expect(h.ctx.core.state?.tick ?? 0).toBe(tick);
+    expect(h.stepCommands).toHaveLength(0);
+    expect(h.counts.drains).toBe(0);
+    expect(h.counts.frames).toBe(0);
+    expect(h.log).toEqual([]);
+    expect(h.ctx.runtime.testTainted).toBe(false);
+  }
+
+  it.each(unsafe)("refuses %s", (_name, n) => {
+    const h = harness({ manual: true });
+    h.ctx.station.stationScreen = "home";
+    h.pending.push(launch);
+    expectRefused(h, 0, h.driver.advanceTicks(n));
+    expect(h.pending).toEqual([launch]);
+  });
+
+  it("accepts the cap itself as a valid count (one tick before it is refused)", () => {
+    // MAX_ADVANCE_TICKS is the largest accepted n; running it in full is the
+    // test's cost, so the boundary is pinned on the constant and on n = 1.
+    expect(MAX_ADVANCE_TICKS).toBe(200_000);
+    const h = harness({ manual: true });
+    expect(h.driver.advanceTicks(1)).toBe(1);
+  });
+
+  it("refuses while the session is disposed, before taint and drain", () => {
+    const h = harness({ manual: true });
+    h.ctx.runtime.disposed = true;
+    expectRefused(h, 0, h.driver.advanceTicks(3));
+  });
+
+  it("refuses while paused", () => {
+    const h = harness({ manual: true });
+    h.ctx.runtime.paused = true;
+    expectRefused(h, 0, h.driver.advanceTicks(3));
+  });
+
+  it("refuses while the chart is open", () => {
+    const h = harness({ manual: true });
+    h.ctx.chart.chartOpen = true;
+    expectRefused(h, 0, h.driver.advanceTicks(3));
+  });
+
+  it("refuses while the Save/Load screen is open", () => {
+    const h = harness({ manual: true });
+    h.ctx.save.saveScreenOpen = true;
+    expectRefused(h, 0, h.driver.advanceTicks(3));
+  });
+
+  it("refuses without the manual clock, with or without the hook", () => {
+    const plain = harness();
+    expectRefused(plain, 0, plain.driver.advanceTicks(3));
+
+    const hooked = harness();
+    hooked.ctx.runtime.testFlags = parseTestFlags("?test=1");
+    expectRefused(hooked, 0, hooked.driver.advanceTicks(3));
+
+    const inert = harness();
+    inert.ctx.runtime.testFlags = parseTestFlags("?clock=manual");
+    expectRefused(inert, 0, inert.driver.advanceTicks(3));
+  });
+
+  it("returns 0 and does nothing without a state", () => {
+    const h = harness({ manual: true });
+    h.ctx.core.state = undefined;
+    expectRefused(h, 0, h.driver.advanceTicks(5));
+  });
+
+  it("returns the live tick, not zero, when it refuses a started state", () => {
+    const h = harness({ manual: true });
+    expect(h.driver.advanceTicks(2)).toBe(2);
+    h.log.length = 0;
+    h.stepCommands.length = 0;
+    h.counts.drains = 0;
+    h.counts.frames = 0;
+    h.ctx.runtime.testTainted = false;
+    expect(h.driver.advanceTicks(0)).toBe(2);
+    expect(h.stepCommands).toHaveLength(0);
+    expect(h.log).toEqual([]);
+  });
+});
+
+describe("advanceTicks, the stepping contract", () => {
+  it("taints, then autosaves, then steps three ticks with the commands on the first only", () => {
+    const { ctx, driver, log, pending, stepCommands, counts } = harness({
+      manual: true,
+    });
+    ctx.station.stationScreen = "home";
+    pending.push(launch);
+    const start = ctx.core.state?.tick ?? -1;
+
+    const tick = driver.advanceTicks(3);
+
+    expect(tick).toBe(start + 3);
+    expect(counts.drains).toBe(1);
+    expect(counts.frames).toBe(1);
+    expect(pending).toHaveLength(0);
+    expect(log.filter((entry) => entry === "markHookMutation")).toHaveLength(1);
+    expect(log.filter((entry) => entry.startsWith("autosave"))).toEqual([
+      "autosave docked",
+    ]);
+    expect(log.slice(0, 3)).toEqual([
+      "markHookMutation",
+      "autosave docked",
+      "stepFlight",
+    ]);
+    expect(log.filter((entry) => entry === "stepFlight")).toHaveLength(3);
+    expect(stepCommands).toEqual([[launch], [], []]);
+  });
+
+  it("matches n single-tick drains for the realtime path's per-step commands", () => {
+    // The same launch drained through advanceFrame reaches the same first-step
+    // command list and the same autosave: the manual clock shares the drain.
+    const manual = harness({ manual: true });
+    manual.ctx.station.stationScreen = "home";
+    manual.queue.push(launch);
+    manual.driver.advanceTicks(3);
+
+    const realtime = harness();
+    realtime.queue.push(launch);
+    realtime.driver.advanceFrame(THREE_STEPS);
+
+    expect(manual.stepCommands).toEqual(realtime.stepCommands);
+    expect(manual.log.filter((entry) => entry.startsWith("autosave"))).toEqual(
+      realtime.log.filter((entry) => entry.startsWith("autosave")),
+    );
+    expect(manual.ctx.core.state?.tick).toBe(realtime.ctx.core.state?.tick);
+  });
+
+  it("shares one input frame across every step and never mutates it", () => {
+    const h = harness({ manual: true, mode: "inFlight" });
+    const original = h.ctx.runtime.input as unknown as {
+      frame: () => InputFrame;
+    };
+    let snapshot: InputFrame | undefined;
+    h.ctx.runtime.input = {
+      ...(original as object),
+      drainCommands: () => h.queue.splice(0),
+      frame: () => {
+        const next = original.frame();
+        snapshot = structuredClone(next);
+        return next;
+      },
+    } as unknown as KeyboardInputSource;
+
+    h.driver.advanceTicks(3);
+
+    expect(h.seenFrames).toHaveLength(3);
+    for (const seen of h.seenFrames) expect(seen).toBe(h.frames[0]);
+    expect(h.ctx.core.currentFrame).toBe(h.frames[0]);
+    expect(snapshot).toBeDefined();
+    expect(h.frames[0]).toEqual(snapshot);
+  });
+
+  it("propagates a throwing step, stays tainted and never autosaves after it", () => {
+    const h = harness({ manual: true });
+    const start = h.ctx.core.state?.tick ?? -1;
+    const boom = new Error("step failed");
+    let calls = 0;
+    hooks.onStep = () => {
+      h.log.push("stepFlight");
+      calls += 1;
+      if (calls === 2) {
+        h.log.push("throw");
+        throw boom;
+      }
+    };
+
+    expect(() => h.driver.advanceTicks(3)).toThrow(boom);
+
+    expect(h.ctx.runtime.testTainted).toBe(true);
+    expect(h.ctx.core.state?.tick).toBe(start + 1);
+    const thrownAt = h.log.indexOf("throw");
+    expect(thrownAt).toBeGreaterThan(0);
+    expect(
+      h.log.slice(thrownAt).filter((entry) => entry.startsWith("autosave")),
+    ).toEqual([]);
+  });
+
+  it("stops after the step that pauses the session", () => {
+    const h = harness({ manual: true });
+    const start = h.ctx.core.state?.tick ?? -1;
+    let calls = 0;
+    hooks.onStep = () => {
+      calls += 1;
+      if (calls === 2) h.ctx.runtime.paused = true;
+    };
+
+    expect(h.driver.advanceTicks(5)).toBe(start + 2);
+    expect(calls).toBe(2);
+  });
+
+  it("stops after the step that opens the chart", () => {
+    const h = harness({ manual: true });
+    const start = h.ctx.core.state?.tick ?? -1;
+    let calls = 0;
+    hooks.onStep = () => {
+      calls += 1;
+      if (calls === 2) h.ctx.chart.chartOpen = true;
+    };
+
+    expect(h.driver.advanceTicks(5)).toBe(start + 2);
+    expect(calls).toBe(2);
+  });
+
+  it("stops after the step that opens the Save/Load screen", () => {
+    const h = harness({ manual: true });
+    const start = h.ctx.core.state?.tick ?? -1;
+    let calls = 0;
+    hooks.onStep = () => {
+      calls += 1;
+      if (calls === 2) h.ctx.save.saveScreenOpen = true;
+    };
+
+    expect(h.driver.advanceTicks(5)).toBe(start + 2);
+    expect(calls).toBe(2);
+  });
+
+  it("stops after the step that disposes the session", () => {
+    const h = harness({ manual: true });
+    const start = h.ctx.core.state?.tick ?? -1;
+    let calls = 0;
+    hooks.onStep = () => {
+      calls += 1;
+      if (calls === 2) h.ctx.runtime.disposed = true;
+    };
+
+    expect(h.driver.advanceTicks(5)).toBe(start + 2);
+    expect(calls).toBe(2);
+  });
+});
+
+describe("markHookMutation, taint equivalence with the hook's mutate callback", () => {
+  function publisherHarness() {
+    const ctx = createSessionState({
+      system: lave.system,
+      saveStatus: "absent",
+      saveSkipReason: "",
+    });
+    const probe = {} as WegoliteProbe;
+    const gate = createRedrawGate();
+    const renderer = {
+      info: {
+        render: { calls: 0, triangles: 0, frame: 0 },
+        memory: { geometries: 0, textures: 0 },
+        programs: [],
+      },
+    };
+    const publisher = createProbePublisher(ctx, {
+      probe,
+      renderer: renderer as never,
+      scenes: { quality: () => "standard" },
+      saveProbe: {
+        status: "absent",
+        attempts: 0,
+        writes: 0,
+        committed: 0,
+        revision: 0,
+        lastClock: null,
+        continueVisible: false,
+        skipReason: "",
+        unavailable: false,
+      },
+      redrawGate: gate,
+      messages: createMessageQueue(4),
+      commitProfile: () => false,
+      swapSystem: () => Promise.resolve(),
+      disposeSystem: () => undefined,
+    });
+    const state = initFlightState(lave.layout);
+    ctx.core.state = state;
+    publisher.bindTestHook(state);
+    // Let the gate settle on the idle docked state.
+    const keys = [state];
+    while (gate.next(true, keys)) gate.drawn(keys);
+    expect(gate.next(true, keys)).toBe(false);
+    return { ctx, probe, gate, publisher, keys };
+  }
+
+  it("markHookMutation and a hook mutation have the same observable effects", () => {
+    const viaDriver = publisherHarness();
+    expect(viaDriver.ctx.runtime.testTainted).toBe(false);
+    viaDriver.publisher.markHookMutation();
+    viaDriver.publisher.updateProbe();
+
+    const viaHook = publisherHarness();
+    expect(viaHook.ctx.runtime.testTainted).toBe(false);
+    viaHook.probe.test?.setSpeed(42);
+    viaHook.publisher.updateProbe();
+
+    for (const side of [viaDriver, viaHook]) {
+      expect(side.ctx.runtime.testTainted).toBe(true);
+      expect(side.probe.test?.tainted).toBe(true);
+      expect(side.gate.next(true, side.keys)).toBe(true);
+    }
   });
 });
 
