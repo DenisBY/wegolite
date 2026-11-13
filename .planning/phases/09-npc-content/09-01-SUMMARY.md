@@ -90,7 +90,7 @@ coverage:
 | --- | --- | --- |
 | 1 (tracer) Viper end to end | `853c544` | 3 files, cross-check `checked=3 mismatches=0`, Vitest 28 passed |
 | 2 Other eight ships | `19eed99` | 39 files, cross-check `checked=42 mismatches=0`, Vitest 45 passed, `assets:check` no differences |
-| 3 Owner checkpoint | none (no code) | all cross-checks clean; checkpoint pending orchestrator confirmation: all hash cross-checks clean |
+| 3 Owner checkpoint | none (no code) | all cross-checks clean; checkpoint confirmed by the orchestrator on 2026-11-13 (independent re-run `checked=42 mismatches=0`) |
 
 ## Cross-check and diff results (exact outputs)
 
@@ -107,7 +107,7 @@ coverage:
 
 ## Checkpoint (Task 3)
 
-Per the orchestrator's delegation (owner asleep), every cross-check the checkpoint lists was run and recorded above; none showed a mismatch, failure or ambiguity. Checkpoint pending orchestrator confirmation: all hash cross-checks clean. The two exceptions the checkpoint asks the owner to confirm (network fetch through the sanctioned script at `7437f22` for these 42 files with mandatory cross-check; host-shell run of the read-only cross-check because the `wegolite-ci` image has no `git`) remain for plan 09-05 Task 3 to record in `.planning/PROJECT.md` Key Decisions.
+Per the orchestrator's delegation (owner asleep), every cross-check the checkpoint lists was run and recorded above; none showed a mismatch, failure or ambiguity. Checkpoint confirmed by the orchestrator on 2026-11-13: it re-ran `/tmp/wegolite-09-01/crosscheck.sh` independently and got `checked=42 mismatches=0`; `CHECKSUMS.sha256` grew by exactly 42 lines. The owner delegated this confirmation overnight (the owner's own sign-off on the two exceptions is the Key Decisions rows d and e). The two exceptions the checkpoint asks the owner to confirm (network fetch through the sanctioned script at `7437f22` for these 42 files with mandatory cross-check; host-shell run of the read-only cross-check because the `wegolite-ci` image has no `git`) remain for plan 09-05 Task 3 to record in `.planning/PROJECT.md` Key Decisions.
 
 ## Deviations from Plan
 
