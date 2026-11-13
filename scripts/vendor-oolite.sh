@@ -78,6 +78,7 @@ Models/oolite_coriolis.dat
 Models/oolite_coriolis_dock.dat
 Models/oolite_coriolis_faceplate.dat
 Models/oolite_coriolis_tris.dat
+Models/oolite_viper.dat
 Textures/oolite-nebula-1.png
 Textures/oolite-nebula-2.png
 Textures/oolite-nebula-3.png
@@ -103,6 +104,8 @@ Textures/oolite_coriolis_specular.png
 Textures/oolite_coriolis_tris_diffuse.png
 Textures/oolite_coriolis_tris_normal.png
 Textures/oolite_coriolis_tris_specular.png
+Textures/oolite_viper_diffuse.png
+Textures/oolite_viper_normal.png
 "
 
 for path in $FILES; do
