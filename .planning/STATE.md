@@ -5,16 +5,16 @@ milestone_name: Foundation
 current_phase: 08
 current_phase_name: Session Split and World Core
 status: executing
-stopped_at: Completed 08-08-PLAN.md
-last_updated: "2026-11-13T12:41:42.191Z"
+stopped_at: Completed 08-09-PLAN.md
+last_updated: "2026-11-13T13:00:27.301Z"
 last_activity: 2026-11-13
 last_activity_desc: v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1
-state_head: 878fd9947f990e7162c559dd14def5d91f78baa7
+state_head: f841decb397d765aedc3c7291021bed4da0edbaa
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 16
-  completed_plans: 8
+  completed_plans: 9
   percent: 0
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 08 (Session Split and World Core) — EXECUTING
-Plan: 8 of 16 complete (08-01 to 08-08 done; wave 4 is in progress, 08-09 is next)
+Plan: 9 of 16 complete (08-01 to 08-09 done; wave 4 is complete, wave 5 starts with 08-10)
 Status: Executing
-Last activity: 2026-11-13 — Completed 08-08 (split steps 5 and 6: station controller and save controller extracted; fake-context proofs of the trade rules, the save guard order and the loadFromSave order; verify-full green on a worktree of the step-6 commit b9c8f76)
+Last activity: 2026-11-13 — Completed 08-09 (AI types, integer tick time base, frozen registry, scripted test pilot and the AI lint zone: case-sensitive per-depth import allow-lists, createSeededRandom and module-level state bans, 106 guard probes; full test, lint and typecheck green on the task-3 commit b040c39)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -114,6 +114,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 08 P06 | 110 min | 2 tasks | 8 files |
 | Phase 08 P07 | 20 min | 2 tasks | 6 files |
 | Phase 08 P08 | 49 min | 2 tasks | 5 files |
+| Phase 08 P09 | 70min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -283,6 +284,7 @@ Recent decisions affecting current work:
 - [Phase 08]: 08-07: WorldView.scan resolves statics, player and dynamic entities through one locate(); ShipControl ignores (never clamps) out-of-domain writes and validates setTarget's uint32 domain only
 - [Phase 08]: 08-08: the station controller is built first; later-built owners (probe publisher, chart controller, save controller) are reached through call-time wrappers — the probe publisher, render driver and controllers take commitProfile, renderStation and syncStationNav, while the station controller needs their functions back; wrappers avoid a temporal-dead-zone read
 - [Phase 08]: 08-08: canOverwrite is a station-controller dependency, and the pure save-status helpers are module-level exports of the save controller — the two controllers do not import each other, and the facade can call statusSkipReason before the context exists
+- [Phase 08]: 08-09: AI zone is an allow-list regex per depth (case-sensitive), createSeededRandom banned by name, module-level mutable state banned; test pilot clears its target and returns to seek on target loss
 
 ### Pending Todos
 
@@ -354,6 +356,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T12:41:42.114Z
-Stopped at: Completed 08-08-PLAN.md
+Last session: 2026-11-13T13:00:27.220Z
+Stopped at: Completed 08-09-PLAN.md
 Resume file: None
