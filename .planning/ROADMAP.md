@@ -84,7 +84,14 @@ Ordering rules:
 **Research flag**: Medium — the ship list per role comes from `shipdata.plist` `roles`; 17 of 194 ship records have a vendored model today. The former estimate of about 37 more models also counted pods, missiles, capsules, wreckage and asteroids, which are now DATA-14 and deferred
 **Pitfalls to address**: 20 (catalogue growth behind the content golden and the drift gate; the client catalogue was trimmed to two entries by quick task 261109-s8k, so extend it with an explicit field list and never hand-edit generated data), 29 (licence and provenance of every new asset), 12 (first-load size: lazy role loading, D11)
 **Decisions to settle**: which ship records represent each role (every record that carries the role, or the subset the first populator places); D11 first-load ceiling (raise only on a recorded measurement). D10 (music provenance) leaves this phase with DATA-12 and goes to the audio phase
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — Vendor the nine NPC ships' 42 source files through the sanctioned script at 7437f22, with provenance rows, checksums and an owner-confirmed checkout cross-check
+- [ ] 09-02-PLAN.md — Generic single-mesh ship GLB builder and naming rule, proven end to end on the Viper; table-driven NPC GLB tests; NOTICE covers every GLB
+- [ ] 09-03-PLAN.md — The other eight role models, their 31 WebP and 9 emissive textures with provenance; modelVendored derived from MODEL_SOURCE_FILES
+- [ ] 09-04-PLAN.md — Nine six-field NPC records in ships-npc.json (DATA-11 stage 1) behind a strict schema, a hand-written golden and the drift gate; lazy client catalogue
+- [ ] 09-05-PLAN.md — AssetCache.loadNpcModel, cold-start and on-demand browser proofs, PERFORMANCE/CHANGELOG/Key Decisions, and the phase gate (verify, then the targeted specs)
 
 ### Phase 10: Ship Mass
 **Goal**: Every ship the inert world uses has Oolite's mass, computed at build time from an Oolite octree of its hull, and jump blockage uses one recorded Coriolis mass
