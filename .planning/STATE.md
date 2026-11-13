@@ -5,16 +5,16 @@ milestone_name: Foundation
 current_phase: 08
 current_phase_name: Session Split and World Core
 status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-11-12T20:36:38.389Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-11-13T08:48:49.810Z"
 last_activity: 2026-11-13
-last_activity_desc: "v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1"
-state_head: 92f2681c8ea160cba125010db61e1cdaefb28644
+last_activity_desc: v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1
+state_head: 9f2083c35acff7d38b3930917ba9d549056ab2eb
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 16
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -106,6 +106,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 7 P12 | unknown | 3 tasks | 6 files |
 | Phase 7 P09 | ~60 min | 3 tasks | 7 files |
 | Phase 07 P10 | approx. 15 min | 2 tasks | 3 files |
+| Phase 08 P01 | 43 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -258,6 +259,8 @@ Recent decisions affecting current work:
 - [Phase 7]: Plan 07-09: firefox-xvfb implemented (xvfb and xauth in cross stage, headed firefox project, xvfb-run -a in test:e2e:cross)
 - [Phase 7]: Plan 07-09: test:e2e:cross passes --workers=1; two headed Firefox windows on one xvfb display starve the engine smoke (0 renders), each spec passes alone
 - [Phase 7]: Plan 07-09: WEGOLITE_E2E_WAIT_SCALE 1 (Chromium/Firefox cadence ratio 0.45 rounds up to 1); no Firefox warning, allowlist unchanged
+- [Phase 08]: 08-01: probe-shape optional keys stay [hint]; volatile empty-array paths stay empty; nested state-determined members are waited for, not made optional
+- [Phase 08]: 08-01: verify-full baseline of 5b189e4 is red on two stale docked-home specs (scene.spec.ts:111, docking.spec.ts:371, labels changed by 46c9305); recorded as measured, logged as deferred-items D-1, not fixed by 08-01
 
 ### Pending Todos
 
@@ -283,6 +286,7 @@ Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassM
 - [Project] Licence election and trademark posture need a professional legal read before the first public post.
 - G-03-3 accepted as a known issue (2026-11-04, `PROJECT.md` Key Decisions): the loaded in-flight frame (369.4 ms at 2.71 fps under SwiftShader) is fill-bound and the planet fragment shader owns ~281 ms; the cheap fixes (`antialias:false` ~135 ms, half resolution ~199 ms) would change the approved look. The message-expiry spec is a correctness wait, so it now has a 300 s ceiling with `workers: 2` pinned; QUAL-01 (60 fps at 1080p, mid-range hardware) stays Phase 7's requirement on a real GPU. Do not re-open the octave budget: `BUDGET_CEILING = 9`.
 - [Test infra] `tests/guards/content-boundary.test.ts > removes the probe even when the body throws` runs on Vitest's 5 s default while its five siblings use `180_000`; it timed out at 5 s in one full `verify` run under load and passes in isolation (file 6/6 in 24 s). Give it an explicit timeout — unrelated to 03-14.
+- Phase 8 baseline: verify and verify-full are red on the phase base (stale specs scene.spec.ts:111 and docking.spec.ts:371, see 08 deferred-items D-1); decide whether to fix before split step 1
 
 ### Quick Tasks Completed
 
@@ -328,6 +332,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-11T20:07:29.409Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-session-split-and-world-core/08-CONTEXT.md
+Last session: 2026-11-13T08:48:49.744Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None
