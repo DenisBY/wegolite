@@ -26,10 +26,7 @@ import { loadEquipment } from "../content/equipment.js";
 import { loadCommodities } from "../content/commodities.js";
 import { loadLabels } from "../content/labels.js";
 import type { System } from "../content/types.js";
-import {
-  createDockFeedback,
-  shouldEmitScrapeMessage,
-} from "./dock-feedback.js";
+import { shouldEmitScrapeMessage } from "./dock-feedback.js";
 import { mapHyperspaceBeginEdges } from "./hyperspace-commands.js";
 import { createGameLoop } from "./game-loop.js";
 import { publishFailure } from "./probe.js";
@@ -39,28 +36,22 @@ import { createHintController } from "./hints.js";
 import { createLaunchSequence } from "./launch-sequence.js";
 import { createRedrawGate } from "./redraw-gate.js";
 import { createSessionState } from "./session/context.js";
-import { createProbePublisher, toTuple } from "./session/probe-publisher.js";
+import { createProbePublisher } from "./session/probe-publisher.js";
 import { createRenderDriver } from "./session/render-driver.js";
 import type { RenderDriver } from "./session/render-driver.js";
 import { createChartController } from "./session/chart-controller.js";
 import { createSettingsController } from "./session/settings-controller.js";
+import {
+  canOverwrite,
+  createSaveController,
+  statusSkipReason,
+} from "./session/save-controller.js";
 import { createStationController } from "./session/station-controller.js";
 import type { SessionState } from "./session/context.js";
 import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
-import {
-  queueAutosave,
-  profileFromSave,
-  restoreFromSave,
-  snapshotForSave,
-} from "../persistence/autosave.js";
-import { parseSave } from "../persistence/save.js";
-import type {
-  SaveAllowLists,
-  SaveInputs,
-  SaveParseFailure,
-  SaveV2,
-} from "../persistence/save.js";
+import { profileFromSave, restoreFromSave } from "../persistence/autosave.js";
+import type { SaveAllowLists, SaveV2 } from "../persistence/save.js";
 import type { SaveStore, SaveStatus } from "../persistence/store.js";
 import { createBreakPattern } from "../render/break-pattern.js";
 import { createHud } from "../render/hud/hud.js";
@@ -99,7 +90,6 @@ import type { TradePlan } from "../sim/economy/trade.js";
 import { applyFit, checkFit } from "../sim/player/outfitting.js";
 import { createChart } from "../ui/chart.js";
 import { createSaveLoadScreen } from "../ui/save-load.js";
-import { formatClock } from "../render/hud/format.js";
 import { buildChartView } from "../ui/chart-model.js";
 import { buildSystemDataModel } from "../ui/station-model.js";
 import { createStationNav } from "../ui/station-nav.js";
@@ -107,7 +97,6 @@ import { DT } from "../sim/time.js";
 import { deriveSystemLayout } from "../sim/world/layout.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import { createKeyboardInputSource } from "../input/keyboard.js";
-import type { ActionId } from "../input/actions.js";
 import { createBindingMap } from "../input/bindings.js";
 import { loadSettings } from "../settings/store.js";
 import { createControlsPanel } from "../ui/controls.js";
@@ -298,15 +287,21 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     syncEconomyProbe: () => {
       probePublisher.syncEconomyProbe();
     },
-    autosave,
+    autosave: () => {
+      saveController.autosave();
+    },
     openChart: () => {
       chartController.openChart();
     },
     closeChart: () => {
       chartController.closeChart();
     },
-    openSaveScreen,
-    closeSaveScreen,
+    openSaveScreen: () => {
+      saveController.openSaveScreen();
+    },
+    closeSaveScreen: () => {
+      saveController.closeSaveScreen();
+    },
   });
   const {
     ensureSelection,
@@ -351,6 +346,37 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     targetSystem,
   });
   const { renderFrame, shouldDraw } = renderDriver;
+
+  // D-12 step 6: autosave, manual save, in-session Load, the New-game clear and
+  // the F2 Save/Load screen. The station controller built above reaches the
+  // autosave and the two screen openers through call-time wrappers.
+  const saveController = createSaveController(ctx, {
+    saveBoot,
+    galaxyById,
+    docked,
+    hudCanvas,
+    probe,
+    messages,
+    enterSystemById,
+    syncStatusOverlay,
+    renderFrame,
+    renderStation,
+    syncStationNav,
+    ensureSelection,
+    updateProbe: probePublisher.updateProbe,
+    syncSaveProbe: probePublisher.syncSaveProbe,
+    syncEconomyProbe: probePublisher.syncEconomyProbe,
+    bindTestHook: probePublisher.bindTestHook,
+  });
+  const {
+    autosave,
+    manualSave,
+    writeManualSave,
+    loadFromSave,
+    clearSaveForNewGame,
+    closeSaveScreen,
+    handleSaveScreenActions,
+  } = saveController;
 
   // D-12 step 4: the chart overlay's logic, and pause, focus loss, context loss,
   // the controls and settings panels and graphics quality. Neither factory
@@ -401,429 +427,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     return "Hull contact - pull away and line up with the slot";
   }
 
-  function isStoreUnavailable(reason: string | undefined): boolean {
-    return (
-      reason === "unavailable" ||
-      reason === "version" ||
-      reason === "blocked" ||
-      reason === "disposed"
-    );
-  }
-
-  /**
-   * Only a blob this build positively owns may be replaced. `unavailable` (the
-   * read failed or the database would not open) and `unreadable` are
-   * untouchable: the writer must never overwrite something it could not read.
-   */
-  function canOverwrite(status: SaveStatus): boolean {
-    return status === "absent" || status === "valid";
-  }
-
-  /**
-   * Only a blob this build positively understands may be deleted. A corrupt
-   * v1-shaped blob is eligible (boot already copied it aside); `future`,
-   * `unreadable` and `unavailable` are not.
-   */
-  function canClear(status: SaveStatus): boolean {
-    return status === "absent" || status === "valid" || status === "corrupt";
-  }
-
-  /** The probe's short reason for a skipped autosave or clear. */
-  function statusSkipReason(status: SaveStatus): string {
-    if (status === "future") return "future";
-    if (status === "unreadable") return "unreadable";
-    if (status === "unavailable") return "unavailable";
-    // A corrupt blob is recognised but not overwritable (`canOverwrite`), so
-    // its reason must be visible rather than silently blank.
-    if (status === "corrupt") return "corrupt";
-    return "";
-  }
-
-  /** Publish one app-owned save notice on the F2 screen and station footer. */
-  function setSaveNotice(text: string): void {
-    ctx.save.saveScreenNotice = text;
-    ctx.station.stationSaveNotice = text;
-    ctx.save.saveLoad?.setNotice(text);
-    probePublisher.syncSaveProbe();
-  }
-
-  /**
-   * Build the one schema input set used by both the autosave anchors and the
-   * manual F2 Save, so the two producers can never diverge (D-21).
-   */
-  function buildSnapshotInputs(): SaveInputs | undefined {
-    const currentState = ctx.core.state;
-    const currentStationKey = ctx.core.stationKey;
-    const currentMarket = ctx.core.market;
-    const catalogue = ctx.core.commodities;
-    if (
-      currentState === undefined ||
-      currentStationKey === undefined ||
-      currentMarket === undefined ||
-      catalogue === undefined
-    ) {
-      return undefined;
-    }
-    return snapshotForSave(
-      currentState,
-      ctx.core.profile,
-      ctx.core.system,
-      { key: currentStationKey },
-      currentMarket,
-      catalogue,
-      ctx.core.hyperspaceTargetId,
-    );
-  }
-
-  /**
-   * Encode and queue one snapshot on the one serialized revision queue. The
-   * probe only publishes a committed revision, clock and notice when the
-   * transaction completes.
-   */
-  function queueSnapshot(inputs: SaveInputs, manual: boolean): void {
-    ctx.save.saveRevision += 1;
-    const revision = ctx.save.saveRevision;
-    ctx.save.saveWrites += 1;
-    ctx.save.saveSkipReason = "";
-    probePublisher.syncSaveProbe();
-    // The frame loop never awaits this; `queueAutosave` cannot reject.
-    void queueAutosave(saveBoot.store, revision, inputs, saveBoot.allow).then(
-      (result) => {
-        if (manual) ctx.save.manualSavePending = false;
-        if (result.committed) {
-          ctx.save.saveCommitted += 1;
-          ctx.save.saveCommittedRevision = revision;
-          ctx.save.saveLastClock = inputs.clockSeconds;
-          ctx.save.saveStatus = "valid";
-          ctx.save.saveSkipReason = "";
-          if (manual) {
-            setSaveNotice(`Saved at ${formatClock(inputs.clockSeconds)}`);
-          } else {
-            ctx.station.stationSaveNotice = "";
-          }
-        } else if (isStoreUnavailable(result.reason)) {
-          ctx.save.saveUnavailable = true;
-          ctx.save.saveSkipReason = result.reason ?? "";
-          if (manual) setSaveNotice("Save failed — progress not saved");
-          else
-            ctx.station.stationSaveNotice = "Save failed — progress not saved";
-        } else {
-          // A rejected snapshot (invalid-save) or a store failure is visible
-          // but non-blocking: the in-memory session remains playable.
-          ctx.save.saveSkipReason = result.reason ?? "";
-          if (manual) setSaveNotice("Save failed — progress not saved");
-          else
-            ctx.station.stationSaveNotice = "Save failed — progress not saved";
-        }
-        probePublisher.syncSaveProbe();
-        if (!ctx.runtime.disposed) {
-          renderStation();
-          if (ctx.save.saveScreenOpen)
-            ctx.save.saveLoad?.setSlot(saveSlotText());
-        }
-      },
-    );
-  }
-
-  /**
-   * DOCK-07: a write can only follow a launch or a purchase. A future,
-   * unreadable or unavailable blob leaves the write path disabled for the whole
-   * session; a tainted profile (any `?test=1` mutation) must never become
-   * durable. Every skip is visible in the probe.
-   */
-  function autosave(): void {
-    // WR-03: recorded before every skip, so a test can prove that a dock never
-    // even reached this function while the taint guard still suppresses writes.
-    ctx.save.saveAttempts += 1;
-    // QUAL-05 (T-07-05): no write while the context is lost, before any other
-    // guard, and never a queued snapshot (research Pitfall 9).
-    if (ctx.runtime.contextLost) {
-      ctx.save.saveSkipReason = "recovering";
-      probePublisher.syncSaveProbe();
-      return;
-    }
-    if (!canOverwrite(ctx.save.saveStatus)) {
-      ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
-      probePublisher.syncSaveProbe();
-      return;
-    }
-    if (ctx.runtime.testTainted) {
-      ctx.save.saveSkipReason = "tainted";
-      probePublisher.syncSaveProbe();
-      return;
-    }
-    const inputs = buildSnapshotInputs();
-    if (inputs === undefined) {
-      ctx.save.saveSkipReason = "not-ready";
-      probePublisher.syncSaveProbe();
-      return;
-    }
-    queueSnapshot(inputs, false);
-  }
-
-  /**
-   * D-21: the manual Save writes the one `autosave` key through the same
-   * `snapshotForSave` + `queueAutosave` path. A committed valid slot asks first;
-   * only absent/valid slots may be written at all (T-06-15).
-   */
-  function manualSave(): void {
-    ctx.save.saveAttempts += 1;
-    // QUAL-05 (T-07-05): the same recovery guard as autosave, ahead of every
-    // other check, so a lost context can never reach queueSnapshot.
-    if (ctx.runtime.contextLost) {
-      ctx.save.saveSkipReason = "recovering";
-      probePublisher.syncSaveProbe();
-      return;
-    }
-    if (ctx.save.manualSavePending) {
-      setSaveNotice("Save already in progress");
-      return;
-    }
-    if (!canOverwrite(ctx.save.saveStatus)) {
-      ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
-      setSaveNotice("Saving is disabled — this save is read-only");
-      return;
-    }
-    if (ctx.runtime.testTainted) {
-      ctx.save.saveSkipReason = "tainted";
-      setSaveNotice("Save skipped — test changes are not saved");
-      return;
-    }
-    if (ctx.save.saveStatus === "valid") {
-      // The committed slot is the only save: ask before replacing it. The
-      // dialog's own state is the only gate, so a second Save while it is open
-      // does nothing, and a Cancel that closed it leaves the next Save live.
-      if (ctx.save.saveLoad?.isConfirming() !== true) {
-        ctx.save.saveLoad?.confirmOverwrite();
-        probePublisher.updateProbe();
-      }
-      return;
-    }
-    writeManualSave();
-  }
-
-  /** The confirmed (or absent-slot) manual write; never asks again. */
-  function writeManualSave(): void {
-    ctx.save.saveLoad?.cancelOverwrite();
-    probePublisher.updateProbe();
-    const inputs = buildSnapshotInputs();
-    if (inputs === undefined) {
-      ctx.save.saveSkipReason = "not-ready";
-      setSaveNotice("Save failed — the game is not ready");
-      return;
-    }
-    ctx.save.manualSavePending = true;
-    queueSnapshot(inputs, true);
-  }
-
-  /**
-   * D-23: the app-owned copy for a load that never touched the session.
-   * `absent` is not an error state; the rest explain why the blob was refused.
-   */
-  function loadFailureCopy(reason: SaveParseFailure): string {
-    switch (reason) {
-      case "absent":
-        return "No saved game to load";
-      case "future-version":
-        return "Save is from a newer version of Wegolite — cannot load";
-      case "corrupt":
-        return "Save is corrupt — cannot load";
-      case "unreadable":
-        return "Save could not be read";
-    }
-  }
-
-  /** Show a failed load on the open overlay; the session is untouched. */
-  function failLoad(copy: string): void {
-    setSaveNotice(copy);
-    probePublisher.updateProbe();
-  }
-
-  /**
-   * D-22/SAVE-05: in-session Load through the exact boot pipeline.
-   *
-   * Everything that can throw — the read, the schema/migration/validator, the
-   * saved system and layout, the restored state and the regenerated market —
-   * happens before any live reference moves. Only then is the destination
-   * scene built, and the install block that follows has no early return. A
-   * failure therefore leaves the current scene, state, profile, market and
-   * IndexedDB bytes exactly as they were (T-06-16).
-   */
-  async function loadFromSave(): Promise<void> {
-    const currentInput = ctx.runtime.input;
-    const currentStationDef = ctx.core.stationDef;
-    const catalogue = ctx.core.commodities;
-    if (
-      ctx.save.loadingSave ||
-      !ctx.save.saveScreenOpen ||
-      currentInput === undefined ||
-      currentStationDef === undefined ||
-      catalogue === undefined
-    ) {
-      return;
-    }
-    ctx.save.loadingSave = true;
-    try {
-      const read = await saveBoot.store.read();
-      // G-8: F2 may have been closed during the IndexedDB await. A closed
-      // screen must not be overwritten by a save the player walked away from.
-      if (ctx.runtime.disposed || !ctx.save.saveScreenOpen) return;
-      if (read.kind !== "ok") {
-        failLoad(
-          read.kind === "absent"
-            ? loadFailureCopy("absent")
-            : "Save could not be read",
-        );
-        return;
-      }
-      // SAVE-01: the same parser, migration and allow-lists as boot.
-      const parsed = parseSave(read.raw, saveBoot.allow);
-      if (!parsed.ok) {
-        failLoad(loadFailureCopy(parsed.reason));
-        return;
-      }
-      const saved = parsed.save;
-      const savedSystem = galaxyById.get(saved.system.id);
-      if (savedSystem === undefined) {
-        failLoad("Save is corrupt — cannot load");
-        return;
-      }
-
-      let restored;
-      let savedLayout;
-      let nextMarket;
-      let nextSeed;
-      let nextTarget: string | undefined;
-      try {
-        savedLayout = deriveSystemLayout(savedSystem, currentStationDef);
-        restored = restoreFromSave(saved, savedLayout, profileFromSave);
-        // One seed beside the market it generated: a later arrival chains to
-        // the market the player is actually looking at.
-        nextSeed =
-          restored.market?.seed ??
-          restored.marketSeed ??
-          marketSeedForSystem(saved.system.id);
-        nextMarket =
-          restored.market ?? generateMarket(savedSystem, catalogue, nextSeed);
-        nextTarget =
-          saved.targetSystem !== undefined && galaxyById.has(saved.targetSystem)
-            ? saved.targetSystem
-            : undefined;
-      } catch {
-        failLoad("Save could not be loaded");
-        return;
-      }
-
-      // enterSystemById derives the destination layout before the scene manager
-      // switches, so a failure there is caught and leaves the origin scene and
-      // the session untouched. The scene manager installs the new scene before
-      // it retires the old one, and a retire failure is logged there, not thrown.
-      let nextLayout: SystemLayout;
-      try {
-        nextLayout = enterSystemById(saved.system.id);
-      } catch {
-        failLoad("Save could not be loaded");
-        return;
-      }
-
-      // One synchronous install block: no early return after this point.
-      ctx.core.state = restored.state;
-      ctx.core.layout = nextLayout;
-      ctx.core.profile = restored.profile;
-      ctx.core.market = nextMarket;
-      ctx.core.marketSeed = nextSeed;
-      ctx.core.hyperspaceTargetId = nextTarget;
-      syncStatusOverlay();
-      // G-8: nothing from the replaced session may outlive the Load. The
-      // message queue is keyed to the old flight clock, so a stale line would
-      // survive the restored clock; the dock envelopes and scrape throttle are
-      // keyed the same way. A fresh feedback instance drops both envelopes.
-      messages.clear();
-      ctx.core.lastScrapeMessageTime = null;
-      ctx.core.dockFeedback = createDockFeedback();
-      if (ctx.runtime.testHookEnabled)
-        probePublisher.bindTestHook(restored.state);
-      ctx.core.previousPose = poseOf(restored.state);
-      ctx.core.currentPose = ctx.core.previousPose;
-      ctx.core.previousCameraWorld = undefined;
-      ctx.station.stationScreen = "home";
-      ctx.station.stationPending = null;
-      ctx.station.stationNotice = "";
-      ctx.station.stationMessage = "";
-      ctx.station.stationPage = 1;
-      ctx.chart.chartSelectedId = undefined;
-      ctx.station.lastTrade = null;
-      ctx.chart.chartOpen = false;
-      ctx.chart.chart?.hide();
-      ctx.save.saveScreenOpen = false;
-      ctx.save.manualSavePending = false;
-      ctx.save.saveScreenNotice = "";
-      ctx.save.saveLoad?.cancelOverwrite();
-      ctx.save.saveLoad?.hide();
-      ctx.save.saveStatus = "valid";
-      ctx.save.saveLastClock = saved.clockSeconds;
-      ctx.save.saveSkipReason = "";
-      const restoredDocked = restored.state.mode === "docked";
-      currentInput.setContext(restoredDocked ? "dockHome" : "flight");
-      if (restoredDocked) {
-        docked.show(ctx.core.system.name);
-        hudCanvas.hidden = true;
-        ensureSelection();
-        renderStation();
-      } else {
-        docked.hide();
-        hudCanvas.hidden = false;
-        probePublisher.syncEconomyProbe();
-      }
-      syncStationNav();
-      // Publish the installed pose once, exactly like the boot restore, so a
-      // proof reads the saved numbers and not a resumed simulation.
-      probe.restore = {
-        mode: restoredDocked ? "docked" : "inFlight",
-        systemId: ctx.core.system.id,
-        position: toTuple(restored.state.position),
-        orientation: [
-          restored.state.orientation.w,
-          restored.state.orientation.x,
-          restored.state.orientation.y,
-          restored.state.orientation.z,
-        ],
-        speed: restored.state.speed,
-        clock: restored.state.clockSeconds,
-      };
-      probePublisher.syncSaveProbe();
-      // Hidden time is never replayed: discard the read latency.
-      ctx.runtime.loop?.reset();
-      ctx.runtime.lastMs = 0;
-      renderFrame(0);
-    } finally {
-      ctx.save.loadingSave = false;
-    }
-  }
-
-  /**
-   * New game clears only a save this build understands. A future, unreadable,
-   * unavailable or otherwise unknown blob is left byte-identical (WR-04,
-   * D-14/T-04-47) and the write path stays disabled.
-   */
-  async function clearSaveForNewGame(): Promise<void> {
-    if (!canClear(ctx.save.saveStatus)) {
-      ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
-      probePublisher.syncSaveProbe();
-      return;
-    }
-    ctx.save.saveRevision += 1;
-    const currentRevision = ctx.save.saveRevision;
-    const result = await saveBoot.store.clear(currentRevision);
-    if (result.committed) {
-      ctx.save.saveStatus = "absent";
-      ctx.save.saveSkipReason = "";
-    } else if (isStoreUnavailable(result.reason)) {
-      ctx.save.saveUnavailable = true;
-    }
-    probePublisher.syncSaveProbe();
-  }
-
   /** D-09: resolve and install a new system scene; never rebuild the dock port. */
   function enterSystemById(id: string): SystemLayout {
     const currentStationDef = ctx.core.stationDef;
@@ -858,125 +461,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function targetSystem(): System | undefined {
     if (ctx.core.hyperspaceTargetId === undefined) return undefined;
     return galaxyById.get(ctx.core.hyperspaceTargetId);
-  }
-
-  /** The one slot line: the autosave key, the system and the live clock. */
-  function saveSlotText(): string {
-    const clock =
-      ctx.core.state === undefined
-        ? ""
-        : formatClock(ctx.core.state.clockSeconds);
-    return `Autosave · ${ctx.core.system.name} · ${clock}`;
-  }
-
-  /**
-   * D-20: F2 opens the standalone screen only while docked. The keyboard only
-   * dispatches F2 from `dockHome`/`dockScreen`; this revalidates the live mode,
-   * the pause overlay and the chart, so no overlay can open over another one.
-   */
-  function openSaveScreen(): void {
-    const currentState = ctx.core.state;
-    const currentInput = ctx.runtime.input;
-    const screen = ctx.save.saveLoad;
-    if (
-      currentState === undefined ||
-      currentInput === undefined ||
-      screen === undefined
-    ) {
-      return;
-    }
-    if (ctx.runtime.paused || ctx.save.saveScreenOpen || ctx.chart.chartOpen)
-      return;
-    if (currentState.mode !== "docked") return;
-    ctx.save.saveScreenOpen = true;
-    ctx.save.contextBeforeSaveScreen = currentInput.getContext();
-    currentInput.setContext("saveScreen");
-    syncStationNav();
-    screen.show(saveSlotText());
-    ctx.save.saveScreenNotice = canOverwrite(ctx.save.saveStatus)
-      ? ""
-      : "Saving is disabled — this save is read-only";
-    screen.setNotice(ctx.save.saveScreenNotice);
-    probePublisher.updateProbe();
-  }
-
-  /** Hide F2 and restore the station context the player left. */
-  function closeSaveScreen(): void {
-    if (!ctx.save.saveScreenOpen) return;
-    ctx.save.saveScreenOpen = false;
-    ctx.save.saveLoad?.cancelOverwrite();
-    ctx.save.saveLoad?.hide();
-    ctx.runtime.input?.setContext(ctx.save.contextBeforeSaveScreen);
-    // Return focus to the station screen the input context just restored.
-    const stationScreenElement = document.getElementById("station-screen");
-    stationScreenElement?.focus({ preventScroll: true });
-    syncStationNav();
-    probePublisher.updateProbe();
-  }
-
-  /**
-   * Apply one drained F2-screen edge. The live open flag is revalidated here so
-   * a queued action cannot act on a screen the player already closed.
-   */
-  function applySaveScreenAction(action: ActionId): void {
-    const screen = ctx.save.saveLoad;
-    if (screen === undefined) return;
-    switch (action) {
-      case "saveLoad":
-        if (ctx.save.saveScreenOpen) closeSaveScreen();
-        else openSaveScreen();
-        break;
-      case "saveScreenReturn":
-        if (screen.isConfirming()) {
-          screen.cancelOverwrite();
-          probePublisher.updateProbe();
-        } else {
-          closeSaveScreen();
-        }
-        break;
-      // While the overwrite dialog is open it owns input: row navigation and
-      // the Save/Load shortcuts are inert behind it.
-      case "saveScreenUp":
-        if (ctx.save.saveScreenOpen && !screen.isConfirming())
-          screen.moveSelection(-1);
-        break;
-      case "saveScreenDown":
-        if (ctx.save.saveScreenOpen && !screen.isConfirming())
-          screen.moveSelection(1);
-        break;
-      case "saveScreenSave":
-        if (ctx.save.saveScreenOpen && !screen.isConfirming()) manualSave();
-        break;
-      case "saveScreenActivate":
-        // Enter follows focus: on the open dialog it resolves whichever
-        // control holds focus, so a focused Cancel never overwrites.
-        if (!ctx.save.saveScreenOpen) break;
-        if (screen.isConfirming()) screen.confirmFocused();
-        else screen.activate();
-        break;
-      case "saveScreenConfirm":
-        // Y is the direct confirm and confirms regardless of focus.
-        if (!ctx.save.saveScreenOpen) break;
-        if (screen.isConfirming()) screen.acceptOverwrite();
-        else screen.activate();
-        break;
-      case "saveScreenCancel":
-        if (ctx.save.saveScreenOpen && screen.isConfirming()) {
-          screen.cancelOverwrite();
-          probePublisher.updateProbe();
-        }
-        break;
-      case "saveScreenLoad":
-        if (ctx.save.saveScreenOpen && !screen.isConfirming())
-          void loadFromSave();
-        break;
-      default:
-        break;
-    }
-  }
-
-  function handleSaveScreenActions(actions: readonly ActionId[]): void {
-    for (const action of actions) applySaveScreenAction(action);
   }
 
   /** D-06 copy is app-owned; the sim event carries a payload-free reason. */
