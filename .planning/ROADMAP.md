@@ -61,12 +61,12 @@ Phase 8 is the only phase. Its 16 plans run in the nine waves listed under Phase
 **Pitfalls to address**: 8 (split behind a probe-shape snapshot; re-point `tests/app/redraw-gate.test.ts` and `tests/guards/economy-purity.test.ts`, which read the session file as text), 9 (empty-world hash identity), 1 (id order), 2 (forked `(worldSeed, entityId, purpose)` streams), 3 (integer tick time base), 4 (NaN and transcendentals), 7 (cross-entity events queued, never synchronous), 19 (narrow, read-only AI seam), 17 (fixed ids for planet, sun, station and buoys), 11 and 27 (`advanceTicks`, traffic off by default, a test hook that does not become a god object), 13 (audio event types reserved now, including missile, ECM and scoop events), 10 (the anchored-save decision only)
 **Decisions to settle**: D1 world seed policy (SAVE-07's saved world epoch implies the recommended `mix32(marketSeed, epoch)`; confirm in discuss-phase); the fixed id table for static bodies
 **Todos**: `2026-11-11-check-ci-after-0-2-0-and-the-shift-c-docking-timeout.md` — FOUND-10's baseline is a green `verify-full`, so the Shift+C docking flake is settled before the split starts
-**Plans**: 1/16 plans executed
+**Plans**: 2/16 plans executed
 Plans:
 **Wave 1**
 - [x] 08-01-PLAN.md — Split safety nets: verify-full baseline, probe-shape snapshot, order-independent session-source scans (D-01, D-12 step 0, D-13)
 - [ ] 08-02-PLAN.md — Pinned v1 flight hashes and RNG vectors, serialisable seeded stream, mix32 world/fork seeds (D-02 checkpoint)
-- [ ] 08-03-PLAN.md — Determinism lint bans in src/sim (Math.random, Date, wall clock, for..in, bare sort) with guard tests
+- [x] 08-03-PLAN.md — Determinism lint bans in src/sim (Math.random, Date, wall clock, for..in, bare sort) with guard tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 08-04-PLAN.md — Split steps 1-2: typed session context and first controller extraction
@@ -466,7 +466,7 @@ Phases 10 and 11 carry one requirement each by owner direction: each is a separa
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 8. Session Split and World Core | v2.0 | 1/16 | Ready to execute | - |
+| 8. Session Split and World Core | v2.0 | 2/16 | Ready to execute | - |
 | 9. NPC Content and Sound Provenance | v2.1 (planned) | 0/TBD | Not started | - |
 | 10. Hull Octrees and Ship Mass | v2.1 (planned) | 0/TBD | Not started | - |
 | 11. Save Schema v3 | v2.1 (planned) | 0/TBD | Not started | - |
