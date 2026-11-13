@@ -5,16 +5,16 @@ milestone_name: Foundation
 current_phase: 08
 current_phase_name: Session Split and World Core
 status: executing
-stopped_at: Completed 08-05-PLAN.md
-last_updated: "2026-11-13T09:57:22.400Z"
+stopped_at: Completed 08-06-PLAN.md
+last_updated: "2026-11-13T11:37:53.869Z"
 last_activity: 2026-11-13
 last_activity_desc: v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1
-state_head: 7c78110f1105eeb1e8ffb1afa3d5a9b90aebd6ed
+state_head: e064ad8a45a61b380f7e5e982eded55c301b9a42
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 16
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 08 (Session Split and World Core) — EXECUTING
-Plan: 5 of 16 complete (08-01 to 08-05 done; waves 1 and 2 finished, wave 3 is next)
+Plan: 6 of 16 complete (08-01 to 08-06 done; wave 3 is in progress, 08-07 runs beside it on the core track)
 Status: Executing
-Last activity: 2026-11-13 — Completed 08-05 (world core: ids, limits, entity store, spawn validation, composed world hash)
+Last activity: 2026-11-13 — Completed 08-06 (split steps 3 and 4: render driver, chart and settings controllers; step-3 verify-full green on a worktree of 5c34578)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -111,6 +111,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 08 P02 | 22 min | 3 tasks | 8 files |
 | Phase 08 P04 | 18 min | 2 tasks | 5 files |
 | Phase 08 P05 | 15 min | 2 tasks | 10 files |
+| Phase 08 P06 | 110 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -275,6 +276,8 @@ Recent decisions affecting current work:
 - [Phase 08]: Static bodies are frozen layout references (world.statics), never hashed or stored dynamically; world hash equals the flight hash until the first spawn (D-07, D-08)
 - [Phase 08]: Entity id uniqueness is per world: nextId restarts at 101 in every new world and no id outlives its world (CONTEXT D-06 amended 2026-11-12; PROJECT.md row recorded by 08-05)
 - [Phase 08]: One limits module (src/sim/world/limits.ts) owns the shared serialised-domain limits; spawnEntity refuses out-of-domain inits before allocating
+- [Phase 08]: 08-06: render driver, chart and settings controllers take later-moving owners (updateProbe, renderStation, targetSystem, syncStationNav, refreshStationChrome, performSwap, renderFrame) as dependency functions, and register no listener on construction; the two window keydown registrations stay in createGameSession until split step 9
+- [Phase 08]: 08-06: closeChart keeps not requesting a redraw itself; frame()'s chart-open branch requests one every frame while open, and the pinned total of five redrawGate.request() statements holds
 
 ### Pending Todos
 
@@ -346,6 +349,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T09:57:22.332Z
-Stopped at: Completed 08-05-PLAN.md
+Last session: 2026-11-13T11:37:53.789Z
+Stopped at: Completed 08-06-PLAN.md
 Resume file: None
