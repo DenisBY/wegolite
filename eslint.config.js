@@ -31,6 +31,49 @@ const DOM_GLOBALS = [
 ];
 
 /**
+ * The src/sim determinism rule lists (FOUND-12). ESLint REPLACES, it does not
+ * merge, a rule that a later config block redefines (RESEARCH Pattern 8): a
+ * later block that sets `no-restricted-syntax`, `no-restricted-globals` or
+ * `no-restricted-properties` for a src/sim subtree silently drops every entry
+ * listed here. Any such block must spread these constants, so the bans stay in
+ * force.
+ */
+const SIM_SYNTAX_BANS = [
+  {
+    selector: 'NewExpression[callee.name="Date"]',
+    message: "No Date inside src/sim.",
+  },
+  {
+    selector: "ForInStatement",
+    message:
+      "for..in order depends on property insertion; iterate an array or a comparator-sorted key list.",
+  },
+];
+
+const SIM_GLOBAL_BANS = DOM_GLOBALS.map((name) => ({
+  name,
+  message: "src/sim must not touch the DOM.",
+}));
+
+const SIM_RESTRICTED_PROPERTIES = [
+  {
+    object: "Math",
+    property: "random",
+    message: "Use the seeded PRNG in sim/math.",
+  },
+  {
+    object: "Date",
+    property: "now",
+    message: "No wall clock inside src/sim.",
+  },
+  {
+    object: "performance",
+    property: "now",
+    message: "No wall clock inside src/sim.",
+  },
+];
+
+/**
  * The generator's transcendental ban message. It names the rule's reason and
  * the replacement surface in one sentence so an ESLint failure is actionable
  * without opening this file (DATA-08).
@@ -117,38 +160,9 @@ export default tseslint.config(
           ],
         },
       ],
-      "no-restricted-globals": [
-        "error",
-        ...DOM_GLOBALS.map((name) => ({
-          name,
-          message: "src/sim must not touch the DOM.",
-        })),
-      ],
-      "no-restricted-properties": [
-        "error",
-        {
-          object: "Math",
-          property: "random",
-          message: "Use the seeded PRNG in sim/math.",
-        },
-        {
-          object: "Date",
-          property: "now",
-          message: "No wall clock inside src/sim.",
-        },
-        {
-          object: "performance",
-          property: "now",
-          message: "No wall clock inside src/sim.",
-        },
-      ],
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: 'NewExpression[callee.name="Date"]',
-          message: "No Date inside src/sim.",
-        },
-      ],
+      "no-restricted-globals": ["error", ...SIM_GLOBAL_BANS],
+      "no-restricted-properties": ["error", ...SIM_RESTRICTED_PROPERTIES],
+      "no-restricted-syntax": ["error", ...SIM_SYNTAX_BANS],
     },
   },
   {

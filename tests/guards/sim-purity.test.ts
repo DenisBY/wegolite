@@ -22,18 +22,12 @@
  */
 
 import { spawnSync } from "node:child_process";
-import {
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { lintProbe } from "./eslint-gate.js";
-import { withProbeLock } from "./probe-lock.js";
+import { withSimProbe } from "./sim-probe.js";
 
 const REPO_ROOT = process.cwd();
 const SIM_DIR = join(REPO_ROOT, "src", "sim");
@@ -59,33 +53,28 @@ function runGate(command: string, args: readonly string[]): GateRun {
 
 /**
  * Write a probe under `src/sim/` (the name may contain subdirectories) and make
- * sure it is never left behind.
+ * sure it is never left behind. The shared helper takes the probe lock,
+ * normalises the basename to `__purity_*`, prepends the SPDX header and removes
+ * every file and directory it created.
  */
-function withProbe(
-  name: string,
-  source: string,
-  body: (file: string) => Promise<void> | void,
-): Promise<void> {
-  // `tsconfig.sim.json` globs `src/sim/**`, so a probe written by a parallel
-  // guard file can be globbed and then deleted mid-run (TS6053). Serialise.
-  return withProbeLock(async () => {
-    const file = join("src", "sim", name);
-    const absolute = join(REPO_ROOT, file);
-    mkdirSync(dirname(absolute), { recursive: true });
-    writeFileSync(absolute, source);
-    try {
-      await body(file);
-    } finally {
-      // Remove the file only: `src/sim/` and its real subdirectories must stay.
-      rmSync(absolute, { force: true });
-    }
-  });
-}
+const withProbe = withSimProbe;
 
-/** Every `.ts` file below `directory`, recursively. */
+/**
+ * Every `.ts` file below `directory`, recursively. `__purity_*` entries are
+ * skipped (another guard file may be writing a probe right now), and an entry
+ * that vanishes between the listing and the read is ignored rather than thrown.
+ */
 function listTsFiles(directory: string): string[] {
   const files: string[] = [];
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+  let entries;
+  try {
+    entries = readdirSync(directory, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return files;
+    throw error;
+  }
+  for (const entry of entries) {
+    if (entry.name.startsWith("__purity_")) continue;
     const full = join(directory, entry.name);
     if (entry.isDirectory()) {
       files.push(...listTsFiles(full));
@@ -96,31 +85,87 @@ function listTsFiles(directory: string): string[] {
   return files;
 }
 
-/** Drop `//` comment lines so prose cannot satisfy or falsify a source scan. */
-function withoutLineComments(source: string): string {
-  return source
-    .split("\n")
-    .filter((line) => !line.trimStart().startsWith("//"))
-    .join("\n");
+/**
+ * Drop `//` line comments and `/* ... *\/` block comments while keeping string,
+ * template and character literals intact and preserving every newline, so prose
+ * cannot satisfy or falsify a source scan and line numbers stay meaningful.
+ */
+function withoutComments(source: string): string {
+  let out = "";
+  let index = 0;
+  while (index < source.length) {
+    const char = source[index] as string;
+    const next = source[index + 1];
+    if (char === "/" && next === "/") {
+      while (index < source.length && source[index] !== "\n") index += 1;
+    } else if (char === "/" && next === "*") {
+      index += 2;
+      while (
+        index < source.length &&
+        !(source[index] === "*" && source[index + 1] === "/")
+      ) {
+        if (source[index] === "\n") out += "\n";
+        index += 1;
+      }
+      index += 2;
+      out += " ";
+    } else if (char === '"' || char === "'" || char === "`") {
+      out += char;
+      index += 1;
+      while (index < source.length && source[index] !== char) {
+        if (source[index] === "\\") {
+          out += source[index] as string;
+          index += 1;
+        }
+        out += source[index] ?? "";
+        index += 1;
+      }
+      out += char;
+      index += 1;
+    } else {
+      out += char;
+      index += 1;
+    }
+  }
+  return out;
 }
 
 const FRAME_DECLARATION =
-  /^\s*(?:export\s+)?(?:interface|type)\s+([A-Za-z0-9_]*Frame[A-Za-z0-9_]*)\b/;
+  /^[ \t]*(?:export\s+)?(?:interface|type)\s+([A-Za-z0-9_]*Frame[A-Za-z0-9_]*)\b/gm;
+
+/**
+ * The full text of a declaration that starts at `from`: up to the brace that
+ * closes its body (an `interface` or object-literal `type`), or up to the
+ * terminating `;` (a single-expression `type`), whichever opens first.
+ */
+function declarationBody(source: string, from: number): string {
+  let depth = 0;
+  for (let index = from; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(from, index + 1);
+    } else if (char === ";" && depth === 0) {
+      return source.slice(from, index + 1);
+    }
+  }
+  return source.slice(from);
+}
 
 /**
  * Names of interface/type declarations that look like a device frame: the
- * declaration name contains `Frame` and its body lists both `pitch` and `roll`.
+ * declaration name contains `Frame` and its whole body (to the matching closing
+ * brace, however long) lists both `pitch` and `roll`. Comments never count.
  */
 function declaredFrameTypes(source: string): string[] {
-  const lines = withoutLineComments(source).split("\n");
+  const cleaned = withoutComments(source);
   const names: string[] = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? "";
-    const match = FRAME_DECLARATION.exec(line);
-    if (match === null) continue;
+  for (const match of cleaned.matchAll(FRAME_DECLARATION)) {
     const name = match[1];
     if (name === undefined) continue;
-    const body = lines.slice(index, index + 24).join("\n");
+    const body = declarationBody(cleaned, match.index + match[0].length);
     if (/\bpitch\b/.test(body) && /\broll\b/.test(body)) names.push(name);
   }
   return names;
@@ -128,7 +173,7 @@ function declaredFrameTypes(source: string): string[] {
 
 /** Module specifiers named by `import`/`export … from`/dynamic `import()`. */
 function importSpecifiers(source: string): string[] {
-  const cleaned = withoutLineComments(source);
+  const cleaned = withoutComments(source);
   const patterns = [
     /\bfrom\s+["']([^"']+)["']/g,
     /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
@@ -249,6 +294,75 @@ describe("sim purity covers the flight and world modules", () => {
       );
     }, 120_000);
   }
+});
+
+describe("frame declaration scanning", () => {
+  const filler = Array.from({ length: 40 }, (_, i) => `  field${i}: number;`);
+
+  it("detects pitch and roll past the old 24-line window", () => {
+    const source = [
+      "export interface DeviceFrame {",
+      ...filler,
+      "  pitch: number;",
+      "  roll: number;",
+      "}",
+    ].join("\n");
+
+    expect(declaredFrameTypes(source)).toEqual(["DeviceFrame"]);
+  });
+
+  it("detects a frame declared after a block comment", () => {
+    const source = [
+      "/**",
+      " * Not a frame: interface FakeFrame { pitch: number; roll: number }",
+      " */",
+      "export type StickFrame = {",
+      ...filler,
+      "  pitch: number;",
+      "  roll: number;",
+      "};",
+    ].join("\n");
+
+    expect(declaredFrameTypes(source)).toEqual(["StickFrame"]);
+  });
+
+  it("detects a single-expression type up to its semicolon", () => {
+    const source =
+      'export type AxisFrame = Readonly<Pick<Axes, "pitch" | "roll">>;\n';
+
+    expect(declaredFrameTypes(source)).toEqual(["AxisFrame"]);
+  });
+
+  it("ignores pitch and roll that only appear in comments", () => {
+    const source = [
+      "export interface QuietFrame {",
+      "  /* pitch: number; roll: number; */",
+      "  // pitch roll",
+      "  yaw: number;",
+      "}",
+    ].join("\n");
+
+    expect(declaredFrameTypes(source)).toEqual([]);
+  });
+
+  it("does not let one declaration's body satisfy the next", () => {
+    const source = [
+      "export interface OneFrame {",
+      "  pitch: number;",
+      "}",
+      "export interface TwoFrame {",
+      "  roll: number;",
+      "}",
+    ].join("\n");
+
+    expect(declaredFrameTypes(source)).toEqual([]);
+  });
+
+  it("keeps string literals that contain comment markers", () => {
+    const source = 'import x from "http://example.test/a";\n';
+
+    expect(importSpecifiers(source)).toEqual(["http://example.test/a"]);
+  });
 });
 
 describe("the single sim-owned input frame", () => {
