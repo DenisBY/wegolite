@@ -33,7 +33,7 @@ import {
 import { mapHyperspaceBeginEdges } from "./hyperspace-commands.js";
 import { buildHudModel } from "./hud-model.js";
 import { createGameLoop } from "./game-loop.js";
-import { createTestHook, publishFailure, readMemory } from "./probe.js";
+import { publishFailure } from "./probe.js";
 import type { WegoliteProbe, WegoliteSaveProbe } from "./probe.js";
 import type { SceneManager } from "./scene-manager.js";
 import { createHintController } from "./hints.js";
@@ -41,6 +41,7 @@ import type { HintContext } from "./hints.js";
 import { createLaunchSequence } from "./launch-sequence.js";
 import { createRedrawGate } from "./redraw-gate.js";
 import { createSessionState } from "./session/context.js";
+import { createProbePublisher, toTuple } from "./session/probe-publisher.js";
 import type { SessionState } from "./session/context.js";
 import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
@@ -70,7 +71,6 @@ import {
   applyFrame,
   applyStationRoll,
   interpolatePose,
-  maxRelativeMagnitude,
 } from "../render/sync.js";
 import type { Command } from "../sim/commands.js";
 import type { SimEvent } from "../sim/events.js";
@@ -85,12 +85,7 @@ import { initFlightState, poseOf } from "../sim/flight/state.js";
 import type { FlightState } from "../sim/flight/state.js";
 import { stepFlight } from "../sim/flight/step.js";
 import type { StepOptions } from "../sim/flight/step.js";
-import {
-  MAX_EQUIPMENT_KEYS,
-  formatDecicredits,
-  newProfile,
-  setCredits,
-} from "../sim/player/profile.js";
+import { formatDecicredits, newProfile } from "../sim/player/profile.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
 import {
   arrivalMarketSeed,
@@ -107,11 +102,7 @@ import {
   witchspaceStationMass,
 } from "../sim/hyperspace/countdown.js";
 import type { HyperspaceRefusal } from "../sim/events.js";
-import {
-  availablePods,
-  capacityPodsFor,
-  holdPodsUsed,
-} from "../sim/economy/cargo.js";
+import { availablePods } from "../sim/economy/cargo.js";
 import {
   applyBuy,
   applySell,
@@ -157,7 +148,6 @@ import { createStationNav } from "../ui/station-nav.js";
 import { activeTabId, isTabEnabled, tabById } from "../ui/station-tabs.js";
 import type { StationNavState, StationTabId } from "../ui/station-tabs.js";
 import { sub, vec } from "../sim/math.js";
-import type { Vec3 } from "../sim/math.js";
 import { DT } from "../sim/time.js";
 import { deriveSystemLayout } from "../sim/world/layout.js";
 import type { SystemLayout } from "../sim/world/layout.js";
@@ -302,10 +292,6 @@ export interface GameSession {
   dispose(): void;
 }
 
-function toTuple(position: Vec3): [number, number, number] {
-  return [position.x, position.y, position.z];
-}
-
 export function createGameSession(options: GameSessionOptions): GameSession {
   const {
     renderer,
@@ -360,6 +346,20 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   const redrawGate = createRedrawGate();
   const messages = createMessageQueue(4);
   const launchSequence: LaunchSequence = createLaunchSequence();
+
+  // D-12 step 2: everything the session publishes on the page's probe. The
+  // function declarations below are hoisted, so the dependencies exist now.
+  const probePublisher = createProbePublisher(ctx, {
+    probe,
+    renderer,
+    scenes,
+    saveProbe,
+    redrawGate,
+    messages,
+    commitProfile,
+    swapSystem,
+    disposeSystem,
+  });
 
   function persistSettings(): void {
     if (
@@ -862,47 +862,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     docked.setFuel(formatFuel(ctx.core.profile.fuel));
     docked.render(view);
     syncStationNav();
-    syncEconomyProbe();
-  }
-
-  function syncEconomyProbe(): void {
-    const currentMarket = ctx.core.market;
-    if (currentMarket === undefined || ctx.core.marketSeed === undefined)
-      return;
-    const pendingProbe =
-      ctx.station.stationPending === null
-        ? null
-        : "kind" in ctx.station.stationPending
-          ? { kind: "fit" as const, key: ctx.station.stationPending.key }
-          : { kind: "trade" as const, key: ctx.station.stationPending.key };
-    probe.economy = {
-      credits: ctx.core.profile.credits,
-      cargo: { ...ctx.core.profile.cargo },
-      marketSeed: ctx.core.marketSeed,
-      marketSystemId: currentMarket.systemId,
-      market: currentMarket.goods.map((good) => ({
-        key: good.key,
-        price: good.price,
-        stock: good.stock,
-      })),
-      fuel: ctx.core.profile.fuel,
-      missiles: ctx.core.profile.missiles,
-      passengerBerths: ctx.core.profile.passengerBerths,
-      holdPods: holdPodsUsed(ctx.core.profile.cargo, ctx.core.commodityUnits),
-      capacityPods: capacityPodsFor(
-        ctx.core.profile.equipment,
-        ctx.core.profile.passengerBerths,
-      ),
-      lastTrade: ctx.station.lastTrade,
-    };
-    probe.station = {
-      open: ctx.core.state?.mode === "docked",
-      screen: ctx.station.stationScreen,
-      selectedKey: ctx.station.stationSelection,
-      page: ctx.station.stationPage,
-      pending: pendingProbe,
-      message: ctx.station.stationMessage,
-    };
+    probePublisher.syncEconomyProbe();
   }
 
   /**
@@ -916,58 +876,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     onProfileChanged(ctx.core.profile);
     renderStation();
     return true;
-  }
-
-  /** `?test=1` seam: replace the balance; never persisted by the hook itself. */
-  /**
-   * Point the `?test=1` hook at `activeState`. Called at boot and after every
-   * in-session Load, so a hook never mutates a replaced state object (G-8).
-   */
-  function bindTestHook(activeState: FlightState): void {
-    probe.test = createTestHook(
-      activeState,
-      { swapSystem, disposeSystem },
-      () => {
-        ctx.runtime.testTainted = true;
-        // The hook moved the live state under a possibly quiet loop.
-        redrawGate.request();
-      },
-      {
-        setCredits: applyTestCredits,
-        grantEquipment: applyTestEquipment,
-      },
-    );
-  }
-
-  function applyTestCredits(credits: number): boolean {
-    return commitProfile(setCredits(ctx.core.profile, credits));
-  }
-
-  /** `?test=1` seam: grant only a key the validated catalogue knows. */
-  function applyTestEquipment(key: string): boolean {
-    const catalogue = ctx.core.equipmentCatalogue;
-    if (catalogue === undefined) return false;
-    if (catalogue.every((item) => item.key !== key)) return false;
-    if (ctx.core.profile.equipment.includes(key)) return false;
-    if (ctx.core.profile.equipment.length >= MAX_EQUIPMENT_KEYS) return false;
-    return commitProfile({
-      ...ctx.core.profile,
-      equipment: [...ctx.core.profile.equipment, key],
-    });
-  }
-
-  function syncSaveProbe(): void {
-    saveProbe.status = ctx.save.saveStatus;
-    saveProbe.attempts = ctx.save.saveAttempts;
-    saveProbe.writes = ctx.save.saveWrites;
-    saveProbe.committed = ctx.save.saveCommitted;
-    // D-23: the probe reports the last COMMITTED revision, never the one a
-    // queued write merely requested.
-    saveProbe.revision = ctx.save.saveCommittedRevision;
-    saveProbe.lastClock = ctx.save.saveLastClock;
-    saveProbe.skipReason = ctx.save.saveSkipReason;
-    saveProbe.unavailable = ctx.save.saveUnavailable;
-    saveProbe.notice = ctx.save.saveScreenNotice;
   }
 
   function isStoreUnavailable(reason: string | undefined): boolean {
@@ -1013,7 +921,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     ctx.save.saveScreenNotice = text;
     ctx.station.stationSaveNotice = text;
     ctx.save.saveLoad?.setNotice(text);
-    syncSaveProbe();
+    probePublisher.syncSaveProbe();
   }
 
   /**
@@ -1054,7 +962,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const revision = ctx.save.saveRevision;
     ctx.save.saveWrites += 1;
     ctx.save.saveSkipReason = "";
-    syncSaveProbe();
+    probePublisher.syncSaveProbe();
     // The frame loop never awaits this; `queueAutosave` cannot reject.
     void queueAutosave(saveBoot.store, revision, inputs, saveBoot.allow).then(
       (result) => {
@@ -1084,7 +992,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           else
             ctx.station.stationSaveNotice = "Save failed — progress not saved";
         }
-        syncSaveProbe();
+        probePublisher.syncSaveProbe();
         if (!ctx.runtime.disposed) {
           renderStation();
           if (ctx.save.saveScreenOpen)
@@ -1108,23 +1016,23 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // guard, and never a queued snapshot (research Pitfall 9).
     if (ctx.runtime.contextLost) {
       ctx.save.saveSkipReason = "recovering";
-      syncSaveProbe();
+      probePublisher.syncSaveProbe();
       return;
     }
     if (!canOverwrite(ctx.save.saveStatus)) {
       ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
-      syncSaveProbe();
+      probePublisher.syncSaveProbe();
       return;
     }
     if (ctx.runtime.testTainted) {
       ctx.save.saveSkipReason = "tainted";
-      syncSaveProbe();
+      probePublisher.syncSaveProbe();
       return;
     }
     const inputs = buildSnapshotInputs();
     if (inputs === undefined) {
       ctx.save.saveSkipReason = "not-ready";
-      syncSaveProbe();
+      probePublisher.syncSaveProbe();
       return;
     }
     queueSnapshot(inputs, false);
@@ -1141,7 +1049,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // other check, so a lost context can never reach queueSnapshot.
     if (ctx.runtime.contextLost) {
       ctx.save.saveSkipReason = "recovering";
-      syncSaveProbe();
+      probePublisher.syncSaveProbe();
       return;
     }
     if (ctx.save.manualSavePending) {
@@ -1164,7 +1072,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       // does nothing, and a Cancel that closed it leaves the next Save live.
       if (ctx.save.saveLoad?.isConfirming() !== true) {
         ctx.save.saveLoad?.confirmOverwrite();
-        updateProbe();
+        probePublisher.updateProbe();
       }
       return;
     }
@@ -1174,7 +1082,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   /** The confirmed (or absent-slot) manual write; never asks again. */
   function writeManualSave(): void {
     ctx.save.saveLoad?.cancelOverwrite();
-    updateProbe();
+    probePublisher.updateProbe();
     const inputs = buildSnapshotInputs();
     if (inputs === undefined) {
       ctx.save.saveSkipReason = "not-ready";
@@ -1205,7 +1113,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   /** Show a failed load on the open overlay; the session is untouched. */
   function failLoad(copy: string): void {
     setSaveNotice(copy);
-    updateProbe();
+    probePublisher.updateProbe();
   }
 
   /**
@@ -1310,7 +1218,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       messages.clear();
       ctx.core.lastScrapeMessageTime = null;
       ctx.core.dockFeedback = createDockFeedback();
-      if (ctx.runtime.testHookEnabled) bindTestHook(restored.state);
+      if (ctx.runtime.testHookEnabled)
+        probePublisher.bindTestHook(restored.state);
       ctx.core.previousPose = poseOf(restored.state);
       ctx.core.currentPose = ctx.core.previousPose;
       ctx.core.previousCameraWorld = undefined;
@@ -1341,7 +1250,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       } else {
         docked.hide();
         hudCanvas.hidden = false;
-        syncEconomyProbe();
+        probePublisher.syncEconomyProbe();
       }
       syncStationNav();
       // Publish the installed pose once, exactly like the boot restore, so a
@@ -1359,7 +1268,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         speed: restored.state.speed,
         clock: restored.state.clockSeconds,
       };
-      syncSaveProbe();
+      probePublisher.syncSaveProbe();
       // Hidden time is never replayed: discard the read latency.
       ctx.runtime.loop?.reset();
       ctx.runtime.lastMs = 0;
@@ -1377,7 +1286,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   async function clearSaveForNewGame(): Promise<void> {
     if (!canClear(ctx.save.saveStatus)) {
       ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
-      syncSaveProbe();
+      probePublisher.syncSaveProbe();
       return;
     }
     ctx.save.saveRevision += 1;
@@ -1389,7 +1298,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     } else if (isStoreUnavailable(result.reason)) {
       ctx.save.saveUnavailable = true;
     }
-    syncSaveProbe();
+    probePublisher.syncSaveProbe();
   }
 
   function pause(): void {
@@ -1656,7 +1565,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       return;
     ctx.chart.chartCamera = clampChartCamera(camera);
     refreshChart();
-    updateProbe();
+    probePublisher.updateProbe();
   }
 
   /** Tab toggles the local preset and the whole-galaxy preset (D-06/D-07). */
@@ -1676,7 +1585,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       ctx.chart.chartCamera = localPreset(ctx.core.system);
     }
     refreshChart();
-    updateProbe();
+    probePublisher.updateProbe();
   }
 
   /** D-09: resolve and install a new system scene; never rebuild the dock port. */
@@ -1765,7 +1674,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // client size is zero. Show it, then rebuild against the real viewport.
     overlay.show(currentChartView(overlay));
     overlay.view(currentChartView(overlay));
-    updateProbe();
+    probePublisher.updateProbe();
   }
 
   function closeChart(): void {
@@ -1776,7 +1685,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // Hidden time is never replayed; the accumulator starts at zero.
     ctx.runtime.loop?.reset();
     syncStationNav();
-    updateProbe();
+    probePublisher.updateProbe();
   }
 
   /** The one slot line: the autosave key, the system and the live clock. */
@@ -1816,7 +1725,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       ? ""
       : "Saving is disabled — this save is read-only";
     screen.setNotice(ctx.save.saveScreenNotice);
-    updateProbe();
+    probePublisher.updateProbe();
   }
 
   /** Hide F2 and restore the station context the player left. */
@@ -1830,7 +1739,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const stationScreenElement = document.getElementById("station-screen");
     stationScreenElement?.focus({ preventScroll: true });
     syncStationNav();
-    updateProbe();
+    probePublisher.updateProbe();
   }
 
   /**
@@ -1848,7 +1757,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       case "saveScreenReturn":
         if (screen.isConfirming()) {
           screen.cancelOverwrite();
-          updateProbe();
+          probePublisher.updateProbe();
         } else {
           closeSaveScreen();
         }
@@ -1882,7 +1791,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       case "saveScreenCancel":
         if (ctx.save.saveScreenOpen && screen.isConfirming()) {
           screen.cancelOverwrite();
-          updateProbe();
+          probePublisher.updateProbe();
         }
         break;
       case "saveScreenLoad":
@@ -2077,7 +1986,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     messages.enqueue(`Arrived at ${destination.name}`);
     // The arrival anchor is a complete in-flight v2 snapshot.
     autosave();
-    syncEconomyProbe();
+    probePublisher.syncEconomyProbe();
   }
 
   /**
@@ -2238,7 +2147,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         messages.enqueue("Launching — stand by");
         // D-17: no write here. The pre-launch anchor was taken in `frame()`
         // while the state was still docked.
-        syncEconomyProbe();
+        probePublisher.syncEconomyProbe();
         break;
       case "launchComplete":
         launchSequence.markSeen();
@@ -2344,152 +2253,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         handleHyperspaceJumped(event);
         break;
     }
-  }
-
-  function updateProbe(): void {
-    probe.calls = renderer.info.render.calls;
-    probe.triangles = renderer.info.render.triangles;
-    probe.renders = renderer.info.render.frame;
-    probe.memory = readMemory(renderer);
-    probe.paused = ctx.runtime.paused;
-    probe.systemId = ctx.core.system.id;
-    probe.quality = scenes.quality();
-    probe.atmosphere = ctx.core.scene?.planet.atmosphere !== undefined;
-    probe.nebulae = ctx.core.scene?.nebulae?.quadCount ?? 0;
-    probe.chart = {
-      open: ctx.chart.chartOpen,
-      camera: {
-        centre: {
-          x: ctx.chart.chartCamera.centre.x,
-          y: ctx.chart.chartCamera.centre.y,
-        },
-        spanX: ctx.chart.chartCamera.spanX,
-        spanY: 2 * ctx.chart.chartCamera.spanX,
-      },
-      ...(ctx.core.hyperspaceTargetId === undefined
-        ? {}
-        : { targetId: ctx.core.hyperspaceTargetId }),
-      ...(ctx.chart.chartSelectedId === undefined
-        ? {}
-        : { selectedId: ctx.chart.chartSelectedId }),
-    };
-    probe.hyperspace = {
-      ...(ctx.core.hyperspaceTargetId === undefined
-        ? {}
-        : { targetId: ctx.core.hyperspaceTargetId }),
-      countdown: ctx.core.state?.hyperspaceCountdown ?? 0,
-      lastJump: ctx.core.lastJump,
-      lastRefusal: ctx.core.lastRefusal,
-    };
-    probe.saveScreen = {
-      open: ctx.save.saveScreenOpen,
-      row: ctx.save.saveLoad?.selection() ?? "save",
-      confirming: ctx.save.saveLoad?.isConfirming() ?? false,
-      notice: ctx.save.saveScreenNotice,
-    };
-
-    const currentState = ctx.core.state;
-    if (currentState !== undefined) {
-      probe.mode = currentState.mode;
-      probe.clock = currentState.clockSeconds;
-      probe.flightTime = currentState.flightTime;
-      probe.position = toTuple(currentState.position);
-      probe.orientation = [
-        currentState.orientation.w,
-        currentState.orientation.x,
-        currentState.orientation.y,
-        currentState.orientation.z,
-      ];
-      probe.speed = currentState.speed;
-      probe.angular = {
-        pitch: currentState.pitchRate,
-        roll: currentState.rollRate,
-      };
-      probe.torus = {
-        engaged: currentState.torus.engaged,
-        factor: currentState.torus.factor,
-        massLocked: currentState.torus.massLocked,
-      };
-      probe.launch = {
-        count: currentState.launchCount,
-        elapsed: currentState.launchElapsed,
-        seen: ctx.core.launchSeen,
-      };
-      probe.dock = {
-        dockCount: currentState.dockCount,
-        scrapeCount: currentState.scrapeTicks,
-        bounceCount: currentState.bounceCount,
-        shake: ctx.core.dockFeedback.shakeStrength(currentState.flightTime),
-        flash: ctx.core.dockFeedback.flashAlpha(currentState.flightTime),
-        outcome: currentState.mode === "docked" ? "docked" : "inFlight",
-        lastClockDelta: ctx.core.lastDockClockDelta,
-      };
-    }
-
-    if (probe.test !== undefined) probe.test.tainted = ctx.runtime.testTainted;
-    // G-8: the queue depth is published so a proof can read a queued message
-    // before and after an in-session Load.
-    probe.messages = messages.size;
-
-    const currentLayout = ctx.core.layout;
-    const currentScene = ctx.core.scene;
-    if (currentLayout !== undefined && currentScene !== undefined) {
-      probe.bodies = [
-        currentScene.planet.mesh.name,
-        currentScene.sun.sun.name,
-        currentScene.starfield.name,
-        currentScene.station.root.name,
-        currentScene.ship.name,
-        currentScene.navBuoy.name,
-        currentScene.witchpoint.name,
-      ];
-      probe.shipVisible = currentScene.ship.visible;
-      probe.dust = {
-        active: currentScene.dust.active,
-        count: currentScene.dust.count,
-      };
-      probe.world = {
-        planet: toTuple(currentLayout.planet.position),
-        sun: toTuple(currentLayout.sun.position),
-        station: toTuple(currentLayout.station.position),
-        navBuoy: toTuple(currentLayout.navBuoy.position),
-        witchpoint: toTuple(currentLayout.witchpoint.position),
-        maxRelativeMagnitude: maxRelativeMagnitude(currentScene),
-      };
-    }
-
-    const currentHud = ctx.runtime.hud;
-    if (currentHud !== undefined) {
-      const model = ctx.core.lastModel;
-      probe.hud = {
-        drawn: currentHud.drawn,
-        elements: [...currentHud.elements],
-        designScale: currentHud.designScale,
-        letterbox: [currentHud.letterbox[0], currentHud.letterbox[1]],
-        contacts:
-          model === undefined
-            ? []
-            : model.contacts
-                .filter((contact) => contact.visible)
-                .map((contact) => contact.id),
-        compass:
-          model === undefined
-            ? { target: "planet", forward: false }
-            : {
-                target: model.compass.target,
-                forward: model.compass.forward,
-              },
-        aegis: model === undefined ? "none" : model.aegis,
-        message: model === undefined ? "" : model.message,
-        fuelText: model === undefined ? "" : model.fuelText,
-        fuel: model === undefined ? 0 : model.bars.fuel,
-        hyperspaceTarget: model === undefined ? "" : model.hyperspaceTarget,
-        bounds: currentHud.bounds,
-      };
-    }
-
-    probe.hints =
-      ctx.runtime.hints === undefined ? [] : [...ctx.runtime.hints.seen];
   }
 
   /**
@@ -2624,7 +2387,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       }
     }
     showHint(currentState);
-    updateProbe();
+    probePublisher.updateProbe();
   }
 
   /** D-11: one message-line hint at a time, never a modal or overlay. */
@@ -2691,7 +2454,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       pending.length = 0;
       ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
       redrawGate.request();
-      updateProbe();
+      probePublisher.updateProbe();
       return;
     }
 
@@ -2702,7 +2465,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       pending.length = 0;
       ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
       redrawGate.request();
-      updateProbe();
+      probePublisher.updateProbe();
       return;
     }
 
@@ -3054,7 +2817,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // A mouse Cancel closes the dialog on the screen alone; the session only
     // needs to publish the state the dialog now reports.
     ctx.save.saveLoad.onOverwriteCancelled(() => {
-      updateProbe();
+      probePublisher.updateProbe();
     });
     ctx.station.stationNav = createStationNav(document.body, {
       onNavigate: (id) => {
@@ -3157,7 +2920,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // and only mutates the live state: no save, no arbitrary code (T-04-08).
     ctx.runtime.testHookEnabled =
       new URLSearchParams(window.location.search).get("test") === "1";
-    if (ctx.runtime.testHookEnabled) bindTestHook(flightState);
+    if (ctx.runtime.testHookEnabled) probePublisher.bindTestHook(flightState);
 
     title.hide();
     if (restoredInFlight) {
@@ -3168,7 +2931,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       ctx.runtime.input.setContext("flight");
       // No station render runs on this path, so publish the live economy and
       // durable identities explicitly for the reload proof.
-      syncEconomyProbe();
+      probePublisher.syncEconomyProbe();
       // Written once, by the install block; updateProbe never touches it, so a
       // proof reads the pose the restore installed, not a resumed one.
       probe.restore = {
@@ -3321,9 +3084,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     ctx.core.state = undefined;
     ctx.core.scene = undefined;
     ctx.core.layout = undefined;
-    delete probe.test;
-    delete probe.save;
-    delete probe.saveScreen;
+    probePublisher.withdrawProbe();
     saveBoot.store.dispose();
   }
 
