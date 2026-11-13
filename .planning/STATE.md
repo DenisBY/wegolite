@@ -2,9 +2,14 @@
 gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: World Population Base
+current_phase: 9
+current_phase_name: NPC Content; first of 4 phases in v2.1  , and Phase 11 can run beside it
 status: planning
-last_updated: "2026-11-13T21:08:40.000Z"
+stopped_at: Phase 9 context gathered
+last_updated: "2026-11-13T21:22:34.657Z"
 last_activity: 2026-11-13
+last_activity_desc: v2.1 roadmap created (Phases 9-12, 12/12 requirements mapped)
+state_head: 58ef6c03af8aee2ccb74fce321390a2903e76ab4
 progress:
   total_phases: 4
   completed_phases: 0
@@ -393,9 +398,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T21:08:40Z
-Stopped at: v2.1 World Population Base roadmap created (Phases 9-12; critical path 9 → 10 → 12, Phase 11 beside 9 and 10)
-Resume file: None
+Last session: 2026-11-13T21:22:34.599Z
+Stopped at: Phase 9 context gathered
+Resume file: .planning/phases/09-npc-content/09-CONTEXT.md
 
 ## Operator Next Steps
 
