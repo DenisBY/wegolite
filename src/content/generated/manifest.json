@@ -16,6 +16,11 @@
       "sha256": "8e18eff0955f2cd80cded32dd2c4568174a812d68f7c3b27d1cec7fb7793b4f1"
     },
     {
+      "bytes": 78948,
+      "path": "public/models/viper.glb",
+      "sha256": "63151cdb8f34f3e4ead1f0f58f083e7f457bae84da91bc1d52aeb7c175128a4d"
+    },
+    {
       "bytes": 29515,
       "path": "public/textures/oolite-nebula-1.png",
       "sha256": "60760e7d6d20261b26445e0a695d624f097103648240cf4f2c1c8e8125a82e7b"
@@ -171,6 +176,21 @@
       "sha256": "23c371b4a9f56f3ee18586bcd2c453f03673b5ee7c9cfd667c872a1210751f64"
     },
     {
+      "bytes": 66490,
+      "path": "public/textures/oolite_viper_diffuse.webp",
+      "sha256": "a6d3b1c9f08dd79a45141e2ef661055a69c9d285373203f545b7896722891bf1"
+    },
+    {
+      "bytes": 6974,
+      "path": "public/textures/oolite_viper_diffuse_emissive.png",
+      "sha256": "2d87c5c147f3e298d5fc7f7c55972e77c81bb1eca1897722019f3b64216df9c3"
+    },
+    {
+      "bytes": 59644,
+      "path": "public/textures/oolite_viper_normal.webp",
+      "sha256": "0770252a5cdf6cf85c574cd7cb50926f6361259c192a5ce4a2e9a4c270b5b04e"
+    },
+    {
       "bytes": 9544,
       "path": "src/content/generated/commodities.json",
       "sha256": "7429535de7d898f0c0cb3fd524dcd473c76d7d8dd7575d8d1dc5b17777f82525"
@@ -241,9 +261,9 @@
       "sha256": "40f906335a3a074acb0db3cae5cc034e9acb7554950a9f3cfd1b4aedff9af5b4"
     },
     {
-      "bytes": 11039,
+      "bytes": 12047,
       "path": "src/content/generated/texture-encodings.json",
-      "sha256": "12ca117d579e81c73e2e86031752967fd5eb0189982d9809079049854cdc4f97"
+      "sha256": "32389bf7fd086d58d283c7f9c8852cf047f7c3e7fcc6ac74909d3a5c7c0f4fb9"
     }
   ],
   "format": "wegolite-content-manifest",

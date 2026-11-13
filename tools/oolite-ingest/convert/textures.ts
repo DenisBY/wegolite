@@ -6,13 +6,13 @@
  * textures, and (below) the greyscale emissive bake (DATA-04, DATA-07, DATA-08,
  * DATA-09, D-03, D-20, D-21, T-02-20).
  *
- * The sixteen ship and station textures are no longer copied: they are
+ * The ship and station textures are no longer copied: they are
  * re-encoded to WebP by `convert/texture-encode.ts`, which revises D-20 (see
  * PROJECT.md Key Decisions). This module still owns their allowlist and the
  * reference closure, which the encoder reads.
  *
  * The set is driven by `EMITTED_ENTRIES` from `convert/glb.ts`, never restated
- * here: the files this module copies are exactly the files the two emitted GLBs
+ * here: the files this module copies are exactly the files the emitted GLBs
  * reference, in both directions. A reference outside `VENDORED_TEXTURES` is a
  * build failure (`TEXTURE_MISSING`) naming the ship, the material and the
  * snapshot path the allowlist is missing — never a reason to drop a reference.
@@ -23,7 +23,7 @@
  * by SHA-256. The derived `_emissive.png` is built from the source alpha
  * channel with `node:zlib` rather than an image dependency.
  *
- * The closure is scoped to the material sets the two GLBs emit, not every
+ * The closure is scoped to the material sets the emitted GLBs use, not every
  * `modelVendored` entry. `cobra3-alternate` and `cobra3-pirate` reference
  * `oolite_cobra3_diffuse_alt.png` / `_pirate.png`, which are deliberately absent
  * because no GLB is built from those entries.
@@ -54,7 +54,7 @@ export const TEXTURES_DIR = "third_party/oolite/Textures";
 export const EMITTED_TEXTURES_DIR = "public/textures";
 
 /**
- * The 16 source files the two emitted GLBs reference, sorted by code unit.
+ * The source files the emitted GLBs reference, sorted by code unit.
  * Explicit by design: a texture becomes vendorable by being added here **and**
  * referenced by an emitted material, and both directions are asserted. These
  * are the vendored names; the client is served the re-encoded `.webp` of each.
@@ -81,6 +81,8 @@ export const VENDORED_TEXTURES: readonly string[] = [
   "oolite_coriolis_tris_diffuse.png",
   "oolite_coriolis_tris_normal.png",
   "oolite_coriolis_tris_specular.png",
+  "oolite_viper_diffuse.png",
+  "oolite_viper_normal.png",
 ];
 
 /** Which authored material slot produced a reference. */
@@ -144,7 +146,7 @@ function pushReference(
 }
 
 /**
- * Resolve the texture closure of the two emitted GLBs.
+ * Resolve the texture closure of the emitted GLBs.
  *
  * For every entry named by `EMITTED_ENTRIES`, collect each material's
  * `diffuse_map`, `normal_map`, `specular_map` and `emission_map.name`, plus the

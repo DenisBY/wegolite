@@ -112,7 +112,7 @@ const ZERO: Vec3 = { x: 0, y: 0, z: 0 };
 const PLUS_Z: Vec3 = { x: 0, y: 0, z: 1 };
 
 /**
- * Measured axis-aligned extents (span, not max) of the five pinned models, keyed
+ * Measured axis-aligned extents (span, not max) of every pinned model, keyed
  * by filename. Every value is the authored geometry, before the axis conversion.
  */
 export const MODEL_BOUNDS: Readonly<Record<string, Vec3>> = {
@@ -123,6 +123,7 @@ export const MODEL_BOUNDS: Readonly<Record<string, Vec3>> = {
   "oolite_coriolis_dock.dat": { x: 103.4123, y: 241.888, z: 250 },
   "oolite_coriolis_faceplate.dat": { x: 1000, y: 1000, z: 41.369 },
   "oolite_coriolis_tris.dat": { x: 1000, y: 1000, z: 995.918 },
+  "oolite_viper.dat": { x: 50, y: 18.1363, z: 65.1994 },
 };
 
 interface Token {

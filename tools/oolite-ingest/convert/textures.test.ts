@@ -32,7 +32,12 @@ import {
   resolveReferencedTextures,
   sampleNearest,
 } from "./textures.js";
-import { convertMesh, emissiveFile, encodedTextureFile } from "./glb.js";
+import {
+  NPC_SHIP_GLBS,
+  convertMesh,
+  emissiveFile,
+  encodedTextureFile,
+} from "./glb.js";
 import type { Face, MeshMaterial, ParsedMesh } from "./dat.js";
 import type { ShipCatalogue } from "../../../src/content/schemas/ship.js";
 
@@ -74,12 +79,12 @@ function caught(body: () => void): { message: string; code?: string } {
 }
 
 describe("texture reference closure", () => {
-  it("resolves exactly the 21 allowlisted names, in both directions", () => {
+  it("resolves exactly the 23 allowlisted names, in both directions", () => {
     const references = resolveReferencedTextures(catalogue());
 
     expect(nameList(references)).toEqual([...VENDORED_TEXTURES].sort());
     expect([...VENDORED_TEXTURES].sort()).toEqual(nameList(references));
-    expect(references.size).toBe(21);
+    expect(references.size).toBe(23);
   });
 
   it("keeps the Cobra variant textures out of the closure and both trees", () => {
@@ -260,6 +265,7 @@ const EMISSIVE_FILES = [
   "oolite_coriolis_dock_diffuse_emissive.png",
   "oolite_coriolis_faceplate_diffuse_emissive.png",
   "oolite_coriolis_tris_diffuse_emissive.png",
+  "oolite_viper_diffuse_emissive.png",
 ];
 
 describe("decodePng", () => {
@@ -342,7 +348,7 @@ describe("bakeEmissive", () => {
 });
 
 describe("emitTextures", () => {
-  it("bakes exactly the six emissive maps the three GLBs reference", async () => {
+  it("bakes exactly the emissive maps the emitted GLBs reference", async () => {
     const outRoot = await mkdtemp(join(tmpdir(), "wegolite-emissive-"));
     try {
       const emitted = await emitTextures({
@@ -357,7 +363,15 @@ describe("emitTextures", () => {
       const cobra = readGlbJson("public/models/cobra3.glb");
       const coriolis = readGlbJson("public/models/coriolis.glb");
       const buoy = readGlbJson("public/models/buoy.glb");
-      const glbEmissive = [...cobra.images, ...coriolis.images, ...buoy.images]
+      const npcImages = NPC_SHIP_GLBS.flatMap(
+        (file) => readGlbJson(`public/models/${file}`).images,
+      );
+      const glbEmissive = [
+        ...cobra.images,
+        ...coriolis.images,
+        ...buoy.images,
+        ...npcImages,
+      ]
         .map((image) => image.uri.replace("../textures/", ""))
         .filter((name) => name.endsWith("_emissive.png"))
         .sort();

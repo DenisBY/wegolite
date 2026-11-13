@@ -85,6 +85,7 @@ export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
     "oolite_coriolis_tris",
     "oolite_coriolis_dock",
   ],
+  "viper.glb": ["viper"],
 };
 
 /** The vendored `.dat` files each emitted GLB is built from, in node order. */
@@ -97,7 +98,33 @@ export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
     "oolite_coriolis_tris.dat",
     "oolite_coriolis_dock.dat",
   ],
+  "viper.glb": ["oolite_viper.dat"],
 };
+
+/**
+ * The single-mesh NPC role ships, each built by `buildShipGlb` from one `.dat`
+ * and owned by one shipdata entry. Code-unit sorted; the row set is mirrored by
+ * `EMITTED_ENTRIES` and `MODEL_SOURCE_FILES`, never inferred from the catalogue.
+ */
+export const NPC_SHIP_GLBS: readonly string[] = ["viper.glb"];
+
+const SHIP_MODEL_PATTERN = /^oolite_([a-z0-9_]+)\.dat$/;
+
+/**
+ * The single naming rule shared by the converter and the NPC record compiler:
+ * `oolite_<name>.dat` becomes `<name>.glb` (`oolite_viper.dat` is `viper.glb`).
+ * Any other model name fails the build.
+ */
+export function shipGlbFile(model: string): string {
+  const match = SHIP_MODEL_PATTERN.exec(model);
+  if (match === null || match[1] === undefined) {
+    return glbFailure(
+      "models",
+      `model "${model}" does not follow the oolite_<name>.dat naming rule`,
+    );
+  }
+  return `${match[1]}.glb`;
+}
 
 /** The shipdata keys of the two buoys that share `buoy.glb`. */
 export const BUOY_STATION_ROLE = "buoy";
@@ -1042,15 +1069,29 @@ function buildNodeMesh(
   return { name: meshName, primitives };
 }
 
-/** The Cobra Mk III: one node, one mesh, one primitive per authored material. */
-export function buildCobraGlb(mesh: ParsedMesh, entry: ShipEntry): Uint8Array {
-  const built = buildNodeMesh("oolite_cobra3", mesh, entry);
+/**
+ * One ship hull: one node, one mesh, one primitive per authored material. The
+ * generic builder behind the Cobra and every single-mesh NPC ship; sub-entities
+ * are not compiled.
+ */
+export function buildShipGlb(
+  nodeName: string,
+  meshName: string,
+  mesh: ParsedMesh,
+  entry: ShipEntry,
+): Uint8Array {
+  const built = buildNodeMesh(meshName, mesh, entry);
   return writeGlb({
-    nodes: [{ name: "cobra3", mesh: built }],
+    nodes: [{ name: nodeName, mesh: built }],
     materials: built.primitives.map((primitive) =>
       materialFor(primitive.materialName, entry.shipDef, entry.key),
     ),
   });
+}
+
+/** The Cobra Mk III: one node, one mesh, one primitive per authored material. */
+export function buildCobraGlb(mesh: ParsedMesh, entry: ShipEntry): Uint8Array {
+  return buildShipGlb("cobra3", "oolite_cobra3", mesh, entry);
 }
 
 function subentityTranslation(
@@ -1187,9 +1228,10 @@ function requireEntry(
 }
 
 /**
- * Emit both binaries, driven by `EMITTED_ENTRIES` — the single declaration of
- * which shipdata entry owns each mesh, so plan 07's texture closure reads the
- * same constant instead of restating it.
+ * Emit every binary, driven by `EMITTED_ENTRIES` and `MODEL_SOURCE_FILES` — the
+ * single declaration of which shipdata entry owns each mesh and which `.dat`
+ * files it is built from, so the texture closure reads the same constants
+ * instead of restating them.
  */
 export function emitModels(
   models: Readonly<Record<string, ParsedMesh>>,
@@ -1275,6 +1317,46 @@ export function emitModels(
       },
     ),
   });
+
+  for (const file of NPC_SHIP_GLBS) {
+    const sources = MODEL_SOURCE_FILES[file] ?? [];
+    const owners = EMITTED_ENTRIES[file] ?? [];
+    const source = sources[0];
+    const owner = owners[0];
+    if (
+      sources.length !== 1 ||
+      owners.length !== 1 ||
+      source === undefined ||
+      owner === undefined
+    ) {
+      glbFailure(
+        file,
+        "an NPC ship needs exactly one source mesh and one owner",
+      );
+    }
+    if (shipGlbFile(source) !== file) {
+      glbFailure(
+        file,
+        `source "${source}" would be emitted as "${shipGlbFile(source)}"`,
+      );
+    }
+    const entry = requireEntry(entries, owner);
+    if (entry.shipDef.model !== source) {
+      glbFailure(
+        file,
+        `owner "${owner}" resolves model "${entry.shipDef.model ?? "none"}", expected "${source}"`,
+      );
+    }
+    emitted.push({
+      path: `${EMITTED_MODELS_DIR}/${file}`,
+      bytes: buildShipGlb(
+        file.slice(0, -".glb".length),
+        source.slice(0, -".dat".length),
+        requireModel(models, source),
+        entry,
+      ),
+    });
+  }
 
   return emitted.sort((left, right) =>
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0,

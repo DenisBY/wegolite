@@ -359,6 +359,39 @@
       "sha256": "23c371b4a9f56f3ee18586bcd2c453f03673b5ee7c9cfd667c872a1210751f64",
       "source": "third_party/oolite/Textures/oolite_coriolis_tris_specular.png",
       "sourceSha256": "281ada9fa9ece3a36adc0bd905ac0366f88ae83afacc548174cc42f3997c50a7"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 66490,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_viper_diffuse.webp",
+      "sha256": "a6d3b1c9f08dd79a45141e2ef661055a69c9d285373203f545b7896722891bf1",
+      "source": "third_party/oolite/Textures/oolite_viper_diffuse.png",
+      "sourceSha256": "b8c99314cb62d6ac74c39793e901886f047ac3e6988ce66f7c3cd06e23306558"
+    },
+    {
+      "args": [
+        "-near_lossless",
+        "60",
+        "-z",
+        "9",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 59644,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_viper_normal.webp",
+      "sha256": "0770252a5cdf6cf85c574cd7cb50926f6361259c192a5ce4a2e9a4c270b5b04e",
+      "source": "third_party/oolite/Textures/oolite_viper_normal.png",
+      "sourceSha256": "639f87e3394baab494d93668769da27dfb809210c36a69fea781bd9825572067"
     }
   ]
 }
