@@ -46,6 +46,7 @@ import {
   createSaveController,
   statusSkipReason,
 } from "./session/save-controller.js";
+import { createHyperspaceController } from "./session/hyperspace-controller.js";
 import { createStationController } from "./session/station-controller.js";
 import type { SessionState } from "./session/context.js";
 import type { LaunchSequence } from "./launch-sequence.js";
@@ -71,21 +72,12 @@ import { stepFlight } from "../sim/flight/step.js";
 import type { StepOptions } from "../sim/flight/step.js";
 import { newProfile } from "../sim/player/profile.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
-import {
-  arrivalMarketSeed,
-  generateMarket,
-  marketSeedForSystem,
-} from "../sim/economy/market.js";
+import { generateMarket, marketSeedForSystem } from "../sim/economy/market.js";
 import type { Market } from "../sim/economy/market.js";
-import {
-  applyWitchpointArrival,
-  drawWitchpointExit,
-} from "../sim/hyperspace/arrival.js";
 import {
   countdownSecondsRemaining,
   witchspaceStationMass,
 } from "../sim/hyperspace/countdown.js";
-import type { HyperspaceRefusal } from "../sim/events.js";
 import type { TradePlan } from "../sim/economy/trade.js";
 import { applyFit, checkFit } from "../sim/player/outfitting.js";
 import { createChart } from "../ui/chart.js";
@@ -94,8 +86,6 @@ import { buildChartView } from "../ui/chart-model.js";
 import { buildSystemDataModel } from "../ui/station-model.js";
 import { createStationNav } from "../ui/station-nav.js";
 import { DT } from "../sim/time.js";
-import { deriveSystemLayout } from "../sim/world/layout.js";
-import type { SystemLayout } from "../sim/world/layout.js";
 import { createKeyboardInputSource } from "../input/keyboard.js";
 import { createBindingMap } from "../input/bindings.js";
 import { loadSettings } from "../settings/store.js";
@@ -138,8 +128,7 @@ export interface SessionFaults {
 }
 
 /** The message the injected destination-build fault throws (WR-04). */
-export const DESTINATION_BUILD_FAULT_MESSAGE =
-  "Injected destination-build failure (test seam)";
+export { DESTINATION_BUILD_FAULT_MESSAGE } from "./session/hyperspace-controller.js";
 
 export interface GameSessionOptions {
   readonly renderer: THREE.WebGLRenderer;
@@ -272,6 +261,33 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   const redrawGate = createRedrawGate();
   const messages = createMessageQueue(4);
   const launchSequence: LaunchSequence = createLaunchSequence();
+
+  // D-12 step 7: the hyperspace arrival and the helpers it needs (entering a
+  // system scene, the committed target, the refusal copy, the status overlay).
+  // It is built before the station controller and the render driver because
+  // they take `targetSystem`; the autosave and the economy probe, whose owners
+  // are built later, are reached through call-time wrappers.
+  const hyperspaceController = createHyperspaceController(ctx, {
+    scenes,
+    galaxyById,
+    messages,
+    faults,
+    showBootFailure,
+    publishFailure,
+    autosave: () => {
+      saveController.autosave();
+    },
+    syncEconomyProbe: () => {
+      probePublisher.syncEconomyProbe();
+    },
+  });
+  const {
+    refusalCopy,
+    handleHyperspaceJumped,
+    enterSystemById,
+    targetSystem,
+    syncStatusOverlay,
+  } = hyperspaceController;
 
   // D-12 step 5: the docked station computer (trade, fitting, selection, the
   // station render, the navigation tabs and the drained station actions). It is
@@ -425,165 +441,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       return "Hull contact - roll 90 degrees and line up with the slot";
     }
     return "Hull contact - pull away and line up with the slot";
-  }
-
-  /** D-09: resolve and install a new system scene; never rebuild the dock port. */
-  function enterSystemById(id: string): SystemLayout {
-    const currentStationDef = ctx.core.stationDef;
-    if (currentStationDef === undefined) {
-      throw new Error(
-        "Wegolite: cannot enter a system before the station loads.",
-      );
-    }
-    const next = galaxyById.get(id);
-    if (next === undefined) {
-      throw new Error(`Wegolite: no system with id "${id}" in this galaxy.`);
-    }
-    // Derive the destination layout before the scene manager switches. The
-    // scene manager derives the same layout from the same two arguments, so
-    // the two copies have equal content. A throw here leaves the scene
-    // manager, the scene and the session all on the origin.
-    const nextLayout = deriveSystemLayout(next, currentStationDef);
-    const nextScene = scenes.enterSystem(next, currentStationDef);
-    // Commit point: the scene manager has installed the destination. Nothing
-    // below can throw, so the session takes the system, scene and layout in
-    // the same step as the switch. The `??` fallback mirrors `performSwap`.
-    const assignedLayout = scenes.layout() ?? nextLayout;
-    ctx.core.system = next;
-    ctx.core.scene = nextScene;
-    ctx.core.layout = assignedLayout;
-    // The new dust field has no camera history; a stale delta would smear it.
-    ctx.core.previousCameraWorld = undefined;
-    return assignedLayout;
-  }
-
-  /** The committed target record, resolved through the validated catalogue. */
-  function targetSystem(): System | undefined {
-    if (ctx.core.hyperspaceTargetId === undefined) return undefined;
-    return galaxyById.get(ctx.core.hyperspaceTargetId);
-  }
-
-  /** D-06 copy is app-owned; the sim event carries a payload-free reason. */
-  function refusalCopy(reason: HyperspaceRefusal): string {
-    switch (reason) {
-      case "no target":
-        return "No target selected";
-      case "too far":
-        return "Destination is too far";
-      case "insufficient fuel":
-        return "Insufficient fuel";
-      case "blocked":
-        // Only a Coriolis station blocks (witchspaceStationMass), so the name is
-        // fixed. The copy is exactly MAX_MESSAGE_CHARS (54) long: the HUD clamps
-        // a longer line with an ellipsis, which would cut the station name.
-        return "Witchspace jump aborted: too close to Coriolis Station";
-    }
-  }
-
-  /** D-09: the synchronous arrival swap and its one seeded market. */
-  function handleHyperspaceJumped(event: {
-    destinationId: string;
-    clockDeltaSeconds: number;
-    fuelCost: number;
-  }): void {
-    const currentState = ctx.core.state;
-    const currentConfig = ctx.core.config;
-    const catalogue = ctx.core.commodities;
-    if (
-      currentState === undefined ||
-      currentConfig === undefined ||
-      catalogue === undefined
-    ) {
-      return;
-    }
-    // T-06-12: the destination is resolved only through the validated galaxy.
-    const destination = galaxyById.get(event.destinationId);
-    if (destination === undefined) {
-      ctx.core.lastRefusal = { reason: "too far" };
-      messages.enqueuePriority(refusalCopy("too far"));
-      return;
-    }
-    const originId = ctx.core.system.id;
-    const previousSeed = ctx.core.marketSeed ?? marketSeedForSystem(originId);
-    const nextSeed = arrivalMarketSeed(destination.id, previousSeed);
-    // The arrival offset is drawn once, here at the jump commit, from the
-    // origin's persisted market seed. A reload restores the saved pose and
-    // never calls this draw, so a reload cannot re-roll the arrival. The draw
-    // is pure and cannot throw, so it stays outside the try block.
-    const exit = drawWitchpointExit(previousSeed);
-    const nextFuel = Math.max(0, ctx.core.profile.fuel - event.fuelCost);
-
-    // G-7: the sim has already committed the jump (clock advanced, countdown
-    // cleared), so everything that can throw runs here, before any live
-    // reference moves: the destination market, then the destination scene.
-    // enterSystemById derives the destination layout before the scene manager
-    // switches, and the scene manager installs the destination before it
-    // retires the origin (T-06-13). A throw before the switch leaves the origin
-    // scene, the scene manager and the system/scene/layout triple untouched; a
-    // throw after the switch cannot happen inside enterSystemById. A throw
-    // shows the failure surface and leaves profile, market, seed and target
-    // untouched.
-    let nextMarket: Market;
-    let arrivedLayout: SystemLayout;
-    try {
-      nextMarket = generateMarket(destination, catalogue, nextSeed);
-      // D-18 / WR-04: the injected fault sits between the destination market
-      // build and the scene switch, so it exercises the same failure surface.
-      if (faults?.failDestinationBuild === true) {
-        throw new Error(DESTINATION_BUILD_FAULT_MESSAGE);
-      }
-      arrivedLayout = enterSystemById(destination.id);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      showBootFailure(
-        "Hyperspace arrival failed. Reload the page to restart Wegolite.",
-      );
-      publishFailure(detail);
-      // Freeze the sim behind the failure surface: no further steps, no
-      // autosave from the advancing clock.
-      ctx.runtime.paused = true;
-      return;
-    }
-
-    // One synchronous install block: plain assignments and the pure arrival
-    // pose. Nothing in it throws, so the session is never half-applied.
-    ctx.core.profile = { ...ctx.core.profile, fuel: nextFuel };
-    ctx.core.market = nextMarket;
-    ctx.core.marketSeed = nextSeed;
-    // The committed `hyperspaceTargetId` is deliberately retained: the arrival
-    // snapshot carries it (PROJECT.md:126-127, Oolite's unchanged
-    // target_system_id), and the HUD/F5 target line keeps naming it.
-    applyWitchpointArrival(currentState, arrivedLayout, currentConfig, exit);
-    const arrivedPose = poseOf(currentState);
-    ctx.core.previousPose = arrivedPose;
-    ctx.core.currentPose = arrivedPose;
-    ctx.station.stationScreen = "home";
-    ctx.station.stationPending = null;
-    ctx.station.stationNotice = "";
-    ctx.station.stationMessage = "";
-    ctx.station.stationPage = 1;
-    ctx.chart.chartSelectedId = undefined;
-    ctx.core.lastJump = {
-      destinationId: destination.id,
-      clockDeltaSeconds: event.clockDeltaSeconds,
-      fuelCost: event.fuelCost,
-    };
-    syncStatusOverlay();
-    messages.enqueue(`Arrived at ${destination.name}`);
-    // The arrival anchor is a complete in-flight v2 snapshot.
-    autosave();
-    probePublisher.syncEconomyProbe();
-  }
-
-  /**
-   * IN-02: the global `#status` overlay names the live system. It is written
-   * from session state after the boot install, a jump and a Load, so it never
-   * claims a stale system.
-   */
-  function syncStatusOverlay(): void {
-    const element = document.getElementById("status");
-    if (element === null) return;
-    element.textContent = `Wegolite — ${ctx.core.system.name}`;
   }
 
   window.addEventListener("keydown", onSubpanelKeyDown, {
