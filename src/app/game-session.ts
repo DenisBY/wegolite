@@ -42,6 +42,8 @@ import { createSessionState } from "./session/context.js";
 import { createProbePublisher, toTuple } from "./session/probe-publisher.js";
 import { createRenderDriver } from "./session/render-driver.js";
 import type { RenderDriver } from "./session/render-driver.js";
+import { createChartController } from "./session/chart-controller.js";
+import { createSettingsController } from "./session/settings-controller.js";
 import type { SessionState } from "./session/context.js";
 import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
@@ -109,20 +111,10 @@ import {
 import type { FitContext } from "../sim/player/outfitting.js";
 import { formatFuel } from "../ui/docked.js";
 import { createChart } from "../ui/chart.js";
-import type { ChartOverlay } from "../ui/chart.js";
 import { createSaveLoadScreen } from "../ui/save-load.js";
 import { chartHints, dockedHints, saveLoadHints } from "../ui/station-hints.js";
 import { formatClock } from "../render/hud/format.js";
-import {
-  buildChartView,
-  chartArrowVector,
-  clampChartCamera,
-  galaxyPreset,
-  localPreset,
-  nearestInDirection,
-  visibleSystemIds,
-} from "../ui/chart-model.js";
-import type { ChartArrow, ChartCamera, ChartView } from "../ui/chart-model.js";
+import { buildChartView } from "../ui/chart-model.js";
 import {
   buildHomeModel,
   buildMarketModel,
@@ -141,25 +133,12 @@ import { DT } from "../sim/time.js";
 import { deriveSystemLayout } from "../sim/world/layout.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import { createKeyboardInputSource } from "../input/keyboard.js";
-import {
-  ACTION_CONTEXTS,
-  ACTION_IDS,
-  DEFAULT_BINDINGS,
-} from "../input/actions.js";
+import { ACTION_CONTEXTS, DEFAULT_BINDINGS } from "../input/actions.js";
 import type { ActionId } from "../input/actions.js";
 import { createBindingMap } from "../input/bindings.js";
-import {
-  loadSettings,
-  resetSettings,
-  saveSettings,
-} from "../settings/store.js";
-import type { GraphicsQuality } from "../settings/schema.js";
+import { loadSettings } from "../settings/store.js";
 import { createControlsPanel } from "../ui/controls.js";
 import { createPauseOverlay } from "../ui/pause.js";
-import {
-  CONTEXT_LOST_NOTICE,
-  CONTEXT_RESTORED_NOTICE,
-} from "./context-recovery.js";
 import { createSettingsPanel } from "../ui/settings-panel.js";
 import type {
   StationScreen,
@@ -366,15 +345,45 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   });
   const { renderFrame, shouldDraw } = renderDriver;
 
-  function persistSettings(): void {
-    if (
-      ctx.runtime.settings === undefined ||
-      ctx.runtime.bindings === undefined
-    )
-      return;
-    ctx.runtime.settings.bindings = ctx.runtime.bindings;
-    saveSettings(ctx.runtime.settings);
-  }
+  // D-12 step 4: the chart overlay's logic, and pause, focus loss, context loss,
+  // the controls and settings panels and graphics quality. Neither factory
+  // registers a listener: the window keydown registrations stay below until
+  // split step 9 moves them into the session lifecycle.
+  const chartController = createChartController(ctx, {
+    galaxy,
+    galaxyById,
+    updateProbe: probePublisher.updateProbe,
+    syncStationNav,
+  });
+  const settingsController = createSettingsController(ctx, {
+    scenes,
+    renderFrame,
+    syncStationNav,
+    refreshStationChrome,
+    performSwap,
+  });
+  const {
+    setChartCamera,
+    openChart,
+    closeChart,
+    selectChartSystem,
+    handleChartActions,
+  } = chartController;
+  const {
+    persistSettings,
+    pause,
+    focusLost,
+    resume,
+    enterContextLoss,
+    exitContextLoss,
+    backToPause,
+    openControls,
+    syncQualityToggle,
+    applyQuality,
+    openSettings,
+    resetAllSettings,
+    onSubpanelKeyDown,
+  } = settingsController;
 
   /** D-08 copy is app-owned and fixed; the sim event carries facts only. */
   function bounceMessage(event: {
@@ -1306,137 +1315,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     probePublisher.syncSaveProbe();
   }
 
-  function pause(): void {
-    const currentState = ctx.core.state;
-    if (currentState === undefined) {
-      // The title/menu has no simulation; focus loss only clears input.
-      ctx.runtime.input?.clearAll();
-      return;
-    }
-    if (ctx.runtime.paused) {
-      // Repeated blur/visibility events are idempotent.
-      ctx.runtime.input?.clearAll();
-      return;
-    }
-    ctx.runtime.paused = true;
-    ctx.runtime.input?.clearAll();
-    ctx.runtime.input?.setPaused(true);
-    ctx.runtime.loop?.reset();
-    ctx.runtime.pauseOverlay?.show();
-    syncStationNav();
-  }
-
-  /**
-   * D-15 focus loss. Held input is always cleared. The pause step runs only
-   * when the stored toggle is on (the default); with it off the simulation
-   * keeps running. The game-loop frame-delta clamp bounds the catch-up after a
-   * stalled hidden tab, so no loop reset is needed here.
-   */
-  function focusLost(): void {
-    if (
-      ctx.runtime.settings === undefined ||
-      ctx.runtime.settings.pauseOnFocusLoss
-    ) {
-      pause();
-      return;
-    }
-    ctx.runtime.input?.clearAll();
-  }
-
-  function resume(): void {
-    if (!ctx.runtime.paused) return;
-    // QUAL-05 (D-15): no resume without a context. P, Escape and the Resume
-    // button all reach this line, so the refusal covers every route.
-    if (ctx.runtime.contextLost) return;
-    ctx.runtime.paused = false;
-    ctx.runtime.input?.clearAll();
-    ctx.runtime.input?.setPaused(false);
-    // Hidden time is never replayed: the accumulator starts at zero and the
-    // next frame delta is one rendered frame, not the time spent paused.
-    ctx.runtime.loop?.reset();
-    ctx.runtime.pauseOverlay?.hide();
-    ctx.runtime.pauseOverlay?.setNotice("");
-    ctx.runtime.controlsPanel?.hide();
-    ctx.runtime.settingsPanel?.hide();
-    syncStationNav();
-  }
-
-  /** QUAL-05: the context went away; pause at once and say why. */
-  function enterContextLoss(): void {
-    ctx.runtime.contextLost = true;
-    pause();
-    ctx.runtime.pauseOverlay?.setNotice(CONTEXT_LOST_NOTICE);
-  }
-
-  /**
-   * QUAL-05 (D-15): the context is back. The session stays paused until the
-   * player resumes; the live scene is drawn once into the new context so every
-   * GPU resource is uploaded before the probe is read.
-   */
-  function exitContextLoss(): void {
-    ctx.runtime.contextLost = false;
-    ctx.runtime.pauseOverlay?.setNotice(CONTEXT_RESTORED_NOTICE);
-    if (ctx.core.state !== undefined) renderFrame(0);
-  }
-
-  function backToPause(): void {
-    ctx.runtime.controlsPanel?.hide();
-    ctx.runtime.settingsPanel?.hide();
-    ctx.runtime.pauseOverlay?.show();
-  }
-
-  function openControls(): void {
-    ctx.runtime.settingsPanel?.hide();
-    ctx.runtime.controlsPanel?.show();
-  }
-
-  /** Push the stored focus-loss toggle into the checkbox; absent reads as on. */
-  function syncPauseOnFocusLossToggle(): void {
-    ctx.runtime.settingsPanel?.setPauseOnFocusLoss(
-      ctx.runtime.settings?.pauseOnFocusLoss ?? true,
-    );
-  }
-
-  /** Mirror the stored graphics quality into the Settings toggle. */
-  function syncQualityToggle(): void {
-    ctx.runtime.settingsPanel?.setQuality(
-      ctx.runtime.settings?.quality ?? "standard",
-    );
-  }
-
-  /**
-   * Apply a graphics quality to the running game.
-   *
-   * The quality is a property of the built scene (shader variant and the
-   * atmosphere shell), so the current system is re-entered, exactly as the
-   * `?test=1` swap does. Nothing in the simulation changes. A failed rebuild
-   * leaves the previous scene installed (`enterSystem` commits last) and
-   * restores the previous quality, so the toggle never lies.
-   */
-  function applyQuality(quality: GraphicsQuality): boolean {
-    const previous = scenes.quality();
-    if (quality === previous) return true;
-    scenes.setQuality(quality);
-    if (ctx.core.state === undefined || ctx.core.stationDef === undefined)
-      return true;
-    try {
-      performSwap();
-    } catch (error) {
-      scenes.setQuality(previous);
-      console.error("Wegolite: applying the graphics quality failed", error);
-      return false;
-    }
-    renderFrame(0);
-    return true;
-  }
-
-  function openSettings(): void {
-    ctx.runtime.controlsPanel?.hide();
-    syncPauseOnFocusLossToggle();
-    syncQualityToggle();
-    ctx.runtime.settingsPanel?.show();
-  }
-
   /**
    * The synchronous screen-open sink (step 7): the input layer calls this
    * inside `keyDown`, so the context switches before the same-frame next key
@@ -1559,40 +1437,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderStation();
   }
 
-  /** Apply a wheel/drag camera from the chart shell (D-03/D-04/D-09). */
-  function setChartCamera(camera: ChartCamera): void {
-    if (
-      ctx.runtime.disposed ||
-      ctx.runtime.paused ||
-      ctx.runtime.contextLost ||
-      !ctx.chart.chartOpen
-    )
-      return;
-    ctx.chart.chartCamera = clampChartCamera(camera);
-    refreshChart();
-    probePublisher.updateProbe();
-  }
-
-  /** Tab toggles the local preset and the whole-galaxy preset (D-06/D-07). */
-  function toggleChartPreset(): void {
-    if (
-      ctx.runtime.disposed ||
-      ctx.runtime.paused ||
-      ctx.runtime.contextLost ||
-      !ctx.chart.chartOpen
-    )
-      return;
-    if (ctx.chart.chartPreset === "local") {
-      ctx.chart.chartPreset = "galaxy";
-      ctx.chart.chartCamera = galaxyPreset();
-    } else {
-      ctx.chart.chartPreset = "local";
-      ctx.chart.chartCamera = localPreset(ctx.core.system);
-    }
-    refreshChart();
-    probePublisher.updateProbe();
-  }
-
   /** D-09: resolve and install a new system scene; never rebuild the dock port. */
   function enterSystemById(id: string): SystemLayout {
     const currentStationDef = ctx.core.stationDef;
@@ -1627,70 +1471,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function targetSystem(): System | undefined {
     if (ctx.core.hyperspaceTargetId === undefined) return undefined;
     return galaxyById.get(ctx.core.hyperspaceTargetId);
-  }
-
-  function currentChartView(overlay: ChartOverlay): ChartView {
-    return buildChartView(
-      galaxy,
-      ctx.core.system.id,
-      ctx.core.hyperspaceTargetId,
-      ctx.chart.chartCamera,
-      ctx.core.profile.fuel,
-      overlay.viewport(),
-      ctx.chart.chartSelectedId,
-    );
-  }
-
-  function refreshChart(): void {
-    const overlay = ctx.chart.chart;
-    if (overlay === undefined) return;
-    overlay.view(currentChartView(overlay));
-  }
-
-  function openChart(): void {
-    const currentState = ctx.core.state;
-    const currentInput = ctx.runtime.input;
-    const overlay = ctx.chart.chart;
-    if (
-      currentState === undefined ||
-      currentInput === undefined ||
-      overlay === undefined
-    ) {
-      return;
-    }
-    // Pitfall 13: F6 is inert during the launch cinematic, and an overlay must
-    // never open beneath the pause overlay.
-    if (
-      ctx.runtime.paused ||
-      ctx.chart.chartOpen ||
-      currentState.mode === "launching"
-    )
-      return;
-    ctx.chart.chartOpen = true;
-    ctx.chart.contextBeforeChart = currentInput.getContext();
-    currentInput.setContext("chart");
-    // D-06: every open starts at the local preset around the current system.
-    ctx.chart.chartCamera = localPreset(ctx.core.system);
-    ctx.chart.chartPreset = "local";
-    // The chart nav's hidden state must be final before the first paint
-    // measures the canvas.
-    syncStationNav();
-    // The overlay is still `hidden` when the first view is built, so its
-    // client size is zero. Show it, then rebuild against the real viewport.
-    overlay.show(currentChartView(overlay));
-    overlay.view(currentChartView(overlay));
-    probePublisher.updateProbe();
-  }
-
-  function closeChart(): void {
-    if (!ctx.chart.chartOpen) return;
-    ctx.chart.chartOpen = false;
-    ctx.chart.chart?.hide();
-    ctx.runtime.input?.setContext(ctx.chart.contextBeforeChart);
-    // Hidden time is never replayed; the accumulator starts at zero.
-    ctx.runtime.loop?.reset();
-    syncStationNav();
-    probePublisher.updateProbe();
   }
 
   /** The one slot line: the autosave key, the system and the live clock. */
@@ -1810,76 +1590,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   function handleSaveScreenActions(actions: readonly ActionId[]): void {
     for (const action of actions) applySaveScreenAction(action);
-  }
-
-  function selectChartSystem(id: string): void {
-    if (!ctx.chart.chartOpen) return;
-    ctx.chart.chartSelectedId = id;
-    refreshChart();
-  }
-
-  function moveChartSelection(arrow: ChartArrow): void {
-    const base =
-      (ctx.chart.chartSelectedId === undefined
-        ? undefined
-        : galaxyById.get(ctx.chart.chartSelectedId)) ?? ctx.core.system;
-    // G-5: arrows walk only the systems the window paints, so a press can
-    // never land on an unpainted system. With no chart there is nothing to
-    // paint, and the whole galaxy is the fallback.
-    const overlay = ctx.chart.chart;
-    const visibleIds =
-      overlay === undefined
-        ? undefined
-        : visibleSystemIds(currentChartView(overlay));
-    const candidates =
-      visibleIds === undefined
-        ? galaxy
-        : galaxy.filter((candidate) => visibleIds.has(candidate.id));
-    const { dirX, dirY } = chartArrowVector(arrow);
-    const next = nearestInDirection(candidates, base, dirX, dirY);
-    if (next !== undefined) ctx.chart.chartSelectedId = next.id;
-    refreshChart();
-  }
-
-  /** Apply one drained chart edge; the live open flag is revalidated here. */
-  function applyChartAction(action: ActionId): void {
-    switch (action) {
-      case "chart":
-        if (ctx.chart.chartOpen) closeChart();
-        else openChart();
-        break;
-      case "chartBack":
-        closeChart();
-        break;
-      case "chartRange":
-        toggleChartPreset();
-        break;
-      case "chartConfirm":
-        // A click only selects (D-02): Enter is the commit.
-        if (!ctx.chart.chartOpen || ctx.chart.chartSelectedId === undefined)
-          return;
-        ctx.core.hyperspaceTargetId = ctx.chart.chartSelectedId;
-        refreshChart();
-        break;
-      case "chartUp":
-        if (ctx.chart.chartOpen) moveChartSelection("up");
-        break;
-      case "chartDown":
-        if (ctx.chart.chartOpen) moveChartSelection("down");
-        break;
-      case "chartLeft":
-        if (ctx.chart.chartOpen) moveChartSelection("left");
-        break;
-      case "chartRight":
-        if (ctx.chart.chartOpen) moveChartSelection("right");
-        break;
-      default:
-        break;
-    }
-  }
-
-  function handleChartActions(actions: readonly ActionId[]): void {
-    for (const action of actions) applyChartAction(action);
   }
 
   /** D-06 copy is app-owned; the sim event carries a payload-free reason. */
@@ -2074,40 +1784,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       default:
         break;
     }
-  }
-
-  function resetAllSettings(): void {
-    const fresh = resetSettings();
-    if (ctx.runtime.bindings !== undefined) {
-      for (const action of ACTION_IDS) {
-        ctx.runtime.bindings[action] = [...(fresh.bindings[action] ?? [])];
-      }
-      ctx.runtime.settings = { ...fresh, bindings: ctx.runtime.bindings };
-      ctx.runtime.input?.setBindings(ctx.runtime.bindings);
-      ctx.runtime.controlsPanel?.refresh();
-    } else {
-      ctx.runtime.settings = fresh;
-    }
-    ctx.core.launchSeen = false;
-    syncPauseOnFocusLossToggle();
-    // Reset returns the quality to its default; rebuild the scene to match.
-    applyQuality(fresh.quality);
-    syncQualityToggle();
-    refreshStationChrome();
-  }
-
-  function onSubpanelKeyDown(event: KeyboardEvent): void {
-    if (event.code !== "Escape") return;
-    if (ctx.runtime.controlsPanel?.isCapturing() === true) return;
-    if (
-      ctx.runtime.controlsPanel?.isOpen() !== true &&
-      ctx.runtime.settingsPanel?.isOpen() !== true
-    ) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    backToPause();
   }
 
   window.addEventListener("keydown", onSubpanelKeyDown, {
