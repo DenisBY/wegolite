@@ -26,8 +26,6 @@ import { loadEquipment } from "../content/equipment.js";
 import { loadCommodities } from "../content/commodities.js";
 import { loadLabels } from "../content/labels.js";
 import type { System } from "../content/types.js";
-import { shouldEmitScrapeMessage } from "./dock-feedback.js";
-import { mapHyperspaceBeginEdges } from "./hyperspace-commands.js";
 import { createGameLoop } from "./game-loop.js";
 import { publishFailure } from "./probe.js";
 import type { WegoliteProbe, WegoliteSaveProbe } from "./probe.js";
@@ -46,7 +44,15 @@ import {
   createSaveController,
   statusSkipReason,
 } from "./session/save-controller.js";
+import {
+  createDockFeedbackFlow,
+  createEventRouter,
+  createHudMessages,
+  createHyperspaceFlow,
+  createStationFlow,
+} from "./session/event-router.js";
 import { createHyperspaceController } from "./session/hyperspace-controller.js";
+import { createSimDriver } from "./session/sim-driver.js";
 import { createStationController } from "./session/station-controller.js";
 import type { SessionState } from "./session/context.js";
 import type { LaunchSequence } from "./launch-sequence.js";
@@ -58,26 +64,18 @@ import { createBreakPattern } from "../render/break-pattern.js";
 import { createHud } from "../render/hud/hud.js";
 import { createMessageQueue } from "../render/hud/messages.js";
 import type { Command } from "../sim/commands.js";
-import type { SimEvent } from "../sim/events.js";
 import { createDockGeometry } from "../sim/dock/geometry.js";
 import { deriveFlightConfig } from "../sim/flight/config.js";
 import {
   PlayerController,
   ScriptedLaunchController,
-  flightView,
 } from "../sim/flight/controller.js";
 import { initFlightState, poseOf } from "../sim/flight/state.js";
 import type { FlightState } from "../sim/flight/state.js";
-import { stepFlight } from "../sim/flight/step.js";
-import type { StepOptions } from "../sim/flight/step.js";
 import { newProfile } from "../sim/player/profile.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
 import { generateMarket, marketSeedForSystem } from "../sim/economy/market.js";
 import type { Market } from "../sim/economy/market.js";
-import {
-  countdownSecondsRemaining,
-  witchspaceStationMass,
-} from "../sim/hyperspace/countdown.js";
 import type { TradePlan } from "../sim/economy/trade.js";
 import { applyFit, checkFit } from "../sim/player/outfitting.js";
 import { createChart } from "../ui/chart.js";
@@ -85,7 +83,6 @@ import { createSaveLoadScreen } from "../ui/save-load.js";
 import { buildChartView } from "../ui/chart-model.js";
 import { buildSystemDataModel } from "../ui/station-model.js";
 import { createStationNav } from "../ui/station-nav.js";
-import { DT } from "../sim/time.js";
 import { createKeyboardInputSource } from "../input/keyboard.js";
 import { createBindingMap } from "../input/bindings.js";
 import { loadSettings } from "../settings/store.js";
@@ -429,19 +426,41 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     onSubpanelKeyDown,
   } = settingsController;
 
-  /** D-08 copy is app-owned and fixed; the sim event carries facts only. */
-  function bounceMessage(event: {
-    cause: "hull" | "straddle";
-    axis: "x" | "y" | "z";
-  }): string {
-    if (event.cause === "straddle") {
-      return "Too wide for the slot - roll 90 degrees to match the opening";
-    }
-    if (event.axis === "x") {
-      return "Hull contact - roll 90 degrees and line up with the slot";
-    }
-    return "Hull contact - pull away and line up with the slot";
-  }
+  // D-12 step 8: sim events go through the ordered router (the four gameplay
+  // subscribers, in `EVENT_SUBSCRIBER_ORDER`), and the sim driver owns the
+  // drain, the launch filter, the pre-launch autosave and the one flight-step
+  // call site. Both are built after every function they call.
+  const router = createEventRouter(ctx, {
+    stationFlow: createStationFlow(ctx, {
+      launchSequence,
+      docked,
+      hudCanvas,
+      messages,
+      syncStationNav,
+      syncEconomyProbe: probePublisher.syncEconomyProbe,
+      persistSettings,
+      ensureSelection,
+      renderStation,
+      autosave,
+    }),
+    hudMessages: createHudMessages({ galaxyById, messages }),
+    dockFeedback: createDockFeedbackFlow(ctx, { messages }),
+    hyperspaceFlow: createHyperspaceFlow(ctx, {
+      messages,
+      refusalCopy,
+      handleHyperspaceJumped,
+    }),
+  });
+  const simDriver = createSimDriver(ctx, {
+    pending,
+    player,
+    scripted,
+    launchSequence,
+    router,
+    equipmentSet,
+    targetSystem,
+    autosave,
+  });
 
   window.addEventListener("keydown", onSubpanelKeyDown, {
     capture: true,
@@ -468,130 +487,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     capture: true,
     signal: uiController.signal,
   });
-
-  function handleEvent(event: SimEvent): void {
-    switch (event.kind) {
-      case "launched":
-        launchSequence.reset();
-        ctx.station.stationScreen = "home";
-        ctx.station.stationPending = null;
-        ctx.station.stationNotice = "";
-        ctx.station.stationMessage = "";
-        ctx.station.stationPage = 1;
-        ctx.runtime.input?.setContext("flight");
-        docked.hide();
-        syncStationNav();
-        hudCanvas.hidden = false;
-        messages.enqueue("Launching — stand by");
-        // D-17: no write here. The pre-launch anchor was taken in `frame()`
-        // while the state was still docked.
-        probePublisher.syncEconomyProbe();
-        break;
-      case "launchComplete":
-        launchSequence.markSeen();
-        ctx.core.launchSeen = true;
-        if (
-          ctx.runtime.settings !== undefined &&
-          !ctx.runtime.settings.launchSeen
-        ) {
-          ctx.runtime.settings.launchSeen = true;
-          persistSettings();
-        }
-        messages.enqueue("Arrows pitch and roll · W and S change speed");
-        break;
-      case "docked": {
-        // D-12: the exact delta is the event's, never a wall/frame comparison.
-        ctx.core.lastDockClockDelta = event.clockDelta;
-        launchSequence.reset();
-        ctx.station.stationScreen = "home";
-        ctx.station.stationPending = null;
-        ctx.station.stationNotice = "";
-        ctx.station.stationMessage = "";
-        ctx.station.stationPage = 1;
-        ctx.runtime.input?.setContext("dockHome");
-        docked.show(ctx.core.system.name);
-        ensureSelection();
-        renderStation();
-        syncStationNav();
-        if (event.via === "computer") {
-          messages.enqueuePriority("Docking computers engaged");
-          ctx.station.stationMessage = "Docking computers engaged";
-          renderStation();
-        }
-        // D-09/D-15: stop any held input and collapse the interpolation window
-        // onto the docked pose so the camera does not smear across the teleport.
-        ctx.runtime.input?.clearAll();
-        const currentState = ctx.core.state;
-        if (currentState !== undefined) {
-          const dockedPose = poseOf(currentState);
-          ctx.core.previousPose = dockedPose;
-          ctx.core.currentPose = dockedPose;
-        }
-        // D-17: both manual and computer docking anchor once, after the station
-        // screen, selection and docked pose are ready. No other path writes on
-        // docking.
-        autosave();
-        break;
-      }
-      case "dockDenied":
-        // D-11: fixed app-owned copy; priority so it is visible immediately.
-        messages.enqueuePriority(
-          event.reason === "notInstalled"
-            ? "No docking computer fitted"
-            : "Too far from the station to engage docking computer",
-        );
-        break;
-      case "torusEngaged":
-        messages.enqueue(`Torus engaged at ${event.factor.toFixed(1)}×`);
-        break;
-      case "torusDisengaged":
-        messages.enqueue("Torus disengaged");
-        break;
-      case "massLockChanged":
-        if (event.locked) messages.enqueue("Mass locked");
-        break;
-      case "bounce":
-        ctx.core.dockFeedback.trigger(
-          "bounce",
-          ctx.core.state?.flightTime ?? 0,
-        );
-        messages.enqueuePriority(bounceMessage(event));
-        break;
-      case "scrape": {
-        // Pitfall 8: the sim emits one scrape per correcting tick (120 Hz);
-        // the message line is throttled to one per simulated second.
-        const now = ctx.core.state?.flightTime ?? 0;
-        ctx.core.dockFeedback.trigger("scrape", now);
-        if (shouldEmitScrapeMessage(ctx.core.lastScrapeMessageTime, now)) {
-          messages.enqueuePriority(
-            "Scrape - ease toward the centre of the slot",
-          );
-          ctx.core.lastScrapeMessageTime = now;
-        }
-        break;
-      }
-      case "compassTargetChanged":
-        messages.enqueue(`Compass target: ${event.target}`);
-        break;
-      case "hyperspaceCountdownStarted": {
-        const name = galaxyById.get(event.destinationId)?.name ?? "(Unknown)";
-        messages.enqueue(
-          `Hyperspace to ${name} in ${String(countdownSecondsRemaining(event.countdownSteps))} seconds`,
-        );
-        break;
-      }
-      case "hyperspaceCountdownCancelled":
-        messages.enqueue("Hyperspace countdown cancelled");
-        break;
-      case "hyperspaceRefused":
-        ctx.core.lastRefusal = { reason: event.reason };
-        messages.enqueuePriority(refusalCopy(event.reason));
-        break;
-      case "hyperspaceJumped":
-        handleHyperspaceJumped(event);
-        break;
-    }
-  }
 
   function frame(now: number): void {
     ctx.runtime.rafId = requestAnimationFrame(frame);
@@ -660,101 +555,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     let alpha = 0;
     if (!ctx.runtime.paused) {
-      const drained: Command[] = [
-        ...currentInput.drainCommands(),
-        ...pending,
-      ].filter(
-        (command) =>
-          command.kind !== "launch" ||
-          (currentState.mode === "docked" &&
-            ctx.station.stationScreen === "home"),
-      );
-      pending.length = 0;
-      // D-17: the pre-launch anchor is taken while the state is still docked,
-      // before `beginLaunch` applies the +600 s transition.
-      if (
-        currentState.mode === "docked" &&
-        ctx.station.stationScreen === "home" &&
-        drained.some((command) => command.kind === "launch")
-      ) {
-        autosave();
-      }
-      // D-06: while a countdown runs, the same key aborts it at no cost. The
-      // mapping walks the drained array in input order, so two presses drained
-      // into one frame start then cancel (G-6), and no app timer or double
-      // command exists.
-      const commands = mapHyperspaceBeginEdges(
-        drained,
-        currentState.hyperspaceCountdown > 0,
-      );
-      // One immutable frame per rendered frame, shared by every fixed step.
-      const frameInput = currentInput.frame();
-      ctx.core.currentFrame = frameInput;
-
-      alpha = currentLoop.advance(delta, commands, (stepCommands) => {
-        // A jump can commit mid-frame; read the live session layout/system for
-        // every step after the swap (never a frame-captured origin layout).
-        const liveState = ctx.core.state;
-        const liveLayout = ctx.core.layout;
-        const liveConfig = ctx.core.config;
-        if (
-          liveState === undefined ||
-          liveLayout === undefined ||
-          liveConfig === undefined
-        ) {
-          return;
-        }
-        ctx.core.previousPose = ctx.core.currentPose;
-        const modeBefore = liveState.mode;
-        const controller = liveState.mode === "launching" ? scripted : player;
-        const intent = controller.update(flightView(liveState), frameInput);
-        // Ownership travels beside the command, never inside it: one read-only
-        // set per frame, derived from the profile (T-04-19).
-        const equipment = equipmentSet();
-        const committedTarget = targetSystem();
-        // The read-only station mass of the live system's station kind. Only a
-        // Coriolis station has a recorded mass; the others omit the fact.
-        const stationMass = witchspaceStationMass(ctx.core.system.station);
-        const hyperspace = {
-          fuel: ctx.core.profile.fuel,
-          origin: {
-            id: ctx.core.system.id,
-            x: ctx.core.system.chartX,
-            y: ctx.core.system.chartY,
-          },
-          ...(committedTarget === undefined
-            ? {}
-            : {
-                target: {
-                  id: committedTarget.id,
-                  x: committedTarget.chartX,
-                  y: committedTarget.chartY,
-                },
-              }),
-          ...(stationMass === undefined ? {} : { stationMass }),
-        };
-        const stepOptions: StepOptions =
-          ctx.core.dockGeometry === undefined
-            ? { equipment, hyperspace }
-            : { dock: ctx.core.dockGeometry, equipment, hyperspace };
-        const events = stepFlight(
-          liveState,
-          liveLayout,
-          liveConfig,
-          intent,
-          stepCommands,
-          DT,
-          stepOptions,
-        );
-        for (const event of events) handleEvent(event);
-        // The view timeline advances on the same fixed steps as the simulation,
-        // and only after the step that entered `launching` (which does not move
-        // the ship either).
-        if (modeBefore === "launching") {
-          launchSequence.advance(DT, liveState.mode === "inFlight");
-        }
-        ctx.core.currentPose = poseOf(liveState);
-      });
+      alpha = simDriver.advanceFrame(delta);
     } else {
       // A key pressed while paused must not become a queued edge command that
       // fires on resume.

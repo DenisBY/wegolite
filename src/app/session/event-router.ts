@@ -1,0 +1,362 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2026 Wegolite contributors
+
+/**
+ * The ordered event router (Phase 8, D-12 step 8, ARCHITECTURE.md section 4.2).
+ *
+ * `handleEvent` used to be one switch over every `SimEvent` kind. It is now four
+ * gameplay subscribers (`stationFlow`, `hudMessages`, `dockFeedback`,
+ * `hyperspaceFlow`) and a router that offers each event to them in
+ * `EVENT_SUBSCRIBER_ORDER`. Which subscribers handle which kind is the
+ * declarative table `EVENT_KIND_SUBSCRIBER`; the order tests pin it, and plan
+ * 08-15 extends it (a `worldLifecycle` subscriber after `stationFlow` on
+ * `launched` and `docked`) inside this module, without touching the facade.
+ * Every arm body is the one `handleEvent` carried before the split, with its
+ * statement order unchanged.
+ *
+ * Order independence with plan 08-11 (which widens `SimEvent` with reserved
+ * kinds in the same wave): the table is keyed to the literal `RoutedKind` union
+ * of the 14 routed kinds, never to the full `SimEvent` kind union, and every
+ * read of it with a value that is not already a `RoutedKind` goes through
+ * `isRoutedKind`. The only mention of the full union's kind type is the
+ * `satisfies` check on `ROUTED_EVENT_KINDS`. There is no exhaustive check and no
+ * throwing default: an unrouted kind passes through harmlessly.
+ *
+ * Node-safe: every collaborator arrives through the subscriber deps, so a unit
+ * test passes recording doubles.
+ */
+
+import type { System } from "../../content/types.js";
+import type { MessageQueue } from "../../render/hud/messages.js";
+import type { HyperspaceRefusal, SimEvent } from "../../sim/events.js";
+import { poseOf } from "../../sim/flight/state.js";
+import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
+import { shouldEmitScrapeMessage } from "../dock-feedback.js";
+import type { LaunchSequence } from "../launch-sequence.js";
+import type { StationShell } from "../../ui/station.js";
+import type { SessionState } from "./context.js";
+
+/** The dispatch order: each event is offered to the subscribers in this order. */
+export const EVENT_SUBSCRIBER_ORDER = [
+  "stationFlow",
+  "hudMessages",
+  "dockFeedback",
+  "hyperspaceFlow",
+] as const;
+
+export type SubscriberName = (typeof EVENT_SUBSCRIBER_ORDER)[number];
+
+/**
+ * The event kinds the router handles: a literal list, so it does not depend on
+ * how many kinds `SimEvent` has. The `satisfies` clause fails typecheck when a
+ * listed kind is not a real `SimEvent` kind.
+ */
+export const ROUTED_EVENT_KINDS = [
+  "launched",
+  "launchComplete",
+  "docked",
+  "dockDenied",
+  "torusEngaged",
+  "torusDisengaged",
+  "massLockChanged",
+  "bounce",
+  "scrape",
+  "compassTargetChanged",
+  "hyperspaceCountdownStarted",
+  "hyperspaceCountdownCancelled",
+  "hyperspaceRefused",
+  "hyperspaceJumped",
+] as const satisfies readonly SimEvent["kind"][];
+
+export type RoutedKind = (typeof ROUTED_EVENT_KINDS)[number];
+
+/**
+ * The declarative routing table: each routed kind and the ordered tuple of the
+ * subscribers that handle it. Typecheck fails when a routed kind has no entry
+ * or an entry names an unknown subscriber.
+ */
+export const EVENT_KIND_SUBSCRIBER: Readonly<
+  Record<RoutedKind, readonly SubscriberName[]>
+> = {
+  launched: ["stationFlow"],
+  launchComplete: ["stationFlow"],
+  docked: ["stationFlow"],
+  dockDenied: ["hudMessages"],
+  torusEngaged: ["hudMessages"],
+  torusDisengaged: ["hudMessages"],
+  massLockChanged: ["hudMessages"],
+  bounce: ["dockFeedback"],
+  scrape: ["dockFeedback"],
+  compassTargetChanged: ["hudMessages"],
+  hyperspaceCountdownStarted: ["hudMessages"],
+  hyperspaceCountdownCancelled: ["hudMessages"],
+  hyperspaceRefused: ["hyperspaceFlow"],
+  hyperspaceJumped: ["hyperspaceFlow"],
+};
+
+/** Whether `kind` is one of the routed kinds; a reserved or unknown kind is not. */
+export function isRoutedKind(kind: string): kind is RoutedKind {
+  return Object.hasOwn(EVENT_KIND_SUBSCRIBER, kind);
+}
+
+/** A subscriber handles the kinds it owns and ignores every other event. */
+export type EventSubscriber = (event: SimEvent) => void;
+
+export type EventRouterSubscribers = Readonly<
+  Record<SubscriberName, EventSubscriber>
+>;
+
+/** What the station subscriber calls outside the session context. */
+export interface StationFlowDeps {
+  readonly launchSequence: Pick<LaunchSequence, "reset" | "markSeen">;
+  readonly docked: Pick<StationShell, "show" | "hide">;
+  readonly hudCanvas: Pick<HTMLCanvasElement, "hidden">;
+  readonly messages: Pick<MessageQueue, "enqueue" | "enqueuePriority">;
+  readonly syncStationNav: () => void;
+  readonly syncEconomyProbe: () => void;
+  readonly persistSettings: () => void;
+  readonly ensureSelection: () => void;
+  readonly renderStation: () => void;
+  readonly autosave: () => void;
+}
+
+/** launched, launchComplete and docked: the station and launch transitions. */
+export function createStationFlow(
+  ctx: SessionState,
+  deps: StationFlowDeps,
+): EventSubscriber {
+  const {
+    launchSequence,
+    docked,
+    hudCanvas,
+    messages,
+    syncStationNav,
+    syncEconomyProbe,
+    persistSettings,
+    ensureSelection,
+    renderStation,
+    autosave,
+  } = deps;
+  return (event) => {
+    switch (event.kind) {
+      case "launched":
+        launchSequence.reset();
+        ctx.station.stationScreen = "home";
+        ctx.station.stationPending = null;
+        ctx.station.stationNotice = "";
+        ctx.station.stationMessage = "";
+        ctx.station.stationPage = 1;
+        ctx.runtime.input?.setContext("flight");
+        docked.hide();
+        syncStationNav();
+        hudCanvas.hidden = false;
+        messages.enqueue("Launching — stand by");
+        // D-17: no write here. The pre-launch anchor was taken in `frame()`
+        // while the state was still docked.
+        syncEconomyProbe();
+        break;
+      case "launchComplete":
+        launchSequence.markSeen();
+        ctx.core.launchSeen = true;
+        if (
+          ctx.runtime.settings !== undefined &&
+          !ctx.runtime.settings.launchSeen
+        ) {
+          ctx.runtime.settings.launchSeen = true;
+          persistSettings();
+        }
+        messages.enqueue("Arrows pitch and roll · W and S change speed");
+        break;
+      case "docked": {
+        // D-12: the exact delta is the event's, never a wall/frame comparison.
+        ctx.core.lastDockClockDelta = event.clockDelta;
+        launchSequence.reset();
+        ctx.station.stationScreen = "home";
+        ctx.station.stationPending = null;
+        ctx.station.stationNotice = "";
+        ctx.station.stationMessage = "";
+        ctx.station.stationPage = 1;
+        ctx.runtime.input?.setContext("dockHome");
+        docked.show(ctx.core.system.name);
+        ensureSelection();
+        renderStation();
+        syncStationNav();
+        if (event.via === "computer") {
+          messages.enqueuePriority("Docking computers engaged");
+          ctx.station.stationMessage = "Docking computers engaged";
+          renderStation();
+        }
+        // D-09/D-15: stop any held input and collapse the interpolation window
+        // onto the docked pose so the camera does not smear across the teleport.
+        ctx.runtime.input?.clearAll();
+        const currentState = ctx.core.state;
+        if (currentState !== undefined) {
+          const dockedPose = poseOf(currentState);
+          ctx.core.previousPose = dockedPose;
+          ctx.core.currentPose = dockedPose;
+        }
+        // D-17: both manual and computer docking anchor once, after the station
+        // screen, selection and docked pose are ready. No other path writes on
+        // docking.
+        autosave();
+        break;
+      }
+    }
+  };
+}
+
+/** What the HUD message subscriber calls outside the session context. */
+export interface HudMessagesDeps {
+  readonly galaxyById: ReadonlyMap<string, System>;
+  readonly messages: Pick<MessageQueue, "enqueue" | "enqueuePriority">;
+}
+
+/** The fixed one-line HUD messages the session prints for a sim event. */
+export function createHudMessages(deps: HudMessagesDeps): EventSubscriber {
+  const { galaxyById, messages } = deps;
+  return (event) => {
+    switch (event.kind) {
+      case "dockDenied":
+        // D-11: fixed app-owned copy; priority so it is visible immediately.
+        messages.enqueuePriority(
+          event.reason === "notInstalled"
+            ? "No docking computer fitted"
+            : "Too far from the station to engage docking computer",
+        );
+        break;
+      case "torusEngaged":
+        messages.enqueue(`Torus engaged at ${event.factor.toFixed(1)}×`);
+        break;
+      case "torusDisengaged":
+        messages.enqueue("Torus disengaged");
+        break;
+      case "massLockChanged":
+        if (event.locked) messages.enqueue("Mass locked");
+        break;
+      case "compassTargetChanged":
+        messages.enqueue(`Compass target: ${event.target}`);
+        break;
+      case "hyperspaceCountdownStarted": {
+        const name = galaxyById.get(event.destinationId)?.name ?? "(Unknown)";
+        messages.enqueue(
+          `Hyperspace to ${name} in ${String(countdownSecondsRemaining(event.countdownSteps))} seconds`,
+        );
+        break;
+      }
+      case "hyperspaceCountdownCancelled":
+        messages.enqueue("Hyperspace countdown cancelled");
+        break;
+    }
+  };
+}
+
+/** D-08 copy is app-owned and fixed; the sim event carries facts only. */
+export function bounceMessage(event: {
+  cause: "hull" | "straddle";
+  axis: "x" | "y" | "z";
+}): string {
+  if (event.cause === "straddle") {
+    return "Too wide for the slot - roll 90 degrees to match the opening";
+  }
+  if (event.axis === "x") {
+    return "Hull contact - roll 90 degrees and line up with the slot";
+  }
+  return "Hull contact - pull away and line up with the slot";
+}
+
+/** What the dock-feedback subscriber calls outside the session context. */
+export interface DockFeedbackDeps {
+  readonly messages: Pick<MessageQueue, "enqueuePriority">;
+}
+
+/** bounce and scrape: the dock-feedback envelopes and their messages. */
+export function createDockFeedbackFlow(
+  ctx: SessionState,
+  deps: DockFeedbackDeps,
+): EventSubscriber {
+  const { messages } = deps;
+  return (event) => {
+    switch (event.kind) {
+      case "bounce":
+        ctx.core.dockFeedback.trigger(
+          "bounce",
+          ctx.core.state?.flightTime ?? 0,
+        );
+        messages.enqueuePriority(bounceMessage(event));
+        break;
+      case "scrape": {
+        // Pitfall 8: the sim emits one scrape per correcting tick (120 Hz);
+        // the message line is throttled to one per simulated second.
+        const now = ctx.core.state?.flightTime ?? 0;
+        ctx.core.dockFeedback.trigger("scrape", now);
+        if (shouldEmitScrapeMessage(ctx.core.lastScrapeMessageTime, now)) {
+          messages.enqueuePriority(
+            "Scrape - ease toward the centre of the slot",
+          );
+          ctx.core.lastScrapeMessageTime = now;
+        }
+        break;
+      }
+    }
+  };
+}
+
+/** What the hyperspace subscriber calls outside the session context. */
+export interface HyperspaceFlowDeps {
+  readonly messages: Pick<MessageQueue, "enqueuePriority">;
+  readonly refusalCopy: (reason: HyperspaceRefusal) => string;
+  readonly handleHyperspaceJumped: (event: {
+    destinationId: string;
+    clockDeltaSeconds: number;
+    fuelCost: number;
+  }) => void;
+}
+
+/** hyperspaceRefused and hyperspaceJumped: the refusal copy and the arrival. */
+export function createHyperspaceFlow(
+  ctx: SessionState,
+  deps: HyperspaceFlowDeps,
+): EventSubscriber {
+  const { messages, refusalCopy, handleHyperspaceJumped } = deps;
+  return (event) => {
+    switch (event.kind) {
+      case "hyperspaceRefused":
+        ctx.core.lastRefusal = { reason: event.reason };
+        messages.enqueuePriority(refusalCopy(event.reason));
+        break;
+      case "hyperspaceJumped":
+        handleHyperspaceJumped(event);
+        break;
+    }
+  };
+}
+
+export interface EventRouter {
+  /** Offer one event to every subscriber that handles its kind, in order. */
+  dispatch(event: SimEvent): void;
+}
+
+/**
+ * Build the router. `ctx` is required, never optional: plan 08-15 wires its
+ * `worldLifecycle` subscriber here, reading `ctx.core.worldLifecycle` and
+ * `ctx.core.marketSeed`, so the facade never has to change when that lands.
+ */
+export function createEventRouter(
+  ctx: SessionState,
+  subscribers: EventRouterSubscribers,
+): EventRouter {
+  // Held for plan 08-15's lifecycle subscriber; the four gameplay subscribers
+  // close over `ctx` themselves.
+  void ctx;
+  return {
+    dispatch(event) {
+      // An unrouted kind (a reserved or unknown one) is ignored, never thrown.
+      const kind: string = event.kind;
+      if (!isRoutedKind(kind)) return;
+      const handlers = EVENT_KIND_SUBSCRIBER[kind];
+      for (const name of EVENT_SUBSCRIBER_ORDER) {
+        if (handlers.includes(name)) subscribers[name](event);
+      }
+    },
+  };
+}
