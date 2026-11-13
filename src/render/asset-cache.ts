@@ -23,6 +23,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
+import { NPC_GLB_PATH_PATTERN } from "../content/npc-glb-path.js";
 import { isMesh, meshMaterials } from "./mesh.js";
 
 const COBRA_PATH = "models/cobra3.glb";
@@ -39,6 +40,14 @@ export interface AssetCache {
   loadCoriolis(): Promise<GLTF>;
   /** Memoised buoy load; the promise rejects with a path-named error. */
   loadBuoy(): Promise<GLTF>;
+  /**
+   * Load one NPC ship model on demand (DATA-13, D-07). Memoised per path and
+   * never called by `preload()`. A path outside `models/<name>.glb` is rejected
+   * without a fetch; a failed load is forgotten so a later call fetches again;
+   * a load that settles after `dispose()` is handed to its caller and not
+   * cached, so the cache never owns a model it can no longer free.
+   */
+  loadNpcModel(glb: string): Promise<GLTF>;
   /** The navigation buoy model; throws when called before the load resolved. */
   buoy(): GLTF;
   /** The Cobra model; throws when called before the load resolved. */
@@ -89,6 +98,8 @@ export function createAssetCache(
   let cobraPromise: Promise<GLTF> | undefined;
   let coriolisPromise: Promise<GLTF> | undefined;
   let pending: Promise<void> | undefined;
+  const npcPromises = new Map<string, Promise<GLTF>>();
+  const npcModels = new Map<string, GLTF>();
 
   const load = (path: string): Promise<GLTF> =>
     loadModel(`${baseUrl}${path}`).catch((cause: unknown) => {
@@ -121,10 +132,37 @@ export function createAssetCache(
     return buoyPromise;
   }
 
+  function loadNpcModel(glb: string): Promise<GLTF> {
+    if (!NPC_GLB_PATH_PATTERN.test(glb)) {
+      return Promise.reject(
+        new Error(
+          `Wegolite: refused to load the NPC model at ${glb}; expected models/<name>.glb.`,
+        ),
+      );
+    }
+    const existing = npcPromises.get(glb);
+    if (existing !== undefined) return existing;
+    const promise: Promise<GLTF> = load(glb).then(
+      (gltf) => {
+        // A dispose() that ran while the load was in flight cleared the map, so
+        // the entry no longer holds this promise and the model stays uncached.
+        if (npcPromises.get(glb) === promise) npcModels.set(glb, gltf);
+        return gltf;
+      },
+      (error: unknown) => {
+        if (npcPromises.get(glb) === promise) npcPromises.delete(glb);
+        throw error;
+      },
+    );
+    npcPromises.set(glb, promise);
+    return promise;
+  }
+
   return {
     loadCobra,
     loadCoriolis,
     loadBuoy,
+    loadNpcModel,
     preload(): Promise<void> {
       pending ??= Promise.all([loadCobra(), loadCoriolis(), loadBuoy()]).then(
         () => undefined,
@@ -170,7 +208,12 @@ export function createAssetCache(
       const materials = new Set<THREE.Material>();
       const textures = new Set<THREE.Texture<unknown>>();
 
-      for (const model of [cobraModel, coriolisModel, buoyModel]) {
+      for (const model of [
+        cobraModel,
+        coriolisModel,
+        buoyModel,
+        ...npcModels.values(),
+      ]) {
         if (model === undefined) continue;
         model.scene.traverse((object) => {
           if (!isMesh(object)) return;
@@ -195,6 +238,8 @@ export function createAssetCache(
       cobraPromise = undefined;
       coriolisPromise = undefined;
       pending = undefined;
+      npcModels.clear();
+      npcPromises.clear();
     },
   };
 }

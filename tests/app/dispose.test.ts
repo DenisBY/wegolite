@@ -155,6 +155,10 @@ function guardCache(cobra: GLTF, coriolis: GLTF, buoy: GLTF): AssetCache {
     loadCobra: () => Promise.resolve(cobra),
     loadCoriolis: () => Promise.resolve(coriolis),
     loadBuoy: () => Promise.resolve(buoy),
+    loadNpcModel: () =>
+      Promise.reject(
+        new Error("a scene must never load NPC models through the guard cache"),
+      ),
     cobra: () => cobra,
     coriolis: () => coriolis,
     buoy: () => buoy,
