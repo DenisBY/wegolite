@@ -19,7 +19,16 @@
  * `renders` counter stops while its counters stay those of the last draw. Every
  * comparison is inclusive: 50 calls and 250 000 triangles pass, 51 and 250 001
  * fail.
+ *
+ * The cold-start test also guards the on-demand promise of DATA-13 and D-07: it
+ * logs every same-origin request path and asserts that none of the nine NPC ship
+ * models, nor any texture file they reference, is requested before the first
+ * in-flight frame, while the same log shows the Cobra model so it cannot pass on
+ * an empty log. The bytes ceiling below is unchanged.
  */
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
@@ -51,6 +60,41 @@ const MIB = 1_048_576;
  * was trimmed.
  */
 const FIRST_LOAD_BYTES_CEILING = 9 * MIB;
+
+interface NpcAssetPaths {
+  readonly glbs: readonly string[];
+  readonly textures: readonly string[];
+}
+
+/**
+ * The URL paths of every NPC GLB and every texture those GLBs reference, from
+ * the compiled records and each GLB's own JSON chunk (length at byte 12, text
+ * from byte 20). Image URIs resolve against the GLB's own path.
+ */
+function npcAssetPaths(): NpcAssetPaths {
+  const root = process.cwd();
+  const records = JSON.parse(
+    readFileSync(
+      join(root, "src", "content", "generated", "ships-npc.json"),
+      "utf8",
+    ),
+  ) as readonly { readonly glb: string }[];
+  const glbs = new Set<string>();
+  const textures = new Set<string>();
+  for (const record of records) {
+    const glbUrl = new URL(`/${record.glb}`, "http://localhost");
+    glbs.add(glbUrl.pathname);
+    const bytes = readFileSync(join(root, "public", record.glb));
+    const jsonLength = bytes.readUInt32LE(12);
+    const json = JSON.parse(
+      bytes.subarray(20, 20 + jsonLength).toString("utf8"),
+    ) as { readonly images?: readonly { readonly uri: string }[] };
+    for (const image of json.images ?? []) {
+      textures.add(new URL(image.uri, glbUrl).pathname);
+    }
+  }
+  return { glbs: [...glbs].sort(), textures: [...textures].sort() };
+}
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -163,6 +207,11 @@ test("a cold start to the first in-flight frame stays under the first-load bytes
 }) => {
   const origin = new URL(baseURL ?? "http://127.0.0.1:4173").origin;
   const transferred: Promise<number>[] = [];
+  const requested: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.origin === origin) requested.push(url.pathname);
+  });
   page.on("requestfinished", (request) => {
     if (new URL(request.url()).origin !== origin) return;
     transferred.push(request.sizes().then((sizes) => sizes.responseBodySize));
@@ -181,6 +230,18 @@ test("a cold start to the first in-flight frame stays under the first-load bytes
     type: "first-load-bytes",
     description: `${total} bytes (ceiling ${FIRST_LOAD_BYTES_CEILING})`,
   });
+  const npc = npcAssetPaths();
+  const npcPaths = new Set([...npc.glbs, ...npc.textures]);
+  expect(npc.glbs, "NPC GLB paths (vacuity guard)").toHaveLength(9);
+  expect(npc.textures, "NPC texture paths (vacuity guard)").toHaveLength(43);
+  expect(
+    requested.some((path) => path.endsWith("/models/cobra3.glb")),
+    "the request log is live (the Cobra model was requested)",
+  ).toBe(true);
+  expect(
+    requested.filter((path) => npcPaths.has(path)),
+    "NPC models and textures requested on a cold start",
+  ).toEqual([]);
   expect(total, "first-load bytes").toBeGreaterThan(0);
   expect(total, "first-load bytes ceiling").toBeLessThanOrEqual(
     FIRST_LOAD_BYTES_CEILING,
