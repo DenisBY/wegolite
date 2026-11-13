@@ -1,0 +1,50 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2026 Wegolite contributors
+
+/**
+ * The shared serialised-domain limits (FOUND-11, Round 4 consensus 4).
+ *
+ * This module is the single definition site of the limits that every writer of
+ * an entity enforces: `spawnEntity` (plan 08-05), the ShipControl command
+ * (plan 08-07), `sanitizeEntity` (plan 08-11) and `snapshotWorld` and
+ * `parseWorldSnapshot` (plan 08-13). It has no imports. Every other module
+ * imports these names from here and never declares or re-exports a constant
+ * with the same value or meaning, so no second name (a sanitize- or
+ * snapshot-prefixed alias, say) can drift from the one that spawn enforces.
+ *
+ * Changing any value changes what a world snapshot may hold, so it is a
+ * snapshot-format change (a `WORLD_SNAPSHOT_VERSION` bump in plan 08-13).
+ */
+
+/**
+ * The world-local cap on coordinates, radii, speeds, ranges and numeric AI
+ * params. Deliberately wider than `MAX_SAVE_POSITION_MAGNITUDE` (1e9), which
+ * bounds only the player's saved position.
+ */
+export const MAX_ENTITY_MAGNITUDE = 1e12;
+
+/** The longest `specKey`, param key, string param or string array element. */
+export const MAX_SNAPSHOT_STRING_LENGTH = 128;
+
+/** The longest param array. */
+export const MAX_SNAPSHOT_PARAM_LENGTH = 64;
+
+/** The most own keys an AI params object may hold. */
+export const MAX_AI_PARAMS_KEYS = 32;
+
+/** The largest unsigned 32-bit integer: ids, ticks, counters, timers, seeds. */
+export const MAX_UINT32 = 0xffffffff;
+
+/**
+ * The bound on `Math.abs(normSq - 1)` for a unit orientation at spawn, after
+ * sanitize and in the snapshot parser.
+ */
+export const QUAT_UNIT_TOLERANCE = 1e-9;
+
+/**
+ * Below this squared norm sanitize treats an orientation as degenerate:
+ * `normalize` of a subnormal norm does not land inside `QUAT_UNIT_TOLERANCE`
+ * (`{ w: 1e-160, x: 0, y: 0, z: 0 }` renormalises to a squared norm of about
+ * 1.0000111).
+ */
+export const MIN_QUAT_NORM_SQ = 1e-12;
