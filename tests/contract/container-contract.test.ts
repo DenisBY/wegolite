@@ -333,12 +333,13 @@ describe("FOUND-03 container-only verification", () => {
     // Owner option B (2026-11-08): the fast gate ends in a Chromium-only smoke
     // subset (D-09) made of whole spec files. Pin the exact script and require
     // each listed spec to exist, so a rename or delete cannot silently shrink it.
+    // The probe-shape spec joined the fast gate for the Phase 8 split (D-12, D-13).
     const fast = script(manifest, "test:e2e:fast");
     expect(fast).toBe(
-      "playwright test --project=chromium tests/e2e/scene.spec.ts tests/e2e/docking.spec.ts tests/e2e/save-load.spec.ts",
+      "playwright test --project=chromium tests/e2e/scene.spec.ts tests/e2e/docking.spec.ts tests/e2e/save-load.spec.ts tests/e2e/probe-shape.spec.ts",
     );
     const specPaths = fast.match(/tests\/e2e\/[a-z-]+\.spec\.ts/g) ?? [];
-    expect(specPaths).toHaveLength(3);
+    expect(specPaths).toHaveLength(4);
     for (const specPath of specPaths) {
       expect(existsSync(join(REPO_ROOT, specPath))).toBe(true);
     }

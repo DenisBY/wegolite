@@ -1,0 +1,1030 @@
+{
+  "menu": {
+    "angular": {
+      "pitch": "number",
+      "roll": "number"
+    },
+    "aspect": "number",
+    "bodies": {
+      "[]": []
+    },
+    "calls": "number",
+    "clock": "number",
+    "codeSplitGalaxies": "number",
+    "depthBits": "number",
+    "flightTime": "number",
+    "frames": "number",
+    "homeSystems": "number",
+    "hud": {
+      "aegis": "string",
+      "bounds": {
+        "record": []
+      },
+      "compass": {
+        "forward": "boolean",
+        "target": "string"
+      },
+      "contacts": {
+        "[]": []
+      },
+      "designScale": "number",
+      "drawn": "boolean",
+      "elements": {
+        "[]": []
+      },
+      "fuel": "number",
+      "fuelText": "string",
+      "letterbox": {
+        "[]": ["number"]
+      },
+      "message": "string"
+    },
+    "launch": {
+      "count": "number",
+      "elapsed": "number",
+      "seen": "boolean"
+    },
+    "logDepth": "boolean",
+    "memory": {
+      "geometries": "number",
+      "programs": "number",
+      "textures": "number"
+    },
+    "messages": "number",
+    "mode": "string",
+    "orientation": {
+      "[]": ["number"]
+    },
+    "paused": "boolean",
+    "position": {
+      "[]": ["number"]
+    },
+    "ready": "boolean",
+    "recovery": {
+      "losses": "number",
+      "restores": "number",
+      "state": "string"
+    },
+    "renders": "number",
+    "save": {
+      "attempts": "number",
+      "committed": "number",
+      "continueVisible": "boolean",
+      "lastClock": "null",
+      "revision": "number",
+      "skipReason": "string",
+      "status": "string",
+      "unavailable": "boolean",
+      "writes": "number"
+    },
+    "speed": "number",
+    "torus": {
+      "engaged": "boolean",
+      "factor": "number",
+      "massLocked": "boolean"
+    },
+    "triangles": "number",
+    "webgl2": "boolean"
+  },
+  "docked": {
+    "angular": {
+      "pitch": "number",
+      "roll": "number"
+    },
+    "aspect": "number",
+    "atmosphere": "boolean",
+    "bodies": {
+      "[]": ["string"]
+    },
+    "calls": "number",
+    "chart": {
+      "camera": {
+        "centre": {
+          "x": "number",
+          "y": "number"
+        },
+        "spanX": "number",
+        "spanY": "number"
+      },
+      "open": "boolean"
+    },
+    "clock": "number",
+    "codeSplitGalaxies": "number",
+    "depthBits": "number",
+    "dock": {
+      "bounceCount": "number",
+      "dockCount": "number",
+      "flash": "number",
+      "lastClockDelta": "number",
+      "outcome": "string",
+      "scrapeCount": "number",
+      "shake": "number"
+    },
+    "dust": {
+      "active": "boolean",
+      "count": "number"
+    },
+    "economy": {
+      "capacityPods": "number",
+      "cargo": {
+        "record": []
+      },
+      "credits": "number",
+      "fuel": "number",
+      "holdPods": "number",
+      "lastTrade": "null",
+      "market": {
+        "[]": [
+          {
+            "key": "string",
+            "price": "number",
+            "stock": "number"
+          }
+        ]
+      },
+      "marketSeed": "number",
+      "marketSystemId": "string",
+      "missiles": "number",
+      "passengerBerths": "number"
+    },
+    "flightTime": "number",
+    "frames": "number",
+    "hint": "string",
+    "hints": {
+      "[]": []
+    },
+    "homeSystems": "number",
+    "hud": {
+      "aegis": "string",
+      "bounds": {
+        "record": [
+          {
+            "[]": ["number"]
+          }
+        ]
+      },
+      "compass": {
+        "forward": "boolean",
+        "target": "string"
+      },
+      "contacts": {
+        "[]": []
+      },
+      "designScale": "number",
+      "drawn": "boolean",
+      "elements": {
+        "[]": ["string"]
+      },
+      "fuel": "number",
+      "fuelText": "string",
+      "hyperspaceTarget": "string",
+      "letterbox": {
+        "[]": ["number"]
+      },
+      "message": "string"
+    },
+    "hyperspace": {
+      "countdown": "number",
+      "lastJump": "null",
+      "lastRefusal": "null"
+    },
+    "launch": {
+      "count": "number",
+      "elapsed": "number",
+      "seen": "boolean"
+    },
+    "logDepth": "boolean",
+    "memory": {
+      "geometries": "number",
+      "programs": "number",
+      "textures": "number"
+    },
+    "messages": "number",
+    "mode": "string",
+    "nebulae": "number",
+    "orientation": {
+      "[]": ["number"]
+    },
+    "paused": "boolean",
+    "position": {
+      "[]": ["number"]
+    },
+    "quality": "string",
+    "ready": "boolean",
+    "recovery": {
+      "losses": "number",
+      "restores": "number",
+      "state": "string"
+    },
+    "renders": "number",
+    "save": {
+      "attempts": "number",
+      "committed": "number",
+      "continueVisible": "boolean",
+      "lastClock": "null",
+      "notice": "string",
+      "revision": "number",
+      "skipReason": "string",
+      "status": "string",
+      "unavailable": "boolean",
+      "writes": "number"
+    },
+    "saveScreen": {
+      "confirming": "boolean",
+      "notice": "string",
+      "open": "boolean",
+      "row": "string"
+    },
+    "shipVisible": "boolean",
+    "speed": "number",
+    "station": {
+      "message": "string",
+      "open": "boolean",
+      "page": "number",
+      "pending": "null",
+      "screen": "string",
+      "selectedKey": "string"
+    },
+    "systemId": "string",
+    "torus": {
+      "engaged": "boolean",
+      "factor": "number",
+      "massLocked": "boolean"
+    },
+    "triangles": "number",
+    "webgl2": "boolean",
+    "world": {
+      "maxRelativeMagnitude": "number",
+      "navBuoy": {
+        "[]": ["number"]
+      },
+      "planet": {
+        "[]": ["number"]
+      },
+      "station": {
+        "[]": ["number"]
+      },
+      "sun": {
+        "[]": ["number"]
+      },
+      "witchpoint": {
+        "[]": ["number"]
+      }
+    }
+  },
+  "paused": {
+    "angular": {
+      "pitch": "number",
+      "roll": "number"
+    },
+    "aspect": "number",
+    "atmosphere": "boolean",
+    "bodies": {
+      "[]": ["string"]
+    },
+    "calls": "number",
+    "chart": {
+      "camera": {
+        "centre": {
+          "x": "number",
+          "y": "number"
+        },
+        "spanX": "number",
+        "spanY": "number"
+      },
+      "open": "boolean"
+    },
+    "clock": "number",
+    "codeSplitGalaxies": "number",
+    "depthBits": "number",
+    "dock": {
+      "bounceCount": "number",
+      "dockCount": "number",
+      "flash": "number",
+      "lastClockDelta": "number",
+      "outcome": "string",
+      "scrapeCount": "number",
+      "shake": "number"
+    },
+    "dust": {
+      "active": "boolean",
+      "count": "number"
+    },
+    "economy": {
+      "capacityPods": "number",
+      "cargo": {
+        "record": []
+      },
+      "credits": "number",
+      "fuel": "number",
+      "holdPods": "number",
+      "lastTrade": "null",
+      "market": {
+        "[]": [
+          {
+            "key": "string",
+            "price": "number",
+            "stock": "number"
+          }
+        ]
+      },
+      "marketSeed": "number",
+      "marketSystemId": "string",
+      "missiles": "number",
+      "passengerBerths": "number"
+    },
+    "flightTime": "number",
+    "frames": "number",
+    "hint": "string",
+    "hints": {
+      "[]": []
+    },
+    "homeSystems": "number",
+    "hud": {
+      "aegis": "string",
+      "bounds": {
+        "record": [
+          {
+            "[]": ["number"]
+          }
+        ]
+      },
+      "compass": {
+        "forward": "boolean",
+        "target": "string"
+      },
+      "contacts": {
+        "[]": []
+      },
+      "designScale": "number",
+      "drawn": "boolean",
+      "elements": {
+        "[]": ["string"]
+      },
+      "fuel": "number",
+      "fuelText": "string",
+      "hyperspaceTarget": "string",
+      "letterbox": {
+        "[]": ["number"]
+      },
+      "message": "string"
+    },
+    "hyperspace": {
+      "countdown": "number",
+      "lastJump": "null",
+      "lastRefusal": "null"
+    },
+    "launch": {
+      "count": "number",
+      "elapsed": "number",
+      "seen": "boolean"
+    },
+    "logDepth": "boolean",
+    "memory": {
+      "geometries": "number",
+      "programs": "number",
+      "textures": "number"
+    },
+    "messages": "number",
+    "mode": "string",
+    "nebulae": "number",
+    "orientation": {
+      "[]": ["number"]
+    },
+    "paused": "boolean",
+    "position": {
+      "[]": ["number"]
+    },
+    "quality": "string",
+    "ready": "boolean",
+    "recovery": {
+      "losses": "number",
+      "restores": "number",
+      "state": "string"
+    },
+    "renders": "number",
+    "save": {
+      "attempts": "number",
+      "committed": "number",
+      "continueVisible": "boolean",
+      "lastClock": "null",
+      "notice": "string",
+      "revision": "number",
+      "skipReason": "string",
+      "status": "string",
+      "unavailable": "boolean",
+      "writes": "number"
+    },
+    "saveScreen": {
+      "confirming": "boolean",
+      "notice": "string",
+      "open": "boolean",
+      "row": "string"
+    },
+    "shipVisible": "boolean",
+    "speed": "number",
+    "station": {
+      "message": "string",
+      "open": "boolean",
+      "page": "number",
+      "pending": "null",
+      "screen": "string",
+      "selectedKey": "string"
+    },
+    "systemId": "string",
+    "torus": {
+      "engaged": "boolean",
+      "factor": "number",
+      "massLocked": "boolean"
+    },
+    "triangles": "number",
+    "webgl2": "boolean",
+    "world": {
+      "maxRelativeMagnitude": "number",
+      "navBuoy": {
+        "[]": ["number"]
+      },
+      "planet": {
+        "[]": ["number"]
+      },
+      "station": {
+        "[]": ["number"]
+      },
+      "sun": {
+        "[]": ["number"]
+      },
+      "witchpoint": {
+        "[]": ["number"]
+      }
+    }
+  },
+  "chart": {
+    "angular": {
+      "pitch": "number",
+      "roll": "number"
+    },
+    "aspect": "number",
+    "atmosphere": "boolean",
+    "bodies": {
+      "[]": ["string"]
+    },
+    "calls": "number",
+    "chart": {
+      "camera": {
+        "centre": {
+          "x": "number",
+          "y": "number"
+        },
+        "spanX": "number",
+        "spanY": "number"
+      },
+      "open": "boolean"
+    },
+    "clock": "number",
+    "codeSplitGalaxies": "number",
+    "depthBits": "number",
+    "dock": {
+      "bounceCount": "number",
+      "dockCount": "number",
+      "flash": "number",
+      "lastClockDelta": "number",
+      "outcome": "string",
+      "scrapeCount": "number",
+      "shake": "number"
+    },
+    "dust": {
+      "active": "boolean",
+      "count": "number"
+    },
+    "economy": {
+      "capacityPods": "number",
+      "cargo": {
+        "record": []
+      },
+      "credits": "number",
+      "fuel": "number",
+      "holdPods": "number",
+      "lastTrade": "null",
+      "market": {
+        "[]": [
+          {
+            "key": "string",
+            "price": "number",
+            "stock": "number"
+          }
+        ]
+      },
+      "marketSeed": "number",
+      "marketSystemId": "string",
+      "missiles": "number",
+      "passengerBerths": "number"
+    },
+    "flightTime": "number",
+    "frames": "number",
+    "hint": "string",
+    "hints": {
+      "[]": []
+    },
+    "homeSystems": "number",
+    "hud": {
+      "aegis": "string",
+      "bounds": {
+        "record": [
+          {
+            "[]": ["number"]
+          }
+        ]
+      },
+      "compass": {
+        "forward": "boolean",
+        "target": "string"
+      },
+      "contacts": {
+        "[]": []
+      },
+      "designScale": "number",
+      "drawn": "boolean",
+      "elements": {
+        "[]": ["string"]
+      },
+      "fuel": "number",
+      "fuelText": "string",
+      "hyperspaceTarget": "string",
+      "letterbox": {
+        "[]": ["number"]
+      },
+      "message": "string"
+    },
+    "hyperspace": {
+      "countdown": "number",
+      "lastJump": "null",
+      "lastRefusal": "null"
+    },
+    "launch": {
+      "count": "number",
+      "elapsed": "number",
+      "seen": "boolean"
+    },
+    "logDepth": "boolean",
+    "memory": {
+      "geometries": "number",
+      "programs": "number",
+      "textures": "number"
+    },
+    "messages": "number",
+    "mode": "string",
+    "nebulae": "number",
+    "orientation": {
+      "[]": ["number"]
+    },
+    "paused": "boolean",
+    "position": {
+      "[]": ["number"]
+    },
+    "quality": "string",
+    "ready": "boolean",
+    "recovery": {
+      "losses": "number",
+      "restores": "number",
+      "state": "string"
+    },
+    "renders": "number",
+    "save": {
+      "attempts": "number",
+      "committed": "number",
+      "continueVisible": "boolean",
+      "lastClock": "null",
+      "notice": "string",
+      "revision": "number",
+      "skipReason": "string",
+      "status": "string",
+      "unavailable": "boolean",
+      "writes": "number"
+    },
+    "saveScreen": {
+      "confirming": "boolean",
+      "notice": "string",
+      "open": "boolean",
+      "row": "string"
+    },
+    "shipVisible": "boolean",
+    "speed": "number",
+    "station": {
+      "message": "string",
+      "open": "boolean",
+      "page": "number",
+      "pending": "null",
+      "screen": "string",
+      "selectedKey": "string"
+    },
+    "systemId": "string",
+    "torus": {
+      "engaged": "boolean",
+      "factor": "number",
+      "massLocked": "boolean"
+    },
+    "triangles": "number",
+    "webgl2": "boolean",
+    "world": {
+      "maxRelativeMagnitude": "number",
+      "navBuoy": {
+        "[]": ["number"]
+      },
+      "planet": {
+        "[]": ["number"]
+      },
+      "station": {
+        "[]": ["number"]
+      },
+      "sun": {
+        "[]": ["number"]
+      },
+      "witchpoint": {
+        "[]": ["number"]
+      }
+    }
+  },
+  "inFlight": {
+    "angular": {
+      "pitch": "number",
+      "roll": "number"
+    },
+    "aspect": "number",
+    "atmosphere": "boolean",
+    "bodies": {
+      "[]": ["string"]
+    },
+    "calls": "number",
+    "chart": {
+      "camera": {
+        "centre": {
+          "x": "number",
+          "y": "number"
+        },
+        "spanX": "number",
+        "spanY": "number"
+      },
+      "open": "boolean"
+    },
+    "clock": "number",
+    "codeSplitGalaxies": "number",
+    "depthBits": "number",
+    "dock": {
+      "bounceCount": "number",
+      "dockCount": "number",
+      "flash": "number",
+      "lastClockDelta": "number",
+      "outcome": "string",
+      "scrapeCount": "number",
+      "shake": "number"
+    },
+    "dust": {
+      "active": "boolean",
+      "count": "number"
+    },
+    "economy": {
+      "capacityPods": "number",
+      "cargo": {
+        "record": []
+      },
+      "credits": "number",
+      "fuel": "number",
+      "holdPods": "number",
+      "lastTrade": "null",
+      "market": {
+        "[]": [
+          {
+            "key": "string",
+            "price": "number",
+            "stock": "number"
+          }
+        ]
+      },
+      "marketSeed": "number",
+      "marketSystemId": "string",
+      "missiles": "number",
+      "passengerBerths": "number"
+    },
+    "flightTime": "number",
+    "frames": "number",
+    "hint": "string",
+    "hints": {
+      "[]": ["string"]
+    },
+    "homeSystems": "number",
+    "hud": {
+      "aegis": "string",
+      "bounds": {
+        "record": [
+          {
+            "[]": ["number"]
+          }
+        ]
+      },
+      "compass": {
+        "forward": "boolean",
+        "target": "string"
+      },
+      "contacts": {
+        "[]": ["string"]
+      },
+      "designScale": "number",
+      "drawn": "boolean",
+      "elements": {
+        "[]": ["string"]
+      },
+      "fuel": "number",
+      "fuelText": "string",
+      "hyperspaceTarget": "string",
+      "letterbox": {
+        "[]": ["number"]
+      },
+      "message": "string"
+    },
+    "hyperspace": {
+      "countdown": "number",
+      "lastJump": "null",
+      "lastRefusal": "null"
+    },
+    "launch": {
+      "count": "number",
+      "elapsed": "number",
+      "seen": "boolean"
+    },
+    "logDepth": "boolean",
+    "memory": {
+      "geometries": "number",
+      "programs": "number",
+      "textures": "number"
+    },
+    "messages": "number",
+    "mode": "string",
+    "nebulae": "number",
+    "orientation": {
+      "[]": ["number"]
+    },
+    "paused": "boolean",
+    "position": {
+      "[]": ["number"]
+    },
+    "quality": "string",
+    "ready": "boolean",
+    "recovery": {
+      "losses": "number",
+      "restores": "number",
+      "state": "string"
+    },
+    "renders": "number",
+    "save": {
+      "attempts": "number",
+      "committed": "number",
+      "continueVisible": "boolean",
+      "lastClock": "number",
+      "notice": "string",
+      "revision": "number",
+      "skipReason": "string",
+      "status": "string",
+      "unavailable": "boolean",
+      "writes": "number"
+    },
+    "saveScreen": {
+      "confirming": "boolean",
+      "notice": "string",
+      "open": "boolean",
+      "row": "string"
+    },
+    "shipVisible": "boolean",
+    "speed": "number",
+    "station": {
+      "message": "string",
+      "open": "boolean",
+      "page": "number",
+      "pending": "null",
+      "screen": "string",
+      "selectedKey": "string"
+    },
+    "systemId": "string",
+    "torus": {
+      "engaged": "boolean",
+      "factor": "number",
+      "massLocked": "boolean"
+    },
+    "triangles": "number",
+    "webgl2": "boolean",
+    "world": {
+      "maxRelativeMagnitude": "number",
+      "navBuoy": {
+        "[]": ["number"]
+      },
+      "planet": {
+        "[]": ["number"]
+      },
+      "station": {
+        "[]": ["number"]
+      },
+      "sun": {
+        "[]": ["number"]
+      },
+      "witchpoint": {
+        "[]": ["number"]
+      }
+    }
+  },
+  "testHookDocked": {
+    "angular": {
+      "pitch": "number",
+      "roll": "number"
+    },
+    "aspect": "number",
+    "atmosphere": "boolean",
+    "bodies": {
+      "[]": ["string"]
+    },
+    "calls": "number",
+    "chart": {
+      "camera": {
+        "centre": {
+          "x": "number",
+          "y": "number"
+        },
+        "spanX": "number",
+        "spanY": "number"
+      },
+      "open": "boolean"
+    },
+    "clock": "number",
+    "codeSplitGalaxies": "number",
+    "depthBits": "number",
+    "dock": {
+      "bounceCount": "number",
+      "dockCount": "number",
+      "flash": "number",
+      "lastClockDelta": "number",
+      "outcome": "string",
+      "scrapeCount": "number",
+      "shake": "number"
+    },
+    "dust": {
+      "active": "boolean",
+      "count": "number"
+    },
+    "economy": {
+      "capacityPods": "number",
+      "cargo": {
+        "record": []
+      },
+      "credits": "number",
+      "fuel": "number",
+      "holdPods": "number",
+      "lastTrade": "null",
+      "market": {
+        "[]": [
+          {
+            "key": "string",
+            "price": "number",
+            "stock": "number"
+          }
+        ]
+      },
+      "marketSeed": "number",
+      "marketSystemId": "string",
+      "missiles": "number",
+      "passengerBerths": "number"
+    },
+    "flightTime": "number",
+    "frames": "number",
+    "hint": "string",
+    "hints": {
+      "[]": []
+    },
+    "homeSystems": "number",
+    "hud": {
+      "aegis": "string",
+      "bounds": {
+        "record": [
+          {
+            "[]": ["number"]
+          }
+        ]
+      },
+      "compass": {
+        "forward": "boolean",
+        "target": "string"
+      },
+      "contacts": {
+        "[]": []
+      },
+      "designScale": "number",
+      "drawn": "boolean",
+      "elements": {
+        "[]": ["string"]
+      },
+      "fuel": "number",
+      "fuelText": "string",
+      "hyperspaceTarget": "string",
+      "letterbox": {
+        "[]": ["number"]
+      },
+      "message": "string"
+    },
+    "hyperspace": {
+      "countdown": "number",
+      "lastJump": "null",
+      "lastRefusal": "null"
+    },
+    "launch": {
+      "count": "number",
+      "elapsed": "number",
+      "seen": "boolean"
+    },
+    "logDepth": "boolean",
+    "memory": {
+      "geometries": "number",
+      "programs": "number",
+      "textures": "number"
+    },
+    "messages": "number",
+    "mode": "string",
+    "nebulae": "number",
+    "orientation": {
+      "[]": ["number"]
+    },
+    "paused": "boolean",
+    "position": {
+      "[]": ["number"]
+    },
+    "quality": "string",
+    "ready": "boolean",
+    "recovery": {
+      "losses": "number",
+      "restores": "number",
+      "state": "string"
+    },
+    "renders": "number",
+    "save": {
+      "attempts": "number",
+      "committed": "number",
+      "continueVisible": "boolean",
+      "lastClock": "null",
+      "notice": "string",
+      "revision": "number",
+      "skipReason": "string",
+      "status": "string",
+      "unavailable": "boolean",
+      "writes": "number"
+    },
+    "saveScreen": {
+      "confirming": "boolean",
+      "notice": "string",
+      "open": "boolean",
+      "row": "string"
+    },
+    "shipVisible": "boolean",
+    "speed": "number",
+    "station": {
+      "message": "string",
+      "open": "boolean",
+      "page": "number",
+      "pending": "null",
+      "screen": "string",
+      "selectedKey": "string"
+    },
+    "systemId": "string",
+    "test": {
+      "disposeSystem": "function",
+      "grantEquipment": "function",
+      "setCredits": "function",
+      "setOrientation": "function",
+      "setPosition": "function",
+      "setSpeed": "function",
+      "setStationAngle": "function",
+      "swapSystem": "function",
+      "tainted": "boolean"
+    },
+    "torus": {
+      "engaged": "boolean",
+      "factor": "number",
+      "massLocked": "boolean"
+    },
+    "triangles": "number",
+    "webgl2": "boolean",
+    "world": {
+      "maxRelativeMagnitude": "number",
+      "navBuoy": {
+        "[]": ["number"]
+      },
+      "planet": {
+        "[]": ["number"]
+      },
+      "station": {
+        "[]": ["number"]
+      },
+      "sun": {
+        "[]": ["number"]
+      },
+      "witchpoint": {
+        "[]": ["number"]
+      }
+    }
+  }
+}
