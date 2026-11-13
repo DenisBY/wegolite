@@ -38,7 +38,7 @@ Total: 73 of 73 plans complete. Phase directories remain in `.planning/phases/`.
 
 ### Phase list
 
-- [ ] **Phase 8: Session Split and World Core** - v1 play unchanged on a multi-entity world: stable ids, seeded streams, a world hash, the typed AI seam and a tick-stepping test hook
+- [x] **Phase 8: Session Split and World Core** - v1 play unchanged on a multi-entity world: stable ids, seeded streams, a world hash, the typed AI seam and a tick-stepping test hook (completed 2026-11-13)
 
 ### Execution order
 
@@ -61,7 +61,7 @@ Phase 8 is the only phase. Its 16 plans run in the nine waves listed under Phase
 **Pitfalls to address**: 8 (split behind a probe-shape snapshot; re-point `tests/app/redraw-gate.test.ts` and `tests/guards/economy-purity.test.ts`, which read the session file as text), 9 (empty-world hash identity), 1 (id order), 2 (forked `(worldSeed, entityId, purpose)` streams), 3 (integer tick time base), 4 (NaN and transcendentals), 7 (cross-entity events queued, never synchronous), 19 (narrow, read-only AI seam), 17 (fixed ids for planet, sun, station and buoys), 11 and 27 (`advanceTicks`, traffic off by default, a test hook that does not become a god object), 13 (audio event types reserved now, including missile, ECM and scoop events), 10 (the anchored-save decision only)
 **Decisions to settle**: D1 world seed policy (SAVE-07's saved world epoch implies the recommended `mix32(marketSeed, epoch)`; confirm in discuss-phase); the fixed id table for static bodies
 **Todos**: `2026-11-11-check-ci-after-0-2-0-and-the-shift-c-docking-timeout.md` — FOUND-10's baseline is a green `verify-full`, so the Shift+C docking flake is settled before the split starts
-**Plans**: 16/16 plans executed
+**Plans**: 16/16 plans complete
 Plans:
 **Wave 1**
 - [x] 08-01-PLAN.md — Split safety nets: verify-full baseline, probe-shape snapshot, order-independent session-source scans (D-01, D-12 step 0, D-13)

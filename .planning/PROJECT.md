@@ -33,12 +33,14 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 - ✓ Player can view the galactic chart and select a destination system — v1.0 (Phase 6)
 - ✓ Player can save and resume progress in the browser — v1.0 (Phase 6)
 - ✓ Clean separation between simulation and rendering — v1.0 (Phases 1 and 3); the steady-frame-rate half is QUAL-01, still open
+- ✓ The simulation holds many entities with stable per-world ids, seeded per-entity streams, a world hash and restorable test snapshots, behind a typed `WorldView`/`ShipControl` AI seam, and tests step it by ticks; v1 play unchanged after the session split — v2.0 (Phase 8, FOUND-10..FOUND-14)
 
 ### Active
 
 <!-- Current scope. Building toward these. Milestone v2.0 Foundation (Phase 8). The v2.1 items below are planned, unscheduled. -->
 
-- [ ] (v2.0) The simulation holds many entities (ships, stations, missiles, cargo pods, wreckage) with stable ids, serialised into determinism hashes and test snapshots; saves carry only the world seed and counters, and the world is regenerated from them
+- [ ] (v2.1, planned) Saves carry only the world seed and counters, and the world is regenerated from them (Phase 11; Phase 8 delivered the world model, the world is not saved in v2.0)
+- [ ] (v2.1, planned) Before real AI modules land (Phases 12, 13, 22), a throwing AI module is contained inside the world step (Phase 8 review WR-01)
 - [ ] (v2.1, planned) NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
 - [ ] (v2.1, planned) NPC ships fly and fight with Oolite's priority AI, hand-ported to TypeScript
 - [ ] (v2.1, planned) Player can fight with lasers, shields, energy banks, missiles and ECM, and destroy or be destroyed
@@ -233,4 +235,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-13: milestone v2.0 narrowed to Phase 8 (Foundation); the rest of the former scope is v2.1, unscheduled*
+*Last updated: 2026-11-13 after Phase 8 (milestone v2.0 Foundation: all phases complete)*

@@ -2,20 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v2.0
 milestone_name: Foundation
-current_phase: 08
-current_phase_name: Session Split and World Core
-status: executing
-stopped_at: Completed 08-16-PLAN.md
-last_updated: "2026-11-13T17:29:45.730Z"
+current_phase: 8
+status: completed
+stopped_at: Phase 8 complete — all phases complete
+last_updated: "2026-11-13T19:39:31.756Z"
 last_activity: 2026-11-13
-last_activity_desc: v2.0 narrowed to Phase 8 only; Phases 9-23 (55 requirements) moved to unscheduled v2.1
-state_head: 3ece12e076c8b5ccbf000a44891e33a0e81113f4
+last_activity_desc: Phase 8 complete
+state_head: 7c15114aa7b78b57abc9964c2a66ad1dae05a31a
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 16
   completed_plans: 16
-  percent: 0
+  percent: 100
 ---
 
 # Project State
@@ -25,21 +24,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-13)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Milestone v2.0 Foundation, narrowed on 2026-11-13 to Phase 8 (Session Split and World Core) alone, with quality over speed. Phases 9-23 and their 55 requirements are the unscheduled v2.1 (Combat & Traffic) in `.planning/ROADMAP.md`. The AI seam, snapshot codec and reserved events are provisional until Phases 12-14 exercise them. Milestone v1.0 (Phases 1-7) is archived in `.planning/milestones/`; QUAL-01 is deferred again and stays with v2.1 Phase 23.
+**Current focus:** Milestone v2.0 Foundation complete (Phase 8 verified 2026-11-13); next is milestone completion. Milestone v2.0 was narrowed on 2026-11-13 to Phase 8 (Session Split and World Core) alone, with quality over speed. Phases 9-23 and their 55 requirements are the unscheduled v2.1 (Combat & Traffic) in `.planning/ROADMAP.md`. The AI seam, snapshot codec and reserved events are provisional until Phases 12-14 exercise them. Milestone v1.0 (Phases 1-7) is archived in `.planning/milestones/`; QUAL-01 is deferred again and stays with v2.1 Phase 23.
 
 ## Current Position
 
-Phase: 08 (Session Split and World Core) — EXECUTING
-Plan: 16 of 16 complete (08-01 to 08-16 done; the tick hook and browser/Vitest parity are in; next is phase verification by the orchestrator)
-Status: Ready to execute
-Last activity: 2026-11-13 — Completed 08-16 (the one deliberate D-13 probe commit e5756cf adds probe.sim, test.worldHash and an always-present test.advanceTicks that steps only under ?test=1&clock=manual, plus the seventh probe-shape state testHookManualDocked, proven subtractive against the old fixture; a launch plus 600 ticks read the same world hash in the browser, in the Node replay tests/helpers/tick-script.ts and in the real sim driver, equal to hashFlight; traffic is opt-in with &traffic=1 and both flags are inert without test=1; verify-full green on 3ece12e at its second run in 28m23s after five host-load timeouts passed on rerun; FOUND-10 and FOUND-14 ready). Earlier: Completed 08-15 (the world lifecycle: stepOnce runs stepSim over ctx.core.worldLifecycle?.world, the single integration point; the launched event and a hyperspace arrival bump epoch then derive worldSeedFor(marketSeed, epoch) and create a world, docked and dispose end it keeping the epoch, and a cold Continue or warm Load re-anchors at resetForRestore(0) so both give the same epoch and seed; the world never enters the save, proven on SaveInputs and the encoded save; the NPC-free world costs 1.28 us per tick against 0.62 us for stepFlight, within the 1.2x plus 2 us bound; verify-full green on 925b161 in 28m58s and the Firefox journey green; FOUND-11 ready, FOUND-14 still blocked on 08-16). Earlier: Completed 08-14 (the test flags are read once into ctx.runtime.testFlags by parseTestFlags; under ?test=1&clock=manual the frame loop never self-steps and draws at alpha 1; advanceTicks(n) steps exactly n ticks through a drain shared with advanceFrame, taints first, refuses every unsafe call and stops early on pause, overlay or dispose; markHookMutation is the hook's taint callback; probe unchanged; verify green on 83b112e, FOUND-14 still blocked on 08-15 and 08-16). Earlier: Completed 08-12 (split step 9: frame shell in frame-loop.ts, start-up, resize, scene swap and dispose in start-session.ts, game-session.ts a 532-line facade with the same nine exports; frame phase order, swap layout re-read, both window keydown registrations and the recorded teardown order pinned by Node tests; swapSystem now tracks and guards its settlement frame and dispose releases it; verify-full green on its second run on a detached worktree of 391e788, tree 20834c20, flaky textures timeout on the first; Firefox core-loop journey green, FOUND-10 still blocked on the other plans declaring it). Earlier: Completed 08-13 (the world is plain restorable data: snapshotWorld, parseWorldSnapshot and restoreWorld with a 23-reason SnapshotError, a strict boundary parser that builds a fresh tree and reads each property once, and the three-way 1,000-tick live-versus-restored equality by hash, exact snapshot JSON and toStrictEqual players; 94-row rejection table, Record<keyof Entity, ...> field coverage and a 300-run sanitizer-parser property; world hash identical at 30, 60 and 144 Hz across a launch and an arrival; full test, lint and typecheck green on 211a543, FOUND-12 ready). Earlier: Completed 08-11 (stepSim composes the unchanged flight step with an id-ordered stepWorld; AI events queue first in first out under 8 passes, 4096 dequeued events and a 4096-event queue with every drop counted in the hashed aiDropped; sanitizeEntity is field-complete and idempotent; 15 reserved SimEvent kinds, entityRemoved emitted, Key Decisions rows (a) to (h); full test, lint and typecheck green on 40260b0, 08-10 committed first and no src/app edit was needed). Earlier: Completed 08-10 (split steps 7 and 8: hyperspace controller, ordered event router keyed to RoutedKind and read through isRoutedKind, sim driver with the single flight-step call site, pure buildStepOptions; verify green on 18aba4b and 329b9f8, 08-11 events.ts not yet landed). Earlier: Completed 08-09 (AI types, integer tick time base, frozen registry, scripted test pilot and the AI lint zone: case-sensitive per-depth import allow-lists, createSeededRandom and module-level state bans, 106 guard probes; full test, lint and typecheck green on the task-3 commit b040c39)
+Phase: 8
+Plan: Not started
+Status: All phases complete
+Last activity: 2026-11-13 — Phase 8 complete
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 61
+- Total plans completed: 77
 - Average duration: 5.3 min
 - Total execution time: 3.9 hours
 
@@ -53,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 | 04 | 8 | - | - |
 | 05 | 6 | - | - |
 | 6 | 17 | - | - |
+| 8 | 16 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: 01-03 3 min, 01-04 5 min, 01-05 9 min, 01-06 2 min, 01-07 6 min
@@ -318,7 +318,7 @@ Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassM
 
 ### Blockers/Concerns
 
-- [v2.0 Roadmap] Open owner items: D1 world seed policy (SAVE-07 assumes a saved world epoch; confirm in Phase 8, before Phase 11); D10 music provenance (decided in Phase 9, gates AUD-03 in Phase 17); D11 first-load ceiling (raise only on a recorded measurement, Phases 9 and 23); the octree float precision and whether the buoy and the dodecahedron and icosahedron stations gain an octree mass (Phase 10); the Coriolis blockage mass if the octree value differs from 455,223,200 (Phase 10); the below-24-fps behaviour (Phase 12); the buoy collision radius (Phase 15); acceptance of the Phase 14 fidelity report and the choice of decision oracle (gates Phase 18); the Phase 23 budgets and protocol (signed off before Phase 23 is planned).
+- [v2.0 Roadmap] Open owner items: D10 music provenance (decided in Phase 9, gates AUD-03 in Phase 17); D11 first-load ceiling (raise only on a recorded measurement, Phases 9 and 23); the octree float precision and whether the buoy and the dodecahedron and icosahedron stations gain an octree mass (Phase 10); the Coriolis blockage mass if the octree value differs from 455,223,200 (Phase 10); the below-24-fps behaviour (Phase 12); the buoy collision radius (Phase 15); acceptance of the Phase 14 fidelity report and the choice of decision oracle (gates Phase 18); the Phase 23 budgets and protocol (signed off before Phase 23 is planned).
 - [Phase 4] The static dock-port schema's half-extents are not magnitude-bounded (verification warning W-01); harmless with the vendored asset but worth a schema bound if the aperture ever becomes data-driven.
 - [Phase 5 → Phase 6] The docking computer's install is proven at the pure-rule level only: Lave is raw TL 4, so the 15000 dc purchase cannot be shown end-to-end until Phase 6 reaches a raw TL 9 system. `checkFit`/`applyFit` delegate to the unchanged Phase 4 predicates; 05-06 records the temporary loss of the browser proof.
 - [Phase 5] Two review findings are deferred by decision: the missile-removal confirmation still states only the 20 Cr fee (IN-03; D-15 copy is satisfied and the row description states the full trade-in), and five fixed `waitForTimeout` calls remain in the inert-key browser proofs (IN-04; test-hardening for the e2e flake sweep).
@@ -328,7 +328,9 @@ Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassM
 - [Project] Licence election and trademark posture need a professional legal read before the first public post.
 - G-03-3 accepted as a known issue (2026-11-04, `PROJECT.md` Key Decisions): the loaded in-flight frame (369.4 ms at 2.71 fps under SwiftShader) is fill-bound and the planet fragment shader owns ~281 ms; the cheap fixes (`antialias:false` ~135 ms, half resolution ~199 ms) would change the approved look. The message-expiry spec is a correctness wait, so it now has a 300 s ceiling with `workers: 2` pinned; QUAL-01 (60 fps at 1080p, mid-range hardware) stays Phase 7's requirement on a real GPU. Do not re-open the octave budget: `BUDGET_CEILING = 9`.
 - [Test infra] `tests/guards/content-boundary.test.ts > removes the probe even when the body throws` runs on Vitest's 5 s default while its five siblings use `180_000`; it timed out at 5 s in one full `verify` run under load and passes in isolation (file 6/6 in 24 s). Give it an explicit timeout — unrelated to 03-14.
-- Phase 8 baseline: verify and verify-full are red on the phase base (stale specs scene.spec.ts:111 and docking.spec.ts:371, see 08 deferred-items D-1); decide whether to fix before split step 1
+- [Phase 8] Review WR-01: `invoke()` in `src/sim/world/step.ts` does not contain a throwing AI module (latent; the only module cannot throw). Decide containment before Phases 12, 13 and 22 register real AI. Also IN-02 (`spawnEntity` throws on malformed input instead of refusing) before the Phase 12 populator. See `08-REVIEW.md` and `08-SECURITY.md`.
+- [Phase 8] Flakes under host load (deferred-items D-2): launch.spec.ts:129, save-load.spec.ts:634, plus hyperspace.spec.ts:194 and the probe-shape in-flight state seen once in 08-16; rerun once before treating as real.
+- [Phase 8] 08-VALIDATION.md is still draft (Nyquist audit not run); optional `/gsd-validate-phase 8`.
 
 ### Quick Tasks Completed
 
@@ -374,6 +376,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T17:29:45.650Z
-Stopped at: Completed 08-16-PLAN.md
+Last session: 2026-11-13T19:45:00Z
+Stopped at: Phase 8 complete (UAT passed, security verified); milestone v2.0 ready to complete
 Resume file: None

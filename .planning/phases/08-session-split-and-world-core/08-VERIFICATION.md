@@ -1,7 +1,7 @@
 ---
 phase: 08-session-split-and-world-core
 verified: 2026-11-13T12:00:00Z
-status: human_needed
+status: passed
 score: 5/5 must-haves verified
 covered_files:
   - ".planning/phases/08-session-split-and-world-core/08-01-PLAN.md"
