@@ -98,7 +98,7 @@ docker compose down --volumes
 docker compose down --volumes --remove-orphans
 ```
 
-`verify` is the fast gate and runs on every change; `verify-full` is the release gate and runs before a release and when render, input, persistence or network-guard code changes. CI runs `verify-full`.
+`verify` is the fast gate and runs on every change; `verify-full` is the release gate and runs before a release and when render, input, persistence or network-guard code changes. CI runs `verify-full`. Choose the gate by change type: changes limited to pure simulation logic (`src/sim/`) and its tests or guards need only `docker compose run --rm test`, `lint` and `typecheck`; changes to browser-facing code (`src/app/`, `src/render/`, `src/input/`, `src/ui/`, `index.html`) need `verify`; `verify-full` stays for releases and for render, input, persistence or network-guard changes.
 
 Rules:
 
