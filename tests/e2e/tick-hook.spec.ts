@@ -14,6 +14,8 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { hashFlight } from "../../src/sim/flight/state.js";
+import { runTickScript } from "../helpers/tick-script.js";
 import { waitForReady } from "./helpers/probe.js";
 import { startNewGame } from "./helpers/title.js";
 
@@ -99,4 +101,105 @@ test("the manual clock never self-steps; advanceTicks steps exactly n ticks", as
   expect(refused).toEqual([before.tick + 5, before.tick + 5]);
   await waitForFrames(page, 1);
   expect((await sample(page)).tick).toBe(before.tick + 5);
+});
+
+test("a launch and 600 ticks read the same world hash in the browser and in the Node replay", async ({
+  page,
+}) => {
+  await bootDocked(page, "/?test=1&clock=manual");
+  await page.click('button[data-action="launch"]');
+  // One frame after the click, so the launch command is queued before stepping.
+  await waitForFrames(page, 1);
+
+  const afterLaunch = await page.evaluate(
+    () => window.__wegolite?.test?.advanceTicks(1) ?? -1,
+  );
+  expect(afterLaunch).toBe(1);
+  await waitForFrames(page, 1);
+  expect(await page.evaluate(() => window.__wegolite?.mode)).toBe("launching");
+
+  const afterFlight = await page.evaluate(
+    () => window.__wegolite?.test?.advanceTicks(600) ?? -1,
+  );
+  expect(afterFlight).toBe(601);
+  await waitForFrames(page, 1);
+
+  const browser = await page.evaluate(() => ({
+    tick: window.__wegolite?.sim?.tick,
+    mode: window.__wegolite?.mode,
+    epoch: window.__wegolite?.sim?.epoch,
+    worldLive: window.__wegolite?.sim?.worldLive,
+    entities: window.__wegolite?.sim?.entities,
+    hash: window.__wegolite?.test?.worldHash(),
+  }));
+
+  const replay = runTickScript([
+    { commands: [{ kind: "launch" }], ticks: 1 },
+    { commands: [], ticks: 600 },
+  ]);
+  expect(browser.tick).toBe(replay.state.tick);
+  expect(browser.mode).toBe(replay.state.mode);
+  expect(browser.hash).toBe(replay.hash);
+  // With no populator the world is empty, so the hash is the flight hash: the
+  // browser and Node cannot agree on the same wrong value.
+  expect(replay.hash).toBe(hashFlight(replay.state));
+  expect(browser.epoch).toBe(1);
+  expect(browser.worldLive).toBe(true);
+  expect(browser.entities).toBe(0);
+});
+
+test("traffic is off under ?test=1 and on only for a spec that opts in", async ({
+  page,
+}) => {
+  await bootDocked(page, "/?test=1&clock=manual&traffic=1");
+  expect((await sample(page)).traffic).toBe(true);
+  await page.click('button[data-action="launch"]');
+  await waitForFrames(page, 1);
+  await page.evaluate(() => window.__wegolite?.test?.advanceTicks(1));
+  await waitForFrames(page, 1);
+  const flying = await sample(page);
+  expect(flying.traffic).toBe(true);
+  expect(flying.worldLive).toBe(true);
+  // No populator exists yet, so the opt-in changes only the flag.
+  expect(flying.entities).toBe(0);
+});
+
+test("the clock and traffic flags are inert without ?test=1", async ({
+  page,
+}) => {
+  await bootDocked(page, "/?clock=manual&traffic=0");
+  expect(await page.evaluate(() => window.__wegolite?.test)).toBeUndefined();
+  const before = await sample(page);
+  expect(before.clock).toBe("realtime");
+  expect(before.traffic).toBe(true);
+  // The realtime clock steps by itself, even while docked.
+  await page.waitForFunction(
+    (tick) => (window.__wegolite?.sim?.tick ?? 0) > tick,
+    before.tick,
+    { timeout: SLOW },
+  );
+});
+
+test("under plain ?test=1 advanceTicks refuses and worldHash reads", async ({
+  page,
+}) => {
+  await bootDocked(page, "/?test=1");
+  const before = (await sample(page)).tick;
+  const kinds = await page.evaluate(() => ({
+    advanceTicks: typeof window.__wegolite?.test?.advanceTicks,
+    worldHash: typeof window.__wegolite?.test?.worldHash,
+    hash: window.__wegolite?.test?.worldHash(),
+  }));
+  expect(kinds.advanceTicks).toBe("function");
+  expect(kinds.worldHash).toBe("function");
+  expect(kinds.hash).toMatch(/^[0-9a-f]{8}$/);
+
+  await page.evaluate(() => window.__wegolite?.test?.advanceTicks(100000));
+  await waitForFrames(page, 1);
+  const after = await sample(page);
+  // Only the realtime docked advance of a few frames, never a 100,000-tick step.
+  expect(after.tick - before).toBeLessThan(1000);
+  expect(await page.evaluate(() => window.__wegolite?.test?.tainted)).toBe(
+    false,
+  );
 });
