@@ -2,38 +2,33 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The composition root (Pattern 2, FLGT-07).
+ * The composition root and public facade (Pattern 2, FLGT-07; Phase 8, D-12
+ * step 9).
  *
  * This is the only module that wires the simulation, the scene, the HUD, the
- * input source and the UI together. It owns the single `FlightState`, samples
- * input once per rendered frame, runs whole fixed steps, and reads the state
- * once per rendered frame for the HUD and the probe.
+ * input source and the UI together, and the only session module the rest of
+ * the app imports. `createGameSession` builds the typed session context and
+ * every module under `src/app/session` in dependency order (a module needed by
+ * an earlier one is reached through a call-time wrapper), and returns the
+ * `GameSession` the shell drives. The behaviour lives in those modules: the
+ * frame shell in `frame-loop.ts` and start-up, resize, scene swap and teardown
+ * in `start-session.ts`.
  *
  * Boot order matters (T-3-02): both GLBs are awaited before the first frame. On
  * a rejected load the session publishes a failure and returns without
  * scheduling a frame — never a live canvas over an empty scene.
  */
 
-import * as THREE from "three";
+import type * as THREE from "three";
 import { showBootFailure } from "./boot-failure.js";
-import {
-  loadShipCatalogue,
-  playerShip,
-  stationShip,
-} from "../content/ships.js";
-import { loadDockPort } from "../content/dock-port.js";
-import { loadEquipment } from "../content/equipment.js";
-import { loadCommodities } from "../content/commodities.js";
-import { loadLabels } from "../content/labels.js";
 import type { System } from "../content/types.js";
-import { createGameLoop } from "./game-loop.js";
 import { publishFailure } from "./probe.js";
 import type { WegoliteProbe, WegoliteSaveProbe } from "./probe.js";
 import type { SceneManager } from "./scene-manager.js";
-import { createHintController } from "./hints.js";
 import { createLaunchSequence } from "./launch-sequence.js";
 import { createRedrawGate } from "./redraw-gate.js";
 import { createSessionState } from "./session/context.js";
+import { createFrameLoop } from "./session/frame-loop.js";
 import { createProbePublisher } from "./session/probe-publisher.js";
 import { createRenderDriver } from "./session/render-driver.js";
 import type { RenderDriver } from "./session/render-driver.js";
@@ -53,42 +48,21 @@ import {
 } from "./session/event-router.js";
 import { createHyperspaceController } from "./session/hyperspace-controller.js";
 import { createSimDriver } from "./session/sim-driver.js";
+import { createSessionLifecycle } from "./session/start-session.js";
 import { createStationController } from "./session/station-controller.js";
 import type { SessionState } from "./session/context.js";
 import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
-import { profileFromSave, restoreFromSave } from "../persistence/autosave.js";
 import type { SaveAllowLists, SaveV2 } from "../persistence/save.js";
 import type { SaveStore, SaveStatus } from "../persistence/store.js";
-import { createBreakPattern } from "../render/break-pattern.js";
-import { createHud } from "../render/hud/hud.js";
 import { createMessageQueue } from "../render/hud/messages.js";
 import type { Command } from "../sim/commands.js";
-import { createDockGeometry } from "../sim/dock/geometry.js";
-import { deriveFlightConfig } from "../sim/flight/config.js";
 import {
   PlayerController,
   ScriptedLaunchController,
 } from "../sim/flight/controller.js";
-import { initFlightState, poseOf } from "../sim/flight/state.js";
-import type { FlightState } from "../sim/flight/state.js";
-import { newProfile } from "../sim/player/profile.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
-import { generateMarket, marketSeedForSystem } from "../sim/economy/market.js";
-import type { Market } from "../sim/economy/market.js";
 import type { TradePlan } from "../sim/economy/trade.js";
-import { applyFit, checkFit } from "../sim/player/outfitting.js";
-import { createChart } from "../ui/chart.js";
-import { createSaveLoadScreen } from "../ui/save-load.js";
-import { buildChartView } from "../ui/chart-model.js";
-import { buildSystemDataModel } from "../ui/station-model.js";
-import { createStationNav } from "../ui/station-nav.js";
-import { createKeyboardInputSource } from "../input/keyboard.js";
-import { createBindingMap } from "../input/bindings.js";
-import { loadSettings } from "../settings/store.js";
-import { createControlsPanel } from "../ui/controls.js";
-import { createPauseOverlay } from "../ui/pause.js";
-import { createSettingsPanel } from "../ui/settings-panel.js";
 import type { StationShell } from "../ui/station.js";
 import type { TitleScreen } from "../ui/title.js";
 
@@ -331,7 +305,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   } = stationController;
 
   // D-12 step 2: everything the session publishes on the page's probe. The
-  // function declarations below are hoisted, so the dependencies exist now.
+  // lifecycle, built last, owns the scene swap and dispose the `?test=1` hook
+  // drives, so they are reached through call-time wrappers.
   const probePublisher = createProbePublisher(ctx, {
     probe,
     renderer,
@@ -340,8 +315,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     redrawGate,
     messages,
     commitProfile,
-    swapSystem,
-    disposeSystem,
+    swapSystem: () => lifecycle.swapSystem(),
+    disposeSystem: () => {
+      lifecycle.disposeSystem();
+    },
   });
 
   // D-12 step 3: the redraw gate's decision and the per-frame scene, HUD and
@@ -406,7 +383,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderFrame,
     syncStationNav,
     refreshStationChrome,
-    performSwap,
+    performSwap: () => {
+      lifecycle.performSwap();
+    },
   });
   const { setChartCamera, selectChartSystem, handleChartActions } =
     chartController;
@@ -462,618 +441,80 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     autosave,
   });
 
-  window.addEventListener("keydown", onSubpanelKeyDown, {
-    capture: true,
-    signal: uiController.signal,
+  // D-12 step 9: the frame shell, then the lifecycle (start-up, resize, the
+  // scene swap and the teardown). The lifecycle registers the two window
+  // keydown listeners as it is built, at this same point of the construction
+  // order as before the split. The step-4 and probe-publisher wrappers above
+  // reach its swap and dispose functions at call time.
+  const frame = createFrameLoop(ctx, {
+    probe,
+    pending,
+    redrawGate,
+    simDriver,
+    renderFrame,
+    shouldDraw,
+    pause,
+    resume,
+    handleChartActions,
+    handleSaveScreenActions,
+    applyStationAction,
+    updateProbe: probePublisher.updateProbe,
   });
-
-  /**
-   * D-10: after the first viewing, any key during `launching` skips to the
-   * handover. Before `launchSeen` the key is ignored, so the first launch always
-   * plays in full. The skip is a command, not a state mutation: the simulation
-   * still applies the +600 s clock exactly once.
-   */
-  function onLaunchKeyDown(event: KeyboardEvent): void {
-    const currentState = ctx.core.state;
-    if (currentState === undefined || currentState.mode !== "launching") return;
-    if (ctx.runtime.paused || event.repeat) return;
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
-    if (!launchSequence.canSkip(ctx.core.launchSeen)) return;
-    pending.push({ kind: "skipLaunch" });
-    event.preventDefault();
-  }
-
-  window.addEventListener("keydown", onLaunchKeyDown, {
-    capture: true,
-    signal: uiController.signal,
+  const lifecycle = createSessionLifecycle(ctx, {
+    assets,
+    scenes,
+    title,
+    docked,
+    hudCanvas,
+    probe,
+    pauseRoot,
+    controlsRoot,
+    gameRoot,
+    settingsRoot,
+    saveBoot,
+    galaxy,
+    galaxyById,
+    pending,
+    launchSequence,
+    uiController,
+    redrawGate,
+    frame,
+    renderFrame,
+    showBootFailure,
+    publishFailure,
+    probePublisher,
+    syncStatusOverlay,
+    ensureSelection,
+    refreshStationChrome,
+    renderStation,
+    syncStationNav,
+    fitContext,
+    commitProfile,
+    openStationScreen,
+    navigateStation,
+    setStationPage,
+    clearSaveForNewGame,
+    closeSaveScreen,
+    manualSave,
+    writeManualSave,
+    loadFromSave,
+    autosave,
+    selectChartSystem,
+    setChartCamera,
+    persistSettings,
+    resume,
+    openControls,
+    openSettings,
+    backToPause,
+    resetAllSettings,
+    applyQuality,
+    syncQualityToggle,
+    onSubpanelKeyDown,
   });
-
-  function frame(now: number): void {
-    ctx.runtime.rafId = requestAnimationFrame(frame);
-    probe.frames += 1;
-
-    const currentState = ctx.core.state;
-    const currentLayout = ctx.core.layout;
-    const currentConfig = ctx.core.config;
-    const currentInput = ctx.runtime.input;
-    const currentLoop = ctx.runtime.loop;
-    if (
-      currentState === undefined ||
-      currentLayout === undefined ||
-      currentConfig === undefined ||
-      currentInput === undefined ||
-      currentLoop === undefined
-    ) {
-      return;
-    }
-
-    const delta =
-      ctx.runtime.lastMs === 0 ? 0 : (now - ctx.runtime.lastMs) / 1000;
-    ctx.runtime.lastMs = now;
-
-    if (currentInput.consumePauseToggle()) {
-      if (ctx.runtime.paused) resume();
-      else pause();
-    }
-
-    // D-01: consume the chart edges before the freeze branch, so F6 opens and
-    // closes and a KeyP over the chart still reaches the pause handler above.
-    handleChartActions(currentInput.drainChartActions());
-    // D-20: the F2 screen is another opaque edge-driven overlay; its actions
-    // are applied before the freeze so Save/Load can run and Return can close.
-    if (ctx.chart.chartOpen) currentInput.drainSaveScreenActions();
-    else handleSaveScreenActions(currentInput.drainSaveScreenActions());
-
-    if (ctx.chart.chartOpen) {
-      // The overlay is opaque: drain everything, advance nothing, paint nothing.
-      currentInput.drainCommands();
-      currentInput.drainStationActions();
-      pending.length = 0;
-      ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
-      redrawGate.request();
-      probePublisher.updateProbe();
-      return;
-    }
-
-    if (ctx.save.saveScreenOpen) {
-      // The save screen is opaque too: no fixed step runs behind it.
-      currentInput.drainCommands();
-      currentInput.drainStationActions();
-      pending.length = 0;
-      ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
-      redrawGate.request();
-      probePublisher.updateProbe();
-      return;
-    }
-
-    // Station actions are discarded while paused or in flight; in the docked
-    // mode each one is revalidated against the live screen and context.
-    const stationActions = currentInput.drainStationActions();
-    if (!ctx.runtime.paused && currentState.mode === "docked") {
-      for (const action of stationActions) applyStationAction(action);
-    }
-
-    let alpha = 0;
-    if (!ctx.runtime.paused) {
-      alpha = simDriver.advanceFrame(delta);
-    } else {
-      // A key pressed while paused must not become a queued edge command that
-      // fires on resume.
-      currentInput.drainCommands();
-      pending.length = 0;
-      ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
-    }
-
-    renderFrame(alpha, shouldDraw());
-  }
-
-  /**
-   * Start the session. Never rejects: a step that throws outside its own
-   * handler (the ship catalogue, the scene build, a restore) is shown on the
-   * failure surface, exactly like a failed asset load. Without this the title
-   * screen would stay up with both buttons dead, because `starting` is set.
-   */
-  async function start(options: StartOptions = {}): Promise<void> {
-    try {
-      await startSession(options);
-    } catch (error) {
-      if (ctx.runtime.disposed) return;
-      const reason = error instanceof Error ? error.message : String(error);
-      console.error("Wegolite: the session failed to start", error);
-      showBootFailure(reason);
-      publishFailure(reason);
-    }
-  }
-
-  async function startSession(options: StartOptions): Promise<void> {
-    // The guard is set synchronously: `state` is only assigned after two
-    // awaits, so a second click during the load would otherwise start a second
-    // frame loop (two RAF chains, two HUDs, two input sources) that `dispose()`
-    // could never fully cancel.
-    if (
-      ctx.core.state !== undefined ||
-      ctx.runtime.starting ||
-      ctx.runtime.disposed
-    )
-      return;
-    ctx.runtime.starting = true;
-
-    // D-09/T-06-12: every target id is resolved through this validated map.
-    galaxyById.clear();
-    for (const entry of galaxy) galaxyById.set(entry.id, entry);
-    if (!galaxyById.has(ctx.core.system.id))
-      galaxyById.set(ctx.core.system.id, ctx.core.system);
-
-    const restore = options.restore;
-    const restoring = restore !== undefined && options.fresh !== true;
-
-    try {
-      await assets.preload();
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      // T-3-02: a failed model load must be visible, never a blank canvas, and
-      // no frame may be scheduled after it.
-      showBootFailure(reason);
-      publishFailure(reason);
-      return;
-    }
-
-    // A `pagehide` during the load disposes the session; resuming into a
-    // disposed asset cache would reject unhandled.
-    if (ctx.runtime.disposed) return;
-
-    const catalogue = await loadShipCatalogue();
-
-    if (ctx.runtime.disposed) return;
-
-    // D-10/T-04-43: the equipment catalogue is the only source of a price and a
-    // tech level. The commodity catalogue is the only source of the market
-    // coefficients. A missing or malformed record fails the boot visibly,
-    // exactly like the ship catalogue.
-    try {
-      const [equipment, loadedCommodities, loadedLabels] = await Promise.all([
-        loadEquipment(),
-        loadCommodities(),
-        loadLabels(),
-      ]);
-      if (ctx.runtime.disposed) return;
-      ctx.core.equipmentCatalogue = equipment;
-      ctx.core.commodities = loadedCommodities;
-      ctx.core.labels = loadedLabels;
-      ctx.core.commodityUnits = new Map(
-        loadedCommodities.map((commodity) => [commodity.key, commodity.unit]),
-      );
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      showBootFailure(reason);
-      publishFailure(reason);
-      return;
-    }
-
-    const playerDef = playerShip(catalogue).shipDef;
-    const stationEntry = stationShip(catalogue);
-    const station = stationEntry.shipDef;
-    ctx.core.stationDef = station;
-    ctx.core.stationKey = stationEntry.key;
-
-    const flightConfig = deriveFlightConfig(playerDef);
-    // SAVE-03/D-18: resolve the saved system before the first scene is built,
-    // so a Continue never flashes Lave or builds the wrong layout.
-    if (restoring && restore !== undefined) {
-      const savedSystem = galaxyById.get(restore.system.id);
-      if (savedSystem !== undefined) ctx.core.system = savedSystem;
-    }
-    // The graphics quality selects the planet's shader variant and the
-    // atmosphere shell, so the settings are read before the first scene is
-    // built; a Continue at High never flashes the Standard planet.
-    const loaded = loadSettings();
-    scenes.setQuality(loaded.quality);
-    const nextScene = scenes.enterSystem(ctx.core.system, station);
-    const systemLayout = scenes.layout();
-    if (systemLayout === undefined) {
-      throw new Error(
-        "Wegolite: the scene manager entered a system without a layout.",
-      );
-    }
-
-    // D-01/DOCK-01: the generated aperture is validated and converted into the
-    // port frame once, here, and injected into every fixed step as plain data.
-    try {
-      const rawDockPort = await loadDockPort();
-      if (ctx.runtime.disposed) return;
-      ctx.core.dockGeometry = createDockGeometry(
-        rawDockPort,
-        systemLayout.dockOffset,
-      );
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      showBootFailure(reason);
-      publishFailure(reason);
-      return;
-    }
-
-    if (!restoring) {
-      // New game: the clear must commit before this promise resolves, so a
-      // reload after the click cannot resurrect the old blob. A future blob is
-      // never touched (T-04-47). It runs only here, after every load that can
-      // fail has succeeded: a new game that cannot start must not have
-      // deleted the save it was going to replace.
-      await clearSaveForNewGame();
-      if (ctx.runtime.disposed) return;
-    }
-
-    let flightState: FlightState;
-    let restoredProfile: PlayerProfile | undefined;
-    let restoredMarket: Market | undefined;
-    let restoredMarketSeed: number | undefined;
-    if (restoring && restore !== undefined) {
-      const restored = restoreFromSave(restore, systemLayout, profileFromSave);
-      flightState = restored.state;
-      restoredProfile = restored.profile;
-      restoredMarket = restored.market;
-      restoredMarketSeed = restored.market?.seed ?? restored.marketSeed;
-    } else {
-      flightState = initFlightState(systemLayout);
-    }
-    const restoredInFlight = flightState.mode === "inFlight";
-
-    ctx.core.state = flightState;
-    ctx.core.layout = systemLayout;
-    ctx.core.config = flightConfig;
-    ctx.core.scene = nextScene;
-    ctx.core.profile = restoredProfile ?? newProfile();
-    // SAV-03/D-18: the committed target travels with the save. Only an id the
-    // validated catalogue knows is installed (T-06-12).
-    if (restoring && restore !== undefined) {
-      const savedTarget = restore.targetSystem;
-      ctx.core.hyperspaceTargetId =
-        savedTarget !== undefined && galaxyById.has(savedTarget)
-          ? savedTarget
-          : undefined;
-    }
-    syncStatusOverlay();
-
-    // D-17/D-18/D-19: resolve the seed once and generate the market once. A
-    // later `docked` event reuses this market; only Phase 6's system change re-seeds.
-    const loadedCatalogue = ctx.core.commodities ?? [];
-    // Block-local alias for the pinned seed expression; read once, never kept.
-    const { system } = ctx.core;
-    ctx.core.marketSeed =
-      restoring && restore !== undefined
-        ? (restoredMarketSeed ?? marketSeedForSystem(system.id))
-        : marketSeedForSystem(system.id);
-    // D-18/SAVE-06: a saved snapshot is used verbatim; only a v1 migration or a
-    // fresh game regenerates from the seed. Plan 06-04 owns the system swap.
-    ctx.core.market =
-      restoredMarket ??
-      generateMarket(ctx.core.system, loadedCatalogue, ctx.core.marketSeed);
-    ensureSelection();
-    ctx.runtime.hud = createHud(hudCanvas);
-    ctx.runtime.hud.resize();
-    ctx.runtime.breakPattern = createBreakPattern(hudCanvas);
-    hudCanvas.hidden = true;
-    ctx.chart.chart = createChart(document.body);
-    ctx.chart.chart.setViewBuilder((viewport) =>
-      buildChartView(
-        galaxy,
-        ctx.core.system.id,
-        ctx.core.hyperspaceTargetId,
-        ctx.chart.chartCamera,
-        ctx.core.profile.fuel,
-        viewport,
-        ctx.chart.chartSelectedId,
-      ),
-    );
-    ctx.chart.chart.setTooltipBuilder((id) => {
-      const info = galaxyById.get(id);
-      if (info === undefined || ctx.core.labels === undefined) return undefined;
-      const model = buildSystemDataModel(
-        info,
-        ctx.core.system,
-        ctx.core.labels,
-      );
-      return {
-        title: info.name,
-        fields: model.fields,
-        description: model.description,
-      };
-    });
-    ctx.chart.chart.onSelect((id) => {
-      selectChartSystem(id);
-    });
-    ctx.chart.chart.onCamera((camera) => {
-      setChartCamera(camera);
-    });
-    ctx.save.saveLoad = createSaveLoadScreen(document.body);
-    ctx.save.saveLoad.onReturn(() => {
-      closeSaveScreen();
-    });
-    ctx.save.saveLoad.onSave(() => {
-      manualSave();
-    });
-    ctx.save.saveLoad.onLoad(() => {
-      void loadFromSave();
-    });
-    ctx.save.saveLoad.onOverwriteConfirmed(() => {
-      writeManualSave();
-    });
-    // A mouse Cancel closes the dialog on the screen alone; the session only
-    // needs to publish the state the dialog now reports.
-    ctx.save.saveLoad.onOverwriteCancelled(() => {
-      probePublisher.updateProbe();
-    });
-    ctx.station.stationNav = createStationNav(document.body, {
-      onNavigate: (id) => {
-        navigateStation(id);
-      },
-      onStatusPage: (page) => {
-        setStationPage(page);
-      },
-    });
-
-    const bindingMap = createBindingMap(loaded.bindings);
-    ctx.runtime.settings = { ...loaded, bindings: bindingMap };
-    ctx.runtime.bindings = bindingMap;
-    // Both overlay footers get their default hints before first open, and a
-    // restored in-flight session (which never runs renderStation) still gets
-    // the chart and Save/Load hint lines.
-    refreshStationChrome();
-    ctx.core.launchSeen = loaded.launchSeen;
-    if (ctx.core.launchSeen) launchSequence.markSeen();
-    ctx.runtime.hints = createHintController({
-      bindings: bindingMap,
-      seen: ctx.runtime.settings.hintsSeen,
-      onSeen: (id) => {
-        const currentSettings = ctx.runtime.settings;
-        if (currentSettings === undefined) return;
-        if (!currentSettings.hintsSeen.includes(id)) {
-          currentSettings.hintsSeen.push(id);
-        }
-        persistSettings();
-      },
-    });
-
-    ctx.runtime.input = createKeyboardInputSource(bindingMap);
-    ctx.runtime.input.setStationScreenHandler((action) => {
-      openStationScreen(action);
-    });
-    ctx.runtime.input.setContext(restoredInFlight ? "flight" : "dockHome");
-    ctx.runtime.input.setPaused(false);
-    ctx.runtime.input.attach();
-    ctx.runtime.loop = createGameLoop();
-    ctx.core.previousPose = poseOf(flightState);
-    ctx.core.currentPose = ctx.core.previousPose;
-    ctx.core.previousCameraWorld = undefined;
-
-    ctx.runtime.pauseOverlay = createPauseOverlay({
-      root: pauseRoot,
-      gameRoot,
-      onResume: () => {
-        resume();
-      },
-      onControls: () => {
-        openControls();
-      },
-      onSettings: () => {
-        openSettings();
-      },
-    });
-    ctx.runtime.controlsPanel = createControlsPanel(bindingMap, {
-      root: controlsRoot,
-      onChange: (next) => {
-        ctx.runtime.input?.setBindings(next);
-        persistSettings();
-        refreshStationChrome();
-      },
-      onReset: () => {
-        resetAllSettings();
-      },
-      onBack: () => {
-        backToPause();
-      },
-    });
-    ctx.runtime.settingsPanel = createSettingsPanel({
-      root: settingsRoot,
-      onBack: () => {
-        backToPause();
-      },
-      onControls: () => {
-        openControls();
-      },
-      onReset: () => {
-        resetAllSettings();
-      },
-      onPauseOnFocusLossChange: (enabled) => {
-        if (ctx.runtime.settings === undefined) return;
-        ctx.runtime.settings.pauseOnFocusLoss = enabled;
-        persistSettings();
-      },
-      onQualityChange: (quality) => {
-        if (ctx.runtime.settings === undefined) return;
-        // Persist only what was applied; on failure the toggle snaps back.
-        if (applyQuality(quality)) {
-          ctx.runtime.settings.quality = quality;
-          persistSettings();
-        }
-        syncQualityToggle();
-      },
-    });
-
-    // The hook exists only when explicitly asked for with exactly `?test=1`,
-    // and only mutates the live state: no save, no arbitrary code (T-04-08).
-    ctx.runtime.testHookEnabled =
-      new URLSearchParams(window.location.search).get("test") === "1";
-    if (ctx.runtime.testHookEnabled) probePublisher.bindTestHook(flightState);
-
-    title.hide();
-    if (restoredInFlight) {
-      // The last visibility decision: the station overlay must never reappear
-      // over an installed in-flight scene.
-      docked.hide();
-      hudCanvas.hidden = false;
-      ctx.runtime.input.setContext("flight");
-      // No station render runs on this path, so publish the live economy and
-      // durable identities explicitly for the reload proof.
-      probePublisher.syncEconomyProbe();
-      // Written once, by the install block; updateProbe never touches it, so a
-      // proof reads the pose the restore installed, not a resumed one.
-      probe.restore = {
-        mode: "inFlight",
-        systemId: ctx.core.system.id,
-        position: [
-          flightState.position.x,
-          flightState.position.y,
-          flightState.position.z,
-        ],
-        orientation: [
-          flightState.orientation.w,
-          flightState.orientation.x,
-          flightState.orientation.y,
-          flightState.orientation.z,
-        ],
-        speed: flightState.speed,
-        clock: flightState.clockSeconds,
-      };
-    } else {
-      ctx.runtime.input.setContext("dockHome");
-      docked.show(ctx.core.system.name);
-      renderStation();
-    }
-    // The chart nav is hidden when the session boots in flight.
-    syncStationNav();
-    docked.onLaunch(() => {
-      // D-03: the Launch button is only live on the home screen.
-      if (
-        ctx.core.state?.mode !== "docked" ||
-        ctx.station.stationScreen !== "home"
-      )
-        return;
-      pending.push({ kind: "launch" });
-    });
-    docked.onRefuel?.(() => {
-      if (
-        ctx.core.state?.mode !== "docked" ||
-        ctx.station.stationScreen !== "home"
-      )
-        return;
-      const catalogue = ctx.core.equipmentCatalogue;
-      const fitCtx = fitContext();
-      if (catalogue === undefined || fitCtx === undefined) return;
-      const item = catalogue.find((entry) => entry.key === "EQ_FUEL");
-      if (item === undefined) return;
-      const check = checkFit(ctx.core.profile, item, fitCtx);
-      if (!check.ok) return;
-      const next = applyFit(ctx.core.profile, item, fitCtx);
-      if (next === ctx.core.profile) return;
-      ctx.station.stationPending = null;
-      ctx.station.stationNotice = "Tanks topped up to 7.0 LY";
-      ctx.station.lastTrade = { kind: "fit", key: "EQ_FUEL", amount: 1 };
-      commitProfile(next);
-      autosave();
-      renderStation();
-    });
-
-    renderFrame(0);
-    ctx.runtime.rafId = requestAnimationFrame(frame);
-  }
-
-  function resize(): void {
-    ctx.runtime.hud?.resize();
-    // A resize clears both canvases, and the caller redraws only the scene.
-    redrawGate.request();
-  }
-
-  /**
-   * WORLD-04 test surface: rebuild the active system scene through the manager.
-   *
-   * The flight state and layout stay put: a swap replaces the scene graph, not
-   * the simulation, and only the render references move. That is exactly the
-   * ownership boundary the disposal proof is about.
-   */
-  function performSwap(): void {
-    const currentStationDef = ctx.core.stationDef;
-    if (ctx.core.state === undefined || currentStationDef === undefined) return;
-    ctx.core.scene = scenes.enterSystem(ctx.core.system, currentStationDef);
-    ctx.core.layout = scenes.layout() ?? ctx.core.layout;
-    // The new dust field has no camera history; a stale delta would smear it.
-    ctx.core.previousCameraWorld = undefined;
-  }
-
-  function disposeSystem(): void {
-    scenes.disposeSystem();
-    ctx.core.scene = undefined;
-    ctx.core.previousCameraWorld = undefined;
-  }
-
-  /**
-   * Swap, then settle one real frame so the GPU counters the probe reports
-   * describe the new scene rather than the frame before it.
-   */
-  async function swapSystem(): Promise<void> {
-    if (ctx.core.state === undefined) return;
-    performSwap();
-    renderFrame(0);
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => {
-        resolve();
-      });
-    });
-    renderFrame(0);
-  }
-
-  /**
-   * Teardown (WORLD-04, T-3-22): stop the loop, release every listener, clear
-   * the HUD, then free the scene and the shared cache in that order.
-   *
-   * Idempotent: `pagehide`, `webglcontextlost` and an explicit call may all
-   * arrive for the same session. A second call must not double-free or throw.
-   */
-  function dispose(): void {
-    if (ctx.runtime.disposed) return;
-    ctx.runtime.disposed = true;
-
-    if (ctx.runtime.rafId !== 0) cancelAnimationFrame(ctx.runtime.rafId);
-    ctx.runtime.rafId = 0;
-
-    // Every listener this session added hangs off `uiController`; aborting it
-    // also releases the sub-panel controllers' listeners through their own
-    // disposers below.
-    uiController.abort();
-    ctx.station.stationNav?.dispose();
-    ctx.station.stationNav = undefined;
-    ctx.runtime.input?.clearAll();
-    ctx.runtime.input?.dispose();
-    ctx.runtime.pauseOverlay?.dispose();
-    ctx.runtime.controlsPanel?.dispose();
-    ctx.runtime.settingsPanel?.dispose();
-
-    // Scene first, then the cache that owns the shared GLBs it referenced.
-    scenes.dispose();
-    assets.dispose();
-
-    ctx.runtime.breakPattern?.dispose();
-    ctx.runtime.hud?.dispose();
-    ctx.chart.chart?.dispose();
-    ctx.chart.chart = undefined;
-    ctx.chart.chartOpen = false;
-    ctx.save.saveLoad?.dispose();
-    ctx.save.saveLoad = undefined;
-    ctx.save.saveScreenOpen = false;
-    docked.dispose();
-    title.dispose();
-
-    // Drop the live references so a late callback cannot read a disposed
-    // scene, and withdraw the test surface with the session.
-    ctx.core.state = undefined;
-    ctx.core.scene = undefined;
-    ctx.core.layout = undefined;
-    probePublisher.withdrawProbe();
-    saveBoot.store.dispose();
-  }
 
   return {
-    start,
-    resize,
+    start: lifecycle.start,
+    resize: lifecycle.resize,
     pause,
     resume,
     isPaused: () => ctx.runtime.paused,
@@ -1086,6 +527,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     shown: () => {
       redrawGate.request();
     },
-    dispose,
+    dispose: lifecycle.dispose,
   };
 }

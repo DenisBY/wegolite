@@ -193,6 +193,11 @@ export interface SessionRuntime {
   testHookEnabled: boolean;
   lastMs: number;
   rafId: number;
+  /**
+   * The id of the one animation frame `swapSystem` waits on (0 when none), so
+   * `dispose()` can cancel it beside `rafId` (Phase 8, plan 08-12).
+   */
+  swapRafId: number;
   disposed: boolean;
   /** Set synchronously on the first `start()` call (`state` is assigned after two awaits). */
   starting: boolean;
@@ -341,6 +346,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       testHookEnabled: false,
       lastMs: 0,
       rafId: 0,
+      swapRafId: 0,
       disposed: false,
       starting: false,
     },
