@@ -37,9 +37,15 @@ afterEach(() => {
 });
 
 describe("the session source helper", () => {
-  it("lists exactly the facade before the split has started", () => {
-    expect(sessionSourceFiles()).toEqual(["src/app/game-session.ts"]);
+  it("lists the facade first, then only files under src/app/session", () => {
+    const files = sessionSourceFiles();
     expect(SESSION_FACADE).toBe("src/app/game-session.ts");
+    expect(files[0]).toBe(SESSION_FACADE);
+    // The split adds session modules over time; the facade stays first because
+    // "g" sorts before "s", and nothing outside the session directory is read.
+    for (const file of files.slice(1)) {
+      expect(file.startsWith("src/app/session/")).toBe(true);
+    }
   });
 
   it("orders the facade and the session modules by code unit, recursively", () => {

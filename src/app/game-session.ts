@@ -25,35 +25,23 @@ import { loadDockPort } from "../content/dock-port.js";
 import { loadEquipment } from "../content/equipment.js";
 import { loadCommodities } from "../content/commodities.js";
 import { loadLabels } from "../content/labels.js";
-import type {
-  Commodity,
-  CommodityUnit,
-  Equipment,
-  Labels,
-  ShipDef,
-  System,
-} from "../content/types.js";
+import type { Commodity, System } from "../content/types.js";
 import {
   createDockFeedback,
   shouldEmitScrapeMessage,
 } from "./dock-feedback.js";
-import type { DockFeedback } from "./dock-feedback.js";
 import { mapHyperspaceBeginEdges } from "./hyperspace-commands.js";
 import { buildHudModel } from "./hud-model.js";
 import { createGameLoop } from "./game-loop.js";
-import type { GameLoop } from "./game-loop.js";
 import { createTestHook, publishFailure, readMemory } from "./probe.js";
-import type {
-  WegoliteHyperspaceLastJump,
-  WegoliteLastTradeProbe,
-  WegoliteProbe,
-  WegoliteSaveProbe,
-} from "./probe.js";
+import type { WegoliteProbe, WegoliteSaveProbe } from "./probe.js";
 import type { SceneManager } from "./scene-manager.js";
 import { createHintController } from "./hints.js";
-import type { HintContext, HintController } from "./hints.js";
+import type { HintContext } from "./hints.js";
 import { createLaunchSequence } from "./launch-sequence.js";
 import { createRedrawGate } from "./redraw-gate.js";
+import { createSessionState } from "./session/context.js";
+import type { SessionState } from "./session/context.js";
 import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
 import {
@@ -71,10 +59,7 @@ import type {
 } from "../persistence/save.js";
 import type { SaveStore, SaveStatus } from "../persistence/store.js";
 import { createBreakPattern } from "../render/break-pattern.js";
-import type { BreakPattern } from "../render/break-pattern.js";
 import { createHud } from "../render/hud/hud.js";
-import type { Hud } from "../render/hud/hud.js";
-import type { HudModel } from "../render/hud/draw.js";
 import { createMessageQueue } from "../render/hud/messages.js";
 import {
   computeCockpitCamera,
@@ -87,20 +72,17 @@ import {
   interpolatePose,
   maxRelativeMagnitude,
 } from "../render/sync.js";
-import type { SystemScene } from "../render/system-scene.js";
 import type { Command } from "../sim/commands.js";
 import type { SimEvent } from "../sim/events.js";
 import { createDockGeometry } from "../sim/dock/geometry.js";
-import type { DockGeometry } from "../sim/dock/geometry.js";
 import { deriveFlightConfig } from "../sim/flight/config.js";
-import type { FlightConfig } from "../sim/flight/config.js";
 import {
   PlayerController,
   ScriptedLaunchController,
   flightView,
 } from "../sim/flight/controller.js";
 import { initFlightState, poseOf } from "../sim/flight/state.js";
-import type { FlightPose, FlightState } from "../sim/flight/state.js";
+import type { FlightState } from "../sim/flight/state.js";
 import { stepFlight } from "../sim/flight/step.js";
 import type { StepOptions } from "../sim/flight/step.js";
 import {
@@ -148,7 +130,6 @@ import { formatFuel } from "../ui/docked.js";
 import { createChart } from "../ui/chart.js";
 import type { ChartOverlay } from "../ui/chart.js";
 import { createSaveLoadScreen } from "../ui/save-load.js";
-import type { SaveLoadScreen } from "../ui/save-load.js";
 import { chartHints, dockedHints, saveLoadHints } from "../ui/station-hints.js";
 import { formatClock } from "../render/hud/format.js";
 import {
@@ -173,41 +154,34 @@ import {
 } from "../ui/station-model.js";
 import type { OutfittingModel } from "../ui/station-model.js";
 import { createStationNav } from "../ui/station-nav.js";
-import type { StationNav } from "../ui/station-nav.js";
 import { activeTabId, isTabEnabled, tabById } from "../ui/station-tabs.js";
 import type { StationNavState, StationTabId } from "../ui/station-tabs.js";
-import { identity, sub, vec } from "../sim/math.js";
+import { sub, vec } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
-import type { InputFrame } from "../sim/state.js";
 import { DT } from "../sim/time.js";
 import { deriveSystemLayout } from "../sim/world/layout.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import { createKeyboardInputSource } from "../input/keyboard.js";
-import type { KeyboardInputSource } from "../input/keyboard.js";
 import {
   ACTION_CONTEXTS,
   ACTION_IDS,
   DEFAULT_BINDINGS,
 } from "../input/actions.js";
-import type { ActionId, InputContext } from "../input/actions.js";
+import type { ActionId } from "../input/actions.js";
 import { createBindingMap } from "../input/bindings.js";
-import type { BindingMap } from "../input/bindings.js";
 import {
   loadSettings,
   resetSettings,
   saveSettings,
 } from "../settings/store.js";
-import type { GraphicsQuality, SettingsV1 } from "../settings/schema.js";
+import type { GraphicsQuality } from "../settings/schema.js";
 import { createControlsPanel } from "../ui/controls.js";
-import type { ControlsPanel } from "../ui/controls.js";
 import { createPauseOverlay } from "../ui/pause.js";
-import type { PauseOverlay } from "../ui/pause.js";
 import {
   CONTEXT_LOST_NOTICE,
   CONTEXT_RESTORED_NOTICE,
 } from "./context-recovery.js";
 import { createSettingsPanel } from "../ui/settings-panel.js";
-import type { SettingsPanel } from "../ui/settings-panel.js";
 import type {
   StationScreen,
   StationShell,
@@ -352,8 +326,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   // D-18: test-only failure injection, read once here and consumed only by the
   // committed-arrival build in handleHyperspaceJumped.
   const faults = options.faults;
-  // D-01: the system is mutable once a jump can install a new scene.
-  let system = options.system;
   const galaxy = options.galaxy ?? [options.system];
   const galaxyById = new Map<string, System>();
 
@@ -362,137 +334,41 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   const pending: Command[] = [];
   const uiController = new AbortController();
 
-  let state: FlightState | undefined;
-  let layout: SystemLayout | undefined;
-  let config: FlightConfig | undefined;
-  let dockGeometry: DockGeometry | undefined;
-  let scene: SystemScene | undefined;
-  let stationDef: ShipDef | undefined;
-  let hud: Hud | undefined;
-  let breakPattern: BreakPattern | undefined;
-  let input: KeyboardInputSource | undefined;
-  let loop: GameLoop | undefined;
-  let settings: SettingsV1 | undefined;
-  let bindings: BindingMap | undefined;
-  let hints: HintController | undefined;
-  let pauseOverlay: PauseOverlay | undefined;
-  let controlsPanel: ControlsPanel | undefined;
-  let settingsPanel: SettingsPanel | undefined;
-  let equipmentCatalogue: readonly Equipment[] | undefined;
-  let commodities: readonly Commodity[] | undefined;
-  let labels: Labels | undefined;
-  let commodityUnits: ReadonlyMap<string, CommodityUnit> = new Map();
-  let stationKey: string | undefined;
-  // Economy state lives beside the flight state, never inside it (D-10).
-  let profile: PlayerProfile = newProfile();
-  let lastDockClockDelta = 0;
+  // Every mutable field of the session lives here (D-12 step 1, G-8). A live
+  // field is read and written through `ctx` at the moment it is needed; a block
+  // may alias one for a single call but never keeps the alias beyond it.
+  const ctx: SessionState = createSessionState({
+    system: options.system,
+    saveStatus: saveBoot.status,
+    saveSkipReason: statusSkipReason(saveBoot.status),
+  });
 
-  // Market lifetime (D-17/D-18/D-19): generated once from the persisted seed,
-  // never regenerated on a `docked` event. Phase 6 owns re-seeding on a system change.
-  let market: Market | undefined;
-  let marketSeed: number | undefined;
-
-  // The station computer's own state; the UI is purely presentational.
-  let stationScreen: StationScreen = "home";
-  let stationSelection = "";
-  let stationPending: StationPending = null;
-  let stationNotice = "";
-  let stationMessage = "";
-  let stationSaveNotice = "";
-  let stationPage: 1 | 2 = 1;
-  let lastTrade: WegoliteLastTradeProbe | null = null;
-
-  // Navigation state (D-01/D-02/D-06). The chart freezes the loop rather than
-  // pausing it; the committed target is session state and travels in every save.
-  let chart: ChartOverlay | undefined;
-  let chartOpen = false;
-  // D-01/D-06: one continuous camera; the local and galaxy views are presets.
-  let chartCamera: ChartCamera = galaxyPreset();
-  let chartPreset: "local" | "galaxy" = "local";
-  let chartSelectedId: string | undefined;
-  let hyperspaceTargetId: string | undefined;
-  let contextBeforeChart: InputContext = "flight";
-  let lastJump: WegoliteHyperspaceLastJump | null = null;
-  let lastRefusal: { reason: HyperspaceRefusal } | null = null;
-
-  // The F2 Save/Load screen (D-20..D-23). It is a standalone overlay with its
-  // own input context; F2 is docked-only and never opens beneath pause/chart.
-  let saveLoad: SaveLoadScreen | undefined;
-  let stationNav: StationNav | undefined;
-  let saveScreenOpen = false;
-  let contextBeforeSaveScreen: InputContext = "dockHome";
-  let saveScreenNotice = "";
-
-  // DOCK-07: the boot status is sticky for the session. A future blob is never
-  // cleared or overwritten, so the launch/purchase write path is skipped whole.
-  let saveStatus: SaveStatus = saveBoot.status;
-  let saveRevision = 0;
-  let saveAttempts = 0;
-  let saveWrites = 0;
-  let saveCommitted = 0;
-  let saveCommittedRevision = 0;
-  let saveLastClock: number | null = null;
-  let saveSkipReason = statusSkipReason(saveStatus);
-  let saveUnavailable = saveStatus === "unavailable";
-  // A manual Save is a single confirmed request; the flag coalesces a
-  // double-press while the one write is in flight.
-  let manualSavePending = false;
-  let loadingSave = false;
   const saveProbe: WegoliteSaveProbe = {
-    status: saveStatus,
+    status: ctx.save.saveStatus,
     attempts: 0,
     writes: 0,
     committed: 0,
     revision: 0,
     lastClock: null,
     continueVisible: false,
-    skipReason: saveSkipReason,
-    unavailable: saveUnavailable,
+    skipReason: ctx.save.saveSkipReason,
+    unavailable: ctx.save.saveUnavailable,
   };
   probe.save = saveProbe;
 
-  let previousPose: FlightPose = {
-    position: vec(0, 0, 0),
-    orientation: identity(),
-  };
-  let currentPose: FlightPose = previousPose;
-  let previousCameraWorld: Vec3 | undefined;
-  let currentFrame: InputFrame = {
-    pitch: 0,
-    roll: 0,
-    speed: 0,
-    precision: false,
-  };
-  let paused = false;
   // Skips the draw of a frame that would repeat the last one (docked, paused).
   const redrawGate = createRedrawGate();
-  // QUAL-05: set from the context-loss event until the restore. While set, the
-  // session never resumes and never writes a save (research Pitfall 9).
-  let contextLost = false;
-  let launchSeen = false;
-  // Set by any accepted `?test=1` live-state mutation; plan 04-05 refuses to
-  // autosave a tainted profile.
-  let testTainted = false;
-  // `?test=1` is read once at boot. An in-session Load rebinds the hook to the
-  // replaced live state only when the hook was enabled (G-8).
-  let testHookEnabled = false;
-  let lastScrapeMessageTime: number | null = null;
   const messages = createMessageQueue(4);
-  // Replaced, not cleared, on Load: a fresh instance drops both envelopes.
-  let dockFeedback: DockFeedback = createDockFeedback();
   const launchSequence: LaunchSequence = createLaunchSequence();
-  let lastModel: HudModel | undefined;
-  let lastMs = 0;
-  let rafId = 0;
-  let disposed = false;
-  // Set synchronously on the first `start()` call. `state` is only assigned
-  // after two awaits, so it cannot guard re-entry on its own.
-  let starting = false;
 
   function persistSettings(): void {
-    if (settings === undefined || bindings === undefined) return;
-    settings.bindings = bindings;
-    saveSettings(settings);
+    if (
+      ctx.runtime.settings === undefined ||
+      ctx.runtime.bindings === undefined
+    )
+      return;
+    ctx.runtime.settings.bindings = ctx.runtime.bindings;
+    saveSettings(ctx.runtime.settings);
   }
 
   /** D-08 copy is app-owned and fixed; the sim event carries facts only. */
@@ -516,23 +392,23 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * would be unreachable.
    */
   function isSelectableGood(key: string, stock: number): boolean {
-    const catalogue = commodities;
+    const catalogue = ctx.core.commodities;
     if (catalogue === undefined) return false;
     const commodity = catalogue.find((entry) => entry.key === key);
     if (commodity === undefined) return false;
     return isMarketRowSelectable(
       commodity.tradeable,
       stock,
-      profile.cargo[key] ?? 0,
+      ctx.core.profile.cargo[key] ?? 0,
     );
   }
 
   /** The first commodity a player can actually trade in this market. */
   function ensureSelection(): void {
-    const currentMarket = market;
+    const currentMarket = ctx.core.market;
     if (currentMarket === undefined) return;
     const selectedGood = currentMarket.goods.find(
-      (good) => good.key === stationSelection,
+      (good) => good.key === ctx.station.stationSelection,
     );
     if (
       selectedGood !== undefined &&
@@ -543,11 +419,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const first = currentMarket.goods.find((good) =>
       isSelectableGood(good.key, good.stock),
     );
-    stationSelection = first?.key ?? "";
+    ctx.station.stationSelection = first?.key ?? "";
   }
 
   function selectableKeys(): readonly string[] {
-    const currentMarket = market;
+    const currentMarket = ctx.core.market;
     if (currentMarket === undefined) return [];
     return currentMarket.goods
       .filter((good) => isSelectableGood(good.key, good.stock))
@@ -557,13 +433,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function moveSelection(delta: number): void {
     const keys = selectableKeys();
     if (keys.length === 0) return;
-    const current = keys.indexOf(stationSelection);
+    const current = keys.indexOf(ctx.station.stationSelection);
     const base = current === -1 ? 0 : current;
     const next = (base + delta + keys.length) % keys.length;
     const nextKey = keys[next];
-    if (nextKey !== undefined) stationSelection = nextKey;
-    stationPending = null;
-    stationNotice = "";
+    if (nextKey !== undefined) ctx.station.stationSelection = nextKey;
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
   }
 
   /** The live FitContext; every field is derived from the validated profile. */
@@ -573,38 +449,36 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * Profiles are immutable, so the array identity is the cache key. The fixed
    * step asks for this 120 times a second.
    */
-  let equipmentSetSource: readonly string[] | undefined;
-  let equipmentSetCache: ReadonlySet<string> = new Set();
   function equipmentSet(): ReadonlySet<string> {
-    if (equipmentSetSource !== profile.equipment) {
-      equipmentSetSource = profile.equipment;
-      equipmentSetCache = new Set(profile.equipment);
+    if (ctx.core.equipmentSetSource !== ctx.core.profile.equipment) {
+      ctx.core.equipmentSetSource = ctx.core.profile.equipment;
+      ctx.core.equipmentSetCache = new Set(ctx.core.profile.equipment);
     }
-    return equipmentSetCache;
+    return ctx.core.equipmentSetCache;
   }
 
   function fitContext(): FitContext | undefined {
-    const catalogue = equipmentCatalogue;
+    const catalogue = ctx.core.equipmentCatalogue;
     const missile = catalogue?.find((entry) => entry.key === "EQ_MISSILE");
     if (missile === undefined) return undefined;
     return {
-      techLevelRaw: system.techLevelRaw,
+      techLevelRaw: ctx.core.system.techLevelRaw,
       fuelCapacity: FUEL_CAPACITY,
       missileCapacity: MAX_MISSILES,
-      availablePods: availablePods(profile, commodityUnits),
+      availablePods: availablePods(ctx.core.profile, ctx.core.commodityUnits),
       missilePrice: missile.price,
     };
   }
 
   function outfittingModel(): OutfittingModel | undefined {
-    const catalogue = equipmentCatalogue;
+    const catalogue = ctx.core.equipmentCatalogue;
     if (catalogue === undefined) return undefined;
     return buildOutfittingModel(
       catalogue,
-      profile,
-      system.techLevelRaw,
-      stationSelection,
-      commodityUnits,
+      ctx.core.profile,
+      ctx.core.system.techLevelRaw,
+      ctx.station.stationSelection,
+      ctx.core.commodityUnits,
     );
   }
 
@@ -612,11 +486,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function ensureOutfittingSelection(): void {
     const model = outfittingModel();
     if (model === undefined) {
-      stationSelection = "";
+      ctx.station.stationSelection = "";
       return;
     }
-    if (!model.rows.some((row) => row.key === stationSelection)) {
-      stationSelection = model.rows[0]?.key ?? "";
+    if (!model.rows.some((row) => row.key === ctx.station.stationSelection)) {
+      ctx.station.stationSelection = model.rows[0]?.key ?? "";
     }
   }
 
@@ -624,23 +498,26 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function moveOutfittingSelection(delta: number): void {
     const model = outfittingModel();
     if (model === undefined || model.rows.length === 0) return;
-    let index = model.rows.findIndex((row) => row.key === stationSelection);
+    let index = model.rows.findIndex(
+      (row) => row.key === ctx.station.stationSelection,
+    );
     if (index === -1) index = 0;
     const next = Math.min(model.rows.length - 1, Math.max(0, index + delta));
     const row = model.rows[next];
-    if (row !== undefined) stationSelection = row.key;
-    stationPending = null;
-    stationNotice = "";
+    if (row !== undefined) ctx.station.stationSelection = row.key;
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
   }
 
   /** The blunt refusal copy; a clamped plan's notice comes from the view model. */
   function commodityFor(key: string): Commodity | undefined {
-    return commodities?.find((entry) => entry.key === key);
+    return ctx.core.commodities?.find((entry) => entry.key === key);
   }
 
   function pendingPlan(): TradePlan | null {
-    return stationPending !== null && !("kind" in stationPending)
-      ? stationPending
+    return ctx.station.stationPending !== null &&
+      !("kind" in ctx.station.stationPending)
+      ? ctx.station.stationPending
       : null;
   }
 
@@ -649,18 +526,18 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * and required by `planBuy`, so one builder serves both.
    */
   function tradeRequest(amount: number) {
-    const currentMarket = market;
-    const catalogue = commodities;
+    const currentMarket = ctx.core.market;
+    const catalogue = ctx.core.commodities;
     const commodity = catalogue?.find(
-      (entry) => entry.key === stationSelection,
+      (entry) => entry.key === ctx.station.stationSelection,
     );
     if (currentMarket === undefined || commodity === undefined)
       return undefined;
     return {
       market: currentMarket,
-      profile,
+      profile: ctx.core.profile,
       commodity,
-      units: commodityUnits,
+      units: ctx.core.commodityUnits,
       amount,
     };
   }
@@ -677,7 +554,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * `zeroAmount` is never player-facing copy.
    */
   function stepAmount(direction: 1 | -1): void {
-    if (stationScreen !== "market") return;
+    if (ctx.station.stationScreen !== "market") return;
     const current = pendingPlan();
     // With no pending trade the press itself picks the side: Right buys, Left
     // sells. With one pending, the press moves that trade in its own direction.
@@ -689,8 +566,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         : current.amount + (side === "buy" ? direction : -direction);
 
     if (amount <= 0) {
-      stationPending = null;
-      stationNotice = "";
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = "";
       renderStation();
       return;
     }
@@ -698,12 +575,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const plan = planFor(side, amount);
     if (plan === undefined) return;
     if (plan.ok) {
-      stationPending = plan;
+      ctx.station.stationPending = plan;
       // A clamp's copy is derived by the view model from the plan itself.
-      stationNotice = "";
+      ctx.station.stationNotice = "";
     } else {
-      stationPending = null;
-      stationNotice = tradeNoticeText(plan, commodityFor(plan.key));
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = tradeNoticeText(plan, commodityFor(plan.key));
     }
     renderStation();
   }
@@ -714,21 +591,21 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * has a reason to state.
    */
   function planMax(side: TradeSide): void {
-    if (stationScreen !== "market") return;
+    if (ctx.station.stationScreen !== "market") return;
     const plan = planFor(side, Number.MAX_SAFE_INTEGER);
     if (plan === undefined) return;
     if (plan.ok) {
-      stationPending = { ...plan, clamp: undefined };
-      stationNotice = "";
+      ctx.station.stationPending = { ...plan, clamp: undefined };
+      ctx.station.stationNotice = "";
     } else {
-      stationPending = null;
-      stationNotice = tradeNoticeText(plan, commodityFor(plan.key));
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = tradeNoticeText(plan, commodityFor(plan.key));
     }
     renderStation();
   }
 
   function confirmTrade(): void {
-    if (stationScreen !== "market") return;
+    if (ctx.station.stationScreen !== "market") return;
     const plan = pendingPlan();
     if (plan === null) return;
     const request = tradeRequest(plan.amount);
@@ -737,15 +614,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const applied =
       plan.side === "buy" ? applyBuy(request, plan) : applySell(request, plan);
     if (applied === undefined) {
-      stationPending = null;
-      stationNotice = "That trade is no longer available";
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = "That trade is no longer available";
       renderStation();
       return;
     }
-    market = applied.market;
-    stationPending = null;
-    stationNotice = "";
-    lastTrade = {
+    ctx.core.market = applied.market;
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
+    ctx.station.lastTrade = {
       kind: plan.side,
       key: plan.key,
       amount: plan.amount,
@@ -764,57 +641,58 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * the guard (or lands on a disabled row) — it can never buy the next row.
    */
   function confirmFit(): void {
-    if (stationScreen !== "outfitting") return;
-    const catalogue = equipmentCatalogue;
-    const ctx = fitContext();
-    if (catalogue === undefined || ctx === undefined) return;
+    if (ctx.station.stationScreen !== "outfitting") return;
+    const catalogue = ctx.core.equipmentCatalogue;
+    const fitCtx = fitContext();
+    if (catalogue === undefined || fitCtx === undefined) return;
 
     const pendingFit =
-      stationPending !== null && "kind" in stationPending
-        ? stationPending
+      ctx.station.stationPending !== null &&
+      "kind" in ctx.station.stationPending
+        ? ctx.station.stationPending
         : null;
-    const key = pendingFit?.key ?? stationSelection;
+    const key = pendingFit?.key ?? ctx.station.stationSelection;
     const model = outfittingModel();
     const item = catalogue.find((entry) => entry.key === key);
     const row = model?.rows.find((entry) => entry.key === key);
     if (item === undefined || row === undefined) {
-      stationPending = null;
-      stationNotice = "Not offered";
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = "Not offered";
       renderStation();
       return;
     }
     if (!row.confirmable) {
-      stationPending = null;
-      stationNotice = row.reason;
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = row.reason;
       renderStation();
       return;
     }
     if (pendingFit === null) {
-      stationPending = { kind: "fit", key };
-      stationNotice = "";
+      ctx.station.stationPending = { kind: "fit", key };
+      ctx.station.stationNotice = "";
       renderStation();
       return;
     }
 
     const indexBefore =
       model?.rows.findIndex((entry) => entry.key === key) ?? -1;
-    const check = checkFit(profile, item, ctx);
+    const check = checkFit(ctx.core.profile, item, fitCtx);
     if (!check.ok) {
-      stationPending = null;
-      stationNotice = row.reason;
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = row.reason;
       renderStation();
       return;
     }
-    const next = applyFit(profile, item, ctx);
-    if (next === profile) {
-      stationPending = null;
-      stationNotice = row.reason;
+    const next = applyFit(ctx.core.profile, item, fitCtx);
+    if (next === ctx.core.profile) {
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = row.reason;
       renderStation();
       return;
     }
-    stationPending = null;
-    stationNotice = "";
-    lastTrade = {
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
+    ctx.station.lastTrade = {
       kind: key.endsWith("_REMOVAL") ? "removal" : "fit",
       key,
       amount: 1,
@@ -825,17 +703,17 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const after = outfittingModel();
     if (
       after !== undefined &&
-      !after.rows.some((entry) => entry.key === stationSelection)
+      !after.rows.some((entry) => entry.key === ctx.station.stationSelection)
     ) {
       const fallback = after.rows[Math.min(indexBefore, after.rows.length - 1)];
-      stationSelection = fallback?.key ?? "";
+      ctx.station.stationSelection = fallback?.key ?? "";
     }
     renderStation();
   }
 
   function cancelTrade(): void {
-    stationPending = null;
-    stationNotice = "";
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
     renderStation();
   }
 
@@ -843,10 +721,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function currentNavState(currentState: FlightState): StationNavState {
     return {
       mode: currentState.mode,
-      paused,
-      overlay: saveScreenOpen ? "saveScreen" : chartOpen ? "chart" : "none",
-      screen: stationScreen,
-      page: stationPage,
+      paused: ctx.runtime.paused,
+      overlay: ctx.save.saveScreenOpen
+        ? "saveScreen"
+        : ctx.chart.chartOpen
+          ? "chart"
+          : "none",
+      screen: ctx.station.stationScreen,
+      page: ctx.station.stationPage,
     };
   }
 
@@ -857,7 +739,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * where the balance is still the live profile's.
    */
   function syncHeaderCredits(): void {
-    const text = formatDecicredits(profile.credits);
+    const text = formatDecicredits(ctx.core.profile.credits);
     for (const field of ["chart-credits", "save-credits"]) {
       const element = document.querySelector(`[data-field="${field}"]`);
       if (element instanceof HTMLElement && element.textContent !== text) {
@@ -869,99 +751,105 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   /** Mutate the strip in place; cheap and idempotent (the hydrator caches). */
   function syncStationNav(): void {
     syncHeaderCredits();
-    const currentState = state;
-    if (stationNav === undefined || currentState === undefined) return;
-    stationNav.sync(
+    const currentState = ctx.core.state;
+    if (ctx.station.stationNav === undefined || currentState === undefined)
+      return;
+    ctx.station.stationNav.sync(
       currentNavState(currentState),
-      bindings ?? DEFAULT_BINDINGS,
+      ctx.runtime.bindings ?? DEFAULT_BINDINGS,
     );
   }
 
   /** Refresh the strip and every footer's live hints after a rebind. */
   function refreshStationChrome(): void {
-    const map = bindings ?? DEFAULT_BINDINGS;
-    if (state?.mode === "docked") renderStation();
-    chart?.setHints(chartHints(map));
-    saveLoad?.setHints(saveLoadHints(map));
+    const map = ctx.runtime.bindings ?? DEFAULT_BINDINGS;
+    if (ctx.core.state?.mode === "docked") renderStation();
+    ctx.chart.chart?.setHints(chartHints(map));
+    ctx.save.saveLoad?.setHints(saveLoadHints(map));
     syncStationNav();
   }
 
   function renderStation(): void {
-    const currentMarket = market;
-    const catalogue = commodities;
+    const currentMarket = ctx.core.market;
+    const catalogue = ctx.core.commodities;
     if (currentMarket === undefined || catalogue === undefined) return;
 
-    const equipment = equipmentCatalogue;
+    const equipment = ctx.core.equipmentCatalogue;
     const marketModel = buildMarketModel(
       currentMarket,
-      profile,
+      ctx.core.profile,
       catalogue,
-      stationSelection,
-      { pending: pendingPlan(), notice: stationNotice },
+      ctx.station.stationSelection,
+      { pending: pendingPlan(), notice: ctx.station.stationNotice },
     );
     const outModel =
       equipment === undefined
         ? undefined
         : buildOutfittingModel(
             equipment,
-            profile,
-            system.techLevelRaw,
-            stationSelection,
-            commodityUnits,
+            ctx.core.profile,
+            ctx.core.system.techLevelRaw,
+            ctx.station.stationSelection,
+            ctx.core.commodityUnits,
           );
     const statusModel =
-      labels === undefined || equipment === undefined
+      ctx.core.labels === undefined || equipment === undefined
         ? undefined
         : buildStatusModel(
-            profile,
-            system,
-            labels,
+            ctx.core.profile,
+            ctx.core.system,
+            ctx.core.labels,
             equipment,
             catalogue,
-            stationPage,
+            ctx.station.stationPage,
             targetSystem()?.name,
           );
     const homeModel =
-      labels === undefined || equipment === undefined
+      ctx.core.labels === undefined || equipment === undefined
         ? undefined
         : buildHomeModel({
-            profile,
-            system,
+            profile: ctx.core.profile,
+            system: ctx.core.system,
             targetSystem: targetSystem(),
-            labels,
+            labels: ctx.core.labels,
             equipment,
             commodities: catalogue,
             market: currentMarket,
           });
     let confirmText = "";
-    let noticeText = stationNotice;
-    if (stationScreen === "market") {
+    let noticeText = ctx.station.stationNotice;
+    if (ctx.station.stationScreen === "market") {
       confirmText = marketModel.confirmText ?? "";
       noticeText = marketModel.noticeText;
-    } else if (stationScreen === "outfitting") {
+    } else if (ctx.station.stationScreen === "outfitting") {
       const pendingFit =
-        stationPending !== null && "kind" in stationPending
-          ? stationPending
+        ctx.station.stationPending !== null &&
+        "kind" in ctx.station.stationPending
+          ? ctx.station.stationPending
           : null;
       const row = outModel?.rows.find(
-        (entry) => entry.key === (pendingFit?.key ?? stationSelection),
+        (entry) =>
+          entry.key === (pendingFit?.key ?? ctx.station.stationSelection),
       );
       if (pendingFit !== null && row !== undefined) {
         confirmText = `Buy ${row.name} for ${formatDecicredits(row.cost)}? [Y/N]`;
       }
     }
 
-    const saveText = canOverwrite(saveStatus)
-      ? stationSaveNotice
+    const saveText = canOverwrite(ctx.save.saveStatus)
+      ? ctx.station.stationSaveNotice
       : "Saving is disabled — this save is read-only";
 
     const view: StationView = {
-      screen: stationScreen,
-      systemName: system.name,
-      creditsText: formatDecicredits(profile.credits),
-      fuelText: formatFuel(profile.fuel),
-      message: stationMessage,
-      keysText: dockedHints(bindings ?? DEFAULT_BINDINGS, stationScreen),
+      screen: ctx.station.stationScreen,
+      systemName: ctx.core.system.name,
+      creditsText: formatDecicredits(ctx.core.profile.credits),
+      fuelText: formatFuel(ctx.core.profile.fuel),
+      message: ctx.station.stationMessage,
+      keysText: dockedHints(
+        ctx.runtime.bindings ?? DEFAULT_BINDINGS,
+        ctx.station.stationScreen,
+      ),
       confirmText,
       noticeText,
       saveText,
@@ -971,45 +859,49 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       status: statusModel,
       interfaces: buildInterfacesModel(),
     };
-    docked.setFuel(formatFuel(profile.fuel));
+    docked.setFuel(formatFuel(ctx.core.profile.fuel));
     docked.render(view);
     syncStationNav();
     syncEconomyProbe();
   }
 
   function syncEconomyProbe(): void {
-    const currentMarket = market;
-    if (currentMarket === undefined || marketSeed === undefined) return;
+    const currentMarket = ctx.core.market;
+    if (currentMarket === undefined || ctx.core.marketSeed === undefined)
+      return;
     const pendingProbe =
-      stationPending === null
+      ctx.station.stationPending === null
         ? null
-        : "kind" in stationPending
-          ? { kind: "fit" as const, key: stationPending.key }
-          : { kind: "trade" as const, key: stationPending.key };
+        : "kind" in ctx.station.stationPending
+          ? { kind: "fit" as const, key: ctx.station.stationPending.key }
+          : { kind: "trade" as const, key: ctx.station.stationPending.key };
     probe.economy = {
-      credits: profile.credits,
-      cargo: { ...profile.cargo },
-      marketSeed,
+      credits: ctx.core.profile.credits,
+      cargo: { ...ctx.core.profile.cargo },
+      marketSeed: ctx.core.marketSeed,
       marketSystemId: currentMarket.systemId,
       market: currentMarket.goods.map((good) => ({
         key: good.key,
         price: good.price,
         stock: good.stock,
       })),
-      fuel: profile.fuel,
-      missiles: profile.missiles,
-      passengerBerths: profile.passengerBerths,
-      holdPods: holdPodsUsed(profile.cargo, commodityUnits),
-      capacityPods: capacityPodsFor(profile.equipment, profile.passengerBerths),
-      lastTrade,
+      fuel: ctx.core.profile.fuel,
+      missiles: ctx.core.profile.missiles,
+      passengerBerths: ctx.core.profile.passengerBerths,
+      holdPods: holdPodsUsed(ctx.core.profile.cargo, ctx.core.commodityUnits),
+      capacityPods: capacityPodsFor(
+        ctx.core.profile.equipment,
+        ctx.core.profile.passengerBerths,
+      ),
+      lastTrade: ctx.station.lastTrade,
     };
     probe.station = {
-      open: state?.mode === "docked",
-      screen: stationScreen,
-      selectedKey: stationSelection,
-      page: stationPage,
+      open: ctx.core.state?.mode === "docked",
+      screen: ctx.station.stationScreen,
+      selectedKey: ctx.station.stationSelection,
+      page: ctx.station.stationPage,
       pending: pendingProbe,
-      message: stationMessage,
+      message: ctx.station.stationMessage,
     };
   }
 
@@ -1019,9 +911,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * nothing.
    */
   function commitProfile(next: PlayerProfile): boolean {
-    if (next === profile) return false;
-    profile = next;
-    onProfileChanged(profile);
+    if (next === ctx.core.profile) return false;
+    ctx.core.profile = next;
+    onProfileChanged(ctx.core.profile);
     renderStation();
     return true;
   }
@@ -1036,7 +928,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       activeState,
       { swapSystem, disposeSystem },
       () => {
-        testTainted = true;
+        ctx.runtime.testTainted = true;
         // The hook moved the live state under a possibly quiet loop.
         redrawGate.request();
       },
@@ -1048,34 +940,34 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   function applyTestCredits(credits: number): boolean {
-    return commitProfile(setCredits(profile, credits));
+    return commitProfile(setCredits(ctx.core.profile, credits));
   }
 
   /** `?test=1` seam: grant only a key the validated catalogue knows. */
   function applyTestEquipment(key: string): boolean {
-    const catalogue = equipmentCatalogue;
+    const catalogue = ctx.core.equipmentCatalogue;
     if (catalogue === undefined) return false;
     if (catalogue.every((item) => item.key !== key)) return false;
-    if (profile.equipment.includes(key)) return false;
-    if (profile.equipment.length >= MAX_EQUIPMENT_KEYS) return false;
+    if (ctx.core.profile.equipment.includes(key)) return false;
+    if (ctx.core.profile.equipment.length >= MAX_EQUIPMENT_KEYS) return false;
     return commitProfile({
-      ...profile,
-      equipment: [...profile.equipment, key],
+      ...ctx.core.profile,
+      equipment: [...ctx.core.profile.equipment, key],
     });
   }
 
   function syncSaveProbe(): void {
-    saveProbe.status = saveStatus;
-    saveProbe.attempts = saveAttempts;
-    saveProbe.writes = saveWrites;
-    saveProbe.committed = saveCommitted;
+    saveProbe.status = ctx.save.saveStatus;
+    saveProbe.attempts = ctx.save.saveAttempts;
+    saveProbe.writes = ctx.save.saveWrites;
+    saveProbe.committed = ctx.save.saveCommitted;
     // D-23: the probe reports the last COMMITTED revision, never the one a
     // queued write merely requested.
-    saveProbe.revision = saveCommittedRevision;
-    saveProbe.lastClock = saveLastClock;
-    saveProbe.skipReason = saveSkipReason;
-    saveProbe.unavailable = saveUnavailable;
-    saveProbe.notice = saveScreenNotice;
+    saveProbe.revision = ctx.save.saveCommittedRevision;
+    saveProbe.lastClock = ctx.save.saveLastClock;
+    saveProbe.skipReason = ctx.save.saveSkipReason;
+    saveProbe.unavailable = ctx.save.saveUnavailable;
+    saveProbe.notice = ctx.save.saveScreenNotice;
   }
 
   function isStoreUnavailable(reason: string | undefined): boolean {
@@ -1118,9 +1010,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   /** Publish one app-owned save notice on the F2 screen and station footer. */
   function setSaveNotice(text: string): void {
-    saveScreenNotice = text;
-    stationSaveNotice = text;
-    saveLoad?.setNotice(text);
+    ctx.save.saveScreenNotice = text;
+    ctx.station.stationSaveNotice = text;
+    ctx.save.saveLoad?.setNotice(text);
     syncSaveProbe();
   }
 
@@ -1129,10 +1021,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * manual F2 Save, so the two producers can never diverge (D-21).
    */
   function buildSnapshotInputs(): SaveInputs | undefined {
-    const currentState = state;
-    const currentStationKey = stationKey;
-    const currentMarket = market;
-    const catalogue = commodities;
+    const currentState = ctx.core.state;
+    const currentStationKey = ctx.core.stationKey;
+    const currentMarket = ctx.core.market;
+    const catalogue = ctx.core.commodities;
     if (
       currentState === undefined ||
       currentStationKey === undefined ||
@@ -1143,12 +1035,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
     return snapshotForSave(
       currentState,
-      profile,
-      system,
+      ctx.core.profile,
+      ctx.core.system,
       { key: currentStationKey },
       currentMarket,
       catalogue,
-      hyperspaceTargetId,
+      ctx.core.hyperspaceTargetId,
     );
   }
 
@@ -1158,42 +1050,45 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * transaction completes.
    */
   function queueSnapshot(inputs: SaveInputs, manual: boolean): void {
-    saveRevision += 1;
-    const revision = saveRevision;
-    saveWrites += 1;
-    saveSkipReason = "";
+    ctx.save.saveRevision += 1;
+    const revision = ctx.save.saveRevision;
+    ctx.save.saveWrites += 1;
+    ctx.save.saveSkipReason = "";
     syncSaveProbe();
     // The frame loop never awaits this; `queueAutosave` cannot reject.
     void queueAutosave(saveBoot.store, revision, inputs, saveBoot.allow).then(
       (result) => {
-        if (manual) manualSavePending = false;
+        if (manual) ctx.save.manualSavePending = false;
         if (result.committed) {
-          saveCommitted += 1;
-          saveCommittedRevision = revision;
-          saveLastClock = inputs.clockSeconds;
-          saveStatus = "valid";
-          saveSkipReason = "";
+          ctx.save.saveCommitted += 1;
+          ctx.save.saveCommittedRevision = revision;
+          ctx.save.saveLastClock = inputs.clockSeconds;
+          ctx.save.saveStatus = "valid";
+          ctx.save.saveSkipReason = "";
           if (manual) {
             setSaveNotice(`Saved at ${formatClock(inputs.clockSeconds)}`);
           } else {
-            stationSaveNotice = "";
+            ctx.station.stationSaveNotice = "";
           }
         } else if (isStoreUnavailable(result.reason)) {
-          saveUnavailable = true;
-          saveSkipReason = result.reason ?? "";
+          ctx.save.saveUnavailable = true;
+          ctx.save.saveSkipReason = result.reason ?? "";
           if (manual) setSaveNotice("Save failed — progress not saved");
-          else stationSaveNotice = "Save failed — progress not saved";
+          else
+            ctx.station.stationSaveNotice = "Save failed — progress not saved";
         } else {
           // A rejected snapshot (invalid-save) or a store failure is visible
           // but non-blocking: the in-memory session remains playable.
-          saveSkipReason = result.reason ?? "";
+          ctx.save.saveSkipReason = result.reason ?? "";
           if (manual) setSaveNotice("Save failed — progress not saved");
-          else stationSaveNotice = "Save failed — progress not saved";
+          else
+            ctx.station.stationSaveNotice = "Save failed — progress not saved";
         }
         syncSaveProbe();
-        if (!disposed) {
+        if (!ctx.runtime.disposed) {
           renderStation();
-          if (saveScreenOpen) saveLoad?.setSlot(saveSlotText());
+          if (ctx.save.saveScreenOpen)
+            ctx.save.saveLoad?.setSlot(saveSlotText());
         }
       },
     );
@@ -1208,27 +1103,27 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function autosave(): void {
     // WR-03: recorded before every skip, so a test can prove that a dock never
     // even reached this function while the taint guard still suppresses writes.
-    saveAttempts += 1;
+    ctx.save.saveAttempts += 1;
     // QUAL-05 (T-07-05): no write while the context is lost, before any other
     // guard, and never a queued snapshot (research Pitfall 9).
-    if (contextLost) {
-      saveSkipReason = "recovering";
+    if (ctx.runtime.contextLost) {
+      ctx.save.saveSkipReason = "recovering";
       syncSaveProbe();
       return;
     }
-    if (!canOverwrite(saveStatus)) {
-      saveSkipReason = statusSkipReason(saveStatus);
+    if (!canOverwrite(ctx.save.saveStatus)) {
+      ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
       syncSaveProbe();
       return;
     }
-    if (testTainted) {
-      saveSkipReason = "tainted";
+    if (ctx.runtime.testTainted) {
+      ctx.save.saveSkipReason = "tainted";
       syncSaveProbe();
       return;
     }
     const inputs = buildSnapshotInputs();
     if (inputs === undefined) {
-      saveSkipReason = "not-ready";
+      ctx.save.saveSkipReason = "not-ready";
       syncSaveProbe();
       return;
     }
@@ -1241,34 +1136,34 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * only absent/valid slots may be written at all (T-06-15).
    */
   function manualSave(): void {
-    saveAttempts += 1;
+    ctx.save.saveAttempts += 1;
     // QUAL-05 (T-07-05): the same recovery guard as autosave, ahead of every
     // other check, so a lost context can never reach queueSnapshot.
-    if (contextLost) {
-      saveSkipReason = "recovering";
+    if (ctx.runtime.contextLost) {
+      ctx.save.saveSkipReason = "recovering";
       syncSaveProbe();
       return;
     }
-    if (manualSavePending) {
+    if (ctx.save.manualSavePending) {
       setSaveNotice("Save already in progress");
       return;
     }
-    if (!canOverwrite(saveStatus)) {
-      saveSkipReason = statusSkipReason(saveStatus);
+    if (!canOverwrite(ctx.save.saveStatus)) {
+      ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
       setSaveNotice("Saving is disabled — this save is read-only");
       return;
     }
-    if (testTainted) {
-      saveSkipReason = "tainted";
+    if (ctx.runtime.testTainted) {
+      ctx.save.saveSkipReason = "tainted";
       setSaveNotice("Save skipped — test changes are not saved");
       return;
     }
-    if (saveStatus === "valid") {
+    if (ctx.save.saveStatus === "valid") {
       // The committed slot is the only save: ask before replacing it. The
       // dialog's own state is the only gate, so a second Save while it is open
       // does nothing, and a Cancel that closed it leaves the next Save live.
-      if (saveLoad?.isConfirming() !== true) {
-        saveLoad?.confirmOverwrite();
+      if (ctx.save.saveLoad?.isConfirming() !== true) {
+        ctx.save.saveLoad?.confirmOverwrite();
         updateProbe();
       }
       return;
@@ -1278,15 +1173,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   /** The confirmed (or absent-slot) manual write; never asks again. */
   function writeManualSave(): void {
-    saveLoad?.cancelOverwrite();
+    ctx.save.saveLoad?.cancelOverwrite();
     updateProbe();
     const inputs = buildSnapshotInputs();
     if (inputs === undefined) {
-      saveSkipReason = "not-ready";
+      ctx.save.saveSkipReason = "not-ready";
       setSaveNotice("Save failed — the game is not ready");
       return;
     }
-    manualSavePending = true;
+    ctx.save.manualSavePending = true;
     queueSnapshot(inputs, true);
   }
 
@@ -1324,24 +1219,24 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * IndexedDB bytes exactly as they were (T-06-16).
    */
   async function loadFromSave(): Promise<void> {
-    const currentInput = input;
-    const currentStationDef = stationDef;
-    const catalogue = commodities;
+    const currentInput = ctx.runtime.input;
+    const currentStationDef = ctx.core.stationDef;
+    const catalogue = ctx.core.commodities;
     if (
-      loadingSave ||
-      !saveScreenOpen ||
+      ctx.save.loadingSave ||
+      !ctx.save.saveScreenOpen ||
       currentInput === undefined ||
       currentStationDef === undefined ||
       catalogue === undefined
     ) {
       return;
     }
-    loadingSave = true;
+    ctx.save.loadingSave = true;
     try {
       const read = await saveBoot.store.read();
       // G-8: F2 may have been closed during the IndexedDB await. A closed
       // screen must not be overwritten by a save the player walked away from.
-      if (disposed || !saveScreenOpen) return;
+      if (ctx.runtime.disposed || !ctx.save.saveScreenOpen) return;
       if (read.kind !== "ok") {
         failLoad(
           read.kind === "absent"
@@ -1401,45 +1296,45 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       }
 
       // One synchronous install block: no early return after this point.
-      state = restored.state;
-      layout = nextLayout;
-      profile = restored.profile;
-      market = nextMarket;
-      marketSeed = nextSeed;
-      hyperspaceTargetId = nextTarget;
+      ctx.core.state = restored.state;
+      ctx.core.layout = nextLayout;
+      ctx.core.profile = restored.profile;
+      ctx.core.market = nextMarket;
+      ctx.core.marketSeed = nextSeed;
+      ctx.core.hyperspaceTargetId = nextTarget;
       syncStatusOverlay();
       // G-8: nothing from the replaced session may outlive the Load. The
       // message queue is keyed to the old flight clock, so a stale line would
       // survive the restored clock; the dock envelopes and scrape throttle are
       // keyed the same way. A fresh feedback instance drops both envelopes.
       messages.clear();
-      lastScrapeMessageTime = null;
-      dockFeedback = createDockFeedback();
-      if (testHookEnabled) bindTestHook(restored.state);
-      previousPose = poseOf(restored.state);
-      currentPose = previousPose;
-      previousCameraWorld = undefined;
-      stationScreen = "home";
-      stationPending = null;
-      stationNotice = "";
-      stationMessage = "";
-      stationPage = 1;
-      chartSelectedId = undefined;
-      lastTrade = null;
-      chartOpen = false;
-      chart?.hide();
-      saveScreenOpen = false;
-      manualSavePending = false;
-      saveScreenNotice = "";
-      saveLoad?.cancelOverwrite();
-      saveLoad?.hide();
-      saveStatus = "valid";
-      saveLastClock = saved.clockSeconds;
-      saveSkipReason = "";
+      ctx.core.lastScrapeMessageTime = null;
+      ctx.core.dockFeedback = createDockFeedback();
+      if (ctx.runtime.testHookEnabled) bindTestHook(restored.state);
+      ctx.core.previousPose = poseOf(restored.state);
+      ctx.core.currentPose = ctx.core.previousPose;
+      ctx.core.previousCameraWorld = undefined;
+      ctx.station.stationScreen = "home";
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = "";
+      ctx.station.stationMessage = "";
+      ctx.station.stationPage = 1;
+      ctx.chart.chartSelectedId = undefined;
+      ctx.station.lastTrade = null;
+      ctx.chart.chartOpen = false;
+      ctx.chart.chart?.hide();
+      ctx.save.saveScreenOpen = false;
+      ctx.save.manualSavePending = false;
+      ctx.save.saveScreenNotice = "";
+      ctx.save.saveLoad?.cancelOverwrite();
+      ctx.save.saveLoad?.hide();
+      ctx.save.saveStatus = "valid";
+      ctx.save.saveLastClock = saved.clockSeconds;
+      ctx.save.saveSkipReason = "";
       const restoredDocked = restored.state.mode === "docked";
       currentInput.setContext(restoredDocked ? "dockHome" : "flight");
       if (restoredDocked) {
-        docked.show(system.name);
+        docked.show(ctx.core.system.name);
         hudCanvas.hidden = true;
         ensureSelection();
         renderStation();
@@ -1453,7 +1348,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       // proof reads the saved numbers and not a resumed simulation.
       probe.restore = {
         mode: restoredDocked ? "docked" : "inFlight",
-        systemId: system.id,
+        systemId: ctx.core.system.id,
         position: toTuple(restored.state.position),
         orientation: [
           restored.state.orientation.w,
@@ -1466,11 +1361,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       };
       syncSaveProbe();
       // Hidden time is never replayed: discard the read latency.
-      loop?.reset();
-      lastMs = 0;
+      ctx.runtime.loop?.reset();
+      ctx.runtime.lastMs = 0;
       renderFrame(0);
     } finally {
-      loadingSave = false;
+      ctx.save.loadingSave = false;
     }
   }
 
@@ -1480,40 +1375,40 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * D-14/T-04-47) and the write path stays disabled.
    */
   async function clearSaveForNewGame(): Promise<void> {
-    if (!canClear(saveStatus)) {
-      saveSkipReason = statusSkipReason(saveStatus);
+    if (!canClear(ctx.save.saveStatus)) {
+      ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
       syncSaveProbe();
       return;
     }
-    saveRevision += 1;
-    const currentRevision = saveRevision;
+    ctx.save.saveRevision += 1;
+    const currentRevision = ctx.save.saveRevision;
     const result = await saveBoot.store.clear(currentRevision);
     if (result.committed) {
-      saveStatus = "absent";
-      saveSkipReason = "";
+      ctx.save.saveStatus = "absent";
+      ctx.save.saveSkipReason = "";
     } else if (isStoreUnavailable(result.reason)) {
-      saveUnavailable = true;
+      ctx.save.saveUnavailable = true;
     }
     syncSaveProbe();
   }
 
   function pause(): void {
-    const currentState = state;
+    const currentState = ctx.core.state;
     if (currentState === undefined) {
       // The title/menu has no simulation; focus loss only clears input.
-      input?.clearAll();
+      ctx.runtime.input?.clearAll();
       return;
     }
-    if (paused) {
+    if (ctx.runtime.paused) {
       // Repeated blur/visibility events are idempotent.
-      input?.clearAll();
+      ctx.runtime.input?.clearAll();
       return;
     }
-    paused = true;
-    input?.clearAll();
-    input?.setPaused(true);
-    loop?.reset();
-    pauseOverlay?.show();
+    ctx.runtime.paused = true;
+    ctx.runtime.input?.clearAll();
+    ctx.runtime.input?.setPaused(true);
+    ctx.runtime.loop?.reset();
+    ctx.runtime.pauseOverlay?.show();
     syncStationNav();
   }
 
@@ -1524,36 +1419,39 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * stalled hidden tab, so no loop reset is needed here.
    */
   function focusLost(): void {
-    if (settings === undefined || settings.pauseOnFocusLoss) {
+    if (
+      ctx.runtime.settings === undefined ||
+      ctx.runtime.settings.pauseOnFocusLoss
+    ) {
       pause();
       return;
     }
-    input?.clearAll();
+    ctx.runtime.input?.clearAll();
   }
 
   function resume(): void {
-    if (!paused) return;
+    if (!ctx.runtime.paused) return;
     // QUAL-05 (D-15): no resume without a context. P, Escape and the Resume
     // button all reach this line, so the refusal covers every route.
-    if (contextLost) return;
-    paused = false;
-    input?.clearAll();
-    input?.setPaused(false);
+    if (ctx.runtime.contextLost) return;
+    ctx.runtime.paused = false;
+    ctx.runtime.input?.clearAll();
+    ctx.runtime.input?.setPaused(false);
     // Hidden time is never replayed: the accumulator starts at zero and the
     // next frame delta is one rendered frame, not the time spent paused.
-    loop?.reset();
-    pauseOverlay?.hide();
-    pauseOverlay?.setNotice("");
-    controlsPanel?.hide();
-    settingsPanel?.hide();
+    ctx.runtime.loop?.reset();
+    ctx.runtime.pauseOverlay?.hide();
+    ctx.runtime.pauseOverlay?.setNotice("");
+    ctx.runtime.controlsPanel?.hide();
+    ctx.runtime.settingsPanel?.hide();
     syncStationNav();
   }
 
   /** QUAL-05: the context went away; pause at once and say why. */
   function enterContextLoss(): void {
-    contextLost = true;
+    ctx.runtime.contextLost = true;
     pause();
-    pauseOverlay?.setNotice(CONTEXT_LOST_NOTICE);
+    ctx.runtime.pauseOverlay?.setNotice(CONTEXT_LOST_NOTICE);
   }
 
   /**
@@ -1562,30 +1460,34 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * GPU resource is uploaded before the probe is read.
    */
   function exitContextLoss(): void {
-    contextLost = false;
-    pauseOverlay?.setNotice(CONTEXT_RESTORED_NOTICE);
-    if (state !== undefined) renderFrame(0);
+    ctx.runtime.contextLost = false;
+    ctx.runtime.pauseOverlay?.setNotice(CONTEXT_RESTORED_NOTICE);
+    if (ctx.core.state !== undefined) renderFrame(0);
   }
 
   function backToPause(): void {
-    controlsPanel?.hide();
-    settingsPanel?.hide();
-    pauseOverlay?.show();
+    ctx.runtime.controlsPanel?.hide();
+    ctx.runtime.settingsPanel?.hide();
+    ctx.runtime.pauseOverlay?.show();
   }
 
   function openControls(): void {
-    settingsPanel?.hide();
-    controlsPanel?.show();
+    ctx.runtime.settingsPanel?.hide();
+    ctx.runtime.controlsPanel?.show();
   }
 
   /** Push the stored focus-loss toggle into the checkbox; absent reads as on. */
   function syncPauseOnFocusLossToggle(): void {
-    settingsPanel?.setPauseOnFocusLoss(settings?.pauseOnFocusLoss ?? true);
+    ctx.runtime.settingsPanel?.setPauseOnFocusLoss(
+      ctx.runtime.settings?.pauseOnFocusLoss ?? true,
+    );
   }
 
   /** Mirror the stored graphics quality into the Settings toggle. */
   function syncQualityToggle(): void {
-    settingsPanel?.setQuality(settings?.quality ?? "standard");
+    ctx.runtime.settingsPanel?.setQuality(
+      ctx.runtime.settings?.quality ?? "standard",
+    );
   }
 
   /**
@@ -1601,7 +1503,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const previous = scenes.quality();
     if (quality === previous) return true;
     scenes.setQuality(quality);
-    if (state === undefined || stationDef === undefined) return true;
+    if (ctx.core.state === undefined || ctx.core.stationDef === undefined)
+      return true;
     try {
       performSwap();
     } catch (error) {
@@ -1614,10 +1517,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   function openSettings(): void {
-    controlsPanel?.hide();
+    ctx.runtime.controlsPanel?.hide();
     syncPauseOnFocusLossToggle();
     syncQualityToggle();
-    settingsPanel?.show();
+    ctx.runtime.settingsPanel?.show();
   }
 
   /**
@@ -1626,8 +1529,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * resolves. F3/F4/F5/F8 are all reachable from home and from any section.
    */
   function openStationScreen(action: ActionId): void {
-    const currentState = state;
-    const currentInput = input;
+    const currentState = ctx.core.state;
+    const currentInput = ctx.runtime.input;
     if (currentState?.mode !== "docked" || currentInput === undefined) return;
 
     let screen: StationScreen | undefined;
@@ -1649,14 +1552,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
     if (screen === undefined) return;
 
-    stationScreen = screen;
-    stationPending = null;
-    stationNotice = "";
-    stationPage = 1;
+    ctx.station.stationScreen = screen;
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
+    ctx.station.stationPage = 1;
     if (screen === "market") ensureSelection();
     if (screen === "outfitting") {
       // Opening a screen always starts at the first row with no pending line.
-      stationSelection = "";
+      ctx.station.stationSelection = "";
       ensureOutfittingSelection();
     }
     currentInput.setContext("dockScreen");
@@ -1664,12 +1567,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   function backToHome(): void {
-    if (stationScreen === "home") return;
-    stationScreen = "home";
-    stationPending = null;
-    stationNotice = "";
-    stationPage = 1;
-    input?.setContext("dockHome");
+    if (ctx.station.stationScreen === "home") return;
+    ctx.station.stationScreen = "home";
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
+    ctx.station.stationPage = 1;
+    ctx.runtime.input?.setContext("dockHome");
     renderStation();
   }
 
@@ -1681,13 +1584,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * not a trust boundary (a button can be force-enabled from page script).
    */
   function navigateStation(tabId: StationTabId): void {
-    const currentState = state;
+    const currentState = ctx.core.state;
     if (
-      disposed ||
-      contextLost ||
-      paused ||
+      ctx.runtime.disposed ||
+      ctx.runtime.contextLost ||
+      ctx.runtime.paused ||
       currentState === undefined ||
-      saveLoad?.isConfirming() === true
+      ctx.save.saveLoad?.isConfirming() === true
     ) {
       return;
     }
@@ -1705,15 +1608,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     // Close an open overlay first: both closers restore the station input
     // context they recorded, and openSaveScreen refuses while the chart is up.
-    if (chartOpen) closeChart();
-    if (saveScreenOpen) closeSaveScreen();
+    if (ctx.chart.chartOpen) closeChart();
+    if (ctx.save.saveScreenOpen) closeSaveScreen();
 
     if (tab.kind === "home") {
       backToHome();
     } else if (tab.kind === "screen") {
       // The screen underneath an overlay keeps its selection, page and pending
       // state: only a different screen goes through openStationScreen.
-      if (tab.action !== null && tab.screen !== stationScreen) {
+      if (tab.action !== null && tab.screen !== ctx.station.stationScreen) {
         openStationScreen(tab.action);
       }
     } else if (tab.kind === "chart") {
@@ -1727,38 +1630,50 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   /** The Status | Manifest sub-tab: the same effect as the Tab key's paging. */
   function setStationPage(page: 1 | 2): void {
     if (
-      disposed ||
-      paused ||
-      contextLost ||
-      state?.mode !== "docked" ||
-      stationScreen !== "status" ||
-      chartOpen ||
-      saveScreenOpen ||
-      stationPage === page
+      ctx.runtime.disposed ||
+      ctx.runtime.paused ||
+      ctx.runtime.contextLost ||
+      ctx.core.state?.mode !== "docked" ||
+      ctx.station.stationScreen !== "status" ||
+      ctx.chart.chartOpen ||
+      ctx.save.saveScreenOpen ||
+      ctx.station.stationPage === page
     ) {
       return;
     }
-    stationPage = page;
+    ctx.station.stationPage = page;
     renderStation();
   }
 
   /** Apply a wheel/drag camera from the chart shell (D-03/D-04/D-09). */
   function setChartCamera(camera: ChartCamera): void {
-    if (disposed || paused || contextLost || !chartOpen) return;
-    chartCamera = clampChartCamera(camera);
+    if (
+      ctx.runtime.disposed ||
+      ctx.runtime.paused ||
+      ctx.runtime.contextLost ||
+      !ctx.chart.chartOpen
+    )
+      return;
+    ctx.chart.chartCamera = clampChartCamera(camera);
     refreshChart();
     updateProbe();
   }
 
   /** Tab toggles the local preset and the whole-galaxy preset (D-06/D-07). */
   function toggleChartPreset(): void {
-    if (disposed || paused || contextLost || !chartOpen) return;
-    if (chartPreset === "local") {
-      chartPreset = "galaxy";
-      chartCamera = galaxyPreset();
+    if (
+      ctx.runtime.disposed ||
+      ctx.runtime.paused ||
+      ctx.runtime.contextLost ||
+      !ctx.chart.chartOpen
+    )
+      return;
+    if (ctx.chart.chartPreset === "local") {
+      ctx.chart.chartPreset = "galaxy";
+      ctx.chart.chartCamera = galaxyPreset();
     } else {
-      chartPreset = "local";
-      chartCamera = localPreset(system);
+      ctx.chart.chartPreset = "local";
+      ctx.chart.chartCamera = localPreset(ctx.core.system);
     }
     refreshChart();
     updateProbe();
@@ -1766,7 +1681,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   /** D-09: resolve and install a new system scene; never rebuild the dock port. */
   function enterSystemById(id: string): SystemLayout {
-    const currentStationDef = stationDef;
+    const currentStationDef = ctx.core.stationDef;
     if (currentStationDef === undefined) {
       throw new Error(
         "Wegolite: cannot enter a system before the station loads.",
@@ -1786,42 +1701,42 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // below can throw, so the session takes the system, scene and layout in
     // the same step as the switch. The `??` fallback mirrors `performSwap`.
     const assignedLayout = scenes.layout() ?? nextLayout;
-    system = next;
-    scene = nextScene;
-    layout = assignedLayout;
+    ctx.core.system = next;
+    ctx.core.scene = nextScene;
+    ctx.core.layout = assignedLayout;
     // The new dust field has no camera history; a stale delta would smear it.
-    previousCameraWorld = undefined;
+    ctx.core.previousCameraWorld = undefined;
     return assignedLayout;
   }
 
   /** The committed target record, resolved through the validated catalogue. */
   function targetSystem(): System | undefined {
-    if (hyperspaceTargetId === undefined) return undefined;
-    return galaxyById.get(hyperspaceTargetId);
+    if (ctx.core.hyperspaceTargetId === undefined) return undefined;
+    return galaxyById.get(ctx.core.hyperspaceTargetId);
   }
 
   function currentChartView(overlay: ChartOverlay): ChartView {
     return buildChartView(
       galaxy,
-      system.id,
-      hyperspaceTargetId,
-      chartCamera,
-      profile.fuel,
+      ctx.core.system.id,
+      ctx.core.hyperspaceTargetId,
+      ctx.chart.chartCamera,
+      ctx.core.profile.fuel,
       overlay.viewport(),
-      chartSelectedId,
+      ctx.chart.chartSelectedId,
     );
   }
 
   function refreshChart(): void {
-    const overlay = chart;
+    const overlay = ctx.chart.chart;
     if (overlay === undefined) return;
     overlay.view(currentChartView(overlay));
   }
 
   function openChart(): void {
-    const currentState = state;
-    const currentInput = input;
-    const overlay = chart;
+    const currentState = ctx.core.state;
+    const currentInput = ctx.runtime.input;
+    const overlay = ctx.chart.chart;
     if (
       currentState === undefined ||
       currentInput === undefined ||
@@ -1831,13 +1746,18 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
     // Pitfall 13: F6 is inert during the launch cinematic, and an overlay must
     // never open beneath the pause overlay.
-    if (paused || chartOpen || currentState.mode === "launching") return;
-    chartOpen = true;
-    contextBeforeChart = currentInput.getContext();
+    if (
+      ctx.runtime.paused ||
+      ctx.chart.chartOpen ||
+      currentState.mode === "launching"
+    )
+      return;
+    ctx.chart.chartOpen = true;
+    ctx.chart.contextBeforeChart = currentInput.getContext();
     currentInput.setContext("chart");
     // D-06: every open starts at the local preset around the current system.
-    chartCamera = localPreset(system);
-    chartPreset = "local";
+    ctx.chart.chartCamera = localPreset(ctx.core.system);
+    ctx.chart.chartPreset = "local";
     // The chart nav's hidden state must be final before the first paint
     // measures the canvas.
     syncStationNav();
@@ -1849,20 +1769,23 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   function closeChart(): void {
-    if (!chartOpen) return;
-    chartOpen = false;
-    chart?.hide();
-    input?.setContext(contextBeforeChart);
+    if (!ctx.chart.chartOpen) return;
+    ctx.chart.chartOpen = false;
+    ctx.chart.chart?.hide();
+    ctx.runtime.input?.setContext(ctx.chart.contextBeforeChart);
     // Hidden time is never replayed; the accumulator starts at zero.
-    loop?.reset();
+    ctx.runtime.loop?.reset();
     syncStationNav();
     updateProbe();
   }
 
   /** The one slot line: the autosave key, the system and the live clock. */
   function saveSlotText(): string {
-    const clock = state === undefined ? "" : formatClock(state.clockSeconds);
-    return `Autosave · ${system.name} · ${clock}`;
+    const clock =
+      ctx.core.state === undefined
+        ? ""
+        : formatClock(ctx.core.state.clockSeconds);
+    return `Autosave · ${ctx.core.system.name} · ${clock}`;
   }
 
   /**
@@ -1871,9 +1794,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * the pause overlay and the chart, so no overlay can open over another one.
    */
   function openSaveScreen(): void {
-    const currentState = state;
-    const currentInput = input;
-    const screen = saveLoad;
+    const currentState = ctx.core.state;
+    const currentInput = ctx.runtime.input;
+    const screen = ctx.save.saveLoad;
     if (
       currentState === undefined ||
       currentInput === undefined ||
@@ -1881,27 +1804,28 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     ) {
       return;
     }
-    if (paused || saveScreenOpen || chartOpen) return;
+    if (ctx.runtime.paused || ctx.save.saveScreenOpen || ctx.chart.chartOpen)
+      return;
     if (currentState.mode !== "docked") return;
-    saveScreenOpen = true;
-    contextBeforeSaveScreen = currentInput.getContext();
+    ctx.save.saveScreenOpen = true;
+    ctx.save.contextBeforeSaveScreen = currentInput.getContext();
     currentInput.setContext("saveScreen");
     syncStationNav();
     screen.show(saveSlotText());
-    saveScreenNotice = canOverwrite(saveStatus)
+    ctx.save.saveScreenNotice = canOverwrite(ctx.save.saveStatus)
       ? ""
       : "Saving is disabled — this save is read-only";
-    screen.setNotice(saveScreenNotice);
+    screen.setNotice(ctx.save.saveScreenNotice);
     updateProbe();
   }
 
   /** Hide F2 and restore the station context the player left. */
   function closeSaveScreen(): void {
-    if (!saveScreenOpen) return;
-    saveScreenOpen = false;
-    saveLoad?.cancelOverwrite();
-    saveLoad?.hide();
-    input?.setContext(contextBeforeSaveScreen);
+    if (!ctx.save.saveScreenOpen) return;
+    ctx.save.saveScreenOpen = false;
+    ctx.save.saveLoad?.cancelOverwrite();
+    ctx.save.saveLoad?.hide();
+    ctx.runtime.input?.setContext(ctx.save.contextBeforeSaveScreen);
     // Return focus to the station screen the input context just restored.
     const stationScreenElement = document.getElementById("station-screen");
     stationScreenElement?.focus({ preventScroll: true });
@@ -1914,11 +1838,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * a queued action cannot act on a screen the player already closed.
    */
   function applySaveScreenAction(action: ActionId): void {
-    const screen = saveLoad;
+    const screen = ctx.save.saveLoad;
     if (screen === undefined) return;
     switch (action) {
       case "saveLoad":
-        if (saveScreenOpen) closeSaveScreen();
+        if (ctx.save.saveScreenOpen) closeSaveScreen();
         else openSaveScreen();
         break;
       case "saveScreenReturn":
@@ -1932,35 +1856,38 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       // While the overwrite dialog is open it owns input: row navigation and
       // the Save/Load shortcuts are inert behind it.
       case "saveScreenUp":
-        if (saveScreenOpen && !screen.isConfirming()) screen.moveSelection(-1);
+        if (ctx.save.saveScreenOpen && !screen.isConfirming())
+          screen.moveSelection(-1);
         break;
       case "saveScreenDown":
-        if (saveScreenOpen && !screen.isConfirming()) screen.moveSelection(1);
+        if (ctx.save.saveScreenOpen && !screen.isConfirming())
+          screen.moveSelection(1);
         break;
       case "saveScreenSave":
-        if (saveScreenOpen && !screen.isConfirming()) manualSave();
+        if (ctx.save.saveScreenOpen && !screen.isConfirming()) manualSave();
         break;
       case "saveScreenActivate":
         // Enter follows focus: on the open dialog it resolves whichever
         // control holds focus, so a focused Cancel never overwrites.
-        if (!saveScreenOpen) break;
+        if (!ctx.save.saveScreenOpen) break;
         if (screen.isConfirming()) screen.confirmFocused();
         else screen.activate();
         break;
       case "saveScreenConfirm":
         // Y is the direct confirm and confirms regardless of focus.
-        if (!saveScreenOpen) break;
+        if (!ctx.save.saveScreenOpen) break;
         if (screen.isConfirming()) screen.acceptOverwrite();
         else screen.activate();
         break;
       case "saveScreenCancel":
-        if (saveScreenOpen && screen.isConfirming()) {
+        if (ctx.save.saveScreenOpen && screen.isConfirming()) {
           screen.cancelOverwrite();
           updateProbe();
         }
         break;
       case "saveScreenLoad":
-        if (saveScreenOpen && !screen.isConfirming()) void loadFromSave();
+        if (ctx.save.saveScreenOpen && !screen.isConfirming())
+          void loadFromSave();
         break;
       default:
         break;
@@ -1972,20 +1899,20 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   }
 
   function selectChartSystem(id: string): void {
-    if (!chartOpen) return;
-    chartSelectedId = id;
+    if (!ctx.chart.chartOpen) return;
+    ctx.chart.chartSelectedId = id;
     refreshChart();
   }
 
   function moveChartSelection(arrow: ChartArrow): void {
     const base =
-      (chartSelectedId === undefined
+      (ctx.chart.chartSelectedId === undefined
         ? undefined
-        : galaxyById.get(chartSelectedId)) ?? system;
+        : galaxyById.get(ctx.chart.chartSelectedId)) ?? ctx.core.system;
     // G-5: arrows walk only the systems the window paints, so a press can
     // never land on an unpainted system. With no chart there is nothing to
     // paint, and the whole galaxy is the fallback.
-    const overlay = chart;
+    const overlay = ctx.chart.chart;
     const visibleIds =
       overlay === undefined
         ? undefined
@@ -1996,7 +1923,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         : galaxy.filter((candidate) => visibleIds.has(candidate.id));
     const { dirX, dirY } = chartArrowVector(arrow);
     const next = nearestInDirection(candidates, base, dirX, dirY);
-    if (next !== undefined) chartSelectedId = next.id;
+    if (next !== undefined) ctx.chart.chartSelectedId = next.id;
     refreshChart();
   }
 
@@ -2004,7 +1931,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function applyChartAction(action: ActionId): void {
     switch (action) {
       case "chart":
-        if (chartOpen) closeChart();
+        if (ctx.chart.chartOpen) closeChart();
         else openChart();
         break;
       case "chartBack":
@@ -2015,21 +1942,22 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         break;
       case "chartConfirm":
         // A click only selects (D-02): Enter is the commit.
-        if (!chartOpen || chartSelectedId === undefined) return;
-        hyperspaceTargetId = chartSelectedId;
+        if (!ctx.chart.chartOpen || ctx.chart.chartSelectedId === undefined)
+          return;
+        ctx.core.hyperspaceTargetId = ctx.chart.chartSelectedId;
         refreshChart();
         break;
       case "chartUp":
-        if (chartOpen) moveChartSelection("up");
+        if (ctx.chart.chartOpen) moveChartSelection("up");
         break;
       case "chartDown":
-        if (chartOpen) moveChartSelection("down");
+        if (ctx.chart.chartOpen) moveChartSelection("down");
         break;
       case "chartLeft":
-        if (chartOpen) moveChartSelection("left");
+        if (ctx.chart.chartOpen) moveChartSelection("left");
         break;
       case "chartRight":
-        if (chartOpen) moveChartSelection("right");
+        if (ctx.chart.chartOpen) moveChartSelection("right");
         break;
       default:
         break;
@@ -2063,9 +1991,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     clockDeltaSeconds: number;
     fuelCost: number;
   }): void {
-    const currentState = state;
-    const currentConfig = config;
-    const catalogue = commodities;
+    const currentState = ctx.core.state;
+    const currentConfig = ctx.core.config;
+    const catalogue = ctx.core.commodities;
     if (
       currentState === undefined ||
       currentConfig === undefined ||
@@ -2076,19 +2004,19 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // T-06-12: the destination is resolved only through the validated galaxy.
     const destination = galaxyById.get(event.destinationId);
     if (destination === undefined) {
-      lastRefusal = { reason: "too far" };
+      ctx.core.lastRefusal = { reason: "too far" };
       messages.enqueuePriority(refusalCopy("too far"));
       return;
     }
-    const originId = system.id;
-    const previousSeed = marketSeed ?? marketSeedForSystem(originId);
+    const originId = ctx.core.system.id;
+    const previousSeed = ctx.core.marketSeed ?? marketSeedForSystem(originId);
     const nextSeed = arrivalMarketSeed(destination.id, previousSeed);
     // The arrival offset is drawn once, here at the jump commit, from the
     // origin's persisted market seed. A reload restores the saved pose and
     // never calls this draw, so a reload cannot re-roll the arrival. The draw
     // is pure and cannot throw, so it stays outside the try block.
     const exit = drawWitchpointExit(previousSeed);
-    const nextFuel = Math.max(0, profile.fuel - event.fuelCost);
+    const nextFuel = Math.max(0, ctx.core.profile.fuel - event.fuelCost);
 
     // G-7: the sim has already committed the jump (clock advanced, countdown
     // cleared), so everything that can throw runs here, before any live
@@ -2118,29 +2046,29 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       publishFailure(detail);
       // Freeze the sim behind the failure surface: no further steps, no
       // autosave from the advancing clock.
-      paused = true;
+      ctx.runtime.paused = true;
       return;
     }
 
     // One synchronous install block: plain assignments and the pure arrival
     // pose. Nothing in it throws, so the session is never half-applied.
-    profile = { ...profile, fuel: nextFuel };
-    market = nextMarket;
-    marketSeed = nextSeed;
+    ctx.core.profile = { ...ctx.core.profile, fuel: nextFuel };
+    ctx.core.market = nextMarket;
+    ctx.core.marketSeed = nextSeed;
     // The committed `hyperspaceTargetId` is deliberately retained: the arrival
     // snapshot carries it (PROJECT.md:126-127, Oolite's unchanged
     // target_system_id), and the HUD/F5 target line keeps naming it.
     applyWitchpointArrival(currentState, arrivedLayout, currentConfig, exit);
     const arrivedPose = poseOf(currentState);
-    previousPose = arrivedPose;
-    currentPose = arrivedPose;
-    stationScreen = "home";
-    stationPending = null;
-    stationNotice = "";
-    stationMessage = "";
-    stationPage = 1;
-    chartSelectedId = undefined;
-    lastJump = {
+    ctx.core.previousPose = arrivedPose;
+    ctx.core.currentPose = arrivedPose;
+    ctx.station.stationScreen = "home";
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
+    ctx.station.stationMessage = "";
+    ctx.station.stationPage = 1;
+    ctx.chart.chartSelectedId = undefined;
+    ctx.core.lastJump = {
       destinationId: destination.id,
       clockDeltaSeconds: event.clockDeltaSeconds,
       fuelCost: event.fuelCost,
@@ -2160,7 +2088,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   function syncStatusOverlay(): void {
     const element = document.getElementById("status");
     if (element === null) return;
-    element.textContent = `Wegolite — ${system.name}`;
+    element.textContent = `Wegolite — ${ctx.core.system.name}`;
   }
 
   /**
@@ -2169,10 +2097,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * screen change, a dock or a pause.
    */
   function applyStationAction(action: ActionId): void {
-    const currentState = state;
-    const currentInput = input;
+    const currentState = ctx.core.state;
+    const currentInput = ctx.runtime.input;
     if (currentState?.mode !== "docked" || currentInput === undefined) return;
-    if (paused) return;
+    if (ctx.runtime.paused) return;
     const contexts = ACTION_CONTEXTS[action];
     if (!contexts.includes(currentInput.getContext())) return;
 
@@ -2181,19 +2109,19 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         backToHome();
         break;
       case "stationUp":
-        if (stationScreen === "market") {
+        if (ctx.station.stationScreen === "market") {
           moveSelection(-1);
           renderStation();
-        } else if (stationScreen === "outfitting") {
+        } else if (ctx.station.stationScreen === "outfitting") {
           moveOutfittingSelection(-1);
           renderStation();
         }
         break;
       case "stationDown":
-        if (stationScreen === "market") {
+        if (ctx.station.stationScreen === "market") {
           moveSelection(1);
           renderStation();
-        } else if (stationScreen === "outfitting") {
+        } else if (ctx.station.stationScreen === "outfitting") {
           moveOutfittingSelection(1);
           renderStation();
         }
@@ -2211,21 +2139,21 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         planMax("sell");
         break;
       case "stationConfirm":
-        if (stationScreen === "market") confirmTrade();
-        else if (stationScreen === "outfitting") confirmFit();
+        if (ctx.station.stationScreen === "market") confirmTrade();
+        else if (ctx.station.stationScreen === "outfitting") confirmFit();
         break;
       case "stationCancel":
         cancelTrade();
         break;
       case "stationPageNext":
-        if (stationScreen === "status") {
-          stationPage = 2;
+        if (ctx.station.stationScreen === "status") {
+          ctx.station.stationPage = 2;
           renderStation();
         }
         break;
       case "stationPagePrevious":
-        if (stationScreen === "status") {
-          stationPage = 1;
+        if (ctx.station.stationScreen === "status") {
+          ctx.station.stationPage = 1;
           renderStation();
         }
         break;
@@ -2236,17 +2164,17 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   function resetAllSettings(): void {
     const fresh = resetSettings();
-    if (bindings !== undefined) {
+    if (ctx.runtime.bindings !== undefined) {
       for (const action of ACTION_IDS) {
-        bindings[action] = [...(fresh.bindings[action] ?? [])];
+        ctx.runtime.bindings[action] = [...(fresh.bindings[action] ?? [])];
       }
-      settings = { ...fresh, bindings };
-      input?.setBindings(bindings);
-      controlsPanel?.refresh();
+      ctx.runtime.settings = { ...fresh, bindings: ctx.runtime.bindings };
+      ctx.runtime.input?.setBindings(ctx.runtime.bindings);
+      ctx.runtime.controlsPanel?.refresh();
     } else {
-      settings = fresh;
+      ctx.runtime.settings = fresh;
     }
-    launchSeen = false;
+    ctx.core.launchSeen = false;
     syncPauseOnFocusLossToggle();
     // Reset returns the quality to its default; rebuild the scene to match.
     applyQuality(fresh.quality);
@@ -2256,8 +2184,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   function onSubpanelKeyDown(event: KeyboardEvent): void {
     if (event.code !== "Escape") return;
-    if (controlsPanel?.isCapturing() === true) return;
-    if (controlsPanel?.isOpen() !== true && settingsPanel?.isOpen() !== true) {
+    if (ctx.runtime.controlsPanel?.isCapturing() === true) return;
+    if (
+      ctx.runtime.controlsPanel?.isOpen() !== true &&
+      ctx.runtime.settingsPanel?.isOpen() !== true
+    ) {
       return;
     }
     event.preventDefault();
@@ -2277,11 +2208,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * still applies the +600 s clock exactly once.
    */
   function onLaunchKeyDown(event: KeyboardEvent): void {
-    const currentState = state;
+    const currentState = ctx.core.state;
     if (currentState === undefined || currentState.mode !== "launching") return;
-    if (paused || event.repeat) return;
+    if (ctx.runtime.paused || event.repeat) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
-    if (!launchSequence.canSkip(launchSeen)) return;
+    if (!launchSequence.canSkip(ctx.core.launchSeen)) return;
     pending.push({ kind: "skipLaunch" });
     event.preventDefault();
   }
@@ -2295,12 +2226,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     switch (event.kind) {
       case "launched":
         launchSequence.reset();
-        stationScreen = "home";
-        stationPending = null;
-        stationNotice = "";
-        stationMessage = "";
-        stationPage = 1;
-        input?.setContext("flight");
+        ctx.station.stationScreen = "home";
+        ctx.station.stationPending = null;
+        ctx.station.stationNotice = "";
+        ctx.station.stationMessage = "";
+        ctx.station.stationPage = 1;
+        ctx.runtime.input?.setContext("flight");
         docked.hide();
         syncStationNav();
         hudCanvas.hidden = false;
@@ -2311,40 +2242,43 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         break;
       case "launchComplete":
         launchSequence.markSeen();
-        launchSeen = true;
-        if (settings !== undefined && !settings.launchSeen) {
-          settings.launchSeen = true;
+        ctx.core.launchSeen = true;
+        if (
+          ctx.runtime.settings !== undefined &&
+          !ctx.runtime.settings.launchSeen
+        ) {
+          ctx.runtime.settings.launchSeen = true;
           persistSettings();
         }
         messages.enqueue("Arrows pitch and roll · W and S change speed");
         break;
       case "docked": {
         // D-12: the exact delta is the event's, never a wall/frame comparison.
-        lastDockClockDelta = event.clockDelta;
+        ctx.core.lastDockClockDelta = event.clockDelta;
         launchSequence.reset();
-        stationScreen = "home";
-        stationPending = null;
-        stationNotice = "";
-        stationMessage = "";
-        stationPage = 1;
-        input?.setContext("dockHome");
-        docked.show(system.name);
+        ctx.station.stationScreen = "home";
+        ctx.station.stationPending = null;
+        ctx.station.stationNotice = "";
+        ctx.station.stationMessage = "";
+        ctx.station.stationPage = 1;
+        ctx.runtime.input?.setContext("dockHome");
+        docked.show(ctx.core.system.name);
         ensureSelection();
         renderStation();
         syncStationNav();
         if (event.via === "computer") {
           messages.enqueuePriority("Docking computers engaged");
-          stationMessage = "Docking computers engaged";
+          ctx.station.stationMessage = "Docking computers engaged";
           renderStation();
         }
         // D-09/D-15: stop any held input and collapse the interpolation window
         // onto the docked pose so the camera does not smear across the teleport.
-        input?.clearAll();
-        const currentState = state;
+        ctx.runtime.input?.clearAll();
+        const currentState = ctx.core.state;
         if (currentState !== undefined) {
           const dockedPose = poseOf(currentState);
-          previousPose = dockedPose;
-          currentPose = dockedPose;
+          ctx.core.previousPose = dockedPose;
+          ctx.core.currentPose = dockedPose;
         }
         // D-17: both manual and computer docking anchor once, after the station
         // screen, selection and docked pose are ready. No other path writes on
@@ -2370,19 +2304,22 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         if (event.locked) messages.enqueue("Mass locked");
         break;
       case "bounce":
-        dockFeedback.trigger("bounce", state?.flightTime ?? 0);
+        ctx.core.dockFeedback.trigger(
+          "bounce",
+          ctx.core.state?.flightTime ?? 0,
+        );
         messages.enqueuePriority(bounceMessage(event));
         break;
       case "scrape": {
         // Pitfall 8: the sim emits one scrape per correcting tick (120 Hz);
         // the message line is throttled to one per simulated second.
-        const now = state?.flightTime ?? 0;
-        dockFeedback.trigger("scrape", now);
-        if (shouldEmitScrapeMessage(lastScrapeMessageTime, now)) {
+        const now = ctx.core.state?.flightTime ?? 0;
+        ctx.core.dockFeedback.trigger("scrape", now);
+        if (shouldEmitScrapeMessage(ctx.core.lastScrapeMessageTime, now)) {
           messages.enqueuePriority(
             "Scrape - ease toward the centre of the slot",
           );
-          lastScrapeMessageTime = now;
+          ctx.core.lastScrapeMessageTime = now;
         }
         break;
       }
@@ -2400,7 +2337,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         messages.enqueue("Hyperspace countdown cancelled");
         break;
       case "hyperspaceRefused":
-        lastRefusal = { reason: event.reason };
+        ctx.core.lastRefusal = { reason: event.reason };
         messages.enqueuePriority(refusalCopy(event.reason));
         break;
       case "hyperspaceJumped":
@@ -2414,39 +2351,44 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     probe.triangles = renderer.info.render.triangles;
     probe.renders = renderer.info.render.frame;
     probe.memory = readMemory(renderer);
-    probe.paused = paused;
-    probe.systemId = system.id;
+    probe.paused = ctx.runtime.paused;
+    probe.systemId = ctx.core.system.id;
     probe.quality = scenes.quality();
-    probe.atmosphere = scene?.planet.atmosphere !== undefined;
-    probe.nebulae = scene?.nebulae?.quadCount ?? 0;
+    probe.atmosphere = ctx.core.scene?.planet.atmosphere !== undefined;
+    probe.nebulae = ctx.core.scene?.nebulae?.quadCount ?? 0;
     probe.chart = {
-      open: chartOpen,
+      open: ctx.chart.chartOpen,
       camera: {
-        centre: { x: chartCamera.centre.x, y: chartCamera.centre.y },
-        spanX: chartCamera.spanX,
-        spanY: 2 * chartCamera.spanX,
+        centre: {
+          x: ctx.chart.chartCamera.centre.x,
+          y: ctx.chart.chartCamera.centre.y,
+        },
+        spanX: ctx.chart.chartCamera.spanX,
+        spanY: 2 * ctx.chart.chartCamera.spanX,
       },
-      ...(hyperspaceTargetId === undefined
+      ...(ctx.core.hyperspaceTargetId === undefined
         ? {}
-        : { targetId: hyperspaceTargetId }),
-      ...(chartSelectedId === undefined ? {} : { selectedId: chartSelectedId }),
+        : { targetId: ctx.core.hyperspaceTargetId }),
+      ...(ctx.chart.chartSelectedId === undefined
+        ? {}
+        : { selectedId: ctx.chart.chartSelectedId }),
     };
     probe.hyperspace = {
-      ...(hyperspaceTargetId === undefined
+      ...(ctx.core.hyperspaceTargetId === undefined
         ? {}
-        : { targetId: hyperspaceTargetId }),
-      countdown: state?.hyperspaceCountdown ?? 0,
-      lastJump,
-      lastRefusal,
+        : { targetId: ctx.core.hyperspaceTargetId }),
+      countdown: ctx.core.state?.hyperspaceCountdown ?? 0,
+      lastJump: ctx.core.lastJump,
+      lastRefusal: ctx.core.lastRefusal,
     };
     probe.saveScreen = {
-      open: saveScreenOpen,
-      row: saveLoad?.selection() ?? "save",
-      confirming: saveLoad?.isConfirming() ?? false,
-      notice: saveScreenNotice,
+      open: ctx.save.saveScreenOpen,
+      row: ctx.save.saveLoad?.selection() ?? "save",
+      confirming: ctx.save.saveLoad?.isConfirming() ?? false,
+      notice: ctx.save.saveScreenNotice,
     };
 
-    const currentState = state;
+    const currentState = ctx.core.state;
     if (currentState !== undefined) {
       probe.mode = currentState.mode;
       probe.clock = currentState.clockSeconds;
@@ -2471,26 +2413,26 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       probe.launch = {
         count: currentState.launchCount,
         elapsed: currentState.launchElapsed,
-        seen: launchSeen,
+        seen: ctx.core.launchSeen,
       };
       probe.dock = {
         dockCount: currentState.dockCount,
         scrapeCount: currentState.scrapeTicks,
         bounceCount: currentState.bounceCount,
-        shake: dockFeedback.shakeStrength(currentState.flightTime),
-        flash: dockFeedback.flashAlpha(currentState.flightTime),
+        shake: ctx.core.dockFeedback.shakeStrength(currentState.flightTime),
+        flash: ctx.core.dockFeedback.flashAlpha(currentState.flightTime),
         outcome: currentState.mode === "docked" ? "docked" : "inFlight",
-        lastClockDelta: lastDockClockDelta,
+        lastClockDelta: ctx.core.lastDockClockDelta,
       };
     }
 
-    if (probe.test !== undefined) probe.test.tainted = testTainted;
+    if (probe.test !== undefined) probe.test.tainted = ctx.runtime.testTainted;
     // G-8: the queue depth is published so a proof can read a queued message
     // before and after an in-session Load.
     probe.messages = messages.size;
 
-    const currentLayout = layout;
-    const currentScene = scene;
+    const currentLayout = ctx.core.layout;
+    const currentScene = ctx.core.scene;
     if (currentLayout !== undefined && currentScene !== undefined) {
       probe.bodies = [
         currentScene.planet.mesh.name,
@@ -2516,9 +2458,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       };
     }
 
-    const currentHud = hud;
+    const currentHud = ctx.runtime.hud;
     if (currentHud !== undefined) {
-      const model = lastModel;
+      const model = ctx.core.lastModel;
       probe.hud = {
         drawn: currentHud.drawn,
         elements: [...currentHud.elements],
@@ -2546,7 +2488,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       };
     }
 
-    probe.hints = hints === undefined ? [] : [...hints.seen];
+    probe.hints =
+      ctx.runtime.hints === undefined ? [] : [...ctx.runtime.hints.seen];
   }
 
   /**
@@ -2556,6 +2499,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * scene is built.
    */
   function drawKeys(): readonly unknown[] {
+    // Read at this call, never kept: the keys compare the live objects by identity.
+    const { state, scene } = ctx.core;
     return [state, scene, scene?.nebulae?.revision() ?? 0];
   }
 
@@ -2564,6 +2509,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * A docked or paused session simulates nothing, so its image cannot change.
    */
   function shouldDraw(): boolean {
+    const { paused } = ctx.runtime;
+    const { state } = ctx.core;
     return redrawGate.next(paused || state?.mode === "docked", drawKeys());
   }
 
@@ -2575,11 +2522,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    *   direct caller draws.
    */
   function renderFrame(alpha: number, draw = true): void {
-    const currentState = state;
-    const currentLayout = layout;
-    const currentConfig = config;
-    const currentScene = scene;
-    const currentHud = hud;
+    const currentState = ctx.core.state;
+    const currentLayout = ctx.core.layout;
+    const currentConfig = ctx.core.config;
+    const currentScene = ctx.core.scene;
+    const currentHud = ctx.runtime.hud;
     if (
       currentState === undefined ||
       currentLayout === undefined ||
@@ -2598,7 +2545,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     applyStationRoll(currentScene, currentState.stationAngle);
     // The launch cinematic and the cockpit handover supply a world pose; while
     // docked the first-person pose is derived from the interpolated ship pose.
-    const pose = interpolatePose(previousPose, currentPose, alpha);
+    const pose = interpolatePose(
+      ctx.core.previousPose,
+      ctx.core.currentPose,
+      alpha,
+    );
     let camera: CameraPose | null = null;
     if (currentState.mode === "launching") {
       camera = computeLaunchCamera(currentLayout, pose.position);
@@ -2606,13 +2557,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       camera = computeCockpitCamera(
         pose.position,
         pose.orientation,
-        dockFeedback.shakeOffset(currentState.flightTime),
+        ctx.core.dockFeedback.shakeOffset(currentState.flightTime),
       );
     }
     const cameraWorld = applyFrame(
       currentScene,
-      previousPose,
-      currentPose,
+      ctx.core.previousPose,
+      ctx.core.currentPose,
       alpha,
       currentLayout,
       camera,
@@ -2622,13 +2573,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // path; the field wraps inside its box, so it never drifts to the origin.
     const currentDust = currentScene.dust;
     currentDust.update(
-      previousCameraWorld === undefined
+      ctx.core.previousCameraWorld === undefined
         ? vec(0, 0, 0)
-        : sub(cameraWorld, previousCameraWorld),
+        : sub(cameraWorld, ctx.core.previousCameraWorld),
       currentState.speed,
       currentState.torus.factor,
     );
-    previousCameraWorld = cameraWorld;
+    ctx.core.previousCameraWorld = cameraWorld;
     // D-10: the Cobra is shown for the scripted exit and hidden in the cockpit;
     // it is toggled, never rebuilt.
     currentScene.ship.visible = currentState.mode === "launching";
@@ -2642,7 +2593,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const isDocked = currentState.mode === "docked";
     hudCanvas.hidden = isDocked;
     if (!isDocked && draw) {
-      const currentBreakPattern = breakPattern;
+      const currentBreakPattern = ctx.runtime.breakPattern;
       if (
         currentState.mode === "launching" &&
         currentBreakPattern !== undefined
@@ -2664,12 +2615,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           currentLayout,
           currentConfig,
           message,
-          profile.fuel,
-          dockFeedback.flashAlpha(currentState.flightTime),
+          ctx.core.profile.fuel,
+          ctx.core.dockFeedback.flashAlpha(currentState.flightTime),
           targetSystem()?.name ?? "",
         );
         currentHud.draw(model);
-        lastModel = model;
+        ctx.core.lastModel = model;
       }
     }
     showHint(currentState);
@@ -2678,33 +2629,34 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   /** D-11: one message-line hint at a time, never a modal or overlay. */
   function showHint(currentState: FlightState): void {
-    const currentHints = hints;
+    const currentHints = ctx.runtime.hints;
     if (currentHints === undefined) return;
     const context: HintContext = {
       mode: currentState.mode,
       massLocked: currentState.torus.massLocked,
       torusEngaged: currentState.torus.engaged,
-      speedInput: currentFrame.speed,
-      pitchRollInput: currentFrame.pitch !== 0 || currentFrame.roll !== 0,
+      speedInput: ctx.core.currentFrame.speed,
+      pitchRollInput:
+        ctx.core.currentFrame.pitch !== 0 || ctx.core.currentFrame.roll !== 0,
     };
     const hint = currentHints.maybeShow(context);
     if (hint === null) return;
     probe.hint = hint;
     if (currentState.mode === "docked") {
-      stationMessage = hint;
+      ctx.station.stationMessage = hint;
       renderStation();
     } else messages.enqueue(hint);
   }
 
   function frame(now: number): void {
-    rafId = requestAnimationFrame(frame);
+    ctx.runtime.rafId = requestAnimationFrame(frame);
     probe.frames += 1;
 
-    const currentState = state;
-    const currentLayout = layout;
-    const currentConfig = config;
-    const currentInput = input;
-    const currentLoop = loop;
+    const currentState = ctx.core.state;
+    const currentLayout = ctx.core.layout;
+    const currentConfig = ctx.core.config;
+    const currentInput = ctx.runtime.input;
+    const currentLoop = ctx.runtime.loop;
     if (
       currentState === undefined ||
       currentLayout === undefined ||
@@ -2715,11 +2667,12 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       return;
     }
 
-    const delta = lastMs === 0 ? 0 : (now - lastMs) / 1000;
-    lastMs = now;
+    const delta =
+      ctx.runtime.lastMs === 0 ? 0 : (now - ctx.runtime.lastMs) / 1000;
+    ctx.runtime.lastMs = now;
 
     if (currentInput.consumePauseToggle()) {
-      if (paused) resume();
+      if (ctx.runtime.paused) resume();
       else pause();
     }
 
@@ -2728,26 +2681,26 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     handleChartActions(currentInput.drainChartActions());
     // D-20: the F2 screen is another opaque edge-driven overlay; its actions
     // are applied before the freeze so Save/Load can run and Return can close.
-    if (chartOpen) currentInput.drainSaveScreenActions();
+    if (ctx.chart.chartOpen) currentInput.drainSaveScreenActions();
     else handleSaveScreenActions(currentInput.drainSaveScreenActions());
 
-    if (chartOpen) {
+    if (ctx.chart.chartOpen) {
       // The overlay is opaque: drain everything, advance nothing, paint nothing.
       currentInput.drainCommands();
       currentInput.drainStationActions();
       pending.length = 0;
-      currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+      ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
       redrawGate.request();
       updateProbe();
       return;
     }
 
-    if (saveScreenOpen) {
+    if (ctx.save.saveScreenOpen) {
       // The save screen is opaque too: no fixed step runs behind it.
       currentInput.drainCommands();
       currentInput.drainStationActions();
       pending.length = 0;
-      currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+      ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
       redrawGate.request();
       updateProbe();
       return;
@@ -2756,26 +2709,27 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // Station actions are discarded while paused or in flight; in the docked
     // mode each one is revalidated against the live screen and context.
     const stationActions = currentInput.drainStationActions();
-    if (!paused && currentState.mode === "docked") {
+    if (!ctx.runtime.paused && currentState.mode === "docked") {
       for (const action of stationActions) applyStationAction(action);
     }
 
     let alpha = 0;
-    if (!paused) {
+    if (!ctx.runtime.paused) {
       const drained: Command[] = [
         ...currentInput.drainCommands(),
         ...pending,
       ].filter(
         (command) =>
           command.kind !== "launch" ||
-          (currentState.mode === "docked" && stationScreen === "home"),
+          (currentState.mode === "docked" &&
+            ctx.station.stationScreen === "home"),
       );
       pending.length = 0;
       // D-17: the pre-launch anchor is taken while the state is still docked,
       // before `beginLaunch` applies the +600 s transition.
       if (
         currentState.mode === "docked" &&
-        stationScreen === "home" &&
+        ctx.station.stationScreen === "home" &&
         drained.some((command) => command.kind === "launch")
       ) {
         autosave();
@@ -2790,14 +2744,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       );
       // One immutable frame per rendered frame, shared by every fixed step.
       const frameInput = currentInput.frame();
-      currentFrame = frameInput;
+      ctx.core.currentFrame = frameInput;
 
       alpha = currentLoop.advance(delta, commands, (stepCommands) => {
         // A jump can commit mid-frame; read the live session layout/system for
         // every step after the swap (never a frame-captured origin layout).
-        const liveState = state;
-        const liveLayout = layout;
-        const liveConfig = config;
+        const liveState = ctx.core.state;
+        const liveLayout = ctx.core.layout;
+        const liveConfig = ctx.core.config;
         if (
           liveState === undefined ||
           liveLayout === undefined ||
@@ -2805,7 +2759,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         ) {
           return;
         }
-        previousPose = currentPose;
+        ctx.core.previousPose = ctx.core.currentPose;
         const modeBefore = liveState.mode;
         const controller = liveState.mode === "launching" ? scripted : player;
         const intent = controller.update(flightView(liveState), frameInput);
@@ -2815,10 +2769,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         const committedTarget = targetSystem();
         // The read-only station mass of the live system's station kind. Only a
         // Coriolis station has a recorded mass; the others omit the fact.
-        const stationMass = witchspaceStationMass(system.station);
+        const stationMass = witchspaceStationMass(ctx.core.system.station);
         const hyperspace = {
-          fuel: profile.fuel,
-          origin: { id: system.id, x: system.chartX, y: system.chartY },
+          fuel: ctx.core.profile.fuel,
+          origin: {
+            id: ctx.core.system.id,
+            x: ctx.core.system.chartX,
+            y: ctx.core.system.chartY,
+          },
           ...(committedTarget === undefined
             ? {}
             : {
@@ -2831,9 +2789,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           ...(stationMass === undefined ? {} : { stationMass }),
         };
         const stepOptions: StepOptions =
-          dockGeometry === undefined
+          ctx.core.dockGeometry === undefined
             ? { equipment, hyperspace }
-            : { dock: dockGeometry, equipment, hyperspace };
+            : { dock: ctx.core.dockGeometry, equipment, hyperspace };
         const events = stepFlight(
           liveState,
           liveLayout,
@@ -2850,14 +2808,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         if (modeBefore === "launching") {
           launchSequence.advance(DT, liveState.mode === "inFlight");
         }
-        currentPose = poseOf(liveState);
+        ctx.core.currentPose = poseOf(liveState);
       });
     } else {
       // A key pressed while paused must not become a queued edge command that
       // fires on resume.
       currentInput.drainCommands();
       pending.length = 0;
-      currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+      ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
     }
 
     renderFrame(alpha, shouldDraw());
@@ -2873,7 +2831,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     try {
       await startSession(options);
     } catch (error) {
-      if (disposed) return;
+      if (ctx.runtime.disposed) return;
       const reason = error instanceof Error ? error.message : String(error);
       console.error("Wegolite: the session failed to start", error);
       showBootFailure(reason);
@@ -2886,13 +2844,19 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // awaits, so a second click during the load would otherwise start a second
     // frame loop (two RAF chains, two HUDs, two input sources) that `dispose()`
     // could never fully cancel.
-    if (state !== undefined || starting || disposed) return;
-    starting = true;
+    if (
+      ctx.core.state !== undefined ||
+      ctx.runtime.starting ||
+      ctx.runtime.disposed
+    )
+      return;
+    ctx.runtime.starting = true;
 
     // D-09/T-06-12: every target id is resolved through this validated map.
     galaxyById.clear();
     for (const entry of galaxy) galaxyById.set(entry.id, entry);
-    if (!galaxyById.has(system.id)) galaxyById.set(system.id, system);
+    if (!galaxyById.has(ctx.core.system.id))
+      galaxyById.set(ctx.core.system.id, ctx.core.system);
 
     const restore = options.restore;
     const restoring = restore !== undefined && options.fresh !== true;
@@ -2910,11 +2874,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     // A `pagehide` during the load disposes the session; resuming into a
     // disposed asset cache would reject unhandled.
-    if (disposed) return;
+    if (ctx.runtime.disposed) return;
 
     const catalogue = await loadShipCatalogue();
 
-    if (disposed) return;
+    if (ctx.runtime.disposed) return;
 
     // D-10/T-04-43: the equipment catalogue is the only source of a price and a
     // tech level. The commodity catalogue is the only source of the market
@@ -2926,11 +2890,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         loadCommodities(),
         loadLabels(),
       ]);
-      if (disposed) return;
-      equipmentCatalogue = equipment;
-      commodities = loadedCommodities;
-      labels = loadedLabels;
-      commodityUnits = new Map(
+      if (ctx.runtime.disposed) return;
+      ctx.core.equipmentCatalogue = equipment;
+      ctx.core.commodities = loadedCommodities;
+      ctx.core.labels = loadedLabels;
+      ctx.core.commodityUnits = new Map(
         loadedCommodities.map((commodity) => [commodity.key, commodity.unit]),
       );
     } catch (error) {
@@ -2943,22 +2907,22 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     const playerDef = playerShip(catalogue).shipDef;
     const stationEntry = stationShip(catalogue);
     const station = stationEntry.shipDef;
-    stationDef = station;
-    stationKey = stationEntry.key;
+    ctx.core.stationDef = station;
+    ctx.core.stationKey = stationEntry.key;
 
     const flightConfig = deriveFlightConfig(playerDef);
     // SAVE-03/D-18: resolve the saved system before the first scene is built,
     // so a Continue never flashes Lave or builds the wrong layout.
     if (restoring && restore !== undefined) {
       const savedSystem = galaxyById.get(restore.system.id);
-      if (savedSystem !== undefined) system = savedSystem;
+      if (savedSystem !== undefined) ctx.core.system = savedSystem;
     }
     // The graphics quality selects the planet's shader variant and the
     // atmosphere shell, so the settings are read before the first scene is
     // built; a Continue at High never flashes the Standard planet.
     const loaded = loadSettings();
     scenes.setQuality(loaded.quality);
-    const nextScene = scenes.enterSystem(system, station);
+    const nextScene = scenes.enterSystem(ctx.core.system, station);
     const systemLayout = scenes.layout();
     if (systemLayout === undefined) {
       throw new Error(
@@ -2970,8 +2934,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // port frame once, here, and injected into every fixed step as plain data.
     try {
       const rawDockPort = await loadDockPort();
-      if (disposed) return;
-      dockGeometry = createDockGeometry(rawDockPort, systemLayout.dockOffset);
+      if (ctx.runtime.disposed) return;
+      ctx.core.dockGeometry = createDockGeometry(
+        rawDockPort,
+        systemLayout.dockOffset,
+      );
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       showBootFailure(reason);
@@ -2986,7 +2953,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       // fail has succeeded: a new game that cannot start must not have
       // deleted the save it was going to replace.
       await clearSaveForNewGame();
-      if (disposed) return;
+      if (ctx.runtime.disposed) return;
     }
 
     let flightState: FlightState;
@@ -3004,16 +2971,16 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     }
     const restoredInFlight = flightState.mode === "inFlight";
 
-    state = flightState;
-    layout = systemLayout;
-    config = flightConfig;
-    scene = nextScene;
-    profile = restoredProfile ?? newProfile();
+    ctx.core.state = flightState;
+    ctx.core.layout = systemLayout;
+    ctx.core.config = flightConfig;
+    ctx.core.scene = nextScene;
+    ctx.core.profile = restoredProfile ?? newProfile();
     // SAV-03/D-18: the committed target travels with the save. Only an id the
     // validated catalogue knows is installed (T-06-12).
     if (restoring && restore !== undefined) {
       const savedTarget = restore.targetSystem;
-      hyperspaceTargetId =
+      ctx.core.hyperspaceTargetId =
         savedTarget !== undefined && galaxyById.has(savedTarget)
           ? savedTarget
           : undefined;
@@ -3022,67 +2989,74 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     // D-17/D-18/D-19: resolve the seed once and generate the market once. A
     // later `docked` event reuses this market; only Phase 6's system change re-seeds.
-    const loadedCatalogue = commodities ?? [];
-    marketSeed =
+    const loadedCatalogue = ctx.core.commodities ?? [];
+    // Block-local alias for the pinned seed expression; read once, never kept.
+    const { system } = ctx.core;
+    ctx.core.marketSeed =
       restoring && restore !== undefined
         ? (restoredMarketSeed ?? marketSeedForSystem(system.id))
         : marketSeedForSystem(system.id);
     // D-18/SAVE-06: a saved snapshot is used verbatim; only a v1 migration or a
     // fresh game regenerates from the seed. Plan 06-04 owns the system swap.
-    market =
-      restoredMarket ?? generateMarket(system, loadedCatalogue, marketSeed);
+    ctx.core.market =
+      restoredMarket ??
+      generateMarket(ctx.core.system, loadedCatalogue, ctx.core.marketSeed);
     ensureSelection();
-    hud = createHud(hudCanvas);
-    hud.resize();
-    breakPattern = createBreakPattern(hudCanvas);
+    ctx.runtime.hud = createHud(hudCanvas);
+    ctx.runtime.hud.resize();
+    ctx.runtime.breakPattern = createBreakPattern(hudCanvas);
     hudCanvas.hidden = true;
-    chart = createChart(document.body);
-    chart.setViewBuilder((viewport) =>
+    ctx.chart.chart = createChart(document.body);
+    ctx.chart.chart.setViewBuilder((viewport) =>
       buildChartView(
         galaxy,
-        system.id,
-        hyperspaceTargetId,
-        chartCamera,
-        profile.fuel,
+        ctx.core.system.id,
+        ctx.core.hyperspaceTargetId,
+        ctx.chart.chartCamera,
+        ctx.core.profile.fuel,
         viewport,
-        chartSelectedId,
+        ctx.chart.chartSelectedId,
       ),
     );
-    chart.setTooltipBuilder((id) => {
+    ctx.chart.chart.setTooltipBuilder((id) => {
       const info = galaxyById.get(id);
-      if (info === undefined || labels === undefined) return undefined;
-      const model = buildSystemDataModel(info, system, labels);
+      if (info === undefined || ctx.core.labels === undefined) return undefined;
+      const model = buildSystemDataModel(
+        info,
+        ctx.core.system,
+        ctx.core.labels,
+      );
       return {
         title: info.name,
         fields: model.fields,
         description: model.description,
       };
     });
-    chart.onSelect((id) => {
+    ctx.chart.chart.onSelect((id) => {
       selectChartSystem(id);
     });
-    chart.onCamera((camera) => {
+    ctx.chart.chart.onCamera((camera) => {
       setChartCamera(camera);
     });
-    saveLoad = createSaveLoadScreen(document.body);
-    saveLoad.onReturn(() => {
+    ctx.save.saveLoad = createSaveLoadScreen(document.body);
+    ctx.save.saveLoad.onReturn(() => {
       closeSaveScreen();
     });
-    saveLoad.onSave(() => {
+    ctx.save.saveLoad.onSave(() => {
       manualSave();
     });
-    saveLoad.onLoad(() => {
+    ctx.save.saveLoad.onLoad(() => {
       void loadFromSave();
     });
-    saveLoad.onOverwriteConfirmed(() => {
+    ctx.save.saveLoad.onOverwriteConfirmed(() => {
       writeManualSave();
     });
     // A mouse Cancel closes the dialog on the screen alone; the session only
     // needs to publish the state the dialog now reports.
-    saveLoad.onOverwriteCancelled(() => {
+    ctx.save.saveLoad.onOverwriteCancelled(() => {
       updateProbe();
     });
-    stationNav = createStationNav(document.body, {
+    ctx.station.stationNav = createStationNav(document.body, {
       onNavigate: (id) => {
         navigateStation(id);
       },
@@ -3092,19 +3066,19 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     });
 
     const bindingMap = createBindingMap(loaded.bindings);
-    settings = { ...loaded, bindings: bindingMap };
-    bindings = bindingMap;
+    ctx.runtime.settings = { ...loaded, bindings: bindingMap };
+    ctx.runtime.bindings = bindingMap;
     // Both overlay footers get their default hints before first open, and a
     // restored in-flight session (which never runs renderStation) still gets
     // the chart and Save/Load hint lines.
     refreshStationChrome();
-    launchSeen = loaded.launchSeen;
-    if (launchSeen) launchSequence.markSeen();
-    hints = createHintController({
+    ctx.core.launchSeen = loaded.launchSeen;
+    if (ctx.core.launchSeen) launchSequence.markSeen();
+    ctx.runtime.hints = createHintController({
       bindings: bindingMap,
-      seen: settings.hintsSeen,
+      seen: ctx.runtime.settings.hintsSeen,
       onSeen: (id) => {
-        const currentSettings = settings;
+        const currentSettings = ctx.runtime.settings;
         if (currentSettings === undefined) return;
         if (!currentSettings.hintsSeen.includes(id)) {
           currentSettings.hintsSeen.push(id);
@@ -3113,19 +3087,19 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       },
     });
 
-    input = createKeyboardInputSource(bindingMap);
-    input.setStationScreenHandler((action) => {
+    ctx.runtime.input = createKeyboardInputSource(bindingMap);
+    ctx.runtime.input.setStationScreenHandler((action) => {
       openStationScreen(action);
     });
-    input.setContext(restoredInFlight ? "flight" : "dockHome");
-    input.setPaused(false);
-    input.attach();
-    loop = createGameLoop();
-    previousPose = poseOf(flightState);
-    currentPose = previousPose;
-    previousCameraWorld = undefined;
+    ctx.runtime.input.setContext(restoredInFlight ? "flight" : "dockHome");
+    ctx.runtime.input.setPaused(false);
+    ctx.runtime.input.attach();
+    ctx.runtime.loop = createGameLoop();
+    ctx.core.previousPose = poseOf(flightState);
+    ctx.core.currentPose = ctx.core.previousPose;
+    ctx.core.previousCameraWorld = undefined;
 
-    pauseOverlay = createPauseOverlay({
+    ctx.runtime.pauseOverlay = createPauseOverlay({
       root: pauseRoot,
       gameRoot,
       onResume: () => {
@@ -3138,10 +3112,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         openSettings();
       },
     });
-    controlsPanel = createControlsPanel(bindingMap, {
+    ctx.runtime.controlsPanel = createControlsPanel(bindingMap, {
       root: controlsRoot,
       onChange: (next) => {
-        input?.setBindings(next);
+        ctx.runtime.input?.setBindings(next);
         persistSettings();
         refreshStationChrome();
       },
@@ -3152,7 +3126,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         backToPause();
       },
     });
-    settingsPanel = createSettingsPanel({
+    ctx.runtime.settingsPanel = createSettingsPanel({
       root: settingsRoot,
       onBack: () => {
         backToPause();
@@ -3164,15 +3138,15 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         resetAllSettings();
       },
       onPauseOnFocusLossChange: (enabled) => {
-        if (settings === undefined) return;
-        settings.pauseOnFocusLoss = enabled;
+        if (ctx.runtime.settings === undefined) return;
+        ctx.runtime.settings.pauseOnFocusLoss = enabled;
         persistSettings();
       },
       onQualityChange: (quality) => {
-        if (settings === undefined) return;
+        if (ctx.runtime.settings === undefined) return;
         // Persist only what was applied; on failure the toggle snaps back.
         if (applyQuality(quality)) {
-          settings.quality = quality;
+          ctx.runtime.settings.quality = quality;
           persistSettings();
         }
         syncQualityToggle();
@@ -3181,9 +3155,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
     // The hook exists only when explicitly asked for with exactly `?test=1`,
     // and only mutates the live state: no save, no arbitrary code (T-04-08).
-    testHookEnabled =
+    ctx.runtime.testHookEnabled =
       new URLSearchParams(window.location.search).get("test") === "1";
-    if (testHookEnabled) bindTestHook(flightState);
+    if (ctx.runtime.testHookEnabled) bindTestHook(flightState);
 
     title.hide();
     if (restoredInFlight) {
@@ -3191,7 +3165,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       // over an installed in-flight scene.
       docked.hide();
       hudCanvas.hidden = false;
-      input.setContext("flight");
+      ctx.runtime.input.setContext("flight");
       // No station render runs on this path, so publish the live economy and
       // durable identities explicitly for the reload proof.
       syncEconomyProbe();
@@ -3199,7 +3173,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       // proof reads the pose the restore installed, not a resumed one.
       probe.restore = {
         mode: "inFlight",
-        systemId: system.id,
+        systemId: ctx.core.system.id,
         position: [
           flightState.position.x,
           flightState.position.y,
@@ -3215,42 +3189,50 @@ export function createGameSession(options: GameSessionOptions): GameSession {
         clock: flightState.clockSeconds,
       };
     } else {
-      input.setContext("dockHome");
-      docked.show(system.name);
+      ctx.runtime.input.setContext("dockHome");
+      docked.show(ctx.core.system.name);
       renderStation();
     }
     // The chart nav is hidden when the session boots in flight.
     syncStationNav();
     docked.onLaunch(() => {
       // D-03: the Launch button is only live on the home screen.
-      if (state?.mode !== "docked" || stationScreen !== "home") return;
+      if (
+        ctx.core.state?.mode !== "docked" ||
+        ctx.station.stationScreen !== "home"
+      )
+        return;
       pending.push({ kind: "launch" });
     });
     docked.onRefuel?.(() => {
-      if (state?.mode !== "docked" || stationScreen !== "home") return;
-      const catalogue = equipmentCatalogue;
-      const ctx = fitContext();
-      if (catalogue === undefined || ctx === undefined) return;
+      if (
+        ctx.core.state?.mode !== "docked" ||
+        ctx.station.stationScreen !== "home"
+      )
+        return;
+      const catalogue = ctx.core.equipmentCatalogue;
+      const fitCtx = fitContext();
+      if (catalogue === undefined || fitCtx === undefined) return;
       const item = catalogue.find((entry) => entry.key === "EQ_FUEL");
       if (item === undefined) return;
-      const check = checkFit(profile, item, ctx);
+      const check = checkFit(ctx.core.profile, item, fitCtx);
       if (!check.ok) return;
-      const next = applyFit(profile, item, ctx);
-      if (next === profile) return;
-      stationPending = null;
-      stationNotice = "Tanks topped up to 7.0 LY";
-      lastTrade = { kind: "fit", key: "EQ_FUEL", amount: 1 };
+      const next = applyFit(ctx.core.profile, item, fitCtx);
+      if (next === ctx.core.profile) return;
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = "Tanks topped up to 7.0 LY";
+      ctx.station.lastTrade = { kind: "fit", key: "EQ_FUEL", amount: 1 };
       commitProfile(next);
       autosave();
       renderStation();
     });
 
     renderFrame(0);
-    rafId = requestAnimationFrame(frame);
+    ctx.runtime.rafId = requestAnimationFrame(frame);
   }
 
   function resize(): void {
-    hud?.resize();
+    ctx.runtime.hud?.resize();
     // A resize clears both canvases, and the caller redraws only the scene.
     redrawGate.request();
   }
@@ -3263,18 +3245,18 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * ownership boundary the disposal proof is about.
    */
   function performSwap(): void {
-    const currentStationDef = stationDef;
-    if (state === undefined || currentStationDef === undefined) return;
-    scene = scenes.enterSystem(system, currentStationDef);
-    layout = scenes.layout() ?? layout;
+    const currentStationDef = ctx.core.stationDef;
+    if (ctx.core.state === undefined || currentStationDef === undefined) return;
+    ctx.core.scene = scenes.enterSystem(ctx.core.system, currentStationDef);
+    ctx.core.layout = scenes.layout() ?? ctx.core.layout;
     // The new dust field has no camera history; a stale delta would smear it.
-    previousCameraWorld = undefined;
+    ctx.core.previousCameraWorld = undefined;
   }
 
   function disposeSystem(): void {
     scenes.disposeSystem();
-    scene = undefined;
-    previousCameraWorld = undefined;
+    ctx.core.scene = undefined;
+    ctx.core.previousCameraWorld = undefined;
   }
 
   /**
@@ -3282,7 +3264,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * describe the new scene rather than the frame before it.
    */
   async function swapSystem(): Promise<void> {
-    if (state === undefined) return;
+    if (ctx.core.state === undefined) return;
     performSwap();
     renderFrame(0);
     await new Promise<void>((resolve) => {
@@ -3301,44 +3283,44 @@ export function createGameSession(options: GameSessionOptions): GameSession {
    * arrive for the same session. A second call must not double-free or throw.
    */
   function dispose(): void {
-    if (disposed) return;
-    disposed = true;
+    if (ctx.runtime.disposed) return;
+    ctx.runtime.disposed = true;
 
-    if (rafId !== 0) cancelAnimationFrame(rafId);
-    rafId = 0;
+    if (ctx.runtime.rafId !== 0) cancelAnimationFrame(ctx.runtime.rafId);
+    ctx.runtime.rafId = 0;
 
     // Every listener this session added hangs off `uiController`; aborting it
     // also releases the sub-panel controllers' listeners through their own
     // disposers below.
     uiController.abort();
-    stationNav?.dispose();
-    stationNav = undefined;
-    input?.clearAll();
-    input?.dispose();
-    pauseOverlay?.dispose();
-    controlsPanel?.dispose();
-    settingsPanel?.dispose();
+    ctx.station.stationNav?.dispose();
+    ctx.station.stationNav = undefined;
+    ctx.runtime.input?.clearAll();
+    ctx.runtime.input?.dispose();
+    ctx.runtime.pauseOverlay?.dispose();
+    ctx.runtime.controlsPanel?.dispose();
+    ctx.runtime.settingsPanel?.dispose();
 
     // Scene first, then the cache that owns the shared GLBs it referenced.
     scenes.dispose();
     assets.dispose();
 
-    breakPattern?.dispose();
-    hud?.dispose();
-    chart?.dispose();
-    chart = undefined;
-    chartOpen = false;
-    saveLoad?.dispose();
-    saveLoad = undefined;
-    saveScreenOpen = false;
+    ctx.runtime.breakPattern?.dispose();
+    ctx.runtime.hud?.dispose();
+    ctx.chart.chart?.dispose();
+    ctx.chart.chart = undefined;
+    ctx.chart.chartOpen = false;
+    ctx.save.saveLoad?.dispose();
+    ctx.save.saveLoad = undefined;
+    ctx.save.saveScreenOpen = false;
     docked.dispose();
     title.dispose();
 
     // Drop the live references so a late callback cannot read a disposed
     // scene, and withdraw the test surface with the session.
-    state = undefined;
-    scene = undefined;
-    layout = undefined;
+    ctx.core.state = undefined;
+    ctx.core.scene = undefined;
+    ctx.core.layout = undefined;
     delete probe.test;
     delete probe.save;
     delete probe.saveScreen;
@@ -3350,11 +3332,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     resize,
     pause,
     resume,
-    isPaused: () => paused,
+    isPaused: () => ctx.runtime.paused,
     enterContextLoss,
     exitContextLoss,
     clearInput: () => {
-      input?.clearAll();
+      ctx.runtime.input?.clearAll();
     },
     focusLost,
     shown: () => {
