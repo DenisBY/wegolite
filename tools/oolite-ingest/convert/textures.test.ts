@@ -79,12 +79,12 @@ function caught(body: () => void): { message: string; code?: string } {
 }
 
 describe("texture reference closure", () => {
-  it("resolves exactly the 23 allowlisted names, in both directions", () => {
+  it("resolves exactly the 54 allowlisted names, in both directions", () => {
     const references = resolveReferencedTextures(catalogue());
 
     expect(nameList(references)).toEqual([...VENDORED_TEXTURES].sort());
     expect([...VENDORED_TEXTURES].sort()).toEqual(nameList(references));
-    expect(references.size).toBe(23);
+    expect(references.size).toBe(54);
   });
 
   it("keeps the Cobra variant textures out of the closure and both trees", () => {
@@ -259,12 +259,21 @@ function emissiveUri(json: GlbJson, material: GlbMaterialJson): string | null {
 }
 
 const EMISSIVE_FILES = [
+  "oolite_adder_diffuse_emissive.png",
   "oolite_buoy_subents_emissive.png",
   "oolite_cobra3_diffuse_emissive.png",
+  "oolite_cobramk1_diffuse_emissive.png",
   "oolite_coriolis_diffuse_emissive.png",
   "oolite_coriolis_dock_diffuse_emissive.png",
   "oolite_coriolis_faceplate_diffuse_emissive.png",
   "oolite_coriolis_tris_diffuse_emissive.png",
+  "oolite_gecko_diffuse_emissive.png",
+  "oolite_krait_diffuse_emissive.png",
+  "oolite_mamba_diffuse_emissive.png",
+  "oolite_moray_diffuse_emissive.png",
+  "oolite_moray_subents_emissive.png",
+  "oolite_shuttle_diffuse_emissive.png",
+  "oolite_sidewinder_diffuse_emissive.png",
   "oolite_viper_diffuse_emissive.png",
 ];
 

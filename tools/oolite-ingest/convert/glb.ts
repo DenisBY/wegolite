@@ -77,27 +77,43 @@ export const SHIPDATA_SOURCE_FILE = "third_party/oolite/Config/shipdata.plist";
  * never be retextured by an entry that does not own it.
  */
 export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
+  "adder.glb": ["adder"],
   "buoy.glb": ["buoy", "oolite_buoy_subentity"],
   "cobra3.glb": ["cobra3-player"],
+  "cobramk1.glb": ["cobramk1"],
   "coriolis.glb": [
     "coriolis-station",
     "oolite_coriolis_faceplate",
     "oolite_coriolis_tris",
     "oolite_coriolis_dock",
   ],
+  "gecko.glb": ["gecko"],
+  "krait.glb": ["krait"],
+  "mamba.glb": ["mamba"],
+  "moray.glb": ["moray"],
+  "shuttle.glb": ["shuttle"],
+  "sidewinder.glb": ["sidewinder"],
   "viper.glb": ["viper"],
 };
 
 /** The vendored `.dat` files each emitted GLB is built from, in node order. */
 export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
+  "adder.glb": ["oolite_adder.dat"],
   "buoy.glb": ["oolite_buoy.dat", "oolite_buoy_subents.dat"],
   "cobra3.glb": ["oolite_cobra3.dat"],
+  "cobramk1.glb": ["oolite_cobramk1.dat"],
   "coriolis.glb": [
     "oolite_coriolis.dat",
     "oolite_coriolis_faceplate.dat",
     "oolite_coriolis_tris.dat",
     "oolite_coriolis_dock.dat",
   ],
+  "gecko.glb": ["oolite_gecko.dat"],
+  "krait.glb": ["oolite_krait.dat"],
+  "mamba.glb": ["oolite_mamba.dat"],
+  "moray.glb": ["oolite_moray.dat"],
+  "shuttle.glb": ["oolite_shuttle.dat"],
+  "sidewinder.glb": ["oolite_sidewinder.dat"],
   "viper.glb": ["oolite_viper.dat"],
 };
 
@@ -106,7 +122,17 @@ export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
  * and owned by one shipdata entry. Code-unit sorted; the row set is mirrored by
  * `EMITTED_ENTRIES` and `MODEL_SOURCE_FILES`, never inferred from the catalogue.
  */
-export const NPC_SHIP_GLBS: readonly string[] = ["viper.glb"];
+export const NPC_SHIP_GLBS: readonly string[] = [
+  "adder.glb",
+  "cobramk1.glb",
+  "gecko.glb",
+  "krait.glb",
+  "mamba.glb",
+  "moray.glb",
+  "shuttle.glb",
+  "sidewinder.glb",
+  "viper.glb",
+];
 
 const SHIP_MODEL_PATTERN = /^oolite_([a-z0-9_]+)\.dat$/;
 

@@ -116,13 +116,21 @@ const PLUS_Z: Vec3 = { x: 0, y: 0, z: 1 };
  * by filename. Every value is the authored geometry, before the axis conversion.
  */
 export const MODEL_BOUNDS: Readonly<Record<string, Vec3>> = {
+  "oolite_adder.dat": { x: 28.0186, y: 14.8953, z: 51.1851 },
   "oolite_buoy.dat": { x: 108.613, y: 91.176, z: 101.848 },
   "oolite_buoy_subents.dat": { x: 42.79, y: 41.046, z: 42.451 },
   "oolite_cobra3.dat": { x: 130, y: 34.9649, z: 81.3726 },
+  "oolite_cobramk1.dat": { x: 70, y: 17.7438, z: 66.9039 },
   "oolite_coriolis.dat": { x: 1000, y: 1000, z: 995.918 },
   "oolite_coriolis_dock.dat": { x: 103.4123, y: 241.888, z: 250 },
   "oolite_coriolis_faceplate.dat": { x: 1000, y: 1000, z: 41.369 },
   "oolite_coriolis_tris.dat": { x: 1000, y: 1000, z: 995.918 },
+  "oolite_gecko.dat": { x: 61.4758, y: 14.6341, z: 51.2832 },
+  "oolite_krait.dat": { x: 94.4076, y: 21.7931, z: 82.815 },
+  "oolite_mamba.dat": { x: 63.5724, y: 15.5016, z: 67.1162 },
+  "oolite_moray.dat": { x: 59.3566, y: 28.7094, z: 69.7014 },
+  "oolite_shuttle.dat": { x: 23.148, y: 19.6538, z: 39.41 },
+  "oolite_sidewinder.dat": { x: 63.2292, y: 14.4243, z: 44.431 },
   "oolite_viper.dat": { x: 50, y: 18.1363, z: 65.1994 },
 };
 
