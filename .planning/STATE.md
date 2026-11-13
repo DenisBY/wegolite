@@ -4,17 +4,17 @@ milestone: v2.1
 milestone_name: World Population Base
 current_phase: 09
 current_phase_name: NPC Content
-status: executing
-stopped_at: Completed 09-04-PLAN.md
-last_updated: "2026-11-13T22:56:08.562Z"
+status: verifying
+stopped_at: Completed 09-05-PLAN.md
+last_updated: "2026-11-13T23:38:46.857Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 09 execution started
-state_head: 72887f537c44ee68c1629869720febe31db50d6f
+state_head: 7e0c2aad0857102ee1042d3de80fee8e93784f88
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 Phase: 09 (NPC Content) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-13 — Phase 09 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -128,6 +128,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 09 P02 | 8 min | 2 tasks | 16 files |
 | Phase 09 P03 | 25 min | 2 tasks | 62 files |
 | Phase 09 P04 | 12 min | 2 tasks | 12 files |
+| Phase 09 P05 | 40min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -313,6 +314,9 @@ Recent decisions affecting current work:
 - [Phase 09]: NPC GLBs have exactly one node (hull); sub-entities are not compiled (D-04); one naming rule oolite_<name>.dat -> <name>.glb via shipGlbFile
 - [Phase 09]: modelVendored derives from MODEL_SOURCE_FILES (VENDORED_MODEL_FILES is the sorted union, 16 .dat files); 32 usable catalogue entries are vendored
 - [Phase 09]: NPC records carry exactly six fields (key, roles, aiType, scanClass, model, glb); aiType and scanClass default to Oolite's nullAI.plist and CLASS_NEUTRAL; glb is derived from the model and its key must solely own the GLB row; the lazy loader is imported by nothing on the boot path until Phase 12.
+- [Phase 09]: Phase 9 gate: verify instead of verify-full for the asset-cache change (owner decision 2026-11-13, Phase 9 only)
+- [Phase 09]: Network vendoring exception at commit 7437f22 recorded in Key Decisions; 09-01 confirmation delegated to the orchestrator
+- [Phase 09]: No synchronous npcModel accessor; loadNpcModel promise carries the model
 
 ### Pending Todos
 
@@ -406,8 +410,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-13T22:56:08.498Z
-Stopped at: Completed 09-04-PLAN.md
+Last session: 2026-11-13T23:38:46.793Z
+Stopped at: Completed 09-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

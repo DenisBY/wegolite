@@ -17,7 +17,7 @@
 
 - [x] **DATA-10**: The ship models and textures of the six populator roles (traders, pirates, police Vipers, hunters, shuttles, scavengers) are compiled from the pinned Oolite snapshot with provenance in `ASSETS.md`/`NOTICE`, behind the drift gate
 - [ ] **DATA-11**: Each of those ships carries the fields the inert world uses, taken from `shipdata.plist`: roles, AI name, scan class, model, and its mass computed from a build-time octree as Oolite does (`density * 20 * octree volume`), checked by worked examples for the Cobra Mk III, the Coriolis station and the Viper; the Coriolis octree mass is compared with the 455,223,200 used by jump blockage, and one value is kept by owner decision if they differ
-- [ ] **DATA-13**: NPC models and textures are lazily loaded outside the first-load set, and the cold-start transfer stays under the 9,437,184-byte ceiling
+- [x] **DATA-13**: NPC models and textures are lazily loaded outside the first-load set, and the cold-start transfer stays under the 9,437,184-byte ceiling
 
 ### Saves
 
@@ -64,7 +64,7 @@ Deferred. The former v2.1 Combat & Traffic requirements (Phases 13-23) stay in `
 | FOUND-16 | Phase 12 | Pending |
 | DATA-10 | Phase 9 | Complete |
 | DATA-11 | Phase 10 | Pending |
-| DATA-13 | Phase 9 | Pending |
+| DATA-13 | Phase 9 | Complete |
 | SAVE-07 | Phase 11 | Pending |
 | SAVE-08 | Phase 12 | Pending |
 | WORLD-15 | Phase 12 | Pending |
