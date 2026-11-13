@@ -221,6 +221,83 @@ const SIM_RESTRICTED_PROPERTIES = [
 const MATH_1ULP_MESSAGE =
   "Math.sin/cos/tan/exp/log/pow are spec-permitted to differ by 1 ULP across engines and architectures; use + - * /, Math.sqrt, or integers in the generator.";
 
+/**
+ * The AI zone (FOUND-13, D-11, Pitfall 5). Hand-ported AI code may read the
+ * world only through `WorldView` and act only through `ShipControl`, so its
+ * import surface is an allow-list, not a deny-list.
+ *
+ * `AI_ZONE_IMPORT_REGEX_DEPTH1` is for `src/sim/ai/*.ts`. ESLint tests a
+ * `regex` pattern against the import specifier and reports a match, so each
+ * regex matches every specifier EXCEPT the allowed ones (a negative lookahead
+ * at the start). Allowed: `./<name>.js` (an AI sibling), `./pilots/<name>.js`,
+ * `../math.js`, `../world/ids.js`, `../world/view.js`, `../world/control.js`.
+ * Names are limited to lowercase letters, digits and hyphens, so `./../` and
+ * `.//` cannot sneak past.
+ */
+const AI_ZONE_IMPORT_REGEX_DEPTH1 = String.raw`^(?!(?:\./[a-z0-9-]+|\./pilots/[a-z0-9-]+|\.\./math|\.\./world/(?:ids|view|control))\.js$)`;
+
+/**
+ * The same allow-list for `src/sim/ai/pilots/*.ts` and any other one-level `src/sim/ai/<subdir>` file.
+ * Allowed: `./<name>.js`, `../<name>.js` (an AI sibling one level up),
+ * `../../math.js`, `../../world/ids.js`, `../../world/view.js`,
+ * `../../world/control.js`.
+ */
+const AI_ZONE_IMPORT_REGEX_DEPTH2 = String.raw`^(?!(?:\./[a-z0-9-]+|\.\./[a-z0-9-]+|\.\./\.\./math|\.\./\.\./world/(?:ids|view|control))\.js$)`;
+
+/**
+ * `src/sim/math.ts` still exports `createSeededRandom`, a closure-held stream
+ * the renderer keeps and no snapshot can carry. The AI zone bans it by name
+ * (any alias, and any namespace import of the module), so AI code cannot draw
+ * from anything but `AiContext.random` (FOUND-12, FOUND-13).
+ */
+const AI_ZONE_CLOSURE_RNG_MESSAGE =
+  "AI modules draw only from the per-entity stream in AiContext.random; createSeededRandom is a closure-held stream that no snapshot can carry (FOUND-12, FOUND-13).";
+
+const AI_MODULE_STATE_MESSAGE =
+  "AI modules keep no module-level mutable state; put state in the entity's AiComponent, or wrap a constant table in Object.freeze(...) (FOUND-13).";
+
+/**
+ * Module-level mutable state ban for the AI zone: every piece of AI state must
+ * live in the entity's `AiComponent` so it survives the snapshot. Rejected at
+ * the top level: `let` and `var` (plain or exported), a `const` initialised by
+ * an array literal, an object literal or `new` (plain or exported), and an
+ * `export default` of those. Module tables are wrapped in `Object.freeze(...)`.
+ *
+ * Residual forms lint cannot see: a top-level const initialised by another call
+ * or an IIFE, TypeScript `as const` or `satisfies` literals (readonly only at
+ * type level), nested mutable fields under a shallow freeze, and class static
+ * fields. The behavioural backstop is the test pilot's JSON round trip
+ * (tests/sim/ai/test-pilot.test.ts) and plan 08-13's 1,000-tick snapshot
+ * equality for every AI that test runs; each later AI port adds its own
+ * round-trip test.
+ */
+const AI_MODULE_STATE_BANS = [
+  {
+    selector: "Program > VariableDeclaration[kind=/^(let|var)$/]",
+    message: AI_MODULE_STATE_MESSAGE,
+  },
+  {
+    selector:
+      "Program > ExportNamedDeclaration > VariableDeclaration[kind=/^(let|var)$/]",
+    message: AI_MODULE_STATE_MESSAGE,
+  },
+  {
+    selector:
+      'Program > VariableDeclaration[kind="const"] > VariableDeclarator[init.type=/^(ArrayExpression|ObjectExpression|NewExpression)$/]',
+    message: AI_MODULE_STATE_MESSAGE,
+  },
+  {
+    selector:
+      'Program > ExportNamedDeclaration > VariableDeclaration[kind="const"] > VariableDeclarator[init.type=/^(ArrayExpression|ObjectExpression|NewExpression)$/]',
+    message: AI_MODULE_STATE_MESSAGE,
+  },
+  {
+    selector:
+      "ExportDefaultDeclaration[declaration.type=/^(ArrayExpression|ObjectExpression|NewExpression)$/]",
+    message: AI_MODULE_STATE_MESSAGE,
+  },
+];
+
 export default tseslint.config(
   {
     // A fixed four-entry set: nothing under src/ is ever ignored, so a seeded
@@ -400,6 +477,114 @@ export default tseslint.config(
       // rules are enabled explicitly: generated code must never run in-process.
       "no-eval": "error",
       "no-new-func": "error",
+    },
+  },
+  {
+    // The AI zone, depth 1: src/sim/ai/*.ts. The blocks redefine
+    // `no-restricted-imports` and `no-restricted-syntax` (Pitfall 5), so the sim
+    // zone's three-and-friends bans are replaced by the allow-list and the sim
+    // syntax bans are spread back in. `no-restricted-globals`,
+    // `no-restricted-properties`, `no-eval`, `no-new-func` and `no-implied-eval`
+    // are not redefined, so the sim zone's settings still apply. Each AI block
+    // spells out its `no-restricted-syntax` list (the sim bans, the module-state
+    // bans and the dynamic-import ban) because redefining the rule replaces it.
+    files: ["src/sim/ai/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "../math.js",
+              importNames: ["createSeededRandom"],
+              message: AI_ZONE_CLOSURE_RNG_MESSAGE,
+            },
+          ],
+          patterns: [
+            {
+              regex: AI_ZONE_IMPORT_REGEX_DEPTH1,
+              caseSensitive: true,
+              message:
+                "AI modules may import only AI siblings, sim math, world/ids, world/view and world/control (FOUND-13).",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        ...SIM_SYNTAX_BANS,
+        ...AI_MODULE_STATE_BANS,
+        {
+          selector: "ImportExpression",
+          message: "No dynamic import in the AI zone.",
+        },
+      ],
+    },
+  },
+  {
+    // The AI zone, depth 2: src/sim/ai/pilots/*.ts and any other one-level
+    // subdirectory such as src/sim/ai/nested/*.ts.
+    files: ["src/sim/ai/pilots/*.ts", "src/sim/ai/*/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "../../math.js",
+              importNames: ["createSeededRandom"],
+              message: AI_ZONE_CLOSURE_RNG_MESSAGE,
+            },
+          ],
+          patterns: [
+            {
+              regex: AI_ZONE_IMPORT_REGEX_DEPTH2,
+              caseSensitive: true,
+              message:
+                "AI modules may import only AI siblings, sim math, world/ids, world/view and world/control (FOUND-13).",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        ...SIM_SYNTAX_BANS,
+        ...AI_MODULE_STATE_BANS,
+        {
+          selector: "ImportExpression",
+          message: "No dynamic import in the AI zone.",
+        },
+      ],
+    },
+  },
+  {
+    // The AI zone, depth >= 3: src/sim/ai/<a>/<b>/**. Depth >= 3 AI modules are
+    // intentionally rejected (every import fails) pending an explicit depth
+    // allow-list, so a deeply nested file cannot bypass the zone.
+    files: ["src/sim/ai/*/*/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^",
+              caseSensitive: true,
+              message:
+                "AI modules at depth >= 3 have no configured allow-list; keep AI modules in src/sim/ai/ or src/sim/ai/<subdir>/ or add an explicit depth regex (FOUND-13).",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        ...SIM_SYNTAX_BANS,
+        ...AI_MODULE_STATE_BANS,
+        {
+          selector: "ImportExpression",
+          message: "No dynamic import in the AI zone.",
+        },
+      ],
     },
   },
   // Must stay last: turns off every stylistic rule Prettier owns.
