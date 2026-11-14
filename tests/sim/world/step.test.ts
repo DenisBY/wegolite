@@ -37,6 +37,7 @@ import { stepFlight } from "../../../src/sim/flight/step.js";
 import type { StepOptions } from "../../../src/sim/flight/step.js";
 import { HYPERSPACE_COUNTDOWN_STEPS } from "../../../src/sim/hyperspace/countdown.js";
 import { identity, vec } from "../../../src/sim/math.js";
+import { createRngState, rngNext } from "../../../src/sim/rng.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import type { SpawnInit } from "../../../src/sim/world/entity.js";
@@ -137,16 +138,204 @@ describe("stepWorld validation", () => {
 describe("the Phase 8 placeholder integrator", () => {
   // The ONE test that pins the constant-speed model. Phase 12/13 replaces the
   // integrator with Oolite's thrust and attitude port and deletes this test.
-  it("advances an entity by forward times speed times dt (Phase 8 model)", () => {
+  // D-02: only an entity with an AI moves; the moving case is a test pilot.
+  it("advances an entity with an AI by forward times speed times dt (Phase 8 model)", () => {
     const world = createWorld(1);
     const player = initFlightState(layout);
-    const entity = spawnOk(world, shipInit(vec(10, 20, 30), null, 60));
+    const entity = spawnOk(
+      world,
+      shipInit(vec(10, 20, 30), aiDueAt(MAX_UINT32), 60),
+    );
+    entity.nav.desiredSpeed = 60;
     player.tick = 1;
     stepWorld(world, player, layout, DT);
     expect(entity.speed).toBe(60);
     expect(entity.position.x).toBeCloseTo(10, 9);
     expect(entity.position.y).toBeCloseTo(20, 9);
     expect(entity.position.z).toBeCloseTo(30 - 60 * DT, 9);
+  });
+
+  it("holds an entity with no AI still, position and speed field alike (D-02)", () => {
+    const world = createWorld(1);
+    const player = initFlightState(layout);
+    const entity = spawnOk(world, shipInit(vec(10, 20, 30), null, 60));
+    entity.nav.desiredSpeed = 60;
+    const before = serializeEntity(entity);
+    for (let i = 1; i <= 120; i += 1) {
+      player.tick = i;
+      stepWorld(world, player, layout, DT);
+    }
+    expect(entity.position).toEqual(vec(10, 20, 30));
+    expect(entity.speed).toBe(60);
+    expect(serializeEntity(entity)).toBe(before);
+  });
+});
+
+describe("contained AI faults (FOUND-15, D-04)", () => {
+  /** Step the world one tick at `tick` and return that tick's events. */
+  function stepAt(
+    world: World,
+    player: FlightState,
+    tick: number,
+    registry: AiRegistry,
+  ): SimEvent[] {
+    player.tick = tick;
+    return stepWorld(world, player, layout, DT, registry);
+  }
+
+  const faulted = (events: readonly SimEvent[]) =>
+    events.filter((event) => event.kind === "aiFaulted");
+
+  it("contains a think that throws: nullAI, same id, one aiFaulted, no repair", () => {
+    const world = createWorld(3);
+    const player = initFlightState(layout);
+    const entity = spawnOk(world, shipInit(vec(0, 0, 0), aiDueAt(0)));
+    const registry = registryOf((ctx: AiContext) => {
+      if (ctx.view.tick === 3) throw new Error("boom with secret text");
+      ctx.ai.nextThinkTick = ctx.view.tick + 1;
+    });
+    for (let tick = 1; tick <= 5; tick += 1) {
+      const events = stepAt(world, player, tick, registry);
+      if (tick === 3) {
+        expect(faulted(events)).toEqual([
+          { kind: "aiFaulted", id: entity.id, site: "think" },
+        ]);
+      } else {
+        expect(faulted(events)).toEqual([]);
+      }
+    }
+    expect(world.store.get(entity.id)).toBe(entity);
+    expect(entity.id).toBe(101);
+    expect(entity.ai).toBeNull();
+    expect(serializeEntity(entity)).toContain("ai:none");
+    // After a fault the hash differs only by the AI change and the stream
+    // draws: no repair is counted for it.
+    expect(entity.repairs).toBe(0);
+  });
+
+  it("carries no exception text in any event", () => {
+    const world = createWorld(3);
+    const player = initFlightState(layout);
+    spawnOk(world, shipInit(vec(0, 0, 0), aiDueAt(0)));
+    const registry = registryOf(() => {
+      throw new Error("secret-detail");
+    });
+    const events = stepAt(world, player, 1, registry);
+    expect(JSON.stringify(events)).not.toContain("secret-detail");
+    expect(JSON.stringify(events)).not.toContain("Error");
+  });
+
+  it("contains a thrown string the same way", () => {
+    const world = createWorld(3);
+    const player = initFlightState(layout);
+    const entity = spawnOk(world, shipInit(vec(0, 0, 0), aiDueAt(0)));
+    const registry = registryOf(() => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw "a plain string";
+    });
+    const events = stepAt(world, player, 1, registry);
+    expect(faulted(events)).toEqual([
+      { kind: "aiFaulted", id: entity.id, site: "think" },
+    ]);
+    expect(JSON.stringify(events)).not.toContain("plain string");
+    expect(entity.ai).toBeNull();
+  });
+
+  it("contains an onEvent that throws, with site event", () => {
+    const world = createWorld(3);
+    const player = initFlightState(layout);
+    const entity = spawnOk(world, shipInit(vec(0, 0, 0), aiDueAt(MAX_UINT32)));
+    const registry: AiRegistry = {
+      "test-pilot": {
+        think: () => {},
+        onEvent: () => {
+          throw new Error("event boom");
+        },
+      },
+    };
+    postAiEvent(world, { to: entity.id, name: "shipAttacked" });
+    const events = stepAt(world, player, 1, registry);
+    expect(faulted(events)).toEqual([
+      { kind: "aiFaulted", id: entity.id, site: "event" },
+    ]);
+    expect(entity.ai).toBeNull();
+    expect(world.aiQueue).toHaveLength(0);
+    // A later tick emits nothing more for this entity.
+    expect(faulted(stepAt(world, player, 2, registry))).toEqual([]);
+  });
+
+  it("writes the stream back on the fault path: two draws then a throw advance rng.ai by two", () => {
+    const world = createWorld(3);
+    const player = initFlightState(layout);
+    const entity = spawnOk(world, shipInit(vec(0, 0, 0), aiDueAt(0)));
+    const start = entity.rng.ai;
+    let draws: number[] = [];
+    const registry = registryOf((ctx: AiContext) => {
+      if (ctx.self === entity.id) {
+        draws = [ctx.random(), ctx.random()];
+        throw new Error("after two draws");
+      }
+    });
+    stepAt(world, player, 1, registry);
+    expect(draws).toHaveLength(2);
+    // The same two draws taken by hand from the same starting state.
+    const stream = createRngState(start);
+    rngNext(stream);
+    rngNext(stream);
+    expect(entity.rng.ai).toBe(stream.s);
+    expect(entity.rng.ai).not.toBe(start);
+  });
+
+  it("keeps a working neighbour thinking, and the faulted entity stays on the scanner", () => {
+    const world = createWorld(3);
+    const player = initFlightState(layout);
+    const bad = spawnOk(world, shipInit(vec(0, 0, 0), aiDueAt(0)));
+    const good = spawnOk(world, shipInit(vec(100, 0, 0), aiDueAt(0)));
+    let goodThinks = 0;
+    let scanSawBad = false;
+    const registry = registryOf((ctx: AiContext) => {
+      if (ctx.self === bad.id) throw new Error("bad");
+      goodThinks += 1;
+      ctx.ai.nextThinkTick = ctx.view.tick + 1;
+      scanSawBad = ctx.view.scan(ctx.self, 1000).includes(bad.id);
+    });
+    for (let tick = 1; tick <= 4; tick += 1) {
+      stepAt(world, player, tick, registry);
+    }
+    expect(goodThinks).toBe(4);
+    expect(good.ai).not.toBeNull();
+    expect(bad.ai).toBeNull();
+    expect(scanSawBad).toBe(true);
+  });
+
+  it("hashes two identical faulting worlds identically on every tick of a 20-tick run", () => {
+    const build = () => {
+      const world = createWorld(11);
+      const player = initFlightState(layout);
+      spawnOk(world, shipInit(vec(0, 0, 0), aiDueAt(0)));
+      spawnOk(world, shipInit(vec(50, 0, 0), aiDueAt(0)));
+      return { world, player };
+    };
+    const registry = registryOf((ctx: AiContext) => {
+      ctx.random();
+      if (ctx.self === 101 && ctx.view.tick === 7) throw new Error("x");
+      ctx.ai.nextThinkTick = ctx.view.tick + 1;
+    });
+    const a = build();
+    const b = build();
+    for (let tick = 1; tick <= 20; tick += 1) {
+      stepAt(a.world, a.player, tick, registry);
+      stepAt(b.world, b.player, tick, registry);
+      expect(hashWorld(a.player, a.world)).toBe(hashWorld(b.player, b.world));
+    }
+    expect(a.world.store.get(101)?.ai).toBeNull();
+  });
+
+  it("does not guard the simulation itself: a bad dt still throws", () => {
+    const world = createWorld(1);
+    expect(() =>
+      stepWorld(world, initFlightState(layout), layout, 0, {}),
+    ).toThrow(RangeError);
   });
 });
 
@@ -250,7 +439,13 @@ describe("world step through stepSim", () => {
   it("never steps the world while docked", () => {
     const player = initFlightState(layout);
     const world = createWorld(7);
-    const entity = spawnOk(world, shipInit(vec(0, 0, 0), null, 60));
+    // D-02: a no-AI entity never moves, so the entity must carry an AI for
+    // this check to be able to fail if the world were stepped while docked.
+    const entity = spawnOk(
+      world,
+      shipInit(vec(0, 0, 0), aiDueAt(MAX_UINT32), 60),
+    );
+    entity.nav.desiredSpeed = 60;
     const before = serializeEntity(entity);
     stepSim(player, world, layout, config, ZERO_INTENT, [], DT);
     expect(player.mode).toBe("docked");

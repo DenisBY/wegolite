@@ -17,11 +17,17 @@
  *
  * Every think draws only from the thinking entity's own "ai" stream, so
  * spawning or killing another entity never changes its draws (D-04).
+ *
+ * Fault containment (FOUND-15, D-04): `invoke` is the only containment point.
+ * A throw from an AI module's `think` or `onEvent` is caught there, the entity
+ * becomes nullAI (`ai = null`, hash line `ai:none`), one `aiFaulted` event is
+ * emitted and the step goes on. `stepSim` never wraps `stepWorld`, and nothing
+ * else here has a try/catch, so a defect in the simulation itself still throws.
  */
 
 import { AI_REGISTRY } from "../ai/registry.js";
 import type { AiContext, AiEvent, AiModule } from "../ai/types.js";
-import type { SimEvent } from "../events.js";
+import type { AiFaultSite, SimEvent } from "../events.js";
 import type { FlightState } from "../flight/state.js";
 import { add, rotate, scale, vec } from "../math.js";
 import { createRngState, rngNext } from "../rng.js";
@@ -79,15 +85,18 @@ export function stepWorld(
   // The length snapshot: spawns made during the tick land at indices >= n.
   const n = world.store.live.length;
 
-  // Update. The Phase 8 constant-speed integrator: the entity moves at its
-  // desired speed along its facing (local -Z). `Math.max(0, desiredSpeed)` is
-  // the non-negative floor for finite speeds; spawnEntity, ShipControl,
-  // parseWorldSnapshot and sanitizeEntity provide the NaN and range defence.
-  // Phase 12/13 replaces this with Oolite's applyThrust and
-  // applyAttitudeChanges (ShipEntity.m:5808 and 5899).
+  // Update. The Phase 8 constant-speed placeholder integrator moves only
+  // entities with an AI: such an entity moves at its desired speed along its
+  // facing (local -Z). `Math.max(0, desiredSpeed)` is the non-negative floor
+  // for finite speeds; spawnEntity, ShipControl, parseWorldSnapshot and
+  // sanitizeEntity provide the NaN and range defence. An entity with no AI (an
+  // inert ship, or one whose module faulted) holds its placement and its speed
+  // field is not integrated (D-02, PROJECT.md row (d)). The Oolite thrust and
+  // attitude port (applyThrust and applyAttitudeChanges, ShipEntity.m:5808 and
+  // 5899) remains for Phases 13 and 14.
   for (let i = 0; i < n; i += 1) {
     const entity = world.store.live[i];
-    if (entity === undefined || entity.dead) continue;
+    if (entity === undefined || entity.dead || entity.ai === null) continue;
     entity.speed = Math.max(0, entity.nav.desiredSpeed);
     const forward = rotate(entity.orientation, FORWARD);
     entity.position = add(entity.position, scale(forward, entity.speed * dt));
@@ -101,7 +110,7 @@ export function stepWorld(
   let view: WorldView | undefined;
   const getView = (): WorldView =>
     (view ??= createWorldView(world, player, layout));
-  drainAiEvents(world, registry, tick, getView);
+  drainAiEvents(world, registry, tick, getView, events);
   for (let i = 0; i < n; i += 1) {
     const entity = world.store.live[i];
     if (entity === undefined || entity.dead || entity.ai === null) continue;
@@ -112,9 +121,11 @@ export function stepWorld(
     if (wakeDue) ai.wakeTick = 0;
     const module = aiModuleFor(registry, ai.aiKey);
     if (module === undefined) continue;
-    invoke(world, entity, getView(), tick, (ctx) => module.think(ctx));
+    invoke(world, entity, getView(), tick, events, "think", (ctx) =>
+      module.think(ctx),
+    );
   }
-  drainAiEvents(world, registry, tick, getView);
+  drainAiEvents(world, registry, tick, getView, events);
 
   // Sanitize every live entity before the commit, so no non-finite or
   // out-of-domain value reaches a hash or a snapshot (T-08-21, T-08-44).
@@ -144,23 +155,39 @@ function repairWorldFields(world: World): void {
  * Run `call` with `entity`'s context: its own control and a random closure over
  * a local copy of its own "ai" stream, written back after the call, so another
  * entity's spawn or death never changes its draws (D-04).
+ *
+ * The one containment point (FOUND-15, D-04): only the module call is guarded.
+ * A throw sets `entity.ai = null` (nullAI) and pushes one `aiFaulted` event
+ * with the entity id and `site`; the caught value is never read, stored or
+ * formatted, and `entity.repairs` is not touched. The stream is written back on
+ * both paths, so the draws the module made before it threw are kept.
  */
 function invoke(
   world: World,
   entity: Entity,
   view: WorldView,
   tick: number,
+  events: SimEvent[],
+  site: AiFaultSite,
   call: (ctx: AiContext) => void,
 ): void {
   if (entity.ai === null) return;
   const stream = createRngState(entity.rng.ai);
-  call({
+  // Built outside the guarded region: a failure in the sim's own helpers is
+  // never swallowed.
+  const ctx: AiContext = {
     self: entity.id,
     view,
     ctl: createShipControl(world, entity.id, tick),
     ai: entity.ai,
     random: () => rngNext(stream),
-  });
+  };
+  try {
+    call(ctx);
+  } catch {
+    entity.ai = null;
+    events.push({ kind: "aiFaulted", id: entity.id, site });
+  }
   entity.rng.ai = stream.s;
 }
 
@@ -177,6 +204,7 @@ function drainAiEvents(
   registry: AiRegistry,
   tick: number,
   getView: () => WorldView,
+  events: SimEvent[],
 ): void {
   let passes = 0;
   let dequeued = 0;
@@ -190,7 +218,7 @@ function drainAiEvents(
     const batch = world.aiQueue.splice(0, MAX_AI_EVENTS_PER_DRAIN - dequeued);
     dequeued += batch.length;
     for (const event of batch)
-      deliverAiEvent(world, registry, tick, getView, event);
+      deliverAiEvent(world, registry, tick, getView, events, event);
   }
 }
 
@@ -200,11 +228,14 @@ function deliverAiEvent(
   registry: AiRegistry,
   tick: number,
   getView: () => WorldView,
+  events: SimEvent[],
   event: AiEvent,
 ): void {
   const target = world.store.get(event.to);
   if (target === undefined || target.ai === null) return;
   const onEvent = aiModuleFor(registry, target.ai.aiKey)?.onEvent;
   if (onEvent === undefined) return;
-  invoke(world, target, getView(), tick, (ctx) => onEvent(ctx, event));
+  invoke(world, target, getView(), tick, events, "event", (ctx) =>
+    onEvent(ctx, event),
+  );
 }

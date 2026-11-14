@@ -29,6 +29,9 @@ export type DockDeniedReason = "notInstalled" | "outsideAegis";
 /** Oolite's five laser weapon types (ShipEntity.h:152-162); the Thargoid laser is NPC-only. */
 export type LaserKind = "pulse" | "beam" | "military" | "mining" | "thargoid";
 
+/** Where a contained AI fault happened: a `think` call or an `onEvent` delivery. */
+export type AiFaultSite = "think" | "event";
+
 /** The player's legal standing, reserved for the legal-status phase. */
 export type LegalStatus = "clean" | "offender" | "fugitive";
 
@@ -120,7 +123,10 @@ export type SimEvent =
   | { kind: "playerDestroyed"; position: Vec3 }
   | { kind: "podEjected"; pod: EntityId; owner: EntityId }
   | { kind: "proximityWarning"; id: EntityId; other: EntityId }
-  | { kind: "energyLow"; id: EntityId };
+  | { kind: "energyLow"; id: EntityId }
+  // A diagnostic kind, not a reserved presentation kind (FOUND-15, D-04):
+  // `stepWorld` emits it once per contained AI fault. See the comment below.
+  | { kind: "aiFaulted"; id: EntityId; site: AiFaultSite };
 
 /**
  * The 15 presentation and audio kinds reserved ahead of their producers so the
@@ -159,3 +165,13 @@ export const RESERVED_EVENT_KINDS = [
   "proximityWarning",
   "energyLow",
 ] as const satisfies readonly SimEvent["kind"][];
+
+/*
+ * `aiFaulted` (FOUND-15, D-04) is a diagnostic kind and is not part of
+ * `RESERVED_EVENT_KINDS` (the 15-kind pin stays). `stepWorld` emits one per
+ * fault: an AI module that throws in `think` or `onEvent` is replaced by nullAI
+ * (`entity.ai = null`) and the entity stays in the world. The app router does
+ * not route it (an unrouted kind is ignored). Its `id` follows the id-lifetime
+ * rule above: valid only for the world and tick that emitted it. It carries no
+ * exception text, only the entity id and the call site.
+ */
