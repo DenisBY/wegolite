@@ -26,13 +26,13 @@
     {
       "number": "12",
       "name": "Inert Ships and the World Lifecycle",
-      "status": "in_progress"
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 4 of 4 · 75% · ready to verify"
+    "command": "/gsd-new-milestone",
+    "label": "Start a new milestone",
+    "reason": "All phases complete — start a new milestone"
   },
-  "updated_at": "2026-11-14T19:49:41.253Z"
+  "updated_at": "2026-11-14T20:44:39.658Z"
 }

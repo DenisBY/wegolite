@@ -47,7 +47,7 @@ Scope: narrowed on 2026-11-13 from Phases 8-23 to Phase 8 alone (PROJECT.md Key 
 - [x] **Phase 9: NPC Content** - Ship models and textures of the six populator roles compiled from Oolite with provenance and the record fields the inert world uses, loaded lazily outside the first load (completed 2026-11-14)
 - [x] **Phase 10: Ship Mass** - Build-time hull octrees give every role ship, the Cobra Mk III and the Coriolis Oolite's mass, and jump blockage uses one recorded Coriolis mass (completed 2026-11-14)
 - [x] **Phase 11: Minimal Save Schema v3** - The world epoch, world counters and next entity id in schema v3, with an ordered v1 → v2 → v3 migration and leg-anchor semantics (completed 2026-11-14)
-- [ ] **Phase 12: Inert Ships and the World Lifecycle** - A contained AI fault and refused malformed spawns first; then inert ships drawn and on the scanner, mass lock and blockage by ships, the world running behind the chart, cleared at jump commit, repopulated on arrival and regenerated on reload
+- [x] **Phase 12: Inert Ships and the World Lifecycle** - A contained AI fault and refused malformed spawns first; then inert ships drawn and on the scanner, mass lock and blockage by ships, the world running behind the chart, cleared at jump commit, repopulated on arrival and regenerated on reload (completed 2026-11-14)
 
 **Staged verification:** a requirement maps to the phase that completes it. Where an earlier phase delivers part of it, that phase states the part as a staged check: DATA-11 (the record fields in Phase 9, the octree mass that completes it in Phase 10) and SAVE-08 (schema and leg-anchor semantics in Phase 11, the regenerated inert world that completes it in Phase 12).
 
@@ -164,7 +164,7 @@ Plans:
   - The below-24-fps behaviour (todo); its evidence under load waits for the unscheduled performance phase (former Phase 23).
   - Settled 2026-11-13 (owner): WORLD-11 against WORLD-16, the chart-freeze check in `tests/e2e/hyperspace.spec.ts` is inverted; it is the one sanctioned change to an existing browser test, and WORLD-16 records the exception.
 **Todos**: `2026-11-10-keep-simulating-behind-the-chart.md` (closed by WORLD-11); `2026-11-10-fix-torus-refusal-message-under-mass-lock.md` (closed by WORLD-10; refusals become common once ships mass-lock); `2026-11-10-decide-behaviour-below-24-fps.md` (decide here)
-**Plans**: 14/14 plans executed (sequential waves: most plans record a Key Decision in PROJECT.md, and the Docker gates share one slow host; each plan stays within the 14-file budget). The first-plan rule is met by plans 12-01 and 12-02, which deliver FOUND-16 and FOUND-15 before any populator code; the split exists only because the atomic `spawnEntity` call-site migration fills one plan's file budget.
+**Plans**: 14/14 plans complete (sequential waves: most plans record a Key Decision in PROJECT.md, and the Docker gates share one slow host; each plan stays within the 14-file budget). The first-plan rule is met by plans 12-01 and 12-02, which deliver FOUND-16 and FOUND-15 before any populator code; the split exists only because the atomic `spawnEntity` call-site migration fills one plan's file budget.
 
 Plans:
 **Wave 1**
@@ -243,7 +243,7 @@ Pending todos outside v2.1, which can run as quick tasks or join a phase by owne
 | 9. NPC Content | v2.1 | 5/5 | Complete    | 2026-11-14 |
 | 10. Ship Mass | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
-| 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | In Progress | - |
+| 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | Complete    | 2026-11-14 |
 
 ## Backlog
 
