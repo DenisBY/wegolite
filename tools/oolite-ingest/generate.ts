@@ -25,12 +25,19 @@ import { emitCommodities } from "./convert/commodities.js";
 import { assertBounds, modelBounds, parseDat } from "./convert/dat.js";
 import type { ParsedMesh } from "./convert/dat.js";
 import { emitDockPort } from "./convert/dock-port.js";
-import { MODEL_SOURCE_FILES, emitModels } from "./convert/glb.js";
+import {
+  BUOY_STATION_ROLE,
+  BUOY_WITCHPOINT_ROLE,
+  MODEL_SOURCE_FILES,
+  emitModels,
+} from "./convert/glb.js";
 import type { ShipEntry } from "./convert/glb.js";
 import { emitEquipment } from "./convert/equipment.js";
 import { emitLabels } from "./convert/labels.js";
-import { emitNpcShips } from "./convert/npc-ships.js";
+import { NPC_SHIP_KEYS, emitNpcShips } from "./convert/npc-ships.js";
+import { computeShipMasses } from "./convert/ship-mass.js";
 import {
+  CLIENT_SHIP_KEYS,
   compileShips,
   emitClientShips,
   emitShipsFromCatalogue,
@@ -56,6 +63,21 @@ const SHIPDATA_RELATIVE = "Config/shipdata.plist";
 const SHIPDATA_FILE = `${SNAPSHOT_DIR}/${SHIPDATA_RELATIVE}`;
 const SHIPDATA_OVERRIDES_RELATIVE = "Config/shipdata-overrides.plist";
 const SHIPDATA_OVERRIDES_FILE = `${SNAPSHOT_DIR}/${SHIPDATA_OVERRIDES_RELATIVE}`;
+
+/**
+ * The ships whose Oolite mass is computed at build time (DATA-11): the nine
+ * role ships, the client's Cobra Mk III and Coriolis, and the two navigation
+ * buoys of D-02 (their mass is computed here; plan 10-04 stores it once the
+ * owner picks its home). De-duplicated and code-unit sorted.
+ */
+const MASS_SHIP_KEYS: readonly string[] = [
+  ...new Set([
+    ...NPC_SHIP_KEYS,
+    ...CLIENT_SHIP_KEYS,
+    BUOY_STATION_ROLE,
+    BUOY_WITCHPOINT_ROLE,
+  ]),
+].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 
 export interface EmittedFile {
   readonly path: string;
@@ -149,6 +171,10 @@ export async function generateContent({
   // twice would double the build cost for no benefit.
   const models = await readModels(inputRoot);
 
+  // The masses read the meshes here, before emitModels runs repairWinding, and
+  // never mutate them; one computation feeds every emitter that writes a mass.
+  const masses = computeShipMasses(MASS_SHIP_KEYS, catalogue, models);
+
   const emitted: EmittedFile[] = [
     emitCommodities(commodities, descriptions),
     ...emitSystems(systems),
@@ -156,7 +182,7 @@ export async function generateContent({
     emitLabels(descriptions),
     emitShipsFromCatalogue(catalogue),
     emitClientShips(catalogue),
-    emitNpcShips(catalogue),
+    emitNpcShips(catalogue, masses),
     emitDockPort(models),
     ...emitModels(models, entries),
   ];

@@ -7,9 +7,11 @@
  * One record per compiled NPC model, taken from `shipdata.plist` with
  * `like_ship` resolved: the roles (every authored token, probability suffixes
  * kept), the AI name, the scan class, the authored model and the URL of the
- * GLB the client fetches on demand. DATA-11 completes in Phase 10, which adds
- * the mass to this same record; no combat or flight stat is compiled here
- * (DATA-15 is deferred), and the strict object rejects any extra field.
+ * GLB the client fetches on demand. DATA-11 completes in Phase 10: the record
+ * also carries the ship's mass, computed at build time from the hull octree as
+ * Oolite computes it (see `tools/oolite-ingest/convert/ship-mass.ts`). No combat
+ * or flight stat is compiled here (DATA-15 is deferred), and the strict object
+ * rejects any extra field.
  *
  * `glb` is a locator, not inert-world data: it is never copied from the plist
  * but derived from the model by the one naming rule, and both it and `model`
@@ -29,6 +31,9 @@ export const NpcShipSchema = z.strictObject({
   scanClass: z.string().regex(/^CLASS_[A-Z_]+$/),
   model: z.string().regex(/^oolite_[a-z0-9_]+\.dat$/),
   glb: z.string().regex(NPC_GLB_PATH_PATTERN),
+  // Oolite's float32 mass in tonnes-scale units; `z.number()` already rejects
+  // NaN and Infinity, so `positive()` leaves a finite number above zero.
+  mass: z.number().positive(),
 });
 
 export const NpcShipCatalogueSchema = z.array(NpcShipSchema).min(1);

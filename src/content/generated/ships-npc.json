@@ -3,6 +3,7 @@
     "aiType": "oolite-scavengerAI.js",
     "glb": "models/adder.glb",
     "key": "adder",
+    "mass": 16045.4931640625,
     "model": "oolite_adder.dat",
     "roles": [
       "trader(0.25)",
@@ -20,6 +21,7 @@
     "aiType": "oolite-traderAI.js",
     "glb": "models/cobramk1.glb",
     "key": "cobramk1",
+    "mass": 52291.8359375,
     "model": "oolite_cobramk1.dat",
     "roles": [
       "pirate(0.5)",
@@ -39,6 +41,7 @@
     "aiType": "oolite-pirateAI.js",
     "glb": "models/gecko.glb",
     "key": "gecko",
+    "mass": 24669.99609375,
     "model": "oolite_gecko.dat",
     "roles": [
       "hunter(0.75)",
@@ -55,6 +58,7 @@
     "aiType": "oolite-pirateAI.js",
     "glb": "models/krait.glb",
     "key": "krait",
+    "mass": 93291.40625,
     "model": "oolite_krait.dat",
     "roles": [
       "pirate",
@@ -69,6 +73,7 @@
     "aiType": "oolite-pirateAI.js",
     "glb": "models/mamba.glb",
     "key": "mamba",
+    "mass": 35806.9921875,
     "model": "oolite_mamba.dat",
     "roles": [
       "pirate",
@@ -81,6 +86,7 @@
     "aiType": "oolite-pirateAI.js",
     "glb": "models/moray.glb",
     "key": "moray",
+    "mass": 51203.4375,
     "model": "oolite_moray.dat",
     "roles": [
       "trader(0.5)",
@@ -100,6 +106,7 @@
     "aiType": "oolite-shuttleAI.js",
     "glb": "models/shuttle.glb",
     "key": "shuttle",
+    "mass": 11317.5634765625,
     "model": "oolite_shuttle.dat",
     "roles": [
       "shuttle"
@@ -110,6 +117,7 @@
     "aiType": "oolite-pirateAI.js",
     "glb": "models/sidewinder.glb",
     "key": "sidewinder",
+    "mass": 25087.62109375,
     "model": "oolite_sidewinder.dat",
     "roles": [
       "pirate(0.75)",
@@ -122,6 +130,7 @@
     "aiType": "oolite-policeAI.js",
     "glb": "models/viper.glb",
     "key": "viper",
+    "mass": 34040.6796875,
     "model": "oolite_viper.dat",
     "roles": [
       "police"

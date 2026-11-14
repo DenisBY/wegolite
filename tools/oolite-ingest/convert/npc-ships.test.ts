@@ -6,8 +6,9 @@
  *
  * The expected values live in `tests/golden/content/ships-npc.json`, which was
  * written by hand from `shipdata.plist` and is never generated. The compiled
- * records are compared with it, with the resolved template parents, and with
- * the committed generated file, so a drift in any one of the four fails.
+ * records (seven fields: the Phase 9 six plus the Phase 10 `mass`) are compared
+ * with it, with the resolved template parents, and with the committed generated
+ * file, so a drift in any one of the four fails.
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -23,7 +24,9 @@ import type { ContentError } from "../content-error.js";
 import { parseOpenStep } from "../openstep/parser.js";
 import type { PlistValue } from "../openstep/plist-value.js";
 import { getEntry } from "../openstep/plist-value.js";
-import { NPC_SHIP_GLBS, shipGlbFile } from "./glb.js";
+import { parseDat } from "./dat.js";
+import type { ParsedMesh } from "./dat.js";
+import { MODEL_SOURCE_FILES, NPC_SHIP_GLBS, shipGlbFile } from "./glb.js";
 import {
   DEFAULT_AI_TYPE,
   DEFAULT_SCAN_CLASS,
@@ -32,6 +35,7 @@ import {
   compileNpcShips,
   emitNpcShips,
 } from "./npc-ships.js";
+import { computeShipMasses, shipMass } from "./ship-mass.js";
 import { compileShips } from "./ships.js";
 import type { ShipCatalogue } from "./ships.js";
 
@@ -49,7 +53,24 @@ function load(relative: string): PlistValue {
 
 const shipdata = load(SHIPDATA);
 const catalogue: ShipCatalogue = compileShips(shipdata, load(OVERRIDES));
-const records = compileNpcShips(catalogue);
+
+/** Every vendored mesh a GLB is built from, parsed once. */
+function loadMeshes(): Record<string, ParsedMesh> {
+  const names = new Set<string>();
+  for (const files of Object.values(MODEL_SOURCE_FILES)) {
+    for (const file of files) names.add(file);
+  }
+  const meshes: Record<string, ParsedMesh> = {};
+  for (const name of [...names].sort()) {
+    const file = `third_party/oolite/Models/${name}`;
+    meshes[name] = parseDat(readText(file), file);
+  }
+  return meshes;
+}
+
+const meshes = loadMeshes();
+const masses = computeShipMasses(NPC_SHIP_KEYS, catalogue, meshes);
+const records = compileNpcShips(catalogue, masses);
 
 interface Golden {
   readonly version: number;
@@ -108,7 +129,7 @@ describe("NPC ship records", () => {
     expect(records).toHaveLength(9);
   });
 
-  it("carries exactly the six fields and passes the strict schema", () => {
+  it("carries exactly the seven fields and passes the strict schema", () => {
     for (const record of records) {
       expect(Object.keys(record).sort()).toEqual(golden.fields);
       expect(NpcShipSchema.safeParse(record).success).toBe(true);
@@ -178,7 +199,7 @@ describe("NPC ship records", () => {
   });
 
   it("regenerates the committed file byte for byte", () => {
-    const emitted = emitNpcShips(catalogue);
+    const emitted = emitNpcShips(catalogue, masses);
     expect(emitted.path).toBe(NPC_SHIPS_PATH);
     expect(
       Buffer.from(emitted.bytes).equals(
@@ -223,7 +244,7 @@ describe("NPC ship records", () => {
       ...catalogue,
       entries: catalogue.entries.filter((entry) => entry.key !== "viper"),
     };
-    const error = capture(() => compileNpcShips(without));
+    const error = capture(() => compileNpcShips(without, masses));
     expect(error.code).toBe("SCHEMA");
     expect(error.file).toBe(NPC_SHIPS_PATH);
     expect(error.construct).toBe("viper");
@@ -236,7 +257,7 @@ describe("NPC ship records", () => {
         entry.key === "viper" ? { ...entry, model: "oolite_adder.dat" } : entry,
       ),
     };
-    const error = capture(() => compileNpcShips(swapped));
+    const error = capture(() => compileNpcShips(swapped, masses));
     expect(error.code).toBe("SCHEMA");
     expect(error.construct).toBe("viper");
   });
@@ -252,7 +273,9 @@ describe("NPC ship records", () => {
         return { ...entry, extras };
       }),
     };
-    const viper = compileNpcShips(bare).find((item) => item.key === "viper");
+    const viper = compileNpcShips(bare, masses).find(
+      (item) => item.key === "viper",
+    );
     expect(viper?.aiType).toBe(DEFAULT_AI_TYPE);
     expect(viper?.scanClass).toBe(DEFAULT_SCAN_CLASS);
   });
@@ -264,7 +287,22 @@ describe("NPC ship records", () => {
         entry.key === "viper" ? { ...entry, roles: null } : entry,
       ),
     };
-    expect(capture(() => compileNpcShips(noRoles)).construct).toBe("viper");
+    expect(capture(() => compileNpcShips(noRoles, masses)).construct).toBe(
+      "viper",
+    );
+  });
+
+  it("fails naming the mass when a record has none", () => {
+    const error = capture(() => compileNpcShips(catalogue, new Map()));
+    expect(error.code).toBe("SCHEMA");
+    expect(error.file).toBe(NPC_SHIPS_PATH);
+    expect(error.construct).toBe("adder.mass");
+  });
+
+  it("records the mass shipMass computes for each key", () => {
+    for (const record of records) {
+      expect(record.mass).toBe(shipMass(record.key, catalogue, meshes));
+    }
   });
 
   it("fails naming the field when a value breaks the schema", () => {
@@ -276,7 +314,7 @@ describe("NPC ship records", () => {
           : entry,
       ),
     };
-    expect(capture(() => compileNpcShips(badScan)).construct).toBe(
+    expect(capture(() => compileNpcShips(badScan, masses)).construct).toBe(
       "viper.scanClass",
     );
   });

@@ -86,7 +86,23 @@ describe("NpcShipCatalogueSchema", () => {
   });
 
   it("rejects an extra field, so no stat can be compiled in", () => {
-    expect(accepts([{ ...firstRecord(), mass: 1000 }])).toBe(false);
+    expect(accepts([{ ...firstRecord(), maxFlightSpeed: 350 }])).toBe(false);
+  });
+
+  it("rejects a missing, zero, negative or non-finite mass", () => {
+    const { mass: _mass, ...withoutMass } = firstRecord();
+    void _mass;
+    expect(accepts([withoutMass])).toBe(false);
+    for (const mass of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(accepts([{ ...firstRecord(), mass }])).toBe(false);
+    }
+  });
+
+  it("carries a positive mass on every record", () => {
+    for (const record of generated as Record<string, unknown>[]) {
+      expect(typeof record["mass"]).toBe("number");
+      expect(record["mass"] as number).toBeGreaterThan(0);
+    }
   });
 
   it("rejects a glb that climbs out of models/ or names another origin", () => {

@@ -7,9 +7,10 @@
  *
  * Phase 12's populator picks ships by role and needs, per ship, its roles, AI
  * name, scan class and model, plus the URL of the model it fetches on demand.
- * This module compiles exactly those six fields and nothing else: no combat or
+ * This module compiles exactly those six fields plus the ship's mass (DATA-11,
+ * computed by `ship-mass.ts` and handed in) and nothing else: no combat or
  * flight stat (DATA-15 is deferred), no subentity, material, weapon or
- * `auto_ai`. Phase 10 adds the mass to the same record.
+ * `auto_ai`.
  *
  * The compiled `aiType` is the authored `ai_type`. Oolite replaces it at spawn
  * from `autoAImap.plist` when `auto_ai` is on; that is Phase 12's concern and
@@ -73,10 +74,16 @@ function fail(key: string, detail: string): never {
  * Compile the NPC records from the resolved catalogue, in `NPC_SHIP_KEYS`
  * order.
  *
+ * `masses` maps each key to its computed float32 mass; a key without one fails
+ * through `NpcShipSchema` as `<key>.mass`.
+ *
  * @throws {ContentError} when a key is missing, has no roles or no model, owns
  * a GLB row other than its own, or fails `NpcShipSchema`.
  */
-export function compileNpcShips(catalogue: ShipCatalogue): NpcShip[] {
+export function compileNpcShips(
+  catalogue: ShipCatalogue,
+  masses: ReadonlyMap<string, number>,
+): NpcShip[] {
   return NPC_SHIP_KEYS.map((key) => {
     const entry = catalogue.entries.find((candidate) => candidate.key === key);
     if (entry === undefined) {
@@ -115,6 +122,7 @@ export function compileNpcShips(catalogue: ShipCatalogue): NpcShip[] {
       scanClass: typeof scanClass === "string" ? scanClass : DEFAULT_SCAN_CLASS,
       model: entry.model,
       glb: `models/${file}`,
+      mass: masses.get(key),
     };
 
     const parsed = NpcShipSchema.safeParse(candidate);
@@ -130,8 +138,11 @@ export function compileNpcShips(catalogue: ShipCatalogue): NpcShip[] {
 }
 
 /** Serialise the NPC records as canonical JSON, in `NPC_SHIP_KEYS` order. */
-export function emitNpcShips(catalogue: ShipCatalogue): EmittedShips {
-  const records = compileNpcShips(catalogue);
+export function emitNpcShips(
+  catalogue: ShipCatalogue,
+  masses: ReadonlyMap<string, number>,
+): EmittedShips {
+  const records = compileNpcShips(catalogue, masses);
   return {
     path: NPC_SHIPS_PATH,
     bytes: Buffer.from(canonicalJson(records), "utf8"),
