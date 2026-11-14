@@ -5,16 +5,16 @@ milestone_name: World Population Base
 current_phase: 12
 current_phase_name: Inert Ships and the World Lifecycle
 status: executing
-stopped_at: Completed 12-12-PLAN.md
-last_updated: "2026-11-14T19:21:32.842Z"
+stopped_at: Completed 12-13-PLAN.md
+last_updated: "2026-11-14T19:31:33.710Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 12 execution started
-state_head: 207a70e4cf58b7da4b87a9e5003ffd3729df38ee
+state_head: 3b428d583c8e3c916c6be69866fc4bf8c4d69392
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 27
-  completed_plans: 25
+  completed_plans: 26
   percent: 75
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 12 (Inert Ships and the World Lifecycle) — EXECUTING
-Plan: 13 of 14
+Plan: 14 of 14
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 12 execution started
 
@@ -152,6 +152,7 @@ Progress: [████████░░] 75%
 | Phase 12 P10 | 35 min | 2 tasks | 10 files |
 | Phase 12 P11 | 25 min | 2 tasks | 11 files |
 | Phase 12 P12 | 12 min | 3 tasks | 3 files |
+| Phase 12 P13 | 25 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -368,6 +369,7 @@ Recent decisions affecting current work:
 - [Phase 12]: Request NPC models when a ship first appears (Open Question 5): per key, draw only loaded keys, a failed key is never retried, the scanner still shows the ship
 - [Phase 12]: Defer NPC model requests until the first in-flight frame (DATA-13 kept; owner decision 2026-11-14, option A); option B, raising the ceiling, only on measured evidence
 - [Phase 12]: Traffic-on cold start and populated-scene draw calls are measured in the opt-in tests/e2e/traffic.spec.ts (run by verify-full), not in budget.spec.ts, which stays traffic off; DATA-13 ceiling 9,437,184 unchanged (traffic on: 8,839,791 bytes in both bundles)
+- [Phase 12]: 12-13: the chart close on a dock or an arrival lives in the two handlers that own the screen change (event-router docked case, hyperspace-controller post-install steps); GameLoop.advance stops on a reset generation change so a reset inside a step leaves the accumulator at 0 (WORLD-11, dormant until 12-14)
 
 ### Pending Todos
 
@@ -461,8 +463,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T19:21:32.467Z
-Stopped at: Completed 12-12-PLAN.md
+Last session: 2026-11-14T19:31:33.334Z
+Stopped at: Completed 12-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
