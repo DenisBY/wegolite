@@ -54,3 +54,7 @@
 ## Deferred Ideas
 
 - Sun and atmosphere heating (DEATH-03, DEATH-05); autonomous NPC fire (CBT-15)
+
+## Follow-up (owner note)
+
+The owner pointed out that the HUD already has placeholders for cabin temperature, laser temperature, shields and energy banks. Verified in `src/render/hud/draw.ts`; recorded as D-07 and the ident-frame wording was relaxed.

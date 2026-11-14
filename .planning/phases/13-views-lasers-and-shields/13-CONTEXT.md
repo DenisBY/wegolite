@@ -18,12 +18,15 @@ The player can look and fire in four directions. Lasers bought per facing hit sh
 - **D-02:** The ray test is two-stage, as in Oolite: a cheap bounding-sphere check first, then a descent into the octree only on a sphere hit. A shot inside the sphere but outside the hull misses (success criterion 3).
 
 ### Ident lock (INPUT-01)
-- **D-03:** With no missiles in this milestone, R (ident) shows a frame around the locked target in the 3D view plus one message-line entry with the target's name and class. The message goes through the existing message-line throttle (pitfall 26). The frame is a deliberate, recorded revision of the pinned eleven-element HUD layout (pitfall 21).
+- **D-03:** With no missiles in this milestone, R (ident) shows a frame around the locked target in the 3D view plus one message-line entry with the target's name and class. The message goes through the existing message-line throttle (pitfall 26). The frame is the only new HUD drawing; the planner decides whether it fits inside the pinned eleven-element set (as the hyperspace target did, PROJECT.md Key Decisions) or needs a recorded revision (pitfall 21).
 - **D-04:** Lock lifecycle follows Oolite: pressing R again clears the lock, and the target leaving range clears it. The researcher confirms the exact rule against `/home/opencode/git/oolite/src/Core/Entities/PlayerEntity*.m`.
 
 ### Cabin temperature (CBT-06)
 - **D-05:** The only heat input in this phase is energy damage (`PlayerEntity.m:5673`). Sun and atmosphere heating stay out (DEATH-03, DEATH-05, unscheduled).
-- **D-06:** The cabin-temperature gauge is always visible on the HUD, as CBT-06 states, and cools at Oolite's rate; the researcher reads the cooling constant from source into the constants ledger (pitfall 14). Docking resets it (DOCK-10).
+- **D-06:** The `CT` gauge is already drawn as a static placeholder; this phase wires it to live data and it stays always visible, as CBT-06 states. It cools at Oolite's rate; the researcher reads the cooling constant from source into the constants ledger (pitfall 14). Docking resets it (DOCK-10).
+
+### HUD gauges are wired, not added
+- **D-07:** `src/render/hud/draw.ts` (`drawLeftGauges`, `drawRightGauges`, lines ~489-550) already draws placeholders for `FWD`/`AFT` shields, `CT`, `LT`, the energy banks `E1`..`E4` and the `MISS` pylons, with fixed fill values (shields 1, CT 0.22, LT 0). The work is feeding these from `HudModel` (`model.bars`), not new layout. The eleven-element contract (`HUD_ELEMENTS`, `tests/ui/hud-model.test.ts`, `tests/e2e/hud.spec.ts`) and every `HUD_LAYOUT` rectangle stay untouched. `MISS` stays a placeholder (no missiles in this milestone).
 
 ### Claude's Discretion
 - IN-01 of the WR-01 todo (torus message wording when mass lock stops a running drive): not discussed. Default: fold it into the FOUND-17 plan if the change is one line, otherwise leave it as a todo.
@@ -63,6 +66,7 @@ The player can look and fire in four directions. Lasers bought per facing hit sh
 Not scouted in depth during discussion; the researcher maps these.
 
 ### Reusable Assets
+- `src/render/hud/draw.ts` gauge placeholders (FWD, AFT, CT, LT, E1..E4) and `drawFillGauge`; `model.bars` in `src/render/hud/hud.ts`
 - `ShipControl` — fire is a command shared by player and NPC (pitfall 19)
 - Existing message-line throttle, the F3 equipment browser, the save v3 chain, the build-time octree compiler (Phase 10)
 
