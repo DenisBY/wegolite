@@ -13,17 +13,26 @@
   ],
   "fields": [
     "aiType",
+    "energyRechargeRate",
+    "forwardWeapon",
+    "forwardWeaponPosition",
     "glb",
     "key",
     "mass",
+    "maxEnergy",
     "model",
+    "name",
     "radius",
     "roles",
     "scanClass"
   ],
   "defaults": {
     "aiType": "nullAI.plist",
-    "scanClass": "CLASS_NEUTRAL"
+    "scanClass": "CLASS_NEUTRAL",
+    "maxEnergy": 200,
+    "energyRechargeRate": 1,
+    "forwardWeapon": "EQ_WEAPON_NONE",
+    "forwardWeaponPosition": [0, 0, 0]
   },
   "examples": [
     {
@@ -34,7 +43,12 @@
       "model": "oolite_viper.dat",
       "glb": "models/viper.glb",
       "mass": 34040.6796875,
-      "radius": 35.057655334472656
+      "radius": 35.057655334472656,
+      "name": "GalCop Viper",
+      "maxEnergy": 180,
+      "energyRechargeRate": 4,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "forwardWeaponPosition": [0, -0.15000000596046448, 35.034400939941406]
     },
     {
       "key": "adder",
@@ -53,7 +67,12 @@
       "model": "oolite_adder.dat",
       "glb": "models/adder.glb",
       "mass": 16045.4931640625,
-      "radius": 29.030517578125
+      "radius": 29.030517578125,
+      "name": "Adder",
+      "maxEnergy": 85,
+      "energyRechargeRate": 2,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "forwardWeaponPosition": [0, -1.676900029182434, 28.8523006439209]
     },
     {
       "key": "sidewinder",
@@ -63,7 +82,12 @@
       "model": "oolite_sidewinder.dat",
       "glb": "models/sidewinder.glb",
       "mass": 25087.62109375,
-      "radius": 37.465919494628906
+      "radius": 37.465919494628906,
+      "name": "Sidewinder Scout Ship",
+      "maxEnergy": 240,
+      "energyRechargeRate": 2,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "forwardWeaponPosition": [0, -2.764625072479248, 25.215499877929688]
     },
     {
       "key": "shuttle",
@@ -73,7 +97,12 @@
       "model": "oolite_shuttle.dat",
       "glb": "models/shuttle.glb",
       "mass": 11317.5634765625,
-      "radius": 22.7517147064209
+      "radius": 22.7517147064209,
+      "name": "Orbital Shuttle",
+      "maxEnergy": 120,
+      "energyRechargeRate": 1,
+      "forwardWeapon": "EQ_WEAPON_NONE",
+      "forwardWeaponPosition": [0, -1.6699999570846558, 27.399999618530273]
     },
     {
       "key": "gecko",
@@ -91,7 +120,12 @@
       "model": "oolite_gecko.dat",
       "glb": "models/gecko.glb",
       "mass": 24669.99609375,
-      "radius": 31.911365509033203
+      "radius": 31.911365509033203,
+      "name": "Gecko",
+      "maxEnergy": 250,
+      "energyRechargeRate": 4,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "forwardWeaponPosition": [0, -2.4905500411987305, 25.641599655151367]
     },
     {
       "key": "cobramk1",
@@ -112,7 +146,14 @@
       "model": "oolite_cobramk1.dat",
       "glb": "models/cobramk1.glb",
       "mass": 52291.8359375,
-      "radius": 39.260494232177734
+      "radius": 39.260494232177734,
+      "name": "Cobra Mark I",
+      "maxEnergy": 150,
+      "energyRechargeRate": 2.5,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "forwardWeaponPosition": [
+        -0.04616599902510643, -0.8851240277290344, 34.85029983520508
+      ]
     },
     {
       "key": "krait",
@@ -128,7 +169,12 @@
       "model": "oolite_krait.dat",
       "glb": "models/krait.glb",
       "mass": 93291.40625,
-      "radius": 50.196590423583984
+      "radius": 50.196590423583984,
+      "name": "Krait",
+      "maxEnergy": 250,
+      "energyRechargeRate": 2.5,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "forwardWeaponPosition": [0, -1.6045000553131104, 41.50809860229492]
     },
     {
       "key": "mamba",
@@ -138,7 +184,12 @@
       "model": "oolite_mamba.dat",
       "glb": "models/mamba.glb",
       "mass": 35806.9921875,
-      "radius": 44.3935661315918
+      "radius": 44.3935661315918,
+      "name": "Mamba",
+      "maxEnergy": 240,
+      "energyRechargeRate": 3,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "forwardWeaponPosition": [0, 0.2419629991054535, 33.55799865722656]
     },
     {
       "key": "moray",
@@ -159,7 +210,12 @@
       "model": "oolite_moray.dat",
       "glb": "models/moray.glb",
       "mass": 51203.4375,
-      "radius": 36.18608093261719
+      "radius": 36.18608093261719,
+      "name": "Moray Star Boat",
+      "maxEnergy": 240,
+      "energyRechargeRate": 3,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "forwardWeaponPosition": [0, -11.615150451660156, 32.575599670410156]
     }
   ],
   "sources": [
@@ -171,6 +227,15 @@
     "cobramk1: shipdata.plist lines 1446 (ai_type), 1550 (model), 1552 (roles) of oolite_template_cobramk1, child cobramk1 through like_ship; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of cobramk1 from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
     "krait: shipdata.plist lines 2513 (ai_type), 2556 (model), 2558 (roles) of oolite_template_krait, child krait at lines 4433-4436; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of krait from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
     "mamba: shipdata.plist lines 2587 (ai_type), 2636 (model), 2638 (roles) of oolite_template_mamba, child mamba at lines 4437-4440; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of mamba from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
-    "moray: shipdata.plist lines 2725 (ai_type), 2839 (model), 2841 (roles) of oolite_template_moray, child moray through like_ship; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of moray from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing"
+    "moray: shipdata.plist lines 2725 (ai_type), 2839 (model), 2841 (roles) of oolite_template_moray, child moray through like_ship; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of moray from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
+    "viper: name \"GalCop Viper\" (line 3884; no display_name, so Oolite shows the name), max_energy 180 (line 3877), energy_recharge_rate 4 (line 3836), forward_weapon_type WEAPON_BEAM_LASER (line 3842), weapon_position_forward \"0.0 -0.15 35.0344\" (line 3965), all of oolite_template_viper in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
+    "adder: name \"Adder\" (line 152; no display_name, so Oolite shows the name), max_energy 85 (line 144), energy_recharge_rate 2 (line 117), forward_weapon_type WEAPON_PULSE_LASER (line 119), weapon_position_forward \"0.0 -1.6769 28.8523\" (line 162), all of oolite_template_adder in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
+    "sidewinder: name \"Sidewinder Scout Ship\" (line 3595; no display_name, so Oolite shows the name), max_energy 240 (line 3588), energy_recharge_rate 2 (line 3566), forward_weapon_type WEAPON_PULSE_LASER (line 3568), weapon_position_forward \"0.0 -2.764625 25.2155\" (line 3600), all of oolite_template_sidewinder in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
+    "shuttle: name \"Orbital Shuttle\" (line 3539; no display_name, so Oolite shows the name), max_energy 120 (line 3532), energy_recharge_rate 1 (line 3505), forward_weapon_type WEAPON_NONE (line 3511), weapon_position_forward \"-0.0 -1.67 27.4\" (line 3544), all of oolite_template_shuttle in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
+    "gecko: name \"Gecko\" (line 2326; no display_name, so Oolite shows the name), max_energy 250 (line 2319), energy_recharge_rate 4 (line 2283), forward_weapon_type WEAPON_BEAM_LASER (line 2285), weapon_position_forward \"0.0 -2.49055 25.6416\" (line 2331), all of oolite_template_gecko in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
+    "cobramk1: name \"Cobra Mark I\" (line 1551; no display_name, so Oolite shows the name), max_energy 150 (line 1543), energy_recharge_rate 2.5 (line 1513), forward_weapon_type WEAPON_PULSE_LASER (line 1519), weapon_position_forward \"-0.046166 -0.885124 34.8503\" (line 1561), all of oolite_template_cobramk1 in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
+    "krait: name \"Krait\" (line 2557; no display_name, so Oolite shows the name), max_energy 250 (line 2550), energy_recharge_rate 2.5 (line 2517), forward_weapon_type WEAPON_BEAM_LASER (line 2523), weapon_position_forward \"0.0 -1.6045 41.5081\" (line 2563), all of oolite_template_krait in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
+    "mamba: name \"Mamba\" (line 2637; no display_name, so Oolite shows the name), max_energy 240 (line 2630), energy_recharge_rate 3 (line 2591), forward_weapon_type WEAPON_PULSE_LASER (line 2597), weapon_position_forward \"0.0 0.241963 33.558\" (line 2643), all of oolite_template_mamba in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
+    "moray: name \"Moray Star Boat\" (line 2840; no display_name, so Oolite shows the name), max_energy 240 (line 2832), energy_recharge_rate 3 (line 2792), forward_weapon_type WEAPON_PULSE_LASER (line 2794), weapon_position_forward \"0.0 -11.61515 32.5756\" (line 2850), all of oolite_template_moray in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32"
   ]
 }

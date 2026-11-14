@@ -85,6 +85,76 @@ describe("NpcShipCatalogueSchema", () => {
     expect(accepts(generated)).toBe(true);
   });
 
+  it("carries the Adder's name, energy and forward weapon", () => {
+    const adder = (generated as Record<string, unknown>[]).find(
+      (record) => record["key"] === "adder",
+    );
+    expect(adder).toMatchObject({
+      name: "Adder",
+      maxEnergy: 85,
+      energyRechargeRate: 2,
+      forwardWeapon: "EQ_WEAPON_PULSE_LASER",
+    });
+    expect(adder?.["forwardWeaponPosition"]).toHaveLength(3);
+  });
+
+  it("carries the five combat fields on every record", () => {
+    for (const record of generated as Record<string, unknown>[]) {
+      expect(typeof record["name"]).toBe("string");
+      expect(record["maxEnergy"] as number).toBeGreaterThanOrEqual(0);
+      expect(record["energyRechargeRate"] as number).toBeGreaterThanOrEqual(0);
+      expect(typeof record["forwardWeapon"]).toBe("string");
+      expect(record["forwardWeaponPosition"]).toHaveLength(3);
+    }
+  });
+
+  it("rejects a record missing any combat field", () => {
+    for (const field of [
+      "name",
+      "maxEnergy",
+      "energyRechargeRate",
+      "forwardWeapon",
+      "forwardWeaponPosition",
+    ]) {
+      const record = { ...firstRecord() };
+      delete record[field];
+      expect(accepts([record])).toBe(false);
+    }
+  });
+
+  it("rejects an unknown forward weapon", () => {
+    for (const forwardWeapon of [
+      "WEAPON_PULSE_LASER",
+      "EQ_WEAPON_THARGOID",
+      "",
+      7,
+    ]) {
+      expect(accepts([{ ...firstRecord(), forwardWeapon }])).toBe(false);
+    }
+  });
+
+  it("rejects a negative or non-finite energy field", () => {
+    for (const field of ["maxEnergy", "energyRechargeRate"]) {
+      for (const value of [-1, Number.NaN, Number.POSITIVE_INFINITY, "85"]) {
+        expect(accepts([{ ...firstRecord(), [field]: value }])).toBe(false);
+      }
+    }
+  });
+
+  it("rejects a position that is not three finite numbers", () => {
+    for (const forwardWeaponPosition of [
+      [0, 0],
+      [0, 0, 0, 0],
+      [0, Number.NaN, 0],
+      [0, 0, Number.POSITIVE_INFINITY],
+      "0 0 0",
+    ]) {
+      expect(accepts([{ ...firstRecord(), forwardWeaponPosition }])).toBe(
+        false,
+      );
+    }
+  });
+
   it("rejects an extra field, so no stat can be compiled in", () => {
     expect(accepts([{ ...firstRecord(), maxFlightSpeed: 350 }])).toBe(false);
   });

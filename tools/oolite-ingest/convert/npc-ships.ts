@@ -9,9 +9,13 @@
  * name, scan class and model, plus the URL of the model it fetches on demand.
  * This module compiles exactly those six fields plus the ship's mass (DATA-11,
  * computed by `ship-mass.ts` and handed in) and its collision radius (WORLD-15,
- * computed by `ship-radius.ts` and handed in) and nothing else: no combat or
- * flight stat (DATA-15 is deferred), no subentity, material, weapon or
- * `auto_ai`.
+ * computed by `ship-radius.ts` and handed in), and, from Phase 13 (CBT-07, the
+ * minimum of DATA-15), the display name, max energy, energy recharge rate,
+ * forward weapon and forward weapon position. Nothing else: no other combat or
+ * flight stat, no subentity, material or `auto_ai`. No class field is compiled:
+ * Oolite's class name equals the name for all nine stock hulls
+ * (`ship_class_name` defaults to `name`, ShipEntity.m:391-392), so the ident
+ * message needs the name only.
  *
  * The compiled `aiType` is the authored `ai_type`. Oolite replaces it at spawn
  * from `autoAImap.plist` when `auto_ai` is on; that is Phase 12's concern and
@@ -67,8 +71,84 @@ export const DEFAULT_AI_TYPE = "nullAI.plist";
  */
 export const DEFAULT_SCAN_CLASS = "CLASS_NEUTRAL";
 
+/**
+ * Oolite's `max_energy` default (ShipEntity.m:285-290, `oo_floatForKey:
+ * defaultValue:200.0f`).
+ */
+export const DEFAULT_MAX_ENERGY = 200;
+
+/** Oolite's `energy_recharge_rate` default (ShipEntity.m:290, 1.0). */
+export const DEFAULT_ENERGY_RECHARGE_RATE = 1;
+
+/** Oolite's `forward_weapon_type` default (ShipEntity.m:300). */
+export const DEFAULT_FORWARD_WEAPON = "EQ_WEAPON_NONE";
+
+/**
+ * The plist's `forward_weapon_type` names mapped to the equipment keys. Oolite
+ * reads them with `OOWeaponTypeFromString` (ShipEntity.m:300), which accepts the
+ * legacy WEAPON_* names shipdata.plist authors and the EQ_WEAPON_* identifiers
+ * (OOConstToString.m:252-290). Any other value fails the build (T-13-29).
+ */
+export const FORWARD_WEAPON_KEYS: Readonly<Record<string, string>> =
+  Object.freeze({
+    WEAPON_NONE: "EQ_WEAPON_NONE",
+    WEAPON_PULSE_LASER: "EQ_WEAPON_PULSE_LASER",
+    WEAPON_BEAM_LASER: "EQ_WEAPON_BEAM_LASER",
+    WEAPON_MINING_LASER: "EQ_WEAPON_MINING_LASER",
+    WEAPON_MILITARY_LASER: "EQ_WEAPON_MILITARY_LASER",
+  });
+
 function fail(key: string, detail: string): never {
   throw contentError("SCHEMA", NPC_SHIPS_PATH, key, { excerpt: detail });
+}
+
+/**
+ * A numeric extra as a float32, or the default when the key is absent (Oolite's
+ * `oo_floatForKey:defaultValue:`). A present value that is not a finite number
+ * fails the build rather than silently taking the default.
+ */
+function floatExtra(
+  key: string,
+  extras: Record<string, unknown>,
+  field: string,
+  fallback: number,
+): number {
+  const value = extras[field];
+  if (value === undefined) return fallback;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return fail(
+      key,
+      `${field} is not a finite number: ${JSON.stringify(value)}`,
+    );
+  }
+  return Math.fround(value);
+}
+
+/**
+ * `weapon_position_forward` as three float32 numbers in Oolite's frame, 0 0 0
+ * when absent (`oo_vectorForKey:defaultValue:kZeroVector`, ShipEntity.m:1801;
+ * the stock ships author no `weapon_mount_mode` and no `scale_factor`, so the
+ * single-mount, unscaled branch applies). Negative zero is normalised to zero.
+ */
+function positionExtra(
+  key: string,
+  extras: Record<string, unknown>,
+): [number, number, number] {
+  const value = extras["weapon_position_forward"];
+  if (value === undefined) return [0, 0, 0];
+  const parts =
+    typeof value === "string" ? value.trim().split(/\s+/).map(Number) : [];
+  if (parts.length !== 3 || !parts.every((part) => Number.isFinite(part))) {
+    return fail(
+      key,
+      `weapon_position_forward is not three numbers: ${JSON.stringify(value)}`,
+    );
+  }
+  const [x = 0, y = 0, z = 0] = parts.map((part) => {
+    const single = Math.fround(part);
+    return single === 0 ? 0 : single;
+  });
+  return [x, y, z];
 }
 
 /**
@@ -118,6 +198,20 @@ export function compileNpcShips(
 
     const aiType = entry.extras["ai_type"];
     const scanClass = entry.extras["scan_class"];
+    const displayName = entry.extras["display_name"];
+    const authoredName = entry.extras["name"];
+    const weaponType = entry.extras["forward_weapon_type"];
+    let forwardWeapon: string | undefined = DEFAULT_FORWARD_WEAPON;
+    if (weaponType !== undefined) {
+      forwardWeapon =
+        typeof weaponType === "string" &&
+        Object.hasOwn(FORWARD_WEAPON_KEYS, weaponType)
+          ? FORWARD_WEAPON_KEYS[weaponType]
+          : fail(
+              key,
+              `unknown forward_weapon_type ${JSON.stringify(weaponType)}`,
+            );
+    }
     const candidate = {
       key,
       roles: [...entry.roles],
@@ -127,6 +221,22 @@ export function compileNpcShips(
       glb: `models/${file}`,
       mass: masses.get(key),
       radius: radii.get(key),
+      // display_name when authored, else name (ShipEntity.m:391-395).
+      name: typeof displayName === "string" ? displayName : authoredName,
+      maxEnergy: floatExtra(
+        key,
+        entry.extras,
+        "max_energy",
+        DEFAULT_MAX_ENERGY,
+      ),
+      energyRechargeRate: floatExtra(
+        key,
+        entry.extras,
+        "energy_recharge_rate",
+        DEFAULT_ENERGY_RECHARGE_RATE,
+      ),
+      forwardWeapon,
+      forwardWeaponPosition: positionExtra(key, entry.extras),
     };
 
     const parsed = NpcShipSchema.safeParse(candidate);

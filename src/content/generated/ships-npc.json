@@ -1,10 +1,19 @@
 [
   {
     "aiType": "oolite-scavengerAI.js",
+    "energyRechargeRate": 2,
+    "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+    "forwardWeaponPosition": [
+      0,
+      -1.676900029182434,
+      28.8523006439209
+    ],
     "glb": "models/adder.glb",
     "key": "adder",
     "mass": 16045.4931640625,
+    "maxEnergy": 85,
     "model": "oolite_adder.dat",
+    "name": "Adder",
     "radius": 29.030517578125,
     "roles": [
       "trader(0.25)",
@@ -20,10 +29,19 @@
   },
   {
     "aiType": "oolite-traderAI.js",
+    "energyRechargeRate": 2.5,
+    "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+    "forwardWeaponPosition": [
+      -0.04616599902510643,
+      -0.8851240277290344,
+      34.85029983520508
+    ],
     "glb": "models/cobramk1.glb",
     "key": "cobramk1",
     "mass": 52291.8359375,
+    "maxEnergy": 150,
     "model": "oolite_cobramk1.dat",
+    "name": "Cobra Mark I",
     "radius": 39.260494232177734,
     "roles": [
       "pirate(0.5)",
@@ -41,10 +59,19 @@
   },
   {
     "aiType": "oolite-pirateAI.js",
+    "energyRechargeRate": 4,
+    "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+    "forwardWeaponPosition": [
+      0,
+      -2.4905500411987305,
+      25.641599655151367
+    ],
     "glb": "models/gecko.glb",
     "key": "gecko",
     "mass": 24669.99609375,
+    "maxEnergy": 250,
     "model": "oolite_gecko.dat",
+    "name": "Gecko",
     "radius": 31.911365509033203,
     "roles": [
       "hunter(0.75)",
@@ -59,10 +86,19 @@
   },
   {
     "aiType": "oolite-pirateAI.js",
+    "energyRechargeRate": 2.5,
+    "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+    "forwardWeaponPosition": [
+      0,
+      -1.6045000553131104,
+      41.50809860229492
+    ],
     "glb": "models/krait.glb",
     "key": "krait",
     "mass": 93291.40625,
+    "maxEnergy": 250,
     "model": "oolite_krait.dat",
+    "name": "Krait",
     "radius": 50.196590423583984,
     "roles": [
       "pirate",
@@ -75,10 +111,19 @@
   },
   {
     "aiType": "oolite-pirateAI.js",
+    "energyRechargeRate": 3,
+    "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+    "forwardWeaponPosition": [
+      0,
+      0.2419629991054535,
+      33.55799865722656
+    ],
     "glb": "models/mamba.glb",
     "key": "mamba",
     "mass": 35806.9921875,
+    "maxEnergy": 240,
     "model": "oolite_mamba.dat",
+    "name": "Mamba",
     "radius": 44.3935661315918,
     "roles": [
       "pirate",
@@ -89,10 +134,19 @@
   },
   {
     "aiType": "oolite-pirateAI.js",
+    "energyRechargeRate": 3,
+    "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+    "forwardWeaponPosition": [
+      0,
+      -11.615150451660156,
+      32.575599670410156
+    ],
     "glb": "models/moray.glb",
     "key": "moray",
     "mass": 51203.4375,
+    "maxEnergy": 240,
     "model": "oolite_moray.dat",
+    "name": "Moray Star Boat",
     "radius": 36.18608093261719,
     "roles": [
       "trader(0.5)",
@@ -110,10 +164,19 @@
   },
   {
     "aiType": "oolite-shuttleAI.js",
+    "energyRechargeRate": 1,
+    "forwardWeapon": "EQ_WEAPON_NONE",
+    "forwardWeaponPosition": [
+      0,
+      -1.6699999570846558,
+      27.399999618530273
+    ],
     "glb": "models/shuttle.glb",
     "key": "shuttle",
     "mass": 11317.5634765625,
+    "maxEnergy": 120,
     "model": "oolite_shuttle.dat",
+    "name": "Orbital Shuttle",
     "radius": 22.7517147064209,
     "roles": [
       "shuttle"
@@ -122,10 +185,19 @@
   },
   {
     "aiType": "oolite-pirateAI.js",
+    "energyRechargeRate": 2,
+    "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+    "forwardWeaponPosition": [
+      0,
+      -2.764625072479248,
+      25.215499877929688
+    ],
     "glb": "models/sidewinder.glb",
     "key": "sidewinder",
     "mass": 25087.62109375,
+    "maxEnergy": 240,
     "model": "oolite_sidewinder.dat",
+    "name": "Sidewinder Scout Ship",
     "radius": 37.465919494628906,
     "roles": [
       "pirate(0.75)",
@@ -136,10 +208,19 @@
   },
   {
     "aiType": "oolite-policeAI.js",
+    "energyRechargeRate": 4,
+    "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+    "forwardWeaponPosition": [
+      0,
+      -0.15000000596046448,
+      35.034400939941406
+    ],
     "glb": "models/viper.glb",
     "key": "viper",
     "mass": 34040.6796875,
+    "maxEnergy": 180,
     "model": "oolite_viper.dat",
+    "name": "GalCop Viper",
     "radius": 35.057655334472656,
     "roles": [
       "police"
