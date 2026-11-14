@@ -13,6 +13,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_BINDINGS } from "../../src/input/actions.js";
+import type { ActionId } from "../../src/input/actions.js";
 import { bindAction, createBindingMap } from "../../src/input/bindings.js";
 import {
   HINT_IDS,
@@ -21,6 +22,7 @@ import {
   SETTINGS_VERSION,
   defaults,
   mergeDefaults,
+  migrateLegacyBindings,
   settingsProblem,
   validateSettings,
 } from "../../src/settings/schema.js";
@@ -81,7 +83,8 @@ describe("defaults", () => {
     expect(settings.hintsSeen).toEqual([]);
     expect(settings.launchSeen).toBe(false);
     expect(settings.bindings.rollRight).toEqual(["ArrowRight"]);
-    expect(settings.bindings.pause).toEqual(["KeyP", "Escape"]);
+    expect(settings.bindings.pause).toEqual(["KeyP"]);
+    expect(settings.bindings.targetStation).toEqual(["KeyQ"]);
     for (const [action, codes] of Object.entries(DEFAULT_BINDINGS)) {
       expect(
         settings.bindings[action as keyof typeof DEFAULT_BINDINGS],
@@ -519,5 +522,125 @@ describe("binding conflict and reset", () => {
 
     expect(bindAction(map, "rollRight", "KeyL")).toEqual({ ok: true });
     expect(map.rollRight).toEqual(["KeyL"]);
+  });
+});
+
+type Bindings = Partial<Record<ActionId, string[]>>;
+
+describe("migrateLegacyBindings", () => {
+  /** The exact pre-phase default table for the two actions that moved. */
+  function legacy(extra: Bindings = {}): Bindings {
+    return {
+      pause: ["KeyP", "Escape"],
+      targetStation: ["KeyR"],
+      ...extra,
+    };
+  }
+
+  function merged(bindings: Bindings) {
+    return mergeDefaults({ ...defaults(), bindings }).bindings;
+  }
+
+  it("moves the exact legacy defaults and gives the new actions their keys", () => {
+    const map = merged(legacy());
+
+    expect(map.pause).toEqual(["KeyP"]);
+    expect(map.targetStation).toEqual(["KeyQ"]);
+    expect(map.ident).toEqual(["KeyR"]);
+    expect(map.untarget).toEqual(["KeyU"]);
+    expect(map.fire).toEqual(["KeyA"]);
+    expect(map.eject).toEqual(["Escape"]);
+    expect(map.viewFore).toEqual(["Digit1", "F1"]);
+    expect(map.viewStarboard).toEqual(["Digit4", "F4"]);
+  });
+
+  it("keeps a customised KeyQ and leaves the target-station action unbound", () => {
+    const map = merged(legacy({ compassCycle: ["KeyQ"] }));
+
+    expect(map.compassCycle).toEqual(["KeyQ"]);
+    expect(map.targetStation).toEqual([]);
+    expect(map.ident).toEqual(["KeyR"]);
+  });
+
+  it("keeps a customised KeyU and leaves untarget unbound", () => {
+    const map = merged(legacy({ hyperspace: ["KeyU"] }));
+
+    expect(map.hyperspace).toEqual(["KeyU"]);
+    expect(map.untarget).toEqual([]);
+  });
+
+  it("keeps a customised KeyA and leaves fire unbound", () => {
+    const map = merged(legacy({ torus: ["KeyA"] }));
+
+    expect(map.torus).toEqual(["KeyA"]);
+    expect(map.fire).toEqual([]);
+  });
+
+  it("leaves a customised pause untouched and eject unbound", () => {
+    const map = merged(legacy({ pause: ["KeyP", "Escape", "Space"] }));
+
+    expect(map.pause).toEqual(["KeyP", "Escape", "Space"]);
+    expect(map.eject).toEqual([]);
+  });
+
+  it("leaves a customised target-station key untouched", () => {
+    const map = merged(legacy({ targetStation: ["KeyT"] }));
+
+    expect(map.targetStation).toEqual(["KeyT"]);
+    expect(map.ident).toEqual(["KeyR"]);
+  });
+
+  it("is idempotent across repeated merges", () => {
+    const once = merged(legacy());
+    const twice = mergeDefaults({ ...defaults(), bindings: once }).bindings;
+
+    expect(twice).toEqual(once);
+  });
+
+  it("takes the new defaults for a blob without pause or targetStation", () => {
+    const map = merged({ rollRight: ["KeyL"] });
+
+    expect(map.rollRight).toEqual(["KeyL"]);
+    expect(map.pause).toEqual(["KeyP"]);
+    expect(map.targetStation).toEqual(["KeyQ"]);
+  });
+
+  it("does not move a target-station key the player picked on this build", () => {
+    // A blob this build wrote carries ident, so KeyR on targetStation is a
+    // deliberate choice (ident was unbound first), not the old default.
+    const map = merged({ targetStation: ["KeyR"], ident: [] });
+
+    expect(map.targetStation).toEqual(["KeyR"]);
+    expect(map.ident).toEqual([]);
+  });
+
+  it("returns a fresh null-prototype copy and never mutates its input", () => {
+    const input = legacy();
+    const out = migrateLegacyBindings(input);
+
+    expect(Object.getPrototypeOf(out)).toBeNull();
+    expect(out).not.toBe(input);
+    expect(input.pause).toEqual(["KeyP", "Escape"]);
+    expect(input.targetStation).toEqual(["KeyR"]);
+    expect(out.pause).not.toBe(input.pause);
+  });
+
+  it("migrates a stored v1 blob end to end through loadSettings", () => {
+    const storage = new FakeStorage();
+    storage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({
+        version: SETTINGS_VERSION,
+        bindings: { pause: ["KeyP", "Escape"], targetStation: ["KeyR"] },
+        hintsSeen: [],
+        launchSeen: true,
+      }),
+    );
+
+    const loaded = loadSettings(storage);
+
+    expect(loaded.bindings.pause).toEqual(["KeyP"]);
+    expect(loaded.bindings.targetStation).toEqual(["KeyQ"]);
+    expect(loaded.bindings.ident).toEqual(["KeyR"]);
   });
 });

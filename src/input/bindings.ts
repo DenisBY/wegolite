@@ -56,9 +56,11 @@ export function capCodes(codes: readonly string[]): string[] {
  * The result is sanitised deterministically: when two actions whose contexts
  * overlap own the same code, the later `ACTION_IDS` entry loses it. A tampered
  * or partially merged settings blob therefore cannot make one key both step a
- * quantity and confirm a trade. The documented exemption is `pause` sharing
- * `Escape` with a screen Back action (`stationBack`, `chartBack`), which the
- * input layer resolves by context and paused state.
+ * quantity and confirm a trade. The default table no longer binds Escape to
+ * pause (INPUT-01: Escape is Back in the screens and eject in flight). The
+ * documented exemption survives for a stored blob that still binds `pause` to
+ * `Escape` alongside a screen Back action (`stationBack`, `chartBack`), which
+ * the input layer resolves by context and paused state.
  */
 export function createBindingMap(
   source?: Partial<Record<ActionId, readonly string[]>>,
@@ -93,8 +95,9 @@ export function contextsOverlap(left: ActionId, right: ActionId): boolean {
 
 /**
  * The only pair allowed to share a code: `pause` and a screen Back action on
- * Escape. The input layer resolves it by context and paused state, so it is
- * not an ambiguity.
+ * Escape. The default table no longer binds Escape to pause (INPUT-01); the
+ * exemption exists for a stored blob that still does. The input layer resolves
+ * it by context and paused state, so it is not an ambiguity.
  */
 function isExemptPair(left: ActionId, right: ActionId, code: string): boolean {
   if (code !== "Escape") return false;

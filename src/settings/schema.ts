@@ -14,11 +14,12 @@
  * value.
  */
 
-import { isActionId } from "../input/actions.js";
+import { ACTION_IDS, isActionId } from "../input/actions.js";
 import type { ActionId } from "../input/actions.js";
 import {
   MAX_CODE_LENGTH,
   capCodes,
+  contextsOverlap,
   createBindingMap,
 } from "../input/bindings.js";
 
@@ -250,14 +251,80 @@ export function defaults(): SettingsV1 {
   };
 }
 
+function sameCodes(codes: readonly string[] | undefined, expected: string[]) {
+  return (
+    codes !== undefined &&
+    codes.length === expected.length &&
+    codes.every((code, index) => code === expected[index])
+  );
+}
+
+/**
+ * Move a stored binding table off the pre-INPUT-01 defaults (Phase 13).
+ *
+ * A stored map is authoritative (`store.ts` persists the whole table and
+ * `createBindingMap` only fills missing actions), so an existing player's saved
+ * defaults would otherwise keep Escape on pause and R on the station target
+ * while the new ident and eject actions lost their keys. Only the exact legacy
+ * values are rewritten, and only for a blob that predates the new actions (it
+ * has no `eject` / `ident` entry; a blob this build wrote always does, so a key
+ * the player chose later is never moved):
+ *
+ * - `pause` equal to `["KeyP", "Escape"]` becomes `["KeyP"]`;
+ * - `targetStation` equal to `["KeyR"]` becomes `["KeyQ"]`, or `[]` (unbound,
+ *   visible in the controls panel) when another stored action that can fire in
+ *   the same mode already holds `KeyQ`.
+ *
+ * Every other entry is copied unchanged, so a customised binding survives and
+ * the new action simply stays unbound where its default key is taken. The
+ * result is a fresh null-prototype map; the input is never mutated. There is
+ * deliberately no settings version bump: a bump would make older builds ignore
+ * the blob.
+ */
+export function migrateLegacyBindings(
+  bindings: Partial<Record<ActionId, readonly string[]>>,
+): Partial<Record<ActionId, string[]>> {
+  const migrated = Object.create(null) as unknown as Partial<
+    Record<ActionId, string[]>
+  >;
+  for (const action of ACTION_IDS) {
+    const codes = bindings[action];
+    if (codes !== undefined) migrated[action] = [...codes];
+  }
+
+  if (
+    bindings.eject === undefined &&
+    sameCodes(bindings.pause, ["KeyP", "Escape"])
+  ) {
+    migrated.pause = ["KeyP"];
+  }
+
+  if (
+    bindings.ident === undefined &&
+    sameCodes(bindings.targetStation, ["KeyR"])
+  ) {
+    const keyQTaken = ACTION_IDS.some(
+      (other) =>
+        other !== "targetStation" &&
+        (bindings[other] ?? []).includes("KeyQ") &&
+        contextsOverlap(other, "targetStation"),
+    );
+    migrated.targetStation = keyQTaken ? [] : ["KeyQ"];
+  }
+
+  return migrated;
+}
+
 /**
  * Fill missing actions from the defaults and rebuild every array, so the result
  * never shares an array with the parsed blob. An explicit empty array survives.
+ * A blob at the pre-INPUT-01 defaults is migrated first
+ * (`migrateLegacyBindings`).
  */
 export function mergeDefaults(settings: SettingsV1): SettingsV1 {
   return {
     version: SETTINGS_VERSION,
-    bindings: createBindingMap(settings.bindings),
+    bindings: createBindingMap(migrateLegacyBindings(settings.bindings)),
     hintsSeen: [...settings.hintsSeen],
     launchSeen: settings.launchSeen,
     pauseOnFocusLoss: settings.pauseOnFocusLoss,
