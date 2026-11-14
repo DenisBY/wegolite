@@ -8,9 +8,15 @@
  * `writeRaw`, so it passes the same strict boot reader a player's save does. The
  * fixtures never use the in-page test hook, so a session started from one can
  * still save and no taint path is exercised.
+ *
+ * The fixtures are new-game anchors, so their epoch is 0 and their counter is
+ * the fresh-world 101; a v3 save written this way passes the strict boot reader.
  */
 
-import { encodeSave } from "../../../src/persistence/save.js";
+import {
+  FRESH_WORLD_NEXT_ENTITY_ID,
+  encodeSave,
+} from "../../../src/persistence/save.js";
 import type { SaveFlightPose } from "../../../src/persistence/save.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
 import { CLOCK_START } from "../../../src/sim/flight/state.js";
@@ -46,6 +52,8 @@ export function dockedSaveAt(systemName: string): string {
     marketSeed: marketSeedForSystem(system.id),
     systemId: system.id,
     stationKey: STATION_KEY,
+    epoch: 0,
+    nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
   });
 }
 
@@ -83,5 +91,7 @@ export function inFlightSaveAt(
     flight,
     systemId: system.id,
     stationKey: STATION_KEY,
+    epoch: 0,
+    nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
   });
 }

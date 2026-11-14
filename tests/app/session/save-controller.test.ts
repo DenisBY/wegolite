@@ -22,6 +22,7 @@ import {
   statusSkipReason,
 } from "../../../src/app/session/save-controller.js";
 import type { SaveController } from "../../../src/app/session/save-controller.js";
+import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
 import { snapshotForSave } from "../../../src/persistence/autosave.js";
 import { encodeSave } from "../../../src/persistence/save.js";
 import type {
@@ -163,6 +164,8 @@ function harness(options: HarnessOptions = {}): Harness {
     current: Promise.resolve<WriteResult>({ committed: true, revision: 1 }),
   };
 
+  // A session creates its lifecycle before its state; the writer needs it.
+  ctx.core.worldLifecycle = createWorldLifecycle({ traffic: false });
   ctx.core.state = initFlightState(layout);
   ctx.core.stationDef = stationDef;
   ctx.core.stationKey = "coriolis-station";
@@ -267,6 +270,7 @@ function dockedBlob(): { raw: string; inputs: SaveInputs } {
     { key: "coriolis-station" },
     market,
     catalogue,
+    { epoch: 0, anchorNextEntityId: undefined },
     undefined,
   );
   return { raw: encodeSave(inputs), inputs };
@@ -281,6 +285,7 @@ function flyingBlob(): { raw: string; inputs: SaveInputs } {
     { key: "coriolis-station" },
     market,
     catalogue,
+    { epoch: 0, anchorNextEntityId: undefined },
     undefined,
   );
   return { raw: encodeSave(inputs), inputs };
@@ -404,6 +409,8 @@ describe("buildSnapshotInputs", () => {
       market,
       systemId: system.id,
       stationKey: "coriolis-station",
+      epoch: 0,
+      nextEntityId: 101,
     });
   });
 
@@ -438,6 +445,8 @@ describe("buildSnapshotInputs", () => {
       },
       systemId: system.id,
       stationKey: "coriolis-station",
+      epoch: 0,
+      nextEntityId: 101,
     });
   });
 
@@ -445,6 +454,27 @@ describe("buildSnapshotInputs", () => {
     const { ctx, controller } = harness();
     ctx.core.market = undefined;
     expect(controller.buildSnapshotInputs()).toBeUndefined();
+  });
+
+  it("returns nothing without a world lifecycle", () => {
+    const { ctx, controller, writes } = harness({ status: "absent" });
+    ctx.core.worldLifecycle = undefined;
+    expect(controller.buildSnapshotInputs()).toBeUndefined();
+
+    controller.autosave();
+    expect(ctx.save.saveSkipReason).toBe("not-ready");
+    expect(writes).toEqual([]);
+  });
+
+  it("records the lifecycle epoch and, in flight, the anchor counter", () => {
+    const { ctx, controller } = harness();
+    ctx.core.state = flyingState();
+    ctx.core.worldLifecycle?.begin(market.seed);
+
+    const inputs = controller.buildSnapshotInputs();
+    expect(inputs?.mode).toBe("inFlight");
+    expect(inputs?.epoch).toBe(1);
+    expect(inputs?.nextEntityId).toBe(101);
   });
 });
 

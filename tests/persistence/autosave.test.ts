@@ -23,17 +23,21 @@ import {
   restoreFromSave,
   snapshotForSave,
 } from "../../src/persistence/autosave.js";
+import type { SaveWorldCounters } from "../../src/persistence/autosave.js";
 import { encodeSave, parseSave } from "../../src/persistence/save.js";
 import {
+  FRESH_WORLD_NEXT_ENTITY_ID,
   MAX_SAVE_CHARS,
   MAX_SAVE_CLOCK_DELTA,
   MAX_SAVE_CREDITS,
+  MAX_SAVE_EPOCH,
   MAX_SAVE_EQUIPMENT,
+  MAX_SAVE_NEXT_ENTITY_ID,
 } from "../../src/persistence/save.js";
 import type {
   SaveAllowLists,
   SaveInputs,
-  SaveV2,
+  SaveV3,
 } from "../../src/persistence/save.js";
 import {
   PlayerController,
@@ -72,7 +76,7 @@ const player = new PlayerController();
 const COMMODITIES = commoditiesFixture();
 const SEED = 0x12345678;
 const MARKET = generateMarket(lave.system, COMMODITIES, SEED);
-/** The wire-shaped market (mutable goods array) for literal SaveV2 fixtures. */
+/** The wire-shaped market (mutable goods array) for literal SaveV3 fixtures. */
 const MARKET_SNAPSHOT = {
   systemId: MARKET.systemId,
   seed: MARKET.seed,
@@ -96,6 +100,12 @@ const ALLOW: SaveAllowLists = {
 
 const SYSTEM = { id: "g0-s7" };
 const STATION = { key: "coriolis-station" };
+
+/** Counters of a session with no world lifecycle yet: epoch 0, no anchor. */
+const NO_WORLD: SaveWorldCounters = {
+  epoch: 0,
+  anchorNextEntityId: undefined,
+};
 const DOCK_COMPUTER = { key: "EQ_DOCK_COMP", price: 15_000, techLevel: 9 };
 
 function launch(state: FlightState): void {
@@ -148,6 +158,7 @@ describe("snapshotForSave", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     // No launch command has run, so beginLaunch has not applied +600 s yet.
     expect(inputs.clockSeconds).toBe(CLOCK_START);
@@ -171,6 +182,7 @@ describe("snapshotForSave", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     expect(inputs.clockSeconds).toBe(CLOCK_START + 600);
     expect(inputs.credits).toBe(1000);
@@ -213,6 +225,7 @@ describe("snapshotForSave", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     const result = await queueAutosave(store, 1, inputs, ALLOW);
     expect(result.committed).toBe(true);
@@ -239,6 +252,7 @@ describe("snapshotForSave", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     const result = await queueAutosave(store, 1, inputs, ALLOW);
     expect(result.committed).toBe(true);
@@ -264,6 +278,7 @@ describe("canonical snapshot and Phase 4 defaults", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
 
     const expected = COMMODITIES.filter(
@@ -293,6 +308,7 @@ describe("canonical snapshot and Phase 4 defaults", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
 
     const parsed = parseSave(encodeSave(inputs), ALLOW);
@@ -319,13 +335,16 @@ describe("canonical snapshot and Phase 4 defaults", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     expect(again).toEqual(inputs);
   });
 
   it("defaults a field-less Phase 4 blob to an empty hold and a fresh ship", () => {
-    const save: SaveV2 = {
-      version: 2,
+    const save: SaveV3 = {
+      version: 3,
+      epoch: 0,
+      nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
       mode: "docked",
       clockSeconds: CLOCK_START + 600,
       credits: 1000,
@@ -346,8 +365,10 @@ describe("canonical snapshot and Phase 4 defaults", () => {
   });
 
   it("folds one legacy alias into its count and drops it", () => {
-    const save: SaveV2 = {
-      version: 2,
+    const save: SaveV3 = {
+      version: 3,
+      epoch: 0,
+      nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
       mode: "docked",
       clockSeconds: CLOCK_START + 600,
       credits: 1000,
@@ -364,8 +385,10 @@ describe("canonical snapshot and Phase 4 defaults", () => {
   });
 
   it("adds the alias to an explicit zero rather than replacing it", () => {
-    const save: SaveV2 = {
-      version: 2,
+    const save: SaveV3 = {
+      version: 3,
+      epoch: 0,
+      nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
       mode: "docked",
       clockSeconds: CLOCK_START + 600,
       credits: 1000,
@@ -397,6 +420,8 @@ describe("writer bounds", () => {
     marketSeed: SEED,
     systemId: "g0-s7",
     stationKey: "coriolis-station",
+    epoch: MAX_SAVE_EPOCH,
+    nextEntityId: MAX_SAVE_NEXT_ENTITY_ID,
   };
 
   it("fits the maximum tuple inside MAX_SAVE_CHARS even with worst-case escaping", async () => {
@@ -448,6 +473,7 @@ describe("queueAutosave failure paths", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     const result = await queueAutosave(store, 1, inputs, ALLOW);
     expect(result.committed).toBe(false);
@@ -463,6 +489,7 @@ describe("queueAutosave failure paths", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     const result = await queueAutosave(store, 1, inputs, ALLOW);
     expect(result).toMatchObject({ committed: false, revision: 1 });
@@ -478,6 +505,7 @@ describe("queueAutosave failure paths", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     // A negative balance cannot be encoded into a blob `parseSave` accepts.
     const result = await queueAutosave(
@@ -505,6 +533,7 @@ describe("queueAutosave failure paths", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     expect((await queueAutosave(store, 1, valid, ALLOW)).committed).toBe(true);
     const previous = store.raw;
@@ -546,6 +575,7 @@ describe("revision ordering", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     const second = snapshotForSave(
       initFlightState(layout),
@@ -554,6 +584,7 @@ describe("revision ordering", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
 
     expect((await queueAutosave(store, 1, first, ALLOW)).committed).toBe(true);
@@ -574,8 +605,10 @@ describe("revision ordering", () => {
 
 describe("restoreFromSave", () => {
   it("restores docked mode at the saved clock with a market snapshot", () => {
-    const save: SaveV2 = {
-      version: 2,
+    const save: SaveV3 = {
+      version: 3,
+      epoch: 0,
+      nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
       mode: "docked",
       clockSeconds: CLOCK_START + 660,
       credits: 5000,
@@ -599,8 +632,10 @@ describe("restoreFromSave", () => {
   });
 
   it("returns the persisted market seed when the blob carries one", () => {
-    const save: SaveV2 = {
-      version: 2,
+    const save: SaveV3 = {
+      version: 3,
+      epoch: 0,
+      nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
       mode: "docked",
       clockSeconds: CLOCK_START + 660,
       credits: 5000,
@@ -637,6 +672,7 @@ describe("docked and in-flight round trips", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     expect(inputs.mode).toBe("docked");
     expect(inputs.flight).toBeUndefined();
@@ -672,6 +708,7 @@ describe("docked and in-flight round trips", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     expect(inputs.mode).toBe("inFlight");
     expect(inputs.flight?.torus).toBe(true);
@@ -736,6 +773,7 @@ describe("docked and in-flight round trips", () => {
       STATION,
       MARKET,
       COMMODITIES,
+      NO_WORLD,
     );
     expect(inputs.mode).toBe("inFlight");
 
@@ -782,6 +820,7 @@ describe("docked and in-flight round trips", () => {
       STATION,
       persistedMarket,
       COMMODITIES,
+      NO_WORLD,
     );
     expect(inputs.mode).toBe("inFlight");
 
@@ -819,6 +858,7 @@ describe("docked and in-flight round trips", () => {
       STATION,
       staleMarket,
       COMMODITIES,
+      NO_WORLD,
     );
 
     const result = await queueAutosave(store, 1, inputs, ALLOW);
