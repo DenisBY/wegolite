@@ -291,6 +291,12 @@ function harness(): Harness {
           `autosave poseSet=${String(ctx.core.currentPose !== initialPose)} clockDelta=${String(ctx.core.lastDockClockDelta)}`,
         );
       },
+      closeChart: () => {
+        // The chart restores its saved context and clears the open flag.
+        log.push("closeChart");
+        ctx.chart.chartOpen = false;
+        ctx.runtime.input?.setContext(ctx.chart.contextBeforeChart);
+      },
     }),
     hudMessages: createHudMessages({
       galaxyById: new Map([[lave.system.id, lave.system]]),
@@ -401,6 +407,33 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
       "autosave poseSet=true clockDelta=1200",
     ]);
     expect(ctx.station.stationMessage).toBe("Docking computers engaged");
+  });
+
+  it("docked behind an open chart: the chart closes first, so the final input context is dockHome (WORLD-11)", () => {
+    const { ctx, log, router } = harness();
+    ctx.chart.chartOpen = true;
+    ctx.chart.contextBeforeChart = "flight";
+    router.dispatch(EVENTS.docked);
+    expect(ctx.chart.chartOpen).toBe(false);
+    expect(log.slice(0, 3)).toEqual([
+      "closeChart",
+      "input.setContext flight screen=home page=1 pending=null notice= message=",
+      "launchSequence.reset",
+    ]);
+    const contexts = log.filter((line) => line.startsWith("input.setContext"));
+    expect(contexts.at(-1)).toMatch(/^input\.setContext dockHome /);
+    expect(log.slice(3)).toEqual([
+      "input.setContext dockHome screen=home page=1 pending=null notice= message=",
+      ...DOCKED_MANUAL.slice(2),
+    ]);
+  });
+
+  it("docked with the chart closed never closes it, and the steps keep their order (WORLD-11)", () => {
+    const { ctx, log, router } = harness();
+    expect(ctx.chart.chartOpen).toBe(false);
+    router.dispatch(EVENTS.docked);
+    expect(log).not.toContain("closeChart");
+    expect(log).toEqual(DOCKED_MANUAL);
   });
 
   it("dockDenied: fixed copy for each reason, as a priority message", () => {

@@ -134,6 +134,11 @@ export interface StationFlowDeps {
   readonly ensureSelection: () => void;
   readonly renderStation: () => void;
   readonly autosave: () => void;
+  /**
+   * Close the galactic chart (restoring its saved input context). A dock that
+   * completes behind an open chart closes it first (WORLD-11).
+   */
+  readonly closeChart: () => void;
 }
 
 /** launched, launchComplete and docked: the station and launch transitions. */
@@ -152,6 +157,7 @@ export function createStationFlow(
     ensureSelection,
     renderStation,
     autosave,
+    closeChart,
   } = deps;
   return (event) => {
     switch (event.kind) {
@@ -184,6 +190,12 @@ export function createStationFlow(
         messages.enqueue("Arrows pitch and roll · W and S change speed");
         break;
       case "docked": {
+        // A dock behind the chart (WORLD-11): the simulation keeps running
+        // behind an open chart, so the dock can complete under it. Close the
+        // chart first: it restores its saved input context, then the station
+        // sets `dockHome` below, so the station shell never shows beneath an
+        // open chart and the final input context is the docked one.
+        if (ctx.chart.chartOpen) closeChart();
         // D-12: the exact delta is the event's, never a wall/frame comparison.
         ctx.core.lastDockClockDelta = event.clockDelta;
         launchSequence.reset();
