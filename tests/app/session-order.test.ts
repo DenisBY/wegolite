@@ -299,11 +299,11 @@ function harness(): Harness {
     dockFeedback: createDockFeedbackFlow(ctx, { messages }),
     hyperspaceFlow: createHyperspaceFlow(ctx, {
       messages,
-      refusalCopy: (reason) => {
+      refusalCopy: (reason, blocker) => {
         log.push(
-          `refusalCopy ${reason} lastRefusal=${ctx.core.lastRefusal?.reason ?? "none"}`,
+          `refusalCopy ${reason}${blocker === undefined ? "" : ` blocker=${blocker}`} lastRefusal=${ctx.core.lastRefusal?.reason ?? "none"}`,
         );
-        return `copy:${reason}`;
+        return `copy:${reason}${blocker === undefined ? "" : `:${blocker}`}`;
       },
       handleHyperspaceJumped: (event) => {
         log.push(`handleHyperspaceJumped ${event.destinationId}`);
@@ -447,6 +447,22 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
       "messages.enqueuePriority copy:insufficient fuel",
     ]);
     expect(ctx.core.lastRefusal).toEqual({ reason: "insufficient fuel" });
+  });
+
+  it("hyperspaceRefused with a ship blocker: passes the blocker to the copy and stores only the reason", () => {
+    const { ctx, log, router } = harness();
+    router.dispatch({
+      kind: "hyperspaceRefused",
+      reason: "blocked",
+      blocker: "ship",
+    });
+    expect(log).toEqual([
+      "refusalCopy blocked blocker=ship lastRefusal=blocked",
+      "messages.enqueuePriority copy:blocked:ship",
+    ]);
+    // The probe shape stays `{ reason }`: the blocker never reaches it (T-12-11).
+    expect(ctx.core.lastRefusal).toEqual({ reason: "blocked" });
+    expect(Object.keys(ctx.core.lastRefusal ?? {})).toEqual(["reason"]);
   });
 
   it("hyperspaceJumped: hands the event to the arrival and does nothing else", () => {

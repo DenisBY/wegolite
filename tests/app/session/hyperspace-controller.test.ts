@@ -218,6 +218,20 @@ describe("refusalCopy and targetSystem", () => {
     );
   });
 
+  it("names a ship blocker with its own copy and keeps the station copy otherwise", () => {
+    const { controller } = harness();
+    const shipCopy = controller.refusalCopy("blocked", "ship");
+    expect(shipCopy).toBe("Witchspace jump aborted: too close to a ship");
+    expect(shipCopy).toHaveLength(44);
+    expect(controller.refusalCopy("blocked", "station")).toBe(
+      "Witchspace jump aborted: too close to Coriolis Station",
+    );
+    // A blocker never changes the other reasons.
+    expect(controller.refusalCopy("too far", "ship")).toBe(
+      "Destination is too far",
+    );
+  });
+
   it("resolves the committed target only through the catalogue", () => {
     const { ctx, controller } = harness();
     expect(controller.targetSystem()).toBe(destination);

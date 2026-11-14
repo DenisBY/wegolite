@@ -793,6 +793,28 @@ describe("buildStepOptions", () => {
     expect(options.hyperspace?.fuel).toBe(35);
   });
 
+  it("carries the ship masses under hyperspace.shipMasses and omits the key without them", () => {
+    const shipMasses = [{ specKey: "viper", mass: 34_040.6796875 }];
+    const withMasses = buildStepOptions({
+      fuel: 70,
+      system: lave.system,
+      target: undefined,
+      equipment,
+      dock,
+      shipMasses,
+    });
+    expect(withMasses.hyperspace?.shipMasses).toBe(shipMasses);
+    const without = buildStepOptions({
+      fuel: 70,
+      system: lave.system,
+      target: undefined,
+      equipment,
+      dock,
+    });
+    expect(without.hyperspace).not.toHaveProperty("shipMasses");
+    expect(Object.keys(without.hyperspace ?? {})).not.toContain("shipMasses");
+  });
+
   it("has no dock key at all without a geometry", () => {
     const options = buildStepOptions({
       fuel: 70,
