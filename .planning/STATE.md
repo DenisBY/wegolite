@@ -4,17 +4,17 @@ milestone: v2.1
 milestone_name: World Population Base
 current_phase: 11
 current_phase_name: Minimal Save Schema v3
-status: executing
-stopped_at: Completed 11-03-PLAN.md
-last_updated: "2026-11-14T12:10:11.105Z"
+status: verifying
+stopped_at: Completed 11-04-PLAN.md
+last_updated: "2026-11-14T12:41:19.408Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 11 execution started
-state_head: d3537d2375327935feadb5798706332e6b028c70
+state_head: d36b4a1890a47d97c4fa0fce7050681627904885
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 Phase: 11 (Minimal Save Schema v3) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-14 — Phase 11 execution started
 
 Progress: [█████░░░░░] 50%
@@ -138,6 +138,7 @@ Progress: [█████░░░░░] 50%
 | Phase 11 P01 | 4 min | 2 tasks | 6 files |
 | Phase 11 P02 | 10 min | 3 tasks | 16 files |
 | Phase 11 P03 | 15min | 2 tasks | 5 files |
+| Phase 11 P04 | 45min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -336,6 +337,7 @@ Recent decisions affecting current work:
 - [Phase 11]: Docked saves always write nextEntityId 101 and the lifecycle epoch (world alive or not), so every autosave trigger yields the same bytes (D-05); buildSnapshotInputs is not-ready without a world lifecycle
 - [Phase 11]: Cold Continue and warm Load call resetForRestore in the same position (after the seed install, before the in-flight resume), so both yield the same epoch and world seed (D-06)
 - [Phase 11]: Worst-case v3 save measures 40,427 characters, under MAX_SAVE_CHARS 65,536 (11-03)
+- [Phase 11]: Phase 11 gate: verify-full green (28m27s, exit 0); save schema v3 fields recorded in Key Decisions, worst case 40,427 of 65,536 characters
 
 ### Pending Todos
 
@@ -429,8 +431,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T12:10:10.933Z
-Stopped at: Completed 11-03-PLAN.md
+Last session: 2026-11-14T12:41:19.233Z
+Stopped at: Completed 11-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

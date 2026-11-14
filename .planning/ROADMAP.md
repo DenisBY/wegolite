@@ -128,7 +128,7 @@ Plans:
 **Research flag**: Low — the ordered migration chain, the strict schema, the shared validator and the golden blobs already exist
 **Pitfalls to address**: 10 (a minimal bump with ordered migration and a worst-case size test; the former "one bump with every field" rule is superseded by the 2026-11-13 Key Decision), 2 (no closure-held random state in a save)
 **Decisions to settle**: persisting the epoch makes the D-02 world-seed derivation one-way, so check the cross-check vector `worldSeedFor(marketSeedForSystem("g0-s7"), 1) = 0x2b4e037c` before the first v3 write; name now every world counter Phase 12's populator needs, because a counter found later costs another bump
-**Plans**: 3/4 plans executed
+**Plans**: 4/4 plans executed
 
 Plans:
 **Wave 1**
@@ -141,7 +141,7 @@ Plans:
 - [x] 11-03-PLAN.md — Cold Continue and warm Load re-anchor at save.epoch (D-06) with warm/cold identity proofs; v3 bounds, older-build inertness, writer gate and worst-case size (D-03, D-04, D-08)
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 11-04-PLAN.md — Browser specs on v3 (version 4 as the future), changelog compatibility call-out, Key Decisions, and the phase gate (verify, D-09)
+- [x] 11-04-PLAN.md — Browser specs on v3 (version 4 as the future), changelog compatibility call-out, Key Decisions, and the phase gate (verify, D-09)
 
 ### Phase 12: Inert Ships and the World Lifecycle
 **Goal**: Space is no longer empty: inert NPC ships of the six roles are placed deterministically, drawn and on the scanner within budget, and mass-lock the torus and block jumps as in Oolite; the world keeps running behind the chart, is cleared at each jump commit, is repopulated on arrival and is regenerated from the save on reload, on a world step that contains a faulty AI module and refuses malformed spawns
@@ -199,7 +199,7 @@ Pending todos outside v2.1, which can run as quick tasks or join a phase by owne
 | 8. Session Split and World Core | v2.0 | 16/16 | Complete | 2026-11-13 |
 | 9. NPC Content | v2.1 | 5/5 | Complete    | 2026-11-14 |
 | 10. Ship Mass | v2.1 | 4/4 | Complete    | 2026-11-14 |
-| 11. Minimal Save Schema v3 | v2.1 | 3/4 | In Progress | - |
+| 11. Minimal Save Schema v3 | v2.1 | 4/4 | In Progress | - |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 0/TBD | Not started | - |
 
 ## Backlog
