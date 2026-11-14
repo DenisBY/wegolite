@@ -278,4 +278,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-13 at the start of milestone v2.1 World Population Base*
+*Last updated: 2026-11-14 after Phase 12 (inert ships and the world lifecycle)*
