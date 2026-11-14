@@ -82,6 +82,14 @@ Oolite computes its collision radius). It is a derivative work of `shipdata.plis
 and of those models and remains CC BY-NC-SA 3.0, never GPL, with attribution to
 the Oolite contributors, non-commercial use only and share-alike terms.
 
+The generated hull file `src/content/generated/ships-hulls.json` is compiled at
+build time from the vendored Oolite `.dat` models of the player Cobra Mk III
+(`oolite_cobra3`) and the nine NPC ships: for each hull it carries the octree
+Wegolite's port of Oolite's octree builder computes from the model, and the hull
+collision radius computed as for `ships-npc.json`. It is a derivative work of
+those models and remains CC BY-NC-SA 3.0, never GPL, with attribution to the
+Oolite contributors, non-commercial use only and share-alike terms.
+
 The `mass` values in `src/content/generated/ships-client.json` (the player Cobra
 Mk III, the Coriolis station and the navigation buoy) are computed the same way
 from the vendored Oolite `oolite_cobra3` model, the four Coriolis models

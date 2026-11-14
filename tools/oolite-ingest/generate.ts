@@ -36,6 +36,7 @@ import { emitEquipment } from "./convert/equipment.js";
 import { emitLabels } from "./convert/labels.js";
 import { NPC_SHIP_KEYS, emitNpcShips } from "./convert/npc-ships.js";
 import { computeShipMasses } from "./convert/ship-mass.js";
+import { emitShipHulls } from "./convert/ship-hulls.js";
 import { computeShipRadii } from "./convert/ship-radius.js";
 import {
   CLIENT_SHIP_KEYS,
@@ -187,6 +188,7 @@ export async function generateContent({
     emitShipsFromCatalogue(catalogue),
     emitClientShips(catalogue, masses),
     emitNpcShips(catalogue, masses, radii),
+    emitShipHulls(catalogue, models),
     emitDockPort(models),
     ...emitModels(models, entries),
   ];
