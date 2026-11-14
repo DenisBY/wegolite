@@ -5,16 +5,16 @@ milestone_name: World Population Base
 current_phase: 12
 current_phase_name: Inert Ships and the World Lifecycle
 status: executing
-stopped_at: Completed 12-09-PLAN.md
-last_updated: "2026-11-14T18:43:00.949Z"
+stopped_at: Completed 12-10-PLAN.md
+last_updated: "2026-11-14T18:56:34.852Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 12 execution started
-state_head: 3e4a7b48cbb5cb6659fd0ef9a1711ec628d011bf
+state_head: b71c690c0cc0e16bbed31f8b5d7e16802ab58e3b
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 27
-  completed_plans: 22
+  completed_plans: 23
   percent: 75
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 12 (Inert Ships and the World Lifecycle) — EXECUTING
-Plan: 10 of 14
+Plan: 11 of 14
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 12 execution started
 
@@ -149,6 +149,7 @@ Progress: [████████░░] 75%
 | Phase 12 P07 | 30 min | 2 tasks | 9 files |
 | Phase 12 P08 | ~45min | 3 tasks | 14 files |
 | Phase 12 P09 | 25min | 3 tasks | 6 files |
+| Phase 12 P10 | 35 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -360,6 +361,7 @@ Recent decisions affecting current work:
 - [Phase 12]: D-05 after the Phase 12 populator (D-01): seed and starting counter 101 independent of traffic; post-populate counter 113 on, 101 off; NPC-free world keeps the flight hash
 - [Phase 12]: Jump commit clears the world on the same tick (WORLD-14): stepSim skips the old world on the hyperspaceJumped step and the same stepOnce pass replaces it through begin
 - [Phase 12]: SAVE-08 for the inert world: regenerated at the leg anchor; a counter mismatch never blocks a load; a docked save writes 101 and keeps no world
+- [Phase 12]: Plan 12-10: inert ships reach the existing scanner as id-free NpcContact snapshots (police or neutral) rebuilt every rendered frame from the live world; HUD kinds ship and police in Oolite's yellow and police purple #8000ff, no new HUD element
 
 ### Pending Todos
 
@@ -453,8 +455,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T18:43:00.583Z
-Stopped at: Completed 12-09-PLAN.md
+Last session: 2026-11-14T18:56:34.474Z
+Stopped at: Completed 12-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
