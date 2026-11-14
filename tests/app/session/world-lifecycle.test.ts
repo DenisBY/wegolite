@@ -36,6 +36,7 @@ import type { System } from "../../../src/content/types.js";
 import type { InputContext } from "../../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { snapshotForSave } from "../../../src/persistence/autosave.js";
+import type { SaveWorldCounters } from "../../../src/persistence/autosave.js";
 import { encodeSave } from "../../../src/persistence/save.js";
 import type { SaveAllowLists } from "../../../src/persistence/save.js";
 import type {
@@ -840,6 +841,12 @@ describe("arrival", () => {
   });
 });
 
+/** Counters of a save written with no world lifecycle behind it (epoch 0). */
+const NO_COUNTERS: SaveWorldCounters = {
+  epoch: 0,
+  anchorNextEntityId: undefined,
+};
+
 /** The blob of a Lave save, docked or in flight, with the fixture market. */
 function laveBlob(mode: "docked" | "inFlight"): string {
   const state = initFlightState(lave.layout);
@@ -856,6 +863,7 @@ function laveBlob(mode: "docked" | "inFlight"): string {
       { key: "coriolis-station" },
       laveMarket,
       catalogue,
+      NO_COUNTERS,
       undefined,
     ),
   );
@@ -1080,12 +1088,13 @@ describe("load", () => {
   });
 });
 
-describe("anchored save: the world never enters the save", () => {
-  /** The exact v2 allow-lists the plan names (SaveInputs and the encoded SaveV2). */
+describe("anchored save: only the epoch and the anchor counter of the world enter the save", () => {
+  /** The exact v3 allow-lists (SaveInputs and the encoded SaveV3). */
   const INPUT_KEYS = [
     "cargo",
     "clockSeconds",
     "credits",
+    "epoch",
     "equipment",
     "flight",
     "fuel",
@@ -1093,6 +1102,7 @@ describe("anchored save: the world never enters the save", () => {
     "marketSeed",
     "missiles",
     "mode",
+    "nextEntityId",
     "passengerBerths",
     "stationKey",
     "systemId",
@@ -1110,13 +1120,14 @@ describe("anchored save: the world never enters the save", () => {
     "passengerBerths",
     "system",
     "station",
+    "epoch",
+    "nextEntityId",
     "market",
     "marketSeed",
     "targetSystem",
     "flight",
   ];
   const WORLD_KEYS = [
-    '"epoch":',
     '"worldSeed":',
     '"nextId":',
     '"entities":',
@@ -1152,6 +1163,7 @@ describe("anchored save: the world never enters the save", () => {
       state.tick,
     );
     expect(pilot?.id).toBe(101);
+    expect(world.store.nextId).toBe(102);
     for (let tick = 0; tick < 50; tick += 1) {
       stepSim(state, world, lave.layout, lave.config, ZERO_INTENT, [], DT);
     }
@@ -1173,6 +1185,11 @@ describe("anchored save: the world never enters the save", () => {
       expect(JSON.stringify(withWorld)).not.toContain(needle);
       expect(encoded).not.toContain(needle);
     }
+    // The epoch of the lifecycle and the anchor counter, not the live counter.
+    expect(withWorld.epoch).toBe(3);
+    expect(withWorld.nextEntityId).toBe(101);
+    expect(encoded).toContain('"epoch":3');
+    expect(encoded).toContain('"nextEntityId":101');
 
     h.lifecycle.end();
     const withoutWorld = h.controller.buildSnapshotInputs();

@@ -25,12 +25,16 @@ import { NEW_GAME_FUEL, NEW_GAME_MISSILES } from "../sim/player/profile.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
 import type { SystemLayout } from "../sim/world/layout.js";
 import { encodeSave, isEncodedSaveValid } from "./save.js";
-import { LEGACY_BERTH_ALIAS, LEGACY_MISSILE_ALIAS } from "./save.js";
+import {
+  FRESH_WORLD_NEXT_ENTITY_ID,
+  LEGACY_BERTH_ALIAS,
+  LEGACY_MISSILE_ALIAS,
+} from "./save.js";
 import type {
   SaveAllowLists,
   SaveCargoEntry,
   SaveInputs,
-  SaveV2,
+  SaveV3,
 } from "./save.js";
 import type { SaveStore, WriteResult } from "./store.js";
 
@@ -56,12 +60,32 @@ export interface RestoredGame {
 }
 
 /**
+ * The world lifecycle counters a snapshot records (Phase 11, D-01, D-05).
+ *
+ * The session's `WorldLifecycle` satisfies this structurally; persistence does
+ * not import app code.
+ */
+export interface SaveWorldCounters {
+  /** The lifecycle epoch: the last world's when docked, the anchor's in flight. */
+  readonly epoch: number;
+  /** The post-populate counter of the leg's world, or undefined without one. */
+  readonly anchorNextEntityId: number | undefined;
+}
+
+/**
  * Build the schema inputs from the live state, profile, identities and market.
  *
  * `mode` is `inFlight` only for a live in-flight state: a `launching` snapshot
  * is encoded as `docked`, because v2 has no `launching` mode and the pre-launch
  * segment anchor is taken before the transition (D-17). The live market's goods
  * are copied verbatim — this function never regenerates a price or a seed.
+ *
+ * The counters follow D-05. A docked anchor has no live world: the docked event
+ * ends it right after the dock autosave, and a purchase or launch autosave runs
+ * with none. So every docked save writes the counter every new world starts
+ * from, and all triggers give the same bytes. The epoch is the last world's, and
+ * the next launch bumps it as the session would have. An in-flight save writes
+ * the anchor world's counter, never the live one.
  */
 export function snapshotForSave(
   state: FlightState,
@@ -70,6 +94,7 @@ export function snapshotForSave(
   station: { readonly key: string },
   market: Market | undefined,
   commodities: readonly Commodity[],
+  counters: SaveWorldCounters,
   targetSystemId?: string,
 ): SaveInputs {
   const order = new Map(
@@ -89,7 +114,7 @@ export function snapshotForSave(
   const mode = state.mode === "inFlight" ? "inFlight" : "docked";
 
   return {
-    // `SaveV2Schema.clockSeconds` is an integer; flight advances the clock by
+    // `SaveV3Schema.clockSeconds` is an integer; flight advances the clock by
     // `DT` (1/120), so a snapshot taken after any flight is fractional. Floor
     // it at the writer boundary: the save contract must never depend on how
     // long the player flew.
@@ -127,6 +152,11 @@ export function snapshotForSave(
       : {}),
     systemId: system.id,
     stationKey: station.key,
+    epoch: counters.epoch,
+    nextEntityId:
+      mode === "inFlight"
+        ? (counters.anchorNextEntityId ?? FRESH_WORLD_NEXT_ENTITY_ID)
+        : FRESH_WORLD_NEXT_ENTITY_ID,
   };
 }
 
@@ -181,7 +211,7 @@ function effectiveCount(
  * counts and removed from the equipment list; the dump is canonical from then
  * on.
  */
-export function profileFromSave(save: SaveV2): PlayerProfile {
+export function profileFromSave(save: SaveV3): PlayerProfile {
   const equipment: string[] = [];
   let hasBerthAlias = false;
   let hasMissileAlias = false;
@@ -227,9 +257,9 @@ export function profileFromSave(save: SaveV2): PlayerProfile {
  * `mode === "launching"`, so this preserves the saved producer exactly.
  */
 export function restoreFromSave(
-  save: SaveV2,
+  save: SaveV3,
   layout: SystemLayout,
-  profileFactory: (save: SaveV2) => PlayerProfile,
+  profileFactory: (save: SaveV3) => PlayerProfile,
 ): RestoredGame {
   const state = initFlightState(layout);
   state.clockSeconds = save.clockSeconds;

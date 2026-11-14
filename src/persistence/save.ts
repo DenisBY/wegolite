@@ -23,12 +23,17 @@
  *    equipment catalogue.
  *
  * An oversized, unparseable or unrecognised blob is `unreadable`, never
- * `corrupt`: only a provably v1/v2-shaped-but-invalid blob may be backed up and
- * cleared by New game (T-04-47).
+ * `corrupt`: only a provably v1/v2/v3-shaped-but-invalid blob may be backed up
+ * and cleared by New game (T-04-47).
  *
  * The save carries no docked pose, no timestamp and no host data: a docked pose
  * is derived from the layout on restore. A v2 in-flight save additionally
  * carries the sanitized flight pose and the market snapshot (D-13).
+ *
+ * Schema v3 (Phase 11, SAVE-07) adds exactly two leg-anchor fields to v2: the
+ * lifecycle `epoch` and the anchor world's `nextEntityId`. No entity, combat,
+ * law or cargo cost-basis field exists in the save (Key Decision 2026-11-13):
+ * the world is rebuilt from the market seed and the epoch, never stored.
  */
 
 import { z } from "zod";
@@ -43,8 +48,11 @@ import { MARKET_LIMIT, marketSeedForSystem } from "../sim/economy/market.js";
 import type { Market } from "../sim/economy/market.js";
 import { CLOCK_START } from "../sim/flight/state.js";
 
-/** The schema version this build writes and accepts (D-13). */
-export const SAVE_VERSION = 2 as const;
+/**
+ * The schema version this build writes and accepts (D-13). It is 3 since
+ * Phase 11 (SAVE-07): v1 and v2 blobs are still read, through the ordered chain.
+ */
+export const SAVE_VERSION = 3 as const;
 
 /**
  * The largest raw blob the parser will even attempt to parse (D-15, T-06-04).
@@ -56,10 +64,12 @@ export const SAVE_VERSION = 2 as const;
  *   (a control character encodes to six characters, `\u00XX`);
  * - cargo, 17 entries: 17 × (64 × 6 + 8) ≈ 6,664;
  * - market, 17 goods: 17 × (64 × 6 + 28) ≈ 7,004;
- * - pose: about 250; scalar/system/station envelope: about 400.
+ * - pose: about 250; scalar/system/station envelope: about 400;
+ * - the two v3 numbers, `epoch` and `nextEntityId`: about 40.
  *
  * That is ≈38.9 KB, comfortably under 65,536 while remaining a hard resource
- * bound checked before `JSON.parse`. The version sniff copies at most
+ * bound checked before `JSON.parse`. tests/persistence/save-v3.test.ts measures
+ * the v3 worst case (plan 11-03). The version sniff copies at most
  * `MAX_VERSION_SNIFF_CHARS` characters, never the whole stored string.
  */
 export const MAX_SAVE_CHARS = 65_536;
@@ -130,6 +140,28 @@ export const MAX_SAVE_RATE = 10;
 
 /** The exact number of market goods a snapshot carries (MARKET_LIMIT stock). */
 export const MAX_SAVE_MARKET_GOODS = 17;
+
+/**
+ * The largest epoch a v3 save may carry. These are exactly the epochs from which
+ * `WorldLifecycle.begin` can still bump and that `resetForRestore` accepts.
+ * 0xffffffff, and every other value outside the bound, makes the blob corrupt
+ * (D-04).
+ */
+export const MAX_SAVE_EPOCH = 0xfffffffe;
+
+/**
+ * The counter of a world in which nothing has spawned yet. It equals the sim's
+ * first dynamic id; that module may not be imported outside `src/sim` (per-world
+ * id scope), so a test pins the equality. A v1 or v2 migration writes this value
+ * (D-02), and so does a docked save (D-05).
+ */
+export const FRESH_WORLD_NEXT_ENTITY_ID = 101;
+
+/**
+ * The counter once every uint32 id has been issued: the same ceiling
+ * `parseWorldSnapshot` applies to `nextId`.
+ */
+export const MAX_SAVE_NEXT_ENTITY_ID = 0x1_0000_0000;
 
 export const CargoEntrySchema = z.strictObject({
   key: z.string().min(1).max(MAX_SAVE_EQUIPMENT_KEY_CHARS),
@@ -222,14 +254,15 @@ export const FlightPoseSchema = z.strictObject({
 });
 
 /**
- * The current v2 schema (D-13, D-15).
+ * The historical v2 schema (D-13, D-15).
  *
- * One strict object: every v1 field plus `mode`, an optional committed target,
- * exactly one seed encoding (`market` or `marketSeed`) and, for `inFlight`, a
- * flight pose.
+ * What Phases 6 to 10 wrote, and the input of the v2 -> v3 migration, so its
+ * version is `z.literal(2)`. One strict object: every v1 field plus `mode`, an
+ * optional committed target, exactly one seed encoding (`market` or
+ * `marketSeed`) and, for `inFlight`, a flight pose.
  */
 export const SaveV2Schema = z.strictObject({
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(2),
   mode: z.enum(["docked", "inFlight"]),
   clockSeconds: z
     .number()
@@ -259,8 +292,28 @@ export const SaveV2Schema = z.strictObject({
   flight: FlightPoseSchema.optional(),
 });
 
+/**
+ * The current v3 schema (Phase 11, SAVE-07; D-01, D-03, D-04).
+ *
+ * Every v2 field plus exactly two required leg-anchor fields: the lifecycle
+ * `epoch` (0..`MAX_SAVE_EPOCH`) and the anchor world's `nextEntityId`
+ * (`FRESH_WORLD_NEXT_ENTITY_ID`..`MAX_SAVE_NEXT_ENTITY_ID`). No other key is
+ * allowed, and no entity field exists: a save never carries world state.
+ */
+export const SaveV3Schema = z.strictObject({
+  ...SaveV2Schema.shape,
+  version: z.literal(SAVE_VERSION),
+  epoch: z.number().int().min(0).max(MAX_SAVE_EPOCH),
+  nextEntityId: z
+    .number()
+    .int()
+    .min(FRESH_WORLD_NEXT_ENTITY_ID)
+    .max(MAX_SAVE_NEXT_ENTITY_ID),
+});
+
 export type SaveV1 = z.infer<typeof SaveV1Schema>;
 export type SaveV2 = z.infer<typeof SaveV2Schema>;
+export type SaveV3 = z.infer<typeof SaveV3Schema>;
 export type SaveCargoEntry = z.infer<typeof CargoEntrySchema>;
 
 /** The catalogue facts a boot must supply before a blob can be trusted. */
@@ -284,7 +337,7 @@ export type SaveParseFailure =
   "corrupt" | "future-version" | "absent" | "unreadable";
 
 export type SaveParseResult =
-  | { readonly ok: true; readonly save: SaveV2 }
+  | { readonly ok: true; readonly save: SaveV3 }
   | { readonly ok: false; readonly reason: SaveParseFailure };
 
 /** A flight pose in the wire shape: tuples, not the sim's `{x,y,z}` objects. */
@@ -297,7 +350,7 @@ export interface SaveFlightPose {
   readonly torus: boolean;
 }
 
-/** The trusted values `encodeSave` projects into a `SaveV2`. */
+/** The trusted values `encodeSave` projects into a `SaveV3`. */
 export interface SaveInputs {
   readonly clockSeconds: number;
   readonly credits: number;
@@ -317,6 +370,10 @@ export interface SaveInputs {
   readonly flight?: SaveFlightPose;
   readonly systemId: string;
   readonly stationKey: string;
+  /** The lifecycle epoch at the leg anchor (D-05). */
+  readonly epoch: number;
+  /** The anchor world's counter, or 101 for a docked save (D-01, D-05). */
+  readonly nextEntityId: number;
 }
 
 /** The Phase 4 equipment alias for one passenger berth. */
@@ -366,10 +423,26 @@ function sniffVersion(raw: string): number | null {
 export function migrateV1ToV2(v1: SaveV1): SaveV2 {
   return {
     ...v1,
-    version: SAVE_VERSION,
+    version: 2,
     mode: "docked",
     marketSeed: v1.marketSeed ?? marketSeedForSystem(v1.system.id),
     // No `market` and no `flight`: a v1 save is always docked and has no snapshot.
+  };
+}
+
+/**
+ * The one ordered v2 → v3 migration (D-02, D-03).
+ *
+ * Pure and total, and it never mutates its input. The values equal what the
+ * session did before Phase 11 (epoch 0, ids from 101), so an old save loads into
+ * the same world it always did.
+ */
+export function migrateV2ToV3(v2: SaveV2): SaveV3 {
+  return {
+    ...v2,
+    version: SAVE_VERSION,
+    epoch: 0,
+    nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
   };
 }
 
@@ -423,21 +496,25 @@ export function parseSave(
 
   // A JSON value that does not carry this save family's numeric `version`
   // field is an unknown shape, not a corrupt save. Only a positively recognised
-  // v1/v2 object may be backed up and cleared by New game.
+  // v1/v2/v3 object may be backed up and cleared by New game.
   if (!isRecord(parsed) || typeof parsed["version"] !== "number") {
     return { ok: false, reason: "unreadable" };
   }
 
   const version = parsed["version"];
-  let save: SaveV2;
+  let save: SaveV3;
   if (version === 1) {
     // The historical schema is the migration input; a v1-shaped blob that
-    // fails it is positively corrupt.
+    // fails it is positively corrupt. The chain never skips a step (D-03).
     const migrated = SaveV1Schema.safeParse(parsed);
     if (!migrated.success) return { ok: false, reason: "corrupt" };
-    save = migrateV1ToV2(migrated.data);
+    save = migrateV2ToV3(migrateV1ToV2(migrated.data));
   } else if (version === 2) {
-    const current = SaveV2Schema.safeParse(parsed);
+    const historical = SaveV2Schema.safeParse(parsed);
+    if (!historical.success) return { ok: false, reason: "corrupt" };
+    save = migrateV2ToV3(historical.data);
+  } else if (version === 3) {
+    const current = SaveV3Schema.safeParse(parsed);
     if (!current.success) return { ok: false, reason: "corrupt" };
     save = current.data;
   } else {
@@ -481,7 +558,7 @@ export function parseSave(
  * the alias and a non-zero count together are ambiguous double-encoding.
  */
 export function validateSaveSemantics(
-  save: SaveV2,
+  save: SaveV3,
   allow: SaveAllowLists,
   mode: "read" | "write",
 ): boolean {
@@ -619,7 +696,7 @@ export function isEncodedSaveValid(
   } catch {
     return false;
   }
-  const result = SaveV2Schema.safeParse(parsed);
+  const result = SaveV3Schema.safeParse(parsed);
   if (!result.success) return false;
   // The reader's referent allow-lists (see `parseSave`) apply here too, so the
   // writer can never replace a good blob with bytes the reader would classify as
@@ -652,7 +729,7 @@ export function boundCorruptBackup(raw: string): string {
 }
 
 /**
- * Project trusted values into the canonical v2 blob.
+ * Project trusted values into the canonical v3 blob.
  *
  * Exactly one seed is always emitted: the market snapshot wins when present
  * (and `marketSeed` is omitted), otherwise the seed is written. A docked save
@@ -674,7 +751,7 @@ export function encodeSave(inputs: SaveInputs): string {
           })),
         };
 
-  const save: SaveV2 = {
+  const save: SaveV3 = {
     version: SAVE_VERSION,
     mode: inputs.mode,
     clockSeconds: inputs.clockSeconds,
@@ -689,6 +766,8 @@ export function encodeSave(inputs: SaveInputs): string {
     passengerBerths: inputs.passengerBerths,
     system: { id: inputs.systemId },
     station: { key: inputs.stationKey },
+    epoch: inputs.epoch,
+    nextEntityId: inputs.nextEntityId,
     ...(inputs.targetSystem === undefined
       ? {}
       : { targetSystem: inputs.targetSystem }),

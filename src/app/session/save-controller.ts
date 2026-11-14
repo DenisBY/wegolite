@@ -147,10 +147,14 @@ export function createSaveController(
 
   /**
    * Build the one schema input set used by both the autosave anchors and the
-   * manual F2 Save, so the two producers can never diverge (D-21).
+   * manual F2 Save, so the two producers can never diverge (D-21). The v3
+   * counters (epoch, anchor counter) come from the live world lifecycle; without
+   * one the snapshot is not ready (a session always creates its lifecycle before
+   * its state).
    */
   function buildSnapshotInputs(): SaveInputs | undefined {
     const currentState = ctx.core.state;
+    const lifecycle = ctx.core.worldLifecycle;
     const currentStationKey = ctx.core.stationKey;
     const currentMarket = ctx.core.market;
     const catalogue = ctx.core.commodities;
@@ -158,7 +162,8 @@ export function createSaveController(
       currentState === undefined ||
       currentStationKey === undefined ||
       currentMarket === undefined ||
-      catalogue === undefined
+      catalogue === undefined ||
+      lifecycle === undefined
     ) {
       return undefined;
     }
@@ -169,6 +174,7 @@ export function createSaveController(
       { key: currentStationKey },
       currentMarket,
       catalogue,
+      lifecycle,
       ctx.core.hyperspaceTargetId,
     );
   }
