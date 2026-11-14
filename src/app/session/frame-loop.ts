@@ -11,7 +11,10 @@
  *   1. reschedule and count (`probe.frames`), then the live guards and the delta;
  *   2. the pause toggle;
  *   3. the chart drain, then the save-screen drain (the chart wins a tie);
- *   4. the chart-open freeze branch: drain, empty `pending`, return;
+ *   4. the chart-open branch: drain, empty `pending`, and in flight (not paused,
+ *      not under the manual clock) step the simulation behind the chart with no
+ *      commands and the zero frame (WORLD-11, as in Oolite; supersedes the v1
+ *      freeze D-01); docked it stays frozen; return without drawing;
  *   5. the save-screen freeze branch: drain, empty `pending`, return;
  *   6. station actions, applied only when docked and not paused;
  *   7. the sim driver (drain, launch autosave, fixed steps) when not paused, or
@@ -41,7 +44,7 @@ export interface LoopDeps {
   /** The queue the Launch button and the launch-skip key push onto. */
   readonly pending: Command[];
   readonly redrawGate: Pick<RedrawGate, "request">;
-  readonly simDriver: Pick<SimDriver, "advanceFrame">;
+  readonly simDriver: Pick<SimDriver, "advanceFrame" | "advanceBehind">;
   /** The render driver's direct frame and its redraw-gate decision. */
   readonly renderFrame: RenderDriver["renderFrame"];
   readonly shouldDraw: RenderDriver["shouldDraw"];
@@ -110,11 +113,24 @@ export function createFrameLoop(
     else handleSaveScreenActions(currentInput.drainSaveScreenActions());
 
     if (ctx.chart.chartOpen) {
-      // The overlay is opaque: drain everything, advance nothing, paint nothing.
+      // The overlay is opaque: drain everything and paint nothing. In flight
+      // the simulation keeps running behind it (WORLD-11, as in Oolite; the v1
+      // freeze D-01 is superseded), with no commands and the zero input frame
+      // so nothing pressed over the chart steers the ship. Docked it stays
+      // frozen, and so does a paused session. Under the manual clock only
+      // `advanceTicks` moves the simulation (D-09). A dock or an arrival behind
+      // the chart closes it (plan 12-13).
       currentInput.drainCommands();
       currentInput.drainStationActions();
       pending.length = 0;
       ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+      if (
+        currentState.mode === "inFlight" &&
+        !ctx.runtime.paused &&
+        !ctx.runtime.testFlags.manualClock
+      ) {
+        simDriver.advanceBehind(delta);
+      }
       redrawGate.request();
       updateProbe();
       return;

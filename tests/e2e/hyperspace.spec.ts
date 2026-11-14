@@ -4,8 +4,8 @@
 /**
  * The end-to-end navigation tracer (NAV-01..06, SAVE-05, D-01/D-02/D-06/D-09).
  *
- * One continuous browser path: F6 opens the chart and freezes the loop, a click
- * selects and Enter commits, H starts the fixed-step countdown, a second H
+ * One continuous browser path: F6 opens the chart (in flight the simulation
+ * keeps running behind it), a click selects and Enter commits, H starts the fixed-step countdown, a second H
  * aborts it at no cost, the refusal names the exact reason, the arrival swaps
  * the scene and market, the arrival autosave commits, and a reload returns to
  * the same witchpoint, market and target.
@@ -249,11 +249,11 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   await page.keyboard.press("Digit1");
   await waitForMode(page, "inFlight");
 
-  // D-01's suspension is observable only in flight.
+  // WORLD-11: the flight keeps running behind the chart, as in Oolite.
   await openChart(page);
-  const frozenClock = (await getProbe(page)).clock;
+  const clockAtChartOpen = (await getProbe(page)).clock;
   await waitFrames(page, 60);
-  expect((await getProbe(page)).clock).toBe(frozenClock);
+  expect((await getProbe(page)).clock).toBeGreaterThan(clockAtChartOpen);
   await closeChart(page);
 
   // A committed out-of-range target is refused at H with the exact reason.

@@ -42,6 +42,7 @@ import {
 } from "../../../src/sim/flight/controller.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { InputFrame } from "../../../src/sim/state.js";
+import { MAX_STEPS_PER_FRAME } from "../../../src/sim/step.js";
 import { DT } from "../../../src/sim/time.js";
 import { sessionSources } from "../../helpers/session-source.js";
 import { laveFixture } from "../../helpers/lave.js";
@@ -378,6 +379,94 @@ describe("stepOnce, the single flight step", () => {
     driver.stepOnce([], { pitch: 0, roll: 0, speed: 1, precision: false });
     expect(ctx.core.previousPose).toBe(before);
     expect(ctx.core.currentPose).not.toBe(before);
+  });
+});
+
+describe("advanceBehind, the steps behind the open chart (WORLD-11)", () => {
+  it("runs the whole steps the delta owes with no commands and the zero frame, never draining the keyboard", () => {
+    const h = harness({ mode: "inFlight" });
+    // A held pitch input and a queued command must reach nothing here.
+    const heldPitch: InputFrame = {
+      pitch: 1,
+      roll: 1,
+      speed: 1,
+      precision: true,
+    };
+    h.queue.push(launch);
+    h.pending.push(launch);
+    h.ctx.runtime.input = {
+      drainCommands: () => {
+        h.counts.drains += 1;
+        return h.queue.splice(0);
+      },
+      frame: () => {
+        h.counts.frames += 1;
+        return heldPitch;
+      },
+    } as unknown as KeyboardInputSource;
+    const start = h.ctx.core.state?.tick ?? -1;
+
+    h.driver.advanceBehind(THREE_STEPS);
+
+    expect(h.ctx.core.state?.tick).toBe(start + 3);
+    expect(h.stepCommands).toEqual([[], [], []]);
+    expect(h.seenFrames).toHaveLength(3);
+    for (const seen of h.seenFrames) {
+      expect(seen).toEqual({ pitch: 0, roll: 0, speed: 0, precision: false });
+    }
+    expect(h.ctx.core.currentFrame).toEqual({
+      pitch: 0,
+      roll: 0,
+      speed: 0,
+      precision: false,
+    });
+    // No drain, no input frame read, `pending` and the queue untouched.
+    expect(h.counts.drains).toBe(0);
+    expect(h.counts.frames).toBe(0);
+    expect(h.queue).toEqual([launch]);
+    expect(h.pending).toEqual([launch]);
+  });
+
+  it("never autosaves and never taints the session", () => {
+    const h = harness({ mode: "inFlight" });
+    h.driver.advanceBehind(THREE_STEPS);
+    expect(h.log.some((entry) => entry.startsWith("autosave"))).toBe(false);
+    expect(h.log).not.toContain("markHookMutation");
+    expect(h.ctx.runtime.testTainted).toBe(false);
+  });
+
+  it("keeps the same step bounds as advanceFrame: at most MAX_STEPS_PER_FRAME steps", () => {
+    const h = harness({ mode: "inFlight" });
+    h.driver.advanceBehind(10);
+    expect(h.stepCommands).toHaveLength(MAX_STEPS_PER_FRAME);
+  });
+
+  it("keeps a running countdown decrementing", () => {
+    const h = harness({ mode: "inFlight" });
+    const state = h.ctx.core.state;
+    if (state === undefined) throw new Error("no state");
+    state.hyperspaceCountdown = 100;
+
+    h.driver.advanceBehind(THREE_STEPS);
+
+    expect(state.hyperspaceCountdown).toBe(97);
+  });
+
+  it("does nothing without a state, an input source or a game loop", () => {
+    const noState = harness({ mode: "inFlight" });
+    noState.ctx.core.state = undefined;
+    noState.driver.advanceBehind(THREE_STEPS);
+    expect(noState.stepCommands).toHaveLength(0);
+
+    const noLoop = harness({ mode: "inFlight" });
+    noLoop.ctx.runtime.loop = undefined;
+    noLoop.driver.advanceBehind(THREE_STEPS);
+    expect(noLoop.stepCommands).toHaveLength(0);
+
+    const noInput = harness({ mode: "inFlight" });
+    noInput.ctx.runtime.input = undefined;
+    noInput.driver.advanceBehind(THREE_STEPS);
+    expect(noInput.stepCommands).toHaveLength(0);
   });
 });
 

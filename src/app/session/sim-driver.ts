@@ -17,7 +17,10 @@
  *
  * The other phases of `frame()` (the pause toggle, the chart and save-screen
  * freezes, the station actions, the paused branch and the render) stay in the
- * facade until split step 9.
+ * facade until split step 9. The frame loop's chart branch steps the simulation
+ * behind the opaque chart in flight through `advanceBehind` (WORLD-11), which
+ * reaches the same single `stepOnce` call site with no commands and the zero
+ * input frame.
  */
 
 import type { System } from "../../content/types.js";
@@ -67,6 +70,18 @@ export interface SimDriverDeps {
  * bounded loop, so a bad argument cannot freeze the tab for long.
  */
 export const MAX_ADVANCE_TICKS = 200_000;
+
+/**
+ * The input frame of a step taken behind the opaque chart (WORLD-11): nothing
+ * the pilot presses while the chart is open steers the ship, as in Oolite. One
+ * frozen frame shared by every such step.
+ */
+const ZERO_FRAME: InputFrame = Object.freeze({
+  pitch: 0,
+  roll: 0,
+  speed: 0,
+  precision: false,
+});
 
 /** What one drain hands to the fixed steps. */
 interface Drained {
@@ -213,6 +228,32 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
   }
 
   /**
+   * The chart branch's steps (WORLD-11): the simulation keeps running behind
+   * the opaque chart in flight, as in Oolite. It runs the whole fixed steps the
+   * delta owes (the same `MAX_STEPS_PER_FRAME` and `MAX_FRAME_DELTA` bounds as
+   * `advanceFrame`, D-03) with no commands and the zero input frame, so
+   * nothing pressed while the chart is open steers the ship. It never drains
+   * the keyboard (the frame loop already did), never touches `pending` and
+   * never autosaves: the pre-launch anchor belongs to the docked drain.
+   */
+  function advanceBehind(delta: number): void {
+    const currentState = ctx.core.state;
+    const currentInput = ctx.runtime.input;
+    const currentLoop = ctx.runtime.loop;
+    if (
+      currentState === undefined ||
+      currentInput === undefined ||
+      currentLoop === undefined
+    ) {
+      return;
+    }
+    ctx.core.currentFrame = ZERO_FRAME;
+    currentLoop.advance(delta, [], (stepCommands) => {
+      stepOnce(stepCommands, ZERO_FRAME);
+    });
+  }
+
+  /**
    * The manual clock (D-09): step exactly `n` fixed ticks synchronously and
    * return the new tick. Honoured only under `?test=1&clock=manual`; every
    * unsafe call is refused with the tick unchanged and nothing stepped, drained
@@ -265,7 +306,7 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
     return ctx.core.state?.tick ?? 0;
   }
 
-  return { advanceFrame, advanceTicks, stepOnce };
+  return { advanceFrame, advanceBehind, advanceTicks, stepOnce };
 }
 
 export type SimDriver = ReturnType<typeof createSimDriver>;

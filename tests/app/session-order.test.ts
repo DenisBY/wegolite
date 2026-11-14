@@ -849,6 +849,10 @@ describe("frame phase order", () => {
           advanceDeltas.push(delta);
           return 0.5;
         },
+        advanceBehind: (delta) => {
+          log.push("advanceBehind");
+          advanceDeltas.push(delta);
+        },
       },
       renderFrame: (alpha, draw) => {
         log.push(`renderFrame ${String(alpha)} ${String(draw)}`);
@@ -991,8 +995,9 @@ describe("frame phase order", () => {
     expect(log).toContain("advanceFrame");
   });
 
-  it("freezes behind the open chart: drains, empties pending, never steps or draws", () => {
-    const { ctx, frame, log, pending, probe, handled } = frameHarness();
+  it("docked behind the open chart: drains, empties pending, never steps or draws", () => {
+    const { ctx, frame, log, pending, probe, handled, advanceDeltas } =
+      frameHarness();
     ctx.chart.chartOpen = true;
     pending.push(LAUNCH);
 
@@ -1012,8 +1017,70 @@ describe("frame phase order", () => {
     expect(handled.saveScreen).toEqual([]);
     expect(pending.length).toBe(0);
     expect(log).not.toContain("advanceFrame");
+    expect(log).not.toContain("advanceBehind");
+    expect(advanceDeltas).toEqual([]);
     expect(log.some((entry) => entry.startsWith("renderFrame"))).toBe(false);
     expect(probe.frames).toBe(1);
+  });
+
+  it("in flight behind the open chart: drains, empties pending, steps behind it with the frame's delta, never draws (WORLD-11)", () => {
+    const { ctx, frame, log, pending, probe, handled, advanceDeltas } =
+      frameHarness({ mode: "inFlight" });
+    ctx.chart.chartOpen = true;
+    pending.push(LAUNCH);
+
+    frame(1000);
+    frame(1016);
+
+    expect(log.slice(0, 8)).toEqual([
+      "consumePauseToggle",
+      "drainChartActions",
+      "drainSaveScreenActions",
+      "drainCommands",
+      "drainStationActions",
+      "advanceBehind",
+      "redrawGate.request",
+      "updateProbe",
+    ]);
+    expect(handled.chart).toEqual([["chartUp"], ["chartUp"]]);
+    expect(handled.saveScreen).toEqual([]);
+    expect(pending.length).toBe(0);
+    // The simulation advances with the frame's delta; the full driver path
+    // (advanceFrame) is never taken, and nothing is painted.
+    expect(advanceDeltas).toHaveLength(2);
+    expect(advanceDeltas[0]).toBe(0);
+    expect(advanceDeltas[1]).toBeCloseTo(0.016, 10);
+    expect(log).not.toContain("advanceFrame");
+    expect(log.some((entry) => entry.startsWith("renderFrame"))).toBe(false);
+    expect(log).not.toContain("shouldDraw");
+    expect(probe.frames).toBe(2);
+  });
+
+  it("in flight behind the open chart while paused: the freeze order, no step", () => {
+    const { ctx, frame, log, pending } = frameHarness({ mode: "inFlight" });
+    ctx.chart.chartOpen = true;
+    ctx.runtime.paused = true;
+    pending.push(LAUNCH);
+
+    frame(1000);
+
+    expect(log).not.toContain("advanceBehind");
+    expect(log).not.toContain("advanceFrame");
+    expect(pending.length).toBe(0);
+  });
+
+  it("in flight behind the open chart under the manual clock: only advanceTicks steps", () => {
+    const { ctx, frame, log } = frameHarness({
+      mode: "inFlight",
+      manualClock: true,
+    });
+    ctx.chart.chartOpen = true;
+
+    frame(1000);
+
+    expect(log).not.toContain("advanceBehind");
+    expect(log).not.toContain("advanceFrame");
+    expect(log).toContain("updateProbe");
   });
 
   it("freezes behind the open save screen: drains, empties pending, never steps or draws", () => {
