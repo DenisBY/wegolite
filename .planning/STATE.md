@@ -5,17 +5,17 @@ milestone_name: World Population Base
 current_phase: 12
 current_phase_name: Inert Ships and the World Lifecycle
 status: executing
-stopped_at: Completed 12-03-PLAN.md
-last_updated: "2026-11-14T17:20:45.494Z"
+stopped_at: Completed 12-04-PLAN.md
+last_updated: "2026-11-14T17:32:14.731Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 12 execution started
-state_head: 2bb97fdf7304e6c58a37493f3164114c6f80e1a4
+state_head: 550ac25f71d0767cce4af38e09376e415ee95fea
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 27
-  completed_plans: 16
-  percent: 59
+  completed_plans: 17
+  percent: 63
 ---
 
 # Project State
@@ -30,11 +30,11 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 12 (Inert Ships and the World Lifecycle) — EXECUTING
-Plan: 4 of 14
+Plan: 5 of 14
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 12 execution started
 
-Progress: [██████░░░░] 59%
+Progress: [██████░░░░] 63%
 
 
 ## Performance Metrics
@@ -143,6 +143,7 @@ Progress: [██████░░░░] 59%
 | Phase 12 P01 | 30min | 2 tasks | 13 files |
 | Phase 12 P02 | 9 min | 3 tasks | 6 files |
 | Phase 12 P03 | 15 min | 2 tasks | 14 files |
+| Phase 12 P04 | 13 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -346,6 +347,7 @@ Recent decisions affecting current work:
 - [Phase 12]: AI fault containment (D-04): invoke catches a think or onEvent throw, ai becomes null, one aiFaulted {id, site} event, no exception text; entity keeps id and stays on the scanner
 - [Phase 12]: D-02: the placeholder integrator skips entities with no AI; spawnEntity refusal order is malformed, outOfDomain or ai, idExhausted, storeFull and a refusal never moves nextId, live array or world stream
 - [Phase 12]: Browser-test bundles (build:e2e, vite.seams) default NPC traffic off via __WEGOLITE_TRAFFIC_DEFAULT__; production keeps traffic on (D-10), URL never overrides without the hook (owner decision 2026-11-14, WORLD-16) — Keeps plain browser specs and budget.spec.ts unchanged when plan 12-08 wires the populator; contract test pins that the define cannot reach the deployed bundle
+- [Phase 12]: 12-04: NPC ships lock the torus and block a completing jump via a per-tick read-only ShipField; hyperspaceRefused carries a payload-free blocker (station|ship); buoys stay non-blocking (owner decision 2026-11-14, option A); torus factor ignores ships (E-32).
 
 ### Pending Todos
 
@@ -439,8 +441,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T17:20:45.203Z
-Stopped at: Completed 12-03-PLAN.md
+Last session: 2026-11-14T17:32:14.347Z
+Stopped at: Completed 12-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
