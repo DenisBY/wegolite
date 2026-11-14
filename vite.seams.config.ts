@@ -21,6 +21,9 @@ import base from "./vite.config.js";
 export default mergeConfig(base, {
   define: {
     __WEGOLITE_TEST_SEAMS__: "true",
+    // A test-only bundle: the WR-04 spec boots a plain session, which has no
+    // NPC traffic here (WORLD-16, owner decision 1).
+    __WEGOLITE_TRAFFIC_DEFAULT__: "false",
   },
   build: {
     outDir: "node_modules/.wegolite-seams",

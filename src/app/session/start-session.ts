@@ -84,6 +84,14 @@ import type { SaveController } from "./save-controller.js";
 import type { SettingsController } from "./settings-controller.js";
 import type { StationController } from "./station-controller.js";
 
+/**
+ * The bundle's build-time NPC traffic default for a session without `?test=1`,
+ * replaced by a literal at build time: `true` in every deployed bundle
+ * (vite.config.ts), `false` in the browser-test bundles (vite.e2e.config.ts,
+ * vite.seams.config.ts) and `true` under Vitest (vitest.config.ts).
+ */
+declare const __WEGOLITE_TRAFFIC_DEFAULT__: boolean;
+
 /** What the lifecycle calls outside the session context. */
 export interface LifecycleDeps {
   readonly assets: Pick<AssetCache, "preload" | "dispose">;
@@ -297,7 +305,12 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
 
     // D-10: the test flags are read from the URL exactly once, here, and only
     // exactly `?test=1` enables the hook (T-04-08, T-08-26).
-    ctx.runtime.testFlags = parseTestFlags(window.location.search);
+    // Without the hook the traffic setting is the bundle's build-time default:
+    // true in every deployed bundle, false in the browser-test bundles (WORLD-16).
+    ctx.runtime.testFlags = parseTestFlags(
+      window.location.search,
+      __WEGOLITE_TRAFFIC_DEFAULT__,
+    );
     ctx.runtime.testHookEnabled = ctx.runtime.testFlags.hook;
     // D-05/D-10: the world lifecycle carries the traffic setting parsed above
     // and the default populator (nothing in Phase 8). It exists before the

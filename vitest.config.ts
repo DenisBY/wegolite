@@ -4,6 +4,10 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // A Vitest path that reaches the build-time read sees the production default.
+  define: {
+    __WEGOLITE_TRAFFIC_DEFAULT__: "true",
+  },
   test: {
     // D-19: v8 coverage over the three source globs. Thresholds are set only
     // from the measured baseline (see the per-glob comments below).

@@ -9,9 +9,12 @@
  * `test=1` enables the hook, and `clock=manual` and `traffic=1` mean nothing
  * without it, so a crafted link cannot change a normal session.
  *
- * `traffic` is the effective setting rather than the raw flag: production (no
- * hook) always has traffic once a populator exists, so it is true there, and a
- * hooked session has traffic only for `traffic=1`.
+ * `traffic` is the effective setting rather than the raw flag. Without the hook
+ * it is the bundle's build-time default (`trafficDefault`), which is true in
+ * every deployed bundle and false in the browser-test bundles (vite.e2e.config.ts,
+ * vite.seams.config.ts), so plain browser specs run with no NPC traffic
+ * (WORLD-16, owner decision 1). With the hook it is exactly `traffic=1`. The URL
+ * never overrides the build default without the hook.
  */
 
 export interface TestFlags {
@@ -23,12 +26,15 @@ export interface TestFlags {
   readonly traffic: boolean;
 }
 
-export function parseTestFlags(search: string): TestFlags {
+export function parseTestFlags(
+  search: string,
+  trafficDefault = true,
+): TestFlags {
   const params = new URLSearchParams(search);
   const hook = params.get("test") === "1";
   return {
     hook,
     manualClock: hook && params.get("clock") === "manual",
-    traffic: hook ? params.get("traffic") === "1" : true,
+    traffic: hook ? params.get("traffic") === "1" : trafficDefault,
   };
 }

@@ -69,5 +69,9 @@ export default defineConfig({
     // D-18: every shipped build compiles the test-fault read out entirely. Only
     // vite.seams.config.ts (the test-only build) defines this as "true".
     __WEGOLITE_TEST_SEAMS__: "false",
+    // D-10: every deployed bundle has NPC traffic on for a session without
+    // `?test=1`. Only the browser-test bundles (vite.e2e.config.ts and
+    // vite.seams.config.ts) override this to "false" (WORLD-16).
+    __WEGOLITE_TRAFFIC_DEFAULT__: "true",
   },
 });

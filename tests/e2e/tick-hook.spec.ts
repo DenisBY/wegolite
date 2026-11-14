@@ -167,11 +167,14 @@ test("traffic is off under ?test=1 and on only for a spec that opts in", async (
 test("the clock and traffic flags are inert without ?test=1", async ({
   page,
 }) => {
-  await bootDocked(page, "/?clock=manual&traffic=0");
+  // The e2e bundle defaults traffic off at build time (Key Decisions row
+  // "Browser test builds default traffic off"); `traffic=1` without the hook
+  // cannot turn it on, which is what this case proves.
+  await bootDocked(page, "/?clock=manual&traffic=1");
   expect(await page.evaluate(() => window.__wegolite?.test)).toBeUndefined();
   const before = await sample(page);
   expect(before.clock).toBe("realtime");
-  expect(before.traffic).toBe(true);
+  expect(before.traffic).toBe(false);
   // The realtime clock steps by itself, even while docked.
   await page.waitForFunction(
     (tick) => (window.__wegolite?.sim?.tick ?? 0) > tick,
