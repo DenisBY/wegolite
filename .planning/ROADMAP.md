@@ -128,7 +128,20 @@ Plans:
 **Research flag**: Low — the ordered migration chain, the strict schema, the shared validator and the golden blobs already exist
 **Pitfalls to address**: 10 (a minimal bump with ordered migration and a worst-case size test; the former "one bump with every field" rule is superseded by the 2026-11-13 Key Decision), 2 (no closure-held random state in a save)
 **Decisions to settle**: persisting the epoch makes the D-02 world-seed derivation one-way, so check the cross-check vector `worldSeedFor(marketSeedForSystem("g0-s7"), 1) = 0x2b4e037c` before the first v3 write; name now every world counter Phase 12's populator needs, because a counter found later costs another bump
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+**Wave 1**
+- [ ] 11-01-PLAN.md — Leg-anchor counter in the world lifecycle (D-01, D-05); the D-07 cross-check vector and a v2 writer golden pinned before the first v3 write
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 11-02-PLAN.md — Schema v3 (epoch, nextEntityId), ordered v1 -> v2 -> v3 migration with step and chain goldens, the writer fed by the lifecycle, every call site and suite on v3
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 11-03-PLAN.md — Cold Continue and warm Load re-anchor at save.epoch (D-06) with warm/cold identity proofs; v3 bounds, older-build inertness, writer gate and worst-case size (D-03, D-04, D-08)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 11-04-PLAN.md — Browser specs on v3 (version 4 as the future), changelog compatibility call-out, Key Decisions, and the phase gate (verify, D-09)
 
 ### Phase 12: Inert Ships and the World Lifecycle
 **Goal**: Space is no longer empty: inert NPC ships of the six roles are placed deterministically, drawn and on the scanner within budget, and mass-lock the torus and block jumps as in Oolite; the world keeps running behind the chart, is cleared at each jump commit, is repopulated on arrival and is regenerated from the save on reload, on a world step that contains a faulty AI module and refuses malformed spawns
