@@ -259,13 +259,17 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
    * unsafe call is refused with the tick unchanged and nothing stepped, drained
    * or tainted: a disposed session (checked first), a flag-less session, an `n`
    * that is not a safe integer in 1..`MAX_ADVANCE_TICKS`, a paused session, an
-   * open chart or Save/Load screen, or a session without a state.
+   * open Save/Load screen, an open chart while not in flight, or a session
+   * without a state.
    *
    * The session is tainted before the first step (so the pre-launch autosave
    * and every docked or arrival autosave inside or after the call skip), the
    * drain runs once, the drained commands go to the first tick only and every
-   * tick shares the one input frame. The loop stops early when a step disposes
-   * or pauses the session or opens an overlay.
+   * tick shares the one input frame. With the chart open in flight it steps
+   * behind the chart as the frame loop does (WORLD-11): no drain, no commands
+   * and the zero input frame. The loop stops early when a step disposes or
+   * pauses the session, opens the Save/Load screen or changes whether the
+   * chart is open (a step that opens it, or a dock or a jump that closes it).
    *
    * A step that throws is not caught: the error reaches the caller (a test
    * spec). The session is already tainted, so no save can be written, and
@@ -282,7 +286,7 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
       n < 1 ||
       n > MAX_ADVANCE_TICKS ||
       ctx.runtime.paused ||
-      ctx.chart.chartOpen ||
+      (ctx.chart.chartOpen && currentState?.mode !== "inFlight") ||
       ctx.save.saveScreenOpen ||
       currentState === undefined ||
       currentInput === undefined
@@ -291,13 +295,21 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
     }
 
     markHookMutation();
-    const { commands, frameInput } = drain(currentState, currentInput);
+    const chartOpenAtStart = ctx.chart.chartOpen;
+    let commands: readonly Command[] = [];
+    let frameInput: InputFrame = ZERO_FRAME;
+    if (chartOpenAtStart) {
+      // Behind the opaque chart: no drain, no commands, the zero frame.
+      ctx.core.currentFrame = ZERO_FRAME;
+    } else {
+      ({ commands, frameInput } = drain(currentState, currentInput));
+    }
     for (let step = 0; step < n; step += 1) {
       stepOnce(step === 0 ? commands : [], frameInput);
       if (
         ctx.runtime.disposed ||
         ctx.runtime.paused ||
-        ctx.chart.chartOpen ||
+        ctx.chart.chartOpen !== chartOpenAtStart ||
         ctx.save.saveScreenOpen
       ) {
         break;

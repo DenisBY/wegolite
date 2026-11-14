@@ -575,8 +575,15 @@ describe("advanceTicks, the refusal table", () => {
     expectRefused(h, 0, h.driver.advanceTicks(3));
   });
 
-  it("refuses while the chart is open", () => {
+  it("refuses while the chart is open and the ship is docked", () => {
     const h = harness({ manual: true });
+    h.ctx.chart.chartOpen = true;
+    expectRefused(h, 0, h.driver.advanceTicks(3));
+  });
+
+  it("refuses while the chart is open and the ship is launching", () => {
+    const h = harness({ manual: true });
+    if (h.ctx.core.state !== undefined) h.ctx.core.state.mode = "launching";
     h.ctx.chart.chartOpen = true;
     expectRefused(h, 0, h.driver.advanceTicks(3));
   });
@@ -732,6 +739,61 @@ describe("advanceTicks, the stepping contract", () => {
 
   it("stops after the step that opens the chart", () => {
     const h = harness({ manual: true });
+    const start = h.ctx.core.state?.tick ?? -1;
+    let calls = 0;
+    hooks.onStep = () => {
+      calls += 1;
+      if (calls === 2) h.ctx.chart.chartOpen = true;
+    };
+
+    expect(h.driver.advanceTicks(5)).toBe(start + 2);
+    expect(calls).toBe(2);
+  });
+
+  it("steps behind the open chart in flight: no drain, no commands, the zero frame", () => {
+    const h = harness({ manual: true, mode: "inFlight" });
+    h.ctx.chart.chartOpen = true;
+    h.queue.push(launch);
+    h.pending.push(launch);
+    const start = h.ctx.core.state?.tick ?? -1;
+
+    expect(h.driver.advanceTicks(4)).toBe(start + 4);
+
+    expect(h.stepCommands).toEqual([[], [], [], []]);
+    expect(h.counts.drains).toBe(0);
+    expect(h.counts.frames).toBe(0);
+    expect(h.queue).toEqual([launch]);
+    expect(h.pending).toEqual([launch]);
+    for (const seen of h.seenFrames) {
+      expect(seen).toEqual({ pitch: 0, roll: 0, speed: 0, precision: false });
+    }
+    expect(h.ctx.core.currentFrame).toEqual({
+      pitch: 0,
+      roll: 0,
+      speed: 0,
+      precision: false,
+    });
+    // Still a test-hook mutation: tainted before the first step, no autosave.
+    expect(h.ctx.runtime.testTainted).toBe(true);
+    expect(h.log.some((entry) => entry.startsWith("autosave"))).toBe(false);
+  });
+
+  it("stops after the step that closes the chart behind which it was stepping", () => {
+    const h = harness({ manual: true, mode: "inFlight" });
+    h.ctx.chart.chartOpen = true;
+    const start = h.ctx.core.state?.tick ?? -1;
+    let calls = 0;
+    hooks.onStep = () => {
+      calls += 1;
+      if (calls === 2) h.ctx.chart.chartOpen = false;
+    };
+
+    expect(h.driver.advanceTicks(5)).toBe(start + 2);
+    expect(calls).toBe(2);
+  });
+
+  it("stops after the step that opens the chart in flight", () => {
+    const h = harness({ manual: true, mode: "inFlight" });
     const start = h.ctx.core.state?.tick ?? -1;
     let calls = 0;
     hooks.onStep = () => {
