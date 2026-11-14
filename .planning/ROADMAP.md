@@ -164,7 +164,7 @@ Plans:
   - The below-24-fps behaviour (todo); its evidence under load waits for the unscheduled performance phase (former Phase 23).
   - Settled 2026-11-13 (owner): WORLD-11 against WORLD-16, the chart-freeze check in `tests/e2e/hyperspace.spec.ts` is inverted; it is the one sanctioned change to an existing browser test, and WORLD-16 records the exception.
 **Todos**: `2026-11-10-keep-simulating-behind-the-chart.md` (closed by WORLD-11); `2026-11-10-fix-torus-refusal-message-under-mass-lock.md` (closed by WORLD-10; refusals become common once ships mass-lock); `2026-11-10-decide-behaviour-below-24-fps.md` (decide here)
-**Plans**: 5/14 plans executed (sequential waves: most plans record a Key Decision in PROJECT.md, and the Docker gates share one slow host; each plan stays within the 14-file budget). The first-plan rule is met by plans 12-01 and 12-02, which deliver FOUND-16 and FOUND-15 before any populator code; the split exists only because the atomic `spawnEntity` call-site migration fills one plan's file budget.
+**Plans**: 6/14 plans executed (sequential waves: most plans record a Key Decision in PROJECT.md, and the Docker gates share one slow host; each plan stays within the 14-file budget). The first-plan rule is met by plans 12-01 and 12-02, which deliver FOUND-16 and FOUND-15 before any populator code; the split exists only because the atomic `spawnEntity` call-site migration fills one plan's file budget.
 
 Plans:
 **Wave 1**
@@ -183,7 +183,7 @@ Plans:
 - [x] 12-05-PLAN.md — `torusRefused` with "Hyperspeed mass-locked.", the ship blocker copy and the step-options masses; closes the torus todo (WORLD-10)
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 12-06-PLAN.md — A compiled collision radius on the NPC records, beside the mass (owner decision 2)
+- [x] 12-06-PLAN.md — A compiled collision radius on the NPC records, beside the mass (owner decision 2)
 
 **Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 12-07-PLAN.md — The pure, total first populator: 12 inert ships of the six roles at Oolite location codes from the world stream, pinned by a Lave golden
@@ -243,7 +243,7 @@ Pending todos outside v2.1, which can run as quick tasks or join a phase by owne
 | 9. NPC Content | v2.1 | 5/5 | Complete    | 2026-11-14 |
 | 10. Ship Mass | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
-| 12. Inert Ships and the World Lifecycle | v2.1 | 5/14 | In Progress | - |
+| 12. Inert Ships and the World Lifecycle | v2.1 | 6/14 | In Progress | - |
 
 ## Backlog
 
