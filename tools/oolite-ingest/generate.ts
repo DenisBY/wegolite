@@ -181,7 +181,7 @@ export async function generateContent({
     emitEquipment(equipment),
     emitLabels(descriptions),
     emitShipsFromCatalogue(catalogue),
-    emitClientShips(catalogue),
+    emitClientShips(catalogue, masses),
     emitNpcShips(catalogue, masses),
     emitDockPort(models),
     ...emitModels(models, entries),

@@ -19,6 +19,10 @@
  * as the string `"true"`. The coercion mirrors Oolite's boolean predicate, so
  * the typed projection exposes a boolean while `extras.subentities` keeps the
  * authored string.
+ *
+ * An entry may carry the build-time Oolite `mass` (DATA-11), but only the
+ * client file's two entries do; the compiler's in-memory catalogue and
+ * `ships.json` carry none.
  */
 
 import { z } from "zod";
@@ -88,6 +92,9 @@ export const CatalogEntrySchema = z.strictObject({
   marketDefinition: MarketDefinitionSchema,
   shipDef: ShipDefSchema,
   extras: z.record(z.string(), z.unknown()),
+  // Present only on the client file's entries: the float32 mass computed at
+  // build time (DATA-11). The in-memory catalogue and ships.json carry none.
+  mass: z.number().positive().optional(),
 });
 
 export const ShipCatalogueSchema = z.array(CatalogEntrySchema);

@@ -5,8 +5,9 @@
  * The client's trimmed ship catalogue.
  *
  * The game reads two entries of the 194 the compiler emits. `ships-client.json`
- * carries exactly those two, byte-for-byte as they appear in the complete
- * `ships.json`, and the client source imports only the trimmed file.
+ * carries exactly those two, as they appear in the complete `ships.json` plus
+ * their Oolite `mass` (DATA-11), and the client source imports only the trimmed
+ * file. `ships.json` itself carries no mass.
  */
 
 import { readFileSync } from "node:fs";
@@ -23,9 +24,11 @@ import {
   emitClientShips,
 } from "../../tools/oolite-ingest/convert/ships.js";
 import type { ShipCatalogue } from "../../tools/oolite-ingest/convert/ships.js";
+import { ShipCatalogueSchema } from "../../src/content/schemas/ship.js";
 
 interface Entry {
   readonly key: string;
+  readonly mass?: number;
 }
 
 function readJson(relative: string): Entry[] {
@@ -43,9 +46,28 @@ describe("ships-client.json", () => {
     expect([...CLIENT_SHIP_KEYS]).toEqual([...CLIENT_SHIP_KEYS].sort());
   });
 
-  it("copies each entry unchanged from the complete catalogue", () => {
+  it("copies each entry unchanged from the complete catalogue, apart from the mass", () => {
     for (const entry of client) {
-      expect(entry).toEqual(full.find((other) => other.key === entry.key));
+      const { mass: _mass, ...rest } = entry;
+      void _mass;
+      expect(rest).toEqual(full.find((other) => other.key === entry.key));
+    }
+  });
+
+  it("carries Oolite's octree mass on each client entry", () => {
+    const mass = (key: string): number | undefined =>
+      client.find((entry) => entry.key === key)?.mass;
+    expect(mass("coriolis-station")).toBe(515483904);
+    expect(mass("oolite_template_cobra3-player")).toBe(214737.6875);
+  });
+
+  it("validates against the strict catalogue schema", () => {
+    expect(ShipCatalogueSchema.safeParse(client).success).toBe(true);
+  });
+
+  it("keeps the complete catalogue free of mass", () => {
+    for (const entry of full) {
+      expect(entry).not.toHaveProperty("mass");
     }
   });
 
@@ -87,6 +109,18 @@ describe("the client loader", () => {
 describe("emitClientShips", () => {
   it("fails the content build when a client entry is missing", () => {
     const empty = { entries: [] } as unknown as ShipCatalogue;
-    expect(() => emitClientShips(empty)).toThrow(/has no "coriolis-station"/);
+    expect(() => emitClientShips(empty, new Map())).toThrow(
+      /has no "coriolis-station"/,
+    );
+  });
+
+  it("fails the content build when a client entry has no computed mass", () => {
+    const entry = (key: string): unknown => ({ key });
+    const catalogue = {
+      entries: CLIENT_SHIP_KEYS.map(entry),
+    } as unknown as ShipCatalogue;
+    expect(() => emitClientShips(catalogue, new Map())).toThrow(
+      /no computed mass for "coriolis-station"/,
+    );
   });
 });

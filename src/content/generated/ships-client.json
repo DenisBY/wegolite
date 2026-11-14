@@ -216,6 +216,7 @@
     "marketDefinition": {
       "kind": "empty"
     },
+    "mass": 515483904,
     "model": "oolite_coriolis.dat",
     "modelVendored": true,
     "roles": [
@@ -612,6 +613,7 @@
     "marketDefinition": {
       "kind": "absent"
     },
+    "mass": 214737.6875,
     "model": "oolite_cobra3.dat",
     "modelVendored": true,
     "roles": [
