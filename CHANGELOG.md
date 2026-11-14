@@ -44,6 +44,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   chart, as in Oolite, and docking or arriving behind the chart closes it.
   Opened while docked, the chart behaves as before.
 
+### Fixed
+
+- A hyperspace arrival whose new local world cannot be created (only a
+  hand-edited save at the maximum world epoch can cause this) no longer leaves
+  the previous system's ships in the destination, drawn, on the scanner, locking
+  the torus drive or blocking a jump.
+
 ## [0.3.0] - 2026-11-11
 
 ### Added

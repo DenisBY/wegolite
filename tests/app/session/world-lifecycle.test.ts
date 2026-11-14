@@ -479,25 +479,29 @@ describe("lifecycle rules (D-02, D-03, D-05)", () => {
     expect(lifecycle.epoch).toBe(1);
   });
 
-  it("refuses a non-finite seed without a change and without a RangeError", () => {
+  it("refuses a non-finite seed without a RangeError: begin ends the world (WR-01), resume changes nothing", () => {
     for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, -Infinity]) {
       const lifecycle = createWorldLifecycle({ traffic: false });
       lifecycle.begin(SEED_A);
       const world = lifecycle.world;
-      expect(() => {
-        lifecycle.begin(bad);
-      }).not.toThrow();
-      expect(lifecycle.epoch).toBe(1);
-      expect(lifecycle.world).toBe(world);
+      expect(world).toBeDefined();
+      // A refused resume leaves the installed world and the epoch alone.
       expect(() => {
         lifecycle.resume(bad);
       }).not.toThrow();
       expect(lifecycle.epoch).toBe(1);
       expect(lifecycle.world).toBe(world);
+      // A refused begin ends the world and keeps the epoch (FOUND-17).
+      expect(() => {
+        lifecycle.begin(bad);
+      }).not.toThrow();
+      expect(lifecycle.epoch).toBe(1);
+      expect(lifecycle.world).toBeUndefined();
+      expect(lifecycle.anchorNextEntityId).toBeUndefined();
     }
   });
 
-  it("saturates at the top of the saved epoch domain: one last begin succeeds, the next changes nothing", () => {
+  it("saturates at the top of the saved epoch domain: one last begin succeeds, the next keeps the epoch and ends the world", () => {
     const lifecycle = createWorldLifecycle({ traffic: false });
     expect(lifecycle.resetForRestore(MAX_SAVE_EPOCH - 1)).toBe(true);
     lifecycle.begin(SEED_A);
@@ -507,8 +511,10 @@ describe("lifecycle rules (D-02, D-03, D-05)", () => {
     expect(() => {
       lifecycle.begin(SEED_A);
     }).not.toThrow();
+    // The refused begin keeps the epoch and ends the world (FOUND-17).
     expect(lifecycle.epoch).toBe(MAX_SAVE_EPOCH);
-    expect(lifecycle.world).toBe(world);
+    expect(lifecycle.world).toBeUndefined();
+    expect(lifecycle.anchorNextEntityId).toBeUndefined();
   });
 
   it("a begin from the largest saved epoch refuses, so no live epoch is unwritable", () => {
@@ -683,19 +689,20 @@ describe("leg-anchor counter (Phase 11, D-01, D-05)", () => {
     expect(lifecycle.world).toBeUndefined();
   });
 
-  it("a refused begin or resume leaves the anchor unchanged", () => {
+  it("a refused resume leaves the anchor unchanged; a refused begin clears it (WR-01)", () => {
     const lifecycle = createWorldLifecycle({
       traffic: false,
       populate: populateThree,
     });
     lifecycle.begin(SEED);
     expect(lifecycle.anchorNextEntityId).toBe(104);
-    lifecycle.begin(Number.NaN);
     lifecycle.resume(Number.NaN);
     expect(lifecycle.anchorNextEntityId).toBe(104);
+    lifecycle.begin(Number.NaN);
+    expect(lifecycle.anchorNextEntityId).toBeUndefined();
   });
 
-  it("a saturated begin leaves the anchor unchanged", () => {
+  it("a saturated begin clears the anchor and the world and keeps the epoch (WR-01)", () => {
     const lifecycle = createWorldLifecycle({
       traffic: false,
       populate: populateThree,
@@ -706,7 +713,38 @@ describe("leg-anchor counter (Phase 11, D-01, D-05)", () => {
     expect(lifecycle.anchorNextEntityId).toBe(104);
     lifecycle.begin(SEED);
     expect(lifecycle.epoch).toBe(MAX_SAVE_EPOCH);
+    expect(lifecycle.anchorNextEntityId).toBeUndefined();
+    expect(lifecycle.world).toBeUndefined();
+  });
+
+  it("a begin refused at the maximum epoch ends a populated world and its anchor (FOUND-17)", () => {
+    const lifecycle = createWorldLifecycle({
+      traffic: false,
+      populate: populateThree,
+    });
+    expect(lifecycle.resetForRestore(MAX_SAVE_EPOCH)).toBe(true);
+    lifecycle.resume(SEED);
+    expect(lifecycle.world).toBeDefined();
+    expect(liveEntityCount(lifecycle.world ?? createWorld(0))).toBe(3);
     expect(lifecycle.anchorNextEntityId).toBe(104);
+    lifecycle.begin(SEED);
+    expect(lifecycle.world).toBeUndefined();
+    expect(lifecycle.anchorNextEntityId).toBeUndefined();
+    expect(lifecycle.epoch).toBe(MAX_SAVE_EPOCH);
+  });
+
+  it("a begin refused for a non-finite seed ends a populated world at a normal epoch (FOUND-17)", () => {
+    const lifecycle = createWorldLifecycle({
+      traffic: false,
+      populate: populateThree,
+    });
+    lifecycle.begin(SEED);
+    expect(lifecycle.world).toBeDefined();
+    expect(lifecycle.epoch).toBe(1);
+    lifecycle.begin(Number.NaN);
+    expect(lifecycle.world).toBeUndefined();
+    expect(lifecycle.anchorNextEntityId).toBeUndefined();
+    expect(lifecycle.epoch).toBe(1);
   });
 
   it("a begin whose populator throws rethrows and leaves epoch, world and anchor unchanged", () => {

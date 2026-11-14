@@ -105,9 +105,15 @@ export interface WorldLifecycle {
   readonly anchorNextEntityId: number | undefined;
   /**
    * Bump the epoch, derive `worldSeedFor(marketSeed, epoch)` and create a
-   * world. Refuses (epoch and world unchanged, no throw) when `marketSeed` is
-   * not finite or the epoch has reached 0xfffffffe, the largest epoch a v3
-   * save can carry (D-04), so a live epoch is always writable.
+   * world. Refuses (epoch unchanged, no throw) when `marketSeed` is not finite
+   * or the epoch has reached 0xfffffffe, the largest epoch a v3 save can carry
+   * (D-04), so a live epoch is always writable. A refusal ends the current
+   * world and clears the anchor, exactly as `end` does (review finding WR-01,
+   * FOUND-17): `begin` is called at a hyperspace arrival, where the previous
+   * system's world must not outlive the jump, so no origin ship may stay
+   * drawn, on the scanner, mass-locking or blocking a jump. A populator that
+   * throws still leaves world, epoch and anchor untouched (build first,
+   * commit after).
    */
   begin(marketSeed: number): void;
   /**
@@ -162,6 +168,9 @@ export function createWorldLifecycle(options: {
         epoch < 0 ||
         epoch >= MAX_LIVE_EPOCH
       ) {
+        // WR-01: the arrival's origin world must not survive a refused begin.
+        world = undefined;
+        anchorNextEntityId = undefined;
         return;
       }
       // Build first, commit after: a throwing populator leaves both unchanged.

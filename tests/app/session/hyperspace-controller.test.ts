@@ -16,7 +16,13 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import type { System } from "../../../src/content/types.js";
+import type { NpcShip, System } from "../../../src/content/types.js";
+import {
+  createInertPopulate,
+  trafficContent,
+} from "../../../src/app/session/traffic.js";
+import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
+import type { WorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
 import { createHyperspaceController } from "../../../src/app/session/hyperspace-controller.js";
 import type { HyperspaceControllerDeps } from "../../../src/app/session/hyperspace-controller.js";
 import { createSessionState } from "../../../src/app/session/context.js";
@@ -27,7 +33,15 @@ import {
 } from "../../../src/sim/economy/market.js";
 import type { InputContext } from "../../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
+import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
+import { identity, vec } from "../../../src/sim/math.js";
+import { MAX_SAVE_EPOCH } from "../../../src/persistence/save.js";
+import { stepSim } from "../../../src/sim/sim.js";
+import { DT } from "../../../src/sim/time.js";
+import { npcContacts } from "../../../src/sim/world/contacts.js";
+import { createShipField } from "../../../src/sim/world/ship-field.js";
+import { liveEntityCount, spawnEntity } from "../../../src/sim/world/world.js";
 import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
 import { laveFixture } from "../../helpers/lave.js";
@@ -52,10 +66,16 @@ interface Harness {
   readonly published: string[];
   /** Every input context the chart's close restored, in order. */
   readonly contexts: InputContext[];
+  /** The real lifecycle, present when the harness was given a `lifecycleEpoch`. */
+  readonly lifecycle: WorldLifecycle | undefined;
 }
 
 function harness(
-  options: { readonly failDestinationBuild?: boolean } = {},
+  options: {
+    readonly failDestinationBuild?: boolean;
+    /** Wire a real lifecycle, traffic on, resumed at this epoch (FOUND-17). */
+    readonly lifecycleEpoch?: number;
+  } = {},
 ): Harness {
   const ctx = createSessionState({
     system: lave.system,
@@ -76,6 +96,21 @@ function harness(
   ctx.core.marketSeed = marketSeedForSystem(lave.system.id);
   ctx.core.market = generateMarket(lave.system, catalogue, ctx.core.marketSeed);
   ctx.core.hyperspaceTargetId = destination?.id;
+
+  let lifecycle: WorldLifecycle | undefined;
+  if (options.lifecycleEpoch !== undefined) {
+    ctx.core.npcTraffic = committedTraffic();
+    lifecycle = createWorldLifecycle({
+      traffic: true,
+      populate: createInertPopulate(
+        () => ctx.core.npcTraffic,
+        () => ctx.core.layout,
+      ),
+    });
+    lifecycle.resetForRestore(options.lifecycleEpoch);
+    lifecycle.resume(ctx.core.marketSeed);
+    ctx.core.worldLifecycle = lifecycle;
+  }
 
   const galaxyById = new Map(galaxy.map((entry) => [entry.id, entry]));
   const deps: HyperspaceControllerDeps = {
@@ -129,7 +164,17 @@ function harness(
     failures,
     published,
     contexts,
+    lifecycle,
   };
+}
+
+/** The committed NPC catalogue as the session loads it (traffic on). */
+function committedTraffic(): ReturnType<typeof trafficContent> {
+  return trafficContent(
+    JSON.parse(
+      readFileSync("src/content/generated/ships-npc.json", "utf8"),
+    ) as NpcShip[],
+  );
 }
 
 const jumped = {
@@ -267,6 +312,93 @@ describe("handleHyperspaceJumped behind an open chart (WORLD-11)", () => {
     expect(ctx.chart.chartSelectedId).toBe(destination?.id);
     expect(contexts).toEqual([]);
     expect(calls).toEqual(["showBootFailure", "publishFailure"]);
+  });
+});
+
+describe("handleHyperspaceJumped, a refused world begin (FOUND-17, WR-01)", () => {
+  /** A flight state far from every body, with the origin world's ship beside it. */
+  function farFlight(): ReturnType<typeof initFlightState> {
+    const state = initFlightState(lave.layout);
+    state.mode = "inFlight";
+    state.dockArmed = false;
+    state.position = vec(
+      lave.layout.station.position.x + 600_000,
+      lave.layout.station.position.y,
+      lave.layout.station.position.z,
+    );
+    return state;
+  }
+
+  it("ends the origin world at the maximum live epoch: no ship is drawn, listed, mass-locking or blocking, and the anchor is cleared", () => {
+    const MAX_LIVE = MAX_SAVE_EPOCH;
+    const { ctx, controller, lifecycle } = harness({
+      lifecycleEpoch: MAX_LIVE,
+    });
+    if (lifecycle === undefined) throw new Error("expected a lifecycle");
+    const origin = lifecycle.world;
+    if (origin === undefined) throw new Error("expected the origin world");
+    // The origin world is populated: the inert twelve plus a ship next to the
+    // far player pose, so the checks below are not vacuous.
+    expect(liveEntityCount(origin)).toBe(12);
+    const spawned = spawnEntity(
+      origin,
+      {
+        kind: "ship",
+        specKey: "viper",
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(
+          lave.layout.station.position.x + 601_000,
+          lave.layout.station.position.y,
+          lave.layout.station.position.z,
+        ),
+        orientation: identity(),
+        radius: 50,
+      },
+      0,
+    );
+    expect(spawned.ok).toBe(true);
+    expect(lifecycle.anchorNextEntityId).toBe(113);
+    expect(npcContacts(origin)).toHaveLength(13);
+    const masses = ctx.core.npcTraffic?.masses;
+    const step = (world: typeof origin | undefined): boolean => {
+      const state = farFlight();
+      stepSim(state, world, lave.layout, lave.config, ZERO_INTENT, [], DT);
+      return state.torus.massLocked;
+    };
+    // With the origin world live a ship beside the player mass-locks the torus;
+    // without any world the same pose is clean.
+    expect(step(origin)).toBe(true);
+    expect(step(undefined)).toBe(false);
+    expect(
+      createShipField(origin, masses).massLocked(
+        farFlight().position,
+        lave.layout.scannerRange,
+      ),
+    ).toBe(true);
+
+    controller.handleHyperspaceJumped(jumped);
+
+    expect(lifecycle.epoch).toBe(MAX_LIVE);
+    expect(lifecycle.world).toBeUndefined();
+    expect(lifecycle.anchorNextEntityId).toBeUndefined();
+    // Nothing is drawn or on the scanner.
+    expect(npcContacts(lifecycle.world)).toEqual([]);
+    // The step the session now takes builds no ship field: no mass lock.
+    expect(step(lifecycle.world)).toBe(false);
+  });
+
+  it("keeps the origin world when the arrival build fails before the begin", () => {
+    const { controller, lifecycle } = harness({
+      failDestinationBuild: true,
+      lifecycleEpoch: 1,
+    });
+    if (lifecycle === undefined) throw new Error("expected a lifecycle");
+    const origin = lifecycle.world;
+    expect(origin).toBeDefined();
+    controller.handleHyperspaceJumped(jumped);
+    expect(lifecycle.world).toBe(origin);
+    expect(lifecycle.epoch).toBe(1);
+    expect(lifecycle.anchorNextEntityId).toBe(113);
   });
 });
 
