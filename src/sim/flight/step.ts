@@ -20,6 +20,7 @@ import type { Command } from "../commands.js";
 import type { SimEvent } from "../events.js";
 import { nextCompassMode, resolveCompassTarget } from "../world/aegis.js";
 import type { SystemLayout } from "../world/layout.js";
+import type { ShipField, ShipMass } from "../world/ship-field.js";
 import { DOCK_COMPUTER_KEY, dockWithComputer } from "../dock/computer.js";
 import { stepDocking } from "../dock/step.js";
 import type { DockGeometry } from "../dock/geometry.js";
@@ -71,6 +72,13 @@ export interface StepOptions {
      * the app omits it for station kinds with no recorded mass.
      */
     readonly stationMass?: number;
+    /**
+     * The read-only compiled masses of the NPC ship kinds (WORLD-10), supplied
+     * by the app each step from the compiled NPC records, exactly as
+     * `stationMass` is. A ship blocks a completing jump only when its `specKey`
+     * has an entry here; absent means no ship blocks.
+     */
+    readonly shipMasses?: readonly ShipMass[];
   };
 }
 
@@ -88,6 +96,7 @@ export function stepFlight(
   commands: readonly Command[],
   dt: number,
   options?: StepOptions,
+  ships?: ShipField,
 ): SimEvent[] {
   // Repair a poisoned hook/restore value before anything integrates it
   // (T-04-41). Speed is bounded by the torus cap, so it can never drive the
@@ -241,7 +250,9 @@ export function stepFlight(
     const effectiveIntent: ControlIntent = torusToggle
       ? { ...intent, torusToggle: true }
       : intent;
-    events.push(...stepTorus(state, layout, config, effectiveIntent, dt));
+    events.push(
+      ...stepTorus(state, layout, config, effectiveIntent, dt, ships),
+    );
     stepSpeed(state, effectiveIntent, config, dt);
   }
 

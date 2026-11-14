@@ -27,6 +27,7 @@ import { clamp, length, lengthSquared, sub } from "../math.js";
 import type { Vec3 } from "../math.js";
 import type { SimEvent } from "../events.js";
 import type { SystemLayout } from "../world/layout.js";
+import type { ShipField } from "../world/ship-field.js";
 import type { FlightConfig } from "./config.js";
 import type { ControlIntent } from "./controller.js";
 import type { FlightState } from "./state.js";
@@ -141,8 +142,11 @@ export function massLocked(position: Vec3, layout: SystemLayout): boolean {
 export function engageTorus(
   state: FlightState,
   layout: SystemLayout,
+  ships?: ShipField,
 ): TorusEngagement {
-  const locked = massLocked(state.position, layout);
+  const locked =
+    massLocked(state.position, layout) ||
+    (ships?.massLocked(state.position, layout.scannerRange) ?? false);
   state.torus.massLocked = locked;
   if (locked) {
     return {
@@ -197,11 +201,14 @@ export function stepTorus(
   config: FlightConfig,
   intent: ControlIntent,
   dt: number,
+  ships?: ShipField,
 ): SimEvent[] {
   const events: SimEvent[] = [];
   if (!Number.isFinite(dt) || dt <= 0) return events;
 
-  const locked = massLocked(state.position, layout);
+  const locked =
+    massLocked(state.position, layout) ||
+    (ships?.massLocked(state.position, layout.scannerRange) ?? false);
   if (locked !== state.torus.massLocked) {
     state.torus.massLocked = locked;
     events.push({ kind: "massLockChanged", locked });
@@ -212,7 +219,7 @@ export function stepTorus(
       disengageTorus(state, "toggle");
       events.push({ kind: "torusDisengaged", reason: "toggle" });
     } else {
-      const engagement = engageTorus(state, layout);
+      const engagement = engageTorus(state, layout, ships);
       if (engagement.engaged) {
         events.push({ kind: "torusEngaged", factor: engagement.factor });
       } else {
