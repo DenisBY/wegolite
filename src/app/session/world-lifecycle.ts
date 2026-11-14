@@ -67,6 +67,13 @@ import type { World } from "../../sim/world/world.js";
 const MAX_EPOCH = 0xffffffff;
 
 /**
+ * The largest epoch a live session may reach: the largest epoch a v3 save can
+ * carry (`MAX_SAVE_EPOCH`, D-04), so every live epoch is writable. `begin`
+ * refuses a bump past it; `worldSeedFor` itself still accepts 0xffffffff.
+ */
+const MAX_LIVE_EPOCH = MAX_EPOCH - 1;
+
+/**
  * Fill a freshly created world. Phase 8 supplies `populateNothing` in both
  * traffic modes; Phase 12 supplies the inert populator and Phase 22 full
  * traffic.
@@ -96,7 +103,8 @@ export interface WorldLifecycle {
   /**
    * Bump the epoch, derive `worldSeedFor(marketSeed, epoch)` and create a
    * world. Refuses (epoch and world unchanged, no throw) when `marketSeed` is
-   * not finite or the epoch has reached 0xffffffff.
+   * not finite or the epoch has reached 0xfffffffe, the largest epoch a v3
+   * save can carry (D-04), so a live epoch is always writable.
    */
   begin(marketSeed: number): void;
   /**
@@ -149,7 +157,7 @@ export function createWorldLifecycle(options: {
         !Number.isFinite(marketSeed) ||
         !Number.isSafeInteger(epoch) ||
         epoch < 0 ||
-        epoch >= MAX_EPOCH
+        epoch >= MAX_LIVE_EPOCH
       ) {
         return;
       }

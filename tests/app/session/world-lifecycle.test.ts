@@ -37,7 +37,11 @@ import type { InputContext } from "../../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { snapshotForSave } from "../../../src/persistence/autosave.js";
 import type { SaveWorldCounters } from "../../../src/persistence/autosave.js";
-import { encodeSave, parseSave } from "../../../src/persistence/save.js";
+import {
+  MAX_SAVE_EPOCH,
+  encodeSave,
+  parseSave,
+} from "../../../src/persistence/save.js";
 import type { SaveAllowLists } from "../../../src/persistence/save.js";
 import type {
   SaveReadResult,
@@ -384,18 +388,28 @@ describe("lifecycle rules (D-02, D-03, D-05)", () => {
     }
   });
 
-  it("saturates at the top of the epoch domain: one last begin succeeds, the next changes nothing", () => {
+  it("saturates at the top of the saved epoch domain: one last begin succeeds, the next changes nothing", () => {
     const lifecycle = createWorldLifecycle({ traffic: false });
-    expect(lifecycle.resetForRestore(0xfffffffe)).toBe(true);
+    expect(lifecycle.resetForRestore(MAX_SAVE_EPOCH - 1)).toBe(true);
     lifecycle.begin(SEED_A);
-    expect(lifecycle.epoch).toBe(0xffffffff);
+    expect(lifecycle.epoch).toBe(MAX_SAVE_EPOCH);
     const world = lifecycle.world;
-    expect(world?.worldSeed).toBe(worldSeedFor(SEED_A, 0xffffffff));
+    expect(world?.worldSeed).toBe(worldSeedFor(SEED_A, MAX_SAVE_EPOCH));
     expect(() => {
       lifecycle.begin(SEED_A);
     }).not.toThrow();
-    expect(lifecycle.epoch).toBe(0xffffffff);
+    expect(lifecycle.epoch).toBe(MAX_SAVE_EPOCH);
     expect(lifecycle.world).toBe(world);
+  });
+
+  it("a begin from the largest saved epoch refuses, so no live epoch is unwritable", () => {
+    const lifecycle = createWorldLifecycle({ traffic: false });
+    expect(lifecycle.resetForRestore(MAX_SAVE_EPOCH)).toBe(true);
+    lifecycle.begin(SEED_A);
+    expect(lifecycle.epoch).toBe(MAX_SAVE_EPOCH);
+    expect(lifecycle.world).toBeUndefined();
+    // Every epoch the lifecycle can hold is a legal v3 epoch (D-04).
+    expect(lifecycle.epoch).toBeLessThanOrEqual(MAX_SAVE_EPOCH);
   });
 
   it("accepts exactly the restore epochs from which begin can still bump", () => {
@@ -552,12 +566,12 @@ describe("leg-anchor counter (Phase 11, D-01, D-05)", () => {
       traffic: false,
       populate: populateThree,
     });
-    expect(lifecycle.resetForRestore(0xfffffffe)).toBe(true);
+    expect(lifecycle.resetForRestore(MAX_SAVE_EPOCH - 1)).toBe(true);
     lifecycle.begin(SEED);
-    expect(lifecycle.epoch).toBe(0xffffffff);
+    expect(lifecycle.epoch).toBe(MAX_SAVE_EPOCH);
     expect(lifecycle.anchorNextEntityId).toBe(104);
     lifecycle.begin(SEED);
-    expect(lifecycle.epoch).toBe(0xffffffff);
+    expect(lifecycle.epoch).toBe(MAX_SAVE_EPOCH);
     expect(lifecycle.anchorNextEntityId).toBe(104);
   });
 
