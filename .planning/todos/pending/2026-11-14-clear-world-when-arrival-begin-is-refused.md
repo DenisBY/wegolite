@@ -2,6 +2,7 @@
 created: 2026-11-14T21:00:00.000Z
 title: Clear the origin world when a hyperspace arrival's begin() is refused (review finding WR-01)
 area: app
+resolves_phase: 13
 severity: minor
 files:
   - src/app/session/hyperspace-controller.ts
