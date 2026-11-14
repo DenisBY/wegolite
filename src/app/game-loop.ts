@@ -28,13 +28,24 @@ export interface GameLoop {
     commands: readonly Command[],
     step: (commands: readonly Command[]) => void,
   ): number;
-  /** Drop any backlog and undrained commands (pause, focus loss). */
+  /**
+   * Drop any backlog and undrained commands (pause, focus loss). Safe to call
+   * from inside a `step` callback: `advance` then stops stepping, leaves the
+   * accumulator at zero and returns alpha 0.
+   */
   reset(): void;
 }
 
 export function createGameLoop(): GameLoop {
   let accumulator = 0;
   let pending: Command[] = [];
+  // Bumped by every `reset()`. `advance` compares it across a step to notice a
+  // reset made from inside that step: a terminal sim event dispatched in a step
+  // (a dock or an arrival that completes behind the galactic chart, WORLD-11)
+  // closes the chart, and `closeChart` resets this loop. Without the guard the
+  // `accumulator -= DT` after that step would leave the accumulator at minus
+  // one step (T-12-31).
+  let resetGeneration = 0;
 
   return {
     advance(delta, commands, step): number {
@@ -45,7 +56,13 @@ export function createGameLoop(): GameLoop {
       while (accumulator >= DT && steps < MAX_STEPS_PER_FRAME) {
         const drained = pending;
         pending = [];
+        const generation = resetGeneration;
         step(drained);
+        if (resetGeneration !== generation) {
+          // The step reset the loop: the accumulator and pending are already
+          // zero and empty. Hidden time is never replayed, so stop here.
+          return 0;
+        }
         accumulator -= DT;
         steps += 1;
       }
@@ -56,6 +73,7 @@ export function createGameLoop(): GameLoop {
       return accumulator / DT;
     },
     reset(): void {
+      resetGeneration += 1;
       accumulator = 0;
       pending = [];
     },
