@@ -25,10 +25,18 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { hashFlight } from "../../src/sim/flight/state.js";
+import { buildHudModel } from "../../src/app/hud-model.js";
+import { hashFlight, initFlightState } from "../../src/sim/flight/state.js";
 import { npcContacts } from "../../src/sim/world/contacts.js";
+import { laveFixture } from "../helpers/lave.js";
 import { runTickScript } from "../helpers/tick-script.js";
+import {
+  laveInertWorld,
+  poseNearFirstShip,
+} from "../helpers/traffic-fixture.js";
 import { waitForReady } from "./helpers/probe.js";
+import { inFlightSaveAt } from "./helpers/save-fixtures.js";
+import { writeRaw } from "./helpers/save-store.js";
 import { startNewGame } from "./helpers/title.js";
 
 /** A correctness bound, not a performance claim (the SwiftShader loop is slow). */
@@ -538,5 +546,85 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
     firstInFlight.calls,
   );
   expect(loadedCalls, "draw-call budget").toBeLessThanOrEqual(DRAW_CALL_BUDGET);
+  expect(errors).toEqual([]);
+});
+
+test("a reload next to a regenerated ship shows it on the scanner", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+
+  // The pose lies 5 km from the first ship of the regenerated Lave world
+  // (epoch 0, as a cold Continue restores it), so the scanner check is never
+  // vacuous: a world whose ships were all out of range would pass "every
+  // contact is visible" for no reason. The same pose drives the Node count.
+  const pose = poseNearFirstShip(0, 5_000);
+  const { layout, config } = laveFixture();
+  const model = buildHudModel(
+    {
+      ...initFlightState(layout),
+      mode: "inFlight" as const,
+      position: pose.position,
+      orientation: pose.orientation,
+      speed: pose.speed,
+    },
+    layout,
+    config,
+    "",
+    70,
+    0,
+    "",
+    npcContacts(laveInertWorld(0)),
+  );
+  const expectedShips = model.contacts.filter(
+    (contact) => contact.visible && contact.id === "ship",
+  ).length;
+  expect(
+    expectedShips,
+    "the Node scanner count (vacuity guard)",
+  ).toBeGreaterThan(0);
+
+  await page.goto(TRAFFIC_URL);
+  await waitForReady(page);
+  await writeRaw(
+    page,
+    inFlightSaveAt("Lave", {
+      position: [pose.position.x, pose.position.y, pose.position.z],
+      orientation: [
+        pose.orientation.w,
+        pose.orientation.x,
+        pose.orientation.y,
+        pose.orientation.z,
+      ],
+      speed: pose.speed,
+    }),
+  );
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible({
+    timeout: SLOW,
+  });
+  await page.click("#title-continue");
+  await page.waitForFunction(
+    () =>
+      window.__wegolite?.mode === "inFlight" &&
+      window.__wegolite.sim !== undefined,
+    undefined,
+    { timeout: SLOW },
+  );
+  // The save never holds a ship: the reload regenerates the inert world, whose
+  // id counter (113) differs from the fixture's (101), and the load succeeds
+  // (SAVE-08 mismatch policy).
+  await page.evaluate(() => window.__wegolite?.test?.advanceTicks(1));
+  await waitForFrames(page, 2);
+  const browser = await page.evaluate(() => ({
+    entities: window.__wegolite?.sim?.entities,
+    traffic: window.__wegolite?.sim?.traffic,
+    ships: (window.__wegolite?.hud.contacts ?? []).filter((id) => id === "ship")
+      .length,
+  }));
+  expect(browser.traffic).toBe(true);
+  expect(browser.entities).toBe(12);
+  expect(browser.ships, "ship contacts on the scanner").toBe(expectedShips);
   expect(errors).toEqual([]);
 });
