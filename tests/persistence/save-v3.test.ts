@@ -12,17 +12,35 @@
  * never from running the code twice.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createWorldLifecycle } from "../../src/app/session/world-lifecycle.js";
 import type { Populate } from "../../src/app/session/world-lifecycle.js";
-import { snapshotForSave } from "../../src/persistence/autosave.js";
+import {
+  queueAutosave,
+  snapshotForSave,
+} from "../../src/persistence/autosave.js";
 import type { SaveWorldCounters } from "../../src/persistence/autosave.js";
+import { MemorySaveStore } from "../../src/persistence/memory-store.js";
 import {
   FRESH_WORLD_NEXT_ENTITY_ID,
+  MAX_SAVE_BERTHS,
+  MAX_SAVE_CARGO_ENTRIES,
+  MAX_SAVE_CARGO_QUANTITY,
+  MAX_SAVE_CHARS,
+  MAX_SAVE_CLOCK_DELTA,
+  MAX_SAVE_CREDITS,
   MAX_SAVE_EPOCH,
+  MAX_SAVE_EQUIPMENT,
+  MAX_SAVE_EQUIPMENT_KEY_CHARS,
+  MAX_SAVE_FUEL,
+  MAX_SAVE_MARKET_GOODS,
+  MAX_SAVE_MISSILES,
   MAX_SAVE_NEXT_ENTITY_ID,
+  MAX_SAVE_STATION_KEY_CHARS,
+  MAX_SAVE_SYSTEM_ID_CHARS,
   SAVE_VERSION,
+  SaveV3Schema,
   encodeSave,
   isEncodedSaveValid,
   migrateV1ToV2,
@@ -31,10 +49,12 @@ import {
 } from "../../src/persistence/save.js";
 import type {
   SaveAllowLists,
+  SaveInputs,
   SaveV1,
   SaveV2,
 } from "../../src/persistence/save.js";
 import {
+  MARKET_LIMIT,
   generateMarket,
   marketSeedForSystem,
 } from "../../src/sim/economy/market.js";
@@ -279,5 +299,330 @@ describe("v3 constants", () => {
     expect(FRESH_WORLD_NEXT_ENTITY_ID).toBe(FIRST_DYNAMIC_ID);
     expect(MAX_SAVE_EPOCH).toBe(0xfffffffe);
     expect(MAX_SAVE_NEXT_ENTITY_ID).toBe(2 ** 32);
+  });
+});
+
+/** A valid docked v3 blob as a plain record, for the edge tables. */
+function validV3(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    version: 3,
+    mode: "docked",
+    clockSeconds: CLOCK_START + 600,
+    credits: 1000,
+    equipment: [],
+    system: { id: "g0-s7" },
+    station: { key: "coriolis-station" },
+    marketSeed: 3545325333,
+    epoch: 0,
+    nextEntityId: 101,
+    ...overrides,
+  };
+}
+
+function parseOf(value: Record<string, unknown>) {
+  return parseSave(JSON.stringify(value), ALLOW);
+}
+
+describe("v3 bounds and required fields (D-03, D-04)", () => {
+  it("the control blob is accepted", () => {
+    expect(parseOf(validV3()).ok).toBe(true);
+  });
+
+  it.each([
+    ["0", 0, true],
+    ["0xfffffffe", 0xfffffffe, true],
+    ["0xffffffff", 0xffffffff, false],
+    ["-1", -1, false],
+    ["1.5", 1.5, false],
+    ["2^32", 0x100000000, false],
+    ['the string "1"', "1", false],
+    ["null", null, false],
+  ])("epoch %s", (_name, epoch, ok) => {
+    const result = parseOf(validV3({ epoch }));
+    expect(result.ok).toBe(ok);
+    if (!result.ok) expect(result.reason).toBe("corrupt");
+    if (result.ok) expect(result.save.epoch).toBe(epoch);
+  });
+
+  it("an absent epoch is corrupt", () => {
+    const blob = validV3();
+    delete blob.epoch;
+    expect(parseOf(blob)).toEqual({ ok: false, reason: "corrupt" });
+  });
+
+  it.each([
+    ["101", 101, true],
+    ["2^32", 0x100000000, true],
+    ["100", 100, false],
+    ["0", 0, false],
+    ["2^32 + 1", 0x100000001, false],
+    ["101.5", 101.5, false],
+  ])("nextEntityId %s", (_name, nextEntityId, ok) => {
+    const result = parseOf(validV3({ nextEntityId }));
+    expect(result.ok).toBe(ok);
+    if (!result.ok) expect(result.reason).toBe("corrupt");
+    if (result.ok) expect(result.save.nextEntityId).toBe(nextEntityId);
+  });
+
+  it("an absent nextEntityId is corrupt", () => {
+    const blob = validV3();
+    delete blob.nextEntityId;
+    expect(parseOf(blob)).toEqual({ ok: false, reason: "corrupt" });
+  });
+
+  it("a v2 or v1 blob carrying epoch is corrupt", () => {
+    expect(parseOf(validV3({ version: 2, nextEntityId: undefined }))).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+    const v1 = validV3({ version: 1, nextEntityId: undefined });
+    delete v1.marketSeed;
+    expect(parseOf(v1)).toEqual({ ok: false, reason: "corrupt" });
+  });
+
+  it.each([
+    ["worldSeed", 1],
+    ["entities", []],
+    ["legalStatus", 0],
+    ["kills", 0],
+    ["cargoCostBasis", {}],
+  ])(
+    "a v3 blob carrying %s is corrupt (a save never carries world state)",
+    (key, value) => {
+      expect(parseOf(validV3({ [key]: value }))).toEqual({
+        ok: false,
+        reason: "corrupt",
+      });
+    },
+  );
+
+  it("the schema bound is exactly the domain resetForRestore accepts", () => {
+    const lifecycle = createWorldLifecycle({ traffic: false });
+    expect(lifecycle.resetForRestore(MAX_SAVE_EPOCH)).toBe(true);
+    expect(lifecycle.resetForRestore(MAX_SAVE_EPOCH + 1)).toBe(false);
+    expect(
+      SaveV3Schema.safeParse(validV3({ epoch: MAX_SAVE_EPOCH })).success,
+    ).toBe(true);
+    expect(
+      SaveV3Schema.safeParse(validV3({ epoch: MAX_SAVE_EPOCH + 1 })).success,
+    ).toBe(false);
+  });
+});
+
+describe("the writer gate refuses an out-of-range epoch", () => {
+  const inputs = (epoch: number): SaveInputs => ({
+    clockSeconds: CLOCK_START + 600,
+    credits: 1000,
+    equipment: [],
+    cargo: [],
+    fuel: 70,
+    missiles: 3,
+    passengerBerths: 0,
+    mode: "docked",
+    marketSeed: LAVE_SEED,
+    systemId: "g0-s7",
+    stationKey: "coriolis-station",
+    epoch,
+    nextEntityId: 101,
+  });
+
+  it("epoch 0xffffffff is invalid-save and the stored bytes are untouched", async () => {
+    const committed = encodeSave(inputs(7));
+    const store = new MemorySaveStore({ raw: committed });
+
+    const result = await queueAutosave(store, 2, inputs(0xffffffff), ALLOW);
+
+    expect(result).toEqual({
+      committed: false,
+      revision: 2,
+      reason: "invalid-save",
+    });
+    expect(store.raw).toBe(committed);
+    expect(store.writes).toEqual([]);
+  });
+
+  it("the same inputs at epoch 0xfffffffe commit (the gate is the bound, not the call)", async () => {
+    const store = new MemorySaveStore();
+    const result = await queueAutosave(store, 1, inputs(MAX_SAVE_EPOCH), ALLOW);
+    expect(result.committed).toBe(true);
+    expect(store.raw).toContain('"epoch":4294967294');
+  });
+});
+
+describe("classification: future, corrupt and the backup path", () => {
+  // src/main.ts lines 216-229: reason "corrupt" is the only path to
+  // backupCorrupt (the autosave.corrupt copy), and nothing reads the backup key
+  // back. Phase 11 leaves that unchanged, so the classification is the part
+  // this phase must prove.
+  it("version 4 is future-version", () => {
+    expect(parseOf(validV3({ version: 4 }))).toEqual({
+      ok: false,
+      reason: "future-version",
+    });
+  });
+
+  it("an oversized version 4 blob is future-version and JSON.parse never runs", () => {
+    const oversized = `${JSON.stringify(validV3({ version: 4 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
+    expect(oversized.length).toBeGreaterThan(MAX_SAVE_CHARS);
+    const parse = vi.spyOn(JSON, "parse");
+    try {
+      expect(parseSave(oversized, ALLOW)).toEqual({
+        ok: false,
+        reason: "future-version",
+      });
+      expect(parse).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  it("a v3 blob with epoch 0xffffffff is corrupt, the one reason that is backed up", () => {
+    expect(parseOf(validV3({ epoch: 0xffffffff }))).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+  });
+});
+
+/**
+ * The worst-case v3 save (D-08): every field at its bound, every string made
+ * only of code units that JSON.stringify escapes to six characters (U+0000 to
+ * U+0007, U+000B, U+000E to U+001F; U+0008, U+0009, U+000A, U+000C and U+000D
+ * escape to two and are excluded).
+ */
+const SIX_CHAR_UNITS: readonly string[] = [
+  ...Array.from({ length: 8 }, (_, index) => String.fromCharCode(index)),
+  String.fromCharCode(0x0b),
+  ...Array.from({ length: 18 }, (_, index) =>
+    String.fromCharCode(0x0e + index),
+  ),
+];
+
+function worstKey(index: number, length: number): string {
+  let key = "";
+  for (let at = 0; at < length; at += 1) {
+    key += SIX_CHAR_UNITS[(index + at) % SIX_CHAR_UNITS.length] ?? "";
+  }
+  return key;
+}
+
+const WORST_CASE_INPUTS: SaveInputs = {
+  clockSeconds: CLOCK_START + MAX_SAVE_CLOCK_DELTA,
+  credits: MAX_SAVE_CREDITS,
+  equipment: Array.from({ length: MAX_SAVE_EQUIPMENT }, (_, index) =>
+    worstKey(index, MAX_SAVE_EQUIPMENT_KEY_CHARS),
+  ),
+  cargo: Array.from({ length: MAX_SAVE_CARGO_ENTRIES }, (_, index) => ({
+    key: worstKey(index + 3, MAX_SAVE_EQUIPMENT_KEY_CHARS),
+    quantity: MAX_SAVE_CARGO_QUANTITY,
+  })),
+  fuel: MAX_SAVE_FUEL,
+  missiles: MAX_SAVE_MISSILES,
+  passengerBerths: MAX_SAVE_BERTHS,
+  mode: "inFlight",
+  targetSystem: worstKey(5, MAX_SAVE_SYSTEM_ID_CHARS),
+  market: {
+    systemId: worstKey(7, MAX_SAVE_SYSTEM_ID_CHARS),
+    seed: 0xffffffff,
+    goods: Array.from({ length: MAX_SAVE_MARKET_GOODS }, (_, index) => ({
+      key: worstKey(index + 9, MAX_SAVE_EQUIPMENT_KEY_CHARS),
+      price: MAX_SAVE_CREDITS,
+      stock: MARKET_LIMIT,
+    })),
+  },
+  flight: {
+    position: [-999999999.9999999, -999999999.9999999, -999999999.9999999],
+    orientation: [
+      -0.4999999999999999, -0.4999999999999999, -0.4999999999999999,
+      -0.4999999999999999,
+    ],
+    speed: 999999.9999999999,
+    pitchRate: -9.999999999999998,
+    rollRate: -9.999999999999998,
+    torus: false,
+  },
+  systemId: worstKey(11, MAX_SAVE_SYSTEM_ID_CHARS),
+  stationKey: worstKey(13, MAX_SAVE_STATION_KEY_CHARS),
+  epoch: MAX_SAVE_EPOCH,
+  nextEntityId: MAX_SAVE_NEXT_ENTITY_ID,
+};
+
+const WORST_CASE_ENCODED = encodeSave(WORST_CASE_INPUTS);
+
+/**
+ * The two future-version checks of the v2 build's parser, transcribed
+ * verbatim from `git show 41aaf0e:src/persistence/save.ts` with SAVE_VERSION 2:
+ * the bounded 256-character sniff for an oversized blob (lines 346-356 and
+ * 400-406) and the post-parse `typeof version === "number" && version > 2`
+ * check (lines 417-422). The e2e specs of Phases 4-10 proved the same
+ * behaviour in the browser by writing a version-3 blob against the v2 build.
+ */
+function olderBuildIsFuture(raw: string): boolean {
+  const SAVE_VERSION_V2 = 2;
+  const MAX_VERSION_SNIFF_CHARS = 256;
+  const VERSION_SNIFF = /"version"\s*:\s*(\d{1,16})/;
+  if (raw.length > 65_536) {
+    const match = VERSION_SNIFF.exec(raw.slice(0, MAX_VERSION_SNIFF_CHARS));
+    if (match === null) return false;
+    const value = Number(match[1]);
+    const version = Number.isSafeInteger(value) ? value : null;
+    return version !== null && version > SAVE_VERSION_V2;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    return false;
+  }
+  if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+    const version = (parsed as Record<string, unknown>)["version"];
+    return typeof version === "number" && version > SAVE_VERSION_V2;
+  }
+  return false;
+}
+
+describe("older builds keep a v3 save inert (criterion 2)", () => {
+  const docked = encodeSave(
+    snapshot("docked", { epoch: 3, anchorNextEntityId: undefined }),
+  );
+  const inFlight = encodeSave(
+    snapshot("inFlight", { epoch: 5, anchorNextEntityId: 102 }),
+  );
+  const paddedWorst = `${WORST_CASE_ENCODED}${" ".repeat(MAX_SAVE_CHARS)}`;
+
+  it.each([
+    ["docked", docked],
+    ["in flight", inFlight],
+    ["worst case", WORST_CASE_ENCODED],
+    ["worst case padded beyond MAX_SAVE_CHARS", paddedWorst],
+  ])("the v2 build classifies a %s blob as future-version", (_name, raw) => {
+    expect(raw.startsWith('{"version":3,')).toBe(true);
+    expect(olderBuildIsFuture(raw)).toBe(true);
+  });
+
+  it("the frozen classifier does not call a v2 blob future (it is not vacuous)", () => {
+    expect(
+      olderBuildIsFuture(JSON.stringify({ ...validV3(), version: 2 })),
+    ).toBe(false);
+    expect(olderBuildIsFuture("not json")).toBe(false);
+  });
+
+  it("this build reads the padded worst case as unreadable, never corrupt", () => {
+    expect(parseSave(paddedWorst, ALLOW)).toEqual({
+      ok: false,
+      reason: "unreadable",
+    });
+  });
+});
+
+describe("worst-case v3 save (D-08)", () => {
+  it(`encodes under MAX_SAVE_CHARS (measured ${String(WORST_CASE_ENCODED.length)} characters), is schema-valid, and is not vacuous`, () => {
+    expect(WORST_CASE_ENCODED.length).toBeLessThan(MAX_SAVE_CHARS);
+    expect(WORST_CASE_ENCODED.length).toBeGreaterThanOrEqual(38_000);
+    expect(SaveV3Schema.safeParse(JSON.parse(WORST_CASE_ENCODED)).success).toBe(
+      true,
+    );
   });
 });
