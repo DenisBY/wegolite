@@ -5,17 +5,17 @@ milestone_name: World Population Base
 current_phase: 12
 current_phase_name: Inert Ships and the World Lifecycle
 status: executing
-stopped_at: Completed 12-01-PLAN.md
-last_updated: "2026-11-14T17:02:30.695Z"
+stopped_at: Completed 12-02-PLAN.md
+last_updated: "2026-11-14T17:11:21.896Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 12 execution started
-state_head: fbd49344365c216d233234d5753c964fa47642ac
+state_head: 8f746cc954696eecbc96a889766529c4aa10b428
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 27
-  completed_plans: 14
-  percent: 52
+  completed_plans: 15
+  percent: 56
 ---
 
 # Project State
@@ -30,11 +30,11 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 12 (Inert Ships and the World Lifecycle) — EXECUTING
-Plan: 2 of 14
+Plan: 3 of 14
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 12 execution started
 
-Progress: [█████░░░░░] 52%
+Progress: [██████░░░░] 56%
 
 
 ## Performance Metrics
@@ -141,6 +141,7 @@ Progress: [█████░░░░░] 52%
 | Phase 11 P03 | 15min | 2 tasks | 5 files |
 | Phase 11 P04 | 45min | 2 tasks | 4 files |
 | Phase 12 P01 | 30min | 2 tasks | 13 files |
+| Phase 12 P02 | 9 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -341,6 +342,8 @@ Recent decisions affecting current work:
 - [Phase 11]: Worst-case v3 save measures 40,427 characters, under MAX_SAVE_CHARS 65,536 (11-03)
 - [Phase 11]: Phase 11 gate: verify-full green (28m27s, exit 0); save schema v3 fields recorded in Key Decisions, worst case 40,427 of 65,536 characters
 - [Phase 12]: 12-01: spawnEntity refusal order is domain (outOfDomain, ai), idExhausted, storeFull, all before store.allocate; malformed declared, produced by 12-02
+- [Phase 12]: AI fault containment (D-04): invoke catches a think or onEvent throw, ai becomes null, one aiFaulted {id, site} event, no exception text; entity keeps id and stays on the scanner
+- [Phase 12]: D-02: the placeholder integrator skips entities with no AI; spawnEntity refusal order is malformed, outOfDomain or ai, idExhausted, storeFull and a refusal never moves nextId, live array or world stream
 
 ### Pending Todos
 
@@ -434,8 +437,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T17:02:30.430Z
-Stopped at: Completed 12-01-PLAN.md
+Last session: 2026-11-14T17:11:21.624Z
+Stopped at: Completed 12-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

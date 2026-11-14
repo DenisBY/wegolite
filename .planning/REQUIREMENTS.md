@@ -10,8 +10,8 @@
 
 ### Foundation hardening
 
-- [ ] **FOUND-15**: A world-step AI module that throws is contained: the entity is handled by a recorded rule, the step completes, and the world hash stays deterministic (Phase 8 review WR-01)
-- [ ] **FOUND-16**: `spawnEntity` refuses malformed input with a reason instead of throwing, and a refused spawn does not advance the id counter (Phase 8 review IN-02)
+- [x] **FOUND-15**: A world-step AI module that throws is contained: the entity is handled by a recorded rule, the step completes, and the world hash stays deterministic (Phase 8 review WR-01)
+- [x] **FOUND-16**: `spawnEntity` refuses malformed input with a reason instead of throwing, and a refused spawn does not advance the id counter (Phase 8 review IN-02)
 
 ### Content
 
@@ -60,8 +60,8 @@ Deferred. The former v2.1 Combat & Traffic requirements (Phases 13-23) stay in `
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-15 | Phase 12 | Pending |
-| FOUND-16 | Phase 12 | Pending |
+| FOUND-15 | Phase 12 | Complete |
+| FOUND-16 | Phase 12 | Complete |
 | DATA-10 | Phase 9 | Complete |
 | DATA-11 | Phase 10 | Complete |
 | DATA-13 | Phase 9 | Complete |
