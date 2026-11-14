@@ -23,6 +23,10 @@ import {
   laveInertRecords,
 } from "../helpers/inert-world.js";
 import { laveFixture } from "../helpers/lave.js";
+import {
+  laveInertWorld,
+  poseNearFirstShip,
+} from "../helpers/traffic-fixture.js";
 
 describe("buildHudModel hyperspace target", () => {
   it("carries the committed target name", () => {
@@ -249,5 +253,67 @@ describe("buildHudModel NPC contacts (WORLD-15)", () => {
         distance - source.radius <= fixture.layout.scannerRange,
       );
     });
+  });
+});
+
+describe("the regenerated Lave world next to a ship (WORLD-15, plan 12-12's fixture)", () => {
+  it("laveInertWorld(1) is the epoch-1 launch world: 12 ships built the way the session builds them", () => {
+    const fixture = laveFixture();
+    const direct = buildInertWorld(
+      LAVE_EPOCH1_WORLD_SEED,
+      fixture.layout,
+      laveInertRecords(),
+    ).world;
+    expect(laveInertWorld(1).worldSeed).toBe(LAVE_EPOCH1_WORLD_SEED);
+    expect(npcContacts(laveInertWorld(1))).toEqual(npcContacts(direct));
+    const epoch0 = laveInertWorld(0);
+    expect(npcContacts(epoch0)).toHaveLength(12);
+    expect(epoch0.store.live.map((entity) => entity.id)).toEqual(
+      Array.from({ length: 12 }, (_, index) => 101 + index),
+    );
+  });
+
+  it("poseNearFirstShip puts the player 5,000 m from the lowest-id ship along +x", () => {
+    const first = npcContacts(laveInertWorld(0))[0] as NpcContact;
+    const pose = poseNearFirstShip(0, 5_000);
+
+    expect(pose.position).toEqual({
+      x: first.position.x + 5_000,
+      y: first.position.y,
+      z: first.position.z,
+    });
+    expect(pose.orientation).toEqual({ w: 1, x: 0, y: 0, z: 0 });
+    expect(pose.speed).toBe(0);
+    expect(length(sub(pose.position, first.position))).toBeCloseTo(5_000, 9);
+  });
+
+  it("lists at least that ship as a visible ship or police contact at that pose", () => {
+    const fixture = laveFixture();
+    const pose = poseNearFirstShip(0, 5_000);
+    const state = {
+      ...initFlightState(fixture.layout),
+      mode: "inFlight" as const,
+      position: pose.position,
+      orientation: pose.orientation,
+      speed: pose.speed,
+    };
+
+    const npc = npcContacts(laveInertWorld(0));
+    const model = buildHudModel(
+      state,
+      fixture.layout,
+      fixture.config,
+      "",
+      70,
+      0,
+      "",
+      npc,
+    );
+
+    const first = model.contacts[3];
+    expect(first?.id).toBe("ship");
+    expect(first?.kind === "ship" || first?.kind === "police").toBe(true);
+    expect(first?.visible).toBe(true);
+    expect(first?.distance).toBeCloseTo(5_000, 6);
   });
 });

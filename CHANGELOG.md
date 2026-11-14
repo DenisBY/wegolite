@@ -15,7 +15,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   game until ships are placed in space.
 - Inert NPC ships of the six roles (traders, pirates, police Vipers, hunters,
   shuttles and scavengers) now sit in each system after a launch and after a
-  hyperspace arrival. They do not move yet. Like Oolite's ships they lock the
+  hyperspace arrival. They do not move yet, and they show on the scanner
+  (police Vipers in purple, others in yellow). Like Oolite's ships they lock the
   torus drive within 25.6 km and block a hyperspace jump that completes right
   beside them. They are not saved, and loading a game rebuilds the same ships.
 
