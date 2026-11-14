@@ -9,6 +9,8 @@
  * in the last block is a regression snapshot, not an oracle.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { initFlightState, hashFlight } from "../../../src/sim/flight/state.js";
@@ -16,7 +18,11 @@ import { stepFlight } from "../../../src/sim/flight/step.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import { length, lengthSquared, sub, vec } from "../../../src/sim/math.js";
 import type { Vec3 } from "../../../src/sim/math.js";
-import { createRngState } from "../../../src/sim/rng.js";
+import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
+import { createRngState, worldSeedFor } from "../../../src/sim/rng.js";
+import { fnv1a32 } from "../../../src/sim/hash.js";
+import type { System } from "../../../src/content/types.js";
+import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { DT } from "../../../src/sim/time.js";
 import { FIRST_DYNAMIC_ID } from "../../../src/sim/world/ids.js";
 import {
@@ -31,6 +37,7 @@ import {
 import type { InertShipRecord } from "../../../src/sim/world/populate.js";
 import {
   LANE_WIDTH,
+  locationByCode,
   type LocationCode,
 } from "../../../src/sim/world/placement.js";
 import {
@@ -408,5 +415,90 @@ describe("populateInertWorld", () => {
       stepWorld(world, player, flightLayout, DT);
     }
     expect(serializeWorldSection(world)).toBe(before);
+  });
+});
+
+interface InertGolden {
+  readonly name: string;
+  readonly worldSeed: number;
+  readonly count: number;
+  readonly fnv: string;
+  readonly section: string;
+}
+
+describe("the Lave launch world golden (regression snapshot)", () => {
+  const golden = JSON.parse(
+    readFileSync(
+      new URL("../../golden/world/inert-lave-epoch1.json", import.meta.url),
+      "utf8",
+    ),
+  ) as InertGolden;
+
+  it("rebuilds the committed world: seed, count, section text and hash", () => {
+    expect(golden.name).toBe("inert-lave-epoch1");
+    expect(golden.worldSeed).toBe(726_532_988);
+    expect(golden.worldSeed).toBe(
+      worldSeedFor(marketSeedForSystem("g0-s7"), 1),
+    );
+    const { world, count } = buildInertWorld(golden.worldSeed, layout, records);
+    const section = serializeWorldSection(world);
+    expect(count).toBe(golden.count);
+    expect(count).toBe(12);
+    expect(section).toBe(golden.section);
+    expect(fnv1a32(section)).toBe(golden.fnv);
+  });
+});
+
+describe("every galaxy-0 system populates without a fallback (T-12-16)", () => {
+  const systems = JSON.parse(
+    readFileSync(
+      new URL(
+        "../../../src/content/generated/systems/g0.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ) as System[];
+  const { stationDef } = laveFixture();
+
+  it("spawns 12 ships per system at epoch 1 and takes no capped last candidate", () => {
+    expect(systems).toHaveLength(256);
+    for (const system of systems) {
+      const systemLayout = deriveSystemLayout(system, stationDef);
+      const seed = worldSeedFor(marketSeedForSystem(system.id), 1);
+      const probe = createWorld(seed);
+      const plan = planInertPopulation(
+        createRngState(probe.rng.s),
+        systemLayout,
+        records,
+      );
+      expect([system.id, plan.fallbacks]).toEqual([system.id, 0]);
+      const { count } = buildInertWorld(seed, systemLayout, records);
+      expect([system.id, count]).toEqual([system.id, 12]);
+    }
+  });
+
+  it("samples the tightest lane (planet to sun in g1-s45) without a fallback at epochs 1 to 32", () => {
+    const galaxy1 = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../../src/content/generated/systems/g1.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as System[];
+    const tight = galaxy1.find((system) => system.id === "g1-s45");
+    expect(tight).toBeDefined();
+    const tightLayout = deriveSystemLayout(tight as System, stationDef);
+    for (let epoch = 1; epoch <= 32; epoch++) {
+      const rng = createWorld(
+        worldSeedFor(marketSeedForSystem("g1-s45"), epoch),
+      ).rng;
+      expect([
+        epoch,
+        locationByCode(rng, "LANE_PS", tightLayout).fallback,
+      ]).toEqual([epoch, false]);
+    }
   });
 });

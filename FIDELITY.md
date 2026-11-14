@@ -47,6 +47,8 @@ The Wegolite cell is a `src/` path and a line. For a build-time mechanic it is t
 | Mass lock by NPC ships (WORLD-10)                                                                                       | `src/sim/world/ship-field.ts:82`        | `src/Core/Entities/PlayerEntity.m:3044-3061`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-31    |
 | Torus factor from the nearest body, ships excluded                                                                      | `src/sim/flight/torus.ts:53`            | `src/Core/Entities/PlayerEntity.m:2918-2934`            | divergence: Oolite's factor takes the nearest collidable entity including ships; Wegolite keeps the five bodies, because WORLD-10 does not ask for it and the factor differs only above 102.4 km from every body. PROJECT.md: "Torus factor ignores NPC ships"                                                                                                                                                                                                                                                                                                                                                             | E-32    |
 | NPC ship collision radius (build time, `tools/oolite-ingest/convert/ship-radius.ts`; no solid subentity)                | `src/content/schemas/ship-npc.ts:42`    | `src/Core/OOMesh.m:1803-1822`                           | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-33    |
+| Populator location codes (LANE_WP, LANE_WS, LANE_PS, LANE_WPS, STATION_AEGIS)                                           | `src/sim/world/placement.ts:177`        | `src/Core/Universe.m:1796-1815`                         | divergence: every rejection loop is capped at 256 tries with a last-candidate fallback (Oolite loops are uncapped); no committed galaxy-0 system takes the fallback. PROJECT.md: "First inert populator (WORLD-15)"                                                                                                                                                                                                                                                                                                                                                                                                        | E-34    |
+| First populator: which ships, where (fixed 12-ship table, singles, no rates or groups)                                  | `src/sim/world/populate.ts:90`          | `src/Core/Universe.m:2648-2648`                         | divergence: Oolite's populator rolls its own counts, rates and groups per system (oolite-populator.js, not under src/); Wegolite places a fixed table of 12 single ships and puts shuttles and scavengers at STATION_AEGIS. PROJECT.md: "First inert populator (WORLD-15)"                                                                                                                                                                                                                                                                                                                                                 | E-35    |
 
 ## Excerpts
 
@@ -463,6 +465,37 @@ OOINLINE double distanceBetweenPlanetPositions(int x1, int y1, int x2, int y2)
     collisionRadius = sqrtf(result);
 ```
 
+### E-34 src/Core/Universe.m:1796-1815
+
+```objc
+            double total = l1 + l2 + l3;
+            float choice = randf();
+            if (choice < l1 / total) {
+                return [self locationByCode:@"LANE_WP" withSun:sun andPlanet:planet];
+            } else if (choice < (l1 + l2) / total) {
+                return [self locationByCode:@"LANE_PS" withSun:sun andPlanet:planet];
+            } else {
+                return [self locationByCode:@"LANE_WS" withSun:sun andPlanet:planet];
+            }
+        } else if ([code isEqualToString:@"LANE_WP"]) {
+            result = OORandomPositionInCylinder(kZeroHPVector, SCANNER_MAX_RANGE, [planet position], [planet radius] * 3, LANE_WIDTH);
+        } else if ([code isEqualToString:@"LANE_WS"]) {
+            result = OORandomPositionInCylinder(kZeroHPVector, SCANNER_MAX_RANGE, [sun position], [sun radius] * 3, LANE_WIDTH);
+        } else if ([code isEqualToString:@"LANE_PS"]) {
+            result = OORandomPositionInCylinder([planet position], [planet radius] * 3, [sun position], [sun radius] * 3, LANE_WIDTH);
+        } else if ([code isEqualToString:@"STATION_AEGIS"]) {
+            do {
+                result = OORandomPositionInShell([[self station] position], [[self station] collisionRadius] * 1.2, SCANNER_MAX_RANGE * 2.0);
+            } while (HPdistance2(result, [planet position]) < [planet radius] * [planet radius] * 1.5);
+            // loop to make sure not generated too close to the planet's surface
+```
+
+### E-35 src/Core/Universe.m:2648-2648
+
+```objc
+        [ship setOrientation:OORandomQuaternion()];
+```
+
 ## Constants ledger
 
 Each constant below is the value Wegolite compiles, its unit (a mass is Oolite's float32 mass in its own units; a length is in metres), the Oolite lines it follows, and the test that pins it.
@@ -490,5 +523,6 @@ These are gaps the table cannot close on its own. Each one is stated so a review
 - **Aegis near-surface clause (E-09).** Oolite's `isNearPlanetSurface` clause (`src/Core/Entities/ShipEntity.m:6681-6682`) is not modelled. It can change the result only for a planet with a radius below about 250 m, where the 500 m surface band reaches past the 3x-radius test. The v1 layouts were not checked against every one of the 2,048 systems.
 - **Torus mass lock, station branch (E-07).** E-07 quotes the planet branch only. The station check in `src/sim/flight/torus.ts:99-103` uses the scanner range and is not covered by an excerpt.
 - **NPC collision radius (E-33).** E-33 quotes `src/Core/OOMesh.m:1803-1822`, the running maximum and the `sqrtf`; the `magnitude2` line that feeds the maximum is `OOMesh.m:1801`, 22 lines from the `sqrtf` and so outside one 20-line excerpt. The subentity extension of the radius (`src/Core/Entities/ShipEntity.m:2028-2044`) is not ported: no NPC ship has a solid subentity, so it is not exercised, and `computeShipRadii` fails the build if one appears.
+- **Populator lane lengths (E-34).** E-34 quotes `src/Core/Universe.m:1796-1815`, from the `total` line through the `STATION_AEGIS` loop; the three lane lengths it divides by (`l1`, `l2`, `l3`, `Universe.m:1793-1795`) sit just above the 20-line cap and are not quoted. They are the lengths of the planet, planet-to-sun and sun vectors, as `locationByCode` in `src/sim/world/placement.ts` computes them. The other location codes of `locationByCode` (the orbits, `TRIANGLE`, the system regions) are not ported: the first populator uses five.
 - **Docking computer TL, station override (E-13).** Oolite's docked-station override of the tech level (`src/Core/Entities/PlayerEntity.m:8229-8232`) is not modelled. The only `equivalent_tech_level` in the pinned data is on the rock-hermit template (`Resources/Config/shipdata.plist:3247`), and the Coriolis template (`Resources/Config/shipdata.plist:1690`) sets none, so the override never applies to the v1 station.
 - **Missile trade-in price factor (E-17).** `PlayerEntity.m:9434-9435` scales a trade-in only when the station's price factor is below 1.0. The Coriolis template sets no `equipment_price_factor`, and `src/Core/Entities/StationEntity.m:601` defaults it to 1.0, so no scaling applies to the v1 station.
