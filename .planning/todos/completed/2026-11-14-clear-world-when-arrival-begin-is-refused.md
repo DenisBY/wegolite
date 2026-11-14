@@ -39,3 +39,23 @@ Take it together with the other open review items when planning Phases 13 and 14
 - IN-02: `aiFaulted` is emitted but nothing records or logs it.
 - IN-03: the "spawnEntity never throws" doc is false for an `init` with a throwing accessor (no real caller).
 - IN-04: a failed NPC model is never retried, yet the ship still blocks and shows on the scanner.
+
+## Resolution
+
+Fixed in Phase 13 plan 13-01 (FOUND-17). `worldLifecycle.begin()` now ends the
+world and clears `anchorNextEntityId` on every refusal (the epoch is left
+unchanged), so a refused arrival begin leaves no origin ship drawn, on the
+scanner, mass-locking or blocking a jump. A controller-level Vitest scenario at
+epoch 4,294,967,294 in `tests/app/session/hyperspace-controller.test.ts` pins
+it. IN-01 was folded into the same plan: a running torus drive stopped by mass
+lock now prints "Hyperspeed mass-locked." (`event-router.ts`).
+
+## Still open
+
+IN-02, IN-03 and IN-04 above remain open as Phase 14 candidates:
+
+- IN-02: `aiFaulted` is emitted but nothing records or logs it.
+- IN-03: the "spawnEntity never throws" doc is false for an `init` with a
+  throwing accessor (no real caller).
+- IN-04: a failed NPC model is never retried, yet the ship still blocks and
+  shows on the scanner.

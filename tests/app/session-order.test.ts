@@ -508,6 +508,8 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
     const { log, router } = harness();
     router.dispatch(EVENTS.torusEngaged);
     router.dispatch(EVENTS.torusDisengaged);
+    router.dispatch({ kind: "torusDisengaged", reason: "massLock" });
+    router.dispatch({ kind: "torusDisengaged", reason: "toggle" });
     router.dispatch(EVENTS.torusRefused);
     router.dispatch(EVENTS.massLockChanged);
     router.dispatch({ kind: "massLockChanged", locked: false });
@@ -528,6 +530,8 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
     const seconds = String(countdownSecondsRemaining(1800));
     expect(log).toEqual([
       "messages.enqueue Torus engaged at 2.0×",
+      "messages.enqueue Torus disengaged",
+      "messages.enqueue Hyperspeed mass-locked.",
       "messages.enqueue Torus disengaged",
       "messages.enqueue Hyperspeed mass-locked.",
       "messages.enqueue Mass locked",

@@ -256,7 +256,14 @@ export function createHudMessages(deps: HudMessagesDeps): EventSubscriber {
         messages.enqueue(`Torus engaged at ${event.factor.toFixed(1)}×`);
         break;
       case "torusDisengaged":
-        messages.enqueue("Torus disengaged");
+        // Oolite descriptions.plist "jump-mass-locked", shown by
+        // PlayerEntity.m:2755-2758 when mass lock stops a running drive (IN-01);
+        // an input or toggle stop keeps "Torus disengaged".
+        messages.enqueue(
+          event.reason === "massLock"
+            ? "Hyperspeed mass-locked."
+            : "Torus disengaged",
+        );
         break;
       case "torusRefused":
         // Oolite descriptions.plist "jump-mass-locked": a refused request, not
