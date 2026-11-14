@@ -119,14 +119,14 @@ Ordering rules:
 **Pitfalls to address**: 14 (constants ledger, worked-example tests, FIDELITY rows), 21 (the new gauges and the ident lock deliberately revise the pinned eleven-element HUD layout), 7 (damage events queued, never synchronous), 4 (NaN under damage), 19 (fire is a `ShipControl` command, the same for player and NPC), 26 (message-line flood in a fight), 11 (binding migration across existing browser specs), 10 (the v4 bump: ordered migration, worst-case size test)
 **Decisions to settle**: where octree data ships and how the Cobra's reaches the first-load set; what the ident lock shows on the HUD while no missile exists; the cabin-temperature inputs (energy damage heats the cabin, `PlayerEntity.m:5673`; the sun and atmosphere heat inputs stay out with DEATH-03 and DEATH-05, unscheduled)
 **Todos**: `2026-11-14-clear-world-when-arrival-begin-is-refused.md` (closed by FOUND-17). Review item IN-01 of that todo (the torus message wording when mass lock stops a running drive) is a candidate to fold in by owner decision; it is not a requirement
-**Plans:** 1/16 plans executed in 9 waves
+**Plans:** 2/16 plans executed in 9 waves
 
 Plans:
 **Wave 1**
 - [x] 13-01-PLAN.md — FOUND-17: a refused arrival ends the origin world (controller-level scenario); IN-01 mass-lock wording (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 13-02-PLAN.md — INPUT-01: P pauses, Escape inert eject, R ident, U untarget, Q target station, view and fire keys, persisted-settings migration, README and CHANGELOG (wave 2)
+- [x] 13-02-PLAN.md — INPUT-01: P pauses, Escape inert eject, R ident, U untarget, Q target station, view and fire keys, persisted-settings migration, README and CHANGELOG (wave 2)
 - [ ] 13-03-PLAN.md — Octree line test and two-stage laser hit rule, pure sim (wave 2)
 - [ ] 13-16-PLAN.md — NPC record combat fields: display name, energy, recharge, forward weapon and its position (wave 2)
 
@@ -213,7 +213,7 @@ Pending todos outside v2.2, which can run as quick tasks or join a phase by owne
 | 10. Ship Mass | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | Complete    | 2026-11-14 |
-| 13. Views, Lasers and Shields | v2.2 | 1/16 | In Progress | - |
+| 13. Views, Lasers and Shields | v2.2 | 2/16 | In Progress | - |
 | 14. NPC Flight and Steering Fidelity Gate | v2.2 | 0/TBD | Not started | - |
 
 ## Backlog

@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 13
 current_phase_name: Views, Lasers and Shields
 status: executing
-stopped_at: Completed 13-01-PLAN.md
-last_updated: "2026-11-14T22:58:24.411Z"
+stopped_at: Completed 13-02-PLAN.md
+last_updated: "2026-11-14T23:16:09.581Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 13 execution started
-state_head: 18c5b68eb79e380584eb49f2845870954415fbed
+state_head: d5e0ab45b9f2c93a3975e5a80d145d2990a35417
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 16
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 13 (Views, Lasers and Shields) — EXECUTING
-Plan: 2 of 16
+Plan: 3 of 16
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 13 execution started
 
@@ -154,6 +154,7 @@ Last activity: 2026-11-14 — Phase 13 execution started
 | Phase 12 P13 | 25 min | 3 tasks | 10 files |
 | Phase 12 P14 | 30 min | 3 tasks | 9 files |
 | Phase 13 P01 | 9 min | 2 tasks | 8 files |
+| Phase 13 P02 | 55 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -378,6 +379,8 @@ Recent decisions affecting current work:
 - [Phase 12]: Plan 12-14: in flight the simulation steps behind the opaque chart (advanceBehind: no commands, zero input frame); docked, paused and manual-clock charts do not step; advanceTicks steps behind it in flight
 - [Phase 12]: D-03: below 24 fps the slow-motion catch-up cap (MAX_STEPS_PER_FRAME 5) stays, with no notice and no automatic quality drop
 - [Phase 13]: FOUND-17 fixed inside worldLifecycle.begin(): every refusal ends the world and clears the anchor; resume() unchanged
+- [Phase 13]: 13-02: launch is dockHome-only; number keys are view keys in flight, in-flight skip is skipLaunch
+- [Phase 13]: 13-02: migrateLegacyBindings gated on the blob lacking ident/eject so a key chosen on this build is never moved; target station is KeyQ
 
 ### Pending Todos
 
@@ -479,8 +482,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T22:58:24.343Z
-Stopped at: Completed 13-01-PLAN.md
+Last session: 2026-11-14T23:16:09.514Z
+Stopped at: Completed 13-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
