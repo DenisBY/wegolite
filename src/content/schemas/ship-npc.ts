@@ -31,8 +31,8 @@ export const NpcShipSchema = z.strictObject({
   scanClass: z.string().regex(/^CLASS_[A-Z_]+$/),
   model: z.string().regex(/^oolite_[a-z0-9_]+\.dat$/),
   glb: z.string().regex(NPC_GLB_PATH_PATTERN),
-  // Oolite's float32 mass in tonnes-scale units; `z.number()` already rejects
-  // NaN and Infinity, so `positive()` leaves a finite number above zero.
+  // Oolite's float32 mass; `z.number()` already rejects NaN and Infinity, so
+  // `positive()` leaves a finite number above zero.
   mass: z.number().positive(),
 });
 

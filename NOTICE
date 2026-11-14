@@ -73,10 +73,20 @@ non-commercial use only and share-alike terms.
 
 The generated NPC ship record file `src/content/generated/ships-npc.json` is
 compiled at build time from the vendored Oolite `shipdata.plist` (the roles, AI
-name, scan class and model of nine NPC ships, with `like_ship` resolved). It is
-a derivative work of that file and remains CC BY-NC-SA 3.0, never GPL, with
-attribution to the Oolite contributors, non-commercial use only and
-share-alike terms.
+name, scan class and model of nine NPC ships, with `like_ship` resolved) and
+from the vendored Oolite `.dat` models: the `mass` of each record is computed by
+Wegolite's port of Oolite's octree volume rule over the hull and its solid
+subentities. It is a derivative work of `shipdata.plist` and of those models and
+remains CC BY-NC-SA 3.0, never GPL, with attribution to the Oolite
+contributors, non-commercial use only and share-alike terms.
+
+The `mass` values in `src/content/generated/ships-client.json` (the player Cobra
+Mk III and the Coriolis station) are computed the same way from the vendored
+Oolite `oolite_cobra3` model and the four Coriolis models
+(`oolite_coriolis`, `oolite_coriolis_tris`, `oolite_coriolis_faceplate` and
+`oolite_coriolis_dock`). That file is a derivative work of `shipdata.plist` and
+of those models and remains CC BY-NC-SA 3.0, never GPL, with attribution to the
+Oolite contributors, non-commercial use only and share-alike terms.
 
 ## 4. Corresponding source
 
