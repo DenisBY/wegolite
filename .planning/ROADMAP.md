@@ -128,11 +128,11 @@ Plans:
 **Research flag**: Low — the ordered migration chain, the strict schema, the shared validator and the golden blobs already exist
 **Pitfalls to address**: 10 (a minimal bump with ordered migration and a worst-case size test; the former "one bump with every field" rule is superseded by the 2026-11-13 Key Decision), 2 (no closure-held random state in a save)
 **Decisions to settle**: persisting the epoch makes the D-02 world-seed derivation one-way, so check the cross-check vector `worldSeedFor(marketSeedForSystem("g0-s7"), 1) = 0x2b4e037c` before the first v3 write; name now every world counter Phase 12's populator needs, because a counter found later costs another bump
-**Plans**: 4 plans
+**Plans**: 1/4 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 11-01-PLAN.md — Leg-anchor counter in the world lifecycle (D-01, D-05); the D-07 cross-check vector and a v2 writer golden pinned before the first v3 write
+- [x] 11-01-PLAN.md — Leg-anchor counter in the world lifecycle (D-01, D-05); the D-07 cross-check vector and a v2 writer golden pinned before the first v3 write
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 11-02-PLAN.md — Schema v3 (epoch, nextEntityId), ordered v1 -> v2 -> v3 migration with step and chain goldens, the writer fed by the lifecycle, every call site and suite on v3
@@ -199,7 +199,7 @@ Pending todos outside v2.1, which can run as quick tasks or join a phase by owne
 | 8. Session Split and World Core | v2.0 | 16/16 | Complete | 2026-11-13 |
 | 9. NPC Content | v2.1 | 5/5 | Complete    | 2026-11-14 |
 | 10. Ship Mass | v2.1 | 4/4 | Complete    | 2026-11-14 |
-| 11. Minimal Save Schema v3 | v2.1 | 0/TBD | Not started | - |
+| 11. Minimal Save Schema v3 | v2.1 | 1/4 | In Progress | - |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 0/TBD | Not started | - |
 
 ## Backlog

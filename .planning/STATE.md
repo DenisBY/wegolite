@@ -5,16 +5,16 @@ milestone_name: World Population Base
 current_phase: 11
 current_phase_name: Minimal Save Schema v3
 status: executing
-stopped_at: Phase 11 context gathered
-last_updated: "2026-11-14T11:40:04.471Z"
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-11-14T11:49:58.058Z"
 last_activity: 2026-11-14
-last_activity_desc: Phase 10 complete, transitioned to Phase 11
-state_head: 41aaf0ef731aacdff39bcb31b6b0dd5825633188
+last_activity_desc: Phase 11 execution started
+state_head: 9ff46b7ff9b1413740d6db4bc2f8de1966ad3963
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 13
-  completed_plans: 9
+  completed_plans: 10
   percent: 50
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-13)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 10 — phase-10
+**Current focus:** Phase 11 — Minimal Save Schema v3
 
 ## Current Position
 
-Phase: 11 (Minimal Save Schema v3) — READY TO EXECUTE
-Plan: Not started
+Phase: 11 (Minimal Save Schema v3) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-11-14 — Phase 10 complete, transitioned to Phase 11
+Last activity: 2026-11-14 — Phase 11 execution started
 
 Progress: [█████░░░░░] 50%
 
@@ -135,6 +135,7 @@ Progress: [█████░░░░░] 50%
 | Phase 10 P02 | 12 min | 3 tasks | 14 files |
 | Phase 10 P03 | 12 min | 2 tasks | 6 files |
 | Phase 10 P04 | 40 min | 2 tasks | 12 files |
+| Phase 11 P01 | 4 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -329,6 +330,7 @@ Recent decisions affecting current work:
 - [Phase 10]: D-05 amended: buoy mass stored as a buoy entry in ships-client.json (buoy-client), implemented in plan 10-04
 - [Phase 10]: Roadmap criterion 2 reading accepted (criterion2-accept), revisable; real-Oolite mass check is a deferred follow-up
 - [Phase 10]: Navigation buoy mass stored in ships-client.json as a third buoy entry (amends D-05); blockage stays Coriolis-only until Phase 12
+- [Phase 11]: anchorNextEntityId is a plain number read from World.store.nextId after populate; the lifecycle imports no id module
 
 ### Pending Todos
 
@@ -422,9 +424,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T11:00:55.004Z
-Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-minimal-save-schema-v3/11-CONTEXT.md
+Last session: 2026-11-14T11:49:57.878Z
+Stopped at: Completed 11-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
