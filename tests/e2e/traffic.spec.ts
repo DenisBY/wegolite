@@ -20,6 +20,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
@@ -37,6 +38,22 @@ const SLOW = 30_000;
  * tests/e2e/budget.spec.ts `DRAW_CALL_BUDGET`, unchanged).
  */
 const DRAW_CALL_BUDGET = 50;
+/** One MiB, the rounding unit of the first-load ceiling. */
+const MIB = 1_048_576;
+/**
+ * The cold-start ceiling of tests/e2e/budget.spec.ts, unchanged by the owner
+ * decision of 2026-11-14 (option A): the same 9 MiB, now measured with traffic on.
+ */
+const FIRST_LOAD_BYTES_CEILING = 9 * MIB;
+/**
+ * The window, in loop frames (`probe.frames`) counted from the first in-flight
+ * frame, within which the NPC models of the present keys and their textures
+ * must have been requested and finished. At least 10 s at the 60 Hz
+ * animation-frame cap, and chosen to absorb the slow SwiftShader loop and the
+ * owner's slow host. The wait's timeout is a correctness bound, never an
+ * assertion.
+ */
+const MODEL_LOAD_WINDOW_FRAMES = 600;
 /** The URL every test here boots: traffic on, manual clock (opt-in by URL only). */
 const TRAFFIC_URL = "/?test=1&traffic=1&clock=manual";
 
@@ -88,6 +105,48 @@ function npcRecords(): readonly NpcRecord[] {
 /** The URL path of a record's GLB, as the browser requests it. */
 function glbPath(record: NpcRecord): string {
   return new URL(`/${record.glb}`, "http://localhost").pathname;
+}
+
+interface NpcAssetPaths {
+  /** The nine GLB paths, sorted. */
+  readonly glbs: readonly string[];
+  /** Every texture path any GLB references, sorted. */
+  readonly textures: readonly string[];
+  /** Each GLB path to the texture paths its own JSON chunk references. */
+  readonly texturesOf: ReadonlyMap<string, readonly string[]>;
+}
+
+/**
+ * The URL paths of every NPC GLB and every texture those GLBs reference, from
+ * the compiled records and each GLB's own JSON chunk (length at byte 12, text
+ * from byte 20); image URIs resolve against the GLB's own path. Copied from
+ * tests/e2e/budget.spec.ts `npcAssetPaths` (module-private there), extended to
+ * keep each GLB's own texture paths.
+ */
+function npcAssetPaths(): NpcAssetPaths {
+  const root = process.cwd();
+  const glbs = new Set<string>();
+  const textures = new Set<string>();
+  const texturesOf = new Map<string, readonly string[]>();
+  for (const record of npcRecords()) {
+    const glbUrl = new URL(`/${record.glb}`, "http://localhost");
+    glbs.add(glbUrl.pathname);
+    const bytes = readFileSync(join(root, "public", record.glb));
+    const jsonLength = bytes.readUInt32LE(12);
+    const json = JSON.parse(
+      bytes.subarray(20, 20 + jsonLength).toString("utf8"),
+    ) as { readonly images?: readonly { readonly uri: string }[] };
+    const own = (json.images ?? []).map(
+      (image) => new URL(image.uri, glbUrl).pathname,
+    );
+    for (const path of own) textures.add(path);
+    texturesOf.set(glbUrl.pathname, [...new Set(own)].sort());
+  }
+  return {
+    glbs: [...glbs].sort(),
+    textures: [...textures].sort(),
+    texturesOf,
+  };
 }
 
 function collectErrors(page: Page): string[] {
@@ -261,4 +320,223 @@ test("a launch populates the world, draws the ships within budget and matches th
   } finally {
     release();
   }
+});
+
+/** One same-origin fetch as the page saw it: the path and the session mode at the call. */
+interface FetchStamp {
+  readonly path: string;
+  readonly mode: string;
+}
+
+test("a traffic-on cold start requests no NPC model before the first in-flight frame, stays under the first-load ceiling and loads the present models within a fixed frame window", async ({
+  page,
+  baseURL,
+}) => {
+  const errors = collectErrors(page);
+  const origin = new URL(baseURL ?? "http://127.0.0.1:4173").origin;
+
+  // The ordering proof is made in the page: every same-origin fetch records its
+  // path and the session mode at the moment of the call. three's GLTFLoader
+  // fetches GLBs (FileLoader) and, in Chromium, images (ImageBitmapLoader)
+  // through `fetch`; the Playwright request log below is the complete list, and
+  // the test requires every NPC path in it to carry a stamp, so a request made
+  // some other way fails the test instead of passing unseen.
+  await page.addInitScript(() => {
+    const stamps: { path: string; mode: string }[] = [];
+    Object.assign(window, { __npcFetchStamps: stamps });
+    const original = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      try {
+        const raw =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        const url = new URL(raw, window.location.href);
+        if (url.origin === window.location.origin) {
+          stamps.push({
+            path: url.pathname,
+            mode: String(window.__wegolite?.mode),
+          });
+        }
+      } catch {
+        // Recording must never block the page's own request.
+      }
+      return original(input, init);
+    };
+  });
+
+  const requested: string[] = [];
+  const failed: string[] = [];
+  const finished: { readonly path: string; readonly bytes: Promise<number> }[] =
+    [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.origin === origin) requested.push(url.pathname);
+  });
+  page.on("requestfailed", (request) => {
+    const url = new URL(request.url());
+    if (url.origin === origin) failed.push(url.pathname);
+  });
+  page.on("requestfinished", (request) => {
+    const url = new URL(request.url());
+    if (url.origin !== origin) return;
+    finished.push({
+      path: url.pathname,
+      bytes: request.sizes().then((sizes) => sizes.responseBodySize),
+    });
+  });
+
+  const npc = npcAssetPaths();
+  const npcPaths = new Set([...npc.glbs, ...npc.textures]);
+  expect(npc.glbs, "NPC GLB paths (vacuity guard)").toHaveLength(9);
+  expect(npc.textures, "NPC texture paths (vacuity guard)").toHaveLength(43);
+
+  await bootDocked(page, TRAFFIC_URL);
+  expect(
+    await page.evaluate(() => window.__wegolite?.sim?.traffic),
+    "traffic is on",
+  ).toBe(true);
+
+  // Launch frames: the ships exist, the session is launching, and the request
+  // log holds no NPC GLB or texture across many real loop frames.
+  await page.click('button[data-action="launch"]');
+  await waitForFrames(page, 1);
+  expect(
+    await page.evaluate(() => window.__wegolite?.test?.advanceTicks(1)),
+  ).toBe(1);
+  await waitForFrames(page, 30);
+  const launching = await page.evaluate(() => ({
+    mode: window.__wegolite?.mode,
+    entities: window.__wegolite?.sim?.entities,
+  }));
+  expect(launching.mode).toBe("launching");
+  expect(launching.entities).toBe(12);
+  expect(
+    requested.filter((path) => npcPaths.has(path)),
+    "NPC paths requested during the launch frames",
+  ).toEqual([]);
+
+  expect(
+    await page.evaluate(() => window.__wegolite?.test?.advanceTicks(600)),
+  ).toBe(601);
+  // The first in-flight frame: read in the page, in the first animation frame
+  // that sees the published mode, so `calls` is the in-flight base with no NPC
+  // model drawn (a model fetched in that frame cannot also be loaded and drawn
+  // in it).
+  const firstInFlightRead = await (
+    await page.waitForFunction(
+      () => {
+        const probe = window.__wegolite;
+        return probe?.mode === "inFlight"
+          ? { frames: probe.frames, calls: probe.calls }
+          : false;
+      },
+      undefined,
+      { timeout: SLOW },
+    )
+  ).jsonValue();
+  if (firstInFlightRead === false) {
+    throw new Error("the first in-flight frame was not observed");
+  }
+  const firstInFlight = firstInFlightRead;
+
+  // Bytes to the first in-flight frame, the same measure as budget.spec.ts,
+  // excluding the NPC paths (none may be requested before this frame; any
+  // requested after it are not part of the cold start).
+  const coldStart = finished.filter((entry) => !npcPaths.has(entry.path));
+  const total = (
+    await Promise.all(coldStart.map((entry) => entry.bytes))
+  ).reduce((sum, bytes) => sum + bytes, 0);
+  test.info().annotations.push({
+    type: "first-load-bytes-traffic-on",
+    description: `${total} bytes (ceiling ${FIRST_LOAD_BYTES_CEILING})`,
+  });
+  expect(
+    requested.some((path) => path.endsWith("/models/cobra3.glb")),
+    "the request log is live (the Cobra model was requested)",
+  ).toBe(true);
+  expect(total, "first-load bytes (traffic on)").toBeGreaterThan(0);
+  expect(total, "first-load bytes ceiling (traffic on)").toBeLessThanOrEqual(
+    FIRST_LOAD_BYTES_CEILING,
+  );
+
+  // The window: loop frames counted from the first in-flight observation.
+  await page.waitForFunction(
+    (target) => (window.__wegolite?.frames ?? 0) >= target,
+    firstInFlight.frames + MODEL_LOAD_WINDOW_FRAMES,
+    { timeout: 240_000 },
+  );
+
+  const replay = runTickScript(LAUNCH_AND_FLY, { traffic: true });
+  const glbByKey = new Map(npcRecords().map((r) => [r.key, glbPath(r)]));
+  const presentGlbs = [
+    ...new Set(
+      npcContacts(replay.world).map((contact) => glbByKey.get(contact.specKey)),
+    ),
+  ]
+    .filter((path): path is string => path !== undefined)
+    .sort();
+  expect(presentGlbs.length, "GLBs of the present keys").toBeGreaterThan(0);
+  const presentTextures = [
+    ...new Set(presentGlbs.flatMap((glb) => npc.texturesOf.get(glb) ?? [])),
+  ].sort();
+  expect(
+    presentTextures.length,
+    "textures of the present GLBs (vacuity guard)",
+  ).toBeGreaterThan(0);
+
+  // Models on demand: exactly the present keys' GLBs were requested.
+  const requestedGlbs = [
+    ...new Set(requested.filter((path) => npc.glbs.includes(path))),
+  ].sort();
+  expect(requestedGlbs, "NPC GLBs requested").toEqual(presentGlbs);
+  const finishedPaths = new Set(finished.map((entry) => entry.path));
+  for (const path of [...presentGlbs, ...presentTextures]) {
+    expect(finishedPaths.has(path), `finished: ${path}`).toBe(true);
+  }
+  expect(
+    failed.filter((path) => npcPaths.has(path)),
+    "failed NPC requests",
+  ).toEqual([]);
+
+  // Ordering: every NPC request in the Playwright log has a page-side stamp,
+  // and every such stamp reads inFlight (none before the first in-flight frame).
+  const stamps = await page.evaluate(
+    () =>
+      (window as unknown as { __npcFetchStamps: FetchStamp[] })
+        .__npcFetchStamps,
+  );
+  const stampedNpc = stamps.filter((stamp) => npcPaths.has(stamp.path));
+  const requestedNpc = [
+    ...new Set(requested.filter((path) => npcPaths.has(path))),
+  ];
+  for (const path of requestedNpc) {
+    expect(
+      stampedNpc.some((stamp) => stamp.path === path),
+      `a page-side fetch stamp exists for ${path}`,
+    ).toBe(true);
+  }
+  expect(
+    stampedNpc.filter((stamp) => stamp.mode !== "inFlight"),
+    "NPC requests made before the first in-flight frame",
+  ).toEqual([]);
+
+  const loadedCalls = await page.evaluate(() => window.__wegolite?.calls ?? -1);
+  test.info().annotations.push(
+    {
+      type: "traffic-npc-requests",
+      description: `${requestedGlbs.length} GLBs, ${presentTextures.length} textures`,
+    },
+    {
+      type: "traffic-cold-start-calls",
+      description: `${firstInFlight.calls} calls at the first in-flight frame, ${loadedCalls} after the window`,
+    },
+  );
+  expect(loadedCalls, "draw calls after the models load").toBeGreaterThan(
+    firstInFlight.calls,
+  );
+  expect(loadedCalls, "draw-call budget").toBeLessThanOrEqual(DRAW_CALL_BUDGET);
+  expect(errors).toEqual([]);
 });
