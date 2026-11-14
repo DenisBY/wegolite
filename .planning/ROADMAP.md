@@ -46,7 +46,7 @@ Scope: narrowed on 2026-11-13 from Phases 8-23 to Phase 8 alone (PROJECT.md Key 
 
 - [x] **Phase 9: NPC Content** - Ship models and textures of the six populator roles compiled from Oolite with provenance and the record fields the inert world uses, loaded lazily outside the first load (completed 2026-11-14)
 - [x] **Phase 10: Ship Mass** - Build-time hull octrees give every role ship, the Cobra Mk III and the Coriolis Oolite's mass, and jump blockage uses one recorded Coriolis mass (completed 2026-11-14)
-- [ ] **Phase 11: Minimal Save Schema v3** - The world epoch, world counters and next entity id in schema v3, with an ordered v1 → v2 → v3 migration and leg-anchor semantics
+- [x] **Phase 11: Minimal Save Schema v3** - The world epoch, world counters and next entity id in schema v3, with an ordered v1 → v2 → v3 migration and leg-anchor semantics (completed 2026-11-14)
 - [ ] **Phase 12: Inert Ships and the World Lifecycle** - A contained AI fault and refused malformed spawns first; then inert ships drawn and on the scanner, mass lock and blockage by ships, the world running behind the chart, cleared at jump commit, repopulated on arrival and regenerated on reload
 
 **Staged verification:** a requirement maps to the phase that completes it. Where an earlier phase delivers part of it, that phase states the part as a staged check: DATA-11 (the record fields in Phase 9, the octree mass that completes it in Phase 10) and SAVE-08 (schema and leg-anchor semantics in Phase 11, the regenerated inert world that completes it in Phase 12).
@@ -128,7 +128,7 @@ Plans:
 **Research flag**: Low — the ordered migration chain, the strict schema, the shared validator and the golden blobs already exist
 **Pitfalls to address**: 10 (a minimal bump with ordered migration and a worst-case size test; the former "one bump with every field" rule is superseded by the 2026-11-13 Key Decision), 2 (no closure-held random state in a save)
 **Decisions to settle**: persisting the epoch makes the D-02 world-seed derivation one-way, so check the cross-check vector `worldSeedFor(marketSeedForSystem("g0-s7"), 1) = 0x2b4e037c` before the first v3 write; name now every world counter Phase 12's populator needs, because a counter found later costs another bump
-**Plans**: 4/4 plans executed
+**Plans**: 4/4 plans complete
 
 Plans:
 **Wave 1**
@@ -199,7 +199,7 @@ Pending todos outside v2.1, which can run as quick tasks or join a phase by owne
 | 8. Session Split and World Core | v2.0 | 16/16 | Complete | 2026-11-13 |
 | 9. NPC Content | v2.1 | 5/5 | Complete    | 2026-11-14 |
 | 10. Ship Mass | v2.1 | 4/4 | Complete    | 2026-11-14 |
-| 11. Minimal Save Schema v3 | v2.1 | 4/4 | In Progress | - |
+| 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 0/TBD | Not started | - |
 
 ## Backlog
