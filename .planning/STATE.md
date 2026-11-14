@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 13
 current_phase_name: Views, Lasers and Shields
 status: executing
-stopped_at: Completed 13-02-PLAN.md
-last_updated: "2026-11-14T23:16:09.581Z"
+stopped_at: Completed 13-03-PLAN.md
+last_updated: "2026-11-14T23:26:51.440Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 13 execution started
-state_head: d5e0ab45b9f2c93a3975e5a80d145d2990a35417
+state_head: 1b3799cae13333ce5242d9f0f542933f99cffa55
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 16
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 13 (Views, Lasers and Shields) — EXECUTING
-Plan: 3 of 16
+Plan: 4 of 16
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 13 execution started
 
@@ -155,6 +155,7 @@ Last activity: 2026-11-14 — Phase 13 execution started
 | Phase 12 P14 | 30 min | 3 tasks | 9 files |
 | Phase 13 P01 | 9 min | 2 tasks | 8 files |
 | Phase 13 P02 | 55 min | 3 tasks | 13 files |
+| Phase 13 P03 | 7 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -381,6 +382,7 @@ Recent decisions affecting current work:
 - [Phase 13]: FOUND-17 fixed inside worldLifecycle.begin(): every refusal ends the world and clears the anchor; resume() unchanged
 - [Phase 13]: 13-02: launch is dockHome-only; number keys are view keys in flight, in-flight skip is skipLaunch
 - [Phase 13]: 13-02: migrateLegacyBindings gated on the blob lacking ident/eject so a key chosen on this build is never moved; target station is KeyQ
+- [Phase 13]: 13-03: octree port keeps Oolite's coarse leaf rule (a solid leaf is reached without a line test; hit resolution is its parent cell, Octree.m:361-366); over-deep, malformed or non-finite input is a miss
 
 ### Pending Todos
 
@@ -482,8 +484,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T23:16:09.514Z
-Stopped at: Completed 13-02-PLAN.md
+Last session: 2026-11-14T23:26:51.371Z
+Stopped at: Completed 13-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
