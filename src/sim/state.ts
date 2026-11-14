@@ -34,6 +34,11 @@ export interface InputFrame {
   roll: number;
   speed: number;
   precision: boolean;
+  /**
+   * CBT-05: the fire key is held. Optional so recorded input logs and the probe
+   * golden keep replaying; absent means not firing.
+   */
+  fire?: boolean;
   thrust?: number;
 }
 

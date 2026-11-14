@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Wegolite contributors
 
+import type { Facing } from "./combat/mounts.js";
+
 /**
  * The command boundary (D-09, FLGT-07, Pattern 4).
  *
@@ -30,4 +32,14 @@ export type Command =
    */
   | { kind: "beginHyperspace" }
   /** D-06: a second press aborts the countdown at no cost. */
-  | { kind: "cancelHyperspace" };
+  | { kind: "cancelHyperspace" }
+  /**
+   * CBT-04: switch the cockpit view. The payload is a closed `Facing`; the sim
+   * re-validates it with `isFacing` when it consumes the command, so a forged
+   * value can never select a view that does not exist (T-13-03).
+   */
+  | { kind: "setView"; view: Facing }
+  /** D-04: the ident key. Payload-free; the sim owns the target scan. */
+  | { kind: "ident" }
+  /** D-04: drop the current lock (Oolite `key_untarget_missile`). */
+  | { kind: "untarget" };

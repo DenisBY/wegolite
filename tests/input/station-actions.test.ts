@@ -39,11 +39,20 @@ describe("station contexts", () => {
     expect(state.consumePauseToggle()).toBe(false);
   });
 
-  it("Esc in dockHome toggles pause", () => {
+  it("Esc in dockHome is inert with the default table", () => {
     const state = createInputState();
     switchTo(state, "dockHome");
-    expect(state.keyDown("Escape")).toBe(true);
+    expect(state.keyDown("Escape")).toBe(false);
     expect(state.drainStationActions()).toEqual([]);
+    expect(state.consumePauseToggle()).toBe(false);
+  });
+
+  it("Esc in dockHome toggles pause for a stored pause-on-Escape blob", () => {
+    const state = createInputState(
+      createBindingMap({ pause: ["KeyP", "Escape"] }),
+    );
+    switchTo(state, "dockHome");
+    expect(state.keyDown("Escape")).toBe(true);
     expect(state.consumePauseToggle()).toBe(true);
   });
 
@@ -146,8 +155,9 @@ describe("paused station input", () => {
 
     expect(state.keyDown("KeyP")).toBe(true);
     expect(state.consumePauseToggle()).toBe(true);
-    expect(state.keyDown("Escape")).toBe(true);
-    expect(state.consumePauseToggle()).toBe(true);
+    // Escape no longer resumes by default; P and the Resume button do.
+    expect(state.keyDown("Escape")).toBe(false);
+    expect(state.consumePauseToggle()).toBe(false);
   });
 });
 

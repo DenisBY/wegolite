@@ -26,6 +26,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `p` alone pauses now: Escape no longer pauses (it stays Back in the station
+  screens, the galactic chart and the save screen). `r` no longer targets the
+  station, which moves to `q`. Saved key settings at the old defaults are
+  updated automatically and customised keys are kept.
 - A torus jump (`j`) refused under mass lock now shows "Hyperspeed mass-locked."
   as Oolite does, instead of "Torus disengaged". "Torus disengaged" is shown
   when you stop a running torus drive, and a running drive that mass lock stops

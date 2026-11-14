@@ -41,6 +41,14 @@ export type ActionId =
   | "stationBuyMax"
   | "chart"
   | "hyperspace"
+  | "viewFore"
+  | "viewAft"
+  | "viewPort"
+  | "viewStarboard"
+  | "fire"
+  | "ident"
+  | "untarget"
+  | "eject"
   | "chartUp"
   | "chartDown"
   | "chartLeft"
@@ -64,16 +72,18 @@ export type InputContext =
 
 /**
  * The contexts whose Escape is a screen Back action rather than pause
- * (RESEARCH Pitfall 12). `dockHome` deliberately stays out: Escape there still
- * toggles pause, exactly as before the chart existed.
+ * (RESEARCH Pitfall 12). The default table no longer binds Escape to pause
+ * (INPUT-01), so this rule now matters only for a stored blob that still does:
+ * there Escape in these contexts stays Back. `dockHome` deliberately stays out
+ * (it has no Back action).
  */
 export const ESCAPE_SCREEN_CONTEXTS: ReadonlySet<InputContext> =
   new Set<InputContext>(["dockScreen", "chart", "saveScreen"]);
 
 /**
  * The actions those contexts bind to Escape. The binding table's exemption is
- * keyed on the action pair, so a later screen action joins this set instead of
- * changing the rule.
+ * keyed on the action pair (a stored pause-on-Escape blob against a screen
+ * Back), so a later screen action joins this set instead of changing the rule.
  */
 export const ESCAPE_SCREEN_ACTIONS: ReadonlySet<ActionId> = new Set<ActionId>([
   "stationBack",
@@ -112,6 +122,17 @@ export const ACTION_IDS: readonly ActionId[] = [
   "stationBuyMax",
   "chart",
   "hyperspace",
+  // The combat and view keys sit directly after the existing flight actions,
+  // so a stored custom binding of an older action wins a shared code in
+  // createBindingMap (the later entry loses it).
+  "viewFore",
+  "viewAft",
+  "viewPort",
+  "viewStarboard",
+  "fire",
+  "ident",
+  "untarget",
+  "eject",
   "chartUp",
   "chartDown",
   "chartLeft",
@@ -153,10 +174,13 @@ export const DEFAULT_BINDINGS: Readonly<Record<ActionId, readonly string[]>> =
     speedUp: Object.freeze(["KeyW"]),
     speedDown: Object.freeze(["KeyS"]),
     torus: Object.freeze(["KeyJ"]),
-    pause: Object.freeze(["KeyP", "Escape"]),
+    // INPUT-01: P alone pauses. Escape is Back in the screens and eject in flight.
+    pause: Object.freeze(["KeyP"]),
     launch: Object.freeze(["Digit1", "F1"]),
     dockingComputer: Object.freeze(["KeyC"]),
-    targetStation: Object.freeze(["KeyR"]),
+    // R is ident now; the station target moved to Q, the one letter the Oolite
+    // default block never binds.
+    targetStation: Object.freeze(["KeyQ"]),
     compassCycle: Object.freeze(["Backslash"]),
     precision: Object.freeze(["ControlLeft", "ControlRight"]),
     stationMarket: Object.freeze(["F8", "Digit8"]),
@@ -179,6 +203,16 @@ export const DEFAULT_BINDINGS: Readonly<Record<ActionId, readonly string[]>> =
     stationBuyMax: Object.freeze([]),
     chart: Object.freeze(["F6"]),
     hyperspace: Object.freeze(["KeyH"]),
+    // Oolite's four view keys (key_forward_view .. key_starboard_view); in
+    // flight only, so Digit1/F1 stay Launch on the docked home screen.
+    viewFore: Object.freeze(["Digit1", "F1"]),
+    viewAft: Object.freeze(["Digit2", "F2"]),
+    viewPort: Object.freeze(["Digit3", "F3"]),
+    viewStarboard: Object.freeze(["Digit4", "F4"]),
+    fire: Object.freeze(["KeyA"]),
+    ident: Object.freeze(["KeyR"]),
+    untarget: Object.freeze(["KeyU"]),
+    eject: Object.freeze(["Escape"]),
     chartUp: Object.freeze(["ArrowUp"]),
     chartDown: Object.freeze(["ArrowDown"]),
     chartLeft: Object.freeze(["ArrowLeft"]),
@@ -232,6 +266,14 @@ export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
   stationBuyMax: "Buy maximum",
   chart: "Galactic chart",
   hyperspace: "Hyperspace",
+  viewFore: "Fore view",
+  viewAft: "Aft view",
+  viewPort: "Port view",
+  viewStarboard: "Starboard view",
+  fire: "Fire laser",
+  ident: "Ident",
+  untarget: "Untarget",
+  eject: "Eject (double press)",
   chartUp: "Chart up",
   chartDown: "Chart down",
   chartLeft: "Chart left",
@@ -297,10 +339,11 @@ export const RESERVED_F_KEYS: ReadonlySet<string> = new Set([
 /**
  * Which contexts each action may fire in (ECON-09, D-03).
  *
- * `pause` is universal; `launch` is live in flight (the sim gates it on the
- * docked mode) and on the home screen; every section action is `dockScreen`
- * only, so Enter on the home Launch button and a number key inside a section
- * can never launch the ship.
+ * `pause` is universal; `launch` is live on the home screen only (the number
+ * keys are view keys in flight, and the in-flight launch skip is
+ * `skipLaunch`, not `launch`); every section action is `dockScreen` only, so
+ * Enter on the home Launch button and a number key inside a section can never
+ * launch the ship.
  */
 function contexts(...values: InputContext[]): readonly InputContext[] {
   return Object.freeze(values);
@@ -317,13 +360,21 @@ export const ACTION_CONTEXTS: Readonly<
   speedDown: contexts("flight"),
   torus: contexts("flight"),
   pause: contexts("flight", "dockHome", "dockScreen", "chart", "saveScreen"),
-  launch: contexts("flight", "dockHome"),
+  launch: contexts("dockHome"),
   dockingComputer: contexts("flight"),
   targetStation: contexts("flight"),
   compassCycle: contexts("flight"),
   precision: contexts("flight"),
   chart: contexts("flight", "dockHome", "dockScreen", "chart"),
   hyperspace: contexts("flight"),
+  viewFore: contexts("flight"),
+  viewAft: contexts("flight"),
+  viewPort: contexts("flight"),
+  viewStarboard: contexts("flight"),
+  fire: contexts("flight"),
+  ident: contexts("flight"),
+  untarget: contexts("flight"),
+  eject: contexts("flight"),
   chartUp: contexts("chart"),
   chartDown: contexts("chart"),
   chartLeft: contexts("chart"),

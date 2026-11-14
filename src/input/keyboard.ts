@@ -48,6 +48,16 @@ const EDGE_COMMANDS: Readonly<Partial<Record<ActionId, Command>>> = {
   // D-06: one payload-free command. The session gives the key its second
   // meaning (abort an active countdown) before the sim sees it.
   hyperspace: { kind: "beginHyperspace" },
+  ident: { kind: "ident" },
+  untarget: { kind: "untarget" },
+  viewFore: { kind: "setView", view: "fore" },
+  viewAft: { kind: "setView", view: "aft" },
+  viewPort: { kind: "setView", view: "port" },
+  viewStarboard: { kind: "setView", view: "starboard" },
+  // `fire` is a held frame field and `eject` has no command: Oolite guards the
+  // Escape handler on `hasEscapePod` before any double-press tracking
+  // (PlayerEntityControls.m, KEY_REPEAT_INTERVAL 0.20), and no escape pod can
+  // be bought in this milestone, so a double press does nothing.
 };
 
 /**
@@ -83,7 +93,7 @@ export interface InputState {
   keyUp(code: string): void;
   frame(): InputFrame;
   drainCommands(): Command[];
-  /** `p`/`Esc` edge; the app owns the paused flag. */
+  /** Pause-key (P) edge; the app owns the paused flag. */
   consumePauseToggle(): boolean;
   /** Station actions queued for the session's drain (ECON-09). */
   drainStationActions(): ActionId[];
@@ -184,8 +194,10 @@ export function createInputState(
 
       for (const action of firing) {
         if (action === "pause") {
-          // Escape in a screen context is Back; the paused branch above owns
-          // Escape as Resume. KeyP remains the universal pause key.
+          // The default table no longer binds Escape to pause (INPUT-01). A
+          // stored blob that still does keeps Escape as Back in a screen
+          // context; the paused branch above owns it as Resume. KeyP remains
+          // the universal pause key.
           if (ESCAPE_SCREEN_CONTEXTS.has(context) && code === "Escape")
             continue;
           pauseToggle = true;
@@ -231,6 +243,7 @@ export function createInputState(
         roll: (pressed("rollRight") ? 1 : 0) - (pressed("rollLeft") ? 1 : 0),
         speed: (pressed("speedUp") ? 1 : 0) - (pressed("speedDown") ? 1 : 0),
         precision: pressed("precision"),
+        fire: pressed("fire"),
         // `thrust` stays undefined: it is the Phase 1 probe axis, not flight.
       };
     },

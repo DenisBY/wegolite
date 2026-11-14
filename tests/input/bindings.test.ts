@@ -20,12 +20,14 @@ import {
   RESERVED_F_KEYS,
   STATION_SCREEN_ACTIONS,
 } from "../../src/input/actions.js";
+import type { ActionId } from "../../src/input/actions.js";
 import {
   MAX_CODES_PER_ACTION,
   bindAction,
   capCodes,
   chordLabel,
   codeLabel,
+  contextsOverlap,
   createBindingMap,
   detectConflict,
   labelFor,
@@ -41,7 +43,12 @@ describe("createBindingMap", () => {
     for (const [action, codes] of Object.entries(DEFAULT_BINDINGS)) {
       expect(map[action as keyof typeof DEFAULT_BINDINGS]).toEqual([...codes]);
     }
-    expect(map.pause).toEqual(["KeyP", "Escape"]);
+    expect(map.pause).toEqual(["KeyP"]);
+    expect(map.targetStation).toEqual(["KeyQ"]);
+    expect(map.ident).toEqual(["KeyR"]);
+    expect(map.untarget).toEqual(["KeyU"]);
+    expect(map.fire).toEqual(["KeyA"]);
+    expect(map.eject).toEqual(["Escape"]);
     expect(map.launch).toEqual(["Digit1", "F1"]);
     expect(map.precision).toEqual(["ControlLeft", "ControlRight"]);
   });
@@ -91,9 +98,9 @@ describe("unbindAction and resetBindings", () => {
   it("removes one code and leaves the others", () => {
     const map = createBindingMap();
 
-    expect(unbindAction(map, "pause", "Escape")).toBe(true);
-    expect(map.pause).toEqual(["KeyP"]);
-    expect(unbindAction(map, "pause", "KeyQ")).toBe(false);
+    expect(unbindAction(map, "launch", "F1")).toBe(true);
+    expect(map.launch).toEqual(["Digit1"]);
+    expect(unbindAction(map, "launch", "KeyQ")).toBe(false);
   });
 
   it("clears every code when no code is given", () => {
@@ -128,7 +135,8 @@ describe("labels and the code cap", () => {
   it("joins every code for an action and marks an unbound one", () => {
     const map = createBindingMap();
 
-    expect(labelFor(map, "pause")).toBe("P / Esc");
+    expect(labelFor(map, "pause")).toBe("P");
+    expect(labelFor(map, "viewFore")).toBe("1 / F1");
     expect(labelFor(map, "rollRight")).toBe("Right arrow");
 
     unbindAction(map, "rollRight");
@@ -182,10 +190,40 @@ describe("context-aware conflicts", () => {
     expect(map.stationConfirm).toEqual([]);
   });
 
-  it("keeps the documented Escape pair for pause and Back", () => {
+  it("binds Escape to Back in the screens and to eject in flight, not to pause", () => {
     const map = createBindingMap();
+    expect(map.pause).toEqual(["KeyP"]);
+    expect(map.stationBack).toEqual(["Escape", "Backspace"]);
+    expect(map.eject).toEqual(["Escape"]);
+  });
+
+  it("keeps the documented Escape pair for a stored pause-on-Escape blob", () => {
+    // The exemption survives for stored blobs; pause precedes eject in
+    // ACTION_IDS, so pause keeps Escape and eject is left unbound.
+    const map = createBindingMap({ pause: ["KeyP", "Escape"] });
     expect(map.pause).toEqual(["KeyP", "Escape"]);
     expect(map.stationBack).toEqual(["Escape", "Backspace"]);
+    expect(map.eject).toEqual([]);
+  });
+
+  it("has no two default actions with overlapping contexts on one code", () => {
+    const owners = new Map<string, ActionId[]>();
+    for (const action of ACTION_IDS) {
+      for (const code of DEFAULT_BINDINGS[action]) {
+        const list = owners.get(code) ?? [];
+        owners.set(code, [...list, action]);
+      }
+    }
+    const clashes: string[] = [];
+    for (const [code, actions] of owners) {
+      for (const [index, left] of actions.entries()) {
+        for (const right of actions.slice(index + 1)) {
+          if (!contextsOverlap(left, right)) continue;
+          clashes.push(`${code}: ${left} / ${right}`);
+        }
+      }
+    }
+    expect(clashes).toEqual([]);
   });
 });
 
@@ -232,17 +270,99 @@ describe("createInputState", () => {
   it("maps every edge action to its command", () => {
     const state = createInputState();
 
+    state.keyDown("Backslash");
+    state.keyDown("KeyQ");
+    state.keyDown("KeyR");
+    state.keyDown("KeyU");
+
+    expect(state.drainCommands()).toEqual([
+      { kind: "cycleCompass" },
+      { kind: "targetStation" },
+      { kind: "ident" },
+      { kind: "untarget" },
+    ]);
+  });
+
+  it("maps the number and function keys to the four views in flight", () => {
+    const state = createInputState();
+
+    for (const code of [
+      "Digit1",
+      "Digit2",
+      "Digit3",
+      "Digit4",
+      "F1",
+      "F2",
+      "F3",
+      "F4",
+    ]) {
+      expect(state.keyDown(code)).toBe(true);
+      state.keyUp(code);
+    }
+
+    expect(state.drainCommands()).toEqual([
+      { kind: "setView", view: "fore" },
+      { kind: "setView", view: "aft" },
+      { kind: "setView", view: "port" },
+      { kind: "setView", view: "starboard" },
+      { kind: "setView", view: "fore" },
+      { kind: "setView", view: "aft" },
+      { kind: "setView", view: "port" },
+      { kind: "setView", view: "starboard" },
+    ]);
+  });
+
+  it("launches from Digit1 and F1 on the docked home screen only", () => {
+    const state = createInputState();
+    state.setContext("dockHome");
+
     state.keyDown("Digit1");
     state.keyDown("F1");
-    state.keyDown("Backslash");
-    state.keyDown("KeyR");
-
     expect(state.drainCommands()).toEqual([
       { kind: "launch" },
       { kind: "launch" },
-      { kind: "cycleCompass" },
-      { kind: "targetStation" },
     ]);
+  });
+
+  it("holds fire in flight and reports none on the docked home screen", () => {
+    const state = createInputState();
+
+    expect(state.frame().fire).toBe(false);
+    state.keyDown("KeyA");
+    expect(state.frame().fire).toBe(true);
+    expect(state.drainCommands()).toEqual([]);
+    state.keyUp("KeyA");
+    expect(state.frame().fire).toBe(false);
+
+    state.keyDown("KeyA");
+    state.setContext("dockHome");
+    expect(state.frame().fire).toBeUndefined();
+    state.keyDown("KeyA");
+    expect(state.frame().fire).toBeUndefined();
+  });
+
+  it("makes a double Escape in flight do nothing (no escape pod exists)", () => {
+    const state = createInputState();
+
+    expect(state.keyDown("Escape")).toBe(true);
+    state.keyUp("Escape");
+    expect(state.keyDown("Escape")).toBe(true);
+    state.keyUp("Escape");
+
+    expect(state.drainCommands()).toEqual([]);
+    expect(state.consumePauseToggle()).toBe(false);
+  });
+
+  it("queues a fresh setView object per keydown", () => {
+    const state = createInputState();
+    state.keyDown("Digit2");
+    const first = state.drainCommands();
+    state.keyUp("Digit2");
+    state.keyDown("Digit2");
+    const second = state.drainCommands();
+
+    expect(second[0]).toEqual(first[0]);
+    expect(second[0]).not.toBe(first[0]);
   });
 
   it("requires Shift for the docking computer and never fires on plain C", () => {
@@ -293,8 +413,10 @@ describe("createInputState", () => {
     expect(state.consumePauseToggle()).toBe(true);
   });
 
-  it("treats both pause codes as one pause edge", () => {
-    const state = createInputState();
+  it("treats every bound pause code as one pause edge", () => {
+    const state = createInputState(
+      createBindingMap({ pause: ["KeyP", "Escape"] }),
+    );
 
     state.keyDown("KeyP");
     expect(state.consumePauseToggle()).toBe(true);
@@ -302,6 +424,13 @@ describe("createInputState", () => {
 
     state.keyDown("Escape");
     expect(state.consumePauseToggle()).toBe(true);
+  });
+
+  it("does not pause on Escape with the default table", () => {
+    const state = createInputState();
+
+    state.keyDown("Escape");
+    expect(state.consumePauseToggle()).toBe(false);
   });
 
   it("clears held codes and pending commands", () => {
@@ -425,13 +554,20 @@ describe("chart and hyperspace bindings", () => {
     expect(state.consumePauseToggle()).toBe(true);
   });
 
-  it("Escape in dockHome still toggles pause", () => {
+  it("Escape in dockHome is inert by default and pauses for a stored blob", () => {
     const state = createInputState();
     state.setContext("dockHome");
 
-    state.keyDown("Escape");
-    expect(state.consumePauseToggle()).toBe(true);
+    expect(state.keyDown("Escape")).toBe(false);
+    expect(state.consumePauseToggle()).toBe(false);
     expect(state.drainChartActions()).toEqual([]);
+
+    const legacy = createInputState(
+      createBindingMap({ pause: ["KeyP", "Escape"] }),
+    );
+    legacy.setContext("dockHome");
+    legacy.keyDown("Escape");
+    expect(legacy.consumePauseToggle()).toBe(true);
   });
 
   it("F6 opens and closes in flight and dockHome", () => {
@@ -612,14 +748,17 @@ describe("interfaces screen action", () => {
     }
   });
 
-  it("fires nothing in flight, but F4 still reports handled", () => {
+  it("opens nothing in flight: F4 and Digit4 are the starboard view there", () => {
     const state = createInputState();
     const opened: string[] = [];
     state.setStationScreenHandler((action) => opened.push(action));
     expect(state.keyDown("F4")).toBe(true);
-    expect(state.keyDown("Digit4")).toBe(false);
+    expect(state.keyDown("Digit4")).toBe(true);
     expect(opened).toEqual([]);
-    expect(state.drainCommands()).toEqual([]);
+    expect(state.drainCommands()).toEqual([
+      { kind: "setView", view: "starboard" },
+      { kind: "setView", view: "starboard" },
+    ]);
     expect(state.drainStationActions()).toEqual([]);
   });
 });
