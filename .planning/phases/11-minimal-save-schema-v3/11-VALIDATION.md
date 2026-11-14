@@ -45,7 +45,7 @@ created: "2026-11-14"
 | 11-02-03 | 02 | 2 | SAVE-07 | T-11-06, T-11-10 | Ordered v1→v2→v3 migration chain with goldens | unit/golden | `docker compose run --rm test npx vitest run tests/persistence/save.test.ts tests/persistence/save-v2.test.ts tests/persistence/save-golden.test.ts` | ✅ | ✅ green |
 | 11-03-01 | 03 | 3 | SAVE-07 | T-11-11, T-11-12 | Warm Load and cold Continue re-anchor identically | unit | `docker compose run --rm test npx vitest run tests/app/session/world-lifecycle.test.ts tests/app/session/save-controller.test.ts tests/app/session/start-session.test.ts` | ✅ | ✅ green |
 | 11-03-02 | 03 | 3 | SAVE-07 | T-11-13..T-11-15 | Hostile/future/oversized blobs classified; older build leaves v3 inert | unit | `docker compose run --rm test npx vitest run tests/persistence/save-v3.test.ts` | ✅ | ✅ green |
-| 11-04-01 | 04 | 4 | SAVE-07 | T-11-16 | Real browser keeps a newer blob byte-identical | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/autosave.spec.ts tests/e2e/save-load.spec.ts"` | ✅ | ⚠️ green at d36b4a1; not re-run after 4e93fa0 / 6728aa6 |
+| 11-04-01 | 04 | 4 | SAVE-07 | T-11-16 | Real browser keeps a newer blob byte-identical | e2e | `docker compose run --rm e2e sh -lc "npm run build && npx playwright test tests/e2e/autosave.spec.ts tests/e2e/save-load.spec.ts"` | ✅ | ✅ green (verify-full on HEAD, 2026-11-14) |
 | 11-04-02 | 04 | 4 | SAVE-07 | T-11-17, T-11-18 | Records match shipped format; release gate recorded | contract | `docker compose run --rm test npx vitest run tests/contract` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
@@ -75,7 +75,7 @@ All phase behaviors have automated verification.
 - [x] Feedback latency < 10s (unit)
 - [x] `nyquist_compliant: true` set in frontmatter
 
-**Open caveat:** the browser specs behind 11-04-01 were last run before the two post-gate fix commits (tracked as T-11-18 in `11-SECURITY.md`). Re-run `verify-full` to refresh.
+**Note:** verify-full re-run on HEAD after the post-gate fix commits exited 0 (T-11-18 closed).
 
 **Approval:** approved 2026-11-14
 

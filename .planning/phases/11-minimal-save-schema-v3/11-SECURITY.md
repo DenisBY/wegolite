@@ -1,7 +1,7 @@
 ---
 phase: "11"
 slug: minimal-save-schema-v3
-status: draft
+status: verified
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
 threats_open: 0
 asvs_level: 1
@@ -50,7 +50,7 @@ created: "2026-11-14"
 | T-11-15 | Denial of Service | worst-case v3 blob over cap | medium | mitigate | D-08 test `save-v3.test.ts:495-628` (38,000 <= length < 65,536, schema valid) | closed |
 | T-11-16 | Denial of Service | newer-build blob cleared in browser | high | mitigate | `tests/e2e/autosave.spec.ts:807-904,1036-1076`, `tests/e2e/save-load.spec.ts:486-516,821-832`; ran in verify-full (11-04-SUMMARY) | closed |
 | T-11-17 | Repudiation | records disagree with shipped format | low | mitigate | `CHANGELOG.md:23-28`, `.planning/PROJECT.md:223,236,239,247,248`; `tests/contract/fidelity.test.ts:264-274` | closed |
-| T-11-18 | Tampering | persistence change shipped without release gate | medium | mitigate | verify-full ran only against d36b4a1; later commits 4e93fa0 (`begin`) and 6728aa6 (restore re-anchor on both paths) were checked with test/lint/typecheck only (`11-REVIEW-FIX.md`). Re-run `docker compose run --rm verify-full` on HEAD | open — below high threshold (non-blocking) |
+| T-11-18 | Tampering | persistence change shipped without release gate | medium | mitigate | verify-full exited 0 on the final code (HEAD 0bf5dc2, code as of 831ac28, after fixes 4e93fa0 and 6728aa6): 142 Vitest files / 2,725 tests, 129 Chromium specs, 2 seams specs; recorded in `.planning/PROJECT.md` "Phase 11 gate:" | closed |
 | T-11-SC | Tampering | npm/pip/cargo installs | low | accept | No phase-11 commit changes package.json / package-lock.json / Docker files | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
@@ -81,6 +81,7 @@ created: "2026-11-14"
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-11-14 | 19 | 18 | 1 | gsd-security-auditor (ASVS 1, block_on high, HEAD 831ac28) |
+| 2026-11-14 | 19 | 19 | 0 | T-11-18 closed by verify-full on HEAD |
 
 ---
 
@@ -89,6 +90,6 @@ created: "2026-11-14"
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
 - [x] `threats_open: 0` confirmed (blocking threshold: high)
-- [ ] `status: verified` set in frontmatter — held back: T-11-18 (medium) still open
+- [x] `status: verified` set in frontmatter
 
-**Approval:** pending
+**Approval:** verified 2026-11-14
