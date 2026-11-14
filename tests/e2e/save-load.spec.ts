@@ -174,6 +174,8 @@ async function waitForCommitted(page: Page, count: number): Promise<void> {
 
 interface DecodedSave {
   version: number;
+  epoch: number;
+  nextEntityId: number;
   mode: string;
   clockSeconds: number;
   credits: number;
@@ -322,11 +324,14 @@ test("a manual Save writes the one committed slot and the next Save asks before 
     `Autosave · Lave · ${formatClock(first.save?.lastClock ?? 0)}`,
   );
 
-  // The manual blob is a canonical v2 docked save: one market snapshot, no
-  // second seed encoding, no pose.
+  // The manual blob is a canonical v3 docked save: one market snapshot, no
+  // second seed encoding, no pose, the epoch of a new game and the fresh-world
+  // counter.
   const manualRaw = await readRaw(page);
   const blob = decode(manualRaw);
-  expect(blob.version).toBe(2);
+  expect(blob.version).toBe(3);
+  expect(blob.epoch).toBe(0);
+  expect(blob.nextEntityId).toBe(101);
   expect(blob.mode).toBe("docked");
   expect(blob.system.id).toBe(first.systemId);
   expect(blob.clockSeconds).toBe(clockBefore);
@@ -483,7 +488,7 @@ test("a future or unreadable slot is refused and never overwritten", async ({
 }) => {
   const errors = collectErrors(page);
   await boot(page);
-  const futureRaw = JSON.stringify({ version: 3, future: true });
+  const futureRaw = JSON.stringify({ version: 4, future: true });
   await writeRaw(page, futureRaw);
 
   await page.reload();
@@ -814,7 +819,7 @@ test("a failed Load shows the reason and leaves the session and bytes untouched"
   expect(await readRaw(page)).toBe(corruptRaw);
 
   // A future-version blob is refused by the same classifier and kept.
-  const futureRaw = JSON.stringify({ version: 3, future: true });
+  const futureRaw = JSON.stringify({ version: 4, future: true });
   await writeRaw(page, futureRaw);
   await page.keyboard.press("KeyL");
   await page.waitForFunction(
