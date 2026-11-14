@@ -19,6 +19,8 @@ import {
   MAX_SAVE_CHARS,
   boundCorruptBackup,
   encodeSave,
+  migrateV1ToV2,
+  migrateV2ToV3,
   parseSave,
 } from "../../src/persistence/save.js";
 import type { SaveAllowLists, SaveV1 } from "../../src/persistence/save.js";
@@ -81,14 +83,9 @@ function raw(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/** What a v1 blob becomes after the one ordered migration. */
+/** What a v1 blob becomes after the ordered chain: v1 -> v2 -> v3 (D-02, D-03). */
 function migrated(save: SaveV1) {
-  return {
-    ...save,
-    version: 2,
-    mode: "docked",
-    marketSeed: save.marketSeed ?? marketSeedForSystem(save.system.id),
-  };
+  return migrateV2ToV3(migrateV1ToV2(save));
 }
 
 describe("parseSave accept path", () => {
@@ -100,7 +97,9 @@ describe("parseSave accept path", () => {
     const result = parseSave(raw(save), ALLOW);
     expect(result).toEqual({ ok: true, save: migrated(save) });
     if (!result.ok) return;
-    expect(result.save.version).toBe(2);
+    expect(result.save.version).toBe(3);
+    expect(result.save.epoch).toBe(0);
+    expect(result.save.nextEntityId).toBe(101);
     expect(result.save.mode).toBe("docked");
     expect(result.save.market).toBeUndefined();
     expect(result.save.flight).toBeUndefined();
@@ -139,7 +138,10 @@ describe("parseSave accept path", () => {
       station: { key: "coriolis-station" },
       marketSeed: 0x12345678,
     };
-    expect(parseSave(raw(save), ALLOW)).toEqual({ ok: true, save });
+    expect(parseSave(raw(save), ALLOW)).toEqual({
+      ok: true,
+      save: { ...save, version: 3, epoch: 0, nextEntityId: 101 },
+    });
   });
 });
 
@@ -160,8 +162,8 @@ describe("parseSave reject table", () => {
       reason: "corrupt",
     },
     {
-      name: "version 3 is a future build",
-      raw: raw(validSave({ version: 3 })),
+      name: "version 4 is a future build",
+      raw: raw(validSave({ version: 4 })),
       reason: "future-version",
     },
     {
@@ -518,7 +520,7 @@ describe("parseSave resource bound", () => {
     // CR-02: the version sniff runs on a bounded prefix *before* the blob is
     // classified, so a newer build's oversized save is untouchable, not
     // corrupt.
-    const oversized = `${raw(validSave({ version: 3 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
+    const oversized = `${raw(validSave({ version: 4 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
     expect(oversized.length).toBeGreaterThan(MAX_SAVE_CHARS);
 
     const parse = vi.spyOn(JSON, "parse");
@@ -533,7 +535,7 @@ describe("parseSave resource bound", () => {
   it("does not let a version marker beyond the sniff window defeat the bound", () => {
     // A hostile oversized blob cannot force a full parse by hiding the marker:
     // without a recognised prefix it is simply unreadable (still untouchable).
-    const hidden = `${" ".repeat(MAX_SAVE_CHARS)}${raw(validSave({ version: 3 }))}`;
+    const hidden = `${" ".repeat(MAX_SAVE_CHARS)}${raw(validSave({ version: 4 }))}`;
     expect(hidden.length).toBeGreaterThan(MAX_SAVE_CHARS);
     const parse = vi.spyOn(JSON, "parse");
     expect(parseSave(hidden, ALLOW)).toEqual({
@@ -575,6 +577,8 @@ describe("encodeSave", () => {
       marketSeed: 0x12345678,
       systemId: "g0-s7",
       stationKey: "coriolis-station",
+      epoch: 0,
+      nextEntityId: 101,
     });
     const parsed = JSON.parse(encoded) as Record<string, unknown>;
 
@@ -582,11 +586,13 @@ describe("encodeSave", () => {
       "cargo",
       "clockSeconds",
       "credits",
+      "epoch",
       "equipment",
       "fuel",
       "marketSeed",
       "missiles",
       "mode",
+      "nextEntityId",
       "passengerBerths",
       "station",
       "system",
