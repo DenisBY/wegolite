@@ -4,17 +4,17 @@ milestone: v2.1
 milestone_name: World Population Base
 current_phase: 10
 current_phase_name: phase-10
-status: executing
-stopped_at: Completed 10-03-PLAN.md
-last_updated: "2026-11-14T10:09:35.488Z"
+status: verifying
+stopped_at: Completed 10-04-PLAN.md
+last_updated: "2026-11-14T10:22:20.671Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 10 execution resumed (wave continue)
-state_head: 809dcbcac09832cad0f7714dca5b0041b5cda2f4
+state_head: 57b07b017be5aa39a1148f7266c953a3c5946c1e
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
   percent: 25
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 Phase: 10 (phase-10) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-14 — Phase 10 execution resumed (wave continue)
 
 Progress: [███░░░░░░░] 25%
@@ -133,6 +133,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 10 P01 | 12 min | 2 tasks | 4 files |
 | Phase 10 P02 | 12 min | 3 tasks | 14 files |
 | Phase 10 P03 | 12 min | 2 tasks | 6 files |
+| Phase 10 P04 | 40 min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -326,6 +327,7 @@ Recent decisions affecting current work:
 - [Phase 10]: D-04 Coriolis blockage mass: Oolite's computed 515,483,904 (radius 7,179.7 m), owner decision 2026-11-14
 - [Phase 10]: D-05 amended: buoy mass stored as a buoy entry in ships-client.json (buoy-client), implemented in plan 10-04
 - [Phase 10]: Roadmap criterion 2 reading accepted (criterion2-accept), revisable; real-Oolite mass check is a deferred follow-up
+- [Phase 10]: Navigation buoy mass stored in ships-client.json as a third buoy entry (amends D-05); blockage stays Coriolis-only until Phase 12
 
 ### Pending Todos
 
@@ -419,8 +421,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T10:09:35.332Z
-Stopped at: Completed 10-03-PLAN.md
+Last session: 2026-11-14T10:22:20.511Z
+Stopped at: Completed 10-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
