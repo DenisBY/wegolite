@@ -46,6 +46,7 @@ The Wegolite cell is a `src/` path and a line. For a build-time mechanic it is t
 | Octree volume summed to five levels whatever the build depth                                                            | `src/content/schemas/ship-npc.ts:36`    | `src/Core/Octree.m:672-680`                             | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-30    |
 | Mass lock by NPC ships (WORLD-10)                                                                                       | `src/sim/world/ship-field.ts:82`        | `src/Core/Entities/PlayerEntity.m:3044-3061`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-31    |
 | Torus factor from the nearest body, ships excluded                                                                      | `src/sim/flight/torus.ts:53`            | `src/Core/Entities/PlayerEntity.m:2918-2934`            | divergence: Oolite's factor takes the nearest collidable entity including ships; Wegolite keeps the five bodies, because WORLD-10 does not ask for it and the factor differs only above 102.4 km from every body. PROJECT.md: "Torus factor ignores NPC ships"                                                                                                                                                                                                                                                                                                                                                             | E-32    |
+| NPC ship collision radius (build time, `tools/oolite-ingest/convert/ship-radius.ts`; no solid subentity)                | `src/content/schemas/ship-npc.ts:42`    | `src/Core/OOMesh.m:1803-1822`                           | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-33    |
 
 ## Excerpts
 
@@ -437,6 +438,31 @@ OOINLINE double distanceBetweenPlanetPositions(int x1, int y1, int x2, int y2)
 #endif
 ```
 
+### E-33 src/Core/OOMesh.m:1803-1822
+
+```objc
+            result = d_squared;
+        bounding_box_add_vector(&boundingBox, _vertices[i]);
+    }
+
+    length_longest_axis = boundingBox.max.x - boundingBox.min.x;
+    if (boundingBox.max.y - boundingBox.min.y > length_longest_axis)
+        length_longest_axis = boundingBox.max.y - boundingBox.min.y;
+    if (boundingBox.max.z - boundingBox.min.z > length_longest_axis)
+        length_longest_axis = boundingBox.max.z - boundingBox.min.z;
+
+    length_shortest_axis = boundingBox.max.x - boundingBox.min.x;
+    if (boundingBox.max.y - boundingBox.min.y < length_shortest_axis)
+        length_shortest_axis = boundingBox.max.y - boundingBox.min.y;
+    if (boundingBox.max.z - boundingBox.min.z < length_shortest_axis)
+        length_shortest_axis = boundingBox.max.z - boundingBox.min.z;
+
+    d_squared = (length_longest_axis + length_shortest_axis) * (length_longest_axis + length_shortest_axis) * 0.25; // square of average length
+    maxDrawDistance = d_squared * NO_DRAW_DISTANCE_FACTOR * NO_DRAW_DISTANCE_FACTOR; // no longer based on the collision radius
+
+    collisionRadius = sqrtf(result);
+```
+
 ## Constants ledger
 
 Each constant below is the value Wegolite compiles, its unit (a mass is Oolite's float32 mass in its own units; a length is in metres), the Oolite lines it follows, and the test that pins it.
@@ -463,5 +489,6 @@ These are gaps the table cannot close on its own. Each one is stated so a review
 - **Planet noise budget (E-26).** E-26 quotes only the PlanetMix thresholds. The noise field is generated under a fixed budget in `src/render/planet-noise.ts:40-48` (six surface octaves, one relief tap, one cloud octave, nine evaluations). No excerpt covers Oolite's noise generator, and no PROJECT.md Key Decisions row records the budget. The planet-surface row is therefore faithful for the colour classes only.
 - **Aegis near-surface clause (E-09).** Oolite's `isNearPlanetSurface` clause (`src/Core/Entities/ShipEntity.m:6681-6682`) is not modelled. It can change the result only for a planet with a radius below about 250 m, where the 500 m surface band reaches past the 3x-radius test. The v1 layouts were not checked against every one of the 2,048 systems.
 - **Torus mass lock, station branch (E-07).** E-07 quotes the planet branch only. The station check in `src/sim/flight/torus.ts:99-103` uses the scanner range and is not covered by an excerpt.
+- **NPC collision radius (E-33).** E-33 quotes `src/Core/OOMesh.m:1803-1822`, the running maximum and the `sqrtf`; the `magnitude2` line that feeds the maximum is `OOMesh.m:1801`, 22 lines from the `sqrtf` and so outside one 20-line excerpt. The subentity extension of the radius (`src/Core/Entities/ShipEntity.m:2028-2044`) is not ported: no NPC ship has a solid subentity, so it is not exercised, and `computeShipRadii` fails the build if one appears.
 - **Docking computer TL, station override (E-13).** Oolite's docked-station override of the tech level (`src/Core/Entities/PlayerEntity.m:8229-8232`) is not modelled. The only `equivalent_tech_level` in the pinned data is on the rock-hermit template (`Resources/Config/shipdata.plist:3247`), and the Coriolis template (`Resources/Config/shipdata.plist:1690`) sets none, so the override never applies to the v1 station.
 - **Missile trade-in price factor (E-17).** `PlayerEntity.m:9434-9435` scales a trade-in only when the station's price factor is below 1.0. The Coriolis template sets no `equipment_price_factor`, and `src/Core/Entities/StationEntity.m:601` defaults it to 1.0, so no scaling applies to the v1 station.
