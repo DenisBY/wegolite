@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v2.1 — World Population Base",
+  "milestone": "v2.2",
   "phases": [
     {
       "number": "8",
@@ -30,9 +30,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-progress",
-    "label": "Show progress",
-    "reason": "Unsure of state — showing progress"
+    "command": "/gsd-discuss-phase",
+    "label": "Discuss the first phase",
+    "reason": "Project initialized — plan your first phase"
   },
-  "updated_at": "2026-11-14T20:51:40.165Z"
+  "updated_at": "2026-11-14T20:55:31.352Z"
 }

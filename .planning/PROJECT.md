@@ -18,9 +18,20 @@ v2.1 gave the world real NPC ships, still inert: the nine role ships are compile
 
 Open at close (todos): WR-01 (a refused `begin()` at arrival leaves the origin world installed; practically unreachable), buoys do not yet block hyperspace, and the real-Oolite mass check is deferred.
 
+## Current Milestone: v2.2 Weapons and NPC Flight
+
+**Goal:** The player sees from four views and shoots lasers at ship hulls, and NPC ships fly with Oolite's flight model and native steering, proven against independently authored source-cited oracles.
+
+**Target features:**
+- Fore, aft, port and starboard views; pulse, beam, military and mining lasers hitting ships by their octree hull; shields and energy banks; docking restores them; Oolite's Escape/P/R bindings (Phase 13)
+- WR-01 fix: a refused `begin()` at arrival no longer leaves the origin world installed (start of Phase 13)
+- NPC flight model and native steering behaviours, with the harness spike and the owner's oracle choice as the gate to the AI port (Phase 14)
+
+Scope is the necessary minimum by owner decision (2026-11-13): sound, police, pirates, missiles, mining, priority AI and QUAL-01 stay in the backlog without a consumer.
+
 ## Next Milestone Goals
 
-Not yet defined. The unscheduled backlog is the former Phases 13-23 (lasers and views, NPC flight and the AI fidelity gate, destruction and death, bounties and the escape pod, audio, priority AI and traffic, police and law, pirates, missiles, mining, performance hardening with QUAL-01). Their requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`; start with `/gsd-new-milestone`.
+v2.2 takes Phases 13 and 14. The rest of the unscheduled backlog is the former Phases 15-23 (lasers and views, NPC flight and the AI fidelity gate, destruction and death, bounties and the escape pod, audio, priority AI and traffic, police and law, pirates, missiles, mining, performance hardening with QUAL-01). Their requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`; start with `/gsd-new-milestone`.
 
 ## Requirements
 
@@ -47,12 +58,14 @@ Not yet defined. The unscheduled backlog is the former Phases 13-23 (lasers and 
 
 ### Active
 
-<!-- No milestone is active. Next scope comes from /gsd-new-milestone. -->
+<!-- v2.2 scope below; REQUIREMENTS.md is the detailed list. -->
 
 <!-- Later, unscheduled (former v2.1 Phases 13-23). -->
 
 - [ ] (later) NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
-- [ ] (later) NPC ships fly and fight with Oolite's priority AI, hand-ported to TypeScript
+- [ ] Player can switch views, fire lasers that hit ship hulls, and rely on shields and energy banks — v2.2 (Phase 13)
+- [ ] NPC ships fly with Oolite's flight model and native steering — v2.2 (Phase 14)
+- [ ] (later) NPC ships fight with Oolite's priority AI, hand-ported to TypeScript
 - [ ] (later) Player can fight with lasers, shields, energy banks, missiles and ECM, and destroy or be destroyed
 - [ ] (later) Player can scoop cargo pods, earn bounties, and gain or lose legal status, with police responding
 - [ ] (later) Player can eject in an escape pod and continue on insurance, as in Oolite
@@ -271,4 +284,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-14 after v2.1 milestone*
+*Last updated: 2026-11-14 after v2.2 milestone start*

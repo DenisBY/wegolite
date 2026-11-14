@@ -1,20 +1,16 @@
 ---
 gsd_state_version: "1.0"
-milestone: v2.1
-milestone_name: World Population Base
-status: Awaiting next milestone
-stopped_at: Phase 12 complete — all phases complete
-last_updated: "2026-11-14T20:51:40.146Z"
+milestone: v2.2
+milestone_name: Weapons and NPC Flight
+status: planning
+last_updated: "2026-11-14T20:55:31.344Z"
 last_activity: 2026-11-14
-last_activity_desc: Milestone v2.1 completed and archived
-state_head: 85b2f3d3b3516834b593ad1b49017a7fdf2ec223
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 27
-  completed_plans: 27
-  percent: 100
-current_phase: 12
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 ## Current Position
 
-Phase: Milestone v2.1 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-11-14 — Milestone v2.1 completed and archived
+Status: Defining requirements
+Last activity: 2026-11-14 — Milestone v2.2 started
 
 
 ## Performance Metrics
