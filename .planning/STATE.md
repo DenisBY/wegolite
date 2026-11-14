@@ -5,16 +5,16 @@ milestone_name: World Population Base
 current_phase: 12
 current_phase_name: Inert Ships and the World Lifecycle
 status: executing
-stopped_at: Completed 12-10-PLAN.md
-last_updated: "2026-11-14T18:56:34.852Z"
+stopped_at: Completed 12-11-PLAN.md
+last_updated: "2026-11-14T19:09:44.104Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 12 execution started
-state_head: b71c690c0cc0e16bbed31f8b5d7e16802ab58e3b
+state_head: bd38e327e6f8468c52d592ef09306c78b6ead05e
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 27
-  completed_plans: 23
+  completed_plans: 24
   percent: 75
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 12 (Inert Ships and the World Lifecycle) — EXECUTING
-Plan: 11 of 14
+Plan: 12 of 14
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 12 execution started
 
@@ -150,6 +150,7 @@ Progress: [████████░░] 75%
 | Phase 12 P08 | ~45min | 3 tasks | 14 files |
 | Phase 12 P09 | 25min | 3 tasks | 6 files |
 | Phase 12 P10 | 35 min | 2 tasks | 10 files |
+| Phase 12 P11 | 25 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -362,6 +363,9 @@ Recent decisions affecting current work:
 - [Phase 12]: Jump commit clears the world on the same tick (WORLD-14): stepSim skips the old world on the hyperspaceJumped step and the same stepOnce pass replaces it through begin
 - [Phase 12]: SAVE-08 for the inert world: regenerated at the leg anchor; a counter mismatch never blocks a load; a docked save writes 101 and keeps no world
 - [Phase 12]: Plan 12-10: inert ships reach the existing scanner as id-free NpcContact snapshots (police or neutral) rebuilt every rendered frame from the live world; HUD kinds ship and police in Oolite's yellow and police purple #8000ff, no new HUD element
+- [Phase 12]: No entity id holder outside the world in Phase 12: contacts are id-free per-frame snapshots, the NPC layer is index-addressed and scene-owned, the loader is keyed by ship key
+- [Phase 12]: Request NPC models when a ship first appears (Open Question 5): per key, draw only loaded keys, a failed key is never retried, the scanner still shows the ship
+- [Phase 12]: Defer NPC model requests until the first in-flight frame (DATA-13 kept; owner decision 2026-11-14, option A); option B, raising the ceiling, only on measured evidence
 
 ### Pending Todos
 
@@ -455,8 +459,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T18:56:34.474Z
-Stopped at: Completed 12-10-PLAN.md
+Last session: 2026-11-14T19:09:43.735Z
+Stopped at: Completed 12-11-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
