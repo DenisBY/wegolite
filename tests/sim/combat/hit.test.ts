@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2026 Wegolite contributors
+
 /**
  * The two-stage laser hit rule (CBT-07, D-01, D-02, ROADMAP criterion 3).
  *

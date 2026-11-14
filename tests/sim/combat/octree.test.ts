@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2026 Wegolite contributors
+
 /**
  * The hull octree line test (CBT-07, D-02), a port of `Octree.m:336-471`.
  *
