@@ -19,7 +19,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GameLoop } from "../../../src/app/game-loop.js";
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
-import { createEventRouter } from "../../../src/app/session/event-router.js";
+import {
+  createEventRouter,
+  createHyperspaceFlow,
+} from "../../../src/app/session/event-router.js";
 import { createHyperspaceController } from "../../../src/app/session/hyperspace-controller.js";
 import type { HyperspaceControllerDeps } from "../../../src/app/session/hyperspace-controller.js";
 import { createSaveController } from "../../../src/app/session/save-controller.js";
@@ -62,15 +65,20 @@ import {
   generateMarket,
   marketSeedForSystem,
 } from "../../../src/sim/economy/market.js";
+import type { SimEvent } from "../../../src/sim/events.js";
+import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
+import { HYPERSPACE_COUNTDOWN_STEPS } from "../../../src/sim/hyperspace/countdown.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { newProfile } from "../../../src/sim/player/profile.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { worldSeedFor } from "../../../src/sim/rng.js";
 import {
+  STATIC_ENTITIES,
   createWorld,
   liveEntityCount,
   spawnEntity,
 } from "../../../src/sim/world/world.js";
+import { createShipField } from "../../../src/sim/world/ship-field.js";
 import {
   PlayerController,
   ScriptedLaunchController,
@@ -79,7 +87,11 @@ import {
 import { hashFlight, initFlightState } from "../../../src/sim/flight/state.js";
 import { DT } from "../../../src/sim/time.js";
 import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
-import { hashWorld } from "../../../src/sim/world/serialize.js";
+import {
+  hashWorld,
+  serializeEntity,
+  serializeWorldSection,
+} from "../../../src/sim/world/serialize.js";
 import { snapshotWorld } from "../../../src/sim/world/snapshot.js";
 import {
   commoditiesFixture,
@@ -89,6 +101,15 @@ import { laveFixture } from "../../helpers/lave.js";
 
 const lave = laveFixture();
 const MARKET_SEED = 0x12345678;
+
+/** The committed NPC catalogue as the session loads it (traffic on). */
+function committedTraffic(): ReturnType<typeof trafficContent> {
+  return trafficContent(
+    JSON.parse(
+      readFileSync("src/content/generated/ships-npc.json", "utf8"),
+    ) as NpcShip[],
+  );
+}
 const launch: Command = { kind: "launch" };
 
 interface Tracer {
@@ -117,11 +138,7 @@ function tracer(options: { readonly traffic?: boolean } = {}): Tracer {
   // Traffic on wires the real inert populate over the committed NPC records,
   // as start-up does; traffic off keeps the default populator.
   if (traffic) {
-    ctx.core.npcTraffic = trafficContent(
-      JSON.parse(
-        readFileSync("src/content/generated/ships-npc.json", "utf8"),
-      ) as NpcShip[],
-    );
+    ctx.core.npcTraffic = committedTraffic();
   }
   const lifecycle = createWorldLifecycle({
     traffic,
@@ -914,7 +931,10 @@ describe("arrival", () => {
   }
 
   /** Doubles copied from tests/app/session/hyperspace-controller.test.ts. */
-  function arrivalHarness(failDestinationBuild = false): ArrivalHarness {
+  function arrivalHarness(
+    failDestinationBuild = false,
+    traffic = false,
+  ): ArrivalHarness {
     const ctx = createSessionState({
       system: lave.system,
       saveStatus: "absent",
@@ -935,8 +955,20 @@ describe("arrival", () => {
       ctx.core.marketSeed,
     );
     ctx.core.hyperspaceTargetId = destination?.id;
-    // A world that exists at epoch 1, as after a launch from Lave.
-    const real = createWorldLifecycle({ traffic: false });
+    // A world that exists at epoch 1, as after a launch from Lave. Traffic on
+    // wires the real inert populate over the committed records, as start-up does.
+    if (traffic) ctx.core.npcTraffic = committedTraffic();
+    const real = createWorldLifecycle({
+      traffic,
+      ...(traffic
+        ? {
+            populate: createInertPopulate(
+              () => ctx.core.npcTraffic,
+              () => ctx.core.layout,
+            ),
+          }
+        : {}),
+    });
     real.begin(ctx.core.marketSeed);
     const lifecycle = logged(real, calls);
     ctx.core.worldLifecycle = lifecycle;
@@ -1018,6 +1050,400 @@ describe("arrival", () => {
     expect(calls.some((entry) => entry.startsWith("worldLifecycle"))).toBe(
       false,
     );
+  });
+
+  const LIVE_IDS = Array.from({ length: 12 }, (_unused, index) => 101 + index);
+
+  it("with traffic on an arrival repopulates the destination from id 101 with the same ships for the same route, seed and epoch (WORLD-14)", () => {
+    const first = arrivalHarness(false, true);
+    const second = arrivalHarness(false, true);
+    const previousSeed = first.ctx.core.marketSeed ?? 0;
+    const origin = first.lifecycle.world;
+    if (origin === undefined) throw new Error("expected the Lave world");
+    // The origin world holds its own 12 ships from the launch (leg anchor 113).
+    expect(liveEntityCount(origin)).toBe(12);
+    expect(first.lifecycle.anchorNextEntityId).toBe(113);
+
+    first.controller.handleHyperspaceJumped(jumped);
+    second.controller.handleHyperspaceJumped(jumped);
+
+    const nextSeed = arrivalMarketSeed(destination?.id ?? "", previousSeed);
+    const world = first.lifecycle.world;
+    const twin = second.lifecycle.world;
+    if (world === undefined || twin === undefined) {
+      throw new Error("expected an arrival world");
+    }
+    expect(first.lifecycle.epoch).toBe(2);
+    expect(world).not.toBe(origin);
+    expect(world.worldSeed).toBe(worldSeedFor(nextSeed, 2));
+    // The decisions: 12 ships, ids 101 to 112, counter 113 on both paths.
+    expect(liveEntityCount(world)).toBe(12);
+    expect(world.store.live.map((entity) => entity.id)).toEqual(LIVE_IDS);
+    expect(world.store.nextId).toBe(113);
+    expect(first.lifecycle.anchorNextEntityId).toBe(113);
+    // Two identical sessions give the same world section, ships and ids.
+    expect(serializeWorldSection(world)).toBe(serializeWorldSection(twin));
+    // The world is the seed's world populated over the destination layout.
+    const content = first.ctx.core.npcTraffic;
+    if (content === undefined) throw new Error("expected traffic content");
+    const expected = createWorld(worldSeedFor(nextSeed, 2));
+    createInertPopulate(
+      () => content,
+      () => deriveSystemLayout(destination ?? lave.system, lave.stationDef),
+    )(expected, { traffic: true });
+    expect(serializeWorldSection(world)).toBe(serializeWorldSection(expected));
+    // Not vacuous: the origin's ships are not the destination's.
+    expect(serializeWorldSection(world)).not.toBe(
+      serializeWorldSection(origin),
+    );
+  });
+
+  it("with traffic off an arrival leaves an empty world, the counter at 101 and the world hash equal to the flight hash", () => {
+    const { ctx, controller, lifecycle } = arrivalHarness();
+    controller.handleHyperspaceJumped(jumped);
+    const world = lifecycle.world;
+    const state = ctx.core.state;
+    if (world === undefined || state === undefined) {
+      throw new Error("expected an arrival world and a state");
+    }
+    expect(liveEntityCount(world)).toBe(0);
+    expect(lifecycle.anchorNextEntityId).toBe(101);
+    expect(hashWorld(state, world)).toBe(hashFlight(state));
+  });
+
+  it("static bodies keep fixed ids and no second buoy is added (Pitfall 17)", () => {
+    const { controller, lifecycle } = arrivalHarness(false, true);
+    controller.handleHyperspaceJumped(jumped);
+    const world = lifecycle.world;
+    if (world === undefined) throw new Error("expected an arrival world");
+    // The five static bodies are the fixed table, ids 1 to 5, the two buoys at 4 and 5.
+    expect(world.statics).toBe(STATIC_ENTITIES);
+    expect(world.statics.map((entry) => entry.id)).toEqual([1, 2, 3, 4, 5]);
+    expect(
+      world.statics
+        .filter((entry) => entry.scanClass === "CLASS_BUOY")
+        .map((entry) => [entry.id, entry.kind]),
+    ).toEqual([
+      [4, "buoy"],
+      [5, "buoy"],
+    ]);
+    // Every dynamic entity lives at 101 or more, and none is a buoy.
+    expect(liveEntityCount(world)).toBe(12);
+    for (const entity of world.store.live) {
+      expect(entity.id).toBeGreaterThanOrEqual(101);
+      expect(entity.kind).not.toBe("buoy");
+      expect(entity.scanClass).not.toBe("CLASS_BUOY");
+    }
+  });
+});
+
+/** The Diso chart row (the route of the jump-commit rows: dist 9, 36 fuel). */
+const disoFound = galaxy.find((entry) => entry.name === "Diso");
+if (disoFound === undefined) throw new Error("the galaxy has no Diso");
+const diso: System = disoFound;
+
+/**
+ * Lave flight, 20 km from the station on +X: outside the station's blockage
+ * radius (about 7,180 m) and, asserted per row, outside every placed ship's.
+ */
+const JUMP_POSITION = vec(
+  lave.layout.station.position.x + 20_000,
+  lave.layout.station.position.y,
+  lave.layout.station.position.z,
+);
+
+/** The step options of a Lave jump to Diso, as the session builds them. */
+const JUMP_OPTIONS = {
+  hyperspace: {
+    fuel: 70,
+    origin: {
+      id: lave.system.id,
+      x: lave.system.chartX,
+      y: lave.system.chartY,
+    },
+    target: { id: diso.id, x: diso.chartX, y: diso.chartY },
+  },
+} as const;
+
+describe("jump commit clears the world on the same tick (WORLD-14)", () => {
+  /** A pilot that keeps moving for the whole 1,800-step countdown. */
+  function spawnPilot(
+    world: ReturnType<typeof createWorld>,
+    tick: number,
+  ): ReturnType<typeof createWorld>["store"]["live"][number] {
+    const result = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "test-ship",
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(
+          JUMP_POSITION.x + 100_000,
+          JUMP_POSITION.y,
+          JUMP_POSITION.z,
+        ),
+        orientation: identity(),
+        radius: 50,
+        speed: 100,
+        ai: createTestPilotAi(tick, {
+          scanRange: 1e9,
+          holdRange: 1,
+          cruiseSpeed: 100,
+        }),
+      },
+      tick,
+    );
+    if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+    return result.entity;
+  }
+
+  function flyingAtJumpPosition(): ReturnType<typeof initFlightState> {
+    const state = initFlightState(lave.layout);
+    state.mode = "inFlight";
+    state.dockArmed = false;
+    state.position = JUMP_POSITION;
+    return state;
+  }
+
+  it("does not step the old world on the step that emits hyperspaceJumped (same tick, sim level)", () => {
+    const content = committedTraffic();
+    const world = createWorld(worldSeedFor(MARKET_SEED, 1));
+    createInertPopulate(
+      () => content,
+      () => lave.layout,
+    )(world, { traffic: true });
+    expect(liveEntityCount(world)).toBe(12);
+    const pilot = spawnPilot(world, 0);
+    expect(pilot.id).toBe(113);
+    // The jump is not blocked by a placed ship (the field reads the same world).
+    expect(
+      createShipField(world, content.masses).blocks(
+        JUMP_POSITION,
+        lave.layout.scannerRange,
+      ),
+    ).toBe(false);
+
+    const player = flyingAtJumpPosition();
+    const options = {
+      hyperspace: { ...JUMP_OPTIONS.hyperspace, shipMasses: content.masses },
+    };
+    const run = (commands: readonly Command[]): SimEvent[] =>
+      stepSim(
+        player,
+        world,
+        lave.layout,
+        lave.config,
+        ZERO_INTENT,
+        commands,
+        DT,
+        options,
+      );
+
+    run([{ kind: "beginHyperspace" }]);
+    expect(player.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS);
+    let jumpSteps = 0;
+    for (let step = 1; step <= HYPERSPACE_COUNTDOWN_STEPS; step += 1) {
+      const before = serializeEntity(pilot);
+      const sectionBefore = serializeWorldSection(world);
+      const events = run([]);
+      const jumped = events.some((event) => event.kind === "hyperspaceJumped");
+      if (jumped) {
+        jumpSteps += 1;
+        expect(step).toBe(HYPERSPACE_COUNTDOWN_STEPS);
+        // The entity that would move is unchanged by the commit step, and so
+        // is the whole world section.
+        expect(serializeEntity(pilot)).toBe(before);
+        expect(serializeWorldSection(world)).toBe(sectionBefore);
+      } else {
+        // Before the commit the pilot does move: the row is not vacuous.
+        expect(serializeEntity(pilot)).not.toBe(before);
+      }
+    }
+    expect(jumpSteps).toBe(1);
+  });
+
+  /**
+   * The session path of one jump: the real sim driver (`stepOnce`), the real
+   * router with the real hyperspace flow, and the real hyperspace controller
+   * over a scene double, so the `hyperspaceJumped` handler runs in the same
+   * `stepOnce` pass that emitted the event (sim-driver.ts: step, then dispatch).
+   */
+  function jumpSession(traffic: boolean) {
+    const ctx = createSessionState({
+      system: lave.system,
+      saveStatus: "absent",
+      saveSkipReason: "",
+    });
+    const state = flyingAtJumpPosition();
+    ctx.core.state = state;
+    ctx.core.layout = lave.layout;
+    ctx.core.config = lave.config;
+    ctx.core.stationDef = lave.stationDef;
+    ctx.core.commodities = catalogue;
+    ctx.core.marketSeed = marketSeedForSystem(lave.system.id);
+    ctx.core.market = generateMarket(
+      lave.system,
+      catalogue,
+      ctx.core.marketSeed,
+    );
+    ctx.core.hyperspaceTargetId = diso.id;
+    if (traffic) ctx.core.npcTraffic = committedTraffic();
+    const lifecycle = createWorldLifecycle({
+      traffic,
+      ...(traffic
+        ? {
+            populate: createInertPopulate(
+              () => ctx.core.npcTraffic,
+              () => ctx.core.layout,
+            ),
+          }
+        : {}),
+    });
+    ctx.core.worldLifecycle = lifecycle;
+    // The launch from Lave: epoch 1 and its world.
+    lifecycle.begin(ctx.core.marketSeed);
+
+    const quiet = (): void => undefined;
+    const controller = createHyperspaceController(ctx, {
+      scenes: {
+        enterSystem: () =>
+          ({}) as ReturnType<HyperspaceControllerDeps["scenes"]["enterSystem"]>,
+        layout: () => deriveSystemLayout(diso, lave.stationDef),
+      },
+      galaxyById: new Map(galaxy.map((entry) => [entry.id, entry])),
+      messages: { enqueue: quiet, enqueuePriority: quiet },
+      faults: undefined,
+      showBootFailure: quiet,
+      publishFailure: quiet,
+      autosave: quiet,
+      syncEconomyProbe: quiet,
+    });
+    const events: SimEvent[] = [];
+    const real = createEventRouter(ctx, {
+      stationFlow: quiet,
+      hudMessages: quiet,
+      dockFeedback: quiet,
+      hyperspaceFlow: createHyperspaceFlow(ctx, {
+        messages: { enqueuePriority: quiet },
+        refusalCopy: controller.refusalCopy,
+        handleHyperspaceJumped: controller.handleHyperspaceJumped,
+      }),
+    });
+    const driver = createSimDriver(ctx, {
+      pending: [],
+      player: new PlayerController(),
+      scripted: new ScriptedLaunchController(),
+      launchSequence: { advance: () => "flash" },
+      router: {
+        dispatch: (event) => {
+          events.push(event);
+          real.dispatch(event);
+        },
+      },
+      equipmentSet: () => new Set([DOCK_COMPUTER_KEY]),
+      targetSystem: () => diso,
+      autosave: quiet,
+      markHookMutation: quiet,
+    });
+    const frame = { pitch: 0, roll: 0, speed: 0, precision: false };
+    return {
+      ctx,
+      lifecycle,
+      events,
+      /** One fixed step through the driver, then the events it emitted. */
+      step: (commands: readonly Command[] = []): SimEvent[] => {
+        events.length = 0;
+        driver.stepOnce(commands, frame);
+        return [...events];
+      },
+    };
+  }
+
+  it("replaces the world in the same stepOnce pass: the old world is unreachable afterwards and the new one holds 101 to 112 (same tick, session level)", () => {
+    const session = jumpSession(true);
+    const { ctx, lifecycle, step } = session;
+    const oldWorld = lifecycle.world;
+    if (oldWorld === undefined) throw new Error("expected the Lave world");
+    const pilot = spawnPilot(oldWorld, 0);
+    const oldEntities = [...oldWorld.store.live];
+    expect(oldEntities).toHaveLength(13);
+    expect(
+      createShipField(oldWorld, ctx.core.npcTraffic?.masses).blocks(
+        JUMP_POSITION,
+        lave.layout.scannerRange,
+      ),
+    ).toBe(false);
+
+    step([{ kind: "beginHyperspace" }]);
+    expect(ctx.core.state?.hyperspaceCountdown).toBe(
+      HYPERSPACE_COUNTDOWN_STEPS,
+    );
+    // Up to the step before the commit the old world is the live one and moves.
+    for (let count = 1; count < HYPERSPACE_COUNTDOWN_STEPS; count += 1) {
+      const events = step();
+      expect(events.some((event) => event.kind === "hyperspaceJumped")).toBe(
+        false,
+      );
+    }
+    expect(lifecycle.world).toBe(oldWorld);
+    expect(lifecycle.epoch).toBe(1);
+    const pilotBefore = serializeEntity(pilot);
+    const sectionBefore = serializeWorldSection(oldWorld);
+
+    // The commit step: one stepOnce pass emits the event and handles it.
+    const commit = step();
+    expect(commit.filter((event) => event.kind === "hyperspaceJumped")).toEqual(
+      [
+        {
+          kind: "hyperspaceJumped",
+          destinationId: diso.id,
+          clockDeltaSeconds: 46_656,
+          fuelCost: 36,
+        },
+      ],
+    );
+    // The old world was not stepped on the commit tick.
+    expect(serializeEntity(pilot)).toBe(pilotBefore);
+    expect(serializeWorldSection(oldWorld)).toBe(sectionBefore);
+
+    // After that one step the session holds only the new world.
+    const next = lifecycle.world;
+    if (next === undefined) throw new Error("expected the arrival world");
+    expect(next).not.toBe(oldWorld);
+    expect(lifecycle.epoch).toBe(2);
+    for (const entity of next.store.live) {
+      expect(oldEntities).not.toContain(entity);
+    }
+    expect(next.store.live.map((entity) => entity.id)).toEqual(
+      Array.from({ length: 12 }, (_unused, index) => 101 + index),
+    );
+    expect(lifecycle.anchorNextEntityId).toBe(113);
+    expect(ctx.core.system.id).toBe(diso.id);
+
+    // The next step steps only the new world: the old one never changes again.
+    step();
+    expect(lifecycle.world).toBe(next);
+    expect(serializeEntity(pilot)).toBe(pilotBefore);
+    expect(serializeWorldSection(oldWorld)).toBe(sectionBefore);
+  });
+
+  it("with traffic off the commit step leaves an empty world at 101 whose hash is the flight hash", () => {
+    const { ctx, lifecycle, step } = jumpSession(false);
+    const oldWorld = lifecycle.world;
+    step([{ kind: "beginHyperspace" }]);
+    for (let count = 1; count < HYPERSPACE_COUNTDOWN_STEPS; count += 1) step();
+    expect(lifecycle.world).toBe(oldWorld);
+    step();
+    const next = lifecycle.world;
+    const state = ctx.core.state;
+    if (next === undefined || state === undefined) {
+      throw new Error("expected an arrival world and a state");
+    }
+    expect(next).not.toBe(oldWorld);
+    expect(lifecycle.epoch).toBe(2);
+    expect(liveEntityCount(next)).toBe(0);
+    expect(lifecycle.anchorNextEntityId).toBe(101);
+    expect(hashWorld(state, next)).toBe(hashFlight(state));
   });
 });
 
