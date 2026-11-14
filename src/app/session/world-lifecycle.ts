@@ -12,12 +12,12 @@
  * `resume`s one without a bump, and the `docked` event and `dispose()` `end` it
  * while preserving the epoch, so a normal dock then launch keeps advancing it.
  *
- * Epoch lives in session memory and starts at 0 (D-03): a Phase 8 v2 save does
- * not persist it. `resetForRestore(0)` is the one place a restore re-anchors it,
- * so loading the same v2 save warm or cold gives the same epoch (0 after the
- * restore, 1 at the next launch or arrival) and the same world seed. Phase 11
- * (SAVE-07) will pass the persisted `save.epoch` into `resetForRestore` at both
- * the boot Continue and the warm Load.
+ * Epoch lives in session memory and starts at 0 (D-03). Since Phase 11
+ * (SAVE-07) a v3 save persists the epoch and the anchor counter; the cold
+ * Continue and the warm Load both pass `save.epoch` to `resetForRestore` before
+ * an in-flight `resume`, so both restore the same epoch and the same world
+ * seed. A migrated v1 or v2 save carries epoch 0, which is the Phase 8
+ * behaviour (0 after the restore, 1 at the next launch or arrival).
  *
  * The leg-anchor counter (Phase 11, SAVE-07, D-01, D-05) is `anchorNextEntityId`:
  * the `store.nextId` of the world that `begin` or `resume` created, read right
@@ -111,7 +111,8 @@ export interface WorldLifecycle {
    * exactly the epochs from which `begin` can still bump (0..0xfffffffe) and
    * returns true; any other value sets epoch 0 and returns false, so a saturated
    * or corrupt epoch can be surfaced rather than silently disabling worlds.
-   * Phase 8 calls it only with 0 and ignores the result.
+   * The restore paths pass the saved epoch; the v3 schema bounds it to
+   * 0..0xfffffffe (D-04), so false is unreachable from a valid save.
    */
   resetForRestore(epoch?: number): boolean;
 }

@@ -267,7 +267,8 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
    *   8. the flight state (a restore or a fresh one) and its installation, the
    *      profile and the saved target, then the status overlay;
    *   9. the market seed, then the market (restored or generated once), then
-   *      the station selection;
+   *      the lifecycle re-anchor at the saved epoch, then the station
+   *      selection;
    *  10. the HUD and the break pattern, the chart overlay, the Save/Load
    *      screen, the station nav;
    *  11. the binding map and the settings, the station chrome, the launch-seen
@@ -454,8 +455,16 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     ctx.core.market =
       restoredMarket ??
       generateMarket(ctx.core.system, loadedCatalogue, ctx.core.marketSeed);
+    // D-06: the cold Continue re-anchors the lifecycle at the saved epoch, in
+    // the same position as the warm Load (after the seed install, before the
+    // in-flight resume), so both give the same epoch and seed. A docked
+    // restore keeps no world until the next launch bumps the epoch.
+    if (restoring && restore !== undefined) {
+      ctx.core.worldLifecycle?.resetForRestore(restore.epoch);
+    }
     // RESEARCH A9: an in-flight Continue recreates the world from the resolved
-    // seed without an epoch bump; a docked start has no world until it launches.
+    // seed, from the re-anchored epoch and without a bump; a docked start has
+    // no world until it launches.
     const resumedSeed = ctx.core.marketSeed;
     if (restoredInFlight && resumedSeed !== undefined) {
       ctx.core.worldLifecycle?.resume(resumedSeed);

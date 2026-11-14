@@ -37,7 +37,7 @@ import type { InputContext } from "../../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { snapshotForSave } from "../../../src/persistence/autosave.js";
 import type { SaveWorldCounters } from "../../../src/persistence/autosave.js";
-import { encodeSave } from "../../../src/persistence/save.js";
+import { encodeSave, parseSave } from "../../../src/persistence/save.js";
 import type { SaveAllowLists } from "../../../src/persistence/save.js";
 import type {
   SaveReadResult,
@@ -65,6 +65,7 @@ import { hashFlight, initFlightState } from "../../../src/sim/flight/state.js";
 import { DT } from "../../../src/sim/time.js";
 import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
+import { snapshotWorld } from "../../../src/sim/world/snapshot.js";
 import {
   commoditiesFixture,
   commodityUnits,
@@ -651,10 +652,10 @@ describe("session wiring (start-up and dispose)", () => {
     }).not.toThrow();
   });
 
-  it("start-up creates the lifecycle from the parsed traffic flag before the restore branch and resumes an in-flight restore", () => {
+  it("start-up creates the lifecycle from the parsed traffic flag before the restore branch, re-anchors at the saved epoch and then resumes an in-flight restore", () => {
     // startSession has no Node harness (it builds the renderer, HUD and
-    // input), so its three lifecycle points are pinned as ordered source facts;
-    // the save-load browser specs exercise the in-flight Continue end to end.
+    // input), so its lifecycle points are pinned as ordered source facts; the
+    // save-load browser specs exercise the in-flight Continue end to end.
     const source = readFileSync("src/app/session/start-session.ts", "utf8");
     const at = (needle: string, from = 0): number =>
       source.indexOf(needle, from);
@@ -662,6 +663,7 @@ describe("session wiring (start-up and dispose)", () => {
     const created = at("createWorldLifecycle({");
     const restoreBranch = at("if (restoring && restore !== undefined) {");
     const seed = at("ctx.core.marketSeed =\n");
+    const reanchor = at("worldLifecycle?.resetForRestore(restore.epoch)");
     const resumed = at("worldLifecycle?.resume(");
     expect(parsed).toBeGreaterThan(-1);
     expect(created).toBeGreaterThan(parsed);
@@ -670,9 +672,14 @@ describe("session wiring (start-up and dispose)", () => {
       "traffic: ctx.runtime.testFlags.traffic",
     );
     expect(seed).toBeGreaterThan(restoreBranch);
-    expect(resumed).toBeGreaterThan(seed);
-    expect(source.slice(seed, resumed)).toContain("restoredInFlight");
+    expect(reanchor).toBeGreaterThan(seed);
+    expect(resumed).toBeGreaterThan(reanchor);
+    expect(source.slice(reanchor, resumed)).toContain("restoredInFlight");
     expect(source.match(/createWorldLifecycle\(/g)).toHaveLength(1);
+    expect(source.match(/worldLifecycle\?\.resetForRestore\(/g)).toHaveLength(
+      1,
+    );
+    expect(source).not.toContain("resetForRestore(0)");
   });
 });
 
@@ -841,6 +848,22 @@ describe("arrival", () => {
   });
 });
 
+/** A populator that spawns one ship (init shape as the leg-anchor cases). */
+const spawnOne: Populate = (world) => {
+  spawnEntity(
+    world,
+    {
+      kind: "ship",
+      specKey: "viper",
+      scanClass: "CLASS_POLICE",
+      position: vec(10, 0, 0),
+      orientation: identity(),
+      radius: 1,
+    },
+    0,
+  );
+};
+
 /** Counters of a save written with no world lifecycle behind it (epoch 0). */
 const NO_COUNTERS: SaveWorldCounters = {
   epoch: 0,
@@ -848,7 +871,10 @@ const NO_COUNTERS: SaveWorldCounters = {
 };
 
 /** The blob of a Lave save, docked or in flight, with the fixture market. */
-function laveBlob(mode: "docked" | "inFlight"): string {
+function laveBlob(
+  mode: "docked" | "inFlight",
+  counters: SaveWorldCounters,
+): string {
   const state = initFlightState(lave.layout);
   if (mode === "inFlight") {
     state.mode = "inFlight";
@@ -863,7 +889,7 @@ function laveBlob(mode: "docked" | "inFlight"): string {
       { key: "coriolis-station" },
       laveMarket,
       catalogue,
-      NO_COUNTERS,
+      counters,
       undefined,
     ),
   );
@@ -894,7 +920,9 @@ interface LoadHarness {
  * with a real lifecycle (wrapped to log) that has already launched (epoch 1)
  * and arrived (epoch 2).
  */
-function loadHarness(options: { readonly hook?: boolean } = {}): LoadHarness {
+function loadHarness(
+  options: { readonly hook?: boolean; readonly populate?: Populate } = {},
+): LoadHarness {
   const ctx = createSessionState({
     system: lave.system,
     saveStatus: "valid",
@@ -924,7 +952,10 @@ function loadHarness(options: { readonly hook?: boolean } = {}): LoadHarness {
     });
   }
 
-  const real = createWorldLifecycle({ traffic: false });
+  const real = createWorldLifecycle({
+    traffic: false,
+    ...(options.populate === undefined ? {} : { populate: options.populate }),
+  });
   real.begin(MARKET_SEED_LAVE);
   real.begin(0x0badf00d);
   expect(real.epoch).toBe(2);
@@ -983,15 +1014,48 @@ function loadHarness(options: { readonly hook?: boolean } = {}): LoadHarness {
 describe("load", () => {
   const ARRIVAL_SEED = 0x0badf00d;
 
-  it("an in-flight Load re-anchors at epoch 0 and resumes after the seed install, like a cold Continue", async () => {
+  /**
+   * The session that wrote the save: epoch 4 after earlier legs, then a fresh
+   * Lave arrival (begin bumps to epoch 5 and builds the anchor world).
+   */
+  function arrivalAtEpoch5(populate?: Populate): WorldLifecycle {
+    const writer = createWorldLifecycle({
+      traffic: false,
+      ...(populate === undefined ? {} : { populate }),
+    });
+    expect(writer.resetForRestore(4)).toBe(true);
+    writer.begin(MARKET_SEED_LAVE);
+    expect(writer.epoch).toBe(5);
+    return writer;
+  }
+
+  /** The cold Continue sequence of start-session.ts for a parsed save. */
+  function coldContinue(raw: string, populate?: Populate): WorldLifecycle {
+    const parsed = parseSave(raw, SAVE_ALLOW);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) throw new Error("the save did not parse");
+    const cold = createWorldLifecycle({
+      traffic: false,
+      ...(populate === undefined ? {} : { populate }),
+    });
+    expect(cold.resetForRestore(parsed.save.epoch)).toBe(true);
+    if (parsed.save.mode !== "docked") cold.resume(MARKET_SEED_LAVE);
+    return cold;
+  }
+
+  it("an in-flight Load of a save written at epoch 5 restores the fresh arrival's world: seed, snapshot, hash and counter", async () => {
+    const arrival = arrivalAtEpoch5();
+    const raw = laveBlob("inFlight", arrival);
+    expect(raw).toContain('"epoch":5');
+    expect(raw).toContain('"nextEntityId":101');
     const h = loadHarness();
-    h.read.current = { kind: "ok", raw: laveBlob("inFlight") };
+    h.read.current = { kind: "ok", raw };
     const before = h.lifecycle.world;
 
     await h.controller.loadFromSave();
 
     // The call order: installs first, then the re-anchor, then the resume.
-    const reset = h.log.indexOf("worldLifecycle.resetForRestore 0");
+    const reset = h.log.indexOf("worldLifecycle.resetForRestore 5");
     const resume = h.log.indexOf(
       `worldLifecycle.resume ${String(MARKET_SEED_LAVE)}`,
     );
@@ -1000,36 +1064,130 @@ describe("load", () => {
     expect(resume).toBe(reset + 1);
     expect(h.log.filter((entry) => entry.startsWith("worldLifecycle"))).toEqual(
       [
-        "worldLifecycle.resetForRestore 0",
+        "worldLifecycle.resetForRestore 5",
         `worldLifecycle.resume ${String(MARKET_SEED_LAVE)}`,
       ],
     );
 
-    // The cold boot Continue of the same save: a fresh lifecycle, then resume.
-    const cold = createWorldLifecycle({ traffic: false });
-    cold.resume(MARKET_SEED_LAVE);
-    expect(h.lifecycle.epoch).toBe(0);
-    expect(cold.epoch).toBe(0);
-    expect(h.lifecycle.world).toBeDefined();
-    expect(h.lifecycle.world).not.toBe(before);
-    expect(h.lifecycle.world?.worldSeed).toBe(
-      worldSeedFor(MARKET_SEED_LAVE, 0),
-    );
-    expect(h.lifecycle.world?.worldSeed).toBe(cold.world?.worldSeed);
-    expect(h.lifecycle.world?.store.nextId).toBe(101);
+    const warm = h.lifecycle;
+    expect(warm.epoch).toBe(5);
+    expect(warm.world).toBeDefined();
+    expect(warm.world).not.toBe(before);
+    expect(warm.world?.worldSeed).toBe(worldSeedFor(MARKET_SEED_LAVE, 5));
+    expect(warm.world?.worldSeed).toBe(arrival.world?.worldSeed);
+    expect(warm.anchorNextEntityId).toBe(101);
 
-    // A subsequent arrival gives epoch 1 and the same seed on both paths.
-    h.lifecycle.begin(ARRIVAL_SEED);
+    const warmWorld = warm.world;
+    const arrivalWorld = arrival.world;
+    if (warmWorld === undefined || arrivalWorld === undefined) return;
+    expect(snapshotWorld(warmWorld)).toEqual(snapshotWorld(arrivalWorld));
+    const state = h.ctx.core.state;
+    if (state === undefined) return;
+    expect(hashWorld(state, warmWorld)).toBe(hashWorld(state, arrivalWorld));
+
+    // The cold Continue of the same blob gives the same epoch, seed, snapshot.
+    const cold = coldContinue(raw);
+    expect(cold.epoch).toBe(5);
+    expect(cold.world?.worldSeed).toBe(warmWorld.worldSeed);
+    expect(cold.anchorNextEntityId).toBe(101);
+    if (cold.world === undefined) return;
+    expect(snapshotWorld(cold.world)).toEqual(snapshotWorld(warmWorld));
+
+    // The next arrival gives epoch 6 and one seed on every path.
+    warm.begin(ARRIVAL_SEED);
     cold.begin(ARRIVAL_SEED);
-    expect(h.lifecycle.epoch).toBe(1);
-    expect(cold.epoch).toBe(1);
-    expect(h.lifecycle.world?.worldSeed).toBe(worldSeedFor(ARRIVAL_SEED, 1));
-    expect(h.lifecycle.world?.worldSeed).toBe(cold.world?.worldSeed);
+    arrival.begin(ARRIVAL_SEED);
+    expect(warm.epoch).toBe(6);
+    expect(cold.epoch).toBe(6);
+    expect(arrival.epoch).toBe(6);
+    expect(warm.world?.worldSeed).toBe(worldSeedFor(ARRIVAL_SEED, 6));
+    expect(cold.world?.worldSeed).toBe(warm.world?.worldSeed);
+    expect(arrival.world?.worldSeed).toBe(warm.world?.worldSeed);
   });
 
-  it("a docked Load re-anchors at epoch 0 and ends the world, like a cold Continue", async () => {
+  it("with a populator that spawns one ship the saved counter is 102 and the restored world hash differs from the flight hash", async () => {
+    const arrival = arrivalAtEpoch5(spawnOne);
+    const raw = laveBlob("inFlight", arrival);
+    expect(raw).toContain('"nextEntityId":102');
+    const h = loadHarness({ populate: spawnOne });
+    h.read.current = { kind: "ok", raw };
+
+    await h.controller.loadFromSave();
+
+    const warm = h.lifecycle;
+    expect(warm.epoch).toBe(5);
+    expect(warm.anchorNextEntityId).toBe(102);
+    expect(warm.world?.store.nextId).toBe(102);
+    const warmWorld = warm.world;
+    const arrivalWorld = arrival.world;
+    const state = h.ctx.core.state;
+    if (
+      warmWorld === undefined ||
+      arrivalWorld === undefined ||
+      state === undefined
+    )
+      return;
+    const restoredHash = hashWorld(state, warmWorld);
+    // Not vacuous: the world section is part of the hash.
+    expect(restoredHash).not.toBe(hashFlight(state));
+    expect(restoredHash).toBe(hashWorld(state, arrivalWorld));
+    expect(snapshotWorld(warmWorld)).toEqual(snapshotWorld(arrivalWorld));
+
+    const cold = coldContinue(raw, spawnOne);
+    expect(cold.epoch).toBe(5);
+    expect(cold.anchorNextEntityId).toBe(102);
+    expect(cold.world?.worldSeed).toBe(warmWorld.worldSeed);
+    if (cold.world === undefined) return;
+    expect(hashWorld(state, cold.world)).toBe(restoredHash);
+  });
+
+  it("a docked Load of a save written at epoch 5 restores epoch 5 with no world, and the next launch gives epoch 6", async () => {
+    const writer = arrivalAtEpoch5();
+    writer.end();
+    const raw = laveBlob("docked", writer);
+    expect(raw).toContain('"epoch":5');
     const h = loadHarness();
-    h.read.current = { kind: "ok", raw: laveBlob("docked") };
+    h.read.current = { kind: "ok", raw };
+
+    await h.controller.loadFromSave();
+
+    expect(h.log.filter((entry) => entry.startsWith("worldLifecycle"))).toEqual(
+      ["worldLifecycle.resetForRestore 5"],
+    );
+    expect(h.lifecycle.epoch).toBe(5);
+    expect(h.lifecycle.world).toBeUndefined();
+    expect(h.lifecycle.anchorNextEntityId).toBeUndefined();
+
+    const cold = coldContinue(raw);
+    expect(cold.epoch).toBe(5);
+    expect(cold.world).toBeUndefined();
+    expect(cold.anchorNextEntityId).toBeUndefined();
+
+    // The next launch: epoch 6 and one seed on warm, cold and the writer.
+    h.lifecycle.begin(MARKET_SEED_LAVE);
+    cold.begin(MARKET_SEED_LAVE);
+    writer.begin(MARKET_SEED_LAVE);
+    expect(h.lifecycle.epoch).toBe(6);
+    expect(cold.epoch).toBe(6);
+    expect(writer.epoch).toBe(6);
+    expect(h.lifecycle.world?.worldSeed).toBe(
+      worldSeedFor(MARKET_SEED_LAVE, 6),
+    );
+    expect(cold.world?.worldSeed).toBe(h.lifecycle.world?.worldSeed);
+    expect(writer.world?.worldSeed).toBe(h.lifecycle.world?.worldSeed);
+    expect(h.lifecycle.world?.store.nextId).toBe(101);
+  });
+
+  it("a v2 save, which has no epoch, restores at epoch 0 and launches at epoch 1", async () => {
+    const v2 = JSON.parse(laveBlob("docked", NO_COUNTERS)) as Record<
+      string,
+      unknown
+    >;
+    v2.version = 2;
+    delete v2.epoch;
+    delete v2.nextEntityId;
+    const h = loadHarness();
+    h.read.current = { kind: "ok", raw: JSON.stringify(v2) };
 
     await h.controller.loadFromSave();
 
@@ -1039,17 +1197,11 @@ describe("load", () => {
     expect(h.lifecycle.epoch).toBe(0);
     expect(h.lifecycle.world).toBeUndefined();
 
-    // The next launch: epoch 1 and the launch seed, ids from 101, as cold.
-    const cold = createWorldLifecycle({ traffic: false });
     h.lifecycle.begin(MARKET_SEED_LAVE);
-    cold.begin(MARKET_SEED_LAVE);
     expect(h.lifecycle.epoch).toBe(1);
-    expect(cold.epoch).toBe(1);
     expect(h.lifecycle.world?.worldSeed).toBe(
       worldSeedFor(MARKET_SEED_LAVE, 1),
     );
-    expect(h.lifecycle.world?.worldSeed).toBe(cold.world?.worldSeed);
-    expect(h.lifecycle.world?.store.nextId).toBe(101);
   });
 
   it("a failed parse touches neither the epoch nor the world", async () => {
@@ -1078,7 +1230,10 @@ describe("load", () => {
 
   it("with the hook enabled the rebind still follows the state install", async () => {
     const h = loadHarness({ hook: true });
-    h.read.current = { kind: "ok", raw: laveBlob("inFlight") };
+    h.read.current = {
+      kind: "ok",
+      raw: laveBlob("inFlight", NO_COUNTERS),
+    };
 
     await h.controller.loadFromSave();
 

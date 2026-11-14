@@ -439,11 +439,13 @@ export function createSaveController(
       ctx.core.market = nextMarket;
       ctx.core.marketSeed = nextSeed;
       ctx.core.hyperspaceTargetId = nextTarget;
-      // D-02/D-03: a v2 save does not persist the epoch, so a warm Load
-      // re-anchors the lifecycle exactly like a cold boot Continue (epoch 0,
-      // no world), then recreates an in-flight world without a bump. Phase 11
-      // (SAVE-07) passes the saved epoch here instead of 0.
-      ctx.core.worldLifecycle?.resetForRestore(0);
+      // D-06: a v3 save persists the epoch of its leg anchor, so a warm Load
+      // re-anchors the lifecycle there, exactly like the cold boot Continue.
+      // An in-flight save then rebuilds the anchor world with resume, without
+      // a bump. The result is not branched on (D-04): the v3 schema bounds the
+      // epoch to the domain the lifecycle accepts. A migrated v1 or v2 save
+      // carries epoch 0.
+      ctx.core.worldLifecycle?.resetForRestore(saved.epoch);
       if (restored.state.mode !== "docked") {
         ctx.core.worldLifecycle?.resume(nextSeed);
       }
