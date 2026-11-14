@@ -43,6 +43,12 @@ export type SimEvent =
   | { kind: "launchComplete" }
   | { kind: "torusEngaged"; factor: number }
   | { kind: "torusDisengaged"; reason: TorusDisengageReason }
+  /**
+   * A `j` request refused while mass-locked (a body or a ship). The drive never
+   * ran, so this is not a disengage; the app prints Oolite's "Hyperspeed
+   * mass-locked." for it and keeps "Torus disengaged" for a running drive.
+   */
+  | { kind: "torusRefused"; reason: "massLock" }
   | { kind: "massLockChanged"; locked: boolean }
   | { kind: "compassTargetChanged"; target: CompassTarget }
   | { kind: "docked"; via: "manual" | "computer"; clockDelta: number }

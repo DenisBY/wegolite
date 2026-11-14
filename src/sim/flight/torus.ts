@@ -224,8 +224,10 @@ export function stepTorus(
         events.push({ kind: "torusEngaged", factor: engagement.factor });
       } else {
         // "j while mass-locked" is refused and reports the mass lock, never a
-        // silent no-op and never an `engaged: true` probe value.
-        events.push({ kind: "torusDisengaged", reason: "massLock" });
+        // silent no-op and never an `engaged: true` probe value. The drive
+        // never ran, so this is `torusRefused`, not a `torusDisengaged`; one
+        // branch serves every lock source (bodies and ships).
+        events.push({ kind: "torusRefused", reason: "massLock" });
       }
     }
   }

@@ -17,7 +17,7 @@
  *
  * Order independence with plan 08-11 (which widens `SimEvent` with reserved
  * kinds in the same wave): the table is keyed to the literal `RoutedKind` union
- * of the 14 routed kinds, never to the full `SimEvent` kind union, and every
+ * of the 15 routed kinds, never to the full `SimEvent` kind union, and every
  * read of it with a value that is not already a `RoutedKind` goes through
  * `isRoutedKind`. The only mention of the full union's kind type is the
  * `satisfies` check on `ROUTED_EVENT_KINDS`. There is no exhaustive check and no
@@ -63,6 +63,7 @@ export const ROUTED_EVENT_KINDS = [
   "dockDenied",
   "torusEngaged",
   "torusDisengaged",
+  "torusRefused",
   "massLockChanged",
   "bounce",
   "scrape",
@@ -89,6 +90,7 @@ export const EVENT_KIND_SUBSCRIBER: Readonly<
   dockDenied: ["hudMessages"],
   torusEngaged: ["hudMessages"],
   torusDisengaged: ["hudMessages"],
+  torusRefused: ["hudMessages"],
   massLockChanged: ["hudMessages"],
   bounce: ["dockFeedback"],
   scrape: ["dockFeedback"],
@@ -239,6 +241,11 @@ export function createHudMessages(deps: HudMessagesDeps): EventSubscriber {
         break;
       case "torusDisengaged":
         messages.enqueue("Torus disengaged");
+        break;
+      case "torusRefused":
+        // Oolite descriptions.plist "jump-mass-locked": a refused request, not
+        // a drive that stopped.
+        messages.enqueue("Hyperspeed mass-locked.");
         break;
       case "massLockChanged":
         if (event.locked) messages.enqueue("Mass locked");
