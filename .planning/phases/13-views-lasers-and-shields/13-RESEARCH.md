@@ -459,16 +459,21 @@ The refusal `return;` is the bug: the origin `world` and `anchorNextEntityId` su
 | A6 | Applying damage at the end of the same tick (no handlers) satisfies "queued, never synchronous" without a one-tick delay | Pattern 2 | If the planner wants the one-tick latency of PITFALLS 7, move application to the next tick; record the choice |
 | A7 | Entity gets `energy`, `maxEnergy`, `rechargeRate` plus laser temperature and shot timer, so the scripted pilot obeys the same fire rule | Architecture | If the planner wants the smaller minimum (energy only), the pilot is rate-limited by its own think interval and the "same rule" claim must be narrowed in the plan |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **OQ1 (owner, before planning the ident plan): what should R do when a lock exists?**
    - What we know: Oolite clears and re-acquires; U drops the lock (F1).
    - What's unclear: D-04 says "R again clears".
    - Recommendation: follow Oolite and add `untarget` on `KeyU`; if the owner prefers D-04 literally, record it as a deviation in Key Decisions and FIDELITY.
+   - RESOLVED (advisor-resolved, owner confirmation pending): R while a lock exists clears it and re-acquires whatever is in the sights, as Oolite's `handleButtonIdent`; a new `untarget` action on `KeyU` drops the lock. Keys in plan 13-02, the rule in plan 13-15 (one branch of `stepIdent`), recorded by plan 13-15 in Key Decisions and 13-CONTEXT.md as PENDING OWNER CONFIRMATION with the literal D-04 alternative.
 2. **OQ2: should the ident message include the ship class?** Oolite prints the name only. Recommendation: name only; add the class only if the owner confirms.
+   - RESOLVED (advisor-resolved, owner confirmation pending): name only, "Ident system locked onto [name]." held in the single constant `IDENT_LOCKED_TEMPLATE` (plan 13-12); D-03 literally ("name and class") is a one-line change of that constant to render the compiled `scanClass`. No class field is compiled (plan 13-16). Recorded by plan 13-15 as PENDING OWNER CONFIRMATION.
 3. **OQ3: load trigger for hull data.** With the NPC catalogue in boot (about 12 KB added to the traffic-on cold start if compact, about 88 KB as nested JSON) or behind the first in-flight latch (zero). Recommendation: compact encoding loaded with the catalogue; measure with `tests/e2e/traffic.spec.ts` and record the new figure beside 8,839,791.
+   - RESOLVED (advisor-resolved): nested-array JSON reusing the build-time `OctreeNode` shape, with no decoder, loaded with the NPC catalogue in the boot `Promise.all` only when traffic is on (plans 13-04 and 13-11). This deviates from the compact-encoding recommendation above: about 88 KB keeps the traffic-on cold start under the 9,437,184-byte ceiling with margin. Plan 13-04's size gate (200,000 bytes) guards it; if the gate fails, 13-04 switches to the compact encoding rather than raising the ceiling, and plan 13-11 records the measured figure.
 4. **OQ4: station and buoys do not block shots** (F10). Confirm as an accepted divergence.
+   - RESOLVED (advisor-resolved, owner confirmation pending): confirmed as a divergence for this milestone; only dynamic world ships are laser and ident candidates, so the station and buoys neither block nor take shots (plans 13-08 and 13-15). Plan 13-14 records it in Key Decisions and FIDELITY.
 5. **OQ5: when a shot is refused (overheat, no energy), which messages appear?** Oolite shows two fixed strings; recommendation is both, throttled one per second per kind.
+   - RESOLVED: both Oolite strings, "Weapon system overheated." and "Weapon system inactive (no energy left).", each at most once per simulated second per kind through the generalised throttle (plan 13-12).
 
 ## Environment Availability
 
