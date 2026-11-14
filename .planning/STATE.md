@@ -5,16 +5,16 @@ milestone_name: World Population Base
 current_phase: 10
 current_phase_name: phase-10
 status: executing
-stopped_at: Completed 10-02-PLAN.md
-last_updated: "2026-11-14T10:06:01.915Z"
+stopped_at: Completed 10-03-PLAN.md
+last_updated: "2026-11-14T10:09:35.488Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 10 execution resumed (wave continue)
-state_head: 783125dac7d5683988d1e67c60e4f96eb25ff646
+state_head: 809dcbcac09832cad0f7714dca5b0041b5cda2f4
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
   percent: 25
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 10 (phase-10) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 10 execution resumed (wave continue)
 
@@ -132,6 +132,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 09 P05 | 40min | 3 tasks | 9 files |
 | Phase 10 P01 | 12 min | 2 tasks | 4 files |
 | Phase 10 P02 | 12 min | 3 tasks | 14 files |
+| Phase 10 P03 | 12 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -322,6 +323,9 @@ Recent decisions affecting current work:
 - [Phase 09]: No synchronous npcModel accessor; loadNpcModel promise carries the model
 - [Phase 10]: Ship mass = hull octree mass plus ordered float32 sum of non-flasher subentity masses (Coriolis 515,483,904; buoy 698,691.1875); float32 at every op, volume limit 5
 - [Phase 10]: 10-02: ships.json keeps no mass; ships-npc.json and the two ships-client.json entries carry the float32 mass; buoy masses computed in generate.ts but stored nowhere until plan 10-03/10-04
+- [Phase 10]: D-04 Coriolis blockage mass: Oolite's computed 515,483,904 (radius 7,179.7 m), owner decision 2026-11-14
+- [Phase 10]: D-05 amended: buoy mass stored as a buoy entry in ships-client.json (buoy-client), implemented in plan 10-04
+- [Phase 10]: Roadmap criterion 2 reading accepted (criterion2-accept), revisable; real-Oolite mass check is a deferred follow-up
 
 ### Pending Todos
 
@@ -415,8 +419,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T10:06:01.763Z
-Stopped at: Completed 10-02-PLAN.md
+Last session: 2026-11-14T10:09:35.332Z
+Stopped at: Completed 10-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
