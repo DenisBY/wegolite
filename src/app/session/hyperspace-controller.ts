@@ -28,7 +28,7 @@ import {
   marketSeedForSystem,
 } from "../../sim/economy/market.js";
 import type { Market } from "../../sim/economy/market.js";
-import type { HyperspaceRefusal } from "../../sim/events.js";
+import type { HyperspaceRefusal, WitchspaceBlocker } from "../../sim/events.js";
 import { poseOf } from "../../sim/flight/state.js";
 import {
   applyWitchpointArrival,
@@ -115,7 +115,10 @@ export function createHyperspaceController(
   }
 
   /** D-06 copy is app-owned; the sim event carries a payload-free reason. */
-  function refusalCopy(reason: HyperspaceRefusal): string {
+  function refusalCopy(
+    reason: HyperspaceRefusal,
+    blocker?: WitchspaceBlocker,
+  ): string {
     switch (reason) {
       case "no target":
         return "No target selected";
@@ -124,10 +127,15 @@ export function createHyperspaceController(
       case "insufficient fuel":
         return "Insufficient fuel";
       case "blocked":
-        // Only a Coriolis station blocks (witchspaceStationMass), so the name is
-        // fixed. The copy is exactly MAX_MESSAGE_CHARS (54) long: the HUD clamps
-        // a longer line with an ellipsis, which would cut the station name.
-        return "Witchspace jump aborted: too close to Coriolis Station";
+        // The Coriolis station and, since Phase 12, NPC ships block; the buoys
+        // do not (owner decision 2026-11-14, option A; revisit in todo
+        // 2026-11-14-make-buoys-block-hyperspace-like-oolite). The station
+        // copy is exactly MAX_MESSAGE_CHARS (54) long: the HUD clamps a longer
+        // line with an ellipsis, which would cut the station name. The ship
+        // copy is 44 characters.
+        return blocker === "ship"
+          ? "Witchspace jump aborted: too close to a ship"
+          : "Witchspace jump aborted: too close to Coriolis Station";
     }
   }
 

@@ -29,7 +29,11 @@
 
 import type { System } from "../../content/types.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
-import type { HyperspaceRefusal, SimEvent } from "../../sim/events.js";
+import type {
+  HyperspaceRefusal,
+  SimEvent,
+  WitchspaceBlocker,
+} from "../../sim/events.js";
 import { poseOf } from "../../sim/flight/state.js";
 import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
 import { shouldEmitScrapeMessage } from "../dock-feedback.js";
@@ -321,7 +325,10 @@ export function createDockFeedbackFlow(
 /** What the hyperspace subscriber calls outside the session context. */
 export interface HyperspaceFlowDeps {
   readonly messages: Pick<MessageQueue, "enqueuePriority">;
-  readonly refusalCopy: (reason: HyperspaceRefusal) => string;
+  readonly refusalCopy: (
+    reason: HyperspaceRefusal,
+    blocker?: WitchspaceBlocker,
+  ) => string;
   readonly handleHyperspaceJumped: (event: {
     destinationId: string;
     clockDeltaSeconds: number;
@@ -339,7 +346,7 @@ export function createHyperspaceFlow(
     switch (event.kind) {
       case "hyperspaceRefused":
         ctx.core.lastRefusal = { reason: event.reason };
-        messages.enqueuePriority(refusalCopy(event.reason));
+        messages.enqueuePriority(refusalCopy(event.reason, event.blocker));
         break;
       case "hyperspaceJumped":
         handleHyperspaceJumped(event);

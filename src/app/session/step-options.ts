@@ -19,6 +19,7 @@ import type { System } from "../../content/types.js";
 import type { DockGeometry } from "../../sim/dock/geometry.js";
 import type { StepOptions } from "../../sim/flight/step.js";
 import { witchspaceStationMass } from "../../sim/hyperspace/countdown.js";
+import type { ShipMass } from "../../sim/world/ship-field.js";
 
 /** The facts one fixed step needs; every field is read live by the caller. */
 export interface StepOptionsInput {
@@ -31,16 +32,23 @@ export interface StepOptionsInput {
   readonly equipment: ReadonlySet<string>;
   /** The validated dock geometry; absent before the boot install. */
   readonly dock: DockGeometry | undefined;
+  /**
+   * The compiled NPC ship masses keyed by spec key, for ship jump blockage
+   * (WORLD-10). Absent when the session has none; the session and the Node
+   * replay hand the same list to the step.
+   */
+  readonly shipMasses?: readonly ShipMass[];
 }
 
 /**
  * Build one step's options. Optional keys are omitted rather than set to
  * `undefined` (`exactOptionalPropertyTypes`): `target` only when a target is
  * committed, `stationMass` only when the origin's station kind has a recorded
- * mass, and `dock` only when the geometry exists.
+ * mass, `shipMasses` only when the caller has them, and `dock` only when the
+ * geometry exists.
  */
 export function buildStepOptions(input: StepOptionsInput): StepOptions {
-  const { fuel, system, target, equipment, dock } = input;
+  const { fuel, system, target, equipment, dock, shipMasses } = input;
   // The read-only station mass of the live system's station kind. Only a
   // Coriolis station has a recorded mass; the others omit the fact.
   const stationMass = witchspaceStationMass(system.station);
@@ -61,6 +69,7 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
           },
         }),
     ...(stationMass === undefined ? {} : { stationMass }),
+    ...(shipMasses === undefined ? {} : { shipMasses }),
   };
   return dock === undefined
     ? { equipment, hyperspace }
