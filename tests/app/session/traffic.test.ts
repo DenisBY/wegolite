@@ -107,15 +107,17 @@ describe("createInertPopulate", () => {
   });
 
   it("reads both getters at call time", () => {
-    let current: TrafficContent | undefined;
+    const held: { current: TrafficContent | undefined } = {
+      current: undefined,
+    };
     const populate = createInertPopulate(
-      () => current,
+      () => held.current,
       () => lave.layout,
     );
     const early = createWorld(WORLD_SEED);
     populate(early, { traffic: true });
     expect(liveEntityCount(early)).toBe(0);
-    current = content;
+    held.current = content;
     const late = createWorld(WORLD_SEED);
     populate(late, { traffic: true });
     expect(liveEntityCount(late)).toBe(12);
