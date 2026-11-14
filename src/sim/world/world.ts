@@ -243,6 +243,50 @@ function isLegalAi(ai: AiComponent): boolean {
   );
 }
 
+/** A non-null, non-array object: the only shape a record field may have. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** An object whose listed components are all JS numbers (domain checks come later). */
+function hasNumberFields(
+  value: unknown,
+  fields: readonly string[],
+): value is Record<string, number> {
+  return (
+    isRecord(value) && fields.every((field) => typeof value[field] === "number")
+  );
+}
+
+/**
+ * True when `init` or `tick` has the wrong shape or a wrong JS type, which the
+ * type system cannot rule out for deserialised or script-like callers. Only
+ * `typeof` and `Array.isArray` are used, and a property is read only from a
+ * value already known to be a non-null object, so this never throws. It runs
+ * before every domain check (FOUND-16).
+ */
+function isMalformedInit(init: unknown, tick: unknown): boolean {
+  if (!isRecord(init)) return true;
+  if (typeof tick !== "number") return true;
+  if (typeof init["specKey"] !== "string") return true;
+  if (typeof init["kind"] !== "string") return true;
+  if (typeof init["scanClass"] !== "string") return true;
+  if (typeof init["radius"] !== "number") return true;
+  const speed = init["speed"];
+  if (speed !== undefined && typeof speed !== "number") return true;
+  const ownerId = init["ownerId"];
+  if (ownerId !== undefined && typeof ownerId !== "number") return true;
+  if (!hasNumberFields(init["position"], ["x", "y", "z"])) return true;
+  if (!hasNumberFields(init["orientation"], ["w", "x", "y", "z"])) return true;
+  const ai = init["ai"];
+  if (ai === undefined || ai === null) return false;
+  if (!isRecord(ai)) return true;
+  if (typeof ai["aiKey"] !== "string") return true;
+  if (typeof ai["wakeTick"] !== "number") return true;
+  if (typeof ai["nextThinkTick"] !== "number") return true;
+  return !isRecord(ai["params"]);
+}
+
 /**
  * The first domain rule `init` and `tick` violate, or undefined when both lie
  * inside the shared serialised domain. An AI component outside the domain is
@@ -253,7 +297,6 @@ function domainRefusal(
   tick: number,
 ): SpawnRefusal | undefined {
   if (!isUint32(tick)) return "outOfDomain";
-  if (typeof init.specKey !== "string") return "outOfDomain";
   if (init.specKey.length === 0 || !isLegalString(init.specKey)) {
     return "outOfDomain";
   }
@@ -299,8 +342,8 @@ function copyAi(ai: AiComponent): AiComponent {
 /**
  * The closed list of reasons `spawnEntity` refuses. Each reason is a
  * payload-free code: no refusal carries text built from the input.
- * `malformed` is for input the type system cannot rule out (the guards arrive
- * with FOUND-15); `outOfDomain` is a field outside the shared serialised
+ * `malformed` is for input the type system cannot rule out (a nullish or
+ * wrong-typed field, FOUND-16); `outOfDomain` is a field outside the shared serialised
  * domain; `ai` an AI component outside it; `idExhausted` a spent id counter;
  * `storeFull` a store already holding `MAX_ENTITIES` live entities.
  */
@@ -320,14 +363,15 @@ export type SpawnResult =
 
 /**
  * Spawn an entity. Returns `{ ok: true, entity }`, or `{ ok: false, reason }`
- * with `reason` from `SPAWN_REFUSALS`; it never throws for a refusal. It
- * refuses when `init` or `tick` lies outside the shared serialised domain
+ * with `reason` from `SPAWN_REFUSALS`; it never throws, whatever `init` and
+ * `tick` hold. It refuses when `init` or `tick` has a nullish or wrong-typed
+ * field (`malformed`), when they lie outside the shared serialised domain
  * (`./limits.ts`, the closed vocabularies of `./ids.ts` and `../ai/types.ts`),
  * when the id counter is spent or when the store is full. Every refusal
  * happens before `store.allocate`, so `nextId`, the live array and the world
  * stream are untouched by a refusal and the next valid spawn receives the id
- * the counter showed before it. The refusal order is domain (`outOfDomain`,
- * `ai`), then `idExhausted`, then `storeFull`. Membership checks use
+ * the counter showed before it. The refusal order is `malformed`, then the
+ * domain (`outOfDomain`, `ai`), then `idExhausted`, then `storeFull`. Membership checks use
  * `Array.prototype.includes` over the vocabulary arrays, never the `in`
  * operator, so a prototype name such as "constructor" is refused. The
  * orientation must already be a unit quaternion: spawn neither normalises nor
@@ -342,6 +386,7 @@ export function spawnEntity(
   init: SpawnInit,
   tick: number,
 ): SpawnResult {
+  if (isMalformedInit(init, tick)) return { ok: false, reason: "malformed" };
   const refusal = domainRefusal(init, tick);
   if (refusal !== undefined) return { ok: false, reason: refusal };
   const nextId = world.store.nextId;
