@@ -318,9 +318,13 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
 
   // Fly clear of the station before the commit. The dock mouth lies about 500 m
   // from the station centre, so a ship 7,500 m from the docked pose is at least
-  // 7,000 m from the station, beyond the 6,747.0 m blockage radius (the square
-  // root of 0.1 times 455,223,200, ShipEntity.m lines 12504-12511). A begin
-  // beside the station was never refused; only the completion is checked.
+  // 7,000 m from the station when KeyH is pressed. That is inside the 7,179.7 m
+  // blockage radius (the square root of 0.1 times 515,483,904, ShipEntity.m
+  // lines 12511 and 12528), but the check runs at the completion, not at the
+  // begin. With no throttle input the speed holds, so the ship keeps flying
+  // straight outward at 175 u/s or more for the 15 s countdown and is at least
+  // about 9,600 m out at the commit. A begin beside the station was never
+  // refused; only the completion is checked.
   await flyAwayFrom(page, dockedPose, 7_500);
 
   // Restart and wait for the commit.
@@ -619,7 +623,7 @@ test("a jump completed beside the station is refused as blocked", async ({
   // No throttle input: the 175 u/s launch speed holds for the whole countdown.
   // The ship travels about 0.35 km in the 2 s launch and about 2.6 km in the
   // 15 s countdown, so it completes about 3.0 km from the docked pose and about
-  // 3.5 km from the station, inside the 6,747.0 m blockage radius.
+  // 3.5 km from the station, inside the 7,179.7 m blockage radius.
   await page.keyboard.press("KeyH");
   await page.waitForFunction(
     () => (window.__wegolite?.hyperspace?.countdown ?? 0) > 0,

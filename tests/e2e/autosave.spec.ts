@@ -403,7 +403,10 @@ test("a tainted manual dock reaches the trigger but skips the write: Continue st
  * 240 s wait sits inside the 600 s per-test budget (line 44). The
  * fly-away is needed only so the completion is not refused as blocked: the dock
  * mouth lies about 500 m from the Coriolis station centre, and the blockage
- * radius is 6,747.0 m (ShipEntity.m lines 12504-12511).
+ * radius is 7,179.7 m (the square root of 0.1 times 515,483,904, ShipEntity.m
+ * lines 12511 and 12528). The ship is at least 7,000 m from the station at
+ * KeyH and keeps flying outward at 175 u/s or more for the 15 s countdown, so
+ * it completes at least about 9,600 m out.
  */
 async function flyAwayFrom(
   page: Page,

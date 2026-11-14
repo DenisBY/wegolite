@@ -301,8 +301,10 @@ test("new game to launch to trade to hyperspace to dock to save and reload", asy
   await waitForCommitted(page, 2);
 
   // Clear the station on the throttle, so the completing jump is outside the
-  // Coriolis blockage radius (6,747.0 m). Then jump to Diso: the arrival is the
-  // third committed write, and the only one in flight.
+  // Coriolis blockage radius (7,179.7 m). The ship is at least 7,000 m from the
+  // station at KeyH and keeps flying outward at 175 u/s or more for the 15 s
+  // countdown, so it completes at least about 9,600 m out. Then jump to Diso:
+  // the arrival is the third committed write, and the only one in flight.
   await flyAwayFrom(page, dockedPose, 7_500);
   await page.keyboard.press("KeyH");
   await page.waitForFunction(
