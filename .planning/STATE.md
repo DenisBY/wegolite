@@ -5,17 +5,17 @@ milestone_name: World Population Base
 current_phase: 12
 current_phase_name: Inert Ships and the World Lifecycle
 status: executing
-stopped_at: Completed 12-07-PLAN.md
-last_updated: "2026-11-14T18:10:46.491Z"
+stopped_at: Completed 12-08-PLAN.md
+last_updated: "2026-11-14T18:27:53.953Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 12 execution started
-state_head: 3ffaf74dad8277c12e0b35fb720981e876ae9e4f
+state_head: 2d650fe32685fe95f9b7eb538a12a1115d5034d6
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 27
-  completed_plans: 20
-  percent: 74
+  completed_plans: 21
+  percent: 75
 ---
 
 # Project State
@@ -30,11 +30,11 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 ## Current Position
 
 Phase: 12 (Inert Ships and the World Lifecycle) — EXECUTING
-Plan: 8 of 14
+Plan: 9 of 14
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 12 execution started
 
-Progress: [███████░░░] 74%
+Progress: [████████░░] 75%
 
 
 ## Performance Metrics
@@ -147,6 +147,7 @@ Progress: [███████░░░] 74%
 | Phase 12 P05 | 11 min | 3 tasks | 12 files |
 | Phase 12 P06 | 20min | 2 tasks | 13 files |
 | Phase 12 P07 | 30 min | 2 tasks | 9 files |
+| Phase 12 P08 | ~45min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -354,6 +355,7 @@ Recent decisions affecting current work:
 - [Phase 12]: 12-05: a refused torus toggle emits torusRefused ('Hyperspeed mass-locked.'); torusDisengaged stays for a running drive; ship blocker copy 'too close to a ship'; lastRefusal keeps { reason }
 - [Phase 12]: Compile each NPC ship's collision radius next to its mass: float32 sqrt of the largest squared hull vertex distance (OOMesh.m 1795-1822); solid-subentity extension not ported, build fails if one appears (plan 12-06)
 - [Phase 12]: First inert populator (WORLD-15): fixed table of 12 single ships at Oolite location codes, draw order location/pick/orientation, spawn tick 0, 256-try cap with last-candidate fallback, ai null, total populate, no draws without eligible records (D-01); Key Decisions row recorded in PROJECT.md
+- [Phase 12]: NPC traffic content loads at start-up only with traffic on; the populate closure reads content and layout at call time and the session and Node replay share traffic.ts (12-08)
 
 ### Pending Todos
 
@@ -447,8 +449,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T18:10:46.116Z
-Stopped at: Completed 12-07-PLAN.md
+Last session: 2026-11-14T18:27:53.595Z
+Stopped at: Completed 12-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
