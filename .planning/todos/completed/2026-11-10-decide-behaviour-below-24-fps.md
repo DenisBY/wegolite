@@ -28,3 +28,11 @@ notice. Measure on a weak GPU first; there is no evidence yet of how often
 this happens.
 
 > Note (2026-11-13): v2.0 was narrowed to Phase 8; this todo now belongs to v2.1 (Phase 12 in the v2.1 section of ROADMAP.md).
+
+## Resolution
+
+Decided in Phase 12 plan 12-14 (D-03, owner decision 2026-11-14): no behaviour
+change. `MAX_STEPS_PER_FRAME` stays 5, so below 24 fps the game runs in slow
+motion, with no notice and no automatic quality drop. Evidence under load waits
+for the later performance phase; the decision is reversible without touching
+saved data.

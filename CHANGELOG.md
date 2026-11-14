@@ -39,6 +39,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are loaded, and the next save uses the new save format. **Compatibility:** an
   older version of Wegolite keeps a save written by this version untouched but
   cannot load it.
+- Opening the galactic chart (F6) in flight no longer pauses the game: the
+  ship, the other ships and a running hyperspace countdown keep going behind the
+  chart, as in Oolite, and docking or arriving behind the chart closes it.
+  Opened while docked, the chart behaves as before.
 
 ## [0.3.0] - 2026-11-11
 

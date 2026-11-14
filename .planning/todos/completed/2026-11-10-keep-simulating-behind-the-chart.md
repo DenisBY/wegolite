@@ -27,3 +27,12 @@ the chart. The first matches Oolite; check what it means for the autosave and
 for the hyperspace countdown tests in `tests/e2e/hyperspace.spec.ts`.
 
 > Note (2026-11-13): v2.0 was narrowed to Phase 8; this todo now belongs to v2.1 (Phase 12 in the v2.1 section of ROADMAP.md).
+
+## Resolution
+
+Closed by Phase 12 plans 12-13 and 12-14 (WORLD-11, owner decision D3): in
+flight the simulation, the world and a running hyperspace countdown keep
+advancing behind the opaque chart with no pilot input; a chart opened while
+docked stays frozen; a dock or an arrival behind the chart closes it;
+`advanceTicks` steps behind it in flight. The one v1 freeze check in
+`tests/e2e/hyperspace.spec.ts` was inverted.
