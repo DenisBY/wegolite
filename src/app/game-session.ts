@@ -252,6 +252,11 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     syncEconomyProbe: () => {
       probePublisher.syncEconomyProbe();
     },
+    // The chart controller is built later; an arrival behind the chart closes
+    // it through a call-time wrapper (WORLD-11).
+    closeChart: () => {
+      chartController.closeChart();
+    },
   });
   const {
     refusalCopy,

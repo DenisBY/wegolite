@@ -994,6 +994,7 @@ describe("arrival", () => {
       publishFailure: () => calls.push("publishFailure"),
       autosave: () => calls.push("autosave"),
       syncEconomyProbe: () => calls.push("syncEconomyProbe"),
+      closeChart: () => calls.push("closeChart"),
     };
     return {
       ctx,
@@ -1317,6 +1318,7 @@ describe("jump commit clears the world on the same tick (WORLD-14)", () => {
       publishFailure: quiet,
       autosave: quiet,
       syncEconomyProbe: quiet,
+      closeChart: quiet,
     });
     const events: SimEvent[] = [];
     const real = createEventRouter(ctx, {

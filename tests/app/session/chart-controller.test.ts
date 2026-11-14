@@ -134,6 +134,29 @@ describe("openChart and closeChart", () => {
     ]);
   });
 
+  it("closing restores the flight context the chart was opened from (WORLD-11)", () => {
+    const { ctx, controller, contexts } = harness();
+    ctx.runtime.input?.setContext("flight");
+    contexts.length = 0;
+    controller.openChart();
+    expect(ctx.chart.contextBeforeChart).toBe("flight");
+
+    controller.closeChart();
+
+    expect(ctx.chart.chartOpen).toBe(false);
+    expect(contexts).toEqual(["chart", "flight"]);
+  });
+
+  it("closing twice restores the context once and resets the loop once", () => {
+    const { controller, contexts, calls } = harness();
+    controller.openChart();
+    calls.length = 0;
+    controller.closeChart();
+    controller.closeChart();
+    expect(contexts).toEqual(["chart", "dockHome"]);
+    expect(calls.filter((call) => call === "loop.reset")).toHaveLength(1);
+  });
+
   it("closing a chart that is not open does nothing", () => {
     const { controller, calls, contexts } = harness();
     controller.closeChart();

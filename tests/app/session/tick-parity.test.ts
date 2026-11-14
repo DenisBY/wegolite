@@ -181,6 +181,7 @@ function session(search: string, populated = false): Session {
     publishFailure: quiet,
     autosave: quiet,
     syncEconomyProbe: quiet,
+    closeChart: quiet,
   };
   const controller = createHyperspaceController(ctx, controllerDeps);
 

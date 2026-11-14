@@ -61,6 +61,11 @@ export interface HyperspaceControllerDeps {
   readonly autosave: () => void;
   /** Publish the live economy on the probe. */
   readonly syncEconomyProbe: () => void;
+  /**
+   * Close the galactic chart, restoring its saved input context. An arrival
+   * that completes behind an open chart closes it (WORLD-11).
+   */
+  readonly closeChart: () => void;
 }
 
 export function createHyperspaceController(
@@ -76,6 +81,7 @@ export function createHyperspaceController(
     publishFailure,
     autosave,
     syncEconomyProbe,
+    closeChart,
   } = deps;
 
   /** D-09: resolve and install a new system scene; never rebuild the dock port. */
@@ -245,6 +251,13 @@ export function createHyperspaceController(
       clockDeltaSeconds: event.clockDeltaSeconds,
       fuelCost: event.fuelCost,
     };
+    // An arrival behind the chart (WORLD-11): the simulation keeps running
+    // behind an open chart, so the jump can complete under it. Close it here,
+    // after the install and before the announcement, so the destination never
+    // appears under an open chart and the input context returns to the one the
+    // chart saved (flight). The failure branch above returns before this, so a
+    // failed arrival leaves the chart as it was.
+    if (ctx.chart.chartOpen) closeChart();
     syncStatusOverlay();
     messages.enqueue(`Arrived at ${destination.name}`);
     // The arrival anchor is a complete in-flight v2 snapshot.

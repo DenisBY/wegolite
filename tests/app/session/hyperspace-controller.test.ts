@@ -25,6 +25,8 @@ import {
   generateMarket,
   marketSeedForSystem,
 } from "../../../src/sim/economy/market.js";
+import type { InputContext } from "../../../src/input/actions.js";
+import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
@@ -48,6 +50,8 @@ interface Harness {
   readonly calls: string[];
   readonly failures: string[];
   readonly published: string[];
+  /** Every input context the chart's close restored, in order. */
+  readonly contexts: InputContext[];
 }
 
 function harness(
@@ -61,6 +65,7 @@ function harness(
   const calls: string[] = [];
   const failures: string[] = [];
   const published: string[] = [];
+  const contexts: InputContext[] = [];
   const state = initFlightState(lave.layout);
   state.mode = "inFlight";
   ctx.core.state = state;
@@ -104,13 +109,26 @@ function harness(
     },
     autosave: () => calls.push("autosave"),
     syncEconomyProbe: () => calls.push("syncEconomyProbe"),
+    closeChart: () => {
+      // The chart controller's close: clear the flag, restore the saved context.
+      calls.push("closeChart");
+      ctx.chart.chartOpen = false;
+      ctx.runtime.input?.setContext(ctx.chart.contextBeforeChart);
+    },
   };
+  ctx.runtime.input = {
+    getContext: () => contexts.at(-1) ?? "flight",
+    setContext: (next: InputContext) => {
+      contexts.push(next);
+    },
+  } as unknown as KeyboardInputSource;
   return {
     ctx,
     controller: createHyperspaceController(ctx, deps),
     calls,
     failures,
     published,
+    contexts,
   };
 }
 
@@ -202,6 +220,53 @@ describe("handleHyperspaceJumped, a committed arrival", () => {
     expect(ctx.core.lastJump).toEqual(jumped);
     expect(ctx.station.stationScreen).toBe("home");
     expect(ctx.runtime.paused).toBe(false);
+  });
+});
+
+describe("handleHyperspaceJumped behind an open chart (WORLD-11)", () => {
+  it("closes the chart in the post-install steps and leaves the flight context", () => {
+    const { ctx, controller, calls, contexts } = harness();
+    ctx.chart.chartOpen = true;
+    ctx.chart.contextBeforeChart = "flight";
+    ctx.chart.chartSelectedId = destination?.id;
+
+    controller.handleHyperspaceJumped(jumped);
+
+    expect(ctx.chart.chartOpen).toBe(false);
+    expect(ctx.chart.chartSelectedId).toBeUndefined();
+    expect(contexts).toEqual(["flight"]);
+    // After the scene install, before the announcement and the arrival anchor.
+    expect(calls).toEqual([
+      `enterSystem ${destination?.id ?? ""}`,
+      "closeChart",
+      `enqueue Arrived at ${destination?.name ?? ""}`,
+      "autosave",
+      "syncEconomyProbe",
+    ]);
+  });
+
+  it("never closes a chart that is already closed", () => {
+    const { ctx, controller, calls, contexts } = harness();
+    expect(ctx.chart.chartOpen).toBe(false);
+    controller.handleHyperspaceJumped(jumped);
+    expect(calls).not.toContain("closeChart");
+    expect(contexts).toEqual([]);
+  });
+
+  it("a failed arrival leaves the chart and the input context as they were", () => {
+    const { ctx, controller, calls, contexts } = harness({
+      failDestinationBuild: true,
+    });
+    ctx.chart.chartOpen = true;
+    ctx.chart.contextBeforeChart = "flight";
+    ctx.chart.chartSelectedId = destination?.id;
+
+    controller.handleHyperspaceJumped(jumped);
+
+    expect(ctx.chart.chartOpen).toBe(true);
+    expect(ctx.chart.chartSelectedId).toBe(destination?.id);
+    expect(contexts).toEqual([]);
+    expect(calls).toEqual(["showBootFailure", "publishFailure"]);
   });
 });
 
