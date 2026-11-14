@@ -42,17 +42,20 @@
  *
  * (ii) `begin` runs `populate` inside the arrival's synchronous install block,
  * whose invariant is that everything that can throw runs before any live
- * reference moves. `populateNothing` cannot throw. A later populator that can
- * must be split into a fallible prepare step that runs before the install block
- * and a commit that cannot fail.
+ * reference moves. `populateNothing` cannot throw, and neither can the inert
+ * populator of Phase 12: `populateInertWorld` is total (a `spawnEntity` refusal
+ * is skipped, every loop is capped, records are pre-validated and a record with
+ * an unknown scan class is dropped before any draw), and its closure never
+ * awaits. A later populator that can throw must be split into a fallible
+ * prepare step that runs before the install block and a commit that cannot
+ * fail.
  *
- * (iii) The D-05 forward note. Phase 8 proves that the epoch and each fresh
- * world's starting counter (next id 101 before populate) are the same with
- * traffic on and off, because `populateNothing` spawns nothing in either mode.
- * A real populator that spawns only with traffic on makes the post-populate
- * counter differ by mode, so the phase that adds it must decide with the owner
- * whether D-05 keeps the starting-counter reading or requires populate to burn
- * ids with traffic off.
+ * (iii) D-01, decided in Phase 12. The epoch and each fresh world's starting
+ * counter (next id 101 before populate) are the same with traffic on and off.
+ * Populate does not burn ids with traffic off: the post-populate counter, and
+ * so the leg anchor, is 113 with traffic on (the 12 inert ships take ids 101 to
+ * 112) and 101 with traffic off, and a world with no NPC keeps hashing as the
+ * v1 flight hash.
  *
  * The module must stay importable by the Playwright Node runner (plan 08-16):
  * pure, no DOM, no Three, and nothing beyond `src/sim`. A Vitest guard in

@@ -160,8 +160,9 @@ test("traffic is off under ?test=1 and on only for a spec that opts in", async (
   const flying = await sample(page);
   expect(flying.traffic).toBe(true);
   expect(flying.worldLive).toBe(true);
-  // No populator exists yet, so the opt-in changes only the flag.
-  expect(flying.entities).toBe(0);
+  // The opt-in populates the first populator's 12 inert ships (plan 12-07;
+  // sanctioned by WORLD-16).
+  expect(flying.entities).toBe(12);
 });
 
 test("the clock and traffic flags are inert without ?test=1", async ({

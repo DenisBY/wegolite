@@ -229,7 +229,7 @@ export function createHyperspaceController(
     // D-02: the arrival bumps the epoch and derives the new world from the
     // destination's market seed, here and not later, so the arrival autosave
     // below follows the new world. It cannot throw: `nextSeed` is finite and
-    // the populator of this phase adds nothing.
+    // the inert populator is total (rule ii of the world lifecycle).
     ctx.core.worldLifecycle?.begin(nextSeed);
     const arrivedPose = poseOf(currentState);
     ctx.core.previousPose = arrivedPose;
