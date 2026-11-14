@@ -13,6 +13,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Shuttle), with their models, WebP textures and role records. They are loaded
   only on demand, so the first load is unchanged, and they do not appear in the
   game until ships are placed in space.
+- Inert NPC ships of the six roles (traders, pirates, police Vipers, hunters,
+  shuttles and scavengers) now sit in each system after a launch and after a
+  hyperspace arrival. They do not move yet. Like Oolite's ships they lock the
+  torus drive within 25.6 km and block a hyperspace jump that completes right
+  beside them. They are not saved, and loading a game rebuilds the same ships.
 
 ### Changed
 
