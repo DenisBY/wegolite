@@ -21,18 +21,18 @@
     {
       "number": "11",
       "name": "Minimal Save Schema v3",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "12",
       "name": "Inert Ships and the World Lifecycle",
-      "status": "pending"
+      "status": "in_progress"
     }
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (plan phase 11)",
-    "reason": "Phase 3 of 4 — needs a plan"
+    "label": "Advance to the next step",
+    "reason": "Phase 4 of 4 · 52% · executing"
   },
-  "updated_at": "2026-11-14T10:25:25.858Z"
+  "updated_at": "2026-11-14T17:02:28.769Z"
 }

@@ -164,11 +164,11 @@ Plans:
   - The below-24-fps behaviour (todo); its evidence under load waits for the unscheduled performance phase (former Phase 23).
   - Settled 2026-11-13 (owner): WORLD-11 against WORLD-16, the chart-freeze check in `tests/e2e/hyperspace.spec.ts` is inverted; it is the one sanctioned change to an existing browser test, and WORLD-16 records the exception.
 **Todos**: `2026-11-10-keep-simulating-behind-the-chart.md` (closed by WORLD-11); `2026-11-10-fix-torus-refusal-message-under-mass-lock.md` (closed by WORLD-10; refusals become common once ships mass-lock); `2026-11-10-decide-behaviour-below-24-fps.md` (decide here)
-**Plans**: 14 plans (sequential waves: most plans record a Key Decision in PROJECT.md, and the Docker gates share one slow host; each plan stays within the 14-file budget). The first-plan rule is met by plans 12-01 and 12-02, which deliver FOUND-16 and FOUND-15 before any populator code; the split exists only because the atomic `spawnEntity` call-site migration fills one plan's file budget.
+**Plans**: 1/14 plans executed (sequential waves: most plans record a Key Decision in PROJECT.md, and the Docker gates share one slow host; each plan stays within the 14-file budget). The first-plan rule is met by plans 12-01 and 12-02, which deliver FOUND-16 and FOUND-15 before any populator code; the split exists only because the atomic `spawnEntity` call-site migration fills one plan's file budget.
 
 Plans:
 **Wave 1**
-- [ ] 12-01-PLAN.md — FOUND-16 result contract: `spawnEntity` returns a `SpawnResult` with a closed reason; the 40 call sites migrated in one atomic change
+- [x] 12-01-PLAN.md — FOUND-16 result contract: `spawnEntity` returns a `SpawnResult` with a closed reason; the 40 call sites migrated in one atomic change
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 12-02-PLAN.md — FOUND-15 and the rest of FOUND-16: a throwing AI module becomes nullAI with an `aiFaulted` event and a deterministic hash; inert entities hold still (D-02, D-04); malformed spawn input is refused, never thrown
@@ -243,7 +243,7 @@ Pending todos outside v2.1, which can run as quick tasks or join a phase by owne
 | 9. NPC Content | v2.1 | 5/5 | Complete    | 2026-11-14 |
 | 10. Ship Mass | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
-| 12. Inert Ships and the World Lifecycle | v2.1 | 0/14 | Planned | - |
+| 12. Inert Ships and the World Lifecycle | v2.1 | 1/14 | In Progress | - |
 
 ## Backlog
 

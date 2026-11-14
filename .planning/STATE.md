@@ -4,18 +4,18 @@ milestone: v2.1
 milestone_name: World Population Base
 current_phase: 12
 current_phase_name: Inert Ships and the World Lifecycle
-status: planning
-stopped_at: Phase 12 context gathered
-last_updated: "2026-11-14T14:02:25.076Z"
+status: executing
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-11-14T17:02:30.695Z"
 last_activity: 2026-11-14
-last_activity_desc: Phase 11 complete, transitioned to Phase 12
-state_head: e79ab89863c62a3254c2187b18f62f9a26cf3c35
+last_activity_desc: Phase 12 execution started
+state_head: fbd49344365c216d233234d5753c964fa47642ac
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 13
-  completed_plans: 13
-  percent: 75
+  total_plans: 27
+  completed_plans: 14
+  percent: 52
 ---
 
 # Project State
@@ -25,16 +25,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-13)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 11 — Minimal Save Schema v3
+**Current focus:** Phase 12 — Inert Ships and the World Lifecycle
 
 ## Current Position
 
-Phase: 12 — Inert Ships and the World Lifecycle
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-11-14 — Phase 11 complete, transitioned to Phase 12
+Phase: 12 (Inert Ships and the World Lifecycle) — EXECUTING
+Plan: 2 of 14
+Status: Ready to execute
+Last activity: 2026-11-14 — Phase 12 execution started
 
-Progress: [████████░░] 75%
+Progress: [█████░░░░░] 52%
 
 
 ## Performance Metrics
@@ -140,6 +140,7 @@ Progress: [████████░░] 75%
 | Phase 11 P02 | 10 min | 3 tasks | 16 files |
 | Phase 11 P03 | 15min | 2 tasks | 5 files |
 | Phase 11 P04 | 45min | 2 tasks | 4 files |
+| Phase 12 P01 | 30min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -339,6 +340,7 @@ Recent decisions affecting current work:
 - [Phase 11]: Cold Continue and warm Load call resetForRestore in the same position (after the seed install, before the in-flight resume), so both yield the same epoch and world seed (D-06)
 - [Phase 11]: Worst-case v3 save measures 40,427 characters, under MAX_SAVE_CHARS 65,536 (11-03)
 - [Phase 11]: Phase 11 gate: verify-full green (28m27s, exit 0); save schema v3 fields recorded in Key Decisions, worst case 40,427 of 65,536 characters
+- [Phase 12]: 12-01: spawnEntity refusal order is domain (outOfDomain, ai), idExhausted, storeFull, all before store.allocate; malformed declared, produced by 12-02
 
 ### Pending Todos
 
@@ -432,9 +434,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T14:02:24.869Z
-Stopped at: Phase 12 context gathered
-Resume file: .planning/phases/12-inert-ships-and-the-world-lifecycle/12-CONTEXT.md
+Last session: 2026-11-14T17:02:30.430Z
+Stopped at: Completed 12-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
