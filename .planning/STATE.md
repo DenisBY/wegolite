@@ -4,17 +4,17 @@ milestone: v2.2
 milestone_name: Weapons and NPC Flight
 current_phase: 13
 current_phase_name: Views, Lasers and Shields
-status: planning
-stopped_at: Phase 13 context gathered
-last_updated: "2026-11-14T22:47:13.070Z"
+status: executing
+stopped_at: Completed 13-01-PLAN.md
+last_updated: "2026-11-14T22:58:24.411Z"
 last_activity: 2026-11-14
-last_activity_desc: v2.2 roadmap created (Phases 13-14, 10/10 requirements mapped)
-state_head: 6652ae7010e4fb783a541afb730888bb0ccb3001
+last_activity_desc: Phase 13 execution started
+state_head: 18c5b68eb79e380584eb49f2845870954415fbed
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 16
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-14)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Milestone v2.2 Weapons and NPC Flight — Phase 13 (Views, Lasers and Shields) and Phase 14 (NPC Flight and Steering Fidelity Gate), which can run in parallel
+**Current focus:** Phase 13 — Views, Lasers and Shields
 
 ## Current Position
 
-Phase: 13 (Views, Lasers and Shields) — READY TO EXECUTE
-Plan: —
-Status: Ready to plan (roadmap created, awaiting owner approval)
-Last activity: 2026-11-14 — v2.2 roadmap created (Phases 13-14, 10/10 requirements mapped)
+Phase: 13 (Views, Lasers and Shields) — EXECUTING
+Plan: 2 of 16
+Status: Ready to execute
+Last activity: 2026-11-14 — Phase 13 execution started
 
 
 ## Performance Metrics
@@ -153,6 +153,7 @@ Last activity: 2026-11-14 — v2.2 roadmap created (Phases 13-14, 10/10 requirem
 | Phase 12 P12 | 12 min | 3 tasks | 3 files |
 | Phase 12 P13 | 25 min | 3 tasks | 10 files |
 | Phase 12 P14 | 30 min | 3 tasks | 9 files |
+| Phase 13 P01 | 9 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -376,6 +377,7 @@ Recent decisions affecting current work:
 - [Phase 12]: 12-13: the chart close on a dock or an arrival lives in the two handlers that own the screen change (event-router docked case, hyperspace-controller post-install steps); GameLoop.advance stops on a reset generation change so a reset inside a step leaves the accumulator at 0 (WORLD-11, dormant until 12-14)
 - [Phase 12]: Plan 12-14: in flight the simulation steps behind the opaque chart (advanceBehind: no commands, zero input frame); docked, paused and manual-clock charts do not step; advanceTicks steps behind it in flight
 - [Phase 12]: D-03: below 24 fps the slow-motion catch-up cap (MAX_STEPS_PER_FRAME 5) stays, with no notice and no automatic quality drop
+- [Phase 13]: FOUND-17 fixed inside worldLifecycle.begin(): every refusal ends the world and clears the anchor; resume() unchanged
 
 ### Pending Todos
 
@@ -477,9 +479,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T21:14:35.694Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-views-lasers-and-shields/13-CONTEXT.md
+Last session: 2026-11-14T22:58:24.343Z
+Stopped at: Completed 13-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 

@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v2.2",
+  "milestone": "v2.2 — Weapons and NPC Flight",
   "phases": [
     {
       "number": "8",
@@ -27,12 +27,22 @@
       "number": "12",
       "name": "Inert Ships and the World Lifecycle",
       "status": "complete"
+    },
+    {
+      "number": "13",
+      "name": "Views, Lasers and Shields",
+      "status": "in_progress"
+    },
+    {
+      "number": "14",
+      "name": "NPC Flight and Steering Fidelity Gate",
+      "status": "pending"
     }
   ],
   "next": {
-    "command": "/gsd-discuss-phase",
-    "label": "Discuss the first phase",
-    "reason": "Project initialized — plan your first phase"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 1 of 2 · 0% · executing"
   },
-  "updated_at": "2026-11-14T20:55:31.352Z"
+  "updated_at": "2026-11-14T22:58:23.430Z"
 }
