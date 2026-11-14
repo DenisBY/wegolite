@@ -19,6 +19,13 @@
  * (SAVE-07) will pass the persisted `save.epoch` into `resetForRestore` at both
  * the boot Continue and the warm Load.
  *
+ * The leg-anchor counter (Phase 11, SAVE-07, D-01, D-05) is `anchorNextEntityId`:
+ * the `store.nextId` of the world that `begin` or `resume` created, read right
+ * after `populate`. It is read there, never mid-leg, because the save layer
+ * persists the issuing world's counter at the leg anchor, and a spawn later in
+ * the same leg moves the live counter but not the anchor. It counts issued ids
+ * and names no entity, so this module still imports no id type.
+ *
  * Every creation builds a fresh `World` through `createWorld`, so dynamic ids
  * restart at 101 in each new world, and this module holds no entity id and
  * imports no id type: no id survives `end`, `resetForRestore`, `begin` or
@@ -78,6 +85,15 @@ export interface WorldLifecycle {
   /** The session-memory epoch (D-03); 0 until the first `begin`. */
   readonly epoch: number;
   /**
+   * The leg-anchor counter (Phase 11, SAVE-07, D-01, D-05): the `store.nextId`
+   * of the world that `begin` or `resume` created, read right after `populate`.
+   * A spawn later in the same leg therefore never moves it. It is undefined
+   * while no world exists: before the first creation, after `end` and after
+   * `resetForRestore`. It counts issued ids and names no entity (per-world id
+   * scope, the plan 08-05 Key Decisions row).
+   */
+  readonly anchorNextEntityId: number | undefined;
+  /**
    * Bump the epoch, derive `worldSeedFor(marketSeed, epoch)` and create a
    * world. Refuses (epoch and world unchanged, no throw) when `marketSeed` is
    * not finite or the epoch has reached 0xffffffff.
@@ -109,6 +125,7 @@ export function createWorldLifecycle(options: {
   const populate = options.populate ?? populateNothing;
   let epoch = 0;
   let world: World | undefined;
+  let anchorNextEntityId: number | undefined;
 
   function create(marketSeed: number, worldEpoch: number): World {
     const created = createWorld(worldSeedFor(marketSeed, worldEpoch));
@@ -123,6 +140,9 @@ export function createWorldLifecycle(options: {
     get epoch() {
       return epoch;
     },
+    get anchorNextEntityId() {
+      return anchorNextEntityId;
+    },
     begin(marketSeed) {
       if (
         !Number.isFinite(marketSeed) ||
@@ -134,8 +154,10 @@ export function createWorldLifecycle(options: {
       }
       // Build first, commit after: a throwing populator leaves both unchanged.
       const next = epoch + 1;
-      world = create(marketSeed, next);
+      const created = create(marketSeed, next);
+      world = created;
       epoch = next;
+      anchorNextEntityId = created.store.nextId;
     },
     resume(marketSeed) {
       if (
@@ -146,13 +168,17 @@ export function createWorldLifecycle(options: {
       ) {
         return;
       }
-      world = create(marketSeed, epoch);
+      const created = create(marketSeed, epoch);
+      world = created;
+      anchorNextEntityId = created.store.nextId;
     },
     end() {
       world = undefined;
+      anchorNextEntityId = undefined;
     },
     resetForRestore(restoredEpoch = 0) {
       world = undefined;
+      anchorNextEntityId = undefined;
       if (
         Number.isSafeInteger(restoredEpoch) &&
         restoredEpoch >= 0 &&

@@ -160,6 +160,7 @@ describe("launch creates a world that steps through stepSim; docking drops it (t
     if (world === undefined) return;
     expect(world.store.nextId).toBe(101);
     expect(world.statics).toHaveLength(5);
+    expect(lifecycle.anchorNextEntityId).toBe(101);
   });
 
   it("keeps the world hash equal to the flight hash at every step of a launch and flight", () => {
@@ -192,12 +193,14 @@ describe("launch creates a world that steps through stepSim; docking drops it (t
     expect(ctx.core.state?.mode).toBe("docked");
     expect(lifecycle.world).toBeUndefined();
     expect(lifecycle.epoch).toBe(1);
+    expect(lifecycle.anchorNextEntityId).toBeUndefined();
 
     queue.push(launch);
     step();
     expect(lifecycle.epoch).toBe(2);
     expect(lifecycle.world).toBeDefined();
     expect(lifecycle.world?.store.nextId).toBe(101);
+    expect(lifecycle.anchorNextEntityId).toBe(101);
   });
 });
 
@@ -213,11 +216,13 @@ describe("lifecycle rules (D-02, D-03, D-05)", () => {
     const epochs: number[] = [];
     const seeds: (number | undefined)[] = [];
     const nextIds: (number | undefined)[] = [];
+    const anchors: (number | undefined)[] = [];
     const worlds: unknown[] = [];
     const record = (): void => {
       epochs.push(lifecycle.epoch);
       seeds.push(lifecycle.world?.worldSeed);
       nextIds.push(lifecycle.world?.store.nextId);
+      anchors.push(lifecycle.anchorNextEntityId);
       worlds.push(lifecycle.world);
     };
     lifecycle.begin(SEED_A);
@@ -230,7 +235,7 @@ describe("lifecycle rules (D-02, D-03, D-05)", () => {
     record();
     lifecycle.resume(SEED_B);
     record();
-    return { lifecycle, epochs, seeds, nextIds, worlds };
+    return { lifecycle, epochs, seeds, nextIds, anchors, worlds };
   }
 
   it("starts at epoch 0 with no world", () => {
@@ -254,6 +259,8 @@ describe("lifecycle rules (D-02, D-03, D-05)", () => {
     expect(on.seeds).toEqual(off.seeds);
     expect(off.nextIds).toEqual([101, undefined, 101, 101, 101]);
     expect(on.nextIds).toEqual(off.nextIds);
+    expect(off.anchors).toEqual([101, undefined, 101, 101, 101]);
+    expect(on.anchors).toEqual(off.anchors);
   });
 
   it("runs populate at every creation (four times) with the mode's traffic value", () => {
@@ -410,6 +417,170 @@ describe("lifecycle rules (D-02, D-03, D-05)", () => {
   });
 });
 
+/** A populator that spawns three ships, as a later phase's real one will. */
+const populateThree: Populate = (world) => {
+  for (let index = 0; index < 3; index += 1) {
+    spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "viper",
+        scanClass: "CLASS_POLICE",
+        position: vec(index * 10, 0, 0),
+        orientation: identity(),
+        radius: 1,
+      },
+      0,
+    );
+  }
+};
+
+describe("leg-anchor counter (Phase 11, D-01, D-05)", () => {
+  const SEED = 0x00c0ffee;
+
+  it("is undefined on a fresh lifecycle", () => {
+    expect(
+      createWorldLifecycle({ traffic: false }).anchorNextEntityId,
+    ).toBeUndefined();
+  });
+
+  it("is the post-populate counter after begin: 101 with the default populator, 104 with three spawns", () => {
+    const empty = createWorldLifecycle({ traffic: false });
+    empty.begin(SEED);
+    expect(empty.anchorNextEntityId).toBe(101);
+    expect(empty.world?.store.nextId).toBe(101);
+
+    const busy = createWorldLifecycle({
+      traffic: false,
+      populate: populateThree,
+    });
+    busy.begin(SEED);
+    expect(busy.anchorNextEntityId).toBe(104);
+    expect(busy.world?.store.nextId).toBe(104);
+  });
+
+  it("a spawn later in the leg moves the live counter to 105 but leaves the anchor at 104", () => {
+    const lifecycle = createWorldLifecycle({
+      traffic: false,
+      populate: populateThree,
+    });
+    lifecycle.begin(SEED);
+    const world = lifecycle.world;
+    expect(world).toBeDefined();
+    if (world === undefined) return;
+    const spawned = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "viper",
+        scanClass: "CLASS_POLICE",
+        position: vec(0, 0, 0),
+        orientation: identity(),
+        radius: 1,
+      },
+      7,
+    );
+    expect(spawned?.id).toBe(104);
+    expect(world.store.nextId).toBe(105);
+    expect(lifecycle.anchorNextEntityId).toBe(104);
+  });
+
+  it("resume builds a new world and sets the anchor again", () => {
+    const lifecycle = createWorldLifecycle({
+      traffic: false,
+      populate: populateThree,
+    });
+    lifecycle.begin(SEED);
+    const old = lifecycle.world;
+    if (old === undefined) return;
+    spawnEntity(
+      old,
+      {
+        kind: "ship",
+        specKey: "viper",
+        scanClass: "CLASS_POLICE",
+        position: vec(0, 0, 0),
+        orientation: identity(),
+        radius: 1,
+      },
+      7,
+    );
+    expect(old.store.nextId).toBe(105);
+    lifecycle.resume(SEED);
+    expect(lifecycle.world).not.toBe(old);
+    expect(lifecycle.world?.store.nextId).toBe(104);
+    expect(lifecycle.anchorNextEntityId).toBe(104);
+  });
+
+  it("end clears the anchor and keeps the epoch; resetForRestore clears it on both branches", () => {
+    const lifecycle = createWorldLifecycle({ traffic: false });
+    lifecycle.begin(SEED);
+    expect(lifecycle.anchorNextEntityId).toBe(101);
+    lifecycle.end();
+    expect(lifecycle.anchorNextEntityId).toBeUndefined();
+    expect(lifecycle.epoch).toBe(1);
+
+    lifecycle.begin(SEED);
+    expect(lifecycle.anchorNextEntityId).toBe(101);
+    expect(lifecycle.resetForRestore(5)).toBe(true);
+    expect(lifecycle.anchorNextEntityId).toBeUndefined();
+    expect(lifecycle.world).toBeUndefined();
+
+    lifecycle.begin(SEED);
+    expect(lifecycle.anchorNextEntityId).toBe(101);
+    expect(lifecycle.resetForRestore(0xffffffff)).toBe(false);
+    expect(lifecycle.anchorNextEntityId).toBeUndefined();
+    expect(lifecycle.world).toBeUndefined();
+  });
+
+  it("a refused begin or resume leaves the anchor unchanged", () => {
+    const lifecycle = createWorldLifecycle({
+      traffic: false,
+      populate: populateThree,
+    });
+    lifecycle.begin(SEED);
+    expect(lifecycle.anchorNextEntityId).toBe(104);
+    lifecycle.begin(Number.NaN);
+    lifecycle.resume(Number.NaN);
+    expect(lifecycle.anchorNextEntityId).toBe(104);
+  });
+
+  it("a saturated begin leaves the anchor unchanged", () => {
+    const lifecycle = createWorldLifecycle({
+      traffic: false,
+      populate: populateThree,
+    });
+    expect(lifecycle.resetForRestore(0xfffffffe)).toBe(true);
+    lifecycle.begin(SEED);
+    expect(lifecycle.epoch).toBe(0xffffffff);
+    expect(lifecycle.anchorNextEntityId).toBe(104);
+    lifecycle.begin(SEED);
+    expect(lifecycle.epoch).toBe(0xffffffff);
+    expect(lifecycle.anchorNextEntityId).toBe(104);
+  });
+
+  it("a begin whose populator throws rethrows and leaves epoch, world and anchor unchanged", () => {
+    let fail = false;
+    const lifecycle = createWorldLifecycle({
+      traffic: false,
+      populate: (world, options) => {
+        if (fail) throw new Error("populate failed");
+        populateThree(world, options);
+      },
+    });
+    lifecycle.begin(SEED);
+    const world = lifecycle.world;
+    expect(lifecycle.anchorNextEntityId).toBe(104);
+    fail = true;
+    expect(() => {
+      lifecycle.begin(SEED);
+    }).toThrow("populate failed");
+    expect(lifecycle.epoch).toBe(1);
+    expect(lifecycle.world).toBe(world);
+    expect(lifecycle.anchorNextEntityId).toBe(104);
+  });
+});
+
 describe("session wiring (start-up and dispose)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -446,6 +617,7 @@ describe("session wiring (start-up and dispose)", () => {
     ctx.core.worldLifecycle = {
       world: undefined,
       epoch: 0,
+      anchorNextEntityId: undefined,
       begin: () => undefined,
       resume: () => undefined,
       end: () => {
@@ -529,6 +701,9 @@ function logged(
     },
     get epoch() {
       return real.epoch;
+    },
+    get anchorNextEntityId() {
+      return real.anchorNextEntityId;
     },
     begin: (seed) => {
       log.push(`worldLifecycle.begin ${String(seed)}`);
@@ -637,6 +812,7 @@ describe("arrival", () => {
     expect(lifecycle.world).not.toBe(before);
     expect(lifecycle.world?.worldSeed).toBe(worldSeedFor(nextSeed, 2));
     expect(lifecycle.world?.store.nextId).toBe(101);
+    expect(lifecycle.anchorNextEntityId).toBe(101);
     expect(calls).toEqual([
       `enterSystem ${destination?.id ?? ""}`,
       `worldLifecycle.begin ${String(nextSeed)}`,
@@ -656,6 +832,7 @@ describe("arrival", () => {
 
     expect(lifecycle.epoch).toBe(1);
     expect(lifecycle.world).toBe(before);
+    expect(lifecycle.anchorNextEntityId).toBe(101);
     expect(calls).not.toContain("autosave");
     expect(calls.some((entry) => entry.startsWith("worldLifecycle"))).toBe(
       false,

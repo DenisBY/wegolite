@@ -515,6 +515,7 @@ describe("the world lifecycle subscriber (plan 08-15)", () => {
     const lifecycle: WorldLifecycle = {
       world: undefined,
       epoch: 0,
+      anchorNextEntityId: undefined,
       begin: (seed) => {
         built.log.push(`worldLifecycle.begin ${String(seed)}`);
       },
