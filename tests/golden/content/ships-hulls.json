@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "hulls": [
+    {
+      "key": "oolite_template_cobra3-player",
+      "depth": 5,
+      "nodes": 3369,
+      "solidLeaves": 1210,
+      "rootHalfWidth": 65.5,
+      "collisionRadius": 72.69734954833984
+    },
+    {
+      "key": "adder",
+      "depth": 5,
+      "nodes": 2769,
+      "solidLeaves": 1022,
+      "rootHalfWidth": 29.452299118041992,
+      "collisionRadius": 29.030517578125
+    },
+    {
+      "key": "cobramk1",
+      "depth": 5,
+      "nodes": 4937,
+      "solidLeaves": 1859,
+      "rootHalfWidth": 35.5,
+      "collisionRadius": 39.260494232177734
+    },
+    {
+      "key": "gecko",
+      "depth": 5,
+      "nodes": 3081,
+      "solidLeaves": 1186,
+      "rootHalfWidth": 31.237899780273438,
+      "collisionRadius": 31.911365509033203
+    },
+    {
+      "key": "krait",
+      "depth": 5,
+      "nodes": 3689,
+      "solidLeaves": 1380,
+      "rootHalfWidth": 47.703800201416016,
+      "collisionRadius": 50.196590423583984
+    },
+    {
+      "key": "mamba",
+      "depth": 5,
+      "nodes": 3577,
+      "solidLeaves": 1387,
+      "rootHalfWidth": 34.058101654052734,
+      "collisionRadius": 44.3935661315918
+    },
+    {
+      "key": "moray",
+      "depth": 5,
+      "nodes": 4609,
+      "solidLeaves": 1815,
+      "rootHalfWidth": 35.35070037841797,
+      "collisionRadius": 36.18608093261719
+    },
+    {
+      "key": "shuttle",
+      "depth": 5,
+      "nodes": 5465,
+      "solidLeaves": 2150,
+      "rootHalfWidth": 20.204999923706055,
+      "collisionRadius": 22.7517147064209
+    },
+    {
+      "key": "sidewinder",
+      "depth": 5,
+      "nodes": 2457,
+      "solidLeaves": 877,
+      "rootHalfWidth": 32.114601135253906,
+      "collisionRadius": 37.465919494628906
+    },
+    {
+      "key": "viper",
+      "depth": 5,
+      "nodes": 3041,
+      "solidLeaves": 1180,
+      "rootHalfWidth": 35.534400939941406,
+      "collisionRadius": 35.057655334472656
+    }
+  ]
+}
