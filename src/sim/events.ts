@@ -9,11 +9,14 @@
  */
 
 import type { CompassTarget } from "./flight/state.js";
-import type { HyperspaceRefusal } from "./hyperspace/countdown.js";
+import type {
+  HyperspaceRefusal,
+  WitchspaceBlocker,
+} from "./hyperspace/countdown.js";
 import type { Vec3 } from "./math.js";
 import type { EntityId } from "./world/ids.js";
 
-export type { HyperspaceRefusal };
+export type { HyperspaceRefusal, WitchspaceBlocker };
 
 export type TorusDisengageReason = "input" | "massLock" | "toggle";
 
@@ -59,7 +62,12 @@ export type SimEvent =
       /** Exact integer fuel to deduct from the profile (never a float). */
       fuelCost: number;
     }
-  | { kind: "hyperspaceRefused"; reason: HyperspaceRefusal }
+  | {
+      kind: "hyperspaceRefused";
+      reason: HyperspaceRefusal;
+      /** Present exactly when `reason` is `blocked`: what blocked the jump. */
+      blocker?: WitchspaceBlocker;
+    }
   | { kind: "scrape" }
   | {
       kind: "bounce";

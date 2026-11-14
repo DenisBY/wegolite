@@ -16,10 +16,14 @@
  * (PlayerEntity.m line 6547), and enterWitchspace calls the checklist at the
  * countdown's end (PlayerEntity.m lines 6772-6775). A docked ship never reaches
  * completion, because a dock cancels the countdown, so the predicate takes no
- * docked parameter. The blocker is the Coriolis station. Blockage stays
- * Coriolis-only in the simulation until Phase 12 consumes per-ship masses, and
- * the dodecahedron and icosahedron stations have no mass (D-03, owner decision
- * 2026-11-07, option (a)).
+ * docked parameter. The blocker is the Coriolis station or, since Phase 12, an
+ * NPC ship inside its own blockage radius (`src/sim/world/ship-field.ts`). The
+ * two navigation buoys stay non-blocking (owner decision 2026-11-14, option A;
+ * PROJECT.md Key Decisions row "Keep the buoys non-blocking in Phase 12";
+ * revisit tracked in the todo
+ * 2026-11-14-make-buoys-block-hyperspace-like-oolite), and the dodecahedron and
+ * icosahedron stations have no mass (D-03, owner decision 2026-11-07,
+ * option (a)).
  *
  * This module deliberately knows nothing about `FlightState`: the start gate is
  * testable before the step loop is wired, and the step loop consumes it.
@@ -106,6 +110,13 @@ export function witchspaceBlockedAt(
  */
 export type HyperspaceRefusal =
   "no target" | "too far" | "insufficient fuel" | "blocked";
+
+/**
+ * What blocked a completing jump: the Coriolis station or an NPC ship. A
+ * payload-free kind (no entity id, no distance): the app owns the wording, and
+ * Oolite's own loop reports only the first blocker in its sorted order.
+ */
+export type WitchspaceBlocker = "station" | "ship";
 
 /** The read-only facts the app supplies for one start request (D-07). */
 export interface HyperspaceStartInput {

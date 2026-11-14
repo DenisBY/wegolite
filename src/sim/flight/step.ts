@@ -294,7 +294,20 @@ export function stepFlight(
       ) {
         // Oolite's blocked jump failure: the countdown and target clear, and no
         // fuel or jump time is spent. The ordinary per-step time still advances.
-        events.push({ kind: "hyperspaceRefused", reason: "blocked" });
+        events.push({
+          kind: "hyperspaceRefused",
+          reason: "blocked",
+          blocker: "station",
+        });
+        state.hyperspaceTarget = null;
+      } else if (ships?.blocks(state.position, layout.scannerRange) === true) {
+        // An NPC ship inside its own blockage radius (WORLD-10), checked after
+        // the station as Oolite's loop is, with the same clearing.
+        events.push({
+          kind: "hyperspaceRefused",
+          reason: "blocked",
+          blocker: "ship",
+        });
         state.hyperspaceTarget = null;
       } else if (
         snapshot !== null &&

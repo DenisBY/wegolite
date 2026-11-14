@@ -18,8 +18,16 @@
  * `zero_distance < SCANNER_MAX_RANGE2`, so a ship at exactly 25,600 m does not
  * lock. The station keeps its own inclusive `<=` in `torus.ts`; the two rules
  * are deliberately different, as they are in Oolite.
+ *
+ * Jump blockage follows `checkShipsInVicinityForWitchJumpExit` (ShipEntity.m
+ * lines 12498-12531) through the station's own predicate, `isWitchspaceBlocked`
+ * (`0.1 x mass > d^2` and `d^2 < scannerRange^2`, both strict). The loop tests
+ * every ship, whatever its scan class. Masses come from the compiled NPC records
+ * through the step options, and Oolite's loop names the first blocker in its own
+ * sorted order while Wegolite reports only the kind.
  */
 
+import { isWitchspaceBlocked } from "../hyperspace/countdown.js";
 import type { Vec3 } from "../math.js";
 import type { ScanClass } from "./ids.js";
 import type { World } from "./world.js";
@@ -70,8 +78,6 @@ export function createShipField(
   world: World,
   masses: readonly ShipMass[] | undefined,
 ): ShipField {
-  // Read once so the closure does not depend on a later reassignment.
-  void masses;
   return {
     massLocked(position, scannerRange) {
       const live = world.store.live;
@@ -92,8 +98,44 @@ export function createShipField(
       }
       return false;
     },
-    blocks() {
+    blocks(position, scannerRange) {
+      if (masses === undefined || masses.length === 0) return false;
+      const live = world.store.live;
+      for (let i = 0; i < live.length; i += 1) {
+        const ship = live[i];
+        if (ship === undefined || ship.dead) continue;
+        const mass = massOf(masses, ship.specKey);
+        if (mass === undefined) continue;
+        const dx = ship.position.x - position.x;
+        const dy = ship.position.y - position.y;
+        const dz = ship.position.z - position.z;
+        if (
+          isWitchspaceBlocked(dx * dx + dy * dy + dz * dz, mass, scannerRange)
+        ) {
+          return true;
+        }
+      }
       return false;
     },
   };
+}
+
+/**
+ * The usable mass of `specKey`, or `undefined` when it has no entry or the
+ * entry is not a finite positive number (T-12-10). A linear scan over a list of
+ * at most nine kinds: no Map, no allocation.
+ */
+function massOf(
+  masses: readonly ShipMass[],
+  specKey: string,
+): number | undefined {
+  for (let i = 0; i < masses.length; i += 1) {
+    const entry = masses[i];
+    if (entry !== undefined && entry.specKey === specKey) {
+      return Number.isFinite(entry.mass) && entry.mass > 0
+        ? entry.mass
+        : undefined;
+    }
+  }
+  return undefined;
 }
