@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: World Population Base
 current_phase: 10
-current_phase_name: Ship Mass
-status: planning
-stopped_at: Phase 10 context gathered
-last_updated: "2026-11-14T08:50:13.214Z"
+current_phase_name: phase-10
+status: executing
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-11-14T09:59:17.515Z"
 last_activity: 2026-11-14
-last_activity_desc: Phase 09 complete, transitioned to Phase 10
-state_head: bbf9e944c56313335c79fe3583b215bdfc7f8f56
+last_activity_desc: Phase 10 execution resumed (wave continue)
+state_head: a9bf2d38ec0276eb66f67fb125a06f1e68601385
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 9
+  completed_plans: 6
   percent: 25
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-13)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 09 — NPC Content
+**Current focus:** Phase 10 — phase-10
 
 ## Current Position
 
-Phase: 10 — Ship Mass
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-11-14 — Phase 09 complete, transitioned to Phase 10
+Phase: 10 (phase-10) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-11-14 — Phase 10 execution resumed (wave continue)
 
 Progress: [███░░░░░░░] 25%
 
@@ -130,6 +130,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 09 P03 | 25 min | 2 tasks | 62 files |
 | Phase 09 P04 | 12 min | 2 tasks | 12 files |
 | Phase 09 P05 | 40min | 3 tasks | 9 files |
+| Phase 10 P01 | 12 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -318,6 +319,7 @@ Recent decisions affecting current work:
 - [Phase 09]: Phase 9 gate: verify instead of verify-full for the asset-cache change (owner decision 2026-11-13, Phase 9 only)
 - [Phase 09]: Network vendoring exception at commit 7437f22 recorded in Key Decisions; 09-01 confirmation delegated to the orchestrator
 - [Phase 09]: No synchronous npcModel accessor; loadNpcModel promise carries the model
+- [Phase 10]: Ship mass = hull octree mass plus ordered float32 sum of non-flasher subentity masses (Coriolis 515,483,904; buoy 698,691.1875); float32 at every op, volume limit 5
 
 ### Pending Todos
 
@@ -411,9 +413,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T08:50:13.134Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-ship-mass/10-CONTEXT.md
+Last session: 2026-11-14T09:59:17.434Z
+Stopped at: Completed 10-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
