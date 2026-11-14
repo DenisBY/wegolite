@@ -257,10 +257,13 @@ describe("ship field: the torus through stepSim (WORLD-10)", () => {
     const world = createWorld(3);
     addShip(world, add(OPEN_SPACE, vec(10_000, 0, 0)));
 
-    simStep(state, world, toggle);
+    const events = simStep(state, world, toggle);
 
     expect(state.torus.engaged).toBe(false);
     expect(state.torus.massLocked).toBe(true);
+    // The same refused-request event as a body-caused lock (todo 2026-11-10).
+    expect(events).toContainEqual({ kind: "torusRefused", reason: "massLock" });
+    expect(events.some((e) => e.kind === "torusDisengaged")).toBe(false);
   });
 
   it("engages when the same ship is 30 km away", () => {

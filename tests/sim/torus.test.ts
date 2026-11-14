@@ -291,10 +291,10 @@ describe("engaging and disengaging", () => {
 
     expect(state.torus.engaged).toBe(false);
     expect(state.torus.massLocked).toBe(true);
-    expect(events).toContainEqual({
-      kind: "torusDisengaged",
-      reason: "massLock",
-    });
+    // A refused request is not a disengage: the drive never ran (todo
+    // 2026-11-10), so the event is its own kind.
+    expect(events).toContainEqual({ kind: "torusRefused", reason: "massLock" });
+    expect(events.some((e) => e.kind === "torusDisengaged")).toBe(false);
   });
 
   it("recomputes the factor every tick as the ship leaves a body", () => {

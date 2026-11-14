@@ -69,6 +69,7 @@ const EVENTS: Readonly<Record<RoutedKind, SimEvent>> = {
   dockDenied: { kind: "dockDenied", reason: "notInstalled" },
   torusEngaged: { kind: "torusEngaged", factor: 2 },
   torusDisengaged: { kind: "torusDisengaged", reason: "input" },
+  torusRefused: { kind: "torusRefused", reason: "massLock" },
   massLockChanged: { kind: "massLockChanged", locked: true },
   bounce: { kind: "bounce", speed: 3, cause: "hull", axis: "x" },
   scrape: { kind: "scrape" },
@@ -103,7 +104,7 @@ describe("the pinned subscriber order and routing table", () => {
     ]);
   });
 
-  it("maps each of the 14 existing kinds to exactly one subscriber tuple", () => {
+  it("maps each of the 15 routed kinds to exactly one subscriber tuple", () => {
     expect(EVENT_KIND_SUBSCRIBER).toEqual({
       launched: ["stationFlow", "worldLifecycle"],
       launchComplete: ["stationFlow"],
@@ -111,6 +112,7 @@ describe("the pinned subscriber order and routing table", () => {
       dockDenied: ["hudMessages"],
       torusEngaged: ["hudMessages"],
       torusDisengaged: ["hudMessages"],
+      torusRefused: ["hudMessages"],
       massLockChanged: ["hudMessages"],
       bounce: ["dockFeedback"],
       scrape: ["dockFeedback"],
@@ -120,11 +122,11 @@ describe("the pinned subscriber order and routing table", () => {
       hyperspaceRefused: ["hyperspaceFlow"],
       hyperspaceJumped: ["hyperspaceFlow"],
     });
-    expect(ROUTED_EVENT_KINDS).toHaveLength(14);
+    expect(ROUTED_EVENT_KINDS).toHaveLength(15);
     expect(Object.keys(EVENT_KIND_SUBSCRIBER).sort()).toEqual(
       [...ROUTED_EVENT_KINDS].sort(),
     );
-    // Twelve kinds have one subscriber; launched and docked have the ordered
+    // Thirteen kinds have one subscriber; launched and docked have the ordered
     // pair (plan 08-15), so the world lifecycle runs after the station flow.
     const pair = ["launched", "docked"];
     for (const kind of ROUTED_EVENT_KINDS) {
@@ -457,6 +459,7 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
     const { log, router } = harness();
     router.dispatch(EVENTS.torusEngaged);
     router.dispatch(EVENTS.torusDisengaged);
+    router.dispatch(EVENTS.torusRefused);
     router.dispatch(EVENTS.massLockChanged);
     router.dispatch({ kind: "massLockChanged", locked: false });
     router.dispatch(EVENTS.compassTargetChanged);
@@ -477,6 +480,7 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
     expect(log).toEqual([
       "messages.enqueue Torus engaged at 2.0×",
       "messages.enqueue Torus disengaged",
+      "messages.enqueue Hyperspeed mass-locked.",
       "messages.enqueue Mass locked",
       "messages.enqueue Compass target: planet",
       `messages.enqueue Hyperspace to Lave in ${seconds} seconds`,
