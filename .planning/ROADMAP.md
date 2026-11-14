@@ -45,7 +45,7 @@ Scope: narrowed on 2026-11-13 from Phases 8-23 to Phase 8 alone (PROJECT.md Key 
 **Scope rule:** the necessary technical minimum, not player-visible features (owner, 2026-11-13: "less, but better"). Each phase is trimmed to what Phase 12 consumes. Phase numbers 9-12 are kept from the former plan so existing references (todos, Key Decisions, review notes) stay valid; the former Phases 13-23 keep their numbers in the unscheduled backlog.
 
 - [x] **Phase 9: NPC Content** - Ship models and textures of the six populator roles compiled from Oolite with provenance and the record fields the inert world uses, loaded lazily outside the first load (completed 2026-11-14)
-- [ ] **Phase 10: Ship Mass** - Build-time hull octrees give every role ship, the Cobra Mk III and the Coriolis Oolite's mass, and jump blockage uses one recorded Coriolis mass
+- [x] **Phase 10: Ship Mass** - Build-time hull octrees give every role ship, the Cobra Mk III and the Coriolis Oolite's mass, and jump blockage uses one recorded Coriolis mass (completed 2026-11-14)
 - [ ] **Phase 11: Minimal Save Schema v3** - The world epoch, world counters and next entity id in schema v3, with an ordered v1 → v2 → v3 migration and leg-anchor semantics
 - [ ] **Phase 12: Inert Ships and the World Lifecycle** - A contained AI fault and refused malformed spawns first; then inert ships drawn and on the scanner, mass lock and blockage by ships, the world running behind the chart, cleared at jump commit, repopulated on arrival and regenerated on reload
 
@@ -106,7 +106,7 @@ Plans:
 **Research flag**: Medium — a spike must show the build-time octree reproduces Oolite's volume on the Cobra, Coriolis and Viper (octree depth; float32 versus float64 in the volume sum; Oolite stores mass as a `GLfloat`). Only the construction and volume parts of `Octree.m` and `OOMeshToOctreeConverter.m` are ported
 **Pitfalls to address**: 14 (mass in the constants ledger with worked examples), 17 (collision shapes; the buoy now has a vendored model and therefore an octree volume), 4 (NaN and degenerate geometry in the build), 12 (no octree data in the first load)
 **Decisions to settle**: the Coriolis blockage mass if the octree value differs from 455,223,200 (owner); whether the navigation buoy (model vendored by quick task 261111-g5n) and the dodecahedron and icosahedron stations gain an octree mass now, revisiting the 06-16 option (a) data gaps; the float precision of the volume computation
-**Plans**: 4/4 plans executed
+**Plans**: 4/4 plans complete
 
 Plans:
 - [x] 10-01-PLAN.md — Float32 port of Oolite's hull octree (depth, splits, fold, five-level volume) and ship mass with the subentity term; 16-mesh pins, worked examples, community tonne check
@@ -185,7 +185,7 @@ Pending todos outside v2.1, which can run as quick tasks or join a phase by owne
 |-------|-----------|----------------|--------|-----------|
 | 8. Session Split and World Core | v2.0 | 16/16 | Complete | 2026-11-13 |
 | 9. NPC Content | v2.1 | 5/5 | Complete    | 2026-11-14 |
-| 10. Ship Mass | v2.1 | 4/4 | In Progress | - |
+| 10. Ship Mass | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 11. Minimal Save Schema v3 | v2.1 | 0/TBD | Not started | - |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 0/TBD | Not started | - |
 
