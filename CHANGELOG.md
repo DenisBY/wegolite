@@ -19,6 +19,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (police Vipers in purple, others in yellow). Like Oolite's ships they lock the
   torus drive within 25.6 km and block a hyperspace jump that completes right
   beside them. They are not saved, and loading a game rebuilds the same ships.
+- The inert NPC ships are drawn with their Oolite models. A ship type's model
+  downloads only when a system needs it and only once your ship is in flight, so
+  the first load stays as small as before; until a model arrives the ship still
+  shows on the scanner.
 
 ### Changed
 
