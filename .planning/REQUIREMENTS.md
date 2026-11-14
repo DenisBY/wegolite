@@ -29,7 +29,7 @@
 - [ ] **WORLD-15**: After launch and after an arrival, a first populator places inert NPC ships of the six roles; they are drawn with their Oolite models and shown on the scanner without a new HUD element, a populated scene stays within the 50 draw-call budget, and `nullAI` ships stay inert as in Oolite
 - [x] **WORLD-10**: Mass lock and hyperspace jump blockage take nearby NPC ships into account as in Oolite, and the torus refusal message is correct when the torus never engaged
 - [ ] **WORLD-11**: The simulation keeps running while the galactic chart is open in flight, as in Oolite (supersedes the v1 freeze), including a running hyperspace countdown
-- [ ] **WORLD-14**: A hyperspace jump clears every non-static entity at jump commit, and the destination is populated deterministically on arrival: the same route and seed give the same ships, ids and world hash
+- [x] **WORLD-14**: A hyperspace jump clears every non-static entity at jump commit, and the destination is populated deterministically on arrival: the same route and seed give the same ships, ids and world hash
 - [ ] **WORLD-16**: With traffic on, launch, manual docking, the docking computer and torus flight behave as in v1; browser tests run with traffic off by default and every existing browser test passes unchanged, except the v1 chart-freeze check in `tests/e2e/hyperspace.spec.ts`, which WORLD-11 inverts (owner, 2026-11-13), and the opt-in `traffic=1` entity count in `tests/e2e/tick-hook.spec.ts`, which expires once the populator exists (owner, 2026-11-14)
 
 ## Future Requirements
@@ -70,7 +70,7 @@ Deferred. The former v2.1 Combat & Traffic requirements (Phases 13-23) stay in `
 | WORLD-15 | Phase 12 | Pending |
 | WORLD-10 | Phase 12 | Complete |
 | WORLD-11 | Phase 12 | Pending |
-| WORLD-14 | Phase 12 | Pending |
+| WORLD-14 | Phase 12 | Complete |
 | WORLD-16 | Phase 12 | Pending |
 
 Each requirement maps to the phase that completes it. Staged checks in earlier phases: DATA-11 stage 1 (the record fields: roles, AI name, scan class, model) in Phase 9, completed by the octree mass in Phase 10; SAVE-08 stage 1 (schema and leg-anchor semantics) in Phase 11, completed by the regenerated inert world in Phase 12. FOUND-15 and FOUND-16 are delivered by Phase 12's first plan, before any populator code.
