@@ -216,7 +216,7 @@ describe("witchspace mass blockage (NAV-04)", () => {
     expect(jumpedCount).toBe(0);
     expect(refusedCount).toBe(1);
     expect(lastEvents).toEqual([
-      { kind: "hyperspaceRefused", reason: "blocked" },
+      { kind: "hyperspaceRefused", reason: "blocked", blocker: "station" },
     ]);
     expect(state.hyperspaceCountdown).toBe(0);
     expect(state.hyperspaceTarget).toBeNull();

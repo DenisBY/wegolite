@@ -12,6 +12,8 @@
  * blockage rows is written out in each comment.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
@@ -21,6 +23,10 @@ import type { FlightState } from "../../../src/sim/flight/state.js";
 import { stepFlight } from "../../../src/sim/flight/step.js";
 import type { StepOptions } from "../../../src/sim/flight/step.js";
 import { torusFactor } from "../../../src/sim/flight/torus.js";
+import {
+  CORIOLIS_STATION_MASS,
+  HYPERSPACE_COUNTDOWN_STEPS,
+} from "../../../src/sim/hyperspace/countdown.js";
 import type { Command } from "../../../src/sim/commands.js";
 import type { SimEvent } from "../../../src/sim/events.js";
 import { add, identity, scale, sub, vec } from "../../../src/sim/math.js";
@@ -33,6 +39,7 @@ import {
   NON_LOCKING_SCAN_CLASSES,
   createShipField,
 } from "../../../src/sim/world/ship-field.js";
+import type { ShipMass } from "../../../src/sim/world/ship-field.js";
 import {
   createWorld,
   killEntity,
@@ -43,6 +50,14 @@ import { laveFixture } from "../../helpers/lave.js";
 
 const { layout, config } = laveFixture();
 const RANGE = layout.scannerRange;
+
+/** The Phase 10 compiled masses (ships-npc.json), used as fixtures. */
+const VIPER_MASS = 34_040.6796875;
+const KRAIT_MASS = 93_291.40625;
+const MASSES: readonly ShipMass[] = [
+  { specKey: "viper", mass: VIPER_MASS },
+  { specKey: "krait", mass: KRAIT_MASS },
+];
 
 /** Spawn one inert ship (no AI) and return it. */
 function addShip(
@@ -305,5 +320,237 @@ describe("ship field: the torus through stepSim (WORLD-10)", () => {
     };
     const bare = run(undefined);
     expect(run(createWorld(9))).toBe(bare);
+  });
+});
+
+describe("ship field: jump blockage radius (WORLD-10)", () => {
+  it("blocks a viper at 58.0 m and not at 58.5 m", () => {
+    // 0.1 x 34,040.6796875 = 3,404.07 m^2. 58.0^2 = 3,364 is inside it;
+    // 58.5^2 = 3,422.25 is outside it.
+    expect(
+      createShipField(worldWithShipAt(58), MASSES).blocks(ORIGIN, RANGE),
+    ).toBe(true);
+    expect(
+      createShipField(worldWithShipAt(58.5), MASSES).blocks(ORIGIN, RANGE),
+    ).toBe(false);
+  });
+
+  it("uses the mass of the ship's own specKey", () => {
+    // A krait's 0.1 x 93,291.40625 = 9,329.14 m^2 gives a radius of 96.59 m: it
+    // blocks at 96 m where the viper's 58.34 m radius would not.
+    const krait = (distance: number) =>
+      createShipField(
+        worldWithShipAt(distance, "CLASS_NEUTRAL", "krait"),
+        MASSES,
+      );
+    expect(krait(96).blocks(ORIGIN, RANGE)).toBe(true);
+    expect(krait(97).blocks(ORIGIN, RANGE)).toBe(false);
+    expect(
+      createShipField(worldWithShipAt(96), MASSES).blocks(ORIGIN, RANGE),
+    ).toBe(false);
+  });
+
+  it("counts a ship of any scan class, as Oolite's loop does", () => {
+    // checkShipsInVicinityForWitchJumpExit tests every ship, not only the
+    // locking classes: a cargo pod with a mass blocks too.
+    expect(
+      createShipField(worldWithShipAt(50, "CLASS_CARGO"), MASSES).blocks(
+        ORIGIN,
+        RANGE,
+      ),
+    ).toBe(true);
+  });
+
+  it("never blocks for a missing, non-finite or non-positive mass", () => {
+    const at = (masses: readonly ShipMass[] | undefined): boolean =>
+      createShipField(worldWithShipAt(1), masses).blocks(ORIGIN, RANGE);
+    expect(at(undefined)).toBe(false);
+    expect(at([])).toBe(false);
+    expect(at([{ specKey: "krait", mass: KRAIT_MASS }])).toBe(false);
+    expect(at([{ specKey: "viper", mass: Number.NaN }])).toBe(false);
+    expect(at([{ specKey: "viper", mass: Number.POSITIVE_INFINITY }])).toBe(
+      false,
+    );
+    expect(at([{ specKey: "viper", mass: 0 }])).toBe(false);
+    expect(at([{ specKey: "viper", mass: -5 }])).toBe(false);
+    // The control: the same ship with a sane mass does block.
+    expect(at([{ specKey: "viper", mass: VIPER_MASS }])).toBe(true);
+  });
+
+  it("never blocks for a dead ship", () => {
+    const world = createWorld(1);
+    const ship = addShip(world, vec(10, 0, 0));
+    expect(createShipField(world, MASSES).blocks(ORIGIN, RANGE)).toBe(true);
+    killEntity(world, ship.id);
+    expect(createShipField(world, MASSES).blocks(ORIGIN, RANGE)).toBe(false);
+  });
+
+  it("never blocks beyond the scanner range, even with a huge mass", () => {
+    const huge: readonly ShipMass[] = [{ specKey: "viper", mass: 1e15 }];
+    // 0.1 x 1e15 = 1e14 > d^2 at both distances; only the range clause differs.
+    expect(
+      createShipField(worldWithShipAt(25_599), huge).blocks(ORIGIN, RANGE),
+    ).toBe(true);
+    expect(
+      createShipField(worldWithShipAt(25_600), huge).blocks(ORIGIN, RANGE),
+    ).toBe(false);
+    expect(
+      createShipField(worldWithShipAt(30_000), huge).blocks(ORIGIN, RANGE),
+    ).toBe(false);
+  });
+});
+
+interface ChartSystem {
+  readonly id: string;
+  readonly name: string;
+  readonly chartX: number;
+  readonly chartY: number;
+}
+
+const chart = JSON.parse(
+  readFileSync(
+    new URL("../../../src/content/generated/systems/g0.json", import.meta.url),
+    "utf8",
+  ),
+) as ChartSystem[];
+
+function chartSystem(name: string): ChartSystem {
+  const found = chart.find((system) => system.name === name);
+  if (found === undefined) throw new Error(`galaxy 0 has no system "${name}"`);
+  return found;
+}
+
+const lave = chartSystem("Lave");
+const diso = chartSystem("Diso");
+
+function jumpOptions(withStation: boolean): StepOptions {
+  return {
+    hyperspace: {
+      fuel: 70,
+      origin: { id: lave.id, x: lave.chartX, y: lave.chartY },
+      target: { id: diso.id, x: diso.chartX, y: diso.chartY },
+      shipMasses: MASSES,
+      ...(withStation ? { stationMass: CORIOLIS_STATION_MASS } : {}),
+    },
+  };
+}
+
+/** A stationary ship in flight at `position` (speed 0, no input). */
+function hoveringAt(position: Vec3): FlightState {
+  const state = initFlightState(layout);
+  state.mode = "inFlight";
+  state.dockArmed = false;
+  state.position = position;
+  return state;
+}
+
+const begin: readonly Command[] = [{ kind: "beginHyperspace" }];
+
+/** Begin a jump and run the countdown out; returns the last step's events. */
+function runCountdown(
+  state: FlightState,
+  world: World,
+  options: StepOptions,
+): SimEvent[] {
+  simStep(state, world, begin, options);
+  let last: SimEvent[] = [];
+  for (let i = 0; i < HYPERSPACE_COUNTDOWN_STEPS; i += 1) {
+    last = simStep(state, world, [], options);
+  }
+  return last;
+}
+
+describe("ship field: jump blockage through stepSim (WORLD-10)", () => {
+  it("refuses a countdown that completes with a viper 50 m away, naming the ship", () => {
+    const state = hoveringAt(OPEN_SPACE);
+    const world = createWorld(5);
+    addShip(world, add(OPEN_SPACE, vec(50, 0, 0)));
+    const clockBefore = state.clockSeconds;
+
+    const events = runCountdown(state, world, jumpOptions(true));
+
+    expect(events).toEqual([
+      { kind: "hyperspaceRefused", reason: "blocked", blocker: "ship" },
+    ]);
+    expect(state.hyperspaceTarget).toBeNull();
+    expect(state.hyperspaceCountdown).toBe(0);
+    // Only the ordinary per-step time advanced; no jump time was spent.
+    const elapsed = state.clockSeconds - clockBefore;
+    expect(elapsed).toBeCloseTo(DT * (HYPERSPACE_COUNTDOWN_STEPS + 1), 1);
+    expect(elapsed).toBeLessThan(100);
+  });
+
+  it("commits the jump with the viper 70 m away", () => {
+    const state = hoveringAt(OPEN_SPACE);
+    const world = createWorld(5);
+    // 70^2 = 4,900 m^2 > 0.1 x 34,040.68 = 3,404.07 m^2: outside the radius.
+    addShip(world, add(OPEN_SPACE, vec(70, 0, 0)));
+
+    const events = runCountdown(state, world, jumpOptions(true));
+
+    expect(events.map((event) => event.kind)).toContain("hyperspaceJumped");
+    expect(events.map((event) => event.kind)).not.toContain(
+      "hyperspaceRefused",
+    );
+  });
+
+  it("does not consult ships when no masses are supplied", () => {
+    const state = hoveringAt(OPEN_SPACE);
+    const world = createWorld(5);
+    addShip(world, add(OPEN_SPACE, vec(5, 0, 0)));
+    const options: StepOptions = {
+      hyperspace: {
+        fuel: 70,
+        origin: { id: lave.id, x: lave.chartX, y: lave.chartY },
+        target: { id: diso.id, x: diso.chartX, y: diso.chartY },
+      },
+    };
+
+    const events = runCountdown(state, world, options);
+
+    expect(events.map((event) => event.kind)).toContain("hyperspaceJumped");
+  });
+
+  it("names the station first when the station and a ship both block", () => {
+    // 7,100 m from the station centre is inside its 7,179.7 m radius.
+    const position = add(layout.station.position, vec(7_100, 0, 0));
+    const state = hoveringAt(position);
+    const world = createWorld(5);
+    addShip(world, add(position, vec(50, 0, 0)));
+
+    const events = runCountdown(state, world, jumpOptions(true));
+
+    expect(events).toEqual([
+      { kind: "hyperspaceRefused", reason: "blocked", blocker: "station" },
+    ]);
+  });
+
+  it("names the ship when the station mass is absent and the ship blocks", () => {
+    const position = add(layout.station.position, vec(7_100, 0, 0));
+    const state = hoveringAt(position);
+    const world = createWorld(5);
+    addShip(world, add(position, vec(50, 0, 0)));
+
+    const events = runCountdown(state, world, jumpOptions(false));
+
+    expect(events).toEqual([
+      { kind: "hyperspaceRefused", reason: "blocked", blocker: "ship" },
+    ]);
+  });
+
+  it("never consults the ships at the H press", () => {
+    const state = hoveringAt(OPEN_SPACE);
+    const world = createWorld(5);
+    addShip(world, add(OPEN_SPACE, vec(10, 0, 0)));
+
+    const events = simStep(state, world, begin, jumpOptions(true));
+
+    expect(events.map((event) => event.kind)).toContain(
+      "hyperspaceCountdownStarted",
+    );
+    expect(events.map((event) => event.kind)).not.toContain(
+      "hyperspaceRefused",
+    );
+    expect(state.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS);
   });
 });
