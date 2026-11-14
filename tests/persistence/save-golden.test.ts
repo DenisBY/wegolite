@@ -14,6 +14,10 @@
  *
  * The validator is not loosened for these fixtures. A golden that cannot pass
  * `parseSave` with the production allow-lists is a wrong golden.
+ *
+ * The canonical v2 in-flight golden (`v2-phase10-inflight.json`) is the v2
+ * writer's own output, captured before plan 11-02 replaces that writer, and is
+ * migration input from then on.
  */
 
 import { readFileSync } from "node:fs";
@@ -22,10 +26,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   SaveV1Schema,
+  encodeSave,
   migrateV1ToV2,
   parseSave,
 } from "../../src/persistence/save.js";
-import type { SaveAllowLists } from "../../src/persistence/save.js";
+import type { SaveAllowLists, SaveInputs } from "../../src/persistence/save.js";
+import { CLOCK_START } from "../../src/sim/flight/state.js";
 
 /** The 17 commodity keys a market snapshot may carry (Alien Items included). */
 const MARKET_GOODS: readonly string[] = [
@@ -58,7 +64,7 @@ const ALLOW: SaveAllowLists = {
     "EQ_PASSENGER_BERTH",
     "EQ_PASSENGER_BERTH_REMOVAL",
   ]),
-  systems: new Set(["g0-s7"]),
+  systems: new Set(["g0-s7", "g0-s1"]),
   stations: new Set(["coriolis-station"]),
   commodities: new Map([
     ["food", "t"],
@@ -125,4 +131,60 @@ describe("golden v1 save migration through the production reader", () => {
       });
     });
   }
+});
+
+/**
+ * The inputs of the captured v2 in-flight golden: a market snapshot, a flight
+ * pose, a committed hyperspace target and cargo, so every optional v2 field the
+ * writer emits for an in-flight save is present.
+ */
+const V2_INFLIGHT_INPUTS: SaveInputs = {
+  clockSeconds: CLOCK_START + 1234,
+  credits: 98765,
+  equipment: ["EQ_DOCK_COMP"],
+  cargo: [
+    { key: "food", quantity: 3 },
+    { key: "gold", quantity: 499 },
+    { key: "gem_stones", quantity: 250 },
+  ],
+  fuel: 42,
+  missiles: 2,
+  passengerBerths: 0,
+  mode: "inFlight",
+  targetSystem: "g0-s1",
+  market: {
+    systemId: "g0-s7",
+    seed: 3545325333,
+    goods: MARKET_GOODS.map((key, index) => ({
+      key,
+      price: 100 + index,
+      stock: 3 * index,
+    })),
+  },
+  flight: {
+    position: [1200.5, -40.25, 8000.75],
+    orientation: [1, 0, 0, 0],
+    speed: 123.5,
+    pitchRate: 0.25,
+    rollRate: -0.5,
+    torus: true,
+  },
+  systemId: "g0-s7",
+  stationKey: "coriolis-station",
+};
+
+describe("canonical v2 writer golden (captured in plan 11-01, before the v3 bump)", () => {
+  it("the v2 encodeSave output equals the checked-in golden in canonical JSON", () => {
+    expect(canonical(JSON.parse(encodeSave(V2_INFLIGHT_INPUTS)))).toBe(
+      canonical(JSON.parse(readGolden("v2-phase10-inflight.json"))),
+    );
+  });
+
+  it("the golden parses through parseSave with the allow-lists to a version 2 in-flight save", () => {
+    const result = parseSave(readGolden("v2-phase10-inflight.json"), ALLOW);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.save.version).toBe(2);
+    expect(result.save.mode).toBe("inFlight");
+  });
 });
