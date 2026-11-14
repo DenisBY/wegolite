@@ -33,6 +33,11 @@ export const HUD_RED = "#ff4444";
 export const HUD_SCANNER_GRID_COLOR = "#cc2222";
 /** Oolite's neutral/buoy lollipop colour (`ShipEntity.m` `neutral_color`). */
 export const HUD_SCANNER_NEUTRAL_COLOR = "#ffee33";
+/**
+ * Oolite's police scanner colour (`ShipEntity.m:5585`, `police_color1` =
+ * `{0.5, 0.0, 1.0}`, "purpley-blue"): the colour of a police ship's lollipop.
+ */
+export const HUD_SCANNER_POLICE_COLOR = "#8000ff";
 export const HUD_FONT =
   "28px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
 export const HUD_SMALL_FONT =
@@ -115,8 +120,8 @@ export const HUD_LAYOUT: Readonly<Record<HudElementId, HudRect>> = {
 };
 
 export interface HudContact extends ScannerBlip {
-  readonly id: "station" | "navBuoy" | "witchpoint";
-  readonly kind: "station" | "buoy" | "beacon";
+  readonly id: "station" | "navBuoy" | "witchpoint" | "ship";
+  readonly kind: "station" | "buoy" | "beacon" | "ship" | "police";
 }
 
 export interface HudCompass extends CompassBlip {
@@ -177,13 +182,17 @@ function drawCrosshair(context: CanvasRenderingContext2D): void {
   context.stroke();
 }
 
-function scannerContactColor(kind: HudContact["kind"]): string {
+/** The lollipop colour of a contact kind: Oolite's per-class scanner colours. */
+export function scannerContactColor(kind: HudContact["kind"]): string {
   switch (kind) {
     case "station":
       return HUD_COLOR;
     case "buoy":
     case "beacon":
+    case "ship":
       return HUD_SCANNER_NEUTRAL_COLOR;
+    case "police":
+      return HUD_SCANNER_POLICE_COLOR;
   }
 }
 

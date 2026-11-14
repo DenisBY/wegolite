@@ -22,6 +22,7 @@ import type { System } from "../../content/types.js";
 import type { FlightState } from "../../sim/flight/state.js";
 import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
 import { sub, vec } from "../../sim/math.js";
+import { npcContacts } from "../../sim/world/contacts.js";
 import {
   computeCockpitCamera,
   computeLaunchCamera,
@@ -197,6 +198,9 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
           ctx.core.profile.fuel,
           ctx.core.dockFeedback.flashAlpha(currentState.flightTime),
           targetSystem()?.name ?? "",
+          // WORLD-15: id-free ship contacts from the live world, read at this
+          // frame and not kept (G-8); no world (docked, traffic off) is empty.
+          npcContacts(ctx.core.worldLifecycle?.world),
         );
         currentHud.draw(model);
         ctx.core.lastModel = model;

@@ -27,13 +27,20 @@ import type { SessionState } from "../../../src/app/session/context.js";
 import { createRenderDriver } from "../../../src/app/session/render-driver.js";
 import type { RenderDriver } from "../../../src/app/session/render-driver.js";
 import type { WegoliteProbe } from "../../../src/app/probe.js";
+import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
+import type { Hud } from "../../../src/render/hud/hud.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { SystemScene } from "../../../src/render/system-scene.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
+import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
+import { npcContacts } from "../../../src/sim/world/contacts.js";
+import { populateInertWorld } from "../../../src/sim/world/populate.js";
+import type { HudModel } from "../../../src/render/hud/draw.js";
+import { laveInertRecords } from "../../helpers/inert-world.js";
 import { laveFixture } from "../../helpers/lave.js";
 
-const { system, layout } = laveFixture();
+const { system, layout, config } = laveFixture();
 
 interface Harness {
   readonly ctx: SessionState;
@@ -174,5 +181,116 @@ describe("renderFrame", () => {
     h.driver.renderFrame(0);
     expect(h.renders).toHaveLength(0);
     expect(h.probeUpdates).toHaveLength(0);
+  });
+});
+
+/** An Object3D double: the sync step only sets position and quaternion. */
+function fakeObject() {
+  return {
+    visible: true,
+    position: { set: () => undefined },
+    quaternion: { set: () => undefined },
+  };
+}
+
+/** A scene double complete enough for a full `renderFrame` in flight. */
+function flyableScene(nebula: { revision: number }): SystemScene {
+  return {
+    camera: { aspect: 1.5, ...fakeObject() },
+    planet: { mesh: fakeObject(), update: () => undefined },
+    sun: { sun: fakeObject(), corona: fakeObject(), update: () => undefined },
+    station: { root: fakeObject(), update: () => undefined },
+    ship: fakeObject(),
+    navBuoy: fakeObject(),
+    witchpoint: fakeObject(),
+    buoys: [],
+    starfield: fakeObject(),
+    dust: { update: () => undefined },
+    scene: {},
+    nebulae: { revision: () => nebula.revision },
+  } as unknown as SystemScene;
+}
+
+describe("renderFrame NPC contacts (WORLD-15)", () => {
+  /** An in-flight harness whose HUD double records the model it is handed. */
+  function flying(withWorld: boolean): {
+    readonly h: Harness;
+    readonly models: HudModel[];
+  } {
+    const h = harness();
+    const models: HudModel[] = [];
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    h.ctx.core.scene = flyableScene(h.nebula);
+    h.ctx.runtime.hud = {
+      draw: (model: HudModel) => models.push(model),
+    } as unknown as Hud;
+    if (withWorld) {
+      const lifecycle = createWorldLifecycle({
+        traffic: true,
+        populate: (world) => {
+          populateInertWorld(world, layout, laveInertRecords());
+        },
+      });
+      lifecycle.begin(marketSeedForSystem(system.id));
+      h.ctx.core.worldLifecycle = lifecycle;
+      // Fly 5 km from the first ship so at least one contact is in range.
+      const first = npcContacts(lifecycle.world)[0];
+      if (first === undefined) throw new Error("the world has no ship");
+      h.ctx.core.state = {
+        ...initFlightState(layout),
+        mode: "inFlight",
+        position: {
+          x: first.position.x + 5_000,
+          y: first.position.y,
+          z: first.position.z,
+        },
+      };
+    } else {
+      h.ctx.core.state = { ...initFlightState(layout), mode: "inFlight" };
+    }
+    return { h, models };
+  }
+
+  it("hands buildHudModel the live world's contacts: the three static ones, then one per ship", () => {
+    const { h, models } = flying(true);
+    h.driver.renderFrame(0);
+
+    expect(models).toHaveLength(1);
+    const contacts = models[0]?.contacts ?? [];
+    expect(contacts).toHaveLength(3 + 12);
+    expect(contacts.slice(0, 3).map((contact) => contact.id)).toEqual([
+      "station",
+      "navBuoy",
+      "witchpoint",
+    ]);
+    const ships = contacts.slice(3);
+    expect(ships.every((contact) => contact.id === "ship")).toBe(true);
+    expect(
+      ships.every(
+        (contact) => contact.kind === "ship" || contact.kind === "police",
+      ),
+    ).toBe(true);
+    // The probe lists the ids of visible contacts from this model: the ship 5 km away is one.
+    expect(ships.some((contact) => contact.visible)).toBe(true);
+    expect(h.ctx.core.lastModel).toBe(models[0]);
+  });
+
+  it("shows exactly today's three contacts with no world (docked, traffic off)", () => {
+    const { h, models } = flying(false);
+    expect(h.ctx.core.worldLifecycle).toBeUndefined();
+    h.driver.renderFrame(0);
+    expect(models[0]?.contacts.map((contact) => contact.id)).toEqual([
+      "station",
+      "navBuoy",
+      "witchpoint",
+    ]);
+  });
+
+  it("shows exactly the three contacts for a lifecycle whose world has ended", () => {
+    const { h, models } = flying(true);
+    h.ctx.core.worldLifecycle?.end();
+    h.driver.renderFrame(0);
+    expect(models[0]?.contacts).toHaveLength(3);
   });
 });

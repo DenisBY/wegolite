@@ -8,9 +8,10 @@
  * lives in `src/app` because it is app-owned presentation, not simulation, and
  * it is Node-testable: no canvas, no DOM, no state mutation.
  *
- * The scanner plots only the Coriolis, the nav buoy and the witchpoint (D-07);
- * the planet and sun are deliberately absent because a 41 km planet would fill
- * the 25.6 km display. The aegis/compass rules come from `src/sim/world/aegis`,
+ * The scanner plots the Coriolis, the nav buoy and the witchpoint (D-07), and
+ * since Phase 12 one contact per inert NPC ship (`NpcContact`, id-free); the
+ * planet and sun are deliberately absent because a 41 km planet would fill the
+ * 25.6 km display. The aegis/compass rules come from `src/sim/world/aegis`,
  * which is the single owner of the 51,200 m and 3r boundaries.
  */
 
@@ -21,6 +22,7 @@ import type { FlightConfig } from "../sim/flight/config.js";
 import type { FlightState } from "../sim/flight/state.js";
 import { clamp, sub } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
+import type { NpcContact } from "../sim/world/contacts.js";
 import type { Body, SystemLayout } from "../sim/world/layout.js";
 import {
   COMPASS_RADIUS,
@@ -73,8 +75,9 @@ function scannerTargets(layout: SystemLayout): readonly ScannerTarget[] {
 function buildContacts(
   state: FlightState,
   layout: SystemLayout,
+  npc: readonly NpcContact[],
 ): readonly HudContact[] {
-  return scannerTargets(layout).map((target) => {
+  const statics = scannerTargets(layout).map((target): HudContact => {
     const relative: Vec3 = sub(target.body.position, state.position);
     const blip = projectToScanner(
       relative,
@@ -86,6 +89,22 @@ function buildContacts(
     );
     return { id: target.id, kind: target.kind, ...blip };
   });
+  const ships = npc.map((contact): HudContact => {
+    const blip = projectToScanner(
+      sub(contact.position, state.position),
+      state.orientation,
+      SCANNER_WIDTH,
+      SCANNER_HEIGHT,
+      layout.scannerRange,
+      contact.radius,
+    );
+    return {
+      id: "ship",
+      kind: contact.kind === "police" ? "police" : "ship",
+      ...blip,
+    };
+  });
+  return [...statics, ...ships];
 }
 
 function buildCompass(state: FlightState, layout: SystemLayout): HudCompass {
@@ -130,6 +149,8 @@ function buildBars(
 /**
  * Build the flight HUD. `fuelTenths` is the live profile tank (0..70) and is
  * required: the bar and the fuel text are both derived from that one value.
+ * `npc` is the world's id-free ship contacts (`npcContacts`), empty with no
+ * world or traffic off, which leaves exactly the three static contacts.
  */
 export function buildHudModel(
   state: FlightState,
@@ -139,6 +160,7 @@ export function buildHudModel(
   fuelTenths: number,
   flashAlpha = 0,
   hyperspaceTarget = "",
+  npc: readonly NpcContact[] = [],
 ): HudModel {
   const aegis: AegisStatus = aegisStatus(state.position, layout);
   const tank = tankTenths(fuelTenths);
@@ -153,7 +175,7 @@ export function buildHudModel(
     flashAlpha: clamp(flashAlpha, 0, 1),
     massLocked: state.torus.massLocked,
     scannerRange: layout.scannerRange,
-    contacts: buildContacts(state, layout),
+    contacts: buildContacts(state, layout, npc),
     compass: buildCompass(state, layout),
     aegis,
     bars: buildBars(state, config, tank),

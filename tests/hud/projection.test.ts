@@ -22,7 +22,9 @@ import {
   HUD_LAYOUT,
   HUD_SCANNER_GRID_COLOR,
   HUD_SCANNER_NEUTRAL_COLOR,
+  HUD_SCANNER_POLICE_COLOR,
   drawHud,
+  scannerContactColor,
 } from "../../src/render/hud/draw.js";
 import {
   aegisLabel,
@@ -320,5 +322,17 @@ describe("HUD contacts", () => {
     expect(HUD_LAYOUT.compass.y + HUD_LAYOUT.compass.height / 2).toBe(
       scannerCenterY,
     );
+  });
+});
+
+describe("scannerContactColor", () => {
+  it("uses Oolite's colours: green station, neutral yellow for buoys, beacons and ships, police purple", () => {
+    expect(scannerContactColor("station")).toBe(HUD_COLOR);
+    expect(scannerContactColor("buoy")).toBe(HUD_SCANNER_NEUTRAL_COLOR);
+    expect(scannerContactColor("beacon")).toBe(HUD_SCANNER_NEUTRAL_COLOR);
+    expect(scannerContactColor("ship")).toBe(HUD_SCANNER_NEUTRAL_COLOR);
+    expect(scannerContactColor("police")).toBe(HUD_SCANNER_POLICE_COLOR);
+    // ShipEntity.m:5585 police_color1 = {0.5, 0.0, 1.0}
+    expect(HUD_SCANNER_POLICE_COLOR).toBe("#8000ff");
   });
 });
