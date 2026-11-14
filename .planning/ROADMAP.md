@@ -164,7 +164,32 @@ Plans:
   - The below-24-fps behaviour (todo); its evidence under load waits for the unscheduled performance phase (former Phase 23).
   - Settled 2026-11-13 (owner): WORLD-11 against WORLD-16, the chart-freeze check in `tests/e2e/hyperspace.spec.ts` is inverted; it is the one sanctioned change to an existing browser test, and WORLD-16 records the exception.
 **Todos**: `2026-11-10-keep-simulating-behind-the-chart.md` (closed by WORLD-11); `2026-11-10-fix-torus-refusal-message-under-mass-lock.md` (closed by WORLD-10; refusals become common once ships mass-lock); `2026-11-10-decide-behaviour-below-24-fps.md` (decide here)
-**Plans**: TBD
+**Plans**: 8 plans (sequential waves: every plan records a Key Decision in PROJECT.md, and the Docker gates share one slow host)
+
+Plans:
+**Wave 1**
+- [ ] 12-01-PLAN.md — FOUND-15 and FOUND-16 first: a throwing AI module becomes nullAI with an `aiFaulted` event and a deterministic hash; inert entities hold still (D-02, D-04); `spawnEntity` returns a refusal with a closed reason
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 12-02-PLAN.md — Browser-test bundles default traffic off at build time (`build:e2e`, `__WEGOLITE_TRAFFIC_DEFAULT__`), production keeps traffic on, with a no-leak contract (owner decision 1, WORLD-16)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 12-03-PLAN.md — Mass lock and jump blockage by NPC ships (`ShipField`), `torusRefused` with "Hyperspeed mass-locked.", the ship blocker copy; buoys stay non-blocking (WORLD-10)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 12-04-PLAN.md — A compiled collision radius on the NPC records, beside the mass (owner decision 2)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 12-05-PLAN.md — The pure, total first populator: 12 inert ships of the six roles at Oolite location codes from the world stream, pinned by a Lave golden
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 12-06-PLAN.md — Populator and masses wired into the lifecycle and the Node replay; WORLD-14 and SAVE-08 regeneration proofs; traffic-on Vitest variants; D-01 recorded
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 12-07-PLAN.md — Inert ships on the existing scanner and drawn through an instanced NPC layer; lazy models; the one opt-in traffic browser spec
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 12-08-PLAN.md — The simulation keeps running behind the chart in flight (WORLD-11), the sanctioned check inverted, D-03 recorded, and the phase gate (`verify-full`, `e2e-cross`)
 **UI hint**: yes
 
 ### Coverage
@@ -200,7 +225,7 @@ Pending todos outside v2.1, which can run as quick tasks or join a phase by owne
 | 9. NPC Content | v2.1 | 5/5 | Complete    | 2026-11-14 |
 | 10. Ship Mass | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
-| 12. Inert Ships and the World Lifecycle | v2.1 | 0/TBD | Not started | - |
+| 12. Inert Ships and the World Lifecycle | v2.1 | 0/8 | Planned | - |
 
 ## Backlog
 
