@@ -145,10 +145,15 @@ describe("boot-path isolation", () => {
     expect(source).not.toMatch(/generated\/ships-client\.json/);
   });
 
-  it("is named by no non-test source file other than the loader", () => {
+  it("is named by no non-test source file other than the loader and the start-up that loads it", () => {
+    // Start-up imports the loader and calls it only when traffic is on, so a
+    // traffic-off session (every plain browser spec, plan 12-03) never fetches
+    // the chunk. No other source file may name the catalogue.
     const named = sourceFiles("src").filter((file) =>
       readFileSync(join(REPO_ROOT, file), "utf8").includes("ships-npc"),
     );
-    expect(named).toEqual([LOADER]);
+    expect([...named].sort()).toEqual(
+      ["src/app/session/start-session.ts", LOADER].sort(),
+    );
   });
 });

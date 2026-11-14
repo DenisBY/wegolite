@@ -118,6 +118,11 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
       target: targetSystem(),
       equipment: equipmentSet(),
       dock: ctx.core.dockGeometry,
+      // The compiled NPC masses (WORLD-10), present only with traffic on; the
+      // key is omitted without them (exactOptionalPropertyTypes).
+      ...(ctx.core.npcTraffic === undefined
+        ? {}
+        : { shipMasses: ctx.core.npcTraffic.masses }),
     });
     // The one integration point (D-14): the world is read live on every step,
     // so a launch in one step creates the world the next step runs.

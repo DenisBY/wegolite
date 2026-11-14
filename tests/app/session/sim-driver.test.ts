@@ -50,6 +50,9 @@ const hooks = vi.hoisted(() => ({
   onStep: (commands: readonly unknown[]): void => {
     void commands;
   },
+  onOptions: (options: unknown): void => {
+    void options;
+  },
 }));
 
 vi.mock("../../../src/sim/flight/step.js", async (importOriginal) => {
@@ -61,6 +64,7 @@ vi.mock("../../../src/sim/flight/step.js", async (importOriginal) => {
       ...args: Parameters<typeof actual.stepFlight>
     ): ReturnType<typeof actual.stepFlight> => {
       hooks.onStep(args[4]);
+      hooks.onOptions(args[6]);
       return actual.stepFlight(...args);
     },
   };
@@ -196,6 +200,7 @@ const THREE_STEPS = 3.5 * DT;
 
 beforeEach(() => {
   hooks.onStep = () => undefined;
+  hooks.onOptions = () => undefined;
 });
 
 describe("advanceFrame, the command drain", () => {
@@ -342,6 +347,29 @@ describe("stepOnce, the single flight step", () => {
     const flying = harness({ mode: "inFlight" });
     flying.driver.advanceFrame(THREE_STEPS);
     expect(flying.counts.advances).toBe(0);
+  });
+
+  it("hands the loaded NPC masses to the step, and no key without them (plan 12-08)", () => {
+    const seen: unknown[] = [];
+    hooks.onOptions = (options) => {
+      seen.push(options);
+    };
+    const plain = harness({ mode: "inFlight" });
+    plain.driver.advanceFrame(DT);
+    const masses = [{ specKey: "viper", mass: 34_040.6796875 }];
+    const loaded = harness({ mode: "inFlight" });
+    loaded.ctx.core.npcTraffic = {
+      catalogue: [],
+      records: [],
+      masses,
+    };
+    loaded.driver.advanceFrame(DT);
+    expect(seen).toHaveLength(2);
+    const [without, withMasses] = seen as {
+      hyperspace?: { shipMasses?: unknown };
+    }[];
+    expect(without?.hyperspace).not.toHaveProperty("shipMasses");
+    expect(withMasses?.hyperspace?.shipMasses).toBe(masses);
   });
 
   it("moves the pose window forward by one step", () => {

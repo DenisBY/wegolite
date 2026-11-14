@@ -25,6 +25,10 @@ import type { HyperspaceControllerDeps } from "../../../src/app/session/hyperspa
 import { createSaveController } from "../../../src/app/session/save-controller.js";
 import type { SaveController } from "../../../src/app/session/save-controller.js";
 import { createSimDriver } from "../../../src/app/session/sim-driver.js";
+import {
+  createInertPopulate,
+  trafficContent,
+} from "../../../src/app/session/traffic.js";
 import { createSessionLifecycle } from "../../../src/app/session/start-session.js";
 import type { LifecycleDeps } from "../../../src/app/session/start-session.js";
 import {
@@ -35,7 +39,7 @@ import type {
   Populate,
   WorldLifecycle,
 } from "../../../src/app/session/world-lifecycle.js";
-import type { System } from "../../../src/content/types.js";
+import type { NpcShip, System } from "../../../src/content/types.js";
 import type { InputContext } from "../../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { snapshotForSave } from "../../../src/persistence/autosave.js";
@@ -62,7 +66,11 @@ import { identity, vec } from "../../../src/sim/math.js";
 import { newProfile } from "../../../src/sim/player/profile.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { worldSeedFor } from "../../../src/sim/rng.js";
-import { liveEntityCount, spawnEntity } from "../../../src/sim/world/world.js";
+import {
+  createWorld,
+  liveEntityCount,
+  spawnEntity,
+} from "../../../src/sim/world/world.js";
 import {
   PlayerController,
   ScriptedLaunchController,
@@ -95,7 +103,8 @@ interface Tracer {
  * real lifecycle subscriber) and a real lifecycle. The input double drains the
  * `queue`; the loop double runs exactly one fixed step per frame.
  */
-function tracer(): Tracer {
+function tracer(options: { readonly traffic?: boolean } = {}): Tracer {
+  const traffic = options.traffic === true;
   const ctx = createSessionState({
     system: lave.system,
     saveStatus: "absent",
@@ -105,7 +114,26 @@ function tracer(): Tracer {
   ctx.core.layout = lave.layout;
   ctx.core.config = lave.config;
   ctx.core.marketSeed = MARKET_SEED;
-  const lifecycle = createWorldLifecycle({ traffic: false });
+  // Traffic on wires the real inert populate over the committed NPC records,
+  // as start-up does; traffic off keeps the default populator.
+  if (traffic) {
+    ctx.core.npcTraffic = trafficContent(
+      JSON.parse(
+        readFileSync("src/content/generated/ships-npc.json", "utf8"),
+      ) as NpcShip[],
+    );
+  }
+  const lifecycle = createWorldLifecycle({
+    traffic,
+    ...(traffic
+      ? {
+          populate: createInertPopulate(
+            () => ctx.core.npcTraffic,
+            () => ctx.core.layout,
+          ),
+        }
+      : {}),
+  });
   ctx.core.worldLifecycle = lifecycle;
   const queue: Command[] = [];
   ctx.runtime.input = {
@@ -148,6 +176,67 @@ function tracer(): Tracer {
     },
   };
 }
+
+describe("the launched event populates the world with traffic on (plan 12-08, tracer)", () => {
+  it("holds twelve inert ships after the launch step, with the anchor at 113", () => {
+    const { ctx, lifecycle, queue, step } = tracer({ traffic: true });
+    queue.push(launch);
+    step();
+    expect(ctx.core.state?.mode).toBe("launching");
+    const world = lifecycle.world;
+    expect(world).toBeDefined();
+    if (world === undefined) return;
+    expect(liveEntityCount(world)).toBe(12);
+    expect(world.store.nextId).toBe(113);
+    expect(lifecycle.anchorNextEntityId).toBe(113);
+  });
+
+  it("keeps the twelve ships byte for byte across the launch and the flight that follows", () => {
+    const { ctx, lifecycle, queue, step } = tracer({ traffic: true });
+    queue.push(launch);
+    step();
+    const world = lifecycle.world;
+    if (world === undefined) throw new Error("expected a world after launch");
+    const section = snapshotWorld(world);
+    for (let tick = 0; tick < 300; tick += 1) step();
+    expect(ctx.core.state?.mode).toBe("inFlight");
+    expect(lifecycle.world).toBe(world);
+    expect(liveEntityCount(world)).toBe(12);
+    expect(snapshotWorld(world)).toEqual(section);
+  });
+
+  it("gives the same script no entity, anchor 101 and an untouched world stream with traffic off", () => {
+    const off = tracer();
+    off.queue.push(launch);
+    off.step();
+    const world = off.lifecycle.world;
+    const state = off.ctx.core.state;
+    if (world === undefined || state === undefined) {
+      throw new Error("expected a world and a state after launch");
+    }
+    expect(liveEntityCount(world)).toBe(0);
+    expect(off.lifecycle.anchorNextEntityId).toBe(101);
+    expect(world.rng.s).toBe(createWorld(worldSeedFor(MARKET_SEED, 1)).rng.s);
+    expect(hashWorld(state, world)).toBe(hashFlight(state));
+  });
+
+  it("rebuilds the same twelve ships for the same script, and the epoch does not depend on traffic", () => {
+    const on = tracer({ traffic: true });
+    const again = tracer({ traffic: true });
+    const off = tracer();
+    for (const run of [on, again, off]) {
+      run.queue.push(launch);
+      run.step();
+    }
+    expect(on.lifecycle.epoch).toBe(off.lifecycle.epoch);
+    const first = on.lifecycle.world;
+    const second = again.lifecycle.world;
+    if (first === undefined || second === undefined) {
+      throw new Error("expected worlds after launch");
+    }
+    expect(snapshotWorld(second)).toEqual(snapshotWorld(first));
+  });
+});
 
 describe("launch creates a world that steps through stepSim; docking drops it (tracer)", () => {
   it("has no world while docked and epoch 0 before the first launch", () => {
@@ -724,6 +813,46 @@ describe("session wiring (start-up and dispose)", () => {
     expect(source.match(/restoreWorldAnchor\(/g)).toHaveLength(1);
     expect(source).not.toMatch(/worldLifecycle\?\.(resetForRestore|resume)\(/);
     expect(source).not.toContain("resetForRestore(0)");
+  });
+});
+
+describe("session wiring of the inert populator (plan 12-08)", () => {
+  const source = readFileSync("src/app/session/start-session.ts", "utf8");
+
+  it("hands the lifecycle the traffic flag first and the inert populate second", () => {
+    const created = source.indexOf("createWorldLifecycle({");
+    expect(created).toBeGreaterThan(-1);
+    const call = source.slice(created, created + 300);
+    const traffic = call.indexOf("traffic: ctx.runtime.testFlags.traffic");
+    const populate = call.indexOf("populate: createInertPopulate(");
+    expect(traffic).toBeGreaterThan(-1);
+    expect(populate).toBeGreaterThan(traffic);
+    expect(source.match(/createInertPopulate\(/g)).toHaveLength(1);
+    expect(call).toContain("() => ctx.core.npcTraffic");
+    expect(call).toContain("() => ctx.core.layout");
+  });
+
+  it("loads the NPC catalogue once, only behind the traffic flag, in the boot Promise.all", () => {
+    expect(source.match(/loadNpcCatalogue\(\)/g)).toHaveLength(1);
+    const load = source.indexOf("loadNpcCatalogue()");
+    expect(
+      source.slice(Math.max(0, load - 80), load).replace(/\s+/g, " "),
+    ).toContain("ctx.runtime.testFlags.traffic ?");
+    const all = source.indexOf("await Promise.all([");
+    const closed = source.indexOf("]);", all);
+    expect(all).toBeGreaterThan(-1);
+    expect(load).toBeGreaterThan(all);
+    expect(load).toBeLessThan(closed);
+    // The same failure surface as the other catalogues.
+    expect(source.slice(closed, closed + 900)).toContain("showBootFailure");
+    expect(source).toContain("ctx.core.npcTraffic =");
+  });
+
+  it("installs the layout before the anchor world is rebuilt", () => {
+    const layout = source.indexOf("ctx.core.layout = systemLayout");
+    const reanchor = source.indexOf("restoreWorldAnchor(");
+    expect(layout).toBeGreaterThan(-1);
+    expect(reanchor).toBeGreaterThan(layout);
   });
 });
 
@@ -1453,9 +1582,10 @@ describe("Node-importable session modules", () => {
   const FILES = [
     "src/app/session/world-lifecycle.ts",
     "src/app/session/step-options.ts",
+    "src/app/session/traffic.ts",
   ];
 
-  it("every import of world-lifecycle.ts and step-options.ts resolves under src/sim or is an import type from src/content/types", () => {
+  it("every import of world-lifecycle.ts, step-options.ts and traffic.ts resolves under src/sim or is an import type from src/content/types", () => {
     for (const file of FILES) {
       const text = readFileSync(file, "utf8");
       expect(importSpecifiers(text).length).toBeGreaterThan(0);

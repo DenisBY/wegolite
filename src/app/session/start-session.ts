@@ -32,6 +32,7 @@ import { loadDockPort } from "../../content/dock-port.js";
 import { loadEquipment } from "../../content/equipment.js";
 import { loadCommodities } from "../../content/commodities.js";
 import { loadLabels } from "../../content/labels.js";
+import { loadNpcCatalogue } from "../../content/ships-npc.js";
 import type { System } from "../../content/types.js";
 import { createGameLoop } from "../game-loop.js";
 import { createHintController } from "../hints.js";
@@ -42,6 +43,7 @@ import type { SceneManager } from "../scene-manager.js";
 import type { GameSessionSave, StartOptions } from "../game-session.js";
 import type { AssetCache } from "../../render/asset-cache.js";
 import { parseTestFlags } from "./test-flags.js";
+import { createInertPopulate, trafficContent } from "./traffic.js";
 import { createWorldLifecycle, restoreWorldAnchor } from "./world-lifecycle.js";
 import {
   profileFromSave,
@@ -313,10 +315,17 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     );
     ctx.runtime.testHookEnabled = ctx.runtime.testFlags.hook;
     // D-05/D-10: the world lifecycle carries the traffic setting parsed above
-    // and the default populator (nothing in Phase 8). It exists before the
-    // restore branch, so a Continue and a launch both reach it.
+    // and the inert populator (Phase 12, D-01). It exists before the restore
+    // branch, so a Continue and a launch both reach it. The populate closure
+    // reads the NPC content and the layout at call time and never awaits, so
+    // the lifecycle may be built before the boot load below finishes; the load
+    // completes before the first `begin` or `resume` can run.
     ctx.core.worldLifecycle = createWorldLifecycle({
       traffic: ctx.runtime.testFlags.traffic,
+      populate: createInertPopulate(
+        () => ctx.core.npcTraffic,
+        () => ctx.core.layout,
+      ),
     });
 
     // D-09/T-06-12: every target id is resolved through this validated map.
@@ -352,12 +361,20 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     // coefficients. A missing or malformed record fails the boot visibly,
     // exactly like the ship catalogue.
     try {
-      const [equipment, loadedCommodities, loadedLabels] = await Promise.all([
-        loadEquipment(),
-        loadCommodities(),
-        loadLabels(),
-      ]);
+      // The NPC catalogue joins the same failure surface, and only with
+      // traffic on: a traffic-off session never fetches its chunk (WORLD-16).
+      const [equipment, loadedCommodities, loadedLabels, npcCatalogue] =
+        await Promise.all([
+          loadEquipment(),
+          loadCommodities(),
+          loadLabels(),
+          ctx.runtime.testFlags.traffic
+            ? loadNpcCatalogue()
+            : Promise.resolve(undefined),
+        ]);
       if (ctx.runtime.disposed) return;
+      ctx.core.npcTraffic =
+        npcCatalogue === undefined ? undefined : trafficContent(npcCatalogue);
       ctx.core.equipmentCatalogue = equipment;
       ctx.core.commodities = loadedCommodities;
       ctx.core.labels = loadedLabels;

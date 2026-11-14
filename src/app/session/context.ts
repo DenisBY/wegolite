@@ -48,6 +48,7 @@ import type {
 import type { RedrawGate } from "../redraw-gate.js";
 import type { SceneManager } from "../scene-manager.js";
 import type { TestFlags } from "./test-flags.js";
+import type { TrafficContent } from "./traffic.js";
 import type { WorldLifecycle } from "./world-lifecycle.js";
 import type { KeyboardInputSource } from "../../input/keyboard.js";
 import type { InputContext } from "../../input/actions.js";
@@ -132,6 +133,14 @@ export interface SessionCore {
    * read live by the sim driver and the lifecycle points. Never copied.
    */
   worldLifecycle: WorldLifecycle | undefined;
+  /**
+   * The NPC traffic content (plan 12-08): the populator records and the step's
+   * ship masses. Loaded once at start-up, and only when traffic is on, so it is
+   * undefined with traffic off and until the boot load has finished. Static
+   * content: it holds no entity id and no world state, and it is read live by
+   * the populate closure and by the sim driver.
+   */
+  npcTraffic: TrafficContent | undefined;
 }
 
 /** The station computer's own state; the UI is purely presentational. */
@@ -305,6 +314,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       dockFeedback: createDockFeedback(),
       lastModel: undefined,
       worldLifecycle: undefined,
+      npcTraffic: undefined,
     },
     station: {
       stationScreen: "home",
