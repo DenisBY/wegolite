@@ -6,11 +6,11 @@ This document records the frame budget Wegolite is held to, what the container m
 
 Each rendered frame must stay inside these limits. Each row names the gate that enforces it.
 
-| Quantity                      | Budget          | Source                                   | Enforced by                                                 |
-| ----------------------------- | --------------- | ---------------------------------------- | ----------------------------------------------------------- |
-| Draw calls per rendered frame | at most 50      | STACK.md lines 442-443 (research target) | `tests/e2e/budget.spec.ts` (`DRAW_CALL_BUDGET`)             |
-| Triangles per rendered frame  | at most 250 000 | STACK.md lines 442-443 (research target) | `tests/e2e/budget.spec.ts` (`TRIANGLE_BUDGET`)              |
-| Planet noise evaluations      | at most 9       | `BUDGET_CEILING` (D-12, unchanged)       | `tests/render/planet-budget.test.ts` (`BUDGET_CEILING = 9`) |
+| Quantity                      | Budget          | Source                                   | Enforced by                                                                                           |
+| ----------------------------- | --------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Draw calls per rendered frame | at most 50      | STACK.md lines 442-443 (research target) | `tests/e2e/budget.spec.ts` (`DRAW_CALL_BUDGET`); `tests/e2e/traffic.spec.ts` for the traffic-on scene |
+| Triangles per rendered frame  | at most 250 000 | STACK.md lines 442-443 (research target) | `tests/e2e/budget.spec.ts` (`TRIANGLE_BUDGET`)                                                        |
+| Planet noise evaluations      | at most 9       | `BUDGET_CEILING` (D-12, unchanged)       | `tests/render/planet-budget.test.ts` (`BUDGET_CEILING = 9`)                                           |
 
 The budget applies to the default Standard quality, which is what every test renders. The opt-in High quality (the "High-quality graphics" setting) spends up to 17 planet noise evaluations (`HIGH_NOISE_EVAL_BUDGET`) and adds up to five draw calls: one for the atmosphere shell and one per nebula texture. It has no frame-rate evidence yet; measure it with the reference-desktop protocol below before changing the default.
 
@@ -20,13 +20,16 @@ Both draw-call and triangle comparisons are inclusive: 50 calls and 250 000 tria
 
 These are the per-scene counts from the `budget.spec.ts` annotations, recorded in the containerised build on the dates shown. The two buoys add four draw calls and about 2 700 triangles to every scene that draws them. They are SwiftShader counts of draw calls and triangles per rendered frame. They are not frame rates, and they say nothing about how fast a player's GPU renders these scenes.
 
-| Scene          | Draw calls | Triangles | Recorded   |
-| -------------- | ---------- | --------- | ---------- |
-| Lave docked    | 13         | 41418     | 2026-11-11 |
-| Lave launching | 8          | 3302      | 2026-11-11 |
-| Lave in flight | 10         | 41012     | 2026-11-11 |
-| Diso docked    | 13         | 41418     | 2026-11-11 |
-| Diso in flight | 10         | 41012     | 2026-11-11 |
+| Scene                               | Draw calls | Triangles | Recorded   |
+| ----------------------------------- | ---------- | --------- | ---------- |
+| Lave docked                         | 13         | 41418     | 2026-11-11 |
+| Lave launching                      | 8          | 3302      | 2026-11-11 |
+| Lave in flight                      | 10         | 41012     | 2026-11-11 |
+| Diso docked                         | 13         | 41418     | 2026-11-11 |
+| Diso in flight                      | 10         | 41012     | 2026-11-11 |
+| Lave in flight, traffic on (opt-in) | 17         | 49095     | 2026-11-14 |
+
+The traffic-on row is the scene after a launch and 600 manual ticks with the 12 inert ships present and their models loaded; with the models still held it is 9 calls and 39192 triangles, so the NPC layer added 8 calls and 9903 triangles there. The layer adds one call per (model, primitive) present, at most 13, and is measured only by the opt-in `tests/e2e/traffic.spec.ts`, because the browser-test bundle defaults traffic off and `budget.spec.ts` therefore stays an empty-world measurement. The spec asserts the loaded scene is above the held one and at most 50 calls; the figures are counts in the container build, not frame rates.
 
 Since quick task 261110-a3k a docked or paused scene is drawn when it is entered and then left alone until something changes (`src/app/redraw-gate.ts`). The docked rows above are the counts of that last draw; they are no longer a per-frame cost. `budget.spec.ts` therefore settles on loop frames (`probe.frames`), not on rendered frames.
 
@@ -36,15 +39,18 @@ The Diso scenes are reached through an IndexedDB save fixture (`tests/e2e/helper
 
 The first-load test in `tests/e2e/budget.spec.ts` records the same-origin response body bytes of every request from a cold start (a fresh browser context, no cache) to the first in-flight frame.
 
-| Measure                                          | Value                      |
-| ------------------------------------------------ | -------------------------- |
-| Cold-start transfer to the first in-flight frame | 8 835 212 bytes (8.43 MiB) |
-| Regression ceiling (`FIRST_LOAD_BYTES_CEILING`)  | 9 437 184 bytes (9 MiB)    |
-| Entry chunk `dist/assets/index-*.js`, raw        | 1 615 497 bytes            |
-| Entry chunk, gzip at level 9                     | 319 971 bytes              |
-| STACK.md target for initial JavaScript           | 250 KB gzip                |
+| Measure                                                                         | Value                      |
+| ------------------------------------------------------------------------------- | -------------------------- |
+| Cold-start transfer to the first in-flight frame                                | 8 835 212 bytes (8.43 MiB) |
+| Cold-start transfer to the first in-flight frame, traffic on (production build) | 8 839 791 bytes (8.43 MiB) |
+| Regression ceiling (`FIRST_LOAD_BYTES_CEILING`)                                 | 9 437 184 bytes (9 MiB)    |
+| Entry chunk `dist/assets/index-*.js`, raw                                       | 1 615 497 bytes            |
+| Entry chunk, gzip at level 9                                                    | 319 971 bytes              |
+| STACK.md target for initial JavaScript                                          | 250 KB gzip                |
 
 The transfer was measured on 2026-11-14 after Phase 10 added the navigation buoy entry with its mass to `ships-client.json` (15 244 to 19 518 bytes on disk); it was 8 834 862 bytes before that, measured the same day after Phase 9 added nine NPC ship models and their 43 texture files under `public/` (about 12 MB), none of which is requested on a cold start (asserted by the same test, which also logs every request path); it was 8 814 224 bytes on 2026-11-11. The entry chunk was measured on 2026-11-10. The transfer was 7 490 424 bytes on 2026-11-10; quick task 261111-g5n added the navigation buoy model and its six texture files (1 322 175 bytes on disk). It was 20 996 848 bytes (20.03 MiB) on 2026-11-08. Two quick tasks account for the difference: 261109-s8k trimmed the client ship catalogue from 706 617 to 15 196 bytes, and 261110-b7w re-encoded the sixteen ship and station textures from PNG (19 727 075 bytes) to WebP (6 251 016 bytes). The preview server does not compress responses, so these are uncompressed body sizes.
+
+Since Phase 12 a production session has NPC traffic on and populates 12 inert ships at launch, but their models and textures (nine GLBs, 820 068 bytes; 43 textures, 11 528 725 bytes) are requested only after the first in-flight frame has been presented (plan 12-11; Key Decisions row "Defer NPC model requests until the first in-flight frame", owner decision 2026-11-14, option A), so the cold start adds only the NPC catalogue chunk and the Phase 12 code. `tests/e2e/budget.spec.ts` measures the cold start with traffic off (the browser-test bundle's default) and `tests/e2e/traffic.spec.ts` measures it with traffic on, in the browser-test bundle on every run and in the production bundle once. Both enforce the unchanged 9 437 184-byte ceiling, and raising it (option B) is revisited only on measured evidence. On 2026-11-14 the traffic-on transfer was 8 839 791 bytes in the browser-test bundle and 8 839 791 bytes in the production bundle (the two bundles differ only in the traffic default, which `?test=1&traffic=1` overrides), 4 579 bytes above the traffic-off figure; the same run requested 6 of the 9 GLBs and 26 of the 43 textures after the first in-flight frame (the models of the ship types present in that world), none before it, and every one finished within 600 loop frames.
 
 The ceiling is the measured transfer rounded up to the next MiB, so it is a regression ceiling and not a load budget. The entry chunk was measured inside the container with `node:zlib` `gzipSync`.
 
