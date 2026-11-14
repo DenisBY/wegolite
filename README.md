@@ -38,21 +38,29 @@ for that action.
 
 **Flight**
 
-| Action           | Keys                     |
-| ---------------- | ------------------------ |
-| Pitch forward    | `Up arrow`               |
-| Pitch back       | `Down arrow`             |
-| Roll left        | `Left arrow`             |
-| Roll right       | `Right arrow`            |
-| Increase speed   | `W`                      |
-| Decrease speed   | `S`                      |
-| Torus drive      | `J`                      |
-| Launch           | `1 / F1`                 |
-| Docking computer | `Shift+C`                |
-| Target station   | `R`                      |
-| Cycle compass    | `\`                      |
-| Precision        | `Left Ctrl / Right Ctrl` |
-| Hyperspace       | `H`                      |
+| Action               | Keys                     |
+| -------------------- | ------------------------ |
+| Pitch forward        | `Up arrow`               |
+| Pitch back           | `Down arrow`             |
+| Roll left            | `Left arrow`             |
+| Roll right           | `Right arrow`            |
+| Increase speed       | `W`                      |
+| Decrease speed       | `S`                      |
+| Torus drive          | `J`                      |
+| Launch               | `1 / F1`                 |
+| Docking computer     | `Shift+C`                |
+| Target station       | `Q`                      |
+| Cycle compass        | `\`                      |
+| Precision            | `Left Ctrl / Right Ctrl` |
+| Hyperspace           | `H`                      |
+| Fore view            | `1 / F1`                 |
+| Aft view             | `2 / F2`                 |
+| Port view            | `3 / F3`                 |
+| Starboard view       | `4 / F4`                 |
+| Fire laser           | `A`                      |
+| Ident                | `R`                      |
+| Untarget             | `U`                      |
+| Eject (double press) | `Esc`                    |
 
 **Galactic chart**
 
@@ -107,9 +115,9 @@ the left button pans.
 
 **Anywhere**
 
-| Action | Keys      |
-| ------ | --------- |
-| Pause  | `P / Esc` |
+| Action | Keys |
+| ------ | ---- |
+| Pause  | `P`  |
 
 ## Supported browsers
 
@@ -175,7 +183,7 @@ evaluations and up to five more draw calls, and it is not measured by the budget
   page says "Wegolite could not restore the graphics. Your last save is safe.
   Reload the page to continue."
 - **A hidden tab pauses the game.** Switching to another tab pauses Wegolite.
-  Return to the tab and press P or Esc to carry on.
+  Return to the tab and press P to carry on.
 
 ## Content pipeline
 

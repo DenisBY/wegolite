@@ -99,8 +99,10 @@ export function createSettingsController(
 
   function resume(): void {
     if (!ctx.runtime.paused) return;
-    // QUAL-05 (D-15): no resume without a context. P, Escape and the Resume
-    // button all reach this line, so the refusal covers every route.
+    // QUAL-05 (D-15): no resume without a context. P and the Resume button
+    // reach this line (Escape no longer pauses or resumes by default, INPUT-01;
+    // a stored blob that still binds it to pause does), so the refusal covers
+    // every route.
     if (ctx.runtime.contextLost) return;
     ctx.runtime.paused = false;
     ctx.runtime.input?.clearAll();
