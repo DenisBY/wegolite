@@ -20,6 +20,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   is now refused as blocked (it was about 6.75 km). The station's mass is now
   the one Oolite computes from its model, including the faceplate, tris and dock
   parts, instead of an older figure from an Oolite source comment.
+- Saves now use a new save format that records where the game is in its
+  sequence of local worlds, so a loaded game continues exactly as the session
+  that saved it would have. Saves from earlier versions are upgraded when they
+  are loaded, and the next save uses the new save format. **Compatibility:** an
+  older version of Wegolite keeps a save written by this version untouched but
+  cannot load it.
 
 ## [0.3.0] - 2026-11-11
 
