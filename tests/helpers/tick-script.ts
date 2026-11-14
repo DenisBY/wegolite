@@ -46,14 +46,28 @@
  *   event-router.ts:354-362 (the one-tick latency of world-lifecycle.ts rule
  *   (i): a world made in the launch step is first stepped on the next tick).
  *
+ * - the populated world (Phase 12, plan 12-09; Phase 8 deferred populated parity
+ *   to Phase 12): with `traffic: true` the replay builds the same populate and
+ *   the same step masses as the session, through the one shared source
+ *   `src/app/session/traffic.ts` (`trafficContent`, `createInertPopulate`). The
+ *   catalogue is read from `src/content/generated/ships-npc.json` with
+ *   `readFileSync` and validated with the strict schema (no `import.meta.glob`),
+ *   the populate reads the Lave layout, and `shipMasses` goes to
+ *   `buildStepOptions`, as start-up and sim-driver.ts do. With traffic off the
+ *   file is not read, the lifecycle keeps its default populator and no mass is
+ *   passed, so every traffic-off replay is unchanged (D-01).
+ *
  * Not mirrored: the hyperspace edge mapping (no script commits a target) and
  * the arrival (a jump is proven through the real driver in Vitest only).
  *
- * Node only. It imports `src/sim`, two pure session modules
- * (`step-options.ts`, `world-lifecycle.ts`), `newProfile` and the readFileSync
- * based fixtures; nothing that touches the DOM, Three or `import.meta.glob`, so
- * the Playwright Node runner can import it (RESEARCH A7).
+ * Node only. It imports `src/sim`, three pure session modules
+ * (`step-options.ts`, `traffic.ts`, `world-lifecycle.ts`), the NPC catalogue
+ * schema, `newProfile` and the readFileSync based fixtures; nothing that
+ * touches the DOM, Three or `import.meta.glob`, so the Playwright Node runner
+ * can import it (RESEARCH A7).
  */
+
+import { readFileSync } from "node:fs";
 
 import type { Command } from "../../src/sim/commands.js";
 import {
@@ -71,7 +85,13 @@ import { DT } from "../../src/sim/time.js";
 import { hashWorld } from "../../src/sim/world/serialize.js";
 import type { World } from "../../src/sim/world/world.js";
 import { buildStepOptions } from "../../src/app/session/step-options.js";
+import {
+  createInertPopulate,
+  trafficContent,
+} from "../../src/app/session/traffic.js";
+import type { TrafficContent } from "../../src/app/session/traffic.js";
 import { createWorldLifecycle } from "../../src/app/session/world-lifecycle.js";
+import { NpcShipCatalogueSchema } from "../../src/content/schemas/ship-npc.js";
 import { laveDockGeometry } from "./dock-pose.js";
 import { laveFixture } from "./lave.js";
 
@@ -82,7 +102,10 @@ export interface TickStep {
 }
 
 export interface TickScriptOptions {
-  /** The session's effective traffic flag; it only reaches the populate seam. */
+  /**
+   * The session's effective traffic flag: with it the replay populates the
+   * world and passes the NPC masses exactly as the session does.
+   */
   readonly traffic?: boolean;
   /** Also return the `hashWorld` value after every tick. */
   readonly trace?: boolean;
@@ -107,6 +130,18 @@ const IDLE_FRAME: InputFrame = {
   precision: false,
 };
 
+/**
+ * The committed NPC records as the session loads them: read with `readFileSync`
+ * and validated with the strict schema, then built into the shared content.
+ */
+function committedTrafficContent(): TrafficContent {
+  const raw = readFileSync(
+    new URL("../../src/content/generated/ships-npc.json", import.meta.url),
+    "utf8",
+  );
+  return trafficContent(NpcShipCatalogueSchema.parse(JSON.parse(raw)));
+}
+
 /** Replay `steps` over a New game and hash the result. */
 export function runTickScript(
   steps: readonly TickStep[],
@@ -120,7 +155,21 @@ export function runTickScript(
   const equipment: ReadonlySet<string> = new Set(profile.equipment);
   const player = new PlayerController();
   const scripted = new ScriptedLaunchController();
-  const lifecycle = createWorldLifecycle({ traffic: options.traffic === true });
+  const traffic = options.traffic === true;
+  // Traffic on: the same populate and masses as the session (traffic.ts). Traffic
+  // off reads nothing and keeps the default populator.
+  const content = traffic ? committedTrafficContent() : undefined;
+  const lifecycle = createWorldLifecycle({
+    traffic,
+    ...(content === undefined
+      ? {}
+      : {
+          populate: createInertPopulate(
+            () => content,
+            () => layout,
+          ),
+        }),
+  });
   const trace: string[] = [];
 
   for (const step of steps) {
@@ -145,6 +194,7 @@ export function runTickScript(
           target: undefined,
           equipment,
           dock,
+          ...(content === undefined ? {} : { shipMasses: content.masses }),
         }),
       );
       for (const event of events) {

@@ -1520,7 +1520,12 @@ interface LoadHarness {
  * and arrived (epoch 2).
  */
 function loadHarness(
-  options: { readonly hook?: boolean; readonly populate?: Populate } = {},
+  options: {
+    readonly hook?: boolean;
+    readonly populate?: Populate;
+    /** Traffic on: the real inert populate over the committed NPC records. */
+    readonly traffic?: boolean;
+  } = {},
 ): LoadHarness {
   const ctx = createSessionState({
     system: lave.system,
@@ -1551,9 +1556,20 @@ function loadHarness(
     });
   }
 
+  const traffic = options.traffic === true;
+  if (traffic) ctx.core.npcTraffic = committedTraffic();
   const real = createWorldLifecycle({
-    traffic: false,
-    ...(options.populate === undefined ? {} : { populate: options.populate }),
+    traffic,
+    ...(traffic
+      ? {
+          populate: createInertPopulate(
+            () => ctx.core.npcTraffic,
+            () => ctx.core.layout,
+          ),
+        }
+      : options.populate === undefined
+        ? {}
+        : { populate: options.populate }),
   });
   real.begin(MARKET_SEED_LAVE);
   real.begin(0x0badf00d);
@@ -1743,6 +1759,93 @@ describe("load", () => {
     expect(cold.world?.worldSeed).toBe(warmWorld.worldSeed);
     if (cold.world === undefined) return;
     expect(hashWorld(state, cold.world)).toBe(restoredHash);
+  });
+
+  it("regenerates the same world after resetForRestore and resume as begin built, with anchor 113 (SAVE-08)", () => {
+    const content = committedTraffic();
+    const lifecycle = createWorldLifecycle({
+      traffic: true,
+      populate: createInertPopulate(
+        () => content,
+        () => lave.layout,
+      ),
+    });
+    expect(lifecycle.resetForRestore(4)).toBe(true);
+    lifecycle.begin(MARKET_SEED_LAVE);
+    expect(lifecycle.epoch).toBe(5);
+    const built = lifecycle.world;
+    if (built === undefined) throw new Error("expected the built world");
+    // The text of A is taken before B exists: the rebuild must equal it.
+    const builtSection = serializeWorldSection(built);
+    expect(lifecycle.anchorNextEntityId).toBe(113);
+
+    expect(lifecycle.resetForRestore(5)).toBe(true);
+    expect(lifecycle.world).toBeUndefined();
+    lifecycle.resume(MARKET_SEED_LAVE);
+    const rebuilt = lifecycle.world;
+    if (rebuilt === undefined) throw new Error("expected the rebuilt world");
+    expect(rebuilt).not.toBe(built);
+    expect(lifecycle.epoch).toBe(5);
+    expect(lifecycle.anchorNextEntityId).toBe(113);
+    expect(liveEntityCount(rebuilt)).toBe(12);
+    expect(serializeWorldSection(rebuilt)).toBe(builtSection);
+  });
+
+  it("an in-flight Load of a traffic-on save restores the fresh arrival's twelve ships, and the cold Continue agrees", async () => {
+    const content = committedTraffic();
+    const populate = createInertPopulate(
+      () => content,
+      () => lave.layout,
+    );
+    const arrival = createWorldLifecycle({ traffic: true, populate });
+    expect(arrival.resetForRestore(4)).toBe(true);
+    arrival.begin(MARKET_SEED_LAVE);
+    const raw = laveBlob("inFlight", arrival);
+    expect(raw).toContain('"epoch":5');
+    expect(raw).toContain('"nextEntityId":113');
+    const h = loadHarness({ traffic: true });
+    h.read.current = { kind: "ok", raw };
+
+    await h.controller.loadFromSave();
+
+    const warm = h.lifecycle;
+    expect(warm.epoch).toBe(5);
+    expect(warm.anchorNextEntityId).toBe(113);
+    const warmWorld = warm.world;
+    const arrivalWorld = arrival.world;
+    if (warmWorld === undefined || arrivalWorld === undefined) {
+      throw new Error("expected warm and arrival worlds");
+    }
+    expect(liveEntityCount(warmWorld)).toBe(12);
+    expect(serializeWorldSection(warmWorld)).toBe(
+      serializeWorldSection(arrivalWorld),
+    );
+
+    // The cold Continue of the same blob (the shared re-anchor function).
+    const parsed = parseSave(raw, SAVE_ALLOW);
+    if (!parsed.ok) throw new Error("the save did not parse");
+    const cold = createWorldLifecycle({ traffic: true, populate });
+    restoreWorldAnchor(cold, parsed.save.epoch, MARKET_SEED_LAVE, true);
+    expect(cold.anchorNextEntityId).toBe(parsed.save.nextEntityId);
+    if (cold.world === undefined) throw new Error("expected a cold world");
+    expect(serializeWorldSection(cold.world)).toBe(
+      serializeWorldSection(warmWorld),
+    );
+  });
+
+  it("a counter that differs never blocks a Load: a traffic-off save loads with traffic on and regenerates 113", async () => {
+    // Written by a session with traffic off: the leg anchor is 101.
+    const raw = laveBlob("inFlight", arrivalAtEpoch5());
+    expect(raw).toContain('"nextEntityId":101');
+    const h = loadHarness({ traffic: true });
+    h.read.current = { kind: "ok", raw };
+
+    await h.controller.loadFromSave();
+
+    expect(h.lifecycle.epoch).toBe(5);
+    expect(h.lifecycle.world).toBeDefined();
+    expect(h.lifecycle.world && liveEntityCount(h.lifecycle.world)).toBe(12);
+    expect(h.lifecycle.anchorNextEntityId).toBe(113);
   });
 
   it("a docked Load of a save written at epoch 5 restores epoch 5 with no world, and the next launch gives epoch 6", async () => {

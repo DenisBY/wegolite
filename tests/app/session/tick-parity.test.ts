@@ -41,9 +41,13 @@ import type { ProbePublisher } from "../../../src/app/session/probe-publisher.js
 import { createSimDriver } from "../../../src/app/session/sim-driver.js";
 import type { SimDriver } from "../../../src/app/session/sim-driver.js";
 import { parseTestFlags } from "../../../src/app/session/test-flags.js";
+import {
+  createInertPopulate,
+  trafficContent,
+} from "../../../src/app/session/traffic.js";
 import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
 import type { WorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
-import type { System } from "../../../src/content/types.js";
+import type { NpcShip, System } from "../../../src/content/types.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { Command } from "../../../src/sim/commands.js";
@@ -98,8 +102,9 @@ interface Session {
 /**
  * A docked Lave New game over the real driver, router, lifecycle and probe
  * publisher; `search` is parsed exactly as the session parses the URL.
+ * `populated` adds the inert populator and the NPC masses (with traffic on).
  */
-function session(search: string): Session {
+function session(search: string, populated = false): Session {
   const ctx = createSessionState({
     system: lave.system,
     saveStatus: "absent",
@@ -114,8 +119,35 @@ function session(search: string): Session {
   ctx.core.marketSeed = LAVE_SEED;
   ctx.core.market = generateMarket(lave.system, catalogue, LAVE_SEED);
   ctx.runtime.testFlags = parseTestFlags(search);
+  // `populated` (traffic on only) wires the real inert populate over the
+  // committed NPC records, as start-up does (start-session.ts). Every other
+  // session keeps the default populator, so the pre-existing rows, some of which
+  // open with `traffic=1` and spawn their own entity, are unchanged.
+  const traffic = ctx.runtime.testFlags.traffic;
+  const populate = traffic && populated;
+  if (populate) {
+    ctx.core.npcTraffic = trafficContent(
+      JSON.parse(
+        readFileSync(
+          new URL(
+            "../../../src/content/generated/ships-npc.json",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ) as NpcShip[],
+    );
+  }
   const lifecycle = createWorldLifecycle({
-    traffic: ctx.runtime.testFlags.traffic,
+    traffic,
+    ...(populate
+      ? {
+          populate: createInertPopulate(
+            () => ctx.core.npcTraffic,
+            () => ctx.core.layout,
+          ),
+        }
+      : {}),
   });
   ctx.core.worldLifecycle = lifecycle;
   ctx.runtime.input = {
@@ -324,6 +356,69 @@ describe("tick parity with the Node replay (success criterion 5)", () => {
     expect(s.lifecycle.world?.worldSeed).toBe(worldSeedFor(arrivalSeed, 2));
     expect(s.lifecycle.world?.store.nextId).toBe(101);
     expect(hashWorld(state, s.lifecycle.world)).toBe(hashFlight(state));
+  });
+});
+
+describe("tick parity with the populated world (plan 12-09, WORLD-14)", () => {
+  const TRAFFIC_ON = "?test=1&clock=manual&traffic=1";
+
+  it("the replay populates 12 inert ships with traffic on and none with traffic off, with the same epoch and flight hash", () => {
+    const on = runTickScript(LAUNCH_AND_FLY, { traffic: true });
+    const off = runTickScript(LAUNCH_AND_FLY, { traffic: false });
+    if (on.world === undefined || off.world === undefined) {
+      throw new Error("no world after the launch");
+    }
+    expect(liveEntityCount(on.world)).toBe(12);
+    expect(on.epoch).toBe(1);
+    expect(on.world.store.nextId).toBe(113);
+    expect(liveEntityCount(off.world)).toBe(0);
+    expect(off.world.store.nextId).toBe(101);
+    expect(off.epoch).toBe(1);
+    // D-01: a world with no NPC hashes as the v1 flight hash.
+    expect(off.hash).toBe(hashFlight(off.state));
+    // Not vacuous: the 12 ships change the world hash, not the flight.
+    expect(on.hash).not.toBe(hashFlight(on.state));
+    expect(hashFlight(on.state)).toBe(hashFlight(off.state));
+  });
+
+  it("with traffic on, advanceTicks(1) then advanceTicks(600) gives the replay's hash", () => {
+    const s = session(TRAFFIC_ON, true);
+    expect(s.ctx.runtime.testFlags.traffic).toBe(true);
+    s.pending.push(launch);
+
+    expect(s.driver.advanceTicks(1)).toBe(1);
+    expect(s.driver.advanceTicks(600)).toBe(601);
+    expect(s.ctx.core.state?.mode).toBe("inFlight");
+
+    const replay = runTickScript(LAUNCH_AND_FLY, { traffic: true });
+    const world = s.lifecycle.world;
+    if (world === undefined) throw new Error("no world after the launch");
+    expect(liveEntityCount(world)).toBe(12);
+    expect(sessionHash(s)).toBe(replay.hash);
+    expect(s.lifecycle.epoch).toBe(replay.epoch);
+  });
+
+  it("with traffic on, 601 single-tick calls match the replay's per-tick trace, naming the first diverging tick", () => {
+    const s = session(TRAFFIC_ON, true);
+    s.pending.push(launch);
+    const trace = runTickScript(LAUNCH_AND_FLY, {
+      traffic: true,
+      trace: true,
+    }).trace;
+    if (trace === undefined) throw new Error("no trace");
+    expect(trace).toHaveLength(601);
+    const driven: string[] = [];
+    for (let tick = 0; tick < 601; tick += 1) {
+      s.driver.advanceTicks(1);
+      driven.push(sessionHash(s));
+    }
+    const firstDivergence = driven.findIndex(
+      (value, index) => value !== trace[index],
+    );
+    expect(
+      firstDivergence,
+      `the first diverging tick is ${String(firstDivergence + 1)}`,
+    ).toBe(-1);
   });
 });
 

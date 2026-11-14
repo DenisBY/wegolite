@@ -12,10 +12,23 @@
  * never from running the code twice.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
-import { createWorldLifecycle } from "../../src/app/session/world-lifecycle.js";
-import type { Populate } from "../../src/app/session/world-lifecycle.js";
+import {
+  createInertPopulate,
+  trafficContent,
+} from "../../src/app/session/traffic.js";
+import {
+  createWorldLifecycle,
+  restoreWorldAnchor,
+} from "../../src/app/session/world-lifecycle.js";
+import type {
+  Populate,
+  WorldLifecycle,
+} from "../../src/app/session/world-lifecycle.js";
+import type { NpcShip } from "../../src/content/types.js";
 import {
   queueAutosave,
   snapshotForSave,
@@ -63,7 +76,8 @@ import { newProfile } from "../../src/sim/player/profile.js";
 import { initFlightState, CLOCK_START } from "../../src/sim/flight/state.js";
 import { worldSeedFor } from "../../src/sim/rng.js";
 import { FIRST_DYNAMIC_ID } from "../../src/sim/world/ids.js";
-import { spawnEntity } from "../../src/sim/world/world.js";
+import { serializeWorldSection } from "../../src/sim/world/serialize.js";
+import { liveEntityCount, spawnEntity } from "../../src/sim/world/world.js";
 import { commoditiesFixture } from "../helpers/commodities.js";
 import { laveFixture } from "../helpers/lave.js";
 
@@ -232,6 +246,136 @@ describe("v3 save end to end (tracer)", () => {
     });
     expect(inputs.epoch).toBe(0);
     expect(inputs.nextEntityId).toBe(101);
+  });
+});
+
+describe("regenerated inert world (SAVE-08, Phase 12)", () => {
+  const npcTraffic = trafficContent(
+    JSON.parse(
+      readFileSync(
+        new URL("../../src/content/generated/ships-npc.json", import.meta.url),
+        "utf8",
+      ),
+    ) as NpcShip[],
+  );
+
+  /** A lifecycle over the real inert populate with the Lave layout, traffic as given. */
+  function lifecycleWith(traffic: boolean): WorldLifecycle {
+    return createWorldLifecycle({
+      traffic,
+      populate: createInertPopulate(
+        () => npcTraffic,
+        () => lave.layout,
+      ),
+    });
+  }
+
+  /** The cold Continue or warm Load of an in-flight blob, as the session does it. */
+  function restoreInFlight(
+    raw: string,
+    traffic: boolean,
+  ): { readonly restored: WorldLifecycle; readonly savedCounter: number } {
+    const parsed = parseSave(raw, ALLOW);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) throw new Error("the save did not parse");
+    const restored = lifecycleWith(traffic);
+    restoreWorldAnchor(restored, parsed.save.epoch, LAVE_SEED, true);
+    return { restored, savedCounter: parsed.save.nextEntityId };
+  }
+
+  it("an in-flight save written with traffic on carries 113, and the reload regenerates the fresh arrival's world with the same counter", () => {
+    const arrival = lifecycleWith(true);
+    arrival.begin(LAVE_SEED);
+    expect(arrival.anchorNextEntityId).toBe(113);
+    const inputs = snapshot("inFlight", arrival);
+    expect(inputs.epoch).toBe(1);
+    expect(inputs.nextEntityId).toBe(113);
+    const raw = encodeSave(inputs);
+    expect(raw).toContain('"nextEntityId":113');
+    expect(isEncodedSaveValid(raw, ALLOW)).toBe(true);
+
+    const { restored, savedCounter } = restoreInFlight(raw, true);
+    expect(savedCounter).toBe(113);
+    expect(restored.epoch).toBe(1);
+    expect(restored.anchorNextEntityId).toBe(savedCounter);
+    const world = restored.world;
+    const fresh = arrival.world;
+    if (world === undefined || fresh === undefined) {
+      throw new Error("expected regenerated and fresh worlds");
+    }
+    expect(world).not.toBe(fresh);
+    expect(liveEntityCount(world)).toBe(12);
+    expect(serializeWorldSection(world)).toBe(serializeWorldSection(fresh));
+  });
+
+  it("a docked save writes 101 and keeps no world, and the reload restores the epoch only", () => {
+    const lifecycle = lifecycleWith(true);
+    lifecycle.begin(LAVE_SEED);
+    expect(lifecycle.anchorNextEntityId).toBe(113);
+    // No world while docked (PROJECT.md row 236): the counter is the fresh 101.
+    const inputs = snapshot("docked", lifecycle);
+    expect(inputs.nextEntityId).toBe(101);
+    expect(inputs.epoch).toBe(1);
+    const parsed = parseSave(encodeSave(inputs), ALLOW);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.save.nextEntityId).toBe(101);
+
+    const restored = lifecycleWith(true);
+    restoreWorldAnchor(restored, parsed.save.epoch, LAVE_SEED, false);
+    expect(restored.epoch).toBe(1);
+    expect(restored.world).toBeUndefined();
+    expect(restored.anchorNextEntityId).toBeUndefined();
+    // The inert world is regenerated at the next launch, which bumps the epoch.
+    restored.begin(LAVE_SEED);
+    expect(restored.epoch).toBe(2);
+    expect(restored.world?.store.nextId).toBe(113);
+  });
+
+  it("a counter that differs never blocks a load: a save written with traffic off restores 12 ships with traffic on", () => {
+    const writer = lifecycleWith(false);
+    writer.begin(LAVE_SEED);
+    expect(writer.anchorNextEntityId).toBe(101);
+    const raw = encodeSave(snapshot("inFlight", writer));
+    expect(raw).toContain('"nextEntityId":101');
+
+    const { restored, savedCounter } = restoreInFlight(raw, true);
+    expect(savedCounter).toBe(101);
+    expect(restored.epoch).toBe(1);
+    expect(restored.world).toBeDefined();
+    if (restored.world === undefined) return;
+    expect(liveEntityCount(restored.world)).toBe(12);
+    // The regenerated counter wins; the saved one is never copied over it.
+    expect(restored.anchorNextEntityId).toBe(113);
+    expect(restored.anchorNextEntityId).not.toBe(savedCounter);
+  });
+
+  it("a save written with traffic on restores an empty world with traffic off, and a tampered counter changes nothing", () => {
+    const writer = lifecycleWith(true);
+    writer.begin(LAVE_SEED);
+    const raw = encodeSave(snapshot("inFlight", writer));
+
+    const off = restoreInFlight(raw, false);
+    expect(off.savedCounter).toBe(113);
+    expect(off.restored.world).toBeDefined();
+    if (off.restored.world === undefined) return;
+    expect(liveEntityCount(off.restored.world)).toBe(0);
+    expect(off.restored.anchorNextEntityId).toBe(101);
+
+    // T-12-22: a counter inside the schema bound but wrong is parsed, not used.
+    const tampered = JSON.stringify({
+      ...(JSON.parse(raw) as Record<string, unknown>),
+      nextEntityId: 5000,
+    });
+    const on = restoreInFlight(tampered, true);
+    expect(on.savedCounter).toBe(5000);
+    expect(on.restored.anchorNextEntityId).toBe(113);
+    expect(on.restored.world?.store.nextId).toBe(113);
+    expect(on.restored.world).toBeDefined();
+    if (on.restored.world === undefined || writer.world === undefined) return;
+    expect(serializeWorldSection(on.restored.world)).toBe(
+      serializeWorldSection(writer.world),
+    );
   });
 });
 
