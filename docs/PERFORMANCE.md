@@ -38,13 +38,13 @@ The first-load test in `tests/e2e/budget.spec.ts` records the same-origin respon
 
 | Measure                                          | Value                      |
 | ------------------------------------------------ | -------------------------- |
-| Cold-start transfer to the first in-flight frame | 8 834 862 bytes (8.43 MiB) |
+| Cold-start transfer to the first in-flight frame | 8 835 212 bytes (8.43 MiB) |
 | Regression ceiling (`FIRST_LOAD_BYTES_CEILING`)  | 9 437 184 bytes (9 MiB)    |
 | Entry chunk `dist/assets/index-*.js`, raw        | 1 615 497 bytes            |
 | Entry chunk, gzip at level 9                     | 319 971 bytes              |
 | STACK.md target for initial JavaScript           | 250 KB gzip                |
 
-The transfer was measured on 2026-11-14 after Phase 9 added nine NPC ship models and their 43 texture files under `public/` (about 12 MB), none of which is requested on a cold start (asserted by the same test, which also logs every request path); it was 8 814 224 bytes on 2026-11-11. The entry chunk was measured on 2026-11-10. The transfer was 7 490 424 bytes on 2026-11-10; quick task 261111-g5n added the navigation buoy model and its six texture files (1 322 175 bytes on disk). It was 20 996 848 bytes (20.03 MiB) on 2026-11-08. Two quick tasks account for the difference: 261109-s8k trimmed the client ship catalogue from 706 617 to 15 196 bytes, and 261110-b7w re-encoded the sixteen ship and station textures from PNG (19 727 075 bytes) to WebP (6 251 016 bytes). The preview server does not compress responses, so these are uncompressed body sizes.
+The transfer was measured on 2026-11-14 after Phase 10 added the navigation buoy entry with its mass to `ships-client.json` (15 244 to 19 518 bytes on disk); it was 8 834 862 bytes before that, measured the same day after Phase 9 added nine NPC ship models and their 43 texture files under `public/` (about 12 MB), none of which is requested on a cold start (asserted by the same test, which also logs every request path); it was 8 814 224 bytes on 2026-11-11. The entry chunk was measured on 2026-11-10. The transfer was 7 490 424 bytes on 2026-11-10; quick task 261111-g5n added the navigation buoy model and its six texture files (1 322 175 bytes on disk). It was 20 996 848 bytes (20.03 MiB) on 2026-11-08. Two quick tasks account for the difference: 261109-s8k trimmed the client ship catalogue from 706 617 to 15 196 bytes, and 261110-b7w re-encoded the sixteen ship and station textures from PNG (19 727 075 bytes) to WebP (6 251 016 bytes). The preview server does not compress responses, so these are uncompressed body sizes.
 
 The ceiling is the measured transfer rounded up to the next MiB, so it is a regression ceiling and not a load budget. The entry chunk was measured inside the container with `node:zlib` `gzipSync`.
 

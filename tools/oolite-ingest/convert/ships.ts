@@ -524,15 +524,19 @@ export function emitShipsFromCatalogue(catalogue: ShipCatalogue): EmittedShips {
 export const CLIENT_SHIPS_PATH = "src/content/generated/ships-client.json";
 
 /**
- * The entries the game client reads: the station and the player ship.
+ * The entries the game client carries: the navigation buoy, the station and
+ * the player ship.
  *
- * The full catalogue is 194 entries and about 700 KB; the client uses these
- * two (`src/content/ships.ts`). `ships.json` stays the compiler's complete
- * output for the golden and the tests, and is not imported by the client.
- * These two entries also carry their computed Oolite `mass` (DATA-11); the
- * complete catalogue carries none. Sorted by code unit, like the catalogue.
+ * The full catalogue is 194 entries and about 700 KB; the client reads two of
+ * these (`src/content/ships.ts`): the station and the player ship. The buoy
+ * entry is carried for its computed mass only, which Phase 12 reads for both
+ * buoys (they share the model and the core subentity); the owner chose this
+ * home in plan 10-03, which amends D-05. All three entries carry their
+ * computed Oolite `mass` (DATA-11); the complete catalogue carries none. Sorted
+ * by code unit, like the catalogue.
  */
 export const CLIENT_SHIP_KEYS: readonly string[] = [
+  "buoy",
   "coriolis-station",
   "oolite_template_cobra3-player",
 ];

@@ -81,10 +81,11 @@ remains CC BY-NC-SA 3.0, never GPL, with attribution to the Oolite
 contributors, non-commercial use only and share-alike terms.
 
 The `mass` values in `src/content/generated/ships-client.json` (the player Cobra
-Mk III and the Coriolis station) are computed the same way from the vendored
-Oolite `oolite_cobra3` model and the four Coriolis models
+Mk III, the Coriolis station and the navigation buoy) are computed the same way
+from the vendored Oolite `oolite_cobra3` model, the four Coriolis models
 (`oolite_coriolis`, `oolite_coriolis_tris`, `oolite_coriolis_faceplate` and
-`oolite_coriolis_dock`). That file is a derivative work of `shipdata.plist` and
+`oolite_coriolis_dock`) and the two buoy models (`oolite_buoy` and
+`oolite_buoy_subents`). That file is a derivative work of `shipdata.plist` and
 of those models and remains CC BY-NC-SA 3.0, never GPL, with attribution to the
 Oolite contributors, non-commercial use only and share-alike terms.
 

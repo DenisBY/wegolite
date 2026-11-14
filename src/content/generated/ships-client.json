@@ -1,6 +1,213 @@
 [
   {
     "extras": {
+      "ai_type": "buoyAI.plist",
+      "beacon": "N0100 Navigation Buoy",
+      "cargo_type": "CARGO_NOT_CARGO",
+      "energy_recharge_rate": 2,
+      "forward_weapon_type": "WEAPON_NONE",
+      "max_energy": 250,
+      "max_flight_pitch": 2,
+      "max_flight_roll": 2,
+      "max_flight_speed": 0,
+      "missiles": 0,
+      "name": "Navigation Buoy",
+      "roles": "buoy",
+      "scan_class": "CLASS_BUOY",
+      "smooth": true,
+      "subentities": [
+        {
+          "is_dock": "false",
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "subentity_key": "oolite_buoy_subentity"
+        },
+        {
+          "color": {
+            "hue": 236
+          },
+          "frequency": 0.15,
+          "phase": -1,
+          "position": [
+            -0.75,
+            23.85,
+            0.92
+          ],
+          "size": 30,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 236
+          },
+          "frequency": 0.15,
+          "phase": 1,
+          "position": [
+            -16.87,
+            -3.88,
+            -9.55
+          ],
+          "size": 30,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 236
+          },
+          "frequency": 0.15,
+          "phase": -3,
+          "position": [
+            16.87,
+            -3.88,
+            -9.55
+          ],
+          "size": 30,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 236
+          },
+          "frequency": 0.15,
+          "phase": 3,
+          "position": [
+            0.4,
+            -4.53,
+            20.25
+          ],
+          "size": 30,
+          "type": "flasher"
+        }
+      ],
+      "thrust": 100,
+      "unpiloted": true,
+      "weapon_energy": 0
+    },
+    "isTemplate": false,
+    "key": "buoy",
+    "marketDefinition": {
+      "kind": "absent"
+    },
+    "mass": 698691.1875,
+    "model": "oolite_buoy.dat",
+    "modelVendored": true,
+    "roles": [
+      "buoy"
+    ],
+    "shipDef": {
+      "energyRecharge": 2,
+      "materials": {
+        "oolite_buoy_diffuse.png": {
+          "diffuse_map": "oolite_buoy_diffuse.png",
+          "emission_map": "oolite_buoy_illumination.png",
+          "gloss": 0.65,
+          "normal_map": "oolite_buoy_normal.png",
+          "shininess": 20,
+          "specular_color": [
+            0.8,
+            0.83,
+            0.85,
+            1
+          ],
+          "specular_map": "oolite_buoy_specular.png"
+        }
+      },
+      "maxFlightPitch": 2,
+      "maxFlightRoll": 2,
+      "maxFlightSpeed": 0,
+      "model": "oolite_buoy.dat",
+      "roles": [
+        "buoy"
+      ],
+      "smooth": true,
+      "subentities": [
+        {
+          "isDock": false,
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "subentity_key": "oolite_buoy_subentity"
+        },
+        {
+          "color": {
+            "hue": 236
+          },
+          "frequency": 0.15,
+          "phase": -1,
+          "position": [
+            -0.75,
+            23.85,
+            0.92
+          ],
+          "size": 30,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 236
+          },
+          "frequency": 0.15,
+          "phase": 1,
+          "position": [
+            -16.87,
+            -3.88,
+            -9.55
+          ],
+          "size": 30,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 236
+          },
+          "frequency": 0.15,
+          "phase": -3,
+          "position": [
+            16.87,
+            -3.88,
+            -9.55
+          ],
+          "size": 30,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 236
+          },
+          "frequency": 0.15,
+          "phase": 3,
+          "position": [
+            0.4,
+            -4.53,
+            20.25
+          ],
+          "size": 30,
+          "type": "flasher"
+        }
+      ],
+      "thrust": 100
+    },
+    "usable": true
+  },
+  {
+    "extras": {
       "ai_type": "oolite-stationAI.js",
       "allegiance": "galcop",
       "cargo_type": "CARGO_NOT_CARGO",
