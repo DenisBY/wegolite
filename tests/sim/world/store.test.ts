@@ -199,6 +199,94 @@ describe("the MAX_ENTITIES cap and the uint32 id ceiling", () => {
     expect(store.allocate(() => spawnOk(createWorld(1)))).toBeUndefined();
   });
 
+  it("a store-full refusal names storeFull and moves neither counter, live array nor world stream", () => {
+    const world = createWorld(1);
+    for (let i = 0; i < MAX_ENTITIES; i += 1) spawnOk(world);
+    const before = world.store.nextId;
+    const liveBefore = world.store.live.length;
+    const streamBefore = world.rng.s;
+    expect(spawnEntity(world, init(), 0)).toEqual({
+      ok: false,
+      reason: "storeFull",
+    });
+    expect(world.store.nextId).toBe(before);
+    expect(world.store.live.length).toBe(liveBefore);
+    expect(world.rng.s).toBe(streamBefore);
+    // A freed slot lets the next valid spawn take the id the counter showed.
+    killEntity(world, 101);
+    commitWorld(world);
+    expect(spawnOk(world).id).toBe(before);
+  });
+
+  it.each([2 ** 32, Number.NaN, 1.5, Number.POSITIVE_INFINITY])(
+    "a spent or non-integer counter (%s) names idExhausted and moves nothing",
+    (nextId) => {
+      const base = createWorld(1);
+      const world: World = {
+        ...base,
+        store: createEntityStore({ nextId, entities: [] }),
+      };
+      const streamBefore = world.rng.s;
+      expect(spawnEntity(world, init(), 0)).toEqual({
+        ok: false,
+        reason: "idExhausted",
+      });
+      expect(Object.is(world.store.nextId, nextId)).toBe(true);
+      expect(world.store.live).toHaveLength(0);
+      expect(world.rng.s).toBe(streamBefore);
+    },
+  );
+
+  it("the last id is issued, then the next spawn is idExhausted and the counter stays", () => {
+    const base = createWorld(1);
+    const world: World = {
+      ...base,
+      store: createEntityStore({ nextId: MAX_UINT32, entities: [] }),
+    };
+    expect(spawnOk(world).id).toBe(MAX_UINT32);
+    const streamBefore = world.rng.s;
+    expect(spawnEntity(world, init(), 0)).toEqual({
+      ok: false,
+      reason: "idExhausted",
+    });
+    expect(world.store.nextId).toBe(2 ** 32);
+    expect(world.store.live).toHaveLength(1);
+    expect(world.rng.s).toBe(streamBefore);
+  });
+
+  it("checks the domain first: outOfDomain and ai win over idExhausted and storeFull", () => {
+    const full = createWorld(1);
+    for (let i = 0; i < MAX_ENTITIES; i += 1) spawnOk(full);
+    const spent: World = {
+      ...createWorld(1),
+      store: createEntityStore({ nextId: 2 ** 32, entities: [] }),
+    };
+    const badAi = {
+      ai: aiWith({}, { aiKey: "trader" as AiComponent["aiKey"] }),
+    };
+    for (const world of [full, spent]) {
+      const streamBefore = world.rng.s;
+      expect(spawnEntity(world, init({ radius: 0 }), 0)).toEqual({
+        ok: false,
+        reason: "outOfDomain",
+      });
+      expect(spawnEntity(world, init(badAi), 0)).toEqual({
+        ok: false,
+        reason: "ai",
+      });
+      expect(world.rng.s).toBe(streamBefore);
+    }
+    // With a legal init the spent counter wins over a store that is also full.
+    expect(spawnEntity(full, init(), 0)).toEqual({
+      ok: false,
+      reason: "storeFull",
+    });
+    expect(spawnEntity(spent, init(), 0)).toEqual({
+      ok: false,
+      reason: "idExhausted",
+    });
+  });
+
   it("a restored store must be strictly ascending and below nextId", () => {
     const a = spawnOk(createWorld(1));
     const world = createWorld(1);
