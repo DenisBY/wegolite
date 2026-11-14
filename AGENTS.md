@@ -40,7 +40,7 @@ A full Oolite source checkout is available at `/home/opencode/git/oolite` (outsi
 Include this block in every reviewer, verifier, auditor, explorer, or executor prompt:
 
 - **Tests and builds run in Docker only.** Host Node/npm/Playwright are not authoritative, and a green host run is not evidence.
-- Commands: `docker compose run --rm test` (Vitest), `docker compose run --rm test npx vitest run <file>` (targeted), `docker compose run --rm e2e sh -lc "npm run build && npx playwright test <spec>"` (browser), `docker compose run --rm e2e-cross` (Firefox browser tests, outside verify), `docker compose run --rm typecheck`, `docker compose run --rm lint`, `docker compose run --rm verify` (full gate).
+- Commands: `docker compose run --rm test` (Vitest), `docker compose run --rm test npx vitest run <file>` (targeted), `docker compose run --rm e2e sh -lc "npm run build:e2e && npx playwright test <spec>"` (browser), `docker compose run --rm e2e-cross` (Firefox browser tests, outside verify), `docker compose run --rm typecheck`, `docker compose run --rm lint`, `docker compose run --rm verify` (full gate).
 - A reproduction that needs a scratch script or test must live under `/tmp` and be mounted into the container: `docker compose run --rm -v /tmp/<dir>:/scratch test ...`. Never add scratch files to the repository.
 - Read-only reviewers must not modify tracked files; report findings instead.
 
@@ -109,6 +109,7 @@ Rules:
 - Every service must be reachable from a clean checkout with `docker compose up`. Document any required env vars in `.env.example`.
 - Ports are published to the host only for the dev server (`5173`) and preview (`4173`). Test services need no published ports.
 - `docker compose build` alone is **not** enough after a `package.json`/`package-lock.json` change: the named `node_modules` volume is populated from the image once and otherwise keeps its old contents, so run `docker compose down --volumes` as well.
+- Browser specs run against the browser-test bundle (`npm run build:e2e`, NPC traffic off by default; a spec opts in with `?test=1&traffic=1`), while `npm run build` (the `preview` service and the Pages deploy) is the production bundle with traffic on.
 - On WSL2 or macOS, if hot reload stops seeing host edits, opt in to polling with `VITE_USE_POLLING=1` (documented in `.env.example`). It is opt-in because polling burns CPU.
 - `docker compose run --rm verify` bind-mounts the working tree, so it validates your current edits rather than the content baked into the image.
 

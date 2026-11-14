@@ -283,7 +283,7 @@ describe("FOUND-03 container-only verification", () => {
     expect(cross).toMatch(/^\s*ipc:\s*host\s*$/m);
     expect(cross).toContain('WEGOLITE_E2E_WAIT_SCALE: "1"');
     expect(cross).toContain(
-      'command: ["sh", "-lc", "npm run build && npm run test:e2e:cross"]',
+      'command: ["sh", "-lc", "npm run build:e2e && npm run test:e2e:cross"]',
     );
 
     // D-09: the Firefox gate never joins the Chromium-only verify chain.
@@ -308,9 +308,15 @@ describe("FOUND-03 container-only verification", () => {
     expect(blocks.lint).toMatch(/"npm",\s*"run",\s*"lint"/);
     expect(blocks.typecheck).toMatch(/"npm",\s*"run",\s*"typecheck"/);
     expect(blocks.assets).toMatch(/"npm",\s*"run",\s*"assets:build"/);
-    expect(blocks.e2e).toContain("npm run build");
+    expect(blocks.e2e).toContain("npm run build:e2e");
     expect(blocks.e2e).toContain("npm run test:e2e");
 
+    // WORLD-16: the production bundle and the browser-test bundle are two
+    // scripts; the latter carries the traffic default off.
+    expect(script(manifest, "build")).toBe("vite build");
+    expect(script(manifest, "build:e2e")).toBe(
+      "vite build --config vite.e2e.config.ts",
+    );
     expect(script(manifest, "test")).toBe("vitest run --coverage");
     expect(script(manifest, "lint")).toBe("eslint . && prettier --check .");
     expect(script(manifest, "typecheck")).toBe(
@@ -355,7 +361,7 @@ describe("FOUND-03 container-only verification", () => {
     // The exact chain is the contract: `&&` (not `;`) is what makes the first
     // failing stage short-circuit (D-03).
     expect(verify.slice(chainAt)).toBe(
-      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build && npm run test:e2e:fast",
+      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build:e2e && npm run test:e2e:fast",
     );
   });
 
@@ -368,7 +374,7 @@ describe("FOUND-03 container-only verification", () => {
     expect(verifyFull).toMatch(/command: - sh - -lc - >- npm run lint/);
     expect(chainAt).toBeGreaterThanOrEqual(0);
     expect(verifyFull.slice(chainAt)).toBe(
-      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build && npm run test:e2e && npm run test:e2e:seams",
+      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build:e2e && npm run test:e2e && npm run test:e2e:seams",
     );
   });
 
@@ -387,6 +393,41 @@ describe("FOUND-03 container-only verification", () => {
     expect(failFast).toContain("no-restricted-imports");
     expect(failFast).toContain("trap ");
     expect(failFast).not.toMatch(/src\/sim\/__verify_probe\.ts.*\n.*git add/);
+  });
+});
+
+describe("the traffic default never reaches the deployed bundle (WORLD-16, owner decision 1)", () => {
+  /** The define's value in a config file, or undefined when it is not defined. */
+  function trafficDefaultOf(relativePath: string): string | undefined {
+    return /__WEGOLITE_TRAFFIC_DEFAULT__:\s*"([^"]*)"/.exec(
+      read(relativePath),
+    )?.[1];
+  }
+
+  it("defines the default true in production and false only in the two test configs", () => {
+    expect(trafficDefaultOf("vite.config.ts")).toBe("true");
+    expect(trafficDefaultOf("vite.e2e.config.ts")).toBe("false");
+    expect(trafficDefaultOf("vite.seams.config.ts")).toBe("false");
+    // The browser-test bundle keeps the default `dist/` output that the
+    // Playwright webServer serves; it must not redirect it.
+    expect(read("vite.e2e.config.ts")).not.toMatch(/outDir/);
+  });
+
+  it("keeps the production build in preview and the Pages deploy, never the e2e bundle", () => {
+    const preview = executable(service("preview"));
+    expect(preview).toContain("npm run build && npm run preview");
+    expect(preview).not.toContain("build:e2e");
+
+    const pages = read(".github/workflows/pages.yml");
+    expect(pages).toContain('npm run build"');
+    expect(pages).not.toContain("build:e2e");
+  });
+
+  it("builds the e2e bundle in exactly the four browser-test services", () => {
+    const users = [...SERVICES.keys()].filter((name) =>
+      executable(service(name)).includes("npm run build:e2e"),
+    );
+    expect(users.sort()).toEqual(["e2e", "e2e-cross", "verify", "verify-full"]);
   });
 });
 

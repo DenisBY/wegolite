@@ -49,14 +49,18 @@ services:
     # run out of shared memory and crash.
     ipc: host
     # `vite preview` serves dist/, so the bundle must exist before the browser
-    # test starts. The WR-04 seam spec has its own config and its own test-only
-    # build, so it runs as a separate step instead of forcing every Playwright
-    # invocation to build the seam bundle.
+    # test starts. It is the browser-test bundle (the build:e2e script, NPC
+    # traffic default off; owner decision 1, Key Decisions row "Browser test
+    # builds default traffic off"), not the production bundle: `preview` and the
+    # Pages workflow build the production bundle with traffic on. The WR-04
+    # seam spec has its own config and its own test-only build, so it runs as a
+    # separate step instead of forcing every Playwright invocation to build the
+    # seam bundle.
     command:
       - sh
       - -lc
       - >-
-        npm run build &&
+        npm run build:e2e &&
         npm run test:e2e &&
         npm run test:e2e:seams
 
@@ -75,7 +79,7 @@ services:
     # keep their default length.
     environment:
       WEGOLITE_E2E_WAIT_SCALE: "1"
-    command: ["sh", "-lc", "npm run build && npm run test:e2e:cross"]
+    command: ["sh", "-lc", "npm run build:e2e && npm run test:e2e:cross"]
 
   lint:
     <<: *workspace
@@ -96,7 +100,11 @@ services:
     # `set -e` with semicolons) is what makes the first failing stage
     # short-circuit. No depends_on fan-in and no orchestration script.
     # This is the fast gate (owner option B, 2026-11-08): it ends in the e2e
-    # smoke subset, and the full browser suite runs in `verify-full`.
+    # smoke subset, and the full browser suite runs in `verify-full`. Its build
+    # step is the browser-test bundle (the build:e2e script, NPC traffic default
+    # off; owner decision 1, Key Decisions row "Browser test builds default
+    # traffic off"); the production bundle is built only by `preview` and the
+    # Pages workflow.
     command:
       - sh
       - -lc
@@ -105,7 +113,7 @@ services:
         npm run typecheck &&
         npm run assets:check &&
         npm run test &&
-        npm run build &&
+        npm run build:e2e &&
         npm run test:e2e:fast
 
   # Release gate (owner option B, 2026-11-08): run before a release and when
@@ -124,7 +132,7 @@ services:
         npm run typecheck &&
         npm run assets:check &&
         npm run test &&
-        npm run build &&
+        npm run build:e2e &&
         npm run test:e2e &&
         npm run test:e2e:seams
 
