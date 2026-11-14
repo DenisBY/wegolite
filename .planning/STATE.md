@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v2.2
 milestone_name: Weapons and NPC Flight
 status: planning
-last_updated: "2026-11-14T20:55:31.344Z"
+last_updated: "2026-11-14T21:05:00.000Z"
 last_activity: 2026-11-14
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-13)
+See: .planning/PROJECT.md (updated 2026-11-14)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 12 — Inert Ships and the World Lifecycle
+**Current focus:** Milestone v2.2 Weapons and NPC Flight — Phase 13 (Views, Lasers and Shields) and Phase 14 (NPC Flight and Steering Fidelity Gate), which can run in parallel
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 13 of 14 (Views, Lasers and Shields) — not started; Phase 14 (NPC Flight and Steering Fidelity Gate) can run beside it
 Plan: —
-Status: Defining requirements
-Last activity: 2026-11-14 — Milestone v2.2 started
+Status: Ready to plan (roadmap created, awaiting owner approval)
+Last activity: 2026-11-14 — v2.2 roadmap created (Phases 13-14, 10/10 requirements mapped)
 
 
 ## Performance Metrics
@@ -156,6 +156,10 @@ Last activity: 2026-11-14 — Milestone v2.2 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [v2.2 Roadmap, 2026-11-14]: Two phases, 13 and 14, with their numbers kept from the former Combat & Traffic plan (no reset), below the 4-6 standard-granularity guide because the owner scoped v2.2 to the necessary minimum (2026-11-13, "less, but better"). 10/10 requirements mapped: Phase 13 takes FOUND-17, INPUT-01, CBT-04 to CBT-07 and DOCK-10; Phase 14 takes AI-01, WORLD-07 and AI-11. The phases have no dependency on each other and can run in parallel; they share `ShipControl`, entity state and the NPC records, so their seam plans should not share a wave.
+- [v2.2 Roadmap, 2026-11-14]: FOUND-17 (review WR-01) is the first plan of Phase 13, then the INPUT-01 binding migration (Escape double press ejects, P pauses, R is ident), before any view, laser or ident work relies on the keys. The eject binding is bound but inert (the escape pod is unscheduled) and energy floors at zero (destruction is unscheduled).
+- [v2.2 Roadmap, 2026-11-14]: AI-01 is trimmed to nine behaviours (idle, tumble, fly to destination, face, intercept, attack, flee, escort, avoid collision); collect, tractored, mining and land on planet are AI-12 (Future). In normal play NPC ships stay inert after v2.2 (no priority AI): flight is observable in a `?test=1` traffic-on session through the test hook. Phase 14 keeps the 20-seed acceptance run, the independently authored source-cited oracles and the AI-11 gate (dev-only harness spike; the owner's oracle choice is recorded as a Key Decision).
+- [v2.2 Roadmap, 2026-11-14]: Implied work from the narrowed v2.1, flagged in the phase details and not added as requirements: Phase 13 needs the ray half of DATA-16 (Phase 10 shipped build-time octrees only, no octree data in the bundle), the NPC energy fields (a minimum of DATA-15) and the laser mounts in an ordered v3 to v4 save bump (a minimum of SAVE-09); Phase 14 needs the NPC flight fields (a minimum of DATA-15). Both phases extend the same NPC record schema and golden.
 - [v2.0 Roadmap, revised]: 16 phases (8-23), above the 4-6 standard-granularity guide, by owner direction after four external reviews ("accept everything, ~16 phases"). The 12-phase draft's combat, AI and law phases were each split, the octree runtime became its own phase, and 10 requirements were added (60 total). Critical path 8 → 11 → 12 → (13 ∥ 14) → 18 → 19 → 20 → 22 → 23; the combat track continues 13 → 15 → 16, and Phase 16 also depends on 14. ROADMAP.md "Review changes" lists every change and its reviewer.
 - [v2.0 Roadmap, revised]: The octree runtime and ship mass are Phase 10 (DATA-11), startable beside Phase 8 and landing before jump blockage by ships (12) and the first hit test (13, D4). Phases 10 and 11 carry one requirement each, by owner direction, as separately verifiable risks.
 - [v2.0 Roadmap, revised]: The Escape/P/R binding migration (INPUT-01) lands in Phase 13 with views and lasers, before the escape pod (Phase 16). Hyperspace clearing and repopulation (WORLD-14) lands with the inert ships in Phase 12. AI-08 completes in Phase 16, where pods and wreckage tumble (`nullAI` is a staged check in 12), and WORLD-07 completes in Phase 14, where ships move (drawn and on the scanner is a staged check in 12).
@@ -370,7 +374,11 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassMode and fourth-pylon todos are in `.planning/todos/completed/`.
+Refreshed from `.planning/todos/pending/` at v2.2 roadmap creation. The compassMode and fourth-pylon todos are in `.planning/todos/completed/`.
+
+- [2026-11-14] [app] Clear the origin world when a hyperspace arrival's `begin()` is refused (review WR-01) — Phase 13, first plan (FOUND-17); IN-01, IN-02 and IN-04 of the same todo are candidates for Phases 13 and 14 — [todo file](.planning/todos/pending/2026-11-14-clear-world-when-arrival-begin-is-refused.md)
+- [2026-11-14] [flight] Make buoys block hyperspace like Oolite — unscheduled — [todo file](.planning/todos/pending/2026-11-14-make-buoys-block-hyperspace-like-oolite.md)
+- [2026-11-14] [testing] Measure the Oolite reference mass in Docker — unscheduled — [todo file](.planning/todos/pending/2026-11-14-measure-oolite-reference-in-docker.md)
 
 - [2026-11-11] [testing] Check CI after 0.2.0 and the Shift+C docking timeout — before Phase 8 — [todo file](.planning/todos/pending/2026-11-11-check-ci-after-0-2-0-and-the-shift-c-docking-timeout.md)
 - [2026-11-10] [app] Decide whether the F6 chart should pause the flight — Phase 12 (WORLD-11) — [todo file](.planning/todos/pending/2026-11-10-keep-simulating-behind-the-chart.md)
@@ -396,6 +404,7 @@ Refreshed from `.planning/todos/pending/` at v2.0 roadmap creation. The compassM
 - [Phase 8] Flakes under host load (deferred-items D-2): launch.spec.ts:129, save-load.spec.ts:634, plus hyperspace.spec.ts:194 and the probe-shape in-flight state seen once in 08-16; rerun once before treating as real.
 - [Phase 8] 08-VALIDATION.md is still draft (Nyquist audit not run); optional `/gsd-validate-phase 8`.
 - [v2.1 start] REQUIREMENTS.md is fresh for v2.1 (12 requirements); the former v2.1 Combat & Traffic requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`.
+- [v2.2 start] REQUIREMENTS.md is fresh for v2.2 (10 requirements, all mapped to Phases 13-14). Open owner items: where octree data ships and how the Cobra's reaches the first-load set (ceiling 9,437,184 bytes, Phase 13); the cabin-temperature inputs and what the ident lock shows on the HUD without missiles (Phase 13); the 20-seed acceptance thresholds, the spike time box and stub-host scope, and the oracle choice at the Phase 14 gate (gates the unscheduled Phase 18). In normal play NPC ships stay inert after v2.2; whether the owner wants a normal-play NPC pilot so WORLD-07 is visible outside the test hook is not planned.
 
 ### Quick Tasks Completed
 
@@ -463,11 +472,11 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T19:49:43.702Z
-Stopped at: Phase 12 complete — all phases complete
+Last session: 2026-11-14T21:05:00.000Z
+Stopped at: v2.2 roadmap created — Phases 13 and 14 ready to discuss and plan
 Resume file: None
 
 ## Operator Next Steps
 
 
-- Start the next milestone with /gsd-new-milestone
+- Approve or revise the v2.2 roadmap, then `/gsd-discuss-phase 13` (Phase 14 can run beside it) and `/gsd-plan-phase 13`

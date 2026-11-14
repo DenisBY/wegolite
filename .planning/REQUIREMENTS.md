@@ -137,12 +137,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| FOUND-17 | Phase 13 | Pending |
+| INPUT-01 | Phase 13 | Pending |
+| CBT-04 | Phase 13 | Pending |
+| CBT-05 | Phase 13 | Pending |
+| CBT-06 | Phase 13 | Pending |
+| CBT-07 | Phase 13 | Pending |
+| DOCK-10 | Phase 13 | Pending |
+| WORLD-07 | Phase 14 | Pending |
+| AI-01 | Phase 14 | Pending |
+| AI-11 | Phase 14 | Pending |
 
 **Coverage:**
 - v2.2 requirements: 10 total
-- Mapped to phases: 0
-- Unmapped: 10 ⚠️
+- Mapped to phases: 10 (Phase 13: 7, Phase 14: 3)
+- Unmapped: 0 ✓
+
+**Implied sub-work (roadmap note, no requirement text changed):** Phases 9-12 shipped less than the former plan assumed, so three deferred items are consumed in part by these phases and stay open as requirements: the runtime octree ray test and octree data delivery (the ray half of DATA-16) and the NPC energy fields (a minimum of DATA-15) in Phase 13 under CBT-07, the laser mounts in an ordered v3 to v4 save bump (a minimum of SAVE-09) in Phase 13 under CBT-05, and the NPC flight fields (a minimum of DATA-15) in Phase 14 under AI-01. WORLD-07 is staged: its drawn-and-on-the-scanner half shipped in Phase 12, and Phase 14 completes it when the ships move.
 
 ---
 *Requirements defined: 2026-11-14*
-*Last updated: 2026-11-14 after v2.2 milestone start*
+*Last updated: 2026-11-14 after v2.2 roadmap creation (traceability)*
