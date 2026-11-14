@@ -106,7 +106,13 @@ Plans:
 **Research flag**: Medium — a spike must show the build-time octree reproduces Oolite's volume on the Cobra, Coriolis and Viper (octree depth; float32 versus float64 in the volume sum; Oolite stores mass as a `GLfloat`). Only the construction and volume parts of `Octree.m` and `OOMeshToOctreeConverter.m` are ported
 **Pitfalls to address**: 14 (mass in the constants ledger with worked examples), 17 (collision shapes; the buoy now has a vendored model and therefore an octree volume), 4 (NaN and degenerate geometry in the build), 12 (no octree data in the first load)
 **Decisions to settle**: the Coriolis blockage mass if the octree value differs from 455,223,200 (owner); whether the navigation buoy (model vendored by quick task 261111-g5n) and the dodecahedron and icosahedron stations gain an octree mass now, revisiting the 06-16 option (a) data gaps; the float precision of the volume computation
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 10-01-PLAN.md — Float32 port of Oolite's hull octree (depth, splits, fold, five-level volume) and ship mass with the subentity term; 16-mesh pins, worked examples, community tonne check
+- [ ] 10-02-PLAN.md — Mass in the compiled records (nine NPC records, the client Cobra and Coriolis), golden and drift gate; FIDELITY rows E-27 to E-30 and the constants ledger; NOTICE provenance
+- [ ] 10-03-PLAN.md — Owner checkpoint (Coriolis blockage mass, D-04; buoy mass home), then the chosen CORIOLIS_STATION_MASS pinned to the compiled record, blockage pins, Key Decision, E-23 and changelog
+- [ ] 10-04-PLAN.md — Buoy mass in the owner-chosen file, records and browser-test comments in line with the answers, phase gate
 
 ### Phase 11: Minimal Save Schema v3
 **Goal**: A save records the world state of its leg anchor (the world epoch, the world counters and the next entity id) in a minimal schema v3, older saves migrate in order, and a loaded save continues the same world sequence the session that wrote it would have produced

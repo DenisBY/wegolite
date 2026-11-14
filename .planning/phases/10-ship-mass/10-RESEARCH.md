@@ -309,7 +309,7 @@ All numbers: `[VERIFIED: scratch run in the wegolite-ci image, scripts in the sc
 Ships with no mesh subentity (`oolite_template_cobra3-player`, adder, cobramk1, gecko, krait, mamba, moray, shuttle, sidewinder, viper: the resolved `subentities` lists hold flashers only or nothing; verified against `src/content/generated/ships.json`) have mass equal to the hull row.
 
 **Composite masses (float32 running sum in `subentities` order):**
-- Coriolis station = 228,650,880 + 58,255,096 + 220,998,576 + 7,579,321 = **515,483,904** (the exact sum 515,483,873 rounds to the float32 above).
+- Coriolis station = 228,650,880 + 58,255,096 + 220,998,576 + 7,579,321 = **515,483,904** (float32 running sum in shipdata order, each step rounded; the exact decimal sum is 515,483,873, whose own nearest float32 would be 515,483,872, so the order of rounding matters and the faithful value is the running sum).
 - Navigation buoy (`buoy` and `buoy-witchpoint` share model and core subentity) = 691,044.375 + 7,646.7861328125 = **698,691.1875**.
 
 ### Float32 versus float64, depth, and quirks
@@ -363,26 +363,32 @@ Only a mass in (448,900,000, 462,400,000) satisfies both pins. The comparison in
 | `CHANGELOG.md` | `Changed` entry only if the blockage radius changes for the player (user-visible); the mass fields alone are internal |
 | `NOTICE` / `ASSETS.md` | no new asset; masses are derived from already-recorded vendored sources. Confirm the existing `ships-npc`/`ships-client` rows still describe the files |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Coriolis blockage mass (owner decision, blocks the countdown change).**
+   - RESOLVED (routed to 10-03 Task 1; answer pending until that checkpoint).
    - What we know: hull 228,650,880; full runtime 515,483,904; comment value 455,223,200; the window that keeps today's tests is (448.9M, 462.4M).
    - What's unclear: whether the owner wants Oolite's computed runtime mass (7,180 m radius, faithful to Oolite as it runs today, re-pin the two distances, for example 7,100 m blocks and 7,300 m does not) or keeps 455,223,200 as a documented divergence (tests untouched, radius 6,747 m).
    - Recommendation: ask in Russian, plain terms, with both numbers and a recommendation. Recommend the computed 515,483,904, because the project is a faithful reimplementation and the subentity addition is certain from the source; the cost is one test re-pin and a 6.4 % larger blockage radius. Tell the owner the only unverified link is the real Oolite runtime value (no Oolite binary here); if they have Oolite installed, the debug console value of the main station's `mass` property would settle it `[ASSUMED]` (the `Ship.mass` JS property exists in Oolite; not checked in this session).
    - The plan must contain a `checkpoint:decision` task before the countdown constant and the blockage tests change, and a Key Decision row either way (D-04).
 
 2. **Where the buoy's compiled mass lives (D-02 says "gets a mass", D-05 names only the NPC and client files).**
+   - RESOLVED (routed to 10-03 Task 1; answer pending until that checkpoint).
    - What we know: the buoy is not a role ship and is not in `NPC_SHIP_KEYS`; adding it there breaks the single-owner GLB check and the first-load budget spec (`tests/e2e/budget.spec.ts:70-90`); the client file would grow by about 2 KB for one entry (`buoy` is 2,048 bytes in `ships.json`); `buoy-witchpoint` has the same mass.
    - Recommendation: add `buoy` to `CLIENT_SHIP_KEYS` (three entries, code-unit sorted: `buoy`, `coriolis-station`, `oolite_template_cobra3-player`) and update `ships-client.test.ts`. This is a small extension of D-05; confirm with the owner together with Question 1. Fallback if the owner objects: record the buoy mass in `ships.json` only (build catalogue, not shipped) and let Phase 12 decide the runtime path.
 
 3. **Success criterion 2 wording ("reproduce Oolite's mass within a stated tolerance").**
+   - RESOLVED: settled in plan 10-01 (worked-example tests) and plan 10-02 (constants ledger wording); surfaced for the owner's explicit acceptance in the 10-03 Task 1 checkpoint.
    - What we know: no Oolite runtime is available; the only external check is the whole-tonne wiki table for nine hulls; the two source-comment constants are not reproduced by the pinned meshes.
    - Recommendation: define the worked example as "Oolite's algorithm on the pinned mesh, recomputed independently, relative 1e-6", plus the wiki tonne check for the Viper and Cobra, and record in the ledger that 455,223,200 and 185,580 are historical and not reproduced, each with the measured ratio. State this wording in the plan so the verifier does not expect an Oolite runtime oracle.
 
 4. **`ships-client.test.ts` "copies each entry unchanged from the complete catalogue".**
+   - RESOLVED: settled in plan 10-02 (option (a), Task 2).
    - Options: (a) compare entries with `mass` removed and add a separate mass assertion (recommended, minimal, leaves the 706 KB `ships.json` and its golden untouched); (b) give `ships.json` a mass for every entry whose whole mesh set is vendored (larger change, touches the full golden and adds masses nobody asked for).
 
-5. **Density and scale.** None of the 12 shipdata keys nor the four subentity entries authors `density` or `model_scale_factor` (resolved catalogue read this session; the only `density` keys in `shipdata.plist` are on asteroid templates at lines 545 and 963 and a training buoy at line 1103). Implement density (cheap, one lookup) and throw on a scale; revisit only with a snapshot bump.
+5. **Density and scale.**
+   - RESOLVED: settled in plan 10-01 (Task 2: density with Oolite's default 1.0, a SCHEMA error on `model_scale_factor`).
+   - None of the 12 shipdata keys nor the four subentity entries authors `density` or `model_scale_factor` (resolved catalogue read this session; the only `density` keys in `shipdata.plist` are on asteroid templates at lines 545 and 963 and a training buoy at line 1103). Implement density (cheap, one lookup) and throw on a scale; revisit only with a snapshot bump.
 
 ## Assumptions Log
 
