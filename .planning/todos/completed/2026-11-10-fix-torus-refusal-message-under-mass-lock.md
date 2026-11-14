@@ -28,3 +28,9 @@ Give a refused attempt its own copy (Oolite's wording, from
 "Torus disengaged" for a drive that was running.
 
 > Note (2026-11-13): v2.0 was narrowed to Phase 8; this todo now belongs to v2.1 (Phase 12 in the v2.1 section of ROADMAP.md).
+
+## Resolution
+
+Closed by Phase 12 plan 12-05 (WORLD-10): a refused attempt now emits
+`torusRefused` and the HUD prints Oolite's "Hyperspeed mass-locked.";
+"Torus disengaged" remains for a drive that was running.
