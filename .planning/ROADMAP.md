@@ -177,7 +177,7 @@ Plans:
 - [ ] 12-03-PLAN.md — Browser-test bundles default traffic off at build time (`build:e2e`, `__WEGOLITE_TRAFFIC_DEFAULT__`), production keeps traffic on, with a no-leak contract (owner decision 1, WORLD-16)
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 12-04-PLAN.md — Mass lock and jump blockage by NPC ships in the simulation (`ShipField`, blocker field); the buoys stay non-blocking on measured evidence, owner confirmation pending (WORLD-10)
+- [ ] 12-04-PLAN.md — Mass lock and jump blockage by NPC ships in the simulation (`ShipField`, blocker field); the buoys stay non-blocking by owner decision (2026-11-14, option A), revisit in todo `2026-11-14-make-buoys-block-hyperspace-like-oolite.md` (WORLD-10)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 12-05-PLAN.md — `torusRefused` with "Hyperspeed mass-locked.", the ship blocker copy and the step-options masses; closes the torus todo (WORLD-10)
@@ -189,7 +189,7 @@ Plans:
 - [ ] 12-07-PLAN.md — The pure, total first populator: 12 inert ships of the six roles at Oolite location codes from the world stream, pinned by a Lave golden
 
 **Wave 8** *(blocked on Wave 7 completion)*
-- [ ] 12-08-PLAN.md — Populator and masses wired into the session: start-up catalogue, populate closure, step masses; the expired tick-hook opt-in count updated
+- [ ] 12-08-PLAN.md — Populator and masses wired into the session: start-up catalogue, populate closure, step masses; the expired tick-hook opt-in count updated (sanctioned by WORLD-16, owner 2026-11-14)
 
 **Wave 9** *(blocked on Wave 8 completion)*
 - [ ] 12-09-PLAN.md — WORLD-14 (cleared on the jump-commit tick, deterministic repopulation), SAVE-08 regeneration, populated Node replay and traffic-on Vitest variants; D-01 and the same-tick rule recorded
@@ -198,10 +198,10 @@ Plans:
 - [ ] 12-10-PLAN.md — Inert ships on the existing scanner through id-free contacts, in Oolite's colours
 
 **Wave 11** *(blocked on Wave 10 completion)*
-- [ ] 12-11-PLAN.md — Inert ships drawn through an instanced NPC layer with lazy models; the id-holder and model-loading decisions
+- [ ] 12-11-PLAN.md — Inert ships drawn through an instanced NPC layer with lazy models, requested only after the first in-flight frame so DATA-13 holds with traffic on (owner decision 2026-11-14, option A); the id-holder, model-loading and deferral decisions
 
 **Wave 12** *(blocked on Wave 11 completion)*
-- [ ] 12-12-PLAN.md — The one opt-in traffic browser spec: 12 ships, at most 50 draw calls, populated browser/Node parity, the scanner after a reload
+- [ ] 12-12-PLAN.md — The one opt-in traffic browser spec: 12 ships, at most 50 draw calls, the traffic-on cold start (no NPC request before the first in-flight frame, under 9,437,184 bytes, models loaded within a fixed frame window), populated browser/Node parity, the scanner after a reload
 
 **Wave 13** *(blocked on Wave 12 completion)*
 - [ ] 12-13-PLAN.md — A dock or arrival behind the chart closes it; a loop reset inside a step is safe (WORLD-11 prerequisites)
@@ -243,7 +243,7 @@ Pending todos outside v2.1, which can run as quick tasks or join a phase by owne
 | 9. NPC Content | v2.1 | 5/5 | Complete    | 2026-11-14 |
 | 10. Ship Mass | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
-| 12. Inert Ships and the World Lifecycle | v2.1 | 0/8 | Planned | - |
+| 12. Inert Ships and the World Lifecycle | v2.1 | 0/14 | Planned | - |
 
 ## Backlog
 
