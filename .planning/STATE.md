@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v2.1
 milestone_name: World Population Base
-current_phase: 12
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 12 complete — all phases complete
-last_updated: "2026-11-14T20:44:39.635Z"
+last_updated: "2026-11-14T20:51:40.146Z"
 last_activity: 2026-11-14
-last_activity_desc: Phase 12 complete
-state_head: f0164373c23bdee36ed5144cc9c1a53148d65672
+last_activity_desc: Milestone v2.1 completed and archived
+state_head: 85b2f3d3b3516834b593ad1b49017a7fdf2ec223
 progress:
   total_phases: 4
   completed_phases: 4
   total_plans: 27
   completed_plans: 27
   percent: 100
+current_phase: 12
 ---
 
 # Project State
@@ -28,12 +28,10 @@ See: .planning/PROJECT.md (updated 2026-11-13)
 
 ## Current Position
 
-Phase: 12
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-11-14 — Phase 12 complete
-
-Progress: [██████████] 100%
+Phase: Milestone v2.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-11-14 — Milestone v2.1 completed and archived
 
 
 ## Performance Metrics
@@ -443,6 +441,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 | Category | Item | Status | Deferred At | Milestone |
 |----------|------|--------|-------------|-----------|
+| todos | 2026-11-14-clear-world-when-arrival-begin-is-refused.md | open | 2026-11-14 | v2.1 |
+| todos | 2026-11-14-make-buoys-block-hyperspace-like-oolite.md | open | 2026-11-14 | v2.1 |
+| todos | 2026-11-14-measure-oolite-reference-in-docker.md | open | 2026-11-14 | v2.1 |
 | debug_sessions | bounce-orientation-preservation | unknown | 2026-11-13 | v2.0 |
 | debug_sessions | disabled-buy-control | diagnosed | 2026-11-13 | v2.0 |
 | debug_sessions | disarmed-tunnel-end-clamp | unknown | 2026-11-13 | v2.0 |
@@ -472,6 +473,5 @@ Resume file: None
 
 ## Operator Next Steps
 
-- Discuss and plan Phase 9 with /gsd-discuss-phase 9, then /gsd-plan-phase 9; Phase 11 can be discussed and planned beside it
-- Phase 10's build-time octree port can start on the vendored v1 models before Phase 9 lands
-- Phase 12's first plan delivers FOUND-15 (WR-01) and FOUND-16 (IN-02) before any populator code
+
+- Start the next milestone with /gsd-new-milestone

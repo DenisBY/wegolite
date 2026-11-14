@@ -1,5 +1,24 @@
 # Project Milestones: Wegolite
 
+## v2.1 World Population Base (Shipped: 2026-11-14)
+
+**Phases completed:** 4 phases, 27 plans, 27 tasks
+
+**Key accomplishments:**
+- AssetCache.loadNpcModel loads the nine Oolite NPC models on demand (memoised, path-guarded, freed by dispose), and a request-log browser test proves a cold start fetches none of the 9 GLBs or 43 textures while transferring 8,834,862 bytes under the unchanged 9,437,184-byte ceiling.
+- Float32 port of Oolite's hull octree and its mass composition (hull plus ordered non-flasher subentity sum), bit-exact on all 16 vendored meshes: Cobra Mk III 214,737.6875, Coriolis station 515,483,904, navigation buoy 698,691.1875.
+- The nine NPC records, the player Cobra Mk III and the Coriolis station now carry Oolite's float32 mass (Viper 34,040.6796875, Cobra 214,737.6875, Coriolis 515,483,904), required by the strict schema, pinned by a hand-written golden and the drift gate, and entered in FIDELITY.md's constants ledger with NOTICE provenance.
+- Jump blockage now uses Oolite's computed Coriolis mass 515,483,904 (radius 7,179.7 m instead of 6,747.0 m), pinned to the compiled record by a test, with the owner's three answers recorded.
+- The navigation buoy's computed mass, 698,691.1875, is compiled into ships-client.json as a third `buoy` entry, pinned by a test and covered by NOTICE, and every record and browser-test comment now agrees with the owner's answers.
+- `WorldLifecycle.anchorNextEntityId` exposes the post-populate id counter of the leg's world, and the mix32 cross-check vector plus a real v2 writer golden are pinned before the first v3 write.
+- Saves are now strict schema v3: every v2 field plus a required leg-anchor `epoch` and `nextEntityId`, written from the live world lifecycle, with v1 and v2 saves loading through the ordered v1 -> v2 -> v3 chain to epoch 0 and counter 101.
+- Warm Load and cold Continue now re-anchor the world lifecycle at the saved epoch before an in-flight resume, so a loaded v3 save rebuilds exactly the world a fresh arrival at its anchor builds; the v3 bounds, writer gate, older-build inertness and the 40,427-character worst case are pinned at the reader.
+- The two browser specs now assert a version-3 manual save and treat version 4 as the newer build, the changelog and Key Decisions record the v3 format and its compatibility break, and the owner-chosen `verify-full` gate exited 0.
+
+**Closeout:** override_closeout. Phases 9-11 verification reads `stale` (later phases changed files their reports cover); every VERIFICATION.md and the milestone audit are `passed`. Known verification overrides: 3 newly acknowledged todos (WR-01, buoys block hyperspace, measure the Oolite reference in Docker), 16 carried forward. No release tag: the project's release tags (`v0.x.0`) are separate from GSD milestones.
+
+---
+
 ## v2.0 Foundation (Shipped: 2026-11-13)
 
 **Delivered:** v1 play unchanged on a multi-entity world core: `game-session.ts` split into typed controllers, stable per-world entity ids, seeded per-entity streams, a world hash, restorable test snapshots, a typed `WorldView`/`ShipControl` AI seam and a tick-stepping test hook. No player-visible feature ships in this milestone.

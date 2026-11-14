@@ -10,23 +10,17 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 ## Current State
 
-**Shipped:** v1.0 Core Loop (Phases 1-7, released as `v0.1.0` on 2026-11-08) and v2.0 Foundation (Phase 8, completed 2026-11-13; not yet in a tagged release, the latest release is `v0.3.0`).
+**Shipped:** v1.0 Core Loop (Phases 1-7, released as `v0.1.0` on 2026-11-08), v2.0 Foundation (Phase 8, completed 2026-11-13) and v2.1 World Population Base (Phases 9-12, completed 2026-11-14). v2.0 and v2.1 are not yet in a tagged release; the latest release is `v0.3.0`.
 
 v2.0 changed nothing the player sees. The game plays exactly as v1 does, but `src/app/game-session.ts` is split into typed controllers behind a 532-line facade, and the simulation runs a multi-entity world: stable per-world ids, seeded per-entity streams, a world hash, restorable test snapshots, a typed `WorldView`/`ShipControl` AI seam with a scripted test pilot, and a tick-stepping test hook (`advanceTicks`, `worldHash`, `probe.sim`). The AI seam, the snapshot codec and the reserved SimEvent types have only the test pilot as a consumer, so they stay provisional until Phases 12-14 exercise them.
 
-## Current Milestone: v2.1 World Population Base
+v2.1 gave the world real NPC ships, still inert: the nine role ships are compiled from Oolite with provenance and loaded lazily, every hull has Oolite's mass from a build-time octree, saves are schema v3 (world epoch, counters and next entity id; NPCs are regenerated, never saved), and with traffic on the world holds 12 inert ships that are drawn, shown on the scanner, and counted by mass lock and jump blockage. The world keeps running behind the chart, is cleared at jump commit and repopulated deterministically on arrival. Audit: 12/12 requirements, no blockers (`milestones/v2.1-MILESTONE-AUDIT.md`).
 
-**Goal:** The world can hold real NPC ships: compiled from Oolite's data, given Oolite's mass, regenerated from the save's seed rather than saved, populated deterministically on arrival, and counted by mass lock and jump blockage. No NPC flight, AI or combat yet.
+Open at close (todos): WR-01 (a refused `begin()` at arrival leaves the origin world installed; practically unreachable), buoys do not yet block hyperspace, and the real-Oolite mass check is deferred.
 
-**Scope rule:** the necessary technical minimum, not player-visible features (owner, 2026-11-13: "less, but better"). Each phase is trimmed to what Phase 12 consumes; phase numbers 9-12 are kept from the former v2.1 plan so existing references stay valid.
+## Next Milestone Goals
 
-**Target features:**
-- Phase 9, NPC content: models, textures and combat stats of the NPC ships compiled from the pinned Oolite snapshot with provenance, lazily loaded outside the first load. Sounds and music (DATA-12) are deferred to the audio phase.
-- Phase 10, ship mass: build-time hull octrees and Oolite's mass (`density * 20 * octree volume`), with the Coriolis mass checked against 455,223,200. Runtime ray and hull queries are deferred to the combat phase.
-- Phase 11, minimal save schema v3: only the world epoch, the world counters and the next entity id, with leg-anchor semantics and an ordered v1 → v2 → v3 migration. Combat and law fields get their own later bumps.
-- Phase 12, inert ships and the world lifecycle: inert NPC ships drawn and on the scanner within budget, mass lock and jump blockage by ships, the world running behind the chart, cleared at jump commit and repopulated deterministically on arrival, and a reload that regenerates the same world. Its first plan contains a throwing AI module (review WR-01) and makes `spawnEntity` refuse malformed input instead of throwing (IN-02).
-
-**Deferred (unscheduled backlog, numbers unchanged):** Phases 13-23 of the former v2.1 Combat & Traffic plan: lasers and views, NPC flight and the AI fidelity gate, destruction and death, bounties and the escape pod, audio, priority AI and role traffic, police and law, pirates, missiles, full traffic and mining, and performance hardening with QUAL-01. Their requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`.
+Not yet defined. The unscheduled backlog is the former Phases 13-23 (lasers and views, NPC flight and the AI fidelity gate, destruction and death, bounties and the escape pod, audio, priority AI and traffic, police and law, pirates, missiles, mining, performance hardening with QUAL-01). Their requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`; start with `/gsd-new-milestone`.
 
 ## Requirements
 
@@ -45,16 +39,15 @@ v2.0 changed nothing the player sees. The game plays exactly as v1 does, but `sr
 - ✓ Player can save and resume progress in the browser — v1.0 (Phase 6)
 - ✓ Clean separation between simulation and rendering — v1.0 (Phases 1 and 3); the steady-frame-rate half is QUAL-01, still open
 - ✓ The simulation holds many entities with stable per-world ids, seeded per-entity streams, a world hash and restorable test snapshots, behind a typed `WorldView`/`ShipControl` AI seam, and tests step it by ticks; v1 play unchanged after the session split — v2.0 (Phase 8, FOUND-10..FOUND-14)
+- ✓ NPC ship models, textures and Oolite record fields are compiled with provenance and loaded lazily outside the first load — v2.1 (Phase 9, DATA-10, DATA-13)
+- ✓ Every NPC hull, the Cobra Mk III and the Coriolis have Oolite's mass from a build-time octree; jump blockage uses the computed Coriolis mass — v2.1 (Phase 10, DATA-11)
+- ✓ Saves are a minimal schema v3 with ordered migration; NPCs are regenerated at the leg anchor, never saved — v2.1 (Phases 11-12, SAVE-07, SAVE-08)
+- ✓ A throwing AI module is contained and `spawnEntity` refuses malformed input — v2.1 (Phase 12, FOUND-15, FOUND-16)
+- ✓ Inert NPC ships are placed, drawn and on the scanner; mass lock and jump blockage count them; the world runs behind the chart and is cleared and repopulated deterministically across jumps — v2.1 (Phase 12, WORLD-10, WORLD-11, WORLD-14..16)
 
 ### Active
 
-<!-- Current scope: milestone v2.1 World Population Base. -->
-
-- [ ] (v2.1) NPC ship models, textures and Oolite combat stats are compiled with provenance and loaded lazily (Phase 9)
-- [ ] (v2.1) Every NPC hull has Oolite's mass from a build-time octree (Phase 10)
-- [ ] (v2.1) Saves carry only the world seed, epoch and counters of a leg anchor, in a minimal schema v3, and the world is regenerated from them (Phases 11-12)
-- [ ] (v2.1) A throwing AI module is contained inside the world step, and `spawnEntity` refuses malformed input (Phase 12, reviews WR-01 and IN-02)
-- [ ] (v2.1) Inert NPC ships are placed, drawn and on the scanner; mass lock and jump blockage count them; the world runs behind the chart and is cleared and repopulated deterministically across jumps (Phase 12)
+<!-- No milestone is active. Next scope comes from /gsd-new-milestone. -->
 
 <!-- Later, unscheduled (former v2.1 Phases 13-23). -->
 
@@ -278,4 +271,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-14 after Phase 12 (inert ships and the world lifecycle)*
+*Last updated: 2026-11-14 after v2.1 milestone*

@@ -7,6 +7,9 @@ files:
   - FIDELITY.md
   - .planning/phases/10-ship-mass/
   - src/sim/hyperspace/countdown.ts
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-11-14
 ---
 
 ## Problem

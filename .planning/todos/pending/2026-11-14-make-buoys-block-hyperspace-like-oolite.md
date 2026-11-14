@@ -8,6 +8,9 @@ files:
   - src/sim/world/layout.ts
   - tests/e2e/hyperspace-failure.spec.ts
   - FIDELITY.md
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-11-14
 ---
 
 ## Problem

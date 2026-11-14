@@ -7,6 +7,9 @@ files:
   - src/app/session/hyperspace-controller.ts
   - src/app/session/world-lifecycle.ts
   - .planning/phases/12-inert-ships-and-the-world-lifecycle/12-REVIEW.md
+audit_acknowledged:
+  milestone: v2.1
+  at: 2026-11-14
 ---
 
 ## Problem

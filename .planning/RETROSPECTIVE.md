@@ -46,6 +46,41 @@ v1.0 (Phases 1-7) closed before this file existed; its record is in `MILESTONES.
 
 ---
 
+## Milestone: v2.1 — World Population Base
+
+**Shipped:** 2026-11-14
+**Phases:** 4 | **Plans:** 27
+
+### What Was Built
+- NPC content: nine role ships compiled from Oolite with provenance, lazy-loaded outside the first load.
+- Ship mass: a float32 build-time hull octree, bit-exact on 16 meshes; jump blockage uses the computed Coriolis mass.
+- Save schema v3: world epoch, counters and next entity id; NPCs regenerated at the leg anchor, never saved.
+- Inert world lifecycle: 12 inert ships drawn and on the scanner, counted by mass lock and blockage, cleared at jump commit and repopulated on arrival, world running behind the chart.
+
+### What Worked
+- Scope kept to "the technical minimum" (inert ships, no AI or combat); the audit found 12/12 requirements and no blockers.
+- Staged requirements (DATA-11, SAVE-08) let early phases pin fields and semantics before the phase that completes them.
+- Containing the AI fault and refusing malformed spawns in Phase 12's first plan, before the populator existed.
+
+### What Was Inefficient
+- Later phases edited files covered by earlier VERIFICATION.md reports, so phases 9-11 read `stale` at close and needed an override.
+- Phase 12 took 14 plans; the browser check was left to UAT at the end.
+
+### Patterns Established
+- The simulation never depends on render assets: mass lock, blockage and the scanner read the world and compiled masses only.
+- Owner decisions on fidelity differences (Coriolis mass) are recorded as Key Decisions with the Oolite source cited.
+
+### Key Lessons
+1. Check cross-phase file ownership when verifying early phases; re-verify at milestone end or accept stale reports explicitly.
+2. A one-line invariant hole (WR-01: end() before begin()) is cheaper to fix in the phase than to carry as a todo.
+
+### Cost Observations
+- Model mix: not tracked
+- Sessions: not tracked
+- Notable: verify-full remains the dominant cost on this machine
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -54,6 +89,7 @@ v1.0 (Phases 1-7) closed before this file existed; its record is in `MILESTONES.
 |-----------|----------|--------|------------|
 | v1.0 | not tracked | 7 | Docker-only gates, deterministic fixed-step simulation, content compiled from Oolite configs |
 | v2.0 | not tracked | 1 | Safety nets before refactoring, gate by change type, scope cut to one phase mid-milestone |
+| v2.1 | not tracked | 4 | Technical-minimum scope, staged requirements, simulation independent of render assets |
 
 ### Cumulative Quality
 
@@ -61,6 +97,7 @@ v1.0 (Phases 1-7) closed before this file existed; its record is in `MILESTONES.
 |-----------|-------|----------|-------------------|
 | v1.0 | not recorded | not recorded | not recorded |
 | v2.0 | 2,407 unit, 128 Chromium specs | not recorded | 0 (no new npm packages) |
+| v2.1 | 132 Chromium specs (unit count not recorded) | not recorded | 0 |
 
 ### Top Lessons (Verified Across Milestones)
 
