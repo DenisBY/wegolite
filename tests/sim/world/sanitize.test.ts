@@ -30,7 +30,7 @@ import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 /** A clean entity with a test-pilot AI, from the real spawn path. */
 function fresh(): Entity {
   const world = createWorld(5);
-  const entity = spawnEntity(
+  const result = spawnEntity(
     world,
     {
       kind: "ship",
@@ -44,8 +44,8 @@ function fresh(): Entity {
     },
     7,
   );
-  if (entity === undefined) throw new Error("spawn refused");
-  return entity;
+  if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+  return result.entity;
 }
 
 /** Loose write access to corrupt a field the types protect. */

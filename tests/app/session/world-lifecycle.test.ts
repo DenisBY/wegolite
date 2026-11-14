@@ -337,7 +337,7 @@ describe("lifecycle rules (D-02, D-03, D-05)", () => {
         },
         0,
       );
-      expect(spawned?.id).toBe(101);
+      expect(spawned.ok && spawned.entity.id).toBe(101);
       expect(old.store.nextId).toBe(102);
       create();
       const fresh = lifecycle.world;
@@ -524,7 +524,7 @@ describe("leg-anchor counter (Phase 11, D-01, D-05)", () => {
       },
       7,
     );
-    expect(spawned?.id).toBe(104);
+    expect(spawned.ok && spawned.entity.id).toBe(104);
     expect(world.store.nextId).toBe(105);
     expect(lifecycle.anchorNextEntityId).toBe(104);
   });
@@ -1366,7 +1366,7 @@ describe("anchored save: only the epoch and the anchor counter of the world ente
       },
       state.tick,
     );
-    expect(pilot?.id).toBe(101);
+    expect(pilot.ok && pilot.entity.id).toBe(101);
     expect(world.store.nextId).toBe(102);
     for (let tick = 0; tick < 50; tick += 1) {
       stepSim(state, world, lave.layout, lave.config, ZERO_INTENT, [], DT);

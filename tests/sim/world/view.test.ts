@@ -84,8 +84,9 @@ function shipInit(overrides: Partial<SpawnInit> = {}): SpawnInit {
 }
 
 function spawnOk(world: World, overrides: Partial<SpawnInit> = {}) {
-  const entity = spawnEntity(world, shipInit(overrides), 0);
-  if (entity === undefined) throw new Error("spawn refused");
+  const result = spawnEntity(world, shipInit(overrides), 0);
+  if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+  const entity = result.entity;
   return entity;
 }
 

@@ -341,7 +341,7 @@ describe("the sim hook reads live objects (G-8)", () => {
       },
       0,
     );
-    expect(spawned?.id).toBe(101);
+    expect(spawned.ok && spawned.entity.id).toBe(101);
   }
 
   function liveWorld(lifecycle: WorldLifecycle) {

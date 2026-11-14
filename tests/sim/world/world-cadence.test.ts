@@ -166,7 +166,7 @@ class Scenario {
 
   private spawnPilots(world: World): void {
     for (let i = 0; i < PILOTS; i += 1) {
-      const entity = spawnEntity(
+      const result = spawnEntity(
         world,
         {
           kind: "ship",
@@ -188,7 +188,9 @@ class Scenario {
         },
         this.state.tick,
       );
-      if (entity === undefined) throw new Error("pilot spawn refused");
+      if (!result.ok) {
+        throw new Error(`pilot spawn refused: ${result.reason}`);
+      }
     }
   }
 

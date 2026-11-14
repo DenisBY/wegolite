@@ -23,7 +23,7 @@ import type { Vec3 } from "../../../src/sim/math.js";
 import { createRngState, rngNext } from "../../../src/sim/rng.js";
 import { createShipControl } from "../../../src/sim/world/control-impl.js";
 import type { ShipControl } from "../../../src/sim/world/control.js";
-import type { SpawnInit } from "../../../src/sim/world/entity.js";
+import type { Entity, SpawnInit } from "../../../src/sim/world/entity.js";
 import type { EntityId } from "../../../src/sim/world/ids.js";
 import type {
   BodyView,
@@ -37,6 +37,7 @@ import {
   killEntity,
   spawnEntity,
 } from "../../../src/sim/world/world.js";
+import type { World } from "../../../src/sim/world/world.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const { layout } = laveFixture();
@@ -62,20 +63,23 @@ function shipInit(x: number, ai: AiComponent | null): SpawnInit {
   };
 }
 
+function spawnOk(world: World, init: SpawnInit, tick: number): Entity {
+  const result = spawnEntity(world, init, tick);
+  if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+  return result.entity;
+}
+
 describe("a test pilot thinks once through the real seam (tracer)", () => {
   it("targets the nearer body and stores integer timers", () => {
     const world = createWorld(7);
     const player = playerAt(500);
-    const actor = spawnEntity(
+    const actor = spawnOk(
       world,
       shipInit(5000, createTestPilotAi(player.tick)),
       player.tick,
     );
-    const near = spawnEntity(world, shipInit(5600, null), player.tick);
-    const far = spawnEntity(world, shipInit(9000, null), player.tick);
-    if (actor === undefined || near === undefined || far === undefined) {
-      throw new Error("spawn refused");
-    }
+    const near = spawnOk(world, shipInit(5600, null), player.tick);
+    spawnOk(world, shipInit(9000, null), player.tick);
     // Keep the player and the static bodies out of the pilot's scan range.
     player.position = vec(1e9, 1e9, 1e9);
     if (actor.ai === null) throw new Error("no ai");
@@ -407,12 +411,12 @@ describe("randomness and the wake", () => {
   it("thinks on an early wake tick and re-arms both integer timers", () => {
     const world = createWorld(7);
     const player = playerAt(100);
-    const actor = spawnEntity(
+    const actor = spawnOk(
       world,
       shipInit(5000, createTestPilotAi(player.tick)),
       player.tick,
     );
-    if (actor?.ai == null) throw new Error("spawn refused");
+    if (actor.ai === null) throw new Error("spawned pilot has no AI");
     const ai = actor.ai;
     const run = (): void => {
       AI_REGISTRY["test-pilot"].think({
@@ -446,16 +450,14 @@ describe("state is plain data", () => {
 
     const world = createWorld(11);
     const player = playerAt(0);
-    const actor = spawnEntity(
+    const actor = spawnOk(
       world,
       shipInit(5000, createTestPilotAi(0)),
       player.tick,
     );
-    const target = spawnEntity(world, shipInit(5400, null), player.tick);
-    spawnEntity(world, shipInit(8000, null), player.tick);
-    if (actor?.ai == null || target === undefined) {
-      throw new Error("spawn refused");
-    }
+    const target = spawnOk(world, shipInit(5400, null), player.tick);
+    spawnOk(world, shipInit(8000, null), player.tick);
+    if (actor.ai === null) throw new Error("spawned pilot has no AI");
     player.position = vec(1e9, 1e9, 1e9);
     const ai = actor.ai;
     const rng = createRngState(actor.rng.ai);

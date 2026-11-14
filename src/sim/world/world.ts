@@ -26,6 +26,7 @@ import {
   ENTITY_KINDS,
   FIRST_DYNAMIC_ID,
   MAIN_STATION_ID,
+  MAX_ENTITIES,
   NO_ENTITY,
   PLANET_ID,
   SCAN_CLASSES,
@@ -242,25 +243,41 @@ function isLegalAi(ai: AiComponent): boolean {
   );
 }
 
-/** Whether `init` and `tick` lie inside the shared serialised domain. */
-function isLegalSpawn(init: SpawnInit, tick: number): boolean {
-  if (!isUint32(tick)) return false;
-  if (typeof init.specKey !== "string") return false;
-  if (init.specKey.length === 0 || !isLegalString(init.specKey)) return false;
-  if (!(ENTITY_KINDS as readonly string[]).includes(init.kind)) return false;
-  if (!(SCAN_CLASSES as readonly string[]).includes(init.scanClass)) {
-    return false;
+/**
+ * The first domain rule `init` and `tick` violate, or undefined when both lie
+ * inside the shared serialised domain. An AI component outside the domain is
+ * `ai`; every other violated field is `outOfDomain`.
+ */
+function domainRefusal(
+  init: SpawnInit,
+  tick: number,
+): SpawnRefusal | undefined {
+  if (!isUint32(tick)) return "outOfDomain";
+  if (typeof init.specKey !== "string") return "outOfDomain";
+  if (init.specKey.length === 0 || !isLegalString(init.specKey)) {
+    return "outOfDomain";
   }
-  if (!Number.isFinite(init.radius) || !(init.radius > 0)) return false;
-  if (init.radius > MAX_ENTITY_MAGNITUDE) return false;
-  if (init.ownerId !== undefined && !isUint32(init.ownerId)) return false;
+  if (!(ENTITY_KINDS as readonly string[]).includes(init.kind)) {
+    return "outOfDomain";
+  }
+  if (!(SCAN_CLASSES as readonly string[]).includes(init.scanClass)) {
+    return "outOfDomain";
+  }
+  if (!Number.isFinite(init.radius) || !(init.radius > 0)) return "outOfDomain";
+  if (init.radius > MAX_ENTITY_MAGNITUDE) return "outOfDomain";
+  if (init.ownerId !== undefined && !isUint32(init.ownerId)) {
+    return "outOfDomain";
+  }
   if (init.speed !== undefined) {
-    if (!isBounded(init.speed) || init.speed < 0) return false;
+    if (!isBounded(init.speed) || init.speed < 0) return "outOfDomain";
   }
   if (!isBoundedVec(init.position) || !isUnitQuat(init.orientation)) {
-    return false;
+    return "outOfDomain";
   }
-  return init.ai === undefined || init.ai === null || isLegalAi(init.ai);
+  if (init.ai === undefined || init.ai === null || isLegalAi(init.ai)) {
+    return undefined;
+  }
+  return "ai";
 }
 
 function copyAi(ai: AiComponent): AiComponent {
@@ -280,13 +297,41 @@ function copyAi(ai: AiComponent): AiComponent {
 }
 
 /**
- * Spawn an entity. Refuses, returning undefined and leaving `nextId` untouched,
- * when `init` or `tick` lies outside the shared serialised domain
- * (`./limits.ts`, the closed vocabularies of `./ids.ts` and `../ai/types.ts`)
- * or when the store is full. Membership checks use `Array.prototype.includes`
- * over the vocabulary arrays, never the `in` operator, so a prototype name such
- * as "constructor" is refused. The orientation must already be a unit
- * quaternion: spawn neither normalises nor accepts a near-zero norm.
+ * The closed list of reasons `spawnEntity` refuses. Each reason is a
+ * payload-free code: no refusal carries text built from the input.
+ * `malformed` is for input the type system cannot rule out (the guards arrive
+ * with FOUND-15); `outOfDomain` is a field outside the shared serialised
+ * domain; `ai` an AI component outside it; `idExhausted` a spent id counter;
+ * `storeFull` a store already holding `MAX_ENTITIES` live entities.
+ */
+export const SPAWN_REFUSALS = [
+  "malformed",
+  "outOfDomain",
+  "ai",
+  "idExhausted",
+  "storeFull",
+] as const;
+
+export type SpawnRefusal = (typeof SPAWN_REFUSALS)[number];
+
+export type SpawnResult =
+  | { readonly ok: true; readonly entity: Entity }
+  | { readonly ok: false; readonly reason: SpawnRefusal };
+
+/**
+ * Spawn an entity. Returns `{ ok: true, entity }`, or `{ ok: false, reason }`
+ * with `reason` from `SPAWN_REFUSALS`; it never throws for a refusal. It
+ * refuses when `init` or `tick` lies outside the shared serialised domain
+ * (`./limits.ts`, the closed vocabularies of `./ids.ts` and `../ai/types.ts`),
+ * when the id counter is spent or when the store is full. Every refusal
+ * happens before `store.allocate`, so `nextId`, the live array and the world
+ * stream are untouched by a refusal and the next valid spawn receives the id
+ * the counter showed before it. The refusal order is domain (`outOfDomain`,
+ * `ai`), then `idExhausted`, then `storeFull`. Membership checks use
+ * `Array.prototype.includes` over the vocabulary arrays, never the `in`
+ * operator, so a prototype name such as "constructor" is refused. The
+ * orientation must already be a unit quaternion: spawn neither normalises nor
+ * accepts a near-zero norm.
  *
  * The entity's streams are forked from `(worldSeed, id, purpose)` here and
  * stored as plain uint32 states, so spawning or killing another entity never
@@ -296,9 +341,17 @@ export function spawnEntity(
   world: World,
   init: SpawnInit,
   tick: number,
-): Entity | undefined {
-  if (!isLegalSpawn(init, tick)) return undefined;
-  return world.store.allocate((id) => {
+): SpawnResult {
+  const refusal = domainRefusal(init, tick);
+  if (refusal !== undefined) return { ok: false, reason: refusal };
+  const nextId = world.store.nextId;
+  if (!Number.isSafeInteger(nextId) || nextId > MAX_UINT32) {
+    return { ok: false, reason: "idExhausted" };
+  }
+  if (liveEntityCount(world) >= MAX_ENTITIES) {
+    return { ok: false, reason: "storeFull" };
+  }
+  const entity = world.store.allocate((id) => {
     const speed = init.speed ?? 0;
     return {
       id,
@@ -336,6 +389,9 @@ export function spawnEntity(
       repairs: 0,
     };
   });
+  return entity === undefined
+    ? { ok: false, reason: "storeFull" }
+    : { ok: true, entity };
 }
 
 /** Add `count` dropped events to `aiDropped`, saturating at `MAX_UINT32`. */

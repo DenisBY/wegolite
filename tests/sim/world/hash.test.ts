@@ -103,15 +103,15 @@ function aiWith(params: Record<string, ParamValue>): AiComponent {
 /** The text of one entity spawned alone into a fresh world of seed 7. */
 function textOf(overrides: Partial<SpawnInit>): string {
   const world = createWorld(7);
-  const entity = spawnEntity(world, init(overrides), 0);
-  if (entity === undefined) throw new Error("spawn refused");
-  return serializeEntity(entity);
+  const result = spawnEntity(world, init(overrides), 0);
+  if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+  return serializeEntity(result.entity);
 }
 
 function hashOf(overrides: Partial<SpawnInit>): string {
   const world = createWorld(7);
-  const entity = spawnEntity(world, init(overrides), 0);
-  if (entity === undefined) throw new Error("spawn refused");
+  const result = spawnEntity(world, init(overrides), 0);
+  if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
   return entityHashes(world)[0]?.[1] ?? "";
 }
 
@@ -149,8 +149,8 @@ describe("empty-world hash identity (D-08)", () => {
 
   it("a world with one spawned entity hashes differently and lists no static id", () => {
     const world = createWorld(1234);
-    const entity = spawnEntity(world, init(), 3);
-    expect(entity?.id).toBe(FIRST_DYNAMIC_ID);
+    const result = spawnEntity(world, init(), 3);
+    expect(result.ok && result.entity.id).toBe(FIRST_DYNAMIC_ID);
     const state = firstFlightState();
     expect(hashWorld(state, world)).not.toBe(hashFlight(state));
     const section = serializeWorldSection(world);
@@ -163,8 +163,10 @@ describe("empty-world hash identity (D-08)", () => {
 
   it("a world that spawned, killed and committed is no longer never-spawned", () => {
     const world = createWorld(1234);
-    const entity = spawnEntity(world, init(), 0);
-    expect(killEntity(world, entity?.id ?? NO_ENTITY)).toBe(true);
+    const result = spawnEntity(world, init(), 0);
+    expect(killEntity(world, result.ok ? result.entity.id : NO_ENTITY)).toBe(
+      true,
+    );
     expect(commitWorld(world)).toEqual([FIRST_DYNAMIC_ID]);
     expect(world.store.live).toHaveLength(0);
     expect(isNeverSpawned(world)).toBe(false);
@@ -184,8 +186,8 @@ describe("empty-world hash identity (D-08)", () => {
 
   it("entityHashes lists no id below FIRST_DYNAMIC_ID", () => {
     const world = createWorld(9);
-    spawnEntity(world, init(), 0);
-    spawnEntity(world, init({ specKey: "other" }), 0);
+    expect(spawnEntity(world, init(), 0).ok).toBe(true);
+    expect(spawnEntity(world, init({ specKey: "other" }), 0).ok).toBe(true);
     const ids = entityHashes(world).map(([id]) => id);
     expect(ids).toEqual([101, 102]);
     expect(ids.every((id) => id >= FIRST_DYNAMIC_ID)).toBe(true);
@@ -193,8 +195,9 @@ describe("empty-world hash identity (D-08)", () => {
 
   it("serializeEntity throws on a non-finite field (canon's contract)", () => {
     const world = createWorld(9);
-    const entity = spawnEntity(world, init(), 0);
-    if (entity === undefined) throw new Error("spawn refused");
+    const result = spawnEntity(world, init(), 0);
+    if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+    const entity = result.entity;
     entity.position = { x: Number.NaN, y: 0, z: 0 };
     expect(() => serializeEntity(entity)).toThrow(/non-finite/);
   });

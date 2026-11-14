@@ -84,8 +84,9 @@ function shipInit(
 }
 
 function spawnOk(world: World, init: SpawnInit, tick = 0) {
-  const entity = spawnEntity(world, init, tick);
-  if (entity === undefined) throw new Error("spawn refused");
+  const result = spawnEntity(world, init, tick);
+  if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+  const entity = result.entity;
   return entity;
 }
 

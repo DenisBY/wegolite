@@ -80,8 +80,9 @@ function shipInit(index: number, ai: AiComponent | null): SpawnInit {
 }
 
 function spawnOk(world: World, init: SpawnInit, tick = 0): Entity {
-  const entity = spawnEntity(world, init, tick);
-  if (entity === undefined) throw new Error("spawn refused");
+  const result = spawnEntity(world, init, tick);
+  if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+  const entity = result.entity;
   return entity;
 }
 
@@ -550,7 +551,10 @@ describe("parseWorldSnapshot acceptance", () => {
     const restored = restoreWorld(snapshot as unknown as WorldSnapshot);
     expect(restored.store.nextId).toBe(2 ** 32);
     // The counter cannot issue another id: allocation is refused.
-    expect(spawnEntity(restored, shipInit(0, null), 0)).toBeUndefined();
+    expect(spawnEntity(restored, shipInit(0, null), 0)).toEqual({
+      ok: false,
+      reason: "idExhausted",
+    });
   });
 
   it.each([0, MAX_UINT32])("accepts worldSeed %i", (worldSeed) => {

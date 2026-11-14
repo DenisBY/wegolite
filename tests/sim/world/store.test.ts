@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 import type { AiComponent, ParamValue } from "../../../src/sim/ai/types.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { createRngState, rngNext } from "../../../src/sim/rng.js";
-import type { SpawnInit } from "../../../src/sim/world/entity.js";
+import type { Entity, SpawnInit } from "../../../src/sim/world/entity.js";
 import {
   FIRST_DYNAMIC_ID,
   MAX_ENTITIES,
@@ -49,7 +49,7 @@ import {
   spawnEntity,
   staticEntity,
 } from "../../../src/sim/world/world.js";
-import type { World } from "../../../src/sim/world/world.js";
+import type { SpawnResult, World } from "../../../src/sim/world/world.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import { laveFixture } from "../../helpers/lave.js";
 
@@ -79,10 +79,14 @@ function aiWith(
   };
 }
 
+/** The entity of an accepted spawn; a refusal fails the test with its reason. */
+function entityOf(result: SpawnResult): Entity {
+  if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+  return result.entity;
+}
+
 function spawnOk(world: World, overrides: Partial<SpawnInit> = {}, tick = 0) {
-  const entity = spawnEntity(world, init(overrides), tick);
-  if (entity === undefined) throw new Error("spawn refused");
-  return entity;
+  return entityOf(spawnEntity(world, init(overrides), tick));
 }
 
 describe("ids, order, kill and commit", () => {
@@ -149,7 +153,10 @@ describe("the MAX_ENTITIES cap and the uint32 id ceiling", () => {
     for (let i = 0; i < MAX_ENTITIES; i += 1) spawnOk(world);
     const before = world.store.nextId;
     expect(before).toBe(FIRST_DYNAMIC_ID + MAX_ENTITIES);
-    expect(spawnEntity(world, init(), 0)).toBeUndefined();
+    expect(spawnEntity(world, init(), 0)).toEqual({
+      ok: false,
+      reason: "storeFull",
+    });
     expect(world.store.nextId).toBe(before);
   });
 
@@ -162,7 +169,10 @@ describe("the MAX_ENTITIES cap and the uint32 id ceiling", () => {
     expect(world.store.live).toHaveLength(MAX_ENTITIES + 3);
     expect(liveEntityCount(world)).toBe(MAX_ENTITIES);
     const before = world.store.nextId;
-    expect(spawnEntity(world, init(), 0)).toBeUndefined();
+    expect(spawnEntity(world, init(), 0)).toEqual({
+      ok: false,
+      reason: "storeFull",
+    });
     expect(world.store.nextId).toBe(before);
   });
 
@@ -207,7 +217,7 @@ describe("the MAX_ENTITIES cap and the uint32 id ceiling", () => {
 });
 
 describe("spawn validation (shared serialised domain)", () => {
-  const refused: [string, Partial<SpawnInit>, number][] = [
+  const domainRefused: [string, Partial<SpawnInit>, number][] = [
     ["radius 0", { radius: 0 }, 0],
     ["radius negative", { radius: -1 }, 0],
     ["radius NaN", { radius: Number.NaN }, 0],
@@ -261,6 +271,9 @@ describe("spawn validation (shared serialised domain)", () => {
       { scanClass: "toString" as SpawnInit["scanClass"] },
       0,
     ],
+  ];
+
+  const aiRefused: [string, Partial<SpawnInit>, number][] = [
     [
       "aiKey trader",
       { ai: aiWith({}, { aiKey: "trader" as AiComponent["aiKey"] }) },
@@ -336,11 +349,28 @@ describe("spawn validation (shared serialised domain)", () => {
     ],
   ];
 
-  it.each(refused)(
-    "refuses %s and leaves nextId unchanged",
+  it.each(domainRefused)(
+    "refuses %s as outOfDomain and leaves nextId unchanged",
     (_, over, tick) => {
       const world = createWorld(1);
-      expect(spawnEntity(world, init(over), tick)).toBeUndefined();
+      expect(spawnEntity(world, init(over), tick)).toEqual({
+        ok: false,
+        reason: "outOfDomain",
+      });
+      expect(world.store.nextId).toBe(FIRST_DYNAMIC_ID);
+      expect(world.store.live).toHaveLength(0);
+      expect(isNeverSpawned(world)).toBe(true);
+    },
+  );
+
+  it.each(aiRefused)(
+    "refuses %s as ai and leaves nextId unchanged",
+    (_, over, tick) => {
+      const world = createWorld(1);
+      expect(spawnEntity(world, init(over), tick)).toEqual({
+        ok: false,
+        reason: "ai",
+      });
       expect(world.store.nextId).toBe(FIRST_DYNAMIC_ID);
       expect(world.store.live).toHaveLength(0);
       expect(isNeverSpawned(world)).toBe(true);
@@ -354,24 +384,29 @@ describe("spawn validation (shared serialised domain)", () => {
     params.k0 = Array.from({ length: MAX_SNAPSHOT_PARAM_LENGTH }, () => 1);
     params.k1 = "x".repeat(MAX_SNAPSHOT_STRING_LENGTH);
     params.k2 = MAX_ENTITY_MAGNITUDE;
-    const entity = spawnEntity(
-      world,
-      init({
-        specKey: "s".repeat(MAX_SNAPSHOT_STRING_LENGTH),
-        radius: MAX_ENTITY_MAGNITUDE,
-        speed: MAX_ENTITY_MAGNITUDE,
-        ownerId: MAX_UINT32,
-        position: vec(
-          MAX_ENTITY_MAGNITUDE,
-          -MAX_ENTITY_MAGNITUDE,
-          MAX_ENTITY_MAGNITUDE,
-        ),
-        ai: aiWith(params, { wakeTick: MAX_UINT32, nextThinkTick: MAX_UINT32 }),
-      }),
-      MAX_UINT32,
+    const entity = entityOf(
+      spawnEntity(
+        world,
+        init({
+          specKey: "s".repeat(MAX_SNAPSHOT_STRING_LENGTH),
+          radius: MAX_ENTITY_MAGNITUDE,
+          speed: MAX_ENTITY_MAGNITUDE,
+          ownerId: MAX_UINT32,
+          position: vec(
+            MAX_ENTITY_MAGNITUDE,
+            -MAX_ENTITY_MAGNITUDE,
+            MAX_ENTITY_MAGNITUDE,
+          ),
+          ai: aiWith(params, {
+            wakeTick: MAX_UINT32,
+            nextThinkTick: MAX_UINT32,
+          }),
+        }),
+        MAX_UINT32,
+      ),
     );
-    expect(entity?.id).toBe(FIRST_DYNAMIC_ID);
-    expect(Object.keys(entity?.ai?.params ?? {})).toHaveLength(
+    expect(entity.id).toBe(FIRST_DYNAMIC_ID);
+    expect(Object.keys(entity.ai?.params ?? {})).toHaveLength(
       MAX_AI_PARAMS_KEYS,
     );
   });
@@ -397,31 +432,32 @@ describe("spawn validation (shared serialised domain)", () => {
     const array = [1, 2];
     const position = vec(1, 2, 3);
     const spec = init({ position, ai: aiWith({ f: array }) });
-    const entity = spawnEntity(world, spec, 0);
+    const entity = entityOf(spawnEntity(world, spec, 0));
     array.push(3);
-    expect(entity?.ai?.params.f).toEqual([1, 2]);
-    expect(entity?.position).toEqual(position);
-    expect(entity?.position).not.toBe(position);
-    expect(entity?.nav.destination).toEqual(position);
-    expect(entity?.nav.destination).not.toBe(entity?.position);
-    expect(Object.getPrototypeOf(entity?.ai?.params)).toBeNull();
+    expect(entity.ai?.params.f).toEqual([1, 2]);
+    expect(entity.position).toEqual(position);
+    expect(entity.position).not.toBe(position);
+    expect(entity.nav.destination).toEqual(position);
+    expect(entity.nav.destination).not.toBe(entity.position);
+    expect(Object.getPrototypeOf(entity.ai?.params)).toBeNull();
   });
 
   it("defaults speed, ownerId, ai and nav", () => {
     const world = createWorld(1);
-    const entity = spawnEntity(
-      world,
-      {
-        kind: "ship",
-        specKey: "viper",
-        scanClass: "CLASS_POLICE",
-        position: vec(100, 200, 300),
-        orientation: identity(),
-        radius: 50,
-      },
-      0,
+    const entity = entityOf(
+      spawnEntity(
+        world,
+        {
+          kind: "ship",
+          specKey: "viper",
+          scanClass: "CLASS_POLICE",
+          position: vec(100, 200, 300),
+          orientation: identity(),
+          radius: 50,
+        },
+        0,
+      ),
     );
-    if (entity === undefined) throw new Error("spawn refused");
     expect(entity.speed).toBe(0);
     expect(entity.ownerId).toBe(NO_ENTITY);
     expect(entity.ai).toBeNull();
@@ -553,8 +589,9 @@ describe("property: ids over spawn, kill and commit", () => {
         let highest = 0;
         for (const c of commands) {
           if (c.type === "spawn") {
-            const entity = spawnEntity(world, init(), 0);
-            if (entity !== undefined) {
+            const result = spawnEntity(world, init(), 0);
+            if (result.ok) {
+              const entity = result.entity;
               if (issued.has(entity.id)) violations.push(`reused ${entity.id}`);
               if (entity.id <= highest) violations.push(`not above ${highest}`);
               if (world.store.nextId <= entity.id) violations.push("nextId");
