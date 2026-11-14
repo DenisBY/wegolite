@@ -2,9 +2,14 @@
 gsd_state_version: "1.0"
 milestone: v2.2
 milestone_name: Weapons and NPC Flight
+current_phase: 13
+current_phase_name: not started; Phase 14   can run beside it
 status: planning
-last_updated: "2026-11-14T21:05:00.000Z"
+stopped_at: Phase 13 context gathered
+last_updated: "2026-11-14T21:14:35.753Z"
 last_activity: 2026-11-14
+last_activity_desc: v2.2 roadmap created (Phases 13-14, 10/10 requirements mapped)
+state_head: 2cd83b6a230c1a10e8b891afb106a349c87cf272
 progress:
   total_phases: 2
   completed_phases: 0
@@ -472,9 +477,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T21:05:00.000Z
-Stopped at: v2.2 roadmap created — Phases 13 and 14 ready to discuss and plan
-Resume file: None
+Last session: 2026-11-14T21:14:35.694Z
+Stopped at: Phase 13 context gathered
+Resume file: .planning/phases/13-views-lasers-and-shields/13-CONTEXT.md
 
 ## Operator Next Steps
 
