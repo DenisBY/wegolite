@@ -5,6 +5,7 @@
     "key": "adder",
     "mass": 16045.4931640625,
     "model": "oolite_adder.dat",
+    "radius": 29.030517578125,
     "roles": [
       "trader(0.25)",
       "trader-courier(0.5)",
@@ -23,6 +24,7 @@
     "key": "cobramk1",
     "mass": 52291.8359375,
     "model": "oolite_cobramk1.dat",
+    "radius": 39.260494232177734,
     "roles": [
       "pirate(0.5)",
       "pirate-medium-fighter",
@@ -43,6 +45,7 @@
     "key": "gecko",
     "mass": 24669.99609375,
     "model": "oolite_gecko.dat",
+    "radius": 31.911365509033203,
     "roles": [
       "hunter(0.75)",
       "pirate-light-fighter(0.5)",
@@ -60,6 +63,7 @@
     "key": "krait",
     "mass": 93291.40625,
     "model": "oolite_krait.dat",
+    "radius": 50.196590423583984,
     "roles": [
       "pirate",
       "pirate-light-fighter(0.75)",
@@ -75,6 +79,7 @@
     "key": "mamba",
     "mass": 35806.9921875,
     "model": "oolite_mamba.dat",
+    "radius": 44.3935661315918,
     "roles": [
       "pirate",
       "pirate-light-fighter(0.5)",
@@ -88,6 +93,7 @@
     "key": "moray",
     "mass": 51203.4375,
     "model": "oolite_moray.dat",
+    "radius": 36.18608093261719,
     "roles": [
       "trader(0.5)",
       "trader-courier(0.25)",
@@ -108,6 +114,7 @@
     "key": "shuttle",
     "mass": 11317.5634765625,
     "model": "oolite_shuttle.dat",
+    "radius": 22.7517147064209,
     "roles": [
       "shuttle"
     ],
@@ -119,6 +126,7 @@
     "key": "sidewinder",
     "mass": 25087.62109375,
     "model": "oolite_sidewinder.dat",
+    "radius": 37.465919494628906,
     "roles": [
       "pirate(0.75)",
       "pirate-light-fighter(0.25)",
@@ -132,6 +140,7 @@
     "key": "viper",
     "mass": 34040.6796875,
     "model": "oolite_viper.dat",
+    "radius": 35.057655334472656,
     "roles": [
       "police"
     ],

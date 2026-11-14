@@ -105,6 +105,23 @@ describe("NpcShipCatalogueSchema", () => {
     }
   });
 
+  it("rejects a missing, zero, negative or non-finite radius", () => {
+    const { radius: _radius, ...withoutRadius } = firstRecord();
+    void _radius;
+    expect(accepts([withoutRadius])).toBe(false);
+    for (const radius of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(accepts([{ ...firstRecord(), radius }])).toBe(false);
+    }
+  });
+
+  it("carries a positive finite radius on every record", () => {
+    for (const record of generated as Record<string, unknown>[]) {
+      expect(typeof record["radius"]).toBe("number");
+      expect(Number.isFinite(record["radius"])).toBe(true);
+      expect(record["radius"] as number).toBeGreaterThan(0);
+    }
+  });
+
   it("rejects a glb that climbs out of models/ or names another origin", () => {
     expect(accepts([{ ...firstRecord(), glb: "../models/viper.glb" }])).toBe(
       false,

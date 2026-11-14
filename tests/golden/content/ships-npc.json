@@ -11,7 +11,16 @@
     "sidewinder",
     "viper"
   ],
-  "fields": ["aiType", "glb", "key", "mass", "model", "roles", "scanClass"],
+  "fields": [
+    "aiType",
+    "glb",
+    "key",
+    "mass",
+    "model",
+    "radius",
+    "roles",
+    "scanClass"
+  ],
   "defaults": {
     "aiType": "nullAI.plist",
     "scanClass": "CLASS_NEUTRAL"
@@ -24,7 +33,8 @@
       "scanClass": "CLASS_POLICE",
       "model": "oolite_viper.dat",
       "glb": "models/viper.glb",
-      "mass": 34040.6796875
+      "mass": 34040.6796875,
+      "radius": 35.057655334472656
     },
     {
       "key": "adder",
@@ -42,7 +52,8 @@
       "scanClass": "CLASS_NEUTRAL",
       "model": "oolite_adder.dat",
       "glb": "models/adder.glb",
-      "mass": 16045.4931640625
+      "mass": 16045.4931640625,
+      "radius": 29.030517578125
     },
     {
       "key": "sidewinder",
@@ -51,7 +62,8 @@
       "scanClass": "CLASS_NEUTRAL",
       "model": "oolite_sidewinder.dat",
       "glb": "models/sidewinder.glb",
-      "mass": 25087.62109375
+      "mass": 25087.62109375,
+      "radius": 37.465919494628906
     },
     {
       "key": "shuttle",
@@ -60,7 +72,8 @@
       "scanClass": "CLASS_NEUTRAL",
       "model": "oolite_shuttle.dat",
       "glb": "models/shuttle.glb",
-      "mass": 11317.5634765625
+      "mass": 11317.5634765625,
+      "radius": 22.7517147064209
     },
     {
       "key": "gecko",
@@ -77,14 +90,87 @@
       "scanClass": "CLASS_NEUTRAL",
       "model": "oolite_gecko.dat",
       "glb": "models/gecko.glb",
-      "mass": 24669.99609375
+      "mass": 24669.99609375,
+      "radius": 31.911365509033203
+    },
+    {
+      "key": "cobramk1",
+      "roles": [
+        "pirate(0.5)",
+        "pirate-medium-fighter",
+        "hunter-medium",
+        "scavenger",
+        "trader",
+        "trader-smuggler",
+        "hermit-ship",
+        "escort-medium(0.75)",
+        "escort(0.25)",
+        "assassin-light"
+      ],
+      "aiType": "oolite-traderAI.js",
+      "scanClass": "CLASS_NEUTRAL",
+      "model": "oolite_cobramk1.dat",
+      "glb": "models/cobramk1.glb",
+      "mass": 52291.8359375,
+      "radius": 39.260494232177734
+    },
+    {
+      "key": "krait",
+      "roles": [
+        "pirate",
+        "pirate-light-fighter(0.75)",
+        "hunter(0.5)",
+        "escort(0.25)",
+        "assassin-light"
+      ],
+      "aiType": "oolite-pirateAI.js",
+      "scanClass": "CLASS_NEUTRAL",
+      "model": "oolite_krait.dat",
+      "glb": "models/krait.glb",
+      "mass": 93291.40625,
+      "radius": 50.196590423583984
+    },
+    {
+      "key": "mamba",
+      "roles": ["pirate", "pirate-light-fighter(0.5)", "hunter"],
+      "aiType": "oolite-pirateAI.js",
+      "scanClass": "CLASS_NEUTRAL",
+      "model": "oolite_mamba.dat",
+      "glb": "models/mamba.glb",
+      "mass": 35806.9921875,
+      "radius": 44.3935661315918
+    },
+    {
+      "key": "moray",
+      "roles": [
+        "trader(0.5)",
+        "trader-courier(0.25)",
+        "trader-smuggler",
+        "hunter-medium",
+        "pirate-medium-fighter",
+        "pirate-interceptor(0.25)",
+        "pirate(0.5)",
+        "pirate-light-freighter(0.5)",
+        "escort-medium(0.25)",
+        "assassin-light"
+      ],
+      "aiType": "oolite-pirateAI.js",
+      "scanClass": "CLASS_NEUTRAL",
+      "model": "oolite_moray.dat",
+      "glb": "models/moray.glb",
+      "mass": 51203.4375,
+      "radius": 36.18608093261719
     }
   ],
   "sources": [
-    "viper: third_party/oolite/Config/shipdata.plist lines 3834 (ai_type), 3883 (model), 3885 (roles), 3886 (scan_class) of oolite_template_viper, resolved through the like_ship child viper at lines 4537-4540; mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity",
-    "adder: shipdata.plist lines 50 (ai_type), 151 (model), 153 (roles) of oolite_template_adder, child adder at lines 4260-4263; no scan_class, so the CLASS_NEUTRAL default of ShipEntity.m:520, 2126-2127; an absent ai_type would be the nullAI.plist default of ShipEntity.m:564; mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity",
-    "sidewinder: shipdata.plist lines 3562 (ai_type), 3594 (model), 3596 (roles) of oolite_template_sidewinder, child sidewinder at lines 4505-4508; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity",
-    "shuttle: shipdata.plist lines 3503 (ai_type), 3538 (model), 3540 (roles) of oolite_template_shuttle, child shuttle at lines 4501-4504; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity",
-    "gecko: shipdata.plist lines 2279 (ai_type), 2325 (model), 2327 (roles) of oolite_template_gecko, child gecko at lines 4426-4428; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity"
+    "viper: third_party/oolite/Config/shipdata.plist lines 3834 (ai_type), 3883 (model), 3885 (roles), 3886 (scan_class) of oolite_template_viper, resolved through the like_ship child viper at lines 4537-4540; mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of viper from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
+    "adder: shipdata.plist lines 50 (ai_type), 151 (model), 153 (roles) of oolite_template_adder, child adder at lines 4260-4263; no scan_class, so the CLASS_NEUTRAL default of ShipEntity.m:520, 2126-2127; an absent ai_type would be the nullAI.plist default of ShipEntity.m:564; mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of adder from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
+    "sidewinder: shipdata.plist lines 3562 (ai_type), 3594 (model), 3596 (roles) of oolite_template_sidewinder, child sidewinder at lines 4505-4508; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of sidewinder from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
+    "shuttle: shipdata.plist lines 3503 (ai_type), 3538 (model), 3540 (roles) of oolite_template_shuttle, child shuttle at lines 4501-4504; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of shuttle from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
+    "gecko: shipdata.plist lines 2279 (ai_type), 2325 (model), 2327 (roles) of oolite_template_gecko, child gecko at lines 4426-4428; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of gecko from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
+    "cobramk1: shipdata.plist lines 1446 (ai_type), 1550 (model), 1552 (roles) of oolite_template_cobramk1, child cobramk1 through like_ship; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of cobramk1 from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
+    "krait: shipdata.plist lines 2513 (ai_type), 2556 (model), 2558 (roles) of oolite_template_krait, child krait at lines 4433-4436; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of krait from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
+    "mamba: shipdata.plist lines 2587 (ai_type), 2636 (model), 2638 (roles) of oolite_template_mamba, child mamba at lines 4437-4440; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of mamba from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing",
+    "moray: shipdata.plist lines 2725 (ai_type), 2839 (model), 2841 (roles) of oolite_template_moray, child moray through like_ship; no scan_class, CLASS_NEUTRAL default (ShipEntity.m:520, 2126-2127); mass: no density key, so Oolite's default 1.0; 20 x octree volume at five levels (ShipEntity.m:417-419, Octree.m:680); no mesh subentity; radius: the farthest vertex of moray from the model origin, an independent float32 loop in tools/oolite-ingest/convert/ship-radius.test.ts and a Node script over the vertex block (OOMesh.m:1801-1822, ShipEntity.m:1073); no solid subentity, so ShipEntity.m:2028-2044 adds nothing"
   ]
 }

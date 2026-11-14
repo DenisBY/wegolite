@@ -36,6 +36,7 @@ import { emitEquipment } from "./convert/equipment.js";
 import { emitLabels } from "./convert/labels.js";
 import { NPC_SHIP_KEYS, emitNpcShips } from "./convert/npc-ships.js";
 import { computeShipMasses } from "./convert/ship-mass.js";
+import { computeShipRadii } from "./convert/ship-radius.js";
 import {
   CLIENT_SHIP_KEYS,
   compileShips,
@@ -175,6 +176,9 @@ export async function generateContent({
   // never mutate them; one computation feeds every emitter that writes a mass.
   const masses = computeShipMasses(MASS_SHIP_KEYS, catalogue, models);
 
+  // The NPC collision radii read the same parsed meshes, for the same reason.
+  const radii = computeShipRadii(NPC_SHIP_KEYS, catalogue, models);
+
   const emitted: EmittedFile[] = [
     emitCommodities(commodities, descriptions),
     ...emitSystems(systems),
@@ -182,7 +186,7 @@ export async function generateContent({
     emitLabels(descriptions),
     emitShipsFromCatalogue(catalogue),
     emitClientShips(catalogue, masses),
-    emitNpcShips(catalogue, masses),
+    emitNpcShips(catalogue, masses, radii),
     emitDockPort(models),
     ...emitModels(models, entries),
   ];

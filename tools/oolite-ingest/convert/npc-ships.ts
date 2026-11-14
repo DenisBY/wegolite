@@ -8,7 +8,8 @@
  * Phase 12's populator picks ships by role and needs, per ship, its roles, AI
  * name, scan class and model, plus the URL of the model it fetches on demand.
  * This module compiles exactly those six fields plus the ship's mass (DATA-11,
- * computed by `ship-mass.ts` and handed in) and nothing else: no combat or
+ * computed by `ship-mass.ts` and handed in) and its collision radius (WORLD-15,
+ * computed by `ship-radius.ts` and handed in) and nothing else: no combat or
  * flight stat (DATA-15 is deferred), no subentity, material, weapon or
  * `auto_ai`.
  *
@@ -74,8 +75,9 @@ function fail(key: string, detail: string): never {
  * Compile the NPC records from the resolved catalogue, in `NPC_SHIP_KEYS`
  * order.
  *
- * `masses` maps each key to its computed float32 mass; a key without one fails
- * through `NpcShipSchema` as `<key>.mass`.
+ * `masses` maps each key to its computed float32 mass and `radii` to its
+ * computed float32 collision radius; a key without one fails through
+ * `NpcShipSchema` as `<key>.mass` or `<key>.radius`.
  *
  * @throws {ContentError} when a key is missing, has no roles or no model, owns
  * a GLB row other than its own, or fails `NpcShipSchema`.
@@ -83,6 +85,7 @@ function fail(key: string, detail: string): never {
 export function compileNpcShips(
   catalogue: ShipCatalogue,
   masses: ReadonlyMap<string, number>,
+  radii: ReadonlyMap<string, number>,
 ): NpcShip[] {
   return NPC_SHIP_KEYS.map((key) => {
     const entry = catalogue.entries.find((candidate) => candidate.key === key);
@@ -123,6 +126,7 @@ export function compileNpcShips(
       model: entry.model,
       glb: `models/${file}`,
       mass: masses.get(key),
+      radius: radii.get(key),
     };
 
     const parsed = NpcShipSchema.safeParse(candidate);
@@ -141,8 +145,9 @@ export function compileNpcShips(
 export function emitNpcShips(
   catalogue: ShipCatalogue,
   masses: ReadonlyMap<string, number>,
+  radii: ReadonlyMap<string, number>,
 ): EmittedShips {
-  const records = compileNpcShips(catalogue, masses);
+  const records = compileNpcShips(catalogue, masses, radii);
   return {
     path: NPC_SHIPS_PATH,
     bytes: Buffer.from(canonicalJson(records), "utf8"),

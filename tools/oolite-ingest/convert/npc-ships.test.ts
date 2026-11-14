@@ -6,7 +6,8 @@
  *
  * The expected values live in `tests/golden/content/ships-npc.json`, which was
  * written by hand from `shipdata.plist` and is never generated. The compiled
- * records (seven fields: the Phase 9 six plus the Phase 10 `mass`) are compared
+ * records (eight fields: the Phase 9 six, the Phase 10 `mass` and the Phase 12
+ * `radius`) are compared
  * with it, with the resolved template parents, and with the committed generated
  * file, so a drift in any one of the four fails.
  */
@@ -36,6 +37,7 @@ import {
   emitNpcShips,
 } from "./npc-ships.js";
 import { computeShipMasses, shipMass } from "./ship-mass.js";
+import { computeShipRadii } from "./ship-radius.js";
 import { compileShips } from "./ships.js";
 import type { ShipCatalogue } from "./ships.js";
 
@@ -70,7 +72,8 @@ function loadMeshes(): Record<string, ParsedMesh> {
 
 const meshes = loadMeshes();
 const masses = computeShipMasses(NPC_SHIP_KEYS, catalogue, meshes);
-const records = compileNpcShips(catalogue, masses);
+const radii = computeShipRadii(NPC_SHIP_KEYS, catalogue, meshes);
+const records = compileNpcShips(catalogue, masses, radii);
 
 interface Golden {
   readonly version: number;
@@ -129,7 +132,7 @@ describe("NPC ship records", () => {
     expect(records).toHaveLength(9);
   });
 
-  it("carries exactly the seven fields and passes the strict schema", () => {
+  it("carries exactly the eight fields and passes the strict schema", () => {
     for (const record of records) {
       expect(Object.keys(record).sort()).toEqual(golden.fields);
       expect(NpcShipSchema.safeParse(record).success).toBe(true);
@@ -199,7 +202,7 @@ describe("NPC ship records", () => {
   });
 
   it("regenerates the committed file byte for byte", () => {
-    const emitted = emitNpcShips(catalogue, masses);
+    const emitted = emitNpcShips(catalogue, masses, radii);
     expect(emitted.path).toBe(NPC_SHIPS_PATH);
     expect(
       Buffer.from(emitted.bytes).equals(
@@ -244,7 +247,7 @@ describe("NPC ship records", () => {
       ...catalogue,
       entries: catalogue.entries.filter((entry) => entry.key !== "viper"),
     };
-    const error = capture(() => compileNpcShips(without, masses));
+    const error = capture(() => compileNpcShips(without, masses, radii));
     expect(error.code).toBe("SCHEMA");
     expect(error.file).toBe(NPC_SHIPS_PATH);
     expect(error.construct).toBe("viper");
@@ -257,7 +260,7 @@ describe("NPC ship records", () => {
         entry.key === "viper" ? { ...entry, model: "oolite_adder.dat" } : entry,
       ),
     };
-    const error = capture(() => compileNpcShips(swapped, masses));
+    const error = capture(() => compileNpcShips(swapped, masses, radii));
     expect(error.code).toBe("SCHEMA");
     expect(error.construct).toBe("viper");
   });
@@ -273,7 +276,7 @@ describe("NPC ship records", () => {
         return { ...entry, extras };
       }),
     };
-    const viper = compileNpcShips(bare, masses).find(
+    const viper = compileNpcShips(bare, masses, radii).find(
       (item) => item.key === "viper",
     );
     expect(viper?.aiType).toBe(DEFAULT_AI_TYPE);
@@ -287,16 +290,36 @@ describe("NPC ship records", () => {
         entry.key === "viper" ? { ...entry, roles: null } : entry,
       ),
     };
-    expect(capture(() => compileNpcShips(noRoles, masses)).construct).toBe(
-      "viper",
-    );
+    expect(
+      capture(() => compileNpcShips(noRoles, masses, radii)).construct,
+    ).toBe("viper");
   });
 
   it("fails naming the mass when a record has none", () => {
-    const error = capture(() => compileNpcShips(catalogue, new Map()));
+    const error = capture(() => compileNpcShips(catalogue, new Map(), radii));
     expect(error.code).toBe("SCHEMA");
     expect(error.file).toBe(NPC_SHIPS_PATH);
     expect(error.construct).toBe("adder.mass");
+  });
+
+  it("fails naming the radius when a record has none", () => {
+    const error = capture(() => compileNpcShips(catalogue, masses, new Map()));
+    expect(error.code).toBe("SCHEMA");
+    expect(error.file).toBe(NPC_SHIPS_PATH);
+    expect(error.construct).toBe("adder.radius");
+  });
+
+  it("fails naming the radius when one is zero", () => {
+    const error = capture(() =>
+      compileNpcShips(catalogue, masses, new Map([["adder", 0]])),
+    );
+    expect(error.construct).toBe("adder.radius");
+  });
+
+  it("records the radius computeShipRadii computes for each key", () => {
+    for (const record of records) {
+      expect(record.radius).toBe(radii.get(record.key));
+    }
   });
 
   it("records the mass shipMass computes for each key", () => {
@@ -314,8 +337,8 @@ describe("NPC ship records", () => {
           : entry,
       ),
     };
-    expect(capture(() => compileNpcShips(badScan, masses)).construct).toBe(
-      "viper.scanClass",
-    );
+    expect(
+      capture(() => compileNpcShips(badScan, masses, radii)).construct,
+    ).toBe("viper.scanClass");
   });
 });
