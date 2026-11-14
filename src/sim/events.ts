@@ -46,7 +46,9 @@ export type SimEvent =
   /**
    * A `j` request refused while mass-locked (a body or a ship). The drive never
    * ran, so this is not a disengage; the app prints Oolite's "Hyperspeed
-   * mass-locked." for it and keeps "Torus disengaged" for a running drive.
+   * mass-locked." for it. A running drive that mass lock stops prints the same
+   * text (`torusDisengaged` with reason "massLock"); an input or toggle stop
+   * keeps "Torus disengaged".
    */
   | { kind: "torusRefused"; reason: "massLock" }
   | { kind: "massLockChanged"; locked: boolean }
