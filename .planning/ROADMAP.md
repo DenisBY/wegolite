@@ -164,7 +164,7 @@ Plans:
   - The below-24-fps behaviour (todo); its evidence under load waits for the unscheduled performance phase (former Phase 23).
   - Settled 2026-11-13 (owner): WORLD-11 against WORLD-16, the chart-freeze check in `tests/e2e/hyperspace.spec.ts` is inverted; it is the one sanctioned change to an existing browser test, and WORLD-16 records the exception.
 **Todos**: `2026-11-10-keep-simulating-behind-the-chart.md` (closed by WORLD-11); `2026-11-10-fix-torus-refusal-message-under-mass-lock.md` (closed by WORLD-10; refusals become common once ships mass-lock); `2026-11-10-decide-behaviour-below-24-fps.md` (decide here)
-**Plans**: 13 plans (sequential waves: most plans record a Key Decision in PROJECT.md, and the Docker gates share one slow host; each plan stays within the 14-file budget). The first-plan rule is met by plans 12-01 and 12-02, which deliver FOUND-16 and FOUND-15 before any populator code; the split exists only because the atomic `spawnEntity` call-site migration fills one plan's file budget.
+**Plans**: 14 plans (sequential waves: most plans record a Key Decision in PROJECT.md, and the Docker gates share one slow host; each plan stays within the 14-file budget). The first-plan rule is met by plans 12-01 and 12-02, which deliver FOUND-16 and FOUND-15 before any populator code; the split exists only because the atomic `spawnEntity` call-site migration fills one plan's file budget.
 
 Plans:
 **Wave 1**
@@ -198,13 +198,16 @@ Plans:
 - [ ] 12-10-PLAN.md — Inert ships on the existing scanner through id-free contacts, in Oolite's colours
 
 **Wave 11** *(blocked on Wave 10 completion)*
-- [ ] 12-11-PLAN.md — Inert ships drawn through an instanced NPC layer with lazy models; the one opt-in traffic browser spec
+- [ ] 12-11-PLAN.md — Inert ships drawn through an instanced NPC layer with lazy models; the id-holder and model-loading decisions
 
 **Wave 12** *(blocked on Wave 11 completion)*
-- [ ] 12-12-PLAN.md — A dock or arrival behind the chart closes it; a loop reset inside a step is safe (WORLD-11 prerequisites)
+- [ ] 12-12-PLAN.md — The one opt-in traffic browser spec: 12 ships, at most 50 draw calls, populated browser/Node parity, the scanner after a reload
 
 **Wave 13** *(blocked on Wave 12 completion)*
-- [ ] 12-13-PLAN.md — The simulation keeps running behind the chart in flight (WORLD-11), the sanctioned check inverted, D-03 recorded, and the phase gate (`verify-full`, `e2e-cross`)
+- [ ] 12-13-PLAN.md — A dock or arrival behind the chart closes it; a loop reset inside a step is safe (WORLD-11 prerequisites)
+
+**Wave 14** *(blocked on Wave 13 completion)*
+- [ ] 12-14-PLAN.md — The simulation keeps running behind the chart in flight (WORLD-11), the sanctioned check inverted, D-03 recorded, and the phase gate (`verify-full`, `e2e-cross`)
 **UI hint**: yes
 
 ### Coverage
