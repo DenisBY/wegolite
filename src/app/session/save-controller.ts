@@ -50,6 +50,7 @@ import type { GameSessionSave } from "../game-session.js";
 import type { WegoliteProbe } from "../probe.js";
 import type { SessionState } from "./context.js";
 import { toTuple } from "./probe-publisher.js";
+import { restoreWorldAnchor } from "./world-lifecycle.js";
 
 /** What the controller calls outside the session context. */
 export interface SaveControllerDeps {
@@ -440,15 +441,15 @@ export function createSaveController(
       ctx.core.marketSeed = nextSeed;
       ctx.core.hyperspaceTargetId = nextTarget;
       // D-06: a v3 save persists the epoch of its leg anchor, so a warm Load
-      // re-anchors the lifecycle there, exactly like the cold boot Continue.
-      // An in-flight save then rebuilds the anchor world with resume, without
-      // a bump. The result is not branched on (D-04): the v3 schema bounds the
-      // epoch to the domain the lifecycle accepts. A migrated v1 or v2 save
-      // carries epoch 0.
-      ctx.core.worldLifecycle?.resetForRestore(saved.epoch);
-      if (restored.state.mode !== "docked") {
-        ctx.core.worldLifecycle?.resume(nextSeed);
-      }
+      // re-anchors the lifecycle there, exactly like the cold boot Continue
+      // (the same restoreWorldAnchor). An in-flight save then rebuilds the
+      // anchor world without a bump. A migrated v1 or v2 save carries epoch 0.
+      restoreWorldAnchor(
+        ctx.core.worldLifecycle,
+        saved.epoch,
+        nextSeed,
+        restored.state.mode !== "docked",
+      );
       syncStatusOverlay();
       // G-8: nothing from the replaced session may outlive the Load. The
       // message queue is keyed to the old flight clock, so a stale line would

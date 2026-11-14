@@ -42,7 +42,7 @@ import type { SceneManager } from "../scene-manager.js";
 import type { GameSessionSave, StartOptions } from "../game-session.js";
 import type { AssetCache } from "../../render/asset-cache.js";
 import { parseTestFlags } from "./test-flags.js";
-import { createWorldLifecycle } from "./world-lifecycle.js";
+import { createWorldLifecycle, restoreWorldAnchor } from "./world-lifecycle.js";
 import {
   profileFromSave,
   restoreFromSave,
@@ -456,18 +456,18 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
       restoredMarket ??
       generateMarket(ctx.core.system, loadedCatalogue, ctx.core.marketSeed);
     // D-06: the cold Continue re-anchors the lifecycle at the saved epoch, in
-    // the same position as the warm Load (after the seed install, before the
-    // in-flight resume), so both give the same epoch and seed. A docked
-    // restore keeps no world until the next launch bumps the epoch.
+    // the same position as the warm Load (after the seed install) and through
+    // the same restoreWorldAnchor, so both give the same epoch and seed. An
+    // in-flight Continue recreates the world from the resolved seed (RESEARCH
+    // A9), without a bump; a docked restore keeps no world until the next
+    // launch bumps the epoch, and a new game has no restore to anchor.
     if (restoring && restore !== undefined) {
-      ctx.core.worldLifecycle?.resetForRestore(restore.epoch);
-    }
-    // RESEARCH A9: an in-flight Continue recreates the world from the resolved
-    // seed, from the re-anchored epoch and without a bump; a docked start has
-    // no world until it launches.
-    const resumedSeed = ctx.core.marketSeed;
-    if (restoredInFlight && resumedSeed !== undefined) {
-      ctx.core.worldLifecycle?.resume(resumedSeed);
+      restoreWorldAnchor(
+        ctx.core.worldLifecycle,
+        restore.epoch,
+        ctx.core.marketSeed,
+        restoredInFlight,
+      );
     }
     ensureSelection();
     ctx.runtime.hud = createHud(hudCanvas);

@@ -27,7 +27,10 @@ import type { SaveController } from "../../../src/app/session/save-controller.js
 import { createSimDriver } from "../../../src/app/session/sim-driver.js";
 import { createSessionLifecycle } from "../../../src/app/session/start-session.js";
 import type { LifecycleDeps } from "../../../src/app/session/start-session.js";
-import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
+import {
+  createWorldLifecycle,
+  restoreWorldAnchor,
+} from "../../../src/app/session/world-lifecycle.js";
 import type {
   Populate,
   WorldLifecycle,
@@ -431,6 +434,31 @@ describe("lifecycle rules (D-02, D-03, D-05)", () => {
       lifecycle.resetForRestore(0);
     }
   });
+
+  it("restoreWorldAnchor sets the saved epoch and, in flight, rebuilds the anchor world without a bump", () => {
+    const docked = createWorldLifecycle({ traffic: false });
+    docked.begin(SEED_A);
+    restoreWorldAnchor(docked, 5, SEED_A, false);
+    expect(docked.epoch).toBe(5);
+    expect(docked.world).toBeUndefined();
+    docked.begin(SEED_A);
+    expect(docked.epoch).toBe(6);
+
+    const inFlight = createWorldLifecycle({ traffic: false });
+    restoreWorldAnchor(inFlight, 5, SEED_A, true);
+    expect(inFlight.epoch).toBe(5);
+    expect(inFlight.world?.worldSeed).toBe(worldSeedFor(SEED_A, 5));
+
+    // An in-flight restore without a resolved seed keeps no world.
+    const unseeded = createWorldLifecycle({ traffic: false });
+    restoreWorldAnchor(unseeded, 5, undefined, true);
+    expect(unseeded.epoch).toBe(5);
+    expect(unseeded.world).toBeUndefined();
+
+    expect(() => {
+      restoreWorldAnchor(undefined, 5, SEED_A, true);
+    }).not.toThrow();
+  });
 });
 
 /** A populator that spawns three ships, as a later phase's real one will. */
@@ -677,8 +705,7 @@ describe("session wiring (start-up and dispose)", () => {
     const created = at("createWorldLifecycle({");
     const restoreBranch = at("if (restoring && restore !== undefined) {");
     const seed = at("ctx.core.marketSeed =\n");
-    const reanchor = at("worldLifecycle?.resetForRestore(restore.epoch)");
-    const resumed = at("worldLifecycle?.resume(");
+    const reanchor = at("restoreWorldAnchor(");
     expect(parsed).toBeGreaterThan(-1);
     expect(created).toBeGreaterThan(parsed);
     expect(restoreBranch).toBeGreaterThan(created);
@@ -687,12 +714,15 @@ describe("session wiring (start-up and dispose)", () => {
     );
     expect(seed).toBeGreaterThan(restoreBranch);
     expect(reanchor).toBeGreaterThan(seed);
-    expect(resumed).toBeGreaterThan(reanchor);
-    expect(source.slice(reanchor, resumed)).toContain("restoredInFlight");
-    expect(source.match(/createWorldLifecycle\(/g)).toHaveLength(1);
-    expect(source.match(/worldLifecycle\?\.resetForRestore\(/g)).toHaveLength(
-      1,
+    // The behaviour lives in restoreWorldAnchor (unit-tested below and shared
+    // with the warm Load); here only the wiring is pinned.
+    expect(source.slice(reanchor, reanchor + 160)).toContain("restore.epoch");
+    expect(source.slice(reanchor, reanchor + 160)).toContain(
+      "restoredInFlight",
     );
+    expect(source.match(/createWorldLifecycle\(/g)).toHaveLength(1);
+    expect(source.match(/restoreWorldAnchor\(/g)).toHaveLength(1);
+    expect(source).not.toMatch(/worldLifecycle\?\.(resetForRestore|resume)\(/);
     expect(source).not.toContain("resetForRestore(0)");
   });
 });
@@ -1043,7 +1073,7 @@ describe("load", () => {
     return writer;
   }
 
-  /** The cold Continue sequence of start-session.ts for a parsed save. */
+  /** The cold Continue of start-session.ts for a parsed save (shared function). */
   function coldContinue(raw: string, populate?: Populate): WorldLifecycle {
     const parsed = parseSave(raw, SAVE_ALLOW);
     expect(parsed.ok).toBe(true);
@@ -1052,8 +1082,13 @@ describe("load", () => {
       traffic: false,
       ...(populate === undefined ? {} : { populate }),
     });
-    expect(cold.resetForRestore(parsed.save.epoch)).toBe(true);
-    if (parsed.save.mode !== "docked") cold.resume(MARKET_SEED_LAVE);
+    // The same function start-session.ts calls for the cold Continue.
+    restoreWorldAnchor(
+      cold,
+      parsed.save.epoch,
+      MARKET_SEED_LAVE,
+      parsed.save.mode !== "docked",
+    );
     return cold;
   }
 

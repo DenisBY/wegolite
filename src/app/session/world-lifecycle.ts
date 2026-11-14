@@ -201,3 +201,23 @@ export function createWorldLifecycle(options: {
     },
   };
 }
+
+/**
+ * Re-anchor a restored session (D-06): set the saved epoch, then, for an
+ * in-flight save, rebuild the anchor world from the market seed without a bump.
+ * The cold boot Continue and the warm Load both call this, in the same position
+ * (after the market seed is installed), so they give the same epoch and the
+ * same world seed. The result of `resetForRestore` is not branched on (D-04):
+ * the v3 schema bounds the epoch to the domain the lifecycle accepts. A docked
+ * save keeps no world until the next launch bumps the epoch. A lifecycle that
+ * is absent is a no-op.
+ */
+export function restoreWorldAnchor(
+  lifecycle: WorldLifecycle | undefined,
+  savedEpoch: number,
+  marketSeed: number | undefined,
+  inFlight: boolean,
+): void {
+  lifecycle?.resetForRestore(savedEpoch);
+  if (inFlight && marketSeed !== undefined) lifecycle?.resume(marketSeed);
+}
