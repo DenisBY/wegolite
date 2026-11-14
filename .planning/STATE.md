@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 13
 current_phase_name: Views, Lasers and Shields
 status: executing
-stopped_at: Completed 13-16-PLAN.md
-last_updated: "2026-11-14T23:32:27.999Z"
+stopped_at: Completed 13-04-PLAN.md
+last_updated: "2026-11-14T23:41:52.204Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 13 execution started
-state_head: 676a4eb6a3e85295074a1e42600a7e583684ab05
+state_head: 67ba1d78c73eeacb4727096ee3708f34c7712e35
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 16
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 13 (Views, Lasers and Shields) — EXECUTING
-Plan: 5 of 16
+Plan: 6 of 16
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 13 execution started
 
@@ -157,6 +157,7 @@ Last activity: 2026-11-14 — Phase 13 execution started
 | Phase 13 P02 | 55 min | 3 tasks | 13 files |
 | Phase 13 P03 | 7 min | 2 tasks | 4 files |
 | Phase 13 P16 | 15 min | 2 tasks | 7 files |
+| Phase 13 P04 | 20 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -385,6 +386,7 @@ Recent decisions affecting current work:
 - [Phase 13]: 13-02: migrateLegacyBindings gated on the blob lacking ident/eject so a key chosen on this build is never moved; target station is KeyQ
 - [Phase 13]: 13-03: octree port keeps Oolite's coarse leaf rule (a solid leaf is reached without a line test; hit resolution is its parent cell, Octree.m:361-366); over-deep, malformed or non-finite input is a miss
 - [Phase 13]: 13-16: no NPC class field compiled; ident message names the ship only (D-03 deviation, pending owner confirmation); scanClass remains the literal-D-03 fallback
+- [Phase 13]: 13-04: hull octree roots are emitted on one compact line (89,673 bytes for ten hulls) instead of through canonicalJson (758,352 bytes), to stay under the 200,000-byte gate without raising a ceiling
 
 ### Pending Todos
 
@@ -486,8 +488,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-14T23:32:27.930Z
-Stopped at: Completed 13-16-PLAN.md
+Last session: 2026-11-14T23:41:52.128Z
+Stopped at: Completed 13-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
