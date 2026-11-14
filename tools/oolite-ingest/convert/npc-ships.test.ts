@@ -6,8 +6,8 @@
  *
  * The expected values live in `tests/golden/content/ships-npc.json`, which was
  * written by hand from `shipdata.plist` and is never generated. The compiled
- * records (eight fields: the Phase 9 six, the Phase 10 `mass` and the Phase 12
- * `radius`) are compared
+ * records (thirteen fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
+ * `radius` and the five Phase 13 combat fields) are compared
  * with it, with the resolved template parents, and with the committed generated
  * file, so a drift in any one of the four fails.
  */
@@ -30,7 +30,11 @@ import type { ParsedMesh } from "./dat.js";
 import { MODEL_SOURCE_FILES, NPC_SHIP_GLBS, shipGlbFile } from "./glb.js";
 import {
   DEFAULT_AI_TYPE,
+  DEFAULT_ENERGY_RECHARGE_RATE,
+  DEFAULT_FORWARD_WEAPON,
+  DEFAULT_MAX_ENERGY,
   DEFAULT_SCAN_CLASS,
+  FORWARD_WEAPON_KEYS,
   NPC_SHIP_KEYS,
   NPC_SHIPS_PATH,
   compileNpcShips,
@@ -79,7 +83,14 @@ interface Golden {
   readonly version: number;
   readonly keys: string[];
   readonly fields: string[];
-  readonly defaults: { readonly aiType: string; readonly scanClass: string };
+  readonly defaults: {
+    readonly aiType: string;
+    readonly scanClass: string;
+    readonly maxEnergy: number;
+    readonly energyRechargeRate: number;
+    readonly forwardWeapon: string;
+    readonly forwardWeaponPosition: number[];
+  };
   readonly examples: NpcShip[];
   readonly sources: string[];
 }
@@ -132,16 +143,21 @@ describe("NPC ship records", () => {
     expect(records).toHaveLength(9);
   });
 
-  it("carries exactly the eight fields and passes the strict schema", () => {
+  it("carries exactly the thirteen fields and passes the strict schema", () => {
     for (const record of records) {
       expect(Object.keys(record).sort()).toEqual(golden.fields);
       expect(NpcShipSchema.safeParse(record).success).toBe(true);
     }
   });
 
-  it("pins the two compiled defaults to the golden", () => {
+  it("pins the compiled defaults to the golden", () => {
     expect(DEFAULT_AI_TYPE).toBe(golden.defaults.aiType);
     expect(DEFAULT_SCAN_CLASS).toBe(golden.defaults.scanClass);
+    expect(DEFAULT_MAX_ENERGY).toBe(golden.defaults.maxEnergy);
+    expect(DEFAULT_ENERGY_RECHARGE_RATE).toBe(
+      golden.defaults.energyRechargeRate,
+    );
+    expect(DEFAULT_FORWARD_WEAPON).toBe(golden.defaults.forwardWeapon);
   });
 
   it.each(golden.examples.map((example) => [example.key, example] as const))(
@@ -340,5 +356,173 @@ describe("NPC ship records", () => {
     expect(
       capture(() => compileNpcShips(badScan, masses, radii)).construct,
     ).toBe("viper.scanClass");
+  });
+});
+
+/** The catalogue with `extras` of one key rewritten. */
+function withExtras(
+  key: string,
+  edit: (extras: Record<string, unknown>) => Record<string, unknown>,
+): ShipCatalogue {
+  return {
+    ...catalogue,
+    entries: catalogue.entries.map((entry) =>
+      entry.key === key
+        ? { ...entry, extras: edit({ ...entry.extras }) }
+        : entry,
+    ),
+  };
+}
+
+function compiled(source: ShipCatalogue, key: string): NpcShip {
+  const match = compileNpcShips(source, masses, radii).find(
+    (item) => item.key === key,
+  );
+  if (match === undefined) throw new Error(`NPC record "${key}" missing`);
+  return match;
+}
+
+describe("NPC combat fields (CBT-07, minimum of DATA-15)", () => {
+  const EXPECTED: Record<string, readonly [string, number, number, string]> = {
+    adder: ["Adder", 85, 2, "EQ_WEAPON_PULSE_LASER"],
+    cobramk1: ["Cobra Mark I", 150, 2.5, "EQ_WEAPON_PULSE_LASER"],
+    gecko: ["Gecko", 250, 4, "EQ_WEAPON_BEAM_LASER"],
+    krait: ["Krait", 250, 2.5, "EQ_WEAPON_BEAM_LASER"],
+    mamba: ["Mamba", 240, 3, "EQ_WEAPON_PULSE_LASER"],
+    moray: ["Moray Star Boat", 240, 3, "EQ_WEAPON_PULSE_LASER"],
+    shuttle: ["Orbital Shuttle", 120, 1, "EQ_WEAPON_NONE"],
+    sidewinder: ["Sidewinder Scout Ship", 240, 2, "EQ_WEAPON_PULSE_LASER"],
+    viper: ["GalCop Viper", 180, 4, "EQ_WEAPON_BEAM_LASER"],
+  };
+
+  it("pins the name, energy and forward weapon of all nine records", () => {
+    expect(Object.keys(EXPECTED).sort()).toEqual([...NPC_SHIP_KEYS]);
+    for (const [key, [name, maxEnergy, recharge, weapon]] of Object.entries(
+      EXPECTED,
+    )) {
+      const record = requireRecord(key);
+      expect(record.name).toBe(name);
+      expect(record.maxEnergy).toBe(maxEnergy);
+      expect(record.energyRechargeRate).toBe(recharge);
+      expect(record.forwardWeapon).toBe(weapon);
+    }
+  });
+
+  it("takes the authored name when no display_name is authored", () => {
+    for (const key of NPC_SHIP_KEYS) {
+      expect(requireEntry(key).extras).not.toHaveProperty("display_name");
+      expect(requireRecord(key).name).toBe(requireEntry(key).extras["name"]);
+    }
+  });
+
+  it("takes display_name over name when it is authored", () => {
+    const named = withExtras("viper", (extras) => ({
+      ...extras,
+      display_name: "Patrol Viper",
+    }));
+    expect(compiled(named, "viper").name).toBe("Patrol Viper");
+  });
+
+  it("records weapon_position_forward as three float32 numbers", () => {
+    for (const key of NPC_SHIP_KEYS) {
+      const authored = String(
+        requireEntry(key).extras["weapon_position_forward"],
+      )
+        .split(/\s+/)
+        .map((part) => Math.fround(Number(part)));
+      const position = requireRecord(key).forwardWeaponPosition;
+      expect(position).toHaveLength(3);
+      expect([...position]).toEqual(authored.map((n) => (n === 0 ? 0 : n)));
+      for (const component of position) {
+        expect(Math.fround(component)).toBe(component);
+        expect(Object.is(component, -0)).toBe(false);
+      }
+    }
+    expect(requireRecord("viper").forwardWeaponPosition).toEqual([
+      0,
+      Math.fround(-0.15),
+      Math.fround(35.0344),
+    ]);
+  });
+
+  it("takes Oolite's defaults when the keys are absent", () => {
+    const bare = withExtras("viper", (extras) => {
+      delete extras["max_energy"];
+      delete extras["energy_recharge_rate"];
+      delete extras["forward_weapon_type"];
+      delete extras["weapon_position_forward"];
+      return extras;
+    });
+    const viper = compiled(bare, "viper");
+    expect(viper.maxEnergy).toBe(200);
+    expect(viper.energyRechargeRate).toBe(1);
+    expect(viper.forwardWeapon).toBe("EQ_WEAPON_NONE");
+    expect(viper.forwardWeaponPosition).toEqual([0, 0, 0]);
+  });
+
+  it("maps the four laser types and WEAPON_NONE to the equipment keys", () => {
+    expect(FORWARD_WEAPON_KEYS).toEqual({
+      WEAPON_NONE: "EQ_WEAPON_NONE",
+      WEAPON_PULSE_LASER: "EQ_WEAPON_PULSE_LASER",
+      WEAPON_BEAM_LASER: "EQ_WEAPON_BEAM_LASER",
+      WEAPON_MINING_LASER: "EQ_WEAPON_MINING_LASER",
+      WEAPON_MILITARY_LASER: "EQ_WEAPON_MILITARY_LASER",
+    });
+    for (const [type, key] of Object.entries(FORWARD_WEAPON_KEYS)) {
+      const swapped = withExtras("viper", (extras) => ({
+        ...extras,
+        forward_weapon_type: type,
+      }));
+      expect(compiled(swapped, "viper").forwardWeapon).toBe(key);
+    }
+  });
+
+  it("fails the build with SCHEMA on an unknown forward_weapon_type", () => {
+    for (const type of [
+      "WEAPON_THARGOID",
+      "EQ_WEAPON_PULSE_LASER",
+      "toString",
+      7,
+    ]) {
+      const bad = withExtras("viper", (extras) => ({
+        ...extras,
+        forward_weapon_type: type,
+      }));
+      const error = capture(() => compileNpcShips(bad, masses, radii));
+      expect(error.code).toBe("SCHEMA");
+      expect(error.file).toBe(NPC_SHIPS_PATH);
+      expect(error.construct).toBe("viper");
+    }
+  });
+
+  it("fails the build on a malformed position or a non-numeric energy", () => {
+    for (const position of ["1 2", "1 2 3 4", "a b c", 5]) {
+      const bad = withExtras("viper", (extras) => ({
+        ...extras,
+        weapon_position_forward: position,
+      }));
+      expect(capture(() => compileNpcShips(bad, masses, radii)).code).toBe(
+        "SCHEMA",
+      );
+    }
+    for (const field of ["max_energy", "energy_recharge_rate"]) {
+      const bad = withExtras("viper", (extras) => ({
+        ...extras,
+        [field]: "lots",
+      }));
+      expect(capture(() => compileNpcShips(bad, masses, radii)).code).toBe(
+        "SCHEMA",
+      );
+    }
+  });
+
+  it("fails naming the field when an energy value breaks the schema", () => {
+    const negative = withExtras("viper", (extras) => ({
+      ...extras,
+      max_energy: -1,
+    }));
+    expect(
+      capture(() => compileNpcShips(negative, masses, radii)).construct,
+    ).toBe("viper.maxEnergy");
   });
 });
