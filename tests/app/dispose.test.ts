@@ -35,6 +35,8 @@ import type { AssetCache } from "../../src/render/asset-cache.js";
 import { createBuoy } from "../../src/render/bodies/buoy.js";
 import type { BuoyBody } from "../../src/render/bodies/buoy.js";
 import { createDust } from "../../src/render/bodies/dust.js";
+import { createNpcLayer } from "../../src/render/bodies/npc-ships.js";
+import type { NpcLayer } from "../../src/render/bodies/npc-ships.js";
 import { createPlanet } from "../../src/render/bodies/planet.js";
 import { createShip } from "../../src/render/bodies/ship.js";
 import { createStation } from "../../src/render/bodies/station.js";
@@ -302,6 +304,9 @@ describe("SystemScene owns only what it created", () => {
     readonly parts: SystemSceneParts;
     readonly cached: SyntheticModel;
     readonly cachedBuoy: SyntheticModel;
+    /** The NPC model the layer draws; its resources belong to the cache. */
+    readonly cachedNpc: SyntheticModel;
+    readonly npcs: NpcLayer;
     readonly sun: ReturnType<typeof fakeSun>;
     /** Scene-owned resources, each expected to be freed exactly once. */
     readonly sceneOwned: Record<string, () => number>;
@@ -330,6 +335,23 @@ describe("SystemScene owns only what it created", () => {
     const witchpoint = createBuoy(buoy.gltf, "buoy-witchpoint");
     witchpoint.root.name = "witchpoint";
     const sun = fakeSun();
+    // The NPC layer draws one cached model; only its instance buffers are the
+    // scene's (WORLD-15).
+    const cachedNpc = syntheticCobra();
+    const npcs = createNpcLayer();
+    npcs.update(
+      [
+        {
+          position: { x: 10, y: 0, z: 0 },
+          orientation: { w: 1, x: 0, y: 0, z: 0 },
+          radius: 10,
+          specKey: "viper",
+          kind: "neutral",
+        },
+      ],
+      { x: 0, y: 0, z: 0 },
+      new Map([["viper", cachedNpc.gltf]]),
+    );
 
     const sceneOwned: Record<string, () => number> = {
       planetGeometry: countDisposals(planet.mesh.geometry),
@@ -337,6 +359,9 @@ describe("SystemScene owns only what it created", () => {
       starfieldGeometry: countDisposals(starfield.geometry),
       dustGeometry: countDisposals(dust.object.geometry),
     };
+    for (const [index, child] of npcs.root.children.entries()) {
+      sceneOwned[`npcInstancedMesh${String(index)}`] = countDisposals(child);
+    }
     for (const [index, material] of materialList(
       dust.object.material,
     ).entries()) {
@@ -406,9 +431,12 @@ describe("SystemScene owns only what it created", () => {
         navBuoy,
         witchpoint,
         dust,
+        npcs,
       },
       cached: coriolis,
       cachedBuoy: buoy,
+      cachedNpc,
+      npcs,
       sun,
       sceneOwned,
     };
@@ -444,13 +472,18 @@ describe("SystemScene owns only what it created", () => {
   });
 
   it("frees scene resources once and never a cached GLB resource", () => {
-    const { parts, cached, cachedBuoy, sun, sceneOwned } = buildParts();
+    const { parts, cached, cachedBuoy, cachedNpc, npcs, sun, sceneOwned } =
+      buildParts();
+    expect(npcs.root.children).toHaveLength(1);
     const cachedMaterialDisposals = countDisposals(cached.material);
     const cachedTextureDisposals = countDisposals(cached.texture);
     const cachedGeometryDisposals = countDisposals(cached.geometry);
     const buoyMaterialDisposals = countDisposals(cachedBuoy.material);
     const buoyTextureDisposals = countDisposals(cachedBuoy.texture);
     const buoyGeometryDisposals = countDisposals(cachedBuoy.geometry);
+    const npcMaterialDisposals = countDisposals(cachedNpc.material);
+    const npcTextureDisposals = countDisposals(cachedNpc.texture);
+    const npcGeometryDisposals = countDisposals(cachedNpc.geometry);
 
     const scene = assembleSystemScene(
       parts,
@@ -474,6 +507,11 @@ describe("SystemScene owns only what it created", () => {
     expect(buoyMaterialDisposals()).toBe(0);
     expect(buoyTextureDisposals()).toBe(0);
     expect(buoyGeometryDisposals()).toBe(0);
+    // The NPC layer drew the cached model and freed only its instance buffers.
+    expect(npcMaterialDisposals()).toBe(0);
+    expect(npcTextureDisposals()).toBe(0);
+    expect(npcGeometryDisposals()).toBe(0);
+    expect(npcs.root.children).toHaveLength(0);
 
     expect(scene.scene.children).toHaveLength(0);
 
@@ -529,6 +567,48 @@ describe("SystemScene owns only what it created", () => {
     // The shared GLBs were never even requested, so nothing cached was freed.
     expect(cobraMaterialDisposals()).toBe(0);
     expect(coriolisMaterialDisposals()).toBe(0);
+  });
+
+  it("owns the NPC layer: exposes it, adds its root and disposes it, also when half built (WORLD-15)", () => {
+    let disposals = 0;
+    const root = new THREE.Group();
+    const layer: NpcLayer = {
+      root,
+      update: () => undefined,
+      dispose: () => {
+        disposals += 1;
+      },
+    };
+    const common: Partial<SystemSceneFactories> = {
+      sun: () => fakeSun().body,
+      npcs: () => layer,
+    };
+    const cache = guardCache(
+      syntheticCobra().gltf,
+      syntheticCoriolis().gltf,
+      syntheticBuoy().gltf,
+    );
+
+    const scene = createSystemScene(layout, cache, system, common);
+    expect(scene.npcs).toBe(layer);
+    expect(scene.scene.children).toContain(root);
+    scene.dispose();
+    expect(disposals).toBe(1);
+    // Idempotent: a second dispose adds nothing.
+    scene.dispose();
+    expect(disposals).toBe(1);
+
+    // A body built after the layer throws: the layer is still disposed once.
+    disposals = 0;
+    expect(() =>
+      createSystemScene(layout, cache, system, {
+        ...common,
+        buoy: () => {
+          throw new Error("buoy failed");
+        },
+      }),
+    ).toThrow("buoy failed");
+    expect(disposals).toBe(1);
   });
 });
 

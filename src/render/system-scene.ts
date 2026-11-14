@@ -5,7 +5,8 @@
  * One system's scene (WORLD-02, WORLD-04, Pattern 3).
  *
  * **Disposal contract.** The factory owns every resource it creates (planet
- * geometry/material, sun and corona, starfield, dust, the beacon markers) and
+ * geometry/material, sun and corona, starfield, dust, the beacon markers, the
+ * NPC layer's instance buffers) and
  * the *cloned* materials of the station and ship. It does **not** own the
  * cached GLB geometries, materials or textures — those belong to `AssetCache`
  * and must survive a scene swap. A blind `traverse(dispose)` over a cloned GLB
@@ -34,6 +35,8 @@ import type { BuoyBody, BuoyRole } from "./bodies/buoy.js";
 import { createDust } from "./bodies/dust.js";
 import { createNebulae } from "./bodies/nebulae.js";
 import type { NebulaBody } from "./bodies/nebulae.js";
+import { createNpcLayer } from "./bodies/npc-ships.js";
+import type { NpcLayer } from "./bodies/npc-ships.js";
 import type { Dust } from "./bodies/dust.js";
 import { createPlanet } from "./bodies/planet.js";
 import type { PlanetBody } from "./bodies/planet.js";
@@ -124,6 +127,12 @@ export interface SystemScene {
   ship: THREE.Group;
   /** D-04: camera-local speed dust; `sync.ts`/the session feed it the camera delta. */
   dust: Dust;
+  /**
+   * The inert NPC ships (WORLD-15): an instanced layer the render driver feeds
+   * id-free contacts each frame. Owned and disposed by this scene, so a jump
+   * clears it by construction.
+   */
+  npcs: NpcLayer;
   /** The sky nebulae, present only at `high` quality. */
   nebulae?: NebulaBody;
   dispose(): void;
@@ -139,6 +148,7 @@ export interface SystemSceneParts {
   navBuoy: BuoyBody;
   witchpoint: BuoyBody;
   dust: Dust;
+  npcs: NpcLayer;
   nebulae?: NebulaBody;
 }
 
@@ -168,6 +178,7 @@ export interface SystemSceneFactories {
   ship(gltf: GLTF): THREE.Group;
   buoy(gltf: GLTF, role: BuoyRole): BuoyBody;
   dust(): Dust;
+  npcs(): NpcLayer;
   nebulae(count: number, seed: string): NebulaBody;
 }
 
@@ -179,6 +190,7 @@ const REAL_FACTORIES: SystemSceneFactories = {
   ship: createShip,
   buoy: createBuoy,
   dust: () => createDust(),
+  npcs: () => createNpcLayer(),
   nebulae: (count, seed) => createNebulae(count, seed),
 };
 
@@ -264,6 +276,7 @@ export function assembleSystemScene(
     parts.navBuoy.root,
     parts.witchpoint.root,
     parts.dust.object,
+    parts.npcs.root,
   );
   if (parts.nebulae !== undefined) scene.add(parts.nebulae.object);
 
@@ -276,6 +289,8 @@ export function assembleSystemScene(
     parts.navBuoy,
     parts.witchpoint,
     parts.dust,
+    // Only the instance buffers: the cached NPC geometry and materials stay.
+    parts.npcs,
     ...(parts.nebulae === undefined ? [] : [parts.nebulae]),
   ]);
 
@@ -291,6 +306,7 @@ export function assembleSystemScene(
     buoys: [parts.navBuoy, parts.witchpoint],
     ship: parts.ship,
     dust: parts.dust,
+    npcs: parts.npcs,
     ...(parts.nebulae === undefined ? {} : { nebulae: parts.nebulae }),
     dispose(): void {
       disposer.dispose();
@@ -348,6 +364,8 @@ export function createSystemScene(
     built.add(disposeShipClone(ship));
     const dust = f.dust();
     built.add(dust);
+    const npcs = f.npcs();
+    built.add(npcs);
 
     // A navigation buoy in front of the dock and one at the witchpoint, as in
     // Oolite: one shared model, two sets of flasher lights.
@@ -375,6 +393,7 @@ export function createSystemScene(
         navBuoy,
         witchpoint,
         dust,
+        npcs,
         ...(nebulae === undefined ? {} : { nebulae }),
       },
       layout.sunDir,

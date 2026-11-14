@@ -30,6 +30,7 @@ import { createRedrawGate } from "./redraw-gate.js";
 import { createSessionState } from "./session/context.js";
 import { createFrameLoop } from "./session/frame-loop.js";
 import { createProbePublisher } from "./session/probe-publisher.js";
+import { createNpcModelLoader } from "./npc-models.js";
 import { createRenderDriver } from "./session/render-driver.js";
 import type { RenderDriver } from "./session/render-driver.js";
 import { createChartController } from "./session/chart-controller.js";
@@ -323,6 +324,17 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     advanceTicks: (n) => simDriver.advanceTicks(n),
   });
 
+  // WORLD-15: the NPC models, loaded per ship key and only once the render
+  // driver opens the loader after the first in-flight frame (DATA-13, owner
+  // decision 2026-11-14, option A). The GLB path is read from the loaded
+  // catalogue at call time, so a request before the catalogue arrives is
+  // ignored, and nothing here opens the loader.
+  const npcModels = createNpcModelLoader(
+    assets,
+    (key) =>
+      ctx.core.npcTraffic?.catalogue.find((ship) => ship.key === key)?.glb,
+  );
+
   // D-12 step 3: the redraw gate's decision and the per-frame scene, HUD and
   // probe update. frame() keeps the one gated draw call.
   const renderDriver: RenderDriver = createRenderDriver(ctx, {
@@ -336,6 +348,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     updateProbe: probePublisher.updateProbe,
     renderStation,
     targetSystem,
+    npcModels,
   });
   const { renderFrame, shouldDraw } = renderDriver;
 
@@ -467,7 +480,16 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     updateProbe: probePublisher.updateProbe,
   });
   const lifecycle = createSessionLifecycle(ctx, {
-    assets,
+    // The loader goes down with the cache it loads through, on every teardown
+    // path (an explicit dispose, pagehide and context loss all reach the
+    // lifecycle's dispose): a late NPC model resolution is then dropped.
+    assets: {
+      preload: () => assets.preload(),
+      dispose: () => {
+        npcModels.dispose();
+        assets.dispose();
+      },
+    },
     scenes,
     title,
     docked,

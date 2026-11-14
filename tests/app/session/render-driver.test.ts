@@ -14,6 +14,7 @@
  */
 
 import type * as THREE from "three";
+import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -22,6 +23,8 @@ import {
 } from "../../../src/app/redraw-gate.js";
 import type { RedrawGate } from "../../../src/app/redraw-gate.js";
 import { createLaunchSequence } from "../../../src/app/launch-sequence.js";
+import { createNpcModelLoader } from "../../../src/app/npc-models.js";
+import type { NpcModelLoader } from "../../../src/app/npc-models.js";
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import { createRenderDriver } from "../../../src/app/session/render-driver.js";
@@ -35,6 +38,7 @@ import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
 import { npcContacts } from "../../../src/sim/world/contacts.js";
+import type { NpcContact } from "../../../src/sim/world/contacts.js";
 import { populateInertWorld } from "../../../src/sim/world/populate.js";
 import type { HudModel } from "../../../src/render/hud/draw.js";
 import { laveInertRecords } from "../../helpers/inert-world.js";
@@ -58,7 +62,21 @@ function fakeScene(nebula: { revision: number }): SystemScene {
   } as unknown as SystemScene;
 }
 
-function harness(): Harness {
+/** A loader no test opens or feeds: the rows that do not care about models. */
+function idleLoader(): NpcModelLoader {
+  return createNpcModelLoader(
+    { loadNpcModel: () => new Promise<GLTF>(() => undefined) },
+    () => undefined,
+  );
+}
+
+interface HarnessOptions {
+  readonly npcModels?: NpcModelLoader;
+  /** Called from inside `renderer.render`, to order it against other calls. */
+  readonly onRender?: () => void;
+}
+
+function harness(options: HarnessOptions = {}): Harness {
   const ctx = createSessionState({
     system,
     saveStatus: "absent",
@@ -72,7 +90,10 @@ function harness(): Harness {
   ctx.core.scene = fakeScene(nebula);
   const driver = createRenderDriver(ctx, {
     renderer: {
-      render: () => renders.push(1),
+      render: () => {
+        renders.push(1);
+        options.onRender?.();
+      },
     } as unknown as THREE.WebGLRenderer,
     hudCanvas: { hidden: false } as HTMLCanvasElement,
     probe: {} as WegoliteProbe,
@@ -83,6 +104,7 @@ function harness(): Harness {
     updateProbe: () => probeUpdates.push(1),
     renderStation: () => undefined,
     targetSystem: () => undefined,
+    npcModels: options.npcModels ?? idleLoader(),
   });
   return { ctx, gate, driver, renders, probeUpdates, nebula };
 }
@@ -193,9 +215,20 @@ function fakeObject() {
   };
 }
 
+/** What the NPC layer double is handed each frame. */
+type NpcUpdate = (
+  contacts: readonly NpcContact[],
+  cameraWorld: unknown,
+  models: ReadonlyMap<string, GLTF>,
+) => void;
+
 /** A scene double complete enough for a full `renderFrame` in flight. */
-function flyableScene(nebula: { revision: number }): SystemScene {
+function flyableScene(
+  nebula: { revision: number },
+  npcUpdate: NpcUpdate = () => undefined,
+): SystemScene {
   return {
+    npcs: { update: npcUpdate },
     camera: { aspect: 1.5, ...fakeObject() },
     planet: { mesh: fakeObject(), update: () => undefined },
     sun: { sun: fakeObject(), corona: fakeObject(), update: () => undefined },
@@ -213,15 +246,19 @@ function flyableScene(nebula: { revision: number }): SystemScene {
 
 describe("renderFrame NPC contacts (WORLD-15)", () => {
   /** An in-flight harness whose HUD double records the model it is handed. */
-  function flying(withWorld: boolean): {
+  function flying(
+    withWorld: boolean,
+    harnessOptions: HarnessOptions = {},
+    npcUpdate: NpcUpdate = () => undefined,
+  ): {
     readonly h: Harness;
     readonly models: HudModel[];
   } {
-    const h = harness();
+    const h = harness(harnessOptions);
     const models: HudModel[] = [];
     h.ctx.core.layout = layout;
     h.ctx.core.config = config;
-    h.ctx.core.scene = flyableScene(h.nebula);
+    h.ctx.core.scene = flyableScene(h.nebula, npcUpdate);
     h.ctx.runtime.hud = {
       draw: (model: HudModel) => models.push(model),
     } as unknown as Hud;
@@ -292,5 +329,165 @@ describe("renderFrame NPC contacts (WORLD-15)", () => {
     h.ctx.core.worldLifecycle?.end();
     h.driver.renderFrame(0);
     expect(models[0]?.contacts).toHaveLength(3);
+  });
+});
+
+describe("renderFrame NPC models (WORLD-15, DATA-13)", () => {
+  /** The calls the driver makes, in order, as the rows below read them. */
+  function observed() {
+    const log: string[] = [];
+    const requested: string[] = [];
+    const updates: {
+      readonly contacts: readonly NpcContact[];
+      readonly models: ReadonlyMap<string, GLTF>;
+    }[] = [];
+    const real = createNpcModelLoader(
+      {
+        loadNpcModel: (glb) => {
+          log.push(`fetch ${glb}`);
+          requested.push(glb);
+          return new Promise<GLTF>(() => undefined);
+        },
+      },
+      (key) => `models/${key}.glb`,
+    );
+    const loader: NpcModelLoader = {
+      ...real,
+      open: () => {
+        log.push("open");
+        real.open();
+      },
+    };
+    const { h } = flyingWorld(loader, log, updates);
+    return { h, log, requested, updates, loader };
+  }
+
+  function flyingWorld(
+    loader: NpcModelLoader,
+    log: string[],
+    updates: {
+      readonly contacts: readonly NpcContact[];
+      readonly models: ReadonlyMap<string, GLTF>;
+    }[],
+  ) {
+    const h = harness({
+      npcModels: loader,
+      onRender: () => log.push("render"),
+    });
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    h.ctx.core.scene = flyableScene(h.nebula, (contacts, _camera, models) => {
+      log.push("npcs.update");
+      updates.push({ contacts, models });
+    });
+    h.ctx.runtime.hud = { draw: () => undefined } as unknown as Hud;
+    const lifecycle = createWorldLifecycle({
+      traffic: true,
+      populate: (world) => {
+        populateInertWorld(world, layout, laveInertRecords());
+      },
+    });
+    lifecycle.begin(marketSeedForSystem(system.id));
+    h.ctx.core.worldLifecycle = lifecycle;
+    return { h, lifecycle };
+  }
+
+  function setMode(h: Harness, mode: FlightState["mode"]): void {
+    if (h.ctx.core.state === undefined) throw new Error("no state");
+    h.ctx.core.state = { ...h.ctx.core.state, mode };
+  }
+
+  it("requests no model in a docked or launching frame, even though the world is populated", () => {
+    const { h, requested, log } = observed();
+    expect(npcContacts(h.ctx.core.worldLifecycle?.world)).toHaveLength(12);
+    setMode(h, "docked");
+    h.driver.renderFrame(0);
+    h.driver.renderFrame(0);
+    setMode(h, "launching");
+    h.driver.renderFrame(0);
+    h.driver.renderFrame(0);
+    expect(requested).toEqual([]);
+    expect(log).not.toContain("open");
+  });
+
+  it("renders, then opens, in the first in-flight frame, and fetches in the next one", () => {
+    const { h, requested, log } = observed();
+    setMode(h, "launching");
+    h.driver.renderFrame(0);
+    log.length = 0;
+
+    setMode(h, "inFlight");
+    h.driver.renderFrame(0);
+    // The first in-flight frame draws, then opens, and starts no fetch.
+    expect(log).toEqual(["npcs.update", "render", "open"]);
+    expect(requested).toEqual([]);
+    expect(h.probeUpdates).toHaveLength(2);
+
+    h.driver.renderFrame(0);
+    const keys = new Set(
+      npcContacts(h.ctx.core.worldLifecycle?.world).map(
+        (contact) => contact.specKey,
+      ),
+    );
+    expect(keys.size).toBeGreaterThan(0);
+    expect(new Set(requested)).toEqual(
+      new Set([...keys].map((key) => `models/${key}.glb`)),
+    );
+    // One fetch per key, however many ships share it.
+    expect(requested).toHaveLength(keys.size);
+    // The fetches start before this frame's render, after the previous one.
+    expect(log.indexOf("render", 3)).toBeGreaterThan(
+      log.findIndex((entry) => entry.startsWith("fetch ")),
+    );
+  });
+
+  it("never opens the loader from a frame the redraw gate skipped", () => {
+    const { h, requested, log } = observed();
+    setMode(h, "inFlight");
+    h.driver.renderFrame(0, false);
+    h.driver.renderFrame(0, false);
+    expect(log).not.toContain("render");
+    expect(log).not.toContain("open");
+    expect(requested).toEqual([]);
+    // The skipped frames still feed the layer, so it never lags the world.
+    expect(log.filter((entry) => entry === "npcs.update")).toHaveLength(2);
+  });
+
+  it("feeds the layer the frame's contacts and the loader's models before every render", () => {
+    const { h, log, updates, loader } = observed();
+    setMode(h, "inFlight");
+    h.driver.renderFrame(0);
+    h.driver.renderFrame(0);
+    expect(updates).toHaveLength(2);
+    for (const update of updates) {
+      expect(update.contacts).toHaveLength(12);
+      expect(update.models).toBe(loader.loaded());
+    }
+    expect(log.slice(0, 2)).toEqual(["npcs.update", "render"]);
+  });
+
+  it("keeps the scanner showing a ship whose model never loaded", () => {
+    const { h } = observed();
+    const models: HudModel[] = [];
+    h.ctx.runtime.hud = {
+      draw: (model: HudModel) => models.push(model),
+    } as unknown as Hud;
+    const first = npcContacts(h.ctx.core.worldLifecycle?.world)[0];
+    if (first === undefined) throw new Error("the world has no ship");
+    h.ctx.core.state = {
+      ...initFlightState(layout),
+      mode: "inFlight",
+      position: {
+        x: first.position.x + 5_000,
+        y: first.position.y,
+        z: first.position.z,
+      },
+    };
+    h.driver.renderFrame(0);
+    h.driver.renderFrame(0);
+    // Every fetch is still pending: no model is loaded, the ships are listed.
+    expect(models.at(-1)?.contacts.filter((c) => c.id === "ship")).toHaveLength(
+      12,
+    );
   });
 });

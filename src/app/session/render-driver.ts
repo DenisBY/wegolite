@@ -10,6 +10,12 @@
  * the split. The driver is read-only on simulation state: it never advances the
  * flight state, it only draws it.
  *
+ * Per frame it also feeds the NPC ships (WORLD-15): the contact keys go to the
+ * per-session model loader, the instanced NPC layer of the scene draws the
+ * loaded models, and the loader is opened, once, right after the first
+ * in-flight frame has been drawn, so no NPC model or texture is requested
+ * before that frame (DATA-13, owner decision 2026-11-14, option A).
+ *
  * Every live field is read through `ctx` inside the function that needs it and
  * is never copied to a factory-level variable (G-8): a Load replaces the flight
  * state, a jump or a quality change replaces the scene, and the nebula textures
@@ -37,6 +43,7 @@ import {
 import { buildHudModel } from "../hud-model.js";
 import type { HintContext } from "../hints.js";
 import type { LaunchSequence } from "../launch-sequence.js";
+import type { NpcModelLoader } from "../npc-models.js";
 import type { WegoliteProbe } from "../probe.js";
 import type { RedrawGate } from "../redraw-gate.js";
 import type { SessionState } from "./context.js";
@@ -56,6 +63,12 @@ export interface RenderDriverDeps {
   readonly renderStation: () => void;
   /** The committed hyperspace target, resolved at call time. */
   readonly targetSystem: () => System | undefined;
+  /**
+   * The per-session NPC model loader. The driver feeds it the frame's contact
+   * keys every frame and opens it, once, after drawing the first in-flight
+   * frame (DATA-13); it is the only place that does.
+   */
+  readonly npcModels: NpcModelLoader;
 }
 
 export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
@@ -70,6 +83,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     updateProbe,
     renderStation,
     targetSystem,
+    npcModels,
   } = deps;
 
   /**
@@ -164,9 +178,23 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // it is toggled, never rebuilt.
     currentScene.ship.visible = currentState.mode === "launching";
 
+    // WORLD-15: id-free ship contacts from the live world, read at this frame
+    // and not kept (G-8); no world (docked, traffic off) is empty. The one
+    // array feeds the model requests, the instanced NPC layer and the scanner.
+    const contacts = npcContacts(ctx.core.worldLifecycle?.world);
+    // A no-op until the loader is open; the layer draws only loaded keys, so a
+    // ship whose model has not arrived still shows on the scanner.
+    npcModels.request(contacts.map((contact) => contact.specKey));
+    currentScene.npcs.update(contacts, cameraWorld, npcModels.loaded());
+
     if (draw) {
       renderer.render(currentScene.scene, currentScene.camera);
       redrawGate.drawn(drawKeys());
+      // The first in-flight frame has now been drawn and this call's
+      // `updateProbe` publishes it; model requests start from the next frame
+      // (DATA-13, owner decision 2026-11-14, option A; Key Decisions row
+      // "Defer NPC model requests until the first in-flight frame").
+      if (currentState.mode === "inFlight") npcModels.open();
     }
 
     // The flight HUD is not drawn while docked (D-09 shows the status panel).
@@ -198,9 +226,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
           ctx.core.profile.fuel,
           ctx.core.dockFeedback.flashAlpha(currentState.flightTime),
           targetSystem()?.name ?? "",
-          // WORLD-15: id-free ship contacts from the live world, read at this
-          // frame and not kept (G-8); no world (docked, traffic off) is empty.
-          npcContacts(ctx.core.worldLifecycle?.world),
+          contacts,
         );
         currentHud.draw(model);
         ctx.core.lastModel = model;
