@@ -8,8 +8,13 @@
  * than the squared distance, and the blocker lies inside the scanner range
  * (ShipEntity.m lines 12498-12531). The check runs at countdown completion only
  * (PlayerEntity.m lines 6547 and 6772-6775), so a begin beside the station is
- * never refused. The fixtures are Oolite's: the Coriolis mass comes from the
- * source comment at ShipEntity.m line 12504.
+ * never refused. The Coriolis mass is the one the content build computes from
+ * the pinned meshes (hull octree plus the faceplate, tris and dock parts,
+ * ShipEntity.m lines 417-419 and 2034-2041), pinned equal to the compiled record
+ * in src/content/generated/ships-client.json. It replaces the 455,223,200 of the
+ * source comment at ShipEntity.m line 12504 (owner decision, plan 10-03, see the
+ * PROJECT.md Key Decisions row "Coriolis blockage mass:"); the blockage radius
+ * is about 7,179.7 m.
  */
 
 import { readFileSync } from "node:fs";
@@ -103,10 +108,27 @@ describe("witchspace mass blockage (NAV-04)", () => {
   const begin: readonly Command[] = [{ kind: "beginHyperspace" }];
 
   it("maps the Coriolis station kind to its recorded mass and no other kind", () => {
-    expect(witchspaceStationMass("coriolis")).toBe(455_223_200);
+    expect(witchspaceStationMass("coriolis")).toBe(515_483_904);
     expect(witchspaceStationMass("coriolis")).toBe(CORIOLIS_STATION_MASS);
     expect(witchspaceStationMass("dodecahedron")).toBeUndefined();
     expect(witchspaceStationMass("icosahedron")).toBeUndefined();
+  });
+
+  it("pins the constant to the compiled Coriolis mass", () => {
+    const catalogue = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../src/content/generated/ships-client.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as { key: string; mass: number }[];
+    const coriolis = catalogue.find(
+      (entry) => entry.key === "coriolis-station",
+    );
+    if (coriolis === undefined) throw new Error("no coriolis-station entry");
+    expect(coriolis.mass).toBe(CORIOLIS_STATION_MASS);
   });
 
   it("pins the strict mass threshold on both sides", () => {
@@ -130,9 +152,9 @@ describe("witchspace mass blockage (NAV-04)", () => {
     expect(isWitchspaceBlocked(range * range, mass, range)).toBe(false);
   });
 
-  it("blocks at 6,700 m and does not block at 6,800 m", () => {
-    const inside = add(stationPosition, vec(6_700, 0, 0));
-    const outside = add(stationPosition, vec(6_800, 0, 0));
+  it("blocks at 7,100 m and does not block at 7,300 m", () => {
+    const inside = add(stationPosition, vec(7_100, 0, 0));
+    const outside = add(stationPosition, vec(7_300, 0, 0));
     expect(
       witchspaceBlockedAt(
         inside,
@@ -165,8 +187,8 @@ describe("witchspace mass blockage (NAV-04)", () => {
     );
   });
 
-  it("does not refuse a begin at 6,700 m for blockage", () => {
-    const state = shipAt(6_700);
+  it("does not refuse a begin at 7,100 m for blockage", () => {
+    const state = shipAt(7_100);
     const events = step(state, begin, optionsWith(CORIOLIS_STATION_MASS));
     expect(state.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS);
     const kinds = events.map((event) => event.kind);
@@ -174,8 +196,8 @@ describe("witchspace mass blockage (NAV-04)", () => {
     expect(kinds).not.toContain("hyperspaceRefused");
   });
 
-  it("refuses a completion at 6,700 m as blocked, with no fuel or jump time spent", () => {
-    const state = shipAt(6_700);
+  it("refuses a completion at 7,100 m as blocked, with no fuel or jump time spent", () => {
+    const state = shipAt(7_100);
     step(state, begin, optionsWith(CORIOLIS_STATION_MASS));
     const clockBefore = state.clockSeconds;
     let lastEvents: SimEvent[] = [];
@@ -206,12 +228,12 @@ describe("witchspace mass blockage (NAV-04)", () => {
   });
 
   it("commits the jump when the ship has left the radius before completion", () => {
-    const state = shipAt(6_700);
+    const state = shipAt(7_100);
     step(state, begin, optionsWith(CORIOLIS_STATION_MASS));
     for (let i = 0; i < HYPERSPACE_COUNTDOWN_STEPS - 1; i += 1) {
       step(state, [], optionsWith(CORIOLIS_STATION_MASS));
     }
-    state.position = add(stationPosition, vec(6_800, 0, 0));
+    state.position = add(stationPosition, vec(7_300, 0, 0));
     const events = step(state, [], optionsWith(CORIOLIS_STATION_MASS));
     const jumped = events.find((event) => event.kind === "hyperspaceJumped");
     expect(jumped).toBeDefined();
@@ -221,7 +243,7 @@ describe("witchspace mass blockage (NAV-04)", () => {
   });
 
   it("keeps the default path unchanged when no station mass is supplied", () => {
-    const state = shipAt(6_700);
+    const state = shipAt(7_100);
     step(state, begin, optionsWith());
     let jumped = false;
     for (let i = 0; i < HYPERSPACE_COUNTDOWN_STEPS; i += 1) {

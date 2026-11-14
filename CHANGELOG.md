@@ -14,6 +14,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   only on demand, so the first load is unchanged, and they do not appear in the
   game until ships are placed in space.
 
+### Changed
+
+- A hyperspace jump that completes within about 7.18 km of a Coriolis station
+  is now refused as blocked (it was about 6.75 km). The station's mass is now
+  the one Oolite computes from its model, including the faceplate, tris and dock
+  parts, instead of an older figure from an Oolite source comment.
+
 ## [0.3.0] - 2026-11-11
 
 ### Added

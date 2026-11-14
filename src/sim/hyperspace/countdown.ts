@@ -16,12 +16,10 @@
  * (PlayerEntity.m line 6547), and enterWitchspace calls the checklist at the
  * countdown's end (PlayerEntity.m lines 6772-6775). A docked ship never reaches
  * completion, because a dock cancels the countdown, so the predicate takes no
- * docked parameter. The blocker is the Coriolis station. The navigation buoy is
- * a data gap, not a design choice: it is non-blocking for lack of recorded data.
- * Its template has no density key, so Oolite's default density of 1.0 applies,
- * and the missing input is the model's octree volume, which needs the unvendored
- * model oolite_buoy.dat. It stays non-blocking until that model is vendored and
- * its octree volume computed (ShipEntity.m lines 417-419 and 1075-1077).
+ * docked parameter. The blocker is the Coriolis station. Blockage stays
+ * Coriolis-only in the simulation until Phase 12 consumes per-ship masses, and
+ * the dodecahedron and icosahedron stations have no mass (D-03, owner decision
+ * 2026-11-07, option (a)).
  *
  * This module deliberately knows nothing about `FlightState`: the start gate is
  * testable before the step loop is wired, and the step loop consumes it.
@@ -46,13 +44,19 @@ export const HYPERSPACE_COUNTDOWN_STEPS = 1800;
 export const WITCH_BLOCK_K = 0.1;
 
 /**
- * The Coriolis station mass recorded in the Oolite source comment in
- * `checkShipsInVicinityForWitchJumpExit` (ShipEntity.m line 12504). Oolite
- * computes a ship's mass at runtime from its density and model octree volume
- * (ShipEntity.m lines 419 and 1077), so this is a recorded figure and not a
- * vendored config value (shipdata.plist has no mass key).
+ * Oolite's runtime mass of the Coriolis station for the pinned meshes: density
+ * 1.0 x 20 x the hull octree volume (ShipEntity.m lines 417-419) plus the masses
+ * of its solid subentities, the faceplate, tris and dock (ShipEntity.m lines
+ * 2034-2041). The content build computes it in
+ * tools/oolite-ingest/convert/ship-mass.ts and compiles it into
+ * src/content/generated/ships-client.json. It is a literal here because src/sim
+ * may not import the content catalogue; tests/sim/hyperspace-blockage.test.ts
+ * pins it equal to the compiled value. The source comment at ShipEntity.m line
+ * 12504 gives 455,223,200, which predates the current meshes (owner decision,
+ * PROJECT.md Key Decisions row "Coriolis blockage mass:"). The blockage radius
+ * is about 7,179.7 m.
  */
-export const CORIOLIS_STATION_MASS = 455_223_200;
+export const CORIOLIS_STATION_MASS = 515_483_904;
 
 /**
  * The mass of the origin system's station kind, or `undefined` when the kind has
