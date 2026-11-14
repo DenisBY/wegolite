@@ -21,7 +21,7 @@
 
 ### Saves
 
-- [ ] **SAVE-07**: Saves move to a minimal schema v3 that adds only the world epoch, the world counters and the next entity id; v1 and v2 saves migrate in order, older builds treat a v3 save as an inert future-version save, and the worst-case v3 save stays under the 65,536-character cap
+- [x] **SAVE-07**: Saves move to a minimal schema v3 that adds only the world epoch, the world counters and the next entity id; v1 and v2 saves migrate in order, older builds treat a v3 save as an inert future-version save, and the worst-case v3 save stays under the 65,536-character cap
 - [ ] **SAVE-08**: NPCs are not saved: loading a save regenerates the inert world at the saved leg anchor (the docked station or the witchpoint arrival), hashing identically to the world a fresh arrival at that anchor builds; a save taken in flight resumes at its leg anchor, never mid-leg
 
 ### World
@@ -65,7 +65,7 @@ Deferred. The former v2.1 Combat & Traffic requirements (Phases 13-23) stay in `
 | DATA-10 | Phase 9 | Complete |
 | DATA-11 | Phase 10 | Complete |
 | DATA-13 | Phase 9 | Complete |
-| SAVE-07 | Phase 11 | Pending |
+| SAVE-07 | Phase 11 | Complete |
 | SAVE-08 | Phase 12 | Pending |
 | WORLD-15 | Phase 12 | Pending |
 | WORLD-10 | Phase 12 | Pending |
