@@ -59,6 +59,7 @@ import type { ActionId } from "../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../src/input/keyboard.js";
 import type { Command } from "../../src/sim/commands.js";
 import type { SettingsV1 } from "../../src/settings/schema.js";
+import type { SystemScene } from "../../src/render/system-scene.js";
 import { RESERVED_EVENT_KINDS } from "../../src/sim/events.js";
 import type { SimEvent } from "../../src/sim/events.js";
 import type { WorldLifecycle } from "../../src/app/session/world-lifecycle.js";
@@ -105,6 +106,13 @@ const EVENTS: Readonly<Record<RoutedKind, SimEvent>> = {
   identLocked: { kind: "identLocked", specKey: "viper" },
   identLost: { kind: "identLost" },
   identOff: { kind: "identOff", wasEngaged: true },
+  laserFired: {
+    kind: "laserFired",
+    shooter: 101,
+    from: { x: 0, y: 0, z: 0 },
+    to: { x: 0, y: 0, z: -100 },
+    laserKind: "pulse",
+  },
 };
 
 describe("the pinned subscriber order and routing table", () => {
@@ -118,7 +126,7 @@ describe("the pinned subscriber order and routing table", () => {
     ]);
   });
 
-  it("maps each of the 20 routed kinds to exactly one subscriber tuple", () => {
+  it("maps each of the 21 routed kinds to exactly one subscriber tuple", () => {
     expect(EVENT_KIND_SUBSCRIBER).toEqual({
       launched: ["stationFlow", "worldLifecycle"],
       launchComplete: ["stationFlow"],
@@ -140,12 +148,13 @@ describe("the pinned subscriber order and routing table", () => {
       identLocked: ["hudMessages"],
       identLost: ["hudMessages"],
       identOff: ["hudMessages"],
+      laserFired: ["dockFeedback"],
     });
-    expect(ROUTED_EVENT_KINDS).toHaveLength(20);
+    expect(ROUTED_EVENT_KINDS).toHaveLength(21);
     expect(Object.keys(EVENT_KIND_SUBSCRIBER).sort()).toEqual(
       [...ROUTED_EVENT_KINDS].sort(),
     );
-    // Eighteen kinds have one subscriber; launched and docked have the ordered
+    // Nineteen kinds have one subscriber; launched and docked have the ordered
     // pair (plan 08-15), so the world lifecycle runs after the station flow.
     const pair = ["launched", "docked"];
     for (const kind of ROUTED_EVENT_KINDS) {
@@ -170,7 +179,7 @@ describe("the pinned subscriber order and routing table", () => {
     }
   });
 
-  it("offers each of the 20 kinds to exactly the subscribers its table entry names", () => {
+  it("offers each of the 21 kinds to exactly the subscribers its table entry names", () => {
     for (const kind of ROUTED_EVENT_KINDS) {
       const ctx = createSessionState({
         system: lave.system,
@@ -785,6 +794,49 @@ describe("combat and ident messages (CBT-05, INPUT-01, D-03, OQ5)", () => {
       shield: true,
     } as unknown as SimEvent);
     h.router.dispatch({ kind: "laserFired" } as unknown as SimEvent);
+    expect(h.log).toEqual([]);
+  });
+});
+
+describe("laserFired reaches the scene's shot layer (CBT-05, A4)", () => {
+  function withShots(): {
+    readonly h: Harness;
+    readonly added: unknown[];
+  } {
+    const h = harness();
+    const added: unknown[] = [];
+    h.ctx.core.scene = {
+      shots: {
+        add: (...args: unknown[]) => {
+          added.push(args);
+        },
+      },
+    } as unknown as SystemScene;
+    return { h, added };
+  }
+
+  it("adds from, to, the laser kind and the flight clock, and nothing else", () => {
+    const { h, added } = withShots();
+    h.router.dispatch(EVENTS.laserFired);
+    expect(added).toEqual([
+      [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -100 }, "pulse", 12.5],
+    ]);
+    // No message and no feedback envelope.
+    expect(h.log).toEqual([]);
+  });
+
+  it("never stores the shooter's id", () => {
+    const { h, added } = withShots();
+    h.router.dispatch(EVENTS.laserFired);
+    expect(JSON.stringify(added)).not.toContain("101");
+  });
+
+  it("does nothing, and does not throw, with no scene", () => {
+    const h = harness();
+    h.ctx.core.scene = undefined;
+    expect(() => {
+      h.router.dispatch(EVENTS.laserFired);
+    }).not.toThrow();
     expect(h.log).toEqual([]);
   });
 });

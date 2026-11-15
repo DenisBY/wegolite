@@ -35,6 +35,8 @@ import type { BuoyBody, BuoyRole } from "./bodies/buoy.js";
 import { createDust } from "./bodies/dust.js";
 import { createNebulae } from "./bodies/nebulae.js";
 import type { NebulaBody } from "./bodies/nebulae.js";
+import { createLaserShotLayer } from "./bodies/laser-shots.js";
+import type { LaserShotLayer } from "./bodies/laser-shots.js";
 import { createNpcLayer } from "./bodies/npc-ships.js";
 import type { NpcLayer } from "./bodies/npc-ships.js";
 import type { Dust } from "./bodies/dust.js";
@@ -133,6 +135,12 @@ export interface SystemScene {
    * clears it by construction.
    */
   npcs: NpcLayer;
+  /**
+   * The drawn laser shots (CBT-05): one line-segment object over a fixed pool,
+   * fed by `laserFired` events and updated each frame. Owned and disposed by
+   * this scene, like `npcs`.
+   */
+  shots: LaserShotLayer;
   /** The sky nebulae, present only at `high` quality. */
   nebulae?: NebulaBody;
   dispose(): void;
@@ -149,6 +157,7 @@ export interface SystemSceneParts {
   witchpoint: BuoyBody;
   dust: Dust;
   npcs: NpcLayer;
+  shots: LaserShotLayer;
   nebulae?: NebulaBody;
 }
 
@@ -179,6 +188,7 @@ export interface SystemSceneFactories {
   buoy(gltf: GLTF, role: BuoyRole): BuoyBody;
   dust(): Dust;
   npcs(): NpcLayer;
+  shots(): LaserShotLayer;
   nebulae(count: number, seed: string): NebulaBody;
 }
 
@@ -191,6 +201,7 @@ const REAL_FACTORIES: SystemSceneFactories = {
   buoy: createBuoy,
   dust: () => createDust(),
   npcs: () => createNpcLayer(),
+  shots: () => createLaserShotLayer(),
   nebulae: (count, seed) => createNebulae(count, seed),
 };
 
@@ -277,6 +288,7 @@ export function assembleSystemScene(
     parts.witchpoint.root,
     parts.dust.object,
     parts.npcs.root,
+    parts.shots.root,
   );
   if (parts.nebulae !== undefined) scene.add(parts.nebulae.object);
 
@@ -291,6 +303,8 @@ export function assembleSystemScene(
     parts.dust,
     // Only the instance buffers: the cached NPC geometry and materials stay.
     parts.npcs,
+    // The shot layer owns its geometry and material outright.
+    parts.shots,
     ...(parts.nebulae === undefined ? [] : [parts.nebulae]),
   ]);
 
@@ -307,6 +321,7 @@ export function assembleSystemScene(
     ship: parts.ship,
     dust: parts.dust,
     npcs: parts.npcs,
+    shots: parts.shots,
     ...(parts.nebulae === undefined ? {} : { nebulae: parts.nebulae }),
     dispose(): void {
       disposer.dispose();
@@ -366,6 +381,8 @@ export function createSystemScene(
     built.add(dust);
     const npcs = f.npcs();
     built.add(npcs);
+    const shots = f.shots();
+    built.add(shots);
 
     // A navigation buoy in front of the dock and one at the witchpoint, as in
     // Oolite: one shared model, two sets of flasher lights.
@@ -394,6 +411,7 @@ export function createSystemScene(
         witchpoint,
         dust,
         npcs,
+        shots,
         ...(nebulae === undefined ? {} : { nebulae }),
       },
       layout.sunDir,

@@ -17,7 +17,7 @@
  *
  * Order independence with plan 08-11 (which widens `SimEvent` with reserved
  * kinds in the same wave): the table is keyed to the literal `RoutedKind` union
- * of the 20 routed kinds, never to the full `SimEvent` kind union, and every
+ * of the 21 routed kinds, never to the full `SimEvent` kind union, and every
  * read of it with a value that is not already a `RoutedKind` goes through
  * `isRoutedKind`. The only mention of the full union's kind type is the
  * `satisfies` check on `ROUTED_EVENT_KINDS`. There is no exhaustive check and no
@@ -84,6 +84,7 @@ export const ROUTED_EVENT_KINDS = [
   "identLocked",
   "identLost",
   "identOff",
+  "laserFired",
 ] as const satisfies readonly SimEvent["kind"][];
 
 export type RoutedKind = (typeof ROUTED_EVENT_KINDS)[number];
@@ -116,6 +117,7 @@ export const EVENT_KIND_SUBSCRIBER: Readonly<
   identLocked: ["hudMessages"],
   identLost: ["hudMessages"],
   identOff: ["hudMessages"],
+  laserFired: ["dockFeedback"],
 };
 
 /** Whether `kind` is one of the routed kinds; a reserved or unknown kind is not. */
@@ -413,7 +415,12 @@ export interface DockFeedbackDeps {
   readonly messages: Pick<MessageQueue, "enqueuePriority">;
 }
 
-/** bounce and scrape: the dock-feedback envelopes and their messages. */
+/**
+ * bounce and scrape (the dock-feedback envelopes and their messages) and
+ * laserFired (CBT-05): the session's presentation-feedback subscriber, so the
+ * pinned subscriber order is unchanged. A shot goes to the scene's shot layer
+ * as positions and a laser kind only; the shooter id is never stored.
+ */
 export function createDockFeedbackFlow(
   ctx: SessionState,
   deps: DockFeedbackDeps,
@@ -421,6 +428,15 @@ export function createDockFeedbackFlow(
   const { messages } = deps;
   return (event) => {
     switch (event.kind) {
+      case "laserFired":
+        // Read the live scene at call time (G-8): a jump replaces it.
+        ctx.core.scene?.shots.add(
+          event.from,
+          event.to,
+          event.laserKind,
+          ctx.core.state?.flightTime ?? 0,
+        );
+        break;
       case "bounce":
         ctx.core.dockFeedback.trigger(
           "bounce",

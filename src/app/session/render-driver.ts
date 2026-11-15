@@ -189,6 +189,9 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // ship whose model has not arrived still shows on the scanner.
     npcModels.request(contacts.map((contact) => contact.specKey));
     currentScene.npcs.update(contacts, cameraWorld, npcModels.loaded());
+    // CBT-05: the shots added by `laserFired` this frame or earlier, drawn
+    // camera-relative and retired after their 0.09 s of flight time.
+    currentScene.shots.update(cameraWorld, currentState.flightTime);
 
     if (draw) {
       renderer.render(currentScene.scene, currentScene.camera);

@@ -35,6 +35,8 @@ import type { AssetCache } from "../../src/render/asset-cache.js";
 import { createBuoy } from "../../src/render/bodies/buoy.js";
 import type { BuoyBody } from "../../src/render/bodies/buoy.js";
 import { createDust } from "../../src/render/bodies/dust.js";
+import { createLaserShotLayer } from "../../src/render/bodies/laser-shots.js";
+import type { LaserShotLayer } from "../../src/render/bodies/laser-shots.js";
 import { createNpcLayer } from "../../src/render/bodies/npc-ships.js";
 import type { NpcLayer } from "../../src/render/bodies/npc-ships.js";
 import { createPlanet } from "../../src/render/bodies/planet.js";
@@ -307,6 +309,7 @@ describe("SystemScene owns only what it created", () => {
     /** The NPC model the layer draws; its resources belong to the cache. */
     readonly cachedNpc: SyntheticModel;
     readonly npcs: NpcLayer;
+    readonly shots: LaserShotLayer;
     readonly sun: ReturnType<typeof fakeSun>;
     /** Scene-owned resources, each expected to be freed exactly once. */
     readonly sceneOwned: Record<string, () => number>;
@@ -353,7 +356,12 @@ describe("SystemScene owns only what it created", () => {
       new Map([["viper", cachedNpc.gltf]]),
     );
 
+    // The shot layer owns its geometry and material outright (CBT-05).
+    const shots = createLaserShotLayer();
+
     const sceneOwned: Record<string, () => number> = {
+      shotsGeometry: countDisposals(shots.root.geometry),
+      shotsMaterial: countDisposals(shots.root.material as THREE.Material),
       planetGeometry: countDisposals(planet.mesh.geometry),
       planetMaterial: countDisposals(planet.material),
       starfieldGeometry: countDisposals(starfield.geometry),
@@ -432,11 +440,13 @@ describe("SystemScene owns only what it created", () => {
         witchpoint,
         dust,
         npcs,
+        shots,
       },
       cached: coriolis,
       cachedBuoy: buoy,
       cachedNpc,
       npcs,
+      shots,
       sun,
       sceneOwned,
     };
@@ -599,6 +609,47 @@ describe("SystemScene owns only what it created", () => {
     expect(disposals).toBe(1);
 
     // A body built after the layer throws: the layer is still disposed once.
+    disposals = 0;
+    expect(() =>
+      createSystemScene(layout, cache, system, {
+        ...common,
+        buoy: () => {
+          throw new Error("buoy failed");
+        },
+      }),
+    ).toThrow("buoy failed");
+    expect(disposals).toBe(1);
+  });
+
+  it("owns the shot layer: exposes it, adds its root and disposes it, also when half built (CBT-05)", () => {
+    let disposals = 0;
+    const root = createLaserShotLayer().root;
+    const layer: LaserShotLayer = {
+      root,
+      add: () => undefined,
+      update: () => undefined,
+      dispose: () => {
+        disposals += 1;
+      },
+    };
+    const common: Partial<SystemSceneFactories> = {
+      sun: () => fakeSun().body,
+      shots: () => layer,
+    };
+    const cache = guardCache(
+      syntheticCobra().gltf,
+      syntheticCoriolis().gltf,
+      syntheticBuoy().gltf,
+    );
+
+    const scene = createSystemScene(layout, cache, system, common);
+    expect(scene.shots).toBe(layer);
+    expect(scene.scene.children).toContain(root);
+    scene.dispose();
+    expect(disposals).toBe(1);
+    scene.dispose();
+    expect(disposals).toBe(1);
+
     disposals = 0;
     expect(() =>
       createSystemScene(layout, cache, system, {

@@ -229,6 +229,7 @@ function flyableScene(
 ): SystemScene {
   return {
     npcs: { update: npcUpdate },
+    shots: { update: () => undefined },
     camera: { aspect: 1.5, ...fakeObject() },
     planet: { mesh: fakeObject(), update: () => undefined },
     sun: { sun: fakeObject(), corona: fakeObject(), update: () => undefined },
