@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
-stopped_at: Completed 14-06-PLAN.md
-last_updated: "2026-11-15T19:23:54.870Z"
+stopped_at: Completed 14-07-PLAN.md
+last_updated: "2026-11-15T19:34:45.606Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: 4d2fe1e31a9fc3c3cb01b5c7dc495872f4b5e0d6
+state_head: b33e72f376fa0ff92e6001e58e90282a1c8685d3
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 22
+  completed_plans: 23
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 7 of 19
+Plan: 8 of 19
 Status: Ready to execute
 Last activity: 2026-11-15 — Phase 14 execution started
 
@@ -176,6 +176,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 14 P04 | 14min | 3 tasks | 5 files |
 | Phase 14 P05 | 11 min | 2 tasks | 4 files |
 | Phase 14 P06 | 32 min | 2 tasks | 7 files |
+| Phase 14 P07 | 14 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -437,6 +438,8 @@ Recent decisions affecting current work:
 - [Phase 14]: 14-04: the AI-11 harness wakes the shuttle AI on the engine's strict clock > AIScriptWakeTime (ShipEntity.m:2480) on a 1/16 s frame, not on 'reaches'; the spike is positive and the OOLITE_SRC mount is recommended over vendoring at the plan 14-19 gate
 - [Phase 14]: 14-05: BodyView.radius is read from entity.radius, layout[layoutKey].radius or the createWorldView playerRadius argument (default 0); plan 14-12 passes the Cobra Mk III radius
 - [Phase 14]: 14-06: crossDtTolerance 0.01 rad committed before the rate grid; no grid pair diverges (max 0.002777 rad); only the tracking-curve gate is a measured divergence (1 tick); the no-leader escort fixture uses maxFlightSpeed 1e-6 (positive speed required)
+- [Phase 14]: 14-07: DIST_MARKERS is the three strings the sentinel value, PriorityAIController and oolite-libPriorityAI; no bare Oolite script file name, source maps skipped, a dist with no shipped file exits 2
+- [Phase 14]: 14-07: tests/acceptance/thresholds.ts committed alone (b33e72f) with the escalation options (a) to (c); no option edits it; accepted-crossings.ts is the only place an owner-accepted crossing is recorded
 
 ### Pending Todos
 
@@ -538,8 +541,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T19:23:54.622Z
-Stopped at: Completed 14-06-PLAN.md
+Last session: 2026-11-15T19:34:45.367Z
+Stopped at: Completed 14-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
