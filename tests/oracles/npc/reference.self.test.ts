@@ -26,7 +26,6 @@ import {
   type OracleFixture,
 } from "./schema.js";
 import {
-  BASE_BEHAVIOURS,
   F32,
   F64,
   firstTickAbove,
@@ -34,6 +33,7 @@ import {
   replayWith,
   valueOf,
 } from "./reference/flight.js";
+import { ALL_BEHAVIOURS } from "./reference/navigate.js";
 import {
   forwardFromQuat,
   quatFromBasis,
@@ -42,8 +42,8 @@ import {
   vec,
 } from "./reference/vec.js";
 
-/** The behaviours the reference implements in this commit. */
-const TABLE = BASE_BEHAVIOURS;
+/** Every behaviour the reference implements: idle, stop still, tumble and navigation. */
+const TABLE = ALL_BEHAVIOURS;
 
 const FIXTURE_DIR = fileURLToPath(new URL("./fixtures/", import.meta.url));
 const PURSUIT_DIR = fileURLToPath(
@@ -73,7 +73,13 @@ function allFixtures(): OracleFixture[] {
 describe("fixture files", () => {
   it("has the five fixture groups of plan 14-01", () => {
     const names = fixtureFiles();
-    for (const group of ["flight-model", "idle", "tumble"]) {
+    for (const group of [
+      "flight-model",
+      "idle",
+      "tumble",
+      "fly-to-destination",
+      "face-destination",
+    ]) {
       expect(names).toContain(`${group}.json`);
     }
   });
@@ -342,6 +348,56 @@ describe("the flight-model fixtures the port will be held to", () => {
       const lowStep = high.self[start] - tickOne(low, field);
       const highStep = high.self[start] - tickOne(high, field);
       expect(highStep / lowStep).toBeCloseTo(2, 6);
+    }
+  });
+});
+
+describe("the navigation fixtures the port will be held to", () => {
+  const byId = (id: string): OracleFixture => {
+    const found = allFixtures().find((fixture) => fixture.id === id);
+    if (found === undefined) throw new Error(`fixture ${id} is missing`);
+    return found;
+  };
+
+  it("fires the 15 s fly-to frustration events at the fround-accumulated tick and repeats them", () => {
+    const fixture = byId("fly-to-frustration-fires");
+    const first = firstTickAbove(15);
+    expect(first).toBe(1801);
+    expect(fixture.events).toEqual([
+      { tick: first, name: "shipAIFrustrated" },
+      { tick: first + 1, name: "shipAIFrustrated" },
+      { tick: first + 2, name: "shipAIFrustrated" },
+    ]);
+  });
+
+  it("fires the face frustration escape at 15 / maxFlightPitch seconds, fround-accumulated", () => {
+    const fixture = byId("face-destination-frustration-escape");
+    expect(fixture.stats.maxFlightPitch).toBe(2);
+    const tick = firstTickAbove(15 / fixture.stats.maxFlightPitch);
+    expect(tick).toBe(901);
+    expect(fixture.events).toEqual([{ tick, name: "shipAIFrustrated" }]);
+  });
+
+  it("reaches the sign-flip damping branch at 1/120 s in both widths", () => {
+    const fixture = byId("face-destination-sign-flip-damping");
+    const ticks = new Set([fixture.horizon]);
+    for (const mode of [F32, F64]) {
+      const result = replayWith(fixture, mode, TABLE, ticks);
+      expect(result.counters["damping"], mode.name).toBe(3);
+    }
+  });
+
+  it("settles every face fixture on the same tick in both widths (no flipped decision)", () => {
+    for (const id of [
+      "face-destination-already-facing",
+      "face-destination-waits-for-zero-pitch",
+      "face-destination-turns-from-up-and-right",
+      "face-destination-turns-from-behind",
+      "face-destination-sign-flip-damping",
+    ]) {
+      const fixture = byId(id);
+      expect(fixture.events, id).toHaveLength(1);
+      expect(fixture.events[0]?.name, id).toBe("shipNowFacingDestination");
     }
   });
 });

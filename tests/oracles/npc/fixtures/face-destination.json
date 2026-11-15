@@ -1,0 +1,872 @@
+[
+  {
+    "id": "face-destination-already-facing",
+    "title": "FACE_DESTINATION with the destination dead ahead posts shipNowFacingDestination on the first update and switches to IDLE",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4920-4965",
+      "src/Core/Entities/ShipEntityAI.m:373-377",
+      "src/Core/Entities/ShipEntity.m:9587-9590"
+    ],
+    "derivation": "assign perform FACE_DESTINATION with the destination (0, 0, 5000) dead ahead, desired_range 100 and an AI-set desired_speed 50. The first update runs behaviour_face_destination (ShipEntity.m:4920-4965): desired_speed = 0, max_cos = sqrt(1 - 0.9 * 100^2 / 5000^2) = 0.99982 because desired_range > 1 and the distance exceeds it (4926-4928), and trackDestination returns 1.0 for a ship with both rates 0 (9587-9588). confidenceFactor >= max_cos and flightPitch == 0.0 hold, so the function posts shipNowFacingDestination, resets frustration and switches to IDLE (4930-4940; docking_match_rotation is never set). A ship that is at rest and facing the destination therefore settles on tick 1. Closed forms.",
+    "dt": 0.008333333333333333,
+    "horizon": 5,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 4,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 5000],
+      "desiredRange": 100,
+      "desiredSpeed": 50,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "perform",
+        "value": "FACE_DESTINATION"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "FACE_DESTINATION",
+        "tolerance": 0,
+        "note": "performFaceDestination sets the behaviour (ShipEntityAI.m:373-377)"
+      },
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "and resets frustration"
+      },
+      {
+        "tick": 0,
+        "field": "desiredSpeed",
+        "expected": 50,
+        "tolerance": 1e-9,
+        "note": "desired_speed is still the AI-set 50 before the first update"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "d_forward = 1 (no rates: trackDestination returns 1.0) is above max_cos and flightPitch == 0: switch to IDLE (ShipEntity.m:4930-4940)"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "behaviour_face_destination sets desired_speed 0 (4925)"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 1e-9,
+        "note": "frustration = 0 (4934), then the same update adds dt because flightSpeed == 0 (4943-4944): one fround step"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "no pitch"
+      },
+      {
+        "tick": 1,
+        "field": "headingErrorDestination",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "dead ahead"
+      },
+      {
+        "tick": 5,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "stays idle"
+      }
+    ],
+    "events": [
+      {
+        "tick": 1,
+        "name": "shipNowFacingDestination"
+      }
+    ]
+  },
+  {
+    "id": "face-destination-waits-for-zero-pitch",
+    "title": "FACE_DESTINATION settles only when flightPitch is exactly 0.0, whatever the roll rate is",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4930-4941",
+      "src/Core/Entities/ShipEntity.m:7050-7056",
+      "src/Core/Entities/ShipEntity.m:9587-9590"
+    ],
+    "derivation": "A ship facing the destination (0, 0, 5000) exactly, desired_range 100, with flightPitch 0.05 and flightRoll 0.3 left over from an earlier manoeuvre. The destination is dead ahead, so trackDestination makes no correction (stick_pitch = stick_roll = 0). On tick 1 applySticks moves flightPitch by 4 dt = 1/30 to 0.0167, which is not 0.0, so `flightPitch == 0.0` fails and the ship does not settle although d_forward is above max_cos (ShipEntity.m:4930). On tick 2 the remainder is within one step, applySticks snaps onto the stick 0.0 exactly, and the event fires (the exact floating-point test of the original). The roll rate (0.3 - k/60) is still non-zero at that moment and does not matter. Closed forms; the pose is far from every threshold of the other branches.",
+    "dt": 0.008333333333333333,
+    "horizon": 5,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0.3,
+      "flightPitch": 0.05,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FACE_DESTINATION",
+      "targetId": 0,
+      "destination": [0, 0, 5000],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "FACE_DESTINATION",
+        "tolerance": 0,
+        "note": "the starting behaviour"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "FACE_DESTINATION",
+        "tolerance": 0,
+        "note": "d_forward is above max_cos but flightPitch is 0.0167, not exactly 0.0, so facing is not yet achieved (ShipEntity.m:4930)"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01666666666666667,
+        "tolerance": 4.5e-9,
+        "note": "applySticks with stick_pitch 0: 0.05 > 0 + 1/30, so flightPitch = 0.05 - 1/30 (7050-7053)"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.2833333333333333,
+        "tolerance": 9e-9,
+        "note": "the roll rate settles independently; the settle test looks at flightPitch only"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "d_forward >= max_cos: no correction"
+      },
+      {
+        "tick": 2,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "0.0167 is within one rate step, so applySticks snaps flightPitch to exactly 0.0, and facing is achieved (4930)"
+      },
+      {
+        "tick": 2,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "snapped to exactly 0"
+      },
+      {
+        "tick": 2,
+        "field": "flightRoll",
+        "expected": 0.26666666666666666,
+        "tolerance": 6.5e-8,
+        "note": "the roll is still settling: the test does not wait for it"
+      }
+    ],
+    "events": [
+      {
+        "tick": 2,
+        "name": "shipNowFacingDestination"
+      }
+    ]
+  },
+  {
+    "id": "face-destination-turns-from-up-and-right",
+    "title": "FACE_DESTINATION turns a ship at rest to a destination 45 degrees up and to the right, then posts shipNowFacingDestination and switches to IDLE",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4920-4965",
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:7018-7065"
+    ],
+    "derivation": "The destination (5000, 5000, 0) is 45 degrees up and to the right of a ship at rest facing +z, desired_range 100. Tick 1 is a closed form: stick_roll = -2.8 and stick_pitch = 0.01 (ShipEntity.m:9525-9531, 9561-9565). The ship rolls and then pitches toward the destination (replayed by the reference, float32 emulation, with tolerances from the float32-versus-float64 difference) until the confidence d_forward reaches max_cos = sqrt(1 - 0.9 * 100^2 / 7071^2) = 0.99991 and the rates are exactly 0: the event fires at tick 389 (identical in float32 and float64; poses where the two widths settle a tick apart, such as the same pose with desired_range 0 or 300, were rejected). The ship switches to IDLE, which zeroes the sticks and stops steering, so the residual heading error stays constant afterwards. face never changes desired_speed from 0, so the ship does not move.",
+    "dt": 0.008333333333333333,
+    "horizon": 450,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FACE_DESTINATION",
+      "targetId": 0,
+      "destination": [5000, 5000, 0],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 1.5707963267948966,
+        "tolerance": 1e-9,
+        "note": "the destination is at 90 degrees"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -2.8,
+        "tolerance": 2e-7,
+        "note": "d_up > min_d, d_right > min_d, factor 8: stick_roll = -2.8 (ShipEntity.m:9525-9531)"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "roll first, pitch fallback 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "face never moves the ship"
+      },
+      {
+        "tick": 1,
+        "field": "flightSpeed",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "no speed"
+      },
+      {
+        "tick": 120,
+        "field": "headingErrorDestination",
+        "expected": 1.5793914488641658,
+        "tolerance": 1.1e-8,
+        "note": "simulated"
+      },
+      {
+        "tick": 240,
+        "field": "headingErrorDestination",
+        "expected": 1.493251770184093,
+        "tolerance": 5.4e-8,
+        "note": "simulated"
+      },
+      {
+        "tick": 240,
+        "field": "flightPitch",
+        "expected": -0.8233335614204407,
+        "tolerance": 9.2e-7,
+        "note": "simulated"
+      },
+      {
+        "tick": 330,
+        "field": "headingErrorDestination",
+        "expected": 0.2584507523310227,
+        "tolerance": 0.0000011,
+        "note": "simulated"
+      },
+      {
+        "tick": 388,
+        "field": "behaviour",
+        "expected": "FACE_DESTINATION",
+        "tolerance": 0,
+        "note": "one tick before the settle"
+      },
+      {
+        "tick": 388,
+        "field": "flightPitch",
+        "expected": 0.016666674986481667,
+        "tolerance": 3.5e-8,
+        "note": "pitch is about to snap to 0"
+      },
+      {
+        "tick": 389,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "the settle tick"
+      },
+      {
+        "tick": 389,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "exactly 0.0 (4930)"
+      },
+      {
+        "tick": 389,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 1e-9,
+        "note": "frustration = 0 (4934), then the same update adds dt because flightSpeed == 0 (4943-4944): one fround step"
+      },
+      {
+        "tick": 389,
+        "field": "headingErrorDestination",
+        "expected": 0.010638281693592955,
+        "tolerance": 0.0000012,
+        "note": "the final residual heading error: inside the dead band"
+      },
+      {
+        "tick": 449,
+        "field": "headingErrorDestination",
+        "expected": 0.010638281693592955,
+        "tolerance": 0.0000012,
+        "note": "IDLE does not steer, so the heading is unchanged"
+      },
+      {
+        "tick": 449,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "stays idle"
+      }
+    ],
+    "events": [
+      {
+        "tick": 389,
+        "name": "shipNowFacingDestination"
+      }
+    ]
+  },
+  {
+    "id": "face-destination-turns-from-behind",
+    "title": "FACE_DESTINATION turns a ship at rest around to a destination dead behind it by pitching with the d_up hack",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4920-4965",
+      "src/Core/Entities/ShipEntity.m:9520-9559"
+    ],
+    "derivation": "The destination (0, 0, -5000) is exactly behind a ship at rest facing +z, desired_range 100. Tick 1 is a closed form: d_forward = -1 triggers the d_up hack, so stick_pitch = -0.225 (factor 1) and flightPitch = -1/30 (ShipEntity.m:9520-9554). The nose then pitches up at growing sticks (the factor reaches 8, stick -1.8) and the overshoot limiter (9557-9558) cuts the stick near the end; the later values are replayed by the reference (float32 emulation) with tolerances from the float32-versus-float64 difference. The event fires at tick 286 (identical in both widths) once d_forward >= max_cos = sqrt(1 - 0.9 * 100^2 / 5000^2) = 0.99982 and flightPitch is exactly 0.",
+    "dt": 0.008333333333333333,
+    "horizon": 400,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FACE_DESTINATION",
+      "targetId": 0,
+      "destination": [0, 0, -5000],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 3.141592653589793,
+        "tolerance": 1e-9,
+        "note": "the destination is exactly behind"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "d_right = 0"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": -0.225,
+        "tolerance": 2.5e-8,
+        "note": "the d_up hack gives factor 1: stick_pitch = -0.225 (ShipEntity.m:9520-9554)"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": -0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "ramp at 1/30 per tick"
+      },
+      {
+        "tick": 30,
+        "field": "stickPitch",
+        "expected": -0.8999999761581421,
+        "tolerance": 9.7e-8,
+        "note": "simulated: the factor has grown"
+      },
+      {
+        "tick": 60,
+        "field": "flightPitch",
+        "expected": -1.7583329677581787,
+        "tolerance": 0.0000015,
+        "note": "simulated: at full pitch rate"
+      },
+      {
+        "tick": 60,
+        "field": "headingErrorDestination",
+        "expected": 2.734231491175331,
+        "tolerance": 2.1e-7,
+        "note": "simulated"
+      },
+      {
+        "tick": 120,
+        "field": "headingErrorDestination",
+        "expected": 1.8343013870406266,
+        "tolerance": 0.0000017,
+        "note": "simulated"
+      },
+      {
+        "tick": 210,
+        "field": "headingErrorDestination",
+        "expected": 0.4843016724986262,
+        "tolerance": 0.0000028,
+        "note": "simulated"
+      },
+      {
+        "tick": 285,
+        "field": "behaviour",
+        "expected": "FACE_DESTINATION",
+        "tolerance": 0,
+        "note": "one tick before the settle"
+      },
+      {
+        "tick": 286,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "the settle tick"
+      },
+      {
+        "tick": 286,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "exactly 0.0"
+      },
+      {
+        "tick": 286,
+        "field": "headingErrorDestination",
+        "expected": 0.006801536102204762,
+        "tolerance": 0.0000022,
+        "note": "the final residual heading error"
+      },
+      {
+        "tick": 346,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "stays idle"
+      }
+    ],
+    "events": [
+      {
+        "tick": 286,
+        "name": "shipNowFacingDestination"
+      }
+    ]
+  },
+  {
+    "id": "face-destination-frustration-escape",
+    "title": "a FACE_DESTINATION ship that cannot face its destination posts shipAIFrustrated after 15 / maxFlightPitch seconds and kicks its pitch",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4943-4951",
+      "src/Core/Entities/ShipEntity.m:2641-2645",
+      "src/Core/Entities/ShipEntity.m:9561-9565"
+    ],
+    "derivation": "A ship at rest with max_flight_pitch 2.0 and the destination (5000, 0, 0) exactly abeam. d_up = 0 and d_forward = 0 give the 0.01 pitch fallback every tick, and pitching about the right axis (the axis that points at the destination) never changes d_forward or d_up, so the ship can never face the destination (an Oolite stall, the same pose as fly-to-abeam-pitch-fallback). flightSpeed == 0, so frustration accumulates delta_t per tick (ShipEntity.m:4943-4944), as a GLfloat: by contract item 8 every write is Math.fround, so the threshold 15.0 / max_flight_pitch = 7.5 is first exceeded at tick 901 (computed by the fround helper loop; the same sum in float64 would cross at 900). At that tick the function resets frustration to 0, posts shipAIFrustrated (noteFrustration) and, because flightPitch still equals old_pitch, sets flightPitch = 0.5 * max_flight_pitch = 1.0 (4945-4951). From the next tick applySticks pulls the rate back toward the 0.01 stick at 4 dt = 1/30 per tick. The accumulator then restarts, so the next event would be at tick 1802, beyond the horizon. The heading error stays pi/2 throughout (closed form, tolerance from the float32 measurement).",
+    "dt": 0.008333333333333333,
+    "horizon": 905,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 2,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FACE_DESTINATION",
+      "targetId": 0,
+      "destination": [5000, 0, 0],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 1.5707963267948966,
+        "tolerance": 1e-9,
+        "note": "the destination is exactly abeam"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "d_up = 0: the 0.01 pitch fallback (ShipEntity.m:9561-9565)"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "snapped onto 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 1e-9,
+        "note": "flightSpeed == 0, so frustration += dt (4943-4944): one fround step"
+      },
+      {
+        "tick": 450,
+        "field": "headingErrorDestination",
+        "expected": 1.5707963267948966,
+        "tolerance": 1e-9,
+        "note": "the nose pitches about the axis that points at the destination, so the error stays pi/2"
+      },
+      {
+        "tick": 450,
+        "field": "frustration",
+        "expected": 3.7500216960906982,
+        "tolerance": 1e-9,
+        "note": "fround accumulation"
+      },
+      {
+        "tick": 900,
+        "field": "frustration",
+        "expected": 7.499971389770508,
+        "tolerance": 1e-9,
+        "note": "the last tick below 15 / max_flight_pitch = 7.5 (fround accumulation)"
+      },
+      {
+        "tick": 900,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "unchanged"
+      },
+      {
+        "tick": 900,
+        "field": "behaviour",
+        "expected": "FACE_DESTINATION",
+        "tolerance": 0,
+        "note": "still facing"
+      },
+      {
+        "tick": 901,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "frustration > 7.5 first holds at tick 901: reset to 0 (4945-4947)"
+      },
+      {
+        "tick": 901,
+        "field": "flightPitch",
+        "expected": 1,
+        "tolerance": 1e-9,
+        "note": "flightPitch == old_pitch, so the escape hack sets flightPitch = 0.5 * max_flight_pitch = 1.0 (4949-4950)"
+      },
+      {
+        "tick": 901,
+        "field": "behaviour",
+        "expected": "FACE_DESTINATION",
+        "tolerance": 0,
+        "note": "still not facing"
+      },
+      {
+        "tick": 902,
+        "field": "flightPitch",
+        "expected": 0.9666666666666667,
+        "tolerance": 1.2e-7,
+        "note": "applySticks pulls the rate back toward the 0.01 stick at 4 dt per tick"
+      },
+      {
+        "tick": 902,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 1e-9,
+        "note": "the accumulator restarted from 0: one fround step"
+      },
+      {
+        "tick": 905,
+        "field": "headingErrorDestination",
+        "expected": 1.5707963267948966,
+        "tolerance": 1e-9,
+        "note": "the error is still pi/2"
+      }
+    ],
+    "events": [
+      {
+        "tick": 901,
+        "name": "shipAIFrustrated"
+      }
+    ]
+  },
+  {
+    "id": "face-destination-sign-flip-damping",
+    "title": "FACE_DESTINATION adds 0.5 * old_pitch when the pitch rate flips sign while frustration is above 5 s (the low-FPS damping branch)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4958-4960",
+      "src/Core/Entities/ShipEntity.m:4943-4944",
+      "src/Core/Entities/ShipEntity.m:7027-7028",
+      "src/Core/Entities/ShipEntity.m:9549-9559"
+    ],
+    "derivation": "The sign-flip damping branch (ShipEntity.m:4958-4960, flightSpeed == 0 && frustration > 5 && confidenceFactor > 0.5 && a sign flip of flightPitch against old_pitch) is REACHABLE at 1/120 s: the reference scan over 4752 poses (azimuths in 15-degree steps, elevations -75 to 75, three distances, three desired ranges, two pitch limits, both widths) found it in 284 runs. This row is one with round numbers: a ship at rest, max_flight_pitch 2.0, the destination (260, 0, 965) at about 15 degrees azimuth, desired_range 0, so max_cos is 0.995 in face while trackDestination keeps correcting down to its 0.99999 cap. The ship settles slowly (ticks 1 to 604 are replayed by the reference), frustration passes 5.0 at tick 600 (fround accumulation), and at tick 605 the pitch stick flips from +0.01 to -0.25: applySticks takes the x4 step (0.01 - 2/15 = -0.1233) and the damping adds 0.5 * old_pitch = 0.005, giving -0.1183; tick 606 snaps back to +0.01 and the flip against old_pitch -0.1183 damps to 0.01 - 0.0592 = -0.0492; tick 607 repeats to -0.0146; tick 608 snaps to exactly 0 and the facing event fires. The damping ticks 605 to 607 and the event at tick 608 are identical in float32 and float64. The closed forms assume only the flightPitch value 0.01 at tick 604 (checked) and the sticks named in the notes.",
+    "dt": 0.008333333333333333,
+    "horizon": 612,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 2,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FACE_DESTINATION",
+      "targetId": 0,
+      "destination": [260, 0, 965],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 604,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "the 0.01 fallback has just been held (the nose is inside the dead band of trackDestination but not of face)"
+      },
+      {
+        "tick": 604,
+        "field": "frustration",
+        "expected": 5.033342361450195,
+        "tolerance": 1e-9,
+        "note": "frustration is already above 5 (fround accumulation), so the damping condition's frustration clause holds"
+      },
+      {
+        "tick": 605,
+        "field": "stickPitch",
+        "expected": -0.25,
+        "tolerance": 1e-9,
+        "note": "d_up beyond min_d again: factor 1, stick_pitch = -2.0 * 0.125 = -0.25 (ShipEntity.m:9549-9554)"
+      },
+      {
+        "tick": 605,
+        "field": "flightPitch",
+        "expected": -0.11833333333333333,
+        "tolerance": 5.4e-9,
+        "note": "the stick opposes the +0.01 rate, so applySticks takes the x4 step (0.01 - 2/15 = -0.1233); the sign flipped (rate < 0 < old_pitch), flightSpeed == 0, frustration > 5 and confidence > 0.5, so flightPitch += 0.5 * old_pitch = 0.005 (4958-4959)"
+      },
+      {
+        "tick": 606,
+        "field": "flightPitch",
+        "expected": -0.049166666666666664,
+        "tolerance": 9.8e-9,
+        "note": "stick back to +0.01: applySticks snaps onto it (+0.01), a flip against old_pitch -0.1183, so the damping adds 0.5 * old_pitch = -0.0592"
+      },
+      {
+        "tick": 607,
+        "field": "flightPitch",
+        "expected": -0.014583333333333332,
+        "tolerance": 4.5e-9,
+        "note": "the same flip once more: 0.01 + 0.5 * -0.0492"
+      },
+      {
+        "tick": 607,
+        "field": "behaviour",
+        "expected": "FACE_DESTINATION",
+        "tolerance": 0,
+        "note": "not yet settled: flightPitch != 0"
+      },
+      {
+        "tick": 608,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "stick 0: snapped onto exactly 0 (no flip: old_pitch is negative and the new rate is 0, not positive)"
+      },
+      {
+        "tick": 608,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "facing achieved: flightPitch == 0.0 and d_forward >= max_cos"
+      },
+      {
+        "tick": 608,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 1e-9,
+        "note": "frustration = 0 on the settle (4934), then += dt in the same update (4943-4944)"
+      }
+    ],
+    "events": [
+      {
+        "tick": 608,
+        "name": "shipNowFacingDestination"
+      }
+    ]
+  }
+]
