@@ -1,0 +1,2294 @@
+[
+  {
+    "id": "attack-dispatch-armed-default-flies-to-target",
+    "title": "ATTACK_TARGET with a ready pulse laser far from the target dispatches to ATTACK_FLY_TO_TARGET, clears the jink and resets frustration",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4156-4170",
+      "src/Core/Entities/ShipEntity.m:4184-4184",
+      "Resources/Config/equipment.plist:126-150"
+    ],
+    "derivation": "A Mamba-like ship (forward pulse laser, range 12500, equipment.plist weapon_info) at accuracy 2 and frustration 2.0, a stationary ship at range 8000 (centres 8080 apart), jink (50, -60, 70). Weapon temperature is fixed at 0 under the scope cut, so the forward weapon is ready (4079: no in-good-range requirement for the forward weapon) and the unarmed branch is skipped; the heating branch is dead. nearby is range < 0.035 * 12500 = 437.5: false at 8000. Falling to `else if (forward_weapon_ready)` (4156): jink = zero (4157); beam range 12500 is not above 12500 (4160); accuracy 2 is not below COMBAT_AI_ISNT_AWFUL, so the default `behaviour = BEHAVIOUR_ATTACK_FLY_TO_TARGET` (4168-4169); frustration = 0 at the end (4184). desired_speed is untouched (100). Closed form.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [50, -60, 70],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "4168-4169: armed, accuracy at least 0, not nearby, not sniper range"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184: behaviour changed, so reset frustration"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "4157: jink = kZeroVector"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "4157"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "4157"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 100,
+        "tolerance": 0.001,
+        "note": "the dispatcher does not touch desired_speed"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-unarmed-shuttle-flies-from-target",
+    "title": "ATTACK_TARGET with no forward weapon (the Shuttle, weapon range 0) dispatches to ATTACK_FLY_FROM_TARGET and leaves the jink alone",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4095-4099",
+      "src/Core/Entities/ShipEntity.m:443-466",
+      "src/Core/Entities/ShipEntity.m:13041-13044"
+    ],
+    "derivation": "A Shuttle-like ship (forward_weapon_type WEAPON_NONE) at accuracy 2 against a stationary ship at range 3000, jink (150, -150, 900). isWeaponNone(forward) leaves the weapon type nil (ShipEntity.m:443-466), so weaponRange = getWeaponRangeFromType(nil) = [nil weaponRange] = 0 (13041-13044): the Shuttle's weapon range is 0, not a laser range. No weapon is ready and all four mounts are none, so the unarmed branch sets ATTACK_FLY_FROM_TARGET (4098-4099) without touching the jink (the branch never zeroes it), then frustration resets (4184).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 80,
+      "maxFlightRoll": 2,
+      "maxFlightPitch": 0.9,
+      "thrust": 16,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_NONE",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [150, -150, 900],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 3080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_FROM_TARGET",
+        "tolerance": 0,
+        "note": "4098-4099: unarmed"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 150,
+        "tolerance": 1e-9,
+        "note": "the unarmed branch does not zero the jink"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": -150,
+        "tolerance": 1e-9,
+        "note": "kept"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 900,
+        "tolerance": 0.001,
+        "note": "kept"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-accuracy-below-0-aspect-below-0-six",
+    "title": "ATTACK_TARGET at accuracy -2 with approach aspect -1 dispatches to ATTACK_FLY_TO_TARGET_SIX",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4156-4167",
+      "src/Core/Entities/ShipEntity.m:9736-9749"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, range 12500) at accuracy -2 against a stationary ship at range 8000. Not nearby (437.5), not sniper range (the pulse range 12500 is not above 12500), forward weapon ready, jink zeroed (4157). The target's forward is (0, 0, 1), so the approach aspect dot(normalise(self - target), forward) = dot((0, 0, -1), forward) is -1: the target's nose points away from the ship. Accuracy below COMBAT_AI_ISNT_AWFUL with aspect below 0 selects SIX (4164-4165: \"SIX also needs aspect below 0\", the review cited 4158); with aspect at least 0 it selects TWELVE (4166-4167). Frustration resets (4184).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": -2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [30, 40, 50],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET_SIX",
+        "tolerance": 0,
+        "note": "4164-4167: ATTACK_FLY_TO_TARGET_SIX"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "4157: jink zeroed"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "4157: jink zeroed"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-accuracy-below-0-aspect-above-0-twelve",
+    "title": "ATTACK_TARGET at accuracy -2 with approach aspect +1 dispatches to ATTACK_FLY_TO_TARGET_TWELVE",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4156-4167",
+      "src/Core/Entities/ShipEntity.m:9736-9749"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, range 12500) at accuracy -2 against a stationary ship at range 8000. Not nearby (437.5), not sniper range (the pulse range 12500 is not above 12500), forward weapon ready, jink zeroed (4157). The target's forward is (0, 0, -1), so the approach aspect dot(normalise(self - target), forward) = dot((0, 0, -1), forward) is +1: the target's nose points at the ship. Accuracy below COMBAT_AI_ISNT_AWFUL with aspect below 0 selects SIX (4164-4165: \"SIX also needs aspect below 0\", the review cited 4158); with aspect at least 0 it selects TWELVE (4166-4167). Frustration resets (4184).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": -2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [30, 40, 50],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET_TWELVE",
+        "tolerance": 0,
+        "note": "4164-4167: ATTACK_FLY_TO_TARGET_TWELVE"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "4157: jink zeroed"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "4157: jink zeroed"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-accuracy-below-0-aspect-exactly-0-twelve",
+    "title": "ATTACK_TARGET at accuracy -2 with approach aspect 0 exactly dispatches to ATTACK_FLY_TO_TARGET_TWELVE",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4156-4167",
+      "src/Core/Entities/ShipEntity.m:9736-9749"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, range 12500) at accuracy -2 against a stationary ship at range 8000. Not nearby (437.5), not sniper range (the pulse range 12500 is not above 12500), forward weapon ready, jink zeroed (4157). The target's forward is (1, 0, 0), so the approach aspect dot(normalise(self - target), forward) = dot((0, 0, -1), forward) is 0 exactly: abeam, so `aspect < 0` is false. Accuracy below COMBAT_AI_ISNT_AWFUL with aspect below 0 selects SIX (4164-4165: \"SIX also needs aspect below 0\", the review cited 4158); with aspect at least 0 it selects TWELVE (4166-4167). Frustration resets (4184).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": -2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [30, 40, 50],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [1, 0, 0],
+        "up": [0, 1, 0],
+        "right": [0, 0, -1],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET_TWELVE",
+        "tolerance": 0,
+        "note": "4164-4167: ATTACK_FLY_TO_TARGET_TWELVE"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "4157: jink zeroed"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "4157: jink zeroed"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-beam-laser-beyond-12500-sniper",
+    "title": "ATTACK_TARGET with a beam laser (range 15000) at range 20000 dispatches to ATTACK_SNIPER",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4128-4128",
+      "src/Core/Entities/ShipEntity.m:4156-4170",
+      "Resources/Config/equipment.plist:126-150"
+    ],
+    "derivation": "A ship with a beam laser (range 15000) at accuracy 2 against a stationary ship (nose pointing away, aspect -1) at range 20000. Weapon temperature 0 makes the forward weapon ready; the beam range 15000 is above 12500 and the range 20000 is above 12500 (4160). The jink is zeroed (4157) and frustration resets (4184); no draw is consumed. Closed form.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [30, 40, 50],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 20080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_SNIPER",
+        "tolerance": 0,
+        "note": "the beam range 15000 is above 12500 and the range 20000 is above 12500 (4160)"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "4157"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-pulse-laser-beyond-12500-flies-to-target",
+    "title": "ATTACK_TARGET with a pulse laser (range 12500) at range 20000 dispatches to ATTACK_FLY_TO_TARGET",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4128-4128",
+      "src/Core/Entities/ShipEntity.m:4156-4170",
+      "Resources/Config/equipment.plist:126-150"
+    ],
+    "derivation": "A ship with a pulse laser (range 12500) at accuracy 2 against a stationary ship (nose pointing away, aspect -1) at range 20000. Weapon temperature 0 makes the forward weapon ready; the pulse range 12500 is not above 12500, so the sniper test fails (4160) and accuracy 2 takes the default (4168-4169). The jink is zeroed (4157) and frustration resets (4184); no draw is consumed. Closed form.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [30, 40, 50],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 20080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "the pulse range 12500 is not above 12500, so the sniper test fails (4160) and accuracy 2 takes the default (4168-4169)"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "4157"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-beam-laser-within-12500-flies-to-target",
+    "title": "ATTACK_TARGET with a beam laser (range 15000) at range 10000 dispatches to ATTACK_FLY_TO_TARGET",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4128-4128",
+      "src/Core/Entities/ShipEntity.m:4156-4170",
+      "Resources/Config/equipment.plist:126-150"
+    ],
+    "derivation": "A ship with a beam laser (range 15000) at accuracy 2 against a stationary ship (nose pointing away, aspect -1) at range 10000. Weapon temperature 0 makes the forward weapon ready; the range 10000 is not above 12500, so the sniper test fails (4160). The jink is zeroed (4157) and frustration resets (4184); no draw is consumed. Closed form.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [30, 40, 50],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 10080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "the range 10000 is not above 12500, so the sniper test fails (4160)"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "4157"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-beam-laser-accuracy-below-0-sniper-beats-six",
+    "title": "ATTACK_TARGET with a beam laser (range 15000) at range 20000 dispatches to ATTACK_SNIPER",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4128-4128",
+      "src/Core/Entities/ShipEntity.m:4156-4170",
+      "Resources/Config/equipment.plist:126-150"
+    ],
+    "derivation": "A ship with a beam laser (range 15000) at accuracy -2 against a stationary ship (nose pointing away, aspect -1) at range 20000. Weapon temperature 0 makes the forward weapon ready; the sniper test (4160) precedes the accuracy-below-0 tests (4164-4167), so a poor pilot with a beam laser still snipes. The jink is zeroed (4157) and frustration resets (4184); no draw is consumed. Closed form.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": -2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [30, 40, 50],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 20080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_SNIPER",
+        "tolerance": 0,
+        "note": "the sniper test (4160) precedes the accuracy-below-0 tests (4164-4167), so a poor pilot with a beam laser still snipes"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "4157"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-just-outside-nearby-flies-to-target",
+    "title": "ATTACK_TARGET with a pulse laser (range 12500) at range 480 dispatches to ATTACK_FLY_TO_TARGET",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4128-4128",
+      "src/Core/Entities/ShipEntity.m:4156-4170",
+      "Resources/Config/equipment.plist:126-150"
+    ],
+    "derivation": "A ship with a pulse laser (range 12500) at accuracy 2 against a stationary ship (nose pointing away, aspect -1) at range 480. Weapon temperature 0 makes the forward weapon ready; nearby is range < 0.035 * 12500 = 437.5 (4128) and 480 is outside it. The jink is zeroed (4157) and frustration resets (4184); no draw is consumed. Closed form.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [30, 40, 50],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 560],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "nearby is range < 0.035 * 12500 = 437.5 (4128) and 480 is outside it"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "4157"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-nearby-accuracy-2-draws-the-jink-pair",
+    "title": "ATTACK_TARGET nearby at accuracy 2 draws two ranrot values for the evasive jink and dispatches to ATTACK_FLY_FROM_TARGET",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4137-4155",
+      "src/Core/Entities/ShipEntity.m:8980-9001",
+      "src/Core/Entities/ShipEntity.m:11159-11166"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, range 12500, max_flight_pitch 1.4) flying forward at 100 m/s against a stationary-position ship at range 300 flying toward it at 60 m/s: nearby is range < 0.035 * 12500 = 437.5 (4128) and true; no aft, port or starboard weapon exists (4131-4136 are dead), so the plain `else if (nearby)` branch runs (4137). pitching_over is false, so the jink is redrawn (4138): relativeSpeed = |self.velocity - target.velocity| with velocity = forward * flightSpeed (11159-11166; no Newtonian velocity) = |(0, 0, 100) - (0, 0, -60)| = 160, and setEvasiveJink(range + COMBAT_JINK_OFFSET - relativeSpeed / max_flight_pitch) = 300 + 500 - 160 / 1.4 = 685.714 (4147-4148). At accuracy 2 setEvasiveJink consumes exactly two ranrot draws (the scripted [0.7, 0.3]): jink.x = floor(0.7 * 256) - 128 = 51, +128 = 179; jink.y = floor(0.3 * 256) - 128 = -52, -128 = -180 (8985-8999). Accuracy 2 is below COMBAT_AI_FLEES_BETTER (6), so the behaviour is ATTACK_FLY_FROM_TARGET (4153-4154). Draws consumed: 2.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 100,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [150, -150, 900],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 380],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 60,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [0.7, 0.3],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_FROM_TARGET",
+        "tolerance": 0,
+        "note": "4153-4154: accuracy below 6"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 179,
+        "tolerance": 1e-9,
+        "note": "floor(0.7 * 256) - 128 + 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": -180,
+        "tolerance": 1e-9,
+        "note": "floor(0.3 * 256) - 128 - 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 685.7142857142857,
+        "tolerance": 0.001,
+        "note": "300 + 500 - 160 / 1.4"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-nearby-accuracy-minus-2-zeroes-the-jink-with-no-draw",
+    "title": "ATTACK_TARGET nearby at accuracy -2 zeroes the jink without drawing and dispatches to ATTACK_FLY_FROM_TARGET",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4137-4155",
+      "src/Core/Entities/ShipEntity.m:8980-8984"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, range 12500, max_flight_pitch 1.4) flying forward at 100 m/s against a stationary-position ship at range 300 flying toward it at 60 m/s: nearby is range < 0.035 * 12500 = 437.5 (4128) and true; no aft, port or starboard weapon exists (4131-4136 are dead), so the plain `else if (nearby)` branch runs (4137). pitching_over is false, so setEvasiveJink is called (4148); at accuracy below COMBAT_AI_ISNT_AWFUL it sets jink = kZeroVector and draws nothing (8982-8984), whatever the z argument. Accuracy -2 is below 6: ATTACK_FLY_FROM_TARGET. Draws consumed: 0.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 100,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": -2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [150, -150, 900],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 380],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 60,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_FROM_TARGET",
+        "tolerance": 0,
+        "note": "4153-4154"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "zero jink (8983)"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "zero jink (8983)"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "zero jink (8983)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-nearby-while-pitching-over-keeps-the-jink",
+    "title": "ATTACK_TARGET nearby at accuracy 2 while pitching over keeps the jink and draws nothing",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4137-4155"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, range 12500, max_flight_pitch 1.4) flying forward at 100 m/s against a stationary-position ship at range 300 flying toward it at 60 m/s: nearby is range < 0.035 * 12500 = 437.5 (4128) and true; no aft, port or starboard weapon exists (4131-4136 are dead), so the plain `else if (nearby)` branch runs (4137). pitching_over is true, so `if (!pitching_over)` skips the whole jink block (4138-4149: \"don't change jink in the middle of a sharp turn\"): the jink stays (150, -150, 900) and no draw is consumed. Accuracy 2 is below 6: ATTACK_FLY_FROM_TARGET. pitching_over itself is untouched. Draws consumed: 0.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 100,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 1,
+      "jink": [150, -150, 900],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 380],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 60,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_FROM_TARGET",
+        "tolerance": 0,
+        "note": "4153-4154"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 150,
+        "tolerance": 1e-9,
+        "note": "kept"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": -150,
+        "tolerance": 1e-9,
+        "note": "kept"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 900,
+        "tolerance": 0.001,
+        "note": "kept"
+      },
+      {
+        "tick": 1,
+        "field": "pitchingOver",
+        "expected": 1,
+        "tolerance": 0,
+        "note": "untouched by the dispatcher"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-nearby-accuracy-6-breaks-off",
+    "title": "ATTACK_TARGET nearby at forced accuracy 6 draws the jink pair and dispatches to ATTACK_BREAK_OFF_TARGET",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4137-4152",
+      "src/Core/Entities/ShipEntity.m:8980-9001"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, range 12500, max_flight_pitch 1.4) flying forward at 100 m/s against a stationary-position ship at range 300 flying toward it at 60 m/s: nearby is range < 0.035 * 12500 = 437.5 (4128) and true; no aft, port or starboard weapon exists (4131-4136 are dead), so the plain `else if (nearby)` branch runs (4137). Forced accuracy 6, which no stock record can draw (stock accuracy is in [-5, 5), police [0, 5]) but a scripted AI can set: it takes the same two ranrot draws as accuracy 2 (scripted [0.45, 0.85]: jink.x = floor(0.45 * 256) - 128 - 128 = -141, jink.y = floor(0.85 * 256) - 128 + 128 = 217, jink.z = 300 + 500 - 160 / 1.4 = 685.714), and accuracy at least COMBAT_AI_FLEES_BETTER (6) selects ATTACK_BREAK_OFF_TARGET (4150-4152, \"good pilots use behaviour_attack_break_off_target\"). Draws consumed: 2.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 100,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 6,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [150, -150, 900],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 380],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 60,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [0.45, 0.85],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_BREAK_OFF_TARGET",
+        "tolerance": 0,
+        "note": "4151-4152: accuracy at least 6"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": -141,
+        "tolerance": 1e-9,
+        "note": "floor(0.45 * 256) - 128 +- 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": 217,
+        "tolerance": 1e-9,
+        "note": "floor(0.85 * 256) - 128 +- 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 685.7142857142857,
+        "tolerance": 0.001,
+        "note": "300 + 500 - 160 / 1.4"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-dispatch-nearby-accuracy-9-breaks-off",
+    "title": "ATTACK_TARGET nearby at forced accuracy 9 draws the jink pair and dispatches to ATTACK_BREAK_OFF_TARGET",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4038-4185",
+      "src/Core/Entities/ShipEntity.m:4137-4152",
+      "src/Core/Entities/ShipEntity.m:8980-9001"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, range 12500, max_flight_pitch 1.4) flying forward at 100 m/s against a stationary-position ship at range 300 flying toward it at 60 m/s: nearby is range < 0.035 * 12500 = 437.5 (4128) and true; no aft, port or starboard weapon exists (4131-4136 are dead), so the plain `else if (nearby)` branch runs (4137). Forced accuracy 9, which no stock record can draw (stock accuracy is in [-5, 5), police [0, 5]) but a scripted AI can set: it takes the same two ranrot draws as accuracy 2 (scripted [0.15, 0.95]: jink.x = floor(0.15 * 256) - 128 - 128 = -218, jink.y = floor(0.95 * 256) - 128 + 128 = 243, jink.z = 300 + 500 - 160 / 1.4 = 685.714), and accuracy at least COMBAT_AI_FLEES_BETTER (6) selects ATTACK_BREAK_OFF_TARGET (4150-4152, \"good pilots use behaviour_attack_break_off_target\"). Draws consumed: 2.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 100,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 9,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [150, -150, 900],
+      "behaviour": "ATTACK_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 380],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 60,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [0.15, 0.95],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_BREAK_OFF_TARGET",
+        "tolerance": 0,
+        "note": "4151-4152: accuracy at least 6"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": -218,
+        "tolerance": 1e-9,
+        "note": "floor(0.15 * 256) - 128 +- 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": 243,
+        "tolerance": 1e-9,
+        "note": "floor(0.95 * 256) - 128 +- 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 685.7142857142857,
+        "tolerance": 0.001,
+        "note": "300 + 500 - 160 / 1.4"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4184"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-perform-draws-desired-range-midpoint",
+    "title": "perform ATTACK_TARGET draws one value (u = 0.5) for desiredRange 1250 * u + 750 and resets frustration",
+    "oolite": [
+      "src/Core/Entities/ShipEntityAI.m:350-357",
+      "src/Core/Entities/ShipEntity.m:4038-4185"
+    ],
+    "derivation": "A Mamba-like ship in IDLE with frustration 2.0 and desired range 100; a stationary ship at range 8000. performAttack (ShipEntityAI.m:350-357) is not in EVASIVE_ACTION, so it sets behaviour ATTACK_TARGET, desired_range = 1250 * randf() + 750 with the one scripted draw u = 0.5, and frustration 0. The behaviour and frustration are draw-free and checked at tick 0; the desired range is checked from tick 1 (contract item 4): 1250 * 0.5 + 750 = 1375. Tick 1 then runs the dispatcher on the far, armed pose: ATTACK_FLY_TO_TARGET (4168-4169), no further draw. Draws consumed: 1.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "perform",
+        "value": "ATTACK_TARGET"
+      }
+    ],
+    "draws": [0.5],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "ATTACK_TARGET",
+        "tolerance": 0,
+        "note": "performAttack sets ATTACK_TARGET"
+      },
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "performAttack resets frustration"
+      },
+      {
+        "tick": 1,
+        "field": "desiredRange",
+        "expected": 1375,
+        "tolerance": 0.001,
+        "note": "1250 * 0.5 + 750"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "the dispatcher's choice for the far armed pose"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-perform-draws-desired-range-high",
+    "title": "perform ATTACK_TARGET draws one value (u = 0.875) for desiredRange 1250 * u + 750 and resets frustration",
+    "oolite": [
+      "src/Core/Entities/ShipEntityAI.m:350-357",
+      "src/Core/Entities/ShipEntity.m:4038-4185"
+    ],
+    "derivation": "A Mamba-like ship in IDLE with frustration 2.0 and desired range 100; a stationary ship at range 8000. performAttack (ShipEntityAI.m:350-357) is not in EVASIVE_ACTION, so it sets behaviour ATTACK_TARGET, desired_range = 1250 * randf() + 750 with the one scripted draw u = 0.875, and frustration 0. The behaviour and frustration are draw-free and checked at tick 0; the desired range is checked from tick 1 (contract item 4): 1250 * 0.875 + 750 = 1843.75. Tick 1 then runs the dispatcher on the far, armed pose: ATTACK_FLY_TO_TARGET (4168-4169), no further draw. Draws consumed: 1.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 2,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "perform",
+        "value": "ATTACK_TARGET"
+      }
+    ],
+    "draws": [0.875],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "ATTACK_TARGET",
+        "tolerance": 0,
+        "note": "performAttack sets ATTACK_TARGET"
+      },
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "performAttack resets frustration"
+      },
+      {
+        "tick": 1,
+        "field": "desiredRange",
+        "expected": 1843.75,
+        "tolerance": 0.001,
+        "note": "1250 * 0.875 + 750"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "the dispatcher's choice for the far armed pose"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-perform-keeps-evasive-action",
+    "title": "perform ATTACK_TARGET leaves EVASIVE_ACTION alone: no draw, no desiredRange change, no frustration reset",
+    "oolite": [
+      "src/Core/Entities/ShipEntityAI.m:350-357",
+      "src/Core/Entities/ShipEntity.m:3996-4036"
+    ],
+    "derivation": "A Mamba-like ship already in EVASIVE_ACTION with frustration 0.25 and desired range 1000, a stationary ship at range 4920 facing the ship. performAttack tests `behaviour != BEHAVIOUR_EVASIVE_ACTION` (ShipEntityAI.m:351) and does nothing: no draw (the scripted list is empty), desired_range stays 1000, frustration stays 0.25 (an exactly representable value). Tick 1 then runs behaviour_evasive_action (3996-4036): frustration += dt in float32, fround(0.25 + 1/120), still below 0.5, so the behaviour stays EVASIVE_ACTION.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0.25,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "EVASIVE_ACTION",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 1000,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 5000],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "perform",
+        "value": "ATTACK_TARGET"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "EVASIVE_ACTION",
+        "tolerance": 0,
+        "note": "performAttack keeps EVASIVE_ACTION"
+      },
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0.25,
+        "tolerance": 0,
+        "note": "not reset"
+      },
+      {
+        "tick": 1,
+        "field": "desiredRange",
+        "expected": 1000,
+        "tolerance": 0.001,
+        "note": "not redrawn"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "EVASIVE_ACTION",
+        "tolerance": 0,
+        "note": "below 0.5 s of frustration"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.25833332538604736,
+        "tolerance": 0,
+        "note": "fround(0.25 + dt) (4021)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-fly-from-unarmed-zero-jink-returns-to-attack-target",
+    "title": "ATTACK_FLY_FROM_TARGET with weapon range 0 and zero jink returns to ATTACK_TARGET at once because range > 0",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4733-4799",
+      "src/Core/Entities/ShipEntity.m:443-466",
+      "src/Core/Entities/ShipEntity.m:13041-13044",
+      "src/Core/Entities/ShipEntity.m:4038-4185"
+    ],
+    "derivation": "An unarmed Shuttle-like ship (max speed 80, max_flight_pitch 0.9, weapon range 0, see the dispatcher row) in ATTACK_FLY_FROM_TARGET with initial success_factor 1000, desired_speed 0, accuracy 2, against a stationary ship at range 1000. Tick 1: range 1000, success_factor = 1000 (4736-4737); last_success_factor 1000 is not above it, so the target is not closing and frustration += dt / 4 (4743-4748); frustration stays far below 10 (no draw). desired_speed 0 is below 0.5 * 80, so it becomes maxFlightSpeed 80 (4771-4773). The exit test (4775) is range > 0.5 * weaponRange + 15 * jink.x = 0 + 15 * jink.x, or flightSpeed 0 > (25600 - 1000) * 0.9 / 6.28 = 3525 (false). With jink.x 0 the threshold is 0, and range 1000 > 0, so the ship zeroes its jink, sets ATTACK_TARGET and frustration 0 (4776-4778).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 80,
+      "maxFlightRoll": 2,
+      "maxFlightPitch": 0.9,
+      "thrust": 16,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_NONE",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 1000,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_FROM_TARGET",
+      "targetId": 102,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 1080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_TARGET",
+        "tolerance": 0,
+        "note": "4775-4777: range 1000 > 0"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4778"
+      },
+      {
+        "tick": 1,
+        "field": "successFactor",
+        "expected": 1000,
+        "tolerance": 0.000001,
+        "note": "success_factor = range"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 80,
+        "tolerance": 0.001,
+        "note": "4771-4773"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "zeroed (4776)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-fly-from-unarmed-zero-jink-alternates-every-tick",
+    "title": "An unarmed attacker with zero jink alternates ATTACK_TARGET and ATTACK_FLY_FROM_TARGET every tick",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4733-4799",
+      "src/Core/Entities/ShipEntity.m:443-466",
+      "src/Core/Entities/ShipEntity.m:13041-13044",
+      "src/Core/Entities/ShipEntity.m:4038-4185"
+    ],
+    "derivation": "An unarmed Shuttle-like ship (max speed 80, max_flight_pitch 0.9, weapon range 0, see the dispatcher row) in ATTACK_FLY_FROM_TARGET with initial success_factor 1000, desired_speed 0, accuracy 2, against a stationary ship at range 1000. Tick 1: range 1000, success_factor = 1000 (4736-4737); last_success_factor 1000 is not above it, so the target is not closing and frustration += dt / 4 (4743-4748); frustration stays far below 10 (no draw). desired_speed 0 is below 0.5 * 80, so it becomes maxFlightSpeed 80 (4771-4773). The exit test (4775) is range > 0.5 * weaponRange + 15 * jink.x = 0 + 15 * jink.x, or flightSpeed 0 > (25600 - 1000) * 0.9 / 6.28 = 3525 (false). With zero jink every fly-from tick exits to ATTACK_TARGET (range > 0), and the dispatcher (4098-4099) returns an unarmed ship to ATTACK_FLY_FROM_TARGET on the next tick without touching the zero jink: the behaviour sequence from tick 1 is ATTACK_TARGET, ATTACK_FLY_FROM_TARGET, ATTACK_TARGET, ATTACK_FLY_FROM_TARGET. Closed form: the two decisions depend only on range > 0 and the weapon-none test; over 4 ticks the ship moves at most 4/120 * 80 = 2.7 m of 1000 m.",
+    "dt": 0.008333333333333333,
+    "horizon": 4,
+    "stats": {
+      "maxFlightSpeed": 80,
+      "maxFlightRoll": 2,
+      "maxFlightPitch": 0.9,
+      "thrust": 16,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_NONE",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 1000,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_FROM_TARGET",
+      "targetId": 102,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 1080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_TARGET",
+        "tolerance": 0,
+        "note": "fly-from exits (4775-4777)"
+      },
+      {
+        "tick": 2,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_FROM_TARGET",
+        "tolerance": 0,
+        "note": "the dispatcher sends the unarmed ship back (4098-4099)"
+      },
+      {
+        "tick": 3,
+        "field": "behaviour",
+        "expected": "ATTACK_TARGET",
+        "tolerance": 0,
+        "note": "exits again"
+      },
+      {
+        "tick": 4,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_FROM_TARGET",
+        "tolerance": 0,
+        "note": "and back"
+      },
+      {
+        "tick": 4,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "the jink stays zero throughout"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-fly-from-unarmed-jink-200-stays-in-fly-from",
+    "title": "ATTACK_FLY_FROM_TARGET with weapon range 0 and jink.x = 200 stays: range 1000 is below 15 * 200 = 3000",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4733-4799",
+      "src/Core/Entities/ShipEntity.m:443-466",
+      "src/Core/Entities/ShipEntity.m:13041-13044",
+      "src/Core/Entities/ShipEntity.m:4038-4185"
+    ],
+    "derivation": "An unarmed Shuttle-like ship (max speed 80, max_flight_pitch 0.9, weapon range 0, see the dispatcher row) in ATTACK_FLY_FROM_TARGET with initial success_factor 1000, desired_speed 0, accuracy 2, against a stationary ship at range 1000. Tick 1: range 1000, success_factor = 1000 (4736-4737); last_success_factor 1000 is not above it, so the target is not closing and frustration += dt / 4 (4743-4748); frustration stays far below 10 (no draw). desired_speed 0 is below 0.5 * 80, so it becomes maxFlightSpeed 80 (4771-4773). The exit test (4775) is range > 0.5 * weaponRange + 15 * jink.x = 0 + 15 * jink.x, or flightSpeed 0 > (25600 - 1000) * 0.9 / 6.28 = 3525 (false). With jink.x = 200 the threshold is 15 * 200 = 3000, and range 1000 is not above it, so the ship stays in ATTACK_FLY_FROM_TARGET with its jink (the exit branch is not taken, 4775). trackPrimaryTarget retreat then runs; at accuracy 2 it does not touch the jink.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 80,
+      "maxFlightRoll": 2,
+      "maxFlightPitch": 0.9,
+      "thrust": 16,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_NONE",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 1000,
+      "pitchingOver": 0,
+      "jink": [200, 0, 0],
+      "behaviour": "ATTACK_FLY_FROM_TARGET",
+      "targetId": 102,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 1080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_FROM_TARGET",
+        "tolerance": 0,
+        "note": "4775: 1000 is not above 3000"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.0020833334419876337,
+        "tolerance": 0,
+        "note": "fround(0 + dt / 4) (4747)"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 80,
+        "tolerance": 0.001,
+        "note": "4771-4773"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 200,
+        "tolerance": 1e-9,
+        "note": "kept"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-fly-from-unarmed-jink-minus-200-returns-to-attack-target",
+    "title": "ATTACK_FLY_FROM_TARGET with weapon range 0 and jink.x = -200 returns to ATTACK_TARGET at once: range 1000 exceeds -3000",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4733-4799",
+      "src/Core/Entities/ShipEntity.m:443-466",
+      "src/Core/Entities/ShipEntity.m:13041-13044",
+      "src/Core/Entities/ShipEntity.m:4038-4185"
+    ],
+    "derivation": "An unarmed Shuttle-like ship (max speed 80, max_flight_pitch 0.9, weapon range 0, see the dispatcher row) in ATTACK_FLY_FROM_TARGET with initial success_factor 1000, desired_speed 0, accuracy 2, against a stationary ship at range 1000. Tick 1: range 1000, success_factor = 1000 (4736-4737); last_success_factor 1000 is not above it, so the target is not closing and frustration += dt / 4 (4743-4748); frustration stays far below 10 (no draw). desired_speed 0 is below 0.5 * 80, so it becomes maxFlightSpeed 80 (4771-4773). The exit test (4775) is range > 0.5 * weaponRange + 15 * jink.x = 0 + 15 * jink.x, or flightSpeed 0 > (25600 - 1000) * 0.9 / 6.28 = 3525 (false). With jink.x = -200 the threshold is 15 * -200 = -3000, and range 1000 > -3000, so the ship exits: zero jink, ATTACK_TARGET, frustration 0 (4775-4778).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 80,
+      "maxFlightRoll": 2,
+      "maxFlightPitch": 0.9,
+      "thrust": 16,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_NONE",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 1000,
+      "pitchingOver": 0,
+      "jink": [-200, 0, 0],
+      "behaviour": "ATTACK_FLY_FROM_TARGET",
+      "targetId": 102,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 1080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_TARGET",
+        "tolerance": 0,
+        "note": "4775: 1000 > -3000"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4778"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "zeroed (4776)"
+      }
+    ],
+    "events": []
+  }
+]

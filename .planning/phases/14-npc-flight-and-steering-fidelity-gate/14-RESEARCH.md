@@ -302,7 +302,7 @@ Dispatch is `processBehaviour:` `ShipEntity.m:2485-2638`. The nine requested beh
 | escort | `FORMATION_FORM_UP` | 5002-5047; leader refreshes escort destinations in its own update (2427-2445); positions from `coordinatesForEscortPosition` (`ShipEntity.m:12029-12040`) fed by `Script.prototype.coordinatesForEscortPosition` (`Resources/Scripts/oolite-global-prefix.js:186-193`: `spacing = collisionRadius * 3 * highPart`, pattern vectors multiplied by it; the pattern table is at `oolite-global-prefix.js:165-171`) | leader id (`ownerId`), slot index, leader orientation |
 | avoid collision | `AVOID_COLLISION` | 5155-5171, entered via `avoidCollision` (5904-5936) | proximity pass |
 
-`attack` is a dispatcher that rewrites `behaviour` into one of many sub-behaviours (`ShipEntity.m:4073-4182`). Reachability from the nine compiled records, using the values below: every one of the nine has NO `accuracy`, so `accuracy` is random in `[-5, 5)` (police: `[0, 5]`), which is always `< COMBAT_AI_IS_SMART (5.0)`. None has `aft_weapon_type`, `port_weapon_type` or `starboard_weapon_type`. The Shuttle has `forward_weapon_type = "WEAPON_NONE"`.
+`attack` is a dispatcher that rewrites `behaviour` into one of many sub-behaviours (`ShipEntity.m:4073-4182`). Reachability from the nine compiled records, using the values below: every one of the nine has NO `accuracy`, so `accuracy` is random in `[-5, 5)` (police: `[0, 5]`), which is always `< COMBAT_AI_IS_SMART (5.0)`. None has `aft_weapon_type`, `port_weapon_type` or `starboard_weapon_type`. The Shuttle has `forward_weapon_type = "WEAPON_NONE"`: its forward weapon type stays nil (`isWeaponNone` is true, `ShipEntity.m:443-466`) and `setWeaponDataFromType:nil` gives `weaponRange = getWeaponRangeFromType(nil) = [nil weaponRange] = 0` (`ShipEntity.m:13041-13044`), so the Shuttle's weapon range is 0, not a laser range. That decides `ATTACK_FLY_FROM_TARGET`'s exit test (`range > 0.5 * 0 + 15 * jink.x`, 4775): with a zero jink an unarmed attacker alternates ATTACK_TARGET and ATTACK_FLY_FROM_TARGET every tick.
 
 | Sub-behaviour | Lines | Reachable from the nine records? | Recommended |
 |---------------|-------|----------------------------------|-------------|
@@ -312,7 +312,7 @@ Dispatch is `processBehaviour:` `ShipEntity.m:2485-2638`. The nine requested beh
 | `ATTACK_SNIPER` | 4397-4459 | yes for beam-laser ships when `range > 12500` (4160) | IN |
 | `ATTACK_BREAK_OFF_TARGET` | 3886-3942 | only when `accuracy >= 6` (4151): not reachable from stock data | IN as cheap conditionals, oracle by table |
 | `ATTACK_SLOW_DOGFIGHT` | 3944-3994 | only from break-off | IN with break-off |
-| `EVASIVE_ACTION` / `FLEE_EVASIVE_ACTION` | 3996-4036 | `accuracy >= 5` only (4102) or `>= 9` (4721, 4790) | IN with break-off (shares `evasiveAction`) |
+| `EVASIVE_ACTION` / `FLEE_EVASIVE_ACTION` | 3996-4036 | yes, from stock data, through `performFlee` (`ShipEntityAI.m:383-389`): whenever `accuracy > COMBAT_AI_ISNT_AWFUL (0)` and `approachAspectToPrimaryTarget > 0.9995`, then one draw (`< 0.15` EVASIVE_ACTION, else FLEE_EVASIVE_ACTION); stock accuracy is drawn in `[-5, 5)`, so about half of stock ships qualify. The dispatcher's own EVASIVE branch (4103) needs no usable armed weapon and is unreachable under the weapon-temperature-0 cut; `ATTACK_FLY_TO_TARGET` (4721) and `ATTACK_FLY_FROM_TARGET` (4790) reach it only at `accuracy >= 9`. (Corrected by plan 14-02: the earlier "accuracy >= 5 only" claim was wrong.) | IN (shares `evasiveAction`; oracle rows in plan 14-02's flee, attack-dispatch and attack-evade fixtures) |
 | `RUNNING_DEFENSE`, `ATTACK_BROADSIDE(_LEFT/_RIGHT)`, `CLOSE_TO_BROADSIDE_RANGE`, `CLOSE_WITH_TARGET` | 4187-4395, 4801-4838 | no (need aft/port/starboard weapons) | OUT, ledger row "not ported, no consumer" |
 | `ATTACK_MINING_TARGET` | 4582-4609 | no | OUT (AI-12) |
 | turret branches, `TRACK_AS_TURRET` | 4073-4075, 5173 | no | OUT |
@@ -327,7 +327,7 @@ Record data the nine need (values from the vendored `shipdata.plist`; the Viper 
 | krait | 300 | 2.75 | 1.5 | 35 | beam, `has_fuel_injection = 0.65` | 2551-2553, 2560, 2526 |
 | mamba | 320 | 2.1 | 1.4 | 32 | pulse | 2631-2633, 2640 |
 | moray | 300 | 2.5 | 1.5 | 32 | pulse | 2833-2835, 2843 |
-| shuttle | 80 | 2 | 0.9 | 16 | none | 3533-3535, 3541 |
+| shuttle | 80 | 2 | 0.9 | 16 | none (weapon range 0, `ShipEntity.m:443-466`, `13041-13044`) | 3533-3535, 3541 |
 | sidewinder | 370 | 2.8 | 1.6 | 37 | pulse | 3589-3591, 3597 |
 | viper | 320 | 2.8 | 1.8 | 32 | beam | 3878-3880, 3962 |
 

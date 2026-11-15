@@ -150,8 +150,9 @@ export type ForwardWeapon =
 
 /**
  * `getWeaponRangeFromType` (`ShipEntity.m:13041-13044`): the `range` of the
- * `weapon_info` of `third_party/oolite/Config/equipment.plist` (pulse 12500 at
- * line 133, beam 15000, mining 12500, military 30000). A ship with no forward
+ * `weapon_info` of `Resources/Config/equipment.plist` (pulse 12500 at line 132,
+ * beam 15000 at 150, mining 12500 at 170, military 30000 at 191; the vendored
+ * `third_party/oolite/Config/equipment.plist` is identical). A ship with no forward
  * weapon has a nil weapon type (`ShipEntity.m:443-466`) and messaging nil
  * returns 0, so its weapon range is 0, not a laser range.
  */

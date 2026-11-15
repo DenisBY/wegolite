@@ -463,7 +463,7 @@ describe("closed forms re-derive from the poses", () => {
 });
 
 describe("every check re-derives through derive.ts", () => {
-  for (const name of ["intercept.json", "flee.json"]) {
+  for (const name of fileNames()) {
     for (const fixture of loadFile(name)) {
       it(`${fixture.id}: checks, events and draws`, () => {
         for (const check of fixture.checks) {
@@ -507,6 +507,9 @@ const FROZEN_THRESHOLDS: Record<string, number[]> = {
   "intercept-target-beyond-scanner-reach-is-lost": [],
   "flee-removed-target-goes-idle-posting-target-lost": [],
   "flee-target-beyond-scanner-reach-is-lost": [],
+  // a range of about 1000 m against the weapon-none test (range > 0): the ship
+  // moves at most 4 / 120 * 80 = 2.7 m
+  "attack-fly-from-unarmed-zero-jink-alternates-every-tick": [0],
 };
 
 function needsFrozenReplay(fixture: Fixture): boolean {
@@ -788,5 +791,233 @@ describe("flee fixtures", () => {
     expect(byId("flee-target-beyond-scanner-reach-is-lost").events).toEqual([
       { tick: 1, name: "shipTargetLost" },
     ]);
+  });
+});
+
+describe("the attack dispatcher (ShipEntity.m:4038-4185)", () => {
+  const read = (): string =>
+    readFileSync(`${FIXTURE_DIR}attack-dispatch.json`, "utf8");
+
+  it("holds the sniper row and the forced-accuracy rows 6 and 9", () => {
+    const text = read();
+    expect(text).toContain('"ATTACK_SNIPER"');
+    expect(text).toContain('"accuracy": 9');
+    expect(text).toContain('"accuracy": 6');
+  });
+
+  it("reads each weapon range from the equipment plist, 0 for no weapon", () => {
+    expect(derive.weaponRange("EQ_WEAPON_NONE")).toBe(0);
+    expect(derive.weaponRange("EQ_WEAPON_PULSE_LASER")).toBe(12500);
+    expect(derive.weaponRange("EQ_WEAPON_BEAM_LASER")).toBe(15000);
+    expect(derive.weaponRange("EQ_WEAPON_MINING_LASER")).toBe(12500);
+    expect(derive.weaponRange("EQ_WEAPON_MILITARY_LASER")).toBe(30000);
+  });
+
+  it("consumes exactly 2, 0 and 0 draws on the three nearby rows", () => {
+    const counts = [
+      "attack-dispatch-nearby-accuracy-2-draws-the-jink-pair",
+      "attack-dispatch-nearby-accuracy-minus-2-zeroes-the-jink-with-no-draw",
+      "attack-dispatch-nearby-while-pitching-over-keeps-the-jink",
+    ].map((id) => {
+      const row = byId(id);
+      expect(derive.deriveDrawCount(like(row)), id).toBe(row.draws.length);
+      return row.draws.length;
+    });
+    expect(counts).toEqual([2, 0, 0]);
+    // the relative speed of the nearby rows comes from velocity = forward x flightSpeed
+    const first = byId("attack-dispatch-nearby-accuracy-2-draws-the-jink-pair");
+    expect(first.self.speed).toBe(100);
+    expect(first.bodies[0]?.speed).toBe(60);
+    expect(Number(checkAt(first, 1, "jinkZ").expected)).toBeCloseTo(
+      300 + 500 - 160 / 1.4,
+      9,
+    );
+  });
+
+  it("pins the unarmed fly-from rows: weapon range 0 and the jink that decides the exit", () => {
+    for (const id of [
+      "attack-dispatch-unarmed-shuttle-flies-from-target",
+      "attack-fly-from-unarmed-zero-jink-returns-to-attack-target",
+      "attack-fly-from-unarmed-zero-jink-alternates-every-tick",
+      "attack-fly-from-unarmed-jink-200-stays-in-fly-from",
+      "attack-fly-from-unarmed-jink-minus-200-returns-to-attack-target",
+    ]) {
+      expect(byId(id).stats.forwardWeapon, id).toBe("EQ_WEAPON_NONE");
+    }
+    expect(
+      checkAt(
+        byId("attack-fly-from-unarmed-zero-jink-returns-to-attack-target"),
+        1,
+        "behaviour",
+      ).expected,
+    ).toBe("ATTACK_TARGET");
+    expect(
+      checkAt(
+        byId("attack-fly-from-unarmed-jink-200-stays-in-fly-from"),
+        1,
+        "behaviour",
+      ).expected,
+    ).toBe("ATTACK_FLY_FROM_TARGET");
+    expect(
+      checkAt(
+        byId("attack-fly-from-unarmed-jink-minus-200-returns-to-attack-target"),
+        1,
+        "behaviour",
+      ).expected,
+    ).toBe("ATTACK_TARGET");
+    const alternation = byId(
+      "attack-fly-from-unarmed-zero-jink-alternates-every-tick",
+    );
+    expect(
+      [1, 2, 3, 4].map(
+        (tick) => checkAt(alternation, tick, "behaviour").expected,
+      ),
+    ).toEqual([
+      "ATTACK_TARGET",
+      "ATTACK_FLY_FROM_TARGET",
+      "ATTACK_TARGET",
+      "ATTACK_FLY_FROM_TARGET",
+    ]);
+    // hand closed form: the exit test is range > 0.5 * 0 + 15 * jink.x (4775)
+    const exits = (range: number, jinkX: number): boolean =>
+      range > 0.5 * derive.weaponRange("EQ_WEAPON_NONE") + 15 * jinkX;
+    expect(exits(1000, 0)).toBe(true);
+    expect(exits(1000, 200)).toBe(false);
+    expect(exits(1000, -200)).toBe(true);
+  });
+
+  it("decides each branch by the hand table of ShipEntity.m:4095-4182", () => {
+    const base = {
+      forwardWeapon: "EQ_WEAPON_PULSE_LASER" as derive.ForwardWeapon,
+      range: 8000,
+      accuracy: 2,
+      pitchingOver: false,
+      aspect: -1,
+      relativeSpeed: 160,
+      maxFlightPitch: 1.4,
+    };
+    const rows: [Partial<typeof base>, string, "keep" | "zero" | "set"][] = [
+      [{}, "ATTACK_FLY_TO_TARGET", "zero"],
+      [{ forwardWeapon: "EQ_WEAPON_NONE" }, "ATTACK_FLY_FROM_TARGET", "keep"],
+      [
+        { forwardWeapon: "EQ_WEAPON_NONE", range: 100 },
+        "ATTACK_FLY_FROM_TARGET",
+        "keep",
+      ],
+      [{ accuracy: -2 }, "ATTACK_FLY_TO_TARGET_SIX", "zero"],
+      [{ accuracy: -2, aspect: 0 }, "ATTACK_FLY_TO_TARGET_TWELVE", "zero"],
+      [{ accuracy: -2, aspect: 0.3 }, "ATTACK_FLY_TO_TARGET_TWELVE", "zero"],
+      [
+        { forwardWeapon: "EQ_WEAPON_BEAM_LASER", range: 12501 },
+        "ATTACK_SNIPER",
+        "zero",
+      ],
+      [
+        { forwardWeapon: "EQ_WEAPON_BEAM_LASER", range: 12500 },
+        "ATTACK_FLY_TO_TARGET",
+        "zero",
+      ],
+      [
+        { forwardWeapon: "EQ_WEAPON_PULSE_LASER", range: 20000 },
+        "ATTACK_FLY_TO_TARGET",
+        "zero",
+      ],
+      [{ range: 437 }, "ATTACK_FLY_FROM_TARGET", "set"],
+      [{ range: 438 }, "ATTACK_FLY_TO_TARGET", "zero"],
+      [{ range: 437, pitchingOver: true }, "ATTACK_FLY_FROM_TARGET", "keep"],
+      [{ range: 437, accuracy: 6 }, "ATTACK_BREAK_OFF_TARGET", "set"],
+      [{ range: 437, accuracy: 5.9 }, "ATTACK_FLY_FROM_TARGET", "set"],
+      [{ range: 437, accuracy: 9 }, "ATTACK_BREAK_OFF_TARGET", "set"],
+    ];
+    for (const [override, behaviour, jink] of rows) {
+      const decision = derive.dispatchAttack({ ...base, ...override });
+      expect(decision.behaviour, JSON.stringify(override)).toBe(behaviour);
+      expect(decision.jink, JSON.stringify(override)).toBe(jink);
+    }
+    // the evasive jink argument: range + 500 - relativeSpeed / max_flight_pitch (4148)
+    expect(derive.dispatchAttack({ ...base, range: 300 }).jinkZ).toBeCloseTo(
+      300 + 500 - 160 / 1.4,
+      9,
+    );
+  });
+
+  it("never reaches an OUT sub-behaviour from a stock record", () => {
+    // the nine records: Shuttle (no forward weapon), five pulse, three beam; accuracy in [-5, 5)
+    const weapons: derive.ForwardWeapon[] = [
+      "EQ_WEAPON_NONE",
+      "EQ_WEAPON_PULSE_LASER",
+      "EQ_WEAPON_BEAM_LASER",
+    ];
+    const reached = new Set<string>();
+    for (const forwardWeapon of weapons) {
+      for (let accuracy = -5; accuracy < 5; accuracy += 0.25) {
+        for (const range of [
+          0, 100, 300, 437, 438, 500, 525, 526, 1000, 5000, 12500, 12501, 15000,
+          20000, 30000,
+        ]) {
+          for (const aspect of [-1, -0.5, 0, 0.5, 1]) {
+            for (const pitchingOver of [false, true]) {
+              const { behaviour } = derive.dispatchAttack({
+                forwardWeapon,
+                range,
+                accuracy,
+                pitchingOver,
+                aspect,
+                relativeSpeed: 100,
+                maxFlightPitch: 1.5,
+              });
+              reached.add(behaviour);
+            }
+          }
+        }
+      }
+    }
+    for (const outBehaviour of derive.ATTACK_OUT)
+      expect(reached.has(outBehaviour), outBehaviour).toBe(false);
+    // and not the accuracy-gated ones either: stock accuracy stays below 6
+    expect([...reached].sort()).toEqual([
+      "ATTACK_FLY_FROM_TARGET",
+      "ATTACK_FLY_TO_TARGET",
+      "ATTACK_FLY_TO_TARGET_SIX",
+      "ATTACK_FLY_TO_TARGET_TWELVE",
+      "ATTACK_SNIPER",
+    ]);
+    for (const behaviour of reached)
+      expect(derive.ATTACK_IN).toContain(behaviour);
+  });
+
+  it("evaluates the universalID & 14 test: false for 101, true for 62.5 percent of ids", () => {
+    expect(101 & 14).toBe(4);
+    expect(derive.vectorsInAtStandstill(101)).toBe(false);
+    expect(derive.vectorsInAtStandstill(102)).toBe(true);
+    let count = 0;
+    for (let id = 0; id < 128; id += 1)
+      if (derive.vectorsInAtStandstill(id)) count += 1;
+    expect(count / 128).toBe(0.625);
+  });
+
+  it("draws the desired range as 1250 * u + 750", () => {
+    expect(
+      Number(
+        checkAt(
+          byId("attack-perform-draws-desired-range-midpoint"),
+          1,
+          "desiredRange",
+        ).expected,
+      ),
+    ).toBe(1375);
+    expect(
+      Number(
+        checkAt(
+          byId("attack-perform-draws-desired-range-high"),
+          1,
+          "desiredRange",
+        ).expected,
+      ),
+    ).toBe(1843.75);
+    const kept = byId("attack-perform-keeps-evasive-action");
+    expect(kept.draws).toHaveLength(0);
+    expect(checkAt(kept, 0, "behaviour").expected).toBe("EVASIVE_ACTION");
+    expect(Number(checkAt(kept, 1, "desiredRange").expected)).toBe(1000);
   });
 });
