@@ -16,6 +16,21 @@
  * and `energy` is held inside `0..maxEnergy` (a non-finite energy becomes a full
  * bank).
  *
+ * The steering record (AI-01, plan 14-08) is repaired in the same pass, field
+ * by field: a non-finite or out-of-domain rate, stick, frustration, success
+ * factor or jink becomes 0, an accuracy outside `MIN_ACCURACY..MAX_ACCURACY`
+ * that is not the `ACCURACY_UNRESOLVED` sentinel becomes the sentinel, a slot
+ * outside `0..MAX_ESCORT_SLOT` becomes 0, a malformed `saved` condition becomes
+ * null, and a tracking curve outside its domain (a count other than 0 or 4, a
+ * tick that is not a safe integer within `MAX_UINT32`, a count of 4 whose ticks
+ * are not strictly decreasing, an unbounded sample position) becomes the empty
+ * curve, count 0 with every tick and position zeroed, as one repair. At count 0
+ * a stale in-domain tick or position is zeroed without a repair: a curve the
+ * steering abandoned must hash like one that never existed. The id fields
+ * (`proximityAlert`, `saved.targetId`) get the uint32 domain check only: this
+ * module has no store, so whether an id names a live ship is the steering's
+ * question through the view.
+ *
  * Counting. `repairs` grows by one per call that repaired anything, however
  * many fields it repaired, saturating at `MAX_UINT32`. Normalisations never
  * count: `-0` becomes `0`, and an orientation outside `QUAT_UNIT_TOLERANCE`
@@ -38,20 +53,28 @@ import type { AiComponent, ParamValue } from "../ai/types.js";
 import { AI_KEYS } from "../ai/types.js";
 import { identity, normalize, quat, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
+import { ACCURACY_UNRESOLVED, createSteerComponent } from "../npc/state.js";
+import type { SavedCondition, SteerComponent } from "../npc/state.js";
 import type { Entity } from "./entity.js";
 import { BEHAVIOUR_IDS, ENTITY_KINDS, SCAN_CLASSES } from "./ids.js";
 import {
+  MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
+  MAX_ESCORT_SLOT,
+  MAX_FRUSTRATION,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
+  MAX_STEER_RATE,
   MAX_UINT32,
+  MIN_ACCURACY,
   MIN_QUAT_NORM_SQ,
   NPC_DEFAULT_ENERGY_RECHARGE_RATE,
   NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
+  TRACKING_SAMPLES,
 } from "./limits.js";
 
 const FORBIDDEN_PARAM_KEYS: readonly string[] = [
@@ -320,6 +343,204 @@ function cleanAi(entity: Entity, ai: AiComponent): boolean {
   return wake.repaired || next.repaired || params.repaired;
 }
 
+/** A finite number with `|v| <= limit`, else 0 (a repair); `-0` becomes 0. */
+function cleanSymmetric(v: number, limit: number): Cleaned<number> {
+  return Number.isFinite(v) && Math.abs(v) <= limit
+    ? { value: noNegativeZero(v), repaired: false }
+    : { value: 0, repaired: true };
+}
+
+/**
+ * The resolved accuracy range or the unresolved sentinel; anything else becomes
+ * the sentinel (a repair, the value is drawn again on the next use).
+ */
+function cleanAccuracy(v: number): Cleaned<number> {
+  if (v === ACCURACY_UNRESOLVED) return { value: v, repaired: false };
+  return Number.isFinite(v) && v >= MIN_ACCURACY && v <= MAX_ACCURACY
+    ? { value: noNegativeZero(v), repaired: false }
+    : { value: ACCURACY_UNRESOLVED, repaired: true };
+}
+
+/** An integer escort slot in `0..MAX_ESCORT_SLOT`, else 0 (a repair). */
+function cleanEscortSlot(v: number): Cleaned<number> {
+  return Number.isSafeInteger(v) && v >= 0 && v <= MAX_ESCORT_SLOT
+    ? { value: noNegativeZero(v), repaired: false }
+    : { value: 0, repaired: true };
+}
+
+/** A boolean, else false (a repair). */
+function cleanFlag(v: unknown): Cleaned<boolean> {
+  return typeof v === "boolean"
+    ? { value: v, repaired: false }
+    : { value: false, repaired: true };
+}
+
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null;
+
+/** `cleanVec` for a value that may not be a vector at all (a repair then). */
+function cleanVecLike(v: unknown): Cleaned<Vec3> {
+  return isObject(v)
+    ? cleanVec(v as unknown as Vec3)
+    : { value: vec(0, 0, 0), repaired: true };
+}
+
+/** The four tracking-sample indexes, as literal types for the tuples. */
+const SAMPLE_INDEXES = [0, 1, 2, 3] as const;
+
+/** A signed integer tick with `|tick| <= MAX_UINT32`. */
+const isTrackingTick = (v: unknown): v is number =>
+  typeof v === "number" && Number.isSafeInteger(v) && Math.abs(v) <= MAX_UINT32;
+
+const isZeroVec = (v: Vec3): boolean =>
+  Object.is(v.x, 0) && Object.is(v.y, 0) && Object.is(v.z, 0);
+
+/**
+ * Repair the tracking curve in place. A started curve (count 4) must be inside
+ * its domain: four signed integer ticks that strictly decrease, so
+ * `calculateTrackingCurve` never divides by zero (`ShipEntity.m:5477-5487`),
+ * and four bounded positions. Any other count, shape or value becomes the empty
+ * curve, count 0 with everything zeroed, as one repair. A count-0 curve with a
+ * stale in-domain tick or position is zeroed without a repair; one holding an
+ * out-of-domain value or a wrong shape is repaired.
+ */
+function cleanTracking(steer: SteerComponent): boolean {
+  const ticks: unknown = steer.trackingTicks;
+  const positions: unknown = steer.trackingPositions;
+  const shapeOk =
+    Array.isArray(ticks) &&
+    ticks.length === TRACKING_SAMPLES &&
+    Array.isArray(positions) &&
+    positions.length === TRACKING_SAMPLES &&
+    (positions as unknown[]).every(isObject);
+  const ticksOk =
+    shapeOk && (ticks as unknown[]).every((tick) => isTrackingTick(tick));
+  const positionsOk =
+    shapeOk &&
+    (positions as Vec3[]).every(
+      (p) => isBounded(p.x) && isBounded(p.y) && isBounded(p.z),
+    );
+  const domainOk = ticksOk && positionsOk;
+  if (steer.trackingCount === TRACKING_SAMPLES && domainOk) {
+    const t = steer.trackingTicks;
+    if (t[0] > t[1] && t[1] > t[2] && t[2] > t[3]) {
+      const p = steer.trackingPositions;
+      for (const i of SAMPLE_INDEXES) {
+        t[i] = noNegativeZero(t[i]);
+        p[i] = cleanVec(p[i]).value;
+      }
+      return false;
+    }
+  }
+  // The empty curve. Only a clean count 0 (stale in-domain data included) is
+  // not a repair.
+  const repaired = steer.trackingCount !== 0 || !domainOk;
+  const zeroed =
+    domainOk &&
+    steer.trackingTicks.every((tick) => Object.is(tick, 0)) &&
+    steer.trackingPositions.every(isZeroVec);
+  steer.trackingCount = 0;
+  if (!zeroed) {
+    steer.trackingTicks = [0, 0, 0, 0];
+    steer.trackingPositions = [
+      vec(0, 0, 0),
+      vec(0, 0, 0),
+      vec(0, 0, 0),
+      vec(0, 0, 0),
+    ];
+  }
+  return repaired;
+}
+
+/**
+ * Repair the saved pre-avoidance condition: a non-object, an unknown behaviour
+ * or a non-finite, negative or over-large range, speed or destination becomes
+ * null; a non-uint32 target id becomes 0. True when a repair counted.
+ */
+function cleanSaved(steer: SteerComponent): boolean {
+  const saved: unknown = steer.saved;
+  if (saved === null) return false;
+  if (!isObject(saved)) {
+    steer.saved = null;
+    return true;
+  }
+  const record = saved as unknown as SavedCondition;
+  const range = cleanNonNegative(record.desiredRange);
+  const speed = cleanNonNegative(record.desiredSpeed);
+  const destination = cleanVecLike(record.destination);
+  if (
+    !(BEHAVIOUR_IDS as readonly string[]).includes(record.behaviour) ||
+    range.repaired ||
+    speed.repaired ||
+    destination.repaired
+  ) {
+    steer.saved = null;
+    return true;
+  }
+  const targetId = cleanUint32(record.targetId);
+  record.targetId = targetId.value;
+  record.desiredRange = range.value;
+  record.desiredSpeed = speed.value;
+  record.destination = destination.value;
+  return targetId.repaired;
+}
+
+/**
+ * Repair the steering record in place; true when a repair counted. A record
+ * that is not an object is replaced by the default one.
+ */
+function cleanSteer(entity: Entity): boolean {
+  const current: unknown = entity.steer;
+  if (!isObject(current)) {
+    entity.steer = createSteerComponent(0);
+    return true;
+  }
+  const steer = entity.steer;
+  let repaired = false;
+  const mark = (flag: boolean): void => {
+    if (flag) repaired = true;
+  };
+  const flightRoll = cleanSymmetric(steer.flightRoll, MAX_STEER_RATE);
+  steer.flightRoll = flightRoll.value;
+  mark(flightRoll.repaired);
+  const flightPitch = cleanSymmetric(steer.flightPitch, MAX_STEER_RATE);
+  steer.flightPitch = flightPitch.value;
+  mark(flightPitch.repaired);
+  const stickRoll = cleanSymmetric(steer.stickRoll, MAX_STEER_RATE);
+  steer.stickRoll = stickRoll.value;
+  mark(stickRoll.repaired);
+  const stickPitch = cleanSymmetric(steer.stickPitch, MAX_STEER_RATE);
+  steer.stickPitch = stickPitch.value;
+  mark(stickPitch.repaired);
+  const accuracy = cleanAccuracy(steer.accuracy);
+  steer.accuracy = accuracy.value;
+  mark(accuracy.repaired);
+  const frustration = cleanRange(steer.frustration, MAX_FRUSTRATION, 0);
+  steer.frustration = frustration.value;
+  mark(frustration.repaired);
+  const successFactor = cleanBounded(steer.successFactor);
+  steer.successFactor = successFactor.value;
+  mark(successFactor.repaired);
+  const pitchingOver = cleanFlag(steer.pitchingOver);
+  steer.pitchingOver = pitchingOver.value;
+  mark(pitchingOver.repaired);
+  const jink = cleanVecLike(steer.jink);
+  steer.jink = jink.value;
+  mark(jink.repaired);
+  const alert = cleanUint32(steer.proximityAlert);
+  steer.proximityAlert = alert.value;
+  mark(alert.repaired);
+  const slot = cleanEscortSlot(steer.escortSlot);
+  steer.escortSlot = slot.value;
+  mark(slot.repaired);
+  mark(cleanTracking(steer));
+  mark(cleanSaved(steer));
+  const entryPending = cleanFlag(steer.entryPending);
+  steer.entryPending = entryPending.value;
+  mark(entryPending.repaired);
+  return repaired;
+}
+
 /**
  * Repair `entity` in place. Returns true exactly when at least one field was
  * repaired, in which case `repairs` grew by one (saturating at `MAX_UINT32`).
@@ -421,6 +642,8 @@ export function sanitizeEntity(entity: Entity): boolean {
   const energy = cleanEnergy(entity.energy, entity.maxEnergy);
   entity.energy = energy.value;
   mark(energy.repaired);
+
+  mark(cleanSteer(entity));
 
   let base = entity.repairs;
   if (!isUint32(base)) {

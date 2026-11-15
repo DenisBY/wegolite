@@ -1200,6 +1200,10 @@ const ENTITY_FIELDS: Record<keyof Entity, readonly Mutation[]> = {
       },
     },
   ],
+  // The steering record (plan 14-08). Task 1 hashes it but the snapshot does not
+  // carry it yet (every restored entity holds the default record), so it has no
+  // mutation until Task 2 completes version 3.
+  steer: [],
 };
 
 const ENTITY_FIELD_CASES = Object.keys(ENTITY_FIELDS)
@@ -1215,7 +1219,7 @@ describe("the serializer and the codec cover the same entity fields", () => {
     const empty = Object.keys(ENTITY_FIELDS)
       .filter((field) => ENTITY_FIELDS[field as keyof Entity].length === 0)
       .sort();
-    expect(empty).toEqual(["dead", "id"]);
+    expect(empty).toEqual(["dead", "id", "steer"]);
   });
 
   it.each(ENTITY_FIELD_CASES.map((row) => [...row]))(

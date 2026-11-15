@@ -12,6 +12,7 @@
 
 import type { AiComponent } from "../ai/types.js";
 import type { Quat, Vec3 } from "../math.js";
+import type { SteerComponent } from "../npc/state.js";
 import type { BehaviourId, EntityId, EntityKind, ScanClass } from "./ids.js";
 import type { Body, SystemLayout } from "./layout.js";
 
@@ -56,6 +57,13 @@ export interface Entity {
   energy: number;
   maxEnergy: number;
   energyRechargeRate: number;
+  /**
+   * The native steering state (AI-01, plan 14-08): rates, sticks, accuracy,
+   * frustration and the rest of the record in `../npc/state.ts`. Hashed as the
+   * last segment of the entity line, snapshotted under version 3 and repaired by
+   * `sanitizeEntity` like every other field.
+   */
+  steer: SteerComponent;
 }
 
 /** What a caller supplies to spawn an entity. */
@@ -73,6 +81,11 @@ export interface SpawnInit {
   maxEnergy?: number;
   /** Defaults to `NPC_DEFAULT_ENERGY_RECHARGE_RATE`. */
   energyRechargeRate?: number;
+  /**
+   * The escort's slot in its mother's formation, an integer 0 to
+   * `MAX_ESCORT_SLOT` (Oolite `MAX_ESCORTS` 16). Defaults to 0.
+   */
+  escortSlot?: number;
 }
 
 /**

@@ -35,6 +35,8 @@ import type { PlayerCombatState } from "../combat/state.js";
 import { serializeFlight } from "../flight/state.js";
 import type { FlightState } from "../flight/state.js";
 import type { ParamValue } from "../ai/types.js";
+import type { Vec3 } from "../math.js";
+import type { SteerComponent } from "../npc/state.js";
 import type { Entity } from "./entity.js";
 import type { EntityId } from "./ids.js";
 import { isNeverSpawned } from "./world.js";
@@ -86,6 +88,42 @@ function encodeParams(params: Record<string, ParamValue>): string {
 
 const int = (n: number): string => canon(n, 0);
 
+const vecText = (v: Vec3): string =>
+  `${canon(v.x)},${canon(v.y)},${canon(v.z)}`;
+
+/**
+ * The steering segment (AI-01, plan 14-08): the LAST segment of the entity
+ * line, always present, introduced by the unique label `;steer:` so a reader
+ * can strip it and re-hash to the text before the record existed. Every field of
+ * the record prints, `escortSlot` included, in a fixed order; the two optional
+ * parts carry explicit tags: `t0` or `t4:` (the tracking curve, whose ticks and
+ * positions print only when the curve exists, so a stale sample at count 0
+ * cannot make equal states hash apart) and `sv:z` or `sv:` (the saved
+ * condition). The text holds no `;`, so the segment ends at the next line.
+ */
+function serializeSteer(steer: SteerComponent): string {
+  const tracking =
+    steer.trackingCount === 0
+      ? "t0"
+      : `t${int(steer.trackingCount)}:${steer.trackingTicks.map(int).join(",")},${steer.trackingPositions.map(vecText).join(",")}`;
+  const saved =
+    steer.saved === null
+      ? "sv:z"
+      : `sv:${steer.saved.behaviour},${int(steer.saved.targetId)},${canon(steer.saved.desiredRange)},${canon(steer.saved.desiredSpeed)},${vecText(steer.saved.destination)}`;
+  return [
+    `rate:${canon(steer.flightRoll)},${canon(steer.flightPitch)},${canon(steer.stickRoll)},${canon(steer.stickPitch)}`,
+    `acc:${canon(steer.accuracy)}`,
+    `fr:${canon(steer.frustration)},${canon(steer.successFactor)}`,
+    `po:${steer.pitchingOver ? 1 : 0}`,
+    `jk:${vecText(steer.jink)}`,
+    `pa:${int(steer.proximityAlert)}`,
+    `es:${int(steer.escortSlot)}`,
+    tracking,
+    saved,
+    `ep:${steer.entryPending ? 1 : 0}`,
+  ].join(",");
+}
+
 /** One labelled line, `e<id>=` then every field in a fixed order. */
 export function serializeEntity(entity: Entity): string {
   const { position: p, orientation: q, nav, ai } = entity;
@@ -108,6 +146,7 @@ export function serializeEntity(entity: Entity): string {
     `ai:${aiText}`,
     `repairs:${int(entity.repairs)}`,
     `en:${canon(entity.energy)},${canon(entity.maxEnergy)},${canon(entity.energyRechargeRate)}`,
+    `steer:${serializeSteer(entity.steer)}`,
   ].join(";");
 }
 

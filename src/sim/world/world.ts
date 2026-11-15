@@ -22,6 +22,7 @@ import type { Quat, Vec3 } from "../math.js";
 import { createRngState, forkSeed } from "../rng.js";
 import type { RngState } from "../rng.js";
 import type { Entity, SpawnInit, StaticEntity } from "./entity.js";
+import { createSteerComponent } from "../npc/state.js";
 import {
   ENTITY_KINDS,
   FIRST_DYNAMIC_ID,
@@ -40,6 +41,7 @@ import {
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
+  MAX_ESCORT_SLOT,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_UINT32,
@@ -302,6 +304,8 @@ function isMalformedInit(init: unknown, tick: unknown): boolean {
   if (maxEnergy !== undefined && typeof maxEnergy !== "number") return true;
   const rate = init["energyRechargeRate"];
   if (rate !== undefined && typeof rate !== "number") return true;
+  const escortSlot = init["escortSlot"];
+  if (escortSlot !== undefined && typeof escortSlot !== "number") return true;
   if (!hasNumberFields(init["position"], ["x", "y", "z"])) return true;
   if (!hasNumberFields(init["orientation"], ["w", "x", "y", "z"])) return true;
   const ai = init["ai"];
@@ -346,6 +350,16 @@ function domainRefusal(
   if (
     init.energyRechargeRate !== undefined &&
     !isLegalRechargeRate(init.energyRechargeRate)
+  ) {
+    return "outOfDomain";
+  }
+  if (
+    init.escortSlot !== undefined &&
+    !(
+      Number.isSafeInteger(init.escortSlot) &&
+      init.escortSlot >= 0 &&
+      init.escortSlot <= MAX_ESCORT_SLOT
+    )
   ) {
     return "outOfDomain";
   }
@@ -472,6 +486,7 @@ export function spawnEntity(
       maxEnergy,
       energyRechargeRate:
         init.energyRechargeRate ?? NPC_DEFAULT_ENERGY_RECHARGE_RATE,
+      steer: createSteerComponent(init.escortSlot ?? 0),
     };
   });
   return entity === undefined

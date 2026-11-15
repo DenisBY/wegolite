@@ -497,15 +497,59 @@ describe("the Lave launch world golden (regression snapshot)", () => {
     expect(fnv1a32(section)).toBe(golden.fnv);
   });
 
+  it("is the pre-steering world plus one steer: segment per ship: same ships at the same places (AI-01)", () => {
+    // The golden moved a second time when the steering record joined the entity
+    // line (plan 14-08, owner decision option-append, 2026-11-15). The
+    // population draws did not move: with every `;steer:` segment (the last
+    // segment of each entity line, label unique) removed the section is
+    // byte-identical to the previous golden (FNV-1a ab72eedf, recorded before
+    // the record existed).
+    const withoutSteer = golden.section.replace(/;steer:[^;\n]*/g, "");
+    expect(golden.section.match(/;steer:/g)).toHaveLength(golden.count);
+    expect(fnv1a32(withoutSteer)).toBe("ab72eedf");
+  });
+
   it("is the pre-energy world plus one en: segment per ship: same ships at the same places (CBT-07)", () => {
     // The golden moved once when the energy bank joined the entity line. The
-    // population draws did not move: with every `en:` segment removed the
-    // section is byte-identical to the previous golden (FNV-1a b23d11d8,
-    // recorded before the bank existed), so keys, positions, orientations and
-    // streams are unchanged.
-    const withoutEnergy = golden.section.replace(/;en:[0-9.,]+/g, "");
+    // population draws did not move: with every `;steer:` and every `en:`
+    // segment removed the section is byte-identical to the golden recorded
+    // before the bank existed (FNV-1a b23d11d8), so keys, positions,
+    // orientations and streams are unchanged.
+    const withoutEnergy = golden.section
+      .replace(/;steer:[^;\n]*/g, "")
+      .replace(/;en:[0-9.,]+/g, "");
     expect(golden.section.match(/;en:/g)).toHaveLength(golden.count);
     expect(fnv1a32(withoutEnergy)).toBe("b23d11d8");
+  });
+
+  it("gives every inert ship the default steering record: slot 0, unresolved accuracy, no curve", () => {
+    const { world } = buildInertWorld(golden.worldSeed, layout, records);
+    expect(world.store.live).toHaveLength(golden.count);
+    for (const entity of world.store.live) {
+      expect(entity.steer).toEqual({
+        flightRoll: 0,
+        flightPitch: 0,
+        stickRoll: 0,
+        stickPitch: 0,
+        accuracy: -100,
+        frustration: 0,
+        successFactor: 0,
+        pitchingOver: false,
+        jink: vec(0, 0, 0),
+        proximityAlert: 0,
+        escortSlot: 0,
+        trackingCount: 0,
+        trackingTicks: [0, 0, 0, 0],
+        trackingPositions: [
+          vec(0, 0, 0),
+          vec(0, 0, 0),
+          vec(0, 0, 0),
+          vec(0, 0, 0),
+        ],
+        saved: null,
+        entryPending: false,
+      });
+    }
   });
 });
 

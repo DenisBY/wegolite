@@ -36,6 +36,7 @@
 import type { AiComponent, AiKey, ParamValue } from "../ai/types.js";
 import { AI_KEYS } from "../ai/types.js";
 import { createRngState } from "../rng.js";
+import { createSteerComponent } from "../npc/state.js";
 import type { Entity, EntityStreams } from "./entity.js";
 import {
   BEHAVIOUR_IDS,
@@ -783,6 +784,9 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
     energy: e.energy,
     maxEnergy: e.maxEnergy,
     energyRechargeRate: e.energyRechargeRate,
+    // Task 2 of plan 14-08 carries the record through the snapshot; until then
+    // every restored entity holds the default one (nothing steers yet).
+    steer: createSteerComponent(0),
   }));
   return {
     worldSeed: parsed.worldSeed,

@@ -76,3 +76,43 @@ export const MAX_ENTITY_ENERGY = 1e6;
  * change (a `WORLD_SNAPSHOT_VERSION` bump).
  */
 export const MAX_ENERGY_RECHARGE_RATE = 1e3;
+
+/**
+ * The largest magnitude of a steering rate or stick (`flightRoll`,
+ * `flightPitch`, `stickRoll`, `stickPitch`, rad/s). Far above every Oolite
+ * ship (the largest `max_flight_roll` and `max_flight_pitch` are below 5); it
+ * only keeps a corrupt value out of the hash. Changing it is a snapshot-format
+ * change (a `WORLD_SNAPSHOT_VERSION` bump).
+ */
+export const MAX_STEER_RATE = 1e3;
+
+/**
+ * The smallest resolved `accuracy` (`ShipEntity.m:1126-1143` clamps
+ * `setAccuracy:` into this range). The unresolved sentinel (-100,
+ * `ACCURACY_UNRESOLVED` in `../npc/state.ts`) is the only legal value below it.
+ * Changing it is a snapshot-format change.
+ */
+export const MIN_ACCURACY = -5;
+
+/** The largest resolved `accuracy`. Changing it is a snapshot-format change. */
+export const MAX_ACCURACY = 10;
+
+/**
+ * The largest `frustration`. Oolite resets it at 10 to 15 seconds
+ * (`ShipEntity.m:3874-3933`); this only keeps a corrupt value out of the hash.
+ * Changing it is a snapshot-format change.
+ */
+export const MAX_FRUSTRATION = 1e6;
+
+/**
+ * The largest `escortSlot`: Oolite's `MAX_ESCORTS` is 16, so slots run 0 to 15.
+ * Changing it is a snapshot-format change.
+ */
+export const MAX_ESCORT_SLOT = 15;
+
+/**
+ * The tracking curve keeps exactly this many samples when it exists
+ * (`startTrackingCurve` and `updateTrackingCurve`, `ShipEntity.m:5412-5489`);
+ * `trackingCount` is 0 or this value. Changing it is a snapshot-format change.
+ */
+export const TRACKING_SAMPLES = 4;
