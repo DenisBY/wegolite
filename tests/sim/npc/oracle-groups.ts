@@ -24,6 +24,7 @@ export interface OracleGroup {
 
 const FLIGHT_TEST = "tests/sim/npc/flight.oracle.test.ts";
 const NAVIGATION_TEST = "tests/sim/npc/navigation.oracle.test.ts";
+const RATE_RULE_TEST = "tests/sim/npc/rate-rule.oracle.test.ts";
 
 export const ORACLE_GROUPS: readonly OracleGroup[] = Object.freeze([
   Object.freeze({
@@ -45,6 +46,10 @@ export const ORACLE_GROUPS: readonly OracleGroup[] = Object.freeze([
   Object.freeze({
     fixtureFile: "tests/oracles/npc/fixtures/face-destination.json",
     testFile: NAVIGATION_TEST,
+  }),
+  Object.freeze({
+    fixtureFile: "tests/oracles/npc/fixtures/rate-rule.json",
+    testFile: RATE_RULE_TEST,
   }),
 ]);
 

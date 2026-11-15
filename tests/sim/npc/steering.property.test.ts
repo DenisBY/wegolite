@@ -21,6 +21,7 @@ import { describe, expect, it } from "vitest";
 
 import { identity, normalizeVec, quat, vec } from "../../../src/sim/math.js";
 import type { Quat } from "../../../src/sim/math.js";
+import { AI_EVENT_NAMES } from "../../../src/sim/ai/types.js";
 import { createRngState, rngNext } from "../../../src/sim/rng.js";
 import { MIN_HYPERSPEED_FACTOR } from "../../../src/sim/npc/constants.js";
 import { steerShip } from "../../../src/sim/npc/dispatch.js";
@@ -77,11 +78,39 @@ const OUT_OF_SCOPE: readonly BehaviourId[] = [
   "SCRIPTED_ATTACK_AI",
 ];
 
+/**
+ * The navigation behaviours of plan 14-10 (FORMATION_BREAK shares fly-from,
+ * ShipEntity.m:2604-2607).
+ */
+const NAVIGATION: readonly BehaviourId[] = [
+  "FLY_RANGE_FROM_DESTINATION",
+  "FLY_TO_DESTINATION",
+  "FLY_FROM_DESTINATION",
+  "FACE_DESTINATION",
+  "FORMATION_BREAK",
+];
+
 /** The behaviours the property sweeps. Later plans add their ids. */
 const SWEPT_BEHAVIOURS: readonly BehaviourId[] = [
   ...IDLE_FAMILY,
+  ...NAVIGATION,
   ...OUT_OF_SCOPE,
 ];
+
+/**
+ * The degenerate geometries the navigation behaviours must survive: a
+ * destination at the ship's position (the zero relative position guard), a
+ * destination closer than the smallest float square root can see, a desired
+ * range larger than the range, and a ship at rest.
+ */
+const GEOMETRIES = [
+  "free",
+  "atShip",
+  "nearShip",
+  "insideRange",
+  "stopped",
+] as const;
+type Geometry = (typeof GEOMETRIES)[number];
 
 /* ---------------------------------------------------------------------------
  * Generators of domain-valid records
@@ -187,6 +216,7 @@ const scenario = fc.record({
   scanClass,
   record,
   nav,
+  geometry: fc.constantFrom<Geometry>(...GEOMETRIES),
   seed: fc.integer({ min: 0, max: MAX_UINT32 }),
   ticks: fc.integer({ min: 1, max: 240 }),
 });
@@ -254,6 +284,34 @@ function buildEntity(s: Scenario): Entity {
   entity.nav.destination = s.nav.destination;
   entity.nav.desiredRange = s.nav.desiredRange;
   entity.nav.desiredSpeed = s.nav.desiredSpeed;
+  switch (s.geometry) {
+    case "free":
+      break;
+    case "atShip":
+      entity.nav.destination = entity.position;
+      break;
+    case "nearShip":
+      entity.nav.destination = vec(
+        entity.position.x + 1e-170,
+        entity.position.y,
+        entity.position.z,
+      );
+      break;
+    case "insideRange": {
+      const dx = entity.nav.destination.x - entity.position.x;
+      const dy = entity.nav.destination.y - entity.position.y;
+      const dz = entity.nav.destination.z - entity.position.z;
+      entity.nav.desiredRange = Math.min(
+        MAX_ENTITY_MAGNITUDE,
+        2 * Math.sqrt(dx * dx + dy * dy + dz * dz) + 1,
+      );
+      break;
+    }
+    case "stopped":
+      entity.speed = 0;
+      entity.nav.desiredSpeed = 0;
+      break;
+  }
   return entity;
 }
 
@@ -262,14 +320,15 @@ function contextFor(
   s: Scenario,
   tick: number,
   draw: () => number,
+  events: string[] = [],
 ): SteerContext {
   return {
     view: createSyntheticView([], entity, tick),
     stats: s.stats,
     dt: DT,
     draw,
-    emit: () => {
-      // the idle family posts no event
+    emit: (event) => {
+      events.push(event.name);
     },
   };
 }
@@ -318,9 +377,14 @@ describe("steering is total over domain-valid records (T-14-14)", () => {
         const entity = buildEntity(s);
         const stream = createRngState(s.seed);
         const draw = (): number => rngNext(stream);
+        const events: string[] = [];
         for (let tick = 1; tick <= s.ticks; tick += 1) {
-          steerShip(entity, contextFor(entity, s, tick, draw));
+          steerShip(entity, contextFor(entity, s, tick, draw, events));
           assertTotal(entity, s.stats);
+          // every event posted is in the closed vocabulary the queue accepts
+          for (const name of events) {
+            expect(AI_EVENT_NAMES as readonly string[]).toContain(name);
+          }
           expect(sanitizeEntity(entity)).toBe(false);
           expect(entity.repairs).toBe(0);
         }
@@ -407,6 +471,7 @@ function stockScenario(overrides: Partial<Scenario> = {}): Scenario {
       desiredRange: 0,
       desiredSpeed: 100,
     },
+    geometry: "free",
     seed: 1,
     ticks: 1,
   };
@@ -449,6 +514,82 @@ describe("every id outside the scope runs behaviour_idle and the thrust ramp", (
     // The list in the plan's must_haves, so a typo cannot silently drop an id.
     for (const id of OUT_OF_SCOPE) expect(BEHAVIOUR_IDS).toContain(id);
     expect(new Set(OUT_OF_SCOPE).size).toBe(OUT_OF_SCOPE.length);
+  });
+});
+
+describe("the navigation behaviours (plan 14-10)", () => {
+  it("covers every navigation id this plan lists, each a known behaviour id", () => {
+    for (const id of NAVIGATION) expect(BEHAVIOUR_IDS).toContain(id);
+    expect(new Set(NAVIGATION).size).toBe(NAVIGATION.length);
+    for (const id of NAVIGATION) expect(SWEPT_BEHAVIOURS).toContain(id);
+  });
+
+  it("the zero relative position steers toward world (0, 0, -1) (ShipEntity.m:9496)", () => {
+    // With the destination at the ship's position the sticks must equal those
+    // for a destination straight along world -Z inside a range that keeps
+    // max_cos at MAX_COS in both cases.
+    fc.assert(
+      fc.property(orientation, (q) => {
+        const sticks = (destination: (origin: Entity) => void): number[] => {
+          const s = stockScenario({
+            orientation: q,
+            nav: {
+              ...stockScenario().nav,
+              behaviour: "FACE_DESTINATION",
+              desiredRange: 1e6,
+              desiredSpeed: 0,
+            },
+          });
+          const entity = buildEntity(s);
+          destination(entity);
+          steerShip(
+            entity,
+            contextFor(entity, s, 1, () => {
+              throw new Error("no draw");
+            }),
+          );
+          return [entity.steer.stickRoll, entity.steer.stickPitch];
+        };
+        const atShip = sticks((e) => {
+          e.nav.destination = e.position;
+        });
+        const alongMinusZ = sticks((e) => {
+          e.nav.destination = vec(
+            e.position.x,
+            e.position.y,
+            e.position.z - 1000,
+          );
+        });
+        expect(atShip).toEqual(alongMinusZ);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  it("a frustration report floors the counter at 0, the domain the sanitiser keeps (a Wegolite addition)", () => {
+    // thrust 15 at 160 m/s: slowdownTime 10.67 s, so 5 x slowdownTime exceeds
+    // the 15 s that fired the report and Oolite's counter would go negative.
+    const s = stockScenario({
+      nav: {
+        ...stockScenario().nav,
+        behaviour: "FLY_TO_DESTINATION",
+        destination: vec(0, 0, -1e6),
+        desiredRange: 0,
+        desiredSpeed: 0,
+      },
+    });
+    const entity = buildEntity(s);
+    entity.speed = 160;
+    entity.steer.successFactor = 1; // never an improvement
+    entity.steer.frustration = Math.fround(15);
+    const events: string[] = [];
+    steerShip(
+      entity,
+      contextFor(entity, s, 1, () => 0.5, events),
+    );
+    expect(events).toEqual(["shipAIFrustrated"]);
+    expect(entity.steer.frustration).toBe(0);
+    expect(sanitizeEntity(entity)).toBe(false);
   });
 });
 

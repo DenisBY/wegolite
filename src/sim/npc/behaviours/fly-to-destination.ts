@@ -142,9 +142,19 @@ export function behaviourFlyToDestination(
       ) {
         // 10x slowdownTime or 15 s of frustration
         noteFrustration(ctx);
-        // repeat after another five units of frustration
-        steer.frustration = Math.fround(
-          steer.frustration - slowdownTime * FLY_TO_SLOWDOWN_RESET_FACTOR,
+        // repeat after another five units of frustration. Wegolite addition
+        // (T-14-16), not an Oolite line: the 15 s branch can fire while 5 x
+        // slowdownTime is larger than 15 (a fast ship with little thrust), and
+        // Oolite's counter then goes negative, even to -infinity for a
+        // vanishing thrust. The steering record keeps frustration in
+        // [0, MAX_FRUSTRATION] (the sanitiser repairs anything else), so the
+        // counter is floored at 0: the next report comes after 15 s instead of
+        // after the longer relief Oolite's negative value would give.
+        steer.frustration = Math.max(
+          0,
+          Math.fround(
+            steer.frustration - slowdownTime * FLY_TO_SLOWDOWN_RESET_FACTOR,
+          ),
         );
       }
     }
