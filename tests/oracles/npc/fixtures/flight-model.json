@@ -1,0 +1,1636 @@
+[
+  {
+    "id": "sticks-roll-pitch-ramp",
+    "title": "applySticks ramps flightRoll at 2 dt and flightPitch at 4 dt toward the sticks and snaps onto them",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:3724-3727",
+      "src/Core/Entities/ShipEntity.m:5826-5827"
+    ],
+    "derivation": "A Viper-like ship (max roll 2.8, max pitch 1.8) in TUMBLE with stick_roll 2.8 and stick_pitch -1.8 from rest, accuracy 2 (below COMBAT_AI_TRACKS_CLOSER 7.5, so no extra doubling). behaviour_tumble only calls applySticks, whose per-tick limits are rate1 = 2 dt = 1/60 for roll and rate2 = 4 dt = 1/30 for pitch (ShipEntity.m:7021-7022), so flightRoll(k) = min(2.8, k/60) and flightPitch(k) = -min(1.8, k/30); the last step lands on the stick exactly because |stick - flight| is then at most one rate step (7042-7056). Ticks 168 and 54/55 sit at the ramp end, where the float32 and float64 ramps can differ by one rounding; the tolerance is the measured float32-versus-float64 difference. Closed forms, not simulation, give every expected value; the reference replays them. TUMBLE skips the speed ramp and the move, so the ship stays at the origin.",
+    "dt": 0.008333333333333333,
+    "horizon": 336,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 2.8,
+      "stickPitch": -1.8,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "TUMBLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.016666666666666666,
+        "tolerance": 4.5e-9,
+        "note": "roll ramp: min(2.8, 2 dt k) = min(2.8, k/60) at tick 1"
+      },
+      {
+        "tick": 2,
+        "field": "flightRoll",
+        "expected": 0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "roll ramp: min(2.8, 2 dt k) = min(2.8, k/60) at tick 2"
+      },
+      {
+        "tick": 4,
+        "field": "flightRoll",
+        "expected": 0.06666666666666667,
+        "tolerance": 1.5e-8,
+        "note": "roll ramp: min(2.8, 2 dt k) = min(2.8, k/60) at tick 4"
+      },
+      {
+        "tick": 8,
+        "field": "flightRoll",
+        "expected": 0.13333333333333333,
+        "tolerance": 2.9e-8,
+        "note": "roll ramp: min(2.8, 2 dt k) = min(2.8, k/60) at tick 8"
+      },
+      {
+        "tick": 21,
+        "field": "flightRoll",
+        "expected": 0.35,
+        "tolerance": 3.4e-7,
+        "note": "roll ramp: min(2.8, 2 dt k) = min(2.8, k/60) at tick 21"
+      },
+      {
+        "tick": 42,
+        "field": "flightRoll",
+        "expected": 0.7,
+        "tolerance": 4.9e-8,
+        "note": "roll ramp: min(2.8, 2 dt k) = min(2.8, k/60) at tick 42"
+      },
+      {
+        "tick": 84,
+        "field": "flightRoll",
+        "expected": 1.4,
+        "tolerance": 0.0000025,
+        "note": "roll ramp: min(2.8, 2 dt k) = min(2.8, k/60) at tick 84"
+      },
+      {
+        "tick": 168,
+        "field": "flightRoll",
+        "expected": 2.8,
+        "tolerance": 0.0000079,
+        "note": "roll ramp: min(2.8, 2 dt k) = min(2.8, k/60) at tick 168"
+      },
+      {
+        "tick": 336,
+        "field": "flightRoll",
+        "expected": 2.8,
+        "tolerance": 2e-7,
+        "note": "roll ramp: min(2.8, 2 dt k) = min(2.8, k/60) at tick 336"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": -0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "pitch ramp: -min(1.8, 4 dt k) = -min(1.8, k/30) at tick 1"
+      },
+      {
+        "tick": 2,
+        "field": "flightPitch",
+        "expected": -0.06666666666666667,
+        "tolerance": 1.5e-8,
+        "note": "pitch ramp: -min(1.8, 4 dt k) = -min(1.8, k/30) at tick 2"
+      },
+      {
+        "tick": 4,
+        "field": "flightPitch",
+        "expected": -0.13333333333333333,
+        "tolerance": 2.9e-8,
+        "note": "pitch ramp: -min(1.8, 4 dt k) = -min(1.8, k/30) at tick 4"
+      },
+      {
+        "tick": 8,
+        "field": "flightPitch",
+        "expected": -0.26666666666666666,
+        "tolerance": 5.7e-8,
+        "note": "pitch ramp: -min(1.8, 4 dt k) = -min(1.8, k/30) at tick 8"
+      },
+      {
+        "tick": 16,
+        "field": "flightPitch",
+        "expected": -0.5333333333333333,
+        "tolerance": 1.2e-7,
+        "note": "pitch ramp: -min(1.8, 4 dt k) = -min(1.8, k/30) at tick 16"
+      },
+      {
+        "tick": 32,
+        "field": "flightPitch",
+        "expected": -1.0666666666666667,
+        "tolerance": 0.0000012,
+        "note": "pitch ramp: -min(1.8, 4 dt k) = -min(1.8, k/30) at tick 32"
+      },
+      {
+        "tick": 54,
+        "field": "flightPitch",
+        "expected": -1.8,
+        "tolerance": 0.0000017,
+        "note": "pitch ramp: -min(1.8, 4 dt k) = -min(1.8, k/30) at tick 54"
+      },
+      {
+        "tick": 55,
+        "field": "flightPitch",
+        "expected": -1.8,
+        "tolerance": 2e-7,
+        "note": "pitch ramp: -min(1.8, 4 dt k) = -min(1.8, k/30) at tick 55"
+      },
+      {
+        "tick": 108,
+        "field": "flightPitch",
+        "expected": -1.8,
+        "tolerance": 2e-7,
+        "note": "pitch ramp: -min(1.8, 4 dt k) = -min(1.8, k/30) at tick 108"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 2.8,
+        "tolerance": 2e-7,
+        "note": "TUMBLE leaves the sticks untouched (ShipEntity.m:3724-3727)"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": -1.8,
+        "tolerance": 2e-7,
+        "note": "TUMBLE leaves the sticks untouched"
+      },
+      {
+        "tick": 336,
+        "field": "positionZ",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "TUMBLE returns before the move (ShipEntity.m:5826-5827)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "sticks-roll-reversal-quadruple-rate",
+    "title": "applySticks moves flightRoll four times faster while the stick opposes the current rate",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:7025-7026",
+      "src/Core/Entities/ShipEntity.m:7041-7048"
+    ],
+    "derivation": "TUMBLE with stick_roll -2.8 while flightRoll starts at +1.9 (accuracy 2). While the stick is negative and flightRoll positive the rate is quadrupled: rate1 = 4 * 2 dt = 1/15 per tick (ShipEntity.m:7025-7026), so flightRoll(k) = 1.9 - k/15 for k <= 29 (the 29th step is taken from +1/30 and still quadrupled, ending at -1/30). From tick 30 both are negative, so the plain 2 dt = 1/60 rate applies: flightRoll(k) = -1/30 - (k-29)/60 until the snap onto -2.8 at tick 195. The start value 1.9 puts the zero crossing mid-step (28.5 steps), away from any threshold, so the float32 and float64 runs take the same branch every tick.",
+    "dt": 0.008333333333333333,
+    "horizon": 200,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 1.9,
+      "flightPitch": 0,
+      "stickRoll": -2.8,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "TUMBLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 1.8333333333333333,
+        "tolerance": 3.2e-7,
+        "note": "reversal: 1.9 - k/15 while flightRoll is positive (x4 rate, 8 dt = 1/15), then -1/30 - (k-29)/60 at the normal 1/60 rate, floored at the stick -2.8; tick 1"
+      },
+      {
+        "tick": 14,
+        "field": "flightRoll",
+        "expected": 0.9666666666666666,
+        "tolerance": 0.000003,
+        "note": "reversal: 1.9 - k/15 while flightRoll is positive (x4 rate, 8 dt = 1/15), then -1/30 - (k-29)/60 at the normal 1/60 rate, floored at the stick -2.8; tick 14"
+      },
+      {
+        "tick": 28,
+        "field": "flightRoll",
+        "expected": 0.033333333333333215,
+        "tolerance": 0.0000028,
+        "note": "reversal: 1.9 - k/15 while flightRoll is positive (x4 rate, 8 dt = 1/15), then -1/30 - (k-29)/60 at the normal 1/60 rate, floored at the stick -2.8; tick 28"
+      },
+      {
+        "tick": 29,
+        "field": "flightRoll",
+        "expected": -0.03333333333333344,
+        "tolerance": 0.0000028,
+        "note": "reversal: 1.9 - k/15 while flightRoll is positive (x4 rate, 8 dt = 1/15), then -1/30 - (k-29)/60 at the normal 1/60 rate, floored at the stick -2.8; tick 29"
+      },
+      {
+        "tick": 30,
+        "field": "flightRoll",
+        "expected": -0.05,
+        "tolerance": 0.0000028,
+        "note": "reversal: 1.9 - k/15 while flightRoll is positive (x4 rate, 8 dt = 1/15), then -1/30 - (k-29)/60 at the normal 1/60 rate, floored at the stick -2.8; tick 30"
+      },
+      {
+        "tick": 31,
+        "field": "flightRoll",
+        "expected": -0.06666666666666667,
+        "tolerance": 0.0000028,
+        "note": "reversal: 1.9 - k/15 while flightRoll is positive (x4 rate, 8 dt = 1/15), then -1/30 - (k-29)/60 at the normal 1/60 rate, floored at the stick -2.8; tick 31"
+      },
+      {
+        "tick": 60,
+        "field": "flightRoll",
+        "expected": -0.55,
+        "tolerance": 0.0000034,
+        "note": "reversal: 1.9 - k/15 while flightRoll is positive (x4 rate, 8 dt = 1/15), then -1/30 - (k-29)/60 at the normal 1/60 rate, floored at the stick -2.8; tick 60"
+      },
+      {
+        "tick": 120,
+        "field": "flightRoll",
+        "expected": -1.55,
+        "tolerance": 2e-7,
+        "note": "reversal: 1.9 - k/15 while flightRoll is positive (x4 rate, 8 dt = 1/15), then -1/30 - (k-29)/60 at the normal 1/60 rate, floored at the stick -2.8; tick 120"
+      },
+      {
+        "tick": 200,
+        "field": "flightRoll",
+        "expected": -2.8,
+        "tolerance": 2e-7,
+        "note": "reversal: 1.9 - k/15 while flightRoll is positive (x4 rate, 8 dt = 1/15), then -1/30 - (k-29)/60 at the normal 1/60 rate, floored at the stick -2.8; tick 200"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "sticks-accuracy-8-stick-zero",
+    "title": "applySticks at accuracy 8 with the stick at 0: the settle rate is doubled",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:7032-7039",
+      "src/Core/Entities/ShipEntity.m:7041-7056",
+      "src/Core/Entities/ShipEntity.m:3724-3727"
+    ],
+    "derivation": "TUMBLE with both sticks 0 and a starting flightRoll and flightPitch of 0.97, accuracy 8. accuracy >= COMBAT_AI_TRACKS_CLOSER (7.5): with a stick at exactly 0 the rate doubles, rate1 = 2 * 2 dt = 1/30 and rate2 = 2 * 4 dt = 1/15 (ShipEntity.m:7032-7039), so a tick-1 step is 1/30 for roll and 1/15 for pitch. The expected values are max(0, 0.97 - k * rate): the last step snaps onto the stick when the remainder is at most one rate step (7042-7056). The twin fixture sticks-accuracy-2-stick-zero is identical except for accuracy, so the pair isolates the factor 2. The start 0.97 is 29.1 or 58.2 roll steps and 14.55 or 29.1 pitch steps from zero (accuracy 8 or 2), so no snap lands on a threshold.",
+    "dt": 0.008333333333333333,
+    "horizon": 60,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0.97,
+      "flightPitch": 0.97,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 8,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "TUMBLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.9366666666666666,
+        "tolerance": 4.2e-9,
+        "note": "roll settle with stick 0 at accuracy 8: max(0, 0.97 - k/30); tick 1"
+      },
+      {
+        "tick": 10,
+        "field": "flightRoll",
+        "expected": 0.6366666666666667,
+        "tolerance": 0.000001,
+        "note": "roll settle with stick 0 at accuracy 8: max(0, 0.97 - k/30); tick 10"
+      },
+      {
+        "tick": 29,
+        "field": "flightRoll",
+        "expected": 0.0033333333333332993,
+        "tolerance": 0.0000014,
+        "note": "roll settle with stick 0 at accuracy 8: max(0, 0.97 - k/30); tick 29"
+      },
+      {
+        "tick": 30,
+        "field": "flightRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "roll settle with stick 0 at accuracy 8: max(0, 0.97 - k/30); tick 30"
+      },
+      {
+        "tick": 58,
+        "field": "flightRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "roll settle with stick 0 at accuracy 8: max(0, 0.97 - k/30); tick 58"
+      },
+      {
+        "tick": 59,
+        "field": "flightRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "roll settle with stick 0 at accuracy 8: max(0, 0.97 - k/30); tick 59"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.9033333333333333,
+        "tolerance": 1.4e-7,
+        "note": "pitch settle with stick 0 at accuracy 8: max(0, 0.97 - k/15); tick 1"
+      },
+      {
+        "tick": 14,
+        "field": "flightPitch",
+        "expected": 0.036666666666666625,
+        "tolerance": 3e-7,
+        "note": "pitch settle with stick 0 at accuracy 8: max(0, 0.97 - k/15); tick 14"
+      },
+      {
+        "tick": 15,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "pitch settle with stick 0 at accuracy 8: max(0, 0.97 - k/15); tick 15"
+      },
+      {
+        "tick": 29,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "pitch settle with stick 0 at accuracy 8: max(0, 0.97 - k/15); tick 29"
+      },
+      {
+        "tick": 30,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "pitch settle with stick 0 at accuracy 8: max(0, 0.97 - k/15); tick 30"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "sticks-accuracy-2-stick-zero",
+    "title": "applySticks at accuracy 2 with the stick at 0: no extra doubling",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:7032-7039",
+      "src/Core/Entities/ShipEntity.m:7041-7056",
+      "src/Core/Entities/ShipEntity.m:3724-3727"
+    ],
+    "derivation": "TUMBLE with both sticks 0 and a starting flightRoll and flightPitch of 0.97, accuracy 2. accuracy < 7.5 so the doubling at ShipEntity.m:7032-7039 does not apply: rate1 = 1/60 and rate2 = 1/30, half the accuracy-8 step. The expected values are max(0, 0.97 - k * rate): the last step snaps onto the stick when the remainder is at most one rate step (7042-7056). The twin fixture sticks-accuracy-8-stick-zero is identical except for accuracy, so the pair isolates the factor 2. The start 0.97 is 29.1 or 58.2 roll steps and 14.55 or 29.1 pitch steps from zero (accuracy 8 or 2), so no snap lands on a threshold.",
+    "dt": 0.008333333333333333,
+    "horizon": 60,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0.97,
+      "flightPitch": 0.97,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "TUMBLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.9533333333333333,
+        "tolerance": 1.8e-7,
+        "note": "roll settle with stick 0 at accuracy 2: max(0, 0.97 - k/60); tick 1"
+      },
+      {
+        "tick": 10,
+        "field": "flightRoll",
+        "expected": 0.8033333333333333,
+        "tolerance": 7.6e-7,
+        "note": "roll settle with stick 0 at accuracy 2: max(0, 0.97 - k/60); tick 10"
+      },
+      {
+        "tick": 29,
+        "field": "flightRoll",
+        "expected": 0.48666666666666664,
+        "tolerance": 0.0000019,
+        "note": "roll settle with stick 0 at accuracy 2: max(0, 0.97 - k/60); tick 29"
+      },
+      {
+        "tick": 30,
+        "field": "flightRoll",
+        "expected": 0.47,
+        "tolerance": 0.0000018,
+        "note": "roll settle with stick 0 at accuracy 2: max(0, 0.97 - k/60); tick 30"
+      },
+      {
+        "tick": 58,
+        "field": "flightRoll",
+        "expected": 0.0033333333333332993,
+        "tolerance": 0.0000012,
+        "note": "roll settle with stick 0 at accuracy 2: max(0, 0.97 - k/60); tick 58"
+      },
+      {
+        "tick": 59,
+        "field": "flightRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "roll settle with stick 0 at accuracy 2: max(0, 0.97 - k/60); tick 59"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.9366666666666666,
+        "tolerance": 4.2e-9,
+        "note": "pitch settle with stick 0 at accuracy 2: max(0, 0.97 - k/30); tick 1"
+      },
+      {
+        "tick": 14,
+        "field": "flightPitch",
+        "expected": 0.5033333333333333,
+        "tolerance": 0.0000015,
+        "note": "pitch settle with stick 0 at accuracy 2: max(0, 0.97 - k/30); tick 14"
+      },
+      {
+        "tick": 15,
+        "field": "flightPitch",
+        "expected": 0.47,
+        "tolerance": 0.0000015,
+        "note": "pitch settle with stick 0 at accuracy 2: max(0, 0.97 - k/30); tick 15"
+      },
+      {
+        "tick": 29,
+        "field": "flightPitch",
+        "expected": 0.0033333333333332993,
+        "tolerance": 0.0000014,
+        "note": "pitch settle with stick 0 at accuracy 2: max(0, 0.97 - k/30); tick 29"
+      },
+      {
+        "tick": 30,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "pitch settle with stick 0 at accuracy 2: max(0, 0.97 - k/30); tick 30"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attitude-step-roll-only",
+    "title": "a positive flightRoll tilts the ship's up vector toward its own -right (Oolite quaternion maths)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:5881-5902",
+      "src/Core/OOQuaternion.m:327-343",
+      "src/Core/OOQuaternion.m:89-120",
+      "src/Core/Entities/Entity.m:697-701"
+    ],
+    "derivation": "TUMBLE with stick_roll = flightRoll = 1.0 rad/s, so every update keeps the rate and applyAttitudeChanges turns the ship by flightRoll * dt = 1/120 rad. applyRoll:climb:andYaw: builds q1 = rotate_about_z(identity, -roll) and sets orientation = q1 * orientation (ShipEntity.m:5886-5895); quaternion_rotate_about_z(identity, a) is (cos a/2, 0, 0, sin a/2) (OOQuaternion.m:327-343). Repeated k times the total rotation is a = -k/120 about z, so the quaternion is (cos(k/240), 0, 0, -sin(k/240)); vector_up_from_quaternion (OOQuaternion.m:89-120) gives up = (2wz, 1 - 2z^2, 0) = (-sin(k/120), cos(k/120), 0), and forward stays (0, 0, 1). So a positive flightRoll leans up toward -right (negative x): it rolls the ship's top to its left, the sense trackDestination uses when it chooses a NEGATIVE stick_roll for a target on the right (ShipEntity.m:9529-9531). Closed form, tolerance from the float32 versus float64 measurement.",
+    "dt": 0.008333333333333333,
+    "horizon": 240,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 1,
+      "flightPitch": 0,
+      "stickRoll": 1,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "TUMBLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "upX",
+        "expected": -0.008333236883050947,
+        "tolerance": 1.2e-9,
+        "note": "positive flightRoll tilts up toward -right: up.x = -sin(k/120), tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "upY",
+        "expected": 0.9999652779787161,
+        "tolerance": 1.2e-7,
+        "note": "up.y = cos(k/120), tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "upZ",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "a pure roll about forward keeps up.z 0, tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "forwardX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "forward is the roll axis and does not move, tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "forwardY",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "forward is the roll axis and does not move, tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "forwardZ",
+        "expected": 1,
+        "tolerance": 1e-9,
+        "note": "forward is the roll axis and does not move, tick 1"
+      },
+      {
+        "tick": 120,
+        "field": "upX",
+        "expected": -0.8414709848078965,
+        "tolerance": 0.0000014,
+        "note": "positive flightRoll tilts up toward -right: up.x = -sin(k/120), tick 120"
+      },
+      {
+        "tick": 120,
+        "field": "upY",
+        "expected": 0.5403023058681398,
+        "tolerance": 0.0000018,
+        "note": "up.y = cos(k/120), tick 120"
+      },
+      {
+        "tick": 120,
+        "field": "upZ",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "a pure roll about forward keeps up.z 0, tick 120"
+      },
+      {
+        "tick": 120,
+        "field": "forwardX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "forward is the roll axis and does not move, tick 120"
+      },
+      {
+        "tick": 120,
+        "field": "forwardY",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "forward is the roll axis and does not move, tick 120"
+      },
+      {
+        "tick": 120,
+        "field": "forwardZ",
+        "expected": 1,
+        "tolerance": 1e-9,
+        "note": "forward is the roll axis and does not move, tick 120"
+      },
+      {
+        "tick": 240,
+        "field": "upX",
+        "expected": -0.9092974268256817,
+        "tolerance": 8.8e-7,
+        "note": "positive flightRoll tilts up toward -right: up.x = -sin(k/120), tick 240"
+      },
+      {
+        "tick": 240,
+        "field": "upY",
+        "expected": -0.4161468365471424,
+        "tolerance": 0.0000023,
+        "note": "up.y = cos(k/120), tick 240"
+      },
+      {
+        "tick": 240,
+        "field": "upZ",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "a pure roll about forward keeps up.z 0, tick 240"
+      },
+      {
+        "tick": 240,
+        "field": "forwardX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "forward is the roll axis and does not move, tick 240"
+      },
+      {
+        "tick": 240,
+        "field": "forwardY",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "forward is the roll axis and does not move, tick 240"
+      },
+      {
+        "tick": 240,
+        "field": "forwardZ",
+        "expected": 1,
+        "tolerance": 1e-9,
+        "note": "forward is the roll axis and does not move, tick 240"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attitude-step-pitch-only",
+    "title": "a positive flightPitch tips the ship's nose toward its own -up (Oolite quaternion maths)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:5881-5902",
+      "src/Core/OOQuaternion.m:291-307",
+      "src/Core/OOQuaternion.m:50-81",
+      "src/Core/OOQuaternion.m:89-120"
+    ],
+    "derivation": "TUMBLE with stick_pitch = flightPitch = 0.5 rad/s: every update turns the ship by flightPitch * dt = 0.5/120 rad. applyRoll:climb:andYaw: uses rotate_about_x(q1, -climb) (ShipEntity.m:5890-5891); quaternion_rotate_about_x(identity, -t) is (cos t/2, -sin t/2, 0, 0) (OOQuaternion.m:291-307). After k updates t = 0.5 k/120, and vector_forward_from_quaternion (OOQuaternion.m:50-81) gives forward = (0, 2wx, 1 - 2x^2) = (0, -sin t, cos t); vector_up_from_quaternion gives up = (0, cos t, sin t). So a positive flightPitch tips the nose toward -up (down in Oolite's frame where up is +y), which is why trackDestination chooses a NEGATIVE stick_pitch for a target above (ShipEntity.m:9554). Closed form, tolerance from the float32 versus float64 measurement.",
+    "dt": 0.008333333333333333,
+    "horizon": 240,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0.5,
+      "stickRoll": 0,
+      "stickPitch": 0.5,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "TUMBLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "forwardX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "a pure pitch about right keeps forward.x 0, tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "forwardY",
+        "expected": -0.004166654610349972,
+        "tolerance": 3.6e-9,
+        "note": "positive flightPitch tips forward toward -up: forward.y = -sin(0.5 k/120), tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "forwardZ",
+        "expected": 0.9999913194570031,
+        "tolerance": 8.8e-8,
+        "note": "forward.z = cos(0.5 k/120), tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "upX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "up stays in the pitch plane, tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "upY",
+        "expected": 0.9999913194570031,
+        "tolerance": 8.8e-8,
+        "note": "up.y = cos(0.5 k/120), tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "upZ",
+        "expected": 0.004166654610349972,
+        "tolerance": 3.6e-9,
+        "note": "up.z = sin(0.5 k/120), tick 1"
+      },
+      {
+        "tick": 120,
+        "field": "forwardX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "a pure pitch about right keeps forward.x 0, tick 120"
+      },
+      {
+        "tick": 120,
+        "field": "forwardY",
+        "expected": -0.479425538604203,
+        "tolerance": 6.8e-7,
+        "note": "positive flightPitch tips forward toward -up: forward.y = -sin(0.5 k/120), tick 120"
+      },
+      {
+        "tick": 120,
+        "field": "forwardZ",
+        "expected": 0.8775825618903728,
+        "tolerance": 4.4e-7,
+        "note": "forward.z = cos(0.5 k/120), tick 120"
+      },
+      {
+        "tick": 120,
+        "field": "upX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "up stays in the pitch plane, tick 120"
+      },
+      {
+        "tick": 120,
+        "field": "upY",
+        "expected": 0.8775825618903728,
+        "tolerance": 4.4e-7,
+        "note": "up.y = cos(0.5 k/120), tick 120"
+      },
+      {
+        "tick": 120,
+        "field": "upZ",
+        "expected": 0.479425538604203,
+        "tolerance": 6.8e-7,
+        "note": "up.z = sin(0.5 k/120), tick 120"
+      },
+      {
+        "tick": 240,
+        "field": "forwardX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "a pure pitch about right keeps forward.x 0, tick 240"
+      },
+      {
+        "tick": 240,
+        "field": "forwardY",
+        "expected": -0.8414709848078965,
+        "tolerance": 0.0000011,
+        "note": "positive flightPitch tips forward toward -up: forward.y = -sin(0.5 k/120), tick 240"
+      },
+      {
+        "tick": 240,
+        "field": "forwardZ",
+        "expected": 0.5403023058681398,
+        "tolerance": 0.0000016,
+        "note": "forward.z = cos(0.5 k/120), tick 240"
+      },
+      {
+        "tick": 240,
+        "field": "upX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "up stays in the pitch plane, tick 240"
+      },
+      {
+        "tick": 240,
+        "field": "upY",
+        "expected": 0.5403023058681398,
+        "tolerance": 0.0000016,
+        "note": "up.y = cos(0.5 k/120), tick 240"
+      },
+      {
+        "tick": 240,
+        "field": "upZ",
+        "expected": 0.8414709848078965,
+        "tolerance": 0.0000011,
+        "note": "up.z = sin(0.5 k/120), tick 240"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attitude-step-roll-and-pitch",
+    "title": "one update composes the roll and the climb as q1 = Rz(-roll) * Rx(-climb), then orientation = q1 * orientation",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:5886-5897",
+      "src/Core/OOQuaternion.m:30-38",
+      "src/Core/OOQuaternion.m:291-343",
+      "src/Core/OOQuaternion.m:50-120"
+    ],
+    "derivation": "TUMBLE with stick_roll = flightRoll = 1.0 and stick_pitch = flightPitch = 0.5, so each update applies phi = 1/120 and theta = 0.5/120. ShipEntity.m:5886-5895 starts q1 at the identity, rotates about z by -phi, then about x by -theta, and multiplies q1 on the left of the orientation. rotate_about_axis(q, a) is q * R(a) (OOQuaternion.m:331-342), so q1 = Rz(-phi) * Rx(-theta) = (cr cp, -cr sp, sr sp, -sr cp) with cr = cos(phi/2), sr = sin(phi/2), cp = cos(theta/2), sp = sin(theta/2). Tick 1 is q1 itself, tick 2 is q1 * q1 (the two rotations do not commute, so tick 2 is not a doubling of the angles). Forward and up come from the OOQuaternion.m:50-120 formulas written out on the double-precision product. Closed form; tolerance from the float32 versus float64 measurement.",
+    "dt": 0.008333333333333333,
+    "horizon": 2,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 1,
+      "flightPitch": 0.5,
+      "stickRoll": 1,
+      "stickPitch": 0.5,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "TUMBLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "forwardX",
+        "expected": 0,
+        "tolerance": 1.1e-9,
+        "note": "roll then climb composed as q1 = Rz(-roll) * Rx(-climb), orientation = q1 * orientation; forward.x at tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "upX",
+        "expected": -0.008333236883050947,
+        "tolerance": 8.6e-9,
+        "note": "up.x at tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "forwardY",
+        "expected": -0.004166654610349972,
+        "tolerance": 1.7e-9,
+        "note": "roll then climb composed as q1 = Rz(-roll) * Rx(-climb), orientation = q1 * orientation; forward.y at tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "upY",
+        "expected": 0.9999565977371252,
+        "tolerance": 2.8e-7,
+        "note": "up.y at tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "forwardZ",
+        "expected": 0.9999913194570031,
+        "tolerance": 8.8e-8,
+        "note": "roll then climb composed as q1 = Rz(-roll) * Rx(-climb), orientation = q1 * orientation; forward.z at tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "upZ",
+        "expected": 0.004166509935679908,
+        "tolerance": 4.9e-9,
+        "note": "up.z at tick 1"
+      },
+      {
+        "tick": 2,
+        "field": "forwardX",
+        "expected": 0.00003472171987790266,
+        "tolerance": 1.1e-9,
+        "note": "roll then climb composed as q1 = Rz(-roll) * Rx(-climb), orientation = q1 * orientation; forward.x at tick 2"
+      },
+      {
+        "tick": 2,
+        "field": "upX",
+        "expected": -0.016665822737935678,
+        "tolerance": 1.3e-8,
+        "note": "up.x at tick 2"
+      },
+      {
+        "tick": 2,
+        "field": "forwardY",
+        "expected": -0.008333092209636737,
+        "tolerance": 6.2e-9,
+        "note": "roll then climb composed as q1 = Rz(-roll) * Rx(-climb), orientation = q1 * orientation; forward.y at tick 2"
+      },
+      {
+        "tick": 2,
+        "field": "upY",
+        "expected": 0.9998263947160267,
+        "tolerance": 9.4e-8,
+        "note": "up.y at tick 2"
+      },
+      {
+        "tick": 2,
+        "field": "forwardZ",
+        "expected": 0.9999652785815255,
+        "tolerance": 1.2e-7,
+        "note": "roll then climb composed as q1 = Rz(-roll) * Rx(-climb), orientation = q1 * orientation; forward.z at tick 2"
+      },
+      {
+        "tick": 2,
+        "field": "upZ",
+        "expected": 0.008332513523514945,
+        "tolerance": 3.8e-9,
+        "note": "up.z at tick 2"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "thrust-ramp-to-max-speed",
+    "title": "applyThrust ramps flightSpeed at 5 * thrust per second to desiredSpeed and holds it",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:5808-5854",
+      "src/Core/Entities/ShipEntity.m:7405-7415",
+      "src/Core/Entities/ShipEntity.m:3708-3722",
+      "src/Core/Entities/Entity.m:796-800"
+    ],
+    "derivation": "An IDLE ship at rest with desired_speed 320 (the Viper-like max_flight_speed) and thrust 32. dt_thrust = SHIP_THRUST_FACTOR * thrust * dt = 5 * 32 / 120 = 4/3 per tick (ShipEntity.m:5810), increase_flight_speed adds it (7411-7414) and applyThrust clamps to desired_speed (5838-5842), so flightSpeed(k) = min(320, 4k/3): the ramp takes 240 ticks (2 s = maxFlightSpeed / (5 thrust)). moveForward(dt * flightSpeed) runs after the ramp update (5843), along the identity nose +z, so positionZ(k) = sum over j <= k of speed_j / 120 = k(k+1)/180 for k <= 240, then 320/120 per further tick. Tick 240 is the end of the ramp, where float32 and float64 may differ by one rounding step; the tolerance is the measured difference.",
+    "dt": 0.008333333333333333,
+    "horizon": 480,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 320,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 15,
+        "field": "flightSpeed",
+        "expected": 20,
+        "tolerance": 1.1e-9,
+        "note": "speed ramp min(320, 5 thrust dt k) = min(320, 4k/3), tick 15"
+      },
+      {
+        "tick": 30,
+        "field": "flightSpeed",
+        "expected": 40,
+        "tolerance": 0.000016,
+        "note": "speed ramp min(320, 5 thrust dt k) = min(320, 4k/3), tick 30"
+      },
+      {
+        "tick": 60,
+        "field": "flightSpeed",
+        "expected": 80,
+        "tolerance": 1.1e-9,
+        "note": "speed ramp min(320, 5 thrust dt k) = min(320, 4k/3), tick 60"
+      },
+      {
+        "tick": 120,
+        "field": "flightSpeed",
+        "expected": 160,
+        "tolerance": 0.00013,
+        "note": "speed ramp min(320, 5 thrust dt k) = min(320, 4k/3), tick 120"
+      },
+      {
+        "tick": 240,
+        "field": "flightSpeed",
+        "expected": 320,
+        "tolerance": 1.1e-9,
+        "note": "speed ramp min(320, 5 thrust dt k) = min(320, 4k/3), tick 240"
+      },
+      {
+        "tick": 480,
+        "field": "flightSpeed",
+        "expected": 320,
+        "tolerance": 1e-9,
+        "note": "speed ramp min(320, 5 thrust dt k) = min(320, 4k/3), tick 480"
+      },
+      {
+        "tick": 60,
+        "field": "positionZ",
+        "expected": 20.333333333333332,
+        "tolerance": 0.000015,
+        "note": "position is the sum of dt * speed_j after the ramp update of each tick (the move uses the new speed), tick 60"
+      },
+      {
+        "tick": 240,
+        "field": "positionZ",
+        "expected": 321.3333333333333,
+        "tolerance": 0.0007,
+        "note": "position is the sum of dt * speed_j after the ramp update of each tick (the move uses the new speed), tick 240"
+      },
+      {
+        "tick": 480,
+        "field": "positionZ",
+        "expected": 961.3333333333333,
+        "tolerance": 0.0007,
+        "note": "position is the sum of dt * speed_j after the ramp update of each tick (the move uses the new speed), tick 480"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "thrust-ramp-never-overshoots",
+    "title": "applyThrust clamps flightSpeed onto desiredSpeed in the same tick it would pass it",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:5833-5843",
+      "src/Core/Entities/ShipEntity.m:7405-7415"
+    ],
+    "derivation": "IDLE from rest with desired_speed 190 (below max_flight_speed 320) and thrust 32: the ramp adds 4/3 per tick, so tick 142 holds 189.3333 and the tick-143 update would reach 190.667, which applyThrust clamps back to 190 (ShipEntity.m:5840-5841); every later tick holds 190. 190 / (4/3) = 142.5 steps, so the clamp happens mid-step, away from any float threshold. Position is the sum of dt * speed_j (the move uses the speed after the ramp): k(k+1)/180 up to tick 142, then 190/120 per tick.",
+    "dt": 0.008333333333333333,
+    "horizon": 480,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 190,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 15,
+        "field": "flightSpeed",
+        "expected": 20,
+        "tolerance": 1.1e-9,
+        "note": "speed ramp never overshoots desiredSpeed 190: min(190, 4k/3), tick 15"
+      },
+      {
+        "tick": 30,
+        "field": "flightSpeed",
+        "expected": 40,
+        "tolerance": 0.000016,
+        "note": "speed ramp never overshoots desiredSpeed 190: min(190, 4k/3), tick 30"
+      },
+      {
+        "tick": 60,
+        "field": "flightSpeed",
+        "expected": 80,
+        "tolerance": 1.1e-9,
+        "note": "speed ramp never overshoots desiredSpeed 190: min(190, 4k/3), tick 60"
+      },
+      {
+        "tick": 120,
+        "field": "flightSpeed",
+        "expected": 160,
+        "tolerance": 0.00013,
+        "note": "speed ramp never overshoots desiredSpeed 190: min(190, 4k/3), tick 120"
+      },
+      {
+        "tick": 142,
+        "field": "flightSpeed",
+        "expected": 189.33333333333331,
+        "tolerance": 0.00057,
+        "note": "speed ramp never overshoots desiredSpeed 190: min(190, 4k/3), tick 142"
+      },
+      {
+        "tick": 143,
+        "field": "flightSpeed",
+        "expected": 190,
+        "tolerance": 1e-9,
+        "note": "speed ramp never overshoots desiredSpeed 190: min(190, 4k/3), tick 143"
+      },
+      {
+        "tick": 144,
+        "field": "flightSpeed",
+        "expected": 190,
+        "tolerance": 1e-9,
+        "note": "speed ramp never overshoots desiredSpeed 190: min(190, 4k/3), tick 144"
+      },
+      {
+        "tick": 240,
+        "field": "flightSpeed",
+        "expected": 190,
+        "tolerance": 1e-9,
+        "note": "speed ramp never overshoots desiredSpeed 190: min(190, 4k/3), tick 240"
+      },
+      {
+        "tick": 480,
+        "field": "flightSpeed",
+        "expected": 190,
+        "tolerance": 1e-9,
+        "note": "speed ramp never overshoots desiredSpeed 190: min(190, 4k/3), tick 480"
+      },
+      {
+        "tick": 60,
+        "field": "positionZ",
+        "expected": 20.333333333333332,
+        "tolerance": 0.000015,
+        "note": "position sum, tick 60"
+      },
+      {
+        "tick": 143,
+        "field": "positionZ",
+        "expected": 114.39444444444443,
+        "tolerance": 0.0000011,
+        "note": "position sum, tick 143"
+      },
+      {
+        "tick": 480,
+        "field": "positionZ",
+        "expected": 647.9777777777778,
+        "tolerance": 0.0000011,
+        "note": "position sum, tick 480"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "thrust-decrease-below-max-speed",
+    "title": "applyThrust decelerates through decrease_flight_speed at 5 * thrust per second and stops on desiredSpeed",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:5833-5837",
+      "src/Core/Entities/ShipEntity.m:7417-7429"
+    ],
+    "derivation": "IDLE with flightSpeed 301 (below max_flight_speed 320, so the factor is 1) and desired_speed 100. decrease_flight_speed subtracts dt_thrust = 4/3 per tick (ShipEntity.m:7424-7425) and applyThrust then clamps up onto desired_speed (5835-5836): flightSpeed(k) = max(100, 301 - 4k/3). 201 / (4/3) = 150.75 steps, so tick 150 holds 101, tick 151 would reach 99.667 and is clamped to 100: mid-step again. Position: sum of dt * speed_j = (301 k - (4/3) k(k+1)/2) / 120.",
+    "dt": 0.008333333333333333,
+    "horizon": 300,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 301,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 15,
+        "field": "flightSpeed",
+        "expected": 281,
+        "tolerance": 0.00062,
+        "note": "deceleration max(100, 301 - 4k/3), tick 15"
+      },
+      {
+        "tick": 60,
+        "field": "flightSpeed",
+        "expected": 221,
+        "tolerance": 0.0008,
+        "note": "deceleration max(100, 301 - 4k/3), tick 60"
+      },
+      {
+        "tick": 120,
+        "field": "flightSpeed",
+        "expected": 141,
+        "tolerance": 0.00043,
+        "note": "deceleration max(100, 301 - 4k/3), tick 120"
+      },
+      {
+        "tick": 150,
+        "field": "flightSpeed",
+        "expected": 101,
+        "tolerance": 0.0004,
+        "note": "deceleration max(100, 301 - 4k/3), tick 150"
+      },
+      {
+        "tick": 151,
+        "field": "flightSpeed",
+        "expected": 100,
+        "tolerance": 1e-9,
+        "note": "deceleration max(100, 301 - 4k/3), tick 151"
+      },
+      {
+        "tick": 152,
+        "field": "flightSpeed",
+        "expected": 100,
+        "tolerance": 1e-9,
+        "note": "deceleration max(100, 301 - 4k/3), tick 152"
+      },
+      {
+        "tick": 300,
+        "field": "flightSpeed",
+        "expected": 100,
+        "tolerance": 1e-9,
+        "note": "deceleration max(100, 301 - 4k/3), tick 300"
+      },
+      {
+        "tick": 60,
+        "field": "positionZ",
+        "expected": 130.16666666666666,
+        "tolerance": 0.00043,
+        "note": "position is the sum of dt * speed_j, tick 60"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "thrust-decrease-above-max-flight-speed",
+    "title": "decrease_flight_speed uses MIN_HYPERSPEED_FACTOR (32) only while flightSpeed is above maxFlightSpeed",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:7417-7429",
+      "src/Core/Entities/ShipEntity.m:5833-5837"
+    ],
+    "derivation": "IDLE with flightSpeed 350 above max_flight_speed 320 and desired_speed 100. decrease_flight_speed uses factor MIN_HYPERSPEED_FACTOR = 32 (PlayerEntity.h:296) while flightSpeed > maxFlightSpeed (ShipEntity.m:7420-7422): tick 1 subtracts 32 * 4/3 = 42.667, leaving 307.333, which is below 320, so every later step uses factor 1 (4/3): flightSpeed(k) = 307.333 - (k-1) * 4/3 down to the clamp onto 100 at tick 157 (tick 156 holds 100.667; 207.333 / (4/3) = 155.5 steps, mid-step).",
+    "dt": 0.008333333333333333,
+    "horizon": 200,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 350,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "flightSpeed",
+        "expected": 307.3333333333333,
+        "tolerance": 0.000041,
+        "note": "above max_flight_speed the first step is 32 times larger, then the plain 4/3 step; tick 1"
+      },
+      {
+        "tick": 2,
+        "field": "flightSpeed",
+        "expected": 306,
+        "tolerance": 1e-9,
+        "note": "above max_flight_speed the first step is 32 times larger, then the plain 4/3 step; tick 2"
+      },
+      {
+        "tick": 3,
+        "field": "flightSpeed",
+        "expected": 304.66666666666663,
+        "tolerance": 0.000041,
+        "note": "above max_flight_speed the first step is 32 times larger, then the plain 4/3 step; tick 3"
+      },
+      {
+        "tick": 50,
+        "field": "flightSpeed",
+        "expected": 242,
+        "tolerance": 0.0013,
+        "note": "above max_flight_speed the first step is 32 times larger, then the plain 4/3 step; tick 50"
+      },
+      {
+        "tick": 156,
+        "field": "flightSpeed",
+        "expected": 100.66666666666666,
+        "tolerance": 0.00024,
+        "note": "above max_flight_speed the first step is 32 times larger, then the plain 4/3 step; tick 156"
+      },
+      {
+        "tick": 157,
+        "field": "flightSpeed",
+        "expected": 100,
+        "tolerance": 1e-9,
+        "note": "above max_flight_speed the first step is 32 times larger, then the plain 4/3 step; tick 157"
+      },
+      {
+        "tick": 158,
+        "field": "flightSpeed",
+        "expected": 100,
+        "tolerance": 1e-9,
+        "note": "above max_flight_speed the first step is 32 times larger, then the plain 4/3 step; tick 158"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "idle-clamps-desired-speed-above-max",
+    "title": "applyThrust clamps desiredSpeed to maxFlightSpeed and writes the clamp back",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:5829-5831",
+      "src/Core/Entities/ShipEntity.m:5838-5843"
+    ],
+    "derivation": "IDLE with desired_speed 400 above max_flight_speed 320: the first applyThrust sets desired_speed = max_available_speed = 320 (no fuel injection, so max_available_speed is maxFlightSpeed, ShipEntity.m:5813-5815 and 5830-5831) and the speed ramp then runs toward 320 at 4/3 per tick, reaching it at tick 240. Closed forms.",
+    "dt": 0.008333333333333333,
+    "horizon": 300,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 400,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "desiredSpeed",
+        "expected": 400,
+        "tolerance": 1e-9,
+        "note": "the stat is read before any update: 400 at tick 0"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 1e-9,
+        "note": "applyThrust writes the clamp back into desired_speed (ShipEntity.m:5830-5831)"
+      },
+      {
+        "tick": 15,
+        "field": "flightSpeed",
+        "expected": 20,
+        "tolerance": 1.1e-9,
+        "note": "the ramp then runs toward the clamped 320 at 4/3 per tick, tick 15"
+      },
+      {
+        "tick": 240,
+        "field": "flightSpeed",
+        "expected": 320,
+        "tolerance": 1.1e-9,
+        "note": "the ramp ends at the clamp, tick 240"
+      },
+      {
+        "tick": 300,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 1e-9,
+        "note": "the clamp stays written back"
+      }
+    ],
+    "events": []
+  }
+]

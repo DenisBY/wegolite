@@ -1,0 +1,435 @@
+[
+  {
+    "id": "idle-settles-rates-to-zero",
+    "title": "IDLE zeroes both sticks and the roll and pitch rates ramp to zero",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:3708-3722",
+      "src/Core/Entities/ShipEntity.m:7018-7065"
+    ],
+    "derivation": "A Viper-like scan-class-neutral ship in IDLE with flightRoll 0.97, flightPitch -0.71 and arbitrary starting sticks. behaviour_idle sets stick_yaw 0, stick_roll 0 and stick_pitch 0 (the ship is neither a station nor a buoy, ShipEntity.m:3710-3720) and calls applySticks, so a rate with a zero stick moves by 2 dt = 1/60 (roll) or 4 dt = 1/30 (pitch) per tick (accuracy 2, no doubling; a zero stick never counts as opposing, 7025-7028) and snaps onto 0 when within one step. flightRoll(k) = max(0, 0.97 - k/60): 58.2 steps, so tick 58 holds 0.00333 and tick 59 is 0. flightPitch(k) = min(0, -0.71 + k/30): 21.3 steps, so tick 21 holds -0.01 and tick 22 is 0. Closed forms.",
+    "dt": 0.008333333333333333,
+    "horizon": 120,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0.97,
+      "flightPitch": -0.71,
+      "stickRoll": 1.5,
+      "stickPitch": 0.5,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "behaviour_idle zeroes the sticks of a ship that is not a station or buoy (ShipEntity.m:3711-3720)"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "behaviour_idle zeroes the pitch stick"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.9533333333333333,
+        "tolerance": 1.8e-7,
+        "note": "idle roll settle max(0, 0.97 - k/60), tick 1"
+      },
+      {
+        "tick": 30,
+        "field": "flightRoll",
+        "expected": 0.47,
+        "tolerance": 0.0000018,
+        "note": "idle roll settle max(0, 0.97 - k/60), tick 30"
+      },
+      {
+        "tick": 58,
+        "field": "flightRoll",
+        "expected": 0.0033333333333332993,
+        "tolerance": 0.0000012,
+        "note": "idle roll settle max(0, 0.97 - k/60), tick 58"
+      },
+      {
+        "tick": 59,
+        "field": "flightRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "idle roll settle max(0, 0.97 - k/60), tick 59"
+      },
+      {
+        "tick": 60,
+        "field": "flightRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "idle roll settle max(0, 0.97 - k/60), tick 60"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": -0.6766666666666666,
+        "tolerance": 2e-7,
+        "note": "idle pitch settle min(0, -0.71 + k/30), tick 1"
+      },
+      {
+        "tick": 21,
+        "field": "flightPitch",
+        "expected": -0.010000000000000009,
+        "tolerance": 6.6e-7,
+        "note": "idle pitch settle min(0, -0.71 + k/30), tick 21"
+      },
+      {
+        "tick": 22,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "idle pitch settle min(0, -0.71 + k/30), tick 22"
+      },
+      {
+        "tick": 120,
+        "field": "positionZ",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "a ship at rest with desiredSpeed 0 does not move"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "idle-keeps-ramping-speed",
+    "title": "IDLE does not stop the ship: the speed keeps ramping toward the current desiredSpeed",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:3708-3722",
+      "src/Core/Entities/ShipEntity.m:2634-2637",
+      "src/Core/Entities/ShipEntity.m:5833-5843"
+    ],
+    "derivation": "behaviour_idle only manages attitude; processBehaviour then runs applyAttitudeChanges and applyThrust for any behaviour that does not turn them off (ShipEntity.m:2634-2637), so an IDLE ship at flightSpeed 100 with desired_speed 150 keeps accelerating at 4/3 per tick: flightSpeed(k) = min(150, 100 + 4k/3), reaching 150 mid-step at tick 38 (37.5 steps). Position is the sum of dt * speed_j (the move uses the ramped speed): (100 k + (4/3) k(k+1)/2) / 120 up to tick 37, then 150/120 per tick.",
+    "dt": 0.008333333333333333,
+    "horizon": 120,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 100,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 150,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "flightSpeed",
+        "expected": 101.33333333333333,
+        "tolerance": 0.000011,
+        "note": "IDLE keeps ramping toward desiredSpeed: min(150, 100 + 4k/3), tick 1"
+      },
+      {
+        "tick": 15,
+        "field": "flightSpeed",
+        "expected": 120,
+        "tolerance": 0.00016,
+        "note": "IDLE keeps ramping toward desiredSpeed: min(150, 100 + 4k/3), tick 15"
+      },
+      {
+        "tick": 30,
+        "field": "flightSpeed",
+        "expected": 140,
+        "tolerance": 1.1e-9,
+        "note": "IDLE keeps ramping toward desiredSpeed: min(150, 100 + 4k/3), tick 30"
+      },
+      {
+        "tick": 37,
+        "field": "flightSpeed",
+        "expected": 149.33333333333331,
+        "tolerance": 0.00015,
+        "note": "IDLE keeps ramping toward desiredSpeed: min(150, 100 + 4k/3), tick 37"
+      },
+      {
+        "tick": 38,
+        "field": "flightSpeed",
+        "expected": 150,
+        "tolerance": 1e-9,
+        "note": "IDLE keeps ramping toward desiredSpeed: min(150, 100 + 4k/3), tick 38"
+      },
+      {
+        "tick": 39,
+        "field": "flightSpeed",
+        "expected": 150,
+        "tolerance": 1e-9,
+        "note": "IDLE keeps ramping toward desiredSpeed: min(150, 100 + 4k/3), tick 39"
+      },
+      {
+        "tick": 120,
+        "field": "flightSpeed",
+        "expected": 150,
+        "tolerance": 1e-9,
+        "note": "IDLE keeps ramping toward desiredSpeed: min(150, 100 + 4k/3), tick 120"
+      },
+      {
+        "tick": 30,
+        "field": "positionZ",
+        "expected": 30.166666666666668,
+        "tolerance": 0.000026,
+        "note": "position is the sum of dt * speed_j, tick 30"
+      },
+      {
+        "tick": 38,
+        "field": "positionZ",
+        "expected": 39.89444444444444,
+        "tolerance": 0.000021,
+        "note": "position is the sum of dt * speed_j, tick 38"
+      },
+      {
+        "tick": 120,
+        "field": "positionZ",
+        "expected": 142.39444444444445,
+        "tolerance": 0.000021,
+        "note": "position is the sum of dt * speed_j, tick 120"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "stop-still-settles-and-zeroes",
+    "title": "performStop sets STOP_STILL, desiredSpeed 0 and frustration 0, then the ship settles and stops",
+    "oolite": [
+      "src/Core/Entities/ShipEntityAI.m:466-471",
+      "src/Core/Entities/ShipEntity.m:3700-3706",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:7417-7429"
+    ],
+    "derivation": "A ship in IDLE at flightSpeed 82 with desired_speed 120, frustration 7.0, flightRoll 0.47, flightPitch -0.47 and non-zero sticks takes assign perform STOP_STILL. performStop sets behaviour = STOP_STILL, desired_speed = 0 and frustration = 0 (ShipEntityAI.m:466-471; no draw, so tick-0 checks may name these three fields). behaviour_stop_still zeroes the three sticks and calls applySticks, so the rates settle by 1/60 (roll) and 1/30 (pitch) per tick: flightRoll(k) = max(0, 0.47 - k/60) (28.2 steps), flightPitch(k) = min(0, -0.47 + k/30) (14.1 steps). The speed decays at 4/3 per tick through decrease_flight_speed (82 / (4/3) = 61.5 steps: tick 61 holds 0.6667, tick 62 is 0). The nose also pitches while the pitch rate settles, so position is not checked here (it is not a closed form). Closed forms.",
+    "dt": 0.008333333333333333,
+    "horizon": 120,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 82,
+      "flightRoll": 0.47,
+      "flightPitch": -0.47,
+      "stickRoll": 1,
+      "stickPitch": 1,
+      "accuracy": 2,
+      "frustration": 7,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 120,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "perform",
+        "value": "STOP_STILL"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "STOP_STILL",
+        "tolerance": 0,
+        "note": "performStop sets the behaviour (ShipEntityAI.m:466-471)"
+      },
+      {
+        "tick": 0,
+        "field": "desiredSpeed",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "performStop sets desired_speed 0"
+      },
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "performStop resets frustration"
+      },
+      {
+        "tick": 1,
+        "field": "flightSpeed",
+        "expected": 80.66666666666667,
+        "tolerance": 0.000011,
+        "note": "stop-still speed decay max(0, 82 - 4k/3), tick 1"
+      },
+      {
+        "tick": 30,
+        "field": "flightSpeed",
+        "expected": 42,
+        "tolerance": 0.000046,
+        "note": "stop-still speed decay max(0, 82 - 4k/3), tick 30"
+      },
+      {
+        "tick": 61,
+        "field": "flightSpeed",
+        "expected": 0.6666666666666714,
+        "tolerance": 0.000036,
+        "note": "stop-still speed decay max(0, 82 - 4k/3), tick 61"
+      },
+      {
+        "tick": 62,
+        "field": "flightSpeed",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "stop-still speed decay max(0, 82 - 4k/3), tick 62"
+      },
+      {
+        "tick": 63,
+        "field": "flightSpeed",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "stop-still speed decay max(0, 82 - 4k/3), tick 63"
+      },
+      {
+        "tick": 28,
+        "field": "flightRoll",
+        "expected": 0.0033333333333332993,
+        "tolerance": 6.9e-7,
+        "note": "stop-still roll settle max(0, 0.47 - k/60), tick 28"
+      },
+      {
+        "tick": 29,
+        "field": "flightRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "stop-still roll settle max(0, 0.47 - k/60), tick 29"
+      },
+      {
+        "tick": 30,
+        "field": "flightRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "stop-still roll settle max(0, 0.47 - k/60), tick 30"
+      },
+      {
+        "tick": 14,
+        "field": "flightPitch",
+        "expected": -0.0033333333333332993,
+        "tolerance": 8.5e-8,
+        "note": "stop-still pitch settle min(0, -0.47 + k/30), tick 14"
+      },
+      {
+        "tick": 15,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "stop-still pitch settle min(0, -0.47 + k/30), tick 15"
+      },
+      {
+        "tick": 16,
+        "field": "flightPitch",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "stop-still pitch settle min(0, -0.47 + k/30), tick 16"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "STOP_STILL",
+        "tolerance": 0,
+        "note": "behaviour_stop_still keeps the behaviour"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "behaviour_stop_still zeroes the sticks (ShipEntity.m:3700-3706)"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "frustration stays 0"
+      }
+    ],
+    "events": []
+  }
+]

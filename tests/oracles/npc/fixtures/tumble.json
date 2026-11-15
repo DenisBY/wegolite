@@ -1,0 +1,423 @@
+[
+  {
+    "id": "tumble-sticks-from-draws",
+    "title": "performTumble draws roll then pitch, the rates ramp to the drawn sticks, and a tumbling ship keeps its position and speed",
+    "oolite": [
+      "src/Core/Entities/ShipEntityAI.m:473-479",
+      "src/Core/Entities/ShipEntity.m:3724-3727",
+      "src/Core/Entities/ShipEntity.m:5825-5827",
+      "src/Core/Entities/ShipEntity.m:7018-7065"
+    ],
+    "derivation": "assign perform TUMBLE with the scripted draws [0.8125, 0.3125] (contract item 7: each randf() is one draw, roll first). performTumble sets stick_roll = max_flight_roll * 2.0 * (randf() - 0.5) = 2.8 * 2 * 0.3125 = 1.75 and stick_pitch = max_flight_pitch * 2.0 * (randf() - 0.5) = 1.8 * 2 * (-0.1875) = -0.675, behaviour TUMBLE, frustration 0 (ShipEntityAI.m:473-479). The draws are dyadic fractions, exact in float32. The sticks are checked from tick 1 (a draw-dependent effect, contract item 4); tick 0 names only the behaviour and frustration. applySticks then ramps flightRoll by 1/60 per tick (105 steps to 1.75, so ticks 104 and 106 are checked, not the exact end) and flightPitch by 1/30 per tick (20.25 steps: tick 20 holds -0.6667, tick 21 snaps onto -0.675). applyThrust returns for TUMBLE before the speed ramp and before moveForward (ShipEntity.m:5826-5827), so a ship starting at speed 100, desired speed 100 and position (10, 20, 30) keeps both for the whole run: Oolite's Newtonian drift of tumbling pods is not part of the contract. Closed forms.",
+    "dt": 0.008333333333333333,
+    "horizon": 200,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [10, 20, 30],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 100,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "perform",
+        "value": "TUMBLE"
+      }
+    ],
+    "draws": [0.8125, 0.3125],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "TUMBLE",
+        "tolerance": 0,
+        "note": "performTumble sets the behaviour (ShipEntityAI.m:473-479)"
+      },
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "performTumble resets frustration"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 1.75,
+        "tolerance": 1e-9,
+        "note": "stick_roll = max_flight_roll * 2 * (u - 0.5) = 2.8 * 2 * 0.3125 with u = 0.8125"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": -0.675,
+        "tolerance": 2e-7,
+        "note": "stick_pitch = max_flight_pitch * 2 * (u - 0.5) = 1.8 * 2 * -0.1875 with u = 0.3125"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.016666666666666666,
+        "tolerance": 4.5e-9,
+        "note": "roll ramp min(1.75, k/60), tick 1"
+      },
+      {
+        "tick": 2,
+        "field": "flightRoll",
+        "expected": 0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "roll ramp min(1.75, k/60), tick 2"
+      },
+      {
+        "tick": 60,
+        "field": "flightRoll",
+        "expected": 1,
+        "tolerance": 0.0000012,
+        "note": "roll ramp min(1.75, k/60), tick 60"
+      },
+      {
+        "tick": 104,
+        "field": "flightRoll",
+        "expected": 1.7333333333333334,
+        "tolerance": 0.0000038,
+        "note": "roll ramp min(1.75, k/60), tick 104"
+      },
+      {
+        "tick": 106,
+        "field": "flightRoll",
+        "expected": 1.75,
+        "tolerance": 1e-9,
+        "note": "roll ramp min(1.75, k/60), tick 106"
+      },
+      {
+        "tick": 200,
+        "field": "flightRoll",
+        "expected": 1.75,
+        "tolerance": 1e-9,
+        "note": "roll ramp min(1.75, k/60), tick 200"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": -0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "pitch ramp -min(0.675, k/30), tick 1"
+      },
+      {
+        "tick": 2,
+        "field": "flightPitch",
+        "expected": -0.06666666666666667,
+        "tolerance": 1.5e-8,
+        "note": "pitch ramp -min(0.675, k/30), tick 2"
+      },
+      {
+        "tick": 10,
+        "field": "flightPitch",
+        "expected": -0.3333333333333333,
+        "tolerance": 4.1e-8,
+        "note": "pitch ramp -min(0.675, k/30), tick 10"
+      },
+      {
+        "tick": 20,
+        "field": "flightPitch",
+        "expected": -0.6666666666666666,
+        "tolerance": 5.6e-7,
+        "note": "pitch ramp -min(0.675, k/30), tick 20"
+      },
+      {
+        "tick": 21,
+        "field": "flightPitch",
+        "expected": -0.675,
+        "tolerance": 2e-7,
+        "note": "pitch ramp -min(0.675, k/30), tick 21"
+      },
+      {
+        "tick": 22,
+        "field": "flightPitch",
+        "expected": -0.675,
+        "tolerance": 2e-7,
+        "note": "pitch ramp -min(0.675, k/30), tick 22"
+      },
+      {
+        "tick": 1,
+        "field": "flightSpeed",
+        "expected": 100,
+        "tolerance": 1e-9,
+        "note": "TUMBLE returns before the speed ramp, so the speed holds, tick 1"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "TUMBLE",
+        "tolerance": 0,
+        "note": "the behaviour holds, tick 1"
+      },
+      {
+        "tick": 60,
+        "field": "flightSpeed",
+        "expected": 100,
+        "tolerance": 1e-9,
+        "note": "TUMBLE returns before the speed ramp, so the speed holds, tick 60"
+      },
+      {
+        "tick": 60,
+        "field": "behaviour",
+        "expected": "TUMBLE",
+        "tolerance": 0,
+        "note": "the behaviour holds, tick 60"
+      },
+      {
+        "tick": 200,
+        "field": "flightSpeed",
+        "expected": 100,
+        "tolerance": 1e-9,
+        "note": "TUMBLE returns before the speed ramp, so the speed holds, tick 200"
+      },
+      {
+        "tick": 200,
+        "field": "behaviour",
+        "expected": "TUMBLE",
+        "tolerance": 0,
+        "note": "the behaviour holds, tick 200"
+      },
+      {
+        "tick": 200,
+        "field": "desiredSpeed",
+        "expected": 100,
+        "tolerance": 1e-9,
+        "note": "desired_speed is untouched"
+      },
+      {
+        "tick": 200,
+        "field": "positionX",
+        "expected": 10,
+        "tolerance": 1e-9,
+        "note": "TUMBLE returns before moveForward, so the ship keeps its position"
+      },
+      {
+        "tick": 200,
+        "field": "positionY",
+        "expected": 20,
+        "tolerance": 1e-9,
+        "note": "the position holds"
+      },
+      {
+        "tick": 200,
+        "field": "positionZ",
+        "expected": 30,
+        "tolerance": 1e-9,
+        "note": "the position holds"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "tumble-second-draw-pair-with-reversal",
+    "title": "performTumble with other draws: a negative roll stick against a positive roll rate runs at the x4 reversal rate",
+    "oolite": [
+      "src/Core/Entities/ShipEntityAI.m:473-479",
+      "src/Core/Entities/ShipEntity.m:7025-7026",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5825-5827"
+    ],
+    "derivation": "assign perform TUMBLE with the draws [0.09375, 0.90625]: stick_roll = 2.8 * 2 * (0.09375 - 0.5) = -2.275, stick_pitch = 1.8 * 2 * (0.90625 - 0.5) = 1.4625 (ShipEntityAI.m:473-479). flightRoll starts at +0.5, opposite to the negative stick, so applySticks runs it at 4 * 2 dt = 1/15 per tick (ShipEntity.m:7025-7026) while it stays positive: flightRoll(k) = 0.5 - k/15 for k <= 8 (tick 8 starts from +1/30 and still takes the quadrupled step, ending at -1/30), then 2 dt = 1/60 per tick: -1/30 - (k-8)/60 until the snap onto -2.275 at tick 143 (134.5 steps, mid-step). flightPitch ramps by 1/30 per tick to 1.4625 (43.875 steps: tick 44 snaps). With desiredSpeed 50 and speed 0 the ship still neither accelerates nor moves, because applyThrust returns first for TUMBLE.",
+    "dt": 0.008333333333333333,
+    "horizon": 150,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0.5,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 50,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "perform",
+        "value": "TUMBLE"
+      }
+    ],
+    "draws": [0.09375, 0.90625],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -2.275,
+        "tolerance": 5.8e-7,
+        "note": "2.8 * 2 * (0.09375 - 0.5) = -2.275"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 1.4625,
+        "tolerance": 9.7e-8,
+        "note": "1.8 * 2 * (0.90625 - 0.5) = 1.4625"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.43333333333333335,
+        "tolerance": 1.7e-8,
+        "note": "roll reversal: 0.5 - k/15 (x4 rate) while positive, then -1/30 - (k-8)/60, floored at -2.275; tick 1"
+      },
+      {
+        "tick": 7,
+        "field": "flightRoll",
+        "expected": 0.033333333333333326,
+        "tolerance": 6.8e-8,
+        "note": "roll reversal: 0.5 - k/15 (x4 rate) while positive, then -1/30 - (k-8)/60, floored at -2.275; tick 7"
+      },
+      {
+        "tick": 8,
+        "field": "flightRoll",
+        "expected": -0.033333333333333326,
+        "tolerance": 6.9e-8,
+        "note": "roll reversal: 0.5 - k/15 (x4 rate) while positive, then -1/30 - (k-8)/60, floored at -2.275; tick 8"
+      },
+      {
+        "tick": 9,
+        "field": "flightRoll",
+        "expected": -0.05,
+        "tolerance": 7.3e-8,
+        "note": "roll reversal: 0.5 - k/15 (x4 rate) while positive, then -1/30 - (k-8)/60, floored at -2.275; tick 9"
+      },
+      {
+        "tick": 60,
+        "field": "flightRoll",
+        "expected": -0.9,
+        "tolerance": 8.2e-7,
+        "note": "roll reversal: 0.5 - k/15 (x4 rate) while positive, then -1/30 - (k-8)/60, floored at -2.275; tick 60"
+      },
+      {
+        "tick": 142,
+        "field": "flightRoll",
+        "expected": -2.2666666666666666,
+        "tolerance": 0.0000058,
+        "note": "roll reversal: 0.5 - k/15 (x4 rate) while positive, then -1/30 - (k-8)/60, floored at -2.275; tick 142"
+      },
+      {
+        "tick": 143,
+        "field": "flightRoll",
+        "expected": -2.275,
+        "tolerance": 5.8e-7,
+        "note": "roll reversal: 0.5 - k/15 (x4 rate) while positive, then -1/30 - (k-8)/60, floored at -2.275; tick 143"
+      },
+      {
+        "tick": 144,
+        "field": "flightRoll",
+        "expected": -2.275,
+        "tolerance": 5.8e-7,
+        "note": "roll reversal: 0.5 - k/15 (x4 rate) while positive, then -1/30 - (k-8)/60, floored at -2.275; tick 144"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "pitch ramp min(1.4625, k/30), tick 1"
+      },
+      {
+        "tick": 10,
+        "field": "flightPitch",
+        "expected": 0.3333333333333333,
+        "tolerance": 4.1e-8,
+        "note": "pitch ramp min(1.4625, k/30), tick 10"
+      },
+      {
+        "tick": 43,
+        "field": "flightPitch",
+        "expected": 1.4333333333333333,
+        "tolerance": 2.3e-7,
+        "note": "pitch ramp min(1.4625, k/30), tick 43"
+      },
+      {
+        "tick": 44,
+        "field": "flightPitch",
+        "expected": 1.4625,
+        "tolerance": 9.7e-8,
+        "note": "pitch ramp min(1.4625, k/30), tick 44"
+      },
+      {
+        "tick": 45,
+        "field": "flightPitch",
+        "expected": 1.4625,
+        "tolerance": 9.7e-8,
+        "note": "pitch ramp min(1.4625, k/30), tick 45"
+      },
+      {
+        "tick": 144,
+        "field": "flightSpeed",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "a tumbling ship does not ramp its speed even with desiredSpeed 50"
+      },
+      {
+        "tick": 144,
+        "field": "positionZ",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "and does not move"
+      }
+    ],
+    "events": []
+  }
+]
