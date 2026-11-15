@@ -629,3 +629,79 @@ describe("NPC flight fields (AI-01, minimum of DATA-15)", () => {
     ).toBe("viper.maxFlightSpeed");
   });
 });
+
+describe("NPC steering assumptions (AI-01, T-14-06)", () => {
+  // The Phase 14 steering port relies on Oolite's defaults for these keys
+  // (14-RESEARCH, reachability analysis and Assumptions A1 and A2): a pin that
+  // authors one for a compiled ship must fail the build, not change silently
+  // which attack branches are reachable.
+  const REFUSED: readonly (readonly [string, unknown])[] = [
+    ["accuracy", 7],
+    ["reaction_time", 0.5],
+    ["scanner_range", 50000],
+    ["aft_weapon_type", "WEAPON_BEAM_LASER"],
+    ["port_weapon_type", "WEAPON_PULSE_LASER"],
+    ["starboard_weapon_type", "WEAPON_PULSE_LASER"],
+  ];
+
+  it("pins the six refused keys", () => {
+    expect(REFUSED.map(([key]) => key)).toEqual([
+      "accuracy",
+      "reaction_time",
+      "scanner_range",
+      "aft_weapon_type",
+      "port_weapon_type",
+      "starboard_weapon_type",
+    ]);
+  });
+
+  it.each(REFUSED.map(([key, value]) => [key, value] as const))(
+    "fails the build with SCHEMA when a record authors %s",
+    (field, value) => {
+      const bad = withExtras("viper", (extras) => ({
+        ...extras,
+        [field]: value,
+      }));
+      const error = capture(() => compileNpcShips(bad, masses, radii));
+      expect(error.code).toBe("SCHEMA");
+      expect(error.file).toBe(NPC_SHIPS_PATH);
+      expect(error.construct).toBe("viper");
+      expect(error.excerpt).toContain(field);
+      expect(error.excerpt).toContain("steering");
+    },
+  );
+
+  it("refuses the key whatever its value, even one equal to Oolite's default", () => {
+    const bad = withExtras("adder", (extras) => ({
+      ...extras,
+      accuracy: -100,
+    }));
+    expect(capture(() => compileNpcShips(bad, masses, radii)).construct).toBe(
+      "adder",
+    );
+  });
+
+  it("finds none of the six keys on the nine stock records after like_ship", () => {
+    for (const key of NPC_SHIP_KEYS) {
+      for (const [field] of REFUSED) {
+        expect(requireEntry(key).extras).not.toHaveProperty(field);
+      }
+    }
+  });
+
+  it("leaves has_fuel_injection and missiles uncompiled", () => {
+    const source = readFileSync(
+      new URL("tools/oolite-ingest/convert/npc-ships.ts", REPO),
+      "utf8",
+    );
+    const code = source
+      .split("\n")
+      .filter((line) => !/^\s*(\/\/|\/?\*)/.test(line))
+      .join("\n");
+    expect(code).not.toMatch(/has_fuel_injection|"missiles"/);
+    for (const record of records) {
+      expect(record).not.toHaveProperty("hasFuelInjection");
+      expect(record).not.toHaveProperty("missiles");
+    }
+  });
+});
