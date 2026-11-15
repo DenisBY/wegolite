@@ -156,7 +156,59 @@ describe("NpcShipCatalogueSchema", () => {
   });
 
   it("rejects an extra field, so no stat can be compiled in", () => {
-    expect(accepts([{ ...firstRecord(), maxFlightSpeed: 350 }])).toBe(false);
+    for (const field of ["accuracy", "maxFlightYaw", "hasFuelInjection"]) {
+      expect(accepts([{ ...firstRecord(), [field]: 1 }])).toBe(false);
+    }
+  });
+
+  it("carries the four flight fields on every record", () => {
+    for (const record of generated as Record<string, unknown>[]) {
+      for (const field of [
+        "maxFlightSpeed",
+        "maxFlightRoll",
+        "maxFlightPitch",
+        "thrust",
+      ]) {
+        expect(Number.isFinite(record[field])).toBe(true);
+        expect(record[field] as number).toBeGreaterThanOrEqual(0);
+        expect(Math.fround(record[field] as number)).toBe(record[field]);
+      }
+    }
+  });
+
+  it("carries the Viper's and the Shuttle's flight limits", () => {
+    const find = (key: string): unknown =>
+      (generated as Record<string, unknown>[]).find(
+        (record) => record["key"] === key,
+      );
+    expect(find("viper")).toMatchObject({
+      maxFlightSpeed: 320,
+      maxFlightRoll: Math.fround(2.8),
+      maxFlightPitch: Math.fround(1.8),
+      thrust: 32,
+    });
+    expect(find("shuttle")).toMatchObject({
+      maxFlightSpeed: 80,
+      maxFlightRoll: 2,
+      maxFlightPitch: Math.fround(0.9),
+      thrust: 16,
+    });
+  });
+
+  it("rejects a record missing a flight field or carrying a bad one", () => {
+    for (const field of [
+      "maxFlightSpeed",
+      "maxFlightRoll",
+      "maxFlightPitch",
+      "thrust",
+    ]) {
+      const record = { ...firstRecord() };
+      delete record[field];
+      expect(accepts([record])).toBe(false);
+      for (const value of [-1, Number.NaN, Number.POSITIVE_INFINITY, "1"]) {
+        expect(accepts([{ ...firstRecord(), [field]: value }])).toBe(false);
+      }
+    }
   });
 
   it("rejects a missing, zero, negative or non-finite mass", () => {

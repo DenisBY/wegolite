@@ -14,8 +14,10 @@
  * origin (WORLD-15, `tools/oolite-ingest/convert/ship-radius.ts`). Phase 13
  * adds the minimum of DATA-15 that a hit target, a firing NPC and the ident
  * message consume: the display name, max energy, energy recharge rate, forward
- * weapon and forward weapon position (CBT-07). No other combat or flight stat
- * is compiled here, and the strict object rejects any extra field.
+ * weapon and forward weapon position (CBT-07). Phase 14 adds the four flight
+ * constants the NPC flight model reads (AI-01): maximum speed, roll and pitch
+ * rate, and thrust. No other combat or flight stat is compiled here, and the
+ * strict object rejects any extra field.
  *
  * `glb` is a locator, not inert-world data: it is never copied from the plist
  * but derived from the model by the one naming rule, and both it and `model`
@@ -69,6 +71,18 @@ export const NpcShipSchema = z.strictObject({
     z.number().finite(),
     z.number().finite(),
   ]),
+  // The flight constants of the NPC flight model (AI-01, the minimum of
+  // DATA-15), float32, in Oolite's units. Finite and non-negative; `z.number()`
+  // already rejects NaN and Infinity.
+  //
+  // `max_flight_speed`, default 160 for a non-station (ShipEntity.m:263-264).
+  maxFlightSpeed: z.number().nonnegative(),
+  // `max_flight_roll`, default 2.0 (ShipEntity.m:265).
+  maxFlightRoll: z.number().nonnegative(),
+  // `max_flight_pitch`, default 1.0 (ShipEntity.m:266).
+  maxFlightPitch: z.number().nonnegative(),
+  // `thrust`, default 15.0 (ShipEntity.m:270).
+  thrust: z.number().nonnegative(),
 });
 
 export const NpcShipCatalogueSchema = z.array(NpcShipSchema).min(1);

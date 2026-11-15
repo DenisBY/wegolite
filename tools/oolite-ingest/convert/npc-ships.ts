@@ -11,8 +11,10 @@
  * computed by `ship-mass.ts` and handed in) and its collision radius (WORLD-15,
  * computed by `ship-radius.ts` and handed in), and, from Phase 13 (CBT-07, the
  * minimum of DATA-15), the display name, max energy, energy recharge rate,
- * forward weapon and forward weapon position. Nothing else: no other combat or
- * flight stat, no subentity, material or `auto_ai`. No class field is compiled:
+ * forward weapon and forward weapon position, and, from Phase 14 (AI-01), the
+ * four flight constants the NPC flight model reads (max flight speed, roll and
+ * pitch, and thrust). Nothing else: no other combat or flight stat, no
+ * subentity, material or `auto_ai`. No class field is compiled:
  * Oolite's class name equals the name for all nine stock hulls
  * (`ship_class_name` defaults to `name`, ShipEntity.m:391-392), so the ident
  * message needs the name only.
@@ -79,6 +81,22 @@ export const DEFAULT_MAX_ENERGY = 200;
 
 /** Oolite's `energy_recharge_rate` default (ShipEntity.m:290, 1.0). */
 export const DEFAULT_ENERGY_RECHARGE_RATE = 1;
+
+/**
+ * Oolite's `max_flight_speed` default for a ship that is not a station
+ * (ShipEntity.m:263-264, `defaultValue:defaultSpeed`, 160; a station's 0 does
+ * not apply to these nine ships).
+ */
+export const DEFAULT_MAX_FLIGHT_SPEED = 160;
+
+/** Oolite's `max_flight_roll` default (ShipEntity.m:265, 2.0). */
+export const DEFAULT_MAX_FLIGHT_ROLL = 2;
+
+/** Oolite's `max_flight_pitch` default (ShipEntity.m:266, 1.0). */
+export const DEFAULT_MAX_FLIGHT_PITCH = 1;
+
+/** Oolite's `thrust` default (ShipEntity.m:270, 15.0). */
+export const DEFAULT_THRUST = 15;
 
 /** Oolite's `forward_weapon_type` default (ShipEntity.m:300). */
 export const DEFAULT_FORWARD_WEAPON = "EQ_WEAPON_NONE";
@@ -237,6 +255,25 @@ export function compileNpcShips(
       ),
       forwardWeapon,
       forwardWeaponPosition: positionExtra(key, entry.extras),
+      maxFlightSpeed: floatExtra(
+        key,
+        entry.extras,
+        "max_flight_speed",
+        DEFAULT_MAX_FLIGHT_SPEED,
+      ),
+      maxFlightRoll: floatExtra(
+        key,
+        entry.extras,
+        "max_flight_roll",
+        DEFAULT_MAX_FLIGHT_ROLL,
+      ),
+      maxFlightPitch: floatExtra(
+        key,
+        entry.extras,
+        "max_flight_pitch",
+        DEFAULT_MAX_FLIGHT_PITCH,
+      ),
+      thrust: floatExtra(key, entry.extras, "thrust", DEFAULT_THRUST),
     };
 
     const parsed = NpcShipSchema.safeParse(candidate);

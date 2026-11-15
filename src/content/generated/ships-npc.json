@@ -12,6 +12,9 @@
     "key": "adder",
     "mass": 16045.4931640625,
     "maxEnergy": 85,
+    "maxFlightPitch": 2,
+    "maxFlightRoll": 2.799999952316284,
+    "maxFlightSpeed": 240,
     "model": "oolite_adder.dat",
     "name": "Adder",
     "radius": 29.030517578125,
@@ -25,7 +28,8 @@
       "shuttle",
       "hermit-ship"
     ],
-    "scanClass": "CLASS_NEUTRAL"
+    "scanClass": "CLASS_NEUTRAL",
+    "thrust": 30
   },
   {
     "aiType": "oolite-traderAI.js",
@@ -40,6 +44,9 @@
     "key": "cobramk1",
     "mass": 52291.8359375,
     "maxEnergy": 150,
+    "maxFlightPitch": 1.2000000476837158,
+    "maxFlightRoll": 2,
+    "maxFlightSpeed": 260,
     "model": "oolite_cobramk1.dat",
     "name": "Cobra Mark I",
     "radius": 39.260494232177734,
@@ -55,7 +62,8 @@
       "escort(0.25)",
       "assassin-light"
     ],
-    "scanClass": "CLASS_NEUTRAL"
+    "scanClass": "CLASS_NEUTRAL",
+    "thrust": 25
   },
   {
     "aiType": "oolite-pirateAI.js",
@@ -70,6 +78,9 @@
     "key": "gecko",
     "mass": 24669.99609375,
     "maxEnergy": 250,
+    "maxFlightPitch": 1.5,
+    "maxFlightRoll": 3,
+    "maxFlightSpeed": 300,
     "model": "oolite_gecko.dat",
     "name": "Gecko",
     "radius": 31.911365509033203,
@@ -82,7 +93,8 @@
       "escort-medium(0.5)",
       "escort-heavy"
     ],
-    "scanClass": "CLASS_NEUTRAL"
+    "scanClass": "CLASS_NEUTRAL",
+    "thrust": 45
   },
   {
     "aiType": "oolite-pirateAI.js",
@@ -97,6 +109,9 @@
     "key": "krait",
     "mass": 93291.40625,
     "maxEnergy": 250,
+    "maxFlightPitch": 1.5,
+    "maxFlightRoll": 2.75,
+    "maxFlightSpeed": 300,
     "model": "oolite_krait.dat",
     "name": "Krait",
     "radius": 50.196590423583984,
@@ -107,7 +122,8 @@
       "escort(0.25)",
       "assassin-light"
     ],
-    "scanClass": "CLASS_NEUTRAL"
+    "scanClass": "CLASS_NEUTRAL",
+    "thrust": 35
   },
   {
     "aiType": "oolite-pirateAI.js",
@@ -122,6 +138,9 @@
     "key": "mamba",
     "mass": 35806.9921875,
     "maxEnergy": 240,
+    "maxFlightPitch": 1.399999976158142,
+    "maxFlightRoll": 2.0999999046325684,
+    "maxFlightSpeed": 320,
     "model": "oolite_mamba.dat",
     "name": "Mamba",
     "radius": 44.3935661315918,
@@ -130,7 +149,8 @@
       "pirate-light-fighter(0.5)",
       "hunter"
     ],
-    "scanClass": "CLASS_NEUTRAL"
+    "scanClass": "CLASS_NEUTRAL",
+    "thrust": 32
   },
   {
     "aiType": "oolite-pirateAI.js",
@@ -145,6 +165,9 @@
     "key": "moray",
     "mass": 51203.4375,
     "maxEnergy": 240,
+    "maxFlightPitch": 1.5,
+    "maxFlightRoll": 2.5,
+    "maxFlightSpeed": 300,
     "model": "oolite_moray.dat",
     "name": "Moray Star Boat",
     "radius": 36.18608093261719,
@@ -160,7 +183,8 @@
       "escort-medium(0.25)",
       "assassin-light"
     ],
-    "scanClass": "CLASS_NEUTRAL"
+    "scanClass": "CLASS_NEUTRAL",
+    "thrust": 32
   },
   {
     "aiType": "oolite-shuttleAI.js",
@@ -175,13 +199,17 @@
     "key": "shuttle",
     "mass": 11317.5634765625,
     "maxEnergy": 120,
+    "maxFlightPitch": 0.8999999761581421,
+    "maxFlightRoll": 2,
+    "maxFlightSpeed": 80,
     "model": "oolite_shuttle.dat",
     "name": "Orbital Shuttle",
     "radius": 22.7517147064209,
     "roles": [
       "shuttle"
     ],
-    "scanClass": "CLASS_NEUTRAL"
+    "scanClass": "CLASS_NEUTRAL",
+    "thrust": 16
   },
   {
     "aiType": "oolite-pirateAI.js",
@@ -196,6 +224,9 @@
     "key": "sidewinder",
     "mass": 25087.62109375,
     "maxEnergy": 240,
+    "maxFlightPitch": 1.600000023841858,
+    "maxFlightRoll": 2.799999952316284,
+    "maxFlightSpeed": 370,
     "model": "oolite_sidewinder.dat",
     "name": "Sidewinder Scout Ship",
     "radius": 37.465919494628906,
@@ -204,7 +235,8 @@
       "pirate-light-fighter(0.25)",
       "hunter"
     ],
-    "scanClass": "CLASS_NEUTRAL"
+    "scanClass": "CLASS_NEUTRAL",
+    "thrust": 37
   },
   {
     "aiType": "oolite-policeAI.js",
@@ -219,12 +251,16 @@
     "key": "viper",
     "mass": 34040.6796875,
     "maxEnergy": 180,
+    "maxFlightPitch": 1.7999999523162842,
+    "maxFlightRoll": 2.799999952316284,
+    "maxFlightSpeed": 320,
     "model": "oolite_viper.dat",
     "name": "GalCop Viper",
     "radius": 35.057655334472656,
     "roles": [
       "police"
     ],
-    "scanClass": "CLASS_POLICE"
+    "scanClass": "CLASS_POLICE",
+    "thrust": 32
   }
 ]

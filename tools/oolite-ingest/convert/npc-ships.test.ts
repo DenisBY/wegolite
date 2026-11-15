@@ -6,9 +6,9 @@
  *
  * The expected values live in `tests/golden/content/ships-npc.json`, which was
  * written by hand from `shipdata.plist` and is never generated. The compiled
- * records (thirteen fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
- * `radius` and the five Phase 13 combat fields) are compared
- * with it, with the resolved template parents, and with the committed generated
+ * records (seventeen fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
+ * `radius`, the five Phase 13 combat fields and the four Phase 14 flight fields)
+ * are compared with it, with the resolved template parents, and with the committed generated
  * file, so a drift in any one of the four fails.
  */
 
@@ -33,7 +33,11 @@ import {
   DEFAULT_ENERGY_RECHARGE_RATE,
   DEFAULT_FORWARD_WEAPON,
   DEFAULT_MAX_ENERGY,
+  DEFAULT_MAX_FLIGHT_PITCH,
+  DEFAULT_MAX_FLIGHT_ROLL,
+  DEFAULT_MAX_FLIGHT_SPEED,
   DEFAULT_SCAN_CLASS,
+  DEFAULT_THRUST,
   FORWARD_WEAPON_KEYS,
   NPC_SHIP_KEYS,
   NPC_SHIPS_PATH,
@@ -90,6 +94,10 @@ interface Golden {
     readonly energyRechargeRate: number;
     readonly forwardWeapon: string;
     readonly forwardWeaponPosition: number[];
+    readonly maxFlightSpeed: number;
+    readonly maxFlightRoll: number;
+    readonly maxFlightPitch: number;
+    readonly thrust: number;
   };
   readonly examples: NpcShip[];
   readonly sources: string[];
@@ -143,7 +151,7 @@ describe("NPC ship records", () => {
     expect(records).toHaveLength(9);
   });
 
-  it("carries exactly the thirteen fields and passes the strict schema", () => {
+  it("carries exactly the seventeen fields and passes the strict schema", () => {
     for (const record of records) {
       expect(Object.keys(record).sort()).toEqual(golden.fields);
       expect(NpcShipSchema.safeParse(record).success).toBe(true);
@@ -158,6 +166,10 @@ describe("NPC ship records", () => {
       golden.defaults.energyRechargeRate,
     );
     expect(DEFAULT_FORWARD_WEAPON).toBe(golden.defaults.forwardWeapon);
+    expect(DEFAULT_MAX_FLIGHT_SPEED).toBe(golden.defaults.maxFlightSpeed);
+    expect(DEFAULT_MAX_FLIGHT_ROLL).toBe(golden.defaults.maxFlightRoll);
+    expect(DEFAULT_MAX_FLIGHT_PITCH).toBe(golden.defaults.maxFlightPitch);
+    expect(DEFAULT_THRUST).toBe(golden.defaults.thrust);
   });
 
   it.each(golden.examples.map((example) => [example.key, example] as const))(
@@ -524,5 +536,96 @@ describe("NPC combat fields (CBT-07, minimum of DATA-15)", () => {
     expect(
       capture(() => compileNpcShips(negative, masses, radii)).construct,
     ).toBe("viper.maxEnergy");
+  });
+});
+
+describe("NPC flight fields (AI-01, minimum of DATA-15)", () => {
+  // The authored plist values (shipdata.plist, the nine templates), as plain
+  // numbers; the record holds their float32.
+  const EXPECTED: Record<string, readonly [number, number, number, number]> = {
+    adder: [240, 2.8, 2, 30],
+    cobramk1: [260, 2, 1.2, 25],
+    gecko: [300, 3, 1.5, 45],
+    krait: [300, 2.75, 1.5, 35],
+    mamba: [320, 2.1, 1.4, 32],
+    moray: [300, 2.5, 1.5, 32],
+    shuttle: [80, 2, 0.9, 16],
+    sidewinder: [370, 2.8, 1.6, 37],
+    viper: [320, 2.8, 1.8, 32],
+  };
+
+  it("pins the speed, roll, pitch and thrust of all nine records as float32", () => {
+    expect(Object.keys(EXPECTED).sort()).toEqual([...NPC_SHIP_KEYS]);
+    for (const [key, [speed, roll, pitch, thrust]] of Object.entries(
+      EXPECTED,
+    )) {
+      const record = requireRecord(key);
+      expect(record.maxFlightSpeed).toBe(Math.fround(speed));
+      expect(record.maxFlightRoll).toBe(Math.fround(roll));
+      expect(record.maxFlightPitch).toBe(Math.fround(pitch));
+      expect(record.thrust).toBe(Math.fround(thrust));
+    }
+  });
+
+  it("reads each value from the resolved plist entry, not from the table above", () => {
+    for (const key of NPC_SHIP_KEYS) {
+      const extras = requireEntry(key).extras;
+      const record = requireRecord(key);
+      expect(record.maxFlightSpeed).toBe(
+        Math.fround(Number(extras["max_flight_speed"])),
+      );
+      expect(record.maxFlightRoll).toBe(
+        Math.fround(Number(extras["max_flight_roll"])),
+      );
+      expect(record.maxFlightPitch).toBe(
+        Math.fround(Number(extras["max_flight_pitch"])),
+      );
+      expect(record.thrust).toBe(Math.fround(Number(extras["thrust"])));
+    }
+  });
+
+  it("takes Oolite's defaults 160, 2.0, 1.0 and 15.0 when the keys are absent", () => {
+    const bare = withExtras("viper", (extras) => {
+      delete extras["max_flight_speed"];
+      delete extras["max_flight_roll"];
+      delete extras["max_flight_pitch"];
+      delete extras["thrust"];
+      return extras;
+    });
+    const viper = compiled(bare, "viper");
+    expect(viper.maxFlightSpeed).toBe(160);
+    expect(viper.maxFlightRoll).toBe(2);
+    expect(viper.maxFlightPitch).toBe(1);
+    expect(viper.thrust).toBe(15);
+  });
+
+  it("fails the build with SCHEMA on a non-finite or non-numeric flight field", () => {
+    for (const field of [
+      "max_flight_speed",
+      "max_flight_roll",
+      "max_flight_pitch",
+      "thrust",
+    ]) {
+      for (const value of ["fast", Number.NaN, Number.POSITIVE_INFINITY]) {
+        const bad = withExtras("viper", (extras) => ({
+          ...extras,
+          [field]: value,
+        }));
+        const error = capture(() => compileNpcShips(bad, masses, radii));
+        expect(error.code).toBe("SCHEMA");
+        expect(error.file).toBe(NPC_SHIPS_PATH);
+        expect(error.construct).toBe("viper");
+      }
+    }
+  });
+
+  it("fails naming the field when a flight value is negative", () => {
+    const negative = withExtras("viper", (extras) => ({
+      ...extras,
+      max_flight_speed: -1,
+    }));
+    expect(
+      capture(() => compileNpcShips(negative, masses, radii)).construct,
+    ).toBe("viper.maxFlightSpeed");
   });
 });

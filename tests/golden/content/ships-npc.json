@@ -20,11 +20,15 @@
     "key",
     "mass",
     "maxEnergy",
+    "maxFlightPitch",
+    "maxFlightRoll",
+    "maxFlightSpeed",
     "model",
     "name",
     "radius",
     "roles",
-    "scanClass"
+    "scanClass",
+    "thrust"
   ],
   "defaults": {
     "aiType": "nullAI.plist",
@@ -32,7 +36,11 @@
     "maxEnergy": 200,
     "energyRechargeRate": 1,
     "forwardWeapon": "EQ_WEAPON_NONE",
-    "forwardWeaponPosition": [0, 0, 0]
+    "forwardWeaponPosition": [0, 0, 0],
+    "maxFlightSpeed": 160,
+    "maxFlightRoll": 2,
+    "maxFlightPitch": 1,
+    "thrust": 15
   },
   "examples": [
     {
@@ -48,7 +56,11 @@
       "maxEnergy": 180,
       "energyRechargeRate": 4,
       "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
-      "forwardWeaponPosition": [0, -0.15000000596046448, 35.034400939941406]
+      "forwardWeaponPosition": [0, -0.15000000596046448, 35.034400939941406],
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.799999952316284,
+      "maxFlightPitch": 1.7999999523162842,
+      "thrust": 32
     },
     {
       "key": "adder",
@@ -72,7 +84,11 @@
       "maxEnergy": 85,
       "energyRechargeRate": 2,
       "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
-      "forwardWeaponPosition": [0, -1.676900029182434, 28.8523006439209]
+      "forwardWeaponPosition": [0, -1.676900029182434, 28.8523006439209],
+      "maxFlightSpeed": 240,
+      "maxFlightRoll": 2.799999952316284,
+      "maxFlightPitch": 2,
+      "thrust": 30
     },
     {
       "key": "sidewinder",
@@ -87,7 +103,11 @@
       "maxEnergy": 240,
       "energyRechargeRate": 2,
       "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
-      "forwardWeaponPosition": [0, -2.764625072479248, 25.215499877929688]
+      "forwardWeaponPosition": [0, -2.764625072479248, 25.215499877929688],
+      "maxFlightSpeed": 370,
+      "maxFlightRoll": 2.799999952316284,
+      "maxFlightPitch": 1.600000023841858,
+      "thrust": 37
     },
     {
       "key": "shuttle",
@@ -102,7 +122,11 @@
       "maxEnergy": 120,
       "energyRechargeRate": 1,
       "forwardWeapon": "EQ_WEAPON_NONE",
-      "forwardWeaponPosition": [0, -1.6699999570846558, 27.399999618530273]
+      "forwardWeaponPosition": [0, -1.6699999570846558, 27.399999618530273],
+      "maxFlightSpeed": 80,
+      "maxFlightRoll": 2,
+      "maxFlightPitch": 0.8999999761581421,
+      "thrust": 16
     },
     {
       "key": "gecko",
@@ -125,7 +149,11 @@
       "maxEnergy": 250,
       "energyRechargeRate": 4,
       "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
-      "forwardWeaponPosition": [0, -2.4905500411987305, 25.641599655151367]
+      "forwardWeaponPosition": [0, -2.4905500411987305, 25.641599655151367],
+      "maxFlightSpeed": 300,
+      "maxFlightRoll": 3,
+      "maxFlightPitch": 1.5,
+      "thrust": 45
     },
     {
       "key": "cobramk1",
@@ -153,7 +181,11 @@
       "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
       "forwardWeaponPosition": [
         -0.04616599902510643, -0.8851240277290344, 34.85029983520508
-      ]
+      ],
+      "maxFlightSpeed": 260,
+      "maxFlightRoll": 2,
+      "maxFlightPitch": 1.2000000476837158,
+      "thrust": 25
     },
     {
       "key": "krait",
@@ -174,7 +206,11 @@
       "maxEnergy": 250,
       "energyRechargeRate": 2.5,
       "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
-      "forwardWeaponPosition": [0, -1.6045000553131104, 41.50809860229492]
+      "forwardWeaponPosition": [0, -1.6045000553131104, 41.50809860229492],
+      "maxFlightSpeed": 300,
+      "maxFlightRoll": 2.75,
+      "maxFlightPitch": 1.5,
+      "thrust": 35
     },
     {
       "key": "mamba",
@@ -189,7 +225,11 @@
       "maxEnergy": 240,
       "energyRechargeRate": 3,
       "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
-      "forwardWeaponPosition": [0, 0.2419629991054535, 33.55799865722656]
+      "forwardWeaponPosition": [0, 0.2419629991054535, 33.55799865722656],
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.0999999046325684,
+      "maxFlightPitch": 1.399999976158142,
+      "thrust": 32
     },
     {
       "key": "moray",
@@ -215,7 +255,11 @@
       "maxEnergy": 240,
       "energyRechargeRate": 3,
       "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
-      "forwardWeaponPosition": [0, -11.615150451660156, 32.575599670410156]
+      "forwardWeaponPosition": [0, -11.615150451660156, 32.575599670410156],
+      "maxFlightSpeed": 300,
+      "maxFlightRoll": 2.5,
+      "maxFlightPitch": 1.5,
+      "thrust": 32
     }
   ],
   "sources": [
@@ -236,6 +280,16 @@
     "cobramk1: name \"Cobra Mark I\" (line 1551; no display_name, so Oolite shows the name), max_energy 150 (line 1543), energy_recharge_rate 2.5 (line 1513), forward_weapon_type WEAPON_PULSE_LASER (line 1519), weapon_position_forward \"-0.046166 -0.885124 34.8503\" (line 1561), all of oolite_template_cobramk1 in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
     "krait: name \"Krait\" (line 2557; no display_name, so Oolite shows the name), max_energy 250 (line 2550), energy_recharge_rate 2.5 (line 2517), forward_weapon_type WEAPON_BEAM_LASER (line 2523), weapon_position_forward \"0.0 -1.6045 41.5081\" (line 2563), all of oolite_template_krait in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
     "mamba: name \"Mamba\" (line 2637; no display_name, so Oolite shows the name), max_energy 240 (line 2630), energy_recharge_rate 3 (line 2591), forward_weapon_type WEAPON_PULSE_LASER (line 2597), weapon_position_forward \"0.0 0.241963 33.558\" (line 2643), all of oolite_template_mamba in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
-    "moray: name \"Moray Star Boat\" (line 2840; no display_name, so Oolite shows the name), max_energy 240 (line 2832), energy_recharge_rate 3 (line 2792), forward_weapon_type WEAPON_PULSE_LASER (line 2794), weapon_position_forward \"0.0 -11.61515 32.5756\" (line 2850), all of oolite_template_moray in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32"
+    "moray: name \"Moray Star Boat\" (line 2840; no display_name, so Oolite shows the name), max_energy 240 (line 2832), energy_recharge_rate 3 (line 2792), forward_weapon_type WEAPON_PULSE_LASER (line 2794), weapon_position_forward \"0.0 -11.61515 32.5756\" (line 2850), all of oolite_template_moray in shipdata.plist and inherited by the like_ship child; the position is the single-mount unscaled vector (no weapon_mount_mode, no scale_factor; ShipEntity.m:1797-1817) rounded to float32",
+    "adder: max_flight_speed 240 (line 147), max_flight_roll 2.8 (line 146), max_flight_pitch 2 (line 145), thrust 30 (line 155), all of oolite_template_adder in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
+    "cobramk1: max_flight_speed 260 (line 1546), max_flight_roll 2 (line 1545), max_flight_pitch 1.2 (line 1544), thrust 25 (line 1554), all of oolite_template_cobramk1 in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
+    "gecko: max_flight_speed 300 (line 2322), max_flight_roll 3 (line 2321), max_flight_pitch 1.5 (line 2320), thrust 45 (line 2329), all of oolite_template_gecko in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
+    "krait: max_flight_speed 300 (line 2553), max_flight_roll 2.75 (line 2552), max_flight_pitch 1.5 (line 2551), thrust 35 (line 2560), all of oolite_template_krait in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
+    "mamba: max_flight_speed 320 (line 2633), max_flight_roll 2.1 (line 2632), max_flight_pitch 1.4 (line 2631), thrust 32 (line 2640), all of oolite_template_mamba in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
+    "moray: max_flight_speed 300 (line 2835), max_flight_roll 2.5 (line 2834), max_flight_pitch 1.5 (line 2833), thrust 32 (line 2843), all of oolite_template_moray in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
+    "shuttle: max_flight_speed 80 (line 3535), max_flight_roll 2 (line 3534), max_flight_pitch 0.9 (line 3533), thrust 16 (line 3541), all of oolite_template_shuttle in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
+    "sidewinder: max_flight_speed 370 (line 3591), max_flight_roll 2.8 (line 3590), max_flight_pitch 1.6 (line 3589), thrust 37 (line 3597), all of oolite_template_sidewinder in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
+    "viper: max_flight_speed 320 (line 3880), max_flight_roll 2.8 (line 3879), max_flight_pitch 1.8 (line 3878), thrust 32 (line 3962), all of oolite_template_viper in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
+    "flight defaults: max_flight_speed 160 for a non-station, max_flight_roll 2.0, max_flight_pitch 1.0 and thrust 15.0 (ShipEntity.m:263-270); none of the nine ships authors a default-taking case, so the defaults are pinned by the converter test alone; none of the nine authors accuracy, reaction_time, scanner_range, aft_weapon_type, port_weapon_type or starboard_weapon_type (the build refuses them)"
   ]
 }
