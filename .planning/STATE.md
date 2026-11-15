@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 13
 current_phase_name: Views, Lasers and Shields
 status: executing
-stopped_at: Completed 13-15-PLAN.md
-last_updated: "2026-11-15T02:06:25.765Z"
+stopped_at: Completed 13-12-PLAN.md
+last_updated: "2026-11-15T02:20:07.850Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 13 execution started
-state_head: c73c6a9b929a67a19d3818dd42ccff9c5db08050
+state_head: 0e6c3cef5cfe8da234a375f4cf3cba43933344e5
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 16
-  completed_plans: 13
+  completed_plans: 14
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 13 (Views, Lasers and Shields) — EXECUTING
-Plan: 14 of 16
+Plan: 15 of 16
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 13 execution started
 
@@ -166,6 +166,7 @@ Last activity: 2026-11-14 — Phase 13 execution started
 | Phase 13 P10 | 25 min | 2 tasks | 14 files |
 | Phase 13 P11 | 25 min | 2 tasks | 18 files |
 | Phase 13 P15 | 10 min | 2 tasks | 6 files |
+| Phase 13 P12 | 15 min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -410,6 +411,8 @@ Recent decisions affecting current work:
 - [Phase 13]: 13-11: hull table and NPC weapon map load/exist only with traffic on (one flag gates the NPC catalogue and the hull chunk); traffic-on cold start 8,855,706 bytes vs 9,437,184 ceiling — D-01/OQ3 lazy chunk, D11 ceiling
 - [Phase 13]: 13-15: D-04 (R re-acquires, U untargets) and D-03 (name-only lock message) implemented as Oolite and recorded PENDING OWNER CONFIRMATION with one-place literal alternatives
 - [Phase 13]: 13-15: ident runs as two halves inside combat/step.ts (stepIdent before the world step, updateIdentTarget at the end of resolveShots) so sim.ts is unchanged
+- [Phase 13]: 13-12: D-03 lock message is name only via the single IDENT_LOCKED_TEMPLATE constant; PENDING OWNER CONFIRMATION (literal form pinned by a test)
+- [Phase 13]: 13-12: combat and ident messages route through hudMessages (given ctx) with a per-kind one-second gate; subscriber order unchanged
 
 ### Pending Todos
 
@@ -511,8 +514,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T02:06:25.670Z
-Stopped at: Completed 13-15-PLAN.md
+Last session: 2026-11-15T02:20:07.770Z
+Stopped at: Completed 13-12-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
