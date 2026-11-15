@@ -11,15 +11,35 @@
  * (the one carve-out in `eslint.config.js`). The populator never calls it; only
  * the `?test=1` hook does, and that taints the session first so no autosave can
  * make the spawned ship durable.
+ *
+ * `spawnTestFlyers` (plan 14-16) is the second seam of the same kind: three
+ * flight-script ships for the `?test=1` flying-NPC hook and the acceptance run.
  */
 
 import type { FlightState } from "../flight/state.js";
-import { add, mul, normalize, quat, rotate, scale, vec } from "../math.js";
-import { PLAYER_ID } from "../world/ids.js";
+import {
+  add,
+  mul,
+  normalize,
+  normalizeVec,
+  quat,
+  quatFromUnitVectors,
+  rotate,
+  scale,
+  sub,
+  vec,
+} from "../math.js";
+import type { Quat, Vec3 } from "../math.js";
+import { statsFor } from "../npc/stats.js";
+import type { NpcFlightStats } from "../npc/stats.js";
+import { MAX_ENTITIES, PLAYER_ID } from "../world/ids.js";
+import type { ScanClass } from "../world/ids.js";
 import { isScanClass } from "../world/populate.js";
 import type { InertShipRecord } from "../world/populate.js";
-import { spawnEntity } from "../world/world.js";
+import { liveEntityCount, spawnEntity } from "../world/world.js";
 import type { World } from "../world/world.js";
+import type { FlightScript } from "./pilots/flight-script.js";
+import { createFlightScriptAi } from "./pilots/flight-script.js";
 import { createTestPilotAi } from "./pilots/test-pilot.js";
 
 /** How far ahead of the player the shooter appears, in metres. */
@@ -78,4 +98,171 @@ export function spawnTestShooter(
     },
     tick,
   ).ok;
+}
+
+/** How far from the player each test flyer appears, in metres. */
+export const TEST_FLYER_DISTANCE = 3_000;
+
+/**
+ * The flight-script ranges, in metres: the station script stops at this centre
+ * distance from the station, the intercept script at this range from the
+ * player's hull, and the flee script is done beyond this range (the scanner
+ * range). They equal `STATION_SCRIPT_RANGE_M`, `INTERCEPT_SCRIPT_RANGE_M` and
+ * `FLEE_SCRIPT_RANGE_M` of `tests/acceptance/thresholds.ts`, which a test pins.
+ * `Object.freeze(...)`, because the AI zone's lint refuses an exported object
+ * literal (`AI_MODULE_STATE_BANS`).
+ */
+export const FLYER_SCRIPT_RANGES = Object.freeze({
+  station: 2_500,
+  intercept: 1_500,
+  flee: 25_600,
+});
+
+/** The player's nose is local -Z and its left is local -X. */
+const LOCAL_LEFT = vec(-1, 0, 0);
+
+/** The interceptor and the fleer appear this far off the player's nose. */
+const FLYER_SPREAD_ANGLE = Math.PI / 6;
+
+/** The record's scan class when it is in the closed vocabulary, else undefined. */
+function scanClassOf(record: InertShipRecord): ScanClass | undefined {
+  return isScanClass(record.scanClass) ? record.scanClass : undefined;
+}
+
+/** The three records `spawnTestFlyers` spawns, by script. */
+export interface FlyerRecords {
+  readonly station: InertShipRecord;
+  readonly intercept: InertShipRecord;
+  readonly flee: InertShipRecord;
+}
+
+/** Everything `spawnEntity` needs of one flyer, besides the record. */
+interface FlyerPlan {
+  readonly script: FlightScript;
+  readonly record: InertShipRecord;
+  readonly scanClass: ScanClass;
+  readonly position: Vec3;
+  readonly orientation: Quat;
+  readonly range: number;
+}
+
+/**
+ * Spawn three flight-script ships `TEST_FLYER_DISTANCE` metres from the player
+ * (WORLD-07, the `?test=1` hook, plan 14-16): a station flyer flying to the main
+ * station, an interceptor flying at the player and a fleer flying away from it.
+ * Each starts at its compiled maximum speed (`flight`, the compiled flight
+ * table; Oolite's defaults when absent).
+ *
+ *  - The station flyer is 90 degrees left of the player's nose, with its own
+ *    nose (local -Z) on `station`, the station's centre. Dead ahead of a
+ *    just-launched player it would start pointing away from the station and fly
+ *    back along the player's track.
+ *  - The interceptor is 30 degrees left and the fleer 30 degrees right of the
+ *    nose, both facing along it. The fleer's approach aspect to the player is
+ *    then cos 30 degrees, below performFlee's 0.9995, so it takes FLEE_TARGET
+ *    with no evasive draw.
+ *
+ * It validates all three records (a scan class in the closed vocabulary) and
+ * that the world has room for three more live ships first, and returns false
+ * without spawning anything if either fails. It returns true only if all three
+ * spawned. If `spawnEntity` still refuses a ship after an earlier one spawned (a
+ * case the pre-validation does not foresee, such as an exhausted id counter),
+ * the earlier ships stay in the world and the function returns false: that
+ * state is tainted. The `?test=1` hook taints the session before it calls this,
+ * so no autosave can make such a state durable (T-14-40).
+ *
+ * Like `spawnTestShooter` it is world-side and used only by the `?test=1` hook
+ * and by tests; the populator never calls it.
+ */
+export function spawnTestFlyers(
+  world: World,
+  player: Pick<FlightState, "position" | "orientation">,
+  records: FlyerRecords,
+  flight: readonly NpcFlightStats[] | undefined,
+  tick: number,
+  station: Vec3,
+): boolean {
+  const stationClass = scanClassOf(records.station);
+  const interceptClass = scanClassOf(records.intercept);
+  const fleeClass = scanClassOf(records.flee);
+  if (
+    stationClass === undefined ||
+    interceptClass === undefined ||
+    fleeClass === undefined ||
+    MAX_ENTITIES - liveEntityCount(world) < 3
+  ) {
+    return false;
+  }
+  const nose = rotate(player.orientation, LOCAL_FORWARD);
+  const left = rotate(player.orientation, LOCAL_LEFT);
+  const around = (side: number, ahead: number): Vec3 =>
+    add(
+      player.position,
+      add(
+        scale(nose, TEST_FLYER_DISTANCE * ahead),
+        scale(left, TEST_FLYER_DISTANCE * side),
+      ),
+    );
+  const cos = Math.cos(FLYER_SPREAD_ANGLE);
+  const sin = Math.sin(FLYER_SPREAD_ANGLE);
+  const stationPosition = around(1, 0);
+  const plans: readonly FlyerPlan[] = [
+    {
+      script: "station",
+      record: records.station,
+      scanClass: stationClass,
+      position: stationPosition,
+      orientation: normalize(
+        quatFromUnitVectors(
+          LOCAL_FORWARD,
+          normalizeVec(sub(station, stationPosition)),
+        ),
+      ),
+      range: FLYER_SCRIPT_RANGES.station,
+    },
+    {
+      script: "intercept",
+      record: records.intercept,
+      scanClass: interceptClass,
+      position: around(sin, cos),
+      orientation: player.orientation,
+      range: FLYER_SCRIPT_RANGES.intercept,
+    },
+    {
+      script: "flee",
+      record: records.flee,
+      scanClass: fleeClass,
+      position: around(-sin, cos),
+      orientation: player.orientation,
+      range: FLYER_SCRIPT_RANGES.flee,
+    },
+  ];
+  let spawned = 0;
+  for (const plan of plans) {
+    const speed = statsFor(flight, plan.record.key).maxFlightSpeed;
+    const result = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: plan.record.key,
+        scanClass: plan.scanClass,
+        position: plan.position,
+        orientation: plan.orientation,
+        radius: plan.record.radius,
+        speed,
+        ai: createFlightScriptAi(tick, {
+          script: plan.script,
+          ...(plan.script === "station" ? {} : { targetId: PLAYER_ID }),
+          range: plan.range,
+          speed,
+        }),
+        maxEnergy: plan.record.maxEnergy,
+        energyRechargeRate: plan.record.energyRechargeRate,
+      },
+      tick,
+    );
+    if (!result.ok) return false;
+    spawned += 1;
+  }
+  return spawned === plans.length;
 }

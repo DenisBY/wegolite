@@ -16,7 +16,7 @@ import type { WorldView } from "../world/view.js";
  */
 
 /** The registered AI keys. The AI registry (plan 08-09) keys on the same list. */
-export const AI_KEYS = ["test-pilot"] as const;
+export const AI_KEYS = ["test-pilot", "flight-script"] as const;
 export type AiKey = (typeof AI_KEYS)[number];
 
 /**
