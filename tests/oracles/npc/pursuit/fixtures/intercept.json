@@ -1,0 +1,1083 @@
+[
+  {
+    "id": "intercept-target-dead-ahead-full-speed",
+    "title": "INTERCEPT_TARGET toward a stationary target dead ahead beyond desiredRange asks for full speed and steers nothing",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:3817-3826",
+      "src/Core/Entities/ShipEntity.m:9034-9152",
+      "src/Core/Entities/ShipEntity.m:9718-9734",
+      "src/Core/Entities/ShipEntityAI.m:413-417"
+    ],
+    "derivation": "A Viper-like ship at the origin facing +z at rest, accuracy 2; a stationary ship (radius 40) at (0, 0, 10000); setTarget, setDesiredRange 1500 and perform INTERCEPT_TARGET (performIntercept sets behaviour and frustration 0 only, ShipEntityAI.m:413-417). Tick 0: rangeToPrimaryTarget is the centre distance minus both collision radii, 10000 - 40 - 40 = 9920 (ShipEntity.m:9723-9734). Tick 1: behaviour_intercept_target sets desired_speed to maxFlightSpeed, range 9920 is not below desired_range 1500 so no event (3822-3825), then trackPrimaryTarget: the aim point is the tick-0 position of the target (the tracking curve holds four copies of it until tick 60, 5425-5442, 5448), relPos normalises to (0, 0, 1), d_forward is exactly 1 and exceeds the accuracy-2 aim cosine sqrt(1 - 204^2/1e8) = 0.99979 (currentAimTolerance 9761-9810, aim_tolerance = 240 - 18 * 2 = 204), so it returns d_forward = 1 before touching any stick (9149-9152): sticks 0, desired_speed = 320 * 1 = 320. Closed forms; tolerance 1e-3 on the speed covers float32 storage of desired_speed (ulp 3e-5).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 10000],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 1500
+      },
+      {
+        "op": "perform",
+        "value": "INTERCEPT_TARGET"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "INTERCEPT_TARGET",
+        "tolerance": 0,
+        "note": "performIntercept sets the behaviour at tick 0"
+      },
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "performIntercept resets frustration"
+      },
+      {
+        "tick": 0,
+        "field": "rangeToTarget",
+        "expected": 9920,
+        "tolerance": 0.000001,
+        "note": "10000 - 40 - 40 (ShipEntity.m:9723-9734)"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "maxFlightSpeed * d_forward = 320 * 1"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 0.00001,
+        "note": "on target: no stick is set (9149-9152)"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0,
+        "tolerance": 0.00001,
+        "note": "on target: no stick is set (9149-9152)"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "INTERCEPT_TARGET",
+        "tolerance": 0,
+        "note": "intercept keeps its behaviour while the target is valid"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "intercept-target-above-pitches-up-full-stick",
+    "title": "INTERCEPT_TARGET toward a target straight above commands full pitch up and stops asking for speed",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:3817-3826",
+      "src/Core/Entities/ShipEntity.m:9114-9244",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "Same ship as the dead-ahead fixture, target stationary at (0, 10000, 0). relPos normalises to (0, 1, 0): d_right 0, d_up 1, d_forward 0. Accuracy 2 is not below COMBAT_AI_TRACKS_CLOSER (7.5), so min_d stays 0.004, max_factor 8 and r_max_factor 0.125, and the missed-shot term is 0 (scope cut); d_forward 0 is below the aim cosine 0.99979, so the correction block runs. d_up (1) is above min_d, factor = trunc(sqrt(|d_right| / min_d)) = 0, d_right is not beyond +-min_d, so stick_roll stays 0 and the pitch branch runs: factor = min(8, trunc(sqrt(1 / 0.004) = 15.8)) = 8, stick_pitch = -max_flight_pitch * 1 * 0.125 * 8 = -1.8 (9196-9204). The overshoot limiter (accuracy >= 0) compares |d_up| = 1 with |stick_pitch| * dt = 0.015: no clamp. applySticks then moves flightPitch off 0, so the final test (!flightRoll && !flightPitch) fails and trackPrimaryTarget returns d_forward = 0 (9240-9243): desired_speed = 320 * 0 = 0.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 10000, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 1500
+      },
+      {
+        "op": "perform",
+        "value": "INTERCEPT_TARGET"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": -1.8,
+        "tolerance": 0.00001,
+        "note": "-max_flight_pitch * 0.125 * 8 (9201)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 0.00001,
+        "note": "d_right is 0: no roll"
+      },
+      {
+        "tick": 1,
+        "field": "pitchingOver",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "only a target behind sets it (9158)"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "d_forward is 0 once the ship is pitching (9240-9243)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "intercept-target-dead-behind-pitches-over",
+    "title": "INTERCEPT_TARGET toward a target dead behind sets pitchingOver and the damped overturn pitch",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:3817-3826",
+      "src/Core/Entities/ShipEntity.m:9154-9204"
+    ],
+    "derivation": "Same ship, target stationary at (0, 0, -10000). relPos (0, 0, -1): d_forward -1 is below -0.5 and pitching_over is false, so pitching_over becomes true (9158-9159) and, with d_up 0, stick_pitch is +max_flight_pitch (9161-9166); pitching_over stays set because -1 < 0.707. The correction block then replaces d_up by 2 * min_d = 0.008 (d_forward below -max_cos, 9172-9175); d_up exceeds min_d, d_right is 0 so no roll, and the pitch branch overwrites the stick: factor = min(8, trunc(sqrt(0.008 / 0.004) = 1.41)) = 1, stick_pitch = -1.8 * 0.125 * 1 = -0.225 (9196-9204). The overshoot limiter does not bind (|0.008| vs 0.225 * dt = 0.001875 is not below). d_forward is negative, so trackPrimaryTarget returns 0 (9237-9238) and desired_speed is 0.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, -10000],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 1500
+      },
+      {
+        "op": "perform",
+        "value": "INTERCEPT_TARGET"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": -0.225,
+        "tolerance": 0.00001,
+        "note": "-max_flight_pitch * 0.125 * 1 after pitching_over (9158-9204)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 0.00001,
+        "note": "no roll"
+      },
+      {
+        "tick": 1,
+        "field": "pitchingOver",
+        "expected": 1,
+        "tolerance": 0,
+        "note": "set at 9159 and kept at 9166"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "negative d_forward returns 0 (9237-9238)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "intercept-target-abeam-gives-no-turn-command",
+    "title": "INTERCEPT_TARGET toward a target exactly abeam commands no turn at all (Oolite's exact-zero d_up quirk)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:3817-3826",
+      "src/Core/Entities/ShipEntity.m:9145-9204",
+      "src/Core/Entities/ShipEntity.m:9240-9243"
+    ],
+    "derivation": "Same ship, target stationary at (10000, 0, 0), exactly on the ship's right axis. relPos (1, 0, 0): d_right 1, d_up 0, d_forward 0. The roll branches need d_up above +min_d or below -min_d (9177 and 9186) and d_up is exactly 0, so stick_roll stays 0; the pitch branch then has factor trunc(sqrt(0 / 0.004)) = 0 and d_up is inside +-min_d, so stick_pitch stays 0. Unlike trackDestination (stick_pitch 0.01 fallback, 9560-9565) trackPrimaryTarget has no fallback: a target exactly abeam gets no command. applySticks leaves both rates 0, so (!flightRoll && !flightPitch) returns 1 (9240-9241) and desired_speed = 320. A pose with any d_up beyond +-0.004 turns; the exactly-zero pose is recorded so the port keeps the quirk.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [10000, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 1500
+      },
+      {
+        "op": "perform",
+        "value": "INTERCEPT_TARGET"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 0.00001,
+        "note": "d_up 0: neither roll branch runs"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0,
+        "tolerance": 0.00001,
+        "note": "factor 0 and d_up inside +-min_d: no pitch"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "no correction: returns 1.0 (9240-9241), 320 * 1"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "intercept-inside-desired-range-posts-every-tick",
+    "title": "INTERCEPT_TARGET inside desiredRange posts shipAchievedDesiredRange on every update while it stays inside",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:3817-3826",
+      "src/Core/Entities/ShipEntity.m:9718-9734"
+    ],
+    "derivation": "Same ship, stationary target at (0, 0, 1000) dead ahead, desired range 1500. rangeToPrimaryTarget = 1000 - 80 = 920 is below 1500 (3822), so every update posts shipAchievedDesiredRange (3823-3824) while the condition holds; the horizon is kept at 5 ticks. The ship accelerates at thrust * 5 / 120 = 1.33 m/s per tick, so over 5 ticks the range moves by at most 0.03 m: nowhere near 1500. desired_speed is still maxFlightSpeed (3821, 3826): the steering does not slow the ship inside the range.",
+    "dt": 0.008333333333333333,
+    "horizon": 5,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 1000],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 1500
+      },
+      {
+        "op": "perform",
+        "value": "INTERCEPT_TARGET"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "rangeToTarget",
+        "expected": 920,
+        "tolerance": 0.000001,
+        "note": "1000 - 80"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "320 * 1"
+      },
+      {
+        "tick": 5,
+        "field": "behaviour",
+        "expected": "INTERCEPT_TARGET",
+        "tolerance": 0,
+        "note": "intercept keeps running inside the range"
+      }
+    ],
+    "events": [
+      {
+        "tick": 1,
+        "name": "shipAchievedDesiredRange"
+      },
+      {
+        "tick": 2,
+        "name": "shipAchievedDesiredRange"
+      },
+      {
+        "tick": 3,
+        "name": "shipAchievedDesiredRange"
+      },
+      {
+        "tick": 4,
+        "name": "shipAchievedDesiredRange"
+      },
+      {
+        "tick": 5,
+        "name": "shipAchievedDesiredRange"
+      }
+    ]
+  },
+  {
+    "id": "intercept-removed-target-posts-range-then-lost",
+    "title": "INTERCEPT_TARGET with a target that no longer exists posts shipAchievedDesiredRange then shipTargetLost on the same tick",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:3817-3826",
+      "src/Core/Entities/ShipEntity.m:9723-9728",
+      "src/Core/Entities/ShipEntity.m:9034-9042",
+      "src/Core/Entities/ShipEntity.m:8774-8804"
+    ],
+    "derivation": "The ship's target id (999) names no body: the weak reference is dead, so primaryTarget is nil (ShipEntity.m:8718-8724). rangeToPrimaryTarget returns 0 for a nil target (9727), and 0 is below the positive desired range 1500, so behaviour_intercept_target posts shipAchievedDesiredRange (3822-3825) before it calls trackPrimaryTarget; that finds no target, calls noteLostTargetAndGoIdle (9038-9041): behaviour IDLE, frustration 0 (8801-8802), then noteLostTarget posts shipTargetLost (8792). Oolite passes the target as the event's argument only when it is still a valid ship (8779-8792), so a removed target posts no argument. desired_speed = maxFlightSpeed * 0 = 0 (3826). Both events carry tick 1, in that order; from tick 2 the ship is IDLE and posts nothing.",
+    "dt": 0.008333333333333333,
+    "horizon": 3,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 999,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setDesiredRange",
+        "value": 1500
+      },
+      {
+        "op": "perform",
+        "value": "INTERCEPT_TARGET"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "INTERCEPT_TARGET",
+        "tolerance": 0,
+        "note": "performIntercept"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "noteLostTargetAndGoIdle (8801)"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "noteLostTargetAndGoIdle (8802)"
+      },
+      {
+        "tick": 1,
+        "field": "targetId",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "the dead weak reference is dropped (8723)"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "320 * 0 (3826, 9041)"
+      },
+      {
+        "tick": 2,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "IDLE stays IDLE"
+      }
+    ],
+    "events": [
+      {
+        "tick": 1,
+        "name": "shipAchievedDesiredRange"
+      },
+      {
+        "tick": 1,
+        "name": "shipTargetLost"
+      }
+    ]
+  },
+  {
+    "id": "intercept-planet-target-is-not-valid",
+    "title": "INTERCEPT_TARGET at a planet: a planet is not a valid target, so it posts the same two events as a removed target",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:8638-8656",
+      "src/Core/Entities/ShipEntity.m:8718-8733",
+      "src/Core/Entities/ShipEntity.m:3817-3826",
+      "src/Core/Entities/ShipEntity.m:9034-9042"
+    ],
+    "derivation": "setTarget names the planet (id 1). isValidTarget: accepts a ship or a wormhole only (8638-8656), and a planet is neither, so primaryTarget destroys the reference and returns nil (8721-8724); even addTarget's own startTrackingCurve already sees nil (5427-5430). The tick-1 update therefore behaves exactly like a removed target: rangeToPrimaryTarget 0 < desired range 1500 posts shipAchievedDesiredRange, trackPrimaryTarget posts shipTargetLost with no argument and leaves the ship IDLE with frustration 0.",
+    "dt": 0.008333333333333333,
+    "horizon": 2,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 1,
+        "kind": "planet",
+        "scanClass": "CLASS_NO_DRAW",
+        "radius": 6000,
+        "mass": 1000000000000,
+        "position": [0, 0, 30000],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 1
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 1500
+      },
+      {
+        "op": "perform",
+        "value": "INTERCEPT_TARGET"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "invalid target: IDLE"
+      },
+      {
+        "tick": 1,
+        "field": "targetId",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "the reference is dropped"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "noteLostTargetAndGoIdle"
+      }
+    ],
+    "events": [
+      {
+        "tick": 1,
+        "name": "shipAchievedDesiredRange"
+      },
+      {
+        "tick": 1,
+        "name": "shipTargetLost"
+      }
+    ]
+  },
+  {
+    "id": "intercept-target-beyond-scanner-reach-is-lost",
+    "title": "INTERCEPT_TARGET at a valid ship beyond 1.25 x scanner range posts shipTargetLost alone",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:8696-8716",
+      "src/Core/Entities/ShipEntity.m:9044-9047",
+      "src/Core/Entities/ShipEntity.m:8774-8804",
+      "src/Core/Entities/ShipEntity.m:3817-3826"
+    ],
+    "derivation": "The ship's target is a valid stationary ship at (0, 0, 40000). canStillTrackPrimaryTarget compares the squared centre distance with scannerRange^2 * 1.5625 (8705-8708): 40000^2 = 1.6e9 exceeds 25600^2 * 1.5625 = 1.024e9 (reach 32000 m), so it fails. The range 39920 is above the desired range 1500, so no shipAchievedDesiredRange is posted (3822); trackPrimaryTarget calls noteLostTargetAndGoIdle (9044-9046): IDLE, frustration 0, shipTargetLost (the argument is the target, because it is still a valid ship, 8785). desired_speed = 320 * 0 = 0.",
+    "dt": 0.008333333333333333,
+    "horizon": 2,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 40000],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 1500
+      },
+      {
+        "op": "perform",
+        "value": "INTERCEPT_TARGET"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "targetId",
+        "expected": 102,
+        "tolerance": 0,
+        "note": "setTarget applies at tick 0"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "target lost by range: IDLE"
+      },
+      {
+        "tick": 1,
+        "field": "targetId",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "the reference is dropped"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "320 * 0"
+      }
+    ],
+    "events": [
+      {
+        "tick": 1,
+        "name": "shipTargetLost"
+      }
+    ]
+  },
+  {
+    "id": "intercept-tracking-curve-aim-point-of-crossing-target",
+    "title": "The reaction-time tracking curve: the aim point of a constant-velocity target stays at its tick-0 position until the second sample, then leads it",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:5412-5489",
+      "src/Core/Entities/ShipEntity.m:2131-2131",
+      "src/Core/Entities/ShipEntity.m:8658-8666",
+      "src/Core/Entities/ShipEntity.m:3817-3826"
+    ],
+    "derivation": "A stationary ship at the origin running INTERCEPT_TARGET (desired range 100, never reached) against a ship at (3000, 0, 8000) flying along -x at 100 m/s (forward (-1, 0, 0), constant-velocity motion: x(k) = 3000 - 100 * k / 120). setTarget starts the curve at tick 0 with four copies of the tick-0 position at ticks 0, -60, -120, -180 (startTrackingCurve 5425-5442; times in seconds are tick / 120 on the integer clock of contract item 8). updateTrackingCurve runs at the start of each update and takes a sample when ticks[0] + 60 <= now (5448): at ticks 60, 120, 180, shifting positions[0] into [1] and the new position into [0] (5450-5465). calculateTrackingCurve fits a quadratic through samples 1 to 3 only (5469-5489), so the tick-60 sample is invisible: after tick 60 samples 1 to 3 are still all the tick-0 position, and the aim point is exactly (3000, 0, 8000) at ticks 0, 90 and 119. After the tick-120 sample, samples 1 to 3 are the target at ticks 60, 0 and -60 (positions (2950, 0, 8000), (3000, 0, 8000), (3000, 0, 8000)); the quadratic through (s = 0, P(60)), (-0.5 s, P0), (-1 s, P0) in s = now - times[1] is P0 + v * (s + 0.5)(s + 1) with v = -100 m/s, evaluated at s = 0.5 s: P0 + 1.5 v = x 2850 at tick 120; at tick 121 s = 0.5 + 1/120 and the lead is v * (1 + 1/120)(1.5 + 1/120). After the tick-180 sample the three samples are the target at ticks 120, 60 and 0, collinear, so the fit is exact: the aim point at 180 is the target's true position P0 + 1.5 v = 2850 (it was 150 m ahead of the target at tick 120). calculateTargetPosition evaluates at [UNIVERSE getTime] (5421). If Oolite sampled one tick later (61, 121, 181) the aim point at tick 120 would still be (3000, 0, 8000), 150 m behind the 2850 expected here, and at 180 the first fit would not yet be exact; ticks 120 and 180 therefore separate the two rules, and ticks 59, 60 and 61 (a base-dependent edge) are deliberately not checked. Tolerance 1e-6 m (positions are doubles).",
+    "dt": 0.008333333333333333,
+    "horizon": 180,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [3000, 0, 8000],
+        "forward": [-1, 0, 0],
+        "up": [0, 1, 0],
+        "right": [0, 0, 1],
+        "speed": 100,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "constant-velocity",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 100
+      },
+      {
+        "op": "perform",
+        "value": "INTERCEPT_TARGET"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "aimPointX",
+        "expected": 3000,
+        "tolerance": 0.000001,
+        "note": "tick 0: the curve is four copies of the tick-0 position"
+      },
+      {
+        "tick": 0,
+        "field": "aimPointY",
+        "expected": 0,
+        "tolerance": 0.000001,
+        "note": "unchanged"
+      },
+      {
+        "tick": 0,
+        "field": "aimPointZ",
+        "expected": 8000,
+        "tolerance": 0.000001,
+        "note": "unchanged"
+      },
+      {
+        "tick": 90,
+        "field": "aimPointX",
+        "expected": 3000,
+        "tolerance": 0.000001,
+        "note": "tick-60 sample is invisible: samples 1 to 3 are all P0"
+      },
+      {
+        "tick": 119,
+        "field": "aimPointX",
+        "expected": 3000,
+        "tolerance": 0.000001,
+        "note": "last tick before the second sample is visible"
+      },
+      {
+        "tick": 120,
+        "field": "aimPointX",
+        "expected": 2850,
+        "tolerance": 0.000001,
+        "note": "P0 + 1.5 v: the fit through (60, 0, -60) first changes the aim point"
+      },
+      {
+        "tick": 121,
+        "field": "aimPointX",
+        "expected": 2847.909722222222,
+        "tolerance": 0.000001,
+        "note": "v (1 + 1/120)(1.5 + 1/120) added to P0"
+      },
+      {
+        "tick": 120,
+        "field": "aimPointZ",
+        "expected": 8000,
+        "tolerance": 0.000001,
+        "note": "unchanged"
+      },
+      {
+        "tick": 180,
+        "field": "aimPointX",
+        "expected": 2850,
+        "tolerance": 0.000001,
+        "note": "three collinear samples: the exact position P0 + 1.5 v"
+      },
+      {
+        "tick": 180,
+        "field": "aimPointY",
+        "expected": 0,
+        "tolerance": 0.000001,
+        "note": "unchanged"
+      },
+      {
+        "tick": 180,
+        "field": "behaviour",
+        "expected": "INTERCEPT_TARGET",
+        "tolerance": 0,
+        "note": "intercept keeps running"
+      }
+    ],
+    "events": []
+  }
+]

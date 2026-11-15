@@ -1,0 +1,1188 @@
+[
+  {
+    "id": "flee-accuracy-2-jink-draws-and-aspect-below-threshold",
+    "title": "perform FLEE_TARGET at accuracy 2 draws the 400-jink pair and, with approach aspect 0.9, takes FLEE_TARGET without a third draw",
+    "oolite": [
+      "src/Core/Entities/ShipEntityAI.m:379-392",
+      "src/Core/Entities/ShipEntity.m:8980-9001",
+      "src/Core/Entities/ShipEntity.m:4840-4901",
+      "src/Core/Entities/ShipEntity.m:9034-9244",
+      "src/Core/Entities/ShipEntity.m:9736-9749"
+    ],
+    "derivation": "A Viper-like ship at the origin at accuracy 2, a stationary ship at (0, 0, 5000) whose forward is (0.4359, 0, -0.9): its approach aspect, dot(normalise(self - target), target forward) = dot((0, 0, -1), forward) = 0.9, is below 0.9995 (ShipEntityAI.m:386-389). performFlee sets FLEE_TARGET, calls setEvasiveJink(400) and zeroes frustration (383-385): accuracy 2 is at least 0, so two ranrot draws (ShipEntity.m:8985-8986) with the scripted draws [0.7, 0.3]: floor(0.7 * 256) = 179 so jink.x = 179 - 128 = 51, non-negative, +128 = 179; floor(0.3 * 256) = 76 so jink.y = 76 - 128 = -52, negative, -128 = -180; jink.z = 400. Aspect 0.9 takes no third draw, so exactly two draws are consumed. The jink is a draw-dependent effect, so it is checked from tick 1. Tick 1 (behaviour_flee_target): range 4920 is inside desired range 10000, so desired_speed = maxFlightSpeed (4855-4858); accuracy 2 is below COMBAT_AI_FLEES_BETTER, so trackPrimaryTarget leaves the jink alone and adds it to relPos along the target's axes (9101-9106). The two stick values are the one-tick output of trackPrimaryTarget for that relPos (a general one-tick value re-derived by derive.ts; the factor arguments sqrt(|d| / 0.004) are far from an integer, so float32 cannot flip them) with tolerance 1e-5.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 5000],
+        "forward": [0.4358898943540673, 0, -0.9],
+        "up": [0, 1, 0],
+        "right": [-0.9, 0, -0.4358898943540673],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 10000
+      },
+      {
+        "op": "perform",
+        "value": "FLEE_TARGET"
+      }
+    ],
+    "draws": [0.7, 0.3],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "FLEE_TARGET",
+        "tolerance": 0,
+        "note": "performFlee at aspect 0.9 keeps FLEE_TARGET (no draw decides it)"
+      },
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "performFlee resets frustration"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 179,
+        "tolerance": 1e-9,
+        "note": "floor(0.7 * 256) - 128 + 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": -180,
+        "tolerance": 1e-9,
+        "note": "floor(0.3 * 256) - 128 - 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 400,
+        "tolerance": 0.001,
+        "note": "setEvasiveJink(400)"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "FLEE_TARGET",
+        "tolerance": 0,
+        "note": "flee keeps FLEE_TARGET"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "inside desired range: maxFlightSpeed (4858)"
+      },
+      {
+        "tick": 1,
+        "field": "successFactor",
+        "expected": 4920,
+        "tolerance": 0.000001,
+        "note": "success_factor = range = 5000 - 80 (4853)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 0.00001,
+        "note": "one-tick trackPrimaryTarget retreat with the jink offset"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": -0.675,
+        "tolerance": 0.00001,
+        "note": "one-tick trackPrimaryTarget retreat with the jink offset"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "flee-accuracy-2-aspect-above-0-9995-takes-evasive-action",
+    "title": "perform FLEE_TARGET at accuracy 2 with the target's nose on the ship draws once more (u = 0.1) and takes EVASIVE_ACTION",
+    "oolite": [
+      "src/Core/Entities/ShipEntityAI.m:379-392",
+      "src/Core/Entities/ShipEntity.m:8980-9001",
+      "src/Core/Entities/ShipEntity.m:9003-9032",
+      "src/Core/Entities/ShipEntity.m:3996-4036",
+      "src/Core/Entities/ShipEntity.m:9736-9749"
+    ],
+    "derivation": "A Viper-like ship at the origin at accuracy 2, a stationary ship at (0, 0, 5000) facing -z, straight at it: the approach aspect dot(normalise(self - target), target forward) = dot((0, 0, -1), (0, 0, -1)) = 1, above 0.9995 and measured on the same static poses at perform time and at the porter's deferred entry (ShipEntityAI.m:386-389). performFlee sets FLEE_TARGET, draws the 400-jink pair (scripted [0.62, 0.31]: jink.x = floor(0.62 * 256) - 128 + 128 = 158, jink.y = floor(0.31 * 256) - 128 - 128 = -177, jink.z = 400, ShipEntity.m:8985-8999), zeroes frustration, and because accuracy is above 0 and the aspect above 0.9995 draws one more value, u = 0.1: below 0.15 selects EVASIVE_ACTION, otherwise FLEE_EVASIVE_ACTION (ShipEntityAI.m:389). Three draws are consumed. The behaviour is draw-dependent, so it is checked from tick 1: behaviour_evasive_action (3996-4036) runs once: desired_speed = maxFlightSpeed (4003), no proximity alert, evasiveAction sets stick_roll = flightRoll = 0 and stick_pitch = flightPitch = 0; the ship's right axis (1, 0, 0) against the target's (-1, 0, 0) has agreement -1, outside (-0.3, 0.3), and stick_roll 0 is non-negative, so stick_roll = +max_flight_roll = 2.8 (9015-9023), stick_pitch = +max_flight_pitch = 1.8 (9025-9029). frustration += dt in float32: fround(0 + 1/120) (4021), below 0.5 so the behaviour is unchanged. The jink is untouched.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 5000],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 10000
+      },
+      {
+        "op": "perform",
+        "value": "FLEE_TARGET"
+      }
+    ],
+    "draws": [0.62, 0.31, 0.1],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "performFlee resets frustration"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "EVASIVE_ACTION",
+        "tolerance": 0,
+        "note": "u = 0.1 selects EVASIVE_ACTION (ShipEntityAI.m:389); it survives one evasive update"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 158,
+        "tolerance": 1e-9,
+        "note": "floor(0.62 * 256) - 128 + 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": -177,
+        "tolerance": 1e-9,
+        "note": "floor(0.31 * 256) - 128 - 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 400,
+        "tolerance": 0.001,
+        "note": "setEvasiveJink(400)"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "evasive action: maxFlightSpeed (4003)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 2.8,
+        "tolerance": 0.00001,
+        "note": "right axes disagree: +max_flight_roll"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 1.8,
+        "tolerance": 0.00001,
+        "note": "+max_flight_pitch"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 0,
+        "note": "fround(0 + 1/120) (4021)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "flee-accuracy-2-aspect-above-0-9995-takes-flee-evasive-action",
+    "title": "perform FLEE_TARGET at accuracy 2 with the target's nose on the ship draws once more (u = 0.5) and takes FLEE_EVASIVE_ACTION",
+    "oolite": [
+      "src/Core/Entities/ShipEntityAI.m:379-392",
+      "src/Core/Entities/ShipEntity.m:8980-9001",
+      "src/Core/Entities/ShipEntity.m:9003-9032",
+      "src/Core/Entities/ShipEntity.m:3996-4036",
+      "src/Core/Entities/ShipEntity.m:9736-9749"
+    ],
+    "derivation": "A Viper-like ship at the origin at accuracy 2, a stationary ship at (0, 0, 5000) facing -z, straight at it: the approach aspect dot(normalise(self - target), target forward) = dot((0, 0, -1), (0, 0, -1)) = 1, above 0.9995 and measured on the same static poses at perform time and at the porter's deferred entry (ShipEntityAI.m:386-389). performFlee sets FLEE_TARGET, draws the 400-jink pair (scripted [0.62, 0.31]: jink.x = floor(0.62 * 256) - 128 + 128 = 158, jink.y = floor(0.31 * 256) - 128 - 128 = -177, jink.z = 400, ShipEntity.m:8985-8999), zeroes frustration, and because accuracy is above 0 and the aspect above 0.9995 draws one more value, u = 0.5: below 0.15 selects EVASIVE_ACTION, otherwise FLEE_EVASIVE_ACTION (ShipEntityAI.m:389). Three draws are consumed. The behaviour is draw-dependent, so it is checked from tick 1: behaviour_evasive_action (3996-4036) runs once: desired_speed = maxFlightSpeed (4003), no proximity alert, evasiveAction sets stick_roll = flightRoll = 0 and stick_pitch = flightPitch = 0; the ship's right axis (1, 0, 0) against the target's (-1, 0, 0) has agreement -1, outside (-0.3, 0.3), and stick_roll 0 is non-negative, so stick_roll = +max_flight_roll = 2.8 (9015-9023), stick_pitch = +max_flight_pitch = 1.8 (9025-9029). frustration += dt in float32: fround(0 + 1/120) (4021), below 0.5 so the behaviour is unchanged. The jink is untouched.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 5000],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 10000
+      },
+      {
+        "op": "perform",
+        "value": "FLEE_TARGET"
+      }
+    ],
+    "draws": [0.62, 0.31, 0.5],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "performFlee resets frustration"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "FLEE_EVASIVE_ACTION",
+        "tolerance": 0,
+        "note": "u = 0.5 selects FLEE_EVASIVE_ACTION (ShipEntityAI.m:389); it survives one evasive update"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 158,
+        "tolerance": 1e-9,
+        "note": "floor(0.62 * 256) - 128 + 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": -177,
+        "tolerance": 1e-9,
+        "note": "floor(0.31 * 256) - 128 - 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 400,
+        "tolerance": 0.001,
+        "note": "setEvasiveJink(400)"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "evasive action: maxFlightSpeed (4003)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 2.8,
+        "tolerance": 0.00001,
+        "note": "right axes disagree: +max_flight_roll"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 1.8,
+        "tolerance": 0.00001,
+        "note": "+max_flight_pitch"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 0,
+        "note": "fround(0 + 1/120) (4021)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "flee-accuracy-minus-2-draws-nothing-and-turns-away",
+    "title": "perform FLEE_TARGET below accuracy 0 draws nothing, leaves a zero jink and starts the overturn from a target dead ahead",
+    "oolite": [
+      "src/Core/Entities/ShipEntityAI.m:379-392",
+      "src/Core/Entities/ShipEntity.m:8980-8983",
+      "src/Core/Entities/ShipEntity.m:4840-4901",
+      "src/Core/Entities/ShipEntity.m:9034-9244"
+    ],
+    "derivation": "A Viper-like ship at accuracy -2, a stationary ship at (0, 0, 3000) dead ahead facing +z, desired range 10000. performFlee sets FLEE_TARGET; setEvasiveJink at accuracy below 0 zeroes the jink and draws nothing (ShipEntity.m:8982-8984); accuracy is not above 0, so no aspect test and no third draw: zero draws. Tick 1: range 2920 < 10000, desired_speed = 320. trackPrimaryTarget with retreat: reverse = -1; relPos (0, 0, 1), d_forward 1; the on-target test needs d_forward * reverse above the aim cosine and -1 is not (9149); reverse * d_forward = -1 < -0.5 sets pitching_over (9158); with d_up 0 the pitch-up rule picks stick_pitch = +max_flight_pitch = 1.8 (9161-9165) and pitching_over stays set (-1 < 0.707). Inside the retreat block d_forward (1) is not below -max_cos, d_up and d_right are 0, so neither the roll nor the pitch branch overwrites it (9170-9204). Accuracy below 0 skips the overshoot limiter. Closed forms.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": -2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 3000],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      },
+      {
+        "op": "setDesiredRange",
+        "value": 10000
+      },
+      {
+        "op": "perform",
+        "value": "FLEE_TARGET"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "FLEE_TARGET",
+        "tolerance": 0,
+        "note": "no draw decides it at accuracy -2"
+      },
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "performFlee resets frustration"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "zero jink (8983)"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "zero jink (8983)"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "zero jink (8983)"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "inside desired range: maxFlightSpeed"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 1.8,
+        "tolerance": 0.00001,
+        "note": "pitch-over rule: +max_flight_pitch (9161-9165)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 0.00001,
+        "note": "no roll"
+      },
+      {
+        "tick": 1,
+        "field": "pitchingOver",
+        "expected": 1,
+        "tolerance": 0,
+        "note": "set at 9159 and kept at 9166"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "flee-range-zero-counts-as-safety",
+    "title": "FLEE_TARGET with rangeToPrimaryTarget exactly 0 counts as safety and does not raise desiredSpeed",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4840-4859",
+      "src/Core/Entities/ShipEntity.m:9718-9734"
+    ],
+    "derivation": "Self radius 40 and a stationary target of radius 30 at (0, 0, 70): rangeToPrimaryTarget = 70 - 30 - 40 = 0 exactly. Inside desired range 5000 the ship would run at full speed, but `range > desired_range || range == 0` (4855) takes the REACHED_SAFETY branch (an AI message, not a script event) and leaves desired_speed alone, so it stays at its initial 100 instead of 320. success_factor becomes 0 (4853). The poses overlap the proximity warning zone; its alert (set at the end of tick 1) is read from tick 2, past this one-tick horizon.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": -2,
+      "frustration": 0,
+      "successFactor": -1,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLEE_TARGET",
+      "targetId": 102,
+      "destination": [0, 0, 0],
+      "desiredRange": 5000,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 30,
+        "mass": 20000,
+        "position": [0, 0, 70],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "rangeToTarget",
+        "expected": 0,
+        "tolerance": 0.000001,
+        "note": "70 - 30 - 40"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 100,
+        "tolerance": 0.001,
+        "note": "REACHED_SAFETY leaves desired_speed at 100"
+      },
+      {
+        "tick": 1,
+        "field": "successFactor",
+        "expected": 0,
+        "tolerance": 0.000001,
+        "note": "success_factor = range (4853)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "flee-negative-range-is-not-safety",
+    "title": "FLEE_TARGET with overlapping radii (negative range) is not safety and runs at full speed",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4840-4859",
+      "src/Core/Entities/ShipEntity.m:9718-9734"
+    ],
+    "derivation": "Self radius 40 and a stationary target of radius 40 at (0, 0, 60): rangeToPrimaryTarget = 60 - 40 - 40 = -20. -20 is not above desired range 5000 and is not 0, so the else branch sets desired_speed = maxFlightSpeed (4855-4858); only an exact 0 counts as safety. success_factor = -20 (exactly representable). The poses overlap the proximity warning zone; its alert is read from tick 2, past the horizon.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": -2,
+      "frustration": 0,
+      "successFactor": -1,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLEE_TARGET",
+      "targetId": 102,
+      "destination": [0, 0, 0],
+      "desiredRange": 5000,
+      "desiredSpeed": 100,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 60],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "rangeToTarget",
+        "expected": -20,
+        "tolerance": 0.000001,
+        "note": "60 - 40 - 40"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "negative range: full speed (4858)"
+      },
+      {
+        "tick": 1,
+        "field": "successFactor",
+        "expected": -20,
+        "tolerance": 0.000001,
+        "note": "success_factor = range = -20"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "flee-improving-range-decays-frustration",
+    "title": "FLEE_TARGET with a range that improved decays frustration by 0.25 dt in float32",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4852-4872",
+      "src/Core/Entities/ShipEntity.m:9718-9734"
+    ],
+    "derivation": "A ship at accuracy -2 with initial frustration 1.0 and initial success_factor 4000; stationary target at (0, 0, 5000), range 4920. last_range = success_factor = 4000, success_factor becomes 4920 (4852-4853); range 4920 > last_range 4000 is an improvement (4860), so frustration -= 0.25 * delta_t (4862) rounded to float32: fround(1 - 0.25 / 120) (contract item 8); it stays positive so the clamp at 4863 does nothing. Desired range 1000 is below the range, so desired_speed stays at its initial 0.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": -2,
+      "frustration": 1,
+      "successFactor": 4000,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLEE_TARGET",
+      "targetId": 102,
+      "destination": [0, 0, 0],
+      "desiredRange": 1000,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 5000],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.9979166388511658,
+        "tolerance": 0,
+        "note": "fround(1 - 0.25 * dt)"
+      },
+      {
+        "tick": 1,
+        "field": "successFactor",
+        "expected": 4920,
+        "tolerance": 0.000001,
+        "note": "success_factor = 4920"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "safe: desired_speed unchanged"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "flee-frustration-fires-at-tick-1801",
+    "title": "FLEE_TARGET on a pose whose range cannot improve posts shipAIFrustrated when the float32 frustration first exceeds 15 s, at tick 1801",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4852-4872",
+      "src/Core/Entities/ShipEntity.m:2641-2645",
+      "src/Core/Entities/ShipEntity.m:9034-9244"
+    ],
+    "derivation": "A ship at rest (speed 0) at accuracy -2 with desired_speed 0 and desired range 1000, a stationary target at (0, 0, 5000) (range 4920 exactly) and success_factor initialised to 4920. Range 4920 is above desired range 1000, so desired_speed is never raised (4855-4858): the ship never moves and the range stays 4920 for the whole horizon (its turning in place cannot change it). `range > last_range` is false every update (4860), so frustration += delta_t every update (4866), a GLfloat. Contract item 8: every write is fround(f + dt), computed here by loop, and frustration first exceeds 15.0 on update 1801 (a float64 sum would cross at 1800): that update posts shipAIFrustrated (noteFrustration, 4869) and resets frustration to 0 (4870). Checks are exact (tolerance 0): the counter after 1 and 1800 updates, 0 at 1801 and the first accumulation step again at 1802. No other event: the target stays valid at 4920 m.",
+    "dt": 0.008333333333333333,
+    "horizon": 1802,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": -2,
+      "frustration": 0,
+      "successFactor": 4920,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLEE_TARGET",
+      "targetId": 102,
+      "destination": [0, 0, 0],
+      "desiredRange": 1000,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 5000],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 0,
+        "note": "fround(0 + dt)"
+      },
+      {
+        "tick": 1800,
+        "field": "frustration",
+        "expected": 14.999856948852539,
+        "tolerance": 0,
+        "note": "1800 float32 steps: still at or below 15.0"
+      },
+      {
+        "tick": 1801,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "the update that exceeds 15.0 posts the event and resets to 0 (4867-4870)"
+      },
+      {
+        "tick": 1802,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 0,
+        "note": "accumulation restarts: fround(0 + dt)"
+      },
+      {
+        "tick": 1802,
+        "field": "desiredSpeed",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "never raised"
+      }
+    ],
+    "events": [
+      {
+        "tick": 1801,
+        "name": "shipAIFrustrated"
+      }
+    ]
+  },
+  {
+    "id": "flee-removed-target-goes-idle-posting-target-lost",
+    "title": "FLEE_TARGET with a target that no longer exists goes IDLE and posts shipTargetLost alone",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4840-4848",
+      "src/Core/Entities/ShipEntityAI.m:379-392",
+      "src/Core/Entities/ShipEntity.m:8799-8804"
+    ],
+    "derivation": "The ship's target id (999) names no body, so primaryTarget is nil. perform FLEE_TARGET at accuracy 2 draws the jink pair (scripted [0.7, 0.3]) and finds an approach aspect of 0 for a nil target (ShipEntity.m:9740-9742), so no third draw. Tick 1: behaviour_flee_target finds `[self primaryTarget] == nil` and calls noteLostTargetAndGoIdle (4845-4848): IDLE, frustration 0, shipTargetLost. Unlike intercept, flee posts no shipAchievedDesiredRange.",
+    "dt": 0.008333333333333333,
+    "horizon": 2,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 999,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setDesiredRange",
+        "value": 10000
+      },
+      {
+        "op": "perform",
+        "value": "FLEE_TARGET"
+      }
+    ],
+    "draws": [0.7, 0.3],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "FLEE_TARGET",
+        "tolerance": 0,
+        "note": "no draw decides it for a nil target"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "noteLostTargetAndGoIdle (8801)"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "noteLostTargetAndGoIdle (8802)"
+      },
+      {
+        "tick": 1,
+        "field": "targetId",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "dropped"
+      }
+    ],
+    "events": [
+      {
+        "tick": 1,
+        "name": "shipTargetLost"
+      }
+    ]
+  },
+  {
+    "id": "flee-target-beyond-scanner-reach-is-lost",
+    "title": "FLEE_TARGET at a valid ship beyond 1.25 x scanner range posts shipTargetLost alone and goes IDLE",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4840-4874",
+      "src/Core/Entities/ShipEntity.m:8696-8716",
+      "src/Core/Entities/ShipEntity.m:9044-9047"
+    ],
+    "derivation": "A ship at accuracy -2 fleeing a stationary valid ship at (0, 0, 40000), beyond the 32000 m reach (8705-8708). Range 39920 > desired range 1000 is safety (4855); the range is above last_range (initial 0) so frustration -= 0.25 dt clamps at 0 (4860-4864); trackPrimaryTarget then fails canStillTrackPrimaryTarget and calls noteLostTargetAndGoIdle (9044-9046): IDLE, frustration 0, shipTargetLost.",
+    "dt": 0.008333333333333333,
+    "horizon": 2,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": -2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLEE_TARGET",
+      "targetId": 102,
+      "destination": [0, 0, 0],
+      "desiredRange": 1000,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 40000],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "IDLE",
+        "tolerance": 0,
+        "note": "target lost by range: IDLE"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "0"
+      },
+      {
+        "tick": 1,
+        "field": "targetId",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "dropped"
+      }
+    ],
+    "events": [
+      {
+        "tick": 1,
+        "name": "shipTargetLost"
+      }
+    ]
+  }
+]
