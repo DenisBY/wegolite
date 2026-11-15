@@ -360,10 +360,14 @@ function checkAt(
 // ---------------------------------------------------------------------------
 
 describe("fixture files", () => {
-  it("has at least the intercept and flee groups", () => {
-    expect(fileNames()).toEqual(
-      expect.arrayContaining(["intercept.json", "flee.json"]),
-    );
+  it("has exactly the five groups of plan 14-02", () => {
+    expect(fileNames()).toEqual([
+      "attack-close.json",
+      "attack-dispatch.json",
+      "attack-evade.json",
+      "flee.json",
+      "intercept.json",
+    ]);
   });
 
   it("parses every fixture against the contract structure", () => {
@@ -510,6 +514,11 @@ const FROZEN_THRESHOLDS: Record<string, number[]> = {
   // a range of about 1000 m against the weapon-none test (range > 0): the ship
   // moves at most 4 / 120 * 80 = 2.7 m
   "attack-fly-from-unarmed-zero-jink-alternates-every-tick": [0],
+  // range 300 against COMBAT_IN_RANGE_FACTOR * 12500 = 437.5 for two updates
+  "attack-fly-to-target-inside-in-range-returns-to-the-dispatcher": [437.5],
+  // the evasive follow-on never reads the range: only the 0.5 s counter decides
+  "attack-evasive-action-follow-on-goes-to-attack-target-at-tick-61": [],
+  "attack-flee-evasive-action-follow-on-returns-to-flee-target-at-tick-61": [],
 };
 
 function needsFrozenReplay(fixture: Fixture): boolean {
@@ -1019,5 +1028,179 @@ describe("the attack dispatcher (ShipEntity.m:4038-4185)", () => {
     expect(kept.draws).toHaveLength(0);
     expect(checkAt(kept, 0, "behaviour").expected).toBe("EVASIVE_ACTION");
     expect(Number(checkAt(kept, 1, "desiredRange").expected)).toBe(1000);
+  });
+});
+
+describe("attack sub-behaviour fixtures", () => {
+  it("covers every IN sub-behaviour as the behaviour of at least one check", () => {
+    const seen = new Set<string>();
+    for (const fixture of allFixtures()) {
+      for (const check of fixture.checks) {
+        if (check.field === "behaviour" && typeof check.expected === "string")
+          seen.add(check.expected);
+      }
+    }
+    for (const behaviour of derive.ATTACK_IN)
+      expect(seen.has(behaviour), behaviour).toBe(true);
+    // and none of the OUT list is ever asserted
+    for (const behaviour of derive.ATTACK_OUT)
+      expect(seen.has(behaviour), behaviour).toBe(false);
+  });
+
+  it("states the IN and OUT lists of the plan", () => {
+    expect([...derive.ATTACK_IN].sort()).toEqual(
+      [
+        "ATTACK_TARGET",
+        "ATTACK_FLY_TO_TARGET",
+        "ATTACK_FLY_FROM_TARGET",
+        "ATTACK_FLY_TO_TARGET_SIX",
+        "ATTACK_FLY_TO_TARGET_TWELVE",
+        "ATTACK_SNIPER",
+        "ATTACK_BREAK_OFF_TARGET",
+        "ATTACK_SLOW_DOGFIGHT",
+        "EVASIVE_ACTION",
+        "FLEE_EVASIVE_ACTION",
+      ].sort(),
+    );
+    expect([...derive.ATTACK_OUT].sort()).toEqual(
+      [
+        "RUNNING_DEFENSE",
+        "ATTACK_BROADSIDE",
+        "ATTACK_BROADSIDE_LEFT",
+        "ATTACK_BROADSIDE_RIGHT",
+        "CLOSE_TO_BROADSIDE_RANGE",
+        "CLOSE_WITH_TARGET",
+        "ATTACK_MINING_TARGET",
+        "TRACK_AS_TURRET",
+      ].sort(),
+    );
+  });
+
+  it("derives the 0.5 s follow-on at tick 61 by fround accumulation, never 60", () => {
+    expect(derive.firstTickAbove(0.5)).toBe(61);
+    for (const [id, behaviourBefore, behaviourAfter] of [
+      [
+        "attack-evasive-action-follow-on-goes-to-attack-target-at-tick-61",
+        "EVASIVE_ACTION",
+        "ATTACK_TARGET",
+      ],
+      [
+        "attack-flee-evasive-action-follow-on-returns-to-flee-target-at-tick-61",
+        "FLEE_EVASIVE_ACTION",
+        "FLEE_TARGET",
+      ],
+    ] as const) {
+      const row = byId(id);
+      expect(checkAt(row, 60, "behaviour").expected, id).toBe(behaviourBefore);
+      expect(checkAt(row, 61, "behaviour").expected, id).toBe(behaviourAfter);
+      const sixty = row.checks.find(
+        (c) => c.tick === 60 && c.field === "frustration",
+      );
+      if (sixty !== undefined) {
+        expect(Number(sixty.expected)).toBeLessThanOrEqual(0.5);
+      }
+      expect(Number(checkAt(row, 61, "frustration").expected)).toBe(
+        derive.accumulate(0, 1 / 120, 61),
+      );
+      expect(Number(checkAt(row, 61, "frustration").expected)).toBeGreaterThan(
+        0.5,
+      );
+      expect(row.horizon).toBe(61);
+    }
+    // the flee follow-on redraws the 400-jink pair (floor(0.62 * 256) - 128 + 128 = 158, 31 -> -177)
+    const flee = byId(
+      "attack-flee-evasive-action-follow-on-returns-to-flee-target-at-tick-61",
+    );
+    expect(flee.draws).toEqual([0.62, 0.31]);
+    expect(checkAt(flee, 61, "jinkX").expected).toBe(158);
+    expect(checkAt(flee, 61, "jinkY").expected).toBe(-177);
+    expect(checkAt(flee, 61, "jinkZ").expected).toBe(400);
+  });
+
+  it("points the six and twelve destinations by hand", () => {
+    const six = byId("attack-six-aims-for-a-point-behind-the-target");
+    // target (0, 0, 8080) facing +z: 0.5 * 12500 behind it is (0, 0, 8080 - 6250)
+    expect(checkAt(six, 1, "destinationZ").expected).toBe(1830);
+    const twelve = byId("attack-twelve-aims-1250-above-the-target");
+    expect(checkAt(twelve, 1, "destinationY").expected).toBe(1250);
+    expect(checkAt(twelve, 1, "destinationZ").expected).toBe(8080);
+    expect(
+      derive.distanceSix({ position: [0, 0, 8080], forward: [0, 0, 1] }, 6250),
+    ).toEqual([0, 0, 1830]);
+    expect(
+      derive.distanceTwelve(
+        { position: [0, 0, 8080], up: [0, 1, 0], right: [-1, 0, 0] },
+        1250,
+        0,
+      ),
+    ).toEqual([0, 1250, 8080]);
+    // 101 & 14 = 4 is not above 4, so the standstill shortcut stays off for the steered ship (4523)
+    expect(derive.vectorsInAtStandstill(101)).toBe(false);
+    expect(checkAt(six, 1, "behaviour").expected).toBe(
+      "ATTACK_FLY_TO_TARGET_SIX",
+    );
+  });
+
+  it("scripts the draws of the fly-from frustration branches in Oolite's call order", () => {
+    const first = byId(
+      "attack-fly-from-target-frustration-draws-speed-branch-and-jink",
+    );
+    // randf (< 0.3 speed branch), randf (z halving, not taken), ranrot x2 (jink pair)
+    expect(first.draws).toEqual([0.2, 0.9, 0.7, 0.3]);
+    const second = byId(
+      "attack-fly-from-target-frustration-draws-attack-and-halved-z",
+    );
+    // randf (not < 0.3), randf (range test passed, < 0.3), randf (z halving taken), ranrot x2
+    expect(second.draws).toEqual([0.5, 0.1, 0.2, 0.7, 0.3]);
+    expect(checkAt(second, 1, "jinkZ").expected).toBe(450);
+    expect(checkAt(second, 1, "behaviour").expected).toBe("ATTACK_TARGET");
+  });
+
+  it("pins the accuracy-9 fly-from dodge and the three-second dodges", () => {
+    for (const id of [
+      "attack-fly-from-accuracy-9-dodges-a-nose-on-target",
+      "attack-fly-from-accuracy-9-dodges-a-tail-on-target",
+    ]) {
+      const row = byId(id);
+      expect(row.self.accuracy).toBe(9);
+      expect(checkAt(row, 1, "behaviour").expected).toBe("EVASIVE_ACTION");
+    }
+    for (const id of [
+      "attack-fly-to-target-three-second-frustration-posts-and-dodges",
+      "attack-sniper-three-second-frustration-posts-and-dodges",
+    ]) {
+      const row = byId(id);
+      expect(row.events).toEqual([{ tick: 1, name: "shipAIFrustrated" }]);
+      expect(checkAt(row, 1, "jinkZ").expected).toBe(1000);
+      expect(row.draws).toHaveLength(2);
+    }
+  });
+
+  it("states the hand sticks of the evasive and sniper rows", () => {
+    const evasive = byId(
+      "attack-break-off-low-frustration-fraction-takes-evasive-action",
+    );
+    expect(checkAt(evasive, 1, "stickRoll").expected).toBe(2.1);
+    expect(checkAt(evasive, 1, "stickPitch").expected).toBe(1.4);
+    const reverse = byId(
+      "attack-evasive-action-reverses-to-full-stick-of-the-current-sign",
+    );
+    expect(checkAt(reverse, 1, "stickRoll").expected).toBe(-2.1);
+    expect(checkAt(reverse, 1, "stickPitch").expected).toBe(-1.4);
+    expect(
+      checkAt(
+        byId("attack-evasive-action-perpendicular-right-axes-skip-the-roll"),
+        1,
+        "stickRoll",
+      ).expected,
+    ).toBe(0);
+    // the hold-off sniper speed: 320 / 10
+    expect(
+      checkAt(
+        byId("attack-sniper-hold-off-inside-weapon-range-at-a-tenth-speed"),
+        1,
+        "desiredSpeed",
+      ).expected,
+    ).toBe(32);
   });
 });

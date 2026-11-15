@@ -1,0 +1,1588 @@
+[
+  {
+    "id": "attack-fly-to-target-far-approach-full-speed",
+    "title": "ATTACK_FLY_TO_TARGET far outside the slow-down range asks for full speed and, dead on target, lowers frustration",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4611-4731",
+      "src/Core/Entities/ShipEntity.m:9034-9152"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500, max speed 320) at accuracy 2 in ATTACK_FLY_TO_TARGET with frustration 0.5 and success_factor 0.5 against a stationary ship dead ahead at range 20000. slow_down_range = weaponRange * COMBAT_WEAPON_RANGE_FACTOR = 15000 (4648) and 20000 is above it, so the far branch applies: desired_speed = max(maxFlightSpeed, min(3 * target_speed, max_available_speed)) = max(320, min(0, 320)) = 320 (4683). trackPrimaryTarget finds the target on the nose (d_forward 1 above the aim cosine), returns 1 and sets no stick; success_factor = 1 is above 0.999, so frustration -= dt: fround(0.5 - 1/120) (4690-4693). No event; behaviour unchanged.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0.5,
+      "successFactor": 0.5,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 20080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "unchanged"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "4683: max(320, min(0, 320))"
+      },
+      {
+        "tick": 1,
+        "field": "successFactor",
+        "expected": 1,
+        "tolerance": 0.000001,
+        "note": "trackPrimaryTarget returns d_forward = 1 on target"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.49166667461395264,
+        "tolerance": 0,
+        "note": "fround(0.5 - dt) (4691)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 0.00001,
+        "note": "on target: no stick"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0,
+        "tolerance": 0.00001,
+        "note": "on target: no stick"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-fly-to-target-target-above-pitches-and-frustration-grows",
+    "title": "ATTACK_FLY_TO_TARGET toward a target straight above commands full pitch up and raises frustration",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4611-4731",
+      "src/Core/Entities/ShipEntity.m:9114-9244"
+    ],
+    "derivation": "Same ship (max_flight_pitch 1.4), initial frustration 0.5 and success_factor 0.5, stationary target straight above at (0, 20080, 0): range 20000, far branch, desired_speed 320. trackPrimaryTarget at accuracy 2: d_up 1, d_forward 0, d_right 0: stick_pitch = -max_flight_pitch * 0.125 * 8 = -1.4 (9196-9204), and since the ship is turning it returns d_forward = 0, so success_factor = 0: not above 0.999 and not above last_success_factor 0.5, so frustration += dt: fround(0.5 + 1/120) (4694-4695), well under the 3 s limit.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0.5,
+      "successFactor": 0.5,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 20080, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": -1.4,
+        "tolerance": 0.00001,
+        "note": "-1.4 * 0.125 * 8"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 0.00001,
+        "note": "d_right is 0"
+      },
+      {
+        "tick": 1,
+        "field": "successFactor",
+        "expected": 0,
+        "tolerance": 0.000001,
+        "note": "d_forward 0 while turning (9240-9243)"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.5083333253860474,
+        "tolerance": 0,
+        "note": "fround(0.5 + dt) (4695)"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "unchanged"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-fly-to-target-inside-back-off-range-matches-speed",
+    "title": "ATTACK_FLY_TO_TARGET at range 4000 with a target flying at 100 m/s sets desired speed 105",
+    "oolite": ["src/Core/Entities/ShipEntity.m:4611-4731"],
+    "derivation": "A Mamba-like ship at accuracy 2 in ATTACK_FLY_TO_TARGET, success_factor 0.5, against a ship dead ahead at range 4000 moving at 100 m/s (the speed field; the pose is static): range 4000 is inside slow_down_range 15000 and back_off_range 10000 * 0.5 = 5000 (4648-4657); accuracy 2 is below COMBAT_AI_IS_SMART (4658), and accuracy is below 6, so desired_speed = max(1.05 * 100, 0.25 * 320) = 105 (4663). The target is on the nose, so trackPrimaryTarget returns 1: no stick, success_factor 1, frustration 0 stays 0 (the decrement clamps at 0, 4691-4693).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0.5,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 4080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 100,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 105,
+        "tolerance": 0.001,
+        "note": "range 4000 is inside slow_down_range 15000 and back_off_rang"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "unchanged"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "clamped at 0"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-fly-to-target-between-back-off-and-slow-down-runs-at-full-speed",
+    "title": "ATTACK_FLY_TO_TARGET at range 10000 with a target flying at 100 m/s sets desired speed 320",
+    "oolite": ["src/Core/Entities/ShipEntity.m:4611-4731"],
+    "derivation": "A Mamba-like ship at accuracy 2 in ATTACK_FLY_TO_TARGET, success_factor 0.5, against a ship dead ahead at range 10000 moving at 100 m/s (the speed field; the pose is static): range 10000 is inside slow_down_range 15000 but beyond back_off_range 5000 (4668); accuracy 2 is below 5 so desired_speed = max(1.5 * 100, 320) = 320 (4670). The target is on the nose, so trackPrimaryTarget returns 1: no stick, success_factor 1, frustration 0 stays 0 (the decrement clamps at 0, 4691-4693).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0.5,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 10080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 100,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "range 10000 is inside slow_down_range 15000 but beyond back_"
+      },
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "unchanged"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "clamped at 0"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-fly-to-target-inside-in-range-returns-to-the-dispatcher",
+    "title": "ATTACK_FLY_TO_TARGET inside COMBAT_IN_RANGE_FACTOR x weaponRange switches to ATTACK_TARGET, and the dispatcher then breaks off to fly-from",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4611-4731",
+      "src/Core/Entities/ShipEntity.m:4630-4636",
+      "src/Core/Entities/ShipEntity.m:4137-4155",
+      "src/Core/Entities/ShipEntity.m:8980-9001"
+    ],
+    "derivation": "A Mamba-like ship at accuracy 2 in ATTACK_FLY_TO_TARGET against a stationary ship dead ahead at range 300. range < COMBAT_IN_RANGE_FACTOR * weaponRange = 0.035 * 12500 = 437.5 (4630) and there is no proximity alert (the self-test keeps every body outside four radii), so behaviour = ATTACK_TARGET (4632). The rest of the call still runs: desired_speed = max(1.05 * 0, 0.25 * 320) = 80 (4663), target on the nose, frustration stays 0. On tick 2 the dispatcher runs on the same pose (the ship moves at most 0.02 m): nearby (range 300 < 437.5, 4128), accuracy 2 below 6, pitching_over false, so two ranrot draws (scripted [0.7, 0.3]: jink.x 179, jink.y -180, 4148, 8985-8999) and ATTACK_FLY_FROM_TARGET (4154). jink.z depends on the relative speed after one update of the ship's own thrust, so only the draw-derived jink.x and jink.y are checked. Draws consumed: 2.",
+    "dt": 0.008333333333333333,
+    "horizon": 2,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0.5,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 380],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [0.7, 0.3],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_TARGET",
+        "tolerance": 0,
+        "note": "4632"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 80,
+        "tolerance": 0.001,
+        "note": "max(0, 80) (4663)"
+      },
+      {
+        "tick": 2,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_FROM_TARGET",
+        "tolerance": 0,
+        "note": "dispatcher: nearby, accuracy below 6 (4154)"
+      },
+      {
+        "tick": 2,
+        "field": "jinkX",
+        "expected": 179,
+        "tolerance": 1e-9,
+        "note": "floor(0.7 * 256) - 128 + 128"
+      },
+      {
+        "tick": 2,
+        "field": "jinkY",
+        "expected": -180,
+        "tolerance": 1e-9,
+        "note": "floor(0.3 * 256) - 128 - 128"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-fly-to-target-three-second-frustration-posts-and-dodges",
+    "title": "ATTACK_FLY_TO_TARGET with 3 s of frustration posts shipAIFrustrated, draws a 1000-jink and returns to ATTACK_TARGET",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4611-4731",
+      "src/Core/Entities/ShipEntity.m:4694-4704",
+      "src/Core/Entities/ShipEntity.m:8980-9001"
+    ],
+    "derivation": "A Mamba-like ship at accuracy 2 with frustration 2.999 (rounded to float32, 2.99899983...) and success_factor 0.5 in ATTACK_FLY_TO_TARGET against a stationary ship straight above at range 20000. The ship is turning, so success_factor = 0: not above 0.999 and not above 0.5, so frustration += dt (4695): fround(2.999 + 1/120) = 3.00733 > 3 (4696). That posts shipAIFrustrated (noteFrustration, 4698), calls setEvasiveJink(1000) (two ranrot draws, scripted [0.7, 0.3]: jink (179, -180, 1000), 4699), sets ATTACK_TARGET, frustration 0 and desired_speed = maxFlightSpeed (4700-4702). The far branch had set desired_speed 320 already. Draws consumed: 2.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 2.999,
+      "successFactor": 0.5,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 20080, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [0.7, 0.3],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_TARGET",
+        "tolerance": 0,
+        "note": "4700"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4701"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 179,
+        "tolerance": 1e-9,
+        "note": "floor(0.7 * 256) - 128 + 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": -180,
+        "tolerance": 1e-9,
+        "note": "floor(0.3 * 256) - 128 - 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 1000,
+        "tolerance": 0.001,
+        "note": "setEvasiveJink(1000)"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "4702"
+      }
+    ],
+    "events": [
+      {
+        "tick": 1,
+        "name": "shipAIFrustrated"
+      }
+    ]
+  },
+  {
+    "id": "attack-fly-from-target-frustration-draws-speed-branch-and-jink",
+    "title": "ATTACK_FLY_FROM_TARGET past 10 s of frustration: the 0.3 draw raises desired speed, the z draw leaves the jink z, the jink pair is redrawn and frustration halves",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4733-4799",
+      "src/Core/Entities/ShipEntity.m:4750-4764",
+      "src/Core/Entities/ShipEntity.m:8980-9001"
+    ],
+    "derivation": "A Mamba-like ship at accuracy 2 in ATTACK_FLY_FROM_TARGET with frustration 9.999 (float32) and success_factor 3005 against a stationary ship at range 3000: success_factor becomes 3000 and last_success_factor 3005 is above it, so the target counts as closing and frustration += dt (4743-4745): fround(9.999 + 1/120) = 10.00733 > 10 (4750). Draws in order: randf() u1 = 0.2 < 0.3 sets desired_speed = maxFlightSpeed * 1 (no fuel injection, 4751-4752), and the else-if is skipped, so it takes no draw; randf() u2 = 0.9 is not below 0.3, so z stays jink.z = 900 (4756-4760); setEvasiveJink(900) draws [0.7, 0.3]: jink (179, -180, 900) (4761); frustration /= 2 (4763): fround(10.00733 / 2) = 5.0037. desired_speed 320 is neither above max nor below half of it (4765-4773). Exit test: range 3000 > 0.5 * 12500 + 15 * 179 = 8935 is false and flightSpeed 0 is not above (25600 - 3000) * 1.4 / 6.28, so the ship stays in ATTACK_FLY_FROM_TARGET. Draws consumed: 4.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 9.999,
+      "successFactor": 3005,
+      "pitchingOver": 0,
+      "jink": [10, 20, 900],
+      "behaviour": "ATTACK_FLY_FROM_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 3080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [0.2, 0.9, 0.7, 0.3],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_FROM_TARGET",
+        "tolerance": 0,
+        "note": "stays in fly-from"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "4751-4752"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 179,
+        "tolerance": 1e-9,
+        "note": "floor(0.7 * 256) - 128 + 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": -180,
+        "tolerance": 1e-9,
+        "note": "floor(0.3 * 256) - 128 - 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 900,
+        "tolerance": 0.001,
+        "note": "z kept: 900"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 5.003666877746582,
+        "tolerance": 0,
+        "note": "fround(fround(9.999 + dt) / 2)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-fly-from-target-frustration-draws-attack-and-halved-z",
+    "title": "ATTACK_FLY_FROM_TARGET past 10 s of frustration: a high first draw tries the 0.3 return to ATTACK_TARGET, the z draw halves jink z and sets desired speed from flightSpeed",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4733-4799",
+      "src/Core/Entities/ShipEntity.m:4750-4773",
+      "src/Core/Entities/ShipEntity.m:8980-9001"
+    ],
+    "derivation": "Same ship and pose as the previous row but flying forward at 50 m/s, jink.z 900 and scripted draws [0.5, 0.1, 0.2, 0.7, 0.3]. After frustration crosses 10: randf() u1 = 0.5 is not below 0.3, so the else-if tests range 3000 > COMBAT_IN_RANGE_FACTOR * weaponRange = 437.5 (true) and draws u2 = 0.1 < 0.3: behaviour = ATTACK_TARGET (4753-4754). Then randf() u3 = 0.2 < 0.3: z = 900 / 2 = 450 and desired_speed = flightSpeed * 2 = 100 (4757-4760); setEvasiveJink(450) draws [0.7, 0.3]: jink (179, -180, 450); frustration halves. desired_speed 100 is below 0.5 * 320 = 160, so it is reset to maxFlightSpeed 320 (4771-4773). The exit test is false (3000 < 8935). The last behaviour written is ATTACK_TARGET. Draws consumed: 5.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 50,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 9.999,
+      "successFactor": 3005,
+      "pitchingOver": 0,
+      "jink": [10, 20, 900],
+      "behaviour": "ATTACK_FLY_FROM_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 3080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [0.5, 0.1, 0.2, 0.7, 0.3],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_TARGET",
+        "tolerance": 0,
+        "note": "4754"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "4771-4773: 100 is below 160, so 320"
+      },
+      {
+        "tick": 1,
+        "field": "jinkX",
+        "expected": 179,
+        "tolerance": 1e-9,
+        "note": "floor(0.7 * 256) - 128 + 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkY",
+        "expected": -180,
+        "tolerance": 1e-9,
+        "note": "floor(0.3 * 256) - 128 - 128"
+      },
+      {
+        "tick": 1,
+        "field": "jinkZ",
+        "expected": 450,
+        "tolerance": 0.001,
+        "note": "900 / 2"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 5.003666877746582,
+        "tolerance": 0,
+        "note": "fround(fround(9.999 + dt) / 2)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-fly-from-target-beyond-out-range-returns-to-attack-target",
+    "title": "ATTACK_FLY_FROM_TARGET beyond COMBAT_OUT_RANGE_FACTOR x weaponRange with zero jink returns to ATTACK_TARGET",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4733-4799",
+      "src/Core/Entities/ShipEntity.m:4775-4779"
+    ],
+    "derivation": "A Mamba-like ship at accuracy 2 in ATTACK_FLY_FROM_TARGET with zero jink against a stationary ship at range 7000. The exit test range > COMBAT_OUT_RANGE_FACTOR * weaponRange + 15 * jink.x = 0.5 * 12500 + 0 = 6250 is true (4775): jink zeroed, ATTACK_TARGET, frustration 0 (4776-4778). success_factor = 7000. desired_speed 0 is below 160, so it was raised to 320 first (4771-4773).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 7000,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_FROM_TARGET",
+      "targetId": 0,
+      "destination": [0, 0, 0],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 7080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_TARGET",
+        "tolerance": 0,
+        "note": "4775-4777"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4778"
+      },
+      {
+        "tick": 1,
+        "field": "successFactor",
+        "expected": 7000,
+        "tolerance": 0.000001,
+        "note": "success_factor = range"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "4771-4773"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-six-aims-for-a-point-behind-the-target",
+    "title": "ATTACK_FLY_TO_TARGET_SIX heads for the point 0.5 x weaponRange behind the target and stays in SIX while far",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4461-4580",
+      "src/Core/Entities/ShipEntity.m:4533-4534",
+      "src/Core/Entities/ShipEntity.m:8849-8856"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500) at accuracy 2 against a stationary ship (nose pointing away, aspect -1, speed 0) 8000 m ahead, with pitching_over initially set. behaviour_fly_to_target_six runs the non-turret branch (the `forward_weapon_type isTurretLaser` tests at 4537 and 4565 are false). success_factor takes the distance to the ship's PREVIOUS destination (4500-4501) and every row here makes it exceed last_success_factor, so the `||` at 4559 never needs trackDestination's confidence factor (that function and its sticks belong to plan 14-01's reference, so no stick is checked). pitching_over is cleared (4556). Previous destination (0, 0, 3000): distance 3000, success_factor 0 -> 3000 so frustration += dt (4559-4560). range 8000 is inside slow_down_range 15000 (4503) and beyond back_off_range 0.5 * 12500 = 6250, so desired_speed = max(1.2 * 0, 320) = 320 (4507); range 8000 is not below 0.5 * distance = 1500, so it stays SIX. distance 3000 is not below 750 and the standstill test (target_speed < 0.2 && (universalID & 14) > 4) is false for id 101 (101 & 14 = 4, not above 4). The destination is distance_six(0.5 * 12500) = target position - 6250 * target forward = (0, 0, 8080 - 6250) = (0, 0, 1830). The aspect -1 and frustration 0.0083 do not trigger the 4565 return.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 1,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET_SIX",
+      "targetId": 0,
+      "destination": [0, 0, 3000],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET_SIX",
+        "tolerance": 0,
+        "note": "stays SIX"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "4507"
+      },
+      {
+        "tick": 1,
+        "field": "destinationX",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "target - 6250 * forward"
+      },
+      {
+        "tick": 1,
+        "field": "destinationY",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "target - 6250 * forward"
+      },
+      {
+        "tick": 1,
+        "field": "destinationZ",
+        "expected": 1830,
+        "tolerance": 0.001,
+        "note": "8080 - 6250"
+      },
+      {
+        "tick": 1,
+        "field": "pitchingOver",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "4556"
+      },
+      {
+        "tick": 1,
+        "field": "successFactor",
+        "expected": 3000,
+        "tolerance": 0.000001,
+        "note": "distance to the previous destination"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 0,
+        "note": "fround(0 + dt) (4560)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-six-switches-to-twelve-when-the-range-halves-the-destination-distance",
+    "title": "ATTACK_FLY_TO_TARGET_SIX switches to TWELVE when range < 0.5 x the distance to its previous destination, and aims 1.25 km above the target",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4461-4580",
+      "src/Core/Entities/ShipEntity.m:4511-4512",
+      "src/Core/Entities/ShipEntity.m:4550-4553",
+      "src/Core/Entities/ShipEntity.m:8858-8868"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500) at accuracy 2 against a stationary ship (nose pointing away, aspect -1, speed 0) 8000 m ahead, with pitching_over initially set. behaviour_fly_to_target_six runs the non-turret branch (the `forward_weapon_type isTurretLaser` tests at 4537 and 4565 are false). success_factor takes the distance to the ship's PREVIOUS destination (4500-4501) and every row here makes it exceed last_success_factor, so the `||` at 4559 never needs trackDestination's confidence factor (that function and its sticks belong to plan 14-01's reference, so no stick is checked). pitching_over is cleared (4556). Previous destination (0, 0, 40000): distance 40000. range 8000 is inside slow_down_range and beyond back_off_range, so desired_speed = 320 (4507); range 8000 < 0.5 * 40000 = 20000 while the behaviour is still SIX, so the behaviour becomes ATTACK_FLY_TO_TARGET_TWELVE (4511-4512: avoid head-on collision). The twelve test then runs in the same call (4536): the non-turret branch heads for distance_twelve(1250, offset 0) = target position + 1250 * target up = (0, 1250, 8080) (4552).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 1,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET_SIX",
+      "targetId": 0,
+      "destination": [0, 0, 40000],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET_TWELVE",
+        "tolerance": 0,
+        "note": "4511-4512"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "4507"
+      },
+      {
+        "tick": 1,
+        "field": "destinationX",
+        "expected": 0,
+        "tolerance": 0.001,
+        "note": "target + 1250 * up"
+      },
+      {
+        "tick": 1,
+        "field": "destinationY",
+        "expected": 1250,
+        "tolerance": 0.001,
+        "note": "1250"
+      },
+      {
+        "tick": 1,
+        "field": "destinationZ",
+        "expected": 8080,
+        "tolerance": 0.001,
+        "note": "8080"
+      },
+      {
+        "tick": 1,
+        "field": "successFactor",
+        "expected": 40000,
+        "tolerance": 0.000001,
+        "note": "distance to the previous destination"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-twelve-aims-1250-above-the-target",
+    "title": "ATTACK_FLY_TO_TARGET_TWELVE (non-turret) aims 1.25 km above the target and closes at full speed",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4461-4580",
+      "src/Core/Entities/ShipEntity.m:4514-4518",
+      "src/Core/Entities/ShipEntity.m:4550-4553"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500) at accuracy 2 against a stationary ship (nose pointing away, aspect -1, speed 0) 8000 m ahead, with pitching_over initially set. behaviour_fly_to_target_six runs the non-turret branch (the `forward_weapon_type isTurretLaser` tests at 4537 and 4565 are false). success_factor takes the distance to the ship's PREVIOUS destination (4500-4501) and every row here makes it exceed last_success_factor, so the `||` at 4559 never needs trackDestination's confidence factor (that function and its sticks belong to plan 14-01's reference, so no stick is checked). pitching_over is cleared (4556). Behaviour already TWELVE, previous destination (0, 0, 3000). The SIX-only slowdown test (4503) does not apply, so range 8000 beyond back_off_range 6250 gives desired_speed = max_available_speed = 320 (4517). The destination is the target position + 1250 * up = (0, 1250, 8080) (4552). Frustration += dt (success_factor 3000 > 0). Aspect -1 does not return to FLY_TO_TARGET.",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 1,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET_TWELVE",
+      "targetId": 0,
+      "destination": [0, 0, 3000],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET_TWELVE",
+        "tolerance": 0,
+        "note": "stays TWELVE"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 0.001,
+        "note": "4517"
+      },
+      {
+        "tick": 1,
+        "field": "destinationY",
+        "expected": 1250,
+        "tolerance": 0.001,
+        "note": "1250 above the target"
+      },
+      {
+        "tick": 1,
+        "field": "destinationZ",
+        "expected": 8080,
+        "tolerance": 0.001,
+        "note": "8080"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-twelve-returns-to-fly-to-target-on-a-high-aspect",
+    "title": "ATTACK_FLY_TO_TARGET_TWELVE returns to ATTACK_FLY_TO_TARGET when the target's nose is on the ship (aspect above 0.75)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4461-4580",
+      "src/Core/Entities/ShipEntity.m:4564-4567"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500) at accuracy 2 against a stationary ship (nose pointing away, aspect -1, speed 0) 8000 m ahead, with pitching_over initially set. behaviour_fly_to_target_six runs the non-turret branch (the `forward_weapon_type isTurretLaser` tests at 4537 and 4565 are false). success_factor takes the distance to the ship's PREVIOUS destination (4500-4501) and every row here makes it exceed last_success_factor, so the `||` at 4559 never needs trackDestination's confidence factor (that function and its sticks belong to plan 14-01's reference, so no stick is checked). pitching_over is cleared (4556). Here the target faces the ship (forward (0, 0, -1), aspect +1), so after the destination work (4550-4553, TWELVE, previous destination (0, 0, 3000)) the test `frustration > 10 || aspect > 0.75` (4565) is true and the behaviour becomes ATTACK_FLY_TO_TARGET (4566).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 1,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET_TWELVE",
+      "targetId": 0,
+      "destination": [0, 0, 3000],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "4565-4566"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-six-returns-to-fly-to-target-after-10-s-of-frustration",
+    "title": "ATTACK_FLY_TO_TARGET_SIX returns to ATTACK_FLY_TO_TARGET when frustration crosses 10 s",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4461-4580",
+      "src/Core/Entities/ShipEntity.m:4559-4567"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500) at accuracy 2 against a stationary ship (nose pointing away, aspect -1, speed 0) 8000 m ahead, with pitching_over initially set. behaviour_fly_to_target_six runs the non-turret branch (the `forward_weapon_type isTurretLaser` tests at 4537 and 4565 are false). success_factor takes the distance to the ship's PREVIOUS destination (4500-4501) and every row here makes it exceed last_success_factor, so the `||` at 4559 never needs trackDestination's confidence factor (that function and its sticks belong to plan 14-01's reference, so no stick is checked). pitching_over is cleared (4556). Initial frustration 10.0 (exact): success_factor 3000 > 0 so frustration += dt gives 10.00833 > 10 (4559-4560), and the test at 4565 returns the ship to ATTACK_FLY_TO_TARGET (4566).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 10,
+      "successFactor": 0,
+      "pitchingOver": 1,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET_SIX",
+      "targetId": 0,
+      "destination": [0, 0, 3000],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "4566"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 10.008333206176758,
+        "tolerance": 0,
+        "note": "fround(10 + dt)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "attack-six-within-750-of-its-destination-vectors-in",
+    "title": "ATTACK_FLY_TO_TARGET_SIX within 750 m of its previous destination switches to ATTACK_FLY_TO_TARGET at a 0.4 speed floor",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:4461-4580",
+      "src/Core/Entities/ShipEntity.m:4521-4527"
+    ],
+    "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500) at accuracy 2 against a stationary ship (nose pointing away, aspect -1, speed 0) 8000 m ahead, with pitching_over initially set. behaviour_fly_to_target_six runs the non-turret branch (the `forward_weapon_type isTurretLaser` tests at 4537 and 4565 are false). success_factor takes the distance to the ship's PREVIOUS destination (4500-4501) and every row here makes it exceed last_success_factor, so the `||` at 4559 never needs trackDestination's confidence factor (that function and its sticks belong to plan 14-01's reference, so no stick is checked). pitching_over is cleared (4556). Previous destination (0, 0, 500): distance 500 is below 750 (4523), so the behaviour becomes ATTACK_FLY_TO_TARGET, frustration 0 and desired_speed = max(target_speed, 0.4 * maxFlightSpeed) = max(0, 128) = 128 (4524-4526: within the weapon's range no afterburner). The behaviour is no longer SIX or TWELVE, so no destination is assigned; success_factor 500 > 0 still adds dt to the reset frustration (4559-4560): fround(0 + dt).",
+    "dt": 0.008333333333333333,
+    "horizon": 1,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.1,
+      "maxFlightPitch": 1.4,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 1,
+      "jink": [0, 0, 0],
+      "behaviour": "ATTACK_FLY_TO_TARGET_SIX",
+      "targetId": 0,
+      "destination": [0, 0, 500],
+      "desiredRange": 0,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 8080],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [
+      {
+        "op": "setTarget",
+        "value": 102
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "ATTACK_FLY_TO_TARGET",
+        "tolerance": 0,
+        "note": "4524"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 128,
+        "tolerance": 0.001,
+        "note": "max(0, 0.4 * 320)"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 0,
+        "note": "reset at 4525, then fround(0 + dt) at 4560"
+      },
+      {
+        "tick": 1,
+        "field": "destinationZ",
+        "expected": 500,
+        "tolerance": 0.001,
+        "note": "unchanged from the previous destination"
+      }
+    ],
+    "events": []
+  }
+]
