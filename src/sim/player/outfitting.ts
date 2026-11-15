@@ -9,6 +9,11 @@
  * both refuse any key outside `VISIBLE_EQUIPMENT_KEYS` with `notOffered`, so a
  * forged caller cannot install an ECM, a laser or any other catalogue record.
  *
+ * Lasers (Phase 13, CBT-05) are the one amendment, and they have their own
+ * door: `checkLaserFit` and `applyLaserFit` accept only the `LASER_FIT_KEYS` x
+ * `FACINGS` allow-list. `checkFit` and `applyFit` still refuse every laser, and
+ * every other record stays `notOffered` on both paths.
+ *
  * Everything the module reads comes from the validated equipment record and
  * the session's **raw** `System.techLevelRaw`. The displayed tech level (raw +
  * 1) belongs to the view model and must never gate an item: Oolite compares the
@@ -26,6 +31,13 @@
  */
 
 import type { Equipment } from "../../content/types.js";
+import {
+  LASER_KEYS,
+  NO_LASER,
+  isFacing,
+  isMountKey,
+} from "../combat/mounts.js";
+import type { Facing, MountKey } from "../combat/mounts.js";
 import { PASSENGER_BERTH_PODS } from "../economy/cargo.js";
 import {
   MAX_EQUIPMENT_KEY_LENGTH,
@@ -121,6 +133,7 @@ export type FitRefusal =
   | "cargoSpace"
   | "pylonsFull"
   | "nothingToRemove"
+  | "noLaser"
   | "insufficientCredits"
   | "fullFuel"
   | "invalidPrice"
@@ -452,4 +465,179 @@ export function applyFit(
   }
 
   return profile;
+}
+
+/**
+ * The laser keys F3 can fit, in Oolite's `equipment.plist` order: Remove Laser
+ * (`EQ_WEAPON_NONE`, line 109), then pulse, beam, mining and military
+ * (lines 126-185). The Thargoid laser is `available_to_player false` and is
+ * not offered. This list and `FACINGS` are the laser money path's allow-lists.
+ */
+export const LASER_FIT_KEYS = Object.freeze([NO_LASER, ...LASER_KEYS] as const);
+
+export type LaserFitKey = (typeof LASER_FIT_KEYS)[number];
+
+/** Whether `value` is a member of the laser allow-list (by membership, never `in`). */
+export function isLaserFitKey(value: unknown): value is LaserFitKey {
+  return LASER_FIT_KEYS.some((key) => key === value);
+}
+
+/** The separator of a composite F3 row key (`EQ_WEAPON_BEAM_LASER@aft`). */
+const LASER_FIT_SEPARATOR = "@";
+
+/** One F3 row key for a laser on a facing. */
+export function laserFitKey(key: LaserFitKey, facing: Facing): string {
+  return `${key}${LASER_FIT_SEPARATOR}${facing}`;
+}
+
+export interface ParsedLaserFitKey {
+  readonly key: LaserFitKey;
+  readonly facing: Facing;
+}
+
+/**
+ * Parse a composite F3 row key through both allow-lists, or `null`.
+ *
+ * `T-13-18`: a row key is a plain string, so a forged one (`EQ_ECM@fore`,
+ * `EQ_WEAPON_PULSE_LASER@up`, a bare laser key, a Thargoid laser) must not reach
+ * the money path. Anything but exactly `<LASER_FIT_KEYS member>@<FACINGS
+ * member>` is refused.
+ */
+export function parseLaserFitKey(value: string): ParsedLaserFitKey | null {
+  const parts = value.split(LASER_FIT_SEPARATOR);
+  if (parts.length !== 2) return null;
+  const [key, facing] = parts;
+  if (!isLaserFitKey(key) || !isFacing(facing)) return null;
+  return { key, facing };
+}
+
+/**
+ * What the laser path needs beyond `FitContext`: the catalogue price of every
+ * allow-listed laser, so a replaced laser can be refunded at its own price
+ * (`doTradeIn`, `PlayerEntity.m:9431-9438`).
+ */
+export interface LaserFitContext extends FitContext {
+  readonly laserPrices: ReadonlyMap<string, number>;
+}
+
+function isLaserPrice(price: number): boolean {
+  return (
+    Number.isSafeInteger(price) && price >= 0 && price <= MAX_EQUIPMENT_PRICE
+  );
+}
+
+/** The catalogue price of each allow-listed laser, validated; bad rows are left out. */
+export function laserPriceMap(
+  catalogue: readonly Equipment[],
+): ReadonlyMap<string, number> {
+  const prices = new Map<string, number>();
+  for (const record of catalogue) {
+    if (isLaserFitKey(record.key) && isLaserPrice(record.price)) {
+      prices.set(record.key, record.price);
+    }
+  }
+  return prices;
+}
+
+/**
+ * The price of fitting `item` in integer decicredits. Remove Laser costs 0
+ * whatever the record says; an invalid price returns `0` and `checkLaserFit`
+ * refuses before a caller can act on that zero.
+ */
+export function laserFitPrice(item: Equipment): number {
+  if (item.key === NO_LASER) return 0;
+  return isValidPrice(item.price) ? item.price : 0;
+}
+
+/**
+ * Whether `item` may be fitted on `facing` right now, and if not, the reason.
+ *
+ * Oolite's rules (`PlayerEntity.m:9139-9217`): the full price is compared with
+ * the credits **before** any trade-in (`price > credits` returns NO), so the
+ * refund for the laser being replaced never counts as available money. The
+ * station price factor is 1 at the Coriolis. The tech gate is the raw level,
+ * the same rule `checkFit` applies. Removing a laser from an empty facing has
+ * nothing to remove.
+ */
+export function checkLaserFit(
+  profile: PlayerProfile,
+  item: Equipment,
+  facing: Facing,
+  ctx: LaserFitContext,
+): FitCheck {
+  // 1. The laser allow-lists are the money-path boundary (T-13-18).
+  if (!isLaserFitKey(item.key) || !isFacing(facing)) {
+    return { ok: false, reason: "notOffered" };
+  }
+
+  // 2. Key and catalogue price, before any arithmetic can use them.
+  if (
+    !isValidKey(item.key) ||
+    (item.key !== NO_LASER && !isValidPrice(item.price))
+  ) {
+    return { ok: false, reason: "invalidPrice" };
+  }
+
+  // 3. Raw tech level gates; equality is allowed.
+  if (
+    !Number.isSafeInteger(item.techLevel) ||
+    !Number.isSafeInteger(ctx.techLevelRaw) ||
+    ctx.techLevelRaw < item.techLevel
+  ) {
+    return { ok: false, reason: "techLevel" };
+  }
+
+  // 4. The occupant of the facing must be a mount, and a laser being replaced
+  //    needs a trusted catalogue price for its refund (T-13-19).
+  const current: unknown = profile.laserMounts[facing];
+  if (!isMountKey(current)) return { ok: false, reason: "invalidCondition" };
+  if (item.key === NO_LASER && current === NO_LASER) {
+    return { ok: false, reason: "noLaser" };
+  }
+  if (current !== NO_LASER) {
+    const refund = ctx.laserPrices.get(current);
+    if (refund === undefined || !isLaserPrice(refund)) {
+      return { ok: false, reason: "invalidPrice" };
+    }
+  }
+
+  // 5. Affordability against the credits before any refund (`price > credits`).
+  const cost = laserFitPrice(item);
+  if (!isSafeCredits(profile.credits) || profile.credits < cost) {
+    return { ok: false, reason: "insufficientCredits" };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Fit (or remove) a laser on one facing.
+ *
+ * `checkLaserFit` is re-run first, so an out-of-set key, a stale context or a
+ * forged price is refused here too. A refusal returns the **same** profile
+ * object. A success pays the price and refunds the laser it replaces at its
+ * full catalogue price (`doTradeIn`, `PlayerEntity.m:9431-9438`); Remove Laser
+ * costs 0 and refunds the removed laser. It returns a new profile even when the
+ * net is zero (a pulse over a pulse), so a caller can compare identity.
+ */
+export function applyLaserFit(
+  profile: PlayerProfile,
+  item: Equipment,
+  facing: Facing,
+  ctx: LaserFitContext,
+): PlayerProfile {
+  const check = checkLaserFit(profile, item, facing, ctx);
+  if (!check.ok) return profile;
+  if (!isMountKey(item.key)) return profile;
+
+  const current = profile.laserMounts[facing];
+  const tradeIn = current === NO_LASER ? 0 : ctx.laserPrices.get(current);
+  if (tradeIn === undefined) return profile;
+
+  const credits = profile.credits - laserFitPrice(item) + tradeIn;
+  if (!isSafeCredits(credits)) return profile;
+
+  const laserMounts: Record<Facing, MountKey> = { ...profile.laserMounts };
+  laserMounts[facing] = item.key;
+  return { ...profile, credits, laserMounts };
 }

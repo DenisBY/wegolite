@@ -62,7 +62,7 @@ function row(model: Model, key: string) {
 }
 
 describe("the D-11 row set at Lave", () => {
-  it("emits exactly the ordered peaceful set, omitting fuel and empty removals", () => {
+  it("emits exactly the ordered peaceful set then the lasers, omitting fuel and empty removals", () => {
     expect(build().rows.map((entry) => entry.key)).toEqual([
       "EQ_CARGO_BAY",
       "EQ_DOCK_COMP",
@@ -72,6 +72,12 @@ describe("the D-11 row set at Lave", () => {
       "EQ_MISSILE",
       "EQ_PASSENGER_BERTH",
       "EQ_MISSILE_REMOVAL",
+      // The stock fit has a fore pulse laser, so Remove Laser is listed.
+      "EQ_WEAPON_NONE",
+      "EQ_WEAPON_PULSE_LASER",
+      "EQ_WEAPON_BEAM_LASER",
+      "EQ_WEAPON_MINING_LASER",
+      "EQ_WEAPON_MILITARY_LASER",
     ]);
   });
 
@@ -88,6 +94,11 @@ describe("the D-11 row set at Lave", () => {
       "EQ_MISSILE",
       "EQ_PASSENGER_BERTH",
       "EQ_MISSILE_REMOVAL",
+      "EQ_WEAPON_NONE",
+      "EQ_WEAPON_PULSE_LASER",
+      "EQ_WEAPON_BEAM_LASER",
+      "EQ_WEAPON_MINING_LASER",
+      "EQ_WEAPON_MILITARY_LASER",
     ]);
     expect(model.fuelVisible).toBe(true);
   });

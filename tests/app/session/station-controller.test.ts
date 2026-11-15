@@ -12,12 +12,25 @@
  * accepted buy changes the balance by exactly the plan's cost.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import { createStationController } from "../../../src/app/session/station-controller.js";
 import type { StationController } from "../../../src/app/session/station-controller.js";
+import { parseEquipment } from "../../../src/content/equipment.js";
+import type { Equipment } from "../../../src/content/types.js";
+import type { ActionId } from "../../../src/input/actions.js";
+import type { InputContext } from "../../../src/input/actions.js";
+import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
+import {
+  profileFromSave,
+  snapshotForSave,
+} from "../../../src/persistence/autosave.js";
+import { encodeSave, parseSave } from "../../../src/persistence/save.js";
+import type { SaveAllowLists } from "../../../src/persistence/save.js";
 import type { Command } from "../../../src/sim/commands.js";
 import {
   generateMarket,
@@ -265,5 +278,132 @@ describe("Node safety and guards", () => {
     expect(ctx.station.stationPage).toBe(2);
     expect(views).toHaveLength(1);
     expect(views[0]?.screen).toBe("status");
+  });
+});
+
+const equipmentCatalogue: readonly Equipment[] = parseEquipment(
+  JSON.parse(
+    readFileSync(
+      new URL("../../../src/content/generated/equipment.json", import.meta.url),
+      "utf8",
+    ),
+  ) as unknown,
+);
+
+/** A harness docked on F3 with the equipment catalogue and a station input context. */
+function outfittingHarness(credits: number) {
+  const h = harness();
+  h.ctx.core.equipmentCatalogue = equipmentCatalogue;
+  h.ctx.core.profile = { ...newProfile(), credits };
+  h.ctx.station.stationScreen = "outfitting";
+  let context: InputContext = "dockScreen";
+  h.ctx.runtime.input = {
+    getContext: () => context,
+    setContext: (next: InputContext) => {
+      context = next;
+    },
+  } as unknown as KeyboardInputSource;
+  h.controller.ensureOutfittingSelection();
+  return h;
+}
+
+/** Press one station action the way the drained input does. */
+function press(h: ReturnType<typeof outfittingHarness>, action: ActionId) {
+  h.controller.applyStationAction(action);
+}
+
+/** Press Down until the cursor is on `key`; fails the test if it never gets there. */
+function moveTo(h: ReturnType<typeof outfittingHarness>, key: string): void {
+  for (let guard = 0; guard < 40; guard += 1) {
+    if (h.ctx.station.stationSelection === key) return;
+    press(h, "stationDown");
+  }
+  throw new Error(`the cursor never reached "${key}"`);
+}
+
+const SAVE_ALLOW: SaveAllowLists = {
+  equipment: new Set(["EQ_DOCK_COMP"]),
+  systems: new Set(["g0-s7"]),
+  stations: new Set(["coriolis-station"]),
+  commodities: new Map(
+    catalogue
+      .filter((commodity) => commodity.tradeable)
+      .map((commodity) => [commodity.key, commodity.unit]),
+  ),
+  marketGoods: new Set(catalogue.map((commodity) => commodity.key)),
+};
+
+describe("laser purchase at F3", () => {
+  it("in normal play, buying a beam laser for the aft mount charges 10,000 decicredits and survives a save", () => {
+    const h = outfittingHarness(50_000);
+    const before = h.ctx.core.profile;
+
+    // Select Beam Laser and confirm: Oolite's facing selection opens, no prompt yet.
+    moveTo(h, "EQ_WEAPON_BEAM_LASER");
+    press(h, "stationConfirm");
+    expect(h.ctx.station.outfittingFacingFor).toBe("EQ_WEAPON_BEAM_LASER");
+    expect(h.ctx.station.stationPending).toBeNull();
+    expect(h.ctx.core.profile).toBe(before);
+    const open = h.views[h.views.length - 1]?.outfitting;
+    expect(open?.facingFor).toBe("EQ_WEAPON_BEAM_LASER");
+    expect(open?.rows.map((row) => row.label)).toEqual([
+      "Forward (Pulse Laser)",
+      "Aft (None)",
+      "Port (None)",
+      "Starboard (None)",
+    ]);
+    expect(open?.detail?.description).toBe(
+      "Beam Laser\nPlease select where to install this weapon.",
+    );
+
+    // Select the aft facing; the first confirm only asks, the second buys.
+    press(h, "stationDown");
+    expect(h.ctx.station.stationSelection).toBe("EQ_WEAPON_BEAM_LASER@aft");
+    press(h, "stationConfirm");
+    expect(h.ctx.station.stationPending).toEqual({
+      kind: "fit",
+      key: "EQ_WEAPON_BEAM_LASER@aft",
+    });
+    expect(h.ctx.core.profile).toBe(before);
+    expect(h.views[h.views.length - 1]?.confirmText).toBe(
+      "Buy Beam Laser (Aft) for 1000.0 Cr? [Y/N]",
+    );
+    press(h, "stationConfirm");
+
+    const after = h.ctx.core.profile;
+    expect(after.laserMounts.aft).toBe("EQ_WEAPON_BEAM_LASER");
+    expect(after.laserMounts.fore).toBe("EQ_WEAPON_PULSE_LASER");
+    expect(after.credits).toBe(before.credits - 10_000);
+    expect(h.ctx.station.outfittingFacingFor).toBeNull();
+    expect(h.ctx.station.stationPending).toBeNull();
+    expect(h.ctx.station.lastTrade).toEqual({
+      kind: "fit",
+      key: "EQ_WEAPON_BEAM_LASER@aft",
+      amount: 1,
+    });
+    expect(h.profiles).toEqual([after]);
+    expect(h.calls.filter((call) => call === "autosave")).toEqual(["autosave"]);
+
+    // The purchase survives a reload: encode, parse and restore the profile.
+    const state = h.ctx.core.state;
+    if (state === undefined) throw new Error("the harness has no flight state");
+    const encoded = encodeSave(
+      snapshotForSave(
+        state,
+        after,
+        system,
+        { key: "coriolis-station" },
+        h.ctx.core.market,
+        catalogue,
+        { epoch: 0, anchorNextEntityId: undefined },
+      ),
+    );
+    const parsed = parseSave(encoded, SAVE_ALLOW);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.save.version).toBe(4);
+    const restored = profileFromSave(parsed.save);
+    expect(restored.laserMounts).toEqual(after.laserMounts);
+    expect(restored.credits).toBe(after.credits);
   });
 });

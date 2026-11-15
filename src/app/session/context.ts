@@ -152,6 +152,11 @@ export interface SessionStationState {
   stationMessage: string;
   stationSaveNotice: string;
   stationPage: 1 | 2;
+  /**
+   * The laser key whose facing selection is open on F3, or null on the main
+   * list (CBT-05). Cleared whenever the station screen changes.
+   */
+  outfittingFacingFor: string | null;
   lastTrade: WegoliteLastTradeProbe | null;
   stationNav: StationNav | undefined;
 }
@@ -324,6 +329,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       stationMessage: "",
       stationSaveNotice: "",
       stationPage: 1,
+      outfittingFacingFor: null,
       lastTrade: null,
       stationNav: undefined,
     },

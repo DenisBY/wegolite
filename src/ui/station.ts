@@ -173,6 +173,10 @@ export function createStationShell(
     '[data-field="outfitting-description"]',
     "the outfitting detail description",
   );
+  // The facing selection's detail text carries Oolite's own line break
+  // ("<name>\nPlease select where to install this weapon."); `pre-line` keeps
+  // it while the text still goes in through `textContent`.
+  outfittingDescription.style.whiteSpace = "pre-line";
   const outfittingPrice = requireElement<HTMLElement>(
     root,
     '[data-field="outfitting-price"]',

@@ -17,7 +17,7 @@
  * it with doubles and a split step that moves their owners does not touch it.
  */
 
-import type { Commodity, System } from "../../content/types.js";
+import type { Commodity, Equipment, System } from "../../content/types.js";
 import type { ActionId } from "../../input/actions.js";
 import { ACTION_CONTEXTS, DEFAULT_BINDINGS } from "../../input/actions.js";
 import type { Command } from "../../sim/commands.js";
@@ -30,13 +30,22 @@ import {
 } from "../../sim/economy/trade.js";
 import type { TradePlan, TradeSide } from "../../sim/economy/trade.js";
 import type { FlightState } from "../../sim/flight/state.js";
+import { NO_LASER } from "../../sim/combat/mounts.js";
 import {
   FUEL_CAPACITY,
   MAX_MISSILES,
   applyFit,
+  applyLaserFit,
   checkFit,
+  checkLaserFit,
+  isLaserFitKey,
+  laserPriceMap,
+  parseLaserFitKey,
 } from "../../sim/player/outfitting.js";
-import type { FitContext } from "../../sim/player/outfitting.js";
+import type {
+  FitContext,
+  LaserFitContext,
+} from "../../sim/player/outfitting.js";
 import { formatDecicredits } from "../../sim/player/profile.js";
 import type { PlayerProfile } from "../../sim/player/profile.js";
 import type { SaveStatus } from "../../persistence/store.js";
@@ -190,6 +199,14 @@ export function createStationController(
     };
   }
 
+  /** The laser path's context: the live fit context plus the catalogue laser prices. */
+  function laserFitContext(): LaserFitContext | undefined {
+    const catalogue = ctx.core.equipmentCatalogue;
+    const base = fitContext();
+    if (catalogue === undefined || base === undefined) return undefined;
+    return { ...base, laserPrices: laserPriceMap(catalogue) };
+  }
+
   function outfittingModel(): OutfittingModel | undefined {
     const catalogue = ctx.core.equipmentCatalogue;
     if (catalogue === undefined) return undefined;
@@ -199,7 +216,22 @@ export function createStationController(
       ctx.core.system.techLevelRaw,
       ctx.station.stationSelection,
       ctx.core.commodityUnits,
+      ctx.station.outfittingFacingFor,
     );
+  }
+
+  /**
+   * Back inside the facing selection: close it and stay on F3, with the cursor
+   * on the laser that opened it.
+   */
+  function closeFacingSelection(): void {
+    const opener = ctx.station.outfittingFacingFor;
+    ctx.station.outfittingFacingFor = null;
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
+    if (opener !== null) ctx.station.stationSelection = opener;
+    ensureOutfittingSelection();
+    renderStation();
   }
 
   /** Reset F3 to its first visible row (and clear its pending confirmation). */
@@ -373,7 +405,10 @@ export function createStationController(
         : null;
     const key = pendingFit?.key ?? ctx.station.stationSelection;
     const model = outfittingModel();
-    const item = catalogue.find((entry) => entry.key === key);
+    // A composite row key (`EQ_WEAPON_BEAM_LASER@aft`) parses through both
+    // laser allow-lists; the row lookup below is the first gate, this the second.
+    const laser = parseLaserFitKey(key);
+    const item = catalogue.find((entry) => entry.key === (laser?.key ?? key));
     const row = model?.rows.find((entry) => entry.key === key);
     if (item === undefined || row === undefined) {
       ctx.station.stationPending = null;
@@ -387,6 +422,16 @@ export function createStationController(
       renderStation();
       return;
     }
+    // A laser row on the main list opens Oolite's facing selection; the
+    // Y/N guard comes with the facing (`PlayerEntity.m:8204-8540`).
+    if (laser === null && isLaserFitKey(key)) {
+      ctx.station.outfittingFacingFor = key;
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = "";
+      ctx.station.stationSelection = outfittingModel()?.rows[0]?.key ?? "";
+      renderStation();
+      return;
+    }
     if (pendingFit === null) {
       ctx.station.stationPending = { kind: "fit", key };
       ctx.station.stationNotice = "";
@@ -396,6 +441,10 @@ export function createStationController(
 
     const indexBefore =
       model?.rows.findIndex((entry) => entry.key === key) ?? -1;
+    if (laser !== null) {
+      confirmLaserFit(item, laser);
+      return;
+    }
     const check = checkFit(ctx.core.profile, item, fitCtx);
     if (!check.ok) {
       ctx.station.stationPending = null;
@@ -428,6 +477,54 @@ export function createStationController(
       const fallback = after.rows[Math.min(indexBefore, after.rows.length - 1)];
       ctx.station.stationSelection = fallback?.key ?? "";
     }
+    renderStation();
+  }
+
+  /**
+   * The second confirm of a laser fit: re-check through the laser allow-lists,
+   * apply, record, commit, and return to the main list (CBT-05, T-13-18).
+   */
+  function confirmLaserFit(
+    item: Equipment,
+    laser: NonNullable<ReturnType<typeof parseLaserFitKey>>,
+  ): void {
+    const laserCtx = laserFitContext();
+    // The row was confirmable a moment ago, so a refusal here means the state
+    // moved under the prompt.
+    const refuse = (): void => {
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = "That fit is no longer available";
+      renderStation();
+    };
+    if (laserCtx === undefined) {
+      refuse();
+      return;
+    }
+    const check = checkLaserFit(ctx.core.profile, item, laser.facing, laserCtx);
+    if (!check.ok) {
+      refuse();
+      return;
+    }
+    const next = applyLaserFit(ctx.core.profile, item, laser.facing, laserCtx);
+    if (next === ctx.core.profile) {
+      refuse();
+      return;
+    }
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
+    ctx.station.lastTrade = {
+      kind: laser.key === NO_LASER ? "removal" : "fit",
+      key: `${laser.key}@${laser.facing}`,
+      amount: 1,
+    };
+    // Back to the main list, with the cursor on the laser just handled; if
+    // that row is gone (the last Remove Laser), `ensureOutfittingSelection`
+    // lands it on the first row.
+    ctx.station.outfittingFacingFor = null;
+    ctx.station.stationSelection = laser.key;
+    commitProfile(next);
+    autosave();
+    ensureOutfittingSelection();
     renderStation();
   }
 
@@ -492,6 +589,10 @@ export function createStationController(
   }
 
   function renderStation(): void {
+    // The facing selection belongs to F3 alone.
+    if (ctx.station.stationScreen !== "outfitting") {
+      ctx.station.outfittingFacingFor = null;
+    }
     const currentMarket = ctx.core.market;
     const catalogue = ctx.core.commodities;
     if (currentMarket === undefined || catalogue === undefined) return;
@@ -513,6 +614,7 @@ export function createStationController(
             ctx.core.system.techLevelRaw,
             ctx.station.stationSelection,
             ctx.core.commodityUnits,
+            ctx.station.outfittingFacingFor,
           );
     const statusModel =
       ctx.core.labels === undefined || equipment === undefined
@@ -630,6 +732,7 @@ export function createStationController(
     if (screen === undefined) return;
 
     ctx.station.stationScreen = screen;
+    ctx.station.outfittingFacingFor = null;
     ctx.station.stationPending = null;
     ctx.station.stationNotice = "";
     ctx.station.stationPage = 1;
@@ -646,6 +749,7 @@ export function createStationController(
   function backToHome(): void {
     if (ctx.station.stationScreen === "home") return;
     ctx.station.stationScreen = "home";
+    ctx.station.outfittingFacingFor = null;
     ctx.station.stationPending = null;
     ctx.station.stationNotice = "";
     ctx.station.stationPage = 1;
@@ -737,7 +841,14 @@ export function createStationController(
 
     switch (action) {
       case "stationBack":
-        backToHome();
+        if (
+          ctx.station.stationScreen === "outfitting" &&
+          ctx.station.outfittingFacingFor !== null
+        ) {
+          closeFacingSelection();
+        } else {
+          backToHome();
+        }
         break;
       case "stationUp":
         if (ctx.station.stationScreen === "market") {
@@ -800,7 +911,9 @@ export function createStationController(
     moveSelection,
     equipmentSet,
     fitContext,
+    laserFitContext,
     outfittingModel,
+    closeFacingSelection,
     ensureOutfittingSelection,
     moveOutfittingSelection,
     commodityFor,

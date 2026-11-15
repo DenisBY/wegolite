@@ -27,16 +27,28 @@ import {
 } from "../sim/economy/cargo.js";
 import type { Market } from "../sim/economy/market.js";
 import type { TradePlan } from "../sim/economy/trade.js";
+import { FACINGS, NO_LASER } from "../sim/combat/mounts.js";
+import type { Facing } from "../sim/combat/mounts.js";
 import { jumpBetween } from "../sim/hyperspace/jump.js";
 import {
   FUEL_CAPACITY,
+  LASER_FIT_KEYS,
   MAX_MISSILES,
   REMOVAL_DESCRIPTIONS,
   VISIBLE_EQUIPMENT_KEYS,
   checkFit,
+  checkLaserFit,
   fitPrice,
+  isLaserFitKey,
+  laserFitKey,
+  laserFitPrice,
+  laserPriceMap,
 } from "../sim/player/outfitting.js";
-import type { FitContext, FitRefusal } from "../sim/player/outfitting.js";
+import type {
+  FitContext,
+  FitRefusal,
+  LaserFitContext,
+} from "../sim/player/outfitting.js";
 import { formatDecicredits } from "../sim/player/profile.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
 
@@ -296,6 +308,17 @@ export interface StatusModel {
   readonly loadText: string;
 }
 
+/**
+ * Oolite's trimmed facing strings (`descriptions.plist:1895-1898`, the
+ * `forward-facing-string` family, which carry padding spaces in the plist).
+ */
+const FACING_LABELS: Readonly<Record<Facing, string>> = Object.freeze({
+  fore: "Forward",
+  aft: "Aft",
+  port: "Port",
+  starboard: "Starboard",
+});
+
 const COMMANDER_NAME = "Jameson";
 const SHIP_NAME = "Cobra Mk III";
 const UNKNOWN_HYPERSPACE_SYSTEM = "(Unknown)";
@@ -545,6 +568,11 @@ export interface OutfittingModel {
   readonly detail: OutfittingDetail | null;
   readonly fuelVisible: boolean;
   readonly selectedKey: string;
+  /**
+   * The laser key whose facing selection is open, or null on the main list.
+   * While set, `rows` are the four facing rows keyed by `laserFitKey`.
+   */
+  readonly facingFor: string | null;
 }
 
 const REMOVAL_KEYS: ReadonlySet<string> = new Set([
@@ -571,6 +599,8 @@ function fitReason(reason: FitRefusal, item: Equipment): string {
       return "Full tank";
     case "nothingToRemove":
       return "Nothing to remove";
+    case "noLaser":
+      return "No laser fitted";
     case "invalidPrice":
       return "Price unavailable";
     case "invalidCondition":
@@ -641,6 +671,7 @@ export function buildOutfittingModel(
   systemTechLevelRaw: number,
   selectedKey: string,
   unitByKey: ReadonlyMap<string, CommodityUnit>,
+  facingFor: string | null = null,
 ): OutfittingModel {
   const byKey = new Map(catalogue.map((record) => [record.key, record]));
   const missile = byKey.get("EQ_MISSILE");
@@ -650,14 +681,21 @@ export function buildOutfittingModel(
     );
   }
 
-  const ctx: FitContext = {
+  const ctx: LaserFitContext = {
     techLevelRaw: systemTechLevelRaw,
     fuelCapacity: FUEL_CAPACITY,
     missileCapacity: MAX_MISSILES,
     availablePods: availablePods(profile, unitByKey),
     missilePrice: missile.price,
+    laserPrices: laserPriceMap(catalogue),
   };
   const fuelVisible = profile.fuel < FUEL_CAPACITY;
+
+  // An open facing selection for a key outside the laser allow-list (stale or
+  // forged state) falls back to the main list.
+  if (facingFor !== null && isLaserFitKey(facingFor)) {
+    return buildFacingModel(byKey, profile, ctx, facingFor, selectedKey);
+  }
 
   const rows: OutfittingRow[] = [];
   for (const key of VISIBLE_EQUIPMENT_KEYS) {
@@ -693,6 +731,43 @@ export function buildOutfittingModel(
     });
   }
 
+  // Lasers follow the visible rows, in `LASER_FIT_KEYS` order. Remove Laser is
+  // listed only while some facing has a laser to remove.
+  const anyLaser = FACINGS.some(
+    (facing) => profile.laserMounts[facing] !== NO_LASER,
+  );
+  for (const key of LASER_FIT_KEYS) {
+    if (key === NO_LASER && !anyLaser) continue;
+    const item = byKey.get(key);
+    if (item === undefined) {
+      throw new StationModelError(
+        `Wegolite: the equipment catalogue has no entry with key "${key}".`,
+      );
+    }
+    const checks = FACINGS.map((facing) =>
+      checkLaserFit(profile, item, facing, ctx),
+    );
+    const firstOk = checks.some((check) => check.ok);
+    const refusal = checks.find((check) => !check.ok);
+    const cost = laserFitPrice(item);
+    rows.push({
+      key,
+      label: item.name,
+      name: item.name,
+      cost,
+      priceText: formatDecicredits(cost),
+      enabled: firstOk,
+      dimmed: !firstOk,
+      reason:
+        firstOk || refusal === undefined || refusal.ok
+          ? ""
+          : fitReason(refusal.reason, item),
+      owned: false,
+      multiCount: null,
+      confirmable: firstOk,
+    });
+  }
+
   const selected = rows.find((row) => row.key === selectedKey);
   let detail: OutfittingDetail | null = null;
   if (selected !== undefined) {
@@ -712,7 +787,59 @@ export function buildOutfittingModel(
     };
   }
 
-  return { rows, detail, fuelVisible, selectedKey };
+  return { rows, detail, fuelVisible, selectedKey, facingFor: null };
+}
+
+/**
+ * The facing selection of Oolite's `setGuiToEquipShipScreen:selectingFacingFor:`
+ * (`PlayerEntity.m:8204-8540`): the four facings, each showing the laser fitted
+ * there, and the "select where to install" prompt for the chosen weapon.
+ */
+function buildFacingModel(
+  byKey: ReadonlyMap<string, Equipment>,
+  profile: PlayerProfile,
+  ctx: LaserFitContext,
+  laserKey: (typeof LASER_FIT_KEYS)[number],
+  selectedKey: string,
+): OutfittingModel {
+  const item = byKey.get(laserKey);
+  if (item === undefined) {
+    throw new StationModelError(
+      `Wegolite: the equipment catalogue has no entry with key "${laserKey}".`,
+    );
+  }
+  const cost = laserFitPrice(item);
+  const rows: OutfittingRow[] = FACINGS.map((facing) => {
+    const check = checkLaserFit(profile, item, facing, ctx);
+    const fitted = profile.laserMounts[facing];
+    const fittedName =
+      fitted === NO_LASER ? "None" : equipmentName(byKey, fitted);
+    return {
+      key: laserFitKey(laserKey, facing),
+      label: `${FACING_LABELS[facing]} (${fittedName})`,
+      name: `${item.name} (${FACING_LABELS[facing]})`,
+      cost,
+      priceText: formatDecicredits(cost),
+      enabled: check.ok,
+      dimmed: !check.ok,
+      reason: check.ok ? "" : fitReason(check.reason, item),
+      owned: false,
+      multiCount: null,
+      confirmable: check.ok,
+    };
+  });
+  const selected = rows.find((row) => row.key === selectedKey) ?? rows[0];
+  return {
+    rows,
+    detail: {
+      title: item.name,
+      description: `${item.name}\nPlease select where to install this weapon.`,
+      priceText: selected?.priceText ?? formatDecicredits(cost),
+    },
+    fuelVisible: false,
+    selectedKey,
+    facingFor: laserKey,
+  };
 }
 
 /**
