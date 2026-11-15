@@ -24,7 +24,7 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-11-14)
 
-**Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
+**Current focus:** Phase 14 — NPC Flight and Steering Fidelity Gate
 **Current focus:** Phase 13 — Views, Lasers and Shields
 
 ## Current Position
