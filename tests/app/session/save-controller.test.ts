@@ -36,6 +36,10 @@ import type {
   WriteResult,
 } from "../../../src/persistence/store.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
+import {
+  createPlayerCombatState,
+  isPristineCombat,
+} from "../../../src/sim/combat/state.js";
 import { generateMarket } from "../../../src/sim/economy/market.js";
 import { setCargo } from "../../../src/sim/economy/cargo.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
@@ -621,6 +625,36 @@ describe("loadFromSave order", () => {
     await h.controller.loadFromSave();
     expect(h.bound).toEqual([]);
     expect(h.log).not.toContain("bindTestHook");
+  });
+
+  it("(f) a docked or in-flight Load installs a fresh pristine combat state, whatever the replaced session had (plan 13-11)", async () => {
+    for (const blob of [dockedBlob, flyingBlob]) {
+      const h = harness();
+      const worn = createPlayerCombatState();
+      worn.fwdShield = 3;
+      worn.aftShield = 0;
+      worn.energy = 10;
+      worn.cabinTemp = 200;
+      worn.view = "port";
+      worn.laserTemp.fore = 40;
+      worn.identEngaged = true;
+      h.ctx.core.combat = worn;
+      expect(isPristineCombat(worn)).toBe(false);
+      watched(h);
+      observe(h.ctx.core, "combat", "combat", h.log);
+      h.readResult.current = Promise.resolve({ kind: "ok", raw: blob().raw });
+
+      await h.controller.loadFromSave();
+
+      const fresh = h.ctx.core.combat;
+      if (fresh === undefined) throw new Error("the Load left no combat state");
+      expect(fresh).not.toBe(worn);
+      expect(isPristineCombat(fresh)).toBe(true);
+      // Installed inside the one synchronous block, right after the state.
+      expect(h.log.indexOf("install combat")).toBe(
+        h.log.indexOf("install state") + 1,
+      );
+    }
   });
 
   it("(c) a read that resolves after F2 was closed installs nothing and stays silent", async () => {

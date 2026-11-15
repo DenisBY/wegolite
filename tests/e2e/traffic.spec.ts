@@ -465,6 +465,12 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
     requested.some((path) => path.endsWith("/models/cobra3.glb")),
     "the request log is live (the Cobra model was requested)",
   ).toBe(true);
+  // The hull chunk (plan 13-11, D-01) loads with the NPC catalogue at boot with
+  // traffic on, so the measured total includes it: the request log must show it.
+  expect(
+    requested.some((path) => /\/assets\/ships-hulls-[^/]+\.js$/.test(path)),
+    "the lazy hull chunk was fetched at boot (counted in the cold start)",
+  ).toBe(true);
   expect(total, "first-load bytes (traffic on)").toBeGreaterThan(0);
   expect(total, "first-load bytes ceiling (traffic on)").toBeLessThanOrEqual(
     FIRST_LOAD_BYTES_CEILING,

@@ -40,6 +40,7 @@ import {
   generateMarket,
   marketSeedForSystem,
 } from "../../sim/economy/market.js";
+import { createPlayerCombatState } from "../../sim/combat/state.js";
 import { poseOf } from "../../sim/flight/state.js";
 import type { FlightState } from "../../sim/flight/state.js";
 import { deriveSystemLayout } from "../../sim/world/layout.js";
@@ -435,6 +436,9 @@ export function createSaveController(
 
       // One synchronous install block: no early return after this point.
       ctx.core.state = restored.state;
+      // A combat state is not saved: a Load starts pristine, whatever the
+      // replaced session's shields, temperatures, view or ident were.
+      ctx.core.combat = createPlayerCombatState();
       ctx.core.layout = nextLayout;
       ctx.core.profile = restored.profile;
       ctx.core.market = nextMarket;

@@ -161,7 +161,11 @@ export function createProbePublisher(
   function worldHash(): string {
     const liveState = ctx.core.state;
     if (liveState === undefined || ctx.runtime.disposed) return "";
-    return hashWorld(liveState, ctx.core.worldLifecycle?.world);
+    return hashWorld(
+      liveState,
+      ctx.core.worldLifecycle?.world,
+      ctx.core.combat,
+    );
   }
 
   /** The sim members of the hook, bound at call time (G-8). */

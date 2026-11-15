@@ -242,6 +242,12 @@ test("a cold start to the first in-flight frame stays under the first-load bytes
     requested.filter((path) => npcPaths.has(path)),
     "NPC models and textures requested on a cold start",
   ).toEqual([]);
+  // The hull chunk (plan 13-11, D-01) joins the boot load only with traffic on:
+  // a traffic-off session never fetches it.
+  expect(
+    requested.filter((path) => /\/assets\/ships-hulls-[^/]+\.js$/.test(path)),
+    "the lazy hull chunk requested by a traffic-off cold start",
+  ).toEqual([]);
   expect(total, "first-load bytes").toBeGreaterThan(0);
   expect(total, "first-load bytes ceiling").toBeLessThanOrEqual(
     FIRST_LOAD_BYTES_CEILING,

@@ -27,7 +27,9 @@ import type {
 } from "../../../src/app/probe.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { MessageQueue } from "../../../src/render/hud/messages.js";
+import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
+import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const { system, layout } = laveFixture();
@@ -227,5 +229,33 @@ describe("syncEconomyProbe", () => {
     publisher.syncEconomyProbe();
     expect(probe.economy).toBeUndefined();
     expect(probe.station).toBeUndefined();
+  });
+});
+
+describe("worldHash and the combat state (plan 13-11)", () => {
+  it("hashes the live combat state when it is not pristine, and as the flight hash while it is", () => {
+    const { ctx, probe, publisher } = harness();
+    const state = initFlightState(layout);
+    ctx.core.state = state;
+    publisher.bindTestHook(state);
+    const hook = probe.test;
+    if (hook === undefined) throw new Error("no hook");
+
+    // No combat state yet, then a pristine one: both are the flight hash.
+    expect(hook.worldHash()).toBe(hashWorld(state, undefined));
+    ctx.core.combat = createPlayerCombatState();
+    expect(hook.worldHash()).toBe(hashWorld(state, undefined));
+    expect(hook.worldHash()).toBe(hashWorld(state, undefined, undefined));
+
+    // A shot shield changes the hash, read live (nothing captured).
+    ctx.core.combat.fwdShield = 100;
+    const damaged = hook.worldHash();
+    expect(damaged).toBe(hashWorld(state, undefined, ctx.core.combat));
+    expect(damaged).not.toBe(hashWorld(state, undefined));
+    expect(ctx.runtime.testTainted).toBe(false);
+
+    // A Load installs a fresh state: the hook follows the live one.
+    ctx.core.combat = createPlayerCombatState();
+    expect(hook.worldHash()).toBe(hashWorld(state, undefined));
   });
 });

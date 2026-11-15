@@ -60,6 +60,12 @@ import {
   PlayerController,
   ScriptedLaunchController,
 } from "../../../src/sim/flight/controller.js";
+import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
+import type { LaserMounts } from "../../../src/sim/combat/mounts.js";
+import {
+  DEFAULT_LASER_MOUNTS,
+  NO_LASER,
+} from "../../../src/sim/combat/mounts.js";
 import { hashFlight, initFlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { worldSeedFor } from "../../../src/sim/rng.js";
@@ -69,6 +75,7 @@ import { liveEntityCount, spawnEntity } from "../../../src/sim/world/world.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
 import { laveDockGeometry } from "../../helpers/dock-pose.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { realHullTable } from "../../helpers/hull-table.js";
 import { sessionSourceFiles } from "../../helpers/session-source.js";
 import { runTickScript } from "../../helpers/tick-script.js";
 
@@ -97,6 +104,8 @@ interface Session {
   readonly probe: WegoliteProbe;
   readonly gate: RedrawGate;
   readonly publisher: ProbePublisher;
+  /** What the fake keyboard reports as held; `fire` is the laser key. */
+  readonly held: { fire: boolean };
 }
 
 /**
@@ -111,6 +120,8 @@ function session(search: string, populated = false): Session {
     saveSkipReason: "",
   });
   ctx.core.state = initFlightState(lave.layout);
+  // As start-up does beside the flight state: a pristine combat state.
+  ctx.core.combat = createPlayerCombatState();
   ctx.core.layout = lave.layout;
   ctx.core.config = lave.config;
   ctx.core.dockGeometry = laveDockGeometry();
@@ -137,6 +148,8 @@ function session(search: string, populated = false): Session {
         ),
       ) as NpcShip[],
     );
+    // The hull table the boot load builds beside the NPC catalogue.
+    ctx.core.hulls = realHullTable();
   }
   const lifecycle = createWorldLifecycle({
     traffic,
@@ -150,9 +163,16 @@ function session(search: string, populated = false): Session {
       : {}),
   });
   ctx.core.worldLifecycle = lifecycle;
+  const held = { fire: false };
   ctx.runtime.input = {
     drainCommands: () => [],
-    frame: () => ({ pitch: 0, roll: 0, speed: 0, precision: false }),
+    frame: () => ({
+      pitch: 0,
+      roll: 0,
+      speed: 0,
+      precision: false,
+      ...(held.fire ? { fire: true } : {}),
+    }),
   } as unknown as KeyboardInputSource;
 
   const pending: Command[] = [];
@@ -241,14 +261,14 @@ function session(search: string, populated = false): Session {
     advanceTicks: (n) => driver.advanceTicks(n),
   });
   bound.publisher = publisher;
-  return { ctx, driver, pending, lifecycle, probe, gate, publisher };
+  return { ctx, driver, pending, lifecycle, probe, gate, publisher, held };
 }
 
 /** The state and the live world of a session, hashed the way the hook does. */
 function sessionHash(s: Session): string {
   const state = s.ctx.core.state;
   if (state === undefined) throw new Error("the session has no state");
-  return hashWorld(state, s.lifecycle.world);
+  return hashWorld(state, s.lifecycle.world, s.ctx.core.combat);
 }
 
 /** The launch-and-fly script: a launch on the first tick, then 600 more. */
@@ -420,6 +440,119 @@ describe("tick parity with the populated world (plan 12-09, WORLD-14)", () => {
       firstDivergence,
       `the first diverging tick is ${String(firstDivergence + 1)}`,
     ).toBe(-1);
+  });
+});
+
+describe("tick parity with combat (plan 13-11, CBT-04 to CBT-07)", () => {
+  const MOUNTS: LaserMounts = {
+    ...DEFAULT_LASER_MOUNTS,
+    aft: "EQ_WEAPON_BEAM_LASER",
+  };
+
+  /** Launch, fly, then fire on the aft view and on the fore view. */
+  const COMBAT_SCRIPT = [
+    { commands: [launch], ticks: 1 },
+    { commands: [], ticks: 600 },
+    {
+      commands: [{ kind: "setView", view: "aft" } as const],
+      ticks: 90,
+      fire: true,
+    },
+    {
+      commands: [{ kind: "setView", view: "fore" } as const],
+      ticks: 90,
+      fire: true,
+    },
+  ] as const;
+
+  /** Drive the real session through `COMBAT_SCRIPT`, one call per step. */
+  function driveSession(s: Session, record?: string[]): void {
+    s.ctx.core.profile = { ...s.ctx.core.profile, laserMounts: MOUNTS };
+    for (const step of COMBAT_SCRIPT) {
+      s.held.fire = "fire" in step && step.fire;
+      s.pending.push(...step.commands);
+      if (record === undefined) {
+        s.driver.advanceTicks(step.ticks);
+      } else {
+        for (let tick = 0; tick < step.ticks; tick += 1) {
+          s.driver.advanceTicks(1);
+          record.push(sessionHash(s));
+        }
+      }
+    }
+  }
+
+  for (const traffic of [false, true]) {
+    const label = traffic ? "traffic on" : "traffic off";
+    const search = traffic
+      ? "?test=1&clock=manual&traffic=1"
+      : "?test=1&clock=manual";
+
+    it(`${label}: the session and the Node replay hash the same after a scripted run that changes view and fires`, () => {
+      const s = session(search, traffic);
+      driveSession(s);
+      const replay = runTickScript(COMBAT_SCRIPT, {
+        traffic,
+        laserMounts: MOUNTS,
+      });
+
+      const state = s.ctx.core.state;
+      const combat = s.ctx.core.combat;
+      if (state === undefined || combat === undefined) {
+        throw new Error("no state");
+      }
+      expect(sessionHash(s)).toBe(replay.hash);
+      // Not vacuous: the run changed the view and heated the lasers, so the
+      // combat state is in the hash and the hash is no longer the flight hash.
+      expect(replay.combat.view).toBe("fore");
+      expect(replay.combat.laserTemp.aft).toBeGreaterThan(0);
+      expect(replay.combat.laserTemp.fore).toBeGreaterThan(0);
+      expect(combat.laserTemp).toEqual(replay.combat.laserTemp);
+      expect(replay.hash).not.toBe(hashWorld(replay.state, replay.world));
+    });
+
+    it(`${label}: the per-tick traces agree, naming the first diverging tick`, () => {
+      const s = session(search, traffic);
+      const driven: string[] = [];
+      driveSession(s, driven);
+      const trace = runTickScript(COMBAT_SCRIPT, {
+        traffic,
+        laserMounts: MOUNTS,
+        trace: true,
+      }).trace;
+      if (trace === undefined) throw new Error("no trace");
+      expect(driven).toHaveLength(trace.length);
+      const firstDivergence = driven.findIndex(
+        (value, index) => value !== trace[index],
+      );
+      expect(
+        firstDivergence,
+        `the first diverging tick is ${String(firstDivergence + 1)}`,
+      ).toBe(-1);
+    });
+  }
+
+  it("a replay with nothing held and the stock mounts hashes as the flight hash, so every earlier pin stands", () => {
+    const replay = runTickScript(LAUNCH_AND_FLY);
+    expect(replay.hash).toBe(hashFlight(replay.state));
+    expect(replay.combat.laserTemp).toEqual({
+      fore: 0,
+      aft: 0,
+      port: 0,
+      starboard: 0,
+    });
+  });
+
+  it("an empty mount fires nothing in the replay either", () => {
+    const empty = runTickScript(
+      [
+        { commands: [launch], ticks: 1 },
+        { commands: [], ticks: 600 },
+        { commands: [], ticks: 30, fire: true },
+      ],
+      { laserMounts: { ...DEFAULT_LASER_MOUNTS, fore: NO_LASER } },
+    );
+    expect(empty.combat.laserTemp.fore).toBe(0);
   });
 });
 
