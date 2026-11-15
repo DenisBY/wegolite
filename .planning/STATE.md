@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 13
 current_phase_name: Views, Lasers and Shields
 status: executing
-stopped_at: Completed 13-12-PLAN.md
-last_updated: "2026-11-15T02:20:07.850Z"
+stopped_at: Completed 13-13-PLAN.md
+last_updated: "2026-11-15T02:43:21.976Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 13 execution started
-state_head: 0e6c3cef5cfe8da234a375f4cf3cba43933344e5
+state_head: 4f27a7cb3efd11e310cf210c19589bc47f0d7b94
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 16
-  completed_plans: 14
+  completed_plans: 15
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 13 (Views, Lasers and Shields) — EXECUTING
-Plan: 15 of 16
+Plan: 16 of 16
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 13 execution started
 
@@ -167,6 +167,7 @@ Last activity: 2026-11-14 — Phase 13 execution started
 | Phase 13 P11 | 25 min | 2 tasks | 18 files |
 | Phase 13 P15 | 10 min | 2 tasks | 6 files |
 | Phase 13 P12 | 15 min | 2 tasks | 13 files |
+| Phase 13 P13 | 25 min | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -413,6 +414,8 @@ Recent decisions affecting current work:
 - [Phase 13]: 13-15: ident runs as two halves inside combat/step.ts (stepIdent before the world step, updateIdentTarget at the end of resolveShots) so sim.ts is unchanged
 - [Phase 13]: 13-12: D-03 lock message is name only via the single IDENT_LOCKED_TEMPLATE constant; PENDING OWNER CONFIRMATION (literal form pinned by a test)
 - [Phase 13]: 13-12: combat and ident messages route through hudMessages (given ctx) with a per-kind one-second gate; subscriber order unchanged
+- [Phase 13]: 13-13: laserFired is routed through the dockFeedback subscriber (table 20 to 21 kinds) so the pinned subscriber order is unchanged; the shot layer stores positions, kind and start time only, never the shooter id
+- [Phase 13]: 13-13: the ident frame projection maps NDC onto the letterboxed 16:9 HUD design space with half window height = max(width/aspect, height)/2; the frame is a non-element drawing (HUD_ELEMENTS stays 11); D-03 and D-04 remain PENDING OWNER CONFIRMATION
 
 ### Pending Todos
 
@@ -514,8 +517,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T02:20:07.770Z
-Stopped at: Completed 13-12-PLAN.md
+Last session: 2026-11-15T02:43:21.881Z
+Stopped at: Completed 13-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
