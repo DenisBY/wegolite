@@ -260,3 +260,222 @@ describe("callers without a combat state", () => {
     expect(energyOf(world, id)).toBe(85);
   });
 });
+
+describe("views and facing (CBT-04)", () => {
+  it("setView port in flight switches the view; with no port laser nothing fires and nothing is refused", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const { world, id } = worldWithShip(vec(FAR.x - 3000, FAR.y, FAR.z));
+
+    const events = stepOnce(player, world, combat, FIRE, stockOptions(), [
+      { kind: "setView", view: "port" },
+    ]);
+
+    expect(combat.view).toBe("port");
+    expect(ofKind(events, "laserFired")).toHaveLength(0);
+    expect(ofKind(events, "laserRefused")).toHaveLength(0);
+    expect(ofKind(events, "shipHit")).toHaveLength(0);
+    expect(energyOf(world, id)).toBe(85);
+    // An empty mount costs nothing and heats nothing.
+    expect(combat.laserTemp.port).toBe(0);
+  });
+
+  it("fires the port laser along the port axis once one is fitted", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    // 3 km to the player's left (-X), level with the port mount at y = -2.3.
+    const { world, id } = worldWithShip(vec(FAR.x - 3000, FAR.y - 2.3, FAR.z));
+    const options: StepOptions = {
+      combat: {
+        mounts: { ...DEFAULT_LASER_MOUNTS, port: "EQ_WEAPON_BEAM_LASER" },
+        hulls: HULLS,
+      },
+    };
+
+    const events = stepOnce(player, world, combat, FIRE, options, [
+      { kind: "setView", view: "port" },
+    ]);
+
+    const fired = ofKind(events, "laserFired");
+    expect(fired).toHaveLength(1);
+    expect(fired[0]?.laserKind).toBe("beam");
+    // From the port wing (x - 47.4), straight left.
+    expect(fired[0]?.from.x).toBeCloseTo(FAR.x - 47.4, 6);
+    expect(fired[0]?.to.y).toBeCloseTo(fired[0]?.from.y ?? NaN, 6);
+    expect(ofKind(events, "shipHit")).toEqual([
+      {
+        kind: "shipHit",
+        target: id,
+        source: PLAYER_ID,
+        amount: 6,
+        shield: false,
+      },
+    ]);
+    expect(energyOf(world, id)).toBe(79);
+    // Only the port facing paid for the shot.
+    expect(combat.laserTemp.fore).toBe(0);
+    expect(combat.laserTemp.port).toBeGreaterThan(0);
+  });
+
+  it("the fore laser is silent while the view is aft", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const { world, id } = worldWithShip(vec(FAR.x, FAR.y, FAR.z - 2000));
+    const events = stepOnce(player, world, combat, FIRE, stockOptions(), [
+      { kind: "setView", view: "aft" },
+    ]);
+    expect(combat.view).toBe("aft");
+    expect(ofKind(events, "laserFired")).toHaveLength(0);
+    expect(energyOf(world, id)).toBe(85);
+  });
+
+  it("ignores setView while docked", () => {
+    const player = initFlightState(layout);
+    const combat = createPlayerCombatState();
+    stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions(), [
+      { kind: "setView", view: "aft" },
+    ]);
+    expect(player.mode).toBe("docked");
+    expect(combat.view).toBe("fore");
+  });
+
+  it("ignores setView while launching", () => {
+    const player = initFlightState(layout);
+    const combat = createPlayerCombatState();
+    stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions(), [
+      { kind: "launch" },
+    ]);
+    expect(player.mode).toBe("launching");
+    stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions(), [
+      { kind: "setView", view: "starboard" },
+    ]);
+    expect(player.mode).toBe("launching");
+    expect(combat.view).toBe("fore");
+  });
+
+  it("ignores a setView drained on the tick that completes the launch", () => {
+    const player = initFlightState(layout);
+    const combat = createPlayerCombatState();
+    stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions(), [
+      { kind: "launch" },
+    ]);
+    const events = stepOnce(
+      player,
+      undefined,
+      combat,
+      ZERO_INTENT,
+      stockOptions(),
+      [{ kind: "skipLaunch" }, { kind: "setView", view: "aft" }],
+    );
+    expect(ofKind(events, "launchComplete")).toHaveLength(1);
+    expect(player.mode).toBe("inFlight");
+    expect(combat.view).toBe("fore");
+    // The next tick is in flight at both ends, so the command now counts.
+    stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions(), [
+      { kind: "setView", view: "aft" },
+    ]);
+    expect(combat.view).toBe("aft");
+  });
+
+  it("ignores a forged view payload (T-13-16)", () => {
+    for (const forged of ["up", "constructor", "__proto__", "", "FORE"]) {
+      const player = flyingPlayer();
+      const combat = createPlayerCombatState();
+      stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions(), [
+        { kind: "setView", view: forged as never },
+      ]);
+      expect(combat.view).toBe("fore");
+    }
+  });
+
+  it("applies the last valid setView of a frame, in command order", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions(), [
+      { kind: "setView", view: "aft" },
+      { kind: "setView", view: "bogus" as never },
+      { kind: "setView", view: "starboard" },
+    ]);
+    expect(combat.view).toBe("starboard");
+  });
+});
+
+describe("bookkeeping runs only outside the dock (F6)", () => {
+  /** A combat state worn by damage, heat and a held shot timer. */
+  function worn(): PlayerCombatState {
+    const combat = createPlayerCombatState();
+    combat.fwdShield = 40;
+    combat.aftShield = 10;
+    combat.energy = 100;
+    combat.cabinTemp = 120;
+    combat.laserTemp.fore = 50;
+    combat.shotTicks.fore = 3;
+    return combat;
+  }
+
+  it("changes nothing while docked", () => {
+    const player = initFlightState(layout);
+    const combat = worn();
+    const before = structuredClone(combat);
+    for (let tick = 0; tick < 60; tick += 1) {
+      stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions());
+    }
+    expect(player.mode).toBe("docked");
+    expect(combat).toEqual(before);
+  });
+
+  it("cools, recharges and advances the timers while launching", () => {
+    const player = initFlightState(layout);
+    const combat = createPlayerCombatState();
+    stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions(), [
+      { kind: "launch" },
+    ]);
+    expect(player.mode).toBe("launching");
+    Object.assign(combat, worn());
+    stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions());
+    expect(player.mode).toBe("launching");
+    expect(combat.laserTemp.fore).toBeCloseTo(50 - 6 * DT, 9);
+    expect(combat.shotTicks.fore).toBe(4);
+    expect(combat.cabinTemp).toBeLessThan(120);
+    expect(combat.fwdShield + combat.aftShield).toBeGreaterThan(50);
+  });
+
+  it("cools, recharges and advances the timers in flight", () => {
+    const player = flyingPlayer();
+    const combat = worn();
+    stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions());
+    expect(combat.laserTemp.fore).toBeCloseTo(50 - 6 * DT, 9);
+    expect(combat.shotTicks.fore).toBe(4);
+    // Cabin cooling: (0 - 100 - 120) * 0.1 * dt = -22 / 120 per tick.
+    expect(combat.cabinTemp).toBeCloseTo(120 - (220 * 0.1) / 120, 9);
+    // The aft shield is below a quarter, so it may spend all the energy: it
+    // gains 2 / 120 and the banks pay for it.
+    expect(combat.aftShield).toBeCloseTo(10 + 2 / 120, 9);
+  });
+});
+
+describe("a refused laser (CBT-05)", () => {
+  it("emits laserRefused overheat at the cut-out, with no shot", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    // 0.85 * 256 = 217.6 is the cut-out; bookkeeping follows the gate.
+    combat.laserTemp.fore = 218;
+    const { world, id } = worldWithShip(vec(FAR.x, FAR.y, FAR.z - 2000));
+    const events = stepOnce(player, world, combat, FIRE, stockOptions());
+    expect(ofKind(events, "laserRefused")).toEqual([
+      { kind: "laserRefused", reason: "overheat" },
+    ]);
+    expect(ofKind(events, "laserFired")).toHaveLength(0);
+    expect(energyOf(world, id)).toBe(85);
+  });
+
+  it("emits laserRefused noEnergy when the banks cannot pay", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    combat.energy = 0.8;
+    const events = stepOnce(player, undefined, combat, FIRE, stockOptions());
+    expect(ofKind(events, "laserRefused")).toEqual([
+      { kind: "laserRefused", reason: "noEnergy" },
+    ]);
+  });
+});
