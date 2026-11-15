@@ -657,6 +657,27 @@ describe("loadFromSave order", () => {
     }
   });
 
+  it("(g) a Load clears the combat and ident message gates so the first message shows at once (plan 13-12)", async () => {
+    const h = harness();
+    h.ctx.core.lastCombatMessageTimes.overheat = 99;
+    h.ctx.core.lastCombatMessageTimes.identLocked = 99;
+    h.readResult.current = Promise.resolve({
+      kind: "ok",
+      raw: dockedBlob().raw,
+    });
+
+    await h.controller.loadFromSave();
+
+    expect(h.ctx.core.lastCombatMessageTimes).toEqual({
+      overheat: null,
+      noEnergy: null,
+      identEngaged: null,
+      identLocked: null,
+      identLost: null,
+      identOff: null,
+    });
+  });
+
   it("(c) a read that resolves after F2 was closed installs nothing and stays silent", async () => {
     const h = harness();
     watched(h);

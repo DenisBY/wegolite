@@ -32,15 +32,21 @@ export const SHAKE_AMPLITUDE = 0.6;
 const SHAKE_HZ = 18;
 const SHAKE_ANGULAR = Math.PI * 2 * SHAKE_HZ;
 
-/** Pitfall 8: one scrape message per second of simulated time. */
+/**
+ * Pitfall 8 and Pitfall 9: one message per kind per second of simulated time.
+ * Named for the scrape, its first user; the weapon and ident messages share it.
+ */
 export const SCRAPE_MESSAGE_INTERVAL_SECONDS = 1;
 
 /**
- * Whether a scrape may post a message at `flightTime`.
+ * Whether a message of one kind may post at `flightTime`, given the time that
+ * kind last posted (T-13-25: a held key or a scraping hull emits an event every
+ * tick, and the message line shows each kind at most once per second).
  *
- * `last === null` is the first scrape; a non-finite clock never posts.
+ * `last === null` is the first message of the kind; a non-finite clock never
+ * posts.
  */
-export function shouldEmitScrapeMessage(
+export function shouldEmitThrottledMessage(
   last: number | null,
   flightTime: number,
 ): boolean {
@@ -48,6 +54,9 @@ export function shouldEmitScrapeMessage(
   if (last === null || !Number.isFinite(last)) return true;
   return flightTime - last >= SCRAPE_MESSAGE_INTERVAL_SECONDS;
 }
+
+/** Whether a scrape may post a message at `flightTime`: the generalised gate. */
+export const shouldEmitScrapeMessage = shouldEmitThrottledMessage;
 
 export interface DockFeedback {
   /** Start the envelopes for `kind` at `flightTime`; only when idle. */

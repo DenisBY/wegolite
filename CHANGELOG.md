@@ -33,6 +33,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   gauges now show live values: the forward and aft shields, the four energy
   banks (the bottom bank fills first), the laser temperature of the current
   facing and the cabin temperature, which reads 60/256 on a new game.
+- A refused shot now shows Oolite's "Weapon system overheated." or "Weapon
+  system inactive (no energy left)." on the message line, and the ident system
+  shows "Ident system active.", "Ident system locked onto" the ship's name,
+  "Target lost.", "Ident system deactivated." and "Missiles on safety.". Each
+  message appears at most once per second, so a held fire key cannot flood the
+  line.
 
 ### Changed
 

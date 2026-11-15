@@ -22,21 +22,28 @@
  * actions, the sim driver and the single gated render.
  */
 
+import { readFileSync } from "node:fs";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createSessionState } from "../../src/app/session/context.js";
+import {
+  createCombatMessageTimes,
+  createSessionState,
+} from "../../src/app/session/context.js";
 import type { SessionState } from "../../src/app/session/context.js";
 import { createFrameLoop } from "../../src/app/session/frame-loop.js";
 import { parseTestFlags } from "../../src/app/session/test-flags.js";
 import {
   EVENT_KIND_SUBSCRIBER,
   EVENT_SUBSCRIBER_ORDER,
+  IDENT_LOCKED_TEMPLATE,
   ROUTED_EVENT_KINDS,
   createDockFeedbackFlow,
   createEventRouter,
   createHudMessages,
   createHyperspaceFlow,
   createStationFlow,
+  formatIdentLocked,
   isRoutedKind,
 } from "../../src/app/session/event-router.js";
 import type {
@@ -45,6 +52,8 @@ import type {
   SubscriberName,
 } from "../../src/app/session/event-router.js";
 import type { DockFeedback } from "../../src/app/dock-feedback.js";
+import { trafficContent } from "../../src/app/session/traffic.js";
+import { NpcShipCatalogueSchema } from "../../src/content/schemas/ship-npc.js";
 import type { GameLoop } from "../../src/app/game-loop.js";
 import type { ActionId } from "../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../src/input/keyboard.js";
@@ -91,6 +100,11 @@ const EVENTS: Readonly<Record<RoutedKind, SimEvent>> = {
     clockDeltaSeconds: 576,
     fuelCost: 10,
   },
+  laserRefused: { kind: "laserRefused", reason: "overheat" },
+  identEngaged: { kind: "identEngaged" },
+  identLocked: { kind: "identLocked", specKey: "viper" },
+  identLost: { kind: "identLost" },
+  identOff: { kind: "identOff", wasEngaged: true },
 };
 
 describe("the pinned subscriber order and routing table", () => {
@@ -104,7 +118,7 @@ describe("the pinned subscriber order and routing table", () => {
     ]);
   });
 
-  it("maps each of the 15 routed kinds to exactly one subscriber tuple", () => {
+  it("maps each of the 20 routed kinds to exactly one subscriber tuple", () => {
     expect(EVENT_KIND_SUBSCRIBER).toEqual({
       launched: ["stationFlow", "worldLifecycle"],
       launchComplete: ["stationFlow"],
@@ -121,12 +135,17 @@ describe("the pinned subscriber order and routing table", () => {
       hyperspaceCountdownCancelled: ["hudMessages"],
       hyperspaceRefused: ["hyperspaceFlow"],
       hyperspaceJumped: ["hyperspaceFlow"],
+      laserRefused: ["hudMessages"],
+      identEngaged: ["hudMessages"],
+      identLocked: ["hudMessages"],
+      identLost: ["hudMessages"],
+      identOff: ["hudMessages"],
     });
-    expect(ROUTED_EVENT_KINDS).toHaveLength(15);
+    expect(ROUTED_EVENT_KINDS).toHaveLength(20);
     expect(Object.keys(EVENT_KIND_SUBSCRIBER).sort()).toEqual(
       [...ROUTED_EVENT_KINDS].sort(),
     );
-    // Thirteen kinds have one subscriber; launched and docked have the ordered
+    // Eighteen kinds have one subscriber; launched and docked have the ordered
     // pair (plan 08-15), so the world lifecycle runs after the station flow.
     const pair = ["launched", "docked"];
     for (const kind of ROUTED_EVENT_KINDS) {
@@ -151,7 +170,7 @@ describe("the pinned subscriber order and routing table", () => {
     }
   });
 
-  it("offers each of the 14 kinds to exactly the subscribers its table entry names", () => {
+  it("offers each of the 20 kinds to exactly the subscribers its table entry names", () => {
     for (const kind of ROUTED_EVENT_KINDS) {
       const ctx = createSessionState({
         system: lave.system,
@@ -298,10 +317,13 @@ function harness(): Harness {
         ctx.runtime.input?.setContext(ctx.chart.contextBeforeChart);
       },
     }),
-    hudMessages: createHudMessages({
-      galaxyById: new Map([[lave.system.id, lave.system]]),
-      messages,
-    }),
+    hudMessages: createHudMessages(
+      {
+        galaxyById: new Map([[lave.system.id, lave.system]]),
+        messages,
+      },
+      ctx,
+    ),
     dockFeedback: createDockFeedbackFlow(ctx, { messages }),
     hyperspaceFlow: createHyperspaceFlow(ctx, {
       messages,
@@ -639,6 +661,131 @@ describe("the world lifecycle subscriber (plan 08-15)", () => {
     expect(real.epoch).toBe(1);
     router.dispatch(EVENTS.launched);
     expect(real.epoch).toBe(2);
+  });
+});
+
+describe("combat and ident messages (CBT-05, INPUT-01, D-03, OQ5)", () => {
+  /** The harness with the committed NPC records, as a traffic-on session has. */
+  function withTraffic(): Harness {
+    const h = harness();
+    h.ctx.core.npcTraffic = trafficContent(
+      NpcShipCatalogueSchema.parse(
+        JSON.parse(
+          readFileSync("src/content/generated/ships-npc.json", "utf8"),
+        ),
+      ),
+    );
+    return h;
+  }
+
+  /** Advance the flight clock and offer `event`, as a held key does each tick. */
+  function at(h: Harness, flightTime: number, event: SimEvent): void {
+    if (h.ctx.core.state !== undefined)
+      h.ctx.core.state.flightTime = flightTime;
+    h.router.dispatch(event);
+  }
+
+  const overheat: SimEvent = { kind: "laserRefused", reason: "overheat" };
+  const noEnergy: SimEvent = { kind: "laserRefused", reason: "noEnergy" };
+
+  it("shows an overheated refusal three times in three simulated seconds, not once per tick", () => {
+    const h = harness();
+    // Held fire for 3 s at 120 Hz: 360 refusals.
+    for (let tick = 0; tick < 360; tick += 1) at(h, tick / 120, overheat);
+    expect(
+      h.log.filter(
+        (entry) =>
+          entry === "messages.enqueuePriority Weapon system overheated.",
+      ),
+    ).toHaveLength(3);
+  });
+
+  it("shows the no-energy refusal once a second and gates the two kinds independently", () => {
+    const h = harness();
+    at(h, 0, overheat);
+    at(h, 0, noEnergy);
+    at(h, 0.5, overheat);
+    at(h, 0.5, noEnergy);
+    at(h, 1, noEnergy);
+    expect(h.log).toEqual([
+      "messages.enqueuePriority Weapon system overheated.",
+      "messages.enqueuePriority Weapon system inactive (no energy left).",
+      "messages.enqueuePriority Weapon system inactive (no energy left).",
+    ]);
+  });
+
+  it("uses Oolite's wording for each ident event", () => {
+    const h = withTraffic();
+    at(h, 1, { kind: "identEngaged" });
+    at(h, 1, { kind: "identLocked", specKey: "viper" });
+    at(h, 1, { kind: "identLost" });
+    at(h, 1, { kind: "identOff", wasEngaged: true });
+    at(h, 3, { kind: "identOff", wasEngaged: false });
+    expect(h.log).toEqual([
+      "messages.enqueuePriority Ident system active.",
+      "messages.enqueuePriority Ident system locked onto GalCop Viper.",
+      "messages.enqueuePriority Target lost.",
+      "messages.enqueuePriority Ident system deactivated.",
+      "messages.enqueuePriority Missiles on safety.",
+    ]);
+  });
+
+  it("gates each ident kind once per simulated second", () => {
+    const h = withTraffic();
+    at(h, 0, { kind: "identLocked", specKey: "viper" });
+    at(h, 0.4, { kind: "identLocked", specKey: "viper" });
+    at(h, 1, { kind: "identLocked", specKey: "viper" });
+    expect(h.log).toHaveLength(2);
+  });
+
+  it("falls back to the spec key when the catalogue has no such record", () => {
+    const h = harness();
+    at(h, 1, { kind: "identLocked", specKey: "mystery" });
+    expect(h.log).toEqual([
+      "messages.enqueuePriority Ident system locked onto mystery.",
+    ]);
+  });
+
+  it("ships the name-only lock template (D-03 pending owner confirmation)", () => {
+    expect(IDENT_LOCKED_TEMPLATE).toBe("Ident system locked onto [name].");
+  });
+
+  it("formatIdentLocked fills [name] and [class] from the record, the D-03 literal included", () => {
+    const viper = { name: "GalCop Viper", scanClass: "CLASS_POLICE" };
+    expect(
+      formatIdentLocked("Ident system locked onto [name] ([class]).", viper),
+    ).toBe("Ident system locked onto GalCop Viper (police).");
+    expect(formatIdentLocked(IDENT_LOCKED_TEMPLATE, viper)).toBe(
+      "Ident system locked onto GalCop Viper.",
+    );
+  });
+
+  it("starts with empty gates and shows the first message immediately after a Load reset", () => {
+    const h = harness();
+    expect(h.ctx.core.lastCombatMessageTimes.overheat).toBeNull();
+    at(h, 5, overheat);
+    expect(h.ctx.core.lastCombatMessageTimes.overheat).toBe(5);
+    h.log.length = 0;
+    at(h, 5.2, overheat);
+    expect(h.log).toEqual([]);
+    h.ctx.core.lastCombatMessageTimes = createCombatMessageTimes();
+    at(h, 5.2, overheat);
+    expect(h.log).toEqual([
+      "messages.enqueuePriority Weapon system overheated.",
+    ]);
+  });
+
+  it("enqueues nothing for energyLow, shipHit and laserFired", () => {
+    const h = harness();
+    h.router.dispatch({ kind: "energyLow", id: 1 } as unknown as SimEvent);
+    h.router.dispatch({
+      kind: "shipHit",
+      id: 1,
+      amount: 10,
+      shield: true,
+    } as unknown as SimEvent);
+    h.router.dispatch({ kind: "laserFired" } as unknown as SimEvent);
+    expect(h.log).toEqual([]);
   });
 });
 

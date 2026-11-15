@@ -17,7 +17,7 @@
  *
  * Order independence with plan 08-11 (which widens `SimEvent` with reserved
  * kinds in the same wave): the table is keyed to the literal `RoutedKind` union
- * of the 15 routed kinds, never to the full `SimEvent` kind union, and every
+ * of the 20 routed kinds, never to the full `SimEvent` kind union, and every
  * read of it with a value that is not already a `RoutedKind` goes through
  * `isRoutedKind`. The only mention of the full union's kind type is the
  * `satisfies` check on `ROUTED_EVENT_KINDS`. There is no exhaustive check and no
@@ -36,10 +36,13 @@ import type {
 } from "../../sim/events.js";
 import { poseOf } from "../../sim/flight/state.js";
 import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
-import { shouldEmitScrapeMessage } from "../dock-feedback.js";
+import {
+  shouldEmitScrapeMessage,
+  shouldEmitThrottledMessage,
+} from "../dock-feedback.js";
 import type { LaunchSequence } from "../launch-sequence.js";
 import type { StationShell } from "../../ui/station.js";
-import type { SessionState } from "./context.js";
+import type { CombatMessageKind, SessionState } from "./context.js";
 
 /** The dispatch order: each event is offered to the subscribers in this order. */
 export const EVENT_SUBSCRIBER_ORDER = [
@@ -76,6 +79,11 @@ export const ROUTED_EVENT_KINDS = [
   "hyperspaceCountdownCancelled",
   "hyperspaceRefused",
   "hyperspaceJumped",
+  "laserRefused",
+  "identEngaged",
+  "identLocked",
+  "identLost",
+  "identOff",
 ] as const satisfies readonly SimEvent["kind"][];
 
 export type RoutedKind = (typeof ROUTED_EVENT_KINDS)[number];
@@ -103,6 +111,11 @@ export const EVENT_KIND_SUBSCRIBER: Readonly<
   hyperspaceCountdownCancelled: ["hudMessages"],
   hyperspaceRefused: ["hyperspaceFlow"],
   hyperspaceJumped: ["hyperspaceFlow"],
+  laserRefused: ["hudMessages"],
+  identEngaged: ["hudMessages"],
+  identLocked: ["hudMessages"],
+  identLost: ["hudMessages"],
+  identOff: ["hudMessages"],
 };
 
 /** Whether `kind` is one of the routed kinds; a reserved or unknown kind is not. */
@@ -233,15 +246,68 @@ export function createStationFlow(
   };
 }
 
+/**
+ * The ident lock message, Oolite's `ident-locked` string with its `[name]`
+ * token (`descriptions.plist:527`). The one place the wording lives, so the
+ * decision below is a one-line change.
+ *
+ * D-03: advisor-recommended deviation (name only, as Oolite), PENDING OWNER
+ * CONFIRMATION; D-03 literally is "Ident system locked onto [name] ([class])."
+ * (Key Decisions, plan 13-15). `formatIdentLocked` already renders `[class]`.
+ */
+export const IDENT_LOCKED_TEMPLATE = "Ident system locked onto [name].";
+
+/** The fields of an NPC record the lock message reads. */
+export interface IdentRecord {
+  readonly name: string;
+  /** The compiled scan class, such as `CLASS_POLICE`. */
+  readonly scanClass: string;
+}
+
+/**
+ * Fill the lock template: `[name]` is the record's name and `[class]` its scan
+ * class without the `CLASS_` prefix, lowercased (`CLASS_POLICE` is "police").
+ */
+export function formatIdentLocked(
+  template: string,
+  record: IdentRecord,
+): string {
+  const scanClass = record.scanClass.replace(/^CLASS_/, "").toLowerCase();
+  return template
+    .split("[name]")
+    .join(record.name)
+    .split("[class]")
+    .join(scanClass);
+}
+
 /** What the HUD message subscriber calls outside the session context. */
 export interface HudMessagesDeps {
   readonly galaxyById: ReadonlyMap<string, System>;
   readonly messages: Pick<MessageQueue, "enqueue" | "enqueuePriority">;
 }
 
-/** The fixed one-line HUD messages the session prints for a sim event. */
-export function createHudMessages(deps: HudMessagesDeps): EventSubscriber {
+/**
+ * The fixed one-line HUD messages the session prints for a sim event. `ctx`
+ * supplies the flight clock and the per-kind one-second gate of the weapon and
+ * ident messages, and the NPC records the lock message names a ship from.
+ */
+export function createHudMessages(
+  deps: HudMessagesDeps,
+  ctx: SessionState,
+): EventSubscriber {
   const { galaxyById, messages } = deps;
+  /**
+   * Post `text` for `kind` unless that kind posted within the last simulated
+   * second (OQ5, Pitfall 9, T-13-25). Priority: it answers a key the player
+   * just pressed, so it must show at once.
+   */
+  const throttled = (kind: CombatMessageKind, text: () => string): void => {
+    const now = ctx.core.state?.flightTime ?? 0;
+    if (!shouldEmitThrottledMessage(ctx.core.lastCombatMessageTimes[kind], now))
+      return;
+    messages.enqueuePriority(text());
+    ctx.core.lastCombatMessageTimes[kind] = now;
+  };
   return (event) => {
     switch (event.kind) {
       case "dockDenied":
@@ -285,6 +351,44 @@ export function createHudMessages(deps: HudMessagesDeps): EventSubscriber {
       }
       case "hyperspaceCountdownCancelled":
         messages.enqueue("Hyperspace countdown cancelled");
+        break;
+      case "laserRefused":
+        // CBT-05: the sim emits one refusal per tick of a held fire key
+        // (descriptions.plist:524, 525). The two reasons gate independently.
+        if (event.reason === "overheat") {
+          throttled("overheat", () => "Weapon system overheated.");
+        } else {
+          throttled(
+            "noEnergy",
+            () => "Weapon system inactive (no energy left).",
+          );
+        }
+        break;
+      case "identEngaged":
+        throttled("identEngaged", () => "Ident system active.");
+        break;
+      case "identLocked":
+        throttled("identLocked", () => {
+          // The event carries the spec key only; the name and class come from
+          // the session's own catalogue, falling back to the key (never an id).
+          const ship = ctx.core.npcTraffic?.catalogue.find(
+            (candidate) => candidate.key === event.specKey,
+          );
+          return formatIdentLocked(
+            IDENT_LOCKED_TEMPLATE,
+            ship ?? { name: event.specKey, scanClass: event.specKey },
+          );
+        });
+        break;
+      case "identLost":
+        throttled("identLost", () => "Target lost.");
+        break;
+      case "identOff":
+        throttled("identOff", () =>
+          event.wasEngaged
+            ? "Ident system deactivated."
+            : "Missiles on safety.",
+        );
         break;
     }
   };

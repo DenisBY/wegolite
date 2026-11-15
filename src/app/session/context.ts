@@ -90,6 +90,33 @@ import type { StationNav } from "../../ui/station-nav.js";
 import type { StationScreen, StationShell } from "../../ui/station.js";
 import type { TitleScreen } from "../../ui/title.js";
 
+/** The weapon and ident message kinds that share the one-second gate. */
+export const COMBAT_MESSAGE_KINDS = [
+  "overheat",
+  "noEnergy",
+  "identEngaged",
+  "identLocked",
+  "identLost",
+  "identOff",
+] as const;
+
+export type CombatMessageKind = (typeof COMBAT_MESSAGE_KINDS)[number];
+
+/** The flight time each message kind last posted at, `null` before the first. */
+export type CombatMessageTimes = Record<CombatMessageKind, number | null>;
+
+/** A fresh table: every kind may post immediately. */
+export function createCombatMessageTimes(): CombatMessageTimes {
+  return {
+    overheat: null,
+    noEnergy: null,
+    identEngaged: null,
+    identLocked: null,
+    identLost: null,
+    identOff: null,
+  };
+}
+
 /** The session's world: the live flight state and everything derived from it. */
 export interface SessionCore {
   /** D-01: the system is mutable once a jump can install a new scene. */
@@ -127,6 +154,12 @@ export interface SessionCore {
   currentFrame: InputFrame;
   launchSeen: boolean;
   lastScrapeMessageTime: number | null;
+  /**
+   * When each combat or ident message kind last posted, so a held fire key
+   * cannot flood the message line (OQ5, Pitfall 9). Cleared on Load, where the
+   * flight clock is replaced.
+   */
+  lastCombatMessageTimes: CombatMessageTimes;
   /** Replaced, not cleared, on Load: a fresh instance drops both envelopes. */
   dockFeedback: DockFeedback;
   lastModel: HudModel | undefined;
@@ -333,6 +366,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       currentFrame: { pitch: 0, roll: 0, speed: 0, precision: false },
       launchSeen: false,
       lastScrapeMessageTime: null,
+      lastCombatMessageTimes: createCombatMessageTimes(),
       dockFeedback: createDockFeedback(),
       lastModel: undefined,
       worldLifecycle: undefined,

@@ -15,6 +15,7 @@ import {
   createDockFeedback,
   FLASH_SECONDS,
   shouldEmitScrapeMessage,
+  shouldEmitThrottledMessage,
   SHAKE_SECONDS,
 } from "../../src/app/dock-feedback.js";
 import { length } from "../../src/sim/math.js";
@@ -118,5 +119,19 @@ describe("scrape message throttle", () => {
     expect(shouldEmitScrapeMessage(5, 5.5)).toBe(false);
     expect(shouldEmitScrapeMessage(5, 6)).toBe(true);
     expect(shouldEmitScrapeMessage(5, Number.NaN)).toBe(false);
+  });
+});
+
+describe("the per-kind message gate (OQ5, Pitfall 9)", () => {
+  it("is the one-second gate: first message, too soon, due, non-finite", () => {
+    expect(shouldEmitThrottledMessage(null, 5)).toBe(true);
+    expect(shouldEmitThrottledMessage(5, 5.5)).toBe(false);
+    expect(shouldEmitThrottledMessage(5, 6)).toBe(true);
+    expect(shouldEmitThrottledMessage(5, Number.NaN)).toBe(false);
+    expect(shouldEmitThrottledMessage(Number.NaN, 5)).toBe(true);
+  });
+
+  it("keeps the scrape gate as an alias of the generalised gate", () => {
+    expect(shouldEmitScrapeMessage).toBe(shouldEmitThrottledMessage);
   });
 });

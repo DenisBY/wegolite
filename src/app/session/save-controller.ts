@@ -49,6 +49,7 @@ import type { StationShell } from "../../ui/station.js";
 import { createDockFeedback } from "../dock-feedback.js";
 import type { GameSessionSave } from "../game-session.js";
 import type { WegoliteProbe } from "../probe.js";
+import { createCombatMessageTimes } from "./context.js";
 import type { SessionState } from "./context.js";
 import { toTuple } from "./probe-publisher.js";
 import { restoreWorldAnchor } from "./world-lifecycle.js";
@@ -461,6 +462,7 @@ export function createSaveController(
       // keyed the same way. A fresh feedback instance drops both envelopes.
       messages.clear();
       ctx.core.lastScrapeMessageTime = null;
+      ctx.core.lastCombatMessageTimes = createCombatMessageTimes();
       ctx.core.dockFeedback = createDockFeedback();
       if (ctx.runtime.testHookEnabled) bindTestHook(restored.state);
       ctx.core.previousPose = poseOf(restored.state);
