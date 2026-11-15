@@ -32,8 +32,17 @@
 
 import type { BehaviourId } from "../world/ids.js";
 import type { Entity } from "../world/entity.js";
-import { ACCURACY_DRAW_OFFSET, ACCURACY_DRAW_SPAN } from "./constants.js";
+import {
+  ACCURACY_DRAW_OFFSET,
+  ACCURACY_DRAW_SPAN,
+  COMBAT_AI_ISNT_AWFUL,
+  EVASIVE_JINK_Z,
+  FLEE_EVASIVE_ASPECT,
+  FLEE_EVASIVE_CHANCE,
+} from "./constants.js";
 import type { SteerContext } from "./dispatch.js";
+import { approachAspectToPrimaryTarget } from "./target.js";
+import { setEvasiveJink } from "./track.js";
 import { MAX_ACCURACY, MIN_ACCURACY } from "../world/limits.js";
 
 /**
@@ -77,6 +86,19 @@ export function enterBehaviour(entity: Entity, behaviour: BehaviourId): void {
       steer.frustration = 0;
       steer.entryPending = false;
       break;
+    case "FLEE_TARGET": // performFlee, ShipEntityAI.m:379-392
+      if (nav.behaviour === "FLEE_EVASIVE_ACTION") {
+        // the guard makes the call a no-op: nothing changes, and no earlier
+        // pending entry of the same think survives it (last perform wins)
+        steer.entryPending = false;
+      } else {
+        nav.behaviour = "FLEE_TARGET";
+        steer.frustration = 0;
+        // setEvasiveJink and the evasive choice need draws and the stats:
+        // deferred
+        steer.entryPending = true;
+      }
+      break;
     default:
       nav.behaviour = behaviour;
       steer.entryPending = false;
@@ -97,6 +119,25 @@ export function completeEntry(entity: Entity, ctx: SteerContext): void {
       steer.stickRoll = ctx.stats.maxFlightRoll * 2 * (roll - 0.5);
       const pitch = ctx.draw();
       steer.stickPitch = ctx.stats.maxFlightPitch * 2 * (pitch - 0.5);
+      break;
+    }
+    case "FLEE_TARGET": {
+      // performFlee, ShipEntityAI.m:383-391: the jink, then (a better pilot
+      // with the target aiming straight at it) one draw for the evasive
+      // choice. The aspect is read here, one update after Oolite reads it
+      // inside performFlee: a pose within one update's motion of 0.9995 can
+      // choose differently (a recorded divergence).
+      setEvasiveJink(entity, ctx, EVASIVE_JINK_Z);
+      if (
+        steer.accuracy > COMBAT_AI_ISNT_AWFUL &&
+        approachAspectToPrimaryTarget(entity, ctx) > FLEE_EVASIVE_ASPECT
+      ) {
+        // alert! they've got us in their sights! react!!
+        entity.nav.behaviour =
+          ctx.draw() < FLEE_EVASIVE_CHANCE
+            ? "EVASIVE_ACTION"
+            : "FLEE_EVASIVE_ACTION";
+      }
       break;
     }
     default:

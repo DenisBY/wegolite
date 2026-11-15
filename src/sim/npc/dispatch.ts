@@ -51,6 +51,7 @@ import type { Entity } from "../world/entity.js";
 import type { EntityId } from "../world/ids.js";
 import type { WorldView } from "../world/view.js";
 import { behaviourFaceDestination } from "./behaviours/face-destination.js";
+import { behaviourFleeTarget } from "./behaviours/flee.js";
 import {
   behaviourFlyFromDestination,
   behaviourFlyRangeFromDestination,
@@ -128,6 +129,9 @@ export function steerShip(entity: Entity, ctx: SteerContext): void {
       break;
     case "INTERCEPT_TARGET":
       behaviourInterceptTarget(entity, ctx);
+      break;
+    case "FLEE_TARGET":
+      behaviourFleeTarget(entity, ctx);
       break;
     default:
       // The recorded fallback for every id not ported yet or out of scope.

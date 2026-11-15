@@ -32,6 +32,10 @@ import {
   COMBAT_AI_FLEES_BETTER_2,
   COMBAT_AI_ISNT_AWFUL,
   COMBAT_AI_TRACKS_CLOSER,
+  EVASIVE_JINK_OFFSET,
+  EVASIVE_JINK_SPAN,
+  EVASIVE_JINK_Z,
+  EVASIVE_ROLL_AGREEMENT,
   MAX_COS,
   PITCHING_OVER_COS,
   PRIMARY_AVOID_DOT,
@@ -282,8 +286,7 @@ function magnitude(v: Vec3): number {
  * so the "improve precision when missing" rule of 9134-9141 never binds and is
  * not ported); a missile takes Oolite's `missileTrackPrimaryTarget` (9053-9055)
  * in Oolite and the ordinary steering here; the retreat branch's
- * `setEvasiveJink:400` (9096-9098) is inserted by plan 14-13 with
- * `setEvasiveJink`.
+ * `setEvasiveJink:400` (9096-9098) is plan 14-13's, in this file.
  */
 export function trackPrimaryTarget(
   entity: Entity,
@@ -346,9 +349,11 @@ export function trackPrimaryTarget(
           distAdjustFactor *= PRIMARY_JINK_BOOST;
         }
       }
-      // 9096-9098: `if (jink.x == 0.0 && behaviour != RUNNING_DEFENSE)
-      // [self setEvasiveJink:400.0]`. Plan 14-13 inserts it with setEvasiveJink;
-      // no behaviour ported before flee calls this function with retreat.
+      // test for zero jink and correct (9096-9098); its draws come before any
+      // other draw of the update
+      if (steer.jink.x === 0 && entity.nav.behaviour !== "RUNNING_DEFENSE") {
+        setEvasiveJink(entity, ctx, EVASIVE_JINK_Z);
+      }
     }
 
     if (!avoidCollision) {
@@ -485,4 +490,77 @@ export function trackPrimaryTarget(
   if (steer.flightRoll === 0 && steer.flightPitch === 0) return 1; // no correction
 
   return dForward;
+}
+
+/* ---------------------------------------------------------------------------
+ * setEvasiveJink and evasiveAction (plan 14-13)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * `setEvasiveJink:` (`ShipEntity.m:8980-9001`): a ship below
+ * `COMBAT_AI_ISNT_AWFUL` has no jink; otherwise x and y are each drawn in
+ * [-128, 128) (`ranrot_rand() % 256 - 128`, one `floor(u * 256)` draw each, x
+ * first) and pushed away from zero by 128, and z is the argument.
+ *
+ * `steer.jink` is stored in Wegolite's frame, Oolite's with z negated (see
+ * `trackPrimaryTarget`), so the argument is stored as `-z`.
+ */
+export function setEvasiveJink(
+  entity: Entity,
+  ctx: SteerContext,
+  z: number,
+): void {
+  const steer = entity.steer;
+  if (steer.accuracy < COMBAT_AI_ISNT_AWFUL) {
+    steer.jink = vec(0, 0, 0);
+    return;
+  }
+  let x = Math.floor(ctx.draw() * EVASIVE_JINK_SPAN) - EVASIVE_JINK_OFFSET;
+  let y = Math.floor(ctx.draw() * EVASIVE_JINK_SPAN) - EVASIVE_JINK_OFFSET;
+  // make sure we don't accidentally have near-zero jink
+  x = x < 0 ? x - EVASIVE_JINK_OFFSET : x + EVASIVE_JINK_OFFSET;
+  y = y < 0 ? y - EVASIVE_JINK_OFFSET : y + EVASIVE_JINK_OFFSET;
+  steer.jink = vec(x, y, 0 - z);
+}
+
+/**
+ * `evasiveAction:` (`ShipEntity.m:9003-9032`): the sticks start at the current
+ * rates, so the roll and pitch directions are kept; the roll is full unless
+ * the two ships' right vectors nearly agree at a right angle (agreement within
+ * (-0.3, 0.3) rolls nothing), the pitch is full, and the sticks are applied. A
+ * target that is gone takes `noteLostTargetAndGoIdle` and the caller carries on
+ * (Oolite's method returns void).
+ */
+export function evasiveAction(entity: Entity, ctx: SteerContext): void {
+  const steer = entity.steer;
+  steer.stickRoll = steer.flightRoll; // desired roll and pitch
+  steer.stickPitch = steer.flightPitch;
+
+  const target = targetBody(entity, ctx.view);
+  if (target === undefined) {
+    // leave now!
+    noteLostTargetAndGoIdle(entity, ctx);
+    return;
+  }
+
+  const agreement = dot(
+    rotate(entity.orientation, LOCAL_RIGHT),
+    rotate(target.orientation, LOCAL_RIGHT),
+  );
+  if (
+    agreement > -EVASIVE_ROLL_AGREEMENT &&
+    agreement < EVASIVE_ROLL_AGREEMENT
+  ) {
+    steer.stickRoll = 0;
+  } else if (steer.stickRoll >= 0) {
+    steer.stickRoll = ctx.stats.maxFlightRoll;
+  } else {
+    steer.stickRoll = -ctx.stats.maxFlightRoll;
+  }
+  steer.stickPitch =
+    steer.stickPitch >= 0
+      ? ctx.stats.maxFlightPitch
+      : -ctx.stats.maxFlightPitch;
+
+  applySticks(entity, ctx.dt);
 }
