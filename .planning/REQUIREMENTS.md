@@ -9,19 +9,19 @@ Requirements for milestone v2.2 (Phases 13 and 14). IDs and wording carry over f
 
 ### Foundation
 
-- [ ] **FOUND-17**: A refused `begin()` at arrival does not leave the origin world installed (WR-01)
+- [x] **FOUND-17**: A refused `begin()` at arrival does not leave the origin world installed (WR-01)
 
 ### Input and Views
 
-- [ ] **INPUT-01**: Default bindings follow Oolite for the new actions: Escape (double press) ejects, P pauses, R is ident; target-station moves to a free key; all remain rebindable and the controls panel lists them. The Escape/P migration lands before any phase relies on the old keys
-- [ ] **CBT-04**: Player can switch between fore, aft, port and starboard views and fire the laser mounted on the current facing
+- [x] **INPUT-01**: Default bindings follow Oolite for the new actions: Escape (double press) ejects, P pauses, R is ident; target-station moves to a free key; all remain rebindable and the controls panel lists them. The Escape/P migration lands before any phase relies on the old keys
+- [x] **CBT-04**: Player can switch between fore, aft, port and starboard views and fire the laser mounted on the current facing
 
 ### Weapons and Shields
 
-- [ ] **CBT-05**: Player can buy pulse, beam, military and mining lasers per facing at F3; lasers have Oolite's damage, range, recharge and heat, and cut out when overheated
-- [ ] **CBT-06**: Fore and aft shields and energy banks absorb and recharge damage at Oolite's rates; the HUD shows shields, energy, laser temperature and cabin temperature
-- [ ] **CBT-07**: Lasers hit ships by their Oolite octree hull, and the same hit and damage rule applies to any ship firing through `ShipControl`
-- [ ] **DOCK-10**: Docking restores shields and energy to full and resets laser and cabin temperature, as in Oolite
+- [x] **CBT-05**: Player can buy pulse, beam, military and mining lasers per facing at F3; lasers have Oolite's damage, range, recharge and heat, and cut out when overheated
+- [x] **CBT-06**: Fore and aft shields and energy banks absorb and recharge damage at Oolite's rates; the HUD shows shields, energy, laser temperature and cabin temperature
+- [x] **CBT-07**: Lasers hit ships by their Oolite octree hull, and the same hit and damage rule applies to any ship firing through `ShipControl`
+- [x] **DOCK-10**: Docking restores shields and energy to full and resets laser and cabin temperature, as in Oolite
 
 ### NPC Flight
 
@@ -137,13 +137,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-17 | Phase 13 | Pending |
-| INPUT-01 | Phase 13 | Pending |
-| CBT-04 | Phase 13 | Pending |
-| CBT-05 | Phase 13 | Pending |
-| CBT-06 | Phase 13 | Pending |
-| CBT-07 | Phase 13 | Pending |
-| DOCK-10 | Phase 13 | Pending |
+| FOUND-17 | Phase 13 | Complete |
+| INPUT-01 | Phase 13 | Complete |
+| CBT-04 | Phase 13 | Complete |
+| CBT-05 | Phase 13 | Complete |
+| CBT-06 | Phase 13 | Complete |
+| CBT-07 | Phase 13 | Complete |
+| DOCK-10 | Phase 13 | Complete |
 | WORLD-07 | Phase 14 | Pending |
 | AI-01 | Phase 14 | Pending |
 | AI-11 | Phase 14 | Pending |

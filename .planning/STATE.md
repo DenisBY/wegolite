@@ -4,17 +4,17 @@ milestone: v2.2
 milestone_name: Weapons and NPC Flight
 current_phase: 13
 current_phase_name: Views, Lasers and Shields
-status: executing
-stopped_at: Completed 13-13-PLAN.md
-last_updated: "2026-11-15T02:43:21.976Z"
+status: verifying
+stopped_at: Completed 13-14-PLAN.md
+last_updated: "2026-11-15T03:10:13.595Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 13 execution started
-state_head: 4f27a7cb3efd11e310cf210c19589bc47f0d7b94
+state_head: 476cbdba71f0698770563b0bd79de2de262d72e2
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 16
-  completed_plans: 15
+  completed_plans: 16
   percent: 0
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 Phase: 13 (Views, Lasers and Shields) — EXECUTING
 Plan: 16 of 16
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-14 — Phase 13 execution started
 
 
@@ -168,6 +168,7 @@ Last activity: 2026-11-14 — Phase 13 execution started
 | Phase 13 P15 | 10 min | 2 tasks | 6 files |
 | Phase 13 P12 | 15 min | 2 tasks | 13 files |
 | Phase 13 P13 | 25 min | 3 tasks | 16 files |
+| Phase 13 P14 | 85 min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -416,6 +417,10 @@ Recent decisions affecting current work:
 - [Phase 13]: 13-12: combat and ident messages route through hudMessages (given ctx) with a per-kind one-second gate; subscriber order unchanged
 - [Phase 13]: 13-13: laserFired is routed through the dockFeedback subscriber (table 20 to 21 kinds) so the pinned subscriber order is unchanged; the shot layer stores positions, kind and start time only, never the shooter id
 - [Phase 13]: 13-13: the ident frame projection maps NDC onto the letterboxed 16:9 HUD design space with half window height = max(width/aspect, height)/2; the frame is a non-element drawing (HUD_ELEMENTS stays 11); D-03 and D-04 remain PENDING OWNER CONFIRMATION
+- [Phase 13]: Phase 13 plan 13-14: spawnTestShooter starts in its hold phase with the player as target (not a scan), and src/sim/ai/test-spawn.ts has one named eslint carve-out from the AI zone
+- [Phase 13]: Phase 13 plan 13-14: probe.combat is values plus an identLocked flag, never an entity id; the probe shape records it in the six session states
+- [Phase 13]: Phase 13 plan 13-14: thirteen Key Decisions rows written; the statics row (OQ4) stays PENDING OWNER CONFIRMATION with D-03 and D-04
+- [Phase 13]: Phase 13 plan 13-14: verify-full is open, awaiting owner decision (not run, not passed); the Vitest share is 0.993
 
 ### Pending Todos
 
@@ -517,8 +522,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T02:43:21.881Z
-Stopped at: Completed 13-13-PLAN.md
+Last session: 2026-11-15T03:10:13.514Z
+Stopped at: Completed 13-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
