@@ -178,14 +178,14 @@ Plans:
 **Pitfalls to address**: 6 (`BEHAVIOUR_*` steering fidelity: per-behaviour oracles, 20-seed acceptance), 5 (the harness spike as the only independent check of the later port), 3 (integer tick timers), 4 (NaN in steering), 7 (steering requests queued), 19 (behaviours act only through `ShipControl`), 11 (oracles in Vitest, not the browser)
 **Decisions to settle**: the stated acceptance thresholds (stuck, tunnelling, NaN repair) before the run; the time box and stub-host scope of the spike; the oracle choice at the gate (owner)
 **Todos**: candidates to fold in by owner decision, not requirements: IN-02 (`aiFaulted` is emitted but nothing records it) and IN-04 (a failed NPC model is never retried, yet the ship still blocks and shows on the scanner), both from `2026-11-14-clear-world-when-arrival-begin-is-refused.md`
-**Plans:** 3/19 plans executed in 14 waves (three owner checkpoints: the hash policy in 14-08, the 20-seed acceptance result and any breach resolution in 14-17, the fidelity report and oracle choice in 14-19; revised after the cross-AI reviews of 2026-11-15 (two rounds and a targeted third round on the acceptance design) and plan-check revision 1, which split the first oracle plan and the intercept plan and renumbered the plans in wave order)
+**Plans:** 4/19 plans executed in 14 waves (three owner checkpoints: the hash policy in 14-08, the 20-seed acceptance result and any breach resolution in 14-17, the fidelity report and oracle choice in 14-19; revised after the cross-AI reviews of 2026-11-15 (two rounds and a targeted third round on the acceptance design) and plan-check revision 1, which split the first oracle plan and the intercept plan and renumbered the plans in wave order)
 
 Plans:
 **Wave 1**
 - [x] 14-01-PLAN.md — Oracle I, part 1 (separate agent, no `src/sim/npc` access): fixture schema and contract (leader-refresh and proximity rules, tracking-curve start), reference flight model and navigation maths, flight, idle, tumble, fly-to and face fixtures, the hardened oracle import guard
 - [x] 14-02-PLAN.md — Oracle II (separate agent): intercept, flee and attack fixtures (dispatcher, in-scope sub-behaviours, perform entry draws) under a closed-form check rule; attack IN and OUT lists with the corrected EVASIVE reachability and the Shuttle's weapon range 0
 - [x] 14-03-PLAN.md — NPC flight fields (speed, roll, pitch, thrust) behind schema, hand-written golden and drift gate; the build refuses keys the reachability analysis assumes absent
-- [ ] 14-04-PLAN.md — AI-11 dev-only harness spike: AILib and the shuttle AI in `node:vm` (one context per script, timeout on every entry) with a stub host, three deterministic traces, isolation guard, 14-SPIKE.md
+- [x] 14-04-PLAN.md — AI-11 dev-only harness spike: AILib and the shuttle AI in `node:vm` (one context per script, timeout on every entry) with a stub host, three deterministic traces, isolation guard, 14-SPIKE.md
 - [ ] 14-05-PLAN.md — Body radius in the world view: `BodyView.radius` for every body kind and the player's radius argument, with view tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -262,7 +262,7 @@ Pending todos outside v2.2, which can run as quick tasks or join a phase by owne
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | Complete    | 2026-11-14 |
 | 13. Views, Lasers and Shields | v2.2 | 16/16 | Complete    | 2026-11-15 |
-| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 3/19 | In Progress | - |
+| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 4/19 | In Progress | - |
 
 ## Backlog
 

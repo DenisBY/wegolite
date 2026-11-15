@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
-stopped_at: Completed 14-03-PLAN.md
-last_updated: "2026-11-15T18:27:49.399Z"
+stopped_at: Completed 14-04-PLAN.md
+last_updated: "2026-11-15T18:46:52.504Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: df97bdcd4da1b38b49bae5d9f19ff076f6f6ba65
+state_head: 8c1c99e0e6af8e7d9ba832c384da8c8233809afc
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 19
+  completed_plans: 20
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 4 of 19
+Plan: 5 of 19
 Status: Ready to execute
 Last activity: 2026-11-15 — Phase 14 execution started
 
@@ -173,6 +173,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 14 P01 | 35 min | 2 tasks | 11 files |
 | Phase 14 P02 | 33 min | 3 tasks | 8 files |
 | Phase 14 P03 | 14 min | 2 tasks | 7 files |
+| Phase 14 P04 | 14min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -431,6 +432,7 @@ Recent decisions affecting current work:
 - [Phase 14]: 14-02: a ship that must not move is a desiredSpeed-0 pose below its range (maxFlightSpeed must be positive), so the 15 s flee counter fires at tick 1801 on a static pose
 - [Phase 14]: 14-02: ATTACK_FLY_TO_TARGET's accuracy >= 9 dodge (ShipEntity.m:4721-4729) is not covered by an oracle row: a fixture body has no weapon type; plan 14-14 records it as unreachable from stock data
 - [Phase 14]: NPC compile refuses by key presence, not value, accuracy/reaction_time/scanner_range/aft/port/starboard weapon types on the nine resolved records (plan 14-03)
+- [Phase 14]: 14-04: the AI-11 harness wakes the shuttle AI on the engine's strict clock > AIScriptWakeTime (ShipEntity.m:2480) on a 1/16 s frame, not on 'reaches'; the spike is positive and the OOLITE_SRC mount is recommended over vendoring at the plan 14-19 gate
 
 ### Pending Todos
 
@@ -532,8 +534,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T18:27:43.255Z
-Stopped at: Completed 14-03-PLAN.md
+Last session: 2026-11-15T18:46:52.247Z
+Stopped at: Completed 14-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
