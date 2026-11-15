@@ -1,5 +1,352 @@
 {
   "rule": "Every Oolite expression that multiplies or divides by delta_t is evaluated with delta_t = 1/120 exactly as written; every compare of universe time becomes a whole-tick compare with ticks = round(seconds x 120) on the integer clock of contract item 8; no behaviour runs more than once per tick; the GLfloat accumulators frustration and success_factor stay float seconds written through Math.fround at every write, so a threshold tick is the first tick at which the fround-accumulated value exceeds it (contract item 8). CROSS-STEP TOLERANCE, written before any rate fixture was replayed: crossDtTolerance is 0.01 rad for the settled heading compare of the 1/60 versus 1/120 grid (tests/oracles/npc/fixtures/rate-rule.json). Derivation: trackDestination stops correcting inside its dead band (ShipEntity.m:9486-9491, 9525-9526), a heading whose cosine to the destination is at least max_cos, and max_cos = sqrt(1 - 0.9025 x desiredRange^2 / range^2) reaches its cap 0.99999 only for range / desiredRange >= 212.43 (at 212.43 the square root is 0.99999 exactly); below that the band is wider, and inside the desired range max_cos stays at MAX_COS 0.995 (ShipEntity.h:142), a band of about 0.1 rad. At the cap the band is acos(0.99999) = 0.004472 rad. Two step sizes that both settle inside that band differ by at most twice its half-angle, 2 x 0.004472 = 0.008944 rad, which 0.01 rad covers. Every grid pose therefore keeps range / desiredRange >= 250 for the whole compare window (destination about 30 km away, desiredRange 100 m). A pose that cannot meet the ratio is not used for this tolerance; a pose added on purpose to show the wider band is recorded as its own divergence row stating the band angle 0.95 x desiredRange / range, never by widening crossDtTolerance. A pair whose settled values differ by more than crossDtTolerance is a divergence row with the measured difference.",
   "crossDtTolerance": 0.01,
-  "rows": []
+  "rows": [
+    {
+      "site": "frame time source: delta_t is the real frame interval, capped at 0.25 s",
+      "oolite": "src/Core/GameController.m:339-345",
+      "kind": "rate-times-dt",
+      "treatment": "Oolite passes the measured frame interval (capped at MINIMUM_GAME_TICK 0.25 s, GameController.h:36) to every update, so 1/60 s is only the typical value and no conversion is exact at every frame rate. Wegolite runs one fixed step of 1/120 s with every expression evaluated as written; the 1/60 versus 1/120 grid stands for a typical 60 fps Oolite frame and shows the settled behaviour agreeing within crossDtTolerance. An Oolite frame rate between the two sits between the two measured results.",
+      "confirmedBy": ["rate-right-30-dt60", "rate-right-30-dt120"]
+    },
+    {
+      "site": "applySticks base rates 2 dt (roll), 4 dt (pitch), 4 dt (yaw)",
+      "oolite": "src/Core/Entities/ShipEntity.m:7021-7023",
+      "kind": "rate-times-dt",
+      "treatment": "Kept verbatim at dt = 1/120. The rates are radians per second times dt, so the ramp takes the same simulated time at any step: after one update flightRoll is min(|stick|, 2 dt) and flightPitch min(|stick|, 4 dt), and the grid shows those first-update values halving with dt while the sticks are equal. Settled motion matches Oolite at any frame rate.",
+      "confirmedBy": [
+        "sticks-roll-pitch-ramp",
+        "rate-right-30-dt60",
+        "rate-right-30-dt120",
+        "rate-up-right-45-45-dt60",
+        "rate-up-right-45-45-dt120"
+      ]
+    },
+    {
+      "site": "applySticks x4 correction rate when the stick reverses the flight rate",
+      "oolite": "src/Core/Entities/ShipEntity.m:7025-7030",
+      "kind": "rate-times-dt",
+      "treatment": "Kept verbatim: a multiplier on the per-second rate, applied to the already dt-scaled value, so the reversal takes the same simulated time at any step.",
+      "confirmedBy": ["sticks-roll-reversal-quadruple-rate"]
+    },
+    {
+      "site": "applySticks x2 correction rate at accuracy >= 7.5 (COMBAT_AI_TRACKS_CLOSER) for a zero stick",
+      "oolite": "src/Core/Entities/ShipEntity.m:7032-7039",
+      "kind": "rate-times-dt",
+      "treatment": "Kept verbatim: a multiplier on the dt-scaled rate, gated by accuracy, not by time.",
+      "confirmedBy": [
+        "sticks-accuracy-8-stick-zero",
+        "sticks-accuracy-2-stick-zero"
+      ]
+    },
+    {
+      "site": "applyAttitudeChanges: flightRoll * delta_t, flightPitch * delta_t, flightYaw * delta_t",
+      "oolite": "src/Core/Entities/ShipEntity.m:5899-5902",
+      "kind": "rate-times-dt",
+      "treatment": "Kept verbatim: angular rate (rad/s) times dt gives the per-tick rotation, so the turn per simulated second is the same at any step.",
+      "confirmedBy": [
+        "attitude-step-roll-and-pitch",
+        "attitude-step-roll-only",
+        "attitude-step-pitch-only"
+      ]
+    },
+    {
+      "site": "applyThrust: dt_thrust = SHIP_THRUST_FACTOR * thrust * delta_t and moveForward: delta_t * flightSpeed",
+      "oolite": "src/Core/Entities/ShipEntity.m:5808-5843",
+      "kind": "rate-times-dt",
+      "treatment": "Kept verbatim: acceleration and speed are per second, so the speed ramp and the distance covered per simulated second are the same at any step (a ramp from rest reaches maxFlightSpeed after maxFlightSpeed / (5 thrust) s whatever dt is).",
+      "confirmedBy": [
+        "thrust-ramp-to-max-speed",
+        "thrust-ramp-never-overshoots",
+        "thrust-decrease-below-max-speed",
+        "thrust-decrease-above-max-flight-speed"
+      ]
+    },
+    {
+      "site": "trackDestination overshoot limiter: |d| < |stick| * delta_t -> stick = |d| / delta_t",
+      "oolite": "src/Core/Entities/ShipEntity.m:9533-9558",
+      "kind": "dt-limiter",
+      "treatment": "Kept verbatim. Derivation of reach: the limiter binds only when |d| < |stick| dt with stick = 0.125 * max_rate * factor and factor = int(sqrt(|d| / 0.004)) >= 1, that is 0.004 factor^2 < 0.125 max_rate factor dt, so factor < 31.25 max_rate dt. At 1/120 s that needs max_rate above 3.84 for factor 1, so it never binds for a ship whose max_flight_roll and max_flight_pitch are below 3.84 (all nine in-scope ships; the highest is 3.0). At 1/60 s and max_flight_roll 2.8 it binds for roll with factor 1 (d_right in [0.004, 0.00583)) and never for pitch (0.125 * 1.8 / 60 = 0.00375 is below 0.004). The pair rate-limiter-dt60 / rate-limiter-dt120 shows the effect: first-update stickRoll -0.3 at 1/60 against -0.35 at 1/120, and a settled heading difference of 0.000439 rad, inside crossDtTolerance. Because the port runs only at 1/120 s the limiter is dead code for the nine ships; a limit that smaller dt makes less restrictive only makes the step more accurate. Not a divergence: the settled difference stays below crossDtTolerance.",
+      "confirmedBy": ["rate-limiter-dt60", "rate-limiter-dt120"]
+    },
+    {
+      "site": "trackPrimaryTarget overshoot limiter (accuracy >= 0): |d_right| < |stick_roll| dt and the 0.9 pitch form",
+      "oolite": "src/Core/Entities/ShipEntity.m:9208-9213",
+      "kind": "dt-limiter",
+      "treatment": "Kept verbatim; it is gated by accuracy at or above COMBAT_AI_ISNT_AWFUL (0) and has the same reach bound as trackDestination's limiter (factor < 31.25 max_rate dt at accuracy below 7.5, where the roll factor cap is 8 and r_max_factor 0.125): it never binds at 1/120 s for the nine ships. The pursuit fixtures confirm both sides of the gate: no clamp at accuracy 2 (the limit |stick| dt is far below |d|) and no limiter at accuracy below 0.",
+      "confirmedBy": [
+        "intercept-target-above-pitches-up-full-stick",
+        "flee-accuracy-minus-2-draws-nothing-and-turns-away"
+      ]
+    },
+    {
+      "site": "trackDestination settled heading error, 1/60 versus 1/120 (the whole controller, ten poses)",
+      "oolite": "src/Core/Entities/ShipEntity.m:9450-9591",
+      "kind": "rate-times-dt",
+      "treatment": "Kept verbatim. Ten relative destination poses (two of them with the ship flying at 150 m/s), each kept at range / desiredRange >= 250 over the whole window so max_cos sits at its 0.99999 cap, were run at dt 1/60 and 1/120 and compared at 6 s of simulated time. The largest settled difference is 0.002777 rad (rate-up-45), below crossDtTolerance 0.01; every pair agrees, so no pose is recorded as a divergence. The first-update sticks are equal in nine of ten poses; the tenth is the limiter pose (see the limiter row).",
+      "confirmedBy": [
+        "rate-right-30-dt60",
+        "rate-right-30-dt120",
+        "rate-up-45-dt60",
+        "rate-up-45-dt120",
+        "rate-left-up-60-30-dt60",
+        "rate-left-up-60-30-dt120",
+        "rate-behind-up-moving-dt60",
+        "rate-behind-up-moving-dt120",
+        "rate-abeam-below-dt60",
+        "rate-abeam-below-dt120",
+        "rate-behind-right-below-dt60",
+        "rate-behind-right-below-dt120",
+        "rate-near-nose-dt60",
+        "rate-near-nose-dt120",
+        "rate-limiter-dt60",
+        "rate-limiter-dt120",
+        "rate-small-moving-dt60",
+        "rate-small-moving-dt120",
+        "rate-up-right-45-45-dt60",
+        "rate-up-right-45-45-dt120"
+      ]
+    },
+    {
+      "site": "FLY_TO_DESTINATION frustration: -0.25 dt on improvement, +dt otherwise, noteFrustration above 15 s or 10 x slowdownTime",
+      "oolite": "src/Core/Entities/ShipEntity.m:5117-5129",
+      "kind": "accumulator",
+      "treatment": "GLfloat accumulator, written through Math.fround at every write (contract item 8). The 15 s threshold is first exceeded at tick 1801 (float64 would give 1800); the event repeats on the following ticks while the counter stays above 15 after the slowdown subtraction. Kept verbatim.",
+      "confirmedBy": ["fly-to-frustration-fires"]
+    },
+    {
+      "site": "FACE_DESTINATION frustration: +dt while flightSpeed is 0, escape above 15 / max_flight_pitch s",
+      "oolite": "src/Core/Entities/ShipEntity.m:4943-4950",
+      "kind": "accumulator",
+      "treatment": "GLfloat accumulator through Math.fround. For max_flight_pitch 2 the threshold is 7.5 s, first exceeded at tick 901 (float64 gives 900); for max_flight_pitch 1.6 it is 9.375 s at tick 1126. Kept verbatim, with the threshold tick always derived by fround accumulation.",
+      "confirmedBy": ["face-destination-frustration-escape"]
+    },
+    {
+      "site": "FLEE_TARGET frustration: -0.25 dt when the range improves, +dt otherwise, noteFrustration above 15 s",
+      "oolite": "src/Core/Entities/ShipEntity.m:4852-4872",
+      "kind": "accumulator",
+      "treatment": "GLfloat accumulator through Math.fround; the 15 s event is exact at tick 1801 and the counter resets to 0. Kept verbatim.",
+      "confirmedBy": [
+        "flee-frustration-fires-at-tick-1801",
+        "flee-improving-range-decays-frustration"
+      ]
+    },
+    {
+      "site": "ATTACK_FLY_TO_TARGET frustration: -dt on a good tracking factor, +dt otherwise, 3 s event and evasive jink",
+      "oolite": "src/Core/Entities/ShipEntity.m:4688-4704",
+      "kind": "accumulator",
+      "treatment": "GLfloat accumulator through Math.fround. From a counter of 0 the 3 s threshold is first exceeded at tick 360; the fixture starts from the float32-exact 3 - 2^-10 so the event falls on tick 1 and a port that rounds on load or not agrees. Kept verbatim.",
+      "confirmedBy": [
+        "attack-fly-to-target-three-second-frustration-posts-and-dodges"
+      ]
+    },
+    {
+      "site": "ATTACK_FLY_FROM_TARGET frustration: +dt when the target closes, +dt / 4 otherwise, 10 s branch",
+      "oolite": "src/Core/Entities/ShipEntity.m:4742-4773",
+      "kind": "accumulator",
+      "treatment": "GLfloat accumulator through Math.fround; the 10 s threshold is first exceeded at tick 1201 from 0 (float64 gives 1200). The fixture starts from the float32-exact 10 - 2^-10. Kept verbatim.",
+      "confirmedBy": [
+        "attack-fly-from-target-frustration-draws-speed-branch-and-jink",
+        "attack-fly-from-target-frustration-draws-attack-and-halved-z"
+      ]
+    },
+    {
+      "site": "ATTACK_FLY_TO_TARGET_SIX / _TWELVE frustration: +dt or -0.75 dt, return to fly-to above 10 s",
+      "oolite": "src/Core/Entities/ShipEntity.m:4557-4567",
+      "kind": "accumulator",
+      "treatment": "GLfloat accumulator through Math.fround; the 10 s compare is first true at tick 1201 from 0. Kept verbatim; the 0.75 factor is a rate per second.",
+      "confirmedBy": [
+        "attack-six-returns-to-fly-to-target-after-10-s-of-frustration"
+      ]
+    },
+    {
+      "site": "ATTACK_SNIPER frustration: -dt or +dt, 3 s event and evasive jink",
+      "oolite": "src/Core/Entities/ShipEntity.m:4430-4446",
+      "kind": "accumulator",
+      "treatment": "GLfloat accumulator through Math.fround; 3 s is first exceeded at tick 360 from 0; the fixture starts from the float32-exact 3 - 2^-10. Kept verbatim.",
+      "confirmedBy": ["attack-sniper-three-second-frustration-posts-and-dodges"]
+    },
+    {
+      "site": "ATTACK_BREAK_OFF_TARGET frustration: +dt, fractional part of frustration against fmin(1.6 / max_flight_roll, aspect), above 15 s halves the speed",
+      "oolite": "src/Core/Entities/ShipEntity.m:3916-3926",
+      "kind": "time-compare",
+      "treatment": "GLfloat accumulator through Math.fround, and the compare reads the fractional part of the float32 value, so it is exact on the integer clock. The 15 s halving threshold is first exceeded at tick 1801 from 0. Kept verbatim.",
+      "confirmedBy": [
+        "attack-break-off-low-frustration-fraction-takes-evasive-action",
+        "attack-break-off-high-frustration-fraction-retreats",
+        "attack-break-off-frustration-above-15-halves-the-speed"
+      ]
+    },
+    {
+      "site": "ATTACK_SLOW_DOGFIGHT frustration: +dt or -dt by aspect, above 10 s halves the speed",
+      "oolite": "src/Core/Entities/ShipEntity.m:3976-3985",
+      "kind": "accumulator",
+      "treatment": "GLfloat accumulator through Math.fround; 10 s is first exceeded at tick 1201 from 0. Kept verbatim.",
+      "confirmedBy": [
+        "attack-slow-dogfight-frustration-above-10-halves-the-speed"
+      ]
+    },
+    {
+      "site": "EVASIVE_ACTION / FLEE_EVASIVE_ACTION frustration: +dt, follow-on above 0.5 s",
+      "oolite": "src/Core/Entities/ShipEntity.m:4019-4033",
+      "kind": "accumulator",
+      "treatment": "GLfloat accumulator through Math.fround; 0.5 s is first exceeded at tick 61 after a reset at tick 0 (float64 gives 60), so the follow-on behaviour change falls on tick 61. Kept verbatim.",
+      "confirmedBy": [
+        "attack-evasive-action-follow-on-goes-to-attack-target-at-tick-61",
+        "attack-flee-evasive-action-follow-on-returns-to-flee-target-at-tick-61"
+      ]
+    },
+    {
+      "site": "tracking-curve sampling gate: trackingCurveTimes[0] + reactionTime / 3.0 > now",
+      "oolite": "src/Core/Entities/ShipEntity.m:5444-5449",
+      "kind": "time-compare",
+      "treatment": "Whole-tick compare: ticks[0] + 60 > k, a sample at the first tick k at least 60 after the previous one (the integer clock of contract item 8, reaction time 1.5 s). DIVERGENCE of one tick: Oolite's universal_time is a double sum of delta_t (Universe.m:6456), so the gate opens after 60 steps from a base of 0 (elapsed 0.5000000000000007 s) but after 61 steps from a base of 1000.0 (elapsed 0.49999999999954525 s after 60 steps, 0.508333 s after 61), and likewise from any large base (12345.678 gives 61). Oolite's own tick therefore depends on the time since launch; the rule's fixed 60 is one of its two values and the divergence is at most one tick (8.3 ms) in the sampling time. The intercept aim-point fixture checks ticks 0, 90, 119, 120, 121 and 180, which separate the 60-tick rule from a 61-tick rule at ticks 120 and 180, and deliberately not the edge ticks 59 to 61.",
+      "confirmedBy": ["intercept-tracking-curve-aim-point-of-crossing-target"],
+      "measuredDifference": 1
+    },
+    {
+      "site": "tracking curve evaluation: t = now - trackingCurveTimes[1] in seconds",
+      "oolite": "src/Core/Entities/ShipEntity.m:5412-5423",
+      "kind": "time-compare",
+      "treatment": "t is a time difference in seconds, evaluated as (k - ticks[1]) / 120 on the integer clock, so the quadratic lead is the same function of simulated time as in Oolite. Kept verbatim (the sampling-gate row records the one-tick divergence).",
+      "confirmedBy": ["intercept-tracking-curve-aim-point-of-crossing-target"]
+    },
+    {
+      "site": "performTumble: two randf() draws for the sticks",
+      "oolite": "src/Core/Entities/ShipEntityAI.m:473-479",
+      "kind": "draw",
+      "treatment": "Two draws per entry into TUMBLE, roll first. The count depends on the entry, never on the frame rate; entries are gated by AI state changes. Kept as written.",
+      "confirmedBy": [
+        "tumble-sticks-from-draws",
+        "tumble-second-draw-pair-with-reversal"
+      ]
+    },
+    {
+      "site": "performFlee: jink pair and the evasive-action choice draw",
+      "oolite": "src/Core/Entities/ShipEntityAI.m:379-392",
+      "kind": "draw",
+      "treatment": "One entry draws the jink pair (setEvasiveJink, none below accuracy 0) and, only when accuracy is above 0 and the approach aspect exceeds 0.9995, one more. Draw count per entry is state-gated, not frame-gated. Kept as written.",
+      "confirmedBy": [
+        "flee-accuracy-2-jink-draws-and-aspect-below-threshold",
+        "flee-accuracy-2-aspect-above-0-9995-takes-evasive-action"
+      ]
+    },
+    {
+      "site": "performAttack desired-range draw and the dispatcher's nearby jink draws",
+      "oolite": "src/Core/Entities/ShipEntityAI.m:350-357",
+      "kind": "draw",
+      "treatment": "One draw sets the desired range on entry to ATTACK_TARGET, and the dispatcher draws the jink pair when the target is nearby at accuracy below 6; each is gated by a behaviour change. Kept as written.",
+      "confirmedBy": [
+        "attack-perform-draws-desired-range-midpoint",
+        "attack-dispatch-nearby-accuracy-2-draws-the-jink-pair"
+      ]
+    },
+    {
+      "site": "ATTACK_FLY_FROM_TARGET frustration branch: speed and jink draws",
+      "oolite": "src/Core/Entities/ShipEntity.m:4750-4764",
+      "kind": "draw",
+      "treatment": "The draws are taken once when the frustration counter passes 10 s (a threshold event), not per tick. Kept as written.",
+      "confirmedBy": [
+        "attack-fly-from-target-frustration-draws-speed-branch-and-jink"
+      ]
+    },
+    {
+      "site": "FACE_DESTINATION sign-flip damping: flightPitch += 0.5 * old_pitch (low-FPS hack)",
+      "oolite": "src/Core/Entities/ShipEntity.m:4958-4960",
+      "kind": "one-shot",
+      "treatment": "Verbatim. The conditions are state (zero speed, frustration above 5, confidence above 0.5, a pitch sign flip), not a frame count. It is reachable at 1/120 s (plan 14-01's scan hit it in 284 of 9,504 face poses), so it is not dead code: face-destination-sign-flip-damping fires it on ticks 605 to 607 in both widths.",
+      "confirmedBy": ["face-destination-sign-flip-damping"]
+    },
+    {
+      "site": "cascade mine chance qbomb_chance = 0.01 * delta_t",
+      "oolite": "src/Core/Entities/ShipEntity.m:4883-4886",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope: cascade mines are not in the milestone; the chance is a per-call probability that would need a conversion if they were.",
+      "confirmedBy": []
+    },
+    {
+      "site": "considerFiringMissile: rhs = 3.2 / delta_t",
+      "oolite": "src/Core/Entities/ShipEntity.m:10521-10526",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope: NPC missiles are cut from this milestone.",
+      "confirmedBy": []
+    },
+    {
+      "site": "energy recharge: energy += energy_recharge_rate * delta_t",
+      "oolite": "src/Core/Entities/ShipEntity.m:2417-2420",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope for steering: energy is the combat plan's rate per second times dt, kept as written there.",
+      "confirmedBy": []
+    },
+    {
+      "site": "BEHAVIOUR_COLLECT_TARGET frustration: +0.9 dt and a 10 s event",
+      "oolite": "src/Core/Entities/ShipEntity.m:3862-3875",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope: cargo scooping by NPCs is not in the milestone.",
+      "confirmedBy": []
+    },
+    {
+      "site": "behaviour_tractored moment = delta_t * k",
+      "oolite": "src/Core/Entities/ShipEntity.m:3745-3758",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope: tractor beams on NPCs are not in the milestone.",
+      "confirmedBy": []
+    },
+    {
+      "site": "behaviour_land_on_planet thrust: -max_thrust * delta_t",
+      "oolite": "src/Core/Entities/ShipEntity.m:4985-4995",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope: landing on planets is not in the milestone.",
+      "confirmedBy": []
+    },
+    {
+      "site": "behaviour_fly_thru_navpoints frustration",
+      "oolite": "src/Core/Entities/ShipEntity.m:5276-5287",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope: waypoint routes are not in the milestone.",
+      "confirmedBy": []
+    },
+    {
+      "site": "Newtonian velocity drift: position += velocity * range2 * delta_t",
+      "oolite": "src/Core/Entities/ShipEntity.m:2410-2414",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope: a recorded scope cut (the contract has no Newtonian velocity); the placeholder integrator never drifts.",
+      "confirmedBy": []
+    },
+    {
+      "site": "turret tracking: ballTrackLeadingTarget thrust * delta_t",
+      "oolite": "src/Core/Entities/ShipEntity.m:8970-8973",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope: turret behaviours are not ported.",
+      "confirmedBy": []
+    },
+    {
+      "site": "broadside and missile tracking: trackSideTarget, missileTrackPrimaryTarget damping 0.5 * delta_t",
+      "oolite": "src/Core/Entities/ShipEntity.m:9356-9368",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope: broadside and missile steering are not ported (plan 14-02's OUT list).",
+      "confirmedBy": []
+    },
+    {
+      "site": "AI think scheduling: universal_time > thinkTime",
+      "oolite": "src/Core/Universe.m:6574-6581",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope for this oracle: AI scheduling is a whole-tick compare owned by the AI seam (src/sim/ai/time.ts), not a steering site.",
+      "confirmedBy": []
+    },
+    {
+      "site": "time acceleration factor",
+      "oolite": "src/Core/Universe.m:6685-6696",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope: a debug build feature; release builds return 1.0.",
+      "confirmedBy": []
+    },
+    {
+      "site": "debris spawn and cargo dump timers using getTimeDelta",
+      "oolite": "src/Core/Entities/ShipEntity.m:7939-7939",
+      "kind": "out-of-scope",
+      "treatment": "Out of scope: effects, not steering.",
+      "confirmedBy": []
+    }
+  ]
 }

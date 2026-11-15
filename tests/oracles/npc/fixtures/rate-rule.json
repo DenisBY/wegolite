@@ -1,0 +1,1966 @@
+[
+  {
+    "id": "rate-right-30-dt60",
+    "title": "rate grid, 30 degrees to the right and 0.45 degrees above the wings, at dt 1/60",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"right-30\" (azimuth 30 degrees, elevation 0.45 degrees) run at dt 1/60; its twin at the other step size is rate-right-30-dt120. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.499985, d_up = 0.007854, d_forward = 0.865999. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll -2.8, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: -0.03333333333333333, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.016666666666666666,
+    "horizon": 360,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        14999.537364671844, 235.61702666134002, 25979.96080563942
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 0.52365219365338,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 30 degrees, elevation 0.45 degrees: the angle is acos(d_forward) = 0.523652 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -2.8,
+        "tolerance": 2e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form -2.8"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": -0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.033333 (ShipEntity.m:7021, 7041-7047): closed form -0.03333333333333333"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.066667 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 360,
+        "field": "headingErrorDestination",
+        "expected": 0.004404506008988649,
+        "tolerance": 5.8e-7,
+        "note": "settled heading error at 6 s of simulated time (tick 360 at dt 1/60); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-right-30-dt120",
+    "title": "rate grid, 30 degrees to the right and 0.45 degrees above the wings, at dt 1/120",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"right-30\" (azimuth 30 degrees, elevation 0.45 degrees) run at dt 1/120; its twin at the other step size is rate-right-30-dt60. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.499985, d_up = 0.007854, d_forward = 0.865999. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll -2.8, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: -0.016666666666666666, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.008333333333333333,
+    "horizon": 720,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        14999.537364671844, 235.61702666134002, 25979.96080563942
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 0.52365219365338,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 30 degrees, elevation 0.45 degrees: the angle is acos(d_forward) = 0.523652 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -2.8,
+        "tolerance": 2e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form -2.8"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": -0.016666666666666666,
+        "tolerance": 4.5e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.016667 (ShipEntity.m:7021, 7041-7047): closed form -0.016666666666666666"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.033333 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 720,
+        "field": "headingErrorDestination",
+        "expected": 0.00423743143114372,
+        "tolerance": 0.0000028,
+        "note": "settled heading error at 6 s of simulated time (tick 720 at dt 1/120); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-up-45-dt60",
+    "title": "rate grid, 45.45 degrees above the nose, dead ahead in azimuth, at dt 1/60",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"up-45\" (azimuth 0, elevation 45.45 degrees) run at dt 1/60; its twin at the other step size is rate-up-45-dt120. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.000000, d_up = 0.712639, d_forward = 0.701531. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll 0, stickPitch -1.8. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: 0, -0.06666666666666667. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.016666666666666666,
+    "horizon": 360,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [0, 21379.155567756163, 21045.94277312567],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 0.7932521450314228,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 0, elevation 45.45 degrees: the angle is acos(d_forward) = 0.793252 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form 0"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": -1.8,
+        "tolerance": 2e-7,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form -1.8"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.033333 (ShipEntity.m:7021, 7041-7047): closed form 0"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": -0.06666666666666667,
+        "tolerance": 1.5e-8,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.066667 (ShipEntity.m:7022, 7049-7055): closed form -0.06666666666666667"
+      },
+      {
+        "tick": 360,
+        "field": "headingErrorDestination",
+        "expected": 0.0007523040777026197,
+        "tolerance": 6.4e-7,
+        "note": "settled heading error at 6 s of simulated time (tick 360 at dt 1/60); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-up-45-dt120",
+    "title": "rate grid, 45.45 degrees above the nose, dead ahead in azimuth, at dt 1/120",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"up-45\" (azimuth 0, elevation 45.45 degrees) run at dt 1/120; its twin at the other step size is rate-up-45-dt60. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.000000, d_up = 0.712639, d_forward = 0.701531. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll 0, stickPitch -1.8. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: 0, -0.03333333333333333. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.008333333333333333,
+    "horizon": 720,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [0, 21379.155567756163, 21045.94277312567],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 0.7932521450314228,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 0, elevation 45.45 degrees: the angle is acos(d_forward) = 0.793252 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form 0"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": -1.8,
+        "tolerance": 2e-7,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form -1.8"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.016667 (ShipEntity.m:7021, 7041-7047): closed form 0"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": -0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.033333 (ShipEntity.m:7022, 7049-7055): closed form -0.03333333333333333"
+      },
+      {
+        "tick": 720,
+        "field": "headingErrorDestination",
+        "expected": 0.00352974372460592,
+        "tolerance": 7.2e-7,
+        "note": "settled heading error at 6 s of simulated time (tick 720 at dt 1/120); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-left-up-60-30-dt60",
+    "title": "rate grid, 61.4 degrees left and 29.55 degrees up, at dt 1/60",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"left-up-60-30\" (azimuth -61.4 degrees, elevation 29.55 degrees) run at dt 1/60; its twin at the other step size is rate-left-up-60-30-dt120. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = -0.763780, d_up = 0.493183, d_forward = 0.416426. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll 2.8, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: 0.03333333333333333, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.016666666666666666,
+    "horizon": 360,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        -22913.397158702417, 14795.48703401897, 12492.789683403158
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 1.1412852669314133,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth -61.4 degrees, elevation 29.55 degrees: the angle is acos(d_forward) = 1.141285 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 2.8,
+        "tolerance": 2e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form 2.8"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.033333 (ShipEntity.m:7021, 7041-7047): closed form 0.03333333333333333"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.066667 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 360,
+        "field": "headingErrorDestination",
+        "expected": 0.002088342834263897,
+        "tolerance": 2e-7,
+        "note": "settled heading error at 6 s of simulated time (tick 360 at dt 1/60); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-left-up-60-30-dt120",
+    "title": "rate grid, 61.4 degrees left and 29.55 degrees up, at dt 1/120",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"left-up-60-30\" (azimuth -61.4 degrees, elevation 29.55 degrees) run at dt 1/120; its twin at the other step size is rate-left-up-60-30-dt60. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = -0.763780, d_up = 0.493183, d_forward = 0.416426. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll 2.8, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: 0.016666666666666666, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.008333333333333333,
+    "horizon": 720,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        -22913.397158702417, 14795.48703401897, 12492.789683403158
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 1.1412852669314133,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth -61.4 degrees, elevation 29.55 degrees: the angle is acos(d_forward) = 1.141285 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 2.8,
+        "tolerance": 2e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form 2.8"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.016666666666666666,
+        "tolerance": 4.5e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.016667 (ShipEntity.m:7021, 7041-7047): closed form 0.016666666666666666"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.033333 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 720,
+        "field": "headingErrorDestination",
+        "expected": 0.002283134181099527,
+        "tolerance": 0.000003,
+        "note": "settled heading error at 6 s of simulated time (tick 720 at dt 1/120); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-behind-up-moving-dt60",
+    "title": "rate grid, 169.3 degrees round and 10.9 degrees up, the ship moving away at 150 m/s, at dt 1/60",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"behind-up-moving\" (azimuth 169.3 degrees, elevation 10.9 degrees, speed 150) run at dt 1/60; its twin at the other step size is rate-behind-up-moving-dt120. The ship rests (or flies straight at 150 m/s with desired speed 150) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.182317, d_up = 0.189095, d_forward = -0.964885. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll -2.0999999999999996, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: -0.03333333333333333, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.016666666666666666,
+    "horizon": 360,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 150,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        5469.508519041814, 5672.863289696739, -28946.555903190627
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 150,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 2.8758022932507687,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 169.3 degrees, elevation 10.9 degrees, speed 150: the angle is acos(d_forward) = 2.875802 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -2.0999999999999996,
+        "tolerance": 3.9e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form -2.0999999999999996"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": -0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.033333 (ShipEntity.m:7021, 7041-7047): closed form -0.03333333333333333"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.066667 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 360,
+        "field": "headingErrorDestination",
+        "expected": 0.004409394353580279,
+        "tolerance": 6.2e-7,
+        "note": "settled heading error at 6 s of simulated time (tick 360 at dt 1/60); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-behind-up-moving-dt120",
+    "title": "rate grid, 169.3 degrees round and 10.9 degrees up, the ship moving away at 150 m/s, at dt 1/120",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"behind-up-moving\" (azimuth 169.3 degrees, elevation 10.9 degrees, speed 150) run at dt 1/120; its twin at the other step size is rate-behind-up-moving-dt60. The ship rests (or flies straight at 150 m/s with desired speed 150) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.182317, d_up = 0.189095, d_forward = -0.964885. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll -2.0999999999999996, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: -0.016666666666666666, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.008333333333333333,
+    "horizon": 720,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 150,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        5469.508519041814, 5672.863289696739, -28946.555903190627
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 150,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 2.8758022932507687,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 169.3 degrees, elevation 10.9 degrees, speed 150: the angle is acos(d_forward) = 2.875802 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -2.0999999999999996,
+        "tolerance": 3.9e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form -2.0999999999999996"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": -0.016666666666666666,
+        "tolerance": 4.5e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.016667 (ShipEntity.m:7021, 7041-7047): closed form -0.016666666666666666"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.033333 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 720,
+        "field": "headingErrorDestination",
+        "expected": 0.005583544827417598,
+        "tolerance": 0.000008,
+        "note": "settled heading error at 6 s of simulated time (tick 720 at dt 1/120); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-abeam-below-dt60",
+    "title": "rate grid, abeam to the right and 4.55 degrees below the wings, at dt 1/60",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"abeam-below\" (azimuth 90 degrees, elevation -4.55 degrees) run at dt 1/60; its twin at the other step size is rate-abeam-below-dt120. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.996848, d_up = -0.079329, d_forward = 0.000000. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll 2.8, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: 0.03333333333333333, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.016666666666666666,
+    "horizon": 360,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        29905.454569992915, -2379.8712070382835, 1.8311809608094206e-12
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 1.5707963267948966,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 90 degrees, elevation -4.55 degrees: the angle is acos(d_forward) = 1.570796 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 2.8,
+        "tolerance": 2e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form 2.8"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.033333 (ShipEntity.m:7021, 7041-7047): closed form 0.03333333333333333"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.066667 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 360,
+        "field": "headingErrorDestination",
+        "expected": 0.003845671445363552,
+        "tolerance": 0.0000023,
+        "note": "settled heading error at 6 s of simulated time (tick 360 at dt 1/60); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-abeam-below-dt120",
+    "title": "rate grid, abeam to the right and 4.55 degrees below the wings, at dt 1/120",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"abeam-below\" (azimuth 90 degrees, elevation -4.55 degrees) run at dt 1/120; its twin at the other step size is rate-abeam-below-dt60. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.996848, d_up = -0.079329, d_forward = 0.000000. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll 2.8, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: 0.016666666666666666, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.008333333333333333,
+    "horizon": 720,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        29905.454569992915, -2379.8712070382835, 1.8311809608094206e-12
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 1.5707963267948966,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 90 degrees, elevation -4.55 degrees: the angle is acos(d_forward) = 1.570796 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 2.8,
+        "tolerance": 2e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form 2.8"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.016666666666666666,
+        "tolerance": 4.5e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.016667 (ShipEntity.m:7021, 7041-7047): closed form 0.016666666666666666"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.033333 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 720,
+        "field": "headingErrorDestination",
+        "expected": 0.0037514788035240693,
+        "tolerance": 0.0000011,
+        "note": "settled heading error at 6 s of simulated time (tick 720 at dt 1/120); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-behind-right-below-dt60",
+    "title": "rate grid, 120 degrees to the right and 19.55 degrees below, at dt 1/60",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"behind-right-below\" (azimuth 120 degrees, elevation -19.55 degrees) run at dt 1/60; its twin at the other step size is rate-behind-right-below-dt120. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.816099, d_up = -0.334629, d_forward = -0.471175. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll 2.8, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: 0.03333333333333333, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.016666666666666666,
+    "horizon": 360,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        24482.966780702034, -10038.880257282399, -14135.247461398978
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 2.0614186751294317,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 120 degrees, elevation -19.55 degrees: the angle is acos(d_forward) = 2.061419 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 2.8,
+        "tolerance": 2e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form 2.8"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.033333 (ShipEntity.m:7021, 7041-7047): closed form 0.03333333333333333"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.066667 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 360,
+        "field": "headingErrorDestination",
+        "expected": 0.0040254832126926515,
+        "tolerance": 0.0000037,
+        "note": "settled heading error at 6 s of simulated time (tick 360 at dt 1/60); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-behind-right-below-dt120",
+    "title": "rate grid, 120 degrees to the right and 19.55 degrees below, at dt 1/120",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"behind-right-below\" (azimuth 120 degrees, elevation -19.55 degrees) run at dt 1/120; its twin at the other step size is rate-behind-right-below-dt60. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.816099, d_up = -0.334629, d_forward = -0.471175. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll 2.8, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: 0.016666666666666666, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.008333333333333333,
+    "horizon": 720,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        24482.966780702034, -10038.880257282399, -14135.247461398978
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 2.0614186751294317,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 120 degrees, elevation -19.55 degrees: the angle is acos(d_forward) = 2.061419 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 2.8,
+        "tolerance": 2e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form 2.8"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.016666666666666666,
+        "tolerance": 4.5e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.016667 (ShipEntity.m:7021, 7041-7047): closed form 0.016666666666666666"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.033333 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 720,
+        "field": "headingErrorDestination",
+        "expected": 0.0032917977107998013,
+        "tolerance": 0.0000028,
+        "note": "settled heading error at 6 s of simulated time (tick 720 at dt 1/120); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-near-nose-dt60",
+    "title": "rate grid, 0.1 rad off the nose, up and to the right, at dt 1/60",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"near-nose\" (azimuth 0.07 rad, elevation 0.07 rad) run at dt 1/60; its twin at the other step size is rate-near-nose-dt120. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.069772, d_up = 0.069943, d_forward = 0.995108. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll -1.4, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: -0.03333333333333333, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.016666666666666666,
+    "horizon": 360,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [2093.146719663547, 2098.285420125983, 29853.239943189557],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 0.09895449175164936,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 0.07 rad, elevation 0.07 rad: the angle is acos(d_forward) = 0.098954 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -1.4,
+        "tolerance": 9.7e-8,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form -1.4"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": -0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.033333 (ShipEntity.m:7021, 7041-7047): closed form -0.03333333333333333"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.066667 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 360,
+        "field": "headingErrorDestination",
+        "expected": 0.0043928317165928205,
+        "tolerance": 4.6e-8,
+        "note": "settled heading error at 6 s of simulated time (tick 360 at dt 1/60); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-near-nose-dt120",
+    "title": "rate grid, 0.1 rad off the nose, up and to the right, at dt 1/120",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"near-nose\" (azimuth 0.07 rad, elevation 0.07 rad) run at dt 1/120; its twin at the other step size is rate-near-nose-dt60. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.069772, d_up = 0.069943, d_forward = 0.995108. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll -1.4, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: -0.016666666666666666, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.008333333333333333,
+    "horizon": 720,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [2093.146719663547, 2098.285420125983, 29853.239943189557],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 0.09895449175164936,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 0.07 rad, elevation 0.07 rad: the angle is acos(d_forward) = 0.098954 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -1.4,
+        "tolerance": 9.7e-8,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form -1.4"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": -0.016666666666666666,
+        "tolerance": 4.5e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.016667 (ShipEntity.m:7021, 7041-7047): closed form -0.016666666666666666"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.033333 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 720,
+        "field": "headingErrorDestination",
+        "expected": 0.0028892269693410032,
+        "tolerance": 2.1e-7,
+        "note": "settled heading error at 6 s of simulated time (tick 720 at dt 1/120); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-limiter-dt60",
+    "title": "rate grid, 0.0071 rad off the nose, where the overshoot limiter binds at 1/60 s only, at dt 1/60",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"limiter\" (d_right 0.005, d_up 0.005) run at dt 1/60; its twin at the other step size is rate-limiter-dt120. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.005000, d_up = 0.005000, d_forward = 0.999975. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll -0.3, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: -0.03333333333333333, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. At 1/60 s the limiter binds: |d_right| = 0.005 is below 0.35 / 60 = 0.00583, so stick_roll is clamped to -0.005 * 60 = -0.3; at 1/120 s it does not (0.35 / 120 = 0.00292), so stick_roll stays -0.35. This is the one grid pose whose first-update sticks differ between the step sizes. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.016666666666666666,
+    "horizon": 360,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [150, 150, 29999.249990624765],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 0.007071126738761732,
+        "tolerance": 1e-9,
+        "note": "the destination is d_right 0.005, d_up 0.005: the angle is acos(d_forward) = 0.007071 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -0.3,
+        "tolerance": 7.3e-8,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form -0.3"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": -0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.033333 (ShipEntity.m:7021, 7041-7047): closed form -0.03333333333333333"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.066667 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 360,
+        "field": "headingErrorDestination",
+        "expected": 0.0044678596704996075,
+        "tolerance": 3.4e-9,
+        "note": "settled heading error at 6 s of simulated time (tick 360 at dt 1/60); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-limiter-dt120",
+    "title": "rate grid, 0.0071 rad off the nose, where the overshoot limiter binds at 1/60 s only, at dt 1/120",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"limiter\" (d_right 0.005, d_up 0.005) run at dt 1/120; its twin at the other step size is rate-limiter-dt60. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.005000, d_up = 0.005000, d_forward = 0.999975. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll -0.35, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: -0.016666666666666666, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. At 1/60 s the limiter binds: |d_right| = 0.005 is below 0.35 / 60 = 0.00583, so stick_roll is clamped to -0.005 * 60 = -0.3; at 1/120 s it does not (0.35 / 120 = 0.00292), so stick_roll stays -0.35. This is the one grid pose whose first-update sticks differ between the step sizes. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.008333333333333333,
+    "horizon": 720,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [150, 150, 29999.249990624765],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 0.007071126738761732,
+        "tolerance": 1e-9,
+        "note": "the destination is d_right 0.005, d_up 0.005: the angle is acos(d_forward) = 0.007071 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -0.35,
+        "tolerance": 2.5e-8,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form -0.35"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": -0.016666666666666666,
+        "tolerance": 4.5e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.016667 (ShipEntity.m:7021, 7041-7047): closed form -0.016666666666666666"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.033333 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 720,
+        "field": "headingErrorDestination",
+        "expected": 0.004029042566779286,
+        "tolerance": 6.2e-9,
+        "note": "settled heading error at 6 s of simulated time (tick 720 at dt 1/120); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-small-moving-dt60",
+    "title": "rate grid, 5 degrees right and 3 degrees low, the ship closing at 150 m/s, at dt 1/60",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"small-moving\" (azimuth 5 degrees, elevation -3 degrees, speed 150) run at dt 1/60; its twin at the other step size is rate-small-moving-dt120. The ship rests (or flies straight at 150 m/s with desired speed 150) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.087036, d_up = -0.052336, d_forward = 0.994829. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll 1.4, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: 0.03333333333333333, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.016666666666666666,
+    "horizon": 360,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 150,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [2611.088964938496, -1570.078687288315, 29844.88343640999],
+      "desiredRange": 100,
+      "desiredSpeed": 150,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 0.10173508776990443,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 5 degrees, elevation -3 degrees, speed 150: the angle is acos(d_forward) = 0.101735 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 1.4,
+        "tolerance": 9.7e-8,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form 1.4"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.033333 (ShipEntity.m:7021, 7041-7047): closed form 0.03333333333333333"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.066667 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 360,
+        "field": "headingErrorDestination",
+        "expected": 0.0027681831143167544,
+        "tolerance": 1.2e-7,
+        "note": "settled heading error at 6 s of simulated time (tick 360 at dt 1/60); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-small-moving-dt120",
+    "title": "rate grid, 5 degrees right and 3 degrees low, the ship closing at 150 m/s, at dt 1/120",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"small-moving\" (azimuth 5 degrees, elevation -3 degrees, speed 150) run at dt 1/120; its twin at the other step size is rate-small-moving-dt60. The ship rests (or flies straight at 150 m/s with desired speed 150) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.087036, d_up = -0.052336, d_forward = 0.994829. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll 1.4, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: 0.016666666666666666, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.008333333333333333,
+    "horizon": 720,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 150,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [2611.088964938496, -1570.078687288315, 29844.88343640999],
+      "desiredRange": 100,
+      "desiredSpeed": 150,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 0.10173508776990443,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 5 degrees, elevation -3 degrees, speed 150: the angle is acos(d_forward) = 0.101735 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 1.4,
+        "tolerance": 9.7e-8,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form 1.4"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": 0.016666666666666666,
+        "tolerance": 4.5e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.016667 (ShipEntity.m:7021, 7041-7047): closed form 0.016666666666666666"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.033333 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 720,
+        "field": "headingErrorDestination",
+        "expected": 0.001755509769233676,
+        "tolerance": 1.6e-7,
+        "note": "settled heading error at 6 s of simulated time (tick 720 at dt 1/120); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-up-right-45-45-dt60",
+    "title": "rate grid, 45 degrees right and 45.9 degrees up, a saturated roll, at dt 1/60",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"up-right-45-45\" (azimuth 45 degrees, elevation 45.9 degrees) run at dt 1/60; its twin at the other step size is rate-up-right-45-45-dt120. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.492085, d_up = 0.718126, d_forward = 0.492085. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll -2.8, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: -0.03333333333333333, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.016666666666666666,
+    "horizon": 360,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        14762.539727547597, 21543.788932895666, 14762.539727547599
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 1.0563135385114029,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 45 degrees, elevation 45.9 degrees: the angle is acos(d_forward) = 1.056314 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -2.8,
+        "tolerance": 2e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form -2.8"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": -0.03333333333333333,
+        "tolerance": 8e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.033333 (ShipEntity.m:7021, 7041-7047): closed form -0.03333333333333333"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.066667 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 360,
+        "field": "headingErrorDestination",
+        "expected": 0.001181876015537625,
+        "tolerance": 0.0000011,
+        "note": "settled heading error at 6 s of simulated time (tick 360 at dt 1/60); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "rate-up-right-45-45-dt120",
+    "title": "rate grid, 45 degrees right and 45.9 degrees up, a saturated roll, at dt 1/120",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9450-9591",
+      "src/Core/Entities/ShipEntity.m:9486-9491",
+      "src/Core/Entities/ShipEntity.m:7018-7065",
+      "src/Core/Entities/ShipEntity.m:5049-5134"
+    ],
+    "derivation": "The recorded frame-rate rule's grid pose \"up-right-45-45\" (azimuth 45 degrees, elevation 45.9 degrees) run at dt 1/120; its twin at the other step size is rate-up-right-45-45-dt60. The ship rests (or flies straight at 0 m/s with desired speed 0) in FLY_TO_DESTINATION with the destination 30000 m away and desired range 100 m, so range / desired range is about 300 and stays at or above 250 for the whole 6 s (the self-test replays every tick and asserts it): max_cos sits at its 0.99999 cap (ShipEntity.m:9486-9491), whose dead band is acos(0.99999) = 0.00447 rad. Frame (identity attitude): d_right = 0.492085, d_up = 0.718126, d_forward = 0.492085. Tick 1 sticks are closed forms of trackDestination (ShipEntity.m:9525-9565): factor = min(8, int(sqrt(|d| / 0.004))), stick = max rate * 0.125 * factor, the overshoot limiter |d_right| < |stick_roll| dt clamps to |d_right| / dt (9533-9534), the 0.01 pitch fallback when both sticks are 0 (9561-9565): stickRoll -2.8, stickPitch 0.01. flightRoll and flightPitch at tick 1 are the stick clamped to the applySticks rates 2 dt and 4 dt (7021-7022, 7041-7055), so they differ between the step sizes by the rate, which is the rate-per-second rule: -0.016666666666666666, 0.01. The settled heading error at 6 s of simulated time is the reference replay in Oolite's float32 width, with a tolerance of four times its float32-versus-float64 difference plus 1e-9; the 0.01 rad cross-step tolerance of frame-rate-rule.json was committed before this file existed. The first-update sticks equal those of the twin: the limiter does not bind for this pose at either step size. Every other quantity is a closed form or a replay value of the reference; none comes from Wegolite output.",
+    "dt": 0.008333333333333333,
+    "horizon": 720,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [
+        14762.539727547597, 21543.788932895666, 14762.539727547599
+      ],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "headingErrorDestination",
+        "expected": 1.0563135385114029,
+        "tolerance": 1e-9,
+        "note": "the destination is azimuth 45 degrees, elevation 45.9 degrees: the angle is acos(d_forward) = 1.056314 rad (closed form)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": -2.8,
+        "tolerance": 2e-7,
+        "note": "stick_roll at the first update (ShipEntity.m:9525-9547): closed form -2.8"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "stick_pitch at the first update (ShipEntity.m:9549-9565): closed form 0.01"
+      },
+      {
+        "tick": 1,
+        "field": "flightRoll",
+        "expected": -0.016666666666666666,
+        "tolerance": 4.5e-9,
+        "note": "applySticks moves flightRoll by at most 2 dt = 0.016667 (ShipEntity.m:7021, 7041-7047): closed form -0.016666666666666666"
+      },
+      {
+        "tick": 1,
+        "field": "flightPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "applySticks moves flightPitch by at most 4 dt = 0.033333 (ShipEntity.m:7022, 7049-7055): closed form 0.01"
+      },
+      {
+        "tick": 720,
+        "field": "headingErrorDestination",
+        "expected": 0.002631072384860477,
+        "tolerance": 0.0000039,
+        "note": "settled heading error at 6 s of simulated time (tick 720 at dt 1/120); the reference float32 replay, compared across step sizes by the self-test within crossDtTolerance"
+      }
+    ],
+    "events": []
+  }
+]
