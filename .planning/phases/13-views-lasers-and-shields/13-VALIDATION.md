@@ -85,7 +85,7 @@ Filled by the planner per task; the requirement-to-test map is in `13-RESEARCH.m
 | 13-14-02 | 14 | 9 | all (Pitfall 14) | — | — | contract | `docker compose run --rm test npx vitest run tests/contract/fidelity.test.ts` (and with `OOLITE_SRC`) | ✅ extend | ✅ green |
 | 13-14-03 | 14 | 9 | all (criterion 5) | — | — | full gates | `docker compose run --rm test`; `docker compose run --rm assets npm run assets:check`; `docker compose run --rm verify`; `verify-full` only per the Gate decision below | ✅ | ✅ green |
 | 13-15-01 | 15 | 6 | INPUT-01 (ident) | T-13-22, T-13-30 | id cleared at world boundaries | scenario | `docker compose run --rm test npx vitest run tests/sim/combat/ident.test.ts tests/sim/combat/ tests/guards/entity-id-scope.test.ts` | ❌ W0 | ✅ green |
-| 13-15-02 | 15 | 6 | INPUT-01 (D-03, D-04 pending owner confirmation) | — | — | contract | `docker compose run --rm test npx vitest run tests/contract/fidelity.test.ts` | ✅ | ✅ green |
+| 13-15-02 | 15 | 6 | INPUT-01 (D-03, D-04 owner-confirmed 2026-11-15) | — | — | contract | `docker compose run --rm test npx vitest run tests/contract/fidelity.test.ts` | ✅ | ✅ green |
 | 13-16-01 | 16 | 2 | CBT-07 | T-13-29 | strict NPC record | gate + unit | `docker compose run --rm assets`; `docker compose run --rm test npx vitest run tests/content/ships-npc.test.ts` | ✅ extend | ✅ green |
 | 13-16-02 | 16 | 2 | CBT-07 | T-13-29 | unknown weapon fails the build | unit + gate | `docker compose run --rm test npx vitest run tools/oolite-ingest/convert/npc-ships.test.ts tests/content/ships-npc.test.ts`; `docker compose run --rm assets npm run assets:check` | ✅ extend | ✅ green |
 
@@ -115,7 +115,7 @@ Every behaviour of the phase has an automated verification (Vitest scenarios, pl
 | A laser shot's 1-pixel line is visible, with its thickness and colour (CBT-05) | A thin line along the view axis may read as a dot; headless Chromium cannot judge it | `tests/render/laser-shots.test.ts` (unit) | needs a human look |
 | The ident frame sits on the locked ship across window shapes (INPUT-01) | Placement is pinned numerically only | `tests/hud/projection.test.ts` (unit) | needs a human look |
 | The facing prompt on its own line at F3 > a laser (CBT-05, plan 13-09) | The model text is pinned; the CSS effect (`white-space: pre-line`) has no DOM or browser assertion | `tests/ui/station-outfitting.test.ts` (the model text) | human_judgment |
-| D-03 (ident message wording), D-04 (R while locked), OQ4 (stations and buoys are not hit or locked) | Owner decisions, not behaviours | the PROJECT.md Key Decisions rows | PENDING OWNER CONFIRMATION |
+| D-03 (ident message wording), D-04 (R while locked), OQ4 (stations and buoys are not hit or locked) | Owner decisions, not behaviours | the PROJECT.md Key Decisions rows | Owner-confirmed 2026-11-15; OQ4 follow-up todo filed |
 
 The opt-in browser smoke (`tests/e2e/combat.spec.ts`) reads probe values; it makes no pixel assertion.
 
@@ -143,6 +143,6 @@ The opt-in browser smoke (`tests/e2e/combat.spec.ts`) reads probe values; it mak
 
 **Vitest share (ROADMAP criterion 5).** `expect(` calls added since commit `6652ae7`: 1,407 in Vitest files (`git diff 6652ae7 -- tests tools src ':!tests/e2e'`) and 10 in browser specs (`git diff 6652ae7 -- tests/e2e`), so the Vitest share is 1,407 / 1,417 = 0.993, above the required 0.90. The browser assertions are 8 in the opt-in `combat.spec.ts` and 2 in changed existing specs.
 
-**Items open for the owner:** `verify-full` (run it, or accept the `verify` evidence for this phase), D-03, D-04 and OQ4 (all PENDING OWNER CONFIRMATION), and a human look at the four views, the laser shots and the ident frame.
+**Items open for the owner:** `verify-full` (run it, or accept the `verify` evidence for this phase), and a human look at the four views, the laser shots and the ident frame. D-03, D-04 and OQ4 were confirmed by the owner on 2026-11-15; OQ4 has a follow-up todo.
 
 **Approval:** pending the owner items above. The automated evidence is complete.

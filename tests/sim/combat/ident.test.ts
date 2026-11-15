@@ -285,7 +285,7 @@ describe("what the sights pick", () => {
 });
 
 describe("R while a lock exists", () => {
-  it("D-04 (PENDING OWNER CONFIRMATION): clears the lock and re-acquires the ship in the sights", () => {
+  it("D-04 (owner-confirmed): clears the lock and re-acquires the ship in the sights", () => {
     const player = flyingPlayer();
     const combat = createPlayerCombatState();
     const world = createWorld(7);
@@ -304,7 +304,7 @@ describe("R while a lock exists", () => {
     expect(combat.identTarget).toBe(id);
   });
 
-  it("D-04 (PENDING OWNER CONFIRMATION): leaves no lock when nothing is in the sights any more", () => {
+  it("D-04 (owner-confirmed): leaves no lock when nothing is in the sights any more", () => {
     const player = flyingPlayer();
     const combat = createPlayerCombatState();
     const world = createWorld(7);

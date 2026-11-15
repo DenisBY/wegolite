@@ -157,7 +157,7 @@ export function stepIdent(
   if (player.mode !== "inFlight" || !inFlightAtStart) return;
   for (const command of commands) {
     if (command.kind === "ident") {
-      // D-04: advisor-recommended deviation, PENDING OWNER CONFIRMATION.
+      // D-04: advisor-recommended deviation, owner-confirmed 2026-11-15.
       // R while a lock exists clears it and re-acquires what is in the sights,
       // as Oolite's `handleButtonIdent` ("Clear current target if we're already
       // in Ident mode"). D-04 read literally ("pressing R again clears the

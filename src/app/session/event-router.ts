@@ -253,8 +253,8 @@ export function createStationFlow(
  * token (`descriptions.plist:527`). The one place the wording lives, so the
  * decision below is a one-line change.
  *
- * D-03: advisor-recommended deviation (name only, as Oolite), PENDING OWNER
- * CONFIRMATION; D-03 literally is "Ident system locked onto [name] ([class])."
+ * D-03: owner-confirmed 2026-11-15 as Oolite (name only); the literal form is
+ * "Ident system locked onto [name] ([class])." and was declined
  * (Key Decisions, plan 13-15). `formatIdentLocked` already renders `[class]`.
  */
 export const IDENT_LOCKED_TEMPLATE = "Ident system locked onto [name].";
