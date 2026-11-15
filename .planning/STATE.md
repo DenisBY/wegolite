@@ -6,10 +6,10 @@ current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
 stopped_at: Phase 13 complete, ready to plan Phase 14
-last_updated: "2026-11-15T13:55:18.321Z"
+last_updated: "2026-11-15T15:36:24.751Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 13 complete, transitioned to Phase 14
-state_head: 7b15bb30e5b4626d5600cedb5f0fc6a5b6a15a0f
+state_head: f280e76752ed19aaf01cebb32d122b60a7c0bd50
 progress:
   total_phases: 2
   completed_phases: 1
