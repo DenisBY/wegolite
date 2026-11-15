@@ -127,6 +127,11 @@ const PORTED: readonly { file: string; from: number; to: number }[] = [
   { file: "src/Core/Entities/ShipEntity.m", from: 4038, to: 4185 }, // behaviour_attack_target
   { file: "src/Core/Entities/ShipEntity.m", from: 4611, to: 4731 }, // behaviour_attack_fly_to_target
   { file: "src/Core/Entities/ShipEntity.m", from: 4733, to: 4799 }, // behaviour_attack_fly_from_target
+  { file: "src/Core/Entities/ShipEntity.m", from: 4461, to: 4580 }, // behaviour_fly_to_target_six (twelve)
+  { file: "src/Core/Entities/ShipEntity.m", from: 4397, to: 4459 }, // behaviour_attack_sniper
+  { file: "src/Core/Entities/ShipEntity.m", from: 3886, to: 3942 }, // behaviour_attack_break_off_target
+  { file: "src/Core/Entities/ShipEntity.m", from: 3944, to: 3994 }, // behaviour_attack_slow_dogfight
+  { file: "src/Core/Entities/ShipEntity.m", from: 8849, to: 8868 }, // distance_six, distance_twelve
   { file: "src/Core/Entities/ShipEntityAI.m", from: 350, to: 357 }, // performAttack
 ];
 
@@ -139,7 +144,6 @@ const PORTED: readonly { file: string; from: number; to: number }[] = [
  * both here and in the manifest).
  */
 const PENDING_FIXTURE_FILES: ReadonlySet<string> = new Set([
-  "tests/oracles/npc/pursuit/fixtures/attack-evade.json",
   "tests/oracles/npc/fixtures/avoid-collision.json",
   "tests/oracles/npc/fixtures/escort.json",
 ]);

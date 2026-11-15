@@ -16,6 +16,7 @@ import { vec } from "../../../src/sim/math.js";
 import {
   behaviourAttackFlyFromTarget,
   behaviourAttackFlyToTarget,
+  behaviourFlyToTargetSix,
 } from "../../../src/sim/npc/behaviours/attack-close.js";
 import {
   DT,
@@ -412,5 +413,196 @@ describe("behaviour_attack_fly_from_target (ShipEntity.m:4733-4799)", () => {
       values: [0.5, 0.5],
     });
     expect(eight.entity.nav.behaviour).toBe("ATTACK_FLY_FROM_TARGET");
+  });
+});
+
+describe("behaviour_fly_to_target_six and twelve (ShipEntity.m:4461-4580)", () => {
+  function six(
+    behaviour: "ATTACK_FLY_TO_TARGET_SIX" | "ATTACK_FLY_TO_TARGET_TWELVE",
+    range: number,
+    options: {
+      destination?: ReturnType<typeof vec>;
+      targetSpeed?: number;
+      successFactor?: number;
+      frustration?: number;
+      aspect?: number;
+      earlierSpawns?: number;
+      alert?: number;
+      bodies?: ReturnType<typeof other>[];
+    } = {},
+  ) {
+    const entity = ship(2, options.earlierSpawns ?? 0);
+    entity.nav.behaviour = behaviour;
+    entity.nav.destination = options.destination ?? vec(0, 0, -(range + 60));
+    entity.steer.successFactor = options.successFactor ?? 0;
+    entity.steer.frustration = options.frustration ?? 0;
+    entity.steer.proximityAlert = options.alert ?? 0;
+    const h = harness(
+      entity,
+      [
+        target(range, {
+          speed: options.targetSpeed ?? 0,
+          orientation: facingAspect(options.aspect ?? -1),
+        }),
+        ...(options.bodies ?? []),
+      ],
+      PULSE,
+    );
+    behaviourFlyToTargetSix(entity, h.ctx);
+    return { entity, ...h };
+  }
+
+  it("beyond 1.2 x the weapon range six heads for a point 0.5 x the weapon range behind the target and flies at the maximum (4513-4518, 4533)", () => {
+    const { entity } = six("ATTACK_FLY_TO_TARGET_SIX", 20000);
+    expect(entity.nav.behaviour).toBe("ATTACK_FLY_TO_TARGET_SIX");
+    expect(entity.nav.desiredSpeed).toBe(160);
+    // the target at z = -20060 faces -Z: its six is 6,250 m toward +Z
+    expect(entity.nav.destination.x).toBeCloseTo(0, 9);
+    expect(entity.nav.destination.z).toBeCloseTo(-20060 + 6250, 6);
+    // success_factor is the distance to the old destination
+    expect(entity.steer.successFactor).toBe(Math.fround(20060));
+  });
+
+  it("twelve heads for a point 1,250 m above the target (4552)", () => {
+    const { entity } = six("ATTACK_FLY_TO_TARGET_TWELVE", 20000);
+    expect(entity.nav.destination.y).toBeCloseTo(1250, 6);
+    expect(entity.nav.destination.z).toBeCloseTo(-20060, 6);
+  });
+
+  it("six inside the slow-down range: 1.2 x target speed beyond 6,250 m, 0.9 x inside it (4503-4508)", () => {
+    expect(
+      six("ATTACK_FLY_TO_TARGET_SIX", 10000, { targetSpeed: 200 }).entity.nav
+        .desiredSpeed,
+    ).toBe(240);
+    expect(
+      six("ATTACK_FLY_TO_TARGET_SIX", 5000, {
+        targetSpeed: 200,
+        destination: vec(0, 0, -5060),
+      }).entity.nav.desiredSpeed,
+    ).toBe(180);
+  });
+
+  it("twelve outside the slow-down logic: 0.9 x target speed at least 0.8 x maximum inside 6,250 m, else the maximum (4514-4518)", () => {
+    expect(
+      six("ATTACK_FLY_TO_TARGET_TWELVE", 5000, {
+        targetSpeed: 200,
+        destination: vec(0, 0, -5060),
+      }).entity.nav.desiredSpeed,
+    ).toBe(180);
+    expect(
+      six("ATTACK_FLY_TO_TARGET_TWELVE", 5000, {
+        targetSpeed: 100,
+        destination: vec(0, 0, -5060),
+      }).entity.nav.desiredSpeed,
+    ).toBe(128);
+    expect(
+      six("ATTACK_FLY_TO_TARGET_TWELVE", 10000).entity.nav.desiredSpeed,
+    ).toBe(160);
+  });
+
+  it("six becomes twelve when the range is under half the distance to its destination (4511-4512)", () => {
+    const { entity } = six("ATTACK_FLY_TO_TARGET_SIX", 5000, {
+      destination: vec(0, 0, -25000),
+    });
+    expect(entity.nav.behaviour).toBe("ATTACK_FLY_TO_TARGET_TWELVE");
+    // and twelve's destination was set in the same call (4536-4553)
+    expect(entity.nav.destination.y).toBeCloseTo(1250, 6);
+  });
+
+  it("within 750 m of its destination it vectors in: ATTACK_FLY_TO_TARGET, frustration 0, max(target speed, 0.4 x maximum) (4523-4527)", () => {
+    const { entity } = six("ATTACK_FLY_TO_TARGET_SIX", 10000, {
+      destination: vec(0, 0, -500),
+      frustration: 2,
+      targetSpeed: 100,
+    });
+    expect(entity.nav.behaviour).toBe("ATTACK_FLY_TO_TARGET");
+    expect(entity.steer.frustration).toBeLessThan(0.1); // zeroed, then dt added or not
+    expect(entity.nav.desiredSpeed).toBe(100);
+  });
+
+  it("a target at a standstill vectors in only for a ship whose id & 14 is above 4: id 101 (4) does not, id 102 (6) does (4523)", () => {
+    const stays = six("ATTACK_FLY_TO_TARGET_SIX", 20000, {
+      targetSpeed: 0.1,
+    });
+    expect(stays.entity.id & 14).toBe(4);
+    expect(stays.entity.nav.behaviour).toBe("ATTACK_FLY_TO_TARGET_SIX");
+    const goes = six("ATTACK_FLY_TO_TARGET_SIX", 20000, {
+      targetSpeed: 0.1,
+      earlierSpawns: 1,
+    });
+    expect(goes.entity.id & 14).toBe(6);
+    expect(goes.entity.nav.behaviour).toBe("ATTACK_FLY_TO_TARGET");
+    // a moving target does not trigger it even for id 102
+    const moving = six("ATTACK_FLY_TO_TARGET_SIX", 20000, {
+      targetSpeed: 5,
+      earlierSpawns: 1,
+    });
+    expect(moving.entity.nav.behaviour).toBe("ATTACK_FLY_TO_TARGET_SIX");
+  });
+
+  it("more frustration or a closing success factor adds dt; otherwise a positive frustration relaxes by 0.75 dt (4559-4562)", () => {
+    // distance 20060 > last success 0: adds dt
+    expect(
+      six("ATTACK_FLY_TO_TARGET_SIX", 20000).entity.steer.frustration,
+    ).toBeCloseTo(DT, 6);
+    // the success factor shrinks (last 30000 > 20060) and the confidence is 1
+    // (target dead ahead): relaxes from 1
+    const relaxed = six("ATTACK_FLY_TO_TARGET_SIX", 20000, {
+      successFactor: 30000,
+      frustration: 1,
+    });
+    expect(relaxed.entity.steer.frustration).toBeCloseTo(1 - 0.75 * DT, 6);
+    // a frustration under 0.75 dt would go negative: it is floored at 0 (the
+    // Wegolite domain; Oolite leaves it negative)
+    expect(
+      six("ATTACK_FLY_TO_TARGET_SIX", 20000, {
+        successFactor: 30000,
+        frustration: Math.fround(0.004),
+      }).entity.steer.frustration,
+    ).toBe(0);
+    // a zero frustration stays zero
+    expect(
+      six("ATTACK_FLY_TO_TARGET_SIX", 20000, { successFactor: 30000 }).entity
+        .steer.frustration,
+    ).toBe(0);
+  });
+
+  it("frustration above 10 or an aspect above 0.75 hands over to ATTACK_FLY_TO_TARGET (4565-4567)", () => {
+    expect(
+      six("ATTACK_FLY_TO_TARGET_SIX", 20000, {
+        frustration: 11,
+        successFactor: 30000,
+      }).entity.nav.behaviour,
+    ).toBe("ATTACK_FLY_TO_TARGET");
+    expect(
+      six("ATTACK_FLY_TO_TARGET_TWELVE", 20000, { aspect: 0.9 }).entity.nav
+        .behaviour,
+    ).toBe("ATTACK_FLY_TO_TARGET");
+  });
+
+  it("an alert on the target runs fly-from at once, as ATTACK_FLY_TO_TARGET (4471-4473)", () => {
+    const { entity } = six("ATTACK_FLY_TO_TARGET_SIX", 1000, {
+      alert: TARGET_ID,
+    });
+    expect(entity.nav.behaviour).toBe("ATTACK_FLY_TO_TARGET");
+    // fly-from stored the range as the success factor
+    expect(entity.steer.successFactor).toBe(1000);
+  });
+
+  it("an alert on another body avoids it (4475)", () => {
+    const { entity } = six("ATTACK_FLY_TO_TARGET_SIX", 1000, {
+      alert: 300,
+      bodies: [other(300, vec(500, 0, 0))],
+    });
+    expect(entity.nav.behaviour).toBe("AVOID_COLLISION");
+  });
+
+  it("a lost target goes idle (4479-4482)", () => {
+    const entity = ship(2);
+    entity.nav.behaviour = "ATTACK_FLY_TO_TARGET_SIX";
+    const h = harness(entity, [], PULSE);
+    behaviourFlyToTargetSix(entity, h.ctx);
+    expect(entity.nav.behaviour).toBe("IDLE");
+    expect(h.events).toEqual([{ name: "shipTargetLost" }]);
   });
 });

@@ -54,7 +54,13 @@ import { behaviourAttackTarget } from "./behaviours/attack.js";
 import {
   behaviourAttackFlyFromTarget,
   behaviourAttackFlyToTarget,
+  behaviourFlyToTargetSix,
 } from "./behaviours/attack-close.js";
+import {
+  behaviourAttackBreakOffTarget,
+  behaviourAttackSlowDogfight,
+  behaviourAttackSniper,
+} from "./behaviours/attack-evade.js";
 import { behaviourEvasiveAction } from "./behaviours/evasive.js";
 import { behaviourFaceDestination } from "./behaviours/face-destination.js";
 import { behaviourFleeTarget } from "./behaviours/flee.js";
@@ -151,6 +157,19 @@ export function steerShip(entity: Entity, ctx: SteerContext): void {
       break;
     case "ATTACK_FLY_FROM_TARGET":
       behaviourAttackFlyFromTarget(entity, ctx);
+      break;
+    case "ATTACK_FLY_TO_TARGET_SIX":
+    case "ATTACK_FLY_TO_TARGET_TWELVE": // both run behaviour_fly_to_target_six (2536-2539)
+      behaviourFlyToTargetSix(entity, ctx);
+      break;
+    case "ATTACK_SNIPER":
+      behaviourAttackSniper(entity, ctx);
+      break;
+    case "ATTACK_BREAK_OFF_TARGET":
+      behaviourAttackBreakOffTarget(entity, ctx);
+      break;
+    case "ATTACK_SLOW_DOGFIGHT":
+      behaviourAttackSlowDogfight(entity, ctx);
       break;
     default:
       // The recorded fallback for every id not ported yet or out of scope.

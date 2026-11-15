@@ -28,13 +28,6 @@ import { emptyHooks, fixturesIn, runFixture } from "./oracle-runner.js";
 const THIS_FILE = "tests/sim/npc/attack.oracle.test.ts";
 const FILES = fixtureFilesFor(THIS_FILE);
 
-/**
- * Plan 14-14, Task 1 only: the fixtures of the sub-behaviours that Task 2 ports
- * (six, twelve; every attack-evade fixture) are not run yet. Task 2 removes this
- * set, and the manifest test below then asserts the whole entry again.
- */
-const DEFERRED = /^attack-(six|twelve)-/;
-
 const ran: string[] = [];
 let updatesChecked = 0;
 
@@ -57,7 +50,6 @@ function guardedHooks() {
 for (const file of FILES) {
   describe(file, () => {
     for (const fixture of fixturesIn(file)) {
-      if (DEFERRED.test(fixture.id)) continue;
       it(fixture.id, () => {
         ran.push(fixture.id);
         const result = runFixture(fixture, guardedHooks());
@@ -72,9 +64,7 @@ describe("the manifest entry", () => {
   it("runs exactly the fixtures of its files", () => {
     const expected: string[] = [];
     for (const file of FILES) {
-      for (const fixture of fixturesIn(file)) {
-        if (!DEFERRED.test(fixture.id)) expected.push(fixture.id);
-      }
+      for (const fixture of fixturesIn(file)) expected.push(fixture.id);
     }
     expect(expected.length).toBeGreaterThan(0);
     expect([...ran].sort()).toEqual(expected.sort());
@@ -83,9 +73,7 @@ describe("the manifest entry", () => {
   it("the no-fire guard saw every update of the fixtures it ran (T-14-24)", () => {
     let horizon = 0;
     for (const file of FILES) {
-      for (const fixture of fixturesIn(file)) {
-        if (!DEFERRED.test(fixture.id)) horizon += fixture.horizon;
-      }
+      for (const fixture of fixturesIn(file)) horizon += fixture.horizon;
     }
     expect(updatesChecked).toBe(horizon);
   });

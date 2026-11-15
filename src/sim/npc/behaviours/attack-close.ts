@@ -29,10 +29,10 @@
  * `Math.fround`.
  */
 
-import { vec } from "../../math.js";
-
+import { rotate, vec } from "../../math.js";
+import type { Vec3 } from "../../math.js";
 import type { Entity } from "../../world/entity.js";
-
+import type { BodyView } from "../../world/view.js";
 import {
   avoidCollision,
   hasProximityAlertIgnoringTarget,
@@ -64,6 +64,19 @@ import {
   FLY_TO_TARGET_SLOW_ASPECT,
   FLY_TO_TARGET_SPEEDS,
   SCANNER_MAX_RANGE,
+  SIX_BEHIND_SHARE,
+  SIX_CONFIDENCE_LIMIT,
+  SIX_FRUSTRATION_LIMIT,
+  SIX_FRUSTRATION_RELIEF,
+  SIX_HEAD_ON_SHARE,
+  SIX_SPEEDS,
+  SIX_STANDSTILL_ID_BOUND,
+  SIX_STANDSTILL_ID_MASK,
+  SIX_STANDSTILL_SPEED,
+  SIX_VECTOR_IN_ASPECT,
+  SIX_VECTOR_IN_DISTANCE,
+  SIX_VECTOR_IN_MAX_SHARE,
+  TWELVE_ABOVE,
 } from "../constants.js";
 import type { SteerContext } from "../dispatch.js";
 import {
@@ -75,10 +88,15 @@ import {
 } from "../target.js";
 import {
   noteFrustration,
+  rangeToDestination,
   setEvasiveJink,
+  trackDestination,
   trackPrimaryTarget,
 } from "../track.js";
 import { aimToleranceOf, targetTargetsSelf, weaponRangeOf } from "./attack.js";
+
+const LOCAL_UP: Vec3 = vec(0, 1, 0);
+const LOCAL_FORWARD: Vec3 = vec(0, 0, -1);
 
 /**
  * `behaviour_attack_fly_to_target:` (`ShipEntity.m:4611-4731`): close on the
@@ -294,4 +312,152 @@ export function behaviourAttackFlyFromTarget(
       nav.behaviour = "EVASIVE_ACTION";
     }
   }
+}
+
+/** `[target distance_six:dist]` (`ShipEntity.m:8849-8856`). */
+function distanceSix(target: BodyView, dist: number): Vec3 {
+  const forward = rotate(target.orientation, LOCAL_FORWARD);
+  return vec(
+    target.position.x - dist * forward.x,
+    target.position.y - dist * forward.y,
+    target.position.z - dist * forward.z,
+  );
+}
+
+/** `[target distance_twelve:dist withOffset:0]` (`ShipEntity.m:8858-8869`). */
+function distanceTwelve(target: BodyView, dist: number): Vec3 {
+  const up = rotate(target.orientation, LOCAL_UP);
+  return vec(
+    target.position.x + dist * up.x,
+    target.position.y + dist * up.y,
+    target.position.z + dist * up.z,
+  );
+}
+
+/**
+ * `behaviour_fly_to_target_six:` (`ShipEntity.m:4461-4580`), the routine of both
+ * ATTACK_FLY_TO_TARGET_SIX and ATTACK_FLY_TO_TARGET_TWELVE (the non-turret
+ * branch): head for a point behind (six) or above (twelve) the target.
+ */
+export function behaviourFlyToTargetSix(
+  entity: Entity,
+  ctx: SteerContext,
+): void {
+  const steer = entity.steer;
+  const nav = entity.nav;
+  const stats = ctx.stats;
+  const maxSpeed = stats.maxFlightSpeed;
+  const weaponRange = weaponRangeOf(stats);
+  const range = rangeToPrimaryTarget(entity, ctx);
+
+  // deal with collisions and lost targets (4469-4482)
+  const alert = proximityAlertBody(entity, ctx);
+  if (alert !== undefined) {
+    if (alert.id === targetBody(entity, ctx.view)?.id) {
+      nav.behaviour = "ATTACK_FLY_TO_TARGET"; // this behaviour will handle proximity_alert.
+      behaviourAttackFlyFromTarget(entity, ctx); // do it now.
+    } else {
+      avoidCollision(entity, ctx);
+    }
+    return;
+  }
+  if (!canStillTrackPrimaryTarget(entity, ctx)) {
+    noteLostTargetAndGoIdle(entity, ctx);
+    return;
+  }
+
+  // control speed (4484-4491; no afterburner)
+  const slowDownRange = weaponRange * COMBAT_WEAPON_RANGE_FACTOR;
+  const backOffRange = weaponRange * COMBAT_OUT_RANGE_FACTOR;
+  const target = targetBody(entity, ctx.view);
+  if (target === undefined) {
+    // 4492-4496 (canStillTrackPrimaryTarget held, so this is not reached)
+    noteLostTargetAndGoIdle(entity, ctx);
+    return;
+  }
+  const targetSpeed = target.speed;
+  const lastSuccessFactor = steer.successFactor;
+  const distance = rangeToDestination(entity);
+  steer.successFactor = Math.fround(distance);
+
+  if (range < slowDownRange && nav.behaviour === "ATTACK_FLY_TO_TARGET_SIX") {
+    if (range < backOffRange) {
+      nav.desiredSpeed = Math.max(
+        SIX_SPEEDS.closeTarget * targetSpeed,
+        SIX_SPEEDS.closeMax * maxSpeed,
+      );
+    } else {
+      nav.desiredSpeed = Math.max(
+        SIX_SPEEDS.slowTarget * targetSpeed,
+        maxSpeed,
+      );
+    }
+
+    // avoid head-on collision
+    if (range < SIX_HEAD_ON_SHARE * distance) {
+      nav.behaviour = "ATTACK_FLY_TO_TARGET_TWELVE";
+    }
+  } else if (range < backOffRange) {
+    nav.desiredSpeed = Math.max(
+      SIX_SPEEDS.closeTarget * targetSpeed,
+      SIX_SPEEDS.nearMax * maxSpeed,
+    );
+  } else {
+    nav.desiredSpeed = maxSpeed; // use afterburner to approach
+  }
+
+  // if within 0.75km of the target's six or twelve, or if target almost at
+  // standstill for 62.5% of non-thargoid ships (!), then vector in attack
+  if (
+    distance < SIX_VECTOR_IN_DISTANCE ||
+    (targetSpeed < SIX_STANDSTILL_SPEED &&
+      (entity.id & SIX_STANDSTILL_ID_MASK) > SIX_STANDSTILL_ID_BOUND)
+  ) {
+    nav.behaviour = "ATTACK_FLY_TO_TARGET";
+    steer.frustration = Math.fround(0);
+    nav.desiredSpeed = Math.max(
+      targetSpeed,
+      SIX_VECTOR_IN_MAX_SHARE * maxSpeed,
+    );
+  }
+
+  // target-six: head for a point weapon-range * 0.5 to the six of the target
+  if (nav.behaviour === "ATTACK_FLY_TO_TARGET_SIX") {
+    nav.destination = distanceSix(target, SIX_BEHIND_SHARE * weaponRange);
+  }
+  // target-twelve: head for a point 1.25km above the target (the turret
+  // branch is out)
+  if (nav.behaviour === "ATTACK_FLY_TO_TARGET_TWELVE") {
+    nav.destination = distanceTwelve(target, TWELVE_ABOVE);
+  }
+
+  steer.pitchingOver = false; // in case it's set from elsewhere
+  const confidenceFactor = trackDestination(entity, ctx, false);
+
+  if (
+    steer.successFactor > lastSuccessFactor ||
+    confidenceFactor < SIX_CONFIDENCE_LIMIT
+  ) {
+    steer.frustration = Math.fround(steer.frustration + ctx.dt);
+  } else if (steer.frustration > 0) {
+    steer.frustration = Math.fround(
+      steer.frustration - ctx.dt * SIX_FRUSTRATION_RELIEF,
+    );
+    // Wegolite addition (T-14-16), not an Oolite line: the relief of 0.75 dt
+    // leaves a counter in (0, 0.75 dt) negative, and Oolite lets it stay so. The
+    // steering record keeps frustration in [0, MAX_FRUSTRATION] (the sanitiser
+    // repairs anything else), so the counter is floored at 0 (the counter is
+    // then a hair above Oolite's for the next few updates).
+    if (steer.frustration < 0) steer.frustration = 0;
+  }
+
+  const aspect = approachAspectToPrimaryTarget(entity, ctx);
+  if (
+    steer.frustration > SIX_FRUSTRATION_LIMIT ||
+    aspect > SIX_VECTOR_IN_ASPECT
+  ) {
+    nav.behaviour = "ATTACK_FLY_TO_TARGET";
+  }
+  // 4569-4579: missiles, cloak, fireMainWeapon and the hot-weapon return are
+  // the scope cuts above.
 }
