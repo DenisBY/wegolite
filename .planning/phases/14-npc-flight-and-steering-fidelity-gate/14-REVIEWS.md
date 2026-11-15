@@ -1,8 +1,9 @@
 ---
 phase: 14
+round: 2
 reviewers: [claude-opus-A, claude-opus-B, claude-opus-C]
 reviewed_at: 2026-11-15
-plans_reviewed: [14-01-PLAN.md, 14-02-PLAN.md, 14-03-PLAN.md, 14-04-PLAN.md, 14-05-PLAN.md, 14-06-PLAN.md, 14-07-PLAN.md, 14-08-PLAN.md, 14-09-PLAN.md, 14-10-PLAN.md, 14-11-PLAN.md, 14-12-PLAN.md, 14-13-PLAN.md, 14-14-PLAN.md, 14-15-PLAN.md, 14-16-PLAN.md, 14-17-PLAN.md, 14-18-PLAN.md]
+plans_reviewed: [14-01-PLAN.md, 14-02-PLAN.md, 14-03-PLAN.md, 14-04-PLAN.md, 14-05-PLAN.md, 14-06-PLAN.md, 14-07-PLAN.md, 14-08-PLAN.md, 14-09-PLAN.md, 14-10-PLAN.md, 14-11-PLAN.md, 14-12-PLAN.md, 14-13-PLAN.md, 14-14-PLAN.md, 14-15-PLAN.md, 14-16-PLAN.md, 14-17-PLAN.md, 14-18-PLAN.md, 14-19-PLAN.md]
 models:
   claude-opus-A: "claude-opus (subagent, read-only)"
   claude-opus-B: "claude-opus (subagent, read-only)"
@@ -11,147 +12,166 @@ model_sources:
   claude-opus-A: "agent model override"
   claude-opus-B: "agent model override"
   claude-opus-C: "agent model override"
+supersedes: "round 1 (REVIEWS.md at 7b15bb3); all round 1 findings were ruled on in the plan ledgers"
 ---
 
-# Cross-AI Plan Review — Phase 14
+# Cross-AI Plan Review — Phase 14, round 2
 
-Three independent Claude (opus) reviewers, each read-only, split by plan group: A = 14-01..06, B = 14-07..14, C = 14-15..18 plus a whole-phase assessment. No external CLI was used (owner request: use Claude models). Reviewers verified plan claims against the repo at HEAD `62d7419` and the Oolite checkout (pinned `7437f22`). All cited Oolite line ranges that were spot-checked (about 45 by A, more by B and C) were accurate; the findings concern plan design, ordering and a few departures from Oolite. The reviewer reports were condensed into this file; only findings are kept.
+Three independent Claude (opus) reviewers, each read-only, split by plan group: A = 14-01..07, B = 14-08..15, C = 14-16..19 plus a whole-phase assessment. No external CLI was used (owner request: use Claude models). Reviewers verified the revised plans (19 plans, 14 waves, HEAD `bc56f55`) against the repo and the Oolite checkout. The checkout HEAD is `4bb1f53de`, not the pinned `7437f22`; `git diff 7437f22 HEAD` is empty for `ShipEntity.m`, `ShipEntityAI.m`, `ShipEntity.h` and `CollisionRegion.m`, so cited line numbers hold (about 100 citations spot-checked across the three reviewers, all accurate within +-3 lines except one wrong path in 14-01). Round 1 history is in git (`7b15bb3`); only findings are kept here.
 
-## Reviewer A — plans 14-01 to 14-06
+## Reviewer A — plans 14-01 to 14-07
 
-### 14-01 (oracle I) — risk MEDIUM
-- MEDIUM: the oracle import guard only checks import specifiers that resolve into `src/`. It misses indirect imports through `tests/helpers/*` (which import `src/`, e.g. `traffic-fixture.ts:2`), imports into `tools/`, and `readFileSync(new URL("../../../src/..."))`. Fix: allow only bare package names (zod, vitest, `node:`) and relative specifiers that stay inside `tests/oracles`; refuse `src/` path literals in file reads.
-- MEDIUM: no fixture covers the `applySticks` accuracy branch at ShipEntity.m:7034-7041 (rate doubles when the stick is 0 and accuracy >= 7.5). Add a flight-model row at accuracy 8 or 9, stick 0.
-- MEDIUM: the frame-rate rule claim (1/60 and 1/120 settle to the same heading at 2 s) has no tolerance stated before measurement; state the cross-dt tolerance in `frame-rate-rule.json` first.
-- LOW: repeated events (intercept 3824, fly-to 5057, fly-range 5142 post `shipAchievedDesiredRange` every tick inside range) must be listed or the horizon kept short; the face "0.5 x old_pitch" branch (4958-4959) is sign-flip damping, not a frame-rate hack; "nine families that do not need a primary target" is misleading (escort and avoid involve other bodies).
-- Note: oracle and port both read the same source, so a shared misreading is not caught; independence is of code, not interpretation.
+### 14-01 (oracle I, part 1) — risk MEDIUM
+- MEDIUM: float32 versus float64 accumulator divergence. `frustration` is GLfloat (`ShipEntity.h:337`). Accumulating 1/120 in float32 versus float64 moves some event ticks by one: 0.5 s -> tick 61 vs 60 (evasive follow-on, `ShipEntity.m:4023`), 10.0 -> 1201/1200, 7.5 -> 901/900, 12.5 -> 1501/1500, 9.375 -> 1126/1125 (face destination `15/max_flight_pitch`, `ShipEntity.m:4946`, for pitch 2.0, 1.2, 1.6). Checks have a tolerance, `events` do not; contract item 6 ("move the pose away from the threshold") cannot work for a time accumulator. Fix: port stores frustration as `Math.fround`, or the contract defines how accumulator-threshold events are checked (`14-01-PLAN.md:106,110`).
+- MEDIUM: the tracking-curve sample tick is ill-defined. The gate is `trackingCurveTimes[0] + reactionTime/3.0 > now` (`ShipEntity.m:5448`) and `universal_time += delta_t` (`Universe.m:6456`) is a double sum: 60 steps of 1/120 from 0 give 0.5000000000000007 (sample at tick 60), from a base of 1000.0 they give 0.49999999999954525 (tick 61). The contract does not say which "now" a tick-k `aimPoint` check uses; 14-02 checks ticks 59/60/61, straddling the edge (`14-01-PLAN.md:108`, `14-02-PLAN.md:112`).
+- LOW: contract `stats` has no `scannerRange`; the steering reads it at `ShipEntity.m:8706`, `:4775`, `:5038`. State the default 25600.
+- LOW: proximity order "ascending id, last writer wins" is not Oolite's collision-chain order (`CollisionRegion.m:286-312`); record as a divergence.
+- LOW: wrong read_first path `src/Core/OOMaths/OOQuaternion.m`; the file is `src/Core/OOQuaternion.m` (`14-01-PLAN.md:122`).
 
-### 14-02 (oracle II) — risk MEDIUM
-- MEDIUM: reachability claim is wrong. `performFlee` (ShipEntityAI.m:383-389) picks EVASIVE_ACTION (15 %) or FLEE_EVASIVE_ACTION whenever `accuracy > 0` and aspect > 0.9995. Stock accuracy is drawn in [-5, 5) (ShipEntity.m:665-669), so about half of stock ships qualify. RESEARCH.md:315 and the plan's IN/OUT rationale must be corrected; add a flee row at accuracy 2 with aspect > 0.9995. Under the temperature-0 cut the dispatcher's own EVASIVE branch (4103) is unreachable; EVASIVE comes from 4727/4796 or `performFlee`.
-- MEDIUM: the "nearby" dispatcher row (4144-4150) consumes two `ranrot_rand()` draws in `setEvasiveJink` (8982-8986); the plan does not script them and the contract fails on a draw-count mismatch.
-- MEDIUM: simulated trajectory checks (intercept, flee, attack) have no executable reference; hand-computed values are checked only when the port fails in 14-10..12. Limit to closed forms / one-tick / axis-aligned values, or replay through an extended reference.
-- LOW: SIX also requires aspect < 0 (4158); row poses must set target forward accordingly.
+### 14-02 (oracle II: pursuit and attack) — risk MEDIUM
+- MEDIUM: losing the target in intercept posts two events, not one: `rangeToPrimaryTarget` returns 0 with the target gone (`ShipEntity.m:9727`), so `shipAchievedDesiredRange` is posted (`:3822-3825`) before `trackPrimaryTarget` -> `noteLostTargetAndGoIdle` -> `shipTargetLost` (`:9038-9041`, `:8792`). The plan lists only `shipTargetLost` (`14-02-PLAN.md:112`).
+- MEDIUM: the 0.5 s evasive follow-on falls on tick 61 (float32) or 60 (float64); `derive.ts` must pick one and a port of the other width fails a correct oracle (`14-02-PLAN.md:161`, `ShipEntity.m:4021-4028`).
+- LOW: `aimPointX` checks at ticks 59/60/61 sit on the sampling edge (`14-02-PLAN.md:121`).
+- Verified correct: Shuttle weapon range 0 and the fly-from bounce, performFlee draw order, nearby gated by `!pitching_over`, SIX aspect < 0 at 4164.
 
 ### 14-03 (content flight fields) — risk LOW
-- Values for all nine ships match the templates; defaults 160/2.0/1.0/15.0 match ShipEntity.m:263-270.
-- MEDIUM: "update the content golden through its existing writer path" — there is no writer; `tools/oolite-ingest/convert/npc-ships.test.ts:7-8` says the golden is hand-written. Say "hand-edit from the plist values" so independence is kept.
-- LOW: NpcShip literals elsewhere (`tests/helpers/inert-world.ts`, `tests/app/session/*.test.ts`) may need the new fields and are not in `files_modified`.
+- No defects; values, defaults, hand-written golden and the NpcShip/BodyView literal sites check out.
 
-### 14-04 (AI-11 spike) — risk MEDIUM (acceptable for a spike)
-- MEDIUM: one shared vm context lets the scripts clobber each other (`this.name`, `this.aiStarted`, bare global `PriorityAIController`, `worldScripts["oolite-libPriorityAI"]`). Use one context per script with the library registered as `worldScripts["oolite-libPriorityAI"]`; a role AI is a ship script (`ship.AIScript`), not a world script.
-- LOW: the vm `timeout` covers only `runInContext`, not later AI calls; invoke through `runInContext` or record the gap. LOW: library `startUp` (6675) likely needs descriptions/plist data; expect the stub inventory to grow.
+### 14-04 (AI-11 spike) — risk LOW-MEDIUM
+- MEDIUM: the reconsider model is wrong. The priority AI does not reconsider through `Timer`: `_resetReconsideration` writes `ship.AIScriptWakeTime` (`oolite-priorityai.js:230-239`, random delay `:578`) and the engine later calls the AIScript's `aiAwoken` (`:259`). The stub host must compare the clock with `AIScriptWakeTime` and call `aiAwoken` through `callInContext` (`14-04-PLAN.md:114,138`).
+- LOW: the isolation guard walks `vite.config.ts` and `vite.e2e.config.ts` but not `vite.seams.config.ts`.
 
-### 14-05 (dist check + thresholds) — risk HIGH until marker set fixed
-- HIGH: see Agreed Concerns #1 (marker set fails on a clean tree).
-- MEDIUM: thresholds are committed before the 14-14 scripts they measure; definitions (fixed vs sliding windows, net vs path displacement, "window-start value" when the goal is met mid-window) are ambiguous and cannot be edited afterwards. Intercept/attack use `hasProximityAlertIgnoringTarget:YES` (3878, 4787), so `MAX_HULL_CROSSINGS = 0` against a parked player over 20 seeds x 2 attackers x 150 s may fail for a faithful port.
-- LOW: `STATION_RADIUS` is not exported (`src/sim/world/layout.ts:71`); use `layout.station.radius`. LOW: the single-commit `git log` assertion breaks on any later prettier touch and on shallow clones; keep it as a summary check, not a CI test. LOW: `pages.yml:37` production build is not checked; adding `check:dist` there is cheap.
+### 14-05 (BodyView.radius) — risk LOW
+- No defects. LOW: if 14-12 forgets the wiring, `playerRadius = 0` silently; 14-12 pins it with a grep, acceptable.
 
-### 14-06 (steering record, snapshot v3, owner checkpoint) — risk MEDIUM
-- MEDIUM: Task 1 leaves a broken commit: `steer` is added to `Entity` and the hash, but `restoreWorld` learns about it only in Task 2; snapshot tests and the `Record<keyof Entity>` table fail. Give restored entities a default `steer` in Task 1, or commit 1+2 together.
-- LOW: the sanitiser cannot know which ids are dead (`sanitizeEntity(entity)` has no store, sanitize.ts:328); match `nav.targetId` (uint32 check only) and move liveness to steering. LOW: lazily drawn accuracy changes draw order versus Oolite (setup draw at 665-669); record as a divergence.
+### 14-06 (oracle I, part 2: rate rule, avoid, escort) — risk HIGH
+- HIGH: the parallel-offset avoid fixture can never raise the alert. `setProximityAlert:` alerts only when d2 <= (2*r_self + r_other)^2 (`ShipEntity.m:6125-6129`); the lateral offset is a lower bound on d and 2(r1+r2) > 2*r_self + r_other always, so no alert, no entry values, no resumption tick exist. With equal radii the pair trigger sits exactly on its `<` threshold (`CollisionRegion.m:309`). Use an offset between r1+r2 and 2*r_self + r_other (`14-06-PLAN.md:139`).
+- MEDIUM: the `crossDtTolerance` 0.01 rad derivation assumes the 0.99999 cap; `max_cos` reaches the cap only when range/desiredRange >~ 210. For range <= desiredRange it is `MAX_COS` = 0.995, about 0.1 rad (`ShipEntity.h:142`, `ShipEntity.m:9465-9491`). Unless grid poses are constrained to range >> desiredRange, dead-band artefacts show up as frame-rate divergence rows (`14-06-PLAN.md:115`).
+- LOW: "station within 2000 m ahead alerts self" holds only near full speed (forward stretch `0.25*max/speed`, `ShipEntity.m:6124`); the no-leader escort reaches `noteFrustration` only if distance stops improving (`:5030-5038`). State both pose conditions.
+- LOW: the 60-tick rule `round(s*120)` papers over Oolite's tick 60 or 61; record a measured divergence row.
+
+### 14-07 (dist check and acceptance thresholds) — risk HIGH
+- HIGH: the frozen script mapping makes intercept unreachable for a faithful port. Ships sit on lanes (`populate.ts:93-104`); in the epoch-1 golden ships 102 and 107 (intercept) are about 290 km and 550 km from the station-side cluster where the player is parked 6 km from the station. A faithful port loses the target on the first update beyond 1.25 x scanner range = 32 km (`ShipEntity.m:8705-8708`, `:9043-9046`), goes IDLE with `desired_speed = max*0` (`:3826`): zero net progress, so `MAX_STUCK_WINDOWS = 0` is breached on probably every seed, and the file cannot be edited after its commit. Flee flyers starting beyond 25.6 km from the player meet their goal at t0 (vacuous detector). Fix before freezing: a start-placement rule (runner moves targeted flyers to a fixed offset from the player) or a distance-based mapping (`14-07-PLAN.md:80-85`; `14-17-PLAN.md:27`).
+- MEDIUM: the pre-declared resolution recommends option (c) "port defect" for every `other` crossing, but in Oolite flee ignores all alerts when accuracy < 0 (about half of stock ships, `ShipEntity.m:4898`) and 14-06's own head-on derivation shows a faithful port can pass through a hull at closing speed. Some `other` crossings are faithful; the class split pushes the executor toward forbidden tuning (`14-07-PLAN.md:88`).
+- LOW: Task 1's remote `verify` syncs the committed HEAD while 14-06 (same wave) may have committed partial oracle work (`14-07-PLAN.md:77,126`).
+- Verified correct: marker reasons and the absence of the three new markers; chain pins (`container-contract.test.ts:364,377,422`); `pages.yml:37`; `tsx` devDependency.
 
 ### Cross-plan (A)
-- 14-07 depends on 14-06, 14-01, 14-02 but not 14-05; add 14-05 to 14-07 `depends_on` so "thresholds before the port" does not hold only by wave numbering.
-- Correct the `performFlee` EVASIVE reachability in RESEARCH so 14-11 and 14-16 do not inherit it. No scope creep found.
+- The float32/float64 accumulator gap affects 14-01, 14-02 and 14-06 together; decide once in the contract whether the port emulates GLfloat for `frustration` (and `desired_range`/`desired_speed`, `ShipEntity.h:194-195,337`).
+- The 14-07 acceptance design and the 14-06 head-on derivation contradict each other on whether `other` crossings are defects.
+- Dependencies, shared files and `files_modified` are fine; no scope creep.
+- Round 1 confirmed fixed: import guard, applySticks fixture, tolerance stated before measurement, event cadence, performFlee reachability and RESEARCH:315 gate, nearby draws, SIX aspect, Shuttle range 0, golden hand-edit, vm contexts, marker set, thresholds definitions, `STATION_RADIUS_M`, second escort fixture, 14-07 dependency. Open or new: parallel-offset geometry (HIGH), hull-crossing class resolution (MEDIUM), frame-rate tolerance (MEDIUM), float32 handling (new), shared-misreading limit (acknowledged only).
+- Verdict: not ready; fix the 14-07 placement/mapping HIGH before the thresholds freeze, the 14-06 parallel-offset HIGH, and the float32 accumulator rule.
 
-## Reviewer B — plans 14-07 to 14-14
+## Reviewer B — plans 14-08 to 14-15
 
-### 14-07 (flight model tracer) — risk MEDIUM
-- MEDIUM: the property "speed stays in [0, maxFlightSpeed]" is false for starting speed above max: `decrease_flight_speed` (ShipEntity.m:7418-7429, `MIN_HYPERSPEED_FACTOR`) steps down over several ticks; TUMBLE returns at 5826 before the ramp. Generate start speed in [0, max]; port `decrease_flight_speed` literally.
-- MEDIUM: state `applyThrust` order exactly (TUMBLE return, clamp written back to `nav.desiredSpeed` at 5830-5831, ramp, move). A tumbling ship does not move at all.
-- MEDIUM: `entryPending` edge cases: two performs in one think; an AI `setDesiredRange` after `performAttack()` is overwritten by the deferred draw (record as divergence). Say `completeEntry` switches on current `nav.behaviour` and every entry without a deferred part clears the flag.
-- LOW: STATION_KEEPING should run stop-still (2494-2496); attitude sign "resolved by test" needs one physical turn-direction test; Vitest file isolation means a module-level "fixtures that ran" record does not cross test files.
+### 14-08 (steering record, snapshot v3) — risk LOW-MEDIUM
+- MEDIUM: the record's domain allows states where `calculateTrackingCurve` divides by zero: with `trackingCount` 4, ticks that are not strictly decreasing give t1 = 0 or t1 = t2 (`ShipEntity.m:5476-5486`). Neither sanitiser nor strict parser enforces `ticks[0] > ticks[1] > ticks[2] > ticks[3]`; a forged v3 snapshot passes parsing and NaN aim points become counted repairs; the property generators can produce such states. Fix: ordering invariant in sanitiser and parser (repair to count 0); generators draw domain-valid records only (`14-08-PLAN.md:90,145,172`).
+- LOW: "random finite steering records" (`14-09-PLAN.md:197`) must also mean domain-valid (accuracy outside [-5, 10] that is not the sentinel is repaired, breaking "sanitizeEntity repairs nothing").
 
-### 14-08 (trackDestination, fly-to, face, avoid entry/exit) — risk MEDIUM-HIGH
-- HIGH: `avoidCollision` cannot be ported faithfully here: Oolite sets `desired_range = prox_ship->collision_radius * PROXIMITY_AVOID_DISTANCE_FACTOR` (5931) but `BodyView.radius` arrives only in 14-10, and no later plan revisits `avoid.ts`. Move avoid to 14-10/14-13 or add explicit tasks there (radius-based range, `startTrackingCurve` call, frustration 0).
-- MEDIUM: `resumePostProximityAlert` also calls `startTrackingCurve` (5946) and zeroes frustration (5953). MEDIUM: the rate-rule test needs "a fixture the runner ran in this test run" — impossible across Vitest files; have it run its `confirmedBy` fixtures itself or export static group lists.
-- LOW: the zero-vector guard `relPos.z = 1.0` (9496) must be z = -1 in Wegolite's frame; `int factor = sqrt(...)` truncates (9520); the `d_forward` clamp (T-14-16) is not in Oolite — label it an addition.
+### 14-09 (flight-model tracer, steering contract) — risk LOW-MEDIUM
+- LOW: the out-of-scope fallback runs idle plus thrust ramp for ENERGY_BOMB_COUNTDOWN and TRACK_AS_TURRET, where Oolite turns thrust off (`applyThrust = NO`, `ShipEntity.m:2614,2628`); TRACTORED differs too. Name these in the 14-19 divergence list (`14-09-PLAN.md:37`).
+- LOW: the contract does not state that `vector_normal` returns the zero vector for zero input (`OOVector.h:270-273`); `approachAspectToPrimaryTarget` (`ShipEntity.m:9745`) depends on it.
+- LOW: the frame note does not cover the jink offset in `trackPrimaryTarget` ("vz = body forward is local -Z", `ShipEntity.m:9067-9104`).
 
-### 14-09 (world step uses steerShip) — risk MEDIUM
-- MEDIUM: the step-integration spec is wrong for default stats: default `maxFlightSpeed` 160 clamps and writes back desired speed 200; the re-pin formula omits `maxFlightSpeed`; fly-to's 50 % cuts (5085-5087) pollute the ramp. Use IDLE with an explicit desired speed and expect `min(desiredSpeed, maxFlightSpeed, n*5*thrust*dt)`.
-- MEDIUM: first coverage run is in this plan's Task 3; floors are tight (97 % functions, 86 % branches, vitest.config.ts:39-45) and literally ported dead branches can drag them down. Measure coverage at the end of 14-07/14-08.
-- LOW: omit `a: undefined` keys (`exactOptionalPropertyTypes`); every `stepWorld` caller must pass `AI_REGISTRY`; with `npcFlight` absent, mass defaults to 0 and silently disables proximity alerts — fall back to `hyperspace.shipMasses` or record it.
+### 14-10 (trackDestination, fly-to, face) — risk LOW
+- LOW: the `Math.trunc` rule covers only trackDestination (9526, 9538, 9550); `trackPrimaryTarget` has the same `int factor` truncation at 9178, 9187, 9197 and 14-12 does not state it (`14-12-PLAN.md:35,122`).
 
-### 14-10 (view radius, sensing, tracking curve, intercept) — risk HIGH
-- HIGH: the steering record (14-06) has no sampled-target id, but the plan resets the curve when the target differs; adding a field later breaks the "snapshot v3, regenerate golden once" rule. Oolite resets in `addTarget` (8662-8665). Reset in `control-impl.ts` `setTarget` (e.g. `trackingCount = 0` = start pending) and run a literal `startTrackingCurve` when the count is 0, or add `trackingTargetId` in 14-06 now.
-- HIGH: NaN risk: `calculateTrackingCurve` divides by `t1*t2*(t1-t2)` (5468-5483); zero-initialised ticks give NaN/Infinity. Port `startTrackingCurve` (5425-5442; samples at now, now-20, -40, -60), give ticks a signed domain (or store relative to now) so the sanitiser does not count repairs.
-- MEDIUM: `trackPrimaryTarget` and `evasiveAction` need `emit` and `draw` (they call `noteLostTargetAndGoIdle`, `setEvasiveJink:400`); `missedShots` fixed at 0; `shipTargetLost` carries the target only while valid (8785) — Task 3 says "carries the lost id"; adding required `radius` breaks the `bodyView()` helper in `tests/sim/ai/test-pilot.test.ts:148-155` (not in `files_modified`).
-- LOW: `isValidTarget` treats only ships/stations/buoys/player/wormholes as valid — map `BodyView.kind`; z-mapping of 9081/9112 guards; intercept posts `shipAchievedDesiredRange` every tick in range (T-14-17 "only on transitions" is wrong).
+### 14-11 (world step uses steerShip) — risk MEDIUM
+- MEDIUM: `massFor` falls back to `massOf(facts.masses, ...)`, which is module-private in `src/sim/world/ship-field.ts:128` and the file is not in `files_modified`; export it (and list the file) or copy the scan (`14-11-PLAN.md:104,125`).
+- MEDIUM: `playerRadius` comes from `options.combat.hulls`, documented "Absent until the lazy file has loaded" (`src/sim/combat/step.ts:54-58`). The player's `BodyView.radius`, hence ranges, flee/attack decisions and the player's proximity zone, would depend on asset-load timing; browser-vs-Node replay parity and steered hashes become timing-dependent. Use a compiled constant (Cobra Mk III collision radius) or record the dependency (`14-11-PLAN.md:105,125`).
 
-### 14-11 (flee, jink, evasive) — risk LOW-MEDIUM
-- MEDIUM: `evasiveAction` needs `emit`; the deferred `performFlee` aspect check reads poses one tick later and can flip near 0.9995 — record as a divergence. LOW: `range == 0` counts as safety (4855) but ranges subtract radii and can be negative; add one property case.
+### 14-12 (sensing, tracking curve, intercept) — risk MEDIUM
+- MEDIUM: self-targeting is unhandled. `setTarget` accepts the actor's own id (`control-impl.ts:58-61`); `isValidTarget` would start a curve on self. Oolite ignores `addTarget:self` (`ShipEntity.m:8661-8662`) and drops a self reference in `primaryTarget` (8724-8730). Treat `targetId === entity.id` as invalid (`14-12-PLAN.md:33,102`).
+- LOW: `noteLostTargetAndGoIdle` also sets frustration to 0 (`ShipEntity.m:8798-8803`); the plan omits it.
+- LOW: "the jink is zero until flee sets it in plan 14-13" is wrong: the retreat branch of `trackPrimaryTarget` itself calls `setEvasiveJink:400` when accuracy >= FLEES_BETTER and jink.x == 0 (9093-9095); 14-13 Task 2 never wires it (`14-12-PLAN.md:122`; `14-13-PLAN.md:137`).
+- LOW: `addTarget:` posts `shipTargetAcquired` (8667-8669), not in `AI_EVENT_NAMES` and not recorded as a divergence.
+- LOW: ledger row says `test-pilot.test.ts` is in 14-12 `files_modified`; it moved to 14-05 (ledger text only).
 
-### 14-12 (attack dispatcher + sub-behaviours) — risk MEDIUM
-- HIGH: the Shuttle's weapon range is not fixed: with no forward weapon `getWeaponRangeFromType(nil)` is 0 (ShipEntity.m:443-466, 13041-13044), not 32000 from `equipment.plist`. The value decides fly-from's exit test (4775): 0 bounces ATTACK_TARGET/FLY_FROM every tick; 32000 flees 16 km. Add a constants-ledger row (range 0 for EQ_WEAPON_NONE) and make the 14-02 decision table agree.
-- MEDIUM: `setEvasiveJink(range + COMBAT_JINK_OFFSET - relativeSpeed / max_flight_pitch)` needs `|self.velocity - target.velocity|`; in Oolite velocity includes forward x flightSpeed (11163-11166); specify it from `BodyView` including the player. LOW: `COMBAT_AI_*` constants added by both 14-07 and 14-12.
+### 14-13 (avoid entry and exit, flee, evasive) — risk LOW-MEDIUM
+- LOW: `performFlee` immediate part must also set FLEE_TARGET (only implied); a guarded no-op (behaviour already FLEE_EVASIVE_ACTION) should clear an earlier pending entry under "last perform wins".
 
-### 14-13 (proximity, avoid collision, escort) — risk HIGH
-- HIGH: the follower refresh cannot live in `steerShip` (read-only `WorldView`, `ownerId` not on `ShipView`); do it in `stepWorld` right after each leader's `steerShip`, after its `applyThrust`.
-- HIGH: the oracle runner is not in `files_modified`; `avoid-collision.json` and `escort.json` need proximity and leader-refresh hooks in the runner.
-- HIGH: the 14-01 escort fixture lists two followers but the contract allows exactly one steered `self`; settle with the oracle author how a second follower is represented.
-- HIGH: the `proximity.test.ts` head-on scenario ("never within the sum of radii") contradicts Oolite: alert fires below 4*max(r) (~140 m for two Vipers), at 320 m/s that is ~26 ticks, pitch reaches only ~0.1 rad; a faithful port collides and pushes the executor toward forbidden tuning (Pitfall 6). Replace with alert -> avoid -> resume plus a closed-form clearance geometry.
-- MEDIUM: who takes part in the proximity pass is unclear (must_haves "steered ships and the player" vs "live ships"); alerts on inert ships change their hashes; the station raises alerts in Oolite (6097-6110). Suggested: every live ship, station and player as candidates, alerts written only on steered ships; record the inert choice. Escort divergences: Oolite writes every escort's destination regardless of behaviour (2431-2436); slots shift when an escort dies. `oracle-coverage.test.ts` has the same cross-file isolation problem as 14-08. LOW: when the other ship is gone, avoid keeps flying to the old midpoint until `distance > desired_range` (5159-5168).
+### 14-14 (attack dispatcher and sub-behaviours) — risk MEDIUM
+- MEDIUM: the must_have "an unarmed attacker alternates ATTACK_TARGET and ATTACK_FLY_FROM_TARGET every tick" holds only when jink.x <= range/15: fly-from's exit test is `range > 0*weaponRange + 15*jink.x` (`ShipEntity.m:4775`) and the unarmed branch (4098-4099) never zeroes jink. A Shuttle with accuracy >= 0 that fled earlier carries |jink.x| 128..255 and retreats up to about 3.8 km first; negative jink.x exits at once. Task 3 correctly says "with zero jink"; fix the must_have and do not let 14-16/14-17 rely on the general claim (`14-14-PLAN.md:30`).
+- MEDIUM: the plans never say how `[target primaryTarget] == self` is read for an NPC target (matters at 4119, 3920, 4658, 4669). Should be `view.ship(target).targetId === self`, kept only while that target's own target is valid (`14-14-PLAN.md:82`).
+- LOW: the ledger names only the 12,500 m sniper range; the sniper also uses 15,000 m (bounce back to ATTACK_TARGET), `scannerRange x 0.8` and `setEvasiveJink:1000` (4413-4444). Beam lasers (range 15000: Gecko, Krait, Viper) make the sniper reachable with stock accuracy between 12.5 and 15 km.
 
-### 14-14 (flight-script pilot, flyers scenario, cadence) — risk LOW-MEDIUM
-- MEDIUM: the flee goal check should use one definition (centre distance vs `rangeToPrimaryTarget` radii). LOW: assert which branch the fleer enters; cadence test is near-tautological but keeps value in the accumulator and spawn tick; inert-ship steering records may change under the 14-13 pass.
+### 14-15 (proximity pass, avoid, escort) — risk HIGH
+- HIGH: the new parallel-offset case cannot raise an alert in a faithful port: `setProximityAlert:` alerts only if d^2 <= (2*r_self + r_other)^2 (`ShipEntity.m:6119-6125`); the forward stretch scales only d_forward so d^2 >= lateral^2 = (2(r1+r2))^2, always larger; for two Vipers the pair trigger also fails (dist < 4*max(r) = 4r = offset, strict `<`, `CollisionRegion.m:304-305`). Asserting "the alert tick from the closed form" pushes the executor to an oracle dispute or forbidden tuning (Pitfall 6). Same defect in `14-06-PLAN.md:139`. Use an offset below 2*min(r) + max(r), e.g. 1.5*(r1+r2), and keep the clearance claim as observed; or assert "no alert" at 2(r1+r2) as a negative case (`14-15-PLAN.md:36,119`).
+- MEDIUM: "keeps retreating from the last midpoint" is wrong: while an alert exists `behaviour_avoid_collision` sets `_destination = prox_ship->position` every tick (5160-5163) and the pass re-raises the alert each tick inside the zone; after the alert clears the ship retreats from the other ship's last known position. Same wording in `14-06:139` and T-14-26 (`14-15-PLAN.md:35,119,204`).
+- LOW: followers with a lower id than their leader steer before the leader's refresh and read the previous tick's destination; add to recorded divergences (`14-15-PLAN.md:144,172`).
+- LOW: the gate `rg 'world\.store'` in dispatch.ts is weak; steering could reach the store through another module such as escort.ts (`14-15-PLAN.md:153`).
 
 ### Cross-plan (B)
-1. Dependency gaps: `avoid.ts` (14-08) needs radius and tracking curve from 14-10; steering record lacks a target id; runner lacks proximity/leader hooks for 14-13.
-2. Helper signatures incomplete: anything reaching `noteLostTargetAndGoIdle`/`setEvasiveJink` needs `draw` and `emit`; the escort refresh needs world access. Fix the 14-07 contract text once.
-3. Frame mapping must negate z for every literal `kBasisZVector`/`relPos.z = 1.0` fallback (9081, 9112, 9496) and the escort pattern vectors.
-4. Record divergences in 14-17: deferred perform entries, `shipTargetLost` argument, weapon range 0, fixed escort slot, inert ships/station in proximity, intercept per-tick event.
-5. Coverage is first measured in 14-09; measure earlier. Cost (O(n^2) proximity, ~32k pairs/tick) acceptable.
-6. Phase goal reachable once the HIGH items in 14-08, 14-10, 14-12, 14-13 are fixed.
+1. HIGH: the 14-06 and 14-15 parallel-offset fixture and test cannot alert in Oolite; fix both together.
+2. MEDIUM: tracking-curve tick ordering is not enforced (14-08); property generators in 14-09/14-12/14-13 draw domain-valid records only.
+3. MEDIUM: the player radius comes from lazily loaded hull data (14-11 -> 14-12/14-15/14-18); use a constant or record it.
+4. MEDIUM: target-of-target for NPC targets is unspecified (14-12/14-14).
+5. Divergences to add to 14-19: self-target, `shipTargetAcquired` not posted, fallback thrust for the no-thrust ids, the avoid destination after alert loss, follower-before-leader order.
+6. No wave or `depends_on` holes; `files_modified` complete except `src/sim/world/ship-field.ts` in 14-11.
+- Round 1 fixed: every Reviewer B item for the old 14-07..13. Still open: the head-on/clearance concern (replacement test is itself unreachable).
+- Verdict: phase goal reachable; fix the 14-15 and 14-06 parallel-offset case before execution, and the MEDIUM items before or during their plans.
 
-## Reviewer C — plans 14-15 to 14-18 and whole phase
+## Reviewer C — plans 14-16 to 14-19 and whole phase
 
-### 14-15 (session/replay wiring, spawnTestFlyers, opt-in e2e) — risk MEDIUM (HIGH until 14-05 fixed)
-- HIGH (inherited): remote `verify` fails from the 14-05 marker defect.
-- MEDIUM: 14-15 and 14-16 share wave 11, but 14-16 may fix port defects in `src/sim/npc/**` (not in its `files_modified`); that makes 14-15's remote evidence stale and both plans commit in the same tree the wrapper syncs. Run 14-16 before 14-15 or add the path to 14-16.
-- LOW: `TrafficContent.flight` and `realNpcFlightTable()` are two builders of the same table — share one; the spawn range the Node replay compares against is undefined (`runTickScript` returns only the final world, tick-script.ts:250-257); "populated count plus 3" breaks if the fleer reaches 25,600 m (bound the tick count); draw-call check is weak evidence (loaded scene 17 calls); `spawnTestFlyers` can spawn some ships then return false (document taint).
+### 14-16 (flight-script pilot, spawnTestFlyers, flyers scenario, cadence) — risk LOW-MEDIUM
+- MEDIUM: the station-flyer assertions will probably pass vacuously. The player is placed with `poseNearFirstShip` next to ship 101 (`tests/helpers/traffic-fixture.ts:75-89`), which comes from the first `INERT_POPULATION` entry `LANE_WP` (`src/sim/world/populate.ts:95`), probably far from the station. The scenario lasts 3,600 ticks (30 s); a Shuttle at 80 m/s covers about 2.4 km. "Never enters the 500 m sphere" and "never holds an alert naming the station" (`14-16-PLAN.md:110`) hold without the flyer reaching the station. Spawn near the station or assert the station flyer reaches `"done"`. Task 1 also never names which three records the scenario uses (14-18 names shuttle, viper, adder).
+- LOW: "FLEE_TARGET after its first update" (`14-16-PLAN.md:32,110`) does not say which tick; perform entries are deferred (`entryPending`) and the first think runs at the spawn tick.
+- LOW: `FLYER_SCRIPT_RANGES` as a plain exported object literal breaks lint: `AI_MODULE_STATE_BANS` bans an exported const object/array/`new` (`eslint.config.js:289-292,602-610`). Use `Object.freeze(...)` or scalar constants.
+- Confirmed: flee aspect claim (`ShipEntity.m:9746-9748`), `AI_KEYS` vocabulary, `BEHAVIOUR_IDS` import allowed.
 
-### 14-16 (20-seed acceptance) — risk MEDIUM-HIGH
-- MEDIUM: detector meaning can drift after thresholds are frozen (window alignment, "goal unmet", coverage, which pose of the other ship). Commit `detectors.ts` and `detectors.test.ts` before any epoch is enabled and check with git in Task 2 that they are unchanged.
-- MEDIUM: the player pose is chosen during the run and only recorded in the summary; fix a deterministic pose rule in `thresholds.ts` or the detectors commit.
-- MEDIUM: 360,000 world steps plus `hashWorld` and hull checks per tick run in every `test` and remote `verify` (`vitest.config.ts:82-86`, `compose.yaml:113-117`) on a slow machine; set a time budget and decide between default suite and an explicit `test:acceptance` script.
-- MEDIUM: zero hull crossings against a parked player may force a mid-phase owner escalation; not budgeted.
-- LOW: `STATION_RADIUS` not exported (use `layout.station.radius`); state that the runner writes `ownerId`/escort slot directly for converted escorts.
+### 14-17 (20-seed acceptance) — risk HIGH
+- HIGH: the recommended answer (a), accepting `own-target` crossings as a recorded divergence, has no way to make the run pass. With (a), `thresholds.ts` keeps `MAX_HULL_CROSSINGS = 0` (`14-07-PLAN.md:88`) and every epoch asserts every count against its threshold (`14-17-PLAN.md:149`), so `npm run test:acceptance` stays red for good; Task 2's verify fails (`:155`), the rerun in 14-19 Task 2 fails (`14-19-PLAN.md:141-142`) and `14-VALIDATION.md:32` requires that rerun green before verify-work. The plans say a faithful attacker is likely to cross the parked player's hull (`14-17-PLAN.md:89`). Settle the encoding now: e.g. the epoch assertion compares `other` against 0 and `own-target` against a committed per-seed list of accepted crossings written by the 14-19 decision row, or (a) is `it.fails` per seed with the reason recorded.
+- MEDIUM: answer (b) contradicts the automated freeze check: (b) adds a second commit to `thresholds.ts` that becomes "the new recorded hash" (`14-17-PLAN.md:149`) while the check requires exactly one commit, `wc -l -eq 1` (`:152`).
+- MEDIUM: no check that the risky situations actually happen. By table order `SCRIPT_MAPPING` (`14-07-PLAN.md:80`) assigns station flyers to 101 (`LANE_WP`) and 107 (`LANE_PS`), interceptors to 102 and 108 (lanes), the escort 111 to leader 107 on `LANE_PS`; only fleer 103, attacker 110, escort 111 and face 112 start at the station aegis. Many seeds may never bring a flyer near the station sphere or the interceptors close on the parked player within 150 s, so stuck, sphere and hull checks pass without testing anything. Clearances and goal ticks are only informational (`14-17-PLAN.md:149`). Add run-level minimums to `thresholds.ts` before freezing (e.g. at least one station-goal arrival and at least N flyer-ticks within 1 km of the player across the 20 seeds).
+- MEDIUM: the plan is `autonomous: true` (`:13`) yet plans a likely owner stop (`CHECKPOINT REACHED`, `:89`) with no checkpoint task: a hidden third owner gate (ROADMAP says two); auto-advance may treat it as a failure.
+- LOW: a detector false positive has no route out (detectors cannot be edited after their commit; escalation options cover only port defects). Add a "detector defect -> owner" option.
+- LOW: Task 2 may fix files under `src/sim/npc/` not in `files_modified` (`:7-12`); the plan says to list them in the summary, acceptable.
+- Confirmed: the run is outside the default suite (`*.acceptance.ts` vs `*.test.ts`, `vitest.config.ts:77-81`); config is typechecked; contract test reads scripts by name; the step sanitises every tick (`step.ts:134`); attackers never fire (`control.ts:41`).
 
-### 14-17 (Key Decisions, FIDELITY rows) — risk LOW technically, high cost
-- MEDIUM: ~22 Key Decisions rows plus ~35 mechanics rows with excerpts is the largest docs plan (95k tokens) for little checked value (`fidelity.test.ts:203-219` checks string presence and line <= file length). Group scope cuts into a few rows and limit FIDELITY to ~12 rows.
-- MEDIUM: the owner's 14-06 hash-policy / snapshot-v3 decision is not recorded in `PROJECT.md` for ~10 waves (AGENTS.md: record when made); write it in 14-06.
-- LOW: Wegolite `file:line` cells rot; `/tmp/oolite-7437f22` reused across tasks without re-creation.
+### 14-18 (session wiring, hook, opt-in smoke) — risk MEDIUM
+- MEDIUM: "scanner ship contacts are the populated count plus 3" (`14-18-PLAN.md:180`) is probably wrong just after launch: most populated ships sit on lanes, likely outside 25.6 km of the station. The existing traffic spec computes visible contacts from the HUD model (`tests/e2e/traffic.spec.ts:567-590`). Measure contacts just before the spawn and expect that plus 3.
+- MEDIUM: "the station flyer is closer to the station after 1,200 ticks" is fragile: it spawns dead ahead of a just-launched player, pointing away from the station; the Shuttle has `max_flight_pitch` 0.9 and speed 80 (shipdata.plist:3501 block) and needs >= 3.5 s to turn while moving away, with fly-to cutting speed during the turn; the net gain in 10 s is a few hundred metres at best, possibly negative. Use a longer horizon or spawn it facing the station.
+- LOW: Task 3's verify omits lint and typecheck (`:182-186`) though the verification section lists them (`:217`).
+- Confirmed: `flightTableFrom` is the single table builder; inert ships are skipped by the step; the 5,400 m fleer bound is correct (Adder speed 240).
 
-### 14-18 (report, Vitest share, sign-off, owner gate) — risk LOW once 14-05 fixed
-- HIGH (inherited): remote `verify` fails until 14-05 is fixed.
-- LOW: the 90 % measurement counts diff lines with `expect(`, not assertions run; say so in the report. LOW: add an optional owner look at flying ships (`?test=1&traffic=1`, `spawnTestFlyers`). LOW: marking AI-01/WORLD-07/AI-11 complete is implicit.
-- Suggestion: make this the phase's single remote `verify`, merge the slimmed 14-17 into it.
+### 14-19 (decisions, FIDELITY rows, report, owner gate) — risk MEDIUM
+- HIGH (inherited from 14-17): the acceptance rerun fails if the owner chose (a) (`:141-142`).
+- MEDIUM: the FIDELITY row-count gate does not fit the contract: one Oolite path and range per row, one excerpt per row, at most 20 lines per excerpt (`tests/contract/fidelity.test.ts:45-47,220-253`). Task 1 lists 13 mechanics, several covering two code sites (applyRoll + applyAttitudeChanges, startTrackingCurve + updateTrackingCurve, performFlee + behaviour_flee_target, avoidCollision + setProximityAlert, escort refresh + form-up); split they are 15 to 18 rows, breaking "between 10 and 14" (`:121`). Ranges 5808-5854 and 7018-7065 exceed 20 lines. Name the exact excerpt ranges or relax the gate.
+- LOW: Task 4's check `rg -c FIDELITY-REPORT PROJECT.md` (`:197`) passes as soon as any row mentions the report; tie it to the oracle-choice row text.
+- LOW: the Vitest-share count includes oracle self-tests and detector tests, so it is met trivially; acceptable if the report says so.
 
 ### Whole-phase assessment (C)
-- Success criteria 1-5 are all covered (criterion 2: freeze detectors and pose too; criterion 4: marker defect). No requirement gaps.
-- Ordering: 14-15 beside 14-16 (above); 14-07..14-13 are serialised by shared files (correct); the 14-06 owner checkpoint blocks all porting.
-- Size: 18 plans, 51 tasks, ~1.43M estimated tokens, three remote `verify` runs. Suggested cuts in order: slim and merge 14-17 into 14-18; one remote `verify` at phase end (plus 14-05's own); settle where the acceptance run lives; optionally move attack sub-behaviours (sniper, six/twelve, slow dogfight) to the AI port phase (nothing selects them without NPC fire).
-- Overall risk MEDIUM-HIGH: sound structure; concrete blocker is the `check:dist` marker list; residual risks are 14-16 zero-tolerance hull threshold and acceptance runtime.
+- Coverage: criterion 1 by 14-01, 14-02, 14-06, 14-09..15; criterion 2 by 14-07 and 14-17 but outcome under (a) undefined and the run may pass without testing much; criterion 3 by 14-16, 14-18; criterion 4 by 14-04, 14-07, 14-19; criterion 5 by 14-18, 14-19. AI-01, WORLD-07, AI-11 each covered.
+- Ordering: waves 1 and 2 share no files; 14-08..14-19 strictly sequential; 14-17 before 14-18 fixes the stale-evidence problem; the oracle plans all finish before 14-08 creates `src/sim/npc/state.ts`.
+- Size: 19 plans, 51 tasks, about 1.555M estimated tokens (up from 1.43M); remote runs: 14-07 verify, 14-18 targeted e2e, 14-19 verify, plus two local acceptance runs. Possible small cuts: skip the 14-19 acceptance rerun when `git diff` shows no `src/sim` change since 14-17; fold the 35k-token 14-05 into 14-12.
+- Owner gates: 14-08 and 14-19 correct; the 14-17 escalation is a hidden third gate.
+- Overall risk MEDIUM; structure sound; blockers are the (a)/(b) encoding in 14-17/14-19 and the vacuity of the acceptance run.
+- Round 1 confirmed fixed: marker defect, old 14-15/16 wave sharing, detector freeze (except under (b)), parking rule, runtime budget and separate `test:acceptance`, `STATION_RADIUS`, one table builder, two-replay spawn ranges, bounded ticks, partial-spawn taint, one flee metric, docs merged into 14-19, hash-policy row in 14-08, `/tmp` tree re-created, `expect(` count meaning, optional owner look, explicit requirement marking, single phase-end remote `verify`. Still open: zero hull crossings (outcome (a) has no encoding, HIGH); cadence test near-tautological (accepted deferral).
+- Verdict: do not execute yet; fix how option (a)/(b) is encoded in `thresholds.ts` and the 14-17 freeze check, and add run-level minimums so the acceptance run cannot pass without testing anything.
 
 ## Consensus Summary
 
 ### Agreed Concerns (2+ reviewers, highest priority)
-1. **HIGH — 14-05 `DIST_MARKERS` fails on a clean build (A, C; verified by the orchestrator).** `oolite-shuttleAI.js` is shipped content (`src/content/generated/ships-npc.json:166`, bundled via `import.meta.glob`, `src/content/ships-npc.ts:32`); `oolite-priorityai.js` appears in a comment (`src/sim/ai/pilots/test-pilot.ts:128`) and `vite.config.ts:66` sets `sourcemap: true`, so it lands in `dist/**/*.map`. The first remote `verify` and every later `verify`/`verify-full` (including CI) would exit 1; 14-15 Task 3 and 14-18 Task 1 are blocked. Fix: use only markers that harness/AILib code itself contains (`AI_HARNESS_SENTINEL`, `PriorityAIController`, `oolite-libPriorityAI`, or a code fragment), drop the bare file names, skip `*.map` or strip `sourcesContent`, add a test over the real `ships-npc.json` text and a real `build:e2e` output.
-2. **Oracle cross-file isolation / runner scope (A import guard; B 14-08, 14-13).** The import guard misses indirect imports; the "fixtures that ran" record cannot cross Vitest test files (14-07, 14-08, 14-13); the 14-07 runner lacks proximity and leader-refresh hooks needed by 14-13, and the escort fixture needs a second follower the contract cannot express.
-3. **Acceptance thresholds and detector definitions are underspecified or can drift (A 14-05, C 14-16).** Windows, displacement, window-start value, player pose and `MAX_HULL_CROSSINGS = 0` against a parked player; detectors and pose must be frozen before epoch 1; runtime/placement of the 20-seed run needs a budget.
-4. **Reachability error about EVASIVE/FLEE_EVASIVE (A 14-02; affects B 14-11/12 and C acceptance).** `performFlee` reaches them for `accuracy > 0` (about half of stock ships); correct RESEARCH.md:315 and 14-02 rationale.
-5. **Plan/wave ordering defects (B, C, A).** `avoid.ts` before radius/tracking-curve exist; 14-15 beside 14-16 while 14-16 may edit `src/sim/npc`; 14-07 lacks `depends_on` 14-05; steering record lacks tracked-target id (14-06 vs 14-10).
-6. **Scope/cost (C; A and B no creep).** 18 plans is heavy for "less but better"; slim 14-17 and merge into 14-18; one phase-end remote `verify`.
+1. **HIGH — the parallel-offset avoid/proximity case cannot raise an alert in Oolite (A 14-06, B 14-15; verified by two reviewers against `ShipEntity.m:6119-6129` and `CollisionRegion.m:304-309`).** Offset 2(r1+r2) always exceeds the alert trigger 2*r_self + r_other, and the Viper pair trigger sits exactly on its strict `<`. 14-06's fixture and 14-15's test must use an offset below 2*min(r) + max(r) (e.g. 1.5*(r1+r2)), keep clearance as observed, or assert "no alert" at 2(r1+r2). The avoid destination after alert loss is the other ship's last known position, not the midpoint (B).
+2. **HIGH — acceptance thresholds, hull-crossing resolution and script placement (A 14-07, C 14-17/14-19).** The frozen mapping puts intercept targets 290-550 km from the parked player (lost at 32 km, zero net progress, `MAX_STUCK_WINDOWS = 0` breached; flee detector vacuous when the flyer starts beyond 25.6 km). Option (a) of the hull-crossing resolution has no encoding that lets the run pass; option (b) contradicts the one-commit freeze check; `other` crossings can be faithful behaviour (flee ignores alerts at accuracy < 0). The run needs a start-placement rule and run-level minimums, and a detector-defect escalation, all committed before thresholds freeze; 14-17 needs an explicit checkpoint task or a recorded hidden gate.
+3. **MEDIUM — float32 versus float64 accumulator divergence (A 14-01, 14-02, 14-06).** Event ticks for frustration/time thresholds (0.5 s, 7.5, 9.375, 10.0, 12.5) differ by one tick between GLfloat and double; the tracking-curve sample tick likewise depends on the `universal_time` base. The contract must decide once: `Math.fround` emulation or an event-tolerance rule.
+4. **MEDIUM — property/record domain validity (B 14-08, 14-09).** Tracking-curve ticks must be strictly decreasing; sanitiser and parser must enforce it and the generators draw domain-valid records only.
+5. **MEDIUM — player radius source (B 14-11, with 14-12/14-15/14-18 downstream).** Lazily loaded hull data makes radius, ranges and replay parity timing-dependent; use a compiled constant.
 
-### Single-reviewer HIGH items worth acting on
-- 14-10: tracking-curve NaN with zero-initialised ticks; port `startTrackingCurve`; signed tick domain (B).
-- 14-12: Shuttle weapon range is 0 for EQ_WEAPON_NONE (B).
-- 14-13: follower refresh must run in `stepWorld`; head-on "never within radii" assertion contradicts Oolite (B).
+### Single-reviewer items worth acting on
+- 14-04: the priority AI wakes through `ship.AIScriptWakeTime` + `aiAwoken`, not `Timer` (A).
+- 14-02: intercept target loss posts `shipAchievedDesiredRange` and `shipTargetLost` (A).
+- 14-12: self-target must be invalid; `noteLostTargetAndGoIdle` zeroes frustration; `trackPrimaryTarget` retreat calls `setEvasiveJink:400` and 14-13 must wire it (B).
+- 14-14: unarmed bounce claim only with zero jink; `[target primaryTarget] == self` rule for NPC targets (B).
+- 14-11: `massOf` is module-private and `ship-field.ts` is missing from `files_modified` (B).
+- 14-16/14-18: station-flyer and scanner-contact assertions that can pass vacuously or fail on placement; `FLYER_SCRIPT_RANGES` lint ban; Task 3 verify omits lint/typecheck (C).
+- 14-19: FIDELITY row-count gate versus the one-range-per-row contract and 20-line excerpt cap (C).
+- 14-06: `crossDtTolerance` derivation assumes range >> desiredRange (A).
 
 ### Agreed Strengths
-- Oracle independence by process (wave 1, separate agents, `src/sim/npc` absent) and guard; thresholds committed alone before the port; owner checkpoints at 14-06 and 14-18 are blocking with no auto-select; remote-run rule respected everywhere; all spot-checked Oolite line citations accurate; no scope creep in the oracle/content plans.
+- Oracle independence by process and guard; thresholds committed alone before the port; Round 1 fixes confirmed in executable plan text (marker set, avoid/radius ordering, tracking-curve reset, Shuttle range 0, follower refresh in `stepWorld`, 14-15/14-16 reorder); all spot-checked Oolite citations accurate; no scope creep in the oracle/content plans; dependency graph, waves and shared-file ordering sound.
 
 ### Divergent Views
-- Whether to keep 14-17 as a full plan (A and B treat the decisions/FIDELITY rows as required; C recommends slimming and merging into 14-18).
-- Whether the attack sub-behaviours (sniper, six/twelve, slow dogfight) should stay (research/ROADMAP require a stated in-scope list) or move to the AI port phase (C, optional).
-- 14-06 Task 1/2 split: A wants one commit or a default `steer`; B and C do not raise it.
+- Reviewer C suggests small cuts (skip the 14-19 acceptance rerun when `src/sim` is unchanged since 14-17; fold 14-05 into 14-12); A and B raise no size concern. Owner policy is "less but better", so cuts that do not weaken a check are favoured.
+- Reviewer A rates the 14-07 `other`-class resolution MEDIUM (faithful crossings exist); Reviewer C rates the encoding of (a)/(b) HIGH. Both point at the same fix: decide the encoding before thresholds freeze.
