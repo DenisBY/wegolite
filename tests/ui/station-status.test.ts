@@ -72,7 +72,7 @@ describe("buildStatusModel page 1", () => {
     expect(value(model, "Rating")).toBe("Harmless");
   });
 
-  it("lists a new game's three missiles even with no equipment keys", () => {
+  it("lists a new game's three missiles and its forward pulse laser even with no equipment keys", () => {
     const model = buildStatusModel(
       newProfile(),
       system,
@@ -82,7 +82,67 @@ describe("buildStatusModel page 1", () => {
       1,
     );
 
-    expect(model.equipment).toEqual(["Missile ×3"]);
+    expect(model.equipment).toEqual(["Missile ×3", "Forward Pulse Laser"]);
+  });
+
+  it("lists each fitted laser as Oolite does, forward, aft, port, starboard, after the other equipment", () => {
+    const profile = {
+      ...newProfile(),
+      equipment: ["EQ_CARGO_BAY"],
+      missiles: 1,
+      passengerBerths: 1,
+      laserMounts: {
+        fore: "EQ_WEAPON_MILITARY_LASER",
+        aft: "EQ_WEAPON_BEAM_LASER",
+        port: "EQ_WEAPON_NONE",
+        starboard: "EQ_WEAPON_MINING_LASER",
+      },
+    } as const;
+    const model = buildStatusModel(
+      profile,
+      system,
+      labels,
+      catalogue,
+      commodities,
+      1,
+    );
+
+    expect(model.equipment).toEqual([
+      "Large Cargo Bay",
+      "Missile ×1",
+      "Passenger Berth ×1",
+      "Forward Military Laser",
+      "Aft Beam Laser",
+      "Starboard Mining Laser",
+    ]);
+  });
+
+  it("lists a pulse laser on every facing in Oolite's order", () => {
+    const profile = {
+      ...newProfile(),
+      missiles: 0,
+      laserMounts: {
+        fore: "EQ_WEAPON_PULSE_LASER",
+        aft: "EQ_WEAPON_PULSE_LASER",
+        port: "EQ_WEAPON_PULSE_LASER",
+        starboard: "EQ_WEAPON_PULSE_LASER",
+      },
+    } as const;
+    const model = buildStatusModel(
+      profile,
+      system,
+      labels,
+      catalogue,
+      commodities,
+      1,
+    );
+
+    expect(model.equipment).toEqual([
+      "Forward Pulse Laser",
+      "Aft Pulse Laser",
+      "Port Pulse Laser",
+      "Starboard Pulse Laser",
+    ]);
   });
 
   it("lists owned equipment names and berth counts", () => {
@@ -105,16 +165,23 @@ describe("buildStatusModel page 1", () => {
       "Large Cargo Bay",
       "Docking Computers",
       "Passenger Berth ×2",
+      "Forward Pulse Laser",
     ]);
   });
 
-  it("omits the equipment list only when equipment, missiles and berths are all zero", () => {
+  it("omits the equipment list only when equipment, missiles, berths and lasers are all absent", () => {
     const profile = {
       ...newProfile(),
       equipment: [],
       missiles: 0,
       passengerBerths: 0,
-    };
+      laserMounts: {
+        fore: "EQ_WEAPON_NONE",
+        aft: "EQ_WEAPON_NONE",
+        port: "EQ_WEAPON_NONE",
+        starboard: "EQ_WEAPON_NONE",
+      },
+    } as const;
     const model = buildStatusModel(
       profile,
       system,

@@ -335,8 +335,8 @@ function clampPage(page: number): 1 | 2 {
  * Page 1's field labels are fixed app literals — the compiled label record
  * deliberately carries no `status-*` keys — while the legal-status and rating
  * values come from `labels.json`. The equipment list is omitted only when the
- * profile has no equipment key, no missiles and no berths, so a new game still
- * lists its three missiles. Page 2 filters to the 16 `tradeable` commodities in
+ * profile has no equipment key, no missiles, no berths and no fitted laser, so
+ * a new game still lists its three missiles and "Forward Pulse Laser". Page 2 filters to the 16 `tradeable` commodities in
  * `sortOrder` and never includes Alien Items.
  */
 export function buildStatusModel(
@@ -373,6 +373,16 @@ export function buildStatusModel(
   if (profile.missiles > 0) equipment.push(`Missile ×${profile.missiles}`);
   if (profile.passengerBerths > 0) {
     equipment.push(`Passenger Berth ×${profile.passengerBerths}`);
+  }
+  // Oolite lists each fitted laser after the other equipment, forward, aft,
+  // port, starboard ("Forward Pulse Laser"; descriptions.plist:1589-1592,
+  // PlayerEntity.m:7221-7237).
+  for (const facing of FACINGS) {
+    const mount = profile.laserMounts[facing];
+    if (mount === NO_LASER) continue;
+    equipment.push(
+      `${FACING_LABELS[facing]} ${equipmentName(equipmentByKey, mount)}`,
+    );
   }
 
   const units = new Map(

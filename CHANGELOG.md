@@ -23,6 +23,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   downloads only when a system needs it and only once your ship is in flight, so
   the first load stays as small as before; until a model arrives the ship still
   shows on the scanner.
+- Lasers can be bought at the F3 outfitting screen for each of the four mounts
+  (forward, aft, port and starboard): pulse, beam, mining and military, with
+  Oolite's prices, tech levels and trade-in. Choosing a laser opens the facing
+  selection, which shows what is fitted on each facing; a replaced laser is
+  refunded at its full price, and Remove Laser frees a facing and refunds the
+  laser. The F5 status screen lists each fitted laser ("Forward Pulse Laser").
 
 ### Changed
 
