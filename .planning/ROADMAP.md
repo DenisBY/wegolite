@@ -178,7 +178,7 @@ Plans:
 **Pitfalls to address**: 6 (`BEHAVIOUR_*` steering fidelity: per-behaviour oracles, 20-seed acceptance), 5 (the harness spike as the only independent check of the later port), 3 (integer tick timers), 4 (NaN in steering), 7 (steering requests queued), 19 (behaviours act only through `ShipControl`), 11 (oracles in Vitest, not the browser)
 **Decisions to settle**: the stated acceptance thresholds (stuck, tunnelling, NaN repair) before the run; the time box and stub-host scope of the spike; the oracle choice at the gate (owner)
 **Todos**: candidates to fold in by owner decision, not requirements: IN-02 (`aiFaulted` is emitted but nothing records it) and IN-04 (a failed NPC model is never retried, yet the ship still blocks and shows on the scanner), both from `2026-11-14-clear-world-when-arrival-begin-is-refused.md`
-**Plans:** 8/19 plans executed in 14 waves (three owner checkpoints: the hash policy in 14-08, the 20-seed acceptance result and any breach resolution in 14-17, the fidelity report and oracle choice in 14-19; revised after the cross-AI reviews of 2026-11-15 (two rounds and a targeted third round on the acceptance design) and plan-check revision 1, which split the first oracle plan and the intercept plan and renumbered the plans in wave order)
+**Plans:** 9/19 plans executed in 14 waves (three owner checkpoints: the hash policy in 14-08, the 20-seed acceptance result and any breach resolution in 14-17, the fidelity report and oracle choice in 14-19; revised after the cross-AI reviews of 2026-11-15 (two rounds and a targeted third round on the acceptance design) and plan-check revision 1, which split the first oracle plan and the intercept plan and renumbered the plans in wave order)
 
 Plans:
 **Wave 1**
@@ -196,7 +196,7 @@ Plans:
 - [x] 14-08-PLAN.md — Steering record on every ship (signed tracking ticks), hash policy by owner decision (checkpoint) recorded in PROJECT.md, snapshot format 3, green intermediate commits
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 14-09-PLAN.md — Flight model tracer: steerShip with one SteerContext, sticks, attitude, thrust in Oolite's order, perform entry effects, idle, stop-still, tumble; the oracle runner with hook slots and the static oracle manifest; totality property; coverage measured
+- [x] 14-09-PLAN.md — Flight model tracer: steerShip with one SteerContext, sticks, attitude, thrust in Oolite's order, perform entry effects, idle, stop-still, tumble; the oracle runner with hook slots and the static oracle manifest; totality property; coverage measured
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 14-10-PLAN.md — trackDestination, fly to destination, face, new AI events, the rate-rule oracle; coverage measured (the avoid entry and exit move to 14-13)
@@ -262,7 +262,7 @@ Pending todos outside v2.2, which can run as quick tasks or join a phase by owne
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | Complete    | 2026-11-14 |
 | 13. Views, Lasers and Shields | v2.2 | 16/16 | Complete    | 2026-11-15 |
-| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 8/19 | In Progress | - |
+| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 9/19 | In Progress | - |
 
 ## Backlog
 

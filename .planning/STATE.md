@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
-stopped_at: Completed 14-08-PLAN.md
-last_updated: "2026-11-15T20:01:51.979Z"
+stopped_at: Completed 14-09-PLAN.md
+last_updated: "2026-11-15T20:25:33.403Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: bd3970aed638956eee238ff8668362d115126900
+state_head: 036511d0256a4180ce93c34101ccad603f83b56d
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 24
+  completed_plans: 25
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 9 of 19
+Plan: 10 of 19
 Status: Ready to execute
 Last activity: 2026-11-15 — Phase 14 execution started
 
@@ -178,6 +178,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 14 P06 | 32 min | 2 tasks | 7 files |
 | Phase 14 P07 | 14 min | 2 tasks | 9 files |
 | Phase 14 P08 | 100min | 2 tasks | 13 files |
+| Phase 14 P09 | 23 min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -442,6 +443,8 @@ Recent decisions affecting current work:
 - [Phase 14]: 14-07: DIST_MARKERS is the three strings the sentinel value, PriorityAIController and oolite-libPriorityAI; no bare Oolite script file name, source maps skipped, a dist with no shipped file exits 2
 - [Phase 14]: 14-07: tests/acceptance/thresholds.ts committed alone (b33e72f) with the escalation options (a) to (c); no option edits it; accepted-crossings.ts is the only place an owner-accepted crossing is recorded
 - [Phase 14]: Plan 14-08: hash the steering record as one always-present last ;steer: segment (owner-chosen option-append, 2026-11-15); WORLD_SNAPSHOT_VERSION 3; inert golden regenerated once (ab72eedf to c1068643); record field set frozen
+- [Phase 14]: 14-09: NPC attitude composition is q * Rx(-pitch dt) * Rz(roll dt) in Wegolite's frame (Oolite inverse-convention quaternion, z mirror); positive flightPitch tips the nose toward -Y, positive flightRoll leans up toward -X; the oracle attitude fixtures and a physical test pin it
+- [Phase 14]: 14-09: the oracle runner's view.tick is k during update k; plan 14-12's tracking-curve gate must use that clock; AI_EVENT_NAMES still lacks shipNowFacingDestination and shipAIFrustrated (plan 14-11 adds them)
 
 ### Pending Todos
 
@@ -543,8 +546,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T20:01:51.729Z
-Stopped at: Completed 14-08-PLAN.md
+Last session: 2026-11-15T20:25:33.149Z
+Stopped at: Completed 14-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
