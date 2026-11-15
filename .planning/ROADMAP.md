@@ -178,7 +178,7 @@ Plans:
 **Pitfalls to address**: 6 (`BEHAVIOUR_*` steering fidelity: per-behaviour oracles, 20-seed acceptance), 5 (the harness spike as the only independent check of the later port), 3 (integer tick timers), 4 (NaN in steering), 7 (steering requests queued), 19 (behaviours act only through `ShipControl`), 11 (oracles in Vitest, not the browser)
 **Decisions to settle**: the stated acceptance thresholds (stuck, tunnelling, NaN repair) before the run; the time box and stub-host scope of the spike; the oracle choice at the gate (owner)
 **Todos**: candidates to fold in by owner decision, not requirements: IN-02 (`aiFaulted` is emitted but nothing records it) and IN-04 (a failed NPC model is never retried, yet the ship still blocks and shows on the scanner), both from `2026-11-14-clear-world-when-arrival-begin-is-refused.md`
-**Plans:** 15/19 plans executed in 14 waves (three owner checkpoints: the hash policy in 14-08, the 20-seed acceptance result and any breach resolution in 14-17, the fidelity report and oracle choice in 14-19; revised after the cross-AI reviews of 2026-11-15 (two rounds and a targeted third round on the acceptance design) and plan-check revision 1, which split the first oracle plan and the intercept plan and renumbered the plans in wave order)
+**Plans:** 16/19 plans executed in 14 waves (three owner checkpoints: the hash policy in 14-08, the 20-seed acceptance result and any breach resolution in 14-17, the fidelity report and oracle choice in 14-19; revised after the cross-AI reviews of 2026-11-15 (two rounds and a targeted third round on the acceptance design) and plan-check revision 1, which split the first oracle plan and the intercept plan and renumbered the plans in wave order)
 
 Plans:
 **Wave 1**
@@ -217,7 +217,7 @@ Plans:
 - [x] 14-15-PLAN.md — Proximity pass (live ships, station and player; alerts on steered ships), avoid collision, escort formation with the leader refresh in the world step; every oracle fixture assigned and run
 
 **Wave 11** *(blocked on Wave 10 completion)*
-- [ ] 14-16-PLAN.md — Test-only flight-script pilot with one goal metric per script, spawnTestFlyers, Vitest flyers scenario, 30/60/144 Hz replay
+- [x] 14-16-PLAN.md — Test-only flight-script pilot with one goal metric per script, spawnTestFlyers, Vitest flyers scenario, 30/60/144 Hz replay
 
 **Wave 12** *(blocked on Wave 11 completion)*
 - [ ] 14-17-PLAN.md — The 20-seed acceptance run (`npm run test:acceptance`) against the pre-committed thresholds and run minimums, with the seed set-up, detectors, run registration and flight-script pilot frozen first, hull crossings classified in three classes, and an explicit owner checkpoint whose accepted crossing episodes, of any class, are listed in `accepted-crossings.ts`
@@ -262,7 +262,7 @@ Pending todos outside v2.2, which can run as quick tasks or join a phase by owne
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | Complete    | 2026-11-14 |
 | 13. Views, Lasers and Shields | v2.2 | 16/16 | Complete    | 2026-11-15 |
-| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 15/19 | In Progress | - |
+| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 16/19 | In Progress | - |
 
 ## Backlog
 
