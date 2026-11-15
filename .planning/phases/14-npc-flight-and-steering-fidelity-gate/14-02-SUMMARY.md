@@ -48,7 +48,8 @@ patterns-established:
   - "Held-pose replay: stepTick does not move the ship, so a later-tick value is allowed only for a static pose (STATIC_SELF) or against a FROZEN_THRESHOLDS entry that the self-test proves lies outside the sweep of the ship's and the target's possible displacement"
   - "rangeToTarget and position-like fields are checked only at tick 0"
 
-requirements-completed: [AI-01]
+requirements-completed: []
+requirements-advanced: [AI-01]
 
 coverage:
   - id: D1

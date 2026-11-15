@@ -5,17 +5,17 @@ milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
-stopped_at: Completed 14-01-PLAN.md
-last_updated: "2026-11-15T17:43:03.125Z"
+stopped_at: Completed 14-02-PLAN.md
+last_updated: "2026-11-15T18:19:24.340Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: 91c2b629ef0ce7e8681c5039563fc2a0244aa17c
+state_head: f7b4c083661c0a84111ab7c925b71d8a992974d9
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 17
-  percent: 49
+  completed_plans: 18
+  percent: 50
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 2 of 19
+Plan: 3 of 19
 Status: Ready to execute
 Last activity: 2026-11-15 — Phase 14 execution started
 
@@ -171,6 +171,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 13 P13 | 25 min | 3 tasks | 16 files |
 | Phase 13 P14 | 85 min | 3 tasks | 14 files |
 | Phase 14 P01 | 35 min | 2 tasks | 11 files |
+| Phase 14 P02 | 33 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -426,6 +427,8 @@ Recent decisions affecting current work:
 - [Phase 14]: Fixture representation (14-01): vectors are [x, y, z] arrays, entity id 0 means none, escortSlot is an integer >= 0; plans 14-02, 14-06 and 14-09 must match the strict schema in tests/oracles/npc/schema.ts
 - [Phase 14]: Oracle tolerance rule (14-01): expected is the closed form else the float32 replay; tolerance is 4 x max(|f32 - f64|, |f32 - closed|) + 1e-9, rounded up to two significant digits; poses whose event tick or discrete decision differs between widths are rejected, never covered by a wider tolerance
 - [Phase 14]: Divergence candidate for plan 14-19 (14-01): a float64 port that stores successFactor with Math.fround but keeps distance in float64 flips the fly-to distance < last_distance decision when the distance changes by less than one float32 step; it moves frustration only, not steering
+- [Phase 14]: 14-02: a ship that must not move is a desiredSpeed-0 pose below its range (maxFlightSpeed must be positive), so the 15 s flee counter fires at tick 1801 on a static pose
+- [Phase 14]: 14-02: ATTACK_FLY_TO_TARGET's accuracy >= 9 dodge (ShipEntity.m:4721-4729) is not covered by an oracle row: a fixture body has no weapon type; plan 14-14 records it as unreachable from stock data
 
 ### Pending Todos
 
@@ -527,8 +530,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T17:43:03.003Z
-Stopped at: Completed 14-01-PLAN.md
+Last session: 2026-11-15T18:19:24.221Z
+Stopped at: Completed 14-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
