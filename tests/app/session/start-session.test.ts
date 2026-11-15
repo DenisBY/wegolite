@@ -542,7 +542,11 @@ describe("combat and hull wiring at start-up (plan 13-11)", () => {
     ];
     for (const file of readdirSession()) {
       const text = readFileSync(file, "utf8");
-      const creates = /createPlayerCombatState\(\)|\.combat = /.test(text);
+      // `probe.combat = ...` publishes values from the state (plan 13-14); it
+      // creates nothing, so it is not an install point.
+      const creates = /createPlayerCombatState\(\)|(?<!probe)\.combat = /.test(
+        text,
+      );
       expect(creates, file).toBe(owners.includes(file));
     }
   });
