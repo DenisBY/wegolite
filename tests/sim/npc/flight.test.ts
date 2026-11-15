@@ -11,6 +11,9 @@
 import { describe, expect, it } from "vitest";
 
 import { identity, vec } from "../../../src/sim/math.js";
+import { resolveAccuracy } from "../../../src/sim/npc/enter.js";
+import type { SteerContext } from "../../../src/sim/npc/dispatch.js";
+import { createSyntheticView } from "./oracle-runner.js";
 import {
   applyAttitude,
   applySticks,
@@ -240,5 +243,58 @@ describe("statsFor", () => {
       mass: 0,
       forwardWeapon: "EQ_WEAPON_NONE",
     });
+  });
+});
+
+describe("resolveAccuracy (ShipEntity.m:665-672, 1126-1134)", () => {
+  function resolved(
+    scanClass: Entity["scanClass"],
+    unit: number,
+  ): { accuracy: number; draws: number } {
+    const entity = ship();
+    entity.scanClass = scanClass;
+    let draws = 0;
+    const ctx: SteerContext = {
+      view: createSyntheticView([], entity, 0),
+      stats: STATS,
+      dt: DT,
+      draw: () => {
+        draws += 1;
+        return unit;
+      },
+      emit: () => undefined,
+    };
+    resolveAccuracy(entity, ctx);
+    const first = entity.steer.accuracy;
+    resolveAccuracy(entity, ctx); // a resolved accuracy is never drawn again
+    expect(entity.steer.accuracy).toBe(first);
+    return { accuracy: first, draws };
+  }
+
+  it("is randf() * 10 - 5, drawn exactly once", () => {
+    expect(resolved("CLASS_NEUTRAL", 0.25)).toEqual({
+      accuracy: -2.5,
+      draws: 1,
+    });
+    expect(resolved("CLASS_NEUTRAL", 0.75)).toEqual({
+      accuracy: 2.5,
+      draws: 1,
+    });
+  });
+
+  it("is negated for police and military when negative (669-671)", () => {
+    expect(resolved("CLASS_POLICE", 0.25).accuracy).toBe(2.5);
+    expect(resolved("CLASS_MILITARY", 0.25).accuracy).toBe(2.5);
+    expect(resolved("CLASS_POLICE", 0.75).accuracy).toBe(2.5);
+  });
+
+  it("a missile never has a negative accuracy (1128-1129)", () => {
+    expect(resolved("CLASS_MISSILE", 0.25).accuracy).toBe(0);
+    expect(resolved("CLASS_MISSILE", 0.75).accuracy).toBe(2.5);
+  });
+
+  it("the setAccuracy: clamp holds a stream value outside [0, 1) to -5..10 (1130-1134)", () => {
+    expect(resolved("CLASS_NEUTRAL", -1).accuracy).toBe(-5);
+    expect(resolved("CLASS_NEUTRAL", 2).accuracy).toBe(10);
   });
 });

@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2026 Wegolite contributors
+
+/**
+ * The NPC steering ledger is pinned to the Oolite literals it cites (AI-01,
+ * plan 14-09, PITFALLS 6). Each expected number is written from the Oolite
+ * source line named beside it, never from the module under test; a drift in the
+ * ledger fails here. The pins are the single place a later plan has to touch
+ * when it changes a ledger value deliberately.
+ */
+
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+import { TICKS_PER_SECOND } from "../../../src/sim/ai/time.js";
+import { SCANNER_MAX_RANGE as COMBAT_SCANNER_MAX_RANGE } from "../../../src/sim/combat/constants.js";
+import * as ledger from "../../../src/sim/npc/constants.js";
+
+const SRC_SIM = fileURLToPath(new URL("../../../src/sim/", import.meta.url));
+
+describe("the flight model constants", () => {
+  it.each([
+    ["SHIP_THRUST_FACTOR", ledger.SHIP_THRUST_FACTOR, 5], // ShipEntity.h:46
+    ["STICK_ROLL_RATE", ledger.STICK_ROLL_RATE, 2], // ShipEntity.m:7021
+    ["STICK_PITCH_RATE", ledger.STICK_PITCH_RATE, 4], // ShipEntity.m:7022
+    ["STICK_REVERSAL_FACTOR", ledger.STICK_REVERSAL_FACTOR, 4], // ShipEntity.m:7026, 7028
+    ["STICK_ZERO_FACTOR", ledger.STICK_ZERO_FACTOR, 2], // ShipEntity.m:7034, 7036
+    ["MIN_HYPERSPEED_FACTOR", ledger.MIN_HYPERSPEED_FACTOR, 32], // PlayerEntity.h:296
+  ])("%s is %d", (_name, actual, expected) => {
+    expect(actual).toBe(expected);
+  });
+
+  it("the stock stats are 160, 2.0, 1.0 and 15.0 (ShipEntity.m:263-270)", () => {
+    expect(ledger.DEFAULT_MAX_FLIGHT_SPEED).toBe(160);
+    expect(ledger.DEFAULT_MAX_FLIGHT_ROLL).toBe(2);
+    expect(ledger.DEFAULT_MAX_FLIGHT_PITCH).toBe(1);
+    expect(ledger.DEFAULT_THRUST).toBe(15);
+  });
+
+  it("SCANNER_MAX_RANGE is 25600 (Entity.h:49) and agrees with the combat ledger", () => {
+    expect(ledger.SCANNER_MAX_RANGE).toBe(25600);
+    expect(ledger.SCANNER_MAX_RANGE).toBe(COMBAT_SCANNER_MAX_RANGE);
+  });
+
+  it("MAX_COS is cos(5 degrees) rounded to 0.995 (ShipEntity.h:142-143)", () => {
+    expect(ledger.MAX_COS).toBe(0.995);
+    expect(ledger.MAX_COS2).toBe(0.995 * 0.995);
+    // "cos(5 degrees) is close enough": 0.99619, so 0.995 sits just below it.
+    expect(Math.cos((5 * Math.PI) / 180)).toBeGreaterThan(ledger.MAX_COS);
+  });
+});
+
+describe("the combat AI tiers (ShipEntity.h:123-137)", () => {
+  const tiers = {
+    COMBAT_AI_CONFIDENCE_FACTOR: 1250000, // :123
+    COMBAT_AI_ISNT_AWFUL: 0, // :124
+    COMBAT_AI_IS_SMART: 5, // :126
+    COMBAT_AI_FLEES_BETTER: 6, // :128
+    COMBAT_AI_DOGFIGHTER: 6.5, // :130
+    COMBAT_AI_TRACKS_CLOSER: 7.5, // :132
+    COMBAT_AI_USES_SNIPING: 8.5, // :133
+    COMBAT_AI_FLEES_BETTER_2: 9, // :135
+    COMBAT_AI_STANDARD_REACTION_TIME: 1.5, // :137
+  } as const;
+
+  it("every tier has its Oolite value", () => {
+    for (const [name, value] of Object.entries(tiers)) {
+      expect((ledger as Record<string, unknown>)[name], name).toBe(value);
+    }
+  });
+
+  it("the ledger exports exactly these COMBAT_AI_ names, each once", () => {
+    const exported = Object.keys(ledger)
+      .filter((name) => name.startsWith("COMBAT_AI_"))
+      .sort();
+    expect(exported).toEqual(Object.keys(tiers).sort());
+  });
+
+  it("no other file under src/sim defines a COMBAT_AI_ constant", () => {
+    const definitions = new Map<string, string[]>();
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(path);
+        } else if (entry.name.endsWith(".ts")) {
+          const text = readFileSync(path, "utf8");
+          for (const match of text.matchAll(
+            /^\s*(?:export\s+)?const\s+(COMBAT_AI_[A-Z0-9_]+)\b/gm,
+          )) {
+            const name = match[1];
+            if (name === undefined) continue;
+            definitions.set(name, [...(definitions.get(name) ?? []), path]);
+          }
+        }
+      }
+    };
+    walk(SRC_SIM);
+    for (const [name, files] of definitions) {
+      expect(files, name).toHaveLength(1);
+    }
+    expect([...definitions.keys()].sort()).toEqual(Object.keys(tiers).sort());
+  });
+});
+
+describe("the tracking-curve sampling gate", () => {
+  it("TRACKING_SAMPLE_TICKS is round(reaction time / 3 * 120) = 60 (ShipEntity.m:5444-5449, 717)", () => {
+    // A third of the 1.5 s reaction time is 0.5 s, 60 ticks at 120 Hz.
+    expect(ledger.TRACKING_SAMPLE_TICKS).toBe(60);
+    expect(ledger.TRACKING_SAMPLE_TICKS).toBe(
+      Math.round((1.5 / 3) * TICKS_PER_SECOND),
+    );
+  });
+});
+
+describe("the accuracy draw (ShipEntity.m:667)", () => {
+  it("is randf() * 10 - 5", () => {
+    expect(ledger.ACCURACY_DRAW_SPAN).toBe(10);
+    expect(ledger.ACCURACY_DRAW_OFFSET).toBe(-5);
+  });
+});
