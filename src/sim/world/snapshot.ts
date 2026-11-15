@@ -36,7 +36,7 @@
 import type { AiComponent, AiKey, ParamValue } from "../ai/types.js";
 import { AI_KEYS } from "../ai/types.js";
 import { createRngState } from "../rng.js";
-import { createSteerComponent } from "../npc/state.js";
+import { ACCURACY_UNRESOLVED } from "../npc/state.js";
 import type { Entity, EntityStreams } from "./entity.js";
 import {
   BEHAVIOUR_IDS,
@@ -47,14 +47,20 @@ import {
 } from "./ids.js";
 import type { BehaviourId, EntityId, EntityKind, ScanClass } from "./ids.js";
 import {
+  MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
+  MAX_ESCORT_SLOT,
+  MAX_FRUSTRATION,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
+  MAX_STEER_RATE,
   MAX_UINT32,
+  MIN_ACCURACY,
   QUAT_UNIT_TOLERANCE,
+  TRACKING_SAMPLES,
 } from "./limits.js";
 import { createEntityStore } from "./store.js";
 import { STATIC_ENTITIES } from "./world.js";
@@ -67,8 +73,11 @@ export const WORLD_SNAPSHOT_FORMAT = "wegolite-world";
  * The snapshot layout version; bump on any field or limit change. Version 2
  * (Phase 13, CBT-07) adds the energy bank (`energy`, `maxEnergy`,
  * `energyRechargeRate`) to every entity; a version-1 snapshot is refused.
+ * Version 3 (Phase 14, AI-01) adds the steering record `steer` to every entity;
+ * a version-2 snapshot is refused. World snapshots are not persisted to
+ * IndexedDB yet (SAVE-07 is later), so no save migration exists.
  */
-export const WORLD_SNAPSHOT_VERSION = 2;
+export const WORLD_SNAPSHOT_VERSION = 3;
 
 export interface VectorSnapshot {
   x: number;
@@ -91,6 +100,43 @@ export interface NavSnapshot {
   desiredSpeed: number;
 }
 
+/** The condition `avoidCollision` saved (`SavedCondition` in `../npc/state.ts`). */
+export interface SavedConditionSnapshot {
+  behaviour: BehaviourId;
+  targetId: EntityId;
+  desiredRange: number;
+  desiredSpeed: number;
+  destination: VectorSnapshot;
+}
+
+/**
+ * The steering record (`SteerComponent` in `../npc/state.ts`). Canonical form:
+ * at `trackingCount` 0 every tick and position is zero.
+ */
+export interface SteerSnapshot {
+  flightRoll: number;
+  flightPitch: number;
+  stickRoll: number;
+  stickPitch: number;
+  accuracy: number;
+  frustration: number;
+  successFactor: number;
+  pitchingOver: boolean;
+  jink: VectorSnapshot;
+  proximityAlert: EntityId;
+  escortSlot: number;
+  trackingCount: number;
+  trackingTicks: [number, number, number, number];
+  trackingPositions: [
+    VectorSnapshot,
+    VectorSnapshot,
+    VectorSnapshot,
+    VectorSnapshot,
+  ];
+  saved: SavedConditionSnapshot | null;
+  entryPending: boolean;
+}
+
 /** One live entity: every `Entity` field except `dead` (never snapshotted). */
 export interface EntitySnapshot {
   id: EntityId;
@@ -110,6 +156,7 @@ export interface EntitySnapshot {
   energy: number;
   maxEnergy: number;
   energyRechargeRate: number;
+  steer: SteerSnapshot;
 }
 
 export interface WorldSnapshot {
@@ -193,6 +240,38 @@ function requireFiniteParam(value: unknown, path: string): void {
   requireFinite(value, path);
 }
 
+/** Refuse the first non-finite number leaf of a steering record. */
+function requireFiniteSteer(steer: Entity["steer"], at: string): void {
+  requireFinite(steer.flightRoll, `${at}.flightRoll`);
+  requireFinite(steer.flightPitch, `${at}.flightPitch`);
+  requireFinite(steer.stickRoll, `${at}.stickRoll`);
+  requireFinite(steer.stickPitch, `${at}.stickPitch`);
+  requireFinite(steer.accuracy, `${at}.accuracy`);
+  requireFinite(steer.frustration, `${at}.frustration`);
+  requireFinite(steer.successFactor, `${at}.successFactor`);
+  requireFinite(steer.jink.x, `${at}.jink.x`);
+  requireFinite(steer.jink.y, `${at}.jink.y`);
+  requireFinite(steer.jink.z, `${at}.jink.z`);
+  requireFinite(steer.proximityAlert, `${at}.proximityAlert`);
+  requireFinite(steer.escortSlot, `${at}.escortSlot`);
+  requireFinite(steer.trackingCount, `${at}.trackingCount`);
+  for (let i = 0; i < TRACKING_SAMPLES; i += 1) {
+    requireFinite(steer.trackingTicks[i], `${at}.trackingTicks[${String(i)}]`);
+    const p = steer.trackingPositions[i];
+    requireFinite(p?.x, `${at}.trackingPositions[${String(i)}].x`);
+    requireFinite(p?.y, `${at}.trackingPositions[${String(i)}].y`);
+    requireFinite(p?.z, `${at}.trackingPositions[${String(i)}].z`);
+  }
+  if (steer.saved !== null) {
+    requireFinite(steer.saved.targetId, `${at}.saved.targetId`);
+    requireFinite(steer.saved.desiredRange, `${at}.saved.desiredRange`);
+    requireFinite(steer.saved.desiredSpeed, `${at}.saved.desiredSpeed`);
+    requireFinite(steer.saved.destination.x, `${at}.saved.destination.x`);
+    requireFinite(steer.saved.destination.y, `${at}.saved.destination.y`);
+    requireFinite(steer.saved.destination.z, `${at}.saved.destination.z`);
+  }
+}
+
 /** Refuse the first non-finite number leaf of `entity`. */
 function requireFiniteEntity(entity: Entity): void {
   const at = `entity ${String(entity.id)}`;
@@ -221,6 +300,7 @@ function requireFiniteEntity(entity: Entity): void {
   requireFinite(entity.energy, `${at}.energy`);
   requireFinite(entity.maxEnergy, `${at}.maxEnergy`);
   requireFinite(entity.energyRechargeRate, `${at}.energyRechargeRate`);
+  requireFiniteSteer(entity.steer, `${at}.steer`);
   if (entity.ai !== null) {
     requireFinite(entity.ai.wakeTick, `${at}.ai.wakeTick`);
     requireFinite(entity.ai.nextThinkTick, `${at}.ai.nextThinkTick`);
@@ -254,6 +334,52 @@ function copyAi(ai: AiComponent): AiComponent {
     params: copyParams(ai.params),
     wakeTick: noNegativeZero(ai.wakeTick),
     nextThinkTick: noNegativeZero(ai.nextThinkTick),
+  };
+}
+
+const copyVec = (v: { x: number; y: number; z: number }): VectorSnapshot => ({
+  x: noNegativeZero(v.x),
+  y: noNegativeZero(v.y),
+  z: noNegativeZero(v.z),
+});
+
+/**
+ * The canonical copy of a steering record: `-0` written as 0, and the ticks and
+ * positions of a curve that does not exist (count 0) written as zeros, so a
+ * stale sample never reaches the JSON and equal states snapshot alike.
+ */
+function snapshotSteer(steer: Entity["steer"]): SteerSnapshot {
+  const started = steer.trackingCount !== 0;
+  const tick = (i: 0 | 1 | 2 | 3): number =>
+    started ? noNegativeZero(steer.trackingTicks[i]) : 0;
+  const position = (i: 0 | 1 | 2 | 3): VectorSnapshot =>
+    started ? copyVec(steer.trackingPositions[i]) : { x: 0, y: 0, z: 0 };
+  return {
+    flightRoll: noNegativeZero(steer.flightRoll),
+    flightPitch: noNegativeZero(steer.flightPitch),
+    stickRoll: noNegativeZero(steer.stickRoll),
+    stickPitch: noNegativeZero(steer.stickPitch),
+    accuracy: noNegativeZero(steer.accuracy),
+    frustration: noNegativeZero(steer.frustration),
+    successFactor: noNegativeZero(steer.successFactor),
+    pitchingOver: steer.pitchingOver,
+    jink: copyVec(steer.jink),
+    proximityAlert: noNegativeZero(steer.proximityAlert),
+    escortSlot: noNegativeZero(steer.escortSlot),
+    trackingCount: noNegativeZero(steer.trackingCount),
+    trackingTicks: [tick(0), tick(1), tick(2), tick(3)],
+    trackingPositions: [position(0), position(1), position(2), position(3)],
+    saved:
+      steer.saved === null
+        ? null
+        : {
+            behaviour: steer.saved.behaviour,
+            targetId: noNegativeZero(steer.saved.targetId),
+            desiredRange: noNegativeZero(steer.saved.desiredRange),
+            desiredSpeed: noNegativeZero(steer.saved.desiredSpeed),
+            destination: copyVec(steer.saved.destination),
+          },
+    entryPending: steer.entryPending,
   };
 }
 
@@ -296,6 +422,7 @@ function snapshotEntity(entity: Entity): EntitySnapshot {
     energy: noNegativeZero(entity.energy),
     maxEnergy: noNegativeZero(entity.maxEnergy),
     energyRechargeRate: noNegativeZero(entity.energyRechargeRate),
+    steer: snapshotSteer(entity.steer),
   };
 }
 
@@ -587,6 +714,219 @@ function parseRadius(value: unknown, path: string): number {
   return n;
 }
 
+/** A boolean; any other type is refused. */
+function flag(value: unknown, path: string): boolean {
+  if (typeof value !== "boolean") {
+    return fail("type", path, "expected a boolean");
+  }
+  return value;
+}
+
+/** A finite number with `|n| <= limit`: `magnitude` above it. */
+function symmetricNumber(value: unknown, path: string, limit: number): number {
+  const n = finiteNumber(value, path);
+  if (Math.abs(n) > limit) return fail("magnitude", path, "exceeds its limit");
+  return noNegativeZero(n);
+}
+
+/** The unresolved accuracy sentinel or a resolved value in its range. */
+function parseAccuracy(value: unknown, path: string): number {
+  const n = finiteNumber(value, path);
+  if (n === ACCURACY_UNRESOLVED) return n;
+  if (n < MIN_ACCURACY || n > MAX_ACCURACY) {
+    return fail("range", path, "outside the accuracy range");
+  }
+  return noNegativeZero(n);
+}
+
+/** An integer in `0..max`; a non-integer or an out-of-range value is `range`. */
+function boundedInteger(value: unknown, path: string, max: number): number {
+  const n = finiteNumber(value, path);
+  if (!Number.isSafeInteger(n) || n < 0 || n > max) {
+    return fail("range", path, `expected an integer in 0..${String(max)}`);
+  }
+  return noNegativeZero(n);
+}
+
+/** A signed integer tick with `|tick| <= MAX_UINT32`. */
+function signedTick(value: unknown, path: string): number {
+  const n = finiteNumber(value, path);
+  if (!Number.isSafeInteger(n)) return fail("counter", path, "not an integer");
+  if (Math.abs(n) > MAX_UINT32) {
+    return fail("magnitude", path, "exceeds the signed tick domain");
+  }
+  return noNegativeZero(n);
+}
+
+/** An array of exactly `TRACKING_SAMPLES` elements, each parsed once. */
+function parseSamples<T>(
+  value: unknown,
+  path: string,
+  parseOne: (element: unknown, at: string) => T,
+): [T, T, T, T] {
+  if (!Array.isArray(value)) return fail("type", path, "expected an array");
+  const source = value as readonly unknown[];
+  if (source.length !== TRACKING_SAMPLES) {
+    return fail("type", path, "expected exactly four samples");
+  }
+  const at = (i: number): string => `${path}[${String(i)}]`;
+  return [
+    parseOne(source[0], at(0)),
+    parseOne(source[1], at(1)),
+    parseOne(source[2], at(2)),
+    parseOne(source[3], at(3)),
+  ];
+}
+
+function parseSaved(
+  value: unknown,
+  path: string,
+): SavedConditionSnapshot | null {
+  if (value === null) return null;
+  const o = asObject(value, path, [
+    "behaviour",
+    "targetId",
+    "desiredRange",
+    "desiredSpeed",
+    "destination",
+  ]);
+  return {
+    behaviour: vocabulary(
+      read(o, "behaviour"),
+      `${path}.behaviour`,
+      BEHAVIOUR_IDS,
+    ) as BehaviourId,
+    targetId: uint32(read(o, "targetId"), `${path}.targetId`, "counter"),
+    desiredRange: nonNegativeNumber(
+      read(o, "desiredRange"),
+      `${path}.desiredRange`,
+    ),
+    desiredSpeed: nonNegativeNumber(
+      read(o, "desiredSpeed"),
+      `${path}.desiredSpeed`,
+    ),
+    destination: parseVector(read(o, "destination"), `${path}.destination`),
+  };
+}
+
+/**
+ * The steering record. `trackingCount` is 0 or 4; with 4 the ticks must strictly
+ * decrease (so `calculateTrackingCurve` never divides by zero), and with 0 every
+ * tick and position must be zero, the canonical form `snapshotWorld` writes. A
+ * state outside that is refused, never repaired.
+ */
+function parseSteer(value: unknown, path: string): SteerSnapshot {
+  const o = asObject(value, path, [
+    "flightRoll",
+    "flightPitch",
+    "stickRoll",
+    "stickPitch",
+    "accuracy",
+    "frustration",
+    "successFactor",
+    "pitchingOver",
+    "jink",
+    "proximityAlert",
+    "escortSlot",
+    "trackingCount",
+    "trackingTicks",
+    "trackingPositions",
+    "saved",
+    "entryPending",
+  ]);
+  const flightRoll = symmetricNumber(
+    read(o, "flightRoll"),
+    `${path}.flightRoll`,
+    MAX_STEER_RATE,
+  );
+  const flightPitch = symmetricNumber(
+    read(o, "flightPitch"),
+    `${path}.flightPitch`,
+    MAX_STEER_RATE,
+  );
+  const stickRoll = symmetricNumber(
+    read(o, "stickRoll"),
+    `${path}.stickRoll`,
+    MAX_STEER_RATE,
+  );
+  const stickPitch = symmetricNumber(
+    read(o, "stickPitch"),
+    `${path}.stickPitch`,
+    MAX_STEER_RATE,
+  );
+  const accuracy = parseAccuracy(read(o, "accuracy"), `${path}.accuracy`);
+  const frustration = limitedNumber(
+    read(o, "frustration"),
+    `${path}.frustration`,
+    MAX_FRUSTRATION,
+  );
+  const successFactor = boundedNumber(
+    read(o, "successFactor"),
+    `${path}.successFactor`,
+  );
+  const pitchingOver = flag(read(o, "pitchingOver"), `${path}.pitchingOver`);
+  const jink = parseVector(read(o, "jink"), `${path}.jink`);
+  const proximityAlert = uint32(
+    read(o, "proximityAlert"),
+    `${path}.proximityAlert`,
+    "counter",
+  );
+  const escortSlot = boundedInteger(
+    read(o, "escortSlot"),
+    `${path}.escortSlot`,
+    MAX_ESCORT_SLOT,
+  );
+  const trackingCount = boundedInteger(
+    read(o, "trackingCount"),
+    `${path}.trackingCount`,
+    TRACKING_SAMPLES,
+  );
+  if (trackingCount !== 0 && trackingCount !== TRACKING_SAMPLES) {
+    fail("range", `${path}.trackingCount`, "expected 0 or 4");
+  }
+  const trackingTicks = parseSamples(
+    read(o, "trackingTicks"),
+    `${path}.trackingTicks`,
+    signedTick,
+  );
+  const trackingPositions = parseSamples(
+    read(o, "trackingPositions"),
+    `${path}.trackingPositions`,
+    parseVector,
+  );
+  if (trackingCount === TRACKING_SAMPLES) {
+    const [a, b, c, d] = trackingTicks;
+    if (!(a > b && b > c && c > d)) {
+      fail("range", `${path}.trackingTicks`, "not strictly decreasing");
+    }
+  } else if (
+    trackingTicks.some((tick) => tick !== 0) ||
+    trackingPositions.some((p) => p.x !== 0 || p.y !== 0 || p.z !== 0)
+  ) {
+    fail("range", `${path}.trackingCount`, "stale samples at count 0");
+  }
+  const saved = parseSaved(read(o, "saved"), `${path}.saved`);
+  const entryPending = flag(read(o, "entryPending"), `${path}.entryPending`);
+  return {
+    flightRoll,
+    flightPitch,
+    stickRoll,
+    stickPitch,
+    accuracy,
+    frustration,
+    successFactor,
+    pitchingOver,
+    jink,
+    proximityAlert,
+    escortSlot,
+    trackingCount,
+    trackingTicks,
+    trackingPositions,
+    saved,
+    entryPending,
+  };
+}
+
 function parseEntity(value: unknown, path: string): EntitySnapshot {
   const o = asObject(value, path, [
     "id",
@@ -606,6 +946,7 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     "energy",
     "maxEnergy",
     "energyRechargeRate",
+    "steer",
   ]);
   const id = read(o, "id");
   if (
@@ -656,6 +997,7 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     `${path}.energyRechargeRate`,
     MAX_ENERGY_RECHARGE_RATE,
   );
+  const steer = parseSteer(read(o, "steer"), `${path}.steer`);
   return {
     id,
     kind,
@@ -674,6 +1016,7 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     energy,
     maxEnergy,
     energyRechargeRate,
+    steer,
   };
 }
 
@@ -784,9 +1127,7 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
     energy: e.energy,
     maxEnergy: e.maxEnergy,
     energyRechargeRate: e.energyRechargeRate,
-    // Task 2 of plan 14-08 carries the record through the snapshot; until then
-    // every restored entity holds the default one (nothing steers yet).
-    steer: createSteerComponent(0),
+    steer: e.steer,
   }));
   return {
     worldSeed: parsed.worldSeed,

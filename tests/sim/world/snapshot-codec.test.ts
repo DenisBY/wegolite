@@ -26,11 +26,15 @@ import {
   SCAN_CLASSES,
 } from "../../../src/sim/world/ids.js";
 import {
-  MAX_AI_PARAMS_KEYS,
   MAX_ENERGY_RECHARGE_RATE,
+  MAX_AI_PARAMS_KEYS,
   MAX_ENTITY_ENERGY,
+  MAX_ENTITY_MAGNITUDE,
+  MAX_ESCORT_SLOT,
+  MAX_FRUSTRATION,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
+  MAX_STEER_RATE,
   MAX_UINT32,
 } from "../../../src/sim/world/limits.js";
 import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
@@ -64,6 +68,10 @@ import { laveFixture } from "../../helpers/lave.js";
 const { layout } = laveFixture();
 
 type Plain = Record<string, unknown>;
+
+/** Loose write access to a field the types protect (the corrupt-input tests). */
+const loose = (value: unknown): Record<string, unknown> =>
+  value as Record<string, unknown>;
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -130,6 +138,37 @@ function richWorld(): World {
   b.energyRechargeRate = 4;
   a.ownerId = 3;
   a.speed = 80.125;
+  // Every group of the steering record away from its default (plan 14-08).
+  a.steer.flightRoll = 0.75;
+  a.steer.flightPitch = -0.5;
+  a.steer.stickRoll = 1.25;
+  a.steer.stickPitch = -1.5;
+  a.steer.accuracy = 3.5;
+  a.steer.frustration = 2.25;
+  a.steer.successFactor = -0.125;
+  a.steer.pitchingOver = true;
+  a.steer.jink = vec(0.5, -0.25, 0);
+  a.steer.proximityAlert = b.id;
+  a.steer.escortSlot = 3;
+  // A curve started early in a world: negative ticks inside the signed domain.
+  a.steer.trackingCount = 4;
+  a.steer.trackingTicks = [10, -50, -110, -170];
+  a.steer.trackingPositions = [
+    vec(1, 2, 3),
+    vec(-4, 5.5, 6),
+    vec(7, 8, -9.25),
+    vec(0, 0, 1e6),
+  ];
+  a.steer.saved = {
+    behaviour: "FLY_TO_DESTINATION",
+    targetId: c.id,
+    desiredRange: 250.5,
+    desiredSpeed: 40,
+    destination: vec(10, -20, 30),
+  };
+  a.steer.entryPending = true;
+  b.steer.accuracy = -2;
+  b.steer.escortSlot = 15;
   b.orientation = quat(0.5, 0.5, 0.5, 0.5);
   c.position = vec(-42.5, 0.25, 1e6);
   const gone = spawnOk(world, shipInit(3, null), 10);
@@ -194,6 +233,7 @@ const set =
 const E0 = "entities.0";
 const NAV = `${E0}.nav`;
 const AI = `${E0}.ai`;
+const STEER = `${E0}.steer`;
 const PARAMS = `${AI}.params`;
 
 function manyEntities(count: number): Mutator {
@@ -214,7 +254,9 @@ const REJECTIONS: readonly (readonly [string, Mutator, SnapshotErrorReason])[] =
     ["a wrong format tag", set("format", "other"), "format"],
     // Version 1 lacks the energy bank (Phase 13, CBT-07): its shape is refused.
     ["version 1", set("version", 1), "version"],
-    ["version 3", set("version", 3), "version"],
+    // Version 2 lacks the steering record (Phase 14, AI-01): its shape is refused.
+    ["version 2", set("version", 2), "version"],
+    ["version 4", set("version", 4), "version"],
     ["worldSeed 1.5", set("worldSeed", 1.5), "world-seed"],
     ["worldSeed -1", set("worldSeed", -1), "world-seed"],
     ["worldSeed 2 ** 32", set("worldSeed", 2 ** 32), "world-seed"],
@@ -361,6 +403,177 @@ const REJECTIONS: readonly (readonly [string, Mutator, SnapshotErrorReason])[] =
       set(`${E0}.energyRechargeRate`, MAX_ENERGY_RECHARGE_RATE + 1),
       "magnitude",
     ],
+    // The steering record (AI-01, plan 14-08): strict keys, bounded limits, the
+    // tracking curve's count and order.
+    [
+      "steer missing",
+      (s) => void delete (getAt(s, E0) as Plain).steer,
+      "not-object",
+    ],
+    ["steer null", set(STEER, null), "not-object"],
+    ["an unknown steer key", set(`${STEER}.extra`, 1), "unknown-key"],
+    [
+      "flightRoll missing",
+      (s) => void delete (getAt(s, STEER) as Plain).flightRoll,
+      "type",
+    ],
+    [
+      "flightRoll null (a NaN after JSON)",
+      set(`${STEER}.flightRoll`, null),
+      "non-finite",
+    ],
+    ["flightPitch NaN", set(`${STEER}.flightPitch`, Number.NaN), "non-finite"],
+    ["stickRoll as a string", set(`${STEER}.stickRoll`, "1"), "type"],
+    [
+      "stickPitch over MAX_STEER_RATE",
+      set(`${STEER}.stickPitch`, MAX_STEER_RATE + 1),
+      "magnitude",
+    ],
+    [
+      "flightRoll under -MAX_STEER_RATE",
+      set(`${STEER}.flightRoll`, -MAX_STEER_RATE - 1),
+      "magnitude",
+    ],
+    ["accuracy 11", set(`${STEER}.accuracy`, 11), "range"],
+    ["accuracy -6", set(`${STEER}.accuracy`, -6), "range"],
+    ["accuracy -99", set(`${STEER}.accuracy`, -99), "range"],
+    ["accuracy null", set(`${STEER}.accuracy`, null), "non-finite"],
+    ["frustration -1", set(`${STEER}.frustration`, -1), "range"],
+    [
+      "frustration over MAX_FRUSTRATION",
+      set(`${STEER}.frustration`, MAX_FRUSTRATION + 1),
+      "magnitude",
+    ],
+    [
+      "successFactor over the magnitude cap",
+      set(`${STEER}.successFactor`, MAX_ENTITY_MAGNITUDE * 10),
+      "magnitude",
+    ],
+    ["pitchingOver 1", set(`${STEER}.pitchingOver`, 1), "type"],
+    ["entryPending null", set(`${STEER}.entryPending`, null), "type"],
+    ["jink.x null", set(`${STEER}.jink.x`, null), "non-finite"],
+    ["an unknown jink key", set(`${STEER}.jink.extra`, 1), "unknown-key"],
+    [
+      "proximityAlert 2 ** 32",
+      set(`${STEER}.proximityAlert`, 2 ** 32),
+      "counter",
+    ],
+    ["proximityAlert -1", set(`${STEER}.proximityAlert`, -1), "counter"],
+    ["escortSlot 16", set(`${STEER}.escortSlot`, MAX_ESCORT_SLOT + 1), "range"],
+    ["escortSlot -1", set(`${STEER}.escortSlot`, -1), "range"],
+    ["escortSlot 1.5", set(`${STEER}.escortSlot`, 1.5), "range"],
+    ["escortSlot as a string", set(`${STEER}.escortSlot`, "3"), "type"],
+    ["trackingCount 1", set(`${STEER}.trackingCount`, 1), "range"],
+    ["trackingCount 2", set(`${STEER}.trackingCount`, 2), "range"],
+    ["trackingCount 3", set(`${STEER}.trackingCount`, 3), "range"],
+    ["trackingCount 5", set(`${STEER}.trackingCount`, 5), "range"],
+    ["trackingCount -1", set(`${STEER}.trackingCount`, -1), "range"],
+    ["trackingCount 4.5", set(`${STEER}.trackingCount`, 4.5), "range"],
+    [
+      "a tracking tick beyond the signed domain",
+      set(`${STEER}.trackingTicks`, [10, -50, -110, -MAX_UINT32 - 1]),
+      "magnitude",
+    ],
+    [
+      "a tracking tick above the signed domain",
+      set(`${STEER}.trackingTicks`, [MAX_UINT32 + 1, -50, -110, -170]),
+      "magnitude",
+    ],
+    [
+      "a non-integer tracking tick",
+      set(`${STEER}.trackingTicks`, [10, -50.5, -110, -170]),
+      "counter",
+    ],
+    [
+      "a null tracking tick (a NaN after JSON)",
+      set(`${STEER}.trackingTicks`, [10, null, -110, -170]),
+      "non-finite",
+    ],
+    [
+      "tracking ticks with only three samples",
+      set(`${STEER}.trackingTicks`, [10, -50, -110]),
+      "type",
+    ],
+    [
+      "tracking ticks with five samples",
+      set(`${STEER}.trackingTicks`, [10, -50, -110, -170, -230]),
+      "type",
+    ],
+    ["tracking ticks not an array", set(`${STEER}.trackingTicks`, {}), "type"],
+    [
+      "a count of 4 with two equal ticks",
+      set(`${STEER}.trackingTicks`, [10, -50, -50, -170]),
+      "range",
+    ],
+    [
+      "a count of 4 with increasing ticks",
+      set(`${STEER}.trackingTicks`, [-170, -110, -50, 10]),
+      "range",
+    ],
+    [
+      "a count of 4 with all ticks equal",
+      set(`${STEER}.trackingTicks`, [5, 5, 5, 5]),
+      "range",
+    ],
+    [
+      "a count of 0 with a stale tick",
+      (s) => {
+        setAt(s, `${STEER}.trackingCount`, 0);
+      },
+      "range",
+    ],
+    [
+      "tracking positions with three samples",
+      set(`${STEER}.trackingPositions`, [
+        { x: 0, y: 0, z: 0 },
+        { x: 0, y: 0, z: 0 },
+        { x: 0, y: 0, z: 0 },
+      ]),
+      "type",
+    ],
+    [
+      "a tracking position component over the magnitude cap",
+      set(`${STEER}.trackingPositions.2.z`, 1e13),
+      "magnitude",
+    ],
+    [
+      "an unknown tracking position key",
+      set(`${STEER}.trackingPositions.0.extra`, 1),
+      "unknown-key",
+    ],
+    ["saved not an object", set(`${STEER}.saved`, 5), "not-object"],
+    ["an unknown saved key", set(`${STEER}.saved.extra`, 1), "unknown-key"],
+    [
+      "saved behaviour WARP",
+      set(`${STEER}.saved.behaviour`, "WARP"),
+      "vocabulary",
+    ],
+    [
+      "saved behaviour constructor",
+      set(`${STEER}.saved.behaviour`, "constructor"),
+      "vocabulary",
+    ],
+    [
+      "saved targetId 2 ** 32",
+      set(`${STEER}.saved.targetId`, 2 ** 32),
+      "counter",
+    ],
+    ["saved desiredRange -1", set(`${STEER}.saved.desiredRange`, -1), "range"],
+    [
+      "saved desiredSpeed over the magnitude cap",
+      set(`${STEER}.saved.desiredSpeed`, 1e13),
+      "magnitude",
+    ],
+    [
+      "saved destination.y null",
+      set(`${STEER}.saved.destination.y`, null),
+      "non-finite",
+    ],
+    [
+      "saved missing a field",
+      (s) => void delete (getAt(s, `${STEER}.saved`) as Plain).destination,
+      "not-object",
+    ],
     ["spawnTick 2 ** 32", set(`${E0}.spawnTick`, 2 ** 32), "counter"],
     ["ownerId 2 ** 32", set(`${E0}.ownerId`, 2 ** 32), "counter"],
     ["nav.targetId 2 ** 32", set(`${NAV}.targetId`, 2 ** 32), "counter"],
@@ -489,6 +702,11 @@ const FORBIDDEN_LEVELS = [
   `${NAV}.destination`,
   AI,
   PARAMS,
+  STEER,
+  `${STEER}.jink`,
+  `${STEER}.saved`,
+  `${STEER}.saved.destination`,
+  `${STEER}.trackingPositions.0`,
 ] as const;
 
 describe("parseWorldSnapshot rejections", () => {
@@ -652,6 +870,156 @@ describe("parseWorldSnapshot acceptance", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The steering record under version 3 (AI-01, plan 14-08)
+
+describe("the steering record in the snapshot", () => {
+  const aSteer = (world: World): Entity["steer"] =>
+    (world.store.live[0] as Entity).steer;
+
+  it("writes version 3 and the record of every entity", () => {
+    const snapshot = snapshotWorld(richWorld());
+    expect(snapshot.version).toBe(3);
+    const [a, b, c] = snapshot.entities;
+    expect(a?.steer).toEqual({
+      flightRoll: 0.75,
+      flightPitch: -0.5,
+      stickRoll: 1.25,
+      stickPitch: -1.5,
+      accuracy: 3.5,
+      frustration: 2.25,
+      successFactor: -0.125,
+      pitchingOver: true,
+      jink: { x: 0.5, y: -0.25, z: 0 },
+      proximityAlert: 102,
+      escortSlot: 3,
+      trackingCount: 4,
+      trackingTicks: [10, -50, -110, -170],
+      trackingPositions: [
+        { x: 1, y: 2, z: 3 },
+        { x: -4, y: 5.5, z: 6 },
+        { x: 7, y: 8, z: -9.25 },
+        { x: 0, y: 0, z: 1e6 },
+      ],
+      saved: {
+        behaviour: "FLY_TO_DESTINATION",
+        targetId: 103,
+        desiredRange: 250.5,
+        desiredSpeed: 40,
+        destination: { x: 10, y: -20, z: 30 },
+      },
+      entryPending: true,
+    });
+    expect([b?.steer.accuracy, b?.steer.escortSlot]).toEqual([-2, 15]);
+    expect(c?.steer.accuracy).toBe(-100);
+    expect(c?.steer.saved).toBeNull();
+    expect(c?.steer.trackingCount).toBe(0);
+  });
+
+  it("restores the record so the restored world hashes like the source", () => {
+    const player = initFlightState(layout);
+    const world = richWorld();
+    const restored = restoreWorld(parseWorldSnapshot(jsonOf(world)));
+    expect(aSteer(restored)).toEqual(aSteer(world));
+    expect(entityHashes(restored)).toEqual(entityHashes(world));
+    expect(hashWorld(player, restored)).toBe(hashWorld(player, world));
+  });
+
+  it("restores fresh objects: the restored record aliases neither the source nor the snapshot", () => {
+    const world = richWorld();
+    const parsed = parseWorldSnapshot(jsonOf(world));
+    const restored = restoreWorld(parsed);
+    const before = serializeWorldSection(restored);
+    const source = aSteer(world);
+    const copy = aSteer(restored);
+    expect(copy).not.toBe(source);
+    expect(copy.jink).not.toBe(source.jink);
+    expect(copy.trackingTicks).not.toBe(source.trackingTicks);
+    expect(copy.trackingPositions[1]).not.toBe(source.trackingPositions[1]);
+    expect(copy.saved).not.toBe(source.saved);
+    // Mutating the source or the parsed snapshot afterwards changes nothing.
+    source.jink = vec(9, 9, 9);
+    source.trackingTicks[0] = 99;
+    (parsed.entities[0] as EntitySnapshot).steer.trackingPositions[0].x = 77;
+    expect(serializeWorldSection(restored)).toBe(before);
+  });
+
+  it("writes a curve that does not exist in its canonical form: zero ticks and positions", () => {
+    const world = richWorld();
+    const steer = aSteer(world);
+    steer.trackingCount = 0;
+    const entry = snapshotWorld(world).entities[0] as EntitySnapshot;
+    expect(entry.steer.trackingTicks).toEqual([0, 0, 0, 0]);
+    expect(entry.steer.trackingPositions).toEqual([
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+    ]);
+    // The stale samples change neither the hash nor the round trip.
+    const restored = restoreWorld(parseWorldSnapshot(jsonOf(world)));
+    expect(entityHashes(restored)).toEqual(entityHashes(world));
+  });
+
+  it("accepts a negative tick inside the signed domain in a strictly decreasing set", () => {
+    const snapshot = jsonOf(richWorld());
+    setAt(snapshot, `${STEER}.trackingTicks`, [0, -1, -2, -MAX_UINT32]);
+    expect(reasonOf(snapshot)).toBe("accepted");
+    const restored = restoreWorld(snapshot as unknown as WorldSnapshot);
+    expect((restored.store.live[0] as Entity).steer.trackingTicks).toEqual([
+      0,
+      -1,
+      -2,
+      -MAX_UINT32,
+    ]);
+  });
+
+  it("accepts the unresolved accuracy sentinel, the resolved bounds and the largest slot", () => {
+    for (const accuracy of [-100, -5, 10]) {
+      const snapshot = jsonOf(richWorld());
+      setAt(snapshot, `${STEER}.accuracy`, accuracy);
+      expect(reasonOf(snapshot)).toBe("accepted");
+    }
+    const snapshot = jsonOf(richWorld());
+    setAt(snapshot, `${STEER}.escortSlot`, MAX_ESCORT_SLOT);
+    expect(reasonOf(snapshot)).toBe("accepted");
+  });
+
+  it("accepts a saved condition of null and of an object", () => {
+    const snapshot = jsonOf(richWorld());
+    setAt(snapshot, `${STEER}.saved`, null);
+    expect(reasonOf(snapshot)).toBe("accepted");
+    expect(
+      aSteer(restoreWorld(snapshot as unknown as WorldSnapshot)).saved,
+    ).toBeNull();
+  });
+
+  it("normalises -0 in the record and refuses a non-finite value", () => {
+    const world = richWorld();
+    const steer = aSteer(world);
+    steer.flightRoll = -0;
+    steer.jink = vec(-0, 0, -0);
+    steer.successFactor = -0;
+    steer.trackingTicks = [10, -50, -110, -170];
+    const entry = snapshotWorld(world).entities[0] as EntitySnapshot;
+    expect(Object.is(entry.steer.flightRoll, 0)).toBe(true);
+    expect(Object.is(entry.steer.jink.x, 0)).toBe(true);
+    expect(Object.is(entry.steer.successFactor, 0)).toBe(true);
+    steer.frustration = Number.NaN;
+    expect(() => snapshotWorld(world)).toThrow(SnapshotError);
+  });
+
+  it("refuses a hand-built version-2 snapshot of the previous shape", () => {
+    const snapshot = jsonOf(richWorld());
+    snapshot.version = 2;
+    for (const entity of snapshot.entities as Plain[]) delete entity.steer;
+    expect(reasonOf(snapshot)).toBe("version");
+    expect(() => restoreWorld(snapshot as unknown as WorldSnapshot)).toThrow(
+      SnapshotError,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The edges
 
 describe("snapshot edges", () => {
@@ -732,12 +1100,11 @@ describe("snapshot edges", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The energy bank under version 2 (CBT-07)
+// The energy bank (CBT-07)
 
 describe("the energy bank in the snapshot", () => {
-  it("writes version 2 and the three fields of every entity", () => {
+  it("writes the three fields of every entity", () => {
     const snapshot = snapshotWorld(richWorld());
-    expect(snapshot.version).toBe(2);
     const [a, b] = snapshot.entities;
     expect([a?.energy, a?.maxEnergy, a?.energyRechargeRate]).toEqual([
       60.5, 85, 2.25,
@@ -867,6 +1234,46 @@ describe("snapshotWorld refusals", () => {
       "energyRechargeRate NaN",
       (w) => {
         (w.store.live[0] as Entity).energyRechargeRate = Number.NaN;
+      },
+    ],
+    [
+      "steer.flightRoll NaN",
+      (w) => {
+        (w.store.live[0] as Entity).steer.flightRoll = Number.NaN;
+      },
+    ],
+    [
+      "steer.jink.y Infinity",
+      (w) => {
+        (w.store.live[1] as Entity).steer.jink = vec(
+          0,
+          Number.POSITIVE_INFINITY,
+          0,
+        );
+      },
+    ],
+    [
+      "a steer tracking tick NaN",
+      (w) => {
+        (w.store.live[0] as Entity).steer.trackingTicks[1] = Number.NaN;
+      },
+    ],
+    [
+      "a steer tracking position -Infinity",
+      (w) => {
+        (w.store.live[0] as Entity).steer.trackingPositions[2] = vec(
+          0,
+          0,
+          Number.NEGATIVE_INFINITY,
+        );
+      },
+    ],
+    [
+      "steer.saved.desiredRange NaN",
+      (w) => {
+        const saved = (w.store.live[0] as Entity).steer.saved;
+        if (saved === null) throw new Error("no saved condition");
+        saved.desiredRange = Number.NaN;
       },
     ],
     [
@@ -1200,10 +1607,124 @@ const ENTITY_FIELDS: Record<keyof Entity, readonly Mutation[]> = {
       },
     },
   ],
-  // The steering record (plan 14-08). Task 1 hashes it but the snapshot does not
-  // carry it yet (every restored entity holds the default record), so it has no
-  // mutation until Task 2 completes version 3.
-  steer: [],
+  // The steering record (plan 14-08): one mutation per field group, each far
+  // above `canon`'s resolution.
+  steer: [
+    ...(
+      [
+        "flightRoll",
+        "flightPitch",
+        "stickRoll",
+        "stickPitch",
+        "successFactor",
+      ] as const
+    ).map((field): Mutation => ({
+      name: field,
+      apply: (e) => {
+        e.steer[field] += 1;
+      },
+    })),
+    {
+      name: "accuracy",
+      apply: (e) => {
+        e.steer.accuracy = e.steer.accuracy === 7 ? 6 : 7;
+      },
+    },
+    {
+      name: "frustration",
+      apply: (e) => {
+        e.steer.frustration += 1;
+      },
+    },
+    {
+      name: "pitchingOver",
+      apply: (e) => {
+        e.steer.pitchingOver = !e.steer.pitchingOver;
+      },
+    },
+    {
+      name: "jink",
+      apply: (e) => {
+        e.steer.jink = vec(e.steer.jink.x, e.steer.jink.y + 1, e.steer.jink.z);
+      },
+    },
+    {
+      name: "proximityAlert",
+      apply: (e) => {
+        e.steer.proximityAlert += 1;
+      },
+    },
+    {
+      name: "escortSlot",
+      apply: (e) => {
+        e.steer.escortSlot = (e.steer.escortSlot + 1) % (MAX_ESCORT_SLOT + 1);
+      },
+    },
+    {
+      name: "a tracking tick",
+      apply: (e) => {
+        e.steer.trackingTicks[3] -= 1;
+      },
+    },
+    {
+      name: "a tracking position",
+      apply: (e) => {
+        const p = e.steer.trackingPositions[1];
+        e.steer.trackingPositions[1] = vec(p.x + 1, p.y, p.z);
+      },
+    },
+    {
+      name: "the curve removed (count 0)",
+      apply: (e) => {
+        e.steer.trackingCount = 0;
+      },
+    },
+    {
+      name: "saved removed",
+      apply: (e) => {
+        e.steer.saved = null;
+      },
+    },
+    {
+      name: "saved behaviour",
+      apply: (e) => {
+        if (e.steer.saved !== null) e.steer.saved.behaviour = "IDLE";
+      },
+    },
+    {
+      name: "saved targetId",
+      apply: (e) => {
+        if (e.steer.saved !== null) e.steer.saved.targetId += 1;
+      },
+    },
+    {
+      name: "saved desiredRange",
+      apply: (e) => {
+        if (e.steer.saved !== null) e.steer.saved.desiredRange += 1;
+      },
+    },
+    {
+      name: "saved desiredSpeed",
+      apply: (e) => {
+        if (e.steer.saved !== null) e.steer.saved.desiredSpeed += 1;
+      },
+    },
+    {
+      name: "saved destination",
+      apply: (e) => {
+        if (e.steer.saved !== null) {
+          const d = e.steer.saved.destination;
+          e.steer.saved.destination = vec(d.x, d.y, d.z + 1);
+        }
+      },
+    },
+    {
+      name: "entryPending",
+      apply: (e) => {
+        e.steer.entryPending = !e.steer.entryPending;
+      },
+    },
+  ],
 };
 
 const ENTITY_FIELD_CASES = Object.keys(ENTITY_FIELDS)
@@ -1219,7 +1740,7 @@ describe("the serializer and the codec cover the same entity fields", () => {
     const empty = Object.keys(ENTITY_FIELDS)
       .filter((field) => ENTITY_FIELDS[field as keyof Entity].length === 0)
       .sort();
-    expect(empty).toEqual(["dead", "id", "steer"]);
+    expect(empty).toEqual(["dead", "id"]);
   });
 
   it.each(ENTITY_FIELD_CASES.map((row) => [...row]))(
@@ -1397,6 +1918,36 @@ const paramsArb = fc
     return params;
   });
 
+/** Four strictly decreasing signed ticks: a legitimate started curve. */
+const decreasingTicks = fc
+  .uniqueArray(fc.integer({ min: -1000, max: 1000 }), {
+    minLength: 4,
+    maxLength: 4,
+  })
+  .map((ticks) => ticks.sort((a, b) => b - a));
+
+const tickList = fc.oneof(
+  decreasingTicks,
+  fc.array(num, { minLength: 4, maxLength: 4 }),
+  fc.array(num, { maxLength: 6 }),
+);
+
+const positionList = fc.oneof(
+  fc.array(vecArb, { minLength: 4, maxLength: 4 }),
+  fc.array(vecArb, { maxLength: 6 }),
+);
+
+const savedArb = fc.oneof(
+  fc.constant(null),
+  fc.record({
+    behaviour: enumLeaf(BEHAVIOUR_IDS),
+    targetId: num,
+    desiredRange: num,
+    desiredSpeed: num,
+    destination: vecArb,
+  }),
+);
+
 const fieldsArb = fc.record(
   {
     kind: enumLeaf(ENTITY_KINDS),
@@ -1426,6 +1977,22 @@ const fieldsArb = fc.record(
     wakeTick: num,
     nextThinkTick: num,
     params: paramsArb,
+    flightRoll: num,
+    flightPitch: num,
+    stickRoll: num,
+    stickPitch: num,
+    accuracy: fc.oneof(num, fc.constantFrom(-100, -5, 10, 11, -6)),
+    frustration: num,
+    successFactor: num,
+    pitchingOver: fc.oneof(fc.boolean(), fc.constant(1)),
+    entryPending: fc.oneof(fc.boolean(), fc.constant("yes")),
+    jink: vecArb,
+    proximityAlert: num,
+    escortSlot: fc.oneof(num, fc.integer({ min: 0, max: 15 })),
+    trackingCount: fc.oneof(fc.constantFrom(0, 4), fc.constantFrom(0, 4), num),
+    trackingTicks: tickList,
+    trackingPositions: positionList,
+    saved: savedArb,
   },
   { requiredKeys: [] },
 );
@@ -1460,6 +2027,25 @@ function applyFields(entity: Entity, f: Fields): void {
   if (f.energyRechargeRate !== undefined) {
     entity.energyRechargeRate = f.energyRechargeRate;
   }
+  const steer = loose(entity.steer);
+  if (f.flightRoll !== undefined) steer.flightRoll = f.flightRoll;
+  if (f.flightPitch !== undefined) steer.flightPitch = f.flightPitch;
+  if (f.stickRoll !== undefined) steer.stickRoll = f.stickRoll;
+  if (f.stickPitch !== undefined) steer.stickPitch = f.stickPitch;
+  if (f.accuracy !== undefined) steer.accuracy = f.accuracy;
+  if (f.frustration !== undefined) steer.frustration = f.frustration;
+  if (f.successFactor !== undefined) steer.successFactor = f.successFactor;
+  if (f.pitchingOver !== undefined) steer.pitchingOver = f.pitchingOver;
+  if (f.entryPending !== undefined) steer.entryPending = f.entryPending;
+  if (f.jink !== undefined) steer.jink = f.jink;
+  if (f.proximityAlert !== undefined) steer.proximityAlert = f.proximityAlert;
+  if (f.escortSlot !== undefined) steer.escortSlot = f.escortSlot;
+  if (f.trackingCount !== undefined) steer.trackingCount = f.trackingCount;
+  if (f.trackingTicks !== undefined) steer.trackingTicks = f.trackingTicks;
+  if (f.trackingPositions !== undefined) {
+    steer.trackingPositions = f.trackingPositions;
+  }
+  if (f.saved !== undefined) steer.saved = f.saved;
   if (entity.ai !== null) {
     const ai = entity.ai;
     if (f.aiKey !== undefined) (ai as { aiKey: string }).aiKey = f.aiKey;

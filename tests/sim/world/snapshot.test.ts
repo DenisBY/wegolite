@@ -217,6 +217,52 @@ describe("snapshot resume equality (FOUND-12)", () => {
     expect(world.store.live.some((e) => e.speed > 0)).toBe(true);
   });
 
+  it("keeps a world whose ships hold a non-default steering record equal for 1,000 ticks", () => {
+    const { player, world } = scenario();
+    const [a, b, c] = world.store.live;
+    if (a === undefined || b === undefined || c === undefined) {
+      throw new Error("scenario ships missing");
+    }
+    // Every group of the record away from its default, in the signed domain.
+    a.steer.flightRoll = 0.5;
+    a.steer.stickPitch = -0.25;
+    a.steer.accuracy = 4;
+    a.steer.frustration = 1.5;
+    a.steer.jink = vec(0.25, -0.5, 0);
+    a.steer.proximityAlert = b.id;
+    a.steer.escortSlot = 2;
+    a.steer.trackingCount = 4;
+    a.steer.trackingTicks = [
+      player.tick,
+      player.tick - 60,
+      player.tick - 120,
+      -5,
+    ];
+    a.steer.trackingPositions = [
+      vec(1, 2, 3),
+      vec(2, 3, 4),
+      vec(3, 4, 5),
+      vec(4, 5, 6),
+    ];
+    a.steer.saved = {
+      behaviour: "FLY_TO_DESTINATION",
+      targetId: c.id,
+      desiredRange: 100,
+      desiredSpeed: 30,
+      destination: vec(5, 6, 7),
+    };
+    a.steer.entryPending = true;
+    b.steer.pitchingOver = true;
+    const restored = roundTrip(world);
+    const restoredPlayer = structuredClone(player);
+    expect(restored.store.live[0]?.steer).toEqual(a.steer);
+    expect(hashWorld(restoredPlayer, restored)).toBe(hashWorld(player, world));
+    runBoth(player, world, restoredPlayer, restored, COMPARE_TICKS);
+    // Nothing steers yet, so the record was carried unchanged and unrepaired.
+    expect(a.steer.trackingCount).toBe(4);
+    expect(a.repairs).toBe(0);
+  });
+
   it("recreates the statics instead of snapshotting them", () => {
     const { world } = scenario();
     const snapshot = snapshotWorld(world);
