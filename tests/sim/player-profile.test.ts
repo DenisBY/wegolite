@@ -76,6 +76,12 @@ describe("newProfile", () => {
       fuel: 70,
       missiles: 3,
       passengerBerths: 0,
+      laserMounts: {
+        fore: "EQ_WEAPON_PULSE_LASER",
+        aft: "EQ_WEAPON_NONE",
+        port: "EQ_WEAPON_NONE",
+        starboard: "EQ_WEAPON_NONE",
+      },
     });
     expect(NEW_GAME_CREDITS).toBe(1000);
     // A fresh array each call: a shared default would leak purchases between

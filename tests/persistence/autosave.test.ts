@@ -37,7 +37,7 @@ import {
 import type {
   SaveAllowLists,
   SaveInputs,
-  SaveV3,
+  SaveV4,
 } from "../../src/persistence/save.js";
 import {
   PlayerController,
@@ -58,6 +58,7 @@ import {
   generateMarket,
   marketSeedForSystem,
 } from "../../src/sim/economy/market.js";
+import { DEFAULT_LASER_MOUNTS } from "../../src/sim/combat/mounts.js";
 import {
   newProfile,
   purchase,
@@ -341,8 +342,9 @@ describe("canonical snapshot and Phase 4 defaults", () => {
   });
 
   it("defaults a field-less Phase 4 blob to an empty hold and a fresh ship", () => {
-    const save: SaveV3 = {
-      version: 3,
+    const save: SaveV4 = {
+      version: 4,
+      laserMounts: DEFAULT_LASER_MOUNTS,
       epoch: 0,
       nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
       mode: "docked",
@@ -365,8 +367,9 @@ describe("canonical snapshot and Phase 4 defaults", () => {
   });
 
   it("folds one legacy alias into its count and drops it", () => {
-    const save: SaveV3 = {
-      version: 3,
+    const save: SaveV4 = {
+      version: 4,
+      laserMounts: DEFAULT_LASER_MOUNTS,
       epoch: 0,
       nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
       mode: "docked",
@@ -385,8 +388,9 @@ describe("canonical snapshot and Phase 4 defaults", () => {
   });
 
   it("adds the alias to an explicit zero rather than replacing it", () => {
-    const save: SaveV3 = {
-      version: 3,
+    const save: SaveV4 = {
+      version: 4,
+      laserMounts: DEFAULT_LASER_MOUNTS,
       epoch: 0,
       nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
       mode: "docked",
@@ -422,6 +426,7 @@ describe("writer bounds", () => {
     stationKey: "coriolis-station",
     epoch: MAX_SAVE_EPOCH,
     nextEntityId: MAX_SAVE_NEXT_ENTITY_ID,
+    laserMounts: DEFAULT_LASER_MOUNTS,
   };
 
   it("fits the maximum tuple inside MAX_SAVE_CHARS even with worst-case escaping", async () => {
@@ -605,8 +610,9 @@ describe("revision ordering", () => {
 
 describe("restoreFromSave", () => {
   it("restores docked mode at the saved clock with a market snapshot", () => {
-    const save: SaveV3 = {
-      version: 3,
+    const save: SaveV4 = {
+      version: 4,
+      laserMounts: DEFAULT_LASER_MOUNTS,
       epoch: 0,
       nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
       mode: "docked",
@@ -632,8 +638,9 @@ describe("restoreFromSave", () => {
   });
 
   it("returns the persisted market seed when the blob carries one", () => {
-    const save: SaveV3 = {
-      version: 3,
+    const save: SaveV4 = {
+      version: 4,
+      laserMounts: DEFAULT_LASER_MOUNTS,
       epoch: 0,
       nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
       mode: "docked",

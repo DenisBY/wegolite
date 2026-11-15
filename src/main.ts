@@ -42,7 +42,7 @@ import { loadShipCatalogue } from "./content/ships.js";
 import { LAZY_GALAXY_COUNT, galaxy0 } from "./content/systems.js";
 import { createIndexedDbSaveStore } from "./persistence/idb-store.js";
 import { parseSave } from "./persistence/save.js";
-import type { SaveAllowLists, SaveV3 } from "./persistence/save.js";
+import type { SaveAllowLists, SaveV4 } from "./persistence/save.js";
 import type { SaveStatus } from "./persistence/store.js";
 import { createAssetCache } from "./render/asset-cache.js";
 import { applyViewport } from "./render/viewport.js";
@@ -173,7 +173,7 @@ if (!boot.ok) {
   // carry a dock subentity. A forged key can therefore never reach `findShip`.
   const saveStore = createIndexedDbSaveStore();
   let saveStatus: SaveStatus;
-  let bootSave: SaveV3 | undefined;
+  let bootSave: SaveV4 | undefined;
   let allowLists: SaveAllowLists = {
     equipment: new Set(),
     systems: new Set(),

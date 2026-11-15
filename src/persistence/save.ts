@@ -40,6 +40,14 @@ import { z } from "zod";
 
 import type { CommodityUnit } from "../content/types.js";
 import {
+  DEFAULT_LASER_MOUNTS,
+  FACINGS,
+  LASER_KEYS,
+  NO_LASER,
+  isMountKey,
+} from "../sim/combat/mounts.js";
+import type { LaserMounts } from "../sim/combat/mounts.js";
+import {
   capacityPodsFor,
   emptyCargo,
   holdPodsUsed,
@@ -49,10 +57,11 @@ import type { Market } from "../sim/economy/market.js";
 import { CLOCK_START } from "../sim/flight/state.js";
 
 /**
- * The schema version this build writes and accepts (D-13). It is 3 since
- * Phase 11 (SAVE-07): v1 and v2 blobs are still read, through the ordered chain.
+ * The schema version this build writes and accepts (D-13). It is 4 since
+ * Phase 13 (CBT-05): v1, v2 and v3 blobs are still read, through the ordered
+ * chain.
  */
-export const SAVE_VERSION = 3 as const;
+export const SAVE_VERSION = 4 as const;
 
 /**
  * The largest raw blob the parser will even attempt to parse (D-15, T-06-04).
@@ -65,11 +74,13 @@ export const SAVE_VERSION = 3 as const;
  * - cargo, 17 entries: 17 × (64 × 6 + 8) ≈ 6,664;
  * - market, 17 goods: 17 × (64 × 6 + 28) ≈ 7,004;
  * - pose: about 250; scalar/system/station envelope: about 400;
- * - the two v3 numbers, `epoch` and `nextEntityId`: about 40.
+ * - the two v3 numbers, `epoch` and `nextEntityId`: about 40;
+ * - the v4 `laserMounts` object, four mount keys of at most 24 characters:
+ *   about 170.
  *
- * That is ≈38.9 KB, comfortably under 65,536 while remaining a hard resource
- * bound checked before `JSON.parse`. tests/persistence/save-v3.test.ts measures
- * the v3 worst case (plan 11-03). The version sniff copies at most
+ * That is ≈39.1 KB, comfortably under 65,536 while remaining a hard resource
+ * bound checked before `JSON.parse`. tests/persistence/save-v4.test.ts measures
+ * the v4 worst case (plan 13-06). The version sniff copies at most
  * `MAX_VERSION_SNIFF_CHARS` characters, never the whole stored string.
  */
 export const MAX_SAVE_CHARS = 65_536;
@@ -293,16 +304,18 @@ export const SaveV2Schema = z.strictObject({
 });
 
 /**
- * The current v3 schema (Phase 11, SAVE-07; D-01, D-03, D-04).
+ * The historical v3 schema (Phase 11, SAVE-07; D-01, D-03, D-04).
  *
- * Every v2 field plus exactly two required leg-anchor fields: the lifecycle
- * `epoch` (0..`MAX_SAVE_EPOCH`) and the anchor world's `nextEntityId`
- * (`FRESH_WORLD_NEXT_ENTITY_ID`..`MAX_SAVE_NEXT_ENTITY_ID`). No other key is
- * allowed, and no entity field exists: a save never carries world state.
+ * What Phase 11 and 12 wrote, and the input of the v3 -> v4 migration, so its
+ * version is `z.literal(3)`. Every v2 field plus exactly two required
+ * leg-anchor fields: the lifecycle `epoch` (0..`MAX_SAVE_EPOCH`) and the anchor
+ * world's `nextEntityId` (`FRESH_WORLD_NEXT_ENTITY_ID`..
+ * `MAX_SAVE_NEXT_ENTITY_ID`). No other key is allowed, and no entity field
+ * exists: a save never carries world state.
  */
 export const SaveV3Schema = z.strictObject({
   ...SaveV2Schema.shape,
-  version: z.literal(SAVE_VERSION),
+  version: z.literal(3),
   epoch: z.number().int().min(0).max(MAX_SAVE_EPOCH),
   nextEntityId: z
     .number()
@@ -311,9 +324,40 @@ export const SaveV3Schema = z.strictObject({
     .max(MAX_SAVE_NEXT_ENTITY_ID),
 });
 
+/**
+ * One mount occupant: a laser key or the empty mount (CBT-05). A strict enum, so
+ * a forged string never reaches the combat code.
+ */
+const MountKeySchema = z.enum([...LASER_KEYS, NO_LASER]);
+
+/**
+ * The laser fitted to each of the four facings (Phase 13, CBT-05). A strict
+ * object: an extra or a missing facing is corrupt.
+ */
+export const LaserMountsSchema = z.strictObject({
+  fore: MountKeySchema,
+  aft: MountKeySchema,
+  port: MountKeySchema,
+  starboard: MountKeySchema,
+});
+
+/**
+ * The current v4 schema (Phase 13, CBT-05).
+ *
+ * Every v3 field plus exactly one required field: `laserMounts`. Laser keys live
+ * here and never in `equipment` (the semantic validator refuses a laser key
+ * there as double encoding).
+ */
+export const SaveV4Schema = z.strictObject({
+  ...SaveV3Schema.shape,
+  version: z.literal(SAVE_VERSION),
+  laserMounts: LaserMountsSchema,
+});
+
 export type SaveV1 = z.infer<typeof SaveV1Schema>;
 export type SaveV2 = z.infer<typeof SaveV2Schema>;
 export type SaveV3 = z.infer<typeof SaveV3Schema>;
+export type SaveV4 = z.infer<typeof SaveV4Schema>;
 export type SaveCargoEntry = z.infer<typeof CargoEntrySchema>;
 
 /** The catalogue facts a boot must supply before a blob can be trusted. */
@@ -337,7 +381,7 @@ export type SaveParseFailure =
   "corrupt" | "future-version" | "absent" | "unreadable";
 
 export type SaveParseResult =
-  | { readonly ok: true; readonly save: SaveV3 }
+  | { readonly ok: true; readonly save: SaveV4 }
   | { readonly ok: false; readonly reason: SaveParseFailure };
 
 /** A flight pose in the wire shape: tuples, not the sim's `{x,y,z}` objects. */
@@ -350,7 +394,7 @@ export interface SaveFlightPose {
   readonly torus: boolean;
 }
 
-/** The trusted values `encodeSave` projects into a `SaveV3`. */
+/** The trusted values `encodeSave` projects into a `SaveV4`. */
 export interface SaveInputs {
   readonly clockSeconds: number;
   readonly credits: number;
@@ -374,6 +418,8 @@ export interface SaveInputs {
   readonly epoch: number;
   /** The anchor world's counter, or 101 for a docked save (D-01, D-05). */
   readonly nextEntityId: number;
+  /** The laser fitted to each facing (CBT-05). */
+  readonly laserMounts: LaserMounts;
 }
 
 /** The Phase 4 equipment alias for one passenger berth. */
@@ -382,11 +428,17 @@ export const LEGACY_BERTH_ALIAS = "EQ_PASSENGER_BERTH";
 /** The Phase 4 equipment alias for one missile. */
 export const LEGACY_MISSILE_ALIAS = "EQ_MISSILE";
 
-/** Equipment keys a canonical snapshot never carries. */
+/**
+ * Equipment keys a canonical snapshot never carries. Every `EQ_WEAPON_*` key
+ * lives in `laserMounts`; one inside `equipment` is double encoding (T-13-11).
+ */
 const FORBIDDEN_EQUIPMENT: ReadonlySet<string> = new Set([
   "EQ_FUEL",
   "EQ_MISSILE_REMOVAL",
   "EQ_PASSENGER_BERTH_REMOVAL",
+  ...LASER_KEYS,
+  NO_LASER,
+  "EQ_WEAPON_THARGOID_LASER",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -440,9 +492,26 @@ export function migrateV1ToV2(v1: SaveV1): SaveV2 {
 export function migrateV2ToV3(v2: SaveV2): SaveV3 {
   return {
     ...v2,
-    version: SAVE_VERSION,
+    version: 3,
     epoch: 0,
     nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
+  };
+}
+
+/**
+ * The one ordered v3 → v4 migration (Phase 13, CBT-05).
+ *
+ * Pure and total, and it never mutates its input. Every v3 save was written
+ * before any laser existed to buy, so the player flew the stock Cobra: the
+ * migrated mounts are exactly what a new game starts with (a pulse laser on the
+ * fore mount, nothing elsewhere), a fresh copy so no two saves share an object.
+ * Credits and every other field are carried unchanged.
+ */
+export function migrateV3ToV4(v3: SaveV3): SaveV4 {
+  return {
+    ...v3,
+    version: SAVE_VERSION,
+    laserMounts: { ...DEFAULT_LASER_MOUNTS },
   };
 }
 
@@ -496,25 +565,29 @@ export function parseSave(
 
   // A JSON value that does not carry this save family's numeric `version`
   // field is an unknown shape, not a corrupt save. Only a positively recognised
-  // v1/v2/v3 object may be backed up and cleared by New game.
+  // v1/v2/v3/v4 object may be backed up and cleared by New game.
   if (!isRecord(parsed) || typeof parsed["version"] !== "number") {
     return { ok: false, reason: "unreadable" };
   }
 
   const version = parsed["version"];
-  let save: SaveV3;
+  let save: SaveV4;
   if (version === 1) {
     // The historical schema is the migration input; a v1-shaped blob that
     // fails it is positively corrupt. The chain never skips a step (D-03).
     const migrated = SaveV1Schema.safeParse(parsed);
     if (!migrated.success) return { ok: false, reason: "corrupt" };
-    save = migrateV2ToV3(migrateV1ToV2(migrated.data));
+    save = migrateV3ToV4(migrateV2ToV3(migrateV1ToV2(migrated.data)));
   } else if (version === 2) {
     const historical = SaveV2Schema.safeParse(parsed);
     if (!historical.success) return { ok: false, reason: "corrupt" };
-    save = migrateV2ToV3(historical.data);
+    save = migrateV3ToV4(migrateV2ToV3(historical.data));
   } else if (version === 3) {
-    const current = SaveV3Schema.safeParse(parsed);
+    const historical = SaveV3Schema.safeParse(parsed);
+    if (!historical.success) return { ok: false, reason: "corrupt" };
+    save = migrateV3ToV4(historical.data);
+  } else if (version === 4) {
+    const current = SaveV4Schema.safeParse(parsed);
     if (!current.success) return { ok: false, reason: "corrupt" };
     save = current.data;
   } else {
@@ -558,10 +631,16 @@ export function parseSave(
  * the alias and a non-zero count together are ambiguous double-encoding.
  */
 export function validateSaveSemantics(
-  save: SaveV3,
+  save: SaveV4,
   allow: SaveAllowLists,
   mode: "read" | "write",
 ): boolean {
+  // CBT-05: every facing carries a known mount key (the schema proves it; this
+  // keeps the writer gate and a hand-built value honest too).
+  for (const facing of FACINGS) {
+    if (!isMountKey(save.laserMounts[facing])) return false;
+  }
+
   const seenEquipment = new Set<string>();
   let hasBerthAlias = false;
   let hasMissileAlias = false;
@@ -696,7 +775,7 @@ export function isEncodedSaveValid(
   } catch {
     return false;
   }
-  const result = SaveV3Schema.safeParse(parsed);
+  const result = SaveV4Schema.safeParse(parsed);
   if (!result.success) return false;
   // The reader's referent allow-lists (see `parseSave`) apply here too, so the
   // writer can never replace a good blob with bytes the reader would classify as
@@ -729,7 +808,7 @@ export function boundCorruptBackup(raw: string): string {
 }
 
 /**
- * Project trusted values into the canonical v3 blob.
+ * Project trusted values into the canonical v4 blob.
  *
  * Exactly one seed is always emitted: the market snapshot wins when present
  * (and `marketSeed` is omitted), otherwise the seed is written. A docked save
@@ -751,7 +830,7 @@ export function encodeSave(inputs: SaveInputs): string {
           })),
         };
 
-  const save: SaveV3 = {
+  const save: SaveV4 = {
     version: SAVE_VERSION,
     mode: inputs.mode,
     clockSeconds: inputs.clockSeconds,
@@ -768,6 +847,12 @@ export function encodeSave(inputs: SaveInputs): string {
     station: { key: inputs.stationKey },
     epoch: inputs.epoch,
     nextEntityId: inputs.nextEntityId,
+    laserMounts: {
+      fore: inputs.laserMounts.fore,
+      aft: inputs.laserMounts.aft,
+      port: inputs.laserMounts.port,
+      starboard: inputs.laserMounts.starboard,
+    },
     ...(inputs.targetSystem === undefined
       ? {}
       : { targetSystem: inputs.targetSystem }),

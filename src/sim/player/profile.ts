@@ -19,6 +19,8 @@
  * Every operation returns a new profile; none mutates its input or throws.
  */
 
+import { DEFAULT_LASER_MOUNTS } from "../combat/mounts.js";
+import type { LaserMounts } from "../combat/mounts.js";
 import { emptyCargo } from "../economy/cargo.js";
 import type { Cargo } from "../economy/cargo.js";
 
@@ -59,6 +61,11 @@ export interface PlayerProfile {
   readonly missiles: number;
   /** Passenger berths (0..7); each consumes five tonnes of capacity. */
   readonly passengerBerths: number;
+  /**
+   * The laser fitted to each of the four facings (CBT-05). Laser keys live here,
+   * never in `equipment`.
+   */
+  readonly laserMounts: LaserMounts;
 }
 
 /** Why a purchase would be refused; the app maps each to fixed copy. */
@@ -78,6 +85,8 @@ export function newProfile(): PlayerProfile {
     fuel: NEW_GAME_FUEL,
     missiles: NEW_GAME_MISSILES,
     passengerBerths: 0,
+    // The Cobra's stock fit: a pulse laser on the nose (its own copy).
+    laserMounts: { ...DEFAULT_LASER_MOUNTS },
   };
 }
 

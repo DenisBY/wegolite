@@ -1933,6 +1933,7 @@ describe("load", () => {
     v2.version = 2;
     delete v2.epoch;
     delete v2.nextEntityId;
+    delete v2.laserMounts;
     const h = loadHarness();
     h.read.current = { kind: "ok", raw: JSON.stringify(v2) };
 
@@ -1991,7 +1992,7 @@ describe("load", () => {
 });
 
 describe("anchored save: only the epoch and the anchor counter of the world enter the save", () => {
-  /** The exact v3 allow-lists (SaveInputs and the encoded SaveV3). */
+  /** The exact v4 allow-lists (SaveInputs and the encoded SaveV4). */
   const INPUT_KEYS = [
     "cargo",
     "clockSeconds",
@@ -2000,6 +2001,7 @@ describe("anchored save: only the epoch and the anchor counter of the world ente
     "equipment",
     "flight",
     "fuel",
+    "laserMounts",
     "market",
     "marketSeed",
     "missiles",
@@ -2024,6 +2026,7 @@ describe("anchored save: only the epoch and the anchor counter of the world ente
     "station",
     "epoch",
     "nextEntityId",
+    "laserMounts",
     "market",
     "marketSeed",
     "targetSystem",

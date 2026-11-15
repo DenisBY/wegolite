@@ -34,7 +34,7 @@ import type {
   SaveAllowLists,
   SaveCargoEntry,
   SaveInputs,
-  SaveV3,
+  SaveV4,
 } from "./save.js";
 import type { SaveStore, WriteResult } from "./store.js";
 
@@ -114,7 +114,7 @@ export function snapshotForSave(
   const mode = state.mode === "inFlight" ? "inFlight" : "docked";
 
   return {
-    // `SaveV3Schema.clockSeconds` is an integer; flight advances the clock by
+    // `SaveV4Schema.clockSeconds` is an integer; flight advances the clock by
     // `DT` (1/120), so a snapshot taken after any flight is fractional. Floor
     // it at the writer boundary: the save contract must never depend on how
     // long the player flew.
@@ -125,6 +125,7 @@ export function snapshotForSave(
     fuel: profile.fuel,
     missiles: profile.missiles,
     passengerBerths: profile.passengerBerths,
+    laserMounts: profile.laserMounts,
     mode,
     ...(targetSystemId === undefined ? {} : { targetSystem: targetSystemId }),
     // The canonical encoding: the live snapshot (seed + goods) verbatim.
@@ -211,7 +212,7 @@ function effectiveCount(
  * counts and removed from the equipment list; the dump is canonical from then
  * on.
  */
-export function profileFromSave(save: SaveV3): PlayerProfile {
+export function profileFromSave(save: SaveV4): PlayerProfile {
   const equipment: string[] = [];
   let hasBerthAlias = false;
   let hasMissileAlias = false;
@@ -239,6 +240,7 @@ export function profileFromSave(save: SaveV3): PlayerProfile {
     fuel: save.fuel ?? NEW_GAME_FUEL,
     missiles: effectiveCount(save.missiles, hasMissileAlias, NEW_GAME_MISSILES),
     passengerBerths: effectiveCount(save.passengerBerths, hasBerthAlias, 0),
+    laserMounts: { ...save.laserMounts },
   };
 }
 
@@ -257,9 +259,9 @@ export function profileFromSave(save: SaveV3): PlayerProfile {
  * `mode === "launching"`, so this preserves the saved producer exactly.
  */
 export function restoreFromSave(
-  save: SaveV3,
+  save: SaveV4,
   layout: SystemLayout,
-  profileFactory: (save: SaveV3) => PlayerProfile,
+  profileFactory: (save: SaveV4) => PlayerProfile,
 ): RestoredGame {
   const state = initFlightState(layout);
   state.clockSeconds = save.clockSeconds;

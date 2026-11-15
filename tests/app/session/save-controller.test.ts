@@ -35,6 +35,7 @@ import type {
   SaveStore,
   WriteResult,
 } from "../../../src/persistence/store.js";
+import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import { generateMarket } from "../../../src/sim/economy/market.js";
 import { setCargo } from "../../../src/sim/economy/cargo.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
@@ -404,6 +405,7 @@ describe("buildSnapshotInputs", () => {
       fuel: ctx.core.profile.fuel,
       missiles: ctx.core.profile.missiles,
       passengerBerths: ctx.core.profile.passengerBerths,
+      laserMounts: DEFAULT_LASER_MOUNTS,
       mode: "docked",
       targetSystem: "g0-s3",
       market,
@@ -428,6 +430,7 @@ describe("buildSnapshotInputs", () => {
       fuel: ctx.core.profile.fuel,
       missiles: ctx.core.profile.missiles,
       passengerBerths: ctx.core.profile.passengerBerths,
+      laserMounts: DEFAULT_LASER_MOUNTS,
       mode: "inFlight",
       market,
       flight: {

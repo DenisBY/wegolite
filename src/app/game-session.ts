@@ -54,7 +54,7 @@ import { createStationController } from "./session/station-controller.js";
 import type { SessionState } from "./session/context.js";
 import type { LaunchSequence } from "./launch-sequence.js";
 import type { AssetCache } from "../render/asset-cache.js";
-import type { SaveAllowLists, SaveV3 } from "../persistence/save.js";
+import type { SaveAllowLists, SaveV4 } from "../persistence/save.js";
 import type { SaveStore, SaveStatus } from "../persistence/store.js";
 import { createMessageQueue } from "../render/hud/messages.js";
 import type { Command } from "../sim/commands.js";
@@ -78,7 +78,7 @@ export interface GameSessionSave {
   /** The status boot derived from the one read; `future`/`unreadable` stop all writes. */
   readonly status: SaveStatus;
   /** The validated save, present only when `status` is `valid`. */
-  readonly save?: SaveV3;
+  readonly save?: SaveV4;
   /** The boot allow-lists the writer's semantic check uses (T-05-19). */
   readonly allow: SaveAllowLists;
 }
@@ -87,7 +87,7 @@ export interface StartOptions {
   /** New game is the default; a restore is Continue. */
   readonly fresh?: boolean;
   /** A validated blob to restore instead of starting at Lave. */
-  readonly restore?: SaveV3;
+  readonly restore?: SaveV4;
 }
 
 /**

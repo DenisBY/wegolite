@@ -10,7 +10,7 @@
  * still save and no taint path is exercised.
  *
  * The fixtures are new-game anchors, so their epoch is 0 and their counter is
- * the fresh-world 101; a v3 save written this way passes the strict boot reader.
+ * the fresh-world 101; a v4 save written this way passes the strict boot reader.
  */
 
 import {
@@ -18,6 +18,7 @@ import {
   encodeSave,
 } from "../../../src/persistence/save.js";
 import type { SaveFlightPose } from "../../../src/persistence/save.js";
+import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
 import { CLOCK_START } from "../../../src/sim/flight/state.js";
 
@@ -54,6 +55,7 @@ export function dockedSaveAt(systemName: string): string {
     stationKey: STATION_KEY,
     epoch: 0,
     nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
+    laserMounts: DEFAULT_LASER_MOUNTS,
   });
 }
 
@@ -93,5 +95,6 @@ export function inFlightSaveAt(
     stationKey: STATION_KEY,
     epoch: 0,
     nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
+    laserMounts: DEFAULT_LASER_MOUNTS,
   });
 }

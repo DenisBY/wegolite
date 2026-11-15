@@ -807,7 +807,7 @@ test("a New game that fails to start leaves the committed save in place", async 
 test("a future-version blob is never cleared or replaced", async ({ page }) => {
   await boot(page);
   const future = JSON.stringify({
-    version: 4,
+    version: 5,
     mode: "docked",
     clockSeconds: CLOCK_START + 600,
     credits: 999_999,
@@ -1037,9 +1037,9 @@ test("an oversized future-version blob is still recognised and untouched", async
   page,
 }) => {
   await boot(page);
-  // Version 4 appears in the first bytes; the rest is padding beyond the cap.
+  // Version 5 appears in the first bytes; the rest is padding beyond the cap.
   const future = `${JSON.stringify({
-    version: 4,
+    version: 5,
     mode: "docked",
     clockSeconds: CLOCK_START + 600,
     credits: 999_999,

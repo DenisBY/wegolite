@@ -17,6 +17,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_LASER_MOUNTS } from "../../src/sim/combat/mounts.js";
 import { CLOCK_START } from "../../src/sim/flight/state.js";
 import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import {
@@ -29,6 +30,7 @@ import {
   isEncodedSaveValid,
   migrateV1ToV2,
   migrateV2ToV3,
+  migrateV3ToV4,
   parseSave,
 } from "../../src/persistence/save.js";
 import type {
@@ -135,6 +137,11 @@ function flightPose(overrides: Record<string, unknown> = {}): SaveFlightPose {
   };
 }
 
+/** What a v2 object becomes after the rest of the ordered chain (v2 -> v3 -> v4). */
+function toV4(v2: SaveV2) {
+  return migrateV3ToV4(migrateV2ToV3(v2));
+}
+
 /** A canonical encoder input; each test overrides the field under test. */
 function saveInputs(overrides: Partial<SaveInputs> = {}): SaveInputs {
   return {
@@ -151,6 +158,7 @@ function saveInputs(overrides: Partial<SaveInputs> = {}): SaveInputs {
     stationKey: "coriolis-station",
     epoch: 0,
     nextEntityId: 101,
+    laserMounts: DEFAULT_LASER_MOUNTS,
     ...overrides,
   };
 }
@@ -213,12 +221,12 @@ describe("v1 → v2 migration", () => {
     expect(SaveV2Schema.safeParse(v3).success).toBe(false);
   });
 
-  it("parseSave reads a v1 blob through v2 into the v3 object", () => {
+  it("parseSave reads a v1 blob through v2 and v3 into the v4 object", () => {
     const v1 = validV1({ marketSeed: SEED });
     const result = parseSave(raw(v1), ALLOW);
     expect(result).toEqual({
       ok: true,
-      save: migrateV2ToV3(migrateV1ToV2(v1)),
+      save: toV4(migrateV1ToV2(v1)),
     });
   });
 });
@@ -228,7 +236,7 @@ describe("v2 accept path", () => {
     const save = validV2();
     expect(parseSave(raw(save), ALLOW)).toEqual({
       ok: true,
-      save: migrateV2ToV3(save),
+      save: toV4(save),
     });
   });
 
@@ -242,7 +250,7 @@ describe("v2 accept path", () => {
     });
     expect(parseSave(raw(save), ALLOW)).toEqual({
       ok: true,
-      save: migrateV2ToV3(save),
+      save: toV4(save),
     });
   });
 });
@@ -254,8 +262,8 @@ describe("v2 classification", () => {
     readonly reason: "corrupt" | "future-version" | "unreadable";
   }> = [
     {
-      name: "a version-4 object is future-version",
-      blob: raw(validV2({ version: 4 })),
+      name: "a version-5 object is future-version",
+      blob: raw(validV2({ version: 5 })),
       reason: "future-version",
     },
     {
@@ -307,9 +315,7 @@ describe("the market snapshot", () => {
     const save = validV2({ market: marketSnapshot(), marketSeed: undefined });
     expect(parseSave(raw(save), ALLOW)).toEqual({
       ok: true,
-      save: migrateV2ToV3(
-        validV2({ market: marketSnapshot(), marketSeed: undefined }),
-      ),
+      save: toV4(validV2({ market: marketSnapshot(), marketSeed: undefined })),
     });
   });
 
@@ -322,7 +328,7 @@ describe("the market snapshot", () => {
     });
     expect(parseSave(raw(save), ALLOW)).toEqual({
       ok: true,
-      save: migrateV2ToV3(save),
+      save: toV4(save),
     });
   });
 
@@ -330,7 +336,7 @@ describe("the market snapshot", () => {
     const save = validV2({ targetSystem: "g0-s1" });
     expect(parseSave(raw(save), ALLOW)).toEqual({
       ok: true,
-      save: migrateV2ToV3(save),
+      save: toV4(save),
     });
   });
 
@@ -509,7 +515,7 @@ describe("the flight pose", () => {
     });
     expect(parseSave(raw(save), ALLOW)).toEqual({
       ok: true,
-      save: migrateV2ToV3(save),
+      save: toV4(save),
     });
   });
 });
@@ -594,8 +600,8 @@ describe("the v2 size bound", () => {
     parse.mockRestore();
   });
 
-  it("recognises an oversized version-4 prefix as future-version", () => {
-    const future = `${raw(validV2({ version: 4 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
+  it("recognises an oversized version-5 prefix as future-version", () => {
+    const future = `${raw(validV2({ version: 5 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
     expect(parseSave(future, ALLOW)).toEqual({
       ok: false,
       reason: "future-version",
@@ -605,13 +611,13 @@ describe("the v2 size bound", () => {
 
 describe("the writer gate (isEncodedSaveValid)", () => {
   it("accepts a canonical blob under the full allow-list, as the reader does", () => {
-    const encoded = raw(migrateV2ToV3(validV2()));
+    const encoded = raw(toV4(validV2()));
     expect(isEncodedSaveValid(encoded, ALLOW)).toBe(true);
     expect(parseSave(encoded, ALLOW).ok).toBe(true);
   });
 
   it("rejects a saved system the allow-list omits, as the reader does", () => {
-    const encoded = raw(migrateV2ToV3(validV2()));
+    const encoded = raw(toV4(validV2()));
     const systemsWithoutSaved: SaveAllowLists = {
       ...ALLOW,
       systems: new Set(["g0-s1"]),
@@ -624,7 +630,7 @@ describe("the writer gate (isEncodedSaveValid)", () => {
   });
 
   it("rejects a station key the allow-list omits, as the reader does", () => {
-    const encoded = raw(migrateV2ToV3(validV2()));
+    const encoded = raw(toV4(validV2()));
     const stationsWithoutSaved: SaveAllowLists = {
       ...ALLOW,
       stations: new Set(["other-station"]),
@@ -638,9 +644,7 @@ describe("the writer gate (isEncodedSaveValid)", () => {
 
   it("rejects a market good the allow-list does not know, as the reader does", () => {
     const encoded = raw(
-      migrateV2ToV3(
-        validV2({ market: marketSnapshot(), marketSeed: undefined }),
-      ),
+      toV4(validV2({ market: marketSnapshot(), marketSeed: undefined })),
     );
     const withoutFood: SaveAllowLists = {
       ...ALLOW,

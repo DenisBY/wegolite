@@ -4,7 +4,8 @@
 /**
  * Golden save migration proof (QUAL-04, T-07-10; Phase 11 SAVE-07, T-11-10).
  *
- * Three golden families, each through the production reader, `parseSave`, with
+ * Three golden families (v1/v2/v3 inputs; the v4 goldens are pinned in
+ * tests/persistence/save-v4.test.ts), each through the production reader, `parseSave`, with
  * the boot allow-lists:
  *
  * - the v1 -> v2 step: two checked-in v1 blobs (a Phase 4 shape and a Phase 5
@@ -34,8 +35,10 @@ import { describe, expect, it } from "vitest";
 import {
   SaveV1Schema,
   SaveV2Schema,
+  SaveV3Schema,
   migrateV1ToV2,
   migrateV2ToV3,
+  migrateV3ToV4,
   parseSave,
 } from "../../src/persistence/save.js";
 import type { SaveAllowLists } from "../../src/persistence/save.js";
@@ -124,19 +127,23 @@ describe("golden v1 save migration through the production reader", () => {
         );
       });
 
-      it("chain v1 -> v3: parseSave of the v1 blob is the v3 golden", () => {
+      it("chain v1 -> v4: parseSave of the v1 blob is the v3 golden stepped to v4", () => {
         const result = parseSave(readGolden(pair.v1), ALLOW);
         expect(result.ok).toBe(true);
         if (!result.ok) return;
-        expect(result.save.version).toBe(3);
-        expect(result.save).toStrictEqual(JSON.parse(readGolden(pair.v3)));
+        expect(result.save.version).toBe(4);
+        expect(result.save).toStrictEqual(
+          migrateV3ToV4(SaveV3Schema.parse(JSON.parse(readGolden(pair.v3)))),
+        );
       });
 
-      it("a v2 save loads: parseSave of the v2 golden is the v3 golden", () => {
+      it("a v2 save loads: parseSave of the v2 golden is the v3 golden stepped to v4", () => {
         const result = parseSave(readGolden(pair.v2), ALLOW);
         expect(result.ok).toBe(true);
         if (!result.ok) return;
-        expect(result.save).toStrictEqual(JSON.parse(readGolden(pair.v3)));
+        expect(result.save).toStrictEqual(
+          migrateV3ToV4(SaveV3Schema.parse(JSON.parse(readGolden(pair.v3)))),
+        );
       });
 
       it("migrates the same v1 blob twice to identical bytes", () => {
@@ -146,7 +153,7 @@ describe("golden v1 save migration through the production reader", () => {
         );
       });
 
-      it("re-parses the migrated v3 to an equal object (round trip)", () => {
+      it("re-parses the migrated v4 to an equal object (round trip)", () => {
         const result = parseSave(readGolden(pair.v1), ALLOW);
         expect(result.ok).toBe(true);
         if (!result.ok) return;
@@ -166,21 +173,25 @@ describe("captured v2 writer golden (plan 11-01, before the v3 bump)", () => {
     expect(migrateV2ToV3(v2)).toStrictEqual(JSON.parse(readGolden(v3Name)));
   });
 
-  it("a v2 in-flight save loads: parseSave of the captured blob is the v3 golden", () => {
+  it("a v2 in-flight save loads: parseSave of the captured blob is the v3 golden stepped to v4", () => {
     const result = parseSave(readGolden(v2Name), ALLOW);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.save.version).toBe(3);
+    expect(result.save.version).toBe(4);
     expect(result.save.mode).toBe("inFlight");
     expect(result.save.epoch).toBe(0);
     expect(result.save.nextEntityId).toBe(101);
-    expect(result.save).toStrictEqual(JSON.parse(readGolden(v3Name)));
+    expect(result.save).toStrictEqual(
+      migrateV3ToV4(SaveV3Schema.parse(JSON.parse(readGolden(v3Name)))),
+    );
   });
 
-  it("the v3 golden itself parses as a v3 save", () => {
+  it("the v3 golden itself loads as a v3 save stepped to v4", () => {
     const result = parseSave(readGolden(v3Name), ALLOW);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.save).toStrictEqual(JSON.parse(readGolden(v3Name)));
+    expect(result.save).toStrictEqual(
+      migrateV3ToV4(SaveV3Schema.parse(JSON.parse(readGolden(v3Name)))),
+    );
   });
 });
