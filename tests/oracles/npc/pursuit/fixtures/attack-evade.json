@@ -285,7 +285,7 @@
       "src/Core/Entities/ShipEntity.m:4397-4459",
       "src/Core/Entities/ShipEntity.m:4436-4446"
     ],
-    "derivation": "A Viper-like ship (beam laser) at accuracy 2 in ATTACK_SNIPER with frustration 2.999 and success_factor 0.5 against a stationary ship straight above at range 20000 (desired_speed 320, 4424). The ship turns, so success_factor = 0: not above 0.999, not above 0.5, so frustration += dt = 3.00733 > 3 (4437-4438): shipAIFrustrated (4440), setEvasiveJink(1000) with scripted draws [0.7, 0.3] giving jink (179, -180, 1000) (4441), ATTACK_TARGET, frustration 0, desired_speed = maxFlightSpeed (4442-4444). Draws consumed: 2.",
+    "derivation": "A Viper-like ship (beam laser) at accuracy 2 in ATTACK_SNIPER with frustration 2.9990234375 (exact in float32) and success_factor 0.5 against a stationary ship straight above at range 20000 (desired_speed 320, 4424). The ship turns, so success_factor = 0: not above 0.999, not above 0.5, so frustration += dt = 3.00736 > 3 (4437-4438): shipAIFrustrated (4440), setEvasiveJink(1000) with scripted draws [0.7, 0.3] giving jink (179, -180, 1000) (4441), ATTACK_TARGET, frustration 0, desired_speed = maxFlightSpeed (4442-4444). Draws consumed: 2.",
     "dt": 0.008333333333333333,
     "horizon": 1,
     "stats": {
@@ -311,7 +311,7 @@
       "stickRoll": 0,
       "stickPitch": 0,
       "accuracy": 2,
-      "frustration": 2.999,
+      "frustration": 2.9990234375,
       "successFactor": 0.5,
       "pitchingOver": 0,
       "jink": [0, 0, 0],
@@ -710,7 +710,7 @@
       "src/Core/Entities/ShipEntity.m:3886-3942",
       "src/Core/Entities/ShipEntity.m:3930-3939"
     ],
-    "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500, max_flight_roll 2.1) in ATTACK_BREAK_OFF_TARGET against a stationary ship that targets it (so `[target primaryTarget] != self` is false) with the temperature at 0 and no proximity alert: desired_speed = maxFlightSpeed (3898) and frustration += dt first (3916). Range 2000, aspect 0.5, initial frustration 10.4 -> 10.40833 > 10, aspect 0.5 < 0.85 and the temperature 0 is below COMBAT_AI_WEAPON_TEMP_READY (3932), so frustration is reset to 0 and accuracy 6 is below COMBAT_AI_DOGFIGHTER (6.5), so the frustration exit goes to ATTACK_FLY_TO_TARGET (3934-3938). (The retreat or evasive choice before it, 3921, does not affect the behaviour or frustration.)",
+    "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500, max_flight_roll 2.1) in ATTACK_BREAK_OFF_TARGET against a stationary ship that targets it (so `[target primaryTarget] != self` is false) with the temperature at 0 and no proximity alert: desired_speed = maxFlightSpeed (3898) and frustration += dt first (3916). Range 2000, aspect 0.5, initial frustration 10.375 (exact in float32) -> 10.38333 > 10, aspect 0.5 < 0.85 and the temperature 0 is below COMBAT_AI_WEAPON_TEMP_READY (3932), so frustration is reset to 0 and accuracy 6 is below COMBAT_AI_DOGFIGHTER (6.5), so the frustration exit goes to ATTACK_FLY_TO_TARGET (3934-3938). (The retreat or evasive choice before it, 3921, does not affect the behaviour or frustration.)",
     "dt": 0.008333333333333333,
     "horizon": 1,
     "stats": {
@@ -736,7 +736,7 @@
       "stickRoll": 0,
       "stickPitch": 0,
       "accuracy": 6,
-      "frustration": 10.4,
+      "frustration": 10.375,
       "successFactor": 0,
       "pitchingOver": 0,
       "jink": [150, -150, 900],
@@ -797,7 +797,7 @@
       "src/Core/Entities/ShipEntity.m:3886-3942",
       "src/Core/Entities/ShipEntity.m:3930-3939"
     ],
-    "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500, max_flight_roll 2.1) in ATTACK_BREAK_OFF_TARGET against a stationary ship that targets it (so `[target primaryTarget] != self` is false) with the temperature at 0 and no proximity alert: desired_speed = maxFlightSpeed (3898) and frustration += dt first (3916). Range 2000, aspect 0.5, initial frustration 10.4 -> 10.40833 > 10, aspect 0.5 < 0.85 and the temperature 0 is below COMBAT_AI_WEAPON_TEMP_READY (3932), so frustration is reset to 0 and accuracy 7 is at least 6.5, so the frustration exit goes to ATTACK_SLOW_DOGFIGHT (3934-3936). (The retreat or evasive choice before it, 3921, does not affect the behaviour or frustration.)",
+    "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500, max_flight_roll 2.1) in ATTACK_BREAK_OFF_TARGET against a stationary ship that targets it (so `[target primaryTarget] != self` is false) with the temperature at 0 and no proximity alert: desired_speed = maxFlightSpeed (3898) and frustration += dt first (3916). Range 2000, aspect 0.5, initial frustration 10.375 (exact in float32) -> 10.38333 > 10, aspect 0.5 < 0.85 and the temperature 0 is below COMBAT_AI_WEAPON_TEMP_READY (3932), so frustration is reset to 0 and accuracy 7 is at least 6.5, so the frustration exit goes to ATTACK_SLOW_DOGFIGHT (3934-3936). (The retreat or evasive choice before it, 3921, does not affect the behaviour or frustration.)",
     "dt": 0.008333333333333333,
     "horizon": 1,
     "stats": {
@@ -823,7 +823,7 @@
       "stickRoll": 0,
       "stickPitch": 0,
       "accuracy": 7,
-      "frustration": 10.4,
+      "frustration": 10.375,
       "successFactor": 0,
       "pitchingOver": 0,
       "jink": [150, -150, 900],
@@ -2074,7 +2074,7 @@
       "stickRoll": 0,
       "stickPitch": 0,
       "accuracy": 9,
-      "frustration": 0.3,
+      "frustration": 0.25,
       "successFactor": 3000,
       "pitchingOver": 0,
       "jink": [150, -150, 900],
@@ -2168,7 +2168,7 @@
       "stickRoll": 0,
       "stickPitch": 0,
       "accuracy": 9,
-      "frustration": 0.3,
+      "frustration": 0.25,
       "successFactor": 3000,
       "pitchingOver": 0,
       "jink": [150, -150, 900],

@@ -522,7 +522,7 @@
       "src/Core/Entities/ShipEntity.m:4694-4704",
       "src/Core/Entities/ShipEntity.m:8980-9001"
     ],
-    "derivation": "A Mamba-like ship at accuracy 2 with frustration 2.999 (rounded to float32, 2.99899983...) and success_factor 0.5 in ATTACK_FLY_TO_TARGET against a stationary ship straight above at range 20000. The ship is turning, so success_factor = 0: not above 0.999 and not above 0.5, so frustration += dt (4695): fround(2.999 + 1/120) = 3.00733 > 3 (4696). That posts shipAIFrustrated (noteFrustration, 4698), calls setEvasiveJink(1000) (two ranrot draws, scripted [0.7, 0.3]: jink (179, -180, 1000), 4699), sets ATTACK_TARGET, frustration 0 and desired_speed = maxFlightSpeed (4700-4702). The far branch had set desired_speed 320 already. Draws consumed: 2.",
+    "derivation": "A Mamba-like ship at accuracy 2 with frustration 2.9990234375 (= 3 - 2^-10, exact in float32) and success_factor 0.5 in ATTACK_FLY_TO_TARGET against a stationary ship straight above at range 20000. The ship is turning, so success_factor = 0: not above 0.999 and not above 0.5, so frustration += dt (4695): fround(2.9990234375 + 1/120) = 3.00736 > 3 (4696). That posts shipAIFrustrated (noteFrustration, 4698), calls setEvasiveJink(1000) (two ranrot draws, scripted [0.7, 0.3]: jink (179, -180, 1000), 4699), sets ATTACK_TARGET, frustration 0 and desired_speed = maxFlightSpeed (4700-4702). The far branch had set desired_speed 320 already. Draws consumed: 2.",
     "dt": 0.008333333333333333,
     "horizon": 1,
     "stats": {
@@ -548,7 +548,7 @@
       "stickRoll": 0,
       "stickPitch": 0,
       "accuracy": 2,
-      "frustration": 2.999,
+      "frustration": 2.9990234375,
       "successFactor": 0.5,
       "pitchingOver": 0,
       "jink": [0, 0, 0],
@@ -643,7 +643,7 @@
       "src/Core/Entities/ShipEntity.m:4750-4764",
       "src/Core/Entities/ShipEntity.m:8980-9001"
     ],
-    "derivation": "A Mamba-like ship at accuracy 2 in ATTACK_FLY_FROM_TARGET with frustration 9.999 (float32) and success_factor 3005 against a stationary ship at range 3000: success_factor becomes 3000 and last_success_factor 3005 is above it, so the target counts as closing and frustration += dt (4743-4745): fround(9.999 + 1/120) = 10.00733 > 10 (4750). Draws in order: randf() u1 = 0.2 < 0.3 sets desired_speed = maxFlightSpeed * 1 (no fuel injection, 4751-4752), and the else-if is skipped, so it takes no draw; randf() u2 = 0.9 is not below 0.3, so z stays jink.z = 900 (4756-4760); setEvasiveJink(900) draws [0.7, 0.3]: jink (179, -180, 900) (4761); frustration /= 2 (4763): fround(10.00733 / 2) = 5.0037. desired_speed 320 is neither above max nor below half of it (4765-4773). Exit test: range 3000 > 0.5 * 12500 + 15 * 179 = 8935 is false and flightSpeed 0 is not above (25600 - 3000) * 1.4 / 6.28, so the ship stays in ATTACK_FLY_FROM_TARGET. Draws consumed: 4.",
+    "derivation": "A Mamba-like ship at accuracy 2 in ATTACK_FLY_FROM_TARGET with frustration 9.9990234375 (= 10 - 2^-10, exact in float32) and success_factor 3005 against a stationary ship at range 3000: success_factor becomes 3000 and last_success_factor 3005 is above it, so the target counts as closing and frustration += dt (4743-4745): fround(9.9990234375 + 1/120) = 10.00736 > 10 (4750). Draws in order: randf() u1 = 0.2 < 0.3 sets desired_speed = maxFlightSpeed * 1 (no fuel injection, 4751-4752), and the else-if is skipped, so it takes no draw; randf() u2 = 0.9 is not below 0.3, so z stays jink.z = 900 (4756-4760); setEvasiveJink(900) draws [0.7, 0.3]: jink (179, -180, 900) (4761); frustration /= 2 (4763): fround(10.00736 / 2) = 5.00368. desired_speed 320 is neither above max nor below half of it (4765-4773). Exit test: range 3000 > 0.5 * 12500 + 15 * 179 = 8935 is false and flightSpeed 0 is not above (25600 - 3000) * 1.4 / 6.28, so the ship stays in ATTACK_FLY_FROM_TARGET. Draws consumed: 4.",
     "dt": 0.008333333333333333,
     "horizon": 1,
     "stats": {
@@ -669,7 +669,7 @@
       "stickRoll": 0,
       "stickPitch": 0,
       "accuracy": 2,
-      "frustration": 9.999,
+      "frustration": 9.9990234375,
       "successFactor": 3005,
       "pitchingOver": 0,
       "jink": [10, 20, 900],
@@ -744,9 +744,9 @@
       {
         "tick": 1,
         "field": "frustration",
-        "expected": 5.003666877746582,
+        "expected": 5.003678321838379,
         "tolerance": 0,
-        "note": "fround(fround(9.999 + dt) / 2)"
+        "note": "fround(fround(9.9990234375 + dt) / 2)"
       }
     ],
     "events": []
@@ -785,7 +785,7 @@
       "stickRoll": 0,
       "stickPitch": 0,
       "accuracy": 2,
-      "frustration": 9.999,
+      "frustration": 9.9990234375,
       "successFactor": 3005,
       "pitchingOver": 0,
       "jink": [10, 20, 900],
@@ -860,9 +860,9 @@
       {
         "tick": 1,
         "field": "frustration",
-        "expected": 5.003666877746582,
+        "expected": 5.003678321838379,
         "tolerance": 0,
-        "note": "fround(fround(9.999 + dt) / 2)"
+        "note": "fround(fround(9.9990234375 + dt) / 2)"
       }
     ],
     "events": []

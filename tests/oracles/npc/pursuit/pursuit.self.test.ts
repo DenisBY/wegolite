@@ -1204,3 +1204,16 @@ describe("attack sub-behaviour fixtures", () => {
     ).toBe(32);
   });
 });
+
+describe("initial accumulator values leave no load-time rounding ambiguity", () => {
+  it("states frustration and successFactor exactly representable in float32", () => {
+    for (const fixture of allFixtures()) {
+      expect(Math.fround(fixture.self.frustration), fixture.id).toBe(
+        fixture.self.frustration,
+      );
+      expect(Math.fround(fixture.self.successFactor), fixture.id).toBe(
+        fixture.self.successFactor,
+      );
+    }
+  });
+});
