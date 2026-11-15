@@ -47,6 +47,15 @@ export interface Entity {
   nav: NavComponent;
   ai: AiComponent | null;
   repairs: number;
+  /**
+   * The energy bank (CBT-07, Oolite's `energy`, `maxEnergy` and
+   * `energy_recharge_rate`): a hit drains `energy`, it never exceeds
+   * `maxEnergy` and a spawned ship starts at full. Hashed, snapshotted and
+   * repaired like every other field.
+   */
+  energy: number;
+  maxEnergy: number;
+  energyRechargeRate: number;
 }
 
 /** What a caller supplies to spawn an entity. */
@@ -60,6 +69,10 @@ export interface SpawnInit {
   speed?: number;
   ownerId?: EntityId;
   ai?: AiComponent | null;
+  /** Defaults to `NPC_DEFAULT_MAX_ENERGY`; the entity starts at this energy. */
+  maxEnergy?: number;
+  /** Defaults to `NPC_DEFAULT_ENERGY_RECHARGE_RATE`. */
+  energyRechargeRate?: number;
 }
 
 /**

@@ -11,6 +11,11 @@
  * parser accepts. Every bound is imported from `./limits.js`; this module
  * declares and exports no constant.
  *
+ * The energy bank (CBT-07) is repaired in the same pass: a non-finite or
+ * out-of-domain `maxEnergy` or `energyRechargeRate` becomes the Oolite default,
+ * and `energy` is held inside `0..maxEnergy` (a non-finite energy becomes a full
+ * bank).
+ *
  * Counting. `repairs` grows by one per call that repaired anything, however
  * many fields it repaired, saturating at `MAX_UINT32`. Normalisations never
  * count: `-0` becomes `0`, and an orientation outside `QUAT_UNIT_TOLERANCE`
@@ -37,11 +42,15 @@ import type { Entity } from "./entity.js";
 import { BEHAVIOUR_IDS, ENTITY_KINDS, SCAN_CLASSES } from "./ids.js";
 import {
   MAX_AI_PARAMS_KEYS,
+  MAX_ENERGY_RECHARGE_RATE,
+  MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_UINT32,
   MIN_QUAT_NORM_SQ,
+  NPC_DEFAULT_ENERGY_RECHARGE_RATE,
+  NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
 } from "./limits.js";
 
@@ -81,6 +90,32 @@ function cleanNonNegative(v: number): Cleaned<number> {
   return isBounded(v) && v >= 0
     ? { value: noNegativeZero(v), repaired: false }
     : { value: 0, repaired: true };
+}
+
+/**
+ * A finite number in `0..limit`, else `fallback` (a repair); `-0` becomes 0
+ * (not a repair).
+ */
+function cleanRange(
+  v: number,
+  limit: number,
+  fallback: number,
+): Cleaned<number> {
+  return Number.isFinite(v) && v >= 0 && v <= limit
+    ? { value: noNegativeZero(v), repaired: false }
+    : { value: fallback, repaired: true };
+}
+
+/**
+ * `energy` held inside `0..maxEnergy`: negative becomes 0, above the bank
+ * becomes `maxEnergy`, non-finite becomes `maxEnergy` (each a repair); `-0`
+ * becomes 0 (not a repair).
+ */
+function cleanEnergy(energy: number, maxEnergy: number): Cleaned<number> {
+  if (!Number.isFinite(energy)) return { value: maxEnergy, repaired: true };
+  if (energy < 0) return { value: 0, repaired: true };
+  if (energy > maxEnergy) return { value: maxEnergy, repaired: true };
+  return { value: noNegativeZero(energy), repaired: false };
 }
 
 /** A uint32 integer, else 0 (a repair). */
@@ -366,6 +401,26 @@ export function sanitizeEntity(entity: Entity): boolean {
     repaired = true;
   }
   if (entity.ai !== null) mark(cleanAi(entity, entity.ai));
+
+  // The energy bank: a bad bound falls back to Oolite's default, and energy is
+  // clamped into 0..maxEnergy (a non-finite energy becomes a full bank).
+  const maxEnergy = cleanRange(
+    entity.maxEnergy,
+    MAX_ENTITY_ENERGY,
+    NPC_DEFAULT_MAX_ENERGY,
+  );
+  entity.maxEnergy = maxEnergy.value;
+  mark(maxEnergy.repaired);
+  const rate = cleanRange(
+    entity.energyRechargeRate,
+    MAX_ENERGY_RECHARGE_RATE,
+    NPC_DEFAULT_ENERGY_RECHARGE_RATE,
+  );
+  entity.energyRechargeRate = rate.value;
+  mark(rate.repaired);
+  const energy = cleanEnergy(entity.energy, entity.maxEnergy);
+  entity.energy = energy.value;
+  mark(energy.repaired);
 
   let base = entity.repairs;
   if (!isUint32(base)) {

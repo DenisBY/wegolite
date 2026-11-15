@@ -37,10 +37,14 @@ import {
 import type { EntityId } from "./ids.js";
 import {
   MAX_AI_PARAMS_KEYS,
+  MAX_ENERGY_RECHARGE_RATE,
+  MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_UINT32,
+  NPC_DEFAULT_ENERGY_RECHARGE_RATE,
+  NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
 } from "./limits.js";
 import { createEntityStore } from "./store.js";
@@ -185,6 +189,16 @@ function isBounded(n: number): boolean {
   return Number.isFinite(n) && Math.abs(n) <= MAX_ENTITY_MAGNITUDE;
 }
 
+/** A finite energy or max energy in `0..MAX_ENTITY_ENERGY`. */
+function isLegalEnergy(n: number): boolean {
+  return Number.isFinite(n) && n >= 0 && n <= MAX_ENTITY_ENERGY;
+}
+
+/** A finite recharge rate in `0..MAX_ENERGY_RECHARGE_RATE`. */
+function isLegalRechargeRate(n: number): boolean {
+  return Number.isFinite(n) && n >= 0 && n <= MAX_ENERGY_RECHARGE_RATE;
+}
+
 function isBoundedVec(v: Vec3): boolean {
   return isBounded(v.x) && isBounded(v.y) && isBounded(v.z);
 }
@@ -276,6 +290,10 @@ function isMalformedInit(init: unknown, tick: unknown): boolean {
   if (speed !== undefined && typeof speed !== "number") return true;
   const ownerId = init["ownerId"];
   if (ownerId !== undefined && typeof ownerId !== "number") return true;
+  const maxEnergy = init["maxEnergy"];
+  if (maxEnergy !== undefined && typeof maxEnergy !== "number") return true;
+  const rate = init["energyRechargeRate"];
+  if (rate !== undefined && typeof rate !== "number") return true;
   if (!hasNumberFields(init["position"], ["x", "y", "z"])) return true;
   if (!hasNumberFields(init["orientation"], ["w", "x", "y", "z"])) return true;
   const ai = init["ai"];
@@ -313,6 +331,15 @@ function domainRefusal(
   }
   if (init.speed !== undefined) {
     if (!isBounded(init.speed) || init.speed < 0) return "outOfDomain";
+  }
+  if (init.maxEnergy !== undefined && !isLegalEnergy(init.maxEnergy)) {
+    return "outOfDomain";
+  }
+  if (
+    init.energyRechargeRate !== undefined &&
+    !isLegalRechargeRate(init.energyRechargeRate)
+  ) {
+    return "outOfDomain";
   }
   if (!isBoundedVec(init.position) || !isUnitQuat(init.orientation)) {
     return "outOfDomain";
@@ -398,6 +425,7 @@ export function spawnEntity(
   }
   const entity = world.store.allocate((id) => {
     const speed = init.speed ?? 0;
+    const maxEnergy = init.maxEnergy ?? NPC_DEFAULT_MAX_ENERGY;
     return {
       id,
       kind: init.kind,
@@ -432,6 +460,10 @@ export function spawnEntity(
       },
       ai: init.ai === undefined || init.ai === null ? null : copyAi(init.ai),
       repairs: 0,
+      energy: maxEnergy,
+      maxEnergy,
+      energyRechargeRate:
+        init.energyRechargeRate ?? NPC_DEFAULT_ENERGY_RECHARGE_RATE,
     };
   });
   return entity === undefined

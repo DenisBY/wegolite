@@ -99,6 +99,7 @@ export function serializeEntity(entity: Entity): string {
     `nav:${nav.behaviour},${int(nav.targetId)},${canon(nav.destination.x)},${canon(nav.destination.y)},${canon(nav.destination.z)},${canon(nav.desiredRange)},${canon(nav.desiredSpeed)}`,
     `ai:${aiText}`,
     `repairs:${int(entity.repairs)}`,
+    `en:${canon(entity.energy)},${canon(entity.maxEnergy)},${canon(entity.energyRechargeRate)}`,
   ].join(";");
 }
 

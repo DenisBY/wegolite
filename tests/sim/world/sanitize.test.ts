@@ -14,13 +14,17 @@ import { describe, expect, it } from "vitest";
 import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
 import type { AiComponent, AiKey } from "../../../src/sim/ai/types.js";
 import { identity, vec } from "../../../src/sim/math.js";
-import type { Entity } from "../../../src/sim/world/entity.js";
+import type { Entity, SpawnInit } from "../../../src/sim/world/entity.js";
 import {
   MAX_AI_PARAMS_KEYS,
+  MAX_ENERGY_RECHARGE_RATE,
+  MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_UINT32,
+  NPC_DEFAULT_ENERGY_RECHARGE_RATE,
+  NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
 } from "../../../src/sim/world/limits.js";
 import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
@@ -28,7 +32,7 @@ import { serializeEntity } from "../../../src/sim/world/serialize.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 
 /** A clean entity with a test-pilot AI, from the real spawn path. */
-function fresh(): Entity {
+function fresh(extra: Partial<SpawnInit> = {}): Entity {
   const world = createWorld(5);
   const result = spawnEntity(
     world,
@@ -41,6 +45,7 @@ function fresh(): Entity {
       radius: 40,
       speed: 10,
       ai: createTestPilotAi(0),
+      ...extra,
     },
     7,
   );
@@ -501,6 +506,93 @@ ROWS.push(
   })),
 );
 
+// The energy bank (CBT-07): a bad bound falls back to Oolite's default and
+// energy is held inside 0..maxEnergy.
+for (const bad of [
+  Number.NaN,
+  Number.POSITIVE_INFINITY,
+  -1,
+  MAX_ENTITY_ENERGY * 2,
+]) {
+  ROWS.push(
+    {
+      name: `maxEnergy ${bad} becomes the default`,
+      corrupt: (e) => (e.maxEnergy = bad),
+      expected: (e) => {
+        expect(e.maxEnergy).toBe(NPC_DEFAULT_MAX_ENERGY);
+        // A fresh spawn holds the default 200, so the bank stays full.
+        expect(e.energy).toBe(NPC_DEFAULT_MAX_ENERGY);
+      },
+      delta: 1,
+    },
+    {
+      name: `energyRechargeRate ${bad} becomes the default`,
+      corrupt: (e) => (e.energyRechargeRate = bad),
+      expected: (e) =>
+        expect(e.energyRechargeRate).toBe(NPC_DEFAULT_ENERGY_RECHARGE_RATE),
+      delta: 1,
+    },
+  );
+}
+
+ROWS.push(
+  {
+    name: "energy NaN becomes a full bank",
+    corrupt: (e) => (e.energy = Number.NaN),
+    expected: (e) => expect(e.energy).toBe(e.maxEnergy),
+    delta: 1,
+  },
+  {
+    name: "energy Infinity becomes a full bank",
+    corrupt: (e) => (e.energy = Number.POSITIVE_INFINITY),
+    expected: (e) => expect(e.energy).toBe(e.maxEnergy),
+    delta: 1,
+  },
+  {
+    name: "a negative energy is clamped to 0",
+    corrupt: (e) => (e.energy = -5),
+    expected: (e) => expect(e.energy).toBe(0),
+    delta: 1,
+  },
+  {
+    name: "an energy above maxEnergy is clamped to maxEnergy",
+    corrupt: (e) => (e.energy = e.maxEnergy + 1),
+    expected: (e) => expect(e.energy).toBe(e.maxEnergy),
+    delta: 1,
+  },
+  {
+    name: "a drained energy inside the bank is clean",
+    corrupt: (e) => (e.energy = 12.5),
+    expected: (e) => expect(e.energy).toBe(12.5),
+    delta: 0,
+  },
+  {
+    name: "energy -0 is normalised without a repair",
+    corrupt: (e) => (e.energy = -0),
+    expected: (e) => expect(Object.is(e.energy, 0)).toBe(true),
+    delta: 0,
+  },
+  {
+    name: "a lowered maxEnergy clamps energy down with one repair",
+    corrupt: (e) => {
+      e.energy = 150;
+      e.maxEnergy = 100;
+    },
+    expected: (e) => {
+      expect(e.maxEnergy).toBe(100);
+      expect(e.energy).toBe(100);
+    },
+    delta: 1,
+  },
+  {
+    name: "an energyRechargeRate at exactly the bound is clean",
+    corrupt: (e) => (e.energyRechargeRate = MAX_ENERGY_RECHARGE_RATE),
+    expected: (e) =>
+      expect(e.energyRechargeRate).toBe(MAX_ENERGY_RECHARGE_RATE),
+    delta: 0,
+  },
+);
+
 describe("sanitizeEntity table", () => {
   for (const row of ROWS) {
     it(row.name, () => {
@@ -577,5 +669,113 @@ describe("sanitizeEntity counting", () => {
     entity.speed = Number.NaN;
     expect(sanitizeEntity(entity)).toBe(true);
     expect(entity.ai).toBeNull();
+  });
+});
+
+describe("the energy bank at spawn and in the hash (CBT-07)", () => {
+  it("a default spawn has 200 energy, 200 max energy and rate 1", () => {
+    const entity = fresh();
+    expect(entity.energy).toBe(200);
+    expect(entity.maxEnergy).toBe(200);
+    expect(entity.energyRechargeRate).toBe(1);
+  });
+
+  it("a spawn names its bank and starts at full energy", () => {
+    const entity = fresh({ maxEnergy: 85, energyRechargeRate: 2 });
+    expect(entity.energy).toBe(85);
+    expect(entity.maxEnergy).toBe(85);
+    expect(entity.energyRechargeRate).toBe(2);
+  });
+
+  it("the bank is hashed: 85 and 86 hash differently, and so does the rate", () => {
+    const a = serializeEntity(fresh({ maxEnergy: 85, energyRechargeRate: 2 }));
+    const b = serializeEntity(fresh({ maxEnergy: 86, energyRechargeRate: 2 }));
+    const c = serializeEntity(fresh({ maxEnergy: 85, energyRechargeRate: 3 }));
+    expect(a).toContain(";en:85.000000,85.000000,2.000000");
+    expect(b).not.toBe(a);
+    expect(c).not.toBe(a);
+  });
+
+  it("a drained energy changes the hash text", () => {
+    const entity = fresh({ maxEnergy: 85, energyRechargeRate: 2 });
+    const before = serializeEntity(entity);
+    entity.energy = 60;
+    expect(serializeEntity(entity)).not.toBe(before);
+  });
+
+  it("repairs a NaN energy and a non-finite rate before the entity is hashed", () => {
+    const entity = fresh({ maxEnergy: 85, energyRechargeRate: 2 });
+    entity.energy = Number.NaN;
+    entity.energyRechargeRate = Number.NaN;
+    expect(() => serializeEntity(entity)).toThrow();
+    expect(sanitizeEntity(entity)).toBe(true);
+    expect(entity.repairs).toBe(1);
+    expect(entity.energy).toBe(85);
+    expect(entity.energyRechargeRate).toBe(NPC_DEFAULT_ENERGY_RECHARGE_RATE);
+    expect(() => serializeEntity(entity)).not.toThrow();
+  });
+
+  const world = (): ReturnType<typeof createWorld> => createWorld(5);
+  const spawn = (extra: Partial<SpawnInit>): ReturnType<typeof spawnEntity> =>
+    spawnEntity(
+      world(),
+      {
+        kind: "ship",
+        specKey: "viper",
+        scanClass: "CLASS_POLICE",
+        position: vec(0, 0, 0),
+        orientation: identity(),
+        radius: 40,
+        ...extra,
+      },
+      0,
+    );
+
+  it.each([
+    [
+      "an over-bound rate",
+      { energyRechargeRate: MAX_ENERGY_RECHARGE_RATE + 1 },
+    ],
+    ["a negative rate", { energyRechargeRate: -1 }],
+    ["a NaN rate", { energyRechargeRate: Number.NaN }],
+    ["an over-bound max energy", { maxEnergy: MAX_ENTITY_ENERGY + 1 }],
+    ["a negative max energy", { maxEnergy: -1 }],
+    ["an infinite max energy", { maxEnergy: Number.POSITIVE_INFINITY }],
+  ] as [string, Partial<SpawnInit>][])(
+    "refuses %s as outOfDomain",
+    (_n, extra) => {
+      expect(spawn(extra)).toEqual({ ok: false, reason: "outOfDomain" });
+    },
+  );
+
+  it.each([
+    ["a string max energy", { maxEnergy: "85" }],
+    ["a null rate", { energyRechargeRate: null }],
+  ])("refuses %s as malformed", (_n, extra) => {
+    expect(spawn(extra as unknown as Partial<SpawnInit>)).toEqual({
+      ok: false,
+      reason: "malformed",
+    });
+  });
+
+  it("a refused spawn leaves the id counter and the world untouched", () => {
+    const w = world();
+    const before = w.store.nextId;
+    const refused = spawnEntity(
+      w,
+      {
+        kind: "ship",
+        specKey: "viper",
+        scanClass: "CLASS_POLICE",
+        position: vec(0, 0, 0),
+        orientation: identity(),
+        radius: 40,
+        energyRechargeRate: MAX_ENERGY_RECHARGE_RATE * 2,
+      },
+      0,
+    );
+    expect(refused.ok).toBe(false);
+    expect(w.store.nextId).toBe(before);
+    expect(w.store.live).toHaveLength(0);
   });
 });

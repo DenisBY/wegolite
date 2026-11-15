@@ -48,3 +48,31 @@ export const QUAT_UNIT_TOLERANCE = 1e-9;
  * 1.0000111).
  */
 export const MIN_QUAT_NORM_SQ = 1e-12;
+
+/**
+ * The energy a ship spawns with when its record or its caller names none
+ * (Oolite `ShipEntity.m:291`, `max_energy` default 200.0).
+ */
+export const NPC_DEFAULT_MAX_ENERGY = 200;
+
+/**
+ * The energy recharge rate (energy per second) a ship spawns with when its
+ * record or its caller names none (Oolite `ShipEntity.m:292`,
+ * `energy_recharge_rate` default 1.0).
+ */
+export const NPC_DEFAULT_ENERGY_RECHARGE_RATE = 1;
+
+/**
+ * The largest `maxEnergy` (and so `energy`) a world entity may hold. Far above
+ * every compiled NPC record (the largest is 250) and every Oolite ship; it only
+ * keeps a corrupt value out of the hash. Changing it is a snapshot-format
+ * change (a `WORLD_SNAPSHOT_VERSION` bump).
+ */
+export const MAX_ENTITY_ENERGY = 1e6;
+
+/**
+ * The largest `energyRechargeRate` a world entity may hold. Far above every
+ * compiled NPC record (the largest is 4). Changing it is a snapshot-format
+ * change (a `WORLD_SNAPSHOT_VERSION` bump).
+ */
+export const MAX_ENERGY_RECHARGE_RATE = 1e3;
