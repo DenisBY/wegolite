@@ -27,6 +27,8 @@ import {
 } from "../../../src/sim/world/ids.js";
 import {
   MAX_AI_PARAMS_KEYS,
+  MAX_ENERGY_RECHARGE_RATE,
+  MAX_ENTITY_ENERGY,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_UINT32,
@@ -120,6 +122,12 @@ function richWorld(): World {
   a.nav.desiredRange = 500;
   a.nav.desiredSpeed = 75.25;
   a.repairs = 2;
+  a.maxEnergy = 85;
+  a.energy = 60.5;
+  a.energyRechargeRate = 2.25;
+  b.maxEnergy = 250;
+  b.energy = 250;
+  b.energyRechargeRate = 4;
   a.ownerId = 3;
   a.speed = 80.125;
   b.orientation = quat(0.5, 0.5, 0.5, 0.5);
@@ -204,7 +212,9 @@ const REJECTIONS: readonly (readonly [string, Mutator, SnapshotErrorReason])[] =
   [
     // The root and the format.
     ["a wrong format tag", set("format", "other"), "format"],
-    ["version 2", set("version", 2), "version"],
+    // Version 1 lacks the energy bank (Phase 13, CBT-07): its shape is refused.
+    ["version 1", set("version", 1), "version"],
+    ["version 3", set("version", 3), "version"],
     ["worldSeed 1.5", set("worldSeed", 1.5), "world-seed"],
     ["worldSeed -1", set("worldSeed", -1), "world-seed"],
     ["worldSeed 2 ** 32", set("worldSeed", 2 ** 32), "world-seed"],
@@ -308,6 +318,49 @@ const REJECTIONS: readonly (readonly [string, Mutator, SnapshotErrorReason])[] =
     ["nextThinkTick 2 ** 32", set(`${AI}.nextThinkTick`, 2 ** 32), "counter"],
     ["repairs 1e13", set(`${E0}.repairs`, 1e13), "counter"],
     ["repairs 2 ** 32", set(`${E0}.repairs`, 2 ** 32), "counter"],
+    // The energy bank (CBT-07): strict keys, bounded limits.
+    [
+      "energy missing",
+      (s) => void delete (getAt(s, E0) as Plain).energy,
+      "type",
+    ],
+    [
+      "maxEnergy missing",
+      (s) => void delete (getAt(s, E0) as Plain).maxEnergy,
+      "type",
+    ],
+    [
+      "energyRechargeRate missing",
+      (s) => void delete (getAt(s, E0) as Plain).energyRechargeRate,
+      "type",
+    ],
+    ["energy null (a NaN after JSON)", set(`${E0}.energy`, null), "non-finite"],
+    ["energy NaN", set(`${E0}.energy`, Number.NaN), "non-finite"],
+    ["energy as a string", set(`${E0}.energy`, "60"), "type"],
+    ["energy -1", set(`${E0}.energy`, -1), "range"],
+    ["energy above its own maxEnergy", set(`${E0}.energy`, 85.5), "magnitude"],
+    [
+      "maxEnergy Infinity",
+      set(`${E0}.maxEnergy`, Number.POSITIVE_INFINITY),
+      "non-finite",
+    ],
+    ["maxEnergy -1", set(`${E0}.maxEnergy`, -1), "range"],
+    [
+      "maxEnergy over MAX_ENTITY_ENERGY",
+      set(`${E0}.maxEnergy`, MAX_ENTITY_ENERGY + 1),
+      "magnitude",
+    ],
+    [
+      "energyRechargeRate null",
+      set(`${E0}.energyRechargeRate`, null),
+      "non-finite",
+    ],
+    ["energyRechargeRate -1", set(`${E0}.energyRechargeRate`, -1), "range"],
+    [
+      "energyRechargeRate over MAX_ENERGY_RECHARGE_RATE",
+      set(`${E0}.energyRechargeRate`, MAX_ENERGY_RECHARGE_RATE + 1),
+      "magnitude",
+    ],
     ["spawnTick 2 ** 32", set(`${E0}.spawnTick`, 2 ** 32), "counter"],
     ["ownerId 2 ** 32", set(`${E0}.ownerId`, 2 ** 32), "counter"],
     ["nav.targetId 2 ** 32", set(`${NAV}.targetId`, 2 ** 32), "counter"],
@@ -679,6 +732,42 @@ describe("snapshot edges", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The energy bank under version 2 (CBT-07)
+
+describe("the energy bank in the snapshot", () => {
+  it("writes version 2 and the three fields of every entity", () => {
+    const snapshot = snapshotWorld(richWorld());
+    expect(snapshot.version).toBe(2);
+    const [a, b] = snapshot.entities;
+    expect([a?.energy, a?.maxEnergy, a?.energyRechargeRate]).toEqual([
+      60.5, 85, 2.25,
+    ]);
+    expect([b?.energy, b?.maxEnergy, b?.energyRechargeRate]).toEqual([
+      250, 250, 4,
+    ]);
+  });
+
+  it("restores a drained bank so the restored world hashes like the source", () => {
+    const player = initFlightState(layout);
+    const world = richWorld();
+    const restored = restoreWorld(parseWorldSnapshot(jsonOf(world)));
+    const a = restored.store.live[0] as Entity;
+    expect([a.energy, a.maxEnergy, a.energyRechargeRate]).toEqual([
+      60.5, 85, 2.25,
+    ]);
+    expect(hashWorld(player, restored)).toBe(hashWorld(player, world));
+  });
+
+  it("keeps a bank of exactly zero energy and normalises a -0 energy", () => {
+    const world = richWorld();
+    (world.store.live[0] as Entity).energy = -0;
+    const snapshot = snapshotWorld(world);
+    expect(Object.is(snapshot.entities[0]?.energy, 0)).toBe(true);
+    expect(reasonOf(JSON.parse(JSON.stringify(snapshot)))).toBe("accepted");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // snapshotWorld refusals
 
 describe("snapshotWorld refusals", () => {
@@ -752,6 +841,24 @@ describe("snapshotWorld refusals", () => {
       "rng.combat NaN",
       (w) => {
         (w.store.live[0] as Entity).rng.combat = Number.NaN;
+      },
+    ],
+    [
+      "energy NaN",
+      (w) => {
+        (w.store.live[0] as Entity).energy = Number.NaN;
+      },
+    ],
+    [
+      "maxEnergy Infinity",
+      (w) => {
+        (w.store.live[1] as Entity).maxEnergy = Number.POSITIVE_INFINITY;
+      },
+    ],
+    [
+      "energyRechargeRate NaN",
+      (w) => {
+        (w.store.live[0] as Entity).energyRechargeRate = Number.NaN;
       },
     ],
     [
@@ -1061,6 +1168,30 @@ const ENTITY_FIELDS: Record<keyof Entity, readonly Mutation[]> = {
       },
     },
   ],
+  energy: [
+    {
+      name: "- 1",
+      apply: (e) => {
+        e.energy -= 1;
+      },
+    },
+  ],
+  maxEnergy: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.maxEnergy += 1;
+      },
+    },
+  ],
+  energyRechargeRate: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.energyRechargeRate += 1;
+      },
+    },
+  ],
 };
 
 const ENTITY_FIELD_CASES = Object.keys(ENTITY_FIELDS)
@@ -1277,6 +1408,9 @@ const fieldsArb = fc.record(
     rngAi: num,
     rngCombat: num,
     repairs: num,
+    energy: num,
+    maxEnergy: num,
+    energyRechargeRate: num,
     wakeTick: num,
     nextThinkTick: num,
     params: paramsArb,
@@ -1309,6 +1443,11 @@ function applyFields(entity: Entity, f: Fields): void {
   if (f.rngAi !== undefined) entity.rng.ai = f.rngAi;
   if (f.rngCombat !== undefined) entity.rng.combat = f.rngCombat;
   if (f.repairs !== undefined) entity.repairs = f.repairs;
+  if (f.energy !== undefined) entity.energy = f.energy;
+  if (f.maxEnergy !== undefined) entity.maxEnergy = f.maxEnergy;
+  if (f.energyRechargeRate !== undefined) {
+    entity.energyRechargeRate = f.energyRechargeRate;
+  }
   if (entity.ai !== null) {
     const ai = entity.ai;
     if (f.aiKey !== undefined) (ai as { aiKey: string }).aiKey = f.aiKey;

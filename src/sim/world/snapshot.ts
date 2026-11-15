@@ -47,6 +47,8 @@ import {
 import type { BehaviourId, EntityId, EntityKind, ScanClass } from "./ids.js";
 import {
   MAX_AI_PARAMS_KEYS,
+  MAX_ENERGY_RECHARGE_RATE,
+  MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
@@ -60,8 +62,12 @@ import type { World } from "./world.js";
 /** The `format` tag of every world snapshot. */
 export const WORLD_SNAPSHOT_FORMAT = "wegolite-world";
 
-/** The snapshot layout version; bump on any field or limit change. */
-export const WORLD_SNAPSHOT_VERSION = 1;
+/**
+ * The snapshot layout version; bump on any field or limit change. Version 2
+ * (Phase 13, CBT-07) adds the energy bank (`energy`, `maxEnergy`,
+ * `energyRechargeRate`) to every entity; a version-1 snapshot is refused.
+ */
+export const WORLD_SNAPSHOT_VERSION = 2;
 
 export interface VectorSnapshot {
   x: number;
@@ -100,6 +106,9 @@ export interface EntitySnapshot {
   nav: NavSnapshot;
   ai: AiComponent | null;
   repairs: number;
+  energy: number;
+  maxEnergy: number;
+  energyRechargeRate: number;
 }
 
 export interface WorldSnapshot {
@@ -208,6 +217,9 @@ function requireFiniteEntity(entity: Entity): void {
   requireFinite(nav.desiredRange, `${at}.nav.desiredRange`);
   requireFinite(nav.desiredSpeed, `${at}.nav.desiredSpeed`);
   requireFinite(entity.repairs, `${at}.repairs`);
+  requireFinite(entity.energy, `${at}.energy`);
+  requireFinite(entity.maxEnergy, `${at}.maxEnergy`);
+  requireFinite(entity.energyRechargeRate, `${at}.energyRechargeRate`);
   if (entity.ai !== null) {
     requireFinite(entity.ai.wakeTick, `${at}.ai.wakeTick`);
     requireFinite(entity.ai.nextThinkTick, `${at}.ai.nextThinkTick`);
@@ -280,6 +292,9 @@ function snapshotEntity(entity: Entity): EntitySnapshot {
     },
     ai: entity.ai === null ? null : copyAi(entity.ai),
     repairs: noNegativeZero(entity.repairs),
+    energy: noNegativeZero(entity.energy),
+    maxEnergy: noNegativeZero(entity.maxEnergy),
+    energyRechargeRate: noNegativeZero(entity.energyRechargeRate),
   };
 }
 
@@ -390,6 +405,14 @@ function nonNegativeNumber(value: unknown, path: string): number {
   const n = boundedNumber(value, path);
   if (n < 0) return fail("range", path, "must not be negative");
   return n;
+}
+
+/** A finite number in `0..limit`: `magnitude` above it, `range` below zero. */
+function limitedNumber(value: unknown, path: string, limit: number): number {
+  const n = finiteNumber(value, path);
+  if (n > limit) return fail("magnitude", path, "exceeds its limit");
+  if (n < 0) return fail("range", path, "must not be negative");
+  return noNegativeZero(n);
 }
 
 function uint32(
@@ -573,6 +596,9 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     "nav",
     "ai",
     "repairs",
+    "energy",
+    "maxEnergy",
+    "energyRechargeRate",
   ]);
   const id = read(o, "id");
   if (
@@ -612,6 +638,17 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
   const nav = parseNav(read(o, "nav"), `${path}.nav`);
   const ai = parseAi(read(o, "ai"), `${path}.ai`);
   const repairs = uint32(read(o, "repairs"), `${path}.repairs`, "counter");
+  const maxEnergy = limitedNumber(
+    read(o, "maxEnergy"),
+    `${path}.maxEnergy`,
+    MAX_ENTITY_ENERGY,
+  );
+  const energy = limitedNumber(read(o, "energy"), `${path}.energy`, maxEnergy);
+  const energyRechargeRate = limitedNumber(
+    read(o, "energyRechargeRate"),
+    `${path}.energyRechargeRate`,
+    MAX_ENERGY_RECHARGE_RATE,
+  );
   return {
     id,
     kind,
@@ -627,6 +664,9 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     nav,
     ai,
     repairs,
+    energy,
+    maxEnergy,
+    energyRechargeRate,
   };
 }
 
@@ -734,6 +774,9 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
     nav: e.nav,
     ai: e.ai,
     repairs: e.repairs,
+    energy: e.energy,
+    maxEnergy: e.maxEnergy,
+    energyRechargeRate: e.energyRechargeRate,
   }));
   return {
     worldSeed: parsed.worldSeed,
