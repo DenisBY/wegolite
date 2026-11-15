@@ -30,8 +30,8 @@ import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
 import { sub, vec } from "../../sim/math.js";
 import { npcContacts } from "../../sim/world/contacts.js";
 import {
-  computeCockpitCamera,
   computeLaunchCamera,
+  computeViewCamera,
 } from "../../render/launch-camera.js";
 import type { CameraPose } from "../../render/launch-camera.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
@@ -148,9 +148,12 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     if (currentState.mode === "launching") {
       camera = computeLaunchCamera(currentLayout, pose.position);
     } else if (currentState.mode === "inFlight") {
-      camera = computeCockpitCamera(
+      // CBT-04: the camera follows the sim's current view (also the weapon
+      // facing); a missing combat state is the fore view.
+      camera = computeViewCamera(
         pose.position,
         pose.orientation,
+        ctx.core.combat?.view ?? "fore",
         ctx.core.dockFeedback.shakeOffset(currentState.flightTime),
       );
     }

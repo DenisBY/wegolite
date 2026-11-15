@@ -19,10 +19,12 @@ import {
   COCKPIT_OFFSET,
   computeCockpitCamera,
   computeLaunchCamera,
+  computeViewCamera,
   LAUNCH_FORWARD_OFFSET,
   LAUNCH_RIGHT_OFFSET,
   LAUNCH_UP_OFFSET,
   launchCameraBasis,
+  VIEW_OFFSETS,
 } from "../../src/render/launch-camera.js";
 import {
   add,
@@ -30,7 +32,9 @@ import {
   cross,
   dot,
   identity,
+  mul,
   length,
+  normalize as normalizeQuat,
   normalizeVec,
   quatFromUnitVectors,
   rotate,
@@ -39,6 +43,8 @@ import {
   vec,
 } from "../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../src/sim/math.js";
+import { laserFrame } from "../../src/sim/combat/aim.js";
+import { FACINGS } from "../../src/sim/combat/mounts.js";
 import type { SystemLayout } from "../../src/sim/world/layout.js";
 import { laveFixture } from "../helpers/lave.js";
 
@@ -202,6 +208,110 @@ describe("cockpit camera", () => {
     expect(pose.quaternion).toEqual(orientation);
     // The offset must rotate, not stay in world axes.
     expect(pose.position.x - position.x).not.toBeCloseTo(0, 6);
+  });
+});
+
+describe("view cameras (CBT-04, A1)", () => {
+  /** A pose with every axis distinct, so a swapped axis cannot hide. */
+  const orientation = normalizeQuat(
+    mul(
+      axisAngle(0, 1, 0, 0.7),
+      mul(axisAngle(1, 0, 0, -0.4), axisAngle(0, 0, 1, 0.3)),
+    ),
+  );
+  const position = vec(1_000, -250, 4_000);
+  const shipForward = rotate(orientation, vec(0, 0, -1));
+  const shipRight = rotate(orientation, vec(1, 0, 0));
+  const shipUp = rotate(orientation, vec(0, 1, 0));
+
+  function cameraForward(view: (typeof FACINGS)[number]): Vec3 {
+    return rotate(
+      computeViewCamera(position, orientation, view).quaternion,
+      vec(0, 0, -1),
+    );
+  }
+  function cameraUp(view: (typeof FACINGS)[number]): Vec3 {
+    return rotate(
+      computeViewCamera(position, orientation, view).quaternion,
+      vec(0, 1, 0),
+    );
+  }
+
+  it("looks along the ship forward for fore and the opposite way for aft", () => {
+    expectVecClose(cameraForward("fore"), shipForward, 12);
+    expectVecClose(cameraForward("aft"), scale(shipForward, -1), 12);
+  });
+
+  it("looks toward the ship's left for port and its right for starboard", () => {
+    expectVecClose(cameraForward("port"), scale(shipRight, -1), 12);
+    expectVecClose(cameraForward("starboard"), shipRight, 12);
+  });
+
+  it("keeps the ship's up axis for every view", () => {
+    for (const view of FACINGS) expectVecClose(cameraUp(view), shipUp, 12);
+  });
+
+  it("looks where the laser on the same facing fires", () => {
+    for (const view of FACINGS) {
+      expectVecClose(
+        cameraForward(view),
+        laserFrame(orientation, view).forward,
+        12,
+      );
+    }
+  });
+
+  it("returns a unit quaternion for every view", () => {
+    for (const view of FACINGS) {
+      expect(
+        quatLength(computeViewCamera(position, orientation, view).quaternion),
+      ).toBeCloseTo(1, 12);
+    }
+  });
+
+  it("makes the fore view exactly the cockpit camera", () => {
+    const shake = vec(0.1, -0.2, 0.3);
+    expect(computeViewCamera(position, orientation, "fore")).toEqual(
+      computeCockpitCamera(position, orientation),
+    );
+    expect(computeViewCamera(position, orientation, "fore", shake)).toEqual(
+      computeCockpitCamera(position, orientation, shake),
+    );
+  });
+
+  it("places the camera at the rotated view offset plus the shake", () => {
+    const shake = vec(0.5, 0, -0.5);
+    for (const view of FACINGS) {
+      const pose = computeViewCamera(position, orientation, view, shake);
+      expectVecClose(
+        pose.position,
+        add(add(position, rotate(orientation, VIEW_OFFSETS[view])), shake),
+        9,
+      );
+    }
+  });
+
+  it("derives each offset from the compiled view_position_* with z negated", () => {
+    const plist = readFileSync(
+      new URL(
+        "../../third_party/oolite/Config/shipdata.plist",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    // The Cobra Mk III block: the first view_position_* after its model line.
+    const cobra = plist.slice(plist.indexOf('model = "oolite_cobra3.dat"'));
+    const read = (key: string): Vec3 => {
+      const match = new RegExp(`${key}\\s*=\\s*"([^"]+)"`).exec(cobra);
+      if (match?.[1] === undefined) throw new Error(`missing ${key}`);
+      const [x, y, z] = match[1].trim().split(/\s+/).map(Number);
+      return vec(x ?? Number.NaN, y ?? Number.NaN, -(z ?? Number.NaN));
+    };
+    expectVecClose(VIEW_OFFSETS.fore, read("view_position_forward"), 12);
+    expectVecClose(VIEW_OFFSETS.aft, read("view_position_aft"), 12);
+    expectVecClose(VIEW_OFFSETS.port, read("view_position_port"), 12);
+    expectVecClose(VIEW_OFFSETS.starboard, read("view_position_starboard"), 12);
+    expectVecClose(VIEW_OFFSETS.fore, COCKPIT_OFFSET, 12);
   });
 });
 
