@@ -19,6 +19,7 @@
 import type { Command } from "../commands.js";
 import type { CombatOptions } from "../combat/step.js";
 import type { SimEvent } from "../events.js";
+import type { NpcFlightStats } from "../npc/stats.js";
 import { nextCompassMode, resolveCompassTarget } from "../world/aegis.js";
 import type { SystemLayout } from "../world/layout.js";
 import type { ShipField, ShipMass } from "../world/ship-field.js";
@@ -90,6 +91,14 @@ export interface StepOptions {
    * `../combat/step.ts` only.
    */
   readonly combat?: CombatOptions;
+  /**
+   * The read-only per-kind flight constants of the NPC ships (AI-01, plan
+   * 14-11), keyed by spec key and built from the compiled NPC records by
+   * `flightTableFrom` (`../npc/stats.ts`), exactly as `shipMasses` is supplied.
+   * Never carried in a command. `stepFlight` ignores it; `stepSim` hands it to
+   * the world step, where a kind with no row flies with Oolite's defaults.
+   */
+  readonly npcFlight?: readonly NpcFlightStats[];
 }
 
 /**

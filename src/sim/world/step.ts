@@ -29,7 +29,9 @@ import { AI_REGISTRY } from "../ai/registry.js";
 import type { AiContext, AiEvent, AiModule } from "../ai/types.js";
 import type { AiFaultSite, SimEvent } from "../events.js";
 import type { FlightState } from "../flight/state.js";
-import { add, rotate, scale, vec } from "../math.js";
+import { steerShip } from "../npc/dispatch.js";
+import { statsFor } from "../npc/stats.js";
+import type { NpcStepFacts } from "../npc/stats.js";
 import { createRngState, rngNext } from "../rng.js";
 import { createShipControl } from "./control-impl.js";
 import type { Entity } from "./entity.js";
@@ -38,7 +40,7 @@ import { MAX_UINT32 } from "./limits.js";
 import { sanitizeEntity } from "./sanitize.js";
 import { createWorldView } from "./view-impl.js";
 import type { WorldView } from "./view.js";
-import { commitWorld, countAiDropped } from "./world.js";
+import { commitWorld, countAiDropped, postAiEvent } from "./world.js";
 import type { World } from "./world.js";
 
 /** The most passes one AI event drain makes; events posted in a pass arrive in the next. */
@@ -46,9 +48,6 @@ export const MAX_AI_EVENT_PASSES = 8;
 
 /** The most events one drain dequeues, counting events skipped at delivery. */
 export const MAX_AI_EVENTS_PER_DRAIN = 4096;
-
-/** Local forward (-Z) in ship space. */
-const FORWARD = vec(0, 0, -1);
 
 /** A registry of AI modules keyed by `AiKey`; injectable for tests. */
 export type AiRegistry = Readonly<Record<string, AiModule>>;
@@ -73,6 +72,7 @@ export function stepWorld(
   layout: SystemLayout,
   dt: number,
   registry: AiRegistry = AI_REGISTRY,
+  npc?: NpcStepFacts,
 ): SimEvent[] {
   if (!Number.isFinite(dt) || dt <= 0) {
     throw new RangeError(
@@ -85,31 +85,30 @@ export function stepWorld(
   // The length snapshot: spawns made during the tick land at indices >= n.
   const n = world.store.live.length;
 
-  // Update. The Phase 8 constant-speed placeholder integrator moves only
-  // entities with an AI: such an entity moves at its desired speed along its
-  // facing (local -Z). `Math.max(0, desiredSpeed)` is the non-negative floor
-  // for finite speeds; spawnEntity, ShipControl, parseWorldSnapshot and
-  // sanitizeEntity provide the NaN and range defence. An entity with no AI (an
-  // inert ship, or one whose module faulted) holds its placement and its speed
-  // field is not integrated (D-02, PROJECT.md row (d)). The Oolite thrust and
-  // attitude port (applyThrust and applyAttitudeChanges, ShipEntity.m:5808 and
-  // 5899) remains for Phases 13 and 14.
-  for (let i = 0; i < n; i += 1) {
-    const entity = world.store.live[i];
-    if (entity === undefined || entity.dead || entity.ai === null) continue;
-    entity.speed = Math.max(0, entity.nav.desiredSpeed);
-    const forward = rotate(entity.orientation, FORWARD);
-    entity.position = add(entity.position, scale(forward, entity.speed * dt));
-  }
-
-  // Think. The view is built lazily, only when a module is about to run, so a
-  // world with no due AI allocates no closures per tick. Queued AI events are
-  // delivered first in first out before and after the thinks (Pitfall 7):
-  // nothing is delivered synchronously, and the queue is empty when the step
-  // returns.
+  // Update. Every live entity that has an AI is flown by the native steering
+  // (`steerShip`, plan 14-11), in ascending id order over the length snapshot,
+  // with its own flight constants (`statsFor`, Oolite's defaults for a kind with
+  // no row). An entity with no AI (an inert ship, or one whose module faulted)
+  // is skipped: it holds its placement and its speed field is not integrated
+  // (Phase 12 D-02). Each steered ship draws only from its own "combat" stream,
+  // through a local copy written back after the call, so spawning or removing
+  // another ship never changes its draws (D-04). Events the steering posts go to
+  // the ship's own AI through `postAiEvent` and are delivered at the next drain.
+  // There is no try/catch: steering is total (tests/sim/npc/steering.property).
   let view: WorldView | undefined;
   const getView = (): WorldView =>
     (view ??= createWorldView(world, player, layout));
+  for (let i = 0; i < n; i += 1) {
+    const entity = world.store.live[i];
+    if (entity === undefined || entity.dead || entity.ai === null) continue;
+    steerEntity(world, entity, getView(), dt, npc);
+  }
+
+  // Think. The view is shared with the update phase and built lazily, only when
+  // a steered ship or a module is about to run, so a world with no AI allocates
+  // no closures per tick. Queued AI events are delivered first in first out
+  // before and after the thinks (Pitfall 7): nothing is delivered
+  // synchronously, and the queue is empty when the step returns.
   drainAiEvents(world, registry, tick, getView, events);
   for (let i = 0; i < n; i += 1) {
     const entity = world.store.live[i];
@@ -138,6 +137,37 @@ export function stepWorld(
   for (const id of commitWorld(world))
     events.push({ kind: "entityRemoved", id });
   return events;
+}
+
+/**
+ * One native update of `entity` (plan 14-11): its own flight stats, a draw over
+ * a local copy of its own "combat" stream written back after the call, and an
+ * emit that queues the event for the ship's own AI. The event is built without
+ * an `a` key when it has no argument (exactOptionalPropertyTypes).
+ */
+function steerEntity(
+  world: World,
+  entity: Entity,
+  view: WorldView,
+  dt: number,
+  npc: NpcStepFacts | undefined,
+): void {
+  const stream = createRngState(entity.rng.combat);
+  steerShip(entity, {
+    view,
+    stats: statsFor(npc?.flight, entity.specKey),
+    dt,
+    draw: () => rngNext(stream),
+    emit: (event) => {
+      postAiEvent(
+        world,
+        event.a === undefined
+          ? { to: entity.id, name: event.name }
+          : { to: entity.id, name: event.name, a: event.a },
+      );
+    },
+  });
+  entity.rng.combat = stream.s;
 }
 
 /** Repair the world-level hashed scalars: the stream state and the drop count. */

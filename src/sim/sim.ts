@@ -11,6 +11,7 @@
  * `stepFlight` never mutates the world.
  */
 
+import { AI_REGISTRY } from "./ai/registry.js";
 import { resolveShots, stepPlayerCombat } from "./combat/step.js";
 import type { ShotRequest } from "./combat/step.js";
 import type { PlayerCombatState } from "./combat/state.js";
@@ -21,6 +22,7 @@ import type { ControlIntent } from "./flight/controller.js";
 import type { FlightState } from "./flight/state.js";
 import { stepFlight } from "./flight/step.js";
 import type { StepOptions } from "./flight/step.js";
+import type { NpcStepFacts } from "./npc/stats.js";
 import type { SystemLayout } from "./world/layout.js";
 import { createShipField } from "./world/ship-field.js";
 import { stepWorld } from "./world/step.js";
@@ -102,7 +104,16 @@ export function stepSim(
     (player.mode === "launching" || player.mode === "inFlight") &&
     !flightEvents.some((event) => event.kind === "hyperspaceJumped")
   ) {
-    events.push(...stepWorld(world, player, layout, dt));
+    // The steering facts: absent keys are omitted (exactOptionalPropertyTypes).
+    // The player's collision radius is the compiled constant, so no hull table
+    // is read here.
+    const flight = options?.npcFlight;
+    const masses = options?.hyperspace?.shipMasses;
+    const facts: NpcStepFacts = {
+      ...(flight === undefined ? {} : { flight }),
+      ...(masses === undefined ? {} : { masses }),
+    };
+    events.push(...stepWorld(world, player, layout, dt, AI_REGISTRY, facts));
     worldStepped = true;
   }
 

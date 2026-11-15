@@ -17,8 +17,10 @@
  * (`ShipEntity.m:263-270`), so the steering never reads a corrupt number.
  */
 
+import { isMountKey, NO_LASER } from "../combat/mounts.js";
 import type { MountKey } from "../combat/mounts.js";
 import { MAX_ENTITY_MAGNITUDE, MAX_STEER_RATE } from "../world/limits.js";
+import type { ShipMass } from "../world/ship-field.js";
 import {
   DEFAULT_MAX_FLIGHT_PITCH,
   DEFAULT_MAX_FLIGHT_ROLL,
@@ -90,4 +92,95 @@ export function statsFor(
     }
   }
   return OOLITE_DEFAULT_FLIGHT_STATS;
+}
+
+/**
+ * The read-only facts the world step hands to the steering (AI-01, plan 14-11).
+ * Both lists come from the compiled NPC records through `StepOptions`
+ * (`npcFlight`, `hyperspace.shipMasses`), never from a command. The player's
+ * collision radius is not a fact: it is the compiled constant
+ * `PLAYER_COLLISION_RADIUS_M`.
+ */
+export interface NpcStepFacts {
+  /** One row per ship kind, from `flightTableFrom`. */
+  readonly flight?: readonly NpcFlightStats[];
+  /** The Phase 12 compiled masses, the fallback of `massFor`. */
+  readonly masses?: readonly ShipMass[];
+}
+
+/**
+ * The Cobra Mk III player hull's collision radius in metres: the
+ * `collisionRadius` of the `oolite_template_cobra3-player` row of the
+ * generated hull table (the content build's value for the model). It is a compiled constant, not read from `CombatOptions.hulls`,
+ * because that table is absent until the lazy hull file has loaded
+ * (`../combat/step.ts`, `CombatOptions.hulls`): a radius read from it would make
+ * ranges, flee and attack decisions, the player's proximity zone and every
+ * steered hash depend on asset-load timing and break browser-versus-Node replay
+ * parity. A test pins it to the compiled row.
+ */
+export const PLAYER_COLLISION_RADIUS_M = 72.69734954833984;
+
+/** The fields of a compiled NPC record the flight table reads. */
+export interface FlightRecord {
+  readonly key: string;
+  readonly maxFlightSpeed: number;
+  readonly maxFlightRoll: number;
+  readonly maxFlightPitch: number;
+  readonly thrust: number;
+  readonly mass: number;
+  readonly forwardWeapon: string;
+}
+
+/**
+ * The one builder of the flight table: compiled NPC records to a frozen list of
+ * `NpcFlightStats` keyed by spec key. The test helper and the app both call it,
+ * so there is one table shape. An unknown `forwardWeapon` becomes no weapon.
+ */
+export function flightTableFrom(
+  records: readonly FlightRecord[],
+): readonly NpcFlightStats[] {
+  return Object.freeze(
+    records.map((record) =>
+      Object.freeze({
+        specKey: record.key,
+        maxFlightSpeed: record.maxFlightSpeed,
+        maxFlightRoll: record.maxFlightRoll,
+        maxFlightPitch: record.maxFlightPitch,
+        thrust: record.thrust,
+        mass: record.mass,
+        forwardWeapon: isMountKey(record.forwardWeapon)
+          ? record.forwardWeapon
+          : NO_LASER,
+      }),
+    ),
+  );
+}
+
+/**
+ * The mass of `specKey` for the proximity rules: the flight row's mass when the
+ * row exists, else the `facts.masses` row's mass, else 0. The second scan and
+ * its finite-positive guard are a copy of `massOf` (`../world/ship-field.ts`,
+ * T-12-10, module-private there), so a missing flight table does not silently
+ * disable proximity alerts: mass 0 is below Oolite's 2,000 kg alert threshold.
+ */
+export function massFor(
+  facts: NpcStepFacts | undefined,
+  specKey: string,
+): number {
+  const flight = facts?.flight;
+  if (flight !== undefined) {
+    for (let i = 0; i < flight.length; i += 1) {
+      const row = flight[i];
+      if (row !== undefined && row.specKey === specKey) return row.mass;
+    }
+  }
+  const masses = facts?.masses;
+  if (masses === undefined) return 0;
+  for (let i = 0; i < masses.length; i += 1) {
+    const entry = masses[i];
+    if (entry !== undefined && entry.specKey === specKey) {
+      return Number.isFinite(entry.mass) && entry.mass > 0 ? entry.mass : 0;
+    }
+  }
+  return 0;
 }
