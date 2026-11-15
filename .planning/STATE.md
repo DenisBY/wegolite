@@ -4,18 +4,18 @@ milestone: v2.2
 milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
-status: planning
+status: executing
 stopped_at: Phase 13 complete, ready to plan Phase 14
-last_updated: "2026-11-15T10:35:08.876Z"
+last_updated: "2026-11-15T13:55:18.321Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 13 complete, transitioned to Phase 14
-state_head: cebca661cca1fd51485b5e60b2c76421d296a2ff
+state_head: 7b15bb30e5b4626d5600cedb5f0fc6a5b6a15a0f
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 16
+  total_plans: 35
   completed_plans: 16
-  percent: 50
+  percent: 46
 ---
 
 # Project State
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 ## Current Position
 
-Phase: 14 — NPC Flight and Steering Fidelity Gate
+Phase: 14 (NPC Flight and Steering Fidelity Gate) — READY TO EXECUTE
 Plan: Not started
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-11-15 — Phase 13 complete, transitioned to Phase 14
 
 

@@ -468,22 +468,32 @@ runInContext(libSource, sandbox, { filename: "oolite-priorityai.js", timeout: 10
 | A7 | Leaving NPC render poses un-interpolated (latest tick pose) is acceptable for WORLD-07 | Validation | Visible stepping at 144 Hz displays; interpolation would need previous-tick pose state |
 | A8 | The existing probe-shape pin covers hook members, so a new hook member needs a fixture update (`tests/fixtures/probe-shape.json` lists `test.spawnTestShooter: "function"`) | Test hook | A missed fixture update fails `probe-shape-compare` |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+Every question below is settled by the phase plans (plan numbers as of plan-check revision 1); each carries a RESOLVED line naming the plan that settles it.
 
 1. **Frame-rate rule scope (owner awareness).**
    - Known: the audit table above; Oolite's reference frame is variable and typically about 1/60 s.
    - Unclear: whether the `delta_t` overshoot limiters ring at 1/120 s.
    - Recommendation: adopt the rule text in the Frame-Rate Rule section, let the oracle's 1/60 vs 1/120 grid decide per site, and record any site that needs a divergence as a PROJECT.md row (FIDELITY divergences must quote one).
+   - RESOLVED: plan 14-06 (oracle, wave 2) writes `tests/oracles/npc/frame-rate-rule.json` with the rule text, a cross-step tolerance stated before any rate fixture is replayed, one row per site and a measured-difference row for any divergence, plus the 1/60 versus 1/120 grid; plan 14-10 checks the port against that grid; plan 14-19 carries every divergence site into the grouped Key Decisions row and FIDELITY.
 2. **Acceptance thresholds (must be committed before the run).**
    - Recommendation to put in the plan: 20 seeds are epochs `1..20` of the Lave world (`worldSeedFor(marketSeedForSystem("g0-s7"), epoch)`); each run populates the 12 inert ships and converts them to scripted flyers; horizon 18,000 ticks (150 simulated seconds), checked every tick. **No stuck ship:** no flyer with `desiredSpeed > 0` and an active move behaviour fails to improve its goal metric (range to destination, range to target for intercept, retreat range for flee) by at least 1 % of its starting value over any 3,600-tick (30 s) window, and no `noteFrustration` event (Oolite's own 15 s counter) fires in a scripted scenario that has open space. **No tunnelling:** zero tick segments of any ship's origin that hit another ship's octree hull (two-stage `firstShipHit` rule) or enter the 500 m station sphere, with the player parked outside both. **No NaN repair:** the sum of `entity.repairs` is 0, `aiFaulted` events 0, `aiDropped` 0, and every `hashWorld` call returns without throwing. Store the numbers in `tests/acceptance/thresholds.ts` in the commit that precedes the first run, and forbid edits in the run commit.
+   - RESOLVED: plan 14-07 (wave 2, before any steering code) commits the thresholds, their metric and window definitions, the script mapping, the player parking rule and the hull-crossing classes with their pre-declared resolution in `tests/acceptance/thresholds.ts`; plan 14-17 runs the 20 seeds against them with detectors frozen first.
 3. **Where the original JS comes from for AI-11.**
    - Recommendation: `OOLITE_SRC` bind mount for the spike plus a recorded transcript, and put "vendor `Scripts/*.js` or keep the mount" as an explicit owner decision at the gate, because the later differential harness (AI-07) has to run in CI. Vendoring conflicts with the AGENTS.md no-network rule for agents, so it needs a human-run `scripts/vendor-oolite.sh` bump.
+   - RESOLVED: plan 14-04 reads the scripts through the `OOLITE_SRC` mount and records a transcript in 14-SPIKE.md; the mount-or-vendoring choice is an owner question at the plan 14-19 checkpoint.
 4. **Spike time box and stub-host scope.**
    - Recommendation: one plan, about one working day, scope: load `oolite-priorityai.js` and one short role AI (`oolite-shuttleAI.js`, 99 lines), construct `PriorityAIController`, run `aiStarted`, three scripted world fixtures (calm, hostile in scanner, reconsider timing), record the ordered `perform*` calls and parameter writes with `Math.random` replaced by a scripted sequence, run twice and assert identical traces. Measure and report which host members were touched (the library uses `clock.adjustedSeconds` 14 times, `system.sun`/`mainPlanet`/`mainStation`/`info`/`stations`, `player.*`, and about 50 distinct `this.ship.*` members of which `performFlyToRangeFromDestination`, `performAttack`, `performFlee`, `performIdle` map straight onto the native behaviours). The outcome is a feasibility statement and a stub size, not a port.
+   - RESOLVED: plan 14-04 is that spike, with this scope and an isolation guard, and writes 14-SPIKE.md.
 5. **Escort representation.** Recommend the existing `ownerId` as leader plus one new integer slot, set at spawn; the leader's update writes follower destinations (as `ShipEntity.m:2430-2437`). The `ShipControl` seam gains nothing.
+   - RESOLVED: `ownerId` as leader plus a fixed `escortSlot`, as recommended: the leader-refresh rule is contract item 4 (b) of plan 14-01, the escort fixtures are authored in plan 14-06, the slot field is part of the steering record of plan 14-08, and the world-step leader refresh is plan 14-15; `ShipControl` gains nothing.
 6. **Scope cuts to record as Key Decisions:** afterburner and `has_fuel_injection`, missiles (`considerFiringMissile`), cloaking, turret and broadside and running-defense branches, `fireMainWeapon` (steering never fires; weapon temperature is a constant 0), Newtonian `velocity` (tumbling pods drifting), `universalID`-based decisions, "player never targets an NPC".
+   - RESOLVED: plan 14-19 records them in the grouped Key Decisions row "Phase 14 NPC steering scope".
 7. **Folding IN-02 and IN-04.** Neither is needed by the acceptance run (the harness reads events directly); leave to the owner.
+   - RESOLVED: not folded in; the plan 14-19 owner checkpoint asks, and a request to fold either in becomes a follow-up quick task.
 8. **Hash policy:** append-and-regenerate once (recommended, Phase 13 precedent) versus omit-when-pristine (keeps the inert golden untouched but adds a state-dependent branch to the hash text).
+   - RESOLVED: the owner decides at the blocking checkpoint of plan 14-08 before the seam is built, and the same plan records the answer in PROJECT.md.
 
 ## Environment Availability
 

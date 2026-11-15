@@ -178,52 +178,55 @@ Plans:
 **Pitfalls to address**: 6 (`BEHAVIOUR_*` steering fidelity: per-behaviour oracles, 20-seed acceptance), 5 (the harness spike as the only independent check of the later port), 3 (integer tick timers), 4 (NaN in steering), 7 (steering requests queued), 19 (behaviours act only through `ShipControl`), 11 (oracles in Vitest, not the browser)
 **Decisions to settle**: the stated acceptance thresholds (stuck, tunnelling, NaN repair) before the run; the time box and stub-host scope of the spike; the oracle choice at the gate (owner)
 **Todos**: candidates to fold in by owner decision, not requirements: IN-02 (`aiFaulted` is emitted but nothing records it) and IN-04 (a failed NPC model is never retried, yet the ship still blocks and shows on the scanner), both from `2026-11-14-clear-world-when-arrival-begin-is-refused.md`
-**Plans:** 18 plans in 13 waves (two owner checkpoints: the hash policy in 14-06, the fidelity report and oracle choice in 14-18)
+**Plans:** 19 plans in 14 waves (two owner checkpoints: the hash policy in 14-08, the fidelity report and oracle choice in 14-19; revised after the cross-AI review of 2026-11-15 and plan-check revision 1, which split the first oracle plan and the intercept plan and renumbered the plans in wave order)
 
 Plans:
 **Wave 1**
-- [ ] 14-01-PLAN.md — Oracle I (separate agent, no `src/sim/npc` access): fixture schema, reference flight model and navigation maths, flight, idle, tumble, fly-to, face, rate-rule, avoid and escort fixtures, the recorded frame-rate rule, the oracle import guard
-- [ ] 14-02-PLAN.md — Oracle II (separate agent): intercept, flee and attack fixtures (dispatcher, in-scope sub-behaviours, perform entry draws); attack IN and OUT lists stated
-- [ ] 14-03-PLAN.md — NPC flight fields (speed, roll, pitch, thrust) behind schema, golden and drift gate; the build refuses keys the reachability analysis assumes absent
-- [ ] 14-04-PLAN.md — AI-11 dev-only harness spike: AILib and the shuttle AI in `node:vm` with a stub host, three deterministic traces, isolation guard, 14-SPIKE.md
+- [ ] 14-01-PLAN.md — Oracle I, part 1 (separate agent, no `src/sim/npc` access): fixture schema and contract (leader-refresh and proximity rules, tracking-curve start), reference flight model and navigation maths, flight, idle, tumble, fly-to and face fixtures, the hardened oracle import guard
+- [ ] 14-02-PLAN.md — Oracle II (separate agent): intercept, flee and attack fixtures (dispatcher, in-scope sub-behaviours, perform entry draws) under a closed-form check rule; attack IN and OUT lists with the corrected EVASIVE reachability and the Shuttle's weapon range 0
+- [ ] 14-03-PLAN.md — NPC flight fields (speed, roll, pitch, thrust) behind schema, hand-written golden and drift gate; the build refuses keys the reachability analysis assumes absent
+- [ ] 14-04-PLAN.md — AI-11 dev-only harness spike: AILib and the shuttle AI in `node:vm` (one context per script, timeout on every entry) with a stub host, three deterministic traces, isolation guard, 14-SPIKE.md
+- [ ] 14-05-PLAN.md — Body radius in the world view: `BodyView.radius` for every body kind and the player's radius argument, with view tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 14-05-PLAN.md — Pre-committed gates: the post-build `dist` check in `verify` and `verify-full`; the 20-seed acceptance thresholds
-- [ ] 14-06-PLAN.md — Steering record on every ship, hash policy by owner decision (checkpoint), snapshot format 3
+- [ ] 14-06-PLAN.md — Oracle I, part 2 (separate agent, before any `src/sim/npc` file): the frame-rate rule with its tolerance stated first, the 1/60 versus 1/120 grid, avoid-collision, proximity and escort fixtures
+- [ ] 14-07-PLAN.md — Pre-committed gates: the post-build `dist` check (three markers, source maps skipped) in `verify`, `verify-full` and the Pages build; the 20-seed acceptance thresholds with their definitions, the player parking rule and the hull-crossing classes with their pre-declared resolution
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 14-07-PLAN.md — Flight model tracer: steerShip, sticks, attitude, thrust, perform entry effects, idle, stop-still, tumble; the oracle runner; totality property
+- [ ] 14-08-PLAN.md — Steering record on every ship (signed tracking ticks), hash policy by owner decision (checkpoint) recorded in PROJECT.md, snapshot format 3, green intermediate commits
 
-**Wave 4**
-- [ ] 14-08-PLAN.md — trackDestination, fly to destination, face, avoid entry and exit, new AI events, the rate-rule oracle
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 14-09-PLAN.md — Flight model tracer: steerShip with one SteerContext, sticks, attitude, thrust in Oolite's order, perform entry effects, idle, stop-still, tumble; the oracle runner with hook slots and the static oracle manifest; totality property; coverage measured
 
-**Wave 5**
-- [ ] 14-09-PLAN.md — The world step flies AI ships (placeholder integrator replaced), `StepOptions.npcFlight`, re-pinned tests
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 14-10-PLAN.md — trackDestination, fly to destination, face, new AI events, the rate-rule oracle; coverage measured (the avoid entry and exit move to 14-13)
 
-**Wave 6**
-- [ ] 14-10-PLAN.md — Radius in the view, target sensing, tracking curve, trackPrimaryTarget, intercept, target loss
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 14-11-PLAN.md — The world step flies AI ships (placeholder integrator replaced), `StepOptions.npcFlight` with one table builder and a mass fallback, re-pinned tests
 
-**Wave 7**
-- [ ] 14-11-PLAN.md — Flee, jink and evasive action with performFlee's draws
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 14-12-PLAN.md — Target sensing with the body radius, the tracking curve started by `setTarget`, trackPrimaryTarget, intercept, target loss
 
-**Wave 8**
-- [ ] 14-12-PLAN.md — Attack dispatcher and in-scope sub-behaviours, no fire; forced-state dispatch table
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 14-13-PLAN.md — The avoid-collision entry and exit with the proximity call sites; flee, jink and evasive action with performFlee's draws
 
-**Wave 9**
-- [ ] 14-13-PLAN.md — Proximity pass, avoid collision, escort formation; every oracle fixture run exactly once
+**Wave 9** *(blocked on Wave 8 completion)*
+- [ ] 14-14-PLAN.md — Attack dispatcher and in-scope sub-behaviours (weapon range 0 when unarmed), no fire; forced-state dispatch table
 
-**Wave 10**
-- [ ] 14-14-PLAN.md — Test-only flight-script pilot, spawnTestFlyers, Vitest flyers scenario, 30/60/144 Hz replay
+**Wave 10** *(blocked on Wave 9 completion)*
+- [ ] 14-15-PLAN.md — Proximity pass (live ships, station and player; alerts on steered ships), avoid collision, escort formation with the leader refresh in the world step; every oracle fixture assigned and run
 
-**Wave 11**
-- [ ] 14-15-PLAN.md — Session and replay flight table, `spawnTestFlyers` hook, opt-in browser smoke; remote verify
-- [ ] 14-16-PLAN.md — The 20-seed acceptance run against the pre-committed thresholds
+**Wave 11** *(blocked on Wave 10 completion)*
+- [ ] 14-16-PLAN.md — Test-only flight-script pilot with one goal metric per script, spawnTestFlyers, Vitest flyers scenario, 30/60/144 Hz replay
 
-**Wave 12**
-- [ ] 14-17-PLAN.md — Key Decisions, FIDELITY rows from E-57, CHANGELOG
+**Wave 12** *(blocked on Wave 11 completion)*
+- [ ] 14-17-PLAN.md — The 20-seed acceptance run (`npm run test:acceptance`) against the pre-committed thresholds, with detectors frozen first, hull crossings classified and a budgeted owner escalation
 
-**Wave 13**
-- [ ] 14-18-PLAN.md — Fidelity report, Vitest share, validation sign-off, remote verify, owner gate (oracle choice) and its Key Decision
+**Wave 13** *(blocked on Wave 12 completion)*
+- [ ] 14-18-PLAN.md — Session and replay flight table, `spawnTestFlyers` hook, opt-in browser smoke (remote specs)
+
+**Wave 14** *(blocked on Wave 13 completion)*
+- [ ] 14-19-PLAN.md — Grouped Key Decisions and about twelve FIDELITY rows, fidelity report, Vitest share, validation sign-off, the phase's single remote verify, owner gate (oracle choice) and its Key Decision
 
 ### Coverage
 
@@ -259,7 +262,7 @@ Pending todos outside v2.2, which can run as quick tasks or join a phase by owne
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | Complete    | 2026-11-14 |
 | 13. Views, Lasers and Shields | v2.2 | 16/16 | Complete    | 2026-11-15 |
-| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 0/18 | Not started | - |
+| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 0/19 | Not started | - |
 
 ## Backlog
 
