@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Contributors can run the 20-seed NPC flight acceptance run with
+  `npm run test:acceptance` (inside the test container). It is a separate Vitest
+  config, outside `npm test`, `verify` and `verify-full`, and checks twelve
+  scripted ships per seed for stuck or frozen ships, hull and station-sphere
+  crossings, repairs and AI faults against the thresholds committed before the
+  flight port. Its detectors are unit-tested in the default suite.
 - The content build now compiles nine Oolite NPC ships for the six traffic
   roles (Viper, Adder, Moray, Cobra Mk I, Sidewinder, Mamba, Krait, Gecko and
   Shuttle), with their models, WebP textures and role records. They are loaded

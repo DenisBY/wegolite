@@ -42,7 +42,7 @@ export interface FixturePose {
 }
 
 /** The committed NPC records as the session loads them. */
-function committedTrafficContent(): TrafficContent {
+export function committedTrafficContent(): TrafficContent {
   const raw = readFileSync(
     new URL("../../src/content/generated/ships-npc.json", import.meta.url),
     "utf8",
