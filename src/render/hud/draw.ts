@@ -137,6 +137,16 @@ export interface HudBars {
   readonly pitch: number;
   /** 0..1 of a full tank. */
   readonly fuel: number;
+  /** 0..1 forward shield (the FWD gauge). */
+  readonly shieldFwd: number;
+  /** 0..1 aft shield (the AFT gauge). */
+  readonly shieldAft: number;
+  /** The four energy banks `[E1, E2, E3, E4]` from the top, each 0..1. */
+  readonly energyBanks: readonly [number, number, number, number];
+  /** 0..1 laser temperature of the current facing (the LT gauge). */
+  readonly laserTemp: number;
+  /** 0..1 cabin temperature (the CT gauge), always visible. */
+  readonly cabinTemp: number;
 }
 
 export interface HudModel {
@@ -486,8 +496,9 @@ function drawMissileIcon(
 
 /**
  * Left-hand Oolite gauge stack (`hud.plist` LHS):
- * - `FWD` and `AFT` shield bars (green surrounds, 100% placeholder fill)
- * - yellow system surround enclosing `FUEL` (live yellow bar), `CT`, `LT`, `ALT`
+ * - `FWD` and `AFT` shield bars (green surrounds, live fill)
+ * - yellow system surround enclosing `FUEL`, `CT` and `LT` (all live) and an
+ *   `ALT` placeholder
  * - `MISS` missile pylon display placeholder below the yellow surround
  */
 function drawLeftGauges(
@@ -497,13 +508,27 @@ function drawLeftGauges(
   context.font = HUD_GAUGE_FONT;
   context.textAlign = "right";
 
-  // FWD shield placeholder (top aligned with scanner top y = 812).
-  drawFillGauge(context, LEFT_BAR_X, 816, 1, HUD_COLOR, HUD_COLOR);
+  // Live FWD shield (top aligned with scanner top y = 812).
+  drawFillGauge(
+    context,
+    LEFT_BAR_X,
+    816,
+    model.bars.shieldFwd,
+    HUD_COLOR,
+    HUD_COLOR,
+  );
   context.fillStyle = HUD_COLOR;
   context.fillText("FWD", LEFT_LABEL_X, 823);
 
-  // AFT shield placeholder.
-  drawFillGauge(context, LEFT_BAR_X, 844, 1, HUD_COLOR, HUD_COLOR);
+  // Live AFT shield.
+  drawFillGauge(
+    context,
+    LEFT_BAR_X,
+    844,
+    model.bars.shieldAft,
+    HUD_COLOR,
+    HUD_COLOR,
+  );
   context.fillStyle = HUD_COLOR;
   context.fillText("AFT", LEFT_LABEL_X, 851);
 
@@ -524,12 +549,13 @@ function drawLeftGauges(
   context.fillText("FUEL", LEFT_LABEL_X, 881);
   context.fillText(model.fuelText, LEFT_LABEL_X - 66, 881);
 
-  // Cabin temperature (CT), laser temperature (LT), altitude (ALT) placeholders.
-  drawFillGauge(context, LEFT_BAR_X, 894, 0.22, HUD_COLOR);
+  // Live cabin temperature (CT) and laser temperature (LT); the altitude
+  // (ALT) gauge stays a placeholder.
+  drawFillGauge(context, LEFT_BAR_X, 894, model.bars.cabinTemp, HUD_COLOR);
   context.fillStyle = HUD_COLOR;
   context.fillText("CT", LEFT_LABEL_X, 901);
 
-  drawFillGauge(context, LEFT_BAR_X, 914, 0, HUD_COLOR);
+  drawFillGauge(context, LEFT_BAR_X, 914, model.bars.laserTemp, HUD_COLOR);
   context.fillStyle = HUD_COLOR;
   context.fillText("LT", LEFT_LABEL_X, 921);
 
@@ -549,7 +575,7 @@ function drawLeftGauges(
  * Right-hand Oolite gauge stack (`hud.plist` RHS):
  * - `SPD` speed bar (live, top aligned with scanner top y = 812)
  * - `ROLL` and `PITCH` signed yellow-diamond indicators (live)
- * - yellow energy surround enclosing 4 energy banks `E1`..`E4` (placeholders)
+ * - yellow energy surround enclosing 4 live energy banks `E1`..`E4`
  */
 function drawRightGauges(
   context: CanvasRenderingContext2D,
@@ -599,7 +625,13 @@ function drawRightGauges(
 
   for (let i = 0; i < 4; i += 1) {
     const bankY = 890 + i * 20;
-    drawFillGauge(context, RIGHT_BAR_X, bankY, 1, HUD_SCANNER_NEUTRAL_COLOR);
+    drawFillGauge(
+      context,
+      RIGHT_BAR_X,
+      bankY,
+      model.bars.energyBanks[i] ?? 0,
+      HUD_SCANNER_NEUTRAL_COLOR,
+    );
     context.fillStyle = HUD_COLOR;
     context.fillText(`E${String(i + 1)}`, RIGHT_LABEL_X, bankY + 7);
   }

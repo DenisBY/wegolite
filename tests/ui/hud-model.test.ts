@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildHudModel } from "../../src/app/hud-model.js";
 import { HUD_ELEMENTS, HUD_LAYOUT } from "../../src/render/hud/draw.js";
+import { createPlayerCombatState } from "../../src/sim/combat/state.js";
 import { initFlightState } from "../../src/sim/flight/state.js";
 import { length, sub, vec } from "../../src/sim/math.js";
 import type { Vec3 } from "../../src/sim/math.js";
@@ -315,5 +316,81 @@ describe("the regenerated Lave world next to a ship (WORLD-15, plan 12-12's fixt
     expect(first?.kind === "ship" || first?.kind === "police").toBe(true);
     expect(first?.visible).toBe(true);
     expect(first?.distance).toBeCloseTo(5_000, 6);
+  });
+});
+
+describe("buildHudModel combat gauges (CBT-06, D-06, D-07)", () => {
+  it("keeps the eleven-element set and the layout (D-07)", () => {
+    expect(HUD_ELEMENTS).toHaveLength(11);
+    expect(Object.keys(HUD_LAYOUT)).toHaveLength(11);
+  });
+
+  it("reads a pristine ship without a combat state: full shields and banks, a cold laser, CT 60/256", () => {
+    const fixture = laveFixture();
+    const state = initFlightState(fixture.layout);
+    const bars = buildHudModel(
+      state,
+      fixture.layout,
+      fixture.config,
+      "",
+      70,
+    ).bars;
+
+    expect(bars.shieldFwd).toBe(1);
+    expect(bars.shieldAft).toBe(1);
+    expect(bars.energyBanks).toEqual([1, 1, 1, 1]);
+    expect(bars.laserTemp).toBe(0);
+    expect(bars.cabinTemp).toBe(0.234375);
+  });
+
+  it("reads the same pristine gauges from a fresh combat state", () => {
+    const fixture = laveFixture();
+    const state = initFlightState(fixture.layout);
+    const bars = buildHudModel(
+      state,
+      fixture.layout,
+      fixture.config,
+      "",
+      70,
+      0,
+      "",
+      [],
+      { combat: createPlayerCombatState() },
+    ).bars;
+
+    expect(bars.cabinTemp).toBe(0.234375);
+    expect(bars.shieldFwd).toBe(1);
+  });
+
+  it("projects a damaged combat state onto the bars", () => {
+    const fixture = laveFixture();
+    const state = initFlightState(fixture.layout);
+    const combat = createPlayerCombatState();
+    combat.fwdShield = 64;
+    combat.aftShield = 32;
+    combat.energy = 96;
+    combat.cabinTemp = 128;
+    combat.view = "aft";
+    combat.laserTemp = { fore: 0, aft: 64, port: 0, starboard: 0 };
+
+    const bars = buildHudModel(
+      state,
+      fixture.layout,
+      fixture.config,
+      "",
+      70,
+      0,
+      "",
+      [],
+      { combat },
+    ).bars;
+
+    expect(bars.shieldFwd).toBe(0.5);
+    expect(bars.shieldAft).toBe(0.25);
+    // 96 / 256 of four banks is one and a half: the bottom bank (E4) first.
+    expect(bars.energyBanks).toEqual([0, 0, 0.5, 1]);
+    expect(bars.cabinTemp).toBe(0.5);
+    // LT reads the current facing (aft), not the hottest.
+    expect(bars.laserTemp).toBe(0.25);
   });
 });

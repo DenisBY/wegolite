@@ -29,6 +29,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   selection, which shows what is fitted on each facing; a replaced laser is
   refunded at its full price, and Remove Laser frees a facing and refunds the
   laser. The F5 status screen lists each fitted laser ("Forward Pulse Laser").
+- The flight HUD's shield, energy-bank, laser-temperature and cabin-temperature
+  gauges now show live values: the forward and aft shields, the four energy
+  banks (the bottom bank fills first), the laser temperature of the current
+  facing and the cabin temperature, which reads 60/256 on a new game.
 
 ### Changed
 

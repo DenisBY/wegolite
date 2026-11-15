@@ -22,6 +22,14 @@ import type { FlightConfig } from "../sim/flight/config.js";
 import type { FlightState } from "../sim/flight/state.js";
 import { clamp, sub } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
+import {
+  cabinTempGauge,
+  energyBanks,
+  shieldGauge,
+} from "../sim/combat/shields.js";
+import { createPlayerCombatState } from "../sim/combat/state.js";
+import type { PlayerCombatState } from "../sim/combat/state.js";
+import { laserTempGauge } from "../sim/combat/weapons.js";
 import type { NpcContact } from "../sim/world/contacts.js";
 import type { Body, SystemLayout } from "../sim/world/layout.js";
 import {
@@ -127,10 +135,21 @@ function tankTenths(fuelTenths: number): number {
   return Number.isFinite(fuelTenths) ? Math.max(0, fuelTenths) : 0;
 }
 
+/** Optional trailing inputs of `buildHudModel` (one options object, Pitfall 10). */
+export interface HudModelOptions {
+  /**
+   * The player's combat state, which feeds the shield, energy, laser and
+   * cabin gauges (CBT-06). Absent (no world yet) reads as a pristine ship:
+   * full shields and banks, a cold laser and the 60/256 cabin floor.
+   */
+  readonly combat?: PlayerCombatState | undefined;
+}
+
 function buildBars(
   state: FlightState,
   config: FlightConfig,
   fuelTenths: number,
+  combat: PlayerCombatState,
 ): HudBars {
   return {
     speed: config.maxSpeed > 0 ? clamp(state.speed / config.maxSpeed, 0, 1) : 0,
@@ -143,6 +162,11 @@ function buildBars(
       config.maxFuel > 0
         ? clamp(tankTenths(fuelTenths) / config.maxFuel, 0, 1)
         : 0,
+    shieldFwd: shieldGauge(combat.fwdShield),
+    shieldAft: shieldGauge(combat.aftShield),
+    energyBanks: energyBanks(combat.energy),
+    laserTemp: laserTempGauge(combat),
+    cabinTemp: cabinTempGauge(combat),
   };
 }
 
@@ -151,6 +175,7 @@ function buildBars(
  * required: the bar and the fuel text are both derived from that one value.
  * `npc` is the world's id-free ship contacts (`npcContacts`), empty with no
  * world or traffic off, which leaves exactly the three static contacts.
+ * `options.combat` feeds the combat gauges (D-06, D-07).
  */
 export function buildHudModel(
   state: FlightState,
@@ -161,6 +186,7 @@ export function buildHudModel(
   flashAlpha = 0,
   hyperspaceTarget = "",
   npc: readonly NpcContact[] = [],
+  options: HudModelOptions = {},
 ): HudModel {
   const aegis: AegisStatus = aegisStatus(state.position, layout);
   const tank = tankTenths(fuelTenths);
@@ -178,7 +204,12 @@ export function buildHudModel(
     contacts: buildContacts(state, layout, npc),
     compass: buildCompass(state, layout),
     aegis,
-    bars: buildBars(state, config, tank),
+    bars: buildBars(
+      state,
+      config,
+      tank,
+      options.combat ?? createPlayerCombatState(),
+    ),
     speedText: formatSpeed(state.speed),
     fuelText: formatFuel(tank),
     clockText: formatClock(state.clockSeconds),

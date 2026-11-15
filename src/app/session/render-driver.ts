@@ -227,6 +227,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
           ctx.core.dockFeedback.flashAlpha(currentState.flightTime),
           targetSystem()?.name ?? "",
           contacts,
+          { combat: ctx.core.combat },
         );
         currentHud.draw(model);
         ctx.core.lastModel = model;
