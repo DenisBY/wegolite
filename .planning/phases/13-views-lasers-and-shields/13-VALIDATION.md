@@ -128,7 +128,7 @@ The opt-in browser smoke (`tests/e2e/combat.spec.ts`) reads probe values; it mak
 - [x] Wave 0 covers all MISSING references (every Wave 0 file above exists and is green)
 - [x] No watch-mode flags
 - [x] `nyquist_compliant: true` set in frontmatter (every task had an automated verify that passed; the exceptions are the manual-only rows above)
-- [x] `verify-full`: **open, awaiting owner decision** (Gate decision). It was not run: the owner has not confirmed a `verify-full` run for this phase. It is not marked passed.
+- [x] `verify-full`: **run on the remote test machine 2026-11-15** at commit `2c41b9d`: 3598 Vitest tests and 132 of 133 Chromium specs pass. The one failure, `tests/e2e/launch.spec.ts:129` (torus hint), is a load flake that also fails on the pre-phase commit `0c166d0` (3 of 8 repeats at HEAD, 2 of 8 at the baseline, `--repeat-each=8 --workers=6`), and it passes alone. Three F3 outfitting specs failed on the first run because phase 13 lists the laser rows after the missile removal row; they were fixed in the specs and pass.
 
 ### Phase close evidence (plan 13-14)
 
@@ -139,10 +139,10 @@ The opt-in browser smoke (`tests/e2e/combat.spec.ts`) reads probe values; it mak
 | `docker compose run --rm verify` (lint, typecheck, content drift, unit tests, build, 27 Chromium smoke specs) | pass |
 | `docker compose run --rm e2e ... combat.spec.ts probe-shape.spec.ts` (8 tests) | pass |
 | `tests/contract/fidelity.test.ts` structure, and verbatim with `OOLITE_SRC` at `7437f22` | pass, the verbatim case not skipped |
-| `docker compose run --rm verify-full` | **open, awaiting owner decision** (not run) |
+| `docker compose run --rm verify-full` | run on the remote machine, green except the pre-existing `launch.spec.ts:129` load flake |
 
 **Vitest share (ROADMAP criterion 5).** `expect(` calls added since commit `6652ae7`: 1,407 in Vitest files (`git diff 6652ae7 -- tests tools src ':!tests/e2e'`) and 10 in browser specs (`git diff 6652ae7 -- tests/e2e`), so the Vitest share is 1,407 / 1,417 = 0.993, above the required 0.90. The browser assertions are 8 in the opt-in `combat.spec.ts` and 2 in changed existing specs.
 
-**Items open for the owner:** `verify-full` (run it, or accept the `verify` evidence for this phase), and a human look at the four views, the laser shots and the ident frame. D-03, D-04 and OQ4 were confirmed by the owner on 2026-11-15; OQ4 has a follow-up todo.
+**Items open for the owner:** a human look at the four views, the laser shots and the ident frame. D-03, D-04 and OQ4 were confirmed by the owner on 2026-11-15; OQ4 has a follow-up todo.
 
 **Approval:** pending the owner items above. The automated evidence is complete.
