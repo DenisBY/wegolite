@@ -32,6 +32,7 @@ import {
 } from "../../../src/app/session/traffic.js";
 import type { TrafficContent } from "../../../src/app/session/traffic.js";
 import type { NpcShip } from "../../../src/content/types.js";
+import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import type { Command } from "../../../src/sim/commands.js";
 import { DOCK_COMPUTER_KEY } from "../../../src/sim/dock/computer.js";
 import type { SimEvent } from "../../../src/sim/events.js";
@@ -118,6 +119,7 @@ function optionsOf(variant: Variant) {
     target: undefined,
     equipment: variant.equipment,
     dock: geometry,
+    laserMounts: DEFAULT_LASER_MOUNTS,
     ...(variant.withMasses ? { shipMasses: content.masses } : {}),
   });
 }

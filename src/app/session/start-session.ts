@@ -32,6 +32,7 @@ import { loadDockPort } from "../../content/dock-port.js";
 import { loadEquipment } from "../../content/equipment.js";
 import { loadCommodities } from "../../content/commodities.js";
 import { loadLabels } from "../../content/labels.js";
+import { loadShipHulls } from "../../content/ships-hulls.js";
 import { loadNpcCatalogue } from "../../content/ships-npc.js";
 import type { System } from "../../content/types.js";
 import { createGameLoop } from "../game-loop.js";
@@ -43,7 +44,7 @@ import type { SceneManager } from "../scene-manager.js";
 import type { GameSessionSave, StartOptions } from "../game-session.js";
 import type { AssetCache } from "../../render/asset-cache.js";
 import { parseTestFlags } from "./test-flags.js";
-import { createInertPopulate, trafficContent } from "./traffic.js";
+import { createInertPopulate, hullTable, trafficContent } from "./traffic.js";
 import { createWorldLifecycle, restoreWorldAnchor } from "./world-lifecycle.js";
 import {
   profileFromSave,
@@ -52,6 +53,7 @@ import {
 import { createBreakPattern } from "../../render/break-pattern.js";
 import { createHud } from "../../render/hud/hud.js";
 import type { Command } from "../../sim/commands.js";
+import { createPlayerCombatState } from "../../sim/combat/state.js";
 import { createDockGeometry } from "../../sim/dock/geometry.js";
 import { deriveFlightConfig } from "../../sim/flight/config.js";
 import { initFlightState, poseOf } from "../../sim/flight/state.js";
@@ -361,20 +363,31 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     // coefficients. A missing or malformed record fails the boot visibly,
     // exactly like the ship catalogue.
     try {
-      // The NPC catalogue joins the same failure surface, and only with
-      // traffic on: a traffic-off session never fetches its chunk (WORLD-16).
-      const [equipment, loadedCommodities, loadedLabels, npcCatalogue] =
-        await Promise.all([
-          loadEquipment(),
-          loadCommodities(),
-          loadLabels(),
-          ctx.runtime.testFlags.traffic
-            ? loadNpcCatalogue()
-            : Promise.resolve(undefined),
-        ]);
+      // The NPC catalogue and the hull data join the same failure surface, and
+      // only with traffic on: a traffic-off session never fetches either chunk
+      // (WORLD-16, D-01). The hull chunk is the combat hit rule's input.
+      const [
+        equipment,
+        loadedCommodities,
+        loadedLabels,
+        npcCatalogue,
+        hullCatalogue,
+      ] = await Promise.all([
+        loadEquipment(),
+        loadCommodities(),
+        loadLabels(),
+        ctx.runtime.testFlags.traffic
+          ? loadNpcCatalogue()
+          : Promise.resolve(undefined),
+        ctx.runtime.testFlags.traffic
+          ? loadShipHulls()
+          : Promise.resolve(undefined),
+      ]);
       if (ctx.runtime.disposed) return;
       ctx.core.npcTraffic =
         npcCatalogue === undefined ? undefined : trafficContent(npcCatalogue);
+      ctx.core.hulls =
+        hullCatalogue === undefined ? undefined : hullTable(hullCatalogue);
       ctx.core.equipmentCatalogue = equipment;
       ctx.core.commodities = loadedCommodities;
       ctx.core.labels = loadedLabels;
@@ -456,6 +469,10 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     const restoredInFlight = flightState.mode === "inFlight";
 
     ctx.core.state = flightState;
+    // A pristine combat state beside every flight state: a new game and a
+    // Continue both start with full shields and cool lasers (a combat state is
+    // not saved).
+    ctx.core.combat = createPlayerCombatState();
     ctx.core.layout = systemLayout;
     ctx.core.config = flightConfig;
     ctx.core.scene = nextScene;
@@ -852,6 +869,8 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     // Drop the live references so a late callback cannot read a disposed
     // scene, and withdraw the test surface with the session.
     ctx.core.state = undefined;
+    ctx.core.combat = undefined;
+    ctx.core.hulls = undefined;
     ctx.core.scene = undefined;
     ctx.core.layout = undefined;
     // The world dies with the live state; the epoch stays (plan 08-15).

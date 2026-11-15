@@ -61,6 +61,8 @@ import type { MessageQueue } from "../../render/hud/messages.js";
 import type { SystemScene } from "../../render/system-scene.js";
 import type { SettingsV1 } from "../../settings/schema.js";
 import type { SaveStatus } from "../../persistence/store.js";
+import type { HullTable } from "../../sim/combat/hit.js";
+import type { PlayerCombatState } from "../../sim/combat/state.js";
 import type { Command } from "../../sim/commands.js";
 import type { HyperspaceRefusal } from "../../sim/events.js";
 import type { Market } from "../../sim/economy/market.js";
@@ -141,6 +143,21 @@ export interface SessionCore {
    * the populate closure and by the sim driver.
    */
   npcTraffic: TrafficContent | undefined;
+  /**
+   * The player's combat state (CBT-04 to CBT-07): view, laser temperatures,
+   * shields, energy and the ident. Created beside the flight state on a new
+   * game, a Continue and a Load (a combat state is not saved, so a resumed game
+   * starts pristine), carried across a hyperspace jump and cleared on dispose.
+   * Simulation state only; it holds no entity id.
+   */
+  combat: PlayerCombatState | undefined;
+  /**
+   * The hull table for the hit rule (CBT-07, D-01), built from the lazily
+   * loaded hull chunk. Loaded with the NPC catalogue and only with traffic on,
+   * so it is undefined with traffic off and until the boot load has finished.
+   * Static content keyed by spec key.
+   */
+  hulls: HullTable | undefined;
 }
 
 /** The station computer's own state; the UI is purely presentational. */
@@ -320,6 +337,8 @@ export function createSessionState(init: SessionStateInit): SessionState {
       lastModel: undefined,
       worldLifecycle: undefined,
       npcTraffic: undefined,
+      combat: undefined,
+      hulls: undefined,
     },
     station: {
       stationScreen: "home",

@@ -138,6 +138,14 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
       ...(ctx.core.npcTraffic === undefined
         ? {}
         : { shipMasses: ctx.core.npcTraffic.masses }),
+      // The combat facts (CBT-05, CBT-07): the mounts come only from the
+      // validated profile (T-13-24); the hull table and the NPC weapons exist
+      // only with traffic on, and their keys are omitted without them.
+      laserMounts: ctx.core.profile.laserMounts,
+      ...(ctx.core.hulls === undefined ? {} : { hulls: ctx.core.hulls }),
+      ...(ctx.core.npcTraffic === undefined
+        ? {}
+        : { npcWeapons: ctx.core.npcTraffic.weapons }),
     });
     // The one integration point (D-14): the world is read live on every step,
     // so a launch in one step creates the world the next step runs.
@@ -150,6 +158,9 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
       stepCommands,
       DT,
       stepOptions,
+      // The player's combat state, read live; undefined only for a session
+      // that has not finished booting, which then steps without combat.
+      ctx.core.combat,
     );
     for (const event of events) router.dispatch(event);
     // The view timeline advances on the same fixed steps as the simulation,

@@ -30,22 +30,34 @@ import {
   MAX_ADVANCE_TICKS,
 } from "../../../src/app/session/sim-driver.js";
 import { parseTestFlags } from "../../../src/app/session/test-flags.js";
+import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
 import { buildStepOptions } from "../../../src/app/session/step-options.js";
 import type { System } from "../../../src/content/types.js";
 import type { WegoliteProbe } from "../../../src/app/probe.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
+import { LASER_STATS } from "../../../src/sim/combat/constants.js";
+import {
+  DEFAULT_LASER_MOUNTS,
+  NO_LASER,
+} from "../../../src/sim/combat/mounts.js";
+import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import type { Command } from "../../../src/sim/commands.js";
+import type { SimEvent } from "../../../src/sim/events.js";
 import {
   PlayerController,
   ScriptedLaunchController,
 } from "../../../src/sim/flight/controller.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
+import { identity, vec } from "../../../src/sim/math.js";
+import { spawnEntity } from "../../../src/sim/world/world.js";
 import type { InputFrame } from "../../../src/sim/state.js";
 import { MAX_STEPS_PER_FRAME } from "../../../src/sim/step.js";
 import { DT } from "../../../src/sim/time.js";
 import { sessionSources } from "../../helpers/session-source.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { realHullTable } from "../../helpers/hull-table.js";
+import { realNpcWeapons } from "../../helpers/npc-weapons.js";
 
 const hooks = vi.hoisted(() => ({
   onStep: (commands: readonly unknown[]): void => {
@@ -85,6 +97,8 @@ interface Harness {
   readonly seenFrames: InputFrame[];
   readonly counts: { drains: number; frames: number; advances: number };
   readonly advances: { dt: number; skipped: boolean }[];
+  /** Every event the router was handed, in dispatch order. */
+  readonly dispatched: SimEvent[];
 }
 
 function harness(
@@ -92,6 +106,10 @@ function harness(
     readonly mode?: "docked" | "inFlight";
     /** Parse `?test=1&clock=manual` into the session's flags. */
     readonly manual?: boolean;
+    /** Hold the fire key in every input frame. */
+    readonly fire?: boolean;
+    /** Create the player's combat state, as start-up does. */
+    readonly combat?: boolean;
   } = {},
 ): Harness {
   const ctx = createSessionState({
@@ -102,6 +120,7 @@ function harness(
   const state = initFlightState(lave.layout);
   if (options.mode === "inFlight") state.mode = "inFlight";
   ctx.core.state = state;
+  if (options.combat === true) ctx.core.combat = createPlayerCombatState();
   ctx.core.layout = lave.layout;
   ctx.core.config = lave.config;
   if (options.manual === true) {
@@ -116,6 +135,7 @@ function harness(
   const seenFrames: InputFrame[] = [];
   const counts = { drains: 0, frames: 0, advances: 0 };
   const advances: { dt: number; skipped: boolean }[] = [];
+  const dispatched: SimEvent[] = [];
 
   hooks.onStep = (commands) => {
     log.push("stepFlight");
@@ -134,6 +154,7 @@ function harness(
         roll: 0,
         speed: 0,
         precision: false,
+        ...(options.fire === true ? { fire: true } : {}),
       };
       frames.push(next);
       return next;
@@ -150,6 +171,7 @@ function harness(
     hyperspaceFlow: (event) => log.push(`hyperspaceFlow ${event.kind}`),
   };
 
+  const realRouter = createEventRouter(ctx, subscribers);
   const driver = createSimDriver(ctx, {
     pending,
     player: {
@@ -171,7 +193,13 @@ function harness(
         return "flash";
       },
     },
-    router: createEventRouter(ctx, subscribers),
+    router: {
+      ...realRouter,
+      dispatch: (event) => {
+        dispatched.push(event);
+        realRouter.dispatch(event);
+      },
+    },
     equipmentSet: () => new Set<string>(),
     targetSystem: () => undefined,
     autosave: () => {
@@ -193,8 +221,12 @@ function harness(
     seenFrames,
     counts,
     advances,
+    dispatched,
   };
 }
+
+/** The idle input frame the combat cases add `fire` to. */
+const IDLE: InputFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
 
 /** Three whole steps and a remainder: the loop runs exactly three steps. */
 const THREE_STEPS = 3.5 * DT;
@@ -363,6 +395,7 @@ describe("stepOnce, the single flight step", () => {
       catalogue: [],
       records: [],
       masses,
+      weapons: new Map(),
     };
     loaded.driver.advanceFrame(DT);
     expect(seen).toHaveLength(2);
@@ -379,6 +412,168 @@ describe("stepOnce, the single flight step", () => {
     driver.stepOnce([], { pitch: 0, roll: 0, speed: 1, precision: false });
     expect(ctx.core.previousPose).toBe(before);
     expect(ctx.core.currentPose).not.toBe(before);
+  });
+});
+
+describe("combat wiring (plan 13-11, CBT-04 to CBT-07)", () => {
+  /** Far from the station and the planet, so nothing mass-locks the player. */
+  const FAR = vec(1e7, 0, 0);
+
+  /** Park the harness's flying player at `FAR`, nose to -Z, at rest. */
+  function parked(options: Parameters<typeof harness>[0]): Harness {
+    const built = harness({ mode: "inFlight", combat: true, ...options });
+    const state = built.ctx.core.state;
+    if (state === undefined) throw new Error("the harness has no state");
+    state.position = FAR;
+    state.orientation = identity();
+    state.speed = 0;
+    return built;
+  }
+
+  function firedEvents(built: Harness): SimEvent[] {
+    return built.dispatched.filter((event) => event.kind === "laserFired");
+  }
+
+  it("holding fire in flight fires the profile's laser through the router and heats its facing", () => {
+    const built = parked({ fire: true });
+    const combat = built.ctx.core.combat;
+    if (combat === undefined) throw new Error("no combat state");
+    expect(combat.laserTemp.fore).toBe(0);
+
+    built.driver.stepOnce([], { ...IDLE, fire: true });
+
+    expect(firedEvents(built)).toHaveLength(1);
+    // The shot heats the nose laser; the same tick's cooling takes a little
+    // back, so the temperature sits just under the shot's heat.
+    const heat = LASER_STATS.EQ_WEAPON_PULSE_LASER.shotTemperature;
+    expect(combat.laserTemp.fore).toBeGreaterThan(heat - 1);
+    expect(combat.laserTemp.fore).toBeLessThanOrEqual(heat);
+    expect(combat.shotTicks.aft).toBeGreaterThan(combat.shotTicks.fore);
+  });
+
+  it("takes the mounts from the profile: an empty nose fires nothing, a fitted aft beam fires on the aft view", () => {
+    const emptyNose = parked({ fire: true });
+    emptyNose.ctx.core.profile = {
+      ...emptyNose.ctx.core.profile,
+      laserMounts: { ...DEFAULT_LASER_MOUNTS, fore: NO_LASER },
+    };
+    emptyNose.driver.stepOnce([], { ...IDLE, fire: true });
+    expect(firedEvents(emptyNose)).toHaveLength(0);
+
+    const aft = parked({ fire: true });
+    aft.ctx.core.profile = {
+      ...aft.ctx.core.profile,
+      laserMounts: {
+        ...DEFAULT_LASER_MOUNTS,
+        fore: NO_LASER,
+        aft: "EQ_WEAPON_BEAM_LASER",
+      },
+    };
+    aft.driver.stepOnce([{ kind: "setView", view: "aft" }], {
+      ...IDLE,
+      fire: true,
+    });
+    expect(firedEvents(aft)).toHaveLength(1);
+    expect(aft.ctx.core.combat?.view).toBe("aft");
+    expect(aft.ctx.core.combat?.laserTemp.aft).toBeGreaterThan(0);
+    expect(aft.ctx.core.combat?.laserTemp.fore).toBe(0);
+  });
+
+  it("hands the hull table and the NPC weapons to the step, so a shot hits a Viper ahead", () => {
+    const built = parked({ fire: true });
+    const lifecycle = createWorldLifecycle({ traffic: false });
+    lifecycle.begin(1);
+    built.ctx.core.worldLifecycle = lifecycle;
+    built.ctx.core.hulls = realHullTable();
+    built.ctx.core.npcTraffic = {
+      catalogue: [],
+      records: [],
+      masses: [],
+      weapons: realNpcWeapons(),
+    };
+    const world = lifecycle.world;
+    if (world === undefined) throw new Error("no world");
+    const spawned = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "viper",
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(FAR.x, FAR.y, FAR.z - 1500),
+        orientation: identity(),
+        radius: 30,
+        maxEnergy: 180,
+      },
+      0,
+    );
+    if (!spawned.ok) throw new Error(`spawn refused: ${spawned.reason}`);
+    const seen: unknown[] = [];
+    hooks.onOptions = (options) => {
+      seen.push(options);
+    };
+
+    built.driver.stepOnce([], { ...IDLE, fire: true });
+
+    const hits = built.dispatched.filter((event) => event.kind === "shipHit");
+    expect(hits).toHaveLength(1);
+    expect(spawned.entity.energy).toBeLessThan(180);
+    const [options] = seen as {
+      combat?: { hulls?: unknown; npcWeapons?: unknown; mounts?: unknown };
+    }[];
+    expect(options?.combat?.hulls).toBe(built.ctx.core.hulls);
+    expect(options?.combat?.npcWeapons).toBe(built.ctx.core.npcTraffic.weapons);
+    expect(options?.combat?.mounts).toBe(built.ctx.core.profile.laserMounts);
+  });
+
+  it("without the hull chunk (traffic off) a shot is drawn but hits nothing", () => {
+    const built = parked({ fire: true });
+    const lifecycle = createWorldLifecycle({ traffic: false });
+    lifecycle.begin(1);
+    built.ctx.core.worldLifecycle = lifecycle;
+    const world = lifecycle.world;
+    if (world === undefined) throw new Error("no world");
+    spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "viper",
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(FAR.x, FAR.y, FAR.z - 1500),
+        orientation: identity(),
+        radius: 30,
+        maxEnergy: 180,
+      },
+      0,
+    );
+    const seen: unknown[] = [];
+    hooks.onOptions = (options) => {
+      seen.push(options);
+    };
+
+    built.driver.stepOnce([], { ...IDLE, fire: true });
+
+    expect(firedEvents(built)).toHaveLength(1);
+    expect(built.dispatched.some((event) => event.kind === "shipHit")).toBe(
+      false,
+    );
+    const [options] = seen as { combat?: object }[];
+    expect(options?.combat).not.toHaveProperty("hulls");
+    expect(options?.combat).not.toHaveProperty("npcWeapons");
+  });
+
+  it("steps without combat before the combat state exists, and never fires then", () => {
+    const built = harness({ mode: "inFlight", fire: true });
+    expect(built.ctx.core.combat).toBeUndefined();
+    built.driver.stepOnce([], { ...IDLE, fire: true });
+    expect(firedEvents(built)).toHaveLength(0);
+  });
+
+  it("the chart-behind steps use the zero frame, so nothing fires there", () => {
+    const built = parked({ fire: true });
+    built.ctx.chart.chartOpen = true;
+    built.driver.advanceBehind(THREE_STEPS);
+    expect(firedEvents(built)).toHaveLength(0);
+    expect(built.ctx.core.combat?.laserTemp.fore).toBe(0);
   });
 });
 
@@ -938,10 +1133,12 @@ describe("buildStepOptions", () => {
       target: undefined,
       equipment,
       dock,
+      laserMounts: DEFAULT_LASER_MOUNTS,
     });
     expect(options).toEqual({
       dock,
       equipment,
+      combat: { mounts: DEFAULT_LASER_MOUNTS },
       hyperspace: {
         fuel: 70,
         origin: {
@@ -962,6 +1159,7 @@ describe("buildStepOptions", () => {
       target,
       equipment,
       dock,
+      laserMounts: DEFAULT_LASER_MOUNTS,
     });
     expect(options.hyperspace?.target).toEqual({
       id: target.id,
@@ -981,6 +1179,7 @@ describe("buildStepOptions", () => {
       equipment,
       dock,
       shipMasses,
+      laserMounts: DEFAULT_LASER_MOUNTS,
     });
     expect(withMasses.hyperspace?.shipMasses).toBe(shipMasses);
     const without = buildStepOptions({
@@ -989,6 +1188,7 @@ describe("buildStepOptions", () => {
       target: undefined,
       equipment,
       dock,
+      laserMounts: DEFAULT_LASER_MOUNTS,
     });
     expect(without.hyperspace).not.toHaveProperty("shipMasses");
     expect(Object.keys(without.hyperspace ?? {})).not.toContain("shipMasses");
@@ -1001,8 +1201,13 @@ describe("buildStepOptions", () => {
       target: undefined,
       equipment,
       dock: undefined,
+      laserMounts: DEFAULT_LASER_MOUNTS,
     });
-    expect(Object.keys(options).sort()).toEqual(["equipment", "hyperspace"]);
+    expect(Object.keys(options).sort()).toEqual([
+      "combat",
+      "equipment",
+      "hyperspace",
+    ]);
     expect(options).not.toHaveProperty("dock");
   });
 
@@ -1013,8 +1218,41 @@ describe("buildStepOptions", () => {
       target: undefined,
       equipment,
       dock: undefined,
+      laserMounts: DEFAULT_LASER_MOUNTS,
     });
     expect(options.hyperspace).not.toHaveProperty("stationMass");
     expect(options.hyperspace?.origin.id).toBe(noMassSystem.id);
+  });
+
+  it("always emits combat with the mounts, and the hull table and NPC weapons only when given (plan 13-11)", () => {
+    const hulls = realHullTable();
+    const npcWeapons = realNpcWeapons();
+    const base = {
+      fuel: 70,
+      system: lave.system,
+      target: undefined,
+      equipment,
+      dock: undefined,
+    };
+    const bare = buildStepOptions({
+      ...base,
+      laserMounts: DEFAULT_LASER_MOUNTS,
+    });
+    expect(bare.combat?.mounts).toBe(DEFAULT_LASER_MOUNTS);
+    expect(Object.keys(bare.combat ?? {})).toEqual(["mounts"]);
+
+    const full = buildStepOptions({
+      ...base,
+      laserMounts: DEFAULT_LASER_MOUNTS,
+      hulls,
+      npcWeapons,
+    });
+    expect(full.combat?.hulls).toBe(hulls);
+    expect(full.combat?.npcWeapons).toBe(npcWeapons);
+    expect(Object.keys(full.combat ?? {}).sort()).toEqual([
+      "hulls",
+      "mounts",
+      "npcWeapons",
+    ]);
   });
 });

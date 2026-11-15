@@ -16,6 +16,9 @@
  */
 
 import type { System } from "../../content/types.js";
+import type { NpcWeapon } from "../../sim/combat/aim.js";
+import type { HullTable } from "../../sim/combat/hit.js";
+import type { LaserMounts } from "../../sim/combat/mounts.js";
 import type { DockGeometry } from "../../sim/dock/geometry.js";
 import type { StepOptions } from "../../sim/flight/step.js";
 import { witchspaceStationMass } from "../../sim/hyperspace/countdown.js";
@@ -38,17 +41,41 @@ export interface StepOptionsInput {
    * replay hand the same list to the step.
    */
   readonly shipMasses?: readonly ShipMass[];
+  /**
+   * The laser fitted on each facing, read from the validated profile (T-13-24);
+   * a mount never travels in a command.
+   */
+  readonly laserMounts: LaserMounts;
+  /**
+   * The loaded hull table (CBT-07, D-01). Absent until the lazy hull chunk has
+   * loaded, and always absent with traffic off: a shot is then drawn but hits
+   * nothing.
+   */
+  readonly hulls?: HullTable;
+  /** The NPC forward weapons keyed by spec key; absent with traffic off. */
+  readonly npcWeapons?: ReadonlyMap<string, NpcWeapon>;
 }
 
 /**
  * Build one step's options. Optional keys are omitted rather than set to
  * `undefined` (`exactOptionalPropertyTypes`): `target` only when a target is
  * committed, `stationMass` only when the origin's station kind has a recorded
- * mass, `shipMasses` only when the caller has them, and `dock` only when the
- * geometry exists.
+ * mass, `shipMasses` only when the caller has them, `dock` only when the
+ * geometry exists, and `combat.hulls` and `combat.npcWeapons` only when the
+ * caller has them. `combat` itself is always present: it carries the mounts.
  */
 export function buildStepOptions(input: StepOptionsInput): StepOptions {
-  const { fuel, system, target, equipment, dock, shipMasses } = input;
+  const {
+    fuel,
+    system,
+    target,
+    equipment,
+    dock,
+    shipMasses,
+    laserMounts,
+    hulls,
+    npcWeapons,
+  } = input;
   // The read-only station mass of the live system's station kind. Only a
   // Coriolis station has a recorded mass; the others omit the fact.
   const stationMass = witchspaceStationMass(system.station);
@@ -71,7 +98,12 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
     ...(stationMass === undefined ? {} : { stationMass }),
     ...(shipMasses === undefined ? {} : { shipMasses }),
   };
+  const combat = {
+    mounts: laserMounts,
+    ...(hulls === undefined ? {} : { hulls }),
+    ...(npcWeapons === undefined ? {} : { npcWeapons }),
+  };
   return dock === undefined
-    ? { equipment, hyperspace }
-    : { dock, equipment, hyperspace };
+    ? { equipment, hyperspace, combat }
+    : { dock, equipment, hyperspace, combat };
 }

@@ -57,6 +57,19 @@
  *   file is not read, the lifecycle keeps its default populator and no mass is
  *   passed, so every traffic-off replay is unchanged (D-01).
  *
+ * - combat (Phase 13, plan 13-11): the replay creates the same pristine combat
+ *   state as a New game (`createPlayerCombatState`, as start-session.ts does
+ *   beside the flight state), passes `laserMounts` from the profile (or the
+ *   script's own mounts), and with traffic on the hull table and the NPC weapon
+ *   map, through the one builder `buildStepOptions` and the shared
+ *   `hullTable`/`trafficContent`; `stepSim` receives the combat state as its
+ *   ninth argument and `hashWorld` hashes with it, as sim-driver.ts and the
+ *   probe publisher do. A step may hold the fire key (`TickStep.fire`), the
+ *   frame field the keyboard source sets. The hull data is read from the
+ *   committed generated file with `readFileSync` and the strict schema, like
+ *   the NPC catalogue, and only with traffic on (the session loads it only
+ *   then, D-01).
+ *
  * Not mirrored: the hyperspace edge mapping (no script commits a target) and
  * the arrival (a jump is proven through the real driver in Vitest only).
  *
@@ -78,19 +91,25 @@ import {
 import { initFlightState } from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { marketSeedForSystem } from "../../src/sim/economy/market.js";
+import { createPlayerCombatState } from "../../src/sim/combat/state.js";
+import type { LaserMounts } from "../../src/sim/combat/mounts.js";
 import { newProfile } from "../../src/sim/player/profile.js";
 import type { InputFrame } from "../../src/sim/state.js";
 import { stepSim } from "../../src/sim/sim.js";
 import { DT } from "../../src/sim/time.js";
 import { hashWorld } from "../../src/sim/world/serialize.js";
+import type { HullTable } from "../../src/sim/combat/hit.js";
+import type { PlayerCombatState } from "../../src/sim/combat/state.js";
 import type { World } from "../../src/sim/world/world.js";
 import { buildStepOptions } from "../../src/app/session/step-options.js";
 import {
   createInertPopulate,
+  hullTable,
   trafficContent,
 } from "../../src/app/session/traffic.js";
 import type { TrafficContent } from "../../src/app/session/traffic.js";
 import { createWorldLifecycle } from "../../src/app/session/world-lifecycle.js";
+import { ShipHullCatalogueSchema } from "../../src/content/schemas/ship-hull.js";
 import { NpcShipCatalogueSchema } from "../../src/content/schemas/ship-npc.js";
 import { laveDockGeometry } from "./dock-pose.js";
 import { laveFixture } from "./lave.js";
@@ -99,6 +118,8 @@ import { laveFixture } from "./lave.js";
 export interface TickStep {
   readonly commands: readonly Command[];
   readonly ticks: number;
+  /** Hold the fire key for every tick of the step (the frame's `fire` field). */
+  readonly fire?: boolean;
 }
 
 export interface TickScriptOptions {
@@ -109,6 +130,8 @@ export interface TickScriptOptions {
   readonly traffic?: boolean;
   /** Also return the `hashWorld` value after every tick. */
   readonly trace?: boolean;
+  /** The fitted lasers; the New game's stock fit (the profile's) when absent. */
+  readonly laserMounts?: LaserMounts;
 }
 
 export interface TickScriptResult {
@@ -116,7 +139,9 @@ export interface TickScriptResult {
   /** The live world at the end, or undefined while docked. */
   readonly world: World | undefined;
   readonly epoch: number;
-  /** `hashWorld(state, world)` at the end. */
+  /** The player's combat state at the end. */
+  readonly combat: PlayerCombatState;
+  /** `hashWorld(state, world, combat)` at the end. */
   readonly hash: string;
   /** `hashWorld` after each tick, in order; present only with `trace: true`. */
   readonly trace?: string[];
@@ -142,6 +167,18 @@ function committedTrafficContent(): TrafficContent {
   return trafficContent(NpcShipCatalogueSchema.parse(JSON.parse(raw)));
 }
 
+/**
+ * The committed hull data as the session loads it (read with `readFileSync`,
+ * validated with the strict schema) and built into the shared hull table.
+ */
+function committedHullTable(): HullTable {
+  const raw = readFileSync(
+    new URL("../../src/content/generated/ships-hulls.json", import.meta.url),
+    "utf8",
+  );
+  return hullTable(ShipHullCatalogueSchema.parse(JSON.parse(raw)));
+}
+
 /** Replay `steps` over a New game and hash the result. */
 export function runTickScript(
   steps: readonly TickStep[],
@@ -159,6 +196,9 @@ export function runTickScript(
   // Traffic on: the same populate and masses as the session (traffic.ts). Traffic
   // off reads nothing and keeps the default populator.
   const content = traffic ? committedTrafficContent() : undefined;
+  const hulls = traffic ? committedHullTable() : undefined;
+  const combat = createPlayerCombatState();
+  const laserMounts = options.laserMounts ?? profile.laserMounts;
   const lifecycle = createWorldLifecycle({
     traffic,
     ...(content === undefined
@@ -179,7 +219,10 @@ export function runTickScript(
     );
     for (let tick = 0; tick < step.ticks; tick += 1) {
       const controller = state.mode === "launching" ? scripted : player;
-      const intent = controller.update(flightView(state), IDLE_FRAME);
+      const intent = controller.update(
+        flightView(state),
+        step.fire === true ? { ...IDLE_FRAME, fire: true } : IDLE_FRAME,
+      );
       const events = stepSim(
         state,
         lifecycle.world,
@@ -195,13 +238,18 @@ export function runTickScript(
           equipment,
           dock,
           ...(content === undefined ? {} : { shipMasses: content.masses }),
+          laserMounts,
+          ...(hulls === undefined ? {} : { hulls }),
+          ...(content === undefined ? {} : { npcWeapons: content.weapons }),
         }),
+        combat,
       );
       for (const event of events) {
         if (event.kind === "launched") lifecycle.begin(marketSeed);
         else if (event.kind === "docked") lifecycle.end();
       }
-      if (options.trace === true) trace.push(hashWorld(state, lifecycle.world));
+      if (options.trace === true)
+        trace.push(hashWorld(state, lifecycle.world, combat));
     }
   }
 
@@ -209,7 +257,8 @@ export function runTickScript(
     state,
     world: lifecycle.world,
     epoch: lifecycle.epoch,
-    hash: hashWorld(state, lifecycle.world),
+    combat,
+    hash: hashWorld(state, lifecycle.world, combat),
     ...(options.trace === true ? { trace } : {}),
   };
 }

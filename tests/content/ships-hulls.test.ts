@@ -35,6 +35,7 @@ import { NPC_SHIP_KEYS } from "../../tools/oolite-ingest/convert/npc-ships.js";
 
 const REPO_ROOT = process.cwd();
 const LOADER = "src/content/ships-hulls.ts";
+const START_SESSION = "src/app/session/start-session.ts";
 const GENERATED = "src/content/generated/ships-hulls.json";
 const NPC_GENERATED = "src/content/generated/ships-npc.json";
 
@@ -262,16 +263,25 @@ describe("boot-path isolation", () => {
     expect(new Set(named)).toEqual(new Set(["generated/ships-hulls.json"]));
   });
 
-  it("is named by no non-test source file other than the loader", () => {
-    // Nothing imports the loader yet. Plan 13-11 adds start-session to this
-    // list in the commit that wires the load.
-    // The loader names its own generated file; any other file naming the module
-    // or the file is an importer (a doc comment is not an import).
+  it("is named by no non-test source file other than the loader and the session start-up", () => {
+    // The loader names its own generated file; the session start-up imports the
+    // loader module (the boot load, behind the traffic flag, plan 13-11). Any
+    // other file naming the module or the file is an importer (a doc comment is
+    // not an import).
     const importsIt =
       /(?:from|import\()\s*["'][^"']*ships-hulls(?:\.js)?["']|ships-hulls\.json/;
     const named = sourceFiles("src").filter((file) =>
       importsIt.test(readText(file)),
     );
-    expect([...named]).toEqual([LOADER]);
+    expect([...named].sort()).toEqual([LOADER, START_SESSION].sort());
+  });
+
+  it("lets the session start-up import the loader module but never name the generated file", () => {
+    const source = readText(START_SESSION);
+    expect(source).toMatch(
+      /from\s*["']\.\.\/\.\.\/content\/ships-hulls\.js["']/,
+    );
+    expect(source).not.toContain("ships-hulls.json");
+    expect(source).not.toContain("generated/");
   });
 });

@@ -27,7 +27,10 @@
  * the id vocabulary, and the populator narrows it.
  */
 
-import type { NpcShip } from "../../content/types.js";
+import type { NpcShip, ShipHullCatalogue } from "../../content/types.js";
+import type { NpcWeapon } from "../../sim/combat/aim.js";
+import type { HullTable } from "../../sim/combat/hit.js";
+import { vec } from "../../sim/math.js";
 import type { SystemLayout } from "../../sim/world/layout.js";
 import { populateInertWorld } from "../../sim/world/populate.js";
 import type { InertShipRecord } from "../../sim/world/populate.js";
@@ -41,6 +44,11 @@ export interface TrafficContent {
   readonly records: readonly InertShipRecord[];
   /** The step's jump-blockage masses, in catalogue order. */
   readonly masses: readonly ShipMass[];
+  /**
+   * The forward weapon of each hull by spec key (CBT-07): static content keyed
+   * by the catalogue's own string, never by an entity id.
+   */
+  readonly weapons: ReadonlyMap<string, NpcWeapon>;
 }
 
 /** Build the populator records and the step masses from the catalogue. */
@@ -61,7 +69,27 @@ export function trafficContent(catalogue: readonly NpcShip[]): TrafficContent {
     masses: Object.freeze(
       ships.map((ship): ShipMass => ({ specKey: ship.key, mass: ship.mass })),
     ),
+    weapons: new Map(
+      ships.map((ship): [string, NpcWeapon] => {
+        const [x, y, z] = ship.forwardWeaponPosition;
+        return [ship.key, { laser: ship.forwardWeapon, offset: vec(x, y, z) }];
+      }),
+    ),
   });
+}
+
+/**
+ * The hull table the hit rule reads (CBT-07): each hull's collision radius and
+ * octree keyed by spec key. Static content built from the validated lazy hull
+ * chunk; the shared source for the session and the Node tick replay.
+ */
+export function hullTable(catalogue: ShipHullCatalogue): HullTable {
+  return new Map(
+    catalogue.map((hull) => [
+      hull.key,
+      { collisionRadius: hull.collisionRadius, octree: hull.octree },
+    ]),
+  );
 }
 
 /**

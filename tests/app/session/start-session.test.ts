@@ -14,6 +14,8 @@
  * running the code under test.
  */
 
+import { readFileSync } from "node:fs";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createSessionState } from "../../../src/app/session/context.js";
@@ -21,11 +23,16 @@ import type { SessionState } from "../../../src/app/session/context.js";
 import { createSessionLifecycle } from "../../../src/app/session/start-session.js";
 import type { LifecycleDeps } from "../../../src/app/session/start-session.js";
 import type { SystemScene } from "../../../src/render/system-scene.js";
+import {
+  createPlayerCombatState,
+  isPristineCombat,
+} from "../../../src/sim/combat/state.js";
 import type { Command } from "../../../src/sim/commands.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import { vec } from "../../../src/sim/math.js";
 import type { SystemLayout } from "../../../src/sim/world/layout.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { sessionSourceFiles } from "../../helpers/session-source.js";
 
 const lave = laveFixture();
 
@@ -433,6 +440,18 @@ describe("dispose order", () => {
     expect(ctx.core.layout).toBeUndefined();
   });
 
+  it("drops the combat state and the hull table with the flight state (plan 13-11)", () => {
+    const { ctx, lifecycle, log } = liveHarness();
+    stubCancel(log);
+    ctx.core.combat = createPlayerCombatState();
+    ctx.core.hulls = new Map();
+
+    lifecycle.dispose();
+
+    expect(ctx.core.combat).toBeUndefined();
+    expect(ctx.core.hulls).toBeUndefined();
+  });
+
   it("is idempotent: a second dispose records nothing and double-frees nothing", () => {
     const { lifecycle, log } = liveHarness();
     stubCancel(log);
@@ -475,3 +494,62 @@ describe("dispose order", () => {
     ]);
   });
 });
+
+/**
+ * The boot wiring of the combat state and the hull data (plan 13-11). startSession
+ * has no Node harness (it builds the renderer, HUD and input), so these are pinned
+ * as ordered source facts, as the lifecycle and populator wiring are in
+ * world-lifecycle.test.ts; the traffic browser spec exercises the load end to end.
+ */
+describe("combat and hull wiring at start-up (plan 13-11)", () => {
+  const source = readFileSync("src/app/session/start-session.ts", "utf8");
+  const flat = (text: string): string => text.replace(/\s+/g, " ");
+
+  it("loads the hull data once, only behind the traffic flag, in the boot Promise.all beside the NPC catalogue", () => {
+    expect(source.match(/loadShipHulls\(\)/g)).toHaveLength(1);
+    const load = source.indexOf("loadShipHulls()");
+    expect(flat(source.slice(Math.max(0, load - 80), load))).toContain(
+      "ctx.runtime.testFlags.traffic ?",
+    );
+    const all = source.indexOf("await Promise.all([");
+    const closed = source.indexOf("]);", all);
+    expect(load).toBeGreaterThan(source.indexOf("loadNpcCatalogue()"));
+    expect(load).toBeGreaterThan(all);
+    expect(load).toBeLessThan(closed);
+    // The same visible boot-failure surface (T-13-23).
+    expect(source.slice(closed, closed + 1200)).toContain("showBootFailure");
+    expect(source).toContain("ctx.core.hulls =");
+    expect(source).toContain("hullTable(hullCatalogue)");
+  });
+
+  it("creates a pristine combat state beside the flight state, for a new game and a Continue alike", () => {
+    expect(source.match(/createPlayerCombatState\(\)/g)).toHaveLength(1);
+    const state = source.indexOf("ctx.core.state = flightState;");
+    const combat = source.indexOf(
+      "ctx.core.combat = createPlayerCombatState();",
+    );
+    expect(state).toBeGreaterThan(-1);
+    // Installed by the one assignment that serves both branches of the restore.
+    expect(combat).toBeGreaterThan(state);
+    expect(combat - state).toBeLessThan(400);
+    expect(isPristineCombat(createPlayerCombatState())).toBe(true);
+  });
+
+  it("creates the combat state only at the two install points, so a hyperspace jump carries it over", () => {
+    const owners = [
+      "src/app/session/start-session.ts",
+      "src/app/session/save-controller.ts",
+    ];
+    for (const file of readdirSession()) {
+      const text = readFileSync(file, "utf8");
+      const creates = /createPlayerCombatState\(\)|\.combat = /.test(text);
+      expect(creates, file).toBe(owners.includes(file));
+    }
+  });
+});
+
+function readdirSession(): string[] {
+  return sessionSourceFiles().filter((file) =>
+    file.startsWith("src/app/session/"),
+  );
+}
