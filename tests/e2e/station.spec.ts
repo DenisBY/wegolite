@@ -475,6 +475,9 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   // applied on a later loop frame, so let two pass before reading: an
   // immediate read would see the footer as it was before the press. The row is
   // disabled, so the status line shows its reason and never a [Y/N] prompt.
+  // Phase 13 lists the laser rows after the missile removal, so the cursor no
+  // longer clamps onto the passenger berth: step back up to it.
+  await page.keyboard.press("ArrowUp");
   const framesAtPress = (await getProbe(page)).frames;
   await page.keyboard.press("KeyY");
   await page.waitForFunction(
@@ -777,6 +780,9 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   expect(afterRemoval.economy?.credits).toBe(1662);
   expect(afterRemoval.economy?.missiles).toBe(0);
 
+  // Phase 13 lists the laser rows after the missile removal, so the cursor no
+  // longer clamps onto the passenger berth: step back up to it.
+  await page.keyboard.press("ArrowUp");
   await page.keyboard.press("KeyY");
   await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
     "Requires TL 5",

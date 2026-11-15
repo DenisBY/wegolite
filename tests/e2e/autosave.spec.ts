@@ -1385,6 +1385,9 @@ test("an accepted buy and removal each write exactly one autosave", async ({
   // A third Y is a no-op: no prompt, no credits, no save. The cursor now sits
   // on the unaffordable passenger berth, so its notice is the visible status.
   const credits = afterRemoval.economy?.credits;
+  // Phase 13 lists the laser rows after the missile removal, so the cursor no
+  // longer clamps onto the passenger berth: step back up to it.
+  await page.keyboard.press("ArrowUp");
   await page.keyboard.press("KeyY");
   await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
     "Requires TL 5",
