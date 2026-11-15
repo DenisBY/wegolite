@@ -577,3 +577,34 @@ export const PROXIMITY_ZONE_SELF_FACTOR = 2;
 
 /** A body ahead stretches the forward component by `0.25 x maxFlightSpeed / flightSpeed` (`ShipEntity.m:6122-6123`, "up to 400%"). */
 export const PROXIMITY_FORWARD_STRETCH = 0.25;
+
+/** The ledger of `behaviour_formation_form_up:` (`ShipEntity.m:5002-5047`). */
+export const FORMATION_ETA_LIMIT = 5;
+
+/** `desired_speed = leaderSpeed x (1 + eta x 0.05)` (`ShipEntity.m:5011`). */
+export const FORMATION_ETA_SLOPE = 0.05;
+
+/** The frustration relief per second of improving range (`ShipEntity.m:5030`). */
+export const FORMATION_FRUSTRATION_RELIEF = 0.25;
+
+/** Formation reports frustration after this many seconds without a range gain (`ShipEntity.m:5035`). */
+export const FORMATION_FRUSTRATION_LIMIT = 15;
+
+/** A follower farther than this share of the scanner range from its slot pitches over (`ShipEntity.m:5038`). */
+export const FORMATION_FAR_SCANNER_SHARE = 0.5;
+
+/** The default escort pattern spacing factor (`oolite-global-prefix.js:174-175`). */
+export const ESCORT_SPACING_FACTOR = 3;
+
+/**
+ * The default V pattern in Oolite's local frame, x then z (y is 0 for all four;
+ * `oolite-global-prefix.js:165-170`). Wegolite's local forward is -Z, so
+ * `escortCoordinates` negates each z.
+ */
+export const ESCORT_PATTERN: readonly (readonly [number, number])[] =
+  Object.freeze([
+    Object.freeze([-2, -1] as const),
+    Object.freeze([2, -1] as const),
+    Object.freeze([-3, -3] as const),
+    Object.freeze([3, -3] as const),
+  ]);

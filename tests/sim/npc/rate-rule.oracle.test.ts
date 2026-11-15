@@ -17,7 +17,9 @@
  *     record of what another Vitest file ran: each test file has its own module
  *     registry, so no such record can cross files.
  *
- * Later plans widen `PORTED` as they port more functions.
+ * Later plans widen `PORTED` as they port more functions. Every fixture file of
+ * both trees has a manifest row since plan 14-15 (`oracle-coverage.test.ts`
+ * checks that), so a row's `confirmedBy` fixture is always run by a test file.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -133,23 +135,17 @@ const PORTED: readonly { file: string; from: number; to: number }[] = [
   { file: "src/Core/Entities/ShipEntity.m", from: 3944, to: 3994 }, // behaviour_attack_slow_dogfight
   { file: "src/Core/Entities/ShipEntity.m", from: 8849, to: 8868 }, // distance_six, distance_twelve
   { file: "src/Core/Entities/ShipEntityAI.m", from: 350, to: 357 }, // performAttack
-  // plan 14-15, task 1: avoid collision and the proximity rule
+  // plan 14-15: avoid collision, the proximity rule and escort formation
   { file: "src/Core/Entities/ShipEntity.m", from: 5155, to: 5171 }, // behaviour_avoid_collision
   { file: "src/Core/Entities/ShipEntity.m", from: 6098, to: 6146 }, // setProximityAlert
   { file: "src/Core/CollisionRegion.m", from: 262, to: 312 }, // the proximity pass and its pair trigger
+  { file: "src/Core/Entities/ShipEntity.m", from: 5002, to: 5047 }, // behaviour_formation_form_up
+  { file: "src/Core/Entities/ShipEntity.m", from: 2427, to: 2436 }, // the escort leader refresh
+  { file: "src/Core/Entities/ShipEntity.m", from: 11900, to: 11903 }, // setEscortDestination
+  { file: "src/Core/Entities/ShipEntity.m", from: 11996, to: 12044 }, // refreshEscortPositions, coordinatesForEscortPosition
+  { file: "src/Core/Entities/ShipEntityAI.m", from: 365, to: 371 }, // performEscort
+  { file: "Resources/Scripts/oolite-global-prefix.js", from: 165, to: 193 }, // the default escort pattern
 ];
-
-/**
- * Fixture files that later plans add to the manifest (flee, attack and the
- * escort and avoid-collision groups). A rule row of a function ported earlier
- * may name a fixture of one of them as an extra confirmation; until that plan
- * adds its manifest row such a fixture only has to exist. Each plan removes its
- * files from this set when it adds the row (the test below fails if a file is
- * both here and in the manifest).
- */
-const PENDING_FIXTURE_FILES: ReadonlySet<string> = new Set([
-  "tests/oracles/npc/fixtures/escort.json",
-]);
 
 function parseCitation(
   citation: string,
@@ -211,12 +207,6 @@ describe("the frame-rate rule rows of the functions ported so far", () => {
         const fixtureFile = fixtureFileOf.get(id);
         expect(fixtureFile, `${row.site}: fixture ${id}`).toBeDefined();
         const testFile = testFileOf.get(fixtureFile ?? "");
-        if (
-          testFile === undefined &&
-          PENDING_FIXTURE_FILES.has(fixtureFile ?? "")
-        ) {
-          continue; // a later plan's fixture: it must exist, which it does
-        }
         expect(
           testFile,
           `${row.site}: ${id} is in no manifest row`,
@@ -233,14 +223,6 @@ describe("the frame-rate rule rows of the functions ported so far", () => {
           `${testFile ?? ""} asserts it runs its whole entry`,
         ).toContain("runs exactly the fixtures of its files");
       }
-    }
-  });
-
-  it("a pending fixture file is in no manifest row and still exists", () => {
-    const assigned = new Set(ORACLE_GROUPS.map((group) => group.fixtureFile));
-    for (const file of PENDING_FIXTURE_FILES) {
-      expect(assigned.has(file), `${file} has a manifest row`).toBe(false);
-      expect(loadOracleFiles().has(file), `${file} exists`).toBe(true);
     }
   });
 

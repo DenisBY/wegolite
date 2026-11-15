@@ -78,6 +78,10 @@ export const ORACLE_GROUPS: readonly OracleGroup[] = Object.freeze([
     fixtureFile: "tests/oracles/npc/fixtures/avoid-collision.json",
     testFile: AVOID_ESCORT_TEST,
   }),
+  Object.freeze({
+    fixtureFile: "tests/oracles/npc/fixtures/escort.json",
+    testFile: AVOID_ESCORT_TEST,
+  }),
 ]);
 
 /** The fixture files `testFile` must run, in manifest order. */

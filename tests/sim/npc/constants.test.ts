@@ -323,7 +323,22 @@ describe("the proximity pass and escort formation (plan 14-15)", () => {
     ["PROXIMITY_MIN_MASS", ledger.PROXIMITY_MIN_MASS, 2000], // ShipEntity.m:6107
     ["PROXIMITY_ZONE_SELF_FACTOR", ledger.PROXIMITY_ZONE_SELF_FACTOR, 2], // :6126
     ["PROXIMITY_FORWARD_STRETCH", ledger.PROXIMITY_FORWARD_STRETCH, 0.25], // :6123
+    ["FORMATION_ETA_LIMIT", ledger.FORMATION_ETA_LIMIT, 5], // :5010
+    ["FORMATION_ETA_SLOPE", ledger.FORMATION_ETA_SLOPE, 0.05], // :5011
+    ["FORMATION_FRUSTRATION_RELIEF", ledger.FORMATION_FRUSTRATION_RELIEF, 0.25], // :5030
+    ["FORMATION_FRUSTRATION_LIMIT", ledger.FORMATION_FRUSTRATION_LIMIT, 15], // :5035
+    ["FORMATION_FAR_SCANNER_SHARE", ledger.FORMATION_FAR_SCANNER_SHARE, 0.5], // :5038
+    ["ESCORT_SPACING_FACTOR", ledger.ESCORT_SPACING_FACTOR, 3], // oolite-global-prefix.js:175
   ])("%s is %d", (_name, actual, expected) => {
     expect(actual).toBe(expected);
+  });
+
+  it("the V escort pattern is the four vectors of oolite-global-prefix.js:165-170", () => {
+    expect(ledger.ESCORT_PATTERN).toEqual([
+      [-2, -1],
+      [2, -1],
+      [-3, -3],
+      [3, -3],
+    ]);
   });
 });

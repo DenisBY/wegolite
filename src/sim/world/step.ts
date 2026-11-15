@@ -30,6 +30,7 @@ import type { AiContext, AiEvent, AiModule } from "../ai/types.js";
 import type { AiFaultSite, SimEvent } from "../events.js";
 import type { FlightState } from "../flight/state.js";
 import { steerShip } from "../npc/dispatch.js";
+import { refreshEscorts } from "../npc/escort.js";
 import { runProximityPass } from "../npc/proximity.js";
 import { PLAYER_COLLISION_RADIUS_M, statsFor } from "../npc/stats.js";
 import { startPendingTrackingCurves } from "../npc/tracking-curve.js";
@@ -112,6 +113,12 @@ export function stepWorld(
     const entity = world.store.live[i];
     if (entity === undefined || entity.dead || entity.ai === null) continue;
     steerEntity(world, entity, getView(), dt, npc);
+    // The escort leader refresh (ShipEntity.m:2427-2436): right after the
+    // leader's own update, every steered ship it owns gets its formation
+    // destination. It writes other ships, so it lives here and not in
+    // `steerShip`; the leader has moved, so a higher-id follower reads the
+    // fresh destination in the same tick.
+    refreshEscorts(world, entity);
   }
 
   // Think. The view is shared with the update phase and built lazily, only when

@@ -65,6 +65,7 @@ import { behaviourAvoidCollision } from "./behaviours/avoid-collision.js";
 import { behaviourEvasiveAction } from "./behaviours/evasive.js";
 import { behaviourFaceDestination } from "./behaviours/face-destination.js";
 import { behaviourFleeTarget } from "./behaviours/flee.js";
+import { behaviourFormationFormUp } from "./behaviours/formation.js";
 import {
   behaviourFlyFromDestination,
   behaviourFlyRangeFromDestination,
@@ -171,6 +172,9 @@ export function steerShip(entity: Entity, ctx: SteerContext): void {
       break;
     case "ATTACK_SLOW_DOGFIGHT":
       behaviourAttackSlowDogfight(entity, ctx);
+      break;
+    case "FORMATION_FORM_UP":
+      behaviourFormationFormUp(entity, ctx);
       break;
     case "AVOID_COLLISION":
       behaviourAvoidCollision(entity, ctx);

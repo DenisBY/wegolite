@@ -36,6 +36,7 @@ import { fileURLToPath } from "node:url";
 import { SCANNER_MAX_RANGE } from "../../../src/sim/npc/constants.js";
 import { steerShip } from "../../../src/sim/npc/dispatch.js";
 import type { SteerEvent } from "../../../src/sim/npc/dispatch.js";
+import { escortCoordinates } from "../../../src/sim/npc/escort.js";
 import {
   pairTriggers,
   proximityAlertFor,
@@ -361,9 +362,9 @@ export type RunnerHook = (args: RunnerArgs) => void;
  * The hook slots: `afterAssign` runs once after the `assign` calls at tick 0,
  * `beforeUpdate` runs at (b) of every tick (the escort leader refresh) and
  * `afterUpdate` at (d) (the proximity rule). `emptyHooks()` fills `afterAssign`
- * with the pending tracking-curve start (plan 14-12) and `afterUpdate` with
- * `proximityHook` (plan 14-15), the rule the contract's in-tick order gives
- * every fixture; `beforeUpdate` takes the escort leader refresh (plan 14-15).
+ * with the pending tracking-curve start (plan 14-12), `beforeUpdate` with
+ * `escortRefreshHook` and `afterUpdate` with `proximityHook` (plan 14-15), the
+ * same two rules the contract's in-tick order gives every fixture.
  */
 export interface RunnerHooks {
   readonly afterAssign: RunnerHook[];
@@ -381,6 +382,24 @@ export const startPendingCurveHook: RunnerHook = ({ self, view }) => {
   if (self.steer.trackingCount === 0) {
     startTrackingCurve(self, view, view.tick);
   }
+};
+
+/**
+ * The leader refresh of contract item 4 (b), plan 14-15: when `self.ownerId`
+ * names a body, `self`'s destination is the formation slot behind that body,
+ * through the same `escortCoordinates` as the world step's refresh, from the
+ * body's pose and radius after its motion of this tick. No such body (an owner
+ * of 0 or a dangling id) leaves the destination alone, the no-leader path.
+ */
+export const escortRefreshHook: RunnerHook = ({ self, bodies }) => {
+  if (self.ownerId === 0) return;
+  const leader = bodies.find((candidate) => candidate.id === self.ownerId);
+  if (leader === undefined) return;
+  self.nav.destination = escortCoordinates(
+    leader,
+    leader.radius,
+    self.steer.escortSlot,
+  );
 };
 
 /**
@@ -416,7 +435,7 @@ export const proximityHook: RunnerHook = ({ self, bodies, fixture }) => {
 export function emptyHooks(): RunnerHooks {
   return {
     afterAssign: [startPendingCurveHook],
-    beforeUpdate: [],
+    beforeUpdate: [escortRefreshHook],
     afterUpdate: [proximityHook],
   };
 }

@@ -101,6 +101,15 @@ export function enterBehaviour(entity: Entity, behaviour: BehaviourId): void {
         steer.entryPending = true;
       }
       break;
+    case "FORMATION_FORM_UP": // performEscort, ShipEntityAI.m:365-371
+      if (nav.behaviour !== "FORMATION_FORM_UP") {
+        nav.behaviour = "FORMATION_FORM_UP";
+        steer.frustration = 0; // behaviour changed, reset frustration
+      }
+      // already in formation: nothing changes, and no earlier pending entry of
+      // the same think survives it (last perform wins); no deferred part
+      steer.entryPending = false;
+      break;
     case "ATTACK_TARGET": // performAttack, ShipEntityAI.m:350-357
       if (nav.behaviour === "EVASIVE_ACTION") {
         // the guard makes the call a no-op: nothing changes, and no earlier
