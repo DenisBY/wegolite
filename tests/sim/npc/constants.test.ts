@@ -53,6 +53,41 @@ describe("the flight model constants", () => {
   });
 });
 
+describe("the navigation steering constants", () => {
+  it.each([
+    ["TRACK_MIN_D", ledger.TRACK_MIN_D, 0.004], // ShipEntity.m:9464
+    ["TRACK_PRECISION", ledger.TRACK_PRECISION, 0.9025], // :9466
+    ["TRACK_MAX_COS_CEILING", ledger.TRACK_MAX_COS_CEILING, 0.99999], // :9488-9490
+    ["TRACK_STICK_STEP", ledger.TRACK_STICK_STEP, 0.125], // :9530
+    ["TRACK_FACTOR_CAP", ledger.TRACK_FACTOR_CAP, 8], // :9527
+    ["TRACK_PITCH_FALLBACK", ledger.TRACK_PITCH_FALLBACK, 0.01], // :9564
+    ["PITCHING_OVER_COS", ledger.PITCHING_OVER_COS, 0.707], // :9513
+    ["FLY_TO_MIN_CONFIDENCE", ledger.FLY_TO_MIN_CONFIDENCE, 0.2], // :5071-5072
+    ["FLY_TO_ETA_SPEED_FACTOR", ledger.FLY_TO_ETA_SPEED_FACTOR, 0.51], // :5085
+    ["FLY_TO_NO_THRUST_SLOWDOWN", ledger.FLY_TO_NO_THRUST_SLOWDOWN, 4], // :5086
+    [
+      "FLY_TO_TURN_SPEED_COEFFICIENT",
+      ledger.FLY_TO_TURN_SPEED_COEFFICIENT,
+      0.05,
+    ], // :5087
+    ["FLY_TO_ORBIT_FACTOR", ledger.FLY_TO_ORBIT_FACTOR, 5], // :5095
+    ["FLY_TO_SPEED_CUT", ledger.FLY_TO_SPEED_CUT, 0.5], // :5096
+    ["FLY_TO_FRUSTRATION_RELIEF", ledger.FLY_TO_FRUSTRATION_RELIEF, 0.25], // :5119
+    ["FLY_TO_FRUSTRATION_LIMIT", ledger.FLY_TO_FRUSTRATION_LIMIT, 15], // :5124
+    ["FLY_TO_SLOWDOWN_LIMIT_FACTOR", ledger.FLY_TO_SLOWDOWN_LIMIT_FACTOR, 10], // :5124
+    ["FLY_TO_SLOWDOWN_RESET_FACTOR", ledger.FLY_TO_SLOWDOWN_RESET_FACTOR, 5], // :5127
+    ["FACE_PRECISION", ledger.FACE_PRECISION, 0.9], // :4927
+    ["FACE_MIN_RANGE", ledger.FACE_MIN_RANGE, 1], // :4926
+    ["FACE_FRUSTRATION_LIMIT", ledger.FACE_FRUSTRATION_LIMIT, 15], // :4945
+    ["FACE_ESCAPE_PITCH", ledger.FACE_ESCAPE_PITCH, 0.5], // :4950
+    ["FACE_DAMPING_FRUSTRATION", ledger.FACE_DAMPING_FRUSTRATION, 5], // :4958
+    ["FACE_DAMPING_CONFIDENCE", ledger.FACE_DAMPING_CONFIDENCE, 0.5], // :4958
+    ["FACE_DAMPING_SHARE", ledger.FACE_DAMPING_SHARE, 0.5], // :4959
+  ])("%s is %d", (_name, actual, expected) => {
+    expect(actual).toBe(expected);
+  });
+});
+
 describe("the combat AI tiers (ShipEntity.h:123-137)", () => {
   const tiers = {
     COMBAT_AI_CONFIDENCE_FACTOR: 1250000, // :123

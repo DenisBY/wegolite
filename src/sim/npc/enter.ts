@@ -62,6 +62,11 @@ export function enterBehaviour(entity: Entity, behaviour: BehaviourId): void {
       // The sticks need two draws and the ship's stats: deferred.
       steer.entryPending = true;
       break;
+    case "FLY_RANGE_FROM_DESTINATION": // performFlyToRangeFromDestination, ShipEntityAI.m:394-398
+      nav.behaviour = "FLY_RANGE_FROM_DESTINATION";
+      steer.frustration = 0;
+      steer.entryPending = false;
+      break;
     default:
       nav.behaviour = behaviour;
       steer.entryPending = false;

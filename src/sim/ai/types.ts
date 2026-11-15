@@ -74,6 +74,8 @@ export const AI_EVENT_NAMES = [
   "offenceCommittedNearby",
   "distressMessageReceived",
   "helpRequestReceived",
+  "shipNowFacingDestination",
+  "shipAIFrustrated",
 ] as const;
 export type AiEventName = (typeof AI_EVENT_NAMES)[number];
 

@@ -85,6 +85,78 @@ export const MAX_COS = 0.995;
 /** `MAX_COS * MAX_COS` (`ShipEntity.h:143`). */
 export const MAX_COS2 = MAX_COS * MAX_COS;
 
+/** `min_d`, the dead zone of every stick decision of `trackDestination:` (`ShipEntity.m:9464`). */
+export const TRACK_MIN_D = 0.004;
+
+/** `precision` of `trackDestination:` while not docking (`ShipEntity.m:9466`). */
+export const TRACK_PRECISION = 0.9025;
+
+/** The ceiling of the aim cosine when far from the range sphere (`ShipEntity.m:9488-9490`). */
+export const TRACK_MAX_COS_CEILING = 0.99999;
+
+/** The stick is `0.125 * factor` of the maximum rate (`ShipEntity.m:9530-9556`). */
+export const TRACK_STICK_STEP = 0.125;
+
+/** The cap on the integer `factor` (`ShipEntity.m:9527, 9539, 9551`). */
+export const TRACK_FACTOR_CAP = 8;
+
+/** The pitch used when the ship is off course but within `min_d` (`ShipEntity.m:9564`). */
+export const TRACK_PITCH_FALLBACK = 0.01;
+
+/** The cosine below which a pitching-over ship keeps pitching (`ShipEntity.m:9513`). */
+export const PITCHING_OVER_COS = 0.707;
+
+/** The floor of fly-to's confidence factor (`ShipEntity.m:5071-5072`). */
+export const FLY_TO_MIN_CONFIDENCE = 0.2;
+
+/** The ETA assumes half the current speed plus a 2% margin (`ShipEntity.m:5085`). */
+export const FLY_TO_ETA_SPEED_FACTOR = 0.51;
+
+/** The slowdown time of a ship with no thrust (`ShipEntity.m:5086`). */
+export const FLY_TO_NO_THRUST_SLOWDOWN = 4;
+
+/** `minTurnSpeedFactor = 0.05 * pitch * roll` (`ShipEntity.m:5087`). */
+export const FLY_TO_TURN_SPEED_COEFFICIENT = 0.05;
+
+/** The orbit-speed limit factor, `max_flight_pitch * 5 * ...` (`ShipEntity.m:5095`). */
+export const FLY_TO_ORBIT_FACTOR = 5;
+
+/** Fly-to cuts its speed to this fraction when it would overshoot (`ShipEntity.m:5096`). */
+export const FLY_TO_SPEED_CUT = 0.5;
+
+/** Frustration shrinks by this much per second of progress (`ShipEntity.m:5119`). */
+export const FLY_TO_FRUSTRATION_RELIEF = 0.25;
+
+/** Fly-to reports frustration after this many seconds regardless of speed (`ShipEntity.m:5124`). */
+export const FLY_TO_FRUSTRATION_LIMIT = 15;
+
+/** Frustration limit in units of `slowdownTime` (`ShipEntity.m:5124`). */
+export const FLY_TO_SLOWDOWN_LIMIT_FACTOR = 10;
+
+/** Frustration drops by this many slowdown times after a report (`ShipEntity.m:5127`). */
+export const FLY_TO_SLOWDOWN_RESET_FACTOR = 5;
+
+/** The share of the desired range face-destination aims inside (`ShipEntity.m:4927`). */
+export const FACE_PRECISION = 0.9;
+
+/** The smallest desired range for which face-destination aims inside it (`ShipEntity.m:4926`). */
+export const FACE_MIN_RANGE = 1;
+
+/** Face-destination's frustration limit is this over `max_flight_pitch` (`ShipEntity.m:4945`). */
+export const FACE_FRUSTRATION_LIMIT = 15;
+
+/** The escape pitch is this share of `max_flight_pitch` (`ShipEntity.m:4950`). */
+export const FACE_ESCAPE_PITCH = 0.5;
+
+/** The frustration above which the sign-flip damping may run (`ShipEntity.m:4958`). */
+export const FACE_DAMPING_FRUSTRATION = 5;
+
+/** The confidence above which the sign-flip damping may run (`ShipEntity.m:4958`). */
+export const FACE_DAMPING_CONFIDENCE = 0.5;
+
+/** The share of the old pitch added by the damping (`ShipEntity.m:4959`). */
+export const FACE_DAMPING_SHARE = 0.5;
+
 /* ---------------------------------------------------------------------------
  * Combat AI tiers (`ShipEntity.h:123-137`)
  * ------------------------------------------------------------------------- */
