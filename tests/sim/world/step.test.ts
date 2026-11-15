@@ -5,9 +5,9 @@
  * The world step and its composition with the flight step (FOUND-11,
  * FOUND-13, D-04, D-08, D-14). Expected values come from the rules (ascending
  * id order over a length snapshot, integer timers, run-versus-run equality),
- * never from running the code under test. Exactly one test pins the Phase 8
- * placeholder integrator; every other test is relational so the Phase 12/13
- * thrust port can replace the integrator without touching them.
+ * never from running the code under test. Plan 14-11 replaced the Phase 8
+ * constant-speed integrator with the native flight model; the one test that
+ * pinned it now pins the thrust ramp, and every other test is relational.
  */
 
 import { readFileSync } from "node:fs";
@@ -135,11 +135,38 @@ describe("stepWorld validation", () => {
   });
 });
 
-describe("the Phase 8 placeholder integrator", () => {
-  // The ONE test that pins the constant-speed model. Phase 12/13 replaces the
-  // integrator with Oolite's thrust and attitude port and deletes this test.
-  // D-02: only an entity with an AI moves; the moving case is a test pilot.
-  it("advances an entity with an AI by forward times speed times dt (Phase 8 model)", () => {
+describe("the native flight update of an entity with an AI (plan 14-11)", () => {
+  // Re-pinned from the Phase 8 constant-speed integrator (D-02, PROJECT.md row
+  // (d)): an entity with an AI is now flown by steerShip, so its speed ramps
+  // toward the desired speed at 5 * thrust per second (SHIP_THRUST_FACTOR 5,
+  // ShipEntity.m:5808-5854) and the ship then moves forward by speed * dt
+  // (Entity.m:796-800). Default stats: thrust 15 (ShipEntity.m:263-270), so the
+  // ramp adds 5 * 15 * DT = 0.625 m/s per tick. Only an entity with an AI moves;
+  // the moving case is a test pilot whose think is never due.
+  const RAMP = 5 * 15 * DT;
+
+  it("ramps from rest toward the desired speed instead of jumping to it", () => {
+    const world = createWorld(1);
+    const player = initFlightState(layout);
+    const entity = spawnOk(
+      world,
+      shipInit(vec(10, 20, 30), aiDueAt(MAX_UINT32), 0),
+    );
+    entity.nav.desiredSpeed = 60;
+    player.tick = 1;
+    stepWorld(world, player, layout, DT);
+    // After one tick the speed is one ramp step, not 60 (the placeholder's).
+    expect(entity.speed).toBeCloseTo(RAMP, 12);
+    expect(entity.position.x).toBeCloseTo(10, 9);
+    expect(entity.position.y).toBeCloseTo(20, 9);
+    expect(entity.position.z).toBeCloseTo(30 - RAMP * DT, 9);
+    player.tick = 2;
+    stepWorld(world, player, layout, DT);
+    expect(entity.speed).toBeCloseTo(2 * RAMP, 12);
+    expect(entity.position.z).toBeCloseTo(30 - RAMP * DT - 2 * RAMP * DT, 9);
+  });
+
+  it("holds the desired speed once it is reached and moves by speed times dt", () => {
     const world = createWorld(1);
     const player = initFlightState(layout);
     const entity = spawnOk(

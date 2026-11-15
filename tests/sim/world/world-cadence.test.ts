@@ -67,6 +67,7 @@ import {
 import type { World } from "../../../src/sim/world/world.js";
 import { realHullTable } from "../../helpers/hull-table.js";
 import { LAVE_SYSTEM_ID, laveFixture } from "../../helpers/lave.js";
+import { realNpcFlightTable } from "../../helpers/npc-flight.js";
 import { realNpcWeapons } from "../../helpers/npc-weapons.js";
 
 const LEESTI_SYSTEM_ID = "g0-s55";
@@ -159,6 +160,7 @@ class Scenario {
         target: { id: leesti.id, x: leesti.chartX, y: leesti.chartY },
         ...(stationMass === undefined ? {} : { stationMass }),
       },
+      npcFlight: realNpcFlightTable(),
     };
   }
 
@@ -416,6 +418,7 @@ class CombatScenario {
       hulls: HULLS,
       npcWeapons: NPC_WEAPONS,
     },
+    npcFlight: realNpcFlightTable(),
   };
 
   private spawn(
