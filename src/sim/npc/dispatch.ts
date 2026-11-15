@@ -50,6 +50,11 @@ import type { AiEventName } from "../ai/types.js";
 import type { Entity } from "../world/entity.js";
 import type { EntityId } from "../world/ids.js";
 import type { WorldView } from "../world/view.js";
+import { behaviourAttackTarget } from "./behaviours/attack.js";
+import {
+  behaviourAttackFlyFromTarget,
+  behaviourAttackFlyToTarget,
+} from "./behaviours/attack-close.js";
 import { behaviourEvasiveAction } from "./behaviours/evasive.js";
 import { behaviourFaceDestination } from "./behaviours/face-destination.js";
 import { behaviourFleeTarget } from "./behaviours/flee.js";
@@ -137,6 +142,15 @@ export function steerShip(entity: Entity, ctx: SteerContext): void {
     case "EVASIVE_ACTION":
     case "FLEE_EVASIVE_ACTION": // both run behaviour_evasive_action (2575-2578)
       behaviourEvasiveAction(entity, ctx);
+      break;
+    case "ATTACK_TARGET":
+      behaviourAttackTarget(entity, ctx);
+      break;
+    case "ATTACK_FLY_TO_TARGET":
+      behaviourAttackFlyToTarget(entity, ctx);
+      break;
+    case "ATTACK_FLY_FROM_TARGET":
+      behaviourAttackFlyFromTarget(entity, ctx);
       break;
     default:
       // The recorded fallback for every id not ported yet or out of scope.

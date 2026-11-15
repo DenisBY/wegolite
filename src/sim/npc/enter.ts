@@ -35,6 +35,8 @@ import type { Entity } from "../world/entity.js";
 import {
   ACCURACY_DRAW_OFFSET,
   ACCURACY_DRAW_SPAN,
+  ATTACK_DESIRED_RANGE_BASE,
+  ATTACK_DESIRED_RANGE_SPAN,
   COMBAT_AI_ISNT_AWFUL,
   EVASIVE_JINK_Z,
   FLEE_EVASIVE_ASPECT,
@@ -99,6 +101,18 @@ export function enterBehaviour(entity: Entity, behaviour: BehaviourId): void {
         steer.entryPending = true;
       }
       break;
+    case "ATTACK_TARGET": // performAttack, ShipEntityAI.m:350-357
+      if (nav.behaviour === "EVASIVE_ACTION") {
+        // the guard makes the call a no-op: nothing changes, and no earlier
+        // pending entry of the same think survives it (last perform wins)
+        steer.entryPending = false;
+      } else {
+        nav.behaviour = "ATTACK_TARGET";
+        steer.frustration = 0;
+        // the desired range needs a draw: deferred
+        steer.entryPending = true;
+      }
+      break;
     default:
       nav.behaviour = behaviour;
       steer.entryPending = false;
@@ -140,6 +154,11 @@ export function completeEntry(entity: Entity, ctx: SteerContext): void {
       }
       break;
     }
+    case "ATTACK_TARGET":
+      // performAttack, ShipEntityAI.m:354: 750 til 2000
+      entity.nav.desiredRange =
+        ATTACK_DESIRED_RANGE_SPAN * ctx.draw() + ATTACK_DESIRED_RANGE_BASE;
+      break;
     default:
       break;
   }

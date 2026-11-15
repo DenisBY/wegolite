@@ -26,6 +26,7 @@ const FLIGHT_TEST = "tests/sim/npc/flight.oracle.test.ts";
 const NAVIGATION_TEST = "tests/sim/npc/navigation.oracle.test.ts";
 const RATE_RULE_TEST = "tests/sim/npc/rate-rule.oracle.test.ts";
 const PURSUIT_TEST = "tests/sim/npc/pursuit.oracle.test.ts";
+const ATTACK_TEST = "tests/sim/npc/attack.oracle.test.ts";
 
 export const ORACLE_GROUPS: readonly OracleGroup[] = Object.freeze([
   Object.freeze({
@@ -59,6 +60,14 @@ export const ORACLE_GROUPS: readonly OracleGroup[] = Object.freeze([
   Object.freeze({
     fixtureFile: "tests/oracles/npc/pursuit/fixtures/flee.json",
     testFile: PURSUIT_TEST,
+  }),
+  Object.freeze({
+    fixtureFile: "tests/oracles/npc/pursuit/fixtures/attack-dispatch.json",
+    testFile: ATTACK_TEST,
+  }),
+  Object.freeze({
+    fixtureFile: "tests/oracles/npc/pursuit/fixtures/attack-close.json",
+    testFile: ATTACK_TEST,
   }),
 ]);
 

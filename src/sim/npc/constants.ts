@@ -322,3 +322,234 @@ export const EVASIVE_ROLL_AGREEMENT = 0.3;
 
 /** An evasive behaviour hands over after this many seconds (`ShipEntity.m:4021`). */
 export const EVASIVE_FRUSTRATION_LIMIT = 0.5;
+
+/* ---------------------------------------------------------------------------
+ * Attack (plan 14-14): the dispatcher and its in-scope sub-behaviours
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Wegolite addition, not an Oolite number: an approach aspect smaller than this
+ * is exactly 0. A quaternion rotation of an axis-aligned pose leaves a residue of
+ * about 2.2e-16 (`2 y^2 - 1` for a quarter turn is never 0 in doubles) where
+ * Oolite's exact basis vectors give 0, and the attack code compares the aspect
+ * with 0 (`aspect < 0`, `aspect > 0`, `ShipEntity.m:4100, 4164, 3977`).
+ */
+export const ASPECT_ZERO_SNAP = 1e-12;
+
+/**
+ * The range of a ship with no forward weapon, in metres: `isWeaponNone` leaves
+ * the weapon type nil and `setWeaponDataFromType:nil` sets `weaponRange =
+ * [nil weaponRange]`, which is 0 (`ShipEntity.m:443-466, 13041-13044`). It is
+ * NOT the 32000 m a naive default would give: it decides the exit test of
+ * fly-from (`ShipEntity.m:4775`) for every unarmed ship such as the Shuttle.
+ */
+export const NO_WEAPON_RANGE = 0;
+
+/** `COMBAT_IN_RANGE_FACTOR`, a share of the weapon range (`ShipEntity.h:56`). */
+export const COMBAT_IN_RANGE_FACTOR = 0.035;
+
+/** `COMBAT_OUT_RANGE_FACTOR` (`ShipEntity.h:58`). */
+export const COMBAT_OUT_RANGE_FACTOR = 0.5;
+
+/** `COMBAT_WEAPON_RANGE_FACTOR` (`ShipEntity.h:60`). */
+export const COMBAT_WEAPON_RANGE_FACTOR = 1.2;
+
+/** `COMBAT_JINK_OFFSET`, metres (`ShipEntity.h:61`). */
+export const COMBAT_JINK_OFFSET = 500;
+
+/** `NPC_MAX_WEAPON_TEMP` (`ShipEntity.h:116`). */
+export const NPC_MAX_WEAPON_TEMP = 256;
+
+/** `0.25 * NPC_MAX_WEAPON_TEMP`: below it a weapon is ready (`ShipEntity.h:119`). */
+export const NPC_WEAPON_TEMP_READY = 0.25 * NPC_MAX_WEAPON_TEMP;
+
+/** `0.85 * NPC_MAX_WEAPON_TEMP`: below it a weapon is usable (`ShipEntity.h:117, 120`). */
+export const NPC_WEAPON_TEMP_USABLE = 0.85 * NPC_MAX_WEAPON_TEMP;
+
+/**
+ * The temperature of an NPC's weapon: always 0, because no NPC fires in v2.2
+ * (CBT-15 is unscheduled), so the weapon never heats.
+ */
+export const NPC_WEAPON_TEMP = 0;
+
+/** `performAttack`'s `desired_range = 1250 * randf() + 750` (`ShipEntityAI.m:354`). */
+export const ATTACK_DESIRED_RANGE_SPAN = 1250;
+
+/** See `ATTACK_DESIRED_RANGE_SPAN` (`ShipEntityAI.m:354`). */
+export const ATTACK_DESIRED_RANGE_BASE = 750;
+
+/** An armed attacker that is smart picks EVASIVE_ACTION below this draw (`ShipEntity.m:4102`). */
+export const ATTACK_SMART_EVASIVE_CHANCE = 0.75;
+
+/** A forward weapon with more range than this may snipe (`ShipEntity.m:4160`). */
+export const SNIPER_WEAPON_RANGE = 12500;
+
+/** The target must also be farther than this to snipe (`ShipEntity.m:4160`). */
+export const SNIPER_ENTRY_RANGE = 12500;
+
+/** The sniper hands back to ATTACK_TARGET inside this range (`ShipEntity.m:4414-4415`). */
+export const SNIPER_BOUNCE_RANGE = 15000;
+
+/** The sniper closes at full speed beyond this share of the scanner range (`ShipEntity.m:4417`). */
+export const SNIPER_SCANNER_SHARE = 0.8;
+
+/** The sniper's slow approach is a tenth of the maximum speed (`ShipEntity.m:4426`). */
+export const SNIPER_SLOW_DIVISOR = 10;
+
+/** The sniper's frustration limit, seconds (`ShipEntity.m:4438`). */
+export const SNIPER_FRUSTRATION_LIMIT = 3;
+
+/** The `setEvasiveJink:` argument after the sniper's or fly-to's frustration (`ShipEntity.m:4441, 4699`). */
+export const ATTACK_FRUSTRATION_JINK_Z = 1000;
+
+/** Success above this counts as tracking well (`ShipEntity.m:4432, 4690`). */
+export const ATTACK_SUCCESS_GOOD = 0.999;
+
+/** Fly-to's frustration limit, seconds (`ShipEntity.m:4696`). */
+export const FLY_TO_TARGET_FRUSTRATION_LIMIT = 3;
+
+/** The back-off range base of fly-to, metres (`ShipEntity.m:4652`). */
+export const FLY_TO_TARGET_BACK_OFF_BASE = 10000;
+
+/** The aspect above which the target is treated as aiming at us (`ShipEntity.m:4658-4659`). */
+export const FLY_TO_TARGET_AIMED_ASPECT = 0.8;
+
+/** Speed factors of fly-to, each a share of the target's speed or of `maxFlightSpeed` (`ShipEntity.m:4660-4683`). */
+export const FLY_TO_TARGET_SPEEDS = Object.freeze({
+  /** target speed x 1.25 and `maxFlightSpeed` x 0.8 when aimed at (4660). */
+  aimedTarget: 1.25,
+  aimedMax: 0.8,
+  /** target speed x 1.05 and `maxFlightSpeed` x 0.25 inside the weapon range (4663). */
+  matchTarget: 1.05,
+  matchMax: 0.25,
+  /** the patient approach, x 0.1 of both (4666). */
+  patient: 0.1,
+  /** target speed x 1.5 beyond the back-off range (4670). */
+  farTarget: 1.5,
+  /** the slow-down branch: x 0.5 (4673) and x 1.25 (4675) of the target speed, x 0.5 of the maximum. */
+  slowTarget: 0.5,
+  slowBehindTarget: 1.25,
+  slowMax: 0.5,
+  /** the approach speed is max(maxFlightSpeed, min(3 x target speed, max)) (4683). */
+  approachTarget: 3,
+});
+
+/** The aspect below which fly-to slows more, "aspect > -0.25" (`ShipEntity.m:4672`). */
+export const FLY_TO_TARGET_SLOW_ASPECT = -0.25;
+
+/** Fly-from's frustration share when the target is not closing, `delta_t / 4` (`ShipEntity.m:4747`). */
+export const FLY_FROM_SLOW_FRUSTRATION_DIVISOR = 4;
+
+/** Fly-from's frustration limit, seconds (`ShipEntity.m:4750`). */
+export const FLY_FROM_FRUSTRATION_LIMIT = 10;
+
+/** The chance of each of fly-from's three `randf()` tests (`ShipEntity.m:4751, 4753, 4757`). */
+export const FLY_FROM_CHANCE = 0.3;
+
+/** Fly-from's speed doubling: twice the flight speed, and the injector test against twice the target's (`ShipEntity.m:4759, 4768`). */
+export const FLY_FROM_SPEED_FACTOR = 2;
+
+/** Fly-from halves the z offset and the frustration (`ShipEntity.m:4758, 4763`). */
+export const FLY_FROM_HALVING = 2;
+
+/** `desired_speed < maxFlightSpeed * 0.5` resets it (`ShipEntity.m:4771`). */
+export const FLY_FROM_MIN_SPEED_SHARE = 0.5;
+
+/** The jink weight of fly-from's exit test: `15 * jink.x` (`ShipEntity.m:4775`). */
+export const FLY_FROM_JINK_WEIGHT = 15;
+
+/** The turn-rate divisor of fly-from's speed clause, 2 pi rounded (`ShipEntity.m:4775`). */
+export const FLY_FROM_TURN_DIVISOR = 6.28;
+
+/** Fly-from dodges when the target's aspect is beyond these (`ShipEntity.m:4794`). */
+export const FLY_FROM_DODGE_FRONT = 0.99999;
+
+/** See `FLY_FROM_DODGE_FRONT` (`ShipEntity.m:4794`). */
+export const FLY_FROM_DODGE_BEHIND = -0.999;
+
+/** Six and twelve speed factors (`ShipEntity.m:4505-4526`). */
+export const SIX_SPEEDS = Object.freeze({
+  /** inside the back-off range with the slow-down on: x 0.9 target, x 0.4 maximum (4505). */
+  closeTarget: 0.9,
+  closeMax: 0.4,
+  /** inside the slow-down range, outside the back-off range: x 1.2 target (4507). */
+  slowTarget: 1.2,
+  /** outside the slow-down range, inside the back-off range: x 0.9 target, x 0.8 maximum (4515). */
+  nearMax: 0.8,
+});
+
+/** Six switches to twelve when the range is below this share of the distance (`ShipEntity.m:4511`). */
+export const SIX_HEAD_ON_SHARE = 0.5;
+
+/** The distance within which six and twelve vector in, metres (`ShipEntity.m:4523`). */
+export const SIX_VECTOR_IN_DISTANCE = 750;
+
+/** A target slower than this is "almost at a standstill" (`ShipEntity.m:4523`). */
+export const SIX_STANDSTILL_SPEED = 0.2;
+
+/** The `universalID` mask and bound of the standstill test (`ShipEntity.m:4523`). */
+export const SIX_STANDSTILL_ID_MASK = 14;
+
+/** See `SIX_STANDSTILL_ID_MASK` (`ShipEntity.m:4523`). */
+export const SIX_STANDSTILL_ID_BOUND = 4;
+
+/** The vector-in speed is `max(target speed, 0.4 * maxFlightSpeed)` (`ShipEntity.m:4526`). */
+export const SIX_VECTOR_IN_MAX_SHARE = 0.4;
+
+/** The point six heads for is this share of the weapon range behind the target (`ShipEntity.m:4533`). */
+export const SIX_BEHIND_SHARE = 0.5;
+
+/** The point twelve heads for is this many metres above the target (`ShipEntity.m:4552`). */
+export const TWELVE_ABOVE = 1250;
+
+/** The confidence below which six and twelve add frustration (`ShipEntity.m:4559`). */
+export const SIX_CONFIDENCE_LIMIT = 0.85;
+
+/** The share of dt frustration relaxes by (`ShipEntity.m:4562`). */
+export const SIX_FRUSTRATION_RELIEF = 0.75;
+
+/** Frustration above this, or an aspect above `SIX_VECTOR_IN_ASPECT`, vectors in (`ShipEntity.m:4565`). */
+export const SIX_FRUSTRATION_LIMIT = 10;
+
+/** See `SIX_FRUSTRATION_LIMIT` (`ShipEntity.m:4565`). */
+export const SIX_VECTOR_IN_ASPECT = 0.75;
+
+/** Break-off's frustration thresholds, seconds (`ShipEntity.m:3917, 3932`). */
+export const BREAK_OFF_SLOW_FRUSTRATION = 15;
+
+/** See `BREAK_OFF_SLOW_FRUSTRATION` (`ShipEntity.m:3932`). */
+export const BREAK_OFF_HAND_OVER_FRUSTRATION = 10;
+
+/** Break-off retreats beyond this range, metres (`ShipEntity.m:3921`). */
+export const BREAK_OFF_FAR_RANGE = 3000;
+
+/** The evasive fraction is `fmin(1.6 / max_flight_roll, aspect)` (`ShipEntity.m:3921`). */
+export const BREAK_OFF_ROLL_COEFFICIENT = 1.6;
+
+/** Break-off hands to slow dogfight when the aspect is below this (`ShipEntity.m:3930`). */
+export const BREAK_OFF_DOGFIGHT_ASPECT = -0.75;
+
+/** Break-off's second hand-over needs an aspect below this (`ShipEntity.m:3932`). */
+export const BREAK_OFF_HAND_OVER_ASPECT = 0.85;
+
+/** Slow dogfight's close-in test: `2.5 * (collision radii)` (`ShipEntity.m:3957`). */
+export const DOGFIGHT_CLOSE_FACTOR = 2.5;
+
+/** Slow dogfight's aspect bands (`ShipEntity.m:3962-3975`). */
+export const DOGFIGHT_BEHIND_ASPECT = -0.5;
+
+/** See `DOGFIGHT_BEHIND_ASPECT` (`ShipEntity.m:3967`). */
+export const DOGFIGHT_SIDE_ASPECT = 0.3;
+
+/** The aspect above which slow dogfight hands over to break-off (`ShipEntity.m:3974`). */
+export const DOGFIGHT_BREAK_OFF_ASPECT = 0.85;
+
+/** Slow dogfight: x 0.5 while behind (3966), x 0.1 abeam (3969), x 2.5 of the aspect in front (3972). */
+export const DOGFIGHT_SPEEDS = Object.freeze({
+  behindShare: 0.5,
+  sideShare: 0.1,
+  frontFactor: 2.5,
+});
+
+/** Slow dogfight halves the speed past this frustration, seconds (`ShipEntity.m:3982`). */
+export const DOGFIGHT_FRUSTRATION_LIMIT = 10;

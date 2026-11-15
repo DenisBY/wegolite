@@ -31,6 +31,7 @@ import {
   AIM_TOLERANCE_ACCURACY_FACTOR,
   AIM_TOLERANCE_BASE,
   AIM_TOLERANCE_SCALE,
+  ASPECT_ZERO_SNAP,
   CAN_TRACK_RANGE2_FACTOR,
   COMBAT_AI_ISNT_AWFUL,
   COMBAT_AI_TRACKS_CLOSER,
@@ -82,7 +83,8 @@ export function rangeToPrimaryTarget(
  * `approachAspectToPrimaryTarget` (`ShipEntity.m:9736-9749`): the cosine
  * between the target's forward vector and the direction from the target to this
  * ship, or 0 for no valid target. `vector_normal` of a zero vector is the zero
- * vector, so coincident centres give 0.
+ * vector, so coincident centres give 0. A cosine within `ASPECT_ZERO_SNAP` of 0
+ * is 0 (an exactly abeam pose, which Oolite's exact basis vectors hold exactly).
  */
 export function approachAspectToPrimaryTarget(
   entity: Entity,
@@ -91,7 +93,9 @@ export function approachAspectToPrimaryTarget(
   const target = targetBody(entity, ctx.view);
   if (target === undefined) return 0;
   const delta = normalizeVec(sub(entity.position, target.position));
-  return dot(delta, rotate(target.orientation, LOCAL_FORWARD));
+  const aspect = dot(delta, rotate(target.orientation, LOCAL_FORWARD));
+  // Wegolite addition (plan 14-14), not an Oolite line: see ASPECT_ZERO_SNAP.
+  return Math.abs(aspect) < ASPECT_ZERO_SNAP ? 0 : aspect;
 }
 
 /**

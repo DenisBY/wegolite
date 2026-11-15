@@ -207,3 +207,112 @@ describe("avoid collision, flee and evasive action (plan 14-13)", () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe("attack (plan 14-14)", () => {
+  it.each([
+    ["ASPECT_ZERO_SNAP", ledger.ASPECT_ZERO_SNAP, 1e-12], // Wegolite addition, not an Oolite number
+    ["NO_WEAPON_RANGE", ledger.NO_WEAPON_RANGE, 0], // [nil weaponRange], ShipEntity.m:443-466, 13041-13044
+    ["COMBAT_IN_RANGE_FACTOR", ledger.COMBAT_IN_RANGE_FACTOR, 0.035], // ShipEntity.h:56
+    ["COMBAT_OUT_RANGE_FACTOR", ledger.COMBAT_OUT_RANGE_FACTOR, 0.5], // :58
+    ["COMBAT_WEAPON_RANGE_FACTOR", ledger.COMBAT_WEAPON_RANGE_FACTOR, 1.2], // :60
+    ["COMBAT_JINK_OFFSET", ledger.COMBAT_JINK_OFFSET, 500], // :61
+    ["NPC_MAX_WEAPON_TEMP", ledger.NPC_MAX_WEAPON_TEMP, 256], // :116
+    ["NPC_WEAPON_TEMP_READY", ledger.NPC_WEAPON_TEMP_READY, 64], // 0.25 * 256, :119
+    ["NPC_WEAPON_TEMP_USABLE", ledger.NPC_WEAPON_TEMP_USABLE, 217.6], // 0.85 * 256, :117, 120
+    ["NPC_WEAPON_TEMP", ledger.NPC_WEAPON_TEMP, 0], // nothing fires (CBT-15)
+    ["ATTACK_DESIRED_RANGE_SPAN", ledger.ATTACK_DESIRED_RANGE_SPAN, 1250], // ShipEntityAI.m:354
+    ["ATTACK_DESIRED_RANGE_BASE", ledger.ATTACK_DESIRED_RANGE_BASE, 750], // :354
+    ["ATTACK_SMART_EVASIVE_CHANCE", ledger.ATTACK_SMART_EVASIVE_CHANCE, 0.75], // ShipEntity.m:4102
+    ["SNIPER_WEAPON_RANGE", ledger.SNIPER_WEAPON_RANGE, 12500], // :4160
+    ["SNIPER_ENTRY_RANGE", ledger.SNIPER_ENTRY_RANGE, 12500], // :4160
+    ["SNIPER_BOUNCE_RANGE", ledger.SNIPER_BOUNCE_RANGE, 15000], // :4414-4415
+    ["SNIPER_SCANNER_SHARE", ledger.SNIPER_SCANNER_SHARE, 0.8], // :4417
+    ["SNIPER_SLOW_DIVISOR", ledger.SNIPER_SLOW_DIVISOR, 10], // :4426
+    ["SNIPER_FRUSTRATION_LIMIT", ledger.SNIPER_FRUSTRATION_LIMIT, 3], // :4438
+    ["ATTACK_FRUSTRATION_JINK_Z", ledger.ATTACK_FRUSTRATION_JINK_Z, 1000], // :4441, 4699
+    ["ATTACK_SUCCESS_GOOD", ledger.ATTACK_SUCCESS_GOOD, 0.999], // :4432, 4690
+    [
+      "FLY_TO_TARGET_FRUSTRATION_LIMIT",
+      ledger.FLY_TO_TARGET_FRUSTRATION_LIMIT,
+      3,
+    ], // :4696
+    ["FLY_TO_TARGET_BACK_OFF_BASE", ledger.FLY_TO_TARGET_BACK_OFF_BASE, 10000], // :4652
+    ["FLY_TO_TARGET_AIMED_ASPECT", ledger.FLY_TO_TARGET_AIMED_ASPECT, 0.8], // :4658-4659
+    ["FLY_TO_TARGET_SLOW_ASPECT", ledger.FLY_TO_TARGET_SLOW_ASPECT, -0.25], // :4672
+    [
+      "FLY_FROM_SLOW_FRUSTRATION_DIVISOR",
+      ledger.FLY_FROM_SLOW_FRUSTRATION_DIVISOR,
+      4,
+    ], // :4747
+    ["FLY_FROM_FRUSTRATION_LIMIT", ledger.FLY_FROM_FRUSTRATION_LIMIT, 10], // :4750
+    ["FLY_FROM_CHANCE", ledger.FLY_FROM_CHANCE, 0.3], // :4751, 4753, 4757
+    ["FLY_FROM_SPEED_FACTOR", ledger.FLY_FROM_SPEED_FACTOR, 2], // :4759, 4768
+    ["FLY_FROM_HALVING", ledger.FLY_FROM_HALVING, 2], // :4758, 4763
+    ["FLY_FROM_MIN_SPEED_SHARE", ledger.FLY_FROM_MIN_SPEED_SHARE, 0.5], // :4771
+    ["FLY_FROM_JINK_WEIGHT", ledger.FLY_FROM_JINK_WEIGHT, 15], // :4775
+    ["FLY_FROM_TURN_DIVISOR", ledger.FLY_FROM_TURN_DIVISOR, 6.28], // :4775
+    ["FLY_FROM_DODGE_FRONT", ledger.FLY_FROM_DODGE_FRONT, 0.99999], // :4794
+    ["FLY_FROM_DODGE_BEHIND", ledger.FLY_FROM_DODGE_BEHIND, -0.999], // :4794
+    ["SIX_HEAD_ON_SHARE", ledger.SIX_HEAD_ON_SHARE, 0.5], // :4511
+    ["SIX_VECTOR_IN_DISTANCE", ledger.SIX_VECTOR_IN_DISTANCE, 750], // :4523
+    ["SIX_STANDSTILL_SPEED", ledger.SIX_STANDSTILL_SPEED, 0.2], // :4523
+    ["SIX_STANDSTILL_ID_MASK", ledger.SIX_STANDSTILL_ID_MASK, 14], // :4523
+    ["SIX_STANDSTILL_ID_BOUND", ledger.SIX_STANDSTILL_ID_BOUND, 4], // :4523
+    ["SIX_VECTOR_IN_MAX_SHARE", ledger.SIX_VECTOR_IN_MAX_SHARE, 0.4], // :4526
+    ["SIX_BEHIND_SHARE", ledger.SIX_BEHIND_SHARE, 0.5], // :4533
+    ["TWELVE_ABOVE", ledger.TWELVE_ABOVE, 1250], // :4552
+    ["SIX_CONFIDENCE_LIMIT", ledger.SIX_CONFIDENCE_LIMIT, 0.85], // :4559
+    ["SIX_FRUSTRATION_RELIEF", ledger.SIX_FRUSTRATION_RELIEF, 0.75], // :4562
+    ["SIX_FRUSTRATION_LIMIT", ledger.SIX_FRUSTRATION_LIMIT, 10], // :4565
+    ["SIX_VECTOR_IN_ASPECT", ledger.SIX_VECTOR_IN_ASPECT, 0.75], // :4565
+    ["BREAK_OFF_SLOW_FRUSTRATION", ledger.BREAK_OFF_SLOW_FRUSTRATION, 15], // :3917
+    [
+      "BREAK_OFF_HAND_OVER_FRUSTRATION",
+      ledger.BREAK_OFF_HAND_OVER_FRUSTRATION,
+      10,
+    ], // :3932
+    ["BREAK_OFF_FAR_RANGE", ledger.BREAK_OFF_FAR_RANGE, 3000], // :3921
+    ["BREAK_OFF_ROLL_COEFFICIENT", ledger.BREAK_OFF_ROLL_COEFFICIENT, 1.6], // :3921
+    ["BREAK_OFF_DOGFIGHT_ASPECT", ledger.BREAK_OFF_DOGFIGHT_ASPECT, -0.75], // :3930
+    ["BREAK_OFF_HAND_OVER_ASPECT", ledger.BREAK_OFF_HAND_OVER_ASPECT, 0.85], // :3932
+    ["DOGFIGHT_CLOSE_FACTOR", ledger.DOGFIGHT_CLOSE_FACTOR, 2.5], // :3957
+    ["DOGFIGHT_BEHIND_ASPECT", ledger.DOGFIGHT_BEHIND_ASPECT, -0.5], // :3962, 3964
+    ["DOGFIGHT_SIDE_ASPECT", ledger.DOGFIGHT_SIDE_ASPECT, 0.3], // :3967
+    ["DOGFIGHT_BREAK_OFF_ASPECT", ledger.DOGFIGHT_BREAK_OFF_ASPECT, 0.85], // :3974
+    ["DOGFIGHT_FRUSTRATION_LIMIT", ledger.DOGFIGHT_FRUSTRATION_LIMIT, 10], // :3982
+  ])("%s is %d", (_name, actual, expected) => {
+    expect(actual).toBe(expected);
+  });
+
+  it("the speed factor tables are the literals of the cited lines", () => {
+    expect(ledger.FLY_TO_TARGET_SPEEDS).toEqual({
+      aimedTarget: 1.25, // :4660
+      aimedMax: 0.8, // :4660
+      matchTarget: 1.05, // :4663
+      matchMax: 0.25, // :4663
+      patient: 0.1, // :4666
+      farTarget: 1.5, // :4670
+      slowTarget: 0.5, // :4673
+      slowBehindTarget: 1.25, // :4675
+      slowMax: 0.5, // :4673, 4675
+      approachTarget: 3, // :4683
+    });
+    expect(ledger.SIX_SPEEDS).toEqual({
+      closeTarget: 0.9, // :4505, 4515
+      closeMax: 0.4, // :4505
+      slowTarget: 1.2, // :4507
+      nearMax: 0.8, // :4515
+    });
+    expect(ledger.DOGFIGHT_SPEEDS).toEqual({
+      behindShare: 0.5, // :3966
+      sideShare: 0.1, // :3969
+      frontFactor: 2.5, // :3972
+    });
+  });
+
+  it("the weapon temperature tiers agree with the 0.25 and 0.85 shares of 256 (ShipEntity.h:116-120)", () => {
+    expect(ledger.NPC_WEAPON_TEMP_READY).toBe(0.25 * 256);
+    expect(ledger.NPC_WEAPON_TEMP_USABLE).toBe(0.85 * 256);
+    expect(ledger.NPC_WEAPON_TEMP).toBeLessThan(ledger.NPC_WEAPON_TEMP_READY);
+  });
+});

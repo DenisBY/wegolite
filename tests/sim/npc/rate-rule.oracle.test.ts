@@ -123,6 +123,11 @@ const PORTED: readonly { file: string; from: number; to: number }[] = [
   // plan 14-13, task 3: evasive action
   { file: "src/Core/Entities/ShipEntity.m", from: 3996, to: 4036 }, // behaviour_evasive_action
   { file: "src/Core/Entities/ShipEntity.m", from: 9003, to: 9032 }, // evasiveAction
+  // plan 14-14: attack
+  { file: "src/Core/Entities/ShipEntity.m", from: 4038, to: 4185 }, // behaviour_attack_target
+  { file: "src/Core/Entities/ShipEntity.m", from: 4611, to: 4731 }, // behaviour_attack_fly_to_target
+  { file: "src/Core/Entities/ShipEntity.m", from: 4733, to: 4799 }, // behaviour_attack_fly_from_target
+  { file: "src/Core/Entities/ShipEntityAI.m", from: 350, to: 357 }, // performAttack
 ];
 
 /**
@@ -134,8 +139,6 @@ const PORTED: readonly { file: string; from: number; to: number }[] = [
  * both here and in the manifest).
  */
 const PENDING_FIXTURE_FILES: ReadonlySet<string> = new Set([
-  "tests/oracles/npc/pursuit/fixtures/attack-dispatch.json",
-  "tests/oracles/npc/pursuit/fixtures/attack-close.json",
   "tests/oracles/npc/pursuit/fixtures/attack-evade.json",
   "tests/oracles/npc/fixtures/avoid-collision.json",
   "tests/oracles/npc/fixtures/escort.json",
