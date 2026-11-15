@@ -36,13 +36,13 @@
     {
       "number": "14",
       "name": "NPC Flight and Steering Fidelity Gate",
-      "status": "pending"
+      "status": "in_progress"
     }
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (plan phase 14)",
-    "reason": "Phase 2 of 2 — needs a plan"
+    "label": "Advance to the next step",
+    "reason": "Phase 2 of 2 · 49% · executing"
   },
-  "updated_at": "2026-11-15T10:35:08.903Z"
+  "updated_at": "2026-11-15T17:42:55.261Z"
 }
