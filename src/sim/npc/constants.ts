@@ -553,3 +553,27 @@ export const DOGFIGHT_SPEEDS = Object.freeze({
 
 /** Slow dogfight halves the speed past this frustration, seconds (`ShipEntity.m:3982`). */
 export const DOGFIGHT_FRUSTRATION_LIMIT = 10;
+
+/* ---------------------------------------------------------------------------
+ * The proximity pass, avoid collision and escort formation (plan 14-15)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The pair trigger's squared distance factor: `PROXIMITY_WARN_DISTANCE` is 4
+ * (`Universe.h:99-100`), and `CollisionRegion.m:304-312` warns a pair when
+ * `dist2 < 16 x r^2` for either collision radius.
+ */
+export const PROXIMITY_WARN_DISTANCE2 = 16;
+
+/**
+ * `setProximityAlert:` ignores a body lighter than this, kg (`ShipEntity.m:6107`:
+ * "we are not alerted by small objects. (a cargopod has a mass of about
+ * 1000)"). The station and the player count as at or above it.
+ */
+export const PROXIMITY_MIN_MASS = 2000;
+
+/** The zone is `2 x r_self + r_other` (`ShipEntity.m:6126`). */
+export const PROXIMITY_ZONE_SELF_FACTOR = 2;
+
+/** A body ahead stretches the forward component by `0.25 x maxFlightSpeed / flightSpeed` (`ShipEntity.m:6122-6123`, "up to 400%"). */
+export const PROXIMITY_FORWARD_STRETCH = 0.25;

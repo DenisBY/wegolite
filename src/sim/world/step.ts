@@ -30,6 +30,7 @@ import type { AiContext, AiEvent, AiModule } from "../ai/types.js";
 import type { AiFaultSite, SimEvent } from "../events.js";
 import type { FlightState } from "../flight/state.js";
 import { steerShip } from "../npc/dispatch.js";
+import { runProximityPass } from "../npc/proximity.js";
 import { PLAYER_COLLISION_RADIUS_M, statsFor } from "../npc/stats.js";
 import { startPendingTrackingCurves } from "../npc/tracking-curve.js";
 import type { NpcStepFacts } from "../npc/stats.js";
@@ -139,6 +140,10 @@ export function stepWorld(
   // it runs here, after the final drain and before anything moves, so it samples
   // the target positions `addTarget:` would have sampled, at this tick.
   startPendingTrackingCurves(world, getView, tick);
+  // Oolite's collision pass clears every ship's proximity alert and sets the
+  // new ones (CollisionRegion.m:269-312); `setProximityAlert:` is read by the
+  // next update, so an alert set at the end of tick N steers tick N+1.
+  runProximityPass(world, player, getView, npc);
 
   // Sanitize every live entity before the commit, so no non-finite or
   // out-of-domain value reaches a hash or a snapshot (T-08-21, T-08-44).

@@ -8,7 +8,7 @@
  * A module-level record of "which fixtures ran" cannot cross Vitest test files
  * (each file has its own module registry), so the assignment is data instead:
  * each oracle test file runs and asserts exactly its own manifest entry, and
- * plan 14-15's coverage test compares this manifest with every fixture id that
+ * `oracle-coverage.test.ts` (plan 14-15) compares this manifest with every fixture id that
  * `loadOracleFiles()` loads, so a fixture no test file runs fails there.
  *
  * Paths are repository-relative with forward slashes. Later plans add their
@@ -27,6 +27,7 @@ const NAVIGATION_TEST = "tests/sim/npc/navigation.oracle.test.ts";
 const RATE_RULE_TEST = "tests/sim/npc/rate-rule.oracle.test.ts";
 const PURSUIT_TEST = "tests/sim/npc/pursuit.oracle.test.ts";
 const ATTACK_TEST = "tests/sim/npc/attack.oracle.test.ts";
+const AVOID_ESCORT_TEST = "tests/sim/npc/avoid-escort.oracle.test.ts";
 
 export const ORACLE_GROUPS: readonly OracleGroup[] = Object.freeze([
   Object.freeze({
@@ -72,6 +73,10 @@ export const ORACLE_GROUPS: readonly OracleGroup[] = Object.freeze([
   Object.freeze({
     fixtureFile: "tests/oracles/npc/pursuit/fixtures/attack-evade.json",
     testFile: ATTACK_TEST,
+  }),
+  Object.freeze({
+    fixtureFile: "tests/oracles/npc/fixtures/avoid-collision.json",
+    testFile: AVOID_ESCORT_TEST,
   }),
 ]);
 

@@ -316,3 +316,14 @@ describe("attack (plan 14-14)", () => {
     expect(ledger.NPC_WEAPON_TEMP).toBeLessThan(ledger.NPC_WEAPON_TEMP_READY);
   });
 });
+
+describe("the proximity pass and escort formation (plan 14-15)", () => {
+  it.each([
+    ["PROXIMITY_WARN_DISTANCE2", ledger.PROXIMITY_WARN_DISTANCE2, 16], // Universe.h:99-100 (4 x 4)
+    ["PROXIMITY_MIN_MASS", ledger.PROXIMITY_MIN_MASS, 2000], // ShipEntity.m:6107
+    ["PROXIMITY_ZONE_SELF_FACTOR", ledger.PROXIMITY_ZONE_SELF_FACTOR, 2], // :6126
+    ["PROXIMITY_FORWARD_STRETCH", ledger.PROXIMITY_FORWARD_STRETCH, 0.25], // :6123
+  ])("%s is %d", (_name, actual, expected) => {
+    expect(actual).toBe(expected);
+  });
+});

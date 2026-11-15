@@ -133,6 +133,10 @@ const PORTED: readonly { file: string; from: number; to: number }[] = [
   { file: "src/Core/Entities/ShipEntity.m", from: 3944, to: 3994 }, // behaviour_attack_slow_dogfight
   { file: "src/Core/Entities/ShipEntity.m", from: 8849, to: 8868 }, // distance_six, distance_twelve
   { file: "src/Core/Entities/ShipEntityAI.m", from: 350, to: 357 }, // performAttack
+  // plan 14-15, task 1: avoid collision and the proximity rule
+  { file: "src/Core/Entities/ShipEntity.m", from: 5155, to: 5171 }, // behaviour_avoid_collision
+  { file: "src/Core/Entities/ShipEntity.m", from: 6098, to: 6146 }, // setProximityAlert
+  { file: "src/Core/CollisionRegion.m", from: 262, to: 312 }, // the proximity pass and its pair trigger
 ];
 
 /**
@@ -144,7 +148,6 @@ const PORTED: readonly { file: string; from: number; to: number }[] = [
  * both here and in the manifest).
  */
 const PENDING_FIXTURE_FILES: ReadonlySet<string> = new Set([
-  "tests/oracles/npc/fixtures/avoid-collision.json",
   "tests/oracles/npc/fixtures/escort.json",
 ]);
 

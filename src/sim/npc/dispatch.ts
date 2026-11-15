@@ -61,6 +61,7 @@ import {
   behaviourAttackSlowDogfight,
   behaviourAttackSniper,
 } from "./behaviours/attack-evade.js";
+import { behaviourAvoidCollision } from "./behaviours/avoid-collision.js";
 import { behaviourEvasiveAction } from "./behaviours/evasive.js";
 import { behaviourFaceDestination } from "./behaviours/face-destination.js";
 import { behaviourFleeTarget } from "./behaviours/flee.js";
@@ -170,6 +171,9 @@ export function steerShip(entity: Entity, ctx: SteerContext): void {
       break;
     case "ATTACK_SLOW_DOGFIGHT":
       behaviourAttackSlowDogfight(entity, ctx);
+      break;
+    case "AVOID_COLLISION":
+      behaviourAvoidCollision(entity, ctx);
       break;
     default:
       // The recorded fallback for every id not ported yet or out of scope.

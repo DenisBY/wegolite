@@ -36,6 +36,11 @@ import { fileURLToPath } from "node:url";
 import { SCANNER_MAX_RANGE } from "../../../src/sim/npc/constants.js";
 import { steerShip } from "../../../src/sim/npc/dispatch.js";
 import type { SteerEvent } from "../../../src/sim/npc/dispatch.js";
+import {
+  pairTriggers,
+  proximityAlertFor,
+} from "../../../src/sim/npc/proximity.js";
+import type { ProximityBody } from "../../../src/sim/npc/proximity.js";
 import type { NpcFlightStats } from "../../../src/sim/npc/stats.js";
 import {
   calculateTargetPosition,
@@ -353,11 +358,12 @@ export interface RunnerArgs {
 export type RunnerHook = (args: RunnerArgs) => void;
 
 /**
- * The slots later plans fill: `afterAssign` runs once after the `assign` calls
- * at tick 0, `beforeUpdate` runs at (b) of every tick (plan 14-15: the escort
- * leader refresh) and `afterUpdate` at (d) (plan 14-15: the proximity rule).
- * `emptyHooks()` starts the last two empty and `afterAssign` with the pending
- * tracking-curve start (plan 14-12).
+ * The hook slots: `afterAssign` runs once after the `assign` calls at tick 0,
+ * `beforeUpdate` runs at (b) of every tick (the escort leader refresh) and
+ * `afterUpdate` at (d) (the proximity rule). `emptyHooks()` fills `afterAssign`
+ * with the pending tracking-curve start (plan 14-12) and `afterUpdate` with
+ * `proximityHook` (plan 14-15), the rule the contract's in-tick order gives
+ * every fixture; `beforeUpdate` takes the escort leader refresh (plan 14-15).
  */
 export interface RunnerHooks {
   readonly afterAssign: RunnerHook[];
@@ -377,11 +383,41 @@ export const startPendingCurveHook: RunnerHook = ({ self, view }) => {
   }
 };
 
+/**
+ * The proximity rule of contract item 4 (d), plan 14-15: after the update,
+ * `self`'s alert is cleared (`CollisionRegion.m:269-272`) and the pair trigger
+ * plus `setProximityAlert:` are applied between `self` and every body that is
+ * not a planet or a sun, through the same `pairTriggers` and
+ * `proximityAlertFor` as the world's pass. The fixture's bodies carry their
+ * mass; every one is crewed.
+ */
+export const proximityHook: RunnerHook = ({ self, bodies, fixture }) => {
+  self.steer.proximityAlert = 0;
+  const lookup = (id: EntityId): ProximityBody | undefined =>
+    bodies.find((candidate) => candidate.id === id);
+  for (const body of bodies) {
+    if (body.kind === "planet" || body.kind === "sun") continue;
+    const dx = body.position.x - self.position.x;
+    const dy = body.position.y - self.position.y;
+    const dz = body.position.z - self.position.z;
+    if (!pairTriggers(dx * dx + dy * dy + dz * dz, self.radius, body.radius)) {
+      continue;
+    }
+    proximityAlertFor(
+      self,
+      fixture.stats.maxFlightSpeed,
+      body,
+      body.mass,
+      lookup,
+    );
+  }
+};
+
 export function emptyHooks(): RunnerHooks {
   return {
     afterAssign: [startPendingCurveHook],
     beforeUpdate: [],
-    afterUpdate: [],
+    afterUpdate: [proximityHook],
   };
 }
 
