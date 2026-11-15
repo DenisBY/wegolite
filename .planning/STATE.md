@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
-stopped_at: Completed 14-12-PLAN.md
-last_updated: "2026-11-15T21:24:02.079Z"
+stopped_at: Completed 14-13-PLAN.md
+last_updated: "2026-11-15T21:49:31.196Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: 3538e89a4263ae66f3b7843d5566ac630ba711fa
+state_head: a9f392a37c650960d1eb967d59fb31d6f47ce4f1
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 28
+  completed_plans: 29
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 13 of 19
+Plan: 14 of 19
 Status: Ready to execute
 Last activity: 2026-11-15 — Phase 14 execution started
 
@@ -182,6 +182,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 14 P10 | 36min | 3 tasks | 13 files |
 | Phase 14 P11 | 25min | 3 tasks | 8 files |
 | Phase 14 P12 | 40min | 2 tasks | 19 files |
+| Phase 14 P13 | 70min | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -453,6 +454,9 @@ Recent decisions affecting current work:
 - [Phase 14]: 14-11: PLAYER_COLLISION_RADIUS_M is a compiled constant (not read from the lazily loaded hull table); createWorldView keeps radius 0 until plan 14-12 passes it
 - [Phase 14]: 14-12: steer.jink is stored with z negated; trackPrimaryTarget reads Oolite's jink.z as -steer.jink.z and setEvasiveJink (14-13) must store -z
 - [Phase 14]: 14-12: setTarget leaves the tracking curve pending (trackingCount 0); stepWorld starts it after the think phase's final drain, only for ships with an AI
+- [Phase 14]: Avoid-collision entry saves the valid primary target id (0 for none) and the exit restores it verbatim; a re-entry overwrites saved as Oolite does
+- [Phase 14]: performFlee aspect check is read at the deferred entry one update after Oolite reads it (recorded divergence); setEvasiveJink stores -z in the Wegolite jink frame
+- [Phase 14]: behaviour_evasive_action carries on after the lost-target path as Oolite's void method does; flee omits afterburner, missile, mine and turret branches and does not post REACHED_SAFETY
 
 ### Pending Todos
 
@@ -554,8 +558,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T21:24:01.824Z
-Stopped at: Completed 14-12-PLAN.md
+Last session: 2026-11-15T21:49:30.933Z
+Stopped at: Completed 14-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
