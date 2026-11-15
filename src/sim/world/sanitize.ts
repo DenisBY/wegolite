@@ -407,20 +407,34 @@ const isZeroVec = (v: Vec3): boolean =>
 function cleanTracking(steer: SteerComponent): boolean {
   const ticks: unknown = steer.trackingTicks;
   const positions: unknown = steer.trackingPositions;
-  const shapeOk =
+  let domainOk =
     Array.isArray(ticks) &&
     ticks.length === TRACKING_SAMPLES &&
     Array.isArray(positions) &&
-    positions.length === TRACKING_SAMPLES &&
-    (positions as unknown[]).every(isObject);
-  const ticksOk =
-    shapeOk && (ticks as unknown[]).every((tick) => isTrackingTick(tick));
-  const positionsOk =
-    shapeOk &&
-    (positions as Vec3[]).every(
-      (p) => isBounded(p.x) && isBounded(p.y) && isBounded(p.z),
-    );
-  const domainOk = ticksOk && positionsOk;
+    positions.length === TRACKING_SAMPLES;
+  // Whether every tick and position already is the canonical zero (no stale
+  // sample); only meaningful when `domainOk` holds.
+  let zeroed = domainOk;
+  if (domainOk) {
+    for (const i of SAMPLE_INDEXES) {
+      const tick: unknown = steer.trackingTicks[i];
+      const p: unknown = steer.trackingPositions[i];
+      if (
+        !isTrackingTick(tick) ||
+        !isObject(p) ||
+        !isBounded(p["x"] as number) ||
+        !isBounded(p["y"] as number) ||
+        !isBounded(p["z"] as number)
+      ) {
+        domainOk = false;
+        zeroed = false;
+        break;
+      }
+      if (!Object.is(tick, 0) || !isZeroVec(p as unknown as Vec3)) {
+        zeroed = false;
+      }
+    }
+  }
   if (steer.trackingCount === TRACKING_SAMPLES && domainOk) {
     const t = steer.trackingTicks;
     if (t[0] > t[1] && t[1] > t[2] && t[2] > t[3]) {
@@ -435,10 +449,6 @@ function cleanTracking(steer: SteerComponent): boolean {
   // The empty curve. Only a clean count 0 (stale in-domain data included) is
   // not a repair.
   const repaired = steer.trackingCount !== 0 || !domainOk;
-  const zeroed =
-    domainOk &&
-    steer.trackingTicks.every((tick) => Object.is(tick, 0)) &&
-    steer.trackingPositions.every(isZeroVec);
   steer.trackingCount = 0;
   if (!zeroed) {
     steer.trackingTicks = [0, 0, 0, 0];
