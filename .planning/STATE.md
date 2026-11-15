@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
-stopped_at: Completed 14-10-PLAN.md
-last_updated: "2026-11-15T20:42:05.229Z"
+stopped_at: Completed 14-11-PLAN.md
+last_updated: "2026-11-15T20:59:49.629Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: 3db5cf72d96b934c38c158805aa9478719464400
+state_head: f6433ac1096e36ce18251eed8f2fd6a718b29354
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 26
+  completed_plans: 27
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 11 of 19
+Plan: 12 of 19
 Status: Ready to execute
 Last activity: 2026-11-15 — Phase 14 execution started
 
@@ -180,6 +180,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 14 P08 | 100min | 2 tasks | 13 files |
 | Phase 14 P09 | 23 min | 3 tasks | 15 files |
 | Phase 14 P10 | 36min | 3 tasks | 13 files |
+| Phase 14 P11 | 25min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -448,6 +449,7 @@ Recent decisions affecting current work:
 - [Phase 14]: 14-09: the oracle runner's view.tick is k during update k; plan 14-12's tracking-curve gate must use that clock; AI_EVENT_NAMES still lacks shipNowFacingDestination and shipAIFrustrated (plan 14-11 adds them)
 - [Phase 14]: 14-10: fly-to's frustration report floors the counter at 0 (Wegolite addition; Oolite's counter can go negative, the steering record's domain is 0 to MAX_FRUSTRATION)
 - [Phase 14]: 14-10: the d_forward clamp into [-1, 1] in trackDestination is a labelled Wegolite addition (T-14-16); rangeToDestination and noteFrustration live in track.ts
+- [Phase 14]: 14-11: PLAYER_COLLISION_RADIUS_M is a compiled constant (not read from the lazily loaded hull table); createWorldView keeps radius 0 until plan 14-12 passes it
 
 ### Pending Todos
 
@@ -549,8 +551,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T20:42:04.974Z
-Stopped at: Completed 14-10-PLAN.md
+Last session: 2026-11-15T20:59:49.380Z
+Stopped at: Completed 14-11-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
