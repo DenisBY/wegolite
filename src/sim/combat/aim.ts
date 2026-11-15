@@ -26,13 +26,14 @@ import { NO_LASER, isMountKey } from "./mounts.js";
 import type { Facing, LaserKey, MountKey } from "./mounts.js";
 
 /**
- * The spec key the hull table (`ships-hulls.json`) holds the player's Cobra Mk
- * III under. An NPC's shot meets the player as a hit candidate with this key.
+ * The spec key the hull table holds the player's Cobra Mk III under (the
+ * generated hull data's `oolite_template_cobra3-player`). An NPC's shot meets
+ * the player as a hit candidate with this key.
  */
 export const PLAYER_HULL_KEY = "oolite_template_cobra3-player";
 
 /**
- * An NPC's forward weapon as the app compiles it from `ships-npc.json`:
+ * An NPC's forward weapon as the app compiles it from the NPC ship catalogue:
  * `forwardWeapon` and `forwardWeaponPosition` (Oolite model frame, z toward the
  * nose). `EQ_WEAPON_NONE` is a ship with no forward weapon.
  */

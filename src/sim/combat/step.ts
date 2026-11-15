@@ -56,8 +56,8 @@ export interface CombatOptions {
    */
   readonly hulls?: HullTable;
   /**
-   * The forward weapon of each NPC hull, keyed by spec key (compiled from
-   * `ships-npc.json`). A ship whose key has no entry, or whose laser is
+   * The forward weapon of each NPC hull, keyed by spec key (compiled from the
+   * NPC ship catalogue). A ship whose key has no entry, or whose laser is
    * `EQ_WEAPON_NONE`, cannot fire through `ShipControl.fire`.
    */
   readonly npcWeapons?: ReadonlyMap<string, NpcWeapon>;
