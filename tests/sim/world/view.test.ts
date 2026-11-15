@@ -320,6 +320,93 @@ describe("returned objects are copies (T-08-13)", () => {
   });
 });
 
+describe("BodyView.radius is the collision radius of every body kind", () => {
+  it("a dynamic ship reports its entity radius through body() and ship()", () => {
+    const world = createWorld(1);
+    const a = spawnOk(world, { radius: 77.5 });
+    const b = spawnOk(world, { kind: "cargo", radius: 3 });
+    const view = createWorldView(world, inFlight(), layout);
+
+    expect(a.radius).toBe(77.5);
+    expect(view.body(a.id)?.radius).toBe(a.radius);
+    expect(view.ship(a.id)?.radius).toBe(a.radius);
+    expect(view.body(b.id)?.radius).toBe(b.radius);
+    expect(view.ship(b.id)?.radius).toBe(3);
+  });
+
+  it("each static reports the radius of its layout body", () => {
+    const view = createWorldView(createWorld(1), inFlight(), layout);
+    const expected: [EntityId, number][] = [
+      [MAIN_STATION_ID, layout.station.radius],
+      [PLANET_ID, layout.planet.radius],
+      [SUN_ID, layout.sun.radius],
+      [STATION_NAV_BUOY_ID, layout.navBuoy.radius],
+      [WITCHPOINT_BUOY_ID, layout.witchpoint.radius],
+    ];
+    for (const [id, radius] of expected) {
+      expect(view.body(id)?.radius, `body(${String(id)})`).toBe(radius);
+      expect(view.ship(id)).toBeUndefined();
+    }
+  });
+
+  it("a static follows the layout of the view that reads it", () => {
+    const moved: SystemLayout = {
+      ...layout,
+      station: { ...layout.station, radius: 1234 },
+    };
+    const world = createWorld(1);
+    const player = inFlight();
+    expect(
+      createWorldView(world, player, moved).body(MAIN_STATION_ID)?.radius,
+    ).toBe(1234);
+    expect(
+      createWorldView(world, player, layout).body(MAIN_STATION_ID)?.radius,
+    ).toBe(layout.station.radius);
+  });
+
+  it("the player reports the playerRadius argument, and 0 when it is absent", () => {
+    const world = createWorld(1);
+    const player = inFlight();
+    expect(
+      createWorldView(world, player, layout, 42.25).body(PLAYER_ID)?.radius,
+    ).toBe(42.25);
+    expect(createWorldView(world, player, layout).body(PLAYER_ID)?.radius).toBe(
+      0,
+    );
+  });
+
+  it("writing to a returned radius changes no world, layout, player or later result", () => {
+    const world = createWorld(1);
+    const a = spawnOk(world, { radius: 50 });
+    const player = inFlight();
+    const view = createWorldView(world, player, layout, 30);
+
+    const layoutBefore = structuredClone(layout);
+    const playerBefore = structuredClone(player);
+    const entityBefore = structuredClone(a);
+
+    const ids = [a.id, PLAYER_ID, MAIN_STATION_ID, PLANET_ID, SUN_ID];
+    for (const id of ids) {
+      const body = view.body(id);
+      if (body === undefined) throw new Error(`expected body ${String(id)}`);
+      mutable(body).radius = 9e9;
+    }
+    const ship = view.ship(a.id);
+    if (ship === undefined) throw new Error("expected ship");
+    mutable(ship).radius = 9e9;
+
+    expect(layout).toEqual(layoutBefore);
+    expect(player).toEqual(playerBefore);
+    expect(a).toEqual(entityBefore);
+    expect(view.body(a.id)?.radius).toBe(50);
+    expect(view.ship(a.id)?.radius).toBe(50);
+    expect(view.body(PLAYER_ID)?.radius).toBe(30);
+    expect(view.body(MAIN_STATION_ID)?.radius).toBe(layout.station.radius);
+    expect(view.body(PLANET_ID)?.radius).toBe(layout.planet.radius);
+    expect(view.body(SUN_ID)?.radius).toBe(layout.sun.radius);
+  });
+});
+
 describe("static entities resolve through the layout (D-06, D-07)", () => {
   it("reports each static's id, kind, scan class and identity orientation", () => {
     const view = createWorldView(createWorld(1), inFlight(), layout);
