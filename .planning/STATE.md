@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v2.2
 milestone_name: Weapons and NPC Flight
-current_phase: 13
-current_phase_name: Views, Lasers and Shields
-status: verifying
-stopped_at: Completed 13-14-PLAN.md
-last_updated: "2026-11-15T03:10:13.595Z"
-last_activity: 2026-11-14
-last_activity_desc: Phase 13 execution started
-state_head: 476cbdba71f0698770563b0bd79de2de262d72e2
+current_phase: 14
+current_phase_name: NPC Flight and Steering Fidelity Gate
+status: planning
+stopped_at: Phase 13 complete, ready to plan Phase 14
+last_updated: "2026-11-15T10:35:08.876Z"
+last_activity: 2026-11-15
+last_activity_desc: Phase 13 complete, transitioned to Phase 14
+state_head: cebca661cca1fd51485b5e60b2c76421d296a2ff
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 16
   completed_plans: 16
-  percent: 0
+  percent: 50
 ---
 
 # Project State
@@ -29,16 +29,16 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 ## Current Position
 
-Phase: 13 (Views, Lasers and Shields) — EXECUTING
-Plan: 16 of 16
-Status: Phase complete — ready for verification
-Last activity: 2026-11-14 — Phase 13 execution started
+Phase: 14 — NPC Flight and Steering Fidelity Gate
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-15 — Phase 13 complete, transitioned to Phase 14
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 104
+- Total plans completed: 120
 - Average duration: 5.3 min
 - Total execution time: 3.9 hours
 
@@ -57,6 +57,7 @@ Last activity: 2026-11-14 — Phase 13 execution started
 | 10 | 4 | - | - |
 | 11 | 4 | - | - |
 | 12 | 14 | - | - |
+| 13 | 16 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: 01-03 3 min, 01-04 5 min, 01-05 9 min, 01-06 2 min, 01-07 6 min
@@ -523,7 +524,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-15T03:10:13.514Z
-Stopped at: Completed 13-14-PLAN.md
+Stopped at: Phase 13 complete, ready to plan Phase 14
 Resume file: None
 
 ## Operator Next Steps

@@ -31,7 +31,7 @@
     {
       "number": "13",
       "name": "Views, Lasers and Shields",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "14",
@@ -41,8 +41,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 1 of 2 · 0% · ready to verify"
+    "label": "Advance to the next step (plan phase 14)",
+    "reason": "Phase 2 of 2 — needs a plan"
   },
-  "updated_at": "2026-11-15T03:10:07.938Z"
+  "updated_at": "2026-11-15T10:35:08.903Z"
 }

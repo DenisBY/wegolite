@@ -65,7 +65,7 @@ Total: 27 of 27 plans complete. Requirements 12/12. Phase directories now live i
 
 **Phase numbering:** continues from v2.1 (Phases 9-12). Decimal phases (for example 13.1) are urgent insertions.
 
-- [ ] **Phase 13: Views, Lasers and Shields** - A refused arrival no longer leaves a stale world; Oolite's keys for pause, ident and eject; four views; pulse, beam, military and mining lasers per facing hitting ships by their octree hull; shields and energy banks that absorb and recharge; docking restores them
+- [x] **Phase 13: Views, Lasers and Shields** - A refused arrival no longer leaves a stale world; Oolite's keys for pause, ident and eject; four views; pulse, beam, military and mining lasers per facing hitting ships by their octree hull; shields and energy banks that absorb and recharge; docking restores them (completed 2026-11-15)
 - [ ] **Phase 14: NPC Flight and Steering Fidelity Gate** - NPC ships seen flying with Oolite's flight model and nine native steering behaviours, proven against independently authored source-cited oracles; the dev-only harness spike and the owner's oracle choice close the gate to the AI port
 
 **Staged verification:** WORLD-07 is the one staged requirement. Its drawn-and-on-the-scanner half shipped in Phase 12 (inert ships); Phase 14 completes it when the ships move. CBT-07 needs no stage: the shared hit rule is proved by a scripted test pilot, and autonomous NPC fire (CBT-15) is unscheduled.
@@ -119,7 +119,7 @@ Ordering rules:
 **Pitfalls to address**: 14 (constants ledger, worked-example tests, FIDELITY rows), 21 (the new gauges and the ident lock deliberately revise the pinned eleven-element HUD layout), 7 (damage events queued, never synchronous), 4 (NaN under damage), 19 (fire is a `ShipControl` command, the same for player and NPC), 26 (message-line flood in a fight), 11 (binding migration across existing browser specs), 10 (the v4 bump: ordered migration, worst-case size test)
 **Decisions to settle**: where octree data ships and how the Cobra's reaches the first-load set; what the ident lock shows on the HUD while no missile exists; the cabin-temperature inputs (energy damage heats the cabin, `PlayerEntity.m:5673`; the sun and atmosphere heat inputs stay out with DEATH-03 and DEATH-05, unscheduled)
 **Todos**: `2026-11-14-clear-world-when-arrival-begin-is-refused.md` (closed by FOUND-17). Review item IN-01 of that todo (the torus message wording when mass lock stops a running drive) is a candidate to fold in by owner decision; it is not a requirement
-**Plans:** 16/16 plans executed in 9 waves
+**Plans:** 16/16 plans complete in 9 waves
 
 Plans:
 **Wave 1**
@@ -213,7 +213,7 @@ Pending todos outside v2.2, which can run as quick tasks or join a phase by owne
 | 10. Ship Mass | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | Complete    | 2026-11-14 |
-| 13. Views, Lasers and Shields | v2.2 | 16/16 | In Progress | - |
+| 13. Views, Lasers and Shields | v2.2 | 16/16 | Complete    | 2026-11-15 |
 | 14. NPC Flight and Steering Fidelity Gate | v2.2 | 0/TBD | Not started | - |
 
 ## Backlog
