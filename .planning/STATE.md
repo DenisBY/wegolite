@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
-stopped_at: Completed 14-14-PLAN.md
-last_updated: "2026-11-15T22:26:55.478Z"
+stopped_at: Completed 14-15-PLAN.md
+last_updated: "2026-11-15T22:56:43.171Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: 2f3f64fb8306affefe5455a919f0c2c0cc89cfc2
+state_head: 00a04dd7c1b742995aa4aea588a60407e4dc37b4
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 30
+  completed_plans: 31
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 15 of 19
+Plan: 16 of 19
 Status: Ready to execute
 Last activity: 2026-11-15 — Phase 14 execution started
 
@@ -184,6 +184,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 14 P12 | 40min | 2 tasks | 19 files |
 | Phase 14 P13 | 70min | 3 tasks | 18 files |
 | Phase 14 P14 | 40 min | 3 tasks | 16 files |
+| Phase 14 P15 | 100 min | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -460,6 +461,8 @@ Recent decisions affecting current work:
 - [Phase 14]: behaviour_evasive_action carries on after the lost-target path as Oolite's void method does; flee omits afterburner, missile, mine and turret branches and does not post REACHED_SAFETY
 - [Phase 14]: Plan 14-14: an unarmed ship's weapon range is NO_WEAPON_RANGE 0 (not 32000), so a zero-jink unarmed attacker alternates ATTACK_TARGET and ATTACK_FLY_FROM_TARGET every tick
 - [Phase 14]: Plan 14-14: the approach aspect snaps a residue under 1e-12 to exactly 0 (ASPECT_ZERO_SNAP) because a quaternion cannot hold Oolite's exactly-abeam pose; the accuracy >= 9 dodge of fly-to is not ported (the view has no target weapon types)
+- [Phase 14]: Plan 14-15: steerShip dispatches through the read-only BEHAVIOUR_ROUTES Map; runProximityPass takes the step's lazy view builder; escort slots are fixed and a lower-id follower reads the previous tick's destination
+- [Phase 14]: Plan 14-15: setProximityAlert's already-avoiding comparison is ported as written (the body with the smaller subtended angle keeps the slot); every listed ship is crewed; inert ships hold no alert
 
 ### Pending Todos
 
@@ -561,8 +564,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T22:26:50.224Z
-Stopped at: Completed 14-14-PLAN.md
+Last session: 2026-11-15T22:56:42.900Z
+Stopped at: Completed 14-15-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
