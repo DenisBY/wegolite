@@ -67,6 +67,11 @@ export function enterBehaviour(entity: Entity, behaviour: BehaviourId): void {
       steer.frustration = 0;
       steer.entryPending = false;
       break;
+    case "FACE_DESTINATION": // performFaceDestination, ShipEntityAI.m:373-377
+      nav.behaviour = "FACE_DESTINATION";
+      steer.frustration = 0;
+      steer.entryPending = false;
+      break;
     default:
       nav.behaviour = behaviour;
       steer.entryPending = false;

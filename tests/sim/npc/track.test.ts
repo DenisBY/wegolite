@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 import { identity, quat, rotate, vec } from "../../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../../src/sim/math.js";
 import type { AiEventName } from "../../../src/sim/ai/types.js";
+import { behaviourFaceDestination } from "../../../src/sim/npc/behaviours/face-destination.js";
 import {
   behaviourFlyFromDestination,
   behaviourFlyRangeFromDestination,
@@ -398,5 +399,135 @@ describe("behaviour_fly_from_destination (ShipEntity.m:5136-5153)", () => {
     steerShip(entity, ctx);
     expect(events).toEqual(["shipAchievedDesiredRange"]);
     expect(entity.nav.behaviour).toBe("IDLE");
+  });
+});
+
+describe("behaviour_face_destination (ShipEntity.m:4920-4965)", () => {
+  function facer(destination: Vec3, desiredRange = 0): Entity {
+    const entity = toward(ship(), destination, desiredRange);
+    entity.nav.behaviour = "FACE_DESTINATION";
+    return entity;
+  }
+
+  it("posts shipNowFacingDestination, idles and then adds dt to frustration at speed 0 (4930-4944)", () => {
+    const entity = facer(vec(0, 0, -1000));
+    entity.nav.desiredSpeed = 50;
+    entity.steer.frustration = 3;
+    const { ctx, events } = contextFor(entity);
+    behaviourFaceDestination(entity, ctx);
+    expect(events).toEqual(["shipNowFacingDestination"]);
+    expect(entity.nav.behaviour).toBe("IDLE");
+    expect(entity.nav.desiredSpeed).toBe(0);
+    // frustration is zeroed in the facing block, then dt is added at speed 0.
+    expect(entity.steer.frustration).toBe(Math.fround(DT));
+  });
+
+  it("waits for the pitch rate to reach exactly 0 before it posts (4930)", () => {
+    const entity = facer(vec(0, 0, -1000));
+    entity.steer.flightPitch = 0.1;
+    const { ctx, events } = contextFor(entity);
+    behaviourFaceDestination(entity, ctx);
+    // One step of 4 dt = 0.0333 leaves 0.0667: still turning.
+    expect(entity.steer.flightPitch).toBeCloseTo(0.1 - 4 * DT, 12);
+    expect(events).toEqual([]);
+    expect(entity.nav.behaviour).toBe("FACE_DESTINATION");
+    for (let step = 0; step < 5 && events.length === 0; step += 1) {
+      behaviourFaceDestination(entity, ctx);
+    }
+    expect(events).toEqual(["shipNowFacingDestination"]);
+    expect(entity.steer.flightPitch).toBe(0);
+  });
+
+  it("aims inside the range sphere when the desired range exceeds 1 m (4926-4928)", () => {
+    // Range 500 at distance 1000: max_cos = sqrt(1 - 0.90 * 0.25) = 0.8803, and
+    // trackDestination's own max_cos is sqrt(1 - 0.9025 * 0.25) = 0.8800, so a
+    // heading 20 degrees off (cos 0.9397) counts as facing at once.
+    const angle = (20 * Math.PI) / 180;
+    const far = facer(
+      vec(1000 * Math.sin(angle), 0, -1000 * Math.cos(angle)),
+      500,
+    );
+    const { ctx, events } = contextFor(far);
+    behaviourFaceDestination(far, ctx);
+    expect(events).toEqual(["shipNowFacingDestination"]);
+    // With no desired range the same heading is not facing.
+    const near = facer(
+      vec(1000 * Math.sin(angle), 0, -1000 * Math.cos(angle)),
+      0,
+    );
+    const second = contextFor(near);
+    behaviourFaceDestination(near, second.ctx);
+    expect(second.events).toEqual([]);
+  });
+
+  it("posts shipAIFrustrated after 15 / max_flight_pitch s at speed 0 and escapes a stuck pitch (4943-4951)", () => {
+    // Destination astern: stick_pitch -0.125 (d_up 2 min_d, factor 1). The pitch
+    // rate already sits on the stick, so applySticks leaves it unchanged and the
+    // escape sets it to 0.5 * max_flight_pitch.
+    const entity = facer(vec(0, 0, 1000));
+    entity.steer.flightPitch = -0.125;
+    entity.steer.frustration = Math.fround(15);
+    const { ctx, events } = contextFor(entity);
+    behaviourFaceDestination(entity, ctx);
+    expect(events).toEqual(["shipAIFrustrated"]);
+    expect(entity.steer.frustration).toBe(0);
+    expect(entity.steer.flightPitch).toBe(0.5);
+  });
+
+  it("scales the frustration limit with max_flight_pitch (4945)", () => {
+    // max_flight_pitch 2: the limit is 7.5 s, so 7.5 + dt fires and 7 does not.
+    const stats: NpcFlightStats = { ...STATS, maxFlightPitch: 2 };
+    const fires = facer(vec(0, 0, 1000));
+    fires.steer.frustration = Math.fround(7.5);
+    const first = contextFor(fires, stats);
+    behaviourFaceDestination(fires, first.ctx);
+    expect(first.events).toEqual(["shipAIFrustrated"]);
+    const quiet = facer(vec(0, 0, 1000));
+    quiet.steer.frustration = Math.fround(7);
+    const second = contextFor(quiet, stats);
+    behaviourFaceDestination(quiet, second.ctx);
+    expect(second.events).toEqual([]);
+  });
+
+  it("does not add frustration while moving (4943-4944)", () => {
+    const entity = facer(vec(0, 0, 1000));
+    entity.speed = 10;
+    entity.steer.frustration = 2;
+    behaviourFaceDestination(entity, contextFor(entity).ctx);
+    expect(entity.steer.frustration).toBe(2);
+  });
+
+  it("damps a pitch sign flip at speed 0 with frustration above 5 and confidence above 0.5 (4958-4959)", () => {
+    // Destination below and ahead: stick_pitch +1, d_forward 0.8. An old pitch of
+    // -0.1 opposes the stick, so the rate step is 4 x 4 dt = 0.1333 and the
+    // pitch flips to 0.0333; the damping adds 0.5 x (-0.1) = -0.05.
+    const entity = facer(vec(0, -3, -4));
+    entity.steer.flightPitch = -0.1;
+    entity.steer.frustration = Math.fround(6);
+    behaviourFaceDestination(entity, contextFor(entity).ctx);
+    expect(entity.steer.flightPitch).toBeCloseTo(-0.1 + 16 * DT - 0.05, 12);
+  });
+
+  it("does not damp while moving, below frustration 5, or without a sign flip", () => {
+    const expectedUndamped = -0.1 + 16 * DT;
+    const moving = facer(vec(0, -3, -4));
+    moving.speed = 10;
+    moving.steer.flightPitch = -0.1;
+    moving.steer.frustration = Math.fround(6);
+    behaviourFaceDestination(moving, contextFor(moving).ctx);
+    expect(moving.steer.flightPitch).toBeCloseTo(expectedUndamped, 12);
+
+    const calm = facer(vec(0, -3, -4));
+    calm.steer.flightPitch = -0.1;
+    calm.steer.frustration = Math.fround(2);
+    behaviourFaceDestination(calm, contextFor(calm).ctx);
+    expect(calm.steer.flightPitch).toBeCloseTo(expectedUndamped, 12);
+
+    // Same-sign pitch: no flip.
+    const same = facer(vec(0, -3, -4));
+    same.steer.flightPitch = 0.1;
+    same.steer.frustration = Math.fround(6);
+    behaviourFaceDestination(same, contextFor(same).ctx);
+    expect(same.steer.flightPitch).toBeCloseTo(0.1 + 4 * DT, 12);
   });
 });
