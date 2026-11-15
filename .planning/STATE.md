@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 13
 current_phase_name: Views, Lasers and Shields
 status: executing
-stopped_at: Completed 13-07-PLAN.md
-last_updated: "2026-11-15T00:30:24.269Z"
+stopped_at: Completed 13-08-PLAN.md
+last_updated: "2026-11-15T00:49:29.151Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 13 execution started
-state_head: 1500aa7693e695fa40f4dea2de0e5a957253098f
+state_head: 9b20cc498b8b2397fd1c5e3e4c3f00c7b9d3851b
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 16
-  completed_plans: 8
+  completed_plans: 9
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 13 (Views, Lasers and Shields) — EXECUTING
-Plan: 9 of 16
+Plan: 10 of 16
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 13 execution started
 
@@ -161,6 +161,7 @@ Last activity: 2026-11-14 — Phase 13 execution started
 | Phase 13 P05 | 16 min | 3 tasks | 8 files |
 | Phase 13 P06 | 35 min | 2 tasks | 21 files |
 | Phase 13 P07 | 25 min | 3 tasks | 14 files |
+| Phase 13 P08 | 25 min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -396,6 +397,8 @@ Recent decisions affecting current work:
 - [Phase 13]: 13-06: save v4 is current; v3 frozen at literal 3; version 5 is the inert future version; v1, v2, v3 chain through every later step
 - [Phase 13]: 13-07: WORLD_SNAPSHOT_VERSION moved 1 -> 2 (energy bank on every entity); inert-lave-epoch1 golden regenerated once, population draws unchanged; flight-hash-pins untouched
 - [Phase 13]: 13-07: energy bounds MAX_ENTITY_ENERGY 1e6 and MAX_ENERGY_RECHARGE_RATE 1e3; InertShipRecord energy fields required, spawnEntity still defaults to Oolite 200 and 1.0
+- [Phase 13]: 13-08: stepPlayerCombat derives in-flight-at-start from the flight events (inFlight and no launchComplete), so a setView on the launch-completing tick is ignored
+- [Phase 13]: 13-08: hashWorld sanitises the combat state before the pristine test; the combat line is appended only when not pristine, so no pinned hash moves
 
 ### Pending Todos
 
@@ -497,8 +500,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T00:30:24.194Z
-Stopped at: Completed 13-07-PLAN.md
+Last session: 2026-11-15T00:49:29.069Z
+Stopped at: Completed 13-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
