@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
-stopped_at: Completed 14-07-PLAN.md
-last_updated: "2026-11-15T19:34:45.606Z"
+stopped_at: Completed 14-08-PLAN.md
+last_updated: "2026-11-15T20:01:51.979Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: b33e72f376fa0ff92e6001e58e90282a1c8685d3
+state_head: bd3970aed638956eee238ff8668362d115126900
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 23
+  completed_plans: 24
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 8 of 19
+Plan: 9 of 19
 Status: Ready to execute
 Last activity: 2026-11-15 — Phase 14 execution started
 
@@ -177,6 +177,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 14 P05 | 11 min | 2 tasks | 4 files |
 | Phase 14 P06 | 32 min | 2 tasks | 7 files |
 | Phase 14 P07 | 14 min | 2 tasks | 9 files |
+| Phase 14 P08 | 100min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -440,6 +441,7 @@ Recent decisions affecting current work:
 - [Phase 14]: 14-06: crossDtTolerance 0.01 rad committed before the rate grid; no grid pair diverges (max 0.002777 rad); only the tracking-curve gate is a measured divergence (1 tick); the no-leader escort fixture uses maxFlightSpeed 1e-6 (positive speed required)
 - [Phase 14]: 14-07: DIST_MARKERS is the three strings the sentinel value, PriorityAIController and oolite-libPriorityAI; no bare Oolite script file name, source maps skipped, a dist with no shipped file exits 2
 - [Phase 14]: 14-07: tests/acceptance/thresholds.ts committed alone (b33e72f) with the escalation options (a) to (c); no option edits it; accepted-crossings.ts is the only place an owner-accepted crossing is recorded
+- [Phase 14]: Plan 14-08: hash the steering record as one always-present last ;steer: segment (owner-chosen option-append, 2026-11-15); WORLD_SNAPSHOT_VERSION 3; inert golden regenerated once (ab72eedf to c1068643); record field set frozen
 
 ### Pending Todos
 
@@ -541,8 +543,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T19:34:45.367Z
-Stopped at: Completed 14-07-PLAN.md
+Last session: 2026-11-15T20:01:51.729Z
+Stopped at: Completed 14-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
