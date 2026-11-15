@@ -17,6 +17,7 @@
  */
 
 import type { Command } from "../commands.js";
+import type { CombatOptions } from "../combat/step.js";
 import type { SimEvent } from "../events.js";
 import { nextCompassMode, resolveCompassTarget } from "../world/aegis.js";
 import type { SystemLayout } from "../world/layout.js";
@@ -80,6 +81,15 @@ export interface StepOptions {
      */
     readonly shipMasses?: readonly ShipMass[];
   };
+  /**
+   * The read-only combat facts (CBT-05, CBT-07): the laser on each facing and
+   * the loaded hull data. Derived from the profile and the loaded content each
+   * step, exactly as `equipment` is, and never carried in a command, so a
+   * command cannot forge a laser. `stepFlight` ignores it; `stepSim` hands it to
+   * `stepPlayerCombat` and `resolveShots`. Later plans extend `CombatOptions` in
+   * `../combat/step.ts` only.
+   */
+  readonly combat?: CombatOptions;
 }
 
 /**

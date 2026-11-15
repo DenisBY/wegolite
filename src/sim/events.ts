@@ -102,6 +102,14 @@ export type SimEvent =
       /** True when the struck shield absorbed all of it (PlayerEntity.m:5639-5668). */
       shield: boolean;
     }
+  /**
+   * CBT-05: the held fire key was refused. `overheat` is the facing's laser at
+   * or above the cut-out; `noEnergy` is an energy bank at or below the shot's
+   * cost (`PlayerEntity.m:5460`, `:5478`). Emitted every tick the key is held
+   * and refused, so the app owns any throttling of the wording. Not a reserved
+   * kind: it is the refusal side of `laserFired`.
+   */
+  | { kind: "laserRefused"; reason: "overheat" | "noEnergy" }
   | {
       kind: "shipDestroyed";
       id: EntityId;
@@ -154,6 +162,10 @@ export type SimEvent =
  * `cargoScooped`, `commsMessage`), 16 pods (`podEjected`), 19 legal status
  * (`legalStatusChanged`), 21 missiles and ECM (`missileLaunched`,
  * `missileDetonated`, `ecmFired`).
+ *
+ * Phase 13 emits `laserFired` and `shipHit` (`../sim.ts` through
+ * `combat/step.ts`); `energyLow` and `proximityWarning` stay unemitted for now
+ * (RESEARCH A5). Phase 13 also adds the non-reserved `laserRefused`.
  *
  * The field names follow ARCHITECTURE section 7.6, with the one deviation
  * recorded as PROJECT.md Key Decisions row (g): section 7.6's laser `kind` is

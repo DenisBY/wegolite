@@ -27,6 +27,13 @@ export interface ControlIntent {
   readonly precision: boolean;
   /** An edge, consumed once. Plan 04 owns the torus; this is always false here. */
   readonly torusToggle: boolean;
+  /**
+   * CBT-05: the fire key is held. Optional so every existing intent literal
+   * stays valid; absent means not firing. Consumed by `stepPlayerCombat`
+   * (`../combat/step.ts`), never by `stepFlight`. Only the player controller
+   * sets it: the scripted launch controller and `ZERO_INTENT` never fire.
+   */
+  readonly fire?: boolean;
 }
 
 /** The read-only slice of the state a controller may see. */
@@ -84,6 +91,9 @@ export class PlayerController implements ShipController {
       precision: frame.precision,
       // Plan 04 wires the torus edge; the frame carries axes only.
       torusToggle: false,
+      // Omit the key rather than write `fire: false`, so an intent without a
+      // held key is structurally what it was before combat existed.
+      ...(frame.fire === true ? { fire: true } : {}),
     };
   }
 }

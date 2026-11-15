@@ -131,6 +131,29 @@ describe("PlayerController", () => {
   });
 });
 
+describe("ControlIntent.fire (CBT-05)", () => {
+  const frame = { pitch: 0, roll: 0, speed: 0, precision: false };
+
+  it("is true only while the frame holds the fire key", () => {
+    const view = flightView(flyingState());
+    expect(player.update(view, { ...frame, fire: true }).fire).toBe(true);
+    expect(player.update(view, { ...frame, fire: false }).fire).toBeUndefined();
+    expect(player.update(view, frame).fire).toBeUndefined();
+  });
+
+  it("never fires outside flight", () => {
+    const docked = flightView(initFlightState(layout));
+    expect(
+      player.update(docked, { ...frame, fire: true }).fire,
+    ).toBeUndefined();
+  });
+
+  it("is never set by the scripted launch controller or the zero intent", () => {
+    expect(new ScriptedLaunchController().update().fire).toBeUndefined();
+    expect(ZERO_INTENT.fire).toBeUndefined();
+  });
+});
+
 describe("ScriptedLaunchController", () => {
   it("emits zeros", () => {
     const scripted = new ScriptedLaunchController();
