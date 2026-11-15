@@ -110,6 +110,15 @@
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
+    "combat": {
+      "aftShield": "number",
+      "cabinTemp": "number",
+      "energy": "number",
+      "fwdShield": "number",
+      "identLocked": "boolean",
+      "laserTemp": "number",
+      "view": "string"
+    },
     "depthBits": "number",
     "dock": {
       "bounceCount": "number",
@@ -304,6 +313,15 @@
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
+    "combat": {
+      "aftShield": "number",
+      "cabinTemp": "number",
+      "energy": "number",
+      "fwdShield": "number",
+      "identLocked": "boolean",
+      "laserTemp": "number",
+      "view": "string"
+    },
     "depthBits": "number",
     "dock": {
       "bounceCount": "number",
@@ -498,6 +516,15 @@
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
+    "combat": {
+      "aftShield": "number",
+      "cabinTemp": "number",
+      "energy": "number",
+      "fwdShield": "number",
+      "identLocked": "boolean",
+      "laserTemp": "number",
+      "view": "string"
+    },
     "depthBits": "number",
     "dock": {
       "bounceCount": "number",
@@ -692,6 +719,15 @@
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
+    "combat": {
+      "aftShield": "number",
+      "cabinTemp": "number",
+      "energy": "number",
+      "fwdShield": "number",
+      "identLocked": "boolean",
+      "laserTemp": "number",
+      "view": "string"
+    },
     "depthBits": "number",
     "dock": {
       "bounceCount": "number",
@@ -886,6 +922,15 @@
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
+    "combat": {
+      "aftShield": "number",
+      "cabinTemp": "number",
+      "energy": "number",
+      "fwdShield": "number",
+      "identLocked": "boolean",
+      "laserTemp": "number",
+      "view": "string"
+    },
     "depthBits": "number",
     "dock": {
       "bounceCount": "number",
@@ -1039,6 +1084,7 @@
       "setPosition": "function",
       "setSpeed": "function",
       "setStationAngle": "function",
+      "spawnTestShooter": "function",
       "swapSystem": "function",
       "tainted": "boolean",
       "worldHash": "function"
@@ -1093,6 +1139,15 @@
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
+    "combat": {
+      "aftShield": "number",
+      "cabinTemp": "number",
+      "energy": "number",
+      "fwdShield": "number",
+      "identLocked": "boolean",
+      "laserTemp": "number",
+      "view": "string"
+    },
     "depthBits": "number",
     "dock": {
       "bounceCount": "number",
@@ -1246,6 +1301,7 @@
       "setPosition": "function",
       "setSpeed": "function",
       "setStationAngle": "function",
+      "spawnTestShooter": "function",
       "swapSystem": "function",
       "tainted": "boolean",
       "worldHash": "function"

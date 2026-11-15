@@ -556,6 +556,9 @@ describe("the real AI modules lint clean", () => {
     "src/sim/ai/registry.ts",
     "src/sim/ai/types.ts",
     "src/sim/ai/time.ts",
+    // The one carve-out (plan 13-14): a world-side `?test=1` seam that needs the
+    // world and the flight state, so it lints under the sim zone, not the AI zone.
+    "src/sim/ai/test-spawn.ts",
   ]) {
     it(
       file,

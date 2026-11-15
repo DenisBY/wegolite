@@ -27,12 +27,20 @@ import type {
 } from "../../../src/app/probe.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { MessageQueue } from "../../../src/render/hud/messages.js";
+import type { WorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
+import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
+import type { FlightState } from "../../../src/sim/flight/state.js";
+import { stepFlight } from "../../../src/sim/flight/step.js";
+import { identity, length, rotate, sub, vec } from "../../../src/sim/math.js";
+import { DT } from "../../../src/sim/time.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
+import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
+import type { World } from "../../../src/sim/world/world.js";
 import { laveFixture } from "../../helpers/lave.js";
 
-const { system, layout } = laveFixture();
+const { system, layout, config } = laveFixture();
 
 interface Harness {
   readonly ctx: SessionState;
@@ -257,5 +265,220 @@ describe("worldHash and the combat state (plan 13-11)", () => {
     // A Load installs a fresh state: the hook follows the live one.
     ctx.core.combat = createPlayerCombatState();
     expect(hook.worldHash()).toBe(hashWorld(state, undefined));
+  });
+});
+
+/** A launched, parked player in flight (the hook works only in flight). */
+function flyingState(): FlightState {
+  const state = initFlightState(layout);
+  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+  state.position = vec(1e7, 0, 0);
+  state.orientation = identity();
+  state.speed = 0;
+  return state;
+}
+
+/** The live lifecycle as far as the publisher reads it: its world. */
+function lifecycleOf(world: World): WorldLifecycle {
+  return { world, epoch: 1 } as unknown as WorldLifecycle;
+}
+
+const VIPER_RECORD = {
+  key: "viper",
+  roles: ["police"],
+  scanClass: "CLASS_POLICE",
+  radius: 30,
+  maxEnergy: 100,
+  energyRechargeRate: 2,
+};
+
+/** The traffic content as far as the hook reads it: the populator records. */
+function trafficOf(
+  records: readonly (typeof VIPER_RECORD)[],
+): SessionState["core"]["npcTraffic"] {
+  return { catalogue: [], records, masses: [], weapons: new Map() };
+}
+
+describe("probe.combat (plan 13-14)", () => {
+  it("publishes the view, the banks and the current facing's laser temperature as values", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.core.state = initFlightState(layout);
+    const combat = createPlayerCombatState();
+    combat.view = "aft";
+    combat.fwdShield = 100;
+    combat.aftShield = 90;
+    combat.energy = 200;
+    combat.cabinTemp = 70;
+    combat.laserTemp.fore = 3;
+    combat.laserTemp.aft = 9;
+    ctx.core.combat = combat;
+
+    publisher.updateProbe();
+
+    expect(probe.combat).toEqual({
+      view: "aft",
+      fwdShield: 100,
+      aftShield: 90,
+      energy: 200,
+      laserTemp: 9,
+      cabinTemp: 70,
+      identLocked: false,
+    });
+  });
+
+  it("reads the live combat state at every call and is absent without one", () => {
+    const { ctx, probe, publisher } = harness();
+    publisher.updateProbe();
+    expect(probe.combat).toBeUndefined();
+
+    ctx.core.combat = createPlayerCombatState();
+    publisher.updateProbe();
+    expect(probe.combat?.fwdShield).toBe(128);
+
+    ctx.core.combat.fwdShield = 64;
+    publisher.updateProbe();
+    expect(probe.combat?.fwdShield).toBe(64);
+
+    ctx.core.combat = undefined;
+    publisher.updateProbe();
+    expect(probe.combat).toBeUndefined();
+  });
+
+  it("flags a live lock without ever publishing the locked entity's id", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.core.state = initFlightState(layout);
+    const world = createWorld(7);
+    const spawned = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "viper",
+        scanClass: "CLASS_POLICE",
+        position: vec(0, 0, -1_000),
+        orientation: identity(),
+        radius: 30,
+      },
+      0,
+    );
+    if (!spawned.ok) throw new Error("spawn refused");
+    ctx.core.worldLifecycle = lifecycleOf(world);
+    const combat = createPlayerCombatState();
+    combat.identTarget = spawned.entity.id;
+    ctx.core.combat = combat;
+
+    publisher.updateProbe();
+
+    expect(probe.combat?.identLocked).toBe(true);
+    expect(Object.keys(probe.combat ?? {}).sort()).toEqual([
+      "aftShield",
+      "cabinTemp",
+      "energy",
+      "fwdShield",
+      "identLocked",
+      "laserTemp",
+      "view",
+    ]);
+    expect(JSON.stringify(probe.combat)).not.toContain(
+      String(spawned.entity.id),
+    );
+
+    // A lock on a ship that is gone is no lock.
+    spawned.entity.dead = true;
+    publisher.updateProbe();
+    expect(probe.combat?.identLocked).toBe(false);
+  });
+
+  it("withdrawProbe removes it with the rest of the test surface", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.core.combat = createPlayerCombatState();
+    publisher.updateProbe();
+    expect(probe.combat).toBeDefined();
+
+    publisher.withdrawProbe();
+
+    expect(probe.combat).toBeUndefined();
+  });
+});
+
+describe("the spawnTestShooter hook (plan 13-14, T-13-27)", () => {
+  function inFlightHarness() {
+    const h = harness();
+    const state = flyingState();
+    const world = createWorld(7);
+    h.ctx.core.state = state;
+    h.ctx.core.worldLifecycle = lifecycleOf(world);
+    h.ctx.core.npcTraffic = trafficOf([VIPER_RECORD]);
+    h.publisher.bindTestHook(state);
+    const hook = h.probe.test;
+    if (hook === undefined) throw new Error("no hook");
+    return { ...h, state, world, hook };
+  }
+
+  it("spawns one Viper 1,500 m ahead facing the player and taints the session", () => {
+    const { ctx, state, world, hook } = inFlightHarness();
+    expect(ctx.runtime.testTainted).toBe(false);
+
+    expect(hook.spawnTestShooter()).toBe(true);
+
+    expect(ctx.runtime.testTainted).toBe(true);
+    expect(hook.tainted).toBe(true);
+    expect(world.store.live).toHaveLength(1);
+    const shooter = world.store.live[0];
+    expect(shooter?.specKey).toBe("viper");
+    expect(
+      length(sub(shooter?.position ?? state.position, state.position)),
+    ).toBeCloseTo(1_500, 6);
+    const nose = rotate(shooter?.orientation ?? identity(), vec(0, 0, -1));
+    expect(nose.z).toBeCloseTo(1, 9);
+  });
+
+  it("asks the redraw gate for a frame, as every other hook mutation does", () => {
+    const { gate, state, hook } = inFlightHarness();
+    const keys = [state];
+    while (gate.next(true, keys)) gate.drawn(keys);
+    expect(gate.next(true, keys)).toBe(false);
+
+    hook.spawnTestShooter();
+
+    expect(gate.next(true, keys)).toBe(true);
+  });
+
+  it("refuses without touching anything outside flight, a world, traffic content or a viper record", () => {
+    const refusals: [
+      string,
+      (h: ReturnType<typeof inFlightHarness>) => void,
+    ][] = [
+      ["docked", (h) => void (h.state.mode = "docked")],
+      ["launching", (h) => void (h.state.mode = "launching")],
+      ["no world", (h) => void (h.ctx.core.worldLifecycle = undefined)],
+      ["no traffic content", (h) => void (h.ctx.core.npcTraffic = undefined)],
+      [
+        "no viper record",
+        (h) =>
+          void (h.ctx.core.npcTraffic = trafficOf([
+            { ...VIPER_RECORD, key: "adder" },
+          ])),
+      ],
+      ["disposed", (h) => void (h.ctx.runtime.disposed = true)],
+    ];
+    for (const [name, arrange] of refusals) {
+      const h = inFlightHarness();
+      arrange(h);
+
+      expect(h.hook.spawnTestShooter(), name).toBe(false);
+
+      expect(h.ctx.runtime.testTainted, name).toBe(false);
+      expect(h.hook.tainted, name).toBe(false);
+      expect(h.world.store.live, name).toHaveLength(0);
+    }
+  });
+
+  it("is refused once the session state is gone", () => {
+    const { ctx, hook, world } = inFlightHarness();
+    ctx.core.state = undefined;
+
+    expect(hook.spawnTestShooter()).toBe(false);
+    expect(world.store.live).toHaveLength(0);
   });
 });

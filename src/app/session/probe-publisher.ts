@@ -20,6 +20,9 @@
  * `withdrawProbe`) and the two sim hook members, `worldHash` (computed on demand
  * from the live state and world, never per frame) and `advanceTicks` (delegated
  * to the sim driver, which owns the manual-clock refusal rule).
+ *
+ * Plan 13-14 adds `probe.combat` (values and a lock flag from the player's
+ * combat state, never an entity id) and the hook member `spawnTestShooter`.
  */
 
 import type * as THREE from "three";
@@ -28,6 +31,8 @@ import type { FlightState } from "../../sim/flight/state.js";
 import type { Vec3 } from "../../sim/math.js";
 import { MAX_EQUIPMENT_KEYS, setCredits } from "../../sim/player/profile.js";
 import type { PlayerProfile } from "../../sim/player/profile.js";
+import { spawnTestShooter } from "../../sim/ai/test-spawn.js";
+import { identTargetSnapshot } from "../../sim/combat/ident.js";
 import { hashWorld } from "../../sim/world/serialize.js";
 import { liveEntityCount } from "../../sim/world/world.js";
 import { maxRelativeMagnitude } from "../../render/sync.js";
@@ -79,6 +84,9 @@ export interface ProbePublisher {
   /** Remove the hook, save and Save/Load screen probes from the page object. */
   withdrawProbe: () => void;
 }
+
+/** The ship the hook's shooter is: the stock Viper (a police fighter). */
+const TEST_SHOOTER_KEY = "viper";
 
 export function toTuple(position: Vec3): [number, number, number] {
   return [position.x, position.y, position.z];
@@ -168,10 +176,36 @@ export function createProbePublisher(
     );
   }
 
+  /**
+   * The hook's shooter seam (CBT-07): one firing Viper 1,500 m ahead of the
+   * player, in the live world. It needs a ship in flight, a live world and the
+   * loaded traffic content (traffic on); anything else returns false and
+   * changes nothing, taint included. The session is tainted before the world is
+   * touched, so no autosave can make the spawned ship durable (T-13-27).
+   */
+  function spawnShooter(): boolean {
+    const liveState = ctx.core.state;
+    if (
+      liveState === undefined ||
+      ctx.runtime.disposed ||
+      liveState.mode !== "inFlight"
+    ) {
+      return false;
+    }
+    const world = ctx.core.worldLifecycle?.world;
+    const record = ctx.core.npcTraffic?.records.find(
+      (candidate) => candidate.key === TEST_SHOOTER_KEY,
+    );
+    if (world === undefined || record === undefined) return false;
+    markHookMutation();
+    return spawnTestShooter(world, liveState, record, liveState.tick);
+  }
+
   /** The sim members of the hook, bound at call time (G-8). */
   const simHook: WegoliteSimTestHook = {
     worldHash,
     advanceTicks: (n) => advanceTicks(n),
+    spawnTestShooter: spawnShooter,
   };
 
   /**
@@ -317,6 +351,25 @@ export function createProbePublisher(
       delete probe.sim;
     }
 
+    // Plan 13-14: values only. The lock is a flag: the locked entity's id never
+    // leaves the sim (T-13-28, tests/guards/entity-id-scope.test.ts).
+    const combat = ctx.core.combat;
+    if (combat !== undefined) {
+      probe.combat = {
+        view: combat.view,
+        fwdShield: combat.fwdShield,
+        aftShield: combat.aftShield,
+        energy: combat.energy,
+        laserTemp: combat.laserTemp[combat.view],
+        cabinTemp: combat.cabinTemp,
+        identLocked:
+          identTargetSnapshot(combat, ctx.core.worldLifecycle?.world) !==
+          undefined,
+      };
+    } else {
+      delete probe.combat;
+    }
+
     if (probe.test !== undefined) probe.test.tainted = ctx.runtime.testTainted;
     // G-8: the queue depth is published so a proof can read a queued message
     // before and after an in-session Load.
@@ -385,6 +438,7 @@ export function createProbePublisher(
 
   function withdrawProbe(): void {
     delete probe.sim;
+    delete probe.combat;
     delete probe.test;
     delete probe.save;
     delete probe.saveScreen;

@@ -18,10 +18,15 @@
  * carries two read/step members (plan 08-16, D-13: the one deliberate additive
  * post-split probe change): `worldHash()` reads the world hash on demand and
  * `advanceTicks(n)` steps the manual clock (`?test=1&clock=manual` only).
+ * Plan 13-14 adds `probe.combat` (the player's view, shields, energy, laser and
+ * cabin temperature and whether an ident lock exists, values only) and the hook
+ * member `spawnTestShooter()`, which puts a firing test pilot in the player's
+ * sights.
  */
 
 import type * as THREE from "three";
 import type { SaveStatus } from "../persistence/store.js";
+import type { Facing } from "../sim/combat/mounts.js";
 import type { FlightMode } from "../sim/flight/state.js";
 import type { CompassTarget, FlightState } from "../sim/flight/state.js";
 import type { AegisStatus } from "../sim/world/aegis.js";
@@ -290,6 +295,14 @@ export interface WegoliteSimTestHook {
    * state), steps nothing and does not taint.
    */
   advanceTicks(n: number): number;
+  /**
+   * Put one firing test pilot (a Viper) 1,500 m ahead of the player, facing it,
+   * so shield and energy loss is observable (CBT-07). It works only in flight
+   * with traffic content loaded; otherwise it returns false and changes nothing.
+   * Marks the session tainted before it mutates the world, so no autosave can
+   * make the ship durable.
+   */
+  spawnTestShooter(): boolean;
 }
 
 export interface WegoliteTestHook
@@ -309,6 +322,26 @@ export interface WegoliteTestHook
   grantEquipment(key: string): boolean;
   /** True once any live-state mutation was accepted. */
   tainted: boolean;
+}
+
+/**
+ * The player's combat state as the browser specs read it (CBT-04 to CBT-07):
+ * values only. `identLocked` says whether a lock exists; the locked entity's id
+ * never leaves the simulation (T-13-28).
+ */
+export interface WegoliteCombatProbe {
+  /** The current cockpit view, which is also the weapon facing. */
+  view: Facing;
+  /** Forward and aft shield, `0..128`. */
+  fwdShield: number;
+  aftShield: number;
+  /** Energy banks, `0..256`. */
+  energy: number;
+  /** The laser temperature of the current facing. */
+  laserTemp: number;
+  cabinTemp: number;
+  /** Whether the ident system holds a live lock. */
+  identLocked: boolean;
 }
 
 /** QUAL-05: the WebGL context-recovery state and its counters. */
@@ -401,6 +434,11 @@ export interface WegoliteProbe {
    * absent in `menu` mode, after `dispose()` and on the failure surface.
    */
   sim?: WegoliteSimProbe;
+  /**
+   * The player's combat state (plan 13-14); published while a combat state
+   * exists, absent in `menu` mode, after `dispose()` and on the failure surface.
+   */
+  combat?: WegoliteCombatProbe;
   /** Present only under `?test=1`. */
   test?: WegoliteTestHook;
   /** Present only on the failure surface. */
@@ -509,6 +547,11 @@ export function createTestHook(
     },
     worldHash: () => sim.worldHash(),
     advanceTicks: (n: number) => sim.advanceTicks(n),
+    spawnTestShooter: () => {
+      if (!sim.spawnTestShooter()) return false;
+      hook.tainted = true;
+      return true;
+    },
   };
   return hook;
 }

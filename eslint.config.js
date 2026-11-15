@@ -298,6 +298,53 @@ const AI_MODULE_STATE_BANS = [
   },
 ];
 
+/**
+ * The sim zone's import bans, shared by the `src/sim/**` block and the one
+ * carve-out of the AI zone below (`src/sim/ai/test-spawn.ts`).
+ */
+const SIM_IMPORT_PATTERNS = [
+  {
+    group: ["three", "three/*", "three/addons/*"],
+    message: "src/sim must stay renderer-free.",
+  },
+  // D-13/FLGT-06: settings persistence is an app concern. The sim
+  // receives a validated config, never a storage blob.
+  {
+    group: ["**/settings/**"],
+    message: "src/sim must not import the settings layer",
+  },
+  // FLGT-03/D-16: the ship catalogue is runtime content. The sim
+  // receives a derived `FlightConfig`, never the catalogue itself.
+  {
+    group: ["**/content/ships*"],
+    message: "src/sim must not import the ship catalogue",
+  },
+  {
+    group: [
+      "**/render/**",
+      "**/ui/**",
+      "**/input/**",
+      "**/app/**",
+      "**/persistence/**",
+      // D-16: the sim may name content *types* and nothing else. A
+      // runtime import would drag zod, the loader, or generated data
+      // into the simulation bundle. The type-only door is
+      // `content/types`, proven by tests/guards/content-boundary.
+      "**/content/index*",
+      "**/content/schemas/**",
+      "**/content/generated/**",
+      // The Phase 5 loaders are runtime content too: the sim receives
+      // a validated record or plain data, never a loader.
+      "**/content/commodities*",
+      "**/content/labels*",
+      "**/content/equipment*",
+      "**/content/dock-port*",
+      "**/content/systems*",
+    ],
+    message: "src/sim may only import src/sim and content/types.",
+  },
+];
+
 export default tseslint.config(
   {
     // A fixed four-entry set: nothing under src/ is ever ignored, so a seeded
@@ -333,48 +380,7 @@ export default tseslint.config(
       "no-restricted-imports": [
         "error",
         {
-          patterns: [
-            {
-              group: ["three", "three/*", "three/addons/*"],
-              message: "src/sim must stay renderer-free.",
-            },
-            // D-13/FLGT-06: settings persistence is an app concern. The sim
-            // receives a validated config, never a storage blob.
-            {
-              group: ["**/settings/**"],
-              message: "src/sim must not import the settings layer",
-            },
-            // FLGT-03/D-16: the ship catalogue is runtime content. The sim
-            // receives a derived `FlightConfig`, never the catalogue itself.
-            {
-              group: ["**/content/ships*"],
-              message: "src/sim must not import the ship catalogue",
-            },
-            {
-              group: [
-                "**/render/**",
-                "**/ui/**",
-                "**/input/**",
-                "**/app/**",
-                "**/persistence/**",
-                // D-16: the sim may name content *types* and nothing else. A
-                // runtime import would drag zod, the loader, or generated data
-                // into the simulation bundle. The type-only door is
-                // `content/types`, proven by tests/guards/content-boundary.
-                "**/content/index*",
-                "**/content/schemas/**",
-                "**/content/generated/**",
-                // The Phase 5 loaders are runtime content too: the sim receives
-                // a validated record or plain data, never a loader.
-                "**/content/commodities*",
-                "**/content/labels*",
-                "**/content/equipment*",
-                "**/content/dock-port*",
-                "**/content/systems*",
-              ],
-              message: "src/sim may only import src/sim and content/types.",
-            },
-          ],
+          patterns: SIM_IMPORT_PATTERNS,
         },
       ],
       "no-restricted-globals": ["error", ...SIM_GLOBAL_BANS],
@@ -583,6 +589,26 @@ export default tseslint.config(
         {
           selector: "ImportExpression",
           message: "No dynamic import in the AI zone.",
+        },
+      ],
+    },
+  },
+  {
+    // The one carve-out of the AI zone: `src/sim/ai/test-spawn.ts` is a
+    // `?test=1` world-side seam (CBT-07), not an AI module. It spawns an entity
+    // into a world, so it needs `world/world.js` and the flight state, which the
+    // AI allow-list refuses. It keeps the sim zone's import bans and the same
+    // syntax bans, and nothing else under `src/sim/ai/` gains the exemption.
+    files: ["src/sim/ai/test-spawn.ts"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: SIM_IMPORT_PATTERNS }],
+      "no-restricted-syntax": [
+        "error",
+        ...SIM_SYNTAX_BANS,
+        ...AI_MODULE_STATE_BANS,
+        {
+          selector: "ImportExpression",
+          message: "No dynamic import in the sim zone.",
         },
       ],
     },

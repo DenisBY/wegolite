@@ -7,6 +7,7 @@
  * drift the plan names and to stay quiet on the documented exceptions.
  */
 
+import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 
 import { describe, expect, it } from "vitest";
@@ -202,5 +203,65 @@ describe("compareProbeShapes", () => {
 
   it("pins the documented record paths", () => {
     expect(PROBE_SHAPE_RECORD_PATHS).toEqual(["economy.cargo", "hud.bounds"]);
+  });
+});
+
+describe("the recorded fixture after plan 13-14", () => {
+  const fixture = JSON.parse(
+    readFileSync(
+      new URL("../fixtures/probe-shape.json", import.meta.url),
+      "utf8",
+    ),
+  ) as Record<string, Record<string, unknown> & { test?: unknown }>;
+
+  const COMBAT_SHAPE = {
+    aftShield: "number",
+    cabinTemp: "number",
+    energy: "number",
+    fwdShield: "number",
+    identLocked: "boolean",
+    laserTemp: "number",
+    view: "string",
+  };
+
+  it("pins probe.combat as seven values in every session state and not in the menu", () => {
+    expect(fixture["menu"]).not.toHaveProperty("combat");
+    for (const name of [
+      "docked",
+      "paused",
+      "chart",
+      "inFlight",
+      "testHookDocked",
+      "testHookManualDocked",
+    ]) {
+      expect(fixture[name]?.["combat"], name).toEqual(COMBAT_SHAPE);
+    }
+  });
+
+  it("pins the shooter hook member as a function beside the other hook members", () => {
+    for (const name of ["testHookDocked", "testHookManualDocked"]) {
+      const hook = fixture[name]?.["test"] as Record<string, string>;
+      expect(hook["spawnTestShooter"], name).toBe("function");
+      expect(hook["advanceTicks"], name).toBe("function");
+      expect(hook["tainted"], name).toBe("boolean");
+    }
+    for (const name of ["menu", "docked", "paused", "chart", "inFlight"]) {
+      expect(fixture[name], name).not.toHaveProperty("test");
+    }
+  });
+
+  it("catches a probe that drops the combat group or turns the hook member into a value", () => {
+    const pinned = fixture["testHookManualDocked"];
+    const dropped = { ...pinned };
+    delete dropped["combat"];
+    expect(compareProbeShapes(dropped, pinned, NONE, NONE)).toEqual([
+      'combat: missing key (expected {"aftShield":"number","cabinTemp":"number","energy":"number","fwdShield":"number","identLocked":"boolean","laserTemp":"number","view":"string"})',
+    ]);
+
+    const hook = pinned?.["test"] as Record<string, string>;
+    const valued = { ...pinned, test: { ...hook, spawnTestShooter: "string" } };
+    expect(compareProbeShapes(valued, pinned, NONE, NONE)).toEqual([
+      'test.spawnTestShooter: expected "function", actual "string"',
+    ]);
   });
 });
