@@ -15,10 +15,12 @@
  * plist message `DESIRED_RANGE_ACHIEVED` has no consumer and is not posted, and
  * `addTarget:`'s `shipTargetAcquired` (8667-8669) is not in `AI_EVENT_NAMES` and
  * is not posted (a recorded divergence). The proximity call site (3881-3882,
- * `hasProximityAlertIgnoringTarget:YES` then `avoidCollision`) is plan 14-13's.
+ * `hasProximityAlertIgnoringTarget:YES` then `avoidCollision`) is plan 14-13's
+ * (`../avoid.js`).
  */
 
 import type { Entity } from "../../world/entity.js";
+import { avoidCollision, hasProximityAlertIgnoringTarget } from "../avoid.js";
 import type { SteerContext } from "../dispatch.js";
 import { rangeToPrimaryTarget } from "../target.js";
 import { trackPrimaryTarget } from "../track.js";
@@ -34,5 +36,7 @@ export function behaviourInterceptTarget(
   }
   entity.nav.desiredSpeed =
     ctx.stats.maxFlightSpeed * trackPrimaryTarget(entity, ctx, false);
-  // 3881-3882: the proximity alert and avoidCollision: plan 14-13
+  if (hasProximityAlertIgnoringTarget(entity, ctx, true)) {
+    avoidCollision(entity, ctx); // 3881-3882
+  }
 }

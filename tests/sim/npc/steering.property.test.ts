@@ -95,7 +95,7 @@ const NAVIGATION: readonly BehaviourId[] = [
 
 /**
  * The target behaviours of plan 14-12 (COLLECT_TARGET stays in OUT_OF_SCOPE:
- * the collect half is AI-12). Plans 14-13 to 14-15 add flee and attack.
+ * the collect half is AI-12). Plans 14-14 and 14-15 add attack.
  */
 const PURSUIT: readonly BehaviourId[] = ["INTERCEPT_TARGET"];
 
@@ -689,20 +689,24 @@ const targetPlan = fc.record({
   removeAt: fc.integer({ min: 1, max: 240 }),
 });
 
-describe("INTERCEPT_TARGET is total with degenerate target poses (plan 14-12)", () => {
-  it("covers the pursuit ids this plan lists, each a known behaviour id", () => {
-    for (const id of PURSUIT) {
-      expect(BEHAVIOUR_IDS).toContain(id);
-      expect(SWEPT_BEHAVIOURS).toContain(id);
-    }
-  });
-
-  it("never throws, keeps the aim point finite and leaves the sanitiser nothing to repair", () => {
-    fc.assert(
-      fc.property(scenario, targetPlan, (base, plan) => {
+/**
+ * Run `behaviours` against a target of `plan` for `s.ticks` updates and assert
+ * totality: no throw, finite aim points, events in the closed vocabulary and
+ * nothing for the sanitiser to repair.
+ */
+function targetTotality(
+  behaviours: readonly BehaviourId[],
+  extra: (entity: Entity, bodies: RunnerBody[]) => void = () => {},
+): void {
+  fc.assert(
+    fc.property(
+      scenario,
+      targetPlan,
+      fc.constantFrom(...behaviours),
+      (base, plan, behaviour) => {
         const s: Scenario = {
           ...base,
-          nav: { ...base.nav, behaviour: "INTERCEPT_TARGET" },
+          nav: { ...base.nav, behaviour },
         };
         const entity = buildEntity(s);
         const here = entity.position;
@@ -734,12 +738,17 @@ describe("INTERCEPT_TARGET is total with degenerate target poses (plan 14-12)", 
           unknown: TARGET_ID + 1000,
           none: 0,
         }[plan.mode];
+        extra(entity, bodies);
         const stream = createRngState(s.seed);
         const draw = (): number => rngNext(stream);
         const events: string[] = [];
         for (let tick = 1; tick <= s.ticks; tick += 1) {
           if (plan.mode === "removedMidRun" && tick >= plan.removeAt) {
-            bodies.length = 0;
+            bodies.splice(
+              0,
+              bodies.length,
+              ...bodies.filter((b) => b.id !== TARGET_ID),
+            );
           }
           const ctx: SteerContext = {
             view: createSyntheticView(bodies, entity, tick),
@@ -762,8 +771,61 @@ describe("INTERCEPT_TARGET is total with degenerate target poses (plan 14-12)", 
           expect(sanitizeEntity(entity)).toBe(false);
           expect(entity.repairs).toBe(0);
         }
-      }),
-      { numRuns: 200 },
-    );
+      },
+    ),
+    { numRuns: 200 },
+  );
+}
+
+describe("INTERCEPT_TARGET is total with degenerate target poses (plan 14-12)", () => {
+  it("covers the pursuit ids this plan lists, each a known behaviour id", () => {
+    for (const id of PURSUIT) {
+      expect(BEHAVIOUR_IDS).toContain(id);
+      expect(SWEPT_BEHAVIOURS).toContain(id);
+    }
+  });
+
+  it("never throws, keeps the aim point finite and leaves the sanitiser nothing to repair", () => {
+    targetTotality(PURSUIT);
+  }, 120_000);
+});
+
+describe("a forced proximity alert keeps steering total (plan 14-13)", () => {
+  const ALERT_ID = 103;
+  const ALERTED: readonly BehaviourId[] = [...NAVIGATION, ...PURSUIT];
+
+  it("covers every navigation id and intercept, each swept", () => {
+    for (const id of ALERTED) expect(SWEPT_BEHAVIOURS).toContain(id);
+  });
+
+  it("an alert on a live body of any pose never throws and repairs nothing", () => {
+    targetTotality(ALERTED, (entity, bodies) => {
+      const here = entity.position;
+      bodies.push({
+        id: ALERT_ID,
+        kind: "ship",
+        scanClass: "CLASS_NEUTRAL",
+        radius: 1e5,
+        mass: 0,
+        position: vec(here.x + 1e-3, here.y, here.z),
+        orientation: identity(),
+        speed: 0,
+        behaviour: "IDLE",
+        targetId: 0,
+      });
+      entity.steer.proximityAlert = ALERT_ID;
+    });
+  }, 120_000);
+
+  it("an alert on the target, on nothing and on the ship itself never throws", () => {
+    for (const alertOf of [
+      (): number => TARGET_ID,
+      (): number => 9999,
+      (e: Entity): number => e.id,
+    ]) {
+      targetTotality(ALERTED, (entity) => {
+        entity.steer.proximityAlert = alertOf(entity);
+      });
+    }
   }, 120_000);
 });

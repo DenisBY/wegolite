@@ -282,3 +282,43 @@ export const ACCURACY_DRAW_SPAN = 10;
 
 /** See `ACCURACY_DRAW_SPAN` (`ShipEntity.m:667`). */
 export const ACCURACY_DRAW_OFFSET = -5;
+
+/* ---------------------------------------------------------------------------
+ * Avoid collision, flee and evasive action (plan 14-13)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * `desired_range` of the avoid-collision entry is the other ship's collision
+ * radius times this (`Universe.h:101`; used at `ShipEntity.m:5931`).
+ */
+export const PROXIMITY_AVOID_DISTANCE_FACTOR = 10;
+
+/** The fraction of the way to the other ship the avoid-collision destination sits (`ShipEntity.m:5929`). */
+export const AVOID_MIDPOINT = 0.5;
+
+/** The frustration relief per second of improving range in flee (`ShipEntity.m:4862`). */
+export const FLEE_FRUSTRATION_RELIEF = 0.25;
+
+/** Flee reports frustration after this many seconds without a range gain (`ShipEntity.m:4867`). */
+export const FLEE_FRUSTRATION_LIMIT = 15;
+
+/** The z component `setEvasiveJink:` receives from flee and `performFlee` (`ShipEntity.m:9098`, `ShipEntityAI.m:383`). */
+export const EVASIVE_JINK_Z = 400;
+
+/** `setEvasiveJink:` draws each of x and y in `[-128, 128)` (`ranrot_rand() % 256 - 128`, `ShipEntity.m:8985-8986`). */
+export const EVASIVE_JINK_SPAN = 256;
+
+/** `setEvasiveJink:` keeps each of x and y at least this far from zero (`ShipEntity.m:8989-8999`). */
+export const EVASIVE_JINK_OFFSET = 128;
+
+/** `performFlee` switches to an evasive behaviour when the target aims closer than this cosine (`ShipEntityAI.m:387`). */
+export const FLEE_EVASIVE_ASPECT = 0.9995;
+
+/** `performFlee` picks EVASIVE_ACTION below this draw and FLEE_EVASIVE_ACTION otherwise (`ShipEntityAI.m:388`). */
+export const FLEE_EVASIVE_CHANCE = 0.15;
+
+/** `evasiveAction:` does not roll while the two right vectors agree within this (`ShipEntity.m:9016`). */
+export const EVASIVE_ROLL_AGREEMENT = 0.3;
+
+/** An evasive behaviour hands over after this many seconds (`ShipEntity.m:4021`). */
+export const EVASIVE_FRUSTRATION_LIMIT = 0.5;

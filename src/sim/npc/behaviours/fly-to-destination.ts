@@ -13,11 +13,11 @@
  *    5052, 5059, 5088-5093, 5101-5115). No NPC docks in v2.2 (WORLD-09 is
  *    unscheduled), so `docking_match_rotation` is false and
  *    `dockingInstructions` is nil wherever it is read;
- *  - the proximity call sites (`hasProximityAlertIgnoringTarget:` then
- *    `avoidCollision`, 4914-4915, 5131-5132, 5150-5151): the alert is always 0
- *    until plan 14-15's pass, and `avoidCollision` needs the body radius and the
- *    tracking curve, so plan 14-13 adds `avoid.ts` and inserts the call sites
- *    marked below.
+ *
+ * The proximity call sites (`hasProximityAlertIgnoringTarget:` then
+ * `avoidCollision`, 4914-4915, 5131-5132, 5150-5151) are plan 14-13's
+ * (`../avoid.js`); with no alert (always 0 until plan 14-15's pass) they do
+ * nothing.
  *
  * Events. `doScriptEvent("shipAchievedDesiredRange")` becomes a queued AI event
  * (`ctx.emit`), never a synchronous call. Fly-to and fly-from post it once
@@ -43,6 +43,7 @@ import {
   FLY_TO_SPEED_CUT,
   FLY_TO_TURN_SPEED_COEFFICIENT,
 } from "../constants.js";
+import { avoidCollision, hasProximityAlertIgnoringTarget } from "../avoid.js";
 import type { SteerContext } from "../dispatch.js";
 import {
   noteFrustration,
@@ -71,7 +72,9 @@ export function behaviourFlyRangeFromDestination(
   } else {
     nav.behaviour = "FLY_TO_DESTINATION";
   }
-  // 4914-4915: the proximity alert and avoidCollision: plan 14-13.
+  if (hasProximityAlertIgnoringTarget(entity, ctx, true)) {
+    avoidCollision(entity, ctx); // 4914-4915
+  }
   entity.steer.frustration = 0;
 }
 
@@ -159,7 +162,9 @@ export function behaviourFlyToDestination(
       }
     }
   }
-  // 5131-5132: the proximity alert and avoidCollision: plan 14-13.
+  if (hasProximityAlertIgnoringTarget(entity, ctx, true)) {
+    avoidCollision(entity, ctx); // 5131-5132
+  }
 }
 
 /** `behaviour_fly_from_destination:` (5136-5153; FORMATION_BREAK shares it). */
@@ -177,5 +182,7 @@ export function behaviourFlyFromDestination(
   }
 
   trackDestination(entity, ctx, true);
-  // 5150-5151: the proximity alert and avoidCollision: plan 14-13.
+  if (hasProximityAlertIgnoringTarget(entity, ctx, true)) {
+    avoidCollision(entity, ctx); // 5150-5151
+  }
 }

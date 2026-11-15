@@ -113,6 +113,9 @@ const PORTED: readonly { file: string; from: number; to: number }[] = [
   { file: "src/Core/Entities/ShipEntityAI.m", from: 413, to: 417 }, // performIntercept
   // plan 14-12, task 2: the reaction-time tracking curve
   { file: "src/Core/Entities/ShipEntity.m", from: 5412, to: 5489 }, // calculateTargetPosition .. calculateTrackingCurve
+  // plan 14-13, task 1: the avoid-collision entry and exit
+  { file: "src/Core/Entities/ShipEntity.m", from: 5904, to: 5958 }, // avoidCollision, resumePostProximityAlert
+  { file: "src/Core/Entities/ShipEntity.m", from: 9751, to: 9758 }, // hasProximityAlertIgnoringTarget
 ];
 
 /**

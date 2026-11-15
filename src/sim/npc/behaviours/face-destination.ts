@@ -8,7 +8,7 @@
  * once facing and settled (the plist message `FACING_DESTINATION` has no
  * consumer), then go IDLE (`docking_match_rotation` is false for every NPC,
  * 4935-4940). The docking branch is not ported (no NPC docks in v2.2, WORLD-09
- * is unscheduled). The proximity call site (4962-4963) is plan 14-13's.
+ * is unscheduled). The proximity call site (4962-4963) is plan 14-13's (`../avoid.js`).
  *
  * Frustration is a GLfloat in Oolite: every write is `Math.fround`, so the
  * `15 / max_flight_pitch` threshold fires on the oracle's tick.
@@ -25,6 +25,7 @@ import {
   FACE_PRECISION,
   MAX_COS,
 } from "../constants.js";
+import { avoidCollision, hasProximityAlertIgnoringTarget } from "../avoid.js";
 import type { SteerContext } from "../dispatch.js";
 import {
   noteFrustration,
@@ -85,5 +86,7 @@ export function behaviourFaceDestination(
     steer.flightPitch += FACE_DAMPING_SHARE * oldPitch; // damping with last pitch value
   }
 
-  // 4962-4963: the proximity alert and avoidCollision: plan 14-13.
+  if (hasProximityAlertIgnoringTarget(entity, ctx, true)) {
+    avoidCollision(entity, ctx); // 4962-4963
+  }
 }

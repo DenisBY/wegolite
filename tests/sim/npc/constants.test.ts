@@ -185,3 +185,25 @@ describe("the accuracy draw (ShipEntity.m:667)", () => {
     expect(ledger.ACCURACY_DRAW_OFFSET).toBe(-5);
   });
 });
+
+describe("avoid collision, flee and evasive action (plan 14-13)", () => {
+  it.each([
+    [
+      "PROXIMITY_AVOID_DISTANCE_FACTOR",
+      ledger.PROXIMITY_AVOID_DISTANCE_FACTOR,
+      10,
+    ], // Universe.h:101
+    ["AVOID_MIDPOINT", ledger.AVOID_MIDPOINT, 0.5], // ShipEntity.m:5929
+    ["FLEE_FRUSTRATION_RELIEF", ledger.FLEE_FRUSTRATION_RELIEF, 0.25], // :4862
+    ["FLEE_FRUSTRATION_LIMIT", ledger.FLEE_FRUSTRATION_LIMIT, 15], // :4867
+    ["EVASIVE_JINK_Z", ledger.EVASIVE_JINK_Z, 400], // :9098, ShipEntityAI.m:383
+    ["EVASIVE_JINK_SPAN", ledger.EVASIVE_JINK_SPAN, 256], // :8985
+    ["EVASIVE_JINK_OFFSET", ledger.EVASIVE_JINK_OFFSET, 128], // :8989-8999
+    ["FLEE_EVASIVE_ASPECT", ledger.FLEE_EVASIVE_ASPECT, 0.9995], // ShipEntityAI.m:387
+    ["FLEE_EVASIVE_CHANCE", ledger.FLEE_EVASIVE_CHANCE, 0.15], // ShipEntityAI.m:388
+    ["EVASIVE_ROLL_AGREEMENT", ledger.EVASIVE_ROLL_AGREEMENT, 0.3], // :9016
+    ["EVASIVE_FRUSTRATION_LIMIT", ledger.EVASIVE_FRUSTRATION_LIMIT, 0.5], // :4021
+  ])("%s is %d", (_name, actual, expected) => {
+    expect(actual).toBe(expected);
+  });
+});
