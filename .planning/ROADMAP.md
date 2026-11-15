@@ -178,7 +178,7 @@ Plans:
 **Pitfalls to address**: 6 (`BEHAVIOUR_*` steering fidelity: per-behaviour oracles, 20-seed acceptance), 5 (the harness spike as the only independent check of the later port), 3 (integer tick timers), 4 (NaN in steering), 7 (steering requests queued), 19 (behaviours act only through `ShipControl`), 11 (oracles in Vitest, not the browser)
 **Decisions to settle**: the stated acceptance thresholds (stuck, tunnelling, NaN repair) before the run; the time box and stub-host scope of the spike; the oracle choice at the gate (owner)
 **Todos**: candidates to fold in by owner decision, not requirements: IN-02 (`aiFaulted` is emitted but nothing records it) and IN-04 (a failed NPC model is never retried, yet the ship still blocks and shows on the scanner), both from `2026-11-14-clear-world-when-arrival-begin-is-refused.md`
-**Plans:** 19 plans in 14 waves (three owner checkpoints: the hash policy in 14-08, the 20-seed acceptance result and any breach resolution in 14-17, the fidelity report and oracle choice in 14-19; revised after the cross-AI reviews of 2026-11-15 (two rounds) and plan-check revision 1, which split the first oracle plan and the intercept plan and renumbered the plans in wave order)
+**Plans:** 19 plans in 14 waves (three owner checkpoints: the hash policy in 14-08, the 20-seed acceptance result and any breach resolution in 14-17, the fidelity report and oracle choice in 14-19; revised after the cross-AI reviews of 2026-11-15 (two rounds and a targeted third round on the acceptance design) and plan-check revision 1, which split the first oracle plan and the intercept plan and renumbered the plans in wave order)
 
 Plans:
 **Wave 1**
@@ -190,7 +190,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 14-06-PLAN.md — Oracle I, part 2 (separate agent, before any `src/sim/npc` file): the frame-rate rule with its tolerance stated first, the 1/60 versus 1/120 grid, avoid-collision, proximity and escort fixtures
-- [ ] 14-07-PLAN.md — Pre-committed gates: the post-build `dist` check (three markers, source maps skipped) in `verify`, `verify-full` and the Pages build; the 20-seed acceptance thresholds with their definitions, the flyer start placement, the run minimums, the player parking rule, the three hull-crossing classes with their pre-declared escalation, and the empty accepted-crossings list outside the frozen pair
+- [ ] 14-07-PLAN.md — Pre-committed gates: the post-build `dist` check (three markers, source maps skipped) in `verify`, `verify-full` and the Pages build; the 20-seed acceptance thresholds with their definitions, the flyer start placement with a designed near pass that raises an alert in every seed, the run minimums, the player parking rule, the three hull-crossing classes with their pre-declared escalation, and the empty accepted-crossings list outside the frozen set
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 14-08-PLAN.md — Steering record on every ship (signed tracking ticks), hash policy by owner decision (checkpoint) recorded in PROJECT.md, snapshot format 3, green intermediate commits
@@ -220,7 +220,7 @@ Plans:
 - [ ] 14-16-PLAN.md — Test-only flight-script pilot with one goal metric per script, spawnTestFlyers, Vitest flyers scenario, 30/60/144 Hz replay
 
 **Wave 12** *(blocked on Wave 11 completion)*
-- [ ] 14-17-PLAN.md — The 20-seed acceptance run (`npm run test:acceptance`) against the pre-committed thresholds and run minimums, with the seed set-up and detectors frozen first, hull crossings classified in three classes, and an explicit owner checkpoint whose accepted crossings are listed in `accepted-crossings.ts`
+- [ ] 14-17-PLAN.md — The 20-seed acceptance run (`npm run test:acceptance`) against the pre-committed thresholds and run minimums, with the seed set-up, detectors, run registration and flight-script pilot frozen first, hull crossings classified in three classes, and an explicit owner checkpoint whose accepted crossing episodes, of any class, are listed in `accepted-crossings.ts`
 
 **Wave 13** *(blocked on Wave 12 completion)*
 - [ ] 14-18-PLAN.md — Session and replay flight table, `spawnTestFlyers` hook, opt-in browser smoke (remote specs)
