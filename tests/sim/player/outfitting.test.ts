@@ -25,17 +25,28 @@ import {
   PASSENGER_BERTH_PODS,
   capacityPodsFor,
 } from "../../../src/sim/economy/cargo.js";
+import { FACINGS, NO_LASER } from "../../../src/sim/combat/mounts.js";
+import type { LaserMounts } from "../../../src/sim/combat/mounts.js";
 import {
   FUEL_CAPACITY,
+  LASER_FIT_KEYS,
   MAX_MISSILES,
   MAX_PASSENGER_BERTHS,
   REMOVAL_DESCRIPTIONS,
   VISIBLE_EQUIPMENT_KEYS,
   applyFit,
+  applyLaserFit,
   checkFit,
+  checkLaserFit,
   fitPrice,
+  laserFitKey,
+  laserPriceMap,
+  parseLaserFitKey,
 } from "../../../src/sim/player/outfitting.js";
-import type { FitContext } from "../../../src/sim/player/outfitting.js";
+import type {
+  FitContext,
+  LaserFitContext,
+} from "../../../src/sim/player/outfitting.js";
 import { newProfile } from "../../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../../src/sim/player/profile.js";
 
@@ -792,6 +803,394 @@ describe("applyFit: property over random valid profiles", () => {
         expect(new Set(after.equipment).size).toBe(after.equipment.length);
       }),
       { numRuns: 200 },
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Lasers (CBT-05, plan 13-09). Expected values come from Oolite
+// (`PlayerEntity.m:9139-9217`, `doTradeIn` `:9431-9438`) and from the catalogue
+// prices read in the plan: pulse 4,000, beam 10,000, mining 8,000, military
+// 60,000 decicredits; tech levels 3, 4, 10, 10.
+// ---------------------------------------------------------------------------
+
+function laserContext(
+  overrides: Partial<LaserFitContext> = {},
+): LaserFitContext {
+  return {
+    ...makeContext(),
+    laserPrices: laserPriceMap(catalogue),
+    ...overrides,
+  };
+}
+
+function mounts(overrides: Partial<LaserMounts> = {}): LaserMounts {
+  return { ...newProfile().laserMounts, ...overrides };
+}
+
+describe("LASER_FIT_KEYS and the composite row key", () => {
+  it("lists Remove Laser then the four lasers in equipment.plist order", () => {
+    expect([...LASER_FIT_KEYS]).toEqual([
+      "EQ_WEAPON_NONE",
+      "EQ_WEAPON_PULSE_LASER",
+      "EQ_WEAPON_BEAM_LASER",
+      "EQ_WEAPON_MINING_LASER",
+      "EQ_WEAPON_MILITARY_LASER",
+    ]);
+  });
+
+  it("round-trips every allow-listed key on every facing", () => {
+    for (const key of LASER_FIT_KEYS) {
+      for (const facing of FACINGS) {
+        const composite = laserFitKey(key, facing);
+        expect(composite).toBe(`${key}@${facing}`);
+        expect(parseLaserFitKey(composite)).toEqual({ key, facing });
+      }
+    }
+  });
+
+  it("refuses a forged composite key (T-13-18)", () => {
+    for (const forged of [
+      "EQ_ECM@fore",
+      "EQ_WEAPON_PULSE_LASER@up",
+      "EQ_WEAPON_PULSE_LASER",
+      "EQ_WEAPON_THARGOID_LASER@fore",
+      "EQ_WEAPON_PULSE_LASER@fore@aft",
+      "EQ_WEAPON_PULSE_LASER@",
+      "@fore",
+      "",
+      "EQ_WEAPON_PULSE_LASER@FORE",
+      "EQ_WEAPON_PULSE_LASER@__proto__",
+    ]) {
+      expect(parseLaserFitKey(forged)).toBeNull();
+    }
+  });
+});
+
+describe("checkLaserFit and applyLaserFit: purchase and trade-in", () => {
+  it("charges the price and fits a laser on an empty facing with no refund", () => {
+    const before = makeProfile({ credits: 10_000 });
+    const after = applyLaserFit(
+      before,
+      item("EQ_WEAPON_BEAM_LASER"),
+      "aft",
+      laserContext({ techLevelRaw: 4 }),
+    );
+
+    expect(after.credits).toBe(0);
+    expect(after.laserMounts).toEqual(mounts({ aft: "EQ_WEAPON_BEAM_LASER" }));
+    expect(before.laserMounts).toEqual(mounts());
+    expect(after).not.toBe(before);
+  });
+
+  it("a pulse over the fore pulse pays 4,000 and is refunded 4,000, mount unchanged", () => {
+    const before = makeProfile({ credits: 4_000 });
+    const after = applyLaserFit(
+      before,
+      item("EQ_WEAPON_PULSE_LASER"),
+      "fore",
+      laserContext(),
+    );
+
+    expect(after.credits).toBe(4_000);
+    expect(after.laserMounts).toEqual(mounts());
+    // A success is a new object even at a zero net, so identity still means refused.
+    expect(after).not.toBe(before);
+  });
+
+  it("a military laser over the fore pulse needs 60,000 and the refund does not count", () => {
+    const military = item("EQ_WEAPON_MILITARY_LASER");
+
+    const poor = makeProfile({ credits: 59_999 });
+    expect(checkLaserFit(poor, military, "fore", laserContext())).toEqual({
+      ok: false,
+      reason: "insufficientCredits",
+    });
+    expect(applyLaserFit(poor, military, "fore", laserContext())).toBe(poor);
+    expect(poor.credits).toBe(59_999);
+    expect(poor.laserMounts).toEqual(mounts());
+
+    const enough = makeProfile({ credits: 60_000 });
+    const after = applyLaserFit(enough, military, "fore", laserContext());
+    expect(after.credits).toBe(4_000);
+    expect(after.laserMounts.fore).toBe("EQ_WEAPON_MILITARY_LASER");
+  });
+
+  it("refunds the laser it replaces at that laser's own catalogue price", () => {
+    const before = makeProfile({
+      credits: 10_000,
+      laserMounts: mounts({ aft: "EQ_WEAPON_MINING_LASER" }),
+    });
+    const after = applyLaserFit(
+      before,
+      item("EQ_WEAPON_BEAM_LASER"),
+      "aft",
+      laserContext(),
+    );
+
+    // 10,000 paid, 8,000 refunded for the mining laser.
+    expect(after.credits).toBe(8_000);
+    expect(after.laserMounts.aft).toBe("EQ_WEAPON_BEAM_LASER");
+  });
+
+  it("Remove Laser costs 0, refunds the removed laser and empties the facing", () => {
+    const before = makeProfile({ credits: 0 });
+    expect(
+      checkLaserFit(before, item("EQ_WEAPON_NONE"), "fore", laserContext()),
+    ).toEqual({ ok: true });
+    const after = applyLaserFit(
+      before,
+      item("EQ_WEAPON_NONE"),
+      "fore",
+      laserContext(),
+    );
+
+    expect(after.credits).toBe(4_000);
+    expect(after.laserMounts.fore).toBe(NO_LASER);
+  });
+
+  it("Remove Laser on an empty facing is noLaser and changes nothing", () => {
+    const before = makeProfile({ credits: 5_000 });
+    expect(
+      checkLaserFit(before, item("EQ_WEAPON_NONE"), "aft", laserContext()),
+    ).toEqual({ ok: false, reason: "noLaser" });
+    expect(
+      applyLaserFit(before, item("EQ_WEAPON_NONE"), "aft", laserContext()),
+    ).toBe(before);
+  });
+
+  it("each facing is independent", () => {
+    let profile = makeProfile({ credits: 100_000 });
+    for (const facing of ["aft", "port", "starboard"] as const) {
+      profile = applyLaserFit(
+        profile,
+        item("EQ_WEAPON_PULSE_LASER"),
+        facing,
+        laserContext(),
+      );
+    }
+    expect(profile.laserMounts).toEqual({
+      fore: "EQ_WEAPON_PULSE_LASER",
+      aft: "EQ_WEAPON_PULSE_LASER",
+      port: "EQ_WEAPON_PULSE_LASER",
+      starboard: "EQ_WEAPON_PULSE_LASER",
+    });
+    expect(profile.credits).toBe(100_000 - 3 * 4_000);
+  });
+});
+
+describe("checkLaserFit: the raw tech-level rule", () => {
+  const rich = makeProfile({ credits: 1_000_000 });
+
+  it("at raw TL 3 only Pulse and Remove Laser are fittable", () => {
+    const ctx = laserContext({ techLevelRaw: 3 });
+    const verdict = (key: string) =>
+      checkLaserFit(rich, item(key), "fore", ctx).ok;
+
+    expect(verdict("EQ_WEAPON_PULSE_LASER")).toBe(true);
+    expect(verdict("EQ_WEAPON_NONE")).toBe(true);
+    expect(verdict("EQ_WEAPON_BEAM_LASER")).toBe(false);
+    expect(verdict("EQ_WEAPON_MINING_LASER")).toBe(false);
+    expect(verdict("EQ_WEAPON_MILITARY_LASER")).toBe(false);
+  });
+
+  it("Beam needs TL 4 and Mining and Military need TL 10, equality allowed", () => {
+    const at = (key: string, techLevelRaw: number) =>
+      checkLaserFit(rich, item(key), "fore", laserContext({ techLevelRaw }));
+
+    expect(at("EQ_WEAPON_BEAM_LASER", 3)).toEqual({
+      ok: false,
+      reason: "techLevel",
+    });
+    expect(at("EQ_WEAPON_BEAM_LASER", 4)).toEqual({ ok: true });
+    for (const key of ["EQ_WEAPON_MINING_LASER", "EQ_WEAPON_MILITARY_LASER"]) {
+      expect(at(key, 9)).toEqual({ ok: false, reason: "techLevel" });
+      expect(at(key, 10)).toEqual({ ok: true });
+    }
+  });
+
+  it("refuses a non-integer tech level fail-closed", () => {
+    expect(
+      checkLaserFit(
+        rich,
+        item("EQ_WEAPON_PULSE_LASER"),
+        "fore",
+        laserContext({ techLevelRaw: Number.NaN }),
+      ),
+    ).toEqual({ ok: false, reason: "techLevel" });
+  });
+});
+
+describe("the money-path boundary (T-13-18, T-13-19)", () => {
+  const rich = makeProfile({ credits: 1_000_000 });
+
+  it("checkFit and applyFit still refuse every laser record and EQ_ECM as notOffered", () => {
+    for (const key of [
+      "EQ_ECM",
+      "EQ_WEAPON_NONE",
+      "EQ_WEAPON_PULSE_LASER",
+      "EQ_WEAPON_BEAM_LASER",
+      "EQ_WEAPON_MINING_LASER",
+      "EQ_WEAPON_MILITARY_LASER",
+      "EQ_WEAPON_THARGOID_LASER",
+    ]) {
+      expect(checkFit(rich, item(key), makeContext())).toEqual({
+        ok: false,
+        reason: "notOffered",
+      });
+      expect(applyFit(rich, item(key), makeContext())).toBe(rich);
+    }
+  });
+
+  it("the laser path refuses every record outside the laser allow-list", () => {
+    for (const key of [
+      "EQ_ECM",
+      "EQ_WEAPON_THARGOID_LASER",
+      "EQ_SHIELD_BOOSTER",
+      "EQ_ESCAPE_POD",
+      "EQ_MISSILE",
+      "EQ_CARGO_BAY",
+    ]) {
+      for (const facing of FACINGS) {
+        expect(checkLaserFit(rich, item(key), facing, laserContext())).toEqual({
+          ok: false,
+          reason: "notOffered",
+        });
+        expect(applyLaserFit(rich, item(key), facing, laserContext())).toBe(
+          rich,
+        );
+      }
+    }
+  });
+
+  it("refuses a facing outside the allow-list", () => {
+    const forgedFacing = "up" as unknown as (typeof FACINGS)[number];
+    expect(
+      checkLaserFit(
+        rich,
+        item("EQ_WEAPON_PULSE_LASER"),
+        forgedFacing,
+        laserContext(),
+      ),
+    ).toEqual({ ok: false, reason: "notOffered" });
+  });
+
+  it("refuses forged prices before any arithmetic", () => {
+    const pulse = item("EQ_WEAPON_PULSE_LASER");
+    for (const price of [
+      0,
+      -1,
+      1.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      2e9,
+    ]) {
+      const forged = { ...pulse, price };
+      expect(checkLaserFit(rich, forged, "aft", laserContext())).toEqual({
+        ok: false,
+        reason: "invalidPrice",
+      });
+      expect(applyLaserFit(rich, forged, "aft", laserContext())).toBe(rich);
+    }
+  });
+
+  it("Remove Laser costs 0 whatever the record claims", () => {
+    const forged = { ...item("EQ_WEAPON_NONE"), price: 99_999 };
+    const after = applyLaserFit(
+      makeProfile({ credits: 0 }),
+      forged,
+      "fore",
+      laserContext(),
+    );
+    expect(after.credits).toBe(4_000);
+  });
+
+  it("refuses when the refund price of the laser being replaced is untrusted", () => {
+    const before = makeProfile({ credits: 100_000 });
+    const noPrices = laserContext({ laserPrices: new Map() });
+    expect(
+      checkLaserFit(before, item("EQ_WEAPON_BEAM_LASER"), "fore", noPrices),
+    ).toEqual({ ok: false, reason: "invalidPrice" });
+    expect(
+      applyLaserFit(before, item("EQ_WEAPON_BEAM_LASER"), "fore", noPrices),
+    ).toBe(before);
+
+    // An empty facing has nothing to refund, so no price is needed.
+    expect(
+      checkLaserFit(before, item("EQ_WEAPON_BEAM_LASER"), "aft", noPrices),
+    ).toEqual({ ok: true });
+  });
+
+  it("refuses a tampered mount occupant", () => {
+    const tampered = {
+      ...makeProfile({ credits: 100_000 }),
+      laserMounts: { ...mounts(), aft: "EQ_ECM" },
+    } as unknown as PlayerProfile;
+    expect(
+      checkLaserFit(
+        tampered,
+        item("EQ_WEAPON_PULSE_LASER"),
+        "aft",
+        laserContext(),
+      ),
+    ).toEqual({ ok: false, reason: "invalidCondition" });
+  });
+
+  it("refuses unsafe credits and never writes negative or fractional credits", () => {
+    for (const credits of [Number.NaN, -1, 0.5, Number.MAX_SAFE_INTEGER + 2]) {
+      const bad = makeProfile({ credits });
+      expect(
+        checkLaserFit(
+          bad,
+          item("EQ_WEAPON_PULSE_LASER"),
+          "aft",
+          laserContext(),
+        ),
+      ).toEqual({ ok: false, reason: "insufficientCredits" });
+    }
+  });
+
+  it("laserPriceMap keeps only the allow-listed, validated laser prices", () => {
+    const prices = laserPriceMap([
+      ...catalogue,
+      {
+        ...item("EQ_WEAPON_BEAM_LASER"),
+        key: "EQ_WEAPON_BEAM_LASER",
+        price: -5,
+      },
+    ]);
+    // A later bad row for the same key cannot poison the map with a bad value.
+    expect(prices.get("EQ_WEAPON_PULSE_LASER")).toBe(4_000);
+    expect(prices.get("EQ_WEAPON_BEAM_LASER")).toBe(10_000);
+    expect(prices.get("EQ_WEAPON_NONE")).toBe(0);
+    expect(prices.has("EQ_ECM")).toBe(false);
+    expect(prices.has("EQ_WEAPON_THARGOID_LASER")).toBe(false);
+  });
+
+  it("never lets credits go negative across any sequence of purchases", () => {
+    const keys = LASER_FIT_KEYS;
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 0, max: 200_000 }),
+        fc.array(
+          fc.tuple(fc.constantFrom(...keys), fc.constantFrom(...FACINGS)),
+          { maxLength: 12 },
+        ),
+        (credits, steps) => {
+          let profile = makeProfile({ credits });
+          for (const [key, facing] of steps) {
+            const next = applyLaserFit(
+              profile,
+              item(key),
+              facing,
+              laserContext(),
+            );
+            expect(Number.isSafeInteger(next.credits)).toBe(true);
+            expect(next.credits).toBeGreaterThanOrEqual(0);
+            profile = next;
+          }
+        },
+      ),
     );
   });
 });

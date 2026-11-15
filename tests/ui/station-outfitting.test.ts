@@ -248,3 +248,167 @@ describe("detail pane", () => {
     ).toBeNull();
   });
 });
+
+describe("laser rows and the facing selection (CBT-05)", () => {
+  const rich = (overrides: Partial<PlayerProfile> = {}) =>
+    makeProfile({ credits: 1_000_000, ...overrides });
+
+  it("lists the lasers after the visible rows with Oolite's names and prices", () => {
+    const model = build(rich());
+
+    expect(row(model, "EQ_WEAPON_PULSE_LASER").label).toBe("Pulse Laser");
+    expect(row(model, "EQ_WEAPON_PULSE_LASER").priceText).toBe("400.0 Cr");
+    expect(row(model, "EQ_WEAPON_BEAM_LASER").priceText).toBe("1000.0 Cr");
+    expect(row(model, "EQ_WEAPON_MINING_LASER").priceText).toBe("800.0 Cr");
+    expect(row(model, "EQ_WEAPON_MILITARY_LASER").priceText).toBe("6000.0 Cr");
+    expect(row(model, "EQ_WEAPON_NONE").label).toBe("Remove Laser");
+    expect(model.facingFor).toBeNull();
+  });
+
+  it("gates each laser on the raw tech level, with the short reason", () => {
+    // Lave's raw tech level is 4: Pulse and Beam are fittable, Mining and Military are not.
+    const model = build(rich());
+    expect(row(model, "EQ_WEAPON_PULSE_LASER").confirmable).toBe(true);
+    expect(row(model, "EQ_WEAPON_BEAM_LASER").confirmable).toBe(true);
+    expect(row(model, "EQ_WEAPON_MINING_LASER")).toMatchObject({
+      confirmable: false,
+      dimmed: true,
+      reason: "Requires TL 10",
+    });
+    expect(row(model, "EQ_WEAPON_MILITARY_LASER").reason).toBe(
+      "Requires TL 10",
+    );
+
+    const high = build(rich(), 10);
+    expect(row(high, "EQ_WEAPON_MILITARY_LASER").confirmable).toBe(true);
+    const low = build(rich(), 3);
+    expect(row(low, "EQ_WEAPON_BEAM_LASER").reason).toBe("Requires TL 4");
+  });
+
+  it("a laser row is dimmed with 'Not enough credits' when no facing can afford it", () => {
+    const model = build(makeProfile({ credits: 3_999 }));
+    expect(row(model, "EQ_WEAPON_PULSE_LASER")).toMatchObject({
+      confirmable: false,
+      reason: "Not enough credits",
+    });
+  });
+
+  it("lists Remove Laser only while some facing has a laser", () => {
+    const bare = rich({
+      laserMounts: {
+        fore: "EQ_WEAPON_NONE",
+        aft: "EQ_WEAPON_NONE",
+        port: "EQ_WEAPON_NONE",
+        starboard: "EQ_WEAPON_NONE",
+      },
+    });
+    const keys = build(bare).rows.map((entry) => entry.key);
+    expect(keys).not.toContain("EQ_WEAPON_NONE");
+    expect(keys).toContain("EQ_WEAPON_PULSE_LASER");
+    expect(build(rich()).rows.map((entry) => entry.key)).toContain(
+      "EQ_WEAPON_NONE",
+    );
+  });
+
+  it("opens the four facings keyed by the composite key, showing what is fitted", () => {
+    const profile = rich({
+      laserMounts: {
+        fore: "EQ_WEAPON_PULSE_LASER",
+        aft: "EQ_WEAPON_NONE",
+        port: "EQ_WEAPON_MINING_LASER",
+        starboard: "EQ_WEAPON_NONE",
+      },
+    });
+    const model = buildOutfittingModel(
+      catalogue,
+      profile,
+      laveTechLevelRaw,
+      "EQ_WEAPON_BEAM_LASER@aft",
+      units,
+      "EQ_WEAPON_BEAM_LASER",
+    );
+
+    expect(model.facingFor).toBe("EQ_WEAPON_BEAM_LASER");
+    expect(model.rows.map((entry) => entry.key)).toEqual([
+      "EQ_WEAPON_BEAM_LASER@fore",
+      "EQ_WEAPON_BEAM_LASER@aft",
+      "EQ_WEAPON_BEAM_LASER@port",
+      "EQ_WEAPON_BEAM_LASER@starboard",
+    ]);
+    expect(model.rows.map((entry) => entry.label)).toEqual([
+      "Forward (Pulse Laser)",
+      "Aft (None)",
+      "Port (Mining Laser)",
+      "Starboard (None)",
+    ]);
+    expect(model.rows.every((entry) => entry.confirmable)).toBe(true);
+    expect(model.rows[1]?.name).toBe("Beam Laser (Aft)");
+    expect(model.rows[1]?.cost).toBe(10_000);
+    expect(model.detail).toEqual({
+      title: "Beam Laser",
+      description: "Beam Laser\nPlease select where to install this weapon.",
+      priceText: "1000.0 Cr",
+    });
+  });
+
+  it("disables Remove Laser on an empty facing with 'No laser fitted'", () => {
+    const model = buildOutfittingModel(
+      catalogue,
+      rich(),
+      laveTechLevelRaw,
+      "EQ_WEAPON_NONE@fore",
+      units,
+      "EQ_WEAPON_NONE",
+    );
+    expect(model.rows[0]).toMatchObject({
+      key: "EQ_WEAPON_NONE@fore",
+      confirmable: true,
+      cost: 0,
+    });
+    for (const entry of model.rows.slice(1)) {
+      expect(entry).toMatchObject({
+        confirmable: false,
+        reason: "No laser fitted",
+      });
+    }
+  });
+
+  it("disables only the facings that cannot afford the laser", () => {
+    // 4,000 dc: the military laser (60,000) is refused everywhere, the pulse is fine.
+    const model = buildOutfittingModel(
+      catalogue,
+      makeProfile({ credits: 4_000 }),
+      10,
+      "EQ_WEAPON_PULSE_LASER@fore",
+      units,
+      "EQ_WEAPON_PULSE_LASER",
+    );
+    expect(model.rows.every((entry) => entry.confirmable)).toBe(true);
+
+    const military = buildOutfittingModel(
+      catalogue,
+      makeProfile({ credits: 4_000 }),
+      10,
+      "EQ_WEAPON_MILITARY_LASER@fore",
+      units,
+      "EQ_WEAPON_MILITARY_LASER",
+    );
+    expect(military.rows.every((entry) => !entry.confirmable)).toBe(true);
+    expect(military.rows[0]?.reason).toBe("Not enough credits");
+  });
+
+  it("falls back to the main list for a facing selection outside the allow-list", () => {
+    for (const forged of ["EQ_ECM", "EQ_WEAPON_THARGOID_LASER", "", "nope"]) {
+      const model = buildOutfittingModel(
+        catalogue,
+        rich(),
+        laveTechLevelRaw,
+        "EQ_CARGO_BAY",
+        units,
+        forged,
+      );
+      expect(model.facingFor).toBeNull();
+      expect(model.rows.map((entry) => entry.key)).toContain("EQ_CARGO_BAY");
+    }
+  });
+});

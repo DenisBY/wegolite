@@ -407,3 +407,175 @@ describe("laser purchase at F3", () => {
     expect(restored.credits).toBe(after.credits);
   });
 });
+
+describe("laser facing selection flow", () => {
+  it("Back closes the facing selection without leaving F3, with the cursor on the laser", () => {
+    const h = outfittingHarness(50_000);
+    moveTo(h, "EQ_WEAPON_PULSE_LASER");
+    press(h, "stationConfirm");
+    expect(h.ctx.station.outfittingFacingFor).toBe("EQ_WEAPON_PULSE_LASER");
+
+    press(h, "stationBack");
+
+    expect(h.ctx.station.stationScreen).toBe("outfitting");
+    expect(h.ctx.station.outfittingFacingFor).toBeNull();
+    expect(h.ctx.station.stationSelection).toBe("EQ_WEAPON_PULSE_LASER");
+    expect(h.views[h.views.length - 1]?.outfitting?.facingFor).toBeNull();
+
+    // A second Back leaves F3 for the home screen.
+    press(h, "stationBack");
+    expect(h.ctx.station.stationScreen).toBe("home");
+  });
+
+  it("leaving F3 by any route drops an open facing selection", () => {
+    const h = outfittingHarness(50_000);
+    moveTo(h, "EQ_WEAPON_BEAM_LASER");
+    press(h, "stationConfirm");
+    expect(h.ctx.station.outfittingFacingFor).not.toBeNull();
+
+    h.controller.openStationScreen("stationStatus");
+    expect(h.ctx.station.outfittingFacingFor).toBeNull();
+
+    // A direct screen change followed by a render also clears it.
+    h.ctx.station.stationScreen = "outfitting";
+    h.ctx.station.outfittingFacingFor = "EQ_WEAPON_BEAM_LASER";
+    h.ctx.station.stationScreen = "market";
+    h.controller.renderStation();
+    expect(h.ctx.station.outfittingFacingFor).toBeNull();
+  });
+
+  it("N cancels the Y/N prompt and keeps the facing selection open", () => {
+    const h = outfittingHarness(50_000);
+    moveTo(h, "EQ_WEAPON_BEAM_LASER");
+    press(h, "stationConfirm");
+    press(h, "stationConfirm");
+    expect(h.ctx.station.stationPending).not.toBeNull();
+
+    press(h, "stationCancel");
+
+    expect(h.ctx.station.stationPending).toBeNull();
+    expect(h.ctx.station.outfittingFacingFor).toBe("EQ_WEAPON_BEAM_LASER");
+    expect(h.profiles).toEqual([]);
+  });
+
+  it("a replaced laser is refunded: a mining laser over the fore pulse costs 8,000 less 4,000", () => {
+    const h = outfittingHarness(50_000);
+    h.ctx.core.system = { ...h.ctx.core.system, techLevelRaw: 10 };
+    moveTo(h, "EQ_WEAPON_MINING_LASER");
+    press(h, "stationConfirm");
+    expect(h.ctx.station.stationSelection).toBe("EQ_WEAPON_MINING_LASER@fore");
+    press(h, "stationConfirm");
+    press(h, "stationConfirm");
+
+    expect(h.ctx.core.profile.laserMounts.fore).toBe("EQ_WEAPON_MINING_LASER");
+    expect(h.ctx.core.profile.credits).toBe(50_000 - 8_000 + 4_000);
+    expect(h.ctx.station.outfittingFacingFor).toBeNull();
+    expect(h.ctx.station.stationSelection).toBe("EQ_WEAPON_MINING_LASER");
+  });
+
+  it("Remove Laser empties a facing, refunds it, and drops its own row when none is left", () => {
+    const h = outfittingHarness(0);
+    moveTo(h, "EQ_WEAPON_NONE");
+    press(h, "stationConfirm");
+    expect(h.ctx.station.outfittingFacingFor).toBe("EQ_WEAPON_NONE");
+    // Only the fore facing holds a laser, so the other facings are refused.
+    press(h, "stationDown");
+    press(h, "stationConfirm");
+    expect(h.ctx.station.stationNotice).toBe("No laser fitted");
+    expect(h.ctx.station.stationPending).toBeNull();
+
+    press(h, "stationUp");
+    press(h, "stationConfirm");
+    press(h, "stationConfirm");
+
+    expect(h.ctx.core.profile.laserMounts.fore).toBe("EQ_WEAPON_NONE");
+    expect(h.ctx.core.profile.credits).toBe(4_000);
+    expect(h.ctx.station.lastTrade).toEqual({
+      kind: "removal",
+      key: "EQ_WEAPON_NONE@fore",
+      amount: 1,
+    });
+    // No laser is left to remove, so the cursor landed on a surviving row.
+    const rows = h.views[h.views.length - 1]?.outfitting?.rows ?? [];
+    expect(rows.map((row) => row.key)).not.toContain("EQ_WEAPON_NONE");
+    expect(rows.map((row) => row.key)).toContain(
+      h.ctx.station.stationSelection,
+    );
+  });
+
+  it("refuses an unaffordable facing with the short reason and moves no money", () => {
+    const h = outfittingHarness(3_999);
+    const before = h.ctx.core.profile;
+    moveTo(h, "EQ_WEAPON_PULSE_LASER");
+    press(h, "stationConfirm");
+
+    // No facing can afford 4,000, so the row is not confirmable: no subscreen.
+    expect(h.ctx.station.outfittingFacingFor).toBeNull();
+    expect(h.ctx.station.stationNotice).toBe("Not enough credits");
+    expect(h.ctx.core.profile).toBe(before);
+    expect(h.profiles).toEqual([]);
+    expect(h.calls).not.toContain("autosave");
+  });
+
+  it("a prompt that went stale (credits dropped) buys nothing", () => {
+    const h = outfittingHarness(50_000);
+    moveTo(h, "EQ_WEAPON_BEAM_LASER");
+    press(h, "stationConfirm");
+    press(h, "stationDown");
+    press(h, "stationConfirm");
+    expect(h.ctx.station.stationPending).not.toBeNull();
+
+    h.ctx.core.profile = { ...h.ctx.core.profile, credits: 9_999 };
+    const stale = h.ctx.core.profile;
+    press(h, "stationConfirm");
+
+    expect(h.ctx.core.profile).toBe(stale);
+    expect(h.ctx.core.profile.laserMounts.aft).toBe("EQ_WEAPON_NONE");
+    expect(h.ctx.station.stationPending).toBeNull();
+    expect(h.ctx.station.lastTrade).toBeNull();
+    expect(h.calls).not.toContain("autosave");
+  });
+
+  it("a forged composite selection is refused as not offered and reaches no money path", () => {
+    const h = outfittingHarness(1_000_000);
+    const before = h.ctx.core.profile;
+    for (const forged of [
+      "EQ_ECM@fore",
+      "EQ_WEAPON_PULSE_LASER@up",
+      "EQ_WEAPON_THARGOID_LASER@fore",
+      "EQ_WEAPON_BEAM_LASER@aft",
+    ]) {
+      // The facing selection is closed, so no composite key is a row.
+      h.ctx.station.outfittingFacingFor = null;
+      h.ctx.station.stationSelection = forged;
+      h.ctx.station.stationPending = { kind: "fit", key: forged };
+      press(h, "stationConfirm");
+      expect(h.ctx.station.stationNotice).toBe("Not offered");
+      expect(h.ctx.core.profile).toBe(before);
+    }
+    expect(h.profiles).toEqual([]);
+
+    // With the selection open for another laser, a composite key of a
+    // different laser is still not a row.
+    h.ctx.station.outfittingFacingFor = "EQ_WEAPON_PULSE_LASER";
+    h.ctx.station.stationSelection = "EQ_WEAPON_BEAM_LASER@aft";
+    h.ctx.station.stationPending = {
+      kind: "fit",
+      key: "EQ_WEAPON_BEAM_LASER@aft",
+    };
+    press(h, "stationConfirm");
+    expect(h.ctx.station.stationNotice).toBe("Not offered");
+    expect(h.ctx.core.profile).toBe(before);
+  });
+
+  it("a forged facing-selection state for a non-laser key shows the main list and buys nothing", () => {
+    const h = outfittingHarness(1_000_000);
+    const before = h.ctx.core.profile;
+    h.ctx.station.outfittingFacingFor = "EQ_ECM";
+    expect(h.controller.outfittingModel()?.facingFor).toBeNull();
+    h.ctx.station.stationSelection = "EQ_ECM";
+    press(h, "stationConfirm");
+    expect(h.ctx.station.stationNotice).toBe("Not offered");
+    expect(h.ctx.core.profile).toBe(before);
+  });
+});
