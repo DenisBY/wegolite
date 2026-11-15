@@ -16,7 +16,9 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import { length, sub } from "../../../src/sim/math.js";
+import { hashWorld } from "../../../src/sim/world/serialize.js";
 import {
   RECORDED_FLIGHT_NAMES,
   recordFlightHashes,
@@ -87,6 +89,26 @@ describe("recorded flight hash pins", () => {
       expect(
         length(sub(sample.state.position, sample.layout.witchpoint.position)),
       ).toBeLessThan(20_000);
+    }
+  });
+
+  it("holds when replayed through stepSim with a pristine combat state, hashed with hashWorld", () => {
+    // No fire key and no view change: bookkeeping runs but leaves the combat
+    // state pristine, so its line never reaches the hash text.
+    for (const name of RECORDED_FLIGHT_NAMES) {
+      const combat = createPlayerCombatState();
+      const hashes: { tick: number; hash: string }[] = [];
+      replayRecordedFlight(
+        name,
+        (sample) => {
+          hashes.push({
+            tick: sample.tick,
+            hash: hashWorld(sample.state, undefined, combat),
+          });
+        },
+        combat,
+      );
+      expect(hashes).toEqual(golden.flights[name]);
     }
   });
 });

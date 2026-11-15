@@ -21,7 +21,10 @@ import {
 } from "../../../src/sim/combat/constants.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import { routeDamage } from "../../../src/sim/combat/shields.js";
-import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
+import {
+  createPlayerCombatState,
+  isPristineCombat,
+} from "../../../src/sim/combat/state.js";
 import type { PlayerCombatState } from "../../../src/sim/combat/state.js";
 import { DOCK_COMPUTER_KEY } from "../../../src/sim/dock/computer.js";
 import type { SimEvent } from "../../../src/sim/events.js";
@@ -34,6 +37,7 @@ import { rotate, vec } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import { NO_ENTITY } from "../../../src/sim/world/ids.js";
+import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const { layout, config } = laveFixture();
@@ -125,6 +129,37 @@ describe("docking restores the ship (DOCK-10)", () => {
       expect(combat.shotTicks).toEqual(timers);
       step(player, combat);
     }
+  });
+});
+
+describe("the docked combat state and the hash", () => {
+  it("is pristine again after a dock when no shot timer is short", () => {
+    const player = initFlightState(layout);
+    const combat = createPlayerCombatState();
+    flyAfterLaunch(player, combat);
+    const forward = rotate(player.orientation, vec(0, 0, -1));
+    routeDamage(combat, 300, forward, forward);
+    step(player, combat, [{ kind: "setView", view: "port" }]);
+    expect(isPristineCombat(combat)).toBe(false);
+
+    step(player, combat, [{ kind: "dockingComputer" }]);
+
+    expect(player.mode).toBe("docked");
+    expect(isPristineCombat(combat)).toBe(true);
+    // A pristine state leaves the world hash as if combat did not exist.
+    expect(hashWorld(player, undefined, combat)).toBe(
+      hashWorld(player, undefined),
+    );
+  });
+
+  it("stays non-pristine after a dock while a fired shot's timer is short", () => {
+    const player = initFlightState(layout);
+    const combat = createPlayerCombatState();
+    flyAfterLaunch(player, combat);
+    step(player, combat, [], { ...ZERO_INTENT, fire: true });
+    step(player, combat, [{ kind: "dockingComputer" }]);
+    expect(player.mode).toBe("docked");
+    expect(isPristineCombat(combat)).toBe(false);
   });
 });
 

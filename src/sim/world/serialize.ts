@@ -4,12 +4,14 @@
 /**
  * The composed world hash (FOUND-11, FOUND-12, D-08).
  *
- * `hashWorld(player, world)` is `fnv1a32(serializeFlight(player) + section)`.
+ * `hashWorld(player, world, combat?)` is
+ * `fnv1a32(serializeFlight(player) + section + combatLine)`.
  * While the world has never spawned anything (`isNeverSpawned`, the single
  * predicate of `./world.ts`) the section is empty and the text is exactly the
  * v1 flight text, so the pinned flight hashes hold. Once anything has spawned,
  * or `world.rng` has been drawn, the section is appended. `serializeFlight`
- * is never edited. The five static entities are never serialised: they are
+ * is never edited. The combat line follows the same rule (see `hashWorld`):
+ * empty while the player's combat state is pristine. The five static entities are never serialised: they are
  * derived from the layout and must not move the hash.
  *
  * The entity line is injective over the fields it prints. Every string leaf
@@ -24,6 +26,12 @@
  */
 
 import { canon, fnv1a32 } from "../hash.js";
+import {
+  isPristineCombat,
+  sanitizeCombat,
+  serializeCombat,
+} from "../combat/state.js";
+import type { PlayerCombatState } from "../combat/state.js";
 import { serializeFlight } from "../flight/state.js";
 import type { FlightState } from "../flight/state.js";
 import type { ParamValue } from "../ai/types.js";
@@ -132,13 +140,32 @@ export function entityHashes(world: World): [EntityId, string][] {
   return pairs;
 }
 
-/** The flight hash with the world section appended once anything spawned. */
+/**
+ * The flight hash with the world section appended once anything spawned, and
+ * the player's combat line appended once the combat state is not pristine.
+ *
+ * The combat rule is the same device as `isNeverSpawned` (Pattern 3): a run
+ * that never fights, never changes view and never docks damaged leaves the
+ * combat state field-for-field equal to `createPlayerCombatState()`
+ * (`isPristineCombat`), prints nothing, and hashes exactly as it did before
+ * combat existed, so the pinned flight hashes and the traffic-off hashes hold.
+ * An absent state prints nothing either. The combat line follows the world
+ * section, or the flight text when that section is empty. The state is repaired
+ * first (`sanitizeCombat`, idempotent and a no-op on a state `stepPlayerCombat`
+ * produced), so a poisoned value can neither read as pristine nor reach `canon`
+ * (T-13-15).
+ */
 export function hashWorld(
   player: FlightState,
   world: World | undefined,
+  combat?: PlayerCombatState,
 ): string {
   const section = world === undefined ? "" : serializeWorldSection(world);
-  return fnv1a32(
-    serializeFlight(player) + (section === "" ? "" : `\n${section}`),
-  );
+  let text = serializeFlight(player) + (section === "" ? "" : `\n${section}`);
+  if (combat !== undefined) {
+    // Repair first so a poisoned value cannot read as pristine or reach `canon`.
+    sanitizeCombat(combat);
+    if (!isPristineCombat(combat)) text += `\n${serializeCombat(combat)}`;
+  }
+  return fnv1a32(text);
 }

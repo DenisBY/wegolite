@@ -19,7 +19,10 @@ import {
   toWegoliteLocal,
 } from "../../../src/sim/combat/constants.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
-import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
+import {
+  createPlayerCombatState,
+  isPristineCombat,
+} from "../../../src/sim/combat/state.js";
 import type { PlayerCombatState } from "../../../src/sim/combat/state.js";
 import type { SimEvent } from "../../../src/sim/events.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
@@ -40,6 +43,7 @@ import type { Vec3 } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import { PLAYER_ID } from "../../../src/sim/world/ids.js";
+import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
 import { realHullTable } from "../../helpers/hull-table.js";
@@ -477,5 +481,243 @@ describe("a refused laser (CBT-05)", () => {
     expect(ofKind(events, "laserRefused")).toEqual([
       { kind: "laserRefused", reason: "noEnergy" },
     ]);
+  });
+});
+
+describe("hull data not loaded (D-01)", () => {
+  it("fires without hull data: the beam runs to full range, nothing is hit", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const { world, id } = worldWithShip(vec(FAR.x, FAR.y, FAR.z - 2000));
+
+    const events = stepOnce(player, world, combat, FIRE, stockOptions(false));
+
+    const fired = ofKind(events, "laserFired");
+    expect(fired).toHaveLength(1);
+    expect(fired[0]?.to.z).toBeCloseTo(
+      foreMount().z - LASER_STATS.EQ_WEAPON_PULSE_LASER.range,
+      6,
+    );
+    expect(ofKind(events, "shipHit")).toHaveLength(0);
+    expect(energyOf(world, id)).toBe(85);
+    // The shot was paid for all the same.
+    expect(combat.shotTicks.fore).toBe(1);
+  });
+
+  it("fires without any combat options at all: the stock fit, no hull data, no hit", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const { world, id } = worldWithShip(vec(FAR.x, FAR.y, FAR.z - 2000));
+    const events = stepOnce(player, world, combat, FIRE, undefined);
+    expect(ofKind(events, "laserFired")).toHaveLength(1);
+    expect(ofKind(events, "shipHit")).toHaveLength(0);
+    expect(energyOf(world, id)).toBe(85);
+  });
+
+  it("cannot hit a target whose spec key has no hull entry, while another target does", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const { world, id: unknownId } = worldWithShip(
+      vec(FAR.x, FAR.y, FAR.z - 1000),
+      "no-such-hull",
+    );
+    const behind = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "adder",
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(FAR.x, FAR.y, FAR.z - 3000),
+        orientation: identity(),
+        radius: 30,
+        maxEnergy: 85,
+      },
+      0,
+    );
+    if (!behind.ok) throw new Error("spawn refused");
+
+    const events = stepOnce(player, world, combat, FIRE, stockOptions());
+
+    // The hull-less ship in front is transparent to the beam; the Adder behind
+    // it is hit.
+    expect(ofKind(events, "shipHit").map((hit) => hit.target)).toEqual([
+      behind.entity.id,
+    ]);
+    expect(energyOf(world, unknownId)).toBe(85);
+    expect(energyOf(world, behind.entity.id)).toBe(70);
+  });
+});
+
+describe("hit resolution order (A6, Pitfall 7)", () => {
+  it("applies the hit after stepWorld on the same tick, in one write", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const { world, id } = worldWithShip(vec(FAR.x, FAR.y, FAR.z - 2000));
+    const entity = world.store.get(id);
+    if (entity === undefined) throw new Error("no entity");
+
+    // Log every read and write of the target's energy through an accessor.
+    const log: string[] = [];
+    let energy = entity.energy;
+    Object.defineProperty(entity, "energy", {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        log.push(`read:${energy}`);
+        return energy;
+      },
+      set: (value: number) => {
+        log.push(`write:${value}`);
+        energy = value;
+      },
+    });
+
+    const events = stepOnce(player, world, combat, FIRE, stockOptions());
+
+    // stepWorld's sanitiser reads the energy and writes the same value back;
+    // the hit is the only write of a different value, and it is the last
+    // access of the tick: nothing observed 70 before it.
+    expect(log.length).toBeGreaterThan(1);
+    expect(log.at(-1)).toBe("write:70");
+    expect(log.filter((line) => line === "write:70")).toHaveLength(1);
+    expect(
+      log
+        .slice(0, -1)
+        .every((line) => line === "read:85" || line === "write:85"),
+    ).toBe(true);
+    expect(energy).toBe(70);
+
+    // Events: the beam, then the hit, after anything the world step emitted.
+    const kinds = events.map((event) => event.kind);
+    expect(kinds.at(-2)).toBe("laserFired");
+    expect(kinds.at(-1)).toBe("shipHit");
+  });
+
+  it("hits only the nearest of two ships on the line", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const { world, id: near } = worldWithShip(vec(FAR.x, FAR.y, FAR.z - 1500));
+    const far = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "adder",
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(FAR.x, FAR.y, FAR.z - 4000),
+        orientation: identity(),
+        radius: 30,
+        maxEnergy: 85,
+      },
+      0,
+    );
+    if (!far.ok) throw new Error("spawn refused");
+
+    const events = stepOnce(player, world, combat, FIRE, stockOptions());
+
+    expect(ofKind(events, "shipHit").map((hit) => hit.target)).toEqual([near]);
+    expect(energyOf(world, near)).toBe(70);
+    expect(energyOf(world, far.entity.id)).toBe(85);
+  });
+
+  it("floors a target's energy at 0 and never destroys it (N2)", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const { world, id } = worldWithShip(
+      vec(FAR.x, FAR.y, FAR.z - 2000),
+      "adder",
+      10,
+    );
+    const events = stepOnce(player, world, combat, FIRE, stockOptions());
+    expect(energyOf(world, id)).toBe(0);
+    expect(ofKind(events, "shipHit")).toHaveLength(1);
+    expect(ofKind(events, "shipDestroyed")).toHaveLength(0);
+    expect(world.store.get(id)).toBeDefined();
+  });
+
+  it("two runs of the same scenario give identical events and hashes", () => {
+    const run = (): { events: SimEvent[][]; hashes: string[] } => {
+      const player = flyingPlayer();
+      const combat = createPlayerCombatState();
+      const { world } = worldWithShip(vec(FAR.x, FAR.y, FAR.z - 2000));
+      const events: SimEvent[][] = [];
+      const hashes: string[] = [];
+      for (let tick = 0; tick < 200; tick += 1) {
+        // Hold fire throughout: shots, refusals and recharge gaps all occur.
+        events.push(stepOnce(player, world, combat, FIRE, stockOptions()));
+        hashes.push(hashWorld(player, world, combat));
+      }
+      return { events, hashes };
+    };
+    const first = run();
+    const second = run();
+    expect(second.events).toEqual(first.events);
+    expect(second.hashes).toEqual(first.hashes);
+    // Not vacuous: more than one shot landed and the hash moved.
+    const hits = first.events.flat().filter((e) => e.kind === "shipHit");
+    expect(hits.length).toBeGreaterThan(1);
+    expect(new Set(first.hashes).size).toBeGreaterThan(10);
+  });
+});
+
+describe("combat in the world hash", () => {
+  it("is absent while pristine and present once the view changes", () => {
+    const base = (): { player: FlightState; combat: PlayerCombatState } => ({
+      player: flyingPlayer(),
+      combat: createPlayerCombatState(),
+    });
+    const quiet = base();
+    stepOnce(
+      quiet.player,
+      undefined,
+      quiet.combat,
+      ZERO_INTENT,
+      stockOptions(),
+    );
+    const turned = base();
+    stepOnce(
+      turned.player,
+      undefined,
+      turned.combat,
+      ZERO_INTENT,
+      stockOptions(),
+      [{ kind: "setView", view: "aft" }],
+    );
+
+    expect(isPristineCombat(quiet.combat)).toBe(true);
+    expect(isPristineCombat(turned.combat)).toBe(false);
+    // Same flight state, so only the combat line can make them differ.
+    expect(hashWorld(turned.player, undefined, turned.combat)).not.toBe(
+      hashWorld(quiet.player, undefined, quiet.combat),
+    );
+    // A pristine state hashes as no combat state at all.
+    expect(hashWorld(quiet.player, undefined, quiet.combat)).toBe(
+      hashWorld(quiet.player, undefined),
+    );
+  });
+
+  it("returns to the pristine hash when the view returns to fore and nothing else moved", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions(), [
+      { kind: "setView", view: "aft" },
+    ]);
+    expect(isPristineCombat(combat)).toBe(false);
+    stepOnce(player, undefined, combat, ZERO_INTENT, stockOptions(), [
+      { kind: "setView", view: "fore" },
+    ]);
+    expect(isPristineCombat(combat)).toBe(true);
+    expect(hashWorld(player, undefined, combat)).toBe(
+      hashWorld(player, undefined),
+    );
+  });
+
+  it("repairs a poisoned combat state before hashing instead of throwing (T-13-15)", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    combat.energy = Number.NaN;
+    combat.laserTemp.aft = Number.POSITIVE_INFINITY;
+    expect(() => hashWorld(player, undefined, combat)).not.toThrow();
+    // The repair puts a poisoned-but-otherwise-fresh state back to pristine.
+    expect(isPristineCombat(combat)).toBe(true);
   });
 });

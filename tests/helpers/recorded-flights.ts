@@ -55,6 +55,8 @@ import type { ControlIntent } from "../../src/sim/flight/controller.js";
 import { hashFlight, initFlightState } from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
+import { stepSim } from "../../src/sim/sim.js";
+import type { PlayerCombatState } from "../../src/sim/combat/state.js";
 import type { StepOptions } from "../../src/sim/flight/step.js";
 import { witchspaceStationMass } from "../../src/sim/hyperspace/countdown.js";
 import {
@@ -137,6 +139,7 @@ class Recorder {
       recorder: Recorder,
       event: Extract<SimEvent, { kind: "hyperspaceJumped" }>,
     ) => void,
+    private readonly combat?: PlayerCombatState,
   ) {
     this.state = state;
     this.context = context;
@@ -170,15 +173,31 @@ class Recorder {
       equipment: context.equipment,
       hyperspace,
     };
-    const events = stepFlight(
-      state,
-      context.layout,
-      context.config,
-      intent,
-      commands,
-      DT,
-      options,
-    );
+    // With a combat state the replay goes through the composed step, which is
+    // what the session calls; without one it is the bare flight step the
+    // golden was captured from.
+    const events =
+      this.combat === undefined
+        ? stepFlight(
+            state,
+            context.layout,
+            context.config,
+            intent,
+            commands,
+            DT,
+            options,
+          )
+        : stepSim(
+            state,
+            undefined,
+            context.layout,
+            context.config,
+            intent,
+            commands,
+            DT,
+            options,
+            this.combat,
+          );
     let keyed = false;
     for (const event of events) {
       this.seen.add(event.kind);
@@ -222,13 +241,18 @@ function launchContext(equipment: ReadonlySet<string>): StepContext {
 }
 
 /** Launch and fly the full 240-step launch (no skipLaunch), then 1200 steps. */
-function launchAndFly(visit: (sample: RecordedFlightSample) => void): void {
+function launchAndFly(
+  visit: (sample: RecordedFlightSample) => void,
+  combat?: PlayerCombatState,
+): void {
   const context = launchContext(new Set<string>());
   const recorder = new Recorder(
     "launch-and-fly",
     initFlightState(context.layout),
     context,
     visit,
+    undefined,
+    combat,
   );
   recorder.step([{ kind: "launch" }]);
   for (let guard = 0; guard < 400 && recorder.state.mode === "launching";) {
@@ -240,13 +264,18 @@ function launchAndFly(visit: (sample: RecordedFlightSample) => void): void {
 }
 
 /** Launch, skip, fly the script, dock with the computer, then 120 docked steps. */
-function dockApproach(visit: (sample: RecordedFlightSample) => void): void {
+function dockApproach(
+  visit: (sample: RecordedFlightSample) => void,
+  combat?: PlayerCombatState,
+): void {
   const context = launchContext(new Set([DOCK_COMPUTER_KEY]));
   const recorder = new Recorder(
     "dock-approach",
     initFlightState(context.layout),
     context,
     visit,
+    undefined,
+    combat,
   );
   recorder.step([{ kind: "launch" }]);
   recorder.step([{ kind: "skipLaunch" }]);
@@ -259,6 +288,7 @@ function dockApproach(visit: (sample: RecordedFlightSample) => void): void {
 /** The Lave to Leesti jump with the session's arrival draw, then 600 steps. */
 function hyperspaceLaveLeesti(
   visit: (sample: RecordedFlightSample) => void,
+  combat?: PlayerCombatState,
 ): void {
   const fixture = laveFixture();
   const systems = readJson<System[]>(
@@ -301,6 +331,7 @@ function hyperspaceLaveLeesti(
         fuel: Math.max(0, self.context.fuel - event.fuelCost),
       };
     },
+    combat,
   );
   recorder.step([{ kind: "launch" }]);
   recorder.step([{ kind: "skipLaunch" }]);
@@ -317,20 +348,26 @@ function hyperspaceLaveLeesti(
   recorder.run(600);
 }
 
-/** Replay one recorded flight, calling `visit` at every sampled tick. */
+/**
+ * Replay one recorded flight, calling `visit` at every sampled tick. With a
+ * `combat` state the flight is stepped through `stepSim` with that state
+ * (the composed step the session calls); without one it is the bare
+ * `stepFlight` the golden was captured from.
+ */
 export function replayRecordedFlight(
   name: RecordedFlightName,
   visit: (sample: RecordedFlightSample) => void,
+  combat?: PlayerCombatState,
 ): void {
   switch (name) {
     case "launch-and-fly":
-      launchAndFly(visit);
+      launchAndFly(visit, combat);
       return;
     case "dock-approach":
-      dockApproach(visit);
+      dockApproach(visit, combat);
       return;
     case "hyperspace-lave-leesti":
-      hyperspaceLaveLeesti(visit);
+      hyperspaceLaveLeesti(visit, combat);
       return;
   }
 }
