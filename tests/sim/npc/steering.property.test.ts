@@ -106,12 +106,30 @@ const FLIGHT: readonly BehaviourId[] = [
   "FLEE_EVASIVE_ACTION",
 ];
 
+/**
+ * The attack dispatcher and its in-scope sub-behaviours (plan 14-14). The OUT
+ * ids (RUNNING_DEFENSE, ATTACK_BROADSIDE and its sides, CLOSE_TO_BROADSIDE_RANGE,
+ * CLOSE_WITH_TARGET, ATTACK_MINING_TARGET) stay in `OUT_OF_SCOPE` and run the
+ * idle fallback.
+ */
+const ATTACK: readonly BehaviourId[] = [
+  "ATTACK_TARGET",
+  "ATTACK_FLY_TO_TARGET",
+  "ATTACK_FLY_FROM_TARGET",
+  "ATTACK_FLY_TO_TARGET_SIX",
+  "ATTACK_FLY_TO_TARGET_TWELVE",
+  "ATTACK_SNIPER",
+  "ATTACK_BREAK_OFF_TARGET",
+  "ATTACK_SLOW_DOGFIGHT",
+];
+
 /** The behaviours the property sweeps. Later plans add their ids. */
 const SWEPT_BEHAVIOURS: readonly BehaviourId[] = [
   ...IDLE_FAMILY,
   ...NAVIGATION,
   ...PURSUIT,
   ...FLIGHT,
+  ...ATTACK,
   ...OUT_OF_SCOPE,
 ];
 
@@ -170,6 +188,8 @@ const stats: fc.Arbitrary<NpcFlightStats> = fc.record({
     "EQ_WEAPON_NONE" as const,
     "EQ_WEAPON_PULSE_LASER" as const,
     "EQ_WEAPON_BEAM_LASER" as const,
+    "EQ_WEAPON_MINING_LASER" as const,
+    "EQ_WEAPON_MILITARY_LASER" as const,
   ),
 });
 
@@ -414,9 +434,13 @@ describe("steering is total over domain-valid records (T-14-14)", () => {
   it("an accuracy still unresolved is drawn once and lands in range", () => {
     fc.assert(
       fc.property(scenario, (s) => {
-        // flee and evasive action draw for their jink (plan 14-13; counted in
-        // their own tests below)
-        fc.pre(!FLIGHT.includes(s.nav.behaviour));
+        // flee and evasive action draw for their jink (plan 14-13), and the
+        // attack ids for theirs, the desired range and their frustration rolls
+        // (plan 14-14); each is counted in its own tests
+        fc.pre(
+          !FLIGHT.includes(s.nav.behaviour) &&
+            !ATTACK.includes(s.nav.behaviour),
+        );
         const entity = buildEntity({
           ...s,
           record: { ...s.record, accuracy: ACCURACY_UNRESOLVED },
@@ -872,9 +896,10 @@ describe("a forced proximity alert keeps steering total (plan 14-13)", () => {
     ...NAVIGATION,
     ...PURSUIT,
     ...FLIGHT,
+    ...ATTACK,
   ];
 
-  it("covers every navigation id, intercept and flee, each swept", () => {
+  it("covers every navigation id, intercept, flee and attack id, each swept", () => {
     for (const id of ALERTED) expect(SWEPT_BEHAVIOURS).toContain(id);
   });
 
@@ -907,5 +932,49 @@ describe("a forced proximity alert keeps steering total (plan 14-13)", () => {
         entity.steer.proximityAlert = alertOf(entity);
       });
     }
+  }, 120_000);
+});
+
+describe("the attack ids are total with degenerate target poses (plan 14-14)", () => {
+  it("covers the eight ids, each a known behaviour id", () => {
+    for (const id of ATTACK) {
+      expect(BEHAVIOUR_IDS).toContain(id);
+      expect(SWEPT_BEHAVIOURS).toContain(id);
+    }
+    expect(new Set(ATTACK).size).toBe(ATTACK.length);
+    // the OUT ids are not ported: they stay with the idle fallback
+    for (const id of ATTACK) expect(OUT_OF_SCOPE).not.toContain(id);
+  });
+
+  it("never throws, keeps the aim point finite and leaves the sanitiser nothing to repair, a target at zero range and one exactly behind included", () => {
+    targetTotality(ATTACK);
+  }, 120_000);
+
+  it("the same with a target that aims at the ship (the targetTargetsSelf reads)", () => {
+    targetTotality(ATTACK, (entity, bodies) => {
+      bodies.splice(
+        0,
+        bodies.length,
+        ...bodies.map((body) => ({ ...body, targetId: entity.id })),
+      );
+    });
+  }, 120_000);
+
+  it("the same with a target 40 m ahead that aims at the ship (the nearby branch and the relative-speed jink)", () => {
+    targetTotality(ATTACK, (entity, bodies) => {
+      bodies.splice(
+        0,
+        bodies.length,
+        ...bodies.map((body) => ({
+          ...body,
+          targetId: entity.id,
+          position: vec(
+            entity.position.x,
+            entity.position.y,
+            entity.position.z - 40,
+          ),
+        })),
+      );
+    });
   }, 120_000);
 });
