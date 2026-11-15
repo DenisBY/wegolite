@@ -43,6 +43,8 @@ describe("trafficContent", () => {
         roles: ship.roles,
         scanClass: ship.scanClass,
         radius: ship.radius,
+        maxEnergy: ship.maxEnergy,
+        energyRechargeRate: ship.energyRechargeRate,
       });
       expect(content.masses[index]).toEqual({
         specKey: ship.key,

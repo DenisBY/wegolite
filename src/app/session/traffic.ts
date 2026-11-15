@@ -54,6 +54,8 @@ export function trafficContent(catalogue: readonly NpcShip[]): TrafficContent {
         roles: ship.roles,
         scanClass: ship.scanClass,
         radius: ship.radius,
+        maxEnergy: ship.maxEnergy,
+        energyRechargeRate: ship.energyRechargeRate,
       })),
     ),
     masses: Object.freeze(

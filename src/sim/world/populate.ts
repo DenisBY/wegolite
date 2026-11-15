@@ -63,6 +63,10 @@ export interface InertShipRecord {
   readonly roles: readonly string[];
   readonly scanClass: string;
   readonly radius: number;
+  /** The energy bank the ship spawns with (CBT-07): its record's `max_energy`. */
+  readonly maxEnergy: number;
+  /** The record's `energy_recharge_rate`. */
+  readonly energyRechargeRate: number;
 }
 
 /** The six roles of the first populator. */
@@ -188,6 +192,8 @@ export interface PlannedShip {
   readonly key: string;
   readonly scanClass: ScanClass;
   readonly radius: number;
+  readonly maxEnergy: number;
+  readonly energyRechargeRate: number;
   readonly position: Vec3;
   readonly orientation: Quat;
 }
@@ -224,6 +230,8 @@ export function planInertPopulation(
         key: record.key,
         scanClass: record.scanClass,
         radius: record.radius,
+        maxEnergy: record.maxEnergy,
+        energyRechargeRate: record.energyRechargeRate,
         position: place.position,
         orientation,
       });
@@ -254,6 +262,8 @@ export function populateInertWorld(
       radius: ship.radius,
       speed: 0,
       ai: null,
+      maxEnergy: ship.maxEnergy,
+      energyRechargeRate: ship.energyRechargeRate,
     };
     if (spawnEntity(world, init, 0).ok) spawned += 1;
   }

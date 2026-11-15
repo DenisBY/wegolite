@@ -24,6 +24,8 @@ interface NpcRecord {
   readonly roles: readonly string[];
   readonly scanClass: string;
   readonly radius: number;
+  readonly maxEnergy: number;
+  readonly energyRechargeRate: number;
 }
 
 /** The nine committed NPC records as the populator takes them. */
@@ -37,6 +39,8 @@ export function laveInertRecords(): InertShipRecord[] {
     roles: record.roles,
     scanClass: record.scanClass,
     radius: record.radius,
+    maxEnergy: record.maxEnergy,
+    energyRechargeRate: record.energyRechargeRate,
   }));
 }
 

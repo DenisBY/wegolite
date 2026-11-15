@@ -56,6 +56,8 @@ import { laveFixture } from "../../helpers/lave.js";
 const { layout } = laveFixture();
 const records = laveInertRecords();
 const ORIGIN = vec(0, 0, 0);
+/** Oolite's default bank (ShipEntity.m:291-292) for the synthetic records. */
+const DEFAULT_BANK = { maxEnergy: 200, energyRechargeRate: 1 } as const;
 
 function dist(a: Vec3, b: Vec3): number {
   return length(sub(a, b));
@@ -142,19 +144,28 @@ describe("pickRecord", () => {
         roles: ["trader(0)"],
         scanClass: "CLASS_NEUTRAL",
         radius: 1,
+        ...DEFAULT_BANK,
       },
       {
         key: "bad",
         roles: ["trader(abc)"],
         scanClass: "CLASS_NEUTRAL",
         radius: 1,
+        ...DEFAULT_BANK,
       },
-      { key: "one", roles: ["trader"], scanClass: "CLASS_NEUTRAL", radius: 1 },
+      {
+        key: "one",
+        roles: ["trader"],
+        scanClass: "CLASS_NEUTRAL",
+        radius: 1,
+        ...DEFAULT_BANK,
+      },
       {
         key: "three",
         roles: ["trader(3)"],
         scanClass: "CLASS_NEUTRAL",
         radius: 1,
+        ...DEFAULT_BANK,
       },
     ];
     const rng = createRngState(5);
@@ -304,7 +315,37 @@ describe("populateInertWorld", () => {
       expect(entity.spawnTick).toBe(0);
       expect(entity.radius).toBe(record?.radius);
       expect(entity.scanClass).toBe(record?.scanClass);
+      // CBT-07: the energy bank of the record, full at spawn.
+      expect(entity.maxEnergy).toBe(record?.maxEnergy);
+      expect(entity.energy).toBe(record?.maxEnergy);
+      expect(entity.energyRechargeRate).toBe(record?.energyRechargeRate);
     }
+  });
+
+  it("spawns the Lave ships with the energy the NPC records name", () => {
+    // From the vendored shipdata (plan 13-16): adder 85 / 2, viper 180 / 4,
+    // sidewinder 240 / 2, cobramk1 150 / 2.5, krait 250 / 2.5, moray 240 / 3.
+    const expected: Record<string, readonly [number, number]> = {
+      adder: [85, 2],
+      viper: [180, 4],
+      sidewinder: [240, 2],
+      cobramk1: [150, 2.5],
+      krait: [250, 2.5],
+      moray: [240, 3],
+    };
+    const { world } = buildInertWorld(LAVE_EPOCH1_WORLD_SEED, layout, records);
+    const seen = new Set<string>();
+    for (const entity of world.store.live) {
+      const want = expected[entity.specKey];
+      expect(want, entity.specKey).toBeDefined();
+      expect([
+        entity.energy,
+        entity.maxEnergy,
+        entity.energyRechargeRate,
+      ]).toEqual([want?.[0], want?.[0], want?.[1]]);
+      seen.add(entity.specKey);
+    }
+    expect([...seen].sort()).toEqual(Object.keys(expected).sort());
   });
 
   it("gives the same world section for the same inputs and another for another seed", () => {
@@ -339,6 +380,7 @@ describe("populateInertWorld", () => {
         roles: ["escort", "trader(0)"],
         scanClass: "CLASS_NEUTRAL",
         radius: 10,
+        ...DEFAULT_BANK,
       },
     ];
     expect(populateInertWorld(world, layout, useless)).toBe(0);
@@ -349,7 +391,13 @@ describe("populateInertWorld", () => {
   it("skips a spawn refusal and still returns the count of ships that spawned", () => {
     const world = createWorld(LAVE_EPOCH1_WORLD_SEED);
     const refused: InertShipRecord[] = [
-      { key: "flat", roles: ["police"], scanClass: "CLASS_POLICE", radius: -1 },
+      {
+        key: "flat",
+        roles: ["police"],
+        scanClass: "CLASS_POLICE",
+        radius: -1,
+        ...DEFAULT_BANK,
+      },
     ];
     expect(populateInertWorld(world, layout, refused)).toBe(0);
     expect(world.store.live).toHaveLength(0);
@@ -361,6 +409,7 @@ describe("populateInertWorld", () => {
       roles: ["police", "trader"],
       scanClass: "CLASS_BOGUS",
       radius: 10,
+      ...DEFAULT_BANK,
     };
 
     it("is dropped before planning: same section, same stream, same count, no throw", () => {
@@ -446,6 +495,17 @@ describe("the Lave launch world golden (regression snapshot)", () => {
     expect(count).toBe(12);
     expect(section).toBe(golden.section);
     expect(fnv1a32(section)).toBe(golden.fnv);
+  });
+
+  it("is the pre-energy world plus one en: segment per ship: same ships at the same places (CBT-07)", () => {
+    // The golden moved once when the energy bank joined the entity line. The
+    // population draws did not move: with every `en:` segment removed the
+    // section is byte-identical to the previous golden (FNV-1a b23d11d8,
+    // recorded before the bank existed), so keys, positions, orientations and
+    // streams are unchanged.
+    const withoutEnergy = golden.section.replace(/;en:[0-9.,]+/g, "");
+    expect(golden.section.match(/;en:/g)).toHaveLength(golden.count);
+    expect(fnv1a32(withoutEnergy)).toBe("b23d11d8");
   });
 });
 
