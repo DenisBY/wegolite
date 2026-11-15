@@ -123,6 +123,12 @@ const ATTACK: readonly BehaviourId[] = [
   "ATTACK_SLOW_DOGFIGHT",
 ];
 
+/** Escort formation and collision avoidance (plan 14-15). */
+const FORMATION: readonly BehaviourId[] = [
+  "FORMATION_FORM_UP",
+  "AVOID_COLLISION",
+];
+
 /** The behaviours the property sweeps. Later plans add their ids. */
 const SWEPT_BEHAVIOURS: readonly BehaviourId[] = [
   ...IDLE_FAMILY,
@@ -130,6 +136,7 @@ const SWEPT_BEHAVIOURS: readonly BehaviourId[] = [
   ...PURSUIT,
   ...FLIGHT,
   ...ATTACK,
+  ...FORMATION,
   ...OUT_OF_SCOPE,
 ];
 
@@ -897,9 +904,10 @@ describe("a forced proximity alert keeps steering total (plan 14-13)", () => {
     ...PURSUIT,
     ...FLIGHT,
     ...ATTACK,
+    ...FORMATION,
   ];
 
-  it("covers every navigation id, intercept, flee and attack id, each swept", () => {
+  it("covers every navigation id, intercept, flee, attack, formation and avoid id, each swept", () => {
     for (const id of ALERTED) expect(SWEPT_BEHAVIOURS).toContain(id);
   });
 
@@ -975,6 +983,54 @@ describe("the attack ids are total with degenerate target poses (plan 14-14)", (
           ),
         })),
       );
+    });
+  }, 120_000);
+});
+
+describe("formation and avoid collision are total (plan 14-15)", () => {
+  it("covers the two ids, each a known behaviour id and none out of scope", () => {
+    for (const id of FORMATION) {
+      expect(BEHAVIOUR_IDS).toContain(id);
+      expect(SWEPT_BEHAVIOURS).toContain(id);
+      expect(OUT_OF_SCOPE).not.toContain(id);
+    }
+  });
+
+  it("with a leader that dies mid-run, one that is not a ship, none, itself and an unknown id", () => {
+    // the owner is the body of the target plan: it is removed mid-run in one
+    // mode, and the plan's own kinds make it a ship, a station, the player ...
+    targetTotality(FORMATION, (entity) => {
+      entity.ownerId = TARGET_ID;
+    });
+    for (const ownerOf of [
+      (): number => 0,
+      (e: Entity): number => e.id,
+      (): number => 9999,
+    ]) {
+      targetTotality(FORMATION, (entity) => {
+        entity.ownerId = ownerOf(entity);
+      });
+    }
+  }, 240_000);
+
+  it("with an alert that names a ship removed mid-run, and a saved condition to resume", () => {
+    targetTotality(FORMATION, (entity) => {
+      entity.steer.proximityAlert = TARGET_ID;
+      entity.steer.saved = {
+        behaviour: "FLY_TO_DESTINATION",
+        targetId: TARGET_ID,
+        desiredRange: 100,
+        desiredSpeed: 50,
+        destination: vec(10, 20, 30),
+      };
+    });
+  }, 120_000);
+
+  it("a formation follower far from its slot with a leader pitches over and stays total", () => {
+    targetTotality(["FORMATION_FORM_UP"], (entity) => {
+      entity.ownerId = TARGET_ID;
+      entity.steer.frustration = 14.999;
+      entity.steer.successFactor = -1;
     });
   }, 120_000);
 });

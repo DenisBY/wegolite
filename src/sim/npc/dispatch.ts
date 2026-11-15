@@ -48,7 +48,7 @@
 
 import type { AiEventName } from "../ai/types.js";
 import type { Entity } from "../world/entity.js";
-import type { EntityId } from "../world/ids.js";
+import type { BehaviourId, EntityId } from "../world/ids.js";
 import type { WorldView } from "../world/view.js";
 import { behaviourAttackTarget } from "./behaviours/attack.js";
 import {
@@ -99,6 +99,45 @@ export interface SteerContext {
   readonly emit: (event: SteerEvent) => void;
 }
 
+/** One behaviour of the routing table: it reads `ctx` and writes only `entity`. */
+export type BehaviourStep = (entity: Entity, ctx: SteerContext) => void;
+
+/**
+ * Which behaviour runs for which id (`processBehaviour:`'s switch,
+ * `ShipEntity.m:2485-2638`), as data so a test can read it. An id with no entry
+ * runs `behaviour_idle:` and the thrust ramp, the recorded fallback of every
+ * id outside the scope of the phase. Two ids that Oolite routes to one method
+ * share one function: STATION_KEEPING with STOP_STILL (2493-2496),
+ * FORMATION_BREAK with FLY_FROM_DESTINATION (2604-2607), FLEE_EVASIVE_ACTION
+ * with EVASIVE_ACTION (2575-2578) and the twelve with the six (2536-2539).
+ */
+export const BEHAVIOUR_ROUTES: ReadonlyMap<BehaviourId, BehaviourStep> =
+  new Map<BehaviourId, BehaviourStep>([
+    ["TUMBLE", behaviourTumble],
+    ["STOP_STILL", behaviourStopStill],
+    ["STATION_KEEPING", behaviourStopStill],
+    ["IDLE", behaviourIdle],
+    ["FLY_RANGE_FROM_DESTINATION", behaviourFlyRangeFromDestination],
+    ["FLY_TO_DESTINATION", behaviourFlyToDestination],
+    ["FLY_FROM_DESTINATION", behaviourFlyFromDestination],
+    ["FORMATION_BREAK", behaviourFlyFromDestination],
+    ["FACE_DESTINATION", behaviourFaceDestination],
+    ["INTERCEPT_TARGET", behaviourInterceptTarget],
+    ["FLEE_TARGET", behaviourFleeTarget],
+    ["EVASIVE_ACTION", behaviourEvasiveAction],
+    ["FLEE_EVASIVE_ACTION", behaviourEvasiveAction],
+    ["ATTACK_TARGET", behaviourAttackTarget],
+    ["ATTACK_FLY_TO_TARGET", behaviourAttackFlyToTarget],
+    ["ATTACK_FLY_FROM_TARGET", behaviourAttackFlyFromTarget],
+    ["ATTACK_FLY_TO_TARGET_SIX", behaviourFlyToTargetSix],
+    ["ATTACK_FLY_TO_TARGET_TWELVE", behaviourFlyToTargetSix],
+    ["ATTACK_SNIPER", behaviourAttackSniper],
+    ["ATTACK_BREAK_OFF_TARGET", behaviourAttackBreakOffTarget],
+    ["ATTACK_SLOW_DOGFIGHT", behaviourAttackSlowDogfight],
+    ["FORMATION_FORM_UP", behaviourFormationFormUp],
+    ["AVOID_COLLISION", behaviourAvoidCollision],
+  ]);
+
 /**
  * One native update of `entity` (`processBehaviour:`, `ShipEntity.m:2485-2638`).
  * Never throws for a domain-valid entity.
@@ -116,74 +155,10 @@ export function steerShip(entity: Entity, ctx: SteerContext): void {
   }
   updateTrackingCurve(entity, ctx.view, ctx.view.tick);
 
-  // (4) the behaviour
-  switch (entity.nav.behaviour) {
-    case "TUMBLE":
-      behaviourTumble(entity, ctx);
-      break;
-    case "STOP_STILL":
-    case "STATION_KEEPING":
-      behaviourStopStill(entity, ctx);
-      break;
-    case "IDLE":
-      behaviourIdle(entity, ctx);
-      break;
-    case "FLY_RANGE_FROM_DESTINATION":
-      behaviourFlyRangeFromDestination(entity, ctx);
-      break;
-    case "FLY_TO_DESTINATION":
-      behaviourFlyToDestination(entity, ctx);
-      break;
-    case "FLY_FROM_DESTINATION":
-    case "FORMATION_BREAK": // shares fly-from (ShipEntity.m:2604-2607)
-      behaviourFlyFromDestination(entity, ctx);
-      break;
-    case "FACE_DESTINATION":
-      behaviourFaceDestination(entity, ctx);
-      break;
-    case "INTERCEPT_TARGET":
-      behaviourInterceptTarget(entity, ctx);
-      break;
-    case "FLEE_TARGET":
-      behaviourFleeTarget(entity, ctx);
-      break;
-    case "EVASIVE_ACTION":
-    case "FLEE_EVASIVE_ACTION": // both run behaviour_evasive_action (2575-2578)
-      behaviourEvasiveAction(entity, ctx);
-      break;
-    case "ATTACK_TARGET":
-      behaviourAttackTarget(entity, ctx);
-      break;
-    case "ATTACK_FLY_TO_TARGET":
-      behaviourAttackFlyToTarget(entity, ctx);
-      break;
-    case "ATTACK_FLY_FROM_TARGET":
-      behaviourAttackFlyFromTarget(entity, ctx);
-      break;
-    case "ATTACK_FLY_TO_TARGET_SIX":
-    case "ATTACK_FLY_TO_TARGET_TWELVE": // both run behaviour_fly_to_target_six (2536-2539)
-      behaviourFlyToTargetSix(entity, ctx);
-      break;
-    case "ATTACK_SNIPER":
-      behaviourAttackSniper(entity, ctx);
-      break;
-    case "ATTACK_BREAK_OFF_TARGET":
-      behaviourAttackBreakOffTarget(entity, ctx);
-      break;
-    case "ATTACK_SLOW_DOGFIGHT":
-      behaviourAttackSlowDogfight(entity, ctx);
-      break;
-    case "FORMATION_FORM_UP":
-      behaviourFormationFormUp(entity, ctx);
-      break;
-    case "AVOID_COLLISION":
-      behaviourAvoidCollision(entity, ctx);
-      break;
-    default:
-      // The recorded fallback for every id not ported yet or out of scope.
-      behaviourIdle(entity, ctx);
-      break;
-  }
+  // (4) the behaviour: its own entry of the routing table, else the recorded
+  // idle fallback for every id not ported or out of scope
+  const step = BEHAVIOUR_ROUTES.get(entity.nav.behaviour) ?? behaviourIdle;
+  step(entity, ctx);
 
   // (5) the attitude step and the thrust ramp (the `applyThrust = YES` default)
   applyAttitude(entity, ctx.dt);
