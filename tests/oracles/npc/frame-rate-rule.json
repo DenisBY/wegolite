@@ -258,6 +258,67 @@
       "confirmedBy": ["face-destination-sign-flip-damping"]
     },
     {
+      "site": "FORMATION_FORM_UP frustration: -0.25 dt on improvement, +dt otherwise, above 15 s noteFrustration (no leader) or a forced 180 degree turn (leader)",
+      "oolite": "src/Core/Entities/ShipEntity.m:5028-5042",
+      "kind": "accumulator",
+      "treatment": "GLfloat accumulator through Math.fround. The 15 s threshold is first exceeded at tick 1801 (float64 would give 1800); with no leader the event posts and the counter resets, with a leader and a destination beyond half the scanner range pitching_over is forced instead. The no-leader fixture holds the distance unimproved (exactly representable distance, destination on the right axis, maxFlightSpeed 1e-6 because a positive speed is required) so the tick is exact in both widths. Kept verbatim.",
+      "confirmedBy": [
+        "escort-no-leader-frustration-fires",
+        "escort-slot-0-leader-refresh-eta-rule",
+        "escort-slot-1-leader-refresh-eta-rule"
+      ]
+    },
+    {
+      "site": "FORMATION_FORM_UP eta rule: eta = (distance - desired_range) / flightSpeed against 5 s and against slowdownTime = flightSpeed / thrust",
+      "oolite": "src/Core/Entities/ShipEntity.m:5006-5026",
+      "kind": "time-compare",
+      "treatment": "Evaluated as written: eta is a time in seconds computed from state (distance over speed), and slowdownTime is a speed over an acceleration in seconds, so neither depends on delta_t and no tick conversion applies; the 0.05 and 0.5 factors are dimensionless. The escort fixtures check all three branches (full speed, leader speed x (1 + 0.05 eta), the 50% cut) at ticks that keep a margin of at least 3% to each decision threshold, because the reference's follower settles into a limit cycle at the slowdown boundary later in the flight.",
+      "confirmedBy": [
+        "escort-slot-0-leader-refresh-eta-rule",
+        "escort-slot-1-leader-refresh-eta-rule"
+      ]
+    },
+    {
+      "site": "escort destination refresh: the leader writes each escort's destination in its own update",
+      "oolite": "src/Core/Entities/ShipEntity.m:2427-2436",
+      "kind": "one-shot",
+      "treatment": "Once per tick, as rule (b) of the in-tick order, after the leader moved and before the escort's update; the formation point is a function of the leader's pose, not of time, so nothing converts. Oolite's order (the lower-id leader first) is the contract's.",
+      "confirmedBy": [
+        "escort-slot-0-leader-refresh-eta-rule",
+        "escort-slot-1-leader-refresh-eta-rule"
+      ]
+    },
+    {
+      "site": "proximity pass: the alert is cleared and set once per update in the collision pass, and read by the next update",
+      "oolite": "src/Core/CollisionRegion.m:262-312",
+      "kind": "one-shot",
+      "treatment": "One pass per tick, rule (d) after self's update: the alert set at the end of tick k is read at tick k + 1 (Universe.m:6532-6609 runs collisions after updates and think). The trigger is distance only (4 x max(r), strict), so no delta_t conversion applies; the head-on and parallel fixtures pin the alert tick, the one-tick entry delay and the clear tick.",
+      "confirmedBy": [
+        "avoid-head-on-alert-entry-and-exit",
+        "avoid-parallel-offset-pass-alert-and-entry",
+        "avoid-parallel-offset-pass-never-alerts",
+        "avoid-station-ahead-with-planet",
+        "avoid-light-ship-never-triggers"
+      ]
+    },
+    {
+      "site": "AVOID_COLLISION entry, per-tick destination refresh and exit; frustration reset on resume",
+      "oolite": "src/Core/Entities/ShipEntity.m:5155-5171",
+      "kind": "one-shot",
+      "treatment": "No delta_t site except the trackDestination call (limiter row above). Entry saves the state and sets the midpoint destination once; each tick the destination follows the other ship while the alert holds; exit is a distance compare (distance > desired_range) followed by resumePostProximityAlert, which sets frustration 0 (5953). The resume tick is a function of the distance, not of the frame rate. Kept verbatim.",
+      "confirmedBy": [
+        "avoid-head-on-alert-entry-and-exit",
+        "avoid-parallel-offset-pass-alert-and-entry"
+      ]
+    },
+    {
+      "site": "resumePostProximityAlert restarts the tracking curve: startTrackingCurve",
+      "oolite": "src/Core/Entities/ShipEntity.m:5944-5947",
+      "kind": "time-compare",
+      "treatment": "startTrackingCurve fills four samples at times now, now - reactionTime / 3, now - 2 reactionTime / 3 and now - reactionTime, which on the integer clock are ticks k, k - 60, k - 120 and k - 180 (reaction time 1.5 s). No avoid-collision fixture carries a primary target, so the restart is not exercised here; the same function starts the curve at setTarget, which the intercept aim-point fixture pins.",
+      "confirmedBy": ["intercept-tracking-curve-aim-point-of-crossing-target"]
+    },
+    {
       "site": "cascade mine chance qbomb_chance = 0.01 * delta_t",
       "oolite": "src/Core/Entities/ShipEntity.m:4883-4886",
       "kind": "out-of-scope",

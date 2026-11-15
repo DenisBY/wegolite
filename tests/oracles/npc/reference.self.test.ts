@@ -34,7 +34,7 @@ import {
   replayWith,
   valueOf,
 } from "./reference/flight.js";
-import { ALL_BEHAVIOURS } from "./reference/navigate.js";
+import { ALL_BEHAVIOURS, NAVIGATE_HOOKS } from "./reference/navigate.js";
 import {
   forwardFromQuat,
   quatFromBasis,
@@ -256,8 +256,8 @@ describe("the reference replays every fixture", () => {
   for (const fixture of allFixtures()) {
     it(`${fixture.id}: every check within its tolerance`, () => {
       const ticks = new Set(fixture.checks.map((check) => check.tick));
-      const f32 = replayWith(fixture, F32, TABLE, ticks);
-      const f64 = replayWith(fixture, F64, TABLE, ticks);
+      const f32 = replayWith(fixture, F32, TABLE, ticks, NAVIGATE_HOOKS);
+      const f64 = replayWith(fixture, F64, TABLE, ticks, NAVIGATE_HOOKS);
 
       for (const check of fixture.checks) {
         const label = `${fixture.id} tick ${check.tick} ${check.field}`;
@@ -383,7 +383,7 @@ describe("the navigation fixtures the port will be held to", () => {
     const fixture = byId("face-destination-sign-flip-damping");
     const ticks = new Set([fixture.horizon]);
     for (const mode of [F32, F64]) {
-      const result = replayWith(fixture, mode, TABLE, ticks);
+      const result = replayWith(fixture, mode, TABLE, ticks, NAVIGATE_HOOKS);
       expect(result.counters["damping"], mode.name).toBe(3);
     }
   });
@@ -581,7 +581,7 @@ describe("the rate-rule grid (rate-rule.json)", () => {
       const ticks = new Set<number>();
       for (let tick = 0; tick <= fixture.horizon; tick += 1) ticks.add(tick);
       for (const mode of [F32, F64]) {
-        const result = replayWith(fixture, mode, TABLE, ticks);
+        const result = replayWith(fixture, mode, TABLE, ticks, NAVIGATE_HOOKS);
         for (const tick of ticks) {
           const range = valueOf(result, {
             tick,
@@ -673,5 +673,304 @@ describe("the rate-rule grid (rate-rule.json)", () => {
       r.confirmedBy.includes("rate-limiter-dt60"),
     );
     expect(row?.kind).toBe("dt-limiter");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan 14-06: avoid collision, the proximity zone and escort.
+// ---------------------------------------------------------------------------
+
+describe("the avoid-collision, proximity and escort fixtures", () => {
+  const byId = (id: string): OracleFixture => {
+    const found = allFixtures().find((fixture) => fixture.id === id);
+    if (found === undefined) throw new Error(`fixture ${id} is missing`);
+    return found;
+  };
+  const everyTick = (fixture: OracleFixture): Set<number> => {
+    const ticks = new Set<number>();
+    for (let tick = 0; tick <= fixture.horizon; tick += 1) ticks.add(tick);
+    return ticks;
+  };
+  const valuesOver = (
+    fixture: OracleFixture,
+    field: "proximityAlert" | "positionX" | "positionY" | "positionZ",
+  ): number[] => {
+    const result = replayWith(
+      fixture,
+      F64,
+      TABLE,
+      everyTick(fixture),
+      NAVIGATE_HOOKS,
+    );
+    const out: number[] = [];
+    for (let tick = 0; tick <= fixture.horizon; tick += 1) {
+      out.push(valueOf(result, { tick, field }) as number);
+    }
+    return out;
+  };
+
+  /** Straight-line pass of self (along +z) and a body, from this fixture's own data. */
+  function closedAlertTick(fixture: OracleFixture): number {
+    const body = fixture.bodies.find((candidate) => candidate.kind === "ship");
+    if (body === undefined) throw new Error("no ship body");
+    const rs = fixture.self.radius;
+    const ro = body.radius;
+    const speed = fixture.self.speed;
+    expect(fixture.self.speed).toBe(fixture.stats.maxFlightSpeed);
+    const lateral = body.position[0] - fixture.self.position[0];
+    const stretch = (0.25 * fixture.stats.maxFlightSpeed) / speed;
+    for (let k = 1; k < fixture.horizon; k += 1) {
+      const selfZ =
+        fixture.self.position[2] +
+        fixture.self.forward[2] * speed * fixture.dt * k;
+      const bodyZ =
+        body.position[2] + body.forward[2] * body.speed * fixture.dt * k;
+      const f = bodyZ - selfZ;
+      const dForward = f > 0 ? f * stretch : f;
+      const pair = f * f + lateral * lateral < (4 * Math.max(rs, ro)) ** 2;
+      const zone =
+        dForward * dForward + lateral * lateral <= (2 * rs + ro) ** 2;
+      if (pair && zone) return k;
+    }
+    throw new Error("the straight-line pass never alerts");
+  }
+
+  it("holds eight fixture files: plan 14-01's five plus rate-rule, avoid-collision and escort", () => {
+    expect(fixtureFiles()).toHaveLength(8);
+    for (const group of ["rate-rule", "avoid-collision", "escort"]) {
+      expect(fixtureFiles()).toContain(`${group}.json`);
+    }
+  });
+
+  it("alerts a head-on pair at the closed-form tick, enters AVOID_COLLISION the next tick and exits later", () => {
+    const fixture = byId("avoid-head-on-alert-entry-and-exit");
+    const k = closedAlertTick(fixture);
+    const alerts = valuesOver(fixture, "proximityAlert");
+    expect(alerts[k - 1]).toBe(0);
+    expect(alerts[k]).toBe(102);
+    const alertTicks = fixture.checks.filter(
+      (c) => c.field === "proximityAlert" && c.expected === 102,
+    );
+    expect(alertTicks.map((c) => c.tick)).toContain(k);
+    const entry = fixture.checks.find(
+      (c) => c.field === "behaviour" && c.expected === "AVOID_COLLISION",
+    );
+    expect(entry?.tick).toBe(k + 1);
+    // The 4 x max(r) pair trigger decides head-on at full speed (zone reach 4 x 120).
+    expect(fixture.self.radius).toBe(40);
+  });
+
+  it("puts the parallel-offset lateral offset strictly between r1 + r2 and min(2 r_self + r_other, 4 max(r)) and alerts at the closed-form tick", () => {
+    const fixture = byId("avoid-parallel-offset-pass-alert-and-entry");
+    const body = fixture.bodies[0];
+    if (body === undefined) throw new Error("no body");
+    const rs = fixture.self.radius;
+    const ro = body.radius;
+    const lateral = Math.abs(body.position[0] - fixture.self.position[0]);
+    expect(lateral).toBeGreaterThan(rs + ro);
+    expect(lateral).toBeLessThan(Math.min(2 * rs + ro, 4 * Math.max(rs, ro)));
+    // Equal radii: 2.5 r, strictly between 2 r and 3 r.
+    expect(lateral).toBe(2.5 * rs);
+    // Self never steers before the alert: a straight line along +z.
+    expect(fixture.self.forward).toEqual([0, 0, 1]);
+    expect(body.forward).toEqual([0, 0, -1]);
+    const k = closedAlertTick(fixture);
+    const alerts = valuesOver(fixture, "proximityAlert");
+    expect(alerts.findIndex((value) => value !== 0)).toBe(k);
+    const entry = fixture.checks.find(
+      (c) => c.field === "behaviour" && c.expected === "AVOID_COLLISION",
+    );
+    expect(entry?.tick).toBe(k + 1);
+    // Starting from the alert tick, the destination equals the body's position while it holds.
+    expect(
+      fixture.checks.some(
+        (c) =>
+          c.tick === k + 2 &&
+          c.field === "destinationX" &&
+          c.expected === lateral,
+      ),
+    ).toBe(true);
+  });
+
+  it("never alerts at a lateral offset of 2 (r1 + r2), on any tick", () => {
+    const fixture = byId("avoid-parallel-offset-pass-never-alerts");
+    const body = fixture.bodies[0];
+    if (body === undefined) throw new Error("no body");
+    const lateral = Math.abs(body.position[0] - fixture.self.position[0]);
+    expect(lateral).toBe(2 * (fixture.self.radius + body.radius));
+    expect(
+      valuesOver(fixture, "proximityAlert").every((value) => value === 0),
+    ).toBe(true);
+    expect(fixture.events).toEqual([]);
+    for (const mode of [F32, F64]) {
+      const result = replayWith(
+        fixture,
+        mode,
+        TABLE,
+        everyTick(fixture),
+        NAVIGATE_HOOKS,
+      );
+      for (let tick = 0; tick <= fixture.horizon; tick += 1) {
+        expect(valueOf(result, { tick, field: "behaviour" })).toBe(
+          "FLY_TO_DESTINATION",
+        );
+      }
+    }
+  });
+
+  it("alerts a station dead ahead at its 2,000 m pair trigger, and the planet body keeps every entity chained at every replayed tick", () => {
+    const fixture = byId("avoid-station-ahead-with-planet");
+    const planet = fixture.bodies.find((b) => b.kind === "planet");
+    const station = fixture.bodies.find((b) => b.kind === "station");
+    if (planet === undefined || station === undefined)
+      throw new Error("planet or station body missing");
+    expect(station.radius).toBe(500);
+    expect(station.mass).toBeGreaterThan(2000);
+    expect(fixture.self.speed).toBe(fixture.stats.maxFlightSpeed);
+    // The station sits 2R from the planet's centre (Universe.m:1541-1547).
+    const apart = Math.hypot(
+      planet.position[0] - station.position[0],
+      planet.position[1] - station.position[1],
+      planet.position[2] - station.position[2],
+    );
+    expect(apart).toBeCloseTo(2 * planet.radius, 6);
+    // First tick whose end is below 2,000 m, from the fixture's own coordinates.
+    let k = -1;
+    for (let tick = 1; tick < fixture.horizon; tick += 1) {
+      const selfZ =
+        fixture.self.position[2] + fixture.self.speed * fixture.dt * tick;
+      const d = station.position[2] - selfZ;
+      if (d * d < (4 * station.radius) ** 2) {
+        k = tick;
+        break;
+      }
+    }
+    const alerts = valuesOver(fixture, "proximityAlert");
+    expect(alerts.findIndex((value) => value !== 0)).toBe(k);
+    expect(alerts[k]).toBe(station.id);
+    // Prefilter condition (Universe.m:6713-6760): self's and the station's
+    // +-2 x radius intervals lie inside the planet's +-2 R interval on every
+    // axis at every replayed tick.
+    const xs = valuesOver(fixture, "positionX");
+    const ys = valuesOver(fixture, "positionY");
+    const zs = valuesOver(fixture, "positionZ");
+    const interval = (centre: number, radius: number): [number, number] => [
+      centre - 2 * radius,
+      centre + 2 * radius,
+    ];
+    const inside = (
+      inner: [number, number],
+      outer: [number, number],
+    ): boolean => inner[0] >= outer[0] && inner[1] <= outer[1];
+    for (let axis = 0; axis < 3; axis += 1) {
+      const outer = interval(planet.position[axis] as number, planet.radius);
+      expect(
+        inside(
+          interval(station.position[axis] as number, station.radius),
+          outer,
+        ),
+        `station axis ${axis}`,
+      ).toBe(true);
+      const series = axis === 0 ? xs : axis === 1 ? ys : zs;
+      for (let tick = 0; tick <= fixture.horizon; tick += 1) {
+        expect(
+          inside(interval(series[tick] as number, fixture.self.radius), outer),
+          `self axis ${axis} tick ${tick}`,
+        ).toBe(true);
+      }
+    }
+    // The planet is never an alert candidate (not a ship).
+    expect(alerts.every((value) => value !== planet.id)).toBe(true);
+  });
+
+  it("ignores a light ship below 2000 kg while its pair trigger holds", () => {
+    const fixture = byId("avoid-light-ship-never-triggers");
+    const body = fixture.bodies[0];
+    if (body === undefined) throw new Error("no body");
+    expect(body.mass).toBeLessThan(2000);
+    const zs = valuesOver(fixture, "positionZ");
+    const near = zs.filter(
+      (z) =>
+        Math.abs(body.position[2] - z) <
+        4 * Math.max(fixture.self.radius, body.radius),
+    );
+    expect(near.length).toBeGreaterThan(50);
+    expect(
+      valuesOver(fixture, "proximityAlert").every((value) => value === 0),
+    ).toBe(true);
+  });
+
+  it("has one escort fixture per follower slot, 0 and 1, with the same leader, and a no-leader fixture", () => {
+    const escorts = allFixtures().filter((f) => f.id.startsWith("escort-"));
+    const slots = escorts
+      .filter(
+        (f) =>
+          f.self.ownerId !== 0 && f.bodies.some((b) => b.id === f.self.ownerId),
+      )
+      .map((f) => f.self.escortSlot);
+    expect(slots.sort()).toEqual([0, 1]);
+    const leaders = escorts
+      .filter((f) => f.bodies.some((b) => b.id === f.self.ownerId))
+      .map((f) => f.bodies.find((b) => b.id === f.self.ownerId));
+    expect(
+      leaders.every((l) => JSON.stringify(l) === JSON.stringify(leaders[0])),
+    ).toBe(true);
+    const lone = escorts.find(
+      (f) => !f.bodies.some((b) => b.id === f.self.ownerId),
+    );
+    expect(lone?.id).toBe("escort-no-leader-frustration-fires");
+    expect(lone?.self.ownerId).toBeGreaterThan(0);
+  });
+
+  it("gives every escort slot the default V-pattern destination at every checked tick (closed form from the fixture's own leader)", () => {
+    const pattern: readonly (readonly [number, number, number])[] = [
+      [-2, 0, -1],
+      [2, 0, -1],
+      [-3, 0, -3],
+      [3, 0, -3],
+    ];
+    for (const fixture of allFixtures().filter((f) =>
+      f.id.startsWith("escort-slot-"),
+    )) {
+      const leader = fixture.bodies.find((b) => b.id === fixture.self.ownerId);
+      if (leader === undefined) throw new Error("no leader");
+      const slot = fixture.self.escortSlot;
+      const highPart = Math.floor(slot / 4) + 1;
+      const spacing = leader.radius * 3 * highPart;
+      const offset = pattern[slot % 4] as readonly [number, number, number];
+      let checked = 0;
+      for (const check of fixture.checks) {
+        if (check.field !== "destinationX" && check.field !== "destinationZ")
+          continue;
+        const axis = check.field === "destinationX" ? 0 : 2;
+        const travelled = leader.speed * fixture.dt * check.tick;
+        const base = leader.position[axis] + leader.forward[axis] * travelled;
+        const rotated =
+          leader.right[axis] * offset[0] * spacing +
+          leader.up[axis] * offset[1] * spacing +
+          leader.forward[axis] * offset[2] * spacing;
+        expect(
+          Math.abs((check.expected as number) - (base + rotated)),
+          `${fixture.id} tick ${check.tick} ${check.field}`,
+        ).toBeLessThan(1e-9);
+        checked += 1;
+      }
+      expect(checked).toBeGreaterThanOrEqual(6);
+    }
+  });
+
+  it("fires the no-leader frustration event at the fround tick 1801 and resets to 0", () => {
+    const fixture = byId("escort-no-leader-frustration-fires");
+    expect(firstTickAbove(15)).toBe(1801);
+    expect(fixture.events).toEqual([{ tick: 1801, name: "shipAIFrustrated" }]);
+    const row = (tick: number) =>
+      fixture.checks.find((c) => c.tick === tick && c.field === "frustration");
+    expect(row(1800)?.expected as number).toBeGreaterThan(14.99);
+    expect(row(1800)?.expected as number).toBeLessThanOrEqual(15);
+    expect(row(1801)?.expected).toBe(0);
+    // The distance cannot improve: destination exactly representable in float32, abeam on the right axis.
+    expect(Math.fround(5000)).toBe(5000);
+    expect(fixture.self.destination).toEqual([5000, 0, 0]);
+    expect(fixture.self.right).toEqual([1, 0, 0]);
   });
 });

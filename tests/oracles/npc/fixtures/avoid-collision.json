@@ -1,0 +1,772 @@
+[
+  {
+    "id": "avoid-head-on-alert-entry-and-exit",
+    "title": "a head-on pair: the alert at 4 x max(r), AVOID_COLLISION with its entry values the next tick, and the exit back to FLY_TO_DESTINATION",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:5904-5936",
+      "src/Core/Entities/ShipEntity.m:5938-5958",
+      "src/Core/Entities/ShipEntity.m:5155-5171",
+      "src/Core/Entities/ShipEntity.m:6098-6146",
+      "src/Core/Entities/ShipEntity.m:5131-5133",
+      "src/Core/CollisionRegion.m:262-312",
+      "src/Core/Universe.h:98-101"
+    ],
+    "derivation": "Self (radius 40, flying at maxFlightSpeed 320 with desired speed 320) is in FLY_TO_DESTINATION toward (0, 0, 20000), dead ahead, so its sticks stay 0 and its path is the +z axis. FLY_TO_DESTINATION calls avoidCollision when an alert exists (ShipEntity.m:5131-5133); IDLE has no such call site (3708-3722), so the fixture does not use it. A second ship (id 102, radius 40, mass 20000) starts at z = 6001 on the same axis facing -z at 320 m/s (constant-velocity), so each tick both move 2.666667 m and the centre distance is 6001 - 5.333333 k (the body advances in (a) before self's update, self's tick-k position is 2.666667 k). The pair trigger needs the centre distance below 4 x max(r) = 160 m with a strict < (CollisionRegion.m:299, 309, PROXIMITY_WARN_DISTANCE 4); the zone of setProximityAlert: is (2 x 40 + 40)^2 = 120^2 with the forward component multiplied by 0.25 at full speed (6124-6131), so the zone reaches 480 m ahead and the pair trigger decides. The first tick whose end satisfies it is k = 1096 (distance 155.667 m; at k = 1095 it is 161.000 m, a margin of 1 m). The alert is read by the next update: at tick 1097 FLY_TO_DESTINATION calls avoidCollision, which saves behaviour, target, desired range, desired speed and destination, sets destination to the midpoint of self's position (its tick-1096 position, self has not moved yet in that update) and the body's tick-1097 position, desired_range 10 x 40 = 400, behaviour AVOID_COLLISION and pitching_over (5919-5934). From tick 1098 behaviour_avoid_collision sets destination to the other ship's position and desired_range 400 every tick while the alert holds (5161-5165), tracks away from it with trackDestination (retreat) and sets desired_speed = maxFlightSpeed * (0.5 dq + 0.5), dq = d_forward squared = 1 here (5166-5169). At the alert distance of 4 x max(r) = 160 m and a closing speed of 640 m/s a faithful port may still pass through the other hull (the minimum centre distance over this run is 2.03 m, recorded as observed), so the fixture checks the alert, the entry values and the exit, not a clearance. The alert clears at tick 1148 and the behaviour resumes at tick 1255: those two ticks come from the reference replay (discrete fields, identical in float32 and float64), and the restored values are the saved ones (5943-5955). Closed forms for the rest.",
+    "dt": 0.008333333333333333,
+    "horizon": 1400,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 320,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [0, 0, 20000],
+      "desiredRange": 100,
+      "desiredSpeed": 320,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [0, 0, 6001],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 320,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "constant-velocity",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1095,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "one tick before the alert: the centre distance 161.00 m is still at least 4 x max(r) = 160 m"
+      },
+      {
+        "tick": 1095,
+        "field": "behaviour",
+        "expected": "FLY_TO_DESTINATION",
+        "tolerance": 0,
+        "note": "still flying to the destination"
+      },
+      {
+        "tick": 1096,
+        "field": "proximityAlert",
+        "expected": 102,
+        "tolerance": 0,
+        "note": "the alert is set at the end of tick 1096: the centre distance 155.67 m is below 4 x max(r) = 160 m and inside the stretched zone (CollisionRegion.m:309-310, ShipEntity.m:6124-6131)"
+      },
+      {
+        "tick": 1096,
+        "field": "behaviour",
+        "expected": "FLY_TO_DESTINATION",
+        "tolerance": 0,
+        "note": "the alert is read by the next update, so the behaviour has not changed yet"
+      },
+      {
+        "tick": 1097,
+        "field": "behaviour",
+        "expected": "AVOID_COLLISION",
+        "tolerance": 0,
+        "note": "avoidCollision runs from the FLY_TO_DESTINATION call site in the next update (ShipEntity.m:5131-5133, 5933)"
+      },
+      {
+        "tick": 1097,
+        "field": "pitchingOver",
+        "expected": 1,
+        "tolerance": 0,
+        "note": "avoidCollision sets pitching_over (ShipEntity.m:5934)"
+      },
+      {
+        "tick": 1097,
+        "field": "desiredRange",
+        "expected": 400,
+        "tolerance": 1e-9,
+        "note": "desired_range = other collision radius x PROXIMITY_AVOID_DISTANCE_FACTOR 10 (ShipEntity.m:5931, Universe.h:101)"
+      },
+      {
+        "tick": 1097,
+        "field": "destinationX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "the midpoint of self's tick-k position and the body's tick-(k+1) position (the body advances in (a) before self's update; ShipEntity.m:5929)"
+      },
+      {
+        "tick": 1097,
+        "field": "destinationZ",
+        "expected": 2999.166666666667,
+        "tolerance": 1.4e-9,
+        "note": "the midpoint z"
+      },
+      {
+        "tick": 1098,
+        "field": "destinationZ",
+        "expected": 3073,
+        "tolerance": 1.7e-9,
+        "note": "while the alert holds the destination is the other ship's position at that tick (ShipEntity.m:5162-5165)"
+      },
+      {
+        "tick": 1098,
+        "field": "desiredRange",
+        "expected": 400,
+        "tolerance": 1e-9,
+        "note": "desired_range follows the other ship's radius every tick (ShipEntity.m:5163)"
+      },
+      {
+        "tick": 1098,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 1e-9,
+        "note": "dq = d_forward squared = 1 (the destination is dead ahead), so desired_speed = maxFlightSpeed * (0.5 * 1 + 0.5) (ShipEntity.m:5166-5169)"
+      },
+      {
+        "tick": 1147,
+        "field": "proximityAlert",
+        "expected": 102,
+        "tolerance": 0,
+        "note": "the alert holds until the pair leaves the trigger (from the reference replay)"
+      },
+      {
+        "tick": 1148,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "the pair trigger no longer holds: the alert is cleared by the pass (CollisionRegion.m:271; from the reference replay)"
+      },
+      {
+        "tick": 1254,
+        "field": "behaviour",
+        "expected": "AVOID_COLLISION",
+        "tolerance": 0,
+        "note": "still retreating from the other ship's last known position (ShipEntity.m:5155-5170)"
+      },
+      {
+        "tick": 1255,
+        "field": "behaviour",
+        "expected": "FLY_TO_DESTINATION",
+        "tolerance": 0,
+        "note": "distance to the destination exceeds desired_range 400: resumePostProximityAlert restores the saved behaviour (ShipEntity.m:5158-5159, 5943; from the reference replay)"
+      },
+      {
+        "tick": 1255,
+        "field": "destinationZ",
+        "expected": 20000,
+        "tolerance": 1e-9,
+        "note": "the saved destination is restored (ShipEntity.m:5949)"
+      },
+      {
+        "tick": 1255,
+        "field": "desiredRange",
+        "expected": 100,
+        "tolerance": 1e-9,
+        "note": "the saved desired range is restored (ShipEntity.m:5947)"
+      },
+      {
+        "tick": 1255,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 1e-9,
+        "note": "the saved desired speed is restored (ShipEntity.m:5948)"
+      },
+      {
+        "tick": 1255,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "resumePostProximityAlert sets frustration 0 (ShipEntity.m:5953)"
+      },
+      {
+        "tick": 1255,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "the alert is destroyed on resume (ShipEntity.m:5955)"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "avoid-parallel-offset-pass-alert-and-entry",
+    "title": "a parallel-offset pass at a lateral offset of 100 m (2.5 r) alerts, enters AVOID_COLLISION and resumes",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:6098-6146",
+      "src/Core/Entities/ShipEntity.m:5904-5936",
+      "src/Core/Entities/ShipEntity.m:5155-5171",
+      "src/Core/Entities/ShipEntity.m:5131-5133",
+      "src/Core/CollisionRegion.m:296-312",
+      "src/Core/Universe.h:98-101"
+    ],
+    "derivation": "Self flies FLY_TO_DESTINATION at full speed toward (0, 0, 60000) on its own track (sticks 0, a straight line until the alert; IDLE has no proximity call site and would never enter AVOID_COLLISION). The other body (id 102, radius 40, mass 20000) moves at 320 m/s on the antiparallel track x = 100, a lateral offset L = 100 m. setProximityAlert: alerts only when d2 <= (2 r_self + r_other)^2 = 14400 (ShipEntity.m:6119-6131; the forward stretch 0.25 x max / speed scales only the forward component, so the lateral offset is a lower bound on the zone distance) and the pair trigger needs the centre distance below 4 x max(r) = 160 with a strict < (CollisionRegion.m:304-309, PROXIMITY_WARN_DISTANCE 4 in Universe.h:98-99). L must therefore lie strictly between r1 + r2 = 80 and min(2 r_self + r_other, 4 max(r)) = 120: for equal radii r that is 2.5 r = 100, strictly between 2 r = 80 and 3 r = 120; the numbers for the radii used are L = 100, 80 < 100 < 120. With forward separation f(k) = 6001 - 5.333333 k the pair trigger f^2 + L^2 < 160^2 means f < 124.900 and the zone (0.25 f)^2 + L^2 <= 120^2 means f <= 265.330, so the pair trigger decides; the first tick whose end satisfies both is k = 1102 (f = 123.667 m, one tick earlier 129.000 m). At tick 1103 avoidCollision runs: AVOID_COLLISION with destination the midpoint of self's tick-1102 position (0, 0, 2938.667) and the body's tick-1103 position (100, 0, 3059.667), desired_range 400, pitching_over 1 (5919-5934). At tick 1104 the destination is the body's position (5162-5165). The clearance is not promised: the minimum centre distance over the reference's run is 100.01 m at tick 1126, recorded as observed (it never goes below r1 + r2 = 80 here). The alert clears at tick 1140 and the behaviour resumes at tick 1274, both from the reference replay as discrete fields. Closed forms for the rest.",
+    "dt": 0.008333333333333333,
+    "horizon": 1500,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 320,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [0, 0, 60000],
+      "desiredRange": 100,
+      "desiredSpeed": 320,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [100, 0, 6001],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 320,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "constant-velocity",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1101,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "one tick before: forward separation 129.000 m, centre distance 163.221 m, not below 160 m"
+      },
+      {
+        "tick": 1102,
+        "field": "proximityAlert",
+        "expected": 102,
+        "tolerance": 0,
+        "note": "alert at the end of tick 1102: forward separation 123.667 m, centre distance 159.039 m < 160 m, and the stretched zone (0.25 x 123.7)^2 + 100^2 <= 120^2 holds (closed form)"
+      },
+      {
+        "tick": 1102,
+        "field": "behaviour",
+        "expected": "FLY_TO_DESTINATION",
+        "tolerance": 0,
+        "note": "not yet avoiding: the alert is read by the next update"
+      },
+      {
+        "tick": 1103,
+        "field": "behaviour",
+        "expected": "AVOID_COLLISION",
+        "tolerance": 0,
+        "note": "AVOID_COLLISION starts the tick after the alert"
+      },
+      {
+        "tick": 1103,
+        "field": "pitchingOver",
+        "expected": 1,
+        "tolerance": 0,
+        "note": "avoidCollision sets pitching_over (ShipEntity.m:5934)"
+      },
+      {
+        "tick": 1103,
+        "field": "desiredRange",
+        "expected": 400,
+        "tolerance": 1e-9,
+        "note": "10 x the other radius 40 (ShipEntity.m:5931)"
+      },
+      {
+        "tick": 1103,
+        "field": "destinationX",
+        "expected": 50,
+        "tolerance": 1e-9,
+        "note": "midpoint x = (0 + 100) / 2"
+      },
+      {
+        "tick": 1103,
+        "field": "destinationZ",
+        "expected": 2999.166666666667,
+        "tolerance": 1.4e-9,
+        "note": "midpoint z of self's tick-k position and the body's tick-(k+1) position (ShipEntity.m:5929)"
+      },
+      {
+        "tick": 1104,
+        "field": "destinationX",
+        "expected": 100,
+        "tolerance": 1e-9,
+        "note": "while the alert holds the destination is the body's position (ShipEntity.m:5162-5165): x is the lateral offset"
+      },
+      {
+        "tick": 1104,
+        "field": "destinationZ",
+        "expected": 3057,
+        "tolerance": 1.7e-9,
+        "note": "the body's z at tick k + 2"
+      },
+      {
+        "tick": 1140,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "the alert clears once the pair leaves the trigger and the zone (from the reference replay)"
+      },
+      {
+        "tick": 1273,
+        "field": "behaviour",
+        "expected": "AVOID_COLLISION",
+        "tolerance": 0,
+        "note": "still avoiding"
+      },
+      {
+        "tick": 1274,
+        "field": "behaviour",
+        "expected": "FLY_TO_DESTINATION",
+        "tolerance": 0,
+        "note": "resumed: distance to the last known position exceeds desired_range (from the reference replay)"
+      },
+      {
+        "tick": 1274,
+        "field": "destinationZ",
+        "expected": 60000,
+        "tolerance": 1e-9,
+        "note": "saved destination restored"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "avoid-parallel-offset-pass-never-alerts",
+    "title": "the same pass at a lateral offset of 2 (r1 + r2) = 160 m never alerts",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:6098-6146",
+      "src/Core/CollisionRegion.m:296-312",
+      "src/Core/Universe.h:98-101"
+    ],
+    "derivation": "The parallel-offset pass again, with the lateral offset L = 2 x (r1 + r2) = 160 m. The centre distance is sqrt(f^2 + L^2) >= L = 160 at every tick, and the pair trigger needs a distance strictly below 4 x max(r) = 160 (CollisionRegion.m:309), so it can never fire; the zone 2 x r_self + r_other = 120 is also smaller than L, so setProximityAlert: could not alert either (ShipEntity.m:6126-6131). The forward separation f(k) = 6001 - 5.333333 k is never exactly 0 at a tick (the tick nearest abeam is k = 1125, f = 1.000 m), so L^2 + f^2 > 160^2 at every tick, and the check is robust in both widths. proximityAlert is 0 and behaviour FLY_TO_DESTINATION at the abeam tick, before, after and at the horizon, with an empty events list. The self-test additionally replays every tick and asserts no alert.",
+    "dt": 0.008333333333333333,
+    "horizon": 1300,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 320,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [0, 0, 60000],
+      "desiredRange": 100,
+      "desiredSpeed": 320,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 20000,
+        "position": [160, 0, 6001],
+        "forward": [0, 0, -1],
+        "up": [0, 1, 0],
+        "right": [-1, 0, 0],
+        "speed": 320,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "constant-velocity",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1124,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "no alert while the bodies approach: the centre distance never falls below L = 160"
+      },
+      {
+        "tick": 1125,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "abeam: forward separation 1.000 m, centre distance 160.003 m, above 160 m with the strict <"
+      },
+      {
+        "tick": 1125,
+        "field": "behaviour",
+        "expected": "FLY_TO_DESTINATION",
+        "tolerance": 0,
+        "note": "never avoiding"
+      },
+      {
+        "tick": 1126,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "no alert after the pass"
+      },
+      {
+        "tick": 1300,
+        "field": "behaviour",
+        "expected": "FLY_TO_DESTINATION",
+        "tolerance": 0,
+        "note": "never avoiding"
+      },
+      {
+        "tick": 1300,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "no alert anywhere in the replay"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "avoid-station-ahead-with-planet",
+    "title": "a station dead ahead at full speed alerts at its 2,000 m pair trigger, with a planet body placed as Oolite places the station's planet",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:6098-6146",
+      "src/Core/Entities/ShipEntity.m:5904-5936",
+      "src/Core/CollisionRegion.m:243-248",
+      "src/Core/CollisionRegion.m:296-312",
+      "src/Core/Universe.m:6713-6760",
+      "src/Core/Universe.m:7045-7073",
+      "src/Core/Universe.m:1541-1547",
+      "src/Core/Entities/Entity.m:825-828",
+      "src/Core/Entities/OOPlanetEntity.m:119-120"
+    ],
+    "derivation": "A station (id 2, scan class CLASS_STATION, radius 500, mass 1e7) is dead ahead of self at (0, 0, 6001), self flying at full speed (flightSpeed = maxFlightSpeed 320). The station is a ship in Oolite's collision pass; setProximityAlert: ignores nothing here (other mass above 2000, self is not a station, self is crewed and neither launching nor docking, ShipEntity.m:6105-6117). Pose conditions: at full speed the forward stretch is 0.25 (6124-6125), so the zone reaches 4 x (2 x 40 + 500) = 2320 m ahead, more than the pair trigger, and the pair trigger at 4 x 500 = 2000 m (strict <, CollisionRegion.m:309) decides; at a lower speed the zone would shrink and a station 2000 m ahead might not alert. Prefilter condition: Oolite tests a pair only when each entity's +-2 x collision-radius interval overlaps another collidable entity's on every axis (Universe.m:6713-6760, 7045-7073; entities left alone on an axis are skipped at CollisionRegion.m:243-248), which for an isolated station-and-ship pair is |delta| < 2 x (500 + 40) = 1,080 m per axis, so a two-body fixture would not be Oolite's truth at 2,000 m. The planet collides (Entity.m:825-828; OOPlanetEntity does not override canCollide) and its collision radius is the planet radius (OOPlanetEntity.m:119-120), and Oolite puts the main station 2R from the planet centre (Universe.m:1541-1547). The planet body (id 1, radius R = 41160, the Lave planet radius) is therefore placed at the station plus 2R along the unit vector (0.6, 0.64, 0.48), whose components all lie below 0.8 in magnitude: its centre is (49392.0, 52684.8, 45514.6). Self's and the station's +-2 x radius intervals lie inside the planet's +-2R = +-82320 interval on every axis for the whole horizon (the self-test asserts it at every replayed tick from this fixture's own coordinates), so every entity is chained and the plain pair trigger is Oolite's rule. The planet is never an alert candidate: it is not a ship (CollisionRegion.m:308-310), so reference rule (d) skips it. The first tick whose end is below 2000 m is k = 1501 (distance 1998.333 m; one tick earlier 2001.000 m). Entry values at tick 1502: AVOID_COLLISION, destination the midpoint of self's tick-1501 position and the station, desired_range 10 x 500 = 5000, pitching_over 1; at tick 1503 the destination is the station's position. Closed forms.",
+    "dt": 0.008333333333333333,
+    "horizon": 1520,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 320,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [0, 0, 20000],
+      "desiredRange": 100,
+      "desiredSpeed": 320,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 1,
+        "kind": "planet",
+        "scanClass": "CLASS_NO_DRAW",
+        "radius": 41160,
+        "mass": 5e24,
+        "position": [49392, 52684.8, 45514.6],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      },
+      {
+        "id": 2,
+        "kind": "station",
+        "scanClass": "CLASS_STATION",
+        "radius": 500,
+        "mass": 10000000,
+        "position": [0, 0, 6001],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1500,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "the station is 2001.000 m ahead: not yet below 4 x 500 = 2000 m"
+      },
+      {
+        "tick": 1501,
+        "field": "proximityAlert",
+        "expected": 2,
+        "tolerance": 0,
+        "note": "the station is 1998.333 m ahead at the end of tick 1501: below 2000 m, and the stretched zone reaches 4 x (2 x 40 + 500) = 2320 m"
+      },
+      {
+        "tick": 1501,
+        "field": "behaviour",
+        "expected": "FLY_TO_DESTINATION",
+        "tolerance": 0,
+        "note": "the alert is read by the next update"
+      },
+      {
+        "tick": 1502,
+        "field": "behaviour",
+        "expected": "AVOID_COLLISION",
+        "tolerance": 0,
+        "note": "avoidCollision from FLY_TO_DESTINATION (ShipEntity.m:5131-5133)"
+      },
+      {
+        "tick": 1502,
+        "field": "desiredRange",
+        "expected": 5000,
+        "tolerance": 1e-9,
+        "note": "10 x the station's collision radius 500 (ShipEntity.m:5931)"
+      },
+      {
+        "tick": 1502,
+        "field": "destinationZ",
+        "expected": 5001.833333333333,
+        "tolerance": 1.2e-9,
+        "note": "midpoint of self's tick-k position and the station (the station is static)"
+      },
+      {
+        "tick": 1502,
+        "field": "pitchingOver",
+        "expected": 1,
+        "tolerance": 0,
+        "note": "pitching_over set by avoidCollision"
+      },
+      {
+        "tick": 1503,
+        "field": "destinationZ",
+        "expected": 6001,
+        "tolerance": 1e-9,
+        "note": "while the alert holds the destination is the station's position (ShipEntity.m:5164)"
+      },
+      {
+        "tick": 1503,
+        "field": "destinationX",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "the station is on the z axis"
+      },
+      {
+        "tick": 1503,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 1e-9,
+        "note": "dq = 1 (destination dead ahead), desired_speed = maxFlightSpeed"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "avoid-light-ship-never-triggers",
+    "title": "a light ship below 2000 kg dead ahead never raises an alert",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:6098-6146",
+      "src/Core/CollisionRegion.m:296-312"
+    ],
+    "derivation": "A static ship (id 102, radius 40, mass 1000) at (0, 0, 700) dead ahead of self at full speed. The pair trigger holds from k = 203 (centre distance below 4 x 40 = 160 m), but setProximityAlert: returns for an other mass below 2000 (\"a cargopod has a mass of about 1000\", ShipEntity.m:6105-6106), so proximityAlert stays 0 and the behaviour FLY_TO_DESTINATION, even while self flies through the other ship (centre distance 1.33 m at tick 263). Closed forms.",
+    "dt": 0.008333333333333333,
+    "horizon": 300,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 320,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FLY_TO_DESTINATION",
+      "targetId": 0,
+      "destination": [0, 0, 20000],
+      "desiredRange": 100,
+      "desiredSpeed": 320,
+      "ownerId": 0,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "mass": 1000,
+        "position": [0, 0, 700],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 202,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "161.33 m from the light ship: the pair trigger has not fired yet"
+      },
+      {
+        "tick": 203,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "158.67 m: the pair trigger now holds, but the other mass 1000 is below 2000, so setProximityAlert: returns (ShipEntity.m:6105-6106)"
+      },
+      {
+        "tick": 230,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "86.67 m, well inside the trigger: still no alert"
+      },
+      {
+        "tick": 230,
+        "field": "behaviour",
+        "expected": "FLY_TO_DESTINATION",
+        "tolerance": 0,
+        "note": "never avoiding"
+      },
+      {
+        "tick": 263,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "-1.33 m: passing through the cargo-pod-sized ship, no alert"
+      },
+      {
+        "tick": 300,
+        "field": "behaviour",
+        "expected": "FLY_TO_DESTINATION",
+        "tolerance": 0,
+        "note": "never avoiding"
+      }
+    ],
+    "events": []
+  }
+]

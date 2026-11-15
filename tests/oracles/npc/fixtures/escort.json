@@ -1,0 +1,540 @@
+[
+  {
+    "id": "escort-slot-0-leader-refresh-eta-rule",
+    "title": "escort follower in slot 0: the leader refresh writes the formation destination every tick, with the eta speed rule, the 50% slowdown and the frustration counter",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:2427-2436",
+      "src/Core/Entities/ShipEntity.m:11900-11903",
+      "src/Core/Entities/ShipEntity.m:12029-12044",
+      "Resources/Scripts/oolite-global-prefix.js:165-193",
+      "src/Core/Entities/ShipEntity.m:5002-5047",
+      "src/Core/Entities/ShipEntityAI.m:365-371"
+    ],
+    "derivation": "The leader (id 102, radius 100, mass 20000) flies at 200 m/s along its forward 0.6, 0, 0.8 (right 0.8, 0, -0.6, up 0, 1, 0) from the origin (constant-velocity). Self (behaviour FORMATION_FORM_UP injected; owner 102, slot 0, desired range 50, speed 320 = maxFlightSpeed, facing the leader's heading) starts 1200 m behind the slot-0 formation point. Rule (b) of the in-tick order: after the leader moved, self's destination is the leader's position plus coordinatesForEscortPosition(slot): the default pattern's offset -2, 0, -1 (oolite-global-prefix.js:165-171) times spacing = leader collision radius x 3 x highPart (highPart = floor(slot / 4) + 1 = 1) = 300 (186-193), rotated into the leader's frame as right x + up y + forward z (quaternion_rotate_vector maps the local axes to right, up and forward), which is (-660.0, 0.0, 120.0) relative to the leader's start position; setEscortDestination: does not reset frustration (ShipEntity.m:2427-2436, 11900-11903, 12029-12044). behaviour_formation_form_up (5002-5047): eta = (distance - desired_range) / flightSpeed; below 5 s with a leader desired_speed = leader speed x (1 + eta x 0.05), else maxFlightSpeed; then eta / 0.51 against slowdownTime = flightSpeed / thrust and flightSpeed above maxFlightSpeed x 0.05 x max_flight_pitch x max_flight_roll cuts desired_speed to 0.5 x flightSpeed. The closed forms use the pre-update flight speed and position of the tick (the previous tick's), the tick's refreshed destination, and a margin of at least 3% to every decision threshold (asserted when this file was written; the reference sits in a limit cycle at the slowdown boundary later in the flight, so only ticks away from it are checked): t1:C(m5 0.280, mS 0.295), t120:B(m5 0.100, mS 0.152), t240:B(m5 0.124, mS 0.128), t360:B(m5 0.146, mS 0.104), t480:B(m5 0.199, mS 0.047). frustration: tick 1 compares the distance with successFactor 0, so it adds dt (fround); from tick 2 the distance shrinks every tick and the counter loses 0.25 dt (fround) per tick until it reaches 0. Closed forms; the escort stays more than 4 x 100 = 400 m from the leader, so no proximity alert is raised.",
+    "dt": 0.008333333333333333,
+    "horizon": 480,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [-660, 0, -1080],
+      "forward": [0.6, 0, 0.8],
+      "up": [0, 1, 0],
+      "right": [0.8, 0, -0.6],
+      "speed": 320,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FORMATION_FORM_UP",
+      "targetId": 0,
+      "destination": [-660, 0, 120],
+      "desiredRange": 50,
+      "desiredSpeed": 320,
+      "ownerId": 102,
+      "escortSlot": 0
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 100,
+        "mass": 20000,
+        "position": [0, 0, 0],
+        "forward": [0.6, 0, 0.8],
+        "up": [0, 1, 0],
+        "right": [0.8, 0, -0.6],
+        "speed": 200,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "constant-velocity",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "destinationX",
+        "expected": -659,
+        "tolerance": 0.00025,
+        "note": "leader refresh (b): leader position (1.000, 0.000, 1.333) plus the slot-0 offset -600, 0, -300 in the leader's frame"
+      },
+      {
+        "tick": 1,
+        "field": "destinationZ",
+        "expected": 121.33333333333331,
+        "tolerance": 1.1e-9,
+        "note": "leader refresh (b), z"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 160,
+        "tolerance": 1e-9,
+        "note": "eta / 0.51 = 7.055 s is below slowdownTime = flightSpeed / thrust = 10.000 s and the speed is above maxFlightSpeed x minTurnSpeedFactor, so the 50% slowdown applies: desired_speed = 0.5 x 320.000 (ShipEntity.m:5021-5026)"
+      },
+      {
+        "tick": 120,
+        "field": "destinationX",
+        "expected": -540,
+        "tolerance": 0.00025,
+        "note": "leader refresh (b): leader position (120.000, 0.000, 160.000) plus the slot-0 offset -600, 0, -300 in the leader's frame"
+      },
+      {
+        "tick": 120,
+        "field": "destinationZ",
+        "expected": 280,
+        "tolerance": 1.1e-9,
+        "note": "leader refresh (b), z"
+      },
+      {
+        "tick": 120,
+        "field": "desiredSpeed",
+        "expected": 244.9904934251089,
+        "tolerance": 0.0000014,
+        "note": "eta = (1152.270 - 50) / 245.001 = 4.499 s is below 5, so desired_speed = leader speed 200 x (1 + eta x 0.05) (ShipEntity.m:5007-5011); eta / 0.51 = 8.822 s is not below slowdownTime 7.656 s"
+      },
+      {
+        "tick": 240,
+        "field": "destinationX",
+        "expected": -420,
+        "tolerance": 0.00025,
+        "note": "leader refresh (b): leader position (240.000, 0.000, 320.000) plus the slot-0 offset -600, 0, -300 in the leader's frame"
+      },
+      {
+        "tick": 240,
+        "field": "destinationZ",
+        "expected": 440,
+        "tolerance": 1.1e-9,
+        "note": "leader refresh (b), z"
+      },
+      {
+        "tick": 240,
+        "field": "desiredSpeed",
+        "expected": 243.82142773728503,
+        "tolerance": 0.0000054,
+        "note": "eta = (1118.501 - 50) / 243.831 = 4.382 s is below 5, so desired_speed = leader speed 200 x (1 + eta x 0.05) (ShipEntity.m:5007-5011); eta / 0.51 = 8.592 s is not below slowdownTime 7.620 s"
+      },
+      {
+        "tick": 360,
+        "field": "destinationX",
+        "expected": -300,
+        "tolerance": 0.00025,
+        "note": "leader refresh (b): leader position (360.000, 0.000, 480.000) plus the slot-0 offset -600, 0, -300 in the leader's frame"
+      },
+      {
+        "tick": 360,
+        "field": "destinationZ",
+        "expected": 600,
+        "tolerance": 1.1e-9,
+        "note": "leader refresh (b), z"
+      },
+      {
+        "tick": 360,
+        "field": "desiredSpeed",
+        "expected": 242.7221557636563,
+        "tolerance": 0.000074,
+        "note": "eta = (1087.006 - 50) / 242.733 = 4.272 s is below 5, so desired_speed = leader speed 200 x (1 + eta x 0.05) (ShipEntity.m:5007-5011); eta / 0.51 = 8.377 s is not below slowdownTime 7.585 s"
+      },
+      {
+        "tick": 480,
+        "field": "destinationX",
+        "expected": -180,
+        "tolerance": 0.00025,
+        "note": "leader refresh (b): leader position (480.000, 0.000, 640.000) plus the slot-0 offset -600, 0, -300 in the leader's frame"
+      },
+      {
+        "tick": 480,
+        "field": "destinationZ",
+        "expected": 760,
+        "tolerance": 1.1e-9,
+        "note": "leader refresh (b), z"
+      },
+      {
+        "tick": 480,
+        "field": "desiredSpeed",
+        "expected": 240.04736696768316,
+        "tolerance": 0.000076,
+        "note": "eta = (1011.422 - 50) / 240.071 = 4.005 s is below 5, so desired_speed = leader speed 200 x (1 + eta x 0.05) (ShipEntity.m:5007-5011); eta / 0.51 = 7.852 s is not below slowdownTime 7.502 s"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 1e-9,
+        "note": "tick 1 compares the distance with successFactor 0, no improvement: frustration = fround(0 + dt) (ShipEntity.m:5033-5034)"
+      },
+      {
+        "tick": 480,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "the distance has improved on every tick since tick 2, so the counter has decayed to 0 and stays there (ShipEntity.m:5030-5032)"
+      },
+      {
+        "tick": 480,
+        "field": "behaviour",
+        "expected": "FORMATION_FORM_UP",
+        "tolerance": 0,
+        "note": "still forming up"
+      },
+      {
+        "tick": 480,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "no alert: the formation point is 670 m from the leader, outside the pair trigger 4 x 100 = 400 m"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "escort-slot-1-leader-refresh-eta-rule",
+    "title": "escort follower in slot 1: the leader refresh writes the formation destination every tick, with the eta speed rule, the 50% slowdown and the frustration counter",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:2427-2436",
+      "src/Core/Entities/ShipEntity.m:11900-11903",
+      "src/Core/Entities/ShipEntity.m:12029-12044",
+      "Resources/Scripts/oolite-global-prefix.js:165-193",
+      "src/Core/Entities/ShipEntity.m:5002-5047",
+      "src/Core/Entities/ShipEntityAI.m:365-371"
+    ],
+    "derivation": "The leader (id 102, radius 100, mass 20000) flies at 200 m/s along its forward 0.6, 0, 0.8 (right 0.8, 0, -0.6, up 0, 1, 0) from the origin (constant-velocity). Self (behaviour IDLE, then performEscort via assign; owner 102, slot 1, desired range 50, speed 320 = maxFlightSpeed, facing the leader's heading) starts 2000 m behind the slot-1 formation point. Rule (b) of the in-tick order: after the leader moved, self's destination is the leader's position plus coordinatesForEscortPosition(slot): the default pattern's offset 2, 0, -1 (oolite-global-prefix.js:165-171) times spacing = leader collision radius x 3 x highPart (highPart = floor(slot / 4) + 1 = 1) = 300 (186-193), rotated into the leader's frame as right x + up y + forward z (quaternion_rotate_vector maps the local axes to right, up and forward), which is (300.0, 0.0, -600.0) relative to the leader's start position; setEscortDestination: does not reset frustration (ShipEntity.m:2427-2436, 11900-11903, 12029-12044). behaviour_formation_form_up (5002-5047): eta = (distance - desired_range) / flightSpeed; below 5 s with a leader desired_speed = leader speed x (1 + eta x 0.05), else maxFlightSpeed; then eta / 0.51 against slowdownTime = flightSpeed / thrust and flightSpeed above maxFlightSpeed x 0.05 x max_flight_pitch x max_flight_roll cuts desired_speed to 0.5 x flightSpeed. The closed forms use the pre-update flight speed and position of the tick (the previous tick's), the tick's refreshed destination, and a margin of at least 3% to every decision threshold (asserted when this file was written; the reference sits in a limit cycle at the slowdown boundary later in the flight, so only ticks away from it are checked): t1:A(m5 0.220, mS 0.196), t120:A(m5 0.161, mS 0.138), t240:A(m5 0.104, mS 0.082). frustration: tick 1 compares the distance with successFactor 0, so it adds dt (fround); from tick 2 the distance shrinks every tick and the counter loses 0.25 dt (fround) per tick until it reaches 0. Closed forms; the escort stays more than 4 x 100 = 400 m from the leader, so no proximity alert is raised.",
+    "dt": 0.008333333333333333,
+    "horizon": 240,
+    "stats": {
+      "maxFlightSpeed": 320,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [300, 0, -2600],
+      "forward": [0.6, 0, 0.8],
+      "up": [0, 1, 0],
+      "right": [0.8, 0, -0.6],
+      "speed": 320,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "IDLE",
+      "targetId": 0,
+      "destination": [300, 0, -600],
+      "desiredRange": 50,
+      "desiredSpeed": 320,
+      "ownerId": 102,
+      "escortSlot": 1
+    },
+    "bodies": [
+      {
+        "id": 102,
+        "kind": "ship",
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 100,
+        "mass": 20000,
+        "position": [0, 0, 0],
+        "forward": [0.6, 0, 0.8],
+        "up": [0, 1, 0],
+        "right": [0.8, 0, -0.6],
+        "speed": 200,
+        "behaviour": "IDLE",
+        "targetId": 0
+      }
+    ],
+    "motion": "constant-velocity",
+    "assign": [
+      {
+        "op": "perform",
+        "value": "FORMATION_FORM_UP"
+      }
+    ],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 0,
+        "field": "behaviour",
+        "expected": "FORMATION_FORM_UP",
+        "tolerance": 0,
+        "note": "performEscort sets FORMATION_FORM_UP (ShipEntityAI.m:365-371)"
+      },
+      {
+        "tick": 0,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "the behaviour changed, so performEscort resets frustration (ShipEntityAI.m:369)"
+      },
+      {
+        "tick": 1,
+        "field": "destinationX",
+        "expected": 301,
+        "tolerance": 0.00013,
+        "note": "leader refresh (b): leader position (1.000, 0.000, 1.333) plus the slot-1 offset 600, 0, -300 in the leader's frame"
+      },
+      {
+        "tick": 1,
+        "field": "destinationZ",
+        "expected": -598.6666666666667,
+        "tolerance": 1.1e-9,
+        "note": "leader refresh (b), z"
+      },
+      {
+        "tick": 1,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 1e-9,
+        "note": "eta = (2001.334 - 50) / 320.000 = 6.098 s is at least 5, so desired_speed = maxFlightSpeed (ShipEntity.m:5012-5013), and eta / 0.51 = 11.957 s is not below slowdownTime 10.000 s"
+      },
+      {
+        "tick": 120,
+        "field": "destinationX",
+        "expected": 420,
+        "tolerance": 0.00013,
+        "note": "leader refresh (b): leader position (120.000, 0.000, 160.000) plus the slot-1 offset 600, 0, -300 in the leader's frame"
+      },
+      {
+        "tick": 120,
+        "field": "destinationZ",
+        "expected": -440,
+        "tolerance": 1e-9,
+        "note": "leader refresh (b), z"
+      },
+      {
+        "tick": 120,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 1e-9,
+        "note": "eta = (1907.449 - 50) / 320.000 = 5.805 s is at least 5, so desired_speed = maxFlightSpeed (ShipEntity.m:5012-5013), and eta / 0.51 = 11.381 s is not below slowdownTime 10.000 s"
+      },
+      {
+        "tick": 240,
+        "field": "destinationX",
+        "expected": 540,
+        "tolerance": 0.00013,
+        "note": "leader refresh (b): leader position (240.000, 0.000, 320.000) plus the slot-1 offset 600, 0, -300 in the leader's frame"
+      },
+      {
+        "tick": 240,
+        "field": "destinationZ",
+        "expected": -280,
+        "tolerance": 1.1e-9,
+        "note": "leader refresh (b), z"
+      },
+      {
+        "tick": 240,
+        "field": "desiredSpeed",
+        "expected": 320,
+        "tolerance": 1e-9,
+        "note": "eta = (1816.474 - 50) / 320.000 = 5.520 s is at least 5, so desired_speed = maxFlightSpeed (ShipEntity.m:5012-5013), and eta / 0.51 = 10.824 s is not below slowdownTime 10.000 s"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 1e-9,
+        "note": "tick 1 compares the distance with successFactor 0, no improvement: frustration = fround(0 + dt) (ShipEntity.m:5033-5034)"
+      },
+      {
+        "tick": 240,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "the distance has improved on every tick since tick 2, so the counter has decayed to 0 and stays there (ShipEntity.m:5030-5032)"
+      },
+      {
+        "tick": 240,
+        "field": "behaviour",
+        "expected": "FORMATION_FORM_UP",
+        "tolerance": 0,
+        "note": "still forming up"
+      },
+      {
+        "tick": 240,
+        "field": "proximityAlert",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "no alert: the formation point is 670 m from the leader, outside the pair trigger 4 x 100 = 400 m"
+      }
+    ],
+    "events": []
+  },
+  {
+    "id": "escort-no-leader-frustration-fires",
+    "title": "an escort with no leader and a destination whose distance cannot improve posts shipAIFrustrated at the fround-derived tick 1801 and resets",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:5002-5047",
+      "src/Core/Entities/ShipEntity.m:9525-9565",
+      "src/Core/Entities/ShipEntity.m:2641-2645",
+      "src/Core/Entities/ShipEntityAI.m:365-371"
+    ],
+    "derivation": "ownerId 999 names no body, so [self owner] is nil: rule (b) does nothing and the destination stays (5000, 0, 0), exactly abeam on self's right axis at 5000 m. With no leader behaviour_formation_form_up sets desired_speed = maxFlightSpeed (5012-5013), and success_factor = the distance. The pose is chosen so the distance cannot improve in either float width: maxFlightSpeed is the contract's smallest practical positive value 1e-6 (the schema requires a positive speed, so a ship that never moves is not expressible; at 1e-6 m/s the ship moves 8e-9 m per tick, 1.5e-5 m over the run), which is far below one float32 step of 5000 (4.9e-4), the distance is exactly representable in float32, and the destination lies on the right axis, which the pitch fallback rotates about (d_up 0, d_right 1: stick_roll 0, stick_pitch 0.01, 9525-9565), so the ship's motion is perpendicular to the line to the destination and the double distance stays 5000 exactly. A distance that rounded up in float32 would read as an improvement on every tick (the success_factor hazard recorded by plan 14-01). eta = (5000 - 100) / flightSpeed is +Infinity at tick 1 (flightSpeed 0, never NaN) and about 4.9e9 afterwards, never below slowdownTime, so no slowdown applies. frustration adds dt (fround) on every tick (distance < last_distance is false at 5000 against 5000), and the first tick at which the fround-accumulated value exceeds 15 is 1801 (contract item 8); with no leader noteFrustration posts shipAIFrustrated and the counter is set to 0 (5035-5041). The pitch fallback also leaves the heading error to the destination at exactly 90 degrees.",
+    "dt": 0.008333333333333333,
+    "horizon": 1802,
+    "stats": {
+      "maxFlightSpeed": 0.000001,
+      "maxFlightRoll": 2.8,
+      "maxFlightPitch": 1.8,
+      "thrust": 32,
+      "mass": 20000,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "scannerRange": 25600
+    },
+    "self": {
+      "id": 101,
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 40,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "speed": 0,
+      "flightRoll": 0,
+      "flightPitch": 0,
+      "stickRoll": 0,
+      "stickPitch": 0,
+      "accuracy": 2,
+      "frustration": 0,
+      "successFactor": 0,
+      "pitchingOver": 0,
+      "jink": [0, 0, 0],
+      "behaviour": "FORMATION_FORM_UP",
+      "targetId": 0,
+      "destination": [5000, 0, 0],
+      "desiredRange": 100,
+      "desiredSpeed": 0,
+      "ownerId": 999,
+      "escortSlot": 0
+    },
+    "bodies": [],
+    "motion": "static",
+    "assign": [],
+    "draws": [],
+    "checks": [
+      {
+        "tick": 1,
+        "field": "behaviour",
+        "expected": "FORMATION_FORM_UP",
+        "tolerance": 0,
+        "note": "still forming up"
+      },
+      {
+        "tick": 1,
+        "field": "successFactor",
+        "expected": 5000,
+        "tolerance": 1e-9,
+        "note": "success_factor = the distance 5000 m, exactly representable in float32 (ShipEntity.m:5015-5016)"
+      },
+      {
+        "tick": 1,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 1e-9,
+        "note": "no improvement against successFactor 0: frustration = fround(0 + dt) (ShipEntity.m:5033-5034)"
+      },
+      {
+        "tick": 1,
+        "field": "stickPitch",
+        "expected": 0.01,
+        "tolerance": 1.9e-9,
+        "note": "the destination is exactly abeam on the right axis: d_up 0, d_right 1, so trackDestination's fallback sets stick_pitch 0.01 (ShipEntity.m:9561-9565)"
+      },
+      {
+        "tick": 1,
+        "field": "stickRoll",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "d_up is exactly 0, so neither roll branch fires (ShipEntity.m:9525-9547)"
+      },
+      {
+        "tick": 900,
+        "field": "frustration",
+        "expected": 7.499971389770508,
+        "tolerance": 1e-9,
+        "note": "fround accumulation of dt over 900 ticks (never improving)"
+      },
+      {
+        "tick": 1800,
+        "field": "frustration",
+        "expected": 14.999856948852539,
+        "tolerance": 1e-9,
+        "note": "fround accumulation over 1800 ticks: just below 15"
+      },
+      {
+        "tick": 1800,
+        "field": "behaviour",
+        "expected": "FORMATION_FORM_UP",
+        "tolerance": 0,
+        "note": "no event yet"
+      },
+      {
+        "tick": 1801,
+        "field": "frustration",
+        "expected": 0,
+        "tolerance": 1e-9,
+        "note": "the fround-accumulated counter first exceeds 15 at tick 1801 (float64 would give 1800): noteFrustration fires (no leader) and the counter resets (ShipEntity.m:5035-5041)"
+      },
+      {
+        "tick": 1802,
+        "field": "frustration",
+        "expected": 0.008333333767950535,
+        "tolerance": 1e-9,
+        "note": "the counter starts again"
+      },
+      {
+        "tick": 1802,
+        "field": "pitchingOver",
+        "expected": 0,
+        "tolerance": 0,
+        "note": "pitching_over is only forced when there is a leader (ShipEntity.m:5038-5040)"
+      },
+      {
+        "tick": 1802,
+        "field": "rangeToDestination",
+        "expected": 5000,
+        "tolerance": 1e-9,
+        "note": "the ship never gets closer: the destination stays exactly abeam and the ship is nearly at rest"
+      },
+      {
+        "tick": 1802,
+        "field": "headingErrorDestination",
+        "expected": 1.5707963267948966,
+        "tolerance": 1.3e-8,
+        "note": "the pitch fallback rotates the ship about the right axis, on which the destination lies, so the angle stays 90 degrees"
+      }
+    ],
+    "events": [
+      {
+        "tick": 1801,
+        "name": "shipAIFrustrated"
+      }
+    ]
+  }
+]

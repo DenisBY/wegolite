@@ -25,8 +25,9 @@
  *
  * The replay loop runs the contract's in-tick order (item 4): (a) bodies move,
  * (b) the escort leader refreshes self's destination, (c) self's native
- * update, (d) the proximity rule. Slots (b) and (d) are explicit here and stay
- * inactive: a fixture that would need them throws, and plan 14-06 fills them.
+ * update, (d) the proximity rule. Slots (b) and (d) are explicit hooks: without
+ * a hook they stay inactive (a fixture that would need them throws), and
+ * `navigate.ts` (plan 14-06) supplies the real rules through `ReplayHooks`.
  */
 
 import type {
@@ -76,6 +77,19 @@ export interface ShipStats {
   scannerRange: number;
 }
 
+/**
+ * The saved `previousCondition` dictionary of `avoidCollision`
+ * (`ShipEntity.m:5917-5926`): behaviour, primary target, desired range,
+ * desired speed and destination.
+ */
+export interface PreviousCondition {
+  readonly behaviour: string;
+  readonly targetId: number;
+  readonly desiredRange: number;
+  readonly desiredSpeed: number;
+  readonly destination: Vec;
+}
+
 export interface Ship {
   readonly stats: ShipStats;
   readonly scanClass: string;
@@ -107,6 +121,7 @@ export interface Ship {
   proximityAlert: number;
   ownerId: number;
   escortSlot: number;
+  previousCondition: PreviousCondition | null;
 }
 
 export interface ReplayBody {
@@ -117,6 +132,8 @@ export interface ReplayBody {
   readonly mass: number;
   position: Vec;
   readonly forward: Vec;
+  readonly up: Vec;
+  readonly right: Vec;
   readonly speed: number;
   readonly behaviour: string;
   readonly targetId: number;
@@ -432,6 +449,7 @@ export function shipFromFixture(fixture: OracleFixture, mode: Mode): Ship {
     proximityAlert: 0,
     ownerId: s.ownerId,
     escortSlot: s.escortSlot,
+    previousCondition: null,
   };
 }
 
@@ -545,13 +563,22 @@ function advanceBodies(fixture: OracleFixture, ctx: Ctx): void {
 }
 
 /**
- * Slot (b): the escort leader refreshes self's destination. Plan 14-06 fills
- * it; a fixture that names a leader fails here instead of being replayed
- * without the rule.
+ * The two in-tick rules a caller may supply: slot (b), the escort leader
+ * refreshing self's destination, and slot (d), the proximity rule. Without a
+ * hook the slots stay inactive and loud.
+ */
+export interface ReplayHooks {
+  readonly refreshLeader?: (ship: Ship, ctx: Ctx) => void;
+  readonly proximity?: (ship: Ship, ctx: Ctx) => void;
+}
+
+/**
+ * Slot (b) without a hook: a fixture that names a leader fails here instead
+ * of being replayed without the rule.
  */
 function refreshLeaderDestination(ship: Ship): void {
   if (ship.ownerId !== 0) {
-    throw new Error("slot (b), the leader refresh, is filled by plan 14-06");
+    throw new Error("slot (b), the leader refresh, needs the navigate hooks");
   }
 }
 
@@ -559,9 +586,9 @@ function refreshLeaderDestination(ship: Ship): void {
 const PROXIMITY_WARN_DISTANCE2 = 16;
 
 /**
- * Slot (d): the proximity rule. It clears self's alert (`CollisionRegion.m:271`)
+ * Slot (d) without a hook: it clears self's alert (`CollisionRegion.m:271`)
  * and stays inactive: a fixture whose pair trigger would fire fails here
- * instead of being replayed without the rule (plan 14-06 fills it).
+ * instead of being replayed without the rule.
  */
 function proximityPass(ship: Ship, ctx: Ctx): void {
   ship.proximityAlert = 0;
@@ -573,7 +600,7 @@ function proximityPass(ship: Ship, ctx: Ctx): void {
     const dist2 = dx * dx + dy * dy + dz * dz;
     const r = Math.max(ship.radius, body.radius);
     if (dist2 < PROXIMITY_WARN_DISTANCE2 * r * r) {
-      throw new Error("slot (d), the proximity rule, is filled by plan 14-06");
+      throw new Error("slot (d), the proximity rule, needs the navigate hooks");
     }
   }
 }
@@ -587,6 +614,7 @@ export function replayWith(
   mode: Mode,
   table: BehaviourTable,
   wanted?: ReadonlySet<number>,
+  hooks?: ReplayHooks,
 ): ReplayResult {
   const ticks =
     wanted ?? new Set<number>(fixture.checks.map((check) => check.tick));
@@ -599,6 +627,8 @@ export function replayWith(
     mass: body.mass,
     position: vec(body.position[0], body.position[1], body.position[2]),
     forward: vec(body.forward[0], body.forward[1], body.forward[2]),
+    up: vec(body.up[0], body.up[1], body.up[2]),
+    right: vec(body.right[0], body.right[1], body.right[2]),
     speed: body.speed,
     behaviour: body.behaviour,
     targetId: body.targetId,
@@ -660,12 +690,14 @@ export function replayWith(
   for (let tick = 1; tick <= fixture.horizon; tick += 1) {
     ctx.tick = tick;
     advanceBodies(fixture, ctx); // (a)
-    refreshLeaderDestination(ship); // (b)
+    if (hooks?.refreshLeader !== undefined) hooks.refreshLeader(ship, ctx);
+    else refreshLeaderDestination(ship); // (b)
     processBehaviour(ship, ctx, table); // (c)
     // Entity.m:870-875: the end of `update:` records whether the pose changed.
     ship.hasRotated = !quatEqual(ship.orientation, ship.lastOrientation);
     ship.lastOrientation = ship.orientation;
-    proximityPass(ship, ctx); // (d)
+    if (hooks?.proximity !== undefined) hooks.proximity(ship, ctx);
+    else proximityPass(ship, ctx); // (d)
     if (ticks.has(tick)) snapshots.set(tick, snapshot(ship, ctx));
   }
   return {
