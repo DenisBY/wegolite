@@ -52,7 +52,8 @@ patterns-established:
   - "A fixture's closed-form rows are cross-checked against the float64 reference at generation time (all of them agreed to 1e-7 relative)"
   - "Time thresholds come from the fround helper firstTickAbove, never ceil(seconds * 120)"
 
-requirements-completed: [AI-01]
+requirements-completed: []
+requirements-advanced: [AI-01]
 
 coverage:
   - id: D1
