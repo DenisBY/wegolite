@@ -158,6 +158,73 @@ export const FACE_DAMPING_CONFIDENCE = 0.5;
 export const FACE_DAMPING_SHARE = 0.5;
 
 /* ---------------------------------------------------------------------------
+ * Target sensing and `trackPrimaryTarget:retreat:` (plan 14-12)
+ * ------------------------------------------------------------------------- */
+
+/** A target is lost beyond this many scanner ranges, squared (`1.25 * 1.25`, `ShipEntity.m:8706`). */
+export const CAN_TRACK_RANGE2_FACTOR = 1.5625;
+
+/** The weapon-facing-independent starting `aim_tolerance` is `240 - 18 * accuracy` (`ShipEntity.m:1138`). */
+export const AIM_TOLERANCE_BASE = 240;
+
+/** See `AIM_TOLERANCE_BASE` (`ShipEntity.m:1138`). */
+export const AIM_TOLERANCE_ACCURACY_FACTOR = 18;
+
+/** The best aim cosine of a pilot who is awful (`ShipEntity.m:9764`). */
+export const AIM_BEST_COS_AWFUL = 0.99999;
+
+/** The best aim cosine at accuracy `COMBAT_AI_ISNT_AWFUL` and above (`ShipEntity.m:9767`). */
+export const AIM_BEST_COS_BETTER = 0.999999;
+
+/** The best aim cosine at accuracy `COMBAT_AI_TRACKS_CLOSER` and above (`ShipEntity.m:9773`). */
+export const AIM_BEST_COS_DEADLY = 0.9999999;
+
+/** A deadly pilot starts with an aim circle this many times smaller (`ShipEntity.m:9775`). */
+export const AIM_DEADLY_DIVISOR = 5;
+
+/** The divisor under the square root of `max_cos` (`ShipEntity.m:9804`). */
+export const AIM_TOLERANCE_SCALE = 100000000;
+
+/** The dead zone `min_d` of `trackPrimaryTarget:` at accuracy below `COMBAT_AI_TRACKS_CLOSER` (`ShipEntity.m:9121`). */
+export const PRIMARY_MIN_D = 0.004;
+
+/** The dead zone `min_d` at accuracy `COMBAT_AI_TRACKS_CLOSER` and above (`ShipEntity.m:9131`). */
+export const PRIMARY_MIN_D_PRECISE = 0.0004;
+
+/** The default cap on the integer `factor` (`ShipEntity.m:9122`). */
+export const PRIMARY_MAX_FACTOR = 8;
+
+/** The default share of the maximum rate per unit of `factor` (`ShipEntity.m:9123`). */
+export const PRIMARY_R_MAX_FACTOR = 0.125;
+
+/** The pitch divisor of the precise `max_factor` (`ShipEntity.m:9128`). */
+export const PRIMARY_PITCH_DIVISOR = 0.125;
+
+/** The precise tier multiplies `max_factor` and divides `r_max_factor` by this (`ShipEntity.m:9132-9133`). */
+export const PRIMARY_PRECISE_MULTIPLIER = 3;
+
+/** The cosine below which a ship starts pitching over, times `reverse` (`ShipEntity.m:9158`). */
+export const PRIMARY_PITCH_OVER_START_COS = -0.5;
+
+/** The cosine below which a pitching-over ship keeps pitching, times `reverse` (`ShipEntity.m:9166`). */
+export const PRIMARY_PITCH_OVER_END_COS = 0.707;
+
+/** The share of the pitch stick the overshoot limiter keeps (`ShipEntity.m:9212`). */
+export const PRIMARY_PITCH_LIMIT_SHARE = 0.9;
+
+/** The jink is withheld within `radius * radius * 100` squared metres (`ShipEntity.m:9079`). */
+export const PRIMARY_AVOID_RANGE_FACTOR = 100;
+
+/** The jink is withheld while the target direction is more forward than this (`ShipEntity.m:9084`). */
+export const PRIMARY_AVOID_DOT = -0.1;
+
+/** The jink grows with the range beyond this many metres (`ShipEntity.m:9090-9091`). */
+export const PRIMARY_JINK_RANGE = 2000;
+
+/** The jink growth at accuracy `COMBAT_AI_FLEES_BETTER_2` and above (`ShipEntity.m:9093`). */
+export const PRIMARY_JINK_BOOST = 3;
+
+/* ---------------------------------------------------------------------------
  * Combat AI tiers (`ShipEntity.h:123-137`)
  * ------------------------------------------------------------------------- */
 

@@ -105,7 +105,30 @@ const PORTED: readonly { file: string; from: number; to: number }[] = [
   { file: "src/Core/Entities/ShipEntity.m", from: 5049, to: 5153 }, // fly to, fly from
   { file: "src/Core/Entities/ShipEntityAI.m", from: 373, to: 377 }, // performFaceDestination
   { file: "src/Core/Entities/ShipEntityAI.m", from: 394, to: 398 }, // performFlyToRangeFromDestination
+  // plan 14-12, task 1: target sensing, trackPrimaryTarget and intercept
+  { file: "src/Core/Entities/ShipEntity.m", from: 9034, to: 9244 }, // trackPrimaryTarget
+  { file: "src/Core/Entities/ShipEntity.m", from: 9718, to: 9810 }, // range, aspect, currentAimTolerance
+  { file: "src/Core/Entities/ShipEntity.m", from: 8638, to: 8830 }, // isValidTarget, addTarget, canStillTrack, noteLostTarget
+  { file: "src/Core/Entities/ShipEntity.m", from: 3817, to: 3826 }, // behaviour_intercept_target (INTERCEPT half)
+  { file: "src/Core/Entities/ShipEntityAI.m", from: 413, to: 417 }, // performIntercept
 ];
+
+/**
+ * Fixture files that later plans add to the manifest (flee, attack and the
+ * escort and avoid-collision groups). A rule row of a function ported earlier
+ * may name a fixture of one of them as an extra confirmation; until that plan
+ * adds its manifest row such a fixture only has to exist. Each plan removes its
+ * files from this set when it adds the row (the test below fails if a file is
+ * both here and in the manifest).
+ */
+const PENDING_FIXTURE_FILES: ReadonlySet<string> = new Set([
+  "tests/oracles/npc/pursuit/fixtures/flee.json",
+  "tests/oracles/npc/pursuit/fixtures/attack-dispatch.json",
+  "tests/oracles/npc/pursuit/fixtures/attack-close.json",
+  "tests/oracles/npc/pursuit/fixtures/attack-evade.json",
+  "tests/oracles/npc/fixtures/avoid-collision.json",
+  "tests/oracles/npc/fixtures/escort.json",
+]);
 
 function parseCitation(
   citation: string,
@@ -167,6 +190,12 @@ describe("the frame-rate rule rows of the functions ported so far", () => {
         const fixtureFile = fixtureFileOf.get(id);
         expect(fixtureFile, `${row.site}: fixture ${id}`).toBeDefined();
         const testFile = testFileOf.get(fixtureFile ?? "");
+        if (
+          testFile === undefined &&
+          PENDING_FIXTURE_FILES.has(fixtureFile ?? "")
+        ) {
+          continue; // a later plan's fixture: it must exist, which it does
+        }
         expect(
           testFile,
           `${row.site}: ${id} is in no manifest row`,
@@ -183,6 +212,14 @@ describe("the frame-rate rule rows of the functions ported so far", () => {
           `${testFile ?? ""} asserts it runs its whole entry`,
         ).toContain("runs exactly the fixtures of its files");
       }
+    }
+  });
+
+  it("a pending fixture file is in no manifest row and still exists", () => {
+    const assigned = new Set(ORACLE_GROUPS.map((group) => group.fixtureFile));
+    for (const file of PENDING_FIXTURE_FILES) {
+      expect(assigned.has(file), `${file} has a manifest row`).toBe(false);
+      expect(loadOracleFiles().has(file), `${file} exists`).toBe(true);
     }
   });
 

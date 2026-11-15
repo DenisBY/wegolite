@@ -57,6 +57,7 @@ import {
   behaviourFlyToDestination,
 } from "./behaviours/fly-to-destination.js";
 import { behaviourIdle, behaviourStopStill } from "./behaviours/idle.js";
+import { behaviourInterceptTarget } from "./behaviours/intercept.js";
 import { behaviourTumble } from "./behaviours/tumble.js";
 import { completeEntry, resolveAccuracy } from "./enter.js";
 import { applyAttitude, applyThrust } from "./flight.js";
@@ -117,6 +118,9 @@ export function steerShip(entity: Entity, ctx: SteerContext): void {
       break;
     case "FACE_DESTINATION":
       behaviourFaceDestination(entity, ctx);
+      break;
+    case "INTERCEPT_TARGET":
+      behaviourInterceptTarget(entity, ctx);
       break;
     default:
       // The recorded fallback for every id not ported yet or out of scope.

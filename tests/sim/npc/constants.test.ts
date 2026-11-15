@@ -141,6 +141,34 @@ describe("the combat AI tiers (ShipEntity.h:123-137)", () => {
   });
 });
 
+describe("the target sensing and trackPrimaryTarget constants (plan 14-12)", () => {
+  it.each([
+    ["CAN_TRACK_RANGE2_FACTOR", ledger.CAN_TRACK_RANGE2_FACTOR, 1.5625], // ShipEntity.m:8706
+    ["AIM_TOLERANCE_BASE", ledger.AIM_TOLERANCE_BASE, 240], // :1138
+    ["AIM_TOLERANCE_ACCURACY_FACTOR", ledger.AIM_TOLERANCE_ACCURACY_FACTOR, 18], // :1138
+    ["AIM_BEST_COS_AWFUL", ledger.AIM_BEST_COS_AWFUL, 0.99999], // :9764
+    ["AIM_BEST_COS_BETTER", ledger.AIM_BEST_COS_BETTER, 0.999999], // :9767
+    ["AIM_BEST_COS_DEADLY", ledger.AIM_BEST_COS_DEADLY, 0.9999999], // :9773
+    ["AIM_DEADLY_DIVISOR", ledger.AIM_DEADLY_DIVISOR, 5], // :9775
+    ["AIM_TOLERANCE_SCALE", ledger.AIM_TOLERANCE_SCALE, 100000000], // :9804
+    ["PRIMARY_MIN_D", ledger.PRIMARY_MIN_D, 0.004], // :9121
+    ["PRIMARY_MIN_D_PRECISE", ledger.PRIMARY_MIN_D_PRECISE, 0.0004], // :9131
+    ["PRIMARY_MAX_FACTOR", ledger.PRIMARY_MAX_FACTOR, 8], // :9122
+    ["PRIMARY_R_MAX_FACTOR", ledger.PRIMARY_R_MAX_FACTOR, 0.125], // :9123
+    ["PRIMARY_PITCH_DIVISOR", ledger.PRIMARY_PITCH_DIVISOR, 0.125], // :9128
+    ["PRIMARY_PRECISE_MULTIPLIER", ledger.PRIMARY_PRECISE_MULTIPLIER, 3], // :9132-9133
+    ["PRIMARY_PITCH_OVER_START_COS", ledger.PRIMARY_PITCH_OVER_START_COS, -0.5], // :9158
+    ["PRIMARY_PITCH_OVER_END_COS", ledger.PRIMARY_PITCH_OVER_END_COS, 0.707], // :9166
+    ["PRIMARY_PITCH_LIMIT_SHARE", ledger.PRIMARY_PITCH_LIMIT_SHARE, 0.9], // :9212
+    ["PRIMARY_AVOID_RANGE_FACTOR", ledger.PRIMARY_AVOID_RANGE_FACTOR, 100], // :9079
+    ["PRIMARY_AVOID_DOT", ledger.PRIMARY_AVOID_DOT, -0.1], // :9084
+    ["PRIMARY_JINK_RANGE", ledger.PRIMARY_JINK_RANGE, 2000], // :9090-9091
+    ["PRIMARY_JINK_BOOST", ledger.PRIMARY_JINK_BOOST, 3], // :9093
+  ])("%s is %d", (_name, actual, expected) => {
+    expect(actual).toBe(expected);
+  });
+});
+
 describe("the tracking-curve sampling gate", () => {
   it("TRACKING_SAMPLE_TICKS is round(reaction time / 3 * 120) = 60 (ShipEntity.m:5444-5449, 717)", () => {
     // A third of the 1.5 s reaction time is 0.5 s, 60 ticks at 120 Hz.

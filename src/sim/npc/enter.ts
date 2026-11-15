@@ -72,6 +72,11 @@ export function enterBehaviour(entity: Entity, behaviour: BehaviourId): void {
       steer.frustration = 0;
       steer.entryPending = false;
       break;
+    case "INTERCEPT_TARGET": // performIntercept, ShipEntityAI.m:413-417
+      nav.behaviour = "INTERCEPT_TARGET";
+      steer.frustration = 0;
+      steer.entryPending = false;
+      break;
     default:
       nav.behaviour = behaviour;
       steer.entryPending = false;

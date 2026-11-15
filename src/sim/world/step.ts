@@ -30,7 +30,7 @@ import type { AiContext, AiEvent, AiModule } from "../ai/types.js";
 import type { AiFaultSite, SimEvent } from "../events.js";
 import type { FlightState } from "../flight/state.js";
 import { steerShip } from "../npc/dispatch.js";
-import { statsFor } from "../npc/stats.js";
+import { PLAYER_COLLISION_RADIUS_M, statsFor } from "../npc/stats.js";
 import type { NpcStepFacts } from "../npc/stats.js";
 import { createRngState, rngNext } from "../rng.js";
 import { createShipControl } from "./control-impl.js";
@@ -96,8 +96,16 @@ export function stepWorld(
   // the ship's own AI through `postAiEvent` and are delivered at the next drain.
   // There is no try/catch: steering is total (tests/sim/npc/steering.property).
   let view: WorldView | undefined;
+  // The player's body radius is the compiled constant, never lazily loaded hull
+  // data, so a range to the player (`rangeToPrimaryTarget`) and every steered
+  // hash are independent of when an asset loads (T-14-47).
   const getView = (): WorldView =>
-    (view ??= createWorldView(world, player, layout));
+    (view ??= createWorldView(
+      world,
+      player,
+      layout,
+      PLAYER_COLLISION_RADIUS_M,
+    ));
   for (let i = 0; i < n; i += 1) {
     const entity = world.store.live[i];
     if (entity === undefined || entity.dead || entity.ai === null) continue;

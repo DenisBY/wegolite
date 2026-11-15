@@ -363,3 +363,36 @@ describe("determinism", () => {
     expect(hashOf()).toBe(hashOf());
   });
 });
+
+describe("the player's radius in the steering view (plan 14-12, T-14-47)", () => {
+  /** The events an intercepting ship at the origin receives for a player at (0, 0, -1000). */
+  function receivedWith(desiredRange: number): string[] {
+    const received: string[] = [];
+    const registry: AiRegistry = {
+      "test-pilot": {
+        think: () => undefined,
+        onEvent: (_ctx, event) => {
+          received.push(event.name);
+        },
+      },
+    };
+    const world = createWorld(3);
+    const player = playerAt(0);
+    player.position = vec(0, 0, -1000);
+    const ship = spawnOk(world, shipInit("test-ship", aiNever()));
+    ship.nav.behaviour = "INTERCEPT_TARGET";
+    ship.nav.targetId = 100; // the player
+    ship.nav.desiredRange = desiredRange;
+    run(world, player, 1, registry);
+    return received;
+  }
+
+  it("subtracts the compiled player radius and the ship's own, as ShipEntity.m:9718-9733 does", () => {
+    // range = 1000 - 72.697 (player) - 50 (ship) = 877.30. With the radius
+    // counted, 900 is inside it (the event fires) and 870 is not; with the
+    // player radius 0 the range would be 950 and 900 would NOT fire.
+    expect(PLAYER_COLLISION_RADIUS_M).toBeGreaterThan(72);
+    expect(receivedWith(900)).toEqual(["shipAchievedDesiredRange"]);
+    expect(receivedWith(870)).toEqual([]);
+  });
+});
