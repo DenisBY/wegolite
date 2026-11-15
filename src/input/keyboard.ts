@@ -402,6 +402,33 @@ export function cancelReservedKey(
   }
 }
 
+/** The modifier flags `allowsChordKey` reads; a KeyboardEvent matches. */
+export interface ChordKeyEvent {
+  readonly code: string;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly altKey: boolean;
+}
+
+/**
+ * Whether a keydown may reach the action table.
+ *
+ * A plain key always may. Ctrl+R, Cmd+W, Alt+Tab and friends belong to the
+ * browser, so a Meta or Alt chord never becomes game input. Ctrl is the
+ * precision modifier, so in flight a bound key pressed while only Ctrl is held
+ * (fire, ident, untarget, a view) still counts: the page owns the keyboard
+ * there, and the caller prevents the browser default (Ctrl+A select all,
+ * Ctrl+R reload). A bound Control key on its own is always allowed.
+ */
+export function allowsChordKey(
+  event: ChordKeyEvent,
+  boundInFlight: boolean,
+): boolean {
+  if (!event.ctrlKey && !event.metaKey && !event.altKey) return true;
+  if (MODIFIER_CODES.has(event.code)) return true;
+  return event.ctrlKey && !event.metaKey && !event.altKey && boundInFlight;
+}
+
 export function createKeyboardInputSource(
   bindings: BindingMap = createBindingMap(),
 ): KeyboardInputSource {
@@ -411,12 +438,11 @@ export function createKeyboardInputSource(
 
   function onKeyDown(event: KeyboardEvent): void {
     if (isTextTarget(event.target)) return;
-    // Ctrl+R, Cmd+W, Alt+Tab and friends belong to the browser. A bound
-    // Control key is still allowed on its own (precision), but a chord never
-    // becomes game input and its default is never prevented.
     if (
-      (event.ctrlKey || event.metaKey || event.altKey) &&
-      !MODIFIER_CODES.has(event.code)
+      !allowsChordKey(
+        event,
+        state.getContext() === "flight" && state.isBound(event.code),
+      )
     ) {
       return;
     }
