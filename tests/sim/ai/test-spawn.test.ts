@@ -17,7 +17,10 @@ import { describe, expect, it } from "vitest";
 
 import { TEST_PILOT } from "../../../src/sim/ai/pilots/test-pilot.js";
 import {
+  FLYER_SCRIPT_RANGES,
+  spawnTestFlyers,
   spawnTestShooter,
+  TEST_FLYER_DISTANCE,
   TEST_SHOOTER_DISTANCE,
   TEST_SHOOTER_HOLD_RANGE,
 } from "../../../src/sim/ai/test-spawn.js";
@@ -44,13 +47,24 @@ import {
 } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
-import { PLAYER_ID } from "../../../src/sim/world/ids.js";
+import { MAX_ENTITIES, PLAYER_ID } from "../../../src/sim/world/ids.js";
 import type { InertShipRecord } from "../../../src/sim/world/populate.js";
 import { snapshotWorld } from "../../../src/sim/world/snapshot.js";
-import { createWorld } from "../../../src/sim/world/world.js";
+import {
+  createWorld,
+  liveEntityCount,
+  spawnEntity,
+} from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
+import {
+  FLEE_SCRIPT_RANGE_M,
+  INTERCEPT_SCRIPT_RANGE_M,
+  STATION_SCRIPT_RANGE_M,
+} from "../../acceptance/thresholds.js";
+import { flyerRecords } from "../../helpers/flyer-records.js";
 import { realHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { realNpcFlightTable } from "../../helpers/npc-flight.js";
 
 const { layout, config } = laveFixture();
 const HULLS = realHullTable();
@@ -282,5 +296,292 @@ describe("spawnTestShooter", () => {
     expect(player.position).toEqual(before.position);
     expect(player.orientation).toEqual(before.orientation);
     expect(add(player.position, vec(0, 0, 0))).toEqual(FAR);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// spawnTestFlyers (plan 14-16)
+// ---------------------------------------------------------------------------
+
+const FLIGHT = realNpcFlightTable();
+const STATION_AT = vec(2_000_000, 500_000, -300_000);
+const COS_30 = Math.cos(Math.PI / 6);
+const SIN_30 = Math.sin(Math.PI / 6);
+
+function maxSpeedOf(key: string): number {
+  const row = FLIGHT.find((candidate) => candidate.specKey === key);
+  if (row === undefined) throw new Error(`no flight row ${key}`);
+  return row.maxFlightSpeed;
+}
+
+/** A spawned world whose three flyers are the last three live entities. */
+function flyersWorld(player: FlightState): World {
+  const world = createWorld(7);
+  expect(
+    spawnTestFlyers(
+      world,
+      player,
+      flyerRecords(),
+      FLIGHT,
+      player.tick,
+      STATION_AT,
+    ),
+  ).toBe(true);
+  return world;
+}
+
+function fillWorld(world: World, count: number): void {
+  for (let i = 0; i < count; i += 1) {
+    const result = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "filler",
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(1e8 + i, 0, 0),
+        orientation: identity(),
+        radius: 10,
+        speed: 0,
+      },
+      0,
+    );
+    if (!result.ok) throw new Error(`filler refused: ${result.reason}`);
+  }
+}
+
+describe("spawnTestFlyers", () => {
+  it("spawns the Shuttle, the Viper and the Adder with their scripts, targets, ranges and maximum speeds", () => {
+    const player = flyingPlayer();
+    const world = flyersWorld(player);
+
+    const [station, intercept, flee] = [...world.store.live];
+    expect(world.store.live).toHaveLength(3);
+    expect(station?.specKey).toBe("shuttle");
+    expect(intercept?.specKey).toBe("viper");
+    expect(flee?.specKey).toBe("adder");
+    expect(station?.ai?.aiKey).toBe("flight-script");
+    expect(station?.ai?.params).toEqual({
+      script: "station",
+      phase: "start",
+      targetId: 0,
+      range: 2_500,
+      speed: 80,
+      frustrated: 0,
+    });
+    expect(intercept?.ai?.params).toEqual({
+      script: "intercept",
+      phase: "start",
+      targetId: PLAYER_ID,
+      range: 1_500,
+      speed: 320,
+      frustrated: 0,
+    });
+    expect(flee?.ai?.params).toEqual({
+      script: "flee",
+      phase: "start",
+      targetId: PLAYER_ID,
+      range: 25_600,
+      speed: 240,
+      frustrated: 0,
+    });
+    for (const entity of [station, intercept, flee]) {
+      expect(entity?.ai?.nextThinkTick).toBe(player.tick);
+      expect(entity?.speed).toBe(maxSpeedOf(entity?.specKey ?? ""));
+      expect(entity?.kind).toBe("ship");
+    }
+    expect(station?.speed).toBe(80);
+    expect(intercept?.speed).toBe(320);
+    expect(flee?.speed).toBe(240);
+  });
+
+  it("places them 3,000 m from the player: 90 degrees left, 30 degrees left and 30 degrees right of the nose", () => {
+    const player = flyingPlayer();
+    player.orientation = normalize(axisAngle(1, 2, 3, 1.1));
+    const world = flyersWorld(player);
+    const nose = rotate(player.orientation, vec(0, 0, -1));
+    const left = rotate(player.orientation, vec(-1, 0, 0));
+
+    const [station, intercept, flee] = [...world.store.live];
+    const offsetOf = (entity: typeof station) =>
+      sub((entity as NonNullable<typeof entity>).position, player.position);
+    for (const entity of [station, intercept, flee]) {
+      expect(length(offsetOf(entity))).toBeCloseTo(TEST_FLYER_DISTANCE, 6);
+    }
+    // The station flyer: along the player's left, square to the nose.
+    expect(dot(offsetOf(station), nose)).toBeCloseTo(0, 6);
+    expect(dot(offsetOf(station), left) / TEST_FLYER_DISTANCE).toBeCloseTo(
+      1,
+      9,
+    );
+    // The interceptor: 30 degrees left of the nose.
+    expect(dot(offsetOf(intercept), nose) / TEST_FLYER_DISTANCE).toBeCloseTo(
+      COS_30,
+      9,
+    );
+    expect(dot(offsetOf(intercept), left) / TEST_FLYER_DISTANCE).toBeCloseTo(
+      SIN_30,
+      9,
+    );
+    // The fleer: 30 degrees right of the nose.
+    expect(dot(offsetOf(flee), nose) / TEST_FLYER_DISTANCE).toBeCloseTo(
+      COS_30,
+      9,
+    );
+    expect(dot(offsetOf(flee), left) / TEST_FLYER_DISTANCE).toBeCloseTo(
+      -SIN_30,
+      9,
+    );
+  });
+
+  it("points the station flyer's nose at the station centre and the other two along the player's nose", () => {
+    for (const orientation of [
+      identity(),
+      normalize(axisAngle(0, 1, 0, 2.2)),
+      normalize(axisAngle(1, 2, 3, 1.1)),
+    ]) {
+      const player = flyingPlayer();
+      player.orientation = orientation;
+      const world = flyersWorld(player);
+      const [station, intercept, flee] = [...world.store.live];
+
+      const own = station as NonNullable<typeof station>;
+      const toStation = sub(STATION_AT, own.position);
+      const stationNose = rotate(own.orientation, vec(0, 0, -1));
+      const cosine = dot(stationNose, toStation) / length(toStation);
+      expect(Math.abs(cosine - 1)).toBeLessThan(1e-9);
+      const q = own.orientation;
+      expect(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z).toBeCloseTo(1, 12);
+
+      for (const entity of [intercept, flee]) {
+        expect(entity?.orientation).toEqual(orientation);
+      }
+    }
+  });
+
+  it("gives the fleer an approach aspect to a nose-first player of cos 30 degrees, below performFlee's 0.9995", () => {
+    const player = flyingPlayer();
+    const world = flyersWorld(player);
+    const flee = [...world.store.live][2] as NonNullable<
+      ReturnType<typeof theShooter>
+    >;
+    const nose = rotate(player.orientation, vec(0, 0, -1));
+    const fromPlayer = sub(flee.position, player.position);
+    const aspect = dot(fromPlayer, nose) / length(fromPlayer);
+    expect(aspect).toBeCloseTo(COS_30, 9);
+    expect(aspect).toBeLessThan(0.9995);
+  });
+
+  it("returns false and spawns nothing for a bad scan class, whichever record carries it", () => {
+    for (const which of ["station", "intercept", "flee"] as const) {
+      const player = flyingPlayer();
+      const world = createWorld(7);
+      const nextId = world.store.nextId;
+      const records = flyerRecords();
+      const bad = { ...records[which], scanClass: "CLASS_NOPE" };
+
+      expect(
+        spawnTestFlyers(
+          world,
+          player,
+          { ...records, [which]: bad },
+          FLIGHT,
+          player.tick,
+          STATION_AT,
+        ),
+      ).toBe(false);
+      expect(world.store.nextId).toBe(nextId);
+      expect([...world.store.live]).toHaveLength(0);
+    }
+  });
+
+  it("returns false and spawns nothing in a world without room for three more ships, and true with exactly three", () => {
+    const player = flyingPlayer();
+    for (const free of [0, 1, 2]) {
+      const world = createWorld(7);
+      fillWorld(world, MAX_ENTITIES - free);
+      const nextId = world.store.nextId;
+      expect(
+        spawnTestFlyers(
+          world,
+          player,
+          flyerRecords(),
+          FLIGHT,
+          player.tick,
+          STATION_AT,
+        ),
+      ).toBe(false);
+      expect(world.store.nextId).toBe(nextId);
+      expect(liveEntityCount(world)).toBe(MAX_ENTITIES - free);
+    }
+    const exact = createWorld(7);
+    fillWorld(exact, MAX_ENTITIES - 3);
+    expect(
+      spawnTestFlyers(
+        exact,
+        player,
+        flyerRecords(),
+        FLIGHT,
+        player.tick,
+        STATION_AT,
+      ),
+    ).toBe(true);
+    expect(liveEntityCount(exact)).toBe(MAX_ENTITIES);
+  });
+
+  it("leaves the earlier ships in the world when a later spawn is refused (the tainted case), and returns false", () => {
+    // The pre-validation checks the scan classes and the free capacity only. A
+    // record whose energy is outside the serialised domain passes it and is
+    // refused by `spawnEntity` after the station flyer spawned: a case the
+    // pre-validation does not foresee.
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    const records = flyerRecords();
+
+    expect(
+      spawnTestFlyers(
+        world,
+        player,
+        {
+          ...records,
+          intercept: { ...records.intercept, maxEnergy: Number.NaN },
+        },
+        FLIGHT,
+        player.tick,
+        STATION_AT,
+      ),
+    ).toBe(false);
+    expect(liveEntityCount(world)).toBe(1);
+  });
+
+  it("falls back to Oolite's default speed when no flight table is given", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    expect(
+      spawnTestFlyers(
+        world,
+        player,
+        flyerRecords(),
+        undefined,
+        player.tick,
+        STATION_AT,
+      ),
+    ).toBe(true);
+    const speeds = [...world.store.live].map((entity) => entity.speed);
+    expect(new Set(speeds).size).toBe(1);
+    expect(speeds[0]).toBeGreaterThan(0);
+  });
+});
+
+describe("FLYER_SCRIPT_RANGES", () => {
+  it("is frozen and equals the three ranges plan 14-07 committed", () => {
+    expect(Object.isFrozen(FLYER_SCRIPT_RANGES)).toBe(true);
+    expect(FLYER_SCRIPT_RANGES).toEqual({
+      station: 2_500,
+      intercept: 1_500,
+      flee: 25_600,
+    });
+    expect(FLYER_SCRIPT_RANGES.station).toBe(STATION_SCRIPT_RANGE_M);
+    expect(FLYER_SCRIPT_RANGES.intercept).toBe(INTERCEPT_SCRIPT_RANGE_M);
+    expect(FLYER_SCRIPT_RANGES.flee).toBe(FLEE_SCRIPT_RANGE_M);
   });
 });
