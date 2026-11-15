@@ -59,7 +59,15 @@ export function createShipControl(
     setTarget(id: EntityId, target: EntityId): void {
       const entity = actor(id);
       if (entity === undefined || !isUint32(target)) return;
+      // Oolite's `addTarget:` returns for the ship itself (ShipEntity.m:8661-8662):
+      // nothing changes, the previous target included (T-14-46).
+      if (target === actorId) return;
       entity.nav.targetId = target;
+      // `addTarget:` restarts the reaction-time tracking curve (8659-8665). The
+      // start needs the target's position, so it is left pending: the world
+      // step runs the literal start after the think phase's final drain, at the
+      // think tick (plan 14-12). No other steering field changes here.
+      entity.steer.trackingCount = 0;
     },
     setDestination(id: EntityId, destination: Vec3): void {
       const entity = actor(id);

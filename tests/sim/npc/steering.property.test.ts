@@ -43,7 +43,10 @@ import {
 } from "../../../src/sim/world/limits.js";
 import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
+import { calculateTargetPosition } from "../../../src/sim/npc/tracking-curve.js";
+import type { BodyKind } from "../../../src/sim/world/ids.js";
 import { createSyntheticView } from "./oracle-runner.js";
+import type { RunnerBody } from "./oracle-runner.js";
 
 const DT = 1 / 120;
 
@@ -90,10 +93,17 @@ const NAVIGATION: readonly BehaviourId[] = [
   "FORMATION_BREAK",
 ];
 
+/**
+ * The target behaviours of plan 14-12 (COLLECT_TARGET stays in OUT_OF_SCOPE:
+ * the collect half is AI-12). Plans 14-13 to 14-15 add flee and attack.
+ */
+const PURSUIT: readonly BehaviourId[] = ["INTERCEPT_TARGET"];
+
 /** The behaviours the property sweeps. Later plans add their ids. */
 const SWEPT_BEHAVIOURS: readonly BehaviourId[] = [
   ...IDLE_FAMILY,
   ...NAVIGATION,
+  ...PURSUIT,
   ...OUT_OF_SCOPE,
 ];
 
@@ -630,4 +640,130 @@ describe("the zero-safe normalising helper", () => {
     expect(unit.y).toBe(0);
     expect(unit.z).toBeCloseTo(0.8, 12);
   });
+});
+
+/* ---------------------------------------------------------------------------
+ * INTERCEPT_TARGET with degenerate target poses (plan 14-12, T-14-38, T-14-46)
+ * ------------------------------------------------------------------------- */
+
+const TARGET_ID = 102;
+
+const TARGET_KINDS: readonly BodyKind[] = [
+  "ship",
+  "station",
+  "player",
+  "cargo",
+  "wreckage",
+  "missile",
+  "buoy",
+  "planet",
+  "sun",
+];
+
+/** Where the target sits relative to the steered ship. */
+const TARGET_POSES = [
+  "free",
+  "coincident",
+  "overlapping",
+  "far",
+  "behind",
+] as const;
+
+/** What happens to the target id. */
+const TARGET_MODES = [
+  "present",
+  "removedMidRun",
+  "self",
+  "unknown",
+  "none",
+] as const;
+
+const targetPlan = fc.record({
+  kind: fc.constantFrom(...TARGET_KINDS),
+  position,
+  orientation,
+  radius: num(0, 1e5),
+  speed: num(0, 700),
+  pose: fc.constantFrom(...TARGET_POSES),
+  mode: fc.constantFrom(...TARGET_MODES),
+  removeAt: fc.integer({ min: 1, max: 240 }),
+});
+
+describe("INTERCEPT_TARGET is total with degenerate target poses (plan 14-12)", () => {
+  it("covers the pursuit ids this plan lists, each a known behaviour id", () => {
+    for (const id of PURSUIT) {
+      expect(BEHAVIOUR_IDS).toContain(id);
+      expect(SWEPT_BEHAVIOURS).toContain(id);
+    }
+  });
+
+  it("never throws, keeps the aim point finite and leaves the sanitiser nothing to repair", () => {
+    fc.assert(
+      fc.property(scenario, targetPlan, (base, plan) => {
+        const s: Scenario = {
+          ...base,
+          nav: { ...base.nav, behaviour: "INTERCEPT_TARGET" },
+        };
+        const entity = buildEntity(s);
+        const here = entity.position;
+        const place = {
+          free: plan.position,
+          coincident: here,
+          overlapping: vec(here.x + 1e-3, here.y, here.z),
+          far: vec(here.x, here.y, here.z + 40000),
+          behind: vec(here.x, here.y, here.z + 1),
+        }[plan.pose];
+        const bodies: RunnerBody[] = [
+          {
+            id: TARGET_ID,
+            kind: plan.kind,
+            scanClass: "CLASS_NEUTRAL",
+            radius: plan.radius,
+            mass: 0,
+            position: place,
+            orientation: plan.orientation,
+            speed: plan.speed,
+            behaviour: "IDLE",
+            targetId: 0,
+          },
+        ];
+        entity.nav.targetId = {
+          present: TARGET_ID,
+          removedMidRun: TARGET_ID,
+          self: entity.id,
+          unknown: TARGET_ID + 1000,
+          none: 0,
+        }[plan.mode];
+        const stream = createRngState(s.seed);
+        const draw = (): number => rngNext(stream);
+        const events: string[] = [];
+        for (let tick = 1; tick <= s.ticks; tick += 1) {
+          if (plan.mode === "removedMidRun" && tick >= plan.removeAt) {
+            bodies.length = 0;
+          }
+          const ctx: SteerContext = {
+            view: createSyntheticView(bodies, entity, tick),
+            stats: s.stats,
+            dt: DT,
+            draw,
+            emit: (event) => {
+              events.push(event.name);
+            },
+          };
+          steerShip(entity, ctx);
+          assertTotal(entity, s.stats);
+          const aim = calculateTargetPosition(entity, ctx.view, tick);
+          expect(Number.isFinite(aim.x)).toBe(true);
+          expect(Number.isFinite(aim.y)).toBe(true);
+          expect(Number.isFinite(aim.z)).toBe(true);
+          for (const name of events) {
+            expect(AI_EVENT_NAMES as readonly string[]).toContain(name);
+          }
+          expect(sanitizeEntity(entity)).toBe(false);
+          expect(entity.repairs).toBe(0);
+        }
+      }),
+      { numRuns: 200 },
+    );
+  }, 120_000);
 });

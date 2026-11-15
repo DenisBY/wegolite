@@ -37,6 +37,10 @@ import { SCANNER_MAX_RANGE } from "../../../src/sim/npc/constants.js";
 import { steerShip } from "../../../src/sim/npc/dispatch.js";
 import type { SteerEvent } from "../../../src/sim/npc/dispatch.js";
 import type { NpcFlightStats } from "../../../src/sim/npc/stats.js";
+import {
+  calculateTargetPosition,
+  startTrackingCurve,
+} from "../../../src/sim/npc/tracking-curve.js";
 import { quat, rotate, sub, vec } from "../../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../../src/sim/math.js";
 import { createShipControl } from "../../../src/sim/world/control-impl.js";
@@ -350,9 +354,10 @@ export type RunnerHook = (args: RunnerArgs) => void;
 
 /**
  * The slots later plans fill: `afterAssign` runs once after the `assign` calls
- * at tick 0 (plan 14-12: start the tracking curve), `beforeUpdate` runs at (b)
- * of every tick (plan 14-15: the escort leader refresh) and `afterUpdate` at
- * (d) (plan 14-15: the proximity rule). Every list starts empty.
+ * at tick 0, `beforeUpdate` runs at (b) of every tick (plan 14-15: the escort
+ * leader refresh) and `afterUpdate` at (d) (plan 14-15: the proximity rule).
+ * `emptyHooks()` starts the last two empty and `afterAssign` with the pending
+ * tracking-curve start (plan 14-12).
  */
 export interface RunnerHooks {
   readonly afterAssign: RunnerHook[];
@@ -360,8 +365,24 @@ export interface RunnerHooks {
   readonly afterUpdate: RunnerHook[];
 }
 
+/**
+ * The hook that starts the steered ship's pending tracking curve at tick 0, as
+ * `stepWorld` does after the think phase's final drain (oracle contract item 4;
+ * plan 14-12): the same `startTrackingCurve`, for the steered ship, at the
+ * fixture's view.
+ */
+export const startPendingCurveHook: RunnerHook = ({ self, view }) => {
+  if (self.steer.trackingCount === 0) {
+    startTrackingCurve(self, view, view.tick);
+  }
+};
+
 export function emptyHooks(): RunnerHooks {
-  return { afterAssign: [], beforeUpdate: [], afterUpdate: [] };
+  return {
+    afterAssign: [startPendingCurveHook],
+    beforeUpdate: [],
+    afterUpdate: [],
+  };
 }
 
 /* ---------------------------------------------------------------------------
@@ -481,9 +502,14 @@ function readField(
       return destination[1];
     case "destinationZ":
       return destination[2];
+    case "aimPointX":
+      return toOolite(calculateTargetPosition(self, view, view.tick))[0];
+    case "aimPointY":
+      return toOolite(calculateTargetPosition(self, view, view.tick))[1];
+    case "aimPointZ":
+      return toOolite(calculateTargetPosition(self, view, view.tick))[2];
     default:
-      // aimPointX|Y|Z needs the tracking curve (plan 14-12): fail loudly.
-      throw new Error(`the runner cannot read field ${field} yet`);
+      throw new Error(`the runner cannot read field ${field}`);
   }
 }
 

@@ -62,6 +62,7 @@ import {
   noteLostTargetAndGoIdle,
   targetBody,
 } from "./target.js";
+import { calculateTargetPosition } from "./tracking-curve.js";
 
 const LOCAL_RIGHT = vec(1, 0, 0);
 const LOCAL_UP = vec(0, 1, 0);
@@ -310,8 +311,11 @@ export function trackPrimaryTarget(
   const vUp = rotate(entity.orientation, LOCAL_UP);
   const vForward = rotate(entity.orientation, LOCAL_FORWARD);
 
-  // Task 2 of plan 14-12 replaces this with `calculateTargetPosition`.
-  let relPos = sub(target.position, entity.position);
+  // the reaction-time aim point (9058), not the target's own position
+  let relPos = sub(
+    calculateTargetPosition(entity, ctx.view, ctx.view.tick),
+    entity.position,
+  );
   const toTarget = sub(target.position, entity.position);
   const range2 =
     toTarget.x * toTarget.x + toTarget.y * toTarget.y + toTarget.z * toTarget.z;

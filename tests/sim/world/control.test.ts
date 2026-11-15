@@ -321,6 +321,64 @@ describe("the shared serialised domain (Round 4 consensus 12, T-08-51)", () => {
     expect(actor.nav.targetId).toBe(0);
   });
 
+  it("setTarget restarts the tracking curve: it sets trackingCount to 0 and changes no other steering field (ShipEntity.m:8659-8665)", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    actor.steer.trackingCount = 4;
+    actor.steer.trackingTicks = [9, 8, 7, 6];
+    actor.steer.frustration = 3;
+    actor.steer.pitchingOver = true;
+    const before = structuredClone(actor.steer);
+
+    control.setTarget(actor.id, 200);
+
+    expect(actor.nav.targetId).toBe(200);
+    expect(actor.steer.trackingCount).toBe(0);
+    // Everything else, the stale samples included, is as it was; the world
+    // step starts the curve and the sanitiser zeroes stale samples at count 0.
+    expect({ ...actor.steer, trackingCount: 4 }).toEqual(before);
+  });
+
+  it("setTarget(0) also leaves the curve pending (nothing to start without a target)", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    actor.steer.trackingCount = 4;
+    control.setTarget(actor.id, 0);
+    expect(actor.nav.targetId).toBe(0);
+    expect(actor.steer.trackingCount).toBe(0);
+  });
+
+  it("a refused setTarget leaves the curve running", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    actor.steer.trackingCount = 4;
+    control.setTarget(actor.id, 200);
+    actor.steer.trackingCount = 4;
+    for (const bad of [2 ** 32, -1, 1.5, Number.NaN]) {
+      control.setTarget(actor.id, bad);
+      expect(actor.steer.trackingCount, `target ${String(bad)}`).toBe(4);
+      expect(actor.nav.targetId).toBe(200);
+    }
+  });
+
+  it("setTarget with the actor's own id changes nothing, the previous target included (ShipEntity.m:8661-8662)", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    control.setTarget(actor.id, 200);
+    actor.steer.trackingCount = 4;
+    const before = structuredClone(actor);
+
+    control.setTarget(actor.id, actor.id);
+
+    expect(actor).toEqual(before);
+    expect(actor.nav.targetId).toBe(200);
+    expect(actor.steer.trackingCount).toBe(4);
+  });
+
   it("setDestination ignores a component beyond 1e12, NaN or Infinity; accepts the bound", () => {
     const world = createWorld(1);
     const actor = spawnOk(world);

@@ -31,6 +31,7 @@ import type { AiFaultSite, SimEvent } from "../events.js";
 import type { FlightState } from "../flight/state.js";
 import { steerShip } from "../npc/dispatch.js";
 import { PLAYER_COLLISION_RADIUS_M, statsFor } from "../npc/stats.js";
+import { startPendingTrackingCurves } from "../npc/tracking-curve.js";
 import type { NpcStepFacts } from "../npc/stats.js";
 import { createRngState, rngNext } from "../rng.js";
 import { createShipControl } from "./control-impl.js";
@@ -133,6 +134,11 @@ export function stepWorld(
     );
   }
   drainAiEvents(world, registry, tick, getView, events);
+  // Oolite's `addTarget:` restarts the target's tracking curve when the target
+  // is set (ShipEntity.m:8659-8665). `setTarget` leaves the start pending, and
+  // it runs here, after the final drain and before anything moves, so it samples
+  // the target positions `addTarget:` would have sampled, at this tick.
+  startPendingTrackingCurves(world, getView, tick);
 
   // Sanitize every live entity before the commit, so no non-finite or
   // out-of-domain value reaches a hash or a snapshot (T-08-21, T-08-44).

@@ -111,6 +111,8 @@ const PORTED: readonly { file: string; from: number; to: number }[] = [
   { file: "src/Core/Entities/ShipEntity.m", from: 8638, to: 8830 }, // isValidTarget, addTarget, canStillTrack, noteLostTarget
   { file: "src/Core/Entities/ShipEntity.m", from: 3817, to: 3826 }, // behaviour_intercept_target (INTERCEPT half)
   { file: "src/Core/Entities/ShipEntityAI.m", from: 413, to: 417 }, // performIntercept
+  // plan 14-12, task 2: the reaction-time tracking curve
+  { file: "src/Core/Entities/ShipEntity.m", from: 5412, to: 5489 }, // calculateTargetPosition .. calculateTrackingCurve
 ];
 
 /**

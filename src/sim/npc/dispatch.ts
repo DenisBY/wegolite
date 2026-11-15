@@ -18,7 +18,7 @@
  *  - Order inside one call: (1) resolve the accuracy once when it is still the
  *    sentinel; (2) complete the pending `perform` entry for the current
  *    behaviour and clear the flag; (3) the reaction-time tracking-curve sample
- *    (plan 14-12 adds it here, `ShipEntity.m:2131`); (4) the behaviour from the
+ *    (plan 14-12, `ShipEntity.m:2131`); (4) the behaviour from the
  *    switch below; (5) `applyAttitude` then `applyThrust` when Oolite's flag
  *    for that behaviour is set.
  *  - Randomness: `ctx.draw()` returns the next unit draw of the actor's own
@@ -62,6 +62,7 @@ import { behaviourTumble } from "./behaviours/tumble.js";
 import { completeEntry, resolveAccuracy } from "./enter.js";
 import { applyAttitude, applyThrust } from "./flight.js";
 import type { NpcFlightStats } from "./stats.js";
+import { startTrackingCurve, updateTrackingCurve } from "./tracking-curve.js";
 
 /** One event the steering posts: a name and, for some, an entity id. */
 export interface SteerEvent {
@@ -92,7 +93,13 @@ export function steerShip(entity: Entity, ctx: SteerContext): void {
   resolveAccuracy(entity, ctx);
   // (2) the deferred part of a pending perform entry
   if (entity.steer.entryPending) completeEntry(entity, ctx);
-  // (3) the tracking-curve sample is added here by plan 14-12
+  // (3) the reaction-time tracking curve (`ShipEntity.m:2131`): a pending start
+  // first (a defensive guard; the world step normally started it after the
+  // think), then the sample. Both do nothing without a valid target.
+  if (entity.steer.trackingCount === 0) {
+    startTrackingCurve(entity, ctx.view, ctx.view.tick);
+  }
+  updateTrackingCurve(entity, ctx.view, ctx.view.tick);
 
   // (4) the behaviour
   switch (entity.nav.behaviour) {
