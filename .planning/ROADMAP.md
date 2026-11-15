@@ -178,7 +178,52 @@ Plans:
 **Pitfalls to address**: 6 (`BEHAVIOUR_*` steering fidelity: per-behaviour oracles, 20-seed acceptance), 5 (the harness spike as the only independent check of the later port), 3 (integer tick timers), 4 (NaN in steering), 7 (steering requests queued), 19 (behaviours act only through `ShipControl`), 11 (oracles in Vitest, not the browser)
 **Decisions to settle**: the stated acceptance thresholds (stuck, tunnelling, NaN repair) before the run; the time box and stub-host scope of the spike; the oracle choice at the gate (owner)
 **Todos**: candidates to fold in by owner decision, not requirements: IN-02 (`aiFaulted` is emitted but nothing records it) and IN-04 (a failed NPC model is never retried, yet the ship still blocks and shows on the scanner), both from `2026-11-14-clear-world-when-arrival-begin-is-refused.md`
-**Plans**: TBD
+**Plans:** 18 plans in 13 waves (two owner checkpoints: the hash policy in 14-06, the fidelity report and oracle choice in 14-18)
+
+Plans:
+**Wave 1**
+- [ ] 14-01-PLAN.md — Oracle I (separate agent, no `src/sim/npc` access): fixture schema, reference flight model and navigation maths, flight, idle, tumble, fly-to, face, rate-rule, avoid and escort fixtures, the recorded frame-rate rule, the oracle import guard
+- [ ] 14-02-PLAN.md — Oracle II (separate agent): intercept, flee and attack fixtures (dispatcher, in-scope sub-behaviours, perform entry draws); attack IN and OUT lists stated
+- [ ] 14-03-PLAN.md — NPC flight fields (speed, roll, pitch, thrust) behind schema, golden and drift gate; the build refuses keys the reachability analysis assumes absent
+- [ ] 14-04-PLAN.md — AI-11 dev-only harness spike: AILib and the shuttle AI in `node:vm` with a stub host, three deterministic traces, isolation guard, 14-SPIKE.md
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 14-05-PLAN.md — Pre-committed gates: the post-build `dist` check in `verify` and `verify-full`; the 20-seed acceptance thresholds
+- [ ] 14-06-PLAN.md — Steering record on every ship, hash policy by owner decision (checkpoint), snapshot format 3
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 14-07-PLAN.md — Flight model tracer: steerShip, sticks, attitude, thrust, perform entry effects, idle, stop-still, tumble; the oracle runner; totality property
+
+**Wave 4**
+- [ ] 14-08-PLAN.md — trackDestination, fly to destination, face, avoid entry and exit, new AI events, the rate-rule oracle
+
+**Wave 5**
+- [ ] 14-09-PLAN.md — The world step flies AI ships (placeholder integrator replaced), `StepOptions.npcFlight`, re-pinned tests
+
+**Wave 6**
+- [ ] 14-10-PLAN.md — Radius in the view, target sensing, tracking curve, trackPrimaryTarget, intercept, target loss
+
+**Wave 7**
+- [ ] 14-11-PLAN.md — Flee, jink and evasive action with performFlee's draws
+
+**Wave 8**
+- [ ] 14-12-PLAN.md — Attack dispatcher and in-scope sub-behaviours, no fire; forced-state dispatch table
+
+**Wave 9**
+- [ ] 14-13-PLAN.md — Proximity pass, avoid collision, escort formation; every oracle fixture run exactly once
+
+**Wave 10**
+- [ ] 14-14-PLAN.md — Test-only flight-script pilot, spawnTestFlyers, Vitest flyers scenario, 30/60/144 Hz replay
+
+**Wave 11**
+- [ ] 14-15-PLAN.md — Session and replay flight table, `spawnTestFlyers` hook, opt-in browser smoke; remote verify
+- [ ] 14-16-PLAN.md — The 20-seed acceptance run against the pre-committed thresholds
+
+**Wave 12**
+- [ ] 14-17-PLAN.md — Key Decisions, FIDELITY rows from E-57, CHANGELOG
+
+**Wave 13**
+- [ ] 14-18-PLAN.md — Fidelity report, Vitest share, validation sign-off, remote verify, owner gate (oracle choice) and its Key Decision
 
 ### Coverage
 
@@ -214,7 +259,7 @@ Pending todos outside v2.2, which can run as quick tasks or join a phase by owne
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | Complete    | 2026-11-14 |
 | 13. Views, Lasers and Shields | v2.2 | 16/16 | Complete    | 2026-11-15 |
-| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 0/TBD | Not started | - |
+| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 0/18 | Not started | - |
 
 ## Backlog
 
