@@ -20,7 +20,7 @@ import { clamp } from "../../sim/math.js";
 import type { CompassTarget } from "../../sim/flight/state.js";
 import type { AegisStatus } from "../../sim/world/aegis.js";
 import { SCANNER_MAX_RANGE, aegisLabel } from "./projection.js";
-import type { CompassBlip, ScannerBlip } from "./projection.js";
+import type { CompassBlip, IdentFrame, ScannerBlip } from "./projection.js";
 
 export const HUD_DESIGN_WIDTH = 1920;
 export const HUD_DESIGN_HEIGHT = 1080;
@@ -167,6 +167,13 @@ export interface HudModel {
   readonly clockText: string;
   /** The committed hyperspace target name, or "" when none (D-12). */
   readonly hyperspaceTarget: string;
+  /**
+   * The ident lock frame around the locked ship in the 3D view (D-03), or null
+   * when nothing is locked or the ship is out of view. A deliberate non-element
+   * drawing: it is not in `HUD_ELEMENTS` and has no `HUD_LAYOUT` rectangle, as
+   * the hyperspace target line is not (plan 13-14 records the Key Decisions row).
+   */
+  readonly identFrame: IdentFrame | null;
 }
 
 const CROSSHAIR_GAP = 10;
@@ -189,6 +196,44 @@ function drawCrosshair(context: CanvasRenderingContext2D): void {
   context.lineTo(x, y - CROSSHAIR_GAP);
   context.moveTo(x, y + CROSSHAIR_GAP);
   context.lineTo(x, y + CROSSHAIR_GAP + CROSSHAIR_ARM);
+  context.stroke();
+}
+
+/** The arm length of an ident corner bracket: a third of the half-size, at least 8. */
+function identArm(half: number): number {
+  return Math.max(8, half * 0.35);
+}
+
+/**
+ * Four corner brackets around the locked ship (D-03), in the HUD colour. Drawn
+ * only for a frame with finite numbers inside the design space.
+ */
+function drawIdentFrame(
+  context: CanvasRenderingContext2D,
+  frame: IdentFrame | null,
+): void {
+  if (
+    frame === null ||
+    !Number.isFinite(frame.x) ||
+    !Number.isFinite(frame.y) ||
+    !(frame.half > 0)
+  ) {
+    return;
+  }
+  const { x, y, half } = frame;
+  const arm = identArm(half);
+  context.strokeStyle = HUD_COLOR;
+  context.lineWidth = 2;
+  context.beginPath();
+  for (const sx of [-1, 1]) {
+    for (const sy of [-1, 1]) {
+      const cx = x + sx * half;
+      const cy = y + sy * half;
+      context.moveTo(cx - sx * arm, cy);
+      context.lineTo(cx, cy);
+      context.lineTo(cx, cy - sy * arm);
+    }
+  }
   context.stroke();
 }
 
@@ -685,6 +730,7 @@ export function drawHud(
   context.textBaseline = "middle";
 
   drawCrosshair(context);
+  drawIdentFrame(context, model.identFrame);
   drawScanner(context, model);
   drawCompass(context, model.compass);
   drawAegis(context, model.aegis);

@@ -394,3 +394,47 @@ describe("buildHudModel combat gauges (CBT-06, D-06, D-07)", () => {
     expect(bars.laserTemp).toBe(0.25);
   });
 });
+
+describe("buildHudModel ident frame (INPUT-01, D-03)", () => {
+  function model(identFrame?: { x: number; y: number; half: number } | null) {
+    const fixture = laveFixture();
+    return buildHudModel(
+      initFlightState(fixture.layout),
+      fixture.layout,
+      fixture.config,
+      "",
+      70,
+      0,
+      "",
+      [],
+      identFrame === undefined ? {} : { identFrame },
+    );
+  }
+
+  it("is null when no frame is given", () => {
+    expect(model().identFrame).toBeNull();
+    expect(model(null).identFrame).toBeNull();
+    const fixture = laveFixture();
+    expect(
+      buildHudModel(
+        initFlightState(fixture.layout),
+        fixture.layout,
+        fixture.config,
+        "",
+        70,
+      ).identFrame,
+    ).toBeNull();
+  });
+
+  it("passes a projected frame through unchanged", () => {
+    const frame = { x: 812.5, y: 301.25, half: 64 };
+    expect(model(frame).identFrame).toBe(frame);
+  });
+
+  it("is a non-element drawing: the HUD element set and layout stay at eleven", () => {
+    expect(HUD_ELEMENTS).toHaveLength(11);
+    expect(Object.keys(HUD_LAYOUT)).toHaveLength(11);
+    expect(HUD_ELEMENTS).not.toContain("identFrame");
+    expect(Object.keys(HUD_LAYOUT)).not.toContain("identFrame");
+  });
+});

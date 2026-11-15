@@ -27,6 +27,7 @@ import type * as THREE from "three";
 import type { System } from "../../content/types.js";
 import type { FlightState } from "../../sim/flight/state.js";
 import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
+import { identTargetSnapshot } from "../../sim/combat/ident.js";
 import { sub, vec } from "../../sim/math.js";
 import { npcContacts } from "../../sim/world/contacts.js";
 import {
@@ -40,6 +41,9 @@ import {
   applyStationRoll,
   interpolatePose,
 } from "../../render/sync.js";
+import { HUD_DESIGN_HEIGHT, HUD_DESIGN_WIDTH } from "../../render/hud/draw.js";
+import { projectIdentFrame } from "../../render/hud/projection.js";
+import type { IdentFrame } from "../../render/hud/projection.js";
 import { buildHudModel } from "../hud-model.js";
 import type { HintContext } from "../hints.js";
 import type { LaunchSequence } from "../launch-sequence.js";
@@ -233,7 +237,10 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
           ctx.core.dockFeedback.flashAlpha(currentState.flightTime),
           targetSystem()?.name ?? "",
           contacts,
-          { combat: ctx.core.combat },
+          {
+            combat: ctx.core.combat,
+            identFrame: identFrameFor(currentScene.camera, camera),
+          },
         );
         currentHud.draw(model);
         ctx.core.lastModel = model;
@@ -241,6 +248,30 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     }
     showHint(currentState);
     updateProbe();
+  }
+
+  /**
+   * D-03: the frame around the ident-locked ship, projected through the pose
+   * the scene is drawn from this frame (the current view, shake included), or
+   * null with no lock, no world, no in-flight pose or the ship out of view.
+   * The lock's entity id never leaves the sim (`identTargetSnapshot`).
+   */
+  function identFrameFor(
+    live: THREE.PerspectiveCamera,
+    pose: CameraPose | null,
+  ): IdentFrame | null {
+    const combat = ctx.core.combat;
+    if (combat === undefined || pose === null) return null;
+    const target = identTargetSnapshot(combat, ctx.core.worldLifecycle?.world);
+    if (target === undefined) return null;
+    return projectIdentFrame(
+      pose,
+      live.fov,
+      live.aspect,
+      target,
+      HUD_DESIGN_WIDTH,
+      HUD_DESIGN_HEIGHT,
+    );
   }
 
   /** D-11: one message-line hint at a time, never a modal or overlay. */

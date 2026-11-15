@@ -34,9 +34,12 @@ import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.j
 import type { Hud } from "../../../src/render/hud/hud.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { SystemScene } from "../../../src/render/system-scene.js";
+import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
+import { identity, vec } from "../../../src/sim/math.js";
+import { NO_ENTITY } from "../../../src/sim/world/ids.js";
 import { npcContacts } from "../../../src/sim/world/contacts.js";
 import type { NpcContact } from "../../../src/sim/world/contacts.js";
 import { populateInertWorld } from "../../../src/sim/world/populate.js";
@@ -230,7 +233,7 @@ function flyableScene(
   return {
     npcs: { update: npcUpdate },
     shots: { update: () => undefined },
-    camera: { aspect: 1.5, ...fakeObject() },
+    camera: { aspect: 1.5, fov: 57.2, ...fakeObject() },
     planet: { mesh: fakeObject(), update: () => undefined },
     sun: { sun: fakeObject(), corona: fakeObject(), update: () => undefined },
     station: { root: fakeObject(), update: () => undefined },
@@ -490,5 +493,97 @@ describe("renderFrame NPC models (WORLD-15, DATA-13)", () => {
     expect(models.at(-1)?.contacts.filter((c) => c.id === "ship")).toHaveLength(
       12,
     );
+  });
+});
+
+describe("renderFrame ident frame (INPUT-01, D-03)", () => {
+  /**
+   * A flying session whose camera sits `behind` metres behind the first ship
+   * along +Z (the ship is dead ahead of the fore view), with that ship locked.
+   */
+  function locked(behind: number) {
+    const models: HudModel[] = [];
+    const h = harness();
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    h.ctx.core.scene = flyableScene(h.nebula);
+    h.ctx.runtime.hud = {
+      draw: (model: HudModel) => models.push(model),
+    } as unknown as Hud;
+    const lifecycle = createWorldLifecycle({
+      traffic: true,
+      populate: (world) => {
+        populateInertWorld(world, layout, laveInertRecords());
+      },
+    });
+    lifecycle.begin(marketSeedForSystem(system.id));
+    h.ctx.core.worldLifecycle = lifecycle;
+    const ship = [...(lifecycle.world?.store.live ?? [])].find(
+      (entity) => entity.kind === "ship",
+    );
+    if (ship === undefined) throw new Error("the world has no ship");
+    const pose = {
+      position: vec(ship.position.x, ship.position.y, ship.position.z + behind),
+      orientation: identity(),
+    };
+    h.ctx.core.previousPose = pose;
+    h.ctx.core.currentPose = pose;
+    h.ctx.core.state = {
+      ...initFlightState(layout),
+      mode: "inFlight",
+      position: pose.position,
+    };
+    const combat = createPlayerCombatState();
+    combat.identTarget = ship.id;
+    h.ctx.core.combat = combat;
+    return { h, models, combat };
+  }
+
+  it("frames the locked ship dead ahead of the view, near the sights", () => {
+    const { h, models } = locked(5_000);
+    h.driver.renderFrame(0);
+    const frame = models[0]?.identFrame;
+    expect(frame).not.toBeNull();
+    // The view sits 7.25 m above the ship's centre line, so the ship is a
+    // hair below the sights; it is dead ahead horizontally.
+    expect(frame?.x).toBeCloseTo(960, 3);
+    expect(frame?.y).toBeGreaterThan(540);
+    expect(frame?.y).toBeLessThan(560);
+  });
+
+  it("draws no frame with the locked ship behind the camera", () => {
+    const { h, models } = locked(-5_000);
+    h.driver.renderFrame(0);
+    expect(models[0]?.identFrame).toBeNull();
+  });
+
+  it("draws no frame once the lock is dropped", () => {
+    const { h, models, combat } = locked(5_000);
+    h.driver.renderFrame(0);
+    expect(models[0]?.identFrame).not.toBeNull();
+    combat.identTarget = NO_ENTITY;
+    h.driver.renderFrame(0);
+    expect(models[1]?.identFrame).toBeNull();
+  });
+
+  it("looks the locked ship up through the view: an aft view sees it behind", () => {
+    const { h, models, combat } = locked(-5_000);
+    combat.view = "aft";
+    h.driver.renderFrame(0);
+    expect(models[0]?.identFrame).not.toBeNull();
+    combat.view = "fore";
+    h.driver.renderFrame(0);
+    expect(models[1]?.identFrame).toBeNull();
+  });
+
+  it("draws no frame with no combat state or no world", () => {
+    const { h, models } = locked(5_000);
+    h.ctx.core.combat = undefined;
+    h.driver.renderFrame(0);
+    expect(models[0]?.identFrame).toBeNull();
+    const second = locked(5_000);
+    second.h.ctx.core.worldLifecycle?.end();
+    second.h.driver.renderFrame(0);
+    expect(second.models[0]?.identFrame).toBeNull();
   });
 });

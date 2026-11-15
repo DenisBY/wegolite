@@ -39,6 +39,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   "Target lost.", "Ident system deactivated." and "Missiles on safety.". Each
   message appears at most once per second, so a held fire key cannot flood the
   line.
+- Four cockpit views: 1 or F1 looks fore, 2 or F2 aft, 3 or F3 port and 4 or F4
+  starboard, each from Oolite's view position on the Cobra. Lasers fire with A
+  from the mount of the view you are looking along, with a drawn shot (red for a
+  pulse laser, yellow for a beam laser, blue for a mining laser and magenta for
+  a military laser), Oolite's heat cut-out and its messages. R engages the ident
+  system, which frames the ship in your sights and names it on the message line;
+  U drops the lock, and Q targets the station.
 
 ### Changed
 

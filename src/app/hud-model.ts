@@ -54,6 +54,7 @@ import {
   projectToCompass,
   projectToScanner,
 } from "../render/hud/projection.js";
+import type { IdentFrame } from "../render/hud/projection.js";
 
 interface ScannerTarget {
   readonly id: HudContact["id"];
@@ -143,6 +144,12 @@ export interface HudModelOptions {
    * full shields and banks, a cold laser and the 60/256 cabin floor.
    */
   readonly combat?: PlayerCombatState | undefined;
+  /**
+   * The ident lock frame already projected into the HUD design space (D-03),
+   * or null / absent when nothing is locked or the ship is out of view. Passed
+   * through unchanged; it is not a HUD element.
+   */
+  readonly identFrame?: IdentFrame | null | undefined;
 }
 
 function buildBars(
@@ -175,7 +182,8 @@ function buildBars(
  * required: the bar and the fuel text are both derived from that one value.
  * `npc` is the world's id-free ship contacts (`npcContacts`), empty with no
  * world or traffic off, which leaves exactly the three static contacts.
- * `options.combat` feeds the combat gauges (D-06, D-07).
+ * `options.combat` feeds the combat gauges (D-06, D-07); `options.identFrame`
+ * is the projected ident lock frame (D-03), passed through.
  */
 export function buildHudModel(
   state: FlightState,
@@ -214,5 +222,6 @@ export function buildHudModel(
     fuelText: formatFuel(tank),
     clockText: formatClock(state.clockSeconds),
     hyperspaceTarget,
+    identFrame: options.identFrame ?? null,
   };
 }

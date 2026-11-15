@@ -20,9 +20,10 @@
  * without a canvas. The design keeps Oolite's 4.5:1 ellipse (360x80).
  */
 
-import { rotateInverse } from "../../sim/math.js";
+import { rotateInverse, sub } from "../../sim/math.js";
 import type { Quat, Vec3 } from "../../sim/math.js";
 import type { AegisStatus } from "../../sim/world/aegis.js";
+import type { CameraPose } from "../launch-camera.js";
 
 /** Oolite's `SCANNER_MAX_RANGE` (Entity.h:49-50); also `layout.scannerRange`. */
 export const SCANNER_MAX_RANGE = 25_600;
@@ -171,4 +172,95 @@ export function aegisLabel(status: AegisStatus): string {
     case "none":
       return "";
   }
+}
+
+/** The ident frame in HUD design pixels: its centre and half-size. */
+export interface IdentFrame {
+  readonly x: number;
+  readonly y: number;
+  /** Half the side of the square frame, clamped to the limits below. */
+  readonly half: number;
+}
+
+/** The smallest and largest half-size of the ident frame, in design pixels. */
+export const IDENT_FRAME_MIN_HALF = 28;
+export const IDENT_FRAME_MAX_HALF = 180;
+
+/** The locked ship as the frame needs it: where it is and how big. */
+export interface IdentFrameTarget {
+  readonly position: Vec3;
+  readonly radius: number;
+}
+
+/**
+ * Project the ident-locked ship onto the HUD design space (INPUT-01, D-03).
+ *
+ * `camera` is the world pose the scene is rendered from, `fovY` its vertical
+ * field of view in degrees (`PerspectiveCamera.fov`) and `aspect` its width
+ * over height: all three come from the one live camera, so the frame follows
+ * the 3D view. `width` and `height` are the HUD design space.
+ *
+ * The HUD canvas is a 16:9 design space centred in the window and scaled by
+ * `min(W / width, H / height)`, while the 3D view fills the whole window. One
+ * half window height is therefore `max(width / aspect, height) / 2` design
+ * pixels, which is what turns the projection's NDC into design pixels on a
+ * window of any shape. The frame half-size is the target's collision radius
+ * seen from its depth, clamped so a distant ship stays findable and a close one
+ * does not swallow the screen.
+ *
+ * Returns null for a target behind or on the camera plane, whose centre
+ * projects outside the window, or any non-finite or unusable input (T-13-26).
+ */
+export function projectIdentFrame(
+  camera: CameraPose,
+  fovY: number,
+  aspect: number,
+  target: IdentFrameTarget,
+  width: number,
+  height: number,
+): IdentFrame | null {
+  if (
+    !finiteVec(camera.position) ||
+    !finiteQuat(camera.quaternion) ||
+    !finiteVec(target.position) ||
+    !Number.isFinite(target.radius) ||
+    !Number.isFinite(fovY) ||
+    !Number.isFinite(aspect) ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    fovY <= 0 ||
+    fovY >= 180 ||
+    aspect <= 0 ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return null;
+  }
+  const local = rotateInverse(
+    camera.quaternion,
+    sub(target.position, camera.position),
+  );
+  const depth = -local.z;
+  if (!(depth > 0) || !Number.isFinite(depth)) return null;
+
+  const cotHalfFov = 1 / Math.tan((fovY * Math.PI) / 360);
+  const ndcX = (local.x / depth) * (cotHalfFov / aspect);
+  const ndcY = (local.y / depth) * cotHalfFov;
+  if (!(Math.abs(ndcX) <= 1) || !(Math.abs(ndcY) <= 1)) return null;
+
+  const halfWindowHeight = Math.max(width / aspect, height) / 2;
+  const radius = Math.max(0, target.radius);
+  const half = Math.min(
+    IDENT_FRAME_MAX_HALF,
+    Math.max(
+      IDENT_FRAME_MIN_HALF,
+      (radius / depth) * cotHalfFov * halfWindowHeight,
+    ),
+  );
+  const x = width / 2 + ndcX * halfWindowHeight * aspect;
+  const y = height / 2 - ndcY * halfWindowHeight;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(half)) {
+    return null;
+  }
+  return { x, y, half };
 }

@@ -14,7 +14,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { buildHudModel } from "../../src/app/hud-model.js";
-import { identity, vec } from "../../src/sim/math.js";
+import { axisAngle, identity, vec } from "../../src/sim/math.js";
 import type { Vec3 } from "../../src/sim/math.js";
 import { initFlightState } from "../../src/sim/flight/state.js";
 import {
@@ -27,7 +27,10 @@ import {
   scannerContactColor,
 } from "../../src/render/hud/draw.js";
 import {
+  IDENT_FRAME_MAX_HALF,
+  IDENT_FRAME_MIN_HALF,
   aegisLabel,
+  projectIdentFrame,
   projectToCompass,
   projectToScanner,
 } from "../../src/render/hud/projection.js";
@@ -334,5 +337,252 @@ describe("scannerContactColor", () => {
     expect(scannerContactColor("police")).toBe(HUD_SCANNER_POLICE_COLOR);
     // ShipEntity.m:5585 police_color1 = {0.5, 0.0, 1.0}
     expect(HUD_SCANNER_POLICE_COLOR).toBe("#8000ff");
+  });
+});
+
+describe("projectIdentFrame (INPUT-01, D-03)", () => {
+  const FOV = 57.2;
+  const ASPECT = 16 / 9;
+  const DESIGN_WIDTH = 1920;
+  const DESIGN_HEIGHT = 1080;
+  /** The cotangent of half the vertical field of view. */
+  const COT = 1 / Math.tan((FOV * Math.PI) / 360);
+  const camera = { position: vec(0, 0, 0), quaternion: identity() };
+
+  function project(
+    target: { position: Vec3; radius: number },
+    pose = camera,
+    aspect = ASPECT,
+  ) {
+    return projectIdentFrame(
+      pose,
+      FOV,
+      aspect,
+      target,
+      DESIGN_WIDTH,
+      DESIGN_HEIGHT,
+    );
+  }
+
+  it("puts a target straight ahead at the design-space centre", () => {
+    const frame = project({ position: vec(0, 0, -1_000), radius: 50 });
+    expect(frame).not.toBeNull();
+    expect(frame?.x).toBeCloseTo(960, 9);
+    expect(frame?.y).toBeCloseTo(540, 9);
+    // 50 m at 1000 m: 0.05 * cot(fov/2) * half the design height (540).
+    expect(frame?.half).toBeCloseTo(0.05 * COT * 540, 9);
+  });
+
+  it("puts a target to the right of the sights right of centre and one above them above", () => {
+    const depth = 1_000;
+    const halfWidthAtDepth = depth * Math.tan((FOV * Math.PI) / 360) * ASPECT;
+    const right = project({
+      position: vec(halfWidthAtDepth * 0.5, 0, -depth),
+      radius: 50,
+    });
+    expect(right?.x).toBeCloseTo(960 + 0.5 * 960, 9);
+    expect(right?.y).toBeCloseTo(540, 9);
+    const above = project({
+      position: vec(0, depth * Math.tan((FOV * Math.PI) / 360) * 0.5, -depth),
+      radius: 50,
+    });
+    expect(above?.x).toBeCloseTo(960, 9);
+    expect(above?.y).toBeCloseTo(540 - 0.5 * 540, 9);
+  });
+
+  it("returns null for a target behind the camera or on its plane", () => {
+    expect(project({ position: vec(0, 0, 1_000), radius: 50 })).toBeNull();
+    expect(project({ position: vec(0, 0, 0), radius: 50 })).toBeNull();
+    expect(project({ position: vec(500, 0, 0), radius: 50 })).toBeNull();
+  });
+
+  it("returns null once the centre projects outside the window", () => {
+    const depth = 1_000;
+    const edge = depth * Math.tan((FOV * Math.PI) / 360) * ASPECT;
+    expect(
+      project({ position: vec(edge * 0.99, 0, -depth), radius: 50 }),
+    ).not.toBeNull();
+    expect(
+      project({ position: vec(edge * 1.01, 0, -depth), radius: 50 }),
+    ).toBeNull();
+    expect(
+      project({ position: vec(0, -depth * 0.6, -depth), radius: 50 }),
+    ).toBeNull();
+  });
+
+  it("grows as the target gets closer", () => {
+    const far = project({ position: vec(0, 0, -2_000), radius: 50 });
+    const near = project({ position: vec(0, 0, -1_000), radius: 50 });
+    expect(near?.half).toBeGreaterThan(far?.half ?? Number.POSITIVE_INFINITY);
+  });
+
+  it("clamps the half-size to the minimum and the maximum in design pixels", () => {
+    expect(IDENT_FRAME_MIN_HALF).toBeLessThan(IDENT_FRAME_MAX_HALF);
+    const tiny = project({ position: vec(0, 0, -20_000), radius: 10 });
+    expect(tiny?.half).toBe(IDENT_FRAME_MIN_HALF);
+    const huge = project({ position: vec(0, 0, -60), radius: 100 });
+    expect(huge?.half).toBe(IDENT_FRAME_MAX_HALF);
+    const negative = project({ position: vec(0, 0, -1_000), radius: -5 });
+    expect(negative?.half).toBe(IDENT_FRAME_MIN_HALF);
+  });
+
+  it("follows the camera orientation: a yawed camera sees what lies along its forward", () => {
+    // +90 degrees about up turns local -Z toward world -X (A1, the port view).
+    const port = {
+      position: vec(0, 0, 0),
+      quaternion: axisAngle(0, 1, 0, Math.PI / 2),
+    };
+    const ahead = project({ position: vec(-1_000, 0, 0), radius: 50 }, port);
+    expect(ahead?.x).toBeCloseTo(960, 9);
+    expect(ahead?.y).toBeCloseTo(540, 9);
+    expect(
+      project({ position: vec(0, 0, -1_000), radius: 50 }, port),
+    ).toBeNull();
+  });
+
+  it("is translation invariant: only the offset from the camera matters", () => {
+    const shifted = {
+      position: vec(1e6, -2e6, 3e6),
+      quaternion: identity(),
+    };
+    const frame = project(
+      { position: vec(1e6, -2e6, 3e6 - 1_000), radius: 50 },
+      shifted,
+    );
+    expect(frame?.x).toBeCloseTo(960, 6);
+    expect(frame?.half).toBeCloseTo(0.05 * COT * 540, 6);
+  });
+
+  it("maps NDC onto the letterboxed design space for a window of any shape", () => {
+    const depth = 1_000;
+    const tanHalf = Math.tan((FOV * Math.PI) / 360);
+    // Wider than 16:9: the design height spans the window height, so the design
+    // width spans less than the window width.
+    const wide = 2.5;
+    const wideFrame = project(
+      { position: vec(depth * tanHalf * wide * 0.5, 0, -depth), radius: 50 },
+      camera,
+      wide,
+    );
+    expect(wideFrame?.x).toBeCloseTo(960 + 0.5 * 540 * wide, 9);
+    // Narrower than 16:9: the design width spans the window width.
+    const square = 1;
+    const squareFrame = project(
+      { position: vec(0, depth * tanHalf * 0.5, -depth), radius: 50 },
+      camera,
+      square,
+    );
+    expect(squareFrame?.x).toBeCloseTo(960, 9);
+    expect(squareFrame?.y).toBeCloseTo(540 - 0.5 * 960, 9);
+  });
+
+  it("returns null for any non-finite or unusable input (T-13-26)", () => {
+    const good = { position: vec(0, 0, -1_000), radius: 50 };
+    const nan = Number.NaN;
+    expect(project({ ...good, position: vec(nan, 0, -1_000) })).toBeNull();
+    expect(project({ ...good, radius: nan })).toBeNull();
+    expect(
+      project(good, { position: vec(0, nan, 0), quaternion: identity() }),
+    ).toBeNull();
+    expect(
+      project(good, {
+        position: vec(0, 0, 0),
+        quaternion: { w: nan, x: 0, y: 0, z: 0 },
+      }),
+    ).toBeNull();
+    expect(project(good, camera, nan)).toBeNull();
+    expect(project(good, camera, 0)).toBeNull();
+    expect(projectIdentFrame(camera, nan, ASPECT, good, 1920, 1080)).toBeNull();
+    expect(projectIdentFrame(camera, 0, ASPECT, good, 1920, 1080)).toBeNull();
+    expect(projectIdentFrame(camera, 180, ASPECT, good, 1920, 1080)).toBeNull();
+    expect(projectIdentFrame(camera, FOV, ASPECT, good, 0, 1080)).toBeNull();
+    expect(projectIdentFrame(camera, FOV, ASPECT, good, 1920, nan)).toBeNull();
+    expect(
+      project({ position: vec(Number.POSITIVE_INFINITY, 0, -1), radius: 1 }),
+    ).toBeNull();
+  });
+});
+
+describe("the ident frame drawing (D-03, a non-element drawing)", () => {
+  function recordingContext(): {
+    readonly context: CanvasRenderingContext2D;
+    readonly points: Array<readonly [number, number]>;
+  } {
+    const points: Array<readonly [number, number]> = [];
+    const record = (x: number, y: number): void => {
+      points.push([x, y]);
+    };
+    const context = {
+      save: vi.fn(),
+      restore: vi.fn(),
+      clearRect: vi.fn(),
+      beginPath: vi.fn(),
+      closePath: vi.fn(),
+      moveTo: vi.fn(record),
+      lineTo: vi.fn(record),
+      ellipse: vi.fn(),
+      arc: vi.fn(),
+      stroke: vi.fn(),
+      fill: vi.fn(),
+      strokeRect: vi.fn(),
+      fillRect: vi.fn(),
+      fillText: vi.fn(),
+      strokeStyle: "",
+      fillStyle: "",
+      lineWidth: 1,
+      globalAlpha: 1,
+      font: "",
+      textAlign: "left",
+    } as unknown as CanvasRenderingContext2D;
+    return { context, points };
+  }
+
+  function modelWith(
+    identFrame: { x: number; y: number; half: number } | null,
+  ) {
+    const fixture = laveFixture();
+    return buildHudModel(
+      initFlightState(fixture.layout),
+      fixture.layout,
+      fixture.config,
+      "",
+      70,
+      0,
+      "",
+      [],
+      { identFrame },
+    );
+  }
+
+  it("draws a corner bracket on each of the four corners of the frame", () => {
+    const frame = { x: 700, y: 300, half: 60 };
+    const withFrame = recordingContext();
+    drawHud(withFrame.context, modelWith(frame));
+    const without = recordingContext();
+    drawHud(without.context, modelWith(null));
+    const has = (
+      list: Array<readonly [number, number]>,
+      x: number,
+      y: number,
+    ): boolean => list.some(([px, py]) => px === x && py === y);
+    for (const [cx, cy] of [
+      [640, 240],
+      [760, 240],
+      [640, 360],
+      [760, 360],
+    ] as const) {
+      expect(has(withFrame.points, cx, cy)).toBe(true);
+      expect(has(without.points, cx, cy)).toBe(false);
+    }
+    // Twelve extra path points: four corners of one move and two line segments.
+    expect(withFrame.points.length - without.points.length).toBe(12);
+  });
+
+  it("draws nothing for a null or non-finite frame", () => {
+    const base = recordingContext();
+    drawHud(base.context, modelWith(null));
+    const bad = recordingContext();
+    drawHud(bad.context, modelWith({ x: Number.NaN, y: 100, half: 40 }));
+    expect(bad.points).toEqual(base.points);
   });
 });
