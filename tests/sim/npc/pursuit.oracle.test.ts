@@ -35,21 +35,11 @@ import {
 const THIS_FILE = "tests/sim/npc/pursuit.oracle.test.ts";
 const FILES = fixtureFilesFor(THIS_FILE);
 
-/**
- * Flee fixtures that branch into an evasive behaviour: the evasive behaviours
- * arrive with this plan's Task 3, which empties this set.
- */
-const DEFERRED: ReadonlySet<string> = new Set([
-  "flee-accuracy-2-aspect-above-0-9995-takes-evasive-action",
-  "flee-accuracy-2-aspect-above-0-9995-takes-flee-evasive-action",
-]);
-
 const ran: string[] = [];
 
 for (const file of FILES) {
   describe(file, () => {
     for (const fixture of fixturesIn(file)) {
-      if (DEFERRED.has(fixture.id)) continue;
       it(fixture.id, () => {
         ran.push(fixture.id);
         const result = runFixture(fixture, emptyHooks());
@@ -64,9 +54,7 @@ describe("the manifest entry", () => {
   it("runs exactly the fixtures of its files", () => {
     const expected: string[] = [];
     for (const file of FILES) {
-      for (const fixture of fixturesIn(file)) {
-        if (!DEFERRED.has(fixture.id)) expected.push(fixture.id);
-      }
+      for (const fixture of fixturesIn(file)) expected.push(fixture.id);
     }
     expect(expected.length).toBeGreaterThan(0);
     expect([...ran].sort()).toEqual(expected.sort());

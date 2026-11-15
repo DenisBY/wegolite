@@ -120,6 +120,9 @@ const PORTED: readonly { file: string; from: number; to: number }[] = [
   { file: "src/Core/Entities/ShipEntity.m", from: 4840, to: 4901 }, // behaviour_flee_target
   { file: "src/Core/Entities/ShipEntity.m", from: 8980, to: 9001 }, // setEvasiveJink
   { file: "src/Core/Entities/ShipEntityAI.m", from: 379, to: 392 }, // performFlee
+  // plan 14-13, task 3: evasive action
+  { file: "src/Core/Entities/ShipEntity.m", from: 3996, to: 4036 }, // behaviour_evasive_action
+  { file: "src/Core/Entities/ShipEntity.m", from: 9003, to: 9032 }, // evasiveAction
 ];
 
 /**

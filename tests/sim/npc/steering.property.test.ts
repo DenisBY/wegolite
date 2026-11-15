@@ -99,11 +99,19 @@ const NAVIGATION: readonly BehaviourId[] = [
  */
 const PURSUIT: readonly BehaviourId[] = ["INTERCEPT_TARGET"];
 
+/** Flee and the two evasive behaviours it can switch into (plan 14-13). */
+const FLIGHT: readonly BehaviourId[] = [
+  "FLEE_TARGET",
+  "EVASIVE_ACTION",
+  "FLEE_EVASIVE_ACTION",
+];
+
 /** The behaviours the property sweeps. Later plans add their ids. */
 const SWEPT_BEHAVIOURS: readonly BehaviourId[] = [
   ...IDLE_FAMILY,
   ...NAVIGATION,
   ...PURSUIT,
+  ...FLIGHT,
   ...OUT_OF_SCOPE,
 ];
 
@@ -406,6 +414,9 @@ describe("steering is total over domain-valid records (T-14-14)", () => {
   it("an accuracy still unresolved is drawn once and lands in range", () => {
     fc.assert(
       fc.property(scenario, (s) => {
+        // flee and evasive action draw for their jink (plan 14-13; counted in
+        // their own tests below)
+        fc.pre(!FLIGHT.includes(s.nav.behaviour));
         const entity = buildEntity({
           ...s,
           record: { ...s.record, accuracy: ACCURACY_UNRESOLVED },
@@ -790,11 +801,80 @@ describe("INTERCEPT_TARGET is total with degenerate target poses (plan 14-12)", 
   }, 120_000);
 });
 
+describe("flee and evasive action are total with degenerate target poses (plan 14-13)", () => {
+  it("covers the three ids, each a known behaviour id", () => {
+    for (const id of FLIGHT) {
+      expect(BEHAVIOUR_IDS).toContain(id);
+      expect(SWEPT_BEHAVIOURS).toContain(id);
+    }
+  });
+
+  it("never throws, keeps the aim point finite and leaves the sanitiser nothing to repair", () => {
+    targetTotality(FLIGHT);
+  }, 120_000);
+
+  it("a range of exactly 0 counts as safety and a negative range does not (ShipEntity.m:4855)", () => {
+    // Radii 100 + 50, the target 150 m ahead: range exactly 0 (touching); at
+    // 100 m the radii overlap and the range is -50.
+    const run = (distance: number): number => {
+      const result = spawnEntity(
+        createWorld(3),
+        {
+          kind: "ship",
+          specKey: "sweep",
+          scanClass: "CLASS_NEUTRAL",
+          position: vec(0, 0, 0),
+          orientation: identity(),
+          radius: 100,
+        },
+        0,
+      );
+      if (!result.ok) throw new Error("spawn refused");
+      const entity = result.entity;
+      entity.steer.accuracy = 2;
+      entity.nav.behaviour = "FLEE_TARGET";
+      entity.nav.targetId = TARGET_ID;
+      entity.nav.desiredRange = 100;
+      entity.nav.desiredSpeed = 7;
+      const bodies: RunnerBody[] = [
+        {
+          id: TARGET_ID,
+          kind: "ship",
+          scanClass: "CLASS_NEUTRAL",
+          radius: 50,
+          mass: 0,
+          position: vec(0, 0, -distance),
+          orientation: identity(),
+          speed: 0,
+          behaviour: "IDLE",
+          targetId: 0,
+        },
+      ];
+      const stream = createRngState(5);
+      steerShip(entity, {
+        view: createSyntheticView(bodies, entity, 1),
+        stats: STOCK,
+        dt: DT,
+        draw: () => rngNext(stream),
+        emit: () => {},
+      });
+      expect(entity.repairs).toBe(0);
+      return entity.nav.desiredSpeed;
+    };
+    expect(run(150)).toBe(7); // range 0: safety, the desired speed is left alone
+    expect(run(100)).toBe(160); // range -50 <= desired range 100: run at full speed
+  });
+});
+
 describe("a forced proximity alert keeps steering total (plan 14-13)", () => {
   const ALERT_ID = 103;
-  const ALERTED: readonly BehaviourId[] = [...NAVIGATION, ...PURSUIT];
+  const ALERTED: readonly BehaviourId[] = [
+    ...NAVIGATION,
+    ...PURSUIT,
+    ...FLIGHT,
+  ];
 
-  it("covers every navigation id and intercept, each swept", () => {
+  it("covers every navigation id, intercept and flee, each swept", () => {
     for (const id of ALERTED) expect(SWEPT_BEHAVIOURS).toContain(id);
   });
 
