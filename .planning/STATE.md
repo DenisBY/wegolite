@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
-stopped_at: Completed 14-09-PLAN.md
-last_updated: "2026-11-15T20:25:33.403Z"
+stopped_at: Completed 14-10-PLAN.md
+last_updated: "2026-11-15T20:42:05.229Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: 036511d0256a4180ce93c34101ccad603f83b56d
+state_head: 3db5cf72d96b934c38c158805aa9478719464400
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 25
+  completed_plans: 26
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 10 of 19
+Plan: 11 of 19
 Status: Ready to execute
 Last activity: 2026-11-15 — Phase 14 execution started
 
@@ -179,6 +179,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 14 P07 | 14 min | 2 tasks | 9 files |
 | Phase 14 P08 | 100min | 2 tasks | 13 files |
 | Phase 14 P09 | 23 min | 3 tasks | 15 files |
+| Phase 14 P10 | 36min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -445,6 +446,8 @@ Recent decisions affecting current work:
 - [Phase 14]: Plan 14-08: hash the steering record as one always-present last ;steer: segment (owner-chosen option-append, 2026-11-15); WORLD_SNAPSHOT_VERSION 3; inert golden regenerated once (ab72eedf to c1068643); record field set frozen
 - [Phase 14]: 14-09: NPC attitude composition is q * Rx(-pitch dt) * Rz(roll dt) in Wegolite's frame (Oolite inverse-convention quaternion, z mirror); positive flightPitch tips the nose toward -Y, positive flightRoll leans up toward -X; the oracle attitude fixtures and a physical test pin it
 - [Phase 14]: 14-09: the oracle runner's view.tick is k during update k; plan 14-12's tracking-curve gate must use that clock; AI_EVENT_NAMES still lacks shipNowFacingDestination and shipAIFrustrated (plan 14-11 adds them)
+- [Phase 14]: 14-10: fly-to's frustration report floors the counter at 0 (Wegolite addition; Oolite's counter can go negative, the steering record's domain is 0 to MAX_FRUSTRATION)
+- [Phase 14]: 14-10: the d_forward clamp into [-1, 1] in trackDestination is a labelled Wegolite addition (T-14-16); rangeToDestination and noteFrustration live in track.ts
 
 ### Pending Todos
 
@@ -546,8 +549,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T20:25:33.149Z
-Stopped at: Completed 14-09-PLAN.md
+Last session: 2026-11-15T20:42:04.974Z
+Stopped at: Completed 14-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
