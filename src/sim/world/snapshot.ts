@@ -302,7 +302,7 @@ function snapshotEntity(entity: Entity): EntitySnapshot {
  * The plain JSON-safe snapshot of `world`: deep copies only, so mutating the
  * result never reaches the live world. Throws a `SnapshotError` with reason
  * "uncommitted" for a killed but uncommitted entity, "queue-not-empty" for an
- * undrained AI event and "non-finite" for a NaN or infinite number anywhere in
+ * undrained AI event or fire request and "non-finite" for a NaN or infinite number anywhere in
  * the world or its entities; nothing is returned in those cases, so no JSON
  * with a null in a number slot is ever produced.
  */
@@ -319,6 +319,12 @@ export function snapshotWorld(world: World): WorldSnapshot {
     throw new SnapshotError(
       "queue-not-empty",
       `${String(world.aiQueue.length)} AI event(s) are not drained`,
+    );
+  }
+  if (world.fireQueue.length > 0) {
+    throw new SnapshotError(
+      "queue-not-empty",
+      `${String(world.fireQueue.length)} fire request(s) are not resolved`,
     );
   }
   requireFinite(world.worldSeed, "worldSeed");

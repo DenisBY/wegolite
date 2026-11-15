@@ -797,6 +797,14 @@ describe("snapshotWorld refusals", () => {
     expect(reasonOfSnapshot(world)).toBe("ok");
   });
 
+  it("refuses an unresolved fire request", () => {
+    const world = richWorld();
+    world.fireQueue.push(101);
+    expect(reasonOfSnapshot(world)).toBe("queue-not-empty");
+    world.fireQueue.length = 0;
+    expect(reasonOfSnapshot(world)).toBe("ok");
+  });
+
   const POISON: readonly (readonly [string, (world: World) => void])[] = [
     [
       "position.x NaN",

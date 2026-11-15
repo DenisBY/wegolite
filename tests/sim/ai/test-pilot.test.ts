@@ -379,6 +379,74 @@ describe("hold", () => {
   });
 });
 
+describe("fire mode (CBT-07)", () => {
+  function holdingWith(
+    options: Parameters<typeof createTestPilotAi>[1],
+    targetId: EntityId,
+  ): AiComponent {
+    const ai = createTestPilotAi(1000, options);
+    ai.params.phase = "hold";
+    ai.params.targetId = targetId;
+    return ai;
+  }
+
+  it("calls ctl.fire(self) on a think in the hold phase while the target is valid", () => {
+    const spec = newSpec();
+    const ai = holdingWith({ fire: true }, NEAR_ID);
+    expect(thinkOnce(spec, ai, () => 0)).toEqual([
+      ["setDesiredSpeed", SELF, 0],
+      ["fire", SELF],
+      ["scheduleWake", SELF, 12],
+    ]);
+    expect(ai.params.fire).toBe(true);
+  });
+
+  it("fires on every think while it holds", () => {
+    const spec = newSpec();
+    const ai = holdingWith({ fire: true }, NEAR_ID);
+    for (let i = 0; i < 5; i += 1) {
+      const calls = thinkOnce(spec, ai, () => 0);
+      expect(calls.filter(([name]) => name === "fire")).toEqual([
+        ["fire", SELF],
+      ]);
+    }
+  });
+
+  it("does not fire when the target is no longer valid", () => {
+    const spec = newSpec({ valid: new Set() });
+    const ai = holdingWith({ fire: true }, NEAR_ID);
+    const calls = thinkOnce(spec, ai, () => 0);
+    expect(calls.some(([name]) => name === "fire")).toBe(false);
+    expect(ai.params.phase).toBe("seek");
+  });
+
+  it("does not fire while it is still seeking", () => {
+    const spec = newSpec();
+    const ai = createTestPilotAi(spec.tick, { fire: true });
+    const calls = thinkOnce(spec, ai, () => 0);
+    expect(calls.some(([name]) => name === "fire")).toBe(false);
+  });
+
+  it("never fires without the option, and keeps the param set it had before", () => {
+    const spec = newSpec();
+    expect(createTestPilotAi(1000).params).toEqual({
+      phase: "seek",
+      targetId: 0,
+      scanRange: 25_600,
+      holdRange: 1_000,
+      cruiseSpeed: 100,
+    });
+    expect(createTestPilotAi(1000, { fire: false }).params).not.toHaveProperty(
+      "fire",
+    );
+    const ai = holdingWith({}, NEAR_ID);
+    for (let i = 0; i < 3; i += 1) {
+      const calls = thinkOnce(spec, ai, () => 0);
+      expect(calls.some(([name]) => name === "fire")).toBe(false);
+    }
+  });
+});
+
 describe("randomness and the wake", () => {
   it("schedules a wake of ticks(0.1) for a draw of 0 and ticks(0.1 + 0.999 * 1.5) for 0.999", () => {
     const wakeFor = (draw: number): unknown => {

@@ -7,7 +7,8 @@
  * its own `AiComponent`, and draws randomness only from the stream passed in its
  * context. The populator never spawns it: it is reachable only through
  * `AI_REGISTRY` and test code. Phase 13 reuses it as the shooter for the shared
- * hit rule.
+ * hit rule: a pilot created with `fire: true` calls `ShipControl.fire` on every
+ * think of the hold phase while its target is valid.
  *
  * `scanRange`, `holdRange` and `cruiseSpeed` are test-pilot parameters, not
  * Oolite ship data.
@@ -39,6 +40,8 @@ export function createTestPilotAi(
     scanRange?: number;
     holdRange?: number;
     cruiseSpeed?: number;
+    /** Fire the forward weapon on every think of the hold phase (CBT-07). */
+    fire?: boolean;
   } = {},
 ): AiComponent {
   return {
@@ -49,6 +52,9 @@ export function createTestPilotAi(
       scanRange: options.scanRange ?? DEFAULT_SCAN_RANGE,
       holdRange: options.holdRange ?? DEFAULT_HOLD_RANGE,
       cruiseSpeed: options.cruiseSpeed ?? DEFAULT_CRUISE_SPEED,
+      // Present only when asked for, so a pilot that never fires keeps the
+      // param set (and the hash) it had before Phase 13.
+      ...(options.fire === true ? { fire: true } : {}),
     },
     wakeTick: 0,
     nextThinkTick: tick,
@@ -106,6 +112,9 @@ function hold(ctx: AiContext): void {
     return;
   }
   ctl.setDesiredSpeed(self, 0);
+  // The same command the player's fire key becomes: the shot is queued and the
+  // world resolves it by the shared hit rule (CBT-07).
+  if (ai.params.fire === true) ctl.fire(self);
 }
 
 function think(ctx: AiContext): void {

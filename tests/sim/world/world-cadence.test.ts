@@ -30,6 +30,9 @@ import { describe, expect, it } from "vitest";
 
 import type { System } from "../../../src/content/types.js";
 import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
+import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
+import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
+import type { PlayerCombatState } from "../../../src/sim/combat/state.js";
 import {
   applyWitchpointArrival,
   drawWitchpointExit,
@@ -48,6 +51,7 @@ import type { FlightState } from "../../../src/sim/flight/state.js";
 import type { StepOptions } from "../../../src/sim/flight/step.js";
 import { clampFrameDelta } from "../../../src/sim/loop.js";
 import { identity, vec } from "../../../src/sim/math.js";
+import { PLAYER_ID } from "../../../src/sim/world/ids.js";
 import { NEW_GAME_FUEL } from "../../../src/sim/player/profile.js";
 import { worldSeedFor } from "../../../src/sim/rng.js";
 import { stepSim } from "../../../src/sim/sim.js";
@@ -61,7 +65,9 @@ import {
   spawnEntity,
 } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
+import { realHullTable } from "../../helpers/hull-table.js";
 import { LAVE_SYSTEM_ID, laveFixture } from "../../helpers/lave.js";
+import { realNpcWeapons } from "../../helpers/npc-weapons.js";
 
 const LEESTI_SYSTEM_ID = "g0-s55";
 const fixture = laveFixture();
@@ -355,5 +361,226 @@ describe("world cross-cadence determinism", () => {
     for (const hz of [30, 60, 144]) {
       expect((logs.get(hz) as Log).jumpStepLeftOldWorldAlone).toBe(true);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Combat (CBT-06, CBT-07): the player holds fire on an Adder while a firing test
+// pilot shoots the player from behind. The hash includes the combat state.
+// ---------------------------------------------------------------------------
+
+const COMBAT_FAR = vec(1e7, 0, 0);
+/** The tick the world is created and the player starts holding fire. */
+const COMBAT_START_TICK = 2;
+/** Six simulated seconds of combat: the aft shield falls and the bank starts to drain. */
+const COMBAT_STEPS = 720;
+const COMBAT_SAMPLE_EVERY = 30;
+
+const HULLS = realHullTable();
+const NPC_WEAPONS = realNpcWeapons();
+
+interface CombatLog {
+  readonly samples: Map<number, string>;
+  endTick: number;
+  playerShots: number;
+  pilotShots: number;
+  /** `shipHit` events by what they struck and whether the shield took it all. */
+  playerShieldHits: number;
+  playerEnergyHits: number;
+  adderHits: number;
+  refusals: number;
+  final: { fwd: number; aft: number; energy: number; cabin: number };
+}
+
+class CombatScenario {
+  readonly state: FlightState = initFlightState(fixture.layout);
+  readonly combat: PlayerCombatState = createPlayerCombatState();
+  readonly log: CombatLog = {
+    samples: new Map(),
+    endTick: -1,
+    playerShots: 0,
+    pilotShots: 0,
+    playerShieldHits: 0,
+    playerEnergyHits: 0,
+    adderHits: 0,
+    refusals: 0,
+    final: { fwd: 0, aft: 0, energy: 0, cabin: 0 },
+  };
+  done = false;
+  private world: World | undefined;
+  private adderId = -1;
+
+  private readonly options: StepOptions = {
+    combat: {
+      mounts: DEFAULT_LASER_MOUNTS,
+      hulls: HULLS,
+      npcWeapons: NPC_WEAPONS,
+    },
+  };
+
+  private spawn(
+    specKey: string,
+    offsetZ: number,
+    maxEnergy: number,
+    energyRechargeRate: number,
+    ai?: ReturnType<typeof createTestPilotAi>,
+  ): number {
+    const result = spawnEntity(
+      this.world as World,
+      {
+        kind: "ship",
+        specKey,
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(COMBAT_FAR.x, COMBAT_FAR.y, COMBAT_FAR.z + offsetZ),
+        orientation: identity(),
+        radius: 40,
+        speed: 0,
+        maxEnergy,
+        energyRechargeRate,
+        ...(ai === undefined ? {} : { ai }),
+      },
+      this.state.tick,
+    );
+    if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+    return result.entity.id;
+  }
+
+  step(): void {
+    const { state, combat } = this;
+    const tick = state.tick;
+    if (tick === COMBAT_START_TICK) {
+      state.position = COMBAT_FAR;
+      state.orientation = identity();
+      state.speed = 0;
+      this.world = createWorld(4242);
+      this.adderId = this.spawn("adder", -2000, 85, 2);
+      // Behind the player, nose toward it, holding at once and firing back.
+      this.spawn(
+        "viper",
+        1500,
+        180,
+        4,
+        createTestPilotAi(tick, {
+          scanRange: 1e9,
+          holdRange: 5000,
+          cruiseSpeed: 150,
+          fire: true,
+        }),
+      );
+    }
+    const commands: Command[] =
+      tick === 0
+        ? [{ kind: "launch" }]
+        : tick === 1
+          ? [{ kind: "skipLaunch" }]
+          : [];
+    const intent =
+      tick >= COMBAT_START_TICK ? { ...ZERO_INTENT, fire: true } : ZERO_INTENT;
+    const events = stepSim(
+      state,
+      this.world,
+      fixture.layout,
+      config,
+      intent,
+      commands,
+      DT,
+      this.options,
+      combat,
+    );
+    for (const event of events) {
+      if (event.kind === "laserFired") {
+        if (event.shooter === PLAYER_ID) this.log.playerShots += 1;
+        else this.log.pilotShots += 1;
+      } else if (event.kind === "shipHit") {
+        if (event.target === PLAYER_ID) {
+          if (event.shield) this.log.playerShieldHits += 1;
+          else this.log.playerEnergyHits += 1;
+        } else if (event.target === this.adderId) {
+          this.log.adderHits += 1;
+        }
+      } else if (event.kind === "laserRefused") {
+        this.log.refusals += 1;
+      }
+    }
+    if (this.world !== undefined && state.tick % COMBAT_SAMPLE_EVERY === 0) {
+      this.log.samples.set(state.tick, hashWorld(state, this.world, combat));
+    }
+    if (state.tick >= COMBAT_START_TICK + COMBAT_STEPS) {
+      this.log.endTick = state.tick;
+      if (this.world !== undefined) {
+        this.log.samples.set(state.tick, hashWorld(state, this.world, combat));
+      }
+      this.log.final = {
+        fwd: combat.fwdShield,
+        aft: combat.aftShield,
+        energy: combat.energy,
+        cabin: combat.cabinTemp,
+      };
+      this.done = true;
+    }
+  }
+}
+
+/** The frame runner above, driving the combat scenario. */
+function replayCombat(hz: number): CombatLog {
+  const scenario = new CombatScenario();
+  let accumulator = 0;
+  for (let frame = 0; !scenario.done; frame += 1) {
+    if (frame > 200_000) {
+      throw new Error(`combat cadence ${String(hz)} never finished`);
+    }
+    accumulator += clampFrameDelta(1 / hz);
+    let stepsThisFrame = 0;
+    while (
+      accumulator >= DT &&
+      stepsThisFrame < MAX_STEPS_PER_FRAME &&
+      !scenario.done
+    ) {
+      scenario.step();
+      accumulator -= DT;
+      stepsThisFrame += 1;
+    }
+    if (stepsThisFrame === MAX_STEPS_PER_FRAME) accumulator = 0;
+  }
+  return scenario.log;
+}
+
+const combatLogs = new Map<number, CombatLog>(
+  CADENCES.map((hz) => [hz, replayCombat(hz)]),
+);
+const combatReference = combatLogs.get(60) as CombatLog;
+
+describe("combat cross-cadence determinism (CBT-06, CBT-07)", () => {
+  it("hashes the world and the combat state identically at 30, 60 and 144 Hz", () => {
+    const entries = (log: CombatLog): [number, string][] =>
+      [...log.samples.entries()].sort((a, b) => a[0] - b[0]);
+    for (const hz of CADENCES) {
+      const log = combatLogs.get(hz) as CombatLog;
+      expect(entries(log)).toEqual(entries(combatReference));
+      expect(log.final).toEqual(combatReference.final);
+      expect(log.endTick).toBe(combatReference.endTick);
+    }
+  });
+
+  it("tallies the same shots, hits and refusals at every cadence", () => {
+    for (const hz of CADENCES) {
+      const log = combatLogs.get(hz) as CombatLog;
+      expect({ ...log, samples: undefined }).toEqual({
+        ...combatReference,
+        samples: undefined,
+      });
+    }
+  });
+
+  it("is not vacuous: both sides shoot, shields fall and then energy drains", () => {
+    expect(combatReference.samples.size).toBeGreaterThan(10);
+    expect(combatReference.playerShots).toBeGreaterThan(3);
+    expect(combatReference.pilotShots).toBeGreaterThan(10);
+    expect(combatReference.adderHits).toBeGreaterThan(3);
+    expect(combatReference.playerShieldHits).toBeGreaterThan(5);
+    expect(combatReference.playerEnergyHits).toBeGreaterThan(0);
+    expect(combatReference.final.aft).toBeLessThan(2);
+    expect(combatReference.final.energy).toBeLessThan(256);
+    expect(combatReference.final.cabin).toBeGreaterThan(60);
   });
 });

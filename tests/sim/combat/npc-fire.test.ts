@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
 import type { NpcWeapon } from "../../../src/sim/combat/aim.js";
 import { PLAYER_HULL_KEY } from "../../../src/sim/combat/aim.js";
 import { LASER_STATS } from "../../../src/sim/combat/constants.js";
@@ -30,9 +31,10 @@ import { identity, vec } from "../../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
+import type { SpawnInit } from "../../../src/sim/world/entity.js";
 import { createShipControl } from "../../../src/sim/world/control-impl.js";
 import { PLAYER_ID } from "../../../src/sim/world/ids.js";
-import { hashWorld } from "../../../src/sim/world/serialize.js";
+import { entityHashes, hashWorld } from "../../../src/sim/world/serialize.js";
 import { snapshotWorld } from "../../../src/sim/world/snapshot.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
@@ -95,6 +97,7 @@ function spawnShip(
   specKey: string,
   position: Vec3,
   orientation: Quat,
+  extra: Partial<SpawnInit> = {},
 ): number {
   const result = spawnEntity(
     world,
@@ -106,6 +109,7 @@ function spawnShip(
       orientation,
       radius: 30,
       maxEnergy: specKey === "adder" ? 85 : 180,
+      ...extra,
     },
     0,
   );
@@ -508,5 +512,147 @@ describe("the fire queue never reaches a snapshot or a hash", () => {
       expect(world.fireQueue).toEqual([]);
     }
     expect(() => snapshotWorld(world)).not.toThrow();
+  });
+});
+
+describe("a scripted test pilot is a working shooter (CBT-07)", () => {
+  it("fires through its own think and hits the player by the shared rule", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const ai = createTestPilotAi(0, { fire: true, holdRange: 5000 });
+    ai.params.phase = "hold";
+    ai.params.targetId = PLAYER_ID;
+    const viper = spawnShip(
+      world,
+      "viper",
+      vec(FAR.x, FAR.y, FAR.z - 1500),
+      FACING_PLUS_Z,
+      { ai },
+    );
+
+    const events = step(player, world, combat);
+
+    expect(ofKind(events, "laserFired").map((e) => e.shooter)).toEqual([viper]);
+    expect(ofKind(events, "shipHit")).toEqual([
+      {
+        kind: "shipHit",
+        target: PLAYER_ID,
+        source: viper,
+        amount: BEAM_DAMAGE,
+        shield: true,
+      },
+    ]);
+    expect(combat.fwdShield).toBe(128 - BEAM_DAMAGE);
+    expect(world.fireQueue).toEqual([]);
+  });
+
+  it("a pilot without the fire option never shoots", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const ai = createTestPilotAi(0, { holdRange: 5000 });
+    ai.params.phase = "hold";
+    ai.params.targetId = PLAYER_ID;
+    spawnShip(world, "viper", vec(FAR.x, FAR.y, FAR.z - 1500), FACING_PLUS_Z, {
+      ai,
+    });
+
+    const events = step(player, world, combat);
+
+    expect(ofKind(events, "laserFired")).toEqual([]);
+    expect(combat.fwdShield).toBe(128);
+  });
+});
+
+describe("NPC energy recharge (N1, ShipEntity.m:2414-2422)", () => {
+  /** An Adder at 70 of 85 energy with the record's rate 2, far from everything. */
+  function hurtAdder(world: World): number {
+    const id = spawnShip(
+      world,
+      "adder",
+      vec(FAR.x + 50_000, 0, 0),
+      identity(),
+      { energyRechargeRate: 2 },
+    );
+    const entity = world.store.get(id);
+    if (entity === undefined) throw new Error("no adder");
+    entity.energy = 70;
+    return id;
+  }
+
+  it("is back to 85 after 7.5 simulated seconds and never exceeds it", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const adder = hurtAdder(world);
+
+    for (let i = 0; i < 900; i += 1) step(player, world, combat);
+    // 900 ticks of 2 / 120 is 15 points, up to float accumulation.
+    expect(energyOf(world, adder)).toBeGreaterThan(85 - 1e-6);
+    expect(energyOf(world, adder)).toBeLessThanOrEqual(85);
+
+    for (let i = 0; i < 60; i += 1) {
+      step(player, world, combat);
+      expect(energyOf(world, adder)).toBeLessThanOrEqual(85);
+    }
+    expect(energyOf(world, adder)).toBe(85);
+  });
+
+  it("gains rate times dt on each stepped tick", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    const adder = hurtAdder(world);
+    step(player, world, createPlayerCombatState());
+    expect(energyOf(world, adder)).toBeCloseTo(70 + 2 * DT, 12);
+  });
+
+  it("recharges before this tick's hit lands", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    const viper = spawnShip(
+      world,
+      "viper",
+      vec(FAR.x + 50_000, 0, 0),
+      identity(),
+    );
+    const adder = spawnShip(
+      world,
+      "adder",
+      vec(FAR.x + 50_000, 0, -1500),
+      identity(),
+      { energyRechargeRate: 2 },
+    );
+    const entity = world.store.get(adder);
+    if (entity === undefined) throw new Error("no adder");
+    entity.energy = 70;
+    fireFrom(world, viper);
+
+    step(player, world, createPlayerCombatState());
+
+    expect(energyOf(world, adder)).toBeCloseTo(70 + 2 * DT - BEAM_DAMAGE, 12);
+  });
+
+  it("does not recharge in a tick where the world was not stepped", () => {
+    const docked = initFlightState(layout);
+    const world = createWorld(7);
+    const adder = hurtAdder(world);
+    for (let i = 0; i < 10; i += 1) step(docked, world, undefined);
+    expect(energyOf(world, adder)).toBe(70);
+  });
+
+  it("leaves a full bank exactly as it was", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    const adder = spawnShip(
+      world,
+      "adder",
+      vec(FAR.x + 50_000, 0, 0),
+      identity(),
+    );
+    const before = JSON.stringify(entityHashes(world));
+    for (let i = 0; i < 20; i += 1) step(player, world, undefined);
+    expect(energyOf(world, adder)).toBe(85);
+    expect(JSON.stringify(entityHashes(world))).toBe(before);
   });
 });
