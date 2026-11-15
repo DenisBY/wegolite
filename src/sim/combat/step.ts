@@ -25,17 +25,19 @@ import type { Command } from "../commands.js";
 import type { ControlIntent } from "../flight/controller.js";
 import type { FlightState } from "../flight/state.js";
 import type { StepOptions } from "../flight/step.js";
-import { add, scale } from "../math.js";
+import { add, rotate, scale, sub, vec } from "../math.js";
+import type { Vec3 } from "../math.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
 import type { World } from "../world/world.js";
-import { playerLaserRay } from "./aim.js";
+import { PLAYER_HULL_KEY, npcLaserRay, playerLaserRay } from "./aim.js";
+import type { NpcWeapon } from "./aim.js";
 import { LASER_STATS } from "./constants.js";
 import { firstShipHit } from "./hit.js";
 import type { HitTarget, HullTable, LaserRay } from "./hit.js";
-import { DEFAULT_LASER_MOUNTS, isFacing } from "./mounts.js";
+import { DEFAULT_LASER_MOUNTS, NO_LASER, isFacing } from "./mounts.js";
 import type { LaserKey, LaserMounts } from "./mounts.js";
-import { rechargeEnergyAndShields, coolCabin } from "./shields.js";
+import { coolCabin, rechargeEnergyAndShields, routeDamage } from "./shields.js";
 import { dockReset, launchReset, sanitizeCombat } from "./state.js";
 import type { PlayerCombatState } from "./state.js";
 import { applyShot, coolWeapons, fireGate } from "./weapons.js";
@@ -53,6 +55,12 @@ export interface CombatOptions {
    * fired in that state is drawn but cannot hit.
    */
   readonly hulls?: HullTable;
+  /**
+   * The forward weapon of each NPC hull, keyed by spec key (compiled from
+   * `ships-npc.json`). A ship whose key has no entry, or whose laser is
+   * `EQ_WEAPON_NONE`, cannot fire through `ShipControl.fire`.
+   */
+  readonly npcWeapons?: ReadonlyMap<string, NpcWeapon>;
 }
 
 /** One shot queued for resolution after the world step. */
@@ -67,6 +75,8 @@ export interface HitRecord {
   readonly target: EntityId;
   readonly source: EntityId;
   readonly amount: number;
+  /** Where the shooter was, which decides the shield a hit on the player drains. */
+  readonly sourcePosition: Vec3;
 }
 
 /** What `stepPlayerCombat` produced for this tick. */
@@ -162,38 +172,109 @@ function byShooter(a: ShotRequest, b: ShotRequest): number {
   return a.shooter - b.shooter;
 }
 
+/** Local forward (-Z) in ship space, the player's nose. */
+const LOCAL_FORWARD = vec(0, 0, -1);
+
+/**
+ * Drain `world.fireQueue` into shot requests (CBT-07, Pitfall 19). The queue is
+ * copied, sorted by an explicit numeric comparator and cleared, so it is empty
+ * at the tick boundary whatever happens next. A shooter that is gone or dead,
+ * that is not a ship, or whose spec key has no usable forward weapon is
+ * skipped; so is every entry when the world was not stepped this tick. An NPC
+ * shot has no heat, timer or energy cost (RESEARCH A7: autonomous fire and NPC
+ * weapon bookkeeping are CBT-15).
+ */
+function drainFireQueue(
+  world: World,
+  worldStepped: boolean,
+  options: StepOptions | undefined,
+): ShotRequest[] {
+  const queued = [...world.fireQueue].sort((a, b) => a - b);
+  world.fireQueue.length = 0;
+  const shots: ShotRequest[] = [];
+  if (!worldStepped) return shots;
+  const weapons = options?.combat?.npcWeapons;
+  if (weapons === undefined) return shots;
+  for (const id of queued) {
+    const shooter = world.store.get(id);
+    if (shooter === undefined || shooter.dead || shooter.kind !== "ship") {
+      continue;
+    }
+    const weapon = weapons.get(shooter.specKey);
+    if (weapon === undefined || weapon.laser === NO_LASER) continue;
+    const ray = npcLaserRay(shooter, weapon);
+    if (ray === null) continue;
+    shots.push({ shooter: id, ray, laser: weapon.laser });
+  }
+  return shots;
+}
+
+/**
+ * Recharge every live ship's energy bank at its record's rate, up to its
+ * maximum (N1, `ShipEntity.m:2414-2422`). Runs before this tick's hits apply, so
+ * a hit always lands on a bank that has already had its tick of recharge.
+ */
+function rechargeShips(world: World, dt: number): void {
+  for (const entity of world.store.live) {
+    if (entity.dead || entity.kind !== "ship") continue;
+    if (!(entity.energy < entity.maxEnergy)) continue;
+    entity.energy = Math.min(
+      entity.maxEnergy,
+      entity.energy + entity.energyRechargeRate * dt,
+    );
+  }
+}
+
 /**
  * Resolve the tick's shots, after `stepWorld`.
  *
- * Every shot, in ascending shooter id, draws a `laserFired` event from the ray's
- * origin to the first hit's distance (or the laser's full range on a miss) and
- * queues a `HitRecord` when `firstShipHit` finds a ship. The candidates are the
- * live, non-dead dynamic ships of the world, in ascending id: the station and
- * the buoys are static entities and never hit candidates in this milestone (OQ4,
- * F10). They are listed only when the world was stepped this tick, so a tick
+ * The shots are the player's (queued by `stepPlayerCombat`) and every NPC's that
+ * asked `ShipControl.fire` during the world step (`world.fireQueue`, drained
+ * here). Every shot, in ascending shooter id, draws a `laserFired` event from the
+ * ray's origin to the first hit's distance (or the laser's full range on a miss)
+ * and queues a `HitRecord` when `firstShipHit` finds a ship. The candidates are
+ * the live, non-dead dynamic ships of the world, in ascending id, plus the
+ * player (id 100, the Cobra's hull) when a combat state is passed and the player
+ * is launching or in flight; a shooter is never its own candidate. The station
+ * and the buoys are static entities and never candidates in this milestone (OQ4,
+ * F10). Ships are listed only when the world was stepped this tick, so a tick
  * that skipped the world (the jump step, or no world at all) draws the beam and
- * hits nothing. After every shot is resolved the hits are applied in queue
- * order: an NPC target loses the laser's damage from its energy, floored at 0
- * (N2: nothing is destroyed this milestone), and a `shipHit` event with
- * `shield: false` is emitted. A non-finite or non-positive amount is never
- * queued (T-13-15).
- *
- * `_player` and `_combat` are part of the call shape so the plan that routes
- * NPC fire onto the player (13-10) extends this function without changing its
- * callers.
+ * hits nothing. Before any hit applies, every live ship recharges its energy
+ * bank (N1). Then the hits are applied in queue order: an NPC target loses the
+ * laser's damage from its energy, floored at 0 (N2: nothing is destroyed this
+ * milestone) and `shipHit` carries `shield: false`; a hit on the player goes
+ * through `routeDamage` (the facing shield first, then energy, heating the
+ * cabin) and `shipHit` carries `shield` true when the shield took all of it. A
+ * non-finite or non-positive amount is never queued (T-13-15).
  */
 export function resolveShots(
   world: World | undefined,
   worldStepped: boolean,
-  _player: FlightState,
-  _combat: PlayerCombatState | undefined,
+  player: FlightState,
+  combat: PlayerCombatState | undefined,
   shots: readonly ShotRequest[],
   options: StepOptions | undefined,
+  dt: number,
 ): SimEvent[] {
   const events: SimEvent[] = [];
-  if (shots.length === 0) return events;
+  const npcShots =
+    world === undefined ? [] : drainFireQueue(world, worldStepped, options);
+  if (world !== undefined && worldStepped) rechargeShips(world, dt);
+  const all = [...shots, ...npcShots];
+  if (all.length === 0) return events;
 
   const targets: HitTarget[] = [];
+  if (
+    combat !== undefined &&
+    (player.mode === "launching" || player.mode === "inFlight")
+  ) {
+    targets.push({
+      id: PLAYER_ID,
+      specKey: PLAYER_HULL_KEY,
+      position: player.position,
+      orientation: player.orientation,
+    });
+  }
   if (world !== undefined && worldStepped) {
     for (const entity of world.store.live) {
       if (entity.dead || entity.kind !== "ship") continue;
@@ -208,8 +289,9 @@ export function resolveShots(
 
   const hulls = options?.combat?.hulls;
   const hits: HitRecord[] = [];
-  for (const shot of [...shots].sort(byShooter)) {
-    const hit = firstShipHit(shot.ray, targets, hulls);
+  for (const shot of all.sort(byShooter)) {
+    const candidates = targets.filter((target) => target.id !== shot.shooter);
+    const hit = firstShipHit(shot.ray, candidates, hulls);
     const reach = hit === null ? shot.ray.range : hit.distance;
     const stats = LASER_STATS[shot.laser];
     events.push({
@@ -224,12 +306,31 @@ export function resolveShots(
         target: hit.id,
         source: shot.shooter,
         amount: stats.damage,
+        sourcePosition:
+          world?.store.get(shot.shooter)?.position ?? shot.ray.origin,
       });
     }
   }
 
-  if (world === undefined) return events;
   for (const hit of hits) {
+    if (hit.target === PLAYER_ID) {
+      if (combat === undefined) continue;
+      const result = routeDamage(
+        combat,
+        hit.amount,
+        sub(hit.sourcePosition, player.position),
+        rotate(player.orientation, LOCAL_FORWARD),
+      );
+      events.push({
+        kind: "shipHit",
+        target: PLAYER_ID,
+        source: hit.source,
+        amount: hit.amount,
+        shield: result.shieldAbsorbed,
+      });
+      continue;
+    }
+    if (world === undefined) continue;
     const entity = world.store.get(hit.target);
     if (entity === undefined) continue;
     const before = Number.isFinite(entity.energy) ? entity.energy : 0;

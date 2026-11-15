@@ -110,6 +110,13 @@ export interface World {
    */
   aiQueue: AiEvent[];
   /**
+   * Ids of the actors that asked `ShipControl.fire` this tick, in call order,
+   * at most one entry per actor. Drained and cleared by `resolveShots` after
+   * the world step, so it is empty at every tick boundary and is never hashed
+   * or saved; `snapshotWorld` refuses a non-empty queue.
+   */
+  fireQueue: EntityId[];
+  /**
    * Well-formed AI events dropped by the pass cap, the per-drain delivery
    * budget or the queue-length cap. Hashed state; saturates at `MAX_UINT32`.
    */
@@ -139,6 +146,7 @@ export function createWorld(worldSeed: number): World {
     store: createEntityStore(),
     rng: createRngState(forkSeed(worldSeed, NO_ENTITY, "world")),
     aiQueue: [],
+    fireQueue: [],
     aiDropped: 0,
   };
 }

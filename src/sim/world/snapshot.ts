@@ -784,6 +784,7 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
     store: createEntityStore({ nextId: parsed.nextId, entities }),
     rng: createRngState(parsed.rng),
     aiQueue: [],
+    fireQueue: [],
     aiDropped: parsed.aiDropped,
   };
 }

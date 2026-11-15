@@ -198,6 +198,7 @@ function recordingControl(calls: Call[]): ShipControl {
     setDesiredSpeed: (...args) => void calls.push(["setDesiredSpeed", ...args]),
     perform: (...args) => void calls.push(["perform", ...args]),
     scheduleWake: (...args) => void calls.push(["scheduleWake", ...args]),
+    fire: (...args) => void calls.push(["fire", ...args]),
   };
 }
 

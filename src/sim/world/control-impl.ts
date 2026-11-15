@@ -21,7 +21,7 @@
 
 import type { Vec3 } from "../math.js";
 import type { Entity } from "./entity.js";
-import { BEHAVIOUR_IDS } from "./ids.js";
+import { BEHAVIOUR_IDS, MAX_ENTITIES } from "./ids.js";
 import type { BehaviourId, EntityId } from "./ids.js";
 import { MAX_ENTITY_MAGNITUDE, MAX_UINT32 } from "./limits.js";
 import type { ShipControl } from "./control.js";
@@ -107,6 +107,15 @@ export function createShipControl(
       // Oolite's never-later rule: a pending wake is only ever brought forward.
       const pending = entity.ai.wakeTick;
       entity.ai.wakeTick = pending === 0 ? wake : Math.min(pending, wake);
+    },
+    fire(id: EntityId): void {
+      const entity = actor(id);
+      if (entity === undefined) return;
+      // One shot per actor per tick (T-13-21); the queue is also bounded by
+      // MAX_ENTITIES, the most live entities a world can hold.
+      if (world.fireQueue.length >= MAX_ENTITIES) return;
+      if (world.fireQueue.includes(id)) return;
+      world.fireQueue.push(id);
     },
   };
 }

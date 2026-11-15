@@ -39,6 +39,7 @@ const CONTROL_MEMBERS: Record<keyof ShipControl, true> = {
   setDesiredSpeed: true,
   perform: true,
   scheduleWake: true,
+  fire: true,
 };
 
 function shipInit(overrides: Partial<SpawnInit> = {}): SpawnInit {
@@ -112,10 +113,12 @@ describe("actor-only writes (T-08-12)", () => {
       control.setDesiredSpeed(id, 250);
       control.perform(id, "FLY_TO_DESTINATION");
       control.scheduleWake(id, 30);
+      control.fire(id);
     }
 
     expect(other).toEqual(otherBefore);
     expect(actor).toEqual(actorBefore);
+    expect(world.fireQueue).toEqual([]);
   });
 
   it("a control for a killed, committed or never-spawned actor writes nothing", () => {
@@ -147,6 +150,55 @@ describe("actor-only writes (T-08-12)", () => {
       control.scheduleWake(id, 5);
     }
     expect(bystander).toEqual(before);
+  });
+});
+
+describe("fire (CBT-07, Pitfall 19, T-13-20, T-13-21)", () => {
+  it("queues the actor once per tick and nothing else", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    const before = structuredClone(actor);
+
+    control.fire(actor.id);
+    control.fire(actor.id);
+    expect(world.fireQueue).toEqual([actor.id]);
+    // The shot is queued, never resolved here: the entity is untouched.
+    expect(actor).toEqual(before);
+  });
+
+  it("ignores a call addressed to another entity, the player, a static or a ghost, without throwing", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const other = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+
+    for (const id of [other.id, PLAYER_ID, MAIN_STATION_ID, NO_ENTITY, 9999]) {
+      expect(() => control.fire(id)).not.toThrow();
+    }
+    expect(world.fireQueue).toEqual([]);
+  });
+
+  it("ignores a killed or committed actor", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    killEntity(world, actor.id);
+    commitWorld(world);
+    control.fire(actor.id);
+    expect(world.fireQueue).toEqual([]);
+  });
+
+  it("never holds more than one entry per actor, so the queue stays bounded by the store", () => {
+    const world = createWorld(1);
+    const ids: number[] = [];
+    for (let i = 0; i < 12; i += 1) ids.push(spawnOk(world).id);
+    for (const id of ids) {
+      const control = createShipControl(world, id, 0);
+      control.fire(id);
+      control.fire(id);
+    }
+    expect(world.fireQueue).toEqual(ids);
   });
 });
 

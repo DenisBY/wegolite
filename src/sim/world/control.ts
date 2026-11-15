@@ -30,4 +30,13 @@ export interface ShipControl {
   perform(id: EntityId, behaviour: BehaviourId): void;
   /** Ask to be woken `ticks` ticks from now; the earlier wake wins. */
   scheduleWake(id: EntityId, ticks: number): void;
+  /**
+   * Queue one shot of the actor's forward weapon (CBT-07, Pitfall 19). The shot
+   * is not resolved here: the world fire queue is drained once per tick after
+   * the world step, at the one fixed point where every shot of the tick is
+   * resolved by the same hit rule and the same damage function the player's
+   * shots use. A call for any entity but the actor, and a second call by the
+   * same actor in the same tick, are ignored.
+   */
+  fire(id: EntityId): void;
 }

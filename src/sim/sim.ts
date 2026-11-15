@@ -107,7 +107,7 @@ export function stepSim(
   }
 
   events.push(
-    ...resolveShots(world, worldStepped, player, combat, shots, options),
+    ...resolveShots(world, worldStepped, player, combat, shots, options, dt),
   );
   return events;
 }

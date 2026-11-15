@@ -22,7 +22,24 @@ import {
   toWegoliteLocal,
 } from "./constants.js";
 import type { LaserRay } from "./hit.js";
-import type { Facing, LaserKey } from "./mounts.js";
+import { NO_LASER, isMountKey } from "./mounts.js";
+import type { Facing, LaserKey, MountKey } from "./mounts.js";
+
+/**
+ * The spec key the hull table (`ships-hulls.json`) holds the player's Cobra Mk
+ * III under. An NPC's shot meets the player as a hit candidate with this key.
+ */
+export const PLAYER_HULL_KEY = "oolite_template_cobra3-player";
+
+/**
+ * An NPC's forward weapon as the app compiles it from `ships-npc.json`:
+ * `forwardWeapon` and `forwardWeaponPosition` (Oolite model frame, z toward the
+ * nose). `EQ_WEAPON_NONE` is a ship with no forward weapon.
+ */
+export interface NpcWeapon {
+  readonly laser: MountKey;
+  readonly offset: Vec3;
+}
 
 /** The three axes of a laser's frame in world space. */
 export interface LaserFrame {
@@ -81,5 +98,26 @@ export function playerLaserRay(
     right: frame.right,
     up: frame.up,
     range: LASER_STATS[laser].range,
+  };
+}
+
+/**
+ * The ray of an NPC's forward weapon (CBT-07): the same setup as the player's
+ * fore laser (`Universe.m:5584-5611`) with the record's mount offset. Returns
+ * null for a ship whose weapon is `EQ_WEAPON_NONE` or not a known laser.
+ */
+export function npcLaserRay(
+  entity: { readonly position: Vec3; readonly orientation: Quat },
+  weapon: NpcWeapon,
+): LaserRay | null {
+  if (weapon.laser === NO_LASER || !isMountKey(weapon.laser)) return null;
+  const frame = laserFrame(entity.orientation, "fore");
+  const offset = rotate(entity.orientation, toWegoliteLocal(weapon.offset));
+  return {
+    origin: add(entity.position, offset),
+    forward: frame.forward,
+    right: frame.right,
+    up: frame.up,
+    range: LASER_STATS[weapon.laser].range,
   };
 }
