@@ -78,6 +78,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ship, the other ships and a running hyperspace countdown keep going behind the
   chart, as in Oolite, and docking or arriving behind the chart closes it.
   Opened while docked, the chart behaves as before.
+- For contributors: `docker compose run --rm verify`, `verify-full` and the
+  Pages build now check the built bundle (`npm run check:dist`) for the
+  dev-only AI harness and the Oolite AI library, and fail when one is present
+  or when no build output exists.
 
 ### Fixed
 

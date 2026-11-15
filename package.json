@@ -13,6 +13,7 @@
     "preview": "vite preview --host 0.0.0.0 --port 4173 --strictPort",
     "assets:build": "tsx tools/oolite-ingest/cli.ts",
     "assets:check": "tsx tools/oolite-ingest/cli.ts --check",
+    "check:dist": "tsx tools/ai-harness/dist-check.ts dist",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.sim.json --noEmit",
     "lint": "eslint . && prettier --check .",
     "test": "vitest run --coverage",

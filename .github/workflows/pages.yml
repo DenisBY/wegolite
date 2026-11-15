@@ -34,7 +34,7 @@ jobs:
           # Build exactly the commit the gate passed, not a later `main`.
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Build the production bundle in Docker
-        run: docker compose run --rm e2e sh -lc "npm run build"
+        run: docker compose run --rm e2e sh -lc "npm run build && npm run check:dist"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

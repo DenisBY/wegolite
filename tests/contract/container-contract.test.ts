@@ -361,7 +361,7 @@ describe("FOUND-03 container-only verification", () => {
     // The exact chain is the contract: `&&` (not `;`) is what makes the first
     // failing stage short-circuit (D-03).
     expect(verify.slice(chainAt)).toBe(
-      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build:e2e && npm run test:e2e:fast",
+      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build:e2e && npm run check:dist && npm run test:e2e:fast",
     );
   });
 
@@ -374,7 +374,7 @@ describe("FOUND-03 container-only verification", () => {
     expect(verifyFull).toMatch(/command: - sh - -lc - >- npm run lint/);
     expect(chainAt).toBeGreaterThanOrEqual(0);
     expect(verifyFull.slice(chainAt)).toBe(
-      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build:e2e && npm run test:e2e && npm run test:e2e:seams",
+      "npm run lint && npm run typecheck && npm run assets:check && npm run test && npm run build:e2e && npm run check:dist && npm run test:e2e && npm run test:e2e:seams",
     );
   });
 
@@ -419,7 +419,7 @@ describe("the traffic default never reaches the deployed bundle (WORLD-16, owner
     expect(preview).not.toContain("build:e2e");
 
     const pages = read(".github/workflows/pages.yml");
-    expect(pages).toContain('npm run build"');
+    expect(pages).toContain('npm run build && npm run check:dist"');
     expect(pages).not.toContain("build:e2e");
   });
 

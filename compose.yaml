@@ -114,6 +114,7 @@ services:
         npm run assets:check &&
         npm run test &&
         npm run build:e2e &&
+        npm run check:dist &&
         npm run test:e2e:fast
 
   # Release gate (owner option B, 2026-11-08): run before a release and when
@@ -133,6 +134,7 @@ services:
         npm run assets:check &&
         npm run test &&
         npm run build:e2e &&
+        npm run check:dist &&
         npm run test:e2e &&
         npm run test:e2e:seams
 
