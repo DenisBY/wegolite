@@ -116,6 +116,28 @@ export const FORWARD_WEAPON_KEYS: Readonly<Record<string, string>> =
     WEAPON_MILITARY_LASER: "EQ_WEAPON_MILITARY_LASER",
   });
 
+/**
+ * The resolved-record keys the Phase 14 steering port assumes are absent for
+ * every compiled NPC ship (14-RESEARCH reachability analysis, Assumptions A1
+ * and A2). With none authored, Oolite's defaults apply: accuracy 0, reaction
+ * time 1.5 s, scanner range 25600 m and no aft, port or starboard weapon. The
+ * port derives which attack sub-behaviours the nine ships can reach from those
+ * defaults, so a pin bump that authors one of these keys must fail the build and
+ * needs a new decision, not a silent change in reachability.
+ *
+ * `has_fuel_injection` (the afterburner) and `missiles` are deliberately not
+ * compiled and not refused: afterburner and missiles are recorded scope cuts
+ * with no consumer in v2.2.
+ */
+export const STEERING_ASSUMED_ABSENT_KEYS: readonly string[] = [
+  "accuracy",
+  "reaction_time",
+  "scanner_range",
+  "aft_weapon_type",
+  "port_weapon_type",
+  "starboard_weapon_type",
+];
+
 function fail(key: string, detail: string): never {
   throw contentError("SCHEMA", NPC_SHIPS_PATH, key, { excerpt: detail });
 }
@@ -212,6 +234,18 @@ export function compileNpcShips(
         `${file} is not emitted from ${entry.model} alone for "${key}" ` +
           `(owners ${JSON.stringify(owners)}, sources ${JSON.stringify(sources)})`,
       );
+    }
+
+    // The steering port relies on Oolite's default for these keys (T-14-06).
+    for (const assumed of STEERING_ASSUMED_ABSENT_KEYS) {
+      if (Object.hasOwn(entry.extras, assumed)) {
+        return fail(
+          key,
+          `${assumed} is authored, but the Phase 14 steering port relies on ` +
+            `Oolite's default for it (14-RESEARCH reachability); a pin bump ` +
+            `that adds it needs a new decision`,
+        );
+      }
     }
 
     const aiType = entry.extras["ai_type"];
