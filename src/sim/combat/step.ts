@@ -34,6 +34,7 @@ import { PLAYER_HULL_KEY, npcLaserRay, playerLaserRay } from "./aim.js";
 import type { NpcWeapon } from "./aim.js";
 import { LASER_STATS } from "./constants.js";
 import { firstShipHit } from "./hit.js";
+import { stepIdent, updateIdentTarget } from "./ident.js";
 import type { HitTarget, HullTable, LaserRay } from "./hit.js";
 import { DEFAULT_LASER_MOUNTS, NO_LASER, isFacing } from "./mounts.js";
 import type { LaserKey, LaserMounts } from "./mounts.js";
@@ -106,7 +107,10 @@ function hasEvent(
  *    payload that is not a `Facing` is ignored (T-13-16).
  * 4. In flight, a held fire key asks the current facing's laser to fire: a shot
  *    is queued, a refusal emits `laserRefused`, no laser fitted does nothing.
- * 5. While launching or in flight, bookkeeping runs after the fire path, as in
+ * 5. The ident commands (R, U) and the jump clear of the ident target run
+ *    (`./ident.ts`, `stepIdent`); the lock itself is acquired and dropped after
+ *    the world step, at the end of `resolveShots` (`updateIdentTarget`).
+ * 6. While launching or in flight, bookkeeping runs after the fire path, as in
  *    Oolite.
  */
 export function stepPlayerCombat(
@@ -128,8 +132,8 @@ export function stepPlayerCombat(
   }
   if (hasEvent(flightEvents, "launched")) launchReset(combat);
 
+  const inFlightAtStart = !hasEvent(flightEvents, "launchComplete");
   if (player.mode === "inFlight") {
-    const inFlightAtStart = !hasEvent(flightEvents, "launchComplete");
     if (inFlightAtStart) {
       for (const command of commands) {
         if (command.kind === "setView" && isFacing(command.view)) {
@@ -158,6 +162,8 @@ export function stepPlayerCombat(
       }
     }
   }
+
+  stepIdent(combat, player, commands, flightEvents, inFlightAtStart, events);
 
   if (player.mode === "launching" || player.mode === "inFlight") {
     coolWeapons(combat, dt);
@@ -247,7 +253,7 @@ function rechargeShips(world: World, dt: number): void {
  * cabin) and `shipHit` carries `shield` true when the shield took all of it. A
  * non-finite or non-positive amount is never queued (T-13-15).
  */
-export function resolveShots(
+function resolveShotHits(
   world: World | undefined,
   worldStepped: boolean,
   player: FlightState,
@@ -342,6 +348,38 @@ export function resolveShots(
       amount: hit.amount,
       shield: false,
     });
+  }
+  return events;
+}
+
+/**
+ * Resolve the tick's shots, then update the ident lock (`./ident.ts`,
+ * `updateIdentTarget`), after `stepWorld`. The shots resolve as `resolveShotHits`
+ * describes; the lock is then validated and, with ident engaged and nothing
+ * locked, acquired against the world as the world step left it. It runs only on
+ * a tick that stepped the world, so the jump step (which skips the world) never
+ * touches an old world's ids.
+ */
+export function resolveShots(
+  world: World | undefined,
+  worldStepped: boolean,
+  player: FlightState,
+  combat: PlayerCombatState | undefined,
+  shots: readonly ShotRequest[],
+  options: StepOptions | undefined,
+  dt: number,
+): SimEvent[] {
+  const events = resolveShotHits(
+    world,
+    worldStepped,
+    player,
+    combat,
+    shots,
+    options,
+    dt,
+  );
+  if (world !== undefined && worldStepped && combat !== undefined) {
+    updateIdentTarget(combat, player, world, events);
   }
   return events;
 }

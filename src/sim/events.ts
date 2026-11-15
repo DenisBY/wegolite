@@ -110,6 +110,29 @@ export type SimEvent =
    * kind: it is the refusal side of `laserFired`.
    */
   | { kind: "laserRefused"; reason: "overheat" | "noEnergy" }
+  /**
+   * INPUT-01, D-04: the ident key (R) engaged the ident system. Emitted on every
+   * R press in flight, also when a lock existed and was cleared first (Oolite's
+   * `handleButtonIdent`). The app owns the wording.
+   */
+  | { kind: "identEngaged" }
+  /**
+   * The ident system locked the ship in the sights of the current view. Carries
+   * the spec key only, never an entity id (an id does not outlive its world);
+   * the app owns the wording and looks the ship's name up from its own tables.
+   */
+  | { kind: "identLocked"; specKey: string }
+  /**
+   * The locked ship left scanner range or the world (`updateTargeting`,
+   * `PlayerEntity.m:3699-3712`). Ident stays engaged.
+   */
+  | { kind: "identLost" }
+  /**
+   * The untarget key (U) dropped the lock and switched ident off.
+   * `wasEngaged` is false for a press with ident already off (Oolite then says
+   * "Missiles on safety."), true otherwise ("Ident system deactivated.").
+   */
+  | { kind: "identOff"; wasEngaged: boolean }
   | {
       kind: "shipDestroyed";
       id: EntityId;
@@ -165,7 +188,8 @@ export type SimEvent =
  *
  * Phase 13 emits `laserFired` and `shipHit` (`../sim.ts` through
  * `combat/step.ts`); `energyLow` and `proximityWarning` stay unemitted for now
- * (RESEARCH A5). Phase 13 also adds the non-reserved `laserRefused`.
+ * (RESEARCH A5). Phase 13 also adds the non-reserved `laserRefused` and the
+ * four ident kinds `identEngaged`, `identLocked`, `identLost` and `identOff`.
  *
  * The field names follow ARCHITECTURE section 7.6, with the one deviation
  * recorded as PROJECT.md Key Decisions row (g): section 7.6's laser `kind` is
