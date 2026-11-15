@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
-stopped_at: Completed 14-16-PLAN.md
-last_updated: "2026-11-15T23:19:09.434Z"
+stopped_at: Completed 14-17-PLAN.md
+last_updated: "2026-11-15T23:58:14.894Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: 4fb6a5f83a910ad1671134d13e6d0f4fe458f577
+state_head: ab7343bf300549a95a22576afc2d903d6dd52e17
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 32
+  completed_plans: 33
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 17 of 19
+Plan: 18 of 19
 Status: Ready to execute
 Last activity: 2026-11-15 — Phase 14 execution started
 
@@ -186,6 +186,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 14 P14 | 40 min | 3 tasks | 16 files |
 | Phase 14 P15 | 100 min | 3 tasks | 18 files |
 | Phase 14 P16 | 75min | 3 tasks | 9 files |
+| Phase 14 P17 | 2 sessions | 4 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -465,6 +466,7 @@ Recent decisions affecting current work:
 - [Phase 14]: Plan 14-15: steerShip dispatches through the read-only BEHAVIOUR_ROUTES Map; runProximityPass takes the step's lazy view builder; escort slots are fixed and a lower-id follower reads the previous tick's destination
 - [Phase 14]: Plan 14-15: setProximityAlert's already-avoiding comparison is ported as written (the body with the smaller subtended angle keeps the slot); every listed ship is crewed; inert ships hold no alert
 - [Phase 14]: 14-16: spawnTestFlyers takes the station centre as a sixth parameter, because the five-argument form cannot orient the station flyer at the station; plan 14-18's hook must pass layout.station.position
+- [Phase 14]: 14-17: 20-seed acceptance accepted as option-continue on 2026-11-16 by an owner-delegated review panel (Fable, Opus, Sonnet; TRUST-WITH-CAVEATS), not by the owner reading the run; 21/21 cases pass in 137.6 s, accepted-crossings empty, five residual risks recorded in the SUMMARY
 
 ### Pending Todos
 
@@ -566,8 +568,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T23:19:09.167Z
-Stopped at: Completed 14-16-PLAN.md
+Last session: 2026-11-15T23:58:14.637Z
+Stopped at: Completed 14-17-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

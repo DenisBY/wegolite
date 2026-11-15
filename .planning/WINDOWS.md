@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 0
+open_count: 1
 waived_count: 0
 fixed_count: 2
-total_count: 2
-last_updated: 2026-11-08T17:26:07.404Z
+total_count: 3
+last_updated: 2026-11-15T23:58:03.834Z
 ---
 
 # Broken Windows Ledger
@@ -17,6 +17,7 @@ last_updated: 2026-11-08T17:26:07.404Z
 |----|-------|------|------|------|-------------|--------|--------|-------------|-------------|
 | 1 | 02 | unrun-verify | public/models/coriolis.glb |  | Visual letterbox check (dock opening reads correctly, not mirrored; faceplate proud of the hull) is deferred to end-of-phase verification because workflow.human_verify_mode is end-of-phase. | fixed |  | 2026-11-03T12:21:05.714Z | 2026-11-03T13:45:38.860Z |
 | 2 | 07 | stub | src/app/context-recovery.ts | 33 | QUAL-05 recovery copy (CONTEXT_LOST_NOTICE, CONTEXT_RESTORED_NOTICE, CONTEXT_RESTORE_FAILURE_COPY) is placeholder wording awaiting owner copy (D-16) | fixed | Owner-approved copy (D-16) now in CONTEXT_RESTORED_NOTICE and CONTEXT_RESTORE_FAILURE_COPY in src/app/context-recovery.ts. All three owner-approved texts are now in place: CONTEXT_RESTORED_NOTICE and CONTEXT_RESTORE_FAILURE_COPY landed in commit 0693e17 (fix(app): use the owner-approved restore copy), and CONTEXT_LOST_NOTICE landed in this commit (fix(app): use the owner-approved lost-context notice); see 07-11-SUMMARY.md. | 2026-11-07T22:00:22.319Z | 2026-11-08T17:26:07.404Z |
+| 3 | 14 | deviation | tests/acceptance/detectors.test.ts | 164 | 14-17 caveat: 'uses the collision radius for stage A' asserts only typeof result === boolean (vacuous); harness frozen, needs owner option (c) and the Detector-change-approved-by-owner trailer | open |  | 2026-11-15T23:58:03.834Z |  |
 
 ````json
 [
@@ -45,6 +46,19 @@ last_updated: 2026-11-08T17:26:07.404Z
     "recorded_at": "2026-11-07T22:00:22.319Z",
     "resolved_at": "2026-11-08T17:26:07.404Z",
     "milestone": null
+  },
+  {
+    "id": 3,
+    "kind": "deviation",
+    "phase": "14",
+    "file": "tests/acceptance/detectors.test.ts",
+    "line": 164,
+    "description": "14-17 caveat: 'uses the collision radius for stage A' asserts only typeof result === boolean (vacuous); harness frozen, needs owner option (c) and the Detector-change-approved-by-owner trailer",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-11-15T23:58:03.834Z",
+    "resolved_at": null,
+    "milestone": "v2.2"
   }
 ]
 ````
