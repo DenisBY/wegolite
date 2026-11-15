@@ -153,6 +153,7 @@ function bodyView(id: EntityId, position: Vec3): BodyView {
     position: Object.freeze(position),
     orientation: Object.freeze(identity()),
     speed: 0,
+    radius: 0,
   });
 }
 

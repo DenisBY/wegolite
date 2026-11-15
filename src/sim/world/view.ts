@@ -31,6 +31,12 @@ export interface BodyView {
   readonly position: Vec3;
   readonly orientation: Quat;
   readonly speed: number;
+  /**
+   * The body's collision radius in metres (Oolite's `collision_radius`). For
+   * the player it is the hull collision radius the caller passes to
+   * `createWorldView`, else 0.
+   */
+  readonly radius: number;
 }
 
 /** A dynamic entity: a body plus its navigation state. */

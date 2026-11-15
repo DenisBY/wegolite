@@ -44,6 +44,7 @@ function copyBody(body: BodyView): BodyView {
     position: copyVec(body.position),
     orientation: copyQuat(body.orientation),
     speed: body.speed,
+    radius: body.radius,
   };
 }
 
@@ -64,11 +65,16 @@ interface ScanHit {
  * A view of `world` as seen by AI code. `player` is read on every call through
  * the object it was created with; create a new view after replacing the
  * `FlightState`. The returned view is read-only and hands out copies.
+ *
+ * `playerRadius` is the player's hull collision radius in metres, reported as
+ * `body(PLAYER_ID).radius`. The world step passes it from its facts; a caller
+ * that omits it gets 0.
  */
 export function createWorldView(
   world: World,
   player: FlightState,
   layout: SystemLayout,
+  playerRadius = 0,
 ): WorldView {
   /**
    * The body for `id` with live references inside it. Private: every public
@@ -83,6 +89,7 @@ export function createWorldView(
         position: player.position,
         orientation: player.orientation,
         speed: player.speed,
+        radius: playerRadius,
       };
     }
     const record = staticEntity(world, id);
@@ -94,13 +101,15 @@ export function createWorldView(
         record.kind === "station"
           ? mul(layout.stationBaseQuat, axisAngle(0, 0, 1, player.stationAngle))
           : { w: 1, x: 0, y: 0, z: 0 };
+      const body = layout[record.layoutKey];
       return {
         id: record.id,
         kind: record.kind,
         scanClass: record.scanClass,
-        position: layout[record.layoutKey].position,
+        position: body.position,
         orientation,
         speed: 0,
+        radius: body.radius,
       };
     }
     const entity = world.store.get(id);
@@ -112,6 +121,7 @@ export function createWorldView(
       position: entity.position,
       orientation: entity.orientation,
       speed: entity.speed,
+      radius: entity.radius,
     };
   }
 
@@ -123,6 +133,7 @@ export function createWorldView(
       position: copyVec(entity.position),
       orientation: copyQuat(entity.orientation),
       speed: entity.speed,
+      radius: entity.radius,
       behaviour: entity.nav.behaviour,
       targetId: entity.nav.targetId,
       destination: copyVec(entity.nav.destination),

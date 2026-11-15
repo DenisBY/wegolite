@@ -213,6 +213,7 @@ describe("isValid, body and ship across id classes", () => {
       position: vec(10, 20, 30),
       orientation: identity(),
       speed: 3,
+      radius: 50,
       behaviour: "IDLE",
       targetId: NO_ENTITY,
       destination: vec(10, 20, 30),
@@ -240,6 +241,7 @@ describe("isValid, body and ship across id classes", () => {
       position: vec(1, 2, 3),
       orientation: identity(),
       speed: 9,
+      radius: 50,
     });
   });
 });
