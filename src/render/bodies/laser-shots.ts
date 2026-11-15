@@ -29,7 +29,14 @@
 import * as THREE from "three";
 import { LASER_SHOT_DURATION } from "../../sim/combat/constants.js";
 import type { LaserKind } from "../../sim/events.js";
-import type { Vec3 } from "../../sim/math.js";
+import { add as addVec, rotate, rotateInverse, sub } from "../../sim/math.js";
+import type { Quat, Vec3 } from "../../sim/math.js";
+
+/** The player ship's world pose, the frame an anchored shot rides in. */
+export interface ShotAnchor {
+  readonly position: Vec3;
+  readonly orientation: Quat;
+}
 
 /** Shots drawn at once; a further shot overwrites the oldest. */
 export const LASER_SHOT_POOL = 32;
@@ -56,14 +63,24 @@ export interface LaserShotLayer {
   readonly root: THREE.LineSegments;
   /**
    * Add a shot from `from` to `to` (world space), starting at `flightTime`. A
-   * segment with a non-finite coordinate or time is skipped.
+   * segment with a non-finite coordinate or time is skipped. With an `anchor`
+   * (the player's pose at the moment of the shot) the shot is kept in the
+   * ship's frame and rides with it, as Oolite's player shots do
+   * (`OOLaserShotEntity.m:152-162`); without one it stays where it was fired.
    */
-  add(from: Vec3, to: Vec3, laserKind: LaserKind, flightTime: number): void;
+  add(
+    from: Vec3,
+    to: Vec3,
+    laserKind: LaserKind,
+    flightTime: number,
+    anchor?: ShotAnchor,
+  ): void;
   /**
    * Rewrite the live shots camera-relative and retire the expired ones.
-   * `flightTime` is the simulation clock the shots were added with.
+   * `flightTime` is the simulation clock the shots were added with; `player`
+   * is the current player pose that the anchored shots follow.
    */
-  update(cameraWorld: Vec3, flightTime: number): void;
+  update(cameraWorld: Vec3, flightTime: number, player?: ShotAnchor): void;
   /** Free the geometry and the material. */
   dispose(): void;
 }
@@ -82,6 +99,8 @@ export function createLaserShotLayer(): LaserShotLayer {
   const slotColor = new Float32Array(LASER_SHOT_POOL * 3);
   // NaN marks an empty slot.
   const startTime = new Float64Array(LASER_SHOT_POOL).fill(Number.NaN);
+  // 1 when the slot holds ship-frame endpoints instead of world endpoints.
+  const anchored = new Uint8Array(LASER_SHOT_POOL);
   let head = 0;
   let disposed = false;
 
@@ -118,18 +137,30 @@ export function createLaserShotLayer(): LaserShotLayer {
 
   return {
     root,
-    add(from, to, laserKind, flightTime): void {
+    add(from, to, laserKind, flightTime, anchor): void {
       if (disposed) return;
       if (!finiteVec(from) || !finiteVec(to) || !Number.isFinite(flightTime)) {
         return;
       }
+      const useAnchor =
+        anchor !== undefined &&
+        finiteVec(anchor.position) &&
+        Number.isFinite(anchor.orientation.w);
+      // An anchored shot stores its endpoints in the ship's frame.
+      const a = useAnchor
+        ? rotateInverse(anchor.orientation, sub(from, anchor.position))
+        : from;
+      const b = useAnchor
+        ? rotateInverse(anchor.orientation, sub(to, anchor.position))
+        : to;
+      anchored[head] = useAnchor ? 1 : 0;
       const base = head * SEGMENT_FLOATS;
-      world[base] = from.x;
-      world[base + 1] = from.y;
-      world[base + 2] = from.z;
-      world[base + 3] = to.x;
-      world[base + 4] = to.y;
-      world[base + 5] = to.z;
+      world[base] = a.x;
+      world[base + 1] = a.y;
+      world[base + 2] = a.z;
+      world[base + 3] = b.x;
+      world[base + 4] = b.y;
+      world[base + 5] = b.z;
       const color = LASER_SHOT_COLORS[laserKind];
       slotColor[head * 3] = color[0];
       slotColor[head * 3 + 1] = color[1];
@@ -137,7 +168,7 @@ export function createLaserShotLayer(): LaserShotLayer {
       startTime[head] = flightTime;
       head = (head + 1) % LASER_SHOT_POOL;
     },
-    update(cameraWorld, flightTime): void {
+    update(cameraWorld, flightTime, player): void {
       if (disposed) return;
       if (!finiteVec(cameraWorld) || !Number.isFinite(flightTime)) {
         hide();
@@ -158,13 +189,41 @@ export function createLaserShotLayer(): LaserShotLayer {
         }
         const from = slot * SEGMENT_FLOATS;
         const to = live * SEGMENT_FLOATS;
+        let ax = world[from] ?? 0;
+        let ay = world[from + 1] ?? 0;
+        let az = world[from + 2] ?? 0;
+        let bx = world[from + 3] ?? 0;
+        let by = world[from + 4] ?? 0;
+        let bz = world[from + 5] ?? 0;
+        if (anchored[slot] === 1) {
+          // Without a player pose (docked, jumped) the anchored shot is not
+          // drawn: its world position is unknown.
+          if (player === undefined) {
+            startTime[slot] = Number.NaN;
+            continue;
+          }
+          const wa = addVec(
+            player.position,
+            rotate(player.orientation, { x: ax, y: ay, z: az }),
+          );
+          const wb = addVec(
+            player.position,
+            rotate(player.orientation, { x: bx, y: by, z: bz }),
+          );
+          ax = wa.x;
+          ay = wa.y;
+          az = wa.z;
+          bx = wb.x;
+          by = wb.y;
+          bz = wb.z;
+        }
         // The float64 subtraction happens here, before any float32 write.
-        out[to] = (world[from] ?? 0) - cameraWorld.x;
-        out[to + 1] = (world[from + 1] ?? 0) - cameraWorld.y;
-        out[to + 2] = (world[from + 2] ?? 0) - cameraWorld.z;
-        out[to + 3] = (world[from + 3] ?? 0) - cameraWorld.x;
-        out[to + 4] = (world[from + 4] ?? 0) - cameraWorld.y;
-        out[to + 5] = (world[from + 5] ?? 0) - cameraWorld.z;
+        out[to] = ax - cameraWorld.x;
+        out[to + 1] = ay - cameraWorld.y;
+        out[to + 2] = az - cameraWorld.z;
+        out[to + 3] = bx - cameraWorld.x;
+        out[to + 4] = by - cameraWorld.y;
+        out[to + 5] = bz - cameraWorld.z;
         const red = slotColor[slot * 3] ?? 0;
         const green = slotColor[slot * 3 + 1] ?? 0;
         const blue = slotColor[slot * 3 + 2] ?? 0;

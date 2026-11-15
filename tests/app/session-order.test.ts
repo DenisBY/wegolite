@@ -109,6 +109,7 @@ const EVENTS: Readonly<Record<RoutedKind, SimEvent>> = {
   laserFired: {
     kind: "laserFired",
     shooter: 101,
+    playerShot: false,
     from: { x: 0, y: 0, z: 0 },
     to: { x: 0, y: 0, z: -100 },
     laserKind: "pulse",
@@ -819,10 +820,25 @@ describe("laserFired reaches the scene's shot layer (CBT-05, A4)", () => {
     const { h, added } = withShots();
     h.router.dispatch(EVENTS.laserFired);
     expect(added).toEqual([
-      [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -100 }, "pulse", 12.5],
+      // An NPC shot has no anchor: it stays where it was fired.
+      [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -100 }, "pulse", 12.5, undefined],
     ]);
     // No message and no feedback envelope.
     expect(h.log).toEqual([]);
+  });
+
+  it("anchors the player's own shot to the player's pose", () => {
+    const { h, added } = withShots();
+    h.router.dispatch({
+      ...EVENTS.laserFired,
+      shooter: 100,
+      playerShot: true,
+    } as SimEvent);
+    const [, , , , anchor] = added[0] as unknown[];
+    expect(anchor).toEqual({
+      position: h.ctx.core.state?.position,
+      orientation: h.ctx.core.state?.orientation,
+    });
   });
 
   it("never stores the shooter's id", () => {
@@ -858,6 +874,7 @@ describe("an unrouted kind", () => {
       laserFired: {
         kind: "laserFired",
         shooter: 101,
+        playerShot: false,
         from: { x: 0, y: 0, z: 0 },
         to: { x: 0, y: 0, z: 1 },
         laserKind: "pulse",

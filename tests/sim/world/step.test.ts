@@ -1006,6 +1006,7 @@ describe("entityRemoved and the reserved event kinds", () => {
       {
         kind: "laserFired",
         shooter: 101,
+        playerShot: false,
         from: origin,
         to: origin,
         laserKind: "pulse",

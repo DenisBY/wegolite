@@ -435,6 +435,13 @@ export function createDockFeedbackFlow(
           event.to,
           event.laserKind,
           ctx.core.state?.flightTime ?? 0,
+          // The player's own shots ride with the ship, as in Oolite.
+          event.playerShot && ctx.core.state !== undefined
+            ? {
+                position: ctx.core.state.position,
+                orientation: ctx.core.state.orientation,
+              }
+            : undefined,
         );
         break;
       case "bounce":

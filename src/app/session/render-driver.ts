@@ -195,7 +195,10 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     currentScene.npcs.update(contacts, cameraWorld, npcModels.loaded());
     // CBT-05: the shots added by `laserFired` this frame or earlier, drawn
     // camera-relative and retired after their 0.09 s of flight time.
-    currentScene.shots.update(cameraWorld, currentState.flightTime);
+    currentScene.shots.update(cameraWorld, currentState.flightTime, {
+      position: currentState.position,
+      orientation: currentState.orientation,
+    });
 
     if (draw) {
       renderer.render(currentScene.scene, currentScene.camera);

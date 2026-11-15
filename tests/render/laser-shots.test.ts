@@ -263,4 +263,50 @@ describe("createLaserShotLayer: one draw call, none when idle", () => {
     expect(geometryDisposed).toBe(1);
     expect(materialDisposed).toBe(1);
   });
+
+  it("keeps an anchored shot on the ship while the ship flies on (WR side-mount fan-out)", () => {
+    const layer = createLaserShotLayer();
+    const identity = { w: 1, x: 0, y: 0, z: 0 };
+    // Fired from a side mount 47 m to the right of a ship at the origin.
+    layer.add(vec(47, 0, 0), vec(547, 0, 0), "military", 1, {
+      position: vec(0, 0, 0),
+      orientation: identity,
+    });
+    // 0.05 s later the ship is 200 m further on; the camera is on the ship.
+    const ship = { position: vec(0, 0, -200), orientation: identity };
+    layer.update(ship.position, 1.05, ship);
+    const out = positions(layer);
+    expect(out[0]).toBeCloseTo(47, 5);
+    expect(out[2]).toBeCloseTo(0, 5);
+    expect(out[3]).toBeCloseTo(547, 5);
+  });
+
+  it("turns an anchored shot with the ship", () => {
+    const layer = createLaserShotLayer();
+    const identity = { w: 1, x: 0, y: 0, z: 0 };
+    layer.add(vec(0, 0, -10), vec(0, 0, -110), "pulse", 1, {
+      position: vec(0, 0, 0),
+      orientation: identity,
+    });
+    const half = Math.SQRT1_2;
+    // A quarter turn about the vertical axis.
+    const turned = {
+      position: vec(0, 0, 0),
+      orientation: { w: half, x: 0, y: half, z: 0 },
+    };
+    layer.update(ORIGIN, 1.01, turned);
+    const out = positions(layer);
+    expect(Math.abs(out[0] ?? 1)).toBeCloseTo(10, 5);
+    expect(out[2]).toBeCloseTo(0, 5);
+  });
+
+  it("does not draw an anchored shot when no player pose is known", () => {
+    const layer = createLaserShotLayer();
+    layer.add(vec(1, 0, 0), vec(2, 0, 0), "beam", 1, {
+      position: vec(0, 0, 0),
+      orientation: { w: 1, x: 0, y: 0, z: 0 },
+    });
+    layer.update(ORIGIN, 1.01);
+    expect(layer.root.visible).toBe(false);
+  });
 });

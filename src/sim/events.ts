@@ -89,6 +89,8 @@ export type SimEvent =
   | {
       kind: "laserFired";
       shooter: EntityId;
+      /** True for the player's own shot, which the renderer keeps on the ship. */
+      playerShot: boolean;
       from: Vec3;
       to: Vec3;
       laserKind: LaserKind;

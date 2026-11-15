@@ -303,6 +303,7 @@ function resolveShotHits(
     events.push({
       kind: "laserFired",
       shooter: shot.shooter,
+      playerShot: shot.shooter === PLAYER_ID,
       from: shot.ray.origin,
       to: add(shot.ray.origin, scale(shot.ray.forward, reach)),
       laserKind: stats.laserKind,
