@@ -20,6 +20,7 @@
  */
 
 import type { Vec3 } from "../math.js";
+import { enterBehaviour } from "../npc/enter.js";
 import type { Entity } from "./entity.js";
 import { BEHAVIOUR_IDS, MAX_ENTITIES } from "./ids.js";
 import type { BehaviourId, EntityId } from "./ids.js";
@@ -96,7 +97,9 @@ export function createShipControl(
       ) {
         return;
       }
-      entity.nav.behaviour = behaviour;
+      // The context-free part of Oolite's perform* method at once, the rest at
+      // the actor's next update (plan 14-09, `enterBehaviour`).
+      enterBehaviour(entity, behaviour);
     },
     scheduleWake(id: EntityId, ticks: number): void {
       const entity = actor(id);

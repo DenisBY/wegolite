@@ -10,6 +10,12 @@
 import { describe, expect, it } from "vitest";
 
 import { identity, vec } from "../../../src/sim/math.js";
+import { steerShip } from "../../../src/sim/npc/dispatch.js";
+import type { SteerContext } from "../../../src/sim/npc/dispatch.js";
+import { OOLITE_DEFAULT_FLIGHT_STATS } from "../../../src/sim/npc/stats.js";
+import { createWorldView } from "../../../src/sim/world/view-impl.js";
+import { laveFixture } from "../../helpers/lave.js";
+import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { ShipControl } from "../../../src/sim/world/control.js";
 import { createShipControl } from "../../../src/sim/world/control-impl.js";
 import type { SpawnInit } from "../../../src/sim/world/entity.js";
@@ -366,5 +372,185 @@ describe("the shared serialised domain (Round 4 consensus 12, T-08-51)", () => {
       createShipControl(world, actor.id, tick).scheduleWake(actor.id, 1);
       expect(actor.ai?.wakeTick, `tick ${String(tick)}`).toBe(0);
     }
+  });
+});
+
+/**
+ * The perform* entry effects of plan 14-09 (AI-01). Every expectation is read
+ * off `ShipEntityAI.m` (the line is named in the comment), never from running
+ * the implementation.
+ */
+describe("perform entry effects (ShipEntityAI.m:350-480, plan 14-09)", () => {
+  /** A context over the real world view whose draws come from `draws`. */
+  function steerContext(
+    world: World,
+    draws: readonly number[],
+  ): { ctx: SteerContext; used: () => number } {
+    const { layout } = laveFixture();
+    const player = initFlightState(layout);
+    player.mode = "inFlight";
+    let used = 0;
+    const ctx: SteerContext = {
+      view: createWorldView(world, player, layout),
+      stats: OOLITE_DEFAULT_FLIGHT_STATS,
+      dt: 1 / 120,
+      draw: () => {
+        const value = draws[used];
+        if (value === undefined) throw new Error("unexpected draw");
+        used += 1;
+        return value;
+      },
+      emit: () => {
+        throw new Error("unexpected event");
+      },
+    };
+    return { ctx, used: () => used };
+  }
+
+  it("IDLE sets the behaviour and frustration 0 at once (performIdle, 407-411)", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    actor.nav.behaviour = "FLY_TO_DESTINATION";
+    actor.steer.frustration = 3;
+    actor.steer.entryPending = true;
+    control.perform(actor.id, "IDLE");
+    expect(actor.nav.behaviour).toBe("IDLE");
+    expect(actor.steer.frustration).toBe(0);
+    expect(actor.steer.entryPending).toBe(false);
+  });
+
+  it("STOP_STILL also sets the desired speed to 0 at once (performStop, 466-471)", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    actor.nav.desiredSpeed = 120;
+    actor.steer.frustration = 3;
+    control.perform(actor.id, "STOP_STILL");
+    expect(actor.nav.behaviour).toBe("STOP_STILL");
+    expect(actor.nav.desiredSpeed).toBe(0);
+    expect(actor.steer.frustration).toBe(0);
+    expect(actor.steer.entryPending).toBe(false);
+  });
+
+  it("TUMBLE sets the behaviour and frustration 0 at once and defers the sticks (performTumble, 473-479)", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    actor.steer.frustration = 3;
+    control.perform(actor.id, "TUMBLE");
+    expect(actor.nav.behaviour).toBe("TUMBLE");
+    expect(actor.steer.frustration).toBe(0);
+    expect(actor.steer.entryPending).toBe(true);
+    // The draws and the ship's stats are not available here: nothing else moved.
+    expect(actor.steer.stickRoll).toBe(0);
+    expect(actor.steer.stickPitch).toBe(0);
+  });
+
+  it("the next update draws roll then pitch and sets max * 2 * (u - 0.5), then clears the flag", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world, { speed: 0, ai: null });
+    actor.steer.accuracy = 2; // resolved: the update draws only for the entry
+    const control = createShipControl(world, actor.id, 0);
+    control.perform(actor.id, "TUMBLE");
+    // Default stats: max roll 2.0, max pitch 1.0 (ShipEntity.m:265-266).
+    const { ctx, used } = steerContext(world, [0.75, 0.125]);
+    const before = structuredClone(actor.position);
+    steerShip(actor, ctx);
+    expect(used()).toBe(2);
+    // stick_roll = 2.0 * 2.0 * (0.75 - 0.5) = 1.0, stick_pitch = 1.0 * 2.0 * (0.125 - 0.5) = -0.75
+    expect(actor.steer.stickRoll).toBe(1);
+    expect(actor.steer.stickPitch).toBe(-0.75);
+    expect(actor.steer.entryPending).toBe(false);
+    // behaviour_tumble ran applySticks once: the rates moved by one step.
+    expect(actor.steer.flightRoll).toBeCloseTo(2 / 120, 12);
+    expect(actor.steer.flightPitch).toBeCloseTo(-4 / 120, 12);
+    // applyThrust returns first for TUMBLE: the ship did not move.
+    expect(actor.position).toEqual(before);
+  });
+
+  it("TUMBLE then IDLE in one think: the next update draws nothing and runs IDLE (the last perform wins)", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world, { ai: null });
+    actor.steer.accuracy = 2;
+    const control = createShipControl(world, actor.id, 0);
+    control.perform(actor.id, "TUMBLE");
+    control.perform(actor.id, "IDLE");
+    expect(actor.steer.entryPending).toBe(false);
+    const { ctx, used } = steerContext(world, []);
+    steerShip(actor, ctx);
+    expect(used()).toBe(0);
+    expect(actor.nav.behaviour).toBe("IDLE");
+    expect(actor.steer.stickRoll).toBe(0);
+    expect(actor.steer.stickPitch).toBe(0);
+  });
+
+  it("IDLE then TUMBLE in one think: the deferred part of the last perform runs", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world, { ai: null });
+    actor.steer.accuracy = 2;
+    const control = createShipControl(world, actor.id, 0);
+    control.perform(actor.id, "IDLE");
+    control.perform(actor.id, "TUMBLE");
+    const { ctx, used } = steerContext(world, [0.5, 0.5]);
+    steerShip(actor, ctx);
+    expect(used()).toBe(2);
+    expect(actor.steer.stickRoll).toBe(0);
+  });
+
+  it("an id with no perform method only sets the behaviour and clears the flag", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    control.perform(actor.id, "TUMBLE");
+    actor.steer.frustration = 3;
+    control.perform(actor.id, "FLY_TO_DESTINATION");
+    expect(actor.nav.behaviour).toBe("FLY_TO_DESTINATION");
+    expect(actor.steer.entryPending).toBe(false);
+    expect(actor.steer.frustration).toBe(3);
+  });
+
+  it("STATION_KEEPING runs behaviour_stop_still as Oolite's shared case does (ShipEntity.m:2493-2496)", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world, { ai: null });
+    actor.steer.accuracy = 2;
+    actor.steer.stickRoll = 1;
+    actor.steer.stickPitch = -1;
+    actor.steer.flightRoll = 0.5;
+    actor.steer.flightPitch = -0.5;
+    const control = createShipControl(world, actor.id, 0);
+    control.perform(actor.id, "STATION_KEEPING");
+    expect(actor.nav.behaviour).toBe("STATION_KEEPING");
+    expect(actor.steer.entryPending).toBe(false);
+    const { ctx } = steerContext(world, []);
+    steerShip(actor, ctx);
+    // The sticks went to 0 and the rates moved one step toward 0 (a x4 reversal
+    // does not apply: the stick is 0).
+    expect(actor.steer.stickRoll).toBe(0);
+    expect(actor.steer.stickPitch).toBe(0);
+    expect(actor.steer.flightRoll).toBeCloseTo(0.5 - 2 / 120, 12);
+    expect(actor.steer.flightPitch).toBeCloseTo(-0.5 + 4 / 120, 12);
+  });
+
+  it("an unknown id changes nothing, the pending flag and frustration included", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    control.perform(actor.id, "TUMBLE");
+    actor.steer.frustration = 2;
+    const before = structuredClone(actor);
+    control.perform(actor.id, "NOT_A_BEHAVIOUR" as BehaviourId);
+    control.perform(actor.id, "constructor" as BehaviourId);
+    expect(actor).toEqual(before);
+  });
+
+  it("a perform addressed to another entity changes nothing", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const other = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    const before = structuredClone(other);
+    control.perform(other.id, "TUMBLE");
+    expect(other).toEqual(before);
   });
 });

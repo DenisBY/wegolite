@@ -29,6 +29,14 @@ export const ORACLE_GROUPS: readonly OracleGroup[] = Object.freeze([
     fixtureFile: "tests/oracles/npc/fixtures/flight-model.json",
     testFile: FLIGHT_TEST,
   }),
+  Object.freeze({
+    fixtureFile: "tests/oracles/npc/fixtures/idle.json",
+    testFile: FLIGHT_TEST,
+  }),
+  Object.freeze({
+    fixtureFile: "tests/oracles/npc/fixtures/tumble.json",
+    testFile: FLIGHT_TEST,
+  }),
 ]);
 
 /** The fixture files `testFile` must run, in manifest order. */
