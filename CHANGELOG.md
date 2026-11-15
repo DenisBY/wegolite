@@ -44,6 +44,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are loaded, and the next save uses the new save format. **Compatibility:** an
   older version of Wegolite keeps a save written by this version untouched but
   cannot load it.
+- Saves now record the laser fitted to each of the four mounts (fore, aft, port
+  and starboard). A new game starts with the Cobra's standard pulse laser on
+  the fore mount and nothing on the other three. **Compatibility:** saves from
+  earlier versions are upgraded when they are loaded and get the Cobra's
+  standard fore pulse laser, so nothing is gained or lost against the stock
+  ship; an older version of Wegolite keeps a save written by this version
+  untouched but cannot load it.
 - Opening the galactic chart (F6) in flight no longer pauses the game: the
   ship, the other ships and a running hyperspace countdown keep going behind the
   chart, as in Oolite, and docking or arriving behind the chart closes it.

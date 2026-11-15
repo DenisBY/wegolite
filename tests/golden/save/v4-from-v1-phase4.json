@@ -1,0 +1,22 @@
+{
+  "version": 4,
+  "mode": "docked",
+  "clockSeconds": 180057946200,
+  "credits": 1000,
+  "equipment": ["EQ_DOCK_COMP"],
+  "system": {
+    "id": "g0-s7"
+  },
+  "station": {
+    "key": "coriolis-station"
+  },
+  "marketSeed": 3545325333,
+  "epoch": 0,
+  "nextEntityId": 101,
+  "laserMounts": {
+    "fore": "EQ_WEAPON_PULSE_LASER",
+    "aft": "EQ_WEAPON_NONE",
+    "port": "EQ_WEAPON_NONE",
+    "starboard": "EQ_WEAPON_NONE"
+  }
+}

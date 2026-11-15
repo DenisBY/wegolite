@@ -11,26 +11,51 @@
  * decisions, never from running the code twice.
  */
 
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+
+import { describe, expect, it, vi } from "vitest";
 
 import {
   profileFromSave,
   snapshotForSave,
 } from "../../src/persistence/autosave.js";
 import {
+  MAX_SAVE_BERTHS,
+  MAX_SAVE_CARGO_ENTRIES,
+  MAX_SAVE_CARGO_QUANTITY,
+  MAX_SAVE_CHARS,
+  MAX_SAVE_CLOCK_DELTA,
+  MAX_SAVE_CREDITS,
+  MAX_SAVE_EPOCH,
+  MAX_SAVE_EQUIPMENT,
+  MAX_SAVE_EQUIPMENT_KEY_CHARS,
+  MAX_SAVE_FUEL,
+  MAX_SAVE_MARKET_GOODS,
+  MAX_SAVE_MISSILES,
+  MAX_SAVE_NEXT_ENTITY_ID,
+  MAX_SAVE_STATION_KEY_CHARS,
+  MAX_SAVE_SYSTEM_ID_CHARS,
   SAVE_VERSION,
+  SaveV1Schema,
+  SaveV2Schema,
+  SaveV3Schema,
+  SaveV4Schema,
   encodeSave,
   isEncodedSaveValid,
+  migrateV1ToV2,
+  migrateV2ToV3,
+  migrateV3ToV4,
   parseSave,
 } from "../../src/persistence/save.js";
-import type { SaveAllowLists } from "../../src/persistence/save.js";
+import type { SaveAllowLists, SaveInputs } from "../../src/persistence/save.js";
 import { DEFAULT_LASER_MOUNTS, NO_LASER } from "../../src/sim/combat/mounts.js";
 import type { LaserMounts } from "../../src/sim/combat/mounts.js";
 import {
+  MARKET_LIMIT,
   generateMarket,
   marketSeedForSystem,
 } from "../../src/sim/economy/market.js";
-import { initFlightState } from "../../src/sim/flight/state.js";
+import { CLOCK_START, initFlightState } from "../../src/sim/flight/state.js";
 import { newProfile } from "../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../src/sim/player/profile.js";
 import { commoditiesFixture } from "../helpers/commodities.js";
@@ -111,5 +136,545 @@ describe("laser mounts through a v4 save (tracer)", () => {
     expect(restored.laserMounts).not.toBe(parsed.save.laserMounts);
     // A second snapshot of the restored profile is the same bytes.
     expect(encodeSave(snapshot(restored))).toBe(encoded);
+  });
+});
+
+/** Read a checked-in golden from tests/golden/save. */
+function readGolden(name: string): string {
+  return readFileSync(
+    new URL(`../golden/save/${name}`, import.meta.url),
+    "utf8",
+  );
+}
+
+/**
+ * The commodity keys the golden market snapshots carry (Alien Items included),
+ * and the equipment the golden blobs mention: the golden files are validated
+ * with the same reader the app uses, not a loosened one.
+ */
+const GOLDEN_ALLOW: SaveAllowLists = {
+  equipment: new Set([
+    "EQ_CARGO_BAY",
+    "EQ_DOCK_COMP",
+    "EQ_FUEL",
+    "EQ_MISSILE",
+    "EQ_MISSILE_REMOVAL",
+    "EQ_PASSENGER_BERTH",
+    "EQ_PASSENGER_BERTH_REMOVAL",
+  ]),
+  systems: new Set(["g0-s7", "g0-s1"]),
+  stations: new Set(["coriolis-station"]),
+  commodities: new Map([
+    ["food", "t"],
+    ["gold", "kg"],
+    ["gem_stones", "g"],
+  ]),
+  marketGoods: new Set([
+    "food",
+    "textiles",
+    "radioactives",
+    "slaves",
+    "liquor_wines",
+    "luxuries",
+    "narcotics",
+    "computers",
+    "machinery",
+    "alloys",
+    "firearms",
+    "furs",
+    "minerals",
+    "gold",
+    "platinum",
+    "gem_stones",
+    "alien_items",
+  ]),
+};
+
+/** The three v4 golden pairs: the inputs of the ordered chain and its output. */
+const GOLDEN_CHAINS = [
+  {
+    label: "Phase 4 v1 blob",
+    v1: "v1-phase4.json",
+    v2: "v2-from-v1-phase4.json",
+    v3: "v3-from-v1-phase4.json",
+    v4: "v4-from-v1-phase4.json",
+  },
+  {
+    label: "Phase 5 v1 blob with every optional field",
+    v1: "v1-phase5.json",
+    v2: "v2-from-v1-phase5.json",
+    v3: "v3-from-v1-phase5.json",
+    v4: "v4-from-v1-phase5.json",
+  },
+] as const;
+
+const STOCK_MOUNTS = {
+  fore: "EQ_WEAPON_PULSE_LASER",
+  aft: "EQ_WEAPON_NONE",
+  port: "EQ_WEAPON_NONE",
+  starboard: "EQ_WEAPON_NONE",
+} as const;
+
+// The three v4 goldens were generated ONCE, deliberately, from the migration
+// chain (v3 golden -> migrateV3ToV4) and reviewed by hand against the rule:
+// version 4, `laserMounts` = fore pulse and EQ_WEAPON_NONE elsewhere, and every
+// other field byte-for-byte as in the v3 golden. They are regression snapshots:
+// if one changes, reconcile the migration first, never the file.
+describe("the ordered chain v1 -> v2 -> v3 -> v4 against the checked-in goldens", () => {
+  for (const chain of GOLDEN_CHAINS) {
+    describe(chain.label, () => {
+      it("step v3 -> v4: the v3 golden migrates to the v4 golden", () => {
+        const v3 = SaveV3Schema.parse(JSON.parse(readGolden(chain.v3)));
+        expect(migrateV3ToV4(v3)).toStrictEqual(
+          JSON.parse(readGolden(chain.v4)),
+        );
+      });
+
+      it("chain v1 -> v4: parseSave of the v1 blob is the v4 golden", () => {
+        const result = parseSave(readGolden(chain.v1), GOLDEN_ALLOW);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.save.version).toBe(4);
+        expect(result.save).toStrictEqual(JSON.parse(readGolden(chain.v4)));
+        // The chain is exactly the four ordered steps, none skipped.
+        const v1 = SaveV1Schema.parse(JSON.parse(readGolden(chain.v1)));
+        expect(result.save).toStrictEqual(
+          migrateV3ToV4(migrateV2ToV3(migrateV1ToV2(v1))),
+        );
+      });
+
+      it("a v2 save loads: parseSave of the v2 golden is the v4 golden", () => {
+        const result = parseSave(readGolden(chain.v2), GOLDEN_ALLOW);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.save).toStrictEqual(JSON.parse(readGolden(chain.v4)));
+        const v2 = SaveV2Schema.parse(JSON.parse(readGolden(chain.v2)));
+        expect(result.save).toStrictEqual(migrateV3ToV4(migrateV2ToV3(v2)));
+      });
+
+      it("a v3 save loads: parseSave of the v3 golden is the v4 golden", () => {
+        const result = parseSave(readGolden(chain.v3), GOLDEN_ALLOW);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.save).toStrictEqual(JSON.parse(readGolden(chain.v4)));
+      });
+
+      it("the v4 golden itself parses as a v4 save", () => {
+        const result = parseSave(readGolden(chain.v4), GOLDEN_ALLOW);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.save).toStrictEqual(JSON.parse(readGolden(chain.v4)));
+        expect(result.save.laserMounts).toStrictEqual(STOCK_MOUNTS);
+      });
+    });
+  }
+
+  describe("captured v2 in-flight writer blob", () => {
+    const v2Name = "v2-phase10-inflight.json";
+    const v3Name = "v3-from-v2-phase10-inflight.json";
+    const v4Name = "v4-from-v2-phase10-inflight.json";
+
+    it("step v3 -> v4: the v3 golden migrates to the v4 golden", () => {
+      const v3 = SaveV3Schema.parse(JSON.parse(readGolden(v3Name)));
+      expect(migrateV3ToV4(v3)).toStrictEqual(JSON.parse(readGolden(v4Name)));
+    });
+
+    it("a v2 in-flight save loads: parseSave of the captured blob is the v4 golden", () => {
+      const result = parseSave(readGolden(v2Name), GOLDEN_ALLOW);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.save.version).toBe(4);
+      expect(result.save.mode).toBe("inFlight");
+      expect(result.save.laserMounts).toStrictEqual(STOCK_MOUNTS);
+      expect(result.save).toStrictEqual(JSON.parse(readGolden(v4Name)));
+    });
+
+    it("every non-laser field is carried unchanged from the v3 golden", () => {
+      const v3 = JSON.parse(readGolden(v3Name)) as Record<string, unknown>;
+      const v4 = JSON.parse(readGolden(v4Name)) as Record<string, unknown>;
+      expect(Object.keys(v4).sort()).toStrictEqual(
+        [...Object.keys(v3), "laserMounts"].sort(),
+      );
+      for (const key of Object.keys(v3)) {
+        if (key === "version") continue;
+        expect(v4[key]).toStrictEqual(v3[key]);
+      }
+      expect(v3["version"]).toBe(3);
+      expect(v4["version"]).toBe(4);
+    });
+  });
+});
+
+describe("the v3 to v4 step (defaults, no value gained or lost)", () => {
+  it("a migrated v3 save carries the same mounts a new game starts with", () => {
+    const v3 = SaveV3Schema.parse(
+      JSON.parse(readGolden("v3-from-v1-phase5.json")),
+    );
+    const migrated = migrateV3ToV4(v3);
+    expect(migrated.laserMounts).toStrictEqual(newProfile().laserMounts);
+    expect(migrated.laserMounts).toStrictEqual(STOCK_MOUNTS);
+    // Credits and every other field are unchanged.
+    expect(migrated.credits).toBe(v3.credits);
+    expect(migrated.equipment).toStrictEqual(v3.equipment);
+  });
+
+  it("restoring a migrated save gives the new-game mounts", () => {
+    const result = parseSave(
+      readGolden("v3-from-v2-phase10-inflight.json"),
+      GOLDEN_ALLOW,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(profileFromSave(result.save).laserMounts).toStrictEqual(
+      newProfile().laserMounts,
+    );
+  });
+
+  it("migrateV3ToV4 never mutates its input, is deterministic and writes fresh mounts", () => {
+    const frozen = SaveV3Schema.parse(
+      JSON.parse(readGolden("v3-from-v1-phase4.json")),
+    );
+    const before = JSON.stringify(frozen);
+    const first = migrateV3ToV4(frozen);
+    const second = migrateV3ToV4(frozen);
+    expect(JSON.stringify(frozen)).toBe(before);
+    expect(first).toStrictEqual(second);
+    expect(first).not.toBe(second);
+    expect(first.laserMounts).not.toBe(second.laserMounts);
+    expect(first.laserMounts).not.toBe(DEFAULT_LASER_MOUNTS);
+    // The shared default is never handed out: mutating a copy cannot leak.
+    expect(Object.isFrozen(DEFAULT_LASER_MOUNTS)).toBe(true);
+  });
+
+  it("v3 stays frozen as version literal 3 and v4 is its own strict schema", () => {
+    const v3 = JSON.parse(readGolden("v3-from-v1-phase4.json")) as unknown;
+    const v4 = JSON.parse(readGolden("v4-from-v1-phase4.json")) as unknown;
+    expect(SaveV3Schema.safeParse(v3).success).toBe(true);
+    expect(SaveV3Schema.safeParse(v4).success).toBe(false);
+    expect(SaveV4Schema.safeParse(v4).success).toBe(true);
+    expect(SaveV4Schema.safeParse(v3).success).toBe(false);
+  });
+});
+
+/** A valid docked v4 blob as a plain record, for the edge tables. */
+function validV4(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    version: 4,
+    mode: "docked",
+    clockSeconds: CLOCK_START + 600,
+    credits: 1000,
+    equipment: [],
+    system: { id: "g0-s7" },
+    station: { key: "coriolis-station" },
+    marketSeed: 3545325333,
+    epoch: 0,
+    nextEntityId: 101,
+    laserMounts: { ...STOCK_MOUNTS },
+    ...overrides,
+  };
+}
+
+function parseOf(value: Record<string, unknown>) {
+  return parseSave(JSON.stringify(value), ALLOW);
+}
+
+describe("v4 refusals (T-13-10, T-13-11): a forged mount is corrupt", () => {
+  it("the control blob is accepted", () => {
+    const result = parseOf(validV4());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.save.laserMounts).toStrictEqual(STOCK_MOUNTS);
+  });
+
+  it.each([
+    "EQ_WEAPON_PULSE_LASER",
+    "EQ_WEAPON_BEAM_LASER",
+    "EQ_WEAPON_MINING_LASER",
+    "EQ_WEAPON_MILITARY_LASER",
+    "EQ_WEAPON_NONE",
+  ])("%s is a valid mount on every facing", (key) => {
+    const result = parseOf(
+      validV4({
+        laserMounts: { fore: key, aft: key, port: key, starboard: key },
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  const corruptMounts: ReadonlyArray<readonly [string, unknown]> = [
+    ["an unknown mount string", { ...STOCK_MOUNTS, aft: "EQ_WEAPON_PLASMA" }],
+    [
+      "the Thargoid laser, which no player mount may hold",
+      { ...STOCK_MOUNTS, port: "EQ_WEAPON_THARGOID_LASER" },
+    ],
+    ["a lowercase mount", { ...STOCK_MOUNTS, fore: "eq_weapon_pulse_laser" }],
+    ["a number as a mount", { ...STOCK_MOUNTS, fore: 1 }],
+    ["a null mount", { ...STOCK_MOUNTS, starboard: null }],
+    ["an empty string mount", { ...STOCK_MOUNTS, fore: "" }],
+    [
+      "a missing facing",
+      {
+        fore: STOCK_MOUNTS.fore,
+        aft: "EQ_WEAPON_NONE",
+        port: "EQ_WEAPON_NONE",
+      },
+    ],
+    ["an extra facing key", { ...STOCK_MOUNTS, top: "EQ_WEAPON_NONE" }],
+    ["an array", ["EQ_WEAPON_PULSE_LASER"]],
+    ["a string", "EQ_WEAPON_PULSE_LASER"],
+    ["null", null],
+    ["an empty object", {}],
+  ];
+
+  it.each(corruptMounts)("%s is corrupt", (_name, laserMounts) => {
+    expect(parseOf(validV4({ laserMounts }))).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+  });
+
+  it("a v4 blob without laserMounts is corrupt", () => {
+    const blob = validV4();
+    delete blob.laserMounts;
+    expect(parseOf(blob)).toEqual({ ok: false, reason: "corrupt" });
+  });
+
+  it("a v3 blob carrying laserMounts is corrupt (v3 is frozen)", () => {
+    expect(parseOf(validV4({ version: 3 }))).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+  });
+
+  it.each([
+    "EQ_WEAPON_PULSE_LASER",
+    "EQ_WEAPON_BEAM_LASER",
+    "EQ_WEAPON_MINING_LASER",
+    "EQ_WEAPON_MILITARY_LASER",
+    "EQ_WEAPON_NONE",
+    "EQ_WEAPON_THARGOID_LASER",
+  ])(
+    "%s inside equipment is double encoding: corrupt on read, refused on write, even when allow-listed",
+    (key) => {
+      // The key is on the allow-list on purpose: only FORBIDDEN_EQUIPMENT
+      // refuses it, so a catalogue that listed a laser would still be safe.
+      const allow: SaveAllowLists = {
+        ...ALLOW,
+        equipment: new Set([...ALLOW.equipment, key]),
+      };
+      const blob = validV4({ equipment: [key] });
+      expect(parseSave(JSON.stringify(blob), allow)).toEqual({
+        ok: false,
+        reason: "corrupt",
+      });
+      expect(isEncodedSaveValid(JSON.stringify(blob), allow)).toBe(false);
+    },
+  );
+
+  it("the writer gate refuses a mount the schema forbids, whatever the caller passed", () => {
+    const forged = {
+      ...baseInputs(),
+      laserMounts: {
+        ...STOCK_MOUNTS,
+        aft: "EQ_WEAPON_PLASMA",
+      } as unknown as LaserMounts,
+    };
+    expect(isEncodedSaveValid(encodeSave(forged), ALLOW)).toBe(false);
+  });
+});
+
+function baseInputs(overrides: Partial<SaveInputs> = {}): SaveInputs {
+  return {
+    clockSeconds: CLOCK_START + 600,
+    credits: 1000,
+    equipment: [],
+    cargo: [],
+    fuel: 70,
+    missiles: 3,
+    passengerBerths: 0,
+    mode: "docked",
+    marketSeed: LAVE_SEED,
+    systemId: "g0-s7",
+    stationKey: "coriolis-station",
+    epoch: 0,
+    nextEntityId: 101,
+    laserMounts: DEFAULT_LASER_MOUNTS,
+    ...overrides,
+  };
+}
+
+describe("classification: future versions stay inert", () => {
+  it("version 5 is future-version and is never classified as corrupt", () => {
+    expect(parseOf(validV4({ version: 5 }))).toEqual({
+      ok: false,
+      reason: "future-version",
+    });
+  });
+
+  it("an oversized version 5 blob is future-version and JSON.parse never runs", () => {
+    const oversized = `${JSON.stringify(validV4({ version: 5 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
+    expect(oversized.length).toBeGreaterThan(MAX_SAVE_CHARS);
+    const parse = vi.spyOn(JSON, "parse");
+    try {
+      expect(parseSave(oversized, ALLOW)).toEqual({
+        ok: false,
+        reason: "future-version",
+      });
+      expect(parse).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  it("a v4 blob with a forged mount is corrupt, the one reason that is backed up", () => {
+    expect(
+      parseOf(validV4({ laserMounts: { ...STOCK_MOUNTS, aft: "x" } })),
+    ).toEqual({ ok: false, reason: "corrupt" });
+  });
+});
+
+/**
+ * The worst-case v4 save: every field at its bound, every string made only of
+ * code units that JSON.stringify escapes to six characters (U+0000 to U+0007,
+ * U+000B, U+000E to U+001F; U+0008, U+0009, U+000A, U+000C and U+000D escape to
+ * two and are excluded), and four military lasers, the longest mount key.
+ */
+const SIX_CHAR_UNITS: readonly string[] = [
+  ...Array.from({ length: 8 }, (_, index) => String.fromCharCode(index)),
+  String.fromCharCode(0x0b),
+  ...Array.from({ length: 18 }, (_, index) =>
+    String.fromCharCode(0x0e + index),
+  ),
+];
+
+function worstKey(index: number, length: number): string {
+  let key = "";
+  for (let at = 0; at < length; at += 1) {
+    key += SIX_CHAR_UNITS[(index + at) % SIX_CHAR_UNITS.length] ?? "";
+  }
+  return key;
+}
+
+const WORST_CASE_INPUTS: SaveInputs = {
+  clockSeconds: CLOCK_START + MAX_SAVE_CLOCK_DELTA,
+  credits: MAX_SAVE_CREDITS,
+  equipment: Array.from({ length: MAX_SAVE_EQUIPMENT }, (_, index) =>
+    worstKey(index, MAX_SAVE_EQUIPMENT_KEY_CHARS),
+  ),
+  cargo: Array.from({ length: MAX_SAVE_CARGO_ENTRIES }, (_, index) => ({
+    key: worstKey(index + 3, MAX_SAVE_EQUIPMENT_KEY_CHARS),
+    quantity: MAX_SAVE_CARGO_QUANTITY,
+  })),
+  fuel: MAX_SAVE_FUEL,
+  missiles: MAX_SAVE_MISSILES,
+  passengerBerths: MAX_SAVE_BERTHS,
+  mode: "inFlight",
+  targetSystem: worstKey(5, MAX_SAVE_SYSTEM_ID_CHARS),
+  market: {
+    systemId: worstKey(7, MAX_SAVE_SYSTEM_ID_CHARS),
+    seed: 0xffffffff,
+    goods: Array.from({ length: MAX_SAVE_MARKET_GOODS }, (_, index) => ({
+      key: worstKey(index + 9, MAX_SAVE_EQUIPMENT_KEY_CHARS),
+      price: MAX_SAVE_CREDITS,
+      stock: MARKET_LIMIT,
+    })),
+  },
+  flight: {
+    position: [-999999999.9999999, -999999999.9999999, -999999999.9999999],
+    orientation: [
+      -0.4999999999999999, -0.4999999999999999, -0.4999999999999999,
+      -0.4999999999999999,
+    ],
+    speed: 999999.9999999999,
+    pitchRate: -9.999999999999998,
+    rollRate: -9.999999999999998,
+    torus: false,
+  },
+  systemId: worstKey(11, MAX_SAVE_SYSTEM_ID_CHARS),
+  stationKey: worstKey(13, MAX_SAVE_STATION_KEY_CHARS),
+  epoch: MAX_SAVE_EPOCH,
+  nextEntityId: MAX_SAVE_NEXT_ENTITY_ID,
+  laserMounts: {
+    fore: "EQ_WEAPON_MILITARY_LASER",
+    aft: "EQ_WEAPON_MILITARY_LASER",
+    port: "EQ_WEAPON_MILITARY_LASER",
+    starboard: "EQ_WEAPON_MILITARY_LASER",
+  },
+};
+
+const WORST_CASE_ENCODED = encodeSave(WORST_CASE_INPUTS);
+
+describe("worst-case v4 save", () => {
+  it(`encodes under MAX_SAVE_CHARS (measured ${String(WORST_CASE_ENCODED.length)} characters), is schema-valid, and is not vacuous`, () => {
+    expect(WORST_CASE_ENCODED.length).toBeLessThan(MAX_SAVE_CHARS);
+    expect(WORST_CASE_ENCODED.length).toBeGreaterThanOrEqual(38_000);
+    expect(SaveV4Schema.safeParse(JSON.parse(WORST_CASE_ENCODED)).success).toBe(
+      true,
+    );
+    // The four mount keys are part of what was measured.
+    expect(
+      (WORST_CASE_ENCODED.match(/EQ_WEAPON_MILITARY_LASER/gu) ?? []).length,
+    ).toBe(4);
+  });
+});
+
+/**
+ * The two future-version checks of the v3 build's parser, transcribed verbatim
+ * from the pre-Phase-13 `src/persistence/save.ts` with SAVE_VERSION 3: the
+ * bounded 256-character sniff for an oversized blob and the post-parse
+ * `typeof version === "number" && version > 3` check. The Phase 11 test applied
+ * the same transcription to the v2 build; only the constant differs.
+ */
+function olderBuildIsFuture(raw: string): boolean {
+  const SAVE_VERSION_V3 = 3;
+  const MAX_VERSION_SNIFF_CHARS = 256;
+  const VERSION_SNIFF = /"version"\s*:\s*(\d{1,16})/;
+  if (raw.length > 65_536) {
+    const match = VERSION_SNIFF.exec(raw.slice(0, MAX_VERSION_SNIFF_CHARS));
+    if (match === null) return false;
+    const value = Number(match[1]);
+    const version = Number.isSafeInteger(value) ? value : null;
+    return version !== null && version > SAVE_VERSION_V3;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    return false;
+  }
+  if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+    const version = (parsed as Record<string, unknown>)["version"];
+    return typeof version === "number" && version > SAVE_VERSION_V3;
+  }
+  return false;
+}
+
+describe("older builds keep a v4 save inert", () => {
+  const docked = encodeSave(baseInputs());
+  const inFlight = encodeSave(WORST_CASE_INPUTS);
+  const paddedWorst = `${WORST_CASE_ENCODED}${" ".repeat(MAX_SAVE_CHARS)}`;
+
+  it.each([
+    ["docked", docked],
+    ["worst-case in flight", inFlight],
+    ["worst case padded beyond MAX_SAVE_CHARS", paddedWorst],
+  ])("the v3 build classifies a %s blob as future-version", (_name, raw) => {
+    expect(raw.startsWith('{"version":4,')).toBe(true);
+    expect(olderBuildIsFuture(raw)).toBe(true);
+  });
+
+  it("the frozen classifier does not call a v3 blob future (it is not vacuous)", () => {
+    expect(
+      olderBuildIsFuture(JSON.stringify({ ...validV4(), version: 3 })),
+    ).toBe(false);
+    expect(olderBuildIsFuture("not json")).toBe(false);
+  });
+
+  it("this build reads the padded worst case as unreadable, never corrupt", () => {
+    expect(parseSave(paddedWorst, ALLOW)).toEqual({
+      ok: false,
+      reason: "unreadable",
+    });
   });
 });

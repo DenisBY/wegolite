@@ -1,0 +1,57 @@
+{
+  "version": 4,
+  "mode": "inFlight",
+  "clockSeconds": 180057946834,
+  "credits": 98765,
+  "equipment": ["EQ_DOCK_COMP"],
+  "cargo": [
+    { "key": "food", "quantity": 3 },
+    { "key": "gold", "quantity": 499 },
+    { "key": "gem_stones", "quantity": 250 }
+  ],
+  "fuel": 42,
+  "missiles": 2,
+  "passengerBerths": 0,
+  "system": { "id": "g0-s7" },
+  "station": { "key": "coriolis-station" },
+  "targetSystem": "g0-s1",
+  "market": {
+    "systemId": "g0-s7",
+    "seed": 3545325333,
+    "goods": [
+      { "key": "food", "price": 100, "stock": 0 },
+      { "key": "textiles", "price": 101, "stock": 3 },
+      { "key": "radioactives", "price": 102, "stock": 6 },
+      { "key": "slaves", "price": 103, "stock": 9 },
+      { "key": "liquor_wines", "price": 104, "stock": 12 },
+      { "key": "luxuries", "price": 105, "stock": 15 },
+      { "key": "narcotics", "price": 106, "stock": 18 },
+      { "key": "computers", "price": 107, "stock": 21 },
+      { "key": "machinery", "price": 108, "stock": 24 },
+      { "key": "alloys", "price": 109, "stock": 27 },
+      { "key": "firearms", "price": 110, "stock": 30 },
+      { "key": "furs", "price": 111, "stock": 33 },
+      { "key": "minerals", "price": 112, "stock": 36 },
+      { "key": "gold", "price": 113, "stock": 39 },
+      { "key": "platinum", "price": 114, "stock": 42 },
+      { "key": "gem_stones", "price": 115, "stock": 45 },
+      { "key": "alien_items", "price": 116, "stock": 48 }
+    ]
+  },
+  "flight": {
+    "position": [1200.5, -40.25, 8000.75],
+    "orientation": [1, 0, 0, 0],
+    "speed": 123.5,
+    "pitchRate": 0.25,
+    "rollRate": -0.5,
+    "torus": true
+  },
+  "epoch": 0,
+  "nextEntityId": 101,
+  "laserMounts": {
+    "fore": "EQ_WEAPON_PULSE_LASER",
+    "aft": "EQ_WEAPON_NONE",
+    "port": "EQ_WEAPON_NONE",
+    "starboard": "EQ_WEAPON_NONE"
+  }
+}
