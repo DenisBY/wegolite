@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 13
 current_phase_name: Views, Lasers and Shields
 status: executing
-stopped_at: Completed 13-09-PLAN.md
-last_updated: "2026-11-15T01:08:23.629Z"
+stopped_at: Completed 13-10-PLAN.md
+last_updated: "2026-11-15T01:31:09.412Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 13 execution started
-state_head: 9bb28a2907db4897861190a3025d583b154a7768
+state_head: 846d69ca9ceae34a10ccc157e5285cd51b81c29a
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 16
-  completed_plans: 10
+  completed_plans: 11
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 13 (Views, Lasers and Shields) — EXECUTING
-Plan: 11 of 16
+Plan: 12 of 16
 Status: Ready to execute
 Last activity: 2026-11-14 — Phase 13 execution started
 
@@ -163,6 +163,7 @@ Last activity: 2026-11-14 — Phase 13 execution started
 | Phase 13 P07 | 25 min | 3 tasks | 14 files |
 | Phase 13 P08 | 25 min | 3 tasks | 14 files |
 | Phase 13 P09 | 17 min | 3 tasks | 11 files |
+| Phase 13 P10 | 25 min | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -402,6 +403,7 @@ Recent decisions affecting current work:
 - [Phase 13]: 13-08: hashWorld sanitises the combat state before the pristine test; the combat line is appended only when not pristine, so no pinned hash moves
 - [Phase 13]: 13-09: lasers get their own allow-listed money path (checkLaserFit/applyLaserFit over LASER_FIT_KEYS x FACINGS); checkFit/applyFit still refuse every laser; the laser trade-in price travels in LaserFitContext.laserPrices
 - [Phase 13]: 13-09: the F3 facing selection is session state (outfittingFacingFor) cleared in renderStation whenever the screen is not F3; affordability is the full price before any refund, as Oolite
+- [Phase 13]: 13-10: ShipControl.fire queues the actor on world.fireQueue; resolveShots (now with dt) drains it, resolves NPC and player shots by one hit rule and routes hits on PLAYER_ID through routeDamage; NPC energy recharges before the tick's hits
 
 ### Pending Todos
 
@@ -503,8 +505,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T01:08:23.551Z
-Stopped at: Completed 13-09-PLAN.md
+Last session: 2026-11-15T01:31:09.332Z
+Stopped at: Completed 13-10-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
