@@ -13,7 +13,8 @@
  * minimum of DATA-15), the display name, max energy, energy recharge rate,
  * forward weapon and forward weapon position, and, from Phase 14 (AI-01), the
  * four flight constants the NPC flight model reads (max flight speed, roll and
- * pitch, and thrust). Nothing else: no other combat or flight stat, no
+ * pitch, and thrust), and, from Phase 15 (DATA-14), `likely_cargo` and
+ * `max_cargo` (unsigned integers, default 0). Nothing else: no other combat or flight stat, no
  * subentity, material or `auto_ai`. No class field is compiled:
  * Oolite's class name equals the name for all nine stock hulls
  * (`ship_class_name` defaults to `name`, ShipEntity.m:391-392), so the ident
@@ -98,6 +99,12 @@ export const DEFAULT_MAX_FLIGHT_PITCH = 1;
 /** Oolite's `thrust` default (ShipEntity.m:270, 15.0). */
 export const DEFAULT_THRUST = 15;
 
+/** Oolite's `likely_cargo` default (`oo_unsignedIntForKey`, ShipEntity.m:566). */
+export const DEFAULT_LIKELY_CARGO = 0;
+
+/** Oolite's `max_cargo` default (`oo_unsignedIntForKey`, ShipEntity.m:378). */
+export const DEFAULT_MAX_CARGO = 0;
+
 /** Oolite's `forward_weapon_type` default (ShipEntity.m:300). */
 export const DEFAULT_FORWARD_WEAPON = "EQ_WEAPON_NONE";
 
@@ -162,6 +169,29 @@ function floatExtra(
     );
   }
   return Math.fround(value);
+}
+
+/**
+ * An unsigned integer extra, or the fallback when the key is absent (Oolite's
+ * `oo_unsignedIntForKey:`, default 0). A present value that is not a finite,
+ * non-negative safe integer fails the build rather than silently taking the
+ * default.
+ */
+function uintExtra(
+  key: string,
+  extras: Record<string, unknown>,
+  field: string,
+  fallback: number,
+): number {
+  const value = extras[field];
+  if (value === undefined) return fallback;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    return fail(
+      key,
+      `${field} is not a non-negative integer: ${JSON.stringify(value)}`,
+    );
+  }
+  return value;
 }
 
 /**
@@ -308,6 +338,13 @@ export function compileNpcShips(
         DEFAULT_MAX_FLIGHT_PITCH,
       ),
       thrust: floatExtra(key, entry.extras, "thrust", DEFAULT_THRUST),
+      likelyCargo: uintExtra(
+        key,
+        entry.extras,
+        "likely_cargo",
+        DEFAULT_LIKELY_CARGO,
+      ),
+      maxCargo: uintExtra(key, entry.extras, "max_cargo", DEFAULT_MAX_CARGO),
     };
 
     const parsed = NpcShipSchema.safeParse(candidate);

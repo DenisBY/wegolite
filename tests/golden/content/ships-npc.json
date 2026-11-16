@@ -18,7 +18,9 @@
     "forwardWeaponPosition",
     "glb",
     "key",
+    "likelyCargo",
     "mass",
+    "maxCargo",
     "maxEnergy",
     "maxFlightPitch",
     "maxFlightRoll",
@@ -40,7 +42,9 @@
     "maxFlightSpeed": 160,
     "maxFlightRoll": 2,
     "maxFlightPitch": 1,
-    "thrust": 15
+    "thrust": 15,
+    "likelyCargo": 0,
+    "maxCargo": 0
   },
   "examples": [
     {
@@ -60,7 +64,9 @@
       "maxFlightSpeed": 320,
       "maxFlightRoll": 2.799999952316284,
       "maxFlightPitch": 1.7999999523162842,
-      "thrust": 32
+      "thrust": 32,
+      "likelyCargo": 0,
+      "maxCargo": 0
     },
     {
       "key": "adder",
@@ -88,7 +94,9 @@
       "maxFlightSpeed": 240,
       "maxFlightRoll": 2.799999952316284,
       "maxFlightPitch": 2,
-      "thrust": 30
+      "thrust": 30,
+      "likelyCargo": 2,
+      "maxCargo": 5
     },
     {
       "key": "sidewinder",
@@ -107,7 +115,9 @@
       "maxFlightSpeed": 370,
       "maxFlightRoll": 2.799999952316284,
       "maxFlightPitch": 1.600000023841858,
-      "thrust": 37
+      "thrust": 37,
+      "likelyCargo": 0,
+      "maxCargo": 0
     },
     {
       "key": "shuttle",
@@ -126,7 +136,9 @@
       "maxFlightSpeed": 80,
       "maxFlightRoll": 2,
       "maxFlightPitch": 0.8999999761581421,
-      "thrust": 16
+      "thrust": 16,
+      "likelyCargo": 0,
+      "maxCargo": 30
     },
     {
       "key": "gecko",
@@ -153,7 +165,9 @@
       "maxFlightSpeed": 300,
       "maxFlightRoll": 3,
       "maxFlightPitch": 1.5,
-      "thrust": 45
+      "thrust": 45,
+      "likelyCargo": 3,
+      "maxCargo": 3
     },
     {
       "key": "cobramk1",
@@ -185,7 +199,9 @@
       "maxFlightSpeed": 260,
       "maxFlightRoll": 2,
       "maxFlightPitch": 1.2000000476837158,
-      "thrust": 25
+      "thrust": 25,
+      "likelyCargo": 10,
+      "maxCargo": 10
     },
     {
       "key": "krait",
@@ -210,7 +226,9 @@
       "maxFlightSpeed": 300,
       "maxFlightRoll": 2.75,
       "maxFlightPitch": 1.5,
-      "thrust": 35
+      "thrust": 35,
+      "likelyCargo": 2,
+      "maxCargo": 2
     },
     {
       "key": "mamba",
@@ -229,7 +247,9 @@
       "maxFlightSpeed": 320,
       "maxFlightRoll": 2.0999999046325684,
       "maxFlightPitch": 1.399999976158142,
-      "thrust": 32
+      "thrust": 32,
+      "likelyCargo": 3,
+      "maxCargo": 4
     },
     {
       "key": "moray",
@@ -259,7 +279,9 @@
       "maxFlightSpeed": 300,
       "maxFlightRoll": 2.5,
       "maxFlightPitch": 1.5,
-      "thrust": 32
+      "thrust": 32,
+      "likelyCargo": 5,
+      "maxCargo": 7
     }
   ],
   "sources": [
@@ -290,6 +312,16 @@
     "shuttle: max_flight_speed 80 (line 3535), max_flight_roll 2 (line 3534), max_flight_pitch 0.9 (line 3533), thrust 16 (line 3541), all of oolite_template_shuttle in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
     "sidewinder: max_flight_speed 370 (line 3591), max_flight_roll 2.8 (line 3590), max_flight_pitch 1.6 (line 3589), thrust 37 (line 3597), all of oolite_template_sidewinder in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
     "viper: max_flight_speed 320 (line 3880), max_flight_roll 2.8 (line 3879), max_flight_pitch 1.8 (line 3878), thrust 32 (line 3962), all of oolite_template_viper in shipdata.plist and inherited by the like_ship child; Oolite reads each as a float32 (ShipEntity.m:263-270), so the record holds the float32 of the authored value",
-    "flight defaults: max_flight_speed 160 for a non-station, max_flight_roll 2.0, max_flight_pitch 1.0 and thrust 15.0 (ShipEntity.m:263-270); none of the nine ships authors a default-taking case, so the defaults are pinned by the converter test alone; none of the nine authors accuracy, reaction_time, scanner_range, aft_weapon_type, port_weapon_type or starboard_weapon_type (the build refuses them)"
+    "flight defaults: max_flight_speed 160 for a non-station, max_flight_roll 2.0, max_flight_pitch 1.0 and thrust 15.0 (ShipEntity.m:263-270); none of the nine ships authors a default-taking case, so the defaults are pinned by the converter test alone; none of the nine authors accuracy, reaction_time, scanner_range, aft_weapon_type, port_weapon_type or starboard_weapon_type (the build refuses them)",
+    "viper: oolite_template_viper (lines 3831-3968) authors neither likely_cargo nor max_cargo, so both take the default 0 (ShipEntity.m:566, :378); the like_ship child viper at lines 4537-4540 adds nothing",
+    "adder: likely_cargo 2 (shipdata.plist line 125) and max_cargo 5 (line 143) of oolite_template_adder, inherited by the like_ship child",
+    "sidewinder: oolite_template_sidewinder (lines 3559-3603) authors neither likely_cargo nor max_cargo, so both take the default 0 (ShipEntity.m:566, :378)",
+    "shuttle: no likely_cargo in oolite_template_shuttle, so the default 0 (ShipEntity.m:566); max_cargo 30 (shipdata.plist line 3531), inherited by the like_ship child",
+    "gecko: likely_cargo 3 (shipdata.plist line 2291) and max_cargo 3 (line 2318) of oolite_template_gecko, inherited by the like_ship child",
+    "cobramk1: likely_cargo 10 (shipdata.plist line 1524) and max_cargo 10 (line 1542) of oolite_template_cobramk1, inherited by the like_ship child",
+    "krait: likely_cargo 2 (shipdata.plist line 2531) and max_cargo 2 (line 2549) of oolite_template_krait, inherited by the like_ship child",
+    "mamba: likely_cargo 3 (shipdata.plist line 2603) and max_cargo 4 (line 2629) of oolite_template_mamba, inherited by the like_ship child",
+    "moray: likely_cargo 5 (shipdata.plist line 2800) and max_cargo 7 (line 2831) of oolite_template_moray, inherited by the like_ship child",
+    "cargo defaults: likely_cargo and max_cargo are read with oo_unsignedIntForKey and default to 0 (ShipEntity.m:566 and :378); the like_ship children author neither key, and viper and sidewinder author neither key in their templates, the shuttle no likely_cargo"
   ]
 }

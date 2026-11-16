@@ -6,8 +6,9 @@
  *
  * The expected values live in `tests/golden/content/ships-npc.json`, which was
  * written by hand from `shipdata.plist` and is never generated. The compiled
- * records (seventeen fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
- * `radius`, the five Phase 13 combat fields and the four Phase 14 flight fields)
+ * records (nineteen fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
+ * `radius`, the five Phase 13 combat fields, the four Phase 14 flight fields and
+ * the two Phase 15 cargo fields)
  * are compared with it, with the resolved template parents, and with the committed generated
  * file, so a drift in any one of the four fails.
  */
@@ -32,6 +33,8 @@ import {
   DEFAULT_AI_TYPE,
   DEFAULT_ENERGY_RECHARGE_RATE,
   DEFAULT_FORWARD_WEAPON,
+  DEFAULT_LIKELY_CARGO,
+  DEFAULT_MAX_CARGO,
   DEFAULT_MAX_ENERGY,
   DEFAULT_MAX_FLIGHT_PITCH,
   DEFAULT_MAX_FLIGHT_ROLL,
@@ -98,6 +101,8 @@ interface Golden {
     readonly maxFlightRoll: number;
     readonly maxFlightPitch: number;
     readonly thrust: number;
+    readonly likelyCargo: number;
+    readonly maxCargo: number;
   };
   readonly examples: NpcShip[];
   readonly sources: string[];
@@ -151,7 +156,7 @@ describe("NPC ship records", () => {
     expect(records).toHaveLength(9);
   });
 
-  it("carries exactly the seventeen fields and passes the strict schema", () => {
+  it("carries exactly the nineteen fields and passes the strict schema", () => {
     for (const record of records) {
       expect(Object.keys(record).sort()).toEqual(golden.fields);
       expect(NpcShipSchema.safeParse(record).success).toBe(true);
@@ -170,6 +175,8 @@ describe("NPC ship records", () => {
     expect(DEFAULT_MAX_FLIGHT_ROLL).toBe(golden.defaults.maxFlightRoll);
     expect(DEFAULT_MAX_FLIGHT_PITCH).toBe(golden.defaults.maxFlightPitch);
     expect(DEFAULT_THRUST).toBe(golden.defaults.thrust);
+    expect(DEFAULT_LIKELY_CARGO).toBe(golden.defaults.likelyCargo);
+    expect(DEFAULT_MAX_CARGO).toBe(golden.defaults.maxCargo);
   });
 
   it.each(golden.examples.map((example) => [example.key, example] as const))(
@@ -627,6 +634,67 @@ describe("NPC flight fields (AI-01, minimum of DATA-15)", () => {
     expect(
       capture(() => compileNpcShips(negative, masses, radii)).construct,
     ).toBe("viper.maxFlightSpeed");
+  });
+});
+
+describe("NPC cargo fields (DATA-14, D-06)", () => {
+  // The authored plist values (shipdata.plist, the nine templates); an absent
+  // key is Oolite's default 0 (oo_unsignedIntForKey, ShipEntity.m:566, :378).
+  const EXPECTED: Record<string, readonly [number, number]> = {
+    adder: [2, 5],
+    cobramk1: [10, 10],
+    gecko: [3, 3],
+    krait: [2, 2],
+    mamba: [3, 4],
+    moray: [5, 7],
+    shuttle: [0, 30],
+    sidewinder: [0, 0],
+    viper: [0, 0],
+  };
+
+  it("pins likelyCargo and maxCargo of all nine records", () => {
+    expect(Object.keys(EXPECTED).sort()).toEqual([...NPC_SHIP_KEYS]);
+    for (const [key, [likely, max]] of Object.entries(EXPECTED)) {
+      const record = requireRecord(key);
+      expect(record.likelyCargo).toBe(likely);
+      expect(record.maxCargo).toBe(max);
+    }
+  });
+
+  it("reads each value from the resolved plist entry, not from the table above", () => {
+    for (const key of NPC_SHIP_KEYS) {
+      const extras = requireEntry(key).extras;
+      const record = requireRecord(key);
+      expect(record.likelyCargo).toBe(Number(extras["likely_cargo"] ?? 0));
+      expect(record.maxCargo).toBe(Number(extras["max_cargo"] ?? 0));
+    }
+  });
+
+  it("takes the default 0 when the keys are absent", () => {
+    const bare = withExtras("adder", (extras) => {
+      delete extras["likely_cargo"];
+      delete extras["max_cargo"];
+      return extras;
+    });
+    const adder = compiled(bare, "adder");
+    expect(adder.likelyCargo).toBe(0);
+    expect(adder.maxCargo).toBe(0);
+  });
+
+  it("fails the build naming the key and field on a malformed authored value", () => {
+    for (const field of ["likely_cargo", "max_cargo"]) {
+      for (const value of [-1, 1.5, "3", Number.NaN, 2 ** 53]) {
+        const bad = withExtras("adder", (extras) => ({
+          ...extras,
+          [field]: value,
+        }));
+        const error = capture(() => compileNpcShips(bad, masses, radii));
+        expect(error.code).toBe("SCHEMA");
+        expect(error.file).toBe(NPC_SHIPS_PATH);
+        expect(error.construct).toBe("adder");
+        expect(error.excerpt).toContain(field);
+      }
+    }
   });
 });
 

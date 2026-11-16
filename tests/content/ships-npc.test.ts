@@ -238,6 +238,32 @@ describe("NpcShipCatalogueSchema", () => {
     }
   });
 
+  it("carries likelyCargo and maxCargo on every record", () => {
+    for (const record of generated as Record<string, unknown>[]) {
+      for (const field of ["likelyCargo", "maxCargo"]) {
+        expect(Number.isInteger(record[field])).toBe(true);
+        expect(record[field] as number).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it("rejects a record missing a cargo field or carrying a bad one", () => {
+    for (const field of ["likelyCargo", "maxCargo"]) {
+      const record = { ...firstRecord() };
+      delete record[field];
+      expect(accepts([record])).toBe(false);
+      for (const value of [
+        -1,
+        1.5,
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        "1",
+      ]) {
+        expect(accepts([{ ...firstRecord(), [field]: value }])).toBe(false);
+      }
+    }
+  });
+
   it("rejects a missing, zero, negative or non-finite mass", () => {
     const { mass: _mass, ...withoutMass } = firstRecord();
     void _mass;

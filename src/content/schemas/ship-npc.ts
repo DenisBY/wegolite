@@ -16,8 +16,10 @@
  * message consume: the display name, max energy, energy recharge rate, forward
  * weapon and forward weapon position (CBT-07). Phase 14 adds the four flight
  * constants the NPC flight model reads (AI-01): maximum speed, roll and pitch
- * rate, and thrust. No other combat or flight stat is compiled here, and the
- * strict object rejects any extra field.
+ * rate, and thrust. Phase 15 adds the rest of DATA-14: the aft, port and
+ * starboard weapon types and positions beside the forward pair, `likely_cargo`
+ * and `max_cargo`, `fragment_chance` and `explosion_type`. No other combat or
+ * flight stat is compiled here, and the strict object rejects any extra field.
  *
  * `glb` is a locator, not inert-world data: it is never copied from the plist
  * but derived from the model by the one naming rule, and both it and `model`
@@ -95,6 +97,11 @@ export const NpcShipSchema = z.strictObject({
   maxFlightPitch: z.number().nonnegative().max(MAX_FLIGHT_RATE_BOUND),
   // `thrust`, default 15.0 (ShipEntity.m:270).
   thrust: z.number().nonnegative().max(MAX_FLIGHT_MAGNITUDE_BOUND),
+  // `likely_cargo` (ShipEntity.m:566) and `max_cargo` (ShipEntity.m:378), both
+  // read with `oo_unsignedIntForKey`, default 0: the inputs of the cargo capsule
+  // count chosen at spawn (Phase 15, D-06) and read again at explosion time.
+  likelyCargo: z.number().int().nonnegative(),
+  maxCargo: z.number().int().nonnegative(),
 });
 
 export const NpcShipCatalogueSchema = z.array(NpcShipSchema).min(1);
