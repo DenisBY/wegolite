@@ -1,172 +1,135 @@
-# Project Research Summary: v2.0 Foundation & Combat
+# Project Research Summary
 
-**Project:** Wegolite
-**Milestone:** v2.0 Foundation & Combat (subsequent milestone; v1 flight, docking, trading, outfitting, hyperspace and saves already ship)
-**Domain:** Faithful browser port of Oolite's multi-entity space combat: NPC traffic, priority AI, combat, legal status, death and escape pod, planet and sun collision, and Web Audio, on a new deterministic multi-entity world
-**Researched:** 2026-11-11
-**Confidence:** HIGH for the foundation and integration decisions; MEDIUM for AI fidelity volume, render batching under traffic, and audio behaviour in headless browsers
-**Supersedes:** the v1 SUMMARY.md dated 2026-11-02
-
-Inputs: `STACK.md`, `FEATURES.md`, `ARCHITECTURE.md`, `PITFALLS.md` in this directory, and `.planning/PROJECT.md`. The synthesis also spot-checked several claims against the Oolite checkout at `/home/opencode/git/oolite`.
-
----
+**Project:** Wegolite, milestone v2.3 "Combat and Death"
+**Domain:** Deterministic browser port of Oolite; combat consequences added to an existing fixed-step, golden-hashed simulation (NPC laser fire, hits on stations and buoys, ship destruction with wreckage and cargo, ship collisions, player death and game over)
+**Researched:** 2026-11-16
+**Confidence:** HIGH on rules and integration points (read from the Oolite checkout and the Wegolite tree); MEDIUM on wreckage lifetime, per-hull cargo, the Coriolis subentity rule and effort estimates. This SUMMARY supersedes the one from the earlier milestone.
 
 ## Executive Summary
 
-Wegolite v2.0 turns an empty system into a populated one. The work is a deterministic, fixed-step simulation of many entities (ships, missiles, cargo pods, wreckage) with stable ids, hashed and golden-tested like the v1 flight model, and rendered through a Three.js layer that never writes sim state. Oolite's own rules and numbers are the specification. Oolite's gameplay logic is JavaScript (the AILib priority AI, role AIs and populator) plus native Objective-C behaviours in `ShipEntity.m`. The research recommends porting that logic by hand to typed TypeScript and treating the Oolite files as reference only. Closure-held AI state cannot be saved or hashed, so runtime JavaScript is rejected.
+v2.3 is a rules-porting and integration milestone, not a technology milestone. The v1 to v2.2 stack is validated, and every new capability is hand-written sim code that follows closed-form Oolite rules: damage `m * v^2 / 50,000,000`, the NPC fire gate, `becomeExplosion` and `releaseCargoPodsDebris`, `takeInternalDamage`, and `getDestroyedBy`. The only real stack work is in the content pipeline: widening the NPC record, vendoring about eight models and several textures, and emitting hulls for the Coriolis, buoy, pod and alloy plate. The expensive part is that every new rule has to pass through four constraints: determinism (own-stream draws, no frame-time gates), the frozen Phase 14 entity record and golden, the frozen 20-seed acceptance run, and a clean tick boundary (no dead entity, no queued AI event).
 
-The stack decision is the least controversial part: add zero runtime and zero dev dependencies. The entity store, sweep-and-prune broadphase, and the octree narrowphase are hand-written. Sound is the raw Web Audio API, with Oolite's `.ogg` files shipped unchanged (verified to decode in Chromium and Firefox). Effects and NPC hulls use pooled `InstancedMesh` objects to stay inside the 50-draw-call budget. The sim stays on the main thread. The real risks are not technical novelty. They are: (1) a hand-port of about 12,000 lines of AI JavaScript plus about 2,500 lines of native steering that cannot be checked against the original except by building a differential harness; (2) determinism bugs from iteration order, shared random streams, and non-serialisable state; (3) a fight-and-traffic load that the existing browser suite and SwiftShader cannot exercise in real time.
+The recommended approach has four parts.
+1. Design all new hashed entity state once, with one `WORLD_SNAPSHOT_VERSION` 4 bump and one golden regeneration, taken in the first plan.
+2. Route all damage through one ledger, `applyDamage`, resolved after `stepWorld`, with a second `commitWorld` and an immediate AI drain so the tick boundary stays clean.
+3. Keep death as a single sim function that sets `FlightMode "dead"`, and give the app a single death flow that reuses the existing warm-Load install path instead of a second restore path.
+4. Keep explosions and effects render-only.
 
-The recommended approach is an ordered, test-gated build. First, split `game-session.ts` behind a probe-shape snapshot and add the world core (ids, store, object-state RNG, a hash composed so that an empty world hashes exactly like today's `hashFlight`). Build NPC content in parallel. Make one save schema bump to v3 with a seed-and-epoch world policy, not an entity snapshot. Put inert ships on screen before any AI moves, then player weapons against inert targets, then AI motion, then the legal and death loop, then missiles and equipment damage, then the full populator, audio, and hardening. The critical path is session split, world core, inert world, weapons, AI motion, legal and death, and the performance gate. Owner decisions gate this work (listed below); several were answered at milestone start (see "Owner decisions recorded").
+Do not add a physics engine, particle library, ECS or any dependency. Do not raise `MAX_ENTITIES`. Scale Oolite's 0.95 and 0.50 debris thresholds to the current cap of 256 (243 and 128).
 
----
+The biggest risk is not technical. In shipped play every NPC is `ai: null`, and priority AI, pirates and police are out of scope, so nothing makes an NPC fire. Without an owner decision, "NPC fire" is reachable only through test pilots. Further risks:
+- The frozen acceptance run throws on any flyer death, and it only runs by hand on the remote machine.
+- Save and equipment-damage persistence is contested between the research files.
+- Statics (Coriolis, buoys) have no energy, hull or removal path today, and the Coriolis hull may break the hull artifact caps.
+- A dead player must never be autosaved, because `snapshotForSave` currently encodes any non-`inFlight` mode as `docked`.
+
+## OPEN FOR THE OWNER
+
+Decisions the four research files raise that the research cannot make. Ask in Russian, plain SRE/devops wording, with a recommendation.
+
+| ID | Question | Recommendation | Source |
+|----|----------|----------------|--------|
+| **OQ-1** | **Who triggers NPC fire in shipped play?** All 12 populated NPCs are `ai: null`; `AI_REGISTRY` holds only test pilots. (a) engine only, proven by test pilots and the `?test=1` hook; (b) minimal wake-on-hit "reflex" AI attached when an `ai: null` ship is hit, recorded as a divergence; (c) pull a slice of role AI from the backlog. | (a) fits "technical minimum"; (b) only if a player must see it. Never shoot-on-sight, never (c). Record in Key Decisions and FIDELITY.md. | FEATURES Q1, ARCH Q1, PITFALLS 1 |
+| **OQ-2** | **Equipment damage persistence / save v5.** STACK, ARCH, FEATURES TS-14: save v5 with `damagedEquipment`. PITFALLS: stay on v4 and remove the key (a `_DAMAGED` key is rejected by the save validator and there is no repair path). **Files disagree.** | Owner call; cheapest is key removal on v4 plus a FIDELITY.md row. Decide with OQ-3. | STACK, ARCH Q2, FEATURES TS-14, PITFALLS 13, 18 |
+| **OQ-3** | **Repair (CBT-12 slice, D-8).** Add the 50 % repair at F3 or leave damage permanent? FEATURES: add; ARCH: leave out. | If repair is out, OQ-2 leans to remove-key. | FEATURES Q3, ARCH Q4 |
+| **OQ-4** | **Statics hit model.** Port the subentity branch or bake Coriolis (faceplate, tris, dock) and buoy (core) into one merged octree? How does the buoy take damage? | Merged hull, parent energy only, recorded divergence; spike first on the Coriolis dock mouth. Station absorbs hits (25000 energy, 100/s, never destroyed); buoys (250, 2/s) hold state in a per-world `staticHealth`, hashed only when non-pristine. | FEATURES Q2, ARCH Q8, PITFALLS 11 |
+| **OQ-5** | **Entity cap 256 vs Oolite's 2048.** | Keep 256; thresholds 243 and 128; drop the frame-time term (`getTimeDelta < 0.125`) and record both; keep the scanner-range gate. | STACK, FEATURES TS-6, PITFALLS 8 |
+| **OQ-6** | **Coriolis octree vs hull caps** (`MAX_HULL_NODES` 16,384; `MAX_HULL_ARTIFACT_BYTES` 200,000; artifact already 89,673 bytes). | Measure in the `assets` container. Fits: one file, `MAX_HULLS` 32. Otherwise a separate `ships-statics-hulls.json`. Key Decisions row either way. | STACK, ARCH 13 |
+| **OQ-7** | **Snapshot design:** always-present `;wpn:` segment (ARCH) vs pristine-omit (PITFALLS); debris motion model (heading + `speed` vs bounded velocity vector). | One v4 bump, one regeneration of `inert-lave-epoch1.json`, strip-and-rehash proof to the previous golden; pristine-omit wherever a field is default for existing ships; decide the motion model in the same plan. | ARCH 6, PITFALLS 3, 9 |
+| **OQ-8** | **Vendoring new assets** (wreck1..5, oolite_alloy, oolite_barrel, textures, five particle sprites). | Copy from the local checkout via `scripts/vendor-oolite.sh`, with `CHECKSUMS.sha256`, `ASSETS.md`, `NOTICE` rows. Confirm sanctioned. | STACK, ARCH 8, PITFALLS 25 |
+| **OQ-9** | Game over: reload or in-page return to title? | Page reload (also matches Oolite). | ARCH Q5 |
+| **OQ-10** | May the player die while `launching`? | Require `inFlight`; clamp energy at 1 while launching; record divergence. | ARCH Q6, FEATURES TS-12 |
+| **OQ-11** | Station-hull contact stays damage-free (v1)? | Yes, until DOCK-09; state it in the requirements. | FEATURES Q4, PITFALLS 12 |
+| **OQ-12** | Buoy collision vs arrival/launch poses (`hyperspace-failure.spec.ts` parks at 0 m from the witchpoint buoy; buoy hull ~100 m vs sim radius 10 m). | Sanctioned fixture change with a Key Decisions row; unit test that no arrival draw overlaps the buoy hull. | FEATURES Q5 |
+| **OQ-13** | Wreckage lifetime (LOW confidence, ~E/1000 s). | Pin the formula, mark LOW in FIDELITY.md, add to the deferred todo `2026-11-14-measure-oolite-reference-in-docker`. | FEATURES Q6, PITFALLS 20 |
+| **OQ-14** | Smaller calls: (a) lasers never internally damaged; (b) `ship_trade_in_factor` not persisted; (c) subentity explosion/ring/spark polish deferred; (d) world during the 30 s game-over window. | (a) yes; (b) no; (c) defer; (d) freeze with a deterministic dead hash. | FEATURES D-6, D-9, ARCH Q3 |
 
 ## Key Findings
 
-### Recommended Stack (from STACK.md)
+### Recommended Stack (STACK.md)
 
-Zero new packages. Every new capability is covered by existing dependencies (Three.js 0.187.0, zod 4.6.7, Vite 8.3.5, Vitest 5.0.5, fast-check 4.10.2, Playwright 1.64.1) and platform APIs.
+Zero new runtime or dev dependencies, no Docker image change, no version bumps (TypeScript, Three.js 0.187.0, zod 4.6.7, Vite, Vitest, fast-check 4.10.2, Playwright stay pinned). No `docker compose down --volumes` needed.
 
-- **Entity store, hand-rolled (`src/sim/world/entity-store.ts`).** Rejected bitecs (recycles ids immediately, so dangling targets alias to new ships), miniplex (no ids, no serialisation, unmaintained since 2023), and koota (pre-1.0, unordered queries). Monotonic ids never reused, a persisted `nextId`, id-ascending iteration.
-- **Broadphase, hand-rolled.** Sweep-and-prune behind an interface with a brute-force reference; a fast-check property test asserts identical pair sets. Planet and sun are tested directly per ship, not inserted.
-- **Narrowphase, ported Oolite octrees.** `Octree.m` ported to `src/sim/collision/octree.ts`; octrees built at build time from `.dat` meshes in `tools/oolite-ingest`. Needed anyway: ship mass is `density * 20 * octree volume` (`ShipEntity.m:417-419`).
-- **Audio, raw Web Audio.** Reject howler.js (last release 2023) and Tone.js (5.4 MB). Decode SFX to `AudioBuffer` (~5.2 MB decoded). Stream the two music tracks through `<audio loop>` plus `createMediaElementSource` (decoding would cost ~190 MB PCM).
-- **Effects, pooled `InstancedMesh`** with `MeshBasicMaterial` and additive blending: about 4 to 5 draw calls total. Rejected `Sprite` and `Points`.
-- **No Web Worker in v2.0.** Only if measured sim cost exceeds ~4 ms p95 on the reference desktop.
-- **Rejected for the CSP reason:** Rapier/any WASM (`'wasm-unsafe-eval'`), `blob:` workers, `media-src` changes.
+- TypeScript sim (`src/sim/combat/`, `src/sim/npc/`): pure functions over `World` for damage, destruction, collision, internal damage.
+- Three.js `InstancedMesh`/`Points` pools (`src/render/bodies/`) for explosions, flashes, sparks, debris, as in `laser-shots.ts` and `npc-ships.ts`.
+- zod strict schemas: widen the NPC and hull records, never loosen.
+- Content ingest: vendor debris models, widen the NPC record, emit Coriolis/buoy/barrel/alloy hulls, compile `explosions.plist` to `explosions.json`.
+- fast-check: damage formulas, `isHitByOctree` against a brute-force reference, totality.
 
-Corrections not to carry forward from STACK.md: the "world PRNG state persisted in the save" claim conflicts with the anchored-save design, and its first-load figure predates WebP. Current cold start: 7,490,424 bytes against a 9,437,184-byte ceiling (quick task 261110-b7w).
+Rejected: physics engines, particle libraries, `three-mesh-bvh`, ECS/XState, server or database, the frame-time gate. Never `Math.random` or `Date.now` in `src/sim`.
 
-### Expected Features (from FEATURES.md)
+Numbers to reproduce (Oolite source): collision `dam = m_other * v^2 / 5e7`, 0.05 floor, separating faster than 1 m/s ignored, stations never moved or destroyed; `n_alloys = (mass/6000)^(1/4)`, up to 3 wrecks, pod chance 70 falling 30 (NPC) or 20 (player) per survivor, 15-pod limit, blast momentum `0.125 * mass` over `2.5 * radius`; internal damage loop `(rand & 31) < amount`, minus 32 per iteration; NPC fire gate (temperature cutout 0.85, energy, recharge, range roll, `onTarget`).
 
-12 table-stakes areas (TS-1 to TS-12) with Oolite source lines and complexity:
+### Expected Features (FEATURES.md)
 
-- **Lasers.** Pulse, beam, military, mining. Pulse: 15 damage, 12,500 m, 0.5 s recharge, heat 7.0 per shot, cutout at 217.6 (`equipment.plist:126-205`). Hit-scan along the facing axis; planets and suns never block it.
-- **Energy and shields.** Cobra `max_energy` 256, recharge 4/s; fore and aft shields 128 each at 2.0/s. NPCs have no shield pools.
-- **Damage.** Internal damage rolls, equipment damage with F3 repair at 50 %, collision damage `otherMass * closingSpeed^2 / 50 000 000`, wreckage and cargo pods.
-- **Missiles and ECM.** Missile AI, blast `dealEnergyDamage(180, 32.5, 0.1)`, ECM pulses at 6.4, 12.8, 19.2, 25.6 km.
-- **Legal status.** Bit-flag integer combined with OR (`PlayerEntity.m:6024-6040`). 0 Clean, 1–50 Offender, 51+ Fugitive. Kills and rating separate.
-- **Death.** No automatic eject; Escape double press before energy reaches zero. Pod: clock +12 h to 8.2 days, legal status 0, cargo wiped, ship and equipment kept.
-- **Populator.** Rates from government, economy, tech level, neighbours within 7 LY and 3.5 LY; repopulation every 20 s with probability `rate/180`.
-- **Sound.** 26 player-bound `.ogg` (412 KB), two music tracks (7.9 MB). No NPC combat sounds in core Oolite.
+**Table stakes:** TS-1/3/15 NPC destruction at energy 0 (station exempt), NPC-vs-NPC kills, clean removal (`entityRemoved`, `identLost`); TS-2/4 NPC fire by Oolite's gate and hits on the player through shields; TS-5/6/7 pods, scrap, wreckage with the entity cap; TS-8/9 lasers and ident hit station and buoys (closes todo `2026-11-15-lasers-and-ident-hit-stations-and-buoys`); TS-10/11 ship-ship and ship-buoy collision damage; TS-12/13 player death from any cause and game over loading the last save; TS-14 player internal damage; TS-16 render-only explosion.
 
-**Anti-features:** missions and contracts; thargoids, witchspace interception, cascade weapons; cloaking, military jammer; trumbles; trade-in renovation; docking-clearance protocol; target memory; custom views; joystick/touch fire; NPC combat sounds; real-time simulation while docked.
+**Nearly free:** D-3 explosion momentum on neighbours, D-2 evasive-on-hit. Owner-gated: D-1 retaliation (OQ-1), D-8 repair (OQ-3).
 
-**Differentiators (deferred unless they fall out of main slices):** hardened missile, energy unit, shield booster, heat shield, weapons toggle, pirate demands, NPC pods and rescue, smuggling check, asteroids and hermits, mining laser, sun-skimming, docking music.
+**Defer:** D-4 sparks, D-5 particle fidelity, D-7 B&W fade, D-9 trade-in wear persistence, D-10 buoy core fidelity. **Out:** missiles, ECM, mines, escape pods, bounty/legal status, scooping, sun/planet/heat death, docking-slot scrape damage, audio, asteroids, server/database, raising `MAX_ENTITIES`.
 
-**Asset gap.** 17 of 194 ship records have a vendored model; ~37 more needed, including `viper` and `viper-interceptor` before the legal loop.
+### Architecture Approach (ARCHITECTURE.md)
 
-### Architecture Approach (from ARCHITECTURE.md)
+Everything resolves at one point of `stepSim` after `stepWorld`: player-dead early-out, `resolveCollisions`, `resolveShotHits` (returns records), `applyDamage` (ledger, ascending order), `destroyShips`, `checkPlayerDeath`, `drainAiEventsNow`, second `commitWorld`, then `updateIdentTarget`. The tick boundary is always clean. The sim decides and emits events; the app commits profile changes. Death is `FlightMode "dead"`, fail-closed in every existing mode gate.
 
-- **Layers.** `src/sim` stays pure; new `src/sim/world`, `src/sim/ship`, `src/sim/ai`, `src/sim/collision`, `src/sim/populator`; `src/audio` subscribes to events; `src/render/entities` batches.
-- **One tick.** `stepSim` runs `stepFlight` unchanged for the player, then W0 commands, W1 update (snapshot length, id order), W2 AI event drain then think, W3 collide, W4 spawn/populator, W5 commit. The world does not exist while docked.
-- **Ids and iteration.** Monotonic integer ids; iterate a `live` array in id order, never a `Map`/`Set`, for sim decisions.
-- **Player.** Has an id and a read-only `Body` view; storage stays `FlightState`; player combat state moves into the world.
-- **AI.** Plain-data `AiComponent`, static priority trees as typed literals, integer tick timers, typed `WorldView`/`ShipControl`. Handlers queue events, never call other entities.
-- **Save.** One bump to v3; anchors carry seed and epoch; snapshot codec for hashing/tests only.
-- **Render.** `EntitySync` per-model `InstancedMesh`, batch cap 12, `FarMarks` `Points`, batched effects, `no_draw_distance`. Worst case ~38 draw calls.
+Components: (1) `ledger.ts`/`destroy.ts`/`debris.ts`; (2) `npc/fire.ts` + `SteerContext.fire`; (3) `collision.ts` + `isHitByOctree`; (4) `static-hulls.ts` + `staticHealth`; (5) `death.ts`, `death-flow.ts`, `game-over.ts`, `loadSavedGame`; (6) `internal-damage.ts`, `damage-flow.ts`; (7) render `debris.ts`, `explosions.ts`.
 
-**Critical path:** A session split → B world core → E inert world → F AI motion → G combat. Parallel: C content, D save v3, H octree runtime, I audio, J performance gate. Do not start F before E.
+### Critical Pitfalls (PITFALLS.md)
 
-### Critical Pitfalls (from PITFALLS.md)
-
-1. **Iteration order and PRNG shifts.** Live vs restored world hash equality after 1,000 ticks; forked object-state streams per `(worldSeed, entityId, purpose)`; lint bans on `for..in` and bare `.sort()` in `src/sim`.
-2. **AILib hand-port drift.** Coverage manifest (`port`/`stub`/`notPorted`), priority-tree structural diff, differential trace harness in Node `vm`, scenario goldens per role.
-3. **Native steering fidelity.** `trackDestination`, frustration counters, `delta_t`-dependent overshoot limiter. Port per behaviour with oracle tests and 20-seed acceptance tests.
-4. **Save growth and migration.** v2 worst case ~38.9 KB of 65,536; anchors carry seed and counters only.
-5. **SwiftShader test runtime.** Browser sim at ~0.1x real time; ≥90 % of new behavioural assertions in Vitest scenarios; `advanceTicks` hook; populator off in e2e by default.
-6. **Static bodies and collision deferral.** Bodies stay in `SystemLayout`, exposed with fixed ids; planet/sun contact after shields.
-
-Also: split `game-session.ts` first behind a probe-shape snapshot, re-pointing `tests/app/redraw-gate.test.ts` and `tests/guards/economy-purity.test.ts` (they read the file as text); keep `hashFlight` identical for an empty world; decide NPC docking before traders dock.
-
----
-
-## Where the Research Disagrees
-
-| Topic | Verdict | Evidence |
-|---|---|---|
-| Positional audio | Non-positional (STACK) | `OOOpenALController.m:75` `AL_NONE`; `PlayerEntitySound.m:59-97` |
-| Save contents | Seed/epoch/counters (ARCHITECTURE, PITFALLS) | `Universe.m:5155` `removeAllEntitiesExceptPlayer` |
-| PRNG persistence | Object-state `RngState` twin | `math.ts:227` closure |
-| Per-ship streams | Per `(seed, entity, purpose)` (PITFALLS) | AI draws must not shift damage rolls |
-| Save v3 timing | One bump in phase 3, fields defaulted | Strict v2 objects reject additive fields |
-| Planet/sun contact | After shields (owner todo); heat early | Pending todo |
-| Hit geometry | Open (D4); rec. octree for lasers, OBB for proximity | Octree needed for mass anyway |
-| Broadphase | SAP with brute-force oracle | Test clarity |
-| AI scheduling | Oolite wake times only, no extra stagger | Cadence hashes |
-| Event latency | Same-tick FIFO drain, recorded divergence | Deterministic |
-| Static ids | Fixed table (decide in phase 1) | Avoids creation-order coupling |
-| Legal field | Bit-flag `legalStatus`, kills, bounty separate | `PlayerEntity.m:6024-6040` |
-| First-load | 7,490,424 B, ~1.95 MB headroom | Quick task 261110-b7w |
-
----
+1. Nobody pulls the trigger (OQ-1); test the whole fire route through the hook spawn.
+2. Phase 13's gate-less fire becomes 120 Hz spam once steering calls fire; port the full gate, quantise `shot_time` to integer ticks, extend oracle fixtures first (written without reading `src/sim/npc`).
+3. Every hashed field costs a snapshot bump and golden regeneration; one bump, strip-and-rehash proof, pristine-omit, wreckage lifetime reuses `Entity.energy`, bounds in `limits.ts` only.
+4. The frozen acceptance run throws on any flyer death; keep new fire and collision gated so frozen worlds are byte-identical; octree collision, never sphere-only; rerun 21 of 21 by hand on the remote machine after every plan touching `src/sim/npc/**`, `src/sim/world/**` or `ships-npc.json`; changing the harness needs the `Detector-change-approved-by-owner` trailer.
+5. Kills after the commit leave a dead entity at the tick boundary (`snapshotWorld` throws): second commit, one idempotent `killShip`, property test.
+6. Death is decided inside the damage funnel, not by polling; amend N2, the player energy floor and A7.
+7. Autosave and death: `snapshotForSave` must refuse `dead`; session latch before every autosave/manual-save guard; death-load waits for queued writes; never write on death.
+8. One death path: enumerate about 15 `paused` sites, chart, F2 screen, countdown, ident lock, held keys, focus loss, context loss; refactor `loadFromSave` out of F2 gating; handle every save status.
+9. Debris determinism: no frame-time gate, draw even when `spawnEntity` refuses at the cap, fixed spawn order, hash equal at 30/60/144 Hz.
+10. New combat code is outside AI fault containment: keep every function total, fast-check it.
 
 ## Implications for Roadmap
 
-| # | Phase | Depends on | Delivers | Research flag |
-|---|---|---|---|---|
-| 1 | Foundation: session split and world core | — | Re-pointed text-scan tests; probe-shape snapshot; `src/app/session/` controllers; `EntityStore`; `RngState`; `hashWorld` with empty-world identity; tick scheduler; sanitiser; `stepSim`; `ShipControl`/`WorldView`; fixed ids; lint probes; `advanceTicks`; audio events reserved | Low |
-| 2 | NPC content and build pipeline | with 1 | Vendored NPC models, textures, sounds with provenance; ship specs; build-time octrees and mass; `sounds.json`; lazy loading; drift gate | Medium |
-| 3 | Save v3 schema | 1 | Single bump with `world.epoch`, `legalStatus`, kills, pylons, mounts; ordered migration; goldens | Low |
-| 4 | Inert world on screen | 1, 2 | Populator v0 with `nullAI` ships (off in e2e); instanced rendering + batch cap; scanner from `WorldView`; sphere/OBB collisions; cabin temperature; populated budget row | Medium |
-| 5 | Player weapons and survivability vs inert targets | 4, D4 | Views; lasers and heat; energy/shields; shared damage; HUD gauges; player sounds; planet/sun contact death; game over | Medium |
-| 6 | NPC motion and AI runtime, traders first | 4, 5 | NPC motion; `BEHAVIOUR_*` steering; `AiComponent`; event queue; manifest; tree diff; trace harness; trader/shuttle goldens | High |
-| 7 | Legal loop, scooping, death and pod | 3, 6 | Pirate/police/station AIs; offences and witnesses; bounty, kills, rating; fines; fugitive refusal; pods and wreckage; escape pod and insurance; hyperspace halving | High |
-| 8 | Missiles, ECM, equipment damage and repair | 5, 6 | Missile AI; lock/fire; blast falloff; ECM; hardened missile; equipment damage; F3 repair | Medium |
-| 9 | Full populator and traffic | 6, 7 | Rate tables; neighbour graph; repopulation; station launches; mass lock and jump blockage with ships | Medium |
-| 10 | Audio and music | 5 | `AudioDirector`; gesture-created context; suspend rules; music streaming; volume settings; `probe.audio` | Medium |
-| 11 | Hardening and performance gate | 4–10 | Traffic budget scenes; lazy role loading; QUAL-01; sim cost test | Low |
+Phase numbering continues at 15. A single snapshot bump goes first; the damage funnel precedes fire, collisions and death; statics and collisions share one hull table; death comes last because it consumes every damage source.
 
-Track H (octree runtime) after 2 and 4; gates phase 5 if octrees are chosen for hits.
+- **Phase 15: Foundation, damage ledger and destruction core.** Plan 1 is the single entity-field design (weapon, cargo, `staticHealth`, motion model), snapshot v4, one golden regeneration, compiled NPC cargo/weapon fields. Then ledger, `killShip`, second commit, `drainAiEventsNow`, events, NPC death at energy 0, clean removal, `identLost`. TS-1, TS-3, TS-15. Needs OQ-7.
+- **Phase 16: Debris, cargo, wreckage, entity cap.** Pods, alloy plates, wreckage, thresholds 243/128, ballistic debris, instanced layers, `explosions.json`, vendored models with provenance. TS-5/6/7/16, D-3. Needs OQ-5, OQ-8.
+- **Phase 17: NPC fire.** `npc/fire.ts`, `SteerContext.fire`, un-skip `fireMainWeapon:` sites, cooling and shot timer, decision source per OQ-1, new oracle fixtures, end-to-end hook-spawn spec. TS-2/4, D-2. 20-seed acceptance by hand. Needs OQ-1.
+- **Phase 18: Statics as targets, and collisions.** Coriolis/buoy/barrel/alloy hulls, `static-hulls.ts` poses, laser and ident candidates, buoy `staticHealth`, `isHitByOctree` port, `collision.ts`, player `impulse` response. TS-8/9/10/11. Needs OQ-4, OQ-6, OQ-11, OQ-12.
+- **Phase 19: Player death, game over and internal damage.** `FlightMode "dead"` with fail-closed review of the 48 mode references, `deathFlow`, `GameOver` overlay and input context, `loadSavedGame`, autosave latch, probe `death` field, `internal-damage.ts`, `damage-flow.ts`, save v5 or key removal (OQ-2), F3 repair if OQ-3. TS-12/13/14. `verify-full` once at the end.
+- **Phase 20 (close-out, may fold into 19):** final acceptance (21 of 21), `verify-full`, FIDELITY.md rows and Key Decisions amendments, CHANGELOG, provenance, CI timeout margins.
 
-**Critical path:** 1 → 4 → 5 → 6 → 7 → 9 → 11. Phase 8 after 6 (may overlap 7). Content feeds 4, 6, 7, 9. Save v3 before 7. Audio events reserved in 1, player sounds in 5, music in 10. Budget scene created in 4.
+Gates (AGENTS.md): pure `src/sim/` plans need `test`, `lint`, `typecheck`; browser-facing plans need `verify`; death flow and persistence need `verify-full` once. Keep browser specs to about three (death-and-reload, game-over guard, NPC-fire hook).
 
-**Pitfall-to-phase:** 1/2/3/4/7/8/9/19 → phase 1; 20/29 → 2; 10 → 1, 3, 7; 12/21/23 → 4, 11; 14 → 5, 7, 8; 5/6/15 → 6; 16/24/25 → 9 (decision before 6); 17 → 1, 5; 18 → 7; 13 → 10; 11 → every phase; 22 → decision before 5.
+### Research Flags
 
-**Research flags:** phase 6 (native behaviours, harness budget), 7 (police rules, offence flags), 5 (hit geometry), 2/H (octrees), 9 (location generators), 4 (instancing), 10 (headless audio, music provenance). Standard patterns: 1, 3, 8, 11.
-
----
-
-## Open Decisions for the Owner
-
-- **D1. World seed policy.** Rec.: `worldSeed = mix32(marketSeed, epoch)`, saved `epoch`.
-- **D3. Chart in flight: simulate or freeze.** Rec.: simulate, as Oolite. Before phase 5.
-- **D4. Hit geometry.** Rec.: octree for lasers and ship contact; OBB for missile/pod proximity.
-- **D7. Planet/sun contact timing.** Rec.: after shields (phase 5); heat in 4.
-- **D9. Positional audio.** Rec.: non-positional.
-- **D10. Licensing.** Military laser CC0; mining and beam lasers CC BY 3.0 need attribution (`LICENSE.md` 149-157). Music has no per-file provenance; ship only after it is resolved. `OoliteDocked.ogg` does not exist in Oolite.
-- **D11. First-load ceiling.** Lazy role loading; raise only with a recorded measurement.
-- **D12–D16.** One save bump in phase 3; no mid-leg snapshots; defer player/NPC storage unification; decide low-fps slow motion in phase 4; record every deliberate divergence in `FIDELITY.md`.
-
-### Owner decisions recorded at milestone start (2026-11-11)
-
-- **D2:** NPCs are not saved. Saves carry the world seed, counters and `nextEntityId`; traffic is regenerated deterministically; a save taken mid-fight resumes at the leg anchor.
-- **D5:** Follow Oolite: Escape (double press) ejects the escape pod; pause is P only; R becomes ident; target-station moves to another key. Bindings stay rebindable.
-- **D6:** Oolite's meaning of insurance: the pod keeps ship and equipment; cargo and legal status are wiped; the clock jumps forward; no cash payout. Without a pod, death is game over and the last save is loaded.
-- **D8:** Simplified NPC docking and launching in v2.0, recorded as a divergence; a faithful `StationEntity`/`DockEntity` port is a later milestone.
-
----
+Need research during planning: Phase 17 (OQ-1, fire gate, `onTarget` per behaviour), Phase 18 (Coriolis octree spike, subentity decision, independent octree fixtures), Phase 16 (`becomeExplosion`, `releaseCargoPodsDebris`, wreckage lifetime, per-hull cargo), Phase 19 (OQ-2, OQ-3, per-pod to commodity mapping). Standard patterns: Phase 15, the death-flow wiring after decisions, Phase 20.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
-|---|---|---|
-| Stack | HIGH | Zero-dependency verdict and 28/28 audio decode test observed; Worker verdict depends on unmeasured sim cost |
-| Features | HIGH (cited) / MEDIUM (derived) | Pin `7437f22`; wreckage lifetime LOW |
-| Architecture | HIGH / MEDIUM | AI port volume, batching limits, audio layer MEDIUM |
-| Pitfalls | HIGH / MEDIUM | Browser audio and perf projections MEDIUM |
+|------|------------|-------|
+| Stack | HIGH | Numbers read from Oolite; open: Coriolis octree vs hull caps |
+| Features | HIGH rules, MEDIUM effort | Wreckage lifetime LOW; static subentity details MEDIUM |
+| Architecture | HIGH integration, MEDIUM fidelity | Cargo source per role, `onTarget`, Coriolis subentity, per-pod mapping need phase research |
+| Pitfalls | HIGH | Wreckage lifetime and per-hull cargo MEDIUM |
 
 ### Gaps to Address
 
-Octree size and reproduction; native behaviour read-through (`ShipEntity.m:3700-5136`); trace harness budget (fallback: scenario goldens); populator location generators; wreckage lifetime; headless audio state; music provenance; clock jumps vs the v1 clock model; ship mass from octree volume; buoy collision radius; mass lock and jump blockage with ships; cross-engine float determinism is not a gate.
-
----
+- Research disagreements: save v5 vs v4 key removal (OQ-2), `;wpn:` vs pristine-omit and debris motion (OQ-7), repair (OQ-3). Do not pick silently.
+- Wreckage lifetime (LOW); per-hull cargo and NPC cargo source (MEDIUM; count-only pods per PITFALLS vs market-driven per FEATURES TS-5).
+- Coriolis octree and subentity rule: measure, then decide.
+- What a destroyed buoy means for scanner, ident, witchpoint beacon and `hyperspace-failure.spec.ts`.
+- Death with a pending save write: confirm `store.read()` waits for a queued write.
+- Cadence and cap tests for worlds containing kills.
 
 ## Sources
 
-- `STACK.md`, `FEATURES.md`, `ARCHITECTURE.md`, `PITFALLS.md` (2026-11-11); `.planning/PROJECT.md`.
-- Oolite `/home/opencode/git/oolite` (HEAD `4bb1f53de`, pin `7437f22`): `OOOpenALController.m:75`, `PlayerEntitySound.m:59-97`, `OOSoundSource.m:207-235`, `OOTrumble.m:957,967`, `Universe.m:1050,1119,5155,9387`, `Resources/Sounds/`, `Resources/Music/`, `LICENSE.md:149-157`.
-- MDN Autoplay guide; Chrome Web Audio autoplay notes (MEDIUM).
+- Primary: Oolite checkout `/home/opencode/git/oolite` (pinned `7437f22`): `ShipEntity.m`, `PlayerEntity.m`, `Universe.m`, `CollisionRegion.m`, `Octree.m`, `OOTypes.h`, `OOEquipmentType.m`, `Resources/Config/{shipdata,equipment,explosions,descriptions}.plist`; Wegolite tree at `main` `9419f1c`; `.planning/PROJECT.md`; `AGENTS.md`; Context7 `/mrdoob/three.js/r186`; npm registry (2026-11-16).
+- Secondary (MEDIUM): Wegolite effort estimates; cargo-source, `onTarget`, Coriolis-subentity details.
+- Tertiary (LOW): wreckage lifetime (about `E/1000` s).
+
+Detailed findings: `.planning/research/STACK.md`, `FEATURES.md`, `ARCHITECTURE.md`, `PITFALLS.md`.
 
 ---
-*Research completed: 2026-11-11. Synthesised by gsd-research-synthesizer; persisted by the orchestrator after the runtime refused the subagent's write (#222 self-heal), condensed, with owner decisions D2, D5, D6, D8 appended.*
+*Research completed: 2026-11-16*
+*Ready for roadmap: yes, once OQ-1, OQ-2, OQ-4, OQ-6 and OQ-7 are answered (or explicitly deferred into the affected phase's discuss step)*
