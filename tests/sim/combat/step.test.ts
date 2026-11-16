@@ -42,8 +42,10 @@ import {
 import type { Vec3 } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
-import { PLAYER_ID } from "../../../src/sim/world/ids.js";
+import { NO_ENTITY, PLAYER_ID } from "../../../src/sim/world/ids.js";
+import { npcContacts } from "../../../src/sim/world/contacts.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
+import { snapshotWorld } from "../../../src/sim/world/snapshot.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
 import { realHullTable } from "../../helpers/hull-table.js";
@@ -619,7 +621,48 @@ describe("hit resolution order (A6, Pitfall 7)", () => {
     expect(energyOf(world, far.entity.id)).toBe(85);
   });
 
-  it("floors a target's energy at 0 and never destroys it (N2)", () => {
+  it("destroys a target whose energy reaches 0 on that tick (FOUND-19, supersedes N2)", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const position = vec(FAR.x, FAR.y, FAR.z - 2000);
+    const { world, id } = worldWithShip(position, "adder", 10);
+    const before = npcContacts(world).length;
+    const events = stepOnce(player, world, combat, FIRE, stockOptions());
+
+    // The event tail: the beam, the hit, the destruction, the removal.
+    expect(events.slice(-4).map((event) => event.kind)).toEqual([
+      "laserFired",
+      "shipHit",
+      "shipDestroyed",
+      "entityRemoved",
+    ]);
+    const destroyed = ofKind(events, "shipDestroyed");
+    expect(destroyed).toEqual([
+      {
+        kind: "shipDestroyed",
+        id,
+        killer: PLAYER_ID,
+        specKey: "adder",
+        radius: 30,
+        position,
+      },
+    ]);
+    expect(ofKind(events, "entityRemoved").map((event) => event.id)).toEqual([
+      id,
+    ]);
+    expect(ofKind(events, "shipHit")).toHaveLength(1);
+    expect(world.store.get(id)).toBeUndefined();
+
+    // Gone from the scanner and from the snapshot path.
+    const contacts = npcContacts(world);
+    expect(contacts).toHaveLength(before - 1);
+    expect(contacts.some((contact) => contact.position.z === position.z)).toBe(
+      false,
+    );
+    expect(() => snapshotWorld(world)).not.toThrow();
+  });
+
+  it("ends an engaged ident lock on the destroyed ship with identLost, after entityRemoved", () => {
     const player = flyingPlayer();
     const combat = createPlayerCombatState();
     const { world, id } = worldWithShip(
@@ -627,11 +670,34 @@ describe("hit resolution order (A6, Pitfall 7)", () => {
       "adder",
       10,
     );
+    combat.identEngaged = true;
+    combat.identTarget = id;
     const events = stepOnce(player, world, combat, FIRE, stockOptions());
-    expect(energyOf(world, id)).toBe(0);
-    expect(ofKind(events, "shipHit")).toHaveLength(1);
-    expect(ofKind(events, "shipDestroyed")).toHaveLength(0);
-    expect(world.store.get(id)).toBeDefined();
+
+    const kinds = events.map((event) => event.kind);
+    expect(kinds.indexOf("identLost")).toBeGreaterThan(
+      kinds.indexOf("entityRemoved"),
+    );
+    expect(ofKind(events, "identLost")).toHaveLength(1);
+    expect(combat.identTarget).toBe(NO_ENTITY);
+    expect(combat.identEngaged).toBe(true);
+  });
+
+  it("ends a lock on the destroyed ship silently when ident is not engaged", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const { world, id } = worldWithShip(
+      vec(FAR.x, FAR.y, FAR.z - 2000),
+      "adder",
+      10,
+    );
+    combat.identEngaged = false;
+    combat.identTarget = id;
+    const events = stepOnce(player, world, combat, FIRE, stockOptions());
+
+    expect(ofKind(events, "shipDestroyed")).toHaveLength(1);
+    expect(ofKind(events, "identLost")).toHaveLength(0);
+    expect(combat.identTarget).toBe(NO_ENTITY);
   });
 
   it("two runs of the same scenario give identical events and hashes", () => {

@@ -583,7 +583,18 @@ export function postAiEvent(world: World, event: AiEvent): void {
   });
 }
 
-/** Mark an entity dead; it leaves `live` at the next `commitWorld`. */
+/**
+ * A test-only primitive: a bare `store.kill` with no `shipDestroyed`, no killer
+ * normalisation and (from plan 15-05) no AI notification. It marks an entity
+ * dead; it leaves `live` at the next `commitWorld`. Only files under `tests/`
+ * call it, for scenarios that need a dead entity without the kill path.
+ *
+ * Production code removes a ship only through `killShip`
+ * (`./kill.ts`). The one other removal in non-test code is the sanitiser's
+ * corruption repair: `sanitizeEntity` marks an entity of unknown kind dead
+ * (`./sanitize.ts`), which is never a ship, posts no `shipDestroyed` and no
+ * notification, and stays as it is.
+ */
 export function killEntity(world: World, id: EntityId): boolean {
   return world.store.kill(id);
 }

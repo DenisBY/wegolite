@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- A ship your lasers bring to zero energy is now destroyed: it disappears from
+  the view and the scanner, and an ident lock on it ends with "Target lost.".
+  There is no explosion or wreckage yet.
+
 ## [0.4.0] - 2026-11-16
 
 This release changes the save format (version 4, laser mounts) and the default

@@ -367,14 +367,20 @@ describe("world cross-cadence determinism", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Combat (CBT-06, CBT-07): the player holds fire on an Adder while a firing test
-// pilot shoots the player from behind. The hash includes the combat state.
+// Combat (CBT-06, CBT-07, FOUND-19): the player holds fire on an Adder while a
+// firing test pilot shoots the player from behind. The Adder (85 energy) is
+// destroyed by the pulse laser partway through the run (supersedes N2) and
+// leaves the world on the same tick, so the destruction and removal ticks are in
+// the log and must match at every cadence. The hash includes the combat state.
 // ---------------------------------------------------------------------------
 
 const COMBAT_FAR = vec(1e7, 0, 0);
 /** The tick the world is created and the player starts holding fire. */
 const COMBAT_START_TICK = 2;
-/** Six simulated seconds of combat: the aft shield falls and the bank starts to drain. */
+/**
+ * Six simulated seconds of combat: the Adder dies partway, the aft shield falls
+ * and the bank starts to drain.
+ */
 const COMBAT_STEPS = 720;
 const COMBAT_SAMPLE_EVERY = 30;
 
@@ -390,6 +396,10 @@ interface CombatLog {
   playerShieldHits: number;
   playerEnergyHits: number;
   adderHits: number;
+  /** `shipDestroyed` events carrying the Adder's id, and the tick of each kind of event. */
+  adderDestroyed: number;
+  adderDestroyedTick: number;
+  adderRemovedTick: number;
   refusals: number;
   final: { fwd: number; aft: number; energy: number; cabin: number };
 }
@@ -405,6 +415,9 @@ class CombatScenario {
     playerShieldHits: 0,
     playerEnergyHits: 0,
     adderHits: 0,
+    adderDestroyed: 0,
+    adderDestroyedTick: -1,
+    adderRemovedTick: -1,
     refusals: 0,
     final: { fwd: 0, aft: 0, energy: 0, cabin: 0 },
   };
@@ -501,6 +514,13 @@ class CombatScenario {
         } else if (event.target === this.adderId) {
           this.log.adderHits += 1;
         }
+      } else if (event.kind === "shipDestroyed") {
+        if (event.id === this.adderId) {
+          this.log.adderDestroyed += 1;
+          this.log.adderDestroyedTick = state.tick;
+        }
+      } else if (event.kind === "entityRemoved") {
+        if (event.id === this.adderId) this.log.adderRemovedTick = state.tick;
       } else if (event.kind === "laserRefused") {
         this.log.refusals += 1;
       }
@@ -580,6 +600,18 @@ describe("combat cross-cadence determinism (CBT-06, CBT-07)", () => {
     expect(combatReference.playerShots).toBeGreaterThan(3);
     expect(combatReference.pilotShots).toBeGreaterThan(10);
     expect(combatReference.adderHits).toBeGreaterThan(3);
+    // The Adder (85 energy) dies under the pulse laser partway through the
+    // run (FOUND-19): one destruction, removed on the same tick, inside the run.
+    expect(combatReference.adderDestroyed).toBe(1);
+    expect(combatReference.adderRemovedTick).toBe(
+      combatReference.adderDestroyedTick,
+    );
+    expect(combatReference.adderDestroyedTick).toBeGreaterThan(
+      COMBAT_START_TICK,
+    );
+    expect(combatReference.adderDestroyedTick).toBeLessThan(
+      COMBAT_START_TICK + COMBAT_STEPS,
+    );
     expect(combatReference.playerShieldHits).toBeGreaterThan(5);
     expect(combatReference.playerEnergyHits).toBeGreaterThan(0);
     expect(combatReference.final.aft).toBeLessThan(2);

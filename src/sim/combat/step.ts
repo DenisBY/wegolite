@@ -13,9 +13,13 @@
  *   first, then bookkeeping (`PlayerEntity.m:2404-2432`).
  * - `resolveShots` runs after `stepWorld`. It resolves every queued shot in
  *   ascending shooter id against the world as the world step left it, queues
- *   one `HitRecord` per hit and only then applies them all. Damage is never
- *   applied from inside a handler or mid-resolution (RESEARCH A6, Pitfall 7),
- *   so one shot cannot change what a later shot of the same tick sees.
+ *   one `HitRecord` per hit and only then applies them all through the damage
+ *   ledger (`./ledger.ts`, `applyLedger`). Damage is never applied from inside
+ *   a handler or mid-resolution (RESEARCH A6, Pitfall 7), so one shot cannot
+ *   change what a later shot of the same tick sees. A ship the ledger brings to
+ *   0 energy is destroyed on that tick through `killShip` (FOUND-19, D-12),
+ *   removed by a second `commitWorld` so the tick boundary holds no dead
+ *   entity, and an ident lock on it ends on the same step.
  *
  * Neither function reads the clock or a random stream.
  */
@@ -25,10 +29,11 @@ import type { Command } from "../commands.js";
 import type { ControlIntent } from "../flight/controller.js";
 import type { FlightState } from "../flight/state.js";
 import type { StepOptions } from "../flight/step.js";
-import { add, rotate, scale, sub, vec } from "../math.js";
-import type { Vec3 } from "../math.js";
+import { add, scale } from "../math.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
+import { killShip } from "../world/kill.js";
+import { commitWorld } from "../world/world.js";
 import type { World } from "../world/world.js";
 import { PLAYER_HULL_KEY, npcLaserRay, playerLaserRay } from "./aim.js";
 import type { NpcWeapon } from "./aim.js";
@@ -36,9 +41,11 @@ import { LASER_STATS } from "./constants.js";
 import { firstShipHit } from "./hit.js";
 import { stepIdent, updateIdentTarget } from "./ident.js";
 import type { HitTarget, HullTable, LaserRay } from "./hit.js";
+import { applyLedger } from "./ledger.js";
+import type { HitRecord } from "./ledger.js";
 import { DEFAULT_LASER_MOUNTS, NO_LASER, isFacing } from "./mounts.js";
 import type { LaserKey, LaserMounts } from "./mounts.js";
-import { coolCabin, rechargeEnergyAndShields, routeDamage } from "./shields.js";
+import { coolCabin, rechargeEnergyAndShields } from "./shields.js";
 import { dockReset, launchReset, sanitizeCombat } from "./state.js";
 import type { PlayerCombatState } from "./state.js";
 import { applyShot, coolWeapons, fireGate } from "./weapons.js";
@@ -69,15 +76,6 @@ export interface ShotRequest {
   readonly shooter: EntityId;
   readonly ray: LaserRay;
   readonly laser: LaserKey;
-}
-
-/** One hit queued during resolution and applied after every shot is resolved. */
-export interface HitRecord {
-  readonly target: EntityId;
-  readonly source: EntityId;
-  readonly amount: number;
-  /** Where the shooter was, which decides the shield a hit on the player drains. */
-  readonly sourcePosition: Vec3;
 }
 
 /** What `stepPlayerCombat` produced for this tick. */
@@ -178,9 +176,6 @@ function byShooter(a: ShotRequest, b: ShotRequest): number {
   return a.shooter - b.shooter;
 }
 
-/** Local forward (-Z) in ship space, the player's nose. */
-const LOCAL_FORWARD = vec(0, 0, -1);
-
 /**
  * Drain `world.fireQueue` into shot requests (CBT-07, Pitfall 19). The queue is
  * copied, sorted by an explicit numeric comparator and cleared, so it is empty
@@ -232,7 +227,8 @@ function rechargeShips(world: World, dt: number): void {
 }
 
 /**
- * Resolve the tick's shots, after `stepWorld`.
+ * Resolve the tick's shots against the world as the world step left it; applies
+ * nothing.
  *
  * The shots are the player's (queued by `stepPlayerCombat`) and every NPC's that
  * asked `ShipControl.fire` during the world step (`world.fireQueue`, drained
@@ -245,13 +241,11 @@ function rechargeShips(world: World, dt: number): void {
  * and the buoys are static entities and never candidates in this milestone (OQ4,
  * F10). Ships are listed only when the world was stepped this tick, so a tick
  * that skipped the world (the jump step, or no world at all) draws the beam and
- * hits nothing. Before any hit applies, every live ship recharges its energy
- * bank (N1). Then the hits are applied in queue order: an NPC target loses the
- * laser's damage from its energy, floored at 0 (N2: nothing is destroyed this
- * milestone) and `shipHit` carries `shield: false`; a hit on the player goes
- * through `routeDamage` (the facing shield first, then energy, heating the
- * cabin) and `shipHit` carries `shield` true when the shield took all of it. A
- * non-finite or non-positive amount is never queued (T-13-15).
+ * hits nothing. Before any hit is queued, every live ship recharges its energy
+ * bank (N1). A non-finite or non-positive damage is never queued (T-13-15).
+ *
+ * Returns the beam events and the `HitRecord` list; `resolveShots` applies the
+ * list through the ledger.
  */
 function resolveShotHits(
   world: World | undefined,
@@ -261,13 +255,13 @@ function resolveShotHits(
   shots: readonly ShotRequest[],
   options: StepOptions | undefined,
   dt: number,
-): SimEvent[] {
+): { events: SimEvent[]; records: HitRecord[] } {
   const events: SimEvent[] = [];
   const npcShots =
     world === undefined ? [] : drainFireQueue(world, worldStepped, options);
   if (world !== undefined && worldStepped) rechargeShips(world, dt);
   const all = [...shots, ...npcShots];
-  if (all.length === 0) return events;
+  if (all.length === 0) return { events, records: [] };
 
   const targets: HitTarget[] = [];
   if (
@@ -294,7 +288,7 @@ function resolveShotHits(
   }
 
   const hulls = options?.combat?.hulls;
-  const hits: HitRecord[] = [];
+  const records: HitRecord[] = [];
   for (const shot of all.sort(byShooter)) {
     const candidates = targets.filter((target) => target.id !== shot.shooter);
     const hit = firstShipHit(shot.ray, candidates, hulls);
@@ -309,7 +303,7 @@ function resolveShotHits(
       laserKind: stats.laserKind,
     });
     if (hit !== null && Number.isFinite(stats.damage) && stats.damage > 0) {
-      hits.push({
+      records.push({
         target: hit.id,
         source: shot.shooter,
         amount: stats.damage,
@@ -319,47 +313,34 @@ function resolveShotHits(
     }
   }
 
-  for (const hit of hits) {
-    if (hit.target === PLAYER_ID) {
-      if (combat === undefined) continue;
-      const result = routeDamage(
-        combat,
-        hit.amount,
-        sub(hit.sourcePosition, player.position),
-        rotate(player.orientation, LOCAL_FORWARD),
-      );
-      events.push({
-        kind: "shipHit",
-        target: PLAYER_ID,
-        source: hit.source,
-        amount: hit.amount,
-        shield: result.shieldAbsorbed,
-      });
-      continue;
-    }
-    if (world === undefined) continue;
-    const entity = world.store.get(hit.target);
-    if (entity === undefined) continue;
-    const before = Number.isFinite(entity.energy) ? entity.energy : 0;
-    entity.energy = Math.max(0, before - hit.amount);
-    events.push({
-      kind: "shipHit",
-      target: hit.target,
-      source: hit.source,
-      amount: hit.amount,
-      shield: false,
-    });
-  }
-  return events;
+  return { events, records };
 }
 
 /**
- * Resolve the tick's shots, then update the ident lock (`./ident.ts`,
- * `updateIdentTarget`), after `stepWorld`. The shots resolve as `resolveShotHits`
- * describes; the lock is then validated and, with ident engaged and nothing
- * locked, acquired against the world as the world step left it. It runs only on
- * a tick that stepped the world, so the jump step (which skips the world) never
- * touches an old world's ids.
+ * Resolve the tick's shots, apply the damage, destroy what reached 0 energy and
+ * update the ident lock, after `stepWorld`.
+ *
+ * 1. `resolveShotHits` draws the beams and queues the hits.
+ * 2. `applyLedger` (`./ledger.ts`) applies every record in queue order (ascending
+ *    shooter id) and returns the ships brought to 0 energy; every record applies
+ *    before lethality is decided.
+ * 3. When the world was stepped, `killShip` (`../world/kill.ts`) destroys each
+ *    lethal victim in ascending victim id, crediting the ledger's killer only
+ *    when it is still alive at that call (D-04). In a same-tick mutual kill the
+ *    lower-id victim is therefore credited to the other ship and the higher-id
+ *    victim carries `NO_ENTITY`.
+ * 4. The second `commitWorld` removes the dead on every stepped tick (gated on
+ *    the world, never on `combat`), one `entityRemoved` per id, so a snapshot at
+ *    the tick boundary holds no dead entity. `killShip` posts no AI event here,
+ *    so the AI queue stays as `stepWorld` left it.
+ * 5. `updateIdentTarget` (`./ident.ts`) validates and, with ident engaged,
+ *    acquires the lock against the world as it now stands, so a destroyed lock
+ *    is dropped on the same tick. It runs only on a tick that stepped the world,
+ *    so the jump step (which skips the world) never touches an old world's ids.
+ *
+ * Event order: `laserFired*`, `shipHit*`, `shipDestroyed*`, `entityRemoved*`,
+ * then the ident events. (Plan 15-05 inserts `aiFaulted*` from the immediate
+ * drain between `shipDestroyed*` and `entityRemoved*`.)
  */
 export function resolveShots(
   world: World | undefined,
@@ -370,7 +351,7 @@ export function resolveShots(
   options: StepOptions | undefined,
   dt: number,
 ): SimEvent[] {
-  const events = resolveShotHits(
+  const { events, records } = resolveShotHits(
     world,
     worldStepped,
     player,
@@ -379,8 +360,19 @@ export function resolveShots(
     options,
     dt,
   );
-  if (world !== undefined && worldStepped && combat !== undefined) {
-    updateIdentTarget(combat, player, world, events);
+  const lethal = applyLedger(
+    world,
+    worldStepped,
+    player,
+    combat,
+    records,
+    events,
+  );
+  if (world !== undefined && worldStepped) {
+    for (const hit of lethal) killShip(world, hit.victim, hit.killer, events);
+    for (const id of commitWorld(world))
+      events.push({ kind: "entityRemoved", id });
+    if (combat !== undefined) updateIdentTarget(combat, player, world, events);
   }
   return events;
 }
