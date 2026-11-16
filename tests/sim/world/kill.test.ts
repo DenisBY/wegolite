@@ -33,7 +33,15 @@ import {
   STATION_NAV_BUOY_ID,
   WITCHPOINT_BUOY_ID,
 } from "../../../src/sim/world/ids.js";
+import { createRngState, rngNext } from "../../../src/sim/rng.js";
+import { clampDebrisVelocity } from "../../../src/sim/world/debris.js";
+import type {
+  DebrisContent,
+  DebrisHull,
+} from "../../../src/sim/world/debris.js";
+import type { Entity } from "../../../src/sim/world/entity.js";
 import { killShip } from "../../../src/sim/world/kill.js";
+import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { snapshotWorld } from "../../../src/sim/world/snapshot.js";
 import {
@@ -50,6 +58,7 @@ import type { FlightState } from "../../../src/sim/flight/state.js";
 import { drainAiEventsNow, stepWorld } from "../../../src/sim/world/step.js";
 import type { AiRegistry } from "../../../src/sim/world/step.js";
 import { realHullTable } from "../../helpers/hull-table.js";
+import { debrisFixture } from "../../helpers/debris-fixture.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { realNpcFlightTable } from "../../helpers/npc-flight.js";
 import { realNpcWeapons } from "../../helpers/npc-weapons.js";
@@ -908,5 +917,162 @@ describe("survivors holding the dead ship's id (T-15-21)", () => {
     ).toBe(true);
     expect(entity(pilot).ai?.params.targetId).toBe(NO_ENTITY);
     expect(entity(attacker).ai?.params.phase).toBe("done");
+  });
+});
+
+describe("killShip with a debris context: totality and idempotence (D-15, plan 16-02)", () => {
+  const CONTENT = debrisFixture();
+
+  function shipWith(
+    seed: number,
+    specKey = "adder",
+    cargo = 20,
+  ): { world: World; victim: Entity } {
+    const world = createWorld(seed);
+    const result = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey,
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(100, 200, 300),
+        orientation: identity(),
+        radius: 30,
+        maxEnergy: 85,
+        cargo,
+      },
+      0,
+    );
+    if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+    return { world, victim: result.entity };
+  }
+
+  function pods(world: World): Entity[] {
+    return world.store.live.filter((e) => !e.dead && e.kind === "cargo");
+  }
+
+  /** Kill with `content`; assert no throw, no repair needed, at most 15 pods. */
+  function killTotal(
+    world: World,
+    victim: Entity,
+    content: DebrisContent,
+  ): number {
+    let killed = false;
+    expect(() => {
+      killed = killShip(world, victim.id, PLAYER_ID, [], { tick: 1, content });
+    }).not.toThrow();
+    expect(killed).toBe(true);
+    for (const entity of world.store.live) {
+      if (!entity.dead) expect(sanitizeEntity(entity)).toBe(false);
+    }
+    expect(pods(world).length).toBeLessThanOrEqual(15);
+    return victim.rng.combat;
+  }
+
+  function withHull(hull: Partial<DebrisHull>): DebrisContent {
+    const base = CONTENT.hulls.get("adder");
+    if (base === undefined) throw new Error("no adder hull");
+    const hulls = new Map(CONTENT.hulls);
+    hulls.set("adder", { ...base, ...hull });
+    return { ...CONTENT, hulls };
+  }
+
+  it("tolerates an unknown spec key, bad masses, a NaN box and no wrecks", () => {
+    const unknown = shipWith(3, "nonesuch");
+    killTotal(unknown.world, unknown.victim, CONTENT);
+    expect(pods(unknown.world).length).toBeGreaterThan(0);
+
+    const nanBox = {
+      min: vec(Number.NaN, Number.NaN, Number.NaN),
+      max: vec(Number.POSITIVE_INFINITY, 0, Number.NaN),
+    };
+    const variants: DebrisContent[] = [
+      withHull({ mass: Number.NaN }),
+      withHull({ mass: -1 }),
+      withHull({ fragmentChance: Number.NaN }),
+      withHull({ boundingBox: nanBox }),
+      { ...CONTENT, wrecks: [] },
+      { ...CONTENT, plate: { key: "alloy", mass: Number.NaN, radius: -1 } },
+      { ...CONTENT, hulls: null as unknown as DebrisContent["hulls"] },
+    ];
+    for (const content of variants) {
+      const { world, victim } = shipWith(3);
+      killTotal(world, victim, content);
+      expect(pods(world).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("a bad pod model refuses every pod but takes the same draws", () => {
+    const reference = shipWith(4, "adder", 200);
+    const finalStream = killTotal(reference.world, reference.victim, CONTENT);
+    expect(pods(reference.world).length).toBeGreaterThan(0);
+    const badPods: DebrisContent[] = [
+      { ...CONTENT, pod: { key: "barrel", mass: 993, radius: 0 } },
+      { ...CONTENT, pod: { key: "barrel", mass: 993, radius: Number.NaN } },
+      { ...CONTENT, pod: { key: "", mass: 993, radius: 5 } },
+      { ...CONTENT, pod: null as unknown as DebrisContent["pod"] },
+    ];
+    for (const content of badPods) {
+      const { world, victim } = shipWith(4, "adder", 200);
+      const nextId = world.store.nextId;
+      expect(killTotal(world, victim, content)).toBe(finalStream);
+      expect(pods(world)).toHaveLength(0);
+      expect(world.store.nextId).toBe(nextId);
+    }
+  });
+
+  it("a cargo count outside the domain examines no capsule", () => {
+    for (const cargo of [-1, 1.5, Number.NaN, 1e9]) {
+      const { world, victim } = shipWith(6);
+      victim.cargo = cargo;
+      const start = victim.rng.combat;
+      killTotal(world, victim, CONTENT);
+      expect(pods(world)).toHaveLength(0);
+      // Only the canFragment draw was taken.
+      const probe = createRngState(start);
+      rngNext(probe);
+      expect(victim.rng.combat).toBe(probe.s);
+    }
+  });
+
+  it("released pods are in the domain with no repair, even at the velocity bound", () => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const { world, victim } = shipWith(seed, "adder", 200);
+      victim.velocity = vec(1e4, -1e4, 9999.5);
+      killTotal(world, victim, CONTENT);
+      const released = pods(world);
+      expect(released.length).toBeGreaterThan(0);
+      for (const pod of released) {
+        expect(Math.abs(pod.velocity.x)).toBeLessThanOrEqual(1e4);
+        expect(Math.abs(pod.velocity.y)).toBeLessThanOrEqual(1e4);
+        expect(Math.abs(pod.velocity.z)).toBeLessThanOrEqual(1e4);
+        expect(pod.energy).toBe(1);
+        expect(pod.maxEnergy).toBe(1);
+        expect(pod.repairs).toBe(0);
+      }
+    }
+  });
+
+  it("clampDebrisVelocity zeroes non-finite and -0 and clamps to the bound", () => {
+    const v = clampDebrisVelocity(vec(Number.NaN, 2e4, -2e4));
+    expect(v).toEqual(vec(0, 1e4, -1e4));
+    const z = clampDebrisVelocity(vec(-0, Number.NEGATIVE_INFINITY, -5));
+    expect(Object.is(z.x, 0)).toBe(true);
+    expect(z.y).toBe(0);
+    expect(z.z).toBe(-5);
+  });
+
+  it("a second kill of the same victim returns false and releases nothing", () => {
+    const { world, victim } = shipWith(8, "adder", 200);
+    killTotal(world, victim, CONTENT);
+    const nextId = world.store.nextId;
+    const count = pods(world).length;
+    const stream = victim.rng.combat;
+    expect(
+      killShip(world, victim.id, PLAYER_ID, [], { tick: 2, content: CONTENT }),
+    ).toBe(false);
+    expect(world.store.nextId).toBe(nextId);
+    expect(pods(world)).toHaveLength(count);
+    expect(victim.rng.combat).toBe(stream);
   });
 });

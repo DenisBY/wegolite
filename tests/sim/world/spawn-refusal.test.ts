@@ -87,6 +87,11 @@ const malformedRows: readonly Row[] = [
   ["ownerId null", init({ ownerId: null })],
   ["cargo a string", init({ cargo: "3" })],
   ["cargo null", init({ cargo: null })],
+  ["velocity a number", init({ velocity: 5 })],
+  ["velocity null", init({ velocity: null })],
+  ["velocity an array", init({ velocity: [1, 2, 3] })],
+  ["velocity x a string", init({ velocity: { x: "1", y: 0, z: 0 } })],
+  ["velocity z missing", init({ velocity: { x: 0, y: 0 } })],
   ["ai a number", init({ ai: 5 })],
   ["ai a string", init({ ai: "test-pilot" })],
   ["ai an array", init({ ai: [] })],
@@ -148,6 +153,30 @@ const domainRows: readonly [string, unknown, unknown, "outOfDomain" | "ai"][] =
     [
       "cargo Infinity",
       init({ cargo: Number.POSITIVE_INFINITY }),
+      0,
+      "outOfDomain",
+    ],
+    [
+      "velocity x NaN",
+      init({ velocity: vec(Number.NaN, 0, 0) }),
+      0,
+      "outOfDomain",
+    ],
+    [
+      "velocity y Infinity",
+      init({ velocity: vec(0, Number.POSITIVE_INFINITY, 0) }),
+      0,
+      "outOfDomain",
+    ],
+    [
+      "velocity z 1e4 + 1",
+      init({ velocity: vec(0, 0, 1e4 + 1) }),
+      0,
+      "outOfDomain",
+    ],
+    [
+      "velocity x -1e4 - 1",
+      init({ velocity: vec(-1e4 - 1, 0, 0) }),
       0,
       "outOfDomain",
     ],
@@ -255,6 +284,14 @@ describe("spawnEntity refuses malformed input (FOUND-16)", () => {
     expect(none.ok && none.entity.cargo).toBe(0);
     expect(zero.ok && zero.entity.cargo).toBe(0);
     expect(full.ok && full.entity.cargo).toBe(200);
+  });
+
+  it("an absent velocity spawns zero; the bound itself spawns and is stored", () => {
+    const world = createWorld(1);
+    const none = spawnEntity(world, init(), 0);
+    const edge = spawnEntity(world, init({ velocity: vec(1e4, -1e4, 0) }), 0);
+    expect(none.ok && none.entity.velocity).toEqual(vec(0, 0, 0));
+    expect(edge.ok && edge.entity.velocity).toEqual(vec(1e4, -1e4, 0));
   });
 
   it("the 257th live spawn is still storeFull, not malformed", () => {

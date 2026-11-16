@@ -53,14 +53,14 @@
 import { toWegoliteLocal } from "../combat/constants.js";
 import type { HullTable } from "../combat/hit.js";
 import { vec } from "../math.js";
-import type { Vec3 } from "../math.js";
+import type { Quat, Vec3 } from "../math.js";
 import { createRngState, rngNext } from "../rng.js";
 import type { RngState } from "../rng.js";
 import type { Entity } from "./entity.js";
 import { MAX_ENTITIES } from "./ids.js";
 import { MAX_ENTITY_CARGO, MAX_ENTITY_VELOCITY } from "./limits.js";
 import { randomQuaternion } from "./placement.js";
-import { spawnEntity } from "./world.js";
+import { liveEntityCount, spawnEntity } from "./world.js";
 import type { World } from "./world.js";
 
 /** One debris model: its shipdata key, mass in kg and collision radius in m. */
@@ -88,6 +88,10 @@ export interface DebrisHull {
 
 /** The compiled debris content the app supplies (absent with traffic off). */
 export interface DebrisContent {
+  /**
+   * The hulls by spec key. Must be a `Map` instance: anything else is read as
+   * an empty table (every victim uses the defaults), never a throw.
+   */
   readonly hulls: ReadonlyMap<string, DebrisHull>;
   /** The cargo pod (`barrel`). */
   readonly pod: DebrisModel;
@@ -219,6 +223,36 @@ function capsuleCount(victim: Entity): number {
     : 0;
 }
 
+/** A non-null object: the only shape a content record may have. */
+function isObject(value: unknown): value is object {
+  return typeof value === "object" && value !== null;
+}
+
+/** `v` when it is an object, else the zero vector; components are checked later. */
+function vecOrZero(v: unknown): Vec3 {
+  return isObject(v) ? (v as Vec3) : vec(0, 0, 0);
+}
+
+/** The hull entry for `specKey`, or undefined when absent or not an object. */
+function hullOf(
+  content: DebrisContent,
+  specKey: string,
+): DebrisHull | undefined {
+  const hulls: unknown = content.hulls;
+  if (!(hulls instanceof Map)) return undefined;
+  const hull: unknown = (hulls as ReadonlyMap<string, unknown>).get(specKey);
+  return isObject(hull) ? (hull as DebrisHull) : undefined;
+}
+
+/**
+ * True when the cap admits one more debris piece: the live count is below
+ * `DEBRIS_ENTITY_LIMIT` (D16-05). Reads world state only, so it is identical at
+ * every cadence; it runs after the piece's draws, so a refusal moves no draw.
+ */
+function debrisAdmitted(world: World): boolean {
+  return liveEntityCount(world) < DEBRIS_ENTITY_LIMIT;
+}
+
 /**
  * The box of `hull`, with any missing or non-object corner treated as the zero
  * vector (non-finite components are neutralised per axis in `boxAxis`).
@@ -226,12 +260,46 @@ function capsuleCount(victim: Entity): number {
 function boxOf(hull: DebrisHull | undefined): DebrisBox {
   if (hull === undefined) return ZERO_BOX;
   const box: unknown = hull.boundingBox;
-  if (typeof box !== "object" || box === null) return ZERO_BOX;
+  if (!isObject(box)) return ZERO_BOX;
   const { min, max } = box as Partial<DebrisBox>;
   return {
-    min: typeof min === "object" && min !== null ? min : ZERO_BOX.min,
-    max: typeof max === "object" && max !== null ? max : ZERO_BOX.max,
+    min: isObject(min) ? min : ZERO_BOX.min,
+    max: isObject(max) ? max : ZERO_BOX.max,
   };
+}
+
+/**
+ * Attempt one pod's spawn behind the cap gate (D16-05). The result is never
+ * read: a refusal (the gate, a missing pod model or any `spawnEntity` refusal
+ * such as a non-finite radius) leaves `nextId`, the live array and every later
+ * draw untouched.
+ */
+function spawnPod(
+  world: World,
+  pod: DebrisModel | undefined,
+  position: Vec3,
+  orientation: Quat,
+  velocity: Vec3,
+  tick: number,
+): void {
+  if (pod === undefined || !debrisAdmitted(world)) return;
+  spawnEntity(
+    world,
+    {
+      kind: "cargo",
+      specKey: pod.key,
+      scanClass: "CLASS_CARGO",
+      position,
+      orientation,
+      radius: pod.radius,
+      speed: 0,
+      ai: null,
+      maxEnergy: DEBRIS_MAX_ENERGY,
+      energyRechargeRate: 0,
+      velocity,
+    },
+    tick,
+  );
 }
 
 /**
@@ -245,7 +313,7 @@ export function releaseDebris(
   ctx: DebrisContext,
 ): void {
   const stream = createRngState(victim.rng.combat);
-  const hull = ctx.content.hulls.get(victim.specKey);
+  const hull = hullOf(ctx.content, victim.specKey);
   const fragmentChance =
     hull !== undefined && Number.isFinite(hull.fragmentChance)
       ? hull.fragmentChance
@@ -257,10 +325,12 @@ export function releaseDebris(
   void canFragment;
 
   // The pods (ShipEntity.m:7814-7879).
-  const pod = ctx.content.pod;
+  // A pod model that is not an object still takes every draw and spawns nothing.
+  const podModel: unknown = ctx.content.pod;
+  const pod = isObject(podModel) ? (podModel as DebrisModel) : undefined;
   const capsules = capsuleCount(victim);
-  const origin = victim.position;
-  const drift = victim.velocity;
+  const origin = vecOrZero(victim.position);
+  const drift = vecOrZero(victim.velocity);
   let chance = POD_CARGO_CHANCE_START;
   let limit = POD_LIMIT;
   for (let i = 0; i < capsules; i += 1) {
@@ -289,24 +359,8 @@ export function releaseDebris(
       const velocity = clampDebrisVelocity(
         vec(kx + drift.x, ky + drift.y, kz + drift.z),
       );
-      // The spawn's result never feeds a draw decision.
-      spawnEntity(
-        world,
-        {
-          kind: "cargo",
-          specKey: pod.key,
-          scanClass: "CLASS_CARGO",
-          position,
-          orientation,
-          radius: pod.radius,
-          speed: 0,
-          ai: null,
-          maxEnergy: DEBRIS_MAX_ENERGY,
-          energyRechargeRate: 0,
-          velocity,
-        },
-        ctx.tick,
-      );
+      // Every draw of this pod is taken: only now is its spawn attempted.
+      spawnPod(world, pod, position, orientation, velocity, ctx.tick);
     }
     if (limit <= 0) break;
   }
