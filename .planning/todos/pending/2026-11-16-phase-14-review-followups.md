@@ -9,6 +9,9 @@ files:
   - tests/acceptance/detectors.ts
   - src/sim/world/step.ts
   - tests/acceptance/detectors.test.ts
+audit_acknowledged:
+  milestone: v2.2
+  at: 2026-11-16
 ---
 
 ## Problem

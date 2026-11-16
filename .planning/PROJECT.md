@@ -10,28 +10,19 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 ## Current State
 
-**Shipped:** v1.0 Core Loop (Phases 1-7, released as `v0.1.0` on 2026-11-08), v2.0 Foundation (Phase 8, completed 2026-11-13) and v2.1 World Population Base (Phases 9-12, completed 2026-11-14). v2.0 and v2.1 are not yet in a tagged release; the latest release is `v0.3.0`.
+**Shipped:** v1.0 Core Loop (Phases 1-7, released as `v0.1.0` on 2026-11-08), v2.0 Foundation (Phase 8, completed 2026-11-13) v2.1 World Population Base (Phases 9-12, completed 2026-11-14) and v2.2 Weapons and NPC Flight (Phases 13-14, completed 2026-11-16). v2.0, v2.1 and v2.2 are not yet in a tagged release; the latest release is `v0.3.0`.
 
 v2.0 changed nothing the player sees. The game plays exactly as v1 does, but `src/app/game-session.ts` is split into typed controllers behind a 532-line facade, and the simulation runs a multi-entity world: stable per-world ids, seeded per-entity streams, a world hash, restorable test snapshots, a typed `WorldView`/`ShipControl` AI seam with a scripted test pilot, and a tick-stepping test hook (`advanceTicks`, `worldHash`, `probe.sim`). The AI seam, the snapshot codec and the reserved SimEvent types have only the test pilot as a consumer, so they stay provisional until Phases 12-14 exercise them.
 
 v2.1 gave the world real NPC ships, still inert: the nine role ships are compiled from Oolite with provenance and loaded lazily, every hull has Oolite's mass from a build-time octree, saves are schema v3 (world epoch, counters and next entity id; NPCs are regenerated, never saved), and with traffic on the world holds 12 inert ships that are drawn, shown on the scanner, and counted by mass lock and jump blockage. The world keeps running behind the chart, is cleared at jump commit and repopulated deterministically on arrival. Audit: 12/12 requirements, no blockers (`milestones/v2.1-MILESTONE-AUDIT.md`).
 
-Open at close (todos): WR-01 (a refused `begin()` at arrival leaves the origin world installed; practically unreachable), buoys do not yet block hyperspace, and the real-Oolite mass check is deferred.
+v2.2 gave the player four views (fore, aft, port, starboard), pulse, beam, military and mining lasers bought per facing at F3 that hit ships by their Oolite octree hull, shields and energy banks that absorb and recharge damage, a HUD that shows them, and docking that restores them; Escape (double press), P and R follow Oolite. Saves are schema v4 (laser mounts). NPC ships now fly with Oolite's flight model and steer with its native behaviours (idle, tumble, fly to destination, face, intercept, attack, flee, escort, avoid collision), ported from an independent source-cited oracle (139 fixtures) and checked by a frozen 20-seed acceptance run; a dev-only AILib spike runs Oolite's original JavaScript against a stub host and is kept out of `dist` by `check:dist`. NPCs steer and warn each other but do not fire (autonomous NPC fire is out of scope). Audit: 10/10 requirements, tech_debt, no blockers (`milestones/v2.2-MILESTONE-AUDIT.md`). Phase 14's oracle choice and fidelity report were accepted by a panel of the owner's delegation and ratified by the owner on 2026-11-16.
 
-## Current Milestone: v2.2 Weapons and NPC Flight
-
-**Goal:** The player sees from four views and shoots lasers at ship hulls, and NPC ships fly with Oolite's flight model and native steering, proven against independently authored source-cited oracles.
-
-**Target features:**
-- Fore, aft, port and starboard views; pulse, beam, military and mining lasers hitting ships by their octree hull; shields and energy banks; docking restores them; Oolite's Escape/P/R bindings (Phase 13)
-- WR-01 fix: a refused `begin()` at arrival no longer leaves the origin world installed (start of Phase 13)
-- NPC flight model and native steering behaviours, with the harness spike and the owner's oracle choice as the gate to the AI port (Phase 14)
-
-Scope is the necessary minimum by owner decision (2026-11-13): sound, police, pirates, missiles, mining, priority AI and QUAL-01 stay in the backlog without a consumer.
+Open at close (todos): lasers and ident do not yet hit stations or buoys; Phase 14 review follow-ups (the 20-seed acceptance run is in no gate and must be rerun by hand after NPC changes, a blind spot of the frozen detectors, the `dt` coupling of the tracking curve); buoys do not yet block hyperspace; the real-Oolite mass check is deferred.
 
 ## Next Milestone Goals
 
-v2.2 takes Phases 13 and 14. The rest of the unscheduled backlog is the former Phases 15-23 (lasers and views, NPC flight and the AI fidelity gate, destruction and death, bounties and the escape pod, audio, priority AI and traffic, police and law, pirates, missiles, mining, performance hardening with QUAL-01). Their requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`; start with `/gsd-new-milestone`.
+No milestone is in progress; start the next with `/gsd-new-milestone`. The unscheduled backlog is the former Phases 15-23 (autonomous NPC fire, destruction and death, bounties and the escape pod, audio, priority AI and traffic, police and law, pirates, missiles, mining, performance hardening with QUAL-01). Their requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`.
 
 ## Requirements
 
@@ -56,15 +47,16 @@ v2.2 takes Phases 13 and 14. The rest of the unscheduled backlog is the former P
 - ✓ A throwing AI module is contained and `spawnEntity` refuses malformed input — v2.1 (Phase 12, FOUND-15, FOUND-16)
 - ✓ Inert NPC ships are placed, drawn and on the scanner; mass lock and jump blockage count them; the world runs behind the chart and is cleared and repopulated deterministically across jumps — v2.1 (Phase 12, WORLD-10, WORLD-11, WORLD-14..16)
 
-### Active
+- ✓ A refused `begin()` at arrival no longer leaves the origin world installed — v2.2 (Phase 13, FOUND-17)
+- ✓ Oolite's Escape (double press), P and R bindings, rebindable and listed in the controls panel — v2.2 (Phase 13, INPUT-01)
+- ✓ Fore, aft, port and starboard views; lasers bought per facing hit ships by their Oolite octree hull; shields and energy banks absorb and recharge; docking restores them — v2.2 (Phase 13, CBT-04..07, DOCK-10)
+- ✓ NPC ships fly with Oolite's flight model and native steering, drawn within budget and on the scanner; a dev-only AILib spike and an owner-gated fidelity report back the oracle choice — v2.2 (Phase 14, WORLD-07, AI-01, AI-11)
 
-<!-- v2.2 scope below; REQUIREMENTS.md is the detailed list. -->
+### Active
 
 <!-- Later, unscheduled (former v2.1 Phases 13-23). -->
 
 - [ ] (later) NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
-- [ ] Player can switch views, fire lasers that hit ship hulls, and rely on shields and energy banks — v2.2 (Phase 13)
-- [ ] NPC ships fly with Oolite's flight model and native steering — v2.2 (Phase 14)
 - [ ] (later) NPC ships fight with Oolite's priority AI, hand-ported to TypeScript
 - [ ] (later) Player can fight with lasers, shields, energy banks, missiles and ECM, and destroy or be destroyed
 - [ ] (later) Player can scoop cargo pods, earn bounties, and gain or lose legal status, with police responding
@@ -308,4 +300,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-14 after v2.2 milestone start*
+*Last updated: 2026-11-16 after v2.2 milestone*

@@ -2,19 +2,19 @@
 gsd_state_version: "1.0"
 milestone: v2.2
 milestone_name: Weapons and NPC Flight
-current_phase: 14
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 14 complete — all phases complete
-last_updated: "2026-11-16T08:15:01.812Z"
+last_updated: "2026-11-16T09:15:04.151Z"
 last_activity: 2026-11-16
-last_activity_desc: Phase 14 complete
-state_head: 9333ca9e6e6a7a1915345cb68cf8b2a99b22670c
+last_activity_desc: Milestone v2.2 completed and archived
+state_head: 752a8f591b85e3041941d09e7da80c47a7e26956
 progress:
   total_phases: 2
   completed_phases: 2
   total_plans: 35
   completed_plans: 35
   percent: 100
+current_phase: 14
 ---
 
 # Project State
@@ -28,11 +28,10 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 ## Current Position
 
-Phase: 14
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-11-16 — Phase 14 complete
-
+Phase: Milestone v2.2 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-11-16 — Milestone v2.2 completed and archived
 
 ## Performance Metrics
 
@@ -546,6 +545,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 | Category | Item | Status | Deferred At | Milestone |
 |----------|------|--------|-------------|-----------|
+| todos | 2026-11-15-lasers-and-ident-hit-stations-and-buoys.md | open | 2026-11-16 | v2.2 |
+| todos | 2026-11-16-phase-14-review-followups.md | open | 2026-11-16 | v2.2 |
 | todos | 2026-11-14-clear-world-when-arrival-begin-is-refused.md | open | 2026-11-14 | v2.1 |
 | todos | 2026-11-14-make-buoys-block-hyperspace-like-oolite.md | open | 2026-11-14 | v2.1 |
 | todos | 2026-11-14-measure-oolite-reference-in-docker.md | open | 2026-11-14 | v2.1 |
@@ -579,4 +580,5 @@ Resume file: None
 ## Operator Next Steps
 
 
-- Approve or revise the v2.2 roadmap, then `/gsd-discuss-phase 13` (Phase 14 can run beside it) and `/gsd-plan-phase 13`
+
+- Start the next milestone with /gsd-new-milestone

@@ -9,6 +9,9 @@ files:
   - src/sim/combat/aim.ts
   - src/sim/world/layout.ts
   - FIDELITY.md
+audit_acknowledged:
+  milestone: v2.2
+  at: 2026-11-16
 ---
 
 ## Problem
