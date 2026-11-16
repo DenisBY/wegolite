@@ -42,6 +42,9 @@ Requirements: FOUND-18, FOUND-19, DATA-14. Standing gate: QUAL-11.
 - **D-14:** NPC fire comes only from the engine and test pilots; the phase is verified with the player's laser and the test shooter.
 - **D-15:** New code is total (outside AI fault containment): no function may throw on any world state.
 
+- **D-16:** (plan-phase, owner-confirmed 2026-11-16) The weapon record gains a third token, `missedShots` (Oolite `_missed_shots`: +1 on a miss, -1 on a hit, floored at 0; it divides NPC aim accuracy in `onTarget`), inside the same v4 bump. Amends D-07. — **Reversibility:** one-way — hashed field of snapshot v4.
+- **D-17:** (plan-phase, owner-confirmed 2026-11-16) No contact-guard field is added for Phase 18 collision rebounds; Phase 18 decides and bumps if it needs one.
+
 ### Claude's Discretion
 - Exact field names, segment labels and bounds in `limits.ts`.
 - Plan split, the exact ledger record shape and the order of ascending-id resolution.
