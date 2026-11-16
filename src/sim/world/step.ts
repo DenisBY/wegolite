@@ -282,6 +282,42 @@ function drainAiEvents(
   }
 }
 
+/**
+ * Deliver the AI events queued since `stepWorld` returned, at once (FOUND-19,
+ * D-04, D-12). `resolveShots` calls it between the kills and the second
+ * `commitWorld`, so the tick boundary holds no queued AI event.
+ *
+ * It returns at once when `world.aiQueue` is empty on entry (no handler can
+ * run; the common case, because `stepWorld` already drained). Otherwise it
+ * builds the view lazily exactly as `stepWorld` does, runs the same drain (same
+ * pass and budget caps, same `aiDropped` accounting, same containment in
+ * `invoke`) and truncates `world.fireQueue` back to its length on entry, so a
+ * `ctl.fire` request made by an `onEvent` handler during this drain is
+ * discarded (fire is a think-time action; inside `resolveShots` the length on
+ * entry is 0, and a later in-step caller keeps the think phase's requests).
+ */
+export function drainAiEventsNow(
+  world: World,
+  player: FlightState,
+  layout: SystemLayout,
+  tick: number,
+  events: SimEvent[],
+  registry: AiRegistry = AI_REGISTRY,
+): void {
+  if (world.aiQueue.length === 0) return;
+  let view: WorldView | undefined;
+  const getView = (): WorldView =>
+    (view ??= createWorldView(
+      world,
+      player,
+      layout,
+      PLAYER_COLLISION_RADIUS_M,
+    ));
+  const fireLength = world.fireQueue.length;
+  drainAiEvents(world, registry, tick, getView, events);
+  world.fireQueue.length = Math.min(world.fireQueue.length, fireLength);
+}
+
 /** Deliver one event to a live entity with an AI whose module handles events. */
 function deliverAiEvent(
   world: World,

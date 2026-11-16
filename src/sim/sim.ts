@@ -43,6 +43,10 @@ import type { World } from "./world/world.js";
  * deterministic and identical at every frame cadence, because it reads only
  * the step's own events.
  *
+ * `resolveShots` gets the layout too: the AI events the kills post are delivered
+ * at once, before the tick's second commit (`drainAiEventsNow`, FOUND-19), and
+ * that drain builds a world view over the layout.
+ *
  * Ship field: when a world is passed, one `ShipField` is built from it before
  * the flight step, so the flight step sees the world as it stood at the end of
  * the previous tick (the world is stepped after the flight step). The field is
@@ -118,7 +122,16 @@ export function stepSim(
   }
 
   events.push(
-    ...resolveShots(world, worldStepped, player, combat, shots, options, dt),
+    ...resolveShots(
+      world,
+      worldStepped,
+      player,
+      combat,
+      shots,
+      options,
+      dt,
+      layout,
+    ),
   );
   return events;
 }

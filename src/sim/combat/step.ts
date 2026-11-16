@@ -29,10 +29,14 @@ import type { Command } from "../commands.js";
 import type { ControlIntent } from "../flight/controller.js";
 import type { FlightState } from "../flight/state.js";
 import type { StepOptions } from "../flight/step.js";
+import { AI_REGISTRY } from "../ai/registry.js";
 import { add, scale } from "../math.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
 import { killShip } from "../world/kill.js";
+import type { SystemLayout } from "../world/layout.js";
+import { drainAiEventsNow } from "../world/step.js";
+import type { AiRegistry } from "../world/step.js";
 import { commitWorld } from "../world/world.js";
 import type { World } from "../world/world.js";
 import { PLAYER_HULL_KEY, npcLaserRay, playerLaserRay } from "./aim.js";
@@ -329,18 +333,24 @@ function resolveShotHits(
  *    when it is still alive at that call (D-04). In a same-tick mutual kill the
  *    lower-id victim is therefore credited to the other ship and the higher-id
  *    victim carries `NO_ENTITY`.
- * 4. The second `commitWorld` removes the dead on every stepped tick (gated on
+ * 4. `drainAiEventsNow` (`../world/step.ts`) delivers the AI events the kills
+ *    posted (`shipTargetLost`, `shipTargetDestroyed`, `shipKilledOther`, D-04)
+ *    before the commit, discarding any fire request a handler makes meanwhile,
+ *    so the tick boundary holds no queued AI event or fire request.
+ * 5. The second `commitWorld` removes the dead on every stepped tick (gated on
  *    the world, never on `combat`), one `entityRemoved` per id, so a snapshot at
- *    the tick boundary holds no dead entity. `killShip` posts no AI event here,
- *    so the AI queue stays as `stepWorld` left it.
- * 5. `updateIdentTarget` (`./ident.ts`) validates and, with ident engaged,
+ *    the tick boundary holds no dead entity.
+ * 6. `updateIdentTarget` (`./ident.ts`) validates and, with ident engaged,
  *    acquires the lock against the world as it now stands, so a destroyed lock
  *    is dropped on the same tick. It runs only on a tick that stepped the world,
  *    so the jump step (which skips the world) never touches an old world's ids.
  *
- * Event order: `laserFired*`, `shipHit*`, `shipDestroyed*`, `entityRemoved*`,
- * then the ident events. (Plan 15-05 inserts `aiFaulted*` from the immediate
- * drain between `shipDestroyed*` and `entityRemoved*`.)
+ * Event order: `laserFired*`, `shipHit*`, `shipDestroyed*`, `aiFaulted*` (a
+ * handler that faults during the immediate drain), `entityRemoved*`, then the
+ * ident events.
+ *
+ * `layout` and `registry` feed the immediate drain only; `stepSim` passes its
+ * layout and `AI_REGISTRY`, a test may inject a registry.
  */
 export function resolveShots(
   world: World | undefined,
@@ -350,6 +360,8 @@ export function resolveShots(
   shots: readonly ShotRequest[],
   options: StepOptions | undefined,
   dt: number,
+  layout: SystemLayout,
+  registry: AiRegistry = AI_REGISTRY,
 ): SimEvent[] {
   const { events, records } = resolveShotHits(
     world,
@@ -370,6 +382,7 @@ export function resolveShots(
   );
   if (world !== undefined && worldStepped) {
     for (const hit of lethal) killShip(world, hit.victim, hit.killer, events);
+    drainAiEventsNow(world, player, layout, player.tick, events, registry);
     for (const id of commitWorld(world))
       events.push({ kind: "entityRemoved", id });
     if (combat !== undefined) updateIdentTarget(combat, player, world, events);

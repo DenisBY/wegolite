@@ -478,6 +478,7 @@ describe("the target never leaves the world it names", () => {
       stepped.shots,
       OPTIONS,
       DT,
+      layout,
     );
     expect(stepped.events).toEqual([]);
     expect(resolved).toEqual([]);
