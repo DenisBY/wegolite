@@ -40,6 +40,12 @@
  * integer in `0..MAX_ENTITY_CARGO`, else 0 (a repair). A pristine or in-domain
  * value is never a repair, and `-0` becomes `0` without one.
  *
+ * `sanitizeStaticHealth` repairs `World.staticHealth` (FOUND-18, D-08): a
+ * non-object becomes a fresh pristine record, each value is held inside
+ * `0..its maximum` (non-finite becomes the maximum, negative becomes 0, above
+ * the maximum becomes the maximum), and `-0` becomes 0 without a repair. The
+ * repair is not counted in any hashed counter.
+ *
  * Counting. `repairs` grows by one per call that repaired anything, however
  * many fields it repaired, saturating at `MAX_UINT32`. Normalisations never
  * count: `-0` becomes `0`, and an orientation outside `QUAT_UNIT_TOLERANCE`
@@ -67,6 +73,7 @@ import type { SavedCondition, SteerComponent } from "../npc/state.js";
 import type { Entity } from "./entity.js";
 import { BEHAVIOUR_IDS, ENTITY_KINDS, SCAN_CLASSES } from "./ids.js";
 import {
+  BUOY_MAX_ENERGY,
   MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
   MAX_ENERGY_RECHARGE_RATE,
@@ -86,8 +93,11 @@ import {
   NPC_DEFAULT_ENERGY_RECHARGE_RATE,
   NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
+  STATION_MAX_ENERGY,
   TRACKING_SAMPLES,
 } from "./limits.js";
+import { createStaticHealth } from "./world.js";
+import type { World } from "./world.js";
 
 const FORBIDDEN_PARAM_KEYS: readonly string[] = [
   "__proto__",
@@ -736,5 +746,43 @@ export function sanitizeEntity(entity: Entity): boolean {
   entity.repairs = repaired
     ? Math.min(MAX_UINT32, base + 1)
     : noNegativeZero(base);
+  return repaired;
+}
+
+/**
+ * Repair `world.staticHealth` in place; true when a repair was needed. A record
+ * that is not an object is replaced by the pristine one. Each value is held
+ * inside `0..its maximum`: a non-finite value heals to the maximum (a
+ * deliberate choice that keeps the world hashable), a negative one becomes 0
+ * and one above the maximum becomes the maximum; `-0` becomes 0 without a
+ * repair. Never throws. The repair is counted in no hashed counter, so the
+ * acceptance run's `repairs` figure does not cover static health.
+ */
+export function sanitizeStaticHealth(world: World): boolean {
+  const current: unknown = world.staticHealth;
+  if (!isObject(current)) {
+    world.staticHealth = createStaticHealth();
+    return true;
+  }
+  const health = world.staticHealth;
+  let repaired = false;
+  const hold = (value: number, max: number): number => {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      repaired = true;
+      return max;
+    }
+    if (value < 0) {
+      repaired = true;
+      return 0;
+    }
+    if (value > max) {
+      repaired = true;
+      return max;
+    }
+    return noNegativeZero(value);
+  };
+  health.station = hold(health.station, STATION_MAX_ENERGY);
+  health.witchpoint = hold(health.witchpoint, BUOY_MAX_ENERGY);
+  health.navBuoy = hold(health.navBuoy, BUOY_MAX_ENERGY);
   return repaired;
 }

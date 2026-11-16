@@ -5,7 +5,7 @@
  * The composed world hash (FOUND-11, FOUND-12, D-08).
  *
  * `hashWorld(player, world, combat?)` is
- * `fnv1a32(serializeFlight(player) + section + combatLine)`.
+ * `fnv1a32(serializeFlight(player) + section + staticHealthLine + combatLine)`.
  * While the world has never spawned anything (`isNeverSpawned`, the single
  * predicate of `./world.ts`) the section is empty and the text is exactly the
  * v1 flight text, so the pinned flight hashes hold. Once anything has spawned,
@@ -37,9 +37,10 @@ import type { FlightState } from "../flight/state.js";
 import type { ParamValue } from "../ai/types.js";
 import type { Vec3 } from "../math.js";
 import type { SteerComponent } from "../npc/state.js";
-import type { Entity } from "./entity.js";
+import type { Entity, StaticHealth } from "./entity.js";
 import type { EntityId } from "./ids.js";
-import { isNeverSpawned } from "./world.js";
+import { sanitizeStaticHealth } from "./sanitize.js";
+import { isNeverSpawned, isPristineStaticHealth } from "./world.js";
 import type { World } from "./world.js";
 
 /**
@@ -170,6 +171,16 @@ export function serializeEntity(entity: Entity): string {
 }
 
 /**
+ * The static-health line (FOUND-18, D-08, D-09): the label `staticHealth:`
+ * (deliberately not `statics:`, which would read like the unrelated
+ * `World.statics` table) then the station, witchpoint and navBuoy energy,
+ * comma-joined. `hashWorld` prints it only when the health is not pristine.
+ */
+export function serializeStaticHealth(health: StaticHealth): string {
+  return `staticHealth:${canon(health.station)},${canon(health.witchpoint)},${canon(health.navBuoy)}`;
+}
+
+/**
  * The world's contribution to the hash text: "" while the world has never
  * spawned anything, otherwise `worldSeed=`, `nextId=`, `rng=` and `aiDropped=`
  * lines followed by one entity line per live non-dead entity in ascending id
@@ -212,6 +223,17 @@ export function entityHashes(world: World): [EntityId, string][] {
  * first (`sanitizeCombat`, idempotent and a no-op on a state `stepPlayerCombat`
  * produced), so a poisoned value can neither read as pristine nor reach `canon`
  * (T-13-15).
+ *
+ * The static-health line (D-08, D-09) follows the world section and precedes the
+ * combat line, and prints only when `world.staticHealth` is not pristine; this
+ * holds for a never-spawned world too (its section is empty, the line still
+ * prints). A hash call can mutate the world: `sanitizeStaticHealth` repairs
+ * `world.staticHealth` in place before printing, as the existing
+ * `sanitizeCombat(combat)` call already repairs the combat state. That reaches
+ * callers that read like pure reads: the `?test=1` probe's `worldHash`
+ * (`src/app/session/probe-publisher.ts:171-179`) and the acceptance detectors
+ * (`tests/acceptance/detectors.ts`). The mutation is harmless there because it
+ * changes a value only when the state is already corrupt.
  */
 export function hashWorld(
   player: FlightState,
@@ -220,6 +242,13 @@ export function hashWorld(
 ): string {
   const section = world === undefined ? "" : serializeWorldSection(world);
   let text = serializeFlight(player) + (section === "" ? "" : `\n${section}`);
+  if (world !== undefined) {
+    // Repair first so a poisoned value cannot reach `canon` or read as pristine.
+    sanitizeStaticHealth(world);
+    if (!isPristineStaticHealth(world.staticHealth)) {
+      text += `\n${serializeStaticHealth(world.staticHealth)}`;
+    }
+  }
   if (combat !== undefined) {
     // Repair first so a poisoned value cannot read as pristine or reach `canon`.
     sanitizeCombat(combat);

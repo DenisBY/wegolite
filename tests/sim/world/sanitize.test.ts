@@ -9,6 +9,7 @@
  * versus normalisation), never from running the code under test.
  */
 
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
@@ -36,9 +37,18 @@ import {
   NPC_DEFAULT_ENERGY_RECHARGE_RATE,
   NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
+  BUOY_MAX_ENERGY,
+  STATION_MAX_ENERGY,
 } from "../../../src/sim/world/limits.js";
-import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
+import {
+  sanitizeEntity,
+  sanitizeStaticHealth,
+} from "../../../src/sim/world/sanitize.js";
 import { serializeEntity } from "../../../src/sim/world/serialize.js";
+import {
+  parseWorldSnapshot,
+  snapshotWorld,
+} from "../../../src/sim/world/snapshot.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 
 /** A clean entity with a test-pilot AI, from the real spawn path. */
@@ -1495,5 +1505,121 @@ describe("the energy bank at spawn and in the hash (CBT-07)", () => {
     expect(refused.ok).toBe(false);
     expect(w.store.nextId).toBe(before);
     expect(w.store.live).toHaveLength(0);
+  });
+});
+
+describe("sanitizeStaticHealth (FOUND-18, D-08)", () => {
+  const healthOf = (world: ReturnType<typeof createWorld>) => ({
+    ...world.staticHealth,
+  });
+
+  it("leaves a pristine world bit-identical and reports no repair", () => {
+    const world = createWorld(5);
+    const before = world.staticHealth;
+    expect(sanitizeStaticHealth(world)).toBe(false);
+    expect(world.staticHealth).toBe(before);
+    expect(healthOf(world)).toEqual({
+      station: STATION_MAX_ENERGY,
+      witchpoint: BUOY_MAX_ENERGY,
+      navBuoy: BUOY_MAX_ENERGY,
+    });
+  });
+
+  it("leaves an in-domain damaged record untouched", () => {
+    const world = createWorld(5);
+    world.staticHealth = { station: 0, witchpoint: 100.5, navBuoy: 1 };
+    expect(sanitizeStaticHealth(world)).toBe(false);
+    expect(healthOf(world)).toEqual({
+      station: 0,
+      witchpoint: 100.5,
+      navBuoy: 1,
+    });
+  });
+
+  it.each([
+    ["NaN", Number.NaN, 250],
+    ["Infinity", Number.POSITIVE_INFINITY, 250],
+    ["-Infinity", Number.NEGATIVE_INFINITY, 250],
+    ["negative", -5, 0],
+    ["above the maximum", 251, 250],
+  ])(
+    "a witchpoint of %s is held at %s and counts as a repair",
+    (_n, bad, want) => {
+      const world = createWorld(5);
+      world.staticHealth.witchpoint = bad;
+      expect(sanitizeStaticHealth(world)).toBe(true);
+      expect(world.staticHealth.witchpoint).toBe(want);
+      expect(world.staticHealth.station).toBe(STATION_MAX_ENERGY);
+      expect(sanitizeStaticHealth(world)).toBe(false);
+    },
+  );
+
+  it("holds the station at its own maximum, not the buoy one", () => {
+    const world = createWorld(5);
+    world.staticHealth.station = STATION_MAX_ENERGY + 1;
+    expect(sanitizeStaticHealth(world)).toBe(true);
+    expect(world.staticHealth.station).toBe(STATION_MAX_ENERGY);
+    world.staticHealth.station = 20000;
+    expect(sanitizeStaticHealth(world)).toBe(false);
+  });
+
+  it("-0 becomes 0 without a repair", () => {
+    const world = createWorld(5);
+    world.staticHealth.navBuoy = -0;
+    expect(sanitizeStaticHealth(world)).toBe(false);
+    expect(Object.is(world.staticHealth.navBuoy, 0)).toBe(true);
+  });
+
+  it.each([null, undefined, 7, "x"])(
+    "a record of %j is replaced by the pristine one",
+    (bad) => {
+      const world = createWorld(5);
+      loose(world).staticHealth = bad;
+      expect(sanitizeStaticHealth(world)).toBe(true);
+      expect(healthOf(world)).toEqual({
+        station: STATION_MAX_ENERGY,
+        witchpoint: BUOY_MAX_ENERGY,
+        navBuoy: BUOY_MAX_ENERGY,
+      });
+    },
+  );
+
+  it("never throws and leaves a value the parser accepts, for any input", () => {
+    const leaf = fc.oneof(
+      fc.double(),
+      fc.constantFrom(
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        Number.NEGATIVE_INFINITY,
+        -0,
+        0,
+        250,
+        251,
+        25000,
+        25001,
+        1e300,
+      ),
+      fc.constantFrom(null, undefined, "5", true, {}, []),
+    );
+    fc.assert(
+      fc.property(
+        fc.oneof(
+          fc.record({ station: leaf, witchpoint: leaf, navBuoy: leaf }),
+          fc.constantFrom(null, undefined, 3, "x"),
+        ),
+        (input) => {
+          const world = createWorld(5);
+          loose(world).staticHealth = input;
+          expect(() => sanitizeStaticHealth(world)).not.toThrow();
+          const text = JSON.stringify(snapshotWorld(world));
+          expect(() =>
+            parseWorldSnapshot(JSON.parse(text) as unknown),
+          ).not.toThrow();
+          // The repair is idempotent.
+          expect(sanitizeStaticHealth(world)).toBe(false);
+        },
+      ),
+      { numRuns: 300 },
+    );
   });
 });

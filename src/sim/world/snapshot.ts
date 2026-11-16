@@ -47,6 +47,7 @@ import {
 } from "./ids.js";
 import type { BehaviourId, EntityId, EntityKind, ScanClass } from "./ids.js";
 import {
+  BUOY_MAX_ENERGY,
   MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
   MAX_ENERGY_RECHARGE_RATE,
@@ -63,6 +64,7 @@ import {
   MAX_WEAPON_TEMPERATURE,
   MIN_ACCURACY,
   QUAT_UNIT_TOLERANCE,
+  STATION_MAX_ENERGY,
   TRACKING_SAMPLES,
 } from "./limits.js";
 import { createEntityStore } from "./store.js";
@@ -79,7 +81,7 @@ export const WORLD_SNAPSHOT_FORMAT = "wegolite-world";
  * Version 3 (Phase 14, AI-01) adds the steering record `steer` to every entity;
  * a version-2 snapshot is refused. Version 4 (Phase 15, FOUND-18) adds
  * `velocity`, `weapon` and `cargo` to every entity and `staticHealth` to the
- * world (the last in Task 3 of plan 15-02); a version-3 snapshot is refused.
+ * world; a version-3 snapshot is refused.
  * World snapshots are not persisted to IndexedDB yet (SAVE-07 is later), so no
  * save migration exists.
  */
@@ -175,6 +177,13 @@ export interface EntitySnapshot {
   cargo: number;
 }
 
+/** The energy of the damageable statics (`StaticHealth` in `./entity.ts`). */
+export interface StaticHealthSnapshot {
+  station: number;
+  witchpoint: number;
+  navBuoy: number;
+}
+
 export interface WorldSnapshot {
   format: typeof WORLD_SNAPSHOT_FORMAT;
   version: typeof WORLD_SNAPSHOT_VERSION;
@@ -184,6 +193,8 @@ export interface WorldSnapshot {
   /** The world stream state, `world.rng.s`, a plain uint32 integer. */
   rng: number;
   aiDropped: number;
+  /** The energy of the station and both buoys (Phase 15, D-08). */
+  staticHealth: StaticHealthSnapshot;
   /** Strictly ascending by id. */
   entities: EntitySnapshot[];
 }
@@ -489,6 +500,9 @@ export function snapshotWorld(world: World): WorldSnapshot {
   requireFinite(world.store.nextId, "nextId");
   requireFinite(world.rng.s, "rng");
   requireFinite(world.aiDropped, "aiDropped");
+  requireFinite(world.staticHealth.station, "staticHealth.station");
+  requireFinite(world.staticHealth.witchpoint, "staticHealth.witchpoint");
+  requireFinite(world.staticHealth.navBuoy, "staticHealth.navBuoy");
   for (const entity of world.store.live) requireFiniteEntity(entity);
   return {
     format: WORLD_SNAPSHOT_FORMAT,
@@ -497,6 +511,11 @@ export function snapshotWorld(world: World): WorldSnapshot {
     nextId: world.store.nextId,
     rng: world.rng.s,
     aiDropped: world.aiDropped,
+    staticHealth: {
+      station: noNegativeZero(world.staticHealth.station),
+      witchpoint: noNegativeZero(world.staticHealth.witchpoint),
+      navBuoy: noNegativeZero(world.staticHealth.navBuoy),
+    },
     entities: world.store.live.map(snapshotEntity),
   };
 }
@@ -995,6 +1014,27 @@ function parseWeapon(value: unknown, path: string): WeaponSnapshot {
   };
 }
 
+function parseStaticHealth(value: unknown, path: string): StaticHealthSnapshot {
+  const o = asObject(value, path, ["station", "witchpoint", "navBuoy"]);
+  return {
+    station: limitedNumber(
+      read(o, "station"),
+      `${path}.station`,
+      STATION_MAX_ENERGY,
+    ),
+    witchpoint: limitedNumber(
+      read(o, "witchpoint"),
+      `${path}.witchpoint`,
+      BUOY_MAX_ENERGY,
+    ),
+    navBuoy: limitedNumber(
+      read(o, "navBuoy"),
+      `${path}.navBuoy`,
+      BUOY_MAX_ENERGY,
+    ),
+  };
+}
+
 function parseEntity(value: unknown, path: string): EntitySnapshot {
   const o = asObject(value, path, [
     "id",
@@ -1113,6 +1153,7 @@ export function parseWorldSnapshot(input: unknown): WorldSnapshot {
     "nextId",
     "rng",
     "aiDropped",
+    "staticHealth",
     "entities",
   ]);
   if (read(root, "format") !== WORLD_SNAPSHOT_FORMAT) {
@@ -1140,6 +1181,10 @@ export function parseWorldSnapshot(input: unknown): WorldSnapshot {
     read(root, "aiDropped"),
     "snapshot.aiDropped",
     "counter",
+  );
+  const staticHealth = parseStaticHealth(
+    read(root, "staticHealth"),
+    "snapshot.staticHealth",
   );
   const source = read(root, "entities");
   if (!Array.isArray(source)) {
@@ -1173,6 +1218,7 @@ export function parseWorldSnapshot(input: unknown): WorldSnapshot {
     nextId,
     rng,
     aiDropped,
+    staticHealth,
     entities,
   };
 }
@@ -1220,5 +1266,6 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
     aiQueue: [],
     fireQueue: [],
     aiDropped: parsed.aiDropped,
+    staticHealth: parsed.staticHealth,
   };
 }

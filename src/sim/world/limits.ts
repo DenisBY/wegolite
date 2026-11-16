@@ -138,3 +138,17 @@ export const MAX_WEAPON_TEMPERATURE = 1e3;
  * `WORLD_SNAPSHOT_VERSION` bump).
  */
 export const MAX_ENTITY_CARGO = 200;
+
+/**
+ * The most energy the main station holds (`shipdata.plist:1732`, `max_energy`
+ * 25000). The station only absorbs hits (Phase 18). A format bound: changing it
+ * is a snapshot-format change (a `WORLD_SNAPSHOT_VERSION` bump).
+ */
+export const STATION_MAX_ENERGY = 25000;
+
+/**
+ * The most energy a navigation or witchpoint buoy holds (the buoy template,
+ * `shipdata.plist:1021`, `max_energy` 250). A format bound: changing it is a
+ * snapshot-format change (a `WORLD_SNAPSHOT_VERSION` bump).
+ */
+export const BUOY_MAX_ENERGY = 250;

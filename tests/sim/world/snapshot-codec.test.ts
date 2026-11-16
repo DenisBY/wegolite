@@ -38,7 +38,9 @@ import {
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_STEER_RATE,
   MAX_UINT32,
+  BUOY_MAX_ENERGY,
   MAX_WEAPON_TEMPERATURE,
+  STATION_MAX_ENERGY,
 } from "../../../src/sim/world/limits.js";
 import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
 import {
@@ -289,6 +291,46 @@ const REJECTIONS: readonly (readonly [string, Mutator, SnapshotErrorReason])[] =
     ["aiDropped 2 ** 32", set("aiDropped", 2 ** 32), "counter"],
     ["aiDropped 1.5", set("aiDropped", 1.5), "counter"],
     ["an unknown root key", set("extra", 1), "unknown-key"],
+    // The static health (Phase 15, FOUND-18, D-08). `asObject` refuses the
+    // absent root key as not-object, and the parser does not check presence first.
+    ["staticHealth missing", (s) => void delete s.staticHealth, "not-object"],
+    ["staticHealth null", set("staticHealth", null), "not-object"],
+    [
+      "an unknown staticHealth key",
+      set("staticHealth.extra", 1),
+      "unknown-key",
+    ],
+    [
+      "staticHealth.station over STATION_MAX_ENERGY",
+      set("staticHealth.station", STATION_MAX_ENERGY + 1),
+      "magnitude",
+    ],
+    [
+      "staticHealth.witchpoint over BUOY_MAX_ENERGY",
+      set("staticHealth.witchpoint", BUOY_MAX_ENERGY + 1),
+      "magnitude",
+    ],
+    ["staticHealth.navBuoy -1", set("staticHealth.navBuoy", -1), "range"],
+    [
+      "staticHealth.witchpoint NaN",
+      set("staticHealth.witchpoint", Number.NaN),
+      "non-finite",
+    ],
+    [
+      "staticHealth.station null (a NaN after JSON)",
+      set("staticHealth.station", null),
+      "non-finite",
+    ],
+    [
+      "staticHealth.navBuoy as a string",
+      set("staticHealth.navBuoy", "250"),
+      "type",
+    ],
+    [
+      "staticHealth.station missing",
+      (s) => void delete (getAt(s, "staticHealth") as Plain).station,
+      "type",
+    ],
     // Entity ids.
     [
       "ids 102 then 101",
@@ -765,6 +807,7 @@ const REJECTIONS: readonly (readonly [string, Mutator, SnapshotErrorReason])[] =
 
 const FORBIDDEN_LEVELS = [
   "",
+  "staticHealth",
   E0,
   `${E0}.position`,
   `${E0}.orientation`,
@@ -1094,6 +1137,7 @@ describe("the steering record in the snapshot", () => {
   it("refuses a hand-built version-3 snapshot of the previous shape", () => {
     const snapshot = jsonOf(richWorld());
     snapshot.version = 3;
+    delete snapshot.staticHealth;
     for (const entity of snapshot.entities as Plain[]) {
       delete entity.velocity;
       delete entity.weapon;
@@ -1168,6 +1212,53 @@ describe("the v4 entity fields in the snapshot (FOUND-18)", () => {
       poison(bad.store.live[0] as Entity);
       expect(() => snapshotWorld(bad)).toThrow(SnapshotError);
     }
+  });
+});
+
+describe("the static health in the snapshot (FOUND-18, D-08)", () => {
+  it("writes the pristine maxima and round-trips a damaged buoy", () => {
+    const player = initFlightState(layout);
+    const world = richWorld();
+    expect(snapshotWorld(world).staticHealth).toEqual({
+      station: 25000,
+      witchpoint: 250,
+      navBuoy: 250,
+    });
+    world.staticHealth.witchpoint = 100;
+    world.staticHealth.station = 24000.5;
+    const text = JSON.stringify(snapshotWorld(world));
+    const restored = restoreWorld(
+      parseWorldSnapshot(JSON.parse(text) as unknown),
+    );
+    expect(restored.staticHealth).toEqual({
+      station: 24000.5,
+      witchpoint: 100,
+      navBuoy: 250,
+    });
+    expect(restored.staticHealth).not.toBe(world.staticHealth);
+    expect(hashWorld(player, restored)).toBe(hashWorld(player, world));
+    expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+  });
+
+  it("writes -0 as 0 and refuses a non-finite value", () => {
+    const world = richWorld();
+    world.staticHealth.navBuoy = -0;
+    world.staticHealth.station = 0;
+    const entry = snapshotWorld(world);
+    expect(Object.is(entry.staticHealth.navBuoy, 0)).toBe(true);
+    expect(Object.is(entry.staticHealth.station, 0)).toBe(true);
+    world.staticHealth.witchpoint = Number.NaN;
+    expect(() => snapshotWorld(world)).toThrow(SnapshotError);
+  });
+
+  it("accepts the bounds themselves and zero", () => {
+    const snapshot = jsonOf(richWorld());
+    setAt(snapshot, "staticHealth.station", 0);
+    setAt(snapshot, "staticHealth.witchpoint", 0);
+    expect(reasonOf(snapshot)).toBe("accepted");
+    setAt(snapshot, "staticHealth.station", STATION_MAX_ENERGY);
+    setAt(snapshot, "staticHealth.navBuoy", BUOY_MAX_ENERGY);
+    expect(reasonOf(snapshot)).toBe("accepted");
   });
 });
 

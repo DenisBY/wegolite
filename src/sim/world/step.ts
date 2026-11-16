@@ -40,7 +40,7 @@ import { createShipControl } from "./control-impl.js";
 import type { Entity } from "./entity.js";
 import type { SystemLayout } from "./layout.js";
 import { MAX_UINT32 } from "./limits.js";
-import { sanitizeEntity } from "./sanitize.js";
+import { sanitizeEntity, sanitizeStaticHealth } from "./sanitize.js";
 import { createWorldView } from "./view-impl.js";
 import type { WorldView } from "./view.js";
 import { commitWorld, countAiDropped, postAiEvent } from "./world.js";
@@ -196,7 +196,10 @@ function steerEntity(
   entity.rng.combat = stream.s;
 }
 
-/** Repair the world-level hashed scalars: the stream state and the drop count. */
+/**
+ * Repair the world-level hashed state: the stream state, the drop count and the
+ * static health (a repair of the last is counted nowhere, FOUND-18).
+ */
 function repairWorldFields(world: World): void {
   const s = world.rng.s;
   if (!Number.isSafeInteger(s) || s < 0 || s > MAX_UINT32) world.rng.s = 0;
@@ -205,6 +208,7 @@ function repairWorldFields(world: World): void {
   } else if (world.aiDropped > MAX_UINT32) {
     world.aiDropped = MAX_UINT32;
   }
+  sanitizeStaticHealth(world);
 }
 
 /**

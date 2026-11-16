@@ -18,7 +18,12 @@ import { describe, expect, it } from "vitest";
 
 import type { AiComponent, ParamValue } from "../../../src/sim/ai/types.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
-import { hashFlight } from "../../../src/sim/flight/state.js";
+import {
+  createPlayerCombatState,
+  serializeCombat,
+} from "../../../src/sim/combat/state.js";
+import { hashFlight, serializeFlight } from "../../../src/sim/flight/state.js";
+import { fnv1a32 } from "../../../src/sim/hash.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { rngNext, worldSeedFor } from "../../../src/sim/rng.js";
@@ -44,12 +49,14 @@ import {
   entityHashes,
   hashWorld,
   serializeEntity,
+  serializeStaticHealth,
   serializeWorldSection,
 } from "../../../src/sim/world/serialize.js";
 import {
   commitWorld,
   createWorld,
   isNeverSpawned,
+  isPristineStaticHealth,
   killEntity,
   spawnEntity,
 } from "../../../src/sim/world/world.js";
@@ -281,6 +288,79 @@ describe("pristine-omit of the v4 entity fields (FOUND-18, D-09)", () => {
         e.cargo = 1;
       }).changed,
     ).toContain(";cargo:1");
+  });
+});
+
+describe("the static-health line (FOUND-18, D-08, D-09)", () => {
+  const state = firstFlightState();
+
+  it("a never-spawned world with pristine statics still equals the flight hash", () => {
+    const world = createWorld(1234);
+    expect(isNeverSpawned(world)).toBe(true);
+    expect(isPristineStaticHealth(world.staticHealth)).toBe(true);
+    expect(world.staticHealth).toEqual({
+      station: 25000,
+      witchpoint: 250,
+      navBuoy: 250,
+    });
+    expect(hashWorld(state, world)).toBe(hashFlight(state));
+  });
+
+  it("a damaged witchpoint buoy appends exactly one staticHealth: line, even in a never-spawned world", () => {
+    const world = createWorld(1234);
+    world.staticHealth.witchpoint = 100;
+    expect(isNeverSpawned(world)).toBe(true);
+    const line = serializeStaticHealth(world.staticHealth);
+    expect(line.startsWith("staticHealth:")).toBe(true);
+    expect(line).toBe("staticHealth:25000.000000,100.000000,250.000000");
+    expect(hashWorld(state, world)).toBe(
+      fnv1a32(`${serializeFlight(state)}\n${line}`),
+    );
+    expect(hashWorld(state, world)).not.toBe(hashFlight(state));
+  });
+
+  it("places the line after the world section and before the combat line", () => {
+    const world = createWorld(1234);
+    expect(spawnEntity(world, init(), 0).ok).toBe(true);
+    const combat = createPlayerCombatState();
+    combat.energy -= 10;
+    world.staticHealth.navBuoy = 17.5;
+    const line = serializeStaticHealth(world.staticHealth);
+    const expected = fnv1a32(
+      `${serializeFlight(state)}\n${serializeWorldSection(world)}\n${line}\n${serializeCombat(combat)}`,
+    );
+    expect(hashWorld(state, world, combat)).toBe(expected);
+    // Removing the line (the buoy back at its maximum) restores the previous hash.
+    world.staticHealth.navBuoy = 250;
+    expect(hashWorld(state, world, combat)).toBe(
+      fnv1a32(
+        `${serializeFlight(state)}\n${serializeWorldSection(world)}\n${serializeCombat(combat)}`,
+      ),
+    );
+    expect(hashWorld(state, world, combat)).not.toBe(expected);
+  });
+
+  it("each static changes the hash on its own", () => {
+    const seen = new Set<string>();
+    for (const [key, value] of [
+      ["station", 24999],
+      ["witchpoint", 249],
+      ["navBuoy", 249],
+    ] as const) {
+      const world = createWorld(1234);
+      world.staticHealth[key] = value;
+      seen.add(hashWorld(state, world));
+    }
+    seen.add(hashFlight(state));
+    expect(seen.size).toBe(4);
+  });
+
+  it("a NaN buoy value hashes without throwing, repaired to the maximum (pristine)", () => {
+    const world = createWorld(1234);
+    world.staticHealth.witchpoint = Number.NaN;
+    expect(() => hashWorld(state, world)).not.toThrow();
+    expect(world.staticHealth.witchpoint).toBe(250);
+    expect(hashWorld(state, world)).toBe(hashFlight(state));
   });
 });
 

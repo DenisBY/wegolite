@@ -21,7 +21,12 @@ import { AI_EVENT_NAMES, AI_KEYS } from "../ai/types.js";
 import type { Quat, Vec3 } from "../math.js";
 import { createRngState, forkSeed } from "../rng.js";
 import type { RngState } from "../rng.js";
-import type { Entity, SpawnInit, StaticEntity } from "./entity.js";
+import type {
+  Entity,
+  SpawnInit,
+  StaticEntity,
+  StaticHealth,
+} from "./entity.js";
 import { createSteerComponent } from "../npc/state.js";
 import {
   ENTITY_KINDS,
@@ -37,11 +42,12 @@ import {
 } from "./ids.js";
 import type { EntityId } from "./ids.js";
 import {
+  BUOY_MAX_ENERGY,
   MAX_AI_PARAMS_KEYS,
   MAX_ENERGY_RECHARGE_RATE,
+  MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
-  MAX_ENTITY_CARGO,
   MAX_ESCORT_SLOT,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
@@ -49,6 +55,7 @@ import {
   NPC_DEFAULT_ENERGY_RECHARGE_RATE,
   NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
+  STATION_MAX_ENERGY,
 } from "./limits.js";
 import { createEntityStore } from "./store.js";
 import type { EntityStore } from "./store.js";
@@ -124,6 +131,31 @@ export interface World {
    * budget or the queue-length cap. Hashed state; saturates at `MAX_UINT32`.
    */
   aiDropped: number;
+  /**
+   * The energy of the damageable statics (FOUND-18, D-08). Mutable, so a
+   * repair can replace it. Statics never enter the store, so `isNeverSpawned`
+   * ignores this field and the station and buoys can never be removed by the
+   * kill path (D-13). Hashed only when not pristine (D-09).
+   */
+  staticHealth: StaticHealth;
+}
+
+/** The pristine static health: every damageable static at its maximum. */
+export function createStaticHealth(): StaticHealth {
+  return {
+    station: STATION_MAX_ENERGY,
+    witchpoint: BUOY_MAX_ENERGY,
+    navBuoy: BUOY_MAX_ENERGY,
+  };
+}
+
+/** True when every static is at its maximum, so the hash prints nothing. */
+export function isPristineStaticHealth(health: StaticHealth): boolean {
+  return (
+    health.station === STATION_MAX_ENERGY &&
+    health.witchpoint === BUOY_MAX_ENERGY &&
+    health.navBuoy === BUOY_MAX_ENERGY
+  );
 }
 
 /**
@@ -151,6 +183,7 @@ export function createWorld(worldSeed: number): World {
     aiQueue: [],
     fireQueue: [],
     aiDropped: 0,
+    staticHealth: createStaticHealth(),
   };
 }
 

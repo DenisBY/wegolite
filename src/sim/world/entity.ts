@@ -147,6 +147,30 @@ export type StaticLayoutKey = {
 }[keyof SystemLayout];
 
 /**
+ * The energy of the damageable statics (FOUND-18, D-08): one value per static,
+ * named by its `StaticLayoutKey`. A pristine world holds the maxima
+ * (`STATION_MAX_ENERGY`, `BUOY_MAX_ENERGY`) and hashes it as nothing; a damaged
+ * static adds one `staticHealth:` line (D-09). Statics never enter the entity
+ * store, so the kill path can never remove the station or a buoy (D-13).
+ *
+ * Three limits of the design:
+ *  - it holds energy only, and a buoy recharges (`energy_recharge_rate` 2,
+ *    `shipdata.plist:1018`), so a damaged buoy that recharges to its maximum is
+ *    pristine again and its `staticHealth:` line disappears, which is correct
+ *    (Phase 18 consumes it);
+ *  - a repair by `sanitizeStaticHealth` is not counted in any hashed counter
+ *    (`Entity.repairs` counts entity repairs only, so the acceptance run's
+ *    `repairs 0` does not cover static health);
+ *  - a non-finite value is healed to the maximum, a deliberate choice that
+ *    keeps the world hashable.
+ */
+export interface StaticHealth {
+  station: number;
+  witchpoint: number;
+  navBuoy: number;
+}
+
+/**
  * A static body as a world entity (D-06, D-07): a fixed id plus a reference
  * into the layout. Deliberately no position, radius or orientation field:
  * `SystemLayout` stays the single authority.
