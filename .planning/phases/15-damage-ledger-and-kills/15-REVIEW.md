@@ -153,3 +153,9 @@ The `resolveShots` doc even says the commit is "gated on the world, never on `co
 _Reviewed: 2026-11-16T12:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+
+## Resolution (2026-11-16)
+
+- WR-01 and WR-02: fixed in `d76c7f9` (comment-only; `typecheck` and `lint` clean).
+- IN-01: not applied. The ledger's `creditedKiller` is part of the tested `LethalHit` contract (`ledger.test.ts` asserts the credited killer), so removing it means rewriting those tests for no behaviour gain. Revisit when a later phase touches the ledger.
+- IN-02 to IN-05: not applied. IN-03 and IN-04 are deliberate groundwork for Phases 16 to 18; IN-02 and IN-05 are non-blocking.
