@@ -159,7 +159,14 @@ Ordering rules:
 **Pitfalls to address** (research PITFALLS.md): 3 (every hashed field costs a bump: one bump, strip-and-rehash, pristine-omit), 4 (the frozen acceptance run throws on any flyer death), 5 (a kill after the commit leaves a dead entity at the boundary: second commit, idempotent `killShip`, a property test), 6 (old pins encode "nothing is destroyed"), 16 (new code is outside AI fault containment: totality), 22 (closed sets: router table, probe shape)
 **Decisions to settle**: the debris motion model (heading and speed against a bounded velocity vector), decided in the first plan so a later phase never bumps the snapshot; the event kinds and payloads; the field bounds
 **Todos**: none
-**Plans**: TBD
+**Plans**: 5 plans in 4 waves
+
+Plans:
+- [ ] 15-01-PLAN.md — DATA-14: compile weapon facings, `likely_cargo`, `max_cargo`, `fragment_chance` and `explosion_type` into the NPC record (schema, golden, drift gate, NOTICE); carries the phase-wide D-11 inventory (wave 1)
+- [ ] 15-02-PLAN.md — FOUND-18: the v4 field set (velocity, weapon with missed shots, cargo, per-world static health), pristine-omit hashing, snapshot version 4, sanitiser and bounds; Lave golden unchanged (wave 1)
+- [ ] 15-03-PLAN.md — FOUND-18: cargo count at spawn from a stateless stream, the one Lave golden regeneration with the three-link strip proof, Key Decisions row (wave 2)
+- [ ] 15-04-PLAN.md — FOUND-19: damage ledger, idempotent `killShip`, kill notifications by `drainAiEventsNow`, second commit; supersedes N2 (wave 3)
+- [ ] 15-05-PLAN.md — FOUND-19, FOUND-18: random-fight property test, kill cross-cadence scenario, 1,000-tick resume across a kill (wave 4)
 
 ### Phase 16: Wreckage, Cargo and the Entity Cap
 
