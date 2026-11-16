@@ -482,28 +482,30 @@ Not applicable: this is a greenfield feature phase, not a rename, refactor or mi
 | A8 | Per-piece cap gating instead of Oolite's per-explosion gating | The cap | A divergence from Oolite that only shows near 243 live entities; recorded |
 | A9 | `isVisible` is effectively always true in Wegolite (about 2,560 km) | The cap | If a world could exceed it, far kills would spawn debris Oolite would skip |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **What does a pod hold (D-06 against YAGNI)?**
+All nine are resolved in the plans (decisions D16-01 to D16-26; owner confirmations OC-1 to OC-7 stay open for the owner).
+
+1. **What does a pod hold (D-06 against YAGNI)? (RESOLVED: D16-01 / OC-1)**
    - What we know: D-06 says the commodity of each capsule is drawn at the explosion from the ship's `combat` stream. Nothing stores it: there is no commodity field, scooping (CBT-11) is unscheduled, and the review noted "`specKey` is the only hashed place" (15-REVIEWS). Oolite's pod also draws an amount (tonnes 1; kg `1 + (Ranrot() % 6) * 3`; g `4 + ...`) and a 50 % role roll (`Universe.m:3863-3878`, `3977-3996`), and the ship's cargo list is filled from the system market at spawn (`ShipEntity.m:7318-7373`).
    - What's unclear: whether the owner wants a dead draw to keep the stream order that a later scooping phase would need, or no draw.
    - Recommendation: take **no commodity draw**; spawn every pod as one `cargopod` model. A later phase that adds scooping adds its commodity (probably a `specKey` such as `cargopod:<commodity>` with its own draw) and accepts the changed stream then; pre-release saves do not hold worlds. State it in the Key Decisions row as narrowing D-06, and ask the owner to confirm at plan review.
 
-2. **How does the vendor script read the local checkout?** See "The vendor script". Recommendation: add an opt-in local source with a host-produced pinned-hash list; the owner runs it (checkpoint task).
+2. **How does the vendor script read the local checkout? (RESOLVED: D16-02 / OC-7)** See "The vendor script". Recommendation: add an opt-in local source with a host-produced pinned-hash list; the owner runs it (checkpoint task).
 
-3. **Can pods and plates be shot or rammed in this phase?** The scope note says "Pods and plates drift, can be shot, and are rammed in Phase 18". Recommendation: no hulls, so no hits and no collisions until Phase 18 (DATA-15); they are visual and physical drifters only. Confirm.
+3. **Can pods and plates be shot or rammed in this phase? (RESOLVED: D16-03 / OC-3)** The scope note says "Pods and plates drift, can be shot, and are rammed in Phase 18". Recommendation: no hulls, so no hits and no collisions until Phase 18 (DATA-15); they are visual and physical drifters only. Confirm.
 
-4. **Blast push on ships and the player.** Recommendation: cut for ships and the player (bounded, above), port for debris, clamp at `MAX_ENTITY_VELOCITY`.
+4. **Blast push on ships and the player. (RESOLVED: D16-04 / OC-4)** Recommendation: cut for ships and the player (bounded, above), port for debris, clamp at `MAX_ENTITY_VELOCITY`.
 
-5. **Gate per piece or per explosion?** Recommendation: per piece (above); it satisfies "no ship fails to spawn because of debris".
+5. **Gate per piece or per explosion? (RESOLVED: D16-05)** Recommendation: per piece (above); it satisfies "no ship fails to spawn because of debris".
 
-6. **Eviction of old debris at the cap?** Oolite has none. Recommendation: none; the world is replaced on launch and jump, and a full world only sheds new debris.
+6. **Eviction of old debris at the cap? (RESOLVED: D16-06)** Oolite has none. Recommendation: none; the world is replaced on launch and jump, and a full world only sheds new debris.
 
-7. **Scarred alloy variant.** Vendor the second texture (153,629 bytes) for the 50/50 plate mix, or ship one plate look. Lazy-loaded, so no cold-start cost; discretion.
+7. **Scarred alloy variant. (RESOLVED: D16-07)** Vendor the second texture (153,629 bytes) for the 50/50 plate mix, or ship one plate look. Lazy-loaded, so no cold-start cost; discretion.
 
-8. **Explosion particle count (10 or 25) and the wreck burn-out cloud.** Oolite caps the cloud at 10 below the extras detail level and uses the authored 25 above. Recommendation: 10 (the default level below extras), no burn-out cloud for expiring wrecks, no fragment sprites; record.
+8. **Explosion particle count (10 or 25) and the wreck burn-out cloud. (RESOLVED: D16-08)** Oolite caps the cloud at 10 below the extras detail level and uses the authored 25 above. Recommendation: 10 (the default level below extras), no burn-out cloud for expiring wrecks, no fragment sprites; record.
 
-9. **Which cargo count does a hook-spawned ship carry?** See Carry-over; an additive hook argument.
+9. **Which cargo count does a hook-spawned ship carry? (RESOLVED: D16-09)** See Carry-over; an additive hook argument.
 
 ## Environment Availability
 
