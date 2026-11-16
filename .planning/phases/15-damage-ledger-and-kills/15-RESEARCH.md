@@ -400,20 +400,20 @@ export function killShip(world: World, id: EntityId, killer: EntityId, events: S
 | A5 | Wreckage lifetime in seconds is about `energy / 1000` | Fidelity | Phase 16 detail, outside this phase; read from `ShipEntity.m:2271-2272`, `11678-11691`, `Universe.m:5506-5516`, `ShipEntity.m:8063-8064` but not measured in a running Oolite. |
 | A6 | No test outside the ones listed pins an NPC at floor energy | D-11 list | A late red run; mitigated by the grep recipe in Validation Architecture. I did not run the suite (host runs are not evidence and the remote machine is the owner's). |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Is `missedShots` in the field set? (needs the owner before plan B is written)**
+1. **Is `missedShots` in the field set? (needs the owner before plan B is written)** **RESOLVED by D-16 (owner, 2026-11-16): `missedShots` is the third `;wpn:` token.**
    - What we know: Oolite keeps `_missed_shots` per ship, `+1` on a missed laser shot and `-1` on a hit, floored at 0 (`ShipEntity.m:10196`, `:10218`, `:10396`, `:10425`, `:10468-10477`). It feeds the aim tolerance `basic_aim /= 1.0 + ((GLfloat)[self missedShots] / 4.0);` (`ShipEntity.m:9769`) when `accuracy >= COMBAT_AI_ISNT_AWFUL`, and the dead zone in `trackPrimaryTarget` (`:9136`). Wegolite's `COMBAT_AI_ISNT_AWFUL` is 0 (`npc/constants.ts:235`) and accuracy resolves into `MIN_ACCURACY..MAX_ACCURACY` (-5..10), so most NPCs are affected. Phase 14 cut it explicitly ("`missedShots` is 0 because NPCs do not fire in v2.2 (CBT-15)", `npc/target.ts:122`, `npc/track.ts:285`). D-07 fixes the weapon field at temperature plus last shot tick.
    - What is unclear: whether the owner counts it as part of `onTarget` (then it belongs in this bump) or accepts the scope cut for Phase 17.
    - Recommendation: add `missedShots` (uint, pristine 0, a third token of `;wpn:`) to the weapon record in this bump; it costs one integer and no extra segment. Otherwise record a Phase-14-style scope cut for Phase 17 in the Key Decisions row. Plan B should open with this as a decision checkpoint.
 
-2. **Phase 18 contact state.** Collision rebounds may need a guard against repeated damage every tick (PITFALLS.md 9) and the NPC model has no velocity for ships, only `speed`. If a per-entity contact field is required it must be in this bump. Recommendation: ask the owner in the same checkpoint whether Phase 18 will use a position nudge only (no new field) as ARCHITECTURE.md 4.5 proposes.
+2. **Phase 18 contact state.** Collision rebounds may need a guard against repeated damage every tick (PITFALLS.md 9) and the NPC model has no velocity for ships, only `speed`. If a per-entity contact field is required it must be in this bump. Recommendation: ask the owner in the same checkpoint whether Phase 18 will use a position nudge only (no new field) as ARCHITECTURE.md 4.5 proposes. **RESOLVED by D-17 (owner, 2026-11-16): no contact-guard field; Phase 18 decides.**
 
-3. **Cargo rule by role** (A2) and whether shuttle and scavenger carry cargo. Recommendation: the Oolite role rule above; the shuttle role follows the station launch (`StationEntity.m:1629`), the scavenger none.
+3. **Cargo rule by role** (A2) and whether shuttle and scavenger carry cargo. Recommendation: the Oolite role rule above; the shuttle role follows the station launch (`StationEntity.m:1629`), the scavenger none. **RESOLVED in 15-03 Task 1: the Oolite role rule (Claude's discretion).**
 
-4. **Plan order.** The golden regeneration needs the compiled cargo inputs, so content plan A precedes field plan B (ROADMAP says the field design comes first "before any behaviour exists"; plan A adds no behaviour). Alternative: one combined plan; larger and mixes a provenance-sensitive compile with a one-way hash change.
+4. **Plan order.** The golden regeneration needs the compiled cargo inputs, so content plan A precedes field plan B (ROADMAP says the field design comes first "before any behaviour exists"; plan A adds no behaviour). Alternative: one combined plan; larger and mixes a provenance-sensitive compile with a one-way hash change. **RESOLVED by the wave order: 15-01 content, 15-02 fields, 15-03 regeneration.**
 
-5. **Statics maxima.** Put 25000 / 250 / 250 as sim constants citing `shipdata.plist`, or let Phase 18 pass them from content? Recommendation: constants now (pristine detection needs the maximum), Phase 18 may add content wiring.
+5. **Statics maxima.** Put 25000 / 250 / 250 as sim constants citing `shipdata.plist`, or let Phase 18 pass them from content? Recommendation: constants now (pristine detection needs the maximum), Phase 18 may add content wiring. **RESOLVED in 15-02 Task 3: sim constants now; Phase 18 may add content wiring.**
 
 ## Environment Availability
 
