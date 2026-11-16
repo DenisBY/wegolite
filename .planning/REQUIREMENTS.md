@@ -9,8 +9,8 @@ Requirements for this milestone. Each maps to roadmap phases (numbering continue
 
 ### Foundation
 
-- [ ] **FOUND-18**: All new hashed entity fields (weapon state, cargo, static health, debris motion) arrive in one snapshot v4 bump with one golden regeneration and a strip-and-rehash proof; existing worlds hash pristine-omit.
-- [ ] **FOUND-19**: All damage goes through one ledger applied after the world step; the tick boundary never holds a dead entity or a queued AI event (second commit, idempotent `killShip`).
+- [x] **FOUND-18**: All new hashed entity fields (weapon state, cargo, static health, debris motion) arrive in one snapshot v4 bump with one golden regeneration and a strip-and-rehash proof; existing worlds hash pristine-omit.
+- [x] **FOUND-19**: All damage goes through one ledger applied after the world step; the tick boundary never holds a dead entity or a queued AI event (second commit, idempotent `killShip`).
 
 ### Data
 
@@ -75,8 +75,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-18 | Phase 15 | Pending |
-| FOUND-19 | Phase 15 | Pending |
+| FOUND-18 | Phase 15 | Complete |
+| FOUND-19 | Phase 15 | Complete |
 | DATA-14 | Phase 15 | Complete |
 | DATA-16 | Phase 16 | Pending |
 | WORLD-17 | Phase 16 | Pending |
