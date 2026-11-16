@@ -117,7 +117,7 @@ Run at plan 14-19's HEAD (after the Task 1 commit `2796702`), the plan's own com
 - **30, 60 and 144 Hz (plan 14-16, `npc-cadence.test.ts`):** with the three flyers spawned 90 ticks after a launch and 2,400 ticks flown, the tick-indexed `hashWorld` log, the launch, spawn and end ticks and the flyers' final poses and phases are identical at all three cadences, and every flyer moved. The acceptance run additionally hashes the world on every tick of every seed.
 - **Browser smoke (plan 14-18, `tests/e2e/npc-flight.spec.ts`, remote Chromium, snapshot `d8b4483`, passed, and passed again inside `verify-full`):** `spawnTestFlyers()` on the `?test=1` hook taints the session first, then the three flyers appear on the scanner; 1,200 ticks later the scanner count equals the Node HUD model's, the browser world hash equals the Node replay's at tick 1,801 with 15 entities (`d11fee94`; `09c03072` at the spawn step), the Shuttle is closer to the station (3,300.2 m to 2,591.7 m), the Viper closer to the player (2,892.2 m to 728.9 m) and the Adder farther (2,898.3 m to 3,476.0 m), draw calls are within the budget of 50 once the models loaded, and there is no console error. The draw-call check is weak evidence on its own (about 17 calls loaded); the hash equality carries the proof.
 - **Remote gates at `d8b4483`:** `verify` 27 browser specs passed, exit 0, 140 s; `verify-full` 203 unit files and 134 + 2 e2e passed, exit 0, 563 s; the targeted `npc-flight`, `combat` and `traffic` specs 5 passed, 51 s.
-- **Remote `verify` at this plan's HEAD:** see "Gates run in plan 14-19" below.
+- **Remote `verify` at this plan's HEAD:** exit 0 at snapshot `7fbd649` (see "Gates run in plan 14-19" below).
 
 ## The AI-11 spike (plan 14-04, `14-SPIKE.md`)
 
@@ -170,7 +170,8 @@ This counts added diff lines containing `expect(`, a count of written assertions
 | `docker compose run --rm lint` (eslint and prettier) | exit 0 |
 | `docker compose run --rm typecheck` (both projects) | exit 0 |
 | `docker compose run --rm assets npm run assets:check` | exit 0, "no differences" |
-| Remote `verify` at this plan's committed HEAD | REMOTE-VERIFY-PLACEHOLDER |
+| Remote `verify` (`wegolite-remote-run.sh run --rm verify`) at snapshot `7fbd649`, the committed HEAD with the report | exit 0, 143 s: 203 unit files, 4,997 tests passed, 10 skipped; `assets:check` no differences; `check:dist` 106 files scanned, no AI harness marker; 27 Chromium specs passed. The commit after it changes `.planning` documents only |
+| The AI-11 spike at this HEAD, pinned tree mounted (`OOLITE_SRC`) | `tools/ai-harness` and `harness-isolation.test.ts`: 3 files, 33 tests passed (the spike 11, none skipped). Unmounted: 18 passed, 8 skipped |
 
 ### Remote verify runs across the phase (for the record)
 
