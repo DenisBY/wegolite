@@ -31,6 +31,15 @@
  * module has no store, so whether an id names a live ship is the steering's
  * question through the view.
  *
+ * The v4 fields (Phase 15, FOUND-18) follow the steering record. `velocity`: a
+ * non-object becomes a fresh zero vector, and a component that is non-finite or
+ * above `MAX_ENTITY_VELOCITY` in magnitude becomes 0, each a repair. `weapon`:
+ * a non-object becomes a fresh zero record, `temperature` is held inside
+ * `0..MAX_WEAPON_TEMPERATURE` (out of domain becomes 0), `lastShotTick` and
+ * `missedShots` must be uint32 (else 0), each a repair. `cargo` must be a safe
+ * integer in `0..MAX_ENTITY_CARGO`, else 0 (a repair). A pristine or in-domain
+ * value is never a repair, and `-0` becomes `0` without one.
+ *
  * Counting. `repairs` grows by one per call that repaired anything, however
  * many fields it repaired, saturating at `MAX_UINT32`. Normalisations never
  * count: `-0` becomes `0`, and an orientation outside `QUAT_UNIT_TOLERANCE`
@@ -61,14 +70,17 @@ import {
   MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
   MAX_ENERGY_RECHARGE_RATE,
+  MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
+  MAX_ENTITY_VELOCITY,
   MAX_ESCORT_SLOT,
   MAX_FRUSTRATION,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_STEER_RATE,
   MAX_UINT32,
+  MAX_WEAPON_TEMPERATURE,
   MIN_ACCURACY,
   MIN_QUAT_NORM_SQ,
   NPC_DEFAULT_ENERGY_RECHARGE_RATE,
@@ -552,6 +564,66 @@ function cleanSteer(entity: Entity): boolean {
 }
 
 /**
+ * Repair the v4 fields (FOUND-18) in place; true when a repair counted. Each
+ * field is repaired on its own, so one bad leaf never resets its neighbours.
+ */
+function cleanV4Fields(entity: Entity): boolean {
+  let repaired = false;
+  const mark = (flag: boolean): void => {
+    if (flag) repaired = true;
+  };
+
+  const velocity: unknown = entity.velocity;
+  if (!isObject(velocity)) {
+    entity.velocity = vec(0, 0, 0);
+    repaired = true;
+  } else {
+    const v = entity.velocity;
+    const x = cleanSymmetric(v.x, MAX_ENTITY_VELOCITY);
+    const y = cleanSymmetric(v.y, MAX_ENTITY_VELOCITY);
+    const z = cleanSymmetric(v.z, MAX_ENTITY_VELOCITY);
+    if (
+      !Object.is(x.value, v.x) ||
+      !Object.is(y.value, v.y) ||
+      !Object.is(z.value, v.z)
+    ) {
+      entity.velocity = vec(x.value, y.value, z.value);
+    }
+    mark(x.repaired || y.repaired || z.repaired);
+  }
+
+  const weapon: unknown = entity.weapon;
+  if (!isObject(weapon)) {
+    entity.weapon = { temperature: 0, lastShotTick: 0, missedShots: 0 };
+    repaired = true;
+  } else {
+    const w = entity.weapon;
+    const temperature = cleanRange(w.temperature, MAX_WEAPON_TEMPERATURE, 0);
+    w.temperature = temperature.value;
+    mark(temperature.repaired);
+    const lastShotTick = cleanUint32(w.lastShotTick);
+    w.lastShotTick = lastShotTick.value;
+    mark(lastShotTick.repaired);
+    const missedShots = cleanUint32(w.missedShots);
+    w.missedShots = missedShots.value;
+    mark(missedShots.repaired);
+  }
+
+  const cargo = entity.cargo;
+  if (!(
+    Number.isSafeInteger(cargo) &&
+    cargo >= 0 &&
+    cargo <= MAX_ENTITY_CARGO
+  )) {
+    entity.cargo = 0;
+    repaired = true;
+  } else {
+    entity.cargo = noNegativeZero(cargo);
+  }
+  return repaired;
+}
+
+/**
  * Repair `entity` in place. Returns true exactly when at least one field was
  * repaired, in which case `repairs` grew by one (saturating at `MAX_UINT32`).
  * Never throws for any field value.
@@ -654,6 +726,7 @@ export function sanitizeEntity(entity: Entity): boolean {
   mark(energy.repaired);
 
   mark(cleanSteer(entity));
+  mark(cleanV4Fields(entity));
 
   let base = entity.repairs;
   if (!isUint32(base)) {

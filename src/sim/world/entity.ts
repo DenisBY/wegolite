@@ -130,6 +130,11 @@ export interface SpawnInit {
    * `MAX_ESCORT_SLOT` (Oolite `MAX_ESCORTS` 16). Defaults to 0.
    */
   escortSlot?: number;
+  /**
+   * The cargo capsule count (D-06), an integer 0 to `MAX_ENTITY_CARGO`.
+   * Defaults to 0; the populator sets it (plan 15-03).
+   */
+  cargo?: number;
 }
 
 /**

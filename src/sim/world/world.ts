@@ -41,6 +41,7 @@ import {
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
+  MAX_ENTITY_CARGO,
   MAX_ESCORT_SLOT,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
@@ -306,6 +307,8 @@ function isMalformedInit(init: unknown, tick: unknown): boolean {
   if (rate !== undefined && typeof rate !== "number") return true;
   const escortSlot = init["escortSlot"];
   if (escortSlot !== undefined && typeof escortSlot !== "number") return true;
+  const cargo = init["cargo"];
+  if (cargo !== undefined && typeof cargo !== "number") return true;
   if (!hasNumberFields(init["position"], ["x", "y", "z"])) return true;
   if (!hasNumberFields(init["orientation"], ["w", "x", "y", "z"])) return true;
   const ai = init["ai"];
@@ -359,6 +362,16 @@ function domainRefusal(
       Number.isSafeInteger(init.escortSlot) &&
       init.escortSlot >= 0 &&
       init.escortSlot <= MAX_ESCORT_SLOT
+    )
+  ) {
+    return "outOfDomain";
+  }
+  if (
+    init.cargo !== undefined &&
+    !(
+      Number.isSafeInteger(init.cargo) &&
+      init.cargo >= 0 &&
+      init.cargo <= MAX_ENTITY_CARGO
     )
   ) {
     return "outOfDomain";
@@ -489,7 +502,7 @@ export function spawnEntity(
       steer: createSteerComponent(init.escortSlot ?? 0),
       velocity: { x: 0, y: 0, z: 0 },
       weapon: { temperature: 0, lastShotTick: 0, missedShots: 0 },
-      cargo: 0,
+      cargo: init.cargo ?? 0,
     };
   });
   return entity === undefined

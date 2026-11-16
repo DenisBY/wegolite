@@ -2188,6 +2188,22 @@ const fieldsArb = fc.record(
     trackingTicks: tickList,
     trackingPositions: positionList,
     saved: savedArb,
+    // The v4 fields (Phase 15, FOUND-18): in-domain and out-of-domain leaves.
+    velocity: fc.oneof(
+      vecArb,
+      fc.record({
+        x: fc.integer({ min: -10001, max: 10001 }),
+        y: fc.integer({ min: -10001, max: 10001 }),
+        z: fc.integer({ min: -10001, max: 10001 }),
+      }),
+    ),
+    weaponTemperature: fc.oneof(
+      num,
+      fc.double({ min: 0, max: 1001, noNaN: true }),
+    ),
+    weaponLastShotTick: fc.oneof(num, fc.integer({ min: 0, max: 5000 })),
+    weaponMissedShots: fc.oneof(num, fc.integer({ min: 0, max: 50 })),
+    cargo: fc.oneof(num, fc.integer({ min: -2, max: 202 })),
   },
   { requiredKeys: [] },
 );
@@ -2241,6 +2257,17 @@ function applyFields(entity: Entity, f: Fields): void {
     steer.trackingPositions = f.trackingPositions;
   }
   if (f.saved !== undefined) steer.saved = f.saved;
+  if (f.velocity !== undefined) entity.velocity = f.velocity;
+  if (f.weaponTemperature !== undefined) {
+    entity.weapon.temperature = f.weaponTemperature;
+  }
+  if (f.weaponLastShotTick !== undefined) {
+    entity.weapon.lastShotTick = f.weaponLastShotTick;
+  }
+  if (f.weaponMissedShots !== undefined) {
+    entity.weapon.missedShots = f.weaponMissedShots;
+  }
+  if (f.cargo !== undefined) entity.cargo = f.cargo;
   if (entity.ai !== null) {
     const ai = entity.ai;
     if (f.aiKey !== undefined) (ai as { aiKey: string }).aiKey = f.aiKey;

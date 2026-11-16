@@ -22,14 +22,17 @@ import {
 import {
   MAX_AI_PARAMS_KEYS,
   MAX_ENERGY_RECHARGE_RATE,
+  MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
+  MAX_ENTITY_VELOCITY,
   MAX_ESCORT_SLOT,
   MAX_FRUSTRATION,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_STEER_RATE,
   MAX_UINT32,
+  MAX_WEAPON_TEMPERATURE,
   NPC_DEFAULT_ENERGY_RECHARGE_RATE,
   NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
@@ -959,6 +962,170 @@ ROWS.push(
   },
 );
 
+// The v4 fields (Phase 15, FOUND-18): velocity, weapon and cargo. Every bad
+// value is repaired without throwing and counts one repair; a pristine or an
+// in-domain value counts none.
+const BAD_VELOCITY: readonly number[] = [
+  Number.NaN,
+  Number.POSITIVE_INFINITY,
+  Number.NEGATIVE_INFINITY,
+  MAX_ENTITY_VELOCITY + 1,
+  -MAX_ENTITY_VELOCITY - 1,
+];
+
+for (const bad of BAD_VELOCITY) {
+  for (const axis of ["x", "y", "z"] as const) {
+    ROWS.push({
+      name: `velocity.${axis} ${bad} becomes 0 and its neighbours stay`,
+      corrupt: (e) => {
+        e.velocity = vec(3, 4, 5);
+        loose(e.velocity)[axis] = bad;
+      },
+      expected: (e) => {
+        const want = { x: 3, y: 4, z: 5, [axis]: 0 };
+        expect(e.velocity).toEqual(want);
+      },
+      delta: 1,
+    });
+  }
+}
+
+ROWS.push(
+  {
+    name: "a velocity at exactly the bound is clean",
+    corrupt: (e) =>
+      (e.velocity = vec(MAX_ENTITY_VELOCITY, -MAX_ENTITY_VELOCITY, 0)),
+    expected: (e) =>
+      expect(e.velocity).toEqual(
+        vec(MAX_ENTITY_VELOCITY, -MAX_ENTITY_VELOCITY, 0),
+      ),
+    delta: 0,
+  },
+  {
+    name: "a drifting velocity inside the bound is clean and bit-identical",
+    corrupt: (e) => (e.velocity = vec(1.5, -2.25, 0.125)),
+    expected: (e) => expect(e.velocity).toEqual(vec(1.5, -2.25, 0.125)),
+    delta: 0,
+  },
+  {
+    name: "velocity -0 is normalised without a repair",
+    corrupt: (e) => (e.velocity = vec(-0, -0, -0)),
+    expected: (e) => {
+      expect(Object.is(e.velocity.x, 0)).toBe(true);
+      expect(Object.is(e.velocity.y, 0)).toBe(true);
+      expect(Object.is(e.velocity.z, 0)).toBe(true);
+    },
+    delta: 0,
+  },
+  {
+    name: "a velocity that is not an object becomes a fresh zero vector",
+    corrupt: (e) => (loose(e).velocity = null),
+    expected: (e) => expect(e.velocity).toEqual(vec(0, 0, 0)),
+    delta: 1,
+  },
+  {
+    name: "a weapon record that is not an object becomes a fresh zero record",
+    corrupt: (e) => (loose(e).weapon = 7),
+    expected: (e) =>
+      expect(e.weapon).toEqual({
+        temperature: 0,
+        lastShotTick: 0,
+        missedShots: 0,
+      }),
+    delta: 1,
+  },
+  {
+    name: "a weapon temperature at exactly the bound is clean",
+    corrupt: (e) => (e.weapon.temperature = MAX_WEAPON_TEMPERATURE),
+    expected: (e) => expect(e.weapon.temperature).toBe(MAX_WEAPON_TEMPERATURE),
+    delta: 0,
+  },
+  {
+    name: "an in-domain non-pristine weapon record is clean",
+    corrupt: (e) =>
+      (e.weapon = { temperature: 12.5, lastShotTick: 6, missedShots: 2 }),
+    expected: (e) =>
+      expect(e.weapon).toEqual({
+        temperature: 12.5,
+        lastShotTick: 6,
+        missedShots: 2,
+      }),
+    delta: 0,
+  },
+  {
+    name: "weapon.temperature -0 is normalised without a repair",
+    corrupt: (e) => (e.weapon.temperature = -0),
+    expected: (e) => expect(Object.is(e.weapon.temperature, 0)).toBe(true),
+    delta: 0,
+  },
+  {
+    name: "cargo at 0 and at the bound is clean",
+    corrupt: (e) => (e.cargo = MAX_ENTITY_CARGO),
+    expected: (e) => expect(e.cargo).toBe(MAX_ENTITY_CARGO),
+    delta: 0,
+  },
+  {
+    name: "cargo -0 is normalised without a repair",
+    corrupt: (e) => (e.cargo = -0),
+    expected: (e) => expect(Object.is(e.cargo, 0)).toBe(true),
+    delta: 0,
+  },
+);
+
+for (const bad of [
+  Number.NaN,
+  Number.POSITIVE_INFINITY,
+  -1,
+  MAX_WEAPON_TEMPERATURE + 1,
+]) {
+  ROWS.push({
+    name: `weapon.temperature ${bad} becomes 0`,
+    corrupt: (e) => {
+      e.weapon.lastShotTick = 4;
+      e.weapon.temperature = bad;
+    },
+    expected: (e) => {
+      expect(e.weapon.temperature).toBe(0);
+      expect(e.weapon.lastShotTick).toBe(4);
+    },
+    delta: 1,
+  });
+}
+
+for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5, 2 ** 32]) {
+  ROWS.push(
+    {
+      name: `weapon.lastShotTick ${bad} becomes 0`,
+      corrupt: (e) => (e.weapon.lastShotTick = bad),
+      expected: (e) => expect(e.weapon.lastShotTick).toBe(0),
+      delta: 1,
+    },
+    {
+      name: `weapon.missedShots ${bad} becomes 0`,
+      corrupt: (e) => (e.weapon.missedShots = bad),
+      expected: (e) => expect(e.weapon.missedShots).toBe(0),
+      delta: 1,
+    },
+  );
+}
+
+for (const bad of [
+  Number.NaN,
+  Number.POSITIVE_INFINITY,
+  Number.NEGATIVE_INFINITY,
+  -1,
+  1.5,
+  MAX_ENTITY_CARGO + 1,
+  2 ** 32,
+]) {
+  ROWS.push({
+    name: `cargo ${bad} becomes 0`,
+    corrupt: (e) => (e.cargo = bad),
+    expected: (e) => expect(e.cargo).toBe(0),
+    delta: 1,
+  });
+}
+
 describe("sanitizeEntity table", () => {
   for (const row of ROWS) {
     it(row.name, () => {
@@ -1091,7 +1258,7 @@ describe("the steering record at spawn and in the hash (AI-01)", () => {
     expect(a.steer.trackingPositions[0]).not.toBe(b.steer.trackingPositions[0]);
   });
 
-  it("the steering segment is the last, uniquely labelled segment of the entity line", () => {
+  it("the steering segment is the last, uniquely labelled segment of the entity line of a pristine entity", () => {
     const text = serializeEntity(fresh());
     const segments = text.split(";");
     expect(
@@ -1099,6 +1266,18 @@ describe("the steering record at spawn and in the hash (AI-01)", () => {
     ).toHaveLength(1);
     expect(segments[segments.length - 1]?.startsWith("steer:")).toBe(true);
     expect(text.indexOf(";en:")).toBeLessThan(text.indexOf(";steer:"));
+  });
+
+  it("the segments after steer: of a non-pristine entity are vel, wpn, cargo in that order", () => {
+    const entity = fresh();
+    entity.velocity = vec(1, 0, 0);
+    entity.weapon = { temperature: 0, lastShotTick: 3, missedShots: 0 };
+    entity.cargo = 2;
+    const segments = serializeEntity(entity).split(";");
+    const at = segments.findIndex((segment) => segment.startsWith("steer:"));
+    expect(
+      segments.slice(at + 1).map((segment) => segment.split(":")[0]),
+    ).toEqual(["vel", "wpn", "cargo"]);
   });
 
   // One mutation per field of the record: every field is hashed, and the escort

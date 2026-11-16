@@ -85,6 +85,8 @@ const malformedRows: readonly Row[] = [
   ["speed null", init({ speed: null })],
   ["ownerId a string", init({ ownerId: "101" })],
   ["ownerId null", init({ ownerId: null })],
+  ["cargo a string", init({ cargo: "3" })],
+  ["cargo null", init({ cargo: null })],
   ["ai a number", init({ ai: 5 })],
   ["ai a string", init({ ai: "test-pilot" })],
   ["ai an array", init({ ai: [] })],
@@ -139,6 +141,16 @@ const domainRows: readonly [string, unknown, unknown, "outOfDomain" | "ai"][] =
     ],
     ["speed negative", init({ speed: -1 }), 0, "outOfDomain"],
     ["ownerId 1.5", init({ ownerId: 1.5 }), 0, "outOfDomain"],
+    ["cargo 1.5", init({ cargo: 1.5 }), 0, "outOfDomain"],
+    ["cargo -1", init({ cargo: -1 }), 0, "outOfDomain"],
+    ["cargo 201", init({ cargo: 201 }), 0, "outOfDomain"],
+    ["cargo NaN", init({ cargo: Number.NaN }), 0, "outOfDomain"],
+    [
+      "cargo Infinity",
+      init({ cargo: Number.POSITIVE_INFINITY }),
+      0,
+      "outOfDomain",
+    ],
     ["unknown aiKey", init({ ai: aiOf({ aiKey: "trader" }) }), 0, "ai"],
     [
       "prototype-named param key",
@@ -233,6 +245,16 @@ describe("spawnEntity refuses malformed input (FOUND-16)", () => {
     expect(plain.ok && plain.entity.id).toBe(101);
     expect(piloted.ok && piloted.entity.ai?.aiKey).toBe("test-pilot");
     expect(nulled.ok && nulled.entity.ai).toBeNull();
+  });
+
+  it("a cargo of 0 or 200 spawns and is stored; an absent cargo is 0", () => {
+    const world = createWorld(1);
+    const none = spawnEntity(world, init(), 0);
+    const zero = spawnEntity(world, init({ cargo: 0 }), 0);
+    const full = spawnEntity(world, init({ cargo: 200 }), 0);
+    expect(none.ok && none.entity.cargo).toBe(0);
+    expect(zero.ok && zero.entity.cargo).toBe(0);
+    expect(full.ok && full.entity.cargo).toBe(200);
   });
 
   it("the 257th live spawn is still storeFull, not malformed", () => {
