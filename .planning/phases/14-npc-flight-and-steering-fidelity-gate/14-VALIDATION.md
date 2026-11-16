@@ -1,7 +1,7 @@
 ---
 phase: "14"
 slug: npc-flight-and-steering-fidelity-gate
-status: complete
+status: validated
 nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-15"
@@ -146,3 +146,11 @@ Filled by the planner from `14-RESEARCH.md` § Phase Requirements to Test Map (A
 - [x] `nyquist_compliant: true` set in frontmatter, after task 14-19-04's check passed (the oracle-choice row names the report).
 
 **Approval:** 2026-11-16, by the owner-delegated review panel (not the owner reading the report); open: WINDOWS.md entry 3 (needs the owner's option (c)); verify-full: not run, not required by AGENTS.md for this change set; not rerun on the panel's advice (last green at `d8b4483`)
+
+## Validation Audit 2026-11-16
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
