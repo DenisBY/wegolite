@@ -41,6 +41,10 @@ import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import { npcContacts } from "../../../src/sim/world/contacts.js";
 import {
+  BLAST_MIN_DISTANCE_SQUARED,
+  BLAST_MOMENTUM_FACTOR,
+  BLAST_RANGE_FACTOR,
+  debrisMassOf,
   MAX_WRECKS,
   N_ALLOYS_MASS_UNIT,
   OCTANT_DRAWS_PER_WRECK,
@@ -64,7 +68,11 @@ import {
 } from "../../../src/sim/world/snapshot.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
-import { debrisFixture, FIXTURE_POD } from "../../helpers/debris-fixture.js";
+import {
+  debrisFixture,
+  FIXTURE_PLATE,
+  FIXTURE_POD,
+} from "../../helpers/debris-fixture.js";
 import { realHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
 
@@ -80,16 +88,23 @@ const FIRE: ControlIntent = { ...ZERO_INTENT, fire: true };
 // The oracle, from the C (ShipEntity.m:7814-7879 and 8042-8069, Universe.m:
 // 5497-5526, Octree.m:683-714, OOVector.m:107-113, OOQuaternion.m:41-48).
 
+/** A pod or a plate: placed and moving the same way (13 draws). */
 interface OraclePod {
   readonly position: Vec3;
-  readonly velocity: Vec3;
+  /** The velocity after the blast. */
+  velocity: Vec3;
+  /** The velocity at release, before the blast. */
+  readonly released: Vec3;
   readonly orientation: Quat;
 }
 
 interface OracleWreck {
   readonly specKey: string;
   readonly position: Vec3;
-  readonly velocity: Vec3;
+  /** The velocity after the blast. */
+  velocity: Vec3;
+  /** The velocity at release, before the blast. */
+  readonly released: Vec3;
   readonly orientation: Quat;
   readonly radius: number;
   readonly energy: number;
@@ -101,6 +116,7 @@ interface OracleResult {
   /** The wreck count drawn (or 0 when the wreck block does not run). */
   readonly wreckCount: number;
   readonly wrecks: OracleWreck[];
+  readonly plates: OraclePod[];
   readonly draws: number;
   readonly finalState: number;
 }
@@ -116,6 +132,13 @@ interface OracleVictim {
   readonly orientation?: Quat;
   /** The victim's octree, or none (the wreck starts at the centre). */
   readonly octree?: HullOctree;
+  /** The victim's collision radius (the blast range); 30 by default. */
+  readonly radius?: number;
+}
+
+/** One velocity component inside +-MAX_ENTITY_VELOCITY (1e4). */
+function oracleClamp(v: number): number {
+  return Math.min(1e4, Math.max(-1e4, v));
 }
 
 /** `Octree.m:158-161` `offsetForOctant`. */
@@ -172,6 +195,41 @@ function oracle(victim: OracleVictim): OracleResult {
   if (hull === undefined) throw new Error("no oracle hull");
   // canFragment (D16-13).
   const canFragment = u() < hull.fragmentChance;
+  // OORandomPositionInBoundingBox, the jitter, the kick and
+  // quaternion_set_random (ShipEntity.m:7847-7870, 8088-8101).
+  const scatter = (): OraclePod => {
+    const { min, max } = victim.box;
+    const rx = min.x + u() * (max.x - min.x);
+    const ry = min.y + u() * (max.y - min.y);
+    const rz = min.z + u() * (max.z - min.z);
+    const jx = Math.floor(u() * 7) - 3;
+    const jy = Math.floor(u() * 7) - 3;
+    const jz = Math.floor(u() * 7) - 3;
+    const vx = 0.1 * (Math.floor(u() * 200) - 100);
+    const vy = 0.1 * (Math.floor(u() * 200) - 100);
+    const vz = 0.1 * (Math.floor(u() * 200) - 100);
+    const qw = Math.floor(u() * 1024) - 511.5;
+    const qx = Math.floor(u() * 1024) - 511.5;
+    const qy = Math.floor(u() * 1024) - 511.5;
+    const qz = Math.floor(u() * 1024) - 511.5;
+    // Oolite model axes to Wegolite local: (x, y, -z), added unrotated.
+    const lz = rz === 0 ? 0 : -rz;
+    const released = vec(
+      vx + victim.velocity.x,
+      vy + victim.velocity.y,
+      vz + victim.velocity.z,
+    );
+    return {
+      position: vec(
+        victim.position.x + rx + jx,
+        victim.position.y + ry + jy,
+        victim.position.z + lz + jz,
+      ),
+      velocity: released,
+      released,
+      orientation: normalize(quat(qw, qx, qy, qz)),
+    };
+  };
   const pods: OraclePod[] = [];
   let cargoChance = 70;
   let limit = 15;
@@ -179,35 +237,7 @@ function oracle(victim: OracleVictim): OracleResult {
     if (Math.floor(u() * 100) < cargoChance) {
       if (cargoChance > 10) cargoChance -= 30; // NPC branch
       limit -= 1;
-      const { min, max } = victim.box;
-      const rx = min.x + u() * (max.x - min.x);
-      const ry = min.y + u() * (max.y - min.y);
-      const rz = min.z + u() * (max.z - min.z);
-      const jx = Math.floor(u() * 7) - 3;
-      const jy = Math.floor(u() * 7) - 3;
-      const jz = Math.floor(u() * 7) - 3;
-      const vx = 0.1 * (Math.floor(u() * 200) - 100);
-      const vy = 0.1 * (Math.floor(u() * 200) - 100);
-      const vz = 0.1 * (Math.floor(u() * 200) - 100);
-      const qw = Math.floor(u() * 1024) - 511.5;
-      const qx = Math.floor(u() * 1024) - 511.5;
-      const qy = Math.floor(u() * 1024) - 511.5;
-      const qz = Math.floor(u() * 1024) - 511.5;
-      // Oolite model axes to Wegolite local: (x, y, -z), added unrotated.
-      const lz = rz === 0 ? 0 : -rz;
-      pods.push({
-        position: vec(
-          victim.position.x + rx + jx,
-          victim.position.y + ry + jy,
-          victim.position.z + lz + jz,
-        ),
-        velocity: vec(
-          vx + victim.velocity.x,
-          vy + victim.velocity.y,
-          vz + victim.velocity.z,
-        ),
-        orientation: normalize(quat(qw, qx, qy, qz)),
-      });
+      pods.push(scatter());
     }
     if (limit <= 0) break;
   }
@@ -215,7 +245,7 @@ function oracle(victim: OracleVictim): OracleResult {
   // The wreckage: n_alloys = sqrtf(sqrtf(mass / 6000)) (7916), the block at
   // 8044, n_wreckage at 8055, the per-wreck draws at 8060-8066 and Universe.m
   // 5503-5513.
-  const nAlloys = Math.sqrt(Math.sqrt(hull.mass / 6000));
+  let nAlloys = Math.sqrt(Math.sqrt(hull.mass / 6000));
   const wrecks: OracleWreck[] = [];
   let wreckCount = 0;
   if (canFragment && nAlloys > 0) {
@@ -246,6 +276,11 @@ function oracle(victim: OracleVictim): OracleResult {
       const dir = rotate(victim.orientation ?? identity(), local);
       const radius = model.radius * Math.cbrt(expectedMass / model.mass);
       const normal = normalizeVec(dir);
+      const released = vec(
+        victim.velocity.x + normal.x * (push * radius),
+        victim.velocity.y + normal.y * (push * radius),
+        victim.velocity.z + normal.z * (push * radius),
+      );
       wrecks.push({
         specKey: model.key,
         position: vec(
@@ -253,18 +288,77 @@ function oracle(victim: OracleVictim): OracleResult {
           victim.position.y + dir.y,
           victim.position.z + dir.z,
         ),
-        velocity: vec(
-          victim.velocity.x + normal.x * (push * radius),
-          victim.velocity.y + normal.y * (push * radius),
-          victim.velocity.z + normal.z * (push * radius),
-        ),
+        velocity: released,
+        released,
         orientation: normalize(quat(qw, qx, qy, qz)),
         radius,
         energy: lifetime / 2,
       });
     }
+    nAlloys = u() * nAlloys; // 8068
   }
-  return { canFragment, pods, wreckCount, wrecks, draws, finalState: rng.s };
+
+  // The plates (8072-8111): no role draw (D16-07), placed and moving as a pod.
+  const plateCount = canFragment ? Math.floor(nAlloys) : 0;
+  const plates: OraclePod[] = [];
+  for (let i = 0; i < plateCount; i += 1) plates.push(scatter());
+
+  // The blast (8123-8126, 7680-7698, 11178-11181) over every piece in spawn
+  // (ascending id) order.
+  const amount = 0.125 * hull.mass;
+  const desiredRange = (victim.radius ?? 30) * 2.5;
+  const kick = (
+    piece: { position: Vec3; velocity: Vec3 },
+    ecr: number,
+    mass: number,
+  ): void => {
+    const p2 = vec(
+      piece.position.x - victim.position.x,
+      piece.position.y - victim.position.y,
+      piece.position.z - victim.position.z,
+    );
+    const magnitude2 = p2.x * p2.x + p2.y * p2.y + p2.z * p2.z;
+    const reach = desiredRange + ecr;
+    if (!(magnitude2 < reach * reach) || magnitude2 === 0) return;
+    let d2 = magnitude2 - ecr * ecr;
+    if (d2 < 0.1) d2 = 0.1;
+    const moment = (amount * desiredRange) / d2;
+    const n = normalizeVec(p2);
+    const k = moment / mass;
+    piece.velocity = vec(
+      oracleClamp(piece.velocity.x + n.x * k),
+      oracleClamp(piece.velocity.y + n.y * k),
+      oracleClamp(piece.velocity.z + n.z * k),
+    );
+  };
+  for (const pod of pods) {
+    kick(
+      pod,
+      FIXTURE_POD.radius,
+      FIXTURE_POD.mass * (FIXTURE_POD.radius / FIXTURE_POD.radius) ** 3,
+    );
+  }
+  for (const wreck of wrecks) {
+    const model = CONTENT.wrecks.find((w) => w.key === wreck.specKey);
+    if (model === undefined) throw new Error("no oracle wreck model");
+    kick(wreck, wreck.radius, model.mass * (wreck.radius / model.radius) ** 3);
+  }
+  for (const plate of plates) {
+    kick(
+      plate,
+      FIXTURE_PLATE.radius,
+      FIXTURE_PLATE.mass * (FIXTURE_PLATE.radius / FIXTURE_PLATE.radius) ** 3,
+    );
+  }
+  return {
+    canFragment,
+    pods,
+    wreckCount,
+    wrecks,
+    plates,
+    draws,
+    finalState: rng.s,
+  };
 }
 
 /** The pod survival chance after each successive survivor (C schedule). */
@@ -358,6 +452,29 @@ function expectWrecksEqual(
   });
 }
 
+function platesOf(world: World): Entity[] {
+  return world.store.live.filter(
+    (e) => !e.dead && e.kind === "cargo" && e.specKey === "alloy",
+  );
+}
+
+function expectPlatesEqual(world: World, expected: readonly OraclePod[]): void {
+  const plates = platesOf(world);
+  expect(plates).toHaveLength(expected.length);
+  plates.forEach((plate, i) => {
+    const want = expected[i];
+    if (want === undefined) throw new Error("missing oracle plate");
+    expect(plate.scanClass).toBe("CLASS_CARGO");
+    expect(plate.radius).toBe(FIXTURE_PLATE.radius);
+    expect(plate.energy).toBe(1);
+    expect(plate.maxEnergy).toBe(1);
+    expect(plate.ai).toBeNull();
+    expect(plate.position).toEqual(want.position);
+    expect(plate.velocity).toEqual(want.velocity);
+    expect(plate.orientation).toEqual(want.orientation);
+  });
+}
+
 function expectPodsEqual(world: World, expected: readonly OraclePod[]): void {
   const pods = podsOf(world);
   expect(pods).toHaveLength(expected.length);
@@ -385,6 +502,7 @@ function killAndOracle(
     box: boxOf(victim.specKey),
     specKey: victim.specKey,
     orientation: victim.orientation,
+    radius: victim.radius,
     ...(octree === undefined ? {} : { octree }),
   });
   const events: SimEvent[] = [];
@@ -466,12 +584,16 @@ describe("a ship with cargo destroyed by the player's laser (tracer)", () => {
       maxEnergy: 10,
     });
     // No AI: stepWorld does not draw the victim's stream before the kill.
+    // resolveShots passes the loaded hull table, so the wrecks use the octree.
+    const octree = HULLS.get("adder")?.octree;
+    if (octree === undefined) throw new Error("no adder octree");
     const expected = oracle({
       stream: victim.rng.combat,
       cargo: 10,
       position: victim.position,
       velocity: victim.velocity,
       box: boxOf("adder"),
+      octree,
     });
 
     const events = stepOnce(player, world, combat, FIRE, debrisOptions());
@@ -482,6 +604,9 @@ describe("a ship with cargo destroyed by the player's laser (tracer)", () => {
     // Pinned after measuring (world seed 7).
     expect(pods).toHaveLength(PINNED_POD_COUNT);
     expectPodsEqual(world, expected.pods);
+    expectWrecksEqual(world, expected.wrecks);
+    expectPlatesEqual(world, expected.plates);
+    expect(victim.rng.combat).toBe(expected.finalState);
     for (const pod of pods) {
       expect(pod.specKey).toBe("barrel");
       expect(pod.kind).toBe("cargo");
@@ -495,8 +620,13 @@ describe("a ship with cargo destroyed by the player's laser (tracer)", () => {
     }
     const first = pods[0];
     if (first === undefined) throw new Error("no pod");
+    // Plan 16-02's pinned pod is unchanged: the wreck and plate draws come
+    // after it. Its release velocity is the pinned one; the blast then adds
+    // the oracle's kick (plan 16-04).
     expect(first.position).toEqual(PINNED_FIRST_POSITION);
-    expect(first.velocity).toEqual(PINNED_FIRST_VELOCITY);
+    expect(expected.pods[0]?.released).toEqual(PINNED_FIRST_VELOCITY);
+    expect(first.velocity).toEqual(expected.pods[0]?.velocity);
+    expect(first.velocity).not.toEqual(PINNED_FIRST_VELOCITY);
     expect(first.orientation).toEqual(PINNED_FIRST_ORIENTATION);
 
     // The snapshot at the boundary round-trips with an equal hash.
@@ -535,6 +665,7 @@ describe("the pod rule (ShipEntity.m:7814-7879)", () => {
         const { oracle: expected } = killAndOracle(world, victim);
         expectPodsEqual(world, expected.pods);
         expectWrecksEqual(world, expected.wrecks);
+        expectPlatesEqual(world, expected.plates);
         expect(victim.rng.combat).toBe(expected.finalState);
         expect(expected.pods.length).toBeLessThanOrEqual(15);
       });
@@ -554,9 +685,10 @@ describe("the pod rule (ShipEntity.m:7814-7879)", () => {
     expect(maxPods).toBeGreaterThan(1);
   });
 
-  it("advances the victim stream by 1 + capsules examined + 13 x survivors, then the wreck draws", () => {
+  it("advances the victim stream by 1 + capsules examined + 13 x survivors, then the wreck and plate draws", () => {
     let fragmented = 0;
     let wrecked = 0;
+    let platesSeen = 0;
     for (const cargo of [0, 1, 3, 20, 200]) {
       for (const seed of [11, 12, 13, 14, 15, 16]) {
         const world = createWorld(seed);
@@ -582,8 +714,11 @@ describe("the pod rule (ShipEntity.m:7814-7879)", () => {
           if (limit <= 0) break;
         }
         // The wreck block: the count draw, then 7 octants, lifetime, model,
-        // mass, quaternion (4) and push per wreck (D16-12, D16-17).
-        const wreckDraws = canFragment ? 1 + 15 * wrecks : 0;
+        // mass, quaternion (4) and push per wreck (D16-12, D16-17), then the
+        // n_alloys draw; then 13 draws per plate (D16-07: no role draw).
+        const plates = platesOf(world).length;
+        const wreckDraws = canFragment ? 1 + 15 * wrecks + 1 + 13 * plates : 0;
+        platesSeen += plates;
         if (canFragment) fragmented += 1;
         wrecked += wrecks;
         const replay = createRngState(start);
@@ -601,6 +736,7 @@ describe("the pod rule (ShipEntity.m:7814-7879)", () => {
     expect(fragmented).toBeGreaterThan(0);
     expect(fragmented).toBeLessThan(30);
     expect(wrecked).toBeGreaterThan(0);
+    expect(platesSeen).toBeGreaterThan(0);
   });
 
   it("adds the box offset unrotated: two orientations give the same offsets", () => {
@@ -641,11 +777,12 @@ describe("the pod rule (ShipEntity.m:7814-7879)", () => {
       velocity: vec(0, 0, 0),
       box: boxOf("adder"),
     });
-    podsOf(world).forEach((pod, i) => {
+    // Compared at release, before the blast adds the same kick to both.
+    expected.pods.forEach((pod, i) => {
       const base = still.pods[i];
       if (base === undefined) throw new Error("missing oracle pod");
-      expect(pod.velocity).toEqual(
-        vec(base.velocity.x + 1, base.velocity.y + 2, base.velocity.z + 3),
+      expect(pod.released).toEqual(
+        vec(base.released.x + 1, base.released.y + 2, base.released.z + 3),
       );
     });
   });
@@ -728,6 +865,7 @@ describe("the wreckage rule (ShipEntity.m:8042-8069)", () => {
           );
           expectPodsEqual(world, expected.pods);
           expectWrecksEqual(world, expected.wrecks);
+          expectPlatesEqual(world, expected.plates);
           expect(victim.rng.combat).toBe(expected.finalState);
           expect(expected.wreckCount).toBeLessThanOrEqual(MAX_WRECKS);
           expect(wrecksOf(world)).toHaveLength(expected.wreckCount);
@@ -824,6 +962,237 @@ describe("the wreckage rule (ShipEntity.m:8042-8069)", () => {
         if (!entity.dead) expect(sanitizeEntity(entity)).toBe(false);
       }
     }
+  });
+});
+
+describe("the alloy plate (ShipEntity.m:8068-8111, D16-07)", () => {
+  it("throws out at most one plate for every hull, none when the victim cannot fragment", () => {
+    let plates = 0;
+    for (const key of HULL_KEYS) {
+      for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+        const world = createWorld(seed);
+        const victim = spawnShip(world, { specKey: key, cargo: 0 });
+        const { oracle: expected } = killAndOracle(world, victim);
+        expectPlatesEqual(world, expected.plates);
+        expect(platesOf(world).length).toBeLessThanOrEqual(1);
+        if (!expected.canFragment) expect(platesOf(world)).toHaveLength(0);
+        plates += platesOf(world).length;
+      }
+    }
+    expect(plates).toBeGreaterThan(0);
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const world = createWorld(seed);
+      const victim = spawnShip(world, { cargo: 0, specKey: "krait" });
+      killShip(world, victim.id, PLAYER_KILLER, [], {
+        tick: 5,
+        content: withHull({ fragmentChance: 0 }, "krait"),
+      });
+      expect(platesOf(world)).toHaveLength(0);
+      expect(wrecksOf(world)).toHaveLength(0);
+    }
+  });
+});
+
+describe("the blast (ShipEntity.m:7680-7698, 8123-8126; D16-04)", () => {
+  const COBRA_MASS = 52291.8359375;
+  const COBRA_RADIUS = 39.260494232177734;
+  const CENTRE = vec(100, 200, 300);
+  const AMOUNT = BLAST_MOMENTUM_FACTOR * COBRA_MASS;
+  const RANGE = COBRA_RADIUS * BLAST_RANGE_FACTOR;
+
+  function place(
+    world: World,
+    kind: "cargo" | "wreckage" | "ship",
+    specKey: string,
+    offset: Vec3,
+    radius: number,
+    velocity: Vec3 = vec(0, 0, 0),
+  ): Entity {
+    const result = spawnEntity(
+      world,
+      {
+        kind,
+        specKey,
+        scanClass:
+          kind === "cargo"
+            ? "CLASS_CARGO"
+            : kind === "wreckage"
+              ? "CLASS_NO_DRAW"
+              : "CLASS_NEUTRAL",
+        position: vec(
+          CENTRE.x + offset.x,
+          CENTRE.y + offset.y,
+          CENTRE.z + offset.z,
+        ),
+        orientation: identity(),
+        radius,
+        speed: kind === "ship" ? 50 : 0,
+        ai: null,
+        maxEnergy: 1,
+        energyRechargeRate: 0,
+        velocity,
+      },
+      0,
+    );
+    if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+    return result.entity;
+  }
+
+  /** Kill a cargo-0 Cobra Mk I that cannot fragment: the blast is all that runs. */
+  function blastOnly(world: World): void {
+    const victim = spawnShip(world, {
+      specKey: "cobramk1",
+      cargo: 0,
+      position: CENTRE,
+    });
+    victim.radius = COBRA_RADIUS;
+    killShip(world, victim.id, PLAYER_KILLER, [], {
+      tick: 5,
+      content: withHull({ fragmentChance: 0 }, "cobramk1"),
+    });
+    // Placed pieces spawn on tick 0: nothing new was released on tick 5.
+    expect(
+      world.store.live.filter((e) => !e.dead && e.spawnTick === 5),
+    ).toHaveLength(0);
+  }
+
+  it("pins the constants and the debris mass rule", () => {
+    expect(BLAST_MOMENTUM_FACTOR).toBe(0.125);
+    expect(BLAST_RANGE_FACTOR).toBe(2.5);
+    expect(BLAST_MIN_DISTANCE_SQUARED).toBe(0.1);
+    const world = createWorld(1);
+    const pod = place(
+      world,
+      "cargo",
+      "barrel",
+      vec(500, 0, 0),
+      FIXTURE_POD.radius,
+    );
+    const plate = place(
+      world,
+      "cargo",
+      "alloy",
+      vec(600, 0, 0),
+      FIXTURE_PLATE.radius,
+    );
+    const wreck = place(
+      world,
+      "wreckage",
+      "more-wreckage2",
+      vec(700, 0, 0),
+      25,
+    );
+    const odd = place(world, "cargo", "nonesuch", vec(800, 0, 0), 5);
+    expect(debrisMassOf(pod, CONTENT)).toBe(FIXTURE_POD.mass);
+    expect(debrisMassOf(plate, CONTENT)).toBe(FIXTURE_PLATE.mass);
+    expect(debrisMassOf(wreck, CONTENT)).toBe(5793.83 * (25 / 18.66) ** 3);
+    expect(debrisMassOf(odd, CONTENT)).toBeUndefined();
+    expect(
+      debrisMassOf(pod, { ...CONTENT, pod: { ...FIXTURE_POD, mass: 0 } }),
+    ).toBeUndefined();
+    expect(
+      debrisMassOf(pod, {
+        ...CONTENT,
+        pod: { ...FIXTURE_POD, radius: Number.NaN },
+      }),
+    ).toBeUndefined();
+  });
+
+  it("kicks pods, plates and an old wreck by the ported rule; nothing beyond the range", () => {
+    const world = createWorld(2);
+    // A pod already drifting from an earlier kill, 15 m out along +x.
+    const near = place(
+      world,
+      "cargo",
+      "barrel",
+      vec(15, 0, 0),
+      FIXTURE_POD.radius,
+      vec(1, 2, 3),
+    );
+    const close = place(
+      world,
+      "cargo",
+      "barrel",
+      vec(0, 3, 0),
+      FIXTURE_POD.radius,
+    );
+    const plate = place(
+      world,
+      "cargo",
+      "alloy",
+      vec(0, 0, -1),
+      FIXTURE_PLATE.radius,
+    );
+    // Outside 98.151 + 5.7986 = 103.950 m.
+    const far = place(
+      world,
+      "cargo",
+      "barrel",
+      vec(104, 0, 0),
+      FIXTURE_POD.radius,
+    );
+    const wreck = place(
+      world,
+      "wreckage",
+      "more-wreckage2",
+      vec(0, -40, 0),
+      25,
+    );
+    blastOnly(world);
+
+    // 15 m: 3.3747 m/s outward, added once to its own drift.
+    expect(near.velocity.x - 1).toBeCloseTo(3.3747, 4);
+    expect(near.velocity.x).toBe(
+      1 + (AMOUNT * RANGE) / (225 - FIXTURE_POD.radius ** 2) / FIXTURE_POD.mass,
+    );
+    expect(near.velocity.y).toBe(2);
+    expect(near.velocity.z).toBe(3);
+    // 3 m: the 0.1 floor, 6458.5 m/s, below the bound.
+    expect(close.velocity.y).toBeCloseTo(6458.5, 0);
+    expect(close.velocity.x).toBe(0);
+    // 1 m: 23,463 m/s on a plate, clamped to the bound, no repair.
+    expect(plate.velocity).toEqual(vec(0, 0, -1e4));
+    expect(plate.repairs).toBe(0);
+    expect(sanitizeEntity(plate)).toBe(false);
+    // 104 m: out of range.
+    expect(far.velocity).toEqual(vec(0, 0, 0));
+    // The old wreck's mass is model.mass x (radius / model.radius)^3.
+    const wreckMass = 5793.83 * (25 / 18.66) ** 3;
+    expect(wreck.velocity.y).toBe(
+      -((AMOUNT * RANGE) / (1600 - 625) / wreckMass),
+    );
+    for (const entity of world.store.live) {
+      if (!entity.dead) expect(sanitizeEntity(entity)).toBe(false);
+    }
+  });
+
+  it("never pushes a ship, and the player's state is the same with or without debris", () => {
+    const world = createWorld(3);
+    const neighbour = place(world, "ship", "adder", vec(10, 0, 0), 30);
+    const before = JSON.stringify(neighbour);
+    blastOnly(world);
+    expect(JSON.stringify(neighbour)).toBe(before);
+    expect(neighbour.velocity).toEqual(vec(0, 0, 0));
+    expect(neighbour.speed).toBe(50);
+
+    const run = (options: StepOptions): FlightState => {
+      const player = flyingPlayer();
+      const combat = createPlayerCombatState();
+      const w = createWorld(7);
+      spawnShip(w, {
+        cargo: 10,
+        position: vec(FAR.x, FAR.y, FAR.z - 2000),
+        maxEnergy: 10,
+      });
+      const events = stepOnce(player, w, combat, FIRE, options);
+      expect(events.some((e) => e.kind === "shipDestroyed")).toBe(true);
+      return player;
+    };
+    const withDebris = run(debrisOptions());
+    const without = run({
+      combat: { mounts: DEFAULT_LASER_MOUNTS, hulls: HULLS },
+    });
+    expect(withDebris).toEqual(without);
   });
 });
 

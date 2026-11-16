@@ -22,6 +22,7 @@
 
 import { lengthSquared, sub } from "../../math.js";
 import { NO_ENTITY } from "../../world/ids.js";
+import type { BodyKind } from "../../world/ids.js";
 import { THINK_INTERVAL_TICKS, ticks } from "../time.js";
 import type { AiComponent, AiContext, AiModule } from "../types.js";
 
@@ -29,6 +30,23 @@ import type { AiComponent, AiContext, AiModule } from "../types.js";
 const DEFAULT_SCAN_RANGE = 25_600;
 const DEFAULT_HOLD_RANGE = 1_000;
 const DEFAULT_CRUISE_SPEED = 100;
+
+/**
+ * The kinds a test pilot's scan reports: every `BodyKind` except `cargo` and
+ * `wreckage` (D16-03, Pitfall 2), so debris never becomes a target and a pilot
+ * in a field of pods still picks a ship or a body. Oolite's own ship scan
+ * skips `CLASS_CARGO` the same way (`checkScannerIgnoringUnpowered`,
+ * `ShipEntity.m:8493`). Hash-neutral for every world without debris.
+ */
+export const TEST_PILOT_SCAN_KINDS: readonly BodyKind[] = Object.freeze([
+  "planet",
+  "sun",
+  "station",
+  "buoy",
+  "player",
+  "ship",
+  "missile",
+]);
 
 const PHASE_SEEK = "seek";
 const PHASE_HOLD = "hold";
@@ -73,6 +91,7 @@ function seek(ctx: AiContext): void {
   const hits = view.scan(
     self,
     numberParam(ai, "scanRange", DEFAULT_SCAN_RANGE),
+    { kinds: TEST_PILOT_SCAN_KINDS },
   );
   const targetId = hits[0];
   const own = view.ship(self);

@@ -24,10 +24,16 @@
  *    8044`): the `n_wreckage` draw `floor(u x (n_alloys + 2))` when `n_alloys <
  *    3` (else 3 with no draw), then per wreck `i`: 7 octant draws
  *    (`OCTANT_DRAWS_PER_WRECK`, D16-17), the lifetime, the model (uniform over
- *    the wreck list, D16-16), the expected mass, the quaternion (4) and the push.
+ *    the wreck list, D16-16), the expected mass, the quaternion (4) and the
+ *    push; then `n_alloys = u x n_alloys` (`ShipEntity.m:8068`);
+ * 4. the plates, `floor(n_alloys)` of them (0 or 1 for every compiled hull, 0
+ *    when the victim cannot fragment): 13 draws each, as a pod, with no role
+ *    draw (D16-07);
+ * 5. the blast, which draws nothing: every live pod, plate and wreck near the
+ *    victim is pushed once, in ascending id (D16-04).
  *
- * The wreckage, the plate and the blast come after the pods, so no pod value
- * moves (plan 16-04). Every draw of a piece is taken before its spawn is
+ * The wreckage, the plate and the blast come after the pods, so no pod draw
+ * moves (plan 16-04); the blast changes the pods' velocities afterwards. Every draw of a piece is taken before its spawn is
  * attempted and no draw depends on a spawn's result, so a refused spawn (the cap
  * gate below, or any `spawnEntity` refusal) never changes a later value or
  * `nextId` (Pitfall 1).
@@ -37,7 +43,7 @@
  * `randomEjectaTemperature` (`ShipEntity.m:7562-7582`). Every pod is one
  * anonymous `barrel` cargopod (D16-01, OC-1).
  *
- * Records (D16-15): a pod is kind `cargo`, scan class `CLASS_CARGO`, max energy
+ * Records (D16-15): a pod or a plate is kind `cargo`, scan class `CLASS_CARGO`, max energy
  * 1, no recharge, no AI, speed 0, the pod model's radius. Its position is the
  * victim position plus a random point of the victim's bounding box (Oolite model
  * axes, converted by `toWegoliteLocal`) added unrotated, as Oolite does (D16-18),
@@ -72,7 +78,7 @@ import { toWegoliteLocal } from "../combat/constants.js";
 import type { HullTable } from "../combat/hit.js";
 import { MAX_OCTREE_DEPTH, randomOctreePoint } from "../combat/octree.js";
 import type { HullOctree } from "../combat/octree.js";
-import { identity, normalizeVec, rotate, vec } from "../math.js";
+import { identity, lengthSquared, normalizeVec, rotate, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import { createRngState, rngNext } from "../rng.js";
 import type { RngState } from "../rng.js";
@@ -244,6 +250,18 @@ export const WRECK_COOLING_PER_SECOND = 10;
  * 256 (`ShipEntity.h:69`, the test at `ShipEntity.m:2268`).
  */
 export const WRECK_MIN_DAMAGE_TEMPERATURE = 256;
+
+/**
+ * The blast momentum per kg of victim mass: `dealMomentumWithinDesiredRange:
+ * 0.125f * mass` (`ShipEntity.m:8125`).
+ */
+export const BLAST_MOMENTUM_FACTOR = 0.125;
+
+/** The blast range in victim radii: `desired_range = collision_radius * 2.5f` (`ShipEntity.m:8124`). */
+export const BLAST_RANGE_FACTOR = 2.5;
+
+/** The floor of the blast's `d2` (`ShipEntity.m:7690-7692`, "sensible levels"). */
+export const BLAST_MIN_DISTANCE_SQUARED = 0.1;
 
 /**
  * The energy a wreck loses in one step of `dt` seconds at `ageSeconds` after its
@@ -454,38 +472,168 @@ function boxOf(hull: DebrisHull | undefined): DebrisBox {
   };
 }
 
+/** One pod's or plate's drawn placement (13 draws). */
+interface Scatter {
+  readonly position: Vec3;
+  readonly orientation: Quat;
+  readonly velocity: Vec3;
+}
+
 /**
- * Attempt one pod's spawn behind the cap gate (D16-05). The result is never
- * read: a refusal (the gate, a missing pod model or any `spawnEntity` refusal
- * such as a non-finite radius) leaves `nextId`, the live array and every later
- * draw untouched.
+ * The 13 draws of one pod or plate, in the C's order (`ShipEntity.m:7847-7870`
+ * for a pod, `8088-8101` for a plate): a random point of the victim's bounding
+ * box (x, y, z), a -3..3 m jitter (x, y, z), a kick (x, y, z), then a random
+ * quaternion (4). The box offset is added unrotated along the world axes
+ * (D16-18) and the velocity is the kick plus the victim's drift, clamped into
+ * the sanitiser's domain.
  */
-function spawnPod(
+function scatter(
+  stream: RngState,
+  box: DebrisBox,
+  origin: Vec3,
+  drift: Vec3,
+): Scatter {
+  const sample = vec(
+    boxAxis(box.min.x, box.max.x, rngNext(stream)),
+    boxAxis(box.min.y, box.max.y, rngNext(stream)),
+    boxAxis(box.min.z, box.max.z, rngNext(stream)),
+  );
+  const jx = jitter(stream);
+  const jy = jitter(stream);
+  const jz = jitter(stream);
+  const kx = kick(stream);
+  const ky = kick(stream);
+  const kz = kick(stream);
+  const orientation = randomQuaternion(stream);
+  const offset = toWegoliteLocal(sample);
+  const position = vec(
+    origin.x + offset.x + jx,
+    origin.y + offset.y + jy,
+    origin.z + offset.z + jz,
+  );
+  const velocity = clampDebrisVelocity(
+    vec(kx + drift.x, ky + drift.y, kz + drift.z),
+  );
+  return { position, orientation, velocity };
+}
+
+/**
+ * Attempt one pod's or plate's spawn behind the cap gate (D16-05): kind
+ * `cargo`, `CLASS_CARGO`, energy 1 of 1, no recharge, no AI, speed 0 (D16-15).
+ * The result is never read: a refusal (the gate, a missing model or any
+ * `spawnEntity` refusal such as a non-finite radius) leaves `nextId`, the live
+ * array and every later draw untouched.
+ */
+function spawnCargoPiece(
   world: World,
-  pod: DebrisModel | undefined,
-  position: Vec3,
-  orientation: Quat,
-  velocity: Vec3,
+  model: DebrisModel | undefined,
+  piece: Scatter,
   tick: number,
 ): void {
-  if (pod === undefined || !debrisAdmitted(world)) return;
+  if (model === undefined || !debrisAdmitted(world)) return;
   spawnEntity(
     world,
     {
       kind: "cargo",
-      specKey: pod.key,
+      specKey: model.key,
       scanClass: "CLASS_CARGO",
-      position,
-      orientation,
-      radius: pod.radius,
+      position: piece.position,
+      orientation: piece.orientation,
+      radius: model.radius,
       speed: 0,
       ai: null,
       maxEnergy: DEBRIS_MAX_ENERGY,
       energyRechargeRate: 0,
-      velocity,
+      velocity: piece.velocity,
     },
     tick,
   );
+}
+
+/** The model of a content slot when it is an object, else undefined. */
+function modelOf(value: unknown): DebrisModel | undefined {
+  return isObject(value) ? (value as DebrisModel) : undefined;
+}
+
+/**
+ * The mass in kg of a debris entity: the model among the pod, the plate and
+ * the wrecks whose key is the entity's spec key, scaled by the cube of the
+ * entity's radius over the model's (`rescaleBy:` scales the mass by the cube
+ * of the factor, `Universe.m:5505`). A pod or plate keeps its model mass; a
+ * wreck's equals its expected mass because its scale is uniform (D16-04).
+ * Undefined for an unknown key or a non-finite or non-positive result.
+ */
+export function debrisMassOf(
+  entity: Entity,
+  content: DebrisContent,
+): number | undefined {
+  const candidates: unknown[] = [content.pod, content.plate];
+  for (const wreck of wreckModelsOf(content)) candidates.push(wreck);
+  for (const candidate of candidates) {
+    const model = modelOf(candidate);
+    if (model === undefined || model.key !== entity.specKey) continue;
+    const mass = model.mass * (entity.radius / model.radius) ** 3;
+    return Number.isFinite(mass) && mass > 0 ? mass : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * The blast (`ShipEntity.m:8123-8126` calling `dealMomentumWithinDesiredRange:`,
+ * `7680-7698`, and `addImpactMoment:fraction:`, `11178-11181`), after every
+ * spawn of the kill (D16-12 step 5). `amount = 0.125 x hull mass` and
+ * `desired_range = 2.5 x victim radius`. Every live cargo or wreckage entity in
+ * ascending id whose centre is strictly within `desired_range + its radius`
+ * (`Universe.m:5862-5867`) and not at the victim's centre gets one kick
+ * `normal(p2) x moment / mass` with `moment = amount x desired_range / d2`,
+ * `d2 = |p2|^2 - radius^2` floored at 0.1. Each velocity component is clamped
+ * at `MAX_ENTITY_VELOCITY` at the write (T-16-13: a piece near the centre hits
+ * the floor, 6,458 m/s for a pod and 23,463 m/s for a plate). A piece from an
+ * earlier kill in range is kicked too.
+ *
+ * Ships and the player are never pushed (D16-04, OC-4): a non-overlapping NPC
+ * neighbour of the heaviest victim (a Krait) gets at most 0.027 m/s (on a
+ * Shuttle) and the player under 0.002 m/s, and ships have no drift integration
+ * until Phase 18. An overlapping pair, which only Phase 18's collisions allow,
+ * would hit the 0.1 floor; Phase 18 revisits the push on ships with rebounds.
+ */
+function blast(
+  world: World,
+  origin: Vec3,
+  hullMass: number,
+  victimRadius: number,
+  content: DebrisContent,
+): void {
+  const amount = BLAST_MOMENTUM_FACTOR * hullMass;
+  const range = victimRadius * BLAST_RANGE_FACTOR;
+  for (const piece of world.store.live) {
+    if (piece.dead) continue;
+    if (piece.kind !== "cargo" && piece.kind !== "wreckage") continue;
+    const position: unknown = piece.position;
+    const velocity: unknown = piece.velocity;
+    if (!isObject(position) || !isObject(velocity)) continue;
+    const p2 = vec(
+      piece.position.x - origin.x,
+      piece.position.y - origin.y,
+      piece.position.z - origin.z,
+    );
+    const distanceSq = lengthSquared(p2);
+    const reach = range + piece.radius;
+    if (!(distanceSq < reach * reach) || !(distanceSq > 0)) continue;
+    const mass = debrisMassOf(piece, content);
+    if (mass === undefined) continue;
+    const d2 = Math.max(
+      BLAST_MIN_DISTANCE_SQUARED,
+      distanceSq - piece.radius * piece.radius,
+    );
+    const moment = (amount * range) / d2;
+    const normal = normalizeVec(p2);
+    const dv = moment / mass;
+    const v = piece.velocity;
+    piece.velocity = clampDebrisVelocity(
+      vec(v.x + normal.x * dv, v.y + normal.y * dv, v.z + normal.z * dv),
+    );
+  }
 }
 
 /**
@@ -511,8 +659,7 @@ export function releaseDebris(
 
   // The pods (ShipEntity.m:7814-7879).
   // A pod model that is not an object still takes every draw and spawns nothing.
-  const podModel: unknown = ctx.content.pod;
-  const pod = isObject(podModel) ? (podModel as DebrisModel) : undefined;
+  const pod = modelOf(ctx.content.pod);
   const capsules = capsuleCount(victim);
   const origin = vecOrZero(victim.position);
   const drift = vecOrZero(victim.velocity);
@@ -522,37 +669,20 @@ export function releaseDebris(
     if (Math.floor(rngNext(stream) * 100) < chance) {
       if (chance > POD_CARGO_CHANCE_FLOOR) chance -= POD_CARGO_CHANCE_STEP;
       limit -= 1;
-      const sample = vec(
-        boxAxis(box.min.x, box.max.x, rngNext(stream)),
-        boxAxis(box.min.y, box.max.y, rngNext(stream)),
-        boxAxis(box.min.z, box.max.z, rngNext(stream)),
+      // Every draw of this pod is taken: only then is its spawn attempted.
+      spawnCargoPiece(
+        world,
+        pod,
+        scatter(stream, box, origin, drift),
+        ctx.tick,
       );
-      const jx = jitter(stream);
-      const jy = jitter(stream);
-      const jz = jitter(stream);
-      const kx = kick(stream);
-      const ky = kick(stream);
-      const kz = kick(stream);
-      const orientation = randomQuaternion(stream);
-      // Unrotated (D16-18): the box offset is added along the world axes.
-      const offset = toWegoliteLocal(sample);
-      const position = vec(
-        origin.x + offset.x + jx,
-        origin.y + offset.y + jy,
-        origin.z + offset.z + jz,
-      );
-      const velocity = clampDebrisVelocity(
-        vec(kx + drift.x, ky + drift.y, kz + drift.z),
-      );
-      // Every draw of this pod is taken: only now is its spawn attempted.
-      spawnPod(world, pod, position, orientation, velocity, ctx.tick);
     }
     if (limit <= 0) break;
   }
 
   // The wreckage (ShipEntity.m:8042-8069, Universe.m:5497-5526).
   const hullMass = hullMassOf(hull);
-  const nAlloys = alloyCountOf(hullMass);
+  let nAlloys = alloyCountOf(hullMass);
   if (canFragment && nAlloys > 0 && hullMass !== undefined) {
     const wreckCount =
       nAlloys < MAX_WRECKS
@@ -604,12 +734,12 @@ export function releaseDebris(
       // `vector_normal(dir) * randf() * [wreck collisionRadius]`, none for a
       // zero `dir` (the wreck starts at the victim's centre).
       const normal = normalizeVec(dir);
-      const kick = push * radius;
+      const pushSpeed = push * radius;
       const velocity = clampDebrisVelocity(
         vec(
-          drift.x + normal.x * kick,
-          drift.y + normal.y * kick,
-          drift.z + normal.z * kick,
+          drift.x + normal.x * pushSpeed,
+          drift.y + normal.y * pushSpeed,
+          drift.z + normal.z * pushSpeed,
         ),
       );
       spawnWreck(
@@ -619,10 +749,35 @@ export function releaseDebris(
         ctx.tick,
       );
     }
+    // `n_alloys = randf() * n_alloys` (ShipEntity.m:8068).
+    nAlloys = rngNext(stream) * nAlloys;
   }
 
-  // Seam for Task 2 of plan 16-04: the alloy-count draw, the plates and the
-  // blast are appended here, on the same stream.
+  // The alloy plates (ShipEntity.m:8072-8111): `floorf(n_alloys)`, 0 or 1 for
+  // every compiled hull, none when the victim cannot fragment. Oolite's
+  // `!add_debris` clamp (8077-8080) is not ported: the draws are taken as if
+  // `add_debris` held and the cap gates each spawn (D16-05). One plate look
+  // and no role draw (D16-07, D16-24).
+  const plateCount = canFragment ? Math.floor(nAlloys) : 0;
+  const plate = modelOf(ctx.content.plate);
+  for (let i = 0; i < plateCount; i += 1) {
+    spawnCargoPiece(
+      world,
+      plate,
+      scatter(stream, box, origin, drift),
+      ctx.tick,
+    );
+  }
+
+  // The blast, last, over every piece now live (ShipEntity.m:8123-8126).
+  const victimRadius = victim.radius;
+  if (
+    hullMass !== undefined &&
+    Number.isFinite(victimRadius) &&
+    victimRadius > 0
+  ) {
+    blast(world, origin, hullMass, victimRadius, ctx.content);
+  }
 
   victim.rng.combat = stream.s;
 }

@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import {
   createTestPilotAi,
   TEST_PILOT,
+  TEST_PILOT_SCAN_KINDS,
 } from "../../../src/sim/ai/pilots/test-pilot.js";
 import { AI_REGISTRY } from "../../../src/sim/ai/registry.js";
 import { ticks } from "../../../src/sim/ai/time.js";
@@ -25,8 +26,10 @@ import { createShipControl } from "../../../src/sim/world/control-impl.js";
 import type { ShipControl } from "../../../src/sim/world/control.js";
 import type { Entity, SpawnInit } from "../../../src/sim/world/entity.js";
 import type { EntityId } from "../../../src/sim/world/ids.js";
+import { BODY_KINDS } from "../../../src/sim/world/ids.js";
 import type {
   BodyView,
+  ScanFilter,
   ShipView,
   WorldView,
 } from "../../../src/sim/world/view.js";
@@ -107,6 +110,68 @@ describe("a test pilot thinks once through the real seam (tracer)", () => {
   });
 });
 
+describe("debris is never a test pilot's target (D16-03, Pitfall 2)", () => {
+  it("lists every body kind except cargo and wreckage", () => {
+    expect([...TEST_PILOT_SCAN_KINDS].sort()).toEqual(
+      BODY_KINDS.filter((k) => k !== "cargo" && k !== "wreckage").sort(),
+    );
+    expect(Object.isFrozen(TEST_PILOT_SCAN_KINDS)).toBe(true);
+  });
+
+  it("picks the ship beyond a field of 200 pods and wrecks", () => {
+    const world = createWorld(16);
+    const player = playerAt(500);
+    const actor = spawnOk(
+      world,
+      shipInit(5000, createTestPilotAi(player.tick)),
+      player.tick,
+    );
+    const ship = spawnOk(world, shipInit(9000, null), player.tick);
+    // 200 debris pieces between 20 and 220 m around the pilot, all nearer than
+    // the ship 4000 m away.
+    for (let i = 0; i < 200; i += 1) {
+      const wreck = i % 4 === 0;
+      spawnOk(
+        world,
+        {
+          kind: wreck ? "wreckage" : "cargo",
+          specKey: wreck ? "wreckage-component" : "barrel",
+          scanClass: wreck ? "CLASS_NO_DRAW" : "CLASS_CARGO",
+          position: vec(5000 + 20 + i, (i % 7) - 3, (i % 5) - 2),
+          orientation: identity(),
+          radius: 5,
+          speed: 0,
+          ai: null,
+          maxEnergy: 1,
+          energyRechargeRate: 0,
+        },
+        player.tick,
+      );
+    }
+    player.position = vec(1e9, 1e9, 1e9);
+    if (actor.ai === null) throw new Error("no ai");
+    const view = createWorldView(world, player, layout);
+    // An unfiltered scan would have reported a piece first.
+    const nearest = view.scan(actor.id, 25_600)[0];
+    expect(
+      nearest === undefined ? undefined : view.body(nearest)?.kind,
+    ).not.toBe("ship");
+
+    const ctx: AiContext = {
+      self: actor.id,
+      view,
+      ctl: createShipControl(world, actor.id, player.tick),
+      ai: actor.ai,
+      random: () => 0,
+    };
+    AI_REGISTRY["test-pilot"].think(ctx);
+
+    expect(actor.nav.targetId).toBe(ship.id);
+    expect(actor.ai.params.targetId).toBe(ship.id);
+    expect(actor.nav.behaviour).toBe("FLY_TO_DESTINATION");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // A pure function over a fake view and a recording control.
 // ---------------------------------------------------------------------------
@@ -126,8 +191,8 @@ interface FakeSpec {
   scan: EntityId[];
   /** Ids isValid answers true for. */
   valid: Set<EntityId>;
-  /** Every scan call, as [self, range]. */
-  scans: [EntityId, number][];
+  /** Every scan call, as [self, range, filter]. */
+  scans: [EntityId, number, ScanFilter | undefined][];
 }
 
 function newSpec(overrides: Partial<FakeSpec> = {}): FakeSpec {
@@ -180,8 +245,8 @@ function fakeView(spec: FakeSpec): WorldView {
         desiredSpeed: 0,
       });
     },
-    scan: (self, range) => {
-      spec.scans.push([self, range]);
+    scan: (self, range, filter) => {
+      spec.scans.push([self, range, filter]);
       return [...spec.scan];
     },
     mainStation: () => 3,
@@ -225,7 +290,11 @@ describe("seek", () => {
     const ai = createTestPilotAi(spec.tick);
     const calls = thinkOnce(spec, ai, () => 0);
 
-    expect(spec.scans).toEqual([[SELF, 25_600]]);
+    // The scan names its kinds (D16-03, Pitfall 2): cargo and wreckage are left
+    // out so debris never becomes a target.
+    expect(spec.scans).toEqual([
+      [SELF, 25_600, { kinds: TEST_PILOT_SCAN_KINDS }],
+    ]);
     expect(calls).toEqual([
       ["setTarget", SELF, NEAR_ID],
       ["setDestination", SELF, vec(3000, 0, 0)],
@@ -303,7 +372,9 @@ describe("seek", () => {
       nextThinkTick: 0,
     };
     thinkOnce(spec, ai, () => 0);
-    expect(spec.scans).toEqual([[SELF, 25_600]]);
+    expect(spec.scans).toEqual([
+      [SELF, 25_600, { kinds: TEST_PILOT_SCAN_KINDS }],
+    ]);
   });
 
   it("takes scanRange, holdRange and cruiseSpeed from the options", () => {
@@ -326,7 +397,7 @@ describe("seek", () => {
     });
     const spec = newSpec();
     const calls = thinkOnce(spec, ai, () => 0);
-    expect(spec.scans).toEqual([[SELF, 700]]);
+    expect(spec.scans).toEqual([[SELF, 700, { kinds: TEST_PILOT_SCAN_KINDS }]]);
     expect(calls).toContainEqual(["setDesiredRange", SELF, 50]);
     expect(calls).toContainEqual(["setDesiredSpeed", SELF, 9]);
   });
