@@ -56,7 +56,11 @@ import { NEW_GAME_FUEL } from "../../../src/sim/player/profile.js";
 import { worldSeedFor } from "../../../src/sim/rng.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT, MAX_STEPS_PER_FRAME } from "../../../src/sim/time.js";
-import { entityHashes, hashWorld } from "../../../src/sim/world/serialize.js";
+import {
+  entityHashes,
+  hashWorld,
+  serializeWorldSection,
+} from "../../../src/sim/world/serialize.js";
 import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import type { SystemLayout } from "../../../src/sim/world/layout.js";
 import {
@@ -617,5 +621,276 @@ describe("combat cross-cadence determinism (CBT-06, CBT-07)", () => {
     expect(combatReference.final.aft).toBeLessThan(2);
     expect(combatReference.final.energy).toBeLessThan(256);
     expect(combatReference.final.cabin).toBeGreaterThan(60);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Kills (FOUND-18, FOUND-19, QUAL-11): the player's held pulse laser kills a
+// cargo-carrying Adder, and a firing test pilot kills a Sidewinder. The world
+// also carries a non-pristine weapon record and a drift velocity (Phase 15 writes
+// neither in play; the values only exercise the hash), so the kill ticks, the
+// world hash and the new hashed fields must agree at every cadence.
+//
+// Geometry: the Adder is on the player's nose; the Sidewinder and the Viper are
+// 3,000 m to the side, off the player's line of fire, with the Viper 1,000 m
+// behind the Sidewinder, nose on to it, and the Adder far off the Viper's line.
+// The Viper is created with a scan range below its distance to every other body,
+// so once the Sidewinder dies its seek finds nothing and it never fires at the
+// Adder, and it is pre-set to hold: it never calls `setTarget` toward a ship, so
+// it is not a `nav.targetId` holder and `killShip` posts it no `shipTargetLost`.
+// Under `stepSim` the registry is `AI_REGISTRY`, so a delivered event cannot be
+// recorded here; the scenario instead asserts after every tick that the Viper's
+// `nav.targetId` is never the Sidewinder's id.
+// ---------------------------------------------------------------------------
+
+const KILL_START_TICK = 2;
+const KILL_STEPS = 720;
+const KILL_SAMPLE_EVERY = 30;
+
+interface KillRecord {
+  readonly tick: number;
+  readonly id: number;
+  readonly killer: number;
+}
+
+interface KillLog {
+  readonly samples: Map<number, string>;
+  readonly kills: KillRecord[];
+  readonly removedTicks: [number, number][];
+  /** Event counts by kind. */
+  readonly tally: Record<string, number>;
+  /** `serializeWorldSection` at the start tick + 30, before the Adder dies. */
+  sectionAtPin: string;
+  viperNeverTargetedSidewinder: boolean;
+  endTick: number;
+  ids: { adder: number; sidewinder: number; viper: number };
+}
+
+class KillScenario {
+  readonly state: FlightState = initFlightState(fixture.layout);
+  readonly combat: PlayerCombatState = createPlayerCombatState();
+  readonly log: KillLog = {
+    samples: new Map(),
+    kills: [],
+    removedTicks: [],
+    tally: {},
+    sectionAtPin: "",
+    viperNeverTargetedSidewinder: true,
+    endTick: -1,
+    ids: { adder: -1, sidewinder: -1, viper: -1 },
+  };
+  done = false;
+  private world: World | undefined;
+
+  private readonly options: StepOptions = {
+    combat: {
+      mounts: DEFAULT_LASER_MOUNTS,
+      hulls: HULLS,
+      npcWeapons: NPC_WEAPONS,
+    },
+    npcFlight: realNpcFlightTable(),
+  };
+
+  private spawn(
+    specKey: string,
+    position: ReturnType<typeof vec>,
+    extra: {
+      maxEnergy: number;
+      energyRechargeRate: number;
+      cargo?: number;
+      ai?: ReturnType<typeof createTestPilotAi>;
+    },
+  ): number {
+    const result = spawnEntity(
+      this.world as World,
+      {
+        kind: "ship",
+        specKey,
+        scanClass: "CLASS_NEUTRAL",
+        position,
+        orientation: identity(),
+        radius: 40,
+        speed: 0,
+        ...extra,
+      },
+      this.state.tick,
+    );
+    if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+    return result.entity.id;
+  }
+
+  step(): void {
+    const { state, combat, log } = this;
+    const tick = state.tick;
+    if (tick === KILL_START_TICK) {
+      state.position = COMBAT_FAR;
+      state.orientation = identity();
+      state.speed = 0;
+      this.world = createWorld(4343);
+      const at = (x: number, z: number) =>
+        vec(COMBAT_FAR.x + x, COMBAT_FAR.y, COMBAT_FAR.z + z);
+      // Zero recharge keeps both kills independent of the cadence-free energy
+      // arithmetic: the Adder (30) dies on the player's second pulse, the
+      // Sidewinder (20) on the Viper's fourth beam.
+      log.ids.adder = this.spawn("adder", at(0, -2000), {
+        maxEnergy: 30,
+        energyRechargeRate: 0,
+        cargo: 3,
+      });
+      log.ids.sidewinder = this.spawn("sidewinder", at(3000, -1500), {
+        maxEnergy: 20,
+        energyRechargeRate: 0,
+      });
+      const pilot = createTestPilotAi(tick, {
+        scanRange: 100,
+        holdRange: 5000,
+        fire: true,
+      });
+      pilot.params.phase = "hold";
+      pilot.params.targetId = log.ids.sidewinder;
+      log.ids.viper = this.spawn("viper", at(3000, -500), {
+        maxEnergy: 180,
+        energyRechargeRate: 4,
+        ai: pilot,
+      });
+      const viper = this.world.store.get(log.ids.viper);
+      if (viper === undefined) throw new Error("the Viper is missing");
+      viper.weapon = { temperature: 12.5, lastShotTick: 7, missedShots: 2 };
+      viper.velocity = vec(1, 0, 0);
+    }
+    const commands: Command[] =
+      tick === 0
+        ? [{ kind: "launch" }]
+        : tick === 1
+          ? [{ kind: "skipLaunch" }]
+          : [];
+    const intent =
+      tick >= KILL_START_TICK ? { ...ZERO_INTENT, fire: true } : ZERO_INTENT;
+    const events = stepSim(
+      state,
+      this.world,
+      fixture.layout,
+      config,
+      intent,
+      commands,
+      DT,
+      this.options,
+      combat,
+    );
+    let killedNow = false;
+    for (const event of events) {
+      log.tally[event.kind] = (log.tally[event.kind] ?? 0) + 1;
+      if (event.kind === "shipDestroyed") {
+        log.kills.push({
+          tick: state.tick,
+          id: event.id,
+          killer: event.killer,
+        });
+        killedNow = true;
+      } else if (event.kind === "entityRemoved") {
+        log.removedTicks.push([state.tick, event.id]);
+      }
+    }
+    const world = this.world;
+    if (world !== undefined) {
+      const viper = world.store.get(log.ids.viper);
+      if (viper?.nav.targetId === log.ids.sidewinder) {
+        log.viperNeverTargetedSidewinder = false;
+      }
+      const sinceStart = state.tick - KILL_START_TICK;
+      if (sinceStart === KILL_SAMPLE_EVERY) {
+        log.sectionAtPin = serializeWorldSection(world);
+      }
+      if (sinceStart % KILL_SAMPLE_EVERY === 0 || killedNow) {
+        log.samples.set(state.tick, hashWorld(state, world, combat));
+      }
+    }
+    if (state.tick >= KILL_START_TICK + KILL_STEPS) {
+      log.endTick = state.tick;
+      if (world !== undefined) {
+        log.samples.set(state.tick, hashWorld(state, world, combat));
+      }
+      this.done = true;
+    }
+  }
+}
+
+/** The frame runner above, driving the kill scenario. */
+function replayKill(hz: number): KillLog {
+  const scenario = new KillScenario();
+  let accumulator = 0;
+  for (let frame = 0; !scenario.done; frame += 1) {
+    if (frame > 200_000) {
+      throw new Error(`kill cadence ${String(hz)} never finished`);
+    }
+    accumulator += clampFrameDelta(1 / hz);
+    let stepsThisFrame = 0;
+    while (
+      accumulator >= DT &&
+      stepsThisFrame < MAX_STEPS_PER_FRAME &&
+      !scenario.done
+    ) {
+      scenario.step();
+      accumulator -= DT;
+      stepsThisFrame += 1;
+    }
+    if (stepsThisFrame === MAX_STEPS_PER_FRAME) accumulator = 0;
+  }
+  return scenario.log;
+}
+
+const killLogs = new Map<number, KillLog>(
+  CADENCES.map((hz) => [hz, replayKill(hz)]),
+);
+const killReference = killLogs.get(60) as KillLog;
+
+describe("kill cross-cadence determinism (FOUND-18, FOUND-19, QUAL-11)", () => {
+  it("hashes kills, cargo, a weapon record and a velocity identically at 30, 60 and 144 Hz", () => {
+    const entries = (log: KillLog): [number, string][] =>
+      [...log.samples.entries()].sort((a, b) => a[0] - b[0]);
+    for (const hz of CADENCES) {
+      const log = killLogs.get(hz) as KillLog;
+      expect(entries(log)).toEqual(entries(killReference));
+      expect(log.endTick).toBe(killReference.endTick);
+      expect(log.sectionAtPin).toBe(killReference.sectionAtPin);
+    }
+  });
+
+  it("lands every kill and removal on the same tick with the same credit at every cadence", () => {
+    for (const hz of CADENCES) {
+      const log = killLogs.get(hz) as KillLog;
+      expect(log.kills).toEqual(killReference.kills);
+      expect(log.removedTicks).toEqual(killReference.removedTicks);
+      expect(log.tally).toEqual(killReference.tally);
+    }
+  });
+
+  it("is not vacuous: two kills with their credit, cargo, weapon and velocity in the hashed text", () => {
+    const { ids, kills } = killReference;
+    expect(killReference.samples.size).toBeGreaterThan(10);
+    expect(kills).toHaveLength(2);
+    expect(killReference.tally.shipDestroyed).toBe(2);
+    expect(killReference.tally.entityRemoved).toBe(2);
+    const adder = kills.find((kill) => kill.id === ids.adder);
+    const sidewinder = kills.find((kill) => kill.id === ids.sidewinder);
+    expect(adder?.killer).toBe(PLAYER_ID);
+    expect(sidewinder?.killer).toBe(ids.viper);
+    // Each destroyed ship is removed on the tick it dies.
+    expect(killReference.removedTicks).toEqual(
+      kills.map((kill) => [kill.tick, kill.id]),
+    );
+    // The Adder's second pulse hit comes at least 61 ticks after the first, so
+    // it is still alive, cargo and all, in the section captured at start + 30.
+    expect(adder?.tick).toBeGreaterThan(KILL_START_TICK + KILL_SAMPLE_EVERY);
+    expect(killReference.sectionAtPin).toContain(";cargo:3");
+    expect(killReference.sectionAtPin).toContain(";wpn:");
+    expect(killReference.sectionAtPin).toContain(";vel:");
+    // The Viper was never a holder of the Sidewinder (R2-11b), and the run
+    // ended after both kills.
+    expect(killReference.viperNeverTargetedSidewinder).toBe(true);
+    expect(killReference.endTick).toBe(KILL_START_TICK + KILL_STEPS);
+    expect(Math.max(...kills.map((kill) => kill.tick))).toBeLessThan(
+      KILL_START_TICK + KILL_STEPS,
+    );
   });
 });

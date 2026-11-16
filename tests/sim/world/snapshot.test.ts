@@ -15,7 +15,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { AiComponent } from "../../../src/sim/ai/types.js";
+import { createFlightScriptAi } from "../../../src/sim/ai/pilots/flight-script.js";
 import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
+import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
+import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
+import type { SimEvent } from "../../../src/sim/events.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import {
   hashFlight,
@@ -24,6 +28,7 @@ import {
 } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { stepFlight } from "../../../src/sim/flight/step.js";
+import type { StepOptions } from "../../../src/sim/flight/step.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
@@ -45,7 +50,9 @@ import {
   spawnEntity,
 } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
+import { realHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { realNpcFlightTable } from "../../helpers/npc-flight.js";
 
 const { layout, config } = laveFixture();
 
@@ -332,5 +339,146 @@ describe("snapshot resume equality (FOUND-12)", () => {
     expect(snapshot.nextId).toBe(101);
     const restored = roundTrip(world);
     expect(hashWorld(player, restored)).toBe(hashFlight(player));
+  });
+});
+
+describe("snapshot resume across a kill (FOUND-19)", () => {
+  it("keeps a restored world equal to the live world for 1,000 ticks across a kill", () => {
+    const far = vec(1e7, 0, 0);
+    const player = flyingPlayer();
+    player.position = far;
+    player.orientation = identity();
+    player.speed = 0;
+    const combat = createPlayerCombatState();
+    const world = createWorld(0x6b11);
+    const options: StepOptions = {
+      combat: { mounts: DEFAULT_LASER_MOUNTS, hulls: realHullTable() },
+      npcFlight: realNpcFlightTable(),
+    };
+    const at = (x: number, y: number, z: number) =>
+      vec(far.x + x, far.y + y, far.z + z);
+    const ship = (
+      specKey: string,
+      position: ReturnType<typeof at>,
+      extra: Partial<SpawnInit>,
+    ) =>
+      spawnOk(
+        world,
+        {
+          kind: "ship",
+          specKey,
+          scanClass: "CLASS_NEUTRAL",
+          position,
+          orientation: identity(),
+          radius: 40,
+          speed: 0,
+          ...extra,
+        },
+        player.tick,
+      );
+    // The victim: on the player's nose, 20 energy, so the player's second pulse
+    // (the first leaves 5) kills it about 61 ticks into the compared run.
+    const victim = ship("adder", at(0, 0, -2000), {
+      maxEnergy: 20,
+      cargo: 2,
+    });
+    // A flight-script holder of the victim, told at kill time, and a wanderer.
+    const holder = ship("adder", at(600, 0, -3000), {
+      maxEnergy: 85,
+      ai: createFlightScriptAi(player.tick, {
+        script: "attack",
+        targetId: victim.id,
+        range: 1000,
+      }),
+    });
+    ship("viper", at(-800, 200, -2500), {
+      maxEnergy: 180,
+      ai: createTestPilotAi(player.tick, {
+        scanRange: 1e9,
+        holdRange: 1,
+        cruiseSpeed: 120,
+      }),
+    });
+
+    const run = (p: FlightState, w: World, c: typeof combat, fire: boolean) =>
+      stepSim(
+        p,
+        w,
+        layout,
+        config,
+        fire ? { ...ZERO_INTENT, fire: true } : ZERO_INTENT,
+        [],
+        DT,
+        options,
+        c,
+      );
+    // Warm up with the fire key up, so the snapshot is taken before the lethal
+    // hit and with the holder's script already running.
+    for (let i = 0; i < 10; i += 1) run(player, world, combat, false);
+    expect(world.store.get(victim.id)).toBeDefined();
+    expect(world.store.get(holder.id)?.nav.targetId).toBe(victim.id);
+
+    const restored = roundTrip(world);
+    const restoredPlayer = structuredClone(player);
+    const restoredCombat = structuredClone(combat);
+    expect(hashWorld(restoredPlayer, restored, restoredCombat)).toBe(
+      hashWorld(player, world, combat),
+    );
+    const snapshotTick = player.tick;
+
+    const killEvents = (events: readonly SimEvent[]): string[] =>
+      events
+        .filter(
+          (event) =>
+            event.kind === "shipDestroyed" || event.kind === "entityRemoved",
+        )
+        .map((event) => JSON.stringify(event));
+    const liveKills: [number, string][] = [];
+    const restoredKills: [number, string][] = [];
+    for (let i = 1; i <= COMPARE_TICKS; i += 1) {
+      for (const text of killEvents(run(player, world, combat, true))) {
+        liveKills.push([player.tick, text]);
+      }
+      for (const text of killEvents(
+        run(restoredPlayer, restored, restoredCombat, true),
+      )) {
+        restoredKills.push([restoredPlayer.tick, text]);
+      }
+      expect(hashWorld(restoredPlayer, restored, restoredCombat)).toBe(
+        hashWorld(player, world, combat),
+      );
+      if (i % CHECK_EVERY === 0 || i === COMPARE_TICKS) {
+        expect(JSON.stringify(snapshotWorld(restored))).toBe(
+          JSON.stringify(snapshotWorld(world)),
+        );
+        expect(restoredPlayer).toStrictEqual(player);
+        expect(restoredCombat).toStrictEqual(combat);
+      }
+    }
+
+    // The kill happened inside the compared window, on the same tick in both
+    // worlds, as one shipDestroyed then one entityRemoved.
+    expect(liveKills).toHaveLength(2);
+    expect(restoredKills).toEqual(liveKills);
+    expect(liveKills[0]?.[1]).toContain('"kind":"shipDestroyed"');
+    expect(liveKills[1]?.[1]).toContain('"kind":"entityRemoved"');
+    expect(liveKills[0]?.[0]).toBe(liveKills[1]?.[0]);
+    expect(liveKills[0]?.[0]).toBeGreaterThan(snapshotTick);
+    expect(world.store.get(victim.id)).toBeUndefined();
+    expect(restored.store.get(victim.id)).toBeUndefined();
+    // The holder finished its script at kill time in both worlds.
+    expect(world.store.get(holder.id)?.ai?.params.phase).toBe("done");
+    expect(restored.store.get(holder.id)?.ai?.params.phase).toBe("done");
+
+    // A later spawn never reissues the killed id, and both worlds agree.
+    const liveNext = spawnOk(world, shipAt(player, 9, null), player.tick);
+    const restoredNext = spawnOk(
+      restored,
+      shipAt(restoredPlayer, 9, null),
+      restoredPlayer.tick,
+    );
+    expect(restoredNext.id).toBe(liveNext.id);
+    expect(liveNext.id).toBeGreaterThan(victim.id);
+    expect(liveNext.id).not.toBe(victim.id);
   });
 });
