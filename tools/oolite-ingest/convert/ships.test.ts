@@ -173,6 +173,7 @@ describe("shipdata catalogue", () => {
     expect(vendored).toEqual([
       "adder",
       "adder-player",
+      "alloy",
       "barrel",
       "buoy",
       "buoy-witchpoint",
@@ -193,6 +194,10 @@ describe("shipdata catalogue", () => {
       "moray-player",
       "morayMED",
       "morayMED-player",
+      "more-wreckage2",
+      "more-wreckage3",
+      "more-wreckage4",
+      "more-wreckage5",
       "oolite-cargopod-virtual",
       "oolite-cobra3-strict",
       "oolite-tutorial-buoy",
@@ -201,10 +206,16 @@ describe("shipdata catalogue", () => {
       "oolite-tutorial-station",
       "oolite_buoy_subentity",
       "oolite_template_tutorial-krait-wave1",
+      "oolite_template_wreckage-chunk",
+      "scarred-alloy",
       "shuttle",
       "sidewinder",
       "viper",
       "viper-pursuit",
+      "wreckage-chunk",
+      "wreckage-chunk2",
+      "wreckage-chunk3",
+      "wreckage-component",
     ]);
   });
 
@@ -214,7 +225,7 @@ describe("shipdata catalogue", () => {
     ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
     expect([...VENDORED_MODEL_FILES]).toEqual(expected);
-    expect(VENDORED_MODEL_FILES).toHaveLength(17);
+    expect(VENDORED_MODEL_FILES).toHaveLength(23);
   });
 
   it("keeps every remaining resolved key in extras", () => {

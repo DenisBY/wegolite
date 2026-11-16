@@ -45,7 +45,12 @@ import { resolve, sep } from "node:path";
 import type { ShipCatalogue } from "../../../src/content/schemas/ship.js";
 import { sha256Hex } from "../canonical/hash.js";
 import { contentError } from "../content-error.js";
-import { EMITTED_ENTRIES, SHIPDATA_SOURCE_FILE, emissiveFile } from "./glb.js";
+import {
+  EMITTED_ENTRIES,
+  LEGACY_TEXTURED_ENTRIES,
+  SHIPDATA_SOURCE_FILE,
+  emissiveFile,
+} from "./glb.js";
 
 /** The vendored snapshot's texture directory, repository-relative. */
 export const TEXTURES_DIR = "third_party/oolite/Textures";
@@ -63,6 +68,7 @@ export const VENDORED_TEXTURES: readonly string[] = [
   "oolite_adder_diffuse.png",
   "oolite_adder_normal.png",
   "oolite_adder_specular.png",
+  "oolite_alloy_diffuse.png",
   "oolite_barrel_diffuse.png",
   "oolite_barrel_normal.png",
   "oolite_barrel_specular.png",
@@ -117,6 +123,7 @@ export const VENDORED_TEXTURES: readonly string[] = [
   "oolite_sidewinder_specular.png",
   "oolite_viper_diffuse.png",
   "oolite_viper_normal.png",
+  "wreck.png",
 ];
 
 /** Which authored material slot produced a reference. */
@@ -252,6 +259,20 @@ export function resolveReferencedTextures(
             mapKind: "illumination",
           });
         }
+      }
+
+      // A legacy-textured entry (the wrecks) authors no material for its
+      // texture: Oolite's default material draws it as the diffuse map.
+      const legacy = Object.hasOwn(LEGACY_TEXTURED_ENTRIES, shipKey)
+        ? (LEGACY_TEXTURED_ENTRIES[shipKey] ?? [])
+        : [];
+      for (const name of legacy) {
+        if (Object.hasOwn(materials, name)) continue;
+        pushReference(references, name, {
+          shipKey,
+          materialKey: name,
+          mapKind: "diffuse",
+        });
       }
     }
   }

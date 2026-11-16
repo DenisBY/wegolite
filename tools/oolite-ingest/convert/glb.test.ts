@@ -31,6 +31,7 @@ import type { ParsedMesh, Vec3 } from "./dat.js";
 import {
   DEBRIS_GLBS,
   EMITTED_ENTRIES,
+  LEGACY_TEXTURED_ENTRIES,
   MODEL_SOURCE_FILES,
   NPC_SHIP_GLBS,
   buildCobraGlb,
@@ -1202,7 +1203,8 @@ async function assertSingleMeshGlb(
   expect(sha256Hex(committed)).toBe(sha256Hex(rebuilt));
 
   // (c) one node (the hull), one mesh, one primitive and material per authored
-  // material, every name a key of the owner's material table.
+  // material, every name a key of the owner's material table or, for a
+  // legacy-textured wreck, a name of its legacy texture list.
   const { json } = readChunks(committed);
   expect(json.nodes).toHaveLength(1);
   expect(at(json.nodes, 0).name).toBe(stem(file, ".glb"));
@@ -1212,7 +1214,10 @@ async function assertSingleMeshGlb(
   expect(jsonMesh.primitives).toHaveLength(mesh.materials.length);
   expect(json.materials).toHaveLength(mesh.materials.length);
   for (const material of json.materials) {
-    expect(Object.keys(entry.shipDef.materials)).toContain(material.name);
+    expect([
+      ...Object.keys(entry.shipDef.materials),
+      ...(LEGACY_TEXTURED_ENTRIES[owner] ?? []),
+    ]).toContain(material.name);
   }
 
   // (d) every image is an existing sibling texture and the set is exactly the
@@ -1296,6 +1301,82 @@ describe("debris GLBs", () => {
       await assertSingleMeshGlb(file, debrisGlbFile);
     },
   );
+});
+
+describe("the legacy texture rule (DATA-16, T-16-10)", () => {
+  const wreck = shipEntry("wreckage-component");
+
+  function refusal(run: () => unknown): ContentError {
+    let caught: unknown;
+    try {
+      run();
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(ContentError);
+    return caught as ContentError;
+  }
+
+  it("lists exactly the five wrecks, each with wreck.png", () => {
+    expect(LEGACY_TEXTURED_ENTRIES).toEqual({
+      "wreckage-component": ["wreck.png"],
+      "more-wreckage2": ["wreck.png"],
+      "more-wreckage3": ["wreck.png"],
+      "more-wreckage4": ["wreck.png"],
+      "more-wreckage5": ["wreck.png"],
+    });
+    expect(Object.keys(wreck.shipDef.materials)).toEqual([]);
+  });
+
+  it("projects Oolite's default material for a listed texture", () => {
+    const material = materialFor("wreck.png", wreck.shipDef, wreck.key);
+    expect(material.baseColorTexture).toBe("wreck.png");
+    expect(material.roughnessFactor).toBe(1);
+    expect(material.normalTexture).toBeNull();
+    expect(material.specularTexture).toBeNull();
+    expect(material.emissiveTexture).toBeNull();
+  });
+
+  it("still fails the same key for an entry outside the list", () => {
+    const viper = shipEntry("viper");
+    expect(
+      refusal(() => materialFor("wreck.png", viper.shipDef, viper.key)).code,
+    ).toBe("SCHEMA");
+    expect(
+      refusal(() => materialFor("wreck.png", wreck.shipDef, "wreckage-chunk"))
+        .code,
+    ).toBe("SCHEMA");
+  });
+
+  it("still fails a non-listed or non-.png key for a legacy entry", () => {
+    for (const key of ["Hull", "wreck", "other.png"]) {
+      expect(
+        refusal(() => materialFor(key, wreck.shipDef, wreck.key)).code,
+      ).toBe("SCHEMA");
+    }
+  });
+
+  it("fails a wreck mesh naming a material outside its listed textures", () => {
+    const mesh = loadMesh("wreck1.dat");
+    const renamed: ParsedMesh = {
+      ...mesh,
+      materials: mesh.materials.map((material) => ({
+        ...material,
+        name: "Hull",
+      })),
+    };
+    // The authored material keeps materialFor from failing first, so the
+    // rejection is the legacy list check itself.
+    const authored: ShipEntry = {
+      key: wreck.key,
+      shipDef: { ...wreck.shipDef, materials: { Hull: {} } },
+    };
+    const error = refusal(() =>
+      buildShipGlb("wreck1", "wreck1", renamed, authored),
+    );
+    expect(error.code).toBe("SCHEMA");
+    expect(error.message).toContain("Hull");
+  });
 });
 
 describe("the NPC GLB naming rule", () => {

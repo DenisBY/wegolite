@@ -43,6 +43,12 @@ const RESEARCH: Readonly<
   Record<string, { readonly mass: number; readonly radius: number }>
 > = {
   barrel: { mass: 993.37, radius: 5.7986 },
+  alloy: { mass: 273.44, radius: 5.1492 },
+  "wreckage-component": { mass: 3979.17, radius: 17.28 },
+  "more-wreckage2": { mass: 5793.83, radius: 18.66 },
+  "more-wreckage3": { mass: 2678.52, radius: 19.39 },
+  "more-wreckage4": { mass: 4352.72, radius: 21.19 },
+  "more-wreckage5": { mass: 6317.55, radius: 22.42 },
 };
 
 function records(): Record<string, unknown>[] {
@@ -198,13 +204,39 @@ describe("DebrisRecordSchema and DebrisCatalogueSchema", () => {
     }
   });
 
+  /** A catalogue that differs from the generated one by its wreck count. */
+  function withWrecks(count: number): Record<string, unknown>[] {
+    const [pod, plate, wreck] = records();
+    return [
+      { ...pod },
+      { ...plate },
+      ...Array.from({ length: count }, (_, index) => ({
+        ...wreck,
+        key: `wreck-${String(index)}`,
+      })),
+    ];
+  }
+
   it("refuses an empty list, too many records and a duplicate key", () => {
     expect(accepts([])).toBe(false);
-    const many = Array.from({ length: MAX_DEBRIS_RECORDS + 1 }, (_, index) => ({
-      ...firstRecord(),
-      key: `debris-${String(index)}`,
-    }));
-    expect(accepts(many)).toBe(false);
-    expect(accepts([firstRecord(), firstRecord()])).toBe(false);
+    expect(accepts(withWrecks(MAX_DEBRIS_RECORDS - 2))).toBe(true);
+    expect(accepts(withWrecks(MAX_DEBRIS_RECORDS - 1))).toBe(false);
+    const [pod, plate, wreck] = records();
+    expect(accepts([pod, plate, wreck, wreck])).toBe(false);
+  });
+
+  it("refuses a catalogue without exactly one pod, one plate and a wreck", () => {
+    const [pod, plate, wreck] = records();
+    expect(accepts([pod, plate, wreck])).toBe(true);
+    // No pod, two pods.
+    expect(accepts([plate, wreck])).toBe(false);
+    expect(accepts([pod, { ...pod, key: "pod-2" }, plate, wreck])).toBe(false);
+    // No plate, two plates.
+    expect(accepts([pod, wreck])).toBe(false);
+    expect(accepts([pod, plate, { ...plate, key: "plate-2" }, wreck])).toBe(
+      false,
+    );
+    // No wreck.
+    expect(accepts([pod, plate])).toBe(false);
   });
 });

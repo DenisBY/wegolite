@@ -104,9 +104,10 @@ function withEntry(
   };
 }
 
-/** The hull masses of the 17 vendored meshes, density 1, float32. */
+/** The hull masses of the 23 vendored meshes, density 1, float32. */
 const HULL_MASSES: Readonly<Record<string, number>> = {
   "oolite_adder.dat": 16045.4931640625,
+  "oolite_alloy.dat": 273.4375,
   "oolite_barrel.dat": 993.3700561523438,
   "oolite_buoy.dat": 691044.375,
   "oolite_buoy_subents.dat": 7646.7861328125,
@@ -123,6 +124,11 @@ const HULL_MASSES: Readonly<Record<string, number>> = {
   "oolite_shuttle.dat": 11317.5634765625,
   "oolite_sidewinder.dat": 25087.62109375,
   "oolite_viper.dat": 34040.6796875,
+  "wreck1.dat": 3979.17236328125,
+  "wreck2.dat": 5793.83251953125,
+  "wreck3.dat": 2678.518310546875,
+  "wreck4.dat": 4352.720703125,
+  "wreck5.dat": 6317.5546875,
 };
 
 const DEPTH_SIX = new Set([
@@ -132,11 +138,11 @@ const DEPTH_SIX = new Set([
 ]);
 
 /** The small debris hulls, whose span puts them one level shallower. */
-const DEPTH_FOUR = new Set(["oolite_barrel.dat"]);
+const DEPTH_FOUR = new Set(["oolite_alloy.dat", "oolite_barrel.dat"]);
 
 const COBRA_PLAYER = "oolite_template_cobra3-player";
 
-describe("the 17 vendored meshes", () => {
+describe("the 23 vendored meshes", () => {
   it("are exactly the meshes the table pins", () => {
     expect(Object.keys(meshes).sort()).toEqual(Object.keys(HULL_MASSES).sort());
   });

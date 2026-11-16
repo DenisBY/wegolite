@@ -6,6 +6,11 @@
       "sha256": "29bba2c136da52b737a4b7ae8f1a7a3dfc68175486717fcb5815924b3470effb"
     },
     {
+      "bytes": 4036,
+      "path": "public/models/alloy.glb",
+      "sha256": "462cd610541068c715180defdd6f122ec7f082366e1dbf0e19e35c7b7e5ff27b"
+    },
+    {
       "bytes": 19068,
       "path": "public/models/barrel.glb",
       "sha256": "f2a7e494d630c5400589daa465bfaae9fd212682a3ad4b7de5b2c40b4b7d7374"
@@ -66,6 +71,31 @@
       "sha256": "63151cdb8f34f3e4ead1f0f58f083e7f457bae84da91bc1d52aeb7c175128a4d"
     },
     {
+      "bytes": 3216,
+      "path": "public/models/wreck1.glb",
+      "sha256": "d0a613b96ea7bfb3d085b863116ef5007b492c873218de2163c6a3287243a9c2"
+    },
+    {
+      "bytes": 5812,
+      "path": "public/models/wreck2.glb",
+      "sha256": "dac54d03c5a791728aef12d082a7ffb1f8098d6f68156409fee6f15ce2def495"
+    },
+    {
+      "bytes": 3860,
+      "path": "public/models/wreck3.glb",
+      "sha256": "0044b00b571171a952478f72445fc551935da6027839f7adda2ab4747896a475"
+    },
+    {
+      "bytes": 2776,
+      "path": "public/models/wreck4.glb",
+      "sha256": "b3c995a68764b9aafca15fb6dbceb9a2a28e9b986629d4318566e43ee317e286"
+    },
+    {
+      "bytes": 3860,
+      "path": "public/models/wreck5.glb",
+      "sha256": "79ca76b01c8e753412c0a04189cf54d5595d0a6d09be66aac5a404fd51568351"
+    },
+    {
       "bytes": 29515,
       "path": "public/textures/oolite-nebula-1.png",
       "sha256": "60760e7d6d20261b26445e0a695d624f097103648240cf4f2c1c8e8125a82e7b"
@@ -104,6 +134,16 @@
       "bytes": 366716,
       "path": "public/textures/oolite_adder_specular.webp",
       "sha256": "595427ea8ce7c5adfecc6c6fbf0e09367ba7d2c1b2d8b02522bbc25cc013c286"
+    },
+    {
+      "bytes": 17426,
+      "path": "public/textures/oolite_alloy_diffuse.webp",
+      "sha256": "85374b2932cf4cdb31d406f575b2eed0ab5c0cb20442cb6a3c5ca82462d8e6d5"
+    },
+    {
+      "bytes": 34209,
+      "path": "public/textures/oolite_alloy_diffuse_emissive.png",
+      "sha256": "a5b0bd5583b0ff352251ff5c490874200d42af2f35d3b64d2464d9511516823f"
     },
     {
       "bytes": 49906,
@@ -451,6 +491,11 @@
       "sha256": "0770252a5cdf6cf85c574cd7cb50926f6361259c192a5ce4a2e9a4c270b5b04e"
     },
     {
+      "bytes": 6664,
+      "path": "public/textures/wreck.webp",
+      "sha256": "9dfe6b16c60f7098ca21841efef1f46d8962f2ca5b99cde2b96ebba56a9681a9"
+    },
+    {
       "bytes": 9544,
       "path": "src/content/generated/commodities.json",
       "sha256": "7429535de7d898f0c0cb3fd524dcd473c76d7d8dd7575d8d1dc5b17777f82525"
@@ -476,9 +521,9 @@
       "sha256": "fd508299dc4f6154b941dbcea916ba845e49d0235c5604469c56e92e5a21c245"
     },
     {
-      "bytes": 234,
+      "bytes": 1784,
       "path": "src/content/generated/ships-debris.json",
-      "sha256": "088388708bceb3729966e00cfca2dca6479a7f70288499f07d50103f3f480f89"
+      "sha256": "e20006a38fa71ba9cb557b82204813e15e8e39923f530f094a5b5a4b4d5fb0af"
     },
     {
       "bytes": 89673,
@@ -491,9 +536,9 @@
       "sha256": "e42bedec7d5b82b818e751789eb94be403faf50bd3872a48bdf8102524e1d5d8"
     },
     {
-      "bytes": 706567,
+      "bytes": 706553,
       "path": "src/content/generated/ships.json",
-      "sha256": "43270bd976184f5245a2fb9cd62886ef91ece87bd518ea30966babe2873c41b0"
+      "sha256": "b94f33c025682225e000ec56933421ddbc1efbef5b4d9d406420954a77699fb6"
     },
     {
       "bytes": 694240,
@@ -536,9 +581,9 @@
       "sha256": "40f906335a3a074acb0db3cae5cc034e9acb7554950a9f3cfd1b4aedff9af5b4"
     },
     {
-      "bytes": 29746,
+      "bytes": 30735,
       "path": "src/content/generated/texture-encodings.json",
-      "sha256": "55c2bc398792a713ab721ae463f9ebd78f4160d8b036965706ac8c8de24221e3"
+      "sha256": "8ee1ea7a3f6789c2a71f8368b0aff65638679eddb5aecca04682b113a6863d11"
     }
   ],
   "format": "wegolite-content-manifest",

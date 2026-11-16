@@ -78,6 +78,7 @@ export const SHIPDATA_SOURCE_FILE = "third_party/oolite/Config/shipdata.plist";
  */
 export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
   "adder.glb": ["adder"],
+  "alloy.glb": ["alloy"],
   "barrel.glb": ["barrel"],
   "buoy.glb": ["buoy", "oolite_buoy_subentity"],
   "cobra3.glb": ["cobra3-player"],
@@ -95,11 +96,17 @@ export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
   "shuttle.glb": ["shuttle"],
   "sidewinder.glb": ["sidewinder"],
   "viper.glb": ["viper"],
+  "wreck1.glb": ["wreckage-component"],
+  "wreck2.glb": ["more-wreckage2"],
+  "wreck3.glb": ["more-wreckage3"],
+  "wreck4.glb": ["more-wreckage4"],
+  "wreck5.glb": ["more-wreckage5"],
 };
 
 /** The vendored `.dat` files each emitted GLB is built from, in node order. */
 export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
   "adder.glb": ["oolite_adder.dat"],
+  "alloy.glb": ["oolite_alloy.dat"],
   "barrel.glb": ["oolite_barrel.dat"],
   "buoy.glb": ["oolite_buoy.dat", "oolite_buoy_subents.dat"],
   "cobra3.glb": ["oolite_cobra3.dat"],
@@ -117,6 +124,11 @@ export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
   "shuttle.glb": ["oolite_shuttle.dat"],
   "sidewinder.glb": ["oolite_sidewinder.dat"],
   "viper.glb": ["oolite_viper.dat"],
+  "wreck1.glb": ["wreck1.dat"],
+  "wreck2.glb": ["wreck2.dat"],
+  "wreck3.glb": ["wreck3.dat"],
+  "wreck4.glb": ["wreck4.dat"],
+  "wreck5.glb": ["wreck5.dat"],
 };
 
 /**
@@ -162,7 +174,43 @@ export function shipGlbFile(model: string): string {
  * `EMITTED_ENTRIES` and `MODEL_SOURCE_FILES`. `tools/oolite-ingest/convert/
  * debris.ts` compiles the catalogue record of each.
  */
-export const DEBRIS_GLBS: readonly string[] = ["barrel.glb"];
+export const DEBRIS_GLBS: readonly string[] = [
+  "alloy.glb",
+  "barrel.glb",
+  "wreck1.glb",
+  "wreck2.glb",
+  "wreck3.glb",
+  "wreck4.glb",
+  "wreck5.glb",
+];
+
+/**
+ * The legacy-textured entries (DATA-16): the five wreck meshes `wreck1.dat` ..
+ * `wreck5.dat` carry a legacy `TEXTURES` section naming `wreck.png` and no
+ * `NAMES` block, and their shipdata entries author no `materials` dictionary.
+ * Oolite then draws each face with its default material: the named texture as
+ * the diffuse map, gloss 0, and no normal, specular or emission map. Each key
+ * maps to the texture names its mesh may use. `materialFor` projects an empty
+ * material dictionary for a listed `.png` name the entry does not author, and
+ * the texture closure adds each listed name as a diffuse reference; every other
+ * missing material still fails the build (D-21).
+ */
+export const LEGACY_TEXTURED_ENTRIES: Readonly<
+  Record<string, readonly string[]>
+> = {
+  "wreckage-component": ["wreck.png"],
+  "more-wreckage2": ["wreck.png"],
+  "more-wreckage3": ["wreck.png"],
+  "more-wreckage4": ["wreck.png"],
+  "more-wreckage5": ["wreck.png"],
+};
+
+/** The legacy texture list of an entry, or undefined for every other entry. */
+function legacyTextures(shipKey: string): readonly string[] | undefined {
+  return Object.hasOwn(LEGACY_TEXTURED_ENTRIES, shipKey)
+    ? LEGACY_TEXTURED_ENTRIES[shipKey]
+    : undefined;
+}
 
 const WRECK_MODEL_PATTERN = /^wreck([1-9])\.dat$/;
 
@@ -952,6 +1000,11 @@ function clampRoughness(value: number): number {
  * Oolite's own convention, and the Coriolis hull and all three part materials
  * are authored that way. A key with neither `diffuse_map` nor a `.png` suffix is
  * a build error, never a silent stand-in texture (D-21).
+ *
+ * The one exception is an entry of `LEGACY_TEXTURED_ENTRIES`: a `.png` key in
+ * its list that the entry does not author projects an empty dictionary, which
+ * every branch below turns into Oolite's default material (the texture as the
+ * diffuse, gloss 0, no normal, specular or emission map).
  */
 export function materialFor(
   materialKey: string,
@@ -960,7 +1013,10 @@ export function materialFor(
 ): GlbMaterial {
   const config = Object.hasOwn(shipDef.materials, materialKey)
     ? shipDef.materials[materialKey]
-    : undefined;
+    : materialKey.endsWith(".png") &&
+        legacyTextures(shipKey)?.includes(materialKey) === true
+      ? {}
+      : undefined;
   if (config === undefined) {
     glbFailure(
       `materials.${materialKey}`,
@@ -1139,6 +1195,17 @@ export function buildShipGlb(
   entry: ShipEntry,
 ): Uint8Array {
   const built = buildNodeMesh(meshName, mesh, entry);
+  const legacy = legacyTextures(entry.key);
+  if (legacy !== undefined) {
+    for (const primitive of built.primitives) {
+      if (!legacy.includes(primitive.materialName)) {
+        glbFailure(
+          meshName,
+          `legacy-textured "${entry.key}" names material "${primitive.materialName}" outside its textures ${JSON.stringify(legacy)}`,
+        );
+      }
+    }
+  }
   return writeGlb({
     nodes: [{ name: nodeName, mesh: built }],
     materials: built.primitives.map((primitive) =>

@@ -69,6 +69,12 @@ const RESEARCH: Readonly<
   Record<string, { readonly mass: number; readonly radius: number }>
 > = {
   barrel: { mass: 993.37, radius: 5.7986 },
+  alloy: { mass: 273.44, radius: 5.1492 },
+  "wreckage-component": { mass: 3979.17, radius: 17.28 },
+  "more-wreckage2": { mass: 5793.83, radius: 18.66 },
+  "more-wreckage3": { mass: 2678.52, radius: 19.39 },
+  "more-wreckage4": { mass: 4352.72, radius: 21.19 },
+  "more-wreckage5": { mass: 6317.55, radius: 22.42 },
 };
 
 function caught(run: () => unknown): ContentError {
@@ -112,6 +118,36 @@ describe("compileDebris", () => {
       maxFlightRoll: 0.5,
       maxFlightPitch: 0.5,
     });
+  });
+
+  it("compiles one pod, one plate and the five wrecks in shipdata order", () => {
+    expect(
+      records.map((record) => [record.key, record.role, record.model]),
+    ).toEqual([
+      ["barrel", "pod", "oolite_barrel.dat"],
+      ["alloy", "plate", "oolite_alloy.dat"],
+      ["wreckage-component", "wreck", "wreck1.dat"],
+      ["more-wreckage2", "wreck", "wreck2.dat"],
+      ["more-wreckage3", "wreck", "wreck3.dat"],
+      ["more-wreckage4", "wreck", "wreck4.dat"],
+      ["more-wreckage5", "wreck", "wreck5.dat"],
+    ]);
+    for (const record of records) {
+      const rate = record.role === "wreck" ? Math.fround(0.2) : 0.5;
+      expect(record.maxFlightRoll, record.key).toBe(rate);
+      expect(record.maxFlightPitch, record.key).toBe(rate);
+      expect(record.glb).toBe(`models/${debrisGlbFile(record.model)}`);
+    }
+  });
+
+  it("compiles no scarred plate (D16-07)", () => {
+    expect(records.some((record) => record.key.includes("scarred"))).toBe(
+      false,
+    );
+  });
+
+  it("measures every record against the research table", () => {
+    expect(Object.keys(RESEARCH)).toEqual(records.map((record) => record.key));
   });
 
   it("compiles one record per entry, in DEBRIS_ENTRIES order", () => {

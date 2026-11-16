@@ -345,7 +345,7 @@
       "kind": "absent"
     },
     "model": "oolite_alloy.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "alloy"
     ],
@@ -8404,7 +8404,7 @@
       "kind": "absent"
     },
     "model": "wreck2.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "wreckage"
     ],
@@ -8450,7 +8450,7 @@
       "kind": "absent"
     },
     "model": "wreck3.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "wreckage"
     ],
@@ -8496,7 +8496,7 @@
       "kind": "absent"
     },
     "model": "wreck4.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "wreckage"
     ],
@@ -8542,7 +8542,7 @@
       "kind": "absent"
     },
     "model": "wreck5.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "wreckage"
     ],
@@ -10938,7 +10938,7 @@
       "kind": "absent"
     },
     "model": "oolite_alloy.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "alloy"
     ],
@@ -20626,7 +20626,7 @@
       "kind": "absent"
     },
     "model": "oolite_alloy.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "alloy"
     ],
@@ -23529,7 +23529,7 @@
       "kind": "absent"
     },
     "model": "wreck1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite-wreckage-chunk"
     ],
@@ -23576,7 +23576,7 @@
       "kind": "absent"
     },
     "model": "wreck1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "wreckage"
     ],
@@ -25011,7 +25011,7 @@
       "kind": "absent"
     },
     "model": "oolite_alloy.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "alloy"
     ],
@@ -26983,7 +26983,7 @@
       "kind": "absent"
     },
     "model": "wreck1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite-wreckage-chunk"
     ],
@@ -27029,7 +27029,7 @@
       "kind": "absent"
     },
     "model": "wreck1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite-wreckage-chunk"
     ],
@@ -27075,7 +27075,7 @@
       "kind": "absent"
     },
     "model": "wreck1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite-wreckage-chunk"
     ],
@@ -27122,7 +27122,7 @@
       "kind": "absent"
     },
     "model": "wreck1.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "wreckage"
     ],

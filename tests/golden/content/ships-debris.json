@@ -8,5 +8,65 @@
     "model": "oolite_barrel.dat",
     "radius": 5.798625946044922,
     "role": "pod"
+  },
+  {
+    "glb": "models/alloy.glb",
+    "key": "alloy",
+    "mass": 273.4375,
+    "maxFlightPitch": 0.5,
+    "maxFlightRoll": 0.5,
+    "model": "oolite_alloy.dat",
+    "radius": 5.149232387542725,
+    "role": "plate"
+  },
+  {
+    "glb": "models/wreck1.glb",
+    "key": "wreckage-component",
+    "mass": 3979.17236328125,
+    "maxFlightPitch": 0.20000000298023224,
+    "maxFlightRoll": 0.20000000298023224,
+    "model": "wreck1.dat",
+    "radius": 17.278099060058594,
+    "role": "wreck"
+  },
+  {
+    "glb": "models/wreck2.glb",
+    "key": "more-wreckage2",
+    "mass": 5793.83251953125,
+    "maxFlightPitch": 0.20000000298023224,
+    "maxFlightRoll": 0.20000000298023224,
+    "model": "wreck2.dat",
+    "radius": 18.661623001098633,
+    "role": "wreck"
+  },
+  {
+    "glb": "models/wreck3.glb",
+    "key": "more-wreckage3",
+    "mass": 2678.518310546875,
+    "maxFlightPitch": 0.20000000298023224,
+    "maxFlightRoll": 0.20000000298023224,
+    "model": "wreck3.dat",
+    "radius": 19.393409729003906,
+    "role": "wreck"
+  },
+  {
+    "glb": "models/wreck4.glb",
+    "key": "more-wreckage4",
+    "mass": 4352.720703125,
+    "maxFlightPitch": 0.20000000298023224,
+    "maxFlightRoll": 0.20000000298023224,
+    "model": "wreck4.dat",
+    "radius": 21.188261032104492,
+    "role": "wreck"
+  },
+  {
+    "glb": "models/wreck5.glb",
+    "key": "more-wreckage5",
+    "mass": 6317.5546875,
+    "maxFlightPitch": 0.20000000298023224,
+    "maxFlightRoll": 0.20000000298023224,
+    "model": "wreck5.dat",
+    "radius": 22.416988372802734,
+    "role": "wreck"
   }
 ]

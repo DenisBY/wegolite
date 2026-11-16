@@ -7,10 +7,10 @@
  *
  * One record per debris model the kill path releases: the cargo barrel (the
  * `pod` role, Oolite's anonymous `cargopod`), the alloy plate (the `plate`
- * role; `scarred-alloy` is not compiled, D16-07) and the five wrecks (the
- * `wreck` role, in shipdata order, D16-16). Each record carries the authored
- * model, the GLB the client fetches, the Oolite mass and collision radius
- * computed at build time from the vendored `.dat` (`ship-mass.ts` and
+ * role; Oolite's second, scar-textured plate entry is not compiled, D16-07)
+ * and the five wrecks (the `wreck` role, in shipdata order, D16-16). Each
+ * record carries the authored model, the GLB the client fetches, the Oolite
+ * mass and collision radius computed at build time from the vendored `.dat` (`ship-mass.ts` and
  * `ship-radius.ts`, handed in), and the tumble rates `max_flight_roll` and
  * `max_flight_pitch` as float32 with Oolite's defaults 2.0 and 1.0
  * (ShipEntity.m:265-266). Nothing else: the sim's debris record needs no other
@@ -40,7 +40,15 @@ export type DebrisRole = "pod" | "plate" | "wreck";
 export const DEBRIS_ENTRIES: readonly {
   readonly key: string;
   readonly role: DebrisRole;
-}[] = [{ key: "barrel", role: "pod" }];
+}[] = [
+  { key: "barrel", role: "pod" },
+  { key: "alloy", role: "plate" },
+  { key: "wreckage-component", role: "wreck" },
+  { key: "more-wreckage2", role: "wreck" },
+  { key: "more-wreckage3", role: "wreck" },
+  { key: "more-wreckage4", role: "wreck" },
+  { key: "more-wreckage5", role: "wreck" },
+];
 
 function fail(key: string, detail: string): never {
   throw contentError("SCHEMA", DEBRIS_PATH, key, { excerpt: detail });

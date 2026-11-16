@@ -117,6 +117,7 @@ const PLUS_Z: Vec3 = { x: 0, y: 0, z: 1 };
  */
 export const MODEL_BOUNDS: Readonly<Record<string, Vec3>> = {
   "oolite_adder.dat": { x: 28.0186, y: 14.8953, z: 51.1851 },
+  "oolite_alloy.dat": { x: 5, y: 9, z: 2.89092 },
   "oolite_barrel.dat": { x: 9.5597, y: 5.82782, z: 6.12774 },
   "oolite_buoy.dat": { x: 108.613, y: 91.176, z: 101.848 },
   "oolite_buoy_subents.dat": { x: 42.79, y: 41.046, z: 42.451 },
@@ -133,6 +134,11 @@ export const MODEL_BOUNDS: Readonly<Record<string, Vec3>> = {
   "oolite_shuttle.dat": { x: 23.148, y: 19.6538, z: 39.41 },
   "oolite_sidewinder.dat": { x: 63.2292, y: 14.4243, z: 44.431 },
   "oolite_viper.dat": { x: 50, y: 18.1363, z: 65.1994 },
+  "wreck1.dat": { x: 29.2455, y: 16.05487, z: 18.61763 },
+  "wreck2.dat": { x: 30.4875, y: 13.5, z: 21.9375 },
+  "wreck3.dat": { x: 29.40626, y: 8.53125, z: 12.1875 },
+  "wreck4.dat": { x: 28.875, y: 15.35937, z: 21.73437 },
+  "wreck5.dat": { x: 29.75, y: 14.6875, z: 24.375 },
 };
 
 interface Token {

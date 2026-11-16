@@ -48,7 +48,21 @@ export const DebrisCatalogueSchema = z
     (records) =>
       new Set(records.map((record) => record.key)).size === records.length,
     { message: "debris keys must be unique" },
-  );
+  )
+  // The kill path draws one pod model, one plate model (D16-07) and a wreck
+  // uniformly from the wreck list (D16-16), so each role must be present.
+  .refine(
+    (records) => records.filter((record) => record.role === "pod").length === 1,
+    { message: "the debris catalogue needs exactly one pod" },
+  )
+  .refine(
+    (records) =>
+      records.filter((record) => record.role === "plate").length === 1,
+    { message: "the debris catalogue needs exactly one plate" },
+  )
+  .refine((records) => records.some((record) => record.role === "wreck"), {
+    message: "the debris catalogue needs at least one wreck",
+  });
 
 export type DebrisRecord = z.infer<typeof DebrisRecordSchema>;
 export type DebrisCatalogue = z.infer<typeof DebrisCatalogueSchema>;

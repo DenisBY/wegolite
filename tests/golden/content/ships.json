@@ -7,6 +7,7 @@
   "vendoredModelEntries": [
     "adder",
     "adder-player",
+    "alloy",
     "barrel",
     "buoy",
     "buoy-witchpoint",
@@ -27,6 +28,10 @@
     "moray-player",
     "morayMED",
     "morayMED-player",
+    "more-wreckage2",
+    "more-wreckage3",
+    "more-wreckage4",
+    "more-wreckage5",
     "oolite-cargopod-virtual",
     "oolite-cobra3-strict",
     "oolite-tutorial-buoy",
@@ -35,10 +40,16 @@
     "oolite-tutorial-station",
     "oolite_buoy_subentity",
     "oolite_template_tutorial-krait-wave1",
+    "oolite_template_wreckage-chunk",
+    "scarred-alloy",
     "shuttle",
     "sidewinder",
     "viper",
-    "viper-pursuit"
+    "viper-pursuit",
+    "wreckage-chunk",
+    "wreckage-chunk2",
+    "wreckage-chunk3",
+    "wreckage-component"
   ],
   "marketDefinition": {
     "absent": 180,

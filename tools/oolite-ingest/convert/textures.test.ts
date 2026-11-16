@@ -33,6 +33,8 @@ import {
   sampleNearest,
 } from "./textures.js";
 import {
+  DEBRIS_GLBS,
+  LEGACY_TEXTURED_ENTRIES,
   NPC_SHIP_GLBS,
   convertMesh,
   emissiveFile,
@@ -79,12 +81,70 @@ function caught(body: () => void): { message: string; code?: string } {
 }
 
 describe("texture reference closure", () => {
-  it("resolves exactly the 57 allowlisted names, in both directions", () => {
+  it("resolves exactly the 59 allowlisted names, in both directions", () => {
     const references = resolveReferencedTextures(catalogue());
 
     expect(nameList(references)).toEqual([...VENDORED_TEXTURES].sort());
     expect([...VENDORED_TEXTURES].sort()).toEqual(nameList(references));
-    expect(references.size).toBe(57);
+    expect(references.size).toBe(59);
+  });
+
+  it("adds the legacy wreck texture and the alloy plate's maps (DATA-16)", () => {
+    const references = resolveReferencedTextures(catalogue());
+
+    // The five wrecks author no material: their legacy texture is a diffuse
+    // reference of each entry (Oolite's default material).
+    expect([...(references.get("wreck.png") ?? [])]).toEqual(
+      Object.keys(LEGACY_TEXTURED_ENTRIES).map((shipKey) => ({
+        shipKey,
+        materialKey: "wreck.png",
+        mapKind: "diffuse",
+      })),
+    );
+    // The alloy diffuse is both the material key and the emission source.
+    expect([...(references.get("oolite_alloy_diffuse.png") ?? [])]).toEqual([
+      {
+        shipKey: "alloy",
+        materialKey: "oolite_alloy_diffuse.png",
+        mapKind: "diffuse",
+      },
+      {
+        shipKey: "alloy",
+        materialKey: "oolite_alloy_diffuse.png",
+        mapKind: "emission",
+      },
+    ]);
+    // D16-07: the scarred plate's texture is not compiled.
+    expect(nameList(references).some((name) => name.includes("scarred"))).toBe(
+      false,
+    );
+  });
+
+  it("still fails when the allowlisted wreck texture loses its reference", () => {
+    // Each wreck authors a "wreck.png" material drawing another map, so the
+    // legacy rule adds nothing and wreck.png is allowlisted but unreferenced.
+    const entries = catalogue().map((entry) =>
+      Object.hasOwn(LEGACY_TEXTURED_ENTRIES, entry.key)
+        ? {
+            ...entry,
+            shipDef: {
+              ...entry.shipDef,
+              materials: {
+                "wreck.png": { diffuse_map: "oolite_viper_diffuse.png" },
+              },
+            },
+          }
+        : entry,
+    );
+    let caught: unknown;
+    try {
+      resolveReferencedTextures(entries);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as { code?: string }).code).toBe("TEXTURE_MISSING");
+    expect((caught as Error).message).toContain("wreck.png");
   });
 
   it("keeps the Cobra variant textures out of the closure and both trees", () => {
@@ -260,6 +320,7 @@ function emissiveUri(json: GlbJson, material: GlbMaterialJson): string | null {
 
 const EMISSIVE_FILES = [
   "oolite_adder_diffuse_emissive.png",
+  "oolite_alloy_diffuse_emissive.png",
   "oolite_buoy_subents_emissive.png",
   "oolite_cobra3_diffuse_emissive.png",
   "oolite_cobramk1_diffuse_emissive.png",
@@ -372,7 +433,7 @@ describe("emitTextures", () => {
       const cobra = readGlbJson("public/models/cobra3.glb");
       const coriolis = readGlbJson("public/models/coriolis.glb");
       const buoy = readGlbJson("public/models/buoy.glb");
-      const npcImages = NPC_SHIP_GLBS.flatMap(
+      const npcImages = [...NPC_SHIP_GLBS, ...DEBRIS_GLBS].flatMap(
         (file) => readGlbJson(`public/models/${file}`).images,
       );
       const glbEmissive = [
