@@ -113,8 +113,8 @@ const NO_DAMAGE: DamageResult = Object.freeze({
  * The attacker's side decides the shield: `attackerOffset` (attacker position
  * minus the player's) projected on the player's `forward` axis, `>= 0` being
  * ahead or exactly abeam, which drains the forward shield; `< 0` drains the aft
- * shield. The overflow drains energy, which floors at 0 (nothing is destroyed
- * this milestone), and heats the cabin by `ENERGY_DAMAGE_TO_HEAT_FACTOR` per
+ * shield. The overflow drains energy, which floors at 0 (the player's death is
+ * Phase 20, D-13), and heats the cabin by `ENERGY_DAMAGE_TO_HEAT_FACTOR` per
  * point while it is below `SHIP_MAX_CABIN_TEMP`, never past it (D-05: energy
  * damage is the only heat input).
  *

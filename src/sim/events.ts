@@ -179,19 +179,22 @@ export type SimEvent =
 
 /**
  * The 15 presentation and audio kinds reserved ahead of their producers so the
- * vocabulary is fixed before Phases 13 and 17 consume it (Pitfall 13). Only
- * `entityRemoved` is emitted in Phase 8 (by `stepWorld`, one per committed
- * removal, ascending). The others first appear in: 13 lasers and hits
- * (`laserFired`, `shipHit`, `energyLow`, `proximityWarning`), 15 destruction
- * and scooping (`shipDestroyed`, `shipSpawned`, `playerDestroyed`,
- * `cargoScooped`, `commsMessage`), 16 pods (`podEjected`), 19 legal status
- * (`legalStatusChanged`), 21 missiles and ECM (`missileLaunched`,
- * `missileDetonated`, `ecmFired`).
+ * vocabulary is fixed before Phases 13 and 17 consume it (Pitfall 13). Where
+ * each first appears: 8 `entityRemoved` (by `stepWorld`, one per committed
+ * removal, ascending); 13 lasers and hits (`laserFired`, `shipHit`); 15
+ * destruction (`shipDestroyed`, through `killShip`, and a second group of
+ * `entityRemoved` after the ledger's commit, `combat/step.ts`); later, scooping
+ * and comms (`cargoScooped`, `commsMessage`), spawning and the player's death
+ * (`shipSpawned`, `playerDestroyed`), pods (`podEjected`), legal status
+ * (`legalStatusChanged`) and missiles and ECM (`missileLaunched`,
+ * `missileDetonated`, `ecmFired`); `energyLow` and `proximityWarning` have no
+ * producer yet.
  *
  * Phase 13 emits `laserFired` and `shipHit` (`../sim.ts` through
  * `combat/step.ts`); `energyLow` and `proximityWarning` stay unemitted for now
  * (RESEARCH A5). Phase 13 also adds the non-reserved `laserRefused` and the
  * four ident kinds `identEngaged`, `identLocked`, `identLost` and `identOff`.
+ * Phase 15 emits `shipDestroyed` and the second `entityRemoved` group.
  *
  * The field names follow ARCHITECTURE section 7.6, with the one deviation
  * recorded as PROJECT.md Key Decisions row (g): section 7.6's laser `kind` is

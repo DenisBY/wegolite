@@ -32,6 +32,7 @@ import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import {
   createEventRouter,
+  createHudMessages,
   createHyperspaceFlow,
 } from "../../../src/app/session/event-router.js";
 import { createHyperspaceController } from "../../../src/app/session/hyperspace-controller.js";
@@ -50,6 +51,7 @@ import type { WorldLifecycle } from "../../../src/app/session/world-lifecycle.js
 import type { NpcShip, System } from "../../../src/content/types.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
+import type { MessageQueue } from "../../../src/render/hud/messages.js";
 import type { Command } from "../../../src/sim/commands.js";
 import {
   arrivalMarketSeed,
@@ -69,6 +71,7 @@ import {
 import { hashFlight, initFlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { worldSeedFor } from "../../../src/sim/rng.js";
+import { npcContacts } from "../../../src/sim/world/contacts.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { liveEntityCount, spawnEntity } from "../../../src/sim/world/world.js";
@@ -106,14 +109,28 @@ interface Session {
   readonly publisher: ProbePublisher;
   /** What the fake keyboard reports as held; `fire` is the laser key. */
   readonly held: { fire: boolean };
+  /** The HUD message queue the router's message subscriber writes to. */
+  readonly messages: MessageQueue;
+  /**
+   * Every event kind the router handed to the HUD message subscriber, in order.
+   * Filled only when the session was built with `hudRouting`; empty otherwise.
+   */
+  readonly routed: string[];
 }
 
 /**
  * A docked Lave New game over the real driver, router, lifecycle and probe
  * publisher; `search` is parsed exactly as the session parses the URL.
  * `populated` adds the inert populator and the NPC masses (with traffic on).
+ * `hudRouting` wires the real HUD message subscriber (`createHudMessages`)
+ * behind a recorder, so the routed event kinds and the message queue can be
+ * read; every other session keeps the quiet stub.
  */
-function session(search: string, populated = false): Session {
+function session(
+  search: string,
+  populated = false,
+  hudRouting = false,
+): Session {
   const ctx = createSessionState({
     system: lave.system,
     saveStatus: "absent",
@@ -178,6 +195,16 @@ function session(search: string, populated = false): Session {
   const pending: Command[] = [];
   const messages = createMessageQueue(4);
   const quiet = (): void => undefined;
+  const routed: string[] = [];
+  const hudMessages = hudRouting
+    ? (() => {
+        const real = createHudMessages({ galaxyById, messages }, ctx);
+        return (event: Parameters<typeof real>[0]): void => {
+          routed.push(event.kind);
+          real(event);
+        };
+      })()
+    : quiet;
   // The driver and the publisher need each other; bind late.
   const bound: { publisher?: ProbePublisher } = {};
 
@@ -212,7 +239,7 @@ function session(search: string, populated = false): Session {
     launchSequence: { advance: () => "flash" },
     router: createEventRouter(ctx, {
       stationFlow: quiet,
-      hudMessages: quiet,
+      hudMessages,
       dockFeedback: quiet,
       hyperspaceFlow: createHyperspaceFlow(ctx, {
         messages,
@@ -261,7 +288,18 @@ function session(search: string, populated = false): Session {
     advanceTicks: (n) => driver.advanceTicks(n),
   });
   bound.publisher = publisher;
-  return { ctx, driver, pending, lifecycle, probe, gate, publisher, held };
+  return {
+    ctx,
+    driver,
+    pending,
+    lifecycle,
+    probe,
+    gate,
+    publisher,
+    held,
+    messages,
+    routed,
+  };
 }
 
 /** The state and the live world of a session, hashed the way the hook does. */
@@ -553,6 +591,91 @@ describe("tick parity with combat (plan 13-11, CBT-04 to CBT-07)", () => {
       { laserMounts: { ...DEFAULT_LASER_MOUNTS, fore: NO_LASER } },
     );
     expect(empty.combat.laserTemp.fore).toBe(0);
+  });
+});
+
+function liveWorldOf(s: Session): NonNullable<WorldLifecycle["world"]> {
+  const world = s.lifecycle.world;
+  if (world === undefined) throw new Error("no world");
+  return world;
+}
+
+describe("the browser kill step's twin (plan 15-04, FOUND-19, R2-1)", () => {
+  it("fire held from the spawn destroys the hook-spawned shooter before its return fire empties the bank", () => {
+    const s = session("?test=1&clock=manual&traffic=1", true, true);
+    const state = s.ctx.core.state;
+    const combat = s.ctx.core.combat;
+    if (state === undefined || combat === undefined) {
+      throw new Error("no state");
+    }
+    s.publisher.bindTestHook(state);
+    const hook = s.probe.test;
+    if (hook === undefined) throw new Error("no hook");
+    const world = (): ReturnType<typeof liveWorldOf> => liveWorldOf(s);
+
+    // Launch and fly the scripted exit out, then park the ship.
+    s.pending.push(launch);
+    s.driver.advanceTicks(1);
+    s.driver.advanceTicks(300);
+    expect(state.mode).toBe("inFlight");
+    hook.setSpeed(0);
+
+    // 1. Holding fire for 30 ticks heats the fore laser; then 60 ticks with
+    //    fire released (the pulse period is 61 ticks) leave it ready.
+    s.held.fire = true;
+    s.driver.advanceTicks(30);
+    s.held.fire = false;
+    expect(combat.laserTemp.fore).toBeGreaterThan(0);
+    s.driver.advanceTicks(60);
+
+    // 2. Fire is held from the moment the shooter spawns.
+    expect(combat.fwdShield).toBe(128);
+    s.held.fire = true;
+    expect(hook.spawnTestShooter()).toBe(true);
+    const spawnTick = state.tick;
+    const routedAtSpawn = s.routed.length;
+    const before = npcContacts(world()).length;
+    s.driver.advanceTicks(360);
+    expect(combat.fwdShield).toBeLessThan(128);
+
+    // 3. R engages ident and locks the ship in the sights.
+    s.pending.push({ kind: "ident" });
+    s.driver.advanceTicks(2);
+    expect(s.routed).toContain("identLocked");
+    expect(s.messages.current(state.flightTime)).toMatch(
+      /^Ident system locked onto/,
+    );
+
+    // 4. One tick at a time until the scanner loses a ship.
+    const bound = spawnTick + 1500;
+    let killTick = -1;
+    let routedBeforeKillTick = routedAtSpawn;
+    while (state.tick < bound) {
+      routedBeforeKillTick = s.routed.length;
+      s.driver.advanceTicks(1);
+      if (npcContacts(world()).length === before - 1) {
+        killTick = state.tick;
+        break;
+      }
+    }
+
+    // The scanner lost exactly one ship, and the loop ended on the kill, not on
+    // its bound (the vacuity guard).
+    expect(killTick, "the kill landed before the bound").toBeGreaterThan(-1);
+    expect(npcContacts(world()).length).toBe(before - 1);
+    // The 14th pulse hit is lethal at spawn + 1 + 13 * 61 (measured: 794).
+    expect(killTick - spawnTick).toBe(794);
+    // The bank still paid for every shot: no refusal reached the HUD, and the
+    // bank at the kill is above a floor under the modelled minimum of 20 (the
+    // measured value is about 50), so a drift of a few shooter hits fails here.
+    expect(s.routed.slice(routedAtSpawn)).not.toContain("laserRefused");
+    expect(combat.energy).toBeGreaterThanOrEqual(16);
+    // The lock on the destroyed ship ends on the kill tick with identLost and
+    // no fresh lock follows in this world: "Target lost." is what shows.
+    const kindsOfKillTick = s.routed.slice(routedBeforeKillTick);
+    expect(kindsOfKillTick).toContain("identLost");
+    expect(kindsOfKillTick).not.toContain("identLocked");
+    expect(s.messages.current(state.flightTime)).toBe("Target lost.");
   });
 });
 
