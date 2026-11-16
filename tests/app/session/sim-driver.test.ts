@@ -50,6 +50,8 @@ import {
 } from "../../../src/sim/flight/controller.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
+import { flightTableFrom } from "../../../src/sim/npc/stats.js";
+import type { FlightRecord } from "../../../src/sim/npc/stats.js";
 import { spawnEntity } from "../../../src/sim/world/world.js";
 import type { InputFrame } from "../../../src/sim/state.js";
 import { MAX_STEPS_PER_FRAME } from "../../../src/sim/step.js";
@@ -58,6 +60,17 @@ import { sessionSources } from "../../helpers/session-source.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { realHullTable } from "../../helpers/hull-table.js";
 import { realNpcWeapons } from "../../helpers/npc-weapons.js";
+
+/** One flight record for the step-options hand-over cases (plan 14-18). */
+const VIPER_FLIGHT_RECORD: FlightRecord = {
+  key: "viper",
+  maxFlightSpeed: 320,
+  maxFlightRoll: 2.5,
+  maxFlightPitch: 1.5,
+  thrust: 15,
+  mass: 34_040.6796875,
+  forwardWeapon: "EQ_WEAPON_PULSE_LASER",
+};
 
 const hooks = vi.hoisted(() => ({
   onStep: (commands: readonly unknown[]): void => {
@@ -390,20 +403,27 @@ describe("stepOnce, the single flight step", () => {
     const plain = harness({ mode: "inFlight" });
     plain.driver.advanceFrame(DT);
     const masses = [{ specKey: "viper", mass: 34_040.6796875 }];
+    const flight = flightTableFrom([VIPER_FLIGHT_RECORD]);
     const loaded = harness({ mode: "inFlight" });
     loaded.ctx.core.npcTraffic = {
       catalogue: [],
       records: [],
       masses,
+      flight,
       weapons: new Map(),
     };
     loaded.driver.advanceFrame(DT);
     expect(seen).toHaveLength(2);
     const [without, withMasses] = seen as {
       hyperspace?: { shipMasses?: unknown };
+      npcFlight?: unknown;
     }[];
     expect(without?.hyperspace).not.toHaveProperty("shipMasses");
     expect(withMasses?.hyperspace?.shipMasses).toBe(masses);
+    // The compiled flight table travels the same way (AI-01, plan 14-18): the
+    // same list reaches the step, and the key is absent without traffic.
+    expect(without).not.toHaveProperty("npcFlight");
+    expect(withMasses?.npcFlight).toBe(flight);
   });
 
   it("moves the pose window forward by one step", () => {
@@ -489,6 +509,7 @@ describe("combat wiring (plan 13-11, CBT-04 to CBT-07)", () => {
       catalogue: [],
       records: [],
       masses: [],
+      flight: [],
       weapons: realNpcWeapons(),
     };
     const world = lifecycle.world;
@@ -1192,6 +1213,40 @@ describe("buildStepOptions", () => {
     });
     expect(without.hyperspace).not.toHaveProperty("shipMasses");
     expect(Object.keys(without.hyperspace ?? {})).not.toContain("shipMasses");
+  });
+
+  it("carries the NPC flight table under npcFlight and omits the key without it (plan 14-18)", () => {
+    const npcFlight = flightTableFrom([VIPER_FLIGHT_RECORD]);
+    const withTable = buildStepOptions({
+      fuel: 70,
+      system: lave.system,
+      target: undefined,
+      equipment,
+      dock,
+      laserMounts: DEFAULT_LASER_MOUNTS,
+      npcFlight,
+    });
+    expect(withTable.npcFlight).toBe(npcFlight);
+    const without = buildStepOptions({
+      fuel: 70,
+      system: lave.system,
+      target: undefined,
+      equipment,
+      dock,
+      laserMounts: DEFAULT_LASER_MOUNTS,
+    });
+    expect(Object.keys(without)).not.toContain("npcFlight");
+    const undocked = buildStepOptions({
+      fuel: 70,
+      system: lave.system,
+      target: undefined,
+      equipment,
+      dock: undefined,
+      laserMounts: DEFAULT_LASER_MOUNTS,
+      npcFlight,
+    });
+    expect(undocked.npcFlight).toBe(npcFlight);
+    expect(undocked).not.toHaveProperty("dock");
   });
 
   it("has no dock key at all without a geometry", () => {

@@ -18,6 +18,7 @@ import {
 } from "../../../src/app/session/traffic.js";
 import type { TrafficContent } from "../../../src/app/session/traffic.js";
 import type { NpcShip } from "../../../src/content/types.js";
+import { flightTableFrom } from "../../../src/sim/npc/stats.js";
 import { liveEntityCount, createWorld } from "../../../src/sim/world/world.js";
 import { laveFixture } from "../../helpers/lave.js";
 
@@ -51,6 +52,25 @@ describe("trafficContent", () => {
         mass: ship.mass,
       });
     });
+  });
+
+  it("builds the flight table with flightTableFrom, one row per catalogue ship (plan 14-18)", () => {
+    const source = catalogue();
+    const content = trafficContent(source);
+    expect(content.flight).toHaveLength(9);
+    // One builder: the table equals the sim's own, not a second mapping.
+    expect(content.flight).toEqual(flightTableFrom(source));
+    source.forEach((ship, index) => {
+      expect(content.flight[index]).toMatchObject({
+        specKey: ship.key,
+        maxFlightSpeed: ship.maxFlightSpeed,
+        maxFlightRoll: ship.maxFlightRoll,
+        maxFlightPitch: ship.maxFlightPitch,
+        thrust: ship.thrust,
+        mass: ship.mass,
+      });
+    });
+    expect(Object.isFrozen(content.flight)).toBe(true);
   });
 
   it("copies the scan class as the catalogue's own string and freezes the arrays", () => {

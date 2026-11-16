@@ -297,7 +297,13 @@ const VIPER_RECORD = {
 function trafficOf(
   records: readonly (typeof VIPER_RECORD)[],
 ): SessionState["core"]["npcTraffic"] {
-  return { catalogue: [], records, masses: [], weapons: new Map() };
+  return {
+    catalogue: [],
+    records,
+    masses: [],
+    flight: [],
+    weapons: new Map(),
+  };
 }
 
 describe("probe.combat (plan 13-14)", () => {

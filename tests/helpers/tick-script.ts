@@ -241,6 +241,7 @@ export function runTickScript(
           laserMounts,
           ...(hulls === undefined ? {} : { hulls }),
           ...(content === undefined ? {} : { npcWeapons: content.weapons }),
+          ...(content === undefined ? {} : { npcFlight: content.flight }),
         }),
         combat,
       );

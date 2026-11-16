@@ -22,6 +22,7 @@ import type { LaserMounts } from "../../sim/combat/mounts.js";
 import type { DockGeometry } from "../../sim/dock/geometry.js";
 import type { StepOptions } from "../../sim/flight/step.js";
 import { witchspaceStationMass } from "../../sim/hyperspace/countdown.js";
+import type { NpcFlightStats } from "../../sim/npc/stats.js";
 import type { ShipMass } from "../../sim/world/ship-field.js";
 
 /** The facts one fixed step needs; every field is read live by the caller. */
@@ -54,6 +55,12 @@ export interface StepOptionsInput {
   readonly hulls?: HullTable;
   /** The NPC forward weapons keyed by spec key; absent with traffic off. */
   readonly npcWeapons?: ReadonlyMap<string, NpcWeapon>;
+  /**
+   * The compiled NPC flight table (AI-01, plan 14-18), from `flightTableFrom`;
+   * absent with traffic off. The session and the Node replay hand the same list
+   * to the step.
+   */
+  readonly npcFlight?: readonly NpcFlightStats[];
 }
 
 /**
@@ -61,8 +68,8 @@ export interface StepOptionsInput {
  * `undefined` (`exactOptionalPropertyTypes`): `target` only when a target is
  * committed, `stationMass` only when the origin's station kind has a recorded
  * mass, `shipMasses` only when the caller has them, `dock` only when the
- * geometry exists, and `combat.hulls` and `combat.npcWeapons` only when the
- * caller has them. `combat` itself is always present: it carries the mounts.
+ * geometry exists, `npcFlight` only when the caller has the table, and
+ * `combat.hulls` and `combat.npcWeapons` only when the caller has them. `combat` itself is always present: it carries the mounts.
  */
 export function buildStepOptions(input: StepOptionsInput): StepOptions {
   const {
@@ -75,6 +82,7 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
     laserMounts,
     hulls,
     npcWeapons,
+    npcFlight,
   } = input;
   // The read-only station mass of the live system's station kind. Only a
   // Coriolis station has a recorded mass; the others omit the fact.
@@ -103,7 +111,11 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
     ...(hulls === undefined ? {} : { hulls }),
     ...(npcWeapons === undefined ? {} : { npcWeapons }),
   };
-  return dock === undefined
-    ? { equipment, hyperspace, combat }
-    : { dock, equipment, hyperspace, combat };
+  const base = {
+    equipment,
+    hyperspace,
+    combat,
+    ...(npcFlight === undefined ? {} : { npcFlight }),
+  };
+  return dock === undefined ? base : { dock, ...base };
 }

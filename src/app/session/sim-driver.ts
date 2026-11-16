@@ -142,6 +142,11 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
       // validated profile (T-13-24); the hull table and the NPC weapons exist
       // only with traffic on, and their keys are omitted without them.
       laserMounts: ctx.core.profile.laserMounts,
+      // The compiled NPC flight table (AI-01), from the same traffic content;
+      // omitted with traffic off.
+      ...(ctx.core.npcTraffic === undefined
+        ? {}
+        : { npcFlight: ctx.core.npcTraffic.flight }),
       ...(ctx.core.hulls === undefined ? {} : { hulls: ctx.core.hulls }),
       ...(ctx.core.npcTraffic === undefined
         ? {}

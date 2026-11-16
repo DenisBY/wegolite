@@ -31,6 +31,8 @@ import type { NpcShip, ShipHullCatalogue } from "../../content/types.js";
 import type { NpcWeapon } from "../../sim/combat/aim.js";
 import type { HullTable } from "../../sim/combat/hit.js";
 import { vec } from "../../sim/math.js";
+import { flightTableFrom } from "../../sim/npc/stats.js";
+import type { NpcFlightStats } from "../../sim/npc/stats.js";
 import type { SystemLayout } from "../../sim/world/layout.js";
 import { populateInertWorld } from "../../sim/world/populate.js";
 import type { InertShipRecord } from "../../sim/world/populate.js";
@@ -45,13 +47,19 @@ export interface TrafficContent {
   /** The step's jump-blockage masses, in catalogue order. */
   readonly masses: readonly ShipMass[];
   /**
+   * The per-kind flight constants the world step steers with (AI-01, plan
+   * 14-18), in catalogue order. Built by the one builder `flightTableFrom`, so
+   * the live session and the Node tick replay hand every step the same table.
+   */
+  readonly flight: readonly NpcFlightStats[];
+  /**
    * The forward weapon of each hull by spec key (CBT-07): static content keyed
    * by the catalogue's own string, never by an entity id.
    */
   readonly weapons: ReadonlyMap<string, NpcWeapon>;
 }
 
-/** Build the populator records and the step masses from the catalogue. */
+/** Build the populator records, the step masses and the flight table from the catalogue. */
 export function trafficContent(catalogue: readonly NpcShip[]): TrafficContent {
   const ships = Object.freeze([...catalogue]);
   return Object.freeze({
@@ -69,6 +77,7 @@ export function trafficContent(catalogue: readonly NpcShip[]): TrafficContent {
     masses: Object.freeze(
       ships.map((ship): ShipMass => ({ specKey: ship.key, mass: ship.mass })),
     ),
+    flight: flightTableFrom(ships),
     weapons: new Map(
       ships.map((ship): [string, NpcWeapon] => {
         const [x, y, z] = ship.forwardWeaponPosition;
