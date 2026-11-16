@@ -179,16 +179,12 @@ test("three scripted flyers are on the scanner, drawn within budget and replay t
   // 2. The scanner count just before the spawn, then the spawn: three more.
   const before = await scannerShips(page);
   expect(
-    await page.evaluate(() => window.__wegolite?.test?.tainted),
-    "nothing has tainted the session yet",
-  ).toBe(false);
-  expect(
     await page.evaluate(() => window.__wegolite?.test?.spawnTestFlyers()),
     "the hook spawned the flyers",
   ).toBe(true);
   expect(
     await page.evaluate(() => window.__wegolite?.test?.tainted),
-    "the hook taints the session so nothing is saved",
+    "the session is tainted so nothing is saved (advanceTicks already tainted it; the hook's own taint order is a unit test)",
   ).toBe(true);
   // One tick so the probe publishes the world with the flyers in it.
   expect(await advance(page, 1)).toBe(LAUNCH_TICKS + 2);
