@@ -1,6 +1,6 @@
 ---
 phase: 13-views-lasers-and-shields
-verified: 2026-11-15T12:00:00Z
+verified: 2026-11-16T09:12:28Z
 status: passed
 score: 5/5 must-haves verified
 covered_files:
@@ -67,15 +67,16 @@ covered_files:
   - src/sim/player/outfitting.ts
   - src/sim/sim.ts
   - src/sim/world/control-impl.ts
-covered_digest: "v4:sha256:84bb80c127e26a3c9466cf1f31784739c800ad5bddd770760b09b438d451ac09"
+covered_digest: "v4:sha256:1d507b1c450264d3ac8f37d955692b3af5e550638745c366f2401f69f91e1e11"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
-  previous_status: human_needed
+  previous_status: passed
   previous_score: 5/5
   gaps_closed: []
   gaps_remaining: []
   regressions: []
+  reason: "Phase 14 (NPC flight and steering) changed four covered files (sim-driver.ts, ships-npc.json, sim.ts, control-impl.ts); regression re-check of the Phase 13 contract at a0287e8"
   resolved_since_previous:
     - "WR-01 (Ctrl blocked bound flight keys): fixed in 382c5c1, tested"
     - "Four human-verification items: all passed in 13-UAT.md (4 of 4)"
@@ -86,14 +87,29 @@ re_verification:
 # Phase 13: Views, Lasers and Shields Verification Report
 
 **Phase Goal:** The player can look and fire in four directions: lasers bought per facing hit ships by their Oolite octree hulls, shields and energy banks absorb and recharge damage, docking restores them, and Oolite's keys for pause, ident and eject are in place; a refused arrival no longer leaves a stale world behind
-**Verified:** 2026-11-15
+**Verified:** 2026-11-16T09:12:28Z
 **Status:** passed
-**Re-verification:** Yes. The previous report (status `human_needed`, initial verification) is superseded. All five roadmap success criteria were re-checked against the code at HEAD (`29cf2bd`); items that changed since `4dcd177` were read line by line.
+**Re-verification:** Yes, a regression re-check after Phase 14. The previous report (status `passed`, 5/5, written at `cebca66`) went stale because Phase 14 changed four files this report covers. All five roadmap success criteria were re-checked against the code at HEAD (`a0287e8`). The earlier history (initial `human_needed` verification, WR-01 fix, UAT, verify-full) is kept in the sections below.
+
+## Regression check after Phase 14 (NPC flight and steering)
+
+Scope: only whether Phase 14 broke the Phase 13 contract. Phase 14 itself is not re-reviewed here. `git diff --stat cebca66 HEAD -- src` shows 48 changed source files; of the 51 implementation files this report covers, exactly four changed. Every other covered file (all of `src/sim/combat/*`, `src/sim/events.ts`, `src/sim/player/outfitting.ts`, `src/persistence/save.ts`, `src/input/*`, `src/settings/schema.ts`, `src/render/*`, `ships-hulls.json`, and the other `src/app/*` files) is byte-identical to the previous verification.
+
+| Covered file | What Phase 14 changed (read in `git diff cebca66 HEAD`) | Effect on the Phase 13 contract |
+|--------------|----------------------------------------------------------|---------------------------------|
+| `src/sim/sim.ts` | `stepSim` imports `AI_REGISTRY` and passes `stepWorld(..., AI_REGISTRY, facts)` with `facts = {flight: options.npcFlight, masses: options.hyperspace.shipMasses}`. The order is unchanged: `stepFlight`, then `stepPlayerCombat`, then `stepWorld` (only in `launching`/`inFlight` and not on the `hyperspaceJumped` step), then `resolveShots(world, worldStepped, ...)`. | None. The hyperspace-jump guard (FOUND-17, WORLD-14) is untouched; the combat call order and the `resolveShots` drain of `world.fireQueue` after the world step are untouched. |
+| `src/sim/world/control-impl.ts` | `setTarget` returns for the ship itself and zeroes `steer.trackingCount`; `setBehaviour` calls `enterBehaviour(entity, behaviour)` instead of assigning `nav.behaviour`. | None. `ShipControl.fire` (lines 122-129: bounded, de-duplicated push onto `world.fireQueue`) is unchanged, so a scripted pilot still reaches `resolveShotHits` and `firstShipHit` the same way (CBT-07). |
+| `src/app/session/sim-driver.ts` | `stepOnce` adds `npcFlight: ctx.core.npcTraffic.flight` to the step options, omitted with traffic off. | None. `laserMounts`, `hulls` and `npcWeapons` are passed exactly as before; the new key is additive (`step-options.ts`, `traffic.ts` diffs read: an extra `flight` field and an optional `npcFlight` option). |
+| `src/content/generated/ships-npc.json` | Additive: `maxFlightPitch`, `maxFlightRoll`, `maxFlightSpeed`, `thrust` per hull. The only removed lines are the trailing-comma form of `scanClass`; no existing field value changed (`maxEnergy`, `radius`, `mass`, `forwardWeaponPosition` and the weapon fields are untouched). | None. The Phase 13 reads (NPC energy, weapon mount, mass) see the same values. The hull octrees live in the unchanged `ships-hulls.json`. |
+
+Behavioural reading of the one change that could matter to combat: the world step now flies every AI ship with `steerShip` instead of the Phase 8 constant-speed integrator. This moves NPCs (so an NPC target can be somewhere else on the next tick), but the hit rule still takes the candidates' positions at the resolve step and the hull table, not the steering, so the octree rule, the damage function, the energy floor at 0 and the `ShipControl.fire` queue are the same code paths. `hit.ts` and `step.ts` are unchanged. Steering reads the player's hull radius from the compiled constant `PLAYER_COLLISION_RADIUS_M`, not from the lazy hull table, so a hull load cannot change a hash.
+
+Targeted regression run in the container (this session), `docker compose run --rm test npx vitest run tests/sim/combat tests/app/session/hyperspace-controller.test.ts tests/app/session/world-lifecycle.test.ts tests/app/session-order.test.ts tests/input tests/render/laser-shots.test.ts tests/ui/hud-model.test.ts tests/persistence/save-v4.test.ts --coverage.enabled=false`: **20 files, 533 tests passed**, exit 0. This covers the combat core (hit, octree, weapons, shields, state, step, aim, ident, dock-reset, npc-fire), the arrival refusal controller scenarios, the key bindings and chord keys, the laser shot layer, the HUD model and the v4 save. Together with the evidence the orchestrator supplied (full local suite 203 files, 4997 passed; remote `verify` exit 0 at `9333ca9`; remote `verify-full` exit 0 at `d8b4483`; the Phase 13 regression gate of 8 files, 204 tests), no Phase 13 behaviour regressed. The browser gates were not re-run by this verifier.
 
 ## Evidence base
 
-- `docker compose run --rm test`, run by the verifier in this session: **170 test files passed, 3598 tests passed, 2 skipped, exit 0** (coverage floors enforced by the same run).
-- `docker compose run --rm typecheck`: exit 0. `docker compose run --rm lint` (eslint and prettier --check): exit 0.
+- Post-Phase-14 evidence (this re-check): targeted container run of the Phase 13 combat, view, input, HUD, laser-shot and save tests, 20 files and 533 tests passed (see the regression section above). Evidence supplied by the orchestrator and not re-run here: full local suite 203 files, 4997 passed; remote `verify` exit 0 at `9333ca9`; remote `verify-full` exit 0 at `d8b4483`; Phase 13 regression gate 8 files, 204 tests passed.
+- Earlier round, by the previous verifier: `docker compose run --rm test` **170 test files passed, 3598 tests passed, 2 skipped, exit 0** (coverage floors enforced by the same run); `typecheck` and `lint` exit 0.
 - Browser gates were not re-run by the verifier. They ran on the remote test machine and are recorded in 13-VALIDATION.md: `verify` and `verify-full` at `2c41b9d`, 132 of 133 Chromium specs pass. The single failure, `tests/e2e/launch.spec.ts:129` (torus hint), is a load flake that fails equally on the pre-phase commit `0c166d0` (3 of 8 repeats at HEAD, 2 of 8 at baseline) and passes alone. It is not attributable to this phase. This is evidence reported by the orchestrator and the validation file, not something this report re-proved.
 - The Oolite reference was read directly: `OOLaserShotEntity.m:152-162` (the player's shot is repositioned from the owner ship each update), `equipment.plist` for the laser table (compared in the previous round, unchanged).
 
@@ -131,7 +147,7 @@ None. Autonomous NPC fire (CBT-15), destruction and the escape pod are out of sc
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
 | `src/sim/combat/{octree,hit,aim,constants,weapons,shields,state,step,ident,mounts}.ts` | Combat core | VERIFIED | Substantive, imported by `sim.ts`; no debt markers |
-| `src/content/generated/ships-hulls.json`, `ships-npc.json` | Octrees and NPC energy fields | VERIFIED | Unchanged since the previous round; drift gate passed in `verify` |
+| `src/content/generated/ships-hulls.json`, `ships-npc.json` | Octrees and NPC energy fields | VERIFIED | `ships-hulls.json` unchanged; `ships-npc.json` gained only additive Phase 14 flight fields, the Phase 13 fields are unchanged; drift gate passed in remote `verify` |
 | `src/persistence/save.ts` | v4 save with `laserMounts` | VERIFIED | `SAVE_VERSION = 4` |
 | `src/render/bodies/laser-shots.ts` | Shot layer with ship-frame anchoring | VERIFIED (wired) | Fed from `laserFired` in `event-router.ts`, updated each frame in `render-driver.ts` with the player pose |
 | `src/input/keyboard.ts` `allowsChordKey` | Ctrl-held flight keys | VERIFIED (wired) | Called from `onKeyDown`; exported and unit-tested |
@@ -143,7 +159,7 @@ None. Autonomous NPC fire (CBT-15), destruction and the escape pod are out of sc
 |------|----|-----|--------|
 | `hyperspace-controller.handleHyperspaceJumped` | `worldLifecycle.begin` | arrival install block | WIRED |
 | `sim.ts stepSim` | `stepPlayerCombat` / `resolveShots` | combat state parameter | WIRED |
-| `sim-driver.stepOnce` | `stepSim` | combat state, profile `laserMounts`, `hulls`, `npcWeapons` | WIRED |
+| `sim-driver.stepOnce` | `stepSim` | combat state, profile `laserMounts`, `hulls`, `npcWeapons` (and, since Phase 14, the additive `npcFlight`) | WIRED |
 | `ShipControl.fire` | `world.fireQueue` -> `firstShipHit` | same rule as the player | WIRED |
 | `step.ts resolveShotHits` | `laserFired.playerShot` | event field | WIRED |
 | `event-router laserFired` | `scene.shots.add(..., anchor)` | player pose for player shots only | WIRED |
@@ -166,7 +182,8 @@ None. Autonomous NPC fire (CBT-15), destruction and the escape pod are out of sc
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Whole unit suite with coverage floors | `docker compose run --rm test` | 170 files, 3598 passed, 2 skipped, exit 0 | PASS |
+| Phase 13 test subset after Phase 14 | `docker compose run --rm test npx vitest run tests/sim/combat tests/app/session/hyperspace-controller.test.ts tests/app/session/world-lifecycle.test.ts tests/app/session-order.test.ts tests/input tests/render/laser-shots.test.ts tests/ui/hud-model.test.ts tests/persistence/save-v4.test.ts --coverage.enabled=false` | 20 files, 533 passed, exit 0 | PASS |
+| Whole unit suite with coverage floors (earlier round) | `docker compose run --rm test` | 170 files, 3598 passed, 2 skipped, exit 0 | PASS |
 | Types | `docker compose run --rm typecheck` | exit 0 | PASS |
 | Lint and formatting | `docker compose run --rm lint` | exit 0 | PASS |
 
@@ -208,5 +225,5 @@ No gaps. All five roadmap success criteria and all seven requirement IDs are bac
 
 ---
 
-_Verified: 2026-11-15_
+_Verified: 2026-11-16T09:12:28Z_
 _Verifier: Claude (gsd-verifier)_
