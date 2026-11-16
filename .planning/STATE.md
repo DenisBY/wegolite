@@ -2,9 +2,14 @@
 gsd_state_version: "1.0"
 milestone: v2.3
 milestone_name: Combat and Death
+current_phase: 15
+current_phase_name: not started; Phases 16 and 17 can run in parallel once it lands
 status: planning
-last_updated: "2026-11-16T12:07:39.938Z"
+stopped_at: Phase 15 context gathered
+last_updated: "2026-11-16T13:44:03.358Z"
 last_activity: 2026-11-16
+last_activity_desc: v2.3 roadmap created (Phases 15-20, 16/16 requirements mapped)
+state_head: 278c1909ac7b487f8d37250d3b3ab2734adeb6f2
 progress:
   total_phases: 6
   completed_phases: 0
@@ -580,9 +585,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-16
-Stopped at: v2.3 roadmap created (Phases 15-20); awaiting owner approval
-Resume file: None
+Last session: 2026-11-16T13:44:03.294Z
+Stopped at: Phase 15 context gathered
+Resume file: .planning/phases/15-damage-ledger-and-kills/15-CONTEXT.md
 
 ## Operator Next Steps
 
