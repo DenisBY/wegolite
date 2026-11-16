@@ -54,11 +54,13 @@ import type { World } from "./world/world.js";
  *
  * Combat (CBT-04 to CBT-07, DOCK-10): the optional trailing `combat` state is
  * the player's views, lasers, shields and energy. A caller that passes none
- * behaves exactly as before, with no combat step and no resolution. Shots are
+ * has no player combat step (no lasers, shields or ident lock). Shots are
  * queued before the world step and resolved after it, so a hit lands at one
  * fixed point of the tick and `stepWorld` always sees the energy of the
  * previous tick (RESEARCH A6). The shots are resolved against the world only
- * when the world was stepped this tick.
+ * when the world was stepped this tick, and then whether or not `combat` was
+ * passed: the NPC shots, the ledger, the kills, the immediate AI drain and the
+ * second `commitWorld` never depend on the player's combat state.
  */
 export function stepSim(
   player: FlightState,

@@ -21,7 +21,10 @@
  *   removed by a second `commitWorld` so the tick boundary holds no dead
  *   entity, and an ident lock on it ends on the same step.
  *
- * Neither function reads the clock or a random stream.
+ * Neither function reads the clock. `resolveShots` draws no random value itself,
+ * but a kill tick runs the immediate AI drain (`drainAiEventsNow`), whose
+ * `onEvent` handlers may draw from the entity's hashed `ai` stream; that draw is
+ * deterministic and part of the world hash.
  */
 
 import type { SimEvent } from "../events.js";
