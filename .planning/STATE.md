@@ -31,8 +31,8 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 
 Phase: 15 (Damage Ledger and Kills) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-11-16 — Plan 15-02 complete (FOUND-18 field half; FOUND-18 stays open for 15-03 and 15-06)
+Status: All six plans complete, ready for phase verification
+Last activity: 2026-11-16 — Plan 15-06 complete (last plan of Phase 15; FOUND-18 and FOUND-19 complete; OD-1 and OD-2 pending owner acknowledgement)
 
 
 ## Performance Metrics
