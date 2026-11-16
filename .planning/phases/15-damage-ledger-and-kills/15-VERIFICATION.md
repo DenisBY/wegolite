@@ -1,7 +1,8 @@
 ---
 phase: 15-damage-ledger-and-kills
 verified: 2026-11-16T20:10:00Z
-status: human_needed
+status: passed
+owner_acknowledged: "OD-1 and OD-2 accepted by the owner 2026-11-16 after two independent reviews (opus, fable)"
 score: 4/4 must-haves verified
 covered_files:
   - ".planning/phases/15-damage-ledger-and-kills/15-01-PLAN.md"
