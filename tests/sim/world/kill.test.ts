@@ -948,7 +948,19 @@ describe("killShip with a debris context: totality and idempotence (D-15, plan 1
   }
 
   function pods(world: World): Entity[] {
-    return world.store.live.filter((e) => !e.dead && e.kind === "cargo");
+    return world.store.live.filter(
+      (e) => !e.dead && e.kind === "cargo" && e.specKey === "barrel",
+    );
+  }
+
+  /** Every live debris piece other than a pod (wrecks, from plan 16-04 plates). */
+  function otherDebris(world: World): Entity[] {
+    return world.store.live.filter(
+      (e) =>
+        !e.dead &&
+        (e.kind === "wreckage" ||
+          (e.kind === "cargo" && e.specKey !== "barrel")),
+    );
   }
 
   /** Kill with `content`; assert no throw, no repair needed, at most 15 pods. */
@@ -1017,7 +1029,11 @@ describe("killShip with a debris context: totality and idempotence (D-15, plan 1
       const nextId = world.store.nextId;
       expect(killTotal(world, victim, content)).toBe(finalStream);
       expect(pods(world)).toHaveLength(0);
-      expect(world.store.nextId).toBe(nextId);
+      // Only the pieces after the pods (wrecks, plates) took ids.
+      expect(world.store.nextId).toBe(nextId + otherDebris(world).length);
+      expect(otherDebris(world)).toHaveLength(
+        otherDebris(reference.world).length,
+      );
     }
   });
 

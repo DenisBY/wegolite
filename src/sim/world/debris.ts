@@ -19,10 +19,15 @@
  *    new hashed field is needed);
  * 2. the pods, in capsule index order: one survival draw per capsule examined,
  *    then 13 draws per survivor (box x, y, z; jitter x, y, z; velocity x, y, z;
- *    quaternion w, x, y, z).
+ *    quaternion w, x, y, z);
+ * 3. the wreckage, only when `canFragment` and `n_alloys > 0` (`ShipEntity.m:
+ *    8044`): the `n_wreckage` draw `floor(u x (n_alloys + 2))` when `n_alloys <
+ *    3` (else 3 with no draw), then per wreck `i`: 7 octant draws
+ *    (`OCTANT_DRAWS_PER_WRECK`, D16-17), the lifetime, the model (uniform over
+ *    the wreck list, D16-16), the expected mass, the quaternion (4) and the push.
  *
- * Plan 16-04 appends the wreckage, the alloy plate and the blast after the pods,
- * so no pod value moves. Every draw of a piece is taken before its spawn is
+ * The wreckage, the plate and the blast come after the pods, so no pod value
+ * moves (plan 16-04). Every draw of a piece is taken before its spawn is
  * attempted and no draw depends on a spawn's result, so a refused spawn (the cap
  * gate below, or any `spawnEntity` refusal) never changes a later value or
  * `nextId` (Pitfall 1).
@@ -40,6 +45,19 @@
  * victim's drift `velocity`, never its flight `speed` (D-01). Pods drift in
  * `stepDebris` (`./step.ts`, D16-19) and never expire (D16-06).
  *
+ * A wreck (D16-15) is kind `wreckage`, scan class `CLASS_NO_DRAW`
+ * (`shipdata.plist:4243`), no AI, no recharge, with `energy = maxEnergy =
+ * lifetime / 2 = 375 u + 125 i + 50` (`ShipEntity.m:8063-8064`, `Universe.m:
+ * 5517`; Oolite's `max_energy` 20000 is irrelevant because nothing recharges a
+ * wreck). Its position is the victim's position plus a random solid point of
+ * the victim's octree (`randomOctreePoint`, the origin when the table does not
+ * hold it) rotated by the victim's orientation; its model is rescaled
+ * uniformly to `0.1 x victim mass x (0.75 .. 1.25)`, so its radius is
+ * `model.radius x cbrt(expected mass / model.mass)`; its velocity is the
+ * victim's drift plus `normal(dir) x u x radius`. It burns down in
+ * `stepDebris` (`./step.ts`, D16-11) and leaves through `killShip`. Wreckage
+ * spawns only while fewer than `WRECKAGE_ENTITY_LIMIT` entities are live.
+ *
  * Debris is no laser, ident, scanner, mass-lock or jump-blockage candidate in
  * this phase (D16-03, OC-3): the existing `kind === "ship"` and
  * `NON_LOCKING_SCAN_CLASSES` filters already exclude it.
@@ -52,7 +70,9 @@
 
 import { toWegoliteLocal } from "../combat/constants.js";
 import type { HullTable } from "../combat/hit.js";
-import { vec } from "../math.js";
+import { MAX_OCTREE_DEPTH, randomOctreePoint } from "../combat/octree.js";
+import type { HullOctree } from "../combat/octree.js";
+import { identity, normalizeVec, rotate, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import { createRngState, rngNext } from "../rng.js";
 import type { RngState } from "../rng.js";
@@ -162,12 +182,86 @@ export const DEBRIS_ENTITY_LIMIT = 0.95 * MAX_ENTITIES;
 /**
  * The live-entity limit below which a wreck spawns (`ShipEntity.m:8047`,
  * `0.5 * UNIVERSE_MAX_ENTITIES`), 128: wreckage spawns while at most 127
- * entities are live. Used by plan 16-04.
+ * entities are live (`wreckAdmitted`).
  */
 export const WRECKAGE_ENTITY_LIMIT = 0.5 * MAX_ENTITIES;
 
 /** Draws per surviving pod: box 3, jitter 3, velocity 3, quaternion 4. */
 export const POD_DRAWS_PER_SURVIVOR = 13;
+
+/**
+ * The mass unit of the alloy count: `n_alloys = sqrtf(sqrtf(mass / 6000.0f))`
+ * (`ShipEntity.m:7916`). It also decides the wreck count.
+ */
+export const N_ALLOYS_MASS_UNIT = 6000;
+
+/** The most wrecks one explosion throws out (`ShipEntity.m:8050`, `maxWrecks`). */
+export const MAX_WRECKS = 3;
+
+/** A wreck's lifetime, `750 u + 250 i + 100` (`ShipEntity.m:8063`): the random span. */
+export const WRECK_LIFETIME_RANDOM = 750;
+
+/** The lifetime added per wreck index (`ShipEntity.m:8063`). */
+export const WRECK_LIFETIME_STEP = 250;
+
+/** The lifetime base (`ShipEntity.m:8063`). */
+export const WRECK_LIFETIME_BASE = 100;
+
+/**
+ * A wreck's mass as a fraction of its victim's: `expected_mass = 0.1f * [ship
+ * mass] * (0.75 + 0.5 * randf())` (`Universe.m:5503`).
+ */
+export const WRECK_MASS_FRACTION = 0.1;
+
+/** The low end of the wreck-mass spread, `0.75` (`Universe.m:5503`). */
+const WRECK_MASS_SPREAD_LOW = 0.75;
+
+/** The width of the wreck-mass spread, `0.5` (`Universe.m:5503`). */
+const WRECK_MASS_SPREAD = 0.5;
+
+/**
+ * The octant draws one wreck takes (D16-17): `MAX_OCTREE_DEPTH` whatever the
+ * victim's octree looks like and whether the hull table holds it at all, so the
+ * stream position never depends on the lazily loaded table (D-15). Oolite draws
+ * one `Ranrot() & 7` per level descended (`Octree.m:701`).
+ */
+export const OCTANT_DRAWS_PER_WRECK = MAX_OCTREE_DEPTH;
+
+/** A wreck starts at 1000 degrees (`Universe.m:5515`, `setTemperature:1000.0`). */
+export const WRECK_START_TEMPERATURE = 1000;
+
+/**
+ * A wreck cools by 10 degrees per second: the cooling branch of
+ * `ShipEntity.m:2254-2272` with no sun is `(0 - 100 * insulation - T) * dt *
+ * SHIP_COOLING_FACTOR / insulation` with `SHIP_COOLING_FACTOR` 0.1
+ * (`ShipEntity.h:63`) and the wreck's insulation 1e7 (`Universe.m:5516`), that
+ * is `-(10 + 1e-8 T) dt`. The `1e-8 T` term is dropped (below 1e-5 relative).
+ */
+export const WRECK_COOLING_PER_SECOND = 10;
+
+/**
+ * A wreck takes heat damage only while hotter than this: `SHIP_MAX_CABIN_TEMP`
+ * 256 (`ShipEntity.h:69`, the test at `ShipEntity.m:2268`).
+ */
+export const WRECK_MIN_DAMAGE_TEMPERATURE = 256;
+
+/**
+ * The energy a wreck loses in one step of `dt` seconds at `ageSeconds` after its
+ * spawn (D16-11, LOW confidence: arithmetic from the C, never measured in a
+ * running Oolite). Its temperature is a closed function of its age, `1000 - 10
+ * x age` (nothing else heats or cools a wreck), and `takeHeatDamage:delta_t *
+ * ship_temperature` (`ShipEntity.m:2268-2269`) drains `dt x temperature` while
+ * that is above 256, else nothing. A non-finite input drains nothing, so the
+ * caller never writes a non-finite energy (T-16-11).
+ */
+export function wreckHeatDrain(ageSeconds: number, dt: number): number {
+  if (!Number.isFinite(ageSeconds) || !Number.isFinite(dt)) return 0;
+  const temperature =
+    WRECK_START_TEMPERATURE - WRECK_COOLING_PER_SECOND * ageSeconds;
+  if (!(temperature > WRECK_MIN_DAMAGE_TEMPERATURE)) return 0;
+  const drain = dt * temperature;
+  return Number.isFinite(drain) ? drain : 0;
+}
 
 /** A component inside the velocity domain: finite, clamped, never -0. */
 function clampComponent(v: number): number {
@@ -254,6 +348,98 @@ function debrisAdmitted(world: World): boolean {
 }
 
 /**
+ * True when the cap admits one more wreck: the live count is below
+ * `WRECKAGE_ENTITY_LIMIT` (128, which also keeps it below the debris limit).
+ */
+function wreckAdmitted(world: World): boolean {
+  return liveEntityCount(world) < WRECKAGE_ENTITY_LIMIT;
+}
+
+/**
+ * The alloy count before the wreck loop, `sqrtf(sqrtf(mass / 6000.0f))`
+ * (`ShipEntity.m:7916`), for a finite positive hull mass; 0 otherwise, which
+ * skips the wreckage and the plates (`ShipEntity.m:8044`).
+ */
+function alloyCountOf(hullMass: number | undefined): number {
+  if (hullMass === undefined) return 0;
+  const n = Math.sqrt(Math.sqrt(hullMass / N_ALLOYS_MASS_UNIT));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** The finite positive hull mass of `hull`, or undefined. */
+function hullMassOf(hull: DebrisHull | undefined): number | undefined {
+  if (hull === undefined) return undefined;
+  const mass = hull.mass;
+  return Number.isFinite(mass) && mass > 0 ? mass : undefined;
+}
+
+/** The wreck models as an array (a non-array list reads as empty). */
+function wreckModelsOf(content: DebrisContent): readonly unknown[] {
+  const wrecks: unknown = content.wrecks;
+  return Array.isArray(wrecks) ? (wrecks as readonly unknown[]) : [];
+}
+
+/**
+ * The victim's octree from the hull table, or undefined when the table is
+ * absent (a lazy chunk not loaded yet), not a `Map`, or has no usable entry.
+ */
+function octreeOf(
+  octrees: HullTable | undefined,
+  specKey: string,
+): HullOctree | undefined {
+  const table: unknown = octrees;
+  if (!(table instanceof Map)) return undefined;
+  const entry: unknown = (table as ReadonlyMap<string, unknown>).get(specKey);
+  if (!isObject(entry)) return undefined;
+  const octree: unknown = (entry as { readonly octree?: unknown }).octree;
+  return isObject(octree) ? (octree as HullOctree) : undefined;
+}
+
+/** `v` when every component is finite, else the zero vector. */
+function finiteVecOrZero(v: Vec3): Vec3 {
+  return Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z)
+    ? v
+    : vec(0, 0, 0);
+}
+
+/**
+ * Attempt one wreck's spawn behind the wreckage gate (D16-05). As for a pod,
+ * the result is never read: a missing model, a non-finite or non-positive
+ * radius or energy, or the cap leaves `nextId` and every later draw untouched.
+ */
+function spawnWreck(
+  world: World,
+  model: DebrisModel | undefined,
+  init: {
+    readonly position: Vec3;
+    readonly orientation: Quat;
+    readonly radius: number;
+    readonly velocity: Vec3;
+    readonly energy: number;
+  },
+  tick: number,
+): void {
+  if (model === undefined || !wreckAdmitted(world)) return;
+  spawnEntity(
+    world,
+    {
+      kind: "wreckage",
+      specKey: model.key,
+      scanClass: "CLASS_NO_DRAW",
+      position: init.position,
+      orientation: init.orientation,
+      radius: init.radius,
+      speed: 0,
+      ai: null,
+      maxEnergy: init.energy,
+      energyRechargeRate: 0,
+      velocity: init.velocity,
+    },
+    tick,
+  );
+}
+
+/**
  * The box of `hull`, with any missing or non-object corner treated as the zero
  * vector (non-finite components are neutralised per axis in `boxAxis`).
  */
@@ -320,9 +506,8 @@ export function releaseDebris(
       : DEFAULT_FRAGMENT_CHANCE;
   const box = boxOf(hull);
 
-  // Draw 1: canFragment (D16-13). Plan 16-04 consumes it for the wreckage.
+  // Draw 1: canFragment (D16-13).
   const canFragment = rngNext(stream) < fragmentChance;
-  void canFragment;
 
   // The pods (ShipEntity.m:7814-7879).
   // A pod model that is not an object still takes every draw and spawns nothing.
@@ -365,8 +550,79 @@ export function releaseDebris(
     if (limit <= 0) break;
   }
 
-  // Seam for plan 16-04: the wreckage, the alloy plate and the blast are
-  // appended here, after the pods, on the same stream.
+  // The wreckage (ShipEntity.m:8042-8069, Universe.m:5497-5526).
+  const hullMass = hullMassOf(hull);
+  const nAlloys = alloyCountOf(hullMass);
+  if (canFragment && nAlloys > 0 && hullMass !== undefined) {
+    const wreckCount =
+      nAlloys < MAX_WRECKS
+        ? Math.floor(rngNext(stream) * (nAlloys + 2))
+        : MAX_WRECKS;
+    const models = wreckModelsOf(ctx.content);
+    const octree = octreeOf(ctx.octrees, victim.specKey);
+    const facingValue: unknown = victim.orientation;
+    const facing = isObject(facingValue) ? (facingValue as Quat) : identity();
+    for (let i = 0; i < wreckCount; i += 1) {
+      // Every draw of this wreck first, in the C's order (D16-12, D16-17).
+      const octants: number[] = [];
+      for (let k = 0; k < OCTANT_DRAWS_PER_WRECK; k += 1) {
+        octants.push(Math.floor(rngNext(stream) * 8));
+      }
+      const lifetime =
+        WRECK_LIFETIME_RANDOM * rngNext(stream) +
+        WRECK_LIFETIME_STEP * i +
+        WRECK_LIFETIME_BASE;
+      const modelValue: unknown =
+        models[Math.floor(rngNext(stream) * models.length)];
+      const expectedMass =
+        WRECK_MASS_FRACTION *
+        hullMass *
+        (WRECK_MASS_SPREAD_LOW + WRECK_MASS_SPREAD * rngNext(stream));
+      const orientation = randomQuaternion(stream);
+      const push = rngNext(stream);
+
+      // The point in the victim's hull (origin without an octree), rotated
+      // into the world: `quaternion_rotate_vector([self normalOrientation], r1)`.
+      const point =
+        octree === undefined
+          ? vec(0, 0, 0)
+          : randomOctreePoint(octree, octants);
+      const dir = finiteVecOrZero(rotate(facing, toWegoliteLocal(point)));
+      const model = isObject(modelValue)
+        ? (modelValue as DebrisModel)
+        : undefined;
+      // `powf(expected_mass / wreck_mass, 0.33333333f)`: a uniform rescale.
+      const radius =
+        model === undefined
+          ? Number.NaN
+          : model.radius * Math.cbrt(expectedMass / model.mass);
+      const position = vec(
+        origin.x + dir.x,
+        origin.y + dir.y,
+        origin.z + dir.z,
+      );
+      // `vector_normal(dir) * randf() * [wreck collisionRadius]`, none for a
+      // zero `dir` (the wreck starts at the victim's centre).
+      const normal = normalizeVec(dir);
+      const kick = push * radius;
+      const velocity = clampDebrisVelocity(
+        vec(
+          drift.x + normal.x * kick,
+          drift.y + normal.y * kick,
+          drift.z + normal.z * kick,
+        ),
+      );
+      spawnWreck(
+        world,
+        model,
+        { position, orientation, radius, velocity, energy: lifetime / 2 },
+        ctx.tick,
+      );
+    }
+  }
+
+  // Seam for Task 2 of plan 16-04: the alloy-count draw, the plates and the
+  // blast are appended here, on the same stream.
 
   victim.rng.combat = stream.s;
 }

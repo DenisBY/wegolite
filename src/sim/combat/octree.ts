@@ -446,6 +446,61 @@ export function isHitByLine(octree: HullOctree, w0: Vec3, w1: Vec3): number {
 }
 
 /**
+ * `Octree.m:683-714` `randomFullNodeFrom` (through `-randomPoint`, `:716-719`):
+ * a random point of the hull, used to place a wreck (`ShipEntity.m:8060`).
+ *
+ * The walk starts at the root with offset zero and the root half-width. A node
+ * that is `0` or `-1` ends it and returns the offset reached. At an array node
+ * of eight children it takes the next octant `oct` from `octants`, visits the
+ * children `oct ^ 0` to `oct ^ 7` and descends into the first one that is not
+ * empty, adding `offsetForOctant(octant, radius)` and halving the radius.
+ *
+ * The draw budget is fixed by the caller (D16-17): Oolite draws `Ranrot() & 7`
+ * once per level descended, and here the caller always draws
+ * `MAX_OCTREE_DEPTH` octants and this walk consumes them one per level, so the
+ * stream position never depends on the tree's shape or on whether the table is
+ * loaded. When the octants run out, at a node that is not an array of exactly
+ * eight children, or at an array whose eight children are all empty (the C's
+ * fall-through, `:712`), the walk stops and returns the offset reached; it
+ * never recurses and never throws (T-16-12). A non-finite root half-width
+ * returns the origin. The point is in Oolite's model axes (convert with
+ * `toWegoliteLocal`).
+ */
+export function randomOctreePoint(
+  octree: HullOctree,
+  octants: readonly number[],
+): Vec3 {
+  let node: OctreeNode = octree.root;
+  let radius = octree.radius;
+  // A non-finite half-width would put NaN into a hashed position: the origin.
+  if (!Number.isFinite(radius)) return vec(0, 0, 0);
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (const drawn of octants) {
+    if (!Array.isArray(node) || node.length !== 8) break;
+    const children: readonly OctreeNode[] = node;
+    const oct = drawn & 7;
+    let next: OctreeNode | undefined;
+    for (let i = 0; i < 8; i += 1) {
+      const octant = oct ^ i;
+      const child = children[octant];
+      if (child === undefined || child === 0) continue;
+      const offset = offsetForOctant(octant, radius);
+      x += offset.x;
+      y += offset.y;
+      z += offset.z;
+      next = child;
+      break;
+    }
+    if (next === undefined) break;
+    node = next;
+    radius *= 0.5;
+  }
+  return vec(x, y, z);
+}
+
+/**
  * `ShipEntity.m:1314-1321` `doesHitLine`: the segment `p0 -> p1` relative to
  * the target's position, taken into the ship's `(right, up, forward)` frame.
  *

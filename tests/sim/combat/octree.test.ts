@@ -34,6 +34,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_OCTREE_DEPTH,
   isHitByLine,
+  randomOctreePoint,
   toOoliteModelSegment,
 } from "../../../src/sim/combat/octree.js";
 import type { HullOctree, OctreeNode } from "../../../src/sim/combat/octree.js";
@@ -387,5 +388,79 @@ describe("isHitByLine: property against a brute-force cell oracle (A2)", () => {
     // fast-check favours round numbers, which sit on cell faces; those are the
     // skipped boundary rays, a minority of the runs.
     expect(skipped).toBeLessThan(300);
+  });
+});
+
+describe("randomOctreePoint: hand walks of Octree.m:683-714", () => {
+  // offsetForOctant(oct, r) = ((0.5 - x) r, (0.5 - y) r, (0.5 - z) r) with
+  // (x, y, z) the octant's bits 2, 1, 0 (Octree.m:158-161).
+  const SEVEN = [0, 0, 0, 0, 0, 0, 0] as const;
+
+  it("returns the origin for a solid or empty root and uses no octant", () => {
+    expect(randomOctreePoint(tree(8, -1, 0), [])).toEqual(vec(0, 0, 0));
+    expect(randomOctreePoint(tree(8, -1, 0), SEVEN)).toEqual(vec(0, 0, 0));
+    expect(randomOctreePoint(tree(8, 0, 0), SEVEN)).toEqual(vec(0, 0, 0));
+  });
+
+  it("returns offsetForOctant(5, radius) for a root with only child 5, whatever the draw", () => {
+    for (let oct = 0; oct < 8; oct += 1) {
+      expect(randomOctreePoint(tree(8, withSolid(5)), [oct])).toEqual(
+        vec(-4, 4, -4),
+      );
+    }
+  });
+
+  it("visits oct ^ 0 .. oct ^ 7 and takes the first non-empty child", () => {
+    const root = withSolid(1, 2);
+    // oct 0: 0 (empty), then 1.
+    expect(randomOctreePoint(tree(8, root), [0])).toEqual(vec(4, 4, -4));
+    // oct 3: 3 (empty), then 2.
+    expect(randomOctreePoint(tree(8, root), [3])).toEqual(vec(4, -4, 4));
+    // oct 6: 6, 7, 4, 5, then 2.
+    expect(randomOctreePoint(tree(8, root), [6])).toEqual(vec(4, -4, 4));
+  });
+
+  it("sums the offsets level by level, halving the radius", () => {
+    // Root half-width 8, only child 3 non-empty; inside it only child 6 solid.
+    const inner: OctreeNode[] = [0, 0, 0, 0, 0, 0, -1, 0];
+    const root: OctreeNode[] = [0, 0, 0, inner, 0, 0, 0, 0];
+    // Level 1, oct 0: 0, 1, 2, 3 -> 3, offset (4, -4, -4).
+    // Level 2, oct 1: 1, 0, 3, 2, 5, 4, 7, 6 -> 6, offset at r 4 (-2, -2, 2).
+    expect(randomOctreePoint(tree(8, root, 2), [0, 1, 0, 0, 0, 0, 0])).toEqual(
+      vec(2, -6, -2),
+    );
+    // The octants run out after level 1: the point reached so far.
+    expect(randomOctreePoint(tree(8, root, 2), [0])).toEqual(vec(4, -4, -4));
+    expect(randomOctreePoint(tree(8, root, 2), [])).toEqual(vec(0, 0, 0));
+  });
+
+  it("stops after the octants it is given on a tree deeper than MAX_OCTREE_DEPTH", () => {
+    let node: OctreeNode = -1;
+    for (let level = 0; level < MAX_OCTREE_DEPTH + 3; level += 1) {
+      node = [node, 0, 0, 0, 0, 0, 0, 0];
+    }
+    // Seven levels of child 0, offset (r/2, r/2, r/2) at r = 8 .. 0.125.
+    const expected = 0.5 * (8 + 4 + 2 + 1 + 0.5 + 0.25 + 0.125);
+    expect(randomOctreePoint(tree(8, node, 10), SEVEN)).toEqual(
+      vec(expected, expected, expected),
+    );
+  });
+
+  it("stops at a malformed node and never throws", () => {
+    const short = [0, 0, -1] as unknown as OctreeNode;
+    expect(randomOctreePoint(tree(8, short), SEVEN)).toEqual(vec(0, 0, 0));
+    // A child that is neither 0, -1 nor an array of eight: its offset, no further.
+    const odd = [0, 0, 0, 0, 0, 7, 0, 0] as unknown as OctreeNode;
+    expect(randomOctreePoint(tree(8, odd), SEVEN)).toEqual(vec(-4, 4, -4));
+    const nested = [0, 0, 0, 0, 0, [0, -1], 0, 0] as unknown as OctreeNode;
+    expect(randomOctreePoint(tree(8, nested), SEVEN)).toEqual(vec(-4, 4, -4));
+    // Eight empty children: the C falls through and returns the offset.
+    expect(randomOctreePoint(tree(8, withSolid()), SEVEN)).toEqual(
+      vec(0, 0, 0),
+    );
+    // A non-finite half-width: the origin, never NaN.
+    expect(randomOctreePoint(tree(Number.NaN, withSolid(5)), SEVEN)).toEqual(
+      vec(0, 0, 0),
+    );
   });
 });

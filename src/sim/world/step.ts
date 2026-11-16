@@ -37,7 +37,10 @@ import { startPendingTrackingCurves } from "../npc/tracking-curve.js";
 import type { NpcStepFacts } from "../npc/stats.js";
 import { createRngState, rngNext } from "../rng.js";
 import { createShipControl } from "./control-impl.js";
+import { wreckHeatDrain } from "./debris.js";
 import type { Entity } from "./entity.js";
+import { NO_ENTITY } from "./ids.js";
+import { killShip } from "./kill.js";
 import type { SystemLayout } from "./layout.js";
 import { MAX_UINT32 } from "./limits.js";
 import { sanitizeEntity, sanitizeStaticHealth } from "./sanitize.js";
@@ -121,9 +124,9 @@ export function stepWorld(
     refreshEscorts(world, entity);
   }
   // Drift (D-01, D16-19): every live cargo or wreckage piece moves by its
-  // velocity. Ships are not integrated: their velocity stays zero until Phase 18
-  // decides rebounds.
-  stepDebris(world, dt);
+  // velocity, and wreckage burns down (D16-11). Ships are not integrated: their
+  // velocity stays zero until Phase 18 decides rebounds.
+  stepDebris(world, tick, dt, events);
 
   // Think. The view is shared with the update phase and built lazily, only when
   // a steered ship or a module is about to run, so a world with no AI allocates
@@ -170,32 +173,60 @@ export function stepWorld(
 }
 
 /**
- * The drift pass (D-01, D16-19): every live, non-dead entity of kind `cargo` or
- * `wreckage` moves by `velocity * dt`, in ascending id over a length snapshot.
- * A zero velocity writes nothing. Ships and every other kind are not
- * integrated. Total: a non-finite result is repaired by the sanitise pass that
- * follows in `stepWorld`, as for any other field.
+ * The debris pass (D-01, D16-19, D16-11), in ascending id over a length
+ * snapshot, for every live, non-dead entity of kind `cargo` or `wreckage`:
+ *
+ * - Drift: the piece moves by `velocity * dt`; a zero velocity writes nothing.
+ *   Ships and every other kind are not integrated.
+ * - Burn-down (wreckage only, D16-11): a wreck's energy is its remaining
+ *   lifetime (D-02: Oolite's `setEnergy:lifetime`, `Universe.m:5517`), not
+ *   health. Each step it loses `wreckHeatDrain(ageSeconds, dt)` with
+ *   `ageSeconds = (tick - spawnTick) * dt`: the temperature `1000 - 10 x age`
+ *   times `dt` while above 256 (`ShipEntity.m:2254-2272`, the `1e-8 T` cooling
+ *   term dropped). This is arithmetic from the C, LOW confidence, never measured
+ *   in a running Oolite. The energy is floored at 0 in the same write, so the
+ *   sanitiser never repairs it, and at 0 the wreck leaves through `killShip`
+ *   with no killer: it is only marked dead, posts no `shipDestroyed` (Pitfall
+ *   10), and the commit at the end of `stepWorld` emits its `entityRemoved`.
+ *   No new state is read or written: the age comes from the hashed `spawnTick`.
+ *
+ * Total: a non-finite result is repaired by the sanitise pass that follows in
+ * `stepWorld`, as for any other field.
  */
-export function stepDebris(world: World, dt: number): void {
+export function stepDebris(
+  world: World,
+  tick: number,
+  dt: number,
+  events: SimEvent[],
+): void {
   const live = world.store.live;
   const n = live.length;
   for (let i = 0; i < n; i += 1) {
     const entity = live[i];
     if (entity === undefined || entity.dead) continue;
     if (entity.kind !== "cargo" && entity.kind !== "wreckage") continue;
-    const velocity: unknown = entity.velocity;
-    const position: unknown = entity.position;
-    if (typeof velocity !== "object" || velocity === null) continue;
-    if (typeof position !== "object" || position === null) continue;
-    const v = entity.velocity;
-    if (v.x === 0 && v.y === 0 && v.z === 0) continue;
-    const p = entity.position;
-    entity.position = {
-      x: p.x + v.x * dt,
-      y: p.y + v.y * dt,
-      z: p.z + v.z * dt,
-    };
+    driftEntity(entity, dt);
+    if (entity.kind !== "wreckage") continue;
+    const ageSeconds = (tick - entity.spawnTick) * dt;
+    entity.energy = Math.max(0, entity.energy - wreckHeatDrain(ageSeconds, dt));
+    if (entity.energy === 0) killShip(world, entity.id, NO_ENTITY, events);
   }
+}
+
+/** Move `entity` by `velocity * dt` (nothing for a zero or malformed velocity). */
+function driftEntity(entity: Entity, dt: number): void {
+  const velocity: unknown = entity.velocity;
+  const position: unknown = entity.position;
+  if (typeof velocity !== "object" || velocity === null) return;
+  if (typeof position !== "object" || position === null) return;
+  const v = entity.velocity;
+  if (v.x === 0 && v.y === 0 && v.z === 0) return;
+  const p = entity.position;
+  entity.position = {
+    x: p.x + v.x * dt,
+    y: p.y + v.y * dt,
+    z: p.z + v.z * dt,
+  };
 }
 
 /**

@@ -97,6 +97,15 @@ function podsOf(world: World): Entity[] {
   );
 }
 
+function wrecksOf(world: World): Entity[] {
+  return world.store.live.filter((e) => !e.dead && e.kind === "wreckage");
+}
+
+/** Every live debris piece: the entities that are not fillers. */
+function debrisOf(world: World): Entity[] {
+  return world.store.live.filter((e) => !e.dead && e.specKey !== "filler");
+}
+
 function kill(world: World, victim: Entity): SimEvent[] {
   const events: SimEvent[] = [];
   expect(
@@ -157,7 +166,7 @@ describe("the debris cap thresholds (D16-05)", () => {
     kill(free, freeVictim);
     const freePods = podsOf(free);
     expect(freePods.length).toBeGreaterThanOrEqual(3);
-    expect(free.store.nextId).toBe(freeNext + freePods.length);
+    expect(free.store.nextId).toBe(freeNext + debrisOf(free).length);
 
     for (const fillers of [241, 242, 243, 244, 255]) {
       const capped = createWorld(seed);
@@ -170,7 +179,7 @@ describe("the debris cap thresholds (D16-05)", () => {
       const pods = podsOf(capped);
       const admitted = Math.max(0, Math.min(freePods.length, 244 - fillers));
       expect(pods).toHaveLength(admitted);
-      expect(capped.store.nextId).toBe(nextBefore + pods.length);
+      expect(capped.store.nextId).toBe(nextBefore + debrisOf(capped).length);
       pods.forEach((pod, i) => {
         const twin = freePods[i];
         if (twin === undefined) throw new Error("missing twin");
@@ -203,6 +212,49 @@ describe("the debris cap thresholds (D16-05)", () => {
       if (pods < uncapped) refusedSome = true;
     }
     expect(refusedSome).toBe(true);
+  });
+});
+
+describe("the wreckage cap (D16-05)", () => {
+  /** A world seed whose cargo-0 victim throws out at least `n` wrecks uncapped. */
+  function seedWithWrecks(n: number): number {
+    for (let seed = 1; seed < 1000; seed += 1) {
+      const world = createWorld(seed);
+      kill(world, spawnVictim(world, 0));
+      if (wrecksOf(world).length >= n) return seed;
+    }
+    throw new Error("no seed found");
+  }
+
+  it("spawns a wreck at 127 live and refuses the next; spawns none at 128", () => {
+    const seed = seedWithWrecks(2);
+    const at127 = createWorld(seed);
+    const victim127 = spawnVictim(at127, 0);
+    fill(at127, 127);
+    kill(at127, victim127);
+    // 127 live before the first wreck, 128 after it: the second is refused.
+    expect(wrecksOf(at127)).toHaveLength(1);
+
+    const at128 = createWorld(seed);
+    const victim128 = spawnVictim(at128, 0);
+    fill(at128, 128);
+    kill(at128, victim128);
+    expect(wrecksOf(at128)).toHaveLength(0);
+    // The gate moves no draw.
+    expect(victim128.rng.combat).toBe(victim127.rng.combat);
+
+    const free = createWorld(seed);
+    const freeVictim = spawnVictim(free, 0);
+    kill(free, freeVictim);
+    expect(wrecksOf(free).length).toBeGreaterThanOrEqual(2);
+    expect(freeVictim.rng.combat).toBe(victim127.rng.combat);
+    const first = wrecksOf(free)[0];
+    const capped = wrecksOf(at127)[0];
+    if (first === undefined || capped === undefined)
+      throw new Error("no wreck");
+    expect(capped.position).toEqual(first.position);
+    expect(capped.radius).toBe(first.radius);
+    expect(capped.energy).toBe(first.energy);
   });
 });
 
