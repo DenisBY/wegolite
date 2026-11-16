@@ -721,29 +721,84 @@ describe("the Lave launch world golden (regression snapshot)", () => {
     expect(fnv1a32(section)).toBe(golden.fnv);
   });
 
+  /** Remove the v4 segments (velocity, weapon, cargo) as plan 15-03 added them. */
+  const stripV4 = (section: string): string =>
+    section.replace(/;(?:vel|wpn|cargo):[^;\n]*/g, "");
+
+  it("is the pre-v4 world plus one ;cargo: segment per loaded ship (FOUND-18, D-09)", () => {
+    // The golden moved a third time in plan 15-03 (owner-chosen regeneration,
+    // snapshot v4 with pristine-omit hashing, ROADMAP Phase 15): the populator
+    // now gives traders, the shuttle and some pirates a cargo count. The
+    // population draws did not move: with every v4 segment removed the section
+    // is byte-identical to the golden before the phase (FNV-1a c1068643), so
+    // keys, positions, orientations and streams are unchanged.
+    expect(fnv1a32(stripV4(golden.section))).toBe("c1068643");
+    const { world } = buildInertWorld(golden.worldSeed, layout, records);
+    const loaded = world.store.live.filter((entity) => entity.cargo > 0);
+    expect(golden.section.match(/;cargo:/g)).toHaveLength(loaded.length);
+    expect(loaded.length).toBeGreaterThanOrEqual(4);
+    expect(loaded.map((entity) => entity.id)).toEqual(
+      expect.arrayContaining([101, 102, 103, 111]),
+    );
+    expect(golden.section).not.toMatch(/;vel:/);
+    expect(golden.section).not.toMatch(/;wpn:/);
+  });
+
   it("is the pre-steering world plus one steer: segment per ship: same ships at the same places (AI-01)", () => {
     // The golden moved a second time when the steering record joined the entity
-    // line (plan 14-08, owner decision option-append, 2026-11-15). The
-    // population draws did not move: with every `;steer:` segment (the last
-    // segment of each entity line, label unique) removed the section is
-    // byte-identical to the previous golden (FNV-1a ab72eedf, recorded before
-    // the record existed).
-    const withoutSteer = golden.section.replace(/;steer:[^;\n]*/g, "");
+    // line (plan 14-08, owner decision option-append, 2026-11-15) and a third
+    // time in plan 15-03 (the cargo segments). The population draws did not
+    // move: with every v4 segment and then every `;steer:` segment removed the
+    // section is byte-identical to the previous golden (FNV-1a ab72eedf,
+    // recorded before the record existed).
+    const withoutSteer = stripV4(golden.section).replace(/;steer:[^;\n]*/g, "");
     expect(golden.section.match(/;steer:/g)).toHaveLength(golden.count);
     expect(fnv1a32(withoutSteer)).toBe("ab72eedf");
   });
 
   it("is the pre-energy world plus one en: segment per ship: same ships at the same places (CBT-07)", () => {
-    // The golden moved once when the energy bank joined the entity line. The
-    // population draws did not move: with every `;steer:` and every `en:`
-    // segment removed the section is byte-identical to the golden recorded
-    // before the bank existed (FNV-1a b23d11d8), so keys, positions,
-    // orientations and streams are unchanged.
-    const withoutEnergy = golden.section
+    // The golden moved once when the energy bank joined the entity line (and
+    // again in plans 14-08 and 15-03). The population draws did not move: with
+    // every v4 segment, every `;steer:` and every `en:` segment removed the
+    // section is byte-identical to the golden recorded before the bank existed
+    // (FNV-1a b23d11d8), so keys, positions, orientations and streams are
+    // unchanged.
+    const withoutEnergy = stripV4(golden.section)
       .replace(/;steer:[^;\n]*/g, "")
       .replace(/;en:[0-9.,]+/g, "");
     expect(golden.section.match(/;en:/g)).toHaveLength(golden.count);
     expect(fnv1a32(withoutEnergy)).toBe("b23d11d8");
+  });
+
+  it("gives the twelve Lave ships these cargo counts (D-06)", () => {
+    // Read once from the rebuilt world and written here by hand, so a change to
+    // cargoCountAtSpawn fails on a readable diff and not only on an FNV value.
+    const { world } = buildInertWorld(golden.worldSeed, layout, records);
+    const plan = planInertPopulation(
+      createRngState(createWorld(golden.worldSeed).rng.s),
+      layout,
+      records,
+    );
+    const rebuilt = world.store.live.map((entity, index) => ({
+      id: entity.id,
+      role: plan.ships[index]?.role,
+      key: entity.specKey,
+      cargo: entity.cargo,
+    }));
+    expect(rebuilt).toEqual([
+      { id: 101, role: "trader", key: "moray", cargo: 5 },
+      { id: 102, role: "trader", key: "cobramk1", cargo: 10 },
+      { id: 103, role: "trader", key: "adder", cargo: 2 },
+      { id: 104, role: "hunter", key: "sidewinder", cargo: 0 },
+      { id: 105, role: "hunter", key: "sidewinder", cargo: 0 },
+      { id: 106, role: "pirate", key: "krait", cargo: 0 },
+      { id: 107, role: "pirate", key: "sidewinder", cargo: 0 },
+      { id: 108, role: "pirate", key: "moray", cargo: 1 },
+      { id: 109, role: "police", key: "viper", cargo: 0 },
+      { id: 110, role: "police", key: "viper", cargo: 0 },
+      { id: 111, role: "shuttle", key: "adder", cargo: 2 },
+      { id: 112, role: "scavenger", key: "cobramk1", cargo: 0 },
+    ]);
   });
 
   it("gives every inert ship the default steering record: slot 0, unresolved accuracy, no curve", () => {
