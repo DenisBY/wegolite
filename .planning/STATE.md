@@ -4,17 +4,17 @@ milestone: v2.2
 milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
-status: executing
-stopped_at: Completed 14-18-PLAN.md
-last_updated: "2026-11-16T00:26:10.570Z"
+status: verifying
+stopped_at: Completed 14-19-PLAN.md
+last_updated: "2026-11-16T00:49:07.897Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: d8b4483ca9b2081ab30edcf49e8f31769ade7831
+state_head: bf4276fc604a7015071a0d9b73085497c43bfcc7
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 34
+  completed_plans: 35
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
 Plan: 19 of 19
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-15 — Phase 14 execution started
 
 
@@ -188,6 +188,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 14 P16 | 75min | 3 tasks | 9 files |
 | Phase 14 P17 | 2 sessions | 4 tasks | 7 files |
 | Phase 14 P18 | 60 min | 3 tasks | 14 files |
+| Phase 14 P19 | resumed (Task 4) | 4 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -469,6 +470,7 @@ Recent decisions affecting current work:
 - [Phase 14]: 14-16: spawnTestFlyers takes the station centre as a sixth parameter, because the five-argument form cannot orient the station flyer at the station; plan 14-18's hook must pass layout.station.position
 - [Phase 14]: 14-17: 20-seed acceptance accepted as option-continue on 2026-11-16 by an owner-delegated review panel (Fable, Opus, Sonnet; TRUST-WITH-CAVEATS), not by the owner reading the run; 21/21 cases pass in 137.6 s, accepted-crossings empty, five residual risks recorded in the SUMMARY
 - [Phase 14]: 14-18: the ?test=1 hook and the Node replay pick the three flyer records through one function, testFlyerRecords, and hand the same flightTableFrom table to every step
+- [Phase 14]: Phase 14 oracle choice for the AI port (2026-11-16): report accepted and the dev-only differential harness chosen as oracle (source-cited traces as per-role fallback), OOLITE_SRC mount kept, IN-02 and IN-04 stay todos; a panel decision on the owner's delegation, not the owner reading the report, and the owner can overturn it
 
 ### Pending Todos
 
@@ -570,8 +572,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-16T00:26:10.305Z
-Stopped at: Completed 14-18-PLAN.md
+Last session: 2026-11-16T00:49:07.634Z
+Stopped at: Completed 14-19-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
