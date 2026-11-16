@@ -6,19 +6,21 @@ recorded: 2026-11-16
 
 # Phase 14 code review disposition
 
-Every finding of `14-REVIEW.md` (0 critical, 4 warning, 6 info) is recorded here. All are `open`
-at the close of plan execution: the review is advisory and the orchestrator did not fix anything
-during the unattended run. The owner triages them; none was waived.
+Every finding of `14-REVIEW.md` (0 critical, 4 warning, 6 info) is recorded here. All were `open`
+at the close of plan execution. On 2026-11-16 the owner asked three independent models (Fable, Opus,
+Sonnet) to verify each finding against the source and approved this triage: WR-01, WR-02 and WR-04
+fixed, WR-03 comment corrected, the rest deferred or waived. The three models agreed on every
+verdict except WR-04 (Opus: fix now; Fable and Sonnet: defer); the owner chose to fix it.
 
 | ID | Severity | Disposition | Note |
 |----|----------|-------------|------|
-| WR-01 | warning | open | `massFor` lacks the finite-and-positive guard that `statsFor` has (`src/sim/npc/stats.ts:174`) |
-| WR-02 | warning | open | `statsFor` does not validate `forwardWeapon`; an unknown key throws inside steering |
-| WR-03 | warning | open | AI harness loader: no checksum on `OOLITE_SRC` files; host realm leaks through the proxy. Dev-only |
-| WR-04 | warning | open | Content schema accepts flight constants the runtime bounds then reject; speed 0 accepted |
-| IN-01 | info | open | `if (!SHIPS_ARE_CREWED)` guards a constant `true` (necessity finding) |
-| IN-02 | info | open | Tracking-curve clock tied to `TICKS_PER_SECOND` |
-| IN-03 | info | open | `check:dist` follows symlinks; fs error exits 1 like "marker found" (fails closed) |
-| IN-04 | info | open | The 20-seed acceptance run is in no gate |
-| IN-05 | info | open | Frozen detectors cannot see a permanently idle attack/escort/face flyer; a fix needs the owner's `Detector-change-approved-by-owner` trailer (see also WINDOWS.md #3) |
-| IN-06 | info | open | A flyer whose AI faults keeps stale steering state in its hash (deterministic, harmless today) |
+| WR-01 | warning | fixed | `massFor` now shares `isUsable` with `statsFor`: an unusable flight row is skipped and the Phase 12 masses answer (test in `tests/sim/npc/flight.test.ts`) |
+| WR-02 | warning | fixed | `isUsable` requires `isMountKey(forwardWeapon)`, so an unknown weapon falls the whole row back to the defaults |
+| WR-03 | warning | waived | Hardening (hash pin, proxy filter) waived: dev-only, operator's own checkout, and a proxy filter would not close the escape through injected host globals. The misleading `load.ts` header sentence was corrected |
+| WR-04 | warning | fixed | Schema bounds roll and pitch at 1e3 and speed and thrust at 1e12, pinned equal to the sim limits by a test; `maxFlightSpeed` stays non-negative because Oolite authors speed-0 hulls (buoys). Generated data and hashes unchanged |
+| IN-01 | info | waived | Deliberate, recorded divergence marker |
+| IN-02 | info | deferred | Todo: docblock note on `stepWorld` (or a `dt === DT` assert) - see `.planning/todos/pending/2026-11-16-phase-14-review-followups.md` |
+| IN-03 | info | waived | Fails closed; `dist/` has no symlinks |
+| IN-04 | info | deferred | Todo, owner decision: add `test:acceptance` to `verify-full` or a scheduled run, or document when to rerun |
+| IN-05 | info | deferred | Residual risk 6 for the owner; detectors are frozen (needs the `Detector-change-approved-by-owner` trailer) |
+| IN-06 | info | waived | Rejected on purpose: resetting `steer` at the fault site changes hashed fields for faulted entities. Deterministic and harmless today |
