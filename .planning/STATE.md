@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 15
-current_phase_name: not started; Phases 16 and 17 can run in parallel once it lands
+current_phase_name: Damage Ledger and Kills
 status: planning
 stopped_at: Phase 15 context gathered
-last_updated: "2026-11-16T13:44:03.358Z"
+last_updated: "2026-11-16T17:01:00.821Z"
 last_activity: 2026-11-16
 last_activity_desc: v2.3 roadmap created (Phases 15-20, 16/16 requirements mapped)
-state_head: 278c1909ac7b487f8d37250d3b3ab2734adeb6f2
+state_head: cc096f61fb500c98174ccec3bdbc9480be69e02b
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 0
+  total_plans: 6
   completed_plans: 0
   percent: 0
 ---
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 
 ## Current Position
 
-Phase: 15 of 20 (Damage Ledger and Kills) — not started; Phases 16 and 17 can run in parallel once it lands
+Phase: 15 (Damage Ledger and Kills) — READY TO EXECUTE
 Plan: —
 Status: Ready to plan (roadmap created, awaiting owner approval)
 Last activity: 2026-11-16 — v2.3 roadmap created (Phases 15-20, 16/16 requirements mapped)

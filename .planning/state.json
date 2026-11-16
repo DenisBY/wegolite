@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v2.3",
+  "milestone": "v2.3 — Combat and Death",
   "phases": [
     {
       "number": "8",
@@ -37,12 +37,42 @@
       "number": "14",
       "name": "NPC Flight and Steering Fidelity Gate",
       "status": "complete"
+    },
+    {
+      "number": "15",
+      "name": "Damage Ledger and Kills",
+      "status": "pending"
+    },
+    {
+      "number": "16",
+      "name": "Wreckage, Cargo and the Entity Cap",
+      "status": "pending"
+    },
+    {
+      "number": "17",
+      "name": "NPC Fire and Hits on the Player",
+      "status": "pending"
+    },
+    {
+      "number": "18",
+      "name": "Stations, Buoys and Collisions",
+      "status": "pending"
+    },
+    {
+      "number": "19",
+      "name": "Equipment Damage and Repair",
+      "status": "pending"
+    },
+    {
+      "number": "20",
+      "name": "Player Death and Game Over",
+      "status": "pending"
     }
   ],
   "next": {
-    "command": "/gsd-discuss-phase",
-    "label": "Discuss the first phase",
-    "reason": "Project initialized — plan your first phase"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step (plan phase 15)",
+    "reason": "Phase 1 of 6 — needs a plan"
   },
-  "updated_at": "2026-11-16T12:07:39.947Z"
+  "updated_at": "2026-11-16T17:01:00.853Z"
 }
