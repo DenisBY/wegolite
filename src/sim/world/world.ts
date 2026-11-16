@@ -48,6 +48,7 @@ import {
   MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
+  MAX_ENTITY_VELOCITY,
   MAX_ESCORT_SLOT,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
@@ -247,6 +248,20 @@ function isBoundedVec(v: Vec3): boolean {
   return isBounded(v.x) && isBounded(v.y) && isBounded(v.z);
 }
 
+/** A finite velocity component with magnitude at most `MAX_ENTITY_VELOCITY`. */
+function isLegalVelocityComponent(n: number): boolean {
+  return Number.isFinite(n) && Math.abs(n) <= MAX_ENTITY_VELOCITY;
+}
+
+/** A drift velocity inside the sanitiser's domain (D-01). */
+function isLegalVelocity(v: Vec3): boolean {
+  return (
+    isLegalVelocityComponent(v.x) &&
+    isLegalVelocityComponent(v.y) &&
+    isLegalVelocityComponent(v.z)
+  );
+}
+
 function isUnitQuat(q: Quat): boolean {
   if (
     !Number.isFinite(q.w) ||
@@ -342,6 +357,10 @@ function isMalformedInit(init: unknown, tick: unknown): boolean {
   if (escortSlot !== undefined && typeof escortSlot !== "number") return true;
   const cargo = init["cargo"];
   if (cargo !== undefined && typeof cargo !== "number") return true;
+  const velocity = init["velocity"];
+  if (velocity !== undefined && !hasNumberFields(velocity, ["x", "y", "z"])) {
+    return true;
+  }
   if (!hasNumberFields(init["position"], ["x", "y", "z"])) return true;
   if (!hasNumberFields(init["orientation"], ["w", "x", "y", "z"])) return true;
   const ai = init["ai"];
@@ -407,6 +426,9 @@ function domainRefusal(
       init.cargo <= MAX_ENTITY_CARGO
     )
   ) {
+    return "outOfDomain";
+  }
+  if (init.velocity !== undefined && !isLegalVelocity(init.velocity)) {
     return "outOfDomain";
   }
   if (!isBoundedVec(init.position) || !isUnitQuat(init.orientation)) {
@@ -533,7 +555,10 @@ export function spawnEntity(
       energyRechargeRate:
         init.energyRechargeRate ?? NPC_DEFAULT_ENERGY_RECHARGE_RATE,
       steer: createSteerComponent(init.escortSlot ?? 0),
-      velocity: { x: 0, y: 0, z: 0 },
+      velocity:
+        init.velocity === undefined
+          ? { x: 0, y: 0, z: 0 }
+          : { x: init.velocity.x, y: init.velocity.y, z: init.velocity.z },
       weapon: { temperature: 0, lastShotTick: 0, missedShots: 0 },
       cargo: init.cargo ?? 0,
     };

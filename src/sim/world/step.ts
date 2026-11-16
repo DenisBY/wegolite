@@ -6,7 +6,7 @@
  *
  * `stepWorld` runs after the flight step (see `src/sim/sim.ts`) and never
  * touches the `FlightState`: the player comes in read-only through the
- * `WorldView`. Phases, in order: update, think, commit.
+ * `WorldView`. Phases, in order: update (then the debris drift), think, commit.
  *
  * Every pass over the entities walks ascending ids by index over a length
  * snapshot taken at the start of the pass. An entity spawned during a tick is
@@ -120,6 +120,10 @@ export function stepWorld(
     // fresh destination in the same tick.
     refreshEscorts(world, entity);
   }
+  // Drift (D-01, D16-19): every live cargo or wreckage piece moves by its
+  // velocity. Ships are not integrated: their velocity stays zero until Phase 18
+  // decides rebounds.
+  stepDebris(world, dt);
 
   // Think. The view is shared with the update phase and built lazily, only when
   // a steered ship or a module is about to run, so a world with no AI allocates
@@ -163,6 +167,35 @@ export function stepWorld(
   for (const id of commitWorld(world))
     events.push({ kind: "entityRemoved", id });
   return events;
+}
+
+/**
+ * The drift pass (D-01, D16-19): every live, non-dead entity of kind `cargo` or
+ * `wreckage` moves by `velocity * dt`, in ascending id over a length snapshot.
+ * A zero velocity writes nothing. Ships and every other kind are not
+ * integrated. Total: a non-finite result is repaired by the sanitise pass that
+ * follows in `stepWorld`, as for any other field.
+ */
+export function stepDebris(world: World, dt: number): void {
+  const live = world.store.live;
+  const n = live.length;
+  for (let i = 0; i < n; i += 1) {
+    const entity = live[i];
+    if (entity === undefined || entity.dead) continue;
+    if (entity.kind !== "cargo" && entity.kind !== "wreckage") continue;
+    const velocity: unknown = entity.velocity;
+    const position: unknown = entity.position;
+    if (typeof velocity !== "object" || velocity === null) continue;
+    if (typeof position !== "object" || position === null) continue;
+    const v = entity.velocity;
+    if (v.x === 0 && v.y === 0 && v.z === 0) continue;
+    const p = entity.position;
+    entity.position = {
+      x: p.x + v.x * dt,
+      y: p.y + v.y * dt,
+      z: p.z + v.z * dt,
+    };
+  }
 }
 
 /**

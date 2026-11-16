@@ -135,6 +135,12 @@ export interface SpawnInit {
    * Defaults to 0; the populator sets it (plan 15-03).
    */
   cargo?: number;
+  /**
+   * The initial drift velocity in m/s (D-01): each component finite with a
+   * magnitude at most `MAX_ENTITY_VELOCITY`. Defaults to the zero vector;
+   * Phase 16 debris sets it (`./debris.ts`).
+   */
+  velocity?: Vec3;
 }
 
 /**

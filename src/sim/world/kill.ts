@@ -5,7 +5,8 @@
  * `killShip`: the one idempotent kill path (FOUND-19, D-02, D-04, D-13).
  *
  * It lives in `src/sim/world/` and not in `combat/` so that Phase 16's debris
- * expiry inside `stepWorld` can call it without importing combat. It marks an
+ * expiry inside `stepWorld` can call it without importing combat: debris leaves
+ * the world through this same function (D-02). It marks an
  * entity dead through `world.store.kill`; the entity leaves `live` at the next
  * `commitWorld`, which the caller runs (the second commit of
  * `resolveShots`, `../combat/step.ts`).
@@ -59,6 +60,14 @@
  * - a test pilot's `params.targetId`: `hold` re-checks `view.isValid` and drops
  *   to seek (`../ai/pilots/test-pilot.ts`).
  *
+ * Debris (Phase 16, `./debris.ts`). When the caller passes a `DebrisContext`,
+ * a ship's debris is released here, after `shipDestroyed` and the kill
+ * notifications, into the same tick: `releaseDebris` draws from the victim's own
+ * `combat` stream and spawns the pieces. They are spawned after `stepWorld`'s
+ * sanitise pass, are in the domain by construction, post no event and stay live
+ * through the caller's second commit. Without a context (every Phase 15 caller)
+ * nothing is released, and a non-ship victim never releases debris.
+ *
  * The player, the station and the buoys are never in the store, so they never
  * die here (D-13).
  *
@@ -67,6 +76,8 @@
  */
 
 import type { SimEvent } from "../events.js";
+import { releaseDebris } from "./debris.js";
+import type { DebrisContext } from "./debris.js";
 import { NO_ENTITY, PLAYER_ID } from "./ids.js";
 import type { EntityId } from "./ids.js";
 import { MAX_UINT32 } from "./limits.js";
@@ -109,14 +120,16 @@ function notifyKill(world: World, victim: EntityId, killer: EntityId): void {
  *
  * A ship also gets a `shipDestroyed` event with its position, radius and spec
  * key and the normalised killer, and posts the kill notifications described
- * above. Any other kind (Phase 16's cargo and wreckage) is only marked dead and
- * posts nothing.
+ * above, then, with a `debris` context, releases its debris. Any other kind
+ * (Phase 16's cargo and wreckage) is only marked dead, posts nothing and
+ * releases nothing.
  */
 export function killShip(
   world: World,
   id: EntityId,
   killer: EntityId,
   events: SimEvent[],
+  debris?: DebrisContext,
 ): boolean {
   const entity = world.store.get(id);
   if (entity === undefined) return false;
@@ -138,5 +151,6 @@ export function killShip(
     killer: normalised,
   });
   notifyKill(world, id, normalised);
+  if (debris !== undefined) releaseDebris(world, entity, debris);
   return true;
 }

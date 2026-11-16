@@ -19,7 +19,9 @@
  *   change what a later shot of the same tick sees. A ship the ledger brings to
  *   0 energy is destroyed on that tick through `killShip` (FOUND-19, D-12),
  *   removed by a second `commitWorld` so the tick boundary holds no dead
- *   entity, and an ident lock on it ends on the same step.
+ *   entity, and an ident lock on it ends on the same step. With debris content
+ *   in the options, the kill releases the ship's debris (`../world/debris.ts`)
+ *   on the same tick; the pieces post no event and survive the second commit.
  *
  * Neither function reads the clock. `resolveShots` draws no random value itself,
  * but a kill tick runs the immediate AI drain (`drainAiEventsNow`), whose
@@ -36,6 +38,7 @@ import { AI_REGISTRY } from "../ai/registry.js";
 import { add, scale } from "../math.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
+import type { DebrisContent, DebrisContext } from "../world/debris.js";
 import { killShip } from "../world/kill.js";
 import type { SystemLayout } from "../world/layout.js";
 import { drainAiEventsNow } from "../world/step.js";
@@ -76,6 +79,12 @@ export interface CombatOptions {
    * `EQ_WEAPON_NONE`, cannot fire through `ShipControl.fire`.
    */
   readonly npcWeapons?: ReadonlyMap<string, NpcWeapon>;
+  /**
+   * The compiled debris content (Phase 16, `../world/debris.ts`), built by the
+   * app from the lazily loaded catalogues. Absent with traffic off or before the
+   * content has loaded; absent means a kill releases no debris.
+   */
+  readonly debris?: DebrisContent;
 }
 
 /** One shot queued for resolution after the world step. */
@@ -325,6 +334,23 @@ function resolveShotHits(
 }
 
 /**
+ * The debris context of this tick's kills, or undefined without debris
+ * content. The hull octrees ride along when loaded (plan 16-04 reads them);
+ * the key is omitted otherwise (exactOptionalPropertyTypes).
+ */
+function debrisContext(
+  options: StepOptions | undefined,
+  tick: number,
+): DebrisContext | undefined {
+  const combat = options?.combat;
+  const content = combat?.debris;
+  if (content === undefined) return undefined;
+  return combat?.hulls === undefined
+    ? { tick, content }
+    : { tick, content, octrees: combat.hulls };
+}
+
+/**
  * Resolve the tick's shots, apply the damage, destroy what reached 0 energy and
  * update the ident lock, after `stepWorld`.
  *
@@ -336,7 +362,9 @@ function resolveShotHits(
  *    lethal victim in ascending victim id, crediting the ledger's killer only
  *    when it is still alive at that call (D-04). In a same-tick mutual kill the
  *    lower-id victim is therefore credited to the other ship and the higher-id
- *    victim carries `NO_ENTITY`.
+ *    victim carries `NO_ENTITY`. With `options.combat.debris`, each kill also
+ *    releases the victim's debris from its own stream (Phase 16), spawning
+ *    pieces that post no event; the event order below is unchanged.
  * 4. `drainAiEventsNow` (`../world/step.ts`) delivers the AI events the kills
  *    posted (`shipTargetLost`, `shipTargetDestroyed`, `shipKilledOther`, D-04)
  *    before the commit, discarding any fire request a handler makes meanwhile,
@@ -385,7 +413,10 @@ export function resolveShots(
     events,
   );
   if (world !== undefined && worldStepped) {
-    for (const hit of lethal) killShip(world, hit.victim, hit.killer, events);
+    const debris = debrisContext(options, player.tick);
+    for (const hit of lethal) {
+      killShip(world, hit.victim, hit.killer, events, debris);
+    }
     drainAiEventsNow(world, player, layout, player.tick, events, registry);
     for (const id of commitWorld(world))
       events.push({ kind: "entityRemoved", id });
