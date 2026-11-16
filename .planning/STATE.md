@@ -5,16 +5,16 @@ milestone_name: Weapons and NPC Flight
 current_phase: 14
 current_phase_name: NPC Flight and Steering Fidelity Gate
 status: executing
-stopped_at: Completed 14-17-PLAN.md
-last_updated: "2026-11-15T23:58:14.894Z"
+stopped_at: Completed 14-18-PLAN.md
+last_updated: "2026-11-16T00:26:10.570Z"
 last_activity: 2026-11-15
 last_activity_desc: Phase 14 execution started
-state_head: ab7343bf300549a95a22576afc2d903d6dd52e17
+state_head: d8b4483ca9b2081ab30edcf49e8f31769ade7831
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 33
+  completed_plans: 34
   percent: 50
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 ## Current Position
 
 Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 18 of 19
+Plan: 19 of 19
 Status: Ready to execute
 Last activity: 2026-11-15 — Phase 14 execution started
 
@@ -187,6 +187,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | Phase 14 P15 | 100 min | 3 tasks | 18 files |
 | Phase 14 P16 | 75min | 3 tasks | 9 files |
 | Phase 14 P17 | 2 sessions | 4 tasks | 7 files |
+| Phase 14 P18 | 60 min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -467,6 +468,7 @@ Recent decisions affecting current work:
 - [Phase 14]: Plan 14-15: setProximityAlert's already-avoiding comparison is ported as written (the body with the smaller subtended angle keeps the slot); every listed ship is crewed; inert ships hold no alert
 - [Phase 14]: 14-16: spawnTestFlyers takes the station centre as a sixth parameter, because the five-argument form cannot orient the station flyer at the station; plan 14-18's hook must pass layout.station.position
 - [Phase 14]: 14-17: 20-seed acceptance accepted as option-continue on 2026-11-16 by an owner-delegated review panel (Fable, Opus, Sonnet; TRUST-WITH-CAVEATS), not by the owner reading the run; 21/21 cases pass in 137.6 s, accepted-crossings empty, five residual risks recorded in the SUMMARY
+- [Phase 14]: 14-18: the ?test=1 hook and the Node replay pick the three flyer records through one function, testFlyerRecords, and hand the same flightTableFrom table to every step
 
 ### Pending Todos
 
@@ -568,8 +570,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-15T23:58:14.637Z
-Stopped at: Completed 14-17-PLAN.md
+Last session: 2026-11-16T00:26:10.305Z
+Stopped at: Completed 14-18-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
