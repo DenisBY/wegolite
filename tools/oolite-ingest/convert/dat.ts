@@ -117,6 +117,7 @@ const PLUS_Z: Vec3 = { x: 0, y: 0, z: 1 };
  */
 export const MODEL_BOUNDS: Readonly<Record<string, Vec3>> = {
   "oolite_adder.dat": { x: 28.0186, y: 14.8953, z: 51.1851 },
+  "oolite_barrel.dat": { x: 9.5597, y: 5.82782, z: 6.12774 },
   "oolite_buoy.dat": { x: 108.613, y: 91.176, z: 101.848 },
   "oolite_buoy_subents.dat": { x: 42.79, y: 41.046, z: 42.451 },
   "oolite_cobra3.dat": { x: 130, y: 34.9649, z: 81.3726 },

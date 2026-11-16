@@ -104,9 +104,10 @@ function withEntry(
   };
 }
 
-/** The hull masses of the 16 vendored meshes, density 1, float32. */
+/** The hull masses of the 17 vendored meshes, density 1, float32. */
 const HULL_MASSES: Readonly<Record<string, number>> = {
   "oolite_adder.dat": 16045.4931640625,
+  "oolite_barrel.dat": 993.3700561523438,
   "oolite_buoy.dat": 691044.375,
   "oolite_buoy_subents.dat": 7646.7861328125,
   "oolite_cobra3.dat": 214737.6875,
@@ -130,9 +131,12 @@ const DEPTH_SIX = new Set([
   "oolite_coriolis_tris.dat",
 ]);
 
+/** The small debris hulls, whose span puts them one level shallower. */
+const DEPTH_FOUR = new Set(["oolite_barrel.dat"]);
+
 const COBRA_PLAYER = "oolite_template_cobra3-player";
 
-describe("the 16 vendored meshes", () => {
+describe("the 17 vendored meshes", () => {
   it("are exactly the meshes the table pins", () => {
     expect(Object.keys(meshes).sort()).toEqual(Object.keys(HULL_MASSES).sort());
   });
@@ -145,7 +149,9 @@ describe("the 16 vendored meshes", () => {
   );
 
   it.each(Object.keys(HULL_MASSES))("%s has the adaptive depth", (name) => {
-    expect(octreeDepthFor(mesh(name))).toBe(DEPTH_SIX.has(name) ? 6 : 5);
+    expect(octreeDepthFor(mesh(name))).toBe(
+      DEPTH_SIX.has(name) ? 6 : DEPTH_FOUR.has(name) ? 4 : 5,
+    );
   });
 });
 

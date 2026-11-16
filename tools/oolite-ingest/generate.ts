@@ -22,6 +22,7 @@ import { dirname, resolve, sep } from "node:path";
 
 import { contentError } from "./content-error.js";
 import { emitCommodities } from "./convert/commodities.js";
+import { DEBRIS_ENTRIES, emitDebris } from "./convert/debris.js";
 import { assertBounds, modelBounds, parseDat } from "./convert/dat.js";
 import type { ParsedMesh } from "./convert/dat.js";
 import { emitDockPort } from "./convert/dock-port.js";
@@ -180,6 +181,12 @@ export async function generateContent({
   // The NPC collision radii read the same parsed meshes, for the same reason.
   const radii = computeShipRadii(NPC_SHIP_KEYS, catalogue, models);
 
+  // The debris models (DATA-16) are read because MODEL_SOURCE_FILES lists
+  // them; their masses and radii come from the same parsed meshes.
+  const debrisKeys = DEBRIS_ENTRIES.map((entry) => entry.key);
+  const debrisMasses = computeShipMasses(debrisKeys, catalogue, models);
+  const debrisRadii = computeShipRadii(debrisKeys, catalogue, models);
+
   const emitted: EmittedFile[] = [
     emitCommodities(commodities, descriptions),
     ...emitSystems(systems),
@@ -188,6 +195,7 @@ export async function generateContent({
     emitShipsFromCatalogue(catalogue),
     emitClientShips(catalogue, masses),
     emitNpcShips(catalogue, masses, radii),
+    emitDebris(catalogue, debrisMasses, debrisRadii),
     emitShipHulls(catalogue, models),
     emitDockPort(models),
     ...emitModels(models, entries),

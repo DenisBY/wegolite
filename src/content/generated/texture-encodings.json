@@ -62,6 +62,58 @@
         "-noalpha",
         "-quiet"
       ],
+      "bytes": 49906,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_barrel_diffuse.webp",
+      "sha256": "832d39fb169a3ccd043aabeac235ea98deb081c3c849733cc138c6f106198ee9",
+      "source": "third_party/oolite/Textures/oolite_barrel_diffuse.png",
+      "sourceSha256": "47b8db0f40d2614ec7a9d050b7967043b2dfcf8952776ba25914f1acee414f6a"
+    },
+    {
+      "args": [
+        "-near_lossless",
+        "60",
+        "-z",
+        "9",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 102202,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_barrel_normal.webp",
+      "sha256": "415b8b1149c37ab08dd7b891a4f53aedf2c651a62a8fbc58c6e42469a2112fae",
+      "source": "third_party/oolite/Textures/oolite_barrel_normal.png",
+      "sourceSha256": "8633b577892f706444ee652d52428806f85d197b38287ba6c781c2bf7afbd0f6"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-exact",
+        "-alpha_q",
+        "100",
+        "-quiet"
+      ],
+      "bytes": 166200,
+      "encoder": "cwebp 1.2.4",
+      "path": "public/textures/oolite_barrel_specular.webp",
+      "sha256": "f1a869f49b66ad99f850e188e2d4c2e4f26c021e58cfa671b34e75728eb68f99",
+      "source": "third_party/oolite/Textures/oolite_barrel_specular.png",
+      "sourceSha256": "7eba66d02ecd00be485095ca9e08c32f0d48f93c74bf44c9b3f47052f10de0b0"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
       "bytes": 149994,
       "encoder": "cwebp 1.2.4",
       "path": "public/textures/oolite_buoy_diffuse.webp",

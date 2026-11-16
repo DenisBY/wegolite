@@ -7,6 +7,7 @@
   "vendoredModelEntries": [
     "adder",
     "adder-player",
+    "barrel",
     "buoy",
     "buoy-witchpoint",
     "cobra3-alternate",
@@ -26,6 +27,7 @@
     "moray-player",
     "morayMED",
     "morayMED-player",
+    "oolite-cargopod-virtual",
     "oolite-cobra3-strict",
     "oolite-tutorial-buoy",
     "oolite-tutorial-krait",

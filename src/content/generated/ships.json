@@ -1772,7 +1772,7 @@
       "kind": "absent"
     },
     "model": "oolite_barrel.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "cargopod",
       "1t-cargopod"
@@ -8592,7 +8592,7 @@
       "kind": "absent"
     },
     "model": "oolite_barrel.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "oolite-template-cargopod"
     ],
@@ -12284,7 +12284,7 @@
       "kind": "absent"
     },
     "model": "oolite_barrel.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "cargopod",
       "1t-cargopod"

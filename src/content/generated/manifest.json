@@ -6,6 +6,11 @@
       "sha256": "29bba2c136da52b737a4b7ae8f1a7a3dfc68175486717fcb5815924b3470effb"
     },
     {
+      "bytes": 19068,
+      "path": "public/models/barrel.glb",
+      "sha256": "f2a7e494d630c5400589daa465bfaae9fd212682a3ad4b7de5b2c40b4b7d7374"
+    },
+    {
       "bytes": 297204,
       "path": "public/models/buoy.glb",
       "sha256": "6d3014f6c251c766877d3b0d46af03ad2680d7b889eedb33df1017a1c140c904"
@@ -99,6 +104,21 @@
       "bytes": 366716,
       "path": "public/textures/oolite_adder_specular.webp",
       "sha256": "595427ea8ce7c5adfecc6c6fbf0e09367ba7d2c1b2d8b02522bbc25cc013c286"
+    },
+    {
+      "bytes": 49906,
+      "path": "public/textures/oolite_barrel_diffuse.webp",
+      "sha256": "832d39fb169a3ccd043aabeac235ea98deb081c3c849733cc138c6f106198ee9"
+    },
+    {
+      "bytes": 102202,
+      "path": "public/textures/oolite_barrel_normal.webp",
+      "sha256": "415b8b1149c37ab08dd7b891a4f53aedf2c651a62a8fbc58c6e42469a2112fae"
+    },
+    {
+      "bytes": 166200,
+      "path": "public/textures/oolite_barrel_specular.webp",
+      "sha256": "f1a869f49b66ad99f850e188e2d4c2e4f26c021e58cfa671b34e75728eb68f99"
     },
     {
       "bytes": 149994,
@@ -456,6 +476,11 @@
       "sha256": "fd508299dc4f6154b941dbcea916ba845e49d0235c5604469c56e92e5a21c245"
     },
     {
+      "bytes": 234,
+      "path": "src/content/generated/ships-debris.json",
+      "sha256": "088388708bceb3729966e00cfca2dca6479a7f70288499f07d50103f3f480f89"
+    },
+    {
       "bytes": 89673,
       "path": "src/content/generated/ships-hulls.json",
       "sha256": "80cc48400c6a9d10c064f955df95980ee6ca2a116da0f1f27b342a30eb20a58a"
@@ -466,9 +491,9 @@
       "sha256": "e42bedec7d5b82b818e751789eb94be403faf50bd3872a48bdf8102524e1d5d8"
     },
     {
-      "bytes": 706570,
+      "bytes": 706567,
       "path": "src/content/generated/ships.json",
-      "sha256": "ca0cbb04378823ff7027dc4a24bda5ac783f5421629a2d93d3843620679e3e60"
+      "sha256": "43270bd976184f5245a2fb9cd62886ef91ece87bd518ea30966babe2873c41b0"
     },
     {
       "bytes": 694240,
@@ -511,9 +536,9 @@
       "sha256": "40f906335a3a074acb0db3cae5cc034e9acb7554950a9f3cfd1b4aedff9af5b4"
     },
     {
-      "bytes": 28185,
+      "bytes": 29746,
       "path": "src/content/generated/texture-encodings.json",
-      "sha256": "970643e3af72e228967426055446f5a9ebf3014f68ef333a8d620bdc979c7b18"
+      "sha256": "55c2bc398792a713ab721ae463f9ebd78f4160d8b036965706ac8c8de24221e3"
     }
   ],
   "format": "wegolite-content-manifest",

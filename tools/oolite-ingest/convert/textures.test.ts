@@ -79,12 +79,12 @@ function caught(body: () => void): { message: string; code?: string } {
 }
 
 describe("texture reference closure", () => {
-  it("resolves exactly the 54 allowlisted names, in both directions", () => {
+  it("resolves exactly the 57 allowlisted names, in both directions", () => {
     const references = resolveReferencedTextures(catalogue());
 
     expect(nameList(references)).toEqual([...VENDORED_TEXTURES].sort());
     expect([...VENDORED_TEXTURES].sort()).toEqual(nameList(references));
-    expect(references.size).toBe(54);
+    expect(references.size).toBe(57);
   });
 
   it("keeps the Cobra variant textures out of the closure and both trees", () => {

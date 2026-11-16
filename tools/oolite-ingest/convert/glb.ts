@@ -78,6 +78,7 @@ export const SHIPDATA_SOURCE_FILE = "third_party/oolite/Config/shipdata.plist";
  */
 export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
   "adder.glb": ["adder"],
+  "barrel.glb": ["barrel"],
   "buoy.glb": ["buoy", "oolite_buoy_subentity"],
   "cobra3.glb": ["cobra3-player"],
   "cobramk1.glb": ["cobramk1"],
@@ -99,6 +100,7 @@ export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
 /** The vendored `.dat` files each emitted GLB is built from, in node order. */
 export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
   "adder.glb": ["oolite_adder.dat"],
+  "barrel.glb": ["oolite_barrel.dat"],
   "buoy.glb": ["oolite_buoy.dat", "oolite_buoy_subents.dat"],
   "cobra3.glb": ["oolite_cobra3.dat"],
   "cobramk1.glb": ["oolite_cobramk1.dat"],
@@ -150,6 +152,36 @@ export function shipGlbFile(model: string): string {
     );
   }
   return `${match[1]}.glb`;
+}
+
+/**
+ * The single-mesh debris models (DATA-16, D16-07, D16-16): the cargo barrel,
+ * the alloy plate and the five wrecks, each built by `buildShipGlb` from one
+ * `.dat` and owned by one shipdata entry, like `NPC_SHIP_GLBS`. Code-unit
+ * sorted and disjoint from `NPC_SHIP_GLBS`; the row set is mirrored by
+ * `EMITTED_ENTRIES` and `MODEL_SOURCE_FILES`. `tools/oolite-ingest/convert/
+ * debris.ts` compiles the catalogue record of each.
+ */
+export const DEBRIS_GLBS: readonly string[] = ["barrel.glb"];
+
+const WRECK_MODEL_PATTERN = /^wreck([1-9])\.dat$/;
+
+/**
+ * The naming rule of the debris models: `oolite_<name>.dat` follows
+ * `shipGlbFile` (`oolite_barrel.dat` is `barrel.glb`), and the legacy wreck
+ * meshes `wreck<1-9>.dat` keep their own name (`wreck3.dat` is `wreck3.glb`).
+ * Any other model name fails the build.
+ */
+export function debrisGlbFile(model: string): string {
+  if (SHIP_MODEL_PATTERN.test(model)) return shipGlbFile(model);
+  const wreck = WRECK_MODEL_PATTERN.exec(model);
+  if (wreck === null || wreck[1] === undefined) {
+    return glbFailure(
+      "models",
+      `debris model "${model}" follows neither the oolite_<name>.dat nor the wreck<1-9>.dat naming rule`,
+    );
+  }
+  return `wreck${wreck[1]}.glb`;
 }
 
 /** The shipdata keys of the two buoys that share `buoy.glb`. */
@@ -1254,6 +1286,58 @@ function requireEntry(
 }
 
 /**
+ * The single-mesh GLBs of one row set (`NPC_SHIP_GLBS` or `DEBRIS_GLBS`): one
+ * source, one owner, the naming rule closes the loop, and the owner's resolved
+ * model is the source.
+ */
+function emitSingleMeshGlbs(
+  files: readonly string[],
+  nameRule: (model: string) => string,
+  kind: string,
+  models: Readonly<Record<string, ParsedMesh>>,
+  entries: Readonly<Record<string, ShipEntry>>,
+): EmittedModel[] {
+  const emitted: EmittedModel[] = [];
+  for (const file of files) {
+    const sources = MODEL_SOURCE_FILES[file] ?? [];
+    const owners = EMITTED_ENTRIES[file] ?? [];
+    const source = sources[0];
+    const owner = owners[0];
+    if (
+      sources.length !== 1 ||
+      owners.length !== 1 ||
+      source === undefined ||
+      owner === undefined
+    ) {
+      glbFailure(file, `${kind} needs exactly one source mesh and one owner`);
+    }
+    if (nameRule(source) !== file) {
+      glbFailure(
+        file,
+        `source "${source}" would be emitted as "${nameRule(source)}"`,
+      );
+    }
+    const entry = requireEntry(entries, owner);
+    if (entry.shipDef.model !== source) {
+      glbFailure(
+        file,
+        `owner "${owner}" resolves model "${entry.shipDef.model ?? "none"}", expected "${source}"`,
+      );
+    }
+    emitted.push({
+      path: `${EMITTED_MODELS_DIR}/${file}`,
+      bytes: buildShipGlb(
+        file.slice(0, -".glb".length),
+        source.slice(0, -".dat".length),
+        requireModel(models, source),
+        entry,
+      ),
+    });
+  }
+  return emitted;
+}
+
+/**
  * Emit every binary, driven by `EMITTED_ENTRIES` and `MODEL_SOURCE_FILES` — the
  * single declaration of which shipdata entry owns each mesh and which `.dat`
  * files it is built from, so the texture closure reads the same constants
@@ -1344,45 +1428,22 @@ export function emitModels(
     ),
   });
 
-  for (const file of NPC_SHIP_GLBS) {
-    const sources = MODEL_SOURCE_FILES[file] ?? [];
-    const owners = EMITTED_ENTRIES[file] ?? [];
-    const source = sources[0];
-    const owner = owners[0];
-    if (
-      sources.length !== 1 ||
-      owners.length !== 1 ||
-      source === undefined ||
-      owner === undefined
-    ) {
-      glbFailure(
-        file,
-        "an NPC ship needs exactly one source mesh and one owner",
-      );
-    }
-    if (shipGlbFile(source) !== file) {
-      glbFailure(
-        file,
-        `source "${source}" would be emitted as "${shipGlbFile(source)}"`,
-      );
-    }
-    const entry = requireEntry(entries, owner);
-    if (entry.shipDef.model !== source) {
-      glbFailure(
-        file,
-        `owner "${owner}" resolves model "${entry.shipDef.model ?? "none"}", expected "${source}"`,
-      );
-    }
-    emitted.push({
-      path: `${EMITTED_MODELS_DIR}/${file}`,
-      bytes: buildShipGlb(
-        file.slice(0, -".glb".length),
-        source.slice(0, -".dat".length),
-        requireModel(models, source),
-        entry,
-      ),
-    });
-  }
+  emitted.push(
+    ...emitSingleMeshGlbs(
+      NPC_SHIP_GLBS,
+      shipGlbFile,
+      "an NPC ship",
+      models,
+      entries,
+    ),
+    ...emitSingleMeshGlbs(
+      DEBRIS_GLBS,
+      debrisGlbFile,
+      "a debris model",
+      models,
+      entries,
+    ),
+  );
 
   return emitted.sort((left, right) =>
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0,

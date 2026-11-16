@@ -94,6 +94,16 @@ collision radius computed as for `ships-npc.json`. It is a derivative work of
 those models and remains CC BY-NC-SA 3.0, never GPL, with attribution to the
 Oolite contributors, non-commercial use only and share-alike terms.
 
+The generated debris catalogue `src/content/generated/ships-debris.json` is
+compiled at build time from the vendored Oolite `shipdata.plist` debris entries
+(with `like_ship` resolved: the cargo barrel, the alloy plate and the wreckage
+entries; for each, its role, model and tumble rates `max_flight_roll` and
+`max_flight_pitch`) and from the vendored Oolite `.dat` models: the `mass` and
+`radius` of each record are computed from its model as for `ships-npc.json`. It
+is a derivative work of `shipdata.plist` and of those models and remains
+CC BY-NC-SA 3.0, never GPL, with attribution to the Oolite contributors,
+non-commercial use only and share-alike terms.
+
 The `mass` values in `src/content/generated/ships-client.json` (the player Cobra
 Mk III, the Coriolis station and the navigation buoy) are computed the same way
 from the vendored Oolite `oolite_cobra3` model, the four Coriolis models

@@ -1,0 +1,12 @@
+[
+  {
+    "glb": "models/barrel.glb",
+    "key": "barrel",
+    "mass": 993.3700561523438,
+    "maxFlightPitch": 0.5,
+    "maxFlightRoll": 0.5,
+    "model": "oolite_barrel.dat",
+    "radius": 5.798625946044922,
+    "role": "pod"
+  }
+]
