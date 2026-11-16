@@ -1,8 +1,8 @@
 ---
 phase: 14-npc-flight-and-steering-fidelity-gate
 verified: 2026-11-16T03:00:00Z
-status: human_needed
-score: 5/5 must-haves verified (criterion 4 verified except the owner's own ratification of two panel-answered checkpoints)
+status: passed
+score: 5/5 must-haves verified (criterion 4 ratified by the owner on 2026-11-16; see 14-UAT.md)
 covered_files:
   - .planning/phases/14-npc-flight-and-steering-fidelity-gate/14-01-PLAN.md
   - .planning/phases/14-npc-flight-and-steering-fidelity-gate/14-01-SUMMARY.md

@@ -66,7 +66,7 @@ Total: 27 of 27 plans complete. Requirements 12/12. Phase directories now live i
 **Phase numbering:** continues from v2.1 (Phases 9-12). Decimal phases (for example 13.1) are urgent insertions.
 
 - [x] **Phase 13: Views, Lasers and Shields** - A refused arrival no longer leaves a stale world; Oolite's keys for pause, ident and eject; four views; pulse, beam, military and mining lasers per facing hitting ships by their octree hull; shields and energy banks that absorb and recharge; docking restores them (completed 2026-11-15)
-- [ ] **Phase 14: NPC Flight and Steering Fidelity Gate** - NPC ships seen flying with Oolite's flight model and nine native steering behaviours, proven against independently authored source-cited oracles; the dev-only harness spike and the owner's oracle choice close the gate to the AI port
+- [x] **Phase 14: NPC Flight and Steering Fidelity Gate** - NPC ships seen flying with Oolite's flight model and nine native steering behaviours, proven against independently authored source-cited oracles; the dev-only harness spike and the owner's oracle choice close the gate to the AI port (completed 2026-11-16)
 
 **Staged verification:** WORLD-07 is the one staged requirement. Its drawn-and-on-the-scanner half shipped in Phase 12 (inert ships); Phase 14 completes it when the ships move. CBT-07 needs no stage: the shared hit rule is proved by a scripted test pilot, and autonomous NPC fire (CBT-15) is unscheduled.
 
@@ -178,7 +178,7 @@ Plans:
 **Pitfalls to address**: 6 (`BEHAVIOUR_*` steering fidelity: per-behaviour oracles, 20-seed acceptance), 5 (the harness spike as the only independent check of the later port), 3 (integer tick timers), 4 (NaN in steering), 7 (steering requests queued), 19 (behaviours act only through `ShipControl`), 11 (oracles in Vitest, not the browser)
 **Decisions to settle**: the stated acceptance thresholds (stuck, tunnelling, NaN repair) before the run; the time box and stub-host scope of the spike; the oracle choice at the gate (owner)
 **Todos**: candidates to fold in by owner decision, not requirements: IN-02 (`aiFaulted` is emitted but nothing records it) and IN-04 (a failed NPC model is never retried, yet the ship still blocks and shows on the scanner), both from `2026-11-14-clear-world-when-arrival-begin-is-refused.md`
-**Plans:** 19/19 plans executed in 14 waves (three owner checkpoints: the hash policy in 14-08, the 20-seed acceptance result and any breach resolution in 14-17, the fidelity report and oracle choice in 14-19; revised after the cross-AI reviews of 2026-11-15 (two rounds and a targeted third round on the acceptance design) and plan-check revision 1, which split the first oracle plan and the intercept plan and renumbered the plans in wave order)
+**Plans:** 19/19 plans complete in 14 waves (three owner checkpoints: the hash policy in 14-08, the 20-seed acceptance result and any breach resolution in 14-17, the fidelity report and oracle choice in 14-19; revised after the cross-AI reviews of 2026-11-15 (two rounds and a targeted third round on the acceptance design) and plan-check revision 1, which split the first oracle plan and the intercept plan and renumbered the plans in wave order)
 
 Plans:
 **Wave 1**
@@ -262,7 +262,7 @@ Pending todos outside v2.2, which can run as quick tasks or join a phase by owne
 | 11. Minimal Save Schema v3 | v2.1 | 4/4 | Complete    | 2026-11-14 |
 | 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | Complete    | 2026-11-14 |
 | 13. Views, Lasers and Shields | v2.2 | 16/16 | Complete    | 2026-11-15 |
-| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 19/19 | In Progress | - |
+| 14. NPC Flight and Steering Fidelity Gate | v2.2 | 19/19 | Complete    | 2026-11-16 |
 
 ## Backlog
 

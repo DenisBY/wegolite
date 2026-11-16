@@ -3,19 +3,18 @@ gsd_state_version: "1.0"
 milestone: v2.2
 milestone_name: Weapons and NPC Flight
 current_phase: 14
-current_phase_name: NPC Flight and Steering Fidelity Gate
-status: verifying
-stopped_at: Completed 14-19-PLAN.md
-last_updated: "2026-11-16T00:49:07.897Z"
-last_activity: 2026-11-15
-last_activity_desc: Phase 14 execution started
-state_head: bf4276fc604a7015071a0d9b73085497c43bfcc7
+status: completed
+stopped_at: Phase 14 complete — all phases complete
+last_updated: "2026-11-16T08:15:01.812Z"
+last_activity: 2026-11-16
+last_activity_desc: Phase 14 complete
+state_head: 9333ca9e6e6a7a1915345cb68cf8b2a99b22670c
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 35
   completed_plans: 35
-  percent: 50
+  percent: 100
 ---
 
 # Project State
@@ -29,16 +28,16 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 ## Current Position
 
-Phase: 14 (NPC Flight and Steering Fidelity Gate) — EXECUTING
-Plan: 19 of 19
-Status: Phase complete — ready for verification
-Last activity: 2026-11-15 — Phase 14 execution started
+Phase: 14
+Plan: Not started
+Status: All phases complete
+Last activity: 2026-11-16 — Phase 14 complete
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 120
+- Total plans completed: 139
 - Average duration: 5.3 min
 - Total execution time: 3.9 hours
 
@@ -58,6 +57,7 @@ Last activity: 2026-11-15 — Phase 14 execution started
 | 11 | 4 | - | - |
 | 12 | 14 | - | - |
 | 13 | 16 | - | - |
+| 14 | 19 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: 01-03 3 min, 01-04 5 min, 01-05 9 min, 01-06 2 min, 01-07 6 min
@@ -573,7 +573,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-16T00:49:07.634Z
-Stopped at: Completed 14-19-PLAN.md
+Stopped at: Phase 14 complete — all phases complete
 Resume file: None
 
 ## Operator Next Steps
