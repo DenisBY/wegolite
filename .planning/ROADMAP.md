@@ -159,14 +159,14 @@ Ordering rules:
 **Pitfalls to address** (research PITFALLS.md): 3 (every hashed field costs a bump: one bump, strip-and-rehash, pristine-omit), 4 (the frozen acceptance run throws on any flyer death), 5 (a kill after the commit leaves a dead entity at the boundary: second commit, idempotent `killShip`, a property test), 6 (old pins encode "nothing is destroyed"), 16 (new code is outside AI fault containment: totality), 22 (closed sets: router table, probe shape)
 **Decisions to settle**: the debris motion model (heading and speed against a bounded velocity vector), decided in the first plan so a later phase never bumps the snapshot; the event kinds and payloads; the field bounds
 **Todos**: none
-**Plans**: 1/6 plans executed in 6 waves
+**Plans**: 2/6 plans executed in 6 waves
 
 Plans:
 **Wave 1**
 - [x] 15-01-PLAN.md — DATA-14: compile weapon facings, `likely_cargo`, `max_cargo`, `fragment_chance` and `explosion_type` into the NPC record (schema, golden, drift gate, NOTICE); carries the phase-wide D-11 inventory (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 15-02-PLAN.md — FOUND-18: the v4 field set (velocity, weapon with missed shots, cargo, per-world static health), pristine-omit hashing, snapshot version 4, sanitiser and bounds; Lave golden unchanged (wave 2)
+- [x] 15-02-PLAN.md — FOUND-18: the v4 field set (velocity, weapon with missed shots, cargo, per-world static health), pristine-omit hashing, snapshot version 4, sanitiser and bounds; Lave golden unchanged (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 15-03-PLAN.md — FOUND-18: cargo count at spawn from a stateless stream, the one Lave golden regeneration with the three-link strip proof, Key Decisions row; owner decision OD-1 pending (wave 3)
@@ -340,7 +340,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | Complete    | 2026-11-14 |
 | 13. Views, Lasers and Shields | v2.2 | 16/16 | Complete    | 2026-11-15 |
 | 14. NPC Flight and Steering Fidelity Gate | v2.2 | 19/19 | Complete    | 2026-11-16 |
-| 15. Damage Ledger and Kills | v2.3 | 1/6 | In Progress | - |
+| 15. Damage Ledger and Kills | v2.3 | 2/6 | In Progress | - |
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 0/TBD | Not started | - |
 | 17. NPC Fire and Hits on the Player | v2.3 | 0/TBD | Not started | - |
 | 18. Stations, Buoys and Collisions | v2.3 | 0/TBD | Not started | - |

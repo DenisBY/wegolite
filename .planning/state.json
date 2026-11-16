@@ -41,7 +41,7 @@
     {
       "number": "15",
       "name": "Damage Ledger and Kills",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "16",
@@ -71,8 +71,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (plan phase 15)",
-    "reason": "Phase 1 of 6 — needs a plan"
+    "label": "Advance to the next step",
+    "reason": "Phase 1 of 6 · 0% · executing"
   },
-  "updated_at": "2026-11-16T17:01:00.853Z"
+  "updated_at": "2026-11-16T18:29:28.550Z"
 }
