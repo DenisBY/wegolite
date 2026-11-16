@@ -20,9 +20,20 @@ v2.2 gave the player four views (fore, aft, port, starboard), pulse, beam, milit
 
 Open at close (todos): lasers and ident do not yet hit stations or buoys; Phase 14 review follow-ups (the 20-seed acceptance run is in no gate and must be rerun by hand after NPC changes, a blind spot of the frozen detectors, the `dt` coupling of the tracking curve); buoys do not yet block hyperspace; the real-Oolite mass check is deferred.
 
-## Next Milestone Goals
+## Current Milestone: v2.3 Combat and Death
 
-No milestone is in progress; start the next with `/gsd-new-milestone`. The unscheduled backlog is the former Phases 15-23 (autonomous NPC fire, destruction and death, bounties and the escape pod, audio, priority AI and traffic, police and law, pirates, missiles, mining, performance hardening with QUAL-01). Their requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`.
+**Goal:** Fights have consequences: NPC ships fire lasers, ships are destroyed, and the player can die.
+
+**Target features:**
+- NPC laser fire at the player and at each other by Oolite's rules (shields, energy, octree hits); no missiles, ECM or mines
+- Lasers and ident hit stations and navigation buoys (closes the open todo)
+- Ship destruction: wreckage and cargo pods by Oolite's cargo rule, an entity cap, equipment damage from internal hits (CBT-08)
+- Ship-ship and ship-buoy collisions damage both by Oolite's mass and closing-speed rule
+- Player death at zero energy from any cause: game over and load the last save, one death path that autosave, pause and the title flow respect
+
+**Out of this milestone (stay in the backlog):** missiles and ECM; escape pod, bounties and scooping; sun, planet, heat and alert condition; docking-slot scrape damage; audio; police, law and pirates; priority AI and traffic; mining; QUAL-01.
+
+Unscheduled backlog: the former Phases 16-23 minus what this milestone takes. Their requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`. Phase numbering continues at 15.
 
 ## Requirements
 
@@ -54,7 +65,9 @@ No milestone is in progress; start the next with `/gsd-new-milestone`. The unsch
 
 ### Active
 
-<!-- Later, unscheduled (former v2.1 Phases 13-23). -->
+<!-- v2.3 scope is in "Current Milestone" above; REQ-IDs land in REQUIREMENTS.md. Later, unscheduled (former v2.1 Phases 13-23): -->
+
+- [ ] v2.3: NPC laser fire, ship destruction with wreckage and cargo, ship collisions, player death with game over
 
 - [ ] (later) NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
 - [ ] (later) NPC ships fight with Oolite's priority AI, hand-ported to TypeScript
@@ -300,4 +313,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-16 after v2.2 milestone*
+*Last updated: 2026-11-16 after starting milestone v2.3*

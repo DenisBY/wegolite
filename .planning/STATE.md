@@ -1,20 +1,16 @@
 ---
 gsd_state_version: "1.0"
-milestone: v2.2
-milestone_name: Weapons and NPC Flight
-status: Awaiting next milestone
-stopped_at: Phase 14 complete — all phases complete
-last_updated: "2026-11-16T09:15:04.151Z"
+milestone: v2.3
+milestone_name: Combat and Death
+status: planning
+last_updated: "2026-11-16T12:07:39.938Z"
 last_activity: 2026-11-16
-last_activity_desc: Milestone v2.2 completed and archived
-state_head: 752a8f591b85e3041941d09e7da80c47a7e26956
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 35
-  completed_plans: 35
-  percent: 100
-current_phase: 14
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,10 +24,11 @@ See: .planning/PROJECT.md (updated 2026-11-14)
 
 ## Current Position
 
-Phase: Milestone v2.2 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-11-16 — Milestone v2.2 completed and archived
+Status: Defining requirements
+Last activity: 2026-11-16 — Milestone v2.3 started
+
 
 ## Performance Metrics
 
