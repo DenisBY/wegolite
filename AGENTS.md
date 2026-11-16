@@ -100,6 +100,8 @@ docker compose down --volumes --remove-orphans
 
 `verify` is the fast gate and runs on every change; `verify-full` is the release gate and runs before a release and when render, input, persistence or network-guard code changes. CI runs `verify-full`. Choose the gate by change type: changes limited to pure simulation logic (`src/sim/`) and its tests or guards need only `docker compose run --rm test`, `lint` and `typecheck`; changes to browser-facing code (`src/app/`, `src/render/`, `src/input/`, `src/ui/`, `index.html`) need `verify`; `verify-full` stays for releases and for render, input, persistence or network-guard changes.
 
+The 20-seed NPC acceptance run (`npm run test:acceptance`, `tests/acceptance/`) is in no gate, by decision (Phase 14 review IN-04). Rerun it by hand, on the remote test machine, after any change under `src/sim/npc/**`, `src/sim/world/**` or to `src/content/generated/ships-npc.json`, and record the result in the plan's SUMMARY. The thresholds and detectors are frozen: changing them needs the owner's `Detector-change-approved-by-owner` trailer. Revisit adding the run to `verify-full` when a later phase changes NPC behaviour.
+
 Rules:
 
 - If a command needs a tool, add it to a Dockerfile — never install it on the host.

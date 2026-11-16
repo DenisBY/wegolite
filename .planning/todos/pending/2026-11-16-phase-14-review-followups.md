@@ -15,7 +15,7 @@ files:
 
 Items the Phase 14 review triage deferred (see `14-REVIEW-DISPOSITION.md`).
 
-- IN-04 (owner decision): `test:acceptance` (20 seeds) is in no gate, so a change under
+- IN-04 (owner decided 2026-11-16: manual rerun rule, now in `AGENTS.md`; revisit adding it to `verify-full` when a later phase changes NPC behaviour): `test:acceptance` (20 seeds) is in no gate, so a change under
   `src/sim/npc/**`, `src/sim/world/**` or `src/content/generated/ships-npc.json` can break a frozen
   threshold unseen. Either add it to `verify-full` or a scheduled run, or document that it must be rerun
   by hand after such a change.
