@@ -264,6 +264,83 @@ describe("NpcShipCatalogueSchema", () => {
     }
   });
 
+  it("carries the DATA-14 fields on every record", () => {
+    for (const record of generated as Record<string, unknown>[]) {
+      for (const field of ["aftWeapon", "portWeapon", "starboardWeapon"]) {
+        expect(record[field]).toBe("EQ_WEAPON_NONE");
+      }
+      for (const field of [
+        "aftWeaponPosition",
+        "portWeaponPosition",
+        "starboardWeaponPosition",
+      ]) {
+        expect(record[field]).toHaveLength(3);
+      }
+      expect(record["fragmentChance"]).toBe(Math.fround(0.9));
+      expect(record["explosionType"]).toBeNull();
+    }
+  });
+
+  it("rejects a record missing a DATA-14 field", () => {
+    for (const field of [
+      "aftWeapon",
+      "portWeapon",
+      "starboardWeapon",
+      "aftWeaponPosition",
+      "portWeaponPosition",
+      "starboardWeaponPosition",
+      "fragmentChance",
+      "explosionType",
+    ]) {
+      const record = { ...firstRecord() };
+      delete record[field];
+      expect(accepts([record])).toBe(false);
+    }
+  });
+
+  it("rejects an unknown aft, port or starboard weapon", () => {
+    for (const field of ["aftWeapon", "portWeapon", "starboardWeapon"]) {
+      for (const value of ["WEAPON_PULSE_LASER", "EQ_WEAPON_THARGOID", "", 7]) {
+        expect(accepts([{ ...firstRecord(), [field]: value }])).toBe(false);
+      }
+      expect(
+        accepts([{ ...firstRecord(), [field]: "EQ_WEAPON_BEAM_LASER" }]),
+      ).toBe(true);
+    }
+  });
+
+  it("rejects a facing position that is not three finite numbers", () => {
+    for (const field of [
+      "aftWeaponPosition",
+      "portWeaponPosition",
+      "starboardWeaponPosition",
+    ]) {
+      for (const value of [[0, 0], [0, Number.NaN, 0], "0 0 0"]) {
+        expect(accepts([{ ...firstRecord(), [field]: value }])).toBe(false);
+      }
+    }
+  });
+
+  it("rejects a fragmentChance outside 0..1 or not a number", () => {
+    for (const value of [-0.1, 1.1, Number.NaN, "0.9", true]) {
+      expect(accepts([{ ...firstRecord(), fragmentChance: value }])).toBe(
+        false,
+      );
+    }
+    for (const value of [0, 1, 0.5]) {
+      expect(accepts([{ ...firstRecord(), fragmentChance: value }])).toBe(true);
+    }
+  });
+
+  it("rejects an explosionType that is neither null nor an array of strings", () => {
+    for (const value of ["slowcloud", 1, {}, [1], [""], undefined]) {
+      expect(accepts([{ ...firstRecord(), explosionType: value }])).toBe(false);
+    }
+    for (const value of [null, [], ["oolite-builtin-slowcloud"]]) {
+      expect(accepts([{ ...firstRecord(), explosionType: value }])).toBe(true);
+    }
+  });
+
   it("rejects a missing, zero, negative or non-finite mass", () => {
     const { mass: _mass, ...withoutMass } = firstRecord();
     void _mass;

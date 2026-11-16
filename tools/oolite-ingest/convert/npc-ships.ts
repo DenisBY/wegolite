@@ -11,10 +11,15 @@
  * computed by `ship-mass.ts` and handed in) and its collision radius (WORLD-15,
  * computed by `ship-radius.ts` and handed in), and, from Phase 13 (CBT-07, the
  * minimum of DATA-15), the display name, max energy, energy recharge rate,
- * forward weapon and forward weapon position, and, from Phase 14 (AI-01), the
- * four flight constants the NPC flight model reads (max flight speed, roll and
- * pitch, and thrust), and, from Phase 15 (DATA-14), `likely_cargo` and
- * `max_cargo` (unsigned integers, default 0). Nothing else: no other combat or flight stat, no
+ * forward weapon and forward weapon position, from Phase 14 (AI-01), the four
+ * flight constants the NPC flight model reads (max flight speed, roll and
+ * pitch, and thrust), and, from Phase 15 (DATA-14), the aft, port and
+ * starboard weapon types and positions (every facing type gated by Oolite's
+ * `weapon_facings` mask), `likely_cargo`, `max_cargo` (unsigned integers,
+ * default 0), `fragment_chance` and `explosion_type`. The one deliberate
+ * narrowing of Oolite's readers: `fragment_chance` must be a number, where
+ * Oolite's fuzzy boolean also takes boolean and string spellings (see
+ * `DEFAULT_FRAGMENT_CHANCE`). Nothing else: no other combat or flight stat, no
  * subentity, material or `auto_ai`. No class field is compiled:
  * Oolite's class name equals the name for all nine stock hulls
  * (`ship_class_name` defaults to `name`, ShipEntity.m:391-392), so the ident
@@ -109,6 +114,56 @@ export const DEFAULT_MAX_CARGO = 0;
 export const DEFAULT_FORWARD_WEAPON = "EQ_WEAPON_NONE";
 
 /**
+ * Oolite's `weapon_facings` default, `VALID_WEAPON_FACINGS` (OOTypes.h:196-206:
+ * forward 1, aft 2, port 4, starboard 8). ShipEntity.m:298 reads the mask with
+ * `oo_intForKey` and masks it with 15, and then reads each facing's weapon type
+ * only when its bit is set (ShipEntity.m:299-306).
+ *
+ * Deliberate narrowing (review round 2, R2-12b): Oolite reads the mask as a
+ * signed int, so a negative authored value such as -1 means every facing there.
+ * The converter reads it through `uintExtra` and fails the build on a negative
+ * or non-integer value; none of the nine ships authors a negative mask (the
+ * shuttle authors 0, the others 1, 3, 15 or nothing). A value above 15 is
+ * masked exactly as Oolite masks it.
+ */
+export const DEFAULT_WEAPON_FACINGS = 15;
+
+/** The `weapon_facings` bits (OOTypes.h:196-206). */
+const WEAPON_FACING_FORWARD = 1;
+const WEAPON_FACING_AFT = 2;
+const WEAPON_FACING_PORT = 4;
+const WEAPON_FACING_STARBOARD = 8;
+
+/**
+ * Oolite's aft, port and starboard weapon type default
+ * (`defaultValue:@"EQ_WEAPON_NONE"`, ShipEntity.m:302-306), and the value of a
+ * facing whose `weapon_facings` bit is clear.
+ */
+export const DEFAULT_FACING_WEAPON = "EQ_WEAPON_NONE";
+
+/**
+ * Oolite's `fragment_chance` default, 0.9 (`oo_fuzzyBooleanForKey:
+ * defaultValue:0.9`, ShipEntity.m:372). The default parameter of that method is
+ * a `float` (OOCollectionExtractors.h:152), so the default and an authored value
+ * are both float32 and agree: `Math.fround(0.9)` is 0.8999999761581421.
+ *
+ * Deliberate narrowing: Oolite's fuzzy boolean also accepts boolean and string
+ * spellings and rolls the chance once at ship setup into `canFragment`
+ * (ShipEntity.m:372). The converter reads a number only (a boolean or string
+ * value fails the build; none of the nine authors the key), and the record
+ * keeps the probability, so rolling it needs no hashed `canFragment` field. When
+ * the roll happens is Phase 16's decision.
+ */
+export const DEFAULT_FRAGMENT_CHANCE = Math.fround(0.9);
+
+/**
+ * Oolite's `explosion_type` default: nil (`oo_arrayForKey:defaultValue:nil`,
+ * ShipEntity.m:491). Nil is not an empty array, so an absent key compiles to
+ * null and the record never carries `[]` for it.
+ */
+export const DEFAULT_EXPLOSION_TYPE: readonly string[] | null = null;
+
+/**
  * The plist's `forward_weapon_type` names mapped to the equipment keys. Oolite
  * reads them with `OOWeaponTypeFromString` (ShipEntity.m:300), which accepts the
  * legacy WEAPON_* names shipdata.plist authors and the EQ_WEAPON_* identifiers
@@ -195,30 +250,80 @@ function uintExtra(
 }
 
 /**
- * `weapon_position_forward` as three float32 numbers in Oolite's frame, 0 0 0
- * when absent (`oo_vectorForKey:defaultValue:kZeroVector`, ShipEntity.m:1801;
- * the stock ships author no `weapon_mount_mode` and no `scale_factor`, so the
- * single-mount, unscaled branch applies). Negative zero is normalised to zero.
+ * A weapon position (`weapon_position_forward`, `_aft`, `_port` or
+ * `_starboard`) as three float32 numbers in Oolite's frame, 0 0 0 when absent
+ * (`oo_vectorForKey:defaultValue:kZeroVector`, ShipEntity.m:1801 and
+ * ShipEntity.m:479-481; the stock ships author no `weapon_mount_mode` and no
+ * `scale_factor`, so the single-mount, unscaled branch applies). Negative zero
+ * is normalised to zero. Oolite reads every position whatever the
+ * `weapon_facings` mask says, so the mask does not gate a position.
  */
 function positionExtra(
   key: string,
   extras: Record<string, unknown>,
+  field: string,
 ): [number, number, number] {
-  const value = extras["weapon_position_forward"];
+  const value = extras[field];
   if (value === undefined) return [0, 0, 0];
   const parts =
     typeof value === "string" ? value.trim().split(/\s+/).map(Number) : [];
   if (parts.length !== 3 || !parts.every((part) => Number.isFinite(part))) {
-    return fail(
-      key,
-      `weapon_position_forward is not three numbers: ${JSON.stringify(value)}`,
-    );
+    return fail(key, `${field} is not three numbers: ${JSON.stringify(value)}`);
   }
   const [x = 0, y = 0, z = 0] = parts.map((part) => {
     const single = Math.fround(part);
     return single === 0 ? 0 : single;
   });
   return [x, y, z];
+}
+
+/**
+ * One facing's weapon equipment key. Oolite reads a facing's type only when its
+ * `weapon_facings` bit is set (ShipEntity.m:299-306), so a clear bit gives the
+ * facing default whatever the plist authors. With the bit set, an absent key is
+ * the default and an authored name maps through `FORWARD_WEAPON_KEYS`; an
+ * unknown name fails the build (T-13-29).
+ *
+ * Exported so the converter test can pin the aft, port and starboard mapping
+ * directly: the refusal loop in `compileNpcShips` keeps the stock catalogue from
+ * authoring those types.
+ */
+export function facingWeapon(
+  key: string,
+  extras: Record<string, unknown>,
+  facings: number,
+  bit: number,
+  field: string,
+): string {
+  if ((facings & bit) === 0) return DEFAULT_FACING_WEAPON;
+  const value = extras[field];
+  if (value === undefined) return DEFAULT_FACING_WEAPON;
+  if (typeof value === "string" && Object.hasOwn(FORWARD_WEAPON_KEYS, value)) {
+    return FORWARD_WEAPON_KEYS[value] ?? DEFAULT_FACING_WEAPON;
+  }
+  return fail(key, `unknown ${field} ${JSON.stringify(value)}`);
+}
+
+/**
+ * `explosion_type` as a copy of the authored array of strings, or null when the
+ * key is absent (ShipEntity.m:491). Anything else fails the build.
+ */
+function explosionTypeExtra(
+  key: string,
+  extras: Record<string, unknown>,
+): string[] | null {
+  const value = extras["explosion_type"];
+  if (value === undefined) return DEFAULT_EXPLOSION_TYPE as null;
+  if (
+    !Array.isArray(value) ||
+    !value.every((item) => typeof item === "string")
+  ) {
+    return fail(
+      key,
+      `explosion_type is not an array of strings: ${JSON.stringify(value)}`,
+    );
+  }
+  return [...value];
 }
 
 /**
@@ -267,6 +372,10 @@ export function compileNpcShips(
     }
 
     // The steering port relies on Oolite's default for these keys (T-14-06).
+    // The v4 weapon record (Phase 15, plan 15-02) holds a single temperature,
+    // Oolite's `forward_weapon_temp` (ShipEntity.h:303-304), so lifting this
+    // refusal for an aft, port or starboard weapon type also needs per-facing
+    // temperatures, which is a snapshot-format change.
     for (const assumed of STEERING_ASSUMED_ABSENT_KEYS) {
       if (Object.hasOwn(entry.extras, assumed)) {
         return fail(
@@ -282,18 +391,9 @@ export function compileNpcShips(
     const scanClass = entry.extras["scan_class"];
     const displayName = entry.extras["display_name"];
     const authoredName = entry.extras["name"];
-    const weaponType = entry.extras["forward_weapon_type"];
-    let forwardWeapon: string | undefined = DEFAULT_FORWARD_WEAPON;
-    if (weaponType !== undefined) {
-      forwardWeapon =
-        typeof weaponType === "string" &&
-        Object.hasOwn(FORWARD_WEAPON_KEYS, weaponType)
-          ? FORWARD_WEAPON_KEYS[weaponType]
-          : fail(
-              key,
-              `unknown forward_weapon_type ${JSON.stringify(weaponType)}`,
-            );
-    }
+    const facings =
+      uintExtra(key, entry.extras, "weapon_facings", DEFAULT_WEAPON_FACINGS) &
+      DEFAULT_WEAPON_FACINGS;
     const candidate = {
       key,
       roles: [...entry.roles],
@@ -317,8 +417,54 @@ export function compileNpcShips(
         "energy_recharge_rate",
         DEFAULT_ENERGY_RECHARGE_RATE,
       ),
-      forwardWeapon,
-      forwardWeaponPosition: positionExtra(key, entry.extras),
+      forwardWeapon: facingWeapon(
+        key,
+        entry.extras,
+        facings,
+        WEAPON_FACING_FORWARD,
+        "forward_weapon_type",
+      ),
+      forwardWeaponPosition: positionExtra(
+        key,
+        entry.extras,
+        "weapon_position_forward",
+      ),
+      aftWeapon: facingWeapon(
+        key,
+        entry.extras,
+        facings,
+        WEAPON_FACING_AFT,
+        "aft_weapon_type",
+      ),
+      aftWeaponPosition: positionExtra(
+        key,
+        entry.extras,
+        "weapon_position_aft",
+      ),
+      portWeapon: facingWeapon(
+        key,
+        entry.extras,
+        facings,
+        WEAPON_FACING_PORT,
+        "port_weapon_type",
+      ),
+      portWeaponPosition: positionExtra(
+        key,
+        entry.extras,
+        "weapon_position_port",
+      ),
+      starboardWeapon: facingWeapon(
+        key,
+        entry.extras,
+        facings,
+        WEAPON_FACING_STARBOARD,
+        "starboard_weapon_type",
+      ),
+      starboardWeaponPosition: positionExtra(
+        key,
+        entry.extras,
+        "weapon_position_starboard",
+      ),
       maxFlightSpeed: floatExtra(
         key,
         entry.extras,
@@ -345,6 +491,13 @@ export function compileNpcShips(
         DEFAULT_LIKELY_CARGO,
       ),
       maxCargo: uintExtra(key, entry.extras, "max_cargo", DEFAULT_MAX_CARGO),
+      fragmentChance: floatExtra(
+        key,
+        entry.extras,
+        "fragment_chance",
+        DEFAULT_FRAGMENT_CHANCE,
+      ),
+      explosionType: explosionTypeExtra(key, entry.extras),
     };
 
     const parsed = NpcShipSchema.safeParse(candidate);

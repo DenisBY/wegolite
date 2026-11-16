@@ -44,6 +44,20 @@ export const MAX_FLIGHT_MAGNITUDE_BOUND = 1e12;
 
 export { NPC_GLB_PATH_PATTERN };
 
+const WEAPON_KEY = z.enum([
+  "EQ_WEAPON_NONE",
+  "EQ_WEAPON_PULSE_LASER",
+  "EQ_WEAPON_BEAM_LASER",
+  "EQ_WEAPON_MINING_LASER",
+  "EQ_WEAPON_MILITARY_LASER",
+]);
+
+const POSITION = z.tuple([
+  z.number().finite(),
+  z.number().finite(),
+  z.number().finite(),
+]);
+
 export const NpcShipSchema = z.strictObject({
   key: z.string().min(1),
   roles: z.array(z.string().min(1)).min(1),
@@ -70,21 +84,21 @@ export const NpcShipSchema = z.strictObject({
   energyRechargeRate: z.number().nonnegative(),
   // The forward weapon's equipment key (`forward_weapon_type`, default
   // EQ_WEAPON_NONE, ShipEntity.m:300). Closed: a build-time converter maps the
-  // plist's WEAPON_* names and fails on any other value.
-  forwardWeapon: z.enum([
-    "EQ_WEAPON_NONE",
-    "EQ_WEAPON_PULSE_LASER",
-    "EQ_WEAPON_BEAM_LASER",
-    "EQ_WEAPON_MINING_LASER",
-    "EQ_WEAPON_MILITARY_LASER",
-  ]),
+  // plist's WEAPON_* names and fails on any other value. Every facing's type is
+  // read only when its `weapon_facings` bit is set (ShipEntity.m:298-306).
+  forwardWeapon: WEAPON_KEY,
   // `weapon_position_forward` in Oolite's frame (default 0 0 0,
   // ShipEntity.m:1797-1817), float32 per component: where the NPC's beam starts.
-  forwardWeaponPosition: z.tuple([
-    z.number().finite(),
-    z.number().finite(),
-    z.number().finite(),
-  ]),
+  forwardWeaponPosition: POSITION,
+  // The aft, port and starboard types (`aft_weapon_type` and so on, default
+  // EQ_WEAPON_NONE, ShipEntity.m:302-306) and positions
+  // (`weapon_position_aft`, `_port`, `_starboard`, ShipEntity.m:479-481).
+  aftWeapon: WEAPON_KEY,
+  aftWeaponPosition: POSITION,
+  portWeapon: WEAPON_KEY,
+  portWeaponPosition: POSITION,
+  starboardWeapon: WEAPON_KEY,
+  starboardWeaponPosition: POSITION,
   // The flight constants of the NPC flight model (AI-01, the minimum of
   // DATA-15), float32, in Oolite's units. Finite and non-negative; `z.number()`
   // already rejects NaN and Infinity.
@@ -102,6 +116,16 @@ export const NpcShipSchema = z.strictObject({
   // count chosen at spawn (Phase 15, D-06) and read again at explosion time.
   likelyCargo: z.number().int().nonnegative(),
   maxCargo: z.number().int().nonnegative(),
+  // `fragment_chance` (default 0.9, ShipEntity.m:372): the probability, as a
+  // float32 like Oolite's `float` parameter (OOCollectionExtractors.h:152). Oolite
+  // rolls it once at ship setup into `canFragment`; the record keeps the
+  // probability and Phase 16 decides when to roll.
+  fragmentChance: z.number().min(0).max(1),
+  // `explosion_type` (ShipEntity.m:491): the authored list of explosion effect
+  // names, or null when the key is absent. Oolite's default is nil, which
+  // `becomeExplosion` treats differently from an empty array, so null is never
+  // folded into [].
+  explosionType: z.array(z.string().min(1)).nullable(),
 });
 
 export const NpcShipCatalogueSchema = z.array(NpcShipSchema).min(1);

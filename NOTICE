@@ -72,9 +72,13 @@ CC BY-NC-SA 3.0, never GPL, with attribution to the Oolite contributors,
 non-commercial use only and share-alike terms.
 
 The generated NPC ship record file `src/content/generated/ships-npc.json` is
-compiled at build time from the vendored Oolite `shipdata.plist` (the roles, AI
-name, scan class and model of nine NPC ships, with `like_ship` resolved) and
-from the vendored Oolite `.dat` models: the `mass` of each record is computed by
+compiled at build time from the vendored Oolite `shipdata.plist` (with
+`like_ship` resolved, for nine NPC ships: the roles, AI name, scan class, model
+and display name, the maximum energy and energy recharge rate, the forward, aft,
+port and starboard weapon types and positions gated by `weapon_facings`, the
+flight constants (maximum speed, roll and pitch rate, and thrust),
+`likely_cargo`, `max_cargo`, `fragment_chance` and `explosion_type`) and from
+the vendored Oolite `.dat` models: the `mass` of each record is computed by
 Wegolite's port of Oolite's octree volume rule over the hull and its solid
 subentities, and the `radius` of each record is computed from the same vendored
 `.dat` hull model (the distance of its farthest vertex from the model origin, as

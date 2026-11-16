@@ -6,9 +6,9 @@
  *
  * The expected values live in `tests/golden/content/ships-npc.json`, which was
  * written by hand from `shipdata.plist` and is never generated. The compiled
- * records (nineteen fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
+ * records (twenty-seven fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
  * `radius`, the five Phase 13 combat fields, the four Phase 14 flight fields and
- * the two Phase 15 cargo fields)
+ * the ten Phase 15 DATA-14 fields)
  * are compared with it, with the resolved template parents, and with the committed generated
  * file, so a drift in any one of the four fails.
  */
@@ -32,7 +32,10 @@ import { MODEL_SOURCE_FILES, NPC_SHIP_GLBS, shipGlbFile } from "./glb.js";
 import {
   DEFAULT_AI_TYPE,
   DEFAULT_ENERGY_RECHARGE_RATE,
+  DEFAULT_EXPLOSION_TYPE,
+  DEFAULT_FACING_WEAPON,
   DEFAULT_FORWARD_WEAPON,
+  DEFAULT_FRAGMENT_CHANCE,
   DEFAULT_LIKELY_CARGO,
   DEFAULT_MAX_CARGO,
   DEFAULT_MAX_ENERGY,
@@ -41,11 +44,13 @@ import {
   DEFAULT_MAX_FLIGHT_SPEED,
   DEFAULT_SCAN_CLASS,
   DEFAULT_THRUST,
+  DEFAULT_WEAPON_FACINGS,
   FORWARD_WEAPON_KEYS,
   NPC_SHIP_KEYS,
   NPC_SHIPS_PATH,
   compileNpcShips,
   emitNpcShips,
+  facingWeapon,
 } from "./npc-ships.js";
 import { computeShipMasses, shipMass } from "./ship-mass.js";
 import { computeShipRadii } from "./ship-radius.js";
@@ -103,6 +108,15 @@ interface Golden {
     readonly thrust: number;
     readonly likelyCargo: number;
     readonly maxCargo: number;
+    readonly weaponFacings: number;
+    readonly aftWeapon: string;
+    readonly portWeapon: string;
+    readonly starboardWeapon: string;
+    readonly aftWeaponPosition: number[];
+    readonly portWeaponPosition: number[];
+    readonly starboardWeaponPosition: number[];
+    readonly fragmentChance: number;
+    readonly explosionType: string[] | null;
   };
   readonly examples: NpcShip[];
   readonly sources: string[];
@@ -156,7 +170,7 @@ describe("NPC ship records", () => {
     expect(records).toHaveLength(9);
   });
 
-  it("carries exactly the nineteen fields and passes the strict schema", () => {
+  it("carries exactly the twenty-seven fields and passes the strict schema", () => {
     for (const record of records) {
       expect(Object.keys(record).sort()).toEqual(golden.fields);
       expect(NpcShipSchema.safeParse(record).success).toBe(true);
@@ -177,6 +191,13 @@ describe("NPC ship records", () => {
     expect(DEFAULT_THRUST).toBe(golden.defaults.thrust);
     expect(DEFAULT_LIKELY_CARGO).toBe(golden.defaults.likelyCargo);
     expect(DEFAULT_MAX_CARGO).toBe(golden.defaults.maxCargo);
+    expect(DEFAULT_WEAPON_FACINGS).toBe(golden.defaults.weaponFacings);
+    expect(DEFAULT_FACING_WEAPON).toBe(golden.defaults.aftWeapon);
+    expect(DEFAULT_FACING_WEAPON).toBe(golden.defaults.portWeapon);
+    expect(DEFAULT_FACING_WEAPON).toBe(golden.defaults.starboardWeapon);
+    expect(DEFAULT_FRAGMENT_CHANCE).toBe(golden.defaults.fragmentChance);
+    expect(DEFAULT_FRAGMENT_CHANCE).toBe(Math.fround(0.9));
+    expect(DEFAULT_EXPLOSION_TYPE).toBe(golden.defaults.explosionType);
   });
 
   it.each(golden.examples.map((example) => [example.key, example] as const))(
@@ -694,6 +715,285 @@ describe("NPC cargo fields (DATA-14, D-06)", () => {
         expect(error.construct).toBe("adder");
         expect(error.excerpt).toContain(field);
       }
+    }
+  });
+});
+
+describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () => {
+  // [weapon_facings authored (undefined = absent), aft, port, starboard]
+  // positions as authored in shipdata.plist; the record holds their float32.
+  const POSITIONS: Record<string, readonly [string, string, string]> = {
+    adder: ["0.0 0.0 -22.5", "-15.0 0.0 -14.5", "15.0 0.0 -14.5"],
+    cobramk1: ["0.0 0.0 -27.5", "-35.0 -1.0 0.5", "35.0 -1.0 0.5"],
+    gecko: [
+      "0.0 5.54957 -12.1558",
+      "-13.75 -2.0625 -1.875",
+      "13.75 -2.0625 -1.875",
+    ],
+    krait: ["0.0 0.0 -34.6", "-45.0 0.0 -13.5", "45.0 0.0 -13.5"],
+    mamba: ["0.0 1.5184 -30.3193", "-16.5 -3.0 0.0", "16.5 -3.0 0.0"],
+    moray: ["0.0 -2.554795 -27.78225", "-30.0 -2.0 6.25", "30.0 -2.0 6.25"],
+    shuttle: ["0.0 0.0 -17.5", "-9.0 0.0 11.5", "9.0 0.0 11.5"],
+    sidewinder: ["0.0 -6.5 -17.5", "-24.25 0.0 0.0", "24.25 0.0 0.0"],
+    viper: ["0.0 0.0 -27.5", "-12.5 0.0 0.0", "12.5 0.0 0.0"],
+  };
+  const MASKS: Record<string, number> = {
+    adder: 1,
+    cobramk1: 3,
+    gecko: 1,
+    krait: 1,
+    mamba: 1,
+    moray: 15,
+    shuttle: 0,
+    sidewinder: 1,
+    viper: 1,
+  };
+  const float32 = (text: string): number[] =>
+    text.split(/\s+/).map((part) => {
+      const single = Math.fround(Number(part));
+      return single === 0 ? 0 : single;
+    });
+
+  it("pins the three new positions of all nine records as float32", () => {
+    expect(Object.keys(POSITIONS).sort()).toEqual([...NPC_SHIP_KEYS]);
+    for (const [key, [aft, port, starboard]] of Object.entries(POSITIONS)) {
+      const record = requireRecord(key);
+      expect([...record.aftWeaponPosition]).toEqual(float32(aft));
+      expect([...record.portWeaponPosition]).toEqual(float32(port));
+      expect([...record.starboardWeaponPosition]).toEqual(float32(starboard));
+      for (const component of [
+        ...record.aftWeaponPosition,
+        ...record.portWeaponPosition,
+        ...record.starboardWeaponPosition,
+      ]) {
+        expect(Math.fround(component)).toBe(component);
+        expect(Object.is(component, -0)).toBe(false);
+      }
+    }
+  });
+
+  it("reads each position and mask from the resolved plist entry", () => {
+    for (const key of NPC_SHIP_KEYS) {
+      const extras = requireEntry(key).extras;
+      expect(extras["weapon_facings"]).toBe(MASKS[key]);
+      for (const [field, text] of [
+        ["weapon_position_aft", POSITIONS[key]?.[0]],
+        ["weapon_position_port", POSITIONS[key]?.[1]],
+        ["weapon_position_starboard", POSITIONS[key]?.[2]],
+      ] as const) {
+        expect(extras[field]).toBe(text);
+      }
+    }
+  });
+
+  it("compiles every facing of the nine records to the facing default", () => {
+    for (const record of records) {
+      expect(record.aftWeapon).toBe("EQ_WEAPON_NONE");
+      expect(record.portWeapon).toBe("EQ_WEAPON_NONE");
+      expect(record.starboardWeapon).toBe("EQ_WEAPON_NONE");
+    }
+  });
+
+  it("keeps the nine forward weapons unchanged by the facing mask", () => {
+    const FORWARD: Record<string, string> = {
+      adder: "EQ_WEAPON_PULSE_LASER",
+      cobramk1: "EQ_WEAPON_PULSE_LASER",
+      gecko: "EQ_WEAPON_BEAM_LASER",
+      krait: "EQ_WEAPON_BEAM_LASER",
+      mamba: "EQ_WEAPON_PULSE_LASER",
+      moray: "EQ_WEAPON_PULSE_LASER",
+      shuttle: "EQ_WEAPON_NONE",
+      sidewinder: "EQ_WEAPON_PULSE_LASER",
+      viper: "EQ_WEAPON_BEAM_LASER",
+    };
+    for (const [key, weapon] of Object.entries(FORWARD)) {
+      expect(requireRecord(key).forwardWeapon).toBe(weapon);
+    }
+  });
+
+  it("gives the shuttle (mask 0, the one template without bit 1) four EQ_WEAPON_NONE facings", () => {
+    expect(requireEntry("shuttle").extras["weapon_facings"]).toBe(0);
+    const shuttle = requireRecord("shuttle");
+    expect(shuttle.forwardWeapon).toBe("EQ_WEAPON_NONE");
+    expect(shuttle.aftWeapon).toBe("EQ_WEAPON_NONE");
+    expect(shuttle.portWeapon).toBe("EQ_WEAPON_NONE");
+    expect(shuttle.starboardWeapon).toBe("EQ_WEAPON_NONE");
+    for (const key of NPC_SHIP_KEYS) {
+      if (key === "shuttle") continue;
+      expect(Number(requireEntry(key).extras["weapon_facings"]) & 1).toBe(1);
+    }
+  });
+
+  it("gates the forward weapon by the weapon_facings mask", () => {
+    for (const mask of [0, 14]) {
+      const gated = withExtras("viper", (extras) => ({
+        ...extras,
+        weapon_facings: mask,
+        forward_weapon_type: "WEAPON_BEAM_LASER",
+      }));
+      expect(compiled(gated, "viper").forwardWeapon).toBe("EQ_WEAPON_NONE");
+    }
+    const open = withExtras("viper", (extras) => {
+      delete extras["weapon_facings"];
+      return { ...extras, forward_weapon_type: "WEAPON_BEAM_LASER" };
+    });
+    expect(compiled(open, "viper").forwardWeapon).toBe("EQ_WEAPON_BEAM_LASER");
+    const masked = withExtras("viper", (extras) => ({
+      ...extras,
+      weapon_facings: 17,
+      forward_weapon_type: "WEAPON_BEAM_LASER",
+    }));
+    expect(compiled(masked, "viper").forwardWeapon).toBe(
+      "EQ_WEAPON_BEAM_LASER",
+    );
+  });
+
+  it("fails the build naming the key and field on a negative or malformed weapon_facings (the documented narrowing of Oolite's signed read)", () => {
+    for (const value of [-1, 1.5, "15"]) {
+      const bad = withExtras("viper", (extras) => ({
+        ...extras,
+        weapon_facings: value,
+      }));
+      const error = capture(() => compileNpcShips(bad, masses, radii));
+      expect(error.code).toBe("SCHEMA");
+      expect(error.construct).toBe("viper");
+      expect(error.excerpt).toContain("weapon_facings");
+    }
+  });
+
+  it("maps the aft, port and starboard types through facingWeapon", () => {
+    const extras = {
+      aft_weapon_type: "WEAPON_BEAM_LASER",
+      port_weapon_type: "WEAPON_PULSE_LASER",
+      starboard_weapon_type: "WEAPON_MILITARY_LASER",
+    };
+    expect(facingWeapon("k", extras, 15, 2, "aft_weapon_type")).toBe(
+      "EQ_WEAPON_BEAM_LASER",
+    );
+    expect(facingWeapon("k", extras, 15, 4, "port_weapon_type")).toBe(
+      "EQ_WEAPON_PULSE_LASER",
+    );
+    expect(facingWeapon("k", extras, 15, 8, "starboard_weapon_type")).toBe(
+      "EQ_WEAPON_MILITARY_LASER",
+    );
+    // With only the forward bit set, each of the three reads the default.
+    expect(facingWeapon("k", extras, 1, 2, "aft_weapon_type")).toBe(
+      "EQ_WEAPON_NONE",
+    );
+    expect(facingWeapon("k", extras, 1, 4, "port_weapon_type")).toBe(
+      "EQ_WEAPON_NONE",
+    );
+    expect(facingWeapon("k", extras, 1, 8, "starboard_weapon_type")).toBe(
+      "EQ_WEAPON_NONE",
+    );
+    // An absent key with the bit set is the default too.
+    expect(facingWeapon("k", {}, 15, 2, "aft_weapon_type")).toBe(
+      "EQ_WEAPON_NONE",
+    );
+    const error = capture(() =>
+      facingWeapon(
+        "k",
+        { aft_weapon_type: "WEAPON_THARGOID_LASER" },
+        15,
+        2,
+        "aft_weapon_type",
+      ),
+    );
+    expect(error.code).toBe("SCHEMA");
+    expect(error.construct).toBe("k");
+    expect(error.excerpt).toContain("aft_weapon_type");
+  });
+
+  it("takes fragment_chance as float32, 0.9 by default, and refuses a bad value", () => {
+    for (const record of records) {
+      expect(record.fragmentChance).toBe(Math.fround(0.9));
+      expect(requireEntry(record.key).extras).not.toHaveProperty(
+        "fragment_chance",
+      );
+    }
+    const half = withExtras("viper", (extras) => ({
+      ...extras,
+      fragment_chance: 0.5,
+    }));
+    expect(compiled(half, "viper").fragmentChance).toBe(0.5);
+    const tenth = withExtras("viper", (extras) => ({
+      ...extras,
+      fragment_chance: 0.1,
+    }));
+    expect(compiled(tenth, "viper").fragmentChance).toBe(Math.fround(0.1));
+
+    const high = withExtras("viper", (extras) => ({
+      ...extras,
+      fragment_chance: 2,
+    }));
+    expect(capture(() => compileNpcShips(high, masses, radii)).construct).toBe(
+      "viper.fragmentChance",
+    );
+    for (const value of [true, "0.5"]) {
+      const bad = withExtras("viper", (extras) => ({
+        ...extras,
+        fragment_chance: value,
+      }));
+      const error = capture(() => compileNpcShips(bad, masses, radii));
+      expect(error.code).toBe("SCHEMA");
+      expect(error.construct).toBe("viper");
+      expect(error.excerpt).toContain("fragment_chance");
+    }
+  });
+
+  it("takes explosion_type as null when absent, the array when authored, and refuses anything else", () => {
+    for (const record of records) {
+      expect(record.explosionType).toBeNull();
+      expect(requireEntry(record.key).extras).not.toHaveProperty(
+        "explosion_type",
+      );
+    }
+    const authored = withExtras("viper", (extras) => ({
+      ...extras,
+      explosion_type: ["oolite-builtin-slowcloud", "oolite-builtin-flash"],
+    }));
+    expect(compiled(authored, "viper").explosionType).toEqual([
+      "oolite-builtin-slowcloud",
+      "oolite-builtin-flash",
+    ]);
+    // An authored empty array stays an empty array: Oolite treats it as
+    // distinct from the nil an absent key gives (ShipEntity.m:491).
+    const empty = withExtras("viper", (extras) => ({
+      ...extras,
+      explosion_type: [],
+    }));
+    expect(compiled(empty, "viper").explosionType).toEqual([]);
+    for (const value of [
+      "oolite-builtin-slowcloud",
+      [1],
+      { a: 1 },
+      ["ok", ""],
+    ]) {
+      const bad = withExtras("viper", (extras) => ({
+        ...extras,
+        explosion_type: value,
+      }));
+      const error = capture(() => compileNpcShips(bad, masses, radii));
+      expect(error.code).toBe("SCHEMA");
+      expect(error.file).toBe(NPC_SHIPS_PATH);
+      expect(error.construct.startsWith("viper")).toBe(true);
+    }
+  });
+
+  it("reads a malformed aft, port or starboard position as a build failure naming the key", () => {
+    for (const field of [
+      "weapon_position_aft",
+      "weapon_position_port",
+      "weapon_position_starboard",
+    ]) {
+      const bad = withExtras("viper", (extras) => ({
+        ...extras,
+        [field]: "1 2",
+      }));
+      const error = capture(() => compileNpcShips(bad, masses, radii));
+      expect(error.code).toBe("SCHEMA");
+      expect(error.construct).toBe("viper");
+      expect(error.excerpt).toContain(field);
     }
   });
 });
