@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v2.3
 milestone_name: Combat and Death
-current_phase: 15
-current_phase_name: Damage Ledger and Kills
-status: executing
-stopped_at: Completed 15-06-PLAN.md
-last_updated: "2026-11-16T19:50:14.573Z"
+current_phase: 16
+current_phase_name: Wreckage, Cargo and the Entity Cap
+status: planning
+stopped_at: Phase 15 complete, ready to plan Phase 16
+last_updated: "2026-11-16T20:54:54.471Z"
 last_activity: 2026-11-16
-last_activity_desc: v2.3 roadmap created (Phases 15-20, 16/16 requirements mapped)
-state_head: 1076de697fd025988846a91e540d268defbb0b83
+last_activity_desc: Phase 15 complete, transitioned to Phase 16
+state_head: 91e35bf65df6f01cdd4d4e4fadaab76ef4b8d0d4
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
   completed_plans: 6
-  percent: 0
+  percent: 17
 ---
 
 # Project State
@@ -29,16 +29,16 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 
 ## Current Position
 
-Phase: 15 (Damage Ledger and Kills) — EXECUTING
-Plan: 6 of 6
-Status: All six plans complete, ready for phase verification
-Last activity: 2026-11-16 — Plan 15-06 complete (last plan of Phase 15; FOUND-18 and FOUND-19 complete; OD-1 and OD-2 pending owner acknowledgement)
+Phase: 16 — Wreckage, Cargo and the Entity Cap
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-16 — Phase 15 complete, transitioned to Phase 16
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 139
+- Total plans completed: 145
 - Average duration: 5.3 min
 - Total execution time: 3.9 hours
 
@@ -59,6 +59,7 @@ Last activity: 2026-11-16 — Plan 15-06 complete (last plan of Phase 15; FOUND-
 | 12 | 14 | - | - |
 | 13 | 16 | - | - |
 | 14 | 19 | - | - |
+| 15 | 6 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: 01-03 3 min, 01-04 5 min, 01-05 9 min, 01-06 2 min, 01-07 6 min
@@ -599,7 +600,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-16T19:50:14.492Z
-Stopped at: Completed 15-06-PLAN.md
+Stopped at: Phase 15 complete, ready to plan Phase 16
 Resume file: None
 
 ## Operator Next Steps

@@ -81,7 +81,7 @@ Total: 35 of 35 plans complete. Requirements 10/10. Phase directories now live i
 
 **Phase numbering:** continues from v2.2 (Phases 13-14); there is no reset. Decimal phases (for example 17.1) are urgent insertions.
 
-- [ ] **Phase 15: Damage Ledger and Kills** - A ship at zero energy is destroyed and removed through one damage ledger and one idempotent kill path; the tick boundary never holds a dead entity; the NPC records and entity state carry every field the milestone needs, in one snapshot bump
+- [x] **Phase 15: Damage Ledger and Kills** - A ship at zero energy is destroyed and removed through one damage ledger and one idempotent kill path; the tick boundary never holds a dead entity; the NPC records and entity state carry every field the milestone needs, in one snapshot bump (completed 2026-11-16)
 - [ ] **Phase 16: Wreckage, Cargo and the Entity Cap** - A destroyed ship explodes into alloy plates, cargo pods and wreckage by Oolite's cargo rule, drawn within the draw-call budget and held under the entity cap of 256, with the debris models vendored from the Oolite checkout
 - [ ] **Phase 17: NPC Fire and Hits on the Player** - NPC ships fire lasers at the player and at each other through Oolite's fire gate when the engine or a test pilot says so; hits on the player pass through shields and energy; NPCs still never attack in ordinary play
 - [ ] **Phase 18: Stations, Buoys and Collisions** - Lasers and ident hit the station and the navigation buoys (buoys can be destroyed); ship-ship and ship-buoy collisions damage both by Oolite's mass and closing-speed rule; the station hull stays damage-free
@@ -159,7 +159,7 @@ Ordering rules:
 **Pitfalls to address** (research PITFALLS.md): 3 (every hashed field costs a bump: one bump, strip-and-rehash, pristine-omit), 4 (the frozen acceptance run throws on any flyer death), 5 (a kill after the commit leaves a dead entity at the boundary: second commit, idempotent `killShip`, a property test), 6 (old pins encode "nothing is destroyed"), 16 (new code is outside AI fault containment: totality), 22 (closed sets: router table, probe shape)
 **Decisions to settle**: the debris motion model (heading and speed against a bounded velocity vector), decided in the first plan so a later phase never bumps the snapshot; the event kinds and payloads; the field bounds
 **Todos**: none
-**Plans**: 6/6 plans executed in 6 waves
+**Plans**: 6/6 plans complete in 6 waves
 
 Plans:
 **Wave 1**
@@ -344,7 +344,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 12. Inert Ships and the World Lifecycle | v2.1 | 14/14 | Complete    | 2026-11-14 |
 | 13. Views, Lasers and Shields | v2.2 | 16/16 | Complete    | 2026-11-15 |
 | 14. NPC Flight and Steering Fidelity Gate | v2.2 | 19/19 | Complete    | 2026-11-16 |
-| 15. Damage Ledger and Kills | v2.3 | 6/6 | In Progress | - |
+| 15. Damage Ledger and Kills | v2.3 | 6/6 | Complete    | 2026-11-16 |
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 0/TBD | Not started | - |
 | 17. NPC Fire and Hits on the Player | v2.3 | 0/TBD | Not started | - |
 | 18. Stations, Buoys and Collisions | v2.3 | 0/TBD | Not started | - |
