@@ -14,7 +14,7 @@ Requirements for this milestone. Each maps to roadmap phases (numbering continue
 
 ### Data
 
-- [ ] **DATA-14**: The NPC record carries weapon facings, `likely_cargo`, `max_cargo`, `fragment_chance` and `explosion_type`, compiled from Oolite with provenance.
+- [x] **DATA-14**: The NPC record carries weapon facings, `likely_cargo`, `max_cargo`, `fragment_chance` and `explosion_type`, compiled from Oolite with provenance.
 - [ ] **DATA-15**: Hulls for the Coriolis (with subentities), the buoy, the cargo barrel and the alloy plate are built from Oolite octrees; the Coriolis size is measured in the `assets` container and either fits the hull caps or ships as a separate file.
 - [ ] **DATA-16**: Debris models and textures are vendored from the local Oolite checkout through `scripts/vendor-oolite.sh` with `CHECKSUMS.sha256`, `ASSETS.md` and `NOTICE` rows.
 
@@ -77,7 +77,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | FOUND-18 | Phase 15 | Pending |
 | FOUND-19 | Phase 15 | Pending |
-| DATA-14 | Phase 15 | Pending |
+| DATA-14 | Phase 15 | Complete |
 | DATA-16 | Phase 16 | Pending |
 | WORLD-17 | Phase 16 | Pending |
 | CBT-15 | Phase 17 | Pending |

@@ -5,16 +5,16 @@ milestone_name: Combat and Death
 current_phase: 15
 current_phase_name: Damage Ledger and Kills
 status: planning
-stopped_at: Phase 15 context gathered
-last_updated: "2026-11-16T17:01:00.821Z"
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-11-16T18:08:01.250Z"
 last_activity: 2026-11-16
 last_activity_desc: v2.3 roadmap created (Phases 15-20, 16/16 requirements mapped)
-state_head: cc096f61fb500c98174ccec3bdbc9480be69e02b
+state_head: 41d0daa77afac32b878fc622c0bce4a89871d3e6
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -190,6 +190,7 @@ Last activity: 2026-11-16 — v2.3 roadmap created (Phases 15-20, 16/16 requirem
 | Phase 14 P17 | 2 sessions | 4 tasks | 7 files |
 | Phase 14 P18 | 60 min | 3 tasks | 14 files |
 | Phase 14 P19 | resumed (Task 4) | 4 tasks | 5 files |
+| Phase 15 P01 | 80 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -477,6 +478,7 @@ Recent decisions affecting current work:
 - [Phase 14]: 14-17: 20-seed acceptance accepted as option-continue on 2026-11-16 by an owner-delegated review panel (Fable, Opus, Sonnet; TRUST-WITH-CAVEATS), not by the owner reading the run; 21/21 cases pass in 137.6 s, accepted-crossings empty, five residual risks recorded in the SUMMARY
 - [Phase 14]: 14-18: the ?test=1 hook and the Node replay pick the three flyer records through one function, testFlyerRecords, and hand the same flightTableFrom table to every step
 - [Phase 14]: Phase 14 oracle choice for the AI port (2026-11-16): report accepted and the dev-only differential harness chosen as oracle (source-cited traces as per-role fallback), OOLITE_SRC mount kept, IN-02 and IN-04 stay todos; a panel decision on the owner's delegation, not the owner reading the report, and the owner can overturn it
+- [Phase 15]: Plan 15-01: fragmentChance default is Math.fround(0.9); weapon_facings gates every facing type; explosionType is null when absent; STEERING_ASSUMED_ABSENT_KEYS refusal kept (lifting it needs per-facing weapon temperatures)
 
 ### Pending Todos
 
@@ -585,9 +587,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-16T13:44:03.294Z
-Stopped at: Phase 15 context gathered
-Resume file: .planning/phases/15-damage-ledger-and-kills/15-CONTEXT.md
+Last session: 2026-11-16T18:08:01.168Z
+Stopped at: Completed 15-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
