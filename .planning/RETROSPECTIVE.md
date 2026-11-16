@@ -81,6 +81,42 @@ v1.0 (Phases 1-7) closed before this file existed; its record is in `MILESTONES.
 
 ---
 
+## Milestone: v2.2 - Weapons and NPC Flight
+
+**Shipped:** 2026-11-16
+**Phases:** 2 | **Plans:** 35
+
+### What Was Built
+- Views, lasers and shields: four cockpit views, lasers bought per facing that hit ships by their Oolite octree hull, shields and energy banks with a live HUD, docking resets, Oolite's Escape/P/R bindings, save schema v4 (laser mounts) and the FOUND-17 fix (a refused arrival no longer keeps the origin world).
+- NPC flight and steering: Oolite's flight model and nine native behaviours ported from an independent source-cited oracle (139 fixtures, 1,015 checks), a frozen `Entity.steer` record in the world hash (snapshot v3), a frozen 20-seed acceptance run (21/21), and a dev-only AILib spike kept out of `dist` by `check:dist`.
+
+### What Worked
+- An oracle written independently of the port, with the thresholds committed before the port: the 139 fixtures passed first time on the later behaviours, and the acceptance run could not be tuned after the fact.
+- Re-verifying the earlier phase at close (Phase 13) instead of overriding the stale report: one verifier run, no regression, a clean closeout.
+- Having three of the owner's own models (Fable, Opus, Sonnet) triage the review findings independently; they agreed on nine of ten and Fable caught one the reviewer missed.
+
+### What Was Inefficient
+- Two owner checkpoints (14-17, 14-19) were answered by a model panel while the owner slept, and the verifier correctly held the phase at `human_needed` until the owner ratified them the next day.
+- Executors took many hours per plan on the slow remote gate; a wrong spec assertion (14-18) and a guard failure from a doc comment (14-11) each cost a rerun.
+- The 20-seed acceptance run is in no gate, so its protection depends on a manual rerun rule (recorded in `AGENTS.md`).
+
+### Patterns Established
+- Delegating a reversible owner checkpoint requires unanimity of the panel, a stop on disagreement or irreversible risk, and explicit ratification before the phase closes.
+- Schema bounds that mirror runtime domains are restated in content with a test pinning equality, because content never imports the sim.
+- Frozen test harnesses change only with an owner trailer; known weaknesses are waived in `WINDOWS.md` with a reason, not edited silently.
+
+### Key Lessons
+1. A later phase that edits files an earlier phase covers makes that phase `stale` at close; re-run the verifier then, it is cheaper than an override.
+2. A silent fallback (stats rows that fail a domain check fall back to defaults) needs the same bounds at build time, or bad data flies unnoticed.
+3. Acceptance evidence that no gate re-runs decays; either put it in a gate or write the rerun rule down.
+
+### Cost Observations
+- Model mix: not tracked
+- Sessions: not tracked
+- Notable: verify-full (about 9-10 minutes on the remote machine) stays the dominant gate cost
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -90,6 +126,7 @@ v1.0 (Phases 1-7) closed before this file existed; its record is in `MILESTONES.
 | v1.0 | not tracked | 7 | Docker-only gates, deterministic fixed-step simulation, content compiled from Oolite configs |
 | v2.0 | not tracked | 1 | Safety nets before refactoring, gate by change type, scope cut to one phase mid-milestone |
 | v2.1 | not tracked | 4 | Technical-minimum scope, staged requirements, simulation independent of render assets |
+| v2.2 | not tracked | 2 | Independent oracle plus frozen thresholds, delegated owner checkpoints with ratification, re-verify instead of override |
 
 ### Cumulative Quality
 
@@ -98,6 +135,7 @@ v1.0 (Phases 1-7) closed before this file existed; its record is in `MILESTONES.
 | v1.0 | not recorded | not recorded | not recorded |
 | v2.0 | 2,407 unit, 128 Chromium specs | not recorded | 0 (no new npm packages) |
 | v2.1 | 132 Chromium specs (unit count not recorded) | not recorded | 0 |
+| v2.2 | 4,997 unit tests in 203 files | not recorded | 0 (no new npm packages) |
 
 ### Top Lessons (Verified Across Milestones)
 
