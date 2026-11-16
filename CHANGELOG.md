@@ -8,6 +8,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- In a test session (`?test=1&traffic=1`) NPC ships can now fly with Oolite's
+  flight model and native steering (idle, tumble, fly to destination, face,
+  intercept, attack, flee, escort and avoid collision). A new test hook member,
+  `spawnTestFlyers()`, puts a Shuttle flying to the station, a Viper
+  intercepting you and an Adder fleeing you into the world, and marks the
+  session as test-tainted so nothing is saved. In normal play the ships still
+  stay where they are placed.
 - Contributors can run the 20-seed NPC flight acceptance run with
   `npm run test:acceptance` (inside the test container). It is a separate Vitest
   config, outside `npm test`, `verify` and `verify-full`, and checks twelve
