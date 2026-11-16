@@ -125,7 +125,7 @@ Phase 15 goes first and alone: it designs every new hashed field once. Phases 16
 
 Ordering rules:
 
-- Phase 15's first plan designs every new hashed entity field (weapon state, cargo, static health, debris motion) once, bumps the world snapshot once (version 3 to 4) and regenerates the inert Lave golden once, with a strip-and-rehash proof back to the previous golden. Every field is omitted from the hash while it holds its default (pristine-omit), so a world that never fires, carries cargo or takes damage hashes as it did. No later phase bumps the snapshot version; a missing field is an amendment the owner approves, not a quiet second bump (FOUND-18).
+- Phase 15's first plan designs every new hashed entity field (weapon state, cargo, static health, debris motion) once, bumps the world snapshot once (version 3 to 4) and regenerates the inert Lave golden once (in the plan that first makes a populated ship non-pristine), with a strip-and-rehash proof back to the previous golden. Every field is omitted from the hash while it holds its default (pristine-omit), so a world that never fires, carries cargo or takes damage hashes as it did. No later phase bumps the snapshot version; a missing field is an amendment the owner approves, not a quiet second bump (FOUND-18).
 - The one kill path (ledger, `killShip`, second commit, immediate AI drain) is the only way a ship leaves the world through damage. Phase 16 hangs debris off it, Phase 18 routes collisions and buoy destruction through it, and Phase 20 routes the player's death through it (FOUND-19).
 - Phases 16 and 17 both extend the world step, the entity state and the hit resolver. Their field set is frozen by Phase 15, so neither bumps a schema, but their seam plans must not share a wave. Whichever lands second rebases on the first.
 - The frozen 20-seed acceptance run is a standing gate (QUAL-11, AGENTS.md): rerun `npm run test:acceptance` by hand on the remote test machine after every plan that touches `src/sim/npc/**`, `src/sim/world/**` or `ships-npc.json`, and record the result in the plan's SUMMARY. The thresholds and detectors are frozen; changing them needs the owner's `Detector-change-approved-by-owner` trailer. The harness throws on any flyer death, so fire (Phase 17) and collisions (Phase 18) are gated: a pilot or world opts in, and the frozen worlds stay byte-identical.
@@ -142,7 +142,7 @@ Ordering rules:
 **Depends on**: Phase 14 (shipped in v2.2). It builds on Phase 13's damage function and energy banks, Phase 12's world step and Phase 14's frozen steering record
 **Parallel track**: none; Phases 16 and 17 start after it
 **Requirements**: FOUND-18, FOUND-19, DATA-14
-**First plan**: the one entity-field design (FOUND-18): the weapon, cargo, static-health and debris-motion fields, their hash segments, the snapshot v4 bump and the one golden regeneration, taken before any behaviour exists
+**First plan**: the one entity-field design (FOUND-18): the weapon, cargo, static-health and debris-motion fields, their hash segments, the snapshot v4 bump and the one golden regeneration, taken in the plan that first makes a populated ship non-pristine (15-03, the cargo-at-spawn rule)
 **Success Criteria** (what must be TRUE):
   1. A ship that the player's laser, or a scripted pilot's, brings to zero energy is destroyed on that tick: it leaves the 3D view and the scanner, an ident lock on it ends with its message, and any ship that had it as a target is told of it by an AI event delivered before the tick ends. The station and the player are never removed by this path (the station only absorbs hits in Phase 18, the player's death is Phase 20, and the player's energy still floors at zero until then).
   2. Every damage source goes through one ledger applied after the world step, and a world snapshot taken at any tick boundary holds no dead entity and no queued AI event. A kill on the tick a ship spawns, two ships that kill each other on one tick, and a repeated kill request each leave a snapshot that round-trips, proven by a property test over random fights.
@@ -169,13 +169,13 @@ Plans:
 - [x] 15-02-PLAN.md — FOUND-18: the v4 field set (velocity, weapon with missed shots, cargo, per-world static health), pristine-omit hashing, snapshot version 4, sanitiser and bounds; Lave golden unchanged (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [x] 15-03-PLAN.md — FOUND-18: cargo count at spawn from a stateless stream, the one Lave golden regeneration with the three-link strip proof, Key Decisions row; owner decision OD-1 pending (wave 3)
+- [x] 15-03-PLAN.md — FOUND-18: cargo count at spawn from a stateless stream, the one Lave golden regeneration with the three-link strip proof, Key Decisions row; OD-1 accepted by the owner 2026-11-16 (wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [x] 15-04-PLAN.md — FOUND-19: damage ledger, idempotent `killShip` (a dead or missing killer is `NO_ENTITY`), second commit; supersedes N2; cadence fight and browser kill step (wave 4)
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [x] 15-05-PLAN.md — FOUND-19: kill notifications by `drainAiEventsNow`, post-drain repair, survivors holding the dead id; owner decision OD-2 pending (wave 5)
+- [x] 15-05-PLAN.md — FOUND-19: kill notifications by `drainAiEventsNow`, post-drain repair, survivors holding the dead id; OD-2 accepted by the owner 2026-11-16 (wave 5)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 - [x] 15-06-PLAN.md — FOUND-19, FOUND-18: random-fight property test, kill cross-cadence scenario, 1,000-tick resume across a kill (wave 6)
@@ -184,6 +184,7 @@ Plans:
 
 **Goal**: A destroyed ship explodes into what Oolite leaves behind, alloy plates, cargo pods and wreckage, drawn within the draw-call budget and held under the entity cap, so a fight leaves a field of drifting debris without starving the world of room for ships
 **Depends on**: Phase 15 (the ledger, the kill path, the debris and cargo entity fields and the compiled cargo data)
+**Carry-over from Phase 15 reviews (2026-11-16)**: widen the router table for `shipDestroyed` without leaking the entity id (entity-id-scope guard); check for a doubled hit sound over the explosion, because a ship doomed earlier in the tick still gets `shipHit` (fix: skip it in `applyLedger` for a target already lethal); check Oolite's escort release when a leader dies (escorts keep their last destination today); the player kill tally (`ship_kills`) stays unmodelled, deferred with LAW-*.
 **Parallel track**: Phase 17 can run beside this phase
 **Requirements**: DATA-16, WORLD-17
 **Staged**: CBT-08 (destruction clauses: wreckage, alloy plates, cargo pods, the entity cap). The requirement is mapped to Phase 19, which completes it with the internal-damage clause (see "Staged verification")
@@ -207,6 +208,7 @@ Plans:
 
 **Goal**: NPC ships fire lasers at the player and at each other through Oolite's fire gate when the engine or a test pilot tells them to, hits on the player pass through the shields and the energy bank as Oolite's do, and in ordinary play NPCs still never attack
 **Depends on**: Phase 15 (a shot must be able to kill). It builds on Phase 13's shared hit and damage rule and Phase 14's attack behaviours
+**Carry-over from Phase 15 reviews (2026-11-16)**: NPC-vs-NPC fire makes the same-tick mutual kill reachable; restate the divergence from Oolite (credit is asymmetric by id) in this phase's decision row. Before a second AI module gains an `onEvent`, decide whether to narrow the kill-time `shipTargetLost` to the killer only (needs an owner edit to Phase 15 criterion 1); today's only handler is idempotent.
 **Parallel track**: Phase 16 can run beside this phase
 **Requirements**: CBT-15, CBT-16
 **Success Criteria** (what must be TRUE):
@@ -229,6 +231,7 @@ Plans:
 
 **Goal**: The Coriolis station and the navigation buoys become real targets and obstacles: lasers and ident hit them, buoys hold damage and can be destroyed, and ships that touch each other or a buoy damage both by Oolite's mass and closing-speed rule, while contact with the station hull stays damage-free
 **Depends on**: Phase 15 (the ledger), Phase 16 (the barrel and alloy-plate models for their hulls, and debris from collision kills) and Phase 17 (both extend the hit resolver, and NPC shots use the same candidates)
+**Carry-over from Phase 15 reviews (2026-11-16)**: `HitRecord.sourcePosition` is copied at queue time (Phase 15 close-out); keep it a copy when collision records are queued mid-step.
 **Parallel track**: none
 **Requirements**: DATA-15, CBT-17, CBT-18
 **First plan**: measure the Coriolis octree (with its subentities) in the `assets` container against the hull caps, before any hit or collision code relies on it
@@ -278,6 +281,7 @@ Plans:
 
 **Goal**: The player can die: at zero energy from any cause, in flight, the game is over and the page reloads to offer Continue from the last save, through one death path that autosave, pause and the title flow respect; the milestone's determinism and release gates close here
 **Depends on**: Phases 15 to 19 (it consumes every damage source, the ledger's player branch and the v5 save)
+**Carry-over from Phase 15 reviews (2026-11-16)**: decide what happens when the player and an NPC kill each other on one tick.
 **Parallel track**: none
 **Requirements**: DEATH-01, DEATH-06, QUAL-11
 **Success Criteria** (what must be TRUE):
