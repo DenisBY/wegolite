@@ -102,6 +102,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   hand-edited save at the maximum world epoch can cause this) no longer leaves
   the previous system's ships in the destination, drawn, on the scanner, locking
   the torus drive or blocking a jump.
+- The first-use hint "Torus drive: press J to engage" is no longer spent right
+  after a launch while the ship is still inside the station's mass lock. Before,
+  on some launches (depending on how the frames fell) it appeared too early and
+  never came back; now it waits until the lock has been checked in flight.
 
 ## [0.3.0] - 2026-11-11
 

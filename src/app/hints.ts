@@ -29,6 +29,14 @@ export interface HintContext {
   readonly speedInput: number;
   /** Whether pitch or roll is held this frame. */
   readonly pitchRollInput: boolean;
+  /**
+   * The flight clock. `massLocked` is refreshed only by an in-flight step, and
+   * the step that completes a launch (or restores a flight) leaves it stale, so
+   * a frame can show `inFlight` with `massLocked: false` inside the station's
+   * lock. The torus hint waits until this clock has advanced past the first
+   * in-flight frame, which proves a step has refreshed the flag.
+   */
+  readonly flightTime: number;
 }
 
 export interface HintController {
@@ -76,6 +84,8 @@ export function createHintController(options: HintOptions): HintController {
   }
   const announced = new Set<HintId>();
   let wasEngaged = false;
+  /** The flight clock when `inFlight` was first seen, or null outside flight. */
+  let inFlightSince: number | null = null;
 
   function markSeen(id: HintId): void {
     if (seen.has(id)) return;
@@ -102,12 +112,19 @@ export function createHintController(options: HintOptions): HintController {
       if (wasEngaged && !context.torusEngaged) markSeen("torusDisengage");
       wasEngaged = context.torusEngaged;
 
+      if (context.mode !== "inFlight") inFlightSince = null;
+      else inFlightSince ??= context.flightTime;
+
       if (context.mode === "docked") return take("launch");
       if (context.mode !== "inFlight") return null;
 
       // Torus teaching only once the ship is clear of mass lock: a hint to
-      // press `j` inside the station lock would be wrong.
-      if (!context.massLocked) {
+      // press `j` inside the station lock would be wrong. The flag is trusted
+      // only after a step has run in flight (see `HintContext.flightTime`);
+      // taking the hint on a stale `false` would spend it for the session.
+      const flagFresh =
+        inFlightSince !== null && context.flightTime > inFlightSince;
+      if (flagFresh && !context.massLocked) {
         const torus = take("torus");
         if (torus !== null) return torus;
       }

@@ -288,6 +288,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       speedInput: ctx.core.currentFrame.speed,
       pitchRollInput:
         ctx.core.currentFrame.pitch !== 0 || ctx.core.currentFrame.roll !== 0,
+      flightTime: currentState.flightTime,
     };
     const hint = currentHints.maybeShow(context);
     if (hint === null) return;
