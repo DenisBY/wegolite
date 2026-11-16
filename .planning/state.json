@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v2.2 — Weapons and NPC Flight",
+  "milestone": "v2.3",
   "phases": [
     {
       "number": "8",
@@ -40,9 +40,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-progress",
-    "label": "Show progress",
-    "reason": "Unsure of state — showing progress"
+    "command": "/gsd-discuss-phase",
+    "label": "Discuss the first phase",
+    "reason": "Project initialized — plan your first phase"
   },
-  "updated_at": "2026-11-16T09:15:04.172Z"
+  "updated_at": "2026-11-16T12:07:39.947Z"
 }

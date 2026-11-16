@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-11-16T12:07:39.938Z"
 last_activity: 2026-11-16
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-14)
+See: .planning/PROJECT.md (updated 2026-11-16)
 
-**Current focus:** Phase 14 — NPC Flight and Steering Fidelity Gate
-**Current focus:** Phase 13 — Views, Lasers and Shields
+**Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
+**Current focus:** Milestone v2.3 Combat and Death — Phase 15 (Damage Ledger and Kills) first; then Phases 16 and 17, which can run in parallel; then 18, 19 and 20
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 15 of 20 (Damage Ledger and Kills) — not started; Phases 16 and 17 can run in parallel once it lands
 Plan: —
-Status: Defining requirements
-Last activity: 2026-11-16 — Milestone v2.3 started
+Status: Ready to plan (roadmap created, awaiting owner approval)
+Last activity: 2026-11-16 — v2.3 roadmap created (Phases 15-20, 16/16 requirements mapped)
 
 
 ## Performance Metrics
@@ -193,6 +193,11 @@ Last activity: 2026-11-16 — Milestone v2.3 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [v2.3 Roadmap, 2026-11-16]: Six phases, 15 to 20 (no reset), at the top of the 4-6 standard-granularity guide; 16 of 16 requirements mapped, each to the phase that completes it. Phase 15 Damage Ledger and Kills (FOUND-18, FOUND-19, DATA-14); Phase 16 Wreckage, Cargo and the Entity Cap (DATA-16, WORLD-17); Phase 17 NPC Fire and Hits on the Player (CBT-15, CBT-16); Phase 18 Stations, Buoys and Collisions (DATA-15, CBT-17, CBT-18); Phase 19 Equipment Damage and Repair (CBT-08, CBT-12, SAVE-09); Phase 20 Player Death and Game Over (DEATH-01, DEATH-06, QUAL-11). Order: 15, then 16 in parallel with 17, then 18, 19, 20.
+- [v2.3 Roadmap, 2026-11-16]: The research's single player-death phase was split in two because the owner put equipment damage with save v5 and the F3 repair in scope (CBT-12, 2026-11-16): equipment damage is Phase 19, death is Phase 20. The research's separate close-out phase folds into Phase 20 (determinism, the by-hand acceptance rerun, `verify-full`, FIDELITY, Key Decisions, CHANGELOG, provenance).
+- [v2.3 Roadmap, 2026-11-16]: Owner decisions in force: NPC fire from the engine and test pilots only (no reflex AI; Phase 17); equipment damage in save v5 with an F3 repair at Oolite's price (Phase 19); statics hit by porting Oolite's subentity rule after measuring the Coriolis octree against the hull caps (Phase 18); entity cap 256 with thresholds 243 and 128 (Phase 16); game over by page reload and death only while `inFlight` (Phase 20); station-hull contact stays damage-free (Phase 18); debris models vendored from the local Oolite checkout (Phase 16); one snapshot v4 bump with pristine-omit (Phase 15).
+- [v2.3 Roadmap, 2026-11-16]: CBT-08 and QUAL-11 are staged requirements and are mapped once, to the completing phase (19 and 20), so they are not checked off early. CBT-08's destruction clauses are proved in Phase 16 and its internal-damage clause completes it in Phase 19; QUAL-11 is a standing gate (the by-hand 20-seed acceptance rerun after every plan touching `src/sim/npc/**`, `src/sim/world/**` or `ships-npc.json`) from Phase 15 on.
+- [v2.3 Roadmap, 2026-11-16]: Recorded decisions this milestone changes, each amended in the same commit as its rule: N2 (Phase 15), Phase 14's frozen snapshot record (Phase 15, third regeneration, once), A7 and Phase 14's "no weapon fire from steering" (Phase 17), "Statics are neither laser nor ident targets" (Phase 18), the player energy floor (Phase 20).
 - [v2.2 Roadmap, 2026-11-14]: Two phases, 13 and 14, with their numbers kept from the former Combat & Traffic plan (no reset), below the 4-6 standard-granularity guide because the owner scoped v2.2 to the necessary minimum (2026-11-13, "less, but better"). 10/10 requirements mapped: Phase 13 takes FOUND-17, INPUT-01, CBT-04 to CBT-07 and DOCK-10; Phase 14 takes AI-01, WORLD-07 and AI-11. The phases have no dependency on each other and can run in parallel; they share `ShipControl`, entity state and the NPC records, so their seam plans should not share a wave.
 - [v2.2 Roadmap, 2026-11-14]: FOUND-17 (review WR-01) is the first plan of Phase 13, then the INPUT-01 binding migration (Escape double press ejects, P pauses, R is ident), before any view, laser or ident work relies on the keys. The eject binding is bound but inert (the escape pod is unscheduled) and energy floors at zero (destruction is unscheduled).
 - [v2.2 Roadmap, 2026-11-14]: AI-01 is trimmed to nine behaviours (idle, tumble, fly to destination, face, intercept, attack, flee, escort, avoid collision); collect, tractored, mining and land on planet are AI-12 (Future). In normal play NPC ships stay inert after v2.2 (no priority AI): flight is observable in a `?test=1` traffic-on session through the test hook. Phase 14 keeps the 20-seed acceptance run, the independently authored source-cited oracles and the AI-11 gate (dev-only harness spike; the owner's oracle choice is recorded as a Key Decision).
@@ -470,7 +475,11 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-Refreshed from `.planning/todos/pending/` at v2.2 roadmap creation. The compassMode and fourth-pylon todos are in `.planning/todos/completed/`.
+Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16). The compassMode and fourth-pylon todos are in `.planning/todos/completed/`.
+
+- [2026-11-15] [sim] Let lasers hit, and ident lock, the station and the buoys — Phase 18 (CBT-17 closes it) — [todo file](.planning/todos/pending/2026-11-15-lasers-and-ident-hit-stations-and-buoys.md)
+- [2026-11-16] [tests] Phase 14 review follow-ups (acceptance rerun rule IN-04 now in force as QUAL-11; IN-05 needs the owner trailer) — standing gate in Phases 15 to 20 — [todo file](.planning/todos/pending/2026-11-16-phase-14-review-followups.md)
+- [2026-11-16] [tests] Watch the CI e2e timeout margins (60 % rule) — applies to the new browser specs, checked at the Phase 20 close-out — [todo file](.planning/todos/pending/2026-11-16-ci-e2e-timeout-margins.md)
 
 - [2026-11-14] [app] Clear the origin world when a hyperspace arrival's `begin()` is refused (review WR-01) — Phase 13, first plan (FOUND-17); IN-01, IN-02 and IN-04 of the same todo are candidates for Phases 13 and 14 — [todo file](.planning/todos/pending/2026-11-14-clear-world-when-arrival-begin-is-refused.md)
 - [2026-11-14] [flight] Make buoys block hyperspace like Oolite — unscheduled — [todo file](.planning/todos/pending/2026-11-14-make-buoys-block-hyperspace-like-oolite.md)
@@ -501,6 +510,7 @@ Refreshed from `.planning/todos/pending/` at v2.2 roadmap creation. The compassM
 - [Phase 8] 08-VALIDATION.md is still draft (Nyquist audit not run); optional `/gsd-validate-phase 8`.
 - [v2.1 start] REQUIREMENTS.md is fresh for v2.1 (12 requirements); the former v2.1 Combat & Traffic requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`.
 - [v2.2 start] REQUIREMENTS.md is fresh for v2.2 (10 requirements, all mapped to Phases 13-14). Open owner items: where octree data ships and how the Cobra's reaches the first-load set (ceiling 9,437,184 bytes, Phase 13); the cabin-temperature inputs and what the ident lock shows on the HUD without missiles (Phase 13); the 20-seed acceptance thresholds, the spike time box and stub-host scope, and the oracle choice at the Phase 14 gate (gates the unscheduled Phase 18). In normal play NPC ships stay inert after v2.2; whether the owner wants a normal-play NPC pilot so WORLD-07 is visible outside the test hook is not planned.
+- [v2.3 start] REQUIREMENTS.md is fresh for v2.3 (16 requirements, all mapped to Phases 15-20). Open items for the phases that own them: whether the Coriolis octree fits the hull caps or needs its own file (Phase 18, measured first); what a destroyed buoy means for the scanner, the witchpoint beacon and `hyperspace-failure.spec.ts` (Phase 18); the wreckage lifetime formula, LOW confidence (Phase 16); what a pod holds, count-only against market-driven (Phase 16); whether the cargo-pod-loss branch that opens Oolite's `takeInternalDamage` roll is ported or recorded as a divergence, since the requirements name equipment only (Phase 19); whether a death with a pending save write is safe, i.e. that `store.read()` waits for a queued write (Phase 20). The frozen acceptance run throws on any flyer death, so fire and collisions must stay opt-in for the frozen worlds. `verify-full` is owner-gated per phase (render, input and persistence phases 16, 19 and 20).
 
 ### Quick Tasks Completed
 
@@ -570,12 +580,12 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-16T00:49:07.634Z
-Stopped at: Phase 14 complete — all phases complete
+Last session: 2026-11-16
+Stopped at: v2.3 roadmap created (Phases 15-20); awaiting owner approval
 Resume file: None
 
 ## Operator Next Steps
 
 
 
-- Start the next milestone with /gsd-new-milestone
+- Review the v2.3 roadmap (`.planning/ROADMAP.md`), then start Phase 15 with `/gsd-discuss-phase 15` or `/gsd-plan-phase 15`

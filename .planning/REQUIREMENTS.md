@@ -34,7 +34,7 @@ Requirements for this milestone. Each maps to roadmap phases (numbering continue
 
 ### Save
 
-- [ ] **SAVE-09**: Saves move to schema v5 with `damagedEquipment` and an ordered migration from v4; a damaged item does not count as installed.
+- [ ] **SAVE-09**: Saves move to schema v5 with `damagedEquipment` with no migration (alpha: older saves are rejected as unreadable); a damaged item does not count as installed.
 
 ### Render and Quality
 
@@ -75,13 +75,30 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (filled by the roadmapper) | | |
+| FOUND-18 | Phase 15 | Pending |
+| FOUND-19 | Phase 15 | Pending |
+| DATA-14 | Phase 15 | Pending |
+| DATA-16 | Phase 16 | Pending |
+| WORLD-17 | Phase 16 | Pending |
+| CBT-15 | Phase 17 | Pending |
+| CBT-16 | Phase 17 | Pending |
+| DATA-15 | Phase 18 | Pending |
+| CBT-17 | Phase 18 | Pending |
+| CBT-18 | Phase 18 | Pending |
+| CBT-08 | Phase 19 | Pending |
+| CBT-12 | Phase 19 | Pending |
+| SAVE-09 | Phase 19 | Pending |
+| DEATH-01 | Phase 20 | Pending |
+| DEATH-06 | Phase 20 | Pending |
+| QUAL-11 | Phase 20 | Pending |
+
+Staged requirements are mapped to the phase that completes them and are not checked off earlier: CBT-08 (destruction clauses proved in Phase 16, internal-damage clause completes it in Phase 19) and QUAL-11 (a standing gate from Phase 15 on, completed in Phase 20, where every kill source exists).
 
 **Coverage:**
 - v1 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16 ⚠️
+- Mapped to phases: 16 (Phase 15: 3, Phase 16: 2, Phase 17: 2, Phase 18: 3, Phase 19: 3, Phase 20: 3)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-11-16*
-*Last updated: 2026-11-16 after initial definition*
+*Last updated: 2026-11-16 after roadmap creation (traceability filled, Phases 15-20)*
