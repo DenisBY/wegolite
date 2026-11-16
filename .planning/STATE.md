@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 16
 current_phase_name: Wreckage, Cargo and the Entity Cap
-current_plan: 3
+current_plan: 4
 status: executing
-stopped_at: Completed 16-02-PLAN.md
-last_updated: "2026-11-16T23:04:15.823Z"
+stopped_at: Completed 16-01-PLAN.md
+last_updated: "2026-11-16T23:11:09.699Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 15 complete, transitioned to Phase 16
-state_head: 4b9f90172f00c38c2cc140149a4f54008ef69454
+state_head: 8b5cd651733a0d04a8c5d94124f8ca8738e57a53
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 15
-  completed_plans: 7
+  completed_plans: 8
   percent: 17
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 16 — Wreckage, Cargo and the Entity Cap
-Current Plan: 3
+Current Plan: 4
 Total Plans in Phase: 9
 Status: Ready to execute
 Last activity: 2026-11-17 — 16-02 complete (cargo pods on the kill path, the entity cap)
@@ -200,6 +200,7 @@ Last activity: 2026-11-17 — 16-02 complete (cargo pods on the kill path, the e
 | Phase 15 P05 | 50 min | 2 tasks | 7 files |
 | Phase 15 P06 | 18 min | 3 tasks | 4 files |
 | Phase 16 P02 | 30min | 2 tasks | 11 files |
+| Phase 16 P01 | 5min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -497,6 +498,8 @@ Recent decisions affecting current work:
 - [Phase 16]: D16-12 draw order implemented in releaseDebris: canFragment first, then per capsule one survival draw and 13 draws per survivor; plan 16-04 appends after the pods
 - [Phase 16]: D16-05 cap gate per piece after the piece's draws: liveEntityCount < 0.95 x 256 (243.2); frame-time and visibility terms dropped
 - [Phase 16]: DebrisContent.hulls must be a Map instance; anything else reads as an empty table, never a throw
+- [Phase 16]: 16-01: debris sources vendored from a host --export-pin of the pinned 7437f22 blobs through the new OOLITE_LOCAL local mode of scripts/vendor-oolite.sh (14 files, cross-checked 14/14 against pin and working tree)
+- [Phase 16]: 16-01 OC-7: the real vendoring run was done by the orchestrator under the owner's standing unattended instruction, not by the owner; flagged for owner review
 
 ### Pending Todos
 
@@ -605,8 +608,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-16T23:04:06.092Z
-Stopped at: Completed 16-02-PLAN.md
+Last session: 2026-11-16T23:11:09.564Z
+Stopped at: Completed 16-01-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

@@ -202,11 +202,11 @@ Plans:
 **Pitfalls to address**: 8 (debris determinism: own-stream draws, no frame-time gate, draw even when `spawnEntity` refuses at the cap, fixed spawn order), 9 (the motion model), 14 (pod contents: no new hashed commodity field), 17 (the cap, scans and instanced render with hundreds of pieces), 20 (wreckage details read wrong at first look: quoted lines, FIDELITY rows), 25 (provenance of every new asset)
 **Decisions to settle**: the wreckage lifetime formula; what a pod holds (a count, per PITFALLS 14, against a market-driven commodity); the debris spawn order and the dropped frame-time term, both recorded in Key Decisions and FIDELITY.md
 **Todos**: `2026-11-14-measure-oolite-reference-in-docker.md` (the wreckage lifetime joins it)
-**Plans**: 1/9 plans executed in 7 waves
+**Plans**: 2/9 plans executed in 7 waves
 
 Plans:
 **Wave 1**
-- [ ] 16-01-PLAN.md — DATA-16: vendor the barrel, alloy and five wreck models and the explosion particle textures from the local Oolite checkout through a verified local-source mode of `scripts/vendor-oolite.sh` (owner checkpoint for the real run, OC-7)
+- [x] 16-01-PLAN.md — DATA-16: vendor the barrel, alloy and five wreck models and the explosion particle textures from the local Oolite checkout through a verified local-source mode of `scripts/vendor-oolite.sh` (owner checkpoint for the real run, OC-7)
 - [x] 16-02-PLAN.md — WORLD-17, CBT-08 staged: cargo pods from the dying ship's own stream, drift, the per-piece cap at 243 (Phase 17 seam plan)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -369,7 +369,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 13. Views, Lasers and Shields | v2.2 | 16/16 | Complete    | 2026-11-15 |
 | 14. NPC Flight and Steering Fidelity Gate | v2.2 | 19/19 | Complete    | 2026-11-16 |
 | 15. Damage Ledger and Kills | v2.3 | 6/6 | Complete    | 2026-11-16 |
-| 16. Wreckage, Cargo and the Entity Cap | v2.3 | 1/9 | In Progress | - |
+| 16. Wreckage, Cargo and the Entity Cap | v2.3 | 2/9 | In Progress | - |
 | 17. NPC Fire and Hits on the Player | v2.3 | 0/TBD | Not started | - |
 | 18. Stations, Buoys and Collisions | v2.3 | 0/TBD | Not started | - |
 | 19. Equipment Damage and Repair | v2.3 | 0/TBD | Not started | - |
