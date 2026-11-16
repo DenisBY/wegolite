@@ -311,8 +311,9 @@ function resolveShotHits(
         target: hit.id,
         source: shot.shooter,
         amount: stats.damage,
-        sourcePosition:
-          world?.store.get(shot.shooter)?.position ?? shot.ray.origin,
+        sourcePosition: {
+          ...(world?.store.get(shot.shooter)?.position ?? shot.ray.origin),
+        },
       });
     }
   }
