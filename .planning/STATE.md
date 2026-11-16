@@ -5,16 +5,16 @@ milestone_name: Combat and Death
 current_phase: 15
 current_phase_name: Damage Ledger and Kills
 status: executing
-stopped_at: Completed 15-04-PLAN.md
-last_updated: "2026-11-16T19:10:41.322Z"
+stopped_at: Completed 15-05-PLAN.md
+last_updated: "2026-11-16T19:35:11.435Z"
 last_activity: 2026-11-16
 last_activity_desc: v2.3 roadmap created (Phases 15-20, 16/16 requirements mapped)
-state_head: ed6b9f2014bc36bb81a6c17b1a5e6ba8ce754266
+state_head: fa47bfb50123e7ed343bdf99ef0494f100913c42
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 15 (Damage Ledger and Kills) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-11-16 — Plan 15-02 complete (FOUND-18 field half; FOUND-18 stays open for 15-03 and 15-06)
 
@@ -194,6 +194,7 @@ Last activity: 2026-11-16 — Plan 15-02 complete (FOUND-18 field half; FOUND-18
 | Phase 15 P02 | 40 min | 3 tasks | 12 files |
 | Phase 15 P03 | 13 min | 2 tasks | 9 files |
 | Phase 15 P04 | 75 min | 2 tasks | 14 files |
+| Phase 15 P05 | 50 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -485,6 +486,7 @@ Recent decisions affecting current work:
 - [Phase 15]: Plan 15-02: every v2.3 hashed field (velocity, weapon, cargo, staticHealth) designed once behind snapshot v4, pristine-omit hashed; weapon.temperature is forward_weapon_temp only; lastShotTick 0 reads as ready to fire; static-health repair counted in no hashed counter
 - [Phase 15]: Plan 15-03: cargo count at spawn is Oolite's setCargoFlag: counting rule per populator role, drawn from the stateless forkSeed(worldSeed, id, "cargo") stream (code 4, never stored); the one Lave golden regeneration c1068643 to ff6489bf is taken here and its order is pending owner acknowledgement (OD-1)
 - [Phase 15]: Destroy a ship at zero energy through one damage ledger and one kill path (supersedes N2); killShip re-checks the killer at kill time (D-04), a same-tick mutual kill credits the lower-id victim to the other ship and the higher-id victim NO_ENTITY
+- [Phase 15]: Kill notifications reach holders of the victim and a live NPC killer through postAiEvent, delivered by drainAiEventsNow before the second commit; D-05 narrowing pending owner acknowledgement (OD-2)
 
 ### Pending Todos
 
@@ -593,8 +595,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-16T19:10:41.240Z
-Stopped at: Completed 15-04-PLAN.md
+Last session: 2026-11-16T19:35:11.316Z
+Stopped at: Completed 15-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
