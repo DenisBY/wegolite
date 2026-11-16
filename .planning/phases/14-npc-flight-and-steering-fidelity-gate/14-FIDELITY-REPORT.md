@@ -2,7 +2,7 @@
 
 Plan 14-19, 2026-11-16. Covers AI-01, WORLD-07 and AI-11 (ROADMAP Phase 14, criteria 4 and 5).
 
-**Status: awaiting the owner.** This report is evidence, not a decision. The owner accepts or rejects it and selects the oracle for the later AI port at plan 14-19's blocking checkpoint; nothing here, and no agent, has made that choice. The owner's decision is appended as an "Owner decision" section by plan 14-19, Task 4.
+**Status: accepted on 2026-11-16 by an owner-delegated review panel, not by the owner reading the report** (see "Owner decision" at the end). The report is evidence; the owner can overturn the decision, in which case the gaps become gap-closure plans of Phase 14.
 
 Every number below is copied from a plan summary, from `14-SPIKE.md` or from a run made in plan 14-19; the source is named beside it. Where a plan summary and a rerun disagree, the rerun is stated.
 
@@ -187,5 +187,20 @@ From the full run of plan 14-19 (`test-results/coverage/coverage-summary.json`, 
 2. **IN-02 and IN-04** (an `aiFaulted` that nothing records; a failed NPC model never retried) were not folded in; no consumer in this phase. They stay todos unless the owner says otherwise.
 3. **The five acceptance residual risks** and the acceptance residual (no head-on closure; near-identical geometry), above.
 4. **The oracle coverage gaps** listed above (evasive hand-over, the curve restart on resume, multi-ship interaction).
-5. **Requirements are not yet marked complete.** AI-01, WORLD-07 and AI-11 stay pending in `REQUIREMENTS.md` until the owner accepts this report (plan 14-19, Task 4). Plan 14-18's summary lists WORLD-07 as completed by that plan; `REQUIREMENTS.md` still says Pending, and the report's acceptance decides it.
-6. **The oracle choice for AI-07** and the mount-or-vendor question are the owner's (plan 14-19, Task 3).
+5. **Requirements are marked complete** (AI-01, WORLD-07 and AI-11 in `REQUIREMENTS.md`, plan 14-19 Task 4) on the panel's acceptance of this report, not on the owner's own reading. Plan 14-18's summary lists WORLD-07 as completed by that plan; the acceptance decided it.
+6. **The oracle choice for AI-07** and the mount-or-vendor question are answered below (the panel's answers on the owner's delegation).
+
+## Owner decision
+
+Recorded by plan 14-19, Task 4, on 2026-11-16, in `.planning/PROJECT.md` Key Decisions row "Phase 14 oracle choice for the AI port".
+
+**Who decided, stated plainly.** This was **a panel decision made on the owner's delegation, not the owner reading the report.** Three independent reviewers (Fable, Opus, Sonnet), each reading this report, `14-SPIKE.md`, plan 14-19 and the ROADMAP, returned the same four picks. ROADMAP criterion 4 says "the owner selects", so the owner can overturn any answer below. The consequence of an overturn: the gaps named by the owner would become gap-closure plans of Phase 14. The priority-AI phase is not yet planned, so nothing is built on this decision.
+
+- **A. Report: accepted.** The evidence meets ROADMAP criteria 1 to 5. The residuals do not block: no head-on closure in the acceptance run, near-identical seed geometry, the shared-source independence limit, the evasive 0.5 s hand-over covered by unit tests only, `ASPECT_ZERO_SNAP`, the unported accuracy 9 dodge and the panel-accepted acceptance run.
+- **B. Oracle for later ported AI decisions: `option-harness`.** The dev-only differential harness is the oracle; source-cited traces are kept as a per-role fallback, because the spike's own confidence for the remaining roles is low.
+- **C. Input for AI-07: keep the `OOLITE_SRC` mount.** Vendoring the scripts through a human-run `scripts/vendor-oolite.sh` bump is decided when the priority-AI phase is planned.
+- **D. IN-02 and IN-04 stay todos** (fold in when the AI phase needs `aiFaulted`). **verify-full: not run, not required by AGENTS.md for this change set; not rerun on the panel's advice (last green at `d8b4483`).** Only documents changed since; the remote `verify` passed at `7fbd649`.
+
+**Requirement status after the decision:** AI-01, WORLD-07 and AI-11 are marked complete in `.planning/REQUIREMENTS.md` (checkboxes and traceability rows).
+
+**Still open, not decided by this record:** `.planning/WINDOWS.md` entry 3 (the vacuous assertion at `tests/acceptance/detectors.test.ts:164-177`) stays open and still blocks `/gsd-ship`. Closing it needs the owner's option (c) and a commit with the `Detector-change-approved-by-owner` trailer; no frozen file was touched by this plan.

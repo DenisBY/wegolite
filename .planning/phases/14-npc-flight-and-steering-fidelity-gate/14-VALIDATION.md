@@ -1,8 +1,8 @@
 ---
 phase: "14"
 slug: npc-flight-and-steering-fidelity-gate
-status: draft
-nyquist_compliant: false
+status: complete
+nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-15"
 ---
@@ -95,8 +95,8 @@ Filled by the planner from `14-RESEARCH.md` § Phase Requirements to Test Map (A
 | 14-18-03 | 18 | 13 | WORLD-07 | — | N/A | opt-in e2e smoke (remote) | `/home/opencode/.claude/scripts/wegolite-remote-run.sh run --rm e2e sh -lc "npm run build:e2e && npx playwright test tests/e2e/npc-flight.spec.ts tests/e2e/combat.spec.ts tests/e2e/traffic.spec.ts"` | ✅ exists | ✅ green |
 | 14-19-01 | 19 | 14 | AI-01, WORLD-07, AI-11 | T-14-33 | N/A | contract (both modes, tree re-created) | `docker compose run --rm test npx vitest run tests/contract/fidelity.test.ts`, then the mounted run after re-creating `/tmp/oolite-7437f22` | extend | ✅ green |
 | 14-19-02 | 19 | 14 | AI-11, AI-01, WORLD-07 | T-14-35 | the frozen set untouched since plan 14-17 | full gates + freeze check + conditional acceptance rerun + the phase's single remote verify | `docker compose run --rm test`, plan 14-17's freeze check and exact-content gate at HEAD, the conditional `npm run test:acceptance` (run only when the simulation or acceptance code changed since plan 14-17's summary commit) and `/home/opencode/.claude/scripts/wegolite-remote-run.sh run --rm verify` | extend | ✅ green |
-| 14-19-03 | 19 | 14 | AI-11 | T-14-34 | only the owner chooses the oracle | checkpoint (blocking-human) | — | n/a | ⬜ pending |
-| 14-19-04 | 19 | 14 | AI-11, AI-01, WORLD-07 | — | N/A | record + requirement status | `rg 'Phase 14 oracle choice for the AI port' .planning/PROJECT.md \| rg -c '14-FIDELITY-REPORT'` | extend | ⬜ pending |
+| 14-19-03 | 19 | 14 | AI-11 | T-14-34 | only the owner chooses the oracle | checkpoint (blocking-human), answered 2026-11-16 by an owner-delegated review panel, not by the owner reading the report | — | n/a | ✅ green |
+| 14-19-04 | 19 | 14 | AI-11, AI-01, WORLD-07 | — | N/A | record + requirement status | `rg 'Phase 14 oracle choice for the AI port' .planning/PROJECT.md \| rg -c '14-FIDELITY-REPORT'` | extend | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -134,7 +134,7 @@ Filled by the planner from `14-RESEARCH.md` § Phase Requirements to Test Map (A
 
 - 14-08-01 (hash policy): answered by the owner in person, 2026-11-15 (plan 14-08).
 - 14-17-03 (the 20-seed result): answered `option-continue` on 2026-11-16 by an owner-delegated review panel (Fable, Opus, Sonnet; each TRUST-WITH-CAVEATS), **not by the owner reading the run**; plan 14-17's summary records the five residual risks.
-- 14-19-03 and 14-19-04 (the owner's acceptance of the report and the oracle choice, and their record): still pending; they are decided by the owner at plan 14-19's blocking checkpoint, never by an agent.
+- 14-19-03 and 14-19-04 (acceptance of the report and the oracle choice, and their record): answered on 2026-11-16 by an owner-delegated review panel (Fable, Opus, Sonnet; the same four picks: report accepted, `option-harness` with source-cited traces as the per-role fallback, `OOLITE_SRC` mount kept, IN-02 and IN-04 stay todos, `verify-full` not rerun), **not by the owner reading the report**. Recorded in the PROJECT.md row "Phase 14 oracle choice for the AI port" and the report's "Owner decision" section; the owner can overturn it. Task 14-19-04's check passed (the row names the report; the three requirements are marked complete).
 
 ## Validation Sign-Off
 
@@ -143,6 +143,6 @@ Filled by the planner from `14-RESEARCH.md` § Phase Requirements to Test Map (A
 - [x] Wave 0 covers all MISSING references
 - [x] No watch-mode flags
 - [ ] Feedback latency < 60s (targeted single-file runs take tens of seconds; the guards, the full suite and the 20-seed run take minutes, as the sampling strategy states)
-- [ ] `nyquist_compliant: true` set in frontmatter: not yet. Every task before the checkpoint has an automated verify that passed (`wave_0_complete: true`), but task 14-19-04's check (the oracle-choice row names the report) cannot pass before the owner decides; plan 14-19, Task 4 sets it once that check passes.
+- [x] `nyquist_compliant: true` set in frontmatter, after task 14-19-04's check passed (the oracle-choice row names the report).
 
-**Approval:** pending the owner's decision at plan 14-19's checkpoint
+**Approval:** 2026-11-16, by the owner-delegated review panel (not the owner reading the report); open: WINDOWS.md entry 3 (needs the owner's option (c)); verify-full: not run, not required by AGENTS.md for this change set; not rerun on the panel's advice (last green at `d8b4483`)

@@ -25,9 +25,9 @@ Requirements for milestone v2.2 (Phases 13 and 14). IDs and wording carry over f
 
 ### NPC Flight
 
-- [ ] **WORLD-07**: Player sees NPC ships flying in the system, drawn within the draw-call budget and shown on the scanner
-- [ ] **AI-01**: NPC ships move with Oolite's NPC flight model and steer with its native behaviours: idle, tumble, fly to destination, face, intercept, attack, flee, escort and avoid collision
-- [ ] **AI-11**: A time-boxed, dev-only spike runs selected AILib functions from the original Oolite JavaScript in Node against a stub host (absent from `dist`); a fidelity report lists each behaviour's result against its oracle, and the owner's choice of oracle for later ported decisions is recorded as a Key Decision
+- [x] **WORLD-07**: Player sees NPC ships flying in the system, drawn within the draw-call budget and shown on the scanner
+- [x] **AI-01**: NPC ships move with Oolite's NPC flight model and steer with its native behaviours: idle, tumble, fly to destination, face, intercept, attack, flee, escort and avoid collision
+- [x] **AI-11**: A time-boxed, dev-only spike runs selected AILib functions from the original Oolite JavaScript in Node against a stub host (absent from `dist`); a fidelity report lists each behaviour's result against its oracle, and the owner's choice of oracle for later ported decisions is recorded as a Key Decision
 
 ## Future Requirements
 
@@ -144,9 +144,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CBT-06 | Phase 13 | Complete |
 | CBT-07 | Phase 13 | Complete |
 | DOCK-10 | Phase 13 | Complete |
-| WORLD-07 | Phase 14 | Pending |
-| AI-01 | Phase 14 | Pending |
-| AI-11 | Phase 14 | Pending |
+| WORLD-07 | Phase 14 | Complete |
+| AI-01 | Phase 14 | Complete |
+| AI-11 | Phase 14 | Complete |
 
 **Coverage:**
 - v2.2 requirements: 10 total
