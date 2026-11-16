@@ -6,16 +6,16 @@ current_phase: 16
 current_phase_name: Wreckage, Cargo and the Entity Cap
 current_plan: 4
 status: executing
-stopped_at: Completed 16-01-PLAN.md
-last_updated: "2026-11-16T23:11:09.699Z"
+stopped_at: Completed 16-03-PLAN.md
+last_updated: "2026-11-16T23:34:22.188Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 15 complete, transitioned to Phase 16
-state_head: 8b5cd651733a0d04a8c5d94124f8ca8738e57a53
+state_head: b1fd16d528c9dbd507eb42387a83f49ef4d9ea22
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 15
-  completed_plans: 8
+  completed_plans: 9
   percent: 17
 ---
 
@@ -34,7 +34,7 @@ Phase: 16 — Wreckage, Cargo and the Entity Cap
 Current Plan: 4
 Total Plans in Phase: 9
 Status: Ready to execute
-Last activity: 2026-11-17 — 16-02 complete (cargo pods on the kill path, the entity cap)
+Last activity: 2026-11-17 — 16-03 complete (debris GLBs, textures and the lazy debris catalogue)
 
 
 ## Performance Metrics
@@ -201,6 +201,7 @@ Last activity: 2026-11-17 — 16-02 complete (cargo pods on the kill path, the e
 | Phase 15 P06 | 18 min | 3 tasks | 4 files |
 | Phase 16 P02 | 30min | 2 tasks | 11 files |
 | Phase 16 P01 | 5min | 3 tasks | 17 files |
+| Phase 16 P03 | 35min | 2 tasks | 36 files |
 
 ## Accumulated Context
 
@@ -500,6 +501,8 @@ Recent decisions affecting current work:
 - [Phase 16]: DebrisContent.hulls must be a Map instance; anything else reads as an empty table, never a throw
 - [Phase 16]: 16-01: debris sources vendored from a host --export-pin of the pinned 7437f22 blobs through the new OOLITE_LOCAL local mode of scripts/vendor-oolite.sh (14 files, cross-checked 14/14 against pin and working tree)
 - [Phase 16]: 16-01 OC-7: the real vendoring run was done by the orchestrator under the owner's standing unattended instruction, not by the owner; flagged for owner review
+- [Phase 16]: Plan 16-03: LEGACY_TEXTURED_ENTRIES lets only the five wreck keys name the unauthored wreck.png (Oolite's default material: diffuse only, roughness 1); every other missing material still fails the build, and a wreck mesh naming another material fails
+- [Phase 16]: Plan 16-03: the debris catalogue is seven strict records (barrel pod, alloy plate, five wrecks in shipdata order) with build-time float32 mass, radius and tumble rates; the schema requires exactly one pod, exactly one plate and a wreck; no scarred plate (D16-07)
 
 ### Pending Todos
 
@@ -608,8 +611,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-16T23:11:09.564Z
-Stopped at: Completed 16-01-PLAN.md
+Last session: 2026-11-16T23:34:22.060Z
+Stopped at: Completed 16-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
