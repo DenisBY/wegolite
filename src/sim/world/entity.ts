@@ -31,6 +31,29 @@ export interface EntityStreams {
   combat: number;
 }
 
+/**
+ * The weapon record of one entity (FOUND-18, D-07, D-16). Phase 17 writes all
+ * three leaves from world ticks, never from frame time.
+ *
+ * `temperature` is Oolite's `forward_weapon_temp` (`ShipEntity.h:303-304`).
+ * Oolite keeps one temperature per facing and cools each of them
+ * (`ShipEntity.m:2213-2218`); this record holds only the forward one, the only
+ * facing any compiled NPC can mount, because the converter's
+ * `STEERING_ASSUMED_ABSENT_KEYS` refusal (plan 15-01) keeps aft, port and
+ * starboard weapon types out of the catalogue. Lifting that refusal needs
+ * per-facing temperatures and is a snapshot-format change.
+ *
+ * `lastShotTick` is the integer world tick of the last shot. 0 means "never
+ * fired" (the first world tick is 1), and the fire gate must read 0 as ready
+ * to fire (Oolite starts `shot_time` at a long-ago value), never as `tick - 0`
+ * elapsed. `missedShots` is Oolite's `_missed_shots`.
+ */
+export interface WeaponComponent {
+  temperature: number;
+  lastShotTick: number;
+  missedShots: number;
+}
+
 /** A dynamic entity. `id` never changes; everything else is simulation state. */
 export interface Entity {
   readonly id: EntityId;
@@ -53,6 +76,13 @@ export interface Entity {
    * `energy_recharge_rate`): a hit drains `energy`, it never exceeds
    * `maxEnergy` and a spawned ship starts at full. Hashed, snapshotted and
    * repaired like every other field.
+   *
+   * D-02: debris keeps its remaining lifetime here, so `energy` means health
+   * for kind "ship" and remaining lifetime for "cargo" and "wreckage". The two
+   * meanings are exclusive per kind: only ships are hit candidates and only
+   * ships recharge (`src/sim/combat/step.ts`, `rechargeShips` and the
+   * hit-candidate filter). Tumble is render-side (D-03) and no contact-guard
+   * field exists (D-17).
    */
   energy: number;
   maxEnergy: number;
@@ -64,6 +94,20 @@ export interface Entity {
    * `sanitizeEntity` like every other field.
    */
   steer: SteerComponent;
+  /**
+   * The drift velocity in m/s (FOUND-18, D-01), independent of `orientation`.
+   * Zero for every entity that has none. Written by any phase that applies
+   * drift: Phase 16 debris and the blast pushing neighbours, Phase 18 rebounds.
+   * Hashed as the optional `;vel:` segment (zero omitted, D-09).
+   */
+  velocity: Vec3;
+  /** The weapon record (D-07, D-16); hashed as the optional `;wpn:` segment. */
+  weapon: WeaponComponent;
+  /**
+   * The cargo capsule count (D-06): an integer 0 to `MAX_ENTITY_CARGO`, chosen
+   * at spawn. Hashed as the optional `;cargo:` segment (zero omitted).
+   */
+  cargo: number;
 }
 
 /** What a caller supplies to spawn an entity. */

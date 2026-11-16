@@ -92,9 +92,11 @@ const vecText = (v: Vec3): string =>
   `${canon(v.x)},${canon(v.y)},${canon(v.z)}`;
 
 /**
- * The steering segment (AI-01, plan 14-08): the LAST segment of the entity
- * line, always present, introduced by the unique label `;steer:` so a reader
- * can strip it and re-hash to the text before the record existed. Every field of
+ * The steering segment (AI-01, plan 14-08): the last always-present segment of
+ * the entity line, introduced by the unique label `;steer:` so a reader can
+ * strip it and re-hash to the text before the record existed. The three
+ * optional v4 segments (`;vel:`, `;wpn:`, `;cargo:`, D-09 pristine-omit) follow
+ * it, in that order, and only when their field is not pristine. Every field of
  * the record prints, `escortSlot` included, in a fixed order; the two optional
  * parts carry explicit tags: `t0` or `t4:` (the tracking curve, whose ticks and
  * positions print only when the curve exists, so a stale sample at count 0
@@ -126,12 +128,12 @@ function serializeSteer(steer: SteerComponent): string {
 
 /** One labelled line, `e<id>=` then every field in a fixed order. */
 export function serializeEntity(entity: Entity): string {
-  const { position: p, orientation: q, nav, ai } = entity;
+  const { position: p, orientation: q, nav, ai, velocity, weapon } = entity;
   const aiText =
     ai === null
       ? "none"
       : `${ai.aiKey},${int(ai.wakeTick)},${int(ai.nextThinkTick)},${encodeParams(ai.params)}`;
-  return [
+  const segments = [
     `e${int(entity.id)}=${entity.kind}`,
     entity.scanClass,
     encodeHashString(entity.specKey),
@@ -147,7 +149,24 @@ export function serializeEntity(entity: Entity): string {
     `repairs:${int(entity.repairs)}`,
     `en:${canon(entity.energy)},${canon(entity.maxEnergy)},${canon(entity.energyRechargeRate)}`,
     `steer:${serializeSteer(entity.steer)}`,
-  ].join(";");
+  ];
+  // The optional v4 segments (FOUND-18, D-09): each prints whenever any of its
+  // components is non-zero, so pristine-omit never hides a real difference, and
+  // is absent for a pristine value, so a pristine entity hashes as before.
+  if (velocity.x !== 0 || velocity.y !== 0 || velocity.z !== 0) {
+    segments.push(`vel:${vecText(velocity)}`);
+  }
+  if (
+    weapon.temperature !== 0 ||
+    weapon.lastShotTick !== 0 ||
+    weapon.missedShots !== 0
+  ) {
+    segments.push(
+      `wpn:${canon(weapon.temperature)},${int(weapon.lastShotTick)},${int(weapon.missedShots)}`,
+    );
+  }
+  if (entity.cargo !== 0) segments.push(`cargo:${int(entity.cargo)}`);
+  return segments.join(";");
 }
 
 /**

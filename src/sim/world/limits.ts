@@ -116,3 +116,25 @@ export const MAX_ESCORT_SLOT = 15;
  * `trackingCount` is 0 or this value. Changing it is a snapshot-format change.
  */
 export const TRACKING_SAMPLES = 4;
+
+/**
+ * The largest magnitude of one component of `Entity.velocity` (m/s). Far above
+ * the fastest compiled `max_flight_speed` (1000); it only keeps a corrupt value
+ * out of the hash. Changing it is a snapshot-format change (a
+ * `WORLD_SNAPSHOT_VERSION` bump).
+ */
+export const MAX_ENTITY_VELOCITY = 1e4;
+
+/**
+ * The largest `weapon.temperature`. Oolite's `NPC_MAX_WEAPON_TEMP` is 256
+ * (`ShipEntity.h:116`); this only keeps a corrupt value out of the hash.
+ * Changing it is a snapshot-format change (a `WORLD_SNAPSHOT_VERSION` bump).
+ */
+export const MAX_WEAPON_TEMPERATURE = 1e3;
+
+/**
+ * The most cargo capsules an entity may hold: Oolite caps a spawned hold at 200
+ * (`ShipEntity.m:7337`). Changing it is a snapshot-format change (a
+ * `WORLD_SNAPSHOT_VERSION` bump).
+ */
+export const MAX_ENTITY_CARGO = 200;

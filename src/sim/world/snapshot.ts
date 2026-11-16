@@ -50,14 +50,17 @@ import {
   MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
   MAX_ENERGY_RECHARGE_RATE,
+  MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
+  MAX_ENTITY_VELOCITY,
   MAX_ESCORT_SLOT,
   MAX_FRUSTRATION,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_STEER_RATE,
   MAX_UINT32,
+  MAX_WEAPON_TEMPERATURE,
   MIN_ACCURACY,
   QUAT_UNIT_TOLERANCE,
   TRACKING_SAMPLES,
@@ -74,10 +77,13 @@ export const WORLD_SNAPSHOT_FORMAT = "wegolite-world";
  * (Phase 13, CBT-07) adds the energy bank (`energy`, `maxEnergy`,
  * `energyRechargeRate`) to every entity; a version-1 snapshot is refused.
  * Version 3 (Phase 14, AI-01) adds the steering record `steer` to every entity;
- * a version-2 snapshot is refused. World snapshots are not persisted to
- * IndexedDB yet (SAVE-07 is later), so no save migration exists.
+ * a version-2 snapshot is refused. Version 4 (Phase 15, FOUND-18) adds
+ * `velocity`, `weapon` and `cargo` to every entity and `staticHealth` to the
+ * world (the last in Task 3 of plan 15-02); a version-3 snapshot is refused.
+ * World snapshots are not persisted to IndexedDB yet (SAVE-07 is later), so no
+ * save migration exists.
  */
-export const WORLD_SNAPSHOT_VERSION = 3;
+export const WORLD_SNAPSHOT_VERSION = 4;
 
 export interface VectorSnapshot {
   x: number;
@@ -137,6 +143,13 @@ export interface SteerSnapshot {
   entryPending: boolean;
 }
 
+/** The weapon record (`WeaponComponent` in `./entity.ts`). */
+export interface WeaponSnapshot {
+  temperature: number;
+  lastShotTick: number;
+  missedShots: number;
+}
+
 /** One live entity: every `Entity` field except `dead` (never snapshotted). */
 export interface EntitySnapshot {
   id: EntityId;
@@ -157,6 +170,9 @@ export interface EntitySnapshot {
   maxEnergy: number;
   energyRechargeRate: number;
   steer: SteerSnapshot;
+  velocity: VectorSnapshot;
+  weapon: WeaponSnapshot;
+  cargo: number;
 }
 
 export interface WorldSnapshot {
@@ -301,6 +317,13 @@ function requireFiniteEntity(entity: Entity): void {
   requireFinite(entity.maxEnergy, `${at}.maxEnergy`);
   requireFinite(entity.energyRechargeRate, `${at}.energyRechargeRate`);
   requireFiniteSteer(entity.steer, `${at}.steer`);
+  requireFinite(entity.velocity.x, `${at}.velocity.x`);
+  requireFinite(entity.velocity.y, `${at}.velocity.y`);
+  requireFinite(entity.velocity.z, `${at}.velocity.z`);
+  requireFinite(entity.weapon.temperature, `${at}.weapon.temperature`);
+  requireFinite(entity.weapon.lastShotTick, `${at}.weapon.lastShotTick`);
+  requireFinite(entity.weapon.missedShots, `${at}.weapon.missedShots`);
+  requireFinite(entity.cargo, `${at}.cargo`);
   if (entity.ai !== null) {
     requireFinite(entity.ai.wakeTick, `${at}.ai.wakeTick`);
     requireFinite(entity.ai.nextThinkTick, `${at}.ai.nextThinkTick`);
@@ -423,6 +446,13 @@ function snapshotEntity(entity: Entity): EntitySnapshot {
     maxEnergy: noNegativeZero(entity.maxEnergy),
     energyRechargeRate: noNegativeZero(entity.energyRechargeRate),
     steer: snapshotSteer(entity.steer),
+    velocity: copyVec(entity.velocity),
+    weapon: {
+      temperature: noNegativeZero(entity.weapon.temperature),
+      lastShotTick: noNegativeZero(entity.weapon.lastShotTick),
+      missedShots: noNegativeZero(entity.weapon.missedShots),
+    },
+    cargo: noNegativeZero(entity.cargo),
   };
 }
 
@@ -927,6 +957,44 @@ function parseSteer(value: unknown, path: string): SteerSnapshot {
   };
 }
 
+/** A velocity: finite components of magnitude at most `MAX_ENTITY_VELOCITY`. */
+function parseVelocity(value: unknown, path: string): VectorSnapshot {
+  const o = asObject(value, path, ["x", "y", "z"]);
+  const component = (key: "x" | "y" | "z"): number => {
+    const n = finiteNumber(read(o, key), `${path}.${key}`);
+    if (Math.abs(n) > MAX_ENTITY_VELOCITY) {
+      return fail("magnitude", `${path}.${key}`, "exceeds its limit");
+    }
+    return noNegativeZero(n);
+  };
+  return { x: component("x"), y: component("y"), z: component("z") };
+}
+
+function parseWeapon(value: unknown, path: string): WeaponSnapshot {
+  const o = asObject(value, path, [
+    "temperature",
+    "lastShotTick",
+    "missedShots",
+  ]);
+  return {
+    temperature: limitedNumber(
+      read(o, "temperature"),
+      `${path}.temperature`,
+      MAX_WEAPON_TEMPERATURE,
+    ),
+    lastShotTick: uint32(
+      read(o, "lastShotTick"),
+      `${path}.lastShotTick`,
+      "counter",
+    ),
+    missedShots: uint32(
+      read(o, "missedShots"),
+      `${path}.missedShots`,
+      "counter",
+    ),
+  };
+}
+
 function parseEntity(value: unknown, path: string): EntitySnapshot {
   const o = asObject(value, path, [
     "id",
@@ -947,6 +1015,9 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     "maxEnergy",
     "energyRechargeRate",
     "steer",
+    "velocity",
+    "weapon",
+    "cargo",
   ]);
   const id = read(o, "id");
   if (
@@ -998,6 +1069,12 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     MAX_ENERGY_RECHARGE_RATE,
   );
   const steer = parseSteer(read(o, "steer"), `${path}.steer`);
+  const velocity = parseVelocity(read(o, "velocity"), `${path}.velocity`);
+  const weapon = parseWeapon(read(o, "weapon"), `${path}.weapon`);
+  const cargo = uint32(read(o, "cargo"), `${path}.cargo`, "counter");
+  if (cargo > MAX_ENTITY_CARGO) {
+    fail("magnitude", `${path}.cargo`, "exceeds its limit");
+  }
   return {
     id,
     kind,
@@ -1017,6 +1094,9 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     maxEnergy,
     energyRechargeRate,
     steer,
+    velocity,
+    weapon,
+    cargo,
   };
 }
 
@@ -1128,6 +1208,9 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
     maxEnergy: e.maxEnergy,
     energyRechargeRate: e.energyRechargeRate,
     steer: e.steer,
+    velocity: e.velocity,
+    weapon: e.weapon,
+    cargo: e.cargo,
   }));
   return {
     worldSeed: parsed.worldSeed,

@@ -12,8 +12,10 @@
  * destination, behaviour and target stay in `Entity.nav`.
  *
  * The field set is FROZEN by plan 14-08: it is hashed (`serializeEntity`),
- * snapshotted (`WORLD_SNAPSHOT_VERSION` 3) and golden-pinned, so a later plan
+ * snapshotted (`WORLD_SNAPSHOT_VERSION` 4) and golden-pinned, so a later plan
  * that needs another field stops and reports it instead of moving the shape.
+ * The v4 fields (`velocity`, `weapon`, `cargo`, FOUND-18, D-07) live on
+ * `Entity`, not in this frozen record.
  *
  * Yaw is not modelled: every in-scope behaviour sets `stick_yaw` to 0 and yaw
  * starts at 0, so `flightYaw` is always 0 and has no field here.

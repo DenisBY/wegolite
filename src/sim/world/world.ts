@@ -487,6 +487,9 @@ export function spawnEntity(
       energyRechargeRate:
         init.energyRechargeRate ?? NPC_DEFAULT_ENERGY_RECHARGE_RATE,
       steer: createSteerComponent(init.escortSlot ?? 0),
+      velocity: { x: 0, y: 0, z: 0 },
+      weapon: { temperature: 0, lastShotTick: 0, missedShots: 0 },
+      cargo: 0,
     };
   });
   return entity === undefined

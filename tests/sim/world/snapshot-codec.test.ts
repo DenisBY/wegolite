@@ -28,14 +28,17 @@ import {
 import {
   MAX_ENERGY_RECHARGE_RATE,
   MAX_AI_PARAMS_KEYS,
+  MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
+  MAX_ENTITY_VELOCITY,
   MAX_ESCORT_SLOT,
   MAX_FRUSTRATION,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_STEER_RATE,
   MAX_UINT32,
+  MAX_WEAPON_TEMPERATURE,
 } from "../../../src/sim/world/limits.js";
 import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
 import {
@@ -171,6 +174,10 @@ function richWorld(): World {
   b.steer.escortSlot = 15;
   b.orientation = quat(0.5, 0.5, 0.5, 0.5);
   c.position = vec(-42.5, 0.25, 1e6);
+  // The v4 fields (Phase 15, FOUND-18) away from their pristine values.
+  a.velocity = vec(1.5, -2.25, 0);
+  a.weapon = { temperature: 12.5, lastShotTick: 6, missedShots: 2 };
+  a.cargo = 7;
   const gone = spawnOk(world, shipInit(3, null), 10);
   killEntity(world, gone.id);
   commitWorld(world);
@@ -234,6 +241,8 @@ const E0 = "entities.0";
 const NAV = `${E0}.nav`;
 const AI = `${E0}.ai`;
 const STEER = `${E0}.steer`;
+const VEL = `${E0}.velocity`;
+const WPN = `${E0}.weapon`;
 const PARAMS = `${AI}.params`;
 
 function manyEntities(count: number): Mutator {
@@ -256,7 +265,9 @@ const REJECTIONS: readonly (readonly [string, Mutator, SnapshotErrorReason])[] =
     ["version 1", set("version", 1), "version"],
     // Version 2 lacks the steering record (Phase 14, AI-01): its shape is refused.
     ["version 2", set("version", 2), "version"],
-    ["version 4", set("version", 4), "version"],
+    // Version 3 lacks velocity, weapon, cargo and staticHealth (Phase 15, FOUND-18).
+    ["version 3", set("version", 3), "version"],
+    ["version 5", set("version", 5), "version"],
     ["worldSeed 1.5", set("worldSeed", 1.5), "world-seed"],
     ["worldSeed -1", set("worldSeed", -1), "world-seed"],
     ["worldSeed 2 ** 32", set("worldSeed", 2 ** 32), "world-seed"],
@@ -574,6 +585,66 @@ const REJECTIONS: readonly (readonly [string, Mutator, SnapshotErrorReason])[] =
       (s) => void delete (getAt(s, `${STEER}.saved`) as Plain).destination,
       "not-object",
     ],
+    // The v4 entity fields (Phase 15, FOUND-18).
+    ["velocity null", set(VEL, null), "not-object"],
+    [
+      "velocity missing",
+      (s) => void delete (getAt(s, E0) as Plain).velocity,
+      "not-object",
+    ],
+    ["an unknown velocity key", set(`${VEL}.extra`, 1), "unknown-key"],
+    [
+      "velocity.x over MAX_ENTITY_VELOCITY",
+      set(`${VEL}.x`, MAX_ENTITY_VELOCITY + 1),
+      "magnitude",
+    ],
+    [
+      "velocity.z under -MAX_ENTITY_VELOCITY",
+      set(`${VEL}.z`, -MAX_ENTITY_VELOCITY - 1),
+      "magnitude",
+    ],
+    ["velocity.y null (a NaN after JSON)", set(`${VEL}.y`, null), "non-finite"],
+    ["velocity.x NaN", set(`${VEL}.x`, Number.NaN), "non-finite"],
+    ["velocity.x as a string", set(`${VEL}.x`, "1"), "type"],
+    ["weapon null", set(WPN, null), "not-object"],
+    [
+      "weapon missing",
+      (s) => void delete (getAt(s, E0) as Plain).weapon,
+      "not-object",
+    ],
+    ["an unknown weapon key", set(`${WPN}.extra`, 1), "unknown-key"],
+    [
+      "weapon.temperature over MAX_WEAPON_TEMPERATURE",
+      set(`${WPN}.temperature`, MAX_WEAPON_TEMPERATURE + 1),
+      "magnitude",
+    ],
+    ["weapon.temperature -1", set(`${WPN}.temperature`, -1), "range"],
+    [
+      "weapon.temperature NaN",
+      set(`${WPN}.temperature`, Number.NaN),
+      "non-finite",
+    ],
+    ["weapon.lastShotTick 1.5", set(`${WPN}.lastShotTick`, 1.5), "counter"],
+    ["weapon.lastShotTick -1", set(`${WPN}.lastShotTick`, -1), "counter"],
+    ["weapon.missedShots -1", set(`${WPN}.missedShots`, -1), "counter"],
+    ["weapon.missedShots 1.5", set(`${WPN}.missedShots`, 1.5), "counter"],
+    [
+      "weapon.missedShots 2 ** 32",
+      set(`${WPN}.missedShots`, 2 ** 32),
+      "counter",
+    ],
+    [
+      "cargo over MAX_ENTITY_CARGO",
+      set(`${E0}.cargo`, MAX_ENTITY_CARGO + 1),
+      "magnitude",
+    ],
+    ["cargo 1.5", set(`${E0}.cargo`, 1.5), "counter"],
+    ["cargo -1", set(`${E0}.cargo`, -1), "counter"],
+    [
+      "cargo missing",
+      (s) => void delete (getAt(s, E0) as Plain).cargo,
+      "counter",
+    ],
     ["spawnTick 2 ** 32", set(`${E0}.spawnTick`, 2 ** 32), "counter"],
     ["ownerId 2 ** 32", set(`${E0}.ownerId`, 2 ** 32), "counter"],
     ["nav.targetId 2 ** 32", set(`${NAV}.targetId`, 2 ** 32), "counter"],
@@ -703,6 +774,8 @@ const FORBIDDEN_LEVELS = [
   AI,
   PARAMS,
   STEER,
+  VEL,
+  WPN,
   `${STEER}.jink`,
   `${STEER}.saved`,
   `${STEER}.saved.destination`,
@@ -870,15 +943,15 @@ describe("parseWorldSnapshot acceptance", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The steering record under version 3 (AI-01, plan 14-08)
+// The steering record under version 4 (AI-01, plan 14-08; version 4 is FOUND-18)
 
 describe("the steering record in the snapshot", () => {
   const aSteer = (world: World): Entity["steer"] =>
     (world.store.live[0] as Entity).steer;
 
-  it("writes version 3 and the record of every entity", () => {
+  it("writes version 4 and the record of every entity", () => {
     const snapshot = snapshotWorld(richWorld());
-    expect(snapshot.version).toBe(3);
+    expect(snapshot.version).toBe(4);
     const [a, b, c] = snapshot.entities;
     expect(a?.steer).toEqual({
       flightRoll: 0.75,
@@ -1016,6 +1089,85 @@ describe("the steering record in the snapshot", () => {
     expect(() => restoreWorld(snapshot as unknown as WorldSnapshot)).toThrow(
       SnapshotError,
     );
+  });
+
+  it("refuses a hand-built version-3 snapshot of the previous shape", () => {
+    const snapshot = jsonOf(richWorld());
+    snapshot.version = 3;
+    for (const entity of snapshot.entities as Plain[]) {
+      delete entity.velocity;
+      delete entity.weapon;
+      delete entity.cargo;
+    }
+    expect(reasonOf(snapshot)).toBe("version");
+    expect(() => restoreWorld(snapshot as unknown as WorldSnapshot)).toThrow(
+      SnapshotError,
+    );
+  });
+});
+
+describe("the v4 entity fields in the snapshot (FOUND-18)", () => {
+  it("writes velocity, weapon and cargo and round-trips them through JSON", () => {
+    const world = richWorld();
+    const [a, b] = snapshotWorld(world).entities;
+    expect(a?.velocity).toEqual({ x: 1.5, y: -2.25, z: 0 });
+    expect(a?.weapon).toEqual({
+      temperature: 12.5,
+      lastShotTick: 6,
+      missedShots: 2,
+    });
+    expect(a?.cargo).toBe(7);
+    expect(b?.velocity).toEqual({ x: 0, y: 0, z: 0 });
+    expect(b?.weapon).toEqual({
+      temperature: 0,
+      lastShotTick: 0,
+      missedShots: 0,
+    });
+    expect(b?.cargo).toBe(0);
+    const text = JSON.stringify(snapshotWorld(world));
+    const restored = restoreWorld(
+      parseWorldSnapshot(JSON.parse(text) as unknown),
+    );
+    expect(entityHashes(restored)).toEqual(entityHashes(world));
+    expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+    const source = world.store.live[0] as Entity;
+    const copy = restored.store.live[0] as Entity;
+    expect(copy.velocity).toEqual(source.velocity);
+    expect(copy.velocity).not.toBe(source.velocity);
+    expect(copy.weapon).toEqual(source.weapon);
+    expect(copy.weapon).not.toBe(source.weapon);
+    expect(copy.cargo).toBe(7);
+  });
+
+  it("accepts the bounds themselves", () => {
+    const snapshot = jsonOf(richWorld());
+    setAt(snapshot, `${VEL}.x`, MAX_ENTITY_VELOCITY);
+    setAt(snapshot, `${VEL}.y`, -MAX_ENTITY_VELOCITY);
+    setAt(snapshot, `${WPN}.temperature`, MAX_WEAPON_TEMPERATURE);
+    setAt(snapshot, `${WPN}.lastShotTick`, MAX_UINT32);
+    setAt(snapshot, `${WPN}.missedShots`, MAX_UINT32);
+    setAt(snapshot, `${E0}.cargo`, MAX_ENTITY_CARGO);
+    expect(reasonOf(snapshot)).toBe("accepted");
+  });
+
+  it("normalises -0 in the v4 fields and refuses a non-finite value", () => {
+    const world = richWorld();
+    const entity = world.store.live[0] as Entity;
+    entity.velocity = vec(-0, 0, -0);
+    entity.weapon.temperature = -0;
+    const entry = snapshotWorld(world).entities[0] as EntitySnapshot;
+    expect(Object.is(entry.velocity.x, 0)).toBe(true);
+    expect(Object.is(entry.velocity.z, 0)).toBe(true);
+    expect(Object.is(entry.weapon.temperature, 0)).toBe(true);
+    for (const poison of [
+      (e: Entity) => (e.velocity = vec(0, Number.NaN, 0)),
+      (e: Entity) => (e.weapon.temperature = Number.POSITIVE_INFINITY),
+      (e: Entity) => (e.cargo = Number.NaN),
+    ]) {
+      const bad = richWorld();
+      poison(bad.store.live[0] as Entity);
+      expect(() => snapshotWorld(bad)).toThrow(SnapshotError);
+    }
   });
 });
 
@@ -1604,6 +1756,49 @@ const ENTITY_FIELDS: Record<keyof Entity, readonly Mutation[]> = {
       name: "+ 1",
       apply: (e) => {
         e.energyRechargeRate += 1;
+      },
+    },
+  ],
+  // The v4 fields (Phase 15, FOUND-18): every leaf changes the entity hash.
+  velocity: [
+    {
+      name: "x + 1",
+      apply: (e) => {
+        e.velocity = vec(e.velocity.x + 1, e.velocity.y, e.velocity.z);
+      },
+    },
+    {
+      name: "removed (pristine)",
+      apply: (e) => {
+        e.velocity = vec(0, 0, 0);
+      },
+    },
+  ],
+  weapon: [
+    {
+      name: "temperature + 1",
+      apply: (e) => {
+        e.weapon.temperature += 1;
+      },
+    },
+    {
+      name: "lastShotTick + 1",
+      apply: (e) => {
+        e.weapon.lastShotTick += 1;
+      },
+    },
+    {
+      name: "missedShots + 1",
+      apply: (e) => {
+        e.weapon.missedShots += 1;
+      },
+    },
+  ],
+  cargo: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.cargo += 1;
       },
     },
   ],

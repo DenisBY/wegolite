@@ -39,7 +39,7 @@ import {
   SUN_ID,
   WITCHPOINT_BUOY_ID,
 } from "../../../src/sim/world/ids.js";
-import type { SpawnInit } from "../../../src/sim/world/entity.js";
+import type { Entity, SpawnInit } from "../../../src/sim/world/entity.js";
 import {
   entityHashes,
   hashWorld,
@@ -200,6 +200,87 @@ describe("empty-world hash identity (D-08)", () => {
     const entity = result.entity;
     entity.position = { x: Number.NaN, y: 0, z: 0 };
     expect(() => serializeEntity(entity)).toThrow(/non-finite/);
+  });
+});
+
+describe("pristine-omit of the v4 entity fields (FOUND-18, D-09)", () => {
+  /** A fresh spawn, mutated by `change`; its line and the pristine line. */
+  function lines(change: (entity: Entity) => void): {
+    pristine: string;
+    changed: string;
+  } {
+    const world = createWorld(7);
+    const result = spawnEntity(world, init(), 0);
+    if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+    const pristine = serializeEntity(result.entity);
+    change(result.entity);
+    return { pristine, changed: serializeEntity(result.entity) };
+  }
+
+  it("a fresh spawn's line ends with its steer segment and holds no v4 segment", () => {
+    const { pristine } = lines(() => undefined);
+    expect(pristine).toMatch(/;steer:[^;\n]*$/);
+    for (const label of [";vel:", ";wpn:", ";cargo:"]) {
+      expect(pristine).not.toContain(label);
+    }
+  });
+
+  it("each field alone appends exactly its one segment after the steer segment", () => {
+    const vel = lines((e) => {
+      e.velocity = vec(1.5, 0, -2);
+    });
+    expect(vel.changed).toBe(`${vel.pristine};vel:1.500000,0.000000,-2.000000`);
+    const wpn = lines((e) => {
+      e.weapon = { temperature: 2.5, lastShotTick: 9, missedShots: 3 };
+    });
+    expect(wpn.changed).toBe(`${wpn.pristine};wpn:2.500000,9,3`);
+    const cargo = lines((e) => {
+      e.cargo = 4;
+    });
+    expect(cargo.changed).toBe(`${cargo.pristine};cargo:4`);
+  });
+
+  it("all three together append in the order vel, wpn, cargo", () => {
+    const { pristine, changed } = lines((e) => {
+      e.velocity = vec(0, 1, 0);
+      e.weapon = { temperature: 1, lastShotTick: 2, missedShots: 3 };
+      e.cargo = 5;
+    });
+    expect(changed).toBe(
+      `${pristine};vel:0.000000,1.000000,0.000000;wpn:1.000000,2,3;cargo:5`,
+    );
+    expect(changed.replace(/;(?:vel|wpn|cargo):[^;\n]*/g, "")).toBe(pristine);
+  });
+
+  it.each([
+    [
+      "temperature alone",
+      { temperature: 0.5, lastShotTick: 0, missedShots: 0 },
+    ],
+    ["lastShotTick alone", { temperature: 0, lastShotTick: 1, missedShots: 0 }],
+    ["missedShots alone", { temperature: 0, lastShotTick: 0, missedShots: 1 }],
+  ])("a weapon record with %s still prints ;wpn:", (_name, weapon) => {
+    const { pristine, changed } = lines((e) => {
+      e.weapon = { ...weapon };
+    });
+    expect(changed).toContain(";wpn:");
+    expect(changed).not.toBe(pristine);
+    expect(changed.replace(/;wpn:[^;\n]*/g, "")).toBe(pristine);
+  });
+
+  it("a single non-zero velocity component or a single cargo capsule prints its segment", () => {
+    for (const velocity of [vec(1, 0, 0), vec(0, 1, 0), vec(0, 0, 1)]) {
+      const { pristine, changed } = lines((e) => {
+        e.velocity = velocity;
+      });
+      expect(changed).not.toBe(pristine);
+      expect(changed).toContain(";vel:");
+    }
+    expect(
+      lines((e) => {
+        e.cargo = 1;
+      }).changed,
+    ).toContain(";cargo:1");
   });
 });
 
