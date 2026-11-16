@@ -63,14 +63,21 @@ function inRange(value: number, max: number): boolean {
   return Number.isFinite(value) && value >= 0 && value <= max;
 }
 
-/** Whether a row holds only values the steering may read. */
+/**
+ * Whether a row holds only values the steering may read: the five numbers in
+ * their domains and a `forwardWeapon` inside the mount vocabulary (the weapon
+ * range lookup indexes the laser table by it). `statsFor` and `massFor` share
+ * this one predicate, so a row is usable for flight and proximity alike or for
+ * neither.
+ */
 function isUsable(row: NpcFlightStats): boolean {
   return (
     inRange(row.maxFlightSpeed, MAX_ENTITY_MAGNITUDE) &&
     inRange(row.maxFlightRoll, MAX_STEER_RATE) &&
     inRange(row.maxFlightPitch, MAX_STEER_RATE) &&
     inRange(row.thrust, MAX_ENTITY_MAGNITUDE) &&
-    inRange(row.mass, MAX_ENTITY_MAGNITUDE)
+    inRange(row.mass, MAX_ENTITY_MAGNITUDE) &&
+    isMountKey(row.forwardWeapon)
   );
 }
 
@@ -158,7 +165,7 @@ export function flightTableFrom(
 
 /**
  * The mass of `specKey` for the proximity rules: the flight row's mass when the
- * row exists, else the `facts.masses` row's mass, else 0. The second scan and
+ * row exists and is usable, else the `facts.masses` row's mass, else 0. The second scan and
  * its finite-positive guard are a copy of `massOf` (`../world/ship-field.ts`,
  * T-12-10, module-private there), so a missing flight table does not silently
  * disable proximity alerts: mass 0 is below Oolite's 2,000 kg alert threshold.
@@ -171,7 +178,12 @@ export function massFor(
   if (flight !== undefined) {
     for (let i = 0; i < flight.length; i += 1) {
       const row = flight[i];
-      if (row !== undefined && row.specKey === specKey) return row.mass;
+      if (row !== undefined && row.specKey === specKey) {
+        // An unusable row is skipped, as `statsFor` skips it: the Phase 12
+        // masses below answer instead of a number the steering must not read.
+        if (isUsable(row)) return row.mass;
+        break;
+      }
     }
   }
   const masses = facts?.masses;

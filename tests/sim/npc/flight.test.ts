@@ -23,6 +23,7 @@ import {
 } from "../../../src/sim/npc/flight.js";
 import {
   OOLITE_DEFAULT_FLIGHT_STATS,
+  massFor,
   statsFor,
 } from "../../../src/sim/npc/stats.js";
 import type { NpcFlightStats } from "../../../src/sim/npc/stats.js";
@@ -234,6 +235,11 @@ describe("statsFor", () => {
     );
   });
 
+  it("refuses a row whose forward weapon is outside the mount vocabulary (WR-02)", () => {
+    const bad = row({ forwardWeapon: "EQ_WEAPON_BOGUS" as never });
+    expect(statsFor([bad], "viper")).toBe(OOLITE_DEFAULT_FLIGHT_STATS);
+  });
+
   it("the defaults are Oolite's 160, 2.0, 1.0, 15.0 (ShipEntity.m:263-270)", () => {
     expect(OOLITE_DEFAULT_FLIGHT_STATS).toMatchObject({
       maxFlightSpeed: 160,
@@ -243,6 +249,31 @@ describe("statsFor", () => {
       mass: 0,
       forwardWeapon: "EQ_WEAPON_NONE",
     });
+  });
+});
+
+describe("massFor (WR-01)", () => {
+  const row = (overrides: Partial<NpcFlightStats>): NpcFlightStats => ({
+    ...STATS,
+    specKey: "viper",
+    mass: 5000,
+    ...overrides,
+  });
+  const masses = [{ specKey: "viper", mass: 7000 }];
+
+  it("answers with the usable flight row's mass", () => {
+    expect(massFor({ flight: [row({})], masses }, "viper")).toBe(5000);
+  });
+
+  it("skips an unusable flight row, as statsFor does, and uses the Phase 12 masses", () => {
+    for (const bad of [Number.NaN, Infinity, -1, 1e13]) {
+      expect(massFor({ flight: [row({ mass: bad })], masses }, "viper")).toBe(
+        7000,
+      );
+    }
+    const badWeapon = row({ forwardWeapon: "EQ_WEAPON_BOGUS" as never });
+    expect(massFor({ flight: [badWeapon], masses }, "viper")).toBe(7000);
+    expect(massFor({ flight: [row({ mass: Number.NaN })] }, "viper")).toBe(0);
   });
 });
 

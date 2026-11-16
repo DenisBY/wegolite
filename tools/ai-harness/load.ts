@@ -8,7 +8,11 @@
  * `vm` is not a security boundary. It is used here only on the two fixed,
  * pinned, GPL-licensed files named below, read from an operator-supplied
  * `OOLITE_SRC` directory; no fixture, environment or network value is ever
- * evaluated. Every entry into Oolite code (loading a file, `aiStarted`, every
+ * evaluated by name. The environment value does choose which directory the two
+ * files are read from, and nothing compares them to a recorded digest, so a
+ * tampered `OOLITE_SRC` runs with the container's privileges: the loader trusts
+ * the operator's own checkout (dev-only, never bundled; `check:dist` guards
+ * that). Every entry into Oolite code (loading a file, `aiStarted`, every
  * `aiAwoken` wake) goes through `runInContext` with a positive integer
  * `timeout`, because the timeout covers only code run that way.
  */

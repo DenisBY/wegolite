@@ -16,7 +16,15 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { findNpcShip, loadNpcCatalogue } from "../../src/content/ships-npc.js";
-import { NpcShipCatalogueSchema } from "../../src/content/schemas/ship-npc.js";
+import {
+  MAX_FLIGHT_MAGNITUDE_BOUND,
+  MAX_FLIGHT_RATE_BOUND,
+  NpcShipCatalogueSchema,
+} from "../../src/content/schemas/ship-npc.js";
+import {
+  MAX_ENTITY_MAGNITUDE,
+  MAX_STEER_RATE,
+} from "../../src/sim/world/limits.js";
 import { NPC_SHIP_KEYS } from "../../tools/oolite-ingest/convert/npc-ships.js";
 
 const REPO_ROOT = process.cwd();
@@ -83,6 +91,25 @@ describe("NpcShipCatalogueSchema", () => {
 
   it("accepts the generated file", () => {
     expect(accepts(generated)).toBe(true);
+  });
+
+  it("bounds the flight constants by the sim's domains and refuses a value the run time would replace (WR-04)", () => {
+    expect(MAX_FLIGHT_RATE_BOUND).toBe(MAX_STEER_RATE);
+    expect(MAX_FLIGHT_MAGNITUDE_BOUND).toBe(MAX_ENTITY_MAGNITUDE);
+    const withField = (field: string, value: number): unknown[] => [
+      { ...firstRecord(), [field]: value },
+    ];
+    expect(accepts(withField("maxFlightRoll", MAX_STEER_RATE))).toBe(true);
+    expect(accepts(withField("maxFlightRoll", MAX_STEER_RATE + 1))).toBe(false);
+    expect(accepts(withField("maxFlightPitch", MAX_STEER_RATE + 1))).toBe(
+      false,
+    );
+    expect(accepts(withField("maxFlightSpeed", MAX_ENTITY_MAGNITUDE + 1))).toBe(
+      false,
+    );
+    expect(accepts(withField("thrust", MAX_ENTITY_MAGNITUDE + 1))).toBe(false);
+    // Oolite authors speed-0 hulls (buoys): zero stays legal.
+    expect(accepts(withField("maxFlightSpeed", 0))).toBe(true);
   });
 
   it("carries the Adder's name, energy and forward weapon", () => {

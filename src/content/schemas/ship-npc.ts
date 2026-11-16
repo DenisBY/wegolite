@@ -28,6 +28,18 @@ import { z } from "zod";
 
 import { NPC_GLB_PATH_PATTERN } from "../npc-glb-path.js";
 
+/**
+ * The domains the sim's `statsFor` accepts (`src/sim/npc/stats.ts`, limits
+ * `MAX_STEER_RATE` and `MAX_ENTITY_MAGNITUDE` in `src/sim/world/limits.ts`). Content
+ * never imports the sim, so the bounds are restated here and a test pins them
+ * equal to the sim's constants. A compiled value above them would be replaced
+ * at run time by Oolite's stock defaults with no diagnostic, so the build
+ * refuses it instead. `maxFlightSpeed` stays non-negative, not positive: Oolite
+ * authors hulls with speed 0 (buoys).
+ */
+export const MAX_FLIGHT_RATE_BOUND = 1e3;
+export const MAX_FLIGHT_MAGNITUDE_BOUND = 1e12;
+
 export { NPC_GLB_PATH_PATTERN };
 
 export const NpcShipSchema = z.strictObject({
@@ -76,13 +88,13 @@ export const NpcShipSchema = z.strictObject({
   // already rejects NaN and Infinity.
   //
   // `max_flight_speed`, default 160 for a non-station (ShipEntity.m:263-264).
-  maxFlightSpeed: z.number().nonnegative(),
+  maxFlightSpeed: z.number().nonnegative().max(MAX_FLIGHT_MAGNITUDE_BOUND),
   // `max_flight_roll`, default 2.0 (ShipEntity.m:265).
-  maxFlightRoll: z.number().nonnegative(),
+  maxFlightRoll: z.number().nonnegative().max(MAX_FLIGHT_RATE_BOUND),
   // `max_flight_pitch`, default 1.0 (ShipEntity.m:266).
-  maxFlightPitch: z.number().nonnegative(),
+  maxFlightPitch: z.number().nonnegative().max(MAX_FLIGHT_RATE_BOUND),
   // `thrust`, default 15.0 (ShipEntity.m:270).
-  thrust: z.number().nonnegative(),
+  thrust: z.number().nonnegative().max(MAX_FLIGHT_MAGNITUDE_BOUND),
 });
 
 export const NpcShipCatalogueSchema = z.array(NpcShipSchema).min(1);
