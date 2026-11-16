@@ -70,6 +70,13 @@
  *   the NPC catalogue, and only with traffic on (the session loads it only
  *   then, D-01).
  *
+ * - the flying NPCs (Phase 14, plan 14-18): a step with `spawnFlyers` calls the
+ *   one `spawnTestFlyers` the `?test=1` hook calls, with the records of the
+ *   shared `testFlyerRecords`, the content's flight table, the state's tick and
+ *   the layout's station centre, before the step's ticks, as the hook runs
+ *   between two `advanceTicks` calls. The flight table also reaches every step
+ *   as `StepOptions.npcFlight` with traffic on, as sim-driver.ts passes it.
+ *
  * Not mirrored: the hyperspace edge mapping (no script commits a target) and
  * the arrival (a jump is proven through the real driver in Vitest only).
  *
@@ -95,6 +102,7 @@ import { createPlayerCombatState } from "../../src/sim/combat/state.js";
 import type { LaserMounts } from "../../src/sim/combat/mounts.js";
 import { newProfile } from "../../src/sim/player/profile.js";
 import type { InputFrame } from "../../src/sim/state.js";
+import { spawnTestFlyers } from "../../src/sim/ai/test-spawn.js";
 import { stepSim } from "../../src/sim/sim.js";
 import { DT } from "../../src/sim/time.js";
 import { hashWorld } from "../../src/sim/world/serialize.js";
@@ -105,6 +113,7 @@ import { buildStepOptions } from "../../src/app/session/step-options.js";
 import {
   createInertPopulate,
   hullTable,
+  testFlyerRecords,
   trafficContent,
 } from "../../src/app/session/traffic.js";
 import type { TrafficContent } from "../../src/app/session/traffic.js";
@@ -120,6 +129,14 @@ export interface TickStep {
   readonly ticks: number;
   /** Hold the fire key for every tick of the step (the frame's `fire` field). */
   readonly fire?: boolean;
+  /**
+   * Spawn the three `?test=1` flying NPCs (`spawnTestFlyers`, WORLD-07) before
+   * the step's ticks, the same call the hook makes between two `advanceTicks`.
+   * It needs traffic, a live world and flight; otherwise the replay throws,
+   * because a script that silently spawned nothing would hash as a browser that
+   * did the same.
+   */
+  readonly spawnFlyers?: boolean;
 }
 
 export interface TickScriptOptions {
@@ -217,6 +234,27 @@ export function runTickScript(
     const commands = step.commands.filter(
       (command) => command.kind !== "launch" || state.mode === "docked",
     );
+    if (step.spawnFlyers === true) {
+      const flyers =
+        content === undefined ? undefined : testFlyerRecords(content);
+      const world = lifecycle.world;
+      if (
+        content === undefined ||
+        flyers === undefined ||
+        world === undefined ||
+        state.mode !== "inFlight" ||
+        !spawnTestFlyers(
+          world,
+          state,
+          flyers,
+          content.flight,
+          state.tick,
+          layout.station.position,
+        )
+      ) {
+        throw new Error("the spawnFlyers step could not spawn the flyers");
+      }
+    }
     for (let tick = 0; tick < step.ticks; tick += 1) {
       const controller = state.mode === "launching" ? scripted : player;
       const intent = controller.update(

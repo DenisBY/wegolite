@@ -303,6 +303,17 @@ export interface WegoliteSimTestHook {
    * make the ship durable.
    */
   spawnTestShooter(): boolean;
+  /**
+   * Put three scripted flying NPCs 3,000 m from the player (WORLD-07): a Shuttle
+   * flying to the station, a Viper intercepting the player and an Adder fleeing
+   * it. It works only in flight with a live world and traffic content; otherwise
+   * it returns false and changes nothing. It marks the session tainted before it
+   * mutates the world, so no autosave can make the ships durable. If the sim
+   * refuses a ship after an earlier one spawned, it returns false and the
+   * session stays tainted with the earlier ship in the world (autosave refuses
+   * it). It returns a boolean only and exposes no entity id.
+   */
+  spawnTestFlyers(): boolean;
 }
 
 export interface WegoliteTestHook
@@ -549,6 +560,11 @@ export function createTestHook(
     advanceTicks: (n: number) => sim.advanceTicks(n),
     spawnTestShooter: () => {
       if (!sim.spawnTestShooter()) return false;
+      hook.tainted = true;
+      return true;
+    },
+    spawnTestFlyers: () => {
+      if (!sim.spawnTestFlyers()) return false;
       hook.tainted = true;
       return true;
     },

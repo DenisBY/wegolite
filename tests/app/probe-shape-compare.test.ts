@@ -238,10 +238,11 @@ describe("the recorded fixture after plan 13-14", () => {
     }
   });
 
-  it("pins the shooter hook member as a function beside the other hook members", () => {
+  it("pins the shooter and flyers hook members as functions beside the other hook members", () => {
     for (const name of ["testHookDocked", "testHookManualDocked"]) {
       const hook = fixture[name]?.["test"] as Record<string, string>;
       expect(hook["spawnTestShooter"], name).toBe("function");
+      expect(hook["spawnTestFlyers"], name).toBe("function");
       expect(hook["advanceTicks"], name).toBe("function");
       expect(hook["tainted"], name).toBe("boolean");
     }

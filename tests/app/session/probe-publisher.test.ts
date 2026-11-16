@@ -12,6 +12,8 @@
  * `?test=1` hook pointed at the live flight state.
  */
 
+import { readFileSync } from "node:fs";
+
 import type * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
@@ -25,6 +27,10 @@ import type {
   WegoliteProbe,
   WegoliteSaveProbe,
 } from "../../../src/app/probe.js";
+import { trafficContent } from "../../../src/app/session/traffic.js";
+import type { NpcShip } from "../../../src/content/types.js";
+import { TEST_FLYER_DISTANCE } from "../../../src/sim/ai/test-spawn.js";
+import { MAX_ENTITIES } from "../../../src/sim/world/ids.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { MessageQueue } from "../../../src/render/hud/messages.js";
 import type { WorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
@@ -486,5 +492,178 @@ describe("the spawnTestShooter hook (plan 13-14, T-13-27)", () => {
 
     expect(hook.spawnTestShooter()).toBe(false);
     expect(world.store.live).toHaveLength(0);
+  });
+});
+
+describe("the spawnTestFlyers hook (plan 14-18, T-14-29)", () => {
+  const FLYER_CATALOGUE = JSON.parse(
+    readFileSync("src/content/generated/ships-npc.json", "utf8"),
+  ) as NpcShip[];
+
+  function flyersHarness(catalogue: readonly NpcShip[] = FLYER_CATALOGUE) {
+    const h = harness();
+    const state = flyingState();
+    const world = createWorld(7);
+    h.ctx.core.state = state;
+    h.ctx.core.layout = layout;
+    h.ctx.core.worldLifecycle = lifecycleOf(world);
+    h.ctx.core.npcTraffic = trafficContent(catalogue);
+    h.publisher.bindTestHook(state);
+    const hook = h.probe.test;
+    if (hook === undefined) throw new Error("no hook");
+    return { ...h, state, world, hook };
+  }
+
+  it("spawns the Shuttle, the Viper and the Adder with flight-script AIs, taints the session first and returns true", () => {
+    const { ctx, state, world, hook } = flyersHarness();
+    expect(ctx.runtime.testTainted).toBe(false);
+
+    expect(hook.spawnTestFlyers()).toBe(true);
+
+    expect(ctx.runtime.testTainted).toBe(true);
+    expect(hook.tainted).toBe(true);
+    expect(world.store.live.map((entity) => entity.specKey)).toEqual([
+      "shuttle",
+      "viper",
+      "adder",
+    ]);
+    expect(
+      world.store.live.map((entity) => entity.ai?.params["script"]),
+    ).toEqual(["station", "intercept", "flee"]);
+    for (const flyer of world.store.live) {
+      expect(flyer.ai?.aiKey).toBe("flight-script");
+      expect(length(sub(flyer.position, state.position))).toBeCloseTo(
+        TEST_FLYER_DISTANCE,
+        6,
+      );
+    }
+  });
+
+  it("hands the content's flight table to the spawner: each flyer starts at its compiled maximum speed", () => {
+    const { world, hook } = flyersHarness();
+
+    hook.spawnTestFlyers();
+
+    const speeds = world.store.live.map((entity) => entity.speed);
+    const compiled = ["shuttle", "viper", "adder"].map(
+      (key) => FLYER_CATALOGUE.find((ship) => ship.key === key)?.maxFlightSpeed,
+    );
+    expect(speeds).toEqual(compiled);
+  });
+
+  it("points the station flyer's nose at the station centre of the live layout", () => {
+    const { world, hook } = flyersHarness();
+
+    hook.spawnTestFlyers();
+
+    const shuttle = world.store.live[0];
+    if (shuttle === undefined) throw new Error("no shuttle");
+    const nose = rotate(shuttle.orientation, vec(0, 0, -1));
+    const toStation = sub(layout.station.position, shuttle.position);
+    const along = length(toStation);
+    expect(
+      nose.x * toStation.x + nose.y * toStation.y + nose.z * toStation.z,
+    ).toBeCloseTo(along, 3);
+  });
+
+  it("asks the redraw gate for a frame, as every other hook mutation does", () => {
+    const { gate, state, hook } = flyersHarness();
+    const keys = [state];
+    while (gate.next(true, keys)) gate.drawn(keys);
+    expect(gate.next(true, keys)).toBe(false);
+
+    hook.spawnTestFlyers();
+
+    expect(gate.next(true, keys)).toBe(true);
+  });
+
+  it("refuses without touching anything outside flight, a world, a layout, traffic content, the three hulls or while disposed", () => {
+    const refusals: [string, (h: ReturnType<typeof flyersHarness>) => void][] =
+      [
+        ["docked", (h) => void (h.state.mode = "docked")],
+        ["launching", (h) => void (h.state.mode = "launching")],
+        ["no world", (h) => void (h.ctx.core.worldLifecycle = undefined)],
+        ["no layout", (h) => void (h.ctx.core.layout = undefined)],
+        ["no traffic content", (h) => void (h.ctx.core.npcTraffic = undefined)],
+        [
+          "no adder record",
+          (h) =>
+            void (h.ctx.core.npcTraffic = trafficContent(
+              FLYER_CATALOGUE.filter((ship) => ship.key !== "adder"),
+            )),
+        ],
+        ["disposed", (h) => void (h.ctx.runtime.disposed = true)],
+      ];
+    for (const [name, arrange] of refusals) {
+      const h = flyersHarness();
+      arrange(h);
+
+      expect(h.hook.spawnTestFlyers(), name).toBe(false);
+
+      expect(h.ctx.runtime.testTainted, name).toBe(false);
+      expect(h.hook.tainted, name).toBe(false);
+      expect(h.world.store.live, name).toHaveLength(0);
+    }
+  });
+
+  it("is refused once the session state is gone", () => {
+    const { ctx, hook, world } = flyersHarness();
+    ctx.core.state = undefined;
+
+    expect(hook.spawnTestFlyers()).toBe(false);
+    expect(world.store.live).toHaveLength(0);
+  });
+
+  it("returns false and leaves the session tainted when the world has no room for three, spawning nothing", () => {
+    const h = flyersHarness();
+    for (let i = 0; i < MAX_ENTITIES - 2; i += 1) {
+      const filler = spawnEntity(
+        h.world,
+        {
+          kind: "ship",
+          specKey: "viper",
+          scanClass: "CLASS_NEUTRAL",
+          position: vec(0, 0, 0),
+          orientation: identity(),
+          radius: 30,
+          maxEnergy: 100,
+        },
+        0,
+      );
+      if (!filler.ok) throw new Error(`filler refused: ${filler.reason}`);
+    }
+    const before = h.world.store.live.length;
+
+    expect(h.hook.spawnTestFlyers()).toBe(false);
+
+    expect(h.world.store.live).toHaveLength(before);
+    expect(h.ctx.runtime.testTainted).toBe(true);
+  });
+
+  it("returns false after a partial spawn, keeps the earlier ship and leaves the session tainted (T-14-29)", () => {
+    const broken = FLYER_CATALOGUE.map((ship) =>
+      ship.key === "viper" ? { ...ship, maxEnergy: Number.NaN } : ship,
+    );
+    const h = flyersHarness(broken);
+
+    expect(h.hook.spawnTestFlyers()).toBe(false);
+
+    // The Shuttle spawned before the Viper was refused: a tainted state.
+    expect(h.world.store.live.map((entity) => entity.specKey)).toEqual([
+      "shuttle",
+    ]);
+    expect(h.ctx.runtime.testTainted).toBe(true);
+    h.publisher.updateProbe();
+    expect(h.hook.tainted).toBe(true);
+  });
+
+  it("publishes no entity id: the probe and the hook's return are values only", () => {
+    const h = flyersHarness();
+
+    const result = h.hook.spawnTestFlyers();
+    h.publisher.updateProbe();
+
+    expect(typeof result).toBe("boolean");
+    expect(JSON.stringify(h.probe)).not.toMatch(/"(entityId|ids?)"\s*:/);
   });
 });

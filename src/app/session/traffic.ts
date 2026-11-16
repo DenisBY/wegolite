@@ -28,6 +28,7 @@
  */
 
 import type { NpcShip, ShipHullCatalogue } from "../../content/types.js";
+import type { FlyerRecords } from "../../sim/ai/test-spawn.js";
 import type { NpcWeapon } from "../../sim/combat/aim.js";
 import type { HullTable } from "../../sim/combat/hit.js";
 import { vec } from "../../sim/math.js";
@@ -85,6 +86,36 @@ export function trafficContent(catalogue: readonly NpcShip[]): TrafficContent {
       }),
     ),
   });
+}
+
+/**
+ * The three hulls the `?test=1` flying-NPC hook spawns, by script (plan 14-18):
+ * a Shuttle flying to the station, a Viper intercepting the player and an Adder
+ * fleeing it. Named once here so the live hook and the Node replay step pick the
+ * same records.
+ */
+export const TEST_FLYER_KEYS = Object.freeze({
+  station: "shuttle",
+  intercept: "viper",
+  flee: "adder",
+});
+
+/**
+ * The records `spawnTestFlyers` takes, from the loaded content; undefined when
+ * the catalogue lacks any of the three hulls (the caller then spawns nothing).
+ */
+export function testFlyerRecords(
+  content: TrafficContent,
+): FlyerRecords | undefined {
+  const find = (key: string): InertShipRecord | undefined =>
+    content.records.find((record) => record.key === key);
+  const station = find(TEST_FLYER_KEYS.station);
+  const intercept = find(TEST_FLYER_KEYS.intercept);
+  const flee = find(TEST_FLYER_KEYS.flee);
+  if (station === undefined || intercept === undefined || flee === undefined) {
+    return undefined;
+  }
+  return { station, intercept, flee };
 }
 
 /**

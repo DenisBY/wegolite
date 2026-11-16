@@ -23,6 +23,7 @@
  *
  * Plan 13-14 adds `probe.combat` (values and a lock flag from the player's
  * combat state, never an entity id) and the hook member `spawnTestShooter`.
+ * Plan 14-18 adds the hook member `spawnTestFlyers` (three scripted flying NPCs).
  */
 
 import type * as THREE from "three";
@@ -31,7 +32,7 @@ import type { FlightState } from "../../sim/flight/state.js";
 import type { Vec3 } from "../../sim/math.js";
 import { MAX_EQUIPMENT_KEYS, setCredits } from "../../sim/player/profile.js";
 import type { PlayerProfile } from "../../sim/player/profile.js";
-import { spawnTestShooter } from "../../sim/ai/test-spawn.js";
+import { spawnTestFlyers, spawnTestShooter } from "../../sim/ai/test-spawn.js";
 import { identTargetSnapshot } from "../../sim/combat/ident.js";
 import { hashWorld } from "../../sim/world/serialize.js";
 import { liveEntityCount } from "../../sim/world/world.js";
@@ -46,6 +47,7 @@ import type {
 import type { RedrawGate } from "../redraw-gate.js";
 import type { SceneManager } from "../scene-manager.js";
 import type { SessionState } from "./context.js";
+import { testFlyerRecords } from "./traffic.js";
 
 /** What the publisher calls outside the probe. */
 export interface ProbePublisherDeps {
@@ -201,11 +203,49 @@ export function createProbePublisher(
     return spawnTestShooter(world, liveState, record, liveState.tick);
   }
 
+  /**
+   * The hook's flying-NPC seam (WORLD-07, plan 14-18): a Shuttle flying to the
+   * station, a Viper intercepting the player and an Adder fleeing it, 3,000 m
+   * from the player. It needs a ship in flight, a live world, the layout and the
+   * loaded traffic content with the three hulls; anything else returns false and
+   * changes nothing, taint included. The session is tainted before the world is
+   * touched, so no autosave can make a spawned ship durable (T-14-29). If the
+   * sim spawner still refuses after it spawned a ship, the earlier ship stays,
+   * the hook returns false and the session stays tainted.
+   */
+  function spawnFlyers(): boolean {
+    const liveState = ctx.core.state;
+    const liveLayout = ctx.core.layout;
+    if (
+      liveState === undefined ||
+      liveLayout === undefined ||
+      ctx.runtime.disposed ||
+      liveState.mode !== "inFlight"
+    ) {
+      return false;
+    }
+    const world = ctx.core.worldLifecycle?.world;
+    const traffic = ctx.core.npcTraffic;
+    if (world === undefined || traffic === undefined) return false;
+    const records = testFlyerRecords(traffic);
+    if (records === undefined) return false;
+    markHookMutation();
+    return spawnTestFlyers(
+      world,
+      liveState,
+      records,
+      traffic.flight,
+      liveState.tick,
+      liveLayout.station.position,
+    );
+  }
+
   /** The sim members of the hook, bound at call time (G-8). */
   const simHook: WegoliteSimTestHook = {
     worldHash,
     advanceTicks: (n) => advanceTicks(n),
     spawnTestShooter: spawnShooter,
+    spawnTestFlyers: spawnFlyers,
   };
 
   /**
