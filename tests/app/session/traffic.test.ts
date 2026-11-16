@@ -46,6 +46,8 @@ describe("trafficContent", () => {
         radius: ship.radius,
         maxEnergy: ship.maxEnergy,
         energyRechargeRate: ship.energyRechargeRate,
+        likelyCargo: ship.likelyCargo,
+        maxCargo: ship.maxCargo,
       });
       expect(content.masses[index]).toEqual({
         specKey: ship.key,

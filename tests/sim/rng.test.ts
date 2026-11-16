@@ -192,9 +192,25 @@ describe("fmix32 and mix32 vectors (D-02)", () => {
 
 describe("worldSeedFor and forkSeed vectors (D-02, D-04)", () => {
   it("pins the purpose codes by key and the entity purposes", () => {
-    expect(RNG_PURPOSE_CODES).toEqual({ world: 1, ai: 2, combat: 3 });
+    expect(RNG_PURPOSE_CODES).toEqual({
+      world: 1,
+      ai: 2,
+      combat: 3,
+      cargo: 4,
+    });
     expect(Object.isFrozen(RNG_PURPOSE_CODES)).toBe(true);
     expect([...ENTITY_RNG_PURPOSES]).toEqual(["ai", "combat"]);
+  });
+
+  it("forks the stateless cargo purpose (code 4) apart from the stored streams (plan 15-03)", () => {
+    const world = worldSeedFor(LAVE_MARKET_SEED, 1);
+    const cargo = forkSeed(world, 101, "cargo");
+    expect(cargo).toBe(mix32(mix32(world, 101), 4));
+    expect(cargo).not.toBe(forkSeed(world, 101, "combat"));
+    expect(cargo).not.toBe(forkSeed(world, 101, "ai"));
+    expect(cargo).not.toBe(forkSeed(world, 102, "cargo"));
+    // "cargo" is forked per spawn and never stored: not an entity purpose.
+    expect([...ENTITY_RNG_PURPOSES]).not.toContain("cargo");
   });
 
   it("pins worldSeedFor for the Lave market seed at epochs 0, 1 and 2", () => {

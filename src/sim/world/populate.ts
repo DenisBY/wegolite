@@ -35,18 +35,28 @@
  * calls this only with traffic on. D-02: ships are `ai: null` (Oolite's nullAI);
  * the records' `aiType` is ignored until the AI phases.
  *
+ * Cargo (D-06, plan 15-03): each ship spawns with a cargo capsule count from
+ * `cargoCountAtSpawn`. The count is drawn from a stateless stream forked per
+ * spawn, `forkSeed(world.worldSeed, id, "cargo")`, never stored, so the draw
+ * order of `world.rng` above is unchanged and so are the id counter and every
+ * stored ai and combat stream: a world built from records with and without the
+ * cargo fields differs only in each entity's `cargo`. Oolite draws `randf()`
+ * and `Ranrot()` from its one global generator, so the counts are
+ * statistically equal to Oolite's, not stream-equal.
+ *
  * Role matching is by `===` over arrays only, never an object keyed by role
  * names, so a token such as `constructor` cannot reach a prototype lookup
  * (T-12-17).
  */
 
 import type { Quat, Vec3 } from "../math.js";
-import { rngNext } from "../rng.js";
+import { createRngState, forkSeed, rngNext } from "../rng.js";
 import type { RngState } from "../rng.js";
 import type { SpawnInit } from "./entity.js";
 import { SCAN_CLASSES } from "./ids.js";
 import type { ScanClass } from "./ids.js";
 import type { SystemLayout } from "./layout.js";
+import { MAX_ENTITY_CARGO, MAX_UINT32 } from "./limits.js";
 import { locationByCode, randomQuaternion } from "./placement.js";
 import type { LocationCode } from "./placement.js";
 import { spawnEntity } from "./world.js";
@@ -67,6 +77,10 @@ export interface InertShipRecord {
   readonly maxEnergy: number;
   /** The record's `energy_recharge_rate`. */
   readonly energyRechargeRate: number;
+  /** The record's `likely_cargo` (DATA-14); absent means 0. */
+  readonly likelyCargo?: number;
+  /** The record's `max_cargo` (DATA-14); absent means 0. */
+  readonly maxCargo?: number;
 }
 
 /** The six roles of the first populator. */
@@ -194,6 +208,8 @@ export interface PlannedShip {
   readonly radius: number;
   readonly maxEnergy: number;
   readonly energyRechargeRate: number;
+  readonly likelyCargo: number;
+  readonly maxCargo: number;
   readonly position: Vec3;
   readonly orientation: Quat;
 }
@@ -232,6 +248,8 @@ export function planInertPopulation(
         radius: record.radius,
         maxEnergy: record.maxEnergy,
         energyRechargeRate: record.energyRechargeRate,
+        likelyCargo: record.likelyCargo ?? 0,
+        maxCargo: record.maxCargo ?? 0,
         position: place.position,
         orientation,
       });
@@ -240,10 +258,70 @@ export function planInertPopulation(
   return { ships, fallbacks };
 }
 
+/** A count input as Oolite's `oo_unsignedIntForKey` yields it: a safe integer >= 0, else 0. */
+function countInput(value: number): number {
+  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+/**
+ * The cargo capsule count of one ship at spawn: a port of Oolite's
+ * `setCargoFlag:` counting rule (`ShipEntity.m:7323-7373`) for the cargo type
+ * the live populator, `oolite-populator.js`, gives each role.
+ *
+ * - trader: `setCargoType(goods)` with `PLENTIFUL_GOODS` or `SCARCE_GOODS`
+ *   (`oolite-populator.js:1448`, `1492-1522`), so the full count `num`.
+ * - shuttle: `CARGO_FLAG_FULL_SCARCE` (`StationEntity.m:1629`), the full count.
+ * - pirate: `PIRATE_GOODS` (`CARGO_FLAG_PIRATE`), a Ranrot fraction
+ *   `Ranrot() % (1 + num / 2)` of `num`. Oolite sets it only when the group is
+ *   not placed at a station or planet (`:1711-1713`, `:1862-1865`); that always
+ *   holds here, because `INERT_POPULATION` puts every pirate on a lane, never at
+ *   a station or planet entity.
+ * - hunter, police, scavenger: no cargo type is set, so 0 and no draw.
+ *
+ * Oolite's opportunist-trader branch (5 % of traders get a bounty and half of
+ * those switch to the opportunist AI with `PIRATE_GOODS`, `:1418-1431`) is not
+ * modelled: no Wegolite trader has a bounty or a switched AI.
+ *
+ * `num` is `likelyCargo * (0.5 + randf())` truncated and capped at the
+ * capacity when `likelyCargo > 0`, else the capacity; then capped at 200
+ * (`MAX_ENTITY_CARGO`). The capacity is `maxCargo`. Oolite's
+ * `maxAvailableCargoSpace` is `max_cargo - equipment_weight`
+ * (`ShipEntity.m:7198-7201`); the weight is 0 for the nine stock ships, so a
+ * later equipment phase must revisit the capacity line below.
+ *
+ * Total: an input that is not a safe integer >= 0 counts as 0, an unknown role
+ * returns 0 without a draw, and it never throws. The result is an integer in
+ * `0..MAX_ENTITY_CARGO`.
+ */
+export function cargoCountAtSpawn(
+  role: PopulatorRole,
+  likelyCargo: number,
+  maxCargo: number,
+  rng: RngState,
+): number {
+  if (role !== "trader" && role !== "shuttle" && role !== "pirate") return 0;
+  const likely = countInput(likelyCargo);
+  // equipment_weight is 0 for the nine stock ships (ShipEntity.m:7198-7201).
+  const capacity = countInput(maxCargo);
+  let num = capacity;
+  if (likely > 0) {
+    num = Math.min(Math.floor(likely * (0.5 + rngNext(rng))), capacity);
+  }
+  num = Math.min(num, MAX_ENTITY_CARGO);
+  if (role !== "pirate") return num;
+  if (num === 0) return 0;
+  return Math.floor(rngNext(rng) * (1 + Math.floor(num / 2)));
+}
+
 /**
  * Populate `world` with the inert ships of `INERT_POPULATION` and return how
- * many spawned. Draws only from `world.rng`; a `spawnEntity` refusal is
- * skipped, so the call is total.
+ * many spawned. Draws only from `world.rng` (plus the stateless per-spawn
+ * cargo stream, which is stored nowhere); a `spawnEntity` refusal is skipped,
+ * so the call is total.
+ *
+ * The `?test=1` hooks (`spawnTestShooter`, `spawnTestFlyers`) spawn with cargo
+ * 0. A later phase that needs a hook-spawned ship with cargo passes
+ * `SpawnInit.cargo` itself.
  */
 export function populateInertWorld(
   world: World,
@@ -253,6 +331,18 @@ export function populateInertWorld(
   const plan = planInertPopulation(world.rng, layout, records);
   let spawned = 0;
   for (const ship of plan.ships) {
+    // The id this ship is about to get. spawnEntity refuses `idExhausted` past
+    // MAX_UINT32 and forkSeed would throw there, so an out-of-range id counts 0.
+    const id = world.store.nextId;
+    const cargo =
+      Number.isSafeInteger(id) && id >= 0 && id <= MAX_UINT32
+        ? cargoCountAtSpawn(
+            ship.role,
+            ship.likelyCargo,
+            ship.maxCargo,
+            createRngState(forkSeed(world.worldSeed, id, "cargo")),
+          )
+        : 0;
     const init: SpawnInit = {
       kind: "ship",
       specKey: ship.key,
@@ -264,6 +354,7 @@ export function populateInertWorld(
       ai: null,
       maxEnergy: ship.maxEnergy,
       energyRechargeRate: ship.energyRechargeRate,
+      cargo,
     };
     if (spawnEntity(world, init, 0).ok) spawned += 1;
   }

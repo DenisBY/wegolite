@@ -11,6 +11,7 @@
 
 import { readFileSync } from "node:fs";
 
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { initFlightState, hashFlight } from "../../../src/sim/flight/state.js";
@@ -19,22 +20,32 @@ import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import { length, lengthSquared, sub, vec } from "../../../src/sim/math.js";
 import type { Vec3 } from "../../../src/sim/math.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
-import { createRngState, worldSeedFor } from "../../../src/sim/rng.js";
+import {
+  createRngState,
+  forkSeed,
+  rngNext,
+  worldSeedFor,
+} from "../../../src/sim/rng.js";
 import { fnv1a32 } from "../../../src/sim/hash.js";
 import type { System } from "../../../src/content/types.js";
 import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { DT } from "../../../src/sim/time.js";
 import { FIRST_DYNAMIC_ID } from "../../../src/sim/world/ids.js";
+import { MAX_ENTITY_CARGO } from "../../../src/sim/world/limits.js";
 import {
   INERT_POPULATION,
   POPULATOR_ROLES,
+  cargoCountAtSpawn,
   isScanClass,
   parseRoleToken,
   pickRecord,
   planInertPopulation,
   populateInertWorld,
 } from "../../../src/sim/world/populate.js";
-import type { InertShipRecord } from "../../../src/sim/world/populate.js";
+import type {
+  InertShipRecord,
+  PopulatorRole,
+} from "../../../src/sim/world/populate.js";
 import {
   LANE_WIDTH,
   locationByCode,
@@ -289,6 +300,219 @@ describe("planInertPopulation over the Lave layout", () => {
     const a = planInertPopulation(createRngState(99), layout, records);
     const b = planInertPopulation(createRngState(99), layout, records);
     expect(a).toEqual(b);
+  });
+});
+
+describe("cargo at spawn (D-06)", () => {
+  /** A stream at a fixed seed, plus the first two draws it will give. */
+  function stream(seed = 0x1234abcd): {
+    rng: ReturnType<typeof createRngState>;
+    r1: number;
+    r2: number;
+  } {
+    const probe = createRngState(seed);
+    return {
+      rng: createRngState(seed),
+      r1: rngNext(probe),
+      r2: rngNext(probe),
+    };
+  }
+
+  it("traders draw likelyCargo * (0.5 + r) truncated, capped at maxCargo", () => {
+    const a = stream();
+    expect(cargoCountAtSpawn("trader", 5, 7, a.rng)).toBe(
+      Math.min(Math.floor(5 * (0.5 + a.r1)), 7),
+    );
+    const b = stream();
+    const ten = cargoCountAtSpawn("trader", 10, 10, b.rng);
+    expect(ten).toBe(Math.min(Math.floor(10 * (0.5 + b.r1)), 10));
+    expect(ten).toBeGreaterThanOrEqual(5);
+    expect(ten).toBeLessThanOrEqual(10);
+    // One draw only: the stream is advanced exactly once.
+    const after = createRngState(0x1234abcd);
+    rngNext(after);
+    expect(b.rng.s).toBe(after.s);
+  });
+
+  it("a shuttle with no likelyCargo takes the whole capacity without a draw", () => {
+    const { rng } = stream();
+    const before = rng.s;
+    expect(cargoCountAtSpawn("shuttle", 0, 30, rng)).toBe(30);
+    expect(rng.s).toBe(before);
+  });
+
+  it("zero likely and zero capacity give 0; a huge capacity caps at 200", () => {
+    const { rng } = stream();
+    const before = rng.s;
+    expect(cargoCountAtSpawn("trader", 0, 0, rng)).toBe(0);
+    expect(cargoCountAtSpawn("trader", 0, 500, rng)).toBe(200);
+    expect(cargoCountAtSpawn("shuttle", 0, 500, rng)).toBe(MAX_ENTITY_CARGO);
+    expect(rng.s).toBe(before);
+  });
+
+  it("a pirate draws num, then a Ranrot fraction of it: 0 or 1 for num 2", () => {
+    const { rng, r1, r2 } = stream();
+    // likely 2, max 2: num = floor(2 * (0.5 + r1)) capped at 2, then
+    // floor(r2 * (1 + floor(num / 2))).
+    const num = Math.min(Math.floor(2 * (0.5 + r1)), 2);
+    const expected = num === 0 ? 0 : Math.floor(r2 * (1 + Math.floor(num / 2)));
+    const count = cargoCountAtSpawn("pirate", 2, 2, rng);
+    expect(count).toBe(expected);
+    expect([0, 1]).toContain(count);
+  });
+
+  it("a pirate whose num is 0 gives 0 and draws at most once", () => {
+    const { rng } = stream();
+    const before = rng.s;
+    expect(cargoCountAtSpawn("pirate", 0, 0, rng)).toBe(0);
+    expect(rng.s).toBe(before);
+    // likely 1, max 0: the capacity caps num at 0 after one draw, no second.
+    const one = stream();
+    expect(cargoCountAtSpawn("pirate", 1, 0, one.rng)).toBe(0);
+    const after = createRngState(0x1234abcd);
+    rngNext(after);
+    expect(one.rng.s).toBe(after.s);
+  });
+
+  it("hunter, police and scavenger carry nothing and leave the stream alone", () => {
+    for (const role of ["hunter", "police", "scavenger"] as const) {
+      const { rng } = stream();
+      const before = rng.s;
+      expect(cargoCountAtSpawn(role, 10, 10, rng)).toBe(0);
+      expect(rng.s).toBe(before);
+    }
+  });
+
+  it("counts an input that is not a safe integer >= 0 as 0", () => {
+    for (const bad of [Number.NaN, -1, 1.5, Infinity, -Infinity]) {
+      const likelyBad = stream();
+      // A bad likelyCargo is 0, so the capacity is taken whole.
+      expect(cargoCountAtSpawn("trader", bad, 30, likelyBad.rng)).toBe(30);
+      const maxBad = stream();
+      expect(cargoCountAtSpawn("trader", 5, bad, maxBad.rng)).toBe(0);
+      expect(cargoCountAtSpawn("shuttle", bad, bad, stream().rng)).toBe(0);
+    }
+  });
+
+  it("is a safe integer in 0..200 for any role and any numbers, without throwing", () => {
+    const weird = fc.oneof(
+      fc.integer({ min: -5, max: 500 }),
+      fc.double({ noNaN: false }),
+      fc.constantFrom(
+        Number.NaN,
+        Infinity,
+        -Infinity,
+        Number.MAX_SAFE_INTEGER,
+        Number.MAX_VALUE,
+      ),
+    );
+    fc.assert(
+      fc.property(
+        fc.constantFrom<PopulatorRole>(...POPULATOR_ROLES),
+        weird,
+        weird,
+        fc.integer({ min: 0, max: 0xffffffff }),
+        (role, likely, max, seed) => {
+          const count = cargoCountAtSpawn(
+            role,
+            likely,
+            max,
+            createRngState(seed),
+          );
+          expect(Number.isSafeInteger(count)).toBe(true);
+          expect(count).toBeGreaterThanOrEqual(0);
+          expect(count).toBeLessThanOrEqual(MAX_ENTITY_CARGO);
+        },
+      ),
+      { numRuns: 500 },
+    );
+  });
+
+  describe("the stateless stream leaves every hashed stream alone", () => {
+    const catalogue = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../../src/content/generated/ships-npc.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as { key: string; likelyCargo: number; maxCargo: number }[];
+    const withCargo: InertShipRecord[] = records.map((record) => {
+      const source = catalogue.find((ship) => ship.key === record.key);
+      return {
+        ...record,
+        likelyCargo: source?.likelyCargo ?? 0,
+        maxCargo: source?.maxCargo ?? 0,
+      };
+    });
+    const withoutCargo: InertShipRecord[] = records.map((record) => ({
+      key: record.key,
+      roles: record.roles,
+      scanClass: record.scanClass,
+      radius: record.radius,
+      maxEnergy: record.maxEnergy,
+      energyRechargeRate: record.energyRechargeRate,
+    }));
+
+    it("gives the same world.rng, id counter and entity placements and streams, differing only in cargo", () => {
+      const a = buildInertWorld(LAVE_EPOCH1_WORLD_SEED, layout, withCargo);
+      const b = buildInertWorld(LAVE_EPOCH1_WORLD_SEED, layout, withoutCargo);
+      expect(a.count).toBe(12);
+      expect(b.count).toBe(12);
+      expect(a.world.rng.s).toBe(b.world.rng.s);
+      expect(a.world.store.nextId).toBe(b.world.store.nextId);
+      a.world.store.live.forEach((entity, index) => {
+        const other = b.world.store.live[index];
+        expect(entity.id).toBe(other?.id);
+        expect(entity.specKey).toBe(other?.specKey);
+        expect(entity.position).toEqual(other?.position);
+        expect(entity.orientation).toEqual(other?.orientation);
+        expect(entity.rng).toEqual(other?.rng);
+        expect(other?.cargo).toBe(0);
+      });
+      const cargoEntities = a.world.store.live.filter(
+        (entity) => entity.cargo > 0,
+      );
+      expect(cargoEntities.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it("the world section minus the v4 segments equals the section without cargo (the strip proof's premise)", () => {
+      const a = buildInertWorld(LAVE_EPOCH1_WORLD_SEED, layout, withCargo);
+      const b = buildInertWorld(LAVE_EPOCH1_WORLD_SEED, layout, withoutCargo);
+      const stripped = serializeWorldSection(a.world).replace(
+        /;(?:vel|wpn|cargo):[^;\n]*/g,
+        "",
+      );
+      expect(stripped).toBe(serializeWorldSection(b.world));
+      expect(serializeWorldSection(a.world)).not.toBe(
+        serializeWorldSection(b.world),
+      );
+    });
+
+    it("draws each count from forkSeed(worldSeed, id, 'cargo'), in spawn order", () => {
+      const world = createWorld(LAVE_EPOCH1_WORLD_SEED);
+      const plan = planInertPopulation(
+        createRngState(world.rng.s),
+        layout,
+        withCargo,
+      );
+      populateInertWorld(world, layout, withCargo);
+      expect(world.store.live).toHaveLength(plan.ships.length);
+      plan.ships.forEach((ship, index) => {
+        const id = FIRST_DYNAMIC_ID + index;
+        const entity = world.store.live[index];
+        expect(entity?.id).toBe(id);
+        expect(entity?.cargo).toBe(
+          cargoCountAtSpawn(
+            ship.role,
+            ship.likelyCargo,
+            ship.maxCargo,
+            createRngState(forkSeed(LAVE_EPOCH1_WORLD_SEED, id, "cargo")),
+          ),
+        );
+      });
+    });
   });
 });
 

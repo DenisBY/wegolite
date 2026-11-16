@@ -66,10 +66,17 @@ export function mix32(a: number, b: number): number {
   return fmix32(((a >>> 0) ^ fmix32((b + 0x9e3779b9) >>> 0)) >>> 0);
 }
 
-/** What a stream is for. "world" is the world-level stream (entity id 0). */
-export type RngPurpose = "world" | "ai" | "combat";
+/**
+ * What a stream is for. "world" is the world-level stream (entity id 0). "cargo"
+ * is a stateless purpose (plan 15-03, code 4): the populator forks it per spawn
+ * to draw one cargo count and discards it, so it is never stored on an entity.
+ */
+export type RngPurpose = "world" | "ai" | "combat" | "cargo";
 
-/** The per-entity purposes; "world" is forked with entity id 0. */
+/**
+ * The per-entity purposes whose streams are stored; "world" is forked with
+ * entity id 0. "cargo" is not listed: it is forked per spawn and never stored.
+ */
 export const ENTITY_RNG_PURPOSES = ["ai", "combat"] as const;
 
 /**
@@ -78,7 +85,7 @@ export const ENTITY_RNG_PURPOSES = ["ai", "combat"] as const;
  * Part of the one-way contract: do not change an existing code.
  */
 export const RNG_PURPOSE_CODES: Readonly<Record<RngPurpose, number>> =
-  Object.freeze({ world: 1, ai: 2, combat: 3 });
+  Object.freeze({ world: 1, ai: 2, combat: 3, cargo: 4 });
 
 const MAX_UINT32 = 0xffffffff;
 
