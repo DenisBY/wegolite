@@ -3,6 +3,7 @@ created: 2026-11-15T12:00:00.000Z
 title: Let lasers hit, and ident lock, the station and the buoys, as in Oolite
 area: sim
 severity: minor
+resolves_phase: 18
 files:
   - src/sim/combat/hit.ts
   - src/sim/combat/ident.ts
