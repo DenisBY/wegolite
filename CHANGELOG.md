@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-16
+
+This release changes the save format (version 4, laser mounts) and the default
+keys; see **Compatibility** under Changed. Saves from 0.3.0 are upgraded on
+load, but 0.3.0 cannot load a save written by 0.4.0.
+
 ### Added
 
 - In a test session (`?test=1&traffic=1`) NPC ships can now fly with Oolite's
