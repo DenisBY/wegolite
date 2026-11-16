@@ -11,6 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { createFlightScriptAi } from "../../../src/sim/ai/pilots/flight-script.js";
 import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
 import type { AiContext, AiEvent } from "../../../src/sim/ai/types.js";
 import { npcLaserRay } from "../../../src/sim/combat/aim.js";
@@ -50,6 +51,8 @@ import { drainAiEventsNow, stepWorld } from "../../../src/sim/world/step.js";
 import type { AiRegistry } from "../../../src/sim/world/step.js";
 import { realHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { realNpcFlightTable } from "../../helpers/npc-flight.js";
+import { realNpcWeapons } from "../../helpers/npc-weapons.js";
 
 const { layout, config } = laveFixture();
 
@@ -703,5 +706,207 @@ describe("a test shooter's lethal shot through stepSim", () => {
     expect(world.store.live.some((entity) => entity.dead)).toBe(false);
     expect(world.store.get(victim)).toBeUndefined();
     expect(() => snapshotWorld(world)).not.toThrow();
+  });
+});
+
+describe("the post-drain repair (T-15-20)", () => {
+  it("repairs an out-of-domain write by a handler before the boundary and counts it once", () => {
+    const world = createWorld(1);
+    const victim = spawnAi(world);
+    const bad = spawnAi(world);
+    const good = spawn(
+      world,
+      "ship",
+      createFlightScriptAi(1_000_000, { script: "face" }),
+    );
+    target(world, bad, victim);
+    target(world, good, victim);
+    const registry: AiRegistry = {
+      "test-pilot": {
+        think: () => undefined,
+        onEvent: (ctx) => {
+          ctx.ai.params.x = Number.NaN;
+        },
+      },
+      "flight-script": {
+        think: () => undefined,
+        onEvent: (ctx) => {
+          ctx.ai.params.y = 5;
+        },
+      },
+    };
+    const repairsOf = (id: number): number =>
+      world.store.get(id)?.repairs ?? -1;
+    const badBefore = repairsOf(bad);
+    const goodBefore = repairsOf(good);
+
+    killShip(world, victim, PLAYER_ID, []);
+    drain(world, registry);
+    commitWorld(world);
+
+    expect(() => snapshotWorld(world)).not.toThrow();
+    expect(() => worldHash(world)).not.toThrow();
+    expect(repairsOf(bad)).toBe(badBefore + 1);
+    expect(repairsOf(good)).toBe(goodBefore);
+  });
+});
+
+describe("survivors holding the dead ship's id (T-15-21)", () => {
+  it("keep flying under stepSim for 120 ticks with no throw, fault or repair", () => {
+    const player = flyingPlayerAtFar();
+    const world = createWorld(7);
+    const flight = realNpcFlightTable();
+    const options: StepOptions = {
+      npcFlight: flight,
+      combat: {
+        mounts: DEFAULT_LASER_MOUNTS,
+        hulls: realHullTable(),
+        npcWeapons: realNpcWeapons(),
+      },
+    };
+    const at = (x: number, y: number, z: number) =>
+      vec(player.position.x + x, player.position.y + y, player.position.z + z);
+    const place = (
+      specKey: string,
+      position: ReturnType<typeof vec>,
+      ai: ReturnType<typeof createTestPilotAi>,
+      extra: { ownerId?: number; escortSlot?: number } = {},
+    ): number => {
+      const result = spawnEntity(
+        world,
+        {
+          kind: "ship",
+          specKey,
+          scanClass: "CLASS_NEUTRAL",
+          position,
+          orientation: identity(),
+          radius: 30,
+          speed: 0,
+          ai,
+          ...extra,
+        },
+        0,
+      );
+      if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+      return result.entity.id;
+    };
+
+    const victim = place(
+      "viper",
+      at(0, 0, -3000),
+      createFlightScriptAi(0, { script: "face" }),
+    );
+    const follower = place(
+      "adder",
+      at(400, 0, -3300),
+      createFlightScriptAi(0, { script: "escort", range: 300 }),
+      { ownerId: victim, escortSlot: 1 },
+    );
+    const attacker = place(
+      "adder",
+      at(-600, 0, -3500),
+      createFlightScriptAi(0, {
+        script: "attack",
+        targetId: victim,
+        range: 1000,
+      }),
+    );
+    const stationShip = place(
+      "adder",
+      at(900, 300, -3600),
+      createFlightScriptAi(0, { script: "station", range: 2500, speed: 100 }),
+    );
+    // Created with a scan range below its distance to every other body, so after
+    // it drops the dead id its seek finds nothing and it stays in seek.
+    const pilotAi = createTestPilotAi(0, { scanRange: 100 });
+    pilotAi.params.phase = "hold";
+    pilotAi.params.targetId = victim;
+    const pilot = place("adder", at(30_000, 0, -3000), pilotAi);
+    const survivors = [follower, attacker, stationShip, pilot];
+
+    const run = (): SimEvent[] =>
+      stepSim(
+        player,
+        world,
+        layout,
+        config,
+        ZERO_INTENT,
+        [],
+        DT,
+        options,
+        undefined,
+      );
+    const entity = (id: number) => {
+      const found = world.store.get(id);
+      if (found === undefined) throw new Error(`ship ${String(id)} is gone`);
+      return found;
+    };
+
+    // Warm up until the attacker's first think has set its target.
+    for (
+      let i = 0;
+      i < 30 && entity(attacker).nav.targetId !== victim;
+      i += 1
+    ) {
+      run();
+    }
+    expect(entity(attacker).nav.targetId).toBe(victim);
+    expect(entity(follower).ownerId).toBe(victim);
+
+    // Set after the warm-up: `runProximityPass` rewrites alerts every tick.
+    const holder = entity(stationShip);
+    holder.steer.proximityAlert = victim;
+    holder.steer.saved = {
+      behaviour: "FLY_TO_DESTINATION",
+      targetId: victim,
+      desiredRange: 0,
+      desiredSpeed: 100,
+      destination: at(0, 0, -5000),
+    };
+    holder.nav.behaviour = "AVOID_COLLISION";
+    const repairsBefore = survivors.map((id) => entity(id).repairs);
+
+    // The tail `resolveShots` runs: kill, immediate drain, commit.
+    const tail: SimEvent[] = [];
+    expect(killShip(world, victim, PLAYER_ID, tail)).toBe(true);
+    drainAiEventsNow(world, player, layout, player.tick, tail);
+    commitWorld(world);
+    expect(world.store.get(victim)).toBeUndefined();
+    expect(entity(attacker).ai?.params.phase).toBe("done");
+
+    const boundaryHolds = (): void => {
+      expect(world.store.live.some((e) => e.dead)).toBe(false);
+      expect(world.aiQueue).toEqual([]);
+      expect(world.fireQueue).toEqual([]);
+      expect(() => snapshotWorld(world)).not.toThrow();
+    };
+    boundaryHolds();
+
+    const phases: string[] = [];
+    let heldAgain = false;
+    for (let i = 0; i < 120; i += 1) {
+      const events = run();
+      expect(events.some((event) => event.kind === "aiFaulted")).toBe(false);
+      const params = entity(pilot).ai?.params;
+      phases.push(String(params?.phase));
+      if (params?.phase === "hold" && params.targetId === victim && i >= 15) {
+        heldAgain = true;
+      }
+      if (params?.phase === "seek") expect(params.targetId).toBe(NO_ENTITY);
+      boundaryHolds();
+    }
+
+    expect(survivors.map((id) => entity(id).repairs)).toEqual(repairsBefore);
+    expect(survivors.every((id) => entity(id).ai !== null)).toBe(true);
+    // The pilot left hold within one think interval of the kill (15 ticks),
+    // never held the victim's id again, and is still in seek at the end.
+    expect(phases.indexOf("seek")).toBeGreaterThanOrEqual(0);
+    expect(phases.indexOf("seek")).toBeLessThan(15);
+    expect(heldAgain).toBe(false);
+    expect(
+      phases.slice(phases.indexOf("seek")).every((p) => p === "seek"),
+    ).toBe(true);
+    expect(entity(pilot).ai?.params.targetId).toBe(NO_ENTITY);
+    expect(entity(attacker).ai?.params.phase).toBe("done");
   });
 });

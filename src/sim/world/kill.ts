@@ -40,6 +40,25 @@
  * `shipTargetLost` twice (at kill time, then from its own steering on its next
  * update), and every `onEvent` must be idempotent for that event.
  *
+ * `killShip` never rewrites another ship's reference to the victim. Every field
+ * that holds another entity's id tolerates a removed id:
+ *
+ * - `nav.targetId`: `targetBody` re-reads through `view.body` on every use
+ *   (`../npc/target.ts`); a gone target runs `noteLostTargetAndGoIdle`, which
+ *   posts `shipTargetLost` and writes 0.
+ * - `steer.proximityAlert`: `proximityAlertBody` resolves through `view.body`
+ *   and clears a gone id (`../npc/avoid.ts`); `runProximityPass` rewrites the
+ *   alerts every tick.
+ * - `steer.saved.targetId`: restored into `nav.targetId` by
+ *   `resumePostProximityAlert` (`../npc/avoid.ts`), then read through
+ *   `targetBody`.
+ * - an escort's `ownerId`: `behaviourFormationFormUp` reads the leader through
+ *   `view.ship`, undefined when gone (`../npc/behaviours/formation.ts`);
+ *   `refreshEscorts` runs only for a live, steered leader, so a dead leader's
+ *   followers keep their last destination.
+ * - a test pilot's `params.targetId`: `hold` re-checks `view.isValid` and drops
+ *   to seek (`../ai/pilots/test-pilot.ts`).
+ *
  * The player, the station and the buoys are never in the store, so they never
  * die here (D-13).
  *

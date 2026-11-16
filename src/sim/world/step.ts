@@ -295,6 +295,25 @@ function drainAiEvents(
  * `ctl.fire` request made by an `onEvent` handler during this drain is
  * discarded (fire is a think-time action; inside `resolveShots` the length on
  * entry is 0, and a later in-step caller keeps the think phase's requests).
+ *
+ * Handlers here run after `stepWorld`'s sanitise pass, `startPendingTrackingCurves`
+ * and `runProximityPass`, so two rules follow:
+ *
+ * - Every live, non-dead entity is sanitised after the drain (`sanitizeEntity`,
+ *   the same loop as `stepWorld`'s pre-commit pass, T-08-21), so an
+ *   out-of-domain value a handler wrote is repaired and counted in that
+ *   entity's `repairs` before the second commit; an in-domain world stays
+ *   bit-identical with no repair counted, and an empty queue costs nothing.
+ * - A `setTarget` made here leaves the tracking curve pending across the
+ *   boundary (it is hashed as pending, so the snapshot round trip holds) and
+ *   `steerShip` starts it on the next update, one tick later than the
+ *   think-tick rule, deterministically.
+ *
+ * A holder whose handler does not change its behaviour receives
+ * `shipTargetLost` twice: at kill time, then from its own steering's
+ * `noteLostTargetAndGoIdle` on the next update (the flight script finishes on
+ * the first and goes idle, so it gets one). Every `onEvent` must therefore be
+ * idempotent for that event, as the flight script's is.
  */
 export function drainAiEventsNow(
   world: World,
@@ -316,6 +335,10 @@ export function drainAiEventsNow(
   const fireLength = world.fireQueue.length;
   drainAiEvents(world, registry, tick, getView, events);
   world.fireQueue.length = Math.min(world.fireQueue.length, fireLength);
+  for (let i = 0; i < world.store.live.length; i += 1) {
+    const entity = world.store.live[i];
+    if (entity !== undefined && !entity.dead) sanitizeEntity(entity);
+  }
 }
 
 /** Deliver one event to a live entity with an AI whose module handles events. */
