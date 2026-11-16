@@ -4,17 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 16
 current_phase_name: Wreckage, Cargo and the Entity Cap
-status: planning
-stopped_at: Phase 15 complete, ready to plan Phase 16
-last_updated: "2026-11-16T20:54:54.471Z"
-last_activity: 2026-11-16
+current_plan: 3
+status: executing
+stopped_at: Completed 16-02-PLAN.md
+last_updated: "2026-11-16T23:04:15.823Z"
+last_activity: 2026-11-17
 last_activity_desc: Phase 15 complete, transitioned to Phase 16
-state_head: 91e35bf65df6f01cdd4d4e4fadaab76ef4b8d0d4
+state_head: 4b9f90172f00c38c2cc140149a4f54008ef69454
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 15
+  completed_plans: 7
   percent: 17
 ---
 
@@ -30,9 +31,10 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 16 — Wreckage, Cargo and the Entity Cap
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-11-16 — Phase 15 complete, transitioned to Phase 16
+Current Plan: 3
+Total Plans in Phase: 9
+Status: Ready to execute
+Last activity: 2026-11-17 — 16-02 complete (cargo pods on the kill path, the entity cap)
 
 
 ## Performance Metrics
@@ -197,6 +199,7 @@ Last activity: 2026-11-16 — Phase 15 complete, transitioned to Phase 16
 | Phase 15 P04 | 75 min | 2 tasks | 14 files |
 | Phase 15 P05 | 50 min | 2 tasks | 7 files |
 | Phase 15 P06 | 18 min | 3 tasks | 4 files |
+| Phase 16 P02 | 30min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -491,6 +494,9 @@ Recent decisions affecting current work:
 - [Phase 15]: Kill notifications reach holders of the victim and a live NPC killer through postAiEvent, delivered by drainAiEventsNow before the second commit; D-05 narrowing pending owner acknowledgement (OD-2)
 - [Phase 15]: Plan 15-06: the random-fight property counts a holder as told only for a live flight-script ship with a live nav.targetId before the step; an escort holds its leader through ownerId and is covered by the 15-05 dangling-reference case — nav.targetId is what killShip notifies (D-04)
 - [Phase 15]: Plan 15-06: the kill cross-cadence scenario uses zero energy recharge for both victims, so kill ticks 48 and 64 depend only on shot arithmetic — a nonzero recharge would add rounding to the kill tick
+- [Phase 16]: D16-12 draw order implemented in releaseDebris: canFragment first, then per capsule one survival draw and 13 draws per survivor; plan 16-04 appends after the pods
+- [Phase 16]: D16-05 cap gate per piece after the piece's draws: liveEntityCount < 0.95 x 256 (243.2); frame-time and visibility terms dropped
+- [Phase 16]: DebrisContent.hulls must be a Map instance; anything else reads as an empty table, never a throw
 
 ### Pending Todos
 
@@ -599,8 +605,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-16T19:50:14.492Z
-Stopped at: Phase 15 complete, ready to plan Phase 16
+Last session: 2026-11-16T23:04:06.092Z
+Stopped at: Completed 16-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
