@@ -29,7 +29,10 @@ import {
 } from "../../src/render/break-pattern.js";
 import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
 import { LAUNCH_DURATION } from "../../src/sim/flight/launch.js";
-import { CLOCK_START, initFlightState } from "../../src/sim/flight/state.js";
+import {
+  NEW_GAME_CLOCK_SECONDS,
+  initFlightState,
+} from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
 import { DT } from "../../src/sim/time.js";
@@ -141,18 +144,24 @@ describe("launch clock", () => {
     const state = launchedState();
     expect(state.mode).toBe("launching");
     expect(state.launchCount).toBe(1);
-    expect(state.clockSeconds).toBe(CLOCK_START + 600);
+    expect(state.clockSeconds).toBe(NEW_GAME_CLOCK_SECONDS + 600);
 
     step(state);
     // Flight time still advances while launching; the *adjustment* is once.
-    expect(state.clockSeconds).toBeCloseTo(CLOCK_START + 600 + DT, 9);
+    expect(state.clockSeconds).toBeCloseTo(
+      NEW_GAME_CLOCK_SECONDS + 600 + DT,
+      9,
+    );
   });
 
   it("does not add a second 600 s when the launch is skipped", () => {
     const state = launchedState();
     step(state, [{ kind: "skipLaunch" }]);
     expect(state.mode).toBe("inFlight");
-    expect(state.clockSeconds).toBeCloseTo(CLOCK_START + 600 + DT, 9);
+    expect(state.clockSeconds).toBeCloseTo(
+      NEW_GAME_CLOCK_SECONDS + 600 + DT,
+      9,
+    );
   });
 
   it("does not add a second 600 s when the launch plays out", () => {
@@ -163,7 +172,7 @@ describe("launch clock", () => {
     // Only the two seconds of launching are added on top of the +600. The
     // accumulated sum is rounded against a 1.8e11 clock (ULP ~3e-5), so the
     // bound is on the adjustment, not a bit-exact sum.
-    const adjustment = state.clockSeconds - (CLOCK_START + 600);
+    const adjustment = state.clockSeconds - (NEW_GAME_CLOCK_SECONDS + 600);
     expect(adjustment).toBeGreaterThan(LAUNCH_DURATION - 0.01);
     expect(adjustment).toBeLessThan(LAUNCH_DURATION + 0.01);
   });
@@ -176,7 +185,10 @@ describe("launch clock", () => {
     step(state, [{ kind: "launch" }]);
     expect(state.mode).toBe("inFlight");
     expect(state.launchCount).toBe(1);
-    expect(state.clockSeconds).toBeCloseTo(CLOCK_START + 600 + 3 * DT, 9);
+    expect(state.clockSeconds).toBeCloseTo(
+      NEW_GAME_CLOCK_SECONDS + 600 + 3 * DT,
+      9,
+    );
   });
 });
 

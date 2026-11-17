@@ -20,7 +20,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
-import { createSessionLifecycle } from "../../../src/app/session/start-session.js";
+import {
+  createSessionLifecycle,
+  resolveStartTarget,
+} from "../../../src/app/session/start-session.js";
 import type { LifecycleDeps } from "../../../src/app/session/start-session.js";
 import type { SystemScene } from "../../../src/render/system-scene.js";
 import {
@@ -578,3 +581,37 @@ function readdirSession(): string[] {
     file.startsWith("src/app/session/"),
   );
 }
+
+describe("resolveStartTarget (quick task 261117-pij)", () => {
+  // oolite-standard.oolite-save target_system_name: a new commander targets
+  // the start system (Lave). A restore keeps the T-06-12 allow-list rule.
+  const galaxyById = new Map([
+    [lave.system.id, lave.system],
+    ["g0-s3", { ...lave.system, id: "g0-s3", name: "Diso" }],
+  ]);
+
+  it("gives a new game the start system", () => {
+    expect(
+      resolveStartTarget(false, undefined, lave.system.id, galaxyById),
+    ).toBe(lave.system.id);
+    // A saved target is ignored for a new game.
+    expect(resolveStartTarget(false, "g0-s3", lave.system.id, galaxyById)).toBe(
+      lave.system.id,
+    );
+  });
+
+  it("keeps a saved target the catalogue knows on a restore", () => {
+    expect(resolveStartTarget(true, "g0-s3", lave.system.id, galaxyById)).toBe(
+      "g0-s3",
+    );
+  });
+
+  it("has no target for a restore without one or with an unknown one", () => {
+    expect(
+      resolveStartTarget(true, undefined, lave.system.id, galaxyById),
+    ).toBeUndefined();
+    expect(
+      resolveStartTarget(true, "no-such-system", lave.system.id, galaxyById),
+    ).toBeUndefined();
+  });
+});

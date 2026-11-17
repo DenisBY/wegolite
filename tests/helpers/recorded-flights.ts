@@ -52,7 +52,11 @@ import type { SimEvent } from "../../src/sim/events.js";
 import type { FlightConfig } from "../../src/sim/flight/config.js";
 import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
 import type { ControlIntent } from "../../src/sim/flight/controller.js";
-import { hashFlight, initFlightState } from "../../src/sim/flight/state.js";
+import {
+  CLOCK_START,
+  hashFlight,
+  initFlightState,
+} from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
 import { stepSim } from "../../src/sim/sim.js";
@@ -240,6 +244,19 @@ function launchContext(equipment: ReadonlySet<string>): StepContext {
   };
 }
 
+/**
+ * A new game's docked state at the frozen baseline's clock. The pins were
+ * captured when a new game started at `CLOCK_START`; quick task 261117-pij
+ * moved the new-game start to the standard scenario's `ship_clock`
+ * (`NEW_GAME_CLOCK_SECONDS`), and the flight hash includes the clock
+ * (`clock=` in `hashFlight`). Starting the recorded flights at the baseline's
+ * clock keeps the frozen pins a check of flight stepping, which is what they
+ * guard, without regenerating them.
+ */
+function baselineFlightState(layout: SystemLayout): FlightState {
+  return { ...initFlightState(layout), clockSeconds: CLOCK_START };
+}
+
 /** Launch and fly the full 240-step launch (no skipLaunch), then 1200 steps. */
 function launchAndFly(
   visit: (sample: RecordedFlightSample) => void,
@@ -248,7 +265,7 @@ function launchAndFly(
   const context = launchContext(new Set<string>());
   const recorder = new Recorder(
     "launch-and-fly",
-    initFlightState(context.layout),
+    baselineFlightState(context.layout),
     context,
     visit,
     undefined,
@@ -271,7 +288,7 @@ function dockApproach(
   const context = launchContext(new Set([DOCK_COMPUTER_KEY]));
   const recorder = new Recorder(
     "dock-approach",
-    initFlightState(context.layout),
+    baselineFlightState(context.layout),
     context,
     visit,
     undefined,
@@ -310,7 +327,7 @@ function hyperspaceLaveLeesti(
   };
   const recorder = new Recorder(
     "hyperspace-lave-leesti",
-    initFlightState(context.layout),
+    baselineFlightState(context.layout),
     context,
     visit,
     (self, event) => {

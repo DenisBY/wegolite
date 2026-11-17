@@ -716,7 +716,9 @@ describe("the browser kill step's twin (plan 15-04, FOUND-19, R2-1)", () => {
  */
 const DEBRIS_AT_KILL = { pods: 3, plates: 1, wrecks: 3 } as const;
 const ENTITIES_AT_KILL = 19;
-const HASH_60_AFTER_KILL = "a10b2dfc";
+// Re-pinned in quick task 261117-pij from "a10b2dfc": a new game's clock now
+// starts at the standard scenario's ship_clock, and the hash includes the clock.
+const HASH_60_AFTER_KILL = "ca59f800";
 
 /** The world's live debris by kind: pods, plates and wrecks. */
 function debrisCounts(world: NonNullable<WorldLifecycle["world"]>): {

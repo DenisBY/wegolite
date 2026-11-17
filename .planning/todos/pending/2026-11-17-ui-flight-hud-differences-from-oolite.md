@@ -33,7 +33,7 @@ CC BY-NC-SA output). Differences, in rank order:
 - Done in quick task 261117-pij: R1. The condition light is always green. Oolite turns it yellow while any alert flag is set (the mass lock
   included) and red with hostiles. Oolite: `src/Core/Entities/PlayerEntity.m:5122-5144`. Wegolite:
   `src/app/hud-model.ts:206`.
-- R1. Clock start. Wegolite starts at 2084004:00:00:00 (00:10:04 after the launch). Oolite's standard new
+- Done in quick task 261117-pij: R1. Clock start. Wegolite starts at 2084004:00:00:00 (00:10:04 after the launch). Oolite's standard new
   commander starts at 2084004:20:13:24 (20:24:12 after the launch), from `ship_clock` 180058018403.9197 in
   `Resources/Scenarios/oolite-standard.oolite-save`; `PLAYER_SHIP_CLOCK_START` is only the fallback. Wegolite:
   `src/sim/flight/state.ts:89`.
@@ -42,7 +42,7 @@ CC BY-NC-SA output). Differences, in rank order:
   call whether to keep them.
 - R1. No scanner zoom indicator ("1:1", right of the scanner) and no scanner zoom. Oolite: `hud.plist`
   `drawScannerZoomIndicator:`. Wegolite: `src/render/hud/draw.ts`.
-- R1. No default hyperspace target. Wegolite prints "(Unknown)" on the HUD clock line and on F5; Oolite shows
+- Done in quick task 261117-pij: R1. No default hyperspace target. Wegolite prints "(Unknown)" on the HUD clock line and on F5; Oolite shows
   Lave, the current system, for a new commander. Wegolite: `src/render/hud/draw.ts:755`,
   `src/ui/station-model.ts:324`.
 - Done in quick task 261117-o8q (commits a6aa69a, 130d109): R2. Forward-view FOV axis. Wegolite gave `PerspectiveCamera` a vertical FOV of 57.2°; Oolite applies 57.2°
@@ -88,11 +88,11 @@ Likely changes, one per bullet; none is implemented yet:
 - Done in quick task 261117-pij: Drop the "Mass locked" message, or keep it only if the owner wants it as a Wegolite hint.
 - Done in quick task 261117-pij: Derive the condition from the alert state: yellow while mass-locked (and the other yellow flags), red with
   hostiles, green otherwise.
-- Start a new game's clock at the standard scenario's `ship_clock`; check the save and hash pins that read the
+- Done in quick task 261117-pij: Start a new game's clock at the standard scenario's `ship_clock`; check the save and hash pins that read the
   clock.
 - Owner call on the fuel and speed readouts.
 - Add the scanner zoom indicator only together with scanner zoom (`key_scanner_zoom`), if it is wanted.
-- Default the hyperspace target to the current system on a new game, as Oolite does.
+- Done in quick task 261117-pij: Default the hyperspace target to the current system on a new game, as Oolite does.
 - Done in quick task 261117-o8q (commits a6aa69a, 130d109; Viper 40 px against Oolite's 40 px, was 22 px): Apply the 57.2° FOV horizontally when the aspect is wider than 4:3, as Oolite's frustum does, and update the
   HUD projections and their tests (`tests/render/launch-camera.test.ts`, `tests/hud/projection.test.ts`).
 - Move the clock, the condition light and the message line to Oolite's positions, and rescale the HUD

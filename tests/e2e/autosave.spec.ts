@@ -16,7 +16,10 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { CLOCK_START } from "../../src/sim/flight/state.js";
+import {
+  CLOCK_START,
+  NEW_GAME_CLOCK_SECONDS,
+} from "../../src/sim/flight/state.js";
 import { MAX_SAVE_CHARS } from "../../src/persistence/save.js";
 import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import {
@@ -46,6 +49,8 @@ import {
 test.setTimeout(600_000);
 
 const DISO_ID = systemByName("Diso").id;
+/** A new game's saved clock: the standard scenario's start, floored by the save. */
+const NEW_GAME_START_SAVED = Math.floor(NEW_GAME_CLOCK_SECONDS);
 
 const CORRUPT_KEY = "autosave.corrupt";
 
@@ -251,8 +256,9 @@ test("a pre-launch write offers Continue at exactly the docked clock", async ({
   await startNewGame(page);
   const savedClock = await launchAndAwaitCommit(page);
   // D-17: the anchor is taken before `beginLaunch`, so the +600 s launch
-  // adjustment is not in the blob.
-  expect(savedClock).toBe(CLOCK_START);
+  // adjustment is not in the blob. A new game starts at the standard
+  // scenario's clock (quick task 261117-pij) and a save floors it.
+  expect(savedClock).toBe(NEW_GAME_START_SAVED);
 
   await page.reload();
   await waitForReady(page);
@@ -290,7 +296,7 @@ test("a launch reloads to the station at the pre-launch clock, not +600 s", asyn
   await boot(page);
   await startNewGame(page);
   const savedClock = await launchAndAwaitCommit(page);
-  expect(savedClock).toBe(CLOCK_START);
+  expect(savedClock).toBe(NEW_GAME_START_SAVED);
   await waitForMode(page, "launching");
 
   await page.reload();
@@ -301,8 +307,8 @@ test("a launch reloads to the station at the pre-launch clock, not +600 s", asyn
 
   const restored = await getProbe(page);
   expect(restored.mode).toBe("docked");
-  expect(restored.clock).toBe(CLOCK_START);
-  expect(restored.clock).not.toBe(CLOCK_START + 600);
+  expect(restored.clock).toBe(NEW_GAME_START_SAVED);
+  expect(restored.clock).not.toBe(NEW_GAME_START_SAVED + 600);
   await expect(page.locator("#docked")).toBeVisible();
   expect(errors).toEqual([]);
 });

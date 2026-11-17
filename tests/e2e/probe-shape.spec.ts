@@ -58,9 +58,11 @@
  *
  * Nested optional keys are state-determined too: hud.hyperspaceTarget (set with
  * the live HUD), economy.marketSystemId (set with every market),
- * chart.targetId / chart.selectedId and hyperspace.targetId (only once a target
- * or selection exists; none in these New-game samples), save.notice (only after
- * an app-owned notice) and no other.
+ * chart.targetId and hyperspace.targetId (only once a target exists; a New game
+ * targets its start system since quick task 261117-pij, as Oolite's standard
+ * scenario does, so every session sample here has both), chart.selectedId
+ * (only once a selection exists; none in these New-game samples), save.notice
+ * (only after an app-owned notice) and no other.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";

@@ -38,7 +38,10 @@ export interface HyperspaceTargetSnapshot {
 export interface FlightState {
   tick: number;
   mode: FlightMode;
-  /** Days * 86,400 + seconds; starts at Oolite's `PLAYER_SHIP_CLOCK_START`. */
+  /**
+   * Days * 86,400 + seconds; a new game starts at `NEW_GAME_CLOCK_SECONDS`,
+   * the standard scenario's `ship_clock`.
+   */
   clockSeconds: number;
   /** Seconds since the new game began; drives station roll and planet spin. */
   flightTime: number;
@@ -85,15 +88,29 @@ export interface FlightPose {
   readonly orientation: Quat;
 }
 
-/** Oolite's `PLAYER_SHIP_CLOCK_START` (PlayerEntity.h). */
+/**
+ * Oolite's `PLAYER_SHIP_CLOCK_START` (PlayerEntity.h): the floor the save
+ * schemas accept for a saved clock (`src/persistence/save.ts`, `SaveV1Schema`
+ * onwards), not the new-game start (see `NEW_GAME_CLOCK_SECONDS`). Oolite uses
+ * it only as the fallback when a save carries no clock.
+ */
 export const CLOCK_START = 2_084_004 * 86_400;
+
+/**
+ * The clock a new standard commander loads: `ship_clock` 180058018403.9197 in
+ * Oolite's `Resources/Scenarios/oolite-standard.oolite-save`, shown
+ * 2084004:20:13:23 because `ClockToString` floors (`OOStringParsing.m:402-413`).
+ * It is above `CLOCK_START`, and a save floors the clock, so it fits the
+ * integer save schema.
+ */
+export const NEW_GAME_CLOCK_SECONDS = 180_058_018_403.9197;
 
 /** The docked pose: parked at the dock mouth, facing the planet. */
 export function initFlightState(layout: SystemLayout): FlightState {
   return {
     tick: 0,
     mode: "docked",
-    clockSeconds: CLOCK_START,
+    clockSeconds: NEW_GAME_CLOCK_SECONDS,
     flightTime: 0,
     position: add(
       layout.station.position,

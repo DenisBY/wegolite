@@ -527,7 +527,9 @@ test("F5 pages and direct section switching stay keyboard-only", async ({
     "Present System",
     "Lave",
     "Hyperspace System",
-    "(Unknown)",
+    // A new commander targets the start system, as Oolite's standard
+    // scenario does (target_system_name Lave).
+    "Lave",
     "Condition",
     "Docked",
     "Fuel",
@@ -542,6 +544,10 @@ test("F5 pages and direct section switching stay keyboard-only", async ({
   ]) {
     await expect(statusFields).toContainText(text);
   }
+  // The Hyperspace System value itself, not the Present System's "Lave".
+  await expect(
+    statusFields.locator('dt:text-is("Hyperspace System") + dd'),
+  ).toHaveText("Lave");
   await expect(page.locator("[data-status-equipment]")).toContainText(
     "Missile ×3",
   );

@@ -9,8 +9,8 @@
  * the +600 s transition has not been applied, and the blob records mode
  * `"docked"` with the pre-launch clock. `snapshotForSave` copies the clock of the
  * state it is given, so the snapshot cases below prove that with both states:
- * the pre-launch anchor (clock `CLOCK_START`) and a state already past
- * `beginLaunch` (clock `CLOCK_START + 600`). The memory store proves revision
+ * the pre-launch anchor (clock `NEW_GAME_CLOCK_SECONDS`, floored) and a state already past
+ * `beginLaunch` (that clock + 600, floored). The memory store proves revision
  * ordering; Playwright proves the same contract against real IndexedDB.
  */
 
@@ -43,7 +43,11 @@ import {
   PlayerController,
   flightView,
 } from "../../src/sim/flight/controller.js";
-import { initFlightState, CLOCK_START } from "../../src/sim/flight/state.js";
+import {
+  initFlightState,
+  CLOCK_START,
+  NEW_GAME_CLOCK_SECONDS,
+} from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { completeLaunch } from "../../src/sim/flight/launch.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
@@ -162,12 +166,14 @@ describe("snapshotForSave", () => {
       NO_WORLD,
     );
     // No launch command has run, so beginLaunch has not applied +600 s yet.
-    expect(inputs.clockSeconds).toBe(CLOCK_START);
+    // A new game starts at the scenario clock, floored by the snapshot
+    // (quick task 261117-pij).
+    expect(inputs.clockSeconds).toBe(Math.floor(NEW_GAME_CLOCK_SECONDS));
     const parsed = parseSave(encodeSave(inputs), ALLOW);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.save.mode).toBe("docked");
-    expect(parsed.save.clockSeconds).toBe(CLOCK_START);
+    expect(parsed.save.clockSeconds).toBe(Math.floor(NEW_GAME_CLOCK_SECONDS));
   });
 
   it("records the clock of the state it is given, docked mode and identities", () => {
@@ -185,7 +191,7 @@ describe("snapshotForSave", () => {
       COMMODITIES,
       NO_WORLD,
     );
-    expect(inputs.clockSeconds).toBe(CLOCK_START + 600);
+    expect(inputs.clockSeconds).toBe(Math.floor(NEW_GAME_CLOCK_SECONDS + 600));
     expect(inputs.credits).toBe(1000);
     expect(inputs.equipment).toEqual([]);
     expect(inputs.systemId).toBe("g0-s7");
@@ -197,7 +203,9 @@ describe("snapshotForSave", () => {
     if (!parsed.ok) return;
     // The snapshot resumes docked at the clock of the state it was given.
     expect(parsed.save.mode).toBe("docked");
-    expect(parsed.save.clockSeconds).toBe(CLOCK_START + 600);
+    expect(parsed.save.clockSeconds).toBe(
+      Math.floor(NEW_GAME_CLOCK_SECONDS + 600),
+    );
   });
 
   it("round-trips a fractional clock after flight, a dock and a relaunch", async () => {

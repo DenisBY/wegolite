@@ -167,6 +167,29 @@ export interface LifecycleDeps {
   readonly onSubpanelKeyDown: SettingsController["onSubpanelKeyDown"];
 }
 
+/**
+ * The hyperspace target a starting session installs. A new game targets the
+ * start system, as Oolite's standard scenario does (`target_system_name` Lave
+ * in `Resources/Scenarios/oolite-standard.oolite-save`); jumping to it is
+ * refused as "no target" (`canStartJump`, as `witchJumpChecklist` does,
+ * `PlayerEntity.m:6570-6580`). A restore keeps a saved target only when the
+ * validated catalogue knows it (SAV-03/D-18, T-06-12); a restore without a
+ * target, or with an unknown one, has none.
+ */
+export function resolveStartTarget(
+  restoring: boolean,
+  savedTarget: string | undefined,
+  startSystemId: string,
+  galaxyById: ReadonlyMap<string, System>,
+): string | undefined {
+  if (!restoring) {
+    return galaxyById.has(startSystemId) ? startSystemId : undefined;
+  }
+  return savedTarget !== undefined && galaxyById.has(savedTarget)
+    ? savedTarget
+    : undefined;
+}
+
 export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
   const {
     assets,
@@ -503,14 +526,14 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     ctx.core.scene = nextScene;
     ctx.core.profile = restoredProfile ?? newProfile();
     // SAV-03/D-18: the committed target travels with the save. Only an id the
-    // validated catalogue knows is installed (T-06-12).
-    if (restoring && restore !== undefined) {
-      const savedTarget = restore.targetSystem;
-      ctx.core.hyperspaceTargetId =
-        savedTarget !== undefined && galaxyById.has(savedTarget)
-          ? savedTarget
-          : undefined;
-    }
+    // validated catalogue knows is installed (T-06-12). A new game targets the
+    // start system, as Oolite's standard scenario does.
+    ctx.core.hyperspaceTargetId = resolveStartTarget(
+      restoring && restore !== undefined,
+      restore?.targetSystem,
+      ctx.core.system.id,
+      galaxyById,
+    );
     syncStatusOverlay();
 
     // D-17/D-18/D-19: resolve the seed once and generate the market once. A

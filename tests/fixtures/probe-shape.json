@@ -106,7 +106,8 @@
         "spanX": "number",
         "spanY": "number"
       },
-      "open": "boolean"
+      "open": "boolean",
+      "targetId": "string"
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
@@ -195,7 +196,8 @@
     "hyperspace": {
       "countdown": "number",
       "lastJump": "null",
-      "lastRefusal": "null"
+      "lastRefusal": "null",
+      "targetId": "string"
     },
     "launch": {
       "count": "number",
@@ -309,7 +311,8 @@
         "spanX": "number",
         "spanY": "number"
       },
-      "open": "boolean"
+      "open": "boolean",
+      "targetId": "string"
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
@@ -398,7 +401,8 @@
     "hyperspace": {
       "countdown": "number",
       "lastJump": "null",
-      "lastRefusal": "null"
+      "lastRefusal": "null",
+      "targetId": "string"
     },
     "launch": {
       "count": "number",
@@ -512,7 +516,8 @@
         "spanX": "number",
         "spanY": "number"
       },
-      "open": "boolean"
+      "open": "boolean",
+      "targetId": "string"
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
@@ -601,7 +606,8 @@
     "hyperspace": {
       "countdown": "number",
       "lastJump": "null",
-      "lastRefusal": "null"
+      "lastRefusal": "null",
+      "targetId": "string"
     },
     "launch": {
       "count": "number",
@@ -715,7 +721,8 @@
         "spanX": "number",
         "spanY": "number"
       },
-      "open": "boolean"
+      "open": "boolean",
+      "targetId": "string"
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
@@ -804,7 +811,8 @@
     "hyperspace": {
       "countdown": "number",
       "lastJump": "null",
-      "lastRefusal": "null"
+      "lastRefusal": "null",
+      "targetId": "string"
     },
     "launch": {
       "count": "number",
@@ -918,7 +926,8 @@
         "spanX": "number",
         "spanY": "number"
       },
-      "open": "boolean"
+      "open": "boolean",
+      "targetId": "string"
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
@@ -1007,7 +1016,8 @@
     "hyperspace": {
       "countdown": "number",
       "lastJump": "null",
-      "lastRefusal": "null"
+      "lastRefusal": "null",
+      "targetId": "string"
     },
     "launch": {
       "count": "number",
@@ -1136,7 +1146,8 @@
         "spanX": "number",
         "spanY": "number"
       },
-      "open": "boolean"
+      "open": "boolean",
+      "targetId": "string"
     },
     "clock": "number",
     "codeSplitGalaxies": "number",
@@ -1225,7 +1236,8 @@
     "hyperspace": {
       "countdown": "number",
       "lastJump": "null",
-      "lastRefusal": "null"
+      "lastRefusal": "null",
+      "targetId": "string"
     },
     "launch": {
       "count": "number",

@@ -69,7 +69,9 @@ const SHOOTER_CARGO = 20;
  */
 const TWIN_KILL_OFFSET = 794;
 const TWIN_ENTITIES_AT_KILL = 19;
-const TWIN_HASH_60_AFTER_KILL = "a10b2dfc";
+// Follows the Node twin's re-pin in quick task 261117-pij (from "a10b2dfc"):
+// the new-game clock start moved and the hash includes the clock.
+const TWIN_HASH_60_AFTER_KILL = "ca59f800";
 /** Ticks after the kill at which the hash is read (the twin's 60). */
 const AFTER_KILL_TICKS = 60;
 /** Draw calls per rendered frame (docs/PERFORMANCE.md, budget.spec.ts). */

@@ -22,7 +22,12 @@ import {
   formatSpeed,
 } from "../../src/render/hud/format.js";
 
-const CLOCK_START = 2_084_004 * 86_400;
+import {
+  CLOCK_START,
+  NEW_GAME_CLOCK_SECONDS,
+  initFlightState,
+} from "../../src/sim/flight/state.js";
+import { laveFixture } from "../helpers/lave.js";
 
 describe("formatClock", () => {
   it("formats Oolite's start day and the +600 s launch advance", () => {
@@ -34,6 +39,21 @@ describe("formatClock", () => {
     expect(formatClock(0)).toBe("0000000:00:00:00");
     expect(formatClock(86_400 + 3_661)).toBe("0000001:01:01:01");
     expect(formatClock(CLOCK_START + 3_661)).toBe("2084004:01:01:01");
+  });
+});
+
+describe("the new-game clock (oolite-standard.oolite-save ship_clock)", () => {
+  it("starts a new commander at 2084004:20:13:23, floored as ClockToString does", () => {
+    expect(NEW_GAME_CLOCK_SECONDS).toBe(180_058_018_403.9197);
+    const state = initFlightState(laveFixture().layout);
+    expect(state.clockSeconds).toBe(NEW_GAME_CLOCK_SECONDS);
+    expect(formatClock(state.clockSeconds)).toBe("2084004:20:13:23");
+    expect(formatClock(NEW_GAME_CLOCK_SECONDS + 600)).toBe("2084004:20:23:23");
+  });
+
+  it("keeps CLOCK_START as Oolite's PLAYER_SHIP_CLOCK_START, below the new start", () => {
+    expect(CLOCK_START).toBe(2_084_004 * 86_400);
+    expect(NEW_GAME_CLOCK_SECONDS).toBeGreaterThan(CLOCK_START);
   });
 });
 
