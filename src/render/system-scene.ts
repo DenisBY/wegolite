@@ -146,9 +146,9 @@ export interface SystemScene {
    */
   debris: DebrisLayer;
   /**
-   * The drawn laser shots (CBT-05): one line-segment object over a fixed pool,
-   * fed by `laserFired` events and updated each frame. Owned and disposed by
-   * this scene, like `npcs`.
+   * The drawn laser shots (CBT-05): one camera-facing ribbon mesh over a fixed
+   * pool, fed by `laserFired` events and updated each frame. Owned and
+   * disposed by this scene, like `npcs`.
    */
   shots: LaserShotLayer;
   /**
