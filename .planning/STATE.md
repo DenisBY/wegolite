@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-17T18:42:11.420Z"
+last_updated: "2026-11-17T21:14:29.982Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: e66c1dcb4b5901852e7ab9c7da153536827838e3
+state_head: 73b4be4ef47df28bc68ec8fe38442be8b12c5535
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-17 — Completed quick task 261117-pij: HUD message rows, condition light, new-game clock, Legal column, status labels and start target like Oolite
+Last activity: 2026-11-17 — Completed quick task 261117-u3m: condition light from launch, in-place countdown, docked message timers like Oolite
 
 
 ## Performance Metrics
@@ -614,6 +614,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261117-nfn | Compare Wegolite UI screens with real Oolite screenshots | 2026-11-17 | 290cac9 | [261117-nfn-compare-wegolite-ui-screens-with-real-oo](./quick/261117-nfn-compare-wegolite-ui-screens-with-real-oo/) |
 | 261117-o8q | Use Oolite's horizontal field of view on wide screens | 2026-11-17 | f0b88f8 | [261117-o8q-use-oolite-s-horizontal-field-of-view-on](./quick/261117-o8q-use-oolite-s-horizontal-field-of-view-on/) |
 | 261117-pij | Fix flight HUD messages, condition light, clock, legality column and status labels to match Oolite | 2026-11-17 | e66c1dc | [261117-pij-fix-flight-hud-messages-condition-light-](./quick/261117-pij-fix-flight-hud-messages-condition-light-/) |
+| 261117-u3m | Fix launch condition light, countdown message and docked message timing per review | 2026-11-17 | 73b4be4 | [261117-u3m-fix-launch-condition-light-countdown-mes](./quick/261117-u3m-fix-launch-condition-light-countdown-mes/) |
 
 ## Deferred Items
 
