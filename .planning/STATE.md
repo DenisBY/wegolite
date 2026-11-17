@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-17T11:16:20.984Z"
+last_updated: "2026-11-17T11:57:46.911Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: 00d98295cbd582382228e1ac5fc70d0129a76a50
+state_head: 6db5bfc1c57047010d059e8336469ec31ffd9032
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-17 — Completed quick task 261117-glc: shrink the HUD clock font
+Last activity: 2026-11-17 — Completed quick task 261117-han: render laser shots as camera-facing glowing ribbons
 
 
 ## Performance Metrics
@@ -602,6 +602,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261110-l2x | Speed up the unit-test loop: share one ESLint Node API across the guard tests and add a coverage-free local script | 2026-11-10 | f2e2cb8 | [261110-l2x-speed-up-unit-tests-replace-guard-test-e](./quick/261110-l2x-speed-up-unit-tests-replace-guard-test-e/) |
 | 261117-fpp | Add a "Show FPS counter" option to Settings: an off-by-default `FPS: n` readout (500 ms animation-frame windows) in the document footer, in flight and docked, stored as `showFps` | 2026-11-17 | 6e32eb9 | [261117-fpp-add-a-show-fps-on-off-option-to-settings](./quick/261117-fpp-add-a-show-fps-on-off-option-to-settings/) |
 | 261117-glc | Shrink the top-left HUD clock font to the size of the Hyperspace status line | 2026-11-17 | 00d9829 | [261117-glc-shrink-the-top-left-hud-clock-font-to-th](./quick/261117-glc-shrink-the-top-left-hud-clock-font-to-th/) |
+| 261117-han | Render laser shots as camera-facing glowing ribbons with Oolite widths and colours | 2026-11-17 | 6db5bfc | [261117-han-render-laser-shots-as-camera-facing-glow](./quick/261117-han-render-laser-shots-as-camera-facing-glow/) |
 
 ## Deferred Items
 
