@@ -44,8 +44,9 @@ import {
   writeRaw,
 } from "./helpers/save-store.js";
 
-// The fly-away below runs at the SwiftShader sim rate (about 0.15 to 0.3 of wall
-// time), so the budget is 600 s rather than 360 s. See hyperspace.spec.ts.
+// The in-flight tests run at the SwiftShader sim rate (about 0.15 to 0.3 of wall
+// time), so the budget is 600 s rather than 360 s. See hyperspace.spec.ts. The
+// trigger matrix, which flies away and jumps, sets its own 1,200 s budget.
 test.setTimeout(600_000);
 
 const DISO_ID = systemByName("Diso").id;
@@ -405,8 +406,11 @@ test("a tainted manual dock reaches the trigger but skips the write: Continue st
  * until the ship is at least `metres` from `origin`, by a Euclidean norm over the
  * three components. The key is released in a finally block. About 21 s of
  * simulated throttle reaches the 7,500 m target (175 u/s at launch, 350 u/s cap,
- * 160 u/s^2), which is roughly 90 to 130 s of wall time under SwiftShader. The
- * 240 s wait sits inside the 600 s per-test budget (line 44). The
+ * 160 u/s^2). The wait is frame-bound: one rendered frame advances the sim by at
+ * most 5 fixed steps of 1/120 s (src/sim/step.ts), so about 21 s of sim needs
+ * about 504 rendered frames. SwiftShader on the GitHub runners has dropped below
+ * 2 fps in this test (CI run 44081312313), so the wait is 480 s, double the
+ * former 240 s, inside the trigger-matrix test's own 1,200 s budget. The
  * fly-away is needed only so the completion is not refused as blocked: the dock
  * mouth lies about 500 m from the Coriolis station centre, and the blockage
  * radius is 7,179.7 m (the square root of 0.1 times 515,483,904, ShipEntity.m
@@ -429,7 +433,7 @@ async function flyAwayFrom(
         return Math.hypot(x - from[0], y - from[1], z - from[2]) >= distance;
       },
       { from: origin, distance: metres },
-      { timeout: 240_000 },
+      { timeout: 480_000 },
     );
   } finally {
     await page.keyboard.up("KeyW");
@@ -439,6 +443,11 @@ async function flyAwayFrom(
 test("the autosave trigger matrix writes exactly one revision per trigger and never mid-flight", async ({
   page,
 }) => {
+  // This test's frame-bound waits (the about-504-frame fly-away and the
+  // at-least-360-frame countdown, at no more than 5 fixed steps of 1/120 s per
+  // rendered frame) used 75 % of 600 s on CI (450 s, run 44125946218), above
+  // the owner's 60 % rule. The file-level 600 s budget stays for the other tests.
+  test.setTimeout(1_200_000);
   const errors = collectErrors(page);
   await boot(page);
   await startNewGame(page);
@@ -555,11 +564,45 @@ test("the autosave trigger matrix writes exactly one revision per trigger and ne
     undefined,
     { timeout: 30_000 },
   );
-  await page.waitForFunction(
-    (id) => window.__wegolite?.systemId === id,
-    DISO_ID,
-    { timeout: 180_000 },
-  );
+  // The arrival is frame-bound: the 15 s countdown is 1,800 fixed steps, so it
+  // needs at least 360 rendered frames. A 180 s wait timed out here on CI run
+  // 44081312313 (below 2 fps), so the bound is doubled to 360 s, and a timeout
+  // reports the probe so a slow countdown, a refusal and a stopped one differ.
+  try {
+    await page.waitForFunction(
+      (id) => window.__wegolite?.systemId === id,
+      DISO_ID,
+      { timeout: 360_000 },
+    );
+  } catch (error) {
+    // Best-effort diagnostics: a closed page or a serialisation failure must
+    // degrade to "probe unavailable", never mask the timeout.
+    const observed = await page
+      .evaluate(() => {
+        const probe = window.__wegolite;
+        return probe === undefined
+          ? null
+          : {
+              renders: probe.renders,
+              countdown: probe.hyperspace?.countdown ?? null,
+              systemId: probe.systemId,
+              refusal: probe.hyperspace?.lastRefusal?.reason ?? null,
+            };
+      })
+      .catch(() => null);
+    const seen =
+      observed === null
+        ? "probe unavailable"
+        : `renders=${String(observed.renders)}, countdown=${String(observed.countdown)}, ` +
+          `systemId=${String(observed.systemId)}, lastRefusal=${String(observed.refusal)}`;
+    throw new Error(
+      "the restarted countdown had not arrived at Diso after 360 s (" +
+        seen +
+        "): " +
+        (error instanceof Error ? error.message : String(error)),
+      { cause: error },
+    );
+  }
   await page.waitForFunction(
     (expected) => (window.__wegolite?.save?.committed ?? 0) > expected,
     committedBeforeJump,

@@ -15,6 +15,8 @@ import { getProbe, waitForReady } from "./helpers/probe.js";
 test("boots to the title, starts docked at Lave, launches and flies", async ({
   page,
 }) => {
+  // CI measured 22.7 s of the 30 s default (76 %), above the owner's 60 % rule.
+  test.setTimeout(60_000);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());

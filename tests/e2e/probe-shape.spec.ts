@@ -286,6 +286,8 @@ test("chart probe shape", async ({ page }, testInfo) => {
 });
 
 test("in-flight probe shape", async ({ page }, testInfo) => {
+  // CI measured 23.8 s of the 30 s default (79 %), above the owner's 60 % rule.
+  test.setTimeout(60_000);
   await bootDocked(page, "/");
   await page.click('button[data-action="launch"]');
   // The launch autosave must be committed so `save.lastClock` is a number.

@@ -165,9 +165,11 @@ async function commitTarget(
  * three components. The key is released in a finally block, so a failed wait
  * cannot leave it held. The budget: the ship starts the flight at 175 u/s and
  * reaches the 350 u/s cap in about 1.1 s at 160 u/s^2, so 7,500 m takes about
- * 21 s of simulated flight. Under SwiftShader that is roughly 90 to 130 s of
- * wall time, so the wait is 240 s and sits inside the 600 s per-test budget
- * (line 27).
+ * 21 s of simulated flight. The wait is frame-bound: one rendered frame
+ * advances the sim by at most 5 fixed steps of 1/120 s (src/sim/step.ts), so
+ * 21 s of sim needs about 504 rendered frames. SwiftShader on the GitHub runners
+ * has dropped below 2 fps on this path (CI run 44081312313), so the wait is
+ * 480 s, double the former 240 s, inside the calling test's own 1,200 s budget.
  */
 async function flyAwayFrom(
   page: Page,
@@ -184,7 +186,7 @@ async function flyAwayFrom(
         return Math.hypot(x - from[0], y - from[1], z - from[2]) >= distance;
       },
       { from: origin, distance: metres },
-      { timeout: 240_000 },
+      { timeout: 480_000 },
     );
   } finally {
     await page.keyboard.up("KeyW");
@@ -194,6 +196,11 @@ async function flyAwayFrom(
 test("chart target, countdown, abort, refusal, arrival and reload", async ({
   page,
 }) => {
+  // This test's frame-bound waits (the about-504-frame fly-away and the
+  // at-least-360-frame countdown, at no more than 5 fixed steps of 1/120 s per
+  // rendered frame) used 71 % of 600 s on CI (426 s), above the owner's 60 %
+  // rule. The file-level 600 s budget stays for the other tests.
+  test.setTimeout(1_200_000);
   const errors = collectErrors(page);
   await page.goto("/");
   await waitForReady(page);
@@ -338,7 +345,8 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   await page.waitForFunction(
     (id) => window.__wegolite?.hyperspace?.lastJump?.destinationId === id,
     DISO.id,
-    { timeout: 180_000 },
+    // Frame-bound: the 15 s countdown needs at least 360 rendered frames.
+    { timeout: 360_000 },
   );
   probe = await getProbe(page);
   expect(probe.mode).toBe("inFlight");
@@ -630,13 +638,13 @@ test("a jump completed beside the station is refused as blocked", async ({
     undefined,
     { timeout: 30_000 },
   );
-  // The completion is refused as blocked. The wait matches the 180 s commit
-  // wait used for the same 15 s countdown above, because both run on the
-  // headless loop under the same load.
+  // The completion is refused as blocked. The wait matches the 360 s commit
+  // wait used for the same 15 s countdown above (at least 360 rendered
+  // frames), because both run on the headless loop under the same load.
   await page.waitForFunction(
     () => window.__wegolite?.hyperspace?.lastRefusal?.reason === "blocked",
     undefined,
-    { timeout: 180_000 },
+    { timeout: 360_000 },
   );
   await page.waitForFunction(
     () =>

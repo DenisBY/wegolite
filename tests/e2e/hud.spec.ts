@@ -209,10 +209,11 @@ test("the message line is one clamped line and expires on flightTime", async ({
 }) => {
   // The queue expires on simulated time, and SwiftShader advances the fixed
   // step far slower than wall time. This is a correctness wait, not a
-  // performance claim (Pitfall 15). The 300 s ceiling is deliberately generous
-  // (roughly double the measured ~153 s) because a harness cadence regression
-  // must fail as "stuck", not as "slow".
-  test.setTimeout(330_000);
+  // performance claim (Pitfall 15). The ceiling is deliberately generous
+  // because a harness cadence regression must fail as "stuck", not as "slow".
+  // CI measured 210 s on run 44125946218, 64 % of the former 330 s budget and
+  // above the owner's 60 % rule, so the wait is 450 s and the budget 480 s.
+  test.setTimeout(480_000);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -232,7 +233,7 @@ test("the message line is one clamped line and expires on flightTime", async ({
     await page.waitForFunction(
       () => window.__wegolite?.hud.message === "",
       undefined,
-      { timeout: 300_000 },
+      { timeout: 450_000 },
     );
   } catch (error) {
     // Best-effort diagnostics: a closed page or a serialisation failure must
@@ -250,7 +251,7 @@ test("the message line is one clamped line and expires on flightTime", async ({
         ? "probe unavailable"
         : `renders=${observed.renders}, flightTime=${observed.flightTime}`;
     throw new Error(
-      "the message line had not expired after 300 s (" +
+      "the message line had not expired after 450 s (" +
         seen +
         "): " +
         (error instanceof Error ? error.message : String(error)),
