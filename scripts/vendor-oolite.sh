@@ -45,8 +45,15 @@ set -eu
 
 RELEASE="1.93.1-241"
 COMMIT="7437f22"
+# The full SHA the short COMMIT names. Every route compares this exact value; the
+# short form is only the display identity written to pin.json.
+FULL_COMMIT="7437f22a543c442830774dea0f2cad4e59c04cbb"
 RETRIEVED="2026-11-03"
-BASE_URL="https://raw.githubusercontent.com/OoliteProject/oolite/${COMMIT}/Resources"
+case "$FULL_COMMIT" in
+  "$COMMIT"*) ;;
+  *) echo "vendor-oolite: FULL_COMMIT does not extend COMMIT" >&2; exit 1 ;;
+esac
+BASE_URL="https://raw.githubusercontent.com/OoliteProject/oolite/${FULL_COMMIT}/Resources"
 
 # Ordered list of vendored paths, relative to Resources/. Later plans append to
 # this list; nothing else decides what is vendored.
@@ -205,8 +212,8 @@ if [ "${1:-}" = "--export-pin" ]; then
       exit 1
       ;;
   esac
-  if ! full=$(git -C "$checkout" rev-parse --verify --quiet "${COMMIT}^{commit}"); then
-    echo "vendor-oolite: $checkout has no commit ${COMMIT}" >&2
+  if ! full=$(git -C "$checkout" rev-parse --verify --quiet "${FULL_COMMIT}^{commit}"); then
+    echo "vendor-oolite: $checkout has no commit ${FULL_COMMIT}" >&2
     exit 1
   fi
   mkdir -p "$out_abs/Resources"
@@ -291,7 +298,7 @@ for (const line of pinnedText.split("\n")) {
   if (pinned.has(entry[2])) fail(`duplicate entry in ${pinnedPath}: ${entry[2]}`);
   pinned.set(entry[2], entry[1]);
 }
-if (pinnedCommit === undefined || !pinnedCommit.startsWith(commit)) {
+if (pinnedCommit !== commit) {
   fail(`${pinnedPath} is not an export of commit ${commit} (found ${pinnedCommit ?? "no commit line"})`);
 }
 
@@ -331,7 +338,7 @@ for (const { target, bytes } of verified) {
   await writeFile(target, bytes);
   console.log(`vendor-oolite: copied ${target} (${bytes.length} bytes) from the pinned export`);
 }
-' "$OOLITE_LOCAL" "$OOLITE_PINNED_SHA256" "$COMMIT" $FILES
+' "$OOLITE_LOCAL" "$OOLITE_PINNED_SHA256" "$FULL_COMMIT" $FILES
 else
   for path in $FILES; do
     node --input-type=module -e '
