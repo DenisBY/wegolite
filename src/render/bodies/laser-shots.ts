@@ -17,7 +17,8 @@
  * wedge plus a line that read as two beams; the ribbon reads as one beam from
  * every angle.
  *
- * Kept from Oolite:
+ * Kept from Oolite, then halved by owner tuning (`LASER_WIDTH_SCALE`,
+ * `LASER_INTENSITY_SCALE`), which keeps the layers' proportions:
  * - the three layers and their half-widths in metres: the coloured halo
  *   `kLaserHalfWidth` 3.6, the coloured flare `kLaserFlareWidth` 1.8 and the
  *   white core `kLaserCoreWidth` 0.4 (`:44-51`, drawn at `:197-253`);
@@ -92,21 +93,29 @@ export const LASER_SHOT_COLORS: Readonly<
   thargoid: Object.freeze([0, 1, 0] as const),
 });
 
-/** Halo half-width in metres: `kLaserHalfWidth`, `OOLaserShotEntity.m:51`. */
-export const LASER_HALO_HALF_WIDTH = 3.6;
-/** Flare half-width in metres: `kLaserFlareWidth`, `OOLaserShotEntity.m:50`. */
-export const LASER_FLARE_HALF_WIDTH = 1.8;
-/** White core half-width in metres: `kLaserCoreWidth`, `OOLaserShotEntity.m:49`. */
-export const LASER_CORE_HALF_WIDTH = 0.4;
+/**
+ * Owner tuning over Oolite: every half-width is scaled by this, so the beam is
+ * half as wide as Oolite's while the three layers keep their proportions.
+ */
+export const LASER_WIDTH_SCALE = 0.5;
+/** Owner tuning over Oolite: every peak is scaled by this (half as bright). */
+export const LASER_INTENSITY_SCALE = 0.5;
+/** Halo half-width in metres: `kLaserHalfWidth` 3.6, `OOLaserShotEntity.m:51`, scaled. */
+export const LASER_HALO_HALF_WIDTH = 3.6 * LASER_WIDTH_SCALE;
+/** Flare half-width in metres: `kLaserFlareWidth` 1.8, `OOLaserShotEntity.m:50`, scaled. */
+export const LASER_FLARE_HALF_WIDTH = 1.8 * LASER_WIDTH_SCALE;
+/** White core half-width in metres: `kLaserCoreWidth` 0.4, `OOLaserShotEntity.m:49`, scaled. */
+export const LASER_CORE_HALF_WIDTH = 0.4 * LASER_WIDTH_SCALE;
 /** `kLaserBrightness`, `OOLaserShotEntity.m:43`. */
 export const LASER_BRIGHTNESS = 5;
-/** Halo peak: colour `B / 3` (`:136-138`) x alpha `0.45 / B` (`:46`) = 0.15. */
+/** Halo peak: colour `B / 3` (`:136-138`) x alpha `0.45 / B` (`:46`) = 0.15, scaled. */
 export const LASER_HALO_PEAK =
-  (LASER_BRIGHTNESS / 3) * (0.45 / LASER_BRIGHTNESS);
-/** Flare peak: colour `B / 3` (`:136-138`) x alpha 0.9 (`:243`) = 1.5. */
-export const LASER_FLARE_PEAK = (LASER_BRIGHTNESS / 3) * 0.9;
-/** Core peak: white `B` x alpha 0.9 (`:238`) = 4.5. */
-export const LASER_CORE_PEAK = LASER_BRIGHTNESS * 0.9;
+  (LASER_BRIGHTNESS / 3) * (0.45 / LASER_BRIGHTNESS) * LASER_INTENSITY_SCALE;
+/** Flare peak: colour `B / 3` (`:136-138`) x alpha 0.9 (`:243`) = 1.5, scaled. */
+export const LASER_FLARE_PEAK =
+  (LASER_BRIGHTNESS / 3) * 0.9 * LASER_INTENSITY_SCALE;
+/** Core peak: white `B` x alpha 0.9 (`:238`) = 4.5, scaled. */
+export const LASER_CORE_PEAK = LASER_BRIGHTNESS * 0.9 * LASER_INTENSITY_SCALE;
 /** Each gaussian's sigma as a fraction of its half-width (`oolite-laser-blur2.png` by eye). */
 export const LASER_PROFILE_SIGMA = 0.4;
 /** The smallest half extent of the ribbon on screen, in device pixels. */

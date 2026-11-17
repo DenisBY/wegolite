@@ -433,24 +433,24 @@ describe("createLaserShotLayer: the shape attribute and fade (OD-8)", () => {
 });
 
 describe("createLaserShotLayer: Oolite's profile (OD-3, OD-6, OD-11)", () => {
-  it("exports the Oolite half-widths in metres and the peaks", () => {
-    expect(LASER_HALO_HALF_WIDTH).toBeCloseTo(3.6, 12);
-    expect(LASER_FLARE_HALF_WIDTH).toBeCloseTo(1.8, 12);
-    expect(LASER_CORE_HALF_WIDTH).toBeCloseTo(0.4, 12);
-    expect(LASER_HALO_PEAK).toBeCloseTo(0.15, 12);
-    expect(LASER_FLARE_PEAK).toBeCloseTo(1.5, 12);
-    expect(LASER_CORE_PEAK).toBeCloseTo(4.5, 12);
+  it("exports Oolite's half-widths in metres and peaks, halved by owner tuning", () => {
+    expect(LASER_HALO_HALF_WIDTH).toBeCloseTo(1.8, 12);
+    expect(LASER_FLARE_HALF_WIDTH).toBeCloseTo(0.9, 12);
+    expect(LASER_CORE_HALF_WIDTH).toBeCloseTo(0.2, 12);
+    expect(LASER_HALO_PEAK).toBeCloseTo(0.075, 12);
+    expect(LASER_FLARE_PEAK).toBeCloseTo(0.75, 12);
+    expect(LASER_CORE_PEAK).toBeCloseTo(2.25, 12);
     expect(LASER_MIN_HALF_EXTENT_PX).toBe(2);
   });
 
   it("carries the profile in the material uniforms", () => {
     const layer = createLaserShotLayer();
-    expect(uniform(layer, "uHaloHalfWidth")).toBeCloseTo(3.6, 12);
-    expect(uniform(layer, "uFlareHalfWidth")).toBeCloseTo(1.8, 12);
-    expect(uniform(layer, "uCoreHalfWidth")).toBeCloseTo(0.4, 12);
-    expect(uniform(layer, "uHaloPeak")).toBeCloseTo(0.15, 12);
-    expect(uniform(layer, "uFlarePeak")).toBeCloseTo(1.5, 12);
-    expect(uniform(layer, "uCorePeak")).toBeCloseTo(4.5, 12);
+    expect(uniform(layer, "uHaloHalfWidth")).toBeCloseTo(1.8, 12);
+    expect(uniform(layer, "uFlareHalfWidth")).toBeCloseTo(0.9, 12);
+    expect(uniform(layer, "uCoreHalfWidth")).toBeCloseTo(0.2, 12);
+    expect(uniform(layer, "uHaloPeak")).toBeCloseTo(0.075, 12);
+    expect(uniform(layer, "uFlarePeak")).toBeCloseTo(0.75, 12);
+    expect(uniform(layer, "uCorePeak")).toBeCloseTo(2.25, 12);
     expect(uniform(layer, "uMinHalfExtentPx")).toBe(2);
   });
 });

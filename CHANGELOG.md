@@ -28,7 +28,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   two lines now fit together in the top-left corner.
 - Laser shots are now drawn as glowing beams instead of a thin line. Each has
   a white-hot core inside a soft halo in the laser's colour (red pulse, yellow
-  beam, blue mining, magenta military) at Oolite's beam widths. A shot
+  beam, blue mining, magenta military), half as wide and half as bright as
+  Oolite's beam. A shot
   shimmers and fades over its brief life and looks like one beam from every
   angle, and a distant shot stays visible as a thin line.
 
