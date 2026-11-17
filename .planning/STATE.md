@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-17T14:29:19.200Z"
+last_updated: "2026-11-17T14:54:17.764Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: b8e3d83394e7aeebf1b0a521e724530aa0874725
+state_head: bb7daab0cb0b79bbdd34542fc8915f5ebfd07c27
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-17 — Completed quick task 261117-k1l: align station and buoy collision radii with Oolite
+Last activity: 2026-11-17 — Completed quick task 261117-lka: measure mass lock and jump blockage in real Oolite (18 same, 1 known, 1 differs)
 
 
 ## Performance Metrics
@@ -607,6 +607,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261117-jji | Measure ship masses in real Oolite and compare with Wegolite | 2026-11-17 | ddee48b | [261117-jji-measure-ship-masses-in-real-oolite-and-c](./quick/261117-jji-measure-ship-masses-in-real-oolite-and-c/) |
 | 261117-k1l | Align station and buoy radii with Oolite, compiled from the meshes | 2026-11-17 | 52d11ad | [261117-k1l-align-station-and-buoy-radii-with-oolite](./quick/261117-k1l-align-station-and-buoy-radii-with-oolite/) |
 | 36 | Review follow-up to 261117-k1l: restore 3,500 m in stale detector literals, drop nested-subentity guard | 2026-11-17 | b8e3d83 | — |
+| 261117-lka | Measure mass-lock range and jump blockage with real ships in Oolite | 2026-11-17 | bb7daab | [261117-lka-measure-mass-lock-range-and-jump-blockag](./quick/261117-lka-measure-mass-lock-range-and-jump-blockag/) |
 
 ## Deferred Items
 
