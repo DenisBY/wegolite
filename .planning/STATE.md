@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-17T15:49:47.651Z"
+last_updated: "2026-11-17T16:23:12.981Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: b6d374afe1382d2b15205d13992cc72a29850e7d
+state_head: 290cac9a30d5bd096a366cd7d7801469d946fa98
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-17 — Completed quick task 261117-mng: harden the Oolite reference tool per review
+Last activity: 2026-11-17 — Completed quick task 261117-nfn: compare Wegolite UI screens with real Oolite (32 differences, 3 todos)
 
 
 ## Performance Metrics
@@ -611,6 +611,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261117-mne | Make the station mass-lock boundary strict like Oolite | 2026-11-17 | f14361e | [261117-mne-make-the-station-mass-lock-boundary-stri](./quick/261117-mne-make-the-station-mass-lock-boundary-stri/) |
 | 261117-mng | Harden the Oolite reference tool per review | 2026-11-17 | 2b9f957 | [261117-mng-harden-the-oolite-reference-tool-per-rev](./quick/261117-mng-harden-the-oolite-reference-tool-per-rev/) |
 | 40 | Review follow-up to 261117-mng: remove the reference container after any failed run | 2026-11-17 | b6d374a | — |
+| 261117-nfn | Compare Wegolite UI screens with real Oolite screenshots | 2026-11-17 | 290cac9 | [261117-nfn-compare-wegolite-ui-screens-with-real-oo](./quick/261117-nfn-compare-wegolite-ui-screens-with-real-oo/) |
 
 ## Deferred Items
 
