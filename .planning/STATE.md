@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-17T17:21:59.122Z"
+last_updated: "2026-11-17T18:42:11.420Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: f0b88f8c2dd4f7e800eaa7ba3c767360b1f2eef7
+state_head: e66c1dcb4b5901852e7ab9c7da153536827838e3
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-17 — Completed quick task 261117-o8q: use Oolite's field of view (Viper 22 -> 40 px, as Oolite)
+Last activity: 2026-11-17 — Completed quick task 261117-pij: HUD message rows, condition light, new-game clock, Legal column, status labels and start target like Oolite
 
 
 ## Performance Metrics
@@ -613,6 +613,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 40 | Review follow-up to 261117-mng: remove the reference container after any failed run | 2026-11-17 | b6d374a | — |
 | 261117-nfn | Compare Wegolite UI screens with real Oolite screenshots | 2026-11-17 | 290cac9 | [261117-nfn-compare-wegolite-ui-screens-with-real-oo](./quick/261117-nfn-compare-wegolite-ui-screens-with-real-oo/) |
 | 261117-o8q | Use Oolite's horizontal field of view on wide screens | 2026-11-17 | f0b88f8 | [261117-o8q-use-oolite-s-horizontal-field-of-view-on](./quick/261117-o8q-use-oolite-s-horizontal-field-of-view-on/) |
+| 261117-pij | Fix flight HUD messages, condition light, clock, legality column and status labels to match Oolite | 2026-11-17 | e66c1dc | [261117-pij-fix-flight-hud-messages-condition-light-](./quick/261117-pij-fix-flight-hud-messages-condition-light-/) |
 
 ## Deferred Items
 
