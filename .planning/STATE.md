@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-17T10:18:16.341Z"
+last_updated: "2026-11-17T11:16:20.984Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: 5a5eeb34c67120618adb0a3e876612ab7835d4ed
+state_head: 00d98295cbd582382228e1ac5fc70d0129a76a50
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-17 — Completed quick task 261117-fpp: Show FPS counter setting
+Last activity: 2026-11-17 — Completed quick task 261117-glc: shrink the HUD clock font
 
 
 ## Performance Metrics
@@ -601,6 +601,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261110-j89 | Speed up e2e: split the WR-04 seam spec into its own Playwright config and make preview reuse an explicit local opt-in | 2026-11-10 | 2c69e9c | [261110-j89-speed-up-e2e-split-the-wr-04-seam-spec-i](./quick/261110-j89-speed-up-e2e-split-the-wr-04-seam-spec-i/) |
 | 261110-l2x | Speed up the unit-test loop: share one ESLint Node API across the guard tests and add a coverage-free local script | 2026-11-10 | f2e2cb8 | [261110-l2x-speed-up-unit-tests-replace-guard-test-e](./quick/261110-l2x-speed-up-unit-tests-replace-guard-test-e/) |
 | 261117-fpp | Add a "Show FPS counter" option to Settings: an off-by-default `FPS: n` readout (500 ms animation-frame windows) in the document footer, in flight and docked, stored as `showFps` | 2026-11-17 | 6e32eb9 | [261117-fpp-add-a-show-fps-on-off-option-to-settings](./quick/261117-fpp-add-a-show-fps-on-off-option-to-settings/) |
+| 261117-glc | Shrink the top-left HUD clock font to the size of the Hyperspace status line | 2026-11-17 | 00d9829 | [261117-glc-shrink-the-top-left-hud-clock-font-to-th](./quick/261117-glc-shrink-the-top-left-hud-clock-font-to-th/) |
 
 ## Deferred Items
 
