@@ -15,9 +15,13 @@
  *
  * Extension point (Phase 16 and later): a new kill or spawn source joins this
  * file as one more generator branch of the fight runner, and calls
- * `boundaryHolds` after every step. Phase 16's debris is spawned inside
- * `killShip`, after `stepWorld`'s sanitise pass and before the second commit; its
- * spawn goes into the "spawn now" branch (it is the only in-step spawn source).
+ * `boundaryHolds` after every step. Phase 16's debris is that branch (plan
+ * 16-04): `debrisFightArb` gives a share of the runs the debris content
+ * (`options.combat.debris`) and every ship a random cargo, so pods, wrecks and
+ * plates are spawned inside `killShip`, after `stepWorld`'s sanitise pass and
+ * before the second commit (the only in-step spawn source), and wrecks expire
+ * through `killShip` in `stepWorld`. Its counters prove the branch ran; the
+ * `releaseDebris` totality property sits with the other totality properties.
  */
 
 import fc from "fast-check";
@@ -28,7 +32,12 @@ import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
 import { AI_EVENT_NAMES } from "../../../src/sim/ai/types.js";
 import type { AiComponent } from "../../../src/sim/ai/types.js";
 import { createShipControl } from "../../../src/sim/world/control-impl.js";
+import type {
+  DebrisContent,
+  DebrisContext,
+} from "../../../src/sim/world/debris.js";
 import { killShip } from "../../../src/sim/world/kill.js";
+import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
 import {
   LASER_STATS,
   PLAYER_MAX_WEAPON_TEMP,
@@ -74,6 +83,7 @@ import {
   spawnEntity,
 } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
+import { debrisFixture } from "../../helpers/debris-fixture.js";
 import { realHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { realNpcFlightTable } from "../../helpers/npc-flight.js";
@@ -83,6 +93,7 @@ const { layout, config } = laveFixture();
 const HULLS = realHullTable();
 const NPC_WEAPONS = realNpcWeapons();
 const NPC_FLIGHT = realNpcFlightTable();
+const DEBRIS = debrisFixture();
 
 /** Far from the station and the planet, so nothing mass-locks the player. */
 const FAR = vec(1e7, 0, 0);
@@ -577,6 +588,7 @@ function spawnFight(
   plan: FightPlan,
   tick: number,
   spawnTicks: Map<number, number>,
+  cargo: readonly number[] = [],
 ): number[] {
   const first = world.store.nextId;
   const ids = plan.ships.map((_, i) => first + i);
@@ -617,10 +629,12 @@ function spawnFight(
         extra.escortSlot = role.slot;
       }
     }
+    const shipCargo = cargo[i];
     const id = spawnShip(world, ship.key, position, orientation, tick, {
       maxEnergy: ship.maxEnergy,
       energyRechargeRate: ship.recharge,
       ...(ai === null ? {} : { ai }),
+      ...(shipCargo === undefined ? {} : { cargo: shipCargo }),
       ...extra,
     });
     if (id !== idOf(i)) throw new Error("the predicted ship id was wrong");
@@ -691,6 +705,9 @@ function holdersBefore(world: World): { holder: number; target: number }[] {
 interface FightLog {
   readonly destroyed: Set<number>;
   readonly removed: Set<number>;
+  /** Debris pieces seen live at a boundary, and those removed since. */
+  readonly debris: Map<number, "pod" | "plate" | "wreck">;
+  readonly debrisRemoved: Set<number>;
 }
 
 /**
@@ -726,6 +743,18 @@ function recordEvents(
       }
       log.destroyed.add(event.id);
     } else if (event.kind === "entityRemoved") {
+      if (log.debris.has(event.id)) {
+        // A debris piece leaves through killShip with no shipDestroyed: only
+        // a wreck burns out (D16-11); a pod or plate never expires (D16-06).
+        if (log.debris.get(event.id) !== "wreck") {
+          throw new Error(`debris ${String(event.id)} removed but not a wreck`);
+        }
+        if (log.debrisRemoved.has(event.id)) {
+          throw new Error(`debris ${String(event.id)} removed twice`);
+        }
+        log.debrisRemoved.add(event.id);
+        continue;
+      }
       if (!log.destroyed.has(event.id)) {
         throw new Error(`entity ${String(event.id)} removed before destroyed`);
       }
@@ -769,6 +798,14 @@ interface Tallies {
   spawnTick: number;
   spawnNow: number;
   holderTarget: number;
+  /** Debris (plan 16-04): runs with content, pieces by kind, expiries. */
+  withDebrisContent: number;
+  pods: number;
+  plates: number;
+  wrecks: number;
+  wrecksExpired: number;
+  /** Runs whose fork was taken while debris was live (and replayed equal). */
+  forkWithDebris: number;
 }
 
 function newTallies(): Tallies {
@@ -779,7 +816,70 @@ function newTallies(): Tallies {
     spawnTick: 0,
     spawnNow: 0,
     holderTarget: 0,
+    withDebrisContent: 0,
+    pods: 0,
+    plates: 0,
+    wrecks: 0,
+    wrecksExpired: 0,
+    forkWithDebris: 0,
   };
+}
+
+/** The debris branch of a fight: content on or off, and each ship's cargo. */
+interface DebrisPlan {
+  readonly content: boolean;
+  readonly cargo: readonly number[];
+}
+
+const debrisPlanArb: fc.Arbitrary<DebrisPlan> = fc.record({
+  content: fc.oneof(
+    { weight: 3, arbitrary: fc.constant(true) },
+    { weight: 1, arbitrary: fc.constant(false) },
+  ),
+  cargo: fc.array(
+    fc.oneof(
+      { weight: 1, arbitrary: fc.constant(0) },
+      { weight: 3, arbitrary: fc.integer({ min: 0, max: 200 }) },
+    ),
+    { minLength: 6, maxLength: 6 },
+  ),
+});
+
+/** The step options of a debris run: the shared ones plus the fixture content. */
+function debrisStepOptions(): StepOptions {
+  return {
+    combat: {
+      mounts: DEFAULT_LASER_MOUNTS,
+      hulls: HULLS,
+      npcWeapons: NPC_WEAPONS,
+      debris: DEBRIS,
+    },
+    npcFlight: NPC_FLIGHT,
+  };
+}
+
+/** Record the debris live at a boundary in the log and the tallies. */
+function noteDebris(world: World, log: FightLog, tallies: Tallies): number {
+  let live = 0;
+  for (const entity of world.store.live) {
+    if (entity.dead) continue;
+    const kind =
+      entity.kind === "wreckage"
+        ? "wreck"
+        : entity.kind === "cargo"
+          ? entity.specKey === "alloy"
+            ? "plate"
+            : "pod"
+          : undefined;
+    if (kind === undefined) continue;
+    live += 1;
+    if (log.debris.has(entity.id)) continue;
+    log.debris.set(entity.id, kind);
+    if (kind === "pod") tallies.pods += 1;
+    else if (kind === "plate") tallies.plates += 1;
+    else tallies.wrecks += 1;
+  }
+  return live;
 }
 
 /** What the live run decided on one step, replayed on the restored world. */
@@ -815,17 +915,28 @@ function forkRun(
  * the same actions and ends with the same hash and the same events. The counters
  * go to `tallies`.
  */
-function runFight(plan: FightPlan, tallies: Tallies): void {
+function runFight(
+  plan: FightPlan,
+  tallies: Tallies,
+  debris?: DebrisPlan,
+): void {
   const player = flyingPlayer();
   const combat = createPlayerCombatState();
   const world = createWorld(plan.worldSeed);
-  const options = stepOptions();
+  const withDebris = debris?.content === true;
+  const options = withDebris ? debrisStepOptions() : stepOptions();
   const spawnTicks = new Map<number, number>();
   const spawnNowIds = new Set<number>();
   const shipIds = new Set<number>(
-    spawnFight(world, plan, player.tick + 1, spawnTicks),
+    spawnFight(world, plan, player.tick + 1, spawnTicks, debris?.cargo),
   );
-  const log: FightLog = { destroyed: new Set(), removed: new Set() };
+  const log: FightLog = {
+    destroyed: new Set(),
+    removed: new Set(),
+    debris: new Map(),
+    debrisRemoved: new Set(),
+  };
+  let forkWithDebris = false;
   const actions: Action[] = [];
   const stepEvents: SimEvent[][] = [];
   const steps = plan.script.length;
@@ -866,6 +977,7 @@ function runFight(plan: FightPlan, tallies: Tallies): void {
     stepEvents.push(events);
     recordEvents(log, events, shipIds);
     boundaryHolds(player, world, combat);
+    const liveDebris = noteDebris(world, log, tallies);
 
     const destroyedNow = new Set<number>();
     for (const event of ofKind(events, "shipDestroyed")) {
@@ -887,10 +999,19 @@ function runFight(plan: FightPlan, tallies: Tallies): void {
       }
       holderTargetKill = true;
     }
-    if (s === snapAt) fork = forkRun(world, player, combat);
+    if (s === snapAt) {
+      fork = forkRun(world, player, combat);
+      forkWithDebris = liveDebris > 0;
+    }
   }
 
   expect(log.removed).toEqual(log.destroyed);
+  if (!withDebris) expect(log.debris.size).toBe(0);
+  for (const id of log.debrisRemoved) {
+    if (world.store.get(id) !== undefined) {
+      throw new Error(`removed debris ${String(id)} is still live`);
+    }
+  }
 
   if (fork !== undefined) {
     const replayed: SimEvent[][] = [];
@@ -921,6 +1042,9 @@ function runFight(plan: FightPlan, tallies: Tallies): void {
   }
 
   tallies.runs += 1;
+  if (withDebris) tallies.withDebrisContent += 1;
+  tallies.wrecksExpired += log.debrisRemoved.size;
+  if (fork !== undefined && forkWithDebris) tallies.forkWithDebris += 1;
   if (log.destroyed.size > 0) tallies.withKill += 1;
   if (mutual) tallies.mutual += 1;
   if (spawnTickKill) tallies.spawnTick += 1;
@@ -945,6 +1069,29 @@ describe("random fights (FOUND-19, D-12)", () => {
     expect(tallies.spawnTick).toBeGreaterThanOrEqual(1);
     expect(tallies.spawnNow).toBeGreaterThanOrEqual(1);
     expect(tallies.holderTarget).toBeGreaterThanOrEqual(1);
+    // This property has no debris branch: its runs keep their Phase 15 shape.
+    expect(tallies.withDebrisContent).toBe(0);
+    expect(tallies.pods + tallies.plates + tallies.wrecks).toBe(0);
+  }, 240_000);
+
+  it("with debris: keep the boundary after every step, expire wrecks and replay a fork equal (plan 16-04)", () => {
+    const tallies = newTallies();
+    fc.assert(
+      fc.property(fightPlanArb, debrisPlanArb, (plan, debris) => {
+        runFight(plan, tallies, debris);
+      }),
+      { seed: 20261604, numRuns: 50 },
+    );
+    // Not vacuous (Pitfall 7): under the fixed seed the debris branch ran,
+    // spawned every kind, expired a wreck and forked a world holding debris.
+    expect(tallies.runs).toBe(50);
+    expect(tallies.withDebrisContent).toBeGreaterThanOrEqual(20);
+    expect(tallies.withKill).toBeGreaterThanOrEqual(20);
+    expect(tallies.pods).toBeGreaterThanOrEqual(1);
+    expect(tallies.wrecks).toBeGreaterThanOrEqual(1);
+    expect(tallies.plates).toBeGreaterThanOrEqual(1);
+    expect(tallies.wrecksExpired).toBeGreaterThanOrEqual(1);
+    expect(tallies.forkWithDebris).toBeGreaterThanOrEqual(1);
   }, 240_000);
 });
 
@@ -1171,5 +1318,223 @@ describe("the new sim functions are total (D-15)", () => {
       ),
       { seed: 20261119, numRuns: 100 },
     );
+  });
+
+  it("releaseDebris never throws, never needs a repair and never takes the count above 244", () => {
+    // Mostly valid numbers, so the release also runs to the end; the rest are
+    // the degenerate values the release must survive.
+    const numArb = fc.oneof(
+      {
+        weight: 1,
+        arbitrary: fc.constantFrom(Number.NaN, Infinity, -Infinity, -1, 0, -0),
+      },
+      { weight: 3, arbitrary: fc.double({ min: 0.01, max: 1e5, noNaN: true }) },
+    );
+    const vecArb = fc.record({ x: numArb, y: numArb, z: numArb });
+    const modelArb = fc.oneof(
+      { weight: 1, arbitrary: fc.constant(null) },
+      {
+        weight: 6,
+        arbitrary: fc.record({
+          key: fc.constantFrom(
+            "barrel",
+            "alloy",
+            "wreckage-component",
+            "more-wreckage2",
+            "",
+          ),
+          mass: numArb,
+          radius: numArb,
+        }),
+      },
+    );
+    const hullArb = fc.oneof(
+      { weight: 1, arbitrary: fc.constant(undefined) },
+      { weight: 1, arbitrary: fc.constant(null) },
+      {
+        weight: 6,
+        arbitrary: fc.record({
+          mass: fc.oneof(
+            numArb,
+            fc.double({ min: 1e3, max: 1e6, noNaN: true }),
+          ),
+          fragmentChance: fc.oneof(numArb, fc.double({ min: 0, max: 1 })),
+          boundingBox: fc.oneof(
+            fc.constant(null),
+            fc.record({ min: vecArb, max: vecArb }),
+          ),
+        }),
+      },
+    );
+    const octreesArb = fc.constantFrom(
+      "none",
+      "real",
+      "malformed",
+      "nanRadius",
+      "notAMap",
+    );
+    const seen = { pod: 0, wreck: 0, plate: 0, kicked: 0 };
+    const victimArb = fc.record({
+      specKey: fc.constantFrom("adder", "krait", "viper", "nonesuch"),
+      position: fc.oneof(
+        { weight: 1, arbitrary: vecArb },
+        { weight: 3, arbitrary: fc.constant(vec(FAR.x, FAR.y, FAR.z)) },
+        { weight: 1, arbitrary: fc.constant(vec(1e12, -1e12, 1e12)) },
+      ),
+      orientation: fc.oneof(
+        fc.constant(identity()),
+        fc.record({ w: numArb, x: numArb, y: numArb, z: numArb }),
+      ),
+      velocity: fc.oneof(vecArb, fc.constant(vec(1e4, -1e4, 9999))),
+      radius: numArb,
+      cargo: fc.oneof(
+        fc.integer({ min: 0, max: 200 }),
+        fc.constantFrom(-1, 1.5, Number.NaN, 1e9),
+      ),
+    });
+    fc.assert(
+      fc.property(
+        fc.oneof(
+          { weight: 2, arbitrary: fc.integer({ min: 0, max: 60 }) },
+          { weight: 1, arbitrary: fc.integer({ min: 0, max: 255 }) },
+        ),
+        fc.integer({ min: 0, max: 30 }),
+        victimArb,
+        hullArb,
+        modelArb,
+        modelArb,
+        fc.array(modelArb, { maxLength: 5 }),
+        fc.boolean(),
+        octreesArb,
+        fc.integer({ min: 1, max: 2_147_483_647 }),
+        (
+          fillers,
+          nearPods,
+          victimPlan,
+          hull,
+          pod,
+          plate,
+          wrecks,
+          wrecksMissing,
+          octrees,
+          seed,
+        ) => {
+          const world = createWorld(seed);
+          const base = vec(FAR.x, FAR.y, FAR.z - 1000);
+          const victimId = spawnShip(
+            world,
+            victimPlan.specKey,
+            base,
+            identity(),
+            0,
+          );
+          // Fillers: some old pods around the victim (the blast may kick them),
+          // the rest inert entities far away.
+          for (let i = 0; i < fillers; i += 1) {
+            const near = i < nearPods;
+            const result = spawnEntity(
+              world,
+              {
+                kind: "cargo",
+                specKey: near ? "barrel" : "filler",
+                scanClass: "CLASS_CARGO",
+                position: near
+                  ? vec(base.x + 3 * (i % 7) - 9, base.y + (i % 5), base.z - i)
+                  : vec(-1e6, 1000 * (i + 1), 0),
+                orientation: identity(),
+                radius: near ? 5.7986 : 1,
+                ai: null,
+              },
+              0,
+            );
+            if (!result.ok) throw new Error(`filler refused: ${result.reason}`);
+          }
+          const victim = world.store.get(victimId);
+          if (victim === undefined) throw new Error("no victim");
+          victim.position = victimPlan.position;
+          victim.orientation = victimPlan.orientation;
+          victim.velocity = victimPlan.velocity;
+          victim.radius = victimPlan.radius;
+          victim.cargo = victimPlan.cargo;
+          const hulls = new Map<string, unknown>();
+          if (hull !== undefined) hulls.set(victimPlan.specKey, hull);
+          const content = {
+            hulls,
+            pod,
+            plate,
+            wrecks: wrecksMissing ? null : wrecks,
+          } as unknown as DebrisContent;
+          const table =
+            octrees === "real"
+              ? HULLS
+              : octrees === "malformed"
+                ? new Map([
+                    [
+                      victimPlan.specKey,
+                      {
+                        collisionRadius: 1,
+                        octree: { radius: 8, depth: 1, root: [1, 2] },
+                      },
+                    ],
+                  ])
+                : octrees === "nanRadius"
+                  ? new Map([
+                      [
+                        victimPlan.specKey,
+                        {
+                          collisionRadius: 1,
+                          octree: {
+                            radius: Number.NaN,
+                            depth: 1,
+                            root: [-1, 0, 0, 0, 0, 0, 0, 0],
+                          },
+                        },
+                      ],
+                    ])
+                  : octrees === "notAMap"
+                    ? { get: () => undefined }
+                    : undefined;
+          const ctx = {
+            tick: 1,
+            content,
+            ...(table === undefined ? {} : { octrees: table }),
+          } as unknown as DebrisContext;
+
+          let killed = false;
+          expect(() => {
+            killed = killShip(world, victimId, PLAYER_ID, [], ctx);
+          }).not.toThrow();
+          expect(killed).toBe(true);
+          const live = world.store.live.filter((e) => !e.dead);
+          expect(live.length).toBeLessThanOrEqual(Math.max(fillers, 244));
+          const fresh = live.filter((e) => e.spawnTick === 1);
+          if (fresh.some((e) => e.kind === "wreckage")) seen.wreck += 1;
+          if (fresh.some((e) => e.kind === "cargo" && e.specKey === "alloy")) {
+            seen.plate += 1;
+          }
+          if (fresh.some((e) => e.kind === "cargo" && e.specKey === "barrel")) {
+            seen.pod += 1;
+          }
+          if (live.some((e) => e.specKey === "barrel" && e.spawnTick === 0)) {
+            if (live.some((e) => e.spawnTick === 0 && e.velocity.x !== 0)) {
+              seen.kicked += 1;
+            }
+          }
+
+          for (const entity of live) {
+            expect(sanitizeEntity(entity)).toBe(false);
+          }
+          commitWorld(world);
+          boundaryHolds(flyingPlayer(), world, undefined);
+        },
+      ),
+      { seed: 20261605, numRuns: 200 },
+    );
+    // Not vacuous: valid contents spawned every kind and the blast kicked an
+    // old pod in some runs.
+    expect(seen.pod).toBeGreaterThanOrEqual(1);
+    expect(seen.wreck).toBeGreaterThanOrEqual(1);
+    expect(seen.plate).toBeGreaterThanOrEqual(1);
+    expect(seen.kicked).toBeGreaterThanOrEqual(1);
   });
 });
