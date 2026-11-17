@@ -26,6 +26,10 @@ refused, the injected arrival fault would never run and the spec would time out.
 (`hyperspace.spec.ts`, `autosave.spec.ts`, `core-loop.spec.ts`) commit 10.6 to 13.3 km from the station, outside
 the nav buoy window (9,736 to 10,264 m), so they are not affected.
 
+Quick task 261117-lka observed it in a running Oolite 1.93.1-255: a spawned buoy (`CLASS_BUOY`, mass 698,691.1875)
+blocked a jump at 263.3 m (r_b - 1 m) and did not block at 265.3 m (r_b + 1 m), with r_b = 264.33 m, centre to centre.
+The owner decision itself is still open.
+
 ## Solution
 
 Include both buoys in the blockage predicate (the same `isWitchspaceBlocked` path used for ships), move the

@@ -28,7 +28,12 @@ Open numbers (our value, what to confirm):
 - Cobra Mk III player ship: 214,737.6875. The nine NPC role ships: adder 16045.49, cobramk1 52291.84,
   gecko 24669.996, krait 93291.41, mamba 35806.99, moray 51203.44, shuttle 11317.56, sidewinder 25087.62,
   viper 34040.68.
-- Mass-lock range (strict d^2 < 25,600^2 for ships) and blockage with real ships (Phase 12).
+- Mass-lock range (strict d^2 < 25,600^2 for ships) and blockage with real ships (Phase 12). DONE, measured in quick task 261117-lka (2026-11-17):
+  18 of 20 trials and both radii agree with Wegolite (the krait, the buoy mass lock, the planet, the sun, the krait
+  and Coriolis blockage; the sun radius is ROUNDING at 2.0e-8), 1 trial is KNOWN (the buoy blockage, E-22) and 1
+  DIFFERS: the station at exactly 25,600 m, which Oolite does not lock and Wegolite does (`torus.ts:103` is
+  inclusive, Oolite's outer gate at `PlayerEntity.m:2936` is strict for every ship). Reported to the owner, no code
+  changed.
 
 Measured (quick task 261117-jji, 2026-11-17): the Coriolis, both buoys, the Cobra Mk III and the nine NPC
 masses are all bit-exact equal to Wegolite's values in a running Oolite 1.93.1-255 (13 of 13 EQUAL), and so are
@@ -71,8 +76,9 @@ Plan:
    Open items and in the 261117-iuw SUMMARY. Each measurement run records its own `session.txt` and
    `wrapper.txt` in its SUMMARY.
 
-Open: the mass-lock range and real-ship blockage bullet, step 4 (UI comparison) and the Phase 16 wreck lifetime
-and explosion items below. No mass difference is waiting for the owner. The reference build is 1.93.1-255, not the 1.93.1-241 pin; see
+Open: step 4 (UI comparison) and the Phase 16 wreck lifetime and explosion items below. Waiting for the owner: the
+station mass-lock boundary at exactly 25,600 m (quick task 261117-lka; FIDELITY.md Open items), an operator change
+in `torus.ts:103` plus two test pins and two comments. No mass difference is waiting for the owner. The reference build is 1.93.1-255, not the 1.93.1-241 pin; see
 the FIDELITY.md Open items bullet "Reference Oolite for measurements".
 
 Risks: audio and the OpenGL version Oolite demands under llvmpipe; software rendering may differ in small
