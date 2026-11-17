@@ -8,10 +8,10 @@ updated: 2026-11-17T09:40:00Z
 
 ## Current Test
 
-number: 5
-name: OC-5: no code fix for the doubled hit sound
+number: 6
+name: OC-7: the debris vendoring run was done by the orchestrator
 expected: |
-  shipHit has no consumer, so no sound or visual can double; the Phase 15 fix waits for the first consumer (D16-14).
+  Owner confirms the provenance of commit 8b5cd65; the 14 files were re-hashed against the pinned blobs and match, and CHECKSUMS.sha256 only gained lines (D16-02).
 awaiting: user response
 
 ## Tests
@@ -36,7 +36,8 @@ note: owner accepted on 2026-11-17; Phase 18 must revisit whether the blast appl
 
 ### 5. OC-5: no code fix for the doubled hit sound
 expected: shipHit has no consumer, so no sound or visual can double; the Phase 15 fix waits for the first consumer (D16-14).
-result: [pending]
+result: pass
+note: owner accepted on 2026-11-17; tracked by the todo 2026-11-17-skip-shiphit-for-a-doomed-target.md and a Phase 17 carry-over line.
 
 ### 6. OC-7: the debris vendoring run was done by the orchestrator
 expected: Owner confirms the provenance of commit 8b5cd65; the 14 files were re-hashed against the pinned blobs and match, and CHECKSUMS.sha256 only gained lines (D16-02).
@@ -49,9 +50,9 @@ result: [pending]
 ## Summary
 
 total: 7
-passed: 4
+passed: 5
 issues: 0
-pending: 3
+pending: 2
 skipped: 0
 blocked: 0
 
