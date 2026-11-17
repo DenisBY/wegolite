@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-17T14:06:31.675Z"
+last_updated: "2026-11-17T14:29:19.200Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: 52d11ad12397f0c83f0d4b8b93b5a8f6c4d2f2f5
+state_head: b8e3d83394e7aeebf1b0a521e724530aa0874725
 progress:
   total_phases: 6
   completed_phases: 2
@@ -606,6 +606,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261117-iuw | Build a headless Oolite reference container on the remote test machine | 2026-11-17 | 7f479a8 | [261117-iuw-build-a-headless-oolite-reference-contai](./quick/261117-iuw-build-a-headless-oolite-reference-contai/) |
 | 261117-jji | Measure ship masses in real Oolite and compare with Wegolite | 2026-11-17 | ddee48b | [261117-jji-measure-ship-masses-in-real-oolite-and-c](./quick/261117-jji-measure-ship-masses-in-real-oolite-and-c/) |
 | 261117-k1l | Align station and buoy radii with Oolite, compiled from the meshes | 2026-11-17 | 52d11ad | [261117-k1l-align-station-and-buoy-radii-with-oolite](./quick/261117-k1l-align-station-and-buoy-radii-with-oolite/) |
+| 36 | Review follow-up to 261117-k1l: restore 3,500 m in stale detector literals, drop nested-subentity guard | 2026-11-17 | b8e3d83 | — |
 
 ## Deferred Items
 
