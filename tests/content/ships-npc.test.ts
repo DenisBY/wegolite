@@ -351,6 +351,13 @@ describe("NpcShipCatalogueSchema", () => {
     }
   });
 
+  it("rejects a mass above the flight magnitude bound (T-16-31)", () => {
+    expect(accepts([{ ...firstRecord(), mass: 1e12 }])).toBe(true);
+    for (const mass of [1e12 + 1e6, 1e24, 1e300]) {
+      expect(accepts([{ ...firstRecord(), mass }])).toBe(false);
+    }
+  });
+
   it("carries a positive mass on every record", () => {
     for (const record of generated as Record<string, unknown>[]) {
       expect(typeof record["mass"]).toBe("number");

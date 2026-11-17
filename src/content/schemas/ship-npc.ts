@@ -68,8 +68,10 @@ export const NpcShipSchema = z.strictObject({
   model: z.string().regex(/^oolite_[a-z0-9_]+\.dat$/),
   glb: z.string().regex(NPC_GLB_PATH_PATTERN),
   // Oolite's float32 mass; `z.number()` already rejects NaN and Infinity, so
-  // `positive()` leaves a finite number above zero.
-  mass: z.number().positive(),
+  // `positive()` leaves a finite number above zero; the upper bound keeps the
+  // alloy count, which grows as the fourth root of the mass, finite and small
+  // (T-16-31: a tampered catalogue must not stall a kill).
+  mass: z.number().positive().max(MAX_FLIGHT_MAGNITUDE_BOUND),
   // Oolite's float32 collision radius of the hull, in metres (WORLD-15), computed
   // at build time by `tools/oolite-ingest/convert/ship-radius.ts`; the populator
   // spawns the ship with it.
