@@ -24,7 +24,11 @@
  * logs every same-origin request path and asserts that none of the nine NPC ship
  * models, nor any texture file they reference, is requested before the first
  * in-flight frame, while the same log shows the Cobra model so it cannot pass on
- * an empty log. The bytes ceiling below is unchanged.
+ * an empty log. The bytes ceiling below is unchanged. Since Phase 16 (plan
+ * 16-09, success criterion 4) it asserts the same of the seven debris models
+ * (`ships-debris.json`), every texture they reference and the two explosion
+ * particle textures: a traffic-off cold start requests none of them, nor the
+ * debris and explosion catalogue chunks.
  */
 
 import { readFileSync } from "node:fs";
@@ -94,6 +98,53 @@ function npcAssetPaths(): NpcAssetPaths {
     }
   }
   return { glbs: [...glbs].sort(), textures: [...textures].sort() };
+}
+
+/**
+ * The URL paths of the seven debris GLBs (`ships-debris.json`), every texture
+ * those GLBs reference (read from each GLB's JSON chunk, as `npcAssetPaths`
+ * does) and the two explosion particle textures (`explosions.json`'s cloud
+ * texture and Oolite's flash, `src/render/bodies/explosions.ts`).
+ */
+function debrisAssetPaths(): NpcAssetPaths & {
+  readonly particles: readonly string[];
+} {
+  const root = process.cwd();
+  const records = JSON.parse(
+    readFileSync(
+      join(root, "src", "content", "generated", "ships-debris.json"),
+      "utf8",
+    ),
+  ) as readonly { readonly glb: string }[];
+  const glbs = new Set<string>();
+  const textures = new Set<string>();
+  for (const record of records) {
+    const glbUrl = new URL(`/${record.glb}`, "http://localhost");
+    glbs.add(glbUrl.pathname);
+    const bytes = readFileSync(join(root, "public", record.glb));
+    const jsonLength = bytes.readUInt32LE(12);
+    const json = JSON.parse(
+      bytes.subarray(20, 20 + jsonLength).toString("utf8"),
+    ) as { readonly images?: readonly { readonly uri: string }[] };
+    for (const image of json.images ?? []) {
+      textures.add(new URL(image.uri, glbUrl).pathname);
+    }
+  }
+  const explosions = JSON.parse(
+    readFileSync(
+      join(root, "src", "content", "generated", "explosions.json"),
+      "utf8",
+    ),
+  ) as readonly { readonly texture: string }[];
+  const particles = new Set<string>(["/textures/oolite-particle-flash.png"]);
+  for (const explosion of explosions) {
+    particles.add(`/textures/${explosion.texture}`);
+  }
+  return {
+    glbs: [...glbs].sort(),
+    textures: [...textures].sort(),
+    particles: [...particles].sort(),
+  };
 }
 
 function collectErrors(page: Page): string[] {
@@ -241,6 +292,33 @@ test("a cold start to the first in-flight frame stays under the first-load bytes
   expect(
     requested.filter((path) => npcPaths.has(path)),
     "NPC models and textures requested on a cold start",
+  ).toEqual([]);
+  // Phase 16 (success criterion 4): no debris model, debris texture or
+  // particle texture before the first in-flight frame.
+  const debris = debrisAssetPaths();
+  const debrisPaths = new Set([
+    ...debris.glbs,
+    ...debris.textures,
+    ...debris.particles,
+  ]);
+  expect(debris.glbs, "debris GLB paths (vacuity guard)").toHaveLength(7);
+  expect(debris.textures, "debris texture paths (vacuity guard)").toHaveLength(
+    6,
+  );
+  expect(debris.particles, "particle texture paths (vacuity guard)").toEqual([
+    "/textures/oolite-particle-cloud2.png",
+    "/textures/oolite-particle-flash.png",
+  ]);
+  expect(
+    requested.filter((path) => debrisPaths.has(path)),
+    "debris models, debris textures and particle textures requested on a cold start",
+  ).toEqual([]);
+  // The debris and explosion catalogues load with traffic on only (plan 16-06).
+  expect(
+    requested.filter((path) =>
+      /\/assets\/(ships-debris|explosions)-[^/]+\.js$/.test(path),
+    ),
+    "the debris and explosion chunks requested by a traffic-off cold start",
   ).toEqual([]);
   // The hull chunk (plan 13-11, D-01) joins the boot load only with traffic on:
   // a traffic-off session never fetches it.

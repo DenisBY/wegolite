@@ -14,7 +14,16 @@
  * held from the moment the shooter appears, because the shooter fires back: the
  * player's energy bank must still pay for every pulse until the 14th hit kills
  * it (the budget and its Vitest twin are in tests/app/session/tick-parity.test.ts).
- * The explosion and the debris are Phase 16. It opts in by URL (`?test=1&traffic=1&clock=manual`,
+ * Step 5 (Phase 16, plan 16-09; WORLD-17, D16-08, D16-09) spawns the shooter
+ * with 20 cargo capsules and proves the kill in the browser against its Node
+ * twin, "the debris twin" in tests/app/session/tick-parity.test.ts (plan 16-06):
+ * the kill lands on the twin's tick, the probe counts the twin's entities (the
+ * pods, the plate and the wrecks included), the debris models and the particle
+ * textures are requested only after the kill, the frame with the explosion and
+ * the debris drawn stays within the 50-call budget, and the world hash 60 ticks
+ * after the kill equals the twin's literal. The twin runs with no render layer,
+ * so that equality proves the explosion and debris layers never touch the hash
+ * (success criterion 3). It opts in by URL (`?test=1&traffic=1&clock=manual`,
  * the same opt-in as tests/e2e/traffic.spec.ts), because the browser-test bundle
  * defaults NPC traffic off and the hull and weapon tables load only with traffic
  * on. Every assertion is a count or a value read from the probe; none measures
@@ -23,6 +32,9 @@
  * The visuals (the four views, the laser lines, the ident frame) are not asserted
  * here: they are covered by unit tests and need a human look.
  */
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
@@ -46,6 +58,67 @@ const KILL_CHUNK_TICKS = 60;
  * later (the twin measures it at 794).
  */
 const KILL_BOUND_TICKS = 1500;
+/** Cargo capsules the shooter carries, the debris twin's argument (D16-09). */
+const SHOOTER_CARGO = 20;
+/**
+ * The debris twin's pins (tests/app/session/tick-parity.test.ts, plan 16-06):
+ * the kill tick relative to the spawn, the probe's entity count on the kill
+ * tick (12 populated, minus the Viper, plus 3 pods, 1 plate and 3 wrecks), and
+ * the world hash 60 ticks after the kill with fire released. Never edit these
+ * to make the browser pass: a difference is a divergence to report.
+ */
+const TWIN_KILL_OFFSET = 794;
+const TWIN_ENTITIES_AT_KILL = 19;
+const TWIN_HASH_60_AFTER_KILL = "a10b2dfc";
+/** Ticks after the kill at which the hash is read (the twin's 60). */
+const AFTER_KILL_TICKS = 60;
+/** Draw calls per rendered frame (docs/PERFORMANCE.md, budget.spec.ts). */
+const DRAW_CALL_BUDGET = 50;
+/** Loop frames to wait for after a step, so the counters describe a settled scene. */
+const SETTLE_FRAMES = 3;
+
+/** One committed debris record (src/content/generated/ships-debris.json). */
+interface DebrisRecord {
+  readonly key: string;
+  readonly glb: string;
+  readonly role: string;
+}
+
+/** The debris records, read once from the committed catalogue. */
+const debrisRecords = JSON.parse(
+  readFileSync(
+    join(process.cwd(), "src", "content", "generated", "ships-debris.json"),
+    "utf8",
+  ),
+) as readonly DebrisRecord[];
+
+/** The URL path the browser requests for a public asset path. */
+function urlPath(asset: string): string {
+  return new URL(`/${asset}`, "http://localhost").pathname;
+}
+
+/** The pod and plate GLB paths (always released by this kill) and the wreck GLB paths. */
+const POD_GLB = urlPath(
+  debrisRecords.find((record) => record.role === "pod")?.glb ?? "",
+);
+const PLATE_GLB = urlPath(
+  debrisRecords.find((record) => record.role === "plate")?.glb ?? "",
+);
+const WRECK_GLBS = debrisRecords
+  .filter((record) => record.role === "wreck")
+  .map((record) => urlPath(record.glb));
+/** The cloud texture of the drawn explosion and Oolite's flash texture. */
+const PARTICLE_TEXTURES = [
+  urlPath("textures/oolite-particle-cloud2.png"),
+  urlPath("textures/oolite-particle-flash.png"),
+];
+/** Every path the kill may make the page request for the first time. */
+const KILL_ASSETS = new Set([
+  POD_GLB,
+  PLATE_GLB,
+  ...WRECK_GLBS,
+  ...PARTICLE_TEXTURES,
+]);
 
 test.setTimeout(240_000);
 
@@ -78,6 +151,21 @@ async function shipContacts(page: Page): Promise<number> {
   );
 }
 
+/** The simulation tick the probe last published. */
+async function simTick(page: Page): Promise<number> {
+  return page.evaluate(() => window.__wegolite?.sim?.tick ?? -1);
+}
+
+/** The draw calls and triangles of the last rendered frame. */
+async function drawCounters(
+  page: Page,
+): Promise<{ readonly calls: number; readonly triangles: number }> {
+  return page.evaluate(() => ({
+    calls: window.__wegolite?.calls ?? -1,
+    triangles: window.__wegolite?.triangles ?? -1,
+  }));
+}
+
 /** Step `n` manual ticks, then let a frame publish the probe. */
 async function advance(page: Page, n: number): Promise<void> {
   await page.evaluate(
@@ -87,10 +175,23 @@ async function advance(page: Page, n: number): Promise<void> {
   await waitForFrames(page, 2);
 }
 
-test("the fire key heats the laser, a test shooter drains the shield and R locks it", async ({
+test("the fire key heats the laser, a test shooter drains the shield and R locks it, and its kill leaves the twin's debris", async ({
   page,
+  baseURL,
 }) => {
   const errors = collectErrors(page);
+  const origin = new URL(baseURL ?? "http://127.0.0.1:4173").origin;
+  const requested: string[] = [];
+  const finished = new Set<string>();
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.origin === origin) requested.push(url.pathname);
+  });
+  page.on("requestfinished", (request) => {
+    const url = new URL(request.url());
+    if (url.origin === origin) finished.add(url.pathname);
+  });
+  expect(WRECK_GLBS, "wreck GLB paths (vacuity guard)").toHaveLength(5);
 
   await page.goto(COMBAT_URL);
   await waitForReady(page);
@@ -137,10 +238,18 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
   const full = await page.evaluate(() => window.__wegolite?.combat?.fwdShield);
   expect(full, "the shield before the shooter appears").toBe(128);
   await page.keyboard.down("KeyA");
+  // The shooter carries 20 cargo capsules (D16-09), as in the debris twin; the
+  // cargo changes no combat value, so the kill tick and the bank budget stand.
   expect(
-    await page.evaluate(() => window.__wegolite?.test?.spawnTestShooter()),
+    await page.evaluate(
+      (cargo) => window.__wegolite?.test?.spawnTestShooter(cargo),
+      SHOOTER_CARGO,
+    ),
     "the hook spawned the shooter",
   ).toBe(true);
+  // The manual clock steps nothing between the last frame and the hook call.
+  const spawnTick = await simTick(page);
+  expect(spawnTick, "the spawn tick was published").toBeGreaterThan(0);
   const contactsWithShooter = await shipContacts(page);
   await advance(page, SHOOTING_TICKS);
   expect(
@@ -171,15 +280,30 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
   // 4. The held laser destroys the shooter: it leaves the scanner and the lock
   //    on it ends. Advance in chunks until the ship count is one lower; the
   //    bound only stops the loop (the vacuity guard below fails if it ended on
-  //    the bound instead of the kill).
+  //    the bound instead of the kill). The chunks stop one tick short of the
+  //    twin's kill tick and then step one tick, so the kill is observed on the
+  //    exact tick and fire is released there, as the twin releases it.
   let contacts = contactsWithShooter;
   let ticksSinceSpawn = SHOOTING_TICKS + 2;
+  let requestsBeforeKill = -1;
+  let beforeKill = { calls: -1, triangles: -1 };
   while (
     contacts >= contactsWithShooter &&
     ticksSinceSpawn < KILL_BOUND_TICKS
   ) {
-    await advance(page, KILL_CHUNK_TICKS);
-    ticksSinceSpawn += KILL_CHUNK_TICKS;
+    const lastBeforeKill = TWIN_KILL_OFFSET - 1;
+    const chunk =
+      ticksSinceSpawn < lastBeforeKill
+        ? Math.min(KILL_CHUNK_TICKS, lastBeforeKill - ticksSinceSpawn)
+        : ticksSinceSpawn === lastBeforeKill
+          ? 1
+          : KILL_CHUNK_TICKS;
+    if (ticksSinceSpawn === lastBeforeKill) {
+      requestsBeforeKill = requested.length;
+      beforeKill = await drawCounters(page);
+    }
+    await advance(page, chunk);
+    ticksSinceSpawn += chunk;
     contacts = await shipContacts(page);
   }
   await page.keyboard.up("KeyA");
@@ -200,6 +324,74 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
     undefined,
     { timeout: SLOW },
   );
+
+  // 5. The shooter explodes into the twin's debris (plan 16-09, WORLD-17).
+  const killTick = await simTick(page);
+  expect(killTick - spawnTick, "the kill landed on the twin's tick").toBe(
+    TWIN_KILL_OFFSET,
+  );
+  expect(ticksSinceSpawn, "the spec's own tick count agrees").toBe(
+    TWIN_KILL_OFFSET,
+  );
+  await waitForFrames(page, SETTLE_FRAMES);
+  expect(
+    await page.evaluate(() => window.__wegolite?.sim?.entities),
+    "live entities on the kill tick (the twin's count, debris included)",
+  ).toBe(TWIN_ENTITIES_AT_KILL);
+  // Lazy: no debris model and no particle texture was requested before the
+  // kill; the kill makes the page request them.
+  expect(requestsBeforeKill, "the request mark was taken").toBeGreaterThan(0);
+  expect(
+    requested
+      .slice(0, requestsBeforeKill)
+      .filter((path) => KILL_ASSETS.has(path)),
+    "debris and particle assets requested before the kill",
+  ).toEqual([]);
+
+  expect(
+    await page.evaluate(
+      (n) => window.__wegolite?.test?.advanceTicks(n),
+      AFTER_KILL_TICKS,
+    ),
+    "the tick 60 after the kill",
+  ).toBe(killTick + AFTER_KILL_TICKS);
+  // The pod and plate models, a wreck model and both particle textures were
+  // requested after the kill and arrived; the bound is a correctness bound.
+  const drawnAssets = [POD_GLB, PLATE_GLB, ...PARTICLE_TEXTURES];
+  await expect
+    .poll(() => drawnAssets.filter((path) => !finished.has(path)), {
+      timeout: SLOW,
+    })
+    .toEqual([]);
+  await expect
+    .poll(() => WRECK_GLBS.some((path) => finished.has(path)), {
+      timeout: SLOW,
+    })
+    .toBe(true);
+  await waitForFrames(page, SETTLE_FRAMES * 10);
+
+  // The Node twin has no render layer: the browser hash with the explosion and
+  // debris layers drawing equals it, so neither layer touches the world hash.
+  expect(
+    await page.evaluate(() => window.__wegolite?.test?.worldHash()),
+    "worldHash() 60 ticks after the kill equals the debris twin's literal",
+  ).toBe(TWIN_HASH_60_AFTER_KILL);
+  const afterKill = await drawCounters(page);
+  test.info().annotations.push(
+    {
+      type: "combat-before-kill",
+      description: `${beforeKill.calls} calls, ${beforeKill.triangles} triangles`,
+    },
+    {
+      type: "combat-after-kill",
+      description: `${afterKill.calls} calls, ${afterKill.triangles} triangles (debris and explosion live, kill + ${AFTER_KILL_TICKS} ticks)`,
+    },
+  );
+  expect(afterKill.calls, "draw calls after the kill").toBeGreaterThan(0);
+  expect(
+    afterKill.calls,
+    "draw-call budget after the kill",
+  ).toBeLessThanOrEqual(DRAW_CALL_BUDGET);
 
   expect(errors).toEqual([]);
 });

@@ -157,6 +157,60 @@ function npcAssetPaths(): NpcAssetPaths {
   };
 }
 
+/**
+ * The debris model paths (`ships-debris.json`), every texture those GLBs
+ * reference, and the two explosion particle textures (the cloud texture of
+ * `explosions.json` and Oolite's flash, `/textures/oolite-particle-flash.png`):
+ * the assets a kill makes the page request (Phase 16, plan 16-09). A cold
+ * start has no kill, so it must request none of them.
+ */
+function killAssetPaths(): {
+  readonly glbs: readonly string[];
+  readonly textures: readonly string[];
+  readonly particles: readonly string[];
+} {
+  const root = process.cwd();
+  const records = JSON.parse(
+    readFileSync(
+      join(root, "src", "content", "generated", "ships-debris.json"),
+      "utf8",
+    ),
+  ) as readonly { readonly glb: string }[];
+  const glbs = new Set<string>();
+  const textures = new Set<string>();
+  for (const record of records) {
+    const glbUrl = new URL(`/${record.glb}`, "http://localhost");
+    glbs.add(glbUrl.pathname);
+    const bytes = readFileSync(join(root, "public", record.glb));
+    const jsonLength = bytes.readUInt32LE(12);
+    const json = JSON.parse(
+      bytes.subarray(20, 20 + jsonLength).toString("utf8"),
+    ) as { readonly images?: readonly { readonly uri: string }[] };
+    for (const image of json.images ?? []) {
+      textures.add(new URL(image.uri, glbUrl).pathname);
+    }
+  }
+  const explosions = JSON.parse(
+    readFileSync(
+      join(root, "src", "content", "generated", "explosions.json"),
+      "utf8",
+    ),
+  ) as readonly { readonly texture: string }[];
+  const particles = new Set<string>(["/textures/oolite-particle-flash.png"]);
+  for (const explosion of explosions) {
+    particles.add(`/textures/${explosion.texture}`);
+  }
+  return {
+    glbs: [...glbs].sort(),
+    textures: [...textures].sort(),
+    particles: [...particles].sort(),
+  };
+}
+
+/** The lazy debris and explosion catalogue chunks (plan 16-06). */
+const DEBRIS_CHUNK = /\/assets\/ships-debris-[^/]+\.js$/;
+const EXPLOSIONS_CHUNK = /\/assets\/explosions-[^/]+\.js$/;
+
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on("console", (message) => {
@@ -400,6 +454,18 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
   const npcPaths = new Set([...npc.glbs, ...npc.textures]);
   expect(npc.glbs, "NPC GLB paths (vacuity guard)").toHaveLength(9);
   expect(npc.textures, "NPC texture paths (vacuity guard)").toHaveLength(43);
+  const kill = killAssetPaths();
+  const killPaths = new Set([
+    ...kill.glbs,
+    ...kill.textures,
+    ...kill.particles,
+  ]);
+  expect(kill.glbs, "debris GLB paths (vacuity guard)").toHaveLength(7);
+  expect(kill.textures, "debris texture paths (vacuity guard)").toHaveLength(6);
+  expect(kill.particles, "particle texture paths (vacuity guard)").toEqual([
+    "/textures/oolite-particle-cloud2.png",
+    "/textures/oolite-particle-flash.png",
+  ]);
 
   await bootDocked(page, TRAFFIC_URL);
   expect(
@@ -471,6 +537,33 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
     requested.some((path) => /\/assets\/ships-hulls-[^/]+\.js$/.test(path)),
     "the lazy hull chunk was fetched at boot (counted in the cold start)",
   ).toBe(true);
+  // Phase 16 (success criterion 4): the debris and explosion catalogues load
+  // at boot with traffic on, inside the measured total, while no debris model,
+  // debris texture or particle texture is requested before this frame.
+  const chunkBytes = async (pattern: RegExp): Promise<number> =>
+    (
+      await Promise.all(
+        coldStart
+          .filter((entry) => pattern.test(entry.path))
+          .map((entry) => entry.bytes),
+      )
+    ).reduce((sum, bytes) => sum + bytes, 0);
+  expect(
+    requested.some((path) => DEBRIS_CHUNK.test(path)),
+    "the lazy debris chunk was fetched at boot (counted in the cold start)",
+  ).toBe(true);
+  expect(
+    requested.some((path) => EXPLOSIONS_CHUNK.test(path)),
+    "the lazy explosions chunk was fetched at boot (counted in the cold start)",
+  ).toBe(true);
+  test.info().annotations.push({
+    type: "traffic-on-debris-chunks",
+    description: `ships-debris ${await chunkBytes(DEBRIS_CHUNK)} bytes, explosions ${await chunkBytes(EXPLOSIONS_CHUNK)} bytes`,
+  });
+  expect(
+    requested.filter((path) => killPaths.has(path)),
+    "debris models, debris textures and particle textures (oolite-particle-*) requested before the first in-flight frame",
+  ).toEqual([]);
   expect(total, "first-load bytes (traffic on)").toBeGreaterThan(0);
   expect(total, "first-load bytes ceiling (traffic on)").toBeLessThanOrEqual(
     FIRST_LOAD_BYTES_CEILING,
