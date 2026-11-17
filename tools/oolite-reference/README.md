@@ -47,7 +47,9 @@ tools/oolite-reference/run-remote.sh [--out DIR] [--steps FILE] [--timeout SECON
   `/tmp/oolite-reference/<UTC stamp>` when that variable is unset. It must be
   empty or missing, and must not be inside the repository (exit 64).
 - `--steps FILE`: the steps file. Default `steps/title.steps`.
-- `--timeout SECONDS`: overall session deadline. Default 300.
+- `--timeout SECONDS`: overall session deadline. Default 300. An integer from 1
+  to 99999 with no leading zero; `0`, `08` or a longer number is refused (exit
+  64).
 - `--addons DIR`: a directory whose children are `*.oxp` folders. It is copied
   to the remote, mounted read-only at `/addons` and passed to Oolite through
   `OO_ADDITIONALADDONSDIRS`.
@@ -65,14 +67,40 @@ Output layout:
 - `oolite-stdout.log`: stdout and stderr of the launcher and Oolite.
 - `session.txt`: version, AppImage SHA256, UTC times, every step with its status
   and the exit code.
+- `snapshots/`: Oolite's own snapshot directory (`OO_SNAPSHOTSDIR`), usually
+  empty.
 - `wrapper.txt`: local git short SHA and whether the tool tree was dirty, host,
-  remote image ID, add-on folder names, container exit code, elapsed seconds.
+  remote image ID, add-on folder names, container exit code, `fetch=ok` or
+  `fetch=failed`, container name, elapsed seconds.
 - `xvfb.log`, `import.log`, and `xwininfo.txt` when no window appeared.
 
-Exit codes: 0 ok; 1 a step failed or Oolite died (a failed wait still fetches
-the outputs); 2 bad steps file (refused before Oolite starts); 124 the overall
-deadline expired; 64 usage error or refused output directory; 70 sync or build
-failure.
+Run one session at a time (one run at a time): concurrent runs share
+`~/oolite-reference` and its `.tmp` sync directory on the remote, and can break
+each other's sync or build.
+
+Exit codes:
+
+- `0`: ok, including when a last `sleep` is cut short by the deadline.
+- `1`: a step failed or Oolite died. This includes a `window` or `waitlog` that
+  runs out of the overall deadline (the step is capped to the remaining time and
+  fails as a step) and a key xdotool could not send. The outputs are still
+  fetched.
+- `2`: a bad steps file or OOREF_TIMEOUT, refused before Oolite starts.
+- `64`: a usage error, a bad `--timeout` or a refused output directory, before
+  any ssh.
+- `70`: a sync, build, session-setup or fetch failure. A failed fetch overrides
+  the container's code, keeps the remote session directory and prints
+  `fetch failed; remote outputs kept at HOST:PATH`; the last line still shows
+  `container_exit=`.
+- `124`: the runner found the overall deadline expired between steps, or the
+  wrapper's outer backstop (`--timeout` + 120 s) fired. In the backstop case the
+  named container is removed with `docker rm -f`, and `session.txt` may be
+  missing.
+- `125`: `docker run` itself failed (daemon error, or no image with
+  `--no-build`).
+- `255`: ssh failed during the run.
+
+The last stdout line is `exit=N container_exit=M elapsed=Ss out=DIR`.
 
 ## Steps file grammar
 
@@ -80,12 +108,25 @@ One verb per line. Blank lines and `#` comments are allowed. The whole file is
 validated before anything starts.
 
 - `window [TIMEOUT]`: wait (default 120 s) for the Oolite window and focus it.
-  Must come before the first `key` or window `shot`.
-- `sleep SECONDS`: integer seconds.
+  Must come before the first `key` or window `shot`. TIMEOUT is an integer from
+  1 to 99999 with no leading zero.
+- `sleep SECONDS`: an integer from 1 to 99999 with no leading zero.
 - `key KEYSYM...`: xdotool keysyms matching `[A-Za-z0-9_+]+`, such as `Return`
-  or `F5`. Each key is held for half a second, then released.
-- `waitlog TIMEOUT TEXT...`: wait up to TIMEOUT seconds for the fixed string
-  TEXT to appear in `Latest.log`. A timeout fails the session with exit 1.
+  or `F5`. Each key is held for half a second, then released. The validator
+  checks only the character set, so an unknown keysym or a failed xdotool call
+  fails the session with exit 1 (xdotool prints `No such key name` for an
+  unknown keysym).
+- `waitlog TIMEOUT TEXT...`: wait up to TIMEOUT seconds (an integer from 1 to
+  99999 with no leading zero) for a line containing the fixed string TEXT. Each
+  `waitlog` searches only the lines after the line the previous successful
+  `waitlog` matched; the first one searches from the top of `Latest.log`. A
+  match consumes everything up to and including the matched line, so a line that
+  satisfied one `waitlog` never satisfies a later one, and a marker logged twice
+  satisfies two. A line flushed before the step started still counts if no
+  earlier `waitlog` consumed it, because Oolite flushes its log only every 2 s.
+  If Oolite exits during the wait, the runner checks the log once more before it
+  fails the step. A miss fails the session with exit 1. `session.txt` records
+  the matched line number.
 - `shot NAME`: capture the window to `screenshots/NN-NAME.png`. NAME matches
   `[A-Za-z0-9_-]+`.
 
@@ -133,8 +174,9 @@ was found.
   recognised).
 - The AppImage launcher only sets up its GNUstep configuration when it believes
   it runs inside an AppImage, so the runner sets `APPDIR`, `APPIMAGE` and
-  `OO_DIRTYPE=xdg`. All game data then lives under `$HOME/.local/share/Oolite`
-  in the container.
+  `OO_DIRTYPE=xdg`. Game data then lives under `$HOME/.local/share/Oolite`,
+  saves go to `$HOME/oolite-saves` (`OO_SAVEDIR`), and logs and snapshots go to
+  `/out`. Everything outside `/out` is discarded with the container.
 - Windows are found with `xdotool search --class oolite`. `--name` does not
   match, because the title is `_NET_WM_NAME`. There is no window manager, so the
   runner uses `windowfocus`, not `windowactivate`, and sends keys through XTEST
@@ -142,9 +184,13 @@ was found.
 - Keys are held for 0.5 s because Oolite polls key state once per frame and a
   press-and-release inside one frame is lost under llvmpipe. Menu selection is
   also debounced, so keep pauses between presses.
+- The runner's TERM reaches only the launcher shell; the oolite process ends at
+  container teardown, which relies on `docker run --init`. `run-remote.sh`
+  always passes it, so a manual `docker run` of the entrypoint should pass it
+  too.
 - Upstream treats a snapshot PNG under 100 KB as a probable black frame.
 - To debug inside the image, on the remote:
-  `docker run --rm --entrypoint bash wegolite-oolite-reference:1.93.1-255`,
+  `docker run --rm -it --entrypoint bash wegolite-oolite-reference:1.93.1-255`,
   then `Xvfb :99 &` and run `glxinfo -B`, with `LIBGL_DEBUG=verbose`, or `ldd`
   on `/opt/oolite/bin/oolite`.
 - Building Oolite from source is not a fallback. It needs an owner decision.
@@ -154,8 +200,9 @@ was found.
 ## Remote directories
 
 - `~/oolite-reference`: the synced copy of this tool.
-- `~/oolite-reference-runs/`: one directory per session, deleted after the
-  fetch.
+- `~/oolite-reference-runs/`: one directory per session. It is deleted after a
+  successful fetch and kept, with its path printed, when the fetch fails. An
+  interrupted run can also leave one behind, to remove by hand.
 
 Both are separate from `~/wegolite-remote`, which the gate wrapper wipes on
 every run. To remove the image:
