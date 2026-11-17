@@ -265,6 +265,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
           {
             combat: ctx.core.combat,
             identFrame: identFrameFor(currentScene.camera, camera),
+            viewAspect: currentScene.camera.aspect,
           },
         );
         currentHud.draw(model);

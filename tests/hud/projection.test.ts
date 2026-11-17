@@ -11,6 +11,7 @@
  * pinned to the rim; beyond `range + radius` it is omitted.
  */
 
+import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildHudModel } from "../../src/app/hud-model.js";
@@ -34,6 +35,7 @@ import {
   projectToCompass,
   projectToScanner,
 } from "../../src/render/hud/projection.js";
+import { applyViewport } from "../../src/render/viewport.js";
 import { laveFixture } from "../helpers/lave.js";
 
 const WIDTH = 360;
@@ -584,5 +586,134 @@ describe("the ident frame drawing (D-03, a non-element drawing)", () => {
     const bad = recordingContext();
     drawHud(bad.context, modelWith({ x: Number.NaN, y: 100, half: 40 }));
     expect(bad.points).toEqual(base.points);
+  });
+});
+
+describe("the ident frame follows the live camera (261117-o8q)", () => {
+  const DESIGN_WIDTH = 1920;
+  const DESIGN_HEIGHT = 1080;
+  const pose = { position: vec(0, 0, 0), quaternion: identity() };
+
+  it.each([
+    [1280, 720],
+    [1000, 1000],
+    [2222, 1000],
+  ])("matches Three's projection at %ix%i", (width, height) => {
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 2_500_000);
+    expect(applyViewport(camera, { width, height })).toBe(true);
+    camera.updateMatrixWorld(true);
+    const aspect = width / height;
+    const halfHeight = Math.max(DESIGN_WIDTH / aspect, DESIGN_HEIGHT) / 2;
+
+    const target = new THREE.Vector3(120, -45, -1500);
+    const ndc = target.clone().project(camera);
+    const radius = 100;
+    const frame = projectIdentFrame(
+      pose,
+      camera.fov,
+      camera.aspect,
+      { position: vec(target.x, target.y, target.z), radius },
+      DESIGN_WIDTH,
+      DESIGN_HEIGHT,
+    );
+    expect(frame).not.toBeNull();
+    if (frame === null) return;
+    expect(
+      Math.abs(frame.x - (DESIGN_WIDTH / 2 + ndc.x * halfHeight * aspect)),
+    ).toBeLessThan(1e-6);
+    expect(
+      Math.abs(frame.y - (DESIGN_HEIGHT / 2 - ndc.y * halfHeight)),
+    ).toBeLessThan(1e-6);
+
+    // The frame half is the projected collision radius at the target's depth.
+    const rim = new THREE.Vector3(0, radius, -1500).project(camera);
+    expect(frame.half).toBeGreaterThan(IDENT_FRAME_MIN_HALF);
+    expect(frame.half).toBeLessThan(IDENT_FRAME_MAX_HALF);
+    expect(Math.abs(frame.half - rim.y * halfHeight)).toBeLessThan(1e-6);
+  });
+});
+
+describe("the scanner's forward-view lines (HeadUpDisplay.m:4002-4008)", () => {
+  function recordedPoints(
+    viewAspect: number,
+  ): Array<readonly [number, number]> {
+    const points: Array<readonly [number, number]> = [];
+    const record = (x: number, y: number): void => {
+      points.push([x, y]);
+    };
+    const context = {
+      save: vi.fn(),
+      restore: vi.fn(),
+      clearRect: vi.fn(),
+      beginPath: vi.fn(),
+      closePath: vi.fn(),
+      moveTo: vi.fn(record),
+      lineTo: vi.fn(record),
+      ellipse: vi.fn(),
+      arc: vi.fn(),
+      stroke: vi.fn(),
+      fill: vi.fn(),
+      strokeRect: vi.fn(),
+      fillRect: vi.fn(),
+      fillText: vi.fn(),
+      strokeStyle: "",
+      fillStyle: "",
+      lineWidth: 1,
+      globalAlpha: 1,
+      font: "",
+      textAlign: "left",
+    } as unknown as CanvasRenderingContext2D;
+    const fixture = laveFixture();
+    drawHud(
+      context,
+      buildHudModel(
+        initFlightState(fixture.layout),
+        fixture.layout,
+        fixture.config,
+        "",
+        70,
+        0,
+        "",
+        [],
+        { viewAspect },
+      ),
+    );
+    return points;
+  }
+
+  /** The cone's outer points, found as the move, centre, line sequence. */
+  function coneHalfWidth(viewAspect: number): number {
+    const rect = HUD_LAYOUT.scanner;
+    const cx = rect.x + rect.width / 2;
+    const cy = rect.y + rect.height / 2;
+    const ww = rect.width / 2;
+    const hh = rect.height / 2;
+    const fov = Math.tan((28.6 * Math.PI) / 180);
+    const tan = viewAspect < 4 / 3 ? fov * 0.75 * viewAspect : fov;
+    const cos = 1 / Math.sqrt(1 + tan * tan);
+    const sin = tan * cos;
+    const points = recordedPoints(viewAspect);
+    const close = (
+      point: readonly [number, number] | undefined,
+      x: number,
+      y: number,
+    ): boolean =>
+      point !== undefined &&
+      Math.abs(point[0] - x) < 1e-9 &&
+      Math.abs(point[1] - y) < 1e-9;
+    const found = points.some(
+      (point, i) =>
+        close(point, cx - ww * sin, cy - hh * cos) &&
+        close(points[i + 1], cx, cy) &&
+        close(points[i + 2], cx + ww * sin, cy - hh * cos),
+    );
+    expect(found).toBe(true);
+    return ww * sin;
+  }
+
+  it("uses the flight view's horizontal tangent and narrows below 4:3", () => {
+    const wide = coneHalfWidth(16 / 9);
+    const square = coneHalfWidth(1);
+    expect(square).toBeLessThan(wide);
   });
 });

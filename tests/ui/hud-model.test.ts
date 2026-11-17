@@ -438,3 +438,35 @@ describe("buildHudModel ident frame (INPUT-01, D-03)", () => {
     expect(Object.keys(HUD_LAYOUT)).not.toContain("identFrame");
   });
 });
+
+describe("buildHudModel forward-view tangent (HeadUpDisplay.m:4002-4006)", () => {
+  const F = Math.tan((28.6 * Math.PI) / 180);
+
+  function viewTanXFor(viewAspect: number | undefined): number {
+    const fixture = laveFixture();
+    return buildHudModel(
+      initFlightState(fixture.layout),
+      fixture.layout,
+      fixture.config,
+      "",
+      70,
+      0,
+      "",
+      [],
+      { viewAspect },
+    ).viewTanX;
+  }
+
+  it("is the flight view's horizontal half-angle tangent", () => {
+    expect(Math.abs(viewTanXFor(16 / 9) - F)).toBeLessThan(1e-12);
+    expect(Math.abs(viewTanXFor(1) - 0.75 * F)).toBeLessThan(1e-12);
+    expect(Math.abs(viewTanXFor(0.75) - 0.5625 * F)).toBeLessThan(1e-12);
+  });
+
+  it.each([undefined, Number.NaN, 0, -1])(
+    "falls back to the 1920x1080 design aspect for %s",
+    (viewAspect) => {
+      expect(Math.abs(viewTanXFor(viewAspect) - F)).toBeLessThan(1e-12);
+    },
+  );
+});

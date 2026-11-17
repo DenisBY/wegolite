@@ -34,6 +34,8 @@ import type { NpcContact } from "../sim/world/contacts.js";
 import type { Body, SystemLayout } from "../sim/world/layout.js";
 import {
   COMPASS_RADIUS,
+  HUD_DESIGN_HEIGHT,
+  HUD_DESIGN_WIDTH,
   SCANNER_HEIGHT,
   SCANNER_WIDTH,
 } from "../render/hud/draw.js";
@@ -55,6 +57,7 @@ import {
   projectToScanner,
 } from "../render/hud/projection.js";
 import type { IdentFrame } from "../render/hud/projection.js";
+import { viewTangents } from "../render/viewport.js";
 
 interface ScannerTarget {
   readonly id: HudContact["id"];
@@ -150,6 +153,12 @@ export interface HudModelOptions {
    * through unchanged; it is not a HUD element.
    */
   readonly identFrame?: IdentFrame | null | undefined;
+  /**
+   * The live flight camera's width/height aspect, which sets the scanner's
+   * forward-view lines. Absent or unusable falls back to the HUD design
+   * aspect (1920/1080).
+   */
+  readonly viewAspect?: number | undefined;
 }
 
 function buildBars(
@@ -184,6 +193,8 @@ function buildBars(
  * world or traffic off, which leaves exactly the three static contacts.
  * `options.combat` feeds the combat gauges (D-06, D-07); `options.identFrame`
  * is the projected ident lock frame (D-03), passed through.
+ * `options.viewAspect` gives `viewTanX`, the flight view's horizontal
+ * half-angle tangent from Oolite's frustum rule (`HeadUpDisplay.m:4002-4006`).
  */
 export function buildHudModel(
   state: FlightState,
@@ -198,6 +209,11 @@ export function buildHudModel(
 ): HudModel {
   const aegis: AegisStatus = aegisStatus(state.position, layout);
   const tank = tankTenths(fuelTenths);
+  const requested = options.viewAspect;
+  const viewAspect =
+    requested !== undefined && Number.isFinite(requested) && requested > 0
+      ? requested
+      : HUD_DESIGN_WIDTH / HUD_DESIGN_HEIGHT;
 
   return {
     speed: state.speed,
@@ -223,5 +239,6 @@ export function buildHudModel(
     clockText: formatClock(state.clockSeconds),
     hyperspaceTarget,
     identFrame: options.identFrame ?? null,
+    viewTanX: viewTangents(viewAspect, "flight").x,
   };
 }

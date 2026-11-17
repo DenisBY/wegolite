@@ -48,8 +48,6 @@ export const SCANNER_WIDTH = 504;
 export const SCANNER_HEIGHT = 112;
 export const COMPASS_RADIUS = 48;
 
-/** Oolite's default vertical field-of-view in degrees (`MyOpenGLView.m:1287`, `57.2°`). */
-const SCANNER_FOV_DEG = 57.2;
 /** Lollipop geometry scaled from Oolite's 288x64 scanner (`HeadUpDisplay.m:1265-1275`) to 504x112 (1.75x). */
 const LOLLIPOP_HEAD_WIDTH = 8.75;
 const LOLLIPOP_HEAD_HEIGHT = 5.25;
@@ -172,6 +170,12 @@ export interface HudModel {
    * the hyperspace target line is not (plan 13-14 records the Key Decisions row).
    */
   readonly identFrame: IdentFrame | null;
+  /**
+   * The tangent of the forward view's horizontal half-angle, Oolite's `tanfov`
+   * (`HeadUpDisplay.m:4002-4006`): the scanner's forward-view lines open to it.
+   * `buildHudModel` writes it from the shared rule in `src/render/viewport.ts`.
+   */
+  readonly viewTanX: number;
 }
 
 const CROSSHAIR_GAP = 10;
@@ -263,6 +267,7 @@ function drawScannerGrid(
   ww: number,
   hh: number,
   scannerRange: number,
+  viewTanX: number,
 ): void {
   context.strokeStyle = HUD_SCANNER_GRID_COLOR;
   context.lineWidth = 2;
@@ -301,8 +306,9 @@ function drawScannerGrid(
     context.lineTo(x + w1, y + h1);
   }
 
-  // Forward field-of-view V-cone lines (HeadUpDisplay.m:4005-4012).
-  const tanFov = Math.tan((SCANNER_FOV_DEG * Math.PI) / 360);
+  // Forward field-of-view V-cone lines (HeadUpDisplay.m:4002-4012): the
+  // flight view's horizontal half-angle tangent, `tanfov`.
+  const tanFov = viewTanX;
   const cosFov = 1 / Math.hypot(1, tanFov);
   const sinFov = tanFov * cosFov;
   context.moveTo(x - ww * sinFov, y - hh * cosFov);
@@ -361,7 +367,7 @@ function drawScanner(context: CanvasRenderingContext2D, model: HudModel): void {
   const hh = rect.height / 2;
 
   context.save();
-  drawScannerGrid(context, x, y, ww, hh, model.scannerRange);
+  drawScannerGrid(context, x, y, ww, hh, model.scannerRange, model.viewTanX);
   drawScannerContacts(context, x, y, model.contacts);
   context.restore();
 }
