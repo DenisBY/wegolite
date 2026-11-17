@@ -53,5 +53,18 @@ Plan:
 Risks: audio and the OpenGL version Oolite demands under llvmpipe; software rendering may differ in small
 visual details (does not affect the mass numbers). Estimate: half an hour to two hours, mostly the headless run.
 
+Added by Phase 16 (plan 16-09), the debris and explosion items:
+- Wreck lifetime (PROJECT.md Key Decisions row "Wreckage burns down by Oolite's heat damage, about E/1000
+  seconds (LOW confidence)"; FIDELITY.md E-80). Wegolite drains a wreck's energy by `dt x (1000 - 10 x age)`
+  while the temperature is above 256, so a wreck of energy E (50 to 675, half its lifetime) lasts
+  `(1000 - sqrt(1e6 - 20 E)) / 10` seconds, 7 to 82 ticks at 120 Hz. Measure it: in the throwaway OXP, destroy
+  a ship that can fragment and log each wreck's `energy` and `temperature` every frame from its creation to its
+  removal; compare the lifetimes with the formula. If they differ, change `wreckHeatDrain` and its pins
+  (`tests/sim/world/debris.test.ts`) and update the row.
+- Explosion and debris look: screenshots of an explosion (the cloud of 10 particles, the white flash of 0.4 s)
+  and of the pods, the alloy plate and the burning wrecks tumbling, next to Wegolite's, at the same distance.
+  The tumble is a render rule from each piece's orientation (D16-10, OC-2), so compare the spin rates, not the
+  exact attitudes.
+
 Related: `.planning/todos/pending/2026-11-14-make-buoys-block-hyperspace-like-oolite.md` (the buoy blockage
 decision can use the measured blockage distances).
