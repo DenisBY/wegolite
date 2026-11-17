@@ -1,7 +1,7 @@
 ---
 phase: "16"
 slug: wreckage-cargo-and-the-entity-cap
-status: draft  # every task verified; the remote verify-full (OC-6) is pending the owner's go, so the phase is not closed
+status: validated  # Nyquist audit 2026-11-17: no gaps; remote verify-full passed at 50eee37 (135/135 e2e, seams 2/2)
 nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-16"
@@ -80,6 +80,8 @@ Filled in by the planner from `16-RESEARCH.md` § Phase Requirements to Test Map
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | 20-seed NPC acceptance run (21 of 21) | QUAL-11 | in no gate by decision (Phase 14 IN-04) | `docker compose run --rm test npm run test:acceptance` on the remote machine after plans touching `src/sim/world/**` or `ships-npc.json` |
+| Cold start under 9,437,184 bytes, lazy debris and particle assets after the first frame, draw calls within the 50-call budget (ROADMAP criteria 3 and 4) | WORLD-17, DATA-16 | needs a real browser and GPU; no Vitest equivalent | remote: `/home/opencode/.claude/scripts/wegolite-remote-run.sh run --rm e2e sh -lc "npm run build:e2e && npx playwright test tests/e2e/combat.spec.ts tests/e2e/budget.spec.ts tests/e2e/traffic.spec.ts tests/e2e/npc-assets.spec.ts"` (9 of 9 at 178bdf5) |
+| Remote `verify-full` (OC-6): done 2026-11-17 at 50eee37, exit 0 | WORLD-17 | render phase gate, remote machine only | `/home/opencode/.claude/scripts/wegolite-remote-run.sh run --rm verify-full` |
 | Vendoring of debris assets from the local Oolite checkout | DATA-16 | script runs against the host checkout | human checkpoint per plan |
 
 ---
@@ -91,5 +93,6 @@ Filled in by the planner from `16-RESEARCH.md` § Phase Requirements to Test Map
 - [x] Wave 0 covers all MISSING references
 - [x] No watch-mode flags
 - [x] `nyquist_compliant: true` set in frontmatter
+- [x] Nyquist audit 2026-11-17: DATA-16 and WORLD-17 and ROADMAP criteria 1-4 all COVERED (criteria 3 and 4 browser parts Manual-Only above); no tests added
 
-**Approval:** validation strategy signed off after plan 16-09 for every task's automated verify (each plan's targeted runs, the full suite and the remote `verify` recorded in its SUMMARY; the four browser specs passed remotely, 9 of 9 at `178bdf5`; the fidelity contract passed in both modes), 2026-11-17. Not signed off: the remote `verify-full` for this render phase has NOT run; it waits for the owner's go (OC-6, ROADMAP gate rule), with the command `/home/opencode/.claude/scripts/wegolite-remote-run.sh run --rm verify-full`. This is not an owner decision: OC-1 to OC-7 stay pending owner confirmation (PROJECT.md Key Decisions, the Phase 16 rows).
+**Approval:** validation strategy signed off after plan 16-09 for every task's automated verify (each plan's targeted runs, the full suite and the remote `verify` recorded in its SUMMARY; the four browser specs passed remotely, 9 of 9 at `178bdf5`; the fidelity contract passed in both modes), 2026-11-17. The remote `verify-full` for this render phase also passed on 2026-11-17 at `50eee37` (Chromium e2e 135 of 135, seams 2 of 2, exit 0), so nothing is left unsigned.
