@@ -1485,4 +1485,55 @@ describe("frame phase order", () => {
     expect(probe.frames).toBe(2);
     expect(log).toEqual([]);
   });
+
+  // Quick task 261117-fpp: the Settings FPS counter is ticked with the frame's
+  // own `now`, right after the frame count and before every guard, so frames
+  // behind the chart and paused frames count too.
+  describe("the FPS counter tick", () => {
+    function withCounter(harness: FrameHarness): FrameHarness {
+      harness.ctx.runtime.fpsCounter = {
+        frame: (now: number) => harness.log.push(`fps ${String(now)}`),
+      } as never;
+      return harness;
+    }
+
+    it("ticks with the frame's timestamp before the pause toggle", () => {
+      const { frame, log, probe } = withCounter(frameHarness());
+
+      frame(1234);
+
+      expect(log[0]).toBe("fps 1234");
+      expect(log.indexOf("consumePauseToggle")).toBe(1);
+      expect(log.filter((entry) => entry.startsWith("fps "))).toEqual([
+        "fps 1234",
+      ]);
+      expect(probe.frames).toBe(1);
+    });
+
+    it("still ticks once behind the open chart", () => {
+      const { ctx, frame, log, probe } = withCounter(frameHarness());
+      ctx.chart.chartOpen = true;
+
+      frame(2000);
+
+      expect(log.filter((entry) => entry.startsWith("fps "))).toEqual([
+        "fps 2000",
+      ]);
+      expect(log[0]).toBe("fps 2000");
+      expect(probe.frames).toBe(1);
+    });
+
+    it("still ticks once while paused", () => {
+      const { ctx, frame, log, probe } = withCounter(frameHarness());
+      ctx.runtime.paused = true;
+
+      frame(3000);
+
+      expect(log.filter((entry) => entry.startsWith("fps "))).toEqual([
+        "fps 3000",
+      ]);
+      expect(log[0]).toBe("fps 3000");
+      expect(probe.frames).toBe(1);
+    });
+  });
 });

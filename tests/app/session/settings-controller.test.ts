@@ -10,7 +10,7 @@
  * controller registers no listener, so constructing it needs no `window`.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CONTEXT_LOST_NOTICE,
@@ -85,6 +85,9 @@ function harness(pauseOnFocusLoss = true): Harness {
     setShowFps: (on: boolean) =>
       calls.push(`settings.setShowFps(${String(on)})`),
   } as unknown as SettingsPanel;
+  ctx.runtime.fpsCounter = {
+    setEnabled: (on: boolean) => calls.push(`fps.setEnabled(${String(on)})`),
+  } as never;
   const h: Harness = {
     ctx,
     calls,
@@ -278,6 +281,60 @@ describe("panels and quality", () => {
     const h = harness();
     expect(h.controller.applyQuality("standard")).toBe(true);
     expect(h.calls).toEqual([]);
+  });
+});
+
+describe("show FPS", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // `persistSettings` is a no-op in this harness: `ctx.runtime.bindings` is
+  // undefined, so nothing is written. The store's own write is pinned in
+  // tests/settings/schema.test.ts.
+  it("applyShowFps stores the choice and switches the counter", () => {
+    const h = harness();
+    h.controller.applyShowFps(true);
+    expect(h.ctx.runtime.settings?.showFps).toBe(true);
+    expect(h.calls).toEqual(["fps.setEnabled(true)"]);
+
+    h.controller.applyShowFps(false);
+    expect(h.ctx.runtime.settings?.showFps).toBe(false);
+    expect(h.calls).toEqual(["fps.setEnabled(true)", "fps.setEnabled(false)"]);
+  });
+
+  it("applyShowFps before the settings load touches nothing", () => {
+    const h = harness();
+    h.ctx.runtime.settings = undefined;
+    h.controller.applyShowFps(true);
+    expect(h.ctx.runtime.settings).toBeUndefined();
+    expect(h.calls).toEqual([]);
+  });
+
+  it("resetAllSettings turns the counter off, then mirrors the toggle", () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+    });
+    const h = harness();
+    if (h.ctx.runtime.settings !== undefined) {
+      h.ctx.runtime.settings.showFps = true;
+    }
+    h.controller.resetAllSettings();
+    expect(h.ctx.runtime.settings?.showFps).toBe(false);
+    const off = h.calls.indexOf("fps.setEnabled(false)");
+    const toggle = h.calls.indexOf("settings.setShowFps(false)");
+    expect(off).toBeGreaterThanOrEqual(0);
+    expect(toggle).toBeGreaterThan(off);
+    expect(h.calls.filter((call) => call.startsWith("fps."))).toEqual([
+      "fps.setEnabled(false)",
+    ]);
   });
 });
 

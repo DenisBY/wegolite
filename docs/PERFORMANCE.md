@@ -14,6 +14,8 @@ Each rendered frame must stay inside these limits. Each row names the gate that 
 
 The budget applies to the default Standard quality, which is what every test renders. The opt-in High quality (the "High-quality graphics" setting) spends up to 17 planet noise evaluations (`HIGH_NOISE_EVAL_BUDGET`) and adds up to five draw calls: one for the atmosphere shell and one per nebula texture. It has no frame-rate evidence yet; measure it with the reference-desktop protocol below before changing the default.
 
+The Settings "Show FPS counter" option shows the animation-frame rate over 500 ms windows, the same interval the sampler below measures, as a quick on-screen reading. It is not QUAL-01 evidence and does not replace the reference-desktop protocol. It is a DOM text element in the document footer, so it adds no draw call and no triangles. Docked, it reports the loop rate, while the redraw gate skips unchanged GPU draws.
+
 Both draw-call and triangle comparisons are inclusive: 50 calls and 250 000 triangles pass, while 51 calls and 250 001 triangles fail. A scene that reports zero calls or zero triangles also fails, so a blank frame cannot pass the budget.
 
 ## Container measurements

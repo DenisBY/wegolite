@@ -464,6 +464,65 @@ describe("graphics quality", () => {
   });
 });
 
+// Quick task 261117-fpp, threat T-fpp-01: the same strict-optional rule as
+// pauseOnFocusLoss, defaulting to off.
+describe("show FPS", () => {
+  it("defaults to off", () => {
+    expect(defaults().showFps).toBe(false);
+  });
+
+  it("reads a blob without showFps as off", () => {
+    const blob = validBlob();
+    expect(blob).not.toHaveProperty("showFps");
+    expect(validateSettings(blob)?.showFps).toBe(false);
+  });
+
+  it("keeps an explicit true", () => {
+    const blob: Record<string, unknown> = validBlob();
+    blob.showFps = true;
+    expect(validateSettings(blob)?.showFps).toBe(true);
+  });
+
+  it("rejects a non-boolean showFps, null included, and names the field", () => {
+    for (const value of ["yes", 1, null, {}, []]) {
+      const blob: Record<string, unknown> = validBlob();
+      blob.showFps = value;
+      expect(validateSettings(blob)).toBeNull();
+      expect(settingsProblem(blob)).toContain("settings.showFps");
+    }
+  });
+
+  it("omits showFps from a blob saved with the counter off", () => {
+    const storage = new FakeStorage();
+    saveSettings({ ...defaults(), showFps: false }, storage);
+    const parsed = JSON.parse(storage.getItem(SETTINGS_KEY) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    expect(parsed).not.toHaveProperty("showFps");
+    expect(loadSettings(storage).showFps).toBe(false);
+  });
+
+  it("keeps showFps true across save and load", () => {
+    const storage = new FakeStorage();
+    saveSettings({ ...defaults(), showFps: true }, storage);
+    const parsed = JSON.parse(storage.getItem(SETTINGS_KEY) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    expect(parsed.showFps).toBe(true);
+    expect(loadSettings(storage).showFps).toBe(true);
+  });
+
+  it("backs up a blob with a non-boolean showFps and uses defaults", () => {
+    const storage = new FakeStorage();
+    const raw = JSON.stringify({ ...validBlob(), showFps: "yes" });
+    storage.setItem(SETTINGS_KEY, raw);
+    expect(loadSettings(storage).showFps).toBe(false);
+    expect(storage.getItem(SETTINGS_CORRUPT_KEY)).toBe(raw);
+  });
+});
+
 describe("saveSettings and resetSettings", () => {
   it("writes exactly one version-1 blob with no extra keys", () => {
     const storage = new FakeStorage();

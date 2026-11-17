@@ -172,6 +172,10 @@ panel has a "High-quality graphics" option, off by default, that adds
 sun-angle shading, soft layered clouds, an atmosphere haze and sky nebulae. High spends up to 17 noise
 evaluations and up to five more draw calls, and it is not measured by the budget tests.
 
+Settings also has a "Show FPS counter" option, off by default, that shows the
+frame rate on screen. It is a quick reading only: the protocol in
+[`docs/PERFORMANCE.md`](./docs/PERFORMANCE.md) remains the measurement of record.
+
 ## Troubleshooting
 
 - **WebGL2 is unavailable.** Wegolite needs WebGL2. When the browser does not
