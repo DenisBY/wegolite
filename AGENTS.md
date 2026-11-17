@@ -87,7 +87,7 @@ docker compose run --rm e2e-cross
 # Run the fast gate (lint, typecheck, content drift, unit tests, build, e2e smoke subset)
 docker compose run --rm verify
 
-# Run the full release gate (the same chain with the full Chromium e2e suite; CI runs this)
+# Run the full release gate (the same chain with the full Chromium e2e suite; CI runs it split into parallel jobs)
 docker compose run --rm verify-full
 
 # Rebuild after dependency changes, then drop the stale named volume
@@ -98,7 +98,7 @@ docker compose down --volumes
 docker compose down --volumes --remove-orphans
 ```
 
-`verify` is the fast gate and runs on every change; `verify-full` is the release gate and runs before a release and when render, input, persistence or network-guard code changes. CI runs `verify-full`. Choose the gate by change type: changes limited to pure simulation logic (`src/sim/`) and its tests or guards need only `docker compose run --rm test`, `lint` and `typecheck`; changes to browser-facing code (`src/app/`, `src/render/`, `src/input/`, `src/ui/`, `index.html`) need `verify`; `verify-full` stays for releases and for render, input, persistence or network-guard changes.
+`verify` is the fast gate and runs on every change; `verify-full` is the release gate and runs before a release and when render, input, persistence or network-guard code changes. CI runs the same chain split across parallel jobs in `.github/workflows/verify.yml`: `verify-checks` (`verify-full` without the full Chromium suite) and the Chromium suite in four `--shard=N/4` jobs; an aggregate `verify` job and the workflow conclusion gate the Pages deploy. Choose the gate by change type: changes limited to pure simulation logic (`src/sim/`) and its tests or guards need only `docker compose run --rm test`, `lint` and `typecheck`; changes to browser-facing code (`src/app/`, `src/render/`, `src/input/`, `src/ui/`, `index.html`) need `verify`; `verify-full` stays for releases and for render, input, persistence or network-guard changes.
 
 The 20-seed NPC acceptance run (`npm run test:acceptance`, `tests/acceptance/`) is in no gate, by decision (Phase 14 review IN-04). Rerun it by hand, on the remote test machine, after any change under `src/sim/npc/**`, `src/sim/world/**` or to `src/content/generated/ships-npc.json`, and record the result in the plan's SUMMARY. The thresholds and detectors are frozen: changing them needs the owner's `Detector-change-approved-by-owner` trailer. Revisit adding the run to `verify-full` when a later phase changes NPC behaviour.
 
