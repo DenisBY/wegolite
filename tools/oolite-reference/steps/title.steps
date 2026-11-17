@@ -1,0 +1,5 @@
+# Default steps: wait for the Oolite window, let it settle on the title
+# screen, and capture it.
+window 120
+sleep 10
+shot title
