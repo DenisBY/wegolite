@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-17T15:41:19.871Z"
+last_updated: "2026-11-17T15:49:47.651Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: 2b9f9573ffe343c608e5cd2a724d78b05693b403
+state_head: b6d374afe1382d2b15205d13992cc72a29850e7d
 progress:
   total_phases: 6
   completed_phases: 2
@@ -610,6 +610,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261117-lka | Measure mass-lock range and jump blockage with real ships in Oolite | 2026-11-17 | bb7daab | [261117-lka-measure-mass-lock-range-and-jump-blockag](./quick/261117-lka-measure-mass-lock-range-and-jump-blockag/) |
 | 261117-mne | Make the station mass-lock boundary strict like Oolite | 2026-11-17 | f14361e | [261117-mne-make-the-station-mass-lock-boundary-stri](./quick/261117-mne-make-the-station-mass-lock-boundary-stri/) |
 | 261117-mng | Harden the Oolite reference tool per review | 2026-11-17 | 2b9f957 | [261117-mng-harden-the-oolite-reference-tool-per-rev](./quick/261117-mng-harden-the-oolite-reference-tool-per-rev/) |
+| 40 | Review follow-up to 261117-mng: remove the reference container after any failed run | 2026-11-17 | b6d374a | — |
 
 ## Deferred Items
 
