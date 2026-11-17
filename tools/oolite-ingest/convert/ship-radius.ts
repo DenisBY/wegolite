@@ -157,12 +157,13 @@ function resolveHull(
  * `ShipEntity`, and is skipped. Every other subentity contributes the double
  * `HPmagnitude(position) + its own radius`; when that is strictly greater than
  * the running radius, the radius becomes its float32 rounding, because
- * `collision_radius` is a `GLfloat` (`Entity.h:103`).
+ * `collision_radius` is a `GLfloat` (`Entity.h:103`). The subentity's radius is
+ * its mesh radius (`findCollisionRadius`, `OOEntityWithDrawable.m:59`), never
+ * its own extended collision radius, so a subentity's subentities do not count.
  *
  * Throws `SCHEMA` for a key or model the catalogue or mesh set lacks, a
- * non-flasher subentity without a `subentity_key` or a `position`, a subentity
- * whose own entry has a non-flasher subentity (the nested term is not ported),
- * or a radius that is not finite and above zero.
+ * non-flasher subentity without a `subentity_key` or a `position`, or a radius
+ * that is not finite and above zero.
  */
 export function collisionRadius(
   key: string,
@@ -190,15 +191,6 @@ export function collisionRadius(
       );
     }
     const sub = resolveHull(subentityKey, catalogue, meshes);
-    if (
-      sub.entry.shipDef.subentities.some((nested) => nested.type !== "flasher")
-    ) {
-      return fail(
-        key,
-        SHIPDATA_FILE,
-        `the solid subentity "${subentityKey}" has a solid subentity of its own, but the nested radius term is not ported because no client entry needs it`,
-      );
-    }
     const subRadius = hullRadius(subentityKey, sub.modelFile, sub.mesh);
     const [x, y, z] = position;
     // HPmagnitude is the square root of the double dot product; Math.hypot is

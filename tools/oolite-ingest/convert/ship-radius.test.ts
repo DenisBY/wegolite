@@ -361,7 +361,7 @@ describe("collisionRadius (quick task 261117-k1l)", () => {
     expect(error.excerpt).toMatch(/no position/);
   });
 
-  it("fails naming the key for a nested solid subentity", () => {
+  it("uses a subentity's mesh radius, ignoring its own subentities", () => {
     const nested = withEntry("oolite_buoy_subentity", (entry) => ({
       ...entry,
       shipDef: {
@@ -371,9 +371,7 @@ describe("collisionRadius (quick task 261117-k1l)", () => {
         ],
       },
     }));
-    const error = capture(() => collisionRadius("buoy", nested, meshes));
-    expect(error.code).toBe("SCHEMA");
-    expect(error.construct).toBe("buoy");
-    expect(error.excerpt).toMatch(/nested radius term is not ported/);
+    // findCollisionRadius (OOEntityWithDrawable.m:59) is the mesh radius alone.
+    expect(collisionRadius("buoy", nested, meshes)).toBe(59.13554763793945);
   });
 });

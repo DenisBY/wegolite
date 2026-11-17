@@ -730,7 +730,7 @@ describe("frustration, avoidance entries and the global counters", () => {
       tallies.interceptArrivals,
       tallies.fleeArrivals,
     ]).toEqual([1, 1, 1]);
-    expect(goalMet("station", 2_500)).toBe(true);
+    expect(goalMet("station", 3_500)).toBe(true);
     expect(goalMet("intercept", 1_500)).toBe(false);
     expect(goalMet("flee", 25_600)).toBe(false);
   });
@@ -848,7 +848,7 @@ describe("run minimums", () => {
     for (const goal of result.t0.goals) {
       expect(goal.metric).toBeDefined();
       const metric = goal.metric ?? Number.NaN;
-      if (goal.script === "station") expect(metric).toBeGreaterThan(2_500);
+      if (goal.script === "station") expect(metric).toBeGreaterThan(3_500);
       if (goal.script === "intercept") expect(metric).toBeGreaterThan(1_500);
       if (goal.script === "flee") expect(metric).toBeLessThan(25_600);
       expect(goalMet(goal.script, metric)).toBe(false);
