@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 16
 current_phase_name: Wreckage, Cargo and the Entity Cap
-current_plan: 6
+current_plan: 7
 status: executing
-stopped_at: Completed 16-05-PLAN.md
-last_updated: "2026-11-17T00:22:07.368Z"
+stopped_at: Completed 16-06-PLAN.md
+last_updated: "2026-11-17T00:46:13.466Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 15 complete, transitioned to Phase 16
-state_head: 3bf7849e261859674a537fd8223d3aaafd6971ca
+state_head: d154d8738d694a2532d7d5bfb0feda8a802907d8
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 15
-  completed_plans: 11
+  completed_plans: 12
   percent: 17
 ---
 
@@ -31,10 +31,10 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 16 — Wreckage, Cargo and the Entity Cap
-Current Plan: 6
+Current Plan: 7
 Total Plans in Phase: 9
 Status: Ready to execute
-Last activity: 2026-11-17 — 16-05 complete (explosions.json and the particle textures, the NPC hull boundingBox; acceptance 21/21 at 79d2bbc)
+Last activity: 2026-11-17 — 16-06 complete (debris and explosion catalogues in the live session, combat.debris through debrisContentFrom, spawnTestShooter(cargo); twin hash a10b2dfc; remote verify exit 0 at d154d87)
 
 
 ## Performance Metrics
@@ -204,6 +204,7 @@ Last activity: 2026-11-17 — 16-05 complete (explosions.json and the particle t
 | Phase 16 P03 | 35min | 2 tasks | 36 files |
 | Phase 16 P04 | 26 min | 3 tasks | 11 files |
 | Phase 16 P05 | 16 min | 2 tasks | 24 files |
+| Phase 16 P06 | 75min | 2 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -511,6 +512,8 @@ Recent decisions affecting current work:
 - [Phase 16]: D16-03/OC-3: TEST_PILOT_SCAN_KINDS leaves cargo and wreckage out of the test pilot's scan
 - [Phase 16]: 16-05: explosions.json holds only oolite-default-ship-explosion with Oolite's reader types (float keys float32, duration as authored); the texture must be in PARTICLE_TEXTURES (D16-22)
 - [Phase 16]: 16-05: NpcShip.boundingBox { min, max } is Math.fround of the hull .dat vertex extremes in Oolite's model axes, schema min <= max (D16-23)
+- [Phase 16]: 16-06: debrisContentFrom is the one builder of the sim's DebrisContent, shared by the session and the Node replay; the boot loads the debris and explosion catalogues with traffic on only, on the NPC catalogue's failure surface
+- [Phase 16]: 16-06 (D16-09): spawnTestShooter(cargo?) taints first; a non-number or out-of-domain count spawns nothing and returns false; absent keeps the Phase 15 spawn bit for bit. Debris twin pins: kill +794, 3 pods, 1 plate, 3 wrecks, 19 entities, hash a10b2dfc 60 ticks after the kill
 
 ### Pending Todos
 
@@ -619,8 +622,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-17T00:22:01.903Z
-Stopped at: Completed 16-05-PLAN.md
+Last session: 2026-11-17T00:46:13.333Z
+Stopped at: Completed 16-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
