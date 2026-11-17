@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 16
 current_phase_name: Wreckage, Cargo and the Entity Cap
-current_plan: 8
+current_plan: 9
 status: executing
-stopped_at: Completed 16-07-PLAN.md
-last_updated: "2026-11-17T01:09:17.675Z"
+stopped_at: Completed 16-08-PLAN.md
+last_updated: "2026-11-17T01:30:38.986Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 15 complete, transitioned to Phase 16
-state_head: f14039db724f5509d239179b1ee682ef82158e23
+state_head: 970783ff19bb28ec9cdff5ea9fa14296962cd38f
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
   percent: 17
 ---
 
@@ -31,10 +31,10 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 16 — Wreckage, Cargo and the Entity Cap
-Current Plan: 8
+Current Plan: 9
 Total Plans in Phase: 9
 Status: Ready to execute
-Last activity: 2026-11-17 — 16-07 complete (shipDestroyed routed to dockFeedback as the 22nd kind, position and radius only; pooled instanced explosion cloud and flash, 8 explosions x 10 particles, two draw objects, lazy particle textures; remote verify exit 0 at f14039d)
+Last activity: 2026-11-17 — 16-08 complete (id-free debrisContacts; instanced debris layer, one draw object per debris model primitive, radius-ratio scale, render-side tumble from the orientation (OC-2); debris GLBs through the NPC loader latch; remote verify exit 0 and acceptance 21/21 at 970783f)
 
 
 ## Performance Metrics
@@ -206,6 +206,7 @@ Last activity: 2026-11-17 — 16-07 complete (shipDestroyed routed to dockFeedba
 | Phase 16 P05 | 16 min | 2 tasks | 24 files |
 | Phase 16 P06 | 75min | 2 tasks | 15 files |
 | Phase 16 P07 | 21min | 2 tasks | 9 files |
+| Phase 16 P08 | 20min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -518,6 +519,9 @@ Recent decisions affecting current work:
 - [Phase 16]: 16-07: the explosion quad edge is 2 x Oolite's particle size and flash _diameter (Oolite draws -size..+size)
 - [Phase 16]: 16-07: explosion colours are display values fed as srgbToLinear(clamp(c) x alpha) into instanceColor with the particle texture as alphaMap, reproducing GL_SRC_ALPHA, GL_ONE under the sRGB output
 - [Phase 16]: 16-07: the flash's no_draw_distance attenuation and the cloud's drift with the dead ship's velocity are not reproduced (the event carries no velocity)
+- [Phase 16]: Debris tumble (D16-10, OC-2): tumbleOrientation(q, info, t) = normalise(q x axisAngle(w/|w|, |w| t)), body rate w = (maxFlightPitch q.y, 0, maxFlightRoll q.x); render-only, derived from the contact orientation, never an entity id
+- [Phase 16]: The NPC model loader's glbFor is trafficModelGlb (src/app/npc-models.ts): ship catalogue first, then debrisModels, so debris GLBs ride the same first-in-flight-frame latch
+- [Phase 16]: Debris is drawn but not on the scanner (D16-26): debrisContacts feeds only the debris layer; npcContacts stays ships only
 
 ### Pending Todos
 
@@ -626,8 +630,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-17T01:09:17.542Z
-Stopped at: Completed 16-07-PLAN.md
+Last session: 2026-11-17T01:30:38.851Z
+Stopped at: Completed 16-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
