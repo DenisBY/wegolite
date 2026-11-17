@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-17T14:54:17.764Z"
+last_updated: "2026-11-17T15:29:49.345Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: bb7daab0cb0b79bbdd34542fc8915f5ebfd07c27
+state_head: f14361e7d51c800e340b4b3ee15cd621bca76993
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-17 — Completed quick task 261117-lka: measure mass lock and jump blockage in real Oolite (18 same, 1 known, 1 differs)
+Last activity: 2026-11-17 — Completed quick task 261117-mne: make the station mass-lock boundary strict like Oolite
 
 
 ## Performance Metrics
@@ -608,6 +608,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261117-k1l | Align station and buoy radii with Oolite, compiled from the meshes | 2026-11-17 | 52d11ad | [261117-k1l-align-station-and-buoy-radii-with-oolite](./quick/261117-k1l-align-station-and-buoy-radii-with-oolite/) |
 | 36 | Review follow-up to 261117-k1l: restore 3,500 m in stale detector literals, drop nested-subentity guard | 2026-11-17 | b8e3d83 | — |
 | 261117-lka | Measure mass-lock range and jump blockage with real ships in Oolite | 2026-11-17 | bb7daab | [261117-lka-measure-mass-lock-range-and-jump-blockag](./quick/261117-lka-measure-mass-lock-range-and-jump-blockag/) |
+| 261117-mne | Make the station mass-lock boundary strict like Oolite | 2026-11-17 | f14361e | [261117-mne-make-the-station-mass-lock-boundary-stri](./quick/261117-mne-make-the-station-mass-lock-boundary-stri/) |
 
 ## Deferred Items
 
