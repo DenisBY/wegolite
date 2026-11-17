@@ -32,8 +32,8 @@ Open numbers (our value, what to confirm):
   18 of 20 trials and both radii agree with Wegolite (the krait, the buoy mass lock, the planet, the sun, the krait
   and Coriolis blockage; the sun radius is ROUNDING at 2.0e-8), 1 trial is KNOWN (the buoy blockage, E-22) and 1
   DIFFERS: the station at exactly 25,600 m, which Oolite does not lock and Wegolite does (`torus.ts:103` is
-  inclusive, Oolite's outer gate at `PlayerEntity.m:2936` is strict for every ship). Reported to the owner, no code
-  changed.
+  inclusive, Oolite's outer gate at `PlayerEntity.m:2936` is strict for every ship). Fixed in quick task 261117-mne
+  (2026-11-17, owner decision): `torus.ts:103` is now strict `<`, so the station trial now agrees with Oolite.
 
 Measured (quick task 261117-jji, 2026-11-17): the Coriolis, both buoys, the Cobra Mk III and the nine NPC
 masses are all bit-exact equal to Wegolite's values in a running Oolite 1.93.1-255 (13 of 13 EQUAL), and so are
@@ -76,9 +76,9 @@ Plan:
    Open items and in the 261117-iuw SUMMARY. Each measurement run records its own `session.txt` and
    `wrapper.txt` in its SUMMARY.
 
-Open: step 4 (UI comparison) and the Phase 16 wreck lifetime and explosion items below. Waiting for the owner: the
-station mass-lock boundary at exactly 25,600 m (quick task 261117-lka; FIDELITY.md Open items), an operator change
-in `torus.ts:103` plus two test pins and two comments. No mass difference is waiting for the owner. The reference build is 1.93.1-255, not the 1.93.1-241 pin; see
+Open: step 4 (UI comparison) and the Phase 16 wreck lifetime and explosion items below. The station mass-lock
+boundary at exactly 25,600 m, measured in quick task 261117-lka, was fixed in quick task 261117-mne (`torus.ts:103`
+is now strict `<`). No mass difference is waiting for the owner. The reference build is 1.93.1-255, not the 1.93.1-241 pin; see
 the FIDELITY.md Open items bullet "Reference Oolite for measurements".
 
 Risks: audio and the OpenGL version Oolite demands under llvmpipe; software rendering may differ in small
