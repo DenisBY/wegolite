@@ -195,8 +195,13 @@ while [ "$idx" -lt "$total" ]; do
       ;;
     key)
       [ -n "$WIN_ID" ] && xdotool windowfocus --sync "$WIN_ID" >/dev/null 2>&1
+      # Hold each key across several frames: Oolite polls its key state once
+      # per frame, and under llvmpipe a plain press-and-release is often
+      # processed within one frame and lost (observed on the scenario screen).
       # shellcheck disable=SC2086 # keysyms are validated and must split.
-      xdotool key --delay 150 $arg
+      for ks in $arg; do
+        xdotool keydown "$ks" sleep 0.5 keyup "$ks" sleep 0.3
+      done
       STEP_REPORT+="step $idx: key $arg ok"$'\n'
       ;;
     waitlog)

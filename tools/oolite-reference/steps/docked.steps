@@ -1,0 +1,14 @@
+# Start a new commander from the title screen and capture the docked status
+# screen. The default selection on the title screen is "Start New Commander";
+# Return opens the scenario screen, and Return there starts the first scenario
+# (oolite-standard), which docks the player at the main station.
+# Keys are sent as separate presses with pauses: Oolite debounces selection.
+window 120
+sleep 10
+shot title
+key Return
+sleep 3
+shot scenarios
+key Return
+sleep 10
+shot docked
