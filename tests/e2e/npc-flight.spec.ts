@@ -32,6 +32,7 @@ import type { Page } from "@playwright/test";
 
 import { buildHudModel } from "../../src/app/hud-model.js";
 import { scriptGoalMetric } from "../../src/sim/ai/pilots/flight-script.js";
+import { FLYER_SCRIPT_RANGES } from "../../src/sim/ai/test-spawn.js";
 import { PLAYER_COLLISION_RADIUS_M } from "../../src/sim/npc/stats.js";
 import { PLAYER_ID } from "../../src/sim/world/ids.js";
 import type { EntityId } from "../../src/sim/world/ids.js";
@@ -294,10 +295,15 @@ test("three scripted flyers are on the scanner, drawn within budget and replay t
     type: "npc-flight-metrics",
     description: `station ${start.station.toFixed(0)} to ${end.station.toFixed(0)} m, intercept ${start.intercept.toFixed(0)} to ${end.intercept.toFixed(0)} m, flee ${start.flee.toFixed(0)} to ${end.flee.toFixed(0)} m`,
   });
+  // The station script holds a range from the station rather than closing in:
+  // since quick task 261117-k1l the goal (3,500 m) lies beyond the spawn
+  // (about 3,300 m from the station), so the flyer backs out to it. Either way
+  // it ends nearer its goal range than it started.
+  const stationGoal = FLYER_SCRIPT_RANGES.station;
   expect(
-    end.station,
-    "the station flyer is closer to the station",
-  ).toBeLessThan(start.station);
+    Math.abs(end.station - stationGoal),
+    "the station flyer is nearer its goal range from the station",
+  ).toBeLessThan(Math.abs(start.station - stationGoal));
   expect(end.intercept, "the interceptor is closer to the player").toBeLessThan(
     start.intercept,
   );
