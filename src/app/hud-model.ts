@@ -20,6 +20,7 @@ import type { AegisStatus } from "../sim/world/aegis.js";
 import type { CompassTarget } from "../sim/flight/state.js";
 import type { FlightConfig } from "../sim/flight/config.js";
 import type { FlightState } from "../sim/flight/state.js";
+import { massLocked as bodyMassLocked } from "../sim/flight/torus.js";
 import { clamp, sub } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
 import {
@@ -180,10 +181,23 @@ export interface HudModelOptions {
 }
 
 /**
- * The condition light. In flight it is Oolite's alert condition from its
- * flags (`PlayerEntity.m:2976-2993`, `5129-5137`); in any other mode it is
- * green, because Oolite clears every flag outside space
- * (`PlayerEntity.m:2894-2899`).
+ * The condition light: Oolite's alert condition from its flags
+ * (`PlayerEntity.m:2976-2993`, `5129-5137`) in every mode but docked.
+ *
+ * Oolite computes the flags in every in-space status, launching included
+ * (`Entity.m:1033-1048`), and clears them only outside space or while docking
+ * (`PlayerEntity.m:2893-2899`); a station in range mass-locks the ship
+ * (`PlayerEntity.m:3053-3060`), so the light is yellow from the launch on.
+ * Wegolite has no docking phase (a capture docks at once), and the countdown
+ * and the docking computer run inside `inFlight`, so only `docked` is green,
+ * and the flight HUD is hidden then.
+ *
+ * The body mass-lock rule is read live and ORed with the sim's flag: the sim
+ * refreshes `state.torus.massLocked` only in in-flight steps, so the flag is
+ * stale (false) through the launch and on the frame after the completing
+ * launch step. The sim must not change for this, because the torus fields are
+ * hashed (`hashFlight`) and the recorded launch-and-fly golden is frozen. In
+ * flight the sim flag still carries the ship-caused locks.
  */
 function conditionOf(
   state: FlightState,
@@ -191,10 +205,11 @@ function conditionOf(
   combat: PlayerCombatState,
   hostiles: boolean,
 ): HudModel["condition"] {
-  if (state.mode !== "inFlight") return "green";
+  if (state.mode === "docked") return "green";
   return flightAlertCondition(
     alertFlags({
-      massLocked: state.torus.massLocked,
+      massLocked:
+        state.torus.massLocked || bodyMassLocked(state.position, layout),
       energy: combat.energy,
       maxEnergy: COBRA_MAX_ENERGY,
       heatLevel: cabinTempGauge(combat),

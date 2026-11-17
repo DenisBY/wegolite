@@ -66,7 +66,10 @@ import type { WorldLifecycle } from "../../src/app/session/world-lifecycle.js";
 import { createWorldLifecycle } from "../../src/app/session/world-lifecycle.js";
 import { initFlightState, poseOf } from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
-import { countdownSecondsRemaining } from "../../src/sim/hyperspace/countdown.js";
+import {
+  MESSAGE_ROWS,
+  createMessageQueue,
+} from "../../src/render/hud/messages.js";
 import { laveFixture } from "../helpers/lave.js";
 
 const lave = laveFixture();
@@ -338,13 +341,7 @@ function harness(): Harness {
         ctx.runtime.input?.setContext(ctx.chart.contextBeforeChart);
       },
     }),
-    hudMessages: createHudMessages(
-      {
-        galaxyById: new Map([[lave.system.id, lave.system]]),
-        messages,
-      },
-      ctx,
-    ),
+    hudMessages: createHudMessages({ messages }, ctx),
     dockFeedback: createDockFeedbackFlow(ctx, { messages }),
     hyperspaceFlow: createHyperspaceFlow(ctx, {
       messages,
@@ -576,7 +573,6 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
       countdownSteps: 1800,
     });
     router.dispatch(EVENTS.hyperspaceCountdownCancelled);
-    const seconds = String(countdownSecondsRemaining(1800));
     expect(log).toEqual([
       "messages.enqueue Torus engaged at 2.0× for 4",
       "messages.enqueue Torus disengaged for 4",
@@ -587,11 +583,80 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
       "messages.enqueue Hyperspeed mass-locked. for 1.5",
       // Both massLockChanged events post nothing (Oolite has no lock-onset message).
       "messages.enqueue Compass target: planet for 4",
-      `messages.enqueue Hyperspace to Lave in ${seconds} seconds for 4`,
-      `messages.enqueue Hyperspace to (Unknown) in ${seconds} seconds for 4`,
-      // PlayerEntityControls.m:1527: witch-user-abort, 3 s.
+      // PlayerEntityControls.m:834-839: the countdown start clears the last
+      // message and scrolls nothing; the countdown text is drawn in place
+      // over the bottom row (Universe.m:6258-6267), known destination or not.
+      "messages.clearPrevious",
+      "messages.clearPrevious",
+      // PlayerEntityControls.m:853-861 and 1520-1528: the cancel clears the
+      // last message, then posts witch-user-abort for 3 s.
+      "messages.clearPrevious",
       "messages.enqueue Hyperspace countdown cancelled for 3",
     ]);
+  });
+
+  describe("the countdown start and cancel on the real message queue (quick task 261117-u3m)", () => {
+    function realQueue() {
+      const ctx = createSessionState({
+        system: lave.system,
+        saveStatus: "absent",
+        saveSkipReason: "",
+      });
+      ctx.core.state = initFlightState(lave.layout);
+      const messages = createMessageQueue();
+      const router = createEventRouter(ctx, {
+        stationFlow: () => undefined,
+        hudMessages: createHudMessages({ messages }, ctx),
+        dockFeedback: () => undefined,
+        hyperspaceFlow: () => undefined,
+      });
+      return { messages, router };
+    }
+
+    const start: SimEvent = {
+      kind: "hyperspaceCountdownStarted",
+      destinationId: lave.system.id,
+      fuelCost: 10,
+      countdownSteps: 1800,
+    };
+
+    it("a countdown start scrolls nothing and leaves the rows as they were", () => {
+      const { messages, router } = realQueue();
+      messages.enqueue("Torus disengaged", 4);
+      const before = messages.rows(0, MESSAGE_ROWS);
+      router.dispatch(start);
+      expect(messages.rows(0.5, MESSAGE_ROWS).map((row) => row.text)).toEqual(
+        before.map((row) => row.text),
+      );
+      expect(messages.size).toBe(1);
+    });
+
+    it("a cancel posts the abort on the bottom row and leaves no countdown row", () => {
+      const { messages, router } = realQueue();
+      messages.enqueue("Torus disengaged", 4);
+      messages.rows(0, MESSAGE_ROWS);
+      router.dispatch(start);
+      router.dispatch(EVENTS.hyperspaceCountdownCancelled);
+      const rows = messages.rows(1, MESSAGE_ROWS);
+      expect(rows.at(-1)?.text).toBe("Hyperspace countdown cancelled");
+      expect(rows.some((row) => row.text.startsWith("Hyperspace to"))).toBe(
+        false,
+      );
+    });
+
+    it("start, cancel, start, cancel within 6 s shows the abort both times", () => {
+      const { messages, router } = realQueue();
+      router.dispatch(start);
+      router.dispatch(EVENTS.hyperspaceCountdownCancelled);
+      const first = messages.rows(1, MESSAGE_ROWS);
+      router.dispatch(start);
+      router.dispatch(EVENTS.hyperspaceCountdownCancelled);
+      const second = messages.rows(2, MESSAGE_ROWS);
+      expect(first.at(-1)?.text).toBe("Hyperspace countdown cancelled");
+      expect(second.at(-1)?.text).toBe("Hyperspace countdown cancelled");
+      expect(second.at(-2)?.text).toBe("Hyperspace countdown cancelled");
+      expect(messages.size).toBe(2);
+    });
   });
 });
 

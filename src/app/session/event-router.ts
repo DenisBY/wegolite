@@ -27,7 +27,6 @@
  * test passes recording doubles.
  */
 
-import type { System } from "../../content/types.js";
 import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
 import type {
@@ -36,7 +35,6 @@ import type {
   WitchspaceBlocker,
 } from "../../sim/events.js";
 import { poseOf } from "../../sim/flight/state.js";
-import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
 import {
   shouldEmitScrapeMessage,
   shouldEmitThrottledMessage,
@@ -293,8 +291,7 @@ export function formatIdentLocked(
 
 /** What the HUD message subscriber calls outside the session context. */
 export interface HudMessagesDeps {
-  readonly galaxyById: ReadonlyMap<string, System>;
-  readonly messages: Pick<MessageQueue, "enqueue">;
+  readonly messages: Pick<MessageQueue, "enqueue" | "clearPrevious">;
 }
 
 /**
@@ -308,7 +305,7 @@ export function createHudMessages(
   deps: HudMessagesDeps,
   ctx: SessionState,
 ): EventSubscriber {
-  const { galaxyById, messages } = deps;
+  const { messages } = deps;
   /**
    * Post `text` for `seconds` for `kind` unless that kind posted within the
    * last simulated second (OQ5, Pitfall 9, T-13-25). Every message shows at
@@ -365,16 +362,19 @@ export function createHudMessages(
           MESSAGE_DURATION_SECONDS,
         );
         break;
-      case "hyperspaceCountdownStarted": {
-        const name = galaxyById.get(event.destinationId)?.name ?? "(Unknown)";
-        messages.enqueue(
-          `Hyperspace to ${name} in ${String(countdownSecondsRemaining(event.countdownSteps))} seconds`,
-          MESSAGE_DURATION_SECONDS,
-        );
+      case "hyperspaceCountdownStarted":
+        // `beginWitchspaceCountdown:` clears the last message, then
+        // `displayCountdownMessage` writes the countdown over the bottom row
+        // without scrolling (PlayerEntityControls.m:834-839,
+        // Universe.m:6258-6267). Nothing is posted here: the render driver
+        // draws the countdown in place over the bottom row every frame.
+        messages.clearPrevious();
         break;
-      }
       case "hyperspaceCountdownCancelled":
-        // Oolite's witch-user-abort lasts 3 s (PlayerEntityControls.m:1527).
+        // `cancelWitchspaceCountdown` clears the last message
+        // (PlayerEntityControls.m:853-861), then witch-user-abort is posted
+        // for 3 s (PlayerEntityControls.m:1520-1528).
+        messages.clearPrevious();
         messages.enqueue("Hyperspace countdown cancelled", 3);
         break;
       case "laserRefused":

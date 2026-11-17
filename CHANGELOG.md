@@ -65,10 +65,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   keeps the height it has at 4:3, and the scanner's forward-view lines narrow
   with the view, as in Oolite. The menu scene's camera now uses Oolite's
   framing for menu screens (not visible yet: the title screen covers it).
-- The condition light in flight now follows Oolite's alert rule instead of
-  staying green: it is yellow while mass-locked, and red when a ship attacks
-  you, your energy runs low, the cabin overheats or you fly within 4 km of a
-  planet or sun surface; otherwise it is green.
+- The condition light now follows Oolite's alert rule from the launch on
+  instead of staying green: it is yellow while mass-locked, including during
+  the launch while the station mass-locks the ship, and red when a ship
+  attacks you, your energy runs low, the cabin overheats or you fly within
+  4 km of a planet or sun surface; otherwise it is green. It is green only
+  while docked.
+- Starting a hyperspace countdown no longer pushes the older messages up a
+  line: the countdown is shown in place on the bottom line, as in Oolite. After
+  you cancel the countdown, no out-of-date countdown line is left on screen.
 - The market's legality column is now Oolite's Legal column. Slaves, narcotics
   and firearms show "Im", Oolite's mark for goods that may be imported but not
   exported; Wegolite showed "Ex", which in Oolite means the opposite.

@@ -33,11 +33,16 @@ import type { WegoliteProbe } from "../../../src/app/probe.js";
 import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
 import type { Hud } from "../../../src/render/hud/hud.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
+import type { MessageQueue } from "../../../src/render/hud/messages.js";
 import type { SystemScene } from "../../../src/render/system-scene.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
+import {
+  HYPERSPACE_COUNTDOWN_STEPS,
+  countdownSecondsRemaining,
+} from "../../../src/sim/hyperspace/countdown.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { NO_ENTITY } from "../../../src/sim/world/ids.js";
 import {
@@ -64,6 +69,8 @@ interface Harness {
   readonly renders: number[];
   readonly probeUpdates: number[];
   readonly nebula: { revision: number };
+  /** The driver's real message queue, so a row's countdown can be read. */
+  readonly messages: MessageQueue;
 }
 
 /** A scene double: the driver's gate only reads the nebula revision. */
@@ -97,6 +104,7 @@ function harness(options: HarnessOptions = {}): Harness {
   const renders: number[] = [];
   const probeUpdates: number[] = [];
   const nebula = { revision: 0 };
+  const messages = createMessageQueue();
   ctx.core.state = initFlightState(layout);
   ctx.core.scene = fakeScene(nebula);
   const driver = createRenderDriver(ctx, {
@@ -109,15 +117,15 @@ function harness(options: HarnessOptions = {}): Harness {
     hudCanvas: { hidden: false } as HTMLCanvasElement,
     probe: {} as WegoliteProbe,
     redrawGate: gate,
-    messages: createMessageQueue(),
+    messages,
     launchSequence: createLaunchSequence(),
-    galaxyById: new Map(),
+    galaxyById: new Map([[system.id, system]]),
     updateProbe: () => probeUpdates.push(1),
     renderStation: () => undefined,
     targetSystem: () => undefined,
     npcModels: options.npcModels ?? idleLoader(),
   });
-  return { ctx, gate, driver, renders, probeUpdates, nebula };
+  return { ctx, gate, driver, renders, probeUpdates, nebula, messages };
 }
 
 /** Run `frames` loop frames as frame() does: decide, then record a drawn frame. */
@@ -773,5 +781,54 @@ describe("renderFrame ident frame (INPUT-01, D-03)", () => {
     second.h.ctx.core.worldLifecycle?.end();
     second.h.driver.renderFrame(0);
     expect(second.models[0]?.identFrame).toBeNull();
+  });
+});
+
+describe("renderFrame hyperspace countdown row (quick task 261117-u3m)", () => {
+  /** An in-flight session whose HUD double records every model it is handed. */
+  function counting() {
+    const models: HudModel[] = [];
+    const h = harness();
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    h.ctx.core.scene = flyableScene(h.nebula);
+    h.ctx.runtime.hud = {
+      draw: (model: HudModel) => models.push(model),
+    } as unknown as Hud;
+    h.ctx.core.state = {
+      ...initFlightState(layout),
+      mode: "inFlight",
+      flightTime: 10,
+    };
+    return { h, models, state: h.ctx.core.state };
+  }
+
+  it("draws the countdown in place over the bottom row, at full alpha, without touching the queue", () => {
+    const { h, models, state } = counting();
+    h.messages.enqueue("Torus disengaged", 4);
+    state.hyperspaceTarget = { id: system.id, dist: 0, fuelCost: 1 };
+    state.hyperspaceCountdown = HYPERSPACE_COUNTDOWN_STEPS;
+    h.driver.renderFrame(0);
+    const text = `Hyperspace to ${system.name} in ${String(countdownSecondsRemaining(HYPERSPACE_COUNTDOWN_STEPS))} seconds`;
+    const model = models.at(-1);
+    expect(model?.messageRows.at(-1)).toEqual({ text, alpha: 1 });
+    expect(model?.message).toBe(text);
+    // The queue keeps its row: the overlay replaces it in the drawing only.
+    expect(h.messages.size).toBe(1);
+  });
+
+  it("draws no countdown row once the countdown is back at 0", () => {
+    const { h, models, state } = counting();
+    state.hyperspaceTarget = { id: system.id, dist: 0, fuelCost: 1 };
+    state.hyperspaceCountdown = HYPERSPACE_COUNTDOWN_STEPS;
+    h.driver.renderFrame(0);
+    state.hyperspaceCountdown = 0;
+    state.hyperspaceTarget = null;
+    h.driver.renderFrame(0);
+    expect(
+      models
+        .at(-1)
+        ?.messageRows.some((row) => row.text.startsWith("Hyperspace to")),
+    ).toBe(false);
   });
 });

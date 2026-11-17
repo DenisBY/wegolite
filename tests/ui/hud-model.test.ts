@@ -17,7 +17,10 @@ import {
   clampMessage,
 } from "../../src/render/hud/format.js";
 import { createPlayerCombatState } from "../../src/sim/combat/state.js";
-import { initFlightState } from "../../src/sim/flight/state.js";
+import {
+  dockMouthPosition,
+  initFlightState,
+} from "../../src/sim/flight/state.js";
 import { length, sub, vec } from "../../src/sim/math.js";
 import type { Vec3 } from "../../src/sim/math.js";
 import { npcContacts } from "../../src/sim/world/contacts.js";
@@ -529,14 +532,36 @@ describe("buildHudModel condition light (Oolite's alert rule, quick task 261117-
     expect(conditionOf(inFlightAt(3_000))).toBe("red");
   });
 
-  it("is green outside flight, where Oolite clears every flag", () => {
-    const launching = inFlightAt(3_000);
-    launching.mode = "launching";
-    launching.torus.massLocked = true;
-    expect(conditionOf(launching, { hostiles: true })).toBe("green");
-    const docked = inFlightAt(3_000);
-    docked.mode = "docked";
-    expect(conditionOf(docked, { hostiles: true })).toBe("green");
+  // Oolite computes the flags in every in-space status, launching included
+  // (Entity.m:1033-1048), clears them only outside space or while docking
+  // (PlayerEntity.m:2893-2899), and a station in range mass-locks the ship
+  // (PlayerEntity.m:3053-3060). The sim's flag is stale (false) through the
+  // launch, so the HUD reads the body rule live.
+  function atDockMouth(mode: "docked" | "launching" | "inFlight") {
+    const state = initFlightState(fixture.layout);
+    state.mode = mode;
+    state.position = dockMouthPosition(fixture.layout);
+    state.torus.massLocked = false;
+    return state;
+  }
+
+  it("is yellow while launching beside the station and red with hostiles", () => {
+    expect(conditionOf(atDockMouth("launching"))).toBe("yellow");
+    expect(conditionOf(atDockMouth("launching"), { hostiles: true })).toBe(
+      "red",
+    );
+  });
+
+  it("is yellow on the first in-flight frame after the launch, with the sim flag still stale", () => {
+    expect(conditionOf(atDockMouth("inFlight"))).toBe("yellow");
+  });
+
+  it("is green only while docked, whatever the flags", () => {
+    const combat = createPlayerCombatState();
+    combat.energy = 63;
+    expect(conditionOf(atDockMouth("docked"), { hostiles: true, combat })).toBe(
+      "green",
+    );
   });
 });
 

@@ -447,7 +447,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       autosave,
       closeChart: chartController.closeChart,
     }),
-    hudMessages: createHudMessages({ galaxyById, messages }, ctx),
+    hudMessages: createHudMessages({ messages }, ctx),
     dockFeedback: createDockFeedbackFlow(ctx, { messages }),
     hyperspaceFlow: createHyperspaceFlow(ctx, {
       messages,

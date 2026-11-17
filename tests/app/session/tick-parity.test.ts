@@ -227,7 +227,7 @@ function session(
   const routed: string[] = [];
   const hudMessages = hudRouting
     ? (() => {
-        const real = createHudMessages({ galaxyById, messages }, ctx);
+        const real = createHudMessages({ messages }, ctx);
         return (event: Parameters<typeof real>[0]): void => {
           routed.push(event.kind);
           real(event);
