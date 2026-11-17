@@ -1,7 +1,7 @@
 ---
 phase: 16-wreckage-cargo-and-the-entity-cap
 verified: 2026-11-17T09:45:00Z
-status: human_needed
+status: passed
 score: 4/4 must-haves verified
 covered_files:
   - ".planning/phases/16-wreckage-cargo-and-the-entity-cap/16-01-PLAN.md"

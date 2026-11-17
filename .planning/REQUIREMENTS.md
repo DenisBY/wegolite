@@ -16,7 +16,7 @@ Requirements for this milestone. Each maps to roadmap phases (numbering continue
 
 - [x] **DATA-14**: The NPC record carries weapon facings, `likely_cargo`, `max_cargo`, `fragment_chance` and `explosion_type`, compiled from Oolite with provenance.
 - [ ] **DATA-15**: Hulls for the Coriolis (with subentities), the buoy, the cargo barrel and the alloy plate are built from Oolite octrees; the Coriolis size is measured in the `assets` container and either fits the hull caps or ships as a separate file.
-- [ ] **DATA-16**: Debris models and textures are vendored from the local Oolite checkout through `scripts/vendor-oolite.sh` with `CHECKSUMS.sha256`, `ASSETS.md` and `NOTICE` rows.
+- [x] **DATA-16**: Debris models and textures are vendored from the local Oolite checkout through `scripts/vendor-oolite.sh` with `CHECKSUMS.sha256`, `ASSETS.md` and `NOTICE` rows.
 
 ### Combat
 
@@ -38,7 +38,7 @@ Requirements for this milestone. Each maps to roadmap phases (numbering continue
 
 ### Render and Quality
 
-- [ ] **WORLD-17**: Explosions, debris, pods and flashes are drawn within the draw-call budget and do not affect the world hash.
+- [x] **WORLD-17**: Explosions, debris, pods and flashes are drawn within the draw-call budget and do not affect the world hash.
 - [ ] **QUAL-11**: Kills are deterministic: the world hash is equal at 30, 60 and 144 Hz; the frozen 20-seed acceptance run stays 21 of 21 after every plan touching `src/sim/npc/**`, `src/sim/world/**` or `ships-npc.json`.
 
 ## v2 Requirements
@@ -78,8 +78,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-18 | Phase 15 | Complete |
 | FOUND-19 | Phase 15 | Complete |
 | DATA-14 | Phase 15 | Complete |
-| DATA-16 | Phase 16 | Pending |
-| WORLD-17 | Phase 16 | Pending |
+| DATA-16 | Phase 16 | Complete |
+| WORLD-17 | Phase 16 | Complete |
 | CBT-15 | Phase 17 | Pending |
 | CBT-16 | Phase 17 | Pending |
 | DATA-15 | Phase 18 | Pending |

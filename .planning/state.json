@@ -46,7 +46,7 @@
     {
       "number": "16",
       "name": "Wreckage, Cargo and the Entity Cap",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "17",
@@ -71,8 +71,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 2 of 6 · 17% · ready to verify"
+    "label": "Advance to the next step (plan phase 17)",
+    "reason": "Phase 3 of 6 — needs a plan"
   },
-  "updated_at": "2026-11-17T01:54:22.877Z"
+  "updated_at": "2026-11-17T10:18:16.367Z"
 }

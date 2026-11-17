@@ -2,21 +2,21 @@
 gsd_state_version: "1.0"
 milestone: v2.3
 milestone_name: Combat and Death
-current_phase: 16
-current_phase_name: Wreckage, Cargo and the Entity Cap
-current_plan: 9
-status: verifying
-stopped_at: Completed 16-09-PLAN.md (verify-full pending the owner's go, OC-6)
-last_updated: "2026-11-17T01:54:24.747Z"
+current_phase: 17
+current_phase_name: NPC Fire and Hits on the Player
+current_plan: Not started
+status: planning
+stopped_at: Phase 16 complete, ready to plan Phase 17
+last_updated: "2026-11-17T10:18:16.341Z"
 last_activity: 2026-11-17
-last_activity_desc: Phase 15 complete, transitioned to Phase 16
-state_head: 248d9df6a223a8867ae3c0dd3449c05b4cd5842f
+last_activity_desc: Phase 16 complete, transitioned to Phase 17
+state_head: 5a5eeb34c67120618adb0a3e876612ab7835d4ed
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 15
   completed_plans: 15
-  percent: 17
+  percent: 33
 ---
 
 # Project State
@@ -30,17 +30,17 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 
 ## Current Position
 
-Phase: 16 — Wreckage, Cargo and the Entity Cap
-Current Plan: 9
+Phase: 17 — NPC Fire and Hits on the Player
+Current Plan: Not started
 Total Plans in Phase: 9
-Status: Phase complete — ready for verification
-Last activity: 2026-11-17 — 16-08 complete (id-free debrisContacts; instanced debris layer, one draw object per debris model primitive, radius-ratio scale, render-side tumble from the orientation (OC-2); debris GLBs through the NPC loader latch; remote verify exit 0 and acceptance 21/21 at 970783f)
+Status: Ready to plan
+Last activity: 2026-11-17 — Phase 16 complete, transitioned to Phase 17
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 145
+- Total plans completed: 154
 - Average duration: 5.3 min
 - Total execution time: 3.9 hours
 
@@ -62,6 +62,7 @@ Last activity: 2026-11-17 — 16-08 complete (id-free debrisContacts; instanced 
 | 13 | 16 | - | - |
 | 14 | 19 | - | - |
 | 15 | 6 | - | - |
+| 16 | 9 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: 01-03 3 min, 01-04 5 min, 01-05 9 min, 01-06 2 min, 01-07 6 min
@@ -635,7 +636,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-17T01:54:24.612Z
-Stopped at: Completed 16-09-PLAN.md (verify-full pending the owner's go, OC-6)
+Stopped at: Phase 16 complete, ready to plan Phase 17
 Resume file: None
 
 ## Operator Next Steps
