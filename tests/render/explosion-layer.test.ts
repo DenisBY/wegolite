@@ -14,6 +14,10 @@ import * as THREE from "three";
 import {
   EXPLOSION_MAX_PARTICLES,
   EXPLOSION_POOL,
+  FLASH_ALPHA,
+  FLASH_DURATION,
+  FLASH_GROWTH_FACTOR,
+  FLASH_MIN_GROWTH,
   createExplosionLayer,
 } from "../../src/render/bodies/explosions.js";
 import type {
@@ -68,6 +72,38 @@ function meshNamed(layer: ExplosionLayer, name: string): THREE.InstancedMesh {
 
 function cloudOf(layer: ExplosionLayer): THREE.InstancedMesh {
   return meshNamed(layer, "explosionCloud");
+}
+
+function flashOf(layer: ExplosionLayer): THREE.InstancedMesh {
+  return meshNamed(layer, "explosionFlash");
+}
+
+/** The visible draw objects under the layer's root. */
+function drawObjects(layer: ExplosionLayer): number {
+  let visible = 0;
+  layer.root.traverse((object) => {
+    if (object instanceof THREE.Mesh && object.visible) visible += 1;
+  });
+  return visible;
+}
+
+/** The flash instance `index`: half its quad edge and its display alpha. */
+function flashAt(
+  layer: ExplosionLayer,
+  index: number,
+): { readonly size: number; readonly alpha: number; readonly position: Vec3 } {
+  const mesh = flashOf(layer);
+  const matrix = new THREE.Matrix4();
+  mesh.getMatrixAt(index, matrix);
+  const position = new THREE.Vector3();
+  const scale = new THREE.Vector3();
+  matrix.decompose(position, new THREE.Quaternion(), scale);
+  const colours = mesh.instanceColor?.array ?? new Float32Array();
+  return {
+    size: scale.x / 2,
+    alpha: linearToSrgb(colours[index * 3] ?? 0),
+    position: vec(position.x, position.y, position.z),
+  };
 }
 
 interface Particle {
@@ -415,5 +451,180 @@ describe("createExplosionLayer: input checks", () => {
     expect(
       urls.filter((url) => url === "/base/textures/oolite-particle-cloud2.png"),
     ).toHaveLength(1);
+  });
+});
+
+describe("createExplosionLayer: the flash (OOFlashEffectEntity.m)", () => {
+  it("uses Oolite's flash constants", () => {
+    expect(FLASH_DURATION).toBe(0.4);
+    expect(FLASH_ALPHA).toBe(0.5);
+    expect(FLASH_GROWTH_FACTOR).toBe(150);
+    expect(FLASH_MIN_GROWTH).toBe(600);
+    const { layer } = recorded();
+    expect(flashOf(layer).instanceMatrix.count).toBe(EXPLOSION_POOL);
+    const material = flashOf(layer).material as THREE.MeshBasicMaterial;
+    expect(material.blending).toBe(THREE.AdditiveBlending);
+    expect(material.depthWrite).toBe(false);
+    expect(material.toneMapped).toBe(false);
+    expect(flashOf(layer).geometry).toBe(cloudOf(layer).geometry);
+  });
+
+  it("starts at the radius and grows by max(150 * radius, 600) per second", () => {
+    for (const radius of [2, 10, 40]) {
+      const { layer } = recorded();
+      const camera = vec(5e8, 0, -5e8);
+      layer.add(vec(5e8 + 7, 0, -5e8), radius, DEFAULT, 3);
+      layer.update(camera, FACING, 3);
+      expect(flashAt(layer, 0).size).toBeCloseTo(radius, 3);
+      expect(flashAt(layer, 0).position).toEqual(vec(7, 0, 0));
+      layer.update(camera, FACING, 3.2);
+      const growth = Math.max(150 * radius, 600);
+      expect(flashAt(layer, 0).size).toBeCloseTo(radius + growth * 0.2, 2);
+    }
+  });
+
+  it("fades in to 0.5 over 0.667 of its life and out to 0 at 0.4 s", () => {
+    const { layer } = recorded();
+    layer.add(vec(0, 0, 0), 10, DEFAULT, 0);
+    const tf = 0.667 * FLASH_DURATION;
+    const expected = (t: number): number =>
+      FLASH_ALPHA *
+      (t < tf ? t / tf : (FLASH_DURATION - t) / (FLASH_DURATION - tf));
+    for (const t of [0, 0.05, 0.2, tf - 1e-3, tf + 1e-3, 0.3, 0.39]) {
+      layer.update(ORIGIN, FACING, t);
+      expect(flashOf(layer).visible).toBe(true);
+      expect(flashAt(layer, 0).alpha, `t = ${String(t)}`).toBeCloseTo(
+        expected(t),
+        4,
+      );
+    }
+    layer.update(ORIGIN, FACING, FLASH_DURATION + 1e-6);
+    expect(flashOf(layer).visible).toBe(false);
+    expect(flashOf(layer).count).toBe(0);
+    // The cloud lives on for its own 1.5 s.
+    expect(cloudOf(layer).visible).toBe(true);
+  });
+
+  it("keeps a flash when the cloud setting is shorter than the flash", () => {
+    const { layer } = recorded();
+    layer.add(vec(0, 0, 0), 10, { ...DEFAULT, duration: 0.1 }, 0);
+    layer.update(ORIGIN, FACING, 0.2);
+    expect(cloudOf(layer).visible).toBe(false);
+    expect(flashOf(layer).visible).toBe(true);
+    layer.update(ORIGIN, FACING, 0.5);
+    expect(flashOf(layer).visible).toBe(false);
+  });
+});
+
+describe("createExplosionLayer: a fixed number of draw objects", () => {
+  it("has exactly two draw objects, both hidden with nothing live", () => {
+    const { layer } = recorded();
+    let meshes = 0;
+    layer.root.traverse((object) => {
+      if (object instanceof THREE.Mesh) meshes += 1;
+    });
+    expect(meshes).toBe(2);
+    layer.update(ORIGIN, FACING, 1);
+    expect(drawObjects(layer)).toBe(0);
+  });
+
+  it("shows two while an explosion is live, one after the flash, none after the cloud", () => {
+    const { layer } = recorded();
+    layer.add(vec(0, 0, 0), 10, DEFAULT, 0);
+    layer.update(ORIGIN, FACING, 0.1);
+    expect(drawObjects(layer)).toBe(2);
+    layer.update(ORIGIN, FACING, 1);
+    expect(drawObjects(layer)).toBe(1);
+    layer.update(ORIGIN, FACING, 1.6);
+    expect(drawObjects(layer)).toBe(0);
+  });
+
+  for (const count of [8, 50]) {
+    it(`never makes a third draw object for ${String(count)} explosions in one frame`, () => {
+      const { layer } = recorded();
+      const children = [...layer.root.children];
+      for (let i = 0; i < count; i += 1) {
+        layer.add(vec(i * 100, 0, 0), 10, DEFAULT, 2);
+      }
+      layer.update(ORIGIN, FACING, 2.1);
+      expect(drawObjects(layer)).toBe(2);
+      expect(layer.root.children).toEqual(children);
+      expect(cloudOf(layer).count).toBe(
+        EXPLOSION_POOL * EXPLOSION_MAX_PARTICLES,
+      );
+      expect(flashOf(layer).count).toBe(EXPLOSION_POOL);
+    });
+  }
+});
+
+describe("createExplosionLayer: lazy textures and disposal", () => {
+  it("loads nothing when built or updated with nothing added", () => {
+    const { layer, urls } = recorded();
+    layer.update(ORIGIN, FACING, 1);
+    layer.update(vec(1, 2, 3), FACING, 2);
+    expect(urls).toEqual([]);
+  });
+
+  it("loads the cloud and the flash texture once each on the first add, nothing after", () => {
+    const { layer, urls, textures } = recorded();
+    layer.add(vec(0, 0, 0), 10, DEFAULT, 1);
+    expect(urls).toEqual([
+      "/base/textures/oolite-particle-cloud2.png",
+      "/base/textures/oolite-particle-flash.png",
+    ]);
+    layer.add(vec(1, 0, 0), 10, DEFAULT, 1);
+    layer.add(
+      vec(2, 0, 0),
+      10,
+      { ...DEFAULT, texture: "oolite-particle-other.png" },
+      1,
+    );
+    layer.update(ORIGIN, FACING, 1.1);
+    expect(urls).toHaveLength(2);
+    const cloudMaterial = cloudOf(layer).material as THREE.MeshBasicMaterial;
+    const flashMaterial = flashOf(layer).material as THREE.MeshBasicMaterial;
+    expect(cloudMaterial.alphaMap).toBe(textures[0]);
+    expect(flashMaterial.alphaMap).toBe(textures[1]);
+    for (const texture of textures) {
+      expect(texture.colorSpace).toBe(THREE.NoColorSpace);
+    }
+  });
+
+  it("frees the geometry, both materials and every loaded texture once", () => {
+    const { layer, textures } = recorded();
+    layer.add(vec(0, 0, 0), 10, DEFAULT, 1);
+    const counted = new Map<string, number>();
+    const count = (name: string, resource: { dispose(): void }): void => {
+      counted.set(name, 0);
+      const target = resource as unknown as {
+        addEventListener(type: string, listener: () => void): void;
+      };
+      target.addEventListener("dispose", () => {
+        counted.set(name, (counted.get(name) ?? 0) + 1);
+      });
+    };
+    count("geometry", cloudOf(layer).geometry);
+    count("cloudMaterial", cloudOf(layer).material as THREE.Material);
+    count("flashMaterial", flashOf(layer).material as THREE.Material);
+    for (const [index, texture] of textures.entries()) {
+      count(`texture${String(index)}`, texture);
+    }
+    expect(counted.size).toBe(5);
+    layer.dispose();
+    layer.dispose();
+    for (const [name, disposals] of counted) {
+      expect(disposals, name).toBe(1);
+    }
+  });
+
+  it("is a no-op after dispose", () => {
+    const { layer, urls } = recorded();
+    layer.dispose();
+    expect(() => {
+      layer.add(vec(0, 0, 0), 10, DEFAULT, 1);
+      layer.update(ORIGIN, FACING, 1);
+    }).not.toThrow();
+    expect(urls).toEqual([]);
+    expect(drawObjects(layer)).toBe(0);
   });
 });

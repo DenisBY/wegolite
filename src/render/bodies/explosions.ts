@@ -6,18 +6,21 @@
  *
  * Every `shipDestroyed` event adds one explosion at the event's position:
  * Oolite's default ship explosion cloud (`oolite-default-ship-explosion`,
- * `OOExplosionCloudEntity.m:30-245` over `OOParticleSystem.m:40-150`). The
- * whole layer is one `THREE.InstancedMesh` of a unit quad over a fixed pool of
- * `EXPLOSION_POOL` explosions of at most `EXPLOSION_MAX_PARTICLES` particles
- * each: one draw call while any explosion is live, none otherwise, and nothing
- * is allocated by `add` or `update`. A ninth simultaneous explosion overwrites
- * the oldest.
+ * `OOExplosionCloudEntity.m:30-245` over `OOParticleSystem.m:40-150`) and its
+ * white flash (`OOFlashEffectEntity.m:30-115`), the pair `ShipEntity.m:7957-
+ * 7964` adds for a ship with no `explosion_type`. The whole layer is two
+ * `THREE.InstancedMesh` objects sharing one unit quad, over a fixed pool of
+ * `EXPLOSION_POOL` explosions: the cloud with `EXPLOSION_MAX_PARTICLES`
+ * instances per explosion, the flash with one. That is two draw calls while
+ * any explosion is live (one once every flash has expired), none otherwise,
+ * however many ships die, and nothing is allocated by `add` or `update`. A
+ * ninth simultaneous explosion overwrites the oldest.
  *
  * **The cloud, from Oolite.**
  * - Particle count: `min(count, 10)`, Oolite's cap at a detail level up to
  *   `DETAIL_LEVEL_SHADERS` (`OOExplosionCloudEntity.m:60, 70-73`; D16-08).
  * - `size = radius * settings.size` (`:76`), `growthRate = settings.growthRate
- *   * size` (`:79`), the brightness clamped to at least 1 (`:81-83`).
+ *   * size` (`:79`), the brightness clamped to at least 1 (`:82-83`).
  * - Each particle flies along a uniform random unit vector at a speed of
  *   `min + 0.5 (u + u)(max - min)` between `size * 0.8 * spread` and
  *   `size * 1.2 * spread` (`:107`, `OOParticleSystem.m:67-68`); its size starts
@@ -30,17 +33,26 @@
  *   channel at half the rate, then the secondary at the rate, then the primary
  *   at twice the rate (`:218-240`).
  *
- * `update` evaluates every particle as a closed function of
+ * **The flash, from Oolite** (D16-22: no plist entry exists, so the C
+ * constants of `OOFlashEffectEntity.m:34-38` are restated here). White, its
+ * size starting at the ship's collision radius (`:76`, `:86`) and growing by
+ * `max(150 * radius, 600)` per second (`:58`, `:89`, `:104`), its alpha
+ * `0.5 * t / tf` for `t < tf = 0.667 * 0.4 s` and `0.5 * (0.4 - t) / (0.4 -
+ * tf)` after (`:100-108`), removed after 0.4 s (`:111-112`). Oolite draws it
+ * from `-size` to `+size` too (`OOLightParticleEntity.m:179-191`). The
+ * distance attenuation by `no_draw_distance` (`:157-159`) is not reproduced.
+ *
+ * `update` evaluates every particle and flash as a closed function of
  * `t = flightTime - start` rather than integrating per frame, so a frame-rate
  * change does not change the cloud and a slot needs no per-frame state.
  *
  * **Drawing.** Oolite draws a particle as a quad from `-size` to `+size`
- * (`OOParticleSystem.m:136-146` `DrawQuadForView`), so the unit quad is scaled
+ * (`OOParticleSystem.m:124-134` `DrawQuadForView`), so the unit quad is scaled
  * by `2 * size`. Every quad takes the camera's orientation (Oolite's shared
- * billboard, `OOParticleSystem.m:178-193`). Blending is additive with source
+ * billboard, `OOParticleSystem.m:176-193`). Blending is additive with source
  * alpha, Oolite's `glBlendFunc(GL_SRC_ALPHA, GL_ONE)` (`:148`); the particle
  * texture is an alpha mask (`kOOTextureAlphaMask`, `OOExplosionCloudEntity.m:
- * 92-96`), so it is bound as the material's `alphaMap`. Oolite's colours are
+ * 90-94`), so it is bound as the material's `alphaMap`. Oolite's colours are
  * display values blended in display space: the instance colour carries
  * `clamp(c) * alpha` decoded to linear light (`srgbToLinear`), so the
  * renderer's sRGB output encode lands exactly on Oolite's display value.
@@ -54,14 +66,16 @@
  * so the world hash cannot depend on this layer. The layer stores positions,
  * times and colours only: no entity id, no killer. The system scene owns and
  * disposes it, so a jump or a Load clears it. Oolite's cloud also drifts with
- * the dead ship's velocity (`OOExplosionCloudEntity.m:62, 101-104`); the event
+ * the dead ship's velocity (`OOExplosionCloudEntity.m:62, 102-105`); the event
  * carries none, so the cloud stays where the ship died.
  *
- * **Textures.** The cloud texture is requested on the first `add` only, never
- * on a cold start, and only after its name matches
- * `oolite-particle-<name>.png`. One cloud texture per layer: the compiled
- * catalogue holds the one default setting, so a later setting naming another
- * file still draws with the first.
+ * **Textures.** The cloud texture and `oolite-particle-flash.png` (Oolite's
+ * flash texture, `OOFlashEffectEntity.m:125`) are requested on the first
+ * `add` only, never on a cold start, and the cloud's only after its name
+ * matches `oolite-particle-<name>.png`. One cloud texture per layer: the
+ * compiled catalogue holds the one default setting, so a later setting naming
+ * another file still draws with the first. `dispose` frees the shared quad,
+ * both materials and every texture it loaded.
  */
 
 import * as THREE from "three";
@@ -97,6 +111,24 @@ export const EXPLOSION_POOL = 8;
  */
 export const EXPLOSION_MAX_PARTICLES = 10;
 
+/** The flash's lifetime in seconds (`kExplosionFlashDuration`, `OOFlashEffectEntity.m:35`). */
+export const FLASH_DURATION = 0.4;
+
+/** The flash's peak alpha (`kExplosionFlashAlpha`, `OOFlashEffectEntity.m:38`). */
+export const FLASH_ALPHA = 0.5;
+
+/** Flash growth per metre of radius per second (`kGrowthRateFactor`, `OOFlashEffectEntity.m:36`). */
+export const FLASH_GROWTH_FACTOR = 150;
+
+/** The least flash growth per second (`kMinExplosionGrowth`, `OOFlashEffectEntity.m:37`). */
+export const FLASH_MIN_GROWTH = 600;
+
+/** The fraction of the flash's life spent fading in (`OOFlashEffectEntity.m:100`). */
+const FLASH_FADE_IN = 0.667;
+
+/** Oolite's flash texture (`OOFlashEffectEntity.m:125`). */
+const FLASH_TEXTURE = "oolite-particle-flash.png";
+
 /** The particle texture names this layer will build a URL from. */
 const PARTICLE_TEXTURE = /^oolite-particle-[a-z0-9-]+\.png$/;
 
@@ -127,7 +159,7 @@ export interface ExplosionLayer {
     cameraQuaternion: THREE.Quaternion,
     flightTime: number,
   ): void;
-  /** Free the geometry, the material and every loaded texture. */
+  /** Free the shared quad, both materials and every loaded texture. */
   dispose(): void;
 }
 
@@ -231,6 +263,9 @@ export function createExplosionLayer(
   const duration = new Float64Array(EXPLOSION_POOL);
   const cloudAlpha = new Float64Array(EXPLOSION_POOL);
   const fadeRate = new Float64Array(EXPLOSION_POOL);
+  // The flash: its starting size (the radius) and its growth per second.
+  const flashSize = new Float64Array(EXPLOSION_POOL);
+  const flashGrowth = new Float64Array(EXPLOSION_POOL);
   // 1 for `color_order` "white": no channel fade.
   const white = new Uint8Array(EXPLOSION_POOL);
   // Primary, secondary, tertiary channel per slot.
@@ -242,7 +277,7 @@ export function createExplosionLayer(
   let head = 0;
   let disposed = false;
 
-  // The one unit quad every instance scales.
+  // The one unit quad every instance of both meshes scales.
   const geometry = new THREE.PlaneGeometry(1, 1);
   const textures: THREE.Texture[] = [];
   let cloudTexture: THREE.Texture | undefined;
@@ -272,9 +307,33 @@ export function createExplosionLayer(
   cloud.count = 0;
   cloud.visible = false;
 
+  const flashMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+    fog: false,
+  });
+  const flash = new THREE.InstancedMesh(
+    geometry,
+    flashMaterial,
+    EXPLOSION_POOL,
+  );
+  flash.name = "explosionFlash";
+  flash.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  flash.instanceColor = new THREE.InstancedBufferAttribute(
+    new Float32Array(EXPLOSION_POOL * 3),
+    3,
+  );
+  flash.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  flash.frustumCulled = false;
+  flash.count = 0;
+  flash.visible = false;
+
   const root = new THREE.Group();
   root.name = "explosions";
-  root.add(cloud);
+  root.add(cloud, flash);
 
   // Reused for every instance: no allocation per particle.
   const place = new THREE.Vector3();
@@ -293,6 +352,8 @@ export function createExplosionLayer(
   function hide(): void {
     cloud.count = 0;
     cloud.visible = false;
+    flash.count = 0;
+    flash.visible = false;
   }
 
   return {
@@ -311,9 +372,12 @@ export function createExplosionLayer(
       // T-16-23: the name becomes a URL only when it is a particle file.
       if (!PARTICLE_TEXTURE.test(settings.texture)) return;
       if (cloudTexture === undefined) {
+        // The first explosion: both textures, once each.
         cloudTexture = loadOnce(settings.texture);
         cloudMaterial.alphaMap = cloudTexture;
         cloudMaterial.needsUpdate = true;
+        flashMaterial.alphaMap = loadOnce(FLASH_TEXTURE);
+        flashMaterial.needsUpdate = true;
       }
 
       const slot = head;
@@ -333,6 +397,11 @@ export function createExplosionLayer(
       duration[slot] = settings.duration;
       cloudAlpha[slot] = settings.alpha;
       fadeRate[slot] = (count * brightness) / 25;
+      flashSize[slot] = radius;
+      flashGrowth[slot] = Math.max(
+        FLASH_GROWTH_FACTOR * radius,
+        FLASH_MIN_GROWTH,
+      );
       const isWhite = settings.colorOrder === "white";
       white[slot] = isWhite ? 1 : 0;
       const channels = CHANNEL_ORDER[settings.colorOrder] ?? DEFAULT_ORDER;
@@ -385,27 +454,56 @@ export function createExplosionLayer(
       }
       const colours = (cloud.instanceColor as THREE.InstancedBufferAttribute)
         .array as Float32Array;
+      const flashColours = (
+        flash.instanceColor as THREE.InstancedBufferAttribute
+      ).array as Float32Array;
+      const fadeIn = FLASH_FADE_IN * FLASH_DURATION;
       let live = 0;
+      let flashLive = 0;
       for (let slot = 0; slot < EXPLOSION_POOL; slot += 1) {
         const start = startTime[slot] ?? Number.NaN;
         if (Number.isNaN(start)) continue;
         const t = flightTime - start;
         const life = duration[slot] ?? 0;
+        const cloudOn = t >= 0 && t < life;
+        const flashOn = t >= 0 && t <= FLASH_DURATION;
         // Expired, or started in the future (a Load rewound the clock): the
         // slot is freed and never comes back.
-        if (t < 0 || t >= life) {
+        if (!cloudOn && !flashOn) {
           startTime[slot] = Number.NaN;
           continue;
         }
+        const ox = origin[slot * 3] ?? 0;
+        const oy = origin[slot * 3 + 1] ?? 0;
+        const oz = origin[slot * 3 + 2] ?? 0;
+
+        if (flashOn) {
+          // The float64 subtraction happens here, before any float32 write.
+          place.set(ox - cameraWorld.x, oy - cameraWorld.y, oz - cameraWorld.z);
+          const edge =
+            2 * ((flashSize[slot] ?? 0) + (flashGrowth[slot] ?? 0) * t);
+          scale.set(edge, edge, edge);
+          matrix.compose(place, cameraQuaternion, scale);
+          flash.setMatrixAt(flashLive, matrix);
+          const flashAlpha =
+            FLASH_ALPHA *
+            (t < fadeIn
+              ? t / fadeIn
+              : (FLASH_DURATION - t) / (FLASH_DURATION - fadeIn));
+          const white = srgbToLinear(clamp01(flashAlpha));
+          flashColours[flashLive * 3] = white;
+          flashColours[flashLive * 3 + 1] = white;
+          flashColours[flashLive * 3 + 2] = white;
+          flashLive += 1;
+        }
+        if (!cloudOn) continue;
+
         const alpha = (cloudAlpha[slot] ?? 0) * (1 - t / life);
         const growth = growthRate[slot] ?? 0;
         const rate = fadeRate[slot] ?? 0;
         const primary = order[slot * 3] ?? 0;
         const secondary = order[slot * 3 + 1] ?? 1;
         const tertiary = order[slot * 3 + 2] ?? 2;
-        const ox = origin[slot * 3] ?? 0;
-        const oy = origin[slot * 3 + 1] ?? 0;
-        const oz = origin[slot * 3 + 2] ?? 0;
         const count = particleCount[slot] ?? 0;
         for (let i = 0; i < count; i += 1) {
           const p = slot * EXPLOSION_MAX_PARTICLES + i;
@@ -435,15 +533,20 @@ export function createExplosionLayer(
           live += 1;
         }
       }
-      if (live === 0) {
-        hide();
-        return;
-      }
       cloud.count = live;
-      cloud.visible = true;
-      cloud.instanceMatrix.needsUpdate = true;
-      (cloud.instanceColor as THREE.InstancedBufferAttribute).needsUpdate =
-        true;
+      cloud.visible = live > 0;
+      if (live > 0) {
+        cloud.instanceMatrix.needsUpdate = true;
+        (cloud.instanceColor as THREE.InstancedBufferAttribute).needsUpdate =
+          true;
+      }
+      flash.count = flashLive;
+      flash.visible = flashLive > 0;
+      if (flashLive > 0) {
+        flash.instanceMatrix.needsUpdate = true;
+        (flash.instanceColor as THREE.InstancedBufferAttribute).needsUpdate =
+          true;
+      }
     },
     dispose(): void {
       if (disposed) return;
@@ -451,6 +554,7 @@ export function createExplosionLayer(
       hide();
       geometry.dispose();
       cloudMaterial.dispose();
+      flashMaterial.dispose();
       for (const texture of textures) texture.dispose();
       textures.length = 0;
       root.clear();

@@ -36,6 +36,7 @@ import { createBuoy } from "../../src/render/bodies/buoy.js";
 import type { BuoyBody } from "../../src/render/bodies/buoy.js";
 import { createDust } from "../../src/render/bodies/dust.js";
 import { createExplosionLayer } from "../../src/render/bodies/explosions.js";
+import type { ExplosionLayer } from "../../src/render/bodies/explosions.js";
 import { createLaserShotLayer } from "../../src/render/bodies/laser-shots.js";
 import type { LaserShotLayer } from "../../src/render/bodies/laser-shots.js";
 import { createNpcLayer } from "../../src/render/bodies/npc-ships.js";
@@ -359,9 +360,30 @@ describe("SystemScene owns only what it created", () => {
 
     // The shot layer owns its geometry and material outright (CBT-05).
     const shots = createLaserShotLayer();
-    // So does the explosion layer (WORLD-17); no texture is loaded until the
-    // first explosion.
-    const explosions = createExplosionLayer(() => new THREE.Texture(), "/");
+    // So does the explosion layer (WORLD-17), with the textures it loaded on
+    // its first explosion.
+    const explosionTextures: THREE.Texture[] = [];
+    const explosions = createExplosionLayer(() => {
+      const texture = new THREE.Texture();
+      explosionTextures.push(texture);
+      return texture;
+    }, "/");
+    explosions.add(
+      { x: 0, y: 0, z: -100 },
+      10,
+      {
+        alpha: 0.85,
+        brightness: 1,
+        colorOrder: "rgb",
+        count: 25,
+        duration: 1.5,
+        growthRate: 1.5,
+        size: 2.5,
+        spread: 1,
+        texture: "oolite-particle-cloud2.png",
+      },
+      1,
+    );
 
     const sceneOwned: Record<string, () => number> = {
       shotsGeometry: countDisposals(shots.root.geometry),
@@ -371,6 +393,23 @@ describe("SystemScene owns only what it created", () => {
       starfieldGeometry: countDisposals(starfield.geometry),
       dustGeometry: countDisposals(dust.object.geometry),
     };
+    // The explosion layer: one shared quad, two materials, two textures.
+    for (const [index, child] of explosions.root.children.entries()) {
+      if (!(child instanceof THREE.Mesh)) continue;
+      if (index === 0) {
+        sceneOwned.explosionGeometry = countDisposals(
+          child.geometry as THREE.BufferGeometry,
+        );
+      }
+      sceneOwned[`explosionMaterial${String(index)}`] = countDisposals(
+        child.material as THREE.Material,
+      );
+    }
+    // The first explosion loaded the cloud and the flash texture.
+    expect(explosionTextures).toHaveLength(2);
+    for (const [index, texture] of explosionTextures.entries()) {
+      sceneOwned[`explosionTexture${String(index)}`] = countDisposals(texture);
+    }
     for (const [index, child] of npcs.root.children.entries()) {
       sceneOwned[`npcInstancedMesh${String(index)}`] = countDisposals(child);
     }
@@ -665,6 +704,48 @@ describe("SystemScene owns only what it created", () => {
       }),
     ).toThrow("buoy failed");
     expect(disposals).toBe(1);
+  });
+  it("owns the explosion layer: exposes it, adds its root and disposes it, also when half built (WORLD-17)", () => {
+    let disposals = 0;
+    const real = createExplosionLayer(() => new THREE.Texture(), "/");
+    const layer: ExplosionLayer = {
+      root: real.root,
+      add: () => undefined,
+      update: () => undefined,
+      dispose: () => {
+        disposals += 1;
+      },
+    };
+    const common: Partial<SystemSceneFactories> = {
+      sun: () => fakeSun().body,
+      explosions: () => layer,
+    };
+    const cache = guardCache(
+      syntheticCobra().gltf,
+      syntheticCoriolis().gltf,
+      syntheticBuoy().gltf,
+    );
+
+    const scene = createSystemScene(layout, cache, system, common);
+    expect(scene.explosions).toBe(layer);
+    expect(scene.scene.children).toContain(real.root);
+    scene.dispose();
+    expect(disposals).toBe(1);
+    scene.dispose();
+    expect(disposals).toBe(1);
+
+    // A body built after the layer throws: the layer is still disposed once.
+    disposals = 0;
+    expect(() =>
+      createSystemScene(layout, cache, system, {
+        ...common,
+        buoy: () => {
+          throw new Error("buoy failed");
+        },
+      }),
+    ).toThrow("buoy failed");
+    expect(disposals).toBe(1);
+    real.dispose();
   });
 });
 

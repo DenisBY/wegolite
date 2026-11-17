@@ -6,11 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A ship destroyed in flight now explodes: a white flash and a cloud of fire
+  mark where it was.
+
 ### Changed
 
 - A ship your lasers bring to zero energy is now destroyed: it disappears from
   the view and the scanner, and an ident lock on it ends with "Target lost.".
-  There is no explosion or wreckage yet.
 
 ## [0.4.0] - 2026-11-16
 
