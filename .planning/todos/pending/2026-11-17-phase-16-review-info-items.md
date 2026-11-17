@@ -34,3 +34,7 @@ changes behaviour; the owner decided on 2026-11-17 to record them and not fix th
   the script is touched again.
 
 Each item has its file, line and suggested fix in `16-REVIEW.md` under "Info".
+
+## Update 2026-11-17 (owner check on a real GPU)
+
+The owner played the production preview on a real GPU with the new "Show FPS" counter: 60 FPS steady, an occasional 58, and the explosion, flash and drifting cargo containers looked good. No stutter or frame-budget problem is visible, so IN-01 and IN-06 stay low priority and are only worth revisiting if a later phase raises the debris load (for example the Phase 18 collision debris) or a measurement with the reference-desktop protocol in `docs/PERFORMANCE.md` shows otherwise.
