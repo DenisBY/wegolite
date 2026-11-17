@@ -225,14 +225,23 @@ type NpcUpdate = (
   models: ReadonlyMap<string, GLTF>,
 ) => void;
 
+/** What the explosion layer double is handed each frame. */
+type ExplosionUpdate = (
+  cameraWorld: unknown,
+  cameraQuaternion: unknown,
+  flightTime: number,
+) => void;
+
 /** A scene double complete enough for a full `renderFrame` in flight. */
 function flyableScene(
   nebula: { revision: number },
   npcUpdate: NpcUpdate = () => undefined,
+  explosionUpdate: ExplosionUpdate = () => undefined,
 ): SystemScene {
   return {
     npcs: { update: npcUpdate },
     shots: { update: () => undefined },
+    explosions: { update: explosionUpdate },
     camera: { aspect: 1.5, fov: 57.2, ...fakeObject() },
     planet: { mesh: fakeObject(), update: () => undefined },
     sun: { sun: fakeObject(), corona: fakeObject(), update: () => undefined },
@@ -333,6 +342,38 @@ describe("renderFrame NPC contacts (WORLD-15)", () => {
     h.ctx.core.worldLifecycle?.end();
     h.driver.renderFrame(0);
     expect(models[0]?.contacts).toHaveLength(3);
+  });
+});
+
+describe("renderFrame explosions (WORLD-17)", () => {
+  it("updates the explosion layer with the camera, its orientation and the flight clock before the render", () => {
+    const log: string[] = [];
+    const calls: unknown[][] = [];
+    const h = harness({ onRender: () => log.push("render") });
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    const scene = flyableScene(h.nebula, undefined, (...args) => {
+      log.push("explosions.update");
+      calls.push(args);
+    });
+    h.ctx.core.scene = scene;
+    h.ctx.runtime.hud = { draw: () => undefined } as unknown as Hud;
+    h.ctx.core.state = {
+      ...initFlightState(layout),
+      mode: "inFlight",
+      flightTime: 42.5,
+    };
+    h.driver.renderFrame(0);
+    expect(calls).toHaveLength(1);
+    const [cameraWorld, quaternion, flightTime] = calls[0] ?? [];
+    expect(quaternion).toBe(scene.camera.quaternion);
+    expect(flightTime).toBe(42.5);
+    expect(cameraWorld).toMatchObject({
+      x: expect.any(Number) as number,
+      y: expect.any(Number) as number,
+      z: expect.any(Number) as number,
+    });
+    expect(log).toEqual(["explosions.update", "render"]);
   });
 });
 

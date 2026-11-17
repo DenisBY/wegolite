@@ -199,6 +199,14 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       position: currentState.position,
       orientation: currentState.orientation,
     });
+    // WORLD-17: the explosions added by `shipDestroyed`, drawn camera-relative
+    // facing the camera and retired by flight time. Presentation only: the
+    // layer reads no sim stream and writes nothing back.
+    currentScene.explosions.update(
+      cameraWorld,
+      currentScene.camera.quaternion,
+      currentState.flightTime,
+    );
 
     if (draw) {
       renderer.render(currentScene.scene, currentScene.camera);

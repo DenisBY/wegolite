@@ -6,7 +6,7 @@
  *
  * **Disposal contract.** The factory owns every resource it creates (planet
  * geometry/material, sun and corona, starfield, dust, the beacon markers, the
- * NPC layer's instance buffers) and
+ * NPC layer's instance buffers, the shot and explosion layers) and
  * the *cloned* materials of the station and ship. It does **not** own the
  * cached GLB geometries, materials or textures — those belong to `AssetCache`
  * and must survive a scene swap. A blind `traverse(dispose)` over a cloned GLB
@@ -33,6 +33,8 @@ import type { AssetCache } from "./asset-cache.js";
 import { createBuoy } from "./bodies/buoy.js";
 import type { BuoyBody, BuoyRole } from "./bodies/buoy.js";
 import { createDust } from "./bodies/dust.js";
+import { createExplosionLayer } from "./bodies/explosions.js";
+import type { ExplosionLayer } from "./bodies/explosions.js";
 import { createNebulae } from "./bodies/nebulae.js";
 import type { NebulaBody } from "./bodies/nebulae.js";
 import { createLaserShotLayer } from "./bodies/laser-shots.js";
@@ -141,6 +143,12 @@ export interface SystemScene {
    * this scene, like `npcs`.
    */
   shots: LaserShotLayer;
+  /**
+   * The drawn ship explosions (WORLD-17): two instanced objects over a fixed
+   * pool, fed by `shipDestroyed` events and updated each frame. Owned and
+   * disposed by this scene, like `shots`, so a jump or a Load clears it.
+   */
+  explosions: ExplosionLayer;
   /** The sky nebulae, present only at `high` quality. */
   nebulae?: NebulaBody;
   dispose(): void;
@@ -158,6 +166,7 @@ export interface SystemSceneParts {
   dust: Dust;
   npcs: NpcLayer;
   shots: LaserShotLayer;
+  explosions: ExplosionLayer;
   nebulae?: NebulaBody;
 }
 
@@ -189,6 +198,7 @@ export interface SystemSceneFactories {
   dust(): Dust;
   npcs(): NpcLayer;
   shots(): LaserShotLayer;
+  explosions(): ExplosionLayer;
   nebulae(count: number, seed: string): NebulaBody;
 }
 
@@ -202,6 +212,7 @@ const REAL_FACTORIES: SystemSceneFactories = {
   dust: () => createDust(),
   npcs: () => createNpcLayer(),
   shots: () => createLaserShotLayer(),
+  explosions: () => createExplosionLayer(),
   nebulae: (count, seed) => createNebulae(count, seed),
 };
 
@@ -289,6 +300,7 @@ export function assembleSystemScene(
     parts.dust.object,
     parts.npcs.root,
     parts.shots.root,
+    parts.explosions.root,
   );
   if (parts.nebulae !== undefined) scene.add(parts.nebulae.object);
 
@@ -305,6 +317,8 @@ export function assembleSystemScene(
     parts.npcs,
     // The shot layer owns its geometry and material outright.
     parts.shots,
+    // The explosion layer owns its geometry, materials and loaded textures.
+    parts.explosions,
     ...(parts.nebulae === undefined ? [] : [parts.nebulae]),
   ]);
 
@@ -322,6 +336,7 @@ export function assembleSystemScene(
     dust: parts.dust,
     npcs: parts.npcs,
     shots: parts.shots,
+    explosions: parts.explosions,
     ...(parts.nebulae === undefined ? {} : { nebulae: parts.nebulae }),
     dispose(): void {
       disposer.dispose();
@@ -383,6 +398,8 @@ export function createSystemScene(
     built.add(npcs);
     const shots = f.shots();
     built.add(shots);
+    const explosions = f.explosions();
+    built.add(explosions);
 
     // A navigation buoy in front of the dock and one at the witchpoint, as in
     // Oolite: one shared model, two sets of flasher lights.
@@ -412,6 +429,7 @@ export function createSystemScene(
         dust,
         npcs,
         shots,
+        explosions,
         ...(nebulae === undefined ? {} : { nebulae }),
       },
       layout.sunDir,

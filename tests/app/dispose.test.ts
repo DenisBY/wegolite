@@ -35,6 +35,7 @@ import type { AssetCache } from "../../src/render/asset-cache.js";
 import { createBuoy } from "../../src/render/bodies/buoy.js";
 import type { BuoyBody } from "../../src/render/bodies/buoy.js";
 import { createDust } from "../../src/render/bodies/dust.js";
+import { createExplosionLayer } from "../../src/render/bodies/explosions.js";
 import { createLaserShotLayer } from "../../src/render/bodies/laser-shots.js";
 import type { LaserShotLayer } from "../../src/render/bodies/laser-shots.js";
 import { createNpcLayer } from "../../src/render/bodies/npc-ships.js";
@@ -358,6 +359,9 @@ describe("SystemScene owns only what it created", () => {
 
     // The shot layer owns its geometry and material outright (CBT-05).
     const shots = createLaserShotLayer();
+    // So does the explosion layer (WORLD-17); no texture is loaded until the
+    // first explosion.
+    const explosions = createExplosionLayer(() => new THREE.Texture(), "/");
 
     const sceneOwned: Record<string, () => number> = {
       shotsGeometry: countDisposals(shots.root.geometry),
@@ -441,6 +445,7 @@ describe("SystemScene owns only what it created", () => {
         dust,
         npcs,
         shots,
+        explosions,
       },
       cached: coriolis,
       cachedBuoy: buoy,

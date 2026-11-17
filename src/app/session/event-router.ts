@@ -17,7 +17,7 @@
  *
  * Order independence with plan 08-11 (which widens `SimEvent` with reserved
  * kinds in the same wave): the table is keyed to the literal `RoutedKind` union
- * of the 21 routed kinds, never to the full `SimEvent` kind union, and every
+ * of the 22 routed kinds, never to the full `SimEvent` kind union, and every
  * read of it with a value that is not already a `RoutedKind` goes through
  * `isRoutedKind`. The only mention of the full union's kind type is the
  * `satisfies` check on `ROUTED_EVENT_KINDS`. There is no exhaustive check and no
@@ -85,6 +85,8 @@ export const ROUTED_EVENT_KINDS = [
   "identLost",
   "identOff",
   "laserFired",
+  // D16-21: the explosion, for the presentation subscriber (Phase 15 OD-2).
+  "shipDestroyed",
 ] as const satisfies readonly SimEvent["kind"][];
 
 export type RoutedKind = (typeof ROUTED_EVENT_KINDS)[number];
@@ -118,6 +120,7 @@ export const EVENT_KIND_SUBSCRIBER: Readonly<
   identLost: ["hudMessages"],
   identOff: ["hudMessages"],
   laserFired: ["dockFeedback"],
+  shipDestroyed: ["dockFeedback"],
 };
 
 /** Whether `kind` is one of the routed kinds; a reserved or unknown kind is not. */
@@ -416,10 +419,13 @@ export interface DockFeedbackDeps {
 }
 
 /**
- * bounce and scrape (the dock-feedback envelopes and their messages) and
- * laserFired (CBT-05): the session's presentation-feedback subscriber, so the
- * pinned subscriber order is unchanged. A shot goes to the scene's shot layer
- * as positions and a laser kind only; the shooter id is never stored.
+ * bounce and scrape (the dock-feedback envelopes and their messages),
+ * laserFired (CBT-05) and shipDestroyed (WORLD-17, D16-21): the session's
+ * presentation-feedback subscriber, so the pinned subscriber order is
+ * unchanged. A shot goes to the scene's shot layer as positions and a laser
+ * kind only; the shooter id is never stored. An explosion goes to the scene's
+ * explosion layer as a position and a radius only: the arm never reads the
+ * destroyed ship's id or its killer, and writes nothing to the world.
  */
 export function createDockFeedbackFlow(
   ctx: SessionState,
@@ -444,6 +450,21 @@ export function createDockFeedbackFlow(
             : undefined,
         );
         break;
+      case "shipDestroyed": {
+        // Read the live scene and the compiled setting at call time (G-8);
+        // traffic off has no setting, so nothing is drawn.
+        const setting = ctx.core.npcTraffic?.explosion;
+        const scene = ctx.core.scene;
+        if (scene !== undefined && setting !== undefined) {
+          scene.explosions.add(
+            event.position,
+            event.radius,
+            setting,
+            ctx.core.state?.flightTime ?? 0,
+          );
+        }
+        break;
+      }
       case "bounce":
         ctx.core.dockFeedback.trigger(
           "bounce",

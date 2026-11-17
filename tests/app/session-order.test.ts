@@ -114,6 +114,14 @@ const EVENTS: Readonly<Record<RoutedKind, SimEvent>> = {
     to: { x: 0, y: 0, z: -100 },
     laserKind: "pulse",
   },
+  shipDestroyed: {
+    kind: "shipDestroyed",
+    id: 101,
+    position: { x: 10, y: 20, z: 30 },
+    radius: 40,
+    specKey: "viper",
+    killer: 100,
+  },
 };
 
 describe("the pinned subscriber order and routing table", () => {
@@ -127,7 +135,7 @@ describe("the pinned subscriber order and routing table", () => {
     ]);
   });
 
-  it("maps each of the 21 routed kinds to exactly one subscriber tuple", () => {
+  it("maps each of the 22 routed kinds to exactly one subscriber tuple", () => {
     expect(EVENT_KIND_SUBSCRIBER).toEqual({
       launched: ["stationFlow", "worldLifecycle"],
       launchComplete: ["stationFlow"],
@@ -150,12 +158,13 @@ describe("the pinned subscriber order and routing table", () => {
       identLost: ["hudMessages"],
       identOff: ["hudMessages"],
       laserFired: ["dockFeedback"],
+      shipDestroyed: ["dockFeedback"],
     });
-    expect(ROUTED_EVENT_KINDS).toHaveLength(21);
+    expect(ROUTED_EVENT_KINDS).toHaveLength(22);
     expect(Object.keys(EVENT_KIND_SUBSCRIBER).sort()).toEqual(
       [...ROUTED_EVENT_KINDS].sort(),
     );
-    // Nineteen kinds have one subscriber; launched and docked have the ordered
+    // Twenty kinds have one subscriber; launched and docked have the ordered
     // pair (plan 08-15), so the world lifecycle runs after the station flow.
     const pair = ["launched", "docked"];
     for (const kind of ROUTED_EVENT_KINDS) {
@@ -180,7 +189,7 @@ describe("the pinned subscriber order and routing table", () => {
     }
   });
 
-  it("offers each of the 21 kinds to exactly the subscribers its table entry names", () => {
+  it("offers each of the 22 kinds to exactly the subscribers its table entry names", () => {
     for (const kind of ROUTED_EVENT_KINDS) {
       const ctx = createSessionState({
         system: lave.system,
@@ -854,6 +863,110 @@ describe("laserFired reaches the scene's shot layer (CBT-05, A4)", () => {
       h.router.dispatch(EVENTS.laserFired);
     }).not.toThrow();
     expect(h.log).toEqual([]);
+  });
+});
+
+describe("shipDestroyed reaches the scene's explosion layer (WORLD-17, D16-21)", () => {
+  const SETTING = {
+    key: "oolite-default-ship-explosion",
+    alpha: 0.85,
+    brightness: 1,
+    colorOrder: "rgb",
+    count: 25,
+    duration: 1.5,
+    growthRate: 1.5,
+    size: 2.5,
+    spread: 1,
+    texture: "oolite-particle-cloud2.png",
+  };
+
+  function withExplosions(): {
+    readonly h: Harness;
+    readonly added: unknown[];
+  } {
+    const h = harness();
+    const added: unknown[] = [];
+    h.ctx.core.scene = {
+      explosions: {
+        add: (...args: unknown[]) => {
+          added.push(args);
+        },
+      },
+    } as unknown as SystemScene;
+    h.ctx.core.npcTraffic = {
+      explosion: SETTING,
+    } as unknown as SessionState["core"]["npcTraffic"];
+    return { h, added };
+  }
+
+  it("is routed to dockFeedback only, and entityRemoved stays unrouted", () => {
+    expect(EVENT_KIND_SUBSCRIBER.shipDestroyed).toEqual(["dockFeedback"]);
+    expect(isRoutedKind("entityRemoved")).toBe(false);
+  });
+
+  it("adds the position, the radius, the compiled setting and the flight clock, once", () => {
+    const { h, added } = withExplosions();
+    h.router.dispatch(EVENTS.shipDestroyed);
+    expect(added).toEqual([[{ x: 10, y: 20, z: 30 }, 40, SETTING, 12.5]]);
+    // No message and no feedback envelope.
+    expect(h.log).toEqual([]);
+  });
+
+  it("never reads the id, the killer or the spec key", () => {
+    const { h, added } = withExplosions();
+    const event = {
+      kind: "shipDestroyed",
+      position: { x: 1, y: 2, z: 3 },
+      radius: 5,
+      get id(): never {
+        throw new Error("the arm read the entity id");
+      },
+      get killer(): never {
+        throw new Error("the arm read the killer");
+      },
+      get specKey(): never {
+        throw new Error("the arm read the spec key");
+      },
+    } as unknown as SimEvent;
+    expect(() => {
+      h.router.dispatch(event);
+    }).not.toThrow();
+    expect(added).toHaveLength(1);
+  });
+
+  it("does nothing, and does not throw, with no scene", () => {
+    const { h } = withExplosions();
+    h.ctx.core.scene = undefined;
+    expect(() => {
+      h.router.dispatch(EVENTS.shipDestroyed);
+    }).not.toThrow();
+    expect(h.log).toEqual([]);
+  });
+
+  it("does nothing, and does not throw, with no explosion setting (traffic off)", () => {
+    const { h, added } = withExplosions();
+    // Traffic content without a compiled setting, then no traffic at all.
+    h.ctx.core.npcTraffic = {} as SessionState["core"]["npcTraffic"];
+    expect(() => {
+      h.router.dispatch(EVENTS.shipDestroyed);
+    }).not.toThrow();
+    h.ctx.core.npcTraffic = undefined;
+    h.router.dispatch(EVENTS.shipDestroyed);
+    expect(added).toEqual([]);
+    expect(h.log).toEqual([]);
+  });
+
+  it("leaves the world untouched", () => {
+    const { h, added } = withExplosions();
+    h.ctx.core.marketSeed = 7;
+    const real = createWorldLifecycle({ traffic: false });
+    real.begin(7);
+    const worldBefore = real.world;
+    h.ctx.core.worldLifecycle = real;
+    h.router.dispatch(EVENTS.shipDestroyed);
+    expect(added).toHaveLength(1);
+    expect(real.epoch).toBe(1);
+    expect(real.world).toBe(worldBefore);
   });
 });
 
