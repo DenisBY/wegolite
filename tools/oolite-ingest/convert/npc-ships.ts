@@ -16,7 +16,10 @@
  * pitch, and thrust), and, from Phase 15 (DATA-14), the aft, port and
  * starboard weapon types and positions (every facing type gated by Oolite's
  * `weapon_facings` mask), `likely_cargo`, `max_cargo` (unsigned integers,
- * default 0), `fragment_chance` and `explosion_type`. The one deliberate
+ * default 0), `fragment_chance` and `explosion_type`, and, from Phase 16
+ * (D16-23), the hull's bounding box: the float32 extremes of its vendored
+ * `.dat` vertices in Oolite's model axes, the box Oolite's
+ * `releaseCargoPodsDebris` samples (OOEntityWithDrawable.m:55). The one deliberate
  * narrowing of Oolite's readers: `fragment_chance` must be a number, where
  * Oolite's fuzzy boolean also takes boolean and string spellings (see
  * `DEFAULT_FRAGMENT_CHANCE`). Nothing else: no other combat or flight stat, no
@@ -36,6 +39,8 @@ import {
   NpcShipSchema,
   type NpcShip,
 } from "../../../src/content/schemas/ship-npc.js";
+import { boundingBox } from "./dat.js";
+import type { ParsedMesh } from "./dat.js";
 import { EMITTED_ENTRIES, MODEL_SOURCE_FILES, shipGlbFile } from "./glb.js";
 import type { EmittedShips, ShipCatalogue } from "./ships.js";
 
@@ -327,20 +332,49 @@ function explosionTypeExtra(
 }
 
 /**
+ * The hull box of a parsed mesh as `{ min, max }`, each component the float32
+ * of the vertex extreme (Oolite stores vertices as `GLfloat` and builds the
+ * drawable's box from them, OOMesh.m:1786-1805). Oolite's model axes, no
+ * subentity (none of the nine hulls has a solid one, D16-23).
+ */
+function hullBox(mesh: ParsedMesh): {
+  min: [number, number, number];
+  max: [number, number, number];
+} {
+  const box = boundingBox(mesh);
+  return {
+    min: [
+      Math.fround(box.min.x),
+      Math.fround(box.min.y),
+      Math.fround(box.min.z),
+    ],
+    max: [
+      Math.fround(box.max.x),
+      Math.fround(box.max.y),
+      Math.fround(box.max.z),
+    ],
+  };
+}
+
+/**
  * Compile the NPC records from the resolved catalogue, in `NPC_SHIP_KEYS`
  * order.
  *
  * `masses` maps each key to its computed float32 mass and `radii` to its
  * computed float32 collision radius; a key without one fails through
- * `NpcShipSchema` as `<key>.mass` or `<key>.radius`.
+ * `NpcShipSchema` as `<key>.mass` or `<key>.radius`. `models` holds the parsed
+ * vendored meshes by file name (the same record the masses and radii read);
+ * each record's `boundingBox` comes from its own model's mesh.
  *
  * @throws {ContentError} when a key is missing, has no roles or no model, owns
- * a GLB row other than its own, or fails `NpcShipSchema`.
+ * a GLB row other than its own, has no parsed mesh for its model, or fails
+ * `NpcShipSchema`.
  */
 export function compileNpcShips(
   catalogue: ShipCatalogue,
   masses: ReadonlyMap<string, number>,
   radii: ReadonlyMap<string, number>,
+  models: Readonly<Record<string, ParsedMesh>>,
 ): NpcShip[] {
   return NPC_SHIP_KEYS.map((key) => {
     const entry = catalogue.entries.find((candidate) => candidate.key === key);
@@ -385,6 +419,15 @@ export function compileNpcShips(
             `that adds it needs a new decision`,
         );
       }
+    }
+
+    // `Object.hasOwn`, so a model file named like a prototype key cannot
+    // reach a non-mesh value.
+    const mesh = Object.hasOwn(models, entry.model)
+      ? models[entry.model]
+      : undefined;
+    if (mesh === undefined) {
+      return fail(key, `no parsed mesh for the model ${entry.model}`);
     }
 
     const aiType = entry.extras["ai_type"];
@@ -498,6 +541,7 @@ export function compileNpcShips(
         DEFAULT_FRAGMENT_CHANCE,
       ),
       explosionType: explosionTypeExtra(key, entry.extras),
+      boundingBox: hullBox(mesh),
     };
 
     const parsed = NpcShipSchema.safeParse(candidate);
@@ -512,13 +556,18 @@ export function compileNpcShips(
   });
 }
 
-/** Serialise the NPC records as canonical JSON, in `NPC_SHIP_KEYS` order. */
+/**
+ * Serialise the NPC records as canonical JSON, in `NPC_SHIP_KEYS` order. The
+ * arguments are those of `compileNpcShips`: the computed masses and radii and
+ * the parsed meshes the bounding boxes are measured from.
+ */
 export function emitNpcShips(
   catalogue: ShipCatalogue,
   masses: ReadonlyMap<string, number>,
   radii: ReadonlyMap<string, number>,
+  models: Readonly<Record<string, ParsedMesh>>,
 ): EmittedShips {
-  const records = compileNpcShips(catalogue, masses, radii);
+  const records = compileNpcShips(catalogue, masses, radii, models);
   return {
     path: NPC_SHIPS_PATH,
     bytes: Buffer.from(canonicalJson(records), "utf8"),

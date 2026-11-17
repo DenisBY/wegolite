@@ -203,7 +203,7 @@ export async function generateContent({
     emitLabels(descriptions),
     emitShipsFromCatalogue(catalogue),
     emitClientShips(catalogue, masses),
-    emitNpcShips(catalogue, masses, radii),
+    emitNpcShips(catalogue, masses, radii, models),
     emitDebris(catalogue, debrisMasses, debrisRadii),
     emitExplosions(explosions),
     emitShipHulls(catalogue, models),

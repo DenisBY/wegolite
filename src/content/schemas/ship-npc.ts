@@ -18,8 +18,10 @@
  * constants the NPC flight model reads (AI-01): maximum speed, roll and pitch
  * rate, and thrust. Phase 15 adds the rest of DATA-14: the aft, port and
  * starboard weapon types and positions beside the forward pair, `likely_cargo`
- * and `max_cargo`, `fragment_chance` and `explosion_type`. No other combat or
- * flight stat is compiled here, and the strict object rejects any extra field.
+ * and `max_cargo`, `fragment_chance` and `explosion_type`. Phase 16 adds the
+ * hull's bounding box (D16-23), the box the debris rule samples for pods and
+ * plates. No other combat or flight stat is compiled here, and the strict
+ * object rejects any extra field.
  *
  * `glb` is a locator, not inert-world data: it is never copied from the plist
  * but derived from the model by the one naming rule, and both it and `model`
@@ -126,6 +128,21 @@ export const NpcShipSchema = z.strictObject({
   // `becomeExplosion` treats differently from an empty array, so null is never
   // folded into [].
   explosionType: z.array(z.string().min(1)).nullable(),
+  // The hull's bounding box in Oolite's model axes (D16-23): the float32
+  // extremes of the vendored `.dat` vertices, as Oolite's drawable box
+  // (OOEntityWithDrawable.m:55). `releaseCargoPodsDebris` and the plate loop
+  // place each piece at `min + randf() * (max - min)` per axis
+  // (OOVector.m:107-113); the sim converts it with `toWegoliteLocal` (D16-18).
+  // Finite, closed, and `min <= max` on every axis (T-16-16).
+  boundingBox: z
+    .strictObject({ min: POSITION, max: POSITION })
+    .refine(
+      (box) =>
+        box.min[0] <= box.max[0] &&
+        box.min[1] <= box.max[1] &&
+        box.min[2] <= box.max[2],
+      { message: "boundingBox min must not exceed max on any axis" },
+    ),
 });
 
 export const NpcShipCatalogueSchema = z.array(NpcShipSchema).min(1);

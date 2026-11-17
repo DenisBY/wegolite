@@ -7,6 +7,18 @@
       -22.5
     ],
     "aiType": "oolite-scavengerAI.js",
+    "boundingBox": {
+      "max": [
+        14.009300231933594,
+        9.70464038848877,
+        28.952299118041992
+      ],
+      "min": [
+        -14.009300231933594,
+        -5.190680027008057,
+        -22.232799530029297
+      ]
+    },
     "energyRechargeRate": 2,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
@@ -61,6 +73,18 @@
       -27.5
     ],
     "aiType": "oolite-traderAI.js",
+    "boundingBox": {
+      "max": [
+        35,
+        8.36658000946045,
+        34.85029983520508
+      ],
+      "min": [
+        -35,
+        -9.377209663391113,
+        -32.0536003112793
+      ]
+    },
     "energyRechargeRate": 2.5,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
@@ -117,6 +141,18 @@
       -12.155799865722656
     ],
     "aiType": "oolite-pirateAI.js",
+    "boundingBox": {
+      "max": [
+        30.737899780273438,
+        7.223869800567627,
+        25.641599655151367
+      ],
+      "min": [
+        -30.737899780273438,
+        -7.4102301597595215,
+        -25.641599655151367
+      ]
+    },
     "energyRechargeRate": 4,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
@@ -170,6 +206,18 @@
       -34.599998474121094
     ],
     "aiType": "oolite-pirateAI.js",
+    "boundingBox": {
+      "max": [
+        47.203800201416016,
+        10.684300422668457,
+        41.50809860229492
+      ],
+      "min": [
+        -47.203800201416016,
+        -11.108799934387207,
+        -41.30690002441406
+      ]
+    },
     "energyRechargeRate": 2.5,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
@@ -221,6 +269,18 @@
       -30.319299697875977
     ],
     "aiType": "oolite-pirateAI.js",
+    "boundingBox": {
+      "max": [
+        31.78619956970215,
+        7.750800132751465,
+        33.558101654052734
+      ],
+      "min": [
+        -31.78619956970215,
+        -7.750800132751465,
+        -33.558101654052734
+      ]
+    },
     "energyRechargeRate": 3,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
@@ -270,6 +330,18 @@
       -27.782249450683594
     ],
     "aiType": "oolite-pirateAI.js",
+    "boundingBox": {
+      "max": [
+        29.678300857543945,
+        14.354700088500977,
+        34.85070037841797
+      ],
+      "min": [
+        -29.678300857543945,
+        -14.354700088500977,
+        -34.85070037841797
+      ]
+    },
     "energyRechargeRate": 3,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
@@ -326,6 +398,18 @@
       -17.5
     ],
     "aiType": "oolite-shuttleAI.js",
+    "boundingBox": {
+      "max": [
+        11.574000358581543,
+        9.826910018920898,
+        19.704999923706055
+      ],
+      "min": [
+        -11.574000358581543,
+        -9.826910018920898,
+        -19.704999923706055
+      ]
+    },
     "energyRechargeRate": 1,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_NONE",
@@ -373,6 +457,18 @@
       -17.5
     ],
     "aiType": "oolite-pirateAI.js",
+    "boundingBox": {
+      "max": [
+        31.614599227905273,
+        7.212170124053955,
+        22.215499877929688
+      ],
+      "min": [
+        -31.614599227905273,
+        -7.212170124053955,
+        -22.215499877929688
+      ]
+    },
     "energyRechargeRate": 2,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
@@ -422,6 +518,18 @@
       -27.5
     ],
     "aiType": "oolite-policeAI.js",
+    "boundingBox": {
+      "max": [
+        25,
+        9.345720291137695,
+        35.034400939941406
+      ],
+      "min": [
+        -25,
+        -8.790610313415527,
+        -30.165000915527344
+      ]
+    },
     "energyRechargeRate": 4,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_BEAM_LASER",

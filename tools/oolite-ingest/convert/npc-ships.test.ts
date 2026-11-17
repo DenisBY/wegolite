@@ -6,9 +6,9 @@
  *
  * The expected values live in `tests/golden/content/ships-npc.json`, which was
  * written by hand from `shipdata.plist` and is never generated. The compiled
- * records (twenty-seven fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
- * `radius`, the five Phase 13 combat fields, the four Phase 14 flight fields and
- * the ten Phase 15 DATA-14 fields)
+ * records (twenty-eight fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
+ * `radius`, the five Phase 13 combat fields, the four Phase 14 flight fields,
+ * the ten Phase 15 DATA-14 fields and the Phase 16 `boundingBox`)
  * are compared with it, with the resolved template parents, and with the committed generated
  * file, so a drift in any one of the four fails.
  */
@@ -89,7 +89,7 @@ function loadMeshes(): Record<string, ParsedMesh> {
 const meshes = loadMeshes();
 const masses = computeShipMasses(NPC_SHIP_KEYS, catalogue, meshes);
 const radii = computeShipRadii(NPC_SHIP_KEYS, catalogue, meshes);
-const records = compileNpcShips(catalogue, masses, radii);
+const records = compileNpcShips(catalogue, masses, radii, meshes);
 
 interface Golden {
   readonly version: number;
@@ -170,7 +170,7 @@ describe("NPC ship records", () => {
     expect(records).toHaveLength(9);
   });
 
-  it("carries exactly the twenty-seven fields and passes the strict schema", () => {
+  it("carries exactly the twenty-eight fields and passes the strict schema", () => {
     for (const record of records) {
       expect(Object.keys(record).sort()).toEqual(golden.fields);
       expect(NpcShipSchema.safeParse(record).success).toBe(true);
@@ -258,7 +258,7 @@ describe("NPC ship records", () => {
   });
 
   it("regenerates the committed file byte for byte", () => {
-    const emitted = emitNpcShips(catalogue, masses, radii);
+    const emitted = emitNpcShips(catalogue, masses, radii, meshes);
     expect(emitted.path).toBe(NPC_SHIPS_PATH);
     expect(
       Buffer.from(emitted.bytes).equals(
@@ -303,7 +303,9 @@ describe("NPC ship records", () => {
       ...catalogue,
       entries: catalogue.entries.filter((entry) => entry.key !== "viper"),
     };
-    const error = capture(() => compileNpcShips(without, masses, radii));
+    const error = capture(() =>
+      compileNpcShips(without, masses, radii, meshes),
+    );
     expect(error.code).toBe("SCHEMA");
     expect(error.file).toBe(NPC_SHIPS_PATH);
     expect(error.construct).toBe("viper");
@@ -316,7 +318,9 @@ describe("NPC ship records", () => {
         entry.key === "viper" ? { ...entry, model: "oolite_adder.dat" } : entry,
       ),
     };
-    const error = capture(() => compileNpcShips(swapped, masses, radii));
+    const error = capture(() =>
+      compileNpcShips(swapped, masses, radii, meshes),
+    );
     expect(error.code).toBe("SCHEMA");
     expect(error.construct).toBe("viper");
   });
@@ -332,7 +336,7 @@ describe("NPC ship records", () => {
         return { ...entry, extras };
       }),
     };
-    const viper = compileNpcShips(bare, masses, radii).find(
+    const viper = compileNpcShips(bare, masses, radii, meshes).find(
       (item) => item.key === "viper",
     );
     expect(viper?.aiType).toBe(DEFAULT_AI_TYPE);
@@ -347,19 +351,23 @@ describe("NPC ship records", () => {
       ),
     };
     expect(
-      capture(() => compileNpcShips(noRoles, masses, radii)).construct,
+      capture(() => compileNpcShips(noRoles, masses, radii, meshes)).construct,
     ).toBe("viper");
   });
 
   it("fails naming the mass when a record has none", () => {
-    const error = capture(() => compileNpcShips(catalogue, new Map(), radii));
+    const error = capture(() =>
+      compileNpcShips(catalogue, new Map(), radii, meshes),
+    );
     expect(error.code).toBe("SCHEMA");
     expect(error.file).toBe(NPC_SHIPS_PATH);
     expect(error.construct).toBe("adder.mass");
   });
 
   it("fails naming the radius when a record has none", () => {
-    const error = capture(() => compileNpcShips(catalogue, masses, new Map()));
+    const error = capture(() =>
+      compileNpcShips(catalogue, masses, new Map(), meshes),
+    );
     expect(error.code).toBe("SCHEMA");
     expect(error.file).toBe(NPC_SHIPS_PATH);
     expect(error.construct).toBe("adder.radius");
@@ -367,7 +375,7 @@ describe("NPC ship records", () => {
 
   it("fails naming the radius when one is zero", () => {
     const error = capture(() =>
-      compileNpcShips(catalogue, masses, new Map([["adder", 0]])),
+      compileNpcShips(catalogue, masses, new Map([["adder", 0]]), meshes),
     );
     expect(error.construct).toBe("adder.radius");
   });
@@ -394,7 +402,7 @@ describe("NPC ship records", () => {
       ),
     };
     expect(
-      capture(() => compileNpcShips(badScan, masses, radii)).construct,
+      capture(() => compileNpcShips(badScan, masses, radii, meshes)).construct,
     ).toBe("viper.scanClass");
   });
 });
@@ -415,7 +423,7 @@ function withExtras(
 }
 
 function compiled(source: ShipCatalogue, key: string): NpcShip {
-  const match = compileNpcShips(source, masses, radii).find(
+  const match = compileNpcShips(source, masses, radii, meshes).find(
     (item) => item.key === key,
   );
   if (match === undefined) throw new Error(`NPC record "${key}" missing`);
@@ -528,7 +536,7 @@ describe("NPC combat fields (CBT-07, minimum of DATA-15)", () => {
         ...extras,
         forward_weapon_type: type,
       }));
-      const error = capture(() => compileNpcShips(bad, masses, radii));
+      const error = capture(() => compileNpcShips(bad, masses, radii, meshes));
       expect(error.code).toBe("SCHEMA");
       expect(error.file).toBe(NPC_SHIPS_PATH);
       expect(error.construct).toBe("viper");
@@ -541,18 +549,18 @@ describe("NPC combat fields (CBT-07, minimum of DATA-15)", () => {
         ...extras,
         weapon_position_forward: position,
       }));
-      expect(capture(() => compileNpcShips(bad, masses, radii)).code).toBe(
-        "SCHEMA",
-      );
+      expect(
+        capture(() => compileNpcShips(bad, masses, radii, meshes)).code,
+      ).toBe("SCHEMA");
     }
     for (const field of ["max_energy", "energy_recharge_rate"]) {
       const bad = withExtras("viper", (extras) => ({
         ...extras,
         [field]: "lots",
       }));
-      expect(capture(() => compileNpcShips(bad, masses, radii)).code).toBe(
-        "SCHEMA",
-      );
+      expect(
+        capture(() => compileNpcShips(bad, masses, radii, meshes)).code,
+      ).toBe("SCHEMA");
     }
   });
 
@@ -562,7 +570,7 @@ describe("NPC combat fields (CBT-07, minimum of DATA-15)", () => {
       max_energy: -1,
     }));
     expect(
-      capture(() => compileNpcShips(negative, masses, radii)).construct,
+      capture(() => compileNpcShips(negative, masses, radii, meshes)).construct,
     ).toBe("viper.maxEnergy");
   });
 });
@@ -639,7 +647,9 @@ describe("NPC flight fields (AI-01, minimum of DATA-15)", () => {
           ...extras,
           [field]: value,
         }));
-        const error = capture(() => compileNpcShips(bad, masses, radii));
+        const error = capture(() =>
+          compileNpcShips(bad, masses, radii, meshes),
+        );
         expect(error.code).toBe("SCHEMA");
         expect(error.file).toBe(NPC_SHIPS_PATH);
         expect(error.construct).toBe("viper");
@@ -653,7 +663,7 @@ describe("NPC flight fields (AI-01, minimum of DATA-15)", () => {
       max_flight_speed: -1,
     }));
     expect(
-      capture(() => compileNpcShips(negative, masses, radii)).construct,
+      capture(() => compileNpcShips(negative, masses, radii, meshes)).construct,
     ).toBe("viper.maxFlightSpeed");
   });
 });
@@ -709,7 +719,9 @@ describe("NPC cargo fields (DATA-14, D-06)", () => {
           ...extras,
           [field]: value,
         }));
-        const error = capture(() => compileNpcShips(bad, masses, radii));
+        const error = capture(() =>
+          compileNpcShips(bad, masses, radii, meshes),
+        );
         expect(error.code).toBe("SCHEMA");
         expect(error.file).toBe(NPC_SHIPS_PATH);
         expect(error.construct).toBe("adder");
@@ -854,7 +866,7 @@ describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () 
         ...extras,
         weapon_facings: value,
       }));
-      const error = capture(() => compileNpcShips(bad, masses, radii));
+      const error = capture(() => compileNpcShips(bad, masses, radii, meshes));
       expect(error.code).toBe("SCHEMA");
       expect(error.construct).toBe("viper");
       expect(error.excerpt).toContain("weapon_facings");
@@ -926,15 +938,15 @@ describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () 
       ...extras,
       fragment_chance: 2,
     }));
-    expect(capture(() => compileNpcShips(high, masses, radii)).construct).toBe(
-      "viper.fragmentChance",
-    );
+    expect(
+      capture(() => compileNpcShips(high, masses, radii, meshes)).construct,
+    ).toBe("viper.fragmentChance");
     for (const value of [true, "0.5"]) {
       const bad = withExtras("viper", (extras) => ({
         ...extras,
         fragment_chance: value,
       }));
-      const error = capture(() => compileNpcShips(bad, masses, radii));
+      const error = capture(() => compileNpcShips(bad, masses, radii, meshes));
       expect(error.code).toBe("SCHEMA");
       expect(error.construct).toBe("viper");
       expect(error.excerpt).toContain("fragment_chance");
@@ -973,7 +985,7 @@ describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () 
         ...extras,
         explosion_type: value,
       }));
-      const error = capture(() => compileNpcShips(bad, masses, radii));
+      const error = capture(() => compileNpcShips(bad, masses, radii, meshes));
       expect(error.code).toBe("SCHEMA");
       expect(error.file).toBe(NPC_SHIPS_PATH);
       expect(error.construct.startsWith("viper")).toBe(true);
@@ -990,7 +1002,7 @@ describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () 
         ...extras,
         [field]: "1 2",
       }));
-      const error = capture(() => compileNpcShips(bad, masses, radii));
+      const error = capture(() => compileNpcShips(bad, masses, radii, meshes));
       expect(error.code).toBe("SCHEMA");
       expect(error.construct).toBe("viper");
       expect(error.excerpt).toContain(field);
@@ -1030,7 +1042,7 @@ describe("NPC steering assumptions (AI-01, T-14-06)", () => {
         ...extras,
         [field]: value,
       }));
-      const error = capture(() => compileNpcShips(bad, masses, radii));
+      const error = capture(() => compileNpcShips(bad, masses, radii, meshes));
       expect(error.code).toBe("SCHEMA");
       expect(error.file).toBe(NPC_SHIPS_PATH);
       expect(error.construct).toBe("viper");
@@ -1044,9 +1056,9 @@ describe("NPC steering assumptions (AI-01, T-14-06)", () => {
       ...extras,
       accuracy: -100,
     }));
-    expect(capture(() => compileNpcShips(bad, masses, radii)).construct).toBe(
-      "adder",
-    );
+    expect(
+      capture(() => compileNpcShips(bad, masses, radii, meshes)).construct,
+    ).toBe("adder");
   });
 
   it("finds none of the six keys on the nine stock records after like_ship", () => {
@@ -1071,5 +1083,52 @@ describe("NPC steering assumptions (AI-01, T-14-06)", () => {
       expect(record).not.toHaveProperty("hasFuelInjection");
       expect(record).not.toHaveProperty("missiles");
     }
+  });
+});
+
+describe("the hull bounding box (D16-23)", () => {
+  it("is the float32 extremes of the hull's own vertices, min <= max per axis", () => {
+    for (const record of records) {
+      const mesh = meshes[record.model];
+      if (mesh === undefined) throw new Error(`no mesh for ${record.model}`);
+      const min = [Infinity, Infinity, Infinity];
+      const max = [-Infinity, -Infinity, -Infinity];
+      for (const vertex of mesh.vertices) {
+        const components = [vertex.x, vertex.y, vertex.z];
+        for (let axis = 0; axis < 3; axis++) {
+          const value = Math.fround(components[axis] ?? Number.NaN);
+          if (value < (min[axis] ?? Infinity)) min[axis] = value;
+          if (value > (max[axis] ?? -Infinity)) max[axis] = value;
+        }
+      }
+      expect(record.boundingBox, record.key).toEqual({ min, max });
+      for (let axis = 0; axis < 3; axis++) {
+        expect(
+          record.boundingBox.min[axis] ?? Number.NaN,
+          `${record.key} axis ${axis}`,
+        ).toBeLessThanOrEqual(record.boundingBox.max[axis] ?? Number.NaN);
+      }
+    }
+  });
+
+  it("fails as a SCHEMA error naming the key when the hull's mesh is missing", () => {
+    const withoutKrait: Record<string, ParsedMesh> = { ...meshes };
+    delete withoutKrait["oolite_krait.dat"];
+    const error = capture(() =>
+      compileNpcShips(catalogue, masses, radii, withoutKrait),
+    );
+    expect(error.code).toBe("SCHEMA");
+    expect(error.file).toBe(NPC_SHIPS_PATH);
+    expect(error.construct).toBe("krait");
+    expect(error.message).toContain("oolite_krait.dat");
+  });
+
+  it("fails at the first key when no mesh is supplied", () => {
+    const bare = Object.create(null) as Record<string, ParsedMesh>;
+    const error = capture(() =>
+      compileNpcShips(catalogue, masses, radii, bare),
+    );
+    expect(error.code).toBe("SCHEMA");
+    expect(error.construct).toBe("adder");
   });
 });

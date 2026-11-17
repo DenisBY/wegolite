@@ -85,9 +85,11 @@ the vendored Oolite `.dat` models: the `mass` of each record is computed by
 Wegolite's port of Oolite's octree volume rule over the hull and its solid
 subentities, and the `radius` of each record is computed from the same vendored
 `.dat` hull model (the distance of its farthest vertex from the model origin, as
-Oolite computes its collision radius). It is a derivative work of `shipdata.plist`
-and of those models and remains CC BY-NC-SA 3.0, never GPL, with attribution to
-the Oolite contributors, non-commercial use only and share-alike terms.
+Oolite computes its collision radius), and the `boundingBox` of each record is
+the bounding box of each hull (the extremes of its vendored `.dat` vertices). It
+is a derivative work of `shipdata.plist` and of those models and remains
+CC BY-NC-SA 3.0, never GPL, with attribution to the Oolite contributors,
+non-commercial use only and share-alike terms.
 
 The generated hull file `src/content/generated/ships-hulls.json` is compiled at
 build time from the vendored Oolite `.dat` models of the player Cobra Mk III

@@ -26,6 +26,7 @@ import {
   MAX_STEER_RATE,
 } from "../../src/sim/world/limits.js";
 import { NPC_SHIP_KEYS } from "../../tools/oolite-ingest/convert/npc-ships.js";
+import { MODEL_BOUNDS } from "../../tools/oolite-ingest/convert/dat.js";
 
 const REPO_ROOT = process.cwd();
 const LOADER = "src/content/ships-npc.ts";
@@ -386,6 +387,82 @@ describe("NpcShipCatalogueSchema", () => {
   it("rejects empty roles and an empty catalogue", () => {
     expect(accepts([{ ...firstRecord(), roles: [] }])).toBe(false);
     expect(accepts([])).toBe(false);
+  });
+});
+
+describe("the hull bounding box (D16-23)", () => {
+  const accepts = (records: unknown): boolean =>
+    NpcShipCatalogueSchema.safeParse(records).success;
+  const box = (): { min: number[]; max: number[] } => {
+    const value = firstRecord()["boundingBox"] as {
+      min: number[];
+      max: number[];
+    };
+    return { min: [...value.min], max: [...value.max] };
+  };
+  const withBox = (value: unknown): unknown[] => [
+    { ...firstRecord(), boundingBox: value },
+  ];
+
+  it("spans each hull's recorded MODEL_BOUNDS within 1e-3 relative", () => {
+    for (const record of generated as Record<string, unknown>[]) {
+      const value = record["boundingBox"] as { min: number[]; max: number[] };
+      const recorded = MODEL_BOUNDS[record["model"] as string];
+      expect(recorded, String(record["key"])).toBeDefined();
+      if (recorded === undefined) continue;
+      const spans = [recorded.x, recorded.y, recorded.z];
+      for (let axis = 0; axis < 3; axis++) {
+        const min = value.min[axis] ?? Number.NaN;
+        const max = value.max[axis] ?? Number.NaN;
+        const want = spans[axis] ?? Number.NaN;
+        expect(min, `${String(record["key"])} ${axis}`).toBeLessThanOrEqual(
+          max,
+        );
+        expect(
+          Math.abs(max - min - want),
+          `${String(record["key"])} axis ${axis}`,
+        ).toBeLessThanOrEqual(1e-3 * Math.max(1, Math.abs(want)));
+      }
+    }
+  });
+
+  it("accepts the generated box and a flat one (min equal to max)", () => {
+    expect(accepts(withBox(box()))).toBe(true);
+    const flat = box();
+    flat.max[1] = flat.min[1] ?? 0;
+    expect(accepts(withBox(flat))).toBe(true);
+  });
+
+  it("rejects a record without a boundingBox", () => {
+    const record = { ...firstRecord() };
+    delete record["boundingBox"];
+    expect(accepts([record])).toBe(false);
+  });
+
+  it("rejects a non-finite or malformed corner", () => {
+    for (const corner of ["min", "max"] as const) {
+      for (const value of [
+        [0, Number.NaN, 0],
+        [0, 0, Number.POSITIVE_INFINITY],
+        [0, 0],
+        [0, 0, 0, 0],
+        "0 0 0",
+      ]) {
+        expect(accepts(withBox({ ...box(), [corner]: value }))).toBe(false);
+      }
+    }
+  });
+
+  it("rejects an extra key inside the box", () => {
+    expect(accepts(withBox({ ...box(), centre: [0, 0, 0] }))).toBe(false);
+  });
+
+  it("rejects min above max on any axis", () => {
+    for (let axis = 0; axis < 3; axis++) {
+      const swapped = box();
+      swapped.min[axis] = (swapped.max[axis] ?? 0) + 1;
+      expect(accepts(withBox(swapped)), `axis ${axis}`).toBe(false);
+    }
   });
 });
 
