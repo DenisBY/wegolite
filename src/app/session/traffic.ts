@@ -23,17 +23,32 @@
  *
  * The module must stay importable by the Playwright Node runner: pure, no DOM, no
  * Three, and nothing beyond `src/sim` and `import type` from `src/content/types`.
+ *
+ * Phase 16 (plan 16-06, WORLD-17, DATA-16): with traffic on the content also
+ * carries the compiled debris (`debrisContentFrom`, the one builder of the
+ * sim's `DebrisContent`, shared with the Node replay), the debris records for
+ * the render and the default explosion setting.
  * `scanClass` is copied as the catalogue's plain string: this module cannot name
  * the id vocabulary, and the populator narrows it.
  */
 
-import type { NpcShip, ShipHullCatalogue } from "../../content/types.js";
+import type {
+  DebrisRecord,
+  ExplosionRecord,
+  NpcShip,
+  ShipHullCatalogue,
+} from "../../content/types.js";
 import type { FlyerRecords } from "../../sim/ai/test-spawn.js";
 import type { NpcWeapon } from "../../sim/combat/aim.js";
 import type { HullTable } from "../../sim/combat/hit.js";
 import { vec } from "../../sim/math.js";
 import { flightTableFrom } from "../../sim/npc/stats.js";
 import type { NpcFlightStats } from "../../sim/npc/stats.js";
+import type {
+  DebrisContent,
+  DebrisHull,
+  DebrisModel,
+} from "../../sim/world/debris.js";
 import type { SystemLayout } from "../../sim/world/layout.js";
 import { populateInertWorld } from "../../sim/world/populate.js";
 import type { InertShipRecord } from "../../sim/world/populate.js";
@@ -58,11 +73,107 @@ export interface TrafficContent {
    * by the catalogue's own string, never by an entity id.
    */
   readonly weapons: ReadonlyMap<string, NpcWeapon>;
+  /**
+   * The compiled debris content every fixed step passes to the kill path
+   * (WORLD-17, `CombatOptions.debris`), built by `debrisContentFrom`. Static
+   * content keyed by spec key, no entity id; absent when the session has no
+   * debris catalogue (a kill then releases nothing).
+   */
+  readonly debris?: DebrisContent;
+  /**
+   * The debris records (pod, plate, wrecks) as loaded, for the render's model
+   * paths and sizes (plan 16-08). Static content, no entity id.
+   */
+  readonly debrisModels?: readonly DebrisRecord[];
+  /**
+   * The default ship explosion setting, for the render's cloud (plan 16-07,
+   * D16-22). Render-only static content; the sim never reads it.
+   */
+  readonly explosion?: ExplosionRecord;
 }
 
-/** Build the populator records, the step masses and the flight table from the catalogue. */
-export function trafficContent(catalogue: readonly NpcShip[]): TrafficContent {
+/** The catalogues `trafficContent` adds beside the NPC records (plan 16-06). */
+export interface TrafficExtras {
+  readonly debris?: readonly DebrisRecord[];
+  readonly explosions?: readonly ExplosionRecord[];
+}
+
+/**
+ * The one setting every compiled hull explodes with (D16-22). The same string
+ * as `DEFAULT_EXPLOSION_KEY` in `src/content/schemas/explosion.ts`, restated
+ * because this module imports only types from `src/content` (a unit test pins
+ * the two equal).
+ */
+export const DEFAULT_SHIP_EXPLOSION_KEY = "oolite-default-ship-explosion";
+
+function debrisModel(record: DebrisRecord): DebrisModel {
+  return Object.freeze({
+    key: record.key,
+    mass: record.mass,
+    radius: record.radius,
+  });
+}
+
+/**
+ * The sim's `DebrisContent` from the NPC records and the debris catalogue: the
+ * one builder, shared by the live session (`trafficContent`) and the Node tick
+ * replay, so they cannot drift apart. Each NPC record becomes a hull entry
+ * (mass, fragment chance, bounding box in Oolite model axes) keyed by its spec
+ * key; the pod and plate records become the pod and plate models and the wreck
+ * records the wreck list, in catalogue order. Undefined when the catalogue has
+ * no pod or no plate (the strict schema already refuses such a file).
+ */
+export function debrisContentFrom(
+  catalogue: readonly NpcShip[],
+  debris: readonly DebrisRecord[],
+): DebrisContent | undefined {
+  const pod = debris.find((record) => record.role === "pod");
+  const plate = debris.find((record) => record.role === "plate");
+  if (pod === undefined || plate === undefined) return undefined;
+  const hulls = new Map<string, DebrisHull>(
+    catalogue.map((ship): [string, DebrisHull] => {
+      const { min, max } = ship.boundingBox;
+      return [
+        ship.key,
+        Object.freeze({
+          mass: ship.mass,
+          fragmentChance: ship.fragmentChance,
+          boundingBox: Object.freeze({
+            min: vec(min[0], min[1], min[2]),
+            max: vec(max[0], max[1], max[2]),
+          }),
+        }),
+      ];
+    }),
+  );
+  return Object.freeze({
+    hulls,
+    pod: debrisModel(pod),
+    plate: debrisModel(plate),
+    wrecks: Object.freeze(
+      debris.filter((record) => record.role === "wreck").map(debrisModel),
+    ),
+  });
+}
+
+/**
+ * Build the populator records, the step masses and the flight table from the
+ * catalogue; with the optional extras also the debris content, the debris
+ * records and the default explosion setting. Each extra key is set only when
+ * its source is present and yields a value (exactOptionalPropertyTypes).
+ */
+export function trafficContent(
+  catalogue: readonly NpcShip[],
+  extras: TrafficExtras = {},
+): TrafficContent {
   const ships = Object.freeze([...catalogue]);
+  const debris =
+    extras.debris === undefined
+      ? undefined
+      : debrisContentFrom(ships, extras.debris);
+  const explosion = extras.explosions?.find(
+    (record) => record.key === DEFAULT_SHIP_EXPLOSION_KEY,
+  );
   return Object.freeze({
     catalogue: ships,
     records: Object.freeze(
@@ -87,6 +198,11 @@ export function trafficContent(catalogue: readonly NpcShip[]): TrafficContent {
         return [ship.key, { laser: ship.forwardWeapon, offset: vec(x, y, z) }];
       }),
     ),
+    ...(debris === undefined ? {} : { debris }),
+    ...(extras.debris === undefined
+      ? {}
+      : { debrisModels: Object.freeze([...extras.debris]) }),
+    ...(explosion === undefined ? {} : { explosion }),
   });
 }
 

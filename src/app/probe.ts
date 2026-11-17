@@ -301,8 +301,15 @@ export interface WegoliteSimTestHook {
    * with traffic content loaded; otherwise it returns false and changes nothing.
    * Marks the session tainted before it mutates the world, so no autosave can
    * make the ship durable.
+   *
+   * `cargo` (Phase 16, D16-09) is an optional cargo capsule count, an integer
+   * 0 to 200 (`MAX_ENTITY_CARGO`), so destroying the shooter releases pods.
+   * Absent, the ship spawns with cargo 0 exactly as before. Any other value
+   * (a fraction, a negative or too large count, a non-number) still taints the
+   * session, spawns nothing and returns false. It returns a boolean only and
+   * exposes no entity id.
    */
-  spawnTestShooter(): boolean;
+  spawnTestShooter(cargo?: number): boolean;
   /**
    * Put three scripted flying NPCs 3,000 m from the player (WORLD-07): a Shuttle
    * flying to the station, a Viper intercepting the player and an Adder fleeing
@@ -558,8 +565,8 @@ export function createTestHook(
     },
     worldHash: () => sim.worldHash(),
     advanceTicks: (n: number) => sim.advanceTicks(n),
-    spawnTestShooter: () => {
-      if (!sim.spawnTestShooter()) return false;
+    spawnTestShooter: (cargo?: number) => {
+      if (!sim.spawnTestShooter(cargo)) return false;
       hook.tainted = true;
       return true;
     },

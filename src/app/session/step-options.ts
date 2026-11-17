@@ -23,6 +23,7 @@ import type { DockGeometry } from "../../sim/dock/geometry.js";
 import type { StepOptions } from "../../sim/flight/step.js";
 import { witchspaceStationMass } from "../../sim/hyperspace/countdown.js";
 import type { NpcFlightStats } from "../../sim/npc/stats.js";
+import type { DebrisContent } from "../../sim/world/debris.js";
 import type { ShipMass } from "../../sim/world/ship-field.js";
 
 /** The facts one fixed step needs; every field is read live by the caller. */
@@ -61,6 +62,13 @@ export interface StepOptionsInput {
    * to the step.
    */
   readonly npcFlight?: readonly NpcFlightStats[];
+  /**
+   * The compiled debris content (WORLD-17, plan 16-06), from
+   * `debrisContentFrom`. Absent with traffic off, and absent means a kill
+   * releases no debris. The session and the Node replay hand the same content
+   * to the step.
+   */
+  readonly debris?: DebrisContent;
 }
 
 /**
@@ -69,7 +77,8 @@ export interface StepOptionsInput {
  * committed, `stationMass` only when the origin's station kind has a recorded
  * mass, `shipMasses` only when the caller has them, `dock` only when the
  * geometry exists, `npcFlight` only when the caller has the table, and
- * `combat.hulls` and `combat.npcWeapons` only when the caller has them. `combat` itself is always present: it carries the mounts.
+ * `combat.hulls`, `combat.npcWeapons` and `combat.debris` only when the
+ * caller has them. `combat` itself is always present: it carries the mounts.
  */
 export function buildStepOptions(input: StepOptionsInput): StepOptions {
   const {
@@ -83,6 +92,7 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
     hulls,
     npcWeapons,
     npcFlight,
+    debris,
   } = input;
   // The read-only station mass of the live system's station kind. Only a
   // Coriolis station has a recorded mass; the others omit the fact.
@@ -110,6 +120,7 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
     mounts: laserMounts,
     ...(hulls === undefined ? {} : { hulls }),
     ...(npcWeapons === undefined ? {} : { npcWeapons }),
+    ...(debris === undefined ? {} : { debris }),
   };
   const base = {
     equipment,

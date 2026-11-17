@@ -67,12 +67,19 @@ const HALF_TURN_ABOUT_UP = quat(0, 0, 1, 0);
  *
  * Returns whether the world accepted the ship. A record whose scan class is not
  * in the closed vocabulary is refused (false), as the populator does.
+ *
+ * `cargo` (Phase 16, D16-09) is the optional cargo capsule count the ship
+ * carries, so a kill releases pods. It is put into the `SpawnInit` only when
+ * defined: without it the spawn is bit for bit the Phase 15 one (cargo 0, no
+ * cargo segment in the hash). A value outside `spawnEntity`'s domain (an
+ * integer 0 to `MAX_ENTITY_CARGO`) is refused there, and nothing spawns.
  */
 export function spawnTestShooter(
   world: World,
   player: Pick<FlightState, "position" | "orientation">,
   record: InertShipRecord,
   tick: number,
+  cargo?: number,
 ): boolean {
   if (!isScanClass(record.scanClass)) return false;
   const nose = rotate(player.orientation, LOCAL_FORWARD);
@@ -95,6 +102,7 @@ export function spawnTestShooter(
       ai,
       maxEnergy: record.maxEnergy,
       energyRechargeRate: record.energyRechargeRate,
+      ...(cargo === undefined ? {} : { cargo }),
     },
     tick,
   ).ok;

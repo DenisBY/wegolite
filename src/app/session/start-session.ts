@@ -34,6 +34,8 @@ import { loadCommodities } from "../../content/commodities.js";
 import { loadLabels } from "../../content/labels.js";
 import { loadShipHulls } from "../../content/ships-hulls.js";
 import { loadNpcCatalogue } from "../../content/ships-npc.js";
+import { loadDebrisCatalogue } from "../../content/ships-debris.js";
+import { loadExplosionCatalogue } from "../../content/explosions.js";
 import type { System } from "../../content/types.js";
 import { createGameLoop } from "../game-loop.js";
 import { createHintController } from "../hints.js";
@@ -363,29 +365,43 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     // coefficients. A missing or malformed record fails the boot visibly,
     // exactly like the ship catalogue.
     try {
-      // The NPC catalogue and the hull data join the same failure surface, and
-      // only with traffic on: a traffic-off session never fetches either chunk
-      // (WORLD-16, D-01). The hull chunk is the combat hit rule's input.
+      // The NPC catalogue, the hull data, the debris records and the explosion
+      // settings join the same failure surface, and only with traffic on: a
+      // traffic-off session fetches none of these chunks (WORLD-16, D-01). The
+      // hull chunk is the combat hit rule's input; the debris records feed the
+      // kill path's debris (WORLD-17) and the render, the explosion settings the
+      // render only (DATA-16). A malformed chunk is a broken build and fails the
+      // boot visibly, never silently partial (T-16-19).
+      const traffic = ctx.runtime.testFlags.traffic;
       const [
         equipment,
         loadedCommodities,
         loadedLabels,
         npcCatalogue,
         hullCatalogue,
+        debrisCatalogue,
+        explosionCatalogue,
       ] = await Promise.all([
         loadEquipment(),
         loadCommodities(),
         loadLabels(),
-        ctx.runtime.testFlags.traffic
-          ? loadNpcCatalogue()
-          : Promise.resolve(undefined),
-        ctx.runtime.testFlags.traffic
-          ? loadShipHulls()
-          : Promise.resolve(undefined),
+        traffic ? loadNpcCatalogue() : Promise.resolve(undefined),
+        traffic ? loadShipHulls() : Promise.resolve(undefined),
+        traffic ? loadDebrisCatalogue() : Promise.resolve(undefined),
+        traffic ? loadExplosionCatalogue() : Promise.resolve(undefined),
       ]);
       if (ctx.runtime.disposed) return;
       ctx.core.npcTraffic =
-        npcCatalogue === undefined ? undefined : trafficContent(npcCatalogue);
+        npcCatalogue === undefined
+          ? undefined
+          : trafficContent(npcCatalogue, {
+              ...(debrisCatalogue === undefined
+                ? {}
+                : { debris: debrisCatalogue }),
+              ...(explosionCatalogue === undefined
+                ? {}
+                : { explosions: explosionCatalogue }),
+            });
       ctx.core.hulls =
         hullCatalogue === undefined ? undefined : hullTable(hullCatalogue);
       ctx.core.equipmentCatalogue = equipment;

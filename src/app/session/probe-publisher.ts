@@ -184,8 +184,15 @@ export function createProbePublisher(
    * loaded traffic content (traffic on); anything else returns false and
    * changes nothing, taint included. The session is tainted before the world is
    * touched, so no autosave can make the spawned ship durable (T-13-27).
+   *
+   * `cargo` (Phase 16, D16-09) is the optional cargo capsule count, so a kill
+   * of the shooter releases pods. The page may pass anything: after the taint,
+   * a defined value that is not a number returns false with nothing spawned,
+   * and a number is handed to the sim, whose `spawnEntity` accepts an integer
+   * 0 to `MAX_ENTITY_CARGO` and refuses anything else (false, nothing spawned).
+   * Absent, the spawn is exactly the Phase 15 one.
    */
-  function spawnShooter(): boolean {
+  function spawnShooter(cargo?: unknown): boolean {
     const liveState = ctx.core.state;
     if (
       liveState === undefined ||
@@ -200,7 +207,11 @@ export function createProbePublisher(
     );
     if (world === undefined || record === undefined) return false;
     markHookMutation();
-    return spawnTestShooter(world, liveState, record, liveState.tick);
+    if (cargo === undefined) {
+      return spawnTestShooter(world, liveState, record, liveState.tick);
+    }
+    if (typeof cargo !== "number") return false;
+    return spawnTestShooter(world, liveState, record, liveState.tick, cargo);
   }
 
   /**

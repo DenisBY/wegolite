@@ -151,6 +151,11 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
       ...(ctx.core.npcTraffic === undefined
         ? {}
         : { npcWeapons: ctx.core.npcTraffic.weapons }),
+      // The compiled debris content (WORLD-17, plan 16-06), present only with
+      // traffic on and a loaded debris catalogue; omitted otherwise.
+      ...(ctx.core.npcTraffic?.debris === undefined
+        ? {}
+        : { debris: ctx.core.npcTraffic.debris }),
     });
     // The one integration point (D-14): the world is read live on every step,
     // so a launch in one step creates the world the next step runs.

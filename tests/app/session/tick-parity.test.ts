@@ -48,6 +48,8 @@ import {
 } from "../../../src/app/session/traffic.js";
 import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
 import type { WorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
+import { ExplosionCatalogueSchema } from "../../../src/content/schemas/explosion.js";
+import { DebrisCatalogueSchema } from "../../../src/content/schemas/ship-debris.js";
 import type { NpcShip, System } from "../../../src/content/types.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
@@ -154,6 +156,9 @@ function session(
   const traffic = ctx.runtime.testFlags.traffic;
   const populate = traffic && populated;
   if (populate) {
+    // The NPC records, the debris records and the explosion settings, as the
+    // boot load hands them to `trafficContent` (start-session.ts, plan 16-06);
+    // the two new files through their strict schemas, as their loaders parse.
     ctx.core.npcTraffic = trafficContent(
       JSON.parse(
         readFileSync(
@@ -164,6 +169,30 @@ function session(
           "utf8",
         ),
       ) as NpcShip[],
+      {
+        debris: DebrisCatalogueSchema.parse(
+          JSON.parse(
+            readFileSync(
+              new URL(
+                "../../../src/content/generated/ships-debris.json",
+                import.meta.url,
+              ),
+              "utf8",
+            ),
+          ),
+        ),
+        explosions: ExplosionCatalogueSchema.parse(
+          JSON.parse(
+            readFileSync(
+              new URL(
+                "../../../src/content/generated/explosions.json",
+                import.meta.url,
+              ),
+              "utf8",
+            ),
+          ),
+        ),
+      },
     );
     // The hull table the boot load builds beside the NPC catalogue.
     ctx.core.hulls = realHullTable();
@@ -677,6 +706,151 @@ describe("the browser kill step's twin (plan 15-04, FOUND-19, R2-1)", () => {
     expect(kindsOfKillTick).not.toContain("identLocked");
     expect(s.messages.current(state.flightTime)).toBe("Target lost.");
   });
+});
+
+/**
+ * The debris twin's pins (plan 16-06), measured through the real driver and
+ * recorded in 16-06-SUMMARY.md for the browser step of plan 16-09: the pieces
+ * live on the kill tick, the probe's entity count then, and the world hash 60
+ * ticks after the kill.
+ */
+const DEBRIS_AT_KILL = { pods: 3, plates: 1, wrecks: 3 } as const;
+const ENTITIES_AT_KILL = 19;
+const HASH_60_AFTER_KILL = "a10b2dfc";
+
+/** The world's live debris by kind: pods, plates and wrecks. */
+function debrisCounts(world: NonNullable<WorldLifecycle["world"]>): {
+  readonly pods: number;
+  readonly plates: number;
+  readonly wrecks: number;
+} {
+  let pods = 0;
+  let plates = 0;
+  let wrecks = 0;
+  for (const entity of world.store.live) {
+    if (entity.dead) continue;
+    if (entity.kind === "cargo" && entity.specKey === "barrel") pods += 1;
+    if (entity.kind === "cargo" && entity.specKey === "alloy") plates += 1;
+    if (entity.kind === "wreckage") wrecks += 1;
+  }
+  return { pods, plates, wrecks };
+}
+
+describe("the debris twin (plan 16-06, WORLD-17, D16-09)", () => {
+  it("a hook-spawned shooter with cargo 20 dies into pods, wrecks and a plate through the real driver, with the hash pinned", () => {
+    const s = session("?test=1&clock=manual&traffic=1", true, true);
+    const state = s.ctx.core.state;
+    const combat = s.ctx.core.combat;
+    if (state === undefined || combat === undefined) {
+      throw new Error("no state");
+    }
+    // The traffic content carries the compiled debris, as the boot builds it.
+    expect(s.ctx.core.npcTraffic?.debris).toBeDefined();
+    s.publisher.bindTestHook(state);
+    const hook = s.probe.test;
+    if (hook === undefined) throw new Error("no hook");
+    const world = (): ReturnType<typeof liveWorldOf> => liveWorldOf(s);
+
+    // The 15-04 twin's sequence: launch, park, heat and cool the fore laser.
+    s.pending.push(launch);
+    s.driver.advanceTicks(1);
+    s.driver.advanceTicks(300);
+    expect(state.mode).toBe("inFlight");
+    hook.setSpeed(0);
+    s.held.fire = true;
+    s.driver.advanceTicks(30);
+    s.held.fire = false;
+    s.driver.advanceTicks(60);
+
+    // Fire is held from the moment the shooter (with 20 capsules) spawns.
+    expect(debrisCounts(world())).toEqual({ pods: 0, plates: 0, wrecks: 0 });
+    s.held.fire = true;
+    expect(hook.spawnTestShooter(20)).toBe(true);
+    expect(
+      world().store.live.filter(
+        (entity) => entity.kind === "ship" && entity.cargo === 20,
+      ),
+    ).toHaveLength(1);
+    expect(hook.tainted).toBe(true);
+    expect(s.ctx.runtime.testTainted).toBe(true);
+    const spawnTick = state.tick;
+    const before = npcContacts(world()).length;
+    s.driver.advanceTicks(360);
+    s.pending.push({ kind: "ident" });
+    s.driver.advanceTicks(2);
+
+    // One tick at a time until the scanner loses a ship.
+    const bound = spawnTick + 1500;
+    let killTick = -1;
+    while (state.tick < bound) {
+      s.driver.advanceTicks(1);
+      if (npcContacts(world()).length === before - 1) {
+        killTick = state.tick;
+        break;
+      }
+    }
+    expect(killTick, "the kill landed before the bound").toBeGreaterThan(-1);
+    // The cargo changes no combat value: the same relative kill tick as the
+    // 15-04 twin.
+    expect(killTick - spawnTick).toBe(794);
+
+    // The kill tick released the debris: at least one pod, at most the pod
+    // limit, at most three wrecks and one plate (debris.ts), and the probe's
+    // entity count is the world's live count, debris included.
+    s.publisher.updateProbe();
+    const atKill = debrisCounts(world());
+    expect(atKill.pods).toBeGreaterThanOrEqual(1);
+    expect(atKill).toEqual(DEBRIS_AT_KILL);
+    expect(s.probe.sim?.entities).toBe(liveEntityCount(world()));
+    expect(s.probe.sim?.entities).toBe(ENTITIES_AT_KILL);
+
+    // 60 ticks later: pods and the plate never expire; the hash is pinned for
+    // the browser step of plan 16-09, which must reproduce it with the render
+    // layers on (success criterion 3).
+    s.held.fire = false;
+    s.driver.advanceTicks(60);
+    expect(state.tick - killTick).toBe(60);
+    expect(debrisCounts(world()).pods).toBe(DEBRIS_AT_KILL.pods);
+    expect(debrisCounts(world()).plates).toBe(DEBRIS_AT_KILL.plates);
+    expect(hook.worldHash()).toBe(HASH_60_AFTER_KILL);
+    expect(hook.worldHash()).toBe(sessionHash(s));
+  });
+
+  it.each([
+    ["a negative count", -1],
+    ["a fraction", 1.5],
+    ["a count above MAX_ENTITY_CARGO", 201],
+    ["NaN", Number.NaN],
+    ["a string", "20"],
+    ["an object", { cargo: 20 }],
+  ] as const)(
+    "the hook taints, refuses %s and spawns nothing (T-16-18)",
+    (_name, cargo) => {
+      const s = session("?test=1&clock=manual&traffic=1", true);
+      const state = s.ctx.core.state;
+      if (state === undefined) throw new Error("no state");
+      s.publisher.bindTestHook(state);
+      const hook = s.probe.test;
+      if (hook === undefined) throw new Error("no hook");
+      s.pending.push(launch);
+      s.driver.advanceTicks(1);
+      s.driver.advanceTicks(300);
+      expect(state.mode).toBe("inFlight");
+      const world = liveWorldOf(s);
+      const count = liveEntityCount(world);
+      const nextId = world.store.nextId;
+      // Stepping the manual clock already tainted the session; clear the flag
+      // so the hook's own taint is observable.
+      s.ctx.runtime.testTainted = false;
+      // The page may pass anything; the typing names a number only.
+      expect(
+        (hook.spawnTestShooter as (cargo?: unknown) => boolean)(cargo),
+      ).toBe(false);
+      expect(s.ctx.runtime.testTainted).toBe(true);
+      expect(liveEntityCount(world)).toBe(count);
+      expect(world.store.nextId).toBe(nextId);
+    },
+  );
 });
 
 describe("the sim hook reads live objects (G-8)", () => {
