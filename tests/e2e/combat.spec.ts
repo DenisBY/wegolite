@@ -238,8 +238,9 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
   const full = await page.evaluate(() => window.__wegolite?.combat?.fwdShield);
   expect(full, "the shield before the shooter appears").toBe(128);
   await page.keyboard.down("KeyA");
-  // The shooter carries 20 cargo capsules (D16-09), as in the debris twin; the
-  // cargo changes no combat value, so the kill tick and the bank budget stand.
+  // The shooter carries 20 cargo capsules (D16-09): `spawnTestShooter(20)`, as
+  // in the debris twin. The cargo changes no combat value, so the kill tick and
+  // the bank budget stand.
   expect(
     await page.evaluate(
       (cargo) => window.__wegolite?.test?.spawnTestShooter(cargo),
