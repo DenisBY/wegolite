@@ -206,7 +206,9 @@ export function budgetViolations(
  * pinned so the 4-CPU / two-concurrent-page contention stays reproducible. The
  * wait and the worker count are pinned *configuration*, not performance
  * numbers: pinning them keeps the instrument comparable without lowering the bar
- * the product must clear.
+ * the product must clear. The HUD pins were raised from 330 s and 300 s to 480 s
+ * and 450 s in quick task 261117-v1v, under the owner's 60 % CI timeout rule
+ * (CI measured 210 s, 64 % of the old budget).
  *
  * Each message names the literal it is about, so a failing control can assert
  * message-specifically.
@@ -231,14 +233,14 @@ export function frozenContractViolations(
     }
   }
 
-  if (!hudSource.includes("test.setTimeout(330_000)")) {
+  if (!hudSource.includes("test.setTimeout(480_000)")) {
     violations.push(
-      "tests/e2e/hud.spec.ts no longer contains test.setTimeout(330_000) (the 330_000 test timeout)",
+      "tests/e2e/hud.spec.ts no longer contains test.setTimeout(480_000) (the 480_000 test timeout)",
     );
   }
-  if (!hudSource.includes("timeout: 300_000")) {
+  if (!hudSource.includes("timeout: 450_000")) {
     violations.push(
-      "tests/e2e/hud.spec.ts no longer contains the 300_000 s wait (timeout: 300_000)",
+      "tests/e2e/hud.spec.ts no longer contains the 450_000 s wait (timeout: 450_000)",
     );
   }
 
@@ -372,24 +374,24 @@ describe("frozen delivery contract", () => {
   });
 
   it("rejects a shortened HUD wait", () => {
-    const shortened = HUD_SOURCE.replace("timeout: 300_000", "timeout: 60_000");
+    const shortened = HUD_SOURCE.replace("timeout: 450_000", "timeout: 60_000");
 
     expect(
       frozenContractViolations(STEP_SOURCE, shortened, CONFIG_SOURCE).some(
-        (message) => message.includes("300_000"),
+        (message) => message.includes("450_000"),
       ),
     ).toBe(true);
   });
 
   it("rejects a shortened HUD test timeout", () => {
     const shortened = HUD_SOURCE.replace(
-      "test.setTimeout(330_000)",
+      "test.setTimeout(480_000)",
       "test.setTimeout(90_000)",
     );
 
     expect(
       frozenContractViolations(STEP_SOURCE, shortened, CONFIG_SOURCE).some(
-        (message) => message.includes("330_000"),
+        (message) => message.includes("480_000"),
       ),
     ).toBe(true);
   });
