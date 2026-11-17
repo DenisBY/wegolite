@@ -5,6 +5,7 @@ area: tooling
 severity: minor
 files:
   - FIDELITY.md
+  - tools/oolite-reference/README.md
   - .planning/phases/10-ship-mass/
   - src/sim/hyperspace/countdown.ts
 audit_acknowledged:
@@ -41,6 +42,11 @@ Plan:
    preferred because Flatpak inside Docker needs bubblewrap), `xvfb`, Mesa llvmpipe, `xdotool` and ImageMagick
    `import`. Audio: `SDL_AUDIODRIVER=dummy`. Fall back to building from `/home/opencode/git/oolite` (GNUstep) only
    if the AppImage does not run.
+   **Done** (owner chose `tools/oolite-reference/`, outside `compose.yaml` and every gate; built and
+   smoke-checked in quick task 261117-iuw on 2026-11-17). Oolite 1.93.1-255 AppImage, extracted at build time.
+   Run it with `tools/oolite-reference/run-remote.sh --steps <file> --addons <dir>`; see
+   `tools/oolite-reference/README.md`. The smoke check reached the docked status screen and read a throwaway
+   OXP's `log()` line from `Latest.log`.
 2. A throwaway OXP kept outside the repository (OXP support is out of scope for the project): at startup it
    creates a Coriolis station, the buoys and the NPC ships and writes `ship.mass` (and the radius) to
    `Latest.log`. No debug console needed.
@@ -49,6 +55,12 @@ Plan:
 4. UI comparison: screenshots of the scanner, HUD and messages from the xvfb display next to Wegolite's.
 5. Provenance: do not commit the Oolite binary or its assets (code is GPL, assets CC BY-NC-SA); record what was
    used (version, source of the AppImage) in FIDELITY.md or the todo's SUMMARY.
+   **Done for the reference build**: the version, URL and SHA256 are recorded in the README, in the FIDELITY.md
+   Open items and in the 261117-iuw SUMMARY. Each measurement run records its own `session.txt` and
+   `wrapper.txt` in its SUMMARY.
+
+Open: steps 2 to 4 and the Phase 16 items below. The reference build is 1.93.1-255, not the 1.93.1-241 pin; see
+the FIDELITY.md Open items bullet "Reference Oolite for measurements".
 
 Risks: audio and the OpenGL version Oolite demands under llvmpipe; software rendering may differ in small
 visual details (does not affect the mass numbers). Estimate: half an hour to two hours, mostly the headless run.
