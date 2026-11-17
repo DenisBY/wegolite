@@ -106,6 +106,12 @@ The Wegolite cell is a `src/` path and a line. For a build-time mechanic it is t
 | A dying leader refuses escorts: `acceptAsEscort` returns NO once `becomeExplosion` has set STATUS_DEAD (`ShipEntity.m:7924`)                                                                                                                                                                                                       | `src/sim/npc/behaviours/formation.ts:53`          | `src/Core/Entities/ShipEntity.m:11926-11934`            | divergence: not ported with the release; with no escort spawned, no follower asks a dead leader, so D16-25 stands. PROJECT.md: "Phase 15 carry-overs closed in Phase 16"                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-88    |
 | Forward-view frustum: Oolite's default `fov-value` 57.2° spans the window width when it is at least 4:3 wide; a narrower window keeps the 4:3 vertical angle; the title view uses the GUI ratio 0.5 inside a 4:3 box; only the angular extent is ported, and the near plane's `distanceFactor` cancels out of the ratio (WORLD-02) | `src/render/viewport.ts:101`                      | `src/Core/Universe.m:4445-4452`                         | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-90    |
 | Scanner forward-view lines: the flight view's horizontal half-angle tangent, times 0.75 × width/height when the window is narrower than 4:3 (FLGT-05)                                                                                                                                                                              | `src/render/hud/draw.ts:311`                      | `src/Core/HeadUpDisplay.m:4002-4006`                    | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-91    |
+| HUD message rows: a new message scrolls the area up one row and takes the bottom row with its own duration; ten rows are kept and the bottom two drawn (FLGT-05)                                                                                                                                                                   | `src/render/hud/messages.ts:141`                  | `src/Core/GuiDisplayGen.m:751-766`                      | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-92    |
+| HUD message row countdown: each row counts its own duration down while read, blanks at zero without moving the other rows, and fades over its last second (FLGT-05)                                                                                                                                                                | `src/render/hud/messages.ts:121`                  | `src/Core/GuiDisplayGen.m:1327-1336`                    | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-93    |
+| HUD message repeat rule: a message equal to the last shown one is dropped within 6 s of it, unless the last message was cleared, as every hyperspace refusal does first (FLGT-05)                                                                                                                                                  | `src/render/hud/messages.ts:140`                  | `src/Core/Universe.m:6340-6355`                         | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-94    |
+| J refused under mass lock: the jump-mass-locked reply is posted at once for 1.5 s (FLGT-04)                                                                                                                                                                                                                                        | `src/app/session/event-router.ts:360`             | `src/Core/Entities/PlayerEntityControls.m:1166-1175`    | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-95    |
+| HUD condition light from the alert flags in flight: no flag is green, any flag yellow, a flag above 0x03f (anything but mass lock) red (FLGT-05)                                                                                                                                                                                   | `src/sim/combat/alert.ts:139`                     | `src/Core/Entities/PlayerEntity.m:5122-5138`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-96    |
+| Alert flags in space: mass lock; hostiles targeting the player in scanner range; energy below 64 and below 0.8 of maximum; heat level above 0.9; altitude dial below 0.1 (FLGT-05)                                                                                                                                                 | `src/sim/combat/alert.ts:117`                     | `src/Core/Entities/PlayerEntity.m:2976-2993`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-97    |
 
 ## Excerpts
 
@@ -1518,6 +1524,123 @@ OOINLINE double distanceBetweenPlanetPositions(int x1, int y1, int x2, int y2)
     if (aspect < 4.0 / 3.0) {
         tanfov *= 0.75 * aspect;
     }
+```
+
+### E-92 src/Core/GuiDisplayGen.m:751-766
+
+```objc
+    }
+
+    OOGUIRow row = currentRow;
+    if (row == (OOGUIRow)n_rows - 1)
+        [self scrollUp:1];
+    NSSize chSize = pixel_text_size;
+    NSSize strsize = OORectFromString(str, 0.0f, 0.0f, chSize).size;
+    if (strsize.width < size_in_pixels.width) {
+        [self setText:str forRow:row align:alignment];
+        if (text_color)
+            [self setColor:text_color forRow:row];
+        if (text_key)
+            [self setKey:text_key forRow:row];
+        rowFadeTime[row] = text_fade;
+        if (currentRow < (OOGUIRow)n_rows - 1)
+            currentRow++;
+```
+
+### E-93 src/Core/GuiDisplayGen.m:1327-1336
+
+```objc
+        if (rowFadeTime[i] > 0.0f && ![UNIVERSE permanentMessageLog]) {
+            rowFadeTime[i] -= (float)delta_t;
+            if (rowFadeTime[i] <= 0.0f) {
+                [rowText replaceObjectAtIndex:i withObject:@""];
+                rowFadeTime[i] = 0.0f;
+                continue;
+            }
+            if ((rowFadeTime[i] > 0.0f) && (rowFadeTime[i] < 1.0)) {
+                row_alpha[i] *= rowFadeTime[i];
+                if (backgroundAlpha < row_alpha[i])
+```
+
+### E-94 src/Core/Universe.m:6340-6355
+
+```objc
+- (void)addMessage:(NSString*)text forCount:(OOTimeDelta)count forceDisplay:(BOOL)forceDisplay
+{
+    if (![currentMessage isEqual:text] || forceDisplay || universal_time >= messageRepeatTime) {
+        if ([PLAYER isSpeechOn] == OOSPEECHSETTINGS_ALL) {
+            [self speakWithSubstitutions:text];
+        }
+
+        [self showGUIMessage:text withScroll:YES andColor:[message_gui textColor] overDuration:count];
+
+        [PLAYER doScriptEvent:OOJSID("consoleMessageReceived") withArgument:text];
+
+        [currentMessage release];
+        currentMessage = [text retain];
+        messageRepeatTime = universal_time + 6.0;
+    }
+}
+```
+
+### E-95 src/Core/Entities/PlayerEntityControls.m:1166-1175
+
+```objc
+                    if (!jump_pressed) {
+                        if (!hyperspeed_engaged) {
+                            hyperspeed_locked = [self massLocked];
+                            hyperspeed_engaged = !hyperspeed_locked;
+                            if (hyperspeed_locked) {
+                                [self playJumpMassLocked];
+                                [UNIVERSE addMessage:DESC(@"jump-mass-locked") forCount:1.5];
+                            }
+                        } else {
+                            hyperspeed_engaged = NO;
+```
+
+### E-96 src/Core/Entities/PlayerEntity.m:5122-5138
+
+```objc
+- (OOAlertCondition)alertCondition
+{
+    OOAlertCondition old_alert_condition = alertCondition;
+    alertCondition = ALERT_CONDITION_GREEN;
+
+    [self setAlertFlag:ALERT_FLAG_DOCKED to:[self status] == STATUS_DOCKED];
+
+    if (alertFlags & ALERT_FLAG_DOCKED) {
+        alertCondition = ALERT_CONDITION_DOCKED;
+    } else {
+        if (alertFlags != 0) {
+            alertCondition = ALERT_CONDITION_YELLOW;
+        }
+        if (alertFlags > ALERT_FLAG_YELLOW_LIMIT) {
+            alertCondition = ALERT_CONDITION_RED;
+        }
+    }
+```
+
+### E-97 src/Core/Entities/PlayerEntity.m:2976-2993
+
+```objc
+    [self setAlertFlag:ALERT_FLAG_MASS_LOCK
+                    to:massLocked];
+
+    [self setAlertFlag:ALERT_FLAG_HOSTILES to:foundHostiles];
+
+    for (i = 0; i < ent_count; i++) {
+        [my_entities[i] release]; //	released
+    }
+
+    BOOL energyCritical = NO;
+    if (energy < 64 && energy < maxEnergy * 0.8) {
+        energyCritical = YES;
+    }
+    [self setAlertFlag:ALERT_FLAG_ENERGY to:energyCritical];
+
+    [self setAlertFlag:ALERT_FLAG_TEMP to:([self hullHeatLevel] > .90)];
+
+    [self setAlertFlag:ALERT_FLAG_ALT to:([self dialAltitude] < .10)];
 ```
 
 ## Constants ledger

@@ -222,7 +222,7 @@ function session(
   } as unknown as KeyboardInputSource;
 
   const pending: Command[] = [];
-  const messages = createMessageQueue(4);
+  const messages = createMessageQueue();
   const quiet = (): void => undefined;
   const routed: string[] = [];
   const hudMessages = hudRouting

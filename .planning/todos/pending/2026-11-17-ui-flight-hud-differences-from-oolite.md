@@ -23,14 +23,14 @@ Quick task 261117-nfn compared Wegolite's flight HUD with a running Oolite 1.93.
 `flight`, `message` and `npc` in the local `/tmp/ooref-ui/compare.html` (not committed: the screenshots are
 CC BY-NC-SA output). Differences, in rank order:
 
-- R1. The reply to J comes late. Wegolite showed "Hyperspeed mass-locked." 14.7 s after the press, behind
+- Done in quick task 261117-pij: R1. The reply to J comes late. Wegolite showed "Hyperspeed mass-locked." 14.7 s after the press, behind
   "Mass locked" and two first-use hints, because the message line is one FIFO line with 4 s per message. Oolite
   shows it at once, for 1.5 s, in a multi-row message area. Oolite: `src/Core/Entities/PlayerEntityControls.m:1166-1175`
   (`addMessage:forCount:1.5`), `Resources/Config/hud.plist` `message_gui` (252x140, 14 px rows). Wegolite:
   `src/render/hud/messages.ts`, `src/app/session/event-router.ts:339-343`.
-- R1. Extra "Mass locked" message whenever the lock begins. Oolite has no such message; its only mass-lock string
+- Done in quick task 261117-pij: R1. Extra "Mass locked" message whenever the lock begins. Oolite has no such message; its only mass-lock string
   is `jump-mass-locked`. Wegolite: `src/app/session/event-router.ts:344-345`.
-- R1. The condition light is always green. Oolite turns it yellow while any alert flag is set (the mass lock
+- Done in quick task 261117-pij: R1. The condition light is always green. Oolite turns it yellow while any alert flag is set (the mass lock
   included) and red with hostiles. Oolite: `src/Core/Entities/PlayerEntity.m:5122-5144`. Wegolite:
   `src/app/hud-model.ts:206`.
 - R1. Clock start. Wegolite starts at 2084004:00:00:00 (00:10:04 after the launch). Oolite's standard new
@@ -83,10 +83,10 @@ footer…" and "Title the release Wegolite 0.1.0 from package.json") and the fir
 
 Likely changes, one per bullet; none is implemented yet:
 
-- Message area: show a refusal or failure at once (at least `enqueuePriority` for "Hyperspeed mass-locked."), and
+- Done in quick task 261117-pij: Message area: show a refusal or failure at once (at least `enqueuePriority` for "Hyperspeed mass-locked."), and
   consider Oolite's multi-row area with per-message lifetimes (1.5 s for this one) instead of one FIFO line.
-- Drop the "Mass locked" message, or keep it only if the owner wants it as a Wegolite hint.
-- Derive the condition from the alert state: yellow while mass-locked (and the other yellow flags), red with
+- Done in quick task 261117-pij: Drop the "Mass locked" message, or keep it only if the owner wants it as a Wegolite hint.
+- Done in quick task 261117-pij: Derive the condition from the alert state: yellow while mass-locked (and the other yellow flags), red with
   hostiles, green otherwise.
 - Start a new game's clock at the standard scenario's `ship_clock`; check the save and hash pins that read the
   clock.

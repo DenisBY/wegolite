@@ -234,7 +234,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
 
   // Skips the draw of a frame that would repeat the last one (docked, paused).
   const redrawGate = createRedrawGate();
-  const messages = createMessageQueue(4);
+  const messages = createMessageQueue();
   const launchSequence: LaunchSequence = createLaunchSequence();
 
   // D-12 step 7: the hyperspace arrival and the helpers it needs (entering a

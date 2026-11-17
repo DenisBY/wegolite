@@ -21,6 +21,7 @@ import type { CompassTarget } from "../../sim/flight/state.js";
 import type { AegisStatus } from "../../sim/world/aegis.js";
 import { SCANNER_MAX_RANGE, aegisLabel } from "./projection.js";
 import type { CompassBlip, IdentFrame, ScannerBlip } from "./projection.js";
+import type { MessageRow } from "./messages.js";
 
 export const HUD_DESIGN_WIDTH = 1920;
 export const HUD_DESIGN_HEIGHT = 1080;
@@ -115,6 +116,14 @@ export const HUD_LAYOUT: Readonly<Record<HudElementId, HudRect>> = {
   message: { x: 510, y: 944, width: 900, height: 40 },
 };
 
+/**
+ * How many of Oolite's ten message rows the HUD draws: the bottom two, as two
+ * 20 px rows of `HUD_SMALL_FONT` inside `HUD_LAYOUT.message` (quick task
+ * 261117-pij). The queue keeps all ten, so a later layout change only changes
+ * this count.
+ */
+export const HUD_MESSAGE_ROWS = 2;
+
 export interface HudContact extends ScannerBlip {
   readonly id: "station" | "navBuoy" | "witchpoint" | "ship";
   readonly kind: "station" | "buoy" | "beacon" | "ship" | "police";
@@ -148,7 +157,13 @@ export interface HudBars {
 export interface HudModel {
   readonly speed: number;
   readonly clockSeconds: number;
+  /** The newest message still shown (the probe publishes it as `hud.message`). */
   readonly message: string;
+  /**
+   * The drawn message rows, top to bottom, `HUD_MESSAGE_ROWS` of them at most;
+   * a blank row has empty text and draws nothing.
+   */
+  readonly messageRows: readonly MessageRow[];
   readonly condition: "green" | "yellow" | "red";
   /** 0..1 red frame overlay from the dock feedback envelope (D-08). */
   readonly flashAlpha: number;
@@ -725,6 +740,34 @@ function drawFlash(context: CanvasRenderingContext2D, alpha: number): void {
   );
 }
 
+/**
+ * Oolite's message rows (`GuiDisplayGen.m:1327-1336`): slot i of
+ * `HUD_MESSAGE_ROWS` is centred on the (2i + 1)th of 2 x `HUD_MESSAGE_ROWS`
+ * equal parts of the message rectangle, the newest at the bottom, each drawn
+ * at its own alpha (a row fades over its last second).
+ */
+function drawMessageRows(
+  context: CanvasRenderingContext2D,
+  rows: readonly MessageRow[],
+): void {
+  const { message } = HUD_LAYOUT;
+  const slots = rows.slice(-HUD_MESSAGE_ROWS);
+  const offset = HUD_MESSAGE_ROWS - slots.length;
+  context.textAlign = "center";
+  context.fillStyle = HUD_COLOR;
+  slots.forEach((row, index) => {
+    if (row.text === "" || !(row.alpha > 0)) return;
+    const slot = offset + index;
+    context.globalAlpha = clamp(row.alpha, 0, 1);
+    context.fillText(
+      row.text,
+      message.x + message.width / 2,
+      message.y + (message.height * (2 * slot + 1)) / (2 * HUD_MESSAGE_ROWS),
+    );
+  });
+  context.globalAlpha = 1;
+}
+
 /** Clear the design space and draw the model. */
 export function drawHud(
   context: CanvasRenderingContext2D,
@@ -763,15 +806,7 @@ export function drawHud(
     HUD_LAYOUT.clock.y + (3 * HUD_LAYOUT.clock.height) / 4,
   );
 
-  if (model.message !== "") {
-    context.textAlign = "center";
-    context.fillStyle = HUD_COLOR;
-    context.fillText(
-      model.message,
-      HUD_LAYOUT.message.x + HUD_LAYOUT.message.width / 2,
-      HUD_LAYOUT.message.y + HUD_LAYOUT.message.height / 2,
-    );
-  }
+  drawMessageRows(context, model.messageRows);
 
   // Drawn last so the red frame is never covered by a HUD element.
   drawFlash(context, model.flashAlpha);

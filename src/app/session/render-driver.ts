@@ -27,6 +27,7 @@ import type * as THREE from "three";
 import type { System } from "../../content/types.js";
 import type { FlightState } from "../../sim/flight/state.js";
 import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
+import { hostilesNearPlayer } from "../../sim/combat/alert.js";
 import { identTargetSnapshot } from "../../sim/combat/ident.js";
 import { sub, vec } from "../../sim/math.js";
 import { debrisContacts, npcContacts } from "../../sim/world/contacts.js";
@@ -35,13 +36,18 @@ import {
   computeViewCamera,
 } from "../../render/launch-camera.js";
 import type { CameraPose } from "../../render/launch-camera.js";
+import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
 import {
   applyFrame,
   applyStationRoll,
   interpolatePose,
 } from "../../render/sync.js";
-import { HUD_DESIGN_HEIGHT, HUD_DESIGN_WIDTH } from "../../render/hud/draw.js";
+import {
+  HUD_DESIGN_HEIGHT,
+  HUD_DESIGN_WIDTH,
+  HUD_MESSAGE_ROWS,
+} from "../../render/hud/draw.js";
 import { projectIdentFrame } from "../../render/hud/projection.js";
 import type { IdentFrame } from "../../render/hud/projection.js";
 import { buildHudModel } from "../hud-model.js";
@@ -249,10 +255,20 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
         );
       } else {
         const snapshot = currentState.hyperspaceTarget;
-        const message =
-          currentState.hyperspaceCountdown > 0 && snapshot !== null
-            ? `Hyperspace to ${galaxyById.get(snapshot.id)?.name ?? "(Unknown)"} in ${String(countdownSecondsRemaining(currentState.hyperspaceCountdown))} seconds`
-            : messages.current(currentState.flightTime);
+        // Oolite's message rows (quick task 261117-pij): the bottom
+        // HUD_MESSAGE_ROWS of the ten, newest at the bottom.
+        const rows = [
+          ...messages.rows(currentState.flightTime, HUD_MESSAGE_ROWS),
+        ];
+        let message: string;
+        if (currentState.hyperspaceCountdown > 0 && snapshot !== null) {
+          // `displayCountdownMessage` writes the countdown into the bottom
+          // row without scrolling (`Universe.m:6258-6267`).
+          message = `Hyperspace to ${galaxyById.get(snapshot.id)?.name ?? "(Unknown)"} in ${String(countdownSecondsRemaining(currentState.hyperspaceCountdown))} seconds`;
+          rows[rows.length - 1] = { text: message, alpha: 1 };
+        } else {
+          message = messages.current(currentState.flightTime);
+        }
         const model = buildHudModel(
           currentState,
           currentLayout,
@@ -266,6 +282,13 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
             combat: ctx.core.combat,
             identFrame: identFrameFor(currentScene.camera, camera),
             viewAspect: currentScene.camera.aspect,
+            messageRows: rows,
+            // Oolite's hostiles flag (`PlayerEntity.m:2935-2950`), read from
+            // the live world at this frame and not kept (G-8).
+            hostiles: hostilesNearPlayer(
+              ctx.core.worldLifecycle?.world,
+              currentState.position,
+            ),
           },
         );
         currentHud.draw(model);
@@ -300,7 +323,11 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     );
   }
 
-  /** D-11: one message-line hint at a time, never a modal or overlay. */
+  /**
+   * D-11: one first-use hint at a time, never a modal or overlay. A hint is a
+   * Wegolite message, posted for `MESSAGE_DURATION_SECONDS` on its own row, so
+   * it never delays a reply posted after it.
+   */
   function showHint(currentState: FlightState): void {
     const currentHints = ctx.runtime.hints;
     if (currentHints === undefined) return;
@@ -319,7 +346,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     if (currentState.mode === "docked") {
       ctx.station.stationMessage = hint;
       renderStation();
-    } else messages.enqueue(hint);
+    } else messages.enqueue(hint, MESSAGE_DURATION_SECONDS);
   }
 
   return { renderFrame, shouldDraw, drawKeys, showHint };

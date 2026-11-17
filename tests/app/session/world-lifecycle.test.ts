@@ -1024,8 +1024,10 @@ describe("arrival", () => {
       },
       galaxyById: new Map(galaxy.map((entry) => [entry.id, entry])),
       messages: {
-        enqueue: (text) => calls.push(`enqueue ${text}`),
-        enqueuePriority: (text) => calls.push(`enqueuePriority ${text}`),
+        // Logged with the duration (quick task 261117-pij).
+        enqueue: (text, seconds) =>
+          calls.push(`enqueue ${text} for ${String(seconds)}`),
+        clearPrevious: () => calls.push("clearPrevious"),
       },
       faults: failDestinationBuild ? { failDestinationBuild: true } : undefined,
       showBootFailure: () => calls.push("showBootFailure"),
@@ -1068,7 +1070,7 @@ describe("arrival", () => {
     expect(calls).toEqual([
       `enterSystem ${destination?.id ?? ""}`,
       `worldLifecycle.begin ${String(nextSeed)}`,
-      `enqueue Arrived at ${destination?.name ?? ""}`,
+      `enqueue Arrived at ${destination?.name ?? ""} for 4`,
       "autosave",
       "syncEconomyProbe",
     ]);
@@ -1350,7 +1352,7 @@ describe("jump commit clears the world on the same tick (WORLD-14)", () => {
         layout: () => deriveSystemLayout(diso, lave.stationDef),
       },
       galaxyById: new Map(galaxy.map((entry) => [entry.id, entry])),
-      messages: { enqueue: quiet, enqueuePriority: quiet },
+      messages: { enqueue: quiet, clearPrevious: quiet },
       faults: undefined,
       showBootFailure: quiet,
       publishFailure: quiet,
@@ -1364,7 +1366,7 @@ describe("jump commit clears the world on the same tick (WORLD-14)", () => {
       hudMessages: quiet,
       dockFeedback: quiet,
       hyperspaceFlow: createHyperspaceFlow(ctx, {
-        messages: { enqueuePriority: quiet },
+        messages: { enqueue: quiet, clearPrevious: quiet },
         refusalCopy: controller.refusalCopy,
         handleHyperspaceJumped: controller.handleHyperspaceJumped,
       }),

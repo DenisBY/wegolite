@@ -86,7 +86,7 @@ function harness(): Harness {
     },
   };
   const gate = createRedrawGate();
-  const messages = createMessageQueue(4);
+  const messages = createMessageQueue();
   const publisher = createProbePublisher(ctx, {
     probe,
     renderer: renderer as unknown as THREE.WebGLRenderer,
@@ -109,8 +109,8 @@ describe("updateProbe", () => {
     ctx.chart.chartOpen = true;
     const spanX = 56;
     ctx.chart.chartCamera = { centre: { x: 12, y: 34 }, spanX };
-    messages.enqueue("first");
-    messages.enqueue("second");
+    messages.enqueue("first", 4);
+    messages.enqueue("second", 4);
 
     publisher.updateProbe();
 
@@ -139,7 +139,7 @@ describe("updateProbe", () => {
     ctx.core.system = { ...system, id: "g0-s9" };
     ctx.core.hyperspaceTargetId = "g0-s3";
     ctx.core.state = initFlightState(layout);
-    messages.enqueue("late");
+    messages.enqueue("late", 4);
     publisher.updateProbe();
 
     expect(probe.paused).toBe(true);

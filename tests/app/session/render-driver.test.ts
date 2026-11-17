@@ -109,7 +109,7 @@ function harness(options: HarnessOptions = {}): Harness {
     hudCanvas: { hidden: false } as HTMLCanvasElement,
     probe: {} as WegoliteProbe,
     redrawGate: gate,
-    messages: createMessageQueue(4),
+    messages: createMessageQueue(),
     launchSequence: createLaunchSequence(),
     galaxyById: new Map(),
     updateProbe: () => probeUpdates.push(1),

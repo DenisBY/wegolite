@@ -270,12 +270,14 @@ function harness(): Harness {
     },
   } as unknown as DockFeedback;
 
+  // Each post is logged with its duration in seconds (quick task 261117-pij:
+  // Oolite's message rows take a per-message duration).
   const messages = {
-    enqueue: (text: string) => {
-      log.push(`messages.enqueue ${text}`);
+    enqueue: (text: string, seconds: number) => {
+      log.push(`messages.enqueue ${text} for ${String(seconds)}`);
     },
-    enqueuePriority: (text: string) => {
-      log.push(`messages.enqueuePriority ${text}`);
+    clearPrevious: () => {
+      log.push("messages.clearPrevious");
     },
   };
   const initialPose = ctx.core.currentPose;
@@ -375,14 +377,14 @@ const LAUNCHED = [
   "docked.hide",
   "syncStationNav",
   "hudCanvas.hidden false",
-  "messages.enqueue Launching — stand by",
+  "messages.enqueue Launching — stand by for 4",
   "syncEconomyProbe",
 ];
 
 const LAUNCH_COMPLETE = [
   "launchSequence.markSeen",
   "persistSettings launchSeen=true settingsLaunchSeen=true",
-  "messages.enqueue Arrows pitch and roll · W and S change speed",
+  "messages.enqueue Arrows pitch and roll · W and S change speed for 4",
 ];
 
 const DOCKED_MANUAL = [
@@ -416,7 +418,7 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
     router.dispatch(EVENTS.launchComplete);
     expect(log).toEqual([
       "launchSequence.markSeen",
-      "messages.enqueue Arrows pitch and roll · W and S change speed",
+      "messages.enqueue Arrows pitch and roll · W and S change speed for 4",
     ]);
   });
 
@@ -442,7 +444,7 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
       "ensureSelection",
       "renderStation message=",
       "syncStationNav",
-      "messages.enqueuePriority Docking computers engaged",
+      "messages.enqueue Docking computers engaged for 4.5",
       "renderStation message=Docking computers engaged",
       "input.clearAll",
       "autosave poseSet=true clockDelta=1200",
@@ -477,25 +479,25 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
     expect(log).toEqual(DOCKED_MANUAL);
   });
 
-  it("dockDenied: fixed copy for each reason, as a priority message", () => {
+  it("dockDenied: fixed copy for each reason, for Oolite's 4.5 s", () => {
     const first = harness();
     first.router.dispatch({ kind: "dockDenied", reason: "notInstalled" });
     expect(first.log).toEqual([
-      "messages.enqueuePriority No docking computer fitted",
+      "messages.enqueue No docking computer fitted for 4.5",
     ]);
     const second = harness();
     second.router.dispatch({ kind: "dockDenied", reason: "outsideAegis" });
     expect(second.log).toEqual([
-      "messages.enqueuePriority Too far from the station to engage docking computer",
+      "messages.enqueue Too far from the station to engage docking computer for 4.5",
     ]);
   });
 
-  it("bounce: triggers the feedback envelope at the flight time, then the priority message", () => {
+  it("bounce: triggers the feedback envelope at the flight time, then the message", () => {
     const { log, router } = harness();
     router.dispatch(EVENTS.bounce);
     expect(log).toEqual([
       "dockFeedback.trigger bounce 12.5",
-      "messages.enqueuePriority Hull contact - roll 90 degrees and line up with the slot",
+      "messages.enqueue Hull contact - roll 90 degrees and line up with the slot for 4",
     ]);
   });
 
@@ -504,7 +506,7 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
     router.dispatch(EVENTS.scrape);
     expect(log).toEqual([
       "dockFeedback.trigger scrape 12.5",
-      "messages.enqueuePriority Scrape - ease toward the centre of the slot",
+      "messages.enqueue Scrape - ease toward the centre of the slot for 4",
     ]);
     expect(ctx.core.lastScrapeMessageTime).toBe(12.5);
 
@@ -517,8 +519,11 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
     const { ctx, log, router } = harness();
     router.dispatch(EVENTS.hyperspaceRefused);
     expect(log).toEqual([
+      // Oolite clears the last message before it builds the refusal
+      // (PlayerEntity.m:6552-6600).
+      "messages.clearPrevious",
       "refusalCopy insufficient fuel lastRefusal=insufficient fuel",
-      "messages.enqueuePriority copy:insufficient fuel",
+      "messages.enqueue copy:insufficient fuel for 4.5",
     ]);
     expect(ctx.core.lastRefusal).toEqual({ reason: "insufficient fuel" });
   });
@@ -531,8 +536,11 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
       blocker: "ship",
     });
     expect(log).toEqual([
+      // Oolite clears the last message before it builds the refusal
+      // (PlayerEntity.m:6552-6600).
+      "messages.clearPrevious",
       "refusalCopy blocked blocker=ship lastRefusal=blocked",
-      "messages.enqueuePriority copy:blocked:ship",
+      "messages.enqueue copy:blocked:ship for 4.5",
     ]);
     // The probe shape stays `{ reason }`: the blocker never reaches it (T-12-11).
     expect(ctx.core.lastRefusal).toEqual({ reason: "blocked" });
@@ -545,7 +553,7 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
     expect(log).toEqual(["handleHyperspaceJumped g0-s7"]);
   });
 
-  it("the HUD-message kinds print their fixed copy", () => {
+  it("the HUD-message kinds print their fixed copy with Oolite's durations, and nothing when a mass lock begins", () => {
     const { log, router } = harness();
     router.dispatch(EVENTS.torusEngaged);
     router.dispatch(EVENTS.torusDisengaged);
@@ -570,16 +578,19 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
     router.dispatch(EVENTS.hyperspaceCountdownCancelled);
     const seconds = String(countdownSecondsRemaining(1800));
     expect(log).toEqual([
-      "messages.enqueue Torus engaged at 2.0×",
-      "messages.enqueue Torus disengaged",
-      "messages.enqueue Hyperspeed mass-locked.",
-      "messages.enqueue Torus disengaged",
-      "messages.enqueue Hyperspeed mass-locked.",
-      "messages.enqueue Mass locked",
-      "messages.enqueue Compass target: planet",
-      `messages.enqueue Hyperspace to Lave in ${seconds} seconds`,
-      `messages.enqueue Hyperspace to (Unknown) in ${seconds} seconds`,
-      "messages.enqueue Hyperspace countdown cancelled",
+      "messages.enqueue Torus engaged at 2.0× for 4",
+      "messages.enqueue Torus disengaged for 4",
+      // PlayerEntity.m:2757: mass lock stops a running drive, 4.5 s.
+      "messages.enqueue Hyperspeed mass-locked. for 4.5",
+      "messages.enqueue Torus disengaged for 4",
+      // PlayerEntityControls.m:1172: the J refusal, 1.5 s.
+      "messages.enqueue Hyperspeed mass-locked. for 1.5",
+      // Both massLockChanged events post nothing (Oolite has no lock-onset message).
+      "messages.enqueue Compass target: planet for 4",
+      `messages.enqueue Hyperspace to Lave in ${seconds} seconds for 4`,
+      `messages.enqueue Hyperspace to (Unknown) in ${seconds} seconds for 4`,
+      // PlayerEntityControls.m:1527: witch-user-abort, 3 s.
+      "messages.enqueue Hyperspace countdown cancelled for 3",
     ]);
   });
 });
@@ -596,12 +607,7 @@ describe("a multi-event sequence", () => {
     ]) {
       router.dispatch(event);
     }
-    expect(log).toEqual([
-      ...LAUNCHED,
-      ...LAUNCH_COMPLETE,
-      "messages.enqueue Mass locked",
-      ...DOCKED_MANUAL,
-    ]);
+    expect(log).toEqual([...LAUNCHED, ...LAUNCH_COMPLETE, ...DOCKED_MANUAL]);
   });
 });
 
@@ -713,8 +719,7 @@ describe("combat and ident messages (CBT-05, INPUT-01, D-03, OQ5)", () => {
     for (let tick = 0; tick < 360; tick += 1) at(h, tick / 120, overheat);
     expect(
       h.log.filter(
-        (entry) =>
-          entry === "messages.enqueuePriority Weapon system overheated.",
+        (entry) => entry === "messages.enqueue Weapon system overheated. for 3",
       ),
     ).toHaveLength(3);
   });
@@ -727,9 +732,9 @@ describe("combat and ident messages (CBT-05, INPUT-01, D-03, OQ5)", () => {
     at(h, 0.5, noEnergy);
     at(h, 1, noEnergy);
     expect(h.log).toEqual([
-      "messages.enqueuePriority Weapon system overheated.",
-      "messages.enqueuePriority Weapon system inactive (no energy left).",
-      "messages.enqueuePriority Weapon system inactive (no energy left).",
+      "messages.enqueue Weapon system overheated. for 3",
+      "messages.enqueue Weapon system inactive (no energy left). for 3",
+      "messages.enqueue Weapon system inactive (no energy left). for 3",
     ]);
   });
 
@@ -741,11 +746,11 @@ describe("combat and ident messages (CBT-05, INPUT-01, D-03, OQ5)", () => {
     at(h, 1, { kind: "identOff", wasEngaged: true });
     at(h, 3, { kind: "identOff", wasEngaged: false });
     expect(h.log).toEqual([
-      "messages.enqueuePriority Ident system active.",
-      "messages.enqueuePriority Ident system locked onto GalCop Viper.",
-      "messages.enqueuePriority Target lost.",
-      "messages.enqueuePriority Ident system deactivated.",
-      "messages.enqueuePriority Missiles on safety.",
+      "messages.enqueue Ident system active. for 2",
+      "messages.enqueue Ident system locked onto GalCop Viper. for 4.5",
+      "messages.enqueue Target lost. for 3",
+      "messages.enqueue Ident system deactivated. for 2",
+      "messages.enqueue Missiles on safety. for 2",
     ]);
   });
 
@@ -761,7 +766,7 @@ describe("combat and ident messages (CBT-05, INPUT-01, D-03, OQ5)", () => {
     const h = harness();
     at(h, 1, { kind: "identLocked", specKey: "mystery" });
     expect(h.log).toEqual([
-      "messages.enqueuePriority Ident system locked onto mystery.",
+      "messages.enqueue Ident system locked onto mystery. for 4.5",
     ]);
   });
 
@@ -789,9 +794,7 @@ describe("combat and ident messages (CBT-05, INPUT-01, D-03, OQ5)", () => {
     expect(h.log).toEqual([]);
     h.ctx.core.lastCombatMessageTimes = createCombatMessageTimes();
     at(h, 5.2, overheat);
-    expect(h.log).toEqual([
-      "messages.enqueuePriority Weapon system overheated.",
-    ]);
+    expect(h.log).toEqual(["messages.enqueue Weapon system overheated. for 3"]);
   });
 
   it("enqueues nothing for energyLow, shipHit and laserFired", () => {

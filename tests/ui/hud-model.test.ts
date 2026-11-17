@@ -12,6 +12,10 @@ import { describe, expect, it } from "vitest";
 
 import { buildHudModel } from "../../src/app/hud-model.js";
 import { HUD_ELEMENTS, HUD_LAYOUT } from "../../src/render/hud/draw.js";
+import {
+  MAX_MESSAGE_CHARS,
+  clampMessage,
+} from "../../src/render/hud/format.js";
 import { createPlayerCombatState } from "../../src/sim/combat/state.js";
 import { initFlightState } from "../../src/sim/flight/state.js";
 import { length, sub, vec } from "../../src/sim/math.js";
@@ -469,4 +473,109 @@ describe("buildHudModel forward-view tangent (HeadUpDisplay.m:4002-4006)", () =>
       expect(Math.abs(viewTanXFor(viewAspect) - F)).toBeLessThan(1e-12);
     },
   );
+});
+
+describe("buildHudModel condition light (Oolite's alert rule, quick task 261117-pij)", () => {
+  // PlayerEntity.m:2976-2993 (flags) and 5129-5137 (condition): mass lock
+  // alone is yellow; hostiles, energy below 64, heat above 0.9 and an altitude
+  // dial below 0.1 (4,000 m) are red.
+  const fixture = laveFixture();
+  const { planet } = fixture.layout;
+
+  function inFlightAt(altitude: number) {
+    const state = initFlightState(fixture.layout);
+    state.mode = "inFlight";
+    state.position = vec(
+      planet.position.x,
+      planet.position.y + planet.radius + altitude,
+      planet.position.z,
+    );
+    state.torus.massLocked = false;
+    return state;
+  }
+
+  function conditionOf(
+    state: ReturnType<typeof initFlightState>,
+    options: Parameters<typeof buildHudModel>[8] = {},
+  ) {
+    return buildHudModel(
+      state,
+      fixture.layout,
+      fixture.config,
+      "",
+      70,
+      0,
+      "",
+      [],
+      options,
+    ).condition;
+  }
+
+  it("is green for a pristine ship far from everything", () => {
+    expect(conditionOf(inFlightAt(200_000))).toBe("green");
+  });
+
+  it("is yellow while mass-locked and red with hostiles as well", () => {
+    const state = inFlightAt(200_000);
+    state.torus.massLocked = true;
+    expect(conditionOf(state)).toBe("yellow");
+    expect(conditionOf(state, { hostiles: true })).toBe("red");
+  });
+
+  it("is red on low energy and 3,000 m above the planet surface", () => {
+    const combat = createPlayerCombatState();
+    combat.energy = 63;
+    expect(conditionOf(inFlightAt(200_000), { combat })).toBe("red");
+    expect(conditionOf(inFlightAt(3_000))).toBe("red");
+  });
+
+  it("is green outside flight, where Oolite clears every flag", () => {
+    const launching = inFlightAt(3_000);
+    launching.mode = "launching";
+    launching.torus.massLocked = true;
+    expect(conditionOf(launching, { hostiles: true })).toBe("green");
+    const docked = inFlightAt(3_000);
+    docked.mode = "docked";
+    expect(conditionOf(docked, { hostiles: true })).toBe("green");
+  });
+});
+
+describe("buildHudModel message rows (quick task 261117-pij)", () => {
+  const fixture = laveFixture();
+
+  it("passes the rows through, each clamped to MAX_MESSAGE_CHARS", () => {
+    const long = "x".repeat(MAX_MESSAGE_CHARS + 10);
+    const model = buildHudModel(
+      initFlightState(fixture.layout),
+      fixture.layout,
+      fixture.config,
+      long,
+      70,
+      0,
+      "",
+      [],
+      {
+        messageRows: [
+          { text: "", alpha: 0 },
+          { text: long, alpha: 0.5 },
+        ],
+      },
+    );
+    expect(model.messageRows).toEqual([
+      { text: "", alpha: 0 },
+      { text: clampMessage(long, MAX_MESSAGE_CHARS), alpha: 0.5 },
+    ]);
+    expect(model.message).toBe(clampMessage(long, MAX_MESSAGE_CHARS));
+  });
+
+  it("makes one full-alpha row of a non-empty message without rows", () => {
+    const state = initFlightState(fixture.layout);
+    expect(
+      buildHudModel(state, fixture.layout, fixture.config, "hello", 70)
+        .messageRows,
+    ).toEqual([{ text: "hello", alpha: 1 }]);
+    expect(
+      buildHudModel(state, fixture.layout, fixture.config, "", 70).messageRows,
+    ).toEqual([]);
+  });
 });

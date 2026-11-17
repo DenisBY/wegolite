@@ -37,6 +37,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Oolite's beam. A shot
   shimmers and fades over its brief life and looks like one beam from every
   angle, and a distant shot stays visible as a thin line.
+- Flight messages now appear at once, each for its own time as in Oolite. The
+  "Hyperspeed mass-locked." reply to J shows at once for 1.5 s instead of
+  waiting behind first-use hints. Up to two message lines are shown with the
+  newest at the bottom, each fades out over its last second, and the same
+  message repeated within 6 s is shown once. The extra "Mass locked" notice
+  when a mass lock begins is gone; Oolite has none.
 
 ### Fixed
 
@@ -51,6 +57,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   keeps the height it has at 4:3, and the scanner's forward-view lines narrow
   with the view, as in Oolite. The menu scene's camera now uses Oolite's
   framing for menu screens (not visible yet: the title screen covers it).
+- The condition light in flight now follows Oolite's alert rule instead of
+  staying green: it is yellow while mass-locked, and red when a ship attacks
+  you, your energy runs low, the cabin overheats or you fly within 4 km of a
+  planet or sun surface; otherwise it is green.
 
 ## [0.4.0] - 2026-11-16
 

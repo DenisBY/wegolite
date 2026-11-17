@@ -127,8 +127,11 @@ function harness(
     },
     galaxyById,
     messages: {
-      enqueue: (text) => calls.push(`enqueue ${text}`),
-      enqueuePriority: (text) => calls.push(`enqueuePriority ${text}`),
+      // Logged with the duration (quick task 261117-pij: per-message
+      // durations, Oolite's message rows).
+      enqueue: (text, seconds) =>
+        calls.push(`enqueue ${text} for ${String(seconds)}`),
+      clearPrevious: () => calls.push("clearPrevious"),
     },
     faults:
       options.failDestinationBuild === true
@@ -233,7 +236,12 @@ describe("handleHyperspaceJumped, an unknown destination", () => {
     });
 
     expect(ctx.core.lastRefusal).toEqual({ reason: "too far" });
-    expect(calls).toEqual(["enqueuePriority Destination is too far"]);
+    // witchJumpChecklist clears the last message and posts for 4.5 s
+    // (PlayerEntity.m:6584-6586).
+    expect(calls).toEqual([
+      "clearPrevious",
+      "enqueue Destination is too far for 4.5",
+    ]);
     expect(ctx.runtime.paused).toBe(false);
     expect(ctx.core.profile).toBe(profile);
     expect(ctx.core.market).toBe(market);
@@ -253,7 +261,7 @@ describe("handleHyperspaceJumped, a committed arrival", () => {
 
     expect(calls).toEqual([
       `enterSystem ${destination?.id ?? ""}`,
-      `enqueue Arrived at ${destination?.name ?? ""}`,
+      `enqueue Arrived at ${destination?.name ?? ""} for 4`,
       "autosave",
       "syncEconomyProbe",
     ]);
@@ -284,7 +292,7 @@ describe("handleHyperspaceJumped behind an open chart (WORLD-11)", () => {
     expect(calls).toEqual([
       `enterSystem ${destination?.id ?? ""}`,
       "closeChart",
-      `enqueue Arrived at ${destination?.name ?? ""}`,
+      `enqueue Arrived at ${destination?.name ?? ""} for 4`,
       "autosave",
       "syncEconomyProbe",
     ]);

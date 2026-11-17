@@ -15,9 +15,11 @@ import { buildHudModel } from "../../src/app/hud-model.js";
 import { initFlightState } from "../../src/sim/flight/state.js";
 import {
   HUD_LAYOUT,
+  HUD_MESSAGE_ROWS,
   HUD_SMALL_FONT,
   drawHud,
 } from "../../src/render/hud/draw.js";
+import type { MessageRow } from "../../src/render/hud/messages.js";
 import { laveFixture } from "../helpers/lave.js";
 
 interface TextCall {
@@ -25,12 +27,16 @@ interface TextCall {
   x: number;
   y: number;
   font: string;
+  alpha: number;
 }
 
 const MESSAGE = "Test message";
 const TARGET = "Diso";
 
-function recordDraw(): { calls: TextCall[]; clockText: string } {
+function recordDraw(messageRows?: readonly MessageRow[]): {
+  calls: TextCall[];
+  clockText: string;
+} {
   const fixture = laveFixture();
   const model = buildHudModel(
     initFlightState(fixture.layout),
@@ -40,6 +46,8 @@ function recordDraw(): { calls: TextCall[]; clockText: string } {
     70,
     0,
     TARGET,
+    [],
+    { messageRows },
   );
   const calls: TextCall[] = [];
   const context = {
@@ -57,12 +65,12 @@ function recordDraw(): { calls: TextCall[]; clockText: string } {
     strokeRect: vi.fn(),
     fillRect: vi.fn(),
     fillText: vi.fn(function (
-      this: { font: string },
+      this: { font: string; globalAlpha: number },
       text: string,
       x: number,
       y: number,
     ) {
-      calls.push({ text, x, y, font: this.font });
+      calls.push({ text, x, y, font: this.font, alpha: this.globalAlpha });
     }),
     strokeStyle: "",
     fillStyle: "",
@@ -111,5 +119,40 @@ describe("HUD clock and Hyperspace lines", () => {
 
   it("keeps the centre message in the HUD small font", () => {
     expect(find(calls, MESSAGE).font).toBe(HUD_SMALL_FONT);
+  });
+});
+
+describe("HUD message rows (quick task 261117-pij)", () => {
+  const { x, y, width, height } = HUD_LAYOUT.message;
+
+  it("draws a lone message on the bottom of the two rows at full alpha", () => {
+    expect(HUD_MESSAGE_ROWS).toBe(2);
+    const call = find(recordDraw().calls, MESSAGE);
+    expect(call.x).toBe(x + width / 2);
+    expect(call.y).toBe(y + (3 * height) / 4);
+    expect(call.alpha).toBe(1);
+  });
+
+  it("draws two rows, newest at the bottom, each at its own alpha", () => {
+    const { calls } = recordDraw([
+      { text: "older", alpha: 1 },
+      { text: "newest", alpha: 0.25 },
+    ]);
+    const older = find(calls, "older");
+    const newest = find(calls, "newest");
+    expect(older.y).toBe(y + height / 4);
+    expect(newest.y).toBe(y + (3 * height) / 4);
+    expect(older.alpha).toBe(1);
+    expect(newest.alpha).toBe(0.25);
+    expect(older.font).toBe(HUD_SMALL_FONT);
+  });
+
+  it("draws nothing for a blank row", () => {
+    const { calls } = recordDraw([
+      { text: "", alpha: 0 },
+      { text: "only", alpha: 0.5 },
+    ]);
+    expect(calls.filter((call) => call.text === "")).toHaveLength(0);
+    expect(find(calls, "only").y).toBe(y + (3 * height) / 4);
   });
 });

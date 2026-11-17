@@ -28,6 +28,7 @@
  */
 
 import type { System } from "../../content/types.js";
+import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
 import type {
   HyperspaceRefusal,
@@ -145,7 +146,7 @@ export interface StationFlowDeps {
   readonly launchSequence: Pick<LaunchSequence, "reset" | "markSeen">;
   readonly docked: Pick<StationShell, "show" | "hide">;
   readonly hudCanvas: Pick<HTMLCanvasElement, "hidden">;
-  readonly messages: Pick<MessageQueue, "enqueue" | "enqueuePriority">;
+  readonly messages: Pick<MessageQueue, "enqueue">;
   readonly syncStationNav: () => void;
   readonly syncEconomyProbe: () => void;
   readonly persistSettings: () => void;
@@ -190,7 +191,7 @@ export function createStationFlow(
         docked.hide();
         syncStationNav();
         hudCanvas.hidden = false;
-        messages.enqueue("Launching — stand by");
+        messages.enqueue("Launching — stand by", MESSAGE_DURATION_SECONDS);
         // D-17: no write here. The pre-launch anchor was taken in `frame()`
         // while the state was still docked.
         syncEconomyProbe();
@@ -205,7 +206,10 @@ export function createStationFlow(
           ctx.runtime.settings.launchSeen = true;
           persistSettings();
         }
-        messages.enqueue("Arrows pitch and roll · W and S change speed");
+        messages.enqueue(
+          "Arrows pitch and roll · W and S change speed",
+          MESSAGE_DURATION_SECONDS,
+        );
         break;
       case "docked": {
         // A dock behind the chart (WORLD-11): the simulation keeps running
@@ -228,7 +232,9 @@ export function createStationFlow(
         renderStation();
         syncStationNav();
         if (event.via === "computer") {
-          messages.enqueuePriority("Docking computers engaged");
+          // Oolite's docking-computer messages last 4.5 s
+          // (PlayerEntityControls.m:4754).
+          messages.enqueue("Docking computers engaged", 4.5);
           ctx.station.stationMessage = "Docking computers engaged";
           renderStation();
         }
@@ -288,13 +294,15 @@ export function formatIdentLocked(
 /** What the HUD message subscriber calls outside the session context. */
 export interface HudMessagesDeps {
   readonly galaxyById: ReadonlyMap<string, System>;
-  readonly messages: Pick<MessageQueue, "enqueue" | "enqueuePriority">;
+  readonly messages: Pick<MessageQueue, "enqueue">;
 }
 
 /**
- * The fixed one-line HUD messages the session prints for a sim event. `ctx`
- * supplies the flight clock and the per-kind one-second gate of the weapon and
- * ident messages, and the NPC records the lock message names a ship from.
+ * The fixed HUD messages the session prints for a sim event, each with
+ * Oolite's duration where Oolite has the message and `MESSAGE_DURATION_SECONDS`
+ * otherwise. `ctx` supplies the flight clock and the per-kind one-second gate
+ * of the weapon and ident messages, and the NPC records the lock message names
+ * a ship from.
  */
 export function createHudMessages(
   deps: HudMessagesDeps,
@@ -302,78 +310,94 @@ export function createHudMessages(
 ): EventSubscriber {
   const { galaxyById, messages } = deps;
   /**
-   * Post `text` for `kind` unless that kind posted within the last simulated
-   * second (OQ5, Pitfall 9, T-13-25). Priority: it answers a key the player
-   * just pressed, so it must show at once.
+   * Post `text` for `seconds` for `kind` unless that kind posted within the
+   * last simulated second (OQ5, Pitfall 9, T-13-25). Every message shows at
+   * once on its own row, so a reply to a key is never delayed.
    */
-  const throttled = (kind: CombatMessageKind, text: () => string): void => {
+  const throttled = (
+    kind: CombatMessageKind,
+    seconds: number,
+    text: () => string,
+  ): void => {
     const now = ctx.core.state?.flightTime ?? 0;
     if (!shouldEmitThrottledMessage(ctx.core.lastCombatMessageTimes[kind], now))
       return;
-    messages.enqueuePriority(text());
+    messages.enqueue(text(), seconds);
     ctx.core.lastCombatMessageTimes[kind] = now;
   };
   return (event) => {
     switch (event.kind) {
       case "dockDenied":
-        // D-11: fixed app-owned copy; priority so it is visible immediately.
-        messages.enqueuePriority(
+        // D-11: fixed app-owned copy, for Oolite's 4.5 s of a docking
+        // computer message (PlayerEntityControls.m:4754).
+        messages.enqueue(
           event.reason === "notInstalled"
             ? "No docking computer fitted"
             : "Too far from the station to engage docking computer",
+          4.5,
         );
         break;
       case "torusEngaged":
-        messages.enqueue(`Torus engaged at ${event.factor.toFixed(1)}×`);
+        messages.enqueue(
+          `Torus engaged at ${event.factor.toFixed(1)}×`,
+          MESSAGE_DURATION_SECONDS,
+        );
         break;
       case "torusDisengaged":
-        // Oolite descriptions.plist "jump-mass-locked", shown by
-        // PlayerEntity.m:2755-2758 when mass lock stops a running drive (IN-01);
+        // Oolite descriptions.plist "jump-mass-locked", shown for 4.5 s by
+        // PlayerEntity.m:2757 when mass lock stops a running drive (IN-01);
         // an input or toggle stop keeps "Torus disengaged".
-        messages.enqueue(
-          event.reason === "massLock"
-            ? "Hyperspeed mass-locked."
-            : "Torus disengaged",
-        );
+        if (event.reason === "massLock") {
+          messages.enqueue("Hyperspeed mass-locked.", 4.5);
+        } else {
+          messages.enqueue("Torus disengaged", MESSAGE_DURATION_SECONDS);
+        }
         break;
       case "torusRefused":
         // Oolite descriptions.plist "jump-mass-locked": a refused request, not
-        // a drive that stopped.
-        messages.enqueue("Hyperspeed mass-locked.");
-        break;
-      case "massLockChanged":
-        if (event.locked) messages.enqueue("Mass locked");
+        // a drive that stopped, shown for 1.5 s (PlayerEntityControls.m:1172).
+        // Oolite posts nothing when a mass lock begins.
+        messages.enqueue("Hyperspeed mass-locked.", 1.5);
         break;
       case "compassTargetChanged":
-        messages.enqueue(`Compass target: ${event.target}`);
+        messages.enqueue(
+          `Compass target: ${event.target}`,
+          MESSAGE_DURATION_SECONDS,
+        );
         break;
       case "hyperspaceCountdownStarted": {
         const name = galaxyById.get(event.destinationId)?.name ?? "(Unknown)";
         messages.enqueue(
           `Hyperspace to ${name} in ${String(countdownSecondsRemaining(event.countdownSteps))} seconds`,
+          MESSAGE_DURATION_SECONDS,
         );
         break;
       }
       case "hyperspaceCountdownCancelled":
-        messages.enqueue("Hyperspace countdown cancelled");
+        // Oolite's witch-user-abort lasts 3 s (PlayerEntityControls.m:1527).
+        messages.enqueue("Hyperspace countdown cancelled", 3);
         break;
       case "laserRefused":
         // CBT-05: the sim emits one refusal per tick of a held fire key
-        // (descriptions.plist:524, 525). The two reasons gate independently.
+        // (descriptions.plist:524, 525). The two reasons gate independently;
+        // both last 3 s (PlayerEntity.m:5462, 5479).
         if (event.reason === "overheat") {
-          throttled("overheat", () => "Weapon system overheated.");
+          throttled("overheat", 3, () => "Weapon system overheated.");
         } else {
           throttled(
             "noEnergy",
+            3,
             () => "Weapon system inactive (no energy left).",
           );
         }
         break;
       case "identEngaged":
-        throttled("identEngaged", () => "Ident system active.");
+        // ident-on lasts 2 s (PlayerEntityControls.m:4768).
+        throttled("identEngaged", 2, () => "Ident system active.");
         break;
       case "identLocked":
-        throttled("identLocked", () => {
+        // ident-locked-onto-target lasts 4.5 s (PlayerEntity.m:10917).
+        throttled("identLocked", 4.5, () => {
           // The event carries the spec key only; the name and class come from
           // the session's own catalogue, falling back to the key (never an id).
           const ship = ctx.core.npcTraffic?.catalogue.find(
@@ -386,10 +410,13 @@ export function createHudMessages(
         });
         break;
       case "identLost":
-        throttled("identLost", () => "Target lost.");
+        // target-lost lasts 3 s (PlayerEntity.m:2838).
+        throttled("identLost", 3, () => "Target lost.");
         break;
       case "identOff":
-        throttled("identOff", () =>
+        // ident-off and missile-safe last 2 s (PlayerEntityControls.m:1412,
+        // 1415).
+        throttled("identOff", 2, () =>
           event.wasEngaged
             ? "Ident system deactivated."
             : "Missiles on safety.",
@@ -415,7 +442,7 @@ export function bounceMessage(event: {
 
 /** What the dock-feedback subscriber calls outside the session context. */
 export interface DockFeedbackDeps {
-  readonly messages: Pick<MessageQueue, "enqueuePriority">;
+  readonly messages: Pick<MessageQueue, "enqueue">;
 }
 
 /**
@@ -470,7 +497,7 @@ export function createDockFeedbackFlow(
           "bounce",
           ctx.core.state?.flightTime ?? 0,
         );
-        messages.enqueuePriority(bounceMessage(event));
+        messages.enqueue(bounceMessage(event), MESSAGE_DURATION_SECONDS);
         break;
       case "scrape": {
         // Pitfall 8: the sim emits one scrape per correcting tick (120 Hz);
@@ -478,8 +505,9 @@ export function createDockFeedbackFlow(
         const now = ctx.core.state?.flightTime ?? 0;
         ctx.core.dockFeedback.trigger("scrape", now);
         if (shouldEmitScrapeMessage(ctx.core.lastScrapeMessageTime, now)) {
-          messages.enqueuePriority(
+          messages.enqueue(
             "Scrape - ease toward the centre of the slot",
+            MESSAGE_DURATION_SECONDS,
           );
           ctx.core.lastScrapeMessageTime = now;
         }
@@ -491,7 +519,7 @@ export function createDockFeedbackFlow(
 
 /** What the hyperspace subscriber calls outside the session context. */
 export interface HyperspaceFlowDeps {
-  readonly messages: Pick<MessageQueue, "enqueuePriority">;
+  readonly messages: Pick<MessageQueue, "enqueue" | "clearPrevious">;
   readonly refusalCopy: (
     reason: HyperspaceRefusal,
     blocker?: WitchspaceBlocker,
@@ -513,7 +541,10 @@ export function createHyperspaceFlow(
     switch (event.kind) {
       case "hyperspaceRefused":
         ctx.core.lastRefusal = { reason: event.reason };
-        messages.enqueuePriority(refusalCopy(event.reason, event.blocker));
+        // witchJumpChecklist clears the last message and posts every refusal
+        // for 4.5 s (PlayerEntity.m:6552-6600).
+        messages.clearPrevious();
+        messages.enqueue(refusalCopy(event.reason, event.blocker), 4.5);
         break;
       case "hyperspaceJumped":
         handleHyperspaceJumped(event);

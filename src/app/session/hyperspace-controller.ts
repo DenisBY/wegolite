@@ -21,6 +21,7 @@
  */
 
 import type { System } from "../../content/types.js";
+import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
 import {
   arrivalMarketSeed,
@@ -50,7 +51,7 @@ export interface HyperspaceControllerDeps {
   readonly scenes: Pick<SceneManager, "enterSystem" | "layout">;
   /** The validated galaxy; every destination id resolves through it (T-06-12). */
   readonly galaxyById: ReadonlyMap<string, System>;
-  readonly messages: Pick<MessageQueue, "enqueue" | "enqueuePriority">;
+  readonly messages: Pick<MessageQueue, "enqueue" | "clearPrevious">;
   /** D-18: test-only failure injection. */
   readonly faults: SessionFaults | undefined;
   /** The single boot-failure surface. */
@@ -178,7 +179,10 @@ export function createHyperspaceController(
     const destination = galaxyById.get(event.destinationId);
     if (destination === undefined) {
       ctx.core.lastRefusal = { reason: "too far" };
-      messages.enqueuePriority(refusalCopy("too far"));
+      // A refusal clears the last message and lasts 4.5 s, as every refusal
+      // of witchJumpChecklist does (PlayerEntity.m:6584-6586).
+      messages.clearPrevious();
+      messages.enqueue(refusalCopy("too far"), 4.5);
       return;
     }
     const originId = ctx.core.system.id;
@@ -259,7 +263,10 @@ export function createHyperspaceController(
     // failed arrival leaves the chart as it was.
     if (ctx.chart.chartOpen) closeChart();
     syncStatusOverlay();
-    messages.enqueue(`Arrived at ${destination.name}`);
+    messages.enqueue(
+      `Arrived at ${destination.name}`,
+      MESSAGE_DURATION_SECONDS,
+    );
     // The arrival anchor is a complete in-flight v2 snapshot.
     autosave();
     syncEconomyProbe();

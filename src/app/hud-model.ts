@@ -27,6 +27,12 @@ import {
   energyBanks,
   shieldGauge,
 } from "../sim/combat/shields.js";
+import {
+  alertFlags,
+  dialAltitude,
+  flightAlertCondition,
+} from "../sim/combat/alert.js";
+import { COBRA_MAX_ENERGY } from "../sim/combat/constants.js";
 import { createPlayerCombatState } from "../sim/combat/state.js";
 import type { PlayerCombatState } from "../sim/combat/state.js";
 import { laserTempGauge } from "../sim/combat/weapons.js";
@@ -45,6 +51,7 @@ import type {
   HudContact,
   HudModel,
 } from "../render/hud/draw.js";
+import type { MessageRow } from "../render/hud/messages.js";
 import {
   MAX_MESSAGE_CHARS,
   clampMessage,
@@ -159,6 +166,56 @@ export interface HudModelOptions {
    * aspect (1920/1080).
    */
   readonly viewAspect?: number | undefined;
+  /**
+   * The drawn message rows, top to bottom (Oolite's message area, quick task
+   * 261117-pij), each clamped to `MAX_MESSAGE_CHARS`. Absent, a non-empty
+   * `message` is one row at full alpha.
+   */
+  readonly messageRows?: readonly MessageRow[] | undefined;
+  /**
+   * Whether a hostile is near the player (`hostilesNearPlayer`, Oolite's
+   * `ALERT_FLAG_HOSTILES`). Absent reads as none.
+   */
+  readonly hostiles?: boolean | undefined;
+}
+
+/**
+ * The condition light. In flight it is Oolite's alert condition from its
+ * flags (`PlayerEntity.m:2976-2993`, `5129-5137`); in any other mode it is
+ * green, because Oolite clears every flag outside space
+ * (`PlayerEntity.m:2894-2899`).
+ */
+function conditionOf(
+  state: FlightState,
+  layout: SystemLayout,
+  combat: PlayerCombatState,
+  hostiles: boolean,
+): HudModel["condition"] {
+  if (state.mode !== "inFlight") return "green";
+  return flightAlertCondition(
+    alertFlags({
+      massLocked: state.torus.massLocked,
+      energy: combat.energy,
+      maxEnergy: COBRA_MAX_ENERGY,
+      heatLevel: cabinTempGauge(combat),
+      altitudeDial: dialAltitude(state.position, layout),
+      hostiles,
+    }),
+  );
+}
+
+function messageRowsOf(
+  message: string,
+  rows: readonly MessageRow[] | undefined,
+): readonly MessageRow[] {
+  if (rows === undefined) {
+    const text = clampMessage(message, MAX_MESSAGE_CHARS);
+    return text === "" ? [] : [{ text, alpha: 1 }];
+  }
+  return rows.map((row) => ({
+    text: clampMessage(row.text, MAX_MESSAGE_CHARS),
+    alpha: row.alpha,
+  }));
 }
 
 function buildBars(
@@ -195,6 +252,8 @@ function buildBars(
  * is the projected ident lock frame (D-03), passed through.
  * `options.viewAspect` gives `viewTanX`, the flight view's horizontal
  * half-angle tangent from Oolite's frustum rule (`HeadUpDisplay.m:4002-4006`).
+ * `options.messageRows` are the drawn message rows and `options.hostiles`
+ * feeds the condition light's hostiles flag.
  */
 export function buildHudModel(
   state: FlightState,
@@ -214,12 +273,14 @@ export function buildHudModel(
     requested !== undefined && Number.isFinite(requested) && requested > 0
       ? requested
       : HUD_DESIGN_WIDTH / HUD_DESIGN_HEIGHT;
+  const combat = options.combat ?? createPlayerCombatState();
 
   return {
     speed: state.speed,
     clockSeconds: state.clockSeconds,
     message: clampMessage(message, MAX_MESSAGE_CHARS),
-    condition: "green",
+    messageRows: messageRowsOf(message, options.messageRows),
+    condition: conditionOf(state, layout, combat, options.hostiles === true),
     // D-08: the red frame overlay is app-owned feedback, clamped so a bad
     // envelope can never paint outside the canvas.
     flashAlpha: clamp(flashAlpha, 0, 1),
@@ -228,12 +289,7 @@ export function buildHudModel(
     contacts: buildContacts(state, layout, npc),
     compass: buildCompass(state, layout),
     aegis,
-    bars: buildBars(
-      state,
-      config,
-      tank,
-      options.combat ?? createPlayerCombatState(),
-    ),
+    bars: buildBars(state, config, tank, combat),
     speedText: formatSpeed(state.speed),
     fuelText: formatFuel(tank),
     clockText: formatClock(state.clockSeconds),
