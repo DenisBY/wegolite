@@ -6,8 +6,13 @@
 # Reads /session/steps.txt, starts Xvfb and Oolite, runs the steps, writes
 # screenshots, Latest.log and session.txt under /out.
 #
-# Exit codes: 0 ok, 1 a step failed or Oolite died, 2 bad steps file,
-# 124 overall deadline (OOREF_TIMEOUT, default 300 s) expired.
+# Exit codes:
+#   0   ok, including when a last `sleep` is cut short by the deadline;
+#   1   a step failed or Oolite died, including a `window` or `waitlog` that
+#       runs out of the overall deadline (OOREF_TIMEOUT, default 300 s), and a
+#       key that xdotool could not send;
+#   2   a bad steps file or OOREF_TIMEOUT, refused before Oolite starts;
+#   124 the overall deadline was found expired before a step.
 set -u
 
 STEPS=/session/steps.txt
@@ -22,6 +27,7 @@ XVFB_PID=""
 OOLITE_PID=""
 WIN_ID=""
 SHOT_SEQ=0
+LOG_LINE=0 # Latest.log lines consumed by earlier successful waitlog steps.
 STEP_REPORT=""
 declare -a VERBS ARGS
 
@@ -88,6 +94,10 @@ mkdir -p "$OUT/logs" "$OUT/screenshots" "$OUT/snapshots" "$HOME/oolite-saves" "$
 # ---------------------------------------------------------------------------
 # Shutdown and report, on every path.
 # ---------------------------------------------------------------------------
+# OOLITE_PID is the AppImage launcher shell, which runs the oolite binary as a
+# child (run_oolite.sh does not exec it). The TERM and KILL below therefore
+# reach the launcher only; the oolite process ends when the container is torn
+# down, which relies on `docker run --init` (run-remote.sh always passes it).
 shutdown_all() {
   if [ -n "$OOLITE_PID" ] && kill -0 "$OOLITE_PID" 2>/dev/null; then
     sleep 3 # Oolite flushes its log every 2.0 s and has no signal handler.
@@ -161,6 +171,19 @@ alive_or_fail() {
   kill -0 "$OOLITE_PID" 2>/dev/null || fail 1 "Oolite is no longer running"
 }
 
+# log_match TEXT: search only the Latest.log lines after the last consumed one
+# (LOG_LINE) for the fixed string TEXT. On a hit, advance LOG_LINE to the
+# matched line and return 0; otherwise return 1. It counts lines, so a hit on a
+# partly flushed last line still lands on the right line number.
+log_match() {
+  local hit
+  [ -f "$LOG" ] || return 1
+  hit=$(tail -n +$((LOG_LINE + 1)) "$LOG" | grep -anF -m1 -- "$1")
+  [ -n "$hit" ] || return 1
+  LOG_LINE=$((LOG_LINE + ${hit%%:*}))
+  return 0
+}
+
 idx=0
 total=${#VERBS[@]}
 while [ "$idx" -lt "$total" ]; do
@@ -200,7 +223,14 @@ while [ "$idx" -lt "$total" ]; do
       # processed within one frame and lost (observed on the scenario screen).
       # shellcheck disable=SC2086 # keysyms are validated and must split.
       for ks in $arg; do
-        xdotool keydown "$ks" sleep 0.5 keyup "$ks" sleep 0.3
+        # xdotool 3.20160805 prints "No such key name" for an unknown keysym,
+        # ignores the key and may still exit 0, so check both signals.
+        kerr=$(xdotool keydown "$ks" sleep 0.5 keyup "$ks" sleep 0.3 2>&1 >/dev/null)
+        krc=$?
+        if [ "$krc" -ne 0 ] || [[ "$kerr" == *"No such key name"* ]]; then
+          STEP_REPORT+="step $idx: key $ks FAILED rc=$krc"$'\n'
+          fail 1 "xdotool could not send key '$ks' (rc=$krc): ${kerr%%$'\n'*}"
+        fi
       done
       STEP_REPORT+="step $idx: key $arg ok"$'\n'
       ;;
@@ -210,18 +240,29 @@ while [ "$idx" -lt "$total" ]; do
       wtext="${wtext#"${wtext%%[![:space:]]*}"}"
       [ "$wt" -gt "$left" ] && wt=$left
       found=0
-      for _ in $(seq 0 "$wt"); do
-        if [ -f "$LOG" ] && grep -qF -- "$wtext" "$LOG"; then
+      exited=0
+      wl_deadline=$(($(date +%s) + wt))
+      while :; do
+        if log_match "$wtext"; then
           found=1
           break
         fi
-        kill -0 "$OOLITE_PID" 2>/dev/null || break
+        if ! kill -0 "$OOLITE_PID" 2>/dev/null; then
+          # Oolite is gone; its last flush may hold the line, so look once more.
+          exited=1
+          log_match "$wtext" && found=1
+          break
+        fi
+        [ "$(date +%s)" -ge "$wl_deadline" ] && break
         sleep 1
       done
       if [ "$found" -eq 1 ]; then
-        STEP_REPORT+="step $idx: waitlog ok"$'\n'
+        STEP_REPORT+="step $idx: waitlog ok line=$LOG_LINE"$'\n'
       else
         STEP_REPORT+="step $idx: waitlog FAILED text='$wtext'"$'\n'
+        if [ "$exited" -eq 1 ]; then
+          fail 1 "Oolite exited before the log line appeared: $wtext"
+        fi
         fail 1 "log line not found within ${wt}s: $wtext"
       fi
       ;;
