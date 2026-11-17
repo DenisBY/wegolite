@@ -45,7 +45,7 @@ CC BY-NC-SA output). Differences, in rank order:
 - R1. No default hyperspace target. Wegolite prints "(Unknown)" on the HUD clock line and on F5; Oolite shows
   Lave, the current system, for a new commander. Wegolite: `src/render/hud/draw.ts:755`,
   `src/ui/station-model.ts:324`.
-- R2. Forward-view FOV axis. Wegolite gives `PerspectiveCamera` a vertical FOV of 57.2°; Oolite applies 57.2°
+- Done in quick task 261117-o8q (commits a6aa69a, 130d109): R2. Forward-view FOV axis. Wegolite gave `PerspectiveCamera` a vertical FOV of 57.2°; Oolite applies 57.2°
   horizontally whenever the window is wider than 4:3 (`Universe.m:4440-4450` builds the frustum as
   `±fov` in x and `±aspect·fov` in y with `aspect = height / width`; `MyOpenGLView.m:1282-1290`). At 16:9
   Wegolite sees about 88° across, and everything ahead looks about 1.78 times smaller: the Viper at 1,500 m was
@@ -91,7 +91,7 @@ Likely changes, one per bullet; none is implemented yet:
 - Owner call on the fuel and speed readouts.
 - Add the scanner zoom indicator only together with scanner zoom (`key_scanner_zoom`), if it is wanted.
 - Default the hyperspace target to the current system on a new game, as Oolite does.
-- Apply the 57.2° FOV horizontally when the aspect is wider than 4:3, as Oolite's frustum does, and update the
+- Done in quick task 261117-o8q (commits a6aa69a, 130d109): Apply the 57.2° FOV horizontally when the aspect is wider than 4:3, as Oolite's frustum does, and update the
   HUD projections and their tests (`tests/render/launch-camera.test.ts`, `tests/hud/projection.test.ts`).
 - Move the clock, the condition light and the message line to Oolite's positions, and rescale the HUD
   to Oolite's height-based scale (a `HUD_LAYOUT` change that the pinned-layout tests must follow).
