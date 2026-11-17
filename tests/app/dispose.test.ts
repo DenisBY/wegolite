@@ -36,6 +36,7 @@ import { createBuoy } from "../../src/render/bodies/buoy.js";
 import type { BuoyBody } from "../../src/render/bodies/buoy.js";
 import { createDust } from "../../src/render/bodies/dust.js";
 import { createDebrisLayer } from "../../src/render/bodies/debris.js";
+import type { DebrisLayer } from "../../src/render/bodies/debris.js";
 import { createExplosionLayer } from "../../src/render/bodies/explosions.js";
 import type { ExplosionLayer } from "../../src/render/bodies/explosions.js";
 import { createLaserShotLayer } from "../../src/render/bodies/laser-shots.js";
@@ -312,6 +313,9 @@ describe("SystemScene owns only what it created", () => {
     /** The NPC model the layer draws; its resources belong to the cache. */
     readonly cachedNpc: SyntheticModel;
     readonly npcs: NpcLayer;
+    /** The debris model the layer draws; its resources belong to the cache. */
+    readonly cachedDebris: SyntheticModel;
+    readonly debris: DebrisLayer;
     readonly shots: LaserShotLayer;
     readonly sun: ReturnType<typeof fakeSun>;
     /** Scene-owned resources, each expected to be freed exactly once. */
@@ -357,6 +361,25 @@ describe("SystemScene owns only what it created", () => {
       ],
       { x: 0, y: 0, z: 0 },
       new Map([["viper", cachedNpc.gltf]]),
+    );
+
+    // The debris layer draws one cached model too; only its instance buffers
+    // are the scene's (WORLD-17).
+    const cachedDebris = syntheticCobra();
+    const debris = createDebrisLayer();
+    debris.update(
+      [
+        {
+          position: { x: 20, y: 0, z: 0 },
+          orientation: { w: 1, x: 0, y: 0, z: 0 },
+          radius: 5,
+          specKey: "barrel",
+        },
+      ],
+      { x: 0, y: 0, z: 0 },
+      new Map([["barrel", cachedDebris.gltf]]),
+      [{ key: "barrel", radius: 5, maxFlightRoll: 0.5, maxFlightPitch: 0.5 }],
+      1,
     );
 
     // The shot layer owns its geometry and material outright (CBT-05).
@@ -413,6 +436,9 @@ describe("SystemScene owns only what it created", () => {
     }
     for (const [index, child] of npcs.root.children.entries()) {
       sceneOwned[`npcInstancedMesh${String(index)}`] = countDisposals(child);
+    }
+    for (const [index, child] of debris.root.children.entries()) {
+      sceneOwned[`debrisInstancedMesh${String(index)}`] = countDisposals(child);
     }
     for (const [index, material] of materialList(
       dust.object.material,
@@ -484,7 +510,7 @@ describe("SystemScene owns only what it created", () => {
         witchpoint,
         dust,
         npcs,
-        debris: createDebrisLayer(),
+        debris,
         shots,
         explosions,
       },
@@ -492,6 +518,8 @@ describe("SystemScene owns only what it created", () => {
       cachedBuoy: buoy,
       cachedNpc,
       npcs,
+      cachedDebris,
+      debris,
       shots,
       sun,
       sceneOwned,
@@ -528,9 +556,22 @@ describe("SystemScene owns only what it created", () => {
   });
 
   it("frees scene resources once and never a cached GLB resource", () => {
-    const { parts, cached, cachedBuoy, cachedNpc, npcs, sun, sceneOwned } =
-      buildParts();
+    const {
+      parts,
+      cached,
+      cachedBuoy,
+      cachedNpc,
+      npcs,
+      cachedDebris,
+      debris,
+      sun,
+      sceneOwned,
+    } = buildParts();
     expect(npcs.root.children).toHaveLength(1);
+    expect(debris.root.children).toHaveLength(1);
+    const debrisMaterialDisposals = countDisposals(cachedDebris.material);
+    const debrisTextureDisposals = countDisposals(cachedDebris.texture);
+    const debrisGeometryDisposals = countDisposals(cachedDebris.geometry);
     const cachedMaterialDisposals = countDisposals(cached.material);
     const cachedTextureDisposals = countDisposals(cached.texture);
     const cachedGeometryDisposals = countDisposals(cached.geometry);
@@ -568,6 +609,11 @@ describe("SystemScene owns only what it created", () => {
     expect(npcTextureDisposals()).toBe(0);
     expect(npcGeometryDisposals()).toBe(0);
     expect(npcs.root.children).toHaveLength(0);
+    // So did the debris layer (WORLD-17).
+    expect(debrisMaterialDisposals()).toBe(0);
+    expect(debrisTextureDisposals()).toBe(0);
+    expect(debrisGeometryDisposals()).toBe(0);
+    expect(debris.root.children).toHaveLength(0);
 
     expect(scene.scene.children).toHaveLength(0);
 
@@ -665,6 +711,65 @@ describe("SystemScene owns only what it created", () => {
       }),
     ).toThrow("buoy failed");
     expect(disposals).toBe(1);
+  });
+
+  it("owns the debris layer: exposes it, adds its root and disposes it, also when half built (WORLD-17)", () => {
+    let disposals = 0;
+    const root = new THREE.Group();
+    const layer: DebrisLayer = {
+      root,
+      update: () => undefined,
+      dispose: () => {
+        disposals += 1;
+      },
+    };
+    const common: Partial<SystemSceneFactories> = {
+      sun: () => fakeSun().body,
+      debris: () => layer,
+    };
+    const cache = guardCache(
+      syntheticCobra().gltf,
+      syntheticCoriolis().gltf,
+      syntheticBuoy().gltf,
+    );
+
+    const scene = createSystemScene(layout, cache, system, common);
+    expect(scene.debris).toBe(layer);
+    expect(scene.scene.children).toContain(root);
+    scene.dispose();
+    expect(disposals).toBe(1);
+    scene.dispose();
+    expect(disposals).toBe(1);
+
+    // A body built after the layer throws: the layer is still disposed once.
+    disposals = 0;
+    expect(() =>
+      createSystemScene(layout, cache, system, {
+        ...common,
+        buoy: () => {
+          throw new Error("buoy failed");
+        },
+      }),
+    ).toThrow("buoy failed");
+    expect(disposals).toBe(1);
+
+    // A body built before the layer throws: the layer is never built.
+    disposals = 0;
+    let built = 0;
+    expect(() =>
+      createSystemScene(layout, cache, system, {
+        ...common,
+        debris: () => {
+          built += 1;
+          return layer;
+        },
+        npcs: () => {
+          throw new Error("npcs failed");
+        },
+      }),
+    ).toThrow("npcs failed");
+    expect(built).toBe(0);
+    expect(disposals).toBe(0);
   });
 
   it("owns the shot layer: exposes it, adds its root and disposes it, also when half built (CBT-05)", () => {

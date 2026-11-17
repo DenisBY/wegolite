@@ -9,7 +9,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - A ship destroyed in flight now explodes: a white flash and a cloud of fire
-  mark where it was.
+  mark where it was. The explosion leaves a metal plate and burning wreckage
+  that burns out after about a second, and a ship that carried cargo spills
+  cargo containers. The pieces drift away and tumble; nothing can be picked
+  up yet.
 
 ### Changed
 

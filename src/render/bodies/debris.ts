@@ -22,6 +22,11 @@
  * scale of `releaseDebris`). A ratio that is not finite and positive skips the
  * piece, and a key with no model info is not drawn.
  *
+ * Each piece tumbles (D-03 as reworded by D16-10, OC-2): `tumbleOrientation`
+ * turns the contact's orientation at a constant body rate taken from the
+ * model's Oolite tumble rates and the orientation itself, so the tumble is a
+ * pure render function of data the contact already carries, never of an id.
+ *
  * The layer is index-addressed: contacts are id-free snapshots rebuilt each
  * frame (`debrisContacts`, `src/sim/world/contacts.ts`), instance `i` is the
  * i-th contact of its key, and nothing here holds an entity id. The system
@@ -30,7 +35,7 @@
 
 import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
-import type { Vec3 } from "../../sim/math.js";
+import type { Quat, Vec3 } from "../../sim/math.js";
 import type { DebrisContact } from "../../sim/world/contacts.js";
 import { isMesh } from "../mesh.js";
 
@@ -73,6 +78,89 @@ export interface DebrisLayer {
   dispose(): void;
 }
 
+/** A quaternion the tumble writes into: reused per contact in the layer. */
+interface MutableQuat {
+  w: number;
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
+ * Write the tumbled `orientation` into `out` (see `tumbleOrientation`); the
+ * layer's allocation-free form.
+ */
+function tumbleInto(
+  orientation: Quat,
+  info: DebrisModelInfo,
+  flightTime: number,
+  out: MutableQuat,
+): void {
+  const { w, x, y, z } = orientation;
+  // The constant body rate in the piece's own axes: pitch about local x, no
+  // yaw, roll about the local z nose axis.
+  const pitch = info.maxFlightPitch * y;
+  const roll = info.maxFlightRoll * x;
+  const rate = Math.hypot(pitch, roll);
+  const angle = rate * flightTime;
+  if (!Number.isFinite(angle) || angle === 0) {
+    out.w = w;
+    out.x = x;
+    out.y = y;
+    out.z = z;
+    return;
+  }
+  // The delta rotation (cos(a/2), axis sin(a/2)) with axis = (pitch, 0, roll) / rate.
+  const half = angle / 2;
+  const s = Math.sin(half) / rate;
+  const dw = Math.cos(half);
+  const dx = pitch * s;
+  const dz = roll * s;
+  // The Hamilton product orientation x delta: the turn is in the body frame.
+  const rw = w * dw - x * dx - z * dz;
+  const rx = w * dx + x * dw + y * dz;
+  const ry = y * dw - x * dz + z * dx;
+  const rz = w * dz - y * dx + z * dw;
+  const length = Math.hypot(rw, rx, ry, rz);
+  if (!Number.isFinite(length) || length === 0) {
+    out.w = w;
+    out.x = x;
+    out.y = y;
+    out.z = z;
+    return;
+  }
+  out.w = rw / length;
+  out.x = rx / length;
+  out.y = ry / length;
+  out.z = rz / length;
+}
+
+/**
+ * A debris piece's drawn orientation at `flightTime` (D-03, D16-10, OC-2).
+ *
+ * Oolite tumbles a released piece with constant body rates drawn uniformly in
+ * `[-max_flight_roll, max_flight_roll]` and `[-max_flight_pitch,
+ * max_flight_pitch]` (`performTumble`, `ShipEntityAI.m:473-479`, behaviour
+ * `BEHAVIOUR_TUMBLE`). Here the draw is replaced by the contact's own
+ * orientation, whose components lie in `[-1, 1]`: the body rate is
+ * `w = (maxFlightPitch x q.y, 0, maxFlightRoll x q.x)` and the result is
+ * `q x axisAngle(w / |w|, |w| x flightTime)`, normalised. Derived from the
+ * orientation and not from the entity id, because no id may leave `src/sim`
+ * (OC-2): two pieces with different orientations tumble differently, the same
+ * piece tumbles the same way every run. A zero or non-finite rate or time
+ * returns the orientation unchanged. Pure: it reads no sim state and returns a
+ * new quaternion (the layer uses the allocation-free `tumbleInto`).
+ */
+export function tumbleOrientation(
+  orientation: Quat,
+  info: DebrisModelInfo,
+  flightTime: number,
+): Quat {
+  const out: MutableQuat = { w: 1, x: 0, y: 0, z: 0 };
+  tumbleInto(orientation, info, flightTime, out);
+  return out;
+}
+
 /** One primitive of a model: its instanced mesh and its matrix in the model. */
 interface Primitive {
   readonly mesh: THREE.InstancedMesh;
@@ -113,6 +201,7 @@ export function createDebrisLayer(): DebrisLayer {
   const position = new THREE.Vector3();
   const rotation = new THREE.Quaternion();
   const scale = new THREE.Vector3();
+  const tumbled: MutableQuat = { w: 1, x: 0, y: 0, z: 0 };
   const instance = new THREE.Matrix4();
   const composed = new THREE.Matrix4();
 
@@ -140,7 +229,6 @@ export function createDebrisLayer(): DebrisLayer {
     root,
     update(contacts, cameraWorld, models, info, flightTime): void {
       if (disposed) return;
-      void flightTime;
       // Build a key's meshes the first time a contact of it has a loaded,
       // described model.
       for (const contact of contacts) {
@@ -164,12 +252,9 @@ export function createDebrisLayer(): DebrisLayer {
               contact.position.y - cameraWorld.y,
               contact.position.z - cameraWorld.z,
             );
-            rotation.set(
-              contact.orientation.x,
-              contact.orientation.y,
-              contact.orientation.z,
-              contact.orientation.w,
-            );
+            // D16-10: the render-side tumble, from the orientation and time.
+            tumbleInto(contact.orientation, record, flightTime, tumbled);
+            rotation.set(tumbled.x, tumbled.y, tumbled.z, tumbled.w);
             scale.set(ratio, ratio, ratio);
             instance.compose(position, rotation, scale);
             for (const primitive of primitives) {

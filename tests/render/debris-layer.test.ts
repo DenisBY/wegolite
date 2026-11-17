@@ -22,8 +22,10 @@ import { cameraRelative } from "../../src/render/camera-relative.js";
 import {
   createDebrisLayer,
   DEBRIS_INSTANCE_CAPACITY,
+  tumbleOrientation,
 } from "../../src/render/bodies/debris.js";
 import type { DebrisModelInfo } from "../../src/render/bodies/debris.js";
+import { axisAngle, mul, normalize } from "../../src/sim/math.js";
 import type { Quat } from "../../src/sim/math.js";
 import type { DebrisContact } from "../../src/sim/world/contacts.js";
 import { MAX_ENTITIES } from "../../src/sim/world/ids.js";
@@ -333,5 +335,147 @@ describe("createDebrisLayer", () => {
       0,
     );
     expect(layer.root.children).toHaveLength(0);
+  });
+});
+
+/** Synthetic rates, unequal so roll and pitch are told apart. */
+const TUMBLING: DebrisModelInfo = {
+  key: "barrel",
+  radius: 4,
+  maxFlightRoll: 2,
+  maxFlightPitch: 1,
+};
+
+function expectQuatClose(actual: Quat, expected: Quat, digits = 10): void {
+  expect(actual.w).toBeCloseTo(expected.w, digits);
+  expect(actual.x).toBeCloseTo(expected.x, digits);
+  expect(actual.y).toBeCloseTo(expected.y, digits);
+  expect(actual.z).toBeCloseTo(expected.z, digits);
+}
+
+function norm(q: Quat): number {
+  return Math.hypot(q.w, q.x, q.y, q.z);
+}
+
+const SKEW: Quat = normalize({ w: 0.7, x: 0.3, y: -0.5, z: 0.4 });
+
+describe("tumbleOrientation (D-03, D16-10, OC-2)", () => {
+  it("is the orientation itself at flight time 0", () => {
+    expect(tumbleOrientation(SKEW, TUMBLING, 0)).toEqual(SKEW);
+  });
+
+  it("is a unit quaternion at any flight time", () => {
+    for (const t of [0.01, 1, 17.3, 1_000, 123_456.789]) {
+      expect(norm(tumbleOrientation(SKEW, TUMBLING, t))).toBeCloseTo(1, 12);
+    }
+  });
+
+  it("does not turn with both rates zero", () => {
+    const still = { ...TUMBLING, maxFlightRoll: 0, maxFlightPitch: 0 };
+    for (const t of [0, 1, 50]) {
+      expect(tumbleOrientation(SKEW, still, t)).toEqual(SKEW);
+    }
+  });
+
+  it("returns the orientation for a non-finite time or rate", () => {
+    expect(tumbleOrientation(SKEW, TUMBLING, Number.NaN)).toEqual(SKEW);
+    expect(tumbleOrientation(SKEW, TUMBLING, Infinity)).toEqual(SKEW);
+    expect(
+      tumbleOrientation(SKEW, { ...TUMBLING, maxFlightRoll: Infinity }, 1),
+    ).toEqual(SKEW);
+  });
+
+  it("rolls about the local z axis at max_flight_roll rad/s when q.x is 1", () => {
+    const q: Quat = { w: 0, x: 1, y: 0, z: 0 };
+    for (const t of [0.25, 1, 3]) {
+      expectQuatClose(
+        tumbleOrientation(q, TUMBLING, t),
+        mul(q, axisAngle(0, 0, 1, TUMBLING.maxFlightRoll * t)),
+      );
+    }
+  });
+
+  it("pitches about the local x axis at max_flight_pitch rad/s when q.y is 1", () => {
+    const q: Quat = { w: 0, x: 0, y: 1, z: 0 };
+    expectQuatClose(
+      tumbleOrientation(q, TUMBLING, 2),
+      mul(q, axisAngle(1, 0, 0, TUMBLING.maxFlightPitch * 2)),
+    );
+  });
+
+  it("turns at the constant body rate (pitch q.y, 0, roll q.x) in the body frame", () => {
+    const wx = TUMBLING.maxFlightPitch * SKEW.y;
+    const wz = TUMBLING.maxFlightRoll * SKEW.x;
+    const rate = Math.hypot(wx, wz);
+    const t = 4.5;
+    expectQuatClose(
+      tumbleOrientation(SKEW, TUMBLING, t),
+      normalize(mul(SKEW, axisAngle(wx / rate, 0, wz / rate, rate * t))),
+    );
+  });
+
+  it("tumbles two different orientations differently and the same one the same way", () => {
+    const other: Quat = normalize({ w: 0.2, x: -0.6, y: 0.1, z: 0.77 });
+    const a = tumbleOrientation(SKEW, TUMBLING, 3);
+    const b = tumbleOrientation(other, TUMBLING, 3);
+    // Relative rotation from the start differs between the two pieces.
+    const turnA = mul({ w: SKEW.w, x: -SKEW.x, y: -SKEW.y, z: -SKEW.z }, a);
+    const turnB = mul({ w: other.w, x: -other.x, y: -other.y, z: -other.z }, b);
+    expect(
+      Math.abs(turnA.w - turnB.w) + Math.abs(turnA.z - turnB.z),
+    ).toBeGreaterThan(1e-3);
+    expect(tumbleOrientation(SKEW, TUMBLING, 3)).toEqual(a);
+  });
+});
+
+describe("createDebrisLayer tumble", () => {
+  it("writes each instance's rotation as tumbleOrientation(orientation, info, flightTime)", () => {
+    const model = syntheticModel();
+    const layer = createDebrisLayer();
+    const t = 2.75;
+    layer.update(
+      [piece(0, "barrel", 4, SKEW)],
+      ORIGIN,
+      new Map([["barrel", model.gltf]]),
+      [TUMBLING],
+      t,
+    );
+    const [mesh] = instancedMeshes(layer.root);
+    if (mesh === undefined) throw new Error("no mesh");
+    const rotation = new THREE.Quaternion();
+    matrixOf(mesh, 0).decompose(
+      new THREE.Vector3(),
+      rotation,
+      new THREE.Vector3(),
+    );
+    const expected = tumbleOrientation(SKEW, TUMBLING, t);
+    // q and -q are the same rotation.
+    const sign = Math.sign(rotation.w * expected.w || 1);
+    expect(sign * rotation.w).toBeCloseTo(expected.w, 5);
+    expect(sign * rotation.x).toBeCloseTo(expected.x, 5);
+    expect(sign * rotation.y).toBeCloseTo(expected.y, 5);
+    expect(sign * rotation.z).toBeCloseTo(expected.z, 5);
+  });
+
+  it("moves a piece's rotation with the flight time and returns to it for the same time", () => {
+    const model = syntheticModel();
+    const layer = createDebrisLayer();
+    const models = new Map([["barrel", model.gltf]]);
+    const at = (t: number): THREE.Matrix4 => {
+      layer.update(
+        [piece(0, "barrel", 4, SKEW)],
+        ORIGIN,
+        models,
+        [TUMBLING],
+        t,
+      );
+      const [mesh] = instancedMeshes(layer.root);
+      if (mesh === undefined) throw new Error("no mesh");
+      return matrixOf(mesh, 0);
+    };
+    const first = at(1);
+    const later = at(2);
+    expect(first.equals(later)).toBe(false);
+    expect(at(1).equals(first)).toBe(true);
   });
 });
