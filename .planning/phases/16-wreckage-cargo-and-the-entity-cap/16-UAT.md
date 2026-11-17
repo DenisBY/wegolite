@@ -8,10 +8,10 @@ updated: 2026-11-17T09:40:00Z
 
 ## Current Test
 
-number: 4
-name: OC-4: the explosion blast pushes debris only, not ships or the player
+number: 5
+name: OC-5: no code fix for the doubled hit sound
 expected: |
-  Pods, plates and wrecks are kicked by Oolite's formula; ships (at most 0.027 m/s) and the player (under 0.002 m/s) are not pushed in this phase (D16-04). Narrows ROADMAP criterion 1 "the blast pushing neighbours".
+  shipHit has no consumer, so no sound or visual can double; the Phase 15 fix waits for the first consumer (D16-14).
 awaiting: user response
 
 ## Tests
@@ -31,7 +31,8 @@ note: owner accepted on 2026-11-17 on condition that Phase 18 makes pods and pla
 
 ### 4. OC-4: the explosion blast pushes debris only, not ships or the player
 expected: Pods, plates and wrecks are kicked by Oolite's formula; ships (at most 0.027 m/s) and the player (under 0.002 m/s) are not pushed in this phase (D16-04). Narrows ROADMAP criterion 1 "the blast pushing neighbours".
-result: [pending]
+result: pass
+note: owner accepted on 2026-11-17; Phase 18 must revisit whether the blast applies to ships and the player once they drift (ROADMAP Phase 18 carry-over).
 
 ### 5. OC-5: no code fix for the doubled hit sound
 expected: shipHit has no consumer, so no sound or visual can double; the Phase 15 fix waits for the first consumer (D16-14).
@@ -48,9 +49,9 @@ result: [pending]
 ## Summary
 
 total: 7
-passed: 3
+passed: 4
 issues: 0
-pending: 4
+pending: 3
 skipped: 0
 blocked: 0
 
