@@ -30,6 +30,13 @@ Open numbers (our value, what to confirm):
   viper 34040.68.
 - Mass-lock range (strict d^2 < 25,600^2 for ships) and blockage with real ships (Phase 12).
 
+Measured (quick task 261117-jji, 2026-11-17): the Coriolis, both buoys, the Cobra Mk III and the nine NPC
+masses are all bit-exact equal to Wegolite's values in a running Oolite 1.93.1-255 (13 of 13 EQUAL), and so are
+the nine NPC radii and the Cobra radius. The Coriolis and buoy collision radii differ from the layout constants
+(779.37 against 500, 59.14 against 10): those are Wegolite's own values, left unchanged. Values and verdicts are
+in the FIDELITY.md Constants ledger; the run evidence is in the quick task's SUMMARY. The mass-lock range and
+the blockage with real ships stay open.
+
 ## Solution
 
 Owner decision (2026-11-14): do this after Phase 12 finishes its gates, not during it (the slow machine would
@@ -52,6 +59,9 @@ Plan:
    `Latest.log`. No debug console needed.
 3. Compare each value with the table above. If a value differs, change one constant and its pin and update
    FIDELITY.md (a cheap revert, as recorded in Phase 10).
+   **Done for the masses** (quick task 261117-jji, 2026-11-17). The OXP is outside the repository
+   (`/tmp/ooref-mass/addons/wegolite-mass.oxp`); it logged the 13 ships at `startUpComplete`. No constant
+   changed: every mass and every NPC and player radius was equal.
 4. UI comparison: screenshots of the scanner, HUD and messages from the xvfb display next to Wegolite's.
 5. Provenance: do not commit the Oolite binary or its assets (code is GPL, assets CC BY-NC-SA); record what was
    used (version, source of the AppImage) in FIDELITY.md or the todo's SUMMARY.
@@ -59,7 +69,8 @@ Plan:
    Open items and in the 261117-iuw SUMMARY. Each measurement run records its own `session.txt` and
    `wrapper.txt` in its SUMMARY.
 
-Open: steps 2 to 4 and the Phase 16 items below. The reference build is 1.93.1-255, not the 1.93.1-241 pin; see
+Open: the mass-lock range and real-ship blockage bullet, step 4 (UI comparison) and the Phase 16 wreck lifetime
+and explosion items below. No mass difference is waiting for the owner. The reference build is 1.93.1-255, not the 1.93.1-241 pin; see
 the FIDELITY.md Open items bullet "Reference Oolite for measurements".
 
 Risks: audio and the OpenGL version Oolite demands under llvmpipe; software rendering may differ in small
