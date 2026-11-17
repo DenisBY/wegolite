@@ -21,7 +21,8 @@ import { createShip } from "./bodies/ship.js";
 import { disposeClonedMaterials } from "./bodies/station.js";
 import { createSystemStarfield } from "./bodies/starfield.js";
 import { createDisposer } from "./system-scene.js";
-import { CAMERA_FAR, CAMERA_FOV_DEGREES, CAMERA_NEAR } from "./system-scene.js";
+import { CAMERA_FAR, CAMERA_NEAR } from "./system-scene.js";
+import { viewFovYDegrees } from "./viewport.js";
 
 /** Menu stars: far fewer than a system, because there is no scale cue. */
 const MENU_STAR_COUNT = 1200;
@@ -38,8 +39,9 @@ export interface MenuScene {
 export function createMenuScene(assets: AssetCache): MenuScene {
   const scene = new THREE.Scene();
 
+  // Oolite draws the intro Cobra with `displayGUI = YES` (Universe.m:2987).
   const camera = new THREE.PerspectiveCamera(
-    CAMERA_FOV_DEGREES,
+    viewFovYDegrees(1, "gui"),
     1,
     CAMERA_NEAR,
     CAMERA_FAR,

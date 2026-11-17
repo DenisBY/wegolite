@@ -43,6 +43,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The station's mass lock now ends strictly inside the scanner range, as in
   Oolite: a ship exactly 25,600 m from the station centre is no longer
   mass-locked, so the torus drive engages there.
+- The forward view now has Oolite's field of view. Oolite spreads its 57.2°
+  view across the width of any window wider than 4:3; Wegolite spread it from
+  top to bottom, so at 16:9 it showed about 88° across and everything ahead
+  looked about 1.78 times smaller than in Oolite. Ships, stations and planets
+  ahead now appear at Oolite's size. In a window narrower than 4:3 the view
+  keeps the height it has at 4:3, as in Oolite. The title screen's Cobra now
+  uses Oolite's framing for menu screens and looks about 1.45 times larger at
+  16:9.
 
 ## [0.4.0] - 2026-11-16
 

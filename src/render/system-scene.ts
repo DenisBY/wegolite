@@ -19,8 +19,9 @@
  *
  * The camera is created at the origin with orientation only: `sync.ts` writes
  * every body's `position` through `cameraRelative()`, and the camera itself
- * never translates. The vertical FOV is Oolite's `fov-value` default of 57.2
- * degrees (research Open Question 4, adopted by this plan).
+ * never translates. The projection follows Oolite's frustum rule in
+ * `src/render/viewport.ts` (quick task 261117-o8q replaced the Phase 3 vertical
+ * field of view).
  */
 
 import * as THREE from "three";
@@ -54,9 +55,8 @@ import { createSun } from "./bodies/sun.js";
 import type { SunBody } from "./bodies/sun.js";
 import { ambientIntensityFor, DISPLAY_SUN_INTENSITY } from "./exposure.js";
 import { materialList } from "./mesh.js";
+import { viewFovYDegrees } from "./viewport.js";
 
-/** Oolite's default vertical field of view (Universe.m). */
-export const CAMERA_FOV_DEGREES = 57.2;
 export const CAMERA_NEAR = 0.5;
 export const CAMERA_FAR = 2_500_000;
 
@@ -260,8 +260,10 @@ function disposeShipClone(ship: THREE.Group): Disposable {
 }
 
 function createCamera(): THREE.PerspectiveCamera {
+  // `applyViewport` overwrites the aspect and field of view before the first
+  // frame; the constructor uses the same rule at its aspect of 1.
   const camera = new THREE.PerspectiveCamera(
-    CAMERA_FOV_DEGREES,
+    viewFovYDegrees(1, "flight"),
     1,
     CAMERA_NEAR,
     CAMERA_FAR,

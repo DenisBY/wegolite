@@ -26,14 +26,11 @@ import type { SystemLayout } from "../sim/world/layout.js";
 import type { AssetCache } from "../render/asset-cache.js";
 import { createMenuScene } from "../render/menu-scene.js";
 import type { MenuScene } from "../render/menu-scene.js";
-import {
-  CAMERA_FAR,
-  CAMERA_FOV_DEGREES,
-  CAMERA_NEAR,
-} from "../render/system-scene.js";
+import { CAMERA_FAR, CAMERA_NEAR } from "../render/system-scene.js";
 import { createSystemScene } from "../render/system-scene.js";
 import type { SystemScene } from "../render/system-scene.js";
-import { applyViewport } from "../render/viewport.js";
+import { applyViewport, viewFovYDegrees } from "../render/viewport.js";
+import type { ViewKind } from "../render/viewport.js";
 
 export interface ActiveScene {
   readonly scene: THREE.Scene;
@@ -50,6 +47,12 @@ export interface SceneManager {
   setQuality(quality: GraphicsQuality): void;
   quality(): GraphicsQuality;
   active(): ActiveScene;
+  /**
+   * The branch of Oolite's frustum rule the active camera follows: `gui` while
+   * the title (menu) scene is active, `flight` otherwise. The resize path
+   * passes it to `applyViewport`.
+   */
+  activeView(): ViewKind;
   /** The layout of the active system scene, or undefined while in the menu. */
   layout(): SystemLayout | undefined;
   /** Dispose only the active system scene; the menu and the cache survive. */
@@ -59,7 +62,7 @@ export interface SceneManager {
 
 function createCamera(): THREE.PerspectiveCamera {
   return new THREE.PerspectiveCamera(
-    CAMERA_FOV_DEGREES,
+    viewFovYDegrees(1, "flight"),
     1,
     CAMERA_NEAR,
     CAMERA_FAR,
@@ -90,9 +93,9 @@ export function createSceneManager(
     scene: new THREE.Scene(),
     camera: createCamera(),
   };
-  // The manager, not the pure render modules, owns the aspect: every camera it
-  // installs — including this one — is projected from the renderer's current
-  // size. No `window` access here (WORLD-02).
+  // The manager, not the pure render modules, owns the projection: every
+  // camera it installs — including this one — is projected from the renderer's
+  // current size. No `window` access here (WORLD-02).
   applyViewport(empty.camera, rendererSize(renderer));
 
   let current: SystemScene | undefined;
@@ -157,8 +160,14 @@ export function createSceneManager(
       const next = assets.loaded() ? createMenuScene(assets) : undefined;
       // Apply before the retire so the replacement scene never renders a frame
       // at the constructor's 1:1 aspect. The `undefined` fallback is the empty
-      // camera, which `active()` then returns.
-      applyViewport(next?.camera ?? empty.camera, rendererSize(renderer));
+      // camera, which `active()` then returns. The title scene uses Oolite's
+      // GUI view (`displayGUI = YES`, Universe.m:2987); the empty one stays a
+      // flight view, matching `activeView()`.
+      applyViewport(
+        next?.camera ?? empty.camera,
+        rendererSize(renderer),
+        next === undefined ? "flight" : "gui",
+      );
       const previousSystem = current;
       const previousMenu = menu;
       current = undefined;
@@ -202,6 +211,9 @@ export function createSceneManager(
     },
     active(): ActiveScene {
       return current ?? menu ?? empty;
+    },
+    activeView(): ViewKind {
+      return current === undefined && menu !== undefined ? "gui" : "flight";
     },
     layout(): SystemLayout | undefined {
       return currentLayout;

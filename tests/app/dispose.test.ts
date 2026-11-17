@@ -941,12 +941,27 @@ describe("the menu Cobra survives a system swap", () => {
 
       const manager = createSceneManager(renderer, cache);
 
+      // Oolite's frustum rule (Universe.m:4445-4452) at 1600x1000, computed
+      // here from the formulas, not by the function under test: the flight
+      // view spans tan(28.6 deg) across the width, the gui view a vertical
+      // 0.375 (ratio 0.5 inside a 4:3 box).
+      const halfTan = Math.tan((28.6 * Math.PI) / 180);
+      const flightFov = (2 * Math.atan(halfTan / 1.6) * 180) / Math.PI;
+      const guiFov = (2 * Math.atan(0.375) * 180) / Math.PI;
+      expect(flightFov).toBeCloseTo(37.6342, 4);
+      expect(guiFov).toBeCloseTo(41.1121, 4);
+
       // Install 1 — the empty pre-load scene, no resize event anywhere.
       expect(manager.active().camera.aspect).toBeCloseTo(1.6, 12);
+      expect(manager.active().camera.fov).toBeCloseTo(flightFov, 9);
+      expect(manager.activeView()).toBe("flight");
 
       manager.enterMenu();
-      // Install 2 — the real menu scene.
+      // Install 2 — the real menu scene, drawn in Oolite's GUI mode
+      // (`displayGUI = YES`, Universe.m:2987).
       expect(manager.active().camera.aspect).toBeCloseTo(1.6, 12);
+      expect(manager.active().camera.fov).toBeCloseTo(guiFov, 9);
+      expect(manager.activeView()).toBe("gui");
 
       // The menu is the real title scene, not plan 01's empty one.
       const menuMeshes: THREE.Mesh[] = [];
@@ -960,11 +975,15 @@ describe("the menu Cobra survives a system swap", () => {
 
       // Install 3 — the system scene `start()` installs.
       expect(manager.active().camera.aspect).toBeCloseTo(1.6, 12);
+      expect(manager.active().camera.fov).toBeCloseTo(flightFov, 9);
+      expect(manager.activeView()).toBe("flight");
 
       // A second system install (the `?test=1` swap path) must re-apply it,
       // not inherit the previous camera or fall back to the constructor's 1.
       manager.enterSystem(system, stationDef);
       expect(manager.active().camera.aspect).toBeCloseTo(1.6, 12);
+      expect(manager.active().camera.fov).toBeCloseTo(flightFov, 9);
+      expect(manager.activeView()).toBe("flight");
 
       // The swap disposed the menu's clone, never the shared cache.
       expect(cobraMaterialDisposals()).toBe(0);

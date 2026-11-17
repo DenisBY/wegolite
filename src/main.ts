@@ -340,9 +340,13 @@ if (!boot.ok) {
     // would compute an Infinity aspect and an empty drawing buffer.
     if (width === 0 || height === 0) return;
     renderer.setSize(width, height, false);
-    // `applyViewport` is the single writer of `camera.aspect`; the manager uses
-    // it on every scene install, and this is the resize path.
-    applyViewport(scenes.active().camera, { width, height });
+    // `applyViewport` is the single writer of `camera.aspect` and `camera.fov`;
+    // the manager uses it on every scene install, and this is the resize path.
+    applyViewport(
+      scenes.active().camera,
+      { width, height },
+      scenes.activeView(),
+    );
     // Before a session exists this is the only frame that publishes the live
     // aspect; `renderFrame` takes over once the system scene is installed.
     probe.aspect = scenes.active().camera.aspect;
