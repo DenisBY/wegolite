@@ -40,8 +40,16 @@ import type { FlightState } from "../../../src/sim/flight/state.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { NO_ENTITY } from "../../../src/sim/world/ids.js";
-import { npcContacts } from "../../../src/sim/world/contacts.js";
-import type { NpcContact } from "../../../src/sim/world/contacts.js";
+import {
+  debrisContacts,
+  npcContacts,
+} from "../../../src/sim/world/contacts.js";
+import type {
+  DebrisContact,
+  NpcContact,
+} from "../../../src/sim/world/contacts.js";
+import { spawnEntity } from "../../../src/sim/world/world.js";
+import type { TrafficContent } from "../../../src/app/session/traffic.js";
 import { populateInertWorld } from "../../../src/sim/world/populate.js";
 import type { HudModel } from "../../../src/render/hud/draw.js";
 import { laveInertRecords } from "../../helpers/inert-world.js";
@@ -232,14 +240,25 @@ type ExplosionUpdate = (
   flightTime: number,
 ) => void;
 
+/** What the debris layer double is handed each frame. */
+type DebrisUpdate = (
+  contacts: readonly DebrisContact[],
+  cameraWorld: unknown,
+  models: ReadonlyMap<string, GLTF>,
+  info: unknown,
+  flightTime: number,
+) => void;
+
 /** A scene double complete enough for a full `renderFrame` in flight. */
 function flyableScene(
   nebula: { revision: number },
   npcUpdate: NpcUpdate = () => undefined,
   explosionUpdate: ExplosionUpdate = () => undefined,
+  debrisUpdate: DebrisUpdate = () => undefined,
 ): SystemScene {
   return {
     npcs: { update: npcUpdate },
+    debris: { update: debrisUpdate },
     shots: { update: () => undefined },
     explosions: { update: explosionUpdate },
     camera: { aspect: 1.5, fov: 57.2, ...fakeObject() },
@@ -374,6 +393,134 @@ describe("renderFrame explosions (WORLD-17)", () => {
       z: expect.any(Number) as number,
     });
     expect(log).toEqual(["explosions.update", "render"]);
+  });
+});
+
+describe("renderFrame debris (WORLD-17)", () => {
+  const DEBRIS_MODELS = [
+    { key: "barrel", glb: "models/barrel.glb", radius: 4 },
+    { key: "wreck1", glb: "models/wreck1.glb", radius: 20 },
+  ];
+
+  /** A flying session whose world holds two pods and a wreck beside its ships. */
+  function debrisWorld() {
+    const log: string[] = [];
+    const requested: string[] = [];
+    const calls: unknown[][] = [];
+    const real = createNpcModelLoader(
+      {
+        loadNpcModel: (glb) => {
+          requested.push(glb);
+          return new Promise<GLTF>(() => undefined);
+        },
+      },
+      (key) => `models/${key}.glb`,
+    );
+    const loader: NpcModelLoader = {
+      ...real,
+      open: () => {
+        log.push("open");
+        real.open();
+      },
+    };
+    const h = harness({
+      npcModels: loader,
+      onRender: () => log.push("render"),
+    });
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    h.ctx.core.scene = flyableScene(
+      h.nebula,
+      () => log.push("npcs.update"),
+      undefined,
+      (...args) => {
+        log.push("debris.update");
+        calls.push(args);
+      },
+    );
+    h.ctx.runtime.hud = { draw: () => undefined } as unknown as Hud;
+    h.ctx.core.npcTraffic = {
+      debrisModels: DEBRIS_MODELS,
+    } as unknown as TrafficContent;
+    const lifecycle = createWorldLifecycle({
+      traffic: true,
+      populate: (world) => {
+        populateInertWorld(world, layout, laveInertRecords());
+        for (const [kind, specKey, x] of [
+          ["cargo", "barrel", 100],
+          ["wreckage", "wreck1", 200],
+          ["cargo", "barrel", 300],
+        ] as const) {
+          const result = spawnEntity(
+            world,
+            {
+              kind,
+              specKey,
+              scanClass: "CLASS_CARGO",
+              position: { x, y: 0, z: 0 },
+              orientation: identity(),
+              radius: 4,
+            },
+            0,
+          );
+          if (!result.ok) throw new Error(result.reason);
+        }
+      },
+    });
+    lifecycle.begin(marketSeedForSystem(system.id));
+    h.ctx.core.worldLifecycle = lifecycle;
+    h.ctx.core.state = {
+      ...initFlightState(layout),
+      mode: "inFlight",
+      flightTime: 7.25,
+    };
+    return { h, log, requested, calls, loader };
+  }
+
+  it("hands the debris layer the frame's debris contacts, the loader's models, the catalogue and the flight time", () => {
+    const { h, log, calls, loader } = debrisWorld();
+    h.driver.renderFrame(0);
+    expect(calls).toHaveLength(1);
+    const [contacts, cameraWorld, models, info, flightTime] = calls[0] ?? [];
+    expect(contacts).toEqual(debrisContacts(h.ctx.core.worldLifecycle?.world));
+    expect((contacts as DebrisContact[]).map((c) => c.specKey)).toEqual([
+      "barrel",
+      "wreck1",
+      "barrel",
+    ]);
+    expect(models).toBe(loader.loaded());
+    expect(info).toBe(h.ctx.core.npcTraffic?.debrisModels);
+    expect(flightTime).toBe(7.25);
+    expect(cameraWorld).toMatchObject({
+      x: expect.any(Number) as number,
+      y: expect.any(Number) as number,
+      z: expect.any(Number) as number,
+    });
+    // After the NPC layer, before the render.
+    expect(log.slice(0, 3)).toEqual(["npcs.update", "debris.update", "render"]);
+  });
+
+  it("requests the debris keys through the same loader only once its latch is open", () => {
+    const { h, requested } = debrisWorld();
+    h.driver.renderFrame(0);
+    // The first in-flight frame opens the latch after its render: no fetch.
+    expect(requested).toEqual([]);
+    h.driver.renderFrame(0);
+    expect(requested).toContain("models/barrel.glb");
+    expect(requested).toContain("models/wreck1.glb");
+    // One fetch per key, however many pieces share it.
+    expect(requested.filter((glb) => glb === "models/barrel.glb")).toHaveLength(
+      1,
+    );
+  });
+
+  it("hands an empty catalogue with no traffic content and empty contacts with no world", () => {
+    const { h, calls } = debrisWorld();
+    h.ctx.core.npcTraffic = undefined;
+    h.ctx.core.worldLifecycle?.end();
+    h.driver.renderFrame(0);
+    expect(calls[0]?.[0]).toEqual([]);
+    expect(calls[0]?.[3]).toEqual([]);
   });
 });
 

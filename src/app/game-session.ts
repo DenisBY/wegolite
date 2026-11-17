@@ -30,7 +30,7 @@ import { createRedrawGate } from "./redraw-gate.js";
 import { createSessionState } from "./session/context.js";
 import { createFrameLoop } from "./session/frame-loop.js";
 import { createProbePublisher } from "./session/probe-publisher.js";
-import { createNpcModelLoader } from "./npc-models.js";
+import { createNpcModelLoader, trafficModelGlb } from "./npc-models.js";
 import { createRenderDriver } from "./session/render-driver.js";
 import type { RenderDriver } from "./session/render-driver.js";
 import { createChartController } from "./session/chart-controller.js";
@@ -334,10 +334,10 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   // decision 2026-11-14, option A). The GLB path is read from the loaded
   // catalogue at call time, so a request before the catalogue arrives is
   // ignored, and nothing here opens the loader.
-  const npcModels = createNpcModelLoader(
-    assets,
-    (key) =>
-      ctx.core.npcTraffic?.catalogue.find((ship) => ship.key === key)?.glb,
+  // The debris models (WORLD-17, plan 16-08) ride the same loader and latch:
+  // a key that is not a ship resolves from ctx.core.npcTraffic.debrisModels.
+  const npcModels = createNpcModelLoader(assets, (key) =>
+    trafficModelGlb(ctx.core.npcTraffic, key),
   );
 
   // D-12 step 3: the redraw gate's decision and the per-frame scene, HUD and

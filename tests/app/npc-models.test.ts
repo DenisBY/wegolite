@@ -16,7 +16,11 @@ import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { createNpcModelLoader } from "../../src/app/npc-models.js";
+import {
+  createNpcModelLoader,
+  trafficModelGlb,
+} from "../../src/app/npc-models.js";
+import type { TrafficContent } from "../../src/app/session/traffic.js";
 
 const GLBS: Readonly<Record<string, string>> = {
   viper: "models/viper.glb",
@@ -179,5 +183,33 @@ describe("createNpcModelLoader: once open", () => {
     table = GLBS;
     loader.request(["viper"]);
     expect(loadNpcModel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("trafficModelGlb (WORLD-15, WORLD-17)", () => {
+  const traffic = {
+    catalogue: [{ key: "viper", glb: "models/viper.glb" }],
+    debrisModels: [
+      { key: "barrel", glb: "models/barrel.glb" },
+      { key: "wreck1", glb: "models/wreck1.glb" },
+    ],
+  } as unknown as Pick<TrafficContent, "catalogue" | "debrisModels">;
+
+  it("resolves a ship key from the ship catalogue", () => {
+    expect(trafficModelGlb(traffic, "viper")).toBe("models/viper.glb");
+  });
+
+  it("resolves a debris key from the debris catalogue", () => {
+    expect(trafficModelGlb(traffic, "barrel")).toBe("models/barrel.glb");
+    expect(trafficModelGlb(traffic, "wreck1")).toBe("models/wreck1.glb");
+  });
+
+  it("is undefined for an unknown key, no traffic or no debris catalogue", () => {
+    expect(trafficModelGlb(traffic, "adder")).toBeUndefined();
+    expect(trafficModelGlb(undefined, "viper")).toBeUndefined();
+    const shipsOnly = {
+      catalogue: traffic.catalogue,
+    } as Pick<TrafficContent, "catalogue" | "debrisModels">;
+    expect(trafficModelGlb(shipsOnly, "barrel")).toBeUndefined();
   });
 });

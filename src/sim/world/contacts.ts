@@ -65,3 +65,51 @@ export function npcContacts(world: World | undefined): readonly NpcContact[] {
   }
   return contacts;
 }
+
+/**
+ * One piece of debris (a cargo pod, a metal plate or a wreck) as the render
+ * sees it (WORLD-17). Plain data, no entity id, every vector and quaternion
+ * copied, like `NpcContact`.
+ *
+ * Debris is presentation-only here: it is drawn, never shown on the scanner.
+ * Oolite draws `CLASS_CARGO` on the scanner; that gap is recorded (D16-26) and
+ * deferred with scooping (CBT-11), so `npcContacts` stays ships only.
+ */
+export interface DebrisContact {
+  readonly position: Vec3;
+  readonly orientation: Quat;
+  readonly radius: number;
+  readonly specKey: string;
+}
+
+/**
+ * The live cargo and wreckage of `world` as id-free contacts, in ascending id
+ * order; empty for no world. Dead entities (awaiting the tick-end commit) are
+ * skipped. Ships and every other kind are left to `npcContacts`.
+ */
+export function debrisContacts(
+  world: World | undefined,
+): readonly DebrisContact[] {
+  if (world === undefined) return [];
+  const contacts: DebrisContact[] = [];
+  for (const entity of world.store.live) {
+    if (entity.dead) continue;
+    if (entity.kind !== "cargo" && entity.kind !== "wreckage") continue;
+    contacts.push({
+      position: {
+        x: entity.position.x,
+        y: entity.position.y,
+        z: entity.position.z,
+      },
+      orientation: {
+        w: entity.orientation.w,
+        x: entity.orientation.x,
+        y: entity.orientation.y,
+        z: entity.orientation.z,
+      },
+      radius: entity.radius,
+      specKey: entity.specKey,
+    });
+  }
+  return contacts;
+}

@@ -35,6 +35,7 @@ import type { AssetCache } from "../../src/render/asset-cache.js";
 import { createBuoy } from "../../src/render/bodies/buoy.js";
 import type { BuoyBody } from "../../src/render/bodies/buoy.js";
 import { createDust } from "../../src/render/bodies/dust.js";
+import { createDebrisLayer } from "../../src/render/bodies/debris.js";
 import { createExplosionLayer } from "../../src/render/bodies/explosions.js";
 import type { ExplosionLayer } from "../../src/render/bodies/explosions.js";
 import { createLaserShotLayer } from "../../src/render/bodies/laser-shots.js";
@@ -483,6 +484,7 @@ describe("SystemScene owns only what it created", () => {
         witchpoint,
         dust,
         npcs,
+        debris: createDebrisLayer(),
         shots,
         explosions,
       },

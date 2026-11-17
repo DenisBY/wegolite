@@ -33,6 +33,8 @@ import type { AssetCache } from "./asset-cache.js";
 import { createBuoy } from "./bodies/buoy.js";
 import type { BuoyBody, BuoyRole } from "./bodies/buoy.js";
 import { createDust } from "./bodies/dust.js";
+import { createDebrisLayer } from "./bodies/debris.js";
+import type { DebrisLayer } from "./bodies/debris.js";
 import { createExplosionLayer } from "./bodies/explosions.js";
 import type { ExplosionLayer } from "./bodies/explosions.js";
 import { createNebulae } from "./bodies/nebulae.js";
@@ -138,6 +140,12 @@ export interface SystemScene {
    */
   npcs: NpcLayer;
   /**
+   * The drawn debris (WORLD-17): pods, plates and wrecks as an instanced layer
+   * the render driver feeds id-free debris contacts each frame. Owned and
+   * disposed by this scene, like `npcs`, so a jump or a Load clears it.
+   */
+  debris: DebrisLayer;
+  /**
    * The drawn laser shots (CBT-05): one line-segment object over a fixed pool,
    * fed by `laserFired` events and updated each frame. Owned and disposed by
    * this scene, like `npcs`.
@@ -165,6 +173,7 @@ export interface SystemSceneParts {
   witchpoint: BuoyBody;
   dust: Dust;
   npcs: NpcLayer;
+  debris: DebrisLayer;
   shots: LaserShotLayer;
   explosions: ExplosionLayer;
   nebulae?: NebulaBody;
@@ -197,6 +206,7 @@ export interface SystemSceneFactories {
   buoy(gltf: GLTF, role: BuoyRole): BuoyBody;
   dust(): Dust;
   npcs(): NpcLayer;
+  debris(): DebrisLayer;
   shots(): LaserShotLayer;
   explosions(): ExplosionLayer;
   nebulae(count: number, seed: string): NebulaBody;
@@ -211,6 +221,7 @@ const REAL_FACTORIES: SystemSceneFactories = {
   buoy: createBuoy,
   dust: () => createDust(),
   npcs: () => createNpcLayer(),
+  debris: () => createDebrisLayer(),
   shots: () => createLaserShotLayer(),
   explosions: () => createExplosionLayer(),
   nebulae: (count, seed) => createNebulae(count, seed),
@@ -299,6 +310,7 @@ export function assembleSystemScene(
     parts.witchpoint.root,
     parts.dust.object,
     parts.npcs.root,
+    parts.debris.root,
     parts.shots.root,
     parts.explosions.root,
   );
@@ -315,6 +327,8 @@ export function assembleSystemScene(
     parts.dust,
     // Only the instance buffers: the cached NPC geometry and materials stay.
     parts.npcs,
+    // Only the instance buffers: the cached debris geometry and materials stay.
+    parts.debris,
     // The shot layer owns its geometry and material outright.
     parts.shots,
     // The explosion layer owns its geometry, materials and loaded textures.
@@ -335,6 +349,7 @@ export function assembleSystemScene(
     ship: parts.ship,
     dust: parts.dust,
     npcs: parts.npcs,
+    debris: parts.debris,
     shots: parts.shots,
     explosions: parts.explosions,
     ...(parts.nebulae === undefined ? {} : { nebulae: parts.nebulae }),
@@ -396,6 +411,8 @@ export function createSystemScene(
     built.add(dust);
     const npcs = f.npcs();
     built.add(npcs);
+    const debris = f.debris();
+    built.add(debris);
     const shots = f.shots();
     built.add(shots);
     const explosions = f.explosions();
@@ -428,6 +445,7 @@ export function createSystemScene(
         witchpoint,
         dust,
         npcs,
+        debris,
         shots,
         explosions,
         ...(nebulae === undefined ? {} : { nebulae }),

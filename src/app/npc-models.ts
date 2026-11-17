@@ -33,6 +33,7 @@
 
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import type { AssetCache } from "../render/asset-cache.js";
+import type { TrafficContent } from "./session/traffic.js";
 
 export interface NpcModelLoader {
   /** One-way latch: from now on `request` fetches. Idempotent. */
@@ -43,6 +44,24 @@ export interface NpcModelLoader {
   loaded(): ReadonlyMap<string, GLTF>;
   /** Drop late resolutions and stop fetching. Idempotent. */
   dispose(): void;
+}
+
+/**
+ * The GLB path of a model key in the session's traffic content: an NPC ship's
+ * from the ship catalogue, else a debris piece's from the debris catalogue
+ * (WORLD-17, plan 16-08: pods, plates and wrecks ride this loader and its
+ * latch). Undefined with no traffic content or for an unknown key, so the
+ * loader ignores the request until the catalogue is there.
+ */
+export function trafficModelGlb(
+  traffic: Pick<TrafficContent, "catalogue" | "debrisModels"> | undefined,
+  key: string,
+): string | undefined {
+  if (traffic === undefined) return undefined;
+  return (
+    traffic.catalogue.find((ship) => ship.key === key)?.glb ??
+    traffic.debrisModels?.find((record) => record.key === key)?.glb
+  );
 }
 
 type KeyState = "loading" | "loaded" | "failed";

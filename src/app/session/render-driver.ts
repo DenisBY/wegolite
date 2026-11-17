@@ -29,7 +29,7 @@ import type { FlightState } from "../../sim/flight/state.js";
 import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
 import { identTargetSnapshot } from "../../sim/combat/ident.js";
 import { sub, vec } from "../../sim/math.js";
-import { npcContacts } from "../../sim/world/contacts.js";
+import { debrisContacts, npcContacts } from "../../sim/world/contacts.js";
 import {
   computeLaunchCamera,
   computeViewCamera,
@@ -193,6 +193,20 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // ship whose model has not arrived still shows on the scanner.
     npcModels.request(contacts.map((contact) => contact.specKey));
     currentScene.npcs.update(contacts, cameraWorld, npcModels.loaded());
+    // WORLD-17: the pods, plates and wrecks, as id-free debris contacts read
+    // at this frame and not kept. Their models ride the same per-session
+    // loader and its first-in-flight-frame latch (DATA-13), so a cold start
+    // requests no debris GLB; a key whose model has not arrived is not drawn.
+    // Debris is not on the scanner (D16-26).
+    const debris = debrisContacts(ctx.core.worldLifecycle?.world);
+    npcModels.request(debris.map((contact) => contact.specKey));
+    currentScene.debris.update(
+      debris,
+      cameraWorld,
+      npcModels.loaded(),
+      ctx.core.npcTraffic?.debrisModels ?? [],
+      currentState.flightTime,
+    );
     // CBT-05: the shots added by `laserFired` this frame or earlier, drawn
     // camera-relative and retired after their 0.09 s of flight time.
     currentScene.shots.update(cameraWorld, currentState.flightTime, {
