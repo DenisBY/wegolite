@@ -182,7 +182,9 @@ describe("the committed Coriolis GLB", () => {
 
     expect(halfX).toBeCloseTo(500, 2);
     expect(halfY).toBeCloseTo(500, 2);
-    expect(layout.station.radius).toBe(500);
+    // The collision radius is Oolite's (it includes the dock subentity), not
+    // the hull half-extent (quick task 261117-k1l).
+    expect(layout.station.radius).toBe(779.3702392578125);
   });
 
   it("has a z extent that includes the dock tunnel and is not the radius", () => {

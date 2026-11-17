@@ -494,7 +494,11 @@ function marketDefinitionToJson(definition: MarketDefinition): PlistJson {
   return { kind: definition.kind };
 }
 
-function entryToJson(entry: CatalogEntry, mass?: number): PlistJson {
+function entryToJson(
+  entry: CatalogEntry,
+  mass?: number,
+  collisionRadius?: number,
+): PlistJson {
   return {
     key: entry.key,
     isTemplate: entry.isTemplate,
@@ -506,6 +510,7 @@ function entryToJson(entry: CatalogEntry, mass?: number): PlistJson {
     shipDef: shipDefToJson(entry.shipDef),
     extras: recordToJson(entry.extras),
     ...(mass === undefined ? {} : { mass }),
+    ...(collisionRadius === undefined ? {} : { collisionRadius }),
   };
 }
 
@@ -532,8 +537,9 @@ export const CLIENT_SHIPS_PATH = "src/content/generated/ships-client.json";
  * entry is carried for its computed mass only, which Phase 12 reads for both
  * buoys (they share the model and the core subentity); the owner chose this
  * home in plan 10-03, which amends D-05. All three entries carry their
- * computed Oolite `mass` (DATA-11); the complete catalogue carries none. Sorted
- * by code unit, like the catalogue.
+ * computed Oolite `mass` (DATA-11) and their Oolite `collisionRadius`, the hull
+ * radius extended by solid subentities (quick task 261117-k1l); the complete
+ * catalogue carries neither. Sorted by code unit, like the catalogue.
  */
 export const CLIENT_SHIP_KEYS: readonly string[] = [
   "buoy",
@@ -543,15 +549,17 @@ export const CLIENT_SHIP_KEYS: readonly string[] = [
 
 /**
  * Serialise only the client's entries, in catalogue order, each with its
- * computed mass from `masses` (DATA-11).
+ * computed mass from `masses` (DATA-11) and its collision radius from `radii`
+ * (quick task 261117-k1l).
  *
  * @throws {Error} when a client key is not in the compiled catalogue, or has
- * no computed mass, so a renamed shipdata entry fails the content build instead
- * of the game's boot.
+ * no computed mass or collision radius, so a renamed shipdata entry fails the
+ * content build instead of the game's boot.
  */
 export function emitClientShips(
   catalogue: ShipCatalogue,
   masses: ReadonlyMap<string, number>,
+  radii: ReadonlyMap<string, number>,
 ): EmittedShips {
   const entries = catalogue.entries.filter((entry) =>
     CLIENT_SHIP_KEYS.includes(entry.key),
@@ -567,12 +575,19 @@ export function emitClientShips(
         `Wegolite: no computed mass for "${key}" in ${CLIENT_SHIPS_PATH}.`,
       );
     }
+    if (!radii.has(key)) {
+      throw new Error(
+        `Wegolite: no computed collision radius for "${key}" in ${CLIENT_SHIPS_PATH}.`,
+      );
+    }
   }
   return {
     path: CLIENT_SHIPS_PATH,
     bytes: Buffer.from(
       canonicalJson(
-        entries.map((entry) => entryToJson(entry, masses.get(entry.key))),
+        entries.map((entry) =>
+          entryToJson(entry, masses.get(entry.key), radii.get(entry.key)),
+        ),
       ),
       "utf8",
     ),

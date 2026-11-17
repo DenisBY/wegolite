@@ -20,9 +20,9 @@
  * the typed projection exposes a boolean while `extras.subentities` keeps the
  * authored string.
  *
- * An entry may carry the build-time Oolite `mass` (DATA-11), but only the
- * client file's two entries do; the compiler's in-memory catalogue and
- * `ships.json` carry none.
+ * An entry may carry the build-time Oolite `mass` (DATA-11) and collision
+ * radius, but only the client file's entries do; the compiler's catalogue and
+ * `ships.json` carry neither.
  */
 
 import { z } from "zod";
@@ -95,6 +95,8 @@ export const CatalogEntrySchema = z.strictObject({
   // Present only on the client file's entries: the float32 mass computed at
   // build time (DATA-11). The in-memory catalogue and ships.json carry none.
   mass: z.number().positive().optional(),
+  // Client file only: Oolite's float32 collision radius, hull plus solid subentities.
+  collisionRadius: z.number().positive().optional(),
 });
 
 export const ShipCatalogueSchema = z.array(CatalogEntrySchema);

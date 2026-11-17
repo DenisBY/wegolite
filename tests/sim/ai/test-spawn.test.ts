@@ -419,7 +419,7 @@ describe("spawnTestFlyers", () => {
       script: "station",
       phase: "start",
       targetId: 0,
-      range: 2_500,
+      range: 3_500,
       speed: 80,
       frustrated: 0,
     });
@@ -628,10 +628,10 @@ describe("spawnTestFlyers", () => {
 });
 
 describe("FLYER_SCRIPT_RANGES", () => {
-  it("is frozen and equals the three ranges plan 14-07 committed", () => {
+  it("is frozen and equals the three ranges plan 14-07 committed, the station range revised in quick task 261117-k1l", () => {
     expect(Object.isFrozen(FLYER_SCRIPT_RANGES)).toBe(true);
     expect(FLYER_SCRIPT_RANGES).toEqual({
-      station: 2_500,
+      station: 3_500,
       intercept: 1_500,
       flee: 25_600,
     });

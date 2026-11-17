@@ -11,7 +11,7 @@
  * centre with its nose pointing directly away from it (the pose a launch
  * leaves), so the station flyer, 3,000 m off the player's left, starts
  * sqrt(4,000^2 + 3,000^2) = 5,000 m from the station centre and has to cover
- * 2,500 m before its goal. The records are the committed `shuttle` (station),
+ * 1,500 m before its goal. The records are the committed `shuttle` (station),
  * `viper` (intercept) and `adder` (flee), the same three plan 14-18's hook uses.
  *
  * Nothing here computes an expected trajectory from the port: every bound is the
@@ -320,7 +320,7 @@ describe("the scripted flyers in a Lave world (WORLD-07)", () => {
     // Not vacuous: it reached the goal from 5,000 m, so the checks below cover
     // the whole approach.
     expect(flyer.start).toBeGreaterThan(4_999);
-    expect(flyer.minStationDistance).toBeGreaterThan(500);
+    expect(flyer.minStationDistance).toBeGreaterThan(layout.station.radius);
     expect(flyer.alertOnStation).toBe(false);
   });
 

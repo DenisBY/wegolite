@@ -596,20 +596,20 @@ describe("case (b): a head-on pair, the order of alert, avoid and resume only", 
 });
 
 describe("case (c): the main station dead ahead", () => {
-  it("alerts at the first tick whose centre distance is below 2,000 m, and avoids with ten radii", () => {
+  it("alerts at the first tick whose centre distance is below four station radii, and avoids with ten radii", () => {
     // In Oolite a pair trigger alone is not the whole rule: the collision-chain
     // prefilter (Universe.m:6713-6760, 7045-7073) would alert an isolated
-    // station-and-ship pair only within 2 x (500 + r) = about 1,070 m per axis.
+    // station-and-ship pair only within 2 x (779.37 + r) = about 1,629 m per axis.
     // Near the station the planet chains every entity: in the Lave world the
     // station sits about (-49.5, 60.8, 25.1) km from the planet centre, inside
     // the planet's +-2R = +-82.3 km interval on every axis (Universe.m:1541-1547;
     // the planet collides, Entity.m:825, with its radius as collision radius,
-    // OOPlanetEntity.m:120), so a ship within 3,000 m of the station lies inside
-    // it with at least 18 km to spare and the planet chains the pair. 2,000 m
+    // OOPlanetEntity.m:120), so a ship within 4,100 m of the station lies inside
+    // it with at least 17 km to spare and the planet chains the pair. 3,117.48 m
     // (4 x the station radius) is therefore Oolite's rule here.
     const station = layout.station;
-    expect(station.radius).toBe(500);
-    const start = 2900;
+    expect(station.radius).toBe(779.3702392578125);
+    const start = 4 * station.radius + 900;
     const world = createWorld(1);
     const player = playerAt();
     const ship = spawnShip(world, {
@@ -631,7 +631,7 @@ describe("case (c): the main station dead ahead", () => {
     // the closed form: centre distance after t ticks of the straight approach
     let expected = -1;
     for (let t = 1; t < 2000; t += 1) {
-      if (start - PER_TICK * t < 2000) {
+      if (start - PER_TICK * t < 4 * station.radius) {
         expected = t;
         break;
       }

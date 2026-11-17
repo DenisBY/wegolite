@@ -21,6 +21,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The Coriolis station and both buoys now use Oolite's collision sizes, about
+  779 m and 59 m instead of 500 m and 10 m. As a result, NPC ships keep further
+  from the station, ships placed near the station appear a little further out,
+  an arrival very close to the witchpoint lands slightly further from the
+  buoy, and the station and buoys reach the scanner edge a little sooner.
 - A ship your lasers bring to zero energy is now destroyed: it disappears from
   the view and the scanner, and an ident lock on it ends with "Target lost.".
 - The ship's clock at the top left of the flight view is now drawn at the same

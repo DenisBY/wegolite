@@ -13,6 +13,11 @@
  * plain strings; the station radius is restated as `STATION_RADIUS_M`), so the
  * numbers of record cannot move with the code they gate.
  *
+ * The owner approved a second commit of this file on 2026-11-17 (quick task
+ * 261117-k1l, carrying the trailer below): it changed only `STATION_RADIUS_M`
+ * to Oolite's station collision radius and `STATION_SCRIPT_RANGE_M` to
+ * 3,500 m, with the prose that restates them.
+ *
  * ## The frozen set (one definition, used identically by plans 14-07, 14-17
  * and 14-19 and by 14-VALIDATION.md)
  *
@@ -151,20 +156,21 @@ export const SCRIPT_MAPPING: readonly ScriptMappingRow[] = Object.freeze([
 
 /**
  * The station script's range: the goal is met at a centre distance from the
- * flyer to the station centre at or below 2,500 m. It lies outside the
- * station's proximity trigger of 4 x 500 m = 2,000 m
+ * flyer to the station centre at or below 3,500 m. It lies outside the
+ * station's proximity trigger of 4 x 779.37 m = 3,117.48 m
  * (`CollisionRegion.m:298-314`, the outer prefilter at 299 and the trigger at
  * 309, with `Universe.h:99-100`) by more than the worst stopping distance,
- * the Sidewinder's 370 x 370 / (2 x 5 x 37) = 370 m. The 2,000 m trigger is
- * the rule near the station in Wegolite, which has no prefilter, and in
- * Oolite, whose collision-chain prefilter would alert an isolated
- * station-and-ship pair only within 2 x (500 + r), about 1,070 m per axis, but
- * is a no-op near the station because the planet chains every entity there
- * (see `FLYER_START_OFFSETS`); so 2,500 m is conservative in both. Plan 14-17
- * asserts the three script ranges equal the constants plan 14-16's spawner
- * exports.
+ * the Sidewinder's 370 x 370 / (2 x 5 x 37) = 370 m: 3,117.48 + 370 =
+ * 3,487.48 m <= 3,500 m. The 3,117.48 m trigger is the rule near the station
+ * in Wegolite, which has no prefilter, and in Oolite, whose collision-chain
+ * prefilter would alert an isolated station-and-ship pair only within
+ * 2 x (779.37 + r), about 1,630 m per axis, but is a no-op near the station
+ * because the planet chains every entity there (see `FLYER_START_OFFSETS`); so
+ * 3,500 m is conservative in both. Plan 14-17 asserts the three script ranges
+ * equal the constants plan 14-16's spawner exports. Raised from 2,500 m with
+ * the station radius (owner, 2026-11-17, quick task 261117-k1l).
  */
-export const STATION_SCRIPT_RANGE_M = 2_500;
+export const STATION_SCRIPT_RANGE_M = 3_500;
 
 /**
  * The intercept script's range: the goal is met when `rangeToPrimaryTarget`
@@ -301,12 +307,13 @@ export const MAX_FROZEN_WINDOWS = 0;
 // ---------------------------------------------------------------------------
 
 /**
- * The station's collision radius, 500 m, restated from
+ * The station's collision radius, Oolite's compiled 779.3702392578125 m (hull
+ * plus the dock subentity, quick task 261117-k1l), restated from
  * `layout.station.radius`. The layout builds it from the unexported
  * `STATION_RADIUS` (`src/sim/world/layout.ts:71`), which this file cannot
  * import; plan 14-17 asserts the two agree.
  */
-export const STATION_RADIUS_M = 500;
+export const STATION_RADIUS_M = 779.3702392578125;
 
 /**
  * Ticks allowed with a flyer origin strictly inside the station's collision
@@ -520,8 +527,8 @@ export const PLAYER_PARK_AXIS_ORDER: readonly ParkingAxis[] = Object.freeze([
 ]);
 
 /**
- * The player's distance from the station centre when parked, 6,000 m (5,500 m
- * outside the station sphere).
+ * The player's distance from the station centre when parked, 6,000 m (about
+ * 5,220.6 m outside the station sphere).
  */
 export const PLAYER_PARK_DISTANCE_M = 6_000;
 
@@ -574,7 +581,7 @@ function offset(
  * player, in metres (for Lave: a = +x, b = +y, c = +z):
  *
  * - index 0 at S + 12,000 b and index 6 at S - 12,000 b (station: centre
- *   distance 12,000 at t0, goal at or below 2,500);
+ *   distance 12,000 at t0, goal at or below 3,500);
  * - index 1 at P + 15,000 c and index 7 at P - 15,000 c (intercept:
  *   `rangeToPrimaryTarget` about 14,900 at t0, above the 1,500 goal and inside
  *   the 1.25 x 25,600 = 32,000 m tracking limit, `ShipEntity.m:8705-8708`,
@@ -588,7 +595,7 @@ function offset(
  *   0.035 x 15,000, 4128);
  * - index 4 at the start of index 0 + 1,500 c and index 10 at the start of
  *   index 6 + 1,500 c (escorts beside their leaders);
- * - index 5 at S - 4,000 c (face: outside the station's 2,000 m proximity
+ * - index 5 at S - 4,000 c (face: outside the station's 3,117.5 m proximity
  *   trigger) and index 11 at P + 8,000 c + 83 a (face, parked beside index 1's
  *   track: the designed near pass below).
  *
@@ -612,7 +619,7 @@ function offset(
  *
  * Without one, no placement raises an alert: attackers turn at range 525 m and
  * never come within the player's 291 m pair trigger, station flyers stop at
- * least 2,430 m from the station and interceptors at least 1,130 m from the
+ * least 3,430 m from the station and interceptors at least 1,130 m from the
  * player, so a port whose proximity pass or AVOID_COLLISION were dead code
  * would pass all 20 seeds. The pass: index 1 starts at P + 15,000 c at speed 0
  * with the identity orientation, whose nose (local -Z, the world -c) points
@@ -704,8 +711,8 @@ export const NEAR_PLAYER_RADIUS_M = 1_000;
  * nothing).
  *
  * - `stationArrivals` >= 20 of the 40 station flyers (arrival = goal met at
- *   any tick; each starts 9,500 m outside its goal, which the Adder, the
- *   slowest record these slots draw, covers in about 40 s of the 150 s
+ *   any tick; each starts 8,500 m outside its goal, which the Adder, the
+ *   slowest record these slots draw, covers in about 35 s of the 150 s
  *   horizon);
  * - `interceptArrivals` >= 20 of 40 (about 13,400 m to cover, about 56 s for
  *   an Adder, plus a few seconds for index 1's avoidance);

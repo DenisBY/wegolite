@@ -1,5 +1,6 @@
 [
   {
+    "collisionRadius": 59.13554763793945,
     "extras": {
       "ai_type": "buoyAI.plist",
       "beacon": "N0100 Navigation Buoy",
@@ -207,6 +208,7 @@
     "usable": true
   },
   {
+    "collisionRadius": 779.3702392578125,
     "extras": {
       "ai_type": "oolite-stationAI.js",
       "allegiance": "galcop",
@@ -713,6 +715,7 @@
     "usable": true
   },
   {
+    "collisionRadius": 72.69734954833984,
     "extras": {
       "aft_eject_position": "0.0 -13.25 -23.8",
       "ai_type": "oolite-traderAI.js",

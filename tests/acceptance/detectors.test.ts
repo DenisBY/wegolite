@@ -530,17 +530,17 @@ describe("the station sphere", () => {
     const station = vec(10_000, 0, 0);
     const observer = observerFor([flyer(101, 0, "face")], NO_ACCEPTED, station);
     observer.start(sample([ship(101, { position: vec(9_000, 0, 0) })]));
-    for (const x of [9_400, 9_501, 9_502, 9_500]) {
+    for (const x of [9_100, 9_221, 9_222, 9_220.6297607421875]) {
       observer.observe(sample([ship(101, { position: vec(x, 0, 0) })]));
     }
     const result = observer.result();
-    // 499 m and 498 m from the centre at x = 9,501 and 9,502; exactly 500 m at
-    // x = 9,500 and 600 m at x = 9,400 are not strictly inside.
+    // 779 m and 778 m from the centre at x = 9,221 and 9,222; exactly the radius
+    // at x = 9,220.6297607421875 and 900 m at x = 9,100 are not strictly inside.
     expect(result.stationSphere).toEqual({ count: 2, firstTick: 1 });
     expect(seedBreaches(result)).toContain(
       "station-sphere entries: 2 (limit 0, first at tick 1)",
     );
-    expect(result.minStationClearance).toBeCloseTo(-2, 9);
+    expect(result.minStationClearance).toBeCloseTo(-1.3702392578125, 9);
   });
 });
 
@@ -785,7 +785,7 @@ describe("the clean control", () => {
       ship(101, {
         position: vec(0.5 * k, 0, 0),
         desiredSpeed: 80,
-        goalMetric: 12_000 - 0.5 * k,
+        goalMetric: 12_000 - 0.4 * k,
         behaviour: "FLY_RANGE_FROM_DESTINATION",
       }),
       ship(102, {

@@ -39,7 +39,10 @@ import { emitLabels } from "./convert/labels.js";
 import { NPC_SHIP_KEYS, emitNpcShips } from "./convert/npc-ships.js";
 import { computeShipMasses } from "./convert/ship-mass.js";
 import { emitShipHulls } from "./convert/ship-hulls.js";
-import { computeShipRadii } from "./convert/ship-radius.js";
+import {
+  computeCollisionRadii,
+  computeShipRadii,
+} from "./convert/ship-radius.js";
 import {
   CLIENT_SHIP_KEYS,
   compileShips,
@@ -190,6 +193,14 @@ export async function generateContent({
   // The NPC collision radii read the same parsed meshes, for the same reason.
   const radii = computeShipRadii(NPC_SHIP_KEYS, catalogue, models);
 
+  // The client entries' collision radii include the solid subentity term
+  // (ShipEntity.m:2028-2044); the station's dock subentity sets its radius.
+  const clientRadii = computeCollisionRadii(
+    CLIENT_SHIP_KEYS,
+    catalogue,
+    models,
+  );
+
   // The debris models (DATA-16) are read because MODEL_SOURCE_FILES lists
   // them; their masses and radii come from the same parsed meshes.
   const debrisKeys = DEBRIS_ENTRIES.map((entry) => entry.key);
@@ -202,7 +213,7 @@ export async function generateContent({
     emitEquipment(equipment),
     emitLabels(descriptions),
     emitShipsFromCatalogue(catalogue),
-    emitClientShips(catalogue, masses),
+    emitClientShips(catalogue, masses, clientRadii),
     emitNpcShips(catalogue, masses, radii, models),
     emitDebris(catalogue, debrisMasses, debrisRadii),
     emitExplosions(explosions),

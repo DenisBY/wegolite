@@ -123,7 +123,7 @@ export const TEST_FLYER_DISTANCE = 3_000;
  * literal (`AI_MODULE_STATE_BANS`).
  */
 export const FLYER_SCRIPT_RANGES = Object.freeze({
-  station: 2_500,
+  station: 3_500,
   intercept: 1_500,
   flee: 25_600,
 });

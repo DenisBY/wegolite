@@ -8,7 +8,9 @@
  * distance from the model origin (`OOMesh.m:1795-1822`). The Viper's value is
  * recomputed here by a loop that shares no code with `ship-radius.ts` (a
  * `Float32Array` does the float32 rounding), and the expected nine values live in
- * `tests/golden/content/ships-npc.json`.
+ * `tests/golden/content/ships-npc.json`. The client entries' radii, which add
+ * the solid subentity term (`ShipEntity.m:2028-2044`), are pinned to the values
+ * measured in a running Oolite (quick task 261117-jji).
  */
 
 import { readFileSync } from "node:fs";
@@ -24,7 +26,12 @@ import { parseDat } from "./dat.js";
 import type { ParsedMesh } from "./dat.js";
 import { MODEL_SOURCE_FILES } from "./glb.js";
 import { NPC_SHIP_KEYS } from "./npc-ships.js";
-import { computeShipRadii, hullRadius } from "./ship-radius.js";
+import {
+  collisionRadius,
+  computeCollisionRadii,
+  computeShipRadii,
+  hullRadius,
+} from "./ship-radius.js";
 import { MODELS_DIR, SHIPDATA_FILE, compileShips } from "./ships.js";
 import type { ShipCatalogue } from "./ships.js";
 
@@ -232,5 +239,141 @@ describe("computeShipRadii", () => {
     expect(computeShipRadii(["viper"], flasher, meshes).get("viper")).toBe(
       radii.get("viper"),
     );
+  });
+});
+
+describe("collisionRadius (quick task 261117-k1l)", () => {
+  const radii = computeCollisionRadii(
+    ["buoy", "coriolis-station", "oolite_template_cobra3-player"],
+    catalogue,
+    meshes,
+  );
+
+  it("equals the float32 radii measured in a running Oolite (quick task 261117-jji)", () => {
+    expect(radii.get("coriolis-station")).toBe(779.3702392578125);
+    expect(radii.get("buoy")).toBe(59.13554763793945);
+    expect(radii.get("oolite_template_cobra3-player")).toBe(72.69734954833984);
+  });
+
+  it("gives both buoys the same radius: the core subentity lies inside the hull", () => {
+    expect(collisionRadius("buoy-witchpoint", catalogue, meshes)).toBe(
+      59.13554763793945,
+    );
+    expect(radii.get("buoy")).toBe(independentRadius("oolite_buoy.dat"));
+  });
+
+  it("grows the Coriolis beyond its hull through the dock subentity", () => {
+    expect(independentRadius("oolite_coriolis.dat")).toBe(702.1246337890625);
+    expect(radii.get("coriolis-station")).toBeGreaterThan(702.1246337890625);
+  });
+
+  it("takes each subentity radius from its own hull, as the measured SUB values", () => {
+    expect(independentRadius("oolite_coriolis_dock.dat")).toBe(
+      279.1141662597656,
+    );
+    expect(independentRadius("oolite_coriolis_faceplate.dat")).toBe(
+      702.1246337890625,
+    );
+    expect(independentRadius("oolite_coriolis_tris.dat")).toBe(
+      702.1246337890625,
+    );
+    expect(independentRadius("oolite_buoy_subents.dat")).toBe(
+      25.8226470947265625,
+    );
+  });
+
+  it("matches an independent recomputation of the Coriolis dock term", () => {
+    const station = catalogue.entries.find(
+      (entry) => entry.key === "coriolis-station",
+    );
+    const dock = station?.shipDef.subentities.find(
+      (subentity) => subentity.isDock === true,
+    );
+    const position = dock?.position;
+    if (position === undefined) throw new Error("no dock position");
+    const f32 = new Float32Array([
+      Math.sqrt(position.reduce((sum, value) => sum + value * value, 0)) +
+        independentRadius("oolite_coriolis_dock.dat"),
+    ]);
+    expect(f32[0]).toBe(779.3702392578125);
+    expect(radii.get("coriolis-station")).toBe(f32[0]);
+  });
+
+  it("ignores a flasher placed far out", () => {
+    const far = withEntry("buoy", (entry) => ({
+      ...entry,
+      shipDef: {
+        ...entry.shipDef,
+        subentities: [
+          ...entry.shipDef.subentities,
+          { type: "flasher", position: [0, 0, 10_000] },
+        ],
+      },
+    }));
+    expect(collisionRadius("buoy", far, meshes)).toBe(59.13554763793945);
+  });
+
+  it("counts a solid subentity placed far out", () => {
+    const far = withEntry("buoy", (entry) => ({
+      ...entry,
+      shipDef: {
+        ...entry.shipDef,
+        subentities: [
+          ...entry.shipDef.subentities,
+          {
+            type: "standard",
+            subentity_key: "oolite_buoy_subentity",
+            position: [0, 0, 1_000],
+          },
+        ],
+      },
+    }));
+    expect(collisionRadius("buoy", far, meshes)).toBe(
+      Math.fround(1_000 + 25.8226470947265625),
+    );
+  });
+
+  it("fails naming the key for a solid subentity without a subentity_key", () => {
+    const keyless = withEntry("buoy", (entry) => ({
+      ...entry,
+      shipDef: {
+        ...entry.shipDef,
+        subentities: [{ type: "standard", position: [0, 0, 0] }],
+      },
+    }));
+    const error = capture(() => collisionRadius("buoy", keyless, meshes));
+    expect(error.code).toBe("SCHEMA");
+    expect(error.construct).toBe("buoy");
+    expect(error.excerpt).toMatch(/no subentity_key/);
+  });
+
+  it("fails naming the key for a solid subentity without a position", () => {
+    const placeless = withEntry("buoy", (entry) => ({
+      ...entry,
+      shipDef: {
+        ...entry.shipDef,
+        subentities: [{ subentity_key: "oolite_buoy_subentity" }],
+      },
+    }));
+    const error = capture(() => collisionRadius("buoy", placeless, meshes));
+    expect(error.code).toBe("SCHEMA");
+    expect(error.construct).toBe("buoy");
+    expect(error.excerpt).toMatch(/no position/);
+  });
+
+  it("fails naming the key for a nested solid subentity", () => {
+    const nested = withEntry("oolite_buoy_subentity", (entry) => ({
+      ...entry,
+      shipDef: {
+        ...entry.shipDef,
+        subentities: [
+          { subentity_key: "oolite_buoy_subentity", position: [0, 0, 0] },
+        ],
+      },
+    }));
+    const error = capture(() => collisionRadius("buoy", nested, meshes));
+    expect(error.code).toBe("SCHEMA");
+    expect(error.construct).toBe("buoy");
+    expect(error.excerpt).toMatch(/nested radius term is not ported/);
   });
 });

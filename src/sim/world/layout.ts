@@ -67,10 +67,10 @@ export interface SystemLayout {
   readonly rotationSpeed: number;
 }
 
-/** The Coriolis collision radius; the GLB's z extent includes the dock tunnel. */
-const STATION_RADIUS = 500;
-const NAV_BUOY_RADIUS = 10;
-const WITCHPOINT_RADIUS = 10;
+/** Oolite's collision radii (hull plus solid subentities, ShipEntity.m:2028-2044), compiled into ships-client.json by tools/oolite-ingest/convert/ship-radius.ts, kept as literals because src/sim may not import the content catalogue, and pinned by tests/sim/layout.test.ts. */
+const STATION_RADIUS = 779.3702392578125;
+const NAV_BUOY_RADIUS = 59.13554763793945;
+const WITCHPOINT_RADIUS = 59.13554763793945;
 const NAV_BUOY_OFFSET = 10_000;
 const SCANNER_RANGE = 25_600;
 const STATION_AEGIS_RANGE = 51_200;

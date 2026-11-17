@@ -33,7 +33,9 @@ Open numbers (our value, what to confirm):
 Measured (quick task 261117-jji, 2026-11-17): the Coriolis, both buoys, the Cobra Mk III and the nine NPC
 masses are all bit-exact equal to Wegolite's values in a running Oolite 1.93.1-255 (13 of 13 EQUAL), and so are
 the nine NPC radii and the Cobra radius. The Coriolis and buoy collision radii differ from the layout constants
-(779.37 against 500, 59.14 against 10): those are Wegolite's own values, left unchanged. Values and verdicts are
+(779.37 against 500, 59.14 against 10): those are Wegolite's own values, left unchanged. Quick task 261117-k1l
+(2026-11-17) resolved that radius gap: the layout now uses the measured values, compiled from the meshes by
+Oolite's subentity rule into ships-client.json. Values and verdicts are
 in the FIDELITY.md Constants ledger; the run evidence is in the quick task's SUMMARY. The mass-lock range and
 the blockage with real ships stay open.
 

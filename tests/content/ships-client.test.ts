@@ -7,8 +7,9 @@
  * The game reads two entries of the 194 the compiler emits. `ships-client.json`
  * carries those two plus the navigation buoy, which is carried for its mass
  * only (owner decision in plan 10-03; Phase 12 reads it). Each entry appears as
- * in the complete `ships.json` plus its Oolite `mass` (DATA-11), and the client
- * source imports only the trimmed file. `ships.json` itself carries no mass.
+ * in the complete `ships.json` plus its Oolite `mass` (DATA-11) and its Oolite
+ * `collisionRadius` (quick task 261117-k1l), and the client source imports only
+ * the trimmed file. `ships.json` itself carries neither.
  */
 
 import { readFileSync } from "node:fs";
@@ -30,6 +31,7 @@ import { ShipCatalogueSchema } from "../../src/content/schemas/ship.js";
 interface Entry {
   readonly key: string;
   readonly mass?: number;
+  readonly collisionRadius?: number;
 }
 
 function readJson(relative: string): Entry[] {
@@ -47,10 +49,11 @@ describe("ships-client.json", () => {
     expect([...CLIENT_SHIP_KEYS]).toEqual([...CLIENT_SHIP_KEYS].sort());
   });
 
-  it("copies each entry unchanged from the complete catalogue, apart from the mass", () => {
+  it("copies each entry unchanged from the complete catalogue, apart from the mass and radius", () => {
     for (const entry of client) {
-      const { mass: _mass, ...rest } = entry;
+      const { mass: _mass, collisionRadius: _radius, ...rest } = entry;
       void _mass;
+      void _radius;
       expect(rest).toEqual(full.find((other) => other.key === entry.key));
     }
   });
@@ -63,13 +66,23 @@ describe("ships-client.json", () => {
     expect(mass("oolite_template_cobra3-player")).toBe(214737.6875);
   });
 
+  it("carries Oolite's collision radius on each client entry, as measured in quick task 261117-jji", () => {
+    const radius = (key: string): number | undefined =>
+      client.find((entry) => entry.key === key)?.collisionRadius;
+    expect(radius("buoy")).toBe(59.13554763793945);
+    // The dock subentity sets it: fround(500.2561 + 279.1141662597656).
+    expect(radius("coriolis-station")).toBe(779.3702392578125);
+    expect(radius("oolite_template_cobra3-player")).toBe(72.69734954833984);
+  });
+
   it("validates against the strict catalogue schema", () => {
     expect(ShipCatalogueSchema.safeParse(client).success).toBe(true);
   });
 
-  it("keeps the complete catalogue free of mass", () => {
+  it("keeps the complete catalogue free of mass and collision radius", () => {
     for (const entry of full) {
       expect(entry).not.toHaveProperty("mass");
+      expect(entry).not.toHaveProperty("collisionRadius");
     }
   });
 
@@ -111,7 +124,9 @@ describe("the client loader", () => {
 describe("emitClientShips", () => {
   it("fails the content build when a client entry is missing", () => {
     const empty = { entries: [] } as unknown as ShipCatalogue;
-    expect(() => emitClientShips(empty, new Map())).toThrow(/has no "buoy"/);
+    expect(() => emitClientShips(empty, new Map(), new Map())).toThrow(
+      /has no "buoy"/,
+    );
   });
 
   it("fails the content build when a client entry has no computed mass", () => {
@@ -119,8 +134,19 @@ describe("emitClientShips", () => {
     const catalogue = {
       entries: CLIENT_SHIP_KEYS.map(entry),
     } as unknown as ShipCatalogue;
-    expect(() => emitClientShips(catalogue, new Map())).toThrow(
+    expect(() => emitClientShips(catalogue, new Map(), new Map())).toThrow(
       /no computed mass for "buoy"/,
+    );
+  });
+
+  it("fails the content build when a client entry has no computed collision radius", () => {
+    const entry = (key: string): unknown => ({ key });
+    const catalogue = {
+      entries: CLIENT_SHIP_KEYS.map(entry),
+    } as unknown as ShipCatalogue;
+    const masses = new Map(CLIENT_SHIP_KEYS.map((key) => [key, 1]));
+    expect(() => emitClientShips(catalogue, masses, new Map())).toThrow(
+      /no computed collision radius for "buoy"/,
     );
   });
 });

@@ -257,7 +257,9 @@ describe("torus teleport point", () => {
   });
 
   it("has the researched torus factor at that point", () => {
-    expect(ENGAGED_FACTOR).toBeCloseTo(34.568_772_034_887_2, 9);
+    // 32 x sqrt((120,000 - 779.3702392578125) / 102,400): the station surface,
+    // with Oolite's station collision radius (quick task 261117-k1l).
+    expect(ENGAGED_FACTOR).toBeCloseTo(34.528_340_498_891_95, 9);
     expect(torusFactor(nearestSurfaceDistance(TORUS_TEST_POINT, layout))).toBe(
       ENGAGED_FACTOR,
     );
@@ -309,7 +311,8 @@ describe("engaging and disengaging", () => {
     flightStep(state);
 
     expect(state.torus.engaged).toBe(true);
-    expect(state.torus.factor).toBeCloseTo(63.206_012_372_241_93, 6);
+    // 32 x sqrt((400,000 - 779.3702392578125) / 102,400) (quick task 261117-k1l).
+    expect(state.torus.factor).toBeCloseTo(63.183_908_533_798_55, 6);
     expect(state.torus.factor).toBeGreaterThan(firstFactor);
   });
 

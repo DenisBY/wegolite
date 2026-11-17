@@ -21,6 +21,8 @@
  *    placed behind or beside the station.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import type { System } from "../../src/content/types.js";
@@ -121,8 +123,8 @@ describe("Lave system layout", () => {
   });
 
   it("pins the nav buoy on the station→planet axis and the witchpoint at the origin", () => {
-    expect(layout.navBuoy.radius).toBe(10);
-    expect(layout.witchpoint.radius).toBe(10);
+    expect(layout.navBuoy.radius).toBe(59.13554763793945);
+    expect(layout.witchpoint.radius).toBe(59.13554763793945);
 
     expect(
       distance(layout.navBuoy.position, layout.station.position),
@@ -145,6 +147,32 @@ describe("Lave system layout", () => {
       [-43_460.921_469_474, 53_367.986_762_848_275, -430_704.124_711_831_04],
       3,
     );
+  });
+
+  it("pins the station and buoy radii to the compiled collisionRadius and to the radii measured in Oolite", () => {
+    const catalogue = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../src/content/generated/ships-client.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as { key: string; collisionRadius?: number }[];
+    const radius = (key: string): number => {
+      const value = catalogue.find(
+        (entry) => entry.key === key,
+      )?.collisionRadius;
+      if (value === undefined) throw new Error(`no ${key} collisionRadius`);
+      return value;
+    };
+    expect(layout.station.radius).toBe(radius("coriolis-station"));
+    expect(layout.navBuoy.radius).toBe(radius("buoy"));
+    expect(layout.witchpoint.radius).toBe(radius("buoy"));
+    // The float32 values read from a running Oolite in quick task 261117-jji.
+    expect(layout.station.radius).toBe(779.3702392578125);
+    expect(layout.navBuoy.radius).toBe(59.13554763793945);
+    expect(layout.witchpoint.radius).toBe(59.13554763793945);
   });
 
   it("runs the sun safe-distance loop when the authored distance is too small", () => {
