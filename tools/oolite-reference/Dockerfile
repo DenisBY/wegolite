@@ -8,31 +8,34 @@
 #   assets. It is built on the test machine for reference measurements only,
 #   is never published to a registry, and is part of neither compose.yaml nor
 #   any gate (verify, verify-full, CI).
-# - Oolite 1.93.1-255 is fetched from the pinned release URL and verified
-#   against the pinned SHA256 (`sha256sum -c`); a mismatch fails the build.
+# - The Oolite version is set once, as the global ARG OOLITE_VERSION. The
+#   release URL is built from it, and the download is checked against the
+#   pinned APPIMAGE_SHA256 with `sha256sum -c`; a mismatch fails the build.
 #   The AppImage is extracted at build time, so FUSE is not needed at run time.
 # - The base is pinned by index digest, as reported by
 #   `docker buildx imagetools inspect debian:bookworm-slim`.
-FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS fetch
 ARG OOLITE_VERSION=1.93.1-255
-ARG APPIMAGE_URL=https://github.com/OoliteProject/oolite/releases/download/1.93.1-255/Oolite-1.93.1-255-deployment-x86_64.AppImage
 ARG APPIMAGE_SHA256=4ec9ab5fc6743538c95b97b590674f5d386dd07c16565aa1389dc40f15bd66a8
+FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS fetch
+# A global ARG must be re-declared inside a stage to be visible there.
+ARG OOLITE_VERSION
+ARG APPIMAGE_SHA256
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /work
-RUN curl -fsSL --retry 3 -o oolite.AppImage "$APPIMAGE_URL" \
+RUN curl -fsSL --retry 3 -o oolite.AppImage \
+      "https://github.com/OoliteProject/oolite/releases/download/${OOLITE_VERSION}/Oolite-${OOLITE_VERSION}-deployment-x86_64.AppImage" \
     && echo "$APPIMAGE_SHA256  oolite.AppImage" | sha256sum -c - \
     && chmod +x oolite.AppImage \
     && ./oolite.AppImage --appimage-extract >/dev/null \
-    && ls \
     && mv squashfs-root /opt/oolite \
     && chmod -R a+rX /opt/oolite \
     && rm -f oolite.AppImage
 
 FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS runtime
-ARG OOLITE_VERSION=1.93.1-255
-ARG APPIMAGE_SHA256=4ec9ab5fc6743538c95b97b590674f5d386dd07c16565aa1389dc40f15bd66a8
+ARG OOLITE_VERSION
+ARG APPIMAGE_SHA256
 # Mesa is NOT bundled in the AppImage (DEPLOY_OPENGL=0), so the image provides
 # libGL and the llvmpipe software rasteriser.
 RUN apt-get update \

@@ -39,7 +39,7 @@ remaining() {
 # ---------------------------------------------------------------------------
 # Validate the WHOLE steps file before starting anything.
 # ---------------------------------------------------------------------------
-[[ "$TIMEOUT_TOTAL" =~ ^[0-9]+$ ]] || die_usage "OOREF_TIMEOUT must be an integer"
+[[ "$TIMEOUT_TOTAL" =~ ^[1-9][0-9]{0,4}$ ]] || die_usage "OOREF_TIMEOUT must be an integer from 1 to 99999"
 [ -r "$STEPS" ] || die_usage "steps file $STEPS is not readable"
 lineno=0
 while IFS= read -r line || [ -n "$line" ]; do
@@ -54,10 +54,10 @@ while IFS= read -r line || [ -n "$line" ]; do
   rest="${rest%"${rest##*[![:space:]]}"}"
   case "$verb" in
     window)
-      [[ -z "$rest" || "$rest" =~ ^[0-9]+$ ]] || die_usage "line $lineno: window takes an optional integer timeout"
+      [[ -z "$rest" || "$rest" =~ ^[1-9][0-9]{0,4}$ ]] || die_usage "line $lineno: window takes an optional timeout, an integer from 1 to 99999"
       ;;
     sleep)
-      [[ "$rest" =~ ^[0-9]+$ ]] || die_usage "line $lineno: sleep takes an integer number of seconds"
+      [[ "$rest" =~ ^[1-9][0-9]{0,4}$ ]] || die_usage "line $lineno: sleep takes an integer number of seconds from 1 to 99999"
       ;;
     shot)
       [[ "$rest" =~ ^[A-Za-z0-9_-]+$ ]] || die_usage "line $lineno: shot NAME must match [A-Za-z0-9_-]+"
@@ -72,7 +72,7 @@ while IFS= read -r line || [ -n "$line" ]; do
       wl_timeout="${rest%%[[:space:]]*}"
       wl_text="${rest#"$wl_timeout"}"
       wl_text="${wl_text#"${wl_text%%[![:space:]]*}"}"
-      [[ "$wl_timeout" =~ ^[0-9]+$ ]] || die_usage "line $lineno: waitlog takes an integer timeout first"
+      [[ "$wl_timeout" =~ ^[1-9][0-9]{0,4}$ ]] || die_usage "line $lineno: waitlog takes a timeout first, an integer from 1 to 99999"
       [ -n "$wl_text" ] || die_usage "line $lineno: waitlog needs a text to wait for"
       ;;
     *)

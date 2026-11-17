@@ -9,10 +9,19 @@
 # Usage: run-remote.sh [--out DIR] [--steps FILE] [--timeout SECONDS]
 #                      [--addons DIR] [--no-build]
 #
-# Exit codes: the container's exit code (0 ok, 1 step failed or Oolite died,
-# 2 bad steps file, 124 deadline), 64 usage or refused output dir, 70 sync or
-# build failure.
-set -u
+# Exit codes:
+#   the container's code (as in entrypoint.sh): 0 ok, 1 a step failed or Oolite
+#     died, 2 bad steps file or OOREF_TIMEOUT, 124 the deadline was found
+#     expired between steps;
+#   124 also when the outer backstop (--timeout + 120 s) fired; the named
+#     container is then removed with `docker rm -f`;
+#   125 when `docker run` itself failed (daemon error, or no image with
+#     --no-build);
+#   255 when ssh failed during the run;
+#   64 a usage error, a bad --timeout or a refused output directory;
+#   70 a sync, build, session-setup or fetch failure. A failed fetch keeps the
+#     remote session directory and prints its path.
+set -uo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 H="${OOREF_HOST:-opencode@192.168.178.51}"
@@ -40,7 +49,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[[ "$TIMEOUT" =~ ^[0-9]+$ ]] || { echo "--timeout must be an integer" >&2; exit 64; }
+[[ "$TIMEOUT" =~ ^[1-9][0-9]{0,4}$ ]] || { echo "--timeout must be an integer from 1 to 99999" >&2; exit 64; }
 [ -f "$STEPS" ] || { echo "steps file not found: $STEPS" >&2; exit 64; }
 
 # Output guard: never inside the repository, never into a non-empty directory.
@@ -89,7 +98,10 @@ STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 SESSION=$(ssh "$H" "mkdir -p $(printf %q "$RRUNS") && mktemp -d $(printf %q "$RRUNS/$STAMP")-XXXXXX") || { echo "session setup failed"; exit 70; }
 ssh "$H" "mkdir -p $(printf %q "$SESSION/out") && cat > $(printf %q "$SESSION/steps.txt")" <"$STEPS" || { echo "session setup failed"; exit 70; }
 
-RUN_ARGS="--rm --init --network none -e OOREF_TIMEOUT=$(printf %q "$TIMEOUT")"
+# A unique name (the remote mktemp suffix) lets the backstop below remove the
+# container if the outer timeout kills ssh before the container finishes.
+NAME="ooref-${SESSION##*/}"
+RUN_ARGS="--name $(printf %q "$NAME") --rm --init --network none -e OOREF_TIMEOUT=$(printf %q "$TIMEOUT")"
 RUN_ARGS="$RUN_ARGS -v $(printf %q "$SESSION/out"):/out -v $(printf %q "$SESSION/steps.txt"):/session/steps.txt:ro"
 if [ -n "$ADDONS" ]; then
   tar -C "$ADDONS" -cf - $(printf '%q ' $ADDON_NAMES) |
@@ -97,14 +109,33 @@ if [ -n "$ADDONS" ]; then
   RUN_ARGS="$RUN_ARGS -v $(printf %q "$SESSION/addons"):/addons:ro -e OO_ADDITIONALADDONSDIRS=/addons"
 fi
 
-ssh "$H" "docker run $RUN_ARGS $IMAGE"
+# -n: the container needs no stdin, and GNU timeout runs ssh in a background
+# process group, where an ssh that reads the terminal would be stopped (SIGTTIN).
+timeout $((TIMEOUT + 120)) ssh -n "$H" "docker run $RUN_ARGS $IMAGE"
 RC=$?
+if [ "$RC" -eq 124 ]; then
+  # The container's own deadline also exits 124; then --rm already removed it
+  # and the rm below is a harmless no-op.
+  ssh -n "$H" "docker rm -f $(printf %q "$NAME")" >/dev/null 2>&1 || true
+  echo "deadline or outer backstop ended the run (exit 124); container $NAME was removed if it was still running" >&2
+fi
 
-# Fetch whatever exists, whatever the exit code.
-mkdir -p "$OUT"
-ssh "$H" "tar -C $(printf %q "$SESSION/out") -cf - ." | tar -m -x -C "$OUT" || echo "warning: fetch failed" >&2
+# Fetch whatever exists, whatever the exit code. A failed fetch keeps the
+# remote session directory so the outputs are not lost.
+FETCH=ok
+mkdir -p -- "$OUT" || FETCH=failed
+if [ "$FETCH" = ok ]; then
+  ssh "$H" "tar -C $(printf %q "$SESSION/out") -cf - ." | tar -m -x -C "$OUT" || FETCH=failed
+fi
 IMAGE_ID=$(ssh "$H" "docker image inspect --format '{{.Id}}' $IMAGE" 2>/dev/null || echo unknown)
-ssh "$H" "rm -rf $(printf %q "$SESSION")" || true
+FINAL=$RC
+if [ "$FETCH" = ok ]; then
+  ssh "$H" "rm -rf $(printf %q "$SESSION")" || true
+else
+  echo "fetch failed; remote outputs kept at ${H}:${SESSION}" >&2
+  echo "recover: ssh $H tar -C $(printf %q "$SESSION/out") -cf - . | tar -x -C <empty local dir>, then ssh $H rm -rf $(printf %q "$SESSION")" >&2
+  FINAL=70
+fi
 
 ELAPSED=$(($(date +%s) - T0))
 GIT_SHA=$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -119,8 +150,10 @@ GIT_DIRTY=clean
   echo "steps=$(basename "$STEPS")"
   echo "addons=$ADDON_NAMES"
   echo "container_exit=$RC"
+  echo "fetch=$FETCH"
+  echo "container=$NAME"
   echo "elapsed_s=$ELAPSED"
-} >"$OUT/wrapper.txt"
+} >"$OUT/wrapper.txt" || echo "warning: could not write $OUT/wrapper.txt" >&2
 
-echo "exit=$RC elapsed=${ELAPSED}s out=$OUT"
-exit "$RC"
+echo "exit=$FINAL container_exit=$RC elapsed=${ELAPSED}s out=$OUT"
+exit "$FINAL"
