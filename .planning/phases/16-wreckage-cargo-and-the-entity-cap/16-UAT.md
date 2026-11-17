@@ -1,5 +1,5 @@
 ---
-status: testing
+status: complete
 phase: 16-wreckage-cargo-and-the-entity-cap
 source: [16-VERIFICATION.md]
 started: 2026-11-17T09:40:00Z
@@ -8,11 +8,7 @@ updated: 2026-11-17T09:40:00Z
 
 ## Current Test
 
-number: 7
-name: Visual check of the explosion, wreckage burn-down and pod drift on a real GPU
-expected: |
-  A destroyed ship shows a cloud and a white flash; then wrecks, plate and pods drift and tumble; nothing judders badly or looks wrong. The container renders on SwiftShader and cannot judge appearance.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -46,14 +42,15 @@ note: owner accepted on 2026-11-17 after the descriptions.plist drift in the Ool
 
 ### 7. Visual check of the explosion, wreckage burn-down and pod drift on a real GPU
 expected: A destroyed ship shows a cloud and a white flash; then wrecks, plate and pods drift and tumble; nothing judders badly or looks wrong. The container renders on SwiftShader and cannot judge appearance.
-result: [pending]
+result: pass
+note: owner on 2026-11-17 on a real GPU in the production preview: flash and drifting cargo containers look good; did not notice the alloy plate (small, one per kill by the n_alloys rule, may drift out of view) and has no FPS measurement, asked for an on-screen FPS counter.
 
 ## Summary
 
 total: 7
-passed: 6
+passed: 7
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
