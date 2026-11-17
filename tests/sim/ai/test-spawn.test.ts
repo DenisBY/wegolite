@@ -49,6 +49,11 @@ import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import { MAX_ENTITIES, PLAYER_ID } from "../../../src/sim/world/ids.js";
 import type { InertShipRecord } from "../../../src/sim/world/populate.js";
+import { MAX_ENTITY_CARGO } from "../../../src/sim/world/limits.js";
+import {
+  hashWorld,
+  serializeEntity,
+} from "../../../src/sim/world/serialize.js";
 import { snapshotWorld } from "../../../src/sim/world/snapshot.js";
 import {
   createWorld,
@@ -226,6 +231,56 @@ describe("spawnTestShooter", () => {
       ),
     ).toBe(false);
     expect(world.store.nextId).toBe(nextId);
+  });
+
+  it("spawns with the given cargo capsule count (plan 16-06, D16-09)", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    expect(spawnTestShooter(world, player, VIPER, player.tick, 20)).toBe(true);
+    expect(theShooter(world).cargo).toBe(20);
+    expect(serializeEntity(theShooter(world))).toContain(";cargo:20");
+    const edge = createWorld(7);
+    expect(
+      spawnTestShooter(edge, player, VIPER, player.tick, MAX_ENTITY_CARGO),
+    ).toBe(true);
+    expect(theShooter(edge).cargo).toBe(MAX_ENTITY_CARGO);
+    // A ship with cargo hashes a `;cargo:` segment.
+    expect(hashWorld(player, world)).not.toBe(
+      hashWorld(player, createWorld(7)),
+    );
+  });
+
+  it("without the argument spawns bit for bit as in Phase 15: cargo 0, no cargo segment", () => {
+    const player = flyingPlayer();
+    const plain = createWorld(7);
+    const zero = createWorld(7);
+    expect(spawnTestShooter(plain, player, VIPER, player.tick)).toBe(true);
+    expect(spawnTestShooter(zero, player, VIPER, player.tick, 0)).toBe(true);
+    expect(theShooter(plain).cargo).toBe(0);
+    expect(serializeEntity(theShooter(plain))).not.toContain("cargo:");
+    // An explicit 0 is the default, so both worlds are the same entity.
+    expect(snapshotWorld(plain)).toEqual(snapshotWorld(zero));
+    expect(hashWorld(player, plain)).toBe(hashWorld(player, zero));
+    const withCargo = createWorld(7);
+    spawnTestShooter(withCargo, player, VIPER, player.tick, 1);
+    expect(hashWorld(player, plain)).not.toBe(hashWorld(player, withCargo));
+  });
+
+  it.each([
+    -1,
+    1.5,
+    MAX_ENTITY_CARGO + 1,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+  ])("refuses an out-of-domain cargo %s and touches nothing", (cargo) => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    const nextId = world.store.nextId;
+    expect(spawnTestShooter(world, player, VIPER, player.tick, cargo)).toBe(
+      false,
+    );
+    expect(world.store.nextId).toBe(nextId);
+    expect([...world.store.live]).toHaveLength(0);
   });
 
   it("drains the player's forward shield by 6 on the first step and no other bank", () => {

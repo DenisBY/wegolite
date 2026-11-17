@@ -13,13 +13,25 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_SHIP_EXPLOSION_KEY,
   createInertPopulate,
+  debrisContentFrom,
   trafficContent,
 } from "../../../src/app/session/traffic.js";
 import type { TrafficContent } from "../../../src/app/session/traffic.js";
-import type { NpcShip } from "../../../src/content/types.js";
+import {
+  DEFAULT_EXPLOSION_KEY,
+  ExplosionCatalogueSchema,
+} from "../../../src/content/schemas/explosion.js";
+import { DebrisCatalogueSchema } from "../../../src/content/schemas/ship-debris.js";
+import type {
+  DebrisRecord,
+  ExplosionRecord,
+  NpcShip,
+} from "../../../src/content/types.js";
 import { flightTableFrom } from "../../../src/sim/npc/stats.js";
 import { liveEntityCount, createWorld } from "../../../src/sim/world/world.js";
+import { debrisFixture } from "../../helpers/debris-fixture.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const lave = laveFixture();
@@ -83,6 +95,131 @@ describe("trafficContent", () => {
     expect(Object.isFrozen(content.catalogue)).toBe(true);
     expect(Object.isFrozen(content.records)).toBe(true);
     expect(Object.isFrozen(content.masses)).toBe(true);
+  });
+});
+
+function debrisRecords(): DebrisRecord[] {
+  return DebrisCatalogueSchema.parse(
+    JSON.parse(readFileSync("src/content/generated/ships-debris.json", "utf8")),
+  );
+}
+
+function explosionRecords(): ExplosionRecord[] {
+  return ExplosionCatalogueSchema.parse(
+    JSON.parse(readFileSync("src/content/generated/explosions.json", "utf8")),
+  );
+}
+
+describe("debrisContentFrom (plan 16-06, WORLD-17)", () => {
+  it("maps the nine hulls with their boxes, the pod, the plate and five wrecks in catalogue order", () => {
+    const source = catalogue();
+    const records = debrisRecords();
+    const content = debrisContentFrom(source, records);
+    if (content === undefined) throw new Error("no debris content");
+    expect(content.hulls).toBeInstanceOf(Map);
+    expect(content.hulls.size).toBe(9);
+    for (const ship of source) {
+      const [minX, minY, minZ] = ship.boundingBox.min;
+      const [maxX, maxY, maxZ] = ship.boundingBox.max;
+      expect(content.hulls.get(ship.key)).toEqual({
+        mass: ship.mass,
+        fragmentChance: ship.fragmentChance,
+        boundingBox: {
+          min: { x: minX, y: minY, z: minZ },
+          max: { x: maxX, y: maxY, z: maxZ },
+        },
+      });
+    }
+    expect(content.pod.key).toBe("barrel");
+    expect(content.plate.key).toBe("alloy");
+    expect(content.wrecks.map((wreck) => wreck.key)).toEqual([
+      "wreckage-component",
+      "more-wreckage2",
+      "more-wreckage3",
+      "more-wreckage4",
+      "more-wreckage5",
+    ]);
+    expect(content.wrecks.map((wreck) => wreck.key)).toEqual(
+      records
+        .filter((record) => record.role === "wreck")
+        .map((record) => record.key),
+    );
+  });
+
+  it("keeps the sim tests' fixture representative: masses and radii within 0.01", () => {
+    const content = debrisContentFrom(catalogue(), debrisRecords());
+    if (content === undefined) throw new Error("no debris content");
+    const fixture = debrisFixture();
+    const pairs = [
+      [content.pod, fixture.pod],
+      [content.plate, fixture.plate],
+      ...content.wrecks.map((wreck, index) => [wreck, fixture.wrecks[index]]),
+    ] as const;
+    expect(content.wrecks).toHaveLength(fixture.wrecks.length);
+    for (const [compiled, research] of pairs) {
+      if (compiled === undefined || research === undefined) {
+        throw new Error("fixture too short");
+      }
+      expect(compiled.key).toBe(research.key);
+      expect(Math.abs(compiled.mass - research.mass)).toBeLessThanOrEqual(0.01);
+      expect(Math.abs(compiled.radius - research.radius)).toBeLessThanOrEqual(
+        0.01,
+      );
+    }
+  });
+
+  it("returns undefined for a catalogue without a pod or without a plate", () => {
+    const records = debrisRecords();
+    expect(
+      debrisContentFrom(
+        catalogue(),
+        records.filter((record) => record.role !== "pod"),
+      ),
+    ).toBeUndefined();
+    expect(
+      debrisContentFrom(
+        catalogue(),
+        records.filter((record) => record.role !== "plate"),
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("trafficContent with the debris and explosion catalogues (plan 16-06)", () => {
+  it("adds debris, debrisModels and the default explosion, leaving every other field unchanged", () => {
+    const source = catalogue();
+    const records = debrisRecords();
+    const explosions = explosionRecords();
+    const plain = trafficContent(source);
+    const full = trafficContent(source, { debris: records, explosions });
+    expect(full.debris).toEqual(debrisContentFrom(source, records));
+    expect(full.debrisModels).toEqual(records);
+    expect(full.explosion?.key).toBe("oolite-default-ship-explosion");
+    expect(full.records).toEqual(plain.records);
+    expect(full.masses).toEqual(plain.masses);
+    expect(full.flight).toEqual(plain.flight);
+    expect(full.weapons).toEqual(plain.weapons);
+    expect(Object.isFrozen(full)).toBe(true);
+  });
+
+  it("omits each key whose source is absent", () => {
+    const plain = trafficContent(catalogue());
+    expect("debris" in plain).toBe(false);
+    expect("debrisModels" in plain).toBe(false);
+    expect("explosion" in plain).toBe(false);
+    const debrisOnly = trafficContent(catalogue(), { debris: debrisRecords() });
+    expect(debrisOnly.debris).toBeDefined();
+    expect("explosion" in debrisOnly).toBe(false);
+    const explosionsOnly = trafficContent(catalogue(), {
+      explosions: explosionRecords(),
+    });
+    expect("debris" in explosionsOnly).toBe(false);
+    expect("debrisModels" in explosionsOnly).toBe(false);
+    expect(explosionsOnly.explosion).toBeDefined();
+  });
+
+  it("restates the schema's default explosion key", () => {
+    expect(DEFAULT_SHIP_EXPLOSION_KEY).toBe(DEFAULT_EXPLOSION_KEY);
   });
 });
 

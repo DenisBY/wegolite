@@ -92,10 +92,13 @@ export interface TrafficContent {
   readonly explosion?: ExplosionRecord;
 }
 
-/** The catalogues `trafficContent` adds beside the NPC records (plan 16-06). */
+/**
+ * The catalogues `trafficContent` adds beside the NPC records (plan 16-06).
+ * An absent or undefined catalogue adds nothing.
+ */
 export interface TrafficExtras {
-  readonly debris?: readonly DebrisRecord[];
-  readonly explosions?: readonly ExplosionRecord[];
+  readonly debris?: readonly DebrisRecord[] | undefined;
+  readonly explosions?: readonly ExplosionRecord[] | undefined;
 }
 
 /**

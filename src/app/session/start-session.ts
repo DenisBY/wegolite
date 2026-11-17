@@ -372,7 +372,6 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
       // kill path's debris (WORLD-17) and the render, the explosion settings the
       // render only (DATA-16). A malformed chunk is a broken build and fails the
       // boot visibly, never silently partial (T-16-19).
-      const traffic = ctx.runtime.testFlags.traffic;
       const [
         equipment,
         loadedCommodities,
@@ -385,22 +384,26 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
         loadEquipment(),
         loadCommodities(),
         loadLabels(),
-        traffic ? loadNpcCatalogue() : Promise.resolve(undefined),
-        traffic ? loadShipHulls() : Promise.resolve(undefined),
-        traffic ? loadDebrisCatalogue() : Promise.resolve(undefined),
-        traffic ? loadExplosionCatalogue() : Promise.resolve(undefined),
+        ctx.runtime.testFlags.traffic
+          ? loadNpcCatalogue()
+          : Promise.resolve(undefined),
+        ctx.runtime.testFlags.traffic
+          ? loadShipHulls()
+          : Promise.resolve(undefined),
+        ctx.runtime.testFlags.traffic
+          ? loadDebrisCatalogue()
+          : Promise.resolve(undefined),
+        ctx.runtime.testFlags.traffic
+          ? loadExplosionCatalogue()
+          : Promise.resolve(undefined),
       ]);
       if (ctx.runtime.disposed) return;
       ctx.core.npcTraffic =
         npcCatalogue === undefined
           ? undefined
           : trafficContent(npcCatalogue, {
-              ...(debrisCatalogue === undefined
-                ? {}
-                : { debris: debrisCatalogue }),
-              ...(explosionCatalogue === undefined
-                ? {}
-                : { explosions: explosionCatalogue }),
+              debris: debrisCatalogue,
+              explosions: explosionCatalogue,
             });
       ctx.core.hulls =
         hullCatalogue === undefined ? undefined : hullTable(hullCatalogue);

@@ -86,10 +86,12 @@ describe("loadDebrisCatalogue", () => {
     expect(loadDebrisCatalogue()).toBe(loadDebrisCatalogue());
   });
 
-  it("is imported by nothing outside src/content yet (plan 16-06 wires it)", () => {
-    for (const file of sourceFiles("src")) {
-      expect(readText(file), file).not.toMatch(/content\/ships-debris/);
-    }
+  it("is imported outside src/content by the session boot only (plan 16-06)", () => {
+    // `sourceFiles` skips src/content itself; `src/sim` never imports it.
+    const importers = sourceFiles("src").filter((file) =>
+      /content\/ships-debris/.test(readText(file)),
+    );
+    expect(importers).toEqual(["src/app/session/start-session.ts"]);
   });
 });
 

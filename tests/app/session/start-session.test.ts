@@ -522,6 +522,25 @@ describe("combat and hull wiring at start-up (plan 13-11)", () => {
     expect(source).toContain("hullTable(hullCatalogue)");
   });
 
+  it("loads the debris and explosion catalogues once, only behind the traffic flag, in the boot Promise.all (plan 16-06)", () => {
+    const all = source.indexOf("await Promise.all([");
+    const closed = source.indexOf("]);", all);
+    for (const call of ["loadDebrisCatalogue()", "loadExplosionCatalogue()"]) {
+      expect(source.split(call)).toHaveLength(2);
+      const load = source.indexOf(call);
+      expect(flat(source.slice(Math.max(0, load - 80), load))).toContain(
+        "ctx.runtime.testFlags.traffic ?",
+      );
+      expect(load).toBeGreaterThan(source.indexOf("loadShipHulls()"));
+      expect(load).toBeLessThan(closed);
+    }
+    // The same visible boot-failure surface (T-16-19), and both reach the
+    // shared traffic content.
+    expect(source.slice(closed, closed + 1500)).toContain("showBootFailure");
+    expect(source).toContain("debris: debrisCatalogue");
+    expect(source).toContain("explosions: explosionCatalogue");
+  });
+
   it("creates a pristine combat state beside the flight state, for a new game and a Continue alike", () => {
     expect(source.match(/createPlayerCombatState\(\)/g)).toHaveLength(1);
     const state = source.indexOf("ctx.core.state = flightState;");

@@ -57,6 +57,7 @@ import type { InputFrame } from "../../../src/sim/state.js";
 import { MAX_STEPS_PER_FRAME } from "../../../src/sim/step.js";
 import { DT } from "../../../src/sim/time.js";
 import { sessionSources } from "../../helpers/session-source.js";
+import { debrisFixture } from "../../helpers/debris-fixture.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { realHullTable } from "../../helpers/hull-table.js";
 import { realNpcWeapons } from "../../helpers/npc-weapons.js";
@@ -546,6 +547,26 @@ describe("combat wiring (plan 13-11, CBT-04 to CBT-07)", () => {
     expect(options?.combat?.mounts).toBe(built.ctx.core.profile.laserMounts);
   });
 
+  it("hands a traffic-on step the content's debris under combat.debris (plan 16-06)", () => {
+    const built = parked({});
+    const debris = debrisFixture();
+    built.ctx.core.npcTraffic = {
+      catalogue: [],
+      records: [],
+      masses: [],
+      flight: [],
+      weapons: realNpcWeapons(),
+      debris,
+    };
+    const seen: unknown[] = [];
+    hooks.onOptions = (options) => {
+      seen.push(options);
+    };
+    built.driver.stepOnce([], IDLE);
+    const [options] = seen as { combat?: { debris?: unknown } }[];
+    expect(options?.combat?.debris).toBe(debris);
+  });
+
   it("without the hull chunk (traffic off) a shot is drawn but hits nothing", () => {
     const built = parked({ fire: true });
     const lifecycle = createWorldLifecycle({ traffic: false });
@@ -580,6 +601,7 @@ describe("combat wiring (plan 13-11, CBT-04 to CBT-07)", () => {
     const [options] = seen as { combat?: object }[];
     expect(options?.combat).not.toHaveProperty("hulls");
     expect(options?.combat).not.toHaveProperty("npcWeapons");
+    expect(options?.combat).not.toHaveProperty("debris");
   });
 
   it("steps without combat before the combat state exists, and never fires then", () => {
@@ -1309,5 +1331,19 @@ describe("buildStepOptions", () => {
       "mounts",
       "npcWeapons",
     ]);
+  });
+
+  it("carries the debris content under combat.debris only when given (plan 16-06)", () => {
+    const debris = debrisFixture();
+    const base = {
+      fuel: 70,
+      system: lave.system,
+      target: undefined,
+      equipment,
+      dock: undefined,
+      laserMounts: DEFAULT_LASER_MOUNTS,
+    };
+    expect(buildStepOptions({ ...base, debris }).combat?.debris).toBe(debris);
+    expect(buildStepOptions(base).combat).not.toHaveProperty("debris");
   });
 });

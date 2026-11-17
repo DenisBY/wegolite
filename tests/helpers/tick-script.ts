@@ -77,12 +77,21 @@
  *   between two `advanceTicks` calls. The flight table also reaches every step
  *   as `StepOptions.npcFlight` with traffic on, as sim-driver.ts passes it.
  *
+ * - the debris (Phase 16, plan 16-06): with traffic on the replay reads the
+ *   committed `ships-debris.json` and `explosions.json` with `readFileSync` and
+ *   the strict schemas (`DebrisCatalogueSchema`, `ExplosionCatalogueSchema`)
+ *   and hands them to `trafficContent`, as start-session.ts's boot load does
+ *   beside the NPC catalogue; the content's `debris` (built by the one builder
+ *   `debrisContentFrom`) reaches every step as `StepOptions.combat.debris`, as
+ *   sim-driver.ts passes it. No replay script kills a ship, so every existing
+ *   replay pin is unchanged.
+ *
  * Not mirrored: the hyperspace edge mapping (no script commits a target) and
  * the arrival (a jump is proven through the real driver in Vitest only).
  *
  * Node only. It imports `src/sim`, three pure session modules
- * (`step-options.ts`, `traffic.ts`, `world-lifecycle.ts`), the NPC catalogue
- * schema, `newProfile` and the readFileSync based fixtures; nothing that
+ * (`step-options.ts`, `traffic.ts`, `world-lifecycle.ts`), the NPC, hull,
+ * debris and explosion catalogue schemas, `newProfile` and the readFileSync based fixtures; nothing that
  * touches the DOM, Three or `import.meta.glob`, so the Playwright Node runner
  * can import it (RESEARCH A7).
  */
@@ -118,6 +127,8 @@ import {
 } from "../../src/app/session/traffic.js";
 import type { TrafficContent } from "../../src/app/session/traffic.js";
 import { createWorldLifecycle } from "../../src/app/session/world-lifecycle.js";
+import { ExplosionCatalogueSchema } from "../../src/content/schemas/explosion.js";
+import { DebrisCatalogueSchema } from "../../src/content/schemas/ship-debris.js";
 import { ShipHullCatalogueSchema } from "../../src/content/schemas/ship-hull.js";
 import { NpcShipCatalogueSchema } from "../../src/content/schemas/ship-npc.js";
 import { laveDockGeometry } from "./dock-pose.js";
@@ -172,16 +183,31 @@ const IDLE_FRAME: InputFrame = {
   precision: false,
 };
 
+/** A committed generated file, read with `readFileSync` and parsed. */
+function committedJson(name: string): unknown {
+  return JSON.parse(
+    readFileSync(
+      new URL(`../../src/content/generated/${name}`, import.meta.url),
+      "utf8",
+    ),
+  );
+}
+
 /**
- * The committed NPC records as the session loads them: read with `readFileSync`
- * and validated with the strict schema, then built into the shared content.
+ * The committed NPC records, debris records and explosion settings as the
+ * session loads them: read with `readFileSync` and validated with the strict
+ * schemas, then built into the shared content (debris included).
  */
 function committedTrafficContent(): TrafficContent {
-  const raw = readFileSync(
-    new URL("../../src/content/generated/ships-npc.json", import.meta.url),
-    "utf8",
+  return trafficContent(
+    NpcShipCatalogueSchema.parse(committedJson("ships-npc.json")),
+    {
+      debris: DebrisCatalogueSchema.parse(committedJson("ships-debris.json")),
+      explosions: ExplosionCatalogueSchema.parse(
+        committedJson("explosions.json"),
+      ),
+    },
   );
-  return trafficContent(NpcShipCatalogueSchema.parse(JSON.parse(raw)));
 }
 
 /**
@@ -280,6 +306,7 @@ export function runTickScript(
           ...(hulls === undefined ? {} : { hulls }),
           ...(content === undefined ? {} : { npcWeapons: content.weapons }),
           ...(content === undefined ? {} : { npcFlight: content.flight }),
+          ...(content?.debris === undefined ? {} : { debris: content.debris }),
         }),
         combat,
       );
