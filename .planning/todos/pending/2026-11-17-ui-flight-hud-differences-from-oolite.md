@@ -51,6 +51,8 @@ CC BY-NC-SA output). Differences, in rank order:
   Wegolite sees about 88° across, and everything ahead looks about 1.78 times smaller: the Viper at 1,500 m was
   about 22 px wide against about 40 px. Wegolite: `src/render/system-scene.ts:59,262`, the HUD projections that
   take `fovY` (`src/render/hud/projection.ts`) and `SCANNER_FOV_DEG` (`src/render/hud/draw.ts:52`).
+  Measured after the fix at 1280x720, all three by one script: the Viper 1,500 m ahead is 40 px wide in Oolite,
+  22 px in Wegolite before (`5a4e4cd`) and 40 px after (`e759fd2`), so after/Oolite is 1.00 and after/before 1.82.
 - R2. Element positions. The clock and the hyperspace line are at the top left (Oolite: centred under the
   scanner); the condition light is at the top right (Oolite: left of the clock, under the scanner); the message
   line is centred below the scanner (Oolite: right of centre above it, `message_gui` x=128, y=-60). Oolite:
@@ -91,7 +93,7 @@ Likely changes, one per bullet; none is implemented yet:
 - Owner call on the fuel and speed readouts.
 - Add the scanner zoom indicator only together with scanner zoom (`key_scanner_zoom`), if it is wanted.
 - Default the hyperspace target to the current system on a new game, as Oolite does.
-- Done in quick task 261117-o8q (commits a6aa69a, 130d109): Apply the 57.2° FOV horizontally when the aspect is wider than 4:3, as Oolite's frustum does, and update the
+- Done in quick task 261117-o8q (commits a6aa69a, 130d109; Viper 40 px against Oolite's 40 px, was 22 px): Apply the 57.2° FOV horizontally when the aspect is wider than 4:3, as Oolite's frustum does, and update the
   HUD projections and their tests (`tests/render/launch-camera.test.ts`, `tests/hud/projection.test.ts`).
 - Move the clock, the condition light and the message line to Oolite's positions, and rescale the HUD
   to Oolite's height-based scale (a `HUD_LAYOUT` change that the pinned-layout tests must follow).
