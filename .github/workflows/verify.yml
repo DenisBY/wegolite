@@ -1,5 +1,24 @@
 name: verify
 
+# The release gate, split across parallel jobs, each on its own GitHub-hosted
+# runner (owner rule in the CI timeout-margins todo, 2026-11-16: shard the
+# browser suite with `--shard=n/4` in a job matrix; no paid or self-hosted
+# runners):
+#
+# - `checks` runs the verify-checks service, which is the verify-full service's
+#   chain without the full Chromium stage (lint, typecheck, assets:check, unit
+#   tests, build:e2e, check:dist and the WR-04 seam spec).
+# - `e2e` runs the Chromium suite in four shards. Each leg builds its own
+#   browser-test bundle. `--shard` splits by spec file, because
+#   playwright.config.ts keeps `fullyParallel: false`.
+# - `verify` is the aggregate job: one stable check name that fails unless the
+#   checks job and every shard succeeded.
+#
+# pages.yml listens with `workflow_run` for the workflow named `verify`. That
+# event fires once, when the whole run completes, and pages.yml deploys only on
+# conclusion success, so a failed job anywhere blocks the deploy. Do not rename
+# this workflow. The verify-full service stays the local and remote release
+# gate; CI must not run its whole chain again on top of these jobs.
 on:
   push:
     branches: [main]
@@ -9,10 +28,48 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  checks:
+    name: checks (release gate without the Chromium suite)
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: Full gate (unit, e2e, lint, typecheck, assets, contract)
-        run: docker compose run --rm verify-full
+      - name: Lint, typecheck, assets, unit tests, bundle checks and the seam spec
+        run: docker compose run --rm verify-checks
+
+  e2e:
+    name: chromium shard ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the browser-test bundle and run the Chromium shard
+        run: docker compose run --rm e2e sh -lc "npm run build:e2e && npm run test:e2e -- --shard=${{ matrix.shard }}/4"
+      # Traces and screenshots are off (D-08), so this holds only the
+      # error-context files of failed tests.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results-shard-${{ matrix.shard }}
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  verify:
+    name: verify
+    needs: [checks, e2e]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the checks job and every Chromium shard to succeed
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+        run: |
+          echo "checks: $CHECKS_RESULT, e2e shards: $E2E_RESULT"
+          test "$CHECKS_RESULT" = "success" && test "$E2E_RESULT" = "success"

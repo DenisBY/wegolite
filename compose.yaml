@@ -138,5 +138,27 @@ services:
         npm run test:e2e &&
         npm run test:e2e:seams
 
+  # The release gate without the full Chromium suite: the same D-03 fail-fast
+  # chain as `verify-full`, minus its single `npm run test:e2e` stage, so it
+  # still ends in the WR-04 seam spec (which starts Chromium, hence ipc: host).
+  # CI runs it as the checks job next to four `--shard=N/4` Chromium jobs (owner
+  # rule in the CI timeout-margins todo, 2026-11-16). The `verify-full` service
+  # stays the local and remote release gate, unchanged; a contract test derives
+  # this chain from it, so the two cannot drift.
+  verify-checks:
+    <<: *workspace
+    ipc: host
+    command:
+      - sh
+      - -lc
+      - >-
+        npm run lint &&
+        npm run typecheck &&
+        npm run assets:check &&
+        npm run test &&
+        npm run build:e2e &&
+        npm run check:dist &&
+        npm run test:e2e:seams
+
 volumes:
   wegolite-node-modules:

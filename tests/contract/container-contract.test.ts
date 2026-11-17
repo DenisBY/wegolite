@@ -248,6 +248,7 @@ describe("FOUND-03 container-only verification", () => {
       "assets",
       "verify",
       "verify-full",
+      "verify-checks",
     ]) {
       expect(executable(service(name))).toContain("<<: *workspace");
     }
@@ -264,6 +265,7 @@ describe("FOUND-03 container-only verification", () => {
       "assets",
       "verify",
       "verify-full",
+      "verify-checks",
     ]) {
       expect(executable(service(name))).not.toMatch(/^\s*ports:/m);
     }
@@ -290,6 +292,9 @@ describe("FOUND-03 container-only verification", () => {
     const verify = executable(service("verify"));
     expect(verify).not.toMatch(/e2e-cross|test:e2e:cross/);
     expect(executable(service("verify-full"))).not.toMatch(
+      /e2e-cross|test:e2e:cross/,
+    );
+    expect(executable(service("verify-checks"))).not.toMatch(
       /e2e-cross|test:e2e:cross/,
     );
   });
@@ -378,6 +383,55 @@ describe("FOUND-03 container-only verification", () => {
     );
   });
 
+  it("runs verify-checks as verify-full without the Chromium suite", () => {
+    const normalise = (name: string): string => {
+      const block = executable(service(name)).replace(/\s+/g, " ").trim();
+      expect(block).toMatch(/command: - sh - -lc - >- npm run lint/);
+      const chainAt = block.indexOf("npm run lint");
+      expect(chainAt).toBeGreaterThanOrEqual(0);
+      return block.slice(chainAt);
+    };
+    const fullStages = normalise("verify-full").split(" && ");
+    const checksStages = normalise("verify-checks").split(" && ");
+
+    // CI runs the Chromium suite as four shards beside this service, so the
+    // only stage it may drop is verify-full's one full Chromium run. The
+    // expectation is derived from verify-full, so a stage added there alone
+    // fails here.
+    expect(
+      fullStages.filter((stage) => stage === "npm run test:e2e"),
+    ).toHaveLength(1);
+    expect(checksStages).toEqual(
+      fullStages.filter((stage) => stage !== "npm run test:e2e"),
+    );
+    // The WR-04 seam spec starts Chromium.
+    expect(executable(service("verify-checks"))).toMatch(
+      /^\s*ipc:\s*host\s*$/m,
+    );
+  });
+
+  it("runs CI as one checks job and four Chromium shards behind one aggregate verify job", () => {
+    const workflow = read(".github/workflows/verify.yml");
+
+    // pages.yml triggers on the workflow name, so it must not change.
+    expect(workflow).toMatch(/^name: verify$/m);
+    expect(workflow).toContain("docker compose run --rm verify-checks");
+    expect(workflow).toContain("fail-fast: false");
+    expect(workflow).toContain("shard: [1, 2, 3, 4]");
+    expect(workflow).toContain(
+      "npm run build:e2e && npm run test:e2e -- --shard=${{ matrix.shard }}/4",
+    );
+    expect(workflow).toContain("needs: [checks, e2e]");
+    // CI must not run the whole release chain again on top of the split jobs.
+    expect(workflow).not.toMatch(/^\s*run:.*verify-full/m);
+
+    const pages = read(".github/workflows/pages.yml");
+    expect(pages).toContain("workflows: [verify]");
+    expect(pages).toContain(
+      "github.event.workflow_run.conclusion == 'success'",
+    );
+  });
+
   it("documents verify as the definition of done and keeps the fail-fast rehearsal", () => {
     const readme = read("README.md");
     const failFast = read("scripts/check-verify-fails-fast.sh");
@@ -423,11 +477,17 @@ describe("the traffic default never reaches the deployed bundle (WORLD-16, owner
     expect(pages).not.toContain("build:e2e");
   });
 
-  it("builds the e2e bundle in exactly the four browser-test services", () => {
+  it("builds the e2e bundle in exactly the five browser-test services", () => {
     const users = [...SERVICES.keys()].filter((name) =>
       executable(service(name)).includes("npm run build:e2e"),
     );
-    expect(users.sort()).toEqual(["e2e", "e2e-cross", "verify", "verify-full"]);
+    expect(users.sort()).toEqual([
+      "e2e",
+      "e2e-cross",
+      "verify",
+      "verify-checks",
+      "verify-full",
+    ]);
   });
 });
 

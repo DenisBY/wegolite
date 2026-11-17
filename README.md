@@ -135,22 +135,23 @@ No other browser is tested for this release.
 These are the same commands `AGENTS.md` documents; the service names are the
 contract.
 
-| Task                             | Command                                               |
-| -------------------------------- | ----------------------------------------------------- |
-| Dev server (port 5173)           | `docker compose up app`                               |
-| Production preview (port 4173)   | `docker compose up preview`                           |
-| Unit tests                       | `docker compose run --rm test`                        |
-| Unit tests (local, no coverage)  | `docker compose run --rm test npm run test:fast`      |
-| Browser tests                    | `docker compose run --rm e2e`                         |
-| Firefox browser tests            | `docker compose run --rm e2e-cross`                   |
-| Content build (regenerate)       | `docker compose run --rm assets`                      |
-| Content drift check              | `docker compose run --rm assets npm run assets:check` |
-| Fast verification gate           | `docker compose run --rm verify`                      |
-| Full release gate                | `docker compose run --rm verify-full`                 |
-| Lint                             | `docker compose run --rm lint`                        |
-| Typecheck                        | `docker compose run --rm typecheck`                   |
-| Rebuild after dependency changes | `docker compose build --no-cache`                     |
-| Stop and clean up                | `docker compose down --volumes --remove-orphans`      |
+| Task                                                    | Command                                               |
+| ------------------------------------------------------- | ----------------------------------------------------- |
+| Dev server (port 5173)                                  | `docker compose up app`                               |
+| Production preview (port 4173)                          | `docker compose up preview`                           |
+| Unit tests                                              | `docker compose run --rm test`                        |
+| Unit tests (local, no coverage)                         | `docker compose run --rm test npm run test:fast`      |
+| Browser tests                                           | `docker compose run --rm e2e`                         |
+| Firefox browser tests                                   | `docker compose run --rm e2e-cross`                   |
+| Content build (regenerate)                              | `docker compose run --rm assets`                      |
+| Content drift check                                     | `docker compose run --rm assets npm run assets:check` |
+| Fast verification gate                                  | `docker compose run --rm verify`                      |
+| Full release gate                                       | `docker compose run --rm verify-full`                 |
+| CI checks job (release gate without the Chromium suite) | `docker compose run --rm verify-checks`               |
+| Lint                                                    | `docker compose run --rm lint`                        |
+| Typecheck                                               | `docker compose run --rm typecheck`                   |
+| Rebuild after dependency changes                        | `docker compose build --no-cache`                     |
+| Stop and clean up                                       | `docker compose down --volumes --remove-orphans`      |
 
 ## Fidelity
 
