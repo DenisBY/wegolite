@@ -16,8 +16,8 @@
  * the exempt list of `checkEntityForMassLock` (PlayerEntity.m lines 3044-3061)
  * and it lies strictly inside the scanner range: the outer test at line 2936 is
  * `zero_distance < SCANNER_MAX_RANGE2`, so a ship at exactly 25,600 m does not
- * lock. The station keeps its own inclusive `<=` in `torus.ts`; the two rules
- * are deliberately different, as they are in Oolite.
+ * lock. A station is a ship too (StationEntity.m:573), so the same strict gate
+ * decides for it, and the station rule in `torus.ts` is `<` as well.
  *
  * Jump blockage follows `checkShipsInVicinityForWitchJumpExit` (ShipEntity.m
  * lines 12498-12531) through the station's own predicate, `isWitchspaceBlocked`

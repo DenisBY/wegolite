@@ -38,6 +38,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   shimmers and fades over its brief life and looks like one beam from every
   angle, and a distant shot stays visible as a thin line.
 
+### Fixed
+
+- The station's mass lock now ends strictly inside the scanner range, as in
+  Oolite: a ship exactly 25,600 m from the station centre is no longer
+  mass-locked, so the torus drive engages there.
+
 ## [0.4.0] - 2026-11-16
 
 This release changes the save format (version 4, laser mounts) and the default

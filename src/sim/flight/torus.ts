@@ -91,7 +91,7 @@ export function torusFactor(
 /**
  * Oolite's mass-lock predicate (PlayerEntity.m `checkEntityForMassLock`).
  *
- * - Station: within 25,600 m of the centre (`<=`, so the boundary itself locks).
+ * - Station: strictly inside 25,600 m of the centre (`<`, PlayerEntity.m:2936).
  * - Planet: `d^2 < 4r^2` (2 radii from the centre) or within 25 km of the surface.
  * - Sun: `d^2 < 2r^2` (sqrt(2) radii) or within 25 km of the surface.
  * - Buoys: never, regardless of distance.
@@ -100,7 +100,7 @@ export function massLocked(position: Vec3, layout: SystemLayout): boolean {
   const stationDistanceSquared = lengthSquared(
     sub(position, layout.station.position),
   );
-  if (stationDistanceSquared <= SCANNER_MAX_RANGE * SCANNER_MAX_RANGE) {
+  if (stationDistanceSquared < SCANNER_MAX_RANGE * SCANNER_MAX_RANGE) {
     return true;
   }
 

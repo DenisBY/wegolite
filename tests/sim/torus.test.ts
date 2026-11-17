@@ -27,7 +27,15 @@ import {
   nearestSurfaceDistance,
   torusFactor,
 } from "../../src/sim/flight/torus.js";
-import { add, identity, length, scale, sub, vec } from "../../src/sim/math.js";
+import {
+  add,
+  identity,
+  length,
+  lengthSquared,
+  scale,
+  sub,
+  vec,
+} from "../../src/sim/math.js";
 import type { Vec3 } from "../../src/sim/math.js";
 import type { Command } from "../../src/sim/commands.js";
 import { DT } from "../../src/sim/time.js";
@@ -116,10 +124,9 @@ describe("torus factor", () => {
 });
 
 describe("mass lock boundaries", () => {
-  it("locks the station at 25,599 and 25,600 m and clears at 25,601 m", () => {
+  it("locks the station at 25,599 m and clears at 25,601 m on Lave's geometry", () => {
     for (const [distance, expected] of [
       [25_599, true],
-      [25_600, true],
       [25_601, false],
     ] as const) {
       const point = sub(
@@ -128,6 +135,35 @@ describe("mass lock boundaries", () => {
       );
       expect(
         massLocked(point, layout),
+        `station distance ${String(distance)} m`,
+      ).toBe(expected);
+    }
+  });
+
+  it("locks the station strictly inside 25,600 m and clears at exactly 25,600 m (squared distance 655,360,000)", () => {
+    // Strict like every ship: Oolite's outer gate `zero_distance <
+    // SCANNER_MAX_RANGE2` (PlayerEntity.m:2936). Station at the origin, points
+    // on +x, so the boundary point's squared distance is exact.
+    const far = { position: vec(1e9, 0, 0), radius: 1 };
+    const stationOnly = {
+      ...layout,
+      planet: far,
+      sun: far,
+      station: { position: vec(0, 0, 0), radius: layout.station.radius },
+      navBuoy: far,
+      witchpoint: far,
+    };
+    expect(
+      lengthSquared(sub(vec(25_600, 0, 0), stationOnly.station.position)),
+    ).toBe(655_360_000);
+    for (const [distance, expected] of [
+      [25_599, true],
+      [25_599.999, true],
+      [25_600, false],
+      [25_601, false],
+    ] as const) {
+      expect(
+        massLocked(vec(distance, 0, 0), stationOnly),
         `station distance ${String(distance)} m`,
       ).toBe(expected);
     }

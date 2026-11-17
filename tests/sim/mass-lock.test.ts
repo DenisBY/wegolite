@@ -7,7 +7,7 @@
  * Oolite's predicate is a set of exact squared comparisons, so every case is
  * one metre either side of a threshold:
  *
- * - station: `d^2 <= 25,600^2` (the boundary itself locks);
+ * - station: `d^2 < 25,600^2`, strict like every ship (PlayerEntity.m:2936);
  * - planet: `d^2 < 4r^2`, or within 25 km of the surface;
  * - sun: `d^2 < 2r^2`, or within 25 km of the surface;
  * - buoys: never, even when they are the nearest body.
@@ -23,7 +23,14 @@ import {
   massLocked,
   nearestSurfaceDistance,
 } from "../../src/sim/flight/torus.js";
-import { add, length, scale, sub, vec } from "../../src/sim/math.js";
+import {
+  add,
+  length,
+  lengthSquared,
+  scale,
+  sub,
+  vec,
+} from "../../src/sim/math.js";
 import type { Vec3 } from "../../src/sim/math.js";
 import type { SystemLayout } from "../../src/sim/world/layout.js";
 import { laveFixture } from "../helpers/lave.js";
@@ -56,12 +63,11 @@ function isolated(overrides: Partial<SystemLayout>): SystemLayout {
 }
 
 describe("station boundary", () => {
-  it("locks at 25,599 and 25,600 m, clears at 25,601 m", () => {
+  it("locks at 25,599 m and clears at 25,601 m on Lave's geometry", () => {
     // Move away from the planet so the planet's 2r sphere cannot mask the
     // station result.
     for (const [distance, expected] of [
       [25_599, true],
-      [25_600, true],
       [25_601, false],
     ] as const) {
       const point = sub(
@@ -70,6 +76,30 @@ describe("station boundary", () => {
       );
       expect(
         massLocked(point, layout),
+        `station distance ${String(distance)} m`,
+      ).toBe(expected);
+    }
+  });
+
+  it("locks strictly inside 25,600 m and clears at exactly 25,600 m (squared distance 655,360,000)", () => {
+    // A station is a ship (StationEntity.m:573), so Oolite's strict outer gate
+    // `zero_distance < SCANNER_MAX_RANGE2` (PlayerEntity.m:2936) decides. The
+    // station sits at the origin and the points lie on +x, so the boundary
+    // point's squared distance is exact rather than a rounded neighbour.
+    const stationOnly = isolated({
+      station: { position: vec(0, 0, 0), radius: layout.station.radius },
+    });
+    expect(
+      lengthSquared(sub(vec(25_600, 0, 0), stationOnly.station.position)),
+    ).toBe(655_360_000);
+    for (const [distance, expected] of [
+      [25_599, true],
+      [25_599.999, true],
+      [25_600, false],
+      [25_601, false],
+    ] as const) {
+      expect(
+        massLocked(vec(distance, 0, 0), stationOnly),
         `station distance ${String(distance)} m`,
       ).toBe(expected);
     }
