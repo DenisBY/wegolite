@@ -8,7 +8,8 @@
  * settings are local, links to Controls rather than duplicating the rebinding
  * list, owns the reset-all action, and holds one requested toggle: whether
  * losing window or tab focus pauses the game (D-15, on by default). A second
- * toggle selects the High graphics quality (off by default).
+ * toggle selects the High graphics quality (off by default). A third shows the
+ * on-screen FPS counter in the document footer (off by default).
  */
 
 import type { GraphicsQuality } from "../settings/schema.js";
@@ -20,6 +21,7 @@ export interface SettingsPanelOptions {
   readonly onReset: () => void;
   readonly onPauseOnFocusLossChange: (enabled: boolean) => void;
   readonly onQualityChange: (quality: GraphicsQuality) => void;
+  readonly onShowFpsChange: (enabled: boolean) => void;
 }
 
 export interface SettingsPanel {
@@ -30,6 +32,8 @@ export interface SettingsPanel {
   setPauseOnFocusLoss(enabled: boolean): void;
   /** Reflect the stored graphics quality in the toggle without firing a change. */
   setQuality(quality: GraphicsQuality): void;
+  /** Set the FPS-counter checkbox to the stored value without firing a change. */
+  setShowFps(enabled: boolean): void;
   dispose(): void;
 }
 
@@ -67,12 +71,14 @@ export function createSettingsPanel(
     onReset,
     onPauseOnFocusLossChange,
     onQualityChange,
+    onShowFpsChange,
   } = options;
   const controls = requireButton(root, "controls");
   const reset = requireButton(root, "reset");
   const back = requireButton(root, "back");
   const pauseToggle = requireToggle(root, "pauseOnFocusLoss");
   const qualityToggle = requireToggle(root, "highQuality");
+  const fpsToggle = requireToggle(root, "showFps");
   const controller = new AbortController();
 
   controls.addEventListener("click", onControls, { signal: controller.signal });
@@ -89,6 +95,13 @@ export function createSettingsPanel(
     "change",
     () => {
       onQualityChange(qualityToggle.checked ? "high" : "standard");
+    },
+    { signal: controller.signal },
+  );
+  fpsToggle.addEventListener(
+    "change",
+    () => {
+      onShowFpsChange(fpsToggle.checked);
     },
     { signal: controller.signal },
   );
@@ -109,6 +122,9 @@ export function createSettingsPanel(
     },
     setQuality(quality: GraphicsQuality): void {
       qualityToggle.checked = quality === "high";
+    },
+    setShowFps(enabled: boolean): void {
+      fpsToggle.checked = enabled;
     },
     dispose(): void {
       controller.abort();

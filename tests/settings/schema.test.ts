@@ -259,6 +259,7 @@ describe("mergeDefaults", () => {
       launchSeen: false,
       pauseOnFocusLoss: true,
       quality: "standard",
+      showFps: false,
     });
 
     expect(merged.bindings.rollRight).toEqual([]);

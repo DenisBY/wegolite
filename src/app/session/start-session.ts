@@ -79,6 +79,7 @@ import { loadSettings } from "../../settings/store.js";
 import { createControlsPanel } from "../../ui/controls.js";
 import { createPauseOverlay } from "../../ui/pause.js";
 import { createSettingsPanel } from "../../ui/settings-panel.js";
+import { createFpsCounter } from "../../ui/fps-counter.js";
 import type { StationShell } from "../../ui/station.js";
 import type { TitleScreen } from "../../ui/title.js";
 import type { ChartController } from "./chart-controller.js";
@@ -113,6 +114,8 @@ export interface LifecycleDeps {
   readonly controlsRoot: HTMLElement;
   readonly gameRoot: HTMLElement;
   readonly settingsRoot: HTMLElement;
+  /** The FPS readout in the document footer (Settings > Show FPS counter). */
+  readonly fpsRoot: HTMLElement;
   /** The boot save read; only its store is disposed here. */
   readonly saveBoot: Pick<GameSessionSave, "store">;
   readonly galaxy: readonly System[];
@@ -159,6 +162,7 @@ export interface LifecycleDeps {
   readonly resetAllSettings: SettingsController["resetAllSettings"];
   readonly applyQuality: SettingsController["applyQuality"];
   readonly syncQualityToggle: SettingsController["syncQualityToggle"];
+  readonly applyShowFps: SettingsController["applyShowFps"];
   /** The Escape routing out of a controls or settings sub-panel. */
   readonly onSubpanelKeyDown: SettingsController["onSubpanelKeyDown"];
 }
@@ -175,6 +179,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     controlsRoot,
     gameRoot,
     settingsRoot,
+    fpsRoot,
     saveBoot,
     galaxy,
     galaxyById,
@@ -213,6 +218,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     resetAllSettings,
     applyQuality,
     syncQualityToggle,
+    applyShowFps,
     onSubpanelKeyDown,
   } = deps;
 
@@ -685,7 +691,14 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
         }
         syncQualityToggle();
       },
+      onShowFpsChange: (enabled) => {
+        applyShowFps(enabled);
+      },
     });
+    // Settings > Show FPS counter, from the settings read before the first
+    // scene. The frame loop ticks it; it starts hidden and off.
+    ctx.runtime.fpsCounter = createFpsCounter(fpsRoot);
+    ctx.runtime.fpsCounter.setEnabled(loaded.showFps);
 
     // The hook exists only when explicitly asked for with exactly `?test=1`
     // (read at the top of startSession), and only mutates the live state: no
@@ -831,7 +844,8 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
    *      settled right after, see `swapSystem`);
    *   3. the shared `uiController` is aborted (every window listener);
    *   4. the station nav, then the input source (cleared, then disposed), the
-   *      pause overlay, the controls panel and the settings panel;
+   *      pause overlay, the controls panel, the settings panel and the FPS
+   *      counter;
    *   5. the scene manager, then the asset cache that owns its shared GLBs;
    *   6. the break pattern, the HUD, the chart (chart closed), the Save/Load
    *      screen (screen closed), the docked shell and the title screen;
@@ -869,6 +883,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     ctx.runtime.pauseOverlay?.dispose();
     ctx.runtime.controlsPanel?.dispose();
     ctx.runtime.settingsPanel?.dispose();
+    ctx.runtime.fpsCounter?.dispose();
 
     // Scene first, then the cache that owns the shared GLBs it referenced.
     scenes.dispose();

@@ -58,6 +58,7 @@ function harness(pauseOnFocusLoss = true): Harness {
   ctx.runtime.settings = {
     pauseOnFocusLoss,
     quality: "standard",
+    showFps: false,
   } as unknown as SettingsV1;
   ctx.runtime.input = {
     clearAll: record("input.clearAll"),
@@ -81,6 +82,8 @@ function harness(pauseOnFocusLoss = true): Harness {
       calls.push(`settings.setPauseOnFocusLoss(${String(on)})`),
     setQuality: (quality: GraphicsQuality) =>
       calls.push(`settings.setQuality(${quality})`),
+    setShowFps: (on: boolean) =>
+      calls.push(`settings.setShowFps(${String(on)})`),
   } as unknown as SettingsPanel;
   const h: Harness = {
     ctx,
@@ -236,6 +239,7 @@ describe("panels and quality", () => {
       "controls.hide",
       "settings.setPauseOnFocusLoss(false)",
       "settings.setQuality(standard)",
+      "settings.setShowFps(false)",
       "settings.show",
     ]);
   });

@@ -161,6 +161,7 @@ if (!boot.ok) {
   const pauseRoot = requireElement("pause");
   const controlsRoot = requireElement("controls");
   const settingsRoot = requireElement("settings-panel");
+  const fpsRoot = requireElement("fps");
 
   const lave = galaxy0().find((system) => system.id === "g0-s7");
   if (lave === undefined) {
@@ -306,6 +307,7 @@ if (!boot.ok) {
     pauseRoot,
     controlsRoot,
     settingsRoot,
+    fpsRoot,
     gameRoot: canvas,
     save: {
       store: saveStore,

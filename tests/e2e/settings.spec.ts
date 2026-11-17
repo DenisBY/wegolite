@@ -19,6 +19,7 @@ interface StoredSettings {
   version: number;
   bindings: Record<string, string[]>;
   pauseOnFocusLoss?: boolean;
+  showFps?: boolean;
 }
 
 async function startAndLaunch(
@@ -474,6 +475,75 @@ test("the High-quality toggle rebuilds the planet, persists and resets", async (
     page.locator('[data-settings-toggle="highQuality"]'),
   ).not.toBeChecked();
   expect(await nebulaQuads()).toBe(0);
+
+  expect(errors).toEqual([]);
+});
+
+test("the Show FPS toggle shows a live counter in flight and docked, persists and resets", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  const fps = page.locator("#fps");
+  const toggle = page.locator('[data-settings-toggle="showFps"]');
+  // A real readout, not the "FPS: --" placeholder.
+  const reading = /^FPS: \d+$/;
+
+  // a. Off by default: the readout is hidden in flight.
+  await startAndLaunch(page);
+  await expect(fps).toBeHidden();
+
+  // b. Switching it on stores the choice.
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeVisible();
+  await page.click('#pause button[data-pause-action="settings"]');
+  await expect(page.locator("#settings-panel")).toBeVisible();
+  await expect(toggle).not.toBeChecked();
+  await toggle.check();
+  expect((await storedSettings(page)).showFps).toBe(true);
+
+  // c. Back in flight the counter shows a measured rate.
+  await page.click('#settings-panel button[data-settings-action="back"]');
+  await page.click('#pause button[data-pause-action="resume"]');
+  await expect(page.locator("#pause")).toBeHidden();
+  await expect(fps).toBeVisible();
+  await expect(fps).toHaveText(reading, { timeout: 15_000 });
+
+  // d. After a reload it is on from the start, and it counts while docked.
+  await page.reload();
+  await waitForReady(page);
+  await startNewGame(page);
+  await expect(page.locator("#docked")).toBeVisible({ timeout: 30_000 });
+  await expect(fps).toBeVisible();
+  await expect(fps).toHaveText(reading, { timeout: 15_000 });
+
+  // e. Reset all settings turns it off and removes the stored blob.
+  await page.click('button[data-action="launch"]');
+  await page.waitForFunction(
+    () => {
+      const probe = window.__wegolite;
+      return (
+        probe !== undefined && probe.ready === true && probe.mode === "inFlight"
+      );
+    },
+    undefined,
+    { timeout: 60_000 },
+  );
+  await page.keyboard.press("KeyP");
+  await expect(page.locator("#pause")).toBeVisible();
+  await page.click('#pause button[data-pause-action="settings"]');
+  await expect(toggle).toBeChecked();
+  await page.click('[data-settings-action="reset"]');
+  expect(
+    await page.evaluate(() => localStorage.getItem("wegolite.settings")),
+  ).toBeNull();
+  await expect(fps).toBeHidden();
+  await expect(toggle).not.toBeChecked();
 
   expect(errors).toEqual([]);
 });

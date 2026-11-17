@@ -13,6 +13,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that burns out within a second, and a ship that carried cargo spills
   cargo containers. The pieces drift away and tumble; nothing can be picked
   up yet.
+- The pause menu's Settings panel has a "Show FPS counter" option, off by
+  default. When it is on, the game's frame rate appears as "FPS: 60" at the
+  right end of the bottom strip, in flight and while docked, refreshed twice a
+  second. The choice is stored with your other settings, and Reset all
+  settings turns it off.
 
 ### Changed
 

@@ -120,6 +120,8 @@ export interface GameSessionOptions {
   readonly pauseRoot: HTMLElement;
   readonly controlsRoot: HTMLElement;
   readonly settingsRoot: HTMLElement;
+  /** The `#fps` readout in the document footer (Settings > Show FPS counter). */
+  readonly fpsRoot: HTMLElement;
   /** The canvas that receives focus when the pause overlay closes. */
   readonly gameRoot: HTMLElement;
   /** DOCK-07: the boot read and the store every autosave writes through. */
@@ -191,6 +193,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     pauseRoot,
     controlsRoot,
     settingsRoot,
+    fpsRoot,
     gameRoot,
     save: saveBoot,
     onProfileChanged = () => undefined,
@@ -420,6 +423,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     openControls,
     syncQualityToggle,
     applyQuality,
+    applyShowFps,
     openSettings,
     resetAllSettings,
     onSubpanelKeyDown,
@@ -505,6 +509,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     controlsRoot,
     gameRoot,
     settingsRoot,
+    fpsRoot,
     saveBoot,
     galaxy,
     galaxyById,
@@ -543,6 +548,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     resetAllSettings,
     applyQuality,
     syncQualityToggle,
+    applyShowFps,
     onSubpanelKeyDown,
   });
 

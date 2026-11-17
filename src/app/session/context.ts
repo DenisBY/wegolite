@@ -83,6 +83,7 @@ import type { ChartOverlay } from "../../ui/chart.js";
 import type { ChartCamera } from "../../ui/chart-model.js";
 import { galaxyPreset } from "../../ui/chart-model.js";
 import type { ControlsPanel } from "../../ui/controls.js";
+import type { FpsCounter } from "../../ui/fps-counter.js";
 import type { PauseOverlay } from "../../ui/pause.js";
 import type { SaveLoadScreen } from "../../ui/save-load.js";
 import type { SettingsPanel } from "../../ui/settings-panel.js";
@@ -255,6 +256,8 @@ export interface SessionRuntime {
   pauseOverlay: PauseOverlay | undefined;
   controlsPanel: ControlsPanel | undefined;
   settingsPanel: SettingsPanel | undefined;
+  /** Settings > Show FPS counter: the footer readout, ticked once per frame. */
+  fpsCounter: FpsCounter | undefined;
   paused: boolean;
   /** QUAL-05: set from the context-loss event until the restore. */
   contextLost: boolean;
@@ -422,6 +425,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       pauseOverlay: undefined,
       controlsPanel: undefined,
       settingsPanel: undefined,
+      fpsCounter: undefined,
       paused: false,
       contextLost: false,
       testTainted: false,

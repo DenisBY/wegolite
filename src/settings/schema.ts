@@ -5,8 +5,9 @@
  * The versioned settings schema (D-12, D-13, T-3-13, Pitfall 16).
  *
  * `localStorage` is attacker-controlled in a browser. This module is the one
- * validator: it accepts exactly five top-level keys, exactly the allowlisted
- * action and hint IDs, capped arrays and non-empty strings, and it builds fresh
+ * validator: it accepts exactly seven top-level keys (`version`, `bindings`,
+ * `hintsSeen`, `launchSeen` and the optional `pauseOnFocusLoss`, `quality` and
+ * `showFps`), exactly the allowlisted action and hint IDs, capped arrays and non-empty strings, and it builds fresh
  * null-prototype maps rather than merging parsed JSON into an object.
  *
  * `HintId` is owned here — plan 07's hint controller and this schema must share
@@ -86,6 +87,12 @@ export interface SettingsV1 {
    * value must be one of `GRAPHICS_QUALITIES`.
    */
   quality: GraphicsQuality;
+  /**
+   * Settings > Show FPS counter. Absent in blobs written before this field
+   * existed and in every blob written with the counter off, where it reads as
+   * `false`; a stored value must be a boolean.
+   */
+  showFps: boolean;
 }
 
 type ParseResult =
@@ -113,6 +120,7 @@ function parseSettings(value: unknown): ParseResult {
     "launchSeen",
     "pauseOnFocusLoss",
     "quality",
+    "showFps",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedTopLevel.has(key)) {
@@ -210,6 +218,16 @@ function parseSettings(value: unknown): ParseResult {
     quality = value.quality;
   }
 
+  // The same strict-optional rule again: absent is off, and anything but a
+  // boolean (a stored null included) rejects the blob.
+  let showFps = false;
+  if (value.showFps !== undefined) {
+    if (typeof value.showFps !== "boolean") {
+      return fail("settings.showFps: expected a boolean");
+    }
+    showFps = value.showFps;
+  }
+
   return {
     ok: true,
     settings: {
@@ -219,6 +237,7 @@ function parseSettings(value: unknown): ParseResult {
       launchSeen: value.launchSeen,
       pauseOnFocusLoss,
       quality,
+      showFps,
     },
   };
 }
@@ -248,6 +267,7 @@ export function defaults(): SettingsV1 {
     launchSeen: false,
     pauseOnFocusLoss: true,
     quality: "standard",
+    showFps: false,
   };
 }
 
@@ -329,6 +349,7 @@ export function mergeDefaults(settings: SettingsV1): SettingsV1 {
     launchSeen: settings.launchSeen,
     pauseOnFocusLoss: settings.pauseOnFocusLoss,
     quality: settings.quality,
+    showFps: settings.showFps,
   };
 }
 

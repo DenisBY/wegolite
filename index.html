@@ -1282,6 +1282,18 @@
         pointer-events: auto;
         color: #9c9;
       }
+      /* Settings > Show FPS counter. It sits at the top-right of the footer
+         strip, which every screen already reserves (the station screens pad by
+         --document-footer-height), so it covers no HUD gauge and no station
+         row. It inherits the footer's 12px monospace and is not clickable,
+         because the footer is pointer-events: none. The [hidden] rule above
+         hides it while the option is off. */
+      #fps {
+        position: absolute;
+        top: 0.35rem;
+        right: 1rem;
+        color: #cfc;
+      }
     </style>
   </head>
   <body>
@@ -1974,6 +1986,12 @@
             nebulae)
           </label>
         </p>
+        <p>
+          <label>
+            <input type="checkbox" data-settings-toggle="showFps" />
+            Show FPS counter (frames per second)
+          </label>
+        </p>
         <div class="panel-actions">
           <button type="button" data-settings-action="reset">
             Reset all settings
@@ -1984,6 +2002,7 @@
     </div>
     <div id="failure" role="alert" hidden></div>
     <footer>
+      <span id="fps" hidden aria-hidden="true"></span>
       <p class="footer-meta">
         Wegolite 0.4.0 ·
         <a href="./NOTICE">NOTICE</a> · <a href="./LICENSE">LICENSE</a> ·

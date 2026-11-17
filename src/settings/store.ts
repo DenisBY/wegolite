@@ -113,6 +113,9 @@ export function saveSettings(
     ...(normalized.quality === "standard"
       ? {}
       : { quality: normalized.quality }),
+    // Written only when on, for the same reason: a blob at the defaults keeps
+    // its exact current shape.
+    ...(normalized.showFps ? { showFps: true } : {}),
   };
   try {
     storage.setItem(SETTINGS_KEY, JSON.stringify(blob));

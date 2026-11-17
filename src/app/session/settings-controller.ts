@@ -160,6 +160,22 @@ export function createSettingsController(
     );
   }
 
+  /** Mirror the stored FPS-counter choice into the Settings toggle; absent reads as off. */
+  function syncShowFpsToggle(): void {
+    ctx.runtime.settingsPanel?.setShowFps(
+      ctx.runtime.settings?.showFps ?? false,
+    );
+  }
+
+  /** Settings > Show FPS counter: store the choice and show or hide the readout. */
+  function applyShowFps(enabled: boolean): void {
+    const settings = ctx.runtime.settings;
+    if (settings === undefined) return;
+    settings.showFps = enabled;
+    persistSettings();
+    ctx.runtime.fpsCounter?.setEnabled(enabled);
+  }
+
   /**
    * Apply a graphics quality to the running game.
    *
@@ -190,6 +206,7 @@ export function createSettingsController(
     ctx.runtime.controlsPanel?.hide();
     syncPauseOnFocusLossToggle();
     syncQualityToggle();
+    syncShowFpsToggle();
     ctx.runtime.settingsPanel?.show();
   }
 
@@ -210,6 +227,9 @@ export function createSettingsController(
     // Reset returns the quality to its default; rebuild the scene to match.
     applyQuality(fresh.quality);
     syncQualityToggle();
+    // Reset turns the FPS counter off with the rest of the defaults.
+    ctx.runtime.fpsCounter?.setEnabled(fresh.showFps);
+    syncShowFpsToggle();
     refreshStationChrome();
   }
 
@@ -239,6 +259,8 @@ export function createSettingsController(
     syncPauseOnFocusLossToggle,
     syncQualityToggle,
     applyQuality,
+    syncShowFpsToggle,
+    applyShowFps,
     openSettings,
     resetAllSettings,
     onSubpanelKeyDown,

@@ -8,7 +8,8 @@
  * verbatim: it schedules the next animation frame, counts the frame, then runs
  * its phases in a fixed order that the frame-order test pins:
  *
- *   1. reschedule and count (`probe.frames`), then the live guards and the delta;
+ *   1. reschedule, count (`probe.frames`) and tick the FPS counter (a DOM text
+ *      readout, so no redraw request), then the live guards and the delta;
  *   2. the pause toggle;
  *   3. the chart drain, then the save-screen drain (the chart wins a tie);
  *   4. the chart-open branch: drain, empty `pending`, and in flight (not paused,
@@ -79,6 +80,7 @@ export function createFrameLoop(
   function frame(now: number): void {
     ctx.runtime.rafId = requestAnimationFrame(frame);
     probe.frames += 1;
+    ctx.runtime.fpsCounter?.frame(now);
 
     const currentState = ctx.core.state;
     const currentLayout = ctx.core.layout;
