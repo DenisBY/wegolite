@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-17T13:19:06.133Z"
+last_updated: "2026-11-17T14:06:31.675Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: ddee48b85f826cf57fcc3e479319a7258f42cef0
+state_head: 52d11ad12397f0c83f0d4b8b93b5a8f6c4d2f2f5
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-17 — Completed quick task 261117-jji: measure ship masses in real Oolite (all 13 bit-exact)
+Last activity: 2026-11-17 — Completed quick task 261117-k1l: align station and buoy collision radii with Oolite
 
 
 ## Performance Metrics
@@ -605,6 +605,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261117-han | Render laser shots as camera-facing glowing ribbons with Oolite widths and colours | 2026-11-17 | 6db5bfc | [261117-han-render-laser-shots-as-camera-facing-glow](./quick/261117-han-render-laser-shots-as-camera-facing-glow/) |
 | 261117-iuw | Build a headless Oolite reference container on the remote test machine | 2026-11-17 | 7f479a8 | [261117-iuw-build-a-headless-oolite-reference-contai](./quick/261117-iuw-build-a-headless-oolite-reference-contai/) |
 | 261117-jji | Measure ship masses in real Oolite and compare with Wegolite | 2026-11-17 | ddee48b | [261117-jji-measure-ship-masses-in-real-oolite-and-c](./quick/261117-jji-measure-ship-masses-in-real-oolite-and-c/) |
+| 261117-k1l | Align station and buoy radii with Oolite, compiled from the meshes | 2026-11-17 | 52d11ad | [261117-k1l-align-station-and-buoy-radii-with-oolite](./quick/261117-k1l-align-station-and-buoy-radii-with-oolite/) |
 
 ## Deferred Items
 
