@@ -283,8 +283,8 @@ test("a bounce shakes, flashes and messages, and a retry is immediate", async ({
   expect(afterBounce.mode).toBe("inFlight");
 
   // The bounce message is on one of the drawn message rows: a later message
-  // (a following hull contact) scrolls it up a row instead of hiding it
-  // (Oolite's message rows, quick task 261117-pij).
+  // scrolls it up a row instead of hiding it (Oolite's message rows, quick
+  // task 261117-pij).
   await page.waitForFunction(
     () =>
       (window.__wegolite?.hud?.messageRows ?? []).some((row) =>
