@@ -70,16 +70,19 @@ Plan:
    (`/tmp/ooref-mass/addons/wegolite-mass.oxp`); it logged the 13 ships at `startUpComplete`. No constant
    changed: every mass and every NPC and player radius was equal.
 4. UI comparison: screenshots of the scanner, HUD and messages from the xvfb display next to Wegolite's.
+   **Done** (quick task 261117-nfn, 2026-11-17): nine pairs compared (status, manifest, market, system data
+   against the chart hover card, both charts, flight, the mass-lock message, an NPC), with 19 R1, 7 R2 and 6 R3
+   differences, now in the todos `2026-11-17-ui-flight-hud-differences-from-oolite.md`,
+   `2026-11-17-ui-station-screen-differences-from-oolite.md` and `2026-11-17-ui-chart-differences-from-oolite.md`.
 5. Provenance: do not commit the Oolite binary or its assets (code is GPL, assets CC BY-NC-SA); record what was
    used (version, source of the AppImage) in FIDELITY.md or the todo's SUMMARY.
    **Done for the reference build**: the version, URL and SHA256 are recorded in the README, in the FIDELITY.md
    Open items and in the 261117-iuw SUMMARY. Each measurement run records its own `session.txt` and
    `wrapper.txt` in its SUMMARY.
 
-Open: step 4 (UI comparison) and the Phase 16 wreck lifetime and explosion items below. The station mass-lock
-boundary at exactly 25,600 m, measured in quick task 261117-lka, was fixed in quick task 261117-mne (`torus.ts:103`
-is now strict `<`). No mass difference is waiting for the owner. The reference build is 1.93.1-255, not the 1.93.1-241 pin; see
-the FIDELITY.md Open items bullet "Reference Oolite for measurements".
+Open: only the Phase 16 wreck lifetime and explosion items below. No mass difference is waiting for the owner;
+the UI differences from step 4 wait in their own three todos. The reference build is 1.93.1-255, not the
+1.93.1-241 pin; see the FIDELITY.md Open items bullet "Reference Oolite for measurements".
 
 Risks: audio and the OpenGL version Oolite demands under llvmpipe; software rendering may differ in small
 visual details (does not affect the mass numbers). Estimate: half an hour to two hours, mostly the headless run.
