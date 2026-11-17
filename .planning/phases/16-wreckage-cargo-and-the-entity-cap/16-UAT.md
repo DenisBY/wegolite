@@ -8,10 +8,10 @@ updated: 2026-11-17T09:40:00Z
 
 ## Current Test
 
-number: 6
-name: OC-7: the debris vendoring run was done by the orchestrator
+number: 7
+name: Visual check of the explosion, wreckage burn-down and pod drift on a real GPU
 expected: |
-  Owner confirms the provenance of commit 8b5cd65; the 14 files were re-hashed against the pinned blobs and match, and CHECKSUMS.sha256 only gained lines (D16-02).
+  A destroyed ship shows a cloud and a white flash; then wrecks, plate and pods drift and tumble; nothing judders badly or looks wrong. The container renders on SwiftShader and cannot judge appearance.
 awaiting: user response
 
 ## Tests
@@ -41,7 +41,8 @@ note: owner accepted on 2026-11-17; tracked by the todo 2026-11-17-skip-shiphit-
 
 ### 6. OC-7: the debris vendoring run was done by the orchestrator
 expected: Owner confirms the provenance of commit 8b5cd65; the 14 files were re-hashed against the pinned blobs and match, and CHECKSUMS.sha256 only gained lines (D16-02).
-result: [pending]
+result: pass
+note: owner accepted on 2026-11-17 after the descriptions.plist drift in the Oolite checkout (14 commits ahead of the pin, UI strings only) was explained; the pin stays at 7437f22.
 
 ### 7. Visual check of the explosion, wreckage burn-down and pod drift on a real GPU
 expected: A destroyed ship shows a cloud and a white flash; then wrecks, plate and pods drift and tumble; nothing judders badly or looks wrong. The container renders on SwiftShader and cannot judge appearance.
@@ -50,9 +51,9 @@ result: [pending]
 ## Summary
 
 total: 7
-passed: 5
+passed: 6
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
