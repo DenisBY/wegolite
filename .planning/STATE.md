@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 16
 current_phase_name: Wreckage, Cargo and the Entity Cap
-current_plan: 7
+current_plan: 8
 status: executing
-stopped_at: Completed 16-06-PLAN.md
-last_updated: "2026-11-17T00:46:13.466Z"
+stopped_at: Completed 16-07-PLAN.md
+last_updated: "2026-11-17T01:09:17.675Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 15 complete, transitioned to Phase 16
-state_head: d154d8738d694a2532d7d5bfb0feda8a802907d8
+state_head: f14039db724f5509d239179b1ee682ef82158e23
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 15
-  completed_plans: 12
+  completed_plans: 13
   percent: 17
 ---
 
@@ -31,10 +31,10 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 16 — Wreckage, Cargo and the Entity Cap
-Current Plan: 7
+Current Plan: 8
 Total Plans in Phase: 9
 Status: Ready to execute
-Last activity: 2026-11-17 — 16-06 complete (debris and explosion catalogues in the live session, combat.debris through debrisContentFrom, spawnTestShooter(cargo); twin hash a10b2dfc; remote verify exit 0 at d154d87)
+Last activity: 2026-11-17 — 16-07 complete (shipDestroyed routed to dockFeedback as the 22nd kind, position and radius only; pooled instanced explosion cloud and flash, 8 explosions x 10 particles, two draw objects, lazy particle textures; remote verify exit 0 at f14039d)
 
 
 ## Performance Metrics
@@ -205,6 +205,7 @@ Last activity: 2026-11-17 — 16-06 complete (debris and explosion catalogues in
 | Phase 16 P04 | 26 min | 3 tasks | 11 files |
 | Phase 16 P05 | 16 min | 2 tasks | 24 files |
 | Phase 16 P06 | 75min | 2 tasks | 15 files |
+| Phase 16 P07 | 21min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -514,6 +515,9 @@ Recent decisions affecting current work:
 - [Phase 16]: 16-05: NpcShip.boundingBox { min, max } is Math.fround of the hull .dat vertex extremes in Oolite's model axes, schema min <= max (D16-23)
 - [Phase 16]: 16-06: debrisContentFrom is the one builder of the sim's DebrisContent, shared by the session and the Node replay; the boot loads the debris and explosion catalogues with traffic on only, on the NPC catalogue's failure surface
 - [Phase 16]: 16-06 (D16-09): spawnTestShooter(cargo?) taints first; a non-number or out-of-domain count spawns nothing and returns false; absent keeps the Phase 15 spawn bit for bit. Debris twin pins: kill +794, 3 pods, 1 plate, 3 wrecks, 19 entities, hash a10b2dfc 60 ticks after the kill
+- [Phase 16]: 16-07: the explosion quad edge is 2 x Oolite's particle size and flash _diameter (Oolite draws -size..+size)
+- [Phase 16]: 16-07: explosion colours are display values fed as srgbToLinear(clamp(c) x alpha) into instanceColor with the particle texture as alphaMap, reproducing GL_SRC_ALPHA, GL_ONE under the sRGB output
+- [Phase 16]: 16-07: the flash's no_draw_distance attenuation and the cloud's drift with the dead ship's velocity are not reproduced (the event carries no velocity)
 
 ### Pending Todos
 
@@ -622,8 +626,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-17T00:46:13.333Z
-Stopped at: Completed 16-06-PLAN.md
+Last session: 2026-11-17T01:09:17.542Z
+Stopped at: Completed 16-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
