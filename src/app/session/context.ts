@@ -271,6 +271,15 @@ export interface SessionRuntime {
    */
   testFlags: TestFlags;
   lastMs: number;
+  /**
+   * Wall seconds spent docked, not paused and not under the manual clock
+   * (quick task 261117-u3m). The frame loop adds its frame delta while docked;
+   * the render driver adds this to the flight time to make the message rows'
+   * clock, because the ship's flight time stands still while docked
+   * (`src/sim/flight/step.ts:362-370`) and Oolite counts the rows down on
+   * every screen, docked ones included (`Universe.m:4735-4736`, `4810-4827`).
+   */
+  dockedMessageSeconds: number;
   rafId: number;
   /**
    * The id of the one animation frame `swapSystem` waits on (0 when none), so
@@ -432,6 +441,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       testHookEnabled: false,
       testFlags: { hook: false, manualClock: false, traffic: true },
       lastMs: 0,
+      dockedMessageSeconds: 0,
       rafId: 0,
       swapRafId: 0,
       disposed: false,

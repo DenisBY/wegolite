@@ -764,6 +764,97 @@ describe("the manual clock (tracer)", () => {
   });
 });
 
+describe("the docked message clock (quick task 261117-u3m)", () => {
+  // Oolite draws the message area on every screen, docked ones included, and
+  // counts each row down with the frame delta (Universe.m:4735-4736,
+  // 4810-4827; GuiDisplayGen.m:1308-1312, 1327-1336). The flight time stands
+  // still while docked, so the loop adds the wall delta to its own clock.
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function looped(
+    options: {
+      readonly mode?: "docked" | "inFlight";
+      readonly manual?: boolean;
+    } = {},
+  ) {
+    const h = harness(options);
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    const input = h.ctx.runtime.input as unknown as Record<string, unknown>;
+    h.ctx.runtime.input = {
+      ...input,
+      consumePauseToggle: () => false,
+      drainChartActions: () => [],
+      drainSaveScreenActions: () => [],
+      drainStationActions: () => [],
+    } as unknown as KeyboardInputSource;
+    const frame = createFrameLoop(h.ctx, {
+      probe: { frames: 0 },
+      pending: h.pending,
+      redrawGate: { request: () => undefined },
+      simDriver: { advanceFrame: () => 0, advanceBehind: () => undefined },
+      renderFrame: () => undefined,
+      shouldDraw: () => false,
+      pause: () => undefined,
+      resume: () => undefined,
+      handleChartActions: () => undefined,
+      handleSaveScreenActions: () => undefined,
+      applyStationAction: () => undefined,
+      updateProbe: () => undefined,
+    });
+    return { ctx: h.ctx, frame };
+  }
+
+  it("adds the frame delta while docked, the first frame adding nothing", () => {
+    const { ctx, frame } = looped();
+    expect(ctx.runtime.dockedMessageSeconds).toBe(0);
+    frame(1000);
+    expect(ctx.runtime.dockedMessageSeconds).toBe(0);
+    frame(1016);
+    expect(ctx.runtime.dockedMessageSeconds).toBeCloseTo(0.016, 12);
+  });
+
+  it("keeps counting with the chart open while docked", () => {
+    const { ctx, frame } = looped();
+    ctx.chart.chartOpen = true;
+    frame(1000);
+    frame(1500);
+    expect(ctx.runtime.dockedMessageSeconds).toBeCloseTo(0.5, 12);
+  });
+
+  it("adds nothing while paused, under the manual clock or in flight", () => {
+    const paused = looped();
+    paused.ctx.runtime.paused = true;
+    paused.frame(1000);
+    paused.frame(1016);
+    expect(paused.ctx.runtime.dockedMessageSeconds).toBe(0);
+
+    const manual = looped({ manual: true });
+    manual.frame(1000);
+    manual.frame(1016);
+    expect(manual.ctx.runtime.dockedMessageSeconds).toBe(0);
+
+    const flying = looped({ mode: "inFlight" });
+    flying.frame(1000);
+    flying.frame(1016);
+    expect(flying.ctx.runtime.dockedMessageSeconds).toBe(0);
+  });
+
+  it("adds nothing for a negative or non-finite delta", () => {
+    const backwards = looped();
+    backwards.frame(2000);
+    backwards.frame(1000);
+    expect(backwards.ctx.runtime.dockedMessageSeconds).toBe(0);
+
+    const broken = looped();
+    broken.frame(1000);
+    broken.frame(Number.NaN);
+    broken.frame(Number.POSITIVE_INFINITY);
+    expect(broken.ctx.runtime.dockedMessageSeconds).toBe(0);
+  });
+});
+
 describe("advanceTicks, the refusal table", () => {
   const unsafe: readonly [string, number][] = [
     ["zero", 0],

@@ -832,3 +832,69 @@ describe("renderFrame hyperspace countdown row (quick task 261117-u3m)", () => {
     ).toBe(false);
   });
 });
+
+describe("renderFrame message clock (quick task 261117-u3m)", () => {
+  // Oolite draws the message area on every screen, docked ones included, and
+  // counts each row down with the frame delta (Universe.m:4735-4736,
+  // 4810-4827; GuiDisplayGen.m:1308-1312, 1327-1336). The rows run on the
+  // flight time plus the docked wall time the frame loop accumulates.
+  function session(mode: FlightState["mode"], flightTime: number) {
+    const models: HudModel[] = [];
+    const h = harness();
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    h.ctx.core.scene = flyableScene(h.nebula);
+    h.ctx.runtime.hud = {
+      draw: (model: HudModel) => models.push(model),
+    } as unknown as Hud;
+    h.ctx.core.state = { ...initFlightState(layout), mode, flightTime };
+    return { h, models };
+  }
+
+  it("counts a row down on docked frames that draw nothing", () => {
+    const { h, models } = session("docked", 10);
+    h.messages.enqueue("Docking computers engaged", 4.5);
+    h.driver.renderFrame(0, false);
+    h.ctx.runtime.dockedMessageSeconds += 4.4;
+    h.driver.renderFrame(0, false);
+    expect(h.messages.size).toBe(1);
+    h.ctx.runtime.dockedMessageSeconds += 0.2;
+    h.driver.renderFrame(0, false);
+    expect(h.messages.size).toBe(0);
+    // No HUD is drawn while docked.
+    expect(models).toHaveLength(0);
+  });
+
+  it("draws the same rows and alpha in flight whatever the constant docked offset", () => {
+    const rowsAt = (offset: number) => {
+      const { h, models } = session("inFlight", 10);
+      h.ctx.runtime.dockedMessageSeconds = offset;
+      h.messages.enqueue("Torus disengaged", 4);
+      h.driver.renderFrame(0);
+      (h.ctx.core.state as FlightState).flightTime = 13.5;
+      h.driver.renderFrame(0);
+      return models.map((model) => model.messageRows);
+    };
+    const plain = rowsAt(0);
+    expect(rowsAt(250.75)).toEqual(plain);
+    expect(plain[1]?.at(-1)).toEqual({ text: "Torus disengaged", alpha: 0.5 });
+  });
+
+  it("does not draw a message posted at docking that expired while docked on the first in-flight frame", () => {
+    const { h, models } = session("docked", 10);
+    h.messages.enqueue("Docking computers engaged", 4.5);
+    h.driver.renderFrame(0, false);
+    h.ctx.runtime.dockedMessageSeconds += 5;
+    h.driver.renderFrame(0, false);
+    h.ctx.core.state = {
+      ...(h.ctx.core.state as FlightState),
+      mode: "inFlight",
+    };
+    h.driver.renderFrame(0);
+    expect(
+      models
+        .at(-1)
+        ?.messageRows.some((row) => row.text === "Docking computers engaged"),
+    ).toBe(false);
+  });
+});

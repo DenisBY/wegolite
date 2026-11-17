@@ -10,7 +10,10 @@
  *
  *   1. reschedule, count (`probe.frames`) and tick the FPS counter (a DOM text
  *      readout, so no redraw request), then the live guards and the delta;
- *   2. the pause toggle;
+ *   2. the pause toggle, then the docked message clock: while docked, not
+ *      paused and not under the manual clock, the frame delta is added to
+ *      `ctx.runtime.dockedMessageSeconds` (quick task 261117-u3m), chart and
+ *      save screen included, as Oolite draws the message area on every screen;
  *   3. the chart drain, then the save-screen drain (the chart wins a tie);
  *   4. the chart-open branch: drain, empty `pending`, and in flight (not paused,
  *      not under the manual clock) step the simulation behind the chart with no
@@ -104,6 +107,21 @@ export function createFrameLoop(
     if (currentInput.consumePauseToggle()) {
       if (ctx.runtime.paused) resume();
       else pause();
+    }
+
+    // The message rows count down on the docked screens too (Universe.m:4735-
+    // 4736, 4810-4827; GuiDisplayGen.m:1308-1312, 1327-1336), while the flight
+    // time stands still, so the docked wall delta feeds the rows' clock. Only a
+    // finite, positive delta counts; a paused session and the manual clock
+    // (D-09) freeze the rows.
+    if (
+      currentState.mode === "docked" &&
+      !ctx.runtime.paused &&
+      !ctx.runtime.testFlags.manualClock &&
+      Number.isFinite(delta) &&
+      delta > 0
+    ) {
+      ctx.runtime.dockedMessageSeconds += delta;
     }
 
     // D-01: consume the chart edges before the freeze branch, so F6 opens and

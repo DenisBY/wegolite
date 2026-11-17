@@ -25,13 +25,17 @@
  *   (`Universe.m:6235-6240`) forgets the last shown message, so the next
  *   message shows whatever it is.
  *
- * Wegolite choices: a row's countdown starts at its first read by the HUD
- * (`advance`, `rows` or `current`), as Oolite counts a row down only while
- * `drawGUI` draws it. The 6 s repeat window runs on the queue's clock, the
- * flight time of its latest read. Expiry is driven by the *simulation* clock
- * passed in, never by `Date` or `performance`, so a paused game freezes the
- * rows instead of expiring them in wall time. Oolite's word wrap of a long
- * message into extra rows is not ported; the HUD clamps a long line instead.
+ * Wegolite choices: a row's countdown starts at its first read (`advance`,
+ * `rows` or `current`), as Oolite counts a row down only while `drawGUI` draws
+ * it. Oolite draws the message area on every screen, docked ones included
+ * (`Universe.m:4735-4736`, `4810-4827`), so the render driver advances the
+ * queue on every frame, docked or not drawn (quick task 261117-u3m). The clock
+ * passed in is the session's message clock: the flight time plus the wall time
+ * spent docked (the flight time stands still while docked), never `Date` or
+ * `performance` read here, so a paused game freezes the rows instead of
+ * expiring them. The 6 s repeat window runs on the clock of the queue's latest
+ * read. Oolite's word wrap of a long message into extra rows is not ported;
+ * the HUD clamps a long line instead.
  */
 
 /** One drawn message row: its text and its alpha (0 for a blank row). */
@@ -42,7 +46,7 @@ export interface MessageRow {
 
 export interface MessageQueue {
   /**
-   * Post `text` for `seconds` of flight time on the bottom row, scrolling the
+   * Post `text` for `seconds` of message-clock time on the bottom row, scrolling the
    * other rows up one. Ignored for empty text or a non-finite or non-positive
    * duration, and dropped when `text` equals the last shown message within
    * `MESSAGE_REPEAT_SECONDS` of it (`Universe.m:6340-6355`).
@@ -55,27 +59,28 @@ export interface MessageQueue {
    */
   clearPrevious(): void;
   /**
-   * Set the queue clock to `flightTime`, start the countdown of every row not
-   * read yet and blank every row whose time has run out.
+   * Set the queue clock to `now` (the session's message clock), start the
+   * countdown of every row not read yet and blank every row whose time has
+   * run out.
    */
-  advance(flightTime: number): void;
+  advance(now: number): void;
   /**
-   * Advance to `flightTime` and return the bottom `count` rows, top to bottom.
+   * Advance to `now` and return the bottom `count` rows, top to bottom.
    * A blank row is empty text with alpha 0; a live row's alpha is the time it
    * has left, capped at 1 (`GuiDisplayGen.m:1334-1336`).
    */
-  rows(flightTime: number, count: number): readonly MessageRow[];
+  rows(now: number, count: number): readonly MessageRow[];
   /**
    * Blank every row and forget the last shown message (G-8). An in-session
    * Load calls this at install time: a row keyed to the replaced session's
-   * clock would otherwise outlive the restored flight time.
+   * clock would otherwise outlive the restored clock.
    */
   clear(): void;
   /**
-   * Advance to `flightTime` and return the text of the lowest live row, the
+   * Advance to `now` and return the text of the lowest live row, the
    * newest message still shown; `""` when every row is blank.
    */
-  current(flightTime: number): string;
+  current(now: number): string;
   /** The number of live (non-blank) rows. */
   readonly size: number;
 }
@@ -111,14 +116,14 @@ export function createMessageQueue(rows = MESSAGE_ROWS): MessageQueue {
   let repeatDeadline = -Infinity;
   let clock = 0;
 
-  function advance(flightTime: number): void {
-    if (!Number.isFinite(flightTime)) return;
-    clock = flightTime;
+  function advance(now: number): void {
+    if (!Number.isFinite(now)) return;
+    clock = now;
     for (const slot of slots) {
       if (slot.text === "") continue;
       if (slot.expiresAt === null) {
-        slot.expiresAt = flightTime + slot.duration;
-      } else if (flightTime >= slot.expiresAt) {
+        slot.expiresAt = now + slot.duration;
+      } else if (now >= slot.expiresAt) {
         slot.text = "";
         slot.duration = 0;
         slot.expiresAt = null;
@@ -147,8 +152,8 @@ export function createMessageQueue(rows = MESSAGE_ROWS): MessageQueue {
       lastShown = null;
     },
     advance,
-    rows(flightTime: number, wanted: number): readonly MessageRow[] {
-      advance(flightTime);
+    rows(now: number, wanted: number): readonly MessageRow[] {
+      advance(now);
       const n = Number.isFinite(wanted)
         ? Math.max(0, Math.min(slots.length, Math.floor(wanted)))
         : 0;
@@ -161,8 +166,8 @@ export function createMessageQueue(rows = MESSAGE_ROWS): MessageQueue {
       lastShown = null;
       repeatDeadline = -Infinity;
     },
-    current(flightTime: number): string {
-      advance(flightTime);
+    current(now: number): string {
+      advance(now);
       for (let i = slots.length - 1; i >= 0; i -= 1) {
         const text = slots[i]?.text ?? "";
         if (text !== "") return text;

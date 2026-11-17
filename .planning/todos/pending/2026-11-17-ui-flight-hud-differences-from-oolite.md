@@ -37,6 +37,19 @@ CC BY-NC-SA output). Differences, in rank order:
   commander starts at 2084004:20:13:24 (20:24:12 after the launch), from `ship_clock` 180058018403.9197 in
   `Resources/Scenarios/oolite-standard.oolite-save`; `PLAYER_SHIP_CLOCK_START` is only the fallback. Wegolite:
   `src/sim/flight/state.ts:89`.
+- Open (recorded in quick task 261117-u3m): the hyperspace countdown is an overlay, not a message row. Since
+  261117-u3m the countdown start clears the last message and scrolls nothing, as in Oolite, and the render driver
+  draws the countdown text in place over the bottom drawn row every frame (owner instruction to keep the overlay).
+  Oolite instead writes the countdown into the message rows with `displayCountdownMessage` and a 1 s row time,
+  rewritten each second (`Universe.m:6258-6267`, `PlayerEntity.m:3443-3450`, through `printLineNoScroll`,
+  `GuiDisplayGen.m:797-812`; rows count down in `GuiDisplayGen.m:1327-1336`). Differences: (1) Oolite's countdown
+  row fades over each second, Wegolite's is at full alpha; (2) a message posted during the countdown shows in
+  Oolite for at most a second before the next rewrite overwrites it, in Wegolite it takes the bottom row, which the
+  overlay hides, and moves the older row up into view, so it is seen only if it outlives the countdown; (3) the message on the bottom row at the start is overwritten in Oolite, in
+  Wegolite it is only hidden by the overlay and reappears after a cancel if it is still live; (4) after a cancel
+  Oolite's last countdown text fades out above the abort over at most 1 s, Wegolite's overlay disappears at
+  once. Wegolite: `src/app/session/render-driver.ts` (the countdown overlay),
+  `src/app/session/event-router.ts` (`hyperspaceCountdownStarted`).
 - R1. Extra text readouts "7.0 LY" beside FUEL and "0.000 LS" beside SPD. Oolite's default HUD draws only the bars
   (`hud.plist` `drawFuelBar:`, `drawSpeedBar:`). Wegolite: `src/render/hud/draw.ts`. No recorded decision; owner
   call whether to keep them.
@@ -90,6 +103,8 @@ Likely changes, one per bullet; none is implemented yet:
   hostiles, green otherwise.
 - Done in quick task 261117-pij: Start a new game's clock at the standard scenario's `ship_clock`; check the save and hash pins that read the
   clock.
+- Owner call on porting the countdown into the message rows (a no-scroll write of the bottom row with a 1 s row
+  time each second) instead of the per-frame overlay (recorded in quick task 261117-u3m).
 - Owner call on the fuel and speed readouts.
 - Add the scanner zoom indicator only together with scanner zoom (`key_scanner_zoom`), if it is wanted.
 - Done in quick task 261117-pij: Default the hyperspace target to the current system on a new game, as Oolite does.

@@ -238,6 +238,18 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       if (currentState.mode === "inFlight") npcModels.open();
     }
 
+    // The message rows' clock: the flight time plus the docked wall time
+    // (quick task 261117-u3m). Oolite draws the message area on every screen,
+    // docked ones included, and counts each row down with the frame delta
+    // (Universe.m:4735-4736, 4810-4827; GuiDisplayGen.m:1308-1312,
+    // 1327-1336), so the rows are advanced on every frame, docked or not
+    // drawn, before the HUD is considered. Oolite does not clear the area at
+    // docking (only a docking report or a mission screen does,
+    // PlayerEntity.m:11318-11337), so neither does Wegolite.
+    const messageClock =
+      currentState.flightTime + ctx.runtime.dockedMessageSeconds;
+    messages.advance(messageClock);
+
     // The flight HUD is not drawn while docked (D-09 shows the status panel).
     const isDocked = currentState.mode === "docked";
     hudCanvas.hidden = isDocked;
@@ -257,9 +269,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
         const snapshot = currentState.hyperspaceTarget;
         // Oolite's message rows (quick task 261117-pij): the bottom
         // HUD_MESSAGE_ROWS of the ten, newest at the bottom.
-        const rows = [
-          ...messages.rows(currentState.flightTime, HUD_MESSAGE_ROWS),
-        ];
+        const rows = [...messages.rows(messageClock, HUD_MESSAGE_ROWS)];
         let message: string;
         if (currentState.hyperspaceCountdown > 0 && snapshot !== null) {
           // `displayCountdownMessage` writes the countdown into the bottom
@@ -267,7 +277,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
           message = `Hyperspace to ${galaxyById.get(snapshot.id)?.name ?? "(Unknown)"} in ${String(countdownSecondsRemaining(currentState.hyperspaceCountdown))} seconds`;
           rows[rows.length - 1] = { text: message, alpha: 1 };
         } else {
-          message = messages.current(currentState.flightTime);
+          message = messages.current(messageClock);
         }
         const model = buildHudModel(
           currentState,

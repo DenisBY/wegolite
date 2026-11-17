@@ -29,6 +29,13 @@ committed: the screenshots are CC BY-NC-SA output). Differences, in rank order:
   `src/ui/station-model.ts:323`.
 - Done in quick task 261117-pij: R1, status and market. Currency: Wegolite prints "Cr"; Oolite 1.93 prints "₢". Wegolite's own hover card already
   prints "M₢". Wegolite: `formatDecicredits` in `src/sim/player/profile.ts`.
+- Open (recorded in quick task 261117-u3m): credit amounts are not digit-grouped. Oolite groups the integer part
+  of a credit amount in threes once it has at least 5 digits (`Resources/Scripts/oolite-locale-functions.js:43-48`
+  reads the parameters, `:60-75` groups; `Resources/Config/descriptions.plist:80-83` at the pin sets
+  `number-group-size` 3, `number-group-threshold` 5 and `number-group-separator` to a non-breaking space), so
+  10000.0 credits print as "10 000.0 ₢" with a non-breaking space. The owner's note wrote "10,000.0 ₢" with a
+  comma, which the pinned plist does not use: owner call on the separator. Wegolite prints "10000.0 ₢".
+  Wegolite: `formatDecicredits` and `formatCredits` in `src/sim/player/profile.ts`.
 - R1, manifest. Oolite shows "Cargo 0 t (20 t)", "Passenger Cabins 0 / 0" and "No cargo carried."; Wegolite lists
   all 16 goods with "—" and shows no capacity or cabin line in the visible area. Wegolite: `src/ui/station-model.ts`
   (manifest rows), `index.html:1858-1871`.
@@ -64,6 +71,9 @@ Likely changes, one per bullet; none is implemented yet:
 - Done in quick task 261117-pij: Use "Cobra Mark III".
 - Done in quick task 261117-pij: Switch the credit unit to "₢" everywhere (check the font has the glyph; the hover card shows it does), or record
   "Cr" as a decision.
+- Group credit digits as Oolite does (groups of 3 from 5 integer digits) in `formatDecicredits` and
+  `formatCredits`, with the plist's non-breaking space or the owner's comma (owner call), and update the pinned
+  strings in the station and status tests.
 - Replace the manifest table with Oolite's capacity, cabins and cargo lines (list only the goods held).
 - Owner call on a docked dashboard strip.
 - Make all 17 market rows and the status equipment list fit at 1280x720 (tighter rows or a two-column status

@@ -74,6 +74,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Starting a hyperspace countdown no longer pushes the older messages up a
   line: the countdown is shown in place on the bottom line, as in Oolite. After
   you cancel the countdown, no out-of-date countdown line is left on screen.
+- A message shown when you dock, such as "Docking computers engaged", now
+  times out while docked, as in Oolite, instead of waiting and appearing after
+  your next launch.
 - The market's legality column is now Oolite's Legal column. Slaves, narcotics
   and firearms show "Im", Oolite's mark for goods that may be imported but not
   exported; Wegolite showed "Ex", which in Oolite means the opposite.
