@@ -38,8 +38,6 @@ export const HUD_SCANNER_NEUTRAL_COLOR = "#ffee33";
  * `{0.5, 0.0, 1.0}`, "purpley-blue"): the colour of a police ship's lollipop.
  */
 export const HUD_SCANNER_POLICE_COLOR = "#8000ff";
-export const HUD_FONT =
-  "28px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
 export const HUD_SMALL_FONT =
   "20px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
 const HUD_GAUGE_FONT =
@@ -739,22 +737,24 @@ export function drawHud(
   drawCondition(context, model.condition);
 
   context.fillStyle = HUD_COLOR;
-  context.font = HUD_FONT;
+  // The clock uses the small font because Oolite's hud.plist `drawClock:`
+  // character size is 12, about 21px at the 1.75x HUD scale (D-08). The two
+  // 20px lines are centred on the first and third quarters of the clock
+  // rectangle.
+  context.font = HUD_SMALL_FONT;
   context.textAlign = "left";
   context.fillText(
     model.clockText,
     HUD_LAYOUT.clock.x,
-    HUD_LAYOUT.clock.y + 20,
+    HUD_LAYOUT.clock.y + HUD_LAYOUT.clock.height / 4,
   );
 
   // D-12/A2: the committed target is a second line inside the existing clock
   // rectangle. HUD_ELEMENTS and every HUD_LAYOUT rectangle stay unchanged.
-  context.font = HUD_SMALL_FONT;
-  context.textAlign = "left";
   context.fillText(
     `Hyperspace: ${model.hyperspaceTarget === "" ? "(Unknown)" : model.hyperspaceTarget}`,
     HUD_LAYOUT.clock.x,
-    HUD_LAYOUT.clock.y + 38,
+    HUD_LAYOUT.clock.y + (3 * HUD_LAYOUT.clock.height) / 4,
   );
 
   if (model.message !== "") {

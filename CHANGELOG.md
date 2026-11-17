@@ -23,6 +23,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - A ship your lasers bring to zero energy is now destroyed: it disappears from
   the view and the scanner, and an ident lock on it ends with "Target lost.".
+- The ship's clock at the top left of the flight view is now drawn at the same
+  smaller size as the Hyperspace line beneath it, closer to Oolite, and the
+  two lines now fit together in the top-left corner.
 
 ## [0.4.0] - 2026-11-16
 
