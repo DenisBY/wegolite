@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-17 — Phase 16 complete, transitioned to Phase 17
+Last activity: 2026-11-17 — Completed quick task 261117-fpp: Show FPS counter setting
 
 
 ## Performance Metrics
@@ -600,6 +600,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261110-hzd | Keep the document disclaimer visible on the chart and Save/Load screens and align each station footer flush above it | 2026-11-10 | 07d6371 | [261110-hzd-keep-the-document-disclaimer-visible-on-](./quick/261110-hzd-keep-the-document-disclaimer-visible-on-/) |
 | 261110-j89 | Speed up e2e: split the WR-04 seam spec into its own Playwright config and make preview reuse an explicit local opt-in | 2026-11-10 | 2c69e9c | [261110-j89-speed-up-e2e-split-the-wr-04-seam-spec-i](./quick/261110-j89-speed-up-e2e-split-the-wr-04-seam-spec-i/) |
 | 261110-l2x | Speed up the unit-test loop: share one ESLint Node API across the guard tests and add a coverage-free local script | 2026-11-10 | f2e2cb8 | [261110-l2x-speed-up-unit-tests-replace-guard-test-e](./quick/261110-l2x-speed-up-unit-tests-replace-guard-test-e/) |
+| 261117-fpp | Add a "Show FPS counter" option to Settings: an off-by-default `FPS: n` readout (500 ms animation-frame windows) in the document footer, in flight and docked, stored as `showFps` | 2026-11-17 | 6e32eb9 | [261117-fpp-add-a-show-fps-on-off-option-to-settings](./quick/261117-fpp-add-a-show-fps-on-off-option-to-settings/) |
 
 ## Deferred Items
 
