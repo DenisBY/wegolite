@@ -590,7 +590,7 @@ describe("createExplosionLayer: lazy textures and disposal", () => {
     }
   });
 
-  it("frees the geometry, both materials and every loaded texture once", () => {
+  it("frees both instanced meshes, the geometry, both materials and every loaded texture once", () => {
     const { layer, textures } = recorded();
     layer.add(vec(0, 0, 0), 10, DEFAULT, 1);
     const counted = new Map<string, number>();
@@ -603,13 +603,16 @@ describe("createExplosionLayer: lazy textures and disposal", () => {
         counted.set(name, (counted.get(name) ?? 0) + 1);
       });
     };
+    // The instance buffers belong to the meshes: only a mesh dispose frees them.
+    count("cloudMesh", cloudOf(layer));
+    count("flashMesh", flashOf(layer));
     count("geometry", cloudOf(layer).geometry);
     count("cloudMaterial", cloudOf(layer).material as THREE.Material);
     count("flashMaterial", flashOf(layer).material as THREE.Material);
     for (const [index, texture] of textures.entries()) {
       count(`texture${String(index)}`, texture);
     }
-    expect(counted.size).toBe(5);
+    expect(counted.size).toBe(7);
     layer.dispose();
     layer.dispose();
     for (const [name, disposals] of counted) {

@@ -159,7 +159,10 @@ export interface ExplosionLayer {
     cameraQuaternion: THREE.Quaternion,
     flightTime: number,
   ): void;
-  /** Free the shared quad, both materials and every loaded texture. */
+  /**
+   * Free both instanced meshes' instance buffers, the shared quad, both
+   * materials and every loaded texture.
+   */
   dispose(): void;
 }
 
@@ -552,6 +555,10 @@ export function createExplosionLayer(
       if (disposed) return;
       disposed = true;
       hide();
+      // The instance matrix and colour buffers belong to the meshes, not the
+      // geometry: only the mesh's own dispose frees them.
+      cloud.dispose();
+      flash.dispose();
       geometry.dispose();
       cloudMaterial.dispose();
       flashMaterial.dispose();
