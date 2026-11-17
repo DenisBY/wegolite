@@ -281,6 +281,7 @@ if (!boot.ok) {
       compass: { target: "planet", forward: false },
       aegis: "none",
       message: "",
+      messageRows: [],
       fuelText: "",
       fuel: 0,
       bounds: {},

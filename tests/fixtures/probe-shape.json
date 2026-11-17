@@ -37,7 +37,10 @@
       "letterbox": {
         "[]": ["number"]
       },
-      "message": "string"
+      "message": "string",
+      "messageRows": {
+        "[]": []
+      }
     },
     "launch": {
       "count": "number",
@@ -191,7 +194,10 @@
       "letterbox": {
         "[]": ["number"]
       },
-      "message": "string"
+      "message": "string",
+      "messageRows": {
+        "[]": []
+      }
     },
     "hyperspace": {
       "countdown": "number",
@@ -396,7 +402,10 @@
       "letterbox": {
         "[]": ["number"]
       },
-      "message": "string"
+      "message": "string",
+      "messageRows": {
+        "[]": []
+      }
     },
     "hyperspace": {
       "countdown": "number",
@@ -601,7 +610,10 @@
       "letterbox": {
         "[]": ["number"]
       },
-      "message": "string"
+      "message": "string",
+      "messageRows": {
+        "[]": []
+      }
     },
     "hyperspace": {
       "countdown": "number",
@@ -806,7 +818,10 @@
       "letterbox": {
         "[]": ["number"]
       },
-      "message": "string"
+      "message": "string",
+      "messageRows": {
+        "[]": ["string"]
+      }
     },
     "hyperspace": {
       "countdown": "number",
@@ -1011,7 +1026,10 @@
       "letterbox": {
         "[]": ["number"]
       },
-      "message": "string"
+      "message": "string",
+      "messageRows": {
+        "[]": []
+      }
     },
     "hyperspace": {
       "countdown": "number",
@@ -1231,7 +1249,10 @@
       "letterbox": {
         "[]": ["number"]
       },
-      "message": "string"
+      "message": "string",
+      "messageRows": {
+        "[]": []
+      }
     },
     "hyperspace": {
       "countdown": "number",

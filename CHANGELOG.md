@@ -44,8 +44,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   message repeated within 6 s is shown once. The extra "Mass locked" notice
   when a mass lock begins is gone; Oolite has none.
 - Credits are now shown as ₢, Oolite's credit sign, everywhere (for example
-  "100.0 ₢"). The status screen names the ship "Cobra Mark III", as Oolite
-  does, and shows the kill count after the rating ("Harmless (0)").
+  "100.0 ₢"). The status and home screens name the ship "Cobra Mark III", as
+  Oolite does, and the status screen shows the kill count after the rating
+  ("Harmless (0)").
 - A new commander now starts as in Oolite: the ship's clock reads
   2084004:20:13:23 and the hyperspace target is Lave, the start system, so
   the Hyperspace line on the flight view and the status screen name Lave

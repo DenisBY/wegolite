@@ -476,6 +476,8 @@ export function createProbePublisher(
               },
         aegis: model === undefined ? "none" : model.aegis,
         message: model === undefined ? "" : model.message,
+        messageRows:
+          model === undefined ? [] : model.messageRows.map((row) => row.text),
         fuelText: model === undefined ? "" : model.fuelText,
         fuel: model === undefined ? 0 : model.bars.fuel,
         hyperspaceTarget: model === undefined ? "" : model.hyperspaceTarget,

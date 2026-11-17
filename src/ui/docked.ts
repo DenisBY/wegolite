@@ -17,7 +17,11 @@
 
 import type { HomeModel } from "./station-model.js";
 
-export const DOCKED_SHIP = "Cobra Mk III";
+/**
+ * The ship name the docked home shows: the standard scenario's `ship_name`
+ * (`Resources/Scenarios/oolite-standard.oolite-save`), as on F5.
+ */
+export const DOCKED_SHIP = "Cobra Mark III";
 
 export interface DockedPanel {
   show(systemName: string): void;

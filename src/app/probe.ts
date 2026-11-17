@@ -56,7 +56,13 @@ export interface WegoliteHudProbe {
   contacts: string[];
   compass: WegoliteHudCompassProbe;
   aegis: AegisStatus;
+  /** The newest message still shown (the bottom live row). */
   message: string;
+  /**
+   * The drawn message rows' text, top to bottom, "" for a blank row (Oolite's
+   * message rows, quick task 261117-pij); empty before a HUD frame.
+   */
+  messageRows: string[];
   /** The live tank as the HUD prints it, e.g. "3.4 LY", or "" before a frame. */
   fuelText: string;
   /** The live tank as the HUD bar draws it: fuel tenths over 70, in 0..1. */
@@ -617,6 +623,7 @@ export function publishFailure(reason: string): void {
       compass: { target: "planet", forward: false },
       aegis: "none",
       message: "",
+      messageRows: [],
       fuelText: "",
       fuel: 0,
       bounds: {},
