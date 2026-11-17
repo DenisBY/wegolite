@@ -269,8 +269,8 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
   await advance(page, 2);
   await page.waitForFunction(
     () =>
-      (window.__wegolite?.hud.message ?? "").startsWith(
-        "Ident system locked onto",
+      (window.__wegolite?.hud.messageRows ?? []).some((row) =>
+        row.startsWith("Ident system locked onto"),
       ),
     undefined,
     { timeout: SLOW },
@@ -318,11 +318,11 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
   // destroyed ship.
   await page.waitForFunction(
     () => {
-      const message = window.__wegolite?.hud.message ?? "";
+      const rows = window.__wegolite?.hud.messageRows ?? [];
       const locked = window.__wegolite?.combat?.identLocked === true;
       return locked
-        ? message.startsWith("Ident system locked onto")
-        : message === "Target lost.";
+        ? rows.some((row) => row.startsWith("Ident system locked onto"))
+        : rows.includes("Target lost.");
     },
     undefined,
     { timeout: SLOW },

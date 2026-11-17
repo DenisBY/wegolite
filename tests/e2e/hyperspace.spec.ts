@@ -273,8 +273,8 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   );
   await page.waitForFunction(
     () =>
-      (window.__wegolite?.hud?.message ?? "").includes(
-        "Destination is too far",
+      (window.__wegolite?.hud?.messageRows ?? []).some((row) =>
+        row.includes("Destination is too far"),
       ),
     undefined,
     { timeout: 30_000 },
@@ -648,8 +648,8 @@ test("a jump completed beside the station is refused as blocked", async ({
   );
   await page.waitForFunction(
     () =>
-      (window.__wegolite?.hud?.message ?? "").includes(
-        "Witchspace jump aborted: too close to Coriolis Station",
+      (window.__wegolite?.hud?.messageRows ?? []).some((row) =>
+        row.includes("Witchspace jump aborted: too close to Coriolis Station"),
       ),
     undefined,
     { timeout: 30_000 },

@@ -649,9 +649,9 @@ test("Shift+C beyond the station aegis stays in flight and says why", async ({
 
   await page.waitForFunction(
     () =>
-      (window.__wegolite?.hud?.message ?? "").includes(
-        "Too far from the station",
-      ) === true,
+      (window.__wegolite?.hud?.messageRows ?? []).some((row) =>
+        row.includes("Too far from the station"),
+      ),
     undefined,
     { timeout: 30_000 },
   );
