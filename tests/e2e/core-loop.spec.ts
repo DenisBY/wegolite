@@ -385,7 +385,7 @@ test("new game to launch to trade to hyperspace to dock to save and reload", asy
   );
   await page.keyboard.press("ArrowLeft");
   await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
-    /^Sell 1 t Food for [0-9.]+ Cr\? \[Y\/N\]$/,
+    /^Sell 1 t Food for [0-9.]+ ₢\? \[Y\/N\]$/,
     { timeout: UI_WAIT },
   );
   await page.keyboard.press("KeyY");

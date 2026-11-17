@@ -112,6 +112,7 @@ The Wegolite cell is a `src/` path and a line. For a build-time mechanic it is t
 | J refused under mass lock: the jump-mass-locked reply is posted at once for 1.5 s (FLGT-04)                                                                                                                                                                                                                                        | `src/app/session/event-router.ts:360`             | `src/Core/Entities/PlayerEntityControls.m:1166-1175`    | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-95    |
 | HUD condition light from the alert flags in flight: no flag is green, any flag yellow, a flag above 0x03f (anything but mass lock) red (FLGT-05)                                                                                                                                                                                   | `src/sim/combat/alert.ts:139`                     | `src/Core/Entities/PlayerEntity.m:5122-5138`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-96    |
 | Alert flags in space: mass lock; hostiles targeting the player in scanner range; energy below 64 and below 0.8 of maximum; heat level above 0.9; altitude dial below 0.1 (FLGT-05)                                                                                                                                                 | `src/sim/combat/alert.ts:117`                     | `src/Core/Entities/PlayerEntity.m:2976-2993`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-97    |
+| Market Legal column from both legality fields: clear is an em dash, import-legal only is Im, export-legal only is Ex, neither is Re (ECON-04)                                                                                                                                                                                      | `src/ui/station-model.ts:105`                     | `src/Core/Entities/PlayerEntity.m:9675-9690`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-98    |
 
 ## Excerpts
 
@@ -1641,6 +1642,27 @@ OOINLINE double distanceBetweenPlanetPositions(int x1, int y1, int x2, int y2)
     [self setAlertFlag:ALERT_FLAG_TEMP to:([self hullHeatLevel] > .90)];
 
     [self setAlertFlag:ALERT_FLAG_ALT to:([self dialAltitude] < .10)];
+```
+
+### E-98 src/Core/Entities/PlayerEntity.m:9675-9690
+
+```objc
+    NSUInteger import_legality = [localMarket importLegalityForGood:good];
+    NSUInteger export_legality = [localMarket exportLegalityForGood:good];
+    NSString* legaldesc = nil;
+    if (import_legality == 0) {
+        if (export_legality == 0) {
+            legaldesc = DESC(@"oolite-legality-clear");
+        } else {
+            legaldesc = DESC(@"oolite-legality-import");
+        }
+    } else {
+        if (export_legality == 0) {
+            legaldesc = DESC(@"oolite-legality-export");
+        } else {
+            legaldesc = DESC(@"oolite-legality-neither");
+        }
+    }
 ```
 
 ## Constants ledger

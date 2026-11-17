@@ -7,7 +7,7 @@
  * Pins the exact D-11 order at Lave, the fuel row's fill cost and visibility,
  * every short refusal reason, the disabled-row detail, the truthful
  * `REMOVAL_DESCRIPTIONS` override (missile full-value re-sale, berth no refund)
- * and D-15's whole-credit removal labels (`Remove Missile — 20 Cr`) versus the
+ * and D-15's whole-credit removal labels (`Remove Missile — 20 ₢`) versus the
  * decimal confirmation name.
  */
 
@@ -111,7 +111,7 @@ describe("the D-11 row set at Lave", () => {
     const partial = build(makeProfile({ fuel: 34 }));
     const fuel = row(partial, "EQ_FUEL");
     expect(fuel.cost).toBe(72);
-    expect(fuel.priceText).toBe("7.2 Cr");
+    expect(fuel.priceText).toBe("7.2 ₢");
     expect(fuel.label).toBe("Fuel");
     expect(fuel.name).toBe("Fuel");
   });
@@ -194,23 +194,23 @@ describe("labels, names and prices", () => {
     expect(missile.name).toBe("Missile");
     expect(missile.multiCount).toBe(3);
     expect(missile.cost).toBe(300);
-    expect(missile.priceText).toBe("30.0 Cr");
+    expect(missile.priceText).toBe("30.0 ₢");
   });
 
   it("uses D-15 whole-credit labels for the removal rows", () => {
     const missileRemoval = row(build(), "EQ_MISSILE_REMOVAL");
-    expect(missileRemoval.label).toBe("Remove Missile — 20 Cr");
+    expect(missileRemoval.label).toBe("Remove Missile — 20 ₢");
     expect(missileRemoval.name).toBe("Remove Missile");
-    expect(missileRemoval.priceText).toBe("20 Cr");
+    expect(missileRemoval.priceText).toBe("20 ₢");
     expect(missileRemoval.cost).toBe(200);
 
     const berthRemoval = row(
       build(makeProfile({ passengerBerths: 1 })),
       "EQ_PASSENGER_BERTH_REMOVAL",
     );
-    expect(berthRemoval.label).toBe("Remove Passenger Berth — 100 Cr");
+    expect(berthRemoval.label).toBe("Remove Passenger Berth — 100 ₢");
     expect(berthRemoval.name).toBe("Remove Passenger Berth");
-    expect(berthRemoval.priceText).toBe("100 Cr");
+    expect(berthRemoval.priceText).toBe("100 ₢");
   });
 });
 
@@ -221,7 +221,7 @@ describe("detail pane", () => {
     expect(model.detail).not.toBeNull();
     expect(model.detail?.title).toBe("Docking Computers");
     expect(model.detail?.description).toContain("A simple autopilot");
-    expect(model.detail?.priceText).toBe("1500.0 Cr");
+    expect(model.detail?.priceText).toBe("1500.0 ₢");
   });
 
   it("states the full catalogue-value re-sale for missile removal", () => {
@@ -257,10 +257,10 @@ describe("laser rows and the facing selection (CBT-05)", () => {
     const model = build(rich());
 
     expect(row(model, "EQ_WEAPON_PULSE_LASER").label).toBe("Pulse Laser");
-    expect(row(model, "EQ_WEAPON_PULSE_LASER").priceText).toBe("400.0 Cr");
-    expect(row(model, "EQ_WEAPON_BEAM_LASER").priceText).toBe("1000.0 Cr");
-    expect(row(model, "EQ_WEAPON_MINING_LASER").priceText).toBe("800.0 Cr");
-    expect(row(model, "EQ_WEAPON_MILITARY_LASER").priceText).toBe("6000.0 Cr");
+    expect(row(model, "EQ_WEAPON_PULSE_LASER").priceText).toBe("400.0 ₢");
+    expect(row(model, "EQ_WEAPON_BEAM_LASER").priceText).toBe("1000.0 ₢");
+    expect(row(model, "EQ_WEAPON_MINING_LASER").priceText).toBe("800.0 ₢");
+    expect(row(model, "EQ_WEAPON_MILITARY_LASER").priceText).toBe("6000.0 ₢");
     expect(row(model, "EQ_WEAPON_NONE").label).toBe("Remove Laser");
     expect(model.facingFor).toBeNull();
   });
@@ -347,7 +347,7 @@ describe("laser rows and the facing selection (CBT-05)", () => {
     expect(model.detail).toEqual({
       title: "Beam Laser",
       description: "Beam Laser\nPlease select where to install this weapon.",
-      priceText: "1000.0 Cr",
+      priceText: "1000.0 ₢",
     });
   });
 

@@ -43,6 +43,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   newest at the bottom, each fades out over its last second, and the same
   message repeated within 6 s is shown once. The extra "Mass locked" notice
   when a mass lock begins is gone; Oolite has none.
+- Credits are now shown as ₢, Oolite's credit sign, everywhere (for example
+  "100.0 ₢"). The status screen names the ship "Cobra Mark III", as Oolite
+  does, and shows the kill count after the rating ("Harmless (0)").
 
 ### Fixed
 
@@ -61,6 +64,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   staying green: it is yellow while mass-locked, and red when a ship attacks
   you, your energy runs low, the cabin overheats or you fly within 4 km of a
   planet or sun surface; otherwise it is green.
+- The market's legality column is now Oolite's Legal column. Slaves, narcotics
+  and firearms show "Im", Oolite's mark for goods that may be imported but not
+  exported; Wegolite showed "Ex", which in Oolite means the opposite.
 
 ## [0.4.0] - 2026-11-16
 

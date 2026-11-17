@@ -25,6 +25,7 @@ import { formatDecicredits, newProfile } from "../../src/sim/player/profile.js";
 import {
   buildHomeModel,
   buildStatusModel,
+  formatRating,
   formatDecicredits as stationFormatDecicredits,
 } from "../../src/ui/station-model.js";
 import { commoditiesFixture } from "../helpers/commodities.js";
@@ -62,14 +63,15 @@ describe("buildStatusModel page 1", () => {
     expect(model.page).toBe(1);
     expect(model.pageText).toBe("Page 1/2");
     expect(value(model, "Commander")).toBe("Jameson");
-    expect(value(model, "Ship")).toBe("Cobra Mk III");
+    expect(value(model, "Ship")).toBe("Cobra Mark III");
     expect(value(model, "Present System")).toBe("Lave");
     expect(value(model, "Hyperspace System")).toBe("(Unknown)");
     expect(value(model, "Condition")).toBe("Docked");
     expect(value(model, "Fuel")).toBe("7.0 Light Years");
-    expect(value(model, "Cash")).toBe("100.0 Cr");
+    expect(value(model, "Cash")).toBe("100.0 ₢");
     expect(value(model, "Legal Status")).toBe("Clean");
-    expect(value(model, "Rating")).toBe("Harmless");
+    // OOConstToString.m:401: the rating, three spaces, the kill count.
+    expect(value(model, "Rating")).toBe("Harmless   (0)");
   });
 
   it("lists a new game's three missiles and its forward pulse laser even with no equipment keys", () => {
@@ -327,21 +329,29 @@ describe("formatDecicredits", () => {
   });
 
   it("formats zero, single decicredits and whole credits", () => {
-    expect(formatDecicredits(0)).toBe("0.0 Cr");
-    expect(formatDecicredits(1)).toBe("0.1 Cr");
-    expect(formatDecicredits(9)).toBe("0.9 Cr");
-    expect(formatDecicredits(10)).toBe("1.0 Cr");
-    expect(formatDecicredits(38)).toBe("3.8 Cr");
-    expect(formatDecicredits(123_456_789)).toBe("12345678.9 Cr");
+    expect(formatDecicredits(0)).toBe("0.0 ₢");
+    expect(formatDecicredits(1)).toBe("0.1 ₢");
+    expect(formatDecicredits(9)).toBe("0.9 ₢");
+    expect(formatDecicredits(10)).toBe("1.0 ₢");
+    expect(formatDecicredits(38)).toBe("3.8 ₢");
+    expect(formatDecicredits(123_456_789)).toBe("12345678.9 ₢");
   });
 
   it("stays exact at the safe-integer boundary", () => {
     expect(formatDecicredits(Number.MAX_SAFE_INTEGER)).toBe(
-      "900719925474099.1 Cr",
+      "900719925474099.1 ₢",
     );
     expect(formatDecicredits(Number.MAX_SAFE_INTEGER - 2)).toBe(
-      "900719925474098.9 Cr",
+      "900719925474098.9 ₢",
     );
+  });
+});
+
+describe("formatRating", () => {
+  it("is Oolite's KillCountToRatingAndKillString format (OOConstToString.m:401)", () => {
+    expect(formatRating("Harmless", 0)).toBe("Harmless   (0)");
+    expect(formatRating("Competent", 1234)).toBe("Competent   (1234)");
+    expect(formatRating("Harmless", Number.NaN)).toBe("Harmless   (0)");
   });
 });
 
@@ -431,7 +441,7 @@ describe("buildHomeModel", () => {
     expect(model.fuelFull).toBe(false);
     expect(model.canRefuel).toBe(true);
     expect(model.refuelButtonText).toBe("⚡ Refuel to 7.0 LY (+1.4 LY)");
-    expect(model.refuelCostText).toBe("2.8 Cr");
+    expect(model.refuelCostText).toBe("2.8 ₢");
     expect(model.jumpTargetName).toBe("Diso");
     expect(model.jumpStatusKind).toBe("ready");
     expect(model.cargoSummaryText).toBe("6 / 20 TC");
@@ -439,19 +449,19 @@ describe("buildHomeModel", () => {
       {
         name: "Food",
         quantityText: "3 t",
-        diffText: "-5.4 Cr vs avg",
+        diffText: "-5.4 ₢ vs avg",
         diffKind: "neg",
       },
       {
         name: "Textiles",
         quantityText: "1 t",
-        diffText: "±0.0 Cr vs avg",
+        diffText: "±0.0 ₢ vs avg",
         diffKind: "neutral",
       },
       {
         name: "Computers",
         quantityText: "2 t",
-        diffText: "+8.2 Cr vs avg",
+        diffText: "+8.2 ₢ vs avg",
         diffKind: "pos",
       },
     ]);

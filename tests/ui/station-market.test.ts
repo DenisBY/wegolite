@@ -5,7 +5,7 @@
  * The F8 market view model (ECON-04, D-06..D-09).
  *
  * Pins the generated Lave market exactly: 17 rows in `sortOrder`, the fixed
- * columns, `—` for zero stock/hold, the `Ex` flag, each commodity's own unit and
+ * columns, `—` for zero stock/hold, Oolite's Legal value, each commodity's own unit and
  * one-decimal prices. The confirmation uses the approved TOTAL cost, a clamp
  * shows BOTH the notice and the confirmation, a zero-feasible refusal returns
  * `confirmText: null`, and a step back to zero is silent — never `zeroAmount`
@@ -24,7 +24,9 @@ import { planBuy, planSell } from "../../src/sim/economy/trade.js";
 import { newProfile } from "../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../src/sim/player/profile.js";
 import {
+  MARKET_COLUMNS,
   buildMarketModel,
+  legalityText,
   tradeNoticeText,
 } from "../../src/ui/station-model.js";
 import { commodityUnits, commoditiesFixture } from "../helpers/commodities.js";
@@ -85,10 +87,10 @@ describe("F8 rows", () => {
     expect(food.name).toBe("Food");
     expect(food.unit).toBe("t");
     expect(food.price).toBe(38);
-    expect(food.priceText).toBe("3.8 Cr");
+    expect(food.priceText).toBe("3.8 ₢");
     expect(food.stockText).toBe("16");
     expect(food.heldText).toBe("—");
-    expect(food.exText).toBe("—");
+    expect(food.legalText).toBe("—");
     expect(food.dimmed).toBe(false);
     expect(food.selectable).toBe(true);
   });
@@ -97,7 +99,7 @@ describe("F8 rows", () => {
     const computers = row(build(), "computers");
 
     expect(computers.stockText).toBe("—");
-    expect(computers.priceText).toBe("90.2 Cr");
+    expect(computers.priceText).toBe("90.2 ₢");
     expect(computers.dimmed).toBe(true);
     expect(computers.selectable).toBe(false);
   });
@@ -120,13 +122,42 @@ describe("F8 rows", () => {
     expect(alien.stockText).toBe("—");
   });
 
-  it("marks the export-illegal goods with Ex", () => {
+  it("prints Oolite's Legal value: Im for the goods legal to import only", () => {
+    // PlayerEntity.m:9675-9690: import 0 and export non-zero is "Im"
+    // (descriptions.plist:1633, "legal to import").
     const model = build();
 
-    expect(row(model, "slaves").exText).toBe("Ex");
-    expect(row(model, "narcotics").exText).toBe("Ex");
-    expect(row(model, "firearms").exText).toBe("Ex");
-    expect(row(model, "food").exText).toBe("—");
+    expect(MARKET_COLUMNS.at(-1)).toEqual({ key: "legal", label: "Legal" });
+    expect(row(model, "slaves").legalText).toBe("Im");
+    expect(row(model, "narcotics").legalText).toBe("Im");
+    expect(row(model, "firearms").legalText).toBe("Im");
+    expect(row(model, "food").legalText).toBe("—");
+  });
+
+  it("maps both legality fields as Oolite does", () => {
+    expect(legalityText(0, 0)).toBe("—");
+    expect(legalityText(0, 1)).toBe("Im");
+    expect(legalityText(1, 0)).toBe("Ex");
+    expect(legalityText(1, 2)).toBe("Re");
+  });
+
+  it("prints Ex and Re for synthetic commodities with an import restriction", () => {
+    const food = commodity("food");
+    const withImport = (legalityImport: number, legalityExport: number) =>
+      buildMarketModel(
+        market,
+        newProfile(),
+        commodities.map((entry) =>
+          entry.key === "food"
+            ? { ...food, legalityImport, legalityExport }
+            : entry,
+        ),
+        "food",
+        { pending: null, notice: "" },
+      );
+
+    expect(row(withImport(1, 0), "food").legalText).toBe("Ex");
+    expect(row(withImport(1, 1), "food").legalText).toBe("Re");
   });
 
   it("uses each commodity's own unit", () => {
@@ -142,7 +173,7 @@ describe("cash and load", () => {
   it("writes one line each with exactly one period", () => {
     const empty = build();
 
-    expect(empty.cashText).toBe("Cash: 100.0 Cr.");
+    expect(empty.cashText).toBe("Cash: 100.0 ₢.");
     expect(empty.loadText).toBe("Load 0 / 20 t");
   });
 
@@ -154,7 +185,7 @@ describe("cash and load", () => {
     };
     const model = build(profile);
 
-    expect(model.cashText).toBe("Cash: 92.4 Cr.");
+    expect(model.cashText).toBe("Cash: 92.4 ₢.");
     expect(model.loadText).toBe("Load 2 / 20 t");
     expect(model.cashText).not.toContain("..");
   });
@@ -181,14 +212,14 @@ describe("confirmation and notice", () => {
   it("shows the total for a 1 t buy", () => {
     const model = build(newProfile(), "food", request("buy", "food", 1));
 
-    expect(model.confirmText).toBe("Buy 1 t Food for 3.8 Cr? [Y/N]");
+    expect(model.confirmText).toBe("Buy 1 t Food for 3.8 ₢? [Y/N]");
     expect(model.noticeText).toBe("");
   });
 
   it("shows the approved TOTAL, never the unit price, for 12 t", () => {
     const model = build(newProfile(), "food", request("buy", "food", 12));
 
-    expect(model.confirmText).toBe("Buy 12 t Food for 45.6 Cr? [Y/N]");
+    expect(model.confirmText).toBe("Buy 12 t Food for 45.6 ₢? [Y/N]");
     expect(model.confirmText).not.toContain("3.8");
   });
 
@@ -201,7 +232,7 @@ describe("confirmation and notice", () => {
     const model = build(newProfile(), "food", plan);
 
     expect(model.noticeText).toBe("Only 16 t available");
-    expect(model.confirmText).toBe("Buy 16 t Food for 60.8 Cr? [Y/N]");
+    expect(model.confirmText).toBe("Buy 16 t Food for 60.8 ₢? [Y/N]");
   });
 
   it("uses the commodity unit in a clamp notice", () => {
@@ -249,7 +280,7 @@ describe("confirmation and notice", () => {
     });
     const model = build({ ...newProfile(), cargo: { food: 2 } }, "food", plan);
 
-    expect(model.confirmText).toBe("Sell 2 t Food for 7.6 Cr? [Y/N]");
+    expect(model.confirmText).toBe("Sell 2 t Food for 7.6 ₢? [Y/N]");
   });
 });
 

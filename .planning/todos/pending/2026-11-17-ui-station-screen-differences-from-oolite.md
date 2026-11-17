@@ -16,18 +16,18 @@ Quick task 261117-nfn compared Wegolite's docked screens with a running Oolite 1
 Lave, 1280x720). The pairs are `market`, `status` and `manifest` in the local `/tmp/ooref-ui/compare.html` (not
 committed: the screenshots are CC BY-NC-SA output). Differences, in rank order:
 
-- R1, market. Legality column. Oolite's column is "Legal:" and prints "Im" (import legal, export not) for Slaves,
+- Done in quick task 261117-pij: R1, market. Legality column. Oolite's column is "Legal:" and prints "Im" (import legal, export not) for Slaves,
   Narcotics and Firearms; "Ex" would mean export legal only, "Re" neither, "—" both. Wegolite's column is "Ex" and
   prints "Ex" for the same goods, which reads as Oolite's opposite. Oolite: `src/Core/Entities/PlayerEntity.m:9675-9690`,
   `Resources/Config/descriptions.plist` `oolite-legality-*`. Wegolite: `src/ui/station-model.ts:147,261`.
 - R1, market. Oolite shows "Filter: All goods" and "Sort: Default" under the table and then
   "Cash: 100.0 ₢. Load 0 of 20 t."; Wegolite has no filter or sort and no load line in the visible area. Oolite:
   the F8 screen in `src/Core/Entities/PlayerEntity.m`. Wegolite: `src/ui/station-model.ts`, `index.html`.
-- R1, status. The rating has no kill count: Oolite "Harmless (0)", Wegolite "Harmless". Wegolite:
+- Done in quick task 261117-pij: R1, status. The rating has no kill count: Oolite "Harmless (0)", Wegolite "Harmless". Wegolite:
   `src/ui/station-model.ts:366-367`.
-- R1, status. Ship name "Cobra Mk III"; Oolite "Cobra Mark III" (the scenario's `ship_class_name`). Wegolite:
+- Done in quick task 261117-pij: R1, status. Ship name "Cobra Mk III"; Oolite "Cobra Mark III" (the scenario's `ship_class_name`). Wegolite:
   `src/ui/station-model.ts:323`.
-- R1, status and market. Currency: Wegolite prints "Cr"; Oolite 1.93 prints "₢". Wegolite's own hover card already
+- Done in quick task 261117-pij: R1, status and market. Currency: Wegolite prints "Cr"; Oolite 1.93 prints "₢". Wegolite's own hover card already
   prints "M₢". Wegolite: `formatDecicredits` in `src/sim/player/profile.ts`.
 - R1, manifest. Oolite shows "Cargo 0 t (20 t)", "Passenger Cabins 0 / 0" and "No cargo carried."; Wegolite lists
   all 16 goods with "—" and shows no capacity or cabin line in the visible area. Wegolite: `src/ui/station-model.ts`
@@ -58,11 +58,11 @@ Save/Load footer…").
 
 Likely changes, one per bullet; none is implemented yet:
 
-- Rename the column "Legal" and print Oolite's four values from both legality fields.
+- Done in quick task 261117-pij: Rename the column "Legal" and print Oolite's four values from both legality fields.
 - Add Oolite's load line ("Load 0 of 20 t."); owner call on the filter and sort.
-- Print the kill count after the rating.
-- Use "Cobra Mark III".
-- Switch the credit unit to "₢" everywhere (check the font has the glyph; the hover card shows it does), or record
+- Done in quick task 261117-pij: Print the kill count after the rating.
+- Done in quick task 261117-pij: Use "Cobra Mark III".
+- Done in quick task 261117-pij: Switch the credit unit to "₢" everywhere (check the font has the glyph; the hover card shows it does), or record
   "Cr" as a decision.
 - Replace the manifest table with Oolite's capacity, cabins and cargo lines (list only the goods held).
 - Owner call on a docked dashboard strip.

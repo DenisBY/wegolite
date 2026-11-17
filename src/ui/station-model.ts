@@ -73,9 +73,39 @@ function template(labels: Labels, key: string): string {
   return value;
 }
 
-/** Whole-credit formatting for the D-15 removal row labels (`20 Cr`). */
+/**
+ * Whole-credit formatting for the D-15 removal row labels (`20 ₢`), in
+ * Oolite's credits unit (`descriptions.plist:476` `credits-format`
+ * "[value] ₢").
+ */
 export function formatWholeCredits(decicredits: number): string {
-  return `${String(Math.trunc(decicredits / 10))} Cr`;
+  return `${String(Math.trunc(decicredits / 10))} ₢`;
+}
+
+/**
+ * Oolite's legality strings (`descriptions.plist:1631-1634`): clear, legal to
+ * import only, legal to export only, and neither.
+ */
+export const LEGALITY_CLEAR = "—";
+export const LEGALITY_IMPORT = "Im";
+export const LEGALITY_EXPORT = "Ex";
+export const LEGALITY_NEITHER = "Re";
+
+/**
+ * The market's Legal value from both legality fields, exactly as Oolite's
+ * market screen chooses it (`PlayerEntity.m:9675-9690`): a commodity with an
+ * import restriction of 0 is legal to import, one with an export restriction
+ * of 0 is legal to export. So "Im" means "legal to import" (only), as the
+ * plist comment says, and goods illegal to export print "Im".
+ */
+export function legalityText(
+  legalityImport: number,
+  legalityExport: number,
+): string {
+  if (legalityImport === 0) {
+    return legalityExport === 0 ? LEGALITY_CLEAR : LEGALITY_IMPORT;
+  }
+  return legalityExport === 0 ? LEGALITY_EXPORT : LEGALITY_NEITHER;
 }
 
 function equipmentName(
@@ -92,7 +122,7 @@ function equipmentName(
 }
 
 export interface MarketColumn {
-  readonly key: "name" | "unit" | "price" | "stock" | "held" | "ex";
+  readonly key: "name" | "unit" | "price" | "stock" | "held" | "legal";
   readonly label: string;
 }
 
@@ -105,7 +135,8 @@ export interface MarketRow {
   readonly priceText: string;
   readonly stockText: string;
   readonly heldText: string;
-  readonly exText: string;
+  /** Oolite's Legal value: "—", "Im", "Ex" or "Re" (`legalityText`). */
+  readonly legalText: string;
   readonly selectable: boolean;
   readonly dimmed: boolean;
 }
@@ -144,7 +175,9 @@ export const MARKET_COLUMNS: readonly MarketColumn[] = Object.freeze([
   { key: "price", label: "Price" },
   { key: "stock", label: "Stock" },
   { key: "held", label: "Hold" },
-  { key: "ex", label: "Ex" },
+  // Oolite's `oolite-legality-column-title` "Legal:"; the market headings drop
+  // Oolite's trailing colons ("Commodity:" is "Commodity").
+  { key: "legal", label: "Legal" },
 ]);
 
 function confirmationText(
@@ -258,7 +291,10 @@ export function buildMarketModel(
       priceText: formatDecicredits(good.price),
       stockText,
       heldText: held === 0 ? "—" : String(held),
-      exText: (commodity?.legalityExport ?? 0) > 0 ? "Ex" : "—",
+      legalText: legalityText(
+        commodity?.legalityImport ?? 0,
+        commodity?.legalityExport ?? 0,
+      ),
       selectable: isMarketRowSelectable(tradeable, good.stock, held),
       dimmed: !tradeable || good.stock <= 0,
     };
@@ -320,8 +356,22 @@ const FACING_LABELS: Readonly<Record<Facing, string>> = Object.freeze({
 });
 
 const COMMANDER_NAME = "Jameson";
-const SHIP_NAME = "Cobra Mk III";
+/**
+ * The standard scenario's `ship_name` and `ship_class_name`
+ * (`Resources/Scenarios/oolite-standard.oolite-save`).
+ */
+const SHIP_NAME = "Cobra Mark III";
 const UNKNOWN_HYPERSPACE_SYSTEM = "(Unknown)";
+
+/**
+ * Oolite's rating with its kill count, `KillCountToRatingAndKillString`
+ * (`OOConstToString.m:401`): `"%@   (%u)"`, the rating, three spaces and the
+ * count in parentheses.
+ */
+export function formatRating(rating: string, kills: number): string {
+  const count = Number.isSafeInteger(kills) && kills > 0 ? kills : 0;
+  return `${rating}   (${String(count)})`;
+}
 const DOCKED_CONDITION = "Docked";
 
 function clampPage(page: number): 1 | 2 {
@@ -364,7 +414,10 @@ export function buildStatusModel(
     { label: "Fuel", value: `${(profile.fuel / 10).toFixed(1)} Light Years` },
     { label: "Cash", value: formatDecicredits(profile.credits) },
     { label: "Legal Status", value: labels.legalStatus[0] ?? "" },
-    { label: "Rating", value: labels.rating[0] ?? "" },
+    // The profile keeps no kill count yet: the combat rating is in the LAW
+    // backlog (REQUIREMENTS.md LAW-01..LAW-07), and a new commander's
+    // `ship_kills` is 0.
+    { label: "Rating", value: formatRating(labels.rating[0] ?? "", 0) },
   ];
 
   const equipment: string[] = profile.equipment.map((key) =>
@@ -1028,13 +1081,13 @@ export function buildHomeModel(input: BuildHomeModelInput): HomeModel {
     if (quote !== undefined && commodity.priceAverage > 0) {
       const diffDeci = quote.price - commodity.priceAverage;
       if (diffDeci > 0) {
-        diffText = `+${(diffDeci / 10).toFixed(1)} Cr vs avg`;
+        diffText = `+${(diffDeci / 10).toFixed(1)} ₢ vs avg`;
         diffKind = "pos";
       } else if (diffDeci < 0) {
-        diffText = `${(diffDeci / 10).toFixed(1)} Cr vs avg`;
+        diffText = `${(diffDeci / 10).toFixed(1)} ₢ vs avg`;
         diffKind = "neg";
       } else {
-        diffText = "±0.0 Cr vs avg";
+        diffText = "±0.0 ₢ vs avg";
         diffKind = "neutral";
       }
     }

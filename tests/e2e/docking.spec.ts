@@ -381,10 +381,10 @@ test("the docked home shows real credits, ship, fuel and the four screen entries
 
   const dockedPanel = page.locator("#docked");
   await expect(dockedPanel.locator('[data-field="credits"]')).toHaveText(
-    "100.0 Cr",
+    "100.0 ₢",
   );
   await expect(dockedPanel.locator('[data-field="ship"]')).toHaveText(
-    "Cobra Mk III",
+    "Cobra Mark III",
   );
   await expect(dockedPanel.locator('[data-field="fuel"]')).toHaveText("7.0 LY");
 

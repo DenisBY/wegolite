@@ -4,7 +4,7 @@
 /**
  * The player profile (DOCK-05, D-10).
  *
- * Credits are integer decicredits (1 Cr = 10 decicredits), exactly as Oolite
+ * Credits are integer decicredits (1 ₢ = 10 decicredits), exactly as Oolite
  * stores and prices them. The profile is deliberately **not** part of
  * `FlightState`: economy state must not churn the replay hash, and a save
  * restores it beside the flight state (plan 04-05).
@@ -33,7 +33,7 @@ export const MAX_EQUIPMENT_KEYS = 64;
 /** The longest equipment key accepted (matches the save schema in 04-05). */
 export const MAX_EQUIPMENT_KEY_LENGTH = 64;
 
-/** Oolite's new-game balance: 1,000 decicredits = 100.0 Cr. */
+/** Oolite's new-game balance: 1,000 decicredits = 100.0 ₢. */
 export const NEW_GAME_CREDITS = 1000;
 
 /** A fresh ship's fuel tank, in tenths of a light year. */
@@ -91,7 +91,9 @@ export function newProfile(): PlayerProfile {
 }
 
 /**
- * Format decicredits exactly: integer quotient and remainder, one decimal.
+ * Format decicredits exactly: integer quotient and remainder, one decimal,
+ * then Oolite's credits unit (`descriptions.plist:476` `credits-format`
+ * "[value] ₢").
  *
  * `toFixed` is deliberately not used for money: it rounds through a binary
  * fraction and is not an exact formatter over the safe-integer domain. The
@@ -102,7 +104,7 @@ export function formatDecicredits(decicredits: number): string {
   const absolute = Math.abs(decicredits);
   const whole = Math.trunc(absolute / 10);
   const tenth = absolute % 10;
-  return `${sign}${String(whole)}.${String(tenth)} Cr`;
+  return `${sign}${String(whole)}.${String(tenth)} ₢`;
 }
 
 /** Format decicredits for the panel: one decimal place, never `toLocaleString`. */

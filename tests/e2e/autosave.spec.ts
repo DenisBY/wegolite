@@ -1218,7 +1218,7 @@ test("a Phase 4 blob without the new fields still restores and offers Continue",
   // The missing seed defaults to the system's deterministic seed, never a
   // random or clock value.
   expect(probe.economy?.marketSeed).toBe(marketSeedForSystem("g0-s7"));
-  await expect(page.locator('[data-field="credits"]')).toHaveText("100.0 Cr");
+  await expect(page.locator('[data-field="credits"]')).toHaveText("100.0 ₢");
   expect(errors).toEqual([]);
 });
 

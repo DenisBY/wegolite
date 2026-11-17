@@ -124,8 +124,8 @@ test("the docked view is exactly one status panel with the D-09 facts", async ({
   const docked = page.locator("#docked");
   await expect(docked).toBeVisible();
   await expect(docked).toContainText("Lave");
-  await expect(docked).toContainText("100.0 Cr");
-  await expect(docked).toContainText("Cobra Mk III");
+  await expect(docked).toContainText("100.0 ₢");
+  await expect(docked).toContainText("Cobra Mark III");
   await expect(docked).toContainText("7.0 LY");
 
   const launch = page.locator('button[data-action="launch"]');

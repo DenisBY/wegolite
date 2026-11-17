@@ -244,7 +244,7 @@ describe("Node safety and guards", () => {
     const { controller, calls, views, ctx } = harness();
     controller.renderStation();
     expect(calls).toEqual(["setFuel", "render", "syncEconomyProbe"]);
-    expect(views[0]?.creditsText).toBe("100.0 Cr");
+    expect(views[0]?.creditsText).toBe("100.0 ₢");
     expect(views[0]?.systemName).toBe(ctx.core.system.name);
   });
 
@@ -366,7 +366,7 @@ describe("laser purchase at F3", () => {
     });
     expect(h.ctx.core.profile).toBe(before);
     expect(h.views[h.views.length - 1]?.confirmText).toBe(
-      "Buy Beam Laser (Aft) for 1000.0 Cr? [Y/N]",
+      "Buy Beam Laser (Aft) for 1000.0 ₢? [Y/N]",
     );
     press(h, "stationConfirm");
 

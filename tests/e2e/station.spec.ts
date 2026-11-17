@@ -112,7 +112,7 @@ test("buys one tonne of Food, autosaves and reloads into the same hold", async (
   );
   const foodRow = page.locator('tr[data-key="food"]');
   await expect(foodRow).toContainText("Food");
-  await expect(foodRow).toContainText("3.8 Cr");
+  await expect(foodRow).toContainText("3.8 ₢");
   await expect(foodRow).toContainText("16");
 
   // A zero-stock row is dimmed by CSS, not merely by a model flag: deleting the
@@ -405,7 +405,7 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   await expect(row("EQ_MISSILE")).not.toContainText("Pylons full");
 
   await expect(row("EQ_MISSILE_REMOVAL")).toContainText(
-    "Remove Missile — 20 Cr",
+    "Remove Missile — 20 ₢",
   );
   await expect(row("EQ_MISSILE_REMOVAL")).not.toHaveClass(/dimmed/);
 
@@ -436,13 +436,13 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
     page.locator('[data-field="outfitting-description"]'),
   ).toContainText("full catalogue value");
   await expect(page.locator('[data-field="outfitting-price"]')).toHaveText(
-    "20 Cr",
+    "20 ₢",
   );
 
   // First Y opens the prompt; the second commits.
   await page.keyboard.press("KeyY");
   await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
-    "Buy Remove Missile for 20.0 Cr? [Y/N]",
+    "Buy Remove Missile for 20.0 ₢? [Y/N]",
   );
   await expect(row("EQ_MISSILE_REMOVAL")).toHaveClass(/selected/);
 
@@ -523,7 +523,7 @@ test("F5 pages and direct section switching stay keyboard-only", async ({
     "Commander",
     "Jameson",
     "Ship",
-    "Cobra Mk III",
+    "Cobra Mark III",
     "Present System",
     "Lave",
     "Hyperspace System",
@@ -533,11 +533,12 @@ test("F5 pages and direct section switching stay keyboard-only", async ({
     "Fuel",
     "7.0 Light Years",
     "Cash",
-    "100.0 Cr",
+    "100.0 ₢",
     "Legal Status",
     "Clean",
     "Rating",
-    "Harmless",
+    // toContainText collapses whitespace: "Harmless   (0)" on the page.
+    "Harmless (0)",
   ]) {
     await expect(statusFields).toContainText(text);
   }
@@ -721,7 +722,7 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
   await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
-    "Buy 2 t Food for 7.6 Cr? [Y/N]",
+    "Buy 2 t Food for 7.6 ₢? [Y/N]",
   );
   await page.keyboard.press("KeyY");
   await page.waitForFunction(
@@ -734,7 +735,7 @@ test("the whole station computer is keyboard-only, and every accepted action wri
 
   await page.keyboard.press("ArrowLeft");
   await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
-    "Sell 1 t Food for 3.8 Cr? [Y/N]",
+    "Sell 1 t Food for 3.8 ₢? [Y/N]",
   );
   await page.keyboard.press("KeyY");
   await page.waitForFunction(
@@ -766,7 +767,7 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   ).toHaveClass(/selected/);
   await page.keyboard.press("KeyY");
   await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
-    "Buy Remove Missile for 20.0 Cr? [Y/N]",
+    "Buy Remove Missile for 20.0 ₢? [Y/N]",
   );
   await page.keyboard.press("KeyY");
   await page.waitForFunction(

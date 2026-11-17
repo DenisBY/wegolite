@@ -76,7 +76,7 @@ describe("resolveFooterStatus", () => {
   });
 
   it("preserves the exact displayed text", () => {
-    const text = "  Buy 1 t Food for 3.8 Cr? [Y/N]  ";
+    const text = "  Buy 1 t Food for 3.8 ₢? [Y/N]  ";
     expect(resolveFooterStatus({ confirm: text })).toEqual({
       text,
       tone: "confirm",

@@ -92,10 +92,10 @@ describe("newProfile", () => {
 
 describe("formatCredits", () => {
   it("formats decicredits with exactly one decimal place", () => {
-    expect(formatCredits(15000)).toBe("1500.0 Cr");
-    expect(formatCredits(1000)).toBe("100.0 Cr");
-    expect(formatCredits(0)).toBe("0.0 Cr");
-    expect(formatCredits(1505)).toBe("150.5 Cr");
+    expect(formatCredits(15000)).toBe("1500.0 ₢");
+    expect(formatCredits(1000)).toBe("100.0 ₢");
+    expect(formatCredits(0)).toBe("0.0 ₢");
+    expect(formatCredits(1505)).toBe("150.5 ₢");
   });
 });
 

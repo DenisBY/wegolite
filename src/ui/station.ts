@@ -235,7 +235,7 @@ export function createStationShell(
         cell(row.priceText),
         cell(row.stockText),
         cell(row.heldText),
-        cell(row.exText),
+        cell(row.legalText),
       );
       marketBody.append(tr);
     }
