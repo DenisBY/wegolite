@@ -411,7 +411,7 @@ describe("SystemScene owns only what it created", () => {
 
     const sceneOwned: Record<string, () => number> = {
       shotsGeometry: countDisposals(shots.root.geometry),
-      shotsMaterial: countDisposals(shots.root.material as THREE.Material),
+      shotsMaterial: countDisposals(shots.root.material),
       planetGeometry: countDisposals(planet.mesh.geometry),
       planetMaterial: countDisposals(planet.material),
       starfieldGeometry: countDisposals(starfield.geometry),
