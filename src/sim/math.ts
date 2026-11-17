@@ -91,6 +91,23 @@ export function axisAngle(
  * named `normalizeVec` rather than overloading it.
  * ------------------------------------------------------------------------- */
 
+/**
+ * The transcendentals world-core modules need, kept here so a later portable
+ * implementation replaces one module (Key Decisions row (f)). They wrap `Math`
+ * directly: the within-one-engine claim above applies to them unchanged.
+ */
+export function cbrt(x: number): number {
+  return Math.cbrt(x);
+}
+
+export function sin(x: number): number {
+  return Math.sin(x);
+}
+
+export function cos(x: number): number {
+  return Math.cos(x);
+}
+
 export function add(a: Vec3, b: Vec3): Vec3 {
   return vec(a.x + b.x, a.y + b.y, a.z + b.z);
 }

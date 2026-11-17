@@ -19,6 +19,7 @@
 import type { FlightState } from "../flight/state.js";
 import {
   add,
+  cos as mathCos,
   mul,
   normalize,
   normalizeVec,
@@ -26,6 +27,7 @@ import {
   quatFromUnitVectors,
   rotate,
   scale,
+  sin as mathSin,
   sub,
   vec,
 } from "../math.js";
@@ -211,8 +213,8 @@ export function spawnTestFlyers(
         scale(left, TEST_FLYER_DISTANCE * side),
       ),
     );
-  const cos = Math.cos(FLYER_SPREAD_ANGLE);
-  const sin = Math.sin(FLYER_SPREAD_ANGLE);
+  const cos = mathCos(FLYER_SPREAD_ANGLE);
+  const sin = mathSin(FLYER_SPREAD_ANGLE);
   const stationPosition = around(1, 0);
   const plans: readonly FlyerPlan[] = [
     {

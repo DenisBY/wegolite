@@ -78,7 +78,14 @@ import { toWegoliteLocal } from "../combat/constants.js";
 import type { HullTable } from "../combat/hit.js";
 import { MAX_OCTREE_DEPTH, randomOctreePoint } from "../combat/octree.js";
 import type { HullOctree } from "../combat/octree.js";
-import { identity, lengthSquared, normalizeVec, rotate, vec } from "../math.js";
+import {
+  cbrt,
+  identity,
+  lengthSquared,
+  normalizeVec,
+  rotate,
+  vec,
+} from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import { createRngState, rngNext } from "../rng.js";
 import type { RngState } from "../rng.js";
@@ -725,7 +732,7 @@ export function releaseDebris(
       const radius =
         model === undefined
           ? Number.NaN
-          : model.radius * Math.cbrt(expectedMass / model.mass);
+          : model.radius * cbrt(expectedMass / model.mass);
       const position = vec(
         origin.x + dir.x,
         origin.y + dir.y,
