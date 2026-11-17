@@ -49,8 +49,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   looked about 1.78 times smaller than in Oolite. Ships, stations and planets
   ahead now appear at Oolite's size. In a window narrower than 4:3 the view
   keeps the height it has at 4:3, and the scanner's forward-view lines narrow
-  with the view, as in Oolite. The title screen's Cobra now uses Oolite's
-  framing for menu screens and looks about 1.45 times larger at 16:9.
+  with the view, as in Oolite. The menu scene's camera now uses Oolite's
+  framing for menu screens (not visible yet: the title screen covers it).
 
 ## [0.4.0] - 2026-11-16
 
