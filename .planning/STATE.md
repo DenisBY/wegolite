@@ -5,17 +5,17 @@ milestone_name: Combat and Death
 current_phase: 16
 current_phase_name: Wreckage, Cargo and the Entity Cap
 current_plan: 9
-status: executing
-stopped_at: Completed 16-08-PLAN.md
-last_updated: "2026-11-17T01:30:38.986Z"
+status: verifying
+stopped_at: Completed 16-09-PLAN.md (verify-full pending the owner's go, OC-6)
+last_updated: "2026-11-17T01:54:24.747Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 15 complete, transitioned to Phase 16
-state_head: 970783ff19bb28ec9cdff5ea9fa14296962cd38f
+state_head: 248d9df6a223a8867ae3c0dd3449c05b4cd5842f
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
   percent: 17
 ---
 
@@ -33,7 +33,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 Phase: 16 — Wreckage, Cargo and the Entity Cap
 Current Plan: 9
 Total Plans in Phase: 9
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-17 — 16-08 complete (id-free debrisContacts; instanced debris layer, one draw object per debris model primitive, radius-ratio scale, render-side tumble from the orientation (OC-2); debris GLBs through the NPC loader latch; remote verify exit 0 and acceptance 21/21 at 970783f)
 
 
@@ -207,6 +207,7 @@ Last activity: 2026-11-17 — 16-08 complete (id-free debrisContacts; instanced 
 | Phase 16 P06 | 75min | 2 tasks | 15 files |
 | Phase 16 P07 | 21min | 2 tasks | 9 files |
 | Phase 16 P08 | 20min | 2 tasks | 12 files |
+| Phase 16 P09 | 21min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -522,6 +523,9 @@ Recent decisions affecting current work:
 - [Phase 16]: Debris tumble (D16-10, OC-2): tumbleOrientation(q, info, t) = normalise(q x axisAngle(w/|w|, |w| t)), body rate w = (maxFlightPitch q.y, 0, maxFlightRoll q.x); render-only, derived from the contact orientation, never an entity id
 - [Phase 16]: The NPC model loader's glbFor is trafficModelGlb (src/app/npc-models.ts): ship catalogue first, then debrisModels, so debris GLBs ride the same first-in-flight-frame latch
 - [Phase 16]: Debris is drawn but not on the scanner (D16-26): debrisContacts feeds only the debris layer; npcContacts stays ships only
+- [Phase 16]: 16-09: D16-25 supported - no populator, traffic or hook path gives a ship an escort owner; port escortCheckMother in the first phase that spawns escorts
+- [Phase 16]: 16-09: the browser reproduces the debris twin (kill +794, 19 entities, hash a10b2dfc 60 ticks later, 21 of 50 calls); verify-full pending the owner's go (OC-6)
+- [Phase 16]: 16-09: OC-1 to OC-7 recorded in PROJECT.md Key Decisions rows A to H as pending owner confirmation
 
 ### Pending Todos
 
@@ -630,8 +634,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-17T01:30:38.851Z
-Stopped at: Completed 16-08-PLAN.md
+Last session: 2026-11-17T01:54:24.612Z
+Stopped at: Completed 16-09-PLAN.md (verify-full pending the owner's go, OC-6)
 Resume file: None
 
 ## Operator Next Steps
