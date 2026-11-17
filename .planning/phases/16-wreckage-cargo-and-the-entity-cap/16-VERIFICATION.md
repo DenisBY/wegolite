@@ -1,6 +1,6 @@
 ---
 phase: 16-wreckage-cargo-and-the-entity-cap
-verified: 2026-11-17T02:05:00Z
+verified: 2026-11-17T09:45:00Z
 status: human_needed
 score: 4/4 must-haves verified
 covered_files:
@@ -28,13 +28,21 @@ covered_files:
   - "src/app/session/traffic.ts"
   - "src/render/bodies/debris.ts"
   - "src/render/bodies/explosions.ts"
+  - "src/sim/ai/test-spawn.ts"
+  - "src/sim/math.ts"
   - "src/sim/world/contacts.ts"
   - "src/sim/world/debris.ts"
   - "src/sim/world/kill.ts"
   - "src/sim/world/step.ts"
-covered_digest: "v4:sha256:148d02411468a36e912907b0c3bd60d6bfc031b48255c5fbb58e43030f4658f3"
+covered_digest: "v4:sha256:908fef9c68529fa4409a41c3c2adab54e805a5551290066ffaefc0aa4f937c1b"
 behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: human_needed
+  previous_score: 4/4
+  gaps_closed: []
+  gaps_remaining: []
+  regressions: []
 human_verification:
   - test: "OC-1: confirm that a pod is one anonymous barrel with no commodity (ROADMAP criterion 1: 'cargo pods ... by Oolite's cargo rule')"
     expected: "The owner accepts that no commodity, amount or pod-role draw is taken (D16-01, D16-24) and that scooping (CBT-11) is unscheduled, so a pod carries a count only. Oolite's `Universe.m:3863-3878` and `3977-3996` commodity draws are not ported."
@@ -51,9 +59,6 @@ human_verification:
   - test: "OC-5: confirm no code fix for the doubled hit sound (D16-14)"
     expected: "`shipHit` has no consumer, so no sound or visual can double. The Phase 15 fix (skip `shipHit` for a target already lethal in `applyLedger`) waits for the first consumer."
     why_human: "The ROADMAP carry-over names a fix; the phase decided it is moot. Owner confirmation needed."
-  - test: "OC-6: give the go for `docker compose run --rm verify-full` on this render phase"
-    expected: "The full release gate passes on the remote machine. It has NOT been run (it waits on the owner). The targeted gates below are green at HEAD f8eaeaa."
-    why_human: "Owner decision on a slow-machine gate; AGENTS.md calls verify-full for render, input, persistence or network-guard changes."
   - test: "OC-7: confirm the debris vendoring run done by the orchestrator (D16-02)"
     expected: "scripts/vendor-oolite.sh's header says a human runs it deliberately. The orchestrator ran it under the owner's standing instruction (commit 8b5cd65). The verifier re-hashed all 14 files against the pinned blobs in /home/opencode/git/oolite and they match; the owner confirms the provenance."
     why_human: "Process deviation; bytes verified, authorisation not verifiable from code."
@@ -65,13 +70,25 @@ human_verification:
 # Phase 16: Wreckage, Cargo and the Entity Cap Verification Report
 
 **Phase Goal:** A destroyed ship explodes into what Oolite leaves behind, alloy plates, cargo pods and wreckage, drawn within the draw-call budget and held under the entity cap, so a fight leaves a field of drifting debris without starving the world of room for ships.
-**Verified:** 2026-11-17T02:05:00Z
+**Verified:** 2026-11-17T09:45:00Z
 **Status:** human_needed
-**Re-verification:** No, initial verification
+**Re-verification:** Yes, after the review fixes (17171a4 WR-01, 72b6a19 WR-02, 9739fa3 WR-03); previous status `human_needed`, 4/4
 
 ## Goal Achievement
 
-Verification was done against the code and not against the SUMMARY claims. The code was read, the pinned Oolite source was compared with the port, the vendored bytes were re-hashed against the pinned commit, and targeted gates were run in Docker on the remote machine at HEAD `f8eaeaa`.
+Verification was done against the code and not against the SUMMARY claims. The code was read, the pinned Oolite source was compared with the port, the vendored bytes were re-hashed against the pinned commit, and targeted gates were run in Docker on the remote machine at HEAD `f8eaeaa`. This re-verification adds the three review-fix commits and the later `verify-full` run (see "Re-verification delta").
+
+### Re-verification delta (f8eaeaa to 50eee37)
+
+`git diff f8eaeaa..HEAD -- src scripts tests` touches six files; each was read and checked against the four criteria.
+
+| Commit | Change | Effect on the criteria | Result |
+| ------ | ------ | ---------------------- | ------ |
+| 17171a4 (WR-01) | `ExplosionLayer.dispose()` now calls `cloud.dispose()` and `flash.dispose()` before the shared geometry, materials and textures; the disposal test counts both meshes (7 disposable objects, each once) | Criterion 3 (render-only layer): disposal contract now complete, no draw-call or world-hash change | VERIFIED; `tests/render/explosion-layer.test.ts` and `tests/app/dispose.test.ts` pass |
+| 72b6a19 (WR-02) | `cbrt`, `sin`, `cos` added to `src/sim/math.ts` as thin `Math.*` wrappers; `debris.ts` (wreck radius rescale) and `ai/test-spawn.ts` call them | Criteria 1 and 2: values are bit-identical (same `Math.cbrt/sin/cos` call); `rg "Math\.(cbrt|sin|cos|pow|tan|atan|exp|log)"` over `src/sim/world`, `src/sim/ai`, `rng.ts`, `sim.ts` is now empty, so Key Decision (f) holds. The 30/60/144 Hz cadence test and the pinned world-hash literals still pass | VERIFIED |
+| 9739fa3 (WR-03) | `vendor-oolite.sh` pins `FULL_COMMIT=7437f22a543c442830774dea0f2cad4e59c04cbb`, checks it extends `COMMIT`, uses it for the raw URL base, for `rev-parse` in `--export-pin`, and compares the pinned export commit exactly (`pinnedCommit !== commit`) | Criterion 4: no vendored byte or `CHECKSUMS.sha256` row changed; `sha256sum -c` still reports 131 of 131 OK; `bash -n` is clean; the full SHA resolves in `/home/opencode/git/oolite`. `pin.json` still records the short SHA (display identity only, by design) | VERIFIED |
+
+Later evidence, supplied by the orchestrator and not re-run here: `verify-full` passed on the remote machine at `50eee37` (135 of 135 Chromium e2e, seams 2 of 2, exit 0), which clears the former OC-6; the 20-seed NPC acceptance run was 21 of 21 at `72b6a19` (the last commit under `src/sim/world/**` or `src/sim/ai/**`). The review's other findings (IN-01 to IN-06) are recorded as a todo in `50eee37` and are not goal blockers.
 
 ### Observable Truths (ROADMAP success criteria)
 
@@ -82,7 +99,7 @@ Verification was done against the code and not against the SUMMARY claims. The c
 | 3 | Explosion, debris, pods and flashes are drawn in a fixed number of draw calls (within the 50-call budget), live only in the render layer, and never change the world hash (equal with layers on or off, and at 30, 60 and 144 Hz) | VERIFIED | `src/render/bodies/debris.ts`: one `InstancedMesh` per (model, primitive), capacity 256, shared cached geometry and material, so at most 7 models' primitives however many pieces exist. `src/render/bodies/explosions.ts`: a pool of 8, 2 instanced draw objects. Both read only id-free contacts (`debrisContacts`, `src/sim/world/contacts.ts:90`) and the `shipDestroyed` event's position and radius (`event-router.ts:453`); nothing writes to the world. Browser run `tests/e2e/combat.spec.ts` (hook shooter with 20 capsules destroyed in a real session) asserts the debris piece count, `0 < calls <= 50` with the explosion live (measured 21 calls, PERFORMANCE.md line 31) and `worldHash()` 60 ticks after the kill equal to the Node twin's pinned literal (`a10b2dfc`), which has no render layer: PASSED at HEAD. 30/60/144 Hz equality passes (criterion 1 evidence). |
 | 4 | Debris models and textures (wreckage, alloy plate, barrel, explosion particle sprites) are vendored from the local Oolite checkout through `scripts/vendor-oolite.sh` with `CHECKSUMS.sha256`, `ASSETS.md` and `NOTICE` rows, load lazily after the first frame, and keep the cold start under 9,437,184 bytes | VERIFIED | `sha256sum -c third_party/oolite/CHECKSUMS.sha256` from the repo root: all 131 lines OK (117 + 14). The 14 vendored files (`oolite_alloy.dat`, `oolite_barrel.dat`, `wreck1-5.dat`, 6 textures incl. `wreck.png`, `oolite-particle-cloud2.png`, `oolite-particle-flash.png`) were re-hashed against `git show 7437f22:Resources/...` in `/home/opencode/git/oolite`: 14/14 equal. Each has a vendored-input row in ASSETS.md; generated GLBs, `ships-debris.json`, `explosions.json` and the two public particle PNGs have generated-asset rows; NOTICE names the derivatives (lines 65-66, 83, 102-116). `assets:check` reports "no differences". Cold start measured at 8,866,124 bytes (traffic off) and 8,878,213 bytes (traffic on) against the 9,437,184 ceiling; `budget.spec.ts` and `traffic.spec.ts` assert no debris GLB, referenced texture or particle PNG is requested before the first in-flight frame, and `combat.spec.ts` shows them requested only after the kill: all PASSED at HEAD. |
 
-**Score:** 4/4 truths verified (0 present but behavior-unverified; every state-transition and cap invariant has a passing test). Status is `human_needed` because the seven owner-confirmation items (OC-1 to OC-7) and the visual check are open, not because a truth failed.
+**Score:** 4/4 truths verified (0 present but behavior-unverified; every state-transition and cap invariant has a passing test). Status is `human_needed` because the six open owner-confirmation items (OC-1 to OC-5, OC-7) and the visual check remain, not because a truth failed. OC-6 (`verify-full`) is done.
 
 ### Plan must-haves
 
@@ -131,7 +148,16 @@ All 26 links across the nine plans verified by `verify.key-links`; the load-bear
 | QUAL-11 20-seed NPC acceptance (standing gate; `src/sim/world/**` changed) | `run --rm test npm run test:acceptance` | 21 of 21 passed | PASS |
 | Vendored bytes | `sha256sum -c third_party/oolite/CHECKSUMS.sha256` plus a comparison with `git show 7437f22:...` in the Oolite checkout | 131 OK; 14/14 equal to the pin | PASS |
 
-`verify-full` was NOT run (waits on the owner, OC-6).
+Re-verification run on the remote machine at HEAD `50eee37` (only cheap targeted checks rerun):
+
+| Behavior | Command | Result | Status |
+| -------- | ------- | ------ | ------ |
+| Render, dispose, world, AI and guard suites | `run --rm test npx vitest run tests/render/explosion-layer.test.ts tests/app/dispose.test.ts tests/sim/world tests/sim/ai tests/guards` | 34 files, 1588 passed, 1 skipped | PASS |
+| Types | `run --rm typecheck` | exit 0 | PASS |
+| Lint and format | `run --rm lint` | exit 0 | PASS |
+| Vendored bytes | `sha256sum -c third_party/oolite/CHECKSUMS.sha256` | 131 OK, 0 failing | PASS |
+| Full release gate (orchestrator-reported) | `run --rm verify-full` at `50eee37` | 135 of 135 Chromium e2e, seams 2 of 2, exit 0 | PASS (OC-6 done) |
+| QUAL-11 20-seed acceptance (orchestrator-reported) | `npm run test:acceptance` at `72b6a19` | 21 of 21 | PASS |
 
 ### Probe Execution
 
@@ -158,14 +184,14 @@ The items are in the frontmatter `human_verification` list. In short:
 1. **OC-1** (no commodity per pod), **OC-3** (pods and plates not shootable until Phase 18) and **OC-4** (blast pushes debris only, not ships or the player) narrow the wording of ROADMAP criterion 1 and its scope note. Each is recorded in PROJECT.md Key Decisions and FIDELITY.md, none is a silent failure, and the owner should confirm the wording is acceptable or amend the roadmap.
 2. **OC-2** (render-side tumble from orientation) is a reworded Phase 15 context decision.
 3. **OC-5** (no code fix for the doubled hit sound): `shipHit` has no consumer.
-4. **OC-6** (`verify-full` pending the owner's go) and **OC-7** (vendoring run by the orchestrator; bytes verified equal to the pin).
+4. **OC-7** (vendoring run by the orchestrator; bytes verified equal to the pin). OC-6 (`verify-full`) is closed by the passing run at `50eee37`.
 5. A visual look at the explosion and debris on a real GPU.
 
 ### Gaps Summary
 
-No gaps. All four ROADMAP success criteria hold in the code and under the targeted Docker gates at HEAD `f8eaeaa`. The phase cannot be called closed until the owner answers the OC items and runs or releases `verify-full`.
+No gaps. All four ROADMAP success criteria hold in the code and under the targeted Docker gates at HEAD `50eee37` and the `verify-full` run. The three review warnings are fixed and change no hashed value. The phase cannot be called closed until the owner answers OC-1 to OC-5 and OC-7 and does the real-GPU visual check.
 
 ---
 
-_Verified: 2026-11-17T02:05:00Z_
+_Verified: 2026-11-17T09:45:00Z_
 _Verifier: Claude (gsd-verifier)_
