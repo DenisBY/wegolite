@@ -139,6 +139,32 @@ describe("src/content boundary", () => {
     });
   }, 180_000);
 
+  it("fails lint when the sim imports the render-only explosion settings (D16-22)", async () => {
+    const source = [
+      'import { loadExplosionCatalogue } from "../content/explosions.js";',
+      "",
+      "export const probe = loadExplosionCatalogue;",
+      "",
+    ].join("\n");
+
+    await withProbe("__purity_explosions_probe.ts", source, async (file) => {
+      const lint = await lintProbe(file);
+      expect(lint.status, lint.output).not.toBe(0);
+
+      const diagnostic = findRestriction(
+        lint.messages,
+        "src/sim may only import src/sim and content/types.",
+      );
+      expect(diagnostic, lint.output).toBeDefined();
+      expect(diagnostic?.message).toContain("../content/explosions.js");
+      expect(diagnostic?.messageId).toBe("patternWithCustomMessage");
+    });
+
+    expect(existsSync(join(SIM_DIR, "__purity_explosions_probe.ts"))).toBe(
+      false,
+    );
+  }, 180_000);
+
   it("allows the type-only door through both ESLint and the sim typecheck", async () => {
     const source = [
       'import type { System } from "../content/types.js";',

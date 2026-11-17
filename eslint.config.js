@@ -340,6 +340,8 @@ const SIM_IMPORT_PATTERNS = [
       "**/content/equipment*",
       "**/content/dock-port*",
       "**/content/systems*",
+      // D16-22: the explosion settings are render-only data.
+      "**/content/explosions*",
     ],
     message: "src/sim may only import src/sim and content/types.",
   },

@@ -34,6 +34,7 @@ import {
 } from "./convert/glb.js";
 import type { ShipEntry } from "./convert/glb.js";
 import { emitEquipment } from "./convert/equipment.js";
+import { emitExplosions } from "./convert/explosions.js";
 import { emitLabels } from "./convert/labels.js";
 import { NPC_SHIP_KEYS, emitNpcShips } from "./convert/npc-ships.js";
 import { computeShipMasses } from "./convert/ship-mass.js";
@@ -46,7 +47,11 @@ import {
   emitShipsFromCatalogue,
 } from "./convert/ships.js";
 import { emitSystems } from "./convert/systems.js";
-import { copySkyTextures, emitTextures } from "./convert/textures.js";
+import {
+  copyParticleTextures,
+  copySkyTextures,
+  emitTextures,
+} from "./convert/textures.js";
 import { encodeTextures } from "./convert/texture-encode.js";
 import { parseOpenStep } from "./openstep/parser.js";
 import type { PlistValue } from "./openstep/plist-value.js";
@@ -66,6 +71,8 @@ const SHIPDATA_RELATIVE = "Config/shipdata.plist";
 const SHIPDATA_FILE = `${SNAPSHOT_DIR}/${SHIPDATA_RELATIVE}`;
 const SHIPDATA_OVERRIDES_RELATIVE = "Config/shipdata-overrides.plist";
 const SHIPDATA_OVERRIDES_FILE = `${SNAPSHOT_DIR}/${SHIPDATA_OVERRIDES_RELATIVE}`;
+const EXPLOSIONS_RELATIVE = "Config/explosions.plist";
+const EXPLOSIONS_FILE = `${SNAPSHOT_DIR}/${EXPLOSIONS_RELATIVE}`;
 
 /**
  * The ships whose Oolite mass is computed at build time (DATA-11): the nine
@@ -154,6 +161,7 @@ export async function generateContent({
     descriptions,
     shipdata,
     shipOverrides,
+    explosions,
   ] = await Promise.all([
     readConfig(inputRoot, TRADE_GOODS_RELATIVE, TRADE_GOODS_FILE),
     readConfig(inputRoot, PLANETINFO_RELATIVE, PLANETINFO_FILE),
@@ -161,6 +169,7 @@ export async function generateContent({
     readConfig(inputRoot, DESCRIPTIONS_RELATIVE, DESCRIPTIONS_FILE),
     readConfig(inputRoot, SHIPDATA_RELATIVE, SHIPDATA_FILE),
     readConfig(inputRoot, SHIPDATA_OVERRIDES_RELATIVE, SHIPDATA_OVERRIDES_FILE),
+    readConfig(inputRoot, EXPLOSIONS_RELATIVE, EXPLOSIONS_FILE),
   ]);
 
   const catalogue = compileShips(shipdata, shipOverrides);
@@ -196,6 +205,7 @@ export async function generateContent({
     emitClientShips(catalogue, masses),
     emitNpcShips(catalogue, masses, radii),
     emitDebris(catalogue, debrisMasses, debrisRadii),
+    emitExplosions(explosions),
     emitShipHulls(catalogue, models),
     emitDockPort(models),
     ...emitModels(models, entries),
@@ -226,7 +236,17 @@ export async function generateContent({
   // nebulatextures.plist, not referenced by a ship material.
   const skyTextures = await copySkyTextures({ inputRoot, outRoot });
 
-  return [...emitted, ...textures, ...emissives, ...skyTextures];
+  // The explosion cloud and flash textures the render draws (D16-08): not
+  // referenced by a ship material either, copied the same way.
+  const particleTextures = await copyParticleTextures({ inputRoot, outRoot });
+
+  return [
+    ...emitted,
+    ...textures,
+    ...emissives,
+    ...skyTextures,
+    ...particleTextures,
+  ];
 }
 
 /**

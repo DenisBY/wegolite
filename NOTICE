@@ -61,7 +61,10 @@ diffuse and normal maps dropped); they are derivative works of those textures
 and remain CC BY-NC-SA 3.0, never GPL, under the same attribution,
 non-commercial and share-alike terms. The four sky textures
 `public/textures/oolite-nebula-*.png` are byte-identical to the vendored
-originals and are redistributed unmodified under the same licence. The
+originals and are redistributed unmodified under the same licence. The two
+explosion particle textures `public/textures/oolite-particle-cloud2.png` and
+`public/textures/oolite-particle-flash.png` are likewise byte-identical copies
+of the vendored originals, redistributed unmodified under the same licence. The
 unmodified source PNGs are kept under `third_party/oolite/Textures/`.
 
 The generated dock-port record `src/content/generated/dock-port.json` is
@@ -103,6 +106,14 @@ entries; for each, its role, model and tumble rates `max_flight_roll` and
 is a derivative work of `shipdata.plist` and of those models and remains
 CC BY-NC-SA 3.0, never GPL, with attribution to the Oolite contributors,
 non-commercial use only and share-alike terms.
+
+The generated explosion settings `src/content/generated/explosions.json` are
+compiled at build time from the vendored Oolite `explosions.plist` (the default
+ship explosion entry: its alpha, colour order, particle count, duration, growth
+rate, size and texture, with Oolite's defaults for the keys it omits). They are
+a derivative work of `explosions.plist` and remain CC BY-NC-SA 3.0, never GPL,
+with attribution to the Oolite contributors, non-commercial use only and
+share-alike terms.
 
 The `mass` values in `src/content/generated/ships-client.json` (the player Cobra
 Mk III, the Coriolis station and the navigation buoy) are computed the same way

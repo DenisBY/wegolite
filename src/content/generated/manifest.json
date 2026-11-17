@@ -116,6 +116,16 @@
       "sha256": "13ace709dbe03813285340556bd8b526a15b88b35eb89b6ea3e9820b0363548f"
     },
     {
+      "bytes": 21592,
+      "path": "public/textures/oolite-particle-cloud2.png",
+      "sha256": "bf218ba4712aef14ab44115d5b359533cba9806c9c28207aba96bb2543870222"
+    },
+    {
+      "bytes": 15946,
+      "path": "public/textures/oolite-particle-flash.png",
+      "sha256": "a3bed39aefc9506503b348c611fe08b9f46e264edea0160bf64cd63f9b86d1eb"
+    },
+    {
       "bytes": 232954,
       "path": "public/textures/oolite_adder_diffuse.webp",
       "sha256": "2082181900e75b87b416e648d5731aebb4d66057e80425f78c22e343a9cfad0d"
@@ -509,6 +519,11 @@
       "bytes": 17774,
       "path": "src/content/generated/equipment.json",
       "sha256": "aa7fe8a7dcfa69c882559aaa4cfd224e8db12ed8f9b6887230bad3553814c976"
+    },
+    {
+      "bytes": 274,
+      "path": "src/content/generated/explosions.json",
+      "sha256": "c656c63d773a200fdc7567cf2ba75b348b6b0834a42ff8d97c5ec796c6c7cd76"
     },
     {
       "bytes": 6370,

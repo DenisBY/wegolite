@@ -1,0 +1,14 @@
+[
+  {
+    "alpha": 0.8500000238418579,
+    "brightness": 1,
+    "colorOrder": "rgb",
+    "count": 25,
+    "duration": 1.5,
+    "growthRate": 1.5,
+    "key": "oolite-default-ship-explosion",
+    "size": 2.5,
+    "spread": 1,
+    "texture": "oolite-particle-cloud2.png"
+  }
+]

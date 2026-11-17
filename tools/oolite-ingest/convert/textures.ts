@@ -338,6 +338,31 @@ export async function copySkyTextures({
   return copyNamedTextures(SKY_TEXTURES, { inputRoot, outRoot });
 }
 
+/**
+ * The explosion particle textures the render draws (D16-08, D16-22).
+ *
+ * `oolite-particle-cloud2.png` is the default explosion cloud texture
+ * (`explosions.plist` `oolite-default-ship-explosion`, and the default of
+ * `OOExplosionCloudEntity.m:88`); `oolite-particle-flash.png` is the flash
+ * texture `OOFlashEffectEntity.m` loads (`sFlashTexture`). No ship material
+ * references them, so like the sky textures they sit outside
+ * `VENDORED_TEXTURES`. They are small alpha masks, copied byte-for-byte and
+ * never re-encoded, with both digests compared. Every compiled explosion
+ * record's texture must be one of these (`convert/explosions.ts`).
+ */
+export const PARTICLE_TEXTURES: readonly string[] = [
+  "oolite-particle-cloud2.png",
+  "oolite-particle-flash.png",
+];
+
+/** Copy the explosion particle textures byte-for-byte into `public/textures/`. */
+export async function copyParticleTextures({
+  inputRoot,
+  outRoot,
+}: CopyTexturesOptions): Promise<EmittedTextureFile[]> {
+  return copyNamedTextures(PARTICLE_TEXTURES, { inputRoot, outRoot });
+}
+
 async function copyNamedTextures(
   names: readonly string[],
   { inputRoot, outRoot }: CopyTexturesOptions,

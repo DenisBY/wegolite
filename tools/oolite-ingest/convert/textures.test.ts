@@ -23,9 +23,11 @@ import { sha256Hex } from "../canonical/hash.js";
 import { parseOpenStep } from "../openstep/parser.js";
 import { compileShips } from "./ships.js";
 import {
+  PARTICLE_TEXTURES,
   SKY_TEXTURES,
   VENDORED_TEXTURES,
   bakeEmissive,
+  copyParticleTextures,
   decodeGreyscalePng,
   decodePng,
   emitTextures,
@@ -225,7 +227,7 @@ describe("texture reference closure", () => {
 });
 
 describe("the emitted texture tree", () => {
-  it("serves each vendored texture as WebP only, beside the bakes and the sky", () => {
+  it("serves each vendored texture as WebP only, beside the bakes, the sky and the particles", () => {
     const entries = readdirSync(join(REPO_ROOT, "public/textures")).sort();
     const expected = [
       ...VENDORED_TEXTURES.map((name) => encodedTextureFile(name)),
@@ -235,11 +237,41 @@ describe("the emitted texture tree", () => {
         ),
       ).map((name) => emissiveFile(name)),
       ...SKY_TEXTURES,
+      ...PARTICLE_TEXTURES,
     ].sort();
     expect(entries).toEqual(expected);
     // The byte-for-byte PNG copies of Phase 2 D-20 are gone from the client.
     for (const name of VENDORED_TEXTURES) {
       expect(entries).not.toContain(name);
+    }
+  });
+
+  it("ships the particle textures byte-identical to the vendored files (D16-08)", async () => {
+    expect(PARTICLE_TEXTURES).toEqual([
+      "oolite-particle-cloud2.png",
+      "oolite-particle-flash.png",
+    ]);
+    const outRoot = await mkdtemp(join(tmpdir(), "wegolite-particles-"));
+    try {
+      const emitted = await copyParticleTextures({
+        inputRoot: REPO_ROOT,
+        outRoot,
+      });
+      expect(emitted.map((file) => file.path)).toEqual(
+        PARTICLE_TEXTURES.map((name) => `public/textures/${name}`),
+      );
+      for (const file of emitted) {
+        const vendored = readFileSync(
+          join(REPO_ROOT, "third_party/oolite/Textures", file.path.slice(16)),
+        );
+        const written = readFileSync(join(outRoot, file.path));
+        const committed = readFileSync(join(REPO_ROOT, file.path));
+        expect(sha256Hex(file.bytes), file.path).toBe(sha256Hex(vendored));
+        expect(sha256Hex(written), file.path).toBe(sha256Hex(vendored));
+        expect(sha256Hex(committed), file.path).toBe(sha256Hex(vendored));
+      }
+    } finally {
+      await rm(outRoot, { recursive: true, force: true });
     }
   });
 
