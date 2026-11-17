@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 16
 current_phase_name: Wreckage, Cargo and the Entity Cap
-current_plan: 5
+current_plan: 6
 status: executing
-stopped_at: Completed 16-04-PLAN.md
-last_updated: "2026-11-17T00:04:17.568Z"
+stopped_at: Completed 16-05-PLAN.md
+last_updated: "2026-11-17T00:22:07.368Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 15 complete, transitioned to Phase 16
-state_head: 960ba77d1412ce985038fdcd417950c0a31f0312
+state_head: 3bf7849e261859674a537fd8223d3aaafd6971ca
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 15
-  completed_plans: 10
+  completed_plans: 11
   percent: 17
 ---
 
@@ -31,10 +31,10 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 16 — Wreckage, Cargo and the Entity Cap
-Current Plan: 5
+Current Plan: 6
 Total Plans in Phase: 9
 Status: Ready to execute
-Last activity: 2026-11-17 — 16-04 complete (wreckage with the burn-down, the alloy plate, the blast on debris, the test pilot's scan filter; acceptance 21/21 at b1f2808)
+Last activity: 2026-11-17 — 16-05 complete (explosions.json and the particle textures, the NPC hull boundingBox; acceptance 21/21 at 79d2bbc)
 
 
 ## Performance Metrics
@@ -203,6 +203,7 @@ Last activity: 2026-11-17 — 16-04 complete (wreckage with the burn-down, the a
 | Phase 16 P01 | 5min | 3 tasks | 17 files |
 | Phase 16 P03 | 35min | 2 tasks | 36 files |
 | Phase 16 P04 | 26 min | 3 tasks | 11 files |
+| Phase 16 P05 | 16 min | 2 tasks | 24 files |
 
 ## Accumulated Context
 
@@ -508,6 +509,8 @@ Recent decisions affecting current work:
 - [Phase 16]: D16-12/D16-17: after the pods, the n_wreckage draw, per wreck 7 octant draws, lifetime, model, mass, quaternion, push; then the n_alloys draw; 13 draws per plate; the blast last and drawless
 - [Phase 16]: D16-04/OC-4: the blast pushes pods, plates and wrecks only, clamped per component; ships and the player are never pushed
 - [Phase 16]: D16-03/OC-3: TEST_PILOT_SCAN_KINDS leaves cargo and wreckage out of the test pilot's scan
+- [Phase 16]: 16-05: explosions.json holds only oolite-default-ship-explosion with Oolite's reader types (float keys float32, duration as authored); the texture must be in PARTICLE_TEXTURES (D16-22)
+- [Phase 16]: 16-05: NpcShip.boundingBox { min, max } is Math.fround of the hull .dat vertex extremes in Oolite's model axes, schema min <= max (D16-23)
 
 ### Pending Todos
 
@@ -616,8 +619,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-17T00:04:17.441Z
-Stopped at: Completed 16-04-PLAN.md
+Last session: 2026-11-17T00:22:01.903Z
+Stopped at: Completed 16-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
