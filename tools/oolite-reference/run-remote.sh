@@ -13,11 +13,12 @@
 #   the container's code (as in entrypoint.sh): 0 ok, 1 a step failed or Oolite
 #     died, 2 bad steps file or OOREF_TIMEOUT, 124 the deadline was found
 #     expired between steps;
-#   124 also when the outer backstop (--timeout + 120 s) fired; the named
-#     container is then removed with `docker rm -f`;
+#   124 also when the outer backstop (--timeout + 120 s) fired;
 #   125 when `docker run` itself failed (daemon error, or no image with
 #     --no-build);
-#   255 when ssh failed during the run;
+#   255 when ssh failed during the run, 137 when its ssh was killed;
+#   after any non-zero run exit the named container is removed with
+#     `docker rm -f`;
 #   64 a usage error, a bad --timeout or a refused output directory;
 #   70 a sync, build, session-setup or fetch failure. A failed fetch keeps the
 #     remote session directory and prints its path.
@@ -25,7 +26,10 @@ set -uo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 H="${OOREF_HOST:-opencode@192.168.178.51}"
-IMAGE=wegolite-oolite-reference:1.93.1-255
+# The tag follows the Dockerfile's one OOLITE_VERSION, so a version bump retags.
+VERSION=$(sed -n 's/^ARG OOLITE_VERSION=//p' "$SCRIPT_DIR/Dockerfile" | head -n 1)
+[ -n "$VERSION" ] || { echo "no ARG OOLITE_VERSION=... in $SCRIPT_DIR/Dockerfile" >&2; exit 64; }
+IMAGE="wegolite-oolite-reference:$VERSION"
 
 STEPS="$SCRIPT_DIR/steps/title.steps"
 TIMEOUT=300
@@ -111,14 +115,22 @@ fi
 
 # -n: the container needs no stdin, and GNU timeout runs ssh in a background
 # process group, where an ssh that reads the terminal would be stopped (SIGTTIN).
-timeout $((TIMEOUT + 120)) ssh -n "$H" "docker run $RUN_ARGS $IMAGE"
+# -k: an ssh that ignores SIGTERM is killed 15 s later.
+timeout -k 15 $((TIMEOUT + 120)) ssh -n "$H" "docker run $RUN_ARGS $IMAGE"
 RC=$?
-if [ "$RC" -eq 124 ]; then
-  # The container's own deadline also exits 124; then --rm already removed it
-  # and the rm below is a harmless no-op.
+# On any failure (deadline, outer backstop, ssh dropped, Ctrl-C) the container
+# may outlive the ssh session: remove it. After a normal end --rm already did
+# and this is a no-op. If it is still there, keep the session directory below,
+# because the container may still be writing into it.
+LEFTOVER=""
+if [ "$RC" -ne 0 ]; then
   ssh -n "$H" "docker rm -f $(printf %q "$NAME")" >/dev/null 2>&1 || true
-  echo "deadline or outer backstop ended the run (exit 124); container $NAME was removed if it was still running" >&2
+  LEFTOVER=$(ssh -n "$H" "docker ps -aq -f name=^/$(printf %q "$NAME")\$" 2>/dev/null || echo unknown)
+  if [ -n "$LEFTOVER" ]; then
+    echo "container $NAME could not be confirmed removed; the remote session is kept" >&2
+  fi
 fi
+[ "$RC" -eq 124 ] && echo "deadline or outer backstop ended the run (exit 124)" >&2
 
 # Fetch whatever exists, whatever the exit code. A failed fetch keeps the
 # remote session directory so the outputs are not lost.
@@ -129,8 +141,10 @@ if [ "$FETCH" = ok ]; then
 fi
 IMAGE_ID=$(ssh "$H" "docker image inspect --format '{{.Id}}' $IMAGE" 2>/dev/null || echo unknown)
 FINAL=$RC
-if [ "$FETCH" = ok ]; then
+if [ "$FETCH" = ok ] && [ -z "$LEFTOVER" ]; then
   ssh "$H" "rm -rf $(printf %q "$SESSION")" || true
+elif [ "$FETCH" = ok ]; then
+  echo "remote session kept at ${H}:${SESSION}; remove it once $NAME is gone" >&2
 else
   echo "fetch failed; remote outputs kept at ${H}:${SESSION}" >&2
   echo "recover: ssh $H tar -C $(printf %q "$SESSION/out") -cf - . | tar -x -C <empty local dir>, then ssh $H rm -rf $(printf %q "$SESSION")" >&2

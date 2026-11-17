@@ -56,9 +56,13 @@ tools/oolite-reference/run-remote.sh [--out DIR] [--steps FILE] [--timeout SECON
 - `--no-build`: reuse the existing remote image.
 
 The wrapper syncs the working-tree copy of this directory (no commit needed),
-builds the image `wegolite-oolite-reference:1.93.1-255`, runs the container
-with `--network none` as a non-root user whose uid and gid match the remote
-user, and fetches the outputs whatever the exit code.
+builds the image `wegolite-oolite-reference:<OOLITE_VERSION>` (the tag is read
+from the Dockerfile's `ARG OOLITE_VERSION`), runs the container with
+`--network none` as a non-root user whose uid and gid match the remote user, and
+fetches the outputs whatever the exit code. After any non-zero run exit
+(deadline, backstop, a dropped ssh, Ctrl-C) it removes the named container with
+`docker rm -f`; if the container cannot be confirmed gone, the remote session
+directory is kept and its path printed.
 
 Output layout:
 
@@ -93,12 +97,12 @@ Exit codes:
   `fetch failed; remote outputs kept at HOST:PATH`; the last line still shows
   `container_exit=`.
 - `124`: the runner found the overall deadline expired between steps, or the
-  wrapper's outer backstop (`--timeout` + 120 s) fired. In the backstop case the
-  named container is removed with `docker rm -f`, and `session.txt` may be
-  missing.
+  wrapper's outer backstop (`--timeout` + 120 s, then SIGKILL 15 s later) fired.
+  In the backstop case `session.txt` may be missing.
 - `125`: `docker run` itself failed (daemon error, or no image with
   `--no-build`).
 - `255`: ssh failed during the run.
+- `137`: the run's ssh was killed (for example by the backstop's SIGKILL).
 
 The last stdout line is `exit=N container_exit=M elapsed=Ss out=DIR`.
 
