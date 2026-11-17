@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 16
 current_phase_name: Wreckage, Cargo and the Entity Cap
-current_plan: 4
+current_plan: 5
 status: executing
-stopped_at: Completed 16-03-PLAN.md
-last_updated: "2026-11-16T23:34:22.188Z"
+stopped_at: Completed 16-04-PLAN.md
+last_updated: "2026-11-17T00:04:17.568Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 15 complete, transitioned to Phase 16
-state_head: b1fd16d528c9dbd507eb42387a83f49ef4d9ea22
+state_head: 960ba77d1412ce985038fdcd417950c0a31f0312
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 15
-  completed_plans: 9
+  completed_plans: 10
   percent: 17
 ---
 
@@ -31,10 +31,10 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 16 — Wreckage, Cargo and the Entity Cap
-Current Plan: 4
+Current Plan: 5
 Total Plans in Phase: 9
 Status: Ready to execute
-Last activity: 2026-11-17 — 16-03 complete (debris GLBs, textures and the lazy debris catalogue)
+Last activity: 2026-11-17 — 16-04 complete (wreckage with the burn-down, the alloy plate, the blast on debris, the test pilot's scan filter; acceptance 21/21 at b1f2808)
 
 
 ## Performance Metrics
@@ -202,6 +202,7 @@ Last activity: 2026-11-17 — 16-03 complete (debris GLBs, textures and the lazy
 | Phase 16 P02 | 30min | 2 tasks | 11 files |
 | Phase 16 P01 | 5min | 3 tasks | 17 files |
 | Phase 16 P03 | 35min | 2 tasks | 36 files |
+| Phase 16 P04 | 26 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -503,6 +504,10 @@ Recent decisions affecting current work:
 - [Phase 16]: 16-01 OC-7: the real vendoring run was done by the orchestrator under the owner's standing unattended instruction, not by the owner; flagged for owner review
 - [Phase 16]: Plan 16-03: LEGACY_TEXTURED_ENTRIES lets only the five wreck keys name the unauthored wreck.png (Oolite's default material: diffuse only, roughness 1); every other missing material still fails the build, and a wreck mesh naming another material fails
 - [Phase 16]: Plan 16-03: the debris catalogue is seven strict records (barrel pod, alloy plate, five wrecks in shipdata order) with build-time float32 mass, radius and tumble rates; the schema requires exactly one pod, exactly one plate and a wreck; no scarred plate (D16-07)
+- [Phase 16]: D16-11: wreck energy is lifetime/2 and drains dt x (1000 - 10 x age) above 256, floored at 0; removal through killShip with no killer and no shipDestroyed (LOW confidence, arithmetic from the C)
+- [Phase 16]: D16-12/D16-17: after the pods, the n_wreckage draw, per wreck 7 octant draws, lifetime, model, mass, quaternion, push; then the n_alloys draw; 13 draws per plate; the blast last and drawless
+- [Phase 16]: D16-04/OC-4: the blast pushes pods, plates and wrecks only, clamped per component; ships and the player are never pushed
+- [Phase 16]: D16-03/OC-3: TEST_PILOT_SCAN_KINDS leaves cargo and wreckage out of the test pilot's scan
 
 ### Pending Todos
 
@@ -611,8 +616,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-16T23:34:22.060Z
-Stopped at: Completed 16-03-PLAN.md
+Last session: 2026-11-17T00:04:17.441Z
+Stopped at: Completed 16-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
