@@ -202,6 +202,7 @@ class Recorder {
             options,
             this.combat,
           );
+    baselineLaunchPose(state, events, this.context.layout);
     let keyed = false;
     for (const event of events) {
       this.seen.add(event.kind);
@@ -255,6 +256,26 @@ function launchContext(equipment: ReadonlySet<string>): StepContext {
  */
 function baselineFlightState(layout: SystemLayout): FlightState {
   return { ...initFlightState(layout), clockSeconds: CLOCK_START };
+}
+
+/**
+ * Restore the frozen baseline's launch pose on the step that launched. The pins
+ * were captured when a launch left the ship at the untwisted `stationBaseQuat`;
+ * quick task 261118-mb5 added Oolite's launch twist (`launchOrientation`, a
+ * quarter turn about the nose axis), and the flight hash includes the
+ * orientation. Resetting only the orientation on the `launched` step, before
+ * the sample, keeps the frozen pins a check of flight stepping, which is what
+ * they guard, without regenerating them (as `baselineFlightState` does for the
+ * clock). The twist itself is pinned by `tests/sim/launch.test.ts`.
+ */
+function baselineLaunchPose(
+  state: FlightState,
+  events: readonly SimEvent[],
+  layout: SystemLayout,
+): void {
+  if (events.some((event) => event.kind === "launched")) {
+    state.orientation = layout.stationBaseQuat;
+  }
 }
 
 /** Launch and fly the full 240-step launch (no skipLaunch), then 1200 steps. */

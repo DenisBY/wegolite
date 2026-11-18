@@ -30,6 +30,7 @@ import {
 } from "../../src/render/launch-camera.js";
 import type { CameraPose } from "../../src/render/launch-camera.js";
 import { CAMERA_NEAR } from "../../src/render/system-scene.js";
+import { portFrame } from "../../src/sim/dock/port-frame.js";
 import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
 import { LAUNCH_DURATION } from "../../src/sim/flight/launch.js";
 import {
@@ -430,5 +431,38 @@ describe("launch view from inside the dock slot (quick 261118-l26)", () => {
     expect(code).not.toMatch(/\b250\b|500\.2561|103\.41|241\.88/);
     expect(code).not.toMatch(/Math\.random/);
     expect(code).not.toMatch(/\bperformance\b|\bDate\.now\b|\bnew Date\b/);
+  });
+});
+
+describe("launch view along the slot (quick 261118-mb5)", () => {
+  const geometry = laveDockGeometry();
+
+  /** Camera +X against the slot's long axis (port -j) at the sim's angle. */
+  function camRightAlongSlot(camera: CameraPose, stationAngle: number): number {
+    const j = portFrame(layout, stationAngle).j;
+    return length(sub(rotate(camera.quaternion, vec(1, 0, 0)), scale(j, -1)));
+  }
+
+  it("shows the slot wide: camera +X lies along port -j at elapsed 0 and at handover", () => {
+    const state = initFlightState(layout);
+    stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT, {
+      dock: geometry,
+    });
+    const start = computeSlotLaunchCamera(
+      layout,
+      geometry.port.depth,
+      state.position,
+      state.orientation,
+      launchViewElapsed(state.launchElapsed, 1),
+    );
+    expect(camRightAlongSlot(start, state.stationAngle)).toBeLessThan(1e-9);
+
+    while (state.mode === "launching") {
+      stepFlight(state, layout, config, ZERO_INTENT, [], DT, {
+        dock: geometry,
+      });
+    }
+    const handover = computeCockpitCamera(state.position, state.orientation);
+    expect(camRightAlongSlot(handover, state.stationAngle)).toBeLessThan(1e-6);
   });
 });

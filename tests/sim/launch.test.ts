@@ -24,8 +24,17 @@
 
 import { describe, expect, it } from "vitest";
 
+import {
+  classifyCorridor,
+  dockSnapshot,
+  slotTwistedForShip,
+} from "../../src/sim/dock/corridor.js";
+import type { DockGeometry } from "../../src/sim/dock/geometry.js";
+import { portFrame, portQuaternion } from "../../src/sim/dock/port-frame.js";
+import type { SimEvent } from "../../src/sim/events.js";
 import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
 import type { FlightConfig } from "../../src/sim/flight/config.js";
+import { launchOrientation } from "../../src/sim/flight/launch.js";
 import {
   dockMouthPosition,
   initFlightState,
@@ -38,12 +47,14 @@ import {
   mul,
   normalizeVec,
   rotate,
+  scale,
   sub,
   vec,
 } from "../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../src/sim/math.js";
 import { DT } from "../../src/sim/step.js";
 import type { SystemLayout } from "../../src/sim/world/layout.js";
+import { laveDockGeometry } from "../helpers/dock-pose.js";
 import { laveFixture } from "../helpers/lave.js";
 
 const LAUNCH_STEPS = 240; // exactly 2 s at 1/120 s
@@ -252,5 +263,150 @@ describe("scripted launch", () => {
     );
     expect(counterRelative).toBeCloseTo(0.502_654_824_574_366_9, 9);
     expect(counterRelative).toBeGreaterThan(1e-6);
+  });
+});
+
+/**
+ * Oolite's launch twist (quick 261118-mb5, `DockEntity.m:819-827` at 7437f22).
+ *
+ * The axis mapping pins the sign: local +X (the wings) must lie along port -j,
+ * the slot's long axis, local +Y along +i and the nose along k. A twist of the
+ * opposite sign maps +X to +j and fails the first assertion; no twist maps +X
+ * to +i and fails it too.
+ */
+describe("launch along the dock slot (Oolite's launch twist)", () => {
+  const fixture = laveFixture();
+  const { layout, config } = fixture;
+  const geometry = laveDockGeometry();
+  const TWIST = axisAngle(0, 0, 1, -Math.PI / 2);
+
+  function launchWithGeometry(state: FlightState): SimEvent[] {
+    return stepFlight(
+      state,
+      layout,
+      config,
+      ZERO_INTENT,
+      [{ kind: "launch" }],
+      DT,
+      { dock: geometry },
+    );
+  }
+
+  function stepWithGeometry(state: FlightState): SimEvent[] {
+    return stepFlight(state, layout, config, ZERO_INTENT, [], DT, {
+      dock: geometry,
+    });
+  }
+
+  function expectVecWithin(actual: Vec3, expected: Vec3, bound: number): void {
+    expect(length(sub(actual, expected))).toBeLessThan(bound);
+  }
+
+  it("puts the wings along the slot's long axis: +X -> -j, +Y -> +i, -Z -> k", () => {
+    const state = initFlightState(layout);
+    launchWithGeometry(state);
+    expect(state.mode).toBe("launching");
+
+    const frame = portFrame(layout, 0);
+    expectVecWithin(
+      rotate(state.orientation, vec(1, 0, 0)),
+      scale(frame.j, -1),
+      1e-9,
+    );
+    expectVecWithin(rotate(state.orientation, vec(0, 1, 0)), frame.i, 1e-9);
+    expectVecWithin(rotate(state.orientation, vec(0, 0, -1)), frame.k, 1e-9);
+    // The twist is about the nose axis, so the dock mouth start is unchanged.
+    expect(state.position).toEqual(dockMouthPosition(layout));
+  });
+
+  it("keeps the twisted pose against the rotating slot on every exit step (D-10 unchanged)", () => {
+    const state = initFlightState(layout);
+    launchWithGeometry(state);
+    const rate = layout.stationRollRadPerSec;
+    expect(state.rollRate).toBe(rate);
+
+    for (let step = 0; step < LAUNCH_STEPS; step += 1) {
+      const rollRateDuringStep = state.rollRate;
+      const angleBefore = state.stationAngle;
+      stepWithGeometry(state);
+
+      const stationAngleRate = (state.stationAngle - angleBefore) / DT;
+      expect(
+        Math.abs(rollRateDuringStep - stationAngleRate),
+        `step ${String(step)}: the ship roll rate must equal the station world roll rate`,
+      ).toBeLessThan(1e-9);
+      expect(
+        relativeAngle(
+          state.orientation,
+          mul(portQuaternion(layout, state.stationAngle), TWIST),
+        ),
+        `step ${String(step)}: the ship must keep the twisted pose in the slot`,
+      ).toBeLessThan(1e-6);
+    }
+    expect(state.mode).toBe("inFlight");
+  });
+
+  it("rotates only when exactly one of the port and the ship is taller than wide", () => {
+    const tallPort = { width: 2, height: 5 };
+    const widePort = { width: 5, height: 2 };
+    const wideShip = { width: 7, height: 3 };
+    const tallShip = { width: 3, height: 7 };
+
+    expect(slotTwistedForShip(tallPort, wideShip)).toBe(true);
+    expect(slotTwistedForShip(tallPort, tallShip)).toBe(false);
+    expect(slotTwistedForShip(widePort, wideShip)).toBe(false);
+    expect(slotTwistedForShip(widePort, tallShip)).toBe(true);
+  });
+
+  it("reads the rule from the dock geometry, not from a Coriolis or Cobra number", () => {
+    const matched: DockGeometry = {
+      ...geometry,
+      // A wide port with the (wide) Cobra: the rule does not rotate.
+      port: {
+        ...geometry.port,
+        width: geometry.port.height,
+        height: geometry.port.width,
+      },
+    };
+    expect(launchOrientation(layout, matched)).toEqual(layout.stationBaseQuat);
+    expect(launchOrientation(layout, geometry)).not.toEqual(
+      layout.stationBaseQuat,
+    );
+    expect(
+      relativeAngle(
+        launchOrientation(layout, geometry),
+        mul(layout.stationBaseQuat, TWIST),
+      ),
+      // acos near 1 resolves only ~3e-8 rad; the file's slot bound is 1e-6.
+    ).toBeLessThan(1e-6);
+  });
+
+  it("keeps the base pose without dock geometry (probe steps carry none)", () => {
+    expect(launchOrientation(layout, undefined)).toEqual(
+      layout.stationBaseQuat,
+    );
+    const state = initFlightState(layout);
+    launch(state, layout, config);
+    expect(state.orientation).toEqual(layout.stationBaseQuat);
+  });
+
+  it("leaves the station already in the docking lane, with no scrape, bounce or dock", () => {
+    const state = initFlightState(layout);
+    const kinds: string[] = [];
+    for (const event of launchWithGeometry(state)) kinds.push(event.kind);
+    for (let step = 0; step < LAUNCH_STEPS; step += 1) {
+      for (const event of stepWithGeometry(state)) kinds.push(event.kind);
+    }
+    expect(state.mode).toBe("inFlight");
+    expect(kinds).not.toContain("scrape");
+    expect(kinds).not.toContain("bounce");
+    expect(kinds).not.toContain("docked");
+    expect(state.dockCount).toBe(0);
+    expect(
+      classifyCorridor(
+        dockSnapshot(layout, state, geometry, state.stationAngle),
+        geometry,
+      ).outcome,
+    ).toBe("lane");
   });
 });

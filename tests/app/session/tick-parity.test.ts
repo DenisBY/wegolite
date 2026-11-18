@@ -718,7 +718,11 @@ const DEBRIS_AT_KILL = { pods: 3, plates: 1, wrecks: 3 } as const;
 const ENTITIES_AT_KILL = 19;
 // Re-pinned in quick task 261117-pij from "a10b2dfc": a new game's clock now
 // starts at the standard scenario's ship_clock, and the hash includes the clock.
-const HASH_60_AFTER_KILL = "ca59f800";
+// Re-pinned in quick task 261118-mb5 from "ca59f800": the launch now applies
+// Oolite's launch twist (a quarter turn about the nose axis), and the hash
+// includes the orientation. Passing no dock to `beginLaunch` restores the old
+// value.
+const HASH_60_AFTER_KILL = "34393ce1";
 
 /** The world's live debris by kind: pods, plates and wrecks. */
 function debrisCounts(world: NonNullable<WorldLifecycle["world"]>): {

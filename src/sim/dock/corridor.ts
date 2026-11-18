@@ -19,8 +19,11 @@
  * 4. everything else -> outside.
  *
  * Plan 04-02 Task 1 implements steps 1, 2 and 4; Task 2 fills step 3. Keeping
- * the order explicit is what stops the wings-across launch pose from being a
- * straddle at any distance (`T-04-53`).
+ * the order explicit, with the nose gate in step 3, is what keeps any
+ * wings-across pose outside the station from being a straddle at any distance
+ * (`T-04-53`). The launch pose itself is no longer wings-across: since quick
+ * 261118-mb5 the ship leaves with Oolite's launch twist, wings along the slot,
+ * and so departs in the lane.
  */
 
 import { add, dot, rotate, sub, vec } from "../math.js";
@@ -123,6 +126,22 @@ function expandAperture(
 }
 
 /**
+ * Oolite's one slot-orientation predicate: the port and the ship lie
+ * differently when exactly one of them is taller than wide. Oolite evaluates
+ * it at three sites (`src/Core/Entities/DockEntity.m` at 7437f22): `:565` and
+ * `:635-637` decide which ship extent is compared with which aperture side
+ * when docking, and `:824` rolls a launching ship 90 degrees about its launch
+ * axis "to account for the slot being at 90 degrees to vertical". For the
+ * Coriolis slot (taller than wide) and the Cobra (wider than tall) it is true.
+ */
+export function slotTwistedForShip(
+  port: { readonly width: number; readonly height: number },
+  ship: ShipExtents,
+): boolean {
+  return port.width < port.height !== ship.width < ship.height;
+}
+
+/**
  * Oolite's `DockEntity.m:632-654` aperture derivation: compare the ship's bbox
  * to the dock mesh aperture, expand in x1.25 steps until it fits 90 %, then
  * halve. The rotation comparison is the authored one: a tall port and a wide
@@ -132,9 +151,7 @@ export function apertureHalfExtents(
   port: { readonly width: number; readonly height: number },
   shipLocalExtents: ShipExtents,
 ): { readonly ww: number; readonly hh: number } {
-  const rotatedPort = port.width < port.height;
-  const rotatedShip = shipLocalExtents.width < shipLocalExtents.height;
-  const rotationsMatch = rotatedPort === rotatedShip;
+  const rotationsMatch = !slotTwistedForShip(port, shipLocalExtents);
 
   const widthShipExtent = rotationsMatch
     ? shipLocalExtents.width
@@ -295,8 +312,10 @@ export function classifyCorridor(
   }
 
   // 3. The 1.5x safety footprint, gated by the nose being inside the station
-  // (`DockEntity.m:727`). This gate is what keeps a wings-across launch pose at
-  // any distance `outside` rather than a straddle (`T-04-53`).
+  // (`DockEntity.m:727`). This gate is what keeps a wings-across pose outside
+  // the station `outside` at any distance rather than a straddle (`T-04-53`).
+  // The launch pose is wings-along (Oolite's launch twist), so a departure is
+  // in the lane, not here.
   const inBand =
     box.min.x > -SAFETY_FACTOR * ww &&
     box.max.x < SAFETY_FACTOR * ww &&

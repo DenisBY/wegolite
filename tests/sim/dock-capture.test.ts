@@ -155,10 +155,12 @@ describe("manual docking capture", () => {
     expect(state.dockCount).toBe(0);
     expect(state.scrapeTicks).toBe(0);
 
-    // The wings-across launch pose at ~350 m out is outside, never a straddle.
+    // Oolite's launch twist (quick 261118-mb5) leaves the wings along the
+    // slot, so at ~350 m out the departure is in the lane: never a straddle,
+    // a band or a capture, and the ship keeps flying away.
     for (let tick = 0; tick < 5; tick += 1) {
       const outcome = outcomeAt(state, state.stationAngle);
-      expect(outcome).toBe("outside");
+      expect(outcome).toBe("lane");
       step(state);
     }
     expect(state.dockCount).toBe(0);

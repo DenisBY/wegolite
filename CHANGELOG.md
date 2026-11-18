@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Your ship now leaves the station along the docking slot, wings along its
+  long side, as in Oolite. Before, it left turned 90 degrees, across the slot.
+
 ### Changed
 
 - Launching now shows the view from your cockpit, starting deep inside the

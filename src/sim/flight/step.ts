@@ -150,7 +150,10 @@ export function stepFlight(
   for (const command of commands) {
     switch (command.kind) {
       case "launch":
-        if (modeAtStart === "docked" && beginLaunch(state, layout, config)) {
+        if (
+          modeAtStart === "docked" &&
+          beginLaunch(state, layout, config, options?.dock)
+        ) {
           events.push({ kind: "launched" });
           launchedThisStep = true;
           terminalTransition = true;

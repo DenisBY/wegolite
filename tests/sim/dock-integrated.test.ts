@@ -7,10 +7,18 @@
  *
  * One test drives the real `stepFlight` through the whole chain the cross-AI
  * review asked for: launch, a response-free straight departure, an off-axis
- * contact, a retry, and the dock. It fails if the nose gate is removed (the
- * wings-across departure would straddle as soon as the latch arms) or if the
- * latch arms at `box.min.z >= 0` instead of `> contactPort.zMax` (the arming
- * tick would still overlap the proxy and the hull SAT would fire).
+ * contact, a retry, and the dock. It fails if the latch arms at
+ * `box.min.z >= 0` instead of `> contactPort.zMax` (the arming tick would still
+ * overlap the proxy and the hull SAT would fire).
+ *
+ * It does not guard the nose gate (`box.min.z < 0` in `classifyCorridor`'s
+ * band branch). Since quick 261118-mb5 the launch leaves with Oolite's launch
+ * twist, wings along the slot, so the departure is in the lane and never
+ * reaches the band branch; removing the gate leaves this file green. The gate
+ * is guarded by `tests/sim/dock-corridor.test.ts`, "safety band and straddle":
+ * "classifies a wings-across straddle only with min.z < 0; at 500 m out it is
+ * outside" and "produces no event for a 500 m wings-across pose" both go red
+ * without it (mutation checked in quick 261118-mb5).
  *
  * The second scenario is the Space-skipped launch, whose handover has no
  * `STATUS_LAUNCHING` status: every tick through and past the arming tick must
