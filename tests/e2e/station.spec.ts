@@ -140,8 +140,9 @@ test("buys one tonne of Food, autosaves and reloads into the same hold", async (
     .toBe(1);
   const afterTrade = await getProbe(page);
   expect(afterTrade.economy?.credits).toBe(1000 - price);
-  await expect(page.locator('[data-field="market-load"]')).toHaveText(
-    "Load 1 / 20 t",
+  // Oolite's market-cash-and-load line (quick task 261118-cyo).
+  await expect(page.locator('[data-field="market-cash-load"]')).toHaveText(
+    `Cash: ${formatDecicredits(1000 - price)}. Load 1 of 20 t.`,
   );
 
   await page.waitForFunction(
@@ -228,6 +229,51 @@ test("F8 column headings sort the market and the keys follow the sorted order", 
   await expect
     .poll(async () => (await getProbe(page)).station?.selectedKey)
     .toBe(selectable[(at + 1) % selectable.length]);
+
+  expect(errors).toEqual([]);
+});
+
+test("F8 and F5 fit at 1280x720 without scrolling", async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await bootToHome(page);
+
+  const screen = page.locator("#station-screen");
+  /** The element lies inside #station-screen and the screen does not scroll. */
+  async function expectInside(selector: string): Promise<void> {
+    const box = await page.locator(selector).boundingBox();
+    const frame = await screen.boundingBox();
+    expect(box, selector).not.toBeNull();
+    expect(frame).not.toBeNull();
+    if (box === null || frame === null) return;
+    expect(box.y, selector).toBeGreaterThanOrEqual(frame.y);
+    expect(box.y + box.height, selector).toBeLessThanOrEqual(
+      frame.y + frame.height,
+    );
+    const scroll = await screen.evaluate((element) => ({
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+    }));
+    expect(scroll.scrollHeight, selector).toBeLessThanOrEqual(
+      scroll.clientHeight,
+    );
+  }
+
+  await page.keyboard.press("Digit8");
+  await waitForScreen(page, "market");
+  await expect(page.locator("[data-market-rows] tr")).toHaveCount(17);
+  await expectInside("[data-market-rows] tr:last-child");
+  await expectInside('[data-field="market-cash-load"]');
+  await expect(page.locator('[data-field="market-cash-load"]')).toHaveText(
+    "Cash: 100.0 ₢. Load 0 of 20 t.",
+  );
+
+  await page.keyboard.press("Digit5");
+  await waitForScreen(page, "status");
+  await expect(
+    page.locator('[data-field="status-equipment-heading"]'),
+  ).toBeVisible();
+  await expectInside("[data-status-equipment] li:last-child");
 
   expect(errors).toEqual([]);
 });
@@ -629,14 +675,18 @@ test("F5 pages and direct section switching stay keyboard-only", async ({
     "Page 2/2",
   );
   await expect(page.locator('[data-status-page="2"]')).toBeVisible();
-  await expect(page.locator("[data-manifest-rows] tr")).toHaveCount(16);
-  await expect(page.locator('[data-field="status-load"]')).toHaveText(
-    "Load 0 of 20 t",
+  // Oolite's manifest lines (quick task 261118-cyo): the cargo and cabin
+  // lines, no goods and "No cargo carried." for a new commander.
+  await expect(page.locator('[data-field="manifest-cargo"]')).toHaveText(
+    "Cargo 0 t (20 t)",
   );
-  // 16 tradeable commodities only, each in its own unit; Alien Items is absent.
-  await expect(page.locator('[data-key="gold"]')).toContainText("kg");
-  await expect(page.locator('[data-key="gem_stones"]')).toContainText("g");
-  await expect(page.locator('[data-key="alien_items"]')).toHaveCount(0);
+  await expect(page.locator('[data-field="manifest-cabins"]')).toHaveText(
+    "Passenger Cabins 0 / 0",
+  );
+  await expect(page.locator("[data-manifest-rows] li")).toHaveCount(0);
+  await expect(page.locator('[data-field="manifest-empty"]')).toHaveText(
+    "No cargo carried.",
+  );
   expect(
     await page.evaluate(
       () =>

@@ -13,6 +13,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   third restores the usual order. The arrow keys and buying and selling follow
   the sorted list.
 
+### Changed
+
+- Credit amounts of 10 000 ₢ and more are grouped in threes, as in Oolite
+  (with a non-breaking space: "10 000.0 ₢").
+- The market shows all 17 goods and Oolite's line "Cash: 100.0 ₢. Load 0 of
+  20 t." under the table at 1280x720 without scrolling.
+- The manifest (Status page 2) shows Oolite's lines: "Cargo 0 t (20 t)",
+  "Passenger Cabins 0 / 0", then only the goods carried ("3 t × Food"), or
+  "No cargo carried.".
+- The Status page shows the equipment list beside the commander's details, so
+  it is visible without scrolling.
+- The galactic chart's title names the galaxy: "Galactic Chart 1".
+- The system card on the chart prints the inhabitants under the population
+  without a label, as Oolite does.
+
 ## [0.5.0] - 2026-11-17
 
 ### Added

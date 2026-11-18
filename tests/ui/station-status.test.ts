@@ -5,8 +5,9 @@
  * The F5 status/manifest view model (ECON-06, D-04).
  *
  * Page 1 is every Oolite status field with the Lave values pinned exactly;
- * page 2 is the 16-row tradeable manifest with each commodity's own unit, so
- * gold, platinum and gem-stones can never be described as tonnes. The page
+ * page 2 is Oolite's manifest: the cargo and cabin lines, then only the goods
+ * carried, each with its own unit, so gold, platinum and gem-stones can never
+ * be described as tonnes. The page
  * indicator is `Page N/2` and the page clamps to 1..2. It also pins the single
  * exact `formatDecicredits` re-exported from the profile module.
  */
@@ -21,11 +22,16 @@ import {
   generateMarket,
   marketSeedForSystem,
 } from "../../src/sim/economy/market.js";
-import { formatDecicredits, newProfile } from "../../src/sim/player/profile.js";
+import {
+  formatCredits,
+  formatDecicredits,
+  newProfile,
+} from "../../src/sim/player/profile.js";
 import {
   buildHomeModel,
   buildStatusModel,
   formatRating,
+  formatWholeCredits,
   formatDecicredits as stationFormatDecicredits,
 } from "../../src/ui/station-model.js";
 import { commoditiesFixture } from "../helpers/commodities.js";
@@ -248,65 +254,63 @@ describe("buildStatusModel hyperspace target", () => {
   });
 });
 
+/**
+ * Oolite's manifest lines (quick task 261118-cyo): the header row
+ * "Cargo [current] t ([max] t)" and "Passenger Cabins [current] / [max]"
+ * (`descriptions.plist:1918-1919`), then one "[quantity] [units] ×
+ * [commodityName]" line per good carried (`:1587`) or "No cargo carried."
+ * (`:1916`), as `PlayerEntityContracts.m:1058-1082` lays them out.
+ */
 describe("buildStatusModel page 2 manifest", () => {
-  it("lists exactly the 16 tradeable commodities and never Alien Items", () => {
-    const model = buildStatusModel(
-      newProfile(),
-      system,
-      labels,
-      catalogue,
-      commodities,
-      2,
-    );
+  const page2 = (profile = newProfile()) =>
+    buildStatusModel(profile, system, labels, catalogue, commodities, 2);
+
+  it("prints Oolite's cargo, cabins and empty lines for a new commander", () => {
+    const model = page2();
 
     expect(model.page).toBe(2);
     expect(model.pageText).toBe("Page 2/2");
-    expect(model.manifest).toHaveLength(16);
-    expect(model.manifest.map((row) => row.key)).not.toContain("alien_items");
+    expect(model.cargoText).toBe("Cargo 0 t (20 t)");
+    expect(model.cabinsText).toBe("Passenger Cabins 0 / 0");
+    expect(model.manifest).toEqual([]);
+    expect(model.emptyText).toBe("No cargo carried.");
   });
 
-  it("uses each commodity's own unit and `—` for an empty hold", () => {
-    const model = buildStatusModel(
-      newProfile(),
-      system,
-      labels,
-      catalogue,
-      commodities,
-      2,
-    );
+  it("lists only the goods carried, in market order, with their own units", () => {
+    const model = page2({ ...newProfile(), cargo: { gold: 8, food: 3 } });
 
-    const unit = (key: string) =>
-      model.manifest.find((row) => row.key === key)?.unit;
-    expect(unit("food")).toBe("t");
-    expect(unit("gold")).toBe("kg");
-    expect(unit("platinum")).toBe("kg");
-    expect(unit("gem_stones")).toBe("g");
-    expect(model.manifest.every((row) => row.heldText === "—")).toBe(true);
-    expect(model.loadText).toBe("Load 0 of 20 t");
+    expect(model.manifest).toEqual([
+      { key: "food", text: "3 t × Food" },
+      { key: "gold", text: "8 kg × Gold" },
+    ]);
+    expect(model.emptyText).toBe("");
+    // 3 t of Food; 8 kg of Gold rides in the safe and takes no pod, as the
+    // hold counts it (src/sim/economy/cargo.ts podsFor).
+    expect(model.cargoText).toBe("Cargo 3 t (20 t)");
+  });
+
+  it("counts the berths as cabins and takes 5 t of hold for each", () => {
+    const model = page2({ ...newProfile(), passengerBerths: 2 });
+
+    expect(model.cabinsText).toBe("Passenger Cabins 0 / 2");
+    expect(model.cargoText).toBe("Cargo 0 t (10 t)");
   });
 
   it("shows held amounts and the cargo-bay / berth capacity", () => {
-    const profile = {
+    const model = page2({
       ...newProfile(),
       cargo: { food: 2, gold: 900 },
       equipment: ["EQ_CARGO_BAY"],
       passengerBerths: 1,
-    };
-    const model = buildStatusModel(
-      profile,
-      system,
-      labels,
-      catalogue,
-      commodities,
-      2,
-    );
+    });
 
-    const food = model.manifest.find((row) => row.key === "food");
-    const gold = model.manifest.find((row) => row.key === "gold");
-    expect(food?.heldText).toBe("2");
-    expect(gold?.heldText).toBe("900");
+    expect(model.manifest.map((row) => row.text)).toEqual([
+      "2 t × Food",
+      "900 kg × Gold",
+    ]);
     // 20 base + 15 cargo bay - 5 berth = 30 t, with gold riding in one pod.
-    expect(model.loadText).toBe("Load 3 of 30 t");
+    expect(model.cargoText).toBe("Cargo 3 t (30 t)");
+    expect(model.cabinsText).toBe("Passenger Cabins 0 / 1");
   });
 });
 
@@ -334,15 +338,23 @@ describe("formatDecicredits", () => {
     expect(formatDecicredits(9)).toBe("0.9 ₢");
     expect(formatDecicredits(10)).toBe("1.0 ₢");
     expect(formatDecicredits(38)).toBe("3.8 ₢");
-    expect(formatDecicredits(123_456_789)).toBe("12345678.9 ₢");
+    expect(formatDecicredits(99_999)).toBe("9999.9 ₢");
+    // Oolite groups 5 or more integer digits in threes with U+00A0
+    // (oolite-locale-functions.js:60-92, descriptions.plist:80-83).
+    expect(formatDecicredits(100_000)).toBe("10\u00a0000.0 ₢");
+    expect(formatDecicredits(123_456_789)).toBe("12\u00a0345\u00a0678.9 ₢");
+    expect(formatDecicredits(-100_000)).toBe("-10\u00a0000.0 ₢");
+    expect(formatCredits(100_000)).toBe("10\u00a0000.0 ₢");
+    expect(formatWholeCredits(99_990)).toBe("9999 ₢");
+    expect(formatWholeCredits(100_000)).toBe("10\u00a0000 ₢");
   });
 
   it("stays exact at the safe-integer boundary", () => {
     expect(formatDecicredits(Number.MAX_SAFE_INTEGER)).toBe(
-      "900719925474099.1 ₢",
+      "900\u00a0719\u00a0925\u00a0474\u00a0099.1 ₢",
     );
     expect(formatDecicredits(Number.MAX_SAFE_INTEGER - 2)).toBe(
-      "900719925474098.9 ₢",
+      "900\u00a0719\u00a0925\u00a0474\u00a0098.9 ₢",
     );
   });
 });

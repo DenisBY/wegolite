@@ -152,6 +152,14 @@ export interface ChartSelection {
   readonly reason: ChartUnreachableReason | undefined;
 }
 
+/**
+ * The chart header, Oolite's `long-range-chart-title-d` "Galactic Chart %d"
+ * with `galaxy_number + 1` (`GuiDisplayGen.m:1541` at the pin 7437f22).
+ */
+export function chartTitle(galaxyIndex: number): string {
+  return `Galactic Chart ${String(galaxyIndex + 1)}`;
+}
+
 /** The local preset is ±40 chart-x and ±40 distance units around the system. */
 export const CHART_LOCAL_SPAN_X = 80;
 

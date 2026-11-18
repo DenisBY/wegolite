@@ -157,15 +157,10 @@ export function createStationShell(
     "thead",
     "the market column headings",
   );
-  const marketCash = requireElement<HTMLElement>(
+  const marketCashLoad = requireElement<HTMLElement>(
     root,
-    '[data-field="market-cash"]',
-    "the market cash line",
-  );
-  const marketLoad = requireElement<HTMLElement>(
-    root,
-    '[data-field="market-load"]',
-    "the market load line",
+    '[data-field="market-cash-load"]',
+    "the market cash-and-load line",
   );
   const outfittingRows = requireElement<HTMLElement>(
     root,
@@ -216,15 +211,30 @@ export function createStationShell(
     "[data-status-equipment]",
     "the status equipment list",
   );
-  const manifestBody = requireElement<HTMLElement>(
+  const statusEquipmentHeading = requireElement<HTMLElement>(
+    root,
+    '[data-field="status-equipment-heading"]',
+    "the status equipment heading",
+  );
+  const manifestCargo = requireElement<HTMLElement>(
+    root,
+    '[data-field="manifest-cargo"]',
+    "the manifest cargo line",
+  );
+  const manifestCabins = requireElement<HTMLElement>(
+    root,
+    '[data-field="manifest-cabins"]',
+    "the manifest cabins line",
+  );
+  const manifestRows = requireElement<HTMLElement>(
     root,
     "[data-manifest-rows]",
-    "the manifest row body",
+    "the manifest list",
   );
-  const statusLoad = requireElement<HTMLElement>(
+  const manifestEmpty = requireElement<HTMLElement>(
     root,
-    '[data-field="status-load"]',
-    "the status load line",
+    '[data-field="manifest-empty"]',
+    "the manifest empty line",
   );
   const footer = createStationFooter(root);
 
@@ -275,8 +285,7 @@ export function createStationShell(
       );
       marketBody.append(tr);
     }
-    marketCash.textContent = model.cashText;
-    marketLoad.textContent = model.loadText;
+    marketCashLoad.textContent = model.cashLoadText;
   }
 
   function renderOutfitting(model: OutfittingModel): void {
@@ -310,14 +319,18 @@ export function createStationShell(
       item.textContent = name;
       statusEquipment.append(item);
     }
-    manifestBody.replaceChildren();
+    // Oolite's "Equipment:" heading (`status-equipment`) heads a non-empty list.
+    statusEquipmentHeading.hidden = model.equipment.length === 0;
+    manifestCargo.textContent = model.cargoText;
+    manifestCabins.textContent = model.cabinsText;
+    manifestRows.replaceChildren();
     for (const row of model.manifest) {
-      const tr = document.createElement("tr");
-      tr.dataset.key = row.key;
-      tr.append(cell(row.name), cell(row.unit), cell(row.heldText));
-      manifestBody.append(tr);
+      const item = document.createElement("li");
+      item.dataset.key = row.key;
+      item.textContent = row.text;
+      manifestRows.append(item);
     }
-    statusLoad.textContent = model.loadText;
+    manifestEmpty.textContent = model.emptyText;
     statusPageOne.hidden = model.page !== 1;
     statusPageTwo.hidden = model.page !== 2;
   }

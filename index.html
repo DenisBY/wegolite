@@ -380,9 +380,81 @@
         margin: 0 0 1rem;
       }
 
-      #docked .station-cash,
-      #docked .station-load {
-        margin: 0.25rem 0;
+      /* F8 fits all 17 goods and Oolite's cash-and-load line at 1280x720
+         without scrolling (quick task 261118-cyo): tighter rows, a smaller
+         heading margin and a narrower screen padding, on the market only. */
+      #station-screen[data-screen="market"] {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+      }
+
+      #docked [data-station-panel="market"] h2 {
+        margin: 0 0 0.35rem;
+        line-height: 1.25;
+      }
+
+      #docked [data-station-panel="market"] .station-table {
+        margin: 0 0 0.3rem;
+        font-size: 17px;
+        line-height: 1.2;
+      }
+
+      #docked [data-station-panel="market"] .station-table th,
+      #docked [data-station-panel="market"] .station-table td {
+        padding-top: 0.05rem;
+        padding-bottom: 0.05rem;
+      }
+
+      #docked .station-cash-load {
+        margin: 0;
+        line-height: 1.4;
+      }
+
+      /* F5 page 1: the fields on the left and Oolite's Equipment list on the
+         right, with tighter rows, so the list is visible at 1280x720. */
+      #docked .station-status-columns {
+        display: grid;
+        grid-template-columns: auto minmax(16rem, 1fr);
+        gap: 0 3rem;
+        align-items: start;
+        line-height: 1.45;
+      }
+
+      #docked .station-status-columns dl {
+        gap: 0.1rem 1.5rem;
+        margin: 0;
+      }
+
+      #docked .station-status-equipment h3 {
+        margin: 0 0 0.1rem;
+        font-size: inherit;
+        font-weight: normal;
+        opacity: 0.7;
+      }
+
+      #docked .station-status-equipment .station-equipment {
+        margin: 0;
+      }
+
+      /* F5 page 2: Oolite's manifest lines. */
+      #docked .station-manifest-header {
+        display: flex;
+        gap: 3rem;
+        margin: 0 0 0.5rem;
+      }
+
+      #docked .station-manifest {
+        margin: 0;
+        padding-left: 1.2rem;
+        list-style: none;
+      }
+
+      #docked .station-manifest-empty {
+        margin: 0;
+      }
+
+      #docked .station-manifest-empty:empty {
+        display: none;
       }
 
       #docked button {
@@ -1845,8 +1917,7 @@
             </thead>
             <tbody data-market-rows></tbody>
           </table>
-          <p class="station-cash" data-field="market-cash"></p>
-          <p class="station-load" data-field="market-load"></p>
+          <p class="station-cash-load" data-field="market-cash-load"></p>
         </div>
         <div data-station-panel="outfitting" hidden>
           <h2>Outfitting</h2>
@@ -1868,23 +1939,21 @@
             data-station-subnav="status"
           ></div>
           <p data-field="status-page"></p>
-          <div data-status-page="1">
+          <div data-status-page="1" class="station-status-columns">
             <dl data-status-fields></dl>
-            <ul class="station-equipment" data-status-equipment></ul>
+            <div class="station-status-equipment">
+              <h3 data-field="status-equipment-heading">Equipment</h3>
+              <ul class="station-equipment" data-status-equipment></ul>
+            </div>
           </div>
           <div data-status-page="2" hidden>
-            <table class="station-table">
-              <thead>
-                <tr>
-                  <th>Commodity</th>
-                  <th>Unit</th>
-                  <th>Hold</th>
-                </tr>
-              </thead>
-              <tbody data-manifest-rows></tbody>
-            </table>
+            <p class="station-manifest-header">
+              <span data-field="manifest-cargo"></span>
+              <span data-field="manifest-cabins"></span>
+            </p>
+            <ul class="station-manifest" data-manifest-rows></ul>
+            <p class="station-manifest-empty" data-field="manifest-empty"></p>
           </div>
-          <p class="station-load" data-field="status-load"></p>
         </div>
         <div data-station-panel="interfaces" hidden>
           <h2 data-field="interfaces-title"></h2>
@@ -1894,7 +1963,9 @@
     </div>
     <div id="chart" hidden>
       <header class="station-header">
-        <span class="station-header-system">Galactic chart</span>
+        <span class="station-header-system" data-field="chart-title"
+          >Galactic Chart 1</span
+        >
         <span class="station-header-credits" data-field="chart-credits"></span>
       </header>
       <nav

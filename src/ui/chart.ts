@@ -72,6 +72,8 @@ export interface ChartOverlay {
   viewport(): ChartViewport;
   /** Write the live key-hint line; the session owns the binding map. */
   setHints(text: string): void;
+  /** Write the header title ("Galactic Chart 1"). */
+  setTitle(text: string): void;
   /** Offer a new view; repaint only when the policy agrees. */
   view(next: ChartView): void;
   hide(): void;
@@ -126,6 +128,11 @@ export function createChart(root: HTMLElement): ChartOverlay {
     'the "#chart-canvas" canvas',
   );
   const footer = createStationFooter(overlay);
+  const title = requireElement<HTMLElement>(
+    overlay,
+    '[data-field="chart-title"]',
+    'the "chart-title" header field',
+  );
   const tooltip = requireElement<HTMLElement>(
     overlay,
     "#chart-tooltip",
@@ -528,6 +535,9 @@ export function createChart(root: HTMLElement): ChartOverlay {
     viewport,
     setHints(text: string): void {
       footer.setHints(text);
+    },
+    setTitle(text: string): void {
+      if (title.textContent !== text) title.textContent = text;
     },
     view(next: ChartView): void {
       const completed = complete(next);

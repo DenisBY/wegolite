@@ -174,11 +174,10 @@ describe("F8 rows", () => {
 });
 
 describe("cash and load", () => {
-  it("writes one line each with exactly one period", () => {
-    const empty = build();
-
-    expect(empty.cashText).toBe("Cash: 100.0 ₢.");
-    expect(empty.loadText).toBe("Load 0 / 20 t");
+  // Oolite's market-cash-and-load (descriptions.plist:1635,
+  // PlayerEntity.m:9979-9986): one sentence under the table.
+  it("writes Oolite's one cash-and-load sentence", () => {
+    expect(build().cashLoadText).toBe("Cash: 100.0 ₢. Load 0 of 20 t.");
   });
 
   it("updates after a 2 t Food purchase without doubling a period", () => {
@@ -189,9 +188,13 @@ describe("cash and load", () => {
     };
     const model = build(profile);
 
-    expect(model.cashText).toBe("Cash: 92.4 ₢.");
-    expect(model.loadText).toBe("Load 2 / 20 t");
-    expect(model.cashText).not.toContain("..");
+    expect(model.cashLoadText).toBe("Cash: 92.4 ₢. Load 2 of 20 t.");
+    expect(model.cashLoadText).not.toContain("..");
+  });
+
+  it("groups a large balance as Oolite does", () => {
+    const model = build({ ...newProfile(), credits: 1_234_567 });
+    expect(model.cashLoadText).toBe("Cash: 123\u00a0456.7 ₢. Load 0 of 20 t.");
   });
 
   it("shows a held amount for a cargo row", () => {

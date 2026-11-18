@@ -113,6 +113,11 @@ The Wegolite cell is a `src/` path and a line. For a build-time mechanic it is t
 | HUD condition light from the alert flags in space, while launching and in flight: no flag is green, any flag yellow, a flag above 0x03f (anything but mass lock) red; green only while docked, where the flight HUD is hidden (FLGT-05)                                                                                            | `src/sim/combat/alert.ts:139`                     | `src/Core/Entities/PlayerEntity.m:5122-5138`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-96    |
 | Alert flags in space: mass lock; hostiles targeting the player in scanner range; energy below 64 and below 0.8 of maximum; heat level above 0.9; altitude dial below 0.1 (FLGT-05)                                                                                                                                                 | `src/sim/combat/alert.ts:117`                     | `src/Core/Entities/PlayerEntity.m:2976-2993`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-97    |
 | Market Legal column from both legality fields: clear is an em dash, import-legal only is Im, export-legal only is Ex, neither is Re (ECON-04)                                                                                                                                                                                      | `src/ui/station-model.ts:105`                     | `src/Core/Entities/PlayerEntity.m:9675-9690`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-98    |
+| Market cash-and-load line under the table: "Cash: [credits]. Load [currentCargo] of [cargoCapacity] t.", the load in pods used of the capacity left after the berths (ECON-04)                                                                                                                                                     | `src/ui/station-model.ts:459`                     | `src/Core/Entities/PlayerEntity.m:9979-9986`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-99    |
+| Market sort: Oolite's name, price, market-quantity, hold-quantity and mass-unit comparators, ascending, ties in the catalogue order; no legality sorter (ECON-04)                                                                                                                                                                  | `src/ui/station-model.ts:215`                     | `src/Core/Entities/PlayerEntity.m:9612-9628`            | divergence: a click on a column heading sorts ascending, a second click descending and a third restores the default order, where Oolite cycles the sorters with one key and only ascending. PROJECT.md: "Sort the F8 market by clicking a column header"                                                                                                                                                                                                                                                                                                                                                                   | E-100   |
+| Manifest header: "Cargo [current] t ([max] t)" with the pods used of the capacity, and "Passenger Cabins [current] / [max]" with the passengers aboard (always 0) of the berths (ECON-06)                                                                                                                                          | `src/ui/station-model.ts:626`                     | `src/Core/Entities/PlayerEntityContracts.m:1058-1066`   | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-101   |
+| Manifest goods: one "[quantity] [units] × [commodityName]" line per good carried, in market order, or "No cargo carried."; Wegolite draws one column where Oolite fills two (ECON-06)                                                                                                                                              | `src/ui/station-model.ts:603`                     | `src/Core/Entities/PlayerEntityContracts.m:1068-1083`   | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-102   |
+| Galactic chart title: "Galactic Chart N" with the galaxy index plus 1 (NAV-01)                                                                                                                                                                                                                                                     | `src/ui/chart-model.ts:159`                       | `src/Core/GuiDisplayGen.m:1541-1541`                    | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-103   |
 
 ## Excerpts
 
@@ -1665,6 +1670,82 @@ OOINLINE double distanceBetweenPlanetPositions(int x1, int y1, int x2, int y2)
     }
 ```
 
+### E-99 src/Core/Entities/PlayerEntity.m:9979-9986
+
+```objc
+- (void)showMarketCashAndLoadLine
+{
+    GuiDisplayGen* gui = [UNIVERSE gui];
+    OOCargoQuantity currentCargo = current_cargo;
+    OOCargoQuantity cargoCapacity = [self maxAvailableCargoSpace];
+    [gui setText:OOExpandKey(@"market-cash-and-load", credits, currentCargo, cargoCapacity) forRow:GUI_ROW_MARKET_CASH];
+    [gui setColor:[gui colorFromSetting:kGuiMarketCashColor defaultValue:[OOColor yellowColor]] forRow:GUI_ROW_MARKET_CASH];
+}
+```
+
+### E-100 src/Core/Entities/PlayerEntity.m:9612-9628
+
+```objc
+- (NSArray*)applyMarketSorter:(NSArray*)goods onMarket:(OOCommodityMarket*)market
+{
+    switch (marketSorterMode) {
+    case MARKET_SORTER_MODE_ALPHA:
+        return [goods sortedArrayUsingFunction:marketSorterByName context:market];
+    case MARKET_SORTER_MODE_PRICE:
+        return [goods sortedArrayUsingFunction:marketSorterByPrice context:market];
+    case MARKET_SORTER_MODE_STOCK:
+        return [goods sortedArrayUsingFunction:marketSorterByQuantity context:market];
+    case MARKET_SORTER_MODE_HOLD:
+        return [goods sortedArrayUsingFunction:marketSorterByQuantity context:shipCommodityData];
+    case MARKET_SORTER_MODE_UNIT:
+        return [goods sortedArrayUsingFunction:marketSorterByMassUnit context:market];
+    case MARKET_SORTER_MODE_OFF:
+        // keep default sort order
+        break;
+    }
+```
+
+### E-101 src/Core/Entities/PlayerEntityContracts.m:1058-1066
+
+```objc
+        current = current_cargo;
+        max = [self maxAvailableCargoSpace];
+        NSString* cargoString = OOExpandKey(@"oolite-manifest-cargo", current, max);
+        current = [[self passengerList] count];
+        max = max_passengers;
+        NSString* cabinString = OOExpandKey(@"oolite-manifest-cabins", current, max);
+        NSArray* manifestHeader = [NSArray arrayWithObjects:cargoString, cabinString, nil];
+
+        SET_MANIFEST_ROW(manifestHeader, entryColor, cargoRow - 1);
+```
+
+### E-102 src/Core/Entities/PlayerEntityContracts.m:1068-1083
+
+```objc
+        if (manifestCount > 0) {
+            for (i = 0; i < cargoRowCount; i++) {
+                NSMutableArray* row_info = [NSMutableArray arrayWithCapacity:3];
+                // i is always smaller than manifest_count, no need to test.
+                [row_info addObject:[cargoManifest objectAtIndex:i]];
+                if (i + cargoRowCount < manifestCount) {
+                    [row_info addObject:[cargoManifest objectAtIndex:i + cargoRowCount]];
+                } else {
+                    [row_info addObject:@""];
+                }
+                SET_MANIFEST_ROW((NSArray*)row_info, subheadColor, cargoRow + i);
+            }
+        } else {
+            SET_MANIFEST_ROW((DESC(@"manifest-none")), subheadColor, cargoRow);
+            cargoRowCount = 1;
+        }
+```
+
+### E-103 src/Core/GuiDisplayGen.m:1541-1541
+
+```objc
+            [self setTitle:[NSString stringWithFormat:DESC(@"long-range-chart-title-d"), galaxy_number + 1]];
+```
+
 ## Constants ledger
 
 Each constant below is the value Wegolite compiles, its unit (a mass is Oolite's float32 mass in its own units; a length is in metres), the Oolite lines it follows, and the test that pins it.
@@ -1708,6 +1789,7 @@ Each constant below is the value Wegolite compiles, its unit (a mass is Oolite's
 | Fragment chance default, pod and plate energy                                                                                                                                                                    | 0.9 (`fragment_chance`), 1 of 1 with no recharge                                                                                                                                                                    | `ShipEntity.m:372`                                                                                                | `tests/sim/world/debris.test.ts`                                                                                                                                    |
 | Explosion cloud particles per explosion                                                                                                                                                                          | 10 (Oolite's cap at a detail level up to shaders; the plist says 25)                                                                                                                                                | `OOExplosionCloudEntity.m:60-73`                                                                                  | `tests/render/explosion-layer.test.ts`                                                                                                                              |
 | Explosion flash: duration, alpha, growth factor, minimum growth                                                                                                                                                  | 0.4 s, 0.5, 150 per metre of radius per second, 600 per second                                                                                                                                                      | `OOFlashEffectEntity.m:33-38`, `55-60`                                                                            | `tests/render/explosion-layer.test.ts`                                                                                                                              |
+| Credit digit grouping                                                                                                                                                                                            | groups of 3 integer digits from the right, from 5 integer digits up, separator U+00A0 (non-breaking space): 9999.9 ₢, 10 000.0 ₢                                                                                    | `descriptions.plist:80-83`, `oolite-locale-functions.js:60-92` (`Resources/Config`, `Resources/Scripts`)          | `tests/ui/station-status.test.ts`                                                                                                                                   |
 
 Reading of ROADMAP Phase 10 criterion 2: "reproduce Oolite's mass within a stated tolerance" is read as Oolite's algorithm run on the pinned meshes, re-derived independently in float64 within a relative 1e-6, plus the community VariableMasslock table to the whole tonne, because no Oolite runtime is available to observe the mass. Owner answer on this reading: accepted, 2026-11-14 (plan 10-03), on condition that it is easy to change later. It is revisable: a real-Oolite check (for example a tiny out-of-repo test script logging `ship.mass` of the Coriolis station and the buoy to Latest.log) is a deferred follow-up task after the phase, and if it disagrees only the `CORIOLIS_STATION_MASS` constant, its test pins and this paragraph change. The real-Oolite check ran in quick task 261117-jji on 2026-11-17 and agreed for every measured mass, so no constant, pin or paragraph changed.
 

@@ -49,7 +49,10 @@ import type {
   FitRefusal,
   LaserFitContext,
 } from "../sim/player/outfitting.js";
-import { formatDecicredits } from "../sim/player/profile.js";
+import {
+  formatDecicredits,
+  groupIntegerDigits,
+} from "../sim/player/profile.js";
 import type { PlayerProfile } from "../sim/player/profile.js";
 
 export { formatDecicredits };
@@ -76,10 +79,13 @@ function template(labels: Labels, key: string): string {
 /**
  * Whole-credit formatting for the D-15 removal row labels (`20 ₢`), in
  * Oolite's credits unit (`descriptions.plist:476` `credits-format`
- * "[value] ₢").
+ * "[value] ₢"), grouped as Oolite's `formatCredits` groups whole credits
+ * (`oolite-locale-functions.js:60-92` at the pin 7437f22).
  */
 export function formatWholeCredits(decicredits: number): string {
-  return `${String(Math.trunc(decicredits / 10))} ₢`;
+  const whole = Math.trunc(decicredits / 10);
+  const sign = whole < 0 ? "-" : "";
+  return `${sign}${groupIntegerDigits(Math.abs(whole))} ₢`;
 }
 
 /**
@@ -281,8 +287,12 @@ export interface MarketModel {
   readonly columns: readonly MarketColumn[];
   readonly rows: readonly MarketRow[];
   readonly selectedKey: string;
-  readonly cashText: string;
-  readonly loadText: string;
+  /**
+   * Oolite's `market-cash-and-load` line under the table
+   * (`descriptions.plist:1635`, `PlayerEntity.m:9979-9986`):
+   * "Cash: 100.0 ₢. Load 0 of 20 t."
+   */
+  readonly cashLoadText: string;
   readonly confirmText: string | null;
   readonly noticeText: string;
 }
@@ -446,8 +456,7 @@ export function buildMarketModel(
     columns,
     rows,
     selectedKey: selection,
-    cashText: `Cash: ${formatDecicredits(profile.credits)}.`,
-    loadText: `Load ${String(usedPods)} / ${String(capacityPods)} t`,
+    cashLoadText: `Cash: ${formatDecicredits(profile.credits)}. Load ${String(usedPods)} of ${String(capacityPods)} t.`,
     confirmText: confirmationText(feedback.pending, byKey),
     noticeText: clampNotice === "" ? feedback.notice : clampNotice,
   };
@@ -459,12 +468,14 @@ export interface LabelledField {
   readonly value: string;
 }
 
-/** One row of the F5 manifest; the unit is the commodity's own (t/kg/g). */
+/**
+ * One line of the F5 manifest, Oolite's `manifest-cargo-quantity`
+ * " [quantity] [units] × [commodityName]" (`descriptions.plist:1587`) without
+ * its leading space; the unit is the commodity's own (t/kg/g).
+ */
 export interface ManifestRow {
   readonly key: string;
-  readonly name: string;
-  readonly unit: CommodityUnit;
-  readonly heldText: string;
+  readonly text: string;
 }
 
 /** The F5 two-page model. Both pages are materialized; `page` names the active one. */
@@ -473,9 +484,18 @@ export interface StatusModel {
   readonly pageText: string;
   readonly fields: readonly LabelledField[];
   readonly equipment: readonly string[];
+  /** Oolite's `oolite-manifest-cargo` "Cargo [current] t ([max] t)". */
+  readonly cargoText: string;
+  /** Oolite's `oolite-manifest-cabins` "Passenger Cabins [current] / [max]". */
+  readonly cabinsText: string;
+  /** Only the goods carried, in market order. */
   readonly manifest: readonly ManifestRow[];
-  readonly loadText: string;
+  /** Oolite's `manifest-none` "No cargo carried." when nothing is carried, else "". */
+  readonly emptyText: string;
 }
+
+/** Oolite's `manifest-none` without its leading space (`descriptions.plist:1916`). */
+export const MANIFEST_NONE_TEXT = "No cargo carried.";
 
 /**
  * Oolite's trimmed facing strings (`descriptions.plist:1895-1898`, the
@@ -519,8 +539,14 @@ function clampPage(page: number): 1 | 2 {
  * deliberately carries no `status-*` keys — while the legal-status and rating
  * values come from `labels.json`. The equipment list is omitted only when the
  * profile has no equipment key, no missiles, no berths and no fitted laser, so
- * a new game still lists its three missiles and "Forward Pulse Laser". Page 2 filters to the 16 `tradeable` commodities in
- * `sortOrder` and never includes Alien Items.
+ * a new game still lists its three missiles and "Forward Pulse Laser".
+ *
+ * Page 2 is Oolite's manifest (`PlayerEntityContracts.m:1058-1082` at the pin
+ * 7437f22): the cargo line (pods used of the capacity, as the hold counts
+ * them), the cabins line (Wegolite carries no passengers, so the current
+ * count is 0 and the maximum is the berths), then one line per tradeable good
+ * carried in `sortOrder` (`PlayerEntity.m:7390-7425` lists the hold in market
+ * order), or "No cargo carried.".
  */
 export function buildStatusModel(
   profile: PlayerProfile,
@@ -576,16 +602,14 @@ export function buildStatusModel(
   );
   const manifest: ManifestRow[] = [...commodities]
     .sort((left, right) => left.sortOrder - right.sortOrder)
-    .filter((commodity) => commodity.tradeable)
-    .map((commodity) => {
-      const held = profile.cargo[commodity.key] ?? 0;
-      return {
-        key: commodity.key,
-        name: commodity.name,
-        unit: commodity.unit,
-        heldText: held === 0 ? "—" : String(held),
-      };
-    });
+    .filter(
+      (commodity) =>
+        commodity.tradeable && (profile.cargo[commodity.key] ?? 0) > 0,
+    )
+    .map((commodity) => ({
+      key: commodity.key,
+      text: `${String(profile.cargo[commodity.key] ?? 0)} ${commodity.unit} × ${commodity.name}`,
+    }));
 
   const usedPods = holdPodsUsed(profile.cargo, units);
   const capacityPods = capacityPodsFor(
@@ -599,8 +623,10 @@ export function buildStatusModel(
     pageText: `Page ${active}/2`,
     fields,
     equipment,
+    cargoText: `Cargo ${String(usedPods)} t (${String(capacityPods)} t)`,
+    cabinsText: `Passenger Cabins 0 / ${String(profile.passengerBerths)}`,
     manifest,
-    loadText: `Load ${String(usedPods)} of ${String(capacityPods)} t`,
+    emptyText: manifest.length === 0 ? MANIFEST_NONE_TEXT : "",
   };
 }
 
@@ -717,7 +743,10 @@ export function buildSystemDataModel(
     },
     field("sysdata-tl", "sysdata-tl-value", ""),
     field("sysdata-pop", "sysdata-pop-value", ""),
-    { label: "Inhabitants", value: `(${info.inhabitants})` },
+    // Oolite's sysdata-line-8 "\t([inhabitants])" (`descriptions.plist:1693`
+    // at the pin 7437f22): the inhabitants sit in the value column under the
+    // population, with no label.
+    { label: "", value: `(${info.inhabitants})` },
     field("sysdata-prod", "sysdata-prod-value", ""),
     field("sysdata-radius", "sysdata-radius-value", ""),
     {

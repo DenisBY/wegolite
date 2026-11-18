@@ -31,6 +31,7 @@ interface Harness {
   readonly controller: ChartController;
   readonly calls: string[];
   readonly contexts: InputContext[];
+  readonly titles: string[];
 }
 
 function harness(): Harness {
@@ -41,12 +42,14 @@ function harness(): Harness {
   });
   const calls: string[] = [];
   const contexts: InputContext[] = [];
+  const titles: string[] = [];
   ctx.core.state = initFlightState(layout);
   ctx.chart.chart = {
     show: () => calls.push("show"),
     hide: () => calls.push("hide"),
     view: () => calls.push("view"),
     viewport: () => ({ width: 800, height: 600 }),
+    setTitle: (text: string) => titles.push(text),
   } as unknown as ChartOverlay;
   let current: InputContext = "dockHome";
   ctx.runtime.input = {
@@ -65,7 +68,7 @@ function harness(): Harness {
     updateProbe: () => calls.push("updateProbe"),
     syncStationNav: () => calls.push("syncStationNav"),
   });
-  return { ctx, controller, calls, contexts };
+  return { ctx, controller, calls, contexts, titles };
 }
 
 describe("toggleChartPreset", () => {
@@ -105,6 +108,16 @@ describe("toggleChartPreset", () => {
 });
 
 describe("openChart and closeChart", () => {
+  it("titles the chart with the galaxy number as Oolite does", () => {
+    const { ctx, controller, titles } = harness();
+    controller.openChart();
+    expect(titles).toEqual(["Galactic Chart 1"]);
+    controller.closeChart();
+    ctx.core.system = { ...ctx.core.system, galaxy: 7 };
+    controller.openChart();
+    expect(titles).toEqual(["Galactic Chart 1", "Galactic Chart 8"]);
+  });
+
   it("opens at the local preset and switches the input to the chart context", () => {
     const { ctx, controller, contexts, calls } = harness();
     ctx.chart.chartPreset = "galaxy";

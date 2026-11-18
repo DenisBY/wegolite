@@ -90,21 +90,48 @@ export function newProfile(): PlayerProfile {
   };
 }
 
+/** Oolite's `number-group-size` (`descriptions.plist:80` at the pin 7437f22). */
+const NUMBER_GROUP_SIZE = 3;
+/** Oolite's `number-group-threshold`: group from this many integer digits (`:81`). */
+const NUMBER_GROUP_THRESHOLD = 5;
+/** Oolite's `number-group-separator`, a non-breaking space (`:83`). */
+const NUMBER_GROUP_SEPARATOR = "\u00a0";
+
+/**
+ * Group a non-negative integer's digits as Oolite's
+ * `formatPositiveIntegerInternal` does (`oolite-locale-functions.js:60-92` at
+ * the pin): with 5 or more digits, groups of 3 from the right joined by
+ * U+00A0; fewer digits are left alone ("9999", "10 000").
+ */
+export function groupIntegerDigits(value: number): string {
+  const digits = String(value);
+  if (digits.length < NUMBER_GROUP_THRESHOLD) return digits;
+  const groups: string[] = [];
+  let end = digits.length;
+  while (end > NUMBER_GROUP_SIZE) {
+    groups.unshift(digits.slice(end - NUMBER_GROUP_SIZE, end));
+    end -= NUMBER_GROUP_SIZE;
+  }
+  groups.unshift(digits.slice(0, end));
+  return groups.join(NUMBER_GROUP_SEPARATOR);
+}
+
 /**
  * Format decicredits exactly: integer quotient and remainder, one decimal,
  * then Oolite's credits unit (`descriptions.plist:476` `credits-format`
- * "[value] ₢").
+ * "[value] ₢"). The integer part is grouped as Oolite's `formatCredits`
+ * groups it (`groupIntegerDigits`): "10 000.0 ₢" with U+00A0.
  *
- * `toFixed` is deliberately not used for money: it rounds through a binary
- * fraction and is not an exact formatter over the safe-integer domain. The
- * integer split keeps every balance the game can represent exact.
+ * `toFixed` and `toLocaleString` are deliberately not used for money: the
+ * first rounds through a binary fraction, the second follows the browser's
+ * locale. The integer split keeps every balance the game can represent exact.
  */
 export function formatDecicredits(decicredits: number): string {
   const sign = decicredits < 0 ? "-" : "";
   const absolute = Math.abs(decicredits);
   const whole = Math.trunc(absolute / 10);
   const tenth = absolute % 10;
-  return `${sign}${String(whole)}.${String(tenth)} ₢`;
+  return `${sign}${groupIntegerDigits(whole)}.${String(tenth)} ₢`;
 }
 
 /** Format decicredits for the panel: one decimal place, never `toLocaleString`. */

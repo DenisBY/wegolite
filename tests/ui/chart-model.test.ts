@@ -22,6 +22,7 @@ import {
   chartGoodsReadout,
   chartProjection,
   chartSpanY,
+  chartTitle,
   clampChartCamera,
   galaxyPreset,
   hitTest,
@@ -65,6 +66,13 @@ const leesti = byName("Leesti");
 const ermaso = byName("Ermaso");
 const viewport: ChartViewport = { width: 800, height: 400 };
 const fullFuel = 70;
+
+describe("chartTitle", () => {
+  it("is Oolite's long-range-chart-title-d with the galaxy number (GuiDisplayGen.m:1541)", () => {
+    expect(chartTitle(0)).toBe("Galactic Chart 1");
+    expect(chartTitle(7)).toBe("Galactic Chart 8");
+  });
+});
 
 describe("chart projection", () => {
   it("is isotropic: one chart-x unit and two chart-y units are equal pixels", () => {

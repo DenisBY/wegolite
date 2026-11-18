@@ -20,6 +20,7 @@ import type { ActionId } from "../../input/actions.js";
 import {
   buildChartView,
   chartArrowVector,
+  chartTitle,
   clampChartCamera,
   galaxyPreset,
   localPreset,
@@ -127,6 +128,7 @@ export function createChartController(
     // D-06: every open starts at the local preset around the current system.
     ctx.chart.chartCamera = localPreset(ctx.core.system);
     ctx.chart.chartPreset = "local";
+    overlay.setTitle(chartTitle(ctx.core.system.galaxy));
     // The chart nav's hidden state must be final before the first paint
     // measures the canvas.
     syncStationNav();

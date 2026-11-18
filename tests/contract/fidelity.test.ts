@@ -42,10 +42,10 @@ const TABLE_HEADER = [
   "Fidelity",
   "Excerpt",
 ];
-const ROW_HEADING = /^### (E-\d{2}) (src\/[^:]+):(\d+)-(\d+)$/;
+const ROW_HEADING = /^### (E-\d{2,3}) (src\/[^:]+):(\d+)-(\d+)$/;
 const WEGOLITE_CELL = /^`(src\/[^`:]+):(\d+)`$/;
 const OOLITE_CELL = /^`(src\/Core\/[^`:]+):(\d+)-(\d+)`$/;
-const EXCERPT_CELL = /^E-\d{2}$/;
+const EXCERPT_CELL = /^E-\d{2,3}$/;
 
 interface Row {
   readonly mechanic: string;

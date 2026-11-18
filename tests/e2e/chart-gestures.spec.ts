@@ -116,6 +116,11 @@ test("the chart opens on the local preset without Short/Long sub-tabs", async ({
   // Lave is at chart-x 20; the centre can reach the edge, so it stays on Lave.
   expect(camera?.centre).toEqual({ x: 20, y: 173 });
   await expect(page.locator("#chart .station-subnav")).toHaveCount(0);
+  // Oolite's long-range-chart-title-d with galaxy_number + 1 (quick task
+  // 261118-cyo).
+  await expect(page.locator('#chart [data-field="chart-title"]')).toHaveText(
+    "Galactic Chart 1",
+  );
 
   expect(errors).toEqual([]);
 });
@@ -139,6 +144,9 @@ test("hovering a system opens its information card and leaving closes it", async
   await expect(tooltip).toContainText("Rich Agricultural");
   await expect(tooltip).toContainText("Dictatorship");
   await expect(tooltip).toContainText("0.0 ly");
+  // Oolite's sysdata-line-8: the inhabitants under the population, no label.
+  await expect(tooltip).toContainText("(Human Colonials)");
+  await expect(tooltip).not.toContainText("Inhabitants");
   await expect(
     tooltip.locator('[data-field="chart-tooltip-description"]'),
   ).toHaveText(

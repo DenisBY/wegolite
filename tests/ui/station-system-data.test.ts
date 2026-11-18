@@ -60,14 +60,26 @@ describe("buildSystemDataModel", () => {
     );
   });
 
-  it("renders exactly seven sysdata fields plus the inhabitants row", () => {
+  it("renders exactly seven sysdata fields plus the unlabelled inhabitants row", () => {
     const model = buildSystemDataModel(system, system, labels);
 
     expect(model.fields).toHaveLength(8);
     expect(
       model.fields.filter((field) => field.label.endsWith(":")),
     ).toHaveLength(7);
-    expect(labelOf(model, "Inhabitants")).toBe("(Human Colonials)");
+    // Oolite's sysdata-line-8 "\t([inhabitants])" (descriptions.plist:1693)
+    // puts the inhabitants in the value column under the population, with no
+    // label.
+    const population = model.fields.findIndex(
+      (field) => field.label === "Population:",
+    );
+    expect(model.fields[population + 1]).toEqual({
+      label: "",
+      value: "(Human Colonials)",
+    });
+    expect(model.fields.some((field) => field.label === "Inhabitants")).toBe(
+      false,
+    );
   });
 
   it("renders every Lave value verbatim", () => {
