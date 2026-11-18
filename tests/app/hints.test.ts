@@ -99,7 +99,15 @@ describe("the safe-zone hint (quick task 261118-cyn, D-07)", () => {
   ];
 
   it("follows the earlier hints in the id list and keeps their order", () => {
-    expect(HINT_IDS.slice(0, 6)).toEqual([...EARLIER, "aegis"]);
+    expect(HINT_IDS).toEqual([
+      ...EARLIER,
+      "aegis",
+      "laserTemp",
+      "shields",
+      "energy",
+      "cabinTemp",
+      "fuel",
+    ]);
     expect(hintText("aegis", bindings)).toBe(AEGIS);
   });
 
@@ -149,6 +157,14 @@ const NON_GAUGE: readonly HintId[] = [
   "speed",
   "pitchRoll",
   "aegis",
+];
+
+const NEW_TEXTS: readonly (readonly [HintId, string])[] = [
+  ["laserTemp", "LT: laser temperature — ease off before it overheats"],
+  ["shields", "FWD/AFT: forward and aft shields — they recharge"],
+  ["energy", "E1-E4: energy banks — they recharge over time"],
+  ["cabinTemp", "CT: cabin temperature — hits past the shields heat it"],
+  ["fuel", "FUEL: hyperspace fuel — refuel when docked"],
 ];
 
 describe("the LT gauge hint (quick task 261118-ioj, D-03 to D-05)", () => {
@@ -232,5 +248,113 @@ describe("hintGauges (quick task 261118-ioj, D-03)", () => {
       energy: 0.875,
       fuel: 0.7,
     });
+  });
+});
+
+describe("the other gauge hints (quick task 261118-ioj, D-03 to D-08)", () => {
+  const seenAll = [...NON_GAUGE];
+  const cases: readonly {
+    readonly id: HintId;
+    readonly key: keyof typeof CALM_HINT_GAUGES;
+    readonly quiet: readonly number[];
+    readonly fires: number;
+  }[] = [
+    { id: "shields", key: "shields", quiet: [1], fires: 0.99 },
+    { id: "energy", key: "energy", quiet: [1, 0.9], fires: 0.89 },
+    {
+      id: "cabinTemp",
+      key: "cabinTemp",
+      quiet: [0.234375, 0.29],
+      fires: 0.3,
+    },
+    { id: "fuel", key: "fuel", quiet: [1], fires: 0.9 },
+  ];
+
+  for (const { id, key, quiet, fires } of cases) {
+    const text = NEW_TEXTS.find(([textId]) => textId === id)?.[1] ?? "";
+
+    describe(id, () => {
+      it("has the D-04 text, within the message width", () => {
+        expect(hintText(id, bindings)).toBe(text);
+        expect(text.length).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
+      });
+
+      it("stays quiet at calm values and fires once at its threshold", () => {
+        const persisted: HintId[] = [];
+        const hints = createHintController({
+          bindings,
+          seen: seenAll,
+          onSeen: (seenId) => persisted.push(seenId),
+        });
+        for (const value of quiet) {
+          const gauges = { ...CALM_HINT_GAUGES, [key]: value };
+          expect(hints.maybeShow(context({ gauges }))).toBeNull();
+        }
+        const gauges = { ...CALM_HINT_GAUGES, [key]: fires };
+        expect(hints.maybeShow(context({ gauges }))).toBe(text);
+        expect(hints.isSeen(id)).toBe(true);
+        expect(persisted).toEqual([id]);
+        expect(hints.maybeShow(context({ gauges }))).toBeNull();
+      });
+
+      it("does not fire while docked or launching and stays unseen", () => {
+        const hints = createHintController({ bindings, seen: seenAll });
+        const gauges = { ...CALM_HINT_GAUGES, [key]: fires };
+        expect(hints.maybeShow(context({ mode: "docked", gauges }))).toBeNull();
+        expect(
+          hints.maybeShow(context({ mode: "launching", gauges })),
+        ).toBeNull();
+        expect(hints.isSeen(id)).toBe(false);
+      });
+
+      it("is never shown once its id is in the seen list", () => {
+        const hints = createHintController({
+          bindings,
+          seen: [...seenAll, id],
+        });
+        const gauges = { ...CALM_HINT_GAUGES, [key]: fires };
+        expect(hints.maybeShow(context({ gauges }))).toBeNull();
+      });
+
+      it("never triggers on a non-finite gauge", () => {
+        const hints = createHintController({ bindings, seen: seenAll });
+        const gauges = { ...CALM_HINT_GAUGES, [key]: Number.NaN };
+        expect(hints.maybeShow(context({ gauges }))).toBeNull();
+        expect(hints.isSeen(id)).toBe(false);
+      });
+    });
+  }
+
+  it("triggers no gauge hint on a pristine ship in flight", () => {
+    const hints = createHintController({ bindings, seen: seenAll });
+    expect(hints.maybeShow(context({}))).toBeNull();
+    const newGameCabin = { ...CALM_HINT_GAUGES, cabinTemp: 0.234375 };
+    expect(hints.maybeShow(context({ gauges: newGameCabin }))).toBeNull();
+    for (const [id] of NEW_TEXTS) expect(hints.isSeen(id)).toBe(false);
+  });
+
+  it("offers two simultaneous triggers in the D-05 order, one per frame", () => {
+    const hints = createHintController({ bindings, seen: seenAll });
+    const gauges = { ...CALM_HINT_GAUGES, laserTemp: 0.5, shields: 0.5 };
+    expect(hints.maybeShow(context({ gauges }))).toBe(
+      hintText("laserTemp", bindings),
+    );
+    expect(hints.maybeShow(context({ gauges }))).toBe(
+      hintText("shields", bindings),
+    );
+    expect(hints.maybeShow(context({ gauges }))).toBeNull();
+  });
+
+  it("offers all five in the order laserTemp, shields, energy, cabinTemp, fuel", () => {
+    const hints = createHintController({ bindings, seen: seenAll });
+    const gauges = {
+      laserTemp: 1,
+      cabinTemp: 1,
+      shields: 0,
+      energy: 0,
+      fuel: 0,
+    };
+    const shown = NEW_TEXTS.map(() => hints.maybeShow(context({ gauges })));
+    expect(shown).toEqual(NEW_TEXTS.map(([, text]) => text));
   });
 });

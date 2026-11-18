@@ -73,6 +73,21 @@ export function hintGauges(bars: HudBars | undefined): HintGauges {
  */
 export const LASER_TEMP_HINT_LEVEL = 0.25;
 
+/**
+ * The energy level (mean of E1-E4) below which its hint appears. Not "below
+ * full": a pulse shot costs 0.3 % of the banks and refills in 0.2 s, which
+ * would fire on the first shot with nothing visible to explain. 0.9 is 40 % of
+ * the top bank, clearly visible (quick task 261118-ioj, D-07).
+ */
+export const ENERGY_HINT_LEVEL = 0.9;
+
+/**
+ * The CT gauge level at which its hint appears. A new game's 60 floor reads
+ * 0.234, so 0.3 is a real rise. Wegolite has no sun heat; energy damage past
+ * the shields is the only heat input (quick task 261118-ioj, D-03, D-06).
+ */
+export const CABIN_TEMP_HINT_LEVEL = 0.3;
+
 /** The state slice a hint decision may read. */
 export interface HintContext {
   readonly mode: FlightMode;
@@ -143,6 +158,15 @@ export function hintText(id: HintId, bindings: BindingMap): string {
     case "laserTemp":
       // Wegolite-only (quick task 261118-ioj): Oolite does not explain LT.
       return "LT: laser temperature — ease off before it overheats";
+    case "shields":
+      return "FWD/AFT: forward and aft shields — they recharge";
+    case "energy":
+      return "E1-E4: energy banks — they recharge over time";
+    case "cabinTemp":
+      // No sun in Wegolite (D-06): damage past the shields is what heats it.
+      return "CT: cabin temperature — hits past the shields heat it";
+    case "fuel":
+      return "FUEL: hyperspace fuel — refuel when docked";
   }
 }
 
@@ -154,7 +178,15 @@ export function hintText(id: HintId, bindings: BindingMap): string {
 const GAUGE_HINTS: readonly (readonly [
   HintId,
   (gauges: HintGauges) => boolean,
-])[] = [["laserTemp", (g) => g.laserTemp >= LASER_TEMP_HINT_LEVEL]];
+])[] = [
+  ["laserTemp", (g) => g.laserTemp >= LASER_TEMP_HINT_LEVEL],
+  ["shields", (g) => g.shields < 1],
+  ["energy", (g) => g.energy < ENERGY_HINT_LEVEL],
+  ["cabinTemp", (g) => g.cabinTemp >= CABIN_TEMP_HINT_LEVEL],
+  // D-08: on a new game (a full tank) this is the first frame after the
+  // first jump.
+  ["fuel", (g) => g.fuel < 1],
+];
 
 export function createHintController(options: HintOptions): HintController {
   const { bindings, onSeen } = options;

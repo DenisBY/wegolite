@@ -43,7 +43,11 @@ export type HintId =
   | "speed"
   | "pitchRoll"
   | "aegis"
-  | "laserTemp";
+  | "laserTemp"
+  | "shields"
+  | "energy"
+  | "cabinTemp"
+  | "fuel";
 
 /**
  * Every hint id, in the order the controller offers them. "aegis" is the
@@ -59,6 +63,10 @@ export const HINT_IDS: readonly HintId[] = [
   "pitchRoll",
   "aegis",
   "laserTemp",
+  "shields",
+  "energy",
+  "cabinTemp",
+  "fuel",
 ];
 
 const HINT_ID_SET: ReadonlySet<string> = new Set(HINT_IDS);

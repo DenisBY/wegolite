@@ -17,6 +17,7 @@ import type { ActionId } from "../../src/input/actions.js";
 import { bindAction, createBindingMap } from "../../src/input/bindings.js";
 import {
   HINT_IDS,
+  MAX_HINTS_SEEN,
   SETTINGS_CORRUPT_KEY,
   SETTINGS_KEY,
   SETTINGS_VERSION,
@@ -190,6 +191,30 @@ describe("validateSettings", () => {
     blob.hintsSeen = [...HINT_IDS];
 
     expect(validateSettings(blob)?.hintsSeen).toEqual([...HINT_IDS]);
+  });
+
+  it("keeps a blob that holds only the six earlier hint IDs valid", () => {
+    const blob = validBlob();
+    const earlier = [
+      "launch",
+      "torus",
+      "torusDisengage",
+      "speed",
+      "pitchRoll",
+      "aegis",
+    ];
+    blob.hintsSeen = earlier;
+
+    expect(validateSettings(blob)?.hintsSeen).toEqual(earlier);
+  });
+
+  it("accepts each gauge hint ID on its own and fits them under the cap", () => {
+    for (const id of ["laserTemp", "shields", "energy", "cabinTemp", "fuel"]) {
+      const blob = validBlob();
+      blob.hintsSeen = [id];
+      expect(validateSettings(blob)?.hintsSeen).toEqual([id]);
+    }
+    expect(HINT_IDS.length).toBeLessThanOrEqual(MAX_HINTS_SEEN);
   });
 
   it("rejects more than sixteen hint IDs", () => {
