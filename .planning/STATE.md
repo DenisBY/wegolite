@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-18T13:05:08.502Z"
+last_updated: "2026-11-18T13:36:58.900Z"
 last_activity: 2026-11-18
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: d2a91259bf57831fff9f5c5c731db36080bc128f
+state_head: 8f63c06b1e08db8d07974e0c953489e8095d1721
 progress:
   total_phases: 6
   completed_phases: 2
@@ -622,6 +622,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261118-cyn | Bring the flight HUD layout, scale, symbols and countdown to Oolite | 2026-11-18 | b495a35 | [261118-cyn-bring-the-flight-hud-layout-scale-symbol](./quick/261118-cyn-bring-the-flight-hud-layout-scale-symbol/) |
 | 261118-ih8 | Size HUD legends by Oolite's capital height | 2026-11-18 | 86cc9a9 | [261118-ih8-size-hud-legends-by-oolite-s-capital-hei](./quick/261118-ih8-size-hud-legends-by-oolite-s-capital-hei/) |
 | 261118-ioj | First-use hints that explain the HUD gauges | 2026-11-18 | d2a9125 | [261118-ioj-first-use-hints-that-explain-the-hud-gau](./quick/261118-ioj-first-use-hints-that-explain-the-hud-gau/) |
+| 52 | Give the core-loop fly-away the same 480 s CI margin | 2026-11-18 | 8f63c06 | — |
 
 ## Deferred Items
 
