@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-18T08:01:26.458Z"
+last_updated: "2026-11-18T09:31:52.424Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: e51ce724d6c9df6fa590e3738709ccf88153f63e
+state_head: c9a689c701394b870a041e50e0ebd1bb910e5dfd
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-17 — Released 0.5.0; completed quick task 261117-v1v: CI Chromium suite in four shards, slow e2e waits raised
+Last activity: 2026-11-18 — Completed quick task 261118-cyo: market sort, Oolite manifest and cash line, grouped credits, chart markers, labels and Find planet
 
 
 ## Performance Metrics
@@ -617,6 +617,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261117-u3m | Fix launch condition light, countdown message and docked message timing per review | 2026-11-17 | 73b4be4 | [261117-u3m-fix-launch-condition-light-countdown-mes](./quick/261117-u3m-fix-launch-condition-light-countdown-mes/) |
 | 261117-v1v | Shard the CI browser run and fix the autosave matrix wait | 2026-11-17 | bcc197b | [261117-v1v-shard-the-ci-browser-run-and-fix-the-aut](./quick/261117-v1v-shard-the-ci-browser-run-and-fix-the-aut/) |
 | 46 | Skip guard probe files in the content import scans (probe race) | 2026-11-18 | e51ce72 | — |
+| 261118-cyo | Bring the station screens and chart closer to Oolite | 2026-11-18 | c9a689c | [261118-cyo-bring-the-station-screens-and-chart-clos](./quick/261118-cyo-bring-the-station-screens-and-chart-clos/) |
 
 ## Deferred Items
 
