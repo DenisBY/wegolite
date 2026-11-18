@@ -37,7 +37,7 @@ CC BY-NC-SA output). Differences, in rank order:
   commander starts at 2084004:20:13:24 (20:24:12 after the launch), from `ship_clock` 180058018403.9197 in
   `Resources/Scenarios/oolite-standard.oolite-save`; `PLAYER_SHIP_CLOCK_START` is only the fallback. Wegolite:
   `src/sim/flight/state.ts:89`.
-- Open (recorded in quick task 261117-u3m): the hyperspace countdown is an overlay, not a message row. Since
+- Done in quick task 261118-cyn: the hyperspace countdown is an overlay, not a message row (now Oolite's "Witchspace to Diso in 15 s." written into the bottom row each second with a 1 s row time; FIDELITY E-109). Since
   261117-u3m the countdown start clears the last message and scrolls nothing, as in Oolite, and the render driver
   draws the countdown text in place over the bottom drawn row every frame (owner instruction to keep the overlay).
   Oolite instead writes the countdown into the message rows with `displayCountdownMessage` and a 1 s row time,
@@ -50,10 +50,10 @@ CC BY-NC-SA output). Differences, in rank order:
   Oolite's last countdown text fades out above the abort over at most 1 s, Wegolite's overlay disappears at
   once. Wegolite: `src/app/session/render-driver.ts` (the countdown overlay),
   `src/app/session/event-router.ts` (`hyperspaceCountdownStarted`).
-- R1. Extra text readouts "7.0 LY" beside FUEL and "0.000 LS" beside SPD. Oolite's default HUD draws only the bars
+- Decided 2026-11-18 (owner): keep. R1. Extra text readouts "7.0 LY" beside FUEL and "0.000 LS" beside SPD. Oolite's default HUD draws only the bars
   (`hud.plist` `drawFuelBar:`, `drawSpeedBar:`). Wegolite: `src/render/hud/draw.ts`. No recorded decision; owner
   call whether to keep them.
-- R1. No scanner zoom indicator ("1:1", right of the scanner) and no scanner zoom. Oolite: `hud.plist`
+- Open (later, owner 2026-11-18): R1. No scanner zoom indicator ("1:1", right of the scanner) and no scanner zoom. Oolite: `hud.plist`
   `drawScannerZoomIndicator:`. Wegolite: `src/render/hud/draw.ts`.
 - Done in quick task 261117-pij: R1. No default hyperspace target. Wegolite prints "(Unknown)" on the HUD clock line and on F5; Oolite shows
   Lave, the current system, for a new commander. Wegolite: `src/render/hud/draw.ts:755`,
@@ -66,23 +66,23 @@ CC BY-NC-SA output). Differences, in rank order:
   take `fovY` (`src/render/hud/projection.ts`) and `SCANNER_FOV_DEG` (`src/render/hud/draw.ts:52`).
   Measured after the fix at 1280x720, all three by one script: the Viper 1,500 m ahead is 40 px wide in Oolite,
   22 px in Wegolite before (`5a4e4cd`) and 40 px after (`e759fd2`), so after/Oolite is 1.00 and after/before 1.82.
-- R2. Element positions. The clock and the hyperspace line are at the top left (Oolite: centred under the
+- Done in quick task 261118-cyn (condition light and message area); clock decided 2026-11-18 (owner): stays at the top left. R2. Element positions. The clock and the hyperspace line are at the top left (Oolite: centred under the
   scanner); the condition light is at the top right (Oolite: left of the clock, under the scanner); the message
   line is centred below the scanner (Oolite: right of centre above it, `message_gui` x=128, y=-60). Oolite:
   `hud.plist` `drawClock:`, `drawStatusLight:`, `message_gui`. Wegolite: `src/render/hud/draw.ts:98-117`.
-- R2. The page overlay ("Wegolite 0.4.0", "Wegolite — Lave") stays visible in flight and overprints the clock
+- Done in quick task 261118-cyn (the version text is hidden in flight; the system line stays by owner decision 2026-11-18): R2. The page overlay ("Wegolite 0.4.0", "Wegolite — Lave") stays visible in flight and overprints the clock
   and the hyperspace line. Wegolite: `index.html:1301-1305` (`#overlay`),
   `src/app/session/hyperspace-controller.ts:149-156`.
-- R2. HUD scale. At 1280x720 the scanner is 336x75 px against Oolite's 432x96 (`hud.plist` `drawScanner:` 288x64
+- Done in quick task 261118-cyn (Oolite's sizes at 2.25 design px per unit, the block resting on the disclaimer, HUD-ANCHOR option B): R2. HUD scale. At 1280x720 the scanner is 336x75 px against Oolite's 432x96 (`hud.plist` `drawScanner:` 288x64
   on a 640x480 design, scaled by height), the crosshair about 46 px against 96 px and the compass about 65 px
   against 44 px; the HUD block sits about 40 px higher, above the document footer. Wegolite:
   `src/render/hud/draw.ts:47-49` (504x112 on a 1920x1080 design).
-- R3. The buoy blip is steady yellow; Oolite alternates it between green and yellow
+- Done in quick task 261118-cyn: R3. The buoy blip is steady yellow; Oolite alternates it between green and yellow
   (`src/Core/Entities/ShipEntity.m:5667-5671`). Wegolite: `src/render/hud/draw.ts:239-250`.
-- R3. Message text is green; Oolite's is yellow (`message_gui` `text_color`). Wegolite: `src/render/hud/draw.ts`.
-- R3. Compass: a green ring with an orange dot and an "S" caption; Oolite a blue ring (`drawCompass:`
+- Done in quick task 261118-cyn: R3. Message text is green; Oolite's is yellow (`message_gui` `text_color`). Wegolite: `src/render/hud/draw.ts`.
+- Done in quick task 261118-cyn: R3. Compass: a green ring with an orange dot and an "S" caption; Oolite a blue ring (`drawCompass:`
   `rgb_color` 0,0,1) with a red square marker. Wegolite: `src/render/hud/draw.ts`.
-- R3. Aegis indicator: a boxed square captioned "AEGIS"; Oolite a green "S" glyph (`drawAegis:`). Wegolite:
+- Done in quick task 261118-cyn (plus a one-time safe-zone hint): R3. Aegis indicator: a boxed square captioned "AEGIS"; Oolite a green "S" glyph (`drawAegis:`). Wegolite:
   `src/render/hud/draw.ts`.
 
 Matches: the bar set and order (FWD, AFT, FUEL, CT, LT, ALT, MISS, SPD, ROLL, PITCH, E1-E4), three missiles and
@@ -94,7 +94,7 @@ footer…" and "Title the release Wegolite 0.1.0 from package.json") and the fir
 
 ## Solution
 
-Likely changes, one per bullet; none is implemented yet:
+Likely changes, one per bullet:
 
 - Done in quick task 261117-pij: Message area: show a refusal or failure at once (at least `enqueuePriority` for "Hyperspeed mass-locked."), and
   consider Oolite's multi-row area with per-message lifetimes (1.5 s for this one) instead of one FIFO line.
@@ -103,14 +103,28 @@ Likely changes, one per bullet; none is implemented yet:
   hostiles, green otherwise.
 - Done in quick task 261117-pij: Start a new game's clock at the standard scenario's `ship_clock`; check the save and hash pins that read the
   clock.
-- Owner call on porting the countdown into the message rows (a no-scroll write of the bottom row with a 1 s row
+- Done in quick task 261118-cyn: Owner call on porting the countdown into the message rows (a no-scroll write of the bottom row with a 1 s row
   time each second) instead of the per-frame overlay (recorded in quick task 261117-u3m).
-- Owner call on the fuel and speed readouts.
-- Add the scanner zoom indicator only together with scanner zoom (`key_scanner_zoom`), if it is wanted.
+- Decided 2026-11-18 (owner): keep. Owner call on the fuel and speed readouts.
+- Open (later, owner 2026-11-18): Add the scanner zoom indicator only together with scanner zoom (`key_scanner_zoom`), if it is wanted.
 - Done in quick task 261117-pij: Default the hyperspace target to the current system on a new game, as Oolite does.
 - Done in quick task 261117-o8q (commits a6aa69a, 130d109; Viper 40 px against Oolite's 40 px, was 22 px): Apply the 57.2° FOV horizontally when the aspect is wider than 4:3, as Oolite's frustum does, and update the
   HUD projections and their tests (`tests/render/launch-camera.test.ts`, `tests/hud/projection.test.ts`).
-- Move the clock, the condition light and the message line to Oolite's positions, and rescale the HUD
+- Done in quick task 261118-cyn (the clock stays at the top left, decided 2026-11-18 by the owner): Move the clock, the condition light and the message line to Oolite's positions, and rescale the HUD
   to Oolite's height-based scale (a `HUD_LAYOUT` change that the pinned-layout tests must follow).
-- Hide `#overlay` in flight, or move it away from the clock.
-- Flash the buoy blip, colour the message text yellow, and match the compass and aegis symbols.
+- Done in quick task 261118-cyn (only the version text, owner decision D-02): Hide `#overlay` in flight, or move it away from the clock.
+- Done in quick task 261118-cyn: Flash the buoy blip, colour the message text yellow, and match the compass and aegis symbols.
+
+## Open items found in quick task 261118-cyn
+
+- The condition light's alpha pulse: Oolite draws the light at
+  `0.333 * (2 + sin(time * 2.5 * alertCondition))` (`src/Core/HeadUpDisplay.m:2560` at 7437f22); Wegolite's is
+  steady.
+- Oolite's word wrap of a long message into a second row (`printLongText`, `GuiDisplayGen.m:736-766`); Wegolite
+  clamps a long line to `MAX_MESSAGE_CHARS`.
+- Below 16:9 the HUD letterboxes by width (the 1920x1080 design scaled by `min(width, height)`), where Oolite
+  stays scaled by the window height down to 4:3 (`src/SDL/MyOpenGLView.m:498-505`).
+- The scanner zoom and its "1:1" indicator stay open (later, owner 2026-11-18). The todo stays in `pending/`
+  for them.
+- Still visible at 1280x720: the overlay's system line ("Wegolite — Lave") overprints the clock's hyperspace
+  line at the top left. Both stay by owner decision (D-01, D-02); recorded, not fixed.
