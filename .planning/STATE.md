@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-17T21:52:12.220Z"
+last_updated: "2026-11-18T08:01:26.458Z"
 last_activity: 2026-11-17
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: bcc197bbc752df095c875b11c3e943a07ec53212
+state_head: e51ce724d6c9df6fa590e3738709ccf88153f63e
 progress:
   total_phases: 6
   completed_phases: 2
@@ -616,6 +616,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261117-pij | Fix flight HUD messages, condition light, clock, legality column and status labels to match Oolite | 2026-11-17 | e66c1dc | [261117-pij-fix-flight-hud-messages-condition-light-](./quick/261117-pij-fix-flight-hud-messages-condition-light-/) |
 | 261117-u3m | Fix launch condition light, countdown message and docked message timing per review | 2026-11-17 | 73b4be4 | [261117-u3m-fix-launch-condition-light-countdown-mes](./quick/261117-u3m-fix-launch-condition-light-countdown-mes/) |
 | 261117-v1v | Shard the CI browser run and fix the autosave matrix wait | 2026-11-17 | bcc197b | [261117-v1v-shard-the-ci-browser-run-and-fix-the-aut](./quick/261117-v1v-shard-the-ci-browser-run-and-fix-the-aut/) |
+| 46 | Skip guard probe files in the content import scans (probe race) | 2026-11-18 | e51ce72 | — |
 
 ## Deferred Items
 
