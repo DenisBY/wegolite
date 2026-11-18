@@ -461,6 +461,7 @@ export function createProbePublisher(
         elements: [...currentHud.elements],
         designScale: currentHud.designScale,
         letterbox: [currentHud.letterbox[0], currentHud.letterbox[1]],
+        lift: currentHud.lift,
         contacts:
           model === undefined
             ? []

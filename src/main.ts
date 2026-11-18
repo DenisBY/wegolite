@@ -277,6 +277,7 @@ if (!boot.ok) {
       elements: [],
       designScale: 1,
       letterbox: [0, 0],
+      lift: 0,
       contacts: [],
       compass: { target: "planet", forward: false },
       aegis: "none",

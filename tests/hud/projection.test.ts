@@ -30,7 +30,6 @@ import {
 import {
   IDENT_FRAME_MAX_HALF,
   IDENT_FRAME_MIN_HALF,
-  aegisLabel,
   projectIdentFrame,
   projectToCompass,
   projectToScanner,
@@ -43,8 +42,8 @@ const HEIGHT = 80;
 const RANGE = 25_600;
 const HALF_WIDTH = WIDTH / 2;
 const HALF_HEIGHT = HEIGHT / 2;
-const COMPASS_RADIUS = 48;
-const BLIP_RADIUS = 0.4 * COMPASS_RADIUS;
+const SIZE = 63;
+const BLIP_RADIUS = 0.4 * SIZE;
 
 function scanner(relative: Vec3, radius = 0) {
   return projectToScanner(relative, identity(), WIDTH, HEIGHT, RANGE, radius);
@@ -111,37 +110,44 @@ describe("projectToScanner", () => {
   });
 });
 
-describe("projectToCompass", () => {
-  it("places a target to starboard at 0.4x the radius and ahead", () => {
-    const blip = projectToCompass(vec(1_000, 0, -1_000), identity(), 48);
+describe("projectToCompass (HeadUpDisplay.m drawCompass:, quick task 261118-cyn)", () => {
+  // Oolite normalises the full 3D relative vector in the ship frame
+  // (vector_normal_or_fallback to +Z) and takes x and y times 0.4 x size, so a
+  // target dead ahead sits at the centre (D-06).
+  it("puts a target dead ahead at the centre, in front", () => {
+    const blip = projectToCompass(vec(0, 0, -1_000), identity(), SIZE);
+    expect(blip.forward).toBe(true);
+    expect(blip.x).toBeCloseTo(0, 12);
+    expect(blip.y).toBeCloseTo(0, 12);
+  });
+
+  it("puts a target 90 degrees to starboard on the 0.4 x size circle", () => {
+    const blip = projectToCompass(vec(1_000, 0, 0), identity(), SIZE);
     expect(blip.forward).toBe(true);
     expect(blip.x).toBeCloseTo(BLIP_RADIUS, 12);
     expect(blip.y).toBeCloseTo(0, 12);
   });
 
-  it("places a target above upward and a target behind as amber", () => {
-    const above = projectToCompass(vec(0, 1_000, -1_000), identity(), 48);
-    expect(above.forward).toBe(true);
-    expect(above.y).toBeCloseTo(-BLIP_RADIUS, 12);
-
-    const behind = projectToCompass(vec(1_000, 0, 1_000), identity(), 48);
-    expect(behind.forward).toBe(false);
-    expect(behind.x).toBeCloseTo(BLIP_RADIUS, 12);
-  });
-
-  it("falls back to the centre when the horizontal magnitude is zero", () => {
-    const blip = projectToCompass(vec(0, 0, -1_000), identity(), 48);
+  it("puts a target 45 degrees to starboard at 0.4 x size x sin 45", () => {
+    const blip = projectToCompass(vec(1_000, 0, -1_000), identity(), SIZE);
     expect(blip.forward).toBe(true);
-    expect(blip.x).toBe(0);
-    expect(blip.y).toBe(0);
+    expect(blip.x).toBeCloseTo(BLIP_RADIUS * Math.SQRT1_2, 12);
+    expect(blip.y).toBeCloseTo(0, 12);
   });
-});
 
-describe("aegis label", () => {
-  it("maps only docking range to the indicator text", () => {
-    expect(aegisLabel("dockingRange")).toBe("AEGIS");
-    expect(aegisLabel("planet")).toBe("PLANET");
-    expect(aegisLabel("none")).toBe("");
+  it("draws a target above upward (canvas y negative) and a target behind as not forward", () => {
+    const above = projectToCompass(vec(0, 1_000, -1_000), identity(), SIZE);
+    expect(above.forward).toBe(true);
+    expect(above.y).toBeCloseTo(-BLIP_RADIUS * Math.SQRT1_2, 12);
+
+    const behind = projectToCompass(vec(1_000, 0, 1_000), identity(), SIZE);
+    expect(behind.forward).toBe(false);
+    expect(behind.x).toBeCloseTo(BLIP_RADIUS * Math.SQRT1_2, 12);
+  });
+
+  it("falls back to Oolite's +Z basis for a zero vector: the centre, in front", () => {
+    const blip = projectToCompass(vec(0, 0, 0), identity(), SIZE);
+    expect(blip).toEqual({ x: 0, y: 0, forward: true });
   });
 });
 
@@ -283,62 +289,73 @@ describe("HUD contacts", () => {
         "E4",
       ]),
     );
-    // Station lollipop: centre (960, 868), base (940, 876), head (940, 860)
+    // Oolite's lollipop head is 5x3 units, 3 units left of the stalk, and
+    // the stalk 2 units wide (HeadUpDisplay.m:1334-1347), at 2.25 px per unit.
+    // Station lollipop: centre (960, 927), base (940, 935), head (940, 919)
     expect(fillRectCalls).toContainEqual({
-      x: 940 - 5.25,
-      y: 860 - 5.25,
-      w: 8.75,
-      h: 5.25,
+      x: 940 - 6.75,
+      y: 919 - 6.75,
+      w: 11.25,
+      h: 6.75,
       fillStyle: HUD_COLOR,
       alpha: 1,
     });
-    // Nav buoy lollipop: centre (960, 868), base (975, 856), head (975, 874)
+    // Nav buoy lollipop: centre (960, 927), base (975, 915), head (975, 933);
+    // flight time 0 is the unflashed (neutral) phase.
     expect(fillRectCalls).toContainEqual({
-      x: 975 - 5.25,
-      y: 874 - 5.25,
-      w: 8.75,
-      h: 5.25,
+      x: 975 - 6.75,
+      y: 933 - 6.75,
+      w: 11.25,
+      h: 6.75,
       fillStyle: HUD_SCANNER_NEUTRAL_COLOR,
       alpha: 1,
     });
   });
 
-  it("aligns the dashboard instruments on the scanner's horizontal grid", () => {
-    const scannerTop = HUD_LAYOUT.scanner.y;
-    const scannerBottom = HUD_LAYOUT.scanner.y + HUD_LAYOUT.scanner.height;
-    const scannerCenterY = scannerTop + HUD_LAYOUT.scanner.height / 2;
-
-    // Speed, roll, and pitch stack top-to-bottom within the scanner's vertical band.
-    expect(HUD_LAYOUT.speed.y).toBe(scannerTop);
-    expect(HUD_LAYOUT.speed.y).toBeLessThan(HUD_LAYOUT.roll.y);
-    expect(HUD_LAYOUT.roll.y).toBeLessThan(HUD_LAYOUT.pitch.y);
-    expect(HUD_LAYOUT.pitch.y + HUD_LAYOUT.pitch.height).toBeLessThanOrEqual(
-      scannerBottom,
-    );
-
-    // Fuel sits inside the scanner's vertical band, and aegis/compass share its centreline.
-    expect(HUD_LAYOUT.fuel.y).toBeGreaterThanOrEqual(scannerTop);
-    expect(HUD_LAYOUT.fuel.y + HUD_LAYOUT.fuel.height).toBeLessThanOrEqual(
-      scannerBottom,
-    );
-    expect(HUD_LAYOUT.aegis.y + HUD_LAYOUT.aegis.height / 2).toBe(
-      scannerCenterY,
-    );
-    expect(HUD_LAYOUT.compass.y + HUD_LAYOUT.compass.height / 2).toBe(
-      scannerCenterY,
+  it("puts the aegis, condition light and compass on hud.plist's y 32 row under the scanner", () => {
+    const centreY = (rect: { y: number; height: number }) =>
+      rect.y + rect.height / 2;
+    const centreX = (rect: { x: number; width: number }) =>
+      rect.x + rect.width / 2;
+    // y_origin -1, y 32: 1080 - 2.25 x 32 = 1008.
+    expect(centreY(HUD_LAYOUT.aegis)).toBe(1008);
+    expect(centreY(HUD_LAYOUT.condition)).toBe(1008);
+    expect(centreY(HUD_LAYOUT.compass)).toBe(1008);
+    // x -132, -108 and 132: 960 + 2.25 x.
+    expect(centreX(HUD_LAYOUT.aegis)).toBe(663);
+    expect(centreX(HUD_LAYOUT.condition)).toBe(717);
+    expect(centreX(HUD_LAYOUT.compass)).toBe(1257);
+    // The scanner centre is y 68 from the bottom.
+    expect(centreY(HUD_LAYOUT.scanner)).toBe(927);
+    // The message area (x 128, y -60, centre-anchored) sits above the scanner.
+    expect(centreX(HUD_LAYOUT.message)).toBe(1248);
+    expect(centreY(HUD_LAYOUT.message)).toBe(675);
+    expect(HUD_LAYOUT.message.y + HUD_LAYOUT.message.height).toBeLessThan(
+      HUD_LAYOUT.scanner.y,
     );
   });
 });
 
 describe("scannerContactColor", () => {
   it("uses Oolite's colours: green station, neutral yellow for buoys, beacons and ships, police purple", () => {
-    expect(scannerContactColor("station")).toBe(HUD_COLOR);
-    expect(scannerContactColor("buoy")).toBe(HUD_SCANNER_NEUTRAL_COLOR);
-    expect(scannerContactColor("beacon")).toBe(HUD_SCANNER_NEUTRAL_COLOR);
-    expect(scannerContactColor("ship")).toBe(HUD_SCANNER_NEUTRAL_COLOR);
-    expect(scannerContactColor("police")).toBe(HUD_SCANNER_POLICE_COLOR);
+    expect(scannerContactColor("station", false)).toBe(HUD_COLOR);
+    expect(scannerContactColor("buoy", false)).toBe(HUD_SCANNER_NEUTRAL_COLOR);
+    expect(scannerContactColor("beacon", false)).toBe(
+      HUD_SCANNER_NEUTRAL_COLOR,
+    );
+    expect(scannerContactColor("ship", false)).toBe(HUD_SCANNER_NEUTRAL_COLOR);
+    expect(scannerContactColor("police", false)).toBe(HUD_SCANNER_POLICE_COLOR);
     // ShipEntity.m:5585 police_color1 = {0.5, 0.0, 1.0}
     expect(HUD_SCANNER_POLICE_COLOR).toBe("#8000ff");
+  });
+
+  it("flashes buoys friendly green on the flash phase, as CLASS_BUOY (ShipEntity.m:5667-5671)", () => {
+    expect(scannerContactColor("buoy", true)).toBe(HUD_COLOR);
+    expect(scannerContactColor("beacon", true)).toBe(HUD_COLOR);
+    // Other kinds ignore the flag.
+    expect(scannerContactColor("station", true)).toBe(HUD_COLOR);
+    expect(scannerContactColor("ship", true)).toBe(HUD_SCANNER_NEUTRAL_COLOR);
+    expect(scannerContactColor("police", true)).toBe(HUD_SCANNER_POLICE_COLOR);
   });
 });
 

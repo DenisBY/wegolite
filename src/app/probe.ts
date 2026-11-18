@@ -52,6 +52,12 @@ export interface WegoliteHudProbe {
   elements: string[];
   designScale: number;
   letterbox: [number, number];
+  /**
+   * The HUD-ANCHOR lift in design units: how far the HUD block is drawn above
+   * the plain `hud.plist` table so it rests on the document disclaimer
+   * (option B, quick task 261118-cyn).
+   */
+  lift: number;
   /** Visible scanner contacts, by body id (station/navBuoy/witchpoint). */
   contacts: string[];
   compass: WegoliteHudCompassProbe;
@@ -619,6 +625,7 @@ export function publishFailure(reason: string): void {
       elements: [],
       designScale: 1,
       letterbox: [0, 0],
+      lift: 0,
       contacts: [],
       compass: { target: "planet", forward: false },
       aegis: "none",

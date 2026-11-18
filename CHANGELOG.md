@@ -44,6 +44,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   in the message area and pulses once a second. A message posted during the
   countdown shows only until the next count replaces it, and after a cancel
   the last count fades out within a second.
+- The flight HUD follows Oolite's size and layout: a larger scanner,
+  crosshair and compass; messages in yellow above the scanner, right of
+  centre, up to ten rows; the condition light under the scanner beside the
+  aegis indicator. Oolite's HUD reaches the bottom edge of the window, so the
+  HUD sits on top of the disclaimer strip instead, keeping Oolite's sizes and
+  spacing.
+- The version text no longer shows in flight.
+- Buoys flash green and yellow on the scanner, as in Oolite.
+- The compass is Oolite's blue ring; its marker moves to the centre as the
+  target comes dead ahead (it used to stay on a fixed circle), the planet is
+  a filled dot, the station a square and the witchpoint a diamond with its
+  "W". The letter under the compass is gone.
+- The aegis indicator is Oolite's green "S", without a caption.
 
 ## [0.5.0] - 2026-11-17
 

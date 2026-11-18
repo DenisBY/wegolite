@@ -11,7 +11,15 @@
 import { describe, expect, it } from "vitest";
 
 import { buildHudModel } from "../../src/app/hud-model.js";
-import { HUD_ELEMENTS, HUD_LAYOUT } from "../../src/render/hud/draw.js";
+import {
+  COMPASS_SIZE,
+  HUD_ELEMENTS,
+  HUD_LAYOUT,
+  HUD_MESSAGE_ROWS,
+  SCANNER_HEIGHT,
+  SCANNER_WIDTH,
+} from "../../src/render/hud/draw.js";
+import { MESSAGE_ROWS } from "../../src/render/hud/messages.js";
 import {
   MAX_MESSAGE_CHARS,
   clampMessage,
@@ -602,5 +610,112 @@ describe("buildHudModel message rows (quick task 261117-pij)", () => {
     expect(
       buildHudModel(state, fixture.layout, fixture.config, "", 70).messageRows,
     ).toEqual([]);
+  });
+});
+
+describe("Oolite HUD geometry (quick task 261118-cyn, D-03 to D-05)", () => {
+  // hud.plist is a 480-unit-high design scaled by the window height
+  // (MyOpenGLView.m:498-505), so one unit is 1080 / 480 = 2.25 design px:
+  // design x = 960 + 2.25 x, design y = 1080 - 2.25 y for y_origin -1 and
+  // 540 - 2.25 y for a centre-anchored item.
+  it("sizes the scanner as hud.plist's 288x64 at 2.25 px per unit", () => {
+    expect(SCANNER_WIDTH).toBe(648);
+    expect(SCANNER_HEIGHT).toBe(144);
+    expect(HUD_LAYOUT.scanner).toEqual({
+      x: 636,
+      y: 855,
+      width: 648,
+      height: 144,
+    });
+  });
+
+  it("places the crosshair, compass, aegis, condition light and message area at hud.plist's positions", () => {
+    expect(HUD_LAYOUT.crosshair).toEqual({
+      x: 888,
+      y: 468,
+      width: 144,
+      height: 144,
+    });
+    expect(COMPASS_SIZE).toBe(63);
+    expect(HUD_LAYOUT.compass).toEqual({
+      x: 1225.5,
+      y: 976.5,
+      width: 63,
+      height: 63,
+    });
+    expect(HUD_LAYOUT.aegis).toEqual({ x: 636, y: 981, width: 54, height: 54 });
+    expect(HUD_LAYOUT.condition).toEqual({
+      x: 708,
+      y: 999,
+      width: 18,
+      height: 18,
+    });
+    expect(HUD_LAYOUT.message).toEqual({
+      x: 964.5,
+      y: 517.5,
+      width: 567,
+      height: 315,
+    });
+  });
+
+  it("covers the SPD, ROLL, PITCH and FUEL bars with their legends", () => {
+    // SPD: bar 180x18 centred on (1410, 866.25), surround 4.5 px out.
+    expect(HUD_LAYOUT.speed.x).toBe(1315.5);
+    expect(HUD_LAYOUT.speed.y).toBe(852.75);
+    // ROLL and PITCH share their middle border (y 80 and 70, height 6).
+    expect(HUD_LAYOUT.roll.y).toBe(888.75);
+    expect(HUD_LAYOUT.pitch.y).toBe(911.25);
+    expect(HUD_LAYOUT.roll.y + 22.5).toBe(HUD_LAYOUT.pitch.y);
+    // FUEL: bar centred on (510, 942.75); the rect starts at the readout.
+    expect(HUD_LAYOUT.fuel.y).toBe(933.75);
+    expect(HUD_LAYOUT.fuel.x + HUD_LAYOUT.fuel.width).toBe(600);
+  });
+
+  it("keeps the clock rectangle at the top left (D-01)", () => {
+    expect(HUD_LAYOUT.clock).toEqual({ x: 60, y: 40, width: 360, height: 40 });
+  });
+
+  it("draws all ten of Oolite's message rows", () => {
+    expect(HUD_MESSAGE_ROWS).toBe(MESSAGE_ROWS);
+    expect(HUD_MESSAGE_ROWS).toBe(10);
+  });
+});
+
+describe("buildHudModel compass size and buoy flash (quick task 261118-cyn)", () => {
+  const fixture = laveFixture();
+
+  it("projects a sideways target 0.4 x COMPASS_SIZE from the compass centre (D-06)", () => {
+    const state = initFlightState(fixture.layout);
+    // Put the ship 1 km to the left of the station, facing -z: the station is
+    // dead to starboard.
+    const station = fixture.layout.station.position;
+    const moved = {
+      ...state,
+      position: vec(station.x - 1_000, station.y, station.z),
+      orientation: { w: 1, x: 0, y: 0, z: 0 },
+      compassMode: "station" as const,
+    };
+    const model = buildHudModel(moved, fixture.layout, fixture.config, "", 70);
+    expect(model.compass.target).toBe("station");
+    expect(model.compass.x).toBeCloseTo(0.4 * 63, 9);
+    expect(model.compass.y).toBeCloseTo(0, 9);
+  });
+
+  it("flashes on Oolite's ((int)(time * 4)) & 1 (HeadUpDisplay.m:1113)", () => {
+    const state = initFlightState(fixture.layout);
+    const at = (flightTime: number) =>
+      buildHudModel(
+        { ...state, flightTime },
+        fixture.layout,
+        fixture.config,
+        "",
+        70,
+      ).scannerFlash;
+    expect(at(0)).toBe(false);
+    expect(at(0.24)).toBe(false);
+    expect(at(0.25)).toBe(true);
+    expect(at(0.49)).toBe(true);
+    expect(at(0.5)).toBe(false);
+    expect(at(10.3)).toBe(true);
   });
 });

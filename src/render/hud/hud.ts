@@ -8,6 +8,14 @@
  * `aria-hidden`. The backing store is the CSS size times a DPR capped at 2; the
  * design space is a fixed 1920x1080 and is scaled *uniformly* with centred
  * offsets, so an ultrawide window letterboxes rather than stretching.
+ *
+ * HUD-ANCHOR option B (owner 2026-11-18, quick task 261118-cyn): Oolite's HUD
+ * reaches the window's bottom edge, where Wegolite's fixed document disclaimer
+ * sits. Each `resize()` measures the disclaimer's height
+ * (`documentFooterHeight`), converts the part of it that covers the design
+ * space into design units, and `drawHud` lifts the HUD block (all but the
+ * crosshair, the ident frame and the clock) by it, so the block rests on the
+ * disclaimer's top edge. It is read on resize, never per frame.
  */
 
 import {
@@ -31,6 +39,8 @@ export interface Hud {
   readonly elements: readonly string[];
   readonly designScale: number;
   readonly letterbox: readonly [number, number];
+  /** The HUD-ANCHOR lift in design units (0 with no disclaimer). */
+  readonly lift: number;
   readonly bounds: HudBounds;
   readonly drawn: boolean;
   dispose(): void;
@@ -42,6 +52,46 @@ function buildBounds(): HudBounds {
     bounds[id] = [rect.x, rect.y, rect.width, rect.height];
   }
   return bounds;
+}
+
+/**
+ * The document disclaimer's height in CSS px (`body > footer`, the element
+ * whose height `trackDocumentFooterHeight` in `src/main.ts` publishes as
+ * `--document-footer-height`). It is measured here rather than read from the
+ * custom property: a window resize reaches `resize()` before the footer's
+ * ResizeObserver updates the property, and the forced layout of
+ * `getBoundingClientRect` is exact at that moment. 0 with no footer.
+ */
+export function documentFooterHeight(): number {
+  if (typeof document === "undefined") return 0;
+  const footer = document.querySelector<HTMLElement>("body > footer");
+  if (footer === null) return 0;
+  const height = footer.getBoundingClientRect().height;
+  return Number.isFinite(height) && height > 0 ? height : 0;
+}
+
+/**
+ * The HUD-ANCHOR lift in design units: the part of a disclaimer `footerCss`
+ * CSS px high that covers the design space, from the bottom letterbox margin
+ * `offsetY` device px up, at `dpr` device px per CSS px and `scale` device px
+ * per design unit.
+ */
+export function hudLift(
+  footerCss: number,
+  dpr: number,
+  offsetY: number,
+  scale: number,
+): number {
+  if (
+    !Number.isFinite(footerCss) ||
+    !Number.isFinite(dpr) ||
+    !Number.isFinite(offsetY) ||
+    !Number.isFinite(scale) ||
+    scale <= 0
+  ) {
+    return 0;
+  }
+  return Math.max(0, (footerCss * dpr - offsetY) / scale);
 }
 
 function requireContext2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
@@ -61,6 +111,7 @@ export function createHud(canvas: HTMLCanvasElement): Hud {
   let scale = 1;
   let offsetX = 0;
   let offsetY = 0;
+  let lift = 0;
   let drawn = false;
   let watchedDpr = 0;
   let dprQuery: MediaQueryList | undefined;
@@ -103,6 +154,7 @@ export function createHud(canvas: HTMLCanvasElement): Hud {
     );
     offsetX = (canvas.width - HUD_DESIGN_WIDTH * scale) / 2;
     offsetY = (canvas.height - HUD_DESIGN_HEIGHT * scale) / 2;
+    lift = hudLift(documentFooterHeight(), dpr, offsetY, scale);
     applyTransform();
     watchDpr(dpr);
   }
@@ -112,7 +164,7 @@ export function createHud(canvas: HTMLCanvasElement): Hud {
     // than set a zero scale (Pitfall 10).
     if (canvas.width === 0 || canvas.height === 0) return;
     applyTransform();
-    drawHud(context, model);
+    drawHud(context, model, lift);
     drawn = true;
   }
 
@@ -135,6 +187,9 @@ export function createHud(canvas: HTMLCanvasElement): Hud {
     },
     get letterbox(): readonly [number, number] {
       return [offsetX, offsetY];
+    },
+    get lift(): number {
+      return lift;
     },
     get bounds(): HudBounds {
       return bounds;

@@ -22,7 +22,6 @@
 
 import { rotateInverse, sub } from "../../sim/math.js";
 import type { Quat, Vec3 } from "../../sim/math.js";
-import type { AegisStatus } from "../../sim/world/aegis.js";
 import type { CameraPose } from "../launch-camera.js";
 
 /** Oolite's `SCANNER_MAX_RANGE` (Entity.h:49-50); also `layout.scannerRange`. */
@@ -41,10 +40,13 @@ export interface ScannerBlip {
 }
 
 export interface CompassBlip {
-  /** Offset from the compass centre; the blip sits at 0.4x the radius. */
+  /**
+   * Offset from the compass centre: the normalised 3D direction's x and y
+   * times 0.4 of the compass size (the centre for a target dead ahead).
+   */
   readonly x: number;
   readonly y: number;
-  /** True when the target is ahead of the ship (green, not amber). */
+  /** True when the target is ahead of the ship (green, not red). */
   readonly forward: boolean;
 }
 
@@ -128,50 +130,46 @@ export function projectToScanner(
 }
 
 /**
- * Project the compass target onto the compass dial.
+ * Project the compass target onto the compass dial, as Oolite's
+ * `drawCompass:` (`HeadUpDisplay.m:1500-1509`): rotate the relative vector
+ * into the ship frame, normalise the full 3D vector (a zero vector falls back
+ * to Oolite's +Z basis, `vector_normal_or_fallback`), then take x and y times
+ * 0.4 of the compass `size`. A target dead ahead therefore sits at the centre
+ * and one 90 degrees off sits on the 0.4 circle (quick task 261118-cyn, D-06).
+ * Canvas y points down, so the vertical component is negated. Oolite's
+ * forward axis is +Z; Wegolite's is -Z, so `forward` is `-local.z >= 0`
+ * (green in front, red behind).
  *
- * The horizontal component points right and the vertical component points up
- * (negated for canvas coordinates). A target directly ahead or behind has no
- * horizontal/vertical magnitude, so the blip is drawn at the centre rather than
- * divided by zero.
+ * @param size The compass size in design px (`COMPASS_SIZE`), the full ring
+ *   diameter.
  */
 export function projectToCompass(
   relativeWorld: Vec3,
   shipOrientation: Quat,
-  radius: number,
+  size: number,
 ): CompassBlip {
   if (
     !finiteVec(relativeWorld) ||
     !finiteQuat(shipOrientation) ||
-    !Number.isFinite(radius) ||
-    radius <= 0
+    !Number.isFinite(size) ||
+    size <= 0
   ) {
     return { x: 0, y: 0, forward: false };
   }
 
   const local = rotateInverse(shipOrientation, relativeWorld);
-  const forward = -local.z >= 0;
-  const magnitude = Math.hypot(local.x, local.y);
-  if (magnitude < 1e-9) return { x: 0, y: 0, forward };
+  const magnitude = Math.hypot(local.x, local.y, local.z);
+  if (!(magnitude > 0) || !Number.isFinite(magnitude)) {
+    // Oolite's fallback is +Z, its forward axis: the centre, in front.
+    return { x: 0, y: 0, forward: true };
+  }
 
-  const blipRadius = 0.4 * radius;
+  const blipRadius = 0.4 * size;
   return {
     x: (local.x / magnitude) * blipRadius,
     y: (-local.y / magnitude) * blipRadius,
-    forward,
+    forward: -local.z >= 0,
   };
-}
-
-/** The text label under the aegis glyph; only docking range draws it. */
-export function aegisLabel(status: AegisStatus): string {
-  switch (status) {
-    case "dockingRange":
-      return "AEGIS";
-    case "planet":
-      return "PLANET";
-    case "none":
-      return "";
-  }
 }
 
 /** The ident frame in HUD design pixels: its centre and half-size. */

@@ -40,7 +40,7 @@ import { laserTempGauge } from "../sim/combat/weapons.js";
 import type { NpcContact } from "../sim/world/contacts.js";
 import type { Body, SystemLayout } from "../sim/world/layout.js";
 import {
-  COMPASS_RADIUS,
+  COMPASS_SIZE,
   HUD_DESIGN_HEIGHT,
   HUD_DESIGN_WIDTH,
   SCANNER_HEIGHT,
@@ -134,7 +134,8 @@ function buildCompass(state: FlightState, layout: SystemLayout): HudCompass {
     layout,
   );
   const relative = sub(bodyFor(target, layout).position, state.position);
-  const blip = projectToCompass(relative, state.orientation, COMPASS_RADIUS);
+  // D-06: Oolite's compass size, the full ring diameter (HeadUpDisplay.h:57).
+  const blip = projectToCompass(relative, state.orientation, COMPASS_SIZE);
   return { target, ...blip };
 }
 
@@ -259,6 +260,15 @@ function buildBars(
 }
 
 /**
+ * Oolite's scanner flash phase, `((int)([UNIVERSE getTime] * 4)) & 1`
+ * (`HeadUpDisplay.m:1113`), on the flight time: it flips every 0.25 s.
+ */
+export function scannerFlashAt(flightTime: number): boolean {
+  if (!Number.isFinite(flightTime)) return false;
+  return (Math.trunc(flightTime * 4) & 1) === 1;
+}
+
+/**
  * Build the flight HUD. `fuelTenths` is the live profile tank (0..70) and is
  * required: the bar and the fuel text are both derived from that one value.
  * `npc` is the world's id-free ship contacts (`npcContacts`), empty with no
@@ -302,6 +312,7 @@ export function buildHudModel(
     massLocked: state.torus.massLocked,
     scannerRange: layout.scannerRange,
     contacts: buildContacts(state, layout, npc),
+    scannerFlash: scannerFlashAt(state.flightTime),
     compass: buildCompass(state, layout),
     aegis,
     bars: buildBars(state, config, tank, combat),

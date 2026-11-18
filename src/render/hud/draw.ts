@@ -2,7 +2,8 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The flight HUD (FLGT-05, D-05, D-06, D-08).
+ * The flight HUD (FLGT-05, D-05, D-06, D-08; Oolite's geometry since quick
+ * task 261118-cyn).
  *
  * Canvas2D only: no DOM, no SVG and no in-scene geometry. `draw.ts` receives an
  * already-transformed context and draws in the fixed 1920x1080 design space, so
@@ -10,6 +11,23 @@
  * unit; `HUD_LAYOUT` is the single table the probe publishes for the browser
  * proof, so "inside the design rect" is a numeric assertion rather than a
  * screenshot.
+ *
+ * The geometry is Oolite's `hud.plist`. Oolite's HUD space wider than 4:3 is
+ * 480 units high and scaled by the window height (`MyOpenGLView.m:498-505`);
+ * x is measured from the centre, `y_origin = -1` measures y up from the bottom
+ * edge and no `y_origin` measures y up from the centre
+ * (`HeadUpDisplay.m:969-970`). The design space is 1080 px high, so one unit is
+ * `HUD_UNIT` = 1080 / 480 = 2.25 design px: design x = 960 + 2.25 x, design
+ * y = 1080 - 2.25 y for `y_origin = -1` and 540 - 2.25 y for a centre-anchored
+ * item. Bars are centred on (x, y) (`hudDrawBarAt`, `HeadUpDisplay.m:3181-3184`)
+ * and `draw_surround` adds 2 units on each side. The top-left clock is not
+ * Oolite's position: it stays where it was by owner decision (261118-cyn D-01).
+ *
+ * `drawHud` takes a vertical lift: the HUD block except the crosshair, the
+ * ident frame, the clock lines and the flash is drawn that many design px
+ * higher, so it rests on the document disclaimer's top edge instead of the
+ * window's bottom edge (HUD-ANCHOR option B, owner 2026-11-18). `HUD_LAYOUT`
+ * stays the plain table.
  *
  * The scanner projection and the compass maths live in `projection.ts`; this
  * module only draws their results. The model is built by
@@ -19,12 +37,26 @@
 import { clamp } from "../../sim/math.js";
 import type { CompassTarget } from "../../sim/flight/state.js";
 import type { AegisStatus } from "../../sim/world/aegis.js";
-import { SCANNER_MAX_RANGE, aegisLabel } from "./projection.js";
+import { SCANNER_MAX_RANGE } from "./projection.js";
 import type { CompassBlip, IdentFrame, ScannerBlip } from "./projection.js";
+import { MESSAGE_ROWS } from "./messages.js";
 import type { MessageRow } from "./messages.js";
 
 export const HUD_DESIGN_WIDTH = 1920;
 export const HUD_DESIGN_HEIGHT = 1080;
+
+/** One `hud.plist` unit in design px: 1080 / 480 (`MyOpenGLView.m:498-505`). */
+export const HUD_UNIT = HUD_DESIGN_HEIGHT / 480;
+
+/** Design x of a `hud.plist` x (from the centre). */
+function unitX(x: number): number {
+  return HUD_DESIGN_WIDTH / 2 + HUD_UNIT * x;
+}
+
+/** Design y of a `hud.plist` y with `y_origin = -1` (up from the bottom). */
+function unitY(y: number): number {
+  return HUD_DESIGN_HEIGHT - HUD_UNIT * y;
+}
 
 /** The classic green vector palette (D-06, A5). */
 export const HUD_COLOR = "#33ff66";
@@ -39,21 +71,57 @@ export const HUD_SCANNER_NEUTRAL_COLOR = "#ffee33";
  * `{0.5, 0.0, 1.0}`, "purpley-blue"): the colour of a police ship's lollipop.
  */
 export const HUD_SCANNER_POLICE_COLOR = "#8000ff";
-export const HUD_SMALL_FONT =
-  "20px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
-const HUD_GAUGE_FONT =
-  "20px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
+/** `hud.plist` `message_gui` `text_color = "yellowColor"` (D-08). */
+export const HUD_MESSAGE_COLOR = "rgb(255, 255, 0)";
+/** `drawCompass:` `rgb_color = (0.0, 0.0, 1.0)` (`hud.plist:45-52`). */
+const COMPASS_RING_COLOR = "rgb(0, 0, 255)";
+/** `SetCompassBlipColor`: green in front, red behind (`HeadUpDisplay.m`). */
+const COMPASS_FRONT_COLOR = "rgb(0, 255, 0)";
+const COMPASS_BEHIND_COLOR = "rgb(255, 0, 0)";
+/** `drawAegis:` fills green at half alpha. */
+const AEGIS_COLOR = "rgba(0, 255, 0, 0.5)";
+/** `drawStatusLight:` outlines the light in 0.25 grey. */
+const CONDITION_OUTLINE_COLOR = "rgb(64, 64, 64)";
 
-/** Oolite's 288x64 ellipse, scaled 1.75x to 504x112 for 1080p readability (D-08). */
-export const SCANNER_WIDTH = 504;
-export const SCANNER_HEIGHT = 112;
-export const COMPASS_RADIUS = 48;
+const HUD_FONT_FAMILY =
+  "ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace";
+/** The clock and its hyperspace line (D-01: unchanged). */
+export const HUD_SMALL_FONT = `20px ${HUD_FONT_FAMILY}`;
+/**
+ * The message rows: `message_gui` rows of 14 units. Oolite's font is
+ * proportional and a monospace web font is not, so the sizes below are
+ * calibrated on Oolite's own text at 1280x720 (quick task 261118-cyn):
+ * "Hyperspeed mass-locked." is 207 screen px wide there, 310.5 design px,
+ * which a 22.5 px monospace font matches.
+ */
+export const HUD_MESSAGE_FONT = `22.5px ${HUD_FONT_FAMILY}`;
+/** Legends with a 14-unit cell (SPD, MISS), calibrated on their widths. */
+const HUD_LEGEND_FONT_14 = `27px ${HUD_FONT_FAMILY}`;
+/** Legends with a 12-unit cell (FWD, AFT, ROLL, PITCH). */
+const HUD_LEGEND_FONT_12 = `23px ${HUD_FONT_FAMILY}`;
+/** Legends with a 10-unit cell (FUEL, CT, LT, ALT) and the two readouts (D-10). */
+const HUD_LEGEND_FONT_10 = `19px ${HUD_FONT_FAMILY}`;
+/** The energy bank labels: `drawEnergyGauge:` cells of 9 x 12 units. */
+const HUD_ENERGY_LABEL_FONT = `14px ${HUD_FONT_FAMILY}`;
 
-/** Lollipop geometry scaled from Oolite's 288x64 scanner (`HeadUpDisplay.m:1265-1275`) to 504x112 (1.75x). */
-const LOLLIPOP_HEAD_WIDTH = 8.75;
-const LOLLIPOP_HEAD_HEIGHT = 5.25;
-const LOLLIPOP_HEAD_LEFT_OFFSET = 5.25;
-const LOLLIPOP_STALK_WIDTH = 3.5;
+/** Oolite's 288x64 scanner (`hud.plist:19-28`) at 2.25 px per unit (D-05). */
+export const SCANNER_WIDTH = 648;
+export const SCANNER_HEIGHT = 144;
+/**
+ * Oolite's compass `siz`: `COMPASS_HALF_SIZE` 28 units (`HeadUpDisplay.h:57`),
+ * which `GLDrawOval` draws as the full ring size (`OOOpenGL.m:132-146`).
+ */
+export const COMPASS_SIZE = 63;
+
+/**
+ * Lollipop geometry from `drawScanner:` (`HeadUpDisplay.m:1334-1347`): a 5x3
+ * unit head starting 3 units left of the stalk, a 2-unit stalk, at 2.25 px
+ * per unit.
+ */
+const LOLLIPOP_HEAD_WIDTH = 11.25;
+const LOLLIPOP_HEAD_HEIGHT = 6.75;
+const LOLLIPOP_HEAD_LEFT_OFFSET = 6.75;
+const LOLLIPOP_STALK_WIDTH = 4.5;
 const LOLLIPOP_STALK_ALPHA = 0.65;
 
 export type HudElementId =
@@ -91,38 +159,67 @@ export interface HudRect {
   readonly height: number;
 }
 
+/** A gauge bar's width: 80 units. */
+const BAR_WIDTH = 180;
+/** `draw_surround` adds 2 units on each side (`hudDrawSurroundAt`). */
+const SURROUND_PAD = 4.5;
+/** Left edge of the left-hand bars: x -200, minus half of 80 units. */
+const LEFT_BAR_X = unitX(-200) - BAR_WIDTH / 2;
+/** Left edge of the right-hand bars: x 200, minus half of 80 units. */
+const RIGHT_BAR_X = unitX(200) - BAR_WIDTH / 2;
+/** The left legends are right-aligned at x -245 (`hud.plist:244-310`). */
+const LEFT_LEGEND_X = unitX(-245);
+/** The right legends are left-aligned at x 242 (`hud.plist:311-351`). */
+const RIGHT_LEGEND_X = unitX(242);
+/** The kept "7.0 LY" readout (D-10): right-aligned left of the FUEL legend. */
+const FUEL_READOUT_RIGHT = 358;
+/** The kept "0.000 LS" readout (D-10): left-aligned right of the SPD legend. */
+const SPEED_READOUT_X = RIGHT_LEGEND_X + 54;
+
 /** Design-space bounding boxes, one per drawn element. */
 export const HUD_LAYOUT: Readonly<Record<HudElementId, HudRect>> = {
-  crosshair: { x: 920, y: 500, width: 80, height: 80 },
+  // `crosshairs.plist` OTHER at `crosshair_scale` 32: arms 16 to 32 units out.
+  crosshair: { x: 888, y: 468, width: 144, height: 144 },
+  // `hud.plist:19-28`: x 0, y 68, 288x64.
   scanner: {
     x: 960 - SCANNER_WIDTH / 2,
-    y: 868 - SCANNER_HEIGHT / 2,
+    y: 927 - SCANNER_HEIGHT / 2,
     width: SCANNER_WIDTH,
     height: SCANNER_HEIGHT,
   },
+  // `hud.plist:45-52`: x 132, y 32.
   compass: {
-    x: 1276 - COMPASS_RADIUS,
-    y: 868 - COMPASS_RADIUS,
-    width: COMPASS_RADIUS * 2,
-    height: COMPASS_RADIUS * 2,
+    x: 1257 - COMPASS_SIZE / 2,
+    y: 1008 - COMPASS_SIZE / 2,
+    width: COMPASS_SIZE,
+    height: COMPASS_SIZE,
   },
-  aegis: { x: 596, y: 820, width: 96, height: 96 },
-  speed: { x: 1356, y: 812, width: 404, height: 22 },
-  roll: { x: 1356, y: 840, width: 404, height: 18 },
-  pitch: { x: 1356, y: 858, width: 404, height: 18 },
-  fuel: { x: 160, y: 872, width: 404, height: 18 },
+  // `hud.plist:53-59`: x -132, y 32, `AEGIS_WIDTH` x `AEGIS_HEIGHT` 24.
+  aegis: { x: 636, y: 981, width: 54, height: 54 },
+  // `hud.plist:67-75` and the SPD legend (`hud.plist:311-319`): the surround
+  // around the 80x8 bar at (200, 95), the legend and the readout.
+  speed: { x: 1315.5, y: 852.75, width: 335, height: 27 },
+  // `hud.plist:76-93`: ROLL (200, 80) and PITCH (200, 70), 80x6 bars whose
+  // surrounds share their middle border, with their legends.
+  roll: { x: 1315.5, y: 888.75, width: 243, height: 22.5 },
+  pitch: { x: 1315.5, y: 911.25, width: 256, height: 22.5 },
+  // `hud.plist:140-147`: the 80x8 FUEL bar at (-200, 61), its legend and the
+  // readout to its left.
+  fuel: { x: 300, y: 933.75, width: 300, height: 18 },
+  // D-01 (owner 2026-11-18): the clock stays at the top left.
   clock: { x: 60, y: 40, width: 360, height: 40 },
-  condition: { x: 1848, y: 48, width: 24, height: 24 },
-  message: { x: 510, y: 944, width: 900, height: 40 },
+  // `hud.plist:191-198`: `drawStatusLight:` x -108, y 32, 8x8.
+  condition: { x: 708, y: 999, width: 18, height: 18 },
+  // `hud.plist:368-380` `message_gui`: x 128, y -60 (centre-anchored), 252x140.
+  message: { x: 964.5, y: 517.5, width: 567, height: 315 },
 };
 
 /**
- * How many of Oolite's ten message rows the HUD draws: the bottom two, as two
- * 20 px rows of `HUD_SMALL_FONT` inside `HUD_LAYOUT.message` (quick task
- * 261117-pij). The queue keeps all ten, so a later layout change only changes
- * this count.
+ * How many of Oolite's message rows the HUD draws: all ten (`message_gui`
+ * height 140 over rows of 14), in ten 31.5 px bands of `HUD_LAYOUT.message`,
+ * newest at the bottom (quick task 261118-cyn, D-03).
  */
-export const HUD_MESSAGE_ROWS = 2;
+export const HUD_MESSAGE_ROWS = MESSAGE_ROWS;
 
 export interface HudContact extends ScannerBlip {
   readonly id: "station" | "navBuoy" | "witchpoint" | "ship";
@@ -186,6 +283,12 @@ export interface HudModel {
    */
   readonly identFrame: IdentFrame | null;
   /**
+   * Oolite's scanner flash phase, `((int)(time * 4)) & 1`
+   * (`HeadUpDisplay.m:1113`): buoys draw friendly green when it is set and
+   * neutral yellow otherwise (D-08).
+   */
+  readonly scannerFlash: boolean;
+  /**
    * The tangent of the forward view's horizontal half-angle, Oolite's `tanfov`
    * (`HeadUpDisplay.m:4002-4006`): the scanner's forward-view lines open to it.
    * `buildHudModel` writes it from the shared rule in `src/render/viewport.ts`.
@@ -193,8 +296,13 @@ export interface HudModel {
   readonly viewTanX: number;
 }
 
-const CROSSHAIR_GAP = 10;
-const CROSSHAIR_ARM = 26;
+/**
+ * Oolite's `OTHER` crosshair (`crosshairs.plist:45-51`) at `crosshair_scale`
+ * 32 (`hud.plist:2`): four arms from 0.5 to 1.0 of the scale, 36 to 72 design
+ * px out (D-05).
+ */
+const CROSSHAIR_INNER = 36;
+const CROSSHAIR_OUTER = 72;
 
 function rectCentre(rect: HudRect): { x: number; y: number } {
   return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
@@ -205,14 +313,14 @@ function drawCrosshair(context: CanvasRenderingContext2D): void {
   context.strokeStyle = HUD_COLOR;
   context.lineWidth = 2;
   context.beginPath();
-  context.moveTo(x - CROSSHAIR_GAP - CROSSHAIR_ARM, y);
-  context.lineTo(x - CROSSHAIR_GAP, y);
-  context.moveTo(x + CROSSHAIR_GAP, y);
-  context.lineTo(x + CROSSHAIR_GAP + CROSSHAIR_ARM, y);
-  context.moveTo(x, y - CROSSHAIR_GAP - CROSSHAIR_ARM);
-  context.lineTo(x, y - CROSSHAIR_GAP);
-  context.moveTo(x, y + CROSSHAIR_GAP);
-  context.lineTo(x, y + CROSSHAIR_GAP + CROSSHAIR_ARM);
+  context.moveTo(x - CROSSHAIR_OUTER, y);
+  context.lineTo(x - CROSSHAIR_INNER, y);
+  context.moveTo(x + CROSSHAIR_INNER, y);
+  context.lineTo(x + CROSSHAIR_OUTER, y);
+  context.moveTo(x, y - CROSSHAIR_OUTER);
+  context.lineTo(x, y - CROSSHAIR_INNER);
+  context.moveTo(x, y + CROSSHAIR_INNER);
+  context.lineTo(x, y + CROSSHAIR_OUTER);
   context.stroke();
 }
 
@@ -254,13 +362,22 @@ function drawIdentFrame(
   context.stroke();
 }
 
-/** The lollipop colour of a contact kind: Oolite's per-class scanner colours. */
-export function scannerContactColor(kind: HudContact["kind"]): string {
+/**
+ * The lollipop colour of a contact kind: Oolite's per-class scanner colours.
+ * The nav buoy and the witchpoint buoy are both Oolite's `CLASS_BUOY`, which
+ * alternates the friendly and neutral colours on the scanner flash
+ * (`ShipEntity.m:5667-5671`, D-08); the other kinds ignore `flash`.
+ */
+export function scannerContactColor(
+  kind: HudContact["kind"],
+  flash: boolean,
+): string {
   switch (kind) {
     case "station":
       return HUD_COLOR;
     case "buoy":
     case "beacon":
+      return flash ? HUD_COLOR : HUD_SCANNER_NEUTRAL_COLOR;
     case "ship":
       return HUD_SCANNER_NEUTRAL_COLOR;
     case "police":
@@ -345,13 +462,14 @@ function drawScannerContacts(
   x: number,
   y: number,
   contacts: readonly HudContact[],
+  flash: boolean,
 ): void {
   for (const contact of contacts) {
     if (!contact.visible) continue;
     const baseX = x + contact.x;
     const baseY = y + contact.yBase;
     const headY = baseY + contact.yTail;
-    const color = scannerContactColor(contact.kind);
+    const color = scannerContactColor(contact.kind, flash);
 
     context.fillStyle = color;
     const stalkHeight = Math.abs(contact.yTail);
@@ -383,164 +501,245 @@ function drawScanner(context: CanvasRenderingContext2D, model: HudModel): void {
 
   context.save();
   drawScannerGrid(context, x, y, ww, hh, model.scannerRange, model.viewTanX);
-  drawScannerContacts(context, x, y, model.contacts);
+  drawScannerContacts(context, x, y, model.contacts, model.scannerFlash);
   context.restore();
 }
 
-function compassLabel(target: CompassTarget): string {
-  switch (target) {
-    case "planet":
-      return "P";
-    case "station":
-      return "S";
-    case "witchpoint":
-      return "W";
-  }
-}
+/** The compass blip size: `siz` times 0.2 (`drawCompass:`). */
+const COMPASS_BLIP = 0.2 * COMPASS_SIZE;
+/**
+ * The compass ring and blips use twice Oolite's line width, 2 screen px,
+ * which is 3 design px at 1280x720.
+ */
+const COMPASS_LINE_WIDTH = 3;
+/** The witchpoint beacon's code letter (`shipdata.plist:1113`, "W0100 ..."). */
+const WITCHPOINT_BEACON_CODE = "W";
 
+/**
+ * Oolite's `drawCompass:` (`HeadUpDisplay.m:1455-1546`): a blue ring of the
+ * compass size, four cross ticks from 0.125 to 0.375 of it at half alpha, and
+ * the target's blip at the projected point (D-06). Wegolite's compass targets
+ * are the planet (`drawCompassPlanetBlipAt`), the station
+ * (`drawCompassStationBlipAt`) and the witchpoint buoy, a beacon
+ * (`drawCompassBeaconBlipAt` plus its code letter, `oo_drawHUDBeaconIconAt`);
+ * Wegolite has no sun or target mode. No caption is drawn.
+ */
 function drawCompass(
   context: CanvasRenderingContext2D,
   compass: HudCompass,
 ): void {
-  const rect = HUD_LAYOUT.compass;
-  const { x, y } = rectCentre(rect);
-  const ringRadius = COMPASS_RADIUS;
+  const { x, y } = rectCentre(HUD_LAYOUT.compass);
+  const size = COMPASS_SIZE;
 
-  context.strokeStyle = HUD_COLOR;
-  context.lineWidth = 2;
+  context.save();
+  context.strokeStyle = COMPASS_RING_COLOR;
+  context.lineWidth = COMPASS_LINE_WIDTH;
   context.beginPath();
-  context.arc(x, y, ringRadius, 0, Math.PI * 2);
+  context.arc(x, y, size / 2, 0, Math.PI * 2);
   context.stroke();
 
+  context.globalAlpha = 0.5;
   context.beginPath();
-  context.moveTo(x - COMPASS_RADIUS * 0.125, y);
-  context.lineTo(x - COMPASS_RADIUS * 0.375, y);
-  context.moveTo(x + COMPASS_RADIUS * 0.125, y);
-  context.lineTo(x + COMPASS_RADIUS * 0.375, y);
-  context.moveTo(x, y - COMPASS_RADIUS * 0.125);
-  context.lineTo(x, y - COMPASS_RADIUS * 0.375);
-  context.moveTo(x, y + COMPASS_RADIUS * 0.125);
-  context.lineTo(x, y + COMPASS_RADIUS * 0.375);
+  context.moveTo(x - size * 0.125, y);
+  context.lineTo(x - size * 0.375, y);
+  context.moveTo(x + size * 0.125, y);
+  context.lineTo(x + size * 0.375, y);
+  context.moveTo(x, y - size * 0.125);
+  context.lineTo(x, y - size * 0.375);
+  context.moveTo(x, y + size * 0.125);
+  context.lineTo(x, y + size * 0.375);
   context.stroke();
+  context.globalAlpha = 1;
 
-  context.fillStyle = compass.forward ? HUD_COLOR : HUD_AMBER;
-  context.beginPath();
-  context.arc(x + compass.x, y + compass.y, 4.5, 0, Math.PI * 2);
-  context.fill();
-
-  context.fillStyle = HUD_COLOR;
-  context.font = HUD_SMALL_FONT;
-  context.textAlign = "center";
-  context.fillText(compassLabel(compass.target), x, y + ringRadius - 10);
+  const bx = x + compass.x;
+  const by = y + compass.y;
+  const blip = COMPASS_BLIP;
+  const color = compass.forward ? COMPASS_FRONT_COLOR : COMPASS_BEHIND_COLOR;
+  context.strokeStyle = color;
+  context.fillStyle = color;
+  switch (compass.target) {
+    case "planet":
+      context.beginPath();
+      context.arc(bx, by, blip / 2, 0, Math.PI * 2);
+      if (compass.forward) {
+        context.globalAlpha = 0.75;
+        context.fill();
+        context.globalAlpha = 1;
+      }
+      context.stroke();
+      break;
+    case "station":
+      context.strokeRect(bx - blip / 2, by - blip / 2, blip, blip);
+      break;
+    case "witchpoint": {
+      const d = 0.6 * blip;
+      context.beginPath();
+      context.moveTo(bx + d, by);
+      context.lineTo(bx, by - d);
+      context.lineTo(bx - d, by);
+      context.lineTo(bx, by + d);
+      context.closePath();
+      context.stroke();
+      // `oo_drawHUDBeaconIconAt` (NSString): the code letter at
+      // (x - 2.5 s, y - 3 s) in a 2s cell, below and left of the centre.
+      context.font = `${String(Math.round((0.43 * 2 * blip) / 0.6))}px ${HUD_FONT_FAMILY}`;
+      context.textAlign = "left";
+      context.textBaseline = "bottom";
+      context.fillText(WITCHPOINT_BEACON_CODE, x - 2.5 * blip, y + 3 * blip);
+      break;
+    }
+  }
+  context.restore();
 }
 
+/**
+ * The 32 numbers of `drawAegis:`'s quad strip (`HeadUpDisplay.m:1656`): 16
+ * vertices on a 16x16 grid that draw an "S".
+ */
+const AEGIS_STRIP = [
+  -7, 8, -6, 5, 5, 8, 3, 5, 7, 2, 4, 2, 6, -1, 4, 2, -4, -1, -6, 2, -4, -1, -7,
+  -1, -3, -4, -5, -7, 6, -4, 7, -7,
+] as const;
+
+/**
+ * Oolite's `drawAegis:` (`HeadUpDisplay.m:1638-1665`): only in docking range,
+ * a green "S" quad strip at half alpha, no caption (D-07). Oolite's y points
+ * up, so vertex i is at (x + w strip[2i], y + h strip[2i+1]) on the canvas.
+ */
 function drawAegis(
   context: CanvasRenderingContext2D,
   status: AegisStatus,
 ): void {
-  // Oolite's drawAegis only shows the indicator in docking range.
   if (status !== "dockingRange") return;
   const rect = HUD_LAYOUT.aegis;
   const { x, y } = rectCentre(rect);
-
-  context.strokeStyle = HUD_COLOR;
-  context.lineWidth = 2.5;
-  context.strokeRect(x - 16, y - 22, 32, 32);
-  context.strokeRect(x - 8, y - 14, 16, 16);
-
-  context.fillStyle = HUD_COLOR;
-  context.font = HUD_SMALL_FONT;
-  context.textAlign = "center";
-  context.fillText(aegisLabel(status), x, y + 28);
-}
-
-const GAUGE_BAR_WIDTH = 220;
-const GAUGE_BAR_HEIGHT = 14;
-const GAUGE_SURROUND_PAD = 4;
-const GAUGE_SURROUND_WIDTH = GAUGE_BAR_WIDTH + GAUGE_SURROUND_PAD * 2;
-const LEFT_SURROUND_X = 336;
-const LEFT_BAR_X = LEFT_SURROUND_X + GAUGE_SURROUND_PAD;
-const LEFT_LABEL_X = LEFT_SURROUND_X - 14;
-const RIGHT_SURROUND_X =
-  HUD_DESIGN_WIDTH - LEFT_SURROUND_X - GAUGE_SURROUND_WIDTH;
-const RIGHT_BAR_X = RIGHT_SURROUND_X + GAUGE_SURROUND_PAD;
-const RIGHT_LABEL_X = RIGHT_SURROUND_X + GAUGE_SURROUND_WIDTH + 14;
-
-function drawFillGauge(
-  context: CanvasRenderingContext2D,
-  barX: number,
-  barY: number,
-  value: number,
-  fillColor: string,
-  surroundColor?: string,
-): void {
-  if (surroundColor !== undefined) {
-    context.strokeStyle = surroundColor;
-    context.lineWidth = 1.75;
-    context.strokeRect(
-      barX - GAUGE_SURROUND_PAD,
-      barY - GAUGE_SURROUND_PAD,
-      GAUGE_SURROUND_WIDTH,
-      GAUGE_BAR_HEIGHT + GAUGE_SURROUND_PAD * 2,
-    );
-  }
-  const fillWidth = GAUGE_BAR_WIDTH * clamp(value, 0, 1);
-  if (fillWidth > 0) {
-    context.fillStyle = fillColor;
-    context.fillRect(barX, barY, fillWidth, GAUGE_BAR_HEIGHT);
+  const w = rect.width / 16;
+  const h = rect.height / 16;
+  const vertex = (i: number): [number, number] => [
+    x + w * (AEGIS_STRIP[2 * i] ?? 0),
+    y + h * (AEGIS_STRIP[2 * i + 1] ?? 0),
+  ];
+  context.fillStyle = AEGIS_COLOR;
+  const count = AEGIS_STRIP.length / 2;
+  // GL_QUAD_STRIP: quad k is vertices 2k, 2k+1, 2k+3, 2k+2.
+  for (let k = 0; k + 3 < count; k += 2) {
+    const quad = [vertex(k), vertex(k + 1), vertex(k + 3), vertex(k + 2)];
+    context.beginPath();
+    quad.forEach(([qx, qy], index) => {
+      if (index === 0) context.moveTo(qx, qy);
+      else context.lineTo(qx, qy);
+    });
+    context.closePath();
+    context.fill();
   }
 }
 
 /**
- * Oolite's `hudDrawIndicatorAt` (`HeadUpDisplay.m:3135-3146`):
- * green surround with a yellow diamond indicator for signed `-1..1` axes (`ROLL`, `PITCH`).
+ * A bar centred on `centreY` with its left edge at `barX` (`hudDrawBarAt`),
+ * filled to `value` of `BAR_WIDTH`, with an optional surround 2 units out
+ * (`hudDrawSurroundAt`).
  */
-function drawSignedDiamondGauge(
+function drawBar(
   context: CanvasRenderingContext2D,
-  surroundX: number,
-  surroundY: number,
-  surroundHeight: number,
+  barX: number,
+  centreY: number,
+  height: number,
+  value: number,
+  fillColor: string,
+  surroundColor?: string,
+): void {
+  const top = centreY - height / 2;
+  if (surroundColor !== undefined) {
+    context.strokeStyle = surroundColor;
+    context.lineWidth = 1.75;
+    context.strokeRect(
+      barX - SURROUND_PAD,
+      top - SURROUND_PAD,
+      BAR_WIDTH + SURROUND_PAD * 2,
+      height + SURROUND_PAD * 2,
+    );
+  }
+  const fillWidth = BAR_WIDTH * clamp(value, 0, 1);
+  if (fillWidth > 0) {
+    context.fillStyle = fillColor;
+    context.fillRect(barX, top, fillWidth, height);
+  }
+}
+
+/**
+ * Oolite's `hudDrawIndicatorAt` (`HeadUpDisplay.m:3135-3146`) inside a green
+ * surround: a yellow diamond 2 units either side of `x + amount w / 2`, the
+ * bar's full height, for the signed -1..1 ROLL and PITCH dials.
+ */
+function drawIndicator(
+  context: CanvasRenderingContext2D,
+  barX: number,
+  centreY: number,
+  height: number,
   value: number,
 ): void {
   context.strokeStyle = HUD_COLOR;
   context.lineWidth = 1.75;
   context.strokeRect(
-    surroundX,
-    surroundY,
-    GAUGE_SURROUND_WIDTH,
-    surroundHeight,
+    barX - SURROUND_PAD,
+    centreY - height / 2 - SURROUND_PAD,
+    BAR_WIDTH + SURROUND_PAD * 2,
+    height + SURROUND_PAD * 2,
   );
-
-  const centerX = surroundX + GAUGE_SURROUND_WIDTH / 2;
-  const centerY = surroundY + surroundHeight / 2;
-  const position = centerX + clamp(value, -1, 1) * ((GAUGE_BAR_WIDTH - 8) / 2);
-  const halfHeight = Math.max(4, surroundHeight / 2 - 2.5);
-
+  const position = barX + BAR_WIDTH / 2 + (clamp(value, -1, 1) * BAR_WIDTH) / 2;
   context.fillStyle = HUD_SCANNER_NEUTRAL_COLOR;
   context.beginPath();
-  context.moveTo(position, centerY - halfHeight);
-  context.lineTo(position + 4.5, centerY);
-  context.lineTo(position, centerY + halfHeight);
-  context.lineTo(position - 4.5, centerY);
+  context.moveTo(position, centreY - height / 2);
+  context.lineTo(position + 2 * HUD_UNIT, centreY);
+  context.lineTo(position, centreY + height / 2);
+  context.lineTo(position - 2 * HUD_UNIT, centreY);
   context.closePath();
   context.fill();
 }
 
+/** `hud.plist:182-190` `drawMissileDisplay:`: x -228, y 16, 12x12 icons 16 apart. */
+const MISSILE_X = -228;
+const MISSILE_Y = 16;
+const MISSILE_ICON_UNITS = 12;
+const MISSILE_SPACING_UNITS = 16;
+/**
+ * `oolite-default-missile-icon` (`descriptions.plist:916-925`): the arrow
+ * polygon in sprite units, y up.
+ */
+const MISSILE_ICON_POLYGON: ReadonlyArray<readonly [number, number]> = [
+  [0, 3],
+  [2, 0],
+  [1, 0],
+  [1, -2],
+  [-1, -2],
+  [-1, 0],
+  [-2, 0],
+];
+
+/**
+ * Oolite's pylon icon (`drawIconForMissile:`, `drawIconForEmptyPylonAtX:`):
+ * pylon i sits at x + 16 i + 2 units (`HeadUpDisplay.m:2446-2459`); the
+ * polygon is scaled by a quarter of the icon size (3 units) and translated to
+ * (x - 6, y - 6) units, so an icon is 12 units wide and 15 high.
+ */
 function drawMissileIcon(
   context: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
+  index: number,
   filled: boolean,
   selected: boolean,
 ): void {
+  const scale = (MISSILE_ICON_UNITS / 4) * HUD_UNIT;
+  const originX = unitX(
+    MISSILE_X + index * MISSILE_SPACING_UNITS + 2 - MISSILE_ICON_UNITS / 2,
+  );
+  const originY = unitY(MISSILE_Y - MISSILE_ICON_UNITS / 2);
   context.beginPath();
-  context.moveTo(cx, cy - 11);
-  context.lineTo(cx + 8, cy - 1);
-  context.lineTo(cx + 3.5, cy - 1);
-  context.lineTo(cx + 5, cy + 10);
-  context.lineTo(cx - 5, cy + 10);
-  context.lineTo(cx - 3.5, cy - 1);
-  context.lineTo(cx - 8, cy - 1);
+  MISSILE_ICON_POLYGON.forEach(([px, py], point) => {
+    const x = originX + px * scale;
+    const y = originY - py * scale;
+    if (point === 0) context.moveTo(x, y);
+    else context.lineTo(x, y);
+  });
   context.closePath();
 
   if (filled) {
@@ -559,148 +758,213 @@ function drawMissileIcon(
 }
 
 /**
- * Left-hand Oolite gauge stack (`hud.plist` LHS):
- * - `FWD` and `AFT` shield bars (green surrounds, live fill)
- * - yellow system surround enclosing `FUEL`, `CT` and `LT` (all live) and an
- *   `ALT` placeholder
- * - `MISS` missile pylon display placeholder below the yellow surround
+ * Draw a legend whose Oolite cell (`cell` units high) has its bottom on
+ * `bottom`, as `OODrawStringAligned` does. Oolite's capitals fill the upper
+ * two thirds of the cell (measured at 1280x720: every legend's capitals are
+ * centred 2/3 of a cell above its bottom, on its bar's centre line), so the
+ * text is drawn middle-aligned there.
+ */
+function drawLegend(
+  context: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  bottom: number,
+  cell: number,
+  font: string,
+): void {
+  context.font = font;
+  context.textBaseline = "middle";
+  context.fillText(text, x, bottom - (2 / 3) * cell * HUD_UNIT);
+}
+
+/**
+ * Left-hand Oolite gauge stack (`hud.plist:113-190`, legends `hud.plist:244-310`):
+ * - `FWD` (y 94) and `AFT` (y 78) shield bars in green surrounds
+ * - the yellow surround (y 46, 80x40) around `FUEL` (61), `CT` (51), `LT` (41)
+ *   and the `ALT` placeholder (31)
+ * - the `MISS` pylon placeholder at y 16
  */
 function drawLeftGauges(
   context: CanvasRenderingContext2D,
   model: HudModel,
 ): void {
-  context.font = HUD_GAUGE_FONT;
-  context.textAlign = "right";
-
-  // Live FWD shield (top aligned with scanner top y = 812).
-  drawFillGauge(
+  const barHeight = 8 * HUD_UNIT;
+  drawBar(
     context,
     LEFT_BAR_X,
-    816,
+    unitY(94),
+    barHeight,
     model.bars.shieldFwd,
     HUD_COLOR,
     HUD_COLOR,
   );
-  context.fillStyle = HUD_COLOR;
-  context.fillText("FWD", LEFT_LABEL_X, 823);
-
-  // Live AFT shield.
-  drawFillGauge(
+  drawBar(
     context,
     LEFT_BAR_X,
-    844,
+    unitY(78),
+    barHeight,
     model.bars.shieldAft,
     HUD_COLOR,
     HUD_COLOR,
   );
-  context.fillStyle = HUD_COLOR;
-  context.fillText("AFT", LEFT_LABEL_X, 851);
 
-  // Shared yellow surround for FUEL, CT, LT, ALT (hud.plist drawSurround:).
+  // `drawSurround:` (`hud.plist:131-139`): yellow, 2 units around 80x40.
   context.strokeStyle = HUD_SCANNER_NEUTRAL_COLOR;
   context.lineWidth = 1.75;
-  context.strokeRect(LEFT_SURROUND_X, 868, GAUGE_SURROUND_WIDTH, 88);
-
-  // Live FUEL bar (yellow, with fuelText to the left of the label).
-  drawFillGauge(
+  context.strokeRect(
+    LEFT_BAR_X - SURROUND_PAD,
+    unitY(46) - (40 * HUD_UNIT) / 2 - SURROUND_PAD,
+    BAR_WIDTH + SURROUND_PAD * 2,
+    40 * HUD_UNIT + SURROUND_PAD * 2,
+  );
+  drawBar(
     context,
     LEFT_BAR_X,
-    874,
+    unitY(61),
+    barHeight,
     model.bars.fuel,
     HUD_SCANNER_NEUTRAL_COLOR,
   );
-  context.fillStyle = HUD_COLOR;
-  context.fillText("FUEL", LEFT_LABEL_X, 881);
-  context.fillText(model.fuelText, LEFT_LABEL_X - 66, 881);
+  drawBar(
+    context,
+    LEFT_BAR_X,
+    unitY(51),
+    barHeight,
+    model.bars.cabinTemp,
+    HUD_COLOR,
+  );
+  drawBar(
+    context,
+    LEFT_BAR_X,
+    unitY(41),
+    barHeight,
+    model.bars.laserTemp,
+    HUD_COLOR,
+  );
+  // The altitude (ALT) gauge stays a placeholder.
+  drawBar(context, LEFT_BAR_X, unitY(31), barHeight, 0.92, HUD_COLOR);
 
-  // Live cabin temperature (CT) and laser temperature (LT); the altitude
-  // (ALT) gauge stays a placeholder.
-  drawFillGauge(context, LEFT_BAR_X, 894, model.bars.cabinTemp, HUD_COLOR);
   context.fillStyle = HUD_COLOR;
-  context.fillText("CT", LEFT_LABEL_X, 901);
+  context.textAlign = "right";
+  const left = LEFT_LEGEND_X;
+  drawLegend(context, "FWD", left, unitY(86), 12, HUD_LEGEND_FONT_12);
+  drawLegend(context, "AFT", left, unitY(70), 12, HUD_LEGEND_FONT_12);
+  drawLegend(context, "FUEL", left, unitY(55), 10, HUD_LEGEND_FONT_10);
+  // D-10: the "7.0 LY" readout stays, right-aligned left of the FUEL legend.
+  drawLegend(
+    context,
+    model.fuelText,
+    FUEL_READOUT_RIGHT,
+    unitY(55),
+    10,
+    HUD_LEGEND_FONT_10,
+  );
+  drawLegend(context, "CT", left, unitY(45), 10, HUD_LEGEND_FONT_10);
+  drawLegend(context, "LT", left, unitY(34), 10, HUD_LEGEND_FONT_10);
+  drawLegend(context, "ALT", left, unitY(24), 10, HUD_LEGEND_FONT_10);
+  drawLegend(context, "MISS", left, unitY(3), 14, HUD_LEGEND_FONT_14);
 
-  drawFillGauge(context, LEFT_BAR_X, 914, model.bars.laserTemp, HUD_COLOR);
-  context.fillStyle = HUD_COLOR;
-  context.fillText("LT", LEFT_LABEL_X, 921);
-
-  drawFillGauge(context, LEFT_BAR_X, 934, 0.92, HUD_COLOR);
-  context.fillStyle = HUD_COLOR;
-  context.fillText("ALT", LEFT_LABEL_X, 941);
-
-  // Missile display placeholder (MISS + 4 pylons), kept clear of the bottom HTML footer.
-  context.fillStyle = HUD_COLOR;
-  context.fillText("MISS", LEFT_LABEL_X, 978);
+  // Missile pylon placeholder (4 pylons, three loaded).
   for (let i = 0; i < 4; i += 1) {
-    drawMissileIcon(context, LEFT_BAR_X + 14 + i * 30, 978, i < 3, i === 0);
+    drawMissileIcon(context, i, i < 3, i === 0);
   }
 }
 
+/** `drawEnergyGauge:` (`hud.plist:103-112`): x 200, y 35, 80x48, four banks. */
+const ENERGY_Y = 35;
+const ENERGY_HEIGHT = 48;
+const ENERGY_BANKS = 4;
+
 /**
- * Right-hand Oolite gauge stack (`hud.plist` RHS):
- * - `SPD` speed bar (live, top aligned with scanner top y = 812)
- * - `ROLL` and `PITCH` signed yellow-diamond indicators (live)
- * - yellow energy surround enclosing 4 live energy banks `E1`..`E4`
+ * Right-hand Oolite gauge stack (`hud.plist:67-112`, legends `hud.plist:311-351`):
+ * - `SPD` speed bar (y 95) with the kept "0.000 LS" readout (D-10)
+ * - `ROLL` (y 80) and `PITCH` (y 70) yellow-diamond indicators
+ * - the energy gauge's yellow surround around the four banks `E1`..`E4`
  */
 function drawRightGauges(
   context: CanvasRenderingContext2D,
   model: HudModel,
 ): void {
-  context.font = HUD_GAUGE_FONT;
-  context.textAlign = "left";
-
-  // Live SPD bar.
-  drawFillGauge(
+  drawBar(
     context,
     RIGHT_BAR_X,
-    816,
+    unitY(95),
+    8 * HUD_UNIT,
     model.bars.speed,
     HUD_COLOR,
     HUD_COLOR,
   );
-  context.fillStyle = HUD_COLOR;
-  context.fillText("SPD", RIGHT_LABEL_X, 823);
-  context.fillText(model.speedText, RIGHT_LABEL_X + 54, 823);
-
-  // Live ROLL and PITCH diamond indicators sharing their middle border.
-  drawSignedDiamondGauge(
+  drawIndicator(context, RIGHT_BAR_X, unitY(80), 6 * HUD_UNIT, model.bars.roll);
+  drawIndicator(
     context,
-    RIGHT_SURROUND_X,
-    HUD_LAYOUT.roll.y,
-    HUD_LAYOUT.roll.height,
-    model.bars.roll,
-  );
-  context.fillStyle = HUD_COLOR;
-  context.fillText("ROLL", RIGHT_LABEL_X, 849);
-
-  drawSignedDiamondGauge(
-    context,
-    RIGHT_SURROUND_X,
-    HUD_LAYOUT.pitch.y,
-    HUD_LAYOUT.pitch.height,
+    RIGHT_BAR_X,
+    unitY(70),
+    6 * HUD_UNIT,
     model.bars.pitch,
   );
-  context.fillStyle = HUD_COLOR;
-  context.fillText("PITCH", RIGHT_LABEL_X, 867);
 
-  // Shared yellow surround for energy banks E1..E4 (hud.plist drawEnergyGauge:).
+  // The energy surround, then the banks: `bankHeight = 48 / 4` units, each bar
+  // 2 units shorter, E1 at the top (`HeadUpDisplay.m:1977-2040`).
+  const centreY = unitY(ENERGY_Y);
+  const gaugeHeight = ENERGY_HEIGHT * HUD_UNIT;
   context.strokeStyle = HUD_SCANNER_NEUTRAL_COLOR;
   context.lineWidth = 1.75;
-  context.strokeRect(RIGHT_SURROUND_X, 884, GAUGE_SURROUND_WIDTH, 88);
-
-  for (let i = 0; i < 4; i += 1) {
-    const bankY = 890 + i * 20;
-    drawFillGauge(
+  context.strokeRect(
+    RIGHT_BAR_X - SURROUND_PAD,
+    centreY - gaugeHeight / 2 - SURROUND_PAD,
+    BAR_WIDTH + SURROUND_PAD * 2,
+    gaugeHeight + SURROUND_PAD * 2,
+  );
+  const bankHeight = gaugeHeight / ENERGY_BANKS;
+  const top = centreY - gaugeHeight / 2;
+  for (let i = 0; i < ENERGY_BANKS; i += 1) {
+    drawBar(
       context,
       RIGHT_BAR_X,
-      bankY,
+      top + bankHeight * (i + 0.5),
+      bankHeight - 2 * HUD_UNIT,
       model.bars.energyBanks[i] ?? 0,
       HUD_SCANNER_NEUTRAL_COLOR,
     );
-    context.fillStyle = HUD_COLOR;
-    context.fillText(`E${String(i + 1)}`, RIGHT_LABEL_X, bankY + 7);
+  }
+
+  context.fillStyle = HUD_COLOR;
+  context.textAlign = "left";
+  const right = RIGHT_LEGEND_X;
+  drawLegend(context, "SPD", right, unitY(86), 14, HUD_LEGEND_FONT_14);
+  // D-10: the "0.000 LS" readout stays, right of the SPD legend.
+  drawLegend(
+    context,
+    model.speedText,
+    SPEED_READOUT_X,
+    unitY(86),
+    14,
+    HUD_LEGEND_FONT_10,
+  );
+  drawLegend(context, "ROLL", right, unitY(72), 12, HUD_LEGEND_FONT_12);
+  drawLegend(context, "PITCH", right, unitY(62), 12, HUD_LEGEND_FONT_12);
+  // The bank labels start 3 units right of the gauge (`labelStartX`) in cells
+  // 12 units high whose bottom is 1 unit below the bank's bottom edge.
+  const labelX = RIGHT_BAR_X + BAR_WIDTH + 3 * HUD_UNIT;
+  for (let i = 0; i < ENERGY_BANKS; i += 1) {
+    drawLegend(
+      context,
+      `E${String(i + 1)}`,
+      labelX,
+      top + bankHeight * (i + 1) + HUD_UNIT,
+      12,
+      HUD_ENERGY_LABEL_FONT,
+    );
   }
 }
 
+/**
+ * Oolite's `drawStatusLight:` (`HeadUpDisplay.m:2545-2595`): the octagon of
+ * `hudDrawStatusIconAt` (`HeadUpDisplay.m:3220-3234`, corners cut at a
+ * quarter of the size) filled in the condition colour and outlined in grey
+ * (D-04). The colours stay Wegolite's (D-10); Oolite's alpha pulse is not
+ * ported.
+ */
 function drawCondition(
   context: CanvasRenderingContext2D,
   condition: HudModel["condition"],
@@ -710,11 +974,32 @@ function drawCondition(
     yellow: HUD_AMBER,
     red: HUD_RED,
   };
-  const { x, y } = rectCentre(HUD_LAYOUT.condition);
-  context.fillStyle = colors[condition];
+  const rect = HUD_LAYOUT.condition;
+  const ox = rect.x;
+  const oy = rect.y;
+  const w = rect.width / 4;
+  const h = rect.height / 4;
+  const points: ReadonlyArray<readonly [number, number]> = [
+    [ox, oy + h],
+    [ox, oy + 3 * h],
+    [ox + w, oy + 4 * h],
+    [ox + 3 * w, oy + 4 * h],
+    [ox + 4 * w, oy + 3 * h],
+    [ox + 4 * w, oy + h],
+    [ox + 3 * w, oy],
+    [ox + w, oy],
+  ];
   context.beginPath();
-  context.arc(x, y, 10, 0, Math.PI * 2);
+  points.forEach(([px, py], index) => {
+    if (index === 0) context.moveTo(px, py);
+    else context.lineTo(px, py);
+  });
+  context.closePath();
+  context.fillStyle = colors[condition];
   context.fill();
+  context.strokeStyle = CONDITION_OUTLINE_COLOR;
+  context.lineWidth = 1.5;
+  context.stroke();
 }
 
 /** The band width of the D-08 red frame, in design units. */
@@ -741,20 +1026,23 @@ function drawFlash(context: CanvasRenderingContext2D, alpha: number): void {
 }
 
 /**
- * Oolite's message rows (`GuiDisplayGen.m:1327-1336`): slot i of
- * `HUD_MESSAGE_ROWS` is centred on the (2i + 1)th of 2 x `HUD_MESSAGE_ROWS`
- * equal parts of the message rectangle, the newest at the bottom, each drawn
- * at its own alpha (a row fades over its last second).
+ * Oolite's message area (`hud.plist` `message_gui`, `GuiDisplayGen.m:1327-1336`):
+ * slot i of `HUD_MESSAGE_ROWS` is centred in the ith of ten 31.5 px bands of
+ * the message rectangle, the newest at the bottom, centred on its x, in
+ * Oolite's yellow, each at its own alpha (a row fades over its last second).
  */
 function drawMessageRows(
   context: CanvasRenderingContext2D,
   rows: readonly MessageRow[],
 ): void {
   const { message } = HUD_LAYOUT;
+  const band = message.height / HUD_MESSAGE_ROWS;
   const slots = rows.slice(-HUD_MESSAGE_ROWS);
   const offset = HUD_MESSAGE_ROWS - slots.length;
+  context.font = HUD_MESSAGE_FONT;
   context.textAlign = "center";
-  context.fillStyle = HUD_COLOR;
+  context.textBaseline = "middle";
+  context.fillStyle = HUD_MESSAGE_COLOR;
   slots.forEach((row, index) => {
     if (row.text === "" || !(row.alpha > 0)) return;
     const slot = offset + index;
@@ -762,36 +1050,49 @@ function drawMessageRows(
     context.fillText(
       row.text,
       message.x + message.width / 2,
-      message.y + (message.height * (2 * slot + 1)) / (2 * HUD_MESSAGE_ROWS),
+      message.y + band * (slot + 0.5),
     );
   });
   context.globalAlpha = 1;
 }
 
-/** Clear the design space and draw the model. */
+/**
+ * Clear the design space and draw the model.
+ *
+ * @param lift The HUD-ANCHOR lift in design px (option B, owner 2026-11-18):
+ *   everything but the crosshair, the ident frame, the clock lines and the
+ *   flash is drawn this much higher, so the block rests on the document
+ *   disclaimer's top edge. 0, negative or non-finite draws the plain table.
+ */
 export function drawHud(
   context: CanvasRenderingContext2D,
   model: HudModel,
+  lift = 0,
 ): void {
   context.clearRect(0, 0, HUD_DESIGN_WIDTH, HUD_DESIGN_HEIGHT);
   context.textBaseline = "middle";
 
   drawCrosshair(context);
   drawIdentFrame(context, model.identFrame);
+
+  context.save();
+  if (Number.isFinite(lift) && lift > 0) context.translate(0, -lift);
   drawScanner(context, model);
   drawCompass(context, model.compass);
   drawAegis(context, model.aegis);
   drawLeftGauges(context, model);
   drawRightGauges(context, model);
   drawCondition(context, model.condition);
+  drawMessageRows(context, model.messageRows);
+  context.restore();
 
   context.fillStyle = HUD_COLOR;
-  // The clock uses the small font because Oolite's hud.plist `drawClock:`
-  // character size is 12, about 21px at the 1.75x HUD scale (D-08). The two
-  // 20px lines are centred on the first and third quarters of the clock
-  // rectangle.
+  // D-01 (owner 2026-11-18): the clock and its hyperspace line stay at the top
+  // left in the 20px small font, centred on the first and third quarters of
+  // the clock rectangle.
   context.font = HUD_SMALL_FONT;
   context.textAlign = "left";
+  context.textBaseline = "middle";
   context.fillText(
     model.clockText,
     HUD_LAYOUT.clock.x,
@@ -805,8 +1106,6 @@ export function drawHud(
     HUD_LAYOUT.clock.x,
     HUD_LAYOUT.clock.y + (3 * HUD_LAYOUT.clock.height) / 4,
   );
-
-  drawMessageRows(context, model.messageRows);
 
   // Drawn last so the red frame is never covered by a HUD element.
   drawFlash(context, model.flashAlpha);
