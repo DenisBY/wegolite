@@ -52,6 +52,7 @@ import {
 import { projectIdentFrame } from "../../render/hud/projection.js";
 import type { IdentFrame } from "../../render/hud/projection.js";
 import { buildHudModel } from "../hud-model.js";
+import { hintGauges } from "../hints.js";
 import type { HintContext } from "../hints.js";
 import type { LaunchSequence } from "../launch-sequence.js";
 import type { NpcModelLoader } from "../npc-models.js";
@@ -364,6 +365,8 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       inDockingRange:
         currentLayout !== undefined &&
         aegisStatus(currentState.position, currentLayout) === "dockingRange",
+      // The bars `buildHudModel` stored for this frame (quick task 261118-ioj).
+      gauges: hintGauges(ctx.core.lastModel?.bars),
     };
     const hint = currentHints.maybeShow(context);
     if (hint === null) return;

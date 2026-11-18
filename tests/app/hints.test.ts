@@ -12,9 +12,16 @@
 
 import { describe, expect, it } from "vitest";
 
-import { createHintController, hintText } from "../../src/app/hints.js";
+import {
+  CALM_HINT_GAUGES,
+  createHintController,
+  hintGauges,
+  hintText,
+} from "../../src/app/hints.js";
 import type { HintContext } from "../../src/app/hints.js";
 import { createBindingMap } from "../../src/input/bindings.js";
+import { MAX_MESSAGE_CHARS } from "../../src/render/hud/format.js";
+import type { HudBars } from "../../src/render/hud/draw.js";
 import { HINT_IDS } from "../../src/settings/schema.js";
 import type { HintId } from "../../src/settings/schema.js";
 
@@ -29,6 +36,7 @@ function context(overrides: Partial<HintContext>): HintContext {
     pitchRollInput: false,
     flightTime: 2,
     inDockingRange: false,
+    gauges: CALM_HINT_GAUGES,
     ...overrides,
   };
 }
@@ -90,8 +98,8 @@ describe("the safe-zone hint (quick task 261118-cyn, D-07)", () => {
     "pitchRoll",
   ];
 
-  it("is the last hint id and keeps the earlier hints and their order", () => {
-    expect(HINT_IDS).toEqual([...EARLIER, "aegis"]);
+  it("follows the earlier hints in the id list and keeps their order", () => {
+    expect(HINT_IDS.slice(0, 6)).toEqual([...EARLIER, "aegis"]);
     expect(hintText("aegis", bindings)).toBe(AEGIS);
   });
 
@@ -130,5 +138,99 @@ describe("the safe-zone hint (quick task 261118-cyn, D-07)", () => {
     expect(
       hints.maybeShow(context({ massLocked: true, inDockingRange: true })),
     ).toBeNull();
+  });
+});
+
+/** Every hint that is not a gauge hint, so only a gauge hint can come back. */
+const NON_GAUGE: readonly HintId[] = [
+  "launch",
+  "torus",
+  "torusDisengage",
+  "speed",
+  "pitchRoll",
+  "aegis",
+];
+
+describe("the LT gauge hint (quick task 261118-ioj, D-03 to D-05)", () => {
+  const LT = "LT: laser temperature — ease off before it overheats";
+  const gauges = (laserTemp: number) => ({ ...CALM_HINT_GAUGES, laserTemp });
+
+  it("has the D-04 text, within the message width", () => {
+    expect(hintText("laserTemp", bindings)).toBe(LT);
+    expect(LT.length).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
+  });
+
+  it("stays quiet below 0.25 and fires once at 0.25, marked seen", () => {
+    const persisted: HintId[] = [];
+    const hints = createHintController({
+      bindings,
+      seen: [...NON_GAUGE],
+      onSeen: (id) => persisted.push(id),
+    });
+    expect(hints.maybeShow(context({ gauges: gauges(0.24) }))).toBeNull();
+    expect(hints.maybeShow(context({ gauges: gauges(0.25) }))).toBe(LT);
+    expect(hints.isSeen("laserTemp")).toBe(true);
+    expect(persisted).toEqual(["laserTemp"]);
+    expect(hints.maybeShow(context({ gauges: gauges(0.5) }))).toBeNull();
+  });
+
+  it("does not fire while docked or launching and stays unseen", () => {
+    const hints = createHintController({ bindings, seen: [...NON_GAUGE] });
+    expect(
+      hints.maybeShow(context({ mode: "docked", gauges: gauges(0.9) })),
+    ).toBeNull();
+    expect(
+      hints.maybeShow(context({ mode: "launching", gauges: gauges(0.9) })),
+    ).toBeNull();
+    expect(hints.isSeen("laserTemp")).toBe(false);
+  });
+
+  it("is never shown once its id is in the persisted seen list", () => {
+    const hints = createHintController({
+      bindings,
+      seen: [...NON_GAUGE, "laserTemp"],
+    });
+    expect(hints.maybeShow(context({ gauges: gauges(0.9) }))).toBeNull();
+  });
+
+  it("never triggers on a non-finite gauge", () => {
+    const hints = createHintController({ bindings, seen: [...NON_GAUGE] });
+    expect(hints.maybeShow(context({ gauges: gauges(Number.NaN) }))).toBeNull();
+    expect(hints.isSeen("laserTemp")).toBe(false);
+  });
+});
+
+describe("hintGauges (quick task 261118-ioj, D-03)", () => {
+  const bars: HudBars = {
+    speed: 0.5,
+    roll: 0,
+    pitch: 0,
+    fuel: 0.7,
+    shieldFwd: 0.8,
+    shieldAft: 0.6,
+    energyBanks: [0.5, 1, 1, 1],
+    laserTemp: 0.3,
+    cabinTemp: 0.4,
+  };
+
+  it("is the calm set without bars", () => {
+    expect(hintGauges(undefined)).toEqual({
+      laserTemp: 0,
+      cabinTemp: 0,
+      shields: 1,
+      energy: 1,
+      fuel: 1,
+    });
+    expect(hintGauges(undefined)).toBe(CALM_HINT_GAUGES);
+  });
+
+  it("maps the drawn bars: lower shield, mean energy", () => {
+    expect(hintGauges(bars)).toEqual({
+      laserTemp: 0.3,
+      cabinTemp: 0.4,
+      shields: 0.6,
+      energy: 0.875,
+      fuel: 0.7,
+    });
   });
 });

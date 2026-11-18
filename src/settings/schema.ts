@@ -37,12 +37,19 @@ export const SETTINGS_CORRUPT_KEY = `${SETTINGS_KEY}.corrupt`;
 export const MAX_HINTS_SEEN = 16;
 
 export type HintId =
-  "launch" | "torus" | "torusDisengage" | "speed" | "pitchRoll" | "aegis";
+  | "launch"
+  | "torus"
+  | "torusDisengage"
+  | "speed"
+  | "pitchRoll"
+  | "aegis"
+  | "laserTemp";
 
 /**
  * Every hint id, in the order the controller offers them. "aegis" is the
- * Wegolite-only safe-zone hint (quick task 261118-cyn, D-07); adding it is
- * additive, so a stored blob without it stays valid.
+ * Wegolite-only safe-zone hint (quick task 261118-cyn, D-07). The gauge hints
+ * that follow it (quick task 261118-ioj) are additive in the same way, so a
+ * stored blob without them stays valid.
  */
 export const HINT_IDS: readonly HintId[] = [
   "launch",
@@ -51,6 +58,7 @@ export const HINT_IDS: readonly HintId[] = [
   "speed",
   "pitchRoll",
   "aegis",
+  "laserTemp",
 ];
 
 const HINT_ID_SET: ReadonlySet<string> = new Set(HINT_IDS);

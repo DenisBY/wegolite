@@ -10,6 +10,10 @@
  * binding label rather than a hard-coded key (D-12), and is marked seen only
  * after its action is first used — that is what dismisses it.
  *
+ * The gauge hints (quick task 261118-ioj) are Wegolite-only: each explains one
+ * of Oolite's abbreviated HUD legends the first time its drawn gauge starts to
+ * matter. They read the bars the HUD drew this frame (`HintContext.gauges`).
+ *
  * `HintId` is owned by `src/settings/schema.ts`; this module imports the union
  * and never redeclares it.
  */
@@ -18,7 +22,56 @@ import { labelFor } from "../input/bindings.js";
 import type { BindingMap } from "../input/bindings.js";
 import { HINT_IDS } from "../settings/schema.js";
 import type { HintId } from "../settings/schema.js";
+import type { HudBars } from "../render/hud/draw.js";
 import type { FlightMode } from "../sim/flight/state.js";
+
+/**
+ * The drawn HUD gauges a gauge hint reads, each 0..1 (quick task 261118-ioj).
+ */
+export interface HintGauges {
+  /** The LT gauge: laser temperature of the current facing. */
+  readonly laserTemp: number;
+  /** The CT gauge: cabin temperature. */
+  readonly cabinTemp: number;
+  /** The FWD/AFT gauges: the lower of the two shields. */
+  readonly shields: number;
+  /** The E1-E4 gauges: the mean of the four energy banks. */
+  readonly energy: number;
+  /** The FUEL gauge: the tank over its capacity. */
+  readonly fuel: number;
+}
+
+/** A pristine ship: cold lasers, cool cabin, full shields, banks and tank. */
+export const CALM_HINT_GAUGES: HintGauges = Object.freeze({
+  laserTemp: 0,
+  cabinTemp: 0,
+  shields: 1,
+  energy: 1,
+  fuel: 1,
+});
+
+/**
+ * The gauges a hint decision reads, from the bars the HUD drew (or the calm set
+ * before the first frame has been built).
+ */
+export function hintGauges(bars: HudBars | undefined): HintGauges {
+  if (bars === undefined) return CALM_HINT_GAUGES;
+  const [e1, e2, e3, e4] = bars.energyBanks;
+  return {
+    laserTemp: bars.laserTemp,
+    cabinTemp: bars.cabinTemp,
+    shields: Math.min(bars.shieldFwd, bars.shieldAft),
+    energy: (e1 + e2 + e3 + e4) / 4,
+    fuel: bars.fuel,
+  };
+}
+
+/**
+ * The LT gauge level at which its hint appears: about 8 s of continuous pulse
+ * fire (7 heat per 0.508 s shot against 6 per second cooling), when the bar is
+ * clearly rising (quick task 261118-ioj, D-03).
+ */
+export const LASER_TEMP_HINT_LEVEL = 0.25;
 
 /** The state slice a hint decision may read. */
 export interface HintContext {
@@ -43,6 +96,11 @@ export interface HintContext {
    * 261118-cyn, D-07).
    */
   readonly inDockingRange: boolean;
+  /**
+   * The HUD's drawn bars of this frame, so a hint explains what the player
+   * sees (quick task 261118-ioj).
+   */
+  readonly gauges: HintGauges;
 }
 
 export interface HintController {
@@ -82,8 +140,21 @@ export function hintText(id: HintId, bindings: BindingMap): string {
     case "aegis":
       // Wegolite-only (D-07): Oolite draws the "S" without explaining it.
       return "S: you are inside the station's safe zone";
+    case "laserTemp":
+      // Wegolite-only (quick task 261118-ioj): Oolite does not explain LT.
+      return "LT: laser temperature — ease off before it overheats";
   }
 }
+
+/**
+ * The gauge hints in the order they are offered when two trigger on the same
+ * frame. Every predicate is a plain comparison, false for NaN, so a non-finite
+ * gauge never posts or spends a hint.
+ */
+const GAUGE_HINTS: readonly (readonly [
+  HintId,
+  (gauges: HintGauges) => boolean,
+])[] = [["laserTemp", (g) => g.laserTemp >= LASER_TEMP_HINT_LEVEL]];
 
 export function createHintController(options: HintOptions): HintController {
   const { bindings, onSeen } = options;
@@ -152,6 +223,16 @@ export function createHintController(options: HintOptions): HintController {
         if (aegis !== null) {
           markSeen("aegis");
           return aegis;
+        }
+      }
+      // Gauge hints teach a fact, so each is marked seen as soon as it is shown
+      // (quick task 261118-ioj, D-05).
+      for (const [id, triggered] of GAUGE_HINTS) {
+        if (!triggered(context.gauges)) continue;
+        const gaugeHint = take(id);
+        if (gaugeHint !== null) {
+          markSeen(id);
+          return gaugeHint;
         }
       }
       return null;
