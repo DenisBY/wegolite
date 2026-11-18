@@ -784,7 +784,10 @@ describe("renderFrame ident frame (INPUT-01, D-03)", () => {
   });
 });
 
-describe("renderFrame hyperspace countdown row (quick task 261117-u3m)", () => {
+describe("renderFrame hyperspace countdown row (quick task 261118-cyn)", () => {
+  // Oolite writes the countdown into the message queue from the update, once
+  // per changed count, with a 1 s row time (`PlayerEntity.m:3443-3450`,
+  // `Universe.m:6258-6267`, descriptions.plist `witch-to-x-in-y-seconds`).
   /** An in-flight session whose HUD double records every model it is handed. */
   function counting() {
     const models: HudModel[] = [];
@@ -803,33 +806,54 @@ describe("renderFrame hyperspace countdown row (quick task 261117-u3m)", () => {
     return { h, models, state: h.ctx.core.state };
   }
 
-  it("draws the countdown in place over the bottom row, at full alpha, without touching the queue", () => {
+  const countdownText = (steps: number) =>
+    `Witchspace to ${system.name} in ${String(countdownSecondsRemaining(steps))} s.`;
+
+  it("writes Oolite's countdown text into the bottom row of the queue at full alpha", () => {
     const { h, models, state } = counting();
     h.messages.enqueue("Torus disengaged", 4);
     state.hyperspaceTarget = { id: system.id, dist: 0, fuelCost: 1 };
     state.hyperspaceCountdown = HYPERSPACE_COUNTDOWN_STEPS;
     h.driver.renderFrame(0);
-    const text = `Hyperspace to ${system.name} in ${String(countdownSecondsRemaining(HYPERSPACE_COUNTDOWN_STEPS))} seconds`;
+    const text = countdownText(HYPERSPACE_COUNTDOWN_STEPS);
+    expect(text).toBe(`Witchspace to ${system.name} in 15 s.`);
     const model = models.at(-1);
     expect(model?.messageRows.at(-1)).toEqual({ text, alpha: 1 });
     expect(model?.message).toBe(text);
-    // The queue keeps its row: the overlay replaces it in the drawing only.
+    // The queue holds the row: it replaced "Torus disengaged" without scrolling.
     expect(h.messages.size).toBe(1);
+    expect(h.messages.current(10)).toBe(text);
   });
 
-  it("draws no countdown row once the countdown is back at 0", () => {
+  it("fades the written row over its 1 s row time (the pulse)", () => {
+    const { h, models, state } = counting();
+    state.hyperspaceTarget = { id: system.id, dist: 0, fuelCost: 1 };
+    state.hyperspaceCountdown = HYPERSPACE_COUNTDOWN_STEPS;
+    h.driver.renderFrame(0);
+    // Half a second later on the message clock, the count is unchanged.
+    state.flightTime = 10.5;
+    state.hyperspaceCountdown = HYPERSPACE_COUNTDOWN_STEPS - 50;
+    h.driver.renderFrame(0);
+    const row = models.at(-1)?.messageRows.at(-1);
+    expect(row?.text).toBe(countdownText(HYPERSPACE_COUNTDOWN_STEPS));
+    expect(row?.alpha).toBeCloseTo(0.5, 9);
+  });
+
+  it("writes nothing once the countdown is back at 0, and the last count is gone after 1 s", () => {
     const { h, models, state } = counting();
     state.hyperspaceTarget = { id: system.id, dist: 0, fuelCost: 1 };
     state.hyperspaceCountdown = HYPERSPACE_COUNTDOWN_STEPS;
     h.driver.renderFrame(0);
     state.hyperspaceCountdown = 0;
     state.hyperspaceTarget = null;
+    state.flightTime = 11.01;
     h.driver.renderFrame(0);
     expect(
       models
         .at(-1)
-        ?.messageRows.some((row) => row.text.startsWith("Hyperspace to")),
+        ?.messageRows.some((row) => row.text.startsWith("Witchspace to")),
     ).toBe(false);
+    expect(h.messages.size).toBe(0);
   });
 });
 

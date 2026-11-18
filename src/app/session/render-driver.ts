@@ -249,6 +249,24 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     const messageClock =
       currentState.flightTime + ctx.runtime.dockedMessageSeconds;
     messages.advance(messageClock);
+    // D-09 (quick task 261118-cyn): Oolite writes the countdown into the
+    // message queue from the player's update, not the draw, on every frame of
+    // the countdown with a 1 s row time (`PlayerEntity.m:3443-3450`); the
+    // queue writes only a changed count once its 1 s repeat time has passed
+    // (`Universe.m:6258-6267`). The text is descriptions.plist
+    // `witch-to-x-in-y-seconds`, the seconds Oolite's `round`.
+    const countdownTarget = currentState.hyperspaceTarget;
+    if (currentState.hyperspaceCountdown > 0 && countdownTarget !== null) {
+      const destination =
+        galaxyById.get(countdownTarget.id)?.name ?? "(Unknown)";
+      const seconds = countdownSecondsRemaining(
+        currentState.hyperspaceCountdown,
+      );
+      messages.displayCountdown(
+        `Witchspace to ${destination} in ${String(seconds)} s.`,
+        1,
+      );
+    }
 
     // The flight HUD is not drawn while docked (D-09 shows the status panel).
     const isDocked = currentState.mode === "docked";
@@ -266,19 +284,10 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
           currentState.launchCount,
         );
       } else {
-        const snapshot = currentState.hyperspaceTarget;
         // Oolite's message rows (quick task 261117-pij): the bottom
         // HUD_MESSAGE_ROWS of the ten, newest at the bottom.
-        const rows = [...messages.rows(messageClock, HUD_MESSAGE_ROWS)];
-        let message: string;
-        if (currentState.hyperspaceCountdown > 0 && snapshot !== null) {
-          // `displayCountdownMessage` writes the countdown into the bottom
-          // row without scrolling (`Universe.m:6258-6267`).
-          message = `Hyperspace to ${galaxyById.get(snapshot.id)?.name ?? "(Unknown)"} in ${String(countdownSecondsRemaining(currentState.hyperspaceCountdown))} seconds`;
-          rows[rows.length - 1] = { text: message, alpha: 1 };
-        } else {
-          message = messages.current(messageClock);
-        }
+        const rows = messages.rows(messageClock, HUD_MESSAGE_ROWS);
+        const message = messages.current(messageClock);
         const model = buildHudModel(
           currentState,
           currentLayout,

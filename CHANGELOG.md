@@ -40,6 +40,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   shown. Items you cannot afford stay listed, dimmed, with "Not enough
   credits". When nothing can be offered the screen reads
   "No equipment available for purchase.".
+- The hyperspace countdown reads like Oolite ("Witchspace to Diso in 15 s.")
+  in the message area and pulses once a second. A message posted during the
+  countdown shows only until the next count replaces it, and after a cancel
+  the last count fades out within a second.
 
 ## [0.5.0] - 2026-11-17
 

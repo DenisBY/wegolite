@@ -639,7 +639,7 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
       router.dispatch(EVENTS.hyperspaceCountdownCancelled);
       const rows = messages.rows(1, MESSAGE_ROWS);
       expect(rows.at(-1)?.text).toBe("Hyperspace countdown cancelled");
-      expect(rows.some((row) => row.text.startsWith("Hyperspace to"))).toBe(
+      expect(rows.some((row) => row.text.startsWith("Witchspace to"))).toBe(
         false,
       );
     });

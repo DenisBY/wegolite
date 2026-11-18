@@ -24,6 +24,17 @@
  *   it was shown (`MESSAGE_REPEAT_SECONDS`); `clearPreviousMessage`
  *   (`Universe.m:6235-6240`) forgets the last shown message, so the next
  *   message shows whatever it is.
+ * - `displayCountdownMessage:forCount:` (`Universe.m:6258-6267`) writes the
+ *   hyperspace countdown (`displayCountdown`): only when the text differs from
+ *   the last shown message AND its own repeat time
+ *   (`countdown_messageRepeatTime`, kept apart from the 6 s one) has passed;
+ *   it then sets that repeat time to `count` seconds ahead and writes the text
+ *   into the bottom row without scrolling (`printLineNoScroll`,
+ *   `GuiDisplayGen.m:797-812`) with a row time of `count`. The player's
+ *   countdown update calls it on every frame with a count of 1 s
+ *   (`PlayerEntity.m:3443-3450`), so each new count replaces the bottom row and
+ *   fades over its second: the row pulses. The last shown message is shared
+ *   with `enqueue`, as Oolite shares `currentMessage`.
  *
  * Wegolite choices: a row's countdown starts at its first read (`advance`,
  * `rows` or `current`), as Oolite counts a row down only while `drawGUI` draws
@@ -53,6 +64,16 @@ export interface MessageQueue {
    */
   enqueue(text: string, seconds: number): void;
   /**
+   * Oolite's `displayCountdownMessage:forCount:` (`Universe.m:6258-6267`):
+   * write `text` into the bottom row without scrolling the others
+   * (`printLineNoScroll`, `GuiDisplayGen.m:797-812`), with a row time of
+   * `seconds`, but only when `text` differs from the last shown message and
+   * the countdown repeat time has passed; the write sets that repeat time
+   * `seconds` ahead. Ignored for empty text or a non-finite or non-positive
+   * duration.
+   */
+  displayCountdown(text: string, seconds: number): void;
+  /**
    * Forget the last shown message (`Universe.m:6235-6240`), so the next post
    * shows even when it repeats it. Every hyperspace refusal calls this first,
    * as `witchJumpChecklist` does (`PlayerEntity.m:6552-6600`).
@@ -71,9 +92,10 @@ export interface MessageQueue {
    */
   rows(now: number, count: number): readonly MessageRow[];
   /**
-   * Blank every row and forget the last shown message (G-8). An in-session
-   * Load calls this at install time: a row keyed to the replaced session's
-   * clock would otherwise outlive the restored clock.
+   * Blank every row, forget the last shown message and reset both repeat
+   * times (G-8). An in-session Load calls this at install time: a row keyed
+   * to the replaced session's clock would otherwise outlive the restored
+   * clock, and the first countdown write after the Load must show.
    */
   clear(): void;
   /**
@@ -114,6 +136,8 @@ export function createMessageQueue(rows = MESSAGE_ROWS): MessageQueue {
   const slots: Slot[] = Array.from({ length: count }, blankSlot);
   let lastShown: string | null = null;
   let repeatDeadline = -Infinity;
+  /** Oolite's `countdown_messageRepeatTime`, apart from `repeatDeadline`. */
+  let countdownRepeatDeadline = -Infinity;
   let clock = 0;
 
   function advance(now: number): void {
@@ -148,6 +172,19 @@ export function createMessageQueue(rows = MESSAGE_ROWS): MessageQueue {
       lastShown = text;
       repeatDeadline = clock + MESSAGE_REPEAT_SECONDS;
     },
+    displayCountdown(text: string, seconds: number): void {
+      if (text === "") return;
+      if (!Number.isFinite(seconds) || seconds <= 0) return;
+      if (text === lastShown || clock < countdownRepeatDeadline) return;
+      lastShown = text;
+      countdownRepeatDeadline = clock + seconds;
+      // `printLineNoScroll` writes at `currentRow`, the bottom row.
+      slots[slots.length - 1] = {
+        text,
+        duration: seconds,
+        expiresAt: null,
+      };
+    },
     clearPrevious(): void {
       lastShown = null;
     },
@@ -165,6 +202,7 @@ export function createMessageQueue(rows = MESSAGE_ROWS): MessageQueue {
       for (let i = 0; i < slots.length; i += 1) slots[i] = blankSlot();
       lastShown = null;
       repeatDeadline = -Infinity;
+      countdownRepeatDeadline = -Infinity;
     },
     current(now: number): string {
       advance(now);

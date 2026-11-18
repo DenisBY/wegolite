@@ -293,7 +293,7 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   );
   await page.waitForFunction(
     () =>
-      /^Hyperspace to Diso in \d+ seconds$/.test(
+      /^Witchspace to Diso in \d+ s\.$/.test(
         window.__wegolite?.hud?.message ?? "",
       ),
     undefined,

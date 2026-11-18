@@ -364,10 +364,11 @@ export function createHudMessages(
         break;
       case "hyperspaceCountdownStarted":
         // `beginWitchspaceCountdown:` clears the last message, then
-        // `displayCountdownMessage` writes the countdown over the bottom row
+        // `displayCountdownMessage` writes the countdown into the bottom row
         // without scrolling (PlayerEntityControls.m:834-839,
         // Universe.m:6258-6267). Nothing is posted here: the render driver
-        // draws the countdown in place over the bottom row every frame.
+        // writes the countdown into the queue on every frame
+        // (`MessageQueue.displayCountdown`, quick task 261118-cyn).
         messages.clearPrevious();
         break;
       case "hyperspaceCountdownCancelled":

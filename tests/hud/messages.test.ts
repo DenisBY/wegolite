@@ -139,6 +139,134 @@ describe("message rows: the 6 s repeat rule", () => {
   });
 });
 
+describe("message rows: the hyperspace countdown row (quick task 261118-cyn)", () => {
+  // Oolite's `displayCountdownMessage` (`Universe.m:6258-6267`) writes the
+  // countdown into the bottom row without scrolling (`printLineNoScroll`,
+  // `GuiDisplayGen.m:797-812`), only when the text changed and its own repeat
+  // time has passed, with a row time of `count` (1 s from
+  // `PlayerEntity.m:3443-3450`).
+  it("replaces the bottom row without scrolling the rows above", () => {
+    const queue = createMessageQueue();
+    queue.enqueue("above", 30);
+    queue.enqueue("A", 30);
+    queue.rows(10, 2);
+    queue.displayCountdown("W 15", 1);
+    expect(queue.rows(10, 2)).toEqual([
+      { text: "above", alpha: 1 },
+      { text: "W 15", alpha: 1 },
+    ]);
+    expect(queue.size).toBe(2);
+    expect(queue.current(10)).toBe("W 15");
+  });
+
+  it("writes only a changed text, and only once its 1 s repeat time has passed", () => {
+    const queue = createMessageQueue();
+    queue.rows(10, 1);
+    queue.displayCountdown("W 15", 1);
+    // The render driver reads the rows in the frame that writes them.
+    queue.rows(10, 1);
+    queue.rows(10.5, 1);
+    queue.displayCountdown("W 14", 1);
+    expect(queue.current(10.5)).toBe("W 15");
+    queue.rows(10.99, 1);
+    queue.displayCountdown("W 14", 1);
+    expect(queue.current(10.99)).toBe("W 15");
+    // The same text after 1 s equals the last shown one and is ignored.
+    queue.rows(11, 1);
+    queue.displayCountdown("W 15", 1);
+    expect(queue.rows(11, 1)).toEqual([{ text: "", alpha: 0 }]);
+    queue.displayCountdown("W 14", 1);
+    expect(queue.rows(11, 1)).toEqual([{ text: "W 14", alpha: 1 }]);
+  });
+
+  it("gives the written row a 1 s row time, so it fades and blanks within the second (the pulse)", () => {
+    const queue = createMessageQueue();
+    queue.rows(20, 1);
+    queue.displayCountdown("W 15", 1);
+    expect(queue.rows(20, 1)).toEqual([{ text: "W 15", alpha: 1 }]);
+    const half = queue.rows(20.5, 1)[0];
+    expect(half?.text).toBe("W 15");
+    expect(half?.alpha).toBeCloseTo(0.5, 9);
+    expect(queue.rows(21, 1)).toEqual([{ text: "", alpha: 0 }]);
+  });
+
+  it("lets a message posted during the countdown scroll it up, and overwrites that message at the next count", () => {
+    const queue = createMessageQueue();
+    queue.rows(30, 2);
+    queue.displayCountdown("W 15", 1);
+    queue.rows(30, 2);
+    queue.rows(30.2, 2);
+    queue.enqueue("Hyperspeed mass-locked.", 1.5);
+    expect(queue.rows(30.2, 2).map((row) => row.text)).toEqual([
+      "W 15",
+      "Hyperspeed mass-locked.",
+    ]);
+    queue.rows(31, 2);
+    queue.displayCountdown("W 14", 1);
+    const rows = queue.rows(31, 2);
+    // The scrolled countdown row blanked at 31; the J reply was overwritten.
+    expect(rows).toEqual([
+      { text: "", alpha: 0 },
+      { text: "W 14", alpha: 1 },
+    ]);
+  });
+
+  it("keeps the scrolled countdown row fading while the next count overwrites the bottom row", () => {
+    const queue = createMessageQueue();
+    queue.rows(30, 2);
+    queue.displayCountdown("W 15", 1);
+    queue.rows(30, 2);
+    queue.rows(30.5, 2);
+    queue.enqueue("Hyperspeed mass-locked.", 1.5);
+    const between = queue.rows(30.6, 2);
+    expect(between[0]?.text).toBe("W 15");
+    expect(between[0]?.alpha).toBeCloseTo(0.4, 9);
+    expect(between[1]).toEqual({ text: "Hyperspeed mass-locked.", alpha: 1 });
+    // A changed text 1 s after the last write, at 31.
+    queue.rows(31, 2);
+    queue.displayCountdown("W 14", 1);
+    expect(queue.rows(31, 2).map((row) => row.text)).toEqual(["", "W 14"]);
+  });
+
+  it("scrolls the last count up after a cancel, where it fades out within 1 s", () => {
+    const queue = createMessageQueue();
+    queue.rows(40, 2);
+    queue.displayCountdown("W 9", 1);
+    queue.rows(40, 2);
+    queue.rows(40.3, 2);
+    queue.clearPrevious();
+    queue.enqueue("Hyperspace countdown cancelled", 3);
+    const rows = queue.rows(40.3, 2);
+    expect(rows[0]?.text).toBe("W 9");
+    expect(rows[0]?.alpha).toBeCloseTo(0.7, 9);
+    expect(rows[1]).toEqual({
+      text: "Hyperspace countdown cancelled",
+      alpha: 1,
+    });
+    expect(queue.rows(41, 2)[0]).toEqual({ text: "", alpha: 0 });
+  });
+
+  it("ignores empty text and a non-finite or non-positive duration", () => {
+    const queue = createMessageQueue();
+    queue.displayCountdown("", 1);
+    queue.displayCountdown("W", 0);
+    queue.displayCountdown("W", -1);
+    queue.displayCountdown("W", Number.NaN);
+    queue.displayCountdown("W", Number.POSITIVE_INFINITY);
+    expect(queue.size).toBe(0);
+  });
+
+  it("clear also resets the countdown repeat time, so the first write after a Load shows", () => {
+    const queue = createMessageQueue();
+    queue.rows(50, 1);
+    queue.displayCountdown("W 15", 1);
+    queue.clear();
+    queue.rows(0, 1);
+    queue.displayCountdown("W 15", 1);
+    expect(queue.current(0)).toBe("W 15");
+  });
+});
+
 describe("message rows: pause, bad input and clear", () => {
   it("expires nothing while the flight clock does not move (pause)", () => {
     const queue = createMessageQueue();
