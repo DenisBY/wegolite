@@ -257,7 +257,7 @@ describe("drawHud draws its legends by capital height", () => {
       LT: 10,
       ALT: 10,
       [model.fuelText]: 10,
-      [model.speedText]: 10,
+      [model.speedText]: 14,
     };
     for (const [text, cell] of Object.entries(cells)) {
       const call = find(text);

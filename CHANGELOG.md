@@ -93,6 +93,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ROLL, PITCH, E1 to E4), the "7.0 LY" and "0.000 LS" readouts and the
   compass's "W" are smaller: their capitals are as tall as Oolite's. They are
   narrower than Oolite's because the HUD font is monospace.
+- The "0.000 LS" speed readout is now the same size as its SPD label; the
+  "7.0 LY" readout keeps the size of its FUEL label.
 
 ## [0.5.0] - 2026-11-17
 

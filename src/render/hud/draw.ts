@@ -816,9 +816,9 @@ function drawMissileIcon(
  * part of the cell (measured at 1280x720: every legend's capitals are centred
  * 2/3 of a cell above its bottom, on its bar's centre line). The text is
  * sized by capital height for a cell of `sizeCell` units (`drawCapText`) and
- * its capitals stay centred 2/3 of `cell` above `bottom`; the two cells
- * differ only for the speed readout, placed on the SPD cell (14) and sized
- * by a 10-unit one.
+ * its capitals stay centred 2/3 of `cell` above `bottom`. Every caller
+ * passes the same cell twice today; the split is kept for a readout that
+ * should sit on one cell and be sized by another.
  */
 function drawLegend(
   context: CanvasRenderingContext2D,
@@ -986,8 +986,9 @@ function drawRightGauges(
   context.textAlign = "left";
   const right = RIGHT_LEGEND_X;
   drawLegend(context, "SPD", right, unitY(86), 14, 14);
-  // D-10: the "0.000 LS" readout stays, right of the SPD legend.
-  drawLegend(context, model.speedText, SPEED_READOUT_X, unitY(86), 14, 10);
+  // D-10: the "0.000 LS" readout stays, right of the SPD legend, at the
+  // legend's own size (owner, 2026-11-18).
+  drawLegend(context, model.speedText, SPEED_READOUT_X, unitY(86), 14, 14);
   drawLegend(context, "ROLL", right, unitY(72), 12, 12);
   drawLegend(context, "PITCH", right, unitY(62), 12, 12);
   // The bank labels start 3 units right of the gauge (`labelStartX`) in cells
