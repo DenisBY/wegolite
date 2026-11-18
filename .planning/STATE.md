@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-18T18:07:14.518Z"
+last_updated: "2026-11-18T20:21:10.167Z"
 last_activity: 2026-11-18
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: c8192cb5aa29a127f9d62070a994e91281b1bb1e
+state_head: ce49c5deb1635dffe797aa8e3c1aa5ac416467c1
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-18 — Completed quick task 261118-os8: 1.5 s launch pre-roll inside the dock slot
+Last activity: 2026-11-18 — Completed quick task 261118-spu: HUD drawn through the launch pre-roll and the launch
 
 
 ## Performance Metrics
@@ -627,6 +627,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261118-mb5 | Launch the ship along the dock slot with Oolite's 90 degree roll | 2026-11-18 | 67eeb63 | [261118-mb5-launch-the-ship-along-the-dock-slot-with](./quick/261118-mb5-launch-the-ship-along-the-dock-slot-with/) |
 | 261118-n7z | Review follow-ups since 0.5.0 and gate compass modes on the ASC | 2026-11-18 | 8e0a3bd | [261118-n7z-review-follow-ups-since-0-5-0-and-gate-c](./quick/261118-n7z-review-follow-ups-since-0-5-0-and-gate-c/) |
 | 261118-os8 | Add a 1.5 s pre-roll inside the dock slot before the launch | 2026-11-18 | c8192cb | [261118-os8-add-a-1-5-s-pre-roll-inside-the-dock-slo](./quick/261118-os8-add-a-1-5-s-pre-roll-inside-the-dock-slo/) |
+| 261118-spu | Draw the HUD while launching as Oolite does | 2026-11-18 | ce49c5d | [261118-spu-draw-the-hud-while-launching-as-oolite-d](./quick/261118-spu-draw-the-hud-while-launching-as-oolite-d/) |
 
 ## Deferred Items
 
