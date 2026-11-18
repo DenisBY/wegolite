@@ -6,11 +6,11 @@ current_phase: 17
 current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
-stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-18T20:23:49.352Z"
+stopped_at: Phase 17 context gathered
+last_updated: "2026-11-18T20:48:16.920Z"
 last_activity: 2026-11-18
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: 3cec8ed03bfbc1f5f5b36c12ddeca04efd1b6ad9
+state_head: a410849a5bd9c83b9be66d2c30e427480bfe41db
 progress:
   total_phases: 6
   completed_phases: 2
@@ -664,9 +664,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-17T01:54:24.612Z
-Stopped at: Phase 16 complete, ready to plan Phase 17
-Resume file: None
+Last session: 2026-11-18T20:48:16.700Z
+Stopped at: Phase 17 context gathered
+Resume file: .planning/phases/17-npc-fire-and-hits-on-the-player/17-CONTEXT.md
 
 ## Operator Next Steps
 
