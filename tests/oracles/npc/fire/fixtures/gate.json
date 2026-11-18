@@ -1,0 +1,965 @@
+[
+  {
+    "id": "gate-fires-pulse-clean",
+    "title": "a cold pulse laser with energy, a ready timer, range inside the roll and a target on the aim fires",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9935-9936",
+      "src/Core/Entities/ShipEntity.m:9944-9945",
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "src/Core/Entities/ShipEntity.m:9954-9955",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "src/Core/Entities/ShipEntity.m:10463-10463",
+      "src/Core/Entities/ShipEntity.m:208-208",
+      "src/Core/Entities/ShipEntity.h:102-102",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "Temperature 0 is below the cutout (0 / 256 < 0.85f, 9935-9936); energy 100 is above the pulse cost 0.8 (9944-9945); a ship that never fired holds shot_time = INITIAL_SHOT_TIME 100.0 (ShipEntity.m:208, ShipEntity.h:102), which is not below the 0.5 s recharge rate, so the timer passes (9946-9947); the one draw 0.5 gives the roll limit 0.5 x 12500 x (0 + 7.5) = 46875, and the range 5000 is not above it nor above the weapon range 12500 (9948-9952); onTarget is true (9954-9955) and the weapon is armed (9958), so the shot fires: energy 100 - 0.8 = 99.2 (9968-9969), temperature 0 + fround(7) = 7 (9971-9973) and the shot timer resets (resetShotTime, 10463). Exactly one draw was taken.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 99.2,
+      "temperatureAfter": 7,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-heat-at-cutout-refuses-before-energy-timer-and-roll",
+    "title": "a temperature exactly at fround(0.85) x 256 refuses at heat, ahead of an empty energy bank, a running timer and a hopeless roll, with no draw",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9935-9936",
+      "src/Core/Entities/ShipEntity.m:9944-9945",
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "weapon_temp / NPC_MAX_WEAPON_TEMP >= WEAPON_COOLING_CUTOUT refuses (9935-9936). WEAPON_COOLING_CUTOUT is the float 0.85f = 0.8500000238418579, and dividing a float by 256 is exact, so the refusal threshold is 0.85f x 256 = 217.60000610351562; a temperature exactly there refuses (>=). Heat is the first of the checks, so the empty energy bank (energy 0), the timer that has not run out (0 ticks) and the impossible range and aim after it are never reached and the draw is never taken: drawsUsed 0, nothing changes.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 217.60000610351562,
+      "energy": 0,
+      "ticksSinceShot": 0,
+      "accuracy": 0,
+      "range": 99999,
+      "onTarget": false
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "heat",
+      "drawsUsed": 0,
+      "energyAfter": 0,
+      "temperatureAfter": 217.60000610351562,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-heat-one-float32-below-cutout-passes",
+    "title": "the float32 value just below the cutout temperature passes the heat check and fires",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9935-9936",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "The float32 predecessor of 217.60000610351562 is 217.59999084472656 (spacing 2^-16 in [128, 256)); 217.59999084472656 / 256 is below 0.85f, so 9935-9936 does not refuse. The rest passes as in the clean pulse fixture and the shot fires: temperature 217.59999084472656 + 7 = 224.59999084472656 (every term is a multiple of 2^-16, so the float32 sum is exact).",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 217.59999084472656,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 99.2,
+      "temperatureAfter": 224.59999084472656,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-heat-far-above-cutout-refuses",
+    "title": "a weapon at the 256 maximum refuses at heat with no draw",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9935-9936",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "256 is NPC_MAX_WEAPON_TEMP, and 256 / 256 = 1.0 >= 0.85f, so 9935-9936 refuses before any other check; nothing is drawn and nothing changes (the temperature stays 256).",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 256,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "heat",
+      "drawsUsed": 0,
+      "energyAfter": 100,
+      "temperatureAfter": 256,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-energy-equal-to-cost-refuses-before-timer",
+    "title": "energy exactly equal to the pulse shot cost refuses at energy while the timer has not run out, with no draw",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9935-9936",
+      "src/Core/Entities/ShipEntity.m:9944-9945",
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "energy <= weapon_energy_use * multiplier refuses (9944-9945), so an energy equal to the cost 0.8 refuses (the compare is non-strict). It comes before the timer check (9946), so the 5 ticks since the shot (the timer would also refuse) are not the reason: refusedAt is energy and no draw is taken. The width: Oolite's energy and cost are float 0.8f; the contract keeps energy in float64 and the equality holds in both widths.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 0.8,
+      "ticksSinceShot": 5,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "energy",
+      "drawsUsed": 0,
+      "energyAfter": 0.8,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-energy-just-above-cost-passes",
+    "title": "an energy 0.001 above the pulse shot cost passes the energy check and fires",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9944-9945",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "0.801 > 0.8 (equal refuses, so strictly above passes; 9944-9945), the timer passes (never fired), the roll limit is 46875, the range 5000 is inside and onTarget is true, so the shot fires and costs 0.8 (9968-9969): energyAfter 0.801 - 0.8 = 0.001 within the 1e-6 tolerance (a float32 energy leaves 0.00099998..., also inside).",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 0.801,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 0.0010000000000000009,
+      "temperatureAfter": 7,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-energy-equal-to-cost-beam-refuses",
+    "title": "a beam laser at energy exactly 0.5 refuses at energy",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9944-9945",
+      "Resources/Config/equipment.plist:143-154"
+    ],
+    "derivation": "The beam cost is 0.5 (an exact binary fraction in float32 and float64); energy <= 0.5 refuses (9944-9945) with no draw, so the equality case is width-independent.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_BEAM_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 0.5,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "energy",
+      "drawsUsed": 0,
+      "energyAfter": 0.5,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-timer-refuses-before-roll-range-and-aim",
+    "title": "one tick before the pulse period the timer refuses ahead of a hopeless roll and an off-aim target, with no draw",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "src/Core/Entities/ShipEntity.m:9954-9955",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "shotTime < weapon_recharge_rate refuses (9946-9947). The recorded rule (D-07) turns it into ticksSinceShot < round(fround(0.5) x 120) = 60; 59 < 60 refuses. The roll, the range and onTarget come after the draw point, so none runs: drawsUsed 0.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": 59,
+      "accuracy": 0,
+      "range": 99999,
+      "onTarget": false
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "timer",
+      "drawsUsed": 0,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-timer-exact-period-pulse-fires",
+    "title": "exactly the pulse period of 60 ticks after the last shot the NPC timer is ready (>=)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "round(0.5 x 120) = 60 ticks; ticksSinceShot 60 is not below 60 (9946-9947 refuses only strictly below), so the NPC timer is ready on equality, unlike the player's strict compare at PlayerEntityControls.m:1185. The shot fires. (The literal Oolite frame count at 1/120 s is recorded in the frame-rate rule row, not here.)",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": 60,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 99.2,
+      "temperatureAfter": 7,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-timer-one-tick-over-pulse-fires",
+    "title": "one tick past the pulse period still fires",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "61 >= 60: one tick past the pulse period the timer still passes (9946-9947), the roll limit 46875 and the range 5000 pass, onTarget is true, and the shot fires with one draw: energy 100 - 0.8, temperature 0 + 7.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": 61,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 99.2,
+      "temperatureAfter": 7,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-timer-same-tick-pulse-refuses",
+    "title": "zero ticks since the last shot refuses at the timer",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "ticksSinceShot 0 (a shot in this very tick, which a ship that fires once per tick never sees) is below the pulse period 60, so shotTime < weapon_recharge_rate refuses at 9946-9947 with no draw and nothing changes.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": 0,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "timer",
+      "drawsUsed": 0,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-timer-one-tick-short-beam-refuses",
+    "title": "one tick before the beam period of 12 ticks the timer refuses",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "Resources/Config/equipment.plist:143-154"
+    ],
+    "derivation": "The beam recharge_rate is 0.1 and the float field is fround(0.1) = 0.10000000149011612; round(0.10000000149011612 x 120) = 12 ticks. 11 < 12 refuses (9946-9947), no draw.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_BEAM_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": 11,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "timer",
+      "drawsUsed": 0,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-timer-exact-period-beam-fires",
+    "title": "exactly the beam period of 12 ticks fires",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "Resources/Config/equipment.plist:143-154"
+    ],
+    "derivation": "12 >= 12: the NPC timer is ready on equality (9946-9947 refuses only strictly below the rate); the shot fires, energy 100 - 0.5 = 99.5, temperature 0 + fround(3.2) = fround(3.2).",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_BEAM_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": 12,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 99.5,
+      "temperatureAfter": 3.200000047683716,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-timer-one-tick-over-beam-fires",
+    "title": "one tick past the beam period fires",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "Resources/Config/equipment.plist:143-154"
+    ],
+    "derivation": "13 >= 12: ticksSinceShot is above the beam period round(fround(0.1) x 120) = 12, so shotTime < weapon_recharge_rate is false (9946-9947) and the shot fires; one draw, energy 100 - 0.5, temperature fround(3.2).",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_BEAM_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": 13,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 99.5,
+      "temperatureAfter": 3.200000047683716,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-timer-never-fired-is-ready-beam",
+    "title": "a beam laser that has never fired (null ticks) has a ready timer",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "src/Core/Entities/ShipEntity.m:208-208",
+      "src/Core/Entities/ShipEntity.h:102-102",
+      "Resources/Config/equipment.plist:143-154"
+    ],
+    "derivation": "shot_time starts at INITIAL_SHOT_TIME 100.0 (ShipEntity.m:208, ShipEntity.h:102), so [self shotTime] < 0.1 is false at the first call; null stands for that state and fires.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_BEAM_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 99.5,
+      "temperatureAfter": 3.200000047683716,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-timer-one-tick-short-mining-refuses",
+    "title": "one tick before the mining period of 300 ticks the timer refuses",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "Resources/Config/equipment.plist:163-174"
+    ],
+    "derivation": "The mining recharge_rate is 2.5 (exact in float32): round(2.5 x 120) = 300. 299 < 300 refuses, no draw.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_MINING_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": 299,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "timer",
+      "drawsUsed": 0,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-timer-exact-period-mining-fires",
+    "title": "exactly the mining period of 300 ticks fires and costs 1.4 energy and 10 degrees",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "Resources/Config/equipment.plist:163-174"
+    ],
+    "derivation": "300 >= 300: ready. The mining laser costs 1.4 (equipment.plist) and adds shot_temperature 10: energy 10 - 1.4 = 8.6, temperature 10.5 + 10 = 20.5 (exact in float32).",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_MINING_LASER",
+    "input": {
+      "temperature": 10.5,
+      "energy": 10,
+      "ticksSinceShot": 300,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 8.6,
+      "temperatureAfter": 20.5,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-timer-one-tick-short-military-refuses",
+    "title": "one tick before the military period of 12 ticks the timer refuses",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "Resources/Config/equipment.plist:184-195"
+    ],
+    "derivation": "The military recharge_rate is 0.1: round(fround(0.1) x 120) = 12 ticks; 11 < 12 refuses, no draw.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_MILITARY_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": 11,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "timer",
+      "drawsUsed": 0,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-roll-refuses-draw-too-high",
+    "title": "a draw whose roll limit is below the range refuses at the roll after exactly one draw",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "range > randf() * weaponRange * (accuracy + 7.5) refuses (9949-9950). With the draw 0.125 (a multiple of 1/65536, so randf() could return it) the limit is 0.125 x 12500 x 7.5 = 11718.75 and the range 12000 exceeds it. The draw was taken before the compare, so drawsUsed is 1; the refusal is the roll, not the range (12000 is inside the weapon range 12500).",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 12000,
+      "onTarget": true
+    },
+    "draws": [0.125, 0.75],
+    "expected": {
+      "fired": false,
+      "refusedAt": "roll",
+      "drawsUsed": 1,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-roll-passes-at-equality",
+    "title": "a range exactly equal to the roll limit passes the roll (strict >) and fires",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "Accuracy -5 gives accuracy + 7.5 = 2.5; the draw 0.25 gives 0.25 x 12500 x 2.5 = 7812.5, all exact binary products. range 7812.5 > 7812.5 is false, so the roll passes; 7812.5 is inside the weapon range 12500, so the shot fires.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": -5,
+      "range": 7812.5,
+      "onTarget": true
+    },
+    "draws": [0.25, 0.75],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 99.2,
+      "temperatureAfter": 7,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-roll-refuses-one-ulp-above-equality",
+    "title": "a range one double above the roll limit refuses at the roll",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "The same limit 7812.5 as the equality fixture; 7812.500000000001 is the next double above it (spacing 2^-40 in [4096, 8192)), so range > limit refuses (9949-9950), after the draw.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": -5,
+      "range": 7812.500000000001,
+      "onTarget": true
+    },
+    "draws": [0.25, 0.75],
+    "expected": {
+      "fired": false,
+      "refusedAt": "roll",
+      "drawsUsed": 1,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-roll-accuracy-0-narrow-circle-refuses",
+    "title": "at accuracy 0 the draw 0.0625 gives a roll limit of 5859.375, below a range of 5859.5",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "0.0625 x 12500 x 7.5 = 5859.375 < 5859.5 (all exact binary products), so range > limit refuses at 9949-9950 after the draw: roll, drawsUsed 1.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 5859.5,
+      "onTarget": true
+    },
+    "draws": [0.0625, 0.75],
+    "expected": {
+      "fired": false,
+      "refusedAt": "roll",
+      "drawsUsed": 1,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-roll-accuracy-9-wide-circle-passes",
+    "title": "the same draw and range at accuracy 9 pass: the limit grows to 0.0625 x 12500 x 16.5 = 12890.625",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "accuracy + 7.5 = 16.5, so the limit is 12890.625 >= 5859.5; the range is inside the weapon range 12500; the shot fires. The accuracy changes the roll only through (accuracy + 7.5).",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 9,
+      "range": 5859.5,
+      "onTarget": true
+    },
+    "draws": [0.0625, 0.75],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 99.2,
+      "temperatureAfter": 7,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-range-equal-to-weapon-range-passes-roll-and-range",
+    "title": "a range exactly equal to the weapon range passes both the roll and the range check",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "Roll limit 0.5 x 12500 x 7.5 = 46875 >= 12500; range > weaponRange (9951-9952) is strict, so 12500 > 12500 is false and the shot fires.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 12500,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 99.2,
+      "temperatureAfter": 7,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-range-one-ulp-above-weapon-range-refuses-at-range",
+    "title": "a range one double above the weapon range passes the roll and refuses at the range check",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "The roll limit 46875 passes; 12500.000000000002 > 12500 refuses at 9951-9952. The draw was already taken, so drawsUsed is 1 and the refusal is range, not roll.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 12500.000000000002,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "range",
+      "drawsUsed": 1,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-no-target-refuses-after-the-draw",
+    "title": "a beam laser with no live target refuses at onTarget after exactly one draw",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "src/Core/Entities/ShipEntity.m:9954-9955",
+      "Resources/Config/equipment.plist:143-154"
+    ],
+    "derivation": "onTarget:withWeapon: answers NO when primaryTarget is nil (9863-9864). The gate takes its one draw first (9948-9953) and only then asks (9954-9955), so the refusal is onTarget with drawsUsed 1 and nothing else changes.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_BEAM_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": false
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "onTarget",
+      "drawsUsed": 1,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-off-target-refuses-after-the-draw-military",
+    "title": "a military laser whose aim is off the target refuses at onTarget after exactly one draw",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "src/Core/Entities/ShipEntity.m:9954-9955",
+      "Resources/Config/equipment.plist:184-195"
+    ],
+    "derivation": "Range 20000 passes the roll (0.5 x 30000 x 7.5 = 112500) and is inside the military range 30000; onTarget is false (the aim circle is missed), so the gate refuses at 9954-9955 after one draw.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_MILITARY_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 20000,
+      "onTarget": false
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "onTarget",
+      "drawsUsed": 1,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-unarmed-positive-energy-takes-the-draw-and-never-fires",
+    "title": "an unarmed ship with energy and a target on the aim takes the one draw and never fires",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:299-300",
+      "src/Core/Entities/ShipEntity.m:13046-13049",
+      "src/Core/Entities/ShipEntity.m:9944-9945",
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "src/Core/Entities/ShipEntity.m:9958-9966",
+      "Resources/Config/equipment.plist:107-121"
+    ],
+    "derivation": "An NPC without a forward weapon holds the EQ_WEAPON_NONE equipment object, not nil (ShipEntity.m:299-300, OOWeaponTypeFromString at OOConstToString.m:258-281 falls back to the registered EQ_WEAPON_NONE type), whose weapon_info is range 32000, energy 0.0, recharge_rate 100, shot_temperature 0. fireMainWeapon: copies those into the ship (10011-10014). With energy 100 the energy check (energy <= 0) passes; never fired, so shot_time 100.0 is not below 100.0 and the timer passes; NONE is not a turret laser, so the draw is taken: 0.5 x 32000 x 7.5 = 120000 >= 5000 and 5000 <= 32000; onTarget is true; isWeaponNone is true (9958), so nothing fires. One draw, refusal noWeapon, energy and temperature unchanged.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_NONE",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "noWeapon",
+      "drawsUsed": 1,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-unarmed-zero-energy-refuses-at-energy",
+    "title": "an unarmed ship with zero energy refuses at energy because 0 <= 0",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9944-9945",
+      "src/Core/Entities/ShipEntity.m:299-300",
+      "Resources/Config/equipment.plist:107-121"
+    ],
+    "derivation": "The NONE weapon_info costs 0.0; energy <= 0.0 * 1 is true at energy 0 (9944-9945), so the gate refuses at energy with no draw, before the timer.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_NONE",
+    "input": {
+      "temperature": 0,
+      "energy": 0,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "energy",
+      "drawsUsed": 0,
+      "energyAfter": 0,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-unarmed-range-beyond-32000-refuses-at-range",
+    "title": "an unarmed ship asked at range 40000 passes the roll and refuses at the NONE weapon range 32000",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "src/Core/Entities/ShipEntity.m:299-300",
+      "Resources/Config/equipment.plist:107-121"
+    ],
+    "derivation": "The NONE range is 32000: the roll limit is 0.5 x 32000 x 7.5 = 120000 >= 40000, then range > weaponRange (40000 > 32000, 9951-9952) refuses after the draw.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_NONE",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": 0,
+      "range": 40000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "range",
+      "drawsUsed": 1,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-unarmed-timer-needs-the-100-second-period",
+    "title": "the NONE weapon's recharge rate of 100 s is 12000 ticks: 11999 ticks since a shot refuses at the timer",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:299-300",
+      "Resources/Config/equipment.plist:107-121"
+    ],
+    "derivation": "recharge_rate 100 gives round(100 x 120) = 12000 ticks; an unarmed ship never fires, so ticksSinceShot is null in practice, but the gate arithmetic is the same: 11999 < 12000 refuses at the timer with no draw.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_NONE",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": 11999,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": false,
+      "refusedAt": "timer",
+      "drawsUsed": 0,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
+    "id": "gate-fires-beam-float32-heat",
+    "title": "a fired beam shot adds fround(3.2) to the temperature in float32, not the float64 sum",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "src/Core/Entities/ShipEntity.m:9946-9947",
+      "Resources/Config/equipment.plist:143-154"
+    ],
+    "derivation": "forward_weapon_temp is a GLfloat and weapon_shot_temperature is a GLfloat (ShipEntity.h:303-304); forward_weapon_temp += weapon_shot_temperature (9971-9973) is a float32 add. fround(3.2) = 3.200000047683716; 200 + 3.200000047683716 = 203.2000000476837 in float64 and 203.1999969482422 after the float32 rounding (spacing 2^-16). Energy 50 - 0.5 = 49.5.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_BEAM_LASER",
+    "input": {
+      "temperature": 200,
+      "energy": 50,
+      "ticksSinceShot": 12,
+      "accuracy": 0,
+      "range": 5000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 49.5,
+      "temperatureAfter": 203.1999969482422,
+      "shotTimerReset": true
+    }
+  },
+  {
+    "id": "gate-fires-military-at-the-weapon-range",
+    "title": "a military laser fires at exactly its 30000 range, costing 1.1 energy and adding 4.25 degrees",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "src/Core/Entities/ShipEntity.m:9968-9973",
+      "Resources/Config/equipment.plist:184-195"
+    ],
+    "derivation": "Roll limit 0.5 x 30000 x 7.5 = 112500 >= 30000; range 30000 is not above the weapon range 30000; the shot fires: energy 5 - 1.1 = 3.9, temperature 0 + 4.25.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_MILITARY_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 5,
+      "ticksSinceShot": 12,
+      "accuracy": 0,
+      "range": 30000,
+      "onTarget": true
+    },
+    "draws": [0.5, 0.25],
+    "expected": {
+      "fired": true,
+      "refusedAt": null,
+      "drawsUsed": 1,
+      "energyAfter": 3.9,
+      "temperatureAfter": 4.25,
+      "shotTimerReset": true
+    }
+  }
+]
