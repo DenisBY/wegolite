@@ -46,6 +46,8 @@
     "launch": {
       "count": "number",
       "elapsed": "number",
+      "preRollElapsed": "number",
+      "preRolling": "boolean",
       "seen": "boolean"
     },
     "logDepth": "boolean",
@@ -210,6 +212,8 @@
     "launch": {
       "count": "number",
       "elapsed": "number",
+      "preRollElapsed": "number",
+      "preRolling": "boolean",
       "seen": "boolean"
     },
     "logDepth": "boolean",
@@ -419,6 +423,8 @@
     "launch": {
       "count": "number",
       "elapsed": "number",
+      "preRollElapsed": "number",
+      "preRolling": "boolean",
       "seen": "boolean"
     },
     "logDepth": "boolean",
@@ -628,6 +634,8 @@
     "launch": {
       "count": "number",
       "elapsed": "number",
+      "preRollElapsed": "number",
+      "preRolling": "boolean",
       "seen": "boolean"
     },
     "logDepth": "boolean",
@@ -837,6 +845,8 @@
     "launch": {
       "count": "number",
       "elapsed": "number",
+      "preRollElapsed": "number",
+      "preRolling": "boolean",
       "seen": "boolean"
     },
     "logDepth": "boolean",
@@ -1046,6 +1056,8 @@
     "launch": {
       "count": "number",
       "elapsed": "number",
+      "preRollElapsed": "number",
+      "preRolling": "boolean",
       "seen": "boolean"
     },
     "logDepth": "boolean",
@@ -1270,6 +1282,8 @@
     "launch": {
       "count": "number",
       "elapsed": "number",
+      "preRollElapsed": "number",
+      "preRolling": "boolean",
       "seen": "boolean"
     },
     "logDepth": "boolean",
