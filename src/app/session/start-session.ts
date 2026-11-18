@@ -146,6 +146,7 @@ export interface LifecycleDeps {
   readonly openStationScreen: StationController["openStationScreen"];
   readonly navigateStation: StationController["navigateStation"];
   readonly setStationPage: StationController["setStationPage"];
+  readonly sortMarket: StationController["sortMarket"];
   readonly clearSaveForNewGame: SaveController["clearSaveForNewGame"];
   readonly closeSaveScreen: SaveController["closeSaveScreen"];
   readonly manualSave: SaveController["manualSave"];
@@ -225,6 +226,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     openStationScreen,
     navigateStation,
     setStationPage,
+    sortMarket,
     clearSaveForNewGame,
     closeSaveScreen,
     manualSave,
@@ -772,6 +774,11 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
       )
         return;
       pending.push({ kind: "launch" });
+    });
+    // The F8 column headings (quick task 261118-cyo); sortMarket repeats the
+    // docked, screen, pause and overlay guards itself.
+    docked.onMarketSort?.((column) => {
+      sortMarket(column);
     });
     docked.onRefuel?.(() => {
       if (

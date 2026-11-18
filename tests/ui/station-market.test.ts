@@ -25,10 +25,14 @@ import { newProfile } from "../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../src/sim/player/profile.js";
 import {
   MARKET_COLUMNS,
+  MARKET_SORT_COLUMNS,
   buildMarketModel,
   legalityText,
+  nextMarketSort,
+  sortMarketGoods,
   tradeNoticeText,
 } from "../../src/ui/station-model.js";
+import type { MarketSort } from "../../src/ui/station-model.js";
 import { commodityUnits, commoditiesFixture } from "../helpers/commodities.js";
 import { laveFixture } from "../helpers/lave.js";
 
@@ -331,5 +335,170 @@ describe("tradeNoticeText", () => {
         commodity("food"),
       ),
     ).toBe("Station can only take 25 t");
+  });
+});
+
+/**
+ * The F8 sort (quick task 261118-cyo, owner decision 2026-11-18): Oolite's
+ * comparators are all ascending (`PlayerEntity.m:11868-11911` at the pin
+ * 7437f22); a heading click cycles ascending, descending, default.
+ */
+describe("market sort", () => {
+  const catalogueOrder = [...commodities]
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((entry) => entry.key);
+  const keys = (sort: MarketSort, cargo: Record<string, number> = {}) =>
+    sortMarketGoods(market.goods, sort, commodities, cargo).map(
+      (good) => good.key,
+    );
+
+  it("cycles ascending, descending and default on one heading", () => {
+    const ascending = nextMarketSort(null, "price");
+    expect(ascending).toEqual({ column: "price", direction: "ascending" });
+    const descending = nextMarketSort(ascending, "price");
+    expect(descending).toEqual({ column: "price", direction: "descending" });
+    expect(nextMarketSort(descending, "price")).toBeNull();
+    expect(nextMarketSort(ascending, "name")).toEqual({
+      column: "name",
+      direction: "ascending",
+    });
+    expect(nextMarketSort(descending, "unit")).toEqual({
+      column: "unit",
+      direction: "ascending",
+    });
+  });
+
+  it("offers five sortable columns and never Legal", () => {
+    expect(MARKET_SORT_COLUMNS).toEqual([
+      "name",
+      "unit",
+      "price",
+      "stock",
+      "held",
+    ]);
+  });
+
+  it("returns the catalogue order unchanged without a sort", () => {
+    expect(keys(null)).toEqual(catalogueOrder);
+  });
+
+  it("orders by a code-unit compare of the names", () => {
+    const names = sortMarketGoods(
+      market.goods,
+      { column: "name", direction: "ascending" },
+      commodities,
+      {},
+    ).map((good) => commodity(good.key).name);
+    expect(names).toEqual([
+      "Alien Items",
+      "Alloys",
+      "Computers",
+      "Firearms",
+      "Food",
+      "Furs",
+      "Gem-Stones",
+      "Gold",
+      "Liquor/Wines",
+      "Luxuries",
+      "Machinery",
+      "Minerals",
+      "Narcotics",
+      "Platinum",
+      "Radioactives",
+      "Slaves",
+      "Textiles",
+    ]);
+    expect(
+      keys({ column: "name", direction: "descending" }).map(
+        (key) => commodity(key).name,
+      ),
+    ).toEqual([...names].reverse());
+  });
+
+  it("orders the units t, kg, g with ties in catalogue order", () => {
+    const tonnes = catalogueOrder.filter((key) => commodity(key).unit === "t");
+    expect(keys({ column: "unit", direction: "ascending" })).toEqual([
+      ...tonnes,
+      "gold",
+      "platinum",
+      "gem_stones",
+    ]);
+    // Descending negates the comparator; ties stay in catalogue order.
+    expect(keys({ column: "unit", direction: "descending" })).toEqual([
+      "gem_stones",
+      "gold",
+      "platinum",
+      ...tonnes,
+    ]);
+  });
+
+  it("orders by price and by market stock, stable on ties", () => {
+    const indexOf = (key: string) => catalogueOrder.indexOf(key);
+    const good = (key: string) => {
+      const found = market.goods.find((entry) => entry.key === key);
+      if (found === undefined) throw new Error(`no good "${key}"`);
+      return found;
+    };
+    const expected = (value: (key: string) => number, sign: 1 | -1): string[] =>
+      [...catalogueOrder].sort(
+        (left, right) =>
+          sign * (value(left) - value(right)) || indexOf(left) - indexOf(right),
+      );
+    expect(keys({ column: "price", direction: "ascending" })).toEqual(
+      expected((key) => good(key).price, 1),
+    );
+    expect(keys({ column: "price", direction: "descending" })).toEqual(
+      expected((key) => good(key).price, -1),
+    );
+    expect(keys({ column: "stock", direction: "ascending" })).toEqual(
+      expected((key) => good(key).stock, 1),
+    );
+    expect(keys({ column: "stock", direction: "descending" })).toEqual(
+      expected((key) => good(key).stock, -1),
+    );
+  });
+
+  it("orders by the amount in the hold, 0 when absent", () => {
+    const cargo = { gold: 3, food: 5, furs: 3 };
+    const ascending = keys({ column: "held", direction: "ascending" }, cargo);
+    expect(ascending.slice(-3)).toEqual(["furs", "gold", "food"]);
+    expect(ascending.slice(0, 14)).toEqual(
+      catalogueOrder.filter((key) => !(key in cargo)),
+    );
+    const descending = keys({ column: "held", direction: "descending" }, cargo);
+    expect(descending.slice(0, 3)).toEqual(["food", "furs", "gold"]);
+  });
+
+  it("does not mutate the market goods", () => {
+    const before = market.goods.map((good) => good.key);
+    keys({ column: "price", direction: "descending" });
+    expect(market.goods.map((good) => good.key)).toEqual(before);
+  });
+
+  it("builds the rows in the sorted order and marks the active column", () => {
+    const sort: MarketSort = { column: "price", direction: "descending" };
+    const model = buildMarketModel(
+      market,
+      newProfile(),
+      commodities,
+      "food",
+      { pending: null, notice: "" },
+      sort,
+    );
+    expect(model.rows.map((entry) => entry.key)).toEqual(keys(sort));
+    expect(
+      model.columns.map((column) => [column.key, column.sortable, column.sort]),
+    ).toEqual([
+      ["name", true, null],
+      ["unit", true, null],
+      ["price", true, "descending"],
+      ["stock", true, null],
+      ["held", true, null],
+      ["legal", false, null],
+    ]);
+    // Without a sort argument the catalogue order and unmarked columns hold.
+    const plain = build();
+    expect(plain.rows.map((entry) => entry.key)).toEqual(catalogueOrder);
+    expect(plain.columns.every((column) => column.sort === null)).toBe(true);
   });
 });

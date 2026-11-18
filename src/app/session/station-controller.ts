@@ -62,9 +62,15 @@ import {
   buildStatusModel,
   buildInterfacesModel,
   isMarketRowSelectable,
+  isMarketSortColumn,
+  nextMarketSort,
+  sortMarketGoods,
   tradeNoticeText,
 } from "../../ui/station-model.js";
-import type { OutfittingModel } from "../../ui/station-model.js";
+import type {
+  MarketSortColumn,
+  OutfittingModel,
+} from "../../ui/station-model.js";
 import { activeTabId, isTabEnabled, tabById } from "../../ui/station-tabs.js";
 import type { StationNavState, StationTabId } from "../../ui/station-tabs.js";
 import type {
@@ -132,6 +138,22 @@ export function createStationController(
     );
   }
 
+  /**
+   * The market goods in the order F8 paints them: the heading-click sort
+   * when one is active, otherwise the catalogue order. The keys, the first
+   * selection and the painted rows all walk this one order.
+   */
+  function orderedGoods() {
+    const currentMarket = ctx.core.market;
+    if (currentMarket === undefined) return [];
+    return sortMarketGoods(
+      currentMarket.goods,
+      ctx.station.marketSort,
+      ctx.core.commodities ?? [],
+      ctx.core.profile.cargo,
+    );
+  }
+
   /** The first commodity a player can actually trade in this market. */
   function ensureSelection(): void {
     const currentMarket = ctx.core.market;
@@ -145,16 +167,14 @@ export function createStationController(
     ) {
       return;
     }
-    const first = currentMarket.goods.find((good) =>
+    const first = orderedGoods().find((good) =>
       isSelectableGood(good.key, good.stock),
     );
     ctx.station.stationSelection = first?.key ?? "";
   }
 
   function selectableKeys(): readonly string[] {
-    const currentMarket = ctx.core.market;
-    if (currentMarket === undefined) return [];
-    return currentMarket.goods
+    return orderedGoods()
       .filter((good) => isSelectableGood(good.key, good.stock))
       .map((good) => good.key);
   }
@@ -604,6 +624,7 @@ export function createStationController(
       catalogue,
       ctx.station.stationSelection,
       { pending: pendingPlan(), notice: ctx.station.stationNotice },
+      ctx.station.marketSort,
     );
     const outModel =
       equipment === undefined
@@ -827,6 +848,31 @@ export function createStationController(
   }
 
   /**
+   * The F8 heading-click sink (quick task 261118-cyo, owner decision
+   * 2026-11-18): cycle the sort on one column and repaint. It repeats
+   * `setStationPage`'s guards, because a DOM click is not a trust boundary,
+   * and accepts only `MARKET_SORT_COLUMNS`. The selection and a pending
+   * `[Y/N]` plan are kept: both name their commodity by key, so a reorder
+   * cannot retarget them.
+   */
+  function sortMarket(column: MarketSortColumn): void {
+    if (
+      ctx.runtime.disposed ||
+      ctx.runtime.paused ||
+      ctx.runtime.contextLost ||
+      ctx.core.state?.mode !== "docked" ||
+      ctx.station.stationScreen !== "market" ||
+      ctx.chart.chartOpen ||
+      ctx.save.saveScreenOpen ||
+      !isMarketSortColumn(column)
+    ) {
+      return;
+    }
+    ctx.station.marketSort = nextMarketSort(ctx.station.marketSort, column);
+    renderStation();
+  }
+
+  /**
    * Apply one drained station action. The live mode, context and screen are
    * revalidated here, so a queued action cannot apply a stale trade after a
    * screen change, a dock or a pause.
@@ -935,6 +981,7 @@ export function createStationController(
     backToHome,
     navigateStation,
     setStationPage,
+    sortMarket,
     applyStationAction,
   };
 }

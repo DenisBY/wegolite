@@ -167,6 +167,71 @@ test("buys one tonne of Food, autosaves and reloads into the same hold", async (
   expect(errors).toEqual([]);
 });
 
+test("F8 column headings sort the market and the keys follow the sorted order", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await bootToHome(page);
+  const probe = await getProbe(page);
+  const goods = probe.economy?.market ?? [];
+  expect(goods).toHaveLength(17);
+  const catalogueOrder = goods.map((good) => good.key);
+  // Oolite's price comparator, ascending; ties keep the catalogue order.
+  const byPrice = goods
+    .map((good, index) => ({ ...good, index }))
+    .sort(
+      (left, right) => left.price - right.price || left.index - right.index,
+    );
+  const ascending = byPrice.map((good) => good.key);
+  const descending = goods
+    .map((good, index) => ({ ...good, index }))
+    .sort((left, right) => right.price - left.price || left.index - right.index)
+    .map((good) => good.key);
+
+  await page.keyboard.press("Digit8");
+  await waitForScreen(page, "market");
+  const rowKeys = () =>
+    page
+      .locator("[data-market-rows] tr")
+      .evaluateAll((rows) =>
+        rows.map((row) => (row as HTMLElement).dataset.key ?? ""),
+      );
+  const price = page.locator('th[data-column="price"]');
+  expect(await rowKeys()).toEqual(catalogueOrder);
+  await expect(price).toHaveAttribute("aria-sort", "none");
+
+  await price.click();
+  await expect.poll(rowKeys).toEqual(ascending);
+  await expect(price).toHaveText("Price ▲");
+  await expect(price).toHaveAttribute("aria-sort", "ascending");
+
+  await price.click();
+  await expect.poll(rowKeys).toEqual(descending);
+  await expect(price).toHaveText("Price ▼");
+  await expect(price).toHaveAttribute("aria-sort", "descending");
+
+  await price.click();
+  await expect.poll(rowKeys).toEqual(catalogueOrder);
+  await expect(price).toHaveText("Price");
+  await expect(price).toHaveAttribute("aria-sort", "none");
+
+  // With Price ascending, Down moves to the next selectable row in that order.
+  await price.click();
+  await expect.poll(rowKeys).toEqual(ascending);
+  const selectable = byPrice
+    .filter((good) => good.key !== "alien_items" && good.stock > 0)
+    .map((good) => good.key);
+  const before = (await getProbe(page)).station?.selectedKey ?? "";
+  const at = selectable.indexOf(before);
+  expect(at).toBeGreaterThanOrEqual(0);
+  await page.keyboard.press("ArrowDown");
+  await expect
+    .poll(async () => (await getProbe(page)).station?.selectedKey)
+    .toBe(selectable[(at + 1) % selectable.length]);
+
+  expect(errors).toEqual([]);
+});
+
 test("launch and redock reuse the persisted seed, prices and stock", async ({
   page,
 }) => {

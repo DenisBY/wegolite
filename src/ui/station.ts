@@ -24,11 +24,13 @@
 import { createStationFooter } from "./station-footer.js";
 import type { DockedPanel } from "./docked.js";
 
+import { isMarketSortColumn } from "./station-model.js";
 import type {
   HomeModel,
   InterfacesModel,
   LabelledField,
   MarketModel,
+  MarketSortColumn,
   OutfittingModel,
   StatusModel,
 } from "./station-model.js";
@@ -61,6 +63,8 @@ export interface StationShell {
   setFuel(text: string): void;
   onLaunch(handler: () => void): void;
   onRefuel?(handler: () => void): void;
+  /** A click on a sortable F8 column heading (quick task 261118-cyo). */
+  onMarketSort?(handler: (column: MarketSortColumn) => void): void;
   render(view: StationView): void;
   dispose(): void;
 }
@@ -148,6 +152,11 @@ export function createStationShell(
     "[data-market-rows]",
     "the market row body",
   );
+  const marketHead = requireElement<HTMLElement>(
+    marketPanel,
+    "thead",
+    "the market column headings",
+  );
   const marketCash = requireElement<HTMLElement>(
     root,
     '[data-field="market-cash"]',
@@ -222,7 +231,34 @@ export function createStationShell(
   const controller = new AbortController();
   let previousScreen: StationScreen = "home";
 
+  /**
+   * Write each heading from the model: the label, plus " ▲" or " ▼" on the
+   * active sort column, and `aria-sort` on every sortable heading.
+   */
+  function renderMarketHeadings(model: MarketModel): void {
+    for (const column of model.columns) {
+      const heading = marketHead.querySelector(
+        `th[data-column="${column.key}"]`,
+      );
+      if (!(heading instanceof HTMLElement)) continue;
+      const arrow =
+        column.sort === "ascending"
+          ? " ▲"
+          : column.sort === "descending"
+            ? " ▼"
+            : "";
+      const text = `${column.label}${arrow}`;
+      if (heading.textContent !== text) heading.textContent = text;
+      if (column.sortable) {
+        heading.setAttribute("aria-sort", column.sort ?? "none");
+      } else {
+        heading.removeAttribute("aria-sort");
+      }
+    }
+  }
+
   function renderMarketRows(model: MarketModel): void {
+    renderMarketHeadings(model);
     marketBody.replaceChildren();
     for (const row of model.rows) {
       const tr = document.createElement("tr");
@@ -320,6 +356,23 @@ export function createStationShell(
     },
     onRefuel(handler: () => void): void {
       home.onRefuel?.(handler);
+    },
+    onMarketSort(handler: (column: MarketSortColumn) => void): void {
+      // One delegated listener on the heading row; only an allow-listed
+      // column key reaches the session, which repeats its own guards.
+      marketHead.addEventListener(
+        "click",
+        (event) => {
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+          const heading = target.closest("th[data-column]");
+          if (!(heading instanceof HTMLElement)) return;
+          const column = heading.dataset.column;
+          if (!isMarketSortColumn(column)) return;
+          handler(column);
+        },
+        { signal: controller.signal },
+      );
     },
     render(view: StationView): void {
       home.setCredits(view.creditsText);

@@ -310,6 +310,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     openStationScreen,
     navigateStation,
     setStationPage,
+    sortMarket,
     applyStationAction,
   } = stationController;
 
@@ -532,6 +533,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     openStationScreen,
     navigateStation,
     setStationPage,
+    sortMarket,
     clearSaveForNewGame,
     closeSaveScreen,
     manualSave,

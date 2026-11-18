@@ -25,7 +25,7 @@ import {
   holdPodsUsed,
   availablePods,
 } from "../sim/economy/cargo.js";
-import type { Market } from "../sim/economy/market.js";
+import type { Market, MarketGood } from "../sim/economy/market.js";
 import type { TradePlan } from "../sim/economy/trade.js";
 import { FACINGS, NO_LASER } from "../sim/combat/mounts.js";
 import type { Facing } from "../sim/combat/mounts.js";
@@ -121,9 +121,128 @@ function equipmentName(
   return record.name;
 }
 
-export interface MarketColumn {
+/** One fixed market column: its key and its heading. */
+export interface MarketColumnSpec {
   readonly key: "name" | "unit" | "price" | "stock" | "held" | "legal";
   readonly label: string;
+}
+
+/** A market column as the screen draws it: sortable or not, and its direction. */
+export interface MarketColumn extends MarketColumnSpec {
+  readonly sortable: boolean;
+  /** The active sort direction on this column, or null. */
+  readonly sort: MarketSortDirection | null;
+}
+
+/**
+ * The F8 columns a heading click sorts by. Oolite's market sorters
+ * (`PlayerEntity.m:9612-9628` at the pin 7437f22) are name, price, quantity in
+ * the market, quantity in the hold and mass unit; it has no legality sorter,
+ * so Legal is not sortable.
+ */
+export type MarketSortColumn = "name" | "unit" | "price" | "stock" | "held";
+export type MarketSortDirection = "ascending" | "descending";
+
+/** The active market sort, or null for the catalogue order. Session state only. */
+export type MarketSort = {
+  readonly column: MarketSortColumn;
+  readonly direction: MarketSortDirection;
+} | null;
+
+/** The allow-list of sortable columns; the shell and the controller accept nothing else. */
+export const MARKET_SORT_COLUMNS: readonly MarketSortColumn[] = Object.freeze([
+  "name",
+  "unit",
+  "price",
+  "stock",
+  "held",
+]);
+
+/** Whether a value is one of the five sortable column keys. */
+export function isMarketSortColumn(value: unknown): value is MarketSortColumn {
+  return (
+    typeof value === "string" &&
+    (MARKET_SORT_COLUMNS as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * The heading-click cycle (owner decision 2026-11-18): a new column starts
+ * ascending, the same column then turns descending, then back to the
+ * catalogue order.
+ */
+export function nextMarketSort(
+  current: MarketSort,
+  column: MarketSortColumn,
+): MarketSort {
+  if (current === null || current.column !== column) {
+    return { column, direction: "ascending" };
+  }
+  return current.direction === "ascending"
+    ? { column, direction: "descending" }
+    : null;
+}
+
+/**
+ * Oolite's `OOMassUnit` order (`OOTypes.h`: UNITS_TONS, UNITS_KILOGRAMS,
+ * UNITS_GRAMS), which `marketSorterByMassUnit` compares.
+ */
+const MASS_UNIT_ORDER: Readonly<Record<CommodityUnit, number>> = Object.freeze({
+  t: 0,
+  kg: 1,
+  g: 2,
+});
+
+/** A literal code-unit compare, as `NSString compare:` without options. */
+function compareCodeUnits(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
+/**
+ * Order the market goods by one of Oolite's comparators
+ * (`PlayerEntity.m:11868-11911` at the pin: name, price, quantity, mass unit,
+ * all ascending). Descending negates the comparator; ties keep the catalogue
+ * order in both directions. Returns a new array and never mutates `goods`.
+ */
+export function sortMarketGoods<G extends MarketGood>(
+  goods: readonly G[],
+  sort: MarketSort,
+  commodities: readonly Commodity[],
+  cargo: Readonly<Record<string, number>>,
+): G[] {
+  const indexed = goods.map((good, index) => ({ good, index }));
+  if (sort === null) return indexed.map((entry) => entry.good);
+  const byKey = new Map(
+    commodities.map((commodity) => [commodity.key, commodity]),
+  );
+  const compare = (left: G, right: G): number => {
+    switch (sort.column) {
+      case "name":
+        return compareCodeUnits(
+          byKey.get(left.key)?.name ?? left.key,
+          byKey.get(right.key)?.name ?? right.key,
+        );
+      case "unit":
+        return (
+          MASS_UNIT_ORDER[byKey.get(left.key)?.unit ?? "t"] -
+          MASS_UNIT_ORDER[byKey.get(right.key)?.unit ?? "t"]
+        );
+      case "price":
+        return left.price - right.price;
+      case "stock":
+        return left.stock - right.stock;
+      case "held":
+        return (cargo[left.key] ?? 0) - (cargo[right.key] ?? 0);
+    }
+  };
+  const sign = sort.direction === "ascending" ? 1 : -1;
+  indexed.sort(
+    (left, right) =>
+      sign * compare(left.good, right.good) || left.index - right.index,
+  );
+  return indexed.map((entry) => entry.good);
 }
 
 export interface MarketRow {
@@ -169,7 +288,7 @@ export interface MarketModel {
 }
 
 /** The fixed column order (D-08). */
-export const MARKET_COLUMNS: readonly MarketColumn[] = Object.freeze([
+export const MARKET_COLUMNS: readonly MarketColumnSpec[] = Object.freeze([
   { key: "name", label: "Commodity" },
   { key: "unit", label: "Unit" },
   { key: "price", label: "Price" },
@@ -261,7 +380,8 @@ export function tradeNoticeText(
  * `selection` is the selected commodity key; `feedback.pending` is the plan the
  * footer is confirming and `feedback.notice` is an independent refusal/clamp
  * line. The row order is the catalogue's `sortOrder`, already stable in the
- * generated content.
+ * generated content, unless `sort` names a heading-click sort
+ * (`sortMarketGoods`).
  */
 export function buildMarketModel(
   market: Market,
@@ -269,6 +389,7 @@ export function buildMarketModel(
   commodities: readonly Commodity[],
   selection: string,
   feedback: MarketFeedback,
+  sort: MarketSort = null,
 ): MarketModel {
   const byKey = new Map(
     commodities.map((commodity) => [commodity.key, commodity]),
@@ -277,7 +398,13 @@ export function buildMarketModel(
     commodities.map((commodity) => [commodity.key, commodity.unit]),
   );
 
-  const rows: MarketRow[] = market.goods.map((good) => {
+  const ordered = sortMarketGoods(
+    market.goods,
+    sort,
+    commodities,
+    profile.cargo,
+  );
+  const rows: MarketRow[] = ordered.map((good) => {
     const commodity = byKey.get(good.key);
     const unit: CommodityUnit = commodity?.unit ?? "t";
     const tradeable = commodity?.tradeable === true;
@@ -309,8 +436,14 @@ export function buildMarketModel(
     feedback.pending === null ? undefined : byKey.get(feedback.pending.key);
   const clampNotice = tradeNoticeText(feedback.pending, pendingCommodity);
 
+  const columns: MarketColumn[] = MARKET_COLUMNS.map((column) => ({
+    ...column,
+    sortable: isMarketSortColumn(column.key),
+    sort: sort !== null && sort.column === column.key ? sort.direction : null,
+  }));
+
   return {
-    columns: MARKET_COLUMNS,
+    columns,
     rows,
     selectedKey: selection,
     cashText: `Cash: ${formatDecicredits(profile.credits)}.`,

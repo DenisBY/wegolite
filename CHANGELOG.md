@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Clicking a market column heading sorts the goods by name, unit, price,
+  stock or the amount in the hold; a second click reverses the order and a
+  third restores the usual order. The arrow keys and buying and selling follow
+  the sorted list.
+
 ## [0.5.0] - 2026-11-17
 
 ### Added

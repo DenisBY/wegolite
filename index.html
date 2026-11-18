@@ -308,6 +308,17 @@
         opacity: 0.8;
       }
 
+      /* F8 sortable headings (quick task 261118-cyo): click to sort. */
+      #docked [data-station-panel="market"] th[data-sortable] {
+        cursor: pointer;
+        user-select: none;
+      }
+
+      #docked [data-station-panel="market"] th[data-sortable]:hover {
+        opacity: 1;
+        color: #9f9;
+      }
+
       #docked .station-table tr.dimmed {
         color: #2a5a35;
         opacity: 0.6;
@@ -1818,12 +1829,18 @@
           <table class="station-table">
             <thead>
               <tr>
-                <th>Commodity</th>
-                <th>Unit</th>
-                <th>Price</th>
-                <th>Stock</th>
-                <th>Hold</th>
-                <th>Legal</th>
+                <th data-column="name" data-sortable aria-sort="none">
+                  Commodity
+                </th>
+                <th data-column="unit" data-sortable aria-sort="none">Unit</th>
+                <th data-column="price" data-sortable aria-sort="none">
+                  Price
+                </th>
+                <th data-column="stock" data-sortable aria-sort="none">
+                  Stock
+                </th>
+                <th data-column="held" data-sortable aria-sort="none">Hold</th>
+                <th data-column="legal">Legal</th>
               </tr>
             </thead>
             <tbody data-market-rows></tbody>

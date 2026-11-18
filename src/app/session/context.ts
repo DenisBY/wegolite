@@ -83,6 +83,7 @@ import type { ChartOverlay } from "../../ui/chart.js";
 import type { ChartCamera } from "../../ui/chart-model.js";
 import { galaxyPreset } from "../../ui/chart-model.js";
 import type { ControlsPanel } from "../../ui/controls.js";
+import type { MarketSort } from "../../ui/station-model.js";
 import type { FpsCounter } from "../../ui/fps-counter.js";
 import type { PauseOverlay } from "../../ui/pause.js";
 import type { SaveLoadScreen } from "../../ui/save-load.js";
@@ -208,6 +209,11 @@ export interface SessionStationState {
    * list (CBT-05). Cleared whenever the station screen changes.
    */
   outfittingFacingFor: string | null;
+  /**
+   * The F8 heading-click sort (quick task 261118-cyo), or null for the
+   * catalogue order. Session state only: not saved and not on the probe.
+   */
+  marketSort: MarketSort;
   lastTrade: WegoliteLastTradeProbe | null;
   stationNav: StationNav | undefined;
 }
@@ -395,6 +401,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       stationSaveNotice: "",
       stationPage: 1,
       outfittingFacingFor: null,
+      marketSort: null,
       lastTrade: null,
       stationNav: undefined,
     },

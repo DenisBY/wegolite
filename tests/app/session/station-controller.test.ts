@@ -281,6 +281,124 @@ describe("Node safety and guards", () => {
   });
 });
 
+describe("sortMarket (quick task 261118-cyo)", () => {
+  function sortedKeys(h: Harness, column: "price" | "name"): string[] {
+    const goods = [...h.market.goods];
+    const value = (key: string): number | string => {
+      if (column === "name") {
+        return catalogue.find((entry) => entry.key === key)?.name ?? key;
+      }
+      return goods.find((entry) => entry.key === key)?.price ?? 0;
+    };
+    return goods
+      .map((good, index) => ({ key: good.key, index }))
+      .sort((left, right) => {
+        const a = value(left.key);
+        const b = value(right.key);
+        if (a < b) return -1;
+        if (a > b) return 1;
+        return left.index - right.index;
+      })
+      .map((entry) => entry.key);
+  }
+
+  it("cycles the sort on the market screen and renders the sorted rows", () => {
+    const h = harness();
+    h.controller.ensureSelection();
+    h.controller.sortMarket("price");
+    expect(h.ctx.station.marketSort).toEqual({
+      column: "price",
+      direction: "ascending",
+    });
+    expect(h.views.at(-1)?.market?.rows.map((row) => row.key)).toEqual(
+      sortedKeys(h, "price"),
+    );
+    h.controller.sortMarket("price");
+    expect(h.ctx.station.marketSort).toEqual({
+      column: "price",
+      direction: "descending",
+    });
+    h.controller.sortMarket("price");
+    expect(h.ctx.station.marketSort).toBeNull();
+    expect(h.views).toHaveLength(3);
+  });
+
+  it("ignores an unknown column and every guarded state", () => {
+    const h = harness();
+    h.controller.sortMarket("legal" as never);
+    h.controller.sortMarket("__proto__" as never);
+    expect(h.ctx.station.marketSort).toBeNull();
+
+    h.ctx.runtime.paused = true;
+    h.controller.sortMarket("price");
+    h.ctx.runtime.paused = false;
+    h.ctx.runtime.contextLost = true;
+    h.controller.sortMarket("price");
+    h.ctx.runtime.contextLost = false;
+    h.ctx.chart.chartOpen = true;
+    h.controller.sortMarket("price");
+    h.ctx.chart.chartOpen = false;
+    h.ctx.save.saveScreenOpen = true;
+    h.controller.sortMarket("price");
+    h.ctx.save.saveScreenOpen = false;
+    h.ctx.station.stationScreen = "status";
+    h.controller.sortMarket("price");
+    h.ctx.station.stationScreen = "market";
+    h.ctx.runtime.disposed = true;
+    h.controller.sortMarket("price");
+    h.ctx.runtime.disposed = false;
+    const state = initFlightState(layout);
+    state.mode = "inFlight";
+    const docked = h.ctx.core.state;
+    h.ctx.core.state = state;
+    h.controller.sortMarket("price");
+    h.ctx.core.state = docked;
+
+    expect(h.ctx.station.marketSort).toBeNull();
+    expect(h.views).toEqual([]);
+  });
+
+  it("walks the sorted order with the keys and the first selection", () => {
+    const h = harness();
+    h.ctx.station.marketSort = { column: "name", direction: "ascending" };
+    const selectable = sortedKeys(h, "name").filter((key) =>
+      h.controller.isSelectableGood(
+        key,
+        h.market.goods.find((good) => good.key === key)?.stock ?? 0,
+      ),
+    );
+    expect(h.controller.selectableKeys()).toEqual(selectable);
+    h.controller.ensureSelection();
+    expect(h.ctx.station.stationSelection).toBe(selectable[0]);
+    h.controller.moveSelection(1);
+    expect(h.ctx.station.stationSelection).toBe(selectable[1]);
+    h.controller.moveSelection(-2);
+    expect(h.ctx.station.stationSelection).toBe(selectable.at(-1));
+  });
+
+  it("keeps the selection and a pending plan on the same commodity", () => {
+    const h = harness();
+    h.controller.ensureSelection();
+    const selected = h.ctx.station.stationSelection;
+    h.controller.stepAmount(1);
+    const plan = asTrade(h.ctx.station.stationPending);
+    expect(plan.key).toBe(selected);
+
+    h.controller.sortMarket("name");
+    h.controller.sortMarket("name");
+
+    expect(h.ctx.station.stationSelection).toBe(selected);
+    expect(h.ctx.station.stationPending).toBe(plan);
+    const name = catalogue.find((entry) => entry.key === selected)?.name ?? "";
+    expect(h.views.at(-1)?.confirmText).toContain(name);
+
+    const creditsBefore = h.ctx.core.profile.credits;
+    h.controller.confirmTrade();
+    expect(h.ctx.core.profile.cargo[selected]).toBe(1);
+    expect(h.ctx.core.profile.credits).toBe(creditsBefore - plan.cost);
+  });
+});
+
 const equipmentCatalogue: readonly Equipment[] = parseEquipment(
   JSON.parse(
     readFileSync(
