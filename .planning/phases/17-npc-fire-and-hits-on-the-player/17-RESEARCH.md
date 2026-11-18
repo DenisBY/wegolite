@@ -499,21 +499,28 @@ export function onTarget(dq: number, aimTolerance: number, targetRadius: number,
 | A5 | Unarmed ships draw once per gate call (NONE equipment object, `equipment.plist:107-121`, `fireMainWeapon:` 10009-10020) | Q1 | If wrong only an unarmed opted-in ship's draw count changes; no compiled world has one |
 | A6 | The planner may choose any attacker hook member name | Q4 | None |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All five were settled on 2026-11-18 without the owner (owner away; advisor consultation authorised), in `17-ADVISOR-NOTES.md`. Each settled decision is marked there "taken without the owner - revisit" and is carried to the owner at sign-off (plan 17-09 SUMMARY).
 
 1. **0.1 s period: 12 or 13 ticks?**
    - What we know: D-07 locks `round(rate * 120)` (12); a literal 120 Hz Oolite gives 13 because of the float rate.
    - What's unclear: whether the owner wants the decision row to record only the divergence, or to measure Oolite.
    - Recommendation: keep D-07, record the difference in the decision row and the fixture `derivation`; optionally measure with the reference container (Q5).
+   - **RESOLVED (17-ADVISOR-NOTES.md decision 1):** keep the 12-tick rule (the Phase 14 frame-rate rule, `ticks = round(seconds x 120)`) and record the divergence; the decision row states the general rule that Oolite's own period is frame-rate dependent (the first frame whose accumulated `shot_time` reaches the float32 rate, so up to one frame late). Correction to this research: pulse is exact at 120 Hz, but mining is not (literal Oolite gives one frame more than the rule), so the derivation must not claim mining is exact. The independent oracle (plan 17-01) derives the literal frame counts itself. Implemented in plans 17-01 (frame-rate row) and 17-05 (decision row).
 2. **Gate site: drain (recommended) or steering?**
    - What we know: both preserve draw order; the drain extends the recorded A6 divergence and keeps one gate site and `fireQueue: EntityId[]`; the steering site needs rays in a new queue and cannot serve `ctl.fire`.
    - Recommendation: the drain; record "onTarget and the range read the pose one update later than Oolite" in the decision row.
+   - **RESOLVED (17-ADVISOR-NOTES.md decision 2):** the gate sits at the fire-queue drain in `src/sim/combat/step.ts`; `SteerContext.fire?` only queues the ship id; `onTarget` reads the same moved pose as the fired ray (extends divergence A6); one site serves `ctx.fire` and the test pilot's `ctl.fire`; a ship that never queues never draws. Implemented in plans 17-05 (drain) and 17-06 (steering route).
 3. **Accuracy-9 dodge of fly-to stays unported (divergence 21).**
    - D-06 asks for the hot branches; the dodge is its `else if` twin and needs the target's weapon types, which `BodyView` does not carry. Recommendation: leave it, restate divergence 21, no new decision needed.
+   - **RESOLVED (no new decision; Phase 14 divergence 21 stands):** the dodge stays unported, as the advisor's warnings in `17-ADVISOR-NOTES.md` confirm ("keep the accuracy-9 dodge unported (divergence 21)"); it is skipped exactly where Oolite's `else if` skips it. Restated in plan 17-07 (the divergences row).
 4. **Add `test:acceptance` to `verify-full`?**
    - AGENTS.md: "Revisit adding the run to `verify-full` when a later phase changes NPC behaviour." This phase changes NPC behaviour when opted in. CONTEXT D-17 keeps the by-hand run. Recommendation: surface to the owner at plan sign-off, do not change the gate unprompted.
+   - **RESOLVED (17-ADVISOR-NOTES.md decision 4):** the gate is not changed; non-opted-in worlds stay byte-identical, the acceptance harness cannot run a fight, and the by-hand D-17 rerun covers regressions. The question is raised with the owner at sign-off (plan 17-09 SUMMARY, "Owner questions at sign-off").
 5. **Fourth guard (decision source) beyond the three tripwires.**
    - Recommendation: add it (Q4); it is the mechanical proof of criterion 3's "no new firing decision source in the production bundle".
+   - **RESOLVED (17-ADVISOR-NOTES.md decision 3):** add it as a tripwire, not a proof: scan for the pilot builders and AI-record literals outside allowed files, allow only the `?test=1` hook (`probe-publisher.ts`) to import `test-spawn.ts`, never scan for a bare `fire` key, and keep the runtime test that every populated ship has `ai: null`. The decision row states that the hook is a runtime `?test=1` flag, so the seam ships in the production bundle (tainted), and that saves restore only the world anchor. Implemented in plans 17-03 (guard) and 17-09 (row); the reading of criterion 3 is an owner question at sign-off.
 
 ## Environment Availability
 
