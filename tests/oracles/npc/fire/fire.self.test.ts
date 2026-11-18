@@ -29,9 +29,12 @@ import {
   deriveGate,
   deriveHeat,
   deriveOnTarget,
+  literalShotFrames,
+  rechargeRateF32,
   rechargeTicks,
   traceOnTarget,
 } from "./derive.js";
+import { FrameRateRuleSchema } from "../schema.js";
 import {
   FIRE_REFUSALS,
   FIRE_WEAPONS,
@@ -1209,5 +1212,183 @@ describe("the heat loop is the gate", () => {
     });
     expect(run.shotTicks).toEqual([1]);
     expect(run.drawsUsed).toBe(clean.drawsUsed);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the frame-rate rows for cooling, the shot timer and the roll (Task 3)
+
+/** Sum of `steps` successive double additions of 1/120 (`shot_time += delta_t`). */
+function shotTimeAfter(steps: number): number {
+  let shotTime = 0;
+  for (let i = 0; i < steps; i += 1) shotTime += 1 / 120;
+  return shotTime;
+}
+
+const RULE_FILE = `${fileURLToPath(new URL("../", import.meta.url))}frame-rate-rule.json`;
+
+/** The rows the rule file held before plan 17-01 appended three. */
+const ROWS_BEFORE_PLAN_17_01 = 45;
+
+describe("the fire rows of the frame-rate rule (frame-rate-rule.json)", () => {
+  const rule = FrameRateRuleSchema.parse(
+    JSON.parse(readFileSync(RULE_FILE, "utf8")),
+  );
+  const fireIds = new Set<string>();
+  for (const name of ["gate.json", "on-target.json", "heat.json"]) {
+    for (const entry of readJson(name) as { id: string }[]) {
+      fireIds.add(entry.id);
+    }
+  }
+  const rowAt = (line: string) => {
+    const found = rule.rows.find((row) => row.oolite.endsWith(line));
+    if (found === undefined) throw new Error(`no frame-rate row for ${line}`);
+    return found;
+  };
+
+  it("appends exactly three rows after the existing ones and leaves the tolerance alone", () => {
+    expect(rule.rows).toHaveLength(ROWS_BEFORE_PLAN_17_01 + 3);
+    expect(rule.crossDtTolerance).toBe(0.01);
+    const appended = rule.rows.slice(ROWS_BEFORE_PLAN_17_01);
+    expect(appended.map((row) => row.oolite)).toEqual([
+      "src/Core/Entities/ShipEntity.m:2214-2218",
+      "src/Core/Entities/ShipEntity.m:9946-9946",
+      "src/Core/Entities/ShipEntity.m:9949-9949",
+    ]);
+    expect(appended.map((row) => row.kind)).toEqual([
+      "rate-times-dt",
+      "time-compare",
+      "draw",
+    ]);
+    for (const row of rule.rows.slice(0, ROWS_BEFORE_PLAN_17_01)) {
+      expect(
+        row.confirmedBy.some((id) => fireIds.has(id)),
+        row.site,
+      ).toBe(false);
+    }
+  });
+
+  it("confirms each new row by fire fixtures that exist", () => {
+    for (const line of [":2214-2218", ":9946-9946", ":9949-9949"]) {
+      const row = rowAt(line);
+      expect(row.confirmedBy.length, row.site).toBeGreaterThan(0);
+      for (const id of row.confirmedBy) {
+        expect(fireIds.has(id), `${row.site} cites unknown ${id}`).toBe(true);
+      }
+    }
+    expect(
+      rowAt(":2214-2218").confirmedBy.every((id) => id.startsWith("heat-")),
+    ).toBe(true);
+    expect(
+      rowAt(":9949-9949").confirmedBy.every((id) => id.startsWith("gate-")),
+    ).toBe(true);
+  });
+
+  describe("the shot timer: the rule's whole ticks against Oolite's literal frame count at 1/120 s", () => {
+    // The literal counts below are derived from the source alone (plan 17-01
+    // Task 3), before anyone else's numbers were read. After a shot,
+    // resetShotTime sets the double shot_time to 0 (ShipEntity.m:10080-10083,
+    // 10463), every update adds the double delta_t = 1/120 once before the
+    // behaviours (2221) and the gate refuses while shot_time < the float32
+    // recharge_rate (9946-9947). The first frame that is not refused is the
+    // smallest k whose k-fold sum of 1/120 is not below the rate:
+    //
+    //  pulse    rate 0.5                  (exact):  sum of 59 steps 0.4916666666666674
+    //           < 0.5, sum of 60 steps 0.5000000000000007 >= 0.5 -> literal 60.
+    //  beam     rate fround(0.1) = 0.10000000149011612: sum of 12 steps
+    //           0.09999999999999999 < rate (the rate is 1.49e-9 above 0.1 and
+    //           the sum is 1e-17 below it), 13 steps 0.10833333333333332 -> 13.
+    //  mining   rate 2.5 (exact): sum of 300 steps 2.499999999999994 < 2.5,
+    //           301 steps 2.508333333333327 -> literal 301.
+    //  military rate fround(0.1), as the beam                           -> 13.
+    //
+    // The rule gives round(rate x 120): 60, 12, 300, 12.
+    const LITERAL: Record<
+      | "EQ_WEAPON_PULSE_LASER"
+      | "EQ_WEAPON_BEAM_LASER"
+      | "EQ_WEAPON_MINING_LASER"
+      | "EQ_WEAPON_MILITARY_LASER",
+      { name: string; rule: number; literal: number }
+    > = {
+      EQ_WEAPON_PULSE_LASER: { name: "pulse", rule: 60, literal: 60 },
+      EQ_WEAPON_BEAM_LASER: { name: "beam", rule: 12, literal: 13 },
+      EQ_WEAPON_MINING_LASER: { name: "mining", rule: 300, literal: 301 },
+      EQ_WEAPON_MILITARY_LASER: { name: "military", rule: 12, literal: 13 },
+    };
+    const weapons = Object.keys(LITERAL) as (keyof typeof LITERAL)[];
+
+    it("derives the literal frame counts 60, 13, 301 and 13 against the rule's 60, 12, 300 and 12", () => {
+      for (const weapon of weapons) {
+        const expected = LITERAL[weapon];
+        expect(
+          literalShotFrames(rechargeRateF32(weapon)),
+          `${expected.name} literal`,
+        ).toBe(expected.literal);
+        expect(rechargeTicks(weapon), `${expected.name} rule`).toBe(
+          expected.rule,
+        );
+      }
+    });
+
+    it("shows the sums that decide each literal count", () => {
+      expect(shotTimeAfter(59)).toBeLessThan(0.5);
+      expect(shotTimeAfter(60)).toBeGreaterThanOrEqual(0.5);
+      expect(shotTimeAfter(60)).toBeCloseTo(0.5, 12);
+      const tenth = Math.fround(0.1);
+      expect(tenth).toBeGreaterThan(0.1);
+      expect(shotTimeAfter(12)).toBeLessThan(tenth);
+      expect(shotTimeAfter(13)).toBeGreaterThanOrEqual(tenth);
+      expect(shotTimeAfter(300)).toBeLessThan(2.5);
+      expect(shotTimeAfter(301)).toBeGreaterThanOrEqual(2.5);
+    });
+
+    it("records the rule, the literal counts per laser and the largest difference in the shot-timer row", () => {
+      const row = rowAt(":9946-9946");
+      expect(row.kind).toBe("time-compare");
+      expect(row.treatment).toContain("DIVERGENCE");
+      expect(row.treatment).toContain("D-07");
+      let largest = 0;
+      for (const weapon of weapons) {
+        const { name, rule, literal } = LITERAL[weapon];
+        expect(row.treatment, `${name} literal`).toContain(
+          `${name} ${literal} (`,
+        );
+        expect(row.treatment, `${name} rule`).toContain(
+          `the rule gives ${rule})`,
+        );
+        largest = Math.max(largest, Math.abs(literal - rule));
+      }
+      expect(largest).toBe(1);
+      expect(row.measuredDifference).toBe(largest);
+    });
+
+    it("keeps the fixtures on the rule: the exact period fires and one tick short refuses", () => {
+      const gate = FireGateFileSchema.parse(readJson("gate.json"));
+      const periods: [string, number][] = [
+        ["gate-timer-exact-period-pulse-fires", 60],
+        ["gate-timer-exact-period-beam-fires", 12],
+        ["gate-timer-exact-period-mining-fires", 300],
+      ];
+      for (const [id, ticks] of periods) {
+        const fixture = gate.find((entry) => entry.id === id);
+        expect(fixture?.input.ticksSinceShot, id).toBe(ticks);
+        expect(fixture?.expected.fired, id).toBe(true);
+      }
+    });
+  });
+
+  describe("cooling and the roll", () => {
+    it("states the cooling as a verbatim rate times dt with the float32 constant", () => {
+      const row = rowAt(":2214-2218");
+      expect(row.kind).toBe("rate-times-dt");
+      expect(row.treatment).toContain("0.05000000074505806");
+      expect(Math.fround(6 * (1 / 120))).toBe(0.05000000074505806);
+    });
+
+    it("states the roll as one draw per call that passes heat, energy and the timer", () => {
+      const row = rowAt(":9949-9949");
+      expect(row.kind).toBe("draw");
+      expect(row.treatment).toContain("one draw");
+    });
   });
 });

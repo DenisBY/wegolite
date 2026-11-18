@@ -50,6 +50,7 @@ const FIXTURE_DIR = fileURLToPath(new URL("./fixtures/", import.meta.url));
 const PURSUIT_DIR = fileURLToPath(
   new URL("./pursuit/fixtures/", import.meta.url),
 );
+const FIRE_DIR = fileURLToPath(new URL("./fire/fixtures/", import.meta.url));
 
 const DISCRETE = new Set<string>(ORACLE_DISCRETE_FIELDS);
 
@@ -93,18 +94,22 @@ describe("fixture files", () => {
     });
   }
 
-  it("keeps fixture ids unique across both oracle trees", () => {
+  it("keeps fixture ids unique across every oracle tree", () => {
     const ids = allFixtures().map((fixture) => fixture.id);
     expect(new Set(ids).size).toBe(ids.length);
-    if (existsSync(PURSUIT_DIR)) {
-      for (const name of readdirSync(PURSUIT_DIR).filter((n) =>
+    const seen = new Set(ids);
+    for (const directory of [PURSUIT_DIR, FIRE_DIR]) {
+      if (!existsSync(directory)) continue;
+      for (const name of readdirSync(directory).filter((n) =>
         n.endsWith(".json"),
       )) {
-        const other = readJson(`${PURSUIT_DIR}${name}`);
+        const other = readJson(`${directory}${name}`);
         if (!Array.isArray(other)) continue;
         for (const entry of other as unknown[]) {
           const id = (entry as { id?: unknown }).id;
-          if (typeof id === "string") expect(ids).not.toContain(id);
+          if (typeof id !== "string") continue;
+          expect(seen.has(id), `duplicate id ${id}`).toBe(false);
+          seen.add(id);
         }
       }
     }
@@ -411,14 +416,18 @@ const RULE_PATH = fileURLToPath(
   new URL("./frame-rate-rule.json", import.meta.url),
 );
 
-/** Fixture ids of both oracle trees (the pursuit tree is read for ids only). */
+/**
+ * Fixture ids of every oracle tree: the reference tree, the pursuit tree and
+ * the fire tree (the last two are read for ids only).
+ */
 function allFixtureIds(): Set<string> {
   const ids = new Set(allFixtures().map((fixture) => fixture.id));
-  if (existsSync(PURSUIT_DIR)) {
-    for (const name of readdirSync(PURSUIT_DIR).filter((n) =>
+  for (const directory of [PURSUIT_DIR, FIRE_DIR]) {
+    if (!existsSync(directory)) continue;
+    for (const name of readdirSync(directory).filter((n) =>
       n.endsWith(".json"),
     )) {
-      const other = readJson(`${PURSUIT_DIR}${name}`);
+      const other = readJson(`${directory}${name}`);
       if (!Array.isArray(other)) continue;
       for (const entry of other as unknown[]) {
         const id = (entry as { id?: unknown }).id;

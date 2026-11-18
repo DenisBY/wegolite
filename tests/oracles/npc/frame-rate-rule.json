@@ -408,6 +408,52 @@
       "kind": "out-of-scope",
       "treatment": "Out of scope: effects, not steering.",
       "confirmedBy": []
+    },
+    {
+      "site": "weapon cooling: forward_weapon_temp = fmaxf(temp - (float)(WEAPON_COOLING_FACTOR * delta_t), 0.0f), and the three other facings",
+      "oolite": "src/Core/Entities/ShipEntity.m:2214-2218",
+      "kind": "rate-times-dt",
+      "treatment": "Kept verbatim at dt = 1/120: cooling is WEAPON_COOLING_FACTOR 6 degrees per second times delta_t, applied once per update before the behaviours run (the cooling and the shot_time add sit together, 2213-2221), so the heat lost per simulated second is the same at any step. The per-tick subtraction is the float32 constant fround(6 x 1/120) = 0.05000000074505806, floored at 0 (fmaxf), on a float32 temperature (GLfloat); the gate reads the cooled value. Not a divergence: the same simulated time is covered at any step. The heat trajectories of the four lasers from 0 and the two start-at-cutout runs confirm the float32 arithmetic.",
+      "confirmedBy": [
+        "heat-pulse-from-zero",
+        "heat-beam-from-zero",
+        "heat-military-from-zero",
+        "heat-mining-from-zero",
+        "heat-beam-start-at-cutout-refuses-then-resumes"
+      ]
+    },
+    {
+      "site": "NPC shot timer: [self shotTime] < weapon_recharge_rate refuses the shot",
+      "oolite": "src/Core/Entities/ShipEntity.m:9946-9946",
+      "kind": "time-compare",
+      "treatment": "D-07, locked: a whole-tick compare, ticksSinceShot >= round(fround(rate) x 120) fires, so equality fires (Oolite refuses only strictly below the rate, unlike the player compare that is strict >, PlayerEntityControls.m:1185), and a ship that never fired is ready (shot_time starts at INITIAL_SHOT_TIME 100.0). DIVERGENCE of one tick for three of the four lasers: Oolite resets shot_time to 0 at a shot (resetShotTime, 10080-10083, called at 10463) and every update adds delta_t to the double shot_time before the behaviours run (2221), then compares it with the float32 recharge_rate promoted to double, so its literal frame count at exactly 1/120 s is the number of double additions of 1/120 until the sum is no longer below the rate: pulse 60 (the sum of 60 steps is 0.5000000000000007, not below 0.5; the rule gives 60), beam 13 (12 steps sum to 0.09999999999999999, below fround(0.1) = 0.10000000149011612; the rule gives 12), mining 301 (300 steps sum to 2.499999999999994, below 2.5; the rule gives 300), military 13 (as the beam; the rule gives 12). The rule keeps round(rate x 120) ticks and the fixtures pin the rule; the literal counts are the measured divergence, at most one tick (8.3 ms) and a shot rate lower by one tick in 12, 301 or 13, derived by literalShotFrames from the source alone and recorded for the owner decision on the rule.",
+      "confirmedBy": [
+        "gate-timer-exact-period-pulse-fires",
+        "gate-timer-refuses-before-roll-range-and-aim",
+        "gate-timer-exact-period-beam-fires",
+        "gate-timer-one-tick-short-beam-refuses",
+        "gate-timer-exact-period-mining-fires",
+        "gate-timer-one-tick-short-mining-refuses",
+        "gate-timer-never-fired-is-ready-beam",
+        "heat-pulse-from-zero",
+        "heat-beam-from-zero"
+      ],
+      "measuredDifference": 1
+    },
+    {
+      "site": "NPC range roll: range > randf() * weaponRange * (accuracy + 7.5) refuses the shot",
+      "oolite": "src/Core/Entities/ShipEntity.m:9949-9949",
+      "kind": "draw",
+      "treatment": "Kept as in Oolite (D-04): exactly one draw per gate call that passes heat, energy and the shot timer, armed or not and with a target or not, compared strictly (equality passes). The draw is a count of gate calls, not a rate times dt, so it follows the shot timer: it happens once per tick the timer is open and never on a tick a refusal precedes it, at any step size. randf() is a 16-bit fraction (legacy_random.c:142-145) and the port draws from its own combat stream; the fixtures place the boundary on dyadic draws that both can express, so the compare is exact.",
+      "confirmedBy": [
+        "gate-roll-passes-at-equality",
+        "gate-roll-refuses-one-ulp-above-equality",
+        "gate-roll-refuses-draw-too-high",
+        "gate-roll-accuracy-0-narrow-circle-refuses",
+        "gate-roll-accuracy-9-wide-circle-passes",
+        "gate-no-target-refuses-after-the-draw",
+        "gate-timer-refuses-before-roll-range-and-aim"
+      ]
     }
   ]
 }
