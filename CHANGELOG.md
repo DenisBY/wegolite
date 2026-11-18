@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-18
+
 ### Added
 
 - Clicking a market column heading sorts the goods by name, unit, price,
