@@ -91,15 +91,16 @@ export const HUD_SMALL_FONT = `20px ${HUD_FONT_FAMILY}`;
  * The HUD text sizes, in design px of a font whose glyphs advance 0.6 em
  * (`NOMINAL_ADVANCE`). Oolite's font is proportional and the HUD's is
  * monospace, so the sizes are calibrated on Oolite's own text at 1280x720
- * (quick task 261118-cyn): "Hyperspeed mass-locked." (cell 14) is 207 screen
- * px wide there, 310.5 design px, which 22.5 px at 0.6 em matches, and the
- * legends' widths give 27, 23 and 19 px for their 14, 12 and 10-unit cells.
+ * (quick task 261118-cyn): "Hyperspeed mass-locked." (cell 14) is 208 screen
+ * px wide there, 312 design px, which 23.2 px at 0.6 em matches in the
+ * comparison capture, and the legends' widths give 27, 23 and 19 px for their
+ * 14, 12 and 10-unit cells and 18 px for the narrow energy labels.
  * `hudFont` rescales a size by the advance the browser's monospace font
  * really has, so the widths hold on every machine (a CJK monospace advances
  * 0.5 em, Consolas 0.55 em).
  */
 const NOMINAL_ADVANCE = 0.6;
-const HUD_MESSAGE_FONT_PX = 22.5;
+const HUD_MESSAGE_FONT_PX = 23.2;
 /** Legends with a 14-unit cell (SPD, MISS). */
 const LEGEND_14_PX = 27;
 /** Legends with a 12-unit cell (FWD, AFT, ROLL, PITCH). */
@@ -107,7 +108,7 @@ const LEGEND_12_PX = 23;
 /** Legends with a 10-unit cell (FUEL, CT, LT, ALT) and the two readouts (D-10). */
 const LEGEND_10_PX = 19;
 /** The energy bank labels: `drawEnergyGauge:` cells of 9 x 12 units. */
-const ENERGY_LABEL_PX = 14;
+const ENERGY_LABEL_PX = 18;
 
 /** The message font at the nominal advance (what a context without `measureText` gets). */
 export const HUD_MESSAGE_FONT = `${String(HUD_MESSAGE_FONT_PX)}px ${HUD_FONT_FAMILY}`;
@@ -204,7 +205,7 @@ const LEFT_LEGEND_X = unitX(-245);
 /** The right legends are left-aligned at x 242 (`hud.plist:311-351`). */
 const RIGHT_LEGEND_X = unitX(242);
 /** The kept "7.0 LY" readout (D-10): right-aligned left of the FUEL legend. */
-const FUEL_READOUT_RIGHT = 358;
+const FUEL_READOUT_RIGHT = 350;
 /** The kept "0.000 LS" readout (D-10): left-aligned right of the SPD legend. */
 const SPEED_READOUT_X = RIGHT_LEGEND_X + 54;
 
