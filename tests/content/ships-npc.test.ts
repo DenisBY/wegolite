@@ -47,6 +47,9 @@ function sourceFiles(directory: string, found: string[] = []): string[] {
   for (const entry of readdirSync(join(REPO_ROOT, directory), {
     withFileTypes: true,
   })) {
+    // Skip the guard probes tests/guards/ writes into src/sim while it runs
+    // (they import content on purpose; tests/compliance.test.ts does the same).
+    if (entry.name.startsWith("__purity_")) continue;
     const relative = `${directory}/${entry.name}`;
     if (entry.isDirectory()) {
       if (relative === "src/content/generated") continue;
