@@ -12,8 +12,9 @@
  * of the same ticks can be compared by value.
  *
  * `tick-script.ts` supersedes plan 08-02's `recorded-flights.ts` for post-split
- * session semantics; `recorded-flights.ts` remains the frozen pre-split v1
- * baseline artifact and is never updated (review 820a435 L582).
+ * session semantics; `recorded-flights.ts` is the deliberate baseline of the
+ * current flight stepping, regenerated only by an owner-approved decision
+ * (quick 261118-n7z, 2026-11-18; review 820a435 L582).
  *
  * Every setup value and the source it mirrors (a parity mismatch is a
  * diagnosable setup drift, not a false failure; review 10b4108 L400):

@@ -2,14 +2,16 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The pinned pre-phase flight hashes (FOUND-12, D-08).
+ * The pinned flight hashes (FOUND-12, D-08).
  *
- * `tests/golden/world/flight-hash-pins.json` was captured from the unmodified
- * Phase 8 baseline by `tests/helpers/write-world-goldens.ts`. This test
+ * `tests/golden/world/flight-hash-pins.json` is a deliberate baseline of the
+ * current flight stepping, written by `tests/helpers/write-world-goldens.ts` and
+ * last regenerated on 2026-11-18 (quick 261118-n7z, owner decision). This test
  * recomputes the three recorded flights and deep-equals the golden, so a change
  * to flight stepping, the arrival draw or the seeded stream that moves a hash
- * fails here. The golden is a frozen v1 baseline: never regenerate it to make
- * this pass.
+ * fails here. Never regenerate it to make this pass: any change needs an
+ * explicit owner-approved regeneration with its cause recorded in
+ * `.planning/PROJECT.md`.
  */
 
 import { readFileSync } from "node:fs";

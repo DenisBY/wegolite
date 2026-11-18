@@ -4,9 +4,13 @@
 /**
  * Three recorded Node flights and their sampled flight hashes (FOUND-12, D-08).
  *
- * These pins are a FROZEN pre-split v1 phase-baseline artifact of the
- * unmodified simulation stepping in Node: they were captured from the tree at
- * the start of Phase 8 and are never updated after the split. Post-split
+ * These pins are a deliberate baseline of the current flight stepping in Node.
+ * They were first captured at the start of Phase 8 to prove the session split
+ * changed no flight stepping; that purpose is done, and they were regenerated
+ * once, on 2026-11-18 (quick 261118-n7z, owner decision), from the real
+ * new-game state (`initFlightState`, the new-game clock) with Oolite's launch
+ * twist. Any later change to the pins needs an explicit owner-approved
+ * regeneration with its cause recorded in `.planning/PROJECT.md`. Post-split
  * session semantics and browser-versus-Node parity are proven separately by
  * plan 08-16's `tests/helpers/tick-script.ts` (Round 2 review 820a435 L582).
  *
@@ -52,11 +56,7 @@ import type { SimEvent } from "../../src/sim/events.js";
 import type { FlightConfig } from "../../src/sim/flight/config.js";
 import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
 import type { ControlIntent } from "../../src/sim/flight/controller.js";
-import {
-  CLOCK_START,
-  hashFlight,
-  initFlightState,
-} from "../../src/sim/flight/state.js";
+import { hashFlight, initFlightState } from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
 import { stepSim } from "../../src/sim/sim.js";
@@ -202,7 +202,6 @@ class Recorder {
             options,
             this.combat,
           );
-    baselineLaunchPose(state, events, this.context.layout);
     let keyed = false;
     for (const event of events) {
       this.seen.add(event.kind);
@@ -245,39 +244,6 @@ function launchContext(equipment: ReadonlySet<string>): StepContext {
   };
 }
 
-/**
- * A new game's docked state at the frozen baseline's clock. The pins were
- * captured when a new game started at `CLOCK_START`; quick task 261117-pij
- * moved the new-game start to the standard scenario's `ship_clock`
- * (`NEW_GAME_CLOCK_SECONDS`), and the flight hash includes the clock
- * (`clock=` in `hashFlight`). Starting the recorded flights at the baseline's
- * clock keeps the frozen pins a check of flight stepping, which is what they
- * guard, without regenerating them.
- */
-function baselineFlightState(layout: SystemLayout): FlightState {
-  return { ...initFlightState(layout), clockSeconds: CLOCK_START };
-}
-
-/**
- * Restore the frozen baseline's launch pose on the step that launched. The pins
- * were captured when a launch left the ship at the untwisted `stationBaseQuat`;
- * quick task 261118-mb5 added Oolite's launch twist (`launchOrientation`, a
- * quarter turn about the nose axis), and the flight hash includes the
- * orientation. Resetting only the orientation on the `launched` step, before
- * the sample, keeps the frozen pins a check of flight stepping, which is what
- * they guard, without regenerating them (as `baselineFlightState` does for the
- * clock). The twist itself is pinned by `tests/sim/launch.test.ts`.
- */
-function baselineLaunchPose(
-  state: FlightState,
-  events: readonly SimEvent[],
-  layout: SystemLayout,
-): void {
-  if (events.some((event) => event.kind === "launched")) {
-    state.orientation = layout.stationBaseQuat;
-  }
-}
-
 /** Launch and fly the full 240-step launch (no skipLaunch), then 1200 steps. */
 function launchAndFly(
   visit: (sample: RecordedFlightSample) => void,
@@ -286,7 +252,7 @@ function launchAndFly(
   const context = launchContext(new Set<string>());
   const recorder = new Recorder(
     "launch-and-fly",
-    baselineFlightState(context.layout),
+    initFlightState(context.layout),
     context,
     visit,
     undefined,
@@ -309,7 +275,7 @@ function dockApproach(
   const context = launchContext(new Set([DOCK_COMPUTER_KEY]));
   const recorder = new Recorder(
     "dock-approach",
-    baselineFlightState(context.layout),
+    initFlightState(context.layout),
     context,
     visit,
     undefined,
@@ -348,7 +314,7 @@ function hyperspaceLaveLeesti(
   };
   const recorder = new Recorder(
     "hyperspace-lave-leesti",
-    baselineFlightState(context.layout),
+    initFlightState(context.layout),
     context,
     visit,
     (self, event) => {

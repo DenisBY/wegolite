@@ -2,13 +2,14 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * Write the pinned pre-phase flight hashes (FOUND-12, D-08).
+ * Write the pinned flight hashes (FOUND-12, D-08).
  *
- * `tests/golden/world/flight-hash-pins.json` is captured once, from the
- * unmodified Phase 8 baseline, and then only asserted by
- * `tests/sim/world/flight-hash-pins.test.ts`. It is additive: no existing golden
- * is touched. Do not rerun this writer after the session split to make a test
- * pass; a hash that moved is the finding.
+ * `tests/golden/world/flight-hash-pins.json` is a deliberate baseline of the
+ * current flight stepping, last regenerated on 2026-11-18 (quick 261118-n7z,
+ * owner decision), and is asserted by `tests/sim/world/flight-hash-pins.test.ts`
+ * and `tests/sim/world/hash.test.ts`. Rerun this writer only for an
+ * owner-approved regeneration whose cause is recorded in `.planning/PROJECT.md`,
+ * never to make a test pass: a hash that moved is the finding.
  *
  * Run in the container:
  *
