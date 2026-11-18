@@ -5,9 +5,20 @@
  * The sim driver (Phase 8, D-12 step 8, D-14, ARCHITECTURE.md section 4.2).
  *
  * Everything between "the keyboard was drained" and "a fixed step ran" for one
- * rendered frame: the command drain, the launch filter, the pre-launch autosave,
- * the hyperspace edge mapping, one input frame shared by every step, the game
- * loop's accumulator and the single place a flight step is taken.
+ * rendered frame: the command drain, the launch filter, the launch pre-roll,
+ * the pre-launch autosave, the hyperspace edge mapping, one input frame shared
+ * by every step, the game loop's accumulator and the single place a flight
+ * step is taken.
+ *
+ * The launch pre-roll (quick 261118-os8, design decisions 1, 2 and 10): in a
+ * real-time session the drain turns a launch that passes the filter into
+ * `startPreRoll()` and forwards no launch command. Every fixed step then goes
+ * through `stepFixed`, which advances the pre-roll timer while the sim takes
+ * ordinary docked steps, and on the step that ends it takes the D-17
+ * pre-launch anchor (still docked, before `beginLaunch`) and steps the sim
+ * with the launch command first. Under the manual clock the pre-roll has no
+ * length, and the drain keeps the direct path: the anchor in the drain and the
+ * launch on the first step, so `advanceTicks(n)` steps exactly n ticks (D-09).
  *
  * `stepOnce` is that single place: the session has exactly one step call site.
  * Since plan 08-15 it is `stepSim` (the flight step, then the world step over the
@@ -48,7 +59,15 @@ export interface SimDriverDeps {
   readonly pending: Command[];
   readonly player: Pick<PlayerController, "update">;
   readonly scripted: Pick<ScriptedLaunchController, "update">;
-  readonly launchSequence: Pick<LaunchSequence, "advance">;
+  readonly launchSequence: Pick<
+    LaunchSequence,
+    | "advance"
+    | "startPreRoll"
+    | "advancePreRoll"
+    | "cancelPreRoll"
+    | "preRolling"
+    | "preRollSkipped"
+  >;
   /** Every event of a step is dispatched here, in emission order. */
   readonly router: EventRouter;
   /** The owned equipment, as a read-only set rebuilt only when it changes. */
@@ -57,6 +76,12 @@ export interface SimDriverDeps {
   readonly targetSystem: () => System | undefined;
   /** The pre-launch anchor write (D-17). */
   readonly autosave: () => void;
+  /**
+   * A launch press started the pre-roll (quick 261118-os8, design decision 8):
+   * the session hides the station shell and switches the input context, as the
+   * "launched" handler does for the sim launch. Called once per pre-roll.
+   */
+  readonly onPreRollStart: () => void;
   /**
    * Record a `?test=1` live-state mutation (the probe publisher's taint
    * callback): `advanceTicks` calls it before its first step so every autosave
@@ -83,6 +108,9 @@ const ZERO_FRAME: InputFrame = Object.freeze({
   precision: false,
 });
 
+/** The command the pre-roll releases on the step that ends it. */
+const LAUNCH: Command = Object.freeze({ kind: "launch" });
+
 /** What one drain hands to the fixed steps. */
 interface Drained {
   readonly commands: readonly Command[];
@@ -99,6 +127,7 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
     equipmentSet,
     targetSystem,
     autosave,
+    onPreRollStart,
     markHookMutation,
   } = deps;
 
@@ -183,16 +212,59 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
   }
 
   /**
+   * One fixed step of a rendered frame or of `advanceTicks`, with the launch
+   * pre-roll around `stepOnce` (quick 261118-os8, design decisions 1 and 10).
+   * Without a pre-roll it is `stepOnce`. A pre-roll whose state is no longer
+   * docked on the home screen (a restore, a new game) is cancelled and the step
+   * runs normally. Otherwise the timer advances by one step; while it runs the
+   * step is an ordinary docked step. On the step that ends it the D-17 anchor
+   * is written (still docked, before `beginLaunch` applies the +600 s), then
+   * the sim steps with the launch command first. A skipped pre-roll leaves
+   * `skipLaunch` on `pending`, so the next frame skips the sim launch exactly
+   * as the key does while launching (D-10, the +600 s applied once). The
+   * launch is injected here, never queued on `pending`: a paused frame empties
+   * `pending`, and the loop hands drained commands to a frame's first step only.
+   */
+  function stepFixed(
+    stepCommands: readonly Command[],
+    frameInput: InputFrame,
+  ): void {
+    if (!launchSequence.preRolling) {
+      stepOnce(stepCommands, frameInput);
+      return;
+    }
+    const liveState = ctx.core.state;
+    if (
+      liveState === undefined ||
+      liveState.mode !== "docked" ||
+      ctx.station.stationScreen !== "home"
+    ) {
+      launchSequence.cancelPreRoll();
+      stepOnce(stepCommands, frameInput);
+      return;
+    }
+    if (!launchSequence.advancePreRoll(DT)) {
+      stepOnce(stepCommands, frameInput);
+      return;
+    }
+    const skipped = launchSequence.preRollSkipped;
+    autosave();
+    stepOnce([LAUNCH, ...stepCommands], frameInput);
+    if (skipped) pending.push({ kind: "skipLaunch" });
+  }
+
+  /**
    * The drain both entry points share (Pitfall 3): the keyboard commands plus
-   * `pending`, the launch filter, the pre-launch autosave, the hyperspace edge
-   * mapping and one input frame stored in `ctx.core.currentFrame`. Keeping one
-   * path means the manual clock cannot drift from the realtime one.
+   * `pending`, the launch filter, the launch pre-roll start or the pre-launch
+   * autosave, the hyperspace edge mapping and one input frame stored in
+   * `ctx.core.currentFrame`. Keeping one path means the manual clock cannot
+   * drift from the realtime one.
    */
   function drain(
     currentState: FlightState,
     currentInput: KeyboardInputSource,
   ): Drained {
-    const drained: Command[] = [
+    let drained: Command[] = [
       ...currentInput.drainCommands(),
       ...pending,
     ].filter(
@@ -202,14 +274,24 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
           ctx.station.stationScreen === "home"),
     );
     pending.length = 0;
-    // D-17: the pre-launch anchor is taken while the state is still docked,
-    // before `beginLaunch` applies the +600 s transition.
     if (
       currentState.mode === "docked" &&
       ctx.station.stationScreen === "home" &&
       drained.some((command) => command.kind === "launch")
     ) {
-      autosave();
+      // Quick 261118-os8: in a real-time session a launch starts the pre-roll
+      // and reaches the sim only on the step that ends it (`stepFixed`), where
+      // the D-17 anchor is taken. A press while one runs changes nothing.
+      const wasPreRolling = launchSequence.preRolling;
+      if (launchSequence.startPreRoll()) {
+        drained = drained.filter((command) => command.kind !== "launch");
+        if (!wasPreRolling) onPreRollStart();
+      } else {
+        // No pre-roll (the manual clock, D-09): the pre-launch anchor is
+        // taken here, while the state is still docked, before `beginLaunch`
+        // applies the +600 s transition on the first step (D-17).
+        autosave();
+      }
     }
     // D-06: while a countdown runs, the same key aborts it at no cost. The
     // mapping walks the drained array in input order, so two presses drained
@@ -244,7 +326,7 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
 
     const { commands, frameInput } = drain(currentState, currentInput);
     return currentLoop.advance(delta, commands, (stepCommands) => {
-      stepOnce(stepCommands, frameInput);
+      stepFixed(stepCommands, frameInput);
     });
   }
 
@@ -326,7 +408,7 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
       ({ commands, frameInput } = drain(currentState, currentInput));
     }
     for (let step = 0; step < n; step += 1) {
-      stepOnce(step === 0 ? commands : [], frameInput);
+      stepFixed(step === 0 ? commands : [], frameInput);
       if (
         ctx.runtime.disposed ||
         ctx.runtime.paused ||

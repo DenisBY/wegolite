@@ -16,6 +16,9 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createGameLoop } from "../../../src/app/game-loop.js";
+import { createLaunchSequence } from "../../../src/app/launch-sequence.js";
+import { LAUNCH_PRE_ROLL_DURATION } from "../../../src/render/launch-camera.js";
+import type { LaunchSequence } from "../../../src/app/launch-sequence.js";
 import {
   createEventRouter,
   type EventRouterSubscribers,
@@ -113,6 +116,8 @@ interface Harness {
   readonly advances: { dt: number; skipped: boolean }[];
   /** Every event the router was handed, in dispatch order. */
   readonly dispatched: SimEvent[];
+  /** The real launch sequence behind the recording wrapper. */
+  readonly sequence: LaunchSequence;
 }
 
 function harness(
@@ -124,6 +129,12 @@ function harness(
     readonly fire?: boolean;
     /** Create the player's combat state, as start-up does. */
     readonly combat?: boolean;
+    /**
+     * Play the real-time launch pre-roll (quick 261118-os8): the default
+     * length getter. Without it the sequence has a zero-length pre-roll, the
+     * manual-clock path, so the drain launches directly.
+     */
+    readonly preRoll?: boolean;
   } = {},
 ): Harness {
   const ctx = createSessionState({
@@ -186,6 +197,10 @@ function harness(
   };
 
   const realRouter = createEventRouter(ctx, subscribers);
+  const sequence =
+    options.preRoll === true
+      ? createLaunchSequence()
+      : createLaunchSequence(() => 0);
   const driver = createSimDriver(ctx, {
     pending,
     player: {
@@ -204,6 +219,19 @@ function harness(
       advance: (dt, skipped) => {
         counts.advances += 1;
         advances.push({ dt, skipped });
+        sequence.advance(dt, skipped);
+      },
+      startPreRoll: () => sequence.startPreRoll(),
+      advancePreRoll: (dt) => sequence.advancePreRoll(dt),
+      cancelPreRoll: () => {
+        log.push("cancelPreRoll");
+        sequence.cancelPreRoll();
+      },
+      get preRolling() {
+        return sequence.preRolling;
+      },
+      get preRollSkipped() {
+        return sequence.preRollSkipped;
       },
     },
     router: {
@@ -217,6 +245,9 @@ function harness(
     targetSystem: () => undefined,
     autosave: () => {
       log.push(`autosave ${ctx.core.state?.mode ?? "none"}`);
+    },
+    onPreRollStart: () => {
+      log.push("onPreRollStart");
     },
     markHookMutation: () => {
       log.push("markHookMutation");
@@ -235,6 +266,7 @@ function harness(
     counts,
     advances,
     dispatched,
+    sequence,
   };
 }
 
@@ -355,6 +387,116 @@ describe("advanceFrame, the command drain", () => {
     const { driver } = harness();
     const alpha = driver.advanceFrame(3.5 * DT);
     expect(alpha).toBeCloseTo(0.5, 6);
+  });
+});
+
+describe("the launch pre-roll (quick 261118-os8)", () => {
+  const preRollSteps = Math.round(LAUNCH_PRE_ROLL_DURATION / DT);
+
+  /** Run one-step frames until `total` fixed steps have run. */
+  function runSteps(h: Harness, total: number): void {
+    let guard = 0;
+    while (h.stepCommands.length < total && guard < 10_000) {
+      h.driver.advanceFrame(DT);
+      guard += 1;
+    }
+    expect(h.stepCommands).toHaveLength(total);
+  }
+
+  const launches = (h: Harness): number =>
+    h.stepCommands.flat().filter((command) => command.kind === "launch").length;
+
+  it("turns a launch press into the pre-roll: no autosave and no launch command yet", () => {
+    const h = harness({ preRoll: true });
+    h.queue.push(launch);
+    h.driver.advanceFrame(THREE_STEPS);
+    expect(h.sequence.preRolling).toBe(true);
+    expect(h.log.filter((entry) => entry === "onPreRollStart")).toHaveLength(1);
+    expect(h.log.some((entry) => entry.startsWith("autosave"))).toBe(false);
+    expect(launches(h)).toBe(0);
+    expect(h.ctx.core.state?.mode).toBe("docked");
+  });
+
+  it("launches on the step that ends the pre-roll, right after the one D-17 anchor taken while docked", () => {
+    const h = harness({ preRoll: true });
+    const clock = h.ctx.core.state?.clockSeconds;
+    h.queue.push(launch);
+    runSteps(h, preRollSteps - 1);
+    // The docked steps change nothing the player can see (step.ts block 5).
+    expect(h.ctx.core.state?.mode).toBe("docked");
+    expect(h.ctx.core.state?.clockSeconds).toBe(clock);
+    expect(h.ctx.core.state?.launchCount).toBe(0);
+    expect(launches(h)).toBe(0);
+    expect(h.log.some((entry) => entry.startsWith("autosave"))).toBe(false);
+
+    runSteps(h, preRollSteps);
+    expect(h.ctx.core.state?.mode).toBe("launching");
+    expect(h.stepCommands[preRollSteps - 1]?.[0]).toEqual(launch);
+    expect(launches(h)).toBe(1);
+    const autosaves = h.log.filter((entry) => entry.startsWith("autosave"));
+    expect(autosaves).toEqual(["autosave docked"]);
+    const steps = h.log
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => entry === "stepFlight");
+    const launchStep = steps[preRollSteps - 1];
+    if (launchStep === undefined) throw new Error("no launch step");
+    expect(h.log[launchStep.index - 1]).toBe("autosave docked");
+    expect(h.sequence.preRolling).toBe(false);
+  });
+
+  it("gives one pre-roll, one autosave and one launch for repeated presses", () => {
+    const h = harness({ preRoll: true });
+    h.queue.push(launch, launch);
+    runSteps(h, 10);
+    h.pending.push(launch);
+    runSteps(h, preRollSteps + 20);
+    expect(h.log.filter((entry) => entry === "onPreRollStart")).toHaveLength(1);
+    expect(h.log.filter((entry) => entry.startsWith("autosave"))).toHaveLength(
+      1,
+    );
+    expect(launches(h)).toBe(1);
+    expect(h.ctx.core.state?.launchCount).toBe(1);
+  });
+
+  it("launches on the next step after a skip and leaves skipLaunch for the next frame", () => {
+    const h = harness({ preRoll: true });
+    h.sequence.markSeen();
+    h.queue.push(launch);
+    runSteps(h, 10);
+    h.sequence.skipPreRoll();
+    runSteps(h, 11);
+    expect(h.ctx.core.state?.mode).toBe("launching");
+    expect(h.stepCommands[10]?.[0]).toEqual(launch);
+    expect(h.pending).toEqual([{ kind: "skipLaunch" }]);
+    expect(h.log.filter((entry) => entry.startsWith("autosave"))).toEqual([
+      "autosave docked",
+    ]);
+    runSteps(h, 12);
+    expect(h.ctx.core.state?.mode).toBe("inFlight");
+    expect(h.ctx.core.state?.launchCount).toBe(1);
+  });
+
+  it("cancels the pre-roll when the state leaves the docked home screen", () => {
+    const h = harness({ preRoll: true });
+    h.queue.push(launch);
+    runSteps(h, 10);
+    h.ctx.station.stationScreen = "market";
+    runSteps(h, preRollSteps + 10);
+    expect(h.log).toContain("cancelPreRoll");
+    expect(h.sequence.preRolling).toBe(false);
+    expect(launches(h)).toBe(0);
+    expect(h.log.some((entry) => entry.startsWith("autosave"))).toBe(false);
+    expect(h.ctx.core.state?.mode).toBe("docked");
+  });
+
+  it("keeps the direct path with a zero-length pre-roll (the manual clock)", () => {
+    const h = harness();
+    h.queue.push(launch);
+    h.driver.advanceFrame(DT);
+    expect(h.log.filter((entry) => entry === "onPreRollStart")).toHaveLength(0);
+    expect(h.stepCommands[0]).toEqual([launch]);
+    expect(h.log.slice(0, 2)).toEqual(["autosave docked", "stepFlight"]);
+    expect(h.ctx.core.state?.mode).toBe("launching");
   });
 });
 

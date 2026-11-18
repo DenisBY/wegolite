@@ -35,8 +35,11 @@ import { debrisContacts, npcContacts } from "../../sim/world/contacts.js";
 import {
   computeSlotLaunchCamera,
   computeViewCamera,
+  LAUNCH_PRE_ROLL_DURATION,
   launchViewElapsed,
   launchViewStationAngle,
+  preRollPose,
+  preRollViewTime,
 } from "../../render/launch-camera.js";
 import type { CameraPose } from "../../render/launch-camera.js";
 import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
@@ -56,6 +59,7 @@ import type { IdentFrame } from "../../render/hud/projection.js";
 import { buildHudModel } from "../hud-model.js";
 import { hintGauges } from "../hints.js";
 import type { HintContext } from "../hints.js";
+import type { LaunchSequence } from "../launch-sequence.js";
 import type { NpcModelLoader } from "../npc-models.js";
 import type { WegoliteProbe } from "../probe.js";
 import type { RedrawGate } from "../redraw-gate.js";
@@ -81,6 +85,14 @@ export interface RenderDriverDeps {
    * frame (DATA-13); it is the only place that does.
    */
   readonly npcModels: NpcModelLoader;
+  /**
+   * The launch pre-roll timer (quick 261118-os8): while it runs the docked
+   * session is drawn from inside the dock slot.
+   */
+  readonly launchSequence: Pick<
+    LaunchSequence,
+    "preRolling" | "preRollElapsed"
+  >;
 }
 
 export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
@@ -95,6 +107,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     renderStation,
     targetSystem,
     npcModels,
+    launchSequence,
   } = deps;
 
   /**
@@ -111,12 +124,15 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
 
   /**
    * Whether the loop's next frame has to reach the GPU (see `redraw-gate.ts`).
-   * A docked or paused session simulates nothing, so its image cannot change.
+   * A docked or paused session simulates nothing, so its image cannot change;
+   * a docked session in the launch pre-roll moves its camera every step and is
+   * drawn (quick 261118-os8).
    */
   function shouldDraw(): boolean {
     const { paused } = ctx.runtime;
     const { state } = ctx.core;
-    return redrawGate.next(paused || state?.mode === "docked", drawKeys());
+    const frozenDocked = state?.mode === "docked" && !launchSequence.preRolling;
+    return redrawGate.next(paused || frozenDocked, drawKeys());
   }
 
   /**
@@ -155,29 +171,44 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       alpha,
     );
     const launching = currentState.mode === "launching";
-    // D-10 (quick 261118-l26): the launch time of the interpolated pose. The
-    // station is rolled at that same time, so the slot walls hold still
+    // Quick 261118-os8: the presentation pre-roll before the sim launch; the
+    // sim stays docked while it runs.
+    const preRolling =
+      currentState.mode === "docked" && launchSequence.preRolling;
+    const launchView = preRolling || launching;
+    // D-10 (quick 261118-l26, 261118-os8): the view time of the drawn frame on
+    // one timeline, the pre-roll then the launch time of the interpolated pose.
+    // The station is rolled at that same time, so the slot walls hold still
     // against a camera that rolls with the hull.
-    const viewElapsed = launching
-      ? launchViewElapsed(currentState.launchElapsed, alpha)
-      : 0;
+    const viewTime = preRolling
+      ? preRollViewTime(launchSequence.preRollElapsed, alpha)
+      : launching
+        ? LAUNCH_PRE_ROLL_DURATION +
+          launchViewElapsed(currentState.launchElapsed, alpha)
+        : 0;
     applyStationRoll(
       currentScene,
-      launching
-        ? launchViewStationAngle(currentLayout, viewElapsed)
+      launchView
+        ? launchViewStationAngle(currentLayout, viewTime)
         : currentState.stationAngle,
     );
     let camera: CameraPose | null = null;
-    if (launching) {
-      // The cockpit view from inside the dock slot (owner decision
-      // 2026-11-18, option 1). The slot depth is the station's dock data,
-      // read live at this call (G-8); without it the view is the cockpit.
+    if (launchView) {
+      // The cockpit view from inside the dock slot (owner decisions
+      // 2026-11-18, option 1 and the pre-roll). The slot depth is the
+      // station's dock data, read live at this call (G-8); without it the
+      // view is the cockpit. The pre-roll draws the launch pose at the mouth
+      // rolled to the view time; the launch draws the interpolated sim pose.
+      const viewPose = preRolling
+        ? preRollPose(currentLayout, ctx.core.dockGeometry, viewTime)
+        : pose;
       camera = computeSlotLaunchCamera(
         currentLayout,
         ctx.core.dockGeometry?.port.depth,
-        pose.position,
-        pose.orientation,
-        viewElapsed,
+        currentConfig.launchSpeed,
+        viewPose.position,
+        viewPose.orientation,
+        viewTime,
       );
     } else if (currentState.mode === "inFlight") {
       // CBT-04: the camera follows the sim's current view (also the weapon
@@ -289,14 +320,16 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       );
     }
 
-    // The flight HUD is not drawn while docked (D-09 shows the status panel)
-    // or while launching: it appears at handover (quick 261118-l26; Oolite
-    // draws it while launching, recorded as a todo for the owner).
+    // The flight HUD is not drawn while docked (D-09 shows the status panel;
+    // this covers the pre-roll) or while launching: it appears at handover
+    // (quick 261118-l26; Oolite draws it while launching, recorded as a todo
+    // for the owner).
     const hudHidden = currentState.mode === "docked" || launching;
     hudCanvas.hidden = hudHidden;
     // The page overlay's version and system lines are hidden by CSS while the
-    // HUD canvas shows (D-02); the mark keeps them hidden during the launch.
-    hudCanvas.toggleAttribute("data-launching", launching);
+    // HUD canvas shows (D-02); the mark keeps them hidden for the whole launch
+    // view, the pre-roll included (quick 261118-os8).
+    hudCanvas.toggleAttribute("data-launching", launchView);
     if (!hudHidden && draw) {
       // Oolite's message rows (quick task 261117-pij): the bottom
       // HUD_MESSAGE_ROWS of the ten, newest at the bottom.

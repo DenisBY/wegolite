@@ -3,23 +3,36 @@
 
 /**
  * The cockpit cameras and the launch view from inside the dock slot (D-10,
- * CBT-04, A1; owner decision 2026-11-18, option 1, quick 261118-l26).
+ * CBT-04, A1; owner decisions 2026-11-18: option 1, quick 261118-l26, and the
+ * pre-roll, quick 261118-os8).
  *
  * Pure maths: no Three objects and no DOM, so every pose is decidable in Node
  * (`tests/render/launch-camera.test.ts`). The cockpit pose is the ship pose
  * plus the Oolite view offset.
  *
- * The launch view. Oolite draws its break pattern while launching
- * (`Universe.m:2895-2913` at 7437f22) and hides the world only while more than
- * five of its rings are alive (`Universe.m:3516-3520`); Wegolite instead shows
- * the live cockpit view, starting deep inside the station's dock slot and
- * flying out through the mouth. The path is presentation only: the simulation, like
- * Oolite (`DockEntity.m:812-837`), parks the ship at the dock mouth and moves
- * it out at half its top speed (`src/sim/flight/launch.ts`), and nothing here
- * changes that. The camera is the fore cockpit pose of the interpolated sim
- * pose, pulled back along the slot axis by a distance that eases to zero with
- * a smoothstep over `LAUNCH_DURATION`, so the view starts at the ship's speed
- * and lands on the cockpit pose, with the ship's velocity, at handover.
+ * The launch view. Oolite has no pre-roll: it draws its break pattern while
+ * the ship is already launching (`Universe.m:2895-2913` at 7437f22) and hides
+ * the world only while more than five of its rings are alive
+ * (`Universe.m:3516-3520`). Wegolite instead shows the live cockpit view from
+ * inside the station's dock slot, in two parts on one view timeline `tau`:
+ *
+ * 1. The pre-roll, `LAUNCH_PRE_ROLL_DURATION` seconds of presentation only. The
+ *    simulation stays docked (no game time passes); the camera starts at the
+ *    inner end of the slot, the full `DockGeometry.port.depth` from the mouth,
+ *    with the ship's launch orientation and the station's roll
+ *    (`preRollPose`), and starts to move toward the mouth.
+ * 2. The simulated launch, `LAUNCH_DURATION` seconds. The simulation, like
+ *    Oolite (`DockEntity.m:812-837`), parks the ship at the dock mouth and
+ *    moves it out at half its top speed (`src/sim/flight/launch.ts`); nothing
+ *    here changes that.
+ *
+ * The camera's distance from the mouth along the slot axis is one curve over
+ * both parts (`launchViewAxial`): it starts at rest at the full depth and lands
+ * on the fore cockpit position, with the ship's speed, at handover. The camera
+ * is the fore cockpit pose of the (pre-roll or interpolated sim) pose, pulled
+ * back along the axis so that it sits on that curve, so the path is
+ * continuous in position and velocity where the hull goes from parked to the
+ * launch speed.
  *
  * Every station number comes from content data, never from a constant here:
  * the mouth is `layout.dockOffset` (the station's dock subentity position),
@@ -27,9 +40,10 @@
  * `DockGeometry.port.depth` (compiled from the dock subentity mesh). Another
  * station type therefore only needs its own dock-port record.
  *
- * The camera keeps the ship's orientation, and the sim rolls the hull with
- * the station during the exit (D-10), so the slot walls hold still in the view
- * while the planet and stars turn through the opening.
+ * The camera keeps the ship's orientation, and the ship rolls with the station
+ * over the whole view (the pre-roll pose here, the sim during the exit, D-10),
+ * so the slot walls hold still in the view while the planet and stars turn
+ * through the opening.
  *
  * `sync.ts` is the only module that turns a *world* pose into a render pose.
  * Nothing here knows about a camera object, a canvas or a clock.
@@ -40,8 +54,20 @@ import {
   toWegoliteLocal,
 } from "../sim/combat/constants.js";
 import type { Facing } from "../sim/combat/mounts.js";
-import { LAUNCH_DURATION } from "../sim/flight/launch.js";
-import { add, axisAngle, mul, rotate, scale, sub, vec } from "../sim/math.js";
+import type { DockGeometry } from "../sim/dock/geometry.js";
+import { LAUNCH_DURATION, launchOrientation } from "../sim/flight/launch.js";
+import { dockMouthPosition } from "../sim/flight/state.js";
+import type { FlightPose } from "../sim/flight/state.js";
+import {
+  add,
+  axisAngle,
+  mul,
+  normalize,
+  rotate,
+  scale,
+  sub,
+  vec,
+} from "../sim/math.js";
 import type { Quat, Vec3 } from "../sim/math.js";
 import { DT } from "../sim/time.js";
 import type { SystemLayout } from "../sim/world/layout.js";
@@ -50,10 +76,16 @@ import type { SystemLayout } from "../sim/world/layout.js";
 export const COCKPIT_OFFSET: Vec3 = vec(0, 7.25, -31);
 
 /**
- * The share of the station's dock depth the launch view starts inside the
- * mouth (owner decision 2026-11-18, option 1).
+ * The presentation pre-roll before the simulated launch, in seconds (owner
+ * decision 2026-11-18, quick 261118-os8): the camera rests at the inner end of
+ * the dock slot and starts toward the mouth while the simulation stays docked.
+ * The one named constant to tune; the app plays none under the manual test
+ * clock (D-09), where the view starts at this time instead.
  */
-export const LAUNCH_VIEW_START_FRACTION = 0.8;
+export const LAUNCH_PRE_ROLL_DURATION = 1.5;
+
+/** The whole launch view: the pre-roll, then the simulated launch. */
+export const LAUNCH_VIEW_DURATION = LAUNCH_PRE_ROLL_DURATION + LAUNCH_DURATION;
 
 /**
  * The Cobra's four cockpit view positions in Wegolite's local frame (forward is
@@ -129,12 +161,6 @@ function unit(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-/** Zero slope at both ends, so the view leaves and lands at the ship's speed. */
-function smoothstep(value: number): number {
-  const x = unit(value);
-  return x * x * (3 - 2 * x);
-}
-
 /**
  * The launch time of the pose drawn at `alpha`: the interpolated pose lies
  * `(1 - alpha)` of a step behind the sim's current one. A non-finite alpha is
@@ -151,48 +177,133 @@ export function launchViewElapsed(
 }
 
 /**
- * The station's roll angle at a launch time. While launching the sim's
- * `stationAngle` equals `stationRollRadPerSec * launchElapsed`: `beginLaunch`
- * zeroes both, and every launching step adds `dt` to the one and
- * `stationRollRadPerSec * dt` to the other (`step.ts`, the station roll in
- * block 5). The renderer therefore rolls the station at the same interpolated
- * time as the pose, so the walls do not jitter against the camera.
+ * The view time of the pre-roll frame drawn at `alpha`, with the same reading
+ * as `launchViewElapsed`: the pre-roll's elapsed time `(1 - alpha)` of a step
+ * back, clamped to [0, LAUNCH_PRE_ROLL_DURATION]. A non-finite alpha is read as
+ * 1 and a non-finite elapsed as 0.
  */
-export function launchViewStationAngle(
-  layout: SystemLayout,
-  elapsed: number,
-): number {
-  return layout.stationRollRadPerSec * elapsed;
+export function preRollViewTime(preRollElapsed: number, alpha: number): number {
+  const a = Number.isFinite(alpha) ? unit(alpha) : 1;
+  const elapsed = Number.isFinite(preRollElapsed) ? preRollElapsed : 0;
+  return Math.min(
+    LAUNCH_PRE_ROLL_DURATION,
+    Math.max(0, elapsed - (1 - a) * DT),
+  );
 }
 
 /**
- * The launch view at `elapsed` seconds into the exit: the fore cockpit pose of
- * the ship pose, pulled back along the slot axis (`layout.stationToPlanet`) by
- * `(LAUNCH_VIEW_START_FRACTION * slotDepth + cockpit lead) * (1 - smoothstep)`.
- * At 0 the camera is `LAUNCH_VIEW_START_FRACTION` of the slot depth inside the
- * mouth; at `LAUNCH_DURATION` it is exactly the cockpit pose.
+ * The station's roll angle at a view time (quick 261118-os8, design decision
+ * 6): `stationRollRadPerSec * (viewTime - LAUNCH_PRE_ROLL_DURATION)`. It is
+ * negative during the pre-roll and 0 at the launch step. While launching the
+ * view time is `LAUNCH_PRE_ROLL_DURATION + launchElapsed`, and the sim's
+ * `stationAngle` equals `stationRollRadPerSec * launchElapsed`: `beginLaunch`
+ * zeroes both, and every launching step adds `dt` to the one and
+ * `stationRollRadPerSec * dt` to the other (`step.ts`, the station roll in
+ * block 5). The renderer therefore rolls the station at the same time as the
+ * camera, so the walls do not jitter against it.
+ */
+export function launchViewStationAngle(
+  layout: SystemLayout,
+  viewTime: number,
+): number {
+  return layout.stationRollRadPerSec * (viewTime - LAUNCH_PRE_ROLL_DURATION);
+}
+
+/**
+ * The camera's signed distance from the dock mouth along the slot axis
+ * (`layout.stationToPlanet`) at view time `tau`; negative is inside the slot
+ * (quick 261118-os8, design decision 4).
  *
- * `slotDepth` is the station's `DockGeometry.port.depth`. An undefined,
- * non-finite or non-positive depth gives the plain cockpit pose, so missing
- * data cannot put a NaN into the camera.
+ * With `lead` the fore cockpit's lead over the hull centre, the path runs from
+ * `start = -slotDepth` to `end = launchSpeed * LAUNCH_DURATION + lead`, the
+ * cockpit's position at handover. Over `u = tau / LAUNCH_VIEW_DURATION` it is
+ * `start + span * g(u)` with `g(u) = (4 - m) u^3 + (m - 3) u^4` and
+ * `m = launchSpeed * LAUNCH_VIEW_DURATION / span`: it starts at rest with zero
+ * acceleration, `g(1) = 1`, and `g'(1) = m`, so it ends at the cockpit with the
+ * ship's speed. It is monotone for m < 4 and never ahead of the cockpit for
+ * m < 2. A non-finite `tau` reads as the end of the view.
+ */
+export function launchViewAxial(
+  slotDepth: number,
+  launchSpeed: number,
+  tau: number,
+): number {
+  const lead = -VIEW_OFFSETS.fore.z;
+  const start = -slotDepth;
+  const end = launchSpeed * LAUNCH_DURATION + lead;
+  const span = end - start;
+  const slope = (launchSpeed * LAUNCH_VIEW_DURATION) / span;
+  const u = unit(
+    (Number.isFinite(tau) ? tau : LAUNCH_VIEW_DURATION) / LAUNCH_VIEW_DURATION,
+  );
+  const u3 = u * u * u;
+  return start + span * ((4 - slope) * u3 + (slope - 3) * u3 * u);
+}
+
+/**
+ * The ship pose the pre-roll is drawn from (quick 261118-os8, design decision
+ * 6): the dock mouth, where `beginLaunch` will park the hull, and the launch
+ * orientation (Oolite's quarter twist, `launchOrientation`) rolled with the
+ * station to the view time. At `tau = LAUNCH_PRE_ROLL_DURATION` it is exactly
+ * the pose `beginLaunch` sets.
+ */
+export function preRollPose(
+  layout: SystemLayout,
+  dock: DockGeometry | undefined,
+  tau: number,
+): FlightPose {
+  return {
+    position: dockMouthPosition(layout),
+    orientation: normalize(
+      mul(
+        launchOrientation(layout, dock),
+        axisAngle(0, 0, 1, launchViewStationAngle(layout, tau)),
+      ),
+    ),
+  };
+}
+
+/**
+ * The launch view at view time `tau` (quick 261118-os8, design decision 5):
+ * the fore cockpit pose of `position` and `orientation` (the pre-roll pose, or
+ * the interpolated sim pose while launching), pulled back along the slot axis
+ * by `lead + launchSpeed * max(0, tau - LAUNCH_PRE_ROLL_DURATION) -
+ * launchViewAxial(...)`. The middle term is the cockpit's nominal position
+ * (parked during the pre-roll, at the ship's speed afterwards), so the
+ * camera's position along the axis is the curve, and the pull back is exactly
+ * zero at handover.
+ *
+ * `slotDepth` is the station's `DockGeometry.port.depth`, and `launchSpeed`
+ * the flight config's. An undefined, non-finite or non-positive depth, or a
+ * non-finite or negative speed, gives the plain cockpit pose, so missing data
+ * cannot put a NaN into the camera.
  */
 export function computeSlotLaunchCamera(
   layout: SystemLayout,
   slotDepth: number | undefined,
+  launchSpeed: number,
   position: Vec3,
   orientation: Quat,
-  elapsed: number,
+  tau: number,
 ): CameraPose {
   const cockpit = computeCockpitCamera(position, orientation);
-  if (slotDepth === undefined || !Number.isFinite(slotDepth) || slotDepth <= 0)
+  if (
+    slotDepth === undefined ||
+    !Number.isFinite(slotDepth) ||
+    slotDepth <= 0 ||
+    !Number.isFinite(launchSpeed) ||
+    launchSpeed < 0
+  ) {
     return cockpit;
-  const progress = Number.isFinite(elapsed) ? elapsed / LAUNCH_DURATION : 1;
-  // The cockpit leads the hull centre by -VIEW_OFFSETS.fore.z metres, so the
-  // pull back covers that lead too and the start depth is measured from the
-  // mouth, where the sim parks the hull.
-  const pullback =
-    (LAUNCH_VIEW_START_FRACTION * slotDepth - VIEW_OFFSETS.fore.z) *
-    (1 - smoothstep(progress));
+  }
+  const time = Number.isFinite(tau)
+    ? Math.min(LAUNCH_VIEW_DURATION, Math.max(0, tau))
+    : LAUNCH_VIEW_DURATION;
+  // The cockpit leads the hull centre by -VIEW_OFFSETS.fore.z metres.
+  const nominal =
+    -VIEW_OFFSETS.fore.z +
+    launchSpeed * Math.max(0, time - LAUNCH_PRE_ROLL_DURATION);
+  const pullback = nominal - launchViewAxial(slotDepth, launchSpeed, time);
   return {
     position: sub(cockpit.position, scale(layout.stationToPlanet, pullback)),
     quaternion: cockpit.quaternion,

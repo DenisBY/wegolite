@@ -11,6 +11,7 @@
  * under test twice.
  */
 
+import { createLaunchSequence } from "../../../src/app/launch-sequence.js";
 import { readFileSync } from "node:fs";
 import { dirname, posix } from "node:path";
 
@@ -172,7 +173,9 @@ function tracer(options: { readonly traffic?: boolean } = {}): Tracer {
     pending: [],
     player: new PlayerController(),
     scripted: new ScriptedLaunchController(),
-    launchSequence: { advance: () => undefined },
+    // The zero-length pre-roll: the manual-clock path (quick 261118-os8).
+    launchSequence: createLaunchSequence(() => 0),
+    onPreRollStart: () => undefined,
     router: createEventRouter(ctx, {
       stationFlow: quiet,
       hudMessages: quiet,
@@ -1375,7 +1378,9 @@ describe("jump commit clears the world on the same tick (WORLD-14)", () => {
       pending: [],
       player: new PlayerController(),
       scripted: new ScriptedLaunchController(),
-      launchSequence: { advance: () => undefined },
+      // The zero-length pre-roll: the manual-clock path (quick 261118-os8).
+      launchSequence: createLaunchSequence(() => 0),
+      onPreRollStart: () => undefined,
       router: {
         dispatch: (event) => {
           events.push(event);

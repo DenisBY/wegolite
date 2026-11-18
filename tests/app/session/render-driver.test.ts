@@ -37,9 +37,14 @@ import type { SystemScene } from "../../../src/render/system-scene.js";
 import {
   computeCockpitCamera,
   computeSlotLaunchCamera,
+  LAUNCH_PRE_ROLL_DURATION,
   launchViewElapsed,
   launchViewStationAngle,
+  preRollPose,
+  preRollViewTime,
 } from "../../../src/render/launch-camera.js";
+import { createStationFlow } from "../../../src/app/session/event-router.js";
+import { launchOrientation } from "../../../src/sim/flight/launch.js";
 import { interpolatePose } from "../../../src/render/sync.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import { stepFlight } from "../../../src/sim/flight/step.js";
@@ -83,6 +88,8 @@ interface Harness {
   readonly messages: MessageQueue;
   /** The HUD canvas double, so its `hidden` flag and marks can be read. */
   readonly hudCanvas: HudCanvasDouble;
+  /** The launch pre-roll the driver reads (quick 261118-os8); idle by default. */
+  readonly preRoll: { preRolling: boolean; preRollElapsed: number };
 }
 
 /** A scene double: the driver's gate only reads the nebula revision. */
@@ -124,6 +131,7 @@ function harness(options: HarnessOptions = {}): Harness {
   const probeUpdates: number[] = [];
   const nebula = { revision: 0 };
   const messages = createMessageQueue();
+  const preRoll = { preRolling: false, preRollElapsed: 0 };
   const hudCanvas: HudCanvasDouble = {
     hidden: false,
     attributes: new Set<string>(),
@@ -151,6 +159,7 @@ function harness(options: HarnessOptions = {}): Harness {
     renderStation: () => undefined,
     targetSystem: () => undefined,
     npcModels: options.npcModels ?? idleLoader(),
+    launchSequence: preRoll,
   });
   return {
     ctx,
@@ -161,6 +170,7 @@ function harness(options: HarnessOptions = {}): Harness {
     nebula,
     messages,
     hudCanvas,
+    preRoll,
   };
 }
 
@@ -959,7 +969,7 @@ describe("renderFrame message clock (quick task 261117-u3m)", () => {
   });
 });
 
-describe("renderFrame launch view from inside the dock slot (quick 261118-l26)", () => {
+describe("renderFrame launch view from inside the dock slot (quick 261118-l26, 261118-os8)", () => {
   /** A real sim launch, `steps` launching steps in, with its last two poses. */
   function launchingSession(steps: number) {
     const h = harness();
@@ -999,7 +1009,10 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26)",
       const { h, models, angles, scene, state } = launchingSession(steps);
       expect(state.mode).toBe("launching");
       h.driver.renderFrame(alpha);
-      const elapsed = launchViewElapsed(state.launchElapsed, alpha);
+      // One view timeline: the launch starts where the pre-roll ends.
+      const tau =
+        LAUNCH_PRE_ROLL_DURATION +
+        launchViewElapsed(state.launchElapsed, alpha);
       const pose = interpolatePose(
         h.ctx.core.previousPose,
         h.ctx.core.currentPose,
@@ -1008,12 +1021,13 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26)",
       const expected = computeSlotLaunchCamera(
         layout,
         laveDockGeometry().port.depth,
+        config.launchSpeed,
         pose.position,
         pose.orientation,
-        elapsed,
+        tau,
       );
       expect(h.ctx.core.previousCameraWorld).toEqual(expected.position);
-      expect(angles).toEqual([launchViewStationAngle(layout, elapsed)]);
+      expect(angles).toEqual([launchViewStationAngle(layout, tau)]);
       expect(scene.ship.visible).toBe(false);
       expect(h.hudCanvas.hidden).toBe(true);
       // The page overlay's version and system lines stay hidden (D-02).
@@ -1043,5 +1057,137 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26)",
     expect(h.ctx.core.previousCameraWorld).toEqual(
       computeCockpitCamera(state.position, state.orientation).position,
     );
+  });
+
+  /** A docked session with the real layout, dock data and a recording scene. */
+  function dockedSession() {
+    const h = harness();
+    const models: HudModel[] = [];
+    const angles: number[] = [];
+    const quaternions: { x: number; y: number; z: number; w: number }[] = [];
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    h.ctx.core.dockGeometry = laveDockGeometry();
+    const scene = flyableScene(h.nebula);
+    (scene.station as { update: (angle: number) => void }).update = (
+      angle: number,
+    ) => angles.push(angle);
+    (
+      scene.camera as unknown as {
+        quaternion: { set: (...q: number[]) => void };
+      }
+    ).quaternion.set = (x = 0, y = 0, z = 0, w = 0) => {
+      quaternions.push({ x, y, z, w });
+    };
+    h.ctx.core.scene = scene;
+    h.ctx.runtime.hud = {
+      draw: (model: HudModel) => models.push(model),
+    } as unknown as Hud;
+    const state = initFlightState(layout);
+    h.ctx.core.state = state;
+    h.ctx.core.previousPose = poseOf(state);
+    h.ctx.core.currentPose = poseOf(state);
+    return { h, models, angles, quaternions, scene, state };
+  }
+
+  it("draws a docked session in the pre-roll from the slot, rolled at the view time, with the HUD hidden (quick 261118-os8)", () => {
+    const dock = laveDockGeometry();
+    for (const [elapsed, alpha] of [
+      [0, 1],
+      [DT, 0.5],
+      [0.75, 0.25],
+      [179 * DT, 1],
+    ] as const) {
+      const { h, models, angles, scene, state } = dockedSession();
+      h.preRoll.preRolling = true;
+      h.preRoll.preRollElapsed = elapsed;
+      expect(state.mode).toBe("docked");
+      h.driver.renderFrame(alpha);
+      const tau = preRollViewTime(elapsed, alpha);
+      const pose = preRollPose(layout, dock, tau);
+      const expected = computeSlotLaunchCamera(
+        layout,
+        dock.port.depth,
+        config.launchSpeed,
+        pose.position,
+        pose.orientation,
+        tau,
+      );
+      expect(h.ctx.core.previousCameraWorld).toEqual(expected.position);
+      expect(angles).toEqual([launchViewStationAngle(layout, tau)]);
+      expect(scene.ship.visible).toBe(false);
+      expect(h.hudCanvas.hidden).toBe(true);
+      expect(h.hudCanvas.attributes.has("data-launching")).toBe(true);
+      expect(models).toHaveLength(0);
+      expect(h.renders).toHaveLength(1);
+    }
+  });
+
+  it("keeps a docked session drawn every frame while the pre-roll runs, and frozen otherwise (quick 261118-os8)", () => {
+    const { h } = dockedSession();
+    h.preRoll.preRolling = true;
+    expect(runFrames(h, 5)).toBe(5);
+    h.preRoll.preRolling = false;
+    // The gate's settle draws, then nothing while docked.
+    runFrames(h, 10);
+    expect(runFrames(h, 5)).toBe(0);
+  });
+
+  it("drops data-launching for a docked session with no pre-roll", () => {
+    const { h } = dockedSession();
+    h.hudCanvas.attributes.add("data-launching");
+    h.driver.renderFrame(1);
+    expect(h.hudCanvas.attributes.has("data-launching")).toBe(false);
+  });
+
+  it("draws the launch step at the launch pose with the full twist: the launched handler snaps previousPose (quick 261118-os8)", () => {
+    const dock = laveDockGeometry();
+    const { h, quaternions, state } = dockedSession();
+    // As `stepOnce` does: shift the pose window, step, dispatch, then record.
+    h.ctx.core.previousPose = h.ctx.core.currentPose;
+    stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT, {
+      dock,
+    });
+    expect(state.mode).toBe("launching");
+    const none = (): void => undefined;
+    const flow = createStationFlow(h.ctx, {
+      launchSequence: { reset: none, markSeen: none },
+      docked: { show: none, hide: none },
+      hudCanvas: { hidden: true },
+      messages: { enqueue: none },
+      syncStationNav: none,
+      syncEconomyProbe: none,
+      persistSettings: none,
+      ensureSelection: none,
+      renderStation: none,
+      autosave: none,
+      closeChart: none,
+    });
+    flow({ kind: "launched" });
+    h.ctx.core.currentPose = poseOf(state);
+    h.driver.renderFrame(0.5);
+    const expected = computeSlotLaunchCamera(
+      layout,
+      dock.port.depth,
+      config.launchSpeed,
+      state.position,
+      launchOrientation(layout, dock),
+      LAUNCH_PRE_ROLL_DURATION,
+    );
+    const camera = h.ctx.core.previousCameraWorld;
+    if (camera === undefined) throw new Error("no camera drawn");
+    expect(Math.abs(camera.x - expected.position.x)).toBeLessThan(1e-9);
+    expect(Math.abs(camera.y - expected.position.y)).toBeLessThan(1e-9);
+    expect(Math.abs(camera.z - expected.position.z)).toBeLessThan(1e-9);
+    const drawn = quaternions.at(-1);
+    if (drawn === undefined) throw new Error("no camera orientation");
+    const twisted = launchOrientation(layout, dock);
+    const dotq = Math.abs(
+      drawn.w * twisted.w +
+        drawn.x * twisted.x +
+        drawn.y * twisted.y +
+        drawn.z * twisted.z,
+    );
+    expect(dotq).toBeGreaterThan(1 - 1e-12);
   });
 });

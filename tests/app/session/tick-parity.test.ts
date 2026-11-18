@@ -18,6 +18,7 @@
  * determinism of a populated world; that is proven in plans 08-11 and 08-13.
  */
 
+import { createLaunchSequence } from "../../../src/app/launch-sequence.js";
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -265,7 +266,9 @@ function session(
     pending,
     player: new PlayerController(),
     scripted: new ScriptedLaunchController(),
-    launchSequence: { advance: () => undefined },
+    // The zero-length pre-roll: the manual-clock path (quick 261118-os8).
+    launchSequence: createLaunchSequence(() => 0),
+    onPreRollStart: () => undefined,
     router: createEventRouter(ctx, {
       stationFlow: quiet,
       hudMessages,

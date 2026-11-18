@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { createLaunchSequence } from "../../src/app/launch-sequence.js";
+import { LAUNCH_PRE_ROLL_DURATION } from "../../src/render/launch-camera.js";
 import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
 import { LAUNCH_DURATION } from "../../src/sim/flight/launch.js";
 import {
@@ -107,6 +108,114 @@ describe("launch skip gate", () => {
     expect(sequence.elapsed).toBe(0);
     expect(sequence.complete).toBe(false);
     expect(sequence.seen).toBe(true);
+  });
+});
+
+describe("launch pre-roll timer (quick 261118-os8)", () => {
+  const preRollSteps = Math.round(LAUNCH_PRE_ROLL_DURATION / DT);
+
+  it("runs LAUNCH_PRE_ROLL_DURATION of fixed steps with the default length", () => {
+    const sequence = createLaunchSequence();
+    expect(sequence.startPreRoll()).toBe(true);
+    expect(sequence.preRolling).toBe(true);
+    const results: boolean[] = [];
+    for (let index = 0; index < preRollSteps; index += 1) {
+      results.push(sequence.advancePreRoll(DT));
+    }
+    // 179 false, then true on the 180th step: 1.5 s of 1/120 s steps.
+    expect(results.filter((ended) => !ended)).toHaveLength(preRollSteps - 1);
+    expect(results.at(-1)).toBe(true);
+    expect(sequence.preRolling).toBe(false);
+    expect(sequence.preRollSkipped).toBe(false);
+    expect(sequence.preRollElapsed).toBe(0);
+    expect(sequence.advancePreRoll(DT)).toBe(false);
+  });
+
+  it("does not progress without a step (pause) or with a bad dt", () => {
+    const sequence = createLaunchSequence();
+    sequence.startPreRoll();
+    sequence.advancePreRoll(DT);
+    const held = sequence.preRollElapsed;
+    for (const dt of [0, -DT, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(sequence.advancePreRoll(dt)).toBe(false);
+    }
+    expect(sequence.preRollElapsed).toBe(held);
+    expect(sequence.preRolling).toBe(true);
+  });
+
+  it("does not restart a running pre-roll", () => {
+    const sequence = createLaunchSequence();
+    sequence.startPreRoll();
+    for (let index = 0; index < 10; index += 1) sequence.advancePreRoll(DT);
+    const elapsed = sequence.preRollElapsed;
+    expect(sequence.startPreRoll()).toBe(true);
+    expect(sequence.preRollElapsed).toBe(elapsed);
+  });
+
+  it("plays no pre-roll with a zero length (the manual clock)", () => {
+    for (const length of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const sequence = createLaunchSequence(() => length);
+      expect(sequence.startPreRoll()).toBe(false);
+      expect(sequence.preRolling).toBe(false);
+      expect(sequence.advancePreRoll(DT)).toBe(false);
+    }
+  });
+
+  it("reads the length at each start", () => {
+    let length = 0;
+    const sequence = createLaunchSequence(() => length);
+    expect(sequence.startPreRoll()).toBe(false);
+    length = 2 * DT;
+    expect(sequence.startPreRoll()).toBe(true);
+    expect(sequence.advancePreRoll(DT)).toBe(false);
+    expect(sequence.advancePreRoll(DT)).toBe(true);
+  });
+
+  it("is ended by reset and by cancelPreRoll, keeping `seen`", () => {
+    for (const end of ["reset", "cancelPreRoll"] as const) {
+      const sequence = createLaunchSequence();
+      sequence.markSeen();
+      sequence.startPreRoll();
+      sequence.advancePreRoll(DT);
+      sequence[end]();
+      expect(sequence.preRolling).toBe(false);
+      expect(sequence.preRollElapsed).toBe(0);
+      expect(sequence.seen).toBe(true);
+      expect(sequence.advancePreRoll(DT)).toBe(false);
+    }
+  });
+
+  it("clears `complete` at a new pre-roll, so the skip gate reads a fresh launch", () => {
+    const sequence = createLaunchSequence();
+    sequence.markSeen();
+    while (!sequence.complete) sequence.advance(DT, false);
+    expect(sequence.canSkip(true)).toBe(false);
+    sequence.startPreRoll();
+    expect(sequence.complete).toBe(false);
+    expect(sequence.elapsed).toBe(0);
+    expect(sequence.canSkip(true)).toBe(true);
+  });
+
+  it("ignores a skip before the first viewing and honours it after", () => {
+    const first = createLaunchSequence();
+    first.startPreRoll();
+    first.skipPreRoll();
+    expect(first.advancePreRoll(DT)).toBe(false);
+    expect(first.preRollSkipped).toBe(false);
+
+    const later = createLaunchSequence();
+    later.markSeen();
+    later.startPreRoll();
+    later.advancePreRoll(DT);
+    later.skipPreRoll();
+    expect(later.advancePreRoll(DT)).toBe(true);
+    expect(later.preRollSkipped).toBe(true);
+    expect(later.preRolling).toBe(false);
+    // A skip with no pre-roll running does nothing.
+    later.skipPreRoll();
+    expect(later.startPreRoll()).toBe(true);
+    expect(later.preRollSkipped).toBe(false);
+    expect(later.advancePreRoll(DT)).toBe(false);
   });
 });
 

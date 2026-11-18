@@ -57,6 +57,7 @@ import type { AssetCache } from "../render/asset-cache.js";
 import type { SaveAllowLists, SaveV4 } from "../persistence/save.js";
 import type { SaveStore, SaveStatus } from "../persistence/store.js";
 import { createMessageQueue } from "../render/hud/messages.js";
+import { LAUNCH_PRE_ROLL_DURATION } from "../render/launch-camera.js";
 import type { Command } from "../sim/commands.js";
 import {
   PlayerController,
@@ -235,7 +236,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
   // Skips the draw of a frame that would repeat the last one (docked, paused).
   const redrawGate = createRedrawGate();
   const messages = createMessageQueue();
-  const launchSequence: LaunchSequence = createLaunchSequence();
+  // Quick 261118-os8, design decision 2: the launch pre-roll's length is read
+  // at each launch press, because the test flags are parsed below. Under the
+  // manual clock it is zero, so `advanceTicks(n)` still steps exactly n sim
+  // ticks and the hash-pinned twins launch on tick 1 (D-09).
+  const launchSequence: LaunchSequence = createLaunchSequence(() =>
+    ctx.runtime.testFlags.manualClock ? 0 : LAUNCH_PRE_ROLL_DURATION,
+  );
 
   // D-12 step 7: the hyperspace arrival and the helpers it needs (entering a
   // system scene, the committed target, the refusal copy, the status overlay).
@@ -357,6 +364,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     renderStation,
     targetSystem,
     npcModels,
+    launchSequence,
   });
   const { renderFrame, shouldDraw } = renderDriver;
 
@@ -464,6 +472,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     equipmentSet,
     targetSystem,
     autosave,
+    // Quick 261118-os8, design decision 8: the UI half of the "launched"
+    // handler, at the start of the pre-roll; the sim launches later.
+    onPreRollStart: () => {
+      docked.hide();
+      ctx.runtime.input?.setContext("flight");
+      syncStationNav();
+    },
     // Late-bound so the construction order never matters (08-14).
     markHookMutation: () => {
       probePublisher.markHookMutation();

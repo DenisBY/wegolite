@@ -189,6 +189,13 @@ export function createStationFlow(
         docked.hide();
         syncStationNav();
         hudCanvas.hidden = false;
+        // Quick 261118-os8: collapse the interpolation window onto the launch
+        // pose, as the "docked" case does. The docked pose is the untwisted
+        // station base orientation and lacks the launch twist, so frames drawn
+        // after the launch step would otherwise show the twist half applied.
+        if (ctx.core.state !== undefined) {
+          ctx.core.previousPose = poseOf(ctx.core.state);
+        }
         messages.enqueue("Launching — stand by", MESSAGE_DURATION_SECONDS);
         // D-17: no write here. The pre-launch anchor was taken in `frame()`
         // while the state was still docked.
