@@ -305,6 +305,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     closeSaveScreen: () => {
       saveController.closeSaveScreen();
     },
+    launchSequence,
   });
   const {
     ensureSelection,
@@ -338,6 +339,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     },
     // Late-bound: the sim driver is built after the publisher (08-16).
     advanceTicks: (n) => simDriver.advanceTicks(n),
+    launchSequence,
   });
 
   // WORLD-15: the NPC models, loaded per ship key and only once the render

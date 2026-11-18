@@ -59,6 +59,8 @@ interface Harness {
   readonly profiles: PlayerProfile[];
   readonly pending: Command[];
   readonly market: Market;
+  /** The launch pre-roll the nav state reads (quick 261118-os8). */
+  readonly preRoll: { preRolling: boolean };
 }
 
 function harness(): Harness {
@@ -71,6 +73,7 @@ function harness(): Harness {
   const views: StationView[] = [];
   const profiles: PlayerProfile[] = [];
   const pending: Command[] = [];
+  const preRoll = { preRolling: false };
   const market = generateMarket(
     system,
     catalogue,
@@ -100,9 +103,27 @@ function harness(): Harness {
     closeChart: () => calls.push("closeChart"),
     openSaveScreen: () => calls.push("openSaveScreen"),
     closeSaveScreen: () => calls.push("closeSaveScreen"),
+    launchSequence: preRoll,
   });
-  return { ctx, controller, calls, views, profiles, pending, market };
+  return { ctx, controller, calls, views, profiles, pending, market, preRoll };
 }
+
+describe("the station nav state in the launch pre-roll (quick 261118-os8)", () => {
+  it("reports launching while docked and pre-rolling, and the sim mode otherwise", () => {
+    const { ctx, controller, preRoll } = harness();
+    const seen: string[] = [];
+    ctx.station.stationNav = {
+      sync: (state: { readonly mode: string }) => seen.push(state.mode),
+    } as unknown as typeof ctx.station.stationNav;
+    controller.syncStationNav();
+    preRoll.preRolling = true;
+    controller.syncStationNav();
+    if (ctx.core.state === undefined) throw new Error("no state");
+    ctx.core.state.mode = "inFlight";
+    controller.syncStationNav();
+    expect(seen).toEqual(["docked", "launching", "inFlight"]);
+  });
+});
 
 /** The first commodity a player can actually trade here, read from the fixtures. */
 function firstTradeable(market: Market) {

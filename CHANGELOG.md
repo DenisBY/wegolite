@@ -15,9 +15,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Launching now shows the view from your cockpit, starting deep inside the
-  station's docking slot and flying out through it toward the planet, instead
-  of the abstract tunnel animation.
+- Launching now shows the view from your cockpit, starting at the far end of
+  the station's docking slot, gliding out through it and on toward the planet,
+  instead of the abstract tunnel animation. The first moments in the slot pass
+  no game time, and after your first launch any key still skips the whole
+  sequence.
 - Without the Advanced Space Compass the compass works as in Oolite: it points
   at the main station when you are near the planet or the station and at the
   planet otherwise, and the cycle-compass and target-station keys do nothing

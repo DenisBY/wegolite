@@ -73,6 +73,7 @@ import type {
 } from "../../ui/station-model.js";
 import { activeTabId, isTabEnabled, tabById } from "../../ui/station-tabs.js";
 import type { StationNavState, StationTabId } from "../../ui/station-tabs.js";
+import type { LaunchSequence } from "../launch-sequence.js";
 import type {
   StationScreen,
   StationShell,
@@ -100,6 +101,12 @@ export interface StationControllerDeps {
   readonly closeChart: () => void;
   readonly openSaveScreen: () => void;
   readonly closeSaveScreen: () => void;
+  /**
+   * The launch pre-roll (quick 261118-os8): while it runs the docked session
+   * reports `launching` to the tab strip, so the strip hides as it does during
+   * the sim launch.
+   */
+  readonly launchSequence: Pick<LaunchSequence, "preRolling">;
 }
 
 export function createStationController(
@@ -118,6 +125,7 @@ export function createStationController(
     closeChart,
     openSaveScreen,
     closeSaveScreen,
+    launchSequence,
   } = deps;
 
   /**
@@ -567,10 +575,17 @@ export function createStationController(
     renderStation();
   }
 
-  /** The tab strip's inputs: the base station screen plus the overlay flag. */
+  /**
+   * The tab strip's inputs: the base station screen plus the overlay flag. A
+   * docked session in the launch pre-roll reports `launching` (quick
+   * 261118-os8, design decision 8).
+   */
   function currentNavState(currentState: FlightState): StationNavState {
     return {
-      mode: currentState.mode,
+      mode:
+        currentState.mode === "docked" && launchSequence.preRolling
+          ? "launching"
+          : currentState.mode,
       paused: ctx.runtime.paused,
       overlay: ctx.save.saveScreenOpen
         ? "saveScreen"

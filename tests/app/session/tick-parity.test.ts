@@ -318,6 +318,7 @@ function session(
     swapSystem: () => Promise.resolve(),
     disposeSystem: () => undefined,
     advanceTicks: (n) => driver.advanceTicks(n),
+    launchSequence: { preRolling: false, preRollElapsed: 0 },
   });
   bound.publisher = publisher;
   return {

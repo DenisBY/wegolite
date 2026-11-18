@@ -44,6 +44,7 @@ import type {
   WegoliteSaveProbe,
   WegoliteSimTestHook,
 } from "../probe.js";
+import type { LaunchSequence } from "../launch-sequence.js";
 import type { RedrawGate } from "../redraw-gate.js";
 import type { SceneManager } from "../scene-manager.js";
 import type { SessionState } from "./context.js";
@@ -67,6 +68,11 @@ export interface ProbePublisherDeps {
    * order never matters. The driver owns the refusal rule.
    */
   readonly advanceTicks: (n: number) => number;
+  /** The launch pre-roll timer, published as `launch.preRolling` (quick 261118-os8). */
+  readonly launchSequence: Pick<
+    LaunchSequence,
+    "preRolling" | "preRollElapsed"
+  >;
 }
 
 export interface ProbePublisher {
@@ -109,6 +115,7 @@ export function createProbePublisher(
     swapSystem,
     disposeSystem,
     advanceTicks,
+    launchSequence,
   } = deps;
 
   function syncEconomyProbe(): void {
@@ -376,6 +383,9 @@ export function createProbePublisher(
         count: currentState.launchCount,
         elapsed: currentState.launchElapsed,
         seen: ctx.core.launchSeen,
+        // Quick 261118-os8: the presentation pre-roll; `mode` stays the sim's.
+        preRolling: launchSequence.preRolling,
+        preRollElapsed: launchSequence.preRollElapsed,
       };
       probe.dock = {
         dockCount: currentState.dockCount,

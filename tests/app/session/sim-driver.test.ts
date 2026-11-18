@@ -1339,6 +1339,7 @@ describe("markHookMutation, taint equivalence with the hook's mutate callback", 
       swapSystem: () => Promise.resolve(),
       disposeSystem: () => undefined,
       advanceTicks: () => 0,
+      launchSequence: { preRolling: false, preRollElapsed: 0 },
     });
     const state = initFlightState(lave.layout);
     ctx.core.state = state;

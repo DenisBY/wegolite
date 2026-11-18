@@ -49,6 +49,12 @@ interface Harness {
   /** The layout and scene the scenes double hands out next. */
   readonly next: { scene: SystemScene; layout: SystemLayout };
   readonly onSubpanelKeyDown: (event: KeyboardEvent) => void;
+  /** The launch sequence double (quick 261118-os8): pre-roll and skip gate. */
+  readonly launch: {
+    preRolling: boolean;
+    seen: boolean;
+    readonly skips: number[];
+  };
 }
 
 /** A recording double for one disposable collaborator. */
@@ -88,6 +94,8 @@ function harness(): Harness {
     layout: { ...lave.layout },
   };
   const onSubpanelKeyDown = vi.fn();
+  // The existing launch cases read a seen launch; the pre-roll cases flip it.
+  const launch = { preRolling: false, seen: true, skips: [] as number[] };
 
   const deps = {
     assets: disposable(log, "assets"),
@@ -109,8 +117,14 @@ function harness(): Harness {
     saveBoot: { store: disposable(log, "store") },
     pending,
     launchSequence: {
-      canSkip: () => true,
+      canSkip: () => launch.seen,
       markSeen: () => undefined,
+      get preRolling() {
+        return launch.preRolling;
+      },
+      skipPreRoll: () => {
+        launch.skips.push(1);
+      },
     },
     uiController,
     redrawGate: {
@@ -142,6 +156,7 @@ function harness(): Harness {
     deps,
     next,
     onSubpanelKeyDown,
+    launch,
   };
 }
 
@@ -364,6 +379,48 @@ describe("the window keydown listeners", () => {
     onLaunchKeyDown?.(keyEvent({ altKey: true }));
     ctx.runtime.paused = true;
     onLaunchKeyDown?.(keyEvent());
+    expect(pending).toEqual([]);
+  });
+
+  it("the launch listener skips the pre-roll after the first viewing, and pushes nothing (quick 261118-os8)", () => {
+    const { calls } = stubWindow();
+    const { ctx, pending, launch } = harness();
+    const onLaunchKeyDown = calls[1]?.listener;
+    if (ctx.core.state === undefined) throw new Error("no state");
+    expect(ctx.core.state.mode).toBe("docked");
+    launch.preRolling = true;
+
+    // Before the first viewing the key does nothing.
+    launch.seen = false;
+    const unseen = keyEvent();
+    onLaunchKeyDown?.(unseen);
+    expect(launch.skips).toHaveLength(0);
+    expect(unseen.prevented()).toBe(false);
+
+    launch.seen = true;
+    for (const blocked of [
+      keyEvent({ repeat: true }),
+      keyEvent({ ctrlKey: true }),
+      keyEvent({ metaKey: true }),
+      keyEvent({ altKey: true }),
+    ]) {
+      onLaunchKeyDown?.(blocked);
+    }
+    ctx.runtime.paused = true;
+    onLaunchKeyDown?.(keyEvent());
+    expect(launch.skips).toHaveLength(0);
+    ctx.runtime.paused = false;
+
+    const accepted = keyEvent();
+    onLaunchKeyDown?.(accepted);
+    expect(launch.skips).toHaveLength(1);
+    expect(accepted.prevented()).toBe(true);
+    expect(pending).toEqual([]);
+
+    // Docked with no pre-roll: ignored, as before.
+    launch.preRolling = false;
+    onLaunchKeyDown?.(keyEvent());
+    expect(launch.skips).toHaveLength(1);
     expect(pending).toEqual([]);
   });
 });

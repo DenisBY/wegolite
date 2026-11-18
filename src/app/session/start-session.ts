@@ -121,7 +121,10 @@ export interface LifecycleDeps {
   readonly galaxyById: Map<string, System>;
   /** The queue the Launch button and the launch-skip key push onto. */
   readonly pending: Command[];
-  readonly launchSequence: Pick<LaunchSequence, "canSkip" | "markSeen">;
+  readonly launchSequence: Pick<
+    LaunchSequence,
+    "canSkip" | "markSeen" | "preRolling" | "skipPreRoll"
+  >;
   /** Every listener this session adds hangs off this controller's signal. */
   readonly uiController: AbortController;
   readonly redrawGate: Pick<RedrawGate, "request">;
@@ -249,18 +252,27 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
   } = deps;
 
   /**
-   * D-10: after the first viewing, any key during `launching` skips to the
-   * handover. Before `launchSeen` the key is ignored, so the first launch always
-   * plays in full. The skip is a command, not a state mutation: the simulation
-   * still applies the +600 s clock exactly once.
+   * D-10: after the first viewing, any key during the launch view, the
+   * pre-roll (quick 261118-os8) or `launching`, skips to the handover. Before
+   * `launchSeen` the key is ignored, so the first launch always plays in full.
+   * The skip is a command, not a state mutation: the simulation still applies
+   * the +600 s clock exactly once.
    */
   function onLaunchKeyDown(event: KeyboardEvent): void {
     const currentState = ctx.core.state;
-    if (currentState === undefined || currentState.mode !== "launching") return;
+    if (currentState === undefined) return;
+    // Quick 261118-os8: the skip covers the pre-roll (docked, with the timer
+    // running) as well as the sim launch.
+    const preRolling =
+      currentState.mode === "docked" && launchSequence.preRolling;
+    if (!preRolling && currentState.mode !== "launching") return;
     if (ctx.runtime.paused || event.repeat) return;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (!launchSequence.canSkip(ctx.core.launchSeen)) return;
-    pending.push({ kind: "skipLaunch" });
+    // In the pre-roll the timer ends on the next fixed step, and the sim
+    // driver sends the launch and then skipLaunch (design decision 9).
+    if (preRolling) launchSequence.skipPreRoll();
+    else pending.push({ kind: "skipLaunch" });
     event.preventDefault();
   }
 

@@ -98,9 +98,34 @@ function harness(): Harness {
     swapSystem: () => Promise.resolve(),
     disposeSystem: () => undefined,
     advanceTicks: () => 0,
+    launchSequence: preRoll,
   });
   return { ctx, probe, saveProbe, gate, messages, publisher, renderer };
 }
+
+/** The launch pre-roll the publisher reads (quick 261118-os8); reset per test. */
+const preRoll = { preRolling: false, preRollElapsed: 0 };
+
+describe("launch pre-roll fields (quick 261118-os8)", () => {
+  it("publishes preRolling and preRollElapsed, false and 0 when idle, with the sim mode unchanged", () => {
+    preRoll.preRolling = false;
+    preRoll.preRollElapsed = 0;
+    const { ctx, probe, publisher } = harness();
+    ctx.core.layout = layout;
+    ctx.core.state = initFlightState(layout);
+    publisher.updateProbe();
+    expect(probe.launch.preRolling).toBe(false);
+    expect(probe.launch.preRollElapsed).toBe(0);
+    preRoll.preRolling = true;
+    preRoll.preRollElapsed = 0.75;
+    publisher.updateProbe();
+    expect(probe.launch.preRolling).toBe(true);
+    expect(probe.launch.preRollElapsed).toBe(0.75);
+    expect(probe.mode).toBe("docked");
+    preRoll.preRolling = false;
+    preRoll.preRollElapsed = 0;
+  });
+});
 
 describe("updateProbe", () => {
   it("publishes paused, the system id, the chart camera and the message depth", () => {

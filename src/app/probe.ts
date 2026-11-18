@@ -414,7 +414,17 @@ export interface WegoliteProbe {
   angular: { pitch: number; roll: number };
   torus: { engaged: boolean; factor: number; massLocked: boolean };
   hud: WegoliteHudProbe;
-  launch: { count: number; elapsed: number; seen: boolean };
+  /**
+   * `preRolling` and `preRollElapsed` are the app-side launch pre-roll (quick
+   * 261118-os8): false and 0 when none runs; the sim stays docked during it.
+   */
+  launch: {
+    count: number;
+    elapsed: number;
+    seen: boolean;
+    preRolling: boolean;
+    preRollElapsed: number;
+  };
   /** WORLD-04: the live GPU counters a scene swap must not grow. */
   memory: WegoliteMemoryProbe;
   bodies: string[];
@@ -635,7 +645,13 @@ export function publishFailure(reason: string): void {
       fuel: 0,
       bounds: {},
     },
-    launch: { count: 0, elapsed: 0, seen: false },
+    launch: {
+      count: 0,
+      elapsed: 0,
+      seen: false,
+      preRolling: false,
+      preRollElapsed: 0,
+    },
     memory: { geometries: 0, textures: 0, programs: 0 },
     bodies: [],
     error: reason,

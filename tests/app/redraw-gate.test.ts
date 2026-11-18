@@ -133,9 +133,13 @@ describe("the session wiring", () => {
     );
   });
 
-  it("treats exactly docked and paused as idle", () => {
+  it("treats exactly docked outside the launch pre-roll, and paused, as idle", () => {
+    // Quick 261118-os8: a docked session in the pre-roll moves its camera.
     expect(source).toContain(
-      'redrawGate.next(paused || state?.mode === "docked", drawKeys())',
+      'const frozenDocked = state?.mode === "docked" && !launchSequence.preRolling;',
+    );
+    expect(source).toContain(
+      "redrawGate.next(paused || frozenDocked, drawKeys())",
     );
   });
 
