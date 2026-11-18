@@ -17,13 +17,21 @@ import { describe, expect, it } from "vitest";
 
 import type { System } from "../../src/content/types.js";
 import {
+  CHART_BLOB_FACTOR,
+  CHART_BLOB_FLOOR,
+  CHART_WIDTH_AT_MAX_ZOOM,
+  OOLITE_GUI_WIDTH,
   buildChartView,
   chartArrowVector,
+  chartFindReadout,
   chartGoodsReadout,
+  chartMarkerColor,
+  chartMarkerRadius,
   chartProjection,
   chartSpanY,
   chartTitle,
   clampChartCamera,
+  findSystemsByPrefix,
   galaxyPreset,
   hitTest,
   localPreset,
@@ -967,6 +975,7 @@ function chartMarker(overrides: {
   readonly isCurrent?: boolean;
   readonly isTarget?: boolean;
   readonly isSelected?: boolean;
+  readonly isFound?: boolean;
   readonly reachable?: boolean;
 }): ChartMarker {
   return {
@@ -985,7 +994,10 @@ function chartMarker(overrides: {
     isCurrent: overrides.isCurrent ?? false,
     isTarget: overrides.isTarget ?? false,
     isSelected: overrides.isSelected ?? false,
+    isFound: overrides.isFound ?? false,
     visible: true,
+    radius: 1,
+    color: "rgb(255, 255, 255)",
   };
 }
 
@@ -995,6 +1007,7 @@ function viewForMarkers(
   spanX = 256,
 ): ChartView {
   return {
+    foundIds: markers.filter((entry) => entry.isFound).map((entry) => entry.id),
     markers,
     edges: [],
     labels: [],
@@ -1009,3 +1022,238 @@ function viewForMarkers(
     chartSpanY: 2 * spanX,
   };
 }
+
+/**
+ * Oolite's chart blob (quick task 261118-cyo): `blob_size = (1 + 0.0017 *
+ * radius) / zoom`, floored at 0.5, a filled oval of that diameter in the
+ * 480-unit GUI that spans 64 x zoom chart-x units (`GuiDisplayGen.m:1788-1792`,
+ * `:1574` at the pin 7437f22).
+ */
+describe("chart markers as Oolite draws them", () => {
+  const ooliteBlob = (radiusKm: number, zoom: number): number =>
+    Math.max(CHART_BLOB_FLOOR, (1 + CHART_BLOB_FACTOR * radiusKm) / zoom);
+
+  it("names Oolite's constants", () => {
+    expect(CHART_BLOB_FACTOR).toBe(0.0017);
+    expect(CHART_BLOB_FLOOR).toBe(0.5);
+    expect(OOLITE_GUI_WIDTH).toBe(480);
+    expect(CHART_WIDTH_AT_MAX_ZOOM).toBe(64);
+  });
+
+  it("equals Oolite's blob radius when the projection is Oolite's own", () => {
+    // Zoom 4 is the galactic chart: 480 GUI units over 256 chart-x units.
+    expect(chartMarkerRadius(4116, 64 * 4, 480 / 256)).toBeCloseTo(
+      ooliteBlob(4116, 4) / 2,
+      10,
+    );
+    expect(chartMarkerRadius(4116, 64 * 4, 480 / 256)).toBeCloseTo(
+      7.9972 / 4 / 2,
+      10,
+    );
+    expect(chartMarkerRadius(4116, 64, 7.5)).toBeCloseTo(3.9986, 10);
+    for (const zoom of [1, 1.25, 2, 4]) {
+      for (const radiusKm of [2828, 4116, 6909]) {
+        expect(
+          chartMarkerRadius(radiusKm, 64 * zoom, 480 / (64 * zoom)),
+        ).toBeCloseTo(ooliteBlob(radiusKm, zoom) / 2, 10);
+      }
+    }
+  });
+
+  it("floors the blob at 0.5 GUI units", () => {
+    expect(chartMarkerRadius(0, 64 * 4, 480 / 256)).toBeCloseTo(0.25, 10);
+    expect(chartMarkerRadius(-1000, 64 * 4, 480 / 256)).toBeCloseTo(0.25, 10);
+  });
+
+  it("colours a marker with its sun colour, as Oolite's SUNCOLOR mode", () => {
+    expect(chartMarkerColor(diso.sun_color)).toBe("rgb(208, 132, 118)");
+    expect(chartMarkerColor(lave.sun_color)).toBe("rgb(255, 255, 255)");
+    // OOColor.m: any component above 1 means the colour is on 0..255.
+    expect(chartMarkerColor([208, 132, 118, 1])).toBe("rgb(208, 132, 118)");
+    expect(chartMarkerColor([2, 0, -1, 1])).toBe("rgb(2, 0, 0)");
+  });
+
+  it("gives every marker its radius in pixels and its sun colour", () => {
+    const view = buildChartView(
+      systems,
+      lave.id,
+      undefined,
+      galaxyPreset(),
+      fullFuel,
+      viewport,
+      undefined,
+    );
+    const scale = Math.min(viewport.width / 256, viewport.height / 256);
+    for (const system of systems) {
+      const entry = marker(view, system.id);
+      expect(entry.radius).toBeCloseTo(
+        chartMarkerRadius(system.radiusKm, 256, scale),
+        10,
+      );
+      expect(entry.color).toBe(chartMarkerColor(system.sun_color));
+      expect(entry.isFound).toBe(false);
+    }
+    expect(marker(view, diso.id).color).toBe("rgb(208, 132, 118)");
+    expect(view.foundIds).toEqual([]);
+  });
+});
+
+describe("Find planet (quick task 261118-cyo)", () => {
+  const indexOrder = [...systems].sort(
+    (left, right) => left.systemIndex - right.systemIndex,
+  );
+
+  it("matches the lower-cased prefix in system-index order (Universe.m:7745-7771)", () => {
+    const expected = indexOrder
+      .filter((system) => system.name.toLowerCase().startsWith("dis"))
+      .map((system) => system.id);
+    expect(expected.length).toBeGreaterThan(0);
+    expect(findSystemsByPrefix(systems, " DIS ")).toEqual(expected);
+    expect(findSystemsByPrefix(systems, "dis")).toEqual(expected);
+    expect(findSystemsByPrefix(systems, "lave")).toEqual([lave.id]);
+  });
+
+  it("returns nothing for an empty or blank query or no match", () => {
+    expect(findSystemsByPrefix(systems, "")).toEqual([]);
+    expect(findSystemsByPrefix(systems, "   ")).toEqual([]);
+    expect(findSystemsByPrefix(systems, "qqqq")).toEqual([]);
+  });
+
+  it("caps the query at 16 characters", () => {
+    const long = {
+      ...lave,
+      id: "long",
+      name: "Abcdefghijklmnopqrstu",
+    } as System;
+    expect(findSystemsByPrefix([long], "abcdefghijklmnopZZZ")).toEqual([
+      "long",
+    ]);
+  });
+
+  it("marks the matches on the markers and the view", () => {
+    const found = findSystemsByPrefix(systems, "dis");
+    const view = buildChartView(
+      systems,
+      lave.id,
+      undefined,
+      galaxyPreset(),
+      fullFuel,
+      viewport,
+      undefined,
+      found,
+    );
+    expect(view.foundIds).toEqual(found);
+    expect(
+      view.markers.filter((entry) => entry.isFound).map((entry) => entry.id),
+    ).toEqual(found);
+  });
+
+  it("reads the result as n of m, No match, or nothing", () => {
+    expect(chartFindReadout("", 0, 0)).toBe("");
+    expect(chartFindReadout("zz", 0, 0)).toBe("No match");
+    expect(chartFindReadout("dis", 3, 0)).toBe("1 of 3");
+    expect(chartFindReadout("dis", 3, 2)).toBe("3 of 3");
+  });
+});
+
+describe("selectLabels never overlaps at the galaxy preset", () => {
+  const LABEL_HEIGHT = 12;
+  const DESCENDER = 3;
+  const galaxyViewport: ChartViewport = { width: 1280, height: 503 };
+  const zadies = byName("Zadies");
+  const sotiqu = byName("Sotiqu");
+
+  function boxes(labels: ReturnType<typeof selectLabels>) {
+    return labels.map((label) => ({
+      id: label.systemId,
+      x: label.x,
+      y: label.y - LABEL_HEIGHT,
+      width: label.width,
+      height: LABEL_HEIGHT + DESCENDER,
+    }));
+  }
+
+  it("keeps every label box apart, forced labels first and found before candidates", () => {
+    const found = findSystemsByPrefix(systems, "e");
+    const view = buildChartView(
+      systems,
+      lave.id,
+      zadies.id,
+      galaxyPreset(),
+      fullFuel,
+      galaxyViewport,
+      sotiqu.id,
+      found,
+    );
+    const labels = selectLabels(view, (text) => text.length * 7.25);
+    const placed = boxes(labels);
+    for (let left = 0; left < placed.length; left += 1) {
+      for (let right = left + 1; right < placed.length; right += 1) {
+        const a = placed[left];
+        const b = placed[right];
+        if (a === undefined || b === undefined) continue;
+        const overlap =
+          a.x < b.x + b.width &&
+          b.x < a.x + a.width &&
+          a.y < b.y + b.height &&
+          b.y < a.y + a.height;
+        expect(overlap, `${a.id} overlaps ${b.id}`).toBe(false);
+      }
+    }
+    const ids = labels.map((label) => label.systemId);
+    expect(ids).toContain(lave.id);
+    expect(ids).toContain(zadies.id);
+    expect(ids).toContain(sotiqu.id);
+    // Output stays in system-index order.
+    const indexes = labels.map(
+      (label) => marker(view, label.systemId).systemIndex,
+    );
+    expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
+  });
+
+  it("labels a found match before an overlapping candidate", () => {
+    const current = chartMarker({
+      id: "current",
+      systemIndex: 9,
+      screenX: 10,
+      screenY: 300,
+      isCurrent: true,
+    });
+    const candidate = chartMarker({
+      id: "candidate",
+      systemIndex: 0,
+      screenX: 100,
+      screenY: 100,
+    });
+    const match = chartMarker({
+      id: "match",
+      systemIndex: 1,
+      screenX: 104,
+      screenY: 100,
+      isFound: true,
+    });
+    const labels = selectLabels(
+      viewForMarkers([candidate, match, current], undefined, 64),
+      () => 40,
+    );
+    expect(labels.map((label) => label.systemId)).toEqual(["match", "current"]);
+  });
+
+  it("offsets a label past its marker", () => {
+    const big = {
+      ...chartMarker({
+        id: "big",
+        systemIndex: 0,
+        screenX: 100,
+        screenY: 100,
+        isCurrent: true,
+      }),
+      radius: 6,
+    };
+    const [label] = selectLabels(
+      viewForMarkers([big], undefined, 64),
+      () => 10,
+    );
+    expect(label?.x).toBeGreaterThanOrEqual(100 + 6 + 2);
+  });
+});

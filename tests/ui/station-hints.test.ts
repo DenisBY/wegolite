@@ -54,7 +54,7 @@ describe("default hint strings", () => {
   it("pins the chart and Save/Load screens", () => {
     const bindings = defaults();
     expect(chartHints(bindings)).toBe(
-      "Click: select · Up/Down/Left/Right: next · Tab: preset · Enter: commit · Esc: close",
+      "Click: select · Up/Down/Left/Right: next · Tab: preset · /: find · Enter: commit · Esc: close",
     );
     expect(saveLoadHints(bindings)).toBe(
       "Up/Down select · Enter activate · Y confirm · N cancel · S save · L load · Esc return",

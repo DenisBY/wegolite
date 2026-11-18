@@ -56,6 +56,7 @@ export type ActionId =
   | "chartConfirm"
   | "chartRange"
   | "chartBack"
+  | "chartFind"
   | "saveLoad"
   | "saveScreenUp"
   | "saveScreenDown"
@@ -140,6 +141,7 @@ export const ACTION_IDS: readonly ActionId[] = [
   "chartConfirm",
   "chartRange",
   "chartBack",
+  "chartFind",
   "saveLoad",
   "saveScreenUp",
   "saveScreenDown",
@@ -220,6 +222,10 @@ export const DEFAULT_BINDINGS: Readonly<Record<ActionId, readonly string[]>> =
     chartConfirm: Object.freeze(["Enter"]),
     chartRange: Object.freeze(["Tab"]),
     chartBack: Object.freeze(["Escape"]),
+    // Find planet (quick task 261118-cyo): `/` focuses the chart's search box.
+    // Letters cannot start a search, because P pauses and others may be
+    // rebound into the chart context.
+    chartFind: Object.freeze(["Slash"]),
     // F2 opens the standalone Save/Load screen; only while docked.
     saveLoad: Object.freeze(["F2"]),
     saveScreenUp: Object.freeze(["ArrowUp"]),
@@ -281,6 +287,7 @@ export const ACTION_LABELS: Readonly<Record<ActionId, string>> = Object.freeze({
   chartConfirm: "Chart commit",
   chartRange: "Chart preset",
   chartBack: "Chart close",
+  chartFind: "Find planet",
   saveLoad: "Save / load",
   saveScreenUp: "Save/load up",
   saveScreenDown: "Save/load down",
@@ -382,6 +389,7 @@ export const ACTION_CONTEXTS: Readonly<
   chartConfirm: contexts("chart"),
   chartRange: contexts("chart"),
   chartBack: contexts("chart"),
+  chartFind: contexts("chart"),
   // F2 is docked-only: never in flight, never over the chart.
   saveLoad: contexts("dockHome", "dockScreen"),
   saveScreenUp: contexts("saveScreen"),

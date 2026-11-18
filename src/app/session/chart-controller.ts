@@ -20,8 +20,10 @@ import type { ActionId } from "../../input/actions.js";
 import {
   buildChartView,
   chartArrowVector,
+  chartFindReadout,
   chartTitle,
   clampChartCamera,
+  findSystemsByPrefix,
   galaxyPreset,
   localPreset,
   nearestInDirection,
@@ -32,7 +34,7 @@ import type {
   ChartCamera,
   ChartView,
 } from "../../ui/chart-model.js";
-import type { ChartOverlay } from "../../ui/chart.js";
+import type { ChartFindEvent, ChartOverlay } from "../../ui/chart.js";
 import type { SessionState } from "./context.js";
 
 /** What the controller calls outside the session context. */
@@ -94,6 +96,7 @@ export function createChartController(
       ctx.core.profile.fuel,
       overlay.viewport(),
       ctx.chart.chartSelectedId,
+      ctx.chart.chartFindMatches,
     );
   }
 
@@ -129,6 +132,9 @@ export function createChartController(
     ctx.chart.chartCamera = localPreset(ctx.core.system);
     ctx.chart.chartPreset = "local";
     overlay.setTitle(chartTitle(ctx.core.system.galaxy));
+    // Every open starts with an empty Find planet search.
+    resetFind();
+    overlay.resetFind();
     // The chart nav's hidden state must be final before the first paint
     // measures the canvas.
     syncStationNav();
@@ -147,6 +153,93 @@ export function createChartController(
     // Hidden time is never replayed; the accumulator starts at zero.
     ctx.runtime.loop?.reset();
     syncStationNav();
+    updateProbe();
+  }
+
+  function resetFind(): void {
+    ctx.chart.chartFindQuery = "";
+    ctx.chart.chartFindMatches = [];
+    ctx.chart.chartFindIndex = 0;
+  }
+
+  /**
+   * Select the match at `chartFindIndex` and move the camera onto it when its
+   * marker is off the viewport, keeping the span (Oolite moves the chart to
+   * the found system, `PlayerEntityControls.m:1836-1849` at the pin 7437f22).
+   */
+  function selectFoundSystem(): void {
+    const id = ctx.chart.chartFindMatches[ctx.chart.chartFindIndex];
+    if (id === undefined) return;
+    ctx.chart.chartSelectedId = id;
+    const overlay = ctx.chart.chart;
+    const system = galaxyById.get(id);
+    if (overlay === undefined || system === undefined) return;
+    const marker = currentChartView(overlay).markers.find(
+      (entry) => entry.id === id,
+    );
+    if (marker !== undefined && !marker.visible) {
+      ctx.chart.chartCamera = clampChartCamera({
+        centre: { x: system.chartX, y: system.chartY },
+        spanX: ctx.chart.chartCamera.spanX,
+      });
+    }
+  }
+
+  /**
+   * The Find planet box (quick task 261118-cyo, owner decision 2026-11-18).
+   *
+   * A query marks every system whose name starts with the text and selects
+   * the first in system-index order (`Universe.m:7745-7771`); a step moves
+   * through the matches with wrap (`GuiDisplayGen.m:2119-2160`); commit makes
+   * the selection the hyperspace target, as Enter does; clear empties the
+   * search. A query with no match keeps the selection and the typed text. The
+   * guards are `setChartCamera`'s.
+   */
+  function handleFind(event: ChartFindEvent): void {
+    if (
+      ctx.runtime.disposed ||
+      ctx.runtime.paused ||
+      ctx.runtime.contextLost ||
+      !ctx.chart.chartOpen
+    )
+      return;
+    switch (event.kind) {
+      case "query": {
+        ctx.chart.chartFindQuery = event.text;
+        ctx.chart.chartFindMatches = findSystemsByPrefix(galaxy, event.text);
+        ctx.chart.chartFindIndex = 0;
+        selectFoundSystem();
+        break;
+      }
+      case "step": {
+        const count = ctx.chart.chartFindMatches.length;
+        if (count === 0) return;
+        const direction = event.direction < 0 ? -1 : 1;
+        ctx.chart.chartFindIndex =
+          (ctx.chart.chartFindIndex + direction + count) % count;
+        selectFoundSystem();
+        break;
+      }
+      case "commit": {
+        if (ctx.chart.chartSelectedId === undefined) return;
+        ctx.core.hyperspaceTargetId = ctx.chart.chartSelectedId;
+        break;
+      }
+      case "clear": {
+        resetFind();
+        break;
+      }
+      default:
+        return;
+    }
+    ctx.chart.chart?.setFindResult(
+      chartFindReadout(
+        ctx.chart.chartFindQuery,
+        ctx.chart.chartFindMatches.length,
+        ctx.chart.chartFindIndex,
+      ),
+    );
+    refreshChart();
     updateProbe();
   }
 
@@ -192,6 +285,11 @@ export function createChartController(
       case "chartRange":
         toggleChartPreset();
         break;
+      case "chartFind":
+        // `/` focuses the Find planet box; the keydown was consumed, so no
+        // "/" reaches it.
+        if (ctx.chart.chartOpen) ctx.chart.chart?.focusFind();
+        break;
       case "chartConfirm":
         // A click only selects (D-02): Enter is the commit.
         if (!ctx.chart.chartOpen || ctx.chart.chartSelectedId === undefined)
@@ -228,6 +326,7 @@ export function createChartController(
     openChart,
     closeChart,
     selectChartSystem,
+    handleFind,
     moveChartSelection,
     applyChartAction,
     handleChartActions,

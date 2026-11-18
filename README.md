@@ -74,10 +74,14 @@ for that action.
 | Chart commit   | `Enter`       |
 | Chart preset   | `Tab`         |
 | Chart close    | `Esc`         |
+| Find planet    | `/`           |
 
 The chart opens on the local view around the current system; Tab toggles the
 whole-galaxy view, the mouse wheel zooms around the cursor, and dragging with
-the left button pans.
+the left button pans. Find planet (`/`) searches by the start of a name: the
+first match is selected and every match is boxed; Down and Up step through the
+matches, Enter sets the selection as the destination and Esc clears the
+search.
 
 **Docked station**
 

@@ -103,6 +103,7 @@ export function chartHints(bindings: BindingLookup): string {
     "Click: select",
     `${pairLabel(bindings, "chartUp", "chartDown")}/${primaryOrUnbound(bindings, "chartLeft")}/${primaryOrUnbound(bindings, "chartRight")}: next`,
     `${primaryOrUnbound(bindings, "chartRange")}: preset`,
+    `${primaryOrUnbound(bindings, "chartFind")}: find`,
     `${primaryOrUnbound(bindings, "chartConfirm")}: commit`,
     `${primaryOrUnbound(bindings, "chartBack")}: close`,
   ].join(" · ");

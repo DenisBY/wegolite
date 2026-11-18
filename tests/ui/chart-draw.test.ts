@@ -27,7 +27,15 @@ import type {
   ChartView,
   ChartViewport,
 } from "../../src/ui/chart-model.js";
-import { drawChart, needsChartRepaint } from "../../src/ui/chart-draw.js";
+import {
+  CHART_CURRENT_COLOR,
+  CHART_FOUND_COLOR,
+  CHART_SELECTED_COLOR,
+  CHART_TARGET_COLOR,
+  chartRingRadius,
+  drawChart,
+  needsChartRepaint,
+} from "../../src/ui/chart-draw.js";
 
 interface RecordedCall {
   readonly method: string;
@@ -41,22 +49,40 @@ interface Recorder {
 
 function createRecorder(): Recorder {
   const calls: RecordedCall[] = [];
+  const state = {
+    fillStyle: "",
+    strokeStyle: "",
+    globalAlpha: 1,
+    lineWidth: 1,
+  };
   const record =
     (method: string) =>
     (...args: unknown[]): void => {
       calls.push({ method, args });
     };
-  const context = {
+  // fill and stroke record the style they paint with, so a test can read
+  // the colour a marker or a ring was drawn in.
+  const context = Object.assign(state, {
     clearRect: record("clearRect"),
     beginPath: record("beginPath"),
     moveTo: record("moveTo"),
     lineTo: record("lineTo"),
-    stroke: record("stroke"),
+    stroke: (): void => {
+      calls.push({ method: "stroke", args: [state.strokeStyle] });
+    },
     arc: record("arc"),
-    fill: record("fill"),
+    fill: (): void => {
+      calls.push({
+        method: "fill",
+        args: [state.fillStyle, state.globalAlpha],
+      });
+    },
     fillText: record("fillText"),
     setLineDash: record("setLineDash"),
-  } as unknown as CanvasRenderingContext2D;
+    strokeRect: (...args: unknown[]): void => {
+      calls.push({ method: "strokeRect", args: [...args, state.strokeStyle] });
+    },
+  }) as unknown as CanvasRenderingContext2D;
   return { context, calls };
 }
 
@@ -156,6 +182,75 @@ describe("drawChart", () => {
     for (const text of drawn) {
       expect(expected.has(String(text))).toBe(true);
     }
+  });
+});
+
+describe("drawChart markers, rings and found boxes (quick task 261118-cyo)", () => {
+  it("fills each painted marker with its sun colour at its radius", () => {
+    const { context, calls } = createRecorder();
+    drawChart(context, view, viewport);
+    for (const marker of view.markers) {
+      const at = calls.findIndex(
+        (call) =>
+          call.method === "arc" &&
+          call.args[0] === marker.screenX &&
+          call.args[1] === marker.screenY &&
+          call.args[2] === marker.radius,
+      );
+      expect(at, marker.name).toBeGreaterThanOrEqual(0);
+      const fill = calls.slice(at).find((call) => call.method === "fill");
+      expect(fill?.args[0], marker.name).toBe(marker.color);
+      expect(fill?.args[1], marker.name).toBe(marker.reachable ? 1 : 0.45);
+    }
+  });
+
+  it("strokes rings for current, target and selection after the markers", () => {
+    const selected = labelledView(lave.id, diso.id, galaxyPreset(), leesti.id);
+    const { context, calls } = createRecorder();
+    drawChart(context, selected, viewport);
+    const lastFill = Math.max(...indexesOf(calls, "fill"));
+    const ring = (id: string, colour: string): void => {
+      const marker = selected.markers.find((entry) => entry.id === id);
+      if (marker === undefined) throw new Error(`no marker ${id}`);
+      const at = calls.findIndex(
+        (call, index) =>
+          index > lastFill - 1 &&
+          call.method === "arc" &&
+          call.args[0] === marker.screenX &&
+          call.args[2] === chartRingRadius(marker.radius),
+      );
+      expect(at, id).toBeGreaterThan(0);
+      const stroke = calls.slice(at).find((call) => call.method === "stroke");
+      expect(stroke?.args[0], id).toBe(colour);
+    };
+    ring(lave.id, CHART_CURRENT_COLOR);
+    ring(diso.id, CHART_TARGET_COLOR);
+    ring(leesti.id, CHART_SELECTED_COLOR);
+    expect(chartRingRadius(1)).toBe(4.5);
+    expect(chartRingRadius(3)).toBe(5.5);
+  });
+
+  it("outlines each found match with a green square", () => {
+    const base = buildChartView(
+      systems,
+      lave.id,
+      undefined,
+      galaxyPreset(),
+      70,
+      viewport,
+      undefined,
+      [diso.id, leesti.id],
+    );
+    const found = { ...base, labels: selectLabels(base, () => 18) };
+    const { context, calls } = createRecorder();
+    drawChart(context, found, viewport);
+    const boxes = calls.filter((call) => call.method === "strokeRect");
+    expect(boxes).toHaveLength(2);
+    for (const box of boxes) expect(box.args[4]).toBe(CHART_FOUND_COLOR);
+    // Boxes come before the labels.
+    expect(Math.max(...indexesOf(calls, "strokeRect"))).toBeLessThan(
+      first(indexesOf(calls, "fillText")),
+    );
   });
 });
 
@@ -291,5 +386,17 @@ describe("needsChartRepaint", () => {
 
   it("is true for a first paint", () => {
     expect(needsChartRepaint(undefined, view)).toBe(true);
+  });
+
+  it("is true when only the found set changes", () => {
+    expect(needsChartRepaint(view, { ...view, foundIds: [diso.id] })).toBe(
+      true,
+    );
+    expect(
+      needsChartRepaint(
+        { ...view, foundIds: [diso.id] },
+        { ...view, foundIds: [diso.id] },
+      ),
+    ).toBe(false);
   });
 });

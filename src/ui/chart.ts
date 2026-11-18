@@ -59,6 +59,16 @@ export interface ChartTooltipModel {
   readonly description?: string | undefined;
 }
 
+/**
+ * One Find planet box event (quick task 261118-cyo): the text changed, Down
+ * or Up stepped through the matches, Enter committed, Escape cleared.
+ */
+export type ChartFindEvent =
+  | { readonly kind: "query"; readonly text: string }
+  | { readonly kind: "step"; readonly direction: 1 | -1 }
+  | { readonly kind: "commit" }
+  | { readonly kind: "clear" };
+
 export interface ChartOverlay {
   /** Reveal the overlay and paint one frame. */
   show(view: ChartView): void;
@@ -74,6 +84,14 @@ export interface ChartOverlay {
   setHints(text: string): void;
   /** Write the header title ("Galactic Chart 1"). */
   setTitle(text: string): void;
+  /** Focus the Find planet box. */
+  focusFind(): void;
+  /** Empty the Find planet box and its readout. */
+  resetFind(): void;
+  /** Write the Find planet readout ("1 of 3", "No match" or nothing). */
+  setFindResult(text: string): void;
+  /** Route the Find planet box's events to the session. */
+  onFind(handler: (event: ChartFindEvent) => void): void;
   /** Offer a new view; repaint only when the policy agrees. */
   view(next: ChartView): void;
   hide(): void;
@@ -133,6 +151,21 @@ export function createChart(root: HTMLElement): ChartOverlay {
     '[data-field="chart-title"]',
     'the "chart-title" header field',
   );
+  const findInput = requireElement<HTMLInputElement>(
+    overlay,
+    '[data-field="chart-find"]',
+    'the "chart-find" input',
+  );
+  if (!(findInput instanceof HTMLInputElement)) {
+    throw new ChartError(
+      'Wegolite: the chart shell\'s "chart-find" field is not an input.',
+    );
+  }
+  const findResult = requireElement<HTMLElement>(
+    overlay,
+    '[data-field="chart-find-result"]',
+    'the "chart-find-result" readout',
+  );
   const tooltip = requireElement<HTMLElement>(
     overlay,
     "#chart-tooltip",
@@ -160,6 +193,7 @@ export function createChart(root: HTMLElement): ChartOverlay {
   let builder: ((viewport: ChartViewport) => ChartView) | undefined;
   let selectHandler: ((systemId: string) => void) | undefined;
   let cameraHandler: ((camera: ChartCamera) => void) | undefined;
+  let findHandler: ((event: ChartFindEvent) => void) | undefined;
   let tooltipBuilder:
     ((systemId: string) => ChartTooltipModel | undefined) | undefined;
   let hoveredId: string | undefined;
@@ -474,6 +508,48 @@ export function createChart(root: HTMLElement): ChartOverlay {
     if (marker !== undefined) selectHandler(marker.id);
   }
 
+  /** The Find planet box: the text goes out as typed; keys step, commit, clear. */
+  function onFindInput(): void {
+    findHandler?.({ kind: "query", text: findInput.value });
+  }
+
+  function onFindKeyDown(event: KeyboardEvent): void {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        findHandler?.({ kind: "step", direction: 1 });
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        findHandler?.({ kind: "step", direction: -1 });
+        break;
+      case "Enter":
+        event.preventDefault();
+        findHandler?.({ kind: "commit" });
+        findInput.blur();
+        break;
+      case "Escape":
+        event.preventDefault();
+        findInput.value = "";
+        findHandler?.({ kind: "clear" });
+        findInput.blur();
+        break;
+      default:
+        break;
+    }
+  }
+
+  function blurFind(): void {
+    if (document.activeElement === findInput) findInput.blur();
+  }
+
+  findInput.addEventListener("input", onFindInput, {
+    signal: controller.signal,
+  });
+  findInput.addEventListener("keydown", onFindKeyDown, {
+    signal: controller.signal,
+  });
   canvas.addEventListener("click", onClick, { signal: controller.signal });
   canvas.addEventListener("wheel", onWheel, {
     passive: false,
@@ -539,6 +615,21 @@ export function createChart(root: HTMLElement): ChartOverlay {
     setTitle(text: string): void {
       if (title.textContent !== text) title.textContent = text;
     },
+    focusFind(): void {
+      if (overlay.hidden) return;
+      findInput.focus({ preventScroll: true });
+      findInput.select();
+    },
+    resetFind(): void {
+      findInput.value = "";
+      findResult.textContent = "";
+    },
+    setFindResult(text: string): void {
+      if (findResult.textContent !== text) findResult.textContent = text;
+    },
+    onFind(handler: (event: ChartFindEvent) => void): void {
+      findHandler = handler;
+    },
     view(next: ChartView): void {
       const completed = complete(next);
       if (!needsChartRepaint(current, completed)) return;
@@ -552,6 +643,8 @@ export function createChart(root: HTMLElement): ChartOverlay {
       resetGestures();
       hoverClient = undefined;
       clearTooltip();
+      // A focused box would keep the game keys away after the chart closes.
+      blurFind();
       overlay.hidden = true;
     },
     onSelect(handler: (systemId: string) => void): void {
@@ -573,8 +666,10 @@ export function createChart(root: HTMLElement): ChartOverlay {
       tooltipBuilder = undefined;
       selectHandler = undefined;
       cameraHandler = undefined;
+      findHandler = undefined;
       hoverClient = undefined;
       clearTooltip();
+      blurFind();
       overlay.hidden = true;
     },
   };

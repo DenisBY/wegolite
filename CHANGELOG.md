@@ -12,6 +12,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   stock or the amount in the hold; a second click reverses the order and a
   third restores the usual order. The arrow keys and buying and selling follow
   the sorted list.
+- Find planet on the galactic chart: press `/`, type the start of a system's
+  name, use Down and Up for the next match, Enter to set it as the
+  destination and Esc to clear the search. Every match is boxed in green.
 
 ### Changed
 
@@ -27,6 +30,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The galactic chart's title names the galaxy: "Galactic Chart 1".
 - The system card on the chart prints the inhabitants under the population
   without a label, as Oolite does.
+- Chart systems are drawn in their star's colour and sized by their planet's
+  radius, as in Oolite; the current system, the destination and the
+  selection are marked with rings.
+- Chart labels no longer overlap at any zoom.
 
 ## [0.5.0] - 2026-11-17
 

@@ -10,6 +10,8 @@
  * listener, so constructing it needs no `window`.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { createSessionState } from "../../../src/app/session/context.js";
@@ -20,7 +22,13 @@ import type { InputContext } from "../../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import type { GameLoop } from "../../../src/app/game-loop.js";
 import type { ChartOverlay } from "../../../src/ui/chart.js";
-import { galaxyPreset, localPreset } from "../../../src/ui/chart-model.js";
+import type { System } from "../../../src/content/types.js";
+import {
+  buildChartView,
+  findSystemsByPrefix,
+  galaxyPreset,
+  localPreset,
+} from "../../../src/ui/chart-model.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import { laveFixture } from "../../helpers/lave.js";
 
@@ -32,9 +40,10 @@ interface Harness {
   readonly calls: string[];
   readonly contexts: InputContext[];
   readonly titles: string[];
+  readonly finds: string[];
 }
 
-function harness(): Harness {
+function harness(galaxy: readonly System[] = [system]): Harness {
   const ctx = createSessionState({
     system,
     saveStatus: "absent",
@@ -43,6 +52,7 @@ function harness(): Harness {
   const calls: string[] = [];
   const contexts: InputContext[] = [];
   const titles: string[] = [];
+  const finds: string[] = [];
   ctx.core.state = initFlightState(layout);
   ctx.chart.chart = {
     show: () => calls.push("show"),
@@ -50,6 +60,9 @@ function harness(): Harness {
     view: () => calls.push("view"),
     viewport: () => ({ width: 800, height: 600 }),
     setTitle: (text: string) => titles.push(text),
+    focusFind: () => finds.push("focus"),
+    resetFind: () => finds.push("reset"),
+    setFindResult: (text: string) => finds.push(`result:${text}`),
   } as unknown as ChartOverlay;
   let current: InputContext = "dockHome";
   ctx.runtime.input = {
@@ -63,12 +76,12 @@ function harness(): Harness {
     reset: () => calls.push("loop.reset"),
   } as unknown as GameLoop;
   const controller = createChartController(ctx, {
-    galaxy: [system],
-    galaxyById: new Map([[system.id, system]]),
+    galaxy,
+    galaxyById: new Map(galaxy.map((entry) => [entry.id, entry])),
     updateProbe: () => calls.push("updateProbe"),
     syncStationNav: () => calls.push("syncStationNav"),
   });
-  return { ctx, controller, calls, contexts, titles };
+  return { ctx, controller, calls, contexts, titles, finds };
 }
 
 describe("toggleChartPreset", () => {
@@ -202,5 +215,172 @@ describe("applyChartAction", () => {
     controller.selectChartSystem(system.id);
     controller.applyChartAction("chartConfirm");
     expect(ctx.core.hyperspaceTargetId).toBe(system.id);
+  });
+});
+
+const GALAXY0 = JSON.parse(
+  readFileSync(
+    new URL("../../../src/content/generated/systems/g0.json", import.meta.url),
+    "utf8",
+  ),
+) as System[];
+
+/**
+ * Find planet (quick task 261118-cyo): Oolite selects the first match in
+ * system-index order (`Universe.m:7745-7771`), moves the chart to it and
+ * steps through the matches with wrap (`GuiDisplayGen.m:2119-2160`).
+ */
+describe("handleFind", () => {
+  function opened() {
+    const h = harness(GALAXY0);
+    h.ctx.core.system =
+      GALAXY0.find((entry) => entry.id === system.id) ?? system;
+    h.controller.openChart();
+    h.calls.length = 0;
+    h.finds.length = 0;
+    return h;
+  }
+  const matches = findSystemsByPrefix(GALAXY0, "la");
+
+  it("selects the first match, marks all of them and reads n of m", () => {
+    const { ctx, controller, calls, finds } = opened();
+    controller.handleFind({ kind: "query", text: "la" });
+    expect(matches.length).toBeGreaterThan(1);
+    expect(ctx.chart.chartFindQuery).toBe("la");
+    expect(ctx.chart.chartFindMatches).toEqual(matches);
+    expect(ctx.chart.chartFindIndex).toBe(0);
+    expect(ctx.chart.chartSelectedId).toBe(matches[0]);
+    expect(finds).toEqual([`result:1 of ${String(matches.length)}`]);
+    expect(calls).toContain("view");
+    expect(calls.at(-1)).toBe("updateProbe");
+  });
+
+  it("centres the camera on an off-view match and keeps the span", () => {
+    const { ctx, controller } = opened();
+    const before = ctx.chart.chartCamera;
+    const far = GALAXY0.find((entry) => {
+      const view = buildChartView(
+        GALAXY0,
+        ctx.core.system.id,
+        undefined,
+        before,
+        70,
+        { width: 800, height: 600 },
+        undefined,
+      );
+      const marker = view.markers.find((item) => item.id === entry.id);
+      return (
+        marker !== undefined &&
+        !marker.visible &&
+        findSystemsByPrefix(GALAXY0, entry.name)[0] === entry.id
+      );
+    });
+    if (far === undefined) throw new Error("no off-view system to find");
+    controller.handleFind({ kind: "query", text: far.name });
+    expect(ctx.chart.chartSelectedId).toBe(far.id);
+    expect(ctx.chart.chartCamera.spanX).toBe(before.spanX);
+    expect(ctx.chart.chartCamera.centre).toEqual({
+      x: far.chartX,
+      y: far.chartY,
+    });
+  });
+
+  it("leaves the camera alone for a match already in view", () => {
+    const { ctx, controller } = opened();
+    const before = ctx.chart.chartCamera;
+    controller.handleFind({ kind: "query", text: "lave" });
+    expect(ctx.chart.chartSelectedId).toBe(system.id);
+    expect(ctx.chart.chartCamera).toEqual(before);
+  });
+
+  it("steps through the matches with wrap in both directions", () => {
+    const { ctx, controller } = opened();
+    controller.handleFind({ kind: "query", text: "la" });
+    controller.handleFind({ kind: "step", direction: 1 });
+    expect(ctx.chart.chartFindIndex).toBe(1);
+    expect(ctx.chart.chartSelectedId).toBe(matches[1]);
+    controller.handleFind({ kind: "step", direction: -1 });
+    controller.handleFind({ kind: "step", direction: -1 });
+    expect(ctx.chart.chartFindIndex).toBe(matches.length - 1);
+    expect(ctx.chart.chartSelectedId).toBe(matches.at(-1));
+    controller.handleFind({ kind: "step", direction: 1 });
+    expect(ctx.chart.chartSelectedId).toBe(matches[0]);
+  });
+
+  it("keeps the selection and the text on no match and says so", () => {
+    const { ctx, controller, finds } = opened();
+    controller.handleFind({ kind: "query", text: "la" });
+    const selected = ctx.chart.chartSelectedId;
+    controller.handleFind({ kind: "query", text: "laqq" });
+    expect(ctx.chart.chartSelectedId).toBe(selected);
+    expect(ctx.chart.chartFindQuery).toBe("laqq");
+    expect(ctx.chart.chartFindMatches).toEqual([]);
+    expect(finds.at(-1)).toBe("result:No match");
+    controller.handleFind({ kind: "step", direction: 1 });
+    expect(ctx.chart.chartSelectedId).toBe(selected);
+  });
+
+  it("commits the selection as the hyperspace target", () => {
+    const { ctx, controller } = opened();
+    controller.handleFind({ kind: "query", text: "la" });
+    controller.handleFind({ kind: "commit" });
+    expect(ctx.core.hyperspaceTargetId).toBe(matches[0]);
+  });
+
+  it("clears the search", () => {
+    const { ctx, controller, finds } = opened();
+    controller.handleFind({ kind: "query", text: "la" });
+    controller.handleFind({ kind: "clear" });
+    expect(ctx.chart.chartFindQuery).toBe("");
+    expect(ctx.chart.chartFindMatches).toEqual([]);
+    expect(ctx.chart.chartFindIndex).toBe(0);
+    expect(finds.at(-1)).toBe("result:");
+  });
+
+  it.each(["disposed", "paused", "contextLost"] as const)(
+    "ignores every kind while %s",
+    (flag) => {
+      const { ctx, controller, calls } = opened();
+      ctx.runtime[flag] = true;
+      controller.handleFind({ kind: "query", text: "la" });
+      controller.handleFind({ kind: "step", direction: 1 });
+      controller.handleFind({ kind: "commit" });
+      controller.handleFind({ kind: "clear" });
+      expect(ctx.chart.chartFindMatches).toEqual([]);
+      expect(ctx.core.hyperspaceTargetId).toBeUndefined();
+      expect(calls).toEqual([]);
+    },
+  );
+
+  it("ignores every kind while the chart is closed", () => {
+    const { ctx, controller, calls } = opened();
+    controller.closeChart();
+    calls.length = 0;
+    controller.handleFind({ kind: "query", text: "la" });
+    controller.handleFind({ kind: "commit" });
+    expect(ctx.chart.chartFindMatches).toEqual([]);
+    expect(ctx.core.hyperspaceTargetId).toBeUndefined();
+    expect(calls).toEqual([]);
+  });
+
+  it("starts every chart open with an empty search", () => {
+    const { ctx, controller, finds } = opened();
+    controller.handleFind({ kind: "query", text: "la" });
+    controller.closeChart();
+    finds.length = 0;
+    controller.openChart();
+    expect(ctx.chart.chartFindQuery).toBe("");
+    expect(ctx.chart.chartFindMatches).toEqual([]);
+    expect(finds).toContain("reset");
+  });
+
+  it("the chartFind action focuses the box on an open chart only", () => {
+    const { controller, finds } = opened();
+    controller.applyChartAction("chartFind");
+    expect(finds).toEqual(["focus"]);
+    controller.closeChart();
+    finds.length = 0;
+    controller.applyChartAction("chartFind");
+    expect(finds).toEqual([]);
   });
 });

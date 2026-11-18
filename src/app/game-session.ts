@@ -411,7 +411,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       lifecycle.performSwap();
     },
   });
-  const { setChartCamera, selectChartSystem, handleChartActions } =
+  const { setChartCamera, selectChartSystem, handleFind, handleChartActions } =
     chartController;
   const {
     persistSettings,
@@ -542,6 +542,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     autosave,
     selectChartSystem,
     setChartCamera,
+    handleFind,
     persistSettings,
     resume,
     openControls,

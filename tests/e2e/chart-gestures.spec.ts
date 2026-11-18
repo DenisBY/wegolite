@@ -14,7 +14,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { chartScreenPoint, systemByName } from "./helpers/chart.js";
+import { GALAXY0, chartScreenPoint, systemByName } from "./helpers/chart.js";
 import { getProbe, waitForReady } from "./helpers/probe.js";
 import { startNewGame } from "./helpers/title.js";
 
@@ -331,6 +331,73 @@ test("arrows, Enter and Escape keep their chart meaning", async ({ page }) => {
     undefined,
     { timeout: 30_000 },
   );
+
+  expect(errors).toEqual([]);
+});
+
+test("Find planet searches by name from the keyboard", async ({ page }) => {
+  const errors = collectErrors(page);
+  await bootDocked(page);
+  await openChart(page);
+
+  // Oolite's prefix rule (Universe.m:7745-7771): lower-cased, in system-index
+  // order. "la" has several matches in galaxy 1, Lave first.
+  const matches = [...GALAXY0]
+    .sort((left, right) => left.systemIndex - right.systemIndex)
+    .filter((system) => system.name.toLowerCase().startsWith("la"))
+    .map((system) => system.id);
+  expect(matches.length).toBeGreaterThan(1);
+
+  const box = page.locator('#chart [data-field="chart-find"]');
+  const result = page.locator('#chart [data-field="chart-find-result"]');
+  await page.keyboard.press("Slash");
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue("");
+
+  await page.keyboard.type("la");
+  await expect
+    .poll(async () => (await getProbe(page)).chart?.selectedId)
+    .toBe(matches[0]);
+  await expect(result).toHaveText(`1 of ${String(matches.length)}`);
+
+  await page.keyboard.press("ArrowDown");
+  await expect
+    .poll(async () => (await getProbe(page)).chart?.selectedId)
+    .toBe(matches[1]);
+  await expect(result).toHaveText(`2 of ${String(matches.length)}`);
+
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(async () => (await getProbe(page)).chart?.targetId)
+    .toBe(matches[1]);
+  await expect(box).not.toBeFocused();
+
+  // Inside the box, P is text and Escape clears: no pause, no close.
+  await page.keyboard.press("Slash");
+  await expect(box).toBeFocused();
+  await page.keyboard.type("p");
+  await expect(box).toHaveValue("p");
+  await page.waitForTimeout(200);
+  let probe = await getProbe(page);
+  expect(probe.paused).toBe(false);
+  expect(probe.chart?.open).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(box).toHaveValue("");
+  await expect(box).not.toBeFocused();
+  await expect(result).toHaveText("");
+  await page.waitForTimeout(200);
+  probe = await getProbe(page);
+  expect(probe.chart?.open).toBe(true);
+  expect(probe.paused).toBe(false);
+
+  // A prefix that matches nothing keeps the selection and the typed text.
+  const selected = probe.chart?.selectedId;
+  await page.keyboard.press("Slash");
+  await expect(box).toBeFocused();
+  await page.keyboard.type("0q");
+  await expect(result).toHaveText("No match");
+  await expect(box).toHaveValue("0q");
+  expect((await getProbe(page)).chart?.selectedId).toBe(selected);
 
   expect(errors).toEqual([]);
 });

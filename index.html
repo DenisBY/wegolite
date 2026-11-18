@@ -1057,6 +1057,35 @@
         font: 18px/1.7 monospace;
       }
 
+      /* Find planet (quick task 261118-cyo): the chart header's text box. */
+      #chart .chart-find {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+        margin-left: auto;
+        margin-right: 2rem;
+        font-size: 15px;
+      }
+
+      #chart .chart-find input {
+        width: 11rem;
+        padding: 0.1rem 0.4rem;
+        border: 1px solid #2f8a47;
+        background: #000;
+        color: #33ff66;
+        font: inherit;
+      }
+
+      #chart .chart-find input:focus-visible {
+        outline: 2px solid #ffd966;
+        outline-offset: 1px;
+      }
+
+      #chart .chart-find-result {
+        min-width: 6rem;
+        color: #9a9;
+      }
+
       #chart-canvas {
         flex: 1;
         display: block;
@@ -1966,6 +1995,22 @@
         <span class="station-header-system" data-field="chart-title"
           >Galactic Chart 1</span
         >
+        <span class="chart-find">
+          <label for="chart-find-input">Find planet:</label>
+          <input
+            id="chart-find-input"
+            type="text"
+            data-field="chart-find"
+            maxlength="16"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <span
+            class="chart-find-result"
+            data-field="chart-find-result"
+            role="status"
+          ></span>
+        </span>
         <span class="station-header-credits" data-field="chart-credits"></span>
       </header>
       <nav

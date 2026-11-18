@@ -155,6 +155,7 @@ export interface LifecycleDeps {
   readonly autosave: SaveController["autosave"];
   readonly selectChartSystem: ChartController["selectChartSystem"];
   readonly setChartCamera: ChartController["setChartCamera"];
+  readonly handleFind: ChartController["handleFind"];
   readonly persistSettings: SettingsController["persistSettings"];
   readonly resume: SettingsController["resume"];
   readonly openControls: SettingsController["openControls"];
@@ -235,6 +236,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     autosave,
     selectChartSystem,
     setChartCamera,
+    handleFind,
     persistSettings,
     resume,
     openControls,
@@ -581,6 +583,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
         ctx.core.profile.fuel,
         viewport,
         ctx.chart.chartSelectedId,
+        ctx.chart.chartFindMatches,
       ),
     );
     ctx.chart.chart.setTooltipBuilder((id) => {
@@ -602,6 +605,10 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     });
     ctx.chart.chart.onCamera((camera) => {
       setChartCamera(camera);
+    });
+    // Find planet (quick task 261118-cyo); handleFind repeats the guards.
+    ctx.chart.chart.onFind((event) => {
+      handleFind(event);
     });
     ctx.save.saveLoad = createSaveLoadScreen(document.body);
     ctx.save.saveLoad.onReturn(() => {

@@ -226,6 +226,12 @@ export interface SessionChartState {
   chartCamera: ChartCamera;
   chartPreset: "local" | "galaxy";
   chartSelectedId: string | undefined;
+  /** The Find planet text (quick task 261118-cyo); empty on every chart open. */
+  chartFindQuery: string;
+  /** The Find planet matches in system-index order. */
+  chartFindMatches: readonly string[];
+  /** The selected match's position in `chartFindMatches`. */
+  chartFindIndex: number;
   contextBeforeChart: InputContext;
 }
 
@@ -411,6 +417,9 @@ export function createSessionState(init: SessionStateInit): SessionState {
       chartCamera: galaxyPreset(),
       chartPreset: "local",
       chartSelectedId: undefined,
+      chartFindQuery: "",
+      chartFindMatches: [],
+      chartFindIndex: 0,
       contextBeforeChart: "flight",
     },
     save: {

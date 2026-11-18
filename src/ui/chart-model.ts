@@ -78,6 +78,15 @@ export interface ChartMarker {
   readonly isCurrent: boolean;
   readonly isTarget: boolean;
   readonly isSelected: boolean;
+  /** True when a Find planet search matches this system. */
+  readonly isFound: boolean;
+  /**
+   * Oolite's blob radius in CSS pixels (`chartMarkerRadius`): the planet's
+   * radius sizes the dot, as `GuiDisplayGen.m:1788-1792` does.
+   */
+  readonly radius: number;
+  /** The system's sun colour as a CSS `rgb()` string (`chartMarkerColor`). */
+  readonly color: string;
   /**
    * True when the marker's projected screen position lies inside the current
    * viewport (D-02). All 256 markers stay in the model; off-viewport systems
@@ -123,6 +132,8 @@ export interface ChartCircle {
 export type ChartProjection = (point: ChartPoint) => ChartPoint;
 
 export interface ChartView {
+  /** The Find planet matches in system-index order; empty without a search. */
+  readonly foundIds: readonly string[];
   readonly markers: readonly ChartMarker[];
   readonly edges: readonly ChartEdge[];
   /**
@@ -158,6 +169,92 @@ export interface ChartSelection {
  */
 export function chartTitle(galaxyIndex: number): string {
   return `Galactic Chart ${String(galaxyIndex + 1)}`;
+}
+
+/** Oolite's default `chart_circle_scale` blob factor (`GuiDisplayGen.m:1789`). */
+export const CHART_BLOB_FACTOR = 0.0017;
+/** Oolite's smallest blob, in GUI units (`GuiDisplayGen.m:1791-1792`). */
+export const CHART_BLOB_FLOOR = 0.5;
+/** Oolite's `MAIN_GUI_PIXEL_WIDTH`, the GUI the chart is drawn in (`GuiDisplayGen.h:39`). */
+export const OOLITE_GUI_WIDTH = 480;
+/**
+ * Oolite's `CHART_WIDTH_AT_MAX_ZOOM`: the GUI spans 64 x zoom chart-x units
+ * (`GuiDisplayGen.m:1574`, `PlayerEntity.h:94-97`); zoom 4 is the galactic
+ * chart.
+ */
+export const CHART_WIDTH_AT_MAX_ZOOM = 64;
+
+/**
+ * Oolite's chart blob as a radius in CSS pixels (quick task 261118-cyo).
+ *
+ * Oolite draws each system as a filled oval of diameter
+ * `blob_size = max(0.5, (1 + 0.0017 * radius) / zoom)` GUI units
+ * (`GuiDisplayGen.m:1788-1792` at the pin 7437f22), in a 480-unit GUI that
+ * spans `64 * zoom` chart-x units. With Wegolite's continuous camera the zoom
+ * is `spanX / 64`, so the diameter in chart-x units is
+ * `max(0.5 * zoom, 1 + 0.0017 * radius) * 64 / 480`, and `scale` (CSS pixels
+ * per chart-x unit) turns it into pixels. With Oolite's own scale
+ * `480 / (64 * zoom)` this is exactly Oolite's `blob_size / 2`.
+ */
+export function chartMarkerRadius(
+  radiusKm: number,
+  spanX: number,
+  scale: number,
+): number {
+  const zoom = spanX / CHART_WIDTH_AT_MAX_ZOOM;
+  const diameterGui = Math.max(
+    CHART_BLOB_FLOOR * zoom,
+    1 + CHART_BLOB_FACTOR * radiusKm,
+  );
+  const diameterChart =
+    (diameterGui * CHART_WIDTH_AT_MAX_ZOOM) / OOLITE_GUI_WIDTH;
+  return (diameterChart * scale) / 2;
+}
+
+/**
+ * The system's sun colour as a CSS colour, as Oolite's default SUNCOLOR chart
+ * mode fills each blob (`GuiDisplayGen.m:1846-1860`). Components are 0..1
+ * unless one exceeds 1, in which case all are on 0..255, as
+ * `OOColor colorFromString:` reads them (`OOColor.m:213-231`).
+ */
+export function chartMarkerColor(sunColor: readonly number[]): string {
+  const rgb = [sunColor[0] ?? 1, sunColor[1] ?? 1, sunColor[2] ?? 1];
+  const factor = sunColor.some((component) => component > 1) ? 1 / 255 : 1;
+  const channel = (value: number): number =>
+    Math.min(255, Math.max(0, Math.round(value * factor * 255)));
+  return `rgb(${rgb.map((value) => String(channel(value))).join(", ")})`;
+}
+
+/** The longest Find planet query (the input's `maxlength`). */
+export const CHART_FIND_MAX_LENGTH = 16;
+
+/**
+ * Find planet: every system whose lower-cased name starts with the
+ * lower-cased query, in system-index order (`Universe.m:7745-7771` at the pin
+ * 7437f22 marks every match and returns the first). The query is trimmed and
+ * capped at 16 characters; an empty query matches nothing.
+ */
+export function findSystemsByPrefix(
+  systems: readonly System[],
+  query: string,
+): string[] {
+  const prefix = query.trim().slice(0, CHART_FIND_MAX_LENGTH).toLowerCase();
+  if (prefix === "") return [];
+  return [...systems]
+    .sort((left, right) => left.systemIndex - right.systemIndex)
+    .filter((system) => system.name.toLowerCase().startsWith(prefix))
+    .map((system) => system.id);
+}
+
+/** The Find planet readout: nothing, "No match", or "n of m". */
+export function chartFindReadout(
+  query: string,
+  count: number,
+  index: number,
+): string {
+  if (query.trim() === "") return "";
+  if (count === 0) return "No match";
+  return `${String(index + 1)} of ${String(count)}`;
 }
 
 /** The local preset is ±40 chart-x and ±40 distance units around the system. */
@@ -317,6 +414,12 @@ export function panChartCamera(
 const LABEL_HEIGHT = 12;
 const LABEL_OFFSET_X = 5;
 const LABEL_OFFSET_Y = -5;
+/** The room below the baseline a descender (g, p, q, y) takes. */
+const LABEL_DESCENDER = 3;
+/** The clear margin kept around every placed label box. */
+const LABEL_MARGIN = 2;
+/** The gap between a marker's edge and its label. */
+const LABEL_MARKER_GAP = 2;
 
 /** The local-zoom threshold below which collision culling sees every marker. */
 const LABEL_NEAR_LIMIT = 12;
@@ -381,6 +484,7 @@ function emptyChartView(
   const safe = clampChartCamera(camera);
   const centre: ChartPoint = { x: 0, y: 0 };
   return {
+    foundIds: [],
     markers: [],
     edges: [],
     labels: [],
@@ -406,6 +510,7 @@ function emptyChartView(
  * @param fuel The current fuel units (0..70); display only.
  * @param viewport The CSS-pixel canvas size.
  * @param selectedId The system currently highlighted, if any.
+ * @param foundIds The Find planet matches, if any (`findSystemsByPrefix`).
  */
 export function buildChartView(
   systems: readonly System[],
@@ -415,6 +520,7 @@ export function buildChartView(
   fuel: number,
   viewport: ChartViewport,
   selectedId: string | undefined,
+  foundIds: readonly string[] = [],
 ): ChartView {
   const current = systems.find((system) => system.id === currentId);
   if (current === undefined) {
@@ -427,6 +533,8 @@ export function buildChartView(
   const spanX = safe.spanX;
   const spanY = chartSpanY(safe);
   const projection = chartProjection(viewport, centre, spanX, spanY);
+  const scale = projectionScale(viewport, spanX, spanY);
+  const found = new Set(foundIds);
   // D-02: `visible` means inside the viewport rectangle, never a fixed window.
   const inViewport = (screen: ChartPoint): boolean =>
     screen.x >= 0 &&
@@ -477,7 +585,10 @@ export function buildChartView(
       isCurrent,
       isTarget: targetId !== undefined && system.id === targetId,
       isSelected: selectedId !== undefined && system.id === selectedId,
+      isFound: found.has(system.id),
       visible,
+      radius: chartMarkerRadius(system.radiusKm, spanX, scale),
+      color: chartMarkerColor(system.sun_color),
     };
   });
 
@@ -522,13 +633,15 @@ export function buildChartView(
           x: currentMarker.screenX,
           y: currentMarker.screenY,
           // A fuel/4 chart-x radius is a true circle because y is halved.
-          radius:
-            (Math.max(0, fuel) / 4) * projectionScale(viewport, spanX, spanY),
+          radius: (Math.max(0, fuel) / 4) * scale,
           chartRadius: Math.max(0, fuel) / 4,
           centreId: currentId,
         };
 
   return {
+    foundIds: markers
+      .filter((marker) => marker.isFound)
+      .map((marker) => marker.id),
     markers,
     edges,
     labels: [],
@@ -691,15 +804,19 @@ function intersects(
 }
 
 /**
- * Fill `ChartView.labels` deterministically.
+ * Fill `ChartView.labels` deterministically, never overlapping.
  *
- * Systems are visited in `systemIndex` order. The current system, the committed
- * target and the selection always draw, even off-viewport. At galaxy zoom
- * (`chartSpanX >= 128`) the only non-forced candidates are the 12 visible
- * systems nearest the camera centre, so 256 names never cover the map; as the
- * view zooms in, collision culling over every visible marker applies and more
- * names appear (D-08). Unreachable systems are dimmed, never suppressed. Text
- * measurement is injected because the model has no canvas.
+ * Labels are placed in priority order: the current system, the committed
+ * target and the selection first (always drawn, even off-viewport), then the
+ * visible Find planet matches, then the candidates. At galaxy zoom
+ * (`chartSpanX >= 128`) the candidates are the 12 visible systems nearest the
+ * camera centre, so 256 names never cover the map; as the view zooms in every
+ * visible marker is a candidate (D-08). Every box includes the descender and a
+ * 2 px margin, and a non-forced label whose box meets any placed box is
+ * skipped (owner decision 2026-11-18, quick task 261118-cyo). The label sits
+ * past its marker's edge. The result is in `systemIndex` order. Unreachable
+ * systems are dimmed, never suppressed. Text measurement is injected because
+ * the model has no canvas.
  */
 export function selectLabels(
   view: ChartView,
@@ -711,7 +828,7 @@ export function selectLabels(
     width: number;
     height: number;
   }> = [];
-  const labels: ChartLabel[] = [];
+  const placed: Array<{ marker: ChartMarker; label: ChartLabel }> = [];
   const forced = (marker: ChartMarker): boolean =>
     marker.isCurrent || marker.isTarget || marker.isSelected;
 
@@ -735,31 +852,54 @@ export function selectLabels(
     nearCandidateIds = new Set(scored.map((entry) => entry.marker.id));
   }
 
-  for (const marker of view.markers) {
+  const ordered = [...view.markers].sort(
+    (left, right) => left.systemIndex - right.systemIndex,
+  );
+  const priority: ChartMarker[] = [
+    ...ordered.filter(forced),
+    ...ordered.filter(
+      (marker) => !forced(marker) && marker.visible && marker.isFound,
+    ),
+    ...ordered.filter(
+      (marker) =>
+        !forced(marker) &&
+        !marker.isFound &&
+        marker.visible &&
+        (nearCandidateIds === undefined || nearCandidateIds.has(marker.id)),
+    ),
+  ];
+
+  for (const marker of priority) {
     const forcedLabel = forced(marker);
-    if (!forcedLabel) {
-      if (!marker.visible) continue;
-      if (nearCandidateIds !== undefined && !nearCandidateIds.has(marker.id)) {
-        continue;
-      }
-    }
     const width = measure(marker.name);
-    const x = marker.screenX + LABEL_OFFSET_X;
+    const x =
+      marker.screenX +
+      Math.max(LABEL_OFFSET_X, marker.radius + LABEL_MARKER_GAP);
     const y = marker.screenY + LABEL_OFFSET_Y;
-    const box = { x, y: y - LABEL_HEIGHT, width, height: LABEL_HEIGHT };
+    const box = {
+      x: x - LABEL_MARGIN,
+      y: y - LABEL_HEIGHT - LABEL_MARGIN,
+      width: width + 2 * LABEL_MARGIN,
+      height: LABEL_HEIGHT + LABEL_DESCENDER + 2 * LABEL_MARGIN,
+    };
     if (!forcedLabel && accepted.some((other) => intersects(other, box))) {
       continue;
     }
     accepted.push(box);
-    labels.push({
-      systemId: marker.id,
-      text: marker.name,
-      x,
-      y,
-      width,
-      height: LABEL_HEIGHT,
-      dimmed: !marker.reachable,
+    placed.push({
+      marker,
+      label: {
+        systemId: marker.id,
+        text: marker.name,
+        x,
+        y,
+        width,
+        height: LABEL_HEIGHT,
+        dimmed: !marker.reachable,
+      },
     });
   }
-  return labels;
+  return placed
+    .sort((left, right) => left.marker.systemIndex - right.marker.systemIndex)
+    .map((entry) => entry.label);
 }

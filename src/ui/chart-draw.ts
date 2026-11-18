@@ -13,7 +13,9 @@
  * Node-only Vitest project.
  *
  * Paint order is fixed: clear, graph edges, the fuel circle, the
- * current-to-target line, the markers, then the labels. The chart is a static
+ * current-to-target line, the markers, the state rings and found boxes, then
+ * the labels. Each marker is Oolite's blob: its sun colour at its planet-sized
+ * radius (quick task 261118-cyo); state stays readable through the rings. The chart is a static
  * plot: the shell paints on open, selection, camera and resize only. Wheel and
  * drag gestures are coalesced by the shell into one requestAnimationFrame; this
  * module never schedules a frame itself (T-06-10, D-09).
@@ -26,13 +28,17 @@ export const CHART_FONT =
 export const CHART_EDGE_COLOR = "#1a5a2c";
 export const CHART_CIRCLE_COLOR = "#245f30";
 export const CHART_TARGET_LINE_COLOR = "#ffb000";
-export const CHART_MARKER_COLOR = "#33ff66";
 export const CHART_CURRENT_COLOR = "#ffffff";
 export const CHART_TARGET_COLOR = "#ffb000";
 export const CHART_SELECTED_COLOR = "#ffd966";
-export const CHART_UNREACHABLE_COLOR = "#2a5a35";
 export const CHART_LABEL_COLOR = "#33ff66";
 export const CHART_DIMMED_LABEL_COLOR = "#2a5a35";
+/** Oolite's `kGuiChartMatchBoxColor` default, green (`GuiDisplayGen.m:1916`). */
+export const CHART_FOUND_COLOR = "#00ff00";
+/** An unreachable system keeps its sun colour at this alpha. */
+export const CHART_UNREACHABLE_ALPHA = 0.45;
+/** Half the side of a found match's square box, in CSS pixels. */
+export const CHART_FOUND_BOX_HALF = 6;
 
 /** The CSS-pixel canvas size the shell measured. */
 export interface ChartSize {
@@ -40,17 +46,12 @@ export interface ChartSize {
   readonly height: number;
 }
 
-function markerColour(marker: ChartView["markers"][number]): string {
-  if (marker.isCurrent) return CHART_CURRENT_COLOR;
-  if (marker.isTarget) return CHART_TARGET_COLOR;
-  if (marker.isSelected) return CHART_SELECTED_COLOR;
-  return marker.reachable ? CHART_MARKER_COLOR : CHART_UNREACHABLE_COLOR;
-}
-
-function markerRadius(marker: ChartView["markers"][number]): number {
-  if (marker.isCurrent) return 5;
-  if (marker.isTarget || marker.isSelected) return 4.5;
-  return 3.5;
+/**
+ * The radius of the ring that marks the current system, the target or the
+ * selection: just outside the blob, never smaller than 4.5 px.
+ */
+export function chartRingRadius(markerRadius: number): number {
+  return Math.max(markerRadius + 2.5, 4.5);
 }
 
 /**
@@ -116,35 +117,63 @@ export function drawChart(
     context.setLineDash([]);
   }
 
-  // 4. Markers: current, target and selection are visually distinct;
-  // unreachable systems stay present and dimmed.
+  // 4. Markers: Oolite's blob, the sun colour at the planet-sized radius;
+  // unreachable systems stay present at a reduced alpha.
   context.font = CHART_FONT;
   context.textAlign = "left";
   context.textBaseline = "alphabetic";
-  for (const marker of view.markers) {
-    // G-5: a selection that a pan or zoom moved off-viewport still paints, so
-    // the readout never names a marker the player cannot see.
-    if (
-      !marker.visible &&
-      !marker.isCurrent &&
-      !marker.isTarget &&
-      !marker.isSelected
-    ) {
-      continue;
-    }
-    context.fillStyle = markerColour(marker);
+  // G-5: a selection that a pan or zoom moved off-viewport still paints, so
+  // the readout never names a marker the player cannot see.
+  const painted = view.markers.filter(
+    (marker) =>
+      marker.visible ||
+      marker.isCurrent ||
+      marker.isTarget ||
+      marker.isSelected,
+  );
+  for (const marker of painted) {
+    context.globalAlpha = marker.reachable ? 1 : CHART_UNREACHABLE_ALPHA;
+    context.fillStyle = marker.color;
+    context.beginPath();
+    context.arc(marker.screenX, marker.screenY, marker.radius, 0, Math.PI * 2);
+    context.fill();
+  }
+  context.globalAlpha = 1;
+
+  // 5. Rings for the current system, the target and the selection, and a
+  // green square around each Find planet match (`GuiDisplayGen.m:1904-1909`).
+  context.lineWidth = 1.5;
+  const ring = (marker: ChartView["markers"][number], colour: string): void => {
+    context.strokeStyle = colour;
     context.beginPath();
     context.arc(
       marker.screenX,
       marker.screenY,
-      markerRadius(marker),
+      chartRingRadius(marker.radius),
       0,
       Math.PI * 2,
     );
-    context.fill();
+    context.stroke();
+  };
+  for (const marker of painted) {
+    if (marker.isSelected) ring(marker, CHART_SELECTED_COLOR);
+    if (marker.isTarget) ring(marker, CHART_TARGET_COLOR);
+    if (marker.isCurrent) ring(marker, CHART_CURRENT_COLOR);
+  }
+  context.lineWidth = 1;
+  context.strokeStyle = CHART_FOUND_COLOR;
+  for (const marker of painted) {
+    if (!marker.isFound) continue;
+    const half = Math.max(CHART_FOUND_BOX_HALF, marker.radius + 3);
+    context.strokeRect(
+      marker.screenX - half,
+      marker.screenY - half,
+      2 * half,
+      2 * half,
+    );
   }
 
-  // 5. Labels, filled by the shell with `selectLabels`.
+  // 6. Labels, filled by the shell with `selectLabels`.
   context.font = CHART_FONT;
   for (const label of view.labels) {
     context.fillStyle = label.dimmed
@@ -161,8 +190,8 @@ export function drawChart(
  *
  * False for the same reference, for a structurally equal view, and whenever
  * the next viewport is 0x0. True for a first paint and for any change in the
- * camera centre or span, current/target/selection, the marker/edge/label set
- * or the viewport (D-09).
+ * camera centre or span, current/target/selection, the Find planet matches,
+ * the marker/edge/label set or the viewport (D-09).
  */
 export function needsChartRepaint(
   previous: ChartView | undefined,
@@ -179,6 +208,7 @@ export function needsChartRepaint(
     previous.currentId !== next.currentId ||
     previous.targetId !== next.targetId ||
     previous.selectedId !== next.selectedId ||
+    previous.foundIds.join(",") !== next.foundIds.join(",") ||
     previous.markers.length !== next.markers.length ||
     previous.edges.length !== next.edges.length ||
     previous.labels.length !== next.labels.length ||

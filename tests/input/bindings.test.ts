@@ -488,6 +488,10 @@ describe("chart and hyperspace bindings", () => {
     expect(DEFAULT_BINDINGS.chartConfirm).toEqual(["Enter"]);
     expect(DEFAULT_BINDINGS.chartRange).toEqual(["Tab"]);
     expect(DEFAULT_BINDINGS.chartBack).toEqual(["Escape"]);
+    // Find planet (quick task 261118-cyo): / focuses the chart's search box.
+    expect(DEFAULT_BINDINGS.chartFind).toEqual(["Slash"]);
+    expect(ACTION_LABELS.chartFind).toBe("Find planet");
+    expect(codeLabel("Slash")).toBe("/");
     // The browser would otherwise reload or cycle panels on F6.
     expect(RESERVED_F_KEYS.has("F6")).toBe(true);
   });
@@ -501,6 +505,7 @@ describe("chart and hyperspace bindings", () => {
       "chartConfirm",
       "chartRange",
       "chartBack",
+      "chartFind",
     ] as const) {
       expect(ACTION_CONTEXTS[action]).toEqual(["chart"]);
     }

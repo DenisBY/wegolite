@@ -179,6 +179,7 @@ const CODE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   ArrowLeft: "Left arrow",
   ArrowRight: "Right arrow",
   Backslash: "\\",
+  Slash: "/",
   Escape: "Esc",
   Space: "Space",
   Tab: "Tab",
