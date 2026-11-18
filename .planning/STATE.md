@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-18T09:31:52.424Z"
-last_activity: 2026-11-17
+last_updated: "2026-11-18T10:02:34.241Z"
+last_activity: 2026-11-18
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: c9a689c701394b870a041e50e0ebd1bb910e5dfd
+state_head: e730ff4ccf52d91892c14c368f68cb2981174bd7
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-18 — Completed quick task 261118-cyo: market sort, Oolite manifest and cash line, grouped credits, chart markers, labels and Find planet
+Last activity: 2026-11-18 — Completed quick task 261118-emk: F3 lists only equipment that can be fitted here, as Oolite
 
 
 ## Performance Metrics
@@ -618,6 +618,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261117-v1v | Shard the CI browser run and fix the autosave matrix wait | 2026-11-17 | bcc197b | [261117-v1v-shard-the-ci-browser-run-and-fix-the-aut](./quick/261117-v1v-shard-the-ci-browser-run-and-fix-the-aut/) |
 | 46 | Skip guard probe files in the content import scans (probe race) | 2026-11-18 | e51ce72 | — |
 | 261118-cyo | Bring the station screens and chart closer to Oolite | 2026-11-18 | c9a689c | [261118-cyo-bring-the-station-screens-and-chart-clos](./quick/261118-cyo-bring-the-station-screens-and-chart-clos/) |
+| 261118-emk | Hide outfitting items that cannot be bought here, as Oolite does | 2026-11-18 | e730ff4 | [261118-emk-hide-outfitting-items-that-cannot-be-bou](./quick/261118-emk-hide-outfitting-items-that-cannot-be-bou/) |
 
 ## Deferred Items
 
