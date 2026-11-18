@@ -37,6 +37,7 @@
       "letterbox": {
         "[]": ["number"]
       },
+      "lift": "number",
       "message": "string",
       "messageRows": {
         "[]": []
@@ -194,6 +195,7 @@
       "letterbox": {
         "[]": ["number"]
       },
+      "lift": "number",
       "message": "string",
       "messageRows": {
         "[]": []
@@ -402,6 +404,7 @@
       "letterbox": {
         "[]": ["number"]
       },
+      "lift": "number",
       "message": "string",
       "messageRows": {
         "[]": []
@@ -610,6 +613,7 @@
       "letterbox": {
         "[]": ["number"]
       },
+      "lift": "number",
       "message": "string",
       "messageRows": {
         "[]": []
@@ -818,6 +822,7 @@
       "letterbox": {
         "[]": ["number"]
       },
+      "lift": "number",
       "message": "string",
       "messageRows": {
         "[]": ["string"]
@@ -1026,6 +1031,7 @@
       "letterbox": {
         "[]": ["number"]
       },
+      "lift": "number",
       "message": "string",
       "messageRows": {
         "[]": []
@@ -1249,6 +1255,7 @@
       "letterbox": {
         "[]": ["number"]
       },
+      "lift": "number",
       "message": "string",
       "messageRows": {
         "[]": []
