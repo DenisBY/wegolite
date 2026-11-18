@@ -18,6 +18,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The first time you fly inside a station's safe zone, a one-time hint
   explains the green "S" on the HUD: "S: you are inside the station's safe
   zone".
+- The HUD keeps Oolite's abbreviations, and a one-time hint explains each
+  gauge the first time it matters: LT when the laser heats up, FWD/AFT when a
+  shield is first hit, E1-E4 when the energy banks run low, CT when the cabin
+  heats, and FUEL after the first jump.
 
 ### Changed
 
