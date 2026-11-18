@@ -50,7 +50,14 @@ import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import { stepFlight } from "../../../src/sim/flight/step.js";
 import { DT } from "../../../src/sim/time.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
-import { initFlightState, poseOf } from "../../../src/sim/flight/state.js";
+import {
+  hashFlight,
+  initFlightState,
+  poseOf,
+} from "../../../src/sim/flight/state.js";
+import { createHintController } from "../../../src/app/hints.js";
+import { createBindingMap } from "../../../src/input/bindings.js";
+import { formatClock } from "../../../src/render/hud/format.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
 import {
@@ -969,7 +976,7 @@ describe("renderFrame message clock (quick task 261117-u3m)", () => {
   });
 });
 
-describe("renderFrame launch view from inside the dock slot (quick 261118-l26, 261118-os8)", () => {
+describe("renderFrame launch view from inside the dock slot (quick 261118-l26, 261118-os8, 261118-spu)", () => {
   /** A real sim launch, `steps` launching steps in, with its last two poses. */
   function launchingSession(steps: number) {
     const h = harness();
@@ -999,7 +1006,7 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26, 2
     return { h, models, angles, scene, state };
   }
 
-  it("draws from the slot camera at the interpolated pose and station angle, with the hull and HUD hidden", () => {
+  it("draws from the slot camera at the interpolated pose and station angle, with the hull hidden and the HUD shown (quick 261118-spu)", () => {
     for (const [steps, alpha] of [
       [0, 0.5],
       [24, 0.25],
@@ -1029,10 +1036,16 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26, 2
       expect(h.ctx.core.previousCameraWorld).toEqual(expected.position);
       expect(angles).toEqual([launchViewStationAngle(layout, tau)]);
       expect(scene.ship.visible).toBe(false);
-      expect(h.hudCanvas.hidden).toBe(true);
+      // Quick 261118-spu (OD-1): the HUD is drawn while launching, as Oolite
+      // draws it; the compass blip is hidden and the roll bar reads 0 (OD-2,
+      // OD-3) although the sim rolls with the station.
+      expect(h.hudCanvas.hidden).toBe(false);
       // The page overlay's version and system lines stay hidden (D-02).
       expect(h.hudCanvas.attributes.has("data-launching")).toBe(true);
-      expect(models).toHaveLength(0);
+      expect(models).toHaveLength(1);
+      expect(models[0]?.compass.blip).toBe(false);
+      expect(models[0]?.bars.roll).toBe(0);
+      expect(state.rollRate).toBe(layout.stationRollRadPerSec);
       expect(h.renders).toHaveLength(1);
     }
   });
@@ -1090,7 +1103,7 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26, 2
     return { h, models, angles, quaternions, scene, state };
   }
 
-  it("draws a docked session in the pre-roll from the slot, rolled at the view time, with the HUD hidden (quick 261118-os8)", () => {
+  it("draws a docked session in the pre-roll from the slot, rolled at the view time, with the launch-start HUD shown (quick 261118-os8, 261118-spu)", () => {
     const dock = laveDockGeometry();
     for (const [elapsed, alpha] of [
       [0, 1],
@@ -1102,6 +1115,8 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26, 2
       h.preRoll.preRolling = true;
       h.preRoll.preRollElapsed = elapsed;
       expect(state.mode).toBe("docked");
+      const hashBefore = hashFlight(state);
+      const clockBefore = state.clockSeconds;
       h.driver.renderFrame(alpha);
       const tau = preRollViewTime(elapsed, alpha);
       const pose = preRollPose(layout, dock, tau);
@@ -1116,9 +1131,23 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26, 2
       expect(h.ctx.core.previousCameraWorld).toEqual(expected.position);
       expect(angles).toEqual([launchViewStationAngle(layout, tau)]);
       expect(scene.ship.visible).toBe(false);
-      expect(h.hudCanvas.hidden).toBe(true);
+      // Quick 261118-spu (OD-1, PD-1): the HUD is shown and reads the launch
+      // start values; the live sim state stays docked and unwritten.
+      expect(h.hudCanvas.hidden).toBe(false);
       expect(h.hudCanvas.attributes.has("data-launching")).toBe(true);
-      expect(models).toHaveLength(0);
+      expect(models).toHaveLength(1);
+      const model = models[0];
+      expect(model?.speed).toBe(config.launchSpeed);
+      expect(model?.clockSeconds).toBe(clockBefore + 600);
+      expect(model?.clockText).toBe(formatClock(clockBefore + 600));
+      expect(model?.condition).toBe("yellow");
+      expect(model?.aegis).toBe("dockingRange");
+      expect(model?.compass.blip).toBe(false);
+      expect(model?.bars.roll).toBe(0);
+      expect(h.ctx.core.state).toBe(state);
+      expect(h.ctx.core.state?.mode).toBe("docked");
+      expect(hashFlight(state)).toBe(hashBefore);
+      expect(state.clockSeconds).toBe(clockBefore);
       expect(h.renders).toHaveLength(1);
     }
   });
@@ -1133,11 +1162,49 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26, 2
     expect(runFrames(h, 5)).toBe(0);
   });
 
-  it("drops data-launching for a docked session with no pre-roll", () => {
-    const { h } = dockedSession();
+  it("drops data-launching and keeps the HUD hidden for a docked session with no pre-roll", () => {
+    const { h, models } = dockedSession();
     h.hudCanvas.attributes.add("data-launching");
     h.driver.renderFrame(1);
     expect(h.hudCanvas.attributes.has("data-launching")).toBe(false);
+    expect(h.hudCanvas.hidden).toBe(true);
+    expect(models).toHaveLength(0);
+  });
+
+  it("fires no hint in the pre-roll or the launch; hints read the live state (quick 261118-spu, PD-3)", () => {
+    const { h, state } = dockedSession();
+    h.ctx.runtime.hints = createHintController({
+      bindings: createBindingMap(),
+    });
+    const enqueued: string[] = [];
+    const enqueue = h.messages.enqueue.bind(h.messages);
+    h.messages.enqueue = (text: string, seconds: number) => {
+      enqueued.push(text);
+      enqueue(text, seconds);
+    };
+    // The docked panel announces the launch hint before the press, as today.
+    h.driver.renderFrame(1);
+    const announced = h.ctx.station.stationMessage;
+    expect(announced).not.toBe("");
+    expect(enqueued).toEqual([]);
+
+    h.preRoll.preRolling = true;
+    for (const elapsed of [0, 0.5, 179 * DT]) {
+      h.preRoll.preRollElapsed = elapsed;
+      h.driver.renderFrame(1);
+      expect(h.ctx.station.stationMessage).toBe(announced);
+    }
+    h.preRoll.preRolling = false;
+    stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+    for (let index = 0; index < 120; index += 1) {
+      h.ctx.core.previousPose = poseOf(state);
+      stepFlight(state, layout, config, ZERO_INTENT, [], DT);
+      h.ctx.core.currentPose = poseOf(state);
+      expect(state.mode).toBe("launching");
+      h.driver.renderFrame(1);
+      expect(h.ctx.station.stationMessage).toBe(announced);
+    }
+    expect(enqueued).toEqual([]);
   });
 
   it("draws the launch step at the launch pose with the full twist: the launched handler snaps previousPose (quick 261118-os8)", () => {

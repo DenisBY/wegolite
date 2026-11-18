@@ -255,6 +255,14 @@ export interface HudContact extends ScannerBlip {
 
 export interface HudCompass extends CompassBlip {
   readonly target: CompassTarget;
+  /**
+   * Whether the target blip is drawn. The ring and the four ticks are always
+   * drawn; Oolite's `drawCompass:` draws the blip only under
+   * `[self checkPlayerInSystemFlight] && [PLAYER status] != STATUS_LAUNCHING`
+   * (`HeadUpDisplay.m:1494` at 7437f22), so it is false while launching and in
+   * the launch pre-roll (quick 261118-spu).
+   */
+  readonly blip: boolean;
 }
 
 export interface HudBars {
@@ -550,6 +558,12 @@ const WITCHPOINT_BEACON_CODE = "W";
  * (`drawCompassStationBlipAt`) and the witchpoint buoy, a beacon
  * (`drawCompassBeaconBlipAt` plus its code letter, `oo_drawHUDBeaconIconAt`);
  * Wegolite has no sun or target mode. No caption is drawn.
+ *
+ * The blip is skipped when `compass.blip` is false (while launching, Oolite's
+ * launching guard at `HeadUpDisplay.m:1494`); the ring and ticks are drawn
+ * regardless. Wegolite draws no ASC target line, so Oolite's `drawASCTarget:`
+ * launching guard (`HeadUpDisplay.m:2756`) has nothing to hide (quick
+ * 261118-spu).
  */
 function drawCompass(
   context: CanvasRenderingContext2D,
@@ -577,6 +591,11 @@ function drawCompass(
   context.lineTo(x, y + size * 0.375);
   context.stroke();
   context.globalAlpha = 1;
+
+  if (!compass.blip) {
+    context.restore();
+    return;
+  }
 
   const bx = x + compass.x;
   const by = y + compass.y;

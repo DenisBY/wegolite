@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildHudModel } from "../../src/app/hud-model.js";
+import { buildHudModel, preRollHudState } from "../../src/app/hud-model.js";
 import {
   COMPASS_SIZE,
   HUD_ELEMENTS,
@@ -25,8 +25,15 @@ import {
   clampMessage,
 } from "../../src/render/hud/format.js";
 import { createPlayerCombatState } from "../../src/sim/combat/state.js";
+import { beginLaunch } from "../../src/sim/flight/launch.js";
+import {
+  LAUNCH_PRE_ROLL_DURATION,
+  preRollPose,
+} from "../../src/render/launch-camera.js";
+import { laveDockGeometry } from "../helpers/dock-pose.js";
 import {
   dockMouthPosition,
+  hashFlight,
   initFlightState,
 } from "../../src/sim/flight/state.js";
 import { length, sub, vec } from "../../src/sim/math.js";
@@ -717,5 +724,98 @@ describe("buildHudModel compass size and buoy flash (quick task 261118-cyn)", ()
     expect(at(0.49)).toBe(true);
     expect(at(0.5)).toBe(false);
     expect(at(10.3)).toBe(true);
+  });
+});
+
+describe("the HUD while launching (quick 261118-spu, OD-2, OD-3, PD-1, PD-2)", () => {
+  const fixture = laveFixture();
+  const { layout, config } = fixture;
+  const dock = laveDockGeometry();
+
+  function model(state: ReturnType<typeof initFlightState>) {
+    return buildHudModel(state, layout, config, "", 70);
+  }
+
+  function atMouth(mode: "docked" | "launching" | "inFlight", rollRate = 0) {
+    const state = initFlightState(layout);
+    state.mode = mode;
+    state.position = dockMouthPosition(layout);
+    state.orientation = layout.stationBaseQuat;
+    state.rollRate = rollRate;
+    state.compassMode = "station";
+    return state;
+  }
+
+  it("zeroes the roll bar and hides the compass blip while launching, the target still resolved", () => {
+    const launching = atMouth("launching", layout.stationRollRadPerSec);
+    expect(layout.stationRollRadPerSec).not.toBe(0);
+    const built = model(launching);
+    expect(built.bars.roll).toBe(0);
+    expect(built.compass.blip).toBe(false);
+    expect(built.compass.target).toBe("station");
+  });
+
+  it("keeps the roll bar on the roll rate and draws the blip in flight; no blip while docked", () => {
+    const rate = config.maxRoll / 2;
+    const inFlight = model(atMouth("inFlight", rate));
+    expect(inFlight.bars.roll).toBeCloseTo(0.5, 12);
+    expect(inFlight.compass.blip).toBe(true);
+    expect(model(atMouth("inFlight", 4 * config.maxRoll)).bars.roll).toBe(1);
+    expect(model(atMouth("docked")).compass.blip).toBe(false);
+  });
+
+  it("preRollHudState reads the launch start values on a copy and never writes the live state", () => {
+    const docked = initFlightState(layout);
+    expect(docked.mode).toBe("docked");
+    const pose = preRollPose(layout, dock, 0.5);
+    const hashBefore = hashFlight(docked);
+    const cloneBefore = structuredClone(docked);
+
+    const hud = preRollHudState(docked, layout, config, dock, pose);
+
+    expect(hud).not.toBe(docked);
+    expect(hud.mode).toBe("launching");
+    expect(hud.clockSeconds).toBe(docked.clockSeconds + 600);
+    expect(hud.speed).toBe(config.launchSpeed);
+    expect(hud.pitchRate).toBe(0);
+    expect(hud.position).toEqual(dockMouthPosition(layout));
+    expect(hud.orientation).toEqual(pose.orientation);
+    expect(hashFlight(docked)).toBe(hashBefore);
+    expect(docked).toEqual(cloneBefore);
+  });
+
+  it("draws the same HUD on the last pre-roll frame as on the first launch frame", () => {
+    const docked = initFlightState(layout);
+    const pose = preRollPose(layout, dock, LAUNCH_PRE_ROLL_DURATION);
+    const preRoll = model(preRollHudState(docked, layout, config, dock, pose));
+    const real = { ...docked };
+    expect(beginLaunch(real, layout, config, dock)).toBe(true);
+    const launch = model(real);
+
+    expect(preRoll.speed).toBe(launch.speed);
+    expect(preRoll.speedText).toBe(launch.speedText);
+    expect(preRoll.clockText).toBe(launch.clockText);
+    expect(preRoll.condition).toBe("yellow");
+    expect(launch.condition).toBe("yellow");
+    expect(preRoll.aegis).toBe("dockingRange");
+    expect(launch.aegis).toBe("dockingRange");
+    expect(preRoll.compass.blip).toBe(false);
+    expect(launch.compass.blip).toBe(false);
+    expect(preRoll.bars.roll).toBe(0);
+    expect(launch.bars.roll).toBe(0);
+    expect(preRoll.bars.speed).toBeCloseTo(0.5, 12);
+    expect(launch.bars.speed).toBeCloseTo(0.5, 12);
+    expect(preRoll.contacts).toHaveLength(launch.contacts.length);
+    preRoll.contacts.forEach((contact, index) => {
+      const other = launch.contacts[index];
+      expect(other?.id).toBe(contact.id);
+      expect(Math.abs(contact.x - (other?.x ?? NaN))).toBeLessThan(1e-9);
+      expect(Math.abs(contact.yBase - (other?.yBase ?? NaN))).toBeLessThan(
+        1e-9,
+      );
+      expect(Math.abs(contact.yTail - (other?.yTail ?? NaN))).toBeLessThan(
+        1e-9,
+      );
+    });
   });
 });

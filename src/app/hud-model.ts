@@ -17,9 +17,11 @@
 
 import { aegisStatus, resolveCompassTarget } from "../sim/world/aegis.js";
 import type { AegisStatus } from "../sim/world/aegis.js";
-import type { CompassTarget } from "../sim/flight/state.js";
+import type { CompassTarget, FlightPose } from "../sim/flight/state.js";
 import type { FlightConfig } from "../sim/flight/config.js";
 import type { FlightState } from "../sim/flight/state.js";
+import { beginLaunch } from "../sim/flight/launch.js";
+import type { DockGeometry } from "../sim/dock/geometry.js";
 import { massLocked as bodyMassLocked } from "../sim/flight/torus.js";
 import { clamp, sub } from "../sim/math.js";
 import type { Vec3 } from "../sim/math.js";
@@ -136,7 +138,11 @@ function buildCompass(state: FlightState, layout: SystemLayout): HudCompass {
   const relative = sub(bodyFor(target, layout).position, state.position);
   // D-06: Oolite's compass size, the full ring diameter (HeadUpDisplay.h:57).
   const blip = projectToCompass(relative, state.orientation, COMPASS_SIZE);
-  return { target, ...blip };
+  // PD-2 (quick 261118-spu): Oolite draws the target blip only in system
+  // flight and not while launching (`HeadUpDisplay.m:1494` at 7437f22). The
+  // target is still resolved, so the probe's `hud.compass.target` keeps its
+  // meaning.
+  return { target, ...blip, blip: state.mode === "inFlight" };
 }
 
 /**
@@ -191,7 +197,9 @@ export interface HudModelOptions {
  * (`PlayerEntity.m:3053-3060`), so the light is yellow from the launch on.
  * Wegolite has no docking phase (a capture docks at once), and the countdown
  * and the docking computer run inside `inFlight`, so only `docked` is green,
- * and the flight HUD is hidden then.
+ * and the flight HUD is hidden then. The launch pre-roll (quick 261118-os8)
+ * is docked in the sim, but its HUD is drawn from the launch start state
+ * (`preRollHudState`, quick 261118-spu), so it reads yellow like the launch.
  *
  * The body mass-lock rule is read live and ORed with the sim's flag: the sim
  * refreshes `state.torus.massLocked` only in in-flight steps, so the flag is
@@ -240,10 +248,14 @@ function buildBars(
   fuelTenths: number,
   combat: PlayerCombatState,
 ): HudBars {
+  // OD-3 (quick 261118-spu): Oolite holds `flightRoll` at 0 while it shows
+  // the launch break pattern (`PlayerEntity.m:6469-6470`), so the roll bar
+  // reads 0 while launching. Presentation only: the sim's `rollRate` is the
+  // station rate while launching (D-10), and the hull keeps rolling with it.
+  const rollRate = state.mode === "launching" ? 0 : state.rollRate;
   return {
     speed: config.maxSpeed > 0 ? clamp(state.speed / config.maxSpeed, 0, 1) : 0,
-    roll:
-      config.maxRoll > 0 ? clamp(state.rollRate / config.maxRoll, -1, 1) : 0,
+    roll: config.maxRoll > 0 ? clamp(rollRate / config.maxRoll, -1, 1) : 0,
     pitch:
       config.maxPitch > 0 ? clamp(state.pitchRate / config.maxPitch, -1, 1) : 0,
     // G-4: the bar is the live tank over the full tank, never a constant.
@@ -266,6 +278,46 @@ function buildBars(
 export function scannerFlashAt(flightTime: number): boolean {
   if (!Number.isFinite(flightTime)) return false;
   return (Math.trunc(flightTime * 4) & 1) === 1;
+}
+
+/**
+ * The state the flight HUD reads during the launch pre-roll (quick 261118-spu,
+ * PD-1): a presentation copy of the launch start state.
+ *
+ * The sim stays docked through the pre-roll, but the camera already shows the
+ * launch about to happen, and Oolite shows the launch speed from the first
+ * launch frame. So the HUD reads what `beginLaunch` will set: the +600 s
+ * clock, the dock mouth position, half top speed, pitch 0 and mode
+ * `launching` (yellow condition, aegis "S", compass ring without its blip,
+ * roll bar 0). `beginLaunch` is applied to a shallow copy of `state`, so there
+ * is one source of truth for those values; it only reassigns top-level fields,
+ * so the live state's nested objects are shared but never written. The copy's
+ * pose is then set to `pose`, the pre-roll pose the camera is drawn from
+ * (`preRollPose`, which equals the `beginLaunch` pose at the end of the
+ * pre-roll). The HUD on the last pre-roll frame therefore equals the HUD on
+ * the first launch frame.
+ *
+ * Accepted boundary changes, none of them a flash: NPC contacts appear on the
+ * scanner at the launch step, where the sim creates the world; the
+ * "Launching" message row appears at the launch step; the scanner buoy flash
+ * phase is frozen in the pre-roll, because flight time does not advance while
+ * docked.
+ *
+ * The live state is never written. A state that is not docked is copied
+ * without the launch values (`beginLaunch` ignores it).
+ */
+export function preRollHudState(
+  state: FlightState,
+  layout: SystemLayout,
+  config: FlightConfig,
+  dock: DockGeometry | undefined,
+  pose: FlightPose,
+): FlightState {
+  const copy: FlightState = { ...state };
+  beginLaunch(copy, layout, config, dock);
+  copy.position = pose.position;
+  copy.orientation = pose.orientation;
+  return copy;
 }
 
 /**

@@ -24,6 +24,7 @@ import { buildHudModel } from "../../src/app/hud-model.js";
 import { hudLift } from "../../src/render/hud/hud.js";
 import { initFlightState } from "../../src/sim/flight/state.js";
 import {
+  COMPASS_SIZE,
   HUD_LAYOUT,
   HUD_MESSAGE_COLOR,
   HUD_MESSAGE_FONT,
@@ -50,6 +51,8 @@ interface Recording {
   moves: Array<[number, number]>;
   /** Fill styles of every `fill()` call. */
   fills: string[];
+  /** Absolute `arc` centres and radii, translation applied. */
+  arcs: Array<[number, number, number]>;
   clockText: string;
 }
 
@@ -79,6 +82,7 @@ function recordModel(model: HudModel, lift = 0): Recording {
   const calls: TextCall[] = [];
   const moves: Array<[number, number]> = [];
   const fills: string[] = [];
+  const arcs: Array<[number, number, number]> = [];
   let offset: [number, number] = [0, 0];
   const stack: Array<[number, number]> = [];
   const context = {
@@ -97,7 +101,9 @@ function recordModel(model: HudModel, lift = 0): Recording {
     }),
     lineTo: vi.fn(),
     ellipse: vi.fn(),
-    arc: vi.fn(),
+    arc: vi.fn((x: number, y: number, radius: number) => {
+      arcs.push([x + offset[0], y + offset[1], radius]);
+    }),
     stroke: vi.fn(),
     fill: vi.fn(function (this: { fillStyle: string }) {
       fills.push(this.fillStyle);
@@ -128,7 +134,7 @@ function recordModel(model: HudModel, lift = 0): Recording {
     textBaseline: "alphabetic",
   } as unknown as CanvasRenderingContext2D;
   drawHud(context, model, lift);
-  return { calls, moves, fills, clockText: model.clockText };
+  return { calls, moves, fills, arcs, clockText: model.clockText };
 }
 
 function recordDraw(messageRows?: readonly MessageRow[]): Recording {
@@ -234,7 +240,7 @@ describe("HUD symbols (quick task 261118-cyn, D-06, D-07)", () => {
   it("draws no caption letter under the compass", () => {
     for (const target of ["planet", "station"] as const) {
       const model = modelOf(undefined, {
-        compass: { target, x: 0, y: 0, forward: true },
+        compass: { target, x: 0, y: 0, forward: true, blip: true },
       });
       const texts = recordModel(model).calls.map((call) => call.text);
       expect(texts).not.toContain("P");
@@ -242,9 +248,38 @@ describe("HUD symbols (quick task 261118-cyn, D-06, D-07)", () => {
     }
   });
 
+  // Quick 261118-spu (OD-2): Oolite's drawCompass: draws the ring and ticks
+  // first and skips only the target blip while launching (HeadUpDisplay.m:1494).
+  it("draws the compass ring but no target blip when blip is false", () => {
+    const { x: rx, y: ry, width, height } = HUD_LAYOUT.compass;
+    const cx = rx + width / 2;
+    const cy = ry + height / 2;
+    const compassArcs = (blip: boolean) =>
+      recordModel(
+        modelOf(undefined, {
+          compass: { target: "planet", x: 10, y: 5, forward: true, blip },
+        }),
+      ).arcs.filter(([x, y]) => Math.abs(x - cx) < 40 && Math.abs(y - cy) < 40);
+    const hidden = compassArcs(false);
+    expect(hidden).toEqual([[cx, cy, COMPASS_SIZE / 2]]);
+    const shown = compassArcs(true);
+    expect(shown).toHaveLength(2);
+    expect(shown).toContainEqual([cx, cy, COMPASS_SIZE / 2]);
+    expect(shown).toContainEqual([cx + 10, cy + 5, (0.2 * COMPASS_SIZE) / 2]);
+  });
+
+  it("draws no witchpoint letter when the blip is hidden", () => {
+    const model = modelOf(undefined, {
+      compass: { target: "witchpoint", x: 0, y: 0, forward: true, blip: false },
+    });
+    expect(recordModel(model).calls.map((call) => call.text)).not.toContain(
+      "W",
+    );
+  });
+
   it("draws the witchpoint beacon's letter W, as oo_drawHUDBeaconIconAt does", () => {
     const model = modelOf(undefined, {
-      compass: { target: "witchpoint", x: 0, y: 0, forward: true },
+      compass: { target: "witchpoint", x: 0, y: 0, forward: true, blip: true },
     });
     expect(recordModel(model).calls.map((call) => call.text)).toContain("W");
   });

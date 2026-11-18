@@ -229,7 +229,7 @@ describe("drawHud draws its legends by capital height", () => {
   );
   const model: HudModel = {
     ...base,
-    compass: { target: "witchpoint", x: 0, y: 0, forward: true },
+    compass: { target: "witchpoint", x: 0, y: 0, forward: true, blip: true },
   };
   const { context, calls } = recordingContext({ cap: 0.73, advance: 0.5 });
   drawHud(context, model, 0);

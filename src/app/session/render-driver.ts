@@ -56,7 +56,7 @@ import {
 } from "../../render/hud/draw.js";
 import { projectIdentFrame } from "../../render/hud/projection.js";
 import type { IdentFrame } from "../../render/hud/projection.js";
-import { buildHudModel } from "../hud-model.js";
+import { buildHudModel, preRollHudState } from "../hud-model.js";
 import { hintGauges } from "../hints.js";
 import type { HintContext } from "../hints.js";
 import type { LaunchSequence } from "../launch-sequence.js";
@@ -186,6 +186,11 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
         ? LAUNCH_PRE_ROLL_DURATION +
           launchViewElapsed(currentState.launchElapsed, alpha)
         : 0;
+    // The pre-roll pose, computed once: the camera is drawn from it and the
+    // pre-roll HUD reads it (quick 261118-spu, PD-1).
+    const preRollViewPose = preRolling
+      ? preRollPose(currentLayout, ctx.core.dockGeometry, viewTime)
+      : null;
     applyStationRoll(
       currentScene,
       launchView
@@ -199,9 +204,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       // station's dock data, read live at this call (G-8); without it the
       // view is the cockpit. The pre-roll draws the launch pose at the mouth
       // rolled to the view time; the launch draws the interpolated sim pose.
-      const viewPose = preRolling
-        ? preRollPose(currentLayout, ctx.core.dockGeometry, viewTime)
-        : pose;
+      const viewPose = preRollViewPose ?? pose;
       camera = computeSlotLaunchCamera(
         currentLayout,
         ctx.core.dockGeometry?.port.depth,
@@ -320,12 +323,25 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       );
     }
 
-    // The flight HUD is not drawn while docked (D-09 shows the status panel;
-    // this covers the pre-roll) or while launching: it appears at handover
-    // (quick 261118-l26; Oolite draws it while launching, recorded as a todo
-    // for the owner).
-    const hudHidden = currentState.mode === "docked" || launching;
+    // The flight HUD is drawn while launching and in the launch pre-roll, as
+    // Oolite draws it while launching (`Universe.m:4718-4732` at 7437f22 skips
+    // it only when dead, in the escape sequence or at game start; quick
+    // 261118-spu). `buildHudModel` hides the compass blip and holds the roll
+    // bar at 0 while launching. A docked session without a pre-roll shows the
+    // status panel (D-09), not the HUD. The pre-roll HUD reads the launch start
+    // state (`preRollHudState`, PD-1); the live state is never written.
+    const hudHidden = currentState.mode === "docked" && !preRolling;
     hudCanvas.hidden = hudHidden;
+    const hudState =
+      preRollViewPose === null
+        ? currentState
+        : preRollHudState(
+            currentState,
+            currentLayout,
+            currentConfig,
+            ctx.core.dockGeometry,
+            preRollViewPose,
+          );
     // The page overlay's version and system lines are hidden by CSS while the
     // HUD canvas shows (D-02); the mark keeps them hidden for the whole launch
     // view, the pre-roll included (quick 261118-os8).
@@ -336,7 +352,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       const rows = messages.rows(messageClock, HUD_MESSAGE_ROWS);
       const message = messages.current(messageClock);
       const model = buildHudModel(
-        currentState,
+        hudState,
         currentLayout,
         currentConfig,
         message,
@@ -353,13 +369,15 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
           // the live world at this frame and not kept (G-8).
           hostiles: hostilesNearPlayer(
             ctx.core.worldLifecycle?.world,
-            currentState.position,
+            hudState.position,
           ),
         },
       );
       currentHud.draw(model);
       ctx.core.lastModel = model;
     }
+    // Hints read the live sim state on purpose, never the pre-roll copy
+    // (quick 261118-spu, PD-3).
     showHint(currentState);
     updateProbe();
   }
