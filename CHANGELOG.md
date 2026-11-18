@@ -53,7 +53,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   aegis indicator. Oolite's HUD reaches the bottom edge of the window, so the
   HUD sits on top of the disclaimer strip instead, keeping Oolite's sizes and
   spacing.
-- The version text no longer shows in flight.
+- The version text and the "Wegolite — system" line no longer show in flight,
+  so they never cover the clock.
 - Buoys flash green and yellow on the scanner, as in Oolite.
 - The compass is Oolite's blue ring; its marker moves to the centre as the
   target comes dead ahead (it used to stay on a fixed circle), the planet is

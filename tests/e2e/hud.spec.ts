@@ -102,10 +102,10 @@ test("the scanner and compass draw and the probe reports the station contact", a
   const probe = await getProbe(page);
   expect(probe.hud.drawn).toBe(true);
 
-  // D-02 (quick task 261118-cyn): the version text is hidden in flight and
-  // the system line stays visible.
+  // D-02 (quick task 261118-cyn, owner 2026-11-18): the version text and the
+  // system line are hidden in flight, so neither overprints the clock lines.
   await expect(page.locator("#overlay #title")).toBeHidden();
-  await expect(page.locator("#overlay #status")).toBeVisible();
+  await expect(page.locator("#overlay #status")).toBeHidden();
   // HUD-ANCHOR option B: the HUD block is lifted by the disclaimer's height.
   const footerHeight = await page
     .locator("body > footer")

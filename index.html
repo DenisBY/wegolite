@@ -53,7 +53,8 @@
          only while docked), and Oolite shows no version text there: hide only
          the version line, keeping its space so the system line stays put
          (quick task 261118-cyn, D-02). */
-      #hud:not([hidden]) ~ #overlay #title {
+      #hud:not([hidden]) ~ #overlay #title,
+      #hud:not([hidden]) ~ #overlay #status {
         visibility: hidden;
       }
 
