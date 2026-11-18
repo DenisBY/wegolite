@@ -37,6 +37,12 @@ export interface HintContext {
    * in-flight frame, which proves a step has refreshed the flag.
    */
   readonly flightTime: number;
+  /**
+   * Whether the ship is inside the station's docking range (`aegisStatus`
+   * "dockingRange"), the rule that draws the aegis "S" (quick task
+   * 261118-cyn, D-07).
+   */
+  readonly inDockingRange: boolean;
 }
 
 export interface HintController {
@@ -73,6 +79,9 @@ export function hintText(id: HintId, bindings: BindingMap): string {
       return `Press ${labelFor(bindings, "speedUp")} / ${labelFor(bindings, "speedDown")} to change speed`;
     case "pitchRoll":
       return `${labelFor(bindings, "pitchForward")} / ${labelFor(bindings, "pitchBack")} pitch, ${labelFor(bindings, "rollLeft")} / ${labelFor(bindings, "rollRight")} roll`;
+    case "aegis":
+      // Wegolite-only (D-07): Oolite draws the "S" without explaining it.
+      return "S: you are inside the station's safe zone";
   }
 }
 
@@ -134,7 +143,18 @@ export function createHintController(options: HintOptions): HintController {
       }
       const speed = take("speed");
       if (speed !== null) return speed;
-      return take("pitchRoll");
+      const pitchRoll = take("pitchRoll");
+      if (pitchRoll !== null) return pitchRoll;
+      // The safe-zone hint teaches a fact, not a control, so it is marked
+      // seen as soon as it is shown (quick task 261118-cyn, D-07).
+      if (context.inDockingRange) {
+        const aegis = take("aegis");
+        if (aegis !== null) {
+          markSeen("aegis");
+          return aegis;
+        }
+      }
+      return null;
     },
     markSeen,
     isSeen(id: HintId): boolean {

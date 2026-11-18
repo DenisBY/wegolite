@@ -15,6 +15,8 @@ import { describe, expect, it } from "vitest";
 import { createHintController, hintText } from "../../src/app/hints.js";
 import type { HintContext } from "../../src/app/hints.js";
 import { createBindingMap } from "../../src/input/bindings.js";
+import { HINT_IDS } from "../../src/settings/schema.js";
+import type { HintId } from "../../src/settings/schema.js";
 
 const bindings = createBindingMap();
 
@@ -26,6 +28,7 @@ function context(overrides: Partial<HintContext>): HintContext {
     speedInput: 0,
     pitchRollInput: false,
     flightTime: 2,
+    inDockingRange: false,
     ...overrides,
   };
 }
@@ -74,5 +77,58 @@ describe("torus hint after a launch", () => {
     // A fresh in-flight session: the first frame again carries a stale flag.
     expect(hints.maybeShow(context({ flightTime: 9 }))).not.toBe(TORUS);
     expect(hints.maybeShow(context({ flightTime: 9.01 }))).toBe(TORUS);
+  });
+});
+
+describe("the safe-zone hint (quick task 261118-cyn, D-07)", () => {
+  const AEGIS = "S: you are inside the station's safe zone";
+  const EARLIER: readonly HintId[] = [
+    "launch",
+    "torus",
+    "torusDisengage",
+    "speed",
+    "pitchRoll",
+  ];
+
+  it("is the last hint id and keeps the earlier hints and their order", () => {
+    expect(HINT_IDS).toEqual([...EARLIER, "aegis"]);
+    expect(hintText("aegis", bindings)).toBe(AEGIS);
+  });
+
+  it("shows once in docking range in flight, after the earlier hints, and is marked seen", () => {
+    const seen: HintId[] = [];
+    const hints = createHintController({
+      bindings,
+      seen: ["launch", "torus", "torusDisengage"],
+      onSeen: (id) => seen.push(id),
+    });
+    const inRange = context({ massLocked: true, inDockingRange: true });
+    // Speed and pitch-and-roll come first, one per frame.
+    expect(hints.maybeShow(inRange)).toBe(hintText("speed", bindings));
+    expect(hints.maybeShow(inRange)).toBe(hintText("pitchRoll", bindings));
+    expect(hints.maybeShow(inRange)).toBe(AEGIS);
+    expect(hints.isSeen("aegis")).toBe(true);
+    expect(seen).toContain("aegis");
+    // Never again in the session.
+    expect(hints.maybeShow(inRange)).toBeNull();
+    expect(hints.maybeShow(inRange)).toBeNull();
+  });
+
+  it("is not shown outside docking range or while docked", () => {
+    const hints = createHintController({ bindings, seen: [...EARLIER] });
+    expect(hints.maybeShow(context({ massLocked: true }))).toBeNull();
+    expect(
+      hints.maybeShow(
+        context({ mode: "docked", inDockingRange: true, flightTime: 3 }),
+      ),
+    ).toBeNull();
+    expect(hints.isSeen("aegis")).toBe(false);
+  });
+
+  it("is never shown once its id is in the seen list", () => {
+    const hints = createHintController({ bindings, seen: [...HINT_IDS] });
+    expect(
+      hints.maybeShow(context({ massLocked: true, inDockingRange: true })),
+    ).toBeNull();
   });
 });

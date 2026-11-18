@@ -30,6 +30,7 @@ import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
 import { hostilesNearPlayer } from "../../sim/combat/alert.js";
 import { identTargetSnapshot } from "../../sim/combat/ident.js";
 import { sub, vec } from "../../sim/math.js";
+import { aegisStatus } from "../../sim/world/aegis.js";
 import { debrisContacts, npcContacts } from "../../sim/world/contacts.js";
 import {
   computeLaunchCamera,
@@ -350,6 +351,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
   function showHint(currentState: FlightState): void {
     const currentHints = ctx.runtime.hints;
     if (currentHints === undefined) return;
+    const currentLayout = ctx.core.layout;
     const context: HintContext = {
       mode: currentState.mode,
       massLocked: currentState.torus.massLocked,
@@ -358,6 +360,10 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       pitchRollInput:
         ctx.core.currentFrame.pitch !== 0 || ctx.core.currentFrame.roll !== 0,
       flightTime: currentState.flightTime,
+      // D-07: the same rule that draws the aegis "S" (quick task 261118-cyn).
+      inDockingRange:
+        currentLayout !== undefined &&
+        aegisStatus(currentState.position, currentLayout) === "dockingRange",
     };
     const hint = currentHints.maybeShow(context);
     if (hint === null) return;

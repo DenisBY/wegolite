@@ -15,6 +15,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Find planet on the galactic chart: press `/`, type the start of a system's
   name, use Down and Up for the next match, Enter to set it as the
   destination and Esc to clear the search. Every match is boxed in green.
+- The first time you fly inside a station's safe zone, a one-time hint
+  explains the green "S" on the HUD: "S: you are inside the station's safe
+  zone".
 
 ### Changed
 
