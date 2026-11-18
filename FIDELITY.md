@@ -128,6 +128,7 @@ The Wegolite cell is a `src/` path and a line. For a build-time mechanic it is t
 | Compass blip: the 3D direction to the target in the ship frame, normalised, x and y times 0.4 of the compass size (FLGT-05)                                                                                                                                                                                                        | `src/render/hud/projection.ts:161`                | `src/Core/HeadUpDisplay.m:1500-1507`                    | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-111   |
 | Scanner buoy colour alternates friendly and neutral on a 0.25 s flash (FLGT-05)                                                                                                                                                                                                                                                    | `src/render/hud/draw.ts:413`                      | `src/Core/Entities/ShipEntity.m:5667-5671`              | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-112   |
 | Launch presentation: the cockpit view flies out of the dock slot; no break pattern (FLGT-01)                                                                                                                                                                                                                                       | `src/render/launch-camera.ts:192`                 | `src/Core/Universe.m:2895-2913`                         | divergence: Oolite hides the world and draws ten slot-shaped rings while launching; Wegolite draws the live cockpit view along a presentation-only path from inside the slot to the cockpit pose, with the sim launch unchanged. PROJECT.md: "Launch shows the live cockpit view from inside the dock slot instead of Oolite's break pattern"                                                                                                                                                                                                                                                                              | E-113   |
+| Launch orientation: rolled 90 degrees about the launch axis when the dock port and the ship lie differently (FLGT-01)                                                                                                                                                                                                              | `src/sim/flight/launch.ts:83`                     | `src/Core/Entities/DockEntity.m:819-827`                | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-114   |
 
 ## Excerpts
 
@@ -1920,6 +1921,20 @@ OOINLINE double distanceBetweenPlanetPositions(int x1, int y1, int x2, int y2)
         [ring setVelocity:vel];
         [ring setLifetime:i * BREAK_PATTERN_RING_SPACING];
 
+```
+
+### E-114 src/Core/Entities/DockEntity.m:819-827
+
+```objc
+    Quaternion q1 = [station orientation];
+    q1 = quaternion_multiply(orientation, q1);
+    Vector launchVector = vector_forward_from_quaternion(q1);
+
+    // launch orientation
+    if ((port_dimensions.x < port_dimensions.y) ^ (bb.max.x - bb.min.x < bb.max.y - bb.min.y)) {
+        quaternion_rotate_about_axis(&q1, launchVector, M_PI * 0.5); // to account for the slot being at 90 degrees to vertical
+    }
+    [ship setNormalOrientation:q1];
 ```
 
 ## Constants ledger
