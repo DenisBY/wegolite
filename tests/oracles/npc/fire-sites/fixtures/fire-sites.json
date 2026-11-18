@@ -1,0 +1,348 @@
+[
+  {
+    "fixture": {
+      "id": "fire-site-fly-to-requests-every-update",
+      "title": "ATTACK_FLY_TO_TARGET reaches its fireMainWeapon: call at every update",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:4711-4711",
+        "src/Core/Entities/ShipEntity.m:9912-9921"
+      ],
+      "derivation": "A Mamba-like ship (pulse laser, weaponRange 12500) at accuracy 2 in ATTACK_FLY_TO_TARGET with frustration 0.5 and success_factor 0.5 against a stationary ship dead ahead at range 20000, temperature 0, missedShots 0. Range 20000 is above slow_down_range 15000 (4648), so desired_speed = max(320, min(3 * 0, 320)) = 320 (4683); the target is on the nose, so trackPrimaryTarget returns 1 (9149-9151), success_factor 1 is above 0.999 and frustration falls by dt every update (4690-4693), rounded to float32 each time. Nothing before the call at 4711 returns or branches away: the target is valid, the range is outside COMBAT_IN_RANGE_FACTOR * weaponRange = 437.5 (4630) and the ship is still able to track it (4638). So the fireMainWeapon: call is reached at updates 1, 2 and 3. The tail at 4713 reads weapon_temp 0, below USABLE, and changes nothing. Frozen pose: the ship moves at most 3 / 120 * 320 = 8 m, nowhere near the 15,000 m or 437.5 m thresholds.",
+      "dt": 0.008333333333333333,
+      "horizon": 3,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 0.5,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [0, 0, 20080],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 3,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged after three updates"
+        },
+        {
+          "tick": 3,
+          "field": "desiredSpeed",
+          "expected": 320,
+          "tolerance": 0.001,
+          "note": "4683: max(320, min(0, 320))"
+        },
+        {
+          "tick": 3,
+          "field": "successFactor",
+          "expected": 1,
+          "tolerance": 0.000001,
+          "note": "on target: d_forward 1"
+        },
+        {
+          "tick": 3,
+          "field": "frustration",
+          "expected": 0.4750000238418579,
+          "tolerance": 0,
+          "note": "three float32 steps of fround(f - dt) (4691)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "forwardWeaponTemp": 0,
+      "missedShots": 0
+    },
+    "fireRequestTicks": [1, 2, 3]
+  },
+  {
+    "fixture": {
+      "id": "fire-site-fly-to-frustration-hand-over-still-requests",
+      "title": "ATTACK_FLY_TO_TARGET handing over to ATTACK_TARGET on 3 s of frustration still reaches its fireMainWeapon: call in the same update, and the dispatcher then requests nothing",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:4694-4704",
+        "src/Core/Entities/ShipEntity.m:4711-4711",
+        "src/Core/Entities/ShipEntity.m:4038-4185",
+        "src/Core/Entities/ShipEntity.m:8980-9001"
+      ],
+      "derivation": "A Mamba-like ship at accuracy 2 with frustration 2.9990234375 (= 3 - 2^-10, exact in float32) and success_factor 0.5 in ATTACK_FLY_TO_TARGET against a stationary ship straight above at range 20000, temperature 0. The ship has to turn, so trackPrimaryTarget returns 0: success_factor 0 is neither above 0.999 nor above 0.5, so frustration += dt (4695) = fround(2.9990234375 + 1/120) = 3.00736 > 3 (4696): shipAIFrustrated, setEvasiveJink(1000) with the scripted draws [0.7, 0.3] (jink (179, -180, 1000)), behaviour = ATTACK_TARGET, frustration 0, desired_speed 320 (4698-4702). The hand-over does not leave the method: the call at 4711 follows on the same path, so update 1 reaches fireMainWeapon:. Update 2 runs the dispatcher (behaviour_attack_target, 4038-4185), which has no fireMainWeapon: call: at range 20000 it is not nearby (437.5), a pulse laser is not above 12500 (no sniper), accuracy 2 is not below 0, so it zeroes the jink and selects ATTACK_FLY_TO_TARGET (4168-4170) with no draw. Draws consumed: 2.",
+      "dt": 0.008333333333333333,
+      "horizon": 2,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 2.9990234375,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [0, 20080, 0],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [0.7, 0.3],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_TARGET",
+          "tolerance": 0,
+          "note": "4700"
+        },
+        {
+          "tick": 1,
+          "field": "frustration",
+          "expected": 0,
+          "tolerance": 0,
+          "note": "4701"
+        },
+        {
+          "tick": 1,
+          "field": "jinkX",
+          "expected": 179,
+          "tolerance": 1e-9,
+          "note": "floor(0.7 * 256) - 128 + 128"
+        },
+        {
+          "tick": 1,
+          "field": "jinkY",
+          "expected": -180,
+          "tolerance": 1e-9,
+          "note": "floor(0.3 * 256) - 128 - 128"
+        },
+        {
+          "tick": 1,
+          "field": "jinkZ",
+          "expected": 1000,
+          "tolerance": 0.001,
+          "note": "setEvasiveJink(1000)"
+        },
+        {
+          "tick": 1,
+          "field": "desiredSpeed",
+          "expected": 320,
+          "tolerance": 0.001,
+          "note": "4702"
+        },
+        {
+          "tick": 2,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "dispatcher: far, accuracy 2: 4168-4170"
+        },
+        {
+          "tick": 2,
+          "field": "jinkX",
+          "expected": 0,
+          "tolerance": 1e-9,
+          "note": "the dispatcher zeroes the jink (4157)"
+        }
+      ],
+      "events": [
+        {
+          "tick": 1,
+          "name": "shipAIFrustrated"
+        }
+      ]
+    },
+    "weapon": {
+      "forwardWeaponTemp": 0,
+      "missedShots": 0
+    },
+    "fireRequestTicks": [1]
+  },
+  {
+    "fixture": {
+      "id": "fire-site-fly-to-lost-target-requests-nothing",
+      "title": "ATTACK_FLY_TO_TARGET with a vanished target goes idle and returns before its fireMainWeapon: call",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:4618-4621",
+        "src/Core/Entities/ShipEntity.m:4711-4711",
+        "src/Core/Entities/ShipEntity.m:8799-8804"
+      ],
+      "derivation": "A Mamba-like ship in ATTACK_FLY_TO_TARGET with frustration 1.0 whose target id 102 no longer exists, temperature 0. primaryTarget is nil (4618), so noteLostTargetAndGoIdle runs (4619): behaviour IDLE, frustration 0, shipTargetLost posted (8799-8804), and the method returns at 4620, before the call at 4711. No fire request at update 1; update 2 runs behaviour_idle, which has no fireMainWeapon: call.",
+      "dt": 0.008333333333333333,
+      "horizon": 2,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "IDLE",
+          "tolerance": 0,
+          "note": "8800-8801: noteLostTargetAndGoIdle"
+        },
+        {
+          "tick": 1,
+          "field": "frustration",
+          "expected": 0,
+          "tolerance": 0,
+          "note": "8802"
+        },
+        {
+          "tick": 1,
+          "field": "targetId",
+          "expected": 0,
+          "tolerance": 0,
+          "note": "the target is dropped (8789)"
+        }
+      ],
+      "events": [
+        {
+          "tick": 1,
+          "name": "shipTargetLost"
+        }
+      ]
+    },
+    "weapon": {
+      "forwardWeaponTemp": 0,
+      "missedShots": 0
+    },
+    "fireRequestTicks": []
+  }
+]

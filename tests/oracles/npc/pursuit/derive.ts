@@ -28,6 +28,15 @@
  * 8); every other quantity is computed here in float64, and a fixture's
  * tolerance states the float32 slack. A pose near a decision threshold is
  * avoided, never covered by a wider tolerance (contract item 6).
+ *
+ * Weapon state (Phase 17, plan 17-02). A fixture may state the forward weapon
+ * temperature the behaviour reads at its FIRST update (after Oolite's cooling
+ * at the top of that update, `ShipEntity.m:2214-2218`) and the `missedShots`
+ * count. `stepTick` cools the temperature once per later update in float32
+ * and records, per update, whether the behaviour reaches a `fireMainWeapon:`
+ * call (`World.fireRequests`); whether the gate then lets a shot out is not
+ * modelled here. With temperature 0 and `missedShots` 0 (the defaults) every
+ * Phase 14 derivation is unchanged.
  */
 
 // ---------------------------------------------------------------------------
@@ -140,6 +149,46 @@ export const COMBAT_AI_TRACKS_CLOSER = 7.5;
 export const COMBAT_AI_FLEES_BETTER_2 = 9;
 export const COMBAT_REACTION_TIME = 1.5;
 export const SELF_ID = 101;
+
+/** `ShipEntity.h:115-120`: the weapon temperature constants, as float32 values. */
+export const WEAPON_COOLING_FACTOR = 6;
+export const NPC_MAX_WEAPON_TEMP = 256;
+export const WEAPON_COOLING_CUTOUT = Math.fround(0.85);
+/** `COMBAT_AI_WEAPON_TEMP_READY`: `0.25f * NPC_MAX_WEAPON_TEMP` = 64. */
+export const WEAPON_TEMP_READY = Math.fround(Math.fround(0.25) * 256);
+/** `COMBAT_AI_WEAPON_TEMP_USABLE`: `fround(0.85) * 256` as a float32 product (217.60000610351562). */
+export const WEAPON_TEMP_USABLE = Math.fround(WEAPON_COOLING_CUTOUT * 256);
+
+/**
+ * One cooling step (`ShipEntity.m:2214-2218`): `fmaxf(T - (float)(6.0f * dt), 0.0f)`,
+ * the subtraction rounded to float32.
+ */
+export function coolOnce(temperature: number, dt: number = DT): number {
+  const step = Math.fround(WEAPON_COOLING_FACTOR * dt);
+  return Math.fround(Math.max(Math.fround(temperature - step), 0));
+}
+
+/**
+ * The temperature the behaviour reads at update `update` (1-based), given the
+ * value it reads at update 1: cooled `update - 1` more times.
+ */
+export function temperatureAtUpdate(
+  readAtUpdateOne: number,
+  update: number,
+  dt: number = DT,
+): number {
+  let temperature = Math.fround(readAtUpdateOne);
+  for (let k = 1; k < update; k += 1) temperature = coolOnce(temperature, dt);
+  return temperature;
+}
+
+/** The weapon state a fixture may state (contract item 1 of the fire-site oracle). */
+export interface WeaponState {
+  /** `forward_weapon_temp` as the behaviour reads it at update 1 (a float32 value). */
+  forwardWeaponTemp: number;
+  /** `missedShots`, constant over a fixture (it changes only when a shot resolves). */
+  missedShots: number;
+}
 
 export type ForwardWeapon =
   | "EQ_WEAPON_NONE"
@@ -263,6 +312,8 @@ export interface FixtureLike {
   draws: number[];
   checks: Check[];
   events: { tick: number; name: string }[];
+  /** Weapon state; absent means temperature 0 and `missedShots` 0. */
+  weapon?: Partial<WeaponState>;
 }
 
 /** Unit draws in Oolite's call order (contract item 7). */
@@ -297,6 +348,10 @@ export interface World {
   events: { tick: number; name: EventName }[];
   /** The tracking curve's constant position before its first sample (tick 60). */
   aimBase: V3 | null;
+  /** The forward weapon temperature (as read at the current update) and `missedShots`. */
+  weapon: WeaponState;
+  /** The updates (1-based) at which the behaviour reached a `fireMainWeapon:` call. */
+  fireRequests: number[];
 }
 
 function cloneSelf(s: SelfState): SelfState {
@@ -313,7 +368,17 @@ export function buildWorld(fixture: FixtureLike): World {
     draws: new Draws(fixture.draws),
     events: [],
     aimBase: null,
+    weapon: {
+      forwardWeaponTemp: Math.fround(fixture.weapon?.forwardWeaponTemp ?? 0),
+      missedShots: fixture.weapon?.missedShots ?? 0,
+    },
+    fireRequests: [],
   };
+}
+
+/** A `fireMainWeapon:` call is reached at the current update (whatever the gate then decides). */
+function requestFire(world: World): void {
+  world.fireRequests.push(world.tick);
 }
 
 /** The position of a body at tick `k` under the fixture's `motion` (contract item 4 (a)). */
@@ -949,7 +1014,7 @@ function behaviourAttackTarget(world: World): void {
   s.frustration = 0; // 4184: behaviour changed, so reset frustration
 }
 
-/** `behaviour_attack_fly_to_target:` (4611-4731), no afterburner, temperature 0. */
+/** `behaviour_attack_fly_to_target:` (4611-4731), no afterburner. */
 function behaviourFlyToTarget(world: World): void {
   const s = world.self;
   const { maxFlightSpeed } = world.stats;
@@ -1019,9 +1084,24 @@ function behaviourFlyToTarget(world: World): void {
       s.desiredSpeed = maxFlightSpeed;
     }
   }
-  // weapon_temp is 0: the 4713 branch is dead; 4721 (accuracy >= 9) needs the
-  // target's forward weapon type, which a fixture body does not carry.
-  if (s.accuracy >= COMBAT_AI_FLEES_BETTER_2) {
+  // 4711: fireMainWeapon:range, reached on every path that did not return above
+  requestFire(world);
+  // 4713-4720: weapon_temp (= forward_weapon_temp, refreshed by fireWeapon: at
+  // 9914-9921) above USABLE, accuracy at least 0 and in good aim range. Inside
+  // it `aspect < 0` has no else; aft, port and starboard weapons are none, so
+  // the other three terms of 4717 are false.
+  if (
+    world.weapon.forwardWeaponTemp > WEAPON_TEMP_USABLE &&
+    s.accuracy >= COMBAT_AI_ISNT_AWFUL &&
+    aimTolerance(s.accuracy) * range < COMBAT_AI_CONFIDENCE_FACTOR
+  ) {
+    if (aspect < 0) {
+      s.frustration = 0;
+      s.behaviour = "ATTACK_TARGET";
+    }
+  } else if (s.accuracy >= COMBAT_AI_FLEES_BETTER_2) {
+    // 4721-4730 (Phase 14 divergence 21) needs the target's forward weapon
+    // type, which a fixture body does not carry
     throw new Error(
       "ShipEntity.m:4721-4729 needs the target's weapon type: not modelled",
     );
@@ -1305,6 +1385,10 @@ function behaviourEvasiveAction(world: World): void {
 /** One native update of the steered ship (pose frozen), then the `applyThrust:` speed clamp. */
 export function stepTick(world: World): void {
   world.tick += 1;
+  // cooling at the top of the update (2214-2218); update 1 reads the stated value
+  if (world.tick > 1) {
+    world.weapon.forwardWeaponTemp = coolOnce(world.weapon.forwardWeaponTemp);
+  }
   const s = world.self;
   switch (s.behaviour) {
     case "INTERCEPT_TARGET":
@@ -1522,6 +1606,13 @@ export function deriveEvents(
   const world = worldAtTick(fixture, 0);
   for (let k = 0; k < fixture.horizon; k += 1) stepTick(world);
   return world.events;
+}
+
+/** The updates at which the behaviour reached a `fireMainWeapon:` call over the horizon. */
+export function deriveFireRequests(fixture: FixtureLike): number[] {
+  const world = worldAtTick(fixture, 0);
+  for (let k = 0; k < fixture.horizon; k += 1) stepTick(world);
+  return world.fireRequests;
 }
 
 /** The scripted draws a fixture consumes over its horizon (the consumer fails on any other count). */
