@@ -250,7 +250,31 @@ Plans:
 **Pitfalls to address**: 1 (the decision source: resolved by the owner decision above, and tested through the whole route from the hook spawn), 2 (the fire gate), 4 (the frozen acceptance run), 15 (dead-target handling in each behaviour), 16 (totality)
 **Decisions to settle**: how weapon temperature and `shot_time` quantise to ticks; which attack behaviours call fire and how `onTarget` maps onto the Phase 14 steering port; the name and place of the pilot's opt-in
 **Todos**: `2026-11-16-phase-14-review-followups.md` (the IN-04 manual rerun rule is in force; IN-05, the detector blind spot, needs the owner trailer and is not part of this phase)
-**Plans**: TBD
+**Plans**: 9 plans in 7 waves
+
+Plans:
+**Wave 1**
+- [ ] 17-01-PLAN.md — CBT-15, criterion 4: independent oracle (separate agent, no access to `src/sim/npc`) for the fire gate's order and one-draw rule, onTarget with the live `missedShots` aim term, float32 heat and cooling, and the frame-rate rows (12 versus 13 ticks recorded); `COVERAGE.md`
+- [ ] 17-02-PLAN.md — CBT-15, criterion 4: independent oracle for the fire sites, the hot-weapon branches and the `missedShots` feedback in the attack behaviours
+- [ ] 17-03-PLAN.md — D-13 tripwires (kill credit, `shipHit`, a second `onEvent`) with their todos, and the decision-source guard (advisor decision 3)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 17-04-PLAN.md — CBT-15: the pure NPC fire gate `src/sim/npc/fire.ts`, both `missedShots` readers, the gate and aim-feedback fixtures against the port, totality properties
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 17-05-PLAN.md — CBT-15, CBT-16: every NPC shot through the gate at the drain, cooling and `missedShots`, the per-tick hook shooter, the D-08 inventory and the A7 amendment, the Node twin then the browser spec re-pinned (shield and energy readout)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 17-06-PLAN.md — CBT-15: `SteerContext.fire` and the `fire` opt-in on the flight-script pilot, the evasive, sniper (restructured), six and fly-to fire sites, exclusive routes, byte-identical without the opt-in
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 17-07-PLAN.md — CBT-15: the live temperature in the dispatcher, break-off and the hot-weapon tails, the float32 USABLE, the fire-site fixtures against the port
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 17-08-PLAN.md — CBT-15, CBT-16: NPC-versus-NPC fire and kills through the kill path, the same-tick mutual kill pinned (D-10 row), 30/60/144 Hz and snapshot equality, properties
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 17-09-PLAN.md — CBT-15, CBT-16: the `?test=1` attacker hook (D-02), the decision-source Key Decisions row (criterion 3), CHANGELOG, validation sign-off, remote `verify`
 
 ### Phase 18: Stations, Buoys and Collisions
 
