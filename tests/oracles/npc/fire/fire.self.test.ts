@@ -25,15 +25,25 @@ import {
   COOLING_PER_TICK,
   CUTOUT_TEMPERATURE,
   WEAPON_INFO,
+  deriveAimTolerance,
   deriveGate,
+  deriveHeat,
+  deriveOnTarget,
   rechargeTicks,
+  traceOnTarget,
 } from "./derive.js";
 import {
   FIRE_REFUSALS,
   FIRE_WEAPONS,
   FireGateFileSchema,
   FireGateFixtureSchema,
+  OnTargetFileSchema,
+  OnTargetFixtureSchema,
+  WeaponHeatFileSchema,
+  WeaponHeatFixtureSchema,
   type FireGateFixture,
+  type OnTargetFixture,
+  type WeaponHeatFixture,
 } from "./schema.js";
 
 const FIXTURE_DIR = fileURLToPath(new URL("./fixtures/", import.meta.url));
@@ -518,5 +528,686 @@ describe("fire gate fixtures (gate.json)", () => {
         }),
       ).toContain("refusedAt");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// onTarget and the aim tolerance (Task 2)
+
+/** The closed form of `currentAimTolerance` in float64 (no scope-cut terms). */
+function closedAim(accuracy: number, missedShots: number): number {
+  let basic = 240 - 18 * accuracy;
+  let best = 0.99999;
+  if (accuracy >= 0) {
+    best = 0.999999;
+    basic /= 1 + missedShots / 4;
+  }
+  if (accuracy >= 7.5) {
+    best = 0.9999999;
+    basic /= 5;
+  }
+  return Math.min(Math.sqrt(1 - (basic * basic) / 1e8), best);
+}
+
+/** Re-derives one on-target fixture and lists every field that disagrees. */
+function onTargetProblems(fixture: OnTargetFixture): string[] {
+  const derived = deriveOnTarget(fixture.input);
+  const problems: string[] = [];
+  if (derived.onTarget !== fixture.expected.onTarget) {
+    problems.push("onTarget");
+  }
+  if (
+    Math.abs(derived.aimTolerance - fixture.expected.aimTolerance) >
+    fixture.tolerance
+  ) {
+    problems.push("aimTolerance");
+  }
+  return problems;
+}
+
+/** Which test of 9863-9909 decides each fixture, written by hand. */
+const ON_TARGET_DECIDED_BY: readonly (readonly [
+  string,
+  ReturnType<typeof traceOnTarget>["decidedBy"],
+  boolean,
+])[] = [
+  ["on-target-no-live-target-reports-the-aim-tolerance", "noTarget", false],
+  ["on-target-target-behind-is-no", "behind", false],
+  ["on-target-perpendicular-dq-zero-is-no", "astq", false],
+  ["on-target-awful-accuracy-minus-5-dead-ahead", "aimCircle", true],
+  ["on-target-awful-ignores-missed-shots", "aimCircle", true],
+  ["on-target-accuracy-0-missed-0-marginal-pose-is-yes", "aimCircle", true],
+  ["on-target-accuracy-0-missed-3-marginal-pose-is-no", "astq", false],
+  ["on-target-accuracy-0-missed-31-marginal-pose-is-no", "astq", false],
+  ["on-target-accuracy-0-missed-3-closer-pose-is-yes", "aimCircle", true],
+  ["on-target-accuracy-0-missed-31-closer-pose-is-no", "astq", false],
+  ["on-target-accuracy-5-missed-3-aim-tolerance", "aimCircle", true],
+  ["on-target-accuracy-5-missed-31-aim-tolerance", "aimCircle", true],
+  ["on-target-accuracy-7-missed-31-clamps-to-best-cos", "aimCircle", true],
+  ["on-target-accuracy-7p5-deadly-divides-by-five", "aimCircle", true],
+  ["on-target-accuracy-7p5-missed-3-both-divisions", "aimCircle", true],
+  ["on-target-accuracy-9-missed-0-deadly-aim", "aimCircle", true],
+  [
+    "on-target-accuracy-9-missed-31-clamps-to-deadly-best-cos",
+    "aimCircle",
+    true,
+  ],
+  ["on-target-astq-path-yes-offset-rotated-shooter", "astq", true],
+  ["on-target-astq-path-no-offset-rotated-shooter", "astq", false],
+  ["on-target-radius-too-large-makes-astq-nan-no", "astq", false],
+  ["on-target-zero-relative-position-uses-the-z-basis-yes", "aimCircle", true],
+  ["on-target-zero-relative-position-facing-away-is-no", "behind", false],
+  ["on-target-equality-dq-equals-astq-both-widths", "astq", true],
+];
+
+describe("on-target fixtures (on-target.json)", () => {
+  const fixtures = OnTargetFileSchema.parse(readJson("on-target.json"));
+  const byId = (id: string): OnTargetFixture => {
+    const found = fixtures.find((fixture) => fixture.id === id);
+    if (found === undefined) throw new Error(`no on-target fixture ${id}`);
+    return found;
+  };
+
+  it("holds at least fourteen fixtures, all re-derived from the onTarget transliteration", () => {
+    expect(fixtures.length).toBeGreaterThanOrEqual(14);
+    for (const fixture of fixtures) {
+      expect(onTargetProblems(fixture), fixture.id).toEqual([]);
+      expect(fixture.id.startsWith("on-target-"), fixture.id).toBe(true);
+    }
+  });
+
+  it("matches the hand-written table of which test decides each fixture, and lists no other", () => {
+    expect(fixtures.map((fixture) => fixture.id)).toEqual(
+      ON_TARGET_DECIDED_BY.map(([id]) => id),
+    );
+    for (const [id, decidedBy, onTarget] of ON_TARGET_DECIDED_BY) {
+      const trace = traceOnTarget(byId(id).input);
+      expect(trace.decidedBy, id).toBe(decidedBy);
+      expect(trace.onTarget, id).toBe(onTarget);
+      expect(byId(id).expected.onTarget, id).toBe(onTarget);
+    }
+  });
+
+  it("gives the same answer in float64 as in float32 for every fixture (none sits on a rounding edge)", () => {
+    for (const fixture of fixtures) {
+      const wide = deriveOnTarget(fixture.input, "f64");
+      expect(wide.onTarget, fixture.id).toBe(fixture.expected.onTarget);
+      expect(
+        Math.abs(wide.aimTolerance - fixture.expected.aimTolerance),
+        fixture.id,
+      ).toBeLessThanOrEqual(fixture.tolerance);
+    }
+  });
+
+  describe("currentAimTolerance (ShipEntity.m:9761-9810) with the live missedShots term (D-15)", () => {
+    it("agrees with the float64 closed form for every fixture", () => {
+      for (const fixture of fixtures) {
+        expect(
+          Math.abs(
+            closedAim(fixture.input.accuracy, fixture.input.missedShots) -
+              fixture.expected.aimTolerance,
+          ),
+          fixture.id,
+        ).toBeLessThanOrEqual(fixture.tolerance);
+      }
+    });
+
+    it("pins hand-computed values: sqrt(1 - basic^2 / 1e8) with the divisors written out", () => {
+      const cases: [number, number, number][] = [
+        // accuracy, missedShots, expected: basic_aim = 240 - 18 accuracy
+        // divided by (1 + missed / 4) when accuracy >= 0 and by 5 when >= 7.5.
+        [-5, 0, Math.sqrt(1 - (330 * 330) / 1e8)],
+        [-5, 31, Math.sqrt(1 - (330 * 330) / 1e8)],
+        [0, 0, Math.sqrt(1 - (240 * 240) / 1e8)],
+        [0, 3, Math.sqrt(1 - (240 / 1.75) ** 2 / 1e8)],
+        [0, 31, Math.sqrt(1 - (240 / 8.75) ** 2 / 1e8)],
+        [5, 3, Math.sqrt(1 - (150 / 1.75) ** 2 / 1e8)],
+        [5, 31, Math.sqrt(1 - (150 / 8.75) ** 2 / 1e8)],
+        [7, 31, 0.999999],
+        [7.5, 0, Math.sqrt(1 - (105 / 5) ** 2 / 1e8)],
+        [7.5, 3, Math.sqrt(1 - (105 / 1.75 / 5) ** 2 / 1e8)],
+        [9, 0, Math.sqrt(1 - (78 / 5) ** 2 / 1e8)],
+        [9, 31, 0.9999999],
+      ];
+      for (const [accuracy, missedShots, expected] of cases) {
+        expect(
+          deriveAimTolerance(accuracy, missedShots, "f64"),
+          `${accuracy}/${missedShots}`,
+        ).toBeCloseTo(expected, 12);
+        expect(
+          Math.abs(deriveAimTolerance(accuracy, missedShots) - expected),
+          `${accuracy}/${missedShots} float32`,
+        ).toBeLessThan(1e-7);
+      }
+    });
+
+    it("moves the cosine toward 1 as missedShots grows, for accuracy >= 0 only", () => {
+      for (const accuracy of [0, 5, 7.5, 9]) {
+        const m0 = deriveAimTolerance(accuracy, 0, "f64");
+        const m3 = deriveAimTolerance(accuracy, 3, "f64");
+        const m31 = deriveAimTolerance(accuracy, 31, "f64");
+        expect(m3, `accuracy ${accuracy}`).toBeGreaterThanOrEqual(m0);
+        expect(m31, `accuracy ${accuracy}`).toBeGreaterThanOrEqual(m3);
+      }
+      expect(deriveAimTolerance(-5, 31, "f64")).toBe(
+        deriveAimTolerance(-5, 0, "f64"),
+      );
+      expect(deriveAimTolerance(-0.5, 31, "f64")).toBe(
+        deriveAimTolerance(-0.5, 0, "f64"),
+      );
+    });
+
+    it("lets missedShots alone flip the answer for one pose (the term goes live this phase)", () => {
+      expect(
+        byId("on-target-accuracy-0-missed-0-marginal-pose-is-yes").input,
+      ).toMatchObject({ aimPoint: [245, 0, 10000], missedShots: 0 });
+      expect(
+        byId("on-target-accuracy-0-missed-3-marginal-pose-is-no").input,
+      ).toMatchObject({ aimPoint: [245, 0, 10000], missedShots: 3 });
+      expect(
+        byId("on-target-accuracy-0-missed-3-closer-pose-is-yes").expected
+          .onTarget,
+      ).toBe(true);
+      expect(
+        byId("on-target-accuracy-0-missed-31-closer-pose-is-no").expected
+          .onTarget,
+      ).toBe(false);
+      // The poses: dq = z / hypot(x, z) by hand.
+      expect(10000 / Math.hypot(245, 10000)).toBeCloseTo(0.9997, 5);
+      expect(10000 / Math.hypot(100, 10000)).toBeCloseTo(0.99995, 6);
+    });
+  });
+
+  describe("onTarget geometry (ShipEntity.m:9863-9909)", () => {
+    it("answers NO for no live target, dq < 0 and a negative or zero-dq pose outside the cone", () => {
+      expect(
+        byId("on-target-no-live-target-reports-the-aim-tolerance").expected
+          .onTarget,
+      ).toBe(false);
+      expect(byId("on-target-target-behind-is-no").expected.onTarget).toBe(
+        false,
+      );
+      expect(
+        traceOnTarget(byId("on-target-perpendicular-dq-zero-is-no").input).dq,
+      ).toBe(0);
+    });
+
+    it("answers YES inside the aim circle (dq > aim x aim) and decides by astq outside it", () => {
+      const inside = traceOnTarget(
+        byId("on-target-awful-accuracy-minus-5-dead-ahead").input,
+      );
+      expect(inside.dq).toBe(1);
+      expect(inside.dq).toBeGreaterThan(inside.aimSquared);
+      const yes = traceOnTarget(
+        byId("on-target-astq-path-yes-offset-rotated-shooter").input,
+      );
+      expect(yes.dq).toBeLessThan(yes.aimSquared);
+      expect(yes.dq).toBeGreaterThanOrEqual(yes.astq);
+      // By hand: d2 = 1000^2 + 45^2, dq = 1000 / sqrt(d2), r = 200.
+      expect(yes.dq).toBeCloseTo(1000 / Math.hypot(1000, 45), 6);
+      expect(yes.astq).toBeCloseTo(
+        Math.sqrt(1 - 200 ** 2 / (9 * (1000 ** 2 + 45 ** 2))),
+        6,
+      );
+      const no = traceOnTarget(
+        byId("on-target-astq-path-no-offset-rotated-shooter").input,
+      );
+      expect(no.dq).toBeLessThan(no.astq);
+    });
+
+    it("makes astq NaN when radius^2 > 9 d2 and answers NO", () => {
+      const trace = traceOnTarget(
+        byId("on-target-radius-too-large-makes-astq-nan-no").input,
+      );
+      expect(Number.isNaN(trace.astq)).toBe(true);
+      expect(trace.onTarget).toBe(false);
+      // By hand: d2 is 100^2 = 10000, so 9 d2 = 90000 < 400^2 = 160000.
+      expect(400 ** 2).toBeGreaterThan(9 * 10000);
+    });
+
+    it("uses the +z basis for a zero relative position", () => {
+      const ahead = traceOnTarget(
+        byId("on-target-zero-relative-position-uses-the-z-basis-yes").input,
+      );
+      expect(ahead.dq).toBe(1);
+      expect(ahead.onTarget).toBe(true);
+      const away = traceOnTarget(
+        byId("on-target-zero-relative-position-facing-away-is-no").input,
+      );
+      expect(away.dq).toBe(-1);
+      expect(away.onTarget).toBe(false);
+    });
+  });
+
+  describe("width (review Opus L1): Oolite's dq, d2, radius, aim and astq are GLfloat", () => {
+    it("answers YES at |dq| = astq in float32 and in float64, with the two sides exactly equal in each", () => {
+      const fixture = byId("on-target-equality-dq-equals-astq-both-widths");
+      const narrow = traceOnTarget(fixture.input, "f32");
+      const wide = traceOnTarget(fixture.input, "f64");
+      expect(narrow.decidedBy).toBe("astq");
+      expect(wide.decidedBy).toBe("astq");
+      expect(narrow.dq).toBe(narrow.astq);
+      expect(wide.dq).toBe(wide.astq);
+      expect(narrow.onTarget).toBe(true);
+      expect(wide.onTarget).toBe(true);
+      // By hand: offset x = radius / 3 puts the pose on the cone, d2 = 1700,
+      // dq = 40 / sqrt(1700), astq = sqrt(1600 / 1700).
+      expect(wide.dq).toBeCloseTo(40 / Math.sqrt(1700), 12);
+      expect(wide.astq).toBeCloseTo(Math.sqrt(1600 / 1700), 12);
+    });
+
+    it("records that other exact-equality poses round differently in the two widths", () => {
+      const pose = {
+        accuracy: 0,
+        missedShots: 0,
+        position: [0, 0, 0],
+        forward: [0, 0, 1],
+        targetPresent: true,
+        aimPoint: [10, 0, 23],
+        targetRadius: 30,
+      } as const;
+      // The same construction (x = radius / 3) at z = 23: float32 says YES and
+      // float64 says NO, so a float64 port differs from Oolite at exact
+      // equality there. No fixture demands it; the equality fixture is the
+      // width-independent pose.
+      expect(deriveOnTarget(pose, "f32").onTarget).toBe(true);
+      expect(deriveOnTarget(pose, "f64").onTarget).toBe(false);
+    });
+  });
+
+  describe("non-vacuity: the schema and the comparison refuse what they must", () => {
+    const base = byId("on-target-astq-path-yes-offset-rotated-shooter");
+    const parse = (patch: Record<string, unknown>): boolean =>
+      OnTargetFixtureSchema.safeParse({ ...base, ...patch }).success;
+    const withInput = (patch: Record<string, unknown>): boolean =>
+      parse({ input: { ...base.input, ...patch } });
+
+    it("accepts the unmodified fixture and rejects a bad citation, an empty derivation, a negative tolerance and a foreign id", () => {
+      expect(parse({})).toBe(true);
+      expect(parse({ oolite: ["src/Core/Entities/ShipEntity.m:9910"] })).toBe(
+        false,
+      );
+      expect(parse({ derivation: "" })).toBe(false);
+      expect(parse({ tolerance: -1e-7 })).toBe(false);
+      expect(parse({ id: "gate-astq" })).toBe(false);
+      expect(parse({ unknownField: true })).toBe(false);
+    });
+
+    it("rejects a frame that is not unit, not orthogonal or not right-handed", () => {
+      expect(withInput({ forward: [0.6, 0, 0.9] })).toBe(false);
+      expect(withInput({ forward: [0.8, 0, 0.6], up: [0.6, 0.8, 0] })).toBe(
+        false,
+      );
+      expect(withInput({ right: [-0.8, 0, 0.6] })).toBe(false);
+    });
+
+    it("rejects a non-integer or negative missedShots and a non-positive radius", () => {
+      expect(withInput({ missedShots: -1 })).toBe(false);
+      expect(withInput({ missedShots: 1.5 })).toBe(false);
+      expect(withInput({ targetRadius: 0 })).toBe(false);
+      expect(withInput({ accuracy: 11 })).toBe(false);
+    });
+
+    it("rejects an aim tolerance outside (0, 1) and duplicate ids", () => {
+      expect(parse({ expected: { aimTolerance: 1.2, onTarget: true } })).toBe(
+        false,
+      );
+      expect(OnTargetFileSchema.safeParse([base, base]).success).toBe(false);
+    });
+
+    it("lets the comparison see a flipped answer and a wrong aim tolerance", () => {
+      expect(
+        onTargetProblems({
+          ...base,
+          expected: { ...base.expected, onTarget: false },
+        }),
+      ).toContain("onTarget");
+      expect(
+        onTargetProblems({
+          ...base,
+          expected: { ...base.expected, aimTolerance: 0.9999 },
+        }),
+      ).toContain("aimTolerance");
+      expect(onTargetProblems(base)).toEqual([]);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// float32 heat and cooling trajectories (Task 2)
+
+/** Re-derives one heat fixture and lists every field that disagrees. */
+function heatProblems(fixture: WeaponHeatFixture): string[] {
+  const run = deriveHeat(fixture);
+  const problems: string[] = [];
+  const e = fixture.expected;
+  if (JSON.stringify(run.shotTicks) !== JSON.stringify(e.shotTicks)) {
+    problems.push("shotTicks");
+  }
+  if (run.firstHeatRefusalTick !== e.firstHeatRefusalTick) {
+    problems.push("firstHeatRefusalTick");
+  }
+  if (run.firstResumeTick !== e.firstResumeTick) {
+    problems.push("firstResumeTick");
+  }
+  if (run.drawsUsed !== e.drawsUsed) problems.push("drawsUsed");
+  for (const check of e.temperatureChecks) {
+    const read = run.reads[check.tick - 1];
+    if (
+      read === undefined ||
+      Math.abs(read - check.temperature) > fixture.tolerance
+    ) {
+      problems.push(`temperature@${check.tick}`);
+    }
+  }
+  return problems;
+}
+
+/** A float64 run of the same loop, to show the fixtures pin float32. */
+function heatReadsFloat64(fixture: WeaponHeatFixture): number[] {
+  const info = WEAPON_INFO[fixture.weapon];
+  const period = rechargeTicks(fixture.weapon);
+  let temperature = fixture.startTemperature;
+  let since = fixture.startTicksSinceShot;
+  const reads: number[] = [];
+  for (let tick = 1; tick <= fixture.horizon; tick += 1) {
+    if (tick > 1) {
+      temperature = Math.max(temperature - 6 / 120, 0);
+      if (since !== null) since += 1;
+    }
+    reads.push(temperature);
+    if (temperature / 256 >= 0.85) continue;
+    if (since !== null && since < period) continue;
+    temperature += info.shotTemperature;
+    since = 0;
+  }
+  return reads;
+}
+
+describe("weapon heat fixtures (heat.json)", () => {
+  const fixtures = WeaponHeatFileSchema.parse(readJson("heat.json"));
+  const byId = (id: string): WeaponHeatFixture => {
+    const found = fixtures.find((fixture) => fixture.id === id);
+    if (found === undefined) throw new Error(`no heat fixture ${id}`);
+    return found;
+  };
+
+  it("re-derives every fixture from the per-tick gate loop", () => {
+    expect(fixtures.length).toBeGreaterThanOrEqual(5);
+    for (const fixture of fixtures) {
+      expect(heatProblems(fixture), fixture.id).toEqual([]);
+      expect(fixture.id.startsWith("heat-"), fixture.id).toBe(true);
+    }
+  });
+
+  it("covers every armed laser from 0 and the start-at-cutout case", () => {
+    const weapons = new Set(fixtures.map((fixture) => fixture.weapon));
+    for (const weapon of FIRE_WEAPONS.filter((w) => w !== "EQ_WEAPON_NONE")) {
+      expect(weapons.has(weapon), weapon).toBe(true);
+    }
+    for (const id of [
+      "heat-pulse-from-zero",
+      "heat-beam-from-zero",
+      "heat-military-from-zero",
+      "heat-mining-from-zero",
+    ]) {
+      expect(byId(id).startTemperature, id).toBe(0);
+      expect(byId(id).startTicksSinceShot, id).toBeNull();
+      expect(byId(id).expected.shotTicks[0], id).toBe(1);
+    }
+    const atCutout = byId("heat-beam-start-at-cutout-refuses-then-resumes");
+    expect(atCutout.startTemperature).toBe(CUTOUT_TEMPERATURE);
+    expect(atCutout.expected.firstHeatRefusalTick).toBe(1);
+    expect(atCutout.expected.shotTicks[0]).toBe(
+      atCutout.expected.firstResumeTick,
+    );
+  });
+
+  it("fires every round(rate x 120) ticks while the cutout does not refuse", () => {
+    const period: [string, number][] = [
+      ["heat-pulse-from-zero", 60],
+      ["heat-beam-from-zero", 12],
+      ["heat-military-from-zero", 12],
+      ["heat-mining-from-zero", 300],
+    ];
+    for (const [id, ticks] of period) {
+      const shots = byId(id).expected.shotTicks;
+      const refusal = byId(id).expected.firstHeatRefusalTick;
+      const regular = shots.filter(
+        (tick) => refusal === null || tick < refusal,
+      );
+      for (let i = 1; i < regular.length; i += 1) {
+        expect(
+          (regular[i] as number) - (regular[i - 1] as number),
+          `${id} shot ${i}`,
+        ).toBe(ticks);
+      }
+    }
+  });
+
+  it("gives drawsUsed equal to the shot count, and a refusal that happens at the cutout", () => {
+    for (const fixture of fixtures) {
+      expect(fixture.expected.drawsUsed, fixture.id).toBe(
+        fixture.expected.shotTicks.length,
+      );
+      const run = deriveHeat(fixture);
+      const refusal = fixture.expected.firstHeatRefusalTick;
+      if (refusal === null) continue;
+      expect(
+        run.reads[refusal - 1] as number,
+        fixture.id,
+      ).toBeGreaterThanOrEqual(CUTOUT_TEMPERATURE);
+      const resume = fixture.expected.firstResumeTick as number;
+      expect(run.reads[resume - 1] as number, fixture.id).toBeLessThan(
+        CUTOUT_TEMPERATURE,
+      );
+    }
+  });
+
+  describe("hand closed forms (float64): the cooling is per tick, the net heat per period decides the cutout", () => {
+    const c = 6 * (1 / 120);
+    const closed = (weapon: "pulse" | "beam" | "military"): number => {
+      const info = {
+        pulse: { st: 7, period: 60 },
+        beam: { st: 3.2, period: 12 },
+        military: { st: 4.25, period: 12 },
+      }[weapon];
+      // read before shot j = (j - 1) (st - period c); after it + st; the next
+      // tick reads that minus c; the cutout refuses at the first read >= 217.6.
+      for (let j = 1; j < 1000; j += 1) {
+        const after = (j - 1) * (info.st - info.period * c) + info.st;
+        if (after - c >= CUTOUT_TEMPERATURE) {
+          return 1 + info.period * (j - 1) + 1;
+        }
+      }
+      throw new Error("no refusal");
+    };
+
+    it("predicts the first refusal tick of the pulse, beam and military runs", () => {
+      expect(closed("pulse")).toBe(
+        byId("heat-pulse-from-zero").expected.firstHeatRefusalTick,
+      );
+      expect(closed("beam")).toBe(
+        byId("heat-beam-from-zero").expected.firstHeatRefusalTick,
+      );
+      expect(closed("military")).toBe(
+        byId("heat-military-from-zero").expected.firstHeatRefusalTick,
+      );
+    });
+
+    it("shows the mining laser never heats: it cools 15 degrees per period and gains 10", () => {
+      expect(300 * c - 10).toBeGreaterThan(4.9);
+      const mining = byId("heat-mining-from-zero");
+      expect(mining.expected.firstHeatRefusalTick).toBeNull();
+      expect(mining.expected.firstResumeTick).toBeNull();
+      expect(mining.expected.shotTicks).toEqual([1, 301, 601, 901]);
+      for (const check of mining.expected.temperatureChecks) {
+        if (check.tick === 301 || check.tick === 601 || check.tick === 901) {
+          expect(check.temperature).toBe(0);
+        }
+      }
+    });
+
+    it("matches the cooling arithmetic at the first periods", () => {
+      const at = (id: string, tick: number): number => {
+        const found = byId(id).expected.temperatureChecks.find(
+          (check) => check.tick === tick,
+        );
+        if (found === undefined)
+          throw new Error(`${id} has no check at ${tick}`);
+        return found.temperature;
+      };
+      expect(at("heat-pulse-from-zero", 61)).toBeCloseTo(7 - 60 * c, 4);
+      expect(at("heat-beam-from-zero", 13)).toBeCloseTo(3.2 - 12 * c, 4);
+      expect(at("heat-military-from-zero", 13)).toBeCloseTo(4.25 - 12 * c, 4);
+      expect(at("heat-mining-from-zero", 2)).toBeCloseTo(10 - c, 5);
+    });
+  });
+
+  describe("float32: the fixtures tell a float32 run from a float64 one", () => {
+    it("differs from a float64 simulation by far more than the fixture tolerance at the refusal tick", () => {
+      for (const id of ["heat-pulse-from-zero", "heat-beam-from-zero"]) {
+        const fixture = byId(id);
+        const refusal = fixture.expected.firstHeatRefusalTick as number;
+        const wide = heatReadsFloat64(fixture)[refusal - 1] as number;
+        const narrow = fixture.expected.temperatureChecks.find(
+          (check) => check.tick === refusal,
+        )?.temperature as number;
+        expect(Math.abs(wide - narrow), id).toBeGreaterThan(
+          1e4 * fixture.tolerance,
+        );
+      }
+    });
+
+    it("cools by the float32 constant fround(6 x 1/120), which is not 0.05", () => {
+      const fixture = byId("heat-beam-start-at-cutout-refuses-then-resumes");
+      const second = fixture.expected.temperatureChecks.find(
+        (check) => check.tick === 2,
+      )?.temperature as number;
+      expect(second).toBe(Math.fround(CUTOUT_TEMPERATURE - COOLING_PER_TICK));
+      expect(Math.fround(second)).toBe(second);
+    });
+
+    it("starts a cutout run with no draw at tick 1 and resumes on the first cooled tick (timer ready), or when the timer opens", () => {
+      const ready = byId("heat-mining-start-at-cutout-refuses-then-resumes");
+      expect(ready.expected.firstHeatRefusalTick).toBe(1);
+      expect(ready.expected.firstResumeTick).toBe(2);
+      expect(ready.expected.drawsUsed).toBe(1);
+      const waiting = byId(
+        "heat-pulse-at-cutout-with-running-timer-resumes-when-the-timer-opens",
+      );
+      // 30 ticks since the shot at tick 1 and 60 needed: tick 31 is the first
+      // tick the count reaches 60, by hand.
+      expect(1 + (60 - 30)).toBe(waiting.expected.firstResumeTick);
+    });
+  });
+
+  describe("non-vacuity: the schema and the comparison refuse what they must", () => {
+    const base = byId("heat-beam-start-at-cutout-refuses-then-resumes");
+    const parse = (patch: Record<string, unknown>): boolean =>
+      WeaponHeatFixtureSchema.safeParse({ ...base, ...patch }).success;
+    const withExpected = (patch: Record<string, unknown>): boolean =>
+      parse({ expected: { ...base.expected, ...patch } });
+
+    it("accepts the unmodified fixture", () => {
+      expect(parse({})).toBe(true);
+    });
+
+    it("rejects the unarmed weapon, a non-float32 start, a horizon above 20000 and a foreign id", () => {
+      expect(parse({ weapon: "EQ_WEAPON_NONE" })).toBe(false);
+      expect(parse({ startTemperature: 217.6 })).toBe(false);
+      expect(parse({ horizon: 20001 })).toBe(false);
+      expect(parse({ horizon: 0 })).toBe(false);
+      expect(parse({ id: "gate-beam" })).toBe(false);
+      expect(parse({ tolerance: -1 })).toBe(false);
+    });
+
+    it("rejects unordered shot ticks, ticks beyond the horizon, and draws that do not equal the shots", () => {
+      expect(withExpected({ shotTicks: [3, 2], drawsUsed: 2 })).toBe(false);
+      expect(withExpected({ shotTicks: [2, 2], drawsUsed: 2 })).toBe(false);
+      expect(withExpected({ shotTicks: [41], drawsUsed: 1 })).toBe(false);
+      expect(withExpected({ drawsUsed: 5 })).toBe(false);
+    });
+
+    it("rejects checks beyond the horizon, unordered checks, no checks and a non-float32 check", () => {
+      expect(
+        withExpected({ temperatureChecks: [{ tick: 41, temperature: 1 }] }),
+      ).toBe(false);
+      expect(
+        withExpected({
+          temperatureChecks: [
+            { tick: 2, temperature: 1 },
+            { tick: 1, temperature: 1 },
+          ],
+        }),
+      ).toBe(false);
+      expect(withExpected({ temperatureChecks: [] })).toBe(false);
+      expect(
+        withExpected({ temperatureChecks: [{ tick: 1, temperature: 0.1 }] }),
+      ).toBe(false);
+    });
+
+    it("rejects a resume without a refusal, a resume at or before the refusal, and a resume that is not a shot", () => {
+      expect(withExpected({ firstHeatRefusalTick: null })).toBe(false);
+      expect(withExpected({ firstResumeTick: 1 })).toBe(false);
+      expect(withExpected({ firstResumeTick: 3 })).toBe(false);
+    });
+
+    it("rejects duplicate ids in a file", () => {
+      expect(WeaponHeatFileSchema.safeParse([base, base]).success).toBe(false);
+    });
+
+    it("lets the comparison see a wrong refusal tick, a wrong shot list and a wrong temperature", () => {
+      expect(
+        heatProblems({
+          ...base,
+          expected: { ...base.expected, firstHeatRefusalTick: 2 },
+        }),
+      ).toContain("firstHeatRefusalTick");
+      expect(
+        heatProblems({
+          ...base,
+          expected: { ...base.expected, shotTicks: [3], drawsUsed: 1 },
+        }),
+      ).toContain("shotTicks");
+      expect(
+        heatProblems({
+          ...base,
+          expected: {
+            ...base.expected,
+            temperatureChecks: [{ tick: 2, temperature: 217.5 }],
+          },
+        }),
+      ).toContain("temperature@2");
+      expect(heatProblems(base)).toEqual([]);
+    });
+  });
+});
+
+// The gate fixtures and the heat loop agree: the loop is the gate called once
+// per tick, so a one-tick gate fixture and a heat run give the same shot.
+describe("the heat loop is the gate", () => {
+  it("fires at tick 1 from cold exactly as a clean gate call does", () => {
+    const clean = deriveGate({
+      weapon: "EQ_WEAPON_BEAM_LASER",
+      input: {
+        temperature: 0,
+        energy: 1e9,
+        ticksSinceShot: null,
+        accuracy: 0,
+        range: 0,
+        onTarget: true,
+      },
+      draws: [0.5, 0.25],
+    });
+    expect(clean.fired).toBe(true);
+    const run = deriveHeat({
+      weapon: "EQ_WEAPON_BEAM_LASER",
+      startTemperature: 0,
+      startTicksSinceShot: null,
+      horizon: 1,
+    });
+    expect(run.shotTicks).toEqual([1]);
+    expect(run.drawsUsed).toBe(clean.drawsUsed);
   });
 });

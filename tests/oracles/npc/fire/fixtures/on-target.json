@@ -1,0 +1,586 @@
+[
+  {
+    "id": "on-target-no-live-target-reports-the-aim-tolerance",
+    "title": "with no live target onTarget is NO, and the aim tolerance of accuracy 0 with no misses is still sqrt(1 - 240^2 / 1e8)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810",
+      "src/Core/Entities/ShipEntity.m:1126-1143"
+    ],
+    "derivation": "primaryTarget nil answers NO (9863-9864) before any geometry. currentAimTolerance does not look at the target: aim_tolerance = 240 - 18 x 0 = 240 (setAccuracy, 1138), accuracy 0 is not below COMBAT_AI_ISNT_AWFUL so best_cos = 0.999999 and basic_aim /= 1 + 0/4 = 1 (9765-9770); max_cos = sqrt(1 - 240^2 / 1e8) = sqrt(0.999424) = 0.99971196..., below best_cos, so it is the answer (9804-9810). Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 0,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": false,
+      "aimPoint": [0, 0, 5000],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9997119307518005,
+      "onTarget": false
+    }
+  },
+  {
+    "id": "on-target-target-behind-is-no",
+    "title": "a target behind the shooter has dq = -1 and onTarget is NO",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "rel_pos = (0, 0, -5000), urp = (0, 0, -1), dq = urp . v_forward = -1; dq < 0.0 answers NO (9897-9898). Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 0,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, -5000],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9997119307518005,
+      "onTarget": false
+    }
+  },
+  {
+    "id": "on-target-perpendicular-dq-zero-is-no",
+    "title": "a target exactly abeam has dq = 0: not negative, not inside the aim circle, and below the astq cosine",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "dq = 0 is not below 0, so 9897-9898 does not refuse; 0 > aim x aim is false (9900-9902); astq = sqrt(1 - 50^2 / (9 x 25e6)) = sqrt(1 - 1.11e-5) is about 0.999994 and 0 >= 0.999994 is false (9907-9909): NO. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 0,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [5000, 0, 0],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9997119307518005,
+      "onTarget": false
+    }
+  },
+  {
+    "id": "on-target-awful-accuracy-minus-5-dead-ahead",
+    "title": "accuracy -5 takes no missed-shots term: aim tolerance sqrt(1 - 330^2 / 1e8) with best_cos 0.99999",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810",
+      "src/Core/Entities/ShipEntity.m:1126-1143"
+    ],
+    "derivation": "aim_tolerance = 240 - 18 x -5 = 330 (setAccuracy, 1138) = 330. Accuracy -5 is below COMBAT_AI_ISNT_AWFUL, so neither division applies and best_cos stays 0.99999 (9763-9764); max_cos = sqrt(1 - 330^2 / 1e8) = sqrt(0.998911) = 0.99945..., below best_cos, so the answer is max_cos (9804-9810). The target is dead ahead: dq = 1 > aim x aim, so YES (9900-9902). Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": -5,
+      "missedShots": 0,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, 5000],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9994553327560425,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-awful-ignores-missed-shots",
+    "title": "at accuracy -5, 31 missed shots leave the aim tolerance of the zero-miss fixture unchanged",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "The basic_aim /= 1 + missedShots / 4 term sits inside accuracy >= COMBAT_AI_ISNT_AWFUL (9765-9770) and is skipped at accuracy -5: the aim tolerance is the same 0.99945... as with 0 misses. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": -5,
+      "missedShots": 31,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, 5000],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9994553327560425,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-accuracy-0-missed-0-marginal-pose-is-yes",
+    "title": "accuracy 0, no misses: a pose at dq = 0.99970 is inside the aim circle (aim x aim = 0.999424)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "The target is at (245, 0, 10000) from a shooter at the origin facing +z: dq = 10000 / sqrt(10000^2 + 245^2) and its radius is 100, so astq = sqrt(1 - 100^2 / (9 d2)) = 0.9999944... dq = 0.99970. With 0 misses aim = 0.99971196 and aim x aim = 0.99942...; dq > aim x aim, so YES (9900-9902). Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 0,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [245, 0, 10000],
+      "targetRadius": 100
+    },
+    "expected": {
+      "aimTolerance": 0.9997119307518005,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-accuracy-0-missed-3-marginal-pose-is-no",
+    "title": "the same pose after 3 misses: basic_aim /= 1.75 tightens the aim circle and the shot is withheld",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "The target is at (245, 0, 10000) from a shooter at the origin facing +z: dq = 10000 / sqrt(10000^2 + 245^2) and its radius is 100, so astq = sqrt(1 - 100^2 / (9 d2)) = 0.9999944... dq = 0.99970. basic_aim = 240 / (1 + 3/4) = 137.142857 (9769), max_cos = sqrt(1 - 137.142857^2 / 1e8) = 0.99990596, aim x aim = 0.99981193; dq is no longer above it, so the astq test runs: 0.99970 >= 0.9999944 is false, NO. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 3,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [245, 0, 10000],
+      "targetRadius": 100
+    },
+    "expected": {
+      "aimTolerance": 0.9999059438705444,
+      "onTarget": false
+    }
+  },
+  {
+    "id": "on-target-accuracy-0-missed-31-marginal-pose-is-no",
+    "title": "the same pose after 31 misses stays NO: basic_aim /= 8.75",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "The target is at (245, 0, 10000) from a shooter at the origin facing +z: dq = 10000 / sqrt(10000^2 + 245^2) and its radius is 100, so astq = sqrt(1 - 100^2 / (9 d2)) = 0.9999944... basic_aim = 240 / (1 + 31/4) = 27.428571, max_cos = sqrt(1 - 27.428571^2 / 1e8) = 0.99999624 (below best_cos 0.999999), aim x aim = 0.9999925; dq 0.99970 is below it and below astq: NO. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 31,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [245, 0, 10000],
+      "targetRadius": 100
+    },
+    "expected": {
+      "aimTolerance": 0.9999962449073792,
+      "onTarget": false
+    }
+  },
+  {
+    "id": "on-target-accuracy-0-missed-3-closer-pose-is-yes",
+    "title": "after 3 misses a pose at dq = 0.99995 is still inside the tightened circle (aim x aim = 0.999812)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "The target is at (100, 0, 10000) from a shooter at the origin facing +z: dq = 10000 / sqrt(10000^2 + 100^2) and its radius is 100, so astq = sqrt(1 - 100^2 / (9 d2)) = 0.9999944... dq = 0.99995 > 0.99981193 = aim x aim at 3 misses: YES. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 3,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [100, 0, 10000],
+      "targetRadius": 100
+    },
+    "expected": {
+      "aimTolerance": 0.9999059438705444,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-accuracy-0-missed-31-closer-pose-is-no",
+    "title": "after 31 misses the same dq = 0.99995 pose falls outside the circle (aim x aim = 0.9999925)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "The target is at (100, 0, 10000) from a shooter at the origin facing +z: dq = 10000 / sqrt(10000^2 + 100^2) and its radius is 100, so astq = sqrt(1 - 100^2 / (9 d2)) = 0.9999944... dq = 0.99995 is below aim x aim = 0.9999925 at 31 misses, and below astq 0.9999944: NO. The same pose answers YES at 0 and 3 misses, so the missed-shots term alone flips the answer. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 31,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [100, 0, 10000],
+      "targetRadius": 100
+    },
+    "expected": {
+      "aimTolerance": 0.9999962449073792,
+      "onTarget": false
+    }
+  },
+  {
+    "id": "on-target-accuracy-5-missed-3-aim-tolerance",
+    "title": "accuracy 5, 3 misses: aim_tolerance 150 / 1.75 gives 0.999963",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810",
+      "src/Core/Entities/ShipEntity.m:1126-1143"
+    ],
+    "derivation": "aim_tolerance = 240 - 18 x 5 = 150 (setAccuracy, 1138) = 150; basic_aim = 150 / 1.75 = 85.714286 (9769); max_cos = sqrt(1 - 85.714286^2 / 1e8) = 0.99996327, below best_cos 0.999999. Dead ahead: YES. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 5,
+      "missedShots": 3,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, 5000],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9999632835388184,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-accuracy-5-missed-31-aim-tolerance",
+    "title": "accuracy 5, 31 misses: aim_tolerance 150 / 8.75 gives 0.9999985",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810",
+      "src/Core/Entities/ShipEntity.m:1126-1143"
+    ],
+    "derivation": "basic_aim = 150 / 8.75 = 17.142857; max_cos = sqrt(1 - 17.142857^2 / 1e8) = 0.99999853, below best_cos 0.999999 (by 4.7e-7, several float32 steps, so the answer is max_cos in both widths). Dead ahead: YES. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 5,
+      "missedShots": 31,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, 5000],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9999985098838806,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-accuracy-7-missed-31-clamps-to-best-cos",
+    "title": "accuracy 7, 31 misses: max_cos 0.99999915 exceeds best_cos, so the answer clamps to 0.999999",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810",
+      "src/Core/Entities/ShipEntity.m:1126-1143"
+    ],
+    "derivation": "aim_tolerance = 240 - 18 x 7 = 114 (setAccuracy, 1138) = 114; basic_aim = 114 / 8.75 = 13.028571; max_cos = sqrt(1 - 13.028571^2 / 1e8) = 0.99999915, which is not below best_cos 0.999999, so currentAimTolerance returns best_cos = fround(0.999999) (9806-9810). Dead ahead: YES. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 7,
+      "missedShots": 31,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, 5000],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9999989867210388,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-accuracy-7p5-deadly-divides-by-five",
+    "title": "accuracy 7.5 (COMBAT_AI_TRACKS_CLOSER): aim_tolerance 105 / 5 and best_cos 0.9999999",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810",
+      "src/Core/Entities/ShipEntity.m:1126-1143"
+    ],
+    "derivation": "aim_tolerance = 240 - 18 x 7.5 = 105 (setAccuracy, 1138) = 105; accuracy >= 7.5 sets best_cos = 0.9999999 and basic_aim /= 5.0 (9771-9776) on top of the zero-miss division by 1: basic_aim = 21; max_cos = sqrt(1 - 21^2 / 1e8) = 0.99999779, below best_cos. Dead ahead: YES. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 7.5,
+      "missedShots": 0,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, 5000],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9999977946281433,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-accuracy-7p5-missed-3-both-divisions",
+    "title": "accuracy 7.5, 3 misses: both the missed-shots and the deadly divisions apply (105 / 1.75 / 5 = 12)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "basic_aim = 105 / 1.75 = 60 (9769) then 60 / 5 = 12 (9775); max_cos = sqrt(1 - 12^2 / 1e8) = 0.99999928, below best_cos 0.9999999. Dead ahead: YES. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 7.5,
+      "missedShots": 3,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, 5000],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9999992847442627,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-accuracy-9-missed-0-deadly-aim",
+    "title": "accuracy 9: aim_tolerance 78 / 5 = 15.6 gives 0.99999878",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810",
+      "src/Core/Entities/ShipEntity.m:1126-1143"
+    ],
+    "derivation": "aim_tolerance = 240 - 18 x 9 = 78 (setAccuracy, 1138) = 78; basic_aim = 78 / 5 = 15.6; max_cos = sqrt(1 - 15.6^2 / 1e8) = 0.99999878, below best_cos 0.9999999. Dead ahead: YES. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 9,
+      "missedShots": 0,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, 5000],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9999988079071045,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-accuracy-9-missed-31-clamps-to-deadly-best-cos",
+    "title": "accuracy 9, 31 misses: max_cos rounds above best_cos, so the answer is 0.9999999",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "basic_aim = 78 / 8.75 / 5 = 1.782857; max_cos = sqrt(1 - 1.782857^2 / 1e8) = 0.99999998, above best_cos 0.9999999, so the answer is best_cos (fround(0.9999999) in float32). Dead ahead: YES. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 9,
+      "missedShots": 31,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, 5000],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9999998807907104,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-astq-path-yes-offset-rotated-shooter",
+    "title": "outside the aim circle but inside the astq cone: dq 0.99899 >= astq 0.99778 answers YES (rotated frame, offset shooter)",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810",
+      "src/Core/Entities/ShipEntity.m:5412-5423"
+    ],
+    "derivation": "Shooter at (1000, -500, 2000) with forward (0.6, 0, 0.8), right (0.8, 0, -0.6); the aim point is 1000 m ahead and 45 m to the right: (1636, -500, 2773), so rel_pos = (636, 0, 773), d2 = 1002025 and dq = 1000 / sqrt(1002025) = 0.99899. With accuracy 0 and no misses aim x aim = 0.999424, so dq > aim x aim is false; astq = sqrt(1 - 200^2 / (9 x 1002025)) = 0.997776; dq >= astq: YES (9907-9909). Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 0,
+      "position": [1000, -500, 2000],
+      "forward": [0.6, 0, 0.8],
+      "up": [0, 1, 0],
+      "right": [0.8, 0, -0.6],
+      "targetPresent": true,
+      "targetRadius": 200,
+      "aimPoint": [1636, -500, 2773]
+    },
+    "expected": {
+      "aimTolerance": 0.9997119307518005,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-astq-path-no-offset-rotated-shooter",
+    "title": "outside the aim circle and outside the astq cone: dq 0.99756 < astq 0.99779 answers NO",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810",
+      "src/Core/Entities/ShipEntity.m:5412-5423"
+    ],
+    "derivation": "The aim point is 1000 m ahead and 70 m to the right: (1656, -500, 2758), d2 = 1004900, dq = 1000 / sqrt(1004900) = 0.99756; astq = sqrt(1 - 200^2 / (9 x 1004900)) = 0.997786; dq < astq: NO. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 0,
+      "position": [1000, -500, 2000],
+      "forward": [0.6, 0, 0.8],
+      "up": [0, 1, 0],
+      "right": [0.8, 0, -0.6],
+      "targetPresent": true,
+      "targetRadius": 200,
+      "aimPoint": [1656, -500, 2758]
+    },
+    "expected": {
+      "aimTolerance": 0.9997119307518005,
+      "onTarget": false
+    }
+  },
+  {
+    "id": "on-target-radius-too-large-makes-astq-nan-no",
+    "title": "a target radius with radius^2 > 9 d2 makes astq NaN and the answer NO",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "The target is 100 m away at 45 degrees (dq = 0.7071, outside the aim circle). radius^2 = 160000 > 9 x d2 = 90000, so 1 - radius^2 / (9 d2) is negative, sqrt gives NaN and fabs(dq) >= NaN is false: NO (9907-9909). Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 0,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [70.7106781186548, 0, 70.7106781186548],
+      "targetRadius": 400
+    },
+    "expected": {
+      "aimTolerance": 0.9997119307518005,
+      "onTarget": false
+    }
+  },
+  {
+    "id": "on-target-zero-relative-position-uses-the-z-basis-yes",
+    "title": "a target at the shooter's own position gives the +z basis: dq = forward.z = 1 and the answer is YES",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "rel_pos = 0 so vector_normal_or_zbasis returns (0, 0, 1) (OOVector.h:247-253, 265-268); dq = (0, 0, 1) . (0, 0, 1) = 1 > aim x aim: YES, reached before astq (whose d2 = 0 would give NaN). Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 0,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, 0],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9997119307518005,
+      "onTarget": true
+    }
+  },
+  {
+    "id": "on-target-zero-relative-position-facing-away-is-no",
+    "title": "the same coincident target with the shooter facing -z: dq = -1 and the answer is NO",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "The +z basis against forward (0, 0, -1) gives dq = -1 < 0: NO (9897-9898). A zero vector fallback of anything else would not give this pair of answers. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 0,
+      "position": [0, 0, 0],
+      "forward": [0, 0, -1],
+      "up": [0, 1, 0],
+      "right": [-1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [0, 0, 0],
+      "targetRadius": 50
+    },
+    "expected": {
+      "aimTolerance": 0.9997119307518005,
+      "onTarget": false
+    }
+  },
+  {
+    "id": "on-target-equality-dq-equals-astq-both-widths",
+    "title": "the exact equality |dq| = astq answers YES (>=) in float32 and in float64",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9851-9909",
+      "src/Core/Entities/ShipEntity.m:9761-9810"
+    ],
+    "derivation": "Target offset x = radius / 3 puts it exactly on the astq cone: d2 = 10^2 + 40^2 = 1700, dq = 40 / sqrt(1700) and astq = sqrt(1 - 30^2 / (9 x 1700)) = sqrt(1600 / 1700), the same number. With accuracy 0 and no misses aim x aim = 0.999424 and dq = 0.97014 is far below it, so the astq test decides, and 9909 is fabs(dq) >= astq: equality is YES. Oolite computes dq, d2, radius, aim and astq as GLfloat (9855-9907): the self-test evaluates this pose with every step rounded to float32 (dq = astq = 0.9701424837112427) and in float64 (dq = astq = 0.9701425001453319): both widths compare equal, so the answer is the same in both. Other exact-equality poses (for example (10, 0, 23) with radius 30) round differently in the two widths and a float64 port answers NO there while Oolite's float32 answers YES; the self-test records that difference but no fixture demands it. Scope cuts recorded by Phase 14: both ships are sunlit, so the 9868 clause is false at its second operand and draws nothing, no sun glare enters currentAimTolerance, and the weapon is forward (no 9777-9784 terms).",
+    "tolerance": 1e-7,
+    "input": {
+      "accuracy": 0,
+      "missedShots": 0,
+      "position": [0, 0, 0],
+      "forward": [0, 0, 1],
+      "up": [0, 1, 0],
+      "right": [1, 0, 0],
+      "targetPresent": true,
+      "aimPoint": [10, 0, 40],
+      "targetRadius": 30
+    },
+    "expected": {
+      "aimTolerance": 0.9997119307518005,
+      "onTarget": true
+    }
+  }
+]
