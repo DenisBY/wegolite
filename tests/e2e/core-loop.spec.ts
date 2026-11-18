@@ -92,7 +92,7 @@ function scaled(milliseconds: number): number {
 /** The bound for one UI or probe wait, before scaling. */
 const UI_WAIT = scaled(30_000);
 
-test.setTimeout(scaled(900_000));
+test.setTimeout(scaled(1_200_000));
 
 async function waitReady(page: Page): Promise<void> {
   await page.waitForFunction(
@@ -238,7 +238,9 @@ async function snapshot(page: Page): Promise<JourneySnapshot> {
 /**
  * Hold the throttle (`KeyW`) until the ship is at least `metres` from `origin`.
  * About 21 s of simulated throttle reaches 7,500 m, which is roughly 90 to 130 s
- * of wall time under SwiftShader. The key is released in a finally block.
+ * of wall time under SwiftShader and has run past 240 s on a GitHub runner
+ * (run 44311124627), so the bound is 480 s, as the autosave and hyperspace
+ * fly-away waits. The key is released in a finally block.
  */
 async function flyAwayFrom(
   page: Page,
@@ -255,7 +257,7 @@ async function flyAwayFrom(
         return Math.hypot(x - from[0], y - from[1], z - from[2]) >= distance;
       },
       { from: origin, distance: metres },
-      { timeout: scaled(240_000) },
+      { timeout: scaled(480_000) },
     );
   } finally {
     await page.keyboard.up("KeyW");
