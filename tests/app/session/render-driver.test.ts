@@ -22,7 +22,6 @@ import {
   createRedrawGate,
 } from "../../../src/app/redraw-gate.js";
 import type { RedrawGate } from "../../../src/app/redraw-gate.js";
-import { createLaunchSequence } from "../../../src/app/launch-sequence.js";
 import { createNpcModelLoader } from "../../../src/app/npc-models.js";
 import type { NpcModelLoader } from "../../../src/app/npc-models.js";
 import { createSessionState } from "../../../src/app/session/context.js";
@@ -35,8 +34,18 @@ import type { Hud } from "../../../src/render/hud/hud.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { MessageQueue } from "../../../src/render/hud/messages.js";
 import type { SystemScene } from "../../../src/render/system-scene.js";
+import {
+  computeCockpitCamera,
+  computeSlotLaunchCamera,
+  launchViewElapsed,
+  launchViewStationAngle,
+} from "../../../src/render/launch-camera.js";
+import { interpolatePose } from "../../../src/render/sync.js";
+import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
+import { stepFlight } from "../../../src/sim/flight/step.js";
+import { DT } from "../../../src/sim/time.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
-import { initFlightState } from "../../../src/sim/flight/state.js";
+import { initFlightState, poseOf } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
 import {
@@ -58,6 +67,7 @@ import type { TrafficContent } from "../../../src/app/session/traffic.js";
 import { populateInertWorld } from "../../../src/sim/world/populate.js";
 import type { HudModel } from "../../../src/render/hud/draw.js";
 import { laveInertRecords } from "../../helpers/inert-world.js";
+import { laveDockGeometry } from "../../helpers/dock-pose.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const { system, layout, config } = laveFixture();
@@ -71,6 +81,8 @@ interface Harness {
   readonly nebula: { revision: number };
   /** The driver's real message queue, so a row's countdown can be read. */
   readonly messages: MessageQueue;
+  /** The HUD canvas double, so its `hidden` flag can be read. */
+  readonly hudCanvas: { hidden: boolean };
 }
 
 /** A scene double: the driver's gate only reads the nebula revision. */
@@ -105,6 +117,7 @@ function harness(options: HarnessOptions = {}): Harness {
   const probeUpdates: number[] = [];
   const nebula = { revision: 0 };
   const messages = createMessageQueue();
+  const hudCanvas = { hidden: false };
   ctx.core.state = initFlightState(layout);
   ctx.core.scene = fakeScene(nebula);
   const driver = createRenderDriver(ctx, {
@@ -114,18 +127,26 @@ function harness(options: HarnessOptions = {}): Harness {
         options.onRender?.();
       },
     } as unknown as THREE.WebGLRenderer,
-    hudCanvas: { hidden: false } as HTMLCanvasElement,
+    hudCanvas: hudCanvas as HTMLCanvasElement,
     probe: {} as WegoliteProbe,
     redrawGate: gate,
     messages,
-    launchSequence: createLaunchSequence(),
     galaxyById: new Map([[system.id, system]]),
     updateProbe: () => probeUpdates.push(1),
     renderStation: () => undefined,
     targetSystem: () => undefined,
     npcModels: options.npcModels ?? idleLoader(),
   });
-  return { ctx, gate, driver, renders, probeUpdates, nebula, messages };
+  return {
+    ctx,
+    gate,
+    driver,
+    renders,
+    probeUpdates,
+    nebula,
+    messages,
+    hudCanvas,
+  };
 }
 
 /** Run `frames` loop frames as frame() does: decide, then record a drawn frame. */
@@ -920,5 +941,89 @@ describe("renderFrame message clock (quick task 261117-u3m)", () => {
         .at(-1)
         ?.messageRows.some((row) => row.text === "Docking computers engaged"),
     ).toBe(false);
+  });
+});
+
+describe("renderFrame launch view from inside the dock slot (quick 261118-l26)", () => {
+  /** A real sim launch, `steps` launching steps in, with its last two poses. */
+  function launchingSession(steps: number) {
+    const h = harness();
+    const models: HudModel[] = [];
+    const angles: number[] = [];
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    h.ctx.core.dockGeometry = laveDockGeometry();
+    const scene = flyableScene(h.nebula);
+    (scene.station as { update: (angle: number) => void }).update = (
+      angle: number,
+    ) => angles.push(angle);
+    h.ctx.core.scene = scene;
+    h.ctx.runtime.hud = {
+      draw: (model: HudModel) => models.push(model),
+    } as unknown as Hud;
+    const state = initFlightState(layout);
+    stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+    let previous = poseOf(state);
+    for (let index = 0; index < steps; index += 1) {
+      previous = poseOf(state);
+      stepFlight(state, layout, config, ZERO_INTENT, [], DT);
+    }
+    h.ctx.core.state = state;
+    h.ctx.core.previousPose = previous;
+    h.ctx.core.currentPose = poseOf(state);
+    return { h, models, angles, scene, state };
+  }
+
+  it("draws from the slot camera at the interpolated pose and station angle, with the hull and HUD hidden", () => {
+    for (const [steps, alpha] of [
+      [0, 0.5],
+      [24, 0.25],
+      [120, 1],
+      [239, 0.75],
+    ] as const) {
+      const { h, models, angles, scene, state } = launchingSession(steps);
+      expect(state.mode).toBe("launching");
+      h.driver.renderFrame(alpha);
+      const elapsed = launchViewElapsed(state.launchElapsed, alpha);
+      const pose = interpolatePose(
+        h.ctx.core.previousPose,
+        h.ctx.core.currentPose,
+        alpha,
+      );
+      const expected = computeSlotLaunchCamera(
+        layout,
+        laveDockGeometry().port.depth,
+        pose.position,
+        pose.orientation,
+        elapsed,
+      );
+      expect(h.ctx.core.previousCameraWorld).toEqual(expected.position);
+      expect(angles).toEqual([launchViewStationAngle(layout, elapsed)]);
+      expect(scene.ship.visible).toBe(false);
+      expect(h.hudCanvas.hidden).toBe(true);
+      expect(models).toHaveLength(0);
+      expect(h.renders).toHaveLength(1);
+    }
+  });
+
+  it("shows and draws the HUD in flight, still without the hull", () => {
+    const { h, models, angles, scene, state } = launchingSession(10);
+    h.ctx.core.state = { ...state, mode: "inFlight" };
+    h.driver.renderFrame(1);
+    expect(h.hudCanvas.hidden).toBe(false);
+    expect(models).toHaveLength(1);
+    expect(scene.ship.visible).toBe(false);
+    expect(angles).toEqual([state.stationAngle]);
+  });
+
+  it("draws from the plain cockpit pose when the dock geometry is missing", () => {
+    const { h, state } = launchingSession(24);
+    h.ctx.core.dockGeometry = undefined;
+    expect(() => {
+      h.driver.renderFrame(1);
+    }).not.toThrow();
+    expect(h.ctx.core.previousCameraWorld).toEqual(
+      computeCockpitCamera(state.position, state.orientation).position,
+    );
   });
 });

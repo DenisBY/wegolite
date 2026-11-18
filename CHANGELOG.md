@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Launching now shows the view from your cockpit, starting deep inside the
+  station's docking slot and flying out through it toward the planet, instead
+  of the abstract tunnel animation.
+
 ## [0.6.0] - 2026-11-18
 
 ### Added

@@ -352,7 +352,6 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     probe,
     redrawGate,
     messages,
-    launchSequence,
     galaxyById,
     updateProbe: probePublisher.updateProbe,
     renderStation,

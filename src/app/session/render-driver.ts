@@ -33,8 +33,10 @@ import { sub, vec } from "../../sim/math.js";
 import { aegisStatus } from "../../sim/world/aegis.js";
 import { debrisContacts, npcContacts } from "../../sim/world/contacts.js";
 import {
-  computeLaunchCamera,
+  computeSlotLaunchCamera,
   computeViewCamera,
+  launchViewElapsed,
+  launchViewStationAngle,
 } from "../../render/launch-camera.js";
 import type { CameraPose } from "../../render/launch-camera.js";
 import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
@@ -54,7 +56,6 @@ import type { IdentFrame } from "../../render/hud/projection.js";
 import { buildHudModel } from "../hud-model.js";
 import { hintGauges } from "../hints.js";
 import type { HintContext } from "../hints.js";
-import type { LaunchSequence } from "../launch-sequence.js";
 import type { NpcModelLoader } from "../npc-models.js";
 import type { WegoliteProbe } from "../probe.js";
 import type { RedrawGate } from "../redraw-gate.js";
@@ -67,7 +68,6 @@ export interface RenderDriverDeps {
   readonly probe: WegoliteProbe;
   readonly redrawGate: RedrawGate;
   readonly messages: MessageQueue;
-  readonly launchSequence: LaunchSequence;
   readonly galaxyById: ReadonlyMap<string, System>;
   /** The probe publisher's per-frame publication. */
   readonly updateProbe: () => void;
@@ -90,7 +90,6 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     probe,
     redrawGate,
     messages,
-    launchSequence,
     galaxyById,
     updateProbe,
     renderStation,
@@ -148,17 +147,38 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // through here, so a rebuilt scene can never leave the field stale.
     probe.aspect = currentScene.camera.aspect;
 
-    applyStationRoll(currentScene, currentState.stationAngle);
-    // The launch cinematic and the cockpit handover supply a world pose; while
-    // docked the first-person pose is derived from the interpolated ship pose.
+    // The launch view and the cockpit supply a world pose; while docked the
+    // first-person pose is derived from the interpolated ship pose.
     const pose = interpolatePose(
       ctx.core.previousPose,
       ctx.core.currentPose,
       alpha,
     );
+    const launching = currentState.mode === "launching";
+    // D-10 (quick 261118-l26): the launch time of the interpolated pose. The
+    // station is rolled at that same time, so the slot walls hold still
+    // against a camera that rolls with the hull.
+    const viewElapsed = launching
+      ? launchViewElapsed(currentState.launchElapsed, alpha)
+      : 0;
+    applyStationRoll(
+      currentScene,
+      launching
+        ? launchViewStationAngle(currentLayout, viewElapsed)
+        : currentState.stationAngle,
+    );
     let camera: CameraPose | null = null;
-    if (currentState.mode === "launching") {
-      camera = computeLaunchCamera(currentLayout, pose.position);
+    if (launching) {
+      // The cockpit view from inside the dock slot (owner decision
+      // 2026-11-18, option 1). The slot depth is the station's dock data,
+      // read live at this call (G-8); without it the view is the cockpit.
+      camera = computeSlotLaunchCamera(
+        currentLayout,
+        ctx.core.dockGeometry?.port.depth,
+        pose.position,
+        pose.orientation,
+        viewElapsed,
+      );
     } else if (currentState.mode === "inFlight") {
       // CBT-04: the camera follows the sim's current view (also the weapon
       // facing); a missing combat state is the fore view.
@@ -189,9 +209,8 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       currentState.torus.factor,
     );
     ctx.core.previousCameraWorld = cameraWorld;
-    // D-10: the Cobra is shown for the scripted exit and hidden in the cockpit;
-    // it is toggled, never rebuilt.
-    currentScene.ship.visible = currentState.mode === "launching";
+    // The cockpit view never shows the player's own hull, the launch included.
+    currentScene.ship.visible = false;
 
     // WORLD-15: id-free ship contacts from the live world, read at this frame
     // and not kept (G-8); no world (docked, traffic off) is empty. The one
@@ -270,51 +289,40 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       );
     }
 
-    // The flight HUD is not drawn while docked (D-09 shows the status panel).
-    const isDocked = currentState.mode === "docked";
-    hudCanvas.hidden = isDocked;
-    if (!isDocked && draw) {
-      const currentBreakPattern = ctx.runtime.breakPattern;
-      if (
-        currentState.mode === "launching" &&
-        currentBreakPattern !== undefined
-      ) {
-        // D-10: the break pattern covers the cut to the cockpit, and is driven
-        // by the same fixed-step timeline as the launch itself.
-        currentBreakPattern.draw(
-          launchSequence.elapsed,
-          currentState.launchCount,
-        );
-      } else {
-        // Oolite's message rows (quick task 261117-pij): the bottom
-        // HUD_MESSAGE_ROWS of the ten, newest at the bottom.
-        const rows = messages.rows(messageClock, HUD_MESSAGE_ROWS);
-        const message = messages.current(messageClock);
-        const model = buildHudModel(
-          currentState,
-          currentLayout,
-          currentConfig,
-          message,
-          ctx.core.profile.fuel,
-          ctx.core.dockFeedback.flashAlpha(currentState.flightTime),
-          targetSystem()?.name ?? "",
-          contacts,
-          {
-            combat: ctx.core.combat,
-            identFrame: identFrameFor(currentScene.camera, camera),
-            viewAspect: currentScene.camera.aspect,
-            messageRows: rows,
-            // Oolite's hostiles flag (`PlayerEntity.m:2935-2950`), read from
-            // the live world at this frame and not kept (G-8).
-            hostiles: hostilesNearPlayer(
-              ctx.core.worldLifecycle?.world,
-              currentState.position,
-            ),
-          },
-        );
-        currentHud.draw(model);
-        ctx.core.lastModel = model;
-      }
+    // The flight HUD is not drawn while docked (D-09 shows the status panel)
+    // or while launching: it appears at handover (quick 261118-l26; Oolite
+    // draws it while launching, recorded as a todo for the owner).
+    const hudHidden = currentState.mode === "docked" || launching;
+    hudCanvas.hidden = hudHidden;
+    if (!hudHidden && draw) {
+      // Oolite's message rows (quick task 261117-pij): the bottom
+      // HUD_MESSAGE_ROWS of the ten, newest at the bottom.
+      const rows = messages.rows(messageClock, HUD_MESSAGE_ROWS);
+      const message = messages.current(messageClock);
+      const model = buildHudModel(
+        currentState,
+        currentLayout,
+        currentConfig,
+        message,
+        ctx.core.profile.fuel,
+        ctx.core.dockFeedback.flashAlpha(currentState.flightTime),
+        targetSystem()?.name ?? "",
+        contacts,
+        {
+          combat: ctx.core.combat,
+          identFrame: identFrameFor(currentScene.camera, camera),
+          viewAspect: currentScene.camera.aspect,
+          messageRows: rows,
+          // Oolite's hostiles flag (`PlayerEntity.m:2935-2950`), read from
+          // the live world at this frame and not kept (G-8).
+          hostiles: hostilesNearPlayer(
+            ctx.core.worldLifecycle?.world,
+            currentState.position,
+          ),
+        },
+      );
+      currentHud.draw(model);
+      ctx.core.lastModel = model;
     }
     showHint(currentState);
     updateProbe();
