@@ -823,6 +823,17 @@ export interface DispatchInput {
   /** |self.velocity - target.velocity|, velocity = forward x flightSpeed (11159-11166). */
   relativeSpeed: number;
   maxFlightPitch: number;
+  /**
+   * `forward_weapon_temp` (4053), a float32 value; absent means 0 (every armed
+   * forward weapon ready, the Phase 14 cut).
+   */
+  forwardWeaponTemp?: number;
+  /** `[target isShip]` (4122); needed once the temperature reaches READY. */
+  targetIsShip?: boolean;
+  /** `[target primaryTarget] == self` (4122); needed once the temperature reaches READY. */
+  targetTargetsSelf?: boolean;
+  /** `randf()`, taken at 4102 only for accuracy >= IS_SMART in the overheated branch. */
+  unit?: () => number;
 }
 
 export interface DispatchResult {
@@ -835,21 +846,100 @@ export interface DispatchResult {
 }
 
 /**
- * The dispatcher over one forward weapon under the weapon-temperature-0 cut
- * (every armed forward weapon is ready, `4079`; the heating branch at 4122 and
- * the unarmed-evasive branch at 4100-4106 are unreachable; no aft, port or
- * starboard weapon exists for the nine records).
+ * The dispatcher over one forward weapon (4038-4185). The forward weapon is
+ * READY below `WEAPON_TEMP_READY` (4079); with none ready the dispatcher is
+ * "less picky" and accepts a temperature below USABLE (4084-4090, the heating
+ * case); a forward weapon that is not even usable is the overheated case
+ * (4095-4120). Aft, port and starboard weapons are none on every compiled
+ * record, so RUNNING_DEFENSE and ATTACK_BROADSIDE (4131-4136, 4171-4176) are
+ * unreachable, and so is the turret-laser branch (4073-4074).
  */
 export function dispatchAttack(input: DispatchInput): DispatchResult {
   const wRange = weaponRange(input.forwardWeapon);
-  const forwardReady = input.forwardWeapon !== "EQ_WEAPON_NONE";
+  const armed = input.forwardWeapon !== "EQ_WEAPON_NONE";
+  const temperature = input.forwardWeaponTemp ?? 0;
+  const inGoodRange =
+    aimTolerance(input.accuracy) * input.range < COMBAT_AI_CONFIDENCE_FACTOR;
+  let forwardReady = armed && temperature < WEAPON_TEMP_READY;
+  let weaponsHeating = false;
   if (!forwardReady) {
+    weaponsHeating = true;
+    forwardReady = armed && temperature < WEAPON_TEMP_USABLE;
+  }
+  if (!forwardReady) {
+    // no usable weapons: not fitted or overheated (4095-4120)
+    if (!armed) {
+      return {
+        behaviour: "ATTACK_FLY_FROM_TARGET",
+        jink: "keep",
+        jinkZ: 0,
+        line: "ShipEntity.m:4098-4099",
+      };
+    }
+    if (input.aspect > 0) {
+      if (inGoodRange) {
+        if (input.accuracy >= COMBAT_AI_IS_SMART) {
+          if (input.unit === undefined) {
+            throw new Error("the overheated branch draws randf() at 4102");
+          }
+          if (input.unit() < 0.75) {
+            return {
+              behaviour: "EVASIVE_ACTION",
+              jink: "keep",
+              jinkZ: 0,
+              line: "ShipEntity.m:4102-4103",
+            };
+          }
+        }
+        return {
+          behaviour: "ATTACK_FLY_FROM_TARGET",
+          jink: "keep",
+          jinkZ: 0,
+          line: "ShipEntity.m:4104-4106",
+        };
+      }
+      return {
+        behaviour: "ATTACK_FLY_TO_TARGET",
+        jink: "keep",
+        jinkZ: 0,
+        line: "ShipEntity.m:4107-4110",
+      };
+    }
     return {
-      behaviour: "ATTACK_FLY_FROM_TARGET",
+      behaviour:
+        input.range < COMBAT_IN_RANGE_FACTOR * wRange
+          ? "ATTACK_FLY_FROM_TARGET"
+          : "ATTACK_FLY_TO_TARGET",
       jink: "keep",
       jinkZ: 0,
-      line: "ShipEntity.m:4098-4099",
+      line: "ShipEntity.m:4111-4118",
     };
+  }
+  if (weaponsHeating) {
+    // 4122: a usable but hot forward weapon, a competent pilot, a target that
+    // is not shooting back and fairly close: back off to let it cool
+    if (
+      input.targetIsShip === undefined ||
+      input.targetTargetsSelf === undefined
+    ) {
+      throw new Error("a hot weapon reads [target isShip] and primaryTarget");
+    }
+    if (
+      input.accuracy >= COMBAT_AI_ISNT_AWFUL &&
+      input.targetIsShip &&
+      !input.targetTargetsSelf &&
+      input.range < COMBAT_OUT_RANGE_FACTOR * wRange
+    ) {
+      return {
+        behaviour: "ATTACK_FLY_FROM_TARGET",
+        jink: "set",
+        jinkZ:
+          input.range +
+          COMBAT_JINK_OFFSET -
+          input.relativeSpeed / input.maxFlightPitch,
+        line: "ShipEntity.m:4122-4126",
+      };
+    }
   }
   const nearby = input.range < COMBAT_IN_RANGE_FACTOR * wRange;
   if (nearby) {
@@ -959,7 +1049,11 @@ function behaviourIntercept(world: World): void {
     world.stats.maxFlightSpeed * trackPrimaryTarget(world, false);
 }
 
-/** `behaviour_flee_target:` (4840-4901) without missiles, mines, turrets and cloaking. */
+/**
+ * `behaviour_flee_target:` (4840-4901) without missiles, mines, turrets and
+ * cloaking. Its one `fireMainWeapon:` call (4890-4892) needs a turret laser as
+ * the forward weapon, which no compiled record has, so flee requests nothing.
+ */
 function behaviourFlee(world: World): void {
   const s = world.self;
   const range = rangeToPrimaryTarget(world);
@@ -1007,6 +1101,10 @@ function behaviourAttackTarget(world: World): void {
     aspect,
     relativeSpeed,
     maxFlightPitch: world.stats.maxFlightPitch,
+    forwardWeaponTemp: world.weapon.forwardWeaponTemp,
+    targetIsShip: target !== null,
+    targetTargetsSelf: target !== null && target.targetId === s.id,
+    unit: () => world.draws.unit(),
   });
   if (decision.jink === "zero") s.jink = ZERO;
   else if (decision.jink === "set") setEvasiveJink(world, decision.jinkZ);
@@ -1255,6 +1353,12 @@ function behaviourFlyToTargetSixTwelve(world: World): void {
   writeFrustration(world, s.frustration + DT);
   const aspect = approachAspectToPrimaryTarget(world);
   if (s.frustration > 10 || aspect > 0.75) s.behaviour = "ATTACK_FLY_TO_TARGET";
+  // 4575: fireMainWeapon:range, reached on every path that did not return above
+  requestFire(world);
+  // 4577: unconditional, whatever the accuracy (weapon_temp = forward_weapon_temp, 9917)
+  if (world.weapon.forwardWeaponTemp > WEAPON_TEMP_USABLE) {
+    s.behaviour = "ATTACK_TARGET";
+  }
 }
 
 /** `behaviour_attack_sniper:` (4397-4459), no afterburner, no missiles. */
@@ -1289,9 +1393,19 @@ function behaviourSniper(world: World): void {
       }
     }
   }
+  // 4454: fireMainWeapon:range. Oolite's if/else (4414-4447) falls through to
+  // here: the below-15,000 m hand-over still reaches the call in the same update.
+  requestFire(world);
+  // 4456: weapon_temp (= forward_weapon_temp, 9917) strictly above USABLE
+  if (
+    world.weapon.forwardWeaponTemp > WEAPON_TEMP_USABLE &&
+    s.accuracy >= COMBAT_AI_ISNT_AWFUL
+  ) {
+    s.behaviour = "ATTACK_TARGET";
+  }
 }
 
-/** `behaviour_attack_break_off_target:` (3886-3942), no afterburner, temperature 0. */
+/** `behaviour_attack_break_off_target:` (3886-3942), no afterburner. */
 function behaviourBreakOff(world: World): void {
   const s = world.self;
   const { maxFlightSpeed, maxFlightRoll } = world.stats;
@@ -1324,7 +1438,8 @@ function behaviourBreakOff(world: World): void {
     s.behaviour = "ATTACK_SLOW_DOGFIGHT";
   } else if (
     s.frustration > 10 &&
-    approachAspectToPrimaryTarget(world) < 0.85
+    approachAspectToPrimaryTarget(world) < 0.85 &&
+    world.weapon.forwardWeaponTemp < WEAPON_TEMP_READY
   ) {
     s.frustration = 0;
     s.behaviour =
@@ -1365,7 +1480,7 @@ function behaviourSlowDogfight(world: World): void {
   trackPrimaryTarget(world, false);
 }
 
-/** `behaviour_evasive_action:` (3996-4036), no afterburner, no cloak, no weapon fire. */
+/** `behaviour_evasive_action:` (3996-4036), no afterburner, no cloak. */
 function behaviourEvasiveAction(world: World): void {
   const s = world.self;
   s.desiredSpeed = world.stats.maxFlightSpeed;
@@ -1380,6 +1495,9 @@ function behaviourEvasiveAction(world: World): void {
       s.behaviour = "ATTACK_TARGET";
     }
   }
+  // 4035: fireMainWeapon: after the follow-on; no target guard precedes it, so a
+  // target lost inside evasiveAction (4009-4013) still reaches the call
+  requestFire(world);
 }
 
 /** One native update of the steered ship (pose frozen), then the `applyThrust:` speed clamp. */

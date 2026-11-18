@@ -35,7 +35,7 @@ function readJson(name: string): unknown {
   return JSON.parse(readFileSync(`${FIXTURE_DIR}${name}`, "utf8")) as unknown;
 }
 
-const FIRE_SITE_FILES = ["fire-sites.json"] as const;
+const FIRE_SITE_FILES = ["fire-sites.json", "hot-branches.json"] as const;
 
 function loadFireSites(name: string): FireSiteFixture[] {
   return FireSiteFileSchema.parse(readJson(name));
@@ -64,7 +64,35 @@ const FROZEN_THRESHOLDS: Record<string, number[]> = {
   "fire-site-fly-to-frustration-hand-over-still-requests": [437.5, 12500],
   // no target: the range is 0 and nothing reads it
   "fire-site-fly-to-lost-target-requests-nothing": [],
+  // evasive reads no range; the right-axis agreement is -1, far from +-0.3 (9016)
+  "fire-site-evasive-requests-every-update": [],
+  "fire-site-flee-evasive-requests-every-update": [],
+  // the dispatcher at update 2 reads 437.5 and 12,500 at range 4,920
+  "fire-site-evasive-hand-over-still-requests": [437.5, 12500],
+  // flee at update 2 compares the range 4,920 with its desired range 10,000 (4855)
+  "fire-site-flee-evasive-hand-over-still-requests": [10000],
+  "fire-site-evasive-lost-target-still-requests": [],
+  // 15,000 (4414, 4417) and 0.8 x scanner range 20,480 (4417) at range 20,000
+  "fire-site-sniper-beyond-15000-requests-every-update": [15000, 20480],
+  // sniper 15,000; the dispatcher at update 2: 525 (0.035 x 15,000), 12,500 (4160)
+  "fire-site-sniper-inside-15000-falls-through-and-requests": [
+    15000, 525, 12500,
+  ],
+  // range 4,920 against the desired range 1,000 (4855) and the improvement test (4860, held)
+  "fire-site-flee-with-a-laser-requests-nothing": [1000],
+  // fly-to at update 1: 15,000 (4648), 5,000 (4652), 437.5 (4630), 6,127.45 (the
+  // confidence range 1,250,000 / 204); the dispatcher at update 2: 6,250 (4122), 437.5
+  "hot-fly-to-cooling-carries-the-read-across-usable-between-updates": [
+    15000, 5000, 437.5, 6250, 6127.45,
+  ],
 };
+
+/**
+ * Fixtures whose steered ship cannot move at all: it starts at rest, wants
+ * speed 0 and, being outside its desired range, never raises it (flee,
+ * ShipEntity.m:4855-4858).
+ */
+const STATIC_SELF = new Set(["fire-site-flee-with-a-laser-requests-nothing"]);
 
 describe("fire-site fixture files", () => {
   it("parses every fire-site file against the strict schema", () => {
@@ -213,6 +241,23 @@ describe("later updates come from an exact held pose", () => {
     const { fixture } = entry;
     if (fixture.horizon < 2) continue;
     it(`${fixture.id}: the held pose is exact`, () => {
+      if (STATIC_SELF.has(fixture.id)) {
+        expect(fixture.self.speed).toBe(0);
+        expect(fixture.self.desiredSpeed).toBe(0);
+        expect(
+          derive.rangeToPrimaryTarget(derive.tickZeroWorld(like(entry))),
+        ).toBeGreaterThan(fixture.self.desiredRange);
+        expect(
+          derive.deriveCheck(like(entry), {
+            tick: fixture.horizon,
+            field: "desiredSpeed",
+            expected: 0,
+            tolerance: 0,
+            note: "static self",
+          }),
+        ).toBe(0);
+        return;
+      }
       const thresholds = FROZEN_THRESHOLDS[fixture.id];
       expect(
         thresholds,
@@ -261,5 +306,437 @@ describe("no proximity alert can start before the horizon ends", () => {
         }
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the fire calls of the in-scope methods (contract item 4)
+
+interface FireCall {
+  /** The Objective-C method that contains the call. */
+  method: string;
+  /** The line of its `fireMainWeapon:` call at the pin. */
+  fireLine: number;
+  /** The last line of the method (its closing brace). */
+  lastLine: number;
+  /** The line of the first `randf()` or `ranrot_rand()` after the call, or null. */
+  nextDrawLine: number | null;
+}
+
+/**
+ * Written by hand from `git -C /home/opencode/git/oolite show
+ * 7437f22:src/Core/Entities/ShipEntity.m`; no test reads that checkout (it is
+ * not mounted in the containers), so the draw-after-call fact is this recorded
+ * table. Every row means: between `fireLine` and `lastLine` there is no `randf()`
+ * and no `ranrot_rand()`, so moving the gate's own `randf()` (9949) from the
+ * call to the end of the update keeps the stream order, and `draws` of the
+ * fixtures can list the steering's draws only.
+ */
+export const FIRE_CALL_TABLE: readonly FireCall[] = [
+  // behaviour_evasive_action, 3996-4036: the call is the last statement (4035),
+  // only the closing brace (4036) follows
+  {
+    method: "behaviour_evasive_action",
+    fireLine: 4035,
+    lastLine: 4036,
+    nextDrawLine: null,
+  },
+  // behaviour_attack_sniper, 4397-4459: 4454 is followed by the weapon_temp
+  // tail (4456-4458) and the closing brace (4459); no draw
+  {
+    method: "behaviour_attack_sniper",
+    fireLine: 4454,
+    lastLine: 4459,
+    nextDrawLine: null,
+  },
+  // behaviour_fly_to_target_six (SIX and TWELVE), 4461-4580: 4575 is followed
+  // by the weapon_temp tail (4577-4579) and the closing brace (4580); no draw
+  {
+    method: "behaviour_fly_to_target_six",
+    fireLine: 4575,
+    lastLine: 4580,
+    nextDrawLine: null,
+  },
+  // behaviour_attack_fly_to_target, 4611-4731: 4711 is followed by the
+  // weapon_temp tail and the dodge else-if (4713-4730), which only compare and
+  // read the target's weapon types, and the closing brace (4731); no draw
+  {
+    method: "behaviour_attack_fly_to_target",
+    fireLine: 4711,
+    lastLine: 4731,
+    nextDrawLine: null,
+  },
+];
+
+/** The behaviours that can be running when each fire call is reached. */
+const FIRE_CALL_BEHAVIOURS: Record<number, readonly string[]> = {
+  4035: ["EVASIVE_ACTION", "FLEE_EVASIVE_ACTION"],
+  4454: ["ATTACK_SNIPER"],
+  4575: ["ATTACK_FLY_TO_TARGET_SIX", "ATTACK_FLY_TO_TARGET_TWELVE"],
+  4711: ["ATTACK_FLY_TO_TARGET"],
+};
+
+/**
+ * A fire call is cited as a ONE-line range (`ShipEntity.m:4711-4711`); every
+ * other citation in the fire-site files spans several lines.
+ */
+function citedFireLines(entry: FireSiteFixture): number[] {
+  const lines: number[] = [];
+  for (const citation of entry.fixture.oolite) {
+    const match = /ShipEntity\.m:(\d+)-(\d+)$/.exec(citation);
+    if (match === null) continue;
+    if (match[1] === match[2]) lines.push(Number(match[1]));
+  }
+  return lines;
+}
+
+describe("the fire calls (contract item 4)", () => {
+  it("records that no draw follows any in-scope fire call", () => {
+    expect(FIRE_CALL_TABLE).toHaveLength(4);
+    for (const row of FIRE_CALL_TABLE) {
+      expect(row.nextDrawLine, row.method).toBeNull();
+      expect(row.fireLine, row.method).toBeLessThan(row.lastLine);
+    }
+    expect(new Set(FIRE_CALL_TABLE.map((row) => row.fireLine)).size).toBe(4);
+  });
+
+  it("matches the fire calls the fire-sites.json fixtures cite", () => {
+    const cited = new Set<number>();
+    for (const entry of loadFireSites("fire-sites.json")) {
+      const lines = citedFireLines(entry);
+      const id = entry.fixture.id;
+      if (entry.fireRequestTicks.length > 0) {
+        // a requesting fixture cites exactly one fire call, and it is the one
+        // its starting behaviour can reach
+        expect(lines, id).toHaveLength(1);
+        const line = lines[0];
+        expect(line, id).toBeDefined();
+        const behaviours = FIRE_CALL_BEHAVIOURS[line ?? 0];
+        expect(behaviours, `${id} cites ${String(line)}`).toBeDefined();
+        expect(behaviours, id).toContain(entry.fixture.self.behaviour);
+        cited.add(line ?? 0);
+      } else {
+        // a fixture that requests nothing cites no fire call
+        expect(lines, id).toEqual([]);
+      }
+    }
+    expect([...cited].sort()).toEqual(
+      FIRE_CALL_TABLE.map((row) => row.fireLine).sort(),
+    );
+  });
+});
+
+describe("the sites and branches outside the contract (contract item 6)", () => {
+  /** Listed, not authored: aft, port and starboard weapons are none on every compiled record and no laser is a turret. */
+  const UNREACHABLE = [
+    {
+      site: "behaviour_flee_target: the turret-only fireMainWeapon: call",
+      lines: "ShipEntity.m:4890-4892",
+    },
+    {
+      site: "behaviour_attack_fly_to_target: the aft, port and starboard terms of the hand-over condition",
+      lines: "ShipEntity.m:4717",
+    },
+    {
+      site: "behaviour_attack_target: turret-laser and subentity weapons",
+      lines: "ShipEntity.m:4056-4074",
+    },
+    {
+      site: "behaviour_attack_target: the aft, port and starboard ready tests",
+      lines: "ShipEntity.m:4078-4081, 4086, 4088-4089",
+    },
+    {
+      site: "behaviour_attack_target: RUNNING_DEFENSE and ATTACK_BROADSIDE",
+      lines: "ShipEntity.m:4131-4136, 4171-4176",
+    },
+    {
+      site: "behaviour_fly_to_target_six: the turret-laser destinations",
+      lines: "ShipEntity.m:4537-4549, 4565",
+    },
+    {
+      site: "behaviour_running_defense: its fire calls (RUNNING_DEFENSE is out of the attack IN list)",
+      lines: "ShipEntity.m:4819-4824",
+    },
+    {
+      site: "behaviour_attack_fly_to_target: the gunsight dodge (Phase 14 divergence 21; derive.ts throws where it would be reached)",
+      lines: "ShipEntity.m:4721-4730",
+    },
+  ] as const;
+
+  it("lists every unreachable site with its lines", () => {
+    expect(UNREACHABLE.length).toBeGreaterThanOrEqual(8);
+    for (const row of UNREACHABLE) {
+      expect(row.lines, row.site).toMatch(/^ShipEntity\.m:\d/);
+    }
+  });
+
+  it("covers flee's turret-only call as a site that requests nothing", () => {
+    const flee = loadFireSites("fire-sites.json").find(
+      (entry) =>
+        entry.fixture.id === "fire-site-flee-with-a-laser-requests-nothing",
+    );
+    expect(flee).toBeDefined();
+    expect(flee?.fireRequestTicks).toEqual([]);
+    expect(flee?.fixture.oolite).toContain(
+      "src/Core/Entities/ShipEntity.m:4889-4892",
+    );
+  });
+
+  it("refuses the unmodelled dodge instead of guessing (Phase 14 divergence 21)", () => {
+    const base = loadFireSites("hot-branches.json").find(
+      (entry) =>
+        entry.fixture.id ===
+        "hot-fly-to-above-usable-accuracy-9-skips-the-dodge-branch",
+    );
+    if (base === undefined) throw new Error("no accuracy 9 fixture");
+    // temperature 0 makes the 4713 condition false, so accuracy 9 reaches the else-if
+    const cold: derive.FixtureLike = {
+      ...like(base),
+      weapon: { forwardWeaponTemp: 0, missedShots: 0 },
+    };
+    expect(() => derive.deriveEvents(cold)).toThrow(/not modelled/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// coverage of the plan's sites and hot branches
+
+describe("fire-site and hot-branch coverage", () => {
+  const sites = (): FireSiteFixture[] => loadFireSites("fire-sites.json");
+  const hot = (): FireSiteFixture[] => loadFireSites("hot-branches.json");
+  const byId = (id: string): FireSiteFixture => {
+    const found = [...sites(), ...hot()].find(
+      (entry) => entry.fixture.id === id,
+    );
+    if (found === undefined) throw new Error(`no fixture ${id}`);
+    return found;
+  };
+
+  it("has at least 12 fire-site and 12 hot-branch fixtures with the right prefixes", () => {
+    expect(sites().length).toBeGreaterThanOrEqual(12);
+    expect(hot().length).toBeGreaterThanOrEqual(12);
+    for (const entry of sites())
+      expect(entry.fixture.id).toMatch(/^fire-site-/);
+    for (const entry of hot()) expect(entry.fixture.id).toMatch(/^hot-/);
+  });
+
+  it("covers every in-scope site, with and without a request", () => {
+    const requesting = new Set(
+      sites()
+        .filter((entry) => entry.fireRequestTicks.length > 0)
+        .map((entry) => entry.fixture.self.behaviour),
+    );
+    for (const behaviour of [
+      "EVASIVE_ACTION",
+      "FLEE_EVASIVE_ACTION",
+      "ATTACK_SNIPER",
+      "ATTACK_FLY_TO_TARGET_SIX",
+      "ATTACK_FLY_TO_TARGET_TWELVE",
+      "ATTACK_FLY_TO_TARGET",
+    ]) {
+      expect(requesting.has(behaviour), behaviour).toBe(true);
+    }
+    const silent = new Set(
+      sites()
+        .filter((entry) => entry.fireRequestTicks.length === 0)
+        .map((entry) => entry.fixture.self.behaviour),
+    );
+    for (const behaviour of [
+      "FLEE_TARGET",
+      "ATTACK_TARGET",
+      "ATTACK_FLY_FROM_TARGET",
+      "ATTACK_BREAK_OFF_TARGET",
+      "ATTACK_SLOW_DOGFIGHT",
+    ]) {
+      expect(silent.has(behaviour), behaviour).toBe(true);
+    }
+  });
+
+  it("pins the sniper's fall-through: the below-15,000 m hand-over still requests in the same update", () => {
+    const row = byId(
+      "fire-site-sniper-inside-15000-falls-through-and-requests",
+    );
+    expect(row.fireRequestTicks).toEqual([1]);
+    const handOver = row.fixture.checks.find(
+      (check) => check.tick === 1 && check.field === "behaviour",
+    );
+    expect(handOver?.expected).toBe("ATTACK_TARGET");
+    // the range that triggers it is below 15,000 m, in the fixture's own pose
+    const world = derive.tickZeroWorld(like(row));
+    expect(derive.rangeToPrimaryTarget(world)).toBeLessThan(15000);
+  });
+
+  it("pins evasive with a vanished target: no target guard, so it still requests", () => {
+    const row = byId("fire-site-evasive-lost-target-still-requests");
+    expect(row.fireRequestTicks).toEqual([1]);
+    expect(row.fixture.bodies).toHaveLength(0);
+    expect(row.fixture.events).toEqual([{ tick: 1, name: "shipTargetLost" }]);
+  });
+
+  it("pins that a vanished target before a site's call requests nothing", () => {
+    for (const id of [
+      "fire-site-fly-to-lost-target-requests-nothing",
+      "fire-site-sniper-lost-target-requests-nothing",
+      "fire-site-six-lost-target-requests-nothing",
+    ]) {
+      const row = byId(id);
+      expect(row.fireRequestTicks, id).toEqual([]);
+      expect(row.fixture.bodies, id).toHaveLength(0);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the temperature each hot-branch fixture reads (contract items 2 and 5)
+
+type ReadClass =
+  "below-ready" | "at-ready" | "heating-band" | "at-usable" | "above-usable";
+
+function readClass(temperature: number): ReadClass {
+  if (temperature > derive.WEAPON_TEMP_USABLE) return "above-usable";
+  if (temperature === derive.WEAPON_TEMP_USABLE) return "at-usable";
+  if (temperature < derive.WEAPON_TEMP_READY) return "below-ready";
+  if (temperature === derive.WEAPON_TEMP_READY) return "at-ready";
+  return "heating-band";
+}
+
+/**
+ * Where the stated temperature sits against the two thresholds at the updates
+ * the fixture's decision depends on (contract item 2): strict `>` against
+ * USABLE 217.60000610351562 for the tails, strict `<` against READY 64 for the
+ * dispatcher and break-off, `<` against USABLE for the heating band.
+ */
+const HOT_READS: Record<string, readonly (readonly [number, ReadClass])[]> = {
+  "hot-sniper-above-usable-goes-to-attack-target": [[1, "above-usable"]],
+  "hot-sniper-just-above-usable-goes-to-attack-target": [[1, "above-usable"]],
+  "hot-sniper-at-usable-stays-sniper": [[1, "at-usable"]],
+  "hot-sniper-above-usable-negative-accuracy-stays-sniper": [
+    [1, "above-usable"],
+  ],
+  "hot-six-above-usable-goes-to-attack-target": [[1, "above-usable"]],
+  "hot-six-above-usable-negative-accuracy-goes-to-attack-target": [
+    [1, "above-usable"],
+  ],
+  "hot-six-at-usable-stays-six": [[1, "at-usable"]],
+  "hot-six-below-usable-stays-six": [[1, "heating-band"]],
+  "hot-fly-to-above-usable-aspect-below-zero-goes-to-attack-target": [
+    [1, "above-usable"],
+  ],
+  "hot-fly-to-at-usable-changes-nothing": [[1, "at-usable"]],
+  "hot-fly-to-above-usable-aspect-zero-changes-nothing": [[1, "above-usable"]],
+  "hot-fly-to-above-usable-facing-target-changes-nothing": [
+    [1, "above-usable"],
+  ],
+  "hot-fly-to-above-usable-beyond-confidence-changes-nothing": [
+    [1, "above-usable"],
+  ],
+  "hot-fly-to-above-usable-negative-accuracy-changes-nothing": [
+    [1, "above-usable"],
+  ],
+  "hot-fly-to-above-usable-accuracy-9-skips-the-dodge-branch": [
+    [1, "above-usable"],
+  ],
+  // cooling crosses USABLE between update 1 and update 2 (derivation: 217.62 -> 217.57)
+  "hot-fly-to-cooling-carries-the-read-across-usable-between-updates": [
+    [1, "above-usable"],
+    [2, "heating-band"],
+  ],
+  "hot-dispatch-below-ready-flies-to-target": [[1, "below-ready"]],
+  "hot-dispatch-at-ready-takes-the-heating-branch": [[1, "at-ready"]],
+  "hot-dispatch-just-below-usable-takes-the-heating-branch": [
+    [1, "heating-band"],
+  ],
+  "hot-dispatch-heating-target-targets-self-skips-the-branch": [
+    [1, "heating-band"],
+  ],
+  "hot-dispatch-heating-negative-accuracy-skips-the-branch": [
+    [1, "heating-band"],
+  ],
+  "hot-dispatch-heating-beyond-half-weapon-range-skips-the-branch": [
+    [1, "heating-band"],
+  ],
+  "hot-dispatch-at-usable-is-overheated-and-draws-the-evasive-roll": [
+    [1, "at-usable"],
+  ],
+  "hot-dispatch-overheated-roll-above-0-75-flies-from-target": [
+    [1, "at-usable"],
+  ],
+  "hot-dispatch-overheated-below-smart-accuracy-draws-nothing": [
+    [1, "above-usable"],
+  ],
+  "hot-dispatch-overheated-out-of-good-range-flies-to-target": [
+    [1, "above-usable"],
+  ],
+  "hot-dispatch-overheated-aspect-behind-near-flies-from-target": [
+    [1, "above-usable"],
+  ],
+  "hot-dispatch-overheated-aspect-behind-far-flies-to-target": [
+    [1, "above-usable"],
+  ],
+  "hot-dispatch-overheated-aspect-zero-draws-nothing": [[1, "at-usable"]],
+  "hot-break-off-below-ready-hands-over": [[1, "below-ready"]],
+  "hot-break-off-at-ready-does-not-hand-over": [[1, "at-ready"]],
+};
+
+describe("hot-branch fixtures state the temperature they read", () => {
+  const hot = loadFireSites("hot-branches.json");
+
+  it("lists every hot fixture in the read table, and nothing else", () => {
+    expect(Object.keys(HOT_READS).sort()).toEqual(
+      hot.map((entry) => entry.fixture.id).sort(),
+    );
+  });
+
+  for (const entry of hot) {
+    it(`${entry.fixture.id}: the stated temperature sits where its derivation says`, () => {
+      const reads = HOT_READS[entry.fixture.id];
+      expect(reads).toBeDefined();
+      for (const [update, expected] of reads ?? []) {
+        const read = derive.temperatureAtUpdate(
+          entry.weapon.forwardWeaponTemp,
+          update,
+        );
+        expect(
+          readClass(read),
+          `update ${String(update)}: ${String(read)}`,
+        ).toBe(expected);
+        expect(entry.fixture.derivation).toContain(
+          update === 1 ? "update 1" : `update ${String(update)}`,
+        );
+      }
+      expect(entry.weapon.missedShots).toBe(0);
+    });
+  }
+
+  it("shows the thresholds on both sides, including the exact values", () => {
+    const classes = new Set(
+      Object.values(HOT_READS).flatMap((reads) => reads.map(([, c]) => c)),
+    );
+    expect([...classes].sort()).toEqual(
+      [
+        "above-usable",
+        "at-ready",
+        "at-usable",
+        "below-ready",
+        "heating-band",
+      ].sort(),
+    );
+  });
+
+  it("cools the carried read across USABLE exactly once, between update 1 and 2", () => {
+    const row = hot.find(
+      (entry) =>
+        entry.fixture.id ===
+        "hot-fly-to-cooling-carries-the-read-across-usable-between-updates",
+    );
+    if (row === undefined) throw new Error("no cooling fixture");
+    const read1 = derive.temperatureAtUpdate(row.weapon.forwardWeaponTemp, 1);
+    const read2 = derive.temperatureAtUpdate(row.weapon.forwardWeaponTemp, 2);
+    expect(read1).toBeGreaterThan(derive.WEAPON_TEMP_USABLE);
+    expect(read2).toBeLessThan(derive.WEAPON_TEMP_USABLE);
+    expect(read2).toBeGreaterThan(derive.WEAPON_TEMP_READY);
+    // one step of fround(6 / 120) = 0.05, and the margin to USABLE dwarfs a float32 ulp
+    expect(read1 - read2).toBeCloseTo(0.05, 4);
+    expect(derive.WEAPON_TEMP_USABLE - read2).toBeGreaterThan(0.01);
   });
 });
