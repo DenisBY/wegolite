@@ -1416,9 +1416,8 @@ test("an accepted buy and removal each write exactly one autosave", async ({
   await page.keyboard.press("ArrowDown");
   expect((await getProbe(page)).save?.committed).toBe(base + 1);
 
-  for (let presses = 0; presses < 6; presses += 1) {
-    await page.keyboard.press("ArrowDown");
-  }
+  // Lave lists Cargo Bay, Missile, then Remove Missile: one more down.
+  await page.keyboard.press("ArrowDown");
   await page.keyboard.press("KeyY");
   await page.keyboard.press("KeyY");
   await page.waitForFunction(
@@ -1431,15 +1430,15 @@ test("an accepted buy and removal each write exactly one autosave", async ({
   expect(afterRemoval.economy?.missiles).toBe(0);
   expect(afterRemoval.economy?.cargo?.food).toBe(1);
 
-  // A third Y is a no-op: no prompt, no credits, no save. The cursor now sits
-  // on the unaffordable passenger berth, so its notice is the visible status.
+  // A third Y is a no-op: no prompt, no credits, no save. The removal hides
+  // its row, so the cursor clamps onto Remove Laser; two ups reach the
+  // unaffordable Large Cargo Bay, whose notice is then the visible status.
   const credits = afterRemoval.economy?.credits;
-  // Phase 13 lists the laser rows after the missile removal, so the cursor no
-  // longer clamps onto the passenger berth: step back up to it.
+  await page.keyboard.press("ArrowUp");
   await page.keyboard.press("ArrowUp");
   await page.keyboard.press("KeyY");
   await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
-    "Requires TL 5",
+    "Not enough credits",
   );
   await expect(
     page.locator('#docked [data-footer-role="status"]'),

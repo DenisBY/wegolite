@@ -502,14 +502,29 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   // There is no Fuel row at a full tank.
   await expect(row("EQ_FUEL")).toHaveCount(0);
 
+  // An item the commander cannot afford stays listed, dimmed, with its reason.
   await expect(row("EQ_CARGO_BAY")).toContainText("Large Cargo Bay");
   await expect(row("EQ_CARGO_BAY")).toContainText("Not enough credits");
   await expect(row("EQ_CARGO_BAY")).toHaveClass(/dimmed/);
+  await expect(row("EQ_CARGO_BAY")).toHaveCSS("opacity", "0.6");
 
-  await expect(row("EQ_DOCK_COMP")).toContainText("Docking Computers");
-  await expect(row("EQ_DOCK_COMP")).toContainText("Requires TL 9");
-  await expect(row("EQ_DOCK_COMP")).toHaveClass(/dimmed/);
-  await expect(row("EQ_DOCK_COMP")).toHaveCSS("opacity", "0.6");
+  // As in Oolite's equipmentAllowed, nothing above Lave's raw tech level 4 is
+  // listed: Cargo Bay, Missile, Remove Missile, Remove Laser, Pulse and Beam.
+  for (const hidden of [
+    "EQ_DOCK_COMP",
+    "EQ_GAL_DRIVE",
+    "EQ_ADVANCED_COMPASS",
+    "EQ_ADVANCED_NAVIGATIONAL_ARRAY",
+    "EQ_PASSENGER_BERTH",
+    "EQ_WEAPON_MINING_LASER",
+    "EQ_WEAPON_MILITARY_LASER",
+  ]) {
+    await expect(row(hidden)).toHaveCount(0);
+  }
+  await expect(
+    page.locator("[data-outfitting-rows] [data-equipment-key]"),
+  ).toHaveCount(6);
+  await expect(page.locator('[data-field="outfitting-empty"]')).toBeHidden();
 
   // Three missiles on four pylons, as in Oolite: the fourth can be bought.
   await expect(row("EQ_MISSILE")).toContainText("Missile (3/4)");
@@ -521,15 +536,12 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   await expect(row("EQ_MISSILE_REMOVAL")).not.toHaveClass(/dimmed/);
 
   // The first row is selected: Large Cargo Bay, with its disabled reason.
+  // KeyY on the unaffordable row must not open a prompt, reach applyFit, or
+  // write a save.
   await expect(row("EQ_CARGO_BAY")).toHaveClass(/selected/);
-
-  // Down once reaches Docking Computers. KeyY on the disabled row must not
-  // open a prompt, reach applyFit, or write a save.
-  await page.keyboard.press("ArrowDown");
-  await expect(row("EQ_DOCK_COMP")).toHaveClass(/selected/);
   await page.keyboard.press("KeyY");
   await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
-    "Requires TL 9",
+    "Not enough credits",
   );
   await expect(
     page.locator('#docked [data-footer-role="status"]'),
@@ -538,8 +550,8 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   expect(probe.economy?.credits).toBe(1000);
   expect(probe.save?.committed).toBe(committedBefore);
 
-  // Six more downs reach the Remove Missile row (last visible row at Lave).
-  for (let presses = 0; presses < 6; presses += 1) {
+  // Two downs reach the Remove Missile row (Cargo Bay, Missile, Remove Missile).
+  for (let presses = 0; presses < 2; presses += 1) {
     await page.keyboard.press("ArrowDown");
   }
   await expect(row("EQ_MISSILE_REMOVAL")).toHaveClass(/selected/);
@@ -581,14 +593,17 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   probe = await getProbe(page);
   expect(probe.save?.committed).toBe(committedBefore + 1);
 
-  // The cursor clamps to the new last row (passenger berth, now unaffordable).
-  // A third Y is therefore a no-op: no prompt, no credits, no save. The key is
-  // applied on a later loop frame, so let two pass before reading: an
-  // immediate read would see the footer as it was before the press. The row is
-  // disabled, so the status line shows its reason and never a [Y/N] prompt.
-  // Phase 13 lists the laser rows after the missile removal, so the cursor no
-  // longer clamps onto the passenger berth: step back up to it.
+  // The removal hides its own row, so the cursor clamps by position onto the
+  // row now in its place, Remove Laser. Two ups reach the Large Cargo Bay
+  // (Missile (0/4) is affordable at 1700 dc; the 4000 dc Cargo Bay is not), so
+  // a third Y is a no-op: no prompt, no credits, no save. The key is applied on
+  // a later loop frame, so let two pass before reading: an immediate read would
+  // see the footer as it was before the press. The row is disabled, so the
+  // status line shows its reason and never a [Y/N] prompt.
+  await expect(row("EQ_WEAPON_NONE")).toHaveClass(/selected/);
   await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowUp");
+  await expect(row("EQ_CARGO_BAY")).toHaveClass(/selected/);
   const framesAtPress = (await getProbe(page)).frames;
   await page.keyboard.press("KeyY");
   await page.waitForFunction(
@@ -599,6 +614,9 @@ test("F3 is a two-pane keyboard outfitting screen with a guarded two-state confi
   await expect(
     page.locator('#docked [data-footer-role="status"]'),
   ).not.toContainText("[Y/N]");
+  await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
+    "Not enough credits",
+  );
   await expect(
     page.locator('#docked [data-footer-role="status"]'),
   ).toHaveAttribute("data-status-tone", "notice");
@@ -880,7 +898,8 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   // F3: one Y opens the prompt, one applies the removal, a third is inert.
   await page.keyboard.press("Digit3");
   await waitForScreen(page, "outfitting");
-  for (let presses = 0; presses < 7; presses += 1) {
+  // Lave lists Cargo Bay, Missile, then Remove Missile: two downs.
+  for (let presses = 0; presses < 2; presses += 1) {
     await page.keyboard.press("ArrowDown");
   }
   await expect(
@@ -902,12 +921,16 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   expect(afterRemoval.economy?.credits).toBe(1662);
   expect(afterRemoval.economy?.missiles).toBe(0);
 
-  // Phase 13 lists the laser rows after the missile removal, so the cursor no
-  // longer clamps onto the passenger berth: step back up to it.
+  // The removal hides its row, so the cursor clamps onto Remove Laser. Two ups
+  // reach the Large Cargo Bay, which 1662 dc cannot pay for (4000 dc).
   await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowUp");
+  await expect(page.locator('[data-equipment-key="EQ_CARGO_BAY"]')).toHaveClass(
+    /selected/,
+  );
   await page.keyboard.press("KeyY");
   await expect(page.locator('#docked [data-footer-role="status"]')).toHaveText(
-    "Requires TL 5",
+    "Not enough credits",
   );
   await expect(
     page.locator('#docked [data-footer-role="status"]'),
