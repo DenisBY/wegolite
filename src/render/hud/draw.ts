@@ -88,21 +88,53 @@ const HUD_FONT_FAMILY =
 /** The clock and its hyperspace line (D-01: unchanged). */
 export const HUD_SMALL_FONT = `20px ${HUD_FONT_FAMILY}`;
 /**
- * The message rows: `message_gui` rows of 14 units. Oolite's font is
- * proportional and a monospace web font is not, so the sizes below are
- * calibrated on Oolite's own text at 1280x720 (quick task 261118-cyn):
- * "Hyperspeed mass-locked." is 207 screen px wide there, 310.5 design px,
- * which a 22.5 px monospace font matches.
+ * The HUD text sizes, in design px of a font whose glyphs advance 0.6 em
+ * (`NOMINAL_ADVANCE`). Oolite's font is proportional and the HUD's is
+ * monospace, so the sizes are calibrated on Oolite's own text at 1280x720
+ * (quick task 261118-cyn): "Hyperspeed mass-locked." (cell 14) is 207 screen
+ * px wide there, 310.5 design px, which 22.5 px at 0.6 em matches, and the
+ * legends' widths give 27, 23 and 19 px for their 14, 12 and 10-unit cells.
+ * `hudFont` rescales a size by the advance the browser's monospace font
+ * really has, so the widths hold on every machine (a CJK monospace advances
+ * 0.5 em, Consolas 0.55 em).
  */
-export const HUD_MESSAGE_FONT = `22.5px ${HUD_FONT_FAMILY}`;
-/** Legends with a 14-unit cell (SPD, MISS), calibrated on their widths. */
-const HUD_LEGEND_FONT_14 = `27px ${HUD_FONT_FAMILY}`;
+const NOMINAL_ADVANCE = 0.6;
+const HUD_MESSAGE_FONT_PX = 22.5;
+/** Legends with a 14-unit cell (SPD, MISS). */
+const LEGEND_14_PX = 27;
 /** Legends with a 12-unit cell (FWD, AFT, ROLL, PITCH). */
-const HUD_LEGEND_FONT_12 = `23px ${HUD_FONT_FAMILY}`;
+const LEGEND_12_PX = 23;
 /** Legends with a 10-unit cell (FUEL, CT, LT, ALT) and the two readouts (D-10). */
-const HUD_LEGEND_FONT_10 = `19px ${HUD_FONT_FAMILY}`;
+const LEGEND_10_PX = 19;
 /** The energy bank labels: `drawEnergyGauge:` cells of 9 x 12 units. */
-const HUD_ENERGY_LABEL_FONT = `14px ${HUD_FONT_FAMILY}`;
+const ENERGY_LABEL_PX = 14;
+
+/** The message font at the nominal advance (what a context without `measureText` gets). */
+export const HUD_MESSAGE_FONT = `${String(HUD_MESSAGE_FONT_PX)}px ${HUD_FONT_FAMILY}`;
+
+/** The HUD font's measured advance per px, per context (read once). */
+const measuredAdvance = new WeakMap<CanvasRenderingContext2D, number>();
+
+function advanceOf(context: CanvasRenderingContext2D): number {
+  const known = measuredAdvance.get(context);
+  if (known !== undefined) return known;
+  let advance = NOMINAL_ADVANCE;
+  if (typeof context.measureText === "function") {
+    const previous = context.font;
+    context.font = `100px ${HUD_FONT_FAMILY}`;
+    const width = context.measureText("0000000000").width / 1000;
+    context.font = previous;
+    if (Number.isFinite(width) && width > 0.3 && width < 1) advance = width;
+  }
+  measuredAdvance.set(context, advance);
+  return advance;
+}
+
+/** A HUD font whose glyphs advance as a `px` font at 0.6 em would. */
+function hudFont(context: CanvasRenderingContext2D, px: number): string {
+  const size = (px * NOMINAL_ADVANCE) / advanceOf(context);
+  return `${String(Math.round(size * 100) / 100)}px ${HUD_FONT_FAMILY}`;
+}
 
 /** Oolite's 288x64 scanner (`hud.plist:19-28`) at 2.25 px per unit (D-05). */
 export const SCANNER_WIDTH = 648;
@@ -582,7 +614,7 @@ function drawCompass(
       context.stroke();
       // `oo_drawHUDBeaconIconAt` (NSString): the code letter at
       // (x - 2.5 s, y - 3 s) in a 2s cell, below and left of the centre.
-      context.font = `${String(Math.round((0.43 * 2 * blip) / 0.6))}px ${HUD_FONT_FAMILY}`;
+      context.font = hudFont(context, (0.43 * 2 * blip) / NOMINAL_ADVANCE);
       context.textAlign = "left";
       context.textBaseline = "bottom";
       context.fillText(WITCHPOINT_BEACON_CODE, x - 2.5 * blip, y + 3 * blip);
@@ -770,9 +802,9 @@ function drawLegend(
   x: number,
   bottom: number,
   cell: number,
-  font: string,
+  px: number,
 ): void {
-  context.font = font;
+  context.font = hudFont(context, px);
   context.textBaseline = "middle";
   context.fillText(text, x, bottom - (2 / 3) * cell * HUD_UNIT);
 }
@@ -847,9 +879,9 @@ function drawLeftGauges(
   context.fillStyle = HUD_COLOR;
   context.textAlign = "right";
   const left = LEFT_LEGEND_X;
-  drawLegend(context, "FWD", left, unitY(86), 12, HUD_LEGEND_FONT_12);
-  drawLegend(context, "AFT", left, unitY(70), 12, HUD_LEGEND_FONT_12);
-  drawLegend(context, "FUEL", left, unitY(55), 10, HUD_LEGEND_FONT_10);
+  drawLegend(context, "FWD", left, unitY(86), 12, LEGEND_12_PX);
+  drawLegend(context, "AFT", left, unitY(70), 12, LEGEND_12_PX);
+  drawLegend(context, "FUEL", left, unitY(55), 10, LEGEND_10_PX);
   // D-10: the "7.0 LY" readout stays, right-aligned left of the FUEL legend.
   drawLegend(
     context,
@@ -857,12 +889,12 @@ function drawLeftGauges(
     FUEL_READOUT_RIGHT,
     unitY(55),
     10,
-    HUD_LEGEND_FONT_10,
+    LEGEND_10_PX,
   );
-  drawLegend(context, "CT", left, unitY(45), 10, HUD_LEGEND_FONT_10);
-  drawLegend(context, "LT", left, unitY(34), 10, HUD_LEGEND_FONT_10);
-  drawLegend(context, "ALT", left, unitY(24), 10, HUD_LEGEND_FONT_10);
-  drawLegend(context, "MISS", left, unitY(3), 14, HUD_LEGEND_FONT_14);
+  drawLegend(context, "CT", left, unitY(45), 10, LEGEND_10_PX);
+  drawLegend(context, "LT", left, unitY(34), 10, LEGEND_10_PX);
+  drawLegend(context, "ALT", left, unitY(24), 10, LEGEND_10_PX);
+  drawLegend(context, "MISS", left, unitY(3), 14, LEGEND_14_PX);
 
   // Missile pylon placeholder (4 pylons, three loaded).
   for (let i = 0; i < 4; i += 1) {
@@ -931,7 +963,7 @@ function drawRightGauges(
   context.fillStyle = HUD_COLOR;
   context.textAlign = "left";
   const right = RIGHT_LEGEND_X;
-  drawLegend(context, "SPD", right, unitY(86), 14, HUD_LEGEND_FONT_14);
+  drawLegend(context, "SPD", right, unitY(86), 14, LEGEND_14_PX);
   // D-10: the "0.000 LS" readout stays, right of the SPD legend.
   drawLegend(
     context,
@@ -939,10 +971,10 @@ function drawRightGauges(
     SPEED_READOUT_X,
     unitY(86),
     14,
-    HUD_LEGEND_FONT_10,
+    LEGEND_10_PX,
   );
-  drawLegend(context, "ROLL", right, unitY(72), 12, HUD_LEGEND_FONT_12);
-  drawLegend(context, "PITCH", right, unitY(62), 12, HUD_LEGEND_FONT_12);
+  drawLegend(context, "ROLL", right, unitY(72), 12, LEGEND_12_PX);
+  drawLegend(context, "PITCH", right, unitY(62), 12, LEGEND_12_PX);
   // The bank labels start 3 units right of the gauge (`labelStartX`) in cells
   // 12 units high whose bottom is 1 unit below the bank's bottom edge.
   const labelX = RIGHT_BAR_X + BAR_WIDTH + 3 * HUD_UNIT;
@@ -953,7 +985,7 @@ function drawRightGauges(
       labelX,
       top + bankHeight * (i + 1) + HUD_UNIT,
       12,
-      HUD_ENERGY_LABEL_FONT,
+      ENERGY_LABEL_PX,
     );
   }
 }
@@ -1039,7 +1071,7 @@ function drawMessageRows(
   const band = message.height / HUD_MESSAGE_ROWS;
   const slots = rows.slice(-HUD_MESSAGE_ROWS);
   const offset = HUD_MESSAGE_ROWS - slots.length;
-  context.font = HUD_MESSAGE_FONT;
+  context.font = hudFont(context, HUD_MESSAGE_FONT_PX);
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillStyle = HUD_MESSAGE_COLOR;
