@@ -4,13 +4,13 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 17
 current_phase_name: NPC Fire and Hits on the Player
-current_plan: Not started
+current_plan: 1
 status: executing
 stopped_at: Phase 17 context gathered
-last_updated: "2026-11-18T23:10:07.659Z"
-last_activity: 2026-11-18
-last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: 1afdcf54cd9aea7f0d51457a4fba161fdefa8c42
+last_updated: "2026-11-18T23:10:52.359Z"
+last_activity: 2026-11-19
+last_activity_desc: Phase 17 execution started
+state_head: 462db7b402600dd4837b014fc1c043ee620882c3
 progress:
   total_phases: 6
   completed_phases: 2
@@ -26,15 +26,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-16)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Milestone v2.3 Combat and Death — Phase 15 (Damage Ledger and Kills) first; then Phases 16 and 17, which can run in parallel; then 18, 19 and 20
+**Current focus:** Phase 17 — NPC Fire and Hits on the Player
 
 ## Current Position
 
-Phase: 17 (NPC Fire and Hits on the Player) — READY TO EXECUTE
-Current Plan: Not started
+Phase: 17 (NPC Fire and Hits on the Player) — EXECUTING
+Current Plan: 1
 Total Plans in Phase: 10
-Status: Ready to execute
-Last activity: 2026-11-18 — Completed quick task 261118-spu: HUD drawn through the launch pre-roll and the launch
+Status: Executing Phase 17
+Last activity: 2026-11-19 — Phase 17 execution started
 
 
 ## Performance Metrics
