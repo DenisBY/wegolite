@@ -580,6 +580,34 @@ function readdirSession(): string[] {
   );
 }
 
+describe("market sort reset at start-up (quick 261118-n7z)", () => {
+  it("installs a null market sort once, after the New game / Continue branch, for both paths", () => {
+    // startSession has no Node harness (it builds the renderer, HUD and
+    // input), so the wiring is pinned as ordered source facts, as the
+    // world-lifecycle start-up test does. The warm Load reset is a behaviour
+    // test in save-controller.test.ts.
+    const source = readFileSync("src/app/session/start-session.ts", "utf8");
+    const reset = "ctx.station.marketSort = null;";
+    expect(source.split(reset)).toHaveLength(2);
+    const at = source.indexOf(reset);
+    const branch = source.indexOf(
+      "if (restoring && restore !== undefined) {\n      const restored = restoreFromSave(",
+    );
+    const elseArm = source.indexOf(
+      "} else {\n      flightState = initFlightState(systemLayout);\n    }",
+      branch,
+    );
+    const install = source.indexOf("ctx.core.state = flightState;");
+    expect(branch).toBeGreaterThan(-1);
+    expect(elseArm).toBeGreaterThan(branch);
+    // After the whole if/else, so New game and cold Continue both reach it,
+    // and not inside clearSaveForNewGame, which can return early.
+    expect(at).toBeGreaterThan(elseArm);
+    expect(at).toBeLessThan(install);
+    expect(source.indexOf("await clearSaveForNewGame();")).toBeLessThan(at);
+  });
+});
+
 describe("resolveStartTarget (quick task 261117-pij)", () => {
   // oolite-standard.oolite-save target_system_name: a new commander targets
   // the start system (Lave). A restore keeps the T-06-12 allow-list rule.

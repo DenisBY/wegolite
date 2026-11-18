@@ -516,6 +516,9 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     } else {
       flightState = initFlightState(systemLayout);
     }
+    // The F8 column sort is session state and is not saved: a New game and a
+    // cold Continue both start in the catalogue order.
+    ctx.station.marketSort = null;
     const restoredInFlight = flightState.mode === "inFlight";
 
     ctx.core.state = flightState;

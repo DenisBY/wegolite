@@ -443,6 +443,9 @@ export function createSaveController(
       ctx.core.layout = nextLayout;
       ctx.core.profile = restored.profile;
       ctx.core.market = nextMarket;
+      // The F8 column sort is session state and is not saved: a Load starts
+      // in the catalogue order, whatever the replaced session had sorted.
+      ctx.station.marketSort = null;
       ctx.core.marketSeed = nextSeed;
       ctx.core.hyperspaceTargetId = nextTarget;
       // D-06: a v3 save persists the epoch of its leg anchor, so a warm Load

@@ -10,6 +10,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Your ship now leaves the station along the docking slot, wings along its
   long side, as in Oolite. Before, it left turned 90 degrees, across the slot.
+- Starting a new game or loading a save shows the market in its usual order
+  again; a column sort no longer carries over.
 
 ### Changed
 

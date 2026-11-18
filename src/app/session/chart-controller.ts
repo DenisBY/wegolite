@@ -117,8 +117,9 @@ export function createChartController(
     ) {
       return;
     }
-    // Pitfall 13: F6 is inert during the launch cinematic, and an overlay must
-    // never open beneath the pause overlay.
+    // Pitfall 13: F6 is inert while launching (mode `launching`, the launch
+    // view from the dock slot), an open chart is not reopened, and an overlay
+    // must never open beneath the pause overlay.
     if (
       ctx.runtime.paused ||
       ctx.chart.chartOpen ||

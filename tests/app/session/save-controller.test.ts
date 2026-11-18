@@ -678,6 +678,29 @@ describe("loadFromSave order", () => {
     });
   });
 
+  it("(h) a docked or in-flight Load resets the market column sort to the catalogue order (quick 261118-n7z)", async () => {
+    for (const blob of [dockedBlob, flyingBlob]) {
+      const h = harness();
+      h.ctx.station.marketSort = { column: "price", direction: "descending" };
+      h.readResult.current = Promise.resolve({ kind: "ok", raw: blob().raw });
+
+      await h.controller.loadFromSave();
+
+      expect(h.ctx.station.marketSort).toBeNull();
+    }
+  });
+
+  it("(h) a Load that fails to parse keeps the market sort", async () => {
+    const h = harness();
+    const sort = { column: "name", direction: "ascending" } as const;
+    h.ctx.station.marketSort = sort;
+    h.readResult.current = Promise.resolve({ kind: "ok", raw: "{not json" });
+
+    await h.controller.loadFromSave();
+
+    expect(h.ctx.station.marketSort).toBe(sort);
+  });
+
   it("(c) a read that resolves after F2 was closed installs nothing and stays silent", async () => {
     const h = harness();
     watched(h);

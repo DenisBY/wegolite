@@ -311,7 +311,7 @@ export interface HudModel {
   readonly identFrame: IdentFrame | null;
   /**
    * Oolite's scanner flash phase, `((int)(time * 4)) & 1`
-   * (`HeadUpDisplay.m:1113`): buoys draw friendly green when it is set and
+   * (`HeadUpDisplay.m:1110`): buoys draw friendly green when it is set and
    * neutral yellow otherwise (D-08).
    */
   readonly scannerFlash: boolean;
@@ -987,8 +987,8 @@ function drawRightGauges(
 }
 
 /**
- * Oolite's `drawStatusLight:` (`HeadUpDisplay.m:2545-2595`): the octagon of
- * `hudDrawStatusIconAt` (`HeadUpDisplay.m:3220-3234`, corners cut at a
+ * Oolite's `drawStatusLight:` (`HeadUpDisplay.m:2542-2594`): the octagon of
+ * `hudDrawStatusIconAt` (`HeadUpDisplay.m:3216-3231`, corners cut at a
  * quarter of the size) filled in the condition colour and outlined in grey
  * (D-04). The colours stay Wegolite's (D-10); Oolite's alpha pulse is not
  * ported.

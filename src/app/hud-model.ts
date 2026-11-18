@@ -197,7 +197,7 @@ export interface HudModelOptions {
  * refreshes `state.torus.massLocked` only in in-flight steps, so the flag is
  * stale (false) through the launch and on the frame after the completing
  * launch step. The sim must not change for this, because the torus fields are
- * hashed (`hashFlight`) and the recorded launch-and-fly golden is frozen. In
+ * hashed (`hashFlight`) and pinned by the recorded launch-and-fly golden. In
  * flight the sim flag still carries the ship-caused locks.
  */
 function conditionOf(
@@ -261,7 +261,7 @@ function buildBars(
 
 /**
  * Oolite's scanner flash phase, `((int)([UNIVERSE getTime] * 4)) & 1`
- * (`HeadUpDisplay.m:1113`), on the flight time: it flips every 0.25 s.
+ * (`HeadUpDisplay.m:1110`), on the flight time: it flips every 0.25 s.
  */
 export function scannerFlashAt(flightTime: number): boolean {
   if (!Number.isFinite(flightTime)) return false;

@@ -9,10 +9,11 @@
  * (`tests/render/launch-camera.test.ts`). The cockpit pose is the ship pose
  * plus the Oolite view offset.
  *
- * The launch view. Oolite hides the world and draws its break pattern while
- * launching (`Universe.m:2895-2913` at 7437f22); Wegolite instead shows the
- * live cockpit view, starting deep inside the station's dock slot and flying
- * out through the mouth. The path is presentation only: the simulation, like
+ * The launch view. Oolite draws its break pattern while launching
+ * (`Universe.m:2895-2913` at 7437f22) and hides the world only while more than
+ * five of its rings are alive (`Universe.m:3516-3520`); Wegolite instead shows
+ * the live cockpit view, starting deep inside the station's dock slot and
+ * flying out through the mouth. The path is presentation only: the simulation, like
  * Oolite (`DockEntity.m:812-837`), parks the ship at the dock mouth and moves
  * it out at half its top speed (`src/sim/flight/launch.ts`), and nothing here
  * changes that. The camera is the fore cockpit pose of the interpolated sim
