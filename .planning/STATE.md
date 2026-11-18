@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-18T15:43:10.976Z"
+last_updated: "2026-11-18T16:37:28.590Z"
 last_activity: 2026-11-18
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: 67eeb634ca7d8ff6519109422724d9efcf4b17c8
+state_head: 8e0a3bdb1963d98c958a91cd32e83fb68cde7333
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-18 — Completed quick task 261118-mb5: launch along the dock slot with Oolite's 90° twist
+Last activity: 2026-11-18 — Completed quick task 261118-n7z: compass gated on ASC, flight-hash golden regenerated, review follow-ups
 
 
 ## Performance Metrics
@@ -625,6 +625,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 52 | Give the core-loop fly-away the same 480 s CI margin | 2026-11-18 | 8f63c06 | — |
 | 261118-l26 | Launch view from inside the dock slot instead of the break pattern | 2026-11-18 | 28f2a77 | [261118-l26-launch-view-from-inside-the-dock-slot-in](./quick/261118-l26-launch-view-from-inside-the-dock-slot-in/) |
 | 261118-mb5 | Launch the ship along the dock slot with Oolite's 90 degree roll | 2026-11-18 | 67eeb63 | [261118-mb5-launch-the-ship-along-the-dock-slot-with](./quick/261118-mb5-launch-the-ship-along-the-dock-slot-with/) |
+| 261118-n7z | Review follow-ups since 0.5.0 and gate compass modes on the ASC | 2026-11-18 | 8e0a3bd | [261118-n7z-review-follow-ups-since-0-5-0-and-gate-c](./quick/261118-n7z-review-follow-ups-since-0-5-0-and-gate-c/) |
 
 ## Deferred Items
 
