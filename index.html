@@ -331,6 +331,11 @@
         align-items: start;
       }
 
+      /* Oolite centres the empty-list line (GUI_ALIGN_CENTER). */
+      #docked .station-outfitting-empty {
+        text-align: center;
+      }
+
       #docked .station-list {
         display: flex;
         flex-direction: column;
@@ -1958,6 +1963,11 @@
               <p data-field="outfitting-price"></p>
             </div>
           </div>
+          <p
+            class="station-outfitting-empty"
+            data-field="outfitting-empty"
+            hidden
+          ></p>
         </div>
         <div data-station-panel="status" hidden>
           <h2>Status</h2>

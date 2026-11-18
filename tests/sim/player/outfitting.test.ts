@@ -39,12 +39,14 @@ import {
   checkFit,
   checkLaserFit,
   fitPrice,
+  isListedForPurchase,
   laserFitKey,
   laserPriceMap,
   parseLaserFitKey,
 } from "../../../src/sim/player/outfitting.js";
 import type {
   FitContext,
+  FitRefusal,
   LaserFitContext,
 } from "../../../src/sim/player/outfitting.js";
 import { newProfile } from "../../../src/sim/player/profile.js";
@@ -1192,5 +1194,95 @@ describe("the money-path boundary (T-13-18, T-13-19)", () => {
         },
       ),
     );
+  });
+});
+
+describe("isListedForPurchase (Oolite equipmentAllowed)", () => {
+  // A literal list, not derived from the table: a new FitRefusal fails the
+  // type check below until this list (and the table) classify it.
+  const ALL_REFUSALS: readonly FitRefusal[] = [
+    "notOffered",
+    "techLevel",
+    "owned",
+    "maxInstances",
+    "cargoSpace",
+    "pylonsFull",
+    "nothingToRemove",
+    "noLaser",
+    "insufficientCredits",
+    "fullFuel",
+    "invalidPrice",
+    "invalidCondition",
+  ];
+
+  it("classifies every refusal: only insufficientCredits stays listed", () => {
+    expect(ALL_REFUSALS).toHaveLength(12);
+    expect(isListedForPurchase({ ok: true })).toBe(true);
+    for (const reason of ALL_REFUSALS) {
+      expect(isListedForPurchase({ ok: false, reason })).toBe(
+        reason === "insufficientCredits",
+      );
+    }
+  });
+
+  it("reports every non-credit refusal before affordability at 0 credits", () => {
+    const broke = (overrides: Partial<PlayerProfile> = {}) =>
+      makeProfile({ credits: 0, ...overrides });
+    const results = [
+      checkFit(broke(), dockComputer, makeContext({ techLevelRaw: 4 })),
+      checkFit(broke({ equipment: ["EQ_CARGO_BAY"] }), cargoBay, makeContext()),
+      checkFit(broke({ missiles: MAX_MISSILES }), missile, makeContext()),
+      checkFit(broke(), berth, makeContext({ availablePods: 0 })),
+      checkFit(
+        broke({ passengerBerths: MAX_PASSENGER_BERTHS }),
+        berth,
+        makeContext(),
+      ),
+      checkFit(broke({ fuel: FUEL_CAPACITY }), fuel, makeContext()),
+      checkFit(broke({ missiles: 0 }), missileRemoval, makeContext()),
+      checkLaserFit(
+        broke(),
+        item("EQ_WEAPON_MINING_LASER"),
+        "fore",
+        laserContext({ techLevelRaw: 4 }),
+      ),
+      checkLaserFit(
+        broke({ laserMounts: mounts({ aft: NO_LASER }) }),
+        item(NO_LASER),
+        "aft",
+        laserContext(),
+      ),
+    ];
+    expect(results).toEqual([
+      { ok: false, reason: "techLevel" },
+      { ok: false, reason: "owned" },
+      { ok: false, reason: "pylonsFull" },
+      { ok: false, reason: "cargoSpace" },
+      { ok: false, reason: "maxInstances" },
+      { ok: false, reason: "fullFuel" },
+      { ok: false, reason: "nothingToRemove" },
+      { ok: false, reason: "techLevel" },
+      { ok: false, reason: "noLaser" },
+    ]);
+    for (const result of results)
+      expect(isListedForPurchase(result)).toBe(false);
+  });
+
+  it("keeps an item that passes every rule but the price listed", () => {
+    const short = checkFit(
+      makeProfile({ credits: 0 }),
+      cargoBay,
+      makeContext(),
+    );
+    expect(short).toEqual({ ok: false, reason: "insufficientCredits" });
+    expect(isListedForPurchase(short)).toBe(true);
+    const laser = checkLaserFit(
+      makeProfile({ credits: 3_999 }),
+      item("EQ_WEAPON_PULSE_LASER"),
+      "aft",
+      laserContext({ techLevelRaw: 4 }),
+    );
+    expect(laser).toEqual({ ok: false, reason: "insufficientCredits" });
+    expect(isListedForPurchase(laser)).toBe(true);
   });
 });

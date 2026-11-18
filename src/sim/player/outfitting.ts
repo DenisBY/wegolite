@@ -14,6 +14,13 @@
  * `FACINGS` allow-list. `checkFit` and `applyFit` still refuse every laser, and
  * every other record stays `notOffered` on both paths.
  *
+ * F3 lists an item only when it could be fitted here and now, as Oolite's
+ * `equipmentAllowed` does (`isListedForPurchase`): an item above the system's
+ * tech level, already fitted or with no room to add it is not shown. Only an
+ * item the commander cannot afford stays listed, refused with
+ * `insufficientCredits`. The listing rule is presentation; the checks below
+ * stay the boundary.
+ *
  * Everything the module reads comes from the validated equipment record and
  * the session's **raw** `System.techLevelRaw`. The displayed tech level (raw +
  * 1) belongs to the view model and must never gate an item: Oolite compares the
@@ -141,6 +148,50 @@ export type FitRefusal =
 
 export type FitCheck =
   { readonly ok: true } | { readonly ok: false; readonly reason: FitRefusal };
+
+/**
+ * Which refusals still leave an item on the F3 list. Only a shortfall of
+ * credits does; every other refusal hides the row. The `Record` type forces a
+ * future refusal to be classified here before the module compiles.
+ */
+const LISTED_REFUSALS: Readonly<Record<FitRefusal, boolean>> = Object.freeze({
+  notOffered: false,
+  techLevel: false,
+  owned: false,
+  maxInstances: false,
+  cargoSpace: false,
+  pylonsFull: false,
+  nothingToRemove: false,
+  noLaser: false,
+  insufficientCredits: true,
+  fullFuel: false,
+  invalidPrice: false,
+  invalidCondition: false,
+});
+
+/**
+ * Whether F3 lists an item whose check came out as `check`.
+ *
+ * This is Oolite's `equipmentAllowed` (`PlayerEntity.m:8293-8302`): an item
+ * the station offers is listed only when the system's tech level allows it,
+ * `canAddEquipment:inContext:@"purchase"` accepts it (not already fitted, a free
+ * pylon, cargo space, a non-full tank, something to remove), and, for a primary
+ * weapon, the ship has a facing. Oolite's list never consults credits: they
+ * are checked only when the purchase is tried (`tryBuyingItem`,
+ * `PlayerEntity.m:9134` and `:9188`), so an unaffordable item stays listed.
+ *
+ * The predicate relies on affordability being the **last** gate of
+ * `checkFit`, `checkLaserFit` and `canPurchase`: `insufficientCredits` is only
+ * ever reported for an item that passes every other rule. Wegolite's
+ * fail-closed integrity refusals (`invalidPrice`, `invalidCondition`) hide the
+ * row too, because a row that can never be bought must never be advertised.
+ *
+ * It is presentation only. `checkFit`/`applyFit` and
+ * `checkLaserFit`/`applyLaserFit` stay the money-path boundary.
+ */
+export function isListedForPurchase(check: FitCheck): boolean {
+  return check.ok || LISTED_REFUSALS[check.reason];
+}
 
 /** The five condition values this v1 set understands. */
 interface ParsedConditions {

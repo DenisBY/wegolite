@@ -34,6 +34,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   radius, as in Oolite; the current system, the destination and the
   selection are marked with rings.
 - Chart labels no longer overlap at any zoom.
+- Outfitting (F3) now lists only the equipment you can buy or fit at this
+  station, as in Oolite. Items above the system's tech level, already fitted,
+  or with no room (full pylons, a full tank, no cargo space) are no longer
+  shown. Items you cannot afford stay listed, dimmed, with "Not enough
+  credits". When nothing can be offered the screen reads
+  "No equipment available for purchase.".
 
 ## [0.5.0] - 2026-11-17
 

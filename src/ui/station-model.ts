@@ -40,6 +40,7 @@ import {
   checkLaserFit,
   fitPrice,
   isLaserFitKey,
+  isListedForPurchase,
   laserFitKey,
   laserFitPrice,
   laserPriceMap,
@@ -798,7 +799,23 @@ export interface OutfittingModel {
    * While set, `rows` are the four facing rows keyed by `laserFitKey`.
    */
   readonly facingFor: string | null;
+  /**
+   * `OUTFITTING_EMPTY_TEXT` when the main list has no rows, otherwise empty.
+   * The facing selection always lists the ship's facings, so it is always "".
+   */
+  readonly emptyText: string;
 }
+
+/**
+ * The F3 empty state: Oolite's `setGuiToEquipShipScreen` shows
+ * `DESC(@"equip-no-equipment-available-for-purchase")` when no item passes
+ * `equipmentAllowed` (`PlayerEntity.m:8511`). The key lives in
+ * `descriptions.plist` (vendored copy at
+ * `third_party/oolite/Config/descriptions.plist`). The content build does not
+ * compile it, so the text is a literal here and
+ * `tests/ui/station-outfitting.test.ts` pins it to the vendored plist.
+ */
+export const OUTFITTING_EMPTY_TEXT = "No equipment available for purchase.";
 
 const REMOVAL_KEYS: ReadonlySet<string> = new Set([
   "EQ_PASSENGER_BERTH_REMOVAL",
@@ -881,9 +898,14 @@ function multiCount(item: Equipment, profile: PlayerProfile): number | null {
 /**
  * Build the F3 outfitting row model (ECON-05, ECON-08, D-11..D-16).
  *
- * Rows follow `VISIBLE_EQUIPMENT_KEYS` exactly, omit Fuel at a full tank and
- * each removal row at a zero count. A disabled row stays selectable so its
- * detail and reason can be read, but `confirmable` is false. Removal rows use
+ * Rows follow `VISIBLE_EQUIPMENT_KEYS` order, then the lasers in
+ * `LASER_FIT_KEYS` order, but only listed rows appear: as in Oolite's
+ * `equipmentAllowed` (`PlayerEntity.m:8293-8302`), an item above the system's
+ * tech level, already fitted or with no room to add it is left out
+ * (`isListedForPurchase`). The only disabled main-list row is therefore an
+ * unaffordable one; it stays selectable so its detail and "Not enough credits"
+ * can be read, but `confirmable` is false. With no row listed, `emptyText` is
+ * Oolite's `OUTFITTING_EMPTY_TEXT` and `detail` is null. Removal rows use
  * D-15's whole-credit label while the detail and the confirmation keep the
  * exact decimal price. Removal detail copy is the truthful per-entry
  * `REMOVAL_DESCRIPTIONS` override, never the generated description: the missile
@@ -938,6 +960,7 @@ export function buildOutfittingModel(
     }
 
     const check = checkFit(profile, item, ctx);
+    if (!isListedForPurchase(check)) continue;
     const cost = fitPrice(profile, item, ctx);
     const removal = REMOVAL_KEYS.has(key);
     const enabled = check.ok;
@@ -957,7 +980,9 @@ export function buildOutfittingModel(
   }
 
   // Lasers follow the visible rows, in `LASER_FIT_KEYS` order. Remove Laser is
-  // listed only while some facing has a laser to remove.
+  // listed only while some facing has a laser to remove. A laser is listed when
+  // at least one facing passes every rule but affordability; a listed laser no
+  // facing can afford reads "Not enough credits", never another facing's refusal.
   const anyLaser = FACINGS.some(
     (facing) => profile.laserMounts[facing] !== NO_LASER,
   );
@@ -972,8 +997,11 @@ export function buildOutfittingModel(
     const checks = FACINGS.map((facing) =>
       checkLaserFit(profile, item, facing, ctx),
     );
+    if (!checks.some(isListedForPurchase)) continue;
     const firstOk = checks.some((check) => check.ok);
-    const refusal = checks.find((check) => !check.ok);
+    const refusal = checks.find(
+      (check) => !check.ok && isListedForPurchase(check),
+    );
     const cost = laserFitPrice(item);
     rows.push({
       key,
@@ -1012,7 +1040,14 @@ export function buildOutfittingModel(
     };
   }
 
-  return { rows, detail, fuelVisible, selectedKey, facingFor: null };
+  return {
+    rows,
+    detail,
+    fuelVisible,
+    selectedKey,
+    facingFor: null,
+    emptyText: rows.length === 0 ? OUTFITTING_EMPTY_TEXT : "",
+  };
 }
 
 /**
@@ -1064,6 +1099,7 @@ function buildFacingModel(
     fuelVisible: false,
     selectedKey,
     facingFor: laserKey,
+    emptyText: "",
   };
 }
 

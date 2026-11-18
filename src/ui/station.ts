@@ -186,6 +186,11 @@ export function createStationShell(
     '[data-field="outfitting-price"]',
     "the outfitting detail price",
   );
+  const outfittingEmpty = requireElement<HTMLElement>(
+    root,
+    '[data-field="outfitting-empty"]',
+    "the outfitting empty-state line",
+  );
   const statusPage = requireElement<HTMLElement>(
     root,
     '[data-field="status-page"]',
@@ -307,6 +312,8 @@ export function createStationShell(
     outfittingTitle.textContent = detail?.title ?? "";
     outfittingDescription.textContent = detail?.description ?? "";
     outfittingPrice.textContent = detail?.priceText ?? "";
+    outfittingEmpty.textContent = model.emptyText;
+    outfittingEmpty.hidden = model.emptyText === "";
   }
 
   function renderStatus(model: StatusModel): void {

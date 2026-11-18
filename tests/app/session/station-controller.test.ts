@@ -697,3 +697,57 @@ describe("laser facing selection flow", () => {
     expect(h.ctx.core.profile).toBe(before);
   });
 });
+
+describe("F3 lists only what can be fitted (quick task 261118-emk)", () => {
+  it("buying the fourth missile hides its row and the cursor lands on Remove Missile without buying it", () => {
+    const h = outfittingHarness(50_000);
+    moveTo(h, "EQ_MISSILE");
+    press(h, "stationConfirm");
+    expect(h.ctx.station.stationPending).toEqual({
+      kind: "fit",
+      key: "EQ_MISSILE",
+    });
+    press(h, "stationConfirm");
+
+    expect(h.ctx.core.profile.missiles).toBe(4);
+    const rows = h.controller.outfittingModel()?.rows ?? [];
+    expect(rows.map((row) => row.key)).not.toContain("EQ_MISSILE");
+    expect(h.ctx.station.stationSelection).toBe("EQ_MISSILE_REMOVAL");
+
+    // One further Y only opens the guard on the row now under the cursor.
+    const bought = h.ctx.core.profile;
+    press(h, "stationConfirm");
+    expect(h.ctx.station.stationPending).toEqual({
+      kind: "fit",
+      key: "EQ_MISSILE_REMOVAL",
+    });
+    expect(h.ctx.core.profile).toBe(bought);
+    expect(h.calls.filter((call) => call === "autosave")).toEqual(["autosave"]);
+  });
+
+  it("an empty list (raw TL 0, full tank) makes Y, Up and Down inert", () => {
+    const h = outfittingHarness(1_000);
+    h.ctx.core.system = { ...h.ctx.core.system, techLevelRaw: 0 };
+    h.controller.ensureOutfittingSelection();
+    expect(h.ctx.station.stationSelection).toBe("");
+    const model = h.controller.outfittingModel();
+    expect(model?.rows).toEqual([]);
+    expect(model?.emptyText).toBe("No equipment available for purchase.");
+
+    const before = h.ctx.core.profile;
+    for (const action of [
+      "stationConfirm",
+      "stationUp",
+      "stationDown",
+      "stationConfirm",
+    ] as const) {
+      press(h, action);
+      expect(h.ctx.station.stationNotice).toBe("");
+      expect(h.ctx.station.stationPending).toBeNull();
+      expect(h.ctx.station.stationSelection).toBe("");
+      expect(h.ctx.core.profile).toBe(before);
+    }
+    expect(h.profiles).toEqual([]);
+    expect(h.calls).not.toContain("autosave");
+  });
+});

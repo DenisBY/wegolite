@@ -4,22 +4,29 @@
 /**
  * The F3 outfitting row model (ECON-05, ECON-08, D-10..D-16).
  *
- * Pins the exact D-11 order at Lave, the fuel row's fill cost and visibility,
- * every short refusal reason, the disabled-row detail, the truthful
+ * Pins Oolite's listing rule (`equipmentAllowed`, `PlayerEntity.m:8293-8302`):
+ * only rows that can be fitted here appear, in D-11 order, and only an
+ * unaffordable row is listed disabled ("Not enough credits"). Also pins the
+ * fuel row's fill cost and visibility, the credits-independent row set, the
+ * empty state, the unaffordable-row detail, the truthful
  * `REMOVAL_DESCRIPTIONS` override (missile full-value re-sale, berth no refund)
  * and D-15's whole-credit removal labels (`Remove Missile — 20 ₢`) versus the
  * decimal confirmation name.
  */
 
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { parseEquipment } from "../../src/content/equipment.js";
 import type { Equipment } from "../../src/content/types.js";
-import { newProfile } from "../../src/sim/player/profile.js";
+import { formatDecicredits, newProfile } from "../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../src/sim/player/profile.js";
-import { buildOutfittingModel } from "../../src/ui/station-model.js";
+import {
+  OUTFITTING_EMPTY_TEXT,
+  buildOutfittingModel,
+} from "../../src/ui/station-model.js";
 import { commodityUnits, commoditiesFixture } from "../helpers/commodities.js";
 import { laveFixture } from "../helpers/lave.js";
 
@@ -61,29 +68,41 @@ function row(model: Model, key: string) {
   return found;
 }
 
-describe("the D-11 row set at Lave", () => {
-  it("emits exactly the ordered peaceful set then the lasers, omitting fuel and empty removals", () => {
-    expect(build().rows.map((entry) => entry.key)).toEqual([
+describe("the listed row set (Oolite equipmentAllowed)", () => {
+  it("lists only what can be fitted at Lave, in D-11 order then the lasers", () => {
+    const model = build();
+    expect(model.rows.map((entry) => entry.key)).toEqual([
       "EQ_CARGO_BAY",
-      "EQ_DOCK_COMP",
-      "EQ_GAL_DRIVE",
-      "EQ_ADVANCED_COMPASS",
-      "EQ_ADVANCED_NAVIGATIONAL_ARRAY",
       "EQ_MISSILE",
-      "EQ_PASSENGER_BERTH",
       "EQ_MISSILE_REMOVAL",
       // The stock fit has a fore pulse laser, so Remove Laser is listed.
       "EQ_WEAPON_NONE",
       "EQ_WEAPON_PULSE_LASER",
       "EQ_WEAPON_BEAM_LASER",
-      "EQ_WEAPON_MINING_LASER",
-      "EQ_WEAPON_MILITARY_LASER",
     ]);
+    expect(model.emptyText).toBe("");
   });
 
   it("shows Fuel first when the tank is not full", () => {
     const model = build(makeProfile({ fuel: 34 }));
 
+    expect(model.rows.map((entry) => entry.key)).toEqual([
+      "EQ_FUEL",
+      "EQ_CARGO_BAY",
+      "EQ_MISSILE",
+      "EQ_MISSILE_REMOVAL",
+      "EQ_WEAPON_NONE",
+      "EQ_WEAPON_PULSE_LASER",
+      "EQ_WEAPON_BEAM_LASER",
+    ]);
+    expect(model.fuelVisible).toBe(true);
+  });
+
+  it("keeps the full D-11 order when every row is listed", () => {
+    const model = build(
+      makeProfile({ credits: 10_000_000, fuel: 34, passengerBerths: 1 }),
+      10,
+    );
     expect(model.rows.map((entry) => entry.key)).toEqual([
       "EQ_FUEL",
       "EQ_CARGO_BAY",
@@ -93,6 +112,7 @@ describe("the D-11 row set at Lave", () => {
       "EQ_ADVANCED_NAVIGATIONAL_ARRAY",
       "EQ_MISSILE",
       "EQ_PASSENGER_BERTH",
+      "EQ_PASSENGER_BERTH_REMOVAL",
       "EQ_MISSILE_REMOVAL",
       "EQ_WEAPON_NONE",
       "EQ_WEAPON_PULSE_LASER",
@@ -100,7 +120,7 @@ describe("the D-11 row set at Lave", () => {
       "EQ_WEAPON_MINING_LASER",
       "EQ_WEAPON_MILITARY_LASER",
     ]);
-    expect(model.fuelVisible).toBe(true);
+    expect(model.rows.every((entry) => entry.confirmable)).toBe(true);
   });
 
   it("omits Fuel at a full tank and prices the fill cost, never 2 dc", () => {
@@ -126,60 +146,112 @@ describe("the D-11 row set at Lave", () => {
   });
 });
 
-describe("short refusal reasons", () => {
+describe("listed and hidden rows", () => {
   const model = build();
+  const rich = { credits: 1_000_000 };
+  const keys = (built: Model) => built.rows.map((entry) => entry.key);
 
-  it("uses the literal catalogue-order reasons", () => {
-    expect(row(model, "EQ_CARGO_BAY").reason).toBe("Not enough credits");
-    expect(row(model, "EQ_DOCK_COMP").reason).toBe("Requires TL 9");
-    expect(row(model, "EQ_GAL_DRIVE").reason).toBe("Requires TL 10");
-    expect(row(model, "EQ_ADVANCED_COMPASS").reason).toBe("Requires TL 7");
-    expect(row(model, "EQ_ADVANCED_NAVIGATIONAL_ARRAY").reason).toBe(
-      "Requires TL 6",
-    );
-    // A new Cobra carries three missiles on four pylons, as in Oolite.
-    expect(row(model, "EQ_MISSILE").reason).toBe("");
-    expect(row(build(makeProfile({ missiles: 4 })), "EQ_MISSILE").reason).toBe(
-      "Pylons full",
-    );
-    expect(row(model, "EQ_PASSENGER_BERTH").reason).toBe("Requires TL 5");
-    expect(row(model, "EQ_MISSILE_REMOVAL").reason).toBe("");
+  it("hides every item above Lave's raw tech level", () => {
+    for (const key of [
+      "EQ_DOCK_COMP",
+      "EQ_GAL_DRIVE",
+      "EQ_ADVANCED_COMPASS",
+      "EQ_ADVANCED_NAVIGATIONAL_ARRAY",
+      "EQ_PASSENGER_BERTH",
+    ]) {
+      expect(keys(model)).not.toContain(key);
+      expect(keys(build(makeProfile(rich)))).not.toContain(key);
+    }
   });
 
-  it("marks a disabled row dimmed and non-confirmable but still selectable", () => {
-    const disabled = row(model, "EQ_DOCK_COMP");
-    expect(disabled.enabled).toBe(false);
-    expect(disabled.dimmed).toBe(true);
-    expect(disabled.confirmable).toBe(false);
+  it("hides a full pylon set, an owned item, a hold with no room and the berth bound", () => {
+    // A new Cobra carries three missiles on four pylons, as in Oolite.
+    expect(row(model, "EQ_MISSILE").reason).toBe("");
+    expect(keys(build(makeProfile({ ...rich, missiles: 4 })))).not.toContain(
+      "EQ_MISSILE",
+    );
+    expect(
+      keys(build(makeProfile({ ...rich, equipment: ["EQ_CARGO_BAY"] }), 11)),
+    ).not.toContain("EQ_CARGO_BAY");
+    expect(
+      keys(build(makeProfile({ ...rich, cargo: { food: 20 } }), 11)),
+    ).not.toContain("EQ_PASSENGER_BERTH");
+    expect(
+      keys(build(makeProfile({ ...rich, passengerBerths: 7 }), 11)),
+    ).not.toContain("EQ_PASSENGER_BERTH");
+  });
+
+  it("keeps an unaffordable item listed, dimmed and non-confirmable", () => {
+    const unaffordable = row(model, "EQ_CARGO_BAY");
+    expect(unaffordable).toMatchObject({
+      enabled: false,
+      dimmed: true,
+      confirmable: false,
+      reason: "Not enough credits",
+    });
 
     const enabled = row(model, "EQ_MISSILE_REMOVAL");
     expect(enabled.enabled).toBe(true);
     expect(enabled.dimmed).toBe(false);
     expect(enabled.confirmable).toBe(true);
+    expect(enabled.reason).toBe("");
   });
 
-  it("reports Already installed, No cargo space and Maximum reached", () => {
-    const rich = { credits: 1_000_000 };
-    expect(
-      row(
-        build(makeProfile({ ...rich, equipment: ["EQ_CARGO_BAY"] }), 11),
-        "EQ_CARGO_BAY",
-      ).reason,
-    ).toBe("Already installed");
+  it("never lets credits change which rows are listed", () => {
+    const bare = {
+      fore: "EQ_WEAPON_NONE",
+      aft: "EQ_WEAPON_NONE",
+      port: "EQ_WEAPON_NONE",
+      starboard: "EQ_WEAPON_NONE",
+    } as const;
+    const profiles: readonly Partial<PlayerProfile>[] = [
+      {},
+      { fuel: 34 },
+      { missiles: 4 },
+      { passengerBerths: 1 },
+      { passengerBerths: 7 },
+      { cargo: { food: 20 } },
+      { laserMounts: bare },
+    ];
+    for (const techLevelRaw of [0, 3, 4, 10]) {
+      for (const overrides of profiles) {
+        const broke = keys(
+          build(makeProfile({ ...overrides, credits: 0 }), techLevelRaw),
+        );
+        const wealthy = keys(
+          build(
+            makeProfile({ ...overrides, credits: 10_000_000 }),
+            techLevelRaw,
+          ),
+        );
+        expect(broke).toEqual(wealthy);
+      }
+    }
+  });
+});
 
-    expect(
-      row(
-        build(makeProfile({ ...rich, cargo: { food: 20 } }), 11),
-        "EQ_PASSENGER_BERTH",
-      ).reason,
-    ).toBe("No cargo space");
+describe("the empty list", () => {
+  it("reads Oolite's empty line with no detail at raw TL 0 and a full tank", () => {
+    const model = build(makeProfile(), 0);
+    expect(model.rows).toEqual([]);
+    expect(model.emptyText).toBe("No equipment available for purchase.");
+    expect(model.emptyText).toBe(OUTFITTING_EMPTY_TEXT);
+    expect(model.detail).toBeNull();
+  });
 
-    expect(
-      row(
-        build(makeProfile({ ...rich, passengerBerths: 7 }), 11),
-        "EQ_PASSENGER_BERTH",
-      ).reason,
-    ).toBe("Maximum reached");
+  it("pins the empty line to the vendored descriptions.plist verbatim", () => {
+    const plist = readFileSync(
+      join(process.cwd(), "third_party/oolite/Config/descriptions.plist"),
+      "utf8",
+    );
+    let value: string | undefined;
+    for (const line of plist.split("\n")) {
+      const match = /^\s*"([^"]+)"\s*=\s*"(.*)";\s*$/.exec(line);
+      if (match?.[1] === "equip-no-equipment-available-for-purchase") {
+        value = match[2];
+      }
+    }
+    expect(value).toBe(OUTFITTING_EMPTY_TEXT);
   });
 });
 
@@ -188,8 +260,9 @@ describe("labels, names and prices", () => {
     const missile = row(build(), "EQ_MISSILE");
 
     expect(missile.label).toBe("Missile (3/4)");
-    expect(row(build(makeProfile({ missiles: 4 })), "EQ_MISSILE").label).toBe(
-      "Missile (4/4)",
+    // At 4/4 the row is hidden (pylons full), so pin the empty count instead.
+    expect(row(build(makeProfile({ missiles: 0 })), "EQ_MISSILE").label).toBe(
+      "Missile (0/4)",
     );
     expect(missile.name).toBe("Missile");
     expect(missile.multiCount).toBe(3);
@@ -215,13 +288,16 @@ describe("labels, names and prices", () => {
 });
 
 describe("detail pane", () => {
-  it("shows the full catalogue detail for a disabled selected row", () => {
-    const model = build(makeProfile(), laveTechLevelRaw, "EQ_DOCK_COMP");
+  it("shows the full catalogue detail for an unaffordable selected row", () => {
+    const cargoBay = catalogue.find((entry) => entry.key === "EQ_CARGO_BAY");
+    if (cargoBay === undefined) throw new Error("no EQ_CARGO_BAY");
+    const model = build(makeProfile(), laveTechLevelRaw, "EQ_CARGO_BAY");
 
     expect(model.detail).not.toBeNull();
-    expect(model.detail?.title).toBe("Docking Computers");
-    expect(model.detail?.description).toContain("A simple autopilot");
-    expect(model.detail?.priceText).toBe("1500.0 ₢");
+    expect(model.detail?.title).toBe(cargoBay.name);
+    expect(model.detail?.description).toBe(cargoBay.description);
+    expect(model.detail?.priceText).toBe(formatDecicredits(cargoBay.price));
+    expect(model.detail?.priceText).toBe("400.0 ₢");
   });
 
   it("states the full catalogue-value re-sale for missile removal", () => {
@@ -254,7 +330,8 @@ describe("laser rows and the facing selection (CBT-05)", () => {
     makeProfile({ credits: 1_000_000, ...overrides });
 
   it("lists the lasers after the visible rows with Oolite's names and prices", () => {
-    const model = build(rich());
+    // Raw TL 10, so the TL 10 mining and military lasers are listed too.
+    const model = build(rich(), 10);
 
     expect(row(model, "EQ_WEAPON_PULSE_LASER").label).toBe("Pulse Laser");
     expect(row(model, "EQ_WEAPON_PULSE_LASER").priceText).toBe("400.0 ₢");
@@ -265,24 +342,21 @@ describe("laser rows and the facing selection (CBT-05)", () => {
     expect(model.facingFor).toBeNull();
   });
 
-  it("gates each laser on the raw tech level, with the short reason", () => {
-    // Lave's raw tech level is 4: Pulse and Beam are fittable, Mining and Military are not.
+  it("hides each laser above the raw tech level", () => {
+    // Lave's raw tech level is 4: Pulse and Beam are fittable, Mining and Military are hidden.
     const model = build(rich());
+    const keys = model.rows.map((entry) => entry.key);
     expect(row(model, "EQ_WEAPON_PULSE_LASER").confirmable).toBe(true);
     expect(row(model, "EQ_WEAPON_BEAM_LASER").confirmable).toBe(true);
-    expect(row(model, "EQ_WEAPON_MINING_LASER")).toMatchObject({
-      confirmable: false,
-      dimmed: true,
-      reason: "Requires TL 10",
-    });
-    expect(row(model, "EQ_WEAPON_MILITARY_LASER").reason).toBe(
-      "Requires TL 10",
-    );
+    expect(keys).not.toContain("EQ_WEAPON_MINING_LASER");
+    expect(keys).not.toContain("EQ_WEAPON_MILITARY_LASER");
 
     const high = build(rich(), 10);
     expect(row(high, "EQ_WEAPON_MILITARY_LASER").confirmable).toBe(true);
     const low = build(rich(), 3);
-    expect(row(low, "EQ_WEAPON_BEAM_LASER").reason).toBe("Requires TL 4");
+    expect(low.rows.map((entry) => entry.key)).not.toContain(
+      "EQ_WEAPON_BEAM_LASER",
+    );
   });
 
   it("a laser row is dimmed with 'Not enough credits' when no facing can afford it", () => {

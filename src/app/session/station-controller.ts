@@ -408,9 +408,14 @@ export function createStationController(
    *
    * Two states: the first confirm opens the prompt, the second re-checks the
    * same key and applies it. A disabled row never sets a prompt and never
-   * reaches `applyFit`. After a committed removal the row is gone, so the
-   * selection clamps to the nearest surviving row and a further Y only re-opens
-   * the guard (or lands on a disabled row) — it can never buy the next row.
+   * reaches `applyFit`. F3 lists only the items that can be fitted here
+   * (`isListedForPurchase`), so a committed purchase or removal can hide the
+   * selected row: the fourth missile fills the pylons, a bought item is fitted,
+   * a berth fills the hold, a removal leaves nothing to remove. The selection
+   * then clamps by position onto the row now at that place, and a further Y
+   * only opens the guard (or lands on an unaffordable row) — it can never buy
+   * the next row. With nothing listed, Y does nothing, as on Oolite's list with
+   * no selectable row (`setNoSelectedRow`).
    */
   function confirmFit(): void {
     if (ctx.station.stationScreen !== "outfitting") return;
@@ -425,6 +430,14 @@ export function createStationController(
         : null;
     const key = pendingFit?.key ?? ctx.station.stationSelection;
     const model = outfittingModel();
+    if (model !== undefined && model.rows.length === 0) {
+      // Oolite's empty list has no selectable row: no notice, no prompt.
+      if (ctx.station.stationPending !== null) {
+        ctx.station.stationPending = null;
+        renderStation();
+      }
+      return;
+    }
     // A composite row key (`EQ_WEAPON_BEAM_LASER@aft`) parses through both
     // laser allow-lists; the row lookup below is the first gate, this the second.
     const laser = parseLaserFitKey(key);
