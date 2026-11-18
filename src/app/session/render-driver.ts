@@ -294,6 +294,9 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // draws it while launching, recorded as a todo for the owner).
     const hudHidden = currentState.mode === "docked" || launching;
     hudCanvas.hidden = hudHidden;
+    // The page overlay's version and system lines are hidden by CSS while the
+    // HUD canvas shows (D-02); the mark keeps them hidden during the launch.
+    hudCanvas.toggleAttribute("data-launching", launching);
     if (!hudHidden && draw) {
       // Oolite's message rows (quick task 261117-pij): the bottom
       // HUD_MESSAGE_ROWS of the ten, newest at the bottom.

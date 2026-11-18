@@ -54,7 +54,6 @@ import type { KeyboardInputSource } from "../../input/keyboard.js";
 import type { InputContext } from "../../input/actions.js";
 import type { BindingMap } from "../../input/bindings.js";
 import type { AssetCache } from "../../render/asset-cache.js";
-import type { BreakPattern } from "../../render/break-pattern.js";
 import type { Hud } from "../../render/hud/hud.js";
 import type { HudModel } from "../../render/hud/draw.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
@@ -259,7 +258,6 @@ export interface SessionSaveState {
 /** Frame loop, input, overlays and the lifecycle flags. */
 export interface SessionRuntime {
   hud: Hud | undefined;
-  breakPattern: BreakPattern | undefined;
   input: KeyboardInputSource | undefined;
   loop: GameLoop | undefined;
   settings: SettingsV1 | undefined;
@@ -441,7 +439,6 @@ export function createSessionState(init: SessionStateInit): SessionState {
     },
     runtime: {
       hud: undefined,
-      breakPattern: undefined,
       input: undefined,
       loop: undefined,
       settings: undefined,

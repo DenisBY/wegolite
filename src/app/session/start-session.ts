@@ -52,7 +52,6 @@ import {
   profileFromSave,
   restoreFromSave,
 } from "../../persistence/autosave.js";
-import { createBreakPattern } from "../../render/break-pattern.js";
 import { createHud } from "../../render/hud/hud.js";
 import type { Command } from "../../sim/commands.js";
 import { createPlayerCombatState } from "../../sim/combat/state.js";
@@ -316,8 +315,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
    *   9. the market seed, then the market (restored or generated once), then
    *      the lifecycle re-anchor at the saved epoch, then the station
    *      selection;
-   *  10. the HUD and the break pattern, the chart overlay, the Save/Load
-   *      screen, the station nav;
+   *  10. the HUD, the chart overlay, the Save/Load screen, the station nav;
    *  11. the binding map and the settings, the station chrome, the launch-seen
    *      flag and the hint controller;
    *  12. the keyboard input source and the game loop, the poses;
@@ -571,7 +569,6 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     ensureSelection();
     ctx.runtime.hud = createHud(hudCanvas);
     ctx.runtime.hud.resize();
-    ctx.runtime.breakPattern = createBreakPattern(hudCanvas);
     hudCanvas.hidden = true;
     ctx.chart.chart = createChart(document.body);
     ctx.chart.chart.setViewBuilder((viewport) =>
@@ -884,8 +881,8 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
    *      pause overlay, the controls panel, the settings panel and the FPS
    *      counter;
    *   5. the scene manager, then the asset cache that owns its shared GLBs;
-   *   6. the break pattern, the HUD, the chart (chart closed), the Save/Load
-   *      screen (screen closed), the docked shell and the title screen;
+   *   6. the HUD, the chart (chart closed), the Save/Load screen (screen
+   *      closed), the docked shell and the title screen;
    *   7. the live state, scene and layout are dropped, then the world ends
    *      (plan 08-15);
    *   8. the probe publisher withdraws the test hook, save probe and Save/Load
@@ -926,7 +923,6 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     scenes.dispose();
     assets.dispose();
 
-    ctx.runtime.breakPattern?.dispose();
     ctx.runtime.hud?.dispose();
     ctx.chart.chart?.dispose();
     ctx.chart.chart = undefined;

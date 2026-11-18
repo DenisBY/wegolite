@@ -4,11 +4,12 @@
 /**
  * The launch in the browser (D-10, FLGT-01).
  *
- * The camera *pose* is decided by `tests/render/launch-camera.test.ts`; a
- * pixel-free browser check cannot tell an offset camera from one at the origin.
- * This spec therefore asserts only what the browser owns: the mode timeline,
- * the exactly-once +600 s adjustment, the Cobra toggle and the absence of
- * console/page errors.
+ * The launch view's camera *pose* (from inside the dock slot out to the
+ * cockpit) is decided by `tests/render/launch-camera.test.ts`; a pixel-free
+ * browser check cannot tell a camera in the slot from one at the mouth. This
+ * spec therefore asserts only what the browser owns: the mode timeline, the
+ * exactly-once +600 s adjustment, the hidden hull and HUD while launching, the
+ * HUD at handover and the absence of console/page errors.
  *
  * Headless Chromium renders the procedural planet on SwiftShader and the fixed
  * step loop advances slower than wall time, so every wait is on the probe and
@@ -44,7 +45,7 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
   );
 }
 
-test("the first launch plays the full cinematic and hands over to the cockpit", async ({
+test("the first launch plays the full launch view and hands over to the cockpit", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -64,14 +65,20 @@ test("the first launch plays the full cinematic and hands over to the cockpit", 
 
   const during = await getProbe(page);
   expect(during.launch.count).toBe(1);
-  // D-10: the Cobra is visible during the scripted exit.
-  expect(during.shipVisible).toBe(true);
+  // The launch view is a cockpit view: the hull and the HUD stay hidden
+  // until handover (quick 261118-l26).
+  expect(during.shipVisible).toBe(false);
+  await expect(page.locator("#hud")).toBeHidden();
+  // The page overlay's version and system lines stay hidden, as in flight.
+  await expect(page.locator("#overlay #title")).toBeHidden();
+  await expect(page.locator("#overlay #status")).toBeHidden();
   expect(during.clock - clockBefore).toBeGreaterThanOrEqual(600);
   expect(during.clock - clockBefore).toBeLessThan(602);
 
   await waitForMode(page, "inFlight");
   const after = await getProbe(page);
   expect(after.shipVisible).toBe(false);
+  await expect(page.locator("#hud")).toBeVisible();
   expect(after.launch.seen).toBe(true);
   // The +600 s adjustment happens exactly once; the two seconds of launching
   // add a little simulated flight time on top.
@@ -211,9 +218,7 @@ test("hints stay on the message line, dismiss on first use and persist", async (
   expect(errors).toEqual([]);
 });
 
-test("the break pattern covers the launch and freezes with pause", async ({
-  page,
-}) => {
+test("the launch view freezes with pause", async ({ page }) => {
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -224,16 +229,8 @@ test("the break pattern covers the launch and freezes with pause", async ({
   await page.click('button[data-action="launch"]');
   await waitForMode(page, "launching");
 
-  // The overlay draws on the HUD canvas in device pixels; a zero backing store
-  // would mean the break pattern has nowhere to draw (Pitfall 10).
-  const hud = await page.evaluate(() => {
-    const canvas = document.getElementById("hud");
-    return canvas instanceof HTMLCanvasElement
-      ? { width: canvas.width, height: canvas.height }
-      : null;
-  });
-  expect(hud?.width ?? 0).toBeGreaterThan(0);
-  expect(hud?.height ?? 0).toBeGreaterThan(0);
+  // The tunnel overlay is gone: the HUD canvas stays hidden while launching.
+  await expect(page.locator("#hud")).toBeHidden();
 
   // The launch timer advances on fixed steps, not wall time.
   const first = (await getProbe(page)).launch.elapsed;

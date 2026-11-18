@@ -81,8 +81,8 @@ interface Harness {
   readonly nebula: { revision: number };
   /** The driver's real message queue, so a row's countdown can be read. */
   readonly messages: MessageQueue;
-  /** The HUD canvas double, so its `hidden` flag can be read. */
-  readonly hudCanvas: { hidden: boolean };
+  /** The HUD canvas double, so its `hidden` flag and marks can be read. */
+  readonly hudCanvas: HudCanvasDouble;
 }
 
 /** A scene double: the driver's gate only reads the nebula revision. */
@@ -98,6 +98,13 @@ function idleLoader(): NpcModelLoader {
     { loadNpcModel: () => new Promise<GLTF>(() => undefined) },
     () => undefined,
   );
+}
+
+/** The HUD canvas members the driver writes. */
+interface HudCanvasDouble {
+  hidden: boolean;
+  readonly attributes: Set<string>;
+  toggleAttribute(name: string, force: boolean): boolean;
 }
 
 interface HarnessOptions {
@@ -117,7 +124,15 @@ function harness(options: HarnessOptions = {}): Harness {
   const probeUpdates: number[] = [];
   const nebula = { revision: 0 };
   const messages = createMessageQueue();
-  const hudCanvas = { hidden: false };
+  const hudCanvas: HudCanvasDouble = {
+    hidden: false,
+    attributes: new Set<string>(),
+    toggleAttribute(name: string, force: boolean) {
+      if (force) this.attributes.add(name);
+      else this.attributes.delete(name);
+      return force;
+    },
+  };
   ctx.core.state = initFlightState(layout);
   ctx.core.scene = fakeScene(nebula);
   const driver = createRenderDriver(ctx, {
@@ -127,7 +142,7 @@ function harness(options: HarnessOptions = {}): Harness {
         options.onRender?.();
       },
     } as unknown as THREE.WebGLRenderer,
-    hudCanvas: hudCanvas as HTMLCanvasElement,
+    hudCanvas: hudCanvas as unknown as HTMLCanvasElement,
     probe: {} as WegoliteProbe,
     redrawGate: gate,
     messages,
@@ -1001,6 +1016,8 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26)",
       expect(angles).toEqual([launchViewStationAngle(layout, elapsed)]);
       expect(scene.ship.visible).toBe(false);
       expect(h.hudCanvas.hidden).toBe(true);
+      // The page overlay's version and system lines stay hidden (D-02).
+      expect(h.hudCanvas.attributes.has("data-launching")).toBe(true);
       expect(models).toHaveLength(0);
       expect(h.renders).toHaveLength(1);
     }
@@ -1011,6 +1028,7 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26)",
     h.ctx.core.state = { ...state, mode: "inFlight" };
     h.driver.renderFrame(1);
     expect(h.hudCanvas.hidden).toBe(false);
+    expect(h.hudCanvas.attributes.has("data-launching")).toBe(false);
     expect(models).toHaveLength(1);
     expect(scene.ship.visible).toBe(false);
     expect(angles).toEqual([state.stationAngle]);

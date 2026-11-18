@@ -204,7 +204,6 @@ function harness(
       advance: (dt, skipped) => {
         counts.advances += 1;
         advances.push({ dt, skipped });
-        return "flash";
       },
     },
     router: {

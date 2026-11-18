@@ -13,9 +13,10 @@
  *
  * The camera world pose is derived from the *same* interpolated ship pose used
  * for the hull; mixing current and interpolated poses produces sub-metre
- * shimmer at speed. The launch cinematic and the cockpit handover supply their
- * world pose explicitly through the optional `camera` argument, so they share
- * this one transform path instead of placing a second camera. The supplied pose
+ * shimmer at speed. The launch view from inside the dock slot and the cockpit
+ * views supply their world pose explicitly through the optional `camera`
+ * argument, so they share this one transform path instead of placing a second
+ * camera. The supplied pose
  * is a *world* pose: it is never written into `camera.position`, which stays at
  * `(0, 0, 0)`.
  */
@@ -87,7 +88,7 @@ export function applyStationRoll(
 /**
  * Place every body and orient the camera for one rendered frame.
  *
- * @param camera the launch cinematic or cockpit world pose; `null` keeps the
+ * @param camera the launch view or cockpit world pose; `null` keeps the
  *   first-person pose derived from the interpolated ship pose.
  * @returns the camera world pose, so a camera-local effect (dust) can take its
  *   delta without re-deriving the transform.

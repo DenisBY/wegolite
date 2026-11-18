@@ -2,9 +2,9 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The launch timeline and its exactly-once clock (D-10, FLGT-01).
+ * The launch skip gate and its exactly-once clock (D-10, FLGT-01).
  *
- * The view timeline is driven by fixed steps, never wall time. The clock proof
+ * The skip gate is driven by fixed steps, never wall time. The clock proof
  * runs the real simulation step, because the +600 s adjustment belongs to
  * `beginLaunch` — the app must never add a second one.
  */
@@ -13,20 +13,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  createLaunchSequence,
-  LAUNCH_FLASH_END,
-  LAUNCH_TUNNEL_END,
-  launchPhaseAt,
-} from "../../src/app/launch-sequence.js";
-import {
-  BREAK_DURATION,
-  BREAK_FLASH_END,
-  BREAK_LINE_COUNT,
-  BREAK_TUNNEL_END,
-  breakPatternLines,
-  breakPatternPhase,
-} from "../../src/render/break-pattern.js";
+import { createLaunchSequence } from "../../src/app/launch-sequence.js";
 import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
 import { LAUNCH_DURATION } from "../../src/sim/flight/launch.js";
 import {
@@ -43,11 +30,6 @@ const { layout, config } = laveFixture();
 
 const launchSequenceSource = readFileSync(
   new URL("../../src/app/launch-sequence.ts", import.meta.url),
-  "utf8",
-);
-
-const breakPatternSource = readFileSync(
-  new URL("../../src/render/break-pattern.ts", import.meta.url),
   "utf8",
 );
 
@@ -78,7 +60,7 @@ function playToHandover(state: FlightState): number {
   return steps;
 }
 
-describe("launch view timeline", () => {
+describe("launch skip gate", () => {
   it("runs for two seconds of fixed steps", () => {
     const sequence = createLaunchSequence();
     let steps = 0;
@@ -87,20 +69,9 @@ describe("launch view timeline", () => {
       steps += 1;
     }
     expect(sequence.complete).toBe(true);
-    expect(sequence.phase).toBe("complete");
     // 240 steps of 1/120 s; the tolerance is the float64 sum, not a fudge.
     expect(steps).toBe(Math.round(LAUNCH_DURATION / DT));
     expect(sequence.elapsed).toBeCloseTo(LAUNCH_DURATION, 9);
-  });
-
-  it("uses the 0.2/1.6/2.0 phase boundaries", () => {
-    expect(launchPhaseAt(0)).toBe("flash");
-    expect(launchPhaseAt(LAUNCH_FLASH_END - 0.001)).toBe("flash");
-    expect(launchPhaseAt(LAUNCH_FLASH_END)).toBe("tunnel");
-    expect(launchPhaseAt(LAUNCH_TUNNEL_END - 0.001)).toBe("tunnel");
-    expect(launchPhaseAt(LAUNCH_TUNNEL_END)).toBe("fade");
-    expect(launchPhaseAt(LAUNCH_DURATION - 0.001)).toBe("fade");
-    expect(launchPhaseAt(LAUNCH_DURATION)).toBe("complete");
   });
 
   it("ignores a skip before the first viewing", () => {
@@ -117,7 +88,7 @@ describe("launch view timeline", () => {
     expect(sequence.canSkip(true)).toBe(true);
     sequence.advance(0, true);
     expect(sequence.complete).toBe(true);
-    expect(sequence.phase).toBe("complete");
+    expect(sequence.elapsed).toBe(LAUNCH_DURATION);
   });
 
   it("marks seen only when markSeen is called, never on completion", () => {
@@ -195,38 +166,6 @@ describe("launch clock", () => {
 describe("launch-sequence determinism", () => {
   it("contains no wall clock", () => {
     const code = stripComments(launchSequenceSource);
-    expect(code.length).toBeGreaterThan(1_000);
-    expect(code).not.toMatch(/Math\.random/);
-    expect(code).not.toMatch(/\bperformance\b/);
-    expect(code).not.toMatch(/\bDate\.now\b|\bnew Date\b/);
-  });
-});
-
-describe("break pattern", () => {
-  it("follows the 0.2/1.6/2.0 timeline", () => {
-    expect(breakPatternPhase(0)).toBe("flash");
-    expect(breakPatternPhase(BREAK_FLASH_END - 0.001)).toBe("flash");
-    expect(breakPatternPhase(BREAK_FLASH_END)).toBe("tunnel");
-    expect(breakPatternPhase(BREAK_TUNNEL_END - 0.001)).toBe("tunnel");
-    expect(breakPatternPhase(BREAK_TUNNEL_END)).toBe("fade");
-    expect(breakPatternPhase(BREAK_DURATION - 0.001)).toBe("fade");
-    expect(breakPatternPhase(BREAK_DURATION)).toBe("done");
-  });
-
-  it("is deterministic for the same launch count and differs across counts", () => {
-    expect(breakPatternLines(1)).toHaveLength(BREAK_LINE_COUNT);
-    expect(breakPatternLines(1)).toEqual(breakPatternLines(1));
-    expect(breakPatternLines(1)).not.toEqual(breakPatternLines(2));
-
-    for (const line of breakPatternLines(3)) {
-      expect(Number.isFinite(line.angle)).toBe(true);
-      expect(Number.isFinite(line.radius)).toBe(true);
-      expect(Number.isFinite(line.length)).toBe(true);
-    }
-  });
-
-  it("uses no wall clock or unseeded randomness", () => {
-    const code = stripComments(breakPatternSource);
     expect(code.length).toBeGreaterThan(1_000);
     expect(code).not.toMatch(/Math\.random/);
     expect(code).not.toMatch(/\bperformance\b/);

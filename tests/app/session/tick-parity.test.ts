@@ -265,7 +265,7 @@ function session(
     pending,
     player: new PlayerController(),
     scripted: new ScriptedLaunchController(),
-    launchSequence: { advance: () => "flash" },
+    launchSequence: { advance: () => undefined },
     router: createEventRouter(ctx, {
       stationFlow: quiet,
       hudMessages,

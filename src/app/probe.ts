@@ -418,7 +418,7 @@ export interface WegoliteProbe {
   /** WORLD-04: the live GPU counters a scene swap must not grow. */
   memory: WegoliteMemoryProbe;
   bodies: string[];
-  /** D-10: the Cobra is shown for the launch cinematic, hidden in the cockpit. */
+  /** Whether the Cobra is drawn: false in every mode, the launch included. */
   shipVisible?: boolean;
   /** D-04: the camera-local dust field, once a system scene exists. */
   dust?: { active: boolean; count: number };

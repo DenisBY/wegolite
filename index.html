@@ -50,11 +50,15 @@
       }
 
       /* In flight the HUD canvas is shown (the render driver sets hidden on it
-         only while docked), and Oolite shows no version text there: hide only
-         the version line, keeping its space so the system line stays put
-         (quick task 261118-cyn, D-02). */
+         while docked and while launching), and Oolite shows no version text
+         there: hide the version and system lines, keeping their space (quick
+         task 261118-cyn, D-02). The launch view hides the canvas but marks it
+         data-launching, so the lines stay hidden from launch to flight (quick
+         task 261118-l26). */
       #hud:not([hidden]) ~ #overlay #title,
-      #hud:not([hidden]) ~ #overlay #status {
+      #hud:not([hidden]) ~ #overlay #status,
+      #hud[data-launching] ~ #overlay #title,
+      #hud[data-launching] ~ #overlay #status {
         visibility: hidden;
       }
 

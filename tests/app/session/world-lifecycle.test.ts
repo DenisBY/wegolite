@@ -172,7 +172,7 @@ function tracer(options: { readonly traffic?: boolean } = {}): Tracer {
     pending: [],
     player: new PlayerController(),
     scripted: new ScriptedLaunchController(),
-    launchSequence: { advance: () => "flash" },
+    launchSequence: { advance: () => undefined },
     router: createEventRouter(ctx, {
       stationFlow: quiet,
       hudMessages: quiet,
@@ -1375,7 +1375,7 @@ describe("jump commit clears the world on the same tick (WORLD-14)", () => {
       pending: [],
       player: new PlayerController(),
       scripted: new ScriptedLaunchController(),
-      launchSequence: { advance: () => "flash" },
+      launchSequence: { advance: () => undefined },
       router: {
         dispatch: (event) => {
           events.push(event);

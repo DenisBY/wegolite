@@ -387,7 +387,6 @@ describe("dispose order", () => {
     ctx.runtime.controlsPanel = disposable(log, "controlsPanel") as never;
     ctx.runtime.settingsPanel = disposable(log, "settingsPanel") as never;
     ctx.runtime.fpsCounter = disposable(log, "fpsCounter") as never;
-    ctx.runtime.breakPattern = disposable(log, "breakPattern") as never;
     ctx.runtime.hud = disposable(log, "hud") as never;
     ctx.chart.chart = disposable(log, "chart") as never;
     ctx.chart.chartOpen = true;
@@ -410,7 +409,6 @@ describe("dispose order", () => {
     "fpsCounter.dispose",
     "scenes.dispose",
     "assets.dispose",
-    "breakPattern.dispose",
     "hud.dispose",
     "chart.dispose",
     "saveLoad.dispose",

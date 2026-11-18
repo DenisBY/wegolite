@@ -6,8 +6,8 @@
  *
  * The GLB's nose is local -Z after the Phase 2 conversion, matching the ship
  * basis, so the root only needs the state's orientation. The mesh is hidden in
- * first-person flight (the camera sits ~12.5 m behind the nose, inside the
- * hull); the launch cinematic that shows it is plan 07's.
+ * every mode: the camera is always a cockpit view (it sits ~12.5 m behind the
+ * nose, inside the hull), the launch included (quick 261118-l26).
  *
  * Materials are cloned for the same ownership reason as the station.
  */
