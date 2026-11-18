@@ -289,6 +289,21 @@ describe("buildStatusModel page 2 manifest", () => {
     expect(model.cargoText).toBe("Cargo 3 t (20 t)");
   });
 
+  it("lists t, kg and g goods with their own units and never the untradeable Alien Items", () => {
+    const model = page2({
+      ...newProfile(),
+      cargo: { food: 2, gold: 5, gem_stones: 7, alien_items: 1 },
+    });
+
+    // Alien Items is `tradeable: false` in the catalogue, so it has no row.
+    expect(model.manifest).toEqual([
+      { key: "food", text: "2 t × Food" },
+      { key: "gold", text: "5 kg × Gold" },
+      { key: "gem_stones", text: "7 g × Gem-Stones" },
+    ]);
+    expect(model.emptyText).toBe("");
+  });
+
   it("counts the berths as cabins and takes 5 t of hold for each", () => {
     const model = page2({ ...newProfile(), passengerBerths: 2 });
 

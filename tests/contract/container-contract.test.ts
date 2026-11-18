@@ -422,6 +422,21 @@ describe("FOUND-03 container-only verification", () => {
       "npm run build:e2e && npm run test:e2e -- --shard=${{ matrix.shard }}/4",
     );
     expect(workflow).toContain("needs: [checks, e2e]");
+
+    // The aggregate job itself, region-scoped so a match in another job cannot
+    // satisfy it: it runs even when a dependency failed (`!cancelled()`), and
+    // it passes only when the checks job and every shard succeeded, so a
+    // skipped or failed dependency cannot leave the required check green.
+    const aggregateStart = workflow.indexOf("\n  verify:\n");
+    expect(aggregateStart).toBeGreaterThan(-1);
+    const aggregate = workflow.slice(aggregateStart);
+    expect(aggregate).toContain("needs: [checks, e2e]");
+    expect(aggregate).toContain("if: ${{ !cancelled() }}");
+    expect(aggregate).toContain("CHECKS_RESULT: ${{ needs.checks.result }}");
+    expect(aggregate).toContain("E2E_RESULT: ${{ needs.e2e.result }}");
+    expect(aggregate).toContain(
+      'test "$CHECKS_RESULT" = "success" && test "$E2E_RESULT" = "success"',
+    );
     // CI must not run the whole release chain again on top of the split jobs.
     expect(workflow).not.toMatch(/^\s*run:.*verify-full/m);
 

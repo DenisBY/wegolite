@@ -79,6 +79,24 @@ test("the first launch plays the full launch view and hands over to the cockpit"
   const after = await getProbe(page);
   expect(after.shipVisible).toBe(false);
   await expect(page.locator("#hud")).toBeVisible();
+  // The HUD canvas is laid out and has a backing store at the handover, not
+  // a visible but zero-sized element.
+  const hudCanvas = await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>("#hud");
+    if (canvas === null) return null;
+    const box = canvas.getBoundingClientRect();
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      boxWidth: box.width,
+      boxHeight: box.height,
+    };
+  });
+  expect(hudCanvas).not.toBeNull();
+  expect(hudCanvas?.width).toBeGreaterThan(0);
+  expect(hudCanvas?.height).toBeGreaterThan(0);
+  expect(hudCanvas?.boxWidth).toBeGreaterThan(0);
+  expect(hudCanvas?.boxHeight).toBeGreaterThan(0);
   expect(after.launch.seen).toBe(true);
   // The +600 s adjustment happens exactly once; the two seconds of launching
   // add a little simulated flight time on top.

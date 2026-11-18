@@ -128,3 +128,10 @@ Likely changes, one per bullet:
   for them.
 - Still visible at 1280x720: the overlay's system line ("Wegolite — Lave") overprints the clock's hyperspace
   line at the top left. Both stay by owner decision (D-01, D-02); recorded, not fixed.
+
+## Open items found in quick task 261118-n7z
+
+- HUD alpha (open, do not change yet; owner decision 2026-11-18): Oolite draws the HUD dials at `overall_alpha`
+  0.75 (`Resources/Config/hud.plist:392` at 7437f22), the aegis glyph at 0.5 x 0.75 (`HeadUpDisplay.m:1645`), the
+  crosshair arms fading from 0.75 to 0.25 (`crosshairs.plist:45-51`) and the scanner lollipop tails at 1/3 alpha
+  (`HeadUpDisplay.m:1339`); Wegolite draws them opaque. Recorded in FIDELITY.md Open items.
