@@ -5,16 +5,16 @@ milestone_name: Combat and Death
 current_phase: 17
 current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
-status: planning
+status: executing
 stopped_at: Phase 17 context gathered
-last_updated: "2026-11-18T20:48:16.920Z"
+last_updated: "2026-11-18T23:10:07.659Z"
 last_activity: 2026-11-18
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: a410849a5bd9c83b9be66d2c30e427480bfe41db
+state_head: 1afdcf54cd9aea7f0d51457a4fba161fdefa8c42
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 15
+  total_plans: 25
   completed_plans: 15
   percent: 33
 ---
@@ -30,10 +30,10 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 
 ## Current Position
 
-Phase: 17 — NPC Fire and Hits on the Player
+Phase: 17 (NPC Fire and Hits on the Player) — READY TO EXECUTE
 Current Plan: Not started
-Total Plans in Phase: 9
-Status: Ready to plan
+Total Plans in Phase: 10
+Status: Ready to execute
 Last activity: 2026-11-18 — Completed quick task 261118-spu: HUD drawn through the launch pre-roll and the launch
 
 
