@@ -279,7 +279,7 @@ if (!boot.ok) {
       letterbox: [0, 0],
       lift: 0,
       contacts: [],
-      compass: { target: "planet", forward: false },
+      compass: { target: "planet", forward: false, blip: false },
       aegis: "none",
       message: "",
       messageRows: [],

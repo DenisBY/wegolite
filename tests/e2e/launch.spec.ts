@@ -2,7 +2,8 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The launch in the browser (D-10, FLGT-01; the pre-roll, quick 261118-os8).
+ * The launch in the browser (D-10, FLGT-01; the pre-roll, quick 261118-os8;
+ * the HUD while launching, quick 261118-spu).
  *
  * A launch press first plays the presentation pre-roll inside the dock slot
  * while the simulation stays docked, then the simulated launch, then the
@@ -11,9 +12,11 @@
  * pixel-free browser check cannot tell a camera in the slot from one at the
  * mouth. This spec therefore asserts only what the browser owns: the timeline
  * (pre-roll, launching, inFlight), the pre-launch autosave's moment, the
- * exactly-once +600 s adjustment, the hidden station shell, nav, hull, HUD and
- * overlay lines through the launch view, the HUD at handover, the skip and the
- * pause, and the absence of console/page errors.
+ * exactly-once +600 s adjustment, the hidden station shell, nav, hull and
+ * overlay lines through the launch view, the flight HUD drawn through the
+ * pre-roll and the launch without its compass blip (as Oolite draws it while
+ * launching, quick 261118-spu) and with the blip back at handover, the skip and
+ * the pause, and the absence of console/page errors.
  *
  * Headless Chromium renders the procedural planet on SwiftShader and the fixed
  * step loop advances slower than wall time, so every wait is on the probe and
@@ -75,6 +78,29 @@ test("the first launch plays the full launch view and hands over to the cockpit"
   });
   page.on("pageerror", (error) => errors.push(String(error)));
 
+  /** The HUD canvas's backing store and layout box. */
+  const hudCanvasBox = () =>
+    page.evaluate(() => {
+      const canvas = document.querySelector<HTMLCanvasElement>("#hud");
+      if (canvas === null) return null;
+      const box = canvas.getBoundingClientRect();
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        boxWidth: box.width,
+        boxHeight: box.height,
+      };
+    });
+  function expectLaidOut(
+    canvas: Awaited<ReturnType<typeof hudCanvasBox>>,
+  ): void {
+    expect(canvas).not.toBeNull();
+    expect(canvas?.width).toBeGreaterThan(0);
+    expect(canvas?.height).toBeGreaterThan(0);
+    expect(canvas?.boxWidth).toBeGreaterThan(0);
+    expect(canvas?.boxHeight).toBeGreaterThan(0);
+  }
+
   await bootToDocked(page);
   const before = await getProbe(page);
   const clockBefore = before.clock;
@@ -90,19 +116,38 @@ test("the first launch plays the full launch view and hands over to the cockpit"
   // The pre-roll (quick 261118-os8): the sim stays docked, no launch, no game
   // time and no autosave yet.
   await waitForPreRoll(page);
+  // A pre-roll frame has drawn the HUD (quick 261118-spu): before the press
+  // no HUD model exists and the probe's aegis reads "none".
+  await page.waitForFunction(
+    () => {
+      const probe = window.__wegolite;
+      return (
+        probe !== undefined &&
+        probe.launch.preRolling &&
+        probe.hud.aegis === "dockingRange"
+      );
+    },
+    undefined,
+    { timeout: 30_000 },
+  );
   const preRoll = await getProbe(page);
   expect(preRoll.mode).toBe("docked");
   expect(preRoll.launch.count).toBe(0);
   expect(preRoll.clock).toBe(clockBefore);
   expect(preRoll.save?.attempts ?? 0).toBe(attemptsBefore);
   expect(preRoll.shipVisible).toBe(false);
-  // The station shell, its nav, the HUD and the overlay lines are hidden for
-  // the whole launch view.
+  // The station shell, its nav and the overlay lines are hidden for the whole
+  // launch view.
   await expect(page.locator("#docked")).toBeHidden();
   await expect(page.locator("#docked .station-nav")).toBeHidden();
-  await expect(page.locator("#hud")).toBeHidden();
   await expect(page.locator("#overlay #title")).toBeHidden();
   await expect(page.locator("#overlay #status")).toBeHidden();
+  // Quick 261118-spu (OD-1, OD-2, PD-1): the flight HUD is drawn from the
+  // launch start state (aegis "S"), with the compass ring but no target blip.
+  await expect(page.locator("#hud")).toBeVisible();
+  expectLaidOut(await hudCanvasBox());
+  expect(preRoll.hud.aegis).toBe("dockingRange");
+  expect(preRoll.hud.compass.blip).toBe(false);
 
   await waitForMode(page, "launching");
 
@@ -111,10 +156,12 @@ test("the first launch plays the full launch view and hands over to the cockpit"
   expect(during.launch.preRolling).toBe(false);
   // The D-17 anchor was taken once, on the step that ended the pre-roll.
   expect(during.save?.attempts ?? 0).toBe(attemptsBefore + 1);
-  // The launch view is a cockpit view: the hull and the HUD stay hidden
-  // until handover (quick 261118-l26).
+  // The launch view is a cockpit view: the hull stays hidden (quick
+  // 261118-l26); the HUD is drawn without its compass blip, as Oolite draws
+  // it while launching (quick 261118-spu).
   expect(during.shipVisible).toBe(false);
-  await expect(page.locator("#hud")).toBeHidden();
+  await expect(page.locator("#hud")).toBeVisible();
+  expect(during.hud.compass.blip).toBe(false);
   // The page overlay's version and system lines stay hidden, as in flight.
   await expect(page.locator("#overlay #title")).toBeHidden();
   await expect(page.locator("#overlay #status")).toBeHidden();
@@ -122,27 +169,21 @@ test("the first launch plays the full launch view and hands over to the cockpit"
   expect(during.clock - clockBefore).toBeLessThan(602);
 
   await waitForMode(page, "inFlight");
+  // The compass target blip is drawn again once in flight (quick 261118-spu).
+  await page.waitForFunction(
+    () => window.__wegolite?.hud.compass.blip === true,
+    undefined,
+    { timeout: 10_000 },
+  );
   const after = await getProbe(page);
   expect(after.shipVisible).toBe(false);
   await expect(page.locator("#hud")).toBeVisible();
   // The HUD canvas is laid out and has a backing store at the handover, not
   // a visible but zero-sized element.
-  const hudCanvas = await page.evaluate(() => {
-    const canvas = document.querySelector<HTMLCanvasElement>("#hud");
-    if (canvas === null) return null;
-    const box = canvas.getBoundingClientRect();
-    return {
-      width: canvas.width,
-      height: canvas.height,
-      boxWidth: box.width,
-      boxHeight: box.height,
-    };
-  });
-  expect(hudCanvas).not.toBeNull();
-  expect(hudCanvas?.width).toBeGreaterThan(0);
-  expect(hudCanvas?.height).toBeGreaterThan(0);
-  expect(hudCanvas?.boxWidth).toBeGreaterThan(0);
-  expect(hudCanvas?.boxHeight).toBeGreaterThan(0);
+  expectLaidOut(await hudCanvasBox());
+  // The HUD rests on the disclaimer at the same lift in the pre-roll as at
+  // handover.
+  expect(preRoll.hud.lift).toBe(after.hud.lift);
   expect(after.launch.seen).toBe(true);
   expect(after.save?.attempts ?? 0).toBe(attemptsBefore + 1);
   // The +600 s adjustment happens exactly once; the two seconds of launching
@@ -330,8 +371,8 @@ test("the pre-roll and the launch view freeze with pause", async ({ page }) => {
 
   await waitForMode(page, "launching");
 
-  // The tunnel overlay is gone: the HUD canvas stays hidden while launching.
-  await expect(page.locator("#hud")).toBeHidden();
+  // The flight HUD is drawn while launching, as in Oolite (quick 261118-spu).
+  await expect(page.locator("#hud")).toBeVisible();
 
   // The launch timer advances on fixed steps, not wall time.
   const first = (await getProbe(page)).launch.elapsed;

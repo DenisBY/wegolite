@@ -15,6 +15,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The flight HUD now shows during the launch from the docking slot, as in
+  Oolite. Until you leave the slot the compass shows no target and the roll
+  indicator stays centred.
 - Launching now shows the view from your cockpit, starting at the far end of
   the station's docking slot, gliding out through it and on toward the planet,
   instead of the abstract tunnel animation. The first moments in the slot pass

@@ -480,10 +480,11 @@ export function createProbePublisher(
                 .map((contact) => contact.id),
         compass:
           model === undefined
-            ? { target: "planet", forward: false }
+            ? { target: "planet", forward: false, blip: false }
             : {
                 target: model.compass.target,
                 forward: model.compass.forward,
+                blip: model.compass.blip,
               },
         aegis: model === undefined ? "none" : model.aegis,
         message: model === undefined ? "" : model.message,

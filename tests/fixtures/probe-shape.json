@@ -21,6 +21,7 @@
         "record": []
       },
       "compass": {
+        "blip": "boolean",
         "forward": "boolean",
         "target": "string"
       },
@@ -180,6 +181,7 @@
         ]
       },
       "compass": {
+        "blip": "boolean",
         "forward": "boolean",
         "target": "string"
       },
@@ -391,6 +393,7 @@
         ]
       },
       "compass": {
+        "blip": "boolean",
         "forward": "boolean",
         "target": "string"
       },
@@ -602,6 +605,7 @@
         ]
       },
       "compass": {
+        "blip": "boolean",
         "forward": "boolean",
         "target": "string"
       },
@@ -813,6 +817,7 @@
         ]
       },
       "compass": {
+        "blip": "boolean",
         "forward": "boolean",
         "target": "string"
       },
@@ -1024,6 +1029,7 @@
         ]
       },
       "compass": {
+        "blip": "boolean",
         "forward": "boolean",
         "target": "string"
       },
@@ -1250,6 +1256,7 @@
         ]
       },
       "compass": {
+        "blip": "boolean",
         "forward": "boolean",
         "target": "string"
       },

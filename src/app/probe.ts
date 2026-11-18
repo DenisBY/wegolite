@@ -45,6 +45,12 @@ export interface WegoliteWorldProbe {
 export interface WegoliteHudCompassProbe {
   target: CompassTarget;
   forward: boolean;
+  /**
+   * Whether the compass target blip is drawn: false while launching and in
+   * the launch pre-roll, as Oolite skips the compass blip while launching
+   * (`HeadUpDisplay.m:1494`, quick 261118-spu); the ring is drawn regardless.
+   */
+  blip: boolean;
 }
 
 export interface WegoliteHudProbe {
@@ -637,7 +643,7 @@ export function publishFailure(reason: string): void {
       letterbox: [0, 0],
       lift: 0,
       contacts: [],
-      compass: { target: "planet", forward: false },
+      compass: { target: "planet", forward: false, blip: false },
       aegis: "none",
       message: "",
       messageRows: [],
