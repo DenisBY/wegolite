@@ -127,6 +127,7 @@ The Wegolite cell is a `src/` path and a line. For a build-time mechanic it is t
 | HUD scale and anchor: hud.plist's 480-unit height scaled to the window height at 16:9 and wider, x from the centre, y from the bottom edge (FLGT-05)                                                                                                                                                                               | `src/render/hud/draw.ts:213`                      | `src/Core/HeadUpDisplay.m:1075-1078`                    | divergence: the HUD block except the crosshair, the ident frame and the clock rests on the document disclaimer's top edge (about 62 px above the window bottom at 1280x720) instead of the window bottom; the clock and its hyperspace line stay at the top left, not under the scanner (owner decision 2026-11-18). PROJECT.md: "Rest the flight HUD on the document disclaimer"                                                                                                                                                                                                                                          | E-110   |
 | Compass blip: the 3D direction to the target in the ship frame, normalised, x and y times 0.4 of the compass size (FLGT-05)                                                                                                                                                                                                        | `src/render/hud/projection.ts:161`                | `src/Core/HeadUpDisplay.m:1500-1507`                    | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-111   |
 | Scanner buoy colour alternates friendly and neutral on a 0.25 s flash (FLGT-05)                                                                                                                                                                                                                                                    | `src/render/hud/draw.ts:413`                      | `src/Core/Entities/ShipEntity.m:5667-5671`              | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-112   |
+| Launch presentation: the cockpit view flies out of the dock slot; no break pattern (FLGT-01)                                                                                                                                                                                                                                       | `src/render/launch-camera.ts:192`                 | `src/Core/Universe.m:2895-2913`                         | divergence: Oolite hides the world and draws ten slot-shaped rings while launching; Wegolite draws the live cockpit view along a presentation-only path from inside the slot to the cockpit pose, with the sim launch unchanged. PROJECT.md: "Launch shows the live cockpit view from inside the dock slot instead of Oolite's break pattern"                                                                                                                                                                                                                                                                              | E-113   |
 
 ## Excerpts
 
@@ -1895,6 +1896,30 @@ OOINLINE double distanceBetweenPlanetPositions(int x1, int y1, int x2, int y2)
             return friendly_color;
         else
             return neutral_color;
+```
+
+### E-113 src/Core/Universe.m:2895-2913
+
+```objc
+    if (forDocking) {
+        NSDictionary* info = [[PLAYER dockedStation] shipInfoDictionary];
+        sides = [info oo_unsignedIntForKey:@"tunnel_corners" defaultValue:4];
+        startAngle = [info oo_floatForKey:@"tunnel_start_angle" defaultValue:45.0f];
+        aspectRatio = [info oo_floatForKey:@"tunnel_aspect_ratio" defaultValue:2.67f];
+    }
+
+    for (i = 1; i < 11; i++) {
+        ring = [OOBreakPatternEntity breakPatternWithPolygonSides:sides startAngle:startAngle aspectRatio:aspectRatio];
+        if (!forDocking) {
+            [ring setInnerColor:col1 outerColor:col2];
+        }
+
+        Vector offset = vector_multiply_scalar(v, i * BREAK_PATTERN_RING_SPACING);
+        [ring setPosition:HPvector_add(pos, vectorToHPVector(offset))]; // ahead of the player
+        [ring setOrientation:q];
+        [ring setVelocity:vel];
+        [ring setLifetime:i * BREAK_PATTERN_RING_SPACING];
+
 ```
 
 ## Constants ledger
