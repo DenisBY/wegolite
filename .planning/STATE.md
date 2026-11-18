@@ -7,10 +7,10 @@ current_phase_name: NPC Fire and Hits on the Player
 current_plan: Not started
 status: planning
 stopped_at: Phase 16 complete, ready to plan Phase 17
-last_updated: "2026-11-18T11:05:19.422Z"
+last_updated: "2026-11-18T12:51:22.863Z"
 last_activity: 2026-11-18
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
-state_head: b495a3564f12d2e587a8b812081188f2c4f3cc07
+state_head: 86cc9a9ec4de6f32c3814c172e5def48a56276b3
 progress:
   total_phases: 6
   completed_phases: 2
@@ -34,7 +34,7 @@ Phase: 17 — NPC Fire and Hits on the Player
 Current Plan: Not started
 Total Plans in Phase: 9
 Status: Ready to plan
-Last activity: 2026-11-18 — Completed quick task 261118-cyn: flight HUD at Oolite's scale and positions, Oolite compass, aegis S with hint, pulsing countdown row
+Last activity: 2026-11-18 — Completed quick task 261118-ih8: HUD legends sized by Oolite's capital height
 
 
 ## Performance Metrics
@@ -620,6 +620,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261118-cyo | Bring the station screens and chart closer to Oolite | 2026-11-18 | c9a689c | [261118-cyo-bring-the-station-screens-and-chart-clos](./quick/261118-cyo-bring-the-station-screens-and-chart-clos/) |
 | 261118-emk | Hide outfitting items that cannot be bought here, as Oolite does | 2026-11-18 | e730ff4 | [261118-emk-hide-outfitting-items-that-cannot-be-bou](./quick/261118-emk-hide-outfitting-items-that-cannot-be-bou/) |
 | 261118-cyn | Bring the flight HUD layout, scale, symbols and countdown to Oolite | 2026-11-18 | b495a35 | [261118-cyn-bring-the-flight-hud-layout-scale-symbol](./quick/261118-cyn-bring-the-flight-hud-layout-scale-symbol/) |
+| 261118-ih8 | Size HUD legends by Oolite's capital height | 2026-11-18 | 86cc9a9 | [261118-ih8-size-hud-legends-by-oolite-s-capital-hei](./quick/261118-ih8-size-hud-legends-by-oolite-s-capital-hei/) |
 
 ## Deferred Items
 
