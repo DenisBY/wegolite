@@ -17,15 +17,18 @@
  * fixture, and this file reads its own fixture files only.
  */
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import * as derive from "../pursuit/derive.js";
 import {
+  AimFeedbackFileSchema,
+  AimFeedbackFixtureSchema,
   FireSiteFileSchema,
   FireSiteFixtureSchema,
+  type AimFeedbackFixture,
   type FireSiteFixture,
 } from "./schema.js";
 
@@ -39,6 +42,18 @@ const FIRE_SITE_FILES = ["fire-sites.json", "hot-branches.json"] as const;
 
 function loadFireSites(name: string): FireSiteFixture[] {
   return FireSiteFileSchema.parse(readJson(name));
+}
+
+function loadAimFeedback(): AimFeedbackFixture[] {
+  return AimFeedbackFileSchema.parse(readJson("aim-feedback.json"));
+}
+
+/** An aim-feedback fixture as the derivation reads it: temperature 0 and its `missedShots`. */
+function likeAim(entry: AimFeedbackFixture): derive.FixtureLike {
+  return {
+    ...entry.fixture,
+    weapon: { forwardWeaponTemp: 0, missedShots: entry.weapon.missedShots },
+  };
 }
 
 function allFireSiteFixtures(): FireSiteFixture[] {
@@ -521,7 +536,7 @@ describe("fire-site and hot-branch coverage", () => {
   });
 
   it("covers every in-scope site, with and without a request", () => {
-    const requesting = new Set(
+    const requesting = new Set<string>(
       sites()
         .filter((entry) => entry.fireRequestTicks.length > 0)
         .map((entry) => entry.fixture.self.behaviour),
@@ -536,7 +551,7 @@ describe("fire-site and hot-branch coverage", () => {
     ]) {
       expect(requesting.has(behaviour), behaviour).toBe(true);
     }
-    const silent = new Set(
+    const silent = new Set<string>(
       sites()
         .filter((entry) => entry.fireRequestTicks.length === 0)
         .map((entry) => entry.fixture.self.behaviour),
@@ -738,5 +753,314 @@ describe("hot-branch fixtures state the temperature they read", () => {
     // one step of fround(6 / 120) = 0.05, and the margin to USABLE dwarfs a float32 ulp
     expect(read1 - read2).toBeCloseTo(0.05, 4);
     expect(derive.WEAPON_TEMP_USABLE - read2).toBeGreaterThan(0.01);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// missedShots feedback (D-15): trackPrimaryTarget's min_d and the aim tolerance
+
+describe("aim-feedback fixture file", () => {
+  it("parses against the strict schema and has the three fixture files exactly", () => {
+    expect(() => loadAimFeedback()).not.toThrow();
+    expect(
+      readdirSync(FIXTURE_DIR)
+        .filter((name) => name.endsWith(".json"))
+        .sort(),
+    ).toEqual(["aim-feedback.json", "fire-sites.json", "hot-branches.json"]);
+  });
+
+  it("has at least six fixtures, three of them with missedShots 31, citing the min_d lines", () => {
+    const rows = loadAimFeedback();
+    expect(rows.length).toBeGreaterThanOrEqual(6);
+    expect(
+      rows.filter((row) => row.weapon.missedShots === 31).length,
+    ).toBeGreaterThanOrEqual(3);
+    for (const row of rows) {
+      expect(row.fixture.id).toMatch(/^aim-feedback-/);
+      expect(row.fixture.oolite, row.fixture.id).toContain(
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+      );
+      expect(row.fixture.derivation.length, row.fixture.id).toBeGreaterThan(
+        200,
+      );
+    }
+  });
+
+  it("keeps ids unique across the three files and the Phase 14 pursuit and reference fixtures", () => {
+    const own = [
+      ...allFireSiteFixtures().map((entry) => entry.fixture.id),
+      ...loadAimFeedback().map((entry) => entry.fixture.id),
+    ];
+    expect(new Set(own).size).toBe(own.length);
+    const others = new Set<string>();
+    for (const dir of ["../pursuit/fixtures/", "../fixtures/"]) {
+      const base = fileURLToPath(new URL(dir, import.meta.url));
+      for (const name of readdirSync(base).filter((n) => n.endsWith(".json"))) {
+        const raw = JSON.parse(
+          readFileSync(`${base}${name}`, "utf8"),
+        ) as unknown;
+        if (!Array.isArray(raw)) continue;
+        for (const item of raw as unknown[]) {
+          if (typeof item === "object" && item !== null && "id" in item) {
+            others.add(String(item.id));
+          }
+        }
+      }
+    }
+    expect(others.size).toBeGreaterThan(50);
+    for (const id of own) expect(others.has(id), id).toBe(false);
+  });
+});
+
+describe("the aim-feedback schema refuses what it must", () => {
+  const first = loadAimFeedback()[0];
+  if (first === undefined) throw new Error("no aim-feedback fixture");
+  const base = structuredClone(first);
+
+  it("accepts a clean entry and refuses a temperature, a bad count, a bad id and an unknown key", () => {
+    expect(AimFeedbackFixtureSchema.safeParse(base).success).toBe(true);
+    expect(
+      AimFeedbackFixtureSchema.safeParse({
+        ...base,
+        weapon: { ...base.weapon, forwardWeaponTemp: 0 },
+      }).success,
+    ).toBe(false);
+    for (const missedShots of [-1, 2.5]) {
+      expect(
+        AimFeedbackFixtureSchema.safeParse({ ...base, weapon: { missedShots } })
+          .success,
+      ).toBe(false);
+    }
+    const wrongId = structuredClone(base);
+    wrongId.fixture.id = "hot-something";
+    expect(AimFeedbackFixtureSchema.safeParse(wrongId).success).toBe(false);
+    expect(
+      AimFeedbackFixtureSchema.safeParse({ ...base, fireRequestTicks: [] })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe("the min_d terms and the aim circle in closed form (9121-9143, 9761-9810)", () => {
+  const near = (value: number, expected: number): void => {
+    expect(Math.abs(value - expected)).toBeLessThan(1e-12);
+  };
+
+  it("lowers min_d by 0.0001 per miss for accuracy in [0, 7.5) and floors it at 0.001", () => {
+    near(derive.trackingFactors(2, 0, 1.4).minD, 0.004);
+    near(derive.trackingFactors(2, 3, 1.4).minD, 0.0037);
+    near(derive.trackingFactors(2, 7, 1.4).minD, 0.0033);
+    // 31 misses: 0.004 - 0.0031 = 0.0009 < 0.001, the floor doubles max_factor and halves the fraction
+    const floored = derive.trackingFactors(2, 31, 1.4);
+    expect(floored).toEqual({ minD: 0.001, maxFactor: 16, rMaxFactor: 0.0625 });
+    // the boundary: 0 is in [0, 7.5)
+    expect(derive.trackingFactors(0, 31, 1.4).minD).toBe(0.001);
+  });
+
+  it("leaves min_d untouched at accuracy 7.5 and above and below 0", () => {
+    for (const missed of [0, 3, 31]) {
+      const precise = derive.trackingFactors(8, missed, 1.4);
+      near(precise.minD, 0.0004);
+      expect(precise.maxFactor).toBe(33);
+      near(precise.rMaxFactor, 1 / 33);
+      expect(derive.trackingFactors(7.5, missed, 1.4).minD).toBe(0.0004);
+      expect(derive.trackingFactors(-2, missed, 1.4)).toEqual({
+        minD: 0.004,
+        maxFactor: 8,
+        rMaxFactor: 0.125,
+      });
+    }
+  });
+
+  it("shrinks the aim circle with misses for accuracy at least 0 only, before the /5", () => {
+    // accuracy 2: basic_aim 204 / (1 + missed / 4)
+    for (const [missed, basic] of [
+      [0, 204],
+      [3, 204 / 1.75],
+      [31, 204 / 8.75],
+    ] as const) {
+      near(
+        derive.currentAimTolerance(2, missed),
+        Math.min(Math.sqrt(1 - (basic * basic) / 1e8), 0.999999),
+      );
+    }
+    // accuracy 8: 96 / (1 + missed / 4) / 5, capped by best_cos 0.9999999
+    near(derive.currentAimTolerance(8, 0), Math.sqrt(1 - (19.2 * 19.2) / 1e8));
+    near(derive.currentAimTolerance(8, 31), 0.9999999);
+    // accuracy -2: no miss term
+    expect(derive.currentAimTolerance(-2, 31)).toBe(
+      derive.currentAimTolerance(-2, 0),
+    );
+    // missedShots 0 is the Phase 14 value
+    for (const accuracy of [-2, 0, 2, 7.5, 8, 10]) {
+      expect(derive.currentAimTolerance(accuracy, 0)).toBe(
+        derive.currentAimTolerance(accuracy),
+      );
+    }
+  });
+});
+
+describe("every aim-feedback check re-derives through derive.ts", () => {
+  for (const entry of loadAimFeedback()) {
+    it(`${entry.fixture.id}: checks, events and draws`, () => {
+      const fixture = likeAim(entry);
+      for (const check of entry.fixture.checks) {
+        const derived = derive.deriveCheck(fixture, check);
+        if (typeof check.expected === "string") {
+          expect(derived, `${check.field}@${String(check.tick)}`).toBe(
+            check.expected,
+          );
+        } else {
+          expect(
+            Math.abs((derived as number) - check.expected),
+            `${check.field}@${String(check.tick)}: derived ${String(derived)} vs ${String(check.expected)}`,
+          ).toBeLessThanOrEqual(check.tolerance + 1e-12);
+        }
+      }
+      expect(derive.deriveEvents(fixture)).toEqual(entry.fixture.events);
+      expect(derive.deriveDrawCount(fixture)).toBe(entry.fixture.draws.length);
+    });
+
+    it(`${entry.fixture.id}: the pose is a one-update fixture clear of every range threshold`, () => {
+      const { fixture } = entry;
+      expect(fixture.horizon).toBe(1);
+      expect(fixture.draws).toEqual([]);
+      expect(fixture.self.behaviour).toBe("ATTACK_FLY_TO_TARGET");
+      const range = derive.rangeToPrimaryTarget(
+        derive.tickZeroWorld(likeAim(entry)),
+      );
+      // fly-to reads 437.5, 5,000 and 15,000 (4630, 4652, 4648): range 7,920 is clear
+      for (const threshold of [437.5, 5000, 15000]) {
+        expect(Math.abs(range - threshold)).toBeGreaterThan(1000);
+      }
+    });
+  }
+
+  it("is a no-op at missedShots 0: re-deriving with the default weapon gives the same sticks", () => {
+    for (const entry of loadAimFeedback()) {
+      if (entry.weapon.missedShots !== 0) continue;
+      const withoutWeapon: derive.FixtureLike = { ...entry.fixture };
+      for (const check of entry.fixture.checks) {
+        expect(derive.deriveCheck(withoutWeapon, check), entry.fixture.id).toBe(
+          derive.deriveCheck(likeAim(entry), check),
+        );
+      }
+    }
+  });
+});
+
+/**
+ * Pairs that differ only in missedShots, and whether the expected sticks differ
+ * (the miss term binds) or are equal (it does not), as each derivation states.
+ */
+const AIM_PAIRS: readonly (readonly [string, string, "differ" | "equal"])[] = [
+  // accuracy 2, min_d: 0.004 -> 0.0037 -> floored 0.001
+  [
+    "aim-feedback-accuracy-2-missed-0-keeps-the-base-min-d",
+    "aim-feedback-accuracy-2-missed-3-lowers-min-d",
+    "differ",
+  ],
+  [
+    "aim-feedback-accuracy-2-missed-3-lowers-min-d",
+    "aim-feedback-accuracy-2-missed-31-floors-min-d-and-doubles-max-factor",
+    "differ",
+  ],
+  [
+    "aim-feedback-accuracy-2-missed-0-keeps-the-base-min-d",
+    "aim-feedback-accuracy-2-missed-31-floors-min-d-and-doubles-max-factor",
+    "differ",
+  ],
+  [
+    "aim-feedback-pitch-accuracy-2-missed-0-keeps-the-base-min-d",
+    "aim-feedback-pitch-accuracy-2-missed-3-lowers-min-d",
+    "differ",
+  ],
+  [
+    "aim-feedback-pitch-accuracy-2-missed-3-lowers-min-d",
+    "aim-feedback-pitch-accuracy-2-missed-31-floors-min-d-and-doubles-max-factor",
+    "differ",
+  ],
+  // accuracy 2, aim circle: inside at 0 misses, outside at 3 and 31
+  [
+    "aim-feedback-accuracy-2-missed-0-pose-inside-the-aim-circle",
+    "aim-feedback-accuracy-2-missed-3-same-pose-outside-the-aim-circle",
+    "differ",
+  ],
+  [
+    "aim-feedback-accuracy-2-missed-3-same-pose-outside-the-aim-circle",
+    "aim-feedback-accuracy-2-missed-31-same-pose-outside-the-aim-circle",
+    "differ",
+  ],
+  // accuracy 8: the aim circle moves, the min_d set does not
+  [
+    "aim-feedback-accuracy-8-missed-0-pose-inside-the-aim-circle",
+    "aim-feedback-accuracy-8-missed-31-same-pose-outside-the-aim-circle",
+    "differ",
+  ],
+  [
+    "aim-feedback-accuracy-8-missed-0-far-pose-precise-min-d",
+    "aim-feedback-accuracy-8-missed-31-far-pose-sticks-unchanged",
+    "equal",
+  ],
+  // accuracy -2: no miss term at all
+  [
+    "aim-feedback-accuracy-minus-2-missed-0-far-pose-base-min-d",
+    "aim-feedback-accuracy-minus-2-missed-31-far-pose-sticks-unchanged",
+    "equal",
+  ],
+  [
+    "aim-feedback-accuracy-minus-2-missed-0-near-pose-inside-the-aim-circle",
+    "aim-feedback-accuracy-minus-2-missed-31-near-pose-aim-circle-unchanged",
+    "equal",
+  ],
+];
+
+describe("pairs that differ only in missedShots", () => {
+  const rows = loadAimFeedback();
+  const sticks = (id: string): [number, number] => {
+    const row = rows.find((entry) => entry.fixture.id === id);
+    if (row === undefined) throw new Error(`no fixture ${id}`);
+    const value = (field: string): number => {
+      const check = row.fixture.checks.find(
+        (c) => c.tick === 1 && c.field === field,
+      );
+      if (typeof check?.expected !== "number") {
+        throw new Error(`${id} has no ${field} check`);
+      }
+      return check.expected;
+    };
+    return [value("stickRoll"), value("stickPitch")];
+  };
+
+  for (const [a, b, relation] of AIM_PAIRS) {
+    it(`${a} vs ${b}: ${relation}`, () => {
+      const rowA = rows.find((entry) => entry.fixture.id === a);
+      const rowB = rows.find((entry) => entry.fixture.id === b);
+      expect(rowA).toBeDefined();
+      expect(rowB).toBeDefined();
+      // a pair shares everything but missedShots (and the ids and derivation prose)
+      expect(rowA?.fixture.self).toEqual(rowB?.fixture.self);
+      expect(rowA?.fixture.bodies).toEqual(rowB?.fixture.bodies);
+      expect(rowA?.fixture.stats).toEqual(rowB?.fixture.stats);
+      expect(rowA?.weapon.missedShots).not.toBe(rowB?.weapon.missedShots);
+      const [rollA, pitchA] = sticks(a);
+      const [rollB, pitchB] = sticks(b);
+      if (relation === "differ") {
+        expect(
+          Math.abs(rollA - rollB) + Math.abs(pitchA - pitchB),
+          "the sticks must differ",
+        ).toBeGreaterThan(1e-3);
+      } else {
+        expect(rollA).toBeCloseTo(rollB, 9);
+        expect(pitchA).toBeCloseTo(pitchB, 9);
+      }
+    });
+  }
+
+  it("lists every aim-feedback fixture in at least one pair", () => {
+    const paired = new Set(AIM_PAIRS.flatMap(([a, b]) => [a, b]));
+    for (const row of rows) {
+      expect(paired.has(row.fixture.id), row.fixture.id).toBe(true);
+    }
   });
 });

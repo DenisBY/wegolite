@@ -454,14 +454,17 @@ export function approachAspect(
 }
 
 /**
- * `currentAimTolerance` (9761-9810) under the two scope cuts: `missedShots` is
- * always 0 and no ship is sunlit. `aim_tolerance = 240 - 18 * accuracy` (1138).
+ * `currentAimTolerance` (9761-9810) under the scope cut that no ship is sunlit
+ * and the weapon faces forward. `aim_tolerance = 240 - 18 * accuracy` (1138).
+ * For accuracy at least 0 the basic aim shrinks with misses, `basic_aim /= 1 +
+ * missedShots / 4` (9769), before the `/ 5` of accuracy at least 7.5 (9775).
  */
-export function currentAimTolerance(accuracy: number): number {
+export function currentAimTolerance(accuracy: number, missedShots = 0): number {
   let basicAim = 240 - 18 * accuracy;
   let bestCos = 0.99999;
   if (accuracy >= COMBAT_AI_ISNT_AWFUL) {
     bestCos = 0.999999;
+    basicAim /= 1 + missedShots / 4;
   }
   if (accuracy >= COMBAT_AI_TRACKS_CLOSER) {
     bestCos = 0.9999999;
@@ -622,6 +625,41 @@ function canStillTrackPrimaryTarget(world: World): boolean {
   );
 }
 
+/**
+ * The stick-scaling terms of `trackPrimaryTarget:retreat:NO` (9121-9143): the
+ * dead zone `min_d`, the factor cap and the per-factor fraction. Accuracy at
+ * least 7.5 gets the precise set whatever the misses; accuracy in [0, 7.5)
+ * loses `0.0001` of `min_d` per missed shot and, once `min_d` would fall below
+ * 0.001, floors it there while doubling the cap and halving the fraction
+ * (9134-9141); below 0 the base set stays.
+ */
+export function trackingFactors(
+  accuracy: number,
+  missedShots: number,
+  maxFlightPitch: number,
+): { minD: number; maxFactor: number; rMaxFactor: number } {
+  let minD = 0.004;
+  let maxFactor = 8;
+  let rMaxFactor = 0.125;
+  if (accuracy >= COMBAT_AI_TRACKS_CLOSER) {
+    if (maxFlightPitch > 1) {
+      maxFactor = Math.floor(maxFlightPitch / 0.125);
+      rMaxFactor = 1 / maxFactor;
+    }
+    minD = 0.0004;
+    maxFactor *= 3;
+    rMaxFactor /= 3;
+  } else if (accuracy >= COMBAT_AI_ISNT_AWFUL) {
+    minD -= 0.0001 * missedShots;
+    if (minD < 0.001) {
+      minD = 0.001;
+      maxFactor *= 2;
+      rMaxFactor /= 2;
+    }
+  }
+  return { minD, maxFactor, rMaxFactor };
+}
+
 /** `trackPrimaryTarget:retreat:` (ShipEntity.m:9034-9244), non-missile. */
 export function trackPrimaryTarget(
   world: World,
@@ -683,7 +721,7 @@ export function trackPrimaryTarget(
       ? [0, 0, 1]
       : norm(relPos);
 
-  const maxCos = currentAimTolerance(s.accuracy);
+  const maxCos = currentAimTolerance(s.accuracy, world.weapon.missedShots);
   s.stickRoll = 0;
   s.stickPitch = 0;
   const reverse = retreat ? -1 : 1;
@@ -692,22 +730,11 @@ export function trackPrimaryTarget(
   let maxFactor = 8;
   let rMaxFactor = 0.125;
   if (!retreat) {
-    if (s.accuracy >= COMBAT_AI_TRACKS_CLOSER) {
-      if (world.stats.maxFlightPitch > 1) {
-        maxFactor = Math.floor(world.stats.maxFlightPitch / 0.125);
-        rMaxFactor = 1 / maxFactor;
-      }
-      minD = 0.0004;
-      maxFactor *= 3;
-      rMaxFactor /= 3;
-    } else if (s.accuracy >= COMBAT_AI_ISNT_AWFUL) {
-      // missedShots is always 0 under the scope cut
-      if (minD < 0.001) {
-        minD = 0.001;
-        maxFactor *= 2;
-        rMaxFactor /= 2;
-      }
-    }
+    ({ minD, maxFactor, rMaxFactor } = trackingFactors(
+      s.accuracy,
+      world.weapon.missedShots,
+      world.stats.maxFlightPitch,
+    ));
   }
 
   const dRight = dot(relPos, s.right);

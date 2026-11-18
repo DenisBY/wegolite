@@ -1,0 +1,1726 @@
+[
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-2-missed-0-keeps-the-base-min-d",
+      "title": "Accuracy 2 with missedShots 0 keeps min_d 0.004 (roll stick, 3 factor steps)",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Accuracy 2 is in [0, 7.5), so the else-if at 9134 applies: min_d = 0.004 - 0.0001 * 0 = 0.004, not below 0.001, so max_factor 8 and r_max_factor 0.125 stay. The target is 0.062 to the right and 0.05 above the nose (d_forward 0.9968, far below the aim cosine 0.99979): the roll branch runs, factor = int(sqrt(0.062 / 0.004)) = int(3.94) = 3, so stick_roll = -2.1 * 0.125 * 3 = -0.7875 (9177-9184) and, the roll being non-zero, no pitch stick (9196). The overshoot guard at 9208 does not bind (0.062 is above 0.7875 / 120). The binding term is min_d.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [496, 400, 7974.583625494186],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": -0.7875,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 0
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-2-missed-3-lowers-min-d",
+      "title": "Accuracy 2 with missedShots 3 lowers min_d to 0.0037 (roll stick, 4 factor steps)",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Same pose as the missedShots 0 fixture. min_d = 0.004 - 0.0001 * 3 = 0.0037 (9136), not below 0.001 (9137), so max_factor 8 and r_max_factor 0.125 stay. factor = int(sqrt(0.062 / 0.0037)) = int(4.09) = 4, so stick_roll = -2.1 * 0.125 * 4 = -1.05, one factor step more than at missedShots 0: the miss feedback lowers min_d and the ship commands a bigger correction. The aim cosine rises too (basic_aim 204 / 1.75), but the pose is far outside both circles.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [496, 400, 7974.583625494186],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": -1.05,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 3
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-2-missed-31-floors-min-d-and-doubles-max-factor",
+      "title": "Accuracy 2 with missedShots 31 floors min_d at 0.001 and doubles max_factor (roll stick, 7 steps of 0.0625)",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Same pose. min_d = 0.004 - 0.0001 * 31 = 0.0009 is below 0.001 (9137), so min_d = 0.001, max_factor = 16 and r_max_factor = 0.0625 (9138-9140): the 0.001 floor that doubles max_factor and halves r_max_factor. factor = min(16, int(sqrt(0.062 / 0.001))) = int(7.87) = 7, so stick_roll = -2.1 * 0.0625 * 7 = -0.91875. Without the floor (min_d 0.0009, max_factor 8, fraction 0.125) the stick would be -2.1 * 0.125 * 8 = -2.1 (full stick): the two differ, so the floor term is exercised.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [496, 400, 7974.583625494186],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": -0.91875,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 31
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-pitch-accuracy-2-missed-0-keeps-the-base-min-d",
+      "title": "Accuracy 2 with missedShots 0 and a target straight above: pitch stick with min_d 0.004",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. The target is 0.062 above the nose and dead on in azimuth. min_d = 0.004 (9121, 9136 with 0 misses). d_up 0.062 > min_d with d_right 0 gives factor 0 for the roll and no roll stick, so the pitch branch runs (9196): factor = int(sqrt(0.062 / 0.004)) = 3, stick_pitch = -1.4 * 0.125 * 3 = -0.525 (9201).",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [0, 496, 7984.609195195467],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": -0.525,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 0
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-pitch-accuracy-2-missed-3-lowers-min-d",
+      "title": "Accuracy 2 with missedShots 3 and a target straight above: pitch stick with min_d 0.0037",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Same pose. min_d = 0.0037 (9136): factor = int(sqrt(0.062 / 0.0037)) = 4, stick_pitch = -1.4 * 0.125 * 4 = -0.7.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [0, 496, 7984.609195195467],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": -0.7,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 3
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-pitch-accuracy-2-missed-31-floors-min-d-and-doubles-max-factor",
+      "title": "Accuracy 2 with missedShots 31 and a target straight above: pitch stick with the 0.001 floor",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Same pose. min_d floors at 0.001 with max_factor 16 and fraction 0.0625 (9137-9140): factor = int(sqrt(0.062 / 0.001)) = 7, stick_pitch = -1.4 * 0.0625 * 7 = -0.6125.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [0, 496, 7984.609195195467],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": -0.6125,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 31
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-2-missed-0-pose-inside-the-aim-circle",
+      "title": "Accuracy 2 with missedShots 0 and a target 0.01 off the nose each way: inside the aim circle, no stick",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810",
+        "src/Core/Entities/ShipEntity.m:9769-9769"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. The target is 0.01 right and 0.01 up of the nose: d_forward = sqrt(1 - 0.0002) = 0.9999. aim_tolerance = 240 - 18 * 2 = 204 (1138); at accuracy 2 >= 0 best_cos is 0.999999 and basic_aim = 204 / (1 + 0 / 4) = 204 (9769), so max_cos = sqrt(1 - 204^2 / 1e8) = 0.99979, which is below best_cos and is the aim cosine. d_forward 0.9999 > 0.99979: the ship is on target (9149), so trackPrimaryTarget returns before any stick (9151): both sticks 0.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [80, 80, 7999.199959996],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 0
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-2-missed-3-same-pose-outside-the-aim-circle",
+      "title": "Accuracy 2 with missedShots 3 and the same pose: the aim circle has shrunk and the ship corrects",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810",
+        "src/Core/Entities/ShipEntity.m:9769-9769"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Same pose (d_forward 0.9999). basic_aim = 204 / (1 + 3 / 4) = 116.57 (9769), max_cos = sqrt(1 - 116.57^2 / 1e8) = 0.999932 > 0.9999, so the ship is no longer on target and corrects. min_d = 0.0037: factor = int(sqrt(0.01 / 0.0037)) = 1, stick_roll = -2.1 * 0.125 * 1 = -0.2625 (the overshoot guard does not bind, 0.01 > 0.2625 / 120).",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [80, 80, 7999.199959996],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": -0.2625,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 3
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-2-missed-31-same-pose-outside-the-aim-circle",
+      "title": "Accuracy 2 with missedShots 31 and the same pose: the aim circle is far narrower and min_d is floored",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810",
+        "src/Core/Entities/ShipEntity.m:9769-9769"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Same pose. basic_aim = 204 / (1 + 31 / 4) = 23.31 (9769), max_cos = sqrt(1 - 23.31^2 / 1e8) = 0.9999973 (below best_cos 0.999999), so the ship corrects. min_d floors at 0.001 with max_factor 16 and fraction 0.0625: factor = int(sqrt(0.01 / 0.001)) = 3, stick_roll = -2.1 * 0.0625 * 3 = -0.39375.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [80, 80, 7999.199959996],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": -0.39375,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 31
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-8-missed-0-pose-inside-the-aim-circle",
+      "title": "Accuracy 8 with missedShots 0 and a target 0.0012 off the nose each way: inside the aim circle, no stick",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810",
+        "src/Core/Entities/ShipEntity.m:9769-9769"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. The target is 0.0012 right and 0.0012 up: d_forward = sqrt(1 - 2 * 0.0012^2) = 0.99999856. aim_tolerance = 240 - 18 * 8 = 96; at accuracy 8 >= 7.5 best_cos is 0.9999999 and basic_aim = 96 / (1 + 0 / 4) / 5 = 19.2 (9769, 9775), so max_cos = sqrt(1 - 19.2^2 / 1e8) = 0.99999816, which is below best_cos and is the aim cosine. d_forward 0.99999856 exceeds it by 4e-7: on target, no stick.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 8,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [9.6, 9.6, 7999.988479991705],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 0
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-8-missed-31-same-pose-outside-the-aim-circle",
+      "title": "Accuracy 8 with missedShots 31 and the same pose: the aim circle is capped by best_cos and the ship corrects with the unchanged precise min_d set",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810",
+        "src/Core/Entities/ShipEntity.m:9769-9769"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Same pose (d_forward 0.99999856). basic_aim = 96 / (1 + 31 / 4) / 5 = 2.194 (9769, 9775), so max_cos = sqrt(1 - 2.194^2 / 1e8) = 0.99999998 is above best_cos 0.9999999, and the aim cosine is best_cos 0.9999999 (9806-9809): d_forward 0.99999856 is below it by 1.3e-6, so the ship corrects. The min_d set is the precise one whatever the misses (9125-9133): max_factor = floor(1.4 / 0.125) = 11, times 3 = 33, fraction 1 / 11 / 3 = 1 / 33, min_d 0.0004. factor = int(sqrt(0.0012 / 0.0004)) = int(1.73) = 1, stick_roll = -2.1 / 33 * 1 = -0.0636364. The overshoot guard does not bind (0.0012 is above 0.0636 / 120 = 5.3e-4).",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 8,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [9.6, 9.6, 7999.988479991705],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": -0.06363636363636364,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 31
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-8-missed-0-far-pose-precise-min-d",
+      "title": "Accuracy 8 with missedShots 0 and a far pose: the precise min_d set (0.0004, 33 steps of 1/33)",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Accuracy 8 >= 7.5 takes the precise set (9125-9133): max_factor = floor(1.4 / 0.125) * 3 = 33, fraction 1 / 33, min_d 0.0004. factor = min(33, int(sqrt(0.062 / 0.0004))) = int(12.45) = 12, stick_roll = -2.1 / 33 * 12 = -0.763636.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 8,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [496, 400, 7974.583625494186],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": -0.7636363636363637,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 0
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-8-missed-31-far-pose-sticks-unchanged",
+      "title": "Accuracy 8 with missedShots 31 and the far pose: the sticks equal those of missedShots 0 (misses move only the aim circle)",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Same pose as the missedShots 0 fixture. The precise set at 9125-9133 is taken before the else-if at 9134, so missedShots does not touch min_d, max_factor or the fraction: the stick is the same -2.1 / 33 * 12 = -0.763636. The pose is far outside both aim circles, so the narrower circle does not change the decision either.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": 8,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [496, 400, 7974.583625494186],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": -0.7636363636363637,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 31
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-minus-2-missed-0-far-pose-base-min-d",
+      "title": "Accuracy -2 with missedShots 0 and the far pose: the base min_d 0.004 (3 steps of 0.125)",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Accuracy -2 is below 0, so neither branch at 9125 and 9134 applies: min_d 0.004, max_factor 8, fraction 0.125. factor = int(sqrt(0.062 / 0.004)) = 3, stick_roll = -2.1 * 0.125 * 3 = -0.7875 (the overshoot guard at 9206 needs accuracy >= 0).",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": -2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [496, 400, 7974.583625494186],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": -0.7875,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 0
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-minus-2-missed-31-far-pose-sticks-unchanged",
+      "title": "Accuracy -2 with missedShots 31 and the far pose: the sticks equal those of missedShots 0 (no miss term below accuracy 0)",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Same pose. The else-if at 9134 needs accuracy >= 0, so the 31 misses leave min_d 0.004 untouched: stick_roll -0.7875 as at missedShots 0.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": -2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [496, 400, 7974.583625494186],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": -0.7875,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 31
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-minus-2-missed-0-near-pose-inside-the-aim-circle",
+      "title": "Accuracy -2 with missedShots 0 and a target 0.01 off the nose each way: inside the aim circle, no stick",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810",
+        "src/Core/Entities/ShipEntity.m:9769-9769"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. d_forward = 0.9999. aim_tolerance = 240 + 36 = 276; accuracy -2 is below 0, so best_cos stays 0.99999 and basic_aim has no miss term (9765-9770): max_cos = sqrt(1 - 276^2 / 1e8) = 0.99962, below best_cos, so it is the aim cosine. 0.9999 > 0.99962: on target, no stick.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": -2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [80, 80, 7999.199959996],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 0
+    }
+  },
+  {
+    "fixture": {
+      "id": "aim-feedback-accuracy-minus-2-missed-31-near-pose-aim-circle-unchanged",
+      "title": "Accuracy -2 with missedShots 31 and the same pose: the aim circle does not shrink (9769 needs accuracy >= 0), still on target",
+      "oolite": [
+        "src/Core/Entities/ShipEntity.m:4611-4731",
+        "src/Core/Entities/ShipEntity.m:9034-9244",
+        "src/Core/Entities/ShipEntity.m:9134-9141",
+        "src/Core/Entities/ShipEntity.m:9761-9810",
+        "src/Core/Entities/ShipEntity.m:9769-9769"
+      ],
+      "derivation": "A Mamba-like ship (max_flight_roll 2.1, max_flight_pitch 1.4) in ATTACK_FLY_TO_TARGET against a stationary ship 8000 m away (range 7920, the target centre is the aim point), forward weapon temperature 0, so trackPrimaryTarget:retreat:NO (4688) decides the sticks. Same pose. The miss term at 9769 sits inside the accuracy >= 0 block, so basic_aim stays 276 and max_cos 0.99962: 0.9999 > 0.99962, on target, no stick, exactly as at missedShots 0.",
+      "dt": 0.008333333333333333,
+      "horizon": 1,
+      "stats": {
+        "maxFlightSpeed": 320,
+        "maxFlightRoll": 2.1,
+        "maxFlightPitch": 1.4,
+        "thrust": 32,
+        "mass": 20000,
+        "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
+        "scannerRange": 25600
+      },
+      "self": {
+        "id": 101,
+        "scanClass": "CLASS_NEUTRAL",
+        "radius": 40,
+        "position": [0, 0, 0],
+        "forward": [0, 0, 1],
+        "up": [0, 1, 0],
+        "right": [1, 0, 0],
+        "speed": 0,
+        "flightRoll": 0,
+        "flightPitch": 0,
+        "stickRoll": 0,
+        "stickPitch": 0,
+        "accuracy": -2,
+        "frustration": 1,
+        "successFactor": 0.5,
+        "pitchingOver": 0,
+        "jink": [0, 0, 0],
+        "behaviour": "ATTACK_FLY_TO_TARGET",
+        "targetId": 0,
+        "destination": [0, 0, 0],
+        "desiredRange": 0,
+        "desiredSpeed": 0,
+        "ownerId": 0,
+        "escortSlot": 0
+      },
+      "bodies": [
+        {
+          "id": 102,
+          "kind": "ship",
+          "scanClass": "CLASS_NEUTRAL",
+          "radius": 40,
+          "mass": 20000,
+          "position": [80, 80, 7999.199959996],
+          "forward": [0, 0, 1],
+          "up": [0, 1, 0],
+          "right": [1, 0, 0],
+          "speed": 0,
+          "behaviour": "IDLE",
+          "targetId": 0
+        }
+      ],
+      "motion": "static",
+      "assign": [
+        {
+          "op": "setTarget",
+          "value": 102
+        }
+      ],
+      "draws": [],
+      "checks": [
+        {
+          "tick": 1,
+          "field": "behaviour",
+          "expected": "ATTACK_FLY_TO_TARGET",
+          "tolerance": 0,
+          "note": "unchanged"
+        },
+        {
+          "tick": 1,
+          "field": "stickRoll",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's roll stick (9177-9195)"
+        },
+        {
+          "tick": 1,
+          "field": "stickPitch",
+          "expected": 0,
+          "tolerance": 0.00001,
+          "note": "trackPrimaryTarget's pitch stick (9196-9204)"
+        }
+      ],
+      "events": []
+    },
+    "weapon": {
+      "missedShots": 31
+    }
+  }
+]
