@@ -813,8 +813,9 @@ function intersects(
  * camera centre, so 256 names never cover the map; as the view zooms in every
  * visible marker is a candidate (D-08). Every box includes the descender and a
  * 2 px margin, and a non-forced label whose box meets any placed box is
- * skipped (owner decision 2026-11-18, quick task 261118-cyo). The label sits
- * past its marker's edge. The result is in `systemIndex` order. Unreachable
+ * skipped (owner decision 2026-11-18, quick task 261118-cyo); a forced label
+ * that would meet one moves to the first free corner around its marker. The
+ * label sits past its marker's edge. The result is in `systemIndex` order. Unreachable
  * systems are dimmed, never suppressed. Text measurement is injected because
  * the model has no canvas.
  */
@@ -869,23 +870,48 @@ export function selectLabels(
     ),
   ];
 
+  const boxAt = (x: number, y: number, width: number) => ({
+    x: x - LABEL_MARGIN,
+    y: y - LABEL_HEIGHT - LABEL_MARGIN,
+    width: width + 2 * LABEL_MARGIN,
+    height: LABEL_HEIGHT + LABEL_DESCENDER + 2 * LABEL_MARGIN,
+  });
+
   for (const marker of priority) {
     const forcedLabel = forced(marker);
     const width = measure(marker.name);
-    const x =
-      marker.screenX +
-      Math.max(LABEL_OFFSET_X, marker.radius + LABEL_MARKER_GAP);
-    const y = marker.screenY + LABEL_OFFSET_Y;
-    const box = {
-      x: x - LABEL_MARGIN,
-      y: y - LABEL_HEIGHT - LABEL_MARGIN,
-      width: width + 2 * LABEL_MARGIN,
-      height: LABEL_HEIGHT + LABEL_DESCENDER + 2 * LABEL_MARGIN,
-    };
-    if (!forcedLabel && accepted.some((other) => intersects(other, box))) {
-      continue;
-    }
-    accepted.push(box);
+    const offset = Math.max(LABEL_OFFSET_X, marker.radius + LABEL_MARKER_GAP);
+    // The usual place is right of the marker, above its centre. A forced
+    // label that would meet a placed one tries the other three corners; a
+    // non-forced label is skipped instead.
+    const places = forcedLabel
+      ? [
+          { x: marker.screenX + offset, y: marker.screenY + LABEL_OFFSET_Y },
+          {
+            x: marker.screenX - offset - width,
+            y: marker.screenY + LABEL_OFFSET_Y,
+          },
+          {
+            x: marker.screenX + offset,
+            y: marker.screenY + offset + LABEL_HEIGHT,
+          },
+          {
+            x: marker.screenX - offset - width,
+            y: marker.screenY + offset + LABEL_HEIGHT,
+          },
+        ]
+      : [{ x: marker.screenX + offset, y: marker.screenY + LABEL_OFFSET_Y }];
+    const free = places.find(
+      (place) =>
+        !accepted.some((other) =>
+          intersects(other, boxAt(place.x, place.y, width)),
+        ),
+    );
+    if (free === undefined && !forcedLabel) continue;
+    // A forced label always draws: with every corner taken it keeps its
+    // usual place.
+    const { x, y } = free ?? places[0] ?? { x: 0, y: 0 };
+    accepted.push(boxAt(x, y, width));
     placed.push({
       marker,
       label: {

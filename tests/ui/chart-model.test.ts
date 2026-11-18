@@ -1211,6 +1211,34 @@ describe("selectLabels never overlaps at the galaxy preset", () => {
     expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
   });
 
+  it("moves a forced label aside rather than overprint another forced label", () => {
+    // The visual check of quick task 261118-cyo: Lave current and Diso
+    // selected sit 9 px apart at the galaxy preset and drew "Disbave".
+    const view = buildChartView(
+      systems,
+      lave.id,
+      undefined,
+      galaxyPreset(),
+      fullFuel,
+      galaxyViewport,
+      diso.id,
+      [diso.id],
+    );
+    const labels = selectLabels(view, (text) => text.length * 7.25);
+    const placed = boxes(labels);
+    const laveBox = placed.find((entry) => entry.id === lave.id);
+    const disoBox = placed.find((entry) => entry.id === diso.id);
+    expect(laveBox).toBeDefined();
+    expect(disoBox).toBeDefined();
+    if (laveBox === undefined || disoBox === undefined) return;
+    const overlap =
+      laveBox.x < disoBox.x + disoBox.width &&
+      disoBox.x < laveBox.x + laveBox.width &&
+      laveBox.y < disoBox.y + disoBox.height &&
+      disoBox.y < laveBox.y + laveBox.height;
+    expect(overlap).toBe(false);
+  });
+
   it("labels a found match before an overlapping candidate", () => {
     const current = chartMarker({
       id: "current",
