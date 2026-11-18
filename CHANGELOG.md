@@ -61,6 +61,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a filled dot, the station a square and the witchpoint a diamond with its
   "W". The letter under the compass is gone.
 - The aegis indicator is Oolite's green "S", without a caption.
+- The flight HUD's gauge labels (FWD, AFT, FUEL, CT, LT, ALT, MISS, SPD,
+  ROLL, PITCH, E1 to E4), the "7.0 LY" and "0.000 LS" readouts and the
+  compass's "W" are smaller: their capitals are as tall as Oolite's. They are
+  narrower than Oolite's because the HUD font is monospace.
 
 ## [0.5.0] - 2026-11-17
 

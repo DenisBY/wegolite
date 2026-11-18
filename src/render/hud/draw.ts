@@ -39,6 +39,7 @@ import type { CompassTarget } from "../../sim/flight/state.js";
 import type { AegisStatus } from "../../sim/world/aegis.js";
 import { SCANNER_MAX_RANGE } from "./projection.js";
 import type { CompassBlip, IdentFrame, ScannerBlip } from "./projection.js";
+import { drawCapText } from "./cap-text.js";
 import { MESSAGE_ROWS } from "./messages.js";
 import type { MessageRow } from "./messages.js";
 
@@ -88,27 +89,20 @@ const HUD_FONT_FAMILY =
 /** The clock and its hyperspace line (D-01: unchanged). */
 export const HUD_SMALL_FONT = `20px ${HUD_FONT_FAMILY}`;
 /**
- * The HUD text sizes, in design px of a font whose glyphs advance 0.6 em
+ * The message rows' size, in design px of a font whose glyphs advance 0.6 em
  * (`NOMINAL_ADVANCE`). Oolite's font is proportional and the HUD's is
- * monospace, so the sizes are calibrated on Oolite's own text at 1280x720
- * (quick task 261118-cyn): "Hyperspeed mass-locked." (cell 14) is 208 screen
- * px wide there, 312 design px, which 23.2 px at 0.6 em matches in the
- * comparison capture, and the legends' widths give 27, 23 and 19 px for their
- * 14, 12 and 10-unit cells and 18 px for the narrow energy labels.
- * `hudFont` rescales a size by the advance the browser's monospace font
- * really has, so the widths hold on every machine (a CJK monospace advances
- * 0.5 em, Consolas 0.55 em).
+ * monospace, so only the message rows are sized by width, calibrated on
+ * Oolite's own text at 1280x720 (quick task 261118-cyn): "Hyperspeed
+ * mass-locked." (cell 14) is 208 screen px wide there, 312 design px, which
+ * 23.2 px at 0.6 em matches in the comparison capture. `hudFont` rescales the
+ * size by the advance the browser's monospace font really has, so the width
+ * holds on every machine (a CJK monospace advances 0.5 em, Consolas 0.55 em).
+ * The legends, the two readouts, the energy bank labels and the beacon letter
+ * are sized by capital height instead, in `cap-text.ts` (owner option 1,
+ * 2026-11-18, quick task 261118-ih8).
  */
 const NOMINAL_ADVANCE = 0.6;
 const HUD_MESSAGE_FONT_PX = 23.2;
-/** Legends with a 14-unit cell (SPD, MISS). */
-const LEGEND_14_PX = 27;
-/** Legends with a 12-unit cell (FWD, AFT, ROLL, PITCH). */
-const LEGEND_12_PX = 23;
-/** Legends with a 10-unit cell (FUEL, CT, LT, ALT) and the two readouts (D-10). */
-const LEGEND_10_PX = 19;
-/** The energy bank labels: `drawEnergyGauge:` cells of 9 x 12 units. */
-const ENERGY_LABEL_PX = 18;
 
 /** The message font at the nominal advance (what a context without `measureText` gets). */
 export const HUD_MESSAGE_FONT = `${String(HUD_MESSAGE_FONT_PX)}px ${HUD_FONT_FAMILY}`;
@@ -613,12 +607,19 @@ function drawCompass(
       context.lineTo(bx, by + d);
       context.closePath();
       context.stroke();
-      // `oo_drawHUDBeaconIconAt` (NSString): the code letter at
-      // (x - 2.5 s, y - 3 s) in a 2s cell, below and left of the centre.
-      context.font = hudFont(context, (0.43 * 2 * blip) / NOMINAL_ADVANCE);
+      // `oo_drawHUDBeaconIconAt` (NSString, `HeadUpDisplay.m:4127`): the code
+      // letter in a cell twice the blip whose bottom-left corner is at
+      // (x - 2.5 s, y - 3 s) in Oolite's y-up space, below and left of the
+      // centre; sized by capital height like the legends.
       context.textAlign = "left";
-      context.textBaseline = "bottom";
-      context.fillText(WITCHPOINT_BEACON_CODE, x - 2.5 * blip, y + 3 * blip);
+      drawCapText(
+        context,
+        WITCHPOINT_BEACON_CODE,
+        x - 2.5 * blip,
+        y + 3 * blip,
+        2 * blip,
+        HUD_FONT_FAMILY,
+      );
       break;
     }
   }
@@ -792,10 +793,13 @@ function drawMissileIcon(
 
 /**
  * Draw a legend whose Oolite cell (`cell` units high) has its bottom on
- * `bottom`, as `OODrawStringAligned` does. Oolite's capitals fill the upper
- * two thirds of the cell (measured at 1280x720: every legend's capitals are
- * centred 2/3 of a cell above its bottom, on its bar's centre line), so the
- * text is drawn middle-aligned there.
+ * `bottom`, as `OODrawStringAligned` does. Oolite's capitals sit in the upper
+ * part of the cell (measured at 1280x720: every legend's capitals are centred
+ * 2/3 of a cell above its bottom, on its bar's centre line). The text is
+ * sized by capital height for a cell of `sizeCell` units (`drawCapText`) and
+ * its capitals stay centred 2/3 of `cell` above `bottom`; the two cells
+ * differ only for the speed readout, placed on the SPD cell (14) and sized
+ * by a 10-unit one.
  */
 function drawLegend(
   context: CanvasRenderingContext2D,
@@ -803,11 +807,16 @@ function drawLegend(
   x: number,
   bottom: number,
   cell: number,
-  px: number,
+  sizeCell: number,
 ): void {
-  context.font = hudFont(context, px);
-  context.textBaseline = "middle";
-  context.fillText(text, x, bottom - (2 / 3) * cell * HUD_UNIT);
+  drawCapText(
+    context,
+    text,
+    x,
+    bottom - (2 / 3) * (cell - sizeCell) * HUD_UNIT,
+    sizeCell * HUD_UNIT,
+    HUD_FONT_FAMILY,
+  );
 }
 
 /**
@@ -880,22 +889,15 @@ function drawLeftGauges(
   context.fillStyle = HUD_COLOR;
   context.textAlign = "right";
   const left = LEFT_LEGEND_X;
-  drawLegend(context, "FWD", left, unitY(86), 12, LEGEND_12_PX);
-  drawLegend(context, "AFT", left, unitY(70), 12, LEGEND_12_PX);
-  drawLegend(context, "FUEL", left, unitY(55), 10, LEGEND_10_PX);
+  drawLegend(context, "FWD", left, unitY(86), 12, 12);
+  drawLegend(context, "AFT", left, unitY(70), 12, 12);
+  drawLegend(context, "FUEL", left, unitY(55), 10, 10);
   // D-10: the "7.0 LY" readout stays, right-aligned left of the FUEL legend.
-  drawLegend(
-    context,
-    model.fuelText,
-    FUEL_READOUT_RIGHT,
-    unitY(55),
-    10,
-    LEGEND_10_PX,
-  );
-  drawLegend(context, "CT", left, unitY(45), 10, LEGEND_10_PX);
-  drawLegend(context, "LT", left, unitY(34), 10, LEGEND_10_PX);
-  drawLegend(context, "ALT", left, unitY(24), 10, LEGEND_10_PX);
-  drawLegend(context, "MISS", left, unitY(3), 14, LEGEND_14_PX);
+  drawLegend(context, model.fuelText, FUEL_READOUT_RIGHT, unitY(55), 10, 10);
+  drawLegend(context, "CT", left, unitY(45), 10, 10);
+  drawLegend(context, "LT", left, unitY(34), 10, 10);
+  drawLegend(context, "ALT", left, unitY(24), 10, 10);
+  drawLegend(context, "MISS", left, unitY(3), 14, 14);
 
   // Missile pylon placeholder (4 pylons, three loaded).
   for (let i = 0; i < 4; i += 1) {
@@ -964,18 +966,11 @@ function drawRightGauges(
   context.fillStyle = HUD_COLOR;
   context.textAlign = "left";
   const right = RIGHT_LEGEND_X;
-  drawLegend(context, "SPD", right, unitY(86), 14, LEGEND_14_PX);
+  drawLegend(context, "SPD", right, unitY(86), 14, 14);
   // D-10: the "0.000 LS" readout stays, right of the SPD legend.
-  drawLegend(
-    context,
-    model.speedText,
-    SPEED_READOUT_X,
-    unitY(86),
-    14,
-    LEGEND_10_PX,
-  );
-  drawLegend(context, "ROLL", right, unitY(72), 12, LEGEND_12_PX);
-  drawLegend(context, "PITCH", right, unitY(62), 12, LEGEND_12_PX);
+  drawLegend(context, model.speedText, SPEED_READOUT_X, unitY(86), 14, 10);
+  drawLegend(context, "ROLL", right, unitY(72), 12, 12);
+  drawLegend(context, "PITCH", right, unitY(62), 12, 12);
   // The bank labels start 3 units right of the gauge (`labelStartX`) in cells
   // 12 units high whose bottom is 1 unit below the bank's bottom edge.
   const labelX = RIGHT_BAR_X + BAR_WIDTH + 3 * HUD_UNIT;
@@ -986,7 +981,7 @@ function drawRightGauges(
       labelX,
       top + bankHeight * (i + 1) + HUD_UNIT,
       12,
-      ENERGY_LABEL_PX,
+      12,
     );
   }
 }
