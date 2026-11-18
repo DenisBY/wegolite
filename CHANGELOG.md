@@ -16,6 +16,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Launching now shows the view from your cockpit, starting deep inside the
   station's docking slot and flying out through it toward the planet, instead
   of the abstract tunnel animation.
+- Without the Advanced Space Compass the compass works as in Oolite: it points
+  at the main station when you are near the planet or the station and at the
+  planet otherwise, and the cycle-compass and target-station keys do nothing
+  until you fit the Advanced Space Compass.
 
 ## [0.6.0] - 2026-11-18
 

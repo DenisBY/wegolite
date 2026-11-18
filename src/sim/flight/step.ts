@@ -42,6 +42,16 @@ import { stepTorus } from "./torus.js";
 import { clearHyperspaceAttempt } from "./state.js";
 import type { FlightState } from "./state.js";
 
+/**
+ * The Advanced Space Compass. Without it the compass is Oolite's basic one,
+ * which has only COMPASS_MODE_BASIC (Wegolite's `"auto"`): the mode keys switch
+ * only when the mode is not basic (`PlayerEntityControls.m:3629-3637` at
+ * 7437f22), and a non-basic mode falls back to basic once the ASC is gone
+ * (`PlayerEntity.m:10258-10260`). Ownership is read from
+ * `StepOptions.equipment` only, never from a command (T-04-19).
+ */
+export const ADVANCED_COMPASS_KEY = "EQ_ADVANCED_COMPASS";
+
 /** Optional per-step systems. Plan 04-04 adds the owned-equipment set. */
 export interface StepOptions {
   /** The validated docking geometry; absent in Phase 1/2 probe steps. */
@@ -144,6 +154,17 @@ export function stepFlight(
   // to the destination layout while step 6's geometry belongs to the origin.
   let jumpedThisStep = false;
 
+  // 0b. Without the Advanced Space Compass the compass has only the basic mode,
+  // so a carried non-basic mode (an old session, any other path) falls back to
+  // "auto" here, as Oolite's removeEquipmentItem does (PlayerEntity.m:10258-10260
+  // at 7437f22). It depends only on the state and the step options, so a replay
+  // stays deterministic.
+  const hasAdvancedCompass =
+    options?.equipment?.has(ADVANCED_COMPASS_KEY) === true;
+  if (!hasAdvancedCompass && state.compassMode !== "auto") {
+    state.compassMode = "auto";
+  }
+
   // 1. Drain this frame's commands exactly once. Every mode-changing command
   // is gated on `modeAtStart`, so a dock and a launch drained on the same tick
   // cannot both take effect (T-04-44).
@@ -178,9 +199,15 @@ export function stepFlight(
         // Pause is app-owned; the sim only sees the absence of steps.
         break;
       case "cycleCompass":
+        // The basic compass has only COMPASS_MODE_BASIC: Oolite switches modes
+        // only when the mode is not basic (PlayerEntityControls.m:3629-3637).
+        if (!hasAdvancedCompass) break;
         state.compassMode = nextCompassMode(state.compassMode);
         break;
       case "targetStation":
+        // Wegolite's KeyQ action selects a non-basic mode, so it needs the ASC
+        // as the cycle does (PlayerEntityControls.m:3629-3637).
+        if (!hasAdvancedCompass) break;
         state.compassMode = "station";
         break;
       case "beginHyperspace": {
