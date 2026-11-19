@@ -31,7 +31,6 @@ import { createFlightScriptAi } from "../../../src/sim/ai/pilots/flight-script.j
 import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
 import { AI_EVENT_NAMES } from "../../../src/sim/ai/types.js";
 import type { AiComponent } from "../../../src/sim/ai/types.js";
-import { createShipControl } from "../../../src/sim/world/control-impl.js";
 import type {
   DebrisContent,
   DebrisContext,
@@ -43,11 +42,14 @@ import {
   PLAYER_MAX_WEAPON_TEMP,
   WEAPON_COOLING_CUTOUT,
 } from "../../../src/sim/combat/constants.js";
+import { npcLaserRay, playerLaserRay } from "../../../src/sim/combat/aim.js";
 import { applyLedger } from "../../../src/sim/combat/ledger.js";
 import type { HitRecord } from "../../../src/sim/combat/ledger.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import type { PlayerCombatState } from "../../../src/sim/combat/state.js";
+import { resolveShots } from "../../../src/sim/combat/step.js";
+import type { ShotRequest } from "../../../src/sim/combat/step.js";
 import type { SimEvent } from "../../../src/sim/events.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import type { ControlIntent } from "../../../src/sim/flight/controller.js";
@@ -186,9 +188,61 @@ function ofKind<K extends SimEvent["kind"]>(
   );
 }
 
-/** Queue a shot of `id` through its own control, as an AI module would (D-14). */
-function fireFrom(world: World, id: number, tick: number): void {
-  createShipControl(world, id, tick).fire(id);
+/**
+ * The explicit request of a shot `id` takes with its real weapon, and the
+ * resolution of a tick's explicit shots alone (D-08). Since Phase 17 every
+ * `ctl.fire` request is gated at the drain (heat, energy, the shot timer, a draw
+ * for the range roll and `onTarget`), and an inert ship has no AI and no resolved
+ * accuracy, so these simultaneity cases hand `resolveShots` the shots themselves:
+ * the property under test is how the ledger and the kill path treat two shots of
+ * one tick, not whether a gate lets them out.
+ */
+function shotOf(world: World, id: number): ShotRequest {
+  const entity = world.store.get(id);
+  const weapon =
+    entity === undefined ? undefined : NPC_WEAPONS.get(entity.specKey);
+  if (entity === undefined || weapon === undefined)
+    throw new Error("no weapon");
+  const ray = npcLaserRay(entity, weapon);
+  if (ray === null || weapon.laser === "EQ_WEAPON_NONE") {
+    throw new Error("the weapon has no ray");
+  }
+  return { shooter: id, ray, laser: weapon.laser };
+}
+
+/** The player's own pulse request from its pose, as `stepPlayerCombat` queues it. */
+function playerShot(player: FlightState): ShotRequest {
+  return {
+    shooter: PLAYER_ID,
+    ray: playerLaserRay(
+      player.position,
+      player.orientation,
+      "fore",
+      "EQ_WEAPON_PULSE_LASER",
+    ),
+    laser: "EQ_WEAPON_PULSE_LASER",
+  };
+}
+
+/** Resolve exactly `shots` on tick `tick`: the drain, the ledger and the kills. */
+function resolveOnly(
+  player: FlightState,
+  world: World,
+  combat: PlayerCombatState,
+  tick: number,
+  shots: readonly ShotRequest[],
+): SimEvent[] {
+  player.tick = tick;
+  return resolveShots(
+    world,
+    true,
+    player,
+    combat,
+    shots,
+    stepOptions(),
+    DT,
+    layout,
+  );
 }
 
 /**
@@ -294,9 +348,11 @@ describe("two ships that kill each other on one tick (D-04)", () => {
     const ids = lowFacesMinusZ
       ? { minus: spawnMinus(), plus: spawnPlus() }
       : { plus: spawnPlus(), minus: spawnMinus() };
-    fireFrom(world, ids.minus, tick);
-    fireFrom(world, ids.plus, tick);
-    const events = stepOnce(player, world, combat, false);
+    // D-08: the two shots are explicit requests (see `shotOf`), same victims.
+    const events = resolveOnly(player, world, combat, tick, [
+      shotOf(world, ids.minus),
+      shotOf(world, ids.plus),
+    ]);
     return { player, combat, world, ids, events };
   }
 
@@ -349,9 +405,12 @@ describe("a repeated kill request (FOUND-19)", () => {
       FACING_PLUS_Z,
       tick,
     );
-    fireFrom(world, shooter, tick);
 
-    const events = stepOnce(player, world, combat, true);
+    // The player's pulse and the shooter's beam, both as explicit requests (D-08).
+    const events = resolveOnly(player, world, combat, tick, [
+      playerShot(player),
+      shotOf(world, shooter),
+    ]);
 
     const hits = ofKind(events, "shipHit").filter(
       (event) => event.target === adder,
@@ -566,7 +625,10 @@ function targetIndex(
   return next === self ? PLAYER_TARGET : next;
 }
 
-/** A test pilot already in its hold phase, firing at `targetId` on every think. */
+/**
+ * A test pilot already in its hold phase, asking to fire at `targetId` on every
+ * tick (D-09); the NPC fire gate decides which asks become shots (D-08).
+ */
 function holdingPilot(
   firstThink: number,
   targetId: number,

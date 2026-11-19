@@ -633,6 +633,42 @@ function liveWorldOf(s: Session): NonNullable<WorldLifecycle["world"]> {
   return world;
 }
 
+/**
+ * The gated fight's pins (plan 17-05, D-08), measured on this twin and equal to
+ * the browser spec's `TWIN_*` literals in tests/e2e/combat.spec.ts.
+ *
+ * The shooter's shots are the NPC fire gate's: the first within 12 ticks of the
+ * spawn, then never less than 12 ticks apart (the beam period under D-07), so
+ * the shooter fires up to ten times a second and its 6-point hits empty the
+ * forward shield (128, refilled at 2 a second) and then the energy bank.
+ *
+ * `KILL_OFFSET` is the kill tick relative to the spawn: the player's pulse
+ * fires on the spawn tick + 1 and every 61 ticks (the strict `>` of the pulse
+ * period) and each pulse hit takes 15 from the Viper. The Viper's 180 energy now
+ * pays 0.5 a shot: at ten shots a second that is 5 a second against a recharge
+ * of 4, so it loses about 1 a second and holds about 174 by the 12th pulse. Eleven
+ * pulses (165) leave it alive and the 12th (180 >= 174) kills it, at spawn + 1 +
+ * 11 x 61 = 672 (the ungated 15-tick shooter lost no energy and needed the 14th
+ * pulse, at 794, the old pin).
+ *
+ * The bank at the kill is re-derived by hand. In `T` ticks the shooter fires at
+ * most `floor((T - 1) / 12) + 1` shots, 56 at T = 672, so at most 56 x 6 = 336
+ * points land. The shield absorbs 128 plus whatever it refills (every refilled
+ * point is paid by the bank), the player's own 12 pulses cost 12 x 0.8 = 9.6,
+ * and the bank regenerates 4 a second (22.4 over the 5.6 s) that this bound
+ * ignores. Energy at the kill is therefore at least 256 - 9.6 - (336 - 128) =
+ * 38.4. The measured bank, 59.75, sits above it: not every shot lands on the
+ * player and part of the regeneration counts. `ENERGY_AT_KILL` is pinned exactly
+ * so that any drift of the gate's shot count (6 points a shot) fails here, and
+ * the floor guards the modelled minimum.
+ */
+const KILL_OFFSET = 672;
+const ENERGY_AT_KILL = 59.7499999999951;
+const ENERGY_AT_KILL_FLOOR = 38.4;
+/** The forward shield and the bank 360 ticks after the spawn, fire held. */
+const SHIELD_AFTER_SHOOTING = 0.18333333333333332;
+const ENERGY_AFTER_SHOOTING = 210.13333333333128;
+
 describe("the browser kill step's twin (plan 15-04, FOUND-19, R2-1)", () => {
   it("fire held from the spawn destroys the hook-spawned shooter before its return fire empties the bank", () => {
     const s = session("?test=1&clock=manual&traffic=1", true, true);
@@ -670,6 +706,10 @@ describe("the browser kill step's twin (plan 15-04, FOUND-19, R2-1)", () => {
     const before = npcContacts(world()).length;
     s.driver.advanceTicks(360);
     expect(combat.fwdShield).toBeLessThan(128);
+    // The gated fight's literals at spawn + 360, pinned in the browser spec
+    // too (criterion 3: the route from a hook-spawned shooter to the readout).
+    expect(combat.fwdShield).toBeCloseTo(SHIELD_AFTER_SHOOTING, 9);
+    expect(combat.energy).toBeCloseTo(ENERGY_AFTER_SHOOTING, 9);
 
     // 3. R engages ident and locks the ship in the sights.
     s.pending.push({ kind: "ident" });
@@ -696,13 +736,15 @@ describe("the browser kill step's twin (plan 15-04, FOUND-19, R2-1)", () => {
     // its bound (the vacuity guard).
     expect(killTick, "the kill landed before the bound").toBeGreaterThan(-1);
     expect(npcContacts(world()).length).toBe(before - 1);
-    // The 14th pulse hit is lethal at spawn + 1 + 13 * 61 (measured: 794).
-    expect(killTick - spawnTick).toBe(794);
-    // The bank still paid for every shot: no refusal reached the HUD, and the
-    // bank at the kill is above a floor under the modelled minimum of 20 (the
-    // measured value is about 50), so a drift of a few shooter hits fails here.
+    // The 12th pulse hit is lethal at spawn + 1 + 11 * 61 (measured: 672; see
+    // KILL_OFFSET for the derivation under the gated shooter).
+    expect(killTick - spawnTick).toBe(KILL_OFFSET);
+    // The bank still paid for every shot: no refusal reached the HUD, the bank
+    // at the kill is pinned exactly, and it is above the hand-derived modelled
+    // minimum (see ENERGY_AT_KILL).
     expect(s.routed.slice(routedAtSpawn)).not.toContain("laserRefused");
-    expect(combat.energy).toBeGreaterThanOrEqual(16);
+    expect(combat.energy).toBeGreaterThanOrEqual(ENERGY_AT_KILL_FLOOR);
+    expect(combat.energy).toBeCloseTo(ENERGY_AT_KILL, 9);
     // The lock on the destroyed ship ends on the kill tick with identLost and
     // no fresh lock follows in this world: "Target lost." is what shows.
     const kindsOfKillTick = s.routed.slice(routedBeforeKillTick);
@@ -718,15 +760,19 @@ describe("the browser kill step's twin (plan 15-04, FOUND-19, R2-1)", () => {
  * live on the kill tick, the probe's entity count then, and the world hash 60
  * ticks after the kill.
  */
-const DEBRIS_AT_KILL = { pods: 3, plates: 1, wrecks: 3 } as const;
-const ENTITIES_AT_KILL = 19;
+// Re-pinned in plan 17-05 (D-08) from { pods: 3, plates: 1, wrecks: 3 }, 19
+// entities and "34393ce1": the shooter's own combat stream now also serves the
+// gate's draws, so the debris released at the kill (drawn from that stream)
+// differs, and the kill lands 122 ticks earlier. Measured, not derived.
+const DEBRIS_AT_KILL = { pods: 2, plates: 0, wrecks: 1 } as const;
+const ENTITIES_AT_KILL = 15;
 // Re-pinned in quick task 261117-pij from "a10b2dfc": a new game's clock now
 // starts at the standard scenario's ship_clock, and the hash includes the clock.
 // Re-pinned in quick task 261118-mb5 from "ca59f800": the launch now applies
 // Oolite's launch twist (a quarter turn about the nose axis), and the hash
 // includes the orientation. Passing no dock to `beginLaunch` restores the old
 // value.
-const HASH_60_AFTER_KILL = "34393ce1";
+const HASH_60_AFTER_KILL = "a545cb4b";
 
 /** The world's live debris by kind: pods, plates and wrecks. */
 function debrisCounts(world: NonNullable<WorldLifecycle["world"]>): {
@@ -802,7 +848,7 @@ describe("the debris twin (plan 16-06, WORLD-17, D16-09)", () => {
     expect(killTick, "the kill landed before the bound").toBeGreaterThan(-1);
     // The cargo changes no combat value: the same relative kill tick as the
     // 15-04 twin.
-    expect(killTick - spawnTick).toBe(794);
+    expect(killTick - spawnTick).toBe(KILL_OFFSET);
 
     // The kill tick released the debris: at least one pod, at most the pod
     // limit, at most three wrecks and one plate (debris.ts), and the probe's

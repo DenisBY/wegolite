@@ -5,8 +5,9 @@
  * The `?test=1` shooter seam (plan 13-14, CBT-07, D-11).
  *
  * The numbers are derived by hand from the rules the plan cites: the Viper's
- * beam laser (damage 6), the Cobra's 128 shield, the test pilot's think
- * interval of 15 ticks, and the shield refill of 2 points per second. The Viper
+ * beam laser (damage 6), the Cobra's 128 shield, the NPC fire gate's beam period
+ * of 12 ticks (D-07, D-08: the pilot asks every tick, the gate sets the rate),
+ * and the shield refill of 2 points per second. The Viper
  * record and the hull table are the committed generated content, read the way
  * `tests/helpers/lave.ts` reads it.
  */
@@ -24,7 +25,6 @@ import {
   TEST_SHOOTER_DISTANCE,
   TEST_SHOOTER_HOLD_RANGE,
 } from "../../../src/sim/ai/test-spawn.js";
-import { THINK_INTERVAL_TICKS } from "../../../src/sim/ai/time.js";
 import type { NpcWeapon } from "../../../src/sim/combat/aim.js";
 import { LASER_STATS } from "../../../src/sim/combat/constants.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
@@ -283,30 +283,38 @@ describe("spawnTestShooter", () => {
     expect([...world.store.live]).toHaveLength(0);
   });
 
-  it("drains the player's forward shield by 6 on the first step and no other bank", () => {
+  it("drains the player's forward shield by 6 on its first shot, within 12 ticks of the spawn, and no other bank", () => {
     const player = flyingPlayer();
     const combat = createPlayerCombatState();
     const world = createWorld(7);
     spawnTestShooter(world, player, VIPER, player.tick);
 
-    stepSim(
-      player,
-      world,
-      layout,
-      config,
-      ZERO_INTENT,
-      [],
-      DT,
-      options(),
-      combat,
-    );
+    // D-08: the shot is the gate's, so it comes on the first tick whose range
+    // roll passes (at most one per 12-tick beam period); the shield refill of 2 a
+    // second is at most 0.2 points over 12 ticks, below the 6 of the hit.
+    let hitTick = -1;
+    for (let i = 1; i <= 12 && hitTick < 0; i += 1) {
+      stepSim(
+        player,
+        world,
+        layout,
+        config,
+        ZERO_INTENT,
+        [],
+        DT,
+        options(),
+        combat,
+      );
+      if (combat.fwdShield < 128) hitTick = i;
+    }
 
-    expect(combat.fwdShield).toBe(128 - BEAM_DAMAGE);
+    expect(hitTick).toBeGreaterThan(0);
+    expect(combat.fwdShield).toBeCloseTo(128 - BEAM_DAMAGE, 9);
     expect(combat.aftShield).toBe(128);
     expect(combat.energy).toBe(256);
   });
 
-  it("keeps firing on every think, so 360 ticks take the forward shield well below its start", () => {
+  it("asks on every tick and fires at the gate's rate, so 360 ticks take the forward shield well below its start", () => {
     const player = flyingPlayer();
     const combat = createPlayerCombatState();
     const world = createWorld(7);
@@ -328,10 +336,10 @@ describe("spawnTestShooter", () => {
       lows.push(combat.fwdShield);
     }
 
-    // 360 ticks hold 24 thinks of 15 ticks (the first at tick 0): 24 shots of 6
-    // against a refill of 2 points per second, so the shield is gone and the
-    // overflow reaches the energy banks.
-    expect(THINK_INTERVAL_TICKS).toBe(15);
+    // D-08, D-09: 360 ticks hold at most 30 beam shots of 12 ticks (the first
+    // within 12 ticks of the spawn) of 6 against a refill of 2 points a second,
+    // so the shield is gone and the overflow reaches the energy banks. The rate is
+    // the gate's, not the pilot's think interval.
     expect(combat.fwdShield).toBeLessThan(128);
     expect(Math.min(...lows)).toBe(0);
     expect(combat.energy).toBeLessThan(256);

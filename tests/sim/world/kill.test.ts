@@ -694,17 +694,26 @@ describe("a test shooter's lethal shot through stepSim", () => {
     };
     const combat = createPlayerCombatState();
 
-    const events = stepSim(
-      player,
-      world,
-      layout,
-      config,
-      ZERO_INTENT,
-      [],
-      DT,
-      options,
-      combat,
-    );
+    // D-08: the shooter's shot is the gate's, so the kill comes on the first
+    // tick whose range roll passes, within the first 12 ticks; every tick before
+    // it also ends with empty queues and no dead entity.
+    let events: SimEvent[] = [];
+    for (let i = 0; i < 12 && destroyed(events).length === 0; i += 1) {
+      events = stepSim(
+        player,
+        world,
+        layout,
+        config,
+        ZERO_INTENT,
+        [],
+        DT,
+        options,
+        combat,
+      );
+      expect(world.aiQueue).toEqual([]);
+      expect(world.fireQueue).toEqual([]);
+      expect(world.store.live.some((entity) => entity.dead)).toBe(false);
+    }
 
     expect(destroyed(events)).toMatchObject([{ id: victim, killer: shooter }]);
     expect(

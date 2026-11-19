@@ -7,8 +7,11 @@
  * its own `AiComponent`, and draws randomness only from the stream passed in its
  * context. The populator never spawns it: it is reachable only through
  * `AI_REGISTRY` and test code. Phase 13 reuses it as the shooter for the shared
- * hit rule: a pilot created with `fire: true` calls `ShipControl.fire` on every
- * think of the hold phase while its target is valid.
+ * hit rule: a pilot created with `fire: true` asks `ShipControl.fire` on every
+ * tick of the hold phase while its target is valid (Phase 17, D-09: it
+ * schedules a wake one tick ahead each think), holding its target as its nav
+ * target. It never decides the rate: the NPC fire gate does (heat, energy, the
+ * whole-tick shot timer, the range roll and `onTarget`).
  *
  * `scanRange`, `holdRange` and `cruiseSpeed` are test-pilot parameters, not
  * Oolite ship data.
@@ -58,7 +61,7 @@ export function createTestPilotAi(
     scanRange?: number;
     holdRange?: number;
     cruiseSpeed?: number;
-    /** Fire the forward weapon on every think of the hold phase (CBT-07). */
+    /** Ask to fire the forward weapon on every tick of the hold phase (CBT-07). */
     fire?: boolean;
   } = {},
 ): AiComponent {
@@ -131,9 +134,17 @@ function hold(ctx: AiContext): void {
     return;
   }
   ctl.setDesiredSpeed(self, 0);
-  // The same command the player's fire key becomes: the shot is queued and the
-  // world resolves it by the shared hit rule (CBT-07).
-  if (ai.params.fire === true) ctl.fire(self);
+  if (ai.params.fire !== true) return;
+  // The pilot's nav target is the gate's target (Phase 17): the spawn sets only
+  // the param, so the target is set once here, never again while it holds
+  // (`setTarget` restarts the tracking curve, Pitfall G).
+  if (view.ship(self)?.targetId !== targetId) ctl.setTarget(self, targetId);
+  // D-09: ask on every tick. The wake is one tick away (the think's own random
+  // wake later never moves it back, the never-later rule) and the request is the
+  // command the player's fire key becomes; the NPC fire gate at the drain sets
+  // the rate, not the think cadence (CBT-07, CBT-15).
+  ctl.scheduleWake(self, 1);
+  ctl.fire(self);
 }
 
 function think(ctx: AiContext): void {

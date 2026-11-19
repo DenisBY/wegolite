@@ -191,6 +191,8 @@ interface FakeSpec {
   scan: EntityId[];
   /** Ids isValid answers true for. */
   valid: Set<EntityId>;
+  /** The nav target the pilot's own ship reports (`ShipView.targetId`). */
+  ownTarget: EntityId;
   /** Every scan call, as [self, range, filter]. */
   scans: [EntityId, number, ScanFilter | undefined][];
 }
@@ -205,6 +207,7 @@ function newSpec(overrides: Partial<FakeSpec> = {}): FakeSpec {
     ]),
     scan: [NEAR_ID, FAR_ID],
     valid: new Set([FAR_ID, NEAR_ID]),
+    ownTarget: 0,
     scans: [],
     ...overrides,
   };
@@ -239,7 +242,7 @@ function fakeView(spec: FakeSpec): WorldView {
       return Object.freeze({
         ...bodyView(SELF, spec.own),
         behaviour: "IDLE",
-        targetId: 0,
+        targetId: spec.ownTarget,
         destination: Object.freeze(vec(0, 0, 0)),
         desiredRange: 0,
         desiredSpeed: 0,
@@ -462,26 +465,56 @@ describe("fire mode (CBT-07)", () => {
     return ai;
   }
 
-  it("calls ctl.fire(self) on a think in the hold phase while the target is valid", () => {
+  it("sets its nav target once, then asks on a one-tick wake and fires, on a think in the hold phase while the target is valid (D-08, D-09)", () => {
     const spec = newSpec();
     const ai = holdingWith({ fire: true }, NEAR_ID);
+    // The ship holds no nav target yet (the spawn sets only the param): the
+    // gate's target is set once, then the ask, then the think's own wake.
     expect(thinkOnce(spec, ai, () => 0)).toEqual([
       ["setDesiredSpeed", SELF, 0],
+      ["setTarget", SELF, NEAR_ID],
+      ["scheduleWake", SELF, 1],
       ["fire", SELF],
       ["scheduleWake", SELF, 12],
     ]);
     expect(ai.params.fire).toBe(true);
   });
 
-  it("fires on every think while it holds", () => {
-    const spec = newSpec();
+  it("never calls setTarget while the nav target already holds (setTarget restarts the tracking curve)", () => {
+    const spec = newSpec({ ownTarget: NEAR_ID });
+    const ai = holdingWith({ fire: true }, NEAR_ID);
+    expect(thinkOnce(spec, ai, () => 0)).toEqual([
+      ["setDesiredSpeed", SELF, 0],
+      ["scheduleWake", SELF, 1],
+      ["fire", SELF],
+      ["scheduleWake", SELF, 12],
+    ]);
+  });
+
+  it("asks on every think while it holds, once each, with the wake one tick away", () => {
+    const spec = newSpec({ ownTarget: NEAR_ID });
     const ai = holdingWith({ fire: true }, NEAR_ID);
     for (let i = 0; i < 5; i += 1) {
       const calls = thinkOnce(spec, ai, () => 0);
       expect(calls.filter(([name]) => name === "fire")).toEqual([
         ["fire", SELF],
       ]);
+      expect(calls.filter(([name]) => name === "setTarget")).toEqual([]);
+      expect(calls.filter(([name]) => name === "scheduleWake")[0]).toEqual([
+        "scheduleWake",
+        SELF,
+        1,
+      ]);
     }
+  });
+
+  it("without fire the hold call list is unchanged: no target, no wake of one tick", () => {
+    const spec = newSpec();
+    const ai = holdingWith({}, NEAR_ID);
+    expect(thinkOnce(spec, ai, () => 0)).toEqual([
+      ["setDesiredSpeed", SELF, 0],
+      ["scheduleWake", SELF, 12],
+    ]);
   });
 
   it("does not fire when the target is no longer valid", () => {

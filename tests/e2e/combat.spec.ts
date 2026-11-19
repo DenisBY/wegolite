@@ -10,10 +10,15 @@
  * loop is wired in a real session: the fire key heats the laser, a scripted test
  * pilot placed ahead of the player takes its forward shield down, the ident
  * key locks it with a message, and a ship the player's laser brings to zero
- * energy is destroyed and leaves the scanner (FOUND-19, plan 15-04). Fire is
- * held from the moment the shooter appears, because the shooter fires back: the
- * player's energy bank must still pay for every pulse until the 14th hit kills
- * it (the budget and its Vitest twin are in tests/app/session/tick-parity.test.ts).
+ * energy is destroyed and leaves the scanner (FOUND-19, plan 15-04). The
+ * shooter fires through Oolite's NPC fire gate (plan 17-05; heat, energy, the
+ * 12-tick beam period, the range roll and aim): its hits drain the forward shield
+ * and then the energy bank, read here 360 ticks after the spawn and equal to the
+ * Node twin's literals (criterion 3: the route from a hook-spawned shooter to the
+ * readout). Fire is held from the moment the shooter appears, because the shooter
+ * fires back: the player's energy bank must still pay for every pulse until the
+ * 12th hit kills it (the budget and its Vitest twin are in
+ * tests/app/session/tick-parity.test.ts).
  * Step 5 (Phase 16, plan 16-09; WORLD-17, D16-08, D16-09) spawns the shooter
  * with 20 cargo capsules and proves the kill in the browser against its Node
  * twin, "the debris twin" in tests/app/session/tick-parity.test.ts (plan 16-06):
@@ -48,14 +53,17 @@ const SLOW = 30_000;
 const COMBAT_URL = "/?test=1&traffic=1&clock=manual";
 /** The launch handover is 240 ticks (two seconds); this is comfortably past it. */
 const LAUNCH_TICKS = 300;
-/** A beam-armed Viper thinks every 15 ticks; this is 24 thinks. */
+/**
+ * A bound well past the gate's first shots, not a think count: the beam-armed
+ * Viper asks every tick and the NPC fire gate lets a shot out at most every 12
+ * ticks (the first within 12 ticks of the spawn), so 360 ticks hold up to 30.
+ */
 const SHOOTING_TICKS = 360;
 /** The chunk of manual ticks the kill step advances between scanner reads. */
 const KILL_CHUNK_TICKS = 60;
 /**
  * A correctness bound for the kill step, never an assertion of time: the bank
- * refuses a shot from about 855 ticks after the spawn, so a kill cannot come
- * later (the twin measures it at 794).
+ * would refuse a pulse long after the kill (the twin measures the kill at 672).
  */
 const KILL_BOUND_TICKS = 1500;
 /** Cargo capsules the shooter carries, the debris twin's argument (D16-09). */
@@ -67,13 +75,19 @@ const SHOOTER_CARGO = 20;
  * the world hash 60 ticks after the kill with fire released. Never edit these
  * to make the browser pass: a difference is a divergence to report.
  */
-const TWIN_KILL_OFFSET = 794;
-const TWIN_ENTITIES_AT_KILL = 19;
+const TWIN_KILL_OFFSET = 672;
+const TWIN_ENTITIES_AT_KILL = 15;
+// Follows the Node twin's re-pin in plan 17-05 (D-08): the shooter's shots are
+// the NPC fire gate's, so the kill lands earlier and the debris stream moved.
+// The forward shield and the bank 360 ticks after the spawn, fire held.
+const TWIN_SHIELD_AFTER_SHOOTING = 0.18333333333333332;
+const TWIN_ENERGY_AFTER_SHOOTING = 210.13333333333128;
 // Follows the Node twin's re-pin in quick task 261117-pij (from "a10b2dfc"):
 // the new-game clock start moved and the hash includes the clock. Follows it
 // again in quick task 261118-mb5 (from "ca59f800"): the launch applies Oolite's
 // launch twist, and the hash includes the orientation.
-const TWIN_HASH_60_AFTER_KILL = "34393ce1";
+// Follows it again in plan 17-05 (D-08), from "34393ce1".
+const TWIN_HASH_60_AFTER_KILL = "a545cb4b";
 /** Ticks after the kill at which the hash is read (the twin's 60). */
 const AFTER_KILL_TICKS = 60;
 /** Draw calls per rendered frame (docs/PERFORMANCE.md, budget.spec.ts). */
@@ -237,8 +251,8 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
   await advance(page, 60);
 
   // 2. A test shooter 1,500 m ahead fires at the player; the forward shield falls.
-  //    A is held from the spawn: the shooter fires back, and the bank must pay
-  //    for every shot until the 14th hit destroys it.
+  //    A is held from the spawn: the shooter fires back through the gate, and
+  //    the bank must pay for every shot until the 12th hit destroys it.
   const full = await page.evaluate(() => window.__wegolite?.combat?.fwdShield);
   expect(full, "the shield before the shooter appears").toBe(128);
   await page.keyboard.down("KeyA");
@@ -261,6 +275,28 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
     await page.evaluate(() => window.__wegolite?.combat?.fwdShield),
     "forward shield after the shooter's fire",
   ).toBeLessThan(128);
+  // The hits' route to the readout (criterion 3, D-04: no first-tick
+  // expectation and no gate bypass): the shield and the bank 360 ticks after
+  // the spawn are the Node twin's literals. The HUD draws its shield and
+  // energy gauges from this same combat state (they are not separate
+  // `hud.elements`: tests/e2e/hud.spec.ts pins the element list), so the HUD
+  // must be drawing in the same session.
+  const readout = await page.evaluate(() => ({
+    fwd: window.__wegolite?.combat?.fwdShield,
+    aft: window.__wegolite?.combat?.aftShield,
+    energy: window.__wegolite?.combat?.energy,
+    hudDrawn: window.__wegolite?.hud.drawn,
+  }));
+  expect(readout.fwd, "the twin's forward shield at spawn + 360").toBeCloseTo(
+    TWIN_SHIELD_AFTER_SHOOTING,
+    9,
+  );
+  expect(readout.energy, "the twin's energy bank at spawn + 360").toBeCloseTo(
+    TWIN_ENERGY_AFTER_SHOOTING,
+    9,
+  );
+  expect(readout.aft, "the aft shield is never hit from ahead").toBe(128);
+  expect(readout.hudDrawn, "the HUD is drawing the gauges").toBe(true);
   expect(
     await page.evaluate(() => window.__wegolite?.test?.tainted),
     "the hook taints the session so nothing is saved",

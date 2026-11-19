@@ -636,11 +636,24 @@ describe("combat cross-cadence determinism (CBT-06, CBT-07)", () => {
 // behind the Sidewinder, nose on to it, and the Adder far off the Viper's line.
 // The Viper is created with a scan range below its distance to every other body,
 // so once the Sidewinder dies its seek finds nothing and it never fires at the
-// Adder, and it is pre-set to hold: it never calls `setTarget` toward a ship, so
-// it is not a `nav.targetId` holder and `killShip` posts it no `shipTargetLost`.
-// Under `stepSim` the registry is `AI_REGISTRY`, so a delivered event cannot be
-// recorded here; the scenario instead asserts after every tick that the Viper's
-// `nav.targetId` is never the Sidewinder's id.
+// Adder, and it is pre-set to hold.
+//
+// D-08 (plan 17-05): the Viper's shots now pass the NPC fire gate, and its hold
+// think asks on every tick and holds its target as its nav target: it calls
+// `setTarget` toward the Sidewinder on its first hold think (the old R2-11b
+// "never targeted" property is gone), so it is a `nav.targetId` holder and
+// `killShip` posts it `shipTargetLost`. The test pilot has no `onEvent`, so
+// nothing handles it; its next hold think sees the target gone and goes back to
+// seek. Under `stepSim` the registry is `AI_REGISTRY`, so a delivered event
+// cannot be recorded here; the scenario instead records after every tick whether
+// the Viper's `nav.targetId` is the Sidewinder's id, and asserts that it holds it
+// from its first stepped tick to the Sidewinder's death.
+//
+// The seeded weapon record `{ temperature: 12.5, lastShotTick: 7, missedShots:
+// 2 }` is no longer hash-only: the gate reads it. `lastShotTick` 7 lies after the
+// start tick 2, so the timer refuses until tick 19 (7 + 12); the temperature
+// 12.5 cools by fround(6/120) a tick; `missedShots` 2 enters the aim tolerance
+// and moves with each resolved shot.
 // ---------------------------------------------------------------------------
 
 const KILL_START_TICK = 2;
@@ -661,7 +674,8 @@ interface KillLog {
   readonly tally: Record<string, number>;
   /** `serializeWorldSection` at the start tick + 30, before the Adder dies. */
   sectionAtPin: string;
-  viperNeverTargetedSidewinder: boolean;
+  /** The ticks at whose end the Viper's nav target is the Sidewinder (D-08). */
+  readonly viperHoldsSidewinderTicks: number[];
   endTick: number;
   ids: { adder: number; sidewinder: number; viper: number };
 }
@@ -675,7 +689,7 @@ class KillScenario {
     removedTicks: [],
     tally: {},
     sectionAtPin: "",
-    viperNeverTargetedSidewinder: true,
+    viperHoldsSidewinderTicks: [],
     endTick: -1,
     ids: { adder: -1, sidewinder: -1, viper: -1 },
   };
@@ -731,7 +745,8 @@ class KillScenario {
         vec(COMBAT_FAR.x + x, COMBAT_FAR.y, COMBAT_FAR.z + z);
       // Zero recharge keeps both kills independent of the cadence-free energy
       // arithmetic: the Adder (30) dies on the player's second pulse, the
-      // Sidewinder (20) on the Viper's fourth beam.
+      // Sidewinder (20) on the fourth beam hit of the Viper (4 x 6), at the
+      // ticks the gate sets (the first shot at tick 19, then 12 ticks apart).
       log.ids.adder = this.spawn("adder", at(0, -2000), {
         maxEnergy: 30,
         energyRechargeRate: 0,
@@ -795,7 +810,7 @@ class KillScenario {
     if (world !== undefined) {
       const viper = world.store.get(log.ids.viper);
       if (viper?.nav.targetId === log.ids.sidewinder) {
-        log.viperNeverTargetedSidewinder = false;
+        log.viperHoldsSidewinderTicks.push(state.tick);
       }
       const sinceStart = state.tick - KILL_START_TICK;
       if (sinceStart === KILL_SAMPLE_EVERY) {
@@ -885,9 +900,14 @@ describe("kill cross-cadence determinism (FOUND-18, FOUND-19, QUAL-11)", () => {
     expect(killReference.sectionAtPin).toContain(";cargo:3");
     expect(killReference.sectionAtPin).toContain(";wpn:");
     expect(killReference.sectionAtPin).toContain(";vel:");
-    // The Viper was never a holder of the Sidewinder (R2-11b), and the run
-    // ended after both kills.
-    expect(killReference.viperNeverTargetedSidewinder).toBe(true);
+    // D-08: the gated Viper holds the Sidewinder as its nav target from its
+    // first stepped tick to the Sidewinder's death (the kill posts it
+    // `shipTargetLost`, which nothing handles), and the run ended after both
+    // kills.
+    const held = killReference.viperHoldsSidewinderTicks;
+    expect(held[0]).toBe(KILL_START_TICK + 1);
+    expect(held.at(-1)).toBe(sidewinder?.tick);
+    expect(held).toHaveLength((sidewinder?.tick ?? 0) - KILL_START_TICK);
     expect(killReference.endTick).toBe(KILL_START_TICK + KILL_STEPS);
     expect(Math.max(...kills.map((kill) => kill.tick))).toBeLessThan(
       KILL_START_TICK + KILL_STEPS,

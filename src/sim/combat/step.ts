@@ -23,10 +23,21 @@
  *   in the options, the kill releases the ship's debris (`../world/debris.ts`)
  *   on the same tick; the pieces post no event and survive the second commit.
  *
- * Neither function reads the clock. `resolveShots` draws no random value itself,
- * but a kill tick runs the immediate AI drain (`drainAiEventsNow`), whose
- * `onEvent` handlers may draw from the entity's hashed `ai` stream; that draw is
- * deterministic and part of the world hash.
+ * Every NPC shot passes Oolite's NPC fire gate (CBT-15, D-08, `../npc/fire.ts`)
+ * at one place, the fire-queue drain in `resolveShots`: heat, energy, the
+ * whole-tick shot timer, then one draw from the shooter's own "combat" stream
+ * for the range roll and `onTarget`. Cost, heat and the timer are written only
+ * together with a pushed `ShotRequest`. After the drain and the energy recharge
+ * every live ship's forward weapon cools (Oolite's order: the shot in the
+ * behaviour step, then regeneration, then the next update's cooling,
+ * `ShipEntity.m:2214-2218, 2414-2425`). Resolution moves the shooter's
+ * `missedShots` (`ShipEntity.m:10396, 10425`).
+ *
+ * Neither function reads the clock. `resolveShots` draws no random value from
+ * the world stream: the gate's draw is the shooter's own, and a kill tick runs
+ * the immediate AI drain (`drainAiEventsNow`), whose `onEvent` handlers may draw
+ * from the entity's hashed `ai` stream; those draws are deterministic and part
+ * of the world hash.
  */
 
 import type { SimEvent } from "../events.js";
@@ -36,6 +47,17 @@ import type { FlightState } from "../flight/state.js";
 import type { StepOptions } from "../flight/step.js";
 import { AI_REGISTRY } from "../ai/registry.js";
 import { add, scale } from "../math.js";
+import {
+  adjustMissedShots,
+  coolWeapon,
+  heatWeapon,
+  npcFireBlocked,
+  npcFireGate,
+  npcOnTarget,
+} from "../npc/fire.js";
+import { PLAYER_COLLISION_RADIUS_M } from "../npc/stats.js";
+import { rangeToTargetIn } from "../npc/target.js";
+import { createRngState, rngNext } from "../rng.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
 import type { DebrisContent, DebrisContext } from "../world/debris.js";
@@ -43,6 +65,8 @@ import { killShip } from "../world/kill.js";
 import type { SystemLayout } from "../world/layout.js";
 import { drainAiEventsNow } from "../world/step.js";
 import type { AiRegistry } from "../world/step.js";
+import type { WorldView } from "../world/view.js";
+import { createWorldView } from "../world/view-impl.js";
 import { commitWorld } from "../world/world.js";
 import type { World } from "../world/world.js";
 import { PLAYER_HULL_KEY, npcLaserRay, playerLaserRay } from "./aim.js";
@@ -53,7 +77,12 @@ import { stepIdent, updateIdentTarget } from "./ident.js";
 import type { HitTarget, HullTable, LaserRay } from "./hit.js";
 import { applyLedger } from "./ledger.js";
 import type { HitRecord } from "./ledger.js";
-import { DEFAULT_LASER_MOUNTS, NO_LASER, isFacing } from "./mounts.js";
+import {
+  DEFAULT_LASER_MOUNTS,
+  NO_LASER,
+  isFacing,
+  isMountKey,
+} from "./mounts.js";
 import type { LaserKey, LaserMounts } from "./mounts.js";
 import { coolCabin, rechargeEnergyAndShields } from "./shields.js";
 import { dockReset, launchReset, sanitizeCombat } from "./state.js";
@@ -193,17 +222,37 @@ function byShooter(a: ShotRequest, b: ShotRequest): number {
 }
 
 /**
- * Drain `world.fireQueue` into shot requests (CBT-07, Pitfall 19). The queue is
+ * Drain `world.fireQueue` into shot requests (CBT-07, CBT-15, Pitfall 19), the
+ * one place an NPC shot is gated (D-08, advisor decision 2). The queue is
  * copied, sorted by an explicit numeric comparator and cleared, so it is empty
- * at the tick boundary whatever happens next. A shooter that is gone or dead,
- * that is not a ship, or whose spec key has no usable forward weapon is
- * skipped; so is every entry when the world was not stepped this tick. An NPC
- * shot has no heat, timer or energy cost (RESEARCH A7: autonomous fire and NPC
- * weapon bookkeeping are CBT-15).
+ * at the tick boundary whatever happens next; nothing fires when the world was
+ * not stepped this tick or no weapon table was passed.
+ *
+ * Each request is refused with no draw and no write when the shooter is gone,
+ * dead or not a ship, when `npcFireBlocked` refuses it (no AI, whether never
+ * steered or nulled by a think throw, or a nav target equal to its own id), when
+ * its spec key has no weapon row, or when the row's laser is not a mount key (a
+ * malformed table; the gate indexes `LASER_STATS` with it). An unarmed row
+ * (`EQ_WEAPON_NONE`) reaches the gate, takes its one draw and refuses.
+ *
+ * Otherwise the gate runs with the shooter's own "combat" stream (a local copy,
+ * written back after the call as `steerEntity` does), its weapon temperature as
+ * the previous tick's cooling left it, its energy, the tick, `lastShotTick`, its
+ * resolved accuracy, the range to its nav target and `onTarget` over a view built
+ * with the compiled player radius. Range and `onTarget` therefore read the pose
+ * after the world step, not the pose at the shooter's own update: a divergence
+ * extending A6 (Oolite fires inside the update, before the target moves).
+ *
+ * On `fired` the ray is built first. Only when it is non-null are the energy
+ * cost, the float32 heat and `lastShotTick` written, together with the pushed
+ * `ShotRequest` (Pitfall 16: no tick writes cost, heat or the timer for a shot
+ * that never resolves).
  */
 function drainFireQueue(
   world: World,
   worldStepped: boolean,
+  player: FlightState,
+  layout: SystemLayout,
   options: StepOptions | undefined,
 ): ShotRequest[] {
   const queued = [...world.fireQueue].sort((a, b) => a - b);
@@ -212,15 +261,46 @@ function drainFireQueue(
   if (!worldStepped) return shots;
   const weapons = options?.combat?.npcWeapons;
   if (weapons === undefined) return shots;
+  let view: WorldView | undefined;
   for (const id of queued) {
     const shooter = world.store.get(id);
     if (shooter === undefined || shooter.dead || shooter.kind !== "ship") {
       continue;
     }
+    if (npcFireBlocked(shooter) !== null) continue;
     const weapon = weapons.get(shooter.specKey);
-    if (weapon === undefined || weapon.laser === NO_LASER) continue;
+    if (weapon === undefined || !isMountKey(weapon.laser)) continue;
+    const gateView = (view ??= createWorldView(
+      world,
+      player,
+      layout,
+      PLAYER_COLLISION_RADIUS_M,
+    ));
+    const stream = createRngState(shooter.rng.combat);
+    const result = npcFireGate(
+      {
+        temperature: shooter.weapon.temperature,
+        energy: shooter.energy,
+        tick: player.tick,
+        lastShotTick: shooter.weapon.lastShotTick,
+        laser: weapon.laser,
+        accuracy: shooter.steer.accuracy,
+        range: rangeToTargetIn(shooter, gateView),
+        onTarget: () => npcOnTarget(shooter, gateView, player.tick),
+      },
+      () => rngNext(stream),
+    );
+    shooter.rng.combat = stream.s;
+    if (result.kind !== "fired") continue;
     const ray = npcLaserRay(shooter, weapon);
-    if (ray === null) continue;
+    if (ray === null || weapon.laser === NO_LASER) continue;
+    const stats = LASER_STATS[weapon.laser];
+    shooter.energy -= stats.energy;
+    shooter.weapon.temperature = heatWeapon(
+      shooter.weapon.temperature,
+      stats.shotTemperature,
+    );
+    shooter.weapon.lastShotTick = player.tick;
     shots.push({ shooter: id, ray, laser: weapon.laser });
   }
   return shots;
@@ -243,12 +323,28 @@ function rechargeShips(world: World, dt: number): void {
 }
 
 /**
+ * Cool every live ship's forward weapon by `fround(6 x dt)` in float32, floored
+ * at 0 (`ShipEntity.m:2214-2218`, D-07). Runs after the drain and the recharge,
+ * so a shot of this tick sees the temperature the previous tick left, as the
+ * behaviour step of an Oolite update sees the cooling of the update before it.
+ * A weapon at 0 is never written, so a pristine record stays the pristine record
+ * and a world that never fires hashes as it did before Phase 17.
+ */
+function coolShips(world: World, dt: number): void {
+  for (const entity of world.store.live) {
+    if (entity.dead || entity.kind !== "ship") continue;
+    if (entity.weapon.temperature === 0) continue;
+    entity.weapon.temperature = coolWeapon(entity.weapon.temperature, dt);
+  }
+}
+
+/**
  * Resolve the tick's shots against the world as the world step left it; applies
  * nothing.
  *
  * The shots are the player's (queued by `stepPlayerCombat`) and every NPC's that
  * asked `ShipControl.fire` during the world step (`world.fireQueue`, drained
- * here). Every shot, in ascending shooter id, draws a `laserFired` event from the
+ * and gated here, see `drainFireQueue`). Every shot, in ascending shooter id, draws a `laserFired` event from the
  * ray's origin to the first hit's distance (or the laser's full range on a miss)
  * and queues a `HitRecord` when `firstShipHit` finds a ship. The candidates are
  * the live, non-dead dynamic ships of the world, in ascending id, plus the
@@ -258,7 +354,10 @@ function rechargeShips(world: World, dt: number): void {
  * F10). Ships are listed only when the world was stepped this tick, so a tick
  * that skipped the world (the jump step, or no world at all) draws the beam and
  * hits nothing. Before any hit is queued, every live ship recharges its energy
- * bank (N1). A non-finite or non-positive damage is never queued (T-13-15).
+ * bank (N1) and then cools its forward weapon; the cooling runs on every stepped
+ * tick, ahead of the empty-shot return. A shot moves its NPC shooter's
+ * `missedShots` (-1 on a hit, +1 on a miss). A non-finite or non-positive damage
+ * is never queued (T-13-15).
  *
  * Returns the beam events and the `HitRecord` list; `resolveShots` applies the
  * list through the ledger.
@@ -271,11 +370,18 @@ function resolveShotHits(
   shots: readonly ShotRequest[],
   options: StepOptions | undefined,
   dt: number,
+  layout: SystemLayout,
 ): { events: SimEvent[]; records: HitRecord[] } {
   const events: SimEvent[] = [];
   const npcShots =
-    world === undefined ? [] : drainFireQueue(world, worldStepped, options);
-  if (world !== undefined && worldStepped) rechargeShips(world, dt);
+    world === undefined
+      ? []
+      : drainFireQueue(world, worldStepped, player, layout, options);
+  if (world !== undefined && worldStepped) {
+    rechargeShips(world, dt);
+    // Before the empty-shot return below, so a tick with no shot still cools.
+    coolShips(world, dt);
+  }
   const all = [...shots, ...npcShots];
   if (all.length === 0) return { events, records: [] };
 
@@ -308,6 +414,18 @@ function resolveShotHits(
   for (const shot of all.sort(byShooter)) {
     const candidates = targets.filter((target) => target.id !== shot.shooter);
     const hit = firstShipHit(shot.ray, candidates, hulls);
+    // A shot moves its NPC shooter's missed-shot counter: -1 on a hit, +1 on a
+    // miss (`ShipEntity.m:10396, 10425`, D-15). The station and the buoys are
+    // not shot candidates until Phase 18, so a shot that would strike them
+    // counts as a miss where Oolite counts any ShipEntity hit.
+    const shooter =
+      shot.shooter === PLAYER_ID ? undefined : world?.store.get(shot.shooter);
+    if (shooter !== undefined) {
+      shooter.weapon.missedShots = adjustMissedShots(
+        shooter.weapon.missedShots,
+        hit === null ? 1 : -1,
+      );
+    }
     const reach = hit === null ? shot.ray.range : hit.distance;
     const stats = LASER_STATS[shot.laser];
     events.push({
@@ -403,6 +521,7 @@ export function resolveShots(
     shots,
     options,
     dt,
+    layout,
   );
   const lethal = applyLedger(
     world,

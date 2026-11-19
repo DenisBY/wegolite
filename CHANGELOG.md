@@ -6,13 +6,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed
-
-- Your ship now leaves the station along the docking slot, wings along its
-  long side, as in Oolite. Before, it left turned 90 degrees, across the slot.
-- Starting a new game or loading a save shows the market in its usual order
-  again; a column sort no longer carries over.
-
 ### Changed
 
 - The flight HUD now shows during the launch from the docking slot, as in
@@ -27,6 +20,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   at the main station when you are near the planet or the station and at the
   planet otherwise, and the cycle-compass and target-station keys do nothing
   until you fit the Advanced Space Compass.
+- In a test session (`?test=1&traffic=1`) the test shooter now fires through
+  Oolite's NPC fire gate (heat, energy, the shot timer, a range roll and aim),
+  so it fires a beam about ten times a second instead of once per AI think,
+  and its hits drain your shields and then your energy. In normal play NPC
+  ships still never fire.
+
+### Fixed
+
+- Your ship now leaves the station along the docking slot, wings along its
+  long side, as in Oolite. Before, it left turned 90 degrees, across the slot.
+- Starting a new game or loading a save shows the market in its usual order
+  again; a column sort no longer carries over.
 
 ## [0.6.0] - 2026-11-18
 
