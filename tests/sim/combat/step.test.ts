@@ -49,13 +49,15 @@ import {
   sub,
   vec,
 } from "../../../src/sim/math.js";
-import type { Vec3 } from "../../../src/sim/math.js";
+import type { Quat, Vec3 } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import {
   MAIN_STATION_ID,
   NO_ENTITY,
   PLAYER_ID,
+  STATION_NAV_BUOY_ID,
+  WITCHPOINT_BUOY_ID,
 } from "../../../src/sim/world/ids.js";
 import { STATIC_TARGETS } from "../../../src/sim/world/statics.js";
 import { npcContacts } from "../../../src/sim/world/contacts.js";
@@ -1155,5 +1157,295 @@ describe("the hit-record target invariant (assumption delta, plan 18-04)", () =>
     expect([...targets].sort((a, b) => a - b)).toEqual(
       [MAIN_STATION_ID, PLAYER_ID, adder].sort((a, b) => a - b),
     );
+  });
+});
+
+/*
+ * The buoys as laser targets (CBT-17, plan 18-05, D-04, D-05, PD-02).
+ *
+ * The beam runs along world +X through (y 9, z 14) of the buoy centre, the line
+ * of the 18-02 fixture `dock-buoy-hull-alone-from-minus-x` (identity pose):
+ * the hull stops it about 1,950.87 m from a start 2,000 m out, and the
+ * subentity is missed by 4 m, so the hit stays a hull hit once plan 18-15
+ * routes subentity hits. The buoy leaf is 58.228 / 16 m (depth 5), so 8 m
+ * covers the fixture's own tolerance (7.36 m). The flight clock is 0 for a
+ * direct `resolveShots`, so the buoy sits at its identity pose; through
+ * `stepSim` it advances by one tick (a 0.0008 rad roll, far inside the 4 m
+ * clearance).
+ */
+const PLUS_X = quatFromUnitVectors(vec(0, 0, -1), vec(1, 0, 0));
+const PLUS_Z = quatFromUnitVectors(vec(0, 0, -1), vec(0, 0, 1));
+const HULL_LINE = vec(-2000, 9, 14);
+const HULL_LINE_DISTANCE = 1950.87;
+const BUOY_TOLERANCE = 8;
+
+/** A player whose fore pulse starts exactly at `origin`, facing `orientation`. */
+function playerAt(origin: Vec3, orientation: Quat): FlightState {
+  const state = flyingPlayer();
+  state.flightTime = 0;
+  state.orientation = orientation;
+  state.position = sub(
+    origin,
+    rotate(orientation, toWegoliteLocal(COBRA_WEAPON_OFFSETS.fore)),
+  );
+  return state;
+}
+
+/** The player's fore pulse, which starts at its mount. */
+function pulseOf(player: FlightState): ShotRequest {
+  return playerShot(player);
+}
+
+function buoyRecord(target: number, amount: number): HitRecord {
+  return {
+    target,
+    source: PLAYER_ID,
+    amount,
+    sourcePosition: vec(0, 0, 0),
+  };
+}
+
+function beamLength(events: readonly SimEvent[]): number {
+  const beam = ofKind(events, "laserFired")[0];
+  if (beam === undefined) throw new Error("no laserFired");
+  return Math.hypot(
+    beam.to.x - beam.from.x,
+    beam.to.y - beam.from.y,
+    beam.to.z - beam.from.z,
+  );
+}
+
+describe("the nav buoy shot to destruction at its live pose (tracer, CBT-17)", () => {
+  it("a pulse on the nav buoy's hull through stepSim leaves it at 235 and adds a staticHealth: line", () => {
+    const player = playerAt(add(layout.navBuoy.position, HULL_LINE), PLUS_X);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    expect(hashWorld(player, world, combat)).not.toContain("staticHealth:");
+
+    const events = stepOnce(player, world, combat, FIRE, hullOptions(FULL));
+
+    expect(world.staticHealth.navBuoy).toBe(235);
+    expect(ofKind(events, "shipHit")).toEqual([
+      {
+        kind: "shipHit",
+        target: STATION_NAV_BUOY_ID,
+        source: PLAYER_ID,
+        amount: PULSE.damage,
+        shield: false,
+      },
+    ]);
+    expect(
+      Math.abs(beamLength(events) - HULL_LINE_DISTANCE),
+    ).toBeLessThanOrEqual(BUOY_TOLERANCE);
+    const lines = hashWorld(player, world, combat)
+      .split("\n")
+      .filter((line) => line.startsWith("staticHealth:"));
+    expect(lines).toEqual([
+      "staticHealth:25000.000000,250.000000,235.000000",
+    ]);
+  });
+
+  it("17 hull hits destroy it once; a further beam passes and the health stays exactly 0", () => {
+    const player = playerAt(add(layout.navBuoy.position, HULL_LINE), PLUS_X);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    // 16 hits on consecutive ticks, applied directly (no recharge between).
+    for (let i = 1; i <= 16; i += 1) {
+      const events: SimEvent[] = [];
+      expect(
+        applyLedger(
+          world,
+          true,
+          player,
+          combat,
+          [buoyRecord(STATION_NAV_BUOY_ID, PULSE.damage)],
+          events,
+        ),
+      ).toEqual([]);
+      expect(world.staticHealth.navBuoy).toBe(250 - 15 * i);
+    }
+
+    // The 17th, a real shot.
+    const killing = resolveShots(
+      world,
+      true,
+      player,
+      combat,
+      [pulseOf(player)],
+      hullOptions(FULL),
+      DT,
+      layout,
+    );
+    expect(ofKind(killing, "shipDestroyed")).toEqual([
+      {
+        kind: "shipDestroyed",
+        id: STATION_NAV_BUOY_ID,
+        position: { ...layout.navBuoy.position },
+        radius: layout.navBuoy.radius,
+        specKey: "buoy",
+        killer: PLAYER_ID,
+      },
+    ]);
+    expect(Object.is(world.staticHealth.navBuoy, 0)).toBe(true);
+    expect(world.store.get(STATION_NAV_BUOY_ID)).toBeUndefined();
+    expect(ofKind(killing, "entityRemoved")).toEqual([]);
+
+    const after = resolveShots(
+      world,
+      true,
+      player,
+      combat,
+      [pulseOf(player)],
+      hullOptions(FULL),
+      DT,
+      layout,
+    );
+    expect(
+      ofKind(after, "shipHit").filter((h) => h.target === STATION_NAV_BUOY_ID),
+    ).toEqual([]);
+    expect(ofKind(after, "shipDestroyed")).toEqual([]);
+    expect(beamLength(after)).toBeGreaterThan(HULL_LINE_DISTANCE + 100);
+    expect(Object.is(world.staticHealth.navBuoy, 0)).toBe(true);
+  });
+
+  it("the witchpoint buoy dies the same way; two lethal records in one tick destroy it once", () => {
+    const player = playerAt(add(layout.witchpoint.position, HULL_LINE), PLUS_X);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    world.staticHealth.witchpoint = 10;
+
+    const events = resolveShots(
+      world,
+      true,
+      player,
+      combat,
+      [pulseOf(player), pulseOf(player)],
+      hullOptions(FULL),
+      DT,
+      layout,
+    );
+
+    expect(ofKind(events, "shipHit").map((h) => h.target)).toEqual([
+      WITCHPOINT_BUOY_ID,
+      WITCHPOINT_BUOY_ID,
+    ]);
+    expect(ofKind(events, "shipDestroyed")).toEqual([
+      {
+        kind: "shipDestroyed",
+        id: WITCHPOINT_BUOY_ID,
+        position: { ...layout.witchpoint.position },
+        radius: layout.witchpoint.radius,
+        specKey: "buoy-witchpoint",
+        killer: PLAYER_ID,
+      },
+    ]);
+    expect(world.staticHealth.witchpoint).toBe(0);
+    expect(world.staticHealth.navBuoy).toBe(250);
+  });
+
+  it("is hit where it is: with a (50, 0, 0) offset the beam must aim at the moved buoy", () => {
+    // Along world +Z, 60 m to the side of the layout centre: 10 m from the
+    // moved centre (a hull hit) and outside the unmoved hull (its edge is
+    // under 60 m out).
+    const origin = add(layout.navBuoy.position, vec(60, 9, -2000));
+    const player = playerAt(origin, PLUS_Z);
+    const combat = createPlayerCombatState();
+
+    const moved = createWorld(7);
+    moved.buoys.navBuoy.offset = { x: 50, y: 0, z: 0 };
+    const hit = resolveShots(
+      moved,
+      true,
+      player,
+      combat,
+      [pulseOf(player)],
+      hullOptions(FULL),
+      DT,
+      layout,
+    );
+    expect(ofKind(hit, "shipHit").map((h) => h.target)).toEqual([
+      STATION_NAV_BUOY_ID,
+    ]);
+    expect(moved.staticHealth.navBuoy).toBe(235);
+    expect(beamLength(hit)).toBeLessThan(2000);
+
+    const unmoved = createWorld(7);
+    const miss = resolveShots(
+      unmoved,
+      true,
+      player,
+      combat,
+      [pulseOf(player)],
+      hullOptions(FULL),
+      DT,
+      layout,
+    );
+    expect(
+      ofKind(miss, "shipHit").filter((h) => h.target === STATION_NAV_BUOY_ID),
+    ).toEqual([]);
+    expect(unmoved.staticHealth.navBuoy).toBe(250);
+  });
+
+  it("is no candidate without the buoy hull (realHullTable): nothing changes", () => {
+    const player = playerAt(add(layout.navBuoy.position, HULL_LINE), PLUS_X);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const before = hashWorld(player, world, combat);
+    const events = resolveShots(
+      world,
+      true,
+      player,
+      combat,
+      [pulseOf(player)],
+      hullOptions(HULLS),
+      DT,
+      layout,
+    );
+    expect(ofKind(events, "shipHit")).toEqual([]);
+    expect(hashWorld(player, world, combat)).toBe(before);
+  });
+});
+
+describe("buoy records in the ledger are total (probe CBT-17)", () => {
+  it("skips NaN, Infinity, 0 and negative amounts and a record on a destroyed buoy", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    world.staticHealth.witchpoint = 0;
+    const events: SimEvent[] = [];
+    const records = [Number.NaN, Infinity, -Infinity, 0, -5].map((amount) =>
+      buoyRecord(STATION_NAV_BUOY_ID, amount),
+    );
+    records.push(buoyRecord(WITCHPOINT_BUOY_ID, 15));
+    records.push(buoyRecord(WITCHPOINT_BUOY_ID, 1e12));
+    expect(applyLedger(world, true, player, combat, records, events)).toEqual(
+      [],
+    );
+    expect(events).toEqual([]);
+    expect(world.staticHealth.navBuoy).toBe(250);
+    expect(Object.is(world.staticHealth.witchpoint, 0)).toBe(true);
+  });
+
+  it("a huge hit floors at exactly 0 and is collected once with its credit", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const events: SimEvent[] = [];
+    const lethal = applyLedger(
+      world,
+      true,
+      player,
+      combat,
+      [
+        buoyRecord(STATION_NAV_BUOY_ID, 1e12),
+        buoyRecord(STATION_NAV_BUOY_ID, 15),
+      ],
+      events,
+    );
+    expect(lethal).toEqual([{ victim: STATION_NAV_BUOY_ID, killer: PLAYER_ID }]);
+    expect(Object.is(world.staticHealth.navBuoy, 0)).toBe(true);
+    // As for a ship doomed earlier in the same tick, the later record still
+    // shows as a hit.
+    expect(ofKind(events, "shipHit")).toHaveLength(2);
   });
 });

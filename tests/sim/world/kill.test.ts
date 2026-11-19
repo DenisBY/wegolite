@@ -40,7 +40,9 @@ import type {
   DebrisHull,
 } from "../../../src/sim/world/debris.js";
 import type { Entity } from "../../../src/sim/world/entity.js";
-import { killShip } from "../../../src/sim/world/kill.js";
+import { destroyBuoy, killShip } from "../../../src/sim/world/kill.js";
+import { staticTargetById } from "../../../src/sim/world/statics.js";
+import type { StaticTarget } from "../../../src/sim/world/statics.js";
 import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { snapshotWorld } from "../../../src/sim/world/snapshot.js";
@@ -1112,5 +1114,145 @@ describe("killShip with a debris context: totality and idempotence (D-15, plan 1
     expect(world.store.nextId).toBe(nextId);
     expect(pods(world)).toHaveLength(count);
     expect(victim.rng.combat).toBe(stream);
+  });
+});
+
+/*
+ * `destroyBuoy` (CBT-17, plan 18-05, D-04, D-13): a buoy brought to 0 energy is
+ * announced once with its live position and stays in `world.statics`; it never
+ * enters the store.
+ */
+describe("destroyBuoy (D-04, D-13)", () => {
+  function buoyRow(id: number): StaticTarget {
+    const row = staticTargetById(id);
+    if (row === undefined) throw new Error(`no static row ${id}`);
+    return row;
+  }
+
+  it("emits one shipDestroyed with the live position, the layout radius and the ident key", () => {
+    const world = createWorld(1);
+    const statics = world.statics;
+    world.buoys.navBuoy.offset = { x: 50, y: 0, z: -2 };
+    world.staticHealth.navBuoy = 0;
+    const nextId = world.store.nextId;
+    const events: SimEvent[] = [];
+
+    expect(
+      destroyBuoy(
+        world,
+        buoyRow(STATION_NAV_BUOY_ID),
+        PLAYER_ID,
+        events,
+        layout,
+      ),
+    ).toBe(true);
+
+    const base = layout.navBuoy.position;
+    expect(events).toEqual([
+      {
+        kind: "shipDestroyed",
+        id: STATION_NAV_BUOY_ID,
+        position: { x: base.x + 50, y: base.y, z: base.z - 2 },
+        radius: layout.navBuoy.radius,
+        specKey: "buoy",
+        killer: PLAYER_ID,
+      },
+    ]);
+    // The event's position is a copy, not the world's offset or the layout's.
+    const event = events[0];
+    if (event?.kind !== "shipDestroyed") throw new Error("no event");
+    expect(event.position).not.toBe(layout.navBuoy.position);
+    // Never in the store, never out of the statics (D-13).
+    expect(world.statics).toBe(statics);
+    expect(world.statics.map((s) => s.id)).toContain(STATION_NAV_BUOY_ID);
+    expect(world.store.get(STATION_NAV_BUOY_ID)).toBeUndefined();
+    expect(world.store.nextId).toBe(nextId);
+    expect(world.staticHealth.navBuoy).toBe(0);
+  });
+
+  it("names the witchpoint buoy by its own ident key", () => {
+    const world = createWorld(1);
+    world.staticHealth.witchpoint = 0;
+    const events: SimEvent[] = [];
+    destroyBuoy(
+      world,
+      buoyRow(WITCHPOINT_BUOY_ID),
+      PLAYER_ID,
+      events,
+      layout,
+    );
+    expect(events).toEqual([
+      {
+        kind: "shipDestroyed",
+        id: WITCHPOINT_BUOY_ID,
+        position: { ...layout.witchpoint.position },
+        radius: layout.witchpoint.radius,
+        specKey: "buoy-witchpoint",
+        killer: PLAYER_ID,
+      },
+    ]);
+  });
+
+  it("does nothing unless the health is 0, and never for the station", () => {
+    const world = createWorld(1);
+    const before = worldHash(world);
+    const events: SimEvent[] = [];
+    world.staticHealth.navBuoy = 1e-9;
+    expect(
+      destroyBuoy(
+        world,
+        buoyRow(STATION_NAV_BUOY_ID),
+        PLAYER_ID,
+        events,
+        layout,
+      ),
+    ).toBe(false);
+    world.staticHealth.navBuoy = 250;
+    world.staticHealth.station = 0;
+    expect(
+      destroyBuoy(world, buoyRow(MAIN_STATION_ID), PLAYER_ID, events, layout),
+    ).toBe(false);
+    world.staticHealth.station = 25000;
+    expect(events).toEqual([]);
+    expect(worldHash(world)).toBe(before);
+  });
+
+  it("normalises the killer as killShip does (D-04)", () => {
+    const world = createWorld(1);
+    const live = spawn(world, "ship");
+    const dead = spawn(world, "ship");
+    world.store.kill(dead);
+    const killers: number[] = [];
+    for (const killer of [
+      PLAYER_ID,
+      live,
+      dead,
+      9999,
+      Number.NaN,
+      STATION_NAV_BUOY_ID,
+      NO_ENTITY,
+    ]) {
+      world.staticHealth.navBuoy = 0;
+      const events: SimEvent[] = [];
+      destroyBuoy(
+        world,
+        buoyRow(STATION_NAV_BUOY_ID),
+        killer,
+        events,
+        layout,
+      );
+      const event = events[0];
+      if (event?.kind !== "shipDestroyed") throw new Error("no event");
+      killers.push(event.killer);
+    }
+    expect(killers).toEqual([
+      PLAYER_ID,
+      live,
+      NO_ENTITY,
+      NO_ENTITY,
+      NO_ENTITY,
+      NO_ENTITY,
+      NO_ENTITY,
+    ]);
   });
 });

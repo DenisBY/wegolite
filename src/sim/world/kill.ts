@@ -80,7 +80,9 @@ import { releaseDebris } from "./debris.js";
 import type { DebrisContext } from "./debris.js";
 import { NO_ENTITY, PLAYER_ID } from "./ids.js";
 import type { EntityId } from "./ids.js";
+import type { SystemLayout } from "./layout.js";
 import { MAX_UINT32 } from "./limits.js";
+import type { StaticTarget } from "./statics.js";
 import { postAiEvent } from "./world.js";
 import type { World } from "./world.js";
 
@@ -153,4 +155,20 @@ export function killShip(
   notifyKill(world, id, normalised);
   if (debris !== undefined) releaseDebris(world, entity, debris);
   return true;
+}
+
+/** RED skeleton (plan 18-05). */
+export function destroyBuoy(
+  world: World,
+  target: StaticTarget,
+  killer: EntityId,
+  events: SimEvent[],
+  layout: SystemLayout,
+): boolean {
+  void world;
+  void target;
+  void killer;
+  void events;
+  void layout;
+  return false;
 }

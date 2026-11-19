@@ -23,11 +23,20 @@
  */
 
 import { portQuaternion } from "../dock/port-frame.js";
+import { identity } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import type { StaticHealth } from "./entity.js";
 import { MAIN_STATION_ID } from "./ids.js";
 import type { EntityId } from "./ids.js";
 import type { SystemLayout } from "./layout.js";
+import type { World } from "./world.js";
+
+/** The layout key of a buoy. */
+export type BuoyKey = "witchpoint" | "navBuoy";
+
+/** Oolite's `performBuoyTumble` rates, radians per second (RED skeleton). */
+export const BUOY_ROLL_RATE = 0.1;
+export const BUOY_PITCH_RATE = 0.15;
 
 /** One static entity a laser may hit. */
 export interface StaticTarget {
@@ -74,4 +83,45 @@ export function stationPose(
     position: layout.station.position,
     orientation: portQuaternion(layout, stationAngle),
   };
+}
+
+/** RED skeleton (plan 18-05). */
+export function buoyOrientation(flightTime: number): Quat {
+  void flightTime;
+  return identity();
+}
+
+/** RED skeleton (plan 18-05). */
+export function buoyPosition(
+  world: World | undefined,
+  layout: SystemLayout,
+  key: BuoyKey,
+): Vec3 {
+  void world;
+  return layout[key].position;
+}
+
+/** The clock a static pose reads. */
+export interface StaticPoseClock {
+  readonly stationAngle: number;
+  readonly flightTime: number;
+}
+
+/** RED skeleton (plan 18-05). */
+export function staticPose(
+  target: StaticTarget,
+  layout: SystemLayout,
+  flight: StaticPoseClock,
+  world: World | undefined,
+): { readonly position: Vec3; readonly orientation: Quat } {
+  void target;
+  void world;
+  return stationPose(layout, flight.stationAngle);
+}
+
+/** RED skeleton (plan 18-05). */
+export function isBuoyDestroyed(world: World, key: BuoyKey): boolean {
+  void world;
+  void key;
+  return false;
 }
