@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 17-npc-fire-and-hits-on-the-player
 source: [17-VERIFICATION.md]
 started: 2026-11-19T03:37:13Z
@@ -56,8 +56,22 @@ blocked: 0
   reason: "User reported: вариант 2 — owner chose to switch npcRechargeTicks from round(rate x 120) (60/12/300/12) to the literal counts (60/13/301/13), revising D-07"
   severity: major
   test: 1
-  artifacts: []
-  missing: []
+  root_cause: "Owner decision, not a defect: D-07 used round(weapon_recharge_rate x 120); Oolite compares the accumulated double shot_time against the float weapon_recharge_rate (ShipEntity.m:9946, ShipEntity.h:345), so beam/military fire on frame 13 and mining on 301 (17-01 derivation)"
+  artifacts:
+    - path: "src/sim/npc/fire.ts"
+      issue: "npcRechargeTicks returns round(rate x 120) = 60/12/300/12"
+    - path: "tests/app/session/tick-parity.test.ts"
+      issue: "Node twin literals (kill offset, bank at kill, debris, hash) pinned for the 12-tick period"
+    - path: "tests/e2e/combat.spec.ts"
+      issue: "browser literals pinned for the 12-tick period"
+    - path: ".planning/PROJECT.md"
+      issue: "the 'NPC fire gate' Key Decisions row records D-07's 12-tick rule as a divergence"
+  missing:
+    - "npcRechargeTicks returns Oolite's literal frame counts (60/13/301/13), using the 17-01 oracle derivation (literalShotFrames) as the authority"
+    - "Re-measure and re-pin the Node twin and the browser spec; amend tests that assert 12-tick spacing (fire-cadence, npc-vs-npc, hot-weapon, test-pilot, fire tests)"
+    - "Update the PROJECT.md gate row and CONTEXT D-07 note: D-07 revised by the owner 2026-11-19 (UAT test 1)"
+    - "Remote QUAL-11 acceptance and remote combat spec after the change"
+  debug_session: ""
 
 - gap_id: G-17-4
   truth: "The opt-in browser spec proves the whole route from a hook-spawned shooter to the shield and energy readout drawn on the HUD (criterion 3): the drawn FWD/AFT shield bars and E1-E4 energy banks are exposed in the HUD probe and asserted to fall"
@@ -65,5 +79,19 @@ blocked: 0
   reason: "User reported: option 2 — expose the drawn gauge values (model.bars.shieldFwd/shieldAft, energy banks) in the HUD probe and assert them in tests/e2e/combat.spec.ts"
   severity: major
   test: 4
-  artifacts: []
-  missing: []
+  root_cause: "The HUD draws FWD/AFT shield bars and E1-E4 energy banks (src/render/hud/draw.ts:843-980, fed by src/app/hud-model.ts:266-268) but the HUD probe exposes no gauge values, so tests/e2e/combat.spec.ts can only assert the sim combat state and hud.drawn"
+  artifacts:
+    - path: "src/app/hud-model.ts"
+      issue: "gauge values (bars.shieldFwd/shieldAft, energy banks) computed but not published to the probe"
+    - path: "src/app/probe.ts"
+      issue: "HUD probe has no shield/energy gauge fields"
+    - path: "tests/fixtures/probe-shape.json"
+      issue: "probe shape must list the new HUD gauge fields"
+    - path: "tests/e2e/combat.spec.ts"
+      issue: "asserts combat.fwdShield/energy and hud.drawn, not the drawn gauges"
+  missing:
+    - "Publish the drawn gauge values (forward/aft shield fraction, energy banks) in the HUD probe from the same model the renderer draws"
+    - "Update the probe-shape fixture and probe-shape-compare test"
+    - "combat.spec.ts asserts the HUD gauge values fall after the hook shooter's hits, consistent with the twin's shield/energy literals"
+    - "Remote verify (browser-facing change) and remote combat spec"
+  debug_session: ""
