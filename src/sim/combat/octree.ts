@@ -27,6 +27,10 @@
  * miss, never a throw (T-13-04, T-13-05). The debug collision buffer
  * (`collbuffer`) only feeds Oolite's wireframe drawing and is dropped.
  *
+ * The octree-against-octree contact test `isHitByOctree` (`Octree.m:473-607`,
+ * CBT-18, D-01, plan 18-09) lives at the end of this file, beside the node
+ * layout and `offsetForOctant` it shares with the line test.
+ *
  * The octree arrives from the build artifact (plan 13-04) through step
  * options. Pure TypeScript: no Three.js, no DOM, no `src/content` import.
  */
@@ -535,8 +539,174 @@ export function toOoliteModelSegment(
 }
 
 /**
- * `Octree.m:473-595` `isHitByOctree`: RED stub, the port lands in the GREEN
- * commit of plan 18-09.
+ * `Octree.m:70` `change_oct`: the visiting order from the nearest octant to the
+ * furthest, applied as `nearest ^ CHANGE_OCT[i]`.
+ */
+const CHANGE_OCT: readonly number[] = [0, 1, 2, 4, 3, 5, 6, 7];
+
+/**
+ * A basis row further than this from unit squared length is not a rotation:
+ * the call is no hit. Keeps a huge row (1e308) from turning the crude prunes
+ * into overflow arithmetic; a rotation built in float64 is within 1e-15.
+ */
+const IJK_UNIT_TOLERANCE = 1e-6;
+
+/**
+ * `OOTriangle.h:58-65` `resolveVectorInIJK`: the components of `v` along the
+ * three rows of `ijk`, that is `B^T v` for `B` with the rows as columns.
+ */
+function resolveVectorInIJK(v: Pt, ijk: readonly [Vec3, Vec3, Vec3]): Pt {
+  return vec(dot(v, ijk[0]), dot(v, ijk[1]), dot(v, ijk[2]));
+}
+
+/**
+ * A node the descent may enter at `level`: solid, or an array of exactly eight
+ * children no deeper than the cap (the same rule as `isHitByLineNode`). An
+ * empty node is handled by the caller (`Octree.m:479-491`).
+ */
+function isEnterable(node: OctreeNode, level: number): boolean {
+  if (node === -1) return true;
+  return Array.isArray(node) && node.length === 8 && level < MAX_OCTREE_DEPTH;
+}
+
+/**
+ * `Octree.m:473-595` static `isHitByOctree`, one call per pair of nodes.
+ * `axialLevel` and `otherLevel` count the nested arrays above each node, so
+ * the recursion is bounded by both trees' depth and `MAX_OCTREE_DEPTH`
+ * (T-18-20). `p` is the other node's centre in the axial frame; `ijk` stays the
+ * other's axes in that frame for the whole descent, as in the C.
+ */
+function isHitByOctreeNode(
+  axial: OctreeNode,
+  axialLevel: number,
+  axialRadius: number,
+  other: OctreeNode,
+  otherLevel: number,
+  otherRadius: number,
+  p: Pt,
+  ijk: readonly [Vec3, Vec3, Vec3],
+): boolean {
+  // `:479-491`: an empty node on either side is no hit.
+  if (axial === 0 || other === 0) return false;
+  // Defensive (not in the C): a malformed or over-deep node, or a centre that
+  // overflowed, is no hit.
+  if (!isEnterable(axial, axialLevel) || !isEnterable(other, otherLevel)) {
+    return false;
+  }
+  if (!finitePt(p)) return false;
+
+  // `:497-512`: the crude prune. The radius compare only picks which test
+  // runs; the axial tree stays the axial tree (review L78@b45e113).
+  if (otherRadius < axialRadius) {
+    // `:497-503`: the other's sphere, as a box, against the axial cube.
+    if (
+      p.x + otherRadius < -axialRadius ||
+      p.x - otherRadius > axialRadius ||
+      p.y + otherRadius < -axialRadius ||
+      p.y - otherRadius > axialRadius ||
+      p.z + otherRadius < -axialRadius ||
+      p.z - otherRadius > axialRadius
+    ) {
+      return false;
+    }
+  } else {
+    // `:504-512`: the axial sphere, as a box, against the other's cube, in
+    // the other's frame.
+    const axialPosition = resolveVectorInIJK(vec(-p.x, -p.y, -p.z), ijk);
+    if (!finitePt(axialPosition)) return false;
+    if (
+      axialPosition.x + axialRadius < -otherRadius ||
+      axialPosition.x - axialRadius > otherRadius ||
+      axialPosition.y + axialRadius < -otherRadius ||
+      axialPosition.y - axialRadius > otherRadius ||
+      axialPosition.z + axialRadius < -otherRadius ||
+      axialPosition.z - axialRadius > otherRadius
+    ) {
+      return false;
+    }
+  }
+
+  if (axial === -1) {
+    // `:517-525`: both solid, the octrees collide.
+    if (other === -1) return true;
+    // `:526-560`: decompose the other, nearest octant to the axial node first.
+    const children = other;
+    const nearestOct =
+      (p.x > 0 ? 0 : 4) | (p.y > 0 ? 0 : 2) | (p.z > 0 ? 0 : 1);
+    const nextRadius = 0.5 * otherRadius;
+    for (let i = 0; i < 8; i += 1) {
+      const oct = nearestOct ^ (CHANGE_OCT[i] ?? 0);
+      const child = children[oct];
+      if (child === undefined || child === 0) continue; // empty octant
+      // `:550-554`: the child offset through `resolveVectorInIJK`, the
+      // transpose of the other-to-axial map, kept as the C has it (18-02
+      // `octree-rotated-decomposition-transposed`): do not correct it.
+      const voff = resolveVectorInIJK(offsetForOctant(oct, otherRadius), ijk);
+      const next = vec(p.x - voff.x, p.y - voff.y, p.z - voff.z);
+      if (
+        isHitByOctreeNode(
+          axial,
+          axialLevel,
+          axialRadius,
+          child,
+          otherLevel + 1,
+          nextRadius,
+          next,
+          ijk,
+        )
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // `:561-594`: decompose the axial node, nearest octant to the other first.
+  const children = axial;
+  const nearestOct = (p.x > 0 ? 4 : 0) | (p.y > 0 ? 2 : 0) | (p.z > 0 ? 1 : 0);
+  const nextRadius = 0.5 * axialRadius;
+  for (let i = 0; i < 8; i += 1) {
+    const oct = nearestOct ^ (CHANGE_OCT[i] ?? 0);
+    const child = children[oct];
+    if (child === undefined || child === 0) continue; // empty octant
+    const off = offsetForOctant(oct, axialRadius);
+    const next = vec(p.x + off.x, p.y + off.y, p.z + off.z);
+    if (
+      isHitByOctreeNode(
+        child,
+        axialLevel + 1,
+        nextRadius,
+        other,
+        otherLevel,
+        otherRadius,
+        next,
+        ijk,
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * `Octree.m:597-607` `-isHitByOctree:withOrigin:andIJK:` over `:473-595`:
+ * whether `other`, centred at `origin` and turned to `ijk` in `prime`'s
+ * Oolite model frame, touches `prime`. `prime` is always the axial tree, the
+ * caller's own (`ShipEntity.m:1897`), whatever the two radii (review
+ * L78@b45e113). `ijk[a]` is the other's axis `a` in the prime's frame
+ * (`ShipEntity.m:1889-1894`).
+ *
+ * The test is Oolite's own heuristic, not exact geometry (D-01): a box around
+ * the smaller node's sphere against the larger node's cube, so a rotated pair
+ * can touch up to `(sqrt(3) - 1)` times the larger half-width apart and miss a
+ * shallow overlap; the decomposition of a rotated other uses the transposed
+ * basis (`:552`). Both are kept. Float64 where Oolite has float32.
+ *
+ * Total (T-18-20): a non-finite or non-positive radius, a non-finite origin, a
+ * basis row that is not of unit length, a malformed or over-deep node, or a
+ * centre that overflows is no hit, never a throw. The C's collision-mark
+ * buffers only feed debug drawing and are dropped.
  */
 export function isHitByOctree(
   prime: HullOctree,
@@ -544,9 +714,30 @@ export function isHitByOctree(
   origin: Vec3,
   ijk: readonly [Vec3, Vec3, Vec3],
 ): boolean {
-  void prime;
-  void other;
-  void origin;
-  void ijk;
-  return false;
+  const axialRadius = prime.radius;
+  const otherRadius = other.radius;
+  if (
+    !Number.isFinite(axialRadius) ||
+    !Number.isFinite(otherRadius) ||
+    axialRadius <= 0 ||
+    otherRadius <= 0 ||
+    !finitePt(origin)
+  ) {
+    return false;
+  }
+  for (const row of ijk) {
+    if (!finitePt(row)) return false;
+    const lengthSq = dot(row, row);
+    if (!(Math.abs(lengthSq - 1) <= IJK_UNIT_TOLERANCE)) return false;
+  }
+  return isHitByOctreeNode(
+    prime.root,
+    0,
+    axialRadius,
+    other.root,
+    0,
+    otherRadius,
+    origin,
+    ijk,
+  );
 }

@@ -214,6 +214,9 @@ describe("doOctreesCollide: the player's Cobra against the nav buoy", () => {
     const outward = lastOutward(identity());
     expect(inward).toBeGreaterThan(0);
     expect(inward).toBeLessThanOrEqual(bound);
+    // The leading cells line up: the scan meets the contact within one step
+    // of the reach (measured 120.088 m side-on, 99.619 m turned, at 1 mm).
+    expect(inward).toBeGreaterThan(bound - STEP);
     expect(outward).toBeGreaterThan(0);
     expect(outward).toBeLessThanOrEqual(inward);
     // The hull is reached at the hull (the buoy's own octree overlaps first).
@@ -236,6 +239,9 @@ describe("doOctreesCollide: the player's Cobra against the nav buoy", () => {
     const inward = firstInward(turned);
     expect(inward).toBeGreaterThan(0);
     expect(inward).toBeLessThanOrEqual(bound);
+    // The leading cells line up: the scan meets the contact within one step
+    // of the reach (measured 120.088 m side-on, 99.619 m turned, at 1 mm).
+    expect(inward).toBeGreaterThan(bound - STEP);
     expect(contactAt(bound + 1, turned)).toBeNull();
     // The Cobra is wider than it is long forward of its origin (65.5 m wing
     // reach against 45.0 m nose reach), so turning it brings the contact in.
