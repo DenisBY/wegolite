@@ -231,7 +231,7 @@ describe("applyLedger", () => {
     expect(events).toEqual([]);
   });
 
-  it("skips a missing, dead, buoy or non-ship target; the station only absorbs", () => {
+  it("skips a missing, dead or non-ship target; the station only absorbs, a buoy holds the damage", () => {
     const world = createWorld(1);
     const dead = ship(world, 10);
     world.store.kill(dead);
@@ -246,16 +246,23 @@ describe("applyLedger", () => {
     ]);
     expect(lethal).toEqual([]);
     // Plan 18-04: the station is a static target (A6): one shipHit, no write.
-    // The buoys are not targets until plan 18-05.
-    expect(events).toEqual([
-      {
-        kind: "shipHit",
-        target: MAIN_STATION_ID,
-        source: PLAYER_ID,
-        amount: 15,
-        shield: false,
-      },
-    ]);
+    // Plan 18-05: each buoy takes the hit into its static health.
+    expect(events).toEqual(
+      [MAIN_STATION_ID, WITCHPOINT_BUOY_ID, STATION_NAV_BUOY_ID].map(
+        (target) => ({
+          kind: "shipHit",
+          target,
+          source: PLAYER_ID,
+          amount: 15,
+          shield: false,
+        }),
+      ),
+    );
+    expect(world.staticHealth).toEqual({
+      station: 25000,
+      witchpoint: 235,
+      navBuoy: 235,
+    });
     expect(energyOf(world, cargo)).toBe(10);
   });
 

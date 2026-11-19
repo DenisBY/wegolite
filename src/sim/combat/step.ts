@@ -60,9 +60,14 @@ import { rangeToTargetIn } from "../npc/target.js";
 import { createRngState, rngNext } from "../rng.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
-import { STATIC_TARGETS, stationPose } from "../world/statics.js";
+import {
+  STATIC_TARGETS,
+  isBuoyDestroyed,
+  staticPose,
+  staticTargetById,
+} from "../world/statics.js";
 import type { DebrisContent, DebrisContext } from "../world/debris.js";
-import { killShip } from "../world/kill.js";
+import { destroyBuoy, killShip } from "../world/kill.js";
 import type { SystemLayout } from "../world/layout.js";
 import { drainAiEventsNow } from "../world/step.js";
 import type { AiRegistry } from "../world/step.js";
@@ -349,8 +354,10 @@ function coolShips(world: World, dt: number): void {
  * ray's origin to the first hit's distance (or the laser's full range on a miss)
  * and queues a `HitRecord` when `firstShipHit` finds a ship. The candidates, in
  * ascending id, are the static targets of `../world/statics.ts` whose hull is in
- * the hull table (the main station, id 3, at `stationPose`; Oolite lists every
- * entity that `isShip` and `canCollide`, `Universe.m:5575-5585`), the player
+ * the hull table, at `staticPose` (the main station, id 3, at the port pose;
+ * the witchpoint buoy, 4, and the nav buoy, 5, at their live position, PD-02,
+ * and tumble, unless destroyed, D-05; Oolite lists every entity that `isShip`
+ * and `canCollide`, `Universe.m:5575-5585`), the player
  * (id 100, the Cobra's hull) when a combat state is passed and the player is
  * launching or in flight, and the live, non-dead dynamic ships of the world; a
  * shooter is never its own candidate. Without the static hulls (traffic off, or
@@ -398,9 +405,11 @@ function resolveShotHits(
     // The static targets first: their ids (3 to 99) are below the player's.
     for (const row of STATIC_TARGETS) {
       if (!hulls.has(row.hullKey)) continue;
-      // Only the station has a pose here; plan 18-05 adds the buoys' pose.
-      if (row.layoutKey !== "station") continue;
-      const pose = stationPose(layout, player.stationAngle);
+      // A destroyed buoy is no target (D-05).
+      if (row.layoutKey !== "station" && isBuoyDestroyed(world, row.layoutKey)) {
+        continue;
+      }
+      const pose = staticPose(row, layout, player, world);
       targets.push({
         id: row.id,
         specKey: row.hullKey,
@@ -500,7 +509,10 @@ function debrisContext(
  *    before lethality is decided.
  * 3. When the world was stepped, `killShip` (`../world/kill.ts`) destroys each
  *    lethal victim in ascending victim id, crediting the ledger's killer only
- *    when it is still alive at that call (D-04). In a same-tick mutual kill the
+ *    when it is still alive at that call (D-04); a lethal static victim (a
+ *    buoy, ids 4 and 5, so always first) goes to `destroyBuoy` instead, which
+ *    emits its `shipDestroyed` and leaves it in `world.statics` (D-13). In a
+ *    same-tick mutual kill the
  *    lower-id victim is therefore credited to the other ship and the higher-id
  *    victim carries `NO_ENTITY`. With `options.combat.debris`, each kill also
  *    releases the victim's debris from its own stream (Phase 16), spawning
@@ -556,7 +568,12 @@ export function resolveShots(
   if (world !== undefined && worldStepped) {
     const debris = debrisContext(options, player.tick);
     for (const hit of lethal) {
-      killShip(world, hit.victim, hit.killer, events, debris);
+      const row = staticTargetById(hit.victim);
+      if (row === undefined) {
+        killShip(world, hit.victim, hit.killer, events, debris);
+      } else {
+        destroyBuoy(world, row, hit.killer, events, layout);
+      }
     }
     drainAiEventsNow(world, player, layout, player.tick, events, registry);
     for (const id of commitWorld(world))

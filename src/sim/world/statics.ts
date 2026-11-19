@@ -15,18 +15,36 @@
  *
  * A row is a candidate only when the caller's hull table holds its `hullKey`
  * (the traffic-on session merges the static hulls, plan 18-13); without them
- * nothing changes. Plan 18-05 appends the buoys and plan 18-15 their
- * subentities.
+ * nothing changes. Plan 18-05 appended the two buoys (250 energy in
+ * `World.staticHealth`, destroyed at 0 for the life of their world, D-04); plan
+ * 18-15 adds their subentities. A destroyed buoy (`isBuoyDestroyed`) is no
+ * candidate; ident, blockage, compass, scanner and view read the same
+ * predicate (D-05, plans 18-06 to 18-08).
  *
- * The station's pose is the one docking and the renderer use (PITFALLS 11): the
- * station centre and `portQuaternion(layout, stationAngle)`.
+ * One pose per static, shared by the hit test, docking and the renderer
+ * (PITFALLS 11, `staticPose`):
+ *
+ * - the station: its layout centre and `portQuaternion(layout, stationAngle)`;
+ * - a buoy: its layout position plus its per-world offset (`buoyPosition`,
+ *   PD-02) and the tumble of the flight clock (`buoyOrientation`). Oolite's
+ *   buoy AI tumbles it at roll 0.10 and pitch 0.15 rad/s
+ *   (`performBuoyTumble`, `ShipEntityAI.m:458-464`). Oolite integrates the two
+ *   rates step by step in the body frame (`behaviour_tumble` and
+ *   `applySticks`, `ShipEntity.m:3724-3727`); this is the closed form
+ *   roll(+Z, 0.10 t) x pitch(+X, 0.15 t) the renderer drew since Phase 3, a
+ *   different rotation for t > 0 and a recorded divergence (FIDELITY). It is
+ *   deterministic and needs no state.
  */
 
 import { portQuaternion } from "../dock/port-frame.js";
-import { identity } from "../math.js";
+import { add, axisAngle, identity, mul } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import type { StaticHealth } from "./entity.js";
-import { MAIN_STATION_ID } from "./ids.js";
+import {
+  MAIN_STATION_ID,
+  STATION_NAV_BUOY_ID,
+  WITCHPOINT_BUOY_ID,
+} from "./ids.js";
 import type { EntityId } from "./ids.js";
 import type { SystemLayout } from "./layout.js";
 import type { World } from "./world.js";
@@ -34,7 +52,10 @@ import type { World } from "./world.js";
 /** The layout key of a buoy. */
 export type BuoyKey = "witchpoint" | "navBuoy";
 
-/** Oolite's `performBuoyTumble` rates, radians per second (RED skeleton). */
+/**
+ * Oolite's `performBuoyTumble` rates, radians per second
+ * (`ShipEntityAI.m:458-464`: `stick_roll = 0.10`, `stick_pitch = 0.15`).
+ */
 export const BUOY_ROLL_RATE = 0.1;
 export const BUOY_PITCH_RATE = 0.15;
 
@@ -59,6 +80,20 @@ export const STATIC_TARGETS: readonly StaticTarget[] = Object.freeze([
     hullKey: "coriolis-station",
     identKey: "coriolis-station",
     healthKey: "station",
+  } as const),
+  Object.freeze({
+    id: WITCHPOINT_BUOY_ID,
+    layoutKey: "witchpoint",
+    hullKey: "buoy",
+    identKey: "buoy-witchpoint",
+    healthKey: "witchpoint",
+  } as const),
+  Object.freeze({
+    id: STATION_NAV_BUOY_ID,
+    layoutKey: "navBuoy",
+    hullKey: "buoy",
+    identKey: "buoy",
+    healthKey: "navBuoy",
   } as const),
 ]);
 
@@ -85,43 +120,71 @@ export function stationPose(
   };
 }
 
-/** RED skeleton (plan 18-05). */
+
+/**
+ * A buoy's orientation at `flightTime` seconds of the flight clock: roll about
+ * local +Z by `BUOY_ROLL_RATE * t`, then pitch about local +X by
+ * `BUOY_PITCH_RATE * t`, as one product (see the module comment for the
+ * divergence from Oolite's incremental tumble). The identity for a non-finite
+ * time, so a corrupt clock never poisons a pose.
+ */
 export function buoyOrientation(flightTime: number): Quat {
-  void flightTime;
-  return identity();
+  if (!Number.isFinite(flightTime)) return identity();
+  return mul(
+    axisAngle(0, 0, 1, flightTime * BUOY_ROLL_RATE),
+    axisAngle(1, 0, 0, flightTime * BUOY_PITCH_RATE),
+  );
 }
 
-/** RED skeleton (plan 18-05). */
+/**
+ * Where the buoy `key` is (PD-02): its layout position plus the world's offset.
+ * Without a world, or while the offset is zero in every component (`-0`
+ * included), it is the layout position itself, so every consumer sees the same
+ * signed zeros bit for bit.
+ */
 export function buoyPosition(
   world: World | undefined,
   layout: SystemLayout,
   key: BuoyKey,
 ): Vec3 {
-  void world;
-  return layout[key].position;
+  const base = layout[key].position;
+  if (world === undefined) return base;
+  const offset = world.buoys[key].offset;
+  if (offset.x === 0 && offset.y === 0 && offset.z === 0) return base;
+  return add(base, offset);
 }
 
-/** The clock a static pose reads. */
+/** The clock a static pose reads (the flight state carries both). */
 export interface StaticPoseClock {
   readonly stationAngle: number;
   readonly flightTime: number;
 }
 
-/** RED skeleton (plan 18-05). */
+/**
+ * The pose of `target` now: `stationPose` for the station, `buoyPosition` and
+ * `buoyOrientation` for a buoy. The one pose the hit test uses; the renderer
+ * draws the buoy with the same `buoyOrientation` (PITFALLS 11).
+ */
 export function staticPose(
   target: StaticTarget,
   layout: SystemLayout,
   flight: StaticPoseClock,
   world: World | undefined,
 ): { readonly position: Vec3; readonly orientation: Quat } {
-  void target;
-  void world;
-  return stationPose(layout, flight.stationAngle);
+  if (target.layoutKey === "station") {
+    return stationPose(layout, flight.stationAngle);
+  }
+  return {
+    position: buoyPosition(world, layout, target.layoutKey),
+    orientation: buoyOrientation(flight.flightTime),
+  };
 }
 
-/** RED skeleton (plan 18-05). */
+/**
+ * True when the buoy `key` is destroyed: its health is not above 0 (D-04). A
+ * destroyed buoy stays destroyed for the life of its world: nothing recharges
+ * it, and only a new world restores it.
+ */
 export function isBuoyDestroyed(world: World, key: BuoyKey): boolean {
-  void world;
-  void key;
-  return false;
+  return !(world.staticHealth[key] > 0);
 }

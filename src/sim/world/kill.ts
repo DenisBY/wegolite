@@ -69,7 +69,12 @@
  * nothing is released, and a non-ship victim never releases debris.
  *
  * The player, the station and the buoys are never in the store, so they never
- * die here (D-13).
+ * die here (D-13). A buoy brought to 0 energy is announced by `destroyBuoy`
+ * below instead (Phase 18, CBT-17): it stays in `world.statics`, its health
+ * stays 0 for the life of the world (D-04), and it releases no debris (a
+ * recorded divergence: Oolite's buoy releases 3 wrecks and 0 to 3 plates,
+ * `ShipEntity.m:7916, 8050-8081`, drawn from a per-entity stream statics do not
+ * have).
  *
  * Total (D-15): a missing, static, dead or non-finite id changes nothing and
  * returns false.
@@ -82,6 +87,7 @@ import { NO_ENTITY, PLAYER_ID } from "./ids.js";
 import type { EntityId } from "./ids.js";
 import type { SystemLayout } from "./layout.js";
 import { MAX_UINT32 } from "./limits.js";
+import { buoyPosition } from "./statics.js";
 import type { StaticTarget } from "./statics.js";
 import { postAiEvent } from "./world.js";
 import type { World } from "./world.js";
@@ -157,7 +163,20 @@ export function killShip(
   return true;
 }
 
-/** RED skeleton (plan 18-05). */
+
+/**
+ * Announce the destruction of the buoy `target` (Phase 18, CBT-17, D-04, D-13):
+ * one `shipDestroyed` with the static id, a copy of its live position
+ * (`buoyPosition`, PD-02), its layout radius, its ident key as the spec key
+ * (`"buoy"` or `"buoy-witchpoint"`) and the killer normalised as for a ship.
+ * Returns whether it emitted.
+ *
+ * Total: it does nothing for the station, or for a buoy whose health is not
+ * exactly 0 (the ledger floors a lethal hit at 0 and collects it once, so a
+ * buoy is announced once per world). It writes nothing: the buoy never enters
+ * or leaves any collection, and posts no AI notification (no NPC targets a
+ * static).
+ */
 export function destroyBuoy(
   world: World,
   target: StaticTarget,
@@ -165,10 +184,16 @@ export function destroyBuoy(
   events: SimEvent[],
   layout: SystemLayout,
 ): boolean {
-  void world;
-  void target;
-  void killer;
-  void events;
-  void layout;
-  return false;
+  if (target.layoutKey === "station") return false;
+  if (world.staticHealth[target.healthKey] !== 0) return false;
+  const position = buoyPosition(world, layout, target.layoutKey);
+  events.push({
+    kind: "shipDestroyed",
+    id: target.id,
+    position: { x: position.x, y: position.y, z: position.z },
+    radius: layout[target.layoutKey].radius,
+    specKey: target.identKey,
+    killer: normaliseKiller(world, target.id, killer),
+  });
+  return true;
 }

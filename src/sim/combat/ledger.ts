@@ -26,12 +26,19 @@
  * cabin) and the energy floors at 0 until the player's death in Phase 20
  * (D-13).
  *
- * A static target (`../world/statics.ts`, the main station) only absorbs a hit
- * (Phase 18, CBT-17, A6): the record posts `shipHit` with `shield: false` and
- * writes and collects nothing, so it is never lethal and changes no hashed
- * state. Oolite's main station lowers its energy only while the amount is
- * below its energy and recharges 100 per second (`StationEntity.m:1110-1160`):
- * a 15-point dip on 25,000 is gone in 0.15 s and nothing reads it.
+ * A static target (`../world/statics.ts`) is one of two kinds (Phase 18,
+ * CBT-17). The main station only absorbs a hit (A6): the record posts
+ * `shipHit` with `shield: false` and writes and collects nothing, so it is
+ * never lethal and changes no hashed state. Oolite's main station lowers its
+ * energy only while the amount is below its energy and recharges 100 per
+ * second (`StationEntity.m:1110-1160`): a 15-point dip on 25,000 is gone in
+ * 0.15 s and nothing reads it. A buoy holds damage in `World.staticHealth`
+ * (250 energy): its health is read once, the floored result written once, and
+ * it is collected once when it reaches 0 from above; `resolveShots` then
+ * announces it through `destroyBuoy` (`../world/kill.ts`). A record on a buoy
+ * already at 0 before this ledger call changes nothing; one brought to 0 by
+ * an earlier record of the same call still shows as a hit, as a doomed ship's
+ * does.
  *
  * Total (D-15): a record with a non-finite or non-positive amount, a target
  * that is missing, dead or not a ship, and a record on a non-player target
@@ -59,9 +66,9 @@ export interface HitRecord {
 }
 
 /**
- * A ship the ledger brought to 0 energy this tick, with the source of the first
- * lethal record. `killShip` re-checks the killer at kill time (D-04), so this
- * is a claim, not the final credit.
+ * A ship or buoy the ledger brought to 0 energy this tick, with the source of
+ * the first lethal record. `killShip` and `destroyBuoy` re-check the killer at
+ * kill time (D-04), so this is a claim, not the final credit.
  */
 export interface LethalHit {
   readonly victim: EntityId;
@@ -81,8 +88,13 @@ const LOCAL_FORWARD = vec(0, 0, -1);
  *   shooter and the player's forward; `shipHit` with `shield`) and is never
  *   lethal.
  * - Any other target is skipped when the world is missing or was not stepped.
- * - A static target (`staticTargetById`) posts `shipHit` with `shield: false`
- *   and nothing else: no write, never lethal (A6).
+ * - The station (`staticTargetById`) posts `shipHit` with `shield: false` and
+ *   nothing else: no write, never lethal (A6).
+ * - A buoy reads its `staticHealth` once. At 0 or below it is skipped, unless
+ *   an earlier record of this call collected it (then `shipHit` only).
+ *   Otherwise it writes `Math.max(0, before - amount)`, posts `shipHit` with
+ *   `shield: false`, and is collected once, with the record's credit, when the
+ *   unfloored result is 0 or below.
  * - Any other target is skipped when it is not a live ship of the store (a
  *   missing or dead id), or when its kind is not `"ship"`. Otherwise its energy is read once and the
  *   floored result written once; `shipHit` carries `shield: false`. When the
@@ -122,7 +134,39 @@ export function applyLedger(
       continue;
     }
     if (world === undefined || !worldStepped) continue;
-    if (staticTargetById(record.target) !== undefined) {
+    const row = staticTargetById(record.target);
+    if (row !== undefined) {
+      if (row.layoutKey !== "station") {
+        // A buoy holds its damage (CBT-17, D-04).
+        const before = world.staticHealth[row.healthKey];
+        if (!(before > 0)) {
+          // Destroyed before this call: nothing. Doomed earlier in this call:
+          // the hit still shows, as a doomed ship's does.
+          if (lethal.has(record.target)) {
+            events.push({
+              kind: "shipHit",
+              target: record.target,
+              source: record.source,
+              amount: record.amount,
+              shield: false,
+            });
+          }
+          continue;
+        }
+        const after = before - record.amount;
+        world.staticHealth[row.healthKey] = Math.max(0, after);
+        events.push({
+          kind: "shipHit",
+          target: record.target,
+          source: record.source,
+          amount: record.amount,
+          shield: false,
+        });
+        if (after <= 0) {
+          lethal.set(record.target, creditedKiller(world, record));
+        }
+        continue;
+      }
       // The station only absorbs (A6): no write, nothing collected.
       events.push({
         kind: "shipHit",

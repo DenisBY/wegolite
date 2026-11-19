@@ -61,7 +61,10 @@ import {
 } from "../../../src/sim/world/ids.js";
 import { STATIC_TARGETS } from "../../../src/sim/world/statics.js";
 import { npcContacts } from "../../../src/sim/world/contacts.js";
-import { hashWorld } from "../../../src/sim/world/serialize.js";
+import {
+  hashWorld,
+  serializeStaticHealth,
+} from "../../../src/sim/world/serialize.js";
 import { snapshotWorld } from "../../../src/sim/world/snapshot.js";
 import {
   createStaticHealth,
@@ -1220,7 +1223,6 @@ describe("the nav buoy shot to destruction at its live pose (tracer, CBT-17)", (
     const player = playerAt(add(layout.navBuoy.position, HULL_LINE), PLUS_X);
     const combat = createPlayerCombatState();
     const world = createWorld(7);
-    expect(hashWorld(player, world, combat)).not.toContain("staticHealth:");
 
     const events = stepOnce(player, world, combat, FIRE, hullOptions(FULL));
 
@@ -1237,12 +1239,17 @@ describe("the nav buoy shot to destruction at its live pose (tracer, CBT-17)", (
     expect(
       Math.abs(beamLength(events) - HULL_LINE_DISTANCE),
     ).toBeLessThanOrEqual(BUOY_TOLERANCE);
-    const lines = hashWorld(player, world, combat)
-      .split("\n")
-      .filter((line) => line.startsWith("staticHealth:"));
-    expect(lines).toEqual([
+    // The hash gains the staticHealth: line: the same state with the buoy
+    // restored hashes differently, and the line reads the 235.
+    expect(serializeStaticHealth(world.staticHealth)).toBe(
       "staticHealth:25000.000000,250.000000,235.000000",
-    ]);
+    );
+    const damaged = hashWorld(player, world, combat);
+    world.staticHealth.navBuoy = 250;
+    const pristine = hashWorld(player, world, combat);
+    world.staticHealth.navBuoy = 235;
+    expect(damaged).not.toBe(pristine);
+    expect(hashWorld(player, world, combat)).toBe(damaged);
   });
 
   it("17 hull hits destroy it once; a further beam passes and the health stays exactly 0", () => {
