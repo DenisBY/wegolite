@@ -31,10 +31,20 @@ import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { stepFlight } from "../../../src/sim/flight/step.js";
 import type { StepOptions } from "../../../src/sim/flight/step.js";
+import { npcLaserRay, playerLaserRay } from "../../../src/sim/combat/aim.js";
+import type { NpcWeapon } from "../../../src/sim/combat/aim.js";
+import type { HullTable } from "../../../src/sim/combat/hit.js";
+import { applyLedger } from "../../../src/sim/combat/ledger.js";
+import type { HitRecord } from "../../../src/sim/combat/ledger.js";
+import { resolveShots } from "../../../src/sim/combat/step.js";
+import type { ShotRequest } from "../../../src/sim/combat/step.js";
 import {
+  add,
+  dot,
   identity,
   normalizeVec,
   quatFromUnitVectors,
+  rotate,
   scale,
   sub,
   vec,
@@ -42,13 +52,22 @@ import {
 import type { Vec3 } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
-import { NO_ENTITY, PLAYER_ID } from "../../../src/sim/world/ids.js";
+import {
+  MAIN_STATION_ID,
+  NO_ENTITY,
+  PLAYER_ID,
+} from "../../../src/sim/world/ids.js";
+import { STATIC_TARGETS } from "../../../src/sim/world/statics.js";
 import { npcContacts } from "../../../src/sim/world/contacts.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { snapshotWorld } from "../../../src/sim/world/snapshot.js";
-import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
+import {
+  createStaticHealth,
+  createWorld,
+  spawnEntity,
+} from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
-import { realHullTable } from "../../helpers/hull-table.js";
+import { fullHullTable, realHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const { layout, config } = laveFixture();
@@ -787,5 +806,354 @@ describe("combat in the world hash", () => {
     expect(() => hashWorld(player, undefined, combat)).not.toThrow();
     // The repair puts a poisoned-but-otherwise-fresh state back to pristine.
     expect(isPristineCombat(combat)).toBe(true);
+  });
+});
+
+/*
+ * The station as a laser target (CBT-17, plan 18-04).
+ *
+ * The scene is laid along the station's back axis: Wegolite local +Z of the
+ * base pose, which is Oolite model -z (away from the dock and the planet). The
+ * station's roll is about that axis, so the scene does not depend on the
+ * station angle. The player sits 1,500 m behind the centre facing it, an Adder
+ * 1,500 m in front of the dock, so the centre is on the 3,000 m line between
+ * them. The Coriolis hull has its back face at Oolite z = -500 (18-02 SUMMARY,
+ * "the hull's runner-up is its back face at z = -500"), so a beam from the
+ * back stops 500 m short of the centre. `isHitByLine` reports the distance to
+ * the centre of the first solid leaf, so the tolerance is 18-02's for the hull
+ * at normal incidence: sqrt(3) h + 2 h with the hull leaf h = 7.8203125
+ * (depth 6, root 500.5), 29.186 m.
+ */
+const FULL = fullHullTable();
+const STATION = layout.station.position;
+const BACK = rotate(layout.stationBaseQuat, vec(0, 0, 1));
+const TOWARD_STATION = scale(BACK, -1);
+const FACING_STATION = quatFromUnitVectors(vec(0, 0, -1), TOWARD_STATION);
+const STATION_BACK_FACE = 500;
+const HULL_LEAF = 7.8203125;
+const HULL_TOLERANCE = Math.sqrt(3) * HULL_LEAF + 2 * HULL_LEAF;
+const PULSE = LASER_STATS.EQ_WEAPON_PULSE_LASER;
+
+/** The Viper's forward weapon as `ships-npc.json` carries it. */
+const VIPER_BEAM: NpcWeapon = {
+  laser: "EQ_WEAPON_BEAM_LASER",
+  offset: vec(0, -0.15000000596046448, 35.034400939941406),
+};
+
+function hullOptions(hulls: HullTable): StepOptions {
+  return { combat: { mounts: DEFAULT_LASER_MOUNTS, hulls } };
+}
+
+/** The flying player 1,500 m behind the station centre, facing it. */
+function playerBehindStation(): FlightState {
+  const state = flyingPlayer();
+  state.position = add(STATION, scale(BACK, 1500));
+  state.orientation = FACING_STATION;
+  return state;
+}
+
+/** An Adder 1,500 m in front of the dock, on the player's line. */
+function shipBeyondStation(): { world: World; id: number } {
+  return worldWithShip(add(STATION, scale(TOWARD_STATION, 1500)));
+}
+
+/** A ship of `specKey` spawned into `world`. */
+function spawnInto(
+  world: World,
+  specKey: string,
+  position: Vec3,
+  orientation = identity(),
+): number {
+  const result = spawnEntity(
+    world,
+    {
+      kind: "ship",
+      specKey,
+      scanClass: "CLASS_NEUTRAL",
+      position,
+      orientation,
+      radius: 30,
+      maxEnergy: specKey === "adder" ? 85 : 180,
+    },
+    0,
+  );
+  if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+  return result.entity.id;
+}
+
+function viperShot(world: World, id: number): ShotRequest {
+  const entity = world.store.get(id);
+  if (entity === undefined) throw new Error(`no entity ${id}`);
+  const ray = npcLaserRay(entity, VIPER_BEAM);
+  if (ray === null) throw new Error("no ray");
+  return { shooter: id, ray, laser: "EQ_WEAPON_BEAM_LASER" };
+}
+
+function playerShot(player: FlightState): ShotRequest {
+  return {
+    shooter: PLAYER_ID,
+    ray: playerLaserRay(
+      player.position,
+      player.orientation,
+      "fore",
+      "EQ_WEAPON_PULSE_LASER",
+    ),
+    laser: "EQ_WEAPON_PULSE_LASER",
+  };
+}
+
+function stationRecord(player: FlightState, amount: number): HitRecord {
+  return {
+    target: MAIN_STATION_ID,
+    source: PLAYER_ID,
+    amount,
+    sourcePosition: player.position,
+  };
+}
+
+describe("a laser stops at the station (tracer, CBT-17)", () => {
+  it("a shot at a ship behind the station ends on the station's back face; the ship takes nothing", () => {
+    const player = playerBehindStation();
+    const combat = createPlayerCombatState();
+    const { world, id } = shipBeyondStation();
+
+    const events = stepOnce(player, world, combat, FIRE, hullOptions(FULL));
+
+    const fired = ofKind(events, "laserFired");
+    expect(fired).toHaveLength(1);
+    const shot = fired[0];
+    if (shot === undefined) throw new Error("no laserFired");
+    // The beam length along the line, and the distance from the mount to the
+    // station's back face plane.
+    const length = dot(sub(shot.to, shot.from), TOWARD_STATION);
+    const toBackFace = dot(sub(shot.from, STATION), BACK) - STATION_BACK_FACE;
+    expect(Math.abs(length - toBackFace)).toBeLessThanOrEqual(HULL_TOLERANCE);
+    // Far short of the Adder, about 2,000 m further on.
+    expect(length).toBeLessThan(1100);
+
+    expect(ofKind(events, "shipHit")).toEqual([
+      {
+        kind: "shipHit",
+        target: MAIN_STATION_ID,
+        source: PLAYER_ID,
+        amount: PULSE.damage,
+        shield: false,
+      },
+    ]);
+    expect(energyOf(world, id)).toBe(85);
+    expect(world.staticHealth).toEqual(createStaticHealth());
+  });
+
+  it("without the static hulls (realHullTable) the same shot hits the ship as before", () => {
+    const player = playerBehindStation();
+    const combat = createPlayerCombatState();
+    const { world, id } = shipBeyondStation();
+
+    const events = stepOnce(player, world, combat, FIRE, hullOptions(HULLS));
+
+    const shot = ofKind(events, "laserFired")[0];
+    if (shot === undefined) throw new Error("no laserFired");
+    const length = dot(sub(shot.to, shot.from), TOWARD_STATION);
+    const toShipCentre = dot(
+      sub(world.store.get(id)?.position ?? STATION, shot.from),
+      TOWARD_STATION,
+    );
+    expect(length).toBeLessThan(toShipCentre);
+    expect(length).toBeGreaterThan(toShipCentre - 100);
+    expect(ofKind(events, "shipHit")).toEqual([
+      {
+        kind: "shipHit",
+        target: id,
+        source: PLAYER_ID,
+        amount: PULSE.damage,
+        shield: false,
+      },
+    ]);
+    expect(energyOf(world, id)).toBe(85 - PULSE.damage);
+  });
+
+  it("a tick that did not step the world has no station candidate: the beam runs to full range", () => {
+    const player = playerBehindStation();
+    const combat = createPlayerCombatState();
+    const { world } = shipBeyondStation();
+    const shot = playerShot(player);
+
+    const unstepped = resolveShots(
+      world,
+      false,
+      player,
+      combat,
+      [shot],
+      hullOptions(FULL),
+      DT,
+      layout,
+    );
+    const beam = ofKind(unstepped, "laserFired")[0];
+    if (beam === undefined) throw new Error("no laserFired");
+    expect(dot(sub(beam.to, beam.from), shot.ray.forward)).toBeCloseTo(
+      shot.ray.range,
+      6,
+    );
+    expect(ofKind(unstepped, "shipHit")).toEqual([]);
+
+    // The same shot on a stepped tick ends on the station.
+    const stepped = resolveShots(
+      world,
+      true,
+      player,
+      combat,
+      [shot],
+      hullOptions(FULL),
+      DT,
+      layout,
+    );
+    expect(ofKind(stepped, "shipHit").map((hit) => hit.target)).toEqual([
+      MAIN_STATION_ID,
+    ]);
+  });
+});
+
+describe("the station only absorbs (A6, StationEntity.m:1110-1160)", () => {
+  it("1,000 hits and one huge hit change no hashed state and are never lethal", () => {
+    const player = playerBehindStation();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const before = hashWorld(player, world, combat);
+    const neverHit = hashWorld(player, createWorld(7), combat);
+
+    const records = Array.from({ length: 1000 }, () =>
+      stationRecord(player, PULSE.damage),
+    );
+    records.push(stationRecord(player, 1e12));
+    const events: SimEvent[] = [];
+    const lethal = applyLedger(world, true, player, combat, records, events);
+
+    expect(lethal).toEqual([]);
+    expect(events).toHaveLength(1001);
+    for (const event of events) {
+      expect(event).toMatchObject({
+        kind: "shipHit",
+        target: MAIN_STATION_ID,
+        source: PLAYER_ID,
+        shield: false,
+      });
+    }
+    expect(world.staticHealth).toEqual(createStaticHealth());
+    expect(hashWorld(player, world, combat)).toBe(before);
+    expect(hashWorld(player, world, combat)).toBe(neverHit);
+  });
+
+  it("skips NaN, Infinity, 0 and negative amounts, and any record on an unstepped world", () => {
+    const player = playerBehindStation();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const events: SimEvent[] = [];
+    const bad = [Number.NaN, Infinity, -Infinity, 0, -5].map((amount) =>
+      stationRecord(player, amount),
+    );
+    expect(applyLedger(world, true, player, combat, bad, events)).toEqual([]);
+    expect(events).toEqual([]);
+    expect(
+      applyLedger(
+        world,
+        false,
+        player,
+        combat,
+        [stationRecord(player, 15)],
+        events,
+      ),
+    ).toEqual([]);
+    expect(
+      applyLedger(
+        undefined,
+        true,
+        player,
+        combat,
+        [stationRecord(player, 15)],
+        events,
+      ),
+    ).toEqual([]);
+    expect(events).toEqual([]);
+    expect(world.staticHealth).toEqual(createStaticHealth());
+  });
+});
+
+describe("an NPC shot that ends on the station is a hit (ShipEntity.m:10396)", () => {
+  it("moves the shooter's missedShots by -1 with the static hulls, +1 without them", () => {
+    for (const [hulls, expected, targets] of [
+      [FULL, 1, [MAIN_STATION_ID]],
+      [HULLS, 3, []],
+    ] as const) {
+      const player = flyingPlayer();
+      const world = createWorld(7);
+      const viper = spawnInto(
+        world,
+        "viper",
+        add(STATION, scale(BACK, 1500)),
+        FACING_STATION,
+      );
+      const shooter = world.store.get(viper);
+      if (shooter === undefined) throw new Error("no viper");
+      shooter.weapon.missedShots = 2;
+
+      const events = resolveShots(
+        world,
+        true,
+        player,
+        createPlayerCombatState(),
+        [viperShot(world, viper)],
+        hullOptions(hulls),
+        DT,
+        layout,
+      );
+      expect(shooter.weapon.missedShots).toBe(expected);
+      expect(ofKind(events, "shipHit").map((hit) => hit.target)).toEqual(
+        targets,
+      );
+    }
+  });
+});
+
+describe("the hit-record target invariant (assumption delta, plan 18-04)", () => {
+  it("every queued target is the player, a static target or a store id live at queue time", () => {
+    const player = playerBehindStation();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    // A Viper behind the player, nose at it: its beam meets the player first.
+    const behind = spawnInto(
+      world,
+      "viper",
+      add(STATION, scale(BACK, 3000)),
+      FACING_STATION,
+    );
+    // A Viper far out with an Adder dead ahead of its nose (-Z).
+    const far = spawnInto(world, "viper", vec(FAR.x + 50_000, 0, 0));
+    const adder = spawnInto(world, "adder", vec(FAR.x + 50_000, 0, -1500));
+    const live = new Set(
+      [...world.store.live].filter((e) => !e.dead).map((e) => e.id),
+    );
+    const statics = new Set(STATIC_TARGETS.map((row) => row.id));
+
+    const events = resolveShots(
+      world,
+      true,
+      player,
+      combat,
+      [playerShot(player), viperShot(world, behind), viperShot(world, far)],
+      hullOptions(FULL),
+      DT,
+      layout,
+    );
+
+    const targets = ofKind(events, "shipHit").map((hit) => hit.target);
+    for (const target of targets) {
+      expect(
+        target === PLAYER_ID || statics.has(target) || live.has(target),
+      ).toBe(true);
+    }
+    // Not vacuous: one of each kind.
+    expect([...targets].sort((a, b) => a - b)).toEqual(
+      [MAIN_STATION_ID, PLAYER_ID, adder].sort((a, b) => a - b),
+    );
   });
 });
