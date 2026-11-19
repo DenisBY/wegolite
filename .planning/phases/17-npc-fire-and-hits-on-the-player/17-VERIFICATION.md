@@ -1,10 +1,9 @@
 ---
 phase: 17-npc-fire-and-hits-on-the-player
-verified: 2026-11-19T03:45:00Z
-status: human_needed
-score: 9/13 must-haves verified
+verified: 2026-11-19T10:30:00Z
+status: passed
+score: 13/13 must-haves verified
 covered_files:
-  - ".planning/PROJECT.md"
   - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-01-PLAN.md"
   - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-01-SUMMARY.md"
   - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-02-PLAN.md"
@@ -25,24 +24,22 @@ covered_files:
   - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-09-SUMMARY.md"
   - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-10-PLAN.md"
   - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-10-SUMMARY.md"
+  - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-11-PLAN.md"
+  - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-11-SUMMARY.md"
+  - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-12-PLAN.md"
+  - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-12-SUMMARY.md"
+  - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-13-PLAN.md"
+  - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-13-SUMMARY.md"
   - "CHANGELOG.md"
   - "src/app/probe.ts"
   - "src/app/session/probe-publisher.ts"
+  - "src/main.ts"
   - "src/sim/ai/pilots/flight-script.ts"
   - "src/sim/ai/pilots/test-pilot.ts"
   - "src/sim/ai/test-spawn.ts"
   - "src/sim/combat/step.ts"
-  - "src/sim/npc/behaviours/attack-close.ts"
-  - "src/sim/npc/behaviours/attack-evade.ts"
-  - "src/sim/npc/behaviours/attack.ts"
-  - "src/sim/npc/behaviours/evasive.ts"
-  - "src/sim/npc/behaviours/flee.ts"
-  - "src/sim/npc/constants.ts"
   - "src/sim/npc/dispatch.ts"
   - "src/sim/npc/fire.ts"
-  - "src/sim/npc/target.ts"
-  - "src/sim/npc/track.ts"
-  - "src/sim/world/control-impl.ts"
   - "src/sim/world/step.ts"
   - "src/sim/world/world.ts"
   - "tests/app/probe-shape-compare.test.ts"
@@ -51,193 +48,175 @@ covered_files:
   - "tests/e2e/combat.spec.ts"
   - "tests/fixtures/probe-shape.json"
   - "tests/guards/fire-decision-source.test.ts"
-  - "tests/guards/kill-credit-consumers.test.ts"
-  - "tests/guards/on-event-handlers.test.ts"
   - "tests/guards/ship-hit-consumers.test.ts"
-  - "tests/oracles/npc/fire-sites/fire-sites.self.test.ts"
-  - "tests/oracles/npc/fire-sites/fixtures/aim-feedback.json"
-  - "tests/oracles/npc/fire-sites/fixtures/fire-sites.json"
-  - "tests/oracles/npc/fire-sites/fixtures/hot-branches.json"
-  - "tests/oracles/npc/fire-sites/schema.ts"
   - "tests/oracles/npc/fire/derive.ts"
   - "tests/oracles/npc/fire/fire.self.test.ts"
   - "tests/oracles/npc/fire/fixtures/gate.json"
   - "tests/oracles/npc/fire/fixtures/heat.json"
-  - "tests/oracles/npc/fire/fixtures/on-target.json"
-  - "tests/oracles/npc/fire/schema.ts"
   - "tests/oracles/npc/frame-rate-rule.json"
-  - "tests/oracles/npc/pursuit/derive.ts"
-  - "tests/oracles/npc/reference.self.test.ts"
-  - "tests/sim/ai/flight-script.test.ts"
-  - "tests/sim/ai/test-pilot.test.ts"
   - "tests/sim/ai/test-spawn.test.ts"
-  - "tests/sim/combat/kill.property.test.ts"
   - "tests/sim/combat/npc-fire.test.ts"
   - "tests/sim/combat/npc-vs-npc.scenario.test.ts"
-  - "tests/sim/npc/attack-dispatch.test.ts"
-  - "tests/sim/npc/attack.oracle.test.ts"
-  - "tests/sim/npc/constants.test.ts"
   - "tests/sim/npc/fire-cadence.test.ts"
   - "tests/sim/npc/fire-route.test.ts"
-  - "tests/sim/npc/fire-sites.oracle.test.ts"
   - "tests/sim/npc/fire.oracle.test.ts"
-  - "tests/sim/npc/fire.property.test.ts"
   - "tests/sim/npc/fire.test.ts"
   - "tests/sim/npc/hot-weapon.test.ts"
-  - "tests/sim/npc/oracle-coverage.test.ts"
-  - "tests/sim/npc/oracle-groups.ts"
-  - "tests/sim/npc/oracle-runner.ts"
-  - "tests/sim/npc/steering.property.test.ts"
-  - "tests/sim/npc/target.test.ts"
-  - "tests/sim/npc/track.test.ts"
   - "tests/sim/world/kill.test.ts"
   - "tests/sim/world/world-cadence.test.ts"
-covered_digest: "v4:sha256:168807a1a6c027a1e453ce270187828a88483b8219f4619b5bd81ad5b4960d62"
+covered_digest: "v4:sha256:9906ca31f4c23f9c2a530ea3f305f92a165424eb37fd8c7417d25f34b96d93c5"
 behavior_unverified: 0
 overrides_applied: 0
-human_verification:
-  - test: "Owner decides the D-07 shot period against criterion 1's 'the rate of fire is Oolite's'"
-    expected: "Either accept D-07 (NPC beam and military fire every 12 ticks, about 8 % faster than literal Oolite's 13 frames at 120 Hz and than the player's 13), or switch npcRechargeTicks in src/sim/npc/fire.ts to the literal counts (60, 13, 301, 13) with one twin and browser re-pin"
-    why_human: "Criterion 1's literal wording and the owner-locked D-07 disagree for beam and military; the code faithfully implements D-07, so only the owner can say which governs (17-10-SUMMARY owner question 1, review IN-04)"
-  - test: "Owner reconciles criterion 2's 'in a hook-spawned fight ... an NPC shot to zero energy by another is destroyed' with D-03"
-    expected: "Either the roadmap wording is tightened to match D-03 (NPC-vs-NPC kill proved in Vitest: tests/sim/combat/npc-vs-npc.scenario.test.ts), or a hook NPC-vs-NPC variant is requested"
-    why_human: "No hook variant spawns an NPC-vs-NPC fight, so the clause as literally worded is not met; D-03 (owner-locked) deliberately keeps it in Vitest. Reconciliation is recorded in 17-ADVISOR-NOTES.md but not owner-signed (owner question 5)"
-  - test: "Owner rules on criterion 3's 'no new firing decision source ships in the production bundle'"
-    expected: "Either accept the advisor's reading ('not reachable in ordinary play'), or require the ?test=1 seam (spawnTestShooter, spawnTestAttacker, the fire param) to be stripped from the production bundle at build time"
-    why_human: "parseTestFlags (src/app/session/test-flags.ts) enables the hook with ?test=1 in every bundle, including the deployed one, so spawnTestAttacker (new in this phase) ships and is reachable from the console behind the flag; it taints the session and cannot persist. Whether that is a 'firing decision source shipping in the production bundle' is an owner reading (owner question 4)"
-  - test: "Owner accepts or rejects the probe readout as criterion 3's 'shield and energy readout on the HUD'"
-    expected: "Either accept tests/e2e/combat.spec.ts's assertion of window.__wegolite.combat.fwdShield/energy plus hud.drawn, or ask for the drawn gauge values (model.bars.shieldFwd, energyBanks) to be exposed in the HUD probe and asserted"
-    why_human: "The HUD does draw FWD/AFT shield bars and the E1-E4 energy banks (src/render/hud/draw.ts:843-980, fed by src/app/hud-model.ts:266-268 and unit-tested in tests/ui/hud-model.test.ts), but the browser spec asserts the sim combat state through the probe, not the drawn gauges (review WR-02, owner question 6)"
-  - test: "Re-run the opt-in browser combat spec once at the phase HEAD on the remote machine (optional confirmation)"
-    expected: "docker compose run --rm e2e sh -lc \"npm run build:e2e && npx playwright test tests/e2e/combat.spec.ts\" passes at 70005ee"
-    why_human: "The spec last ran remotely at 3d5e735 (17-05); the phase's one remote verify at 5a59754 runs only the smoke subset (test:e2e:fast: scene, docking, save-load, probe-shape) and therefore did NOT run combat.spec.ts, contrary to 17-10-SUMMARY's 'covers 17-05's drain and browser re-pin'. The Node twin (tests/app/session/tick-parity.test.ts) with unchanged literals passes at HEAD in this verification, so a divergence is unlikely; the verifier does not run remote suites"
+re_verification:
+  previous_status: human_needed
+  previous_score: 9/13
+  gaps_closed:
+    - "G-17-1: NPC shot period equals Oolite's literal frame counts (60/13/301/13), UAT test 1"
+    - "G-17-4: the drawn FWD/AFT shield bars and E1-E4 banks are exposed in the HUD probe and asserted in the browser combat spec, UAT test 4"
+    - "UAT test 2 (criterion 2 wording tightened to D-03 in ROADMAP.md) and UAT test 3 (decision-source row records the owner's acceptance) recorded in the planning documents"
+    - "UAT test 5 (combat spec re-run at HEAD on the remote machine): passed at fb47448, 606e145 and 124c27e"
+  gaps_remaining: []
+  regressions: []
+flagged_prohibitions: 7 # judgment-tier, non-authoritative LLM verdicts, unverified-prohibition, human review recommended (table below); the owner reviewed the phase through UAT, none is a gap
 ---
 
 # Phase 17: NPC Fire and Hits on the Player Verification Report
 
 **Phase Goal:** NPC ships fire lasers at the player and at each other through Oolite's fire gate when the engine or a test pilot tells them to, hits on the player pass through the shields and the energy bank as Oolite's do, and in ordinary play NPCs still never attack.
-**Verified:** 2026-11-19T03:45:00Z
-**Status:** human_needed
-**Re-verification:** No (initial verification)
+**Verified:** 2026-11-19T10:30:00Z
+**Status:** passed (complete with 7 flagged judgment-tier prohibitions, see below)
+**Re-verification:** Yes, after gap-closure plans 17-11, 17-12 and 17-13 (HEAD 276cfcb)
 
 ## Goal Achievement
 
-The engineering of the phase is real and wired: a single gate site at the fire-queue drain, a faithful port of Oolite's `fireWeapon:` refusal chain (checked line by line against `ShipEntity.m:9934-9975` and `2214-2218`), the four fire sites and hot-weapon branches in the behaviours, the per-tick test pilot, the flight-script opt-in, the attacker hook, and the guards. No truth FAILED on code evidence. Four roadmap-criterion clauses are not confirmable as literally worded because they conflict with owner-locked decisions or with readings recorded for owner sign-off; they are routed to the owner below, not passed silently.
+All 13 must-haves verify. The two UAT gaps are closed in the code, not only in the SUMMARYs. The four clauses the first verification routed to the owner are resolved: the owner chose the literal period (now implemented), accepted D-03 and the bundle reading (now recorded in ROADMAP.md and PROJECT.md), and chose to expose the drawn gauges (now exposed and asserted). The code since the first verification changed in four files under `src/` (`fire.ts`, `probe.ts`, `probe-publisher.ts`, `main.ts`); nothing under `src/sim/` changed after the port commit 606e145.
 
-### Observable Truths (roadmap success criteria first, then plan must-haves)
+### Gap closure (the re-verification focus)
+
+| Gap | Owner decision | Evidence in the code | Status |
+|-----|----------------|----------------------|--------|
+| G-17-1 (UAT test 1) | Switch the NPC shot period to Oolite's literal frame counts 60/13/301/13 | `src/sim/npc/fire.ts:143-197`: `literalShotFrames` is a double sum of 1/120 until it is no longer below `Math.fround(rate)`; a frozen per-laser table is built at load from `LASER_STATS[laser].rechargeRate` (never the player's rounded `rechargeTicks`); `npcRechargeTicks` reads it (pulse 60, beam 13, mining 301, military 13, unarmed 12000). I checked it against `ShipEntity.m` in the Oolite checkout: `shot_time += delta_t` at 2221 (before the behaviours), refusal `[self shotTime] < weapon_recharge_rate` at 9946, `shot_time` is an `OOTimeDelta` double and `weapon_recharge_rate` a float (`ShipEntity.h:186, 345`), `resetShotTime` at 10463. The oracle (plan 17-11, committed a446957 before the port 606e145) re-derived the eight timer fixtures and three heat runs, carries `measuredDifference: 0`, and `tests/oracles/**` has no diff after 17-11. `tests/sim/npc/fire.oracle.test.ts` checks the port's period against the oracle for every weapon. `src/sim/combat/constants.ts` and `weapons.ts` (the player's strict `>`: 61/13/301/13) are untouched. PROJECT.md rows A7 and "NPC fire gate", 17-CONTEXT.md D-07 and the CHANGELOG carry the revision. | CLOSED |
+| G-17-4 (UAT test 4) | Expose the drawn gauge values in the HUD probe and assert them in the browser spec | `src/app/probe.ts` `WegoliteHudProbe.shieldFwd`, `shieldAft`, `energyBanks` with failure-surface defaults `0, 0, [0,0,0,0]` (also in `src/main.ts`); `src/app/session/probe-publisher.ts:528-539` copies `model.bars.shieldFwd/shieldAft` and a new four-element banks array from `ctx.core.lastModel`, which `render-driver.ts:376-377` sets to the exact `HudModel` it passes to `currentHud.draw(model)`; `hud-model.ts:266-268` computes those bars from `combat.fwdShield/energy`. `tests/fixtures/probe-shape.json` has the three keys in all seven states (`energyBanks` 7, `shieldFwd` 7) and `probe-shape-compare.test.ts` pins them. `tests/e2e/combat.spec.ts:292-372` asserts the drawn forward bar is 1 before the spawn and, 360 ticks after it, equals Oolite's shield dial of the twin's literal (9 digits) and of the probe's same-frame shield (12 digits), E1..E4 equal the bank split of the twin's energy and of the frame's energy, E1 and the forward bar are below their pre-spawn values, the aft bar is still 1. The spec's `shieldDial` and `bankDial` are its own copies of Oolite's rules, not imports of the HUD. Remote runs recorded at `124c27e`: `verify` exit 0 (smoke e2e 27 passed including `probe-shape.spec.ts`) and the combat spec 1 passed. `124c27e` is the last commit that touches `src` or `tests`; HEAD adds docs only. | CLOSED |
+| UAT test 2 | Tighten criterion 2's wording to D-03 | ROADMAP.md Phase 17 criterion 2 names the browser spec for the player's shields and energy and `tests/sim/combat/npc-vs-npc.scenario.test.ts` (D-03) for the NPC kill, ending "(wording tightened to D-03: owner, UAT test 2, 2026-11-19)". The scenario file passes at HEAD. | CLOSED |
+| UAT test 3 | Accept the bundle reading | PROJECT.md row "The decision to fire comes from the engine and test pilots only" (line 301) states the advisor reading was "accepted by the owner 2026-11-19 (UAT test 3)". | CLOSED |
+| UAT test 5 | Re-run the browser combat spec at HEAD remotely | Passed at `fb47448` (UAT), re-run at `606e145` and `124c27e` by the plans (executor-recorded remote snapshots). The verifier did not re-run remote suites. | CLOSED |
+
+### Observable Truths
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1a | SC1: a scripted pilot or the hook shooter fires only when Oolite's gate allows: not hot (cutout, cooling re-enables), not without energy, not before the whole-tick shot timer, not out of range or off target | ✓ VERIFIED | `src/sim/npc/fire.ts` `npcFireGate`: unresolved, heat (`t/256 >= fround(0.85)`), energy (`<=`), timer (`tick-lastShotTick >= npcRechargeTicks`), one draw, roll, range, `onTarget`, unarmed: identical order to `ShipEntity.m:9934-9958`. Called only in `drainFireQueue` (`src/sim/combat/step.ts:274`). Tests at HEAD: `fire.oracle.test.ts`, `fire.test.ts`, `npc-fire.test.ts` ("the heat cutout ... refuses with no draw until the weapon cools below the cutout, then fires"), `hot-weapon.test.ts` stepped heat-up/cut-out/recovery |
-| 1b | SC1: "The rate of fire is Oolite's and is the same at 30, 60 and 144 Hz" | ? UNCERTAIN (human) | Same-at-30/60/144 is VERIFIED (`fire-cadence.test.ts`: identical per-tick hash log and shot ticks through the real accumulator at 30, 60, 144 Hz). "Oolite's" is not: `npcRechargeTicks` gives beam/military 12 ticks (owner-locked D-07) where literal Oolite fires on frame 13 at 120 Hz (17-01 frame-rate row, PROJECT.md "NPC fire gate" row). Owner question 1 |
-| 2a | SC2: NPC shots hit the player through the facing shield then the energy bank with Oolite's numbers | ✓ VERIFIED | `applyLedger` routes `PLAYER_ID` records to `routeDamage` (`src/sim/combat/shields.ts:124-163`), which matches `PlayerEntity.m:5647-5680` (`d_forward >= 0` forward, spill to energy, cabin heat), energy floored at 0 (death is Phase 20). `npc-fire.test.ts` "an NPC hit on the player, by the shared rule" (equal-to-shield, spill, abeam, behind) pass |
-| 2b | SC2: NPC shots hit other NPC ships by the same octree hull rule | ✓ VERIFIED | Same `firstShipHit` over all live ships for every shot (`step.ts` resolveShotHits); `npc-fire.test.ts` "the same Viper shot at another NPC drains its energy by the same 6"; `npc-vs-npc.scenario.test.ts` |
-| 2c | SC2: in a hook-spawned fight the player watches shields and energy fall | ✓ VERIFIED | `combat.spec.ts` reads fwdShield 0.18333 and energy 210.13 at spawn+360 (remote pass at 3d5e735, 17-05); its Node twin `tick-parity.test.ts` passes at HEAD with the same literals; `probe-publisher.test.ts` steps the hook attacker through `stepSim` and sees shields then energy fall |
-| 2d | SC2: "an NPC shot to zero energy by another is destroyed through Phase 15's kill path" (in a hook-spawned fight) | ? UNCERTAIN (human) | Substance VERIFIED in Vitest: `npc-vs-npc.scenario.test.ts` (test-pilot route and steering route kills, credit to the live killer, `entityRemoved` same tick, `shipTargetDestroyed`/`shipKilledOther`, debris, D-10 mutual kill) all pass. The "hook-spawned fight" placement is not met: no hook NPC-vs-NPC variant exists, by owner-locked D-03. Reconciliation in 17-ADVISOR-NOTES.md is not owner-signed (owner question 5) |
-| 3a | SC3: in ordinary play NPCs never fire; with no hook and no test pilot ships stay inert | ✓ VERIFIED | `populate.ts:354` `ai: null`, `populate.test.ts:536` asserts it; `npcFireBlocked` refuses `ai === null` before the gate (no draw); `ctx.fire` built only when `entity.ai.params.fire === true` (`src/sim/world/step.ts:255-269`); `fire: true` set only in `src/sim/ai/test-spawn.ts:94,163`; pilot builders called outside `src/sim/ai/` nowhere; `fire-decision-source.test.ts` passes; saves restore only the world anchor |
-| 3b | SC3: "no new firing decision source ships in the production bundle" | ? UNCERTAIN (human) | `parseTestFlags` enables the hook on `?test=1` in every bundle, so the new `spawnTestAttacker` (flight-script attack with `fire: true`) ships in the production bundle behind the runtime flag (tainting, never saved). Literal reading not met; advisor reading ("not reachable in ordinary play") met. Owner question 4 |
-| 3c | SC3: a Key Decisions row records that the decision to fire comes from the engine and test pilots only | ✓ VERIFIED | `.planning/PROJECT.md:301` "The decision to fire comes from the engine and test pilots only (CBT-15, criterion 3)", quoting criterion 3 and marking the advisor reading for revisit |
-| 3d | SC3: one opt-in browser spec proves the whole route from a hook-spawned shooter to the shield and energy readout on the HUD | ? UNCERTAIN (human) | `combat.spec.ts` proves hook shooter to the probe's `combat.fwdShield/energy` plus `hud.drawn`. The HUD does draw FWD/AFT bars and E1-E4 banks from that same state (`draw.ts:843-980`, `hud-model.ts:266-268`, unit-tested), but the spec never asserts the drawn gauge values (WR-02, owner question 6). Also: last remote run of this spec is 3d5e735; the 17-10 remote verify's smoke subset does not include it |
-| 4a | SC4: Phase 14 behaviour unchanged; fire off unless a pilot opts in; existing flight-script worlds replay byte-identically | ✓ VERIFIED | Opt-in key on the record only when true (`flight-script.ts:98`, `test-pilot.ts:78`); `coolShips` skips temperature 0; `missedShots` terms exact no-ops at 0. At HEAD: `world-cadence.test.ts`, `attack.oracle.test.ts` (every Phase 14 fixture, "without the opt-in the steering never fires"), `fire-route.test.ts` no-opt-in identity, frozen flight-hash pins all pass. Remote 20-seed acceptance 21/21 recorded at 3d5e735, 3a403e0, 30f2a0c (after the last `src/sim/npc`/`src/sim/world` code change c8d4995; 70005ee changed comments only) |
-| 4b | SC4: the new source-cited fire-gate fixtures, authored before the port by a separate agent with no access to `src/sim/npc`, all pass | ✓ VERIFIED | git order: fixtures 3470843..d04b525 (00:28-00:58) precede `src/sim/npc/fire.ts` creation 7acda99 (01:20). `fire.oracle.test.ts` and `fire-sites.oracle.test.ts` pass at HEAD with `FIRE_ORACLE_PENDING` empty and `OPEN_DISPUTES` empty; `oracle-independence.test.ts` passes. Note: one fixture (`fire-site-flee-evasive-hand-over-still-requests`) was corrected after the port (89ee9ee) by an Oolite-source re-derivation (the ship moves 0.011 m by `moveForward:` before update 2); the oracle change is opt-in to that fixture only |
-| 5 | Prohibitions and D-13 tripwires: three deferral guards (kill credit, `shipHit`, second `onEvent`) and the decision-source tripwire fail on a first consumer and name their todos | ✓ VERIFIED | `tests/guards/{kill-credit-consumers,ship-hit-consumers,on-event-handlers,fire-decision-source}.test.ts` pass with non-vacuity cases; todos `2026-11-18-mutual-kill-credit-symmetry.md`, `2026-11-18-narrow-kill-time-ship-target-lost.md`, `2026-11-17-skip-shiphit-for-a-doomed-target.md` exist; `shipHit` appears in `src/` only in `events.ts`, `ledger.ts` and a doc comment in `step.ts` |
+| 1a | SC1: fires only when Oolite's gate allows (not hot, not without energy, not before the whole-tick shot timer, not out of range or off target) | VERIFIED | `npcFireGate` in `src/sim/npc/fire.ts` (order and one draw as `ShipEntity.m:9934-9958`), called only from `drainFireQueue` (`src/sim/combat/step.ts`). `fire.oracle.test.ts`, `fire.test.ts`, `npc-fire.test.ts`, `hot-weapon.test.ts` pass in the full run at HEAD |
+| 1b | SC1: "the rate of fire is Oolite's and is the same at 30, 60 and 144 Hz" | VERIFIED | Oolite's: the period is now the literal frame count (G-17-1 closed above, checked against `ShipEntity.m:2221, 9946`). Rate-independence: `fire-cadence.test.ts` (never closer than 13, hash and shot ticks identical through the real accumulator at 30, 60, 144 Hz) and `world-cadence.test.ts` pass |
+| 2a | SC2: NPC shots hit the player through the facing shield then the energy bank with Oolite's numbers | VERIFIED | `applyLedger` to `routeDamage` (`src/sim/combat/shields.ts`), `npc-fire.test.ts` "an NPC hit on the player, by the shared rule" passes |
+| 2b | SC2: NPC shots hit other NPC ships by the same octree hull rule | VERIFIED | `step.ts` `resolveShotHits` over all live ships; `npc-fire.test.ts`, `npc-vs-npc.scenario.test.ts` pass |
+| 2c | SC2 (as tightened by the owner): in the hook-spawned fight the player watches shields and energy fall | VERIFIED | `combat.spec.ts` asserts the sim values and now the drawn gauges at spawn + 360 (twin literals `TWIN_SHIELD_AFTER_SHOOTING 0.13333...`, `TWIN_ENERGY_AFTER_SHOOTING 222.18333...`); Node twin `tick-parity.test.ts` passes at HEAD; every `TWIN_*` literal in the spec equals its twin counterpart (checked by the code review and the SUMMARY's `rg -o` pairs) |
+| 2d | SC2 (as tightened): an NPC shot to zero energy by another is destroyed through Phase 15's kill path, proved in Vitest | VERIFIED | `npc-vs-npc.scenario.test.ts` passes (kills on ticks 1, 14, 27 under the new period, credit, `entityRemoved`, debris, D-10 mutual kill). The roadmap wording now matches D-03 |
+| 3a | SC3: in ordinary play NPCs never fire | VERIFIED | `populate.ts` `ai: null` (asserted in `populate.test.ts`); `npcFireBlocked` refuses a ship with no AI before the gate; `ctx.fire` built only when `params.fire === true`; `fire: true` set only in `test-spawn.ts`; `fire-decision-source.test.ts` passes |
+| 3b | SC3: "no new firing decision source ships in the production bundle" | VERIFIED (owner reading) | The owner accepted "not reachable in ordinary play" (UAT test 3); recorded in PROJECT.md line 301 and not in contradiction with the code: the seam sits behind `?test=1`, taints before mutating and never persists |
+| 3c | SC3: a Key Decisions row records that the decision to fire comes from the engine and test pilots only | VERIFIED | PROJECT.md line 301 |
+| 3d | SC3: one opt-in browser spec proves the route from a hook-spawned shooter to the shield and energy readout on the HUD | VERIFIED | G-17-4 closed above: the spec asserts the drawn FWD/AFT bars and E1-E4 banks from `hud.shieldFwd/shieldAft/energyBanks`, which come from the model the HUD drew. Remote pass at `124c27e` |
+| 4a | SC4: Phase 14 behaviour unchanged; fire off unless a pilot opts in; existing worlds replay byte-identically | VERIFIED | opt-in key only when true; `world-cadence.test.ts`, `attack.oracle.test.ts`, frozen flight-hash pins pass at HEAD. QUAL-11 remote 20-seed acceptance 21/21 with every metric identical to the 17-04 baseline at `606e145`; `git diff 606e145 HEAD -- src/sim tests/acceptance` is empty, so that run covers the final sim code |
+| 4b | SC4: source-cited fire-gate fixtures authored before the port by a separate agent all pass | VERIFIED | git order: original fixtures precede `src/sim/npc/fire.ts`; the revised-D-07 fixtures (a446957, oracle only) precede the revised port (606e145). The guard `oracle-independence.test.ts` passes; the port equals the oracle for every weapon on the first run (RED 7 failing before, none after, no oracle file edited by 17-12) |
+| 5 | Prohibitions and D-13 tripwires: the three deferral guards and the decision-source tripwire fail on a first consumer and name their todos | VERIFIED | `tests/guards/*` pass at HEAD; todos `2026-11-18-mutual-kill-credit-symmetry`, `2026-11-18-narrow-kill-time-ship-target-lost`, `2026-11-17-skip-shiphit-for-a-doomed-target` remain pending. `shipHit` appears in `src/` only in `events.ts`, `ledger.ts` (emit) and a doc comment: no consumer, so the Phase 16 carry-over (skip `shipHit` for a doomed target) stays a pending todo as the goal text allows |
 
-**Score:** 9/13 truths verified (0 present-but-behavior-unverified; 4 uncertain, routed to the owner)
+**Score:** 13/13 truths verified (0 present-but-behavior-unverified)
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `src/sim/npc/fire.ts` | gate, blocked, recharge ticks, onTarget, cool/heat, missedShots | ✓ VERIFIED | 312 lines, substantive, imported by `combat/step.ts` and the oracle runner |
-| `src/sim/combat/step.ts` | gated `drainFireQueue`, `coolShips`, missedShots update | ✓ VERIFIED | Only producer of NPC `ShotRequest`s; cost/heat/timer written only with a non-null ray |
-| `src/sim/ai/pilots/test-pilot.ts` | per-tick ask, one-time nav target | ✓ VERIFIED | `scheduleWake(self, 1)` then `ctl.fire(self)` in hold |
-| `src/sim/npc/dispatch.ts` | `SteerContext.fire?` | ✓ VERIFIED | `readonly fire?: () => void` |
-| `src/sim/world/world.ts` | `requestFire` bounded de-duplicated push | ✓ VERIFIED | used by `control-impl.ts:128` and `world/step.ts:269` |
-| `src/sim/ai/pilots/flight-script.ts` | `fire` option, conditional param | ✓ VERIFIED | |
-| behaviours (`evasive`, `attack-evade`, `attack-close`, `attack`) | `ctx.fire?.()` at 4035, 4454, 4575, 4711; live temperature reads | ✓ VERIFIED | four call sites; hot tails read `entity.weapon.temperature` vs float32 USABLE |
-| `src/sim/npc/constants.ts` | `NPC_WEAPON_TEMP_USABLE = NPC_WEAPON_CUTOUT_F32 * NPC_MAX_WEAPON_TEMP` | ✓ VERIFIED | lines 379-393 |
-| `src/sim/ai/test-spawn.ts` | `spawnTestAttacker`, `TEST_ATTACKER_DISTANCE` | ✓ VERIFIED | |
-| `src/app/session/probe-publisher.ts`, `src/app/probe.ts` | tainting hook member | ✓ VERIFIED | `markHookMutation()` before `spawnTestAttacker(...)` |
-| oracle trees `tests/oracles/npc/fire/**`, `fire-sites/**` | independent fixtures + derivation | ✓ VERIFIED | self-tests pass |
-| four guards in `tests/guards/` | tripwires | ✓ VERIFIED | |
-| `tests/e2e/combat.spec.ts` | opt-in browser spec re-pinned to the twin | ⚠️ see 3d | present, pins equal twin literals; last remote run 3d5e735 |
+| `src/sim/npc/fire.ts` | gate, literal period table, heat, `missedShots` | VERIFIED | substantive, wired from `combat/step.ts` and the oracle runner |
+| `src/app/probe.ts` | `shieldFwd`, `shieldAft`, `energyBanks` on `WegoliteHudProbe` | VERIFIED | documented, defaults in `publishFailure` |
+| `src/app/session/probe-publisher.ts` | gauge values from the drawn model, banks copied | VERIFIED | lines 528-539 |
+| `src/main.ts` | initial probe carries the three keys | VERIFIED | |
+| `tests/fixtures/probe-shape.json` | three keys in every state | VERIFIED | 7 of 7 states |
+| `tests/e2e/combat.spec.ts` | drawn gauges asserted against the twin | VERIFIED | lines 292-372 |
+| oracle tree `tests/oracles/npc/fire/**`, `frame-rate-rule.json` | literal rule, re-derived fixtures | VERIFIED | self-test passes, `measuredDifference: 0` |
+| ROADMAP.md criterion 2, PROJECT.md decision rows, 17-CONTEXT.md D-07, CHANGELOG | revised wording | VERIFIED | `rg` confirms each |
+| all earlier artifacts (gate, drain, pilots, hook, guards, oracles) | as in the first verification | VERIFIED | regression check: files unchanged except the four `src` files above, suite green |
 
 ### Key Link Verification
 
 | From | To | Via | Status |
 |------|----|-----|--------|
-| `combat/step.ts` | `npc/fire.ts` | `npcFireBlocked`, `npcFireGate`, `npcOnTarget`, `heatWeapon`, `coolWeapon`, `adjustMissedShots` | ✓ WIRED |
-| `test-pilot.ts` | `control-impl.ts` → `world.ts` | `ctl.fire(self)` → `requestFire` → `world.fireQueue` → drain | ✓ WIRED |
-| `world/step.ts` steerEntity | `world.ts` | `ctx.fire = () => requestFire(world, entity.id)` only when `params.fire === true` | ✓ WIRED |
-| behaviours | `dispatch.ts` | `ctx.fire?.()` | ✓ WIRED |
-| `probe-publisher.ts` | `test-spawn.ts` | `markHookMutation()` then `spawnTestAttacker` | ✓ WIRED |
-| `test-spawn.ts` | `flight-script.ts` | `createFlightScriptAi(tick, { script: "attack", targetId: PLAYER_ID, fire: true })` | ✓ WIRED |
-| ledger player branch | `shields.ts` `routeDamage` | facing shield then energy | ✓ WIRED |
-| `hud-model.ts` | HUD draw | `shieldFwd/shieldAft/energyBanks` from `combat` | ✓ WIRED (not asserted in the browser spec) |
+| `fire.ts` `LASER_STATS[laser].rechargeRate` | `npcRechargeTicks` | `literalShotFrames` table built once at load | WIRED |
+| `combat/step.ts` `drainFireQueue` | `npcFireGate` | one gate site; uses `npcRechargeTicks` | WIRED |
+| `render-driver.ts` `currentHud.draw(model)` | `ctx.core.lastModel` | assigned on the next line, same object | WIRED |
+| `probe-publisher.ts` `updateProbe` | `probe.hud.shieldFwd/shieldAft/energyBanks` | copies `model.bars.*` | WIRED |
+| `hud-model.ts` | `combat.fwdShield/energy` | `shieldGauge`, `energyBanks` (266-268) | WIRED |
+| `combat.spec.ts` | `window.__wegolite.hud.*` | `page.evaluate` after `advance` (two frames) | WIRED |
+| `tick-parity.test.ts` to `combat.spec.ts` | `TWIN_*` literals | equal pairs | WIRED |
+| `probe-publisher.ts` to `test-spawn.ts` | `markHookMutation()` then `spawnTestAttacker` | taint first | WIRED |
 
 ### Data-Flow Trace (Level 4)
 
 | Artifact | Data | Source | Real data | Status |
 |----------|------|--------|-----------|--------|
-| HUD shield/energy bars | `combat.fwdShield`, `aftShield`, `energy` | `PlayerCombatState`, mutated by `routeDamage` from NPC `HitRecord`s produced by the gated drain | yes | ✓ FLOWING |
-| NPC heat | `entity.weapon.temperature` | `heatWeapon` on fired shot, `coolShips` per tick, read by behaviours and gate | yes | ✓ FLOWING |
-| aim feedback | `entity.weapon.missedShots` | `adjustMissedShots` at resolution, read by `currentAimTolerance` and `trackPrimaryTarget` | yes | ✓ FLOWING |
+| `probe.hud.shieldFwd`, `energyBanks` | `model.bars` | `buildHudModel(... combat: ctx.core.combat)` from `routeDamage`-mutated `PlayerCombatState`, produced by gated NPC `HitRecord`s | yes | FLOWING |
+| NPC shot period | `NPC_RECHARGE_TICKS` | the lasers' float seconds through the double sum | yes | FLOWING |
+| NPC heat, aim feedback | `entity.weapon.*` | `heatWeapon`, `coolShips`, `adjustMissedShots` | yes | FLOWING |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Phase 17 targeted Vitest set (gate, oracles, sites, hot weapon, routes, cadence, NPC-vs-NPC, kill properties, guards, hook, twin, populate, Phase 14 oracle/cadence/steering properties) | `docker compose run --rm test npx vitest run <39 files>` | 39 files, 1467 tests passed, exit 0 | ✓ PASS |
-| Full unit suite | `docker compose run --rm test npm run test:fast` | 235 files, 6441 passed, 10 skipped, exit 0 | ✓ PASS |
+| Full unit suite incl. oracle, twin, publisher, shape-compare, guards, cadence | `docker compose run --rm test npm run test:fast` | 235 files, 6449 passed, 10 skipped, exit 0 | PASS |
+| Typecheck (both tsconfigs) | `docker compose run --rm typecheck` | exit 0 | PASS |
+| Lint and prettier | `docker compose run --rm lint` | clean | PASS |
+| Period equals Oolite's frame count | read `ShipEntity.m:2221, 9946` and `ShipEntity.h:186, 345` in the Oolite checkout against `literalShotFrames` | matches | PASS |
+| Browser combat spec, `verify` smoke incl. `probe-shape.spec.ts` | remote, executor-recorded at `124c27e` (exit 0); UAT remote at `fb47448` | not re-run by the verifier | recorded, not re-run |
+| QUAL-11 20-seed acceptance | remote, executor-recorded at `606e145` (21 passed, metrics identical to baseline) | not re-run; `src/sim` has no diff since | recorded, not re-run |
 
 ### Probe Execution
 
-Not applicable: the phase declares no `scripts/*/tests/probe-*.sh`. Remote browser and acceptance runs are executor-recorded with snapshots (17-05: combat.spec 3d5e735 exit 0; acceptance 21/21 at 3d5e735, 3a403e0, 30f2a0c; 17-10: verify 5a59754 exit 0) and were not re-run by the verifier, per instructions.
+Not applicable: the phase declares no `scripts/*/tests/probe-*.sh`.
 
 ### Requirements Coverage
 
 | Requirement | Source Plans | Description | Status | Evidence |
 |-------------|-------------|-------------|--------|----------|
-| CBT-15 | 17-01..17-10 | NPC fire at player and each other through Oolite's gate (temperature, energy, shot timer, range roll, `onTarget`); decision from engine and test pilots only; recorded in Key Decisions | ✓ SATISFIED (owner questions open on SC1 rate, SC3 bundle clause) | truths 1a, 2b, 2d, 3a, 3c, 4a, 4b |
-| CBT-16 | 17-05, 17-09, 17-10 | NPC hits on the player pass through shields and the energy bank by Oolite's rules | ✓ SATISFIED | truth 2a, 2c |
+| CBT-15 | 17-01..17-13 | NPC fire at the player and each other through Oolite's gate; decision from the engine and test pilots only; recorded in Key Decisions | SATISFIED | truths 1a, 1b, 2b, 2d, 3a-3c, 4a, 4b |
+| CBT-16 | 17-05, 17-09, 17-10, 17-12, 17-13 | NPC hits on the player pass through shields and the energy bank by Oolite's rules | SATISFIED | truths 2a, 2c, 3d |
 
-No orphaned requirements: REQUIREMENTS.md maps only CBT-15 and CBT-16 to Phase 17, and both are claimed. REQUIREMENTS.md still shows both as `[ ]` / Pending; the orchestrator owns that update.
+No orphaned requirements: REQUIREMENTS.md maps only CBT-15 and CBT-16 to Phase 17, both claimed by plans and now marked `[x]` / Complete there.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| (19 modified `src` files) | - | TBD/FIXME/XXX/TODO/HACK/placeholder | none found | - |
-| `src/sim/npc/behaviours/attack.ts` | 90-106 | `targetTargetsSelf` ignores the player's ident lock; heating back-off (4122) now reachable for opted-in attackers | ⚠️ Warning | No effect in ordinary play; deferred (WR-01, todo `2026-11-19-player-ident-lock-in-target-targets-self.md`) |
-| `src/sim/combat/step.ts` | 283, 298 | NPC energy compare and cost in float64 vs Oolite GLfloat | ℹ️ Info | Unrecorded one-ulp divergence (IN-03, accepted) |
-| `src/sim/npc/fire.ts` | 132-144 | gate total only over typed `MountKey` | ℹ️ Info | drain guards with `isMountKey` (IN-02, accepted) |
-| `.planning/phases/.../17-10-SUMMARY.md` | 142, 177 | claims the remote verify covers the browser re-pin; claims "the HUD has no shield or energy element" | ℹ️ Info | `verify` runs only `test:e2e:fast` (no combat.spec); the HUD does draw FWD/AFT and E1-E4 gauges, they are just not `HudElementId`s or probe fields |
+| `src/app/session/probe-publisher.ts` / `render-driver.ts` | 528-539 / 349, 376 | gauge probe values stay at the last drawn frame while the HUD is hidden (docked) or after Load, because `lastModel` is never cleared (review WR-01) | Warning | none for the current spec (reads in flight after two drawn frames); inherited from `fuel`, `compass` and `contacts`; a later spec reading the gauges after a dock or Load must account for it, or the comment in `probe.ts` should say so |
+| `tests/oracles/npc/fire/fixtures/gate.json` | 222, 251, 920 | three derivation strings still cite the superseded `round(rate x 120)` rule; the parenthesis at 251 is now false | Info | numbers are right under both rules (IN-01) |
+| `tests/sim/ai/test-spawn.test.ts:310`, `kill.test.ts:702`, `npc-fire.test.ts:404` | - | first-shot bounds moved 12 to 13 though the period does not govern them | Info | tests assert less than they claim (IN-02) |
+| `src/sim/npc/fire.ts` | 143-152 | `literalShotFrames` caps silently where the oracle throws | Info | unreachable today: four fixed rates and 100 s, at load (IN-03) |
+| `tests/sim/npc/fire.oracle.test.ts` | 440-449 | the port-equals-oracle check compares two copies of one loop; line 447 repeats 444-446 | Info | independent literal pins exist in `fire.test.ts` (IN-04) |
+| `tests/e2e/combat.spec.ts:109`, `src/sim/combat/shields.ts:188` | - | citation `PlayerEntity.m:4268-4276` should be `4254-4261` | Info | the rule stated is right (IN-05) |
+| (debt markers in modified src files) | - | TBD/FIXME/XXX | none found | - |
+
+These are the content of `17-REVIEW-GAPS.md` (1 warning, 5 info, no blocker); I confirmed WR-01's mechanism in `render-driver.ts` (`lastModel` set only under `!hudHidden && draw`, never cleared). None blocks a must-have.
 
 ### Prohibitions (judgment tier, non-authoritative LLM verdicts, flagged for human review)
 
-| Plan | Statement (abridged) | LLM verdict | Flag |
-|------|----------------------|-------------|------|
-| 17-03 | No firing decision source reaches ordinary play | holds: `ai: null` populated ships, `npcFireBlocked`, opt-in only from `test-spawn.ts` | unverified-prohibition, human review recommended |
-| 17-03 | No player hit feedback or `shipHit` consumer | holds: guard passes, no subscriber in `src` | unverified-prohibition, human review recommended |
-| 17-05 | No test-only gate bypass or pinned accuracy | holds: drain has one path; `test-spawn.ts` sets no accuracy | unverified-prohibition, human review recommended |
+Plans 17-11, 17-12 and 17-13 declare no `must_haves.prohibitions`; the seven below are carried from the earlier plans and were re-checked against HEAD. They are `unverified-prohibition, human review recommended` and do not change the status.
+
+| Plan | Statement (abridged) | LLM verdict at HEAD | Flag |
+|------|----------------------|---------------------|------|
+| 17-03 | No firing decision source reaches ordinary play | holds: `ai: null` populated ships, `npcFireBlocked`, opt-in only from `test-spawn.ts`; guard green | unverified-prohibition, human review recommended |
+| 17-03 | No player hit feedback or `shipHit` consumer | holds: guard green; `shipHit` is not subscribed anywhere in `src` | unverified-prohibition, human review recommended |
+| 17-05 | No test-only gate bypass or pinned accuracy | holds: one drain path | unverified-prohibition, human review recommended |
 | 17-05 | Player not killed, no hit feedback | holds: `routeDamage` floors energy at 0 | unverified-prohibition, human review recommended |
 | 17-06 | No populated AI, reflex or retaliation | holds | unverified-prohibition, human review recommended |
-| 17-10 | Hook attacker/shooter never durable, never without `?test=1` | holds: taint before mutation, hook-only | unverified-prohibition, human review recommended |
-| 17-10 | Acceptance run not added to `verify-full`, no threshold or detector change | holds: no change to `tests/acceptance/`, `compose.yaml`, `package.json` since 63a8eaf | unverified-prohibition, human review recommended |
+| 17-10 | Hook attacker/shooter never durable, never without `?test=1` | holds: taint before mutation | unverified-prohibition, human review recommended |
+| 17-10 | Acceptance run not added to `verify-full`, no threshold or detector change | holds: `git diff 606e145 HEAD -- tests/acceptance compose.yaml package.json` is empty | unverified-prohibition, human review recommended |
 
 ### Human Verification Required
 
-1. **D-07 period vs criterion 1 "the rate of fire is Oolite's"**: keep 12-tick beam/military (8 % faster than literal Oolite and the player) or switch `npcRechargeTicks` to 13/301/13 with one re-pin.
-2. **Criterion 2 vs D-03**: accept NPC-vs-NPC kill proof in Vitest only (tighten the roadmap wording), or request a hook NPC-vs-NPC variant.
-3. **Criterion 3 bundle clause**: accept that the `?test=1` seam (now including `spawnTestAttacker`) ships in the deployed bundle behind a runtime flag, or require build-time stripping.
-4. **Criterion 3 HUD readout**: accept the probe readout, or ask for the drawn gauge values to be exposed and asserted (the gauges exist and are drawn).
-5. **Optional**: re-run `tests/e2e/combat.spec.ts` once on the remote machine at the phase HEAD, since the phase's remote `verify` did not include it.
+None open. Every owner question from the first verification was answered in UAT (tests 1 to 5) and the answers are implemented or recorded. Optional, not required: `docker compose run --rm verify` on the remote machine at the current HEAD would only reconfirm the `124c27e` run, since HEAD differs from it by documents only.
 
 ### Gaps Summary
 
-No code gap was found: every artifact exists, is substantive, is wired, and its data flows; the gate is a faithful port of Oolite's refusal chain, the targeted Docker Vitest run of 39 files (1,467 tests) and the full Docker suite (235 files, 6,441 passed, 10 skipped) passed at HEAD 70005ee. The phase does not reach `passed` because four roadmap-criterion clauses cannot be confirmed as literally worded: the rate-of-fire clause (D-07), the hook-spawned NPC kill (D-03), the production-bundle clause and the HUD readout clause. Each conflicts with an owner-locked decision or an advisor reading recorded for sign-off, so the owner must rule. Two corrections to the SUMMARY narrative: the remote `verify` at 5a59754 did not run `combat.spec.ts` (its smoke subset excludes it; the spec's last remote run is 3d5e735, and the twin with the same literals passes at HEAD), and the HUD does draw shield and energy gauges, which makes the WR-02 fix (expose and assert the drawn values) straightforward.
+No gaps. G-17-1 and G-17-4 are closed in the code and tests, UAT tests 2 and 3 in the planning documents, and the full Docker suite (235 files, 6,449 passed), typecheck and lint pass at HEAD. Two things the verifier did not re-run, stated for the record: the remote browser specs and the QUAL-11 acceptance run rest on executor-recorded snapshots (`606e145`, `124c27e`), which cover the final `src` state because nothing under `src/sim` changed after 606e145 and `124c27e` is the last commit touching `src` or `tests`. Advisory only: review WR-01 (stale gauge probe values while the HUD is hidden) is worth a one-line comment or a `lastModel` reset before a spec reads the gauges after a dock or Load.
 
 ---
 
-_Verified: 2026-11-19T03:45:00Z_
+_Verified: 2026-11-19T10:30:00Z_
 _Verifier: Claude (gsd-verifier)_

@@ -2,21 +2,21 @@
 gsd_state_version: "1.0"
 milestone: v2.3
 milestone_name: Combat and Death
-current_phase: 17
-current_phase_name: NPC Fire and Hits on the Player
-current_plan: 4
-status: executing
-stopped_at: Completed 17-13-PLAN.md
-last_updated: "2026-11-19T09:55:03.734Z"
+current_phase: 18
+current_phase_name: Stations, Buoys and Collisions
+current_plan: Not started
+status: planning
+stopped_at: Phase 17 complete, ready to plan Phase 18
+last_updated: "2026-11-19T10:13:15.525Z"
 last_activity: 2026-11-19
-last_activity_desc: Phase 17 execution resumed (wave continue)
-state_head: 124c27ede266a0b552486785b816bd6561931106
+last_activity_desc: Phase 17 complete, transitioned to Phase 18
+state_head: 276cfcb6ba1e1636ebcc7ba65f59cbc38da11301
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 28
   completed_plans: 28
-  percent: 33
+  percent: 50
 ---
 
 # Project State
@@ -30,17 +30,17 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 
 ## Current Position
 
-Phase: 17 (NPC Fire and Hits on the Player) — EXECUTING
-Current Plan: 4
+Phase: 18 — Stations, Buoys and Collisions
+Current Plan: Not started
 Total Plans in Phase: 10
-Status: Ready to execute
-Last activity: 2026-11-19 — Phase 17 execution resumed (wave continue)
+Status: Ready to plan
+Last activity: 2026-11-19 — Phase 17 complete, transitioned to Phase 18
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 154
+- Total plans completed: 167
 - Average duration: 5.3 min
 - Total execution time: 3.9 hours
 
@@ -63,6 +63,7 @@ Last activity: 2026-11-19 — Phase 17 execution resumed (wave continue)
 | 14 | 19 | - | - |
 | 15 | 6 | - | - |
 | 16 | 9 | - | - |
+| 17 | 13 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: 01-03 3 min, 01-04 5 min, 01-05 9 min, 01-06 2 min, 01-07 6 min
@@ -671,7 +672,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-19T09:55:03.189Z
-Stopped at: Completed 17-13-PLAN.md
+Stopped at: Phase 17 complete, ready to plan Phase 18
 Resume file: None
 
 ## Operator Next Steps

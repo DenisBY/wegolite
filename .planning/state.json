@@ -51,7 +51,7 @@
     {
       "number": "17",
       "name": "NPC Fire and Hits on the Player",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "18",
@@ -71,8 +71,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 3 of 6 · 33% · executing"
+    "label": "Advance to the next step (plan phase 18)",
+    "reason": "Phase 4 of 6 — needs a plan"
   },
-  "updated_at": "2026-11-19T09:55:00.782Z"
+  "updated_at": "2026-11-19T10:13:15.550Z"
 }

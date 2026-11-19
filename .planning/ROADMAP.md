@@ -83,7 +83,7 @@ Total: 35 of 35 plans complete. Requirements 10/10. Phase directories now live i
 
 - [x] **Phase 15: Damage Ledger and Kills** - A ship at zero energy is destroyed and removed through one damage ledger and one idempotent kill path; the tick boundary never holds a dead entity; the NPC records and entity state carry every field the milestone needs, in one snapshot bump (completed 2026-11-16)
 - [x] **Phase 16: Wreckage, Cargo and the Entity Cap** - A destroyed ship explodes into alloy plates, cargo pods and wreckage by Oolite's cargo rule, drawn within the draw-call budget and held under the entity cap of 256, with the debris models vendored from the Oolite checkout (completed 2026-11-17)
-- [ ] **Phase 17: NPC Fire and Hits on the Player** - NPC ships fire lasers at the player and at each other through Oolite's fire gate when the engine or a test pilot says so; hits on the player pass through shields and energy; NPCs still never attack in ordinary play
+- [x] **Phase 17: NPC Fire and Hits on the Player** - NPC ships fire lasers at the player and at each other through Oolite's fire gate when the engine or a test pilot says so; hits on the player pass through shields and energy; NPCs still never attack in ordinary play (completed 2026-11-19)
 - [ ] **Phase 18: Stations, Buoys and Collisions** - Lasers and ident hit the station and the navigation buoys (buoys can be destroyed); ship-ship and ship-buoy collisions damage both by Oolite's mass and closing-speed rule; the station hull stays damage-free
 - [ ] **Phase 19: Equipment Damage and Repair** - Hits on the player can damage equipment; the damage persists in save schema v5, a damaged item stops counting as installed, and F3 repairs it at Oolite's price
 - [ ] **Phase 20: Player Death and Game Over** - The player dies at zero energy from any cause while in flight; game over reloads the page and offers Continue only when a loadable save exists, through one death path that autosave, pause and the title flow respect; the milestone's determinism and release gates close here
@@ -250,7 +250,7 @@ Plans:
 **Pitfalls to address**: 1 (the decision source: resolved by the owner decision above, and tested through the whole route from the hook spawn), 2 (the fire gate), 4 (the frozen acceptance run), 15 (dead-target handling in each behaviour), 16 (totality)
 **Decisions to settle**: how weapon temperature and `shot_time` quantise to ticks; which attack behaviours call fire and how `onTarget` maps onto the Phase 14 steering port; the name and place of the pilot's opt-in
 **Todos**: `2026-11-16-phase-14-review-followups.md` (the IN-04 manual rerun rule is in force; IN-05, the detector blind spot, needs the owner trailer and is not part of this phase)
-**Plans**: 13/13 plans executed; 10 plans in 8 waves plus 3 UAT gap-closure plans (G-17-1, G-17-4) in 3 waves
+**Plans**: 13/13 plans complete; 10 plans in 8 waves plus 3 UAT gap-closure plans (G-17-1, G-17-4) in 3 waves
 
 Plans:
 **Wave 1**
@@ -411,7 +411,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 14. NPC Flight and Steering Fidelity Gate | v2.2 | 19/19 | Complete    | 2026-11-16 |
 | 15. Damage Ledger and Kills | v2.3 | 6/6 | Complete    | 2026-11-16 |
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 9/9 | Complete    | 2026-11-17 |
-| 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | In Progress | - |
+| 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
 | 18. Stations, Buoys and Collisions | v2.3 | 0/TBD | Not started | - |
 | 19. Equipment Damage and Repair | v2.3 | 0/TBD | Not started | - |
 | 20. Player Death and Game Over | v2.3 | 0/TBD | Not started | - |
