@@ -132,7 +132,7 @@ describe("collideWithShip oracle (ShipEntity.m:11020-11152)", () => {
   // (f = round to float32), not produced by reference.ts.
   //
   // Krait mass m = 93291.40625 (a float32), one tick dt = 1/120, so the
-  // nudge time t = f(10 x 1/120) = 0.0833333358168602 (11139).
+  // nudge time t = f(10 x 1/120) = 0.0833333358168602 (11138).
 
   it("anchor: equal Krait masses head-on at 100 m/s", () => {
     const m = 93291.40625;
@@ -162,7 +162,7 @@ describe("collideWithShip oracle (ShipEntity.m:11020-11152)", () => {
     // x 100 = 932914100 -> f = 932914112, / 5e7 = 18.65828224 -> f =
     // 18.658281326293945 (11089-11090), above 0.05 and below energy 250.
     // vel1a = (0, 0, -100), vel2a = (0, 0, 100) (11093-11094); |v|^2 = 1e4 >
-    // 0.1, no anti-conjoin (11096). Nudges (11139-11146): f(t x 100) =
+    // 0.1, no anti-conjoin (11096). Nudges (11138-11146): f(t x 100) =
     // 8.333333969116211 for both, self along +loc x v1a, other along +loc x v2b.
     const want: Partial<CollideResult> = {
       outcome: "collided",

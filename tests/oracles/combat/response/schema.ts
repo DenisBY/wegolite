@@ -30,7 +30,7 @@
  *   (this plan's other families: `brake-`, `scrape-`, `blast-`).
  *
  * Velocity changes are reported as the sum of the `adjustVelocity:` arguments
- * Oolite applies to a body (`ShipEntity.m:11170-11173`, `velocity += xVel`),
+ * Oolite applies to a body (`ShipEntity.m:11173-11176`, `velocity += xVel`),
  * summed exactly: a reversal that adds `-x` after `+x` reports zero. A port
  * that holds velocities in another width compares its own before-and-after
  * difference with that sum within the tolerance.
@@ -80,7 +80,7 @@ const common = {
 const party = {
   /** World position; for a subentity, its absolute position (11032). */
   position: vec3,
-  /** Total velocity, drift plus thrust vector (`ShipEntity.m:11160-11163`). */
+  /** Total velocity, drift plus thrust vector (`ShipEntity.m:11158-11166`). */
   velocity: float32Vec3,
   mass: positiveFloat32,
   energy: float32,
@@ -96,7 +96,7 @@ export const CollideFixtureSchema = z
   .strictObject({
     id: z.string().regex(COLLIDE_ID, "a collide id starts collide-"),
     ...common,
-    /** One tick, seconds: the `[UNIVERSE getTimeDelta]` of the nudge (11139). */
+    /** One tick, seconds: the `[UNIVERSE getTimeDelta]` of the nudge (11138). */
     dt: z.number().positive(),
     self: z.strictObject(party),
     other: z.strictObject({
@@ -127,7 +127,7 @@ export const CollideFixtureSchema = z
       antiConjoin: z.boolean(),
       /** `dam1 > 0.05`: self takes scrape damage (11114-11115). */
       applied1: z.boolean(),
-      /** `dam2 > 0.05`: the other side takes scrape damage (11122-11128). */
+      /** `dam2 > 0.05`: the other side takes scrape damage (11123-11128). */
       applied2: z.boolean(),
       /** Who takes dam2: the contacted entity or its parent; null if none. */
       dam2Receiver: z.enum(["other", "otherParent"]).nullable(),
