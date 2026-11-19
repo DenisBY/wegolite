@@ -37,7 +37,7 @@ import type { FlightState } from "../flight/state.js";
 import type { ParamValue } from "../ai/types.js";
 import type { Vec3 } from "../math.js";
 import type { SteerComponent } from "../npc/state.js";
-import type { Entity, StaticHealth } from "./entity.js";
+import type { BuoyStates, Entity, StaticHealth } from "./entity.js";
 import type { EntityId } from "./ids.js";
 import { sanitizeStaticHealth } from "./sanitize.js";
 import { isNeverSpawned, isPristineStaticHealth } from "./world.js";
@@ -178,6 +178,11 @@ export function serializeEntity(entity: Entity): string {
  */
 export function serializeStaticHealth(health: StaticHealth): string {
   return `staticHealth:${canon(health.station)},${canon(health.witchpoint)},${canon(health.navBuoy)}`;
+}
+
+/** The buoys line (PD-01, PD-02). Skeleton: filled in by the GREEN commit. */
+export function serializeBuoyStates(_buoys: BuoyStates): string {
+  return "buoys:";
 }
 
 /**

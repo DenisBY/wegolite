@@ -61,8 +61,10 @@ import type {
 } from "../../../src/sim/world/snapshot.js";
 import {
   commitWorld,
+  createBuoyStates,
   createWorld,
   isNeverSpawned,
+  isPristineBuoyStates,
   killEntity,
   postAiEvent,
   spawnEntity,
@@ -1259,6 +1261,57 @@ describe("the static health in the snapshot (FOUND-18, D-08)", () => {
     setAt(snapshot, "staticHealth.station", STATION_MAX_ENERGY);
     setAt(snapshot, "staticHealth.navBuoy", BUOY_MAX_ENERGY);
     expect(reasonOf(snapshot)).toBe("accepted");
+  });
+});
+
+describe("the buoy states in the snapshot (PD-01, PD-02)", () => {
+  /** A world whose buoys are moved, drifting, damaged and routing. */
+  function movedBuoys(): World {
+    const world = richWorld();
+    world.buoys.navBuoy.offset = vec(3, -2.5, 1e5);
+    world.buoys.navBuoy.velocity = vec(0.5, 0, -12);
+    world.buoys.witchpoint.subentityEnergy = 120;
+    world.buoys.witchpoint.subentityTakingDamage = true;
+    return world;
+  }
+
+  it("writes no buoys key for pristine buoys", () => {
+    const snapshot = snapshotWorld(richWorld());
+    expect(Object.hasOwn(snapshot, "buoys")).toBe(false);
+    expect(JSON.stringify(snapshot)).not.toContain("buoys");
+  });
+
+  it("round-trips moved buoys to an equal hash and an equal text", () => {
+    const player = initFlightState(layout);
+    const world = movedBuoys();
+    const text = JSON.stringify(snapshotWorld(world));
+    const restored = restoreWorld(
+      parseWorldSnapshot(JSON.parse(text) as unknown),
+    );
+    expect(restored.buoys).toEqual(world.buoys);
+    expect(restored.buoys).not.toBe(world.buoys);
+    expect(restored.buoys.navBuoy.offset).not.toBe(world.buoys.navBuoy.offset);
+    expect(hashWorld(player, restored)).toBe(hashWorld(player, world));
+    expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+  });
+
+  it("restores pristine buoys from a snapshot without the key", () => {
+    const player = initFlightState(layout);
+    const snapshot = jsonOf(movedBuoys());
+    delete snapshot.buoys;
+    const restored = restoreWorld(snapshot as unknown as WorldSnapshot);
+    expect(isPristineBuoyStates(restored.buoys)).toBe(true);
+    expect(restored.buoys).toEqual(createBuoyStates());
+    expect(hashWorld(player, restored)).toBe(hashWorld(player, richWorld()));
+  });
+
+  it("writes -0 as 0 and refuses a non-finite value", () => {
+    const world = richWorld();
+    world.buoys.witchpoint.offset = vec(-0, 4, 0);
+    const entry = snapshotWorld(world);
+    expect(Object.is(entry.buoys?.witchpoint.offset.x, 0)).toBe(true);
+    world.buoys.navBuoy.velocity = vec(0, Number.NaN, 0);
+    expect(() => snapshotWorld(world)).toThrow(SnapshotError);
   });
 });
 

@@ -177,6 +177,41 @@ export interface StaticHealth {
 }
 
 /**
+ * The moving and damageable state of one buoy (Phase 18, PD-01, PD-02), part of
+ * the owner-approved amendment of the version-4 world snapshot field set.
+ *
+ *  - `offset`: the buoy's displacement from its layout position in metres
+ *    (PD-02, buoys move when rammed). Stored as an offset so that "pristine"
+ *    needs no layout; the orientation stays the tumble function of the flight
+ *    clock, because Oolite's collision response turns no buoy.
+ *  - `velocity`: the buoy's drift in m/s (PD-02), braked by the drift stage.
+ *  - `subentityEnergy`: the energy of the buoy's frangible subentity (PD-01),
+ *    Oolite's default `max_energy` 200 (`ShipEntity.m:291`); 0 means the
+ *    subentity is detached.
+ *  - `subentityTakingDamage`: Oolite's sticky `subEntityTakingDamage` routing
+ *    (`ShipEntity.m:1234-1257`). Oolite sets it when a laser's winning part is a
+ *    subentity (`Universe.m:5634-5636`), keeps it through later hull hits, and
+ *    clears it only when the subentity dies or is released
+ *    (`ShipEntity.m:1041`, `1245-1247`, `8187-8188`, `8199-8200`); so it is
+ *    never true while `subentityEnergy` is 0.
+ *
+ * A pristine buoy (zero offset and velocity, energy 200, flag false) adds
+ * nothing to the hash or the snapshot.
+ */
+export interface BuoyState {
+  offset: Vec3;
+  velocity: Vec3;
+  subentityEnergy: number;
+  subentityTakingDamage: boolean;
+}
+
+/** The state of the two buoys, named by their `StaticLayoutKey`. */
+export interface BuoyStates {
+  witchpoint: BuoyState;
+  navBuoy: BuoyState;
+}
+
+/**
  * A static body as a world entity (D-06, D-07): a fixed id plus a reference
  * into the layout. Deliberately no position, radius or orientation field:
  * `SystemLayout` stays the single authority.

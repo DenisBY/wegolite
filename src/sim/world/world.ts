@@ -22,6 +22,8 @@ import type { Quat, Vec3 } from "../math.js";
 import { createRngState, forkSeed } from "../rng.js";
 import type { RngState } from "../rng.js";
 import type {
+  BuoyState,
+  BuoyStates,
   Entity,
   SpawnInit,
   StaticEntity,
@@ -43,6 +45,7 @@ import {
 import type { EntityId } from "./ids.js";
 import {
   BUOY_MAX_ENERGY,
+  BUOY_SUBENTITY_MAX_ENERGY,
   MAX_AI_PARAMS_KEYS,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_CARGO,
@@ -139,6 +142,14 @@ export interface World {
    * kill path (D-13). Hashed only when not pristine (D-09).
    */
   staticHealth: StaticHealth;
+  /**
+   * The displacement, drift and subentity state of both buoys (Phase 18, PD-01,
+   * PD-02; the owner-approved amendment of the version-4 field set). Mutable,
+   * so a repair can replace it. A new world starts pristine, so every arrival,
+   * launch and Load restores both buoys and their subentities (D-04; saves
+   * never carry world state). Hashed and snapshotted only when not pristine.
+   */
+  buoys: BuoyStates;
 }
 
 /** The pristine static health: every damageable static at its maximum. */
@@ -156,6 +167,45 @@ export function isPristineStaticHealth(health: StaticHealth): boolean {
     health.station === STATION_MAX_ENERGY &&
     health.witchpoint === BUOY_MAX_ENERGY &&
     health.navBuoy === BUOY_MAX_ENERGY
+  );
+}
+
+/** One pristine buoy: at its layout position, at rest, its subentity whole. */
+function createBuoyState(): BuoyState {
+  return {
+    offset: { x: 0, y: 0, z: 0 },
+    velocity: { x: 0, y: 0, z: 0 },
+    subentityEnergy: BUOY_SUBENTITY_MAX_ENERGY,
+    subentityTakingDamage: false,
+  };
+}
+
+/** The pristine buoy states (PD-01, PD-02): both buoys as `createWorld` sets them. */
+export function createBuoyStates(): BuoyStates {
+  return { witchpoint: createBuoyState(), navBuoy: createBuoyState() };
+}
+
+function isPristineBuoyState(buoy: BuoyState): boolean {
+  return (
+    buoy.offset.x === 0 &&
+    buoy.offset.y === 0 &&
+    buoy.offset.z === 0 &&
+    buoy.velocity.x === 0 &&
+    buoy.velocity.y === 0 &&
+    buoy.velocity.z === 0 &&
+    buoy.subentityEnergy === BUOY_SUBENTITY_MAX_ENERGY &&
+    buoy.subentityTakingDamage === false
+  );
+}
+
+/**
+ * True when both buoys are pristine (zero offset and velocity, a whole
+ * subentity, no sticky routing), so the hash prints no `buoys:` line and the
+ * snapshot carries no `buoys` key. `-0` reads as pristine, as it hashes as 0.
+ */
+export function isPristineBuoyStates(buoys: BuoyStates): boolean {
+  return (
+    isPristineBuoyState(buoys.witchpoint) && isPristineBuoyState(buoys.navBuoy)
   );
 }
 
@@ -185,6 +235,7 @@ export function createWorld(worldSeed: number): World {
     fireQueue: [],
     aiDropped: 0,
     staticHealth: createStaticHealth(),
+    buoys: createBuoyStates(),
   };
 }
 

@@ -152,3 +152,19 @@ export const STATION_MAX_ENERGY = 25000;
  * snapshot-format change (a `WORLD_SNAPSHOT_VERSION` bump).
  */
 export const BUOY_MAX_ENERGY = 250;
+
+/**
+ * The most energy a buoy's frangible subentity holds (Phase 18, PD-01): Oolite's
+ * default `max_energy` (`ShipEntity.m:291`), because the subentity's shipdata
+ * record sets none. A format bound: changing it is a snapshot-format change.
+ */
+export const BUOY_SUBENTITY_MAX_ENERGY = 200;
+
+/**
+ * The largest magnitude of one component of a buoy's offset from its layout
+ * position (m, Phase 18, PD-02). A buoy pushed at `MAX_ENTITY_VELOCITY` brakes
+ * at 500 m/s^2, so it travels at most 1e8 / 1000 = 1e5 m; this is ten times
+ * that, and only keeps a corrupt value out of the hash. A format bound:
+ * changing it is a snapshot-format change.
+ */
+export const MAX_BUOY_OFFSET = 1e6;

@@ -48,14 +48,17 @@ import type { Entity, SpawnInit } from "../../../src/sim/world/entity.js";
 import {
   entityHashes,
   hashWorld,
+  serializeBuoyStates,
   serializeEntity,
   serializeStaticHealth,
   serializeWorldSection,
 } from "../../../src/sim/world/serialize.js";
 import {
   commitWorld,
+  createBuoyStates,
   createWorld,
   isNeverSpawned,
+  isPristineBuoyStates,
   isPristineStaticHealth,
   killEntity,
   spawnEntity,
@@ -361,6 +364,87 @@ describe("the static-health line (FOUND-18, D-08, D-09)", () => {
     expect(() => hashWorld(state, world)).not.toThrow();
     expect(world.staticHealth.witchpoint).toBe(250);
     expect(hashWorld(state, world)).toBe(hashFlight(state));
+  });
+});
+
+describe("the buoys line (PD-01, PD-02)", () => {
+  const state = firstFlightState();
+  const PRISTINE_BUOY =
+    "offset 0.000000,0.000000,0.000000;velocity 0.000000,0.000000,0.000000;sub 200.000000;taking 0";
+
+  it("a new world holds two pristine buoys and hashes as the flight", () => {
+    const world = createWorld(1234);
+    const pristine = {
+      offset: { x: 0, y: 0, z: 0 },
+      velocity: { x: 0, y: 0, z: 0 },
+      subentityEnergy: 200,
+      subentityTakingDamage: false,
+    };
+    expect(world.buoys).toEqual({ witchpoint: pristine, navBuoy: pristine });
+    expect(createBuoyStates()).toEqual(world.buoys);
+    expect(world.buoys.witchpoint).not.toBe(world.buoys.navBuoy);
+    expect(isPristineBuoyStates(world.buoys)).toBe(true);
+    expect(hashWorld(state, world)).toBe(hashFlight(state));
+  });
+
+  it("a moved nav buoy appends exactly one buoys: line, witchpoint first", () => {
+    const world = createWorld(1234);
+    world.buoys.navBuoy.offset = vec(3, 0, 0);
+    expect(isPristineBuoyStates(world.buoys)).toBe(false);
+    const line = serializeBuoyStates(world.buoys);
+    expect(line).toBe(
+      `buoys:${PRISTINE_BUOY}|offset 3.000000,0.000000,0.000000;velocity 0.000000,0.000000,0.000000;sub 200.000000;taking 0`,
+    );
+    expect(hashWorld(state, world)).toBe(
+      fnv1a32(`${serializeFlight(state)}\n${line}`),
+    );
+    expect(hashWorld(state, world)).not.toBe(hashFlight(state));
+  });
+
+  it("a damaged subentity and a sticky routing flag each add the line", () => {
+    const energy = createWorld(1234);
+    energy.buoys.witchpoint.subentityEnergy = 120;
+    expect(serializeBuoyStates(energy.buoys)).toBe(
+      `buoys:offset 0.000000,0.000000,0.000000;velocity 0.000000,0.000000,0.000000;sub 120.000000;taking 0|${PRISTINE_BUOY}`,
+    );
+    const taking = createWorld(1234);
+    taking.buoys.navBuoy.subentityTakingDamage = true;
+    expect(serializeBuoyStates(taking.buoys)).toBe(
+      `buoys:${PRISTINE_BUOY}|offset 0.000000,0.000000,0.000000;velocity 0.000000,0.000000,0.000000;sub 200.000000;taking 1`,
+    );
+    const drifting = createWorld(1234);
+    drifting.buoys.witchpoint.velocity = vec(0, 0, -2.5);
+    const seen = new Set<string>([hashFlight(state)]);
+    for (const world of [energy, taking, drifting]) {
+      expect(isPristineBuoyStates(world.buoys)).toBe(false);
+      expect(hashWorld(state, world)).toBe(
+        fnv1a32(
+          `${serializeFlight(state)}\n${serializeBuoyStates(world.buoys)}`,
+        ),
+      );
+      seen.add(hashWorld(state, world));
+    }
+    expect(seen.size).toBe(4);
+  });
+
+  it("follows the staticHealth: line and precedes the combat line; pristine again removes it", () => {
+    const world = createWorld(1234);
+    expect(spawnEntity(world, init(), 0).ok).toBe(true);
+    const combat = createPlayerCombatState();
+    combat.energy -= 10;
+    world.staticHealth.navBuoy = 17.5;
+    const before = hashWorld(state, world, combat);
+    world.buoys.navBuoy.offset = vec(3, 0, 0);
+    world.buoys.witchpoint.subentityEnergy = 120;
+    expect(hashWorld(state, world, combat)).toBe(
+      fnv1a32(
+        `${serializeFlight(state)}\n${serializeWorldSection(world)}\n${serializeStaticHealth(world.staticHealth)}\n${serializeBuoyStates(world.buoys)}\n${serializeCombat(combat)}`,
+      ),
+    );
+    world.buoys.navBuoy.offset = vec(0, 0, 0);
+    world.buoys.witchpoint.subentityEnergy = 200;
+    expect(isPristineBuoyStates(world.buoys)).toBe(true);
+    expect(hashWorld(state, world, combat)).toBe(before);
   });
 });
 

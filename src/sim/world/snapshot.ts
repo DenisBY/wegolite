@@ -68,7 +68,7 @@ import {
   TRACKING_SAMPLES,
 } from "./limits.js";
 import { createEntityStore } from "./store.js";
-import { STATIC_ENTITIES } from "./world.js";
+import { STATIC_ENTITIES, createBuoyStates } from "./world.js";
 import type { World } from "./world.js";
 
 /** The `format` tag of every world snapshot. */
@@ -184,6 +184,20 @@ export interface StaticHealthSnapshot {
   navBuoy: number;
 }
 
+/** One buoy's state (`BuoyState` in `./entity.ts`, PD-01, PD-02). */
+export interface BuoyStateSnapshot {
+  offset: VectorSnapshot;
+  velocity: VectorSnapshot;
+  subentityEnergy: number;
+  subentityTakingDamage: boolean;
+}
+
+/** Both buoys' state (`BuoyStates` in `./entity.ts`). */
+export interface BuoyStatesSnapshot {
+  witchpoint: BuoyStateSnapshot;
+  navBuoy: BuoyStateSnapshot;
+}
+
 export interface WorldSnapshot {
   format: typeof WORLD_SNAPSHOT_FORMAT;
   version: typeof WORLD_SNAPSHOT_VERSION;
@@ -195,6 +209,12 @@ export interface WorldSnapshot {
   aiDropped: number;
   /** The energy of the station and both buoys (Phase 15, D-08). */
   staticHealth: StaticHealthSnapshot;
+  /**
+   * The displacement, drift and subentity state of both buoys (Phase 18,
+   * PD-01, PD-02): present only when not pristine; an absent key restores
+   * pristine buoys.
+   */
+  buoys?: BuoyStatesSnapshot;
   /** Strictly ascending by id. */
   entities: EntitySnapshot[];
 }
@@ -1267,5 +1287,6 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
     fireQueue: [],
     aiDropped: parsed.aiDropped,
     staticHealth: parsed.staticHealth,
+    buoys: createBuoyStates(),
   };
 }
