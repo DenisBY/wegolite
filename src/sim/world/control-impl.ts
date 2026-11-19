@@ -22,10 +22,11 @@
 import type { Vec3 } from "../math.js";
 import { enterBehaviour } from "../npc/enter.js";
 import type { Entity } from "./entity.js";
-import { BEHAVIOUR_IDS, MAX_ENTITIES } from "./ids.js";
+import { BEHAVIOUR_IDS } from "./ids.js";
 import type { BehaviourId, EntityId } from "./ids.js";
 import { MAX_ENTITY_MAGNITUDE, MAX_UINT32 } from "./limits.js";
 import type { ShipControl } from "./control.js";
+import { requestFire } from "./world.js";
 import type { World } from "./world.js";
 
 function isUint32(n: number): boolean {
@@ -122,11 +123,9 @@ export function createShipControl(
     fire(id: EntityId): void {
       const entity = actor(id);
       if (entity === undefined) return;
-      // One shot per actor per tick (T-13-21); the queue is also bounded by
-      // MAX_ENTITIES, the most live entities a world can hold.
-      if (world.fireQueue.length >= MAX_ENTITIES) return;
-      if (world.fireQueue.includes(id)) return;
-      world.fireQueue.push(id);
+      // One shot per actor per tick (T-13-21) and the queue bound are
+      // `requestFire`'s, the one push the steering route shares.
+      requestFire(world, id);
     },
   };
 }

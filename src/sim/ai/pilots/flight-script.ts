@@ -26,6 +26,13 @@
  *  - `face`: turn to face the main station (FACE_DESTINATION).
  * An unknown script name makes the pilot go done at once (T-14-27).
  *
+ * Fire (Phase 17, D-05): the option `fire: true` puts the param `fire: true` on
+ * the component, which makes the world step give the ship's steering a
+ * `ctx.fire`; the attack behaviours then ask the NPC fire gate at Oolite's own
+ * call sites. This module never calls `ctl.fire` itself, so the two routes stay
+ * exclusive: one ship makes at most one request per tick and the gate draws once
+ * per Oolite call (a test pins both).
+ *
  * Phases (`params.phase`): `start` (the first think issues the script's calls,
  * once), `flying`, `done` (IDLE at desired speed 0). `params.frustrated` counts
  * every `shipAIFrustrated` the ship's steering posted, in every phase; the
@@ -59,6 +66,12 @@ export interface FlightScriptOptions {
   readonly range?: number;
   /** The desired speed in m/s (station and intercept). */
   readonly speed?: number;
+  /**
+   * Opt in to weapon fire (Phase 17, D-05): the steering of an attack behaviour
+   * may then ask the NPC fire gate at Oolite's `fireMainWeapon:` sites. Absent
+   * unless true, so a pilot that never fires keeps its params and its hash.
+   */
+  readonly fire?: boolean;
 }
 
 const PHASE_START = "start";
@@ -79,6 +92,10 @@ export function createFlightScriptAi(
       range: options.range ?? 0,
       speed: options.speed ?? 0,
       frustrated: 0,
+      // Present only when asked for, as on the test pilot: the key is the
+      // opt-in `steerEntity` reads, and a pilot without it keeps the param set
+      // (and the hash) it had before Phase 17.
+      ...(options.fire === true ? { fire: true } : {}),
     },
     wakeTick: 0,
     nextThinkTick: tick,

@@ -46,7 +46,12 @@ import { MAX_UINT32 } from "./limits.js";
 import { sanitizeEntity, sanitizeStaticHealth } from "./sanitize.js";
 import { createWorldView } from "./view-impl.js";
 import type { WorldView } from "./view.js";
-import { commitWorld, countAiDropped, postAiEvent } from "./world.js";
+import {
+  commitWorld,
+  countAiDropped,
+  postAiEvent,
+  requestFire,
+} from "./world.js";
 import type { World } from "./world.js";
 
 /** The most passes one AI event drain makes; events posted in a pass arrive in the next. */
@@ -243,6 +248,11 @@ function steerEntity(
   npc: NpcStepFacts | undefined,
 ): void {
   const stream = createRngState(entity.rng.combat);
+  // D-05: `ctx.fire` exists only for a pilot that opted in through its AI params
+  // (`fire: true`). A ship with no AI is never steered, so an inert or populated
+  // ship has no way to ask. The call queues the ship's id through the one push
+  // `ShipControl.fire` shares and takes no draw: the gate at the drain draws.
+  const fires = entity.ai?.params["fire"] === true;
   steerShip(entity, {
     view,
     stats: statsFor(npc?.flight, entity.specKey),
@@ -256,6 +266,7 @@ function steerEntity(
           : { to: entity.id, name: event.name, a: event.a },
       );
     },
+    ...(fires ? { fire: () => requestFire(world, entity.id) } : {}),
   });
   entity.rng.combat = stream.s;
 }

@@ -8,9 +8,14 @@
  * The steering contract every behaviour of the phase plugs into:
  *
  *  - `steerShip(entity, ctx)` takes ONE `SteerContext { view, stats, dt, draw,
- *    emit }` and passes it unchanged to every behaviour and helper, so a helper
+ *    emit, fire? }` and passes it unchanged to every behaviour and helper, so a helper
  *    that posts an event or draws never needs a new parameter. Behaviours and
  *    helpers take `(entity, ctx)` plus their own Oolite arguments.
+ *  - `ctx.fire` exists only for a pilot that opted in through its AI params
+ *    (`fire: true`, Phase 17 D-05). A behaviour calls `ctx.fire?.()` at the
+ *    sites where Oolite calls `fireMainWeapon:`; the call only queues the ship's
+ *    id and takes no draw, so the NPC fire gate at the fire-queue drain
+ *    (`combat/step.ts`) decides, once per request.
  *  - It reads other bodies only through `ctx.view` and writes only the steered
  *    entity (`entity.nav`, `entity.steer`, `entity.speed`, `entity.orientation`,
  *    `entity.position`). World-level writes such as the escort leader refresh
@@ -97,6 +102,13 @@ export interface SteerContext {
   readonly draw: () => number;
   /** Post an event to the actor's own AI. */
   readonly emit: (event: SteerEvent) => void;
+  /**
+   * Ask the NPC fire gate for a shot (Oolite's `fireMainWeapon:`). Present only
+   * when the steered ship's AI params carry `fire: true` (Phase 17 D-05), so a
+   * ship that never opted in cannot request a shot. It queues the ship's id
+   * (bounded, once per tick) and takes no draw: the gate at the drain draws.
+   */
+  readonly fire?: () => void;
 }
 
 /** One behaviour of the routing table: it reads `ctx` and writes only `entity`. */

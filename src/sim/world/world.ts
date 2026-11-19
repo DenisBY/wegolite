@@ -188,6 +188,20 @@ export function createWorld(worldSeed: number): World {
   };
 }
 
+/**
+ * Queue `id` for the NPC fire gate at the drain: the one push of the fire queue,
+ * shared by `ShipControl.fire` and the steering's `ctx.fire` (Phase 17, advisor
+ * decision 2). Bounded by `MAX_ENTITIES` (the most live entities a world can
+ * hold) and de-duplicated, so one actor makes at most one request per tick
+ * (T-13-21). It never throws and takes no draw; whether the shot happens is the
+ * gate's decision at the drain.
+ */
+export function requestFire(world: World, id: EntityId): void {
+  if (world.fireQueue.length >= MAX_ENTITIES) return;
+  if (world.fireQueue.includes(id)) return;
+  world.fireQueue.push(id);
+}
+
 /** The static record for ids 1-5; undefined for any other id. */
 export function staticEntity(
   world: World,

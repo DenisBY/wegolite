@@ -10,10 +10,12 @@
  * (recorded for plan 14-19):
  *  - no afterburner: `canBurn` is false, so `max_available_speed` is
  *    `maxFlightSpeed`, `isUsingAfterburner` and `closeQuickly` are false;
- *  - no weapon fire, no missile, no cloak (`fireMainWeapon:`,
- *    `considerFiringMissile:`, `activateCloakingDevice`): nothing fires, so the
- *    weapon never heats and `weapon_temp > COMBAT_AI_WEAPON_TEMP_USABLE` is
- *    false (4713, 4577);
+ *  - no missile, no cloak (`considerFiringMissile:`, `activateCloakingDevice`);
+ *    `fireMainWeapon:` is the optional `ctx.fire` call at fly-to (4711),
+ *    present only for a pilot that opted in (Phase 17, D-05), so without the
+ *    opt-in nothing asks and the weapon never heats, and
+ *    `weapon_temp > COMBAT_AI_WEAPON_TEMP_USABLE` stays false (4713, 4577) until
+ *    plan 17-07 makes the temperature live;
  *  - fly-to's accuracy >= 9 dodge (4721-4729) needs the target's weapon types,
  *    which the view does not carry: the target counts as unarmed there, so the
  *    dodge never fires from fly-to (fly-from's own dodge, 4790-4797, has no weapon
@@ -221,8 +223,12 @@ export function behaviourAttackFlyToTarget(
       nav.desiredSpeed = maxSpeed;
     }
   }
-  // 4706-4730: missiles, cloak, fireMainWeapon, the hot-weapon return to
-  // ATTACK_TARGET and the accuracy >= 9 dodge are the scope cuts above.
+  // 4706-4711: missiles and cloak are the scope cuts above. `fireMainWeapon:`
+  // (4711) is the request for a pilot that opted in (D-05); it is reached on
+  // every path that did not return earlier, also after the frustration block
+  // above switched the behaviour. The hot-weapon return to ATTACK_TARGET (4713)
+  // and the accuracy >= 9 dodge (4721-4729) stay cuts until plan 17-07.
+  ctx.fire?.();
 }
 
 /**
