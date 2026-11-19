@@ -185,7 +185,8 @@ export function coolCabin(state: PlayerCombatState, dt: number): void {
 
 /**
  * A shield dial: the shield over its maximum, clamped to `0..1`
- * (`dialForwardShield`, `PlayerEntity.m:4268-4276`).
+ * (`dialForwardShield`, `PlayerEntity.m:4254-4261`; `dialAftShield`,
+ * 4263-4270, is the same rule for the aft bank).
  */
 export function shieldGauge(value: number): number {
   return clamp01(value / BASELINE_SHIELD_LEVEL);

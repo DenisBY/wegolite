@@ -106,7 +106,7 @@ const ENERGY_DIAL_MAX = 256;
 
 /**
  * Oolite's shield dial: the shield over its maximum, clamped to 0..1
- * (`dialForwardShield`, `PlayerEntity.m:4268-4276`). Stated here, not imported,
+ * (`dialForwardShield`, `PlayerEntity.m:4254-4261`). Stated here, not imported,
  * so the expectation is never computed by the HUD code under test.
  */
 function shieldDial(shield: number): number {
