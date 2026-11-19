@@ -132,11 +132,22 @@ export function rechargeRateF32(weapon: FireWeapon): number {
 }
 
 /**
- * The recorded rule (D-07): the shot is allowed once `ticksSinceShot` is at
- * least `round(weapon_recharge_rate x 120)` whole ticks.
+ * The recorded rule (D-07, revised by the owner 2026-11-19, UAT test 1, gap
+ * G-17-1): the shot is allowed once `ticksSinceShot` is at least Oolite's
+ * LITERAL frame count at exactly 1/120 s, `literalShotFrames` of the float32
+ * recharge rate. The reason: `shot_time` is reset to 0 at a fired shot
+ * (`resetShotTime`, 10463), every later `update:` adds the double `delta_t`
+ * once before the behaviours (2221), and the gate refuses while `shot_time` is
+ * below the float32 rate (9946). The counts are pulse 60, beam 13, mining 301
+ * and military 13, and 12000 for the unarmed 100 s weapon.
+ *
+ * History: plan 17-01 first recorded `round(weapon_recharge_rate x 120)`
+ * (60, 12, 300 and 12). The owner replaced it, because at exactly 1/120 s the
+ * rounding makes the beam, mining and military periods one tick short of what
+ * Oolite counts.
  */
 export function rechargeTicks(weapon: FireWeapon): number {
-  return Math.round(rechargeRateF32(weapon) * 120);
+  return literalShotFrames(rechargeRateF32(weapon));
 }
 
 /**
@@ -210,9 +221,11 @@ export interface GateOutcome {
  * - 9938-9945: `energy <= weapon_energy_use * multiplier` refuses (equality
  *   refuses; the multiplier is 1);
  * - 9946-9947: `shotTime < weapon_recharge_rate` refuses; the recorded rule
- *   turns it into `ticksSinceShot < rechargeTicks`, so equality fires, and a
- *   ship that has never fired (`shot_time = INITIAL_SHOT_TIME` 100.0,
- *   `ShipEntity.m:208`, `ShipEntity.h:102`) is ready;
+ *   (D-07 revised by the owner 2026-11-19, UAT test 1) turns it into
+ *   `ticksSinceShot < rechargeTicks`, the literal frame count at 1/120 s
+ *   (`literalShotFrames`: beam 13, not the superseded `round(rate x 120)` of
+ *   12), so equality fires, and a ship that has never fired (`shot_time =
+ *   INITIAL_SHOT_TIME` 100.0, `ShipEntity.m:208`, `ShipEntity.h:102`) is ready;
  * - 9948: `![weapon_type isTurretLaser]` is true for every laser and for
  *   `EQ_WEAPON_NONE` (none has `is_turret_laser`, `OOEquipmentType.m:640-643`),
  *   so the ONE draw is taken here, armed or not and target or not:
@@ -251,7 +264,7 @@ export function deriveGate(c: GateCase): GateOutcome {
   }
   // 9944-9945
   if (c.input.energy <= info.energy) return refuse("energy", 0);
-  // 9946-9947 under the recorded whole-tick rule
+  // 9946-9947 under the recorded whole-tick rule (literal frame count)
   if (
     c.input.ticksSinceShot !== null &&
     c.input.ticksSinceShot < rechargeTicks(c.weapon)

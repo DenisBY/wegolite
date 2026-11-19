@@ -426,7 +426,7 @@
       "site": "NPC shot timer: [self shotTime] < weapon_recharge_rate refuses the shot",
       "oolite": "src/Core/Entities/ShipEntity.m:9946-9946",
       "kind": "time-compare",
-      "treatment": "D-07, locked: a whole-tick compare, ticksSinceShot >= round(fround(rate) x 120) fires, so equality fires (Oolite refuses only strictly below the rate, unlike the player compare that is strict >, PlayerEntityControls.m:1185), and a ship that never fired is ready (shot_time starts at INITIAL_SHOT_TIME 100.0). DIVERGENCE of one tick for three of the four lasers: Oolite resets shot_time to 0 at a shot (resetShotTime, 10080-10083, called at 10463) and every update adds delta_t to the double shot_time before the behaviours run (2221), then compares it with the float32 recharge_rate promoted to double, so its literal frame count at exactly 1/120 s is the number of double additions of 1/120 until the sum is no longer below the rate: pulse 60 (the sum of 60 steps is 0.5000000000000007, not below 0.5; the rule gives 60), beam 13 (12 steps sum to 0.09999999999999999, below fround(0.1) = 0.10000000149011612; the rule gives 12), mining 301 (300 steps sum to 2.499999999999994, below 2.5; the rule gives 300), military 13 (as the beam; the rule gives 12). The rule keeps round(rate x 120) ticks and the fixtures pin the rule; the literal counts are the measured divergence, at most one tick (8.3 ms) and a shot rate lower by one tick in 12, 301 or 13, derived by literalShotFrames from the source alone and recorded for the owner decision on the rule.",
+      "treatment": "D-07, revised by the owner 2026-11-19 (UAT test 1, gap G-17-1): a whole-tick compare, ticksSinceShot >= the literal frame count fires, so equality fires (Oolite refuses only strictly below the rate, unlike the player compare that is strict >, PlayerEntityControls.m:1185), and a ship that never fired is ready (shot_time starts at INITIAL_SHOT_TIME 100.0). Oolite resets shot_time to 0 at a shot (resetShotTime, 10080-10083, called at 10463) and every update adds delta_t to the double shot_time before the behaviours run (2221), then compares it with the float32 recharge_rate promoted to double, so its literal frame count at exactly 1/120 s is the number of double additions of 1/120 until the sum is no longer below the rate, derived by literalShotFrames from the source alone (plan 17-01): pulse 60 (59 steps sum to 0.49166666666666736, below 0.5; 60 steps to 0.5000000000000007), beam 13 (12 steps sum to 0.09999999999999999, below fround(0.1) = 0.10000000149011612; 13 steps to 0.10833333333333332), mining 301 (300 steps sum to 2.499999999999994, below 2.5; 301 steps to 2.508333333333327), military 13 (as the beam), and the unarmed weapon's 100 s rate gives 12000 (11999 steps sum to 99.99166666669231, 12000 steps to 100.00000000002565). At exactly 1/120 s the rule therefore equals Oolite's frame count and this row records no divergence (measuredDifference 0). The superseded rule, round(fround(rate) x 120) (60, 12, 300 and 12, plan 17-01), is history: it was one tick short for the beam, mining and military lasers. Oolite's own count still depends on its frame rate, which the fixed 120 Hz step does not model.",
       "confirmedBy": [
         "gate-timer-exact-period-pulse-fires",
         "gate-timer-refuses-before-roll-range-and-aim",
@@ -436,9 +436,11 @@
         "gate-timer-one-tick-short-mining-refuses",
         "gate-timer-never-fired-is-ready-beam",
         "heat-pulse-from-zero",
-        "heat-beam-from-zero"
+        "heat-beam-from-zero",
+        "gate-timer-one-tick-short-military-refuses",
+        "heat-military-from-zero"
       ],
-      "measuredDifference": 1
+      "measuredDifference": 0
     },
     {
       "site": "NPC range roll: range > randf() * weaponRange * (accuracy + 7.5) refuses the shot",

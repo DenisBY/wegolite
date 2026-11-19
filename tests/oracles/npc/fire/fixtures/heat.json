@@ -60,7 +60,7 @@
   },
   {
     "id": "heat-beam-from-zero",
-    "title": "beam laser from 0 fires every 12 ticks until the cutout refuses and cooling lets it resume",
+    "title": "beam laser from 0 fires every 13 ticks until the cutout refuses and cooling lets it resume",
     "oolite": [
       "src/Core/Entities/ShipEntity.m:2213-2221",
       "src/Core/Entities/ShipEntity.m:9935-9936",
@@ -68,20 +68,21 @@
       "src/Core/Entities/ShipEntity.m:9946-9947",
       "Resources/Config/equipment.plist:143-154"
     ],
-    "derivation": "One gate call per tick 1..horizon with energy 1e9, range 0, accuracy 0 and onTarget true; draws taken equal shots. Cooling is fmaxf(t - (float)(WEAPON_COOLING_FACTOR x delta_t), 0.0f) at the top of every update (ShipEntity.m:2214-2218), i.e. t = fround(max(fround(t - c), 0)) with c = fround(6 x 1/120) = 0.05000000074505806, BEFORE the behaviour fires, so the gate reads the cooled value; a shot adds fround(3.2) = 3.200000047683716 (9971-9973). The beam laser's period is round(fround(0.1) x 120) = 12 ticks. Start: temperature 0 at tick 1, never fired, so the first shot is at tick 1 and the next ones at 1 + 12k. Per period the weapon gains 3.2 and loses 12 x 0.05000000074505806 = 0.6000000089406967: net 2.6000 per shot. The temperature read before shot n grows by that net each period until a read reaches 217.60000610351562: the last shot before the refusal is at tick 997 (read 215.79783630371094) and leaves 218.99783325195312, so the very next tick already reads 218.9478302001953 >= 217.60000610351562: the first refusal is tick 998 (heat is checked before the timer, 9935-9947). Cooling at 0.05000000074505806 per tick brings the read below the cutout at tick 1025 (217.59774780273438) while the timer opens at tick 1009 (997 + 12). The first tick the gate fires again is tick 1025, bound by the heat, with read 217.59774780273438. 85 shots, each one draw.",
+    "derivation": "One gate call per tick 1..horizon with energy 1e9, range 0, accuracy 0 and onTarget true; draws taken equal shots. Cooling is fmaxf(t - (float)(WEAPON_COOLING_FACTOR x delta_t), 0.0f) at the top of every update (ShipEntity.m:2214-2218), i.e. t = fround(max(fround(t - c), 0)) with c = fround(6 x 1/120) = 0.05000000074505806, BEFORE the behaviour fires, so the gate reads the cooled value; a shot adds fround(3.2) = 3.200000047683716 (9971-9973). The beam laser's period is 13 ticks: 13 steps of 1/120 sum to 0.10833333333333332, not below the rate 0.10000000149011612, and 12 steps to 0.09999999999999999, below it, so the literal frame count is 13 (2221, 9946; the superseded rule round(fround(0.1) x 120) = 12 is history, D-07 revised by the owner 2026-11-19, UAT test 1). Start: temperature 0 at tick 1, never fired, so the first shot is at tick 1 and the next ones at 1 + 13k. Per period the weapon gains 3.2 and loses 13 x 0.05000000074505806 = 0.6500000096857548: net 2.5500 per shot. The temperature read before shot n grows by that net each period until a read reaches 217.60000610351562: the last shot before the refusal is at tick 1106 (read 216.7476043701172) and leaves 219.94760131835938, so the very next tick already reads 219.89759826660156 >= 217.60000610351562: the first refusal is tick 1107 (heat is checked before the timer, 9935-9947). Cooling at 0.05000000074505806 per tick brings the read below the cutout at tick 1153 (217.5974578857422) while the timer opens at tick 1119 (1106 + 13). The first tick the gate fires again is tick 1153, bound by heat, with read 217.5974578857422. 87 shots, each one draw.",
     "tolerance": 1e-9,
     "weapon": "EQ_WEAPON_BEAM_LASER",
     "startTemperature": 0,
     "startTicksSinceShot": null,
-    "horizon": 1042,
+    "horizon": 1170,
     "expected": {
       "shotTicks": [
-        1, 13, 25, 37, 49, 61, 73, 85, 97, 109, 121, 133, 145, 157, 169, 181,
-        193, 205, 217, 229, 241, 253, 265, 277, 289, 301, 313, 325, 337, 349,
-        361, 373, 385, 397, 409, 421, 433, 445, 457, 469, 481, 493, 505, 517,
-        529, 541, 553, 565, 577, 589, 601, 613, 625, 637, 649, 661, 673, 685,
-        697, 709, 721, 733, 745, 757, 769, 781, 793, 805, 817, 829, 841, 853,
-        865, 877, 889, 901, 913, 925, 937, 949, 961, 973, 985, 997, 1025
+        1, 14, 27, 40, 53, 66, 79, 92, 105, 118, 131, 144, 157, 170, 183, 196,
+        209, 222, 235, 248, 261, 274, 287, 300, 313, 326, 339, 352, 365, 378,
+        391, 404, 417, 430, 443, 456, 469, 482, 495, 508, 521, 534, 547, 560,
+        573, 586, 599, 612, 625, 638, 651, 664, 677, 690, 703, 716, 729, 742,
+        755, 768, 781, 794, 807, 820, 833, 846, 859, 872, 885, 898, 911, 924,
+        937, 950, 963, 976, 989, 1002, 1015, 1028, 1041, 1054, 1067, 1080, 1093,
+        1106, 1153
       ],
       "temperatureChecks": [
         {
@@ -89,38 +90,38 @@
           "temperature": 0
         },
         {
-          "tick": 13,
-          "temperature": 2.6000006198883057
+          "tick": 14,
+          "temperature": 2.5500006675720215
         },
         {
-          "tick": 25,
-          "temperature": 5.199998378753662
+          "tick": 27,
+          "temperature": 5.099998474121094
         },
         {
-          "tick": 997,
-          "temperature": 215.79783630371094
+          "tick": 1106,
+          "temperature": 216.7476043701172
         },
         {
-          "tick": 998,
-          "temperature": 218.9478302001953
+          "tick": 1107,
+          "temperature": 219.89759826660156
         },
         {
-          "tick": 999,
-          "temperature": 218.8978271484375
+          "tick": 1108,
+          "temperature": 219.84759521484375
         },
         {
-          "tick": 1025,
-          "temperature": 217.59774780273438
+          "tick": 1153,
+          "temperature": 217.5974578857422
         }
       ],
-      "firstHeatRefusalTick": 998,
-      "firstResumeTick": 1025,
-      "drawsUsed": 85
+      "firstHeatRefusalTick": 1107,
+      "firstResumeTick": 1153,
+      "drawsUsed": 87
     }
   },
   {
     "id": "heat-military-from-zero",
-    "title": "military laser from 0 fires every 12 ticks until the cutout refuses and cooling lets it resume",
+    "title": "military laser from 0 fires every 13 ticks until the cutout refuses and cooling lets it resume",
     "oolite": [
       "src/Core/Entities/ShipEntity.m:2213-2221",
       "src/Core/Entities/ShipEntity.m:9935-9936",
@@ -128,19 +129,19 @@
       "src/Core/Entities/ShipEntity.m:9946-9947",
       "Resources/Config/equipment.plist:184-195"
     ],
-    "derivation": "One gate call per tick 1..horizon with energy 1e9, range 0, accuracy 0 and onTarget true; draws taken equal shots. Cooling is fmaxf(t - (float)(WEAPON_COOLING_FACTOR x delta_t), 0.0f) at the top of every update (ShipEntity.m:2214-2218), i.e. t = fround(max(fround(t - c), 0)) with c = fround(6 x 1/120) = 0.05000000074505806, BEFORE the behaviour fires, so the gate reads the cooled value; a shot adds fround(4.25) = 4.25 (9971-9973). The military laser's period is round(fround(0.1) x 120) = 12 ticks. Start: temperature 0 at tick 1, never fired, so the first shot is at tick 1 and the next ones at 1 + 12k. Per period the weapon gains 4.25 and loses 12 x 0.05000000074505806 = 0.6000000089406967: net 3.6500 per shot. The temperature read before shot n grows by that net each period until a read reaches 217.60000610351562: the last shot before the refusal is at tick 709 (read 215.34857177734375) and leaves 219.59857177734375, so the very next tick already reads 219.54856872558594 >= 217.60000610351562: the first refusal is tick 710 (heat is checked before the timer, 9935-9947). Cooling at 0.05000000074505806 per tick brings the read below the cutout at tick 749 (217.59844970703125) while the timer opens at tick 721 (709 + 12). The first tick the gate fires again is tick 749, bound by the heat, with read 217.59844970703125. 61 shots, each one draw.",
+    "derivation": "One gate call per tick 1..horizon with energy 1e9, range 0, accuracy 0 and onTarget true; draws taken equal shots. Cooling is fmaxf(t - (float)(WEAPON_COOLING_FACTOR x delta_t), 0.0f) at the top of every update (ShipEntity.m:2214-2218), i.e. t = fround(max(fround(t - c), 0)) with c = fround(6 x 1/120) = 0.05000000074505806, BEFORE the behaviour fires, so the gate reads the cooled value; a shot adds fround(4.25) = 4.25 (9971-9973). The military laser's period is 13 ticks: 13 steps of 1/120 sum to 0.10833333333333332, not below the rate 0.10000000149011612, and 12 steps to 0.09999999999999999, below it, so the literal frame count is 13 (2221, 9946; the superseded rule round(fround(0.1) x 120) = 12 is history, D-07 revised by the owner 2026-11-19, UAT test 1). Start: temperature 0 at tick 1, never fired, so the first shot is at tick 1 and the next ones at 1 + 13k. Per period the weapon gains 4.25 and loses 13 x 0.05000000074505806 = 0.6500000096857548: net 3.6000 per shot. The temperature read before shot n grows by that net each period until a read reaches 217.60000610351562: the last shot before the refusal is at tick 781 (read 215.9984130859375) and leaves 220.2484130859375, so the very next tick already reads 220.1984100341797 >= 217.60000610351562: the first refusal is tick 782 (heat is checked before the timer, 9935-9947). Cooling at 0.05000000074505806 per tick brings the read below the cutout at tick 834 (217.59825134277344) while the timer opens at tick 794 (781 + 13). The first tick the gate fires again is tick 834, bound by heat, with read 217.59825134277344. 62 shots, each one draw.",
     "tolerance": 1e-9,
     "weapon": "EQ_WEAPON_MILITARY_LASER",
     "startTemperature": 0,
     "startTicksSinceShot": null,
-    "horizon": 766,
+    "horizon": 851,
     "expected": {
       "shotTicks": [
-        1, 13, 25, 37, 49, 61, 73, 85, 97, 109, 121, 133, 145, 157, 169, 181,
-        193, 205, 217, 229, 241, 253, 265, 277, 289, 301, 313, 325, 337, 349,
-        361, 373, 385, 397, 409, 421, 433, 445, 457, 469, 481, 493, 505, 517,
-        529, 541, 553, 565, 577, 589, 601, 613, 625, 637, 649, 661, 673, 685,
-        697, 709, 749
+        1, 14, 27, 40, 53, 66, 79, 92, 105, 118, 131, 144, 157, 170, 183, 196,
+        209, 222, 235, 248, 261, 274, 287, 300, 313, 326, 339, 352, 365, 378,
+        391, 404, 417, 430, 443, 456, 469, 482, 495, 508, 521, 534, 547, 560,
+        573, 586, 599, 612, 625, 638, 651, 664, 677, 690, 703, 716, 729, 742,
+        755, 768, 781, 834
       ],
       "temperatureChecks": [
         {
@@ -148,33 +149,33 @@
           "temperature": 0
         },
         {
-          "tick": 13,
-          "temperature": 3.6499996185302734
+          "tick": 14,
+          "temperature": 3.5999996662139893
         },
         {
-          "tick": 25,
-          "temperature": 7.299997329711914
+          "tick": 27,
+          "temperature": 7.1999969482421875
         },
         {
-          "tick": 709,
-          "temperature": 215.34857177734375
+          "tick": 781,
+          "temperature": 215.9984130859375
         },
         {
-          "tick": 710,
-          "temperature": 219.54856872558594
+          "tick": 782,
+          "temperature": 220.1984100341797
         },
         {
-          "tick": 711,
-          "temperature": 219.49856567382812
+          "tick": 783,
+          "temperature": 220.14840698242188
         },
         {
-          "tick": 749,
-          "temperature": 217.59844970703125
+          "tick": 834,
+          "temperature": 217.59825134277344
         }
       ],
-      "firstHeatRefusalTick": 710,
-      "firstResumeTick": 749,
-      "drawsUsed": 61
+      "firstHeatRefusalTick": 782,
+      "firstResumeTick": 834,
+      "drawsUsed": 62
     }
   },
   {
@@ -187,14 +188,14 @@
       "src/Core/Entities/ShipEntity.m:9946-9947",
       "Resources/Config/equipment.plist:163-174"
     ],
-    "derivation": "One gate call per tick 1..horizon with energy 1e9, range 0, accuracy 0 and onTarget true; draws taken equal shots. Cooling is fmaxf(t - (float)(WEAPON_COOLING_FACTOR x delta_t), 0.0f) at the top of every update (ShipEntity.m:2214-2218), i.e. t = fround(max(fround(t - c), 0)) with c = fround(6 x 1/120) = 0.05000000074505806, BEFORE the behaviour fires, so the gate reads the cooled value; a shot adds fround(10) = 10 (9971-9973). The mining laser's period is round(fround(2.5) x 120) = 300 ticks. Start: temperature 0 at tick 1, never fired, so the first shot is at tick 1 and the next ones at 1 + 300k. Per period the weapon gains 10 and loses 300 x 0.05000000074505806 = 15.000000223517418: net -5.0000 per shot. The net is negative, so the temperature falls to the floor 0 between shots and never nears the cutout 217.60000610351562; the gate fires every period for the whole horizon (4 shots) and firstHeatRefusalTick is null. The checks show the float32 floor: the read falls from 10 to 0 well before the next shot and stays at 0 (fmaxf with 0.0f) until it.",
+    "derivation": "One gate call per tick 1..horizon with energy 1e9, range 0, accuracy 0 and onTarget true; draws taken equal shots. Cooling is fmaxf(t - (float)(WEAPON_COOLING_FACTOR x delta_t), 0.0f) at the top of every update (ShipEntity.m:2214-2218), i.e. t = fround(max(fround(t - c), 0)) with c = fround(6 x 1/120) = 0.05000000074505806, BEFORE the behaviour fires, so the gate reads the cooled value; a shot adds fround(10) = 10 (9971-9973). The mining laser's period is 301 ticks: 301 steps of 1/120 sum to 2.508333333333327, not below the rate 2.5, and 300 steps to 2.499999999999994, below it, so the literal frame count is 301 (2221, 9946; the superseded rule round(fround(2.5) x 120) = 300 is history, D-07 revised by the owner 2026-11-19, UAT test 1). Start: temperature 0 at tick 1, never fired, so the first shot is at tick 1 and the next ones at 1 + 301k. Per period the weapon gains 10 and loses 301 x 0.05000000074505806 = 15.050000224262476: net -5.0500 per shot. The net is negative, so the temperature falls to the floor 0 between shots and never nears the cutout 217.60000610351562; the gate fires every period for the whole horizon (4 shots, ticks 1, 302, 603, 904) and firstHeatRefusalTick is null. The checks show the float32 floor: the read falls from 10 to 0 well before the next shot and stays at 0 (fmaxf with 0.0f) until it.",
     "tolerance": 1e-9,
     "weapon": "EQ_WEAPON_MINING_LASER",
     "startTemperature": 0,
     "startTicksSinceShot": null,
     "horizon": 1000,
     "expected": {
-      "shotTicks": [1, 301, 601, 901],
+      "shotTicks": [1, 302, 603, 904],
       "temperatureChecks": [
         {
           "tick": 1,
@@ -221,27 +222,27 @@
           "temperature": 0
         },
         {
-          "tick": 301,
-          "temperature": 0
-        },
-        {
           "tick": 302,
-          "temperature": 9.949999809265137
-        },
-        {
-          "tick": 601,
           "temperature": 0
         },
         {
-          "tick": 602,
+          "tick": 303,
           "temperature": 9.949999809265137
         },
         {
-          "tick": 901,
+          "tick": 603,
           "temperature": 0
         },
         {
-          "tick": 902,
+          "tick": 604,
+          "temperature": 9.949999809265137
+        },
+        {
+          "tick": 904,
+          "temperature": 0
+        },
+        {
+          "tick": 905,
           "temperature": 9.949999809265137
         }
       ],

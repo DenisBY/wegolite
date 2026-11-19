@@ -307,22 +307,33 @@ describe("fire gate fixtures (gate.json)", () => {
       expect(above.expected.energyAfter).toBeCloseTo(0.001, 6);
     });
 
-    it("fires at exactly round(rate x 120) ticks since the shot (NPC >=), refuses one tick short, and treats null as ready", () => {
-      // Hand-computed periods: 0.5 s -> 60, 0.1 s -> 12, 2.5 s -> 300.
+    it("fires at exactly the literal frame count since the shot (NPC >=), refuses one tick short, and treats null as ready", () => {
+      // Hand-derived literal counts at 1/120 s (D-07 revised by the owner
+      // 2026-11-19, UAT test 1): the smallest k whose k-fold double sum of
+      // 1/120 is not below the float32 rate (2221, 9946).
+      //   0.5 s (exact):          59 steps 0.49166666666666736 < 0.5,
+      //                           60 steps 0.5000000000000007            -> 60
+      //   0.1 s (fround 0.10000000149011612): 12 steps 0.09999999999999999
+      //                           < rate, 13 steps 0.10833333333333332   -> 13
+      //   2.5 s (exact):          300 steps 2.499999999999994 < 2.5,
+      //                           301 steps 2.508333333333327            -> 301
+      //   100 s (unarmed):        11999 steps 99.99166666669231 < 100,
+      //                           12000 steps 100.00000000002565         -> 12000
       expect(rechargeTicks("EQ_WEAPON_PULSE_LASER")).toBe(60);
-      expect(rechargeTicks("EQ_WEAPON_BEAM_LASER")).toBe(12);
-      expect(rechargeTicks("EQ_WEAPON_MINING_LASER")).toBe(300);
-      expect(rechargeTicks("EQ_WEAPON_MILITARY_LASER")).toBe(12);
+      expect(rechargeTicks("EQ_WEAPON_BEAM_LASER")).toBe(13);
+      expect(rechargeTicks("EQ_WEAPON_MINING_LASER")).toBe(301);
+      expect(rechargeTicks("EQ_WEAPON_MILITARY_LASER")).toBe(13);
+      expect(rechargeTicks("EQ_WEAPON_NONE")).toBe(12000);
       const sinceByWeapon: [string, number | null, boolean][] = [
         ["gate-timer-refuses-before-roll-range-and-aim", 59, false],
         ["gate-timer-exact-period-pulse-fires", 60, true],
         ["gate-timer-one-tick-over-pulse-fires", 61, true],
-        ["gate-timer-one-tick-short-beam-refuses", 11, false],
-        ["gate-timer-exact-period-beam-fires", 12, true],
-        ["gate-timer-one-tick-over-beam-fires", 13, true],
-        ["gate-timer-one-tick-short-mining-refuses", 299, false],
-        ["gate-timer-exact-period-mining-fires", 300, true],
-        ["gate-timer-one-tick-short-military-refuses", 11, false],
+        ["gate-timer-one-tick-short-beam-refuses", 12, false],
+        ["gate-timer-exact-period-beam-fires", 13, true],
+        ["gate-timer-one-tick-over-beam-fires", 14, true],
+        ["gate-timer-one-tick-short-mining-refuses", 300, false],
+        ["gate-timer-exact-period-mining-fires", 301, true],
+        ["gate-timer-one-tick-short-military-refuses", 12, false],
         ["gate-timer-never-fired-is-ready-beam", null, true],
       ];
       for (const [id, since, fires] of sinceByWeapon) {
@@ -967,12 +978,12 @@ describe("weapon heat fixtures (heat.json)", () => {
     );
   });
 
-  it("fires every round(rate x 120) ticks while the cutout does not refuse", () => {
+  it("fires every literal frame count (60, 13, 13, 301) ticks while the cutout does not refuse", () => {
     const period: [string, number][] = [
       ["heat-pulse-from-zero", 60],
-      ["heat-beam-from-zero", 12],
-      ["heat-military-from-zero", 12],
-      ["heat-mining-from-zero", 300],
+      ["heat-beam-from-zero", 13],
+      ["heat-military-from-zero", 13],
+      ["heat-mining-from-zero", 301],
     ];
     for (const [id, ticks] of period) {
       const shots = byId(id).expected.shotTicks;
@@ -1013,8 +1024,8 @@ describe("weapon heat fixtures (heat.json)", () => {
     const closed = (weapon: "pulse" | "beam" | "military"): number => {
       const info = {
         pulse: { st: 7, period: 60 },
-        beam: { st: 3.2, period: 12 },
-        military: { st: 4.25, period: 12 },
+        beam: { st: 3.2, period: 13 },
+        military: { st: 4.25, period: 13 },
       }[weapon];
       // read before shot j = (j - 1) (st - period c); after it + st; the next
       // tick reads that minus c; the cutout refuses at the first read >= 217.6.
@@ -1039,14 +1050,15 @@ describe("weapon heat fixtures (heat.json)", () => {
       );
     });
 
-    it("shows the mining laser never heats: it cools 15 degrees per period and gains 10", () => {
-      expect(300 * c - 10).toBeGreaterThan(4.9);
+    it("shows the mining laser never heats: it cools 15.05 degrees per period and gains 10 (net -5.05)", () => {
+      expect(301 * c - 10).toBeGreaterThan(5.04);
+      expect(301 * c - 10).toBeLessThan(5.06);
       const mining = byId("heat-mining-from-zero");
       expect(mining.expected.firstHeatRefusalTick).toBeNull();
       expect(mining.expected.firstResumeTick).toBeNull();
-      expect(mining.expected.shotTicks).toEqual([1, 301, 601, 901]);
+      expect(mining.expected.shotTicks).toEqual([1, 302, 603, 904]);
       for (const check of mining.expected.temperatureChecks) {
-        if (check.tick === 301 || check.tick === 601 || check.tick === 901) {
+        if (check.tick === 302 || check.tick === 603 || check.tick === 904) {
           expect(check.temperature).toBe(0);
         }
       }
@@ -1062,8 +1074,8 @@ describe("weapon heat fixtures (heat.json)", () => {
         return found.temperature;
       };
       expect(at("heat-pulse-from-zero", 61)).toBeCloseTo(7 - 60 * c, 4);
-      expect(at("heat-beam-from-zero", 13)).toBeCloseTo(3.2 - 12 * c, 4);
-      expect(at("heat-military-from-zero", 13)).toBeCloseTo(4.25 - 12 * c, 4);
+      expect(at("heat-beam-from-zero", 14)).toBeCloseTo(3.2 - 13 * c, 4);
+      expect(at("heat-military-from-zero", 14)).toBeCloseTo(4.25 - 13 * c, 4);
       expect(at("heat-mining-from-zero", 2)).toBeCloseTo(10 - c, 5);
     });
   });
@@ -1285,7 +1297,7 @@ describe("the fire rows of the frame-rate rule (frame-rate-rule.json)", () => {
     ).toBe(true);
   });
 
-  describe("the shot timer: the rule's whole ticks against Oolite's literal frame count at 1/120 s", () => {
+  describe("the shot timer: the rule is Oolite's literal frame count at 1/120 s (D-07 revised by the owner 2026-11-19)", () => {
     // The literal counts below are derived from the source alone (plan 17-01
     // Task 3), before anyone else's numbers were read. After a shot,
     // resetShotTime sets the double shot_time to 0 (ShipEntity.m:10080-10083,
@@ -1294,7 +1306,7 @@ describe("the fire rows of the frame-rate rule (frame-rate-rule.json)", () => {
     // recharge_rate (9946-9947). The first frame that is not refused is the
     // smallest k whose k-fold sum of 1/120 is not below the rate:
     //
-    //  pulse    rate 0.5                  (exact):  sum of 59 steps 0.4916666666666674
+    //  pulse    rate 0.5                  (exact):  sum of 59 steps 0.49166666666666736
     //           < 0.5, sum of 60 steps 0.5000000000000007 >= 0.5 -> literal 60.
     //  beam     rate fround(0.1) = 0.10000000149011612: sum of 12 steps
     //           0.09999999999999999 < rate (the rate is 1.49e-9 above 0.1 and
@@ -1302,23 +1314,31 @@ describe("the fire rows of the frame-rate rule (frame-rate-rule.json)", () => {
     //  mining   rate 2.5 (exact): sum of 300 steps 2.499999999999994 < 2.5,
     //           301 steps 2.508333333333327 -> literal 301.
     //  military rate fround(0.1), as the beam                           -> 13.
+    //  unarmed  rate 100 (exact): sum of 11999 steps 99.99166666669231 < 100,
+    //           12000 steps 100.00000000002565 -> literal 12000.
     //
-    // The rule gives round(rate x 120): 60, 12, 300, 12.
+    // The owner replaced the superseded rule round(rate x 120) (60, 12, 300,
+    // 12) with these counts (UAT test 1, 2026-11-19): rechargeTicks is the
+    // literal count, and the row records no divergence.
     const LITERAL: Record<
       | "EQ_WEAPON_PULSE_LASER"
       | "EQ_WEAPON_BEAM_LASER"
       | "EQ_WEAPON_MINING_LASER"
       | "EQ_WEAPON_MILITARY_LASER",
-      { name: string; rule: number; literal: number }
+      { name: string; superseded: number; literal: number }
     > = {
-      EQ_WEAPON_PULSE_LASER: { name: "pulse", rule: 60, literal: 60 },
-      EQ_WEAPON_BEAM_LASER: { name: "beam", rule: 12, literal: 13 },
-      EQ_WEAPON_MINING_LASER: { name: "mining", rule: 300, literal: 301 },
-      EQ_WEAPON_MILITARY_LASER: { name: "military", rule: 12, literal: 13 },
+      EQ_WEAPON_PULSE_LASER: { name: "pulse", superseded: 60, literal: 60 },
+      EQ_WEAPON_BEAM_LASER: { name: "beam", superseded: 12, literal: 13 },
+      EQ_WEAPON_MINING_LASER: { name: "mining", superseded: 300, literal: 301 },
+      EQ_WEAPON_MILITARY_LASER: {
+        name: "military",
+        superseded: 12,
+        literal: 13,
+      },
     };
     const weapons = Object.keys(LITERAL) as (keyof typeof LITERAL)[];
 
-    it("derives the literal frame counts 60, 13, 301 and 13 against the rule's 60, 12, 300 and 12", () => {
+    it("derives the literal frame counts 60, 13, 301 and 13 (and 12000 unarmed) and the rule equals them", () => {
       for (const weapon of weapons) {
         const expected = LITERAL[weapon];
         expect(
@@ -1326,9 +1346,16 @@ describe("the fire rows of the frame-rate rule (frame-rate-rule.json)", () => {
           `${expected.name} literal`,
         ).toBe(expected.literal);
         expect(rechargeTicks(weapon), `${expected.name} rule`).toBe(
-          expected.rule,
+          expected.literal,
         );
+        // The superseded rounding, kept only as history.
+        expect(
+          Math.round(rechargeRateF32(weapon) * 120),
+          `${expected.name} superseded`,
+        ).toBe(expected.superseded);
       }
+      expect(literalShotFrames(rechargeRateF32("EQ_WEAPON_NONE"))).toBe(12000);
+      expect(rechargeTicks("EQ_WEAPON_NONE")).toBe(12000);
     });
 
     it("shows the sums that decide each literal count", () => {
@@ -1341,39 +1368,58 @@ describe("the fire rows of the frame-rate rule (frame-rate-rule.json)", () => {
       expect(shotTimeAfter(13)).toBeGreaterThanOrEqual(tenth);
       expect(shotTimeAfter(300)).toBeLessThan(2.5);
       expect(shotTimeAfter(301)).toBeGreaterThanOrEqual(2.5);
+      expect(shotTimeAfter(11999)).toBeLessThan(100);
+      expect(shotTimeAfter(12000)).toBeGreaterThanOrEqual(100);
     });
 
-    it("records the rule, the literal counts per laser and the largest difference in the shot-timer row", () => {
+    it("records the revised rule, the literal counts per laser and the superseded counts in the shot-timer row, with no divergence", () => {
       const row = rowAt(":9946-9946");
       expect(row.kind).toBe("time-compare");
-      expect(row.treatment).toContain("DIVERGENCE");
-      expect(row.treatment).toContain("D-07");
-      let largest = 0;
+      expect(row.treatment).toContain("D-07, revised by the owner 2026-11-19");
+      expect(row.treatment).toContain("UAT test 1");
+      expect(row.treatment).not.toContain("DIVERGENCE");
       for (const weapon of weapons) {
-        const { name, rule, literal } = LITERAL[weapon];
+        const { name, literal } = LITERAL[weapon];
         expect(row.treatment, `${name} literal`).toContain(
           `${name} ${literal} (`,
         );
-        expect(row.treatment, `${name} rule`).toContain(
-          `the rule gives ${rule})`,
-        );
-        largest = Math.max(largest, Math.abs(literal - rule));
       }
-      expect(largest).toBe(1);
-      expect(row.measuredDifference).toBe(largest);
+      expect(row.treatment).toContain("12000");
+      expect(row.treatment).toContain("superseded");
+      expect(row.treatment).toContain("(60, 12, 300 and 12, plan 17-01)");
+      expect(row.measuredDifference).toBe(0);
     });
 
-    it("keeps the fixtures on the rule: the exact period fires and one tick short refuses", () => {
+    it("pins the fixtures on the literal periods: the exact period fires and one tick short refuses", () => {
       const gate = FireGateFileSchema.parse(readJson("gate.json"));
-      const periods: [string, number][] = [
-        ["gate-timer-exact-period-pulse-fires", 60],
-        ["gate-timer-exact-period-beam-fires", 12],
-        ["gate-timer-exact-period-mining-fires", 300],
+      const at = (id: string) => {
+        const found = gate.find((entry) => entry.id === id);
+        if (found === undefined) throw new Error(`no gate fixture ${id}`);
+        return found;
+      };
+      const periods: [string, string, number][] = [
+        [
+          "gate-timer-exact-period-pulse-fires",
+          "gate-timer-refuses-before-roll-range-and-aim",
+          60,
+        ],
+        [
+          "gate-timer-exact-period-beam-fires",
+          "gate-timer-one-tick-short-beam-refuses",
+          13,
+        ],
+        [
+          "gate-timer-exact-period-mining-fires",
+          "gate-timer-one-tick-short-mining-refuses",
+          301,
+        ],
       ];
-      for (const [id, ticks] of periods) {
-        const fixture = gate.find((entry) => entry.id === id);
-        expect(fixture?.input.ticksSinceShot, id).toBe(ticks);
-        expect(fixture?.expected.fired, id).toBe(true);
+      for (const [exactId, shortId, ticks] of periods) {
+        expect(at(exactId).input.ticksSinceShot, exactId).toBe(ticks);
+        expect(at(exactId).expected.fired, exactId).toBe(true);
+        expect(at(shortId).input.ticksSinceShot, shortId).toBe(ticks - 1);
+        expect(at(shortId).expected.fired, shortId).toBe(false);
+        expect(at(shortId).expected.refusedAt, shortId).toBe("timer");
       }
     });
   });
