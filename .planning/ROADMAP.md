@@ -250,7 +250,7 @@ Plans:
 **Pitfalls to address**: 1 (the decision source: resolved by the owner decision above, and tested through the whole route from the hook spawn), 2 (the fire gate), 4 (the frozen acceptance run), 15 (dead-target handling in each behaviour), 16 (totality)
 **Decisions to settle**: how weapon temperature and `shot_time` quantise to ticks; which attack behaviours call fire and how `onTarget` maps onto the Phase 14 steering port; the name and place of the pilot's opt-in
 **Todos**: `2026-11-16-phase-14-review-followups.md` (the IN-04 manual rerun rule is in force; IN-05, the detector blind spot, needs the owner trailer and is not part of this phase)
-**Plans**: 11/13 plans executed; 10 plans in 8 waves plus 3 UAT gap-closure plans (G-17-1, G-17-4) in 3 waves
+**Plans**: 12/13 plans executed; 10 plans in 8 waves plus 3 UAT gap-closure plans (G-17-1, G-17-4) in 3 waves
 
 Plans:
 **Wave 1**
@@ -285,7 +285,7 @@ Plans:
 - [x] 17-11-PLAN.md — G-17-1, CBT-15, criterion 4: the independent fire oracle encodes the owner's revised D-07 (literal shot frames 60, 13, 301, 13 from `literalShotFrames`); the rule-dependent gate and heat fixtures re-derived by the oracle, the shot-timer row, the D-07 note (separate agent, no access to `src/sim`)
 
 **Gap wave 2** *(blocked on gap wave 1 completion)*
-- [ ] 17-12-PLAN.md — G-17-1, CBT-15, CBT-16: `npcRechargeTicks` at the literal frame counts, the period inventory amended once, the Node twin then the browser spec re-pinned, the A7 and NPC fire gate rows, CHANGELOG, the remote combat spec and the QUAL-11 run
+- [x] 17-12-PLAN.md — G-17-1, CBT-15, CBT-16: `npcRechargeTicks` at the literal frame counts, the period inventory amended once, the Node twin then the browser spec re-pinned, the A7 and NPC fire gate rows, CHANGELOG, the remote combat spec and the QUAL-11 run
 
 **Gap wave 3** *(blocked on gap wave 2 completion)*
 - [ ] 17-13-PLAN.md — G-17-4, CBT-15, CBT-16: the HUD probe publishes the drawn FWD/AFT shield bars and E1-E4 banks, the probe shape pinned, the combat spec asserts the drawn gauges fall; criterion 2 wording (UAT test 2) and the decision-source row's owner acceptance (UAT test 3); the remote `verify` and combat spec
@@ -411,7 +411,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 14. NPC Flight and Steering Fidelity Gate | v2.2 | 19/19 | Complete    | 2026-11-16 |
 | 15. Damage Ledger and Kills | v2.3 | 6/6 | Complete    | 2026-11-16 |
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 9/9 | Complete    | 2026-11-17 |
-| 17. NPC Fire and Hits on the Player | v2.3 | 11/13 | In Progress | - |
+| 17. NPC Fire and Hits on the Player | v2.3 | 12/13 | In Progress | - |
 | 18. Stations, Buoys and Collisions | v2.3 | 0/TBD | Not started | - |
 | 19. Equipment Damage and Repair | v2.3 | 0/TBD | Not started | - |
 | 20. Player Death and Game Over | v2.3 | 0/TBD | Not started | - |
