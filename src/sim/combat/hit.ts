@@ -14,9 +14,13 @@
  * artifact (D-01): a target whose spec key has no entry, or a call with no
  * table at all, is in the "not loaded" state and cannot be hit. Never throws.
  *
- * Not ported: the subentity branch (`:5560-5568`, `:5623-5636`); none of the ten
- * hulls has a solid subentity (RESEARCH O4). The caller builds the laser frame
- * (facing rotation and mount offset, `:5585-5605`) and passes it as `ray`.
+ * Subentity data arrives (plan 18-13); the hit rule ignores it until plan 18-04.
+ * The table now also holds the static hulls (the Coriolis station, the buoy, the
+ * barrel and the alloy plate), with their solid subentities and frangibility,
+ * but the subentity branch (`:5560-5568`, `:5623-5636`) is not ported yet: a
+ * target is tested against its own hull octree only. The caller builds the
+ * laser frame (facing rotation and mount offset, `:5585-5605`) and passes it as
+ * `ray`.
  */
 
 import { dot, sub } from "../math.js";
@@ -25,11 +29,35 @@ import type { EntityId } from "../world/ids.js";
 import { isHitByLine, toOoliteModelSegment } from "./octree.js";
 import type { HullOctree } from "./octree.js";
 
+/**
+ * One solid subentity of a hull (a station's faceplate, a buoy's ring): its
+ * own octree at its authored position. `position` is in Oolite model axes, as
+ * the `.dat` and `shipdata.plist` author it (x right, y up, z toward the nose),
+ * not converted to Wegolite's axes; `mass` is the compiled Oolite mass in
+ * kilograms.
+ */
+export interface SubentityHull {
+  readonly key: string;
+  readonly position: Vec3;
+  readonly mass: number;
+  readonly octree: HullOctree;
+}
+
 /** What the hit rule needs to know about one hull (RESEARCH Pattern 3). */
 export interface HullData {
   /** Oolite `collision_radius` of the hull: the stage A bounding sphere. */
   readonly collisionRadius: number;
   readonly octree: HullOctree;
+  /**
+   * The solid subentities, in the authored order. Only the static hulls carry
+   * the key; the ten ship hulls have none.
+   */
+  readonly subentities?: readonly SubentityHull[];
+  /**
+   * Oolite's `isFrangible`: whether a subentity can be destroyed separately.
+   * Only the static hulls carry the key.
+   */
+  readonly frangible?: boolean;
 }
 
 /** The loaded hull data, keyed by ship spec key. */

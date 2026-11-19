@@ -757,9 +757,13 @@ describe("loadSessionContent (plan 18-13)", () => {
   it("installs nothing when the session is disposed during the load", async () => {
     const ctx = contentCtx(true);
     const failures: string[] = [];
-    const pending = loadSessionContent(ctx, SESSION_CONTENT_LOADERS, (reason) => {
-      failures.push(reason);
-    });
+    const pending = loadSessionContent(
+      ctx,
+      SESSION_CONTENT_LOADERS,
+      (reason) => {
+        failures.push(reason);
+      },
+    );
     ctx.runtime.disposed = true;
     expect(await pending).toBeUndefined();
     expect(failures).toEqual([]);

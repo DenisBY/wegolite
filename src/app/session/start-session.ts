@@ -33,6 +33,8 @@ import { loadEquipment } from "../../content/equipment.js";
 import { loadCommodities } from "../../content/commodities.js";
 import { loadLabels } from "../../content/labels.js";
 import { loadShipHulls } from "../../content/ships-hulls.js";
+import { loadStaticHulls } from "../../content/ships-static-hulls.js";
+import type { StaticName } from "../../content/ships-static-hulls.js";
 import { loadNpcCatalogue } from "../../content/ships-npc.js";
 import { loadDebrisCatalogue } from "../../content/ships-debris.js";
 import { loadExplosionCatalogue } from "../../content/explosions.js";
@@ -192,6 +194,121 @@ export function resolveStartTarget(
   return savedTarget !== undefined && galaxyById.has(savedTarget)
     ? savedTarget
     : undefined;
+}
+
+/** The content loaders `loadSessionContent` calls; a test injects doubles. */
+export interface SessionContentLoaders {
+  readonly loadEquipment: typeof loadEquipment;
+  readonly loadCommodities: typeof loadCommodities;
+  readonly loadLabels: typeof loadLabels;
+  readonly loadNpcCatalogue: typeof loadNpcCatalogue;
+  readonly loadShipHulls: typeof loadShipHulls;
+  readonly loadDebrisCatalogue: typeof loadDebrisCatalogue;
+  readonly loadExplosionCatalogue: typeof loadExplosionCatalogue;
+  readonly loadStaticHulls: typeof loadStaticHulls;
+}
+
+/** The real content loaders the session start passes. */
+export const SESSION_CONTENT_LOADERS: SessionContentLoaders = {
+  loadEquipment,
+  loadCommodities,
+  loadLabels,
+  loadNpcCatalogue,
+  loadShipHulls,
+  loadDebrisCatalogue,
+  loadExplosionCatalogue,
+  loadStaticHulls,
+};
+
+/** What the boot content load hands back beyond what it installs on `ctx`. */
+export interface SessionContent {
+  /**
+   * The static artifact's compiled ident names (plan 18-06 installs them);
+   * `undefined` with traffic off.
+   */
+  readonly staticNames: readonly StaticName[] | undefined;
+}
+
+/**
+ * The boot content load (plans 13-11, 16-06, 18-13). The equipment catalogue
+ * is the only source of a price and a tech level, the commodity catalogue the
+ * only source of the market coefficients (D-10/T-04-43). The NPC catalogue, the
+ * ship hulls, the debris records, the explosion settings and the static hulls
+ * join the same `Promise.all` and the same failure surface, and only with
+ * traffic on: a traffic-off session fetches none of these chunks (WORLD-16,
+ * D-01). The ship and static hulls are the hit rule's one merged table, so both
+ * are in place before the first flight or neither is (PITFALLS 5). A missing or
+ * malformed chunk is a broken build and fails the boot visibly, never a
+ * silently partial session (T-16-19, T-18-50): `onBootFailure` is called once
+ * with the reason and nothing is installed.
+ *
+ * Resolves `undefined` after a failure or when the session was disposed during
+ * the load; otherwise the content is installed on `ctx.core` and the result
+ * carries what is not installed yet. Never rejects.
+ */
+export async function loadSessionContent(
+  ctx: SessionState,
+  loaders: SessionContentLoaders,
+  onBootFailure: (reason: string) => void,
+): Promise<SessionContent | undefined> {
+  try {
+    const [
+      equipment,
+      loadedCommodities,
+      loadedLabels,
+      npcCatalogue,
+      hullCatalogue,
+      debrisCatalogue,
+      explosionCatalogue,
+      staticArtifact,
+    ] = await Promise.all([
+      loaders.loadEquipment(),
+      loaders.loadCommodities(),
+      loaders.loadLabels(),
+      ctx.runtime.testFlags.traffic
+        ? loaders.loadNpcCatalogue()
+        : Promise.resolve(undefined),
+      ctx.runtime.testFlags.traffic
+        ? loaders.loadShipHulls()
+        : Promise.resolve(undefined),
+      ctx.runtime.testFlags.traffic
+        ? loaders.loadDebrisCatalogue()
+        : Promise.resolve(undefined),
+      ctx.runtime.testFlags.traffic
+        ? loaders.loadExplosionCatalogue()
+        : Promise.resolve(undefined),
+      ctx.runtime.testFlags.traffic
+        ? loaders.loadStaticHulls()
+        : Promise.resolve(undefined),
+    ]);
+    if (ctx.runtime.disposed) return undefined;
+    // Built before any install, so a throw (a repeated hull key) leaves the
+    // context untouched.
+    const npcTraffic =
+      npcCatalogue === undefined
+        ? undefined
+        : trafficContent(npcCatalogue, {
+            debris: debrisCatalogue,
+            explosions: explosionCatalogue,
+          });
+    const hulls =
+      hullCatalogue === undefined
+        ? undefined
+        : hullTable(hullCatalogue, staticArtifact?.hulls);
+    ctx.core.npcTraffic = npcTraffic;
+    ctx.core.hulls = hulls;
+    ctx.core.equipmentCatalogue = equipment;
+    ctx.core.commodities = loadedCommodities;
+    ctx.core.labels = loadedLabels;
+    ctx.core.commodityUnits = new Map(
+      loadedCommodities.map((commodity) => [commodity.key, commodity.unit]),
+    );
+    return { staticNames: staticArtifact?.names };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    onBootFailure(reason);
+    return undefined;
+  }
 }
 
 export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
@@ -403,65 +520,17 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
 
     if (ctx.runtime.disposed) return;
 
-    // D-10/T-04-43: the equipment catalogue is the only source of a price and a
-    // tech level. The commodity catalogue is the only source of the market
-    // coefficients. A missing or malformed record fails the boot visibly,
-    // exactly like the ship catalogue.
-    try {
-      // The NPC catalogue, the hull data, the debris records and the explosion
-      // settings join the same failure surface, and only with traffic on: a
-      // traffic-off session fetches none of these chunks (WORLD-16, D-01). The
-      // hull chunk is the combat hit rule's input; the debris records feed the
-      // kill path's debris (WORLD-17) and the render, the explosion settings the
-      // render only (DATA-16). A malformed chunk is a broken build and fails the
-      // boot visibly, never silently partial (T-16-19).
-      const [
-        equipment,
-        loadedCommodities,
-        loadedLabels,
-        npcCatalogue,
-        hullCatalogue,
-        debrisCatalogue,
-        explosionCatalogue,
-      ] = await Promise.all([
-        loadEquipment(),
-        loadCommodities(),
-        loadLabels(),
-        ctx.runtime.testFlags.traffic
-          ? loadNpcCatalogue()
-          : Promise.resolve(undefined),
-        ctx.runtime.testFlags.traffic
-          ? loadShipHulls()
-          : Promise.resolve(undefined),
-        ctx.runtime.testFlags.traffic
-          ? loadDebrisCatalogue()
-          : Promise.resolve(undefined),
-        ctx.runtime.testFlags.traffic
-          ? loadExplosionCatalogue()
-          : Promise.resolve(undefined),
-      ]);
-      if (ctx.runtime.disposed) return;
-      ctx.core.npcTraffic =
-        npcCatalogue === undefined
-          ? undefined
-          : trafficContent(npcCatalogue, {
-              debris: debrisCatalogue,
-              explosions: explosionCatalogue,
-            });
-      ctx.core.hulls =
-        hullCatalogue === undefined ? undefined : hullTable(hullCatalogue);
-      ctx.core.equipmentCatalogue = equipment;
-      ctx.core.commodities = loadedCommodities;
-      ctx.core.labels = loadedLabels;
-      ctx.core.commodityUnits = new Map(
-        loadedCommodities.map((commodity) => [commodity.key, commodity.unit]),
-      );
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      showBootFailure(reason);
-      publishFailure(reason);
-      return;
-    }
+    // D-10/T-04-43, T-16-19, T-18-50: the catalogues and, with traffic on, the
+    // traffic chunks load on one failure surface (loadSessionContent).
+    const content = await loadSessionContent(
+      ctx,
+      SESSION_CONTENT_LOADERS,
+      (reason) => {
+        showBootFailure(reason);
+        publishFailure(reason);
+      },
+    );
+    if (content === undefined) return;
 
     const playerDef = playerShip(catalogue).shipDef;
     const stationEntry = stationShip(catalogue);

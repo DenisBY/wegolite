@@ -40,7 +40,12 @@ import type {
 } from "../../content/types.js";
 import type { FlyerRecords } from "../../sim/ai/test-spawn.js";
 import type { NpcWeapon } from "../../sim/combat/aim.js";
-import type { HullTable } from "../../sim/combat/hit.js";
+import type {
+  HullData,
+  HullTable,
+  SubentityHull,
+} from "../../sim/combat/hit.js";
+import type { HullOctree } from "../../sim/combat/octree.js";
 import { vec } from "../../sim/math.js";
 import { flightTableFrom } from "../../sim/npc/stats.js";
 import type { NpcFlightStats } from "../../sim/npc/stats.js";
@@ -252,17 +257,66 @@ export function testFlyerRecords(
 }
 
 /**
+ * One record of the static hull artifact (`ships-static-hulls.json`, DATA-15),
+ * structurally: this module may import only types from `src/content/types`, and
+ * the validated `StaticHull` of the loader satisfies it.
+ */
+export interface StaticHullRecord {
+  readonly key: string;
+  readonly collisionRadius: number;
+  readonly frangible: boolean;
+  readonly octree: HullOctree;
+  readonly subentities: readonly {
+    readonly key: string;
+    /** As authored, in Oolite model axes. */
+    readonly position: readonly [number, number, number];
+    readonly mass: number;
+    readonly octree: HullOctree;
+  }[];
+}
+
+/**
  * The hull table the hit rule reads (CBT-07): each hull's collision radius and
  * octree keyed by spec key. Static content built from the validated lazy hull
  * chunk; the shared source for the session and the Node tick replay.
+ *
+ * With traffic on the session also passes the static hulls (plan 18-13,
+ * DATA-15): the Coriolis station, the buoy, the barrel and the alloy plate join
+ * the same Map after the ten ships, each with its subentities and its
+ * frangibility. A subentity position becomes a `Vec3` with no axis conversion
+ * (Oolite model axes, as authored). A static key that repeats a ship key is a
+ * broken build and throws, so the boot fails visibly instead of silently
+ * replacing a ship's hull.
  */
-export function hullTable(catalogue: ShipHullCatalogue): HullTable {
-  return new Map(
+export function hullTable(
+  catalogue: ShipHullCatalogue,
+  statics?: readonly StaticHullRecord[],
+): HullTable {
+  const table = new Map<string, HullData>(
     catalogue.map((hull) => [
       hull.key,
       { collisionRadius: hull.collisionRadius, octree: hull.octree },
     ]),
   );
+  for (const hull of statics ?? []) {
+    if (table.has(hull.key)) {
+      throw new Error(
+        `Wegolite: the static hull "${hull.key}" repeats a key already in the hull table.`,
+      );
+    }
+    table.set(hull.key, {
+      collisionRadius: hull.collisionRadius,
+      octree: hull.octree,
+      subentities: hull.subentities.map((sub): SubentityHull => ({
+        key: sub.key,
+        position: vec(sub.position[0], sub.position[1], sub.position[2]),
+        mass: sub.mass,
+        octree: sub.octree,
+      })),
+      frangible: hull.frangible,
+    });
+  }
+  return table;
 }
 
 /**
