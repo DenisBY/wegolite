@@ -44,6 +44,11 @@ function catalogue(): NpcShip[] {
 }
 
 describe("trafficContent", () => {
+  it("maps the authored laser colour by spec key: the viper only (quick 261119-i9g)", () => {
+    const content = trafficContent(catalogue());
+    expect([...content.laserColors.entries()]).toEqual([["viper", [1, 0, 1]]]);
+  });
+
   it("maps the nine committed records to records and masses in catalogue order", () => {
     const source = catalogue();
     expect(source).toHaveLength(9);

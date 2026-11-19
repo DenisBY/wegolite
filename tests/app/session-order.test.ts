@@ -893,15 +893,82 @@ describe("laserFired reaches the scene's shot layer (CBT-05, A4)", () => {
     return { h, added };
   }
 
-  it("adds from, to, the laser kind and the flight clock, and nothing else", () => {
+  it("adds from, to, the laser kind, the flight clock, an anchor and a colour, and nothing else", () => {
     const { h, added } = withShots();
     h.router.dispatch(EVENTS.laserFired);
     expect(added).toEqual([
-      // An NPC shot has no anchor: it stays where it was fired.
-      [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -100 }, "pulse", 12.5, undefined],
+      // An NPC shot has no anchor: it stays where it was fired. This event
+      // carries no specKey, so no colour either.
+      [
+        { x: 0, y: 0, z: 0 },
+        { x: 0, y: 0, z: -100 },
+        "pulse",
+        12.5,
+        undefined,
+        undefined,
+      ],
     ]);
     // No message and no feedback envelope.
     expect(h.log).toEqual([]);
+  });
+
+  describe("the shot's colour (quick 261119-i9g)", () => {
+    function withColors(): ReturnType<typeof withShots> {
+      const shots = withShots();
+      shots.h.ctx.core.npcTraffic = trafficContent(
+        NpcShipCatalogueSchema.parse(
+          JSON.parse(
+            readFileSync("src/content/generated/ships-npc.json", "utf8"),
+          ),
+        ),
+      );
+      return shots;
+    }
+
+    function colorOf(added: readonly unknown[]): unknown {
+      const [, , , , , color] = added[0] as unknown[];
+      return color;
+    }
+
+    it("hands the shot layer the Viper's authored magenta", () => {
+      const { h, added } = withColors();
+      h.router.dispatch({ ...EVENTS.laserFired, specKey: "viper" } as SimEvent);
+      expect(colorOf(added)).toEqual([1, 0, 1]);
+    });
+
+    it("hands it nothing for a hull that authors no laser_color", () => {
+      const { h, added } = withColors();
+      h.router.dispatch({ ...EVENTS.laserFired, specKey: "adder" } as SimEvent);
+      expect(added).toHaveLength(1);
+      expect(colorOf(added)).toBeUndefined();
+    });
+
+    it("hands it nothing for the player's shot, which has no specKey", () => {
+      const { h, added } = withColors();
+      h.router.dispatch({
+        ...EVENTS.laserFired,
+        shooter: 100,
+        playerShot: true,
+      } as SimEvent);
+      expect(added).toHaveLength(1);
+      expect(colorOf(added)).toBeUndefined();
+    });
+
+    it("hands it nothing when the session has no traffic", () => {
+      const { h, added } = withShots();
+      h.ctx.core.npcTraffic = undefined;
+      h.router.dispatch({ ...EVENTS.laserFired, specKey: "viper" } as SimEvent);
+      expect(added).toHaveLength(1);
+      expect(colorOf(added)).toBeUndefined();
+    });
+
+    it("never stores the shooter's id or the hull key", () => {
+      const { h, added } = withColors();
+      h.router.dispatch({ ...EVENTS.laserFired, specKey: "viper" } as SimEvent);
+      const text = JSON.stringify(added);
+      expect(text).not.toContain("101");
+      expect(text).not.toContain("viper");
+    });
   });
 
   it("anchors the player's own shot to the player's pose", () => {

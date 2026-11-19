@@ -161,6 +161,8 @@ describe("a held fire key through stepSim (tracer)", () => {
     if (shot === undefined) throw new Error("no laserFired");
     expect(shot.shooter).toBe(PLAYER_ID);
     expect(shot.laserKind).toBe("pulse");
+    // The player's shot carries no spec key: it keeps its laser's colour.
+    expect(shot).not.toHaveProperty("specKey");
     // The beam starts at the Cobra's nose mount, not at the ship's centre.
     const mount = foreMount();
     expect(shot.from.x).toBeCloseTo(mount.x, 6);

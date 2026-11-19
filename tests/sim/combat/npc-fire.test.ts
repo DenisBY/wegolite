@@ -728,6 +728,10 @@ describe("an NPC hit on the player, by the shared rule (CBT-16, D-16)", () => {
     expect(fired).toHaveLength(1);
     expect(fired[0]?.shooter).toBe(viper);
     expect(fired[0]?.laserKind).toBe("beam");
+    // The shooter's hull key rides on the event; the app maps it to a colour
+    // (quick 261119-i9g). The sim carries no colour.
+    expect(fired[0]?.specKey).toBe("viper");
+    expect(fired[0]).not.toHaveProperty("laserColor");
     expect(ofKind(events, "shipHit")).toEqual([
       {
         kind: "shipHit",

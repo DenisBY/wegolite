@@ -20,7 +20,8 @@
  * starboard weapon types and positions beside the forward pair, `likely_cargo`
  * and `max_cargo`, `fragment_chance` and `explosion_type`. Phase 16 adds the
  * hull's bounding box (D16-23), the box the debris rule samples for pods and
- * plates. No other combat or flight stat is compiled here, and the strict
+ * plates. Quick 261119-i9g adds `laserColor`, the colour of the ship's laser shots.
+ * No other combat or flight stat is compiled here, and the strict
  * object rejects any extra field.
  *
  * `glb` is a locator, not inert-world data: it is never copied from the plist
@@ -130,6 +131,20 @@ export const NpcShipSchema = z.strictObject({
   // `becomeExplosion` treats differently from an empty array, so null is never
   // folded into [].
   explosionType: z.array(z.string().min(1)).nullable(),
+  // `laser_color` as float32 RGB, or null when the key is absent (Oolite's nil,
+  // `default_laser_color`, ShipEntity.m:421-427). With a colour, every shot the
+  // ship fires takes it; with null the weapon_info colour applies
+  // (ShipEntity.m:6469-6474). The build compiles OOColor's named colours only
+  // (see `laserColorExtra`). The app maps it to the shot colour; the sim never
+  // reads it. Each channel is bounded to [0, 1] so a tampered catalogue cannot
+  // reach the vertex buffer (T-261119-i9g-02).
+  laserColor: z
+    .tuple([
+      z.number().min(0).max(1),
+      z.number().min(0).max(1),
+      z.number().min(0).max(1),
+    ])
+    .nullable(),
   // The hull's bounding box in Oolite's model axes (D16-23): the float32
   // extremes of the vendored `.dat` vertices, as Oolite's drawable box
   // (OOEntityWithDrawable.m:55). `releaseCargoPodsDebris` and the plate loop

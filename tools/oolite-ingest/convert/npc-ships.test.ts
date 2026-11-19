@@ -6,9 +6,10 @@
  *
  * The expected values live in `tests/golden/content/ships-npc.json`, which was
  * written by hand from `shipdata.plist` and is never generated. The compiled
- * records (twenty-eight fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
+ * records (twenty-nine fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
  * `radius`, the five Phase 13 combat fields, the four Phase 14 flight fields,
- * the ten Phase 15 DATA-14 fields and the Phase 16 `boundingBox`)
+ * the ten Phase 15 DATA-14 fields, the Phase 16 `boundingBox` and the quick
+ * 261119-i9g `laserColor`)
  * are compared with it, with the resolved template parents, and with the committed generated
  * file, so a drift in any one of the four fails.
  */
@@ -36,6 +37,7 @@ import {
   DEFAULT_FACING_WEAPON,
   DEFAULT_FORWARD_WEAPON,
   DEFAULT_FRAGMENT_CHANCE,
+  DEFAULT_LASER_COLOR,
   DEFAULT_LIKELY_CARGO,
   DEFAULT_MAX_CARGO,
   DEFAULT_MAX_ENERGY,
@@ -48,9 +50,11 @@ import {
   FORWARD_WEAPON_KEYS,
   NPC_SHIP_KEYS,
   NPC_SHIPS_PATH,
+  OOCOLOR_NAMED_RGB,
   compileNpcShips,
   emitNpcShips,
   facingWeapon,
+  laserColorExtra,
 } from "./npc-ships.js";
 import { computeShipMasses, shipMass } from "./ship-mass.js";
 import { computeShipRadii } from "./ship-radius.js";
@@ -117,6 +121,7 @@ interface Golden {
     readonly starboardWeaponPosition: number[];
     readonly fragmentChance: number;
     readonly explosionType: string[] | null;
+    readonly laserColor: number[] | null;
   };
   readonly examples: NpcShip[];
   readonly sources: string[];
@@ -170,7 +175,7 @@ describe("NPC ship records", () => {
     expect(records).toHaveLength(9);
   });
 
-  it("carries exactly the twenty-eight fields and passes the strict schema", () => {
+  it("carries exactly the twenty-nine fields and passes the strict schema", () => {
     for (const record of records) {
       expect(Object.keys(record).sort()).toEqual(golden.fields);
       expect(NpcShipSchema.safeParse(record).success).toBe(true);
@@ -198,6 +203,7 @@ describe("NPC ship records", () => {
     expect(DEFAULT_FRAGMENT_CHANCE).toBe(golden.defaults.fragmentChance);
     expect(DEFAULT_FRAGMENT_CHANCE).toBe(Math.fround(0.9));
     expect(DEFAULT_EXPLOSION_TYPE).toBe(golden.defaults.explosionType);
+    expect(DEFAULT_LASER_COLOR).toBe(golden.defaults.laserColor);
   });
 
   it.each(golden.examples.map((example) => [example.key, example] as const))(
@@ -429,6 +435,94 @@ function compiled(source: ShipCatalogue, key: string): NpcShip {
   if (match === undefined) throw new Error(`NPC record "${key}" missing`);
   return match;
 }
+
+describe("NPC laser_color (quick 261119-i9g, ShipEntity.m:421-427, 6469-6474)", () => {
+  it("compiles the Viper to magenta and the other eight to null", () => {
+    expect(requireEntry("oolite_template_viper").extras["laser_color"]).toBe(
+      "magentaColor",
+    );
+    expect(requireEntry("viper").extras["laser_color"]).toBe("magentaColor");
+    expect(requireRecord("viper").laserColor).toEqual([1, 0, 1]);
+    for (const key of NPC_SHIP_KEYS) {
+      if (key === "viper") continue;
+      expect(requireEntry(`oolite_template_${key}`).extras).not.toHaveProperty(
+        "laser_color",
+      );
+      expect(requireRecord(key).laserColor).toBeNull();
+    }
+  });
+
+  it("maps an absent key to null and the named colours to their float32 RGB", () => {
+    expect(laserColorExtra("k", {})).toBeNull();
+    expect(laserColorExtra("k", { laser_color: "magentaColor" })).toEqual([
+      1, 0, 1,
+    ]);
+    expect(laserColorExtra("k", { laser_color: "greenColor" })).toEqual([
+      0, 1, 0,
+    ]);
+    // Brightness exactly 0.5 is kept (0.5f <= brightness, OOColor.m:202-209).
+    expect(laserColorExtra("k", { laser_color: "grayColor" })).toEqual([
+      0.5, 0.5, 0.5,
+    ]);
+    expect(laserColorExtra("k", { laser_color: "purpleColor" })).toEqual([
+      0.5, 0, 0.5,
+    ]);
+    expect(laserColorExtra("k", { laser_color: "brownColor" })).toEqual([
+      Math.fround(0.6),
+      Math.fround(0.4),
+      Math.fround(0.2),
+    ]);
+    expect(Object.keys(OOCOLOR_NAMED_RGB)).toHaveLength(15);
+  });
+
+  it("refuses a colour below brightness 0.5, naming laser_color", () => {
+    for (const name of ["blackColor", "darkGrayColor", "clearColor"]) {
+      const error = capture(() => laserColorExtra("k", { laser_color: name }));
+      expect(error.code).toBe("SCHEMA");
+      expect(error.construct).toBe("k");
+      expect(error.excerpt).toContain("laser_color");
+      expect(error.excerpt).toContain("not port");
+    }
+  });
+
+  it("refuses every other form, naming laser_color", () => {
+    const forms: unknown[] = [
+      "fooColor",
+      "1 0 1",
+      "255 0 255",
+      "",
+      1,
+      [1, 0, 1],
+      { red: 1, green: 0, blue: 1 },
+      "toString",
+    ];
+    for (const value of forms) {
+      const error = capture(() => laserColorExtra("k", { laser_color: value }));
+      expect(error.code).toBe("SCHEMA");
+      expect(error.file).toBe(NPC_SHIPS_PATH);
+      expect(error.construct).toBe("k");
+      expect(error.excerpt).toContain("laser_color");
+    }
+  });
+
+  it("compiles an authored name through the catalogue and refuses a numeric string", () => {
+    const authored = withExtras("adder", (extras) => ({
+      ...extras,
+      laser_color: "magentaColor",
+    }));
+    expect(compiled(authored, "adder").laserColor).toEqual([1, 0, 1]);
+    const numeric = withExtras("adder", (extras) => ({
+      ...extras,
+      laser_color: "1 0 1",
+    }));
+    const error = capture(() =>
+      compileNpcShips(numeric, masses, radii, meshes),
+    );
+    expect(error.code).toBe("SCHEMA");
+    expect(error.construct).toBe("adder");
+    expect(error.excerpt).toContain("laser_color");
+  });
+});
 
 describe("NPC combat fields (CBT-07, minimum of DATA-15)", () => {
   const EXPECTED: Record<string, readonly [string, number, number, string]> = {

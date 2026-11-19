@@ -356,8 +356,10 @@ function coolShips(world: World, dt: number): void {
  * hits nothing. Before any hit is queued, every live ship recharges its energy
  * bank (N1) and then cools its forward weapon; the cooling runs on every stepped
  * tick, ahead of the empty-shot return. A shot moves its NPC shooter's
- * `missedShots` (-1 on a hit, +1 on a miss). A non-finite or non-positive damage
- * is never queued (T-13-15).
+ * `missedShots` (-1 on a hit, +1 on a miss), and an NPC shot's `laserFired`
+ * carries the shooter's `specKey` (the app maps it to a shot colour; the
+ * player's shot carries none). A non-finite or non-positive damage is never
+ * queued (T-13-15).
  *
  * Returns the beam events and the `HitRecord` list; `resolveShots` applies the
  * list through the ledger.
@@ -435,6 +437,7 @@ function resolveShotHits(
       from: shot.ray.origin,
       to: add(shot.ray.origin, scale(shot.ray.forward, reach)),
       laserKind: stats.laserKind,
+      ...(shooter === undefined ? {} : { specKey: shooter.specKey }),
     });
     if (hit !== null && Number.isFinite(stats.damage) && stats.damage > 0) {
       records.push({

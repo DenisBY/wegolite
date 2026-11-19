@@ -19,10 +19,13 @@
  * default 0), `fragment_chance` and `explosion_type`, and, from Phase 16
  * (D16-23), the hull's bounding box: the float32 extremes of its vendored
  * `.dat` vertices in Oolite's model axes, the box Oolite's
- * `releaseCargoPodsDebris` samples (OOEntityWithDrawable.m:55). The one deliberate
- * narrowing of Oolite's readers: `fragment_chance` must be a number, where
- * Oolite's fuzzy boolean also takes boolean and string spellings (see
- * `DEFAULT_FRAGMENT_CHANCE`). Nothing else: no other combat or flight stat, no
+ * `releaseCargoPodsDebris` samples (OOEntityWithDrawable.m:55), and, from quick
+ * 261119-i9g, `laser_color` as `laserColor` (the colour of the ship's laser
+ * shots, see `laserColorExtra`). Two deliberate narrowings of Oolite's readers:
+ * `fragment_chance` must be a number, where Oolite's fuzzy boolean also takes
+ * boolean and string spellings (see `DEFAULT_FRAGMENT_CHANCE`), and
+ * `laser_color` must be one of OOColor's named colours (see
+ * `laserColorExtra`). Nothing else: no other combat or flight stat, no
  * subentity, material or `auto_ai`. No class field is compiled:
  * Oolite's class name equals the name for all nine stock hulls
  * (`ship_class_name` defaults to `name`, ShipEntity.m:391-392), so the ident
@@ -167,6 +170,44 @@ export const DEFAULT_FRAGMENT_CHANCE = Math.fround(0.9);
  * null and the record never carries `[]` for it.
  */
 export const DEFAULT_EXPLOSION_TYPE: readonly string[] | null = null;
+
+/**
+ * Oolite's `laser_color` default: nil. `default_laser_color = [OOColor
+ * brightColorWithDescription:[shipDict objectForKey:@"laser_color"]]`
+ * (ShipEntity.m:421-427) is nil for an absent key, and then
+ * `setWeaponDataFromType:` applies the weapon_info colour (ShipEntity.m:6469-6474).
+ * An absent key compiles to null, never to a colour, so the weapon colour stays
+ * the app's concern.
+ */
+export const DEFAULT_LASER_COLOR: readonly [number, number, number] | null =
+  null;
+
+/**
+ * The fifteen named colours of OOColor (OOColor.m:234-307, the `+fooColor`
+ * class methods that `colorWithDescription:` reaches for a description with the
+ * `Color` suffix, OOColor.m:150-153), each channel as a float32 (`colorWithWhite:`
+ * sets all three to the one value). Alpha is left out: a laser shot ignores it
+ * (OOLaserShotEntity.m:134-140).
+ */
+export const OOCOLOR_NAMED_RGB: Readonly<
+  Record<string, readonly [number, number, number]>
+> = Object.freeze({
+  blackColor: [0, 0, 0],
+  darkGrayColor: [Math.fround(1 / 3), Math.fround(1 / 3), Math.fround(1 / 3)],
+  lightGrayColor: [Math.fround(2 / 3), Math.fround(2 / 3), Math.fround(2 / 3)],
+  whiteColor: [1, 1, 1],
+  grayColor: [0.5, 0.5, 0.5],
+  redColor: [1, 0, 0],
+  greenColor: [0, 1, 0],
+  blueColor: [0, 0, 1],
+  cyanColor: [0, 1, 1],
+  yellowColor: [1, 1, 0],
+  magentaColor: [1, 0, 1],
+  orangeColor: [1, Math.fround(0.5), 0],
+  purpleColor: [Math.fround(0.5), 0, Math.fround(0.5)],
+  brownColor: [Math.fround(0.6), Math.fround(0.4), Math.fround(0.2)],
+  clearColor: [0, 0, 0],
+});
 
 /**
  * The plist's `forward_weapon_type` names mapped to the equipment keys. Oolite
@@ -329,6 +370,55 @@ function explosionTypeExtra(
     );
   }
   return [...value];
+}
+
+/**
+ * `laser_color` as the float32 RGB of the shot colour, or null when the key is
+ * absent (ShipEntity.m:421-427, where the weapon_info colour then applies,
+ * ShipEntity.m:6469-6474).
+ *
+ * Oolite reads the key with `brightColorWithDescription:` (OOColor.m:202-209):
+ * `colorWithDescription:` accepts a `...Color` name (a class selector, so an
+ * unknown name silently gives nil), a string of floats, an array and an RGB or
+ * HSB dictionary (OOColor.m:140-199), and the result is returned unchanged when
+ * its brightness, the largest of r, g and b (OOColor.m:397-401), is at least
+ * 0.5; otherwise it is rebuilt through an HSB round trip at brightness 0.5
+ * (OOColor.m:403-428, with a `+ 0.0001f` hue fudge).
+ *
+ * Deliberate narrowing, in the style of `fragment_chance`: only OOColor's
+ * fifteen named colours (`OOCOLOR_NAMED_RGB`) with a brightness of at least 0.5
+ * compile. The vendored data authors named colours only, and the stock value
+ * (magentaColor, brightness 1) is unaffected by the brightening. Everything
+ * else fails the build: an unknown name (Oolite would fall back silently), a
+ * numeric string, an array or a dictionary (not ported), and blackColor,
+ * darkGrayColor and clearColor (brightness below 0.5, whose HSB rebuild is not
+ * ported). A pin bump that authors another form must fail loudly instead of
+ * drawing a wrong colour.
+ *
+ * Exported so the converter test can pin every accepted and refused form
+ * directly.
+ */
+export function laserColorExtra(
+  key: string,
+  extras: Record<string, unknown>,
+): [number, number, number] | null {
+  const value = extras["laser_color"];
+  if (value === undefined) return DEFAULT_LASER_COLOR as null;
+  if (typeof value !== "string" || !Object.hasOwn(OOCOLOR_NAMED_RGB, value)) {
+    return fail(
+      key,
+      `laser_color is not one of OOColor's named colours: ${JSON.stringify(value)}`,
+    );
+  }
+  const rgb = OOCOLOR_NAMED_RGB[value] ?? [0, 0, 0];
+  if (Math.max(rgb[0], rgb[1], rgb[2]) < 0.5) {
+    return fail(
+      key,
+      `laser_color ${JSON.stringify(value)} is below brightness 0.5; ` +
+        `its HSB rebuild (OOColor.m:403-428) is not ported`,
+    );
+  }
+  return [rgb[0], rgb[1], rgb[2]];
 }
 
 /**
@@ -541,6 +631,7 @@ export function compileNpcShips(
         DEFAULT_FRAGMENT_CHANCE,
       ),
       explosionType: explosionTypeExtra(key, entry.extras),
+      laserColor: laserColorExtra(key, entry.extras),
       boundingBox: hullBox(mesh),
     };
 

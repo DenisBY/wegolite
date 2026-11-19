@@ -345,6 +345,39 @@ describe("NpcShipCatalogueSchema", () => {
     }
   });
 
+  it("carries laserColor on every record: [1, 0, 1] for the viper, null for the rest (quick 261119-i9g)", () => {
+    const records = generated as Record<string, unknown>[];
+    expect(records).toHaveLength(9);
+    for (const record of records) {
+      expect(record["laserColor"]).toEqual(
+        record["key"] === "viper" ? [1, 0, 1] : null,
+      );
+    }
+  });
+
+  it("accepts a laserColor of null or three channels in [0, 1]", () => {
+    for (const value of [null, [1, 0, 1], [0, 0, 0], [0.5, 0.25, 1]]) {
+      expect(accepts([{ ...firstRecord(), laserColor: value }])).toBe(true);
+    }
+  });
+
+  it("rejects a record without laserColor and a laserColor that is not a bounded triple or null", () => {
+    const record = { ...firstRecord() };
+    delete record["laserColor"];
+    expect(accepts([record])).toBe(false);
+    for (const value of [
+      [1.5, 0, 0],
+      [-0.1, 0, 0],
+      [1, 0],
+      [1, 0, 1, 1],
+      "magentaColor",
+      [Number.NaN, 0, 0],
+      undefined,
+    ]) {
+      expect(accepts([{ ...firstRecord(), laserColor: value }])).toBe(false);
+    }
+  });
+
   it("rejects a missing, zero, negative or non-finite mass", () => {
     const { mass: _mass, ...withoutMass } = firstRecord();
     void _mass;

@@ -74,6 +74,13 @@ export interface TrafficContent {
    */
   readonly weapons: ReadonlyMap<string, NpcWeapon>;
   /**
+   * The authored shipdata `laser_color` of each hull that has one, by spec key
+   * (quick 261119-i9g): static content keyed by the catalogue's own string,
+   * never by an entity id. A hull without an entry fires in its weapon's
+   * colour. The router reads it to colour a shot; the sim never does.
+   */
+  readonly laserColors: ReadonlyMap<string, readonly [number, number, number]>;
+  /**
    * The compiled debris content every fixed step passes to the kill path
    * (WORLD-17, `CombatOptions.debris`), built by `debrisContentFrom`. Static
    * content keyed by spec key, no entity id; absent when the session has no
@@ -200,6 +207,11 @@ export function trafficContent(
         const [x, y, z] = ship.forwardWeaponPosition;
         return [ship.key, { laser: ship.forwardWeapon, offset: vec(x, y, z) }];
       }),
+    ),
+    laserColors: new Map(
+      ships.flatMap((ship): [string, readonly [number, number, number]][] =>
+        ship.laserColor === null ? [] : [[ship.key, ship.laserColor]],
+      ),
     ),
     ...(debris === undefined ? {} : { debris }),
     ...(extras.debris === undefined

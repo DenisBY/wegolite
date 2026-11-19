@@ -94,6 +94,13 @@ export type SimEvent =
       from: Vec3;
       to: Vec3;
       laserKind: LaserKind;
+      /**
+       * The NPC shooter's hull key (the role-name style of PROJECT.md row (g),
+       * the name `shipDestroyed` and `identLocked` carry), absent on the
+       * player's shots. The app maps it to the shot's colour (an authored
+       * shipdata `laser_color`, quick 261119-i9g); the sim reads no colour.
+       */
+      specKey?: string;
     }
   | {
       kind: "shipHit";

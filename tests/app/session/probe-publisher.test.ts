@@ -344,6 +344,7 @@ function trafficOf(
     masses: [],
     flight: [],
     weapons: new Map(),
+    laserColors: new Map(),
   };
 }
 

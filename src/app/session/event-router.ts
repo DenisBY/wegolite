@@ -457,8 +457,9 @@ export interface DockFeedbackDeps {
  * bounce and scrape (the dock-feedback envelopes and their messages),
  * laserFired (CBT-05) and shipDestroyed (WORLD-17, D16-21): the session's
  * presentation-feedback subscriber, so the pinned subscriber order is
- * unchanged. A shot goes to the scene's shot layer as positions and a laser
- * kind only; the shooter id is never stored. An explosion goes to the scene's
+ * unchanged. A shot goes to the scene's shot layer as positions, a laser kind
+ * and, for an NPC hull with an authored shipdata `laser_color`, its colour; the
+ * shooter id is never stored. An explosion goes to the scene's
  * explosion layer as a position and a radius only: the arm never reads the
  * destroyed ship's id or its killer, and writes nothing to the world.
  */
@@ -483,6 +484,13 @@ export function createDockFeedbackFlow(
                 orientation: ctx.core.state.orientation,
               }
             : undefined,
+          // An NPC hull's authored laser_color replaces its weapon's colour
+          // (Oolite, ShipEntity.m:6469-6474). Read at call time (G-8): traffic
+          // off has no map, so a shot keeps its laser's colour. The key is the
+          // hull's catalogue name, never an entity id.
+          event.specKey === undefined
+            ? undefined
+            : ctx.core.npcTraffic?.laserColors.get(event.specKey),
         );
         break;
       case "shipDestroyed": {

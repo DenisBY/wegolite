@@ -237,6 +237,82 @@ describe("createLaserShotLayer: colour by laser kind", () => {
   }
 });
 
+describe("createLaserShotLayer: an authored colour override (quick 261119-i9g)", () => {
+  function firstQuadColours(layer: Layer): number[] {
+    return [...colours(layer).slice(0, 12)];
+  }
+
+  it("writes the override to all four vertices instead of the laser kind's colour", () => {
+    const layer = createLaserShotLayer();
+    layer.add(vec(0, 0, 0), vec(0, 0, -50), "beam", 1, undefined, [1, 0, 1]);
+    layer.update(ORIGIN, 1);
+    expect(firstQuadColours(layer)).toEqual([
+      1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1,
+    ]);
+  });
+
+  it("keeps the laser kind's colour without an override", () => {
+    const layer = createLaserShotLayer();
+    layer.add(vec(0, 0, 0), vec(0, 0, -50), "beam", 1, undefined, undefined);
+    layer.update(ORIGIN, 1);
+    const [r, g, b] = LASER_SHOT_COLORS.beam;
+    expect(firstQuadColours(layer)).toEqual([
+      r,
+      g,
+      b,
+      r,
+      g,
+      b,
+      r,
+      g,
+      b,
+      r,
+      g,
+      b,
+    ]);
+  });
+
+  it("falls back to the kind's colour for a tuple with a non-finite or out-of-range channel", () => {
+    for (const bad of [
+      [Number.NaN, 0, 1],
+      [1, Number.POSITIVE_INFINITY, 1],
+      [1, 0, Number.NEGATIVE_INFINITY],
+      [1.01, 0, 1],
+      [1, -0.01, 1],
+      [2, 2, 2],
+    ] as const) {
+      const layer = createLaserShotLayer();
+      layer.add(vec(0, 0, 0), vec(0, 0, -50), "beam", 1, undefined, bad);
+      layer.update(ORIGIN, 1);
+      const [r, g, b] = LASER_SHOT_COLORS.beam;
+      expect(firstQuadColours(layer)).toEqual([
+        r,
+        g,
+        b,
+        r,
+        g,
+        b,
+        r,
+        g,
+        b,
+        r,
+        g,
+        b,
+      ]);
+    }
+  });
+
+  it("applies the override to its own shot only", () => {
+    const layer = createLaserShotLayer();
+    layer.add(vec(0, 0, 0), vec(0, 0, -50), "beam", 1, undefined, [1, 0, 1]);
+    layer.add(vec(0, 0, 0), vec(0, 0, -50), "beam", 1);
+    layer.update(ORIGIN, 1);
+    const second = [...colours(layer).slice(12, 24)];
+    const [r, g, b] = LASER_SHOT_COLORS.beam;
+    expect(second).toEqual([r, g, b, r, g, b, r, g, b, r, g, b]);
+  });
+});
+
 describe("createLaserShotLayer: the fixed pool", () => {
   it("has 32 slots of 4 vertices and 6 indices", () => {
     expect(LASER_SHOT_POOL).toBe(32);

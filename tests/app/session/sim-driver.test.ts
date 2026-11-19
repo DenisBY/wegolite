@@ -553,6 +553,7 @@ describe("stepOnce, the single flight step", () => {
       masses,
       flight,
       weapons: new Map(),
+      laserColors: new Map(),
     };
     loaded.driver.advanceFrame(DT);
     expect(seen).toHaveLength(2);
@@ -653,6 +654,7 @@ describe("combat wiring (plan 13-11, CBT-04 to CBT-07)", () => {
       masses: [],
       flight: [],
       weapons: realNpcWeapons(),
+      laserColors: new Map(),
     };
     const world = lifecycle.world;
     if (world === undefined) throw new Error("no world");
@@ -697,6 +699,7 @@ describe("combat wiring (plan 13-11, CBT-04 to CBT-07)", () => {
       masses: [],
       flight: [],
       weapons: realNpcWeapons(),
+      laserColors: new Map(),
       debris,
     };
     const seen: unknown[] = [];

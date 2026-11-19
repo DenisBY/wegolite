@@ -7,7 +7,9 @@
  * Every `laserFired` event adds one shot, from the mount to the hit point or
  * the laser's full reach, drawn for `LASER_SHOT_DURATION` (0.09 s,
  * `kLaserDuration`, `OOLaserShotEntity.m:36`) of flight time in the laser's
- * Oolite colour.
+ * Oolite colour: the laser kind's `weapon_info` colour, or, for an NPC hull
+ * that authors a shipdata `laser_color`, that colour (`ShipEntity.m:6469-6474`;
+ * quick 261119-i9g).
  *
  * A shot is one camera-facing ribbon: a quad along the beam whose width vector
  * is perpendicular to both the beam and the view ray, recomputed every update,
@@ -26,7 +28,8 @@
  *   `kLaserBrightness * rgb / 3` (`:106-109`, `:134-140`), the halo alpha is
  *   `0.45 / kLaserBrightness` (`:46`), the core is `kLaserBrightness` white at
  *   alpha 0.9 (`:238`) and the flare is the colour at alpha 0.9 (`:243`);
- * - the colours of `LASER_SHOT_COLORS` and the 0.09 s life;
+ * - the colours of `LASER_SHOT_COLORS` (or an authored override) and the
+ *   0.09 s life;
  * - additive blending, `GL_SRC_ALPHA, GL_ONE`
  *   (`OOOpenGLStateManager.m:577-578`), in display space with no colour
  *   management.
@@ -72,6 +75,9 @@ export interface ShotAnchor {
   readonly position: Vec3;
   readonly orientation: Quat;
 }
+
+/** A shot colour: three display-space channels in [0, 1]. */
+export type LaserShotColor = readonly [number, number, number];
 
 /** Shots drawn at once; a further shot overwrites the oldest. */
 export const LASER_SHOT_POOL = 32;
@@ -135,6 +141,16 @@ export function laserShotFade(age: number): number {
   return Math.min(1, Math.max(0, fade));
 }
 
+/** True for three finite channels, each in [0, 1] (T-261119-i9g-02). */
+function validColor(color: LaserShotColor): boolean {
+  return (
+    color.length === 3 &&
+    color.every(
+      (channel) => Number.isFinite(channel) && channel >= 0 && channel <= 1,
+    )
+  );
+}
+
 /** The shot layer of one system scene. */
 export interface LaserShotLayer {
   /** The one ribbon mesh of every live shot; hidden whenever no shot is live. */
@@ -145,6 +161,10 @@ export interface LaserShotLayer {
    * (the player's pose at the moment of the shot) the shot is kept in the
    * ship's frame and rides with it, as Oolite's player shots do
    * (`OOLaserShotEntity.m:152-162`); without one it stays where it was fired.
+   * A `color` replaces the laser kind's colour: Oolite keeps an authored
+   * `laser_color` over the weapon's colour (`ShipEntity.m:6469-6474`). A tuple
+   * that is not three finite channels in [0, 1] is ignored and the kind's
+   * colour is used.
    */
   add(
     from: Vec3,
@@ -152,6 +172,7 @@ export interface LaserShotLayer {
     laserKind: LaserKind,
     flightTime: number,
     anchor?: ShotAnchor,
+    color?: LaserShotColor,
   ): void;
   /**
    * Rewrite the live shots camera-relative, turn each ribbon toward the
@@ -481,7 +502,7 @@ export function createLaserShotLayer(): LaserShotLayer {
 
   return {
     root,
-    add(from, to, laserKind, flightTime, anchor): void {
+    add(from, to, laserKind, flightTime, anchor, override): void {
       if (disposed) return;
       if (!finiteVec(from) || !finiteVec(to) || !Number.isFinite(flightTime)) {
         return;
@@ -505,7 +526,10 @@ export function createLaserShotLayer(): LaserShotLayer {
       world[base + 3] = b.x;
       world[base + 4] = b.y;
       world[base + 5] = b.z;
-      const color = LASER_SHOT_COLORS[laserKind];
+      const color =
+        override !== undefined && validColor(override)
+          ? override
+          : LASER_SHOT_COLORS[laserKind];
       slotColor[head * 3] = color[0];
       slotColor[head * 3 + 1] = color[1];
       slotColor[head * 3 + 2] = color[2];

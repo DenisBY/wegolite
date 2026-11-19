@@ -37,6 +37,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- In a test session (`?test=1&traffic=1`) an NPC ship whose Oolite ship data
+  sets a laser colour now fires in that colour, as in Oolite, so a GalCop
+  Viper's shots are magenta, not yellow. Other ships and your own shots keep
+  their laser's colour. In normal play NPC ships still never fire.
 - Your ship now leaves the station along the docking slot, wings along its
   long side, as in Oolite. Before, it left turned 90 degrees, across the slot.
 - Starting a new game or loading a save shows the market in its usual order
