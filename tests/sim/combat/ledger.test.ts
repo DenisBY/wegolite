@@ -231,7 +231,7 @@ describe("applyLedger", () => {
     expect(events).toEqual([]);
   });
 
-  it("skips a missing, dead, static or non-ship target", () => {
+  it("skips a missing, dead, buoy or non-ship target; the station only absorbs", () => {
     const world = createWorld(1);
     const dead = ship(world, 10);
     world.store.kill(dead);
@@ -245,7 +245,17 @@ describe("applyLedger", () => {
       record(cargo, PLAYER_ID, 15),
     ]);
     expect(lethal).toEqual([]);
-    expect(events).toEqual([]);
+    // Plan 18-04: the station is a static target (A6): one shipHit, no write.
+    // The buoys are not targets until plan 18-05.
+    expect(events).toEqual([
+      {
+        kind: "shipHit",
+        target: MAIN_STATION_ID,
+        source: PLAYER_ID,
+        amount: 15,
+        shield: false,
+      },
+    ]);
     expect(energyOf(world, cargo)).toBe(10);
   });
 

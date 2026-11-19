@@ -60,6 +60,7 @@ import { rangeToTargetIn } from "../npc/target.js";
 import { createRngState, rngNext } from "../rng.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
+import { STATIC_TARGETS, stationPose } from "../world/statics.js";
 import type { DebrisContent, DebrisContext } from "../world/debris.js";
 import { killShip } from "../world/kill.js";
 import type { SystemLayout } from "../world/layout.js";
@@ -346,17 +347,21 @@ function coolShips(world: World, dt: number): void {
  * asked `ShipControl.fire` during the world step (`world.fireQueue`, drained
  * and gated here, see `drainFireQueue`). Every shot, in ascending shooter id, draws a `laserFired` event from the
  * ray's origin to the first hit's distance (or the laser's full range on a miss)
- * and queues a `HitRecord` when `firstShipHit` finds a ship. The candidates are
- * the live, non-dead dynamic ships of the world, in ascending id, plus the
- * player (id 100, the Cobra's hull) when a combat state is passed and the player
- * is launching or in flight; a shooter is never its own candidate. The station
- * and the buoys are static entities and never candidates in this milestone (OQ4,
- * F10). Ships are listed only when the world was stepped this tick, so a tick
- * that skipped the world (the jump step, or no world at all) draws the beam and
- * hits nothing. Before any hit is queued, every live ship recharges its energy
- * bank (N1) and then cools its forward weapon; the cooling runs on every stepped
- * tick, ahead of the empty-shot return. A shot moves its NPC shooter's
- * `missedShots` (-1 on a hit, +1 on a miss), and an NPC shot's `laserFired`
+ * and queues a `HitRecord` when `firstShipHit` finds a ship. The candidates, in
+ * ascending id, are the static targets of `../world/statics.ts` whose hull is in
+ * the hull table (the main station, id 3, at `stationPose`; Oolite lists every
+ * entity that `isShip` and `canCollide`, `Universe.m:5575-5585`), the player
+ * (id 100, the Cobra's hull) when a combat state is passed and the player is
+ * launching or in flight, and the live, non-dead dynamic ships of the world; a
+ * shooter is never its own candidate. Without the static hulls (traffic off, or
+ * the ten-hull table of the frozen acceptance worlds) no static is listed. The
+ * statics and the ships are listed only when the world was stepped this tick,
+ * so a tick that skipped the world (the jump step, or no world at all) draws the
+ * beam and hits no static or ship. Before any hit is queued, every live ship
+ * recharges its energy bank (N1) and then cools its forward weapon; the cooling
+ * runs on every stepped tick, ahead of the empty-shot return. A shot moves its
+ * NPC shooter's `missedShots` (-1 on a hit, a static target included; +1 on a
+ * miss), and an NPC shot's `laserFired`
  * carries the shooter's `specKey` (the app maps it to a shot colour; the
  * player's shot carries none). A non-finite or non-positive damage is never
  * queued (T-13-15).
@@ -387,7 +392,23 @@ function resolveShotHits(
   const all = [...shots, ...npcShots];
   if (all.length === 0) return { events, records: [] };
 
+  const hulls = options?.combat?.hulls;
   const targets: HitTarget[] = [];
+  if (world !== undefined && worldStepped && hulls !== undefined) {
+    // The static targets first: their ids (3 to 99) are below the player's.
+    for (const row of STATIC_TARGETS) {
+      if (!hulls.has(row.hullKey)) continue;
+      // Only the station has a pose here; plan 18-05 adds the buoys' pose.
+      if (row.layoutKey !== "station") continue;
+      const pose = stationPose(layout, player.stationAngle);
+      targets.push({
+        id: row.id,
+        specKey: row.hullKey,
+        position: pose.position,
+        orientation: pose.orientation,
+      });
+    }
+  }
   if (
     combat !== undefined &&
     (player.mode === "launching" || player.mode === "inFlight")
@@ -411,15 +432,13 @@ function resolveShotHits(
     }
   }
 
-  const hulls = options?.combat?.hulls;
   const records: HitRecord[] = [];
   for (const shot of all.sort(byShooter)) {
     const candidates = targets.filter((target) => target.id !== shot.shooter);
     const hit = firstShipHit(shot.ray, candidates, hulls);
     // A shot moves its NPC shooter's missed-shot counter: -1 on a hit, +1 on a
-    // miss (`ShipEntity.m:10396, 10425`, D-15). The station and the buoys are
-    // not shot candidates until Phase 18, so a shot that would strike them
-    // counts as a miss where Oolite counts any ShipEntity hit.
+    // miss (`ShipEntity.m:10396, 10425`, D-15). A shot that ends on a static
+    // target is a hit, as Oolite counts any ShipEntity hit.
     const shooter =
       shot.shooter === PLAYER_ID ? undefined : world?.store.get(shot.shooter);
     if (shooter !== undefined) {

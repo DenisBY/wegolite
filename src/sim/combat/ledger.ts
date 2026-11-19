@@ -26,9 +26,16 @@
  * cabin) and the energy floors at 0 until the player's death in Phase 20
  * (D-13).
  *
+ * A static target (`../world/statics.ts`, the main station) only absorbs a hit
+ * (Phase 18, CBT-17, A6): the record posts `shipHit` with `shield: false` and
+ * writes and collects nothing, so it is never lethal and changes no hashed
+ * state. Oolite's main station lowers its energy only while the amount is
+ * below its energy and recharges 100 per second (`StationEntity.m:1110-1160`):
+ * a 15-point dip on 25,000 is gone in 0.15 s and nothing reads it.
+ *
  * Total (D-15): a record with a non-finite or non-positive amount, a target
- * that is missing, dead, static or not a ship, and a record applied to a world
- * that was not stepped are skipped, never thrown on.
+ * that is missing, dead or not a ship, and a record on a non-player target
+ * applied to a world that was not stepped are skipped, never thrown on.
  */
 
 import type { SimEvent } from "../events.js";
@@ -37,6 +44,7 @@ import { rotate, sub, vec } from "../math.js";
 import type { Vec3 } from "../math.js";
 import { NO_ENTITY, PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
+import { staticTargetById } from "../world/statics.js";
 import type { World } from "../world/world.js";
 import { routeDamage } from "./shields.js";
 import type { PlayerCombatState } from "./state.js";
@@ -72,9 +80,11 @@ const LOCAL_FORWARD = vec(0, 0, -1);
  *   combat state; `routeDamage` with the offset from the player to the
  *   shooter and the player's forward; `shipHit` with `shield`) and is never
  *   lethal.
- * - Any other target is skipped when the world is missing or was not stepped,
- *   when it is not a live ship of the store (a missing, dead or static id), or
- *   when its kind is not `"ship"`. Otherwise its energy is read once and the
+ * - Any other target is skipped when the world is missing or was not stepped.
+ * - A static target (`staticTargetById`) posts `shipHit` with `shield: false`
+ *   and nothing else: no write, never lethal (A6).
+ * - Any other target is skipped when it is not a live ship of the store (a
+ *   missing or dead id), or when its kind is not `"ship"`. Otherwise its energy is read once and the
  *   floored result written once; `shipHit` carries `shield: false`. When the
  *   unfloored result is 0 or below the victim is collected once, with the first
  *   lethal record's credit: `PLAYER_ID` for a player shot, the source when it is
@@ -112,6 +122,17 @@ export function applyLedger(
       continue;
     }
     if (world === undefined || !worldStepped) continue;
+    if (staticTargetById(record.target) !== undefined) {
+      // The station only absorbs (A6): no write, nothing collected.
+      events.push({
+        kind: "shipHit",
+        target: record.target,
+        source: record.source,
+        amount: record.amount,
+        shield: false,
+      });
+      continue;
+    }
     const entity = world.store.get(record.target);
     if (entity === undefined || entity.kind !== "ship") continue;
     const before = Number.isFinite(entity.energy) ? entity.energy : 0;
