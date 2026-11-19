@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: 4
+current_plan: 5
 status: executing
-stopped_at: Completed 18-03-PLAN.md
-last_updated: "2026-11-19T19:11:18.737Z"
+stopped_at: Completed 18-20-PLAN.md
+last_updated: "2026-11-19T19:45:15.831Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: 0f0bb42dcee9d6debd807203b61f691b74c45f97
+state_head: 3262ab783211052863322e6ac279552af7336588
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 31
+  completed_plans: 32
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 4
+Current Plan: 5
 Total Plans in Phase: 22
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 18 execution started
@@ -216,6 +216,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 18 P01 | 15 min | 2 tasks | 12 files |
 | Phase 18 P02 | 44 min | 2 tasks | 8 files |
 | Phase 18 P03 | 30min | 2 tasks | 8 files |
+| Phase 18 P20 | 34 min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -545,6 +546,8 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-03: response-oracle fixtures use a relative tolerance (|a - b| <= 1e-6 x |b| + 1e-9), since one absolute number per fixture was vacuous for small values beside large ones
 - [Phase 18]: 18-03: the oracle cross-check found three disputes with quoted figures (buoy carry after a 100 m/s ram is about 17.9 m with the nudge, not 10 m; a 350 m/s player ram destroys the buoy, so no 122 m carry; no net player rebound at 350 m/s because otherDestroyed reverses vel1a); 18-20's real-Oolite ram measurement decides
 - [Phase 18]: 18-03: the buoy subentity's collision radius 25.822647094726562 m is derived from oolite_buoy_subents.dat with OOMesh's rule (the same rule gives the buoy's 59.13554763793945)
+- [Phase 18]: 18-20: real Oolite 1.93.1-255 confirms the 18-02 dock-mouth brackets (5 edge: false fixtures, 9 one-shot sessions), the 18-03 buoy-ram response at the observed closing speed and frame time (0.000 m position error per contact) and the class-free k x mass blockage rule (cargo surrogate blocked at 0.95 R, clear at 1.05 R): 15 SAME, 1 KNOWN (D-08), no MISMATCH
+- [Phase 18]: 18-20: the PD-02 figures in 18-CONTEXT (about 10 m and 122 m of buoy carry, a 631 m/s rebound) are measured wrong in the oracle's favour: Oolite's nudge is 10 x frame dt (129 m at 0.16 s frames), a 350 m/s ram destroys the buoy and the player gets no net rebound; PD-02's decision stands, the CONTEXT text is an owner question at 18-12
 
 ### Pending Todos
 
@@ -684,8 +687,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-19T19:11:18.328Z
-Stopped at: Completed 18-03-PLAN.md
+Last session: 2026-11-19T19:45:15.427Z
+Stopped at: Completed 18-20-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
