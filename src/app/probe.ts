@@ -79,6 +79,18 @@ export interface WegoliteHudProbe {
   fuelText: string;
   /** The live tank as the HUD bar draws it: fuel tenths over 70, in 0..1. */
   fuel: number;
+  /**
+   * The forward shield bar as the HUD draws it: the forward shield over its
+   * maximum, in 0..1; 0 before a HUD frame (G-17-4).
+   */
+  shieldFwd: number;
+  /** The aft shield bar as the HUD draws it, in 0..1; 0 before a HUD frame. */
+  shieldAft: number;
+  /**
+   * The energy banks E1 to E4 from the top as the HUD draws them, each in
+   * 0..1; zeros before a HUD frame.
+   */
+  energyBanks: [number, number, number, number];
   /** The committed hyperspace target name, or "" when none (D-12). */
   hyperspaceTarget?: string;
   /** Design-space bounding boxes, so the proof is numeric, never a screenshot. */
@@ -665,6 +677,9 @@ export function publishFailure(reason: string): void {
       messageRows: [],
       fuelText: "",
       fuel: 0,
+      shieldFwd: 0,
+      shieldAft: 0,
+      energyBanks: [0, 0, 0, 0],
       bounds: {},
     },
     launch: {

@@ -285,6 +285,9 @@ if (!boot.ok) {
       messageRows: [],
       fuelText: "",
       fuel: 0,
+      shieldFwd: 0,
+      shieldAft: 0,
+      energyBanks: [0, 0, 0, 0],
       bounds: {},
     },
     launch: {

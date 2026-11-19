@@ -33,6 +33,9 @@
       "elements": {
         "[]": []
       },
+      "energyBanks": {
+        "[]": ["number"]
+      },
       "fuel": "number",
       "fuelText": "string",
       "letterbox": {
@@ -42,7 +45,9 @@
       "message": "string",
       "messageRows": {
         "[]": []
-      }
+      },
+      "shieldAft": "number",
+      "shieldFwd": "number"
     },
     "launch": {
       "count": "number",
@@ -193,6 +198,9 @@
       "elements": {
         "[]": ["string"]
       },
+      "energyBanks": {
+        "[]": ["number"]
+      },
       "fuel": "number",
       "fuelText": "string",
       "hyperspaceTarget": "string",
@@ -203,7 +211,9 @@
       "message": "string",
       "messageRows": {
         "[]": []
-      }
+      },
+      "shieldAft": "number",
+      "shieldFwd": "number"
     },
     "hyperspace": {
       "countdown": "number",
@@ -405,6 +415,9 @@
       "elements": {
         "[]": ["string"]
       },
+      "energyBanks": {
+        "[]": ["number"]
+      },
       "fuel": "number",
       "fuelText": "string",
       "hyperspaceTarget": "string",
@@ -415,7 +428,9 @@
       "message": "string",
       "messageRows": {
         "[]": []
-      }
+      },
+      "shieldAft": "number",
+      "shieldFwd": "number"
     },
     "hyperspace": {
       "countdown": "number",
@@ -617,6 +632,9 @@
       "elements": {
         "[]": ["string"]
       },
+      "energyBanks": {
+        "[]": ["number"]
+      },
       "fuel": "number",
       "fuelText": "string",
       "hyperspaceTarget": "string",
@@ -627,7 +645,9 @@
       "message": "string",
       "messageRows": {
         "[]": []
-      }
+      },
+      "shieldAft": "number",
+      "shieldFwd": "number"
     },
     "hyperspace": {
       "countdown": "number",
@@ -829,6 +849,9 @@
       "elements": {
         "[]": ["string"]
       },
+      "energyBanks": {
+        "[]": ["number"]
+      },
       "fuel": "number",
       "fuelText": "string",
       "hyperspaceTarget": "string",
@@ -839,7 +862,9 @@
       "message": "string",
       "messageRows": {
         "[]": ["string"]
-      }
+      },
+      "shieldAft": "number",
+      "shieldFwd": "number"
     },
     "hyperspace": {
       "countdown": "number",
@@ -1041,6 +1066,9 @@
       "elements": {
         "[]": ["string"]
       },
+      "energyBanks": {
+        "[]": ["number"]
+      },
       "fuel": "number",
       "fuelText": "string",
       "hyperspaceTarget": "string",
@@ -1051,7 +1079,9 @@
       "message": "string",
       "messageRows": {
         "[]": []
-      }
+      },
+      "shieldAft": "number",
+      "shieldFwd": "number"
     },
     "hyperspace": {
       "countdown": "number",
@@ -1269,6 +1299,9 @@
       "elements": {
         "[]": ["string"]
       },
+      "energyBanks": {
+        "[]": ["number"]
+      },
       "fuel": "number",
       "fuelText": "string",
       "hyperspaceTarget": "string",
@@ -1279,7 +1312,9 @@
       "message": "string",
       "messageRows": {
         "[]": []
-      }
+      },
+      "shieldAft": "number",
+      "shieldFwd": "number"
     },
     "hyperspace": {
       "countdown": "number",

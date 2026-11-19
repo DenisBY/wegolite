@@ -525,6 +525,18 @@ export function createProbePublisher(
           model === undefined ? [] : model.messageRows.map((row) => row.text),
         fuelText: model === undefined ? "" : model.fuelText,
         fuel: model === undefined ? 0 : model.bars.fuel,
+        shieldFwd: model === undefined ? 0 : model.bars.shieldFwd,
+        shieldAft: model === undefined ? 0 : model.bars.shieldAft,
+        // A new array, so the probe never aliases the drawn model's banks.
+        energyBanks:
+          model === undefined
+            ? [0, 0, 0, 0]
+            : [
+                model.bars.energyBanks[0],
+                model.bars.energyBanks[1],
+                model.bars.energyBanks[2],
+                model.bars.energyBanks[3],
+              ],
         hyperspaceTarget: model === undefined ? "" : model.hyperspaceTarget,
         bounds: currentHud.bounds,
       };

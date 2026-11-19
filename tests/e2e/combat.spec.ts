@@ -262,6 +262,11 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
   //    the bank must pay for every shot until the 12th hit destroys it.
   const full = await page.evaluate(() => window.__wegolite?.combat?.fwdShield);
   expect(full, "the shield before the shooter appears").toBe(128);
+  // The HUD's drawn forward bar (G-17-4): full before the shooter appears.
+  const drawnFwdBefore = await page.evaluate(
+    () => window.__wegolite?.hud.shieldFwd,
+  );
+  expect(drawnFwdBefore, "the drawn forward bar before the shooter").toBe(1);
   await page.keyboard.down("KeyA");
   // The shooter carries 20 cargo capsules (D16-09): `spawnTestShooter(20)`, as
   // in the debris twin. The cargo changes no combat value, so the kill tick and
@@ -293,6 +298,7 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
     aft: window.__wegolite?.combat?.aftShield,
     energy: window.__wegolite?.combat?.energy,
     hudDrawn: window.__wegolite?.hud.drawn,
+    drawnFwd: window.__wegolite?.hud.shieldFwd,
   }));
   expect(readout.fwd, "the twin's forward shield at spawn + 360").toBeCloseTo(
     TWIN_SHIELD_AFTER_SHOOTING,
@@ -303,6 +309,16 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
     9,
   );
   expect(readout.aft, "the aft shield is never hit from ahead").toBe(128);
+  // The drawn forward bar fell with the shield and is the probe's forward
+  // shield over 128 (Oolite's shield dial, PlayerEntity.m:4268-4276).
+  expect(
+    readout.drawnFwd,
+    "the drawn forward bar fell below its pre-spawn value",
+  ).toBeLessThan(drawnFwdBefore ?? 0);
+  expect(
+    readout.drawnFwd,
+    "the drawn forward bar is the forward shield over 128",
+  ).toBeCloseTo((readout.fwd ?? Number.NaN) / 128, 12);
   expect(readout.hudDrawn, "the HUD is drawing the gauges").toBe(true);
   expect(
     await page.evaluate(() => window.__wegolite?.test?.tainted),
