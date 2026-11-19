@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: 7
+current_plan: 8
 status: executing
-stopped_at: Completed 18-13-PLAN.md
-last_updated: "2026-11-19T20:33:44.098Z"
+stopped_at: Completed 18-14-PLAN.md
+last_updated: "2026-11-19T20:52:51.983Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: ace7d9fec8917eeac5d7ce1bdd7f9415b62f8989
+state_head: 9044706226f40d11a6d3c77c6b2002f062860de2
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 34
+  completed_plans: 35
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 7
+Current Plan: 8
 Total Plans in Phase: 22
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 18 execution started
@@ -219,6 +219,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 18 P20 | 34 min | 3 tasks | 1 files |
 | Phase 18 P10 | 21 min | 2 tasks | 13 files |
 | Phase 18 P13 | 23 min | 2 tasks | 14 files |
+| Phase 18 P14 | 17 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -555,6 +556,8 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-13: hullTable(hulls, statics) refuses a static key that repeats a ship key, so a broken build fails the boot visibly
 - [Phase 18]: 18-13: the boot content load is loadSessionContent(ctx, loaders, onBootFailure); it returns { staticNames } for plan 18-06 and installs nothing on a failure or dispose
 - [Phase 18]: 18-13: the static chunk's only traffic-off guard is the unit boot-path scan (budget.spec.ts matches ships-hulls-*.js only and may not be edited)
+- [Phase 18]: Phase 18-14: World.buoys (offset, velocity, subentityEnergy 200, subentityTakingDamage) is the owner-approved PD-01/PD-02 amendment of the v4 field set; pristine-omit buoys: line after staticHealth: and optional snapshot buoys key; WORLD_SNAPSHOT_VERSION stays 4; saves unchanged
+- [Phase 18]: Phase 18-14: sanitizeBuoyStates runs in repairWorldFields and inside hashWorld; a non-finite vector rests at the layout position, a non-finite subentity energy heals to 200, the routing flag clears when not boolean or the subentity is detached; bounds MAX_BUOY_OFFSET 1e6, MAX_ENTITY_VELOCITY 1e4, BUOY_SUBENTITY_MAX_ENERGY 200
 
 ### Pending Todos
 
@@ -694,8 +697,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-19T20:33:43.672Z
-Stopped at: Completed 18-13-PLAN.md
+Last session: 2026-11-19T20:52:51.560Z
+Stopped at: Completed 18-14-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
