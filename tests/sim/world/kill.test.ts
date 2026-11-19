@@ -695,10 +695,11 @@ describe("a test shooter's lethal shot through stepSim", () => {
     const combat = createPlayerCombatState();
 
     // D-08: the shooter's shot is the gate's, so the kill comes on the first
-    // tick whose range roll passes, within the first 12 ticks; every tick before
+    // tick whose range roll passes, within the first 13 ticks (the beam period,
+    // D-07 revised); every tick before
     // it also ends with empty queues and no dead entity.
     let events: SimEvent[] = [];
-    for (let i = 0; i < 12 && destroyed(events).length === 0; i += 1) {
+    for (let i = 0; i < 13 && destroyed(events).length === 0; i += 1) {
       events = stepSim(
         player,
         world,

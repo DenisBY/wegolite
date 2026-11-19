@@ -30,8 +30,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   until you fit the Advanced Space Compass.
 - In a test session (`?test=1&traffic=1`) the test shooter now fires through
   Oolite's NPC fire gate (heat, energy, the shot timer, a range roll and aim),
-  so it fires a beam about ten times a second instead of once per AI think,
-  and its hits drain your shields and then your energy. In normal play NPC
+  so it fires its beam at Oolite's own rate, about nine shots a second (one
+  every 13 ticks, the same as your beam), instead of once per AI think, and its
+  hits drain your shields and then your energy. In normal play NPC
   ships still never fire.
 
 ### Fixed

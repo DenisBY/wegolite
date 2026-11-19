@@ -28,7 +28,7 @@ import { describe, expect, it } from "vitest";
 
 import { LASER_STATS } from "../../../src/sim/combat/constants.js";
 import type { LaserKey, MountKey } from "../../../src/sim/combat/mounts.js";
-import { NO_LASER } from "../../../src/sim/combat/mounts.js";
+import { LASER_KEYS, NO_LASER } from "../../../src/sim/combat/mounts.js";
 import { DT } from "../../../src/sim/time.js";
 import { SCANNER_MAX_RANGE } from "../../../src/sim/npc/constants.js";
 import {
@@ -36,6 +36,7 @@ import {
   heatWeapon,
   npcFireGate,
   npcOnTarget,
+  npcRechargeTicks,
   onTargetCone,
 } from "../../../src/sim/npc/fire.js";
 import { currentAimTolerance } from "../../../src/sim/npc/target.js";
@@ -43,12 +44,18 @@ import { identity } from "../../../src/sim/math.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { Entity } from "../../../src/sim/world/entity.js";
 import {
+  literalShotFrames,
+  rechargeRateF32,
+  rechargeTicks,
+} from "../../oracles/npc/fire/derive.js";
+import {
   FireGateFileSchema,
   OnTargetFileSchema,
   WeaponHeatFileSchema,
 } from "../../oracles/npc/fire/schema.js";
 import type {
   FireGateFixture,
+  FireWeapon,
   OnTargetFixture,
   WeaponHeatFixture,
 } from "../../oracles/npc/fire/schema.js";
@@ -421,13 +428,25 @@ describe("the fire rows of the frame-rate rule", () => {
     }
   });
 
-  it("the shot-timer row states its measured difference of one tick", () => {
+  it("the shot-timer row records no divergence and names the revision", () => {
     const row = rule.rows.find(
       (candidate) => candidate.oolite === FIRE_ROWS[1],
     );
-    expect(row?.treatment).toMatch(/\bDIVERGENCE\b/);
-    expect(row?.measuredDifference).toBe(1);
+    expect(row?.treatment).toMatch(/revised by the owner 2026-11-19/);
+    expect(row?.treatment).not.toMatch(/\bDIVERGENCE\b/);
+    expect(row?.measuredDifference).toBe(0);
   });
+
+  it.each([...LASER_KEYS, NO_LASER] as const)(
+    "npcRechargeTicks(%s) equals the oracle's literal frame count",
+    (laser) => {
+      const weapon: FireWeapon = laser === NO_LASER ? "EQ_WEAPON_NONE" : laser;
+      expect(npcRechargeTicks(laser)).toBe(
+        literalShotFrames(rechargeRateF32(weapon)),
+      );
+      expect(npcRechargeTicks(laser)).toBe(rechargeTicks(weapon));
+    },
+  );
 });
 
 describe("the manifest entry", () => {

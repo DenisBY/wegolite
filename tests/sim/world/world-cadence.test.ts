@@ -651,7 +651,8 @@ describe("combat cross-cadence determinism (CBT-06, CBT-07)", () => {
 //
 // The seeded weapon record `{ temperature: 12.5, lastShotTick: 7, missedShots:
 // 2 }` is no longer hash-only: the gate reads it. `lastShotTick` 7 lies after the
-// start tick 2, so the timer refuses until tick 19 (7 + 12); the temperature
+// start tick 2, so the timer refuses until tick 20 (7 + 13, the literal beam
+// period of D-07 as revised for G-17-1); the temperature
 // 12.5 cools by fround(6/120) a tick; `missedShots` 2 enters the aim tolerance
 // and moves with each resolved shot.
 // ---------------------------------------------------------------------------
@@ -746,7 +747,7 @@ class KillScenario {
       // Zero recharge keeps both kills independent of the cadence-free energy
       // arithmetic: the Adder (30) dies on the player's second pulse, the
       // Sidewinder (20) on the fourth beam hit of the Viper (4 x 6), at the
-      // ticks the gate sets (the first shot at tick 19, then 12 ticks apart).
+      // ticks the gate sets (the first shot at tick 20, then 13 ticks apart).
       log.ids.adder = this.spawn("adder", at(0, -2000), {
         maxEnergy: 30,
         energyRechargeRate: 0,
@@ -894,6 +895,13 @@ describe("kill cross-cadence determinism (FOUND-18, FOUND-19, QUAL-11)", () => {
     expect(killReference.removedTicks).toEqual(
       kills.map((kill) => [kill.tick, kill.id]),
     );
+    // The Viper's four hits of 6 on the 20-point Sidewinder land on ticks 20,
+    // 33, 46 and 59 (every roll passes at 3000 m; the timer opens at 7 + 13 and
+    // then every 13): the kill is at tick 59, never earlier than 20 + 3 x 13.
+    // The Adder's second pulse is 61 ticks after the first, at tick 64.
+    // Measured on the working tree at plan 17-12; the same at every cadence.
+    expect(sidewinder?.tick).toBe(20 + 3 * 13);
+    expect(adder?.tick).toBe(64);
     // The Adder's second pulse hit comes at least 61 ticks after the first, so
     // it is still alive, cargo and all, in the section captured at start + 30.
     expect(adder?.tick).toBeGreaterThan(KILL_START_TICK + KILL_SAMPLE_EVERY);

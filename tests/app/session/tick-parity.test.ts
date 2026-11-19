@@ -634,40 +634,47 @@ function liveWorldOf(s: Session): NonNullable<WorldLifecycle["world"]> {
 }
 
 /**
- * The gated fight's pins (plan 17-05, D-08), measured on this twin and equal to
- * the browser spec's `TWIN_*` literals in tests/e2e/combat.spec.ts.
+ * The gated fight's pins (plan 17-05, D-08; re-measured in plan 17-12 for the
+ * literal beam period, D-07 revised by the owner 2026-11-19, G-17-1), measured
+ * on this twin and equal to the browser spec's `TWIN_*` literals in
+ * tests/e2e/combat.spec.ts.
  *
- * The shooter's shots are the NPC fire gate's: the first within 12 ticks of the
- * spawn, then never less than 12 ticks apart (the beam period under D-07), so
- * the shooter fires up to ten times a second and its 6-point hits empty the
- * forward shield (128, refilled at 2 a second) and then the energy bank.
+ * The shooter's shots are the NPC fire gate's: the first within 13 ticks of the
+ * spawn, then never less than 13 ticks apart (Oolite's literal frame count for
+ * the beam at 120 Hz), so the shooter fires up to 120 / 13 = 9.2 times a second
+ * and its 6-point hits empty the forward shield (128, refilled at 2 a second)
+ * and then the energy bank.
  *
  * `KILL_OFFSET` is the kill tick relative to the spawn: the player's pulse
  * fires on the spawn tick + 1 and every 61 ticks (the strict `>` of the pulse
- * period) and each pulse hit takes 15 from the Viper. The Viper's 180 energy now
- * pays 0.5 a shot: at ten shots a second that is 5 a second against a recharge
- * of 4, so it loses about 1 a second and holds about 174 by the 12th pulse. Eleven
- * pulses (165) leave it alive and the 12th (180 >= 174) kills it, at spawn + 1 +
- * 11 x 61 = 672 (the ungated 15-tick shooter lost no energy and needed the 14th
- * pulse, at 794, the old pin).
+ * period) and each pulse hit takes 15 from the Viper. The Viper's 180 energy
+ * pays 0.5 a shot: at 9.2 shots a second that is 4.6 a second against a
+ * recharge of 4, so it loses about 0.6 a second and holds about 176.6 by the
+ * 12th pulse (5.6 s). Eleven pulses (165) leave it alive and the 12th (180 >=
+ * 176.6) kills it, at spawn + 1 + 11 x 61 = 672. The kill offset is set by the
+ * player's pulse period, so the 13-tick period does not move it (the ungated
+ * 15-tick shooter lost no energy and needed the 14th pulse, at 794, the old
+ * pin).
  *
  * The bank at the kill is re-derived by hand. In `T` ticks the shooter fires at
- * most `floor((T - 1) / 12) + 1` shots, 56 at T = 672, so at most 56 x 6 = 336
+ * most `floor((T - 1) / 13) + 1` shots, 52 at T = 672, so at most 52 x 6 = 312
  * points land. The shield absorbs 128 plus whatever it refills (every refilled
  * point is paid by the bank), the player's own 12 pulses cost 12 x 0.8 = 9.6,
  * and the bank regenerates 4 a second (22.4 over the 5.6 s) that this bound
- * ignores. Energy at the kill is therefore at least 256 - 9.6 - (336 - 128) =
- * 38.4. The measured bank, 59.75, sits above it: not every shot lands on the
+ * ignores. Energy at the kill is therefore at least 256 - 9.6 - (312 - 128) =
+ * 62.4. The measured bank, 83.8, sits above it: not every shot lands on the
  * player and part of the regeneration counts. `ENERGY_AT_KILL` is pinned exactly
  * so that any drift of the gate's shot count (6 points a shot) fails here, and
- * the floor guards the modelled minimum.
+ * the floor guards the modelled minimum. Measured at plan 17-12 on the working
+ * tree: the shield 0.18333... -> 0.13333... and the bank 210.13... -> 222.18...
+ * 360 ticks after the spawn, the bank at the kill 59.75 -> 83.8.
  */
 const KILL_OFFSET = 672;
-const ENERGY_AT_KILL = 59.7499999999951;
-const ENERGY_AT_KILL_FLOOR = 38.4;
+const ENERGY_AT_KILL = 83.7999999999947;
+const ENERGY_AT_KILL_FLOOR = 62.4;
 /** The forward shield and the bank 360 ticks after the spawn, fire held. */
-const SHIELD_AFTER_SHOOTING = 0.18333333333333332;
-const ENERGY_AFTER_SHOOTING = 210.13333333333128;
+const SHIELD_AFTER_SHOOTING = 0.13333333333333333;
+const ENERGY_AFTER_SHOOTING = 222.18333333333135;
 
 describe("the browser kill step's twin (plan 15-04, FOUND-19, R2-1)", () => {
   it("fire held from the spawn destroys the hook-spawned shooter before its return fire empties the bank", () => {
@@ -764,15 +771,20 @@ describe("the browser kill step's twin (plan 15-04, FOUND-19, R2-1)", () => {
 // entities and "34393ce1": the shooter's own combat stream now also serves the
 // gate's draws, so the debris released at the kill (drawn from that stream)
 // differs, and the kill lands 122 ticks earlier. Measured, not derived.
-const DEBRIS_AT_KILL = { pods: 2, plates: 0, wrecks: 1 } as const;
-const ENTITIES_AT_KILL = 15;
+// Re-pinned in plan 17-12 (G-17-1): the beam period is now 13, so the shooter's
+// combat stream is at a different point when the debris is drawn; wrecks 1 -> 2,
+// entities 15 -> 16 (2 pods + 2 wrecks + the rest of the world, unchanged).
+const DEBRIS_AT_KILL = { pods: 2, plates: 0, wrecks: 2 } as const;
+const ENTITIES_AT_KILL = 16;
 // Re-pinned in quick task 261117-pij from "a10b2dfc": a new game's clock now
 // starts at the standard scenario's ship_clock, and the hash includes the clock.
 // Re-pinned in quick task 261118-mb5 from "ca59f800": the launch now applies
 // Oolite's launch twist (a quarter turn about the nose axis), and the hash
 // includes the orientation. Passing no dock to `beginLaunch` restores the old
 // value.
-const HASH_60_AFTER_KILL = "a545cb4b";
+// Re-pinned in plan 17-12 (G-17-1) from "a545cb4b": the literal beam period
+// moves every shot and the shooter's stream. Measured, not derived.
+const HASH_60_AFTER_KILL = "e909751a";
 
 /** The world's live debris by kind: pods, plates and wrecks. */
 function debrisCounts(world: NonNullable<WorldLifecycle["world"]>): {

@@ -6,7 +6,8 @@
  *
  * The numbers are derived by hand from the rules the plan cites: the Viper's
  * beam laser (damage 6), the Cobra's 128 shield, the NPC fire gate's beam period
- * of 12 ticks (D-07, D-08: the pilot asks every tick, the gate sets the rate),
+ * of 13 ticks (D-07 revised, G-17-1: Oolite's literal frame count at 120 Hz;
+ * D-08: the pilot asks every tick, the gate sets the rate),
  * and the shield refill of 2 points per second. The Viper
  * record and the hull table are the committed generated content, read the way
  * `tests/helpers/lave.ts` reads it.
@@ -296,17 +297,17 @@ describe("spawnTestShooter", () => {
     expect([...world.store.live]).toHaveLength(0);
   });
 
-  it("drains the player's forward shield by 6 on its first shot, within 12 ticks of the spawn, and no other bank", () => {
+  it("drains the player's forward shield by 6 on its first shot, within 13 ticks of the spawn, and no other bank", () => {
     const player = flyingPlayer();
     const combat = createPlayerCombatState();
     const world = createWorld(7);
     spawnTestShooter(world, player, VIPER, player.tick);
 
     // D-08: the shot is the gate's, so it comes on the first tick whose range
-    // roll passes (at most one per 12-tick beam period); the shield refill of 2 a
-    // second is at most 0.2 points over 12 ticks, below the 6 of the hit.
+    // roll passes (at most one per 13-tick beam period); the shield refill of 2 a
+    // second is at most 0.22 points over 13 ticks, below the 6 of the hit.
     let hitTick = -1;
-    for (let i = 1; i <= 12 && hitTick < 0; i += 1) {
+    for (let i = 1; i <= 13 && hitTick < 0; i += 1) {
       stepSim(
         player,
         world,
@@ -349,8 +350,8 @@ describe("spawnTestShooter", () => {
       lows.push(combat.fwdShield);
     }
 
-    // D-08, D-09: 360 ticks hold at most 30 beam shots of 12 ticks (the first
-    // within 12 ticks of the spawn) of 6 against a refill of 2 points a second,
+    // D-08, D-09: 360 ticks hold at most 28 beam shots of 13 ticks (the first
+    // within 13 ticks of the spawn: floor(359 / 13) + 1 = 28) of 6 against a refill of 2 points a second,
     // so the shield is gone and the overflow reaches the energy banks. The rate is
     // the gate's, not the pilot's think interval.
     expect(combat.fwdShield).toBeLessThan(128);
@@ -391,7 +392,7 @@ const ATTACKER_PARAMS = {
 };
 
 /** The beam period of the NPC fire gate, in ticks (D-07). */
-const NPC_BEAM_PERIOD_TICKS = 12;
+const NPC_BEAM_PERIOD_TICKS = 13;
 
 describe("spawnTestAttacker", () => {
   it("puts one Viper 3,000 m along the player's nose, facing the player, at rest", () => {
@@ -511,7 +512,7 @@ describe("spawnTestAttacker", () => {
       true,
     );
     expect(shotTicks.length).toBeGreaterThan(1);
-    // The gate's beam period: never two shots closer than 12 ticks.
+    // The gate's beam period: never two shots closer than 13 ticks.
     for (let i = 1; i < shotTicks.length; i += 1) {
       expect(
         (shotTicks[i] as number) - (shotTicks[i - 1] as number),

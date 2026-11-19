@@ -305,7 +305,7 @@ describe("an opted-in fight at 30, 60 and 144 Hz (QUAL-11, criterion 1, D-17)", 
     }
   });
 
-  it("never fires twice within a gate period: no two shots of one ship closer than 12 ticks", () => {
+  it("never fires twice within a gate period: no two shots of one ship closer than 13 ticks", () => {
     for (const shooter of [
       reference.attacker,
       reference.pilot,
@@ -315,8 +315,10 @@ describe("an opted-in fight at 30, 60 and 144 Hz (QUAL-11, criterion 1, D-17)", 
         .filter((s) => s.shooter === shooter)
         .map((s) => s.tick);
       for (let i = 1; i < ticks.length; i += 1) {
+        // The beam period is the literal 13 (D-07 revised, G-17-1), so a gap of
+        // 12, the superseded period, fails.
         expect((ticks[i] as number) - (ticks[i - 1] as number)).toBeGreaterThan(
-          11,
+          12,
         );
       }
     }

@@ -92,8 +92,13 @@ const FACING_PLUS_Z: Quat = { w: 0, x: 0, y: 1, z: 0 };
 const BEAM = LASER_STATS.EQ_WEAPON_BEAM_LASER;
 const BEAM_DAMAGE = BEAM.damage;
 
-/** The beam's period under D-07: round(0.1 s x 120). */
-const BEAM_PERIOD = 12;
+/**
+ * The beam's period under D-07 as revised by the owner 2026-11-19 (G-17-1):
+ * Oolite's literal frame count at 120 Hz, 13 (12 double additions of 1/120 sum
+ * to 0.09999999999999999, below fround(0.1); 13 reach 0.10833333333333332).
+ * The superseded round(0.1 s x 120) was 12.
+ */
+const BEAM_PERIOD = 13;
 
 /** The float32 cooling step of one stepped tick: fround(6 x dt). */
 const COOL_STEP = Math.fround(6 * DT);
@@ -315,7 +320,7 @@ function aheadOf(distance: number): Vec3 {
 }
 
 describe("a hook-spawned shooter fires through the gate (tracer, CBT-15, D-09)", () => {
-  it("fires within 12 ticks, never closer than the beam's period, and drains the shield then energy", () => {
+  it("fires within one period, never closer than the beam's 13 ticks, and drains the shield then energy", () => {
     const player = flyingPlayer();
     const combat = createPlayerCombatState();
     const world = createWorld(7);
@@ -394,15 +399,17 @@ describe("a hook-spawned shooter fires through the gate (tracer, CBT-15, D-09)",
       expect(shooter.weapon.lastShotTick).toBe(lastShot);
     }
 
-    // The first shot is within 12 ticks of the spawn; no two are closer than 12.
+    // The first shot is within 13 ticks of the spawn; no two are closer than 13.
     expect(shotTicks.length).toBeGreaterThan(10);
-    expect((shotTicks[0] as number) - spawnTick).toBeLessThanOrEqual(12);
+    expect((shotTicks[0] as number) - spawnTick).toBeLessThanOrEqual(
+      BEAM_PERIOD,
+    );
     for (let i = 1; i < shotTicks.length; i += 1) {
       expect(
         (shotTicks[i] as number) - (shotTicks[i - 1] as number),
       ).toBeGreaterThanOrEqual(BEAM_PERIOD);
     }
-    // At 10 shots a second the 6-point hits empty the shield (2 points a second
+    // At about 9 shots a second (120 / 13) the 6-point hits empty the shield (2 points a second
     // refill) and the overflow reaches the energy bank.
     expect(hitCount).toBeGreaterThan(0);
     expect(lowestShield).toBe(0);
@@ -416,7 +423,7 @@ describe("a hook-spawned shooter fires through the gate (tracer, CBT-15, D-09)",
 });
 
 describe("the gate takes one draw per request that passes the cheap checks", () => {
-  it("draws only when heat, energy and the timer allow, and fires at the 12-tick period", () => {
+  it("draws only when heat, energy and the timer allow, and fires at the 13-tick period", () => {
     const player = flyingPlayer();
     const world = createWorld(7);
     const id = armed(world, "viper", aheadOf(1500), FACING_PLUS_Z);

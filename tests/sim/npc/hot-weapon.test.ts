@@ -298,13 +298,16 @@ describe("a firing attacker heats up, cuts out and recovers (tracer, criterion 1
       expect(viper.weapon.temperature).toBe(mirror);
       peak = Math.max(peak, mirror);
     }
-    // The beam cycle nets 3.2 - 12 x 0.05 = 2.6 a 12-tick period, so the
-    // temperature reaches READY (64) after about 25 shots (tick ~300) and the
-    // cutout (217.6) after about 84 shots (tick ~1000).
-    expect(readyAt).toBeGreaterThan(250);
+    // The beam cycle nets 3.2 - 13 x 0.05 = 2.55 a 13-tick period (D-07
+    // revised, G-17-1), so the temperature reaches READY (64) after about 26
+    // shots (64 / 2.55 = 25.1; tick ~25 x 13 + the first shot's tick, ~330) and
+    // the cutout (217.6) after about 86 shots (217.6 / 2.55 = 85.3; tick ~85 x
+    // 13 + the first shot's tick, ~1110). The superseded 12-tick period reached
+    // them at ~300 and ~1000, so these bounds exclude it.
+    expect(readyAt).toBeGreaterThan(310);
     expect(readyAt).toBeLessThan(350);
-    expect(cutoutAt).toBeGreaterThan(900);
-    expect(cutoutAt).toBeLessThan(1100);
+    expect(cutoutAt).toBeGreaterThan(1060);
+    expect(cutoutAt).toBeLessThan(1160);
     // Every branch was visited: the ordinary chain below 64, the heating branch
     // from 64, the no-usable-weapon branch past the cutout, the fly-to hand-back
     // at the cutout; the gate refused from the cutout, cooling let it fire again,

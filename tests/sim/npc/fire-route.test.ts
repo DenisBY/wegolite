@@ -231,10 +231,10 @@ describe("an opted-in scripted attacker fires from fly-to through the gate (trac
       if (queued) requests += 1;
 
       const resolved = drain(world, player);
-      // The gate's one draw comes only when heat, energy and the 12-tick timer
+      // The gate's one draw comes only when heat, energy and the 13-tick timer
       // let the request through (`npcFireGate`); a refusal before that takes
       // none. Heat and energy never bind in this short run.
-      const timerOpen = lastShot === 0 || player.tick - lastShot >= 12;
+      const timerOpen = lastShot === 0 || player.tick - lastShot >= 13;
       const draws = queued && timerOpen;
       expect(viper.rng.combat).toBe(
         draws ? advance(afterSteering) : afterSteering,

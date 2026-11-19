@@ -12,7 +12,8 @@
  * key locks it with a message, and a ship the player's laser brings to zero
  * energy is destroyed and leaves the scanner (FOUND-19, plan 15-04). The
  * shooter fires through Oolite's NPC fire gate (plan 17-05; heat, energy, the
- * 12-tick beam period, the range roll and aim): its hits drain the forward shield
+ * 13-tick beam period, Oolite's literal frame count, the range roll and aim):
+ * its hits drain the forward shield
  * and then the energy bank, read here 360 ticks after the spawn and equal to the
  * Node twin's literals (criterion 3: the route from a hook-spawned shooter to the
  * readout). Fire is held from the moment the shooter appears, because the shooter
@@ -55,8 +56,8 @@ const COMBAT_URL = "/?test=1&traffic=1&clock=manual";
 const LAUNCH_TICKS = 300;
 /**
  * A bound well past the gate's first shots, not a think count: the beam-armed
- * Viper asks every tick and the NPC fire gate lets a shot out at most every 12
- * ticks (the range roll may refuse some), so 360 ticks hold up to 30.
+ * Viper asks every tick and the NPC fire gate lets a shot out at most every 13
+ * ticks (the range roll may refuse some), so 360 ticks hold up to 28.
  */
 const SHOOTING_TICKS = 360;
 /** The chunk of manual ticks the kill step advances between scanner reads. */
@@ -71,26 +72,29 @@ const SHOOTER_CARGO = 20;
 /**
  * The debris twin's pins (tests/app/session/tick-parity.test.ts, plan 16-06):
  * the kill tick relative to the spawn, the probe's entity count on the kill
- * tick (the populated world plus the twin's debris, since plan 17-05 2 pods, no
- * plate and 1 wreck), and the world hash 60 ticks after the kill with fire released. Never edit these
+ * tick (the populated world plus the twin's debris, since plan 17-12 2 pods, no
+ * plate and 2 wrecks), and the world hash 60 ticks after the kill with fire released. Never edit these
  * to make the browser pass: a difference is a divergence to report.
  */
 const TWIN_KILL_OFFSET = 672;
-const TWIN_ENTITIES_AT_KILL = 15;
+const TWIN_ENTITIES_AT_KILL = 16;
 // The plates the twin's kill releases (DEBRIS_AT_KILL.plates in the Node twin):
 // the re-measured debris stream releases none, so no plate model is requested.
 const TWIN_PLATES_AT_KILL = 0;
 // Follows the Node twin's re-pin in plan 17-05 (D-08): the shooter's shots are
 // the NPC fire gate's, so the kill lands earlier and the debris stream moved.
 // The forward shield and the bank 360 ticks after the spawn, fire held.
-const TWIN_SHIELD_AFTER_SHOOTING = 0.18333333333333332;
-const TWIN_ENERGY_AFTER_SHOOTING = 210.13333333333128;
+// Follows the Node twin's re-pin in plan 17-12 (G-17-1, D-07 revised: the
+// literal 13-tick beam period), from 0.18333333333333332 and 210.13333333333128.
+const TWIN_SHIELD_AFTER_SHOOTING = 0.13333333333333333;
+const TWIN_ENERGY_AFTER_SHOOTING = 222.18333333333135;
 // Follows the Node twin's re-pin in quick task 261117-pij (from "a10b2dfc"):
 // the new-game clock start moved and the hash includes the clock. Follows it
 // again in quick task 261118-mb5 (from "ca59f800"): the launch applies Oolite's
 // launch twist, and the hash includes the orientation.
-// Follows it again in plan 17-05 (D-08), from "34393ce1".
-const TWIN_HASH_60_AFTER_KILL = "a545cb4b";
+// Follows it again in plan 17-05 (D-08), from "34393ce1", and in plan 17-12
+// (G-17-1), from "a545cb4b".
+const TWIN_HASH_60_AFTER_KILL = "e909751a";
 /** Ticks after the kill at which the hash is read (the twin's 60). */
 const AFTER_KILL_TICKS = 60;
 /** Draw calls per rendered frame (docs/PERFORMANCE.md, budget.spec.ts). */

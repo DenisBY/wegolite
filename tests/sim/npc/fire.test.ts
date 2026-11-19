@@ -113,7 +113,7 @@ describe("the tracer: a Viper-like beam ship through a real world view", () => {
     expect(rangeToTargetIn(viper, view)).toBeCloseTo(1387.30265045166, 9);
   });
 
-  it("fires once with one draw, refuses at the timer with no draw until 12 ticks pass", () => {
+  it("fires once with one draw, refuses at the timer with no draw until 13 ticks pass", () => {
     const { viper, view } = viperAndView();
     const stub = counting([0.5, 0.25]);
 
@@ -130,17 +130,18 @@ describe("the tracer: a Viper-like beam ship through a real world view", () => {
     viper.weapon.lastShotTick = 1000;
     expect(viper.weapon.temperature).toBe(3.200000047683716);
 
-    // Same tick: 0 ticks since the shot, 0 >= 12 is false: timer, no draw.
+    // Same tick: 0 ticks since the shot, 0 >= 13 is false: timer, no draw.
     const same = npcFireGate(gateInput(viper, view, 1000), stub.draw);
     expect(same).toEqual({ kind: "refused", reason: "timer", drew: false });
     expect(stub.count()).toBe(1);
 
-    // 11 ticks: still refuses; 12 ticks fires (NPC >=, 9946).
-    const eleven = npcFireGate(gateInput(viper, view, 1011), stub.draw);
-    expect(eleven).toEqual({ kind: "refused", reason: "timer", drew: false });
-    expect(stub.count()).toBe(1);
+    // 12 ticks: still refuses (the superseded period fired here); 13 ticks
+    // fires (the literal frame count, NPC >=, 9946).
     const twelve = npcFireGate(gateInput(viper, view, 1012), stub.draw);
-    expect(twelve).toEqual({ kind: "fired" });
+    expect(twelve).toEqual({ kind: "refused", reason: "timer", drew: false });
+    expect(stub.count()).toBe(1);
+    const thirteen = npcFireGate(gateInput(viper, view, 1013), stub.draw);
+    expect(thirteen).toEqual({ kind: "fired" });
     expect(stub.count()).toBe(2);
   });
 });
@@ -266,13 +267,16 @@ describe("npcFireBlocked (the Wegolite-only refusal, Pitfall 16)", () => {
   });
 });
 
-describe("npcRechargeTicks, the one home of the shot period (D-07)", () => {
+describe("npcRechargeTicks, the one home of the shot period (D-07 revised)", () => {
+  // Oolite's literal frame count at 1/120 s: k double additions of 1/120 until
+  // the sum is no longer below the float32 rate (ShipEntity.m:2221, 9946). The
+  // deciding sums are in tests/oracles/npc/frame-rate-rule.json (shot-timer row).
   it.each([
-    ["EQ_WEAPON_PULSE_LASER", 60], // round(0.5 x 120)
-    ["EQ_WEAPON_BEAM_LASER", 12], // round(0.1 x 120)
-    ["EQ_WEAPON_MINING_LASER", 300], // round(2.5 x 120)
-    ["EQ_WEAPON_MILITARY_LASER", 12], // round(0.1 x 120)
-    [NO_LASER, 12000], // the unarmed 100 s
+    ["EQ_WEAPON_PULSE_LASER", 60], // 59 steps 0.49166666666666736 < 0.5 <= 60 steps 0.5000000000000007
+    ["EQ_WEAPON_BEAM_LASER", 13], // 12 steps 0.09999999999999999 < fround(0.1) <= 13 steps 0.10833333333333332
+    ["EQ_WEAPON_MINING_LASER", 301], // 300 steps 2.499999999999994 < 2.5 <= 301 steps 2.508333333333327
+    ["EQ_WEAPON_MILITARY_LASER", 13], // as the beam
+    [NO_LASER, 12000], // 11999 steps 99.99166666669231 < 100 <= 12000 steps 100.00000000002565
   ] as const)("%s is %d ticks", (laser, ticks) => {
     expect(npcRechargeTicks(laser)).toBe(ticks);
   });

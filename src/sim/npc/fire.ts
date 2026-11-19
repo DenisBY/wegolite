@@ -12,9 +12,10 @@
  * Sources (pin `7437f22`): the gate `ShipEntity.m:9933-9993`, `onTarget:`
  * 9851-9909, the cooling at the top of every update 2214-2218, and
  * `adjustMissedShots:` 10468-10477. Decisions: D-04 (the roll as in Oolite,
- * from the shooter's own draw, no bypass), D-07 (a whole-tick shot timer,
- * float32 temperature, cost and heat on a fired shot) and D-17 (every function
- * total).
+ * from the shooter's own draw, no bypass), D-07 (a whole-tick shot timer at
+ * Oolite's literal frame count, revised by the owner 2026-11-19, UAT test 1,
+ * gap G-17-1; float32 temperature, cost and heat on a fired shot) and D-17
+ * (every function total).
  *
  * Width of the roll: `randf()` is a float and `weaponRange` a GLfloat, so the
  * product `u * weaponRange` is rounded to float32 (`Math.fround`) before the
@@ -45,7 +46,7 @@
 import { TICKS_PER_SECOND } from "../ai/time.js";
 import { LASER_STATS, WEAPON_COOLING_FACTOR } from "../combat/constants.js";
 import { NO_LASER } from "../combat/mounts.js";
-import type { MountKey } from "../combat/mounts.js";
+import type { LaserKey, MountKey } from "../combat/mounts.js";
 import { dot, length, rotate, sub, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import type { Entity } from "../world/entity.js";
@@ -78,7 +79,7 @@ export const ON_TARGET_RADIUS_FACTOR = 9;
  */
 const UNARMED_RANGE = 32000;
 const UNARMED_ENERGY_USE = 0;
-const UNARMED_RECHARGE_TICKS = 100 * TICKS_PER_SECOND;
+const UNARMED_RECHARGE_SECONDS = 100;
 
 /** Oolite's world +Z (`kBasisZVector`) in Wegolite's frame (z negated). */
 const ZBASIS: Vec3 = vec(0, 0, -1);
@@ -124,21 +125,73 @@ export type NpcFireResult =
       readonly drew: boolean;
     };
 
+/** Bound of the shot-timer loop: well above the unarmed 12000 frames. */
+const MAX_SHOT_FRAMES = 1_000_000;
+
+/**
+ * Oolite's literal shot-timer frame count at exactly 1 / 120 s per frame, the
+ * port of the timer's own arithmetic. After a shot `shot_time` is reset to 0
+ * (`resetShotTime`, called at 10463), every later `update:` adds `delta_t` once,
+ * a double sum, before the behaviours run (`ShipEntity.m:2221`), and the gate
+ * refuses while `[self shotTime] < weapon_recharge_rate` (9946), a double
+ * compared with the float32 field promoted to double. The first frame that is
+ * not refused is the smallest k with `!(sum_k < Math.fround(rate))`, where
+ * `sum_k` is k successive double additions of 1 / 120. Total for every finite
+ * positive rate (the loop is bounded), and NaN or a non-positive rate opens at
+ * the first frame.
+ */
+function literalShotFrames(rateSeconds: number): number {
+  const rateF32 = Math.fround(rateSeconds);
+  const step = 1 / TICKS_PER_SECOND;
+  let shotTime = 0;
+  for (let frames = 1; frames < MAX_SHOT_FRAMES; frames += 1) {
+    shotTime += step;
+    if (!(shotTime < rateF32)) return frames;
+  }
+  return MAX_SHOT_FRAMES;
+}
+
+/**
+ * The literal frame count per laser, evaluated once at module load from the
+ * laser's own float seconds (`LASER_STATS[laser].rechargeRate`, never from the
+ * player's rounded `rechargeTicks`): pulse 60, beam 13, mining 301, military
+ * 13. Frozen, so the player's own period cannot move through it.
+ */
+const NPC_RECHARGE_TICKS: Readonly<Record<LaserKey, number>> = Object.freeze({
+  EQ_WEAPON_PULSE_LASER: literalShotFrames(
+    LASER_STATS.EQ_WEAPON_PULSE_LASER.rechargeRate,
+  ),
+  EQ_WEAPON_BEAM_LASER: literalShotFrames(
+    LASER_STATS.EQ_WEAPON_BEAM_LASER.rechargeRate,
+  ),
+  EQ_WEAPON_MINING_LASER: literalShotFrames(
+    LASER_STATS.EQ_WEAPON_MINING_LASER.rechargeRate,
+  ),
+  EQ_WEAPON_MILITARY_LASER: literalShotFrames(
+    LASER_STATS.EQ_WEAPON_MILITARY_LASER.rechargeRate,
+  ),
+});
+
+/** The unarmed weapon's literal frame count: 100 s, 12000 frames. */
+const UNARMED_RECHARGE_TICKS = literalShotFrames(UNARMED_RECHARGE_SECONDS);
+
 /**
  * The NPC shot period in whole ticks, the one home of the number the gate reads
- * (orchestrator disposition 1): D-07's `round(rate * 120)`, 60 for the pulse
- * laser, 12 for beam and military, 300 for mining. The NPC compare is `>=`
- * (`ShipEntity.m:9946`), so a shot fires exactly that many ticks after the
- * last one. Literal Oolite, with the double `1 / 120` step added before the
- * behaviours, fires the beam, mining and military one tick later (13 and 301;
- * plan 17-01's shot-timer row, `measuredDifference` 1). Owner question 1 at
- * sign-off may replace this body with the literal counts, a one-line change
- * plus one re-pin. An unarmed ship's period is the unarmed 100 s.
+ * (orchestrator disposition 1): Oolite's LITERAL frame count at 120 Hz, 60 for
+ * the pulse laser, 13 for beam and military, 301 for mining and 12000 for the
+ * unarmed weapon. D-07 as revised by the owner 2026-11-19 (UAT test 1, gap
+ * G-17-1); equal to plan 17-01's oracle `literalShotFrames`, which
+ * `tests/sim/npc/fire.oracle.test.ts` checks for every weapon. The NPC compare
+ * is `>=` (`ShipEntity.m:9946`), so a shot fires exactly that many ticks after
+ * the last one, and the player's own strict-`>` period (61, 13, 301, 13, the
+ * player's rounded `rechargeTicks`) is untouched. History: D-07 first read
+ * `round(rate * 120)` (60, 12, 300, 12), one tick short of Oolite's count for
+ * beam, mining and military.
  */
 export function npcRechargeTicks(laser: MountKey): number {
   return laser === NO_LASER
     ? UNARMED_RECHARGE_TICKS
-    : LASER_STATS[laser].rechargeTicks;
+    : NPC_RECHARGE_TICKS[laser];
 }
 
 function laserRange(laser: MountKey): number {

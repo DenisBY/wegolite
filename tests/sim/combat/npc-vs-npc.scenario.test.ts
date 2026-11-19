@@ -334,6 +334,14 @@ describe("a test pilot shoots an NPC to zero energy through the gate and the kil
     const allHits = arena.ticks.flatMap((tick) => ofKind(tick, "shipHit"));
     expect(allHits).toHaveLength(3);
     for (const hit of allHits) expect(hit.target).toBe(adder);
+    // The beam's period is 13 ticks (D-07 revised, G-17-1): the pilot asks on
+    // every tick, the gate sets the rate, so the three hits land on ticks 1, 14
+    // and 27 and the kill tick is 27 (17-09 predicted this by hand).
+    const hitTicks = arena.ticks.flatMap((tick, index) =>
+      ofKind(tick, "shipHit").length > 0 ? [index + 1] : [],
+    );
+    expect(hitTicks).toEqual([1, 14, 27]);
+    expect(ticks).toBe(27);
     // No `shipDestroyed` before the third hit.
     expect(
       arena.ticks

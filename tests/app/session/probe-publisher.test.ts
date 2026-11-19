@@ -812,7 +812,7 @@ describe("the spawnTestAttacker hook (plan 17-10, D-02, T-17-24)", () => {
     expect(JSON.stringify(h.probe)).not.toMatch(/"(entityId|ids?)"\s*:/);
   });
 
-  it("the hook-spawned attacker fires through the gate: its laser shots are at least a beam period apart and the player's shield falls", () => {
+  it("the hook-spawned attacker fires through the gate: its laser shots are at least a beam period (13 ticks) apart and the player's shield falls", () => {
     const { state, world, hook } = attackerHarness();
     const combat = createPlayerCombatState();
     expect(hook.spawnTestAttacker()).toBe(true);
@@ -853,7 +853,7 @@ describe("the spawnTestAttacker hook (plan 17-10, D-02, T-17-24)", () => {
     for (let i = 1; i < shotTicks.length; i += 1) {
       expect(
         (shotTicks[i] as number) - (shotTicks[i - 1] as number),
-      ).toBeGreaterThanOrEqual(12);
+      ).toBeGreaterThanOrEqual(13); // the literal beam period (D-07 revised)
     }
     expect(shieldFell).toBe(true);
   });
