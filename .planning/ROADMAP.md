@@ -359,7 +359,7 @@ Plans:
 - [ ] 18-18-PLAN.md — CBT-18, criteria 4–5: buoys as movers with their subentity in the collision stage; 30/60/144 Hz equality, cost guard, the player-death tripwire
 
 **Wave 11** *(blocked on Wave 10 completion)*
-- [ ] 18-21-PLAN.md — CBT-18: PD-06, live buoys join the NPC proximity pass so traffic steers around them; QUAL-11 rerun with a stop-and-report rule
+- [ ] 18-21-PLAN.md — CBT-18: PD-06 and PD-08, live buoys join the NPC proximity pass behind Oolite's collision-chain prefilter so NPCs are alerted where Oolite alerts them; the re-pin rule, a populated collisions-on scenario, QUAL-11 under PD-07
 
 **Wave 12** *(blocked on Wave 11 completion)*
 - [ ] 18-19-PLAN.md — CBT-18: the explosion blast pushes ships, buoys and the player (D-03); every exploding body is a blast source
