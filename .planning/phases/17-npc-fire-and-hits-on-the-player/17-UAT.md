@@ -3,7 +3,7 @@ status: complete
 phase: 17-npc-fire-and-hits-on-the-player
 source: [17-VERIFICATION.md]
 started: 2026-11-19T03:37:13Z
-updated: 2026-11-19T11:33:39.048Z
+updated: 2026-11-19T11:52:57Z
 ---
 
 ## Current Test
@@ -39,10 +39,15 @@ expected: docker compose run --rm e2e sh -lc "npm run build:e2e && npx playwrigh
 result: pass
 source: orchestrator remote run, snapshot fb47448, exit=0, elapsed=16s, 1 passed
 
+### 6. Re-run the opt-in browser combat spec once on the remote test machine at the current HEAD (re-verification after gap closure)
+expected: docker compose run --rm e2e sh -lc "npm run build:e2e && npx playwright test tests/e2e/combat.spec.ts" passes at HEAD (1 passed), including the gap-closure code-review fixes
+result: pass
+source: orchestrator remote run, snapshot 3ade2b4, exit=0, elapsed=14s, 1 passed
+
 ## Summary
 
-total: 5
-passed: 3
+total: 6
+passed: 4
 issues: 2
 pending: 0
 skipped: 0

@@ -1,7 +1,7 @@
 ---
 phase: 17-npc-fire-and-hits-on-the-player
 verified: 2026-11-19T12:10:00Z
-status: human_needed
+status: passed
 score: 13/13 must-haves verified
 covered_files:
   - ".planning/phases/17-npc-fire-and-hits-on-the-player/17-01-PLAN.md"
