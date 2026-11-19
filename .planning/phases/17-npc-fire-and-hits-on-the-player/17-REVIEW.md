@@ -164,35 +164,77 @@ Two further independent deep reviews, run at the owner's request after the first
 
 ## Fable — Oolite fidelity and determinism (deep)
 
-phase: 17-npc-fire-and-hits-on-the-player
-reviewed: 2026-11-19T07:56:13Z
-depth: deep
-files_reviewed: 17
-files_reviewed_list:
-  - src/sim/npc/fire.ts
-  - src/sim/combat/step.ts
-  - src/sim/npc/target.ts
-  - src/sim/npc/track.ts
-  - src/sim/npc/constants.ts
-  - src/sim/npc/dispatch.ts
-  - src/sim/npc/behaviours/attack.ts
-  - src/sim/npc/behaviours/attack-close.ts
-  - src/sim/npc/behaviours/attack-evade.ts
-  - src/sim/npc/behaviours/evasive.ts
-  - src/sim/npc/behaviours/flee.ts
-  - src/sim/world/step.ts
-  - src/sim/world/world.ts
-  - src/sim/world/control-impl.ts
-  - src/sim/ai/pilots/test-pilot.ts
-  - src/sim/ai/pilots/flight-script.ts
-  - src/sim/ai/test-spawn.ts
-findings:
-  critical: 0
-  warning: 1
-  info: 4
-  total: 5
-  necessity: 1
-status: issues_found
+
+# Phase 17: Code Review Report
+
+**Reviewed:** 2026-11-19T07:56:13Z
+**Depth:** deep
+**Files Reviewed:** 17
+**Status:** issues_found
+
+## Summary
+
+Independent deep review of the Phase 17 diff (`63a8eaf..HEAD`) with the focus set by the caller: fidelity of the NPC fire port to Oolite at pin `7437f22` and determinism. Every Oolite citation below was read from `/home/opencode/git/oolite` with `git show 7437f22:...`; the necessity rubric (`~/.claude/gsd-core/references/necessity-review.md`) was read before classification.
+
+**What was verified and holds** (no finding):
+
+- **Gate order and boundaries** (`src/sim/npc/fire.ts:153-204` against `ShipEntity.m:9912-9966`): heat `weapon_temp / 256.0f >= 0.85f` refuses with no draw (`9935-9936`; the port's `temp / 256 < fround(0.85)` is bit-identical because a float32 divided by 256 is exact); energy `<=` refuses (`9944-9945`, port `!(energy > use)`); shot timer `<` refuses so `>=` allows (`9946-9947`, port whole ticks per D-07, `lastShotTick` 0 = ready as `INITIAL_SHOT_TIME 100.0`, `ShipEntity.m:208`, `ShipEntity.h:102`); exactly one `randf()` after the three cheap checks (`9949`); range strict `>` (`9951`); `onTarget` (`9954`); `isWeaponNone` fires nothing after the draw (`9958`). The unarmed path is right: `fireMainWeapon:` reloads `weaponRange` from the registered `EQ_WEAPON_NONE` object (`10014`, `OOWeaponTypeFromString` -> `equipmentTypeWithIdentifier`, `OOConstToString.m:258-270`; range 32000, `equipment.plist:114-121`) and the behaviours see 0 again after `setWeaponDataFromType:nil` (`10042`, `443-464`).
+- **Float32 widths**: cooling `fmaxf(t - (float)(6.0f * delta_t), 0.0f)` (`2214-2218`) = `fround(t - fround(6 * dt))` (`fire.ts:280-287`); heat `forward_weapon_temp += weapon_shot_temperature` in float (`9972`) = `fround(t + fround(shot))` (`fire.ts:294-301`); `COMBAT_AI_WEAPON_TEMP_USABLE` = `0.85f * 256.0f` = 217.60000610351562 (`ShipEntity.h:117,120`, `constants.ts:379-393`), `READY` = 64 exactly. Behaviour hot branches compare the float32 field with the float32 product (`attack-close.ts`, `attack-evade.ts`, `attack.ts`).
+- **Hot branches read the pre-shot temperature**: Oolite's `weapon_temp` is copied from `forward_weapon_temp` at gate entry (`9917`) before the heat at `9972`, so `4456`, `4577`, `4713` see the post-cooling, pre-shot value; the port reads `entity.weapon.temperature` at steering time, which is the previous tick's cooling result and this tick's pre-shot value. Same recurrence. Break-off `3932` (`forward_weapon_temp < READY`) and the dispatcher's `weapons_heating` (`4078-4090`, `4122`) are live on the same field.
+- **Fire sites**: `4035` (evasive), `4454` (sniper), `4575` (six/twelve), `4711` (fly-to) are ported at Oolite's position in control flow (after the early returns, after the frustration blocks, `4414` sniper if/else now falls through to the shared tail as `4449-4458` does). The other `fireMainWeapon:` sites are outside Phase 14's IN list or unreachable: `4607` (`behaviour_attack_mining_target`, no port of ATTACK_MINING_TARGET), `4821` (`behaviour_running_defense`, never selected, turret-guarded), `4891` (flee, turret-guarded), `5391` (`behaviour_scripted_ai`).
+- **`onTarget:`** (`9851-9909`): `vector_normal_or_zbasis` on a zero offset, `dq < 0` refuses, `dq > aim*aim` accepts, `astq = sqrt(1 - r^2/(9 d2))` else (`fire.ts:229-250`); `currentAimTolerance` adds `basic_aim /= 1 + missed/4` only at `accuracy >= 0` (`9765-9770`, `target.ts:145-149`); `trackPrimaryTarget`'s `min_d -= 0.0001 * missedShots` floor 0.001 with the factor doubling, only in the `!retreat` `ISNT_AWFUL` branch (`9134-9141`, `track.ts:404-413`). Both are exact identities at `missedShots` 0, so frozen worlds do not move.
+- **`adjustMissedShots:`** (`10395-10396`, `10424-10425`, `10468-10477`): -1 on any ship hit, +1 on a miss, floored at 0 (`combat/step.ts:423-428`, `fire.ts:308-312`).
+- **Player hit routing** (`PlayerEntity.m:5627-5662`): `rel_pos = attacker position - player position`, `d_forward >= 0` drains the forward shield; the ledger passes the shooter's position and `routeDamage` uses `!(dForward < 0)` (`ledger.ts:99-104`, `shields.ts:132-134`).
+- **Determinism**: per ship, steering draws first (`world/step.ts:250-271`, a local copy of `rng.combat` written back), then the gate's single draw at the drain (`combat/step.ts:279-293`, same copy-and-write-back); the drain sorts the queue by id (`:258`), `requestFire` bounds and de-duplicates it (`world.ts:199-203`), and the queue has exactly one drain (`rg fireQueue`: `combat/step.ts:258-259` only; `drainAiEventsNow` truncates handler requests, `world/step.ts:410-412`; `snapshot.ts:493-496` refuses a snapshot with a pending request). `player.tick` is incremented in `stepFlight` (`flight/step.ts:420`) before `stepWorld` and `resolveShots` (`sim.ts:122-135`), so the drain never runs at tick 0 and `lastShotTick = tick` can never collide with the 0 sentinel. No new hashed entity field; `fire` is put on `params` only when true (`flight-script.ts:95-98`, `test-pilot.ts:76-78`); `coolShips` never writes a 0 record (`combat/step.ts:336`); `coolWeapon`, `heatWeapon`, `adjustMissedShots` never return -0.
+- **Totality**: every compare is written as a negated `<`/`>=` so NaN refuses; `npcFireBlocked` covers `ai === null` and self-target before the gate with no draw (Oolite's `addTarget:` refuses self at `8660-8661`, so no Oolite draw moves); an unknown laser key is filtered by `isMountKey` before `LASER_STATS` is indexed (`combat/step.ts:272`); a degenerate tracking curve yields a NaN aim point which `onTargetCone` answers `false`.
+
+**Concern**: one fidelity gap the port's own independent oracle models but the port does not (WR-01). The remaining items are documentation and a type-narrowing guard.
+
+## Warnings
+
+### WR-01: The range roll's `randf() * weaponRange` product is float64 in the port, float32 in Oolite and in the phase's own oracle
+
+**File:** `src/sim/npc/fire.ts:189-199`
+**Issue:** Oolite evaluates `range > randf() * weaponRange * (accuracy + 7.5)` (`ShipEntity.m:9949`) as `((float)randf() * (GLfloat)weaponRange)` first, a float32 product, then times the double `accuracy + 7.5` (`randf` returns `float`, `legacy_random.c:142-145`; `weaponRange` is `GLfloat`). The port computes `u * weaponRange * (input.accuracy + NPC_FIRE_ACCURACY_OFFSET)` entirely in float64. The independently written oracle states and models the float32 step explicitly: `tests/oracles/npc/fire/derive.ts:219-221` ("the product is `float * float` first, then times a double") and `:264-267` (`Math.fround(draw * weaponRange) * (Math.fround(accuracy) + 7.5)`). The gate fixtures do not catch the gap because every roll row uses a dyadic draw (`gate-roll-passes-at-equality` and `gate-roll-refuses-one-ulp-above-equality`, `fixtures/gate.json:560-609`: `0.25 x 12500 = 3125`, exact in both widths). With the 32-bit fractions `rngNext` produces (`src/sim/rng.ts:36-42`) the two limits differ: for `u = 1234567891 / 2^32`, pulse laser, accuracy -5, the port's limit is `8982.663646747824` and the float32 model's is `8982.66357421875` (7.3e-5 m apart), so a range in that band passes one and fails the other. The `fire.ts` header (lines 19-36) records the sun clause, the turret branch, `unresolved` and `npcFireBlocked` as its cuts and says nothing about this width; neither does `17-04-SUMMARY.md`, `17-05-SUMMARY.md` nor the PROJECT.md decision rows (`rg -i 'roll.*float|fround\(draw'` finds only the oracle). The effect per shot is small (a sub-millimetre band of range) but it is an unrecorded bit-level divergence from the source and from the oracle the phase was told to match (roadmap criterion 4), in the one place the gate draws.
+**Fix:** Either match the width in one line and pin it with a non-dyadic equality row, or record the divergence where the header records the other cuts.
+```ts
+// fire.ts, the roll (ShipEntity.m:9949): float * float first, then times a double
+const rollLimit =
+  Math.fround(u * weaponRange) * (input.accuracy + NPC_FIRE_ACCURACY_OFFSET);
+if (!Number.isFinite(input.range) || !(input.range <= rollLimit)) {
+  return refuse("roll", true);
+}
+```
+and add a `gate.json` row whose draw is not a dyadic fraction (for example `draws: [0.3, 0.75]`, pulse laser, accuracy -5, `range` set to `fround(0.3 * 12500) * 2.5`), so `derive.ts` and `npcFireGate` are held to the same boundary. If the owner prefers float64 here (Phase 14's "float64 for every GLfloat field" rule, `14-FIDELITY-REPORT.md:145`, covers fields, not this product), add the divergence to the `fire.ts` header and to the Phase 17 divergence row with the measured 7.3e-5 m figure.
+
+## Info
+
+### IN-01: Already-defended-elsewhere — `weapon.laser === NO_LASER` after `fired`
+
+**File:** `src/sim/combat/step.ts:296`
+**Category:** necessity
+**Issue:** The clause `|| weapon.laser === NO_LASER` runs after the gate returned `fired`, which it cannot do for `NO_LASER` (`fire.ts:202` refuses `noWeapon` first), and after `npcLaserRay` returned non-null, which it cannot do for `NO_LASER` either (`aim.ts:114`). The branch is unreachable; it exists only to narrow `NpcWeapon.laser: MountKey` (`aim.ts:40-43`) to `LaserKey` for `LASER_STATS[weapon.laser]`. The classification rests on judgment because the guard is load-bearing for the type system, not for behaviour.
+**Fix:** Narrow once where the ray is built instead of re-testing the gate's result, for example have `npcLaserRay` return `{ ray, laser: LaserKey } | null`, or compute `const laser = weapon.laser; if (laser === NO_LASER) { /* unreachable after fired */ continue; }` before `npcLaserRay` with a comment that names the gate's `noWeapon` refusal as the real guard.
+
+### IN-02: The unarmed weapon range is 32000 in `fire.ts` and 0 in `attack.ts`; both are right, neither says so
+
+**File:** `src/sim/npc/fire.ts:66-75`, `src/sim/npc/behaviours/attack.ts:9-13`
+**Issue:** `fire.ts` documents the unarmed gate call with `weaponRange` 32000 (the registered `EQ_WEAPON_NONE` object that `fireMainWeapon:` loads at `ShipEntity.m:10014`), while `attack.ts` documents `NO_WEAPON_RANGE` 0 for the same weapon ("`getWeaponRangeFromType(nil)` is 0", `443-466`, `13041-13044`). Both are what Oolite does, because `fireMainWeapon:` resets `weaponRange` to the nil type's 0 again after the gate (`10020-10043`), but a reader of either header sees a contradiction and the compiled catalogue does carry one `EQ_WEAPON_NONE` record (`src/content/generated/ships-npc.json`).
+**Fix:** One sentence in each header pointing at the other: the gate sees the NONE object's 32000 (`10014`), the behaviours see the nil type's 0 (`10042`), and the reload between them is why the two constants differ.
+
+### IN-03: Width divergences inherited from recorded rules but not cited at the new sites
+
+**File:** `src/sim/combat/step.ts:298`, `src/sim/npc/target.ts:147-148`
+**Issue:** Two new arithmetic sites run in float64 where Oolite rounds to float32, and the only record of that choice lives elsewhere: (a) `shooter.energy -= stats.energy` and the gate's `energy <= use` compare on a double `entity.energy` where Oolite's `energy` is `GLfloat` (`Entity.h:134`); the oracle states "Energy is float64 by the plan's contract" (`derive.ts:36-37`). (b) `basicAim /= 1 + missedShots / 4` in float64 where Oolite stores `basic_aim` back into a `GLfloat` after each divide (`ShipEntity.m:9763, 9769, 9775`) and squares it in float (`9804`); Phase 14 recorded "float64 for every GLfloat field except `frustration` and `successFactor`" (`14-FIDELITY-REPORT.md:145`) and the oracle holds the on-target equality fixture in both widths. Neither site cites the rule it relies on, so the next reader of `fire.ts`'s "float32 temperature" comment will not know why energy and aim are not.
+**Fix:** Add the rule citation at each site (one comment line each: "energy is float64 by the 17-01 oracle contract (`derive.ts:36`)"; "float64 like every GLfloat field, 14-09 rule"), so the width decisions are discoverable from the code.
+
+### IN-04: The drain skips the gate, and its draw, when no NPC weapon table is passed
+
+**File:** `src/sim/combat/step.ts:262-263`
+**Issue:** When `options.combat.npcWeapons` is undefined the queue is cleared and no gate runs, so an opted-in ship's `rng.combat` does not advance; with the table present it advances once per request. The app passes the table only when traffic content is loaded (`src/app/session/step-options.ts:122`, `src/app/session/sim-driver.ts:180-182`), so the same seed and command stream produce different combat-stream positions for an opted-in ship depending on content loading. Frozen worlds opt in to nothing and the `?test=1` session is tainted, so no durable state is affected; this is a replay nuance for the hook and for tests that construct a world without the table.
+**Fix:** State it in the drain's header next to "nothing fires when ... no weapon table was passed" ("and no draw is taken, so a world stepped without the table does not advance an opted-in ship's combat stream"), or have the test helpers always pass the compiled table so hashes in tests do not depend on the option.
+
+---
 
 _Reviewed: 2026-11-19T07:56:13Z_
 _Reviewer: Claude (gsd-code-reviewer, Fable 5.1)_
@@ -355,3 +397,8 @@ literal row at `:226` already pins it. In the e2e spec, `TWIN_PLATES_AT_KILL = 0
 twin pin but note it is a snapshot. Can wait.
 **Category:** necessity (the plate branch, provable: constant is 0).
 
+---
+
+_Reviewed: 2026-11-19_
+_Reviewer: Claude (gsd-code-reviewer, sonnet)_
+_Depth: deep_
