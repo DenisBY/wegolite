@@ -71,12 +71,15 @@ const SHOOTER_CARGO = 20;
 /**
  * The debris twin's pins (tests/app/session/tick-parity.test.ts, plan 16-06):
  * the kill tick relative to the spawn, the probe's entity count on the kill
- * tick (12 populated, minus the Viper, plus 3 pods, 1 plate and 3 wrecks), and
- * the world hash 60 ticks after the kill with fire released. Never edit these
+ * tick (the populated world plus the twin's debris, since plan 17-05 2 pods, no
+ * plate and 1 wreck), and the world hash 60 ticks after the kill with fire released. Never edit these
  * to make the browser pass: a difference is a divergence to report.
  */
 const TWIN_KILL_OFFSET = 672;
 const TWIN_ENTITIES_AT_KILL = 15;
+// The plates the twin's kill releases (DEBRIS_AT_KILL.plates in the Node twin):
+// the re-measured debris stream releases none, so no plate model is requested.
+const TWIN_PLATES_AT_KILL = 0;
 // Follows the Node twin's re-pin in plan 17-05 (D-08): the shooter's shots are
 // the NPC fire gate's, so the kill lands earlier and the debris stream moved.
 // The forward shield and the bank 360 ticks after the spawn, fire held.
@@ -396,9 +399,14 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
     ),
     "the tick 60 after the kill",
   ).toBe(killTick + AFTER_KILL_TICKS);
-  // The pod and plate models, a wreck model and both particle textures were
-  // requested after the kill and arrived; the bound is a correctness bound.
-  const drawnAssets = [POD_GLB, PLATE_GLB, ...PARTICLE_TEXTURES];
+  // The pod models, the plate model when the twin's kill releases one, a wreck
+  // model and both particle textures were requested after the kill and
+  // arrived; the bound is a correctness bound.
+  const drawnAssets = [
+    POD_GLB,
+    ...(TWIN_PLATES_AT_KILL > 0 ? [PLATE_GLB] : []),
+    ...PARTICLE_TEXTURES,
+  ];
   await expect
     .poll(() => drawnAssets.filter((path) => !finished.has(path)), {
       timeout: SLOW,
