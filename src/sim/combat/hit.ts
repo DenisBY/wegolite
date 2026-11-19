@@ -14,13 +14,21 @@
  * artifact (D-01): a target whose spec key has no entry, or a call with no
  * table at all, is in the "not loaded" state and cannot be hit. Never throws.
  *
- * Subentity data arrives (plan 18-13); the hit rule ignores it until plan 18-04.
- * The table now also holds the static hulls (the Coriolis station, the buoy, the
- * barrel and the alloy plate), with their solid subentities and frangibility,
- * but the subentity branch (`:5560-5568`, `:5623-5636`) is not ported yet: a
- * target is tested against its own hull octree only. The caller builds the
- * laser frame (facing rotation and mount offset, `:5585-5605`) and passes it as
- * `ray`.
+ * Stage B ports Oolite's subentity rule, `-[ShipEntity doesHitLine:v1:hitEntity:]`
+ * (`ShipEntity.m:1323-1357`): the beam is tested against the hull octree, then
+ * against each solid subentity's octree in the authored order, with the
+ * segment taken relative to the subentity's position
+ * (`absolutePositionForSubentity`) in its frame (`absoluteIJKForSubentity`,
+ * `:2008-2025`). Every subentity the
+ * table carries has no rotation of its own, so its frame is the parent's and
+ * the segment is the hull's model segment shifted by minus the authored
+ * position. A subentity answer replaces the running one when it is non-zero
+ * and the running one is zero or larger (`:1350`, strict: an exact tie keeps
+ * the hull). Only the static hulls (the Coriolis station, the buoy, the barrel
+ * and the alloy plate) carry subentities; the ten ship hulls are tested against
+ * their hull octree alone, as before. The winning part comes back as
+ * `HitPart`. The caller builds the laser frame (facing rotation and mount
+ * offset, `:5585-5605`) and passes it as `ray`.
  */
 
 import { dot, sub } from "../math.js";
@@ -95,17 +103,25 @@ function finite(v: Vec3): boolean {
   return Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
 }
 
+/** The hull part, shared: it carries no data. */
+const HULL_PART: HitPart = Object.freeze({ kind: "hull" });
+
 /**
  * The first ship a laser hits, or `null`. `distance` is Oolite's octree
  * distance (to the centre of the first solid leaf it reached), which is what
  * the nearest-ship rule compares; it is the value Oolite stores as the beam
- * length (`nearest`).
+ * length (`nearest`). `part` is what the beam ended on inside that ship (the
+ * C's `hitEntity`, `ShipEntity.m:1344-1354`).
  */
 export function firstShipHit(
   ray: LaserRay,
   targets: readonly HitTarget[],
   hulls: HullTable | undefined,
-): { readonly id: EntityId; readonly distance: number } | null {
+): {
+  readonly id: EntityId;
+  readonly distance: number;
+  readonly part: HitPart;
+} | null {
   if (
     !finite(ray.origin) ||
     !finite(ray.forward) ||
@@ -122,6 +138,7 @@ export function firstShipHit(
   // `:5606`: the beam endpoint, shrunk to each accepted hit.
   let endpoint = endpointAt(ray, nearest);
   let hitId: EntityId | null = null;
+  let hitPart: HitPart = HULL_PART;
 
   for (const target of targets) {
     // D-01 "not loaded": a target without hull data cannot be hit.
@@ -153,18 +170,40 @@ export function firstShipHit(
       ray.origin,
       endpoint,
     );
-    const hit = isHitByLine(hull.octree, w0, w1);
+    let hit = isHitByLine(hull.octree, w0, w1);
+    let part: HitPart = HULL_PART;
+
+    // `ShipEntity.m:1337-1354`: each subentity, its segment shifted by minus
+    // its authored position (identity orientation, so the parent's axes).
+    const subentities = hull.subentities ?? [];
+    for (let index = 0; index < subentities.length; index += 1) {
+      const sub = subentities[index];
+      if (sub === undefined) continue;
+      const offset = sub.position;
+      const hitSub = isHitByLine(
+        sub.octree,
+        { x: w0.x - offset.x, y: w0.y - offset.y, z: w0.z - offset.z },
+        { x: w1.x - offset.x, y: w1.y - offset.y, z: w1.z - offset.z },
+      );
+      if (hitSub > 0 && (hit === 0 || hit > hitSub)) {
+        hit = hitSub;
+        part = { kind: "subentity", index };
+      }
+    }
 
     // `:5622-5629`: accept a hit nearer than the best so far and shrink the
     // beam to it.
     if (hit > 0 && hit < nearest) {
       hitId = target.id;
+      hitPart = part;
       nearest = hit;
       endpoint = endpointAt(ray, nearest);
     }
   }
 
-  return hitId === null ? null : { id: hitId, distance: nearest };
+  return hitId === null
+    ? null
+    : { id: hitId, distance: nearest, part: hitPart };
 }
 
 /** `p0 + f1 * length` (`Universe.m:5606`, `:5628`). */
