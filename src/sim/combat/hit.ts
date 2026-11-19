@@ -60,6 +60,11 @@ export interface HullData {
   readonly frangible?: boolean;
 }
 
+/** What the beam ended on inside a target: its hull or one of its subentities. */
+export type HitPart =
+  | { readonly kind: "hull" }
+  | { readonly kind: "subentity"; readonly index: number };
+
 /** The loaded hull data, keyed by ship spec key. */
 export type HullTable = ReadonlyMap<string, HullData>;
 

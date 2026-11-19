@@ -23,6 +23,7 @@ import { describe, expect, it } from "vitest";
 
 import { firstShipHit } from "../../../src/sim/combat/hit.js";
 import type {
+  HitPart,
   HitTarget,
   HullData,
   HullTable,
@@ -32,6 +33,7 @@ import type { OctreeNode } from "../../../src/sim/combat/octree.js";
 import { portQuaternion } from "../../../src/sim/dock/port-frame.js";
 import {
   add,
+  axisAngle,
   cross,
   identity,
   quat,
@@ -79,6 +81,9 @@ const NOSE_HULL: HullData = {
     root: [0, NOSE_CHILD, 0, NOSE_CHILD, 0, NOSE_CHILD, 0, NOSE_CHILD],
   },
 };
+
+/** The part a hull hit reports (plan 18-04). */
+const HULL_PART: HitPart = { kind: "hull" };
 
 /** A fully solid cube of half-width 2 (a solid root is hit unconditionally). */
 const SOLID_HULL: HullData = {
@@ -134,7 +139,7 @@ describe("firstShipHit: stage A then stage B (D-02, criterion 3)", () => {
     // 6 is empty, octant 7 is the solid leaf centred (6, 6, 6). Distance from
     // the start (6, 6, -50) to that centre is exactly 56.
     const hit = firstShipHit(foreRay(vec(6, 6, 0)), [corner], HULLS);
-    expect(hit).toEqual({ id: 7, distance: 56 });
+    expect(hit).toEqual({ id: 7, distance: 56, part: HULL_PART });
   });
 
   it("counts a line through the parent cell away from the leaf (Octree.m:361)", () => {
@@ -165,10 +170,12 @@ describe("firstShipHit: stage A then stage B (D-02, criterion 3)", () => {
     expect(firstShipHit(ray, [far, near], HULLS)).toEqual({
       id: 5,
       distance: 30,
+      part: HULL_PART,
     });
     expect(firstShipHit(ray, [near, far], HULLS)).toEqual({
       id: 5,
       distance: 30,
+      part: HULL_PART,
     });
   });
 
@@ -209,7 +216,7 @@ describe("firstShipHit: hull data not loaded (D-01)", () => {
   it("still hits a loaded target in the same call", () => {
     const unloaded = target(3, "viper", vec(0, 0, -20));
     const hit = firstShipHit(foreRay(vec(0, 0, 0)), [unloaded, solid], HULLS);
-    expect(hit).toEqual({ id: 4, distance: 30 });
+    expect(hit).toEqual({ id: 4, distance: 30, part: HULL_PART });
   });
 });
 
@@ -283,7 +290,7 @@ describe("firstShipHit: non-finite input never throws (T-13-04)", () => {
     const nanRadius = target(2, "nanradius", vec(0, 0, -30));
     expect(
       firstShipHit(foreRay(vec(0, 0, 0)), [nanRadius, bad, solid], table),
-    ).toEqual({ id: 4, distance: 30 });
+    ).toEqual({ id: 4, distance: 30, part: HULL_PART });
   });
 
   it("returns null for an empty target list", () => {
@@ -332,5 +339,158 @@ describe("firstShipHit: the station hull from the merged table (plan 18-13)", ()
 
   it("misses it with the ten-hull table, which has no station entry (D-01 not loaded)", () => {
     expect(firstShipHit(ray, [station], realHullTable())).toBeNull();
+  });
+});
+
+/**
+ * The subentity rule (plan 18-04), from `ShipEntity.m:1323-1357`
+ * `doesHitLine:v1:hitEntity:`: the beam is tested against the hull octree, then
+ * against each subentity's octree with the segment taken relative to the
+ * subentity's position (`absolutePositionForSubentity`) in the subentity's
+ * frame (`absoluteIJKForSubentity`, `:2008-2025`, which is the parent's frame
+ * for a subentity with no rotation of its own). A subentity hit replaces the
+ * running answer when it is non-zero and the running answer is zero or larger
+ * (`:1350`, strict, so an exact tie keeps the hull). The winning part comes
+ * back with the hit.
+ *
+ * Every octree here is "one leaf": half-width 4, a root array whose only solid
+ * child is index 7, centred (2, 2, 2). A line that touches the root cube hits
+ * it at that leaf centre (`Octree.m:361`, the leaf is not line-tested). The
+ * target sits at (0, 0, -50) with identity orientation and the beam runs along
+ * world -Z from the origin, range 100: in Oolite model axes the line is
+ * x = a, y = b, z from -50 to +50.
+ */
+describe("firstShipHit: the subentity rule (ShipEntity.m:1323-1357)", () => {
+  const LEAF: HullData["octree"] = {
+    radius: 4,
+    depth: 1,
+    root: oneSolidChild(7),
+  };
+  const SUB_PART = (index: number): HitPart => ({ kind: "subentity", index });
+
+  function withSub(position: Vec3, collisionRadius = 30): HullData {
+    return {
+      collisionRadius,
+      octree: LEAF,
+      subentities: [{ key: "sub", position, mass: 1, octree: LEAF }],
+      frangible: false,
+    };
+  }
+
+  function table(hull: HullData): HullTable {
+    return new Map<string, HullData>([["composite", hull]]);
+  }
+
+  const composite = target(11, "composite", vec(0, 0, -50));
+  /** Start (0, 0, -50) to the hull leaf centre (2, 2, 2). */
+  const HULL_DISTANCE = Math.sqrt(4 + 4 + 52 * 52);
+
+  it("a nearer subentity wins and reports its index", () => {
+    // Subentity at model (0, 0, -20): the shifted start is (0, 0, -30), its
+    // leaf centre is 32 m along and 2 m off each side: sqrt(8 + 32^2).
+    const hit = firstShipHit(
+      foreRay(vec(0, 0, 0)),
+      [composite],
+      table(withSub(vec(0, 0, -20))),
+    );
+    expect(hit?.id).toBe(11);
+    expect(hit?.part).toEqual(SUB_PART(0));
+    expect(hit?.distance).toBeCloseTo(Math.sqrt(8 + 32 * 32), 9);
+  });
+
+  it("a nearer hull wins over a subentity behind it", () => {
+    // Subentity at model (0, 0, +20): sqrt(8 + 72^2) is beyond the hull's.
+    const hit = firstShipHit(
+      foreRay(vec(0, 0, 0)),
+      [composite],
+      table(withSub(vec(0, 0, 20))),
+    );
+    expect(hit?.part).toEqual(HULL_PART);
+    expect(hit?.distance).toBeCloseTo(HULL_DISTANCE, 9);
+  });
+
+  it("a beam that misses the hull and meets the subentity hits the subentity", () => {
+    // The line x = 12 misses the hull cube [-4, 4]^3; shifted by the
+    // subentity at (12, 0, 0) it is x = 0, at the hull's own distance.
+    const hit = firstShipHit(
+      foreRay(vec(12, 0, 0)),
+      [composite],
+      table(withSub(vec(12, 0, 0))),
+    );
+    expect(hit?.id).toBe(11);
+    expect(hit?.part).toEqual(SUB_PART(0));
+    expect(hit?.distance).toBeCloseTo(HULL_DISTANCE, 9);
+  });
+
+  it("an exact tie keeps the hull (ShipEntity.m:1350 is strict)", () => {
+    const hit = firstShipHit(
+      foreRay(vec(0, 0, 0)),
+      [composite],
+      table(withSub(vec(0, 0, 0))),
+    );
+    expect(hit?.part).toEqual(HULL_PART);
+    expect(hit?.distance).toBe(HULL_DISTANCE);
+  });
+
+  it("of two subentities the nearer wins, by its own index", () => {
+    const hull: HullData = {
+      collisionRadius: 30,
+      octree: LEAF,
+      subentities: [
+        { key: "far", position: vec(0, 0, -10), mass: 1, octree: LEAF },
+        { key: "near", position: vec(0, 0, -30), mass: 1, octree: LEAF },
+      ],
+    };
+    const hit = firstShipHit(foreRay(vec(0, 0, 0)), [composite], table(hull));
+    expect(hit?.part).toEqual(SUB_PART(1));
+    expect(hit?.distance).toBeCloseTo(Math.sqrt(8 + 22 * 22), 9);
+  });
+
+  it("places the subentity offset in Oolite model axes under the target's rotation", () => {
+    // A quarter turn about Wegolite +Y takes the nose (local -Z) to world -X,
+    // so the subentity authored at model (0, 0, 500) sits at world (-500, 0, 0).
+    const turned = target(
+      12,
+      "composite",
+      vec(0, 0, 0),
+      axisAngle(0, 1, 0, Math.PI / 2),
+    );
+    const far = table(withSub(vec(0, 0, 500), 600));
+    // Along world -Z through (-500, 0, 0): model right is world -Z, so the
+    // shifted line runs along model +x from (-100, 0, 0), meeting the leaf
+    // centre (2, 2, 2) at sqrt(102^2 + 4 + 4).
+    const ray = foreRay(vec(-500, 0, 100), 1000);
+    const hit = firstShipHit(ray, [turned], far);
+    expect(hit?.id).toBe(12);
+    expect(hit?.part).toEqual(SUB_PART(0));
+    expect(hit?.distance).toBeCloseTo(Math.sqrt(102 * 102 + 8), 9);
+    // Where the offset would be without the rotation (world (0, 0, -500)):
+    // nothing.
+    const unrotated: LaserRay = {
+      origin: vec(100, 0, -500),
+      forward: vec(-1, 0, 0),
+      right: vec(0, 0, -1),
+      up: vec(0, 1, 0),
+      range: 1000,
+    };
+    // In model axes this line is x = 500, y = 0: clear of the hull cube and,
+    // shifted by the authored offset, of the subentity cube too.
+    expect(firstShipHit(unrotated, [turned], far)).toBeNull();
+  });
+
+  it("a subentity with a non-finite position never throws: the hull's answer stands", () => {
+    const hit = firstShipHit(
+      foreRay(vec(0, 0, 0)),
+      [composite],
+      table(withSub(vec(Number.NaN, 0, 0))),
+    );
+    expect(hit?.part).toEqual(HULL_PART);
+    expect(hit?.distance).toBeCloseTo(HULL_DISTANCE, 9);
+    const none = firstShipHit(
+      foreRay(vec(12, 0, 0)),
+      [composite],
+      table(withSub(vec(0, Infinity, 0))),
+    );
+    expect(none).toBeNull();
   });
 });
