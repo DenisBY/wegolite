@@ -250,7 +250,7 @@ Plans:
 **Pitfalls to address**: 1 (the decision source: resolved by the owner decision above, and tested through the whole route from the hook spawn), 2 (the fire gate), 4 (the frozen acceptance run), 15 (dead-target handling in each behaviour), 16 (totality)
 **Decisions to settle**: how weapon temperature and `shot_time` quantise to ticks; which attack behaviours call fire and how `onTarget` maps onto the Phase 14 steering port; the name and place of the pilot's opt-in
 **Todos**: `2026-11-16-phase-14-review-followups.md` (the IN-04 manual rerun rule is in force; IN-05, the detector blind spot, needs the owner trailer and is not part of this phase)
-**Plans**: 10/10 plans executed in 8 waves
+**Plans**: 10/13 plans executed; 10 plans in 8 waves plus 3 UAT gap-closure plans (G-17-1, G-17-4) in 3 waves
 
 Plans:
 **Wave 1**
@@ -278,6 +278,17 @@ Plans:
 
 **Wave 8** *(blocked on Wave 7 completion)*
 - [x] 17-10-PLAN.md — CBT-15, CBT-16: the `?test=1` attacker hook (D-02), the decision-source Key Decisions row (criterion 3), CHANGELOG, validation sign-off, owner questions (the D-07 period first), the phase's one remote `verify`
+
+**UAT gap closure** (2026-11-19; gap-closure waves restart at 1)
+
+**Gap wave 1**
+- [ ] 17-11-PLAN.md — G-17-1, CBT-15, criterion 4: the independent fire oracle encodes the owner's revised D-07 (literal shot frames 60, 13, 301, 13 from `literalShotFrames`); the rule-dependent gate and heat fixtures re-derived by the oracle, the shot-timer row, the D-07 note (separate agent, no access to `src/sim`)
+
+**Gap wave 2** *(blocked on gap wave 1 completion)*
+- [ ] 17-12-PLAN.md — G-17-1, CBT-15, CBT-16: `npcRechargeTicks` at the literal frame counts, the period inventory amended once, the Node twin then the browser spec re-pinned, the A7 and NPC fire gate rows, CHANGELOG, the remote combat spec and the QUAL-11 run
+
+**Gap wave 3** *(blocked on gap wave 2 completion)*
+- [ ] 17-13-PLAN.md — G-17-4, CBT-15, CBT-16: the HUD probe publishes the drawn FWD/AFT shield bars and E1-E4 banks, the probe shape pinned, the combat spec asserts the drawn gauges fall; criterion 2 wording (UAT test 2) and the decision-source row's owner acceptance (UAT test 3); the remote `verify` and combat spec
 
 ### Phase 18: Stations, Buoys and Collisions
 
