@@ -215,11 +215,12 @@
     "title": "one tick before the pulse period the timer refuses ahead of a hopeless roll and an off-aim target, with no draw",
     "oolite": [
       "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:2221-2221",
       "src/Core/Entities/ShipEntity.m:9948-9953",
       "src/Core/Entities/ShipEntity.m:9954-9955",
       "Resources/Config/equipment.plist:125-136"
     ],
-    "derivation": "shotTime < weapon_recharge_rate refuses (9946-9947). The recorded rule (D-07) turns it into ticksSinceShot < round(fround(0.5) x 120) = 60; 59 < 60 refuses. The roll, the range and onTarget come after the draw point, so none runs: drawsUsed 0.",
+    "derivation": "shotTime < weapon_recharge_rate refuses (9946-9947). The pulse recharge_rate is 0.5 (exact in float32); after a shot shot_time is reset to 0 (10463) and every update adds the double 1/120 once (2221), so 59 steps sum to 0.49166666666666736, below the rate, and 60 steps reach 0.5000000000000007: the literal frame count is 60 (D-07 revised). 59 < 60 refuses. The roll, the range and onTarget come after the draw point, so none runs: drawsUsed 0.",
     "tolerance": 0.000001,
     "weapon": "EQ_WEAPON_PULSE_LASER",
     "input": {
@@ -245,10 +246,11 @@
     "title": "exactly the pulse period of 60 ticks after the last shot the NPC timer is ready (>=)",
     "oolite": [
       "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:2221-2221",
       "src/Core/Entities/ShipEntity.m:9968-9973",
       "Resources/Config/equipment.plist:125-136"
     ],
-    "derivation": "round(0.5 x 120) = 60 ticks; ticksSinceShot 60 is not below 60 (9946-9947 refuses only strictly below), so the NPC timer is ready on equality, unlike the player's strict compare at PlayerEntityControls.m:1185. The shot fires. (The literal Oolite frame count at 1/120 s is recorded in the frame-rate rule row, not here.)",
+    "derivation": "The pulse period is the literal frame count 60 (59 steps of 1/120 sum to 0.49166666666666736, below the rate 0.5; 60 steps to 0.5000000000000007, 10463 and 2221); ticksSinceShot 60 is not below 60 (9946-9947 refuses only strictly below), so the NPC timer is ready on equality, unlike the player's strict compare at PlayerEntityControls.m:1185. The shot fires.",
     "tolerance": 0.000001,
     "weapon": "EQ_WEAPON_PULSE_LASER",
     "input": {
@@ -914,10 +916,11 @@
     "title": "the NONE weapon's recharge rate of 100 s is 12000 ticks: 11999 ticks since a shot refuses at the timer",
     "oolite": [
       "src/Core/Entities/ShipEntity.m:9946-9947",
+      "src/Core/Entities/ShipEntity.m:2221-2221",
       "src/Core/Entities/ShipEntity.m:299-300",
       "Resources/Config/equipment.plist:107-121"
     ],
-    "derivation": "recharge_rate 100 gives round(100 x 120) = 12000 ticks; an unarmed ship never fires, so ticksSinceShot is null in practice, but the gate arithmetic is the same: 11999 < 12000 refuses at the timer with no draw.",
+    "derivation": "recharge_rate 100 (exact in float32) gives the literal frame count 12000 (11999 steps of 1/120 sum to 99.99166666669231, below the rate; 12000 steps to 100.00000000002565, 10463 and 2221); an unarmed ship never fires, so ticksSinceShot is null in practice, but the gate arithmetic is the same: 11999 < 12000 refuses at the timer with no draw.",
     "tolerance": 0.000001,
     "weapon": "EQ_WEAPON_NONE",
     "input": {
