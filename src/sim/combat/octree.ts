@@ -533,3 +533,20 @@ export function toOoliteModelSegment(
     w1: vec(dot(u1, right), dot(u1, up), dot(u1, forward)),
   };
 }
+
+/**
+ * `Octree.m:473-595` `isHitByOctree`: RED stub, the port lands in the GREEN
+ * commit of plan 18-09.
+ */
+export function isHitByOctree(
+  prime: HullOctree,
+  other: HullOctree,
+  origin: Vec3,
+  ijk: readonly [Vec3, Vec3, Vec3],
+): boolean {
+  void prime;
+  void other;
+  void origin;
+  void ijk;
+  return false;
+}
