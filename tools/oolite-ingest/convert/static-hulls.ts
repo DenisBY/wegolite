@@ -46,8 +46,29 @@ type CatalogEntry = ShipCatalogue["entries"][number];
 export const STATIC_HULLS_PATH =
   "src/content/generated/ships-static-hulls.json";
 
-/** The static and debris hulls, in artifact order. */
-export const STATIC_HULL_KEYS: readonly string[] = ["coriolis-station"];
+/**
+ * The static and debris hulls, in artifact order: the Coriolis station, the
+ * navigation buoy (both buoys share its model and subentity), the cargo barrel
+ * and the alloy plate (D-07; wrecks get no hull).
+ */
+export const STATIC_HULL_KEYS: readonly string[] = [
+  "coriolis-station",
+  "buoy",
+  "barrel",
+  "alloy",
+];
+
+/**
+ * The ident targets whose display names the artifact carries, in order, so no
+ * display name is typed into app code (plan 18-06).
+ */
+export const STATIC_NAME_KEYS: readonly string[] = [
+  "coriolis-station",
+  "buoy",
+  "buoy-witchpoint",
+  "barrel",
+  "alloy",
+];
 
 function fail(key: string, file: string, detail: string): never {
   throw contentError("SCHEMA", file, key, { excerpt: detail });
@@ -133,6 +154,21 @@ function booleanOf(value: unknown, defaultValue: boolean): boolean {
 }
 
 /**
+ * The display name of one compiled entry, `like_ship` already resolved:
+ * `display_name` when authored, else `name` (`ShipEntity.m:391-395`), as
+ * `npc-ships.ts` reads it.
+ */
+function displayNameOf(key: string, entry: CatalogEntry): string {
+  const displayName = entry.extras["display_name"];
+  const name =
+    typeof displayName === "string" ? displayName : entry.extras["name"];
+  if (typeof name !== "string") {
+    return fail(key, SHIPDATA_FILE, "the entry has no display_name or name");
+  }
+  return name;
+}
+
+/**
  * The solid subentity keys of the static hulls, in hull and `shipdata` order,
  * de-duplicated: the keys whose masses `compileStaticHulls` needs.
  */
@@ -152,9 +188,11 @@ export function staticSubentityKeys(catalogue: ShipCatalogue): string[] {
 
 /**
  * Compile the static hull artifact: one hull per {@link STATIC_HULL_KEYS}
- * entry, in that order, each with its solid subentities.
+ * entry, in that order, each with its solid subentities, and one display name
+ * per {@link STATIC_NAME_KEYS} entry.
  *
- * @throws {ContentError} when a key, model, mesh or subentity mass is missing,
+ * @throws {ContentError} when a key, model, mesh, subentity mass or name is
+ * missing,
  * a non-flasher subentity has no `subentity_key` or `position`, a subentity
  * orientation is not the identity, or the artifact fails
  * `StaticHullArtifactSchema` (`SCHEMA`).
@@ -225,7 +263,12 @@ export function compileStaticHulls(
     };
   });
 
-  const parsed = StaticHullArtifactSchema.safeParse({ hulls, names: [] });
+  const names = STATIC_NAME_KEYS.map((key) => ({
+    key,
+    name: displayNameOf(key, entryOf(catalogue, key)),
+  }));
+
+  const parsed = StaticHullArtifactSchema.safeParse({ hulls, names });
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     return fail(

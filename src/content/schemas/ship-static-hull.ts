@@ -34,9 +34,11 @@
  * - a hull has at most `MAX_STATIC_SUBENTITIES` subentities;
  * - every object is strict, and names and keys are bounded strings.
  *
- * The caps are headroom over a measurement that the digest golden
- * (`tests/golden/content/ships-static-hulls.json`) pins, not an independent
- * bound: they let a rebuilt hull grow a little and stop a runaway tree.
+ * The three size caps below are headroom over a measurement of the emitted
+ * file that the digest golden (`tests/golden/content/ships-static-hulls.json`)
+ * pins, not an independent bound: they let a rebuilt hull grow a little and
+ * stop a runaway or corrupted tree. Re-derive them when the vendored pin
+ * changes a static model.
  */
 
 import { z } from "zod";
@@ -49,15 +51,25 @@ export const MAX_STATIC_SUBENTITIES = 4;
 
 /**
  * The most nodes one static octree may hold (every node counts, leaves
- * included). Provisional; re-derived from the emitted file.
+ * included). Derived from the emitted file: the largest octree is the Coriolis
+ * hull, 32,841 nodes (the tris 30,089, the buoy hull 10,945); 32,841 with about
+ * 20 % headroom is 39,409, rounded up to 40,000.
  */
 export const MAX_STATIC_OCTREE_NODES = 40_000;
 
-/** The most nodes the whole static artifact may hold. Provisional. */
-export const MAX_STATIC_ARTIFACT_NODES = 120_000;
+/**
+ * The most nodes the whole static artifact may hold. Derived from the emitted
+ * file: its eight octrees hold 85,896 nodes; with about 20 % headroom that is
+ * 103,075, rounded up to 104,000.
+ */
+export const MAX_STATIC_ARTIFACT_NODES = 104_000;
 
-/** The size the generated static file must stay under, in bytes. Provisional. */
-export const MAX_STATIC_HULL_ARTIFACT_BYTES = 300_000;
+/**
+ * The size the generated static file must stay under, in bytes. Derived from
+ * the emitted file: 205,542 bytes; with about 30 % headroom that is 267,205,
+ * rounded up to 270,000.
+ */
+export const MAX_STATIC_HULL_ARTIFACT_BYTES = 270_000;
 
 /** The most hull records the static artifact may hold. */
 export const MAX_STATIC_HULLS = 8;

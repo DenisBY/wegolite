@@ -50,7 +50,9 @@ function readText(relative: string): string {
 
 function readGenerated(): unknown {
   const file = join(REPO_ROOT, GENERATED);
-  return existsSync(file) ? (JSON.parse(readText(GENERATED)) as unknown) : undefined;
+  return existsSync(file)
+    ? (JSON.parse(readText(GENERATED)) as unknown)
+    : undefined;
 }
 
 function parsedArtifact(): StaticHullArtifact {
@@ -94,7 +96,11 @@ function nested(levels: number): unknown {
  * The shallowest tree of at least `nodes` nodes: leaves are split breadth
  * first into eight solid children, so the depth grows only as log8 of the size.
  */
-function treeOf(nodes: number): { root: unknown; depth: number; nodes: number } {
+function treeOf(nodes: number): {
+  root: unknown;
+  depth: number;
+  nodes: number;
+} {
   const root: unknown[] = [-1, -1, -1, -1, -1, -1, -1, -1];
   let count = 9;
   let depth = 1;
@@ -366,7 +372,10 @@ describe("StaticHullArtifactSchema bounds", () => {
     expect(rejectionPath(minimalArtifact())).toBeUndefined();
     const long = "x".repeat(64);
     expect(
-      rejectionPath({ ...minimalArtifact(), names: [{ key: long, name: long }] }),
+      rejectionPath({
+        ...minimalArtifact(),
+        names: [{ key: long, name: long }],
+      }),
     ).toBeUndefined();
   });
 
@@ -397,9 +406,9 @@ describe("StaticHullArtifactSchema bounds", () => {
   });
 
   it("rejects a node array that is not eight children, naming the path", () => {
-    expect(
-      rejectionPath(hullWith({}, { root: [0, 0, 0, 0, 0, 0, 0] })),
-    ).toBe("hulls.0.octree.root");
+    expect(rejectionPath(hullWith({}, { root: [0, 0, 0, 0, 0, 0, 0] }))).toBe(
+      "hulls.0.octree.root",
+    );
     expect(
       rejectionPath(hullWith({}, { root: [0, 0, 0, 0, 0, 0, 0, 0, 0] })),
     ).toBe("hulls.0.octree.root");

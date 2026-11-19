@@ -99,6 +99,20 @@ collision radius computed as for `ships-npc.json`. It is a derivative work of
 those models and remains CC BY-NC-SA 3.0, never GPL, with attribution to the
 Oolite contributors, non-commercial use only and share-alike terms.
 
+The generated static hull file `src/content/generated/ships-static-hulls.json`
+is compiled at build time from the vendored Oolite `.dat` models and the
+vendored `shipdata.plist` (with `like_ship` resolved): for the Coriolis station,
+the navigation buoy, the cargo barrel and the alloy plate it carries the octree
+Wegolite's port of Oolite's octree builder computes from each model, the
+collision radius computed as for `ships-client.json` and `ships-debris.json`,
+the `frangible` flag, and each solid subentity's octree, authored position and
+mass computed from its model; it also carries the display names of the station,
+the two buoys, the barrel and the plate. It is a derivative work of
+`shipdata.plist` and of those models and remains CC BY-NC-SA 3.0, never GPL,
+with attribution to the Oolite contributors, non-commercial use only and
+share-alike terms. Nothing is vendored or changed for it, so
+`third_party/oolite/CHECKSUMS.sha256` is untouched.
+
 The generated debris catalogue `src/content/generated/ships-debris.json` is
 compiled at build time from the vendored Oolite `shipdata.plist` debris entries
 (with `like_ship` resolved: the cargo barrel, the alloy plate and the wreckage

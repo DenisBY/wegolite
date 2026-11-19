@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "hulls": [
+    {
+      "key": "coriolis-station",
+      "depth": 6,
+      "nodes": 32841,
+      "solidLeaves": 11148,
+      "rootHalfWidth": 500.5,
+      "collisionRadius": 779.3702392578125,
+      "subentities": [
+        {
+          "key": "oolite_coriolis_faceplate",
+          "depth": 6,
+          "nodes": 6601,
+          "solidLeaves": 2220,
+          "rootHalfWidth": 534.7979736328125
+        },
+        {
+          "key": "oolite_coriolis_tris",
+          "depth": 6,
+          "nodes": 30089,
+          "solidLeaves": 11912,
+          "rootHalfWidth": 500.5
+        },
+        {
+          "key": "oolite_coriolis_dock",
+          "depth": 5,
+          "nodes": 1737,
+          "solidLeaves": 790,
+          "rootHalfWidth": 250.5
+        }
+      ]
+    },
+    {
+      "key": "buoy",
+      "depth": 5,
+      "nodes": 10945,
+      "solidLeaves": 4181,
+      "rootHalfWidth": 58.22785949707031,
+      "collisionRadius": 59.13554763793945,
+      "subentities": [
+        {
+          "key": "oolite_buoy_subentity",
+          "depth": 5,
+          "nodes": 3025,
+          "solidLeaves": 812,
+          "rootHalfWidth": 24.34779930114746
+        }
+      ]
+    },
+    {
+      "key": "barrel",
+      "depth": 4,
+      "nodes": 457,
+      "solidLeaves": 172,
+      "rootHalfWidth": 5.287789821624756,
+      "collisionRadius": 5.798625946044922,
+      "subentities": []
+    },
+    {
+      "key": "alloy",
+      "depth": 4,
+      "nodes": 201,
+      "solidLeaves": 56,
+      "rootHalfWidth": 5,
+      "collisionRadius": 5.149232387542725,
+      "subentities": []
+    }
+  ]
+}

@@ -94,7 +94,8 @@ function withFirstCoriolisSubentity(
       const [first, ...rest] = entry.shipDef.subentities;
       const changed = { ...first, ...change };
       for (const [key, value] of Object.entries(change)) {
-        if (value === undefined) delete (changed as Record<string, unknown>)[key];
+        if (value === undefined)
+          delete (changed as Record<string, unknown>)[key];
       }
       return {
         ...entry,
@@ -128,9 +129,9 @@ describe("compileStaticHulls", () => {
     expect(artifact.names.map((name) => name.key)).toEqual([
       ...STATIC_NAME_KEYS,
     ]);
-    expect(artifact.names.find((name) => name.key === "buoy-witchpoint")?.name).toBe(
-      "Witchpoint Beacon",
-    );
+    expect(
+      artifact.names.find((name) => name.key === "buoy-witchpoint")?.name,
+    ).toBe("Witchpoint Beacon");
   });
 
   it("resolves every solid subentity at its authored position, with its own octree and computed mass", () => {
