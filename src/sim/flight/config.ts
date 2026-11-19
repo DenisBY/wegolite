@@ -16,6 +16,11 @@ import type { ShipDef } from "../../content/types.js";
 
 export interface FlightConfig {
   readonly maxSpeed: number;
+  /**
+   * The raw catalogue `thrust` (32 for the Cobra). It brakes the player's
+   * drift (`PlayerEntity.m:3388`); the engine uses `thrustAccel`.
+   */
+  readonly thrust: number;
   readonly thrustAccel: number;
   readonly maxPitch: number;
   readonly maxRoll: number;
@@ -82,6 +87,7 @@ export function deriveFlightConfig(shipDef: ShipDef): FlightConfig {
 
   return {
     maxSpeed,
+    thrust,
     thrustAccel: SHIP_THRUST_FACTOR * thrust,
     maxPitch,
     maxRoll,

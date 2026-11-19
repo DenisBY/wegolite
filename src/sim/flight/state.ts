@@ -74,6 +74,11 @@ export interface FlightState {
    * tick integrates it into the position (D-07).
    */
   impulse: Vec3;
+  /**
+   * Oolite's player `velocity`: the Newtonian drift beside the scalar
+   * `speed` (CBT-18, D-02). Never the dock `impulse`, which has its own decay.
+   */
+  drift: Vec3;
   /** Contact responses emitted; one per bounce event (DOCK-03). */
   bounceCount: number;
   /** Ticks where `sanitizeFlightState` repaired the state (T-04-41). */
@@ -131,6 +136,7 @@ export function initFlightState(layout: SystemLayout): FlightState {
     dockCount: 0,
     scrapeTicks: 0,
     impulse: vec(0, 0, 0),
+    drift: vec(0, 0, 0),
     bounceCount: 0,
     repairCount: 0,
     compassMode: "auto",

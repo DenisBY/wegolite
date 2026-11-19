@@ -61,6 +61,9 @@ describe("player ship catalogue entry", () => {
 
   it("derives the Cobra flight config from the catalogue values", () => {
     const config = deriveFlightConfig(fixture.playerDef);
+    // The raw catalogue thrust brakes the player's drift (PlayerEntity.m:3388);
+    // only the engine uses SHIP_THRUST_FACTOR x thrust.
+    expect(config.thrust).toBe(32);
     expect(config.thrustAccel).toBe(160);
     expect(config.pitchAccel).toBe(2);
     expect(config.rollAccel).toBe(4);
