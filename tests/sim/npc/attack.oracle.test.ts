@@ -15,9 +15,10 @@
  * (`tests/sim/npc/oracle-groups.ts`) and asserts that the ids it ran equal the
  * ids of that entry.
  *
- * T-14-24: the attack steering fires nothing and spends no energy. After every
- * update of every fixture the world's fire queue is empty and the steered ship's
- * energy is what it was after `assign`.
+ * T-14-24: without the opt-in the steering never fires and never spends energy
+ * (Phase 17 D-05: only a pilot with `fire: true` gets `ctx.fire`, and no Phase
+ * 14 fixture opts in). After every update of every fixture the world's fire
+ * queue is empty and the steered ship's energy is what it was after `assign`.
  */
 
 import { describe, expect, it } from "vitest";

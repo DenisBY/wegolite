@@ -164,10 +164,8 @@ describe("every fire fixture file is assigned or pending", () => {
     expect([...named].sort()).toEqual(onDisk);
   });
 
-  it("every pending row names the plan that will run it", () => {
-    for (const row of FIRE_ORACLE_PENDING) {
-      expect(row.plan, row.fixtureFile).toMatch(/^17-\d\d$/);
-    }
+  it("no fire fixture file is pending: every one has its oracle test file (plan 17-08)", () => {
+    expect(FIRE_ORACLE_PENDING).toEqual([]);
   });
 
   it("every fixture id is unique across all four oracle trees", () => {

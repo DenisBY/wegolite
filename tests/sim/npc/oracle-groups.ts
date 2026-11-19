@@ -138,19 +138,21 @@ export const FIRE_ORACLE_GROUPS: readonly FireOracleGroup[] = Object.freeze([
     fixtureFile: "tests/oracles/npc/fire-sites/fixtures/fire-sites.json",
     testFile: FIRE_SITES_TEST,
   }),
+  Object.freeze({
+    fixtureFile: "tests/oracles/npc/fire-sites/fixtures/hot-branches.json",
+    testFile: FIRE_SITES_TEST,
+  }),
 ]);
 
 /**
- * The fire fixture files no oracle test file runs yet: the fire sites and the
- * hot-weapon branches need the live fire sites and the dispatcher's weapon
- * temperature, which plans 17-06 and 17-07 land; plan 17-08 runs them.
+ * The fire fixture files no oracle test file runs yet. Empty since plan 17-08,
+ * which runs the fire sites and the hot-weapon branches
+ * (`fire-sites.oracle.test.ts`); `oracle-coverage.test.ts` asserts it stays
+ * empty.
  */
-export const FIRE_ORACLE_PENDING: readonly FireOraclePending[] = Object.freeze([
-  Object.freeze({
-    fixtureFile: "tests/oracles/npc/fire-sites/fixtures/hot-branches.json",
-    plan: "17-08",
-  }),
-]);
+export const FIRE_ORACLE_PENDING: readonly FireOraclePending[] = Object.freeze(
+  [],
+);
 
 /** The fire fixture files `testFile` must run, in manifest order. */
 export function fireFixtureFilesFor(testFile: string): readonly string[] {
