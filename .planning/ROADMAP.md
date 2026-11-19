@@ -316,7 +316,7 @@ Plans:
 **Pitfalls to address**: 4 (the acceptance harness), 9 (single contact: no energy gained or lost twice), 11 (statics are not world entities: the hull table and their poses), 12 (the collision rule's wrong half), 17 (pair cost)
 **Decisions to settle**: the Coriolis hull's file (one artifact or a separate file); the destroyed-buoy semantics above; the player's response to impact; supersede the Key Decisions row "Statics are neither laser nor ident targets"
 **Todos**: `2026-11-15-lasers-and-ident-hit-stations-and-buoys.md` (closed by CBT-17); `2026-11-14-make-buoys-block-hyperspace-like-oolite.md` touches the same fixture and is a candidate to fold in by owner decision, not a requirement; `2026-11-10-add-planet-and-sun-collision.md` loses its buoy half to CBT-18 (planet and sun stay unscheduled)
-**Plans**: 0/22 plans complete; 22 plans in 13 waves (revised twice after plan checks and once after the cross-AI review; owner decisions PD-01..PD-07 in `18-CONTEXT.md`)
+**Plans**: 0/22 plans complete; 22 plans in 13 waves (revised twice after plan checks and after two cross-AI review rounds; owner decisions PD-01..PD-08 in `18-CONTEXT.md`)
 
 Plans:
 **Wave 1**
