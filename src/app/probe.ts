@@ -75,20 +75,35 @@ export interface WegoliteHudProbe {
    * message rows, quick task 261117-pij); empty before a HUD frame.
    */
   messageRows: string[];
-  /** The live tank as the HUD prints it, e.g. "3.4 LY", or "" before a frame. */
+  /**
+   * The tank as the last drawn HUD frame of the session printed it, e.g.
+   * "3.4 LY"; "" only before the session's first HUD frame. Not reset when the
+   * HUD is hidden (docked), on a Load or on New Game, so read it in flight
+   * after a drawn frame.
+   */
   fuelText: string;
-  /** The live tank as the HUD bar draws it: fuel tenths over 70, in 0..1. */
+  /**
+   * The tank as the last drawn HUD frame's bar drew it: fuel tenths over 70,
+   * in 0..1. Same staleness as `fuelText`.
+   */
   fuel: number;
   /**
-   * The forward shield bar as the HUD draws it: the forward shield over its
-   * maximum, in 0..1; 0 before a HUD frame (G-17-4).
+   * The forward shield bar as the last drawn HUD frame drew it: the forward
+   * shield over its maximum, in 0..1; 0 only before the session's first HUD
+   * frame (G-17-4). Not reset when the HUD is hidden (docked), on a Load or
+   * on New Game; read it in flight after a drawn frame, or read `probe.combat`
+   * for live values.
    */
   shieldFwd: number;
-  /** The aft shield bar as the HUD draws it, in 0..1; 0 before a HUD frame. */
+  /**
+   * The aft shield bar as the last drawn HUD frame drew it, in 0..1. Same
+   * staleness as `shieldFwd`.
+   */
   shieldAft: number;
   /**
-   * The energy banks E1 to E4 from the top as the HUD draws them, each in
-   * 0..1; zeros before a HUD frame.
+   * The energy banks E1 to E4 from the top as the last drawn HUD frame drew
+   * them, each in 0..1; zeros only before the session's first HUD frame. Same
+   * staleness as `shieldFwd`.
    */
   energyBanks: [number, number, number, number];
   /** The committed hyperspace target name, or "" when none (D-12). */
