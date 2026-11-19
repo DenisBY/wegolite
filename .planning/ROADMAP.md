@@ -250,13 +250,13 @@ Plans:
 **Pitfalls to address**: 1 (the decision source: resolved by the owner decision above, and tested through the whole route from the hook spawn), 2 (the fire gate), 4 (the frozen acceptance run), 15 (dead-target handling in each behaviour), 16 (totality)
 **Decisions to settle**: how weapon temperature and `shot_time` quantise to ticks; which attack behaviours call fire and how `onTarget` maps onto the Phase 14 steering port; the name and place of the pilot's opt-in
 **Todos**: `2026-11-16-phase-14-review-followups.md` (the IN-04 manual rerun rule is in force; IN-05, the detector blind spot, needs the owner trailer and is not part of this phase)
-**Plans**: 10 plans in 8 waves
+**Plans**: 3/10 plans executed in 8 waves
 
 Plans:
 **Wave 1**
-- [ ] 17-01-PLAN.md — CBT-15, criterion 4: independent oracle (separate agent, no access to `src/sim/npc`) for the fire gate's order and one-draw rule, onTarget with the live `missedShots` aim term, float32 heat and cooling, and the frame-rate rows; `COVERAGE.md`
-- [ ] 17-02-PLAN.md — CBT-15, criterion 4: independent oracle for the fire sites, the hot-weapon branches and the `missedShots` feedback in the attack behaviours
-- [ ] 17-03-PLAN.md — D-13 tripwires (kill credit, `shipHit`, a second `onEvent`) with their todos, and the decision-source guard (advisor decision 3)
+- [x] 17-01-PLAN.md — CBT-15, criterion 4: independent oracle (separate agent, no access to `src/sim/npc`) for the fire gate's order and one-draw rule, onTarget with the live `missedShots` aim term, float32 heat and cooling, and the frame-rate rows; `COVERAGE.md`
+- [x] 17-02-PLAN.md — CBT-15, criterion 4: independent oracle for the fire sites, the hot-weapon branches and the `missedShots` feedback in the attack behaviours
+- [x] 17-03-PLAN.md — D-13 tripwires (kill credit, `shipHit`, a second `onEvent`) with their todos, and the decision-source guard (advisor decision 3)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 17-04-PLAN.md — CBT-15: the pure NPC fire gate `src/sim/npc/fire.ts`, both `missedShots` readers, the gate and aim-feedback fixtures against the port, totality properties
@@ -400,7 +400,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 14. NPC Flight and Steering Fidelity Gate | v2.2 | 19/19 | Complete    | 2026-11-16 |
 | 15. Damage Ledger and Kills | v2.3 | 6/6 | Complete    | 2026-11-16 |
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 9/9 | Complete    | 2026-11-17 |
-| 17. NPC Fire and Hits on the Player | v2.3 | 0/TBD | Not started | - |
+| 17. NPC Fire and Hits on the Player | v2.3 | 3/10 | In Progress | - |
 | 18. Stations, Buoys and Collisions | v2.3 | 0/TBD | Not started | - |
 | 19. Equipment Damage and Repair | v2.3 | 0/TBD | Not started | - |
 | 20. Player Death and Game Over | v2.3 | 0/TBD | Not started | - |
