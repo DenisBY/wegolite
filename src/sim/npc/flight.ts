@@ -144,8 +144,9 @@ export function decreaseFlightSpeed(
 
 /**
  * `applyThrust:` (`ShipEntity.m:5808-5854`), in Oolite's order. The Newtonian
- * velocity brake of 5817-5824 is a no-op because Newtonian velocity is not
- * modelled, and the afterburner is a scope cut, so the available speed is
+ * velocity brake of 5817-5824 lives in the world step's drift pass
+ * (`stepShipDrift`, `../world/drift.ts`, Phase 18 D-02), which runs after the
+ * steering loop, and the afterburner is a scope cut, so the available speed is
  * `maxFlightSpeed`.
  */
 export function applyThrust(

@@ -217,7 +217,8 @@ describe("a pushed Krait drifts and comes to rest (D-02)", () => {
     const player = restingPlayer();
     stepUntilStopped(world, player, 12, () => false, npc);
     expect(hulk.velocity).toEqual(vec(10, 0, 0));
-    expect(hulk.position.x - FAR.x).toBeCloseTo(1, 9);
+    // 1e7 m carries an ulp of about 2e-9 m, so 12 additions round.
+    expect(hulk.position.x - FAR.x).toBeCloseTo(1, 6);
   });
 
   it("a kind with no flight row brakes with Oolite's default thrust", () => {

@@ -627,9 +627,10 @@ describe("combat cross-cadence determinism (CBT-06, CBT-07)", () => {
 // ---------------------------------------------------------------------------
 // Kills (FOUND-18, FOUND-19, QUAL-11): the player's held pulse laser kills a
 // cargo-carrying Adder, and a firing test pilot kills a Sidewinder. The world
-// also carries a non-pristine weapon record and a drift velocity (Phase 15 writes
-// neither in play; the values only exercise the hash), so the kill ticks, the
-// world hash and the new hashed fields must agree at every cadence.
+// also carries a non-pristine weapon record (Phase 15 writes none in play; the
+// value only exercises the hash) and, at the pin tick, a drift velocity that the
+// next tick brakes to zero (plan 18-17), so the kill ticks, the world hash and
+// the new hashed fields must agree at every cadence.
 //
 // Geometry: the Adder is on the player's nose; the Sidewinder and the Viper are
 // 3,000 m to the side, off the player's line of fire, with the Viper 1,000 m
@@ -772,7 +773,6 @@ class KillScenario {
       const viper = this.world.store.get(log.ids.viper);
       if (viper === undefined) throw new Error("the Viper is missing");
       viper.weapon = { temperature: 12.5, lastShotTick: 7, missedShots: 2 };
-      viper.velocity = vec(1, 0, 0);
     }
     const commands: Command[] =
       tick === 0
@@ -815,6 +815,12 @@ class KillScenario {
       }
       const sinceStart = state.tick - KILL_START_TICK;
       if (sinceStart === KILL_SAMPLE_EVERY) {
+        // The drift velocity is written after this tick's step, so the pin
+        // section and this tick's hash carry it. Since plan 18-17 a ship's
+        // drift brakes by 5 x thrust x dt (1.33 m/s per tick for the Viper),
+        // so the next tick brakes 1 m/s to zero before it moves: the Viper
+        // never moves by it and the kill geometry is unchanged.
+        if (viper !== undefined) viper.velocity = vec(1, 0, 0);
         log.sectionAtPin = serializeWorldSection(world);
       }
       if (sinceStart % KILL_SAMPLE_EVERY === 0 || killedNow) {

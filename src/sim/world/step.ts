@@ -6,7 +6,8 @@
  *
  * `stepWorld` runs after the flight step (see `src/sim/sim.ts`) and never
  * touches the `FlightState`: the player comes in read-only through the
- * `WorldView`. Phases, in order: update (then the debris drift), think, commit.
+ * `WorldView`. Phases, in order: update (then the ship, buoy and debris drift),
+ * think, commit.
  *
  * Every pass over the entities walks ascending ids by index over a length
  * snapshot taken at the start of the pass. An entity spawned during a tick is
@@ -38,6 +39,7 @@ import type { NpcStepFacts } from "../npc/stats.js";
 import { createRngState, rngNext } from "../rng.js";
 import { createShipControl } from "./control-impl.js";
 import { wreckHeatDrain } from "./debris.js";
+import { stepBuoyDrift, stepShipDrift } from "./drift.js";
 import type { Entity } from "./entity.js";
 import { NO_ENTITY } from "./ids.js";
 import { killShip } from "./kill.js";
@@ -104,8 +106,8 @@ export function stepWorld(
   // (`steerShip`, plan 14-11), in ascending id order over the length snapshot,
   // with its own flight constants (`statsFor`, Oolite's defaults for a kind with
   // no row). An entity with no AI (an inert ship, or one whose module faulted)
-  // is skipped: it holds its placement and its speed field is not integrated
-  // (Phase 12 D-02). Each steered ship draws only from its own "combat" stream,
+  // is skipped: its speed field is not integrated (Phase 12 D-02), though its
+  // drift velocity is (`stepShipDrift` below). Each steered ship draws only from its own "combat" stream,
   // through a local copy written back after the call, so spawning or removing
   // another ship never changes its draws (D-04). Events the steering posts go to
   // the ship's own AI through `postAiEvent` and are delivered at the next drain.
@@ -132,9 +134,14 @@ export function stepWorld(
     // fresh destination in the same tick.
     refreshEscorts(world, entity);
   }
-  // Drift (D-01, D16-19): every live cargo or wreckage piece moves by its
-  // velocity, and wreckage burns down (D16-11). Ships are not integrated: their
-  // velocity stays zero until Phase 18 decides rebounds.
+  // Drift (CBT-18, D-02, PD-02): every live ship with a non-zero velocity (a
+  // rebound or a blast push) is braked by 5 x its thrust and moved by it
+  // (ShipEntity.m:5816-5823, Entity.m:878-881), steered or not, and so is each
+  // live buoy with its thrust 100; a body at rest is never written. Then the
+  // debris drift (D-01, D16-19): every live cargo or wreckage piece moves by
+  // its velocity, and wreckage burns down (D16-11).
+  stepShipDrift(world, dt, npc);
+  stepBuoyDrift(world, dt);
   stepDebris(world, tick, dt, events);
 
   // Think. The view is shared with the update phase and built lazily, only when
@@ -186,7 +193,7 @@ export function stepWorld(
  * snapshot, for every live, non-dead entity of kind `cargo` or `wreckage`:
  *
  * - Drift: the piece moves by `velocity * dt`; a zero velocity writes nothing.
- *   Ships and every other kind are not integrated.
+ *   Ships and buoys drift in `stepShipDrift` and `stepBuoyDrift` (`./drift.ts`).
  * - Burn-down (wreckage only, D16-11): a wreck's energy is its remaining
  *   lifetime (D-02: Oolite's `setEnergy:lifetime`, `Universe.m:5517`), not
  *   health. Each step it loses `wreckHeatDrain(ageSeconds, dt)` with
