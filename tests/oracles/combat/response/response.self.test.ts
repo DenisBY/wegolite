@@ -14,16 +14,33 @@
  * Nothing here reads Wegolite code or the Oolite checkout.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { collideWithShipReference, type CollideResult } from "./reference.js";
 import {
+  blastReference,
+  collideWithShipReference,
+  npcBrakeReference,
+  playerBrakeReference,
+  playerScrapeReference,
+  type CollideResult,
+} from "./reference.js";
+import {
+  BLAST_FIXTURE_FILE,
+  BRAKING_NPC_FIXTURE_FILE,
+  BRAKING_PLAYER_FIXTURE_FILE,
+  BlastFileSchema,
+  BrakingFileSchema,
   COLLIDE_FIXTURE_FILE,
   CollideFileSchema,
+  SCRAPE_FIXTURE_FILE,
+  ScrapeFileSchema,
+  type BlastFixture,
+  type BrakingFixture,
   type CollideFixture,
+  type ScrapeFixture,
 } from "./schema.js";
 
 const HERE = fileURLToPath(new URL("./", import.meta.url));
@@ -264,5 +281,291 @@ describe("collideWithShip oracle (ShipEntity.m:11020-11152)", () => {
     });
     expect(got.dvOtherBody[2]).toBeGreaterThan(0);
     expect(got.nudged).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// braking, the player's scrape and the blast (Task 2)
+
+function brakeProblems(fixture: BrakingFixture): string[] {
+  const got =
+    fixture.kind === "player"
+      ? playerBrakeReference(fixture)
+      : npcBrakeReference(fixture);
+  const e = fixture.expected;
+  const tol = fixture.tolerance;
+  const problems: string[] = [];
+  if (!close(got.perTickLoss, e.perTickLoss, tol)) problems.push("perTickLoss");
+  if (!close(got.firstTickLoss, e.firstTickLoss, tol)) {
+    problems.push("firstTickLoss");
+  }
+  if (got.stopTick !== e.stopTick) problems.push("stopTick");
+  if (!vecClose(got.positionChange, e.positionChange, tol)) {
+    problems.push("positionChange");
+  }
+  if (!vecClose(got.finalVelocity, e.finalVelocity, tol)) {
+    problems.push("finalVelocity");
+  }
+  if (got.samples.length !== e.samples.length) problems.push("samples");
+  e.samples.forEach((sample, i) => {
+    const mine = got.samples[i];
+    if (
+      mine === undefined ||
+      mine.tick !== sample.tick ||
+      !close(mine.speed, sample.speed, tol)
+    ) {
+      problems.push(`samples[${i}]`);
+    }
+  });
+  return problems;
+}
+
+function scrapeProblems(fixture: ScrapeFixture): string[] {
+  const got = playerScrapeReference(fixture);
+  const e = fixture.expected;
+  const tol = fixture.tolerance;
+  const problems: string[] = [];
+  if (got.shieldHit !== e.shieldHit) problems.push("shieldHit");
+  if (got.heatChange !== e.heatChange) problems.push("heatChange");
+  if (!close(got.dForward, e.dForward, tol)) problems.push("dForward");
+  if (!close(got.shields.forward, e.shields.forward, tol)) {
+    problems.push("shields.forward");
+  }
+  if (!close(got.shields.aft, e.shields.aft, tol)) problems.push("shields.aft");
+  if (!close(got.remainder, e.remainder, tol)) problems.push("remainder");
+  if (!close(got.energy, e.energy, tol)) problems.push("energy");
+  return problems;
+}
+
+/**
+ * The blast's `moment` (amount x range / d2) reaches 1e7 when d2 takes the
+ * floor, so it is compared relatively (tolerance x |moment|); every other
+ * value absolutely.
+ */
+function blastProblems(fixture: BlastFixture): string[] {
+  const got = blastReference(fixture);
+  const e = fixture.expected;
+  const tol = fixture.tolerance;
+  const problems: string[] = [];
+  e.victims.forEach((victim, i) => {
+    const mine = got.victims[i];
+    if (
+      mine === undefined ||
+      !close(mine.desiredRange, victim.desiredRange, tol) ||
+      !close(mine.amount, victim.amount, tol)
+    ) {
+      problems.push(`victims[${i}]`);
+    }
+  });
+  e.receivers.forEach((receiver, i) => {
+    const mine = got.receivers[i];
+    if (mine === undefined) {
+      problems.push(`receivers[${i}]`);
+      return;
+    }
+    if (receiver.dv === null || mine.dv === null) {
+      if (receiver.dv !== mine.dv) problems.push(`receivers[${i}].dv`);
+    } else if (!vecClose(mine.dv, receiver.dv, tol)) {
+      problems.push(`receivers[${i}].dv`);
+    }
+    receiver.contributions.forEach((c, j) => {
+      const m = mine.contributions[j];
+      const where = `receivers[${i}].contributions[${j}]`;
+      if (
+        m === undefined ||
+        m.inRange !== c.inRange ||
+        m.floored !== c.floored
+      ) {
+        problems.push(where);
+        return;
+      }
+      if (c.d2 === null || m.d2 === null) {
+        if (c.d2 !== m.d2) problems.push(`${where}.d2`);
+      } else if (!close(m.d2, c.d2, tol)) {
+        problems.push(`${where}.d2`);
+      }
+      if (c.moment === null || m.moment === null) {
+        if (c.moment !== m.moment) problems.push(`${where}.moment`);
+      } else if (!close(m.moment, c.moment, tol * Math.abs(c.moment))) {
+        problems.push(`${where}.moment`);
+      }
+      if (c.dv === null || m.dv === null) {
+        if (c.dv !== m.dv) problems.push(`${where}.dv`);
+      } else if (!vecClose(m.dv, c.dv, tol)) {
+        problems.push(`${where}.dv`);
+      }
+    });
+  });
+  return problems;
+}
+
+function brakingFixtures(): BrakingFixture[] {
+  return [
+    ...BrakingFileSchema.parse(readJson(BRAKING_PLAYER_FIXTURE_FILE)),
+    ...BrakingFileSchema.parse(readJson(BRAKING_NPC_FIXTURE_FILE)),
+  ];
+}
+
+function byId<T extends { readonly id: string }>(
+  list: readonly T[],
+  id: string,
+): T {
+  const found = list.find((candidate) => candidate.id === id);
+  if (found === undefined) throw new Error(`no fixture ${id}`);
+  return found;
+}
+
+describe("braking oracle (PlayerEntity.m:3372-3405, ShipEntity.m:5808-5823)", () => {
+  it("parses strictly and re-derives every braking fixture", () => {
+    const player = BrakingFileSchema.parse(
+      readJson(BRAKING_PLAYER_FIXTURE_FILE),
+    );
+    const npc = BrakingFileSchema.parse(readJson(BRAKING_NPC_FIXTURE_FILE));
+    expect(player.length).toBeGreaterThanOrEqual(4);
+    expect(npc.length).toBeGreaterThanOrEqual(3);
+    expect(player.every((fixture) => fixture.kind === "player")).toBe(true);
+    expect(npc.every((fixture) => fixture.kind === "ship")).toBe(true);
+    const bad = brakingFixtures()
+      .map((fixture) => [fixture.id, brakeProblems(fixture)] as const)
+      .filter(([, problems]) => problems.length > 0);
+    expect(bad).toEqual([]);
+  });
+
+  it("anchor: the player's drift below maxSpeed loses f(f(f(dt) x 32) x 1) per tick", () => {
+    // PlayerEntity.m:3381-3390: thrust_factor 1 while flightSpeed <=
+    // maxFlightSpeed; (float)delta_t x thrust x thrust_factor in float:
+    // f(f(f(1/120) x 32) x 1) = 0.2666666805744171.
+    const fixture = byId(brakingFixtures(), "brake-player-below-max-speed");
+    expect(playerBrakeReference(fixture).perTickLoss).toBe(0.2666666805744171);
+    expect(fixture.expected.perTickLoss).toBe(0.2666666805744171);
+    // A 50 m/s drift needs at least 50 / 0.2667 = 187.5 ticks to stop.
+    expect(fixture.expected.stopTick).toBeGreaterThanOrEqual(188);
+  });
+
+  it("anchor: a buoy (thrust 100) brakes by dt_thrust = f(f(5 x 100) x dt)", () => {
+    // ShipEntity.m:5810: SHIP_THRUST_FACTOR 5.0f x thrust in float, x the
+    // double delta_t, assigned to a GLfloat: f(500 / 120) = 4.166666507720947.
+    const fixture = byId(
+      brakingFixtures(),
+      "brake-ship-buoy-thrust-100-from-100",
+    );
+    expect(npcBrakeReference(fixture).perTickLoss).toBe(4.166666507720947);
+    expect(fixture.expected.perTickLoss).toBe(4.166666507720947);
+    // 100 / 4.1667 = 24.0000: the drift is gone by tick 24 or 25.
+    expect([24, 25]).toContain(fixture.expected.stopTick);
+  });
+});
+
+describe("player scrape oracle (PlayerEntity.m:5701-5753)", () => {
+  it("parses strictly and re-derives every scrape fixture", () => {
+    const fixtures = ScrapeFileSchema.parse(readJson(SCRAPE_FIXTURE_FILE));
+    expect(fixtures.length).toBeGreaterThanOrEqual(5);
+    const bad = fixtures
+      .map((fixture) => [fixture.id, scrapeProblems(fixture)] as const)
+      .filter(([, problems]) => problems.length > 0);
+    expect(bad).toEqual([]);
+  });
+
+  it("anchor: a 40 scrape from ahead comes off the forward shield only", () => {
+    // d_forward = 100 >= 0 (5720-5725): forward_shield -= 40 -> 88 >= 0, so
+    // amount = 0 (5727-5734) and energy -= 0 (ShipEntity.m:11650).
+    const got = playerScrapeReference({
+      amount: 40,
+      otherOffset: [0, 0, 100],
+      forward: [0, 0, 1],
+      shields: { forward: 128, aft: 128 },
+      energy: 256,
+    });
+    expect(got.shieldHit).toBe("forward");
+    expect(got.shields.forward).toBe(88);
+    expect(got.shields.aft).toBe(128);
+    expect(got.remainder).toBe(0);
+    expect(got.energy).toBe(256);
+    expect(got.heatChange).toBe(0);
+  });
+});
+
+describe("blast oracle (ShipEntity.m:7680-7698, 8115-8126)", () => {
+  it("parses strictly and re-derives every blast fixture", () => {
+    const fixtures = BlastFileSchema.parse(readJson(BLAST_FIXTURE_FILE));
+    expect(fixtures.length).toBeGreaterThanOrEqual(9);
+    const bad = fixtures
+      .map((fixture) => [fixture.id, blastProblems(fixture)] as const)
+      .filter(([, problems]) => problems.length > 0);
+    expect(bad).toEqual([]);
+  });
+
+  it("anchor: a Krait blast on the player 10 m away takes the d2 floor", () => {
+    // amount = f(0.125 x 93291.40625) = 11661.42578125 (8124); desired_range
+    // = f(50.196590423583984 x 2.5) = 125.4914779663086 (8123). p2 = (6, 0,
+    // 8): magnitude2 = 100, d2 = 100 - 72.69734954833984^2 < 0.1 -> 0.1
+    // (7686-7690); moment = 11661.42578125 x 125.4914779663086 / 0.1 =
+    // 14634095.564834774 (7691); howmuch = f(moment) = 14634096, / mass ->
+    // f(14634096 / 214737.6875) = 68.1487045288086; vector_normal(p2) =
+    // (f(6 x f(0.1)), 0, f(8 x f(0.1))) = (0.6000000238418579, 0,
+    // 0.800000011920929); dv = (40.889225006103516, 0, 54.51896286010742)
+    // (11178-11181).
+    const got = blastReference({
+      victims: [
+        {
+          name: "Krait",
+          position: [0, 0, 0],
+          mass: 93291.40625,
+          radius: 50.196590423583984,
+        },
+      ],
+      receivers: [
+        {
+          name: "player",
+          position: [6, 0, 8],
+          mass: 214737.6875,
+          radius: 72.69734954833984,
+        },
+      ],
+    });
+    expect(got.victims[0]?.desiredRange).toBe(125.4914779663086);
+    expect(got.victims[0]?.amount).toBe(11661.42578125);
+    const c = got.receivers[0]?.contributions[0];
+    expect(c?.inRange).toBe(true);
+    expect(c?.floored).toBe(true);
+    expect(c?.d2).toBe(0.1);
+    expect(c?.moment).toBe(14634095.564834774);
+    const dv = got.receivers[0]?.dv;
+    expect(dv?.[0]).toBe(40.889225006103516);
+    expect(dv?.[1]).toBe(0);
+    expect(dv?.[2]).toBe(54.51896286010742);
+  });
+});
+
+describe("fixture ids across the combat oracle trees", () => {
+  it("are unique across every JSON fixture file under tests/oracles/combat/", () => {
+    const root = fileURLToPath(new URL("../", import.meta.url));
+    const seen = new Map<string, string>();
+    const duplicates: string[] = [];
+    const walk = (dir: string): void => {
+      if (!existsSync(dir)) return;
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = `${dir}${entry.name}`;
+        if (entry.isDirectory()) {
+          walk(`${path}/`);
+        } else if (entry.name.endsWith(".json")) {
+          const data: unknown = JSON.parse(readFileSync(path, "utf8"));
+          if (!Array.isArray(data)) continue;
+          for (const item of data as unknown[]) {
+            if (typeof item !== "object" || item === null) continue;
+            const id = (item as { id?: unknown }).id;
+            if (typeof id !== "string") continue;
+            const where = path.slice(root.length);
+            const before = seen.get(id);
+            if (before !== undefined)
+              duplicates.push(`${id}: ${before}, ${where}`);
+            seen.set(id, where);
+          }
+        }
+      }
+    };
+    for (const tree of ["geometry/", "response/"]) walk(`${root}${tree}`);
+    expect(seen.size).toBeGreaterThan(0);
+    expect(duplicates).toEqual([]);
   });
 });

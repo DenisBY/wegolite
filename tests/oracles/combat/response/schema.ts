@@ -4,7 +4,10 @@
 /**
  * The response oracle fixture contract (Phase 18, plan 18-03) as strict zod
  * schemas: `collideWithShip`'s damage and velocity response
- * (`ShipEntity.m:11020-11152`).
+ * (`ShipEntity.m:11020-11152`), the drift braking of the player
+ * (`PlayerEntity.m:3372-3405`) and of ships (`ShipEntity.m:5808-5823`), the
+ * player's scrape through the shields (`PlayerEntity.m:5701-5753`) and the
+ * explosion blast (`ShipEntity.m:7680-7698, 8115-8126`).
  *
  * This file imports `zod` and nothing else: the oracle tree never reads
  * Wegolite code (`tests/guards/oracle-independence.test.ts` enforces that
@@ -40,8 +43,19 @@ import { z } from "zod";
 
 /** The collision fixture file, relative to this directory. */
 export const COLLIDE_FIXTURE_FILE = "fixtures/collide.json";
+/** The player braking fixture file, relative to this directory. */
+export const BRAKING_PLAYER_FIXTURE_FILE = "fixtures/braking-player.json";
+/** The ship and buoy braking fixture file, relative to this directory. */
+export const BRAKING_NPC_FIXTURE_FILE = "fixtures/braking-npc.json";
+/** The scrape fixture file, relative to this directory. */
+export const SCRAPE_FIXTURE_FILE = "fixtures/scrape.json";
+/** The blast fixture file, relative to this directory. */
+export const BLAST_FIXTURE_FILE = "fixtures/blast.json";
 
 const COLLIDE_ID = /^collide-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const BRAKE_ID = /^brake-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SCRAPE_ID = /^scrape-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const BLAST_ID = /^blast-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const CITATION =
   /^(?:src\/Core|Resources)\/[A-Za-z0-9_./-]+:([1-9]\d*)-([1-9]\d*)$/;
@@ -225,5 +239,246 @@ function uniqueIds<T extends { readonly id: string }>(
 /** A collision fixture file: fixtures with unique ids. */
 export const CollideFileSchema = z
   .array(CollideFixtureSchema)
+  .min(1)
+  .superRefine(uniqueIds);
+
+// ---------------------------------------------------------------------------
+// braking (D-02)
+
+/** One sample of a braking run: the drift speed after a tick's update. */
+const brakeSample = z.strictObject({
+  tick: z.number().int().min(1),
+  /** |velocity| after the tick, the double magnitude of the float vector. */
+  speed: nonNegative,
+});
+
+/**
+ * One braking fixture: `kind: "player"` follows `PlayerEntity.m:3372-3405`
+ * (applyVelocity first, then braking by raw `thrust` x the thrust factor and
+ * the cleanup term); `kind: "ship"` follows `ShipEntity.m:5808-5823` (braking
+ * by `SHIP_THRUST_FACTOR x thrust` only when thrust is non-zero) and then
+ * `applyVelocity` (`Entity.m:878-881`).
+ */
+export const BrakingFixtureSchema = z
+  .strictObject({
+    id: z.string().regex(BRAKE_ID, "a braking id starts brake-"),
+    ...common,
+    kind: z.enum(["player", "ship"]),
+    dt: z.number().positive(),
+    /** The initial drift (the `velocity` ivar, not the thrust vector). */
+    velocity: float32Vec3,
+    /** Player only: `flightSpeed` (the forward speed), else null. */
+    speed: float32.nullable(),
+    /** Player only: `maxFlightSpeed`, else null. */
+    maxSpeed: float32.nullable(),
+    /** Player only: the variable torus factor, 32..1024 (`PlayerEntity.h:294-300`). */
+    torusFactor: float32
+      .refine((value) => value >= 32 && value <= 1024, {
+        message: "the torus factor is 32..1024",
+      })
+      .nullable(),
+    /** The shipdata `thrust` (raw, before any factor). */
+    thrust: float32.refine((value) => value >= 0, { message: "thrust >= 0" }),
+    /** Ticks simulated. */
+    ticks: z.number().int().min(1),
+    expected: z.strictObject({
+      /**
+       * The thrust term per tick: the player's f(f(f(dt) x thrust) x factor),
+       * a ship's dt_thrust = f(f(5 x thrust) x dt).
+       */
+      perTickLoss: nonNegative,
+      /** The speed lost on tick 1, cleanup term included. */
+      firstTickLoss: nonNegative,
+      samples: z.array(brakeSample).min(1),
+      /** Position change over all `ticks`. */
+      positionChange: vec3,
+      /** The drift after the last tick. */
+      finalVelocity: vec3,
+      /** The first tick that leaves the drift at zero; null if none. */
+      stopTick: z.number().int().min(1).nullable(),
+    }),
+  })
+  .superRefine((fixture, ctx) => {
+    const issue = (path: (string | number)[], message: string): void => {
+      ctx.addIssue({ code: "custom", path, message });
+    };
+    const playerOnly = [
+      fixture.speed,
+      fixture.maxSpeed,
+      fixture.torusFactor,
+    ].every((value) => value !== null);
+    const noneSet = [
+      fixture.speed,
+      fixture.maxSpeed,
+      fixture.torusFactor,
+    ].every((value) => value === null);
+    if (fixture.kind === "player" && !playerOnly) {
+      issue(["kind"], "a player fixture sets speed, maxSpeed and torusFactor");
+    }
+    if (fixture.kind === "ship" && !noneSet) {
+      issue(["kind"], "a ship fixture leaves the player-only fields null");
+    }
+    for (const sample of fixture.expected.samples) {
+      if (sample.tick > fixture.ticks) {
+        issue(["expected", "samples"], "a sample lies beyond the run");
+      }
+    }
+    const stop = fixture.expected.stopTick;
+    if (stop !== null && stop > fixture.ticks) {
+      issue(["expected", "stopTick"], "the stop tick lies beyond the run");
+    }
+  });
+export type BrakingFixture = z.infer<typeof BrakingFixtureSchema>;
+
+/** A braking fixture file: fixtures with unique ids. */
+export const BrakingFileSchema = z
+  .array(BrakingFixtureSchema)
+  .min(1)
+  .superRefine(uniqueIds);
+
+// ---------------------------------------------------------------------------
+// the player's scrape (PlayerEntity.m:5701-5753)
+
+/**
+ * One scrape fixture: the player takes `amount` of scrape damage from an
+ * entity at `otherOffset` (the other's position minus the player's). The
+ * shield on the other's side absorbs first, the remainder lowers energy
+ * (`ShipEntity.m:11641-11653`); no cabin heat. The internal-damage loop
+ * (5746-5752) is Phase 19's and is not modelled; no fixture reaches a death.
+ */
+export const ScrapeFixtureSchema = z
+  .strictObject({
+    id: z.string().regex(SCRAPE_ID, "a scrape id starts scrape-"),
+    ...common,
+    /** The `double` amount passed to takeScrapeDamage:from:. */
+    amount: finite,
+    otherOffset: vec3,
+    /** The player's `v_forward`, a unit float vector. */
+    forward: float32Vec3,
+    shields: z.strictObject({ forward: float32, aft: float32 }),
+    energy: float32,
+    expected: z.strictObject({
+      /** dot_product(HPVectorToVector(rel_pos), v_forward), float. */
+      dForward: finite,
+      shieldHit: z.enum(["forward", "aft"]),
+      shields: z.strictObject({ forward: nonNegative, aft: nonNegative }),
+      /** What the shield did not absorb, handed to energy. */
+      remainder: nonNegative,
+      energy: z.number().positive(),
+      heatChange: z.literal(0),
+    }),
+  })
+  .superRefine((fixture, ctx) => {
+    const e = fixture.expected;
+    if ((e.shieldHit === "forward") !== e.dForward >= 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["expected", "shieldHit"],
+        message: "d_forward >= 0 hits the forward shield, else the aft",
+      });
+    }
+  });
+export type ScrapeFixture = z.infer<typeof ScrapeFixtureSchema>;
+
+/** A scrape fixture file: fixtures with unique ids. */
+export const ScrapeFileSchema = z
+  .array(ScrapeFixtureSchema)
+  .min(1)
+  .superRefine(uniqueIds);
+
+// ---------------------------------------------------------------------------
+// the explosion blast (D-03)
+
+const blastBody = z.strictObject({
+  name: z.string().min(1),
+  /** World position (double). */
+  position: vec3,
+  mass: positiveFloat32,
+  /** Collision radius. */
+  radius: positiveFloat32,
+});
+
+/** One victim's push on one receiver. */
+const blastContribution = z.strictObject({
+  /** `HPdistance2 < (range + r_receiver)^2` (`Universe.m:5862-5868`). */
+  inRange: z.boolean(),
+  /** |p|^2 - r_receiver^2, floored at 0.1; null out of range. */
+  d2: z.number().min(0.1).nullable(),
+  /** Whether d2 took the 0.1 floor (7688-7690). */
+  floored: z.boolean(),
+  /** amount x desired_range / d2 (7691); null out of range. */
+  moment: nonNegative.nullable(),
+  /** The velocity change (11178-11181); null out of range. */
+  dv: vec3.nullable(),
+});
+
+/**
+ * One blast fixture: the exploding bodies (`victims`, in the C's order: a
+ * subentity explodes before its parent, 8115-8126) and the receivers, every
+ * one with its mass and collision radius.
+ */
+export const BlastFixtureSchema = z
+  .strictObject({
+    id: z.string().regex(BLAST_ID, "a blast id starts blast-"),
+    ...common,
+    victims: z.array(blastBody).min(1),
+    receivers: z.array(blastBody).min(1),
+    expected: z.strictObject({
+      victims: z.array(
+        z.strictObject({
+          /** f(collision_radius x 2.5f) (8123). */
+          desiredRange: z.number().positive(),
+          /** f(0.125f x mass) (8124). */
+          amount: z.number().positive(),
+        }),
+      ),
+      receivers: z.array(
+        z.strictObject({
+          /** The sum over victims; null if no victim reached the receiver. */
+          dv: vec3.nullable(),
+          contributions: z.array(blastContribution),
+        }),
+      ),
+    }),
+  })
+  .superRefine((fixture, ctx) => {
+    const issue = (path: (string | number)[], message: string): void => {
+      ctx.addIssue({ code: "custom", path, message });
+    };
+    const e = fixture.expected;
+    if (e.victims.length !== fixture.victims.length) {
+      issue(["expected", "victims"], "one entry per victim");
+    }
+    if (e.receivers.length !== fixture.receivers.length) {
+      issue(["expected", "receivers"], "one entry per receiver");
+    }
+    e.receivers.forEach((receiver, i) => {
+      if (receiver.contributions.length !== fixture.victims.length) {
+        issue(["expected", "receivers", i], "one contribution per victim");
+      }
+      const reached = receiver.contributions.some((c) => c.inRange);
+      if (reached !== (receiver.dv !== null)) {
+        issue(
+          ["expected", "receivers", i, "dv"],
+          "dv is null exactly when no victim reached",
+        );
+      }
+      receiver.contributions.forEach((c, j) => {
+        const nulls = [c.d2, c.moment, c.dv].every((value) => value === null);
+        const set = [c.d2, c.moment, c.dv].every((value) => value !== null);
+        if (c.inRange ? !set : !nulls || c.floored) {
+          issue(
+            ["expected", "receivers", i, "contributions", j],
+            "an out-of-range contribution is all null, an in-range one all set",
+          );
+        }
+      });
+    });
+  });
+export type BlastFixture = z.infer<typeof BlastFixtureSchema>;
+
+/** A blast fixture file: fixtures with unique ids. */
+export const BlastFileSchema = z
+  .array(BlastFixtureSchema)
   .min(1)
   .superRefine(uniqueIds);

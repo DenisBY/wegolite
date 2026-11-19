@@ -37,7 +37,12 @@
  *   11111-11112: the player's death is Phase 20's.
  */
 
-import type { CollideFixture } from "./schema.js";
+import type {
+  BlastFixture,
+  BrakingFixture,
+  CollideFixture,
+  ScrapeFixture,
+} from "./schema.js";
 
 type Vec3 = readonly [number, number, number];
 type MutableVec3 = [number, number, number];
@@ -255,5 +260,62 @@ export function collideWithShipReference(input: CollideInput): CollideResult {
     dp1,
     dpOther,
     dpOtherSubentity,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Task 2 (RED stubs)
+
+export type BrakingInput = Omit<
+  BrakingFixture,
+  "expected" | "id" | "title" | "citations" | "derivation" | "tolerance"
+>;
+export type BrakingResult = BrakingFixture["expected"];
+export type ScrapeInput = Pick<
+  ScrapeFixture,
+  "amount" | "otherOffset" | "forward" | "shields" | "energy"
+>;
+export type ScrapeResult = ScrapeFixture["expected"];
+export type BlastInput = Pick<BlastFixture, "victims" | "receivers">;
+export type BlastResult = BlastFixture["expected"];
+
+const STUB_BRAKE: BrakingResult = {
+  perTickLoss: 0,
+  firstTickLoss: 0,
+  samples: [{ tick: 1, speed: 0 }],
+  positionChange: [0, 0, 0],
+  finalVelocity: [0, 0, 0],
+  stopTick: null,
+};
+
+/** RED stub. */
+export function playerBrakeReference(input: BrakingInput): BrakingResult {
+  void input;
+  return STUB_BRAKE;
+}
+
+/** RED stub. */
+export function npcBrakeReference(input: BrakingInput): BrakingResult {
+  void input;
+  return STUB_BRAKE;
+}
+
+/** RED stub. */
+export function playerScrapeReference(input: ScrapeInput): ScrapeResult {
+  return {
+    dForward: 0,
+    shieldHit: "forward",
+    shields: { ...input.shields },
+    remainder: 0,
+    energy: input.energy,
+    heatChange: 0,
+  };
+}
+
+/** RED stub. */
+export function blastReference(input: BlastInput): BlastResult {
+  return {
+    victims: input.victims.map(() => ({ desiredRange: 1, amount: 1 })),
+    receivers: input.receivers.map(() => ({ dv: null, contributions: [] })),
   };
 }
