@@ -1174,13 +1174,7 @@ describe("destroyBuoy (D-04, D-13)", () => {
     const world = createWorld(1);
     world.staticHealth.witchpoint = 0;
     const events: SimEvent[] = [];
-    destroyBuoy(
-      world,
-      buoyRow(WITCHPOINT_BUOY_ID),
-      PLAYER_ID,
-      events,
-      layout,
-    );
+    destroyBuoy(world, buoyRow(WITCHPOINT_BUOY_ID), PLAYER_ID, events, layout);
     expect(events).toEqual([
       {
         kind: "shipDestroyed",
@@ -1234,13 +1228,7 @@ describe("destroyBuoy (D-04, D-13)", () => {
     ]) {
       world.staticHealth.navBuoy = 0;
       const events: SimEvent[] = [];
-      destroyBuoy(
-        world,
-        buoyRow(STATION_NAV_BUOY_ID),
-        killer,
-        events,
-        layout,
-      );
+      destroyBuoy(world, buoyRow(STATION_NAV_BUOY_ID), killer, events, layout);
       const event = events[0];
       if (event?.kind !== "shipDestroyed") throw new Error("no event");
       killers.push(event.killer);

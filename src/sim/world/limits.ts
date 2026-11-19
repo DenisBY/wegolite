@@ -154,6 +154,13 @@ export const STATION_MAX_ENERGY = 25000;
 export const BUOY_MAX_ENERGY = 250;
 
 /**
+ * The energy a navigation or witchpoint buoy regains per second (the buoy
+ * template, `shipdata.plist:1018`, `energy_recharge_rate` 2), up to
+ * `BUOY_MAX_ENERGY` and only while the buoy is alive (Phase 18, CBT-17).
+ */
+export const BUOY_ENERGY_RECHARGE_RATE = 2;
+
+/**
  * The most energy a buoy's frangible subentity holds (Phase 18, PD-01): Oolite's
  * default `max_energy` (`ShipEntity.m:291`), because the subentity's shipdata
  * record sets none. A format bound: changing it is a snapshot-format change.

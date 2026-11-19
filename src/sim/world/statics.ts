@@ -120,7 +120,6 @@ export function stationPose(
   };
 }
 
-
 /**
  * A buoy's orientation at `flightTime` seconds of the flight clock: roll about
  * local +Z by `BUOY_ROLL_RATE * t`, then pitch about local +X by

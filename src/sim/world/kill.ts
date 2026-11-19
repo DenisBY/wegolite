@@ -163,7 +163,6 @@ export function killShip(
   return true;
 }
 
-
 /**
  * Announce the destruction of the buoy `target` (Phase 18, CBT-17, D-04, D-13):
  * one `shipDestroyed` with the static id, a copy of its live position

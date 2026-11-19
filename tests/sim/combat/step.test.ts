@@ -1449,7 +1449,9 @@ describe("buoy records in the ledger are total (probe CBT-17)", () => {
       ],
       events,
     );
-    expect(lethal).toEqual([{ victim: STATION_NAV_BUOY_ID, killer: PLAYER_ID }]);
+    expect(lethal).toEqual([
+      { victim: STATION_NAV_BUOY_ID, killer: PLAYER_ID },
+    ]);
     expect(Object.is(world.staticHealth.navBuoy, 0)).toBe(true);
     // As for a ship doomed earlier in the same tick, the later record still
     // shows as a hit.

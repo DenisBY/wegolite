@@ -60,6 +60,7 @@ import { rangeToTargetIn } from "../npc/target.js";
 import { createRngState, rngNext } from "../rng.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
+import { BUOY_ENERGY_RECHARGE_RATE, BUOY_MAX_ENERGY } from "../world/limits.js";
 import {
   STATIC_TARGETS,
   isBuoyDestroyed,
@@ -329,6 +330,27 @@ function rechargeShips(world: World, dt: number): void {
 }
 
 /**
+ * Recharge each buoy's static health by `BUOY_ENERGY_RECHARGE_RATE` per second
+ * up to `BUOY_MAX_ENERGY` (the buoy's `energy_recharge_rate` 2, as a ship's
+ * bank recharges, `ShipEntity.m:2414-2422`; Phase 18, CBT-17). Runs right
+ * after `rechargeShips`, before this tick's hits apply. Only a live buoy
+ * (`value > 0`) recharges, so a destroyed buoy never revives (research
+ * Pitfall 9, D-04); a buoy at its maximum is never written, so it stays
+ * pristine. The station is never written: it only absorbs (A6). Plan 18-15
+ * adds the buoy subentity's recharge beside this one.
+ */
+function rechargeStatics(world: World, dt: number): void {
+  for (const key of ["witchpoint", "navBuoy"] as const) {
+    const value = world.staticHealth[key];
+    if (!(value > 0) || !(value < BUOY_MAX_ENERGY)) continue;
+    world.staticHealth[key] = Math.min(
+      BUOY_MAX_ENERGY,
+      value + BUOY_ENERGY_RECHARGE_RATE * dt,
+    );
+  }
+}
+
+/**
  * Cool every live ship's forward weapon by `fround(6 x dt)` in float32, floored
  * at 0 (`ShipEntity.m:2214-2218`, D-07). Runs after the drain and the recharge,
  * so a shot of this tick sees the temperature the previous tick left, as the
@@ -365,7 +387,8 @@ function coolShips(world: World, dt: number): void {
  * statics and the ships are listed only when the world was stepped this tick,
  * so a tick that skipped the world (the jump step, or no world at all) draws the
  * beam and hits no static or ship. Before any hit is queued, every live ship
- * recharges its energy bank (N1) and then cools its forward weapon; the cooling
+ * recharges its energy bank (N1), each live buoy its static health
+ * (`rechargeStatics`), and every live ship then cools its forward weapon; the cooling
  * runs on every stepped tick, ahead of the empty-shot return. A shot moves its
  * NPC shooter's `missedShots` (-1 on a hit, a static target included; +1 on a
  * miss), and an NPC shot's `laserFired`
@@ -393,6 +416,7 @@ function resolveShotHits(
       : drainFireQueue(world, worldStepped, player, layout, options);
   if (world !== undefined && worldStepped) {
     rechargeShips(world, dt);
+    rechargeStatics(world, dt);
     // Before the empty-shot return below, so a tick with no shot still cools.
     coolShips(world, dt);
   }
@@ -406,7 +430,10 @@ function resolveShotHits(
     for (const row of STATIC_TARGETS) {
       if (!hulls.has(row.hullKey)) continue;
       // A destroyed buoy is no target (D-05).
-      if (row.layoutKey !== "station" && isBuoyDestroyed(world, row.layoutKey)) {
+      if (
+        row.layoutKey !== "station" &&
+        isBuoyDestroyed(world, row.layoutKey)
+      ) {
         continue;
       }
       const pose = staticPose(row, layout, player, world);
