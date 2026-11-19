@@ -25,8 +25,12 @@ import {
 import type { SteerContext } from "../../../src/sim/npc/dispatch.js";
 import { steerShip } from "../../../src/sim/npc/dispatch.js";
 import type { NpcFlightStats } from "../../../src/sim/npc/stats.js";
-import { trackDestination } from "../../../src/sim/npc/track.js";
+import {
+  trackDestination,
+  trackPrimaryTarget,
+} from "../../../src/sim/npc/track.js";
 import type { Entity } from "../../../src/sim/world/entity.js";
+import { MAX_UINT32 } from "../../../src/sim/world/limits.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import { createSyntheticView } from "./oracle-runner.js";
 
@@ -529,5 +533,68 @@ describe("behaviour_face_destination (ShipEntity.m:4920-4965)", () => {
     same.steer.frustration = Math.fround(6);
     behaviourFaceDestination(same, contextFor(same).ctx);
     expect(same.steer.flightPitch).toBeCloseTo(0.1 + 4 * DT, 12);
+  });
+});
+
+describe("trackPrimaryTarget's missed-shot precision term (ShipEntity.m:9134-9141)", () => {
+  const TARGET_ID = 102;
+
+  /** Track a target 1000 m away, 0.05 above the nose in direction cosine. */
+  function trackAbove(accuracy: number, missedShots: number): Entity {
+    const entity = ship();
+    entity.steer.accuracy = accuracy;
+    entity.weapon.missedShots = missedShots;
+    entity.nav.targetId = TARGET_ID;
+    const target = {
+      id: TARGET_ID,
+      kind: "ship" as const,
+      scanClass: "CLASS_NEUTRAL" as const,
+      radius: 50,
+      mass: 0,
+      position: vec(0, 50, -Math.sqrt(1e6 - 2500)),
+      orientation: identity(),
+      speed: 0,
+      behaviour: "IDLE" as const,
+      targetId: 0,
+    };
+    const ctx: SteerContext = {
+      view: createSyntheticView([target], entity, 1),
+      stats: STATS,
+      dt: DT,
+      draw: () => {
+        throw new Error("no draw expected");
+      },
+      emit: () => undefined,
+    };
+    trackPrimaryTarget(entity, ctx, false);
+    return entity;
+  }
+
+  it("accuracy -2 never reads the term: missedShots 0 and 31 give the same pitch stick", () => {
+    // relPos = (0, 0.05, -0.99875): d_up = 0.05, below accuracy 0 min_d stays
+    // 0.004: factor = int(sqrt(0.05 / 0.004)) = int(3.5355) = 3, stick_pitch =
+    // -1 x 0.125 x 3 = -0.375 (9197-9201). The cosine 0.99875 is below the aim
+    // cosine of accuracy -2 (sqrt(1 - 276^2 / 1e8) = 0.99962), so the ship
+    // manoeuvres at both counts.
+    expect(trackAbove(-2, 0).steer.stickPitch).toBeCloseTo(-0.375, 12);
+    expect(trackAbove(-2, 31).steer.stickPitch).toBeCloseTo(-0.375, 12);
+  });
+
+  it("is the identity at missedShots 0: accuracy 2 keeps min_d 0.004 and the cap 8", () => {
+    // Same pose: factor 3 at min_d 0.004, r_max_factor 0.125: -0.375.
+    expect(trackAbove(2, 0).steer.stickPitch).toBeCloseTo(-0.375, 12);
+  });
+
+  it("reaches the floor branch for the largest counter without a throw and keeps every output finite", () => {
+    // min_d = 0.004 - 0.0001 x 4294967295 is far below 0.001: it floors, max_factor
+    // doubles to 16 and r_max_factor halves to 0.0625 (9137-9139). The values at
+    // counts 3 and 31 are the aim-feedback fixtures' (fire.oracle.test.ts).
+    const entity = trackAbove(2, MAX_UINT32);
+    expect(Number.isFinite(entity.steer.stickPitch)).toBe(true);
+    expect(Number.isFinite(entity.steer.stickRoll)).toBe(true);
+    expect(Number.isFinite(entity.steer.flightPitch)).toBe(true);
+    // d_up 0.05 at the floor: factor = int(sqrt(0.05 / 0.001)) = int(7.07) = 7,
+    // stick_pitch = -1 x 0.0625 x 7 = -0.4375.
+    expect(entity.steer.stickPitch).toBeCloseTo(-0.4375, 12);
   });
 });

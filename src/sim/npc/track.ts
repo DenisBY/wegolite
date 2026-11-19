@@ -44,7 +44,9 @@ import {
   PRIMARY_JINK_RANGE,
   PRIMARY_MAX_FACTOR,
   PRIMARY_MIN_D,
+  PRIMARY_MIN_D_FLOOR,
   PRIMARY_MIN_D_PRECISE,
+  PRIMARY_MISSED_SHOT_STEP,
   PRIMARY_PITCH_DIVISOR,
   PRIMARY_PITCH_LIMIT_SHARE,
   PRIMARY_PITCH_OVER_END_COS,
@@ -282,11 +284,16 @@ function magnitude(v: Vec3): number {
  * `dist_adjust_factor`, as 9105 does. The mirror leaves each of these
  * statements true.
  *
- * Scope cuts, each recorded for plan 14-19: `missedShots` is 0 (no NPC fire,
- * so the "improve precision when missing" rule of 9134-9141 never binds and is
- * not ported); a missile takes Oolite's `missileTrackPrimaryTarget` (9053-9055)
- * in Oolite and the ordinary steering here; the retreat branch's
- * `setEvasiveJink:400` (9096-9098) is plan 14-13's, in this file.
+ * The "improve precision when missing" rule of 9134-9141 is live (Phase 17,
+ * D-15): for accuracy at least `COMBAT_AI_ISNT_AWFUL` and below
+ * `COMBAT_AI_TRACKS_CLOSER`, `min_d` shrinks by 0.0001 per `missedShots` to a
+ * floor of 0.001, where `max_factor` doubles and `r_max_factor` halves. It is
+ * an exact no-op at `missedShots` 0.
+ *
+ * Scope cuts, each recorded for plan 14-19: a missile takes Oolite's
+ * `missileTrackPrimaryTarget` (9053-9055) in Oolite and the ordinary steering
+ * here; the retreat branch's `setEvasiveJink:400` (9096-9098) is plan 14-13's,
+ * in this file.
  */
 export function trackPrimaryTarget(
   entity: Entity,
@@ -395,9 +402,16 @@ export function trackPrimaryTarget(
       minD = PRIMARY_MIN_D_PRECISE; // 10 times more precision ~= 4m at 10km
       maxFactor *= PRIMARY_PRECISE_MULTIPLIER;
       rMaxFactor /= PRIMARY_PRECISE_MULTIPLIER;
+    } else if (accuracy >= COMBAT_AI_ISNT_AWFUL) {
+      // slowly improve precision to target, but only if missing (9134-9141);
+      // the exact identity at missedShots 0
+      minD -= PRIMARY_MISSED_SHOT_STEP * entity.weapon.missedShots;
+      if (minD < PRIMARY_MIN_D_FLOOR) {
+        minD = PRIMARY_MIN_D_FLOOR;
+        maxFactor *= 2;
+        rMaxFactor /= 2;
+      }
     }
-    // accuracy >= COMBAT_AI_ISNT_AWFUL: "min_d -= 0.0001 * missedShots" and its
-    // floor of 0.001 (9134-9141) never bind with missedShots fixed at 0.
   }
 
   const dRight = dot(relPos, vRight);

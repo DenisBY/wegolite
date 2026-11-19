@@ -194,6 +194,12 @@ export const PRIMARY_MIN_D = 0.004;
 /** The dead zone `min_d` at accuracy `COMBAT_AI_TRACKS_CLOSER` and above (`ShipEntity.m:9131`). */
 export const PRIMARY_MIN_D_PRECISE = 0.0004;
 
+/** `min_d` shrinks by this much per missed shot, at accuracy `COMBAT_AI_ISNT_AWFUL` and above but below `COMBAT_AI_TRACKS_CLOSER` (`ShipEntity.m:9136`). */
+export const PRIMARY_MISSED_SHOT_STEP = 0.0001;
+
+/** The floor of the missed-shot `min_d`; reaching it doubles `max_factor` and halves `r_max_factor` (`ShipEntity.m:9137-9139`). */
+export const PRIMARY_MIN_D_FLOOR = 0.001;
+
 /** The default cap on the integer `factor` (`ShipEntity.m:9122`). */
 export const PRIMARY_MAX_FACTOR = 8;
 
