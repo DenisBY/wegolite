@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: 10
+current_plan: 11
 status: executing
-stopped_at: Completed 18-16-PLAN.md
-last_updated: "2026-11-19T21:41:45.490Z"
+stopped_at: Completed 18-17-PLAN.md
+last_updated: "2026-11-19T22:01:09.491Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: cb4d4c23b0948168aeddb5bc5261db8e0f52823c
+state_head: 848a2d68867e3cc9454ce082b135e8413132daa9
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 37
+  completed_plans: 38
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 10
+Current Plan: 11
 Total Plans in Phase: 22
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 18 execution started
@@ -222,6 +222,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 18 P14 | 17 min | 2 tasks | 11 files |
 | Phase 18 P09 | 24 min | 2 tasks | 5 files |
 | Phase 18 P16 | 16min | 2 tasks | 6 files |
+| Phase 18 P17 | 16min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -565,6 +566,7 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-16: collideWithShip takes other.parentFrangible (default true, Oolite's frangible YES) so a non-frangible parent takes dam2 (ShipEntity.m:11124-11125); the response reports dam2Receiver, loc, v2b, v1a, antiConjoin, nudged and dpOtherSubentity
 - [Phase 18]: 18-16: a degenerate collision input (mass not finite or not positive as a float, or any non-finite response number) is separating: the pair gets nothing (T-18-21)
 - [Phase 18]: 18-16: the player's scrape keeps 'a non-positive amount is no damage'; Oolite's negative-amount sign flip (PlayerEntity.m:5710-5713) is unported and unreachable (the response never produces negative damage); fixture scrape-negative-amount-made-positive is held to that divergence, FIDELITY row due at 18-12
+- [Phase 18]: 18-17: NPC and buoy drift is one float32 pass (brakeShipDrift, 5 x thrust x dt) after the whole steering loop; a later ship's steering reads an earlier ship's pre-drift position, unlike Oolite's per-ship update (recorded for the FIDELITY walk)
 
 ### Pending Todos
 
@@ -704,8 +706,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-19T21:41:45.061Z
-Stopped at: Completed 18-16-PLAN.md
+Last session: 2026-11-19T22:01:08.988Z
+Stopped at: Completed 18-17-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
