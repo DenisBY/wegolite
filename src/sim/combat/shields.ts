@@ -108,28 +108,21 @@ const NO_DAMAGE: DamageResult = Object.freeze({
 });
 
 /**
- * Route one hit on the player (S9, C4, `PlayerEntity.m:5635-5680`).
- *
- * The attacker's side decides the shield: `attackerOffset` (attacker position
- * minus the player's) projected on the player's `forward` axis, `>= 0` being
- * ahead or exactly abeam, which drains the forward shield; `< 0` drains the aft
- * shield. The overflow drains energy, which floors at 0 (the player's death is
- * Phase 20, D-13), and heats the cabin by `ENERGY_DAMAGE_TO_HEAT_FACTOR` per
- * point while it is below `SHIP_MAX_CABIN_TEMP`, never past it (D-05: energy
- * damage is the only heat input).
- *
- * A non-finite, zero or negative amount changes nothing (T-13-09). A
- * non-finite side test falls to the forward shield, deterministically.
+ * The facing-shield drain shared by both damage paths (`PlayerEntity.m:
+ * 5646-5662` for a laser, `5726-5742` for a scrape): `offset` (the other
+ * entity's position minus the player's) projected on `forward`, `>= 0` being
+ * ahead or exactly abeam, drains the forward shield; `< 0` drains the aft
+ * shield. Returns what the shield did not absorb. A non-finite side test falls
+ * to the forward shield, deterministically. The caller has already rejected a
+ * non-positive or non-finite amount.
  */
-export function routeDamage(
+function drainFacingShield(
   state: PlayerCombatState,
   amount: number,
-  attackerOffset: Vec3,
+  offset: Vec3,
   forward: Vec3,
-): DamageResult {
-  if (!Number.isFinite(amount) || !(amount > 0)) return NO_DAMAGE;
-
-  const dForward = dot(attackerOffset, forward);
+): number {
+  const dForward = dot(offset, forward);
   let remaining = amount;
   if (!(dForward < 0)) {
     state.fwdShield -= remaining;
@@ -148,7 +141,30 @@ export function routeDamage(
       remaining = 0;
     }
   }
+  return remaining;
+}
 
+/**
+ * Route one hit on the player (S9, C4, `PlayerEntity.m:5635-5680`).
+ *
+ * The attacker's side decides the shield (`drainFacingShield`). The overflow
+ * drains energy, which floors at 0 (the player's death is Phase 20, D-13), and
+ * heats the cabin by `ENERGY_DAMAGE_TO_HEAT_FACTOR` per point while it is
+ * below `SHIP_MAX_CABIN_TEMP`, never past it (D-05: energy damage is the only
+ * heat input).
+ *
+ * A non-finite, zero or negative amount changes nothing (T-13-09). A
+ * non-finite side test falls to the forward shield, deterministically.
+ */
+export function routeDamage(
+  state: PlayerCombatState,
+  amount: number,
+  attackerOffset: Vec3,
+  forward: Vec3,
+): DamageResult {
+  if (!Number.isFinite(amount) || !(amount > 0)) return NO_DAMAGE;
+
+  const remaining = drainFacingShield(state, amount, attackerOffset, forward);
   if (remaining > 0) {
     state.energy = Math.max(0, state.energy - remaining);
     if (state.cabinTemp < SHIP_MAX_CABIN_TEMP) {
@@ -162,18 +178,37 @@ export function routeDamage(
   return { shieldAbsorbed: remaining === 0, applied: remaining };
 }
 
-/** Stub for the RED step of plan 18-16. */
+/**
+ * The player's collision damage (CBT-18), `-[PlayerEntity
+ * takeScrapeDamage:from:]` (`PlayerEntity.m:5701-5753`).
+ *
+ * The shield on the other's side absorbs first: Oolite's `d_forward >= 0`
+ * (5726) is the same `!(dForward < 0)` test as `routeDamage`'s, through the
+ * shared `drainFacingShield`; `otherOffset` is the other's position minus the
+ * player's. The remainder lowers energy (`[super takeScrapeDamage:]`,
+ * `ShipEntity.m:11651`), which floors at 0 (the player's death is Phase 20).
+ * Unlike `routeDamage` (`takeEnergyDamage`, 5599-5700) the scrape never heats
+ * the cabin. The internal-damage loop (5746-5752) is Phase 19's and is not
+ * ported.
+ *
+ * Divergence: Oolite turns a negative amount positive (5710-5713); this kernel
+ * treats a non-positive or non-finite amount as no damage. No caller can reach
+ * the difference, because the collision response never produces a negative
+ * damage (review L413@b45e113).
+ */
 export function routeScrapeDamage(
   state: PlayerCombatState,
   amount: number,
   otherOffset: Vec3,
   forward: Vec3,
 ): DamageResult {
-  void state;
-  void amount;
-  void otherOffset;
-  void forward;
-  return NO_DAMAGE;
+  if (!Number.isFinite(amount) || !(amount > 0)) return NO_DAMAGE;
+
+  const remaining = drainFacingShield(state, amount, otherOffset, forward);
+  if (remaining > 0) {
+    state.energy = Math.max(0, state.energy - remaining);
+  }
+  return { shieldAbsorbed: remaining === 0, applied: remaining };
 }
 
 /**
