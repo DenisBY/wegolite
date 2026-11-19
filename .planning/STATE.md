@@ -26,7 +26,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-16)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 17 — NPC Fire and Hits on the Player
+**Current focus:** Phase 18 — Stations, Buoys and Collisions
 
 ## Current Position
 
@@ -34,7 +34,7 @@ Phase: 18 — Stations, Buoys and Collisions
 Current Plan: Not started
 Total Plans in Phase: 10
 Status: Ready to plan
-Last activity: 2026-11-19 — Phase 17 complete, transitioned to Phase 18
+Last activity: 2026-11-19 — Phase 17 re-verified after UAT gap closure (G-17-1, G-17-4) and marked complete; ready to plan Phase 18
 
 
 ## Performance Metrics
@@ -671,8 +671,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-19T09:55:03.189Z
-Stopped at: Phase 17 complete, ready to plan Phase 18
+Last session: 2026-11-19T12:30:00Z
+Stopped at: Phase 17 complete (UAT closed, verification passed), ready to plan Phase 18
 Resume file: None
 
 ## Operator Next Steps
