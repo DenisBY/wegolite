@@ -52,25 +52,12 @@ const ran: string[] = [];
  * fixture still hold, and the entry fails as soon as the fixture is corrected
  * (the pinned failure no longer occurs), which forces its removal.
  *
- * fire-site-flee-evasive-hand-over-still-requests, tick 2 successFactor: the
- * fixture holds the pose (4920 m, the range at the start). Oolite does not: the
- * evasive update 1 sets `desired_speed` 320 and `applyThrust:`
- * (`ShipEntity.m:5808-5843`) raises `flightSpeed` by `SHIP_THRUST_FACTOR (5) x
- * thrust (32) x dt` = 1.3333 m/s, then `moveForward:(dt x flightSpeed)` moves
- * the ship 1.3333 / 120 = 0.011111 m toward the target, so flee's
- * `success_factor = range` at update 2 (4853) reads 4920 - 0.011111 = 4919.98889,
- * float32 4919.98877. The fixture's own header (`pursuit/derive.ts`) says a
- * later-tick value is asked for only where the pose is static (speed 0 and
- * desired speed 0) or the decision cannot flip; a range read is neither.
+ * None open. The one raised in plan 17-08 (fire-site-flee-evasive-hand-over-
+ * still-requests, tick 2 successFactor: the fixture held the start pose, while
+ * Oolite's update 1 thrusts and moves the ship 0.011111 m) was re-derived by an
+ * independent oracle author and corrected in the fixture (commit 89ee9ee).
  */
-const OPEN_DISPUTES: ReadonlyMap<string, readonly string[]> = new Map([
-  [
-    "fire-site-flee-evasive-hand-over-still-requests",
-    [
-      "fire-site-flee-evasive-hand-over-still-requests tick 2 successFactor: expected 4920 +-0.000001, got 4919.98876953125",
-    ],
-  ],
-]);
+const OPEN_DISPUTES: ReadonlyMap<string, readonly string[]> = new Map();
 
 for (const file of FILES) {
   describe(file, () => {

@@ -71,7 +71,7 @@ coverage:
 
 duration: 17min
 completed: 2026-11-19
-status: partial
+status: complete
 ---
 
 # Phase 17 Plan 08: Fire-site and hot-branch fixtures against the port Summary
@@ -165,3 +165,7 @@ None (test files only).
 - Files found: `tests/sim/npc/fire-sites.oracle.test.ts`, `tests/sim/npc/oracle-runner.ts`, `tests/sim/npc/oracle-groups.ts`, `tests/sim/npc/oracle-coverage.test.ts`, `tests/sim/npc/attack.oracle.test.ts`.
 - Commits `770991a` and `c957441` are ancestors of HEAD; `commits: 2` measured from `plan_head_before` `ccb314f`.
 - The self-check passes on the plan's mechanics; the dispute above is an open review item, not a self-check failure.
+
+## Dispute resolution (orchestrator, 2026-11-19)
+
+The open oracle dispute was re-derived by an independent oracle author (no access to `src/sim` or `tests/sim`) from Oolite at pin `7437f22`: update 1 runs the behaviour, `applyAttitudeChanges:`, then `applyThrust:` (ShipEntity.m:2634-2636), so the ship moves 0.0111111 m and the tick-2 `successFactor` is float32 4919.98876953125. The fixture was corrected (tolerance 0.0005, one float32 step at 5000) with an opt-in `moveSelf` replay in `pursuit/derive.ts` (commit 89ee9ee). The `OPEN_DISPUTES` pin was then emptied; all 24 fire-site fixtures pass against the port.
