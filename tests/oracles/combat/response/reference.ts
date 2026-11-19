@@ -4,7 +4,11 @@
 /**
  * Independent transliteration of Oolite's collision response (Phase 18, plan
  * 18-03): `collideWithShip:` (`ShipEntity.m:11020-11152`) with
- * `adjustVelocity:` (11173-11176).
+ * `adjustVelocity:` (11173-11176); the drift braking of the player
+ * (`PlayerEntity.m:3372-3405`) and of ships and buoys
+ * (`ShipEntity.m:5808-5823`); the player's scrape through the shields
+ * (`PlayerEntity.m:5701-5753`); the explosion blast (`ShipEntity.m:7680-7698,
+ * 8114-8126`, `Universe.m:5862-5868`).
  *
  * Independence: this module imports nothing outside `tests/oracles` (a type
  * import of this tree's own `schema.ts` only). Its sole input is the pinned
@@ -264,58 +268,290 @@ export function collideWithShipReference(input: CollideInput): CollideResult {
 }
 
 // ---------------------------------------------------------------------------
-// Task 2 (RED stubs)
+// drift braking (D-02)
 
-export type BrakingInput = Omit<
+/** `VELOCITY_CLEANUP_MIN 2000.0f` (`PlayerEntity.m:3346`). */
+export const VELOCITY_CLEANUP_MIN = Math.fround(2000);
+/** `VELOCITY_CLEANUP_FULL 5000.0f` (`PlayerEntity.m:3347`). */
+export const VELOCITY_CLEANUP_FULL = Math.fround(5000);
+/** `VELOCITY_CLEANUP_RATE 0.001f` (`PlayerEntity.m:3348`): a float constant. */
+export const VELOCITY_CLEANUP_RATE = Math.fround(0.001);
+/** `SHIP_THRUST_FACTOR 5.0f` (`ShipEntity.h:46`). */
+export const SHIP_THRUST_FACTOR = 5;
+
+/** The inputs of one braking run: a fixture without its expectation. */
+export type BrakingInput = Pick<
   BrakingFixture,
-  "expected" | "id" | "title" | "citations" | "derivation" | "tolerance"
+  | "kind"
+  | "dt"
+  | "velocity"
+  | "speed"
+  | "maxSpeed"
+  | "torusFactor"
+  | "thrust"
+  | "ticks"
 >;
 export type BrakingResult = BrakingFixture["expected"];
+
+/** The ticks a braking result samples: fixed, increasing, within the run. */
+function sampleTicks(ticks: number, stopTick: number | null): number[] {
+  const wanted = [1, 2, 10, 60, 120, 600, ticks];
+  if (stopTick !== null) wanted.push(stopTick - 1, stopTick);
+  return [...new Set(wanted)]
+    .filter((tick) => tick >= 1 && tick <= ticks)
+    .sort((a, b) => a - b);
+}
+
+function speedOf(v: Vec3): number {
+  return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+}
+
+/** `magnitude` (`OOVector.h:242-245`): the double sqrt of the float square. */
+function magnitudef(v: Vec3): number {
+  return f(Math.sqrt(magnitude2f(v)));
+}
+
+interface BrakeStep {
+  /** The drift after this tick's braking. */
+  readonly velocity: MutableVec3;
+  /** The speed this tick removed. */
+  readonly loss: number;
+}
+
+function runBraking(
+  input: BrakingInput,
+  perTickLoss: number,
+  step: (v: MutableVec3) => BrakeStep,
+  moveFirst: boolean,
+): BrakingResult {
+  let v: MutableVec3 = [...input.velocity];
+  const position = zero();
+  const speeds: number[] = [];
+  let stopTick: number | null = null;
+  let firstTickLoss = 0;
+  // `applyVelocity:` (Entity.m:878-881): position += (double)velocity x dt.
+  const move = (): void => {
+    position[0] += v[0] * input.dt;
+    position[1] += v[1] * input.dt;
+    position[2] += v[2] * input.dt;
+  };
+  for (let tick = 1; tick <= input.ticks; tick += 1) {
+    const moving = speedOf(v) > 0;
+    if (moveFirst) move();
+    const result = step(v);
+    v = result.velocity;
+    if (!moveFirst) move();
+    if (tick === 1) firstTickLoss = result.loss;
+    if (moving && stopTick === null && speedOf(v) === 0) stopTick = tick;
+    speeds.push(speedOf(v));
+  }
+  return {
+    perTickLoss,
+    firstTickLoss,
+    samples: sampleTicks(input.ticks, stopTick).map((tick) => ({
+      tick,
+      speed: speeds[tick - 1] ?? Number.NaN,
+    })),
+    positionChange: position,
+    finalVelocity: [v[0] + 0, v[1] + 0, v[2] + 0],
+    stopTick,
+  };
+}
+
+/**
+ * The player's drift (`PlayerEntity.m:3372-3405`): `applyVelocity:` first
+ * (3376), then the thrust factor (1, or the torus factor while flightSpeed >
+ * maxFlightSpeed, 3378-3385; injectors are not modelled), then
+ * `velmag2 = velmag - (float)dt x thrust x thrust_factor` (3387-3388), the
+ * cleanup term above 2000 m/s (3392-3400) and the clamp or rescale
+ * (3401-3404). Floats: `velmag`, `velmag2`, `rate`, `thrust_factor`.
+ */
+export function playerBrakeReference(input: BrakingInput): BrakingResult {
+  const { speed, maxSpeed, torusFactor } = input;
+  if (speed === null || maxSpeed === null || torusFactor === null) {
+    throw new Error("a player braking run needs speed, maxSpeed, torusFactor");
+  }
+  const thrustFactor = f(speed) > f(maxSpeed) ? f(torusFactor) : 1;
+  const perTickLoss = f(f(f(input.dt) * f(input.thrust)) * thrustFactor);
+  const step = (v: MutableVec3): BrakeStep => {
+    const velmag = magnitudef(v);
+    let velmag2 = f(velmag - perTickLoss);
+    if (!(velmag > 0)) return { velocity: v, loss: 0 };
+    if (velmag > VELOCITY_CLEANUP_MIN) {
+      const rate =
+        velmag > VELOCITY_CLEANUP_FULL
+          ? VELOCITY_CLEANUP_RATE
+          : f(
+              f(
+                f(velmag - VELOCITY_CLEANUP_MIN) /
+                  f(VELOCITY_CLEANUP_FULL - VELOCITY_CLEANUP_MIN),
+              ) * VELOCITY_CLEANUP_RATE,
+            );
+      velmag2 = f(velmag2 - f(velmag * rate));
+    }
+    if (velmag2 < 0) return { velocity: zero(), loss: velmag };
+    return {
+      velocity: scalef(v, f(velmag2 / velmag)),
+      loss: velmag - velmag2,
+    };
+  };
+  return runBraking(input, perTickLoss, step, true);
+}
+
+/**
+ * A ship's (and a buoy's) drift: `applyThrust:` brakes the Newtonian velocity
+ * only when `thrust` is non-zero (`ShipEntity.m:5808-5823`), by
+ * `dt_thrust = SHIP_THRUST_FACTOR x thrust x delta_t` (a GLfloat, 5810) with
+ * `vscale = fmaxf((velmag - dt_thrust) / velmag, 0.0f)` (5817-5822). The
+ * ship's update brakes first (`processBehaviour:` at `ShipEntity.m:2415`
+ * reaches `applyThrust:` at 2633-2637; a tumbling buoy too, 2487-2491) and
+ * moves after (`[super update:]` at 2462, `Entity.m:868-881`).
+ */
+export function npcBrakeReference(input: BrakingInput): BrakingResult {
+  const thrust = f(input.thrust);
+  const dtThrust = f(f(SHIP_THRUST_FACTOR * thrust) * input.dt);
+  const step = (v: MutableVec3): BrakeStep => {
+    if (thrust === 0) return { velocity: v, loss: 0 };
+    const velmag = magnitudef(v);
+    if (velmag === 0) return { velocity: v, loss: 0 };
+    const vscale = Math.max(f(f(velmag - dtThrust) / velmag), 0);
+    const next = scalef(v, vscale);
+    return { velocity: next, loss: velmag - magnitudef(next) };
+  };
+  return runBraking(input, thrust === 0 ? 0 : dtThrust, step, false);
+}
+
+// ---------------------------------------------------------------------------
+// the player's scrape (PlayerEntity.m:5701-5753)
+
 export type ScrapeInput = Pick<
   ScrapeFixture,
   "amount" | "otherOffset" | "forward" | "shields" | "energy"
 >;
 export type ScrapeResult = ScrapeFixture["expected"];
-export type BlastInput = Pick<BlastFixture, "victims" | "receivers">;
-export type BlastResult = BlastFixture["expected"];
 
-const STUB_BRAKE: BrakingResult = {
-  perTickLoss: 0,
-  firstTickLoss: 0,
-  samples: [{ tick: 1, speed: 0 }],
-  positionChange: [0, 0, 0],
-  finalVelocity: [0, 0, 0],
-  stopTick: null,
-};
-
-/** RED stub. */
-export function playerBrakeReference(input: BrakingInput): BrakingResult {
-  void input;
-  return STUB_BRAKE;
-}
-
-/** RED stub. */
-export function npcBrakeReference(input: BrakingInput): BrakingResult {
-  void input;
-  return STUB_BRAKE;
-}
-
-/** RED stub. */
+/**
+ * `PlayerEntity takeScrapeDamage:from:` up to the hand-off to ShipEntity's
+ * energy decrement: the amount made positive (5710-5713), `d_forward` as the
+ * float dot product of the narrowed offset with `v_forward` (5717-5720), the
+ * shield on that side (`GLfloat`, `PlayerEntity.h:448`) lowered by the double
+ * amount and narrowed back, the overflow passed on (5726-5744), then
+ * `energy -= amount` (`ShipEntity.m:11651`, a GLfloat). No heat changes; the
+ * internal-damage loop (5746-5752) is Phase 19's.
+ */
 export function playerScrapeReference(input: ScrapeInput): ScrapeResult {
+  let amount = input.amount < 0 ? -input.amount : input.amount;
+  const rel: Vec3 = [
+    f(input.otherOffset[0]),
+    f(input.otherOffset[1]),
+    f(input.otherOffset[2]),
+  ];
+  const dForward = dotf(rel, input.forward);
+  let forward = f(input.shields.forward);
+  let aft = f(input.shields.aft);
+  const shieldHit = dForward >= 0 ? "forward" : "aft";
+  if (shieldHit === "forward") {
+    forward = f(forward - amount);
+    if (forward < 0) {
+      amount = -forward;
+      forward = 0;
+    } else {
+      amount = 0;
+    }
+  } else {
+    aft = f(aft - amount);
+    if (aft < 0) {
+      amount = -aft;
+      aft = 0;
+    } else {
+      amount = 0;
+    }
+  }
   return {
-    dForward: 0,
-    shieldHit: "forward",
-    shields: { ...input.shields },
-    remainder: 0,
-    energy: input.energy,
+    dForward,
+    shieldHit,
+    shields: { forward, aft },
+    remainder: amount,
+    energy: f(input.energy - amount),
     heatChange: 0,
   };
 }
 
-/** RED stub. */
+// ---------------------------------------------------------------------------
+// the explosion blast (D-03)
+
+export type BlastInput = Pick<BlastFixture, "victims" | "receivers">;
+export type BlastResult = BlastFixture["expected"];
+type BlastContribution =
+  BlastResult["receivers"][number]["contributions"][number];
+
+/** `d2 < 0.1 -> 0.1` (`ShipEntity.m:7688-7690`). */
+export const BLAST_MIN_D2 = 0.1;
+/** `desired_range = collision_radius * 2.5f` (8124). */
+export const BLAST_RANGE_FACTOR = 2.5;
+/** `dealMomentumWithinDesiredRange:0.125f * mass` (8125). */
+export const BLAST_MOMENT_FACTOR = 0.125;
+
+/**
+ * Every victim's `dealMomentumWithinDesiredRange:` (`ShipEntity.m:7680-7698`)
+ * on every receiver, in the victims' order. A victim's range is
+ * `f(collision_radius x 2.5f)` and its amount `f(0.125f x mass)` (8124-8125).
+ * A receiver is in range when the double distance squared is below the float
+ * `(range + r_receiver)^2` (`Universe.m:5862-5868`, strict). Then
+ * `p2 = vectorTo:` narrowed to float (`Entity.m:603-606`), `d2 =
+ * magnitude2(p2) - r_receiver^2` in double with the RECEIVER's radius,
+ * floored at 0.1, `moment = amount x range / d2` (7685-7691), and
+ * `addImpactMoment:vector_normal(p2) fraction:moment` (11178-11181): the
+ * GLfloat fraction over the receiver's mass, times the float unit vector
+ * (`vector_normal` gives zero for a receiver at the victim's centre,
+ * `OOVector.h:247-273`).
+ */
 export function blastReference(input: BlastInput): BlastResult {
-  return {
-    victims: input.victims.map(() => ({ desiredRange: 1, amount: 1 })),
-    receivers: input.receivers.map(() => ({ dv: null, contributions: [] })),
-  };
+  const victims = input.victims.map((victim) => ({
+    desiredRange: f(f(victim.radius) * f(BLAST_RANGE_FACTOR)),
+    amount: f(f(BLAST_MOMENT_FACTOR) * f(victim.mass)),
+  }));
+  const receivers = input.receivers.map((receiver) => {
+    const contributions: BlastContribution[] = input.victims.map(
+      (victim, i) => {
+        const { desiredRange, amount } = victims[i]!;
+        const cr = f(desiredRange + f(receiver.radius));
+        const d = subtractd(receiver.position, victim.position);
+        const distance2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+        if (!(distance2 < f(cr * cr))) {
+          return {
+            inRange: false,
+            d2: null,
+            floored: false,
+            moment: null,
+            dv: null,
+          };
+        }
+        const p2: Vec3 = [f(d[0]), f(d[1]), f(d[2])];
+        const ecr = receiver.radius;
+        let d2 = magnitude2f(p2) - ecr * ecr;
+        const floored = d2 < BLAST_MIN_D2;
+        if (floored) d2 = BLAST_MIN_D2;
+        const moment = (amount * desiredRange) / d2;
+        const mag2 = magnitude2f(p2);
+        const unit: Vec3 =
+          mag2 === 0 ? [0, 0, 0] : scalef(p2, f(1 / Math.sqrt(mag2)));
+        const k = f(f(moment) / f(receiver.mass));
+        const dv = scalef(unit, k);
+        return {
+          inRange: true,
+          d2,
+          floored,
+          moment,
+          dv: [dv[0] + 0, dv[1] + 0, dv[2] + 0],
+        };
+      },
+    );
+    let total: MutableVec3 | null = null;
+    for (const c of contributions) {
+      if (c.dv !== null) total = add(total ?? zero(), c.dv);
+    }
+    return { dv: total, contributions };
+  });
+  return { victims, receivers };
 }

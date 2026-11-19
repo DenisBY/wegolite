@@ -1,0 +1,237 @@
+[
+  {
+    "id": "brake-ship-pod-thrust-zero-drifts",
+    "title": "a pod (thrust 0) never brakes, it only moves",
+    "citations": [
+      "src/Core/Entities/ShipEntity.h:46-46",
+      "src/Core/Entities/ShipEntity.m:5808-5823",
+      "src/Core/Entities/ShipEntity.m:2415-2415",
+      "src/Core/Entities/ShipEntity.m:2462-2462",
+      "src/Core/Entities/Entity.m:878-881",
+      "src/Core/OOVector.h:166-178",
+      "src/Core/OOVector.h:237-245",
+      "Resources/Config/shipdata.plist:634-634"
+    ],
+    "derivation": "Inputs: a pod (oolite_template_barrel, thrust 0), initial drift (3, -4, 12) (float magnitude 13 m/s), thrust 0, dt = 1/120 s, 240 ticks. thrust is 0, so applyThrust never brakes the drift (if (thrust), ShipEntity.m:5817); the ship only moves, position += (double)velocity x dt each tick (Entity.m:878-881). The drift never stops within the run; final drift (3, -4, 12). Position change over the 240 ticks: (6.000000000000018, -7.999999999999981, 24.00000000000007) m.",
+    "tolerance": 0.000001,
+    "kind": "ship",
+    "dt": 0.008333333333333333,
+    "velocity": [3, -4, 12],
+    "speed": null,
+    "maxSpeed": null,
+    "torusFactor": null,
+    "thrust": 0,
+    "ticks": 240,
+    "expected": {
+      "perTickLoss": 0,
+      "firstTickLoss": 0,
+      "samples": [
+        {
+          "tick": 1,
+          "speed": 13
+        },
+        {
+          "tick": 2,
+          "speed": 13
+        },
+        {
+          "tick": 10,
+          "speed": 13
+        },
+        {
+          "tick": 60,
+          "speed": 13
+        },
+        {
+          "tick": 120,
+          "speed": 13
+        },
+        {
+          "tick": 240,
+          "speed": 13
+        }
+      ],
+      "positionChange": [
+        6.000000000000018, -7.999999999999981, 24.00000000000007
+      ],
+      "finalVelocity": [3, -4, 12],
+      "stopTick": null
+    }
+  },
+  {
+    "id": "brake-ship-krait-thrust-35",
+    "title": "a Krait (thrust 35) brakes a 100 m/s drift to zero",
+    "citations": [
+      "src/Core/Entities/ShipEntity.h:46-46",
+      "src/Core/Entities/ShipEntity.m:5808-5823",
+      "src/Core/Entities/ShipEntity.m:2415-2415",
+      "src/Core/Entities/ShipEntity.m:2462-2462",
+      "src/Core/Entities/Entity.m:878-881",
+      "src/Core/OOVector.h:166-178",
+      "src/Core/OOVector.h:237-245",
+      "Resources/Config/shipdata.plist:2560-2560"
+    ],
+    "derivation": "Inputs: a Krait (thrust 35), initial drift (60, 0, 80) (float magnitude 100 m/s), thrust 35, dt = 1/120 s, 71 ticks. dt_thrust = f(f(SHIP_THRUST_FACTOR 5.0f x 35) x dt) = 1.4583333730697632 (ShipEntity.h:46, ShipEntity.m:5810); each tick velmag = f(sqrt(magnitude2)), vscale = fmaxf(f(f(velmag - dt_thrust) / velmag), 0), velocity x vscale (5817-5822), then position += (double)velocity x dt (processBehaviour at 2415 brakes before [super update:] at 2462 moves, Entity.m:878-881). Tick 1 removes 1.4583358764648438 m/s. The drift reaches zero on tick 69. Position change over the 71 ticks: (16.893733336031445, 0, 22.52497479617597) m.",
+    "tolerance": 0.000001,
+    "kind": "ship",
+    "dt": 0.008333333333333333,
+    "velocity": [60, 0, 80],
+    "speed": null,
+    "maxSpeed": null,
+    "torusFactor": null,
+    "thrust": 35,
+    "ticks": 71,
+    "expected": {
+      "perTickLoss": 1.4583333730697632,
+      "firstTickLoss": 1.4583358764648438,
+      "samples": [
+        {
+          "tick": 1,
+          "speed": 98.5416625976563
+        },
+        {
+          "tick": 2,
+          "speed": 97.0833251953127
+        },
+        {
+          "tick": 10,
+          "speed": 85.41662673950218
+        },
+        {
+          "tick": 60,
+          "speed": 12.49994411468506
+        },
+        {
+          "tick": 68,
+          "speed": 0.8332787632942203
+        },
+        {
+          "tick": 69,
+          "speed": 0
+        },
+        {
+          "tick": 71,
+          "speed": 0
+        }
+      ],
+      "positionChange": [16.893733336031445, 0, 22.52497479617597],
+      "finalVelocity": [0, 0, 0],
+      "stopTick": 69
+    }
+  },
+  {
+    "id": "brake-ship-buoy-thrust-100-from-100",
+    "title": "a buoy (thrust 100) knocked to 100 m/s sheds it within the distance the per-tick sum gives",
+    "citations": [
+      "src/Core/Entities/ShipEntity.h:46-46",
+      "src/Core/Entities/ShipEntity.m:5808-5823",
+      "src/Core/Entities/ShipEntity.m:2415-2415",
+      "src/Core/Entities/ShipEntity.m:2462-2462",
+      "src/Core/Entities/Entity.m:878-881",
+      "src/Core/OOVector.h:166-178",
+      "src/Core/OOVector.h:237-245",
+      "Resources/Config/shipdata.plist:1091-1091",
+      "src/Core/Entities/ShipEntity.m:2485-2491"
+    ],
+    "derivation": "Inputs: a navigation buoy (oolite_template_buoy, thrust 100), initial drift (0, 0, 100) (float magnitude 100 m/s), thrust 100, dt = 1/120 s, 27 ticks. dt_thrust = f(f(SHIP_THRUST_FACTOR 5.0f x 100) x dt) = 4.166666507720947 (ShipEntity.h:46, ShipEntity.m:5810); each tick velmag = f(sqrt(magnitude2)), vscale = fmaxf(f(f(velmag - dt_thrust) / velmag), 0), velocity x vscale (5817-5822), then position += (double)velocity x dt (processBehaviour at 2415 brakes before [super update:] at 2462 moves, Entity.m:878-881). Tick 1 removes 4.166664123535156 m/s. The drift reaches zero on tick 25. Position change over the 27 ticks: (0, 0, 9.583335928122201) m.",
+    "tolerance": 0.000001,
+    "kind": "ship",
+    "dt": 0.008333333333333333,
+    "velocity": [0, 0, 100],
+    "speed": null,
+    "maxSpeed": null,
+    "torusFactor": null,
+    "thrust": 100,
+    "ticks": 27,
+    "expected": {
+      "perTickLoss": 4.166666507720947,
+      "firstTickLoss": 4.166664123535156,
+      "samples": [
+        {
+          "tick": 1,
+          "speed": 95.83333587646484
+        },
+        {
+          "tick": 2,
+          "speed": 91.66667175292969
+        },
+        {
+          "tick": 10,
+          "speed": 58.333351135253906
+        },
+        {
+          "tick": 24,
+          "speed": 0.00001430511474609375
+        },
+        {
+          "tick": 25,
+          "speed": 0
+        },
+        {
+          "tick": 27,
+          "speed": 0
+        }
+      ],
+      "positionChange": [0, 0, 9.583335928122201],
+      "finalVelocity": [0, 0, 0],
+      "stopTick": 25
+    }
+  },
+  {
+    "id": "brake-ship-shuttle-thrust-16",
+    "title": "a Shuttle (thrust 16) brakes a 25 m/s drift",
+    "citations": [
+      "src/Core/Entities/ShipEntity.h:46-46",
+      "src/Core/Entities/ShipEntity.m:5808-5823",
+      "src/Core/Entities/ShipEntity.m:2415-2415",
+      "src/Core/Entities/ShipEntity.m:2462-2462",
+      "src/Core/Entities/Entity.m:878-881",
+      "src/Core/OOVector.h:166-178",
+      "src/Core/OOVector.h:237-245",
+      "Resources/Config/shipdata.plist:3541-3541"
+    ],
+    "derivation": "Inputs: a Shuttle (thrust 16), initial drift (0, -25, 0) (float magnitude 25 m/s), thrust 16, dt = 1/120 s, 40 ticks. dt_thrust = f(f(SHIP_THRUST_FACTOR 5.0f x 16) x dt) = 0.6666666865348816 (ShipEntity.h:46, ShipEntity.m:5810); each tick velmag = f(sqrt(magnitude2)), vscale = fmaxf(f(f(velmag - dt_thrust) / velmag), 0), velocity x vscale (5817-5822), then position += (double)velocity x dt (processBehaviour at 2415 brakes before [super update:] at 2462 moves, Entity.m:878-881). Tick 1 removes 0.6666660308837891 m/s. The drift reaches zero on tick 38. Position change over the 40 ticks: (0, -3.8027793869376185, 0) m.",
+    "tolerance": 0.000001,
+    "kind": "ship",
+    "dt": 0.008333333333333333,
+    "velocity": [0, -25, 0],
+    "speed": null,
+    "maxSpeed": null,
+    "torusFactor": null,
+    "thrust": 16,
+    "ticks": 40,
+    "expected": {
+      "perTickLoss": 0.6666666865348816,
+      "firstTickLoss": 0.6666660308837891,
+      "samples": [
+        {
+          "tick": 1,
+          "speed": 24.33333396911621
+        },
+        {
+          "tick": 2,
+          "speed": 23.666667938232422
+        },
+        {
+          "tick": 10,
+          "speed": 18.33333969116211
+        },
+        {
+          "tick": 37,
+          "speed": 0.33333832025527954
+        },
+        {
+          "tick": 38,
+          "speed": 0
+        },
+        {
+          "tick": 40,
+          "speed": 0
+        }
+      ],
+      "positionChange": [0, -3.8027793869376185, 0],
+      "finalVelocity": [0, 0, 0],
+      "stopTick": 38
+    }
+  }
+]

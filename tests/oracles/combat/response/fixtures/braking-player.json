@@ -1,0 +1,366 @@
+[
+  {
+    "id": "brake-player-below-max-speed",
+    "title": "a 50 m/s drift below maxSpeed brakes by raw thrust 32 per second",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:3346-3348",
+      "src/Core/Entities/PlayerEntity.m:3372-3405",
+      "src/Core/Entities/PlayerEntity.h:294-300",
+      "src/Core/Entities/Entity.m:878-881",
+      "src/Core/OOVector.h:180-193",
+      "src/Core/OOVector.h:237-245",
+      "Resources/Config/shipdata.plist:1343-1343"
+    ],
+    "derivation": "Inputs: the player Cobra Mk III, initial drift (30, 0, 40) (float magnitude 50 m/s), thrust 32, dt = 1/120 s, 190 ticks. flightSpeed 100 <= maxFlightSpeed 350, so thrust_factor = 1.0 (PlayerEntity.m:3378-3385). Every tick applyVelocity runs first, position += (double)velocity x dt (3376, Entity.m:878-881); then velmag = f(sqrt(magnitude2(velocity))) and velmag2 = f(velmag - f(f(f(dt) x 32) x thrust_factor)) = velmag - 0.2666666805744171 (3387-3388). velmag2 < 0 zeroes the drift, else velocity x f(velmag2 / velmag) (3401-3404). Tick 1 removes 0.2666664123535156 m/s. The drift reaches zero on tick 188. Position change over the 190 ticks: (23.562687950332965, 0, 31.416917255272466) m.",
+    "tolerance": 0.000001,
+    "kind": "player",
+    "dt": 0.008333333333333333,
+    "velocity": [30, 0, 40],
+    "speed": 100,
+    "maxSpeed": 350,
+    "torusFactor": 32,
+    "thrust": 32,
+    "ticks": 190,
+    "expected": {
+      "perTickLoss": 0.2666666805744171,
+      "firstTickLoss": 0.2666664123535156,
+      "samples": [
+        {
+          "tick": 1,
+          "speed": 49.733333587646484
+        },
+        {
+          "tick": 2,
+          "speed": 49.46666717529297
+        },
+        {
+          "tick": 10,
+          "speed": 47.333335876464844
+        },
+        {
+          "tick": 60,
+          "speed": 34.00001525878906
+        },
+        {
+          "tick": 120,
+          "speed": 18.000030517578125
+        },
+        {
+          "tick": 187,
+          "speed": 0.13336893618106854
+        },
+        {
+          "tick": 188,
+          "speed": 0
+        },
+        {
+          "tick": 190,
+          "speed": 0
+        }
+      ],
+      "positionChange": [23.562687950332965, 0, 31.416917255272466],
+      "finalVelocity": [0, 0, 0],
+      "stopTick": 188
+    }
+  },
+  {
+    "id": "brake-player-at-max-speed-no-torus",
+    "title": "flightSpeed equal to maxSpeed keeps thrust_factor 1 (strict >)",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:3346-3348",
+      "src/Core/Entities/PlayerEntity.m:3372-3405",
+      "src/Core/Entities/PlayerEntity.h:294-300",
+      "src/Core/Entities/Entity.m:878-881",
+      "src/Core/OOVector.h:180-193",
+      "src/Core/OOVector.h:237-245",
+      "Resources/Config/shipdata.plist:1343-1343"
+    ],
+    "derivation": "Inputs: the player Cobra Mk III, initial drift (0, -120, 0) (float magnitude 120 m/s), thrust 32, dt = 1/120 s, 452 ticks. flightSpeed 350 <= maxFlightSpeed 350, so thrust_factor = 1.0 (PlayerEntity.m:3378-3385). Every tick applyVelocity runs first, position += (double)velocity x dt (3376, Entity.m:878-881); then velmag = f(sqrt(magnitude2(velocity))) and velmag2 = f(velmag - f(f(f(dt) x 32) x thrust_factor)) = velmag - 0.2666666805744171 (3387-3388). velmag2 < 0 zeroes the drift, else velocity x f(velmag2 / velmag) (3401-3404). Tick 1 removes 0.26667022705078125 m/s. The drift reaches zero on tick 450. Position change over the 452 ticks: (0, -225.4979203340904, 0) m.",
+    "tolerance": 0.000001,
+    "kind": "player",
+    "dt": 0.008333333333333333,
+    "velocity": [0, -120, 0],
+    "speed": 350,
+    "maxSpeed": 350,
+    "torusFactor": 32,
+    "thrust": 32,
+    "ticks": 452,
+    "expected": {
+      "perTickLoss": 0.2666666805744171,
+      "firstTickLoss": 0.26667022705078125,
+      "samples": [
+        {
+          "tick": 1,
+          "speed": 119.73332977294922
+        },
+        {
+          "tick": 2,
+          "speed": 119.46665954589844
+        },
+        {
+          "tick": 10,
+          "speed": 117.33329772949219
+        },
+        {
+          "tick": 60,
+          "speed": 103.99978637695312
+        },
+        {
+          "tick": 120,
+          "speed": 87.99957275390625
+        },
+        {
+          "tick": 449,
+          "speed": 0.2659728229045868
+        },
+        {
+          "tick": 450,
+          "speed": 0
+        },
+        {
+          "tick": 452,
+          "speed": 0
+        }
+      ],
+      "positionChange": [0, -225.4979203340904, 0],
+      "finalVelocity": [0, 0, 0],
+      "stopTick": 450
+    }
+  },
+  {
+    "id": "brake-player-torus-32",
+    "title": "the torus engaged at factor 32 brakes a 200 m/s drift 32 times faster",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:3346-3348",
+      "src/Core/Entities/PlayerEntity.m:3372-3405",
+      "src/Core/Entities/PlayerEntity.h:294-300",
+      "src/Core/Entities/Entity.m:878-881",
+      "src/Core/OOVector.h:180-193",
+      "src/Core/OOVector.h:237-245",
+      "Resources/Config/shipdata.plist:1343-1343"
+    ],
+    "derivation": "Inputs: the player Cobra Mk III, initial drift (0, 0, -200) (float magnitude 200 m/s), thrust 32, dt = 1/120 s, 26 ticks. flightSpeed 11200 > maxFlightSpeed 350, so thrust_factor = the torus factor 32 (HYPERSPEED_FACTOR, variable 32..1024, PlayerEntity.h:294-300) (PlayerEntity.m:3378-3385). Every tick applyVelocity runs first, position += (double)velocity x dt (3376, Entity.m:878-881); then velmag = f(sqrt(magnitude2(velocity))) and velmag2 = f(velmag - f(f(f(dt) x 32) x thrust_factor)) = velmag - 8.533333778381348 (3387-3388). velmag2 < 0 zeroes the drift, else velocity x f(velmag2 / velmag) (3401-3404). Tick 1 removes 8.533340454101562 m/s. The drift reaches zero on tick 24. Position change over the 26 ticks: (0, 0, -20.37332457502683) m.",
+    "tolerance": 0.000001,
+    "kind": "player",
+    "dt": 0.008333333333333333,
+    "velocity": [0, 0, -200],
+    "speed": 11200,
+    "maxSpeed": 350,
+    "torusFactor": 32,
+    "thrust": 32,
+    "ticks": 26,
+    "expected": {
+      "perTickLoss": 8.533333778381348,
+      "firstTickLoss": 8.533340454101562,
+      "samples": [
+        {
+          "tick": 1,
+          "speed": 191.46665954589844
+        },
+        {
+          "tick": 2,
+          "speed": 182.93331909179688
+        },
+        {
+          "tick": 10,
+          "speed": 114.66661071777344
+        },
+        {
+          "tick": 23,
+          "speed": 3.7332828044891357
+        },
+        {
+          "tick": 24,
+          "speed": 0
+        },
+        {
+          "tick": 26,
+          "speed": 0
+        }
+      ],
+      "positionChange": [0, 0, -20.37332457502683],
+      "finalVelocity": [0, 0, 0],
+      "stopTick": 24
+    }
+  },
+  {
+    "id": "brake-player-torus-1024",
+    "title": "the torus at the largest variable factor 1024 stops a 500 m/s drift in two ticks",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:3346-3348",
+      "src/Core/Entities/PlayerEntity.m:3372-3405",
+      "src/Core/Entities/PlayerEntity.h:294-300",
+      "src/Core/Entities/Entity.m:878-881",
+      "src/Core/OOVector.h:180-193",
+      "src/Core/OOVector.h:237-245",
+      "Resources/Config/shipdata.plist:1343-1343"
+    ],
+    "derivation": "Inputs: the player Cobra Mk III, initial drift (500, 0, 0) (float magnitude 500 m/s), thrust 32, dt = 1/120 s, 4 ticks. flightSpeed 358400 > maxFlightSpeed 350, so thrust_factor = the torus factor 1024 (HYPERSPEED_FACTOR, variable 32..1024, PlayerEntity.h:294-300) (PlayerEntity.m:3378-3385). Every tick applyVelocity runs first, position += (double)velocity x dt (3376, Entity.m:878-881); then velmag = f(sqrt(magnitude2(velocity))) and velmag2 = f(velmag - f(f(f(dt) x 32) x thrust_factor)) = velmag - 273.0666809082031 (3387-3388). velmag2 < 0 zeroes the drift, else velocity x f(velmag2 / velmag) (3401-3404). Tick 1 removes 273.0666809082031 m/s. The drift reaches zero on tick 2. Position change over the 4 ticks: (6.057777659098307, 0, 0) m.",
+    "tolerance": 0.000001,
+    "kind": "player",
+    "dt": 0.008333333333333333,
+    "velocity": [500, 0, 0],
+    "speed": 358400,
+    "maxSpeed": 350,
+    "torusFactor": 1024,
+    "thrust": 32,
+    "ticks": 4,
+    "expected": {
+      "perTickLoss": 273.0666809082031,
+      "firstTickLoss": 273.0666809082031,
+      "samples": [
+        {
+          "tick": 1,
+          "speed": 226.93331909179688
+        },
+        {
+          "tick": 2,
+          "speed": 0
+        },
+        {
+          "tick": 4,
+          "speed": 0
+        }
+      ],
+      "positionChange": [6.057777659098307, 0, 0],
+      "finalVelocity": [0, 0, 0],
+      "stopTick": 2
+    }
+  },
+  {
+    "id": "brake-player-cleanup-band",
+    "title": "a 3000 m/s drift, between the cleanup thresholds, sheds the scaled cleanup term",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:3346-3348",
+      "src/Core/Entities/PlayerEntity.m:3372-3405",
+      "src/Core/Entities/PlayerEntity.h:294-300",
+      "src/Core/Entities/Entity.m:878-881",
+      "src/Core/OOVector.h:180-193",
+      "src/Core/OOVector.h:237-245",
+      "Resources/Config/shipdata.plist:1343-1343"
+    ],
+    "derivation": "Inputs: the player Cobra Mk III, initial drift (1800, 0, 2400) (float magnitude 3000 m/s), thrust 32, dt = 1/120 s, 9203 ticks. flightSpeed 0 <= maxFlightSpeed 350, so thrust_factor = 1.0 (PlayerEntity.m:3378-3385). Every tick applyVelocity runs first, position += (double)velocity x dt (3376, Entity.m:878-881); then velmag = f(sqrt(magnitude2(velocity))) and velmag2 = f(velmag - f(f(f(dt) x 32) x thrust_factor)) = velmag - 0.2666666805744171 (3387-3388). Above VELOCITY_CLEANUP_MIN 2000 m/s the cleanup term velmag x rate is subtracted too, rate = 0.001f above VELOCITY_CLEANUP_FULL 5000 m/s, else f(f(f(velmag - 2000) / 3000) x 0.001f) (3346-3348, 3392-3400); on tick 1 velmag = 3000 gives rate 0.0003333333588670939. velmag2 < 0 zeroes the drift, else velocity x f(velmag2 / velmag) (3401-3404). Tick 1 removes 1.2666015625 m/s. The drift reaches zero on tick 9201. Position change over the 9203 ticks: (57691.74193274143, 0, 76922.60286425686) m.",
+    "tolerance": 0.000001,
+    "kind": "player",
+    "dt": 0.008333333333333333,
+    "velocity": [1800, 0, 2400],
+    "speed": 0,
+    "maxSpeed": 350,
+    "torusFactor": 32,
+    "thrust": 32,
+    "ticks": 9203,
+    "expected": {
+      "perTickLoss": 0.2666666805744171,
+      "firstTickLoss": 1.2666015625,
+      "samples": [
+        {
+          "tick": 1,
+          "speed": 2998.7335205078125
+        },
+        {
+          "tick": 2,
+          "speed": 2997.4686035156255
+        },
+        {
+          "tick": 10,
+          "speed": 2987.40966796875
+        },
+        {
+          "tick": 60,
+          "speed": 2926.884057617237
+        },
+        {
+          "tick": 120,
+          "speed": 2859.1976318359793
+        },
+        {
+          "tick": 600,
+          "speed": 2457.985449218925
+        },
+        {
+          "tick": 9200,
+          "speed": 0.26100467446027786
+        },
+        {
+          "tick": 9201,
+          "speed": 0
+        },
+        {
+          "tick": 9203,
+          "speed": 0
+        }
+      ],
+      "positionChange": [57691.74193274143, 0, 76922.60286425686],
+      "finalVelocity": [0, 0, 0],
+      "stopTick": 9201
+    }
+  },
+  {
+    "id": "brake-player-above-full-cleanup",
+    "title": "a 6000 m/s drift, above the full cleanup threshold, sheds 0.1 % per tick",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:3346-3348",
+      "src/Core/Entities/PlayerEntity.m:3372-3405",
+      "src/Core/Entities/PlayerEntity.h:294-300",
+      "src/Core/Entities/Entity.m:878-881",
+      "src/Core/OOVector.h:180-193",
+      "src/Core/OOVector.h:237-245",
+      "Resources/Config/shipdata.plist:1343-1343"
+    ],
+    "derivation": "Inputs: the player Cobra Mk III, initial drift (0, 0, 6000) (float magnitude 6000 m/s), thrust 32, dt = 1/120 s, 10149 ticks. flightSpeed 0 <= maxFlightSpeed 350, so thrust_factor = 1.0 (PlayerEntity.m:3378-3385). Every tick applyVelocity runs first, position += (double)velocity x dt (3376, Entity.m:878-881); then velmag = f(sqrt(magnitude2(velocity))) and velmag2 = f(velmag - f(f(f(dt) x 32) x thrust_factor)) = velmag - 0.2666666805744171 (3387-3388). Above VELOCITY_CLEANUP_MIN 2000 m/s the cleanup term velmag x rate is subtracted too, rate = 0.001f above VELOCITY_CLEANUP_FULL 5000 m/s, else f(f(f(velmag - 2000) / 3000) x 0.001f) (3346-3348, 3392-3400); on tick 1 velmag = 6000 gives rate 0.0010000000474974513. velmag2 < 0 zeroes the drift, else velocity x f(velmag2 / velmag) (3401-3404). Tick 1 removes 6.2666015625 m/s. The drift reaches zero on tick 10147. Position change over the 10149 ticks: (0, 0, 128336.99541541998) m.",
+    "tolerance": 0.000001,
+    "kind": "player",
+    "dt": 0.008333333333333333,
+    "velocity": [0, 0, 6000],
+    "speed": 0,
+    "maxSpeed": 350,
+    "torusFactor": 32,
+    "thrust": 32,
+    "ticks": 10149,
+    "expected": {
+      "perTickLoss": 0.2666666805744171,
+      "firstTickLoss": 6.2666015625,
+      "samples": [
+        {
+          "tick": 1,
+          "speed": 5993.7333984375
+        },
+        {
+          "tick": 2,
+          "speed": 5987.47314453125
+        },
+        {
+          "tick": 10,
+          "speed": 5937.615234375
+        },
+        {
+          "tick": 60,
+          "speed": 5634.8837890625
+        },
+        {
+          "tick": 120,
+          "speed": 5291.041015625
+        },
+        {
+          "tick": 600,
+          "speed": 3568.90576171875
+        },
+        {
+          "tick": 10146,
+          "speed": 0.16545552015304565
+        },
+        {
+          "tick": 10147,
+          "speed": 0
+        },
+        {
+          "tick": 10149,
+          "speed": 0
+        }
+      ],
+      "positionChange": [0, 0, 128336.99541541998],
+      "finalVelocity": [0, 0, 0],
+      "stopTick": 10147
+    }
+  }
+]

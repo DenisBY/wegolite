@@ -1,0 +1,710 @@
+[
+  {
+    "id": "blast-krait-player-floor-10m",
+    "title": "a Krait explodes with the player's centre 10 m away, inside the player's own radius: d2 takes the floor",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:7680-7698",
+      "src/Core/Entities/ShipEntity.m:8123-8126",
+      "src/Core/Entities/ShipEntity.m:11178-11181",
+      "src/Core/Universe.m:5759-5768",
+      "src/Core/Universe.m:5862-5868",
+      "src/Core/Universe.m:5890-5899",
+      "src/Core/Entities/Entity.m:603-606",
+      "src/Core/OOVector.h:237-273"
+    ],
+    "derivation": "Victims, in the C's order: Krait at (0, 0, 0), mass 93291.40625 kg, radius 50.196590423583984 m: desired_range = f(radius x 2.5f) = 125.4914779663086 (ShipEntity.m:8124), amount = f(0.125f x mass) = 11661.42578125 (8125). Receiver player Cobra Mk III at (6, 0, 8), mass 214737.6875 kg, radius 72.69734954833984 m: from the Krait: in range; d2 = magnitude2(p2) - 72.69734954833984^2 (the receiver's radius, 7685-7687) < 0.1, floored to 0.1 (7688-7690); moment = 11661.42578125 x 125.4914779663086 / 0.1 = 14634095.564834774 (7691); dv = vector_normal(p2) x f(f(moment) / 214737.6875) = (40.889225006103516, 0, 54.51896286010742) (11178-11181); total (40.889225006103516, 0, 54.51896286010742).",
+    "tolerance": 0.000001,
+    "victims": [
+      {
+        "name": "Krait",
+        "position": [0, 0, 0],
+        "mass": 93291.40625,
+        "radius": 50.196590423583984
+      }
+    ],
+    "receivers": [
+      {
+        "name": "player Cobra Mk III",
+        "position": [6, 0, 8],
+        "mass": 214737.6875,
+        "radius": 72.69734954833984
+      }
+    ],
+    "expected": {
+      "victims": [
+        {
+          "desiredRange": 125.4914779663086,
+          "amount": 11661.42578125
+        }
+      ],
+      "receivers": [
+        {
+          "dv": [40.889225006103516, 0, 54.51896286010742],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 0.1,
+              "floored": true,
+              "moment": 14634095.564834774,
+              "dv": [40.889225006103516, 0, 54.51896286010742]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "blast-krait-shuttle-touching",
+    "title": "a Krait explodes with a Shuttle's sphere just touching its own",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:7680-7698",
+      "src/Core/Entities/ShipEntity.m:8123-8126",
+      "src/Core/Entities/ShipEntity.m:11178-11181",
+      "src/Core/Universe.m:5759-5768",
+      "src/Core/Universe.m:5862-5868",
+      "src/Core/Universe.m:5890-5899",
+      "src/Core/Entities/Entity.m:603-606",
+      "src/Core/OOVector.h:237-273"
+    ],
+    "derivation": "Victims, in the C's order: Krait at (0, 0, 0), mass 93291.40625 kg, radius 50.196590423583984 m: desired_range = f(radius x 2.5f) = 125.4914779663086 (ShipEntity.m:8124), amount = f(0.125f x mass) = 11661.42578125 (8125). Receiver Shuttle at (72.94830513000488, 0, 0), mass 11317.5634765625 kg, radius 22.7517147064209 m: from the Krait: in range; d2 = magnitude2(p2) - 22.7517147064209^2 (the receiver's radius, 7685-7687) = 4803.814556042631; moment = 11661.42578125 x 125.4914779663086 / 4803.814556042631 = 304.63489783190755 (7691); dv = vector_normal(p2) x f(f(moment) / 11317.5634765625) = (0.026917003095149994, 0, 0) (11178-11181); total (0.026917003095149994, 0, 0).",
+    "tolerance": 0.000001,
+    "victims": [
+      {
+        "name": "Krait",
+        "position": [0, 0, 0],
+        "mass": 93291.40625,
+        "radius": 50.196590423583984
+      }
+    ],
+    "receivers": [
+      {
+        "name": "Shuttle",
+        "position": [72.94830513000488, 0, 0],
+        "mass": 11317.5634765625,
+        "radius": 22.7517147064209
+      }
+    ],
+    "expected": {
+      "victims": [
+        {
+          "desiredRange": 125.4914779663086,
+          "amount": 11661.42578125
+        }
+      ],
+      "receivers": [
+        {
+          "dv": [0.026917003095149994, 0, 0],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 4803.814556042631,
+              "floored": false,
+              "moment": 304.63489783190755,
+              "dv": [0.026917003095149994, 0, 0]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "blast-krait-player-touching",
+    "title": "a Krait explodes with the player's sphere just touching its own",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:7680-7698",
+      "src/Core/Entities/ShipEntity.m:8123-8126",
+      "src/Core/Entities/ShipEntity.m:11178-11181",
+      "src/Core/Universe.m:5759-5768",
+      "src/Core/Universe.m:5862-5868",
+      "src/Core/Universe.m:5890-5899",
+      "src/Core/Entities/Entity.m:603-606",
+      "src/Core/OOVector.h:237-273"
+    ],
+    "derivation": "Victims, in the C's order: Krait at (0, 0, 0), mass 93291.40625 kg, radius 50.196590423583984 m: desired_range = f(radius x 2.5f) = 125.4914779663086 (ShipEntity.m:8124), amount = f(0.125f x mass) = 11661.42578125 (8125). Receiver player Cobra Mk III at (0, 122.89393997192383, 0), mass 214737.6875 kg, radius 72.69734954833984 m: from the Krait: in range; d2 = magnitude2(p2) - 72.69734954833984^2 (the receiver's radius, 7685-7687) = 9818.015290521493; moment = 11661.42578125 x 125.4914779663086 / 9818.015290521493 = 149.05350146442348 (7691); dv = vector_normal(p2) x f(f(moment) / 214737.6875) = (0, 0.0006941189058125019, 0) (11178-11181); total (0, 0.0006941189058125019, 0).",
+    "tolerance": 0.000001,
+    "victims": [
+      {
+        "name": "Krait",
+        "position": [0, 0, 0],
+        "mass": 93291.40625,
+        "radius": 50.196590423583984
+      }
+    ],
+    "receivers": [
+      {
+        "name": "player Cobra Mk III",
+        "position": [0, 122.89393997192383, 0],
+        "mass": 214737.6875,
+        "radius": 72.69734954833984
+      }
+    ],
+    "expected": {
+      "victims": [
+        {
+          "desiredRange": 125.4914779663086,
+          "amount": 11661.42578125
+        }
+      ],
+      "receivers": [
+        {
+          "dv": [0, 0.0006941189058125019, 0],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 9818.015290521493,
+              "floored": false,
+              "moment": 149.05350146442348,
+              "dv": [0, 0.0006941189058125019, 0]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "blast-pod-pod-8m",
+    "title": "a pod explodes with another pod 8 m away (outside the receiver's radius)",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:7680-7698",
+      "src/Core/Entities/ShipEntity.m:8123-8126",
+      "src/Core/Entities/ShipEntity.m:11178-11181",
+      "src/Core/Universe.m:5759-5768",
+      "src/Core/Universe.m:5862-5868",
+      "src/Core/Universe.m:5890-5899",
+      "src/Core/Entities/Entity.m:603-606",
+      "src/Core/OOVector.h:237-273"
+    ],
+    "derivation": "Victims, in the C's order: pod at (0, 0, 0), mass 993.3700561523438 kg, radius 5.798625946044922 m: desired_range = f(radius x 2.5f) = 14.496564865112305 (ShipEntity.m:8124), amount = f(0.125f x mass) = 124.17125701904297 (8125). Receiver pod at (0, 0, 8), mass 993.3700561523438 kg, radius 5.798625946044922 m: from the pod: in range; d2 = magnitude2(p2) - 5.798625946044922^2 (the receiver's radius, 7685-7687) = 30.375937137854635; moment = 124.17125701904297 x 14.496564865112305 / 30.375937137854635 = 59.2592970412705 (7691); dv = vector_normal(p2) x f(f(moment) / 993.3700561523438) = (0, 0, 0.059654805809259415) (11178-11181); total (0, 0, 0.059654805809259415).",
+    "tolerance": 0.000001,
+    "victims": [
+      {
+        "name": "pod",
+        "position": [0, 0, 0],
+        "mass": 993.3700561523438,
+        "radius": 5.798625946044922
+      }
+    ],
+    "receivers": [
+      {
+        "name": "pod",
+        "position": [0, 0, 8],
+        "mass": 993.3700561523438,
+        "radius": 5.798625946044922
+      }
+    ],
+    "expected": {
+      "victims": [
+        {
+          "desiredRange": 14.496564865112305,
+          "amount": 124.17125701904297
+        }
+      ],
+      "receivers": [
+        {
+          "dv": [0, 0, 0.059654805809259415],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 30.375937137854635,
+              "floored": false,
+              "moment": 59.2592970412705,
+              "dv": [0, 0, 0.059654805809259415]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "blast-pod-pod-5m-floor",
+    "title": "a pod explodes with another pod 5 m away (inside the receiver's radius): d2 takes the floor",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:7680-7698",
+      "src/Core/Entities/ShipEntity.m:8123-8126",
+      "src/Core/Entities/ShipEntity.m:11178-11181",
+      "src/Core/Universe.m:5759-5768",
+      "src/Core/Universe.m:5862-5868",
+      "src/Core/Universe.m:5890-5899",
+      "src/Core/Entities/Entity.m:603-606",
+      "src/Core/OOVector.h:237-273"
+    ],
+    "derivation": "Victims, in the C's order: pod at (0, 0, 0), mass 993.3700561523438 kg, radius 5.798625946044922 m: desired_range = f(radius x 2.5f) = 14.496564865112305 (ShipEntity.m:8124), amount = f(0.125f x mass) = 124.17125701904297 (8125). Receiver pod at (3, 4, 0), mass 993.3700561523438 kg, radius 5.798625946044922 m: from the pod: in range; d2 = magnitude2(p2) - 5.798625946044922^2 (the receiver's radius, 7685-7687) < 0.1, floored to 0.1 (7688-7690); moment = 124.17125701904297 x 14.496564865112305 / 0.1 = 18000.56681759088 (7691); dv = vector_normal(p2) x f(f(moment) / 993.3700561523438) = (10.872424125671387, 14.496565818786621, 0) (11178-11181); total (10.872424125671387, 14.496565818786621, 0).",
+    "tolerance": 0.000001,
+    "victims": [
+      {
+        "name": "pod",
+        "position": [0, 0, 0],
+        "mass": 993.3700561523438,
+        "radius": 5.798625946044922
+      }
+    ],
+    "receivers": [
+      {
+        "name": "pod",
+        "position": [3, 4, 0],
+        "mass": 993.3700561523438,
+        "radius": 5.798625946044922
+      }
+    ],
+    "expected": {
+      "victims": [
+        {
+          "desiredRange": 14.496564865112305,
+          "amount": 124.17125701904297
+        }
+      ],
+      "receivers": [
+        {
+          "dv": [10.872424125671387, 14.496565818786621, 0],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 0.1,
+              "floored": true,
+              "moment": 18000.56681759088,
+              "dv": [10.872424125671387, 14.496565818786621, 0]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "blast-buoy-dying-with-subentity",
+    "title": "a buoy dies with its subentity attached: the subentity's blast first, then the parent's with the reduced mass, on a pod and the player 100 m away",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:7680-7698",
+      "src/Core/Entities/ShipEntity.m:8123-8126",
+      "src/Core/Entities/ShipEntity.m:11178-11181",
+      "src/Core/Universe.m:5759-5768",
+      "src/Core/Universe.m:5862-5868",
+      "src/Core/Universe.m:5890-5899",
+      "src/Core/Entities/Entity.m:603-606",
+      "src/Core/OOVector.h:237-273",
+      "src/Core/Entities/ShipEntity.m:7891-7924",
+      "src/Core/Entities/ShipEntity.m:8114-8126",
+      "src/Core/Entities/ShipEntity.m:8185-8194",
+      "src/Core/Entities/ShipEntity.m:1066-1078",
+      "src/Core/OOMesh.m:1800-1822",
+      "Resources/Config/shipdata.plist:1042-1049",
+      "src/Core/Entities/Entity.m:1033-1046"
+    ],
+    "derivation": "Victims, in the C's order: buoy subentity at (1000, 2000, -3000), mass 7646.7861328125 kg, radius 25.822647094726562 m: desired_range = f(radius x 2.5f) = 64.5566177368164 (ShipEntity.m:8124), amount = f(0.125f x mass) = 955.8482666015625 (8125); buoy (subentity gone) at (1000, 2000, -3000), mass 691044.375 kg, radius 59.13554763793945 m: desired_range = f(radius x 2.5f) = 147.8388671875 (ShipEntity.m:8124), amount = f(0.125f x mass) = 86380.546875 (8125). The C's order: the parent's becomeExplosion explodes its subentities first (ShipEntity.m:8114-8118); the subentity's own becomeExplosion takes its absolute position, at the buoy's centre (subentity position (0, 0, 0), shipdata.plist:1042-1049), calls subEntityDied, which lowers the parent's mass by the subentity's: f(698691.1875 - 7646.7861328125) = 691044.375 (7894-7903, 8185-8194), and deals its own blast with its mass 7646.7861328125 and radius 25.822647094726562 (sqrtf of the largest vertex magnitude2 of oolite_buoy_subents.dat, OOMesh.m:1800-1822). Then clearSubEntities (8120) resets the parent's mass to density x 20 x octree volume, the compiled hull mass 691044.375 (equal to the subtraction), and its radius to the hull mesh's 59.13554763793945 (1066-1078), before the parent's own blast (8123-8126). The parent is STATUS_DEAD (7924) when the subentity explodes, and the subentity is dead when the parent's blast runs, so neither receives the other's (isInSpace, Entity.m:1033-1046). Receiver pod at (1060, 2080, -3000), mass 993.3700561523438 kg, radius 5.798625946044922 m: from the buoy subentity: HPdistance2 is not below f((range + 5.798625946044922)^2), out of range, no push (Universe.m:5862-5868); from the buoy (subentity gone): in range; d2 = magnitude2(p2) - 5.798625946044922^2 (the receiver's radius, 7685-7687) = 9966.375937137855; moment = 86380.546875 x 147.8388671875 / 9966.375937137855 = 1281.3486344068363 (7691); dv = vector_normal(p2) x f(f(moment) / 993.3700561523438) = (0.7739403247833252, 1.0319204330444336, 0) (11178-11181); total (0.7739403247833252, 1.0319204330444336, 0). Receiver player Cobra Mk III at (1000, 2000, -3100), mass 214737.6875 kg, radius 72.69734954833984 m: from the buoy subentity: in range; d2 = magnitude2(p2) - 72.69734954833984^2 (the receiver's radius, 7685-7687) = 4715.095368646493; moment = 955.8482666015625 x 64.5566177368164 / 4715.095368646493 = 13.086974140908833 (7691); dv = vector_normal(p2) x f(f(moment) / 214737.6875) = (0, 0, -0.00006094400305300951) (11178-11181); from the buoy (subentity gone): in range; d2 = magnitude2(p2) - 72.69734954833984^2 (the receiver's radius, 7685-7687) = 4715.095368646493; moment = 86380.546875 x 147.8388671875 / 4715.095368646493 = 2708.408038139554 (7691); dv = vector_normal(p2) x f(f(moment) / 214737.6875) = (0, 0, -0.012612634338438511) (11178-11181); total (0, 0, -0.01267357834149152).",
+    "tolerance": 0.000001,
+    "victims": [
+      {
+        "name": "buoy subentity",
+        "position": [1000, 2000, -3000],
+        "mass": 7646.7861328125,
+        "radius": 25.822647094726562
+      },
+      {
+        "name": "buoy (subentity gone)",
+        "position": [1000, 2000, -3000],
+        "mass": 691044.375,
+        "radius": 59.13554763793945
+      }
+    ],
+    "receivers": [
+      {
+        "name": "pod",
+        "position": [1060, 2080, -3000],
+        "mass": 993.3700561523438,
+        "radius": 5.798625946044922
+      },
+      {
+        "name": "player Cobra Mk III",
+        "position": [1000, 2000, -3100],
+        "mass": 214737.6875,
+        "radius": 72.69734954833984
+      }
+    ],
+    "expected": {
+      "victims": [
+        {
+          "desiredRange": 64.5566177368164,
+          "amount": 955.8482666015625
+        },
+        {
+          "desiredRange": 147.8388671875,
+          "amount": 86380.546875
+        }
+      ],
+      "receivers": [
+        {
+          "dv": [0.7739403247833252, 1.0319204330444336, 0],
+          "contributions": [
+            {
+              "inRange": false,
+              "d2": null,
+              "floored": false,
+              "moment": null,
+              "dv": null
+            },
+            {
+              "inRange": true,
+              "d2": 9966.375937137855,
+              "floored": false,
+              "moment": 1281.3486344068363,
+              "dv": [0.7739403247833252, 1.0319204330444336, 0]
+            }
+          ]
+        },
+        {
+          "dv": [0, 0, -0.01267357834149152],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 4715.095368646493,
+              "floored": false,
+              "moment": 13.086974140908833,
+              "dv": [0, 0, -0.00006094400305300951]
+            },
+            {
+              "inRange": true,
+              "d2": 4715.095368646493,
+              "floored": false,
+              "moment": 2708.408038139554,
+              "dv": [0, 0, -0.012612634338438511]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "blast-krait-receiver-at-range-plus-radius-strict",
+    "title": "a Shuttle whose distance squared equals the float (range + radius)^2 is not pushed (strict <)",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:7680-7698",
+      "src/Core/Entities/ShipEntity.m:8123-8126",
+      "src/Core/Entities/ShipEntity.m:11178-11181",
+      "src/Core/Universe.m:5759-5768",
+      "src/Core/Universe.m:5862-5868",
+      "src/Core/Universe.m:5890-5899",
+      "src/Core/Entities/Entity.m:603-606",
+      "src/Core/OOVector.h:237-273"
+    ],
+    "derivation": "Victims, in the C's order: Krait at (0, 0, 0), mass 93291.40625 kg, radius 50.196590423583984 m: desired_range = f(radius x 2.5f) = 125.4914779663086 (ShipEntity.m:8124), amount = f(0.125f x mass) = 11661.42578125 (8125). cr = f(f(50.196590423583984 x 2.5) + 22.7517147064209) = 148.24319458007812 and the float cr x cr = 21976.044921875 (Universe.m:5866-5867); the receiver sits at (148.23982232138232, 1, 0), where the double HPdistance2 = x^2 + y^2 + 0 is exactly 21976.044921875, so HPdistance2 < cr x cr is false. Receiver Shuttle at (148.23982232138232, 1, 0), mass 11317.5634765625 kg, radius 22.7517147064209 m: from the Krait: HPdistance2 is not below f((range + 22.7517147064209)^2), out of range, no push (Universe.m:5862-5868); total no push (null).",
+    "tolerance": 0.000001,
+    "victims": [
+      {
+        "name": "Krait",
+        "position": [0, 0, 0],
+        "mass": 93291.40625,
+        "radius": 50.196590423583984
+      }
+    ],
+    "receivers": [
+      {
+        "name": "Shuttle",
+        "position": [148.23982232138232, 1, 0],
+        "mass": 11317.5634765625,
+        "radius": 22.7517147064209
+      }
+    ],
+    "expected": {
+      "victims": [
+        {
+          "desiredRange": 125.4914779663086,
+          "amount": 11661.42578125
+        }
+      ],
+      "receivers": [
+        {
+          "dv": null,
+          "contributions": [
+            {
+              "inRange": false,
+              "d2": null,
+              "floored": false,
+              "moment": null,
+              "dv": null
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "blast-krait-receiver-just-inside-range",
+    "title": "the same Shuttle one double closer is pushed",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:7680-7698",
+      "src/Core/Entities/ShipEntity.m:8123-8126",
+      "src/Core/Entities/ShipEntity.m:11178-11181",
+      "src/Core/Universe.m:5759-5768",
+      "src/Core/Universe.m:5862-5868",
+      "src/Core/Universe.m:5890-5899",
+      "src/Core/Entities/Entity.m:603-606",
+      "src/Core/OOVector.h:237-273"
+    ],
+    "derivation": "Victims, in the C's order: Krait at (0, 0, 0), mass 93291.40625 kg, radius 50.196590423583984 m: desired_range = f(radius x 2.5f) = 125.4914779663086 (ShipEntity.m:8124), amount = f(0.125f x mass) = 11661.42578125 (8125). (148.2398223213823, 1, 0), x one double below the strict-boundary position, gives HPdistance2 below the float cr x cr = 21976.044921875 (Universe.m:5866-5867). Receiver Shuttle at (148.2398223213823, 1, 0), mass 11317.5634765625 kg, radius 22.7517147064209 m: from the Krait: in range; d2 = magnitude2(p2) - 22.7517147064209^2 (the receiver's radius, 7685-7687) = 21458.40439979263; moment = 11661.42578125 x 125.4914779663086 / 21458.40439979263 = 68.19750104521376 (7691); dv = vector_normal(p2) x f(f(moment) / 11317.5634765625) = (0.006025674287229776, 0.00004064814856974408, 0) (11178-11181); total (0.006025674287229776, 0.00004064814856974408, 0).",
+    "tolerance": 0.000001,
+    "victims": [
+      {
+        "name": "Krait",
+        "position": [0, 0, 0],
+        "mass": 93291.40625,
+        "radius": 50.196590423583984
+      }
+    ],
+    "receivers": [
+      {
+        "name": "Shuttle",
+        "position": [148.2398223213823, 1, 0],
+        "mass": 11317.5634765625,
+        "radius": 22.7517147064209
+      }
+    ],
+    "expected": {
+      "victims": [
+        {
+          "desiredRange": 125.4914779663086,
+          "amount": 11661.42578125
+        }
+      ],
+      "receivers": [
+        {
+          "dv": [0.006025674287229776, 0.00004064814856974408, 0],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 21458.40439979263,
+              "floored": false,
+              "moment": 68.19750104521376,
+              "dv": [0.006025674287229776, 0.00004064814856974408, 0]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "blast-krait-receiver-at-victim-centre",
+    "title": "a Shuttle at the exploding Krait's centre: in range, but vector_normal of a zero vector is zero, so no push",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:7680-7698",
+      "src/Core/Entities/ShipEntity.m:8123-8126",
+      "src/Core/Entities/ShipEntity.m:11178-11181",
+      "src/Core/Universe.m:5759-5768",
+      "src/Core/Universe.m:5862-5868",
+      "src/Core/Universe.m:5890-5899",
+      "src/Core/Entities/Entity.m:603-606",
+      "src/Core/OOVector.h:237-273",
+      "src/Core/OOVector.h:247-253"
+    ],
+    "derivation": "Victims, in the C's order: Krait at (10, 20, 30), mass 93291.40625 kg, radius 50.196590423583984 m: desired_range = f(radius x 2.5f) = 125.4914779663086 (ShipEntity.m:8124), amount = f(0.125f x mass) = 11661.42578125 (8125). Receiver Shuttle at (10, 20, 30), mass 11317.5634765625 kg, radius 22.7517147064209 m: from the Krait: in range; d2 = magnitude2(p2) - 22.7517147064209^2 (the receiver's radius, 7685-7687) < 0.1, floored to 0.1 (7688-7690); moment = 11661.42578125 x 125.4914779663086 / 0.1 = 14634095.564834774 (7691); dv = vector_normal(p2) x f(f(moment) / 11317.5634765625) = (0, 0, 0) (11178-11181); total (0, 0, 0).",
+    "tolerance": 0.000001,
+    "victims": [
+      {
+        "name": "Krait",
+        "position": [10, 20, 30],
+        "mass": 93291.40625,
+        "radius": 50.196590423583984
+      }
+    ],
+    "receivers": [
+      {
+        "name": "Shuttle",
+        "position": [10, 20, 30],
+        "mass": 11317.5634765625,
+        "radius": 22.7517147064209
+      }
+    ],
+    "expected": {
+      "victims": [
+        {
+          "desiredRange": 125.4914779663086,
+          "amount": 11661.42578125
+        }
+      ],
+      "receivers": [
+        {
+          "dv": [0, 0, 0],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 0.1,
+              "floored": true,
+              "moment": 14634095.564834774,
+              "dv": [0, 0, 0]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "blast-krait-plate-out-of-range",
+    "title": "a plate 200 m from an exploding Krait is out of range",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:7680-7698",
+      "src/Core/Entities/ShipEntity.m:8123-8126",
+      "src/Core/Entities/ShipEntity.m:11178-11181",
+      "src/Core/Universe.m:5759-5768",
+      "src/Core/Universe.m:5862-5868",
+      "src/Core/Universe.m:5890-5899",
+      "src/Core/Entities/Entity.m:603-606",
+      "src/Core/OOVector.h:237-273"
+    ],
+    "derivation": "Victims, in the C's order: Krait at (0, 0, 0), mass 93291.40625 kg, radius 50.196590423583984 m: desired_range = f(radius x 2.5f) = 125.4914779663086 (ShipEntity.m:8124), amount = f(0.125f x mass) = 11661.42578125 (8125). Receiver plate at (0, 0, -200), mass 273.4375 kg, radius 5.149232387542725 m: from the Krait: HPdistance2 is not below f((range + 5.149232387542725)^2), out of range, no push (Universe.m:5862-5868); total no push (null).",
+    "tolerance": 0.000001,
+    "victims": [
+      {
+        "name": "Krait",
+        "position": [0, 0, 0],
+        "mass": 93291.40625,
+        "radius": 50.196590423583984
+      }
+    ],
+    "receivers": [
+      {
+        "name": "plate",
+        "position": [0, 0, -200],
+        "mass": 273.4375,
+        "radius": 5.149232387542725
+      }
+    ],
+    "expected": {
+      "victims": [
+        {
+          "desiredRange": 125.4914779663086,
+          "amount": 11661.42578125
+        }
+      ],
+      "receivers": [
+        {
+          "dv": null,
+          "contributions": [
+            {
+              "inRange": false,
+              "d2": null,
+              "floored": false,
+              "moment": null,
+              "dv": null
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "blast-krait-several-receivers",
+    "title": "a Krait explodes among the player, a Shuttle, a pod and a plate at assorted offsets",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:7680-7698",
+      "src/Core/Entities/ShipEntity.m:8123-8126",
+      "src/Core/Entities/ShipEntity.m:11178-11181",
+      "src/Core/Universe.m:5759-5768",
+      "src/Core/Universe.m:5862-5868",
+      "src/Core/Universe.m:5890-5899",
+      "src/Core/Entities/Entity.m:603-606",
+      "src/Core/OOVector.h:237-273"
+    ],
+    "derivation": "Victims, in the C's order: Krait at (-500, 250, 125), mass 93291.40625 kg, radius 50.196590423583984 m: desired_range = f(radius x 2.5f) = 125.4914779663086 (ShipEntity.m:8124), amount = f(0.125f x mass) = 11661.42578125 (8125). Receiver player Cobra Mk III at (-410, 210, 145), mass 214737.6875 kg, radius 72.69734954833984 m: from the Krait: in range; d2 = magnitude2(p2) - 72.69734954833984^2 (the receiver's radius, 7685-7687) = 4815.095368646493; moment = 11661.42578125 x 125.4914779663086 / 4815.095368646493 = 303.9211987393797 (7691); dv = vector_normal(p2) x f(f(moment) / 214737.6875) = (0.001267460873350501, -0.000563315930776298, 0.000281657965388149) (11178-11181); total (0.001267460873350501, -0.000563315930776298, 0.000281657965388149). Receiver Shuttle at (-530, 310, 75), mass 11317.5634765625 kg, radius 22.7517147064209 m: from the Krait: in range; d2 = magnitude2(p2) - 22.7517147064209^2 (the receiver's radius, 7685-7687) = 6482.359477917631; moment = 11661.42578125 x 125.4914779663086 / 6482.359477917631 = 225.75260774547135 (7691); dv = vector_normal(p2) x f(f(moment) / 11317.5634765625) = (-0.007152404636144638, 0.014304809272289276, -0.011920674704015255) (11178-11181); total (-0.007152404636144638, 0.014304809272289276, -0.011920674704015255). Receiver pod at (-500, 380, 125), mass 993.3700561523438 kg, radius 5.798625946044922 m: from the Krait: in range; d2 = magnitude2(p2) - 5.798625946044922^2 (the receiver's radius, 7685-7687) = 16866.375937137855; moment = 11661.42578125 x 125.4914779663086 / 16866.375937137855 = 86.7649080002548 (7691); dv = vector_normal(p2) x f(f(moment) / 993.3700561523438) = (0, 0.08734399080276489, 0) (11178-11181); total (0, 0.08734399080276489, 0). Receiver plate at (-490, 250, -3), mass 273.4375 kg, radius 5.149232387542725 m: from the Krait: in range; d2 = magnitude2(p2) - 5.149232387542725^2 (the receiver's radius, 7685-7687) = 16457.48540581908; moment = 11661.42578125 x 125.4914779663086 / 16457.48540581908 = 88.92060484319441 (7691); dv = vector_normal(p2) x f(f(moment) / 273.4375) = (0.025328708812594414, 0, -0.32420748472213745) (11178-11181); total (0.025328708812594414, 0, -0.32420748472213745).",
+    "tolerance": 0.000001,
+    "victims": [
+      {
+        "name": "Krait",
+        "position": [-500, 250, 125],
+        "mass": 93291.40625,
+        "radius": 50.196590423583984
+      }
+    ],
+    "receivers": [
+      {
+        "name": "player Cobra Mk III",
+        "position": [-410, 210, 145],
+        "mass": 214737.6875,
+        "radius": 72.69734954833984
+      },
+      {
+        "name": "Shuttle",
+        "position": [-530, 310, 75],
+        "mass": 11317.5634765625,
+        "radius": 22.7517147064209
+      },
+      {
+        "name": "pod",
+        "position": [-500, 380, 125],
+        "mass": 993.3700561523438,
+        "radius": 5.798625946044922
+      },
+      {
+        "name": "plate",
+        "position": [-490, 250, -3],
+        "mass": 273.4375,
+        "radius": 5.149232387542725
+      }
+    ],
+    "expected": {
+      "victims": [
+        {
+          "desiredRange": 125.4914779663086,
+          "amount": 11661.42578125
+        }
+      ],
+      "receivers": [
+        {
+          "dv": [
+            0.001267460873350501, -0.000563315930776298, 0.000281657965388149
+          ],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 4815.095368646493,
+              "floored": false,
+              "moment": 303.9211987393797,
+              "dv": [
+                0.001267460873350501, -0.000563315930776298,
+                0.000281657965388149
+              ]
+            }
+          ]
+        },
+        {
+          "dv": [
+            -0.007152404636144638, 0.014304809272289276, -0.011920674704015255
+          ],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 6482.359477917631,
+              "floored": false,
+              "moment": 225.75260774547135,
+              "dv": [
+                -0.007152404636144638, 0.014304809272289276,
+                -0.011920674704015255
+              ]
+            }
+          ]
+        },
+        {
+          "dv": [0, 0.08734399080276489, 0],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 16866.375937137855,
+              "floored": false,
+              "moment": 86.7649080002548,
+              "dv": [0, 0.08734399080276489, 0]
+            }
+          ]
+        },
+        {
+          "dv": [0.025328708812594414, 0, -0.32420748472213745],
+          "contributions": [
+            {
+              "inRange": true,
+              "d2": 16457.48540581908,
+              "floored": false,
+              "moment": 88.92060484319441,
+              "dv": [0.025328708812594414, 0, -0.32420748472213745]
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

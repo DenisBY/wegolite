@@ -41,6 +41,7 @@ import {
   type BrakingFixture,
   type CollideFixture,
   type ScrapeFixture,
+  withinTolerance,
 } from "./schema.js";
 
 const HERE = fileURLToPath(new URL("./", import.meta.url));
@@ -52,7 +53,7 @@ function readJson(name: string): unknown {
 type Vec3 = readonly [number, number, number];
 
 function close(a: number, b: number, tolerance: number): boolean {
-  return Math.abs(a - b) <= tolerance;
+  return withinTolerance(a, b, tolerance);
 }
 
 function vecClose(a: Vec3, b: Vec3, tolerance: number): boolean {
@@ -128,6 +129,17 @@ function expectAnchor(got: CollideResult, want: Partial<CollideResult>): void {
 }
 
 describe("collideWithShip oracle (ShipEntity.m:11020-11152)", () => {
+  it("compares relatively: a wrong factor fails, a few float ulps pass", () => {
+    expect(close(230.6931610107422 * (1 + 1e-7), 230.6931610107422, 1e-6)).toBe(
+      true,
+    );
+    expect(close(230.6931610107422 * 1.001, 230.6931610107422, 1e-6)).toBe(
+      false,
+    );
+    expect(close(1e-10, 0, 1e-6)).toBe(true);
+    expect(close(1e-7, 0, 1e-6)).toBe(false);
+  });
+
   it("parses strictly and re-derives every collision fixture", () => {
     const fixtures = collideFixtures();
     expect(fixtures.length).toBeGreaterThanOrEqual(20);
@@ -337,11 +349,6 @@ function scrapeProblems(fixture: ScrapeFixture): string[] {
   return problems;
 }
 
-/**
- * The blast's `moment` (amount x range / d2) reaches 1e7 when d2 takes the
- * floor, so it is compared relatively (tolerance x |moment|); every other
- * value absolutely.
- */
 function blastProblems(fixture: BlastFixture): string[] {
   const got = blastReference(fixture);
   const e = fixture.expected;
@@ -386,7 +393,7 @@ function blastProblems(fixture: BlastFixture): string[] {
       }
       if (c.moment === null || m.moment === null) {
         if (c.moment !== m.moment) problems.push(`${where}.moment`);
-      } else if (!close(m.moment, c.moment, tol * Math.abs(c.moment))) {
+      } else if (!close(m.moment, c.moment, tol)) {
         problems.push(`${where}.moment`);
       }
       if (c.dv === null || m.dv === null) {
@@ -432,7 +439,7 @@ describe("braking oracle (PlayerEntity.m:3372-3405, ShipEntity.m:5808-5823)", ()
   });
 
   it("anchor: the player's drift below maxSpeed loses f(f(f(dt) x 32) x 1) per tick", () => {
-    // PlayerEntity.m:3381-3390: thrust_factor 1 while flightSpeed <=
+    // PlayerEntity.m:3378-3388: thrust_factor 1 while flightSpeed <=
     // maxFlightSpeed; (float)delta_t x thrust x thrust_factor in float:
     // f(f(f(1/120) x 32) x 1) = 0.2666666805744171.
     const fixture = byId(brakingFixtures(), "brake-player-below-max-speed");
@@ -467,8 +474,8 @@ describe("player scrape oracle (PlayerEntity.m:5701-5753)", () => {
   });
 
   it("anchor: a 40 scrape from ahead comes off the forward shield only", () => {
-    // d_forward = 100 >= 0 (5720-5725): forward_shield -= 40 -> 88 >= 0, so
-    // amount = 0 (5727-5734) and energy -= 0 (ShipEntity.m:11650).
+    // d_forward = 100 >= 0 (5720, 5726): forward_shield -= 40 -> 88 >= 0, so
+    // amount = 0 (5727-5733) and energy -= 0 (ShipEntity.m:11651).
     const got = playerScrapeReference({
       amount: 40,
       otherOffset: [0, 0, 100],
@@ -485,7 +492,7 @@ describe("player scrape oracle (PlayerEntity.m:5701-5753)", () => {
   });
 });
 
-describe("blast oracle (ShipEntity.m:7680-7698, 8115-8126)", () => {
+describe("blast oracle (ShipEntity.m:7680-7698, 8114-8126)", () => {
   it("parses strictly and re-derives every blast fixture", () => {
     const fixtures = BlastFileSchema.parse(readJson(BLAST_FIXTURE_FILE));
     expect(fixtures.length).toBeGreaterThanOrEqual(9);
@@ -496,8 +503,8 @@ describe("blast oracle (ShipEntity.m:7680-7698, 8115-8126)", () => {
   });
 
   it("anchor: a Krait blast on the player 10 m away takes the d2 floor", () => {
-    // amount = f(0.125 x 93291.40625) = 11661.42578125 (8124); desired_range
-    // = f(50.196590423583984 x 2.5) = 125.4914779663086 (8123). p2 = (6, 0,
+    // amount = f(0.125 x 93291.40625) = 11661.42578125 (8125); desired_range
+    // = f(50.196590423583984 x 2.5) = 125.4914779663086 (8124). p2 = (6, 0,
     // 8): magnitude2 = 100, d2 = 100 - 72.69734954833984^2 < 0.1 -> 0.1
     // (7686-7690); moment = 11661.42578125 x 125.4914779663086 / 0.1 =
     // 14634095.564834774 (7691); howmuch = f(moment) = 14634096, / mass ->

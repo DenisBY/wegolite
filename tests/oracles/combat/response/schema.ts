@@ -7,7 +7,7 @@
  * (`ShipEntity.m:11020-11152`), the drift braking of the player
  * (`PlayerEntity.m:3372-3405`) and of ships (`ShipEntity.m:5808-5823`), the
  * player's scrape through the shields (`PlayerEntity.m:5701-5753`) and the
- * explosion blast (`ShipEntity.m:7680-7698, 8115-8126`).
+ * explosion blast (`ShipEntity.m:7680-7698, 8114-8126`).
  *
  * This file imports `zod` and nothing else: the oracle tree never reads
  * Wegolite code (`tests/guards/oracle-independence.test.ts` enforces that
@@ -26,9 +26,13 @@
  * - Every fixture carries `citations` (`<path>:<a>-<b>` into the pinned tree)
  *   and a `derivation`: the formula with the C line it comes from and the
  *   numbers substituted.
- * - `tolerance` is the absolute tolerance of every non-integer expected value of
- *   a fixture. Booleans, branch names and receivers are exact whatever the
- *   tolerance says.
+ * - `tolerance` is the relative tolerance of every non-integer expected value
+ *   of a fixture: a value `a` matches the expected `b` when
+ *   `|a - b| <= tolerance x |b| + ABSOLUTE_FLOOR` (1e-9, so an exact zero
+ *   needs no relative slack). Every fixture here uses 1e-6: wide enough for
+ *   a port that rounds differently by a few float ulps, far too narrow for a
+ *   wrong formula, branch or factor. Booleans, ticks, branch names and
+ *   receivers are exact whatever the tolerance says.
  * - Ids are kebab-case, unique across every oracle tree, prefixed `collide-`
  *   (this plan's other families: `brake-`, `scrape-`, `blast-`).
  *
@@ -69,6 +73,21 @@ const citation = z
     if (match === null) return false;
     return Number(match[1]) <= Number(match[2]);
   }, "citation range must have a <= b");
+
+/** The absolute slack added to every relative compare (see `tolerance`). */
+export const ABSOLUTE_FLOOR = 1e-9;
+
+/** `|actual - expected| <= tolerance x |expected| + ABSOLUTE_FLOOR`. */
+export function withinTolerance(
+  actual: number,
+  expected: number,
+  tolerance: number,
+): boolean {
+  return (
+    Math.abs(actual - expected) <=
+    tolerance * Math.abs(expected) + ABSOLUTE_FLOOR
+  );
+}
 
 const finite = z.number();
 const nonNegative = z.number().min(0);
@@ -414,7 +433,7 @@ const blastContribution = z.strictObject({
 
 /**
  * One blast fixture: the exploding bodies (`victims`, in the C's order: a
- * subentity explodes before its parent, 8115-8126) and the receivers, every
+ * subentity explodes before its parent, 8114-8126) and the receivers, every
  * one with its mass and collision radius.
  */
 export const BlastFixtureSchema = z
@@ -426,9 +445,9 @@ export const BlastFixtureSchema = z
     expected: z.strictObject({
       victims: z.array(
         z.strictObject({
-          /** f(collision_radius x 2.5f) (8123). */
+          /** f(collision_radius x 2.5f) (8124). */
           desiredRange: z.number().positive(),
-          /** f(0.125f x mass) (8124). */
+          /** f(0.125f x mass) (8125). */
           amount: z.number().positive(),
         }),
       ),

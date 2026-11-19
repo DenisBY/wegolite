@@ -1,0 +1,250 @@
+[
+  {
+    "id": "scrape-forward-absorbed-from-ahead",
+    "title": "40 scrape from ahead is absorbed by the forward shield",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:5701-5753",
+      "src/Core/Entities/PlayerEntity.h:448-448",
+      "src/Core/Entities/ShipEntity.m:11641-11653",
+      "src/Core/OOVector.h:299-302"
+    ],
+    "derivation": "Inputs: the player with v_forward (0, 0, 1), shields forward 128 and aft 128, energy 256; the other at offset (0, 0, 100); amount 40. d_forward = dot_product(HPVectorToVector(rel_pos), v_forward) = 100 (5717-5720), >= 0: the forward shield (5726). forward_shield = f(128 - 40) = 88; not below 0, so amount = 0 (5727-5742). ShipEntity's takeScrapeDamage then does energy = f(256 - 0) = 256 (5744, ShipEntity.m:11651). No temperature changes; the internal-damage loop (5746-5752) is Phase 19's and is not modelled; energy stays above 0, so no death.",
+    "tolerance": 0.000001,
+    "amount": 40,
+    "otherOffset": [0, 0, 100],
+    "forward": [0, 0, 1],
+    "shields": {
+      "forward": 128,
+      "aft": 128
+    },
+    "energy": 256,
+    "expected": {
+      "dForward": 100,
+      "shieldHit": "forward",
+      "shields": {
+        "forward": 88,
+        "aft": 128
+      },
+      "remainder": 0,
+      "energy": 256,
+      "heatChange": 0
+    }
+  },
+  {
+    "id": "scrape-aft-overflow-from-behind",
+    "title": "50 scrape from behind empties a 20 aft shield and the remaining 30 lowers energy",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:5701-5753",
+      "src/Core/Entities/PlayerEntity.h:448-448",
+      "src/Core/Entities/ShipEntity.m:11641-11653",
+      "src/Core/OOVector.h:299-302"
+    ],
+    "derivation": "Inputs: the player with v_forward (0, 0, 1), shields forward 128 and aft 20, energy 200; the other at offset (0, 10, -100); amount 50. d_forward = dot_product(HPVectorToVector(rel_pos), v_forward) = -100 (5717-5720), < 0: the aft shield (5726). aft_shield = f(20 - 50) = -30; below 0, so amount = 30 and the shield is set to 0 (5727-5742). ShipEntity's takeScrapeDamage then does energy = f(200 - 30) = 170 (5744, ShipEntity.m:11651). No temperature changes; the internal-damage loop (5746-5752) is Phase 19's and is not modelled; energy stays above 0, so no death.",
+    "tolerance": 0.000001,
+    "amount": 50,
+    "otherOffset": [0, 10, -100],
+    "forward": [0, 0, 1],
+    "shields": {
+      "forward": 128,
+      "aft": 20
+    },
+    "energy": 200,
+    "expected": {
+      "dForward": -100,
+      "shieldHit": "aft",
+      "shields": {
+        "forward": 128,
+        "aft": 0
+      },
+      "remainder": 30,
+      "energy": 170,
+      "heatChange": 0
+    }
+  },
+  {
+    "id": "scrape-abeam-takes-forward-shield",
+    "title": "an other exactly abeam (d_forward = 0) hits the forward shield",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:5701-5753",
+      "src/Core/Entities/PlayerEntity.h:448-448",
+      "src/Core/Entities/ShipEntity.m:11641-11653",
+      "src/Core/OOVector.h:299-302"
+    ],
+    "derivation": "Inputs: the player with v_forward (0, 0, 1), shields forward 5 and aft 128, energy 256; the other at offset (100, 0, 0); amount 10. d_forward = dot_product(HPVectorToVector(rel_pos), v_forward) = 0 (5717-5720), >= 0: the forward shield (5726). forward_shield = f(5 - 10) = -5; below 0, so amount = 5 and the shield is set to 0 (5727-5742). ShipEntity's takeScrapeDamage then does energy = f(256 - 5) = 251 (5744, ShipEntity.m:11651). No temperature changes; the internal-damage loop (5746-5752) is Phase 19's and is not modelled; energy stays above 0, so no death.",
+    "tolerance": 0.000001,
+    "amount": 10,
+    "otherOffset": [100, 0, 0],
+    "forward": [0, 0, 1],
+    "shields": {
+      "forward": 5,
+      "aft": 128
+    },
+    "energy": 256,
+    "expected": {
+      "dForward": 0,
+      "shieldHit": "forward",
+      "shields": {
+        "forward": 0,
+        "aft": 128
+      },
+      "remainder": 5,
+      "energy": 251,
+      "heatChange": 0
+    }
+  },
+  {
+    "id": "scrape-forward-overflow-rotated",
+    "title": "a rotated player takes 200 from ahead-right: the forward shield empties, 136 lowers energy",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:5701-5753",
+      "src/Core/Entities/PlayerEntity.h:448-448",
+      "src/Core/Entities/ShipEntity.m:11641-11653",
+      "src/Core/OOVector.h:299-302"
+    ],
+    "derivation": "Inputs: the player with v_forward (0.6000000238418579, 0, 0.800000011920929), shields forward 64 and aft 64, energy 256; the other at offset (30, 5, 40); amount 200. d_forward = dot_product(HPVectorToVector(rel_pos), v_forward) = 50 (5717-5720), >= 0: the forward shield (5726). forward_shield = f(64 - 200) = -136; below 0, so amount = 136 and the shield is set to 0 (5727-5742). ShipEntity's takeScrapeDamage then does energy = f(256 - 136) = 120 (5744, ShipEntity.m:11651). No temperature changes; the internal-damage loop (5746-5752) is Phase 19's and is not modelled; energy stays above 0, so no death.",
+    "tolerance": 0.000001,
+    "amount": 200,
+    "otherOffset": [30, 5, 40],
+    "forward": [0.6000000238418579, 0, 0.800000011920929],
+    "shields": {
+      "forward": 64,
+      "aft": 64
+    },
+    "energy": 256,
+    "expected": {
+      "dForward": 50,
+      "shieldHit": "forward",
+      "shields": {
+        "forward": 0,
+        "aft": 64
+      },
+      "remainder": 136,
+      "energy": 120,
+      "heatChange": 0
+    }
+  },
+  {
+    "id": "scrape-aft-absorbed-rotated",
+    "title": "a rotated player takes 12.5 from behind: the aft shield absorbs it",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:5701-5753",
+      "src/Core/Entities/PlayerEntity.h:448-448",
+      "src/Core/Entities/ShipEntity.m:11641-11653",
+      "src/Core/OOVector.h:299-302"
+    ],
+    "derivation": "Inputs: the player with v_forward (0, 0.6000000238418579, 0.800000011920929), shields forward 64 and aft 64, energy 256; the other at offset (0, -50, -20); amount 12.5. d_forward = dot_product(HPVectorToVector(rel_pos), v_forward) = -46 (5717-5720), < 0: the aft shield (5726). aft_shield = f(64 - 12.5) = 51.5; not below 0, so amount = 0 (5727-5742). ShipEntity's takeScrapeDamage then does energy = f(256 - 0) = 256 (5744, ShipEntity.m:11651). No temperature changes; the internal-damage loop (5746-5752) is Phase 19's and is not modelled; energy stays above 0, so no death.",
+    "tolerance": 0.000001,
+    "amount": 12.5,
+    "otherOffset": [0, -50, -20],
+    "forward": [0, 0.6000000238418579, 0.800000011920929],
+    "shields": {
+      "forward": 64,
+      "aft": 64
+    },
+    "energy": 256,
+    "expected": {
+      "dForward": -46,
+      "shieldHit": "aft",
+      "shields": {
+        "forward": 64,
+        "aft": 51.5
+      },
+      "remainder": 0,
+      "energy": 256,
+      "heatChange": 0
+    }
+  },
+  {
+    "id": "scrape-negative-amount-made-positive",
+    "title": "a negative amount is made positive before the shields",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:5701-5753",
+      "src/Core/Entities/PlayerEntity.h:448-448",
+      "src/Core/Entities/ShipEntity.m:11641-11653",
+      "src/Core/OOVector.h:299-302"
+    ],
+    "derivation": "Inputs: the player with v_forward (0, 0, 1), shields forward 10 and aft 128, energy 256; the other at offset (0, 0, 50); amount -15. amount < 0 is negated to 15 (PlayerEntity.m:5710-5713). d_forward = dot_product(HPVectorToVector(rel_pos), v_forward) = 50 (5717-5720), >= 0: the forward shield (5726). forward_shield = f(10 - 15) = -5; below 0, so amount = 5 and the shield is set to 0 (5727-5742). ShipEntity's takeScrapeDamage then does energy = f(256 - 5) = 251 (5744, ShipEntity.m:11651). No temperature changes; the internal-damage loop (5746-5752) is Phase 19's and is not modelled; energy stays above 0, so no death.",
+    "tolerance": 0.000001,
+    "amount": -15,
+    "otherOffset": [0, 0, 50],
+    "forward": [0, 0, 1],
+    "shields": {
+      "forward": 10,
+      "aft": 128
+    },
+    "energy": 256,
+    "expected": {
+      "dForward": 50,
+      "shieldHit": "forward",
+      "shields": {
+        "forward": 0,
+        "aft": 128
+      },
+      "remainder": 5,
+      "energy": 251,
+      "heatChange": 0
+    }
+  },
+  {
+    "id": "scrape-shield-exactly-emptied",
+    "title": "an amount equal to the forward shield leaves it at 0 and energy untouched",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:5701-5753",
+      "src/Core/Entities/PlayerEntity.h:448-448",
+      "src/Core/Entities/ShipEntity.m:11641-11653",
+      "src/Core/OOVector.h:299-302"
+    ],
+    "derivation": "Inputs: the player with v_forward (0, 0, 1), shields forward 64 and aft 64, energy 256; the other at offset (0, 0, 80); amount 64. d_forward = dot_product(HPVectorToVector(rel_pos), v_forward) = 80 (5717-5720), >= 0: the forward shield (5726). forward_shield = f(64 - 64) = 0; not below 0, so amount = 0 (5727-5742). ShipEntity's takeScrapeDamage then does energy = f(256 - 0) = 256 (5744, ShipEntity.m:11651). No temperature changes; the internal-damage loop (5746-5752) is Phase 19's and is not modelled; energy stays above 0, so no death.",
+    "tolerance": 0.000001,
+    "amount": 64,
+    "otherOffset": [0, 0, 80],
+    "forward": [0, 0, 1],
+    "shields": {
+      "forward": 64,
+      "aft": 64
+    },
+    "energy": 256,
+    "expected": {
+      "dForward": 80,
+      "shieldHit": "forward",
+      "shields": {
+        "forward": 0,
+        "aft": 64
+      },
+      "remainder": 0,
+      "energy": 256,
+      "heatChange": 0
+    }
+  },
+  {
+    "id": "scrape-krait-ram-dam1-from-ahead",
+    "title": "the dam1 of the player's 100 m/s head-on Krait ram, taken from ahead",
+    "citations": [
+      "src/Core/Entities/PlayerEntity.m:5701-5753",
+      "src/Core/Entities/PlayerEntity.h:448-448",
+      "src/Core/Entities/ShipEntity.m:11641-11653",
+      "src/Core/OOVector.h:299-302"
+    ],
+    "derivation": "Inputs: the player with v_forward (0, 0, 1), shields forward 10 and aft 128, energy 256; the other at offset (0, 0, 122.89393997192383); amount 18.658281326293945. The amount is dam1 of fixture collide-player-krait-100 as collideWithShipReference derives it, 18.658281326293945 (ShipEntity.m:11089, 11114-11115). d_forward = dot_product(HPVectorToVector(rel_pos), v_forward) = 122.89393615722656 (5717-5720), >= 0: the forward shield (5726). forward_shield = f(10 - 18.658281326293945) = -8.658281326293945; below 0, so amount = 8.658281326293945 and the shield is set to 0 (5727-5742). ShipEntity's takeScrapeDamage then does energy = f(256 - 8.658281326293945) = 247.3417205810547 (5744, ShipEntity.m:11651). No temperature changes; the internal-damage loop (5746-5752) is Phase 19's and is not modelled; energy stays above 0, so no death.",
+    "tolerance": 0.000001,
+    "amount": 18.658281326293945,
+    "otherOffset": [0, 0, 122.89393997192383],
+    "forward": [0, 0, 1],
+    "shields": {
+      "forward": 10,
+      "aft": 128
+    },
+    "energy": 256,
+    "expected": {
+      "dForward": 122.89393615722656,
+      "shieldHit": "forward",
+      "shields": {
+        "forward": 0,
+        "aft": 128
+      },
+      "remainder": 8.658281326293945,
+      "energy": 247.3417205810547,
+      "heatChange": 0
+    }
+  }
+]
