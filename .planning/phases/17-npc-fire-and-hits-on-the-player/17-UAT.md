@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: complete
 phase: 17-npc-fire-and-hits-on-the-player
 source: [17-VERIFICATION.md]
 started: 2026-11-19T03:37:13Z
-updated: 2026-11-19T08:37:03.300Z
+updated: 2026-11-19T11:33:39.048Z
 ---
 
 ## Current Test
@@ -52,7 +52,9 @@ blocked: 0
 
 - gap_id: G-17-1
   truth: "NPC shot period equals Oolite's literal frame counts at 120 Hz (pulse 60, beam 13, mining 301, military 13), per criterion 1 'the rate of fire is Oolite's'"
-  status: failed
+  status: resolved
+  resolved_by: 17-12-PLAN.md
+  resolved_at: 2026-11-19
   reason: "User reported: вариант 2 — owner chose to switch npcRechargeTicks from round(rate x 120) (60/12/300/12) to the literal counts (60/13/301/13), revising D-07"
   severity: major
   test: 1
@@ -75,7 +77,9 @@ blocked: 0
 
 - gap_id: G-17-4
   truth: "The opt-in browser spec proves the whole route from a hook-spawned shooter to the shield and energy readout drawn on the HUD (criterion 3): the drawn FWD/AFT shield bars and E1-E4 energy banks are exposed in the HUD probe and asserted to fall"
-  status: failed
+  status: resolved
+  resolved_by: 17-13-PLAN.md
+  resolved_at: 2026-11-19
   reason: "User reported: option 2 — expose the drawn gauge values (model.bars.shieldFwd/shieldAft, energy banks) in the HUD probe and assert them in tests/e2e/combat.spec.ts"
   severity: major
   test: 4
