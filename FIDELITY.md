@@ -2136,6 +2136,22 @@ Verdict for the buoy ram: SAME on every quantity (closing speed, damage, both re
 
 These are planning-text figures, not fixtures, so they open no mismatch. PD-02's decision (buoys move when rammed) stands.
 
+**Pod and plate blockage (claim 3, D-08 evidence).** A real pod (blockage radius 9.97 m) or plate (5.23 m) cannot be measured directly. Its centre would have to lie deep inside the Cobra's 72.7 m hull, and the collision would move or destroy it before `witchJumpChecklist` runs. What needs evidence is the rule itself: Oolite blocks on `k x mass > d^2 && d^2 < SCANNER_MAX_RANGE2` with `k = 0.1`, over every ship except the player, whatever its scan class (`ShipEntity.m:12498-12531`). That would include cargo. The probe therefore defined a surrogate in its own `shipdata.plist`: `wegolite-pd03-heavy-barrel`, `like_ship = "barrel"`, `scan_class = "CLASS_CARGO"`, `density = 1611`. The mass is `density x 20 x octree volume` (`ShipEntity.m:417-419`); the logged mass was 1,600,319.125 (`CLASS_CARGO`, radius 5.80 m), so R = sqrt(0.1 x 1,600,319.125) = 400.040 m. The method is quick task 261117-lka's:
+
+- Put the player 300 km from the origin (P0 = 119595, -275131, 0), with no other ship within 30 km.
+- Set the nearest system as the target (55, Leesti) and call `beginHyperspaceCountdown(5)`, then set the fuel to 0. An unblocked jump then ends as "insufficient fuel" (`PlayerEntity.m:6544-6560` checks blockage first).
+- Keep the surrogate parked 100 km away until 3.5 s into the countdown, then hold it at the trial distance on every frame.
+- Log the `playerJumpFailed` reason, with the surrogate's distance and movement, on the completion frame.
+
+At both trial distances the surrogate is far outside both hulls and well inside scanner range, so only the blockage rule decides.
+
+| Session (`start_utc`) | Distance (centre to centre)    | d^2         | 0.1 x mass | Oolite                          | Expected    | Verdict |
+| --------------------- | ------------------------------ | ----------- | ---------- | ------------------------------- | ----------- | ------- |
+| 2026-11-19T19:41:40Z  | 0.95 R = 380.038 m (moved 0 m) | 144,428.801 | 160,031.91 | blocked                         | blocked     | SAME    |
+| 2026-11-19T19:42:15Z  | 1.05 R = 420.042 m (moved 0 m) | 176,435.184 | 160,031.91 | not blocked (insufficient fuel) | not blocked | SAME    |
+
+Both countdowns completed (4.88 s and 4.85 s after the countdown began, the surrogate placed from 3.55 s and 3.51 s). Neither the player nor the surrogate moved, and no other ship was within 30 km. A cargo-class ship blocks the jump in Oolite by mass and distance alone. Applied to the compiled masses, the same measured rule makes a cargo pod (mass 993.37006, `collide-player-pod-100`) block within 9.967 m of the player's centre and an alloy plate (mass 273.4375, `collide-player-plate-100`) within 5.229 m. This is the observed behaviour behind D-08's divergence row, which plan 18-07 records: Wegolite's pods and plates never block. The difference can matter only while a pod or plate centre sits inside the Cobra's hull, where Oolite's collision has already acted. Verdict on the pod and plate blockage claim: SAME for the rule. The Wegolite side is the KNOWN divergence D-08.
+
 ## Open items
 
 These are gaps the table cannot close on its own. Each one is stated so a reviewer can check it.
