@@ -1456,3 +1456,44 @@ describe("buoy records in the ledger are total (probe CBT-17)", () => {
     expect(ofKind(events, "shipHit")).toHaveLength(2);
   });
 });
+
+describe("buoy recharge (energy_recharge_rate 2, research Pitfall 9)", () => {
+  function tick(world: World, player: FlightState, stepped = true): void {
+    resolveShots(world, stepped, player, undefined, [], undefined, DT, layout);
+  }
+
+  it("a buoy at 200 recharges 2 x (1/120) per stepped tick to exactly 250 and hashes pristine again", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    world.staticHealth.navBuoy = 200;
+
+    tick(world, player);
+    expect(world.staticHealth.navBuoy).toBe(200 + 2 * DT);
+    // An unstepped tick (the jump step) recharges nothing.
+    tick(world, player, false);
+    expect(world.staticHealth.navBuoy).toBe(200 + 2 * DT);
+
+    let ticks = 1;
+    while (world.staticHealth.navBuoy < 250 && ticks < 4000) {
+      tick(world, player);
+      ticks += 1;
+    }
+    expect(world.staticHealth.navBuoy).toBe(250);
+    // 50 / (2 / 120) = 3,000 ticks, give or take the rounding of the sum.
+    expect(Math.abs(ticks - 3000)).toBeLessThanOrEqual(1);
+    expect(world.staticHealth).toEqual(createStaticHealth());
+    expect(hashWorld(player, world)).toBe(hashWorld(player, createWorld(7)));
+  });
+
+  it("a destroyed buoy stays 0 through 10,000 stepped ticks; the station is never written", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    world.staticHealth.witchpoint = 0;
+    world.staticHealth.navBuoy = 249;
+    world.staticHealth.station = 24000;
+    for (let i = 0; i < 10_000; i += 1) tick(world, player);
+    expect(Object.is(world.staticHealth.witchpoint, 0)).toBe(true);
+    expect(world.staticHealth.navBuoy).toBe(250);
+    expect(world.staticHealth.station).toBe(24000);
+  });
+});
