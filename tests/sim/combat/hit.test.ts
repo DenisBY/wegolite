@@ -29,8 +29,20 @@ import type {
   LaserRay,
 } from "../../../src/sim/combat/hit.js";
 import type { OctreeNode } from "../../../src/sim/combat/octree.js";
-import { identity, quat, vec } from "../../../src/sim/math.js";
+import { portQuaternion } from "../../../src/sim/dock/port-frame.js";
+import {
+  add,
+  cross,
+  identity,
+  quat,
+  rotate,
+  scale,
+  vec,
+} from "../../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../../src/sim/math.js";
+import { MAIN_STATION_ID } from "../../../src/sim/world/ids.js";
+import { fullHullTable, realHullTable } from "../../helpers/hull-table.js";
+import { laveFixture } from "../../helpers/lave.js";
 
 /** A node of eight children whose only solid child is index `solid`. */
 function oneSolidChild(solid: number): OctreeNode {
@@ -276,5 +288,49 @@ describe("firstShipHit: non-finite input never throws (T-13-04)", () => {
 
   it("returns null for an empty target list", () => {
     expect(firstShipHit(foreRay(vec(0, 0, 0)), [], HULLS)).toBeNull();
+  });
+});
+
+/**
+ * The station hull from the merged table (plan 18-13, DATA-15): the static
+ * artifact's Coriolis octree reaches the hit rule through the table alone. No
+ * static is a laser candidate before plan 18-04, so the station's `HitTarget`
+ * is built here by hand; this plan adds no candidacy. Only the hull octree is
+ * tested: the subentity branch is plan 18-04's.
+ */
+describe("firstShipHit: the station hull from the merged table (plan 18-13)", () => {
+  const { layout } = laveFixture();
+  // The Lave layout pose at stationAngle 0.
+  const orientation = portQuaternion(layout, 0);
+  const station = target(
+    MAIN_STATION_ID,
+    "coriolis-station",
+    layout.station.position,
+    orientation,
+  );
+  // Station local +X: perpendicular to the slot axis (local -Z), so the shot
+  // never enters the slot.
+  const side = rotate(orientation, vec(1, 0, 0));
+  const up = rotate(orientation, vec(0, 1, 0));
+  const forward = scale(side, -1);
+  const ray: LaserRay = {
+    origin: add(layout.station.position, scale(side, 3000)),
+    forward,
+    right: cross(forward, up),
+    up,
+    range: 5000,
+  };
+
+  it("hits the station's hull octree from 3,000 m outside the slot axis", () => {
+    const hit = firstShipHit(ray, [station], fullHullTable());
+    expect(hit?.id).toBe(MAIN_STATION_ID);
+    // The first solid leaf lies inside the hull octree's root cube (half-width
+    // 500.5 m) and on the near side of the centre.
+    expect(hit?.distance).toBeGreaterThanOrEqual(3000 - 500.5);
+    expect(hit?.distance).toBeLessThan(3000);
+  });
+
+  it("misses it with the ten-hull table, which has no station entry (D-01 not loaded)", () => {
+    expect(firstShipHit(ray, [station], realHullTable())).toBeNull();
   });
 });

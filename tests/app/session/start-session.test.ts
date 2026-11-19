@@ -21,10 +21,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import {
+  SESSION_CONTENT_LOADERS,
   createSessionLifecycle,
+  loadSessionContent,
   resolveStartTarget,
 } from "../../../src/app/session/start-session.js";
-import type { LifecycleDeps } from "../../../src/app/session/start-session.js";
+import type {
+  LifecycleDeps,
+  SessionContentLoaders,
+} from "../../../src/app/session/start-session.js";
 import type { SystemScene } from "../../../src/render/system-scene.js";
 import {
   createPlayerCombatState,
@@ -566,6 +571,8 @@ describe("combat and hull wiring at start-up (plan 13-11)", () => {
   const flat = (text: string): string => text.replace(/\s+/g, " ");
 
   it("loads the hull data once, only behind the traffic flag, in the boot Promise.all beside the NPC catalogue", () => {
+    // Wiring checks only: the behaviour is pinned by the loadSessionContent
+    // cases below (plan 18-13, review L777@2e0bfb3).
     expect(source.match(/loadShipHulls\(\)/g)).toHaveLength(1);
     const load = source.indexOf("loadShipHulls()");
     expect(flat(source.slice(Math.max(0, load - 80), load))).toContain(
@@ -576,10 +583,28 @@ describe("combat and hull wiring at start-up (plan 13-11)", () => {
     expect(load).toBeGreaterThan(source.indexOf("loadNpcCatalogue()"));
     expect(load).toBeGreaterThan(all);
     expect(load).toBeLessThan(closed);
-    // The same visible boot-failure surface (T-13-23).
-    expect(source.slice(closed, closed + 1200)).toContain("showBootFailure");
+    // The same visible boot-failure surface (T-13-23): the catch reports
+    // through onBootFailure, which the session start wires to showBootFailure.
+    expect(source.slice(closed, closed + 1500)).toContain("onBootFailure");
     expect(source).toContain("ctx.core.hulls =");
-    expect(source).toContain("hullTable(hullCatalogue)");
+    expect(flat(source)).toContain(
+      "hullTable(hullCatalogue, staticArtifact?.hulls)",
+    );
+    expect(flat(source)).toMatch(
+      /loadSessionContent\( ctx, SESSION_CONTENT_LOADERS, \(reason\) => \{ showBootFailure\(reason\); publishFailure\(reason\); \}/,
+    );
+  });
+
+  it("loads the static hulls once, only behind the traffic flag, in the same boot Promise.all (plan 18-13)", () => {
+    expect(source.match(/loadStaticHulls\(\)/g)).toHaveLength(1);
+    const load = source.indexOf("loadStaticHulls()");
+    expect(flat(source.slice(Math.max(0, load - 80), load))).toContain(
+      "ctx.runtime.testFlags.traffic ?",
+    );
+    const all = source.indexOf("await Promise.all([");
+    const closed = source.indexOf("]);", all);
+    expect(load).toBeGreaterThan(source.indexOf("loadShipHulls()"));
+    expect(load).toBeLessThan(closed);
   });
 
   it("loads the debris and explosion catalogues once, only behind the traffic flag, in the boot Promise.all (plan 16-06)", () => {
@@ -596,7 +621,7 @@ describe("combat and hull wiring at start-up (plan 13-11)", () => {
     }
     // The same visible boot-failure surface (T-16-19), and both reach the
     // shared traffic content.
-    expect(source.slice(closed, closed + 1500)).toContain("showBootFailure");
+    expect(source.slice(closed, closed + 1500)).toContain("onBootFailure");
     expect(source).toContain("debris: debrisCatalogue");
     expect(source).toContain("explosions: explosionCatalogue");
   });
@@ -628,6 +653,117 @@ describe("combat and hull wiring at start-up (plan 13-11)", () => {
       );
       expect(creates, file).toBe(owners.includes(file));
     }
+  });
+});
+
+/**
+ * The boot content load as behaviour (plan 18-13, T-16-19, T-18-50; review
+ * L731@b45e113, L776@2e0bfb3, L778@2e0bfb3): the catalogues and, with traffic
+ * on, the NPC, hull, debris, explosion and static hull chunks load in one
+ * `Promise.all`; any rejection reaches the one boot-failure surface and
+ * installs nothing; with traffic off no traffic chunk is requested. The real
+ * loaders run under Vitest (`import.meta.glob`); a test replaces one with a
+ * rejecting or recording double.
+ */
+describe("loadSessionContent (plan 18-13)", () => {
+  function contentCtx(traffic: boolean): SessionState {
+    const ctx = createSessionState({
+      system: lave.system,
+      saveStatus: "absent",
+      saveSkipReason: "",
+    });
+    ctx.runtime.testFlags = { ...ctx.runtime.testFlags, traffic };
+    return ctx;
+  }
+
+  const TRAFFIC_LOADERS = [
+    "loadNpcCatalogue",
+    "loadShipHulls",
+    "loadDebrisCatalogue",
+    "loadExplosionCatalogue",
+    "loadStaticHulls",
+  ] as const;
+
+  function recording(calls: string[]): SessionContentLoaders {
+    const loaders: Record<string, unknown> = { ...SESSION_CONTENT_LOADERS };
+    for (const name of TRAFFIC_LOADERS) {
+      const real = SESSION_CONTENT_LOADERS[name] as () => Promise<unknown>;
+      loaders[name] = () => {
+        calls.push(name);
+        return real();
+      };
+    }
+    return loaders as unknown as SessionContentLoaders;
+  }
+
+  it("fails the boot once, with the reason, and installs no hull table when the static chunk rejects", async () => {
+    const ctx = contentCtx(true);
+    const failures: string[] = [];
+    const loaders: SessionContentLoaders = {
+      ...SESSION_CONTENT_LOADERS,
+      loadStaticHulls: () =>
+        Promise.reject(new Error("the static hull chunk is missing")),
+    };
+    const result = await loadSessionContent(ctx, loaders, (reason) => {
+      failures.push(reason);
+    });
+    expect(result).toBeUndefined();
+    expect(failures).toEqual(["the static hull chunk is missing"]);
+    expect(ctx.core.hulls).toBeUndefined();
+    expect(ctx.core.npcTraffic).toBeUndefined();
+  });
+
+  it("with traffic on loads every chunk and installs one table holding the ship and static hulls", async () => {
+    const ctx = contentCtx(true);
+    const calls: string[] = [];
+    const failures: string[] = [];
+    const result = await loadSessionContent(ctx, recording(calls), (reason) => {
+      failures.push(reason);
+    });
+    expect(failures).toEqual([]);
+    expect([...calls].sort()).toEqual([...TRAFFIC_LOADERS].sort());
+    expect(result?.staticNames?.map((entry) => entry.key)).toEqual([
+      "coriolis-station",
+      "buoy",
+      "buoy-witchpoint",
+      "barrel",
+      "alloy",
+    ]);
+    expect(ctx.core.hulls?.size).toBe(14);
+    expect(ctx.core.hulls?.has("adder")).toBe(true);
+    expect(ctx.core.hulls?.get("coriolis-station")?.subentities).toHaveLength(
+      3,
+    );
+    expect(ctx.core.npcTraffic).toBeDefined();
+    expect(ctx.core.equipmentCatalogue).toBeDefined();
+  });
+
+  it("with traffic off requests no traffic chunk and leaves both hull tables unloaded", async () => {
+    const ctx = contentCtx(false);
+    const calls: string[] = [];
+    const failures: string[] = [];
+    const result = await loadSessionContent(ctx, recording(calls), (reason) => {
+      failures.push(reason);
+    });
+    expect(failures).toEqual([]);
+    expect(calls).toEqual([]);
+    expect(result).toEqual({ staticNames: undefined });
+    expect(ctx.core.hulls).toBeUndefined();
+    expect(ctx.core.npcTraffic).toBeUndefined();
+    expect(ctx.core.equipmentCatalogue).toBeDefined();
+    expect(ctx.core.commodities).toBeDefined();
+  });
+
+  it("installs nothing when the session is disposed during the load", async () => {
+    const ctx = contentCtx(true);
+    const failures: string[] = [];
+    const pending = loadSessionContent(ctx, SESSION_CONTENT_LOADERS, (reason) => {
+      failures.push(reason);
+    });
+    ctx.runtime.disposed = true;
+    expect(await pending).toBeUndefined();
+    expect(failures).toEqual([]);
+    expect(ctx.core.hulls).toBeUndefined();
   });
 });
 

@@ -16,6 +16,7 @@ import {
   DEFAULT_SHIP_EXPLOSION_KEY,
   createInertPopulate,
   debrisContentFrom,
+  hullTable,
   trafficContent,
 } from "../../../src/app/session/traffic.js";
 import type { TrafficContent } from "../../../src/app/session/traffic.js";
@@ -24,14 +25,17 @@ import {
   ExplosionCatalogueSchema,
 } from "../../../src/content/schemas/explosion.js";
 import { DebrisCatalogueSchema } from "../../../src/content/schemas/ship-debris.js";
+import type { StaticHullArtifact } from "../../../src/content/schemas/ship-static-hull.js";
 import type {
   DebrisRecord,
   ExplosionRecord,
   NpcShip,
+  ShipHullCatalogue,
 } from "../../../src/content/types.js";
 import { flightTableFrom } from "../../../src/sim/npc/stats.js";
 import { liveEntityCount, createWorld } from "../../../src/sim/world/world.js";
 import { debrisFixture } from "../../helpers/debris-fixture.js";
+import { fullHullTable, realHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const lave = laveFixture();
@@ -310,5 +314,100 @@ describe("createInertPopulate", () => {
     }).not.toThrow();
     expect(liveEntityCount(mixed)).toBe(12);
     expect(mixed.rng.s).toBe(plain.rng.s);
+  });
+});
+
+/**
+ * The merged hull table (plan 18-13, DATA-15): the ten ship hulls and, with
+ * traffic on, the four static hulls of the separate artifact. Expected keys,
+ * positions and masses are the committed artifact's (pinned against Oolite in
+ * `tests/content/ships-static-hulls.test.ts`), written out here literally.
+ */
+describe("hullTable with the static hulls (plan 18-13)", () => {
+  const ships = JSON.parse(
+    readFileSync("src/content/generated/ships-hulls.json", "utf8"),
+  ) as ShipHullCatalogue;
+  const statics = JSON.parse(
+    readFileSync("src/content/generated/ships-static-hulls.json", "utf8"),
+  ) as StaticHullArtifact;
+  const TEN = [
+    "oolite_template_cobra3-player",
+    "adder",
+    "cobramk1",
+    "gecko",
+    "krait",
+    "mamba",
+    "moray",
+    "shuttle",
+    "sidewinder",
+    "viper",
+  ];
+  const STATIC_KEYS = ["coriolis-station", "buoy", "barrel", "alloy"];
+
+  it("without statics holds the ten ship hulls, none with a subentity or frangible key", () => {
+    const table = hullTable(ships);
+    expect([...table.keys()]).toEqual(TEN);
+    for (const hull of table.values()) {
+      expect(Object.keys(hull).sort()).toEqual(["collisionRadius", "octree"]);
+    }
+  });
+
+  it("with statics holds fourteen keys, the statics after the ten", () => {
+    const table = hullTable(ships, statics.hulls);
+    expect([...table.keys()]).toEqual([...TEN, ...STATIC_KEYS]);
+    // The ship hulls are unchanged by the merge.
+    for (const key of TEN) {
+      expect(table.get(key)).toEqual(hullTable(ships).get(key));
+    }
+  });
+
+  it("gives the station its three subentities at the authored Oolite-axis positions, not frangible", () => {
+    const station = hullTable(ships, statics.hulls).get("coriolis-station");
+    expect(station?.collisionRadius).toBe(779.3702392578125);
+    expect(station?.frangible).toBe(false);
+    expect(
+      station?.subentities?.map((sub) => [sub.key, sub.position, sub.mass]),
+    ).toEqual([
+      ["oolite_coriolis_faceplate", { x: 0, y: 0, z: 0 }, 58255096],
+      ["oolite_coriolis_tris", { x: 0, y: 0, z: 0 }, 220998576],
+      // +z toward the nose in Oolite model axes: no axis conversion.
+      ["oolite_coriolis_dock", { x: 0, y: 0, z: 500.2561 }, 7579321],
+    ]);
+    expect(station?.subentities?.[2]?.octree).toBe(
+      statics.hulls[0]?.subentities[2]?.octree,
+    );
+  });
+
+  it("gives the buoy its one subentity with its compiled mass, frangible", () => {
+    const buoy = hullTable(ships, statics.hulls).get("buoy");
+    expect(buoy?.frangible).toBe(true);
+    expect(buoy?.subentities).toHaveLength(1);
+    expect(buoy?.subentities?.[0]?.key).toBe("oolite_buoy_subentity");
+    expect(buoy?.subentities?.[0]?.position).toEqual({ x: 0, y: 0, z: 0 });
+    expect(buoy?.subentities?.[0]?.mass).toBe(7646.7861328125);
+  });
+
+  it("gives the barrel and the plate no subentities, frangible", () => {
+    const table = hullTable(ships, statics.hulls);
+    for (const key of ["barrel", "alloy"]) {
+      expect(table.get(key)?.subentities).toEqual([]);
+      expect(table.get(key)?.frangible).toBe(true);
+    }
+  });
+
+  it("refuses a static key that repeats a ship key, rather than overwrite the ship", () => {
+    const [first] = statics.hulls;
+    if (first === undefined) throw new Error("no static hull");
+    expect(() => hullTable(ships, [{ ...first, key: "adder" }])).toThrow(
+      /adder/,
+    );
+  });
+
+  it("is what fullHullTable() builds, entry for entry, and realHullTable() stays the ten", () => {
+    const merged = hullTable(ships, statics.hulls);
+    const full = fullHullTable();
+    expect([...full.keys()]).toEqual([...merged.keys()]);
+    for (const [key, hull] of merged) expect(full.get(key), key).toEqual(hull);
+    expect([...realHullTable().keys()]).toEqual(TEN);
   });
 });
