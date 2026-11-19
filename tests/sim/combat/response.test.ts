@@ -91,15 +91,16 @@ describe("collideWithShip constants", () => {
 describe("collideWithShip: hand cases from ShipEntity.m:11020-11152", () => {
   it("head-on, equal masses closing at 100 m/s: elastic exchange, damage and nudge", () => {
     // loc = (0,0,-1); v = (0,0,-100); v2b = 100; v1a = sqrt(100^2 x m/m) = 100.
-    // dam = 1000 x 100^2 / 5e7 = 0.2 each (11089-11090).
+    // dam = 1000 x 100^2 / 5e7 = f(0.2) each (11089-11090).
     // vel1a = loc x -100 = (0,0,100); vel2a = loc x 100 = (0,0,-100) (11093-11094).
     // Nudge (11138-11146): self += loc x f(t x 100), other += loc x f(t x 100).
     const r = collided(collideWithShip(headOn(100)));
     expectVec(r.loc, 0, 0, -1);
     expect(r.v2b).toBe(100);
     expect(r.v1a).toBe(100);
-    expect(r.dam1).toBe(0.2);
-    expect(r.dam2).toBe(0.2);
+    // The float expression widened: f(1e7 / 5e7) = f(0.2).
+    expect(r.dam1).toBe(f(0.2));
+    expect(r.dam2).toBe(f(0.2));
     expect(r.antiConjoin).toBe(false);
     expect(r.applied1).toBe(true);
     expect(r.applied2).toBe(true);
