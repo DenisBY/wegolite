@@ -31,10 +31,18 @@ import type { StepOptions } from "../../../src/sim/flight/step.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
-import { behaviourAttackBreakOffTarget } from "../../../src/sim/npc/behaviours/attack-evade.js";
+import {
+  behaviourAttackFlyToTarget,
+  behaviourFlyToTargetSix,
+} from "../../../src/sim/npc/behaviours/attack-close.js";
+import {
+  behaviourAttackBreakOffTarget,
+  behaviourAttackSniper,
+} from "../../../src/sim/npc/behaviours/attack-evade.js";
 import type { NpcStepFacts } from "../../../src/sim/npc/stats.js";
 import { DT } from "../../../src/sim/time.js";
 import type { Entity } from "../../../src/sim/world/entity.js";
+import type { BehaviourId } from "../../../src/sim/world/ids.js";
 import { MAX_ENTITY_ENERGY } from "../../../src/sim/world/limits.js";
 import { stepWorld } from "../../../src/sim/world/step.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
@@ -103,7 +111,21 @@ interface Duel {
  * than the 1e6 bank; review Opus L4).
  */
 function duel(seed = 7): Duel {
-  const world = createWorld(seed);
+  return duelWith({ seed });
+}
+
+interface DuelOptions {
+  readonly seed?: number;
+  /** The Adder's distance ahead of the Viper (default 3,000 m). */
+  readonly adderZ?: number;
+  /** A resolved accuracy for the Viper (default: drawn lazily by the world). */
+  readonly accuracy?: number;
+  /** The Viper's starting forward weapon temperature (default 0). */
+  readonly temperature?: number;
+}
+
+function duelWith(options: DuelOptions): Duel {
+  const world = createWorld(options.seed ?? 7);
   const player = farPlayer();
   const adderResult = spawnEntity(
     world,
@@ -111,7 +133,7 @@ function duel(seed = 7): Duel {
       kind: "ship",
       specKey: "adder",
       scanClass: "CLASS_NEUTRAL",
-      position: vec(0, 0, -3000),
+      position: vec(0, 0, -(options.adderZ ?? 3000)),
       orientation: identity(),
       radius: 30,
       maxEnergy: MAX_ENTITY_ENERGY,
@@ -140,6 +162,12 @@ function duel(seed = 7): Duel {
     0,
   );
   if (!viperResult.ok) throw new Error(`spawn refused: ${viperResult.reason}`);
+  if (options.accuracy !== undefined) {
+    viperResult.entity.steer.accuracy = options.accuracy;
+  }
+  if (options.temperature !== undefined) {
+    viperResult.entity.weapon.temperature = options.temperature;
+  }
   return {
     world,
     player,
@@ -181,9 +209,22 @@ function shotsOf(events: readonly SimEvent[], shooter: number): number {
   ).length;
 }
 
+/** The distance the steering reads: centre distance less the two radii. */
+function rangeBetween(a: Entity, b: Entity): number {
+  return (
+    Math.hypot(
+      a.position.x - b.position.x,
+      a.position.y - b.position.y,
+      a.position.z - b.position.z,
+    ) -
+    a.radius -
+    b.radius
+  );
+}
+
 describe("a firing attacker heats up, cuts out and recovers (tracer, criterion 1, D-06, D-07)", () => {
-  it("the temperature follows the float32 hand loop on every tick; the gate refuses from the cutout and lets cooling fire again", () => {
-    const { world, player, viper } = duel();
+  it("the temperature follows the float32 hand loop on every tick; the dispatcher, the fly-to tail and the gate react at Oolite's thresholds", () => {
+    const { world, player, viper, adder } = duel();
     let mirror = 0;
     let readyAt = -1;
     let cutoutAt = -1;
@@ -191,17 +232,56 @@ describe("a firing attacker heats up, cuts out and recovers (tracer, criterion 1
     let firedAfterRefusal = 0;
     let firedBelowCutout = 0;
     let peak = 0;
-    for (let tick = 1; tick <= 1400; tick += 1) {
+    let readyUpdates = 0;
+    let heatingUpdates = 0;
+    let overheatedUpdates = 0;
+    let handBacks = 0;
+    const TICKS = 6000;
+    for (let tick = 1; tick <= TICKS; tick += 1) {
       const pre = viper.weapon.temperature;
       expect(pre).toBe(mirror);
       if (readyAt < 0 && pre >= READY) readyAt = tick;
       if (cutoutAt < 0 && pre / MAX_TEMP >= CUTOUT) cutoutAt = tick;
+      const before = viper.nav.behaviour;
+      const range = rangeBetween(viper, adder);
 
       stepOnly(world, player);
       const asked = world.fireQueue.includes(viper.id);
       const drawnBefore = viper.rng.combat;
       const fired = shotsOf(drain(world, player), viper.id) === 1;
+      const after = viper.nav.behaviour;
+      const accuracy = viper.steer.accuracy;
+      expect(accuracy).toBeGreaterThanOrEqual(0);
 
+      if (
+        before === "ATTACK_TARGET" &&
+        tick > 1 &&
+        range > 600 &&
+        range < 7000
+      ) {
+        // the target flies away (aspect -1), is not aiming at the viper, and the
+        // viper is outside 0.035 x 15,000 m and inside 0.5 x 15,000 m
+        if (pre < READY) {
+          readyUpdates += 1;
+          expect(after).toBe("ATTACK_FLY_TO_TARGET"); // 4156-4170
+        } else if (pre < USABLE) {
+          heatingUpdates += 1;
+          expect(after).toBe("ATTACK_FLY_FROM_TARGET"); // 4122-4126
+        } else {
+          overheatedUpdates += 1;
+          expect(after).toBe("ATTACK_FLY_TO_TARGET"); // 4115-4118
+        }
+      }
+      if (
+        before === "ATTACK_FLY_TO_TARGET" &&
+        pre > USABLE &&
+        (240 - 18 * accuracy) * range < 1250000 &&
+        range > 600
+      ) {
+        // 4713-4720: aspect -1 < 0, so the fly-to tail hands back
+        handBacks += 1;
+        expect(after).toBe("ATTACK_TARGET");
+      }
       if (asked && pre / MAX_TEMP >= CUTOUT) {
         // the gate refuses at heat before its draw: no shot, no draw (9935-9936)
         expect(fired).toBe(false);
@@ -225,16 +305,21 @@ describe("a firing attacker heats up, cuts out and recovers (tracer, criterion 1
     expect(readyAt).toBeLessThan(350);
     expect(cutoutAt).toBeGreaterThan(900);
     expect(cutoutAt).toBeLessThan(1100);
-    // It cuts out, cooling lets it fire again, and it never runs away: the next
-    // shot is only let through below the cutout, so the peak is under cutout + 3.2.
+    // Every branch was visited: the ordinary chain below 64, the heating branch
+    // from 64, the no-usable-weapon branch past the cutout, the fly-to hand-back
+    // at the cutout; the gate refused from the cutout, cooling let it fire again,
+    // and it never ran away (a shot is only let through below the cutout, so the
+    // temperature stays under the cutout plus one shot).
+    expect(readyUpdates).toBeGreaterThan(0);
+    expect(heatingUpdates).toBeGreaterThan(0);
+    expect(overheatedUpdates).toBeGreaterThan(0);
+    expect(handBacks).toBeGreaterThan(0);
     expect(refusedAtHeat).toBeGreaterThan(0);
     expect(firedAfterRefusal).toBeGreaterThan(0);
     expect(firedBelowCutout).toBeGreaterThan(80);
     expect(peak).toBeLessThan(USABLE + SHOT_HEAT);
     // The Adder's bank was never the limit.
-    expect(world.store.get(viper.nav.targetId)?.energy).toBeGreaterThan(
-      MAX_ENTITY_ENERGY - 1000,
-    );
+    expect(adder.energy).toBeGreaterThan(MAX_ENTITY_ENERGY - 5000);
   });
 });
 
@@ -323,4 +408,250 @@ describe("break-off's hand-over reads the live temperature (ShipEntity.m:3932)",
       expect(hot.steer.frustration).toBeGreaterThan(10);
     }
   });
+});
+
+/** The next float32 above `USABLE`: a temperature strictly above the limit. */
+const JUST_ABOVE_USABLE = USABLE + 2 ** -16;
+
+const BEAM = statsWith("EQ_WEAPON_BEAM_LASER"); // 15000
+const PULSE = statsWith("EQ_WEAPON_PULSE_LASER"); // 12500
+
+describe("the sniper's hot tail (ShipEntity.m:4456)", () => {
+  function sniper(accuracy: number, temperature: number) {
+    const entity = ship(accuracy);
+    entity.nav.behaviour = "ATTACK_SNIPER";
+    entity.weapon.temperature = temperature;
+    const h = harness(entity, [target(20000)], BEAM);
+    behaviourAttackSniper(entity, h.ctx);
+    return entity;
+  }
+
+  it("a read above 0.85f x 256 hands back to ATTACK_TARGET for accuracy 0 or more, not below 0", () => {
+    expect(sniper(2, 0).nav.behaviour).toBe("ATTACK_SNIPER");
+    expect(sniper(2, JUST_ABOVE_USABLE).nav.behaviour).toBe("ATTACK_TARGET");
+    expect(sniper(2, 250).nav.behaviour).toBe("ATTACK_TARGET");
+    // accuracy >= COMBAT_AI_ISNT_AWFUL (0): 0 hands back, -1 does not
+    expect(sniper(0, 250).nav.behaviour).toBe("ATTACK_TARGET");
+    expect(sniper(-1, 250).nav.behaviour).toBe("ATTACK_SNIPER");
+  });
+
+  it("a read exactly at 0.85f x 256 does not (the compare is strict)", () => {
+    expect(sniper(2, USABLE).nav.behaviour).toBe("ATTACK_SNIPER");
+    expect(sniper(2, USABLE - 2 ** -16).nav.behaviour).toBe("ATTACK_SNIPER");
+  });
+});
+
+describe("six and twelve's hot tail (ShipEntity.m:4577)", () => {
+  function six(
+    behaviour: "ATTACK_FLY_TO_TARGET_SIX" | "ATTACK_FLY_TO_TARGET_TWELVE",
+    accuracy: number,
+    temperature: number,
+  ) {
+    const entity = ship(accuracy);
+    entity.nav.behaviour = behaviour;
+    entity.weapon.temperature = temperature;
+    const h = harness(entity, [target(5000)], PULSE);
+    behaviourFlyToTargetSix(entity, h.ctx);
+    return entity;
+  }
+
+  it.each(["ATTACK_FLY_TO_TARGET_SIX", "ATTACK_FLY_TO_TARGET_TWELVE"] as const)(
+    "%s hands back to ATTACK_TARGET above 0.85f x 256 at any accuracy, and not at the limit",
+    (behaviour) => {
+      for (const accuracy of [-5, -1, 0, 2, 9]) {
+        expect(six(behaviour, accuracy, 0).nav.behaviour).not.toBe(
+          "ATTACK_TARGET",
+        );
+        expect(six(behaviour, accuracy, USABLE).nav.behaviour).not.toBe(
+          "ATTACK_TARGET",
+        );
+        expect(six(behaviour, accuracy, JUST_ABOVE_USABLE).nav.behaviour).toBe(
+          "ATTACK_TARGET",
+        );
+      }
+    },
+  );
+});
+
+describe("fly-to's hot tail (ShipEntity.m:4713-4720)", () => {
+  function flyTo(
+    accuracy: number,
+    range: number,
+    options: {
+      temperature?: number;
+      aspect?: number;
+      missedShots?: number;
+      frustration?: number;
+    } = {},
+  ) {
+    const entity = ship(accuracy);
+    entity.nav.behaviour = "ATTACK_FLY_TO_TARGET";
+    entity.weapon.temperature = options.temperature ?? 0;
+    entity.weapon.missedShots = options.missedShots ?? 0;
+    entity.steer.frustration = options.frustration ?? 0;
+    const h = harness(
+      entity,
+      [target(range, { orientation: facingAspect(options.aspect ?? -1) })],
+      PULSE,
+    );
+    behaviourAttackFlyToTarget(entity, h.ctx);
+    return entity;
+  }
+
+  it("hot, accuracy >= 0, aim_tolerance x range under 1,250,000 and aspect < 0: frustration 0 and ATTACK_TARGET", () => {
+    // accuracy 2: aim_tolerance = 240 - 18 x 2 = 204; 204 x 2,000 = 408,000
+    const hot = flyTo(2, 2000, {
+      temperature: JUST_ABOVE_USABLE,
+      frustration: 1.5,
+    });
+    expect(hot.nav.behaviour).toBe("ATTACK_TARGET");
+    expect(hot.steer.frustration).toBe(0);
+    // the same pose cool, or exactly at the limit, keeps flying to the target
+    for (const temperature of [0, 100, USABLE]) {
+      const cool = flyTo(2, 2000, { temperature, frustration: 1.5 });
+      expect(cool.nav.behaviour).toBe("ATTACK_FLY_TO_TARGET");
+      expect(cool.steer.frustration).toBeGreaterThan(1);
+    }
+  });
+
+  it("the confidence test is on the raw aim_tolerance: 204 x 6,000 passes, 204 x 7,000 does not, and a non-zero missedShots changes neither", () => {
+    expect(flyTo(2, 6000, { temperature: 250 }).nav.behaviour).toBe(
+      "ATTACK_TARGET",
+    );
+    expect(flyTo(2, 7000, { temperature: 250 }).nav.behaviour).toBe(
+      "ATTACK_FLY_TO_TARGET",
+    );
+    // currentAimTolerance would shrink with missedShots (204 / (1 + 100 / 4));
+    // aim_tolerance, the ivar, does not
+    expect(
+      flyTo(2, 7000, { temperature: 250, missedShots: 100 }).nav.behaviour,
+    ).toBe("ATTACK_FLY_TO_TARGET");
+    expect(
+      flyTo(2, 6000, { temperature: 250, missedShots: 100 }).nav.behaviour,
+    ).toBe("ATTACK_TARGET");
+  });
+
+  it("accuracy below 0 never takes it; accuracy 0 does", () => {
+    expect(flyTo(-1, 2000, { temperature: 250 }).nav.behaviour).toBe(
+      "ATTACK_FLY_TO_TARGET",
+    );
+    expect(flyTo(0, 2000, { temperature: 250 }).nav.behaviour).toBe(
+      "ATTACK_TARGET",
+    );
+  });
+
+  it("a target that is not fleeing (aspect >= 0) leaves everything as it is: no else (4717)", () => {
+    for (const aspect of [0, 0.5, 1]) {
+      const entity = flyTo(2, 2000, {
+        temperature: 250,
+        aspect,
+        frustration: 1.5,
+      });
+      expect(entity.nav.behaviour).toBe("ATTACK_FLY_TO_TARGET");
+      expect(entity.steer.frustration).toBeGreaterThan(1);
+    }
+  });
+
+  it("the accuracy >= 9 dodge (4721-4730) is not ported: a smart pilot in the target's gunsights keeps flying to it (divergence 21)", () => {
+    // accuracy 9, the target dead ahead of us and facing us (aspect 1 > 0.99999),
+    // the 4713 condition false (cool weapon): Oolite would take EVASIVE_ACTION
+    // against a target with a forward weapon; the port never dodges from fly-to.
+    for (const temperature of [0, 250]) {
+      const entity = flyTo(9, 2000, { temperature, aspect: 1 });
+      expect(entity.nav.behaviour).not.toBe("EVASIVE_ACTION");
+    }
+  });
+});
+
+/** One tick of an injected run: what the steering read and what it did. */
+interface HotTick {
+  readonly pre: number;
+  readonly before: BehaviourId;
+  readonly after: BehaviourId;
+}
+
+/**
+ * Step a pre-heated Viper in the real world with `behaviour` put back on it
+ * before every tick, so the one behaviour under test is the one that steers; the
+ * hand loop supplies the steering-time temperature from the shots the world
+ * fired. The Adder sits `adderZ` ahead with the 1e6 bank and no recharge.
+ */
+function injectedRun(
+  behaviour: BehaviourId,
+  options: DuelOptions,
+  ticks: number,
+): HotTick[] {
+  const { world, player, viper } = duelWith(options);
+  let mirror = options.temperature ?? 0;
+  // The pilot's first think (tick 1) sets ATTACK_TARGET: let it pass first.
+  stepOnly(world, player);
+  mirror = mirrorTick(mirror, shotsOf(drain(world, player), viper.id) === 1);
+  const run: HotTick[] = [];
+  for (let tick = 0; tick < ticks; tick += 1) {
+    const pre = viper.weapon.temperature;
+    expect(pre).toBe(mirror);
+    viper.nav.behaviour = behaviour;
+    stepOnly(world, player);
+    const fired = shotsOf(drain(world, player), viper.id) === 1;
+    run.push({ pre, before: behaviour, after: viper.nav.behaviour });
+    mirror = mirrorTick(mirror, fired);
+  }
+  return run;
+}
+
+describe("stepped hot tails against the 1e6-energy target (criterion 1, D-06)", () => {
+  it("fly-to: a continuously firing attacker hands back on the first update whose read exceeds the limit", () => {
+    const { world, player, viper } = duel();
+    let mirror = 0;
+    let firstHandOver = -1;
+    let firstAbove = -1;
+    for (let tick = 1; tick <= 1500; tick += 1) {
+      const pre = viper.weapon.temperature;
+      expect(pre).toBe(mirror);
+      const before = viper.nav.behaviour;
+      stepOnly(world, player);
+      const fired = shotsOf(drain(world, player), viper.id) === 1;
+      if (before === "ATTACK_FLY_TO_TARGET") {
+        // accuracy resolved >= 0, the target (flying away) at aspect -1 and
+        // 204 x range far under 1,250,000 up to 6,000 m: the hand-back is
+        // exactly "the read is above the limit"
+        expect(viper.steer.accuracy).toBeGreaterThanOrEqual(0);
+        expect(viper.nav.behaviour === "ATTACK_TARGET").toBe(pre > USABLE);
+        if (pre > USABLE && firstAbove < 0) firstAbove = tick;
+        if (viper.nav.behaviour === "ATTACK_TARGET" && firstHandOver < 0) {
+          firstHandOver = tick;
+        }
+      }
+      mirror = mirrorTick(mirror, fired);
+    }
+    expect(firstAbove).toBeGreaterThan(900);
+    expect(firstHandOver).toBe(firstAbove);
+  });
+
+  it.each([
+    ["ATTACK_FLY_TO_TARGET", 2, 3000],
+    ["ATTACK_FLY_TO_TARGET_SIX", -1, 3000],
+    ["ATTACK_FLY_TO_TARGET_SIX", 2, 3000],
+    ["ATTACK_FLY_TO_TARGET_TWELVE", 2, 3000],
+    ["ATTACK_SNIPER", 2, 20000],
+  ] as const)(
+    "%s (accuracy %d, target %d m): the hand-back follows the cooling read tick by tick",
+    (behaviour, accuracy, adderZ) => {
+      // 217.9 cools by 0.05 a tick through the limit (217.6000061): the read
+      // is above it for the first few updates and below it after.
+      const run = injectedRun(
+        behaviour,
+        { accuracy, adderZ, temperature: Math.fround(217.9) },
+        40,
+      );
+      const above = run.filter((tick) => tick.pre > USABLE);
+      const below = run.filter((tick) => !(tick.pre > USABLE));
+      expect(above.length).toBeGreaterThan(0);
+      expect(below.length).toBeGreaterThan(0);
+      for (const tick of run) {
+        const handedBack = tick.after === "ATTACK_TARGET";
+        expect(handedBack).toBe(tick.pre > USABLE);
+      }
+    },
+  );
 });

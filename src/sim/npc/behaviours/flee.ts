@@ -9,8 +9,11 @@
  * Scope cuts, each recorded for plan 14-19:
  *  - no afterburner: `canBurn` is false for every ship (no fuel injection is
  *    modelled), so `max_available_speed` is `maxFlightSpeed`;
- *  - no missile, cascade-mine or turret-fire branches (4883-4896; no NPC fire
- *    and no cascade mines in v2.2);
+ *  - no missile, cascade-mine or turret-fire branches (4883-4896; no cascade
+ *    mines in v2.2). The `fireMainWeapon:` call at 4890-4892 is guarded by
+ *    `[forward_weapon_type isTurretLaser]` and needs a turret laser, which no
+ *    compiled record carries, so it is unreachable and stays unported even for
+ *    a pilot that opted in to fire (Phase 17, D-06);
  *  - `REACHED_SAFETY` (4855) is a plist-only AI message with no consumer and is
  *    not posted: a scripted pilot reads the range through the view instead.
  *

@@ -13,13 +13,21 @@
  *  - no missile, no cloak (`considerFiringMissile:`, `activateCloakingDevice`);
  *    `fireMainWeapon:` is the optional `ctx.fire` call at fly-to (4711) and
  *    six/twelve (4575), present only for a pilot that opted in (Phase 17,
- *    D-05), so without the opt-in nothing asks and the weapon never heats, and
- *    `weapon_temp > COMBAT_AI_WEAPON_TEMP_USABLE` stays false (4713, 4577) until
- *    plan 17-07 makes the temperature live;
- *  - fly-to's accuracy >= 9 dodge (4721-4729) needs the target's weapon types,
- *    which the view does not carry: the target counts as unarmed there, so the
- *    dodge never fires from fly-to (fly-from's own dodge, 4790-4797, has no weapon
- *    test and is ported);
+ *    D-05); the hot-weapon returns that follow it read the live
+ *    `entity.weapon.temperature` as it stands at steering time (4577: any
+ *    accuracy; 4713: accuracy >= 0 and the raw `aim_tolerance` x range under
+ *    `COMBAT_AI_CONFIDENCE_FACTOR`, then aspect < 0 sets frustration 0 and
+ *    ATTACK_TARGET). Without the opt-in the temperature stays 0 and no return
+ *    is taken. Fly-to's `aft/port/starboard_weapon_type` terms (4717) are none
+ *    on every compiled record, so they are false;
+ *  - fly-to's dodge, the `else if` at 4721-4730, is not ported (Phase 14
+ *    divergence 21; D-06 covers fire sites and hot-weapon branches only): when
+ *    the 4713 condition is false, accuracy >= `COMBAT_AI_FLEES_BETTER_2` (9),
+ *    the target is not fleeing and has a forward weapon at aspect > 0.99999 (or
+ *    an aft weapon at aspect < -0.999), Oolite sets frustration 0 and
+ *    EVASIVE_ACTION. The view carries no weapon types of the target, so the
+ *    port never dodges from fly-to (fly-from's own dodge, 4790-4797, has no
+ *    weapon test and is ported);
  *  - the turret branch of twelve (4537-4549) is out (no turret lasers);
  *  - `isThargoid` is false (no Thargoid records), so the standstill test of
  *    six depends only on the ship's id;
@@ -45,6 +53,7 @@ import {
   ATTACK_SUCCESS_GOOD,
   COMBAT_AI_FLEES_BETTER,
   COMBAT_AI_FLEES_BETTER_2,
+  COMBAT_AI_ISNT_AWFUL,
   COMBAT_AI_IS_SMART,
   COMBAT_IN_RANGE_FACTOR,
   COMBAT_OUT_RANGE_FACTOR,
@@ -65,6 +74,7 @@ import {
   FLY_TO_TARGET_FRUSTRATION_LIMIT,
   FLY_TO_TARGET_SLOW_ASPECT,
   FLY_TO_TARGET_SPEEDS,
+  NPC_WEAPON_TEMP_USABLE,
   SCANNER_MAX_RANGE,
   SIX_BEHIND_SHARE,
   SIX_CONFIDENCE_LIMIT,
@@ -226,9 +236,34 @@ export function behaviourAttackFlyToTarget(
   // 4706-4711: missiles and cloak are the scope cuts above. `fireMainWeapon:`
   // (4711) is the request for a pilot that opted in (D-05); it is reached on
   // every path that did not return earlier, also after the frustration block
-  // above switched the behaviour. The hot-weapon return to ATTACK_TARGET (4713)
-  // and the accuracy >= 9 dodge (4721-4729) stay cuts until plan 17-07.
+  // above switched the behaviour.
   ctx.fire?.();
+
+  // 4713-4720: a weapon that runs hot hands the attack back to the dispatcher
+  // when the aim is good enough to wait. `aim_tolerance` is the raw ivar of
+  // `setAccuracy:` (`aimToleranceOf`), not `currentAimTolerance`, so a non-zero
+  // `missedShots` does not enter this test. The read is the steering-time
+  // temperature. Oolite's `aspect < 0 || aft/port/starboard weapon` (4717):
+  // the three other weapons are none on every compiled record, so only the
+  // aspect term is reachable. There is no else after the inner `if`: with
+  // `aspect >= 0` nothing changes, and the 4721 `else if` below is skipped
+  // because this condition held.
+  if (
+    entity.weapon.temperature > NPC_WEAPON_TEMP_USABLE &&
+    accuracy >= COMBAT_AI_ISNT_AWFUL &&
+    aimToleranceOf(accuracy) * range < COMBAT_AI_CONFIDENCE_FACTOR
+  ) {
+    if (aspect < 0) {
+      steer.frustration = Math.fround(0);
+      nav.behaviour = "ATTACK_TARGET";
+    }
+  }
+  // 4721-4730, unported (Phase 14 divergence 21; D-06 covers fire sites and
+  // hot-weapon branches only): when the 4713 condition is false and accuracy >=
+  // COMBAT_AI_FLEES_BETTER_2 (9), a target that is not fleeing and has a
+  // forward weapon at aspect > 0.99999 (or an aft weapon at aspect < -0.999)
+  // makes Oolite set frustration 0 and EVASIVE_ACTION. The port never dodges
+  // from fly-to.
 }
 
 /**
@@ -466,7 +501,12 @@ export function behaviourFlyToTargetSix(
   }
   // 4569-4575: missiles and cloak are the scope cuts above. `fireMainWeapon:`
   // (4575) is the request for a pilot that opted in (D-05), reached on every
-  // update that did not return earlier, six and twelve alike. The hot-weapon
-  // return (4577) stays a cut until plan 17-07.
+  // update that did not return earlier, six and twelve alike.
   ctx.fire?.();
+
+  // 4577-4579: a weapon that runs hot hands the attack back to the dispatcher
+  // at any accuracy. The read is the steering-time temperature.
+  if (entity.weapon.temperature > NPC_WEAPON_TEMP_USABLE) {
+    nav.behaviour = "ATTACK_TARGET";
+  }
 }

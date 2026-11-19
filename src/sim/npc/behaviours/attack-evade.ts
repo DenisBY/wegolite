@@ -34,6 +34,7 @@ import {
   BREAK_OFF_ROLL_COEFFICIENT,
   BREAK_OFF_SLOW_FRUSTRATION,
   COMBAT_AI_DOGFIGHTER,
+  COMBAT_AI_ISNT_AWFUL,
   COMBAT_IN_RANGE_FACTOR,
   COMBAT_OUT_RANGE_FACTOR,
   DOGFIGHT_BEHIND_ASPECT,
@@ -43,6 +44,7 @@ import {
   DOGFIGHT_SIDE_ASPECT,
   DOGFIGHT_SPEEDS,
   NPC_WEAPON_TEMP_READY,
+  NPC_WEAPON_TEMP_USABLE,
   SCANNER_MAX_RANGE,
   SNIPER_BOUNCE_RANGE,
   SNIPER_FRUSTRATION_LIMIT,
@@ -123,9 +125,19 @@ export function behaviourAttackSniper(entity: Entity, ctx: SteerContext): void {
   }
 
   // 4449-4454: missiles and cloak are the scope cuts above. `fireMainWeapon:`
-  // (4454) sits outside the 4414 if/else, so both sides reach it; the hot-weapon
-  // return (4456) stays a cut until plan 17-07.
+  // (4454) sits outside the 4414 if/else, so both sides reach it.
   ctx.fire?.();
+
+  // 4456-4458: a weapon that runs hot hands the attack back to the dispatcher.
+  // The read is the steering-time temperature (this tick's shot, if the gate
+  // lets the request through, lands at the drain); a pilot with accuracy below
+  // 0 keeps sniping.
+  if (
+    entity.weapon.temperature > NPC_WEAPON_TEMP_USABLE &&
+    steer.accuracy >= COMBAT_AI_ISNT_AWFUL
+  ) {
+    nav.behaviour = "ATTACK_TARGET";
+  }
 }
 
 /**
