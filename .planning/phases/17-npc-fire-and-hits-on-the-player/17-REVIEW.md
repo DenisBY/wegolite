@@ -155,3 +155,203 @@ The runtime `populate.test.ts` covers only the first case. `kill-credit-consumer
 _Reviewed: 2026-11-19T12:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+
+---
+
+# Additional independent reviews (2026-11-19)
+
+Two further independent deep reviews, run at the owner's request after the first (Opus, standard) review above. Neither reviewer saw the other reports.
+
+## Fable — Oolite fidelity and determinism (deep)
+
+phase: 17-npc-fire-and-hits-on-the-player
+reviewed: 2026-11-19T07:56:13Z
+depth: deep
+files_reviewed: 17
+files_reviewed_list:
+  - src/sim/npc/fire.ts
+  - src/sim/combat/step.ts
+  - src/sim/npc/target.ts
+  - src/sim/npc/track.ts
+  - src/sim/npc/constants.ts
+  - src/sim/npc/dispatch.ts
+  - src/sim/npc/behaviours/attack.ts
+  - src/sim/npc/behaviours/attack-close.ts
+  - src/sim/npc/behaviours/attack-evade.ts
+  - src/sim/npc/behaviours/evasive.ts
+  - src/sim/npc/behaviours/flee.ts
+  - src/sim/world/step.ts
+  - src/sim/world/world.ts
+  - src/sim/world/control-impl.ts
+  - src/sim/ai/pilots/test-pilot.ts
+  - src/sim/ai/pilots/flight-script.ts
+  - src/sim/ai/test-spawn.ts
+findings:
+  critical: 0
+  warning: 1
+  info: 4
+  total: 5
+  necessity: 1
+status: issues_found
+
+_Reviewed: 2026-11-19T07:56:13Z_
+_Reviewer: Claude (gsd-code-reviewer, Fable 5.1)_
+_Depth: deep_
+
+## Sonnet — simplicity, maintainability, test quality (deep)
+
+
+# Phase 17: Code Review Report (simplicity, maintainability, test quality)
+
+**Depth:** deep. Docker run of the four guards and `oracle-coverage.test.ts`: 5 files, 68 tests, all green.
+
+## Summary
+
+No correctness bug found in the focus area. src/sim stays pure (no Three.js or DOM imports in `fire.ts`,
+`combat/step.ts`, `world/*`, `ai/*`), no scratch files were added, and CHANGELOG has `Added` and `Changed`
+entries. The cost is in the tests: three of the four guards carry ~120 lines of copy-pasted lexer code, the
+kill-credit guard is a heuristic regex where a whole-word scan is stronger, one guard hard-codes a registry key set,
+and a dead `FIRE_ORACLE_PENDING` scaffold shipped.
+
+## Warnings
+
+### WR-01: Guard helpers copy-pasted into every guard (`withoutComments`, `lineOf`, `listSrcFiles`)
+
+**File:** `tests/guards/fire-decision-source.test.ts:69-116,192-207`, `tests/guards/kill-credit-consumers.test.ts:67-114,172-187`, `tests/guards/ship-hit-consumers.test.ts:51-98,114-129`
+**Issue:** Three new byte-identical copies of the comment stripper, `lineOf` and the `src` walker, on top of the
+existing copies in `entity-id-scope.test.ts:50,91,152` and `sim-purity.test.ts:93`. The stated reason ("each guard
+stays independent of the others' helpers") does not hold: `tests/guards/` already shares `eslint-gate.ts`,
+`probe-lock.ts` and `sim-probe.ts`. A bug fix to the lexer (see WR-03) now needs five edits.
+**Fix:** Add `tests/guards/source-scan.ts` exporting `withoutComments`, `lineOf`, `listSrcFiles` (and
+`valueSpecifiers` if kept) and import it. Net about -130 lines. Worth doing now, before a fifth guard is copied.
+
+### WR-02: Kill-credit guard is a heuristic regex stack; a whole-word scan is narrower in code and stronger
+
+**File:** `tests/guards/kill-credit-consumers.test.ts:116-169`, allowlist at `:47-53`
+**Issue:** Reads are caught with `PROPERTY_READ`, `INDEX_READ` and `DESTRUCTURING_READ` (`:129-130`). That last
+pattern is the most brittle line in the phase: it only matches flat `{...}` patterns and misses nested patterns,
+`const e = event; e["kil"+"ler"]`-style access and aliased types. The word `killer` appears in src only in
+`ledger.ts`, `kill.ts`, `step.ts` and `events.ts` (verified with `rg -nw killer src`). A plain
+`\bkiller\b` scan outside those four files, as `ship-hit-consumers` already does for `shipHit`, catches every form
+including destructuring and renamed aliases. Its only false positive is a local named `killer`, which is the
+signal the guard wants to raise anyway. Also `src/sim/ai/types.ts` is in `KILL_PATH_FILES` (`:52`) but contains
+no `killer`, so the allowlist is wider than needed and a consumer added there would pass.
+**Fix:** Replace the three regexes and `patternHasKillerKey` with one word scan, drop `src/sim/ai/types.ts` from
+`KILL_PATH_FILES`, keep the `shipTargetDestroyed|shipKilledOther` scan. The test file shrinks from 317 to about 120
+lines. Worth doing now: it also removes the blind spot the header admits to.
+
+### WR-03: Hand-rolled comment stripper treats a regex literal as a string
+
+**File:** `tests/guards/fire-decision-source.test.ts:88-100` (same code in the other two guards and the two old ones)
+**Issue:** Any `"`, `'` or backtick inside a regex literal opens a "string". Today it works by luck:
+`src/persistence/save.ts:457` (`/"version"\s*:.../`) and `src/content/systems.test.ts:74` have balanced quotes.
+The first src regex such as `/['"]/` or `/'/` desynchronises the scanner for the rest of the file. The result is
+silent: text after it is swallowed or comments are kept, so a guard can pass while a real consumer sits in that file.
+**Fix:** `typescript` is already a devDependency; `ts.createSourceFile` plus an identifier walk gives exact
+comment and string handling and also lets `shipHit` or `killer` checks look at `Identifier` and string-literal
+nodes only. Alternative with no new dependency: keep the scanner but add one guard-test case with a stray-quote
+regex so the failure is at least visible. Can wait, but fold it into the WR-01 helper so there is one place to fix.
+
+### WR-04: `on-event-handlers` pins the registry key set, so an unrelated AI module fails it
+
+**File:** `tests/guards/on-event-handlers.test.ts:54-63`
+**Issue:** `expect(Object.keys(AI_REGISTRY).sort()).toEqual(["flight-script", "test-pilot"])` and
+`onEventHandlerCount(AI_REGISTRY)).toBe(1)` make the guard fail when someone adds any third pilot with no
+`onEvent`, or removes the `flight-script` handler. That is a false positive on a legitimate change, and the
+failure carries no todo path (the todo text sits only in `ON_EVENT_RULE`, which this test does not print). The
+guard intent is "at most one"; the vacuity floor needs only "at least one".
+**Fix:** `expect(Object.keys(AI_REGISTRY).length).toBeGreaterThan(0)` and `expect(count).toBeGreaterThanOrEqual(1)`
+(or drop the exact assertions and keep `holds the bound on the real registry`). Worth doing now, one line.
+
+### WR-05: `fire-decision-source` guard is 387 lines for weak, evadable rules
+
+**File:** `tests/guards/fire-decision-source.test.ts:165-189,209-387`
+**Issue:** Rule 2 (`\baiKey\s*:\s*["'`]`, `:176`) is evaded by `aiKey: KEY` or a spread, and is mostly covered by
+rule 1 (the builders are the only way to make a pilot record). Rule 3 (seam importer) has real value (the AI zone
+lint bans imports out of the AI zone, not into it) but carries a `valueSpecifiers` parser (`:135-162`) for
+re-exports, dynamic and side-effect imports. 13 tests, about 60% of the file, test the guard's own scanner. A seam
+re-exported by a new file under `src/sim/ai/` (allowed by the `AI_DIRECTORY` prefix) and imported from the app
+slips through. The failure text also cites process jargon ("advisor decision 3, orchestrator disposition 3",
+`:5-6,53`) that means nothing to a later maintainer.
+**Fix:** Keep rule 1 (builder name outside `src/sim/ai/` and `probe-publisher.ts`) and rule 3 reduced to "the string
+`sim/ai/test-spawn` outside `probe-publisher.ts` and tests, value or type, ignoring comments"; drop rule 2 and the
+specifier parser; replace jargon with "CBT-15 / D-14". Target about 120 lines. Can wait; do it together with WR-01.
+
+### WR-06: Dead scaffold `FIRE_ORACLE_PENDING` / `FireOraclePending`
+
+**File:** `tests/sim/npc/oracle-groups.ts:106-116,148-156`, consumers `tests/sim/npc/oracle-coverage.test.ts:55,161,168`
+**Issue:** The list is empty "since plan 17-08" and `oracle-coverage.test.ts:168` asserts it stays empty. An
+empty frozen array, an interface, a union in the coverage test and an assertion that it is empty protect nothing
+(necessity: generality without instantiation; the phase is complete and the list can never be non-empty by plan).
+**Fix:** Delete the interface, the constant, the spread at `oracle-coverage.test.ts:161` and the `toEqual([])`
+assertion at `:168`. Worth doing now, trivial.
+**Category:** necessity (provable from the repo: sole non-test reference is the assertion itself).
+
+## Info
+
+### IN-01: Triplicated hook precondition block in `probe-publisher.ts`
+
+**File:** `src/app/session/probe-publisher.ts:207-254,266-291`
+**Issue:** `spawnShooter`, `spawnAttacker` and `spawnFlyers` repeat the "state defined, not disposed, `inFlight`,
+world defined" prelude (about 10 lines each). `spawnAttacker` also finds its record through `TEST_SHOOTER_KEY`, a
+name that now reads wrong for the attacker.
+**Fix:** One local `inFlightWorld(): { state: FlightState; world: World } | undefined`, and a
+`TEST_VIPER_KEY` alias or rename. Optional; do when a fourth seam appears.
+
+### IN-02: `spawnTestAttacker` copies `spawnTestShooter`'s spawn body; distance constant duplicated
+
+**File:** `src/sim/ai/test-spawn.ts:118-170` against `:84-116`, `:123` against `:173`
+**Issue:** Position along the nose, half turn about up, radius, energy fields and `spawnEntity` call are identical
+except the AI record and `cargo`. `TEST_ATTACKER_DISTANCE = 3_000` is a second constant with the value of
+`TEST_FLYER_DISTANCE` (`:173`), and a test pins the literal (`tests/sim/ai/test-spawn.test.ts:406`).
+**Fix:** Private `spawnFacingPlayer(world, player, record, tick, distance, ai, extra)` used by both, and reuse
+`TEST_FLYER_DISTANCE` or a single `TEST_SPAWN_DISTANCE`. A small win; do not make it a general spawner.
+
+### IN-03: Process jargon and an open owner question left in source comments
+
+**File:** `src/sim/npc/fire.ts:121-131` ("orchestrator disposition 1", "Owner question 1 at sign-off may replace this
+body"), `src/sim/combat/step.ts:226` ("advisor decision 2"), `src/sim/ai/test-spawn.ts:67-73` and
+`src/sim/combat/step.ts:~345` (comment lines reflowed unevenly, one over 100 columns), `tests/e2e/combat.spec.ts:74-77`
+(over-long line).
+**Issue:** The comments cite chat roles and an unresolved sign-off question instead of a durable source (a decision
+row or a D-number). The 13/301 alternative is described in code as pending.
+**Fix:** Replace with the D-number or Key Decisions row; if the owner already answered question 1, delete the
+sentence; if not, move it to a todo. Re-wrap the long comment lines.
+
+### IN-04: `weapon.laser === NO_LASER` after `fired` is type narrowing only
+
+**File:** `src/sim/combat/step.ts:~293` (`if (ray === null || weapon.laser === NO_LASER) continue;`)
+**Issue:** The gate refuses `noWeapon` for `NO_LASER` and `npcLaserRay` returns null for it, so the second clause
+is unreachable; it exists only so `LASER_STATS[weapon.laser]` type-checks. A reader will take it for a live branch.
+**Fix:** Add `// narrows weapon.laser to LaserKey; the gate already refused NO_LASER` or narrow once above the gate.
+
+### IN-05: Exports no one uses outside `fire.ts`; `drew` only read by tests
+
+**File:** `src/sim/npc/fire.ts:57,64` (`NPC_FIRE_ACCURACY_OFFSET`, `ON_TARGET_RADIUS_FACTOR`), `:112-119` (`drew`)
+**Issue:** The two constants are exported but unused elsewhere and, unlike every other NPC constant, are not in the
+`constants.test.ts` ledger. `drew` is produced on every refusal but read only by tests (production reads
+`result.kind` alone); tests already count draws with a stub, so it is a result field for the test.
+**Fix:** Drop `export` on the constants or move them to `constants.ts` with a ledger row. Keep `drew` only if the
+oracle really needs it. Can wait.
+**Category:** necessity (judgment).
+
+### IN-06: `oracle-runner.ts` per-tick destructure and a mirrored cooling cadence
+
+**File:** `tests/sim/npc/oracle-runner.ts:~808` (`const { fireCalls } = options;` inside the update loop),
+`:458-470` (`weaponHooks` re-implements `coolShips` ordering)
+**Issue:** The destructure is loop-invariant. `weaponHooks` cools after each update to match
+`combat/step.ts:coolShips`; if that cadence changes the fixtures would drift with no compile error.
+**Fix:** Hoist the destructure above the loop; add a one-line comment pointing at `coolShips`.
+
+### IN-07: Tautological and brittle test assertions
+
+**File:** `tests/sim/npc/constants.test.ts:324-327`, `tests/e2e/combat.spec.ts:82,407,75-95`
+**Issue:** `NPC_WEAPON_TEMP_USABLE` is asserted equal to the same expression the source computes, after the
+literal row at `:226` already pins it. In the e2e spec, `TWIN_PLATES_AT_KILL = 0` with `...(TWIN_PLATES_AT_KILL > 0
+? [PLATE_GLB] : [])` is a branch that cannot run; the 9-decimal floats `210.13333333333128` and
+`0.18333333333333332` plus `TWIN_KILL_OFFSET = 672` re-pin on any RNG-stream or ordering change in two places
+(the Node twin and this spec).
+**Fix:** Delete the two derived assertions; remove the plate constant and branch (and `PLATE_GLB` if unused); keep the
+twin pin but note it is a snapshot. Can wait.
+**Category:** necessity (the plate branch, provable: constant is 0).
+
