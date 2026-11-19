@@ -21,6 +21,7 @@ import { dockMouthPosition } from "./state.js";
 import type { FlightState } from "./state.js";
 import { TORUS_MAX_FACTOR } from "./torus.js";
 import type { SystemLayout } from "../world/layout.js";
+import { MAX_ENTITY_VELOCITY } from "../world/limits.js";
 
 function finiteVec(value: { x: number; y: number; z: number }): boolean {
   return (
@@ -80,6 +81,25 @@ export function sanitizeFlightState(
   }
   if (!finiteVec(state.impulse)) {
     state.impulse = vec(0, 0, 0);
+    repaired = true;
+  }
+  // The drift (D-02): a non-finite vector is dropped whole, as the impulse
+  // is, and each component is held to the world's velocity bound (T-18-23).
+  if (!finiteVec(state.drift)) {
+    state.drift = vec(0, 0, 0);
+    repaired = true;
+  } else if (
+    Math.abs(state.drift.x) > MAX_ENTITY_VELOCITY ||
+    Math.abs(state.drift.y) > MAX_ENTITY_VELOCITY ||
+    Math.abs(state.drift.z) > MAX_ENTITY_VELOCITY
+  ) {
+    const bound = (value: number): number =>
+      Math.min(MAX_ENTITY_VELOCITY, Math.max(-MAX_ENTITY_VELOCITY, value));
+    state.drift = vec(
+      bound(state.drift.x),
+      bound(state.drift.y),
+      bound(state.drift.z),
+    );
     repaired = true;
   }
   if (!Number.isFinite(state.torus.factor)) {

@@ -141,7 +141,12 @@ describe("the drift in the flight step", () => {
     // Far from every body: the drive engages and no mass lock interferes.
     state.position = vec(4e8, 4e8, 4e8);
     state.speed = config.maxSpeed * 32;
-    state.torus = { engaged: true, factor: 32, massLocked: false, lastFactor: 32 };
+    state.torus = {
+      engaged: true,
+      factor: 32,
+      massLocked: false,
+      lastFactor: 32,
+    };
     const drift = vec(0, 0, 500);
     state.drift = drift;
 
@@ -186,7 +191,9 @@ describe("drift in the serialized flight (criterion 5)", () => {
     const state = initFlightState(layout);
     const base = serializeFlight(state);
     state.drift = vec(1.5, 0, -2);
-    expect(serializeFlight(state)).toBe(`${base}\ndrift=1.5,0,-2`);
+    expect(serializeFlight(state)).toBe(
+      `${base}\ndrift=1.500000,0.000000,-2.000000`,
+    );
   });
 });
 

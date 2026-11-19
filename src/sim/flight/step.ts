@@ -32,9 +32,11 @@ import {
   witchspaceBlockedAt,
 } from "../hyperspace/countdown.js";
 import { jumpTimeSecondsForDist, MAX_JUMP_DIST } from "../hyperspace/jump.js";
+import { add, scale } from "../math.js";
 import { stepAttitude } from "./attitude.js";
 import type { FlightConfig } from "./config.js";
 import type { ControlIntent } from "./controller.js";
+import { brakePlayerDrift, hasDrift } from "./drift.js";
 import { beginLaunch, completeLaunch, stepLaunch } from "./launch.js";
 import { sanitizeFlightState } from "./sanitize.js";
 import { stepSpeed } from "./speed.js";
@@ -303,6 +305,18 @@ export function stepFlight(
       ...stepTorus(state, layout, config, effectiveIntent, dt, ships),
     );
     stepSpeed(state, effectiveIntent, config, dt);
+    // 4a. The Newtonian drift (D-02): moved into the position, then braked by
+    // the raw thrust x the thrust factor (PlayerEntity.m:3376-3404). A zero
+    // drift skips the block, so a flight that never collided is unchanged.
+    if (hasDrift(state.drift)) {
+      state.position = add(state.position, scale(state.drift, dt));
+      state.drift = brakePlayerDrift(
+        state.drift,
+        dt,
+        config.thrust,
+        state.speed > config.maxSpeed ? state.torus.factor : 1,
+      );
+    }
   }
 
   // 4b. The countdown tick. The decrement starts on the step after the drain,

@@ -66,12 +66,7 @@ function replay(fixture: BrakingFixture): Run {
     const moving = drift.x !== 0 || drift.y !== 0 || drift.z !== 0;
     if (moving) {
       position = add(position, scale(drift, fixture.dt));
-      drift = brakePlayerDrift(
-        drift,
-        fixture.dt,
-        fixture.thrust,
-        thrustFactor,
-      );
+      drift = brakePlayerDrift(drift, fixture.dt, fixture.thrust, thrustFactor);
     }
     const magnitude = Math.sqrt(
       drift.x * drift.x + drift.y * drift.y + drift.z * drift.z,

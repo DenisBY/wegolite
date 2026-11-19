@@ -168,7 +168,7 @@ export function poseOf(state: FlightState): FlightPose {
  * `canon`, never `JSON.stringify`.
  */
 export function serializeFlight(state: FlightState): string {
-  return [
+  const lines = [
     `mode=${state.mode}`,
     `tick=${canon(state.tick, 0)}`,
     `clock=${canon(state.clockSeconds, 6)}`,
@@ -198,7 +198,14 @@ export function serializeFlight(state: FlightState): string {
     `impulse=${canon(state.impulse.x)},${canon(state.impulse.y)},${canon(state.impulse.z)}`,
     `bounceCount=${canon(state.bounceCount, 0)}`,
     `repairCount=${canon(state.repairCount, 0)}`,
-  ].join("\n");
+  ];
+  // Pristine-omit (success criterion 5): a zero drift writes no line, so every
+  // flight that never collided hashes exactly as before the drift existed.
+  const { drift } = state;
+  if (drift.x !== 0 || drift.y !== 0 || drift.z !== 0) {
+    lines.push(`drift=${canon(drift.x)},${canon(drift.y)},${canon(drift.z)}`);
+  }
+  return lines.join("\n");
 }
 
 export function hashFlight(state: FlightState): string {
