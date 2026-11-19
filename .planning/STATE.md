@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: 8
+current_plan: 9
 status: executing
-stopped_at: Completed 18-14-PLAN.md
-last_updated: "2026-11-19T20:52:51.983Z"
+stopped_at: Completed 18-09-PLAN.md
+last_updated: "2026-11-19T21:21:02.246Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: 9044706226f40d11a6d3c77c6b2002f062860de2
+state_head: 0cee942464feb5f05e10a6a311522859d43fd992
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 35
+  completed_plans: 36
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 8
+Current Plan: 9
 Total Plans in Phase: 22
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 18 execution started
@@ -220,6 +220,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 18 P10 | 21 min | 2 tasks | 13 files |
 | Phase 18 P13 | 23 min | 2 tasks | 14 files |
 | Phase 18 P14 | 17 min | 2 tasks | 11 files |
+| Phase 18 P09 | 24 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -558,6 +559,8 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-13: the static chunk's only traffic-off guard is the unit boot-path scan (budget.spec.ts matches ships-hulls-*.js only and may not be edited)
 - [Phase 18]: Phase 18-14: World.buoys (offset, velocity, subentityEnergy 200, subentityTakingDamage) is the owner-approved PD-01/PD-02 amendment of the v4 field set; pristine-omit buoys: line after staticHealth: and optional snapshot buoys key; WORLD_SNAPSHOT_VERSION stays 4; saves unchanged
 - [Phase 18]: Phase 18-14: sanitizeBuoyStates runs in repairWorldFields and inside hashWorld; a non-finite vector rests at the layout position, a non-finite subentity energy heals to 200, the routing flag clears when not boolean or the subentity is detached; bounds MAX_BUOY_OFFSET 1e6, MAX_ENTITY_VELOCITY 1e4, BUOY_SUBENTITY_MAX_ENERGY 200
+- [Phase 18]: 18-09: Octree.m:552's transposed placement is ported as the C has it; a port that corrects it fails two fixtures and both agreement properties
+- [Phase 18]: 18-09: doOctreesCollide ports ShipEntity.m:1878-1942 recursively without the unreachable fourth stage; it takes a ContactHull so a subentity recurses as prime, with otherDetached and primeDetached (PD-01)
 
 ### Pending Todos
 
@@ -697,8 +700,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-19T20:52:51.560Z
-Stopped at: Completed 18-14-PLAN.md
+Last session: 2026-11-19T21:21:01.826Z
+Stopped at: Completed 18-09-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
