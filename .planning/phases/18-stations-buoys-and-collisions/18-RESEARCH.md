@@ -453,9 +453,9 @@ World lifecycle: a destroyed buoy returns at full energy on every new world (lau
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
 | A1 | Total emitted size of the static artifact is about 205 kB (compact-root sum plus key overhead); the caps proposed (40,000 nodes per octree, 300,000 bytes) are derived from that and must be re-derived from the emitted file | Coriolis measurement | Wrong caps fail the build or leave excess slack; the first plan measures it |
-| A2 | Buoys stay immovable (layout statics) and the response is applied to the mover only | Pattern 8 | A visible 10 to 122 m buoy displacement that Oolite shows is missing; owner may want it |
+| A2 | (SUPERSEDED by PD-02: buoys move when rammed) Buoys stay immovable (layout statics) and the response is applied to the mover only | Pattern 8 | A visible 10 to 122 m buoy displacement that Oolite shows is missing; owner may want it |
 | A3 | The launching player is excluded from all pairs instead of Oolite's partial behaviour (velocity response plus shield drain, no energy loss) | Pattern 4 | A ship at the launch mouth during launch would react in Oolite and not here |
-| A4 | `self` = lower id, the player first | Pattern 4 | Asymmetric velocity responses differ from Oolite for NPC pairs created out of id order (none exist: ids ascend with creation) |
+| A4 | (SUPERSEDED by plan 18-11's rank rule: the player first, then ascending distance from the player, then id, after Oolite's sortedEntities update order) `self` = lower id, the player first | Pattern 4 | Asymmetric velocity responses differ from Oolite for NPC pairs created out of id order (none exist: ids ascend with creation) |
 | A5 | Damage is queued while velocity and position effects apply at once; `selfDestroyed` reads tick-start energy | Pattern 8 | A ship in two contacts in one tick differs slightly from Oolite's sequential energy |
 | A6 | `statics.station` is never decremented (Oolite's `amount < energy` guard plus 100/s recharge is unobservable) | Pattern 3 | If a later phase makes station energy observable, the rule must be ported then |
 | A7 | Compass: a destroyed witchpoint beacon while in `witchpoint` mode becomes `planet`; cycling skips it and keeps the existing `-> auto` wrap | Pattern 7 | The existing wrap already differs from Oolite; wording of the FIDELITY row |
@@ -466,23 +466,23 @@ World lifecycle: a destroyed buoy returns at full energy on every new world (lau
 
 ## Open Questions
 
-1. **Buoys cannot move; is that acceptable?**
+1. **Buoys cannot move; is that acceptable?** (RESOLVED: owner decision PD-02, 2026-11-19: buoys move when rammed, as in Oolite; buoy pose and velocity become per-world state, plans 18-14, 18-17, 18-18)
    - What we know: Oolite moves any non-station other (`ShipEntity.m:11103-11109`, `11143-11146`); the buoy's thrust 100 would stop 100 m/s of drift in about 10 m and 350 m/s in about 122 m.
    - What's unclear: whether D-01's "in full" was meant to include the buoy moving.
    - Recommendation: treat the buoy like the station for motion only, record in FIDELITY, ask the owner in Russian with this recommendation.
 
-2. **Pods and plates and jump blockage (D-08).**
+2. **Pods and plates and jump blockage (D-08).** (RESOLVED: D-08 stands; plan 18-07 records the FIDELITY row with the 9.97 m and 5.23 m radii, and plan 18-20 measures Oolite's behaviour on the reference container per PD-03)
    - What we know: Oolite's loop has no scan-class filter (`ShipEntity.m:12514-12528`); a pod blocks within `sqrt(0.1 * 993.37) = 9.97 m`, a plate within 5.23 m.
    - What's unclear: whether the owner knew; the effect needs a pod to sit that close at completion.
    - Recommendation: keep D-08, add one FIDELITY row naming the two radii.
 
-3. **Pod destruction presentation.** A destroyed pod is removed by `killShip` with no event today. Oolite shows an explosion (`explosion_type = ("oolite-builtin-slowcloud","oolite-builtin-fastspark")`, not compiled in Wegolite, only `oolite-default-ship-explosion` exists). Recommendation: silent removal, recorded, unless the planner can reuse the default explosion at pod size cheaply.
+3. **Pod destruction presentation.** (RESOLVED: silent removal with a FIDELITY row, plan 18-15; the pod's blast is ported in plan 18-19) A destroyed pod is removed by `killShip` with no event today. Oolite shows an explosion (`explosion_type = ("oolite-builtin-slowcloud","oolite-builtin-fastspark")`, not compiled in Wegolite, only `oolite-default-ship-explosion` exists). Recommendation: silent removal, recorded, unless the planner can reuse the default explosion at pod size cheaply.
 
-4. **The nav buoy on the dock axis.** Flying straight out at 350 m/s hits it hard. This is Oolite's behaviour, but the owner should know before the browser build enables collisions; also confirm the fly-away browser specs do not pass through the 132 m contact window.
+4. **The nav buoy on the dock axis.** (RESOLVED: Oolite's behaviour is kept and recorded in the collision Key Decisions row, plan 18-11; traffic-off browser specs load no hull table and cannot collide, and the four traffic-on specs run remotely in plan 18-11) Flying straight out at 350 m/s hits it hard. This is Oolite's behaviour, but the owner should know before the browser build enables collisions; also confirm the fly-away browser specs do not pass through the 132 m contact window.
 
-5. **Real-Oolite verification.** Three claims can be measured with `tools/oolite-reference/run-remote.sh` (a probe OXP kept outside the repo): the Coriolis beam distances at the mouth, the player-against-buoy rebound and nudge numbers, and the pod blockage radius. The time box and whether to spend it is the planner's and owner's call; the oracle fixtures can be authored from the C alone.
+5. **Real-Oolite verification.** (RESOLVED: owner decision PD-03: all three claims are measured on the reference container in plan 18-20; a mismatch opens a fix and never changes a fixture silently) Three claims can be measured with `tools/oolite-reference/run-remote.sh` (a probe OXP kept outside the repo): the Coriolis beam distances at the mouth, the player-against-buoy rebound and nudge numbers, and the pod blockage radius. The time box and whether to spend it is the planner's and owner's call; the oracle fixtures can be authored from the C alone.
 
-6. **Ident name source for pods, plates and the witchpoint beacon.** A compiled `name` field in the debris catalogue (schema change) versus a fixed table in the app. Recommendation: add `name` to the debris record at build time (schema strict, golden regenerated once with the hull work).
+6. **Ident name source for pods, plates and the witchpoint beacon.** (RESOLVED: the five display names are compiled into the static hull artifact, plan 18-01, and read by the HUD, plan 18-06; no debris-schema change) A compiled `name` field in the debris catalogue (schema change) versus a fixed table in the app. Recommendation: add `name` to the debris record at build time (schema strict, golden regenerated once with the hull work).
 
 ## Environment Availability
 
