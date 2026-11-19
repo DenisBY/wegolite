@@ -37,6 +37,7 @@ import { SCANNER_MAX_RANGE } from "../../../src/sim/npc/constants.js";
 import { steerShip } from "../../../src/sim/npc/dispatch.js";
 import type { SteerEvent } from "../../../src/sim/npc/dispatch.js";
 import { escortCoordinates } from "../../../src/sim/npc/escort.js";
+import { coolWeapon } from "../../../src/sim/npc/fire.js";
 import {
   pairTriggers,
   proximityAlertFor,
@@ -440,6 +441,46 @@ export function emptyHooks(): RunnerHooks {
   };
 }
 
+/**
+ * A fixture's weapon block (plan 17-02, contract items 1 to 3): the forward
+ * weapon temperature the behaviour reads at update 1 (after Oolite's cooling at
+ * the top of that update, `ShipEntity.m:2214-2218`) and the `missedShots` count.
+ */
+export interface FixtureWeapon {
+  readonly forwardWeaponTemp: number;
+  readonly missedShots: number;
+}
+
+/**
+ * The fixture's weapon state as hooks (plan 17-08), on top of `emptyHooks()`:
+ * at assign `self.weapon` takes the stated float32 temperature and
+ * `missedShots`; after every update the temperature is cooled once with
+ * `coolWeapon` at the fixture's `dt`, so update k reads the stated value cooled
+ * k - 1 times. A fixture without a weapon block never calls this and runs
+ * exactly as before.
+ */
+export function weaponHooks(weapon: FixtureWeapon): RunnerHooks {
+  const hooks = emptyHooks();
+  hooks.afterAssign.push(({ self }) => {
+    self.weapon.temperature = weapon.forwardWeaponTemp;
+    self.weapon.missedShots = weapon.missedShots;
+  });
+  hooks.afterUpdate.push(({ self, fixture }) => {
+    self.weapon.temperature = coolWeapon(self.weapon.temperature, fixture.dt);
+  });
+  return hooks;
+}
+
+/**
+ * Optional extras of one run. `fireCalls`, when given, is put into the
+ * `SteerContext` as `fire` and receives the number (1-based) of the update at
+ * which every `ctx.fire` call happened; without it the context carries no
+ * `fire`, as before.
+ */
+export interface RunOptions {
+  readonly fireCalls?: number[];
+}
+
 /* ---------------------------------------------------------------------------
  * Reading a field back
  * ------------------------------------------------------------------------- */
@@ -612,6 +653,7 @@ function buildBodies(fixture: OracleFixture): RunnerBody[] {
 export function runFixture(
   fixture: OracleFixture,
   hooks: RunnerHooks = emptyHooks(),
+  options: RunOptions = {},
 ): FixtureResult {
   const failures: string[] = [];
   const world = createWorld(1);
@@ -763,6 +805,7 @@ export function runFixture(
     runHooks(hooks.beforeUpdate, view);
     // (c) the native update
     const tickNow = tick;
+    const { fireCalls } = options;
     steerShip(self, {
       view,
       stats,
@@ -771,6 +814,13 @@ export function runFixture(
       emit: (event: SteerEvent) => {
         events.push({ tick: tickNow, name: event.name });
       },
+      ...(fireCalls === undefined
+        ? {}
+        : {
+            fire: () => {
+              fireCalls.push(tickNow);
+            },
+          }),
     });
     // (d)
     runHooks(hooks.afterUpdate, view);

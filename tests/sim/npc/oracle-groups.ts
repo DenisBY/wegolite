@@ -115,6 +115,7 @@ export interface FireOraclePending {
 }
 
 const FIRE_TEST = "tests/sim/npc/fire.oracle.test.ts";
+const FIRE_SITES_TEST = "tests/sim/npc/fire-sites.oracle.test.ts";
 
 export const FIRE_ORACLE_GROUPS: readonly FireOracleGroup[] = Object.freeze([
   Object.freeze({
@@ -133,6 +134,10 @@ export const FIRE_ORACLE_GROUPS: readonly FireOracleGroup[] = Object.freeze([
     fixtureFile: "tests/oracles/npc/fire-sites/fixtures/aim-feedback.json",
     testFile: FIRE_TEST,
   }),
+  Object.freeze({
+    fixtureFile: "tests/oracles/npc/fire-sites/fixtures/fire-sites.json",
+    testFile: FIRE_SITES_TEST,
+  }),
 ]);
 
 /**
@@ -141,10 +146,6 @@ export const FIRE_ORACLE_GROUPS: readonly FireOracleGroup[] = Object.freeze([
  * temperature, which plans 17-06 and 17-07 land; plan 17-08 runs them.
  */
 export const FIRE_ORACLE_PENDING: readonly FireOraclePending[] = Object.freeze([
-  Object.freeze({
-    fixtureFile: "tests/oracles/npc/fire-sites/fixtures/fire-sites.json",
-    plan: "17-08",
-  }),
   Object.freeze({
     fixtureFile: "tests/oracles/npc/fire-sites/fixtures/hot-branches.json",
     plan: "17-08",
