@@ -37,11 +37,22 @@
  * floor guarantees separation even from a zero-speed brush, the scalar `speed`
  * is the damped forward component, and the remainder becomes the decaying
  * impulse. Orientation is never changed and the mode stays `inFlight`.
+ *
+ * The player's drift (D-02, review L173, L426, L424): only when it is
+ * non-zero, the impact speed is measured on `forward*speed + impulse + drift`,
+ * the reflection, floor and speed/impulse split above stay exactly as they
+ * are on the engine-and-impulse part, and the drift's inward normal
+ * component is reflected with `BOUNCE_RESTITUTION` (an outward or tangential
+ * drift is kept). The floor is not recomputed on the combined velocity, so the
+ * reflected drift adds its own outward part and the next tick leaves the face:
+ * one bounce per contact, never one per tick. With a zero drift the branch is
+ * skipped and every dock path is unchanged.
  */
 
 import { add, dot, rotate, scale, sub, vec } from "../math.js";
 import type { Vec3 } from "../math.js";
 import type { BounceAxis, BounceCause, SimEvent } from "../events.js";
+import { hasDrift } from "../flight/drift.js";
 import { clearHyperspaceAttempt, dockMouthPosition } from "../flight/state.js";
 import type { FlightState } from "../flight/state.js";
 import type { SystemLayout } from "../world/layout.js";
@@ -100,7 +111,10 @@ function respondToContact(
 ): SimEvent {
   const forward = rotate(state.orientation, FORWARD);
   const velocity = add(scale(forward, state.speed), state.impulse);
-  const impactSpeed = Math.abs(dot(velocity, normal));
+  const drifting = hasDrift(state.drift);
+  const impactSpeed = Math.abs(
+    dot(drifting ? add(velocity, state.drift) : velocity, normal),
+  );
 
   let reflected = velocity;
   const approach = dot(velocity, normal);
@@ -119,6 +133,15 @@ function respondToContact(
   const forwardSpeed = Math.max(0, dot(reflected, forward));
   state.speed = forwardSpeed * BOUNCE_SPEED_DAMPING;
   state.impulse = sub(reflected, scale(forward, state.speed));
+  if (drifting) {
+    const inward = dot(state.drift, normal);
+    if (inward < 0) {
+      state.drift = sub(
+        state.drift,
+        scale(normal, (1 + BOUNCE_RESTITUTION) * inward),
+      );
+    }
+  }
   state.bounceCount += 1;
 
   return { kind: "bounce", speed: impactSpeed, cause, axis };
@@ -172,6 +195,9 @@ export function stepDocking(
     state.pitchRate = 0;
     state.rollRate = 0;
     state.impulse = vec(0, 0, 0);
+    // A docked ship carries no drift (D-02); Oolite's `leaveDock:` zeroes it
+    // again on the way out (PlayerEntity.m:6465).
+    state.drift = vec(0, 0, 0);
     state.position = dockMouthPosition(layout);
     state.orientation = layout.stationBaseQuat;
     state.torus = {

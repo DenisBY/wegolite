@@ -464,21 +464,36 @@ describe("the station contact sees the drift (review L173, L426, L424)", () => {
     expect(boxClear(state)).toBe(true);
   });
 
-  it("a drifting straddle resolves once", () => {
-    const state = atPort({
-      nosePastPlane: 10,
-      rollFromMatched: Math.PI / 2,
-      lateral: 0,
-    });
-    expect(outcomeOf(state)).toBe("straddle");
-    state.drift = scale(K, -68);
-    const bounces: unknown[] = [];
-    for (let tick = 0; tick < 600; tick += 1) {
-      bounces.push(...dockStep(state).filter((e) => e.kind === "bounce"));
+  it("a drifting straddle resolves once, exactly as a resting one does", () => {
+    // The straddle push leaves the box at the mouth plane, still inside the
+    // contact proxy (zMax 34 m), so the next tick's hull test pushes it clear:
+    // two events on ticks 0 and 1 for any straddle, drift or not (pre-existing
+    // dock behaviour). The drift must add no further contact.
+    function contacts(drift: number): { tick: number; cause: string }[] {
+      const state = atPort({
+        nosePastPlane: 10,
+        rollFromMatched: Math.PI / 2,
+        lateral: 0,
+      });
+      expect(outcomeOf(state)).toBe("straddle");
+      state.drift = scale(K, -drift);
+      const seen: { tick: number; cause: string }[] = [];
+      for (let tick = 0; tick < 600; tick += 1) {
+        for (const event of dockStep(state)) {
+          if (event.kind === "bounce") seen.push({ tick, cause: event.cause });
+        }
+      }
+      if (drift > 0) {
+        expect(dot(state.drift, K)).toBeGreaterThanOrEqual(0);
+      }
+      return seen;
     }
-    expect(bounces).toHaveLength(1);
-    expect(bounces[0]).toMatchObject({ cause: "straddle" });
-    expect(dot(state.drift, K)).toBeGreaterThanOrEqual(0);
+    const resting = contacts(0);
+    expect(resting).toEqual([
+      { tick: 0, cause: "straddle" },
+      { tick: 1, cause: "hull" },
+    ]);
+    expect(contacts(68)).toEqual(resting);
   });
 
   it("keeps an outward or tangential drift through a contact", () => {

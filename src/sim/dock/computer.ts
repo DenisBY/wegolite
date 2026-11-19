@@ -57,6 +57,9 @@ export function dockWithComputer(
   state.pitchRate = 0;
   state.rollRate = 0;
   state.impulse = vec(0, 0, 0);
+  // The drift (D-02): the docking computer zeroes the velocity when it engages
+  // (PlayerEntity.m:3295), and a docked ship carries none.
+  state.drift = vec(0, 0, 0);
   state.position = dockMouthPosition(layout);
   state.orientation = layout.stationBaseQuat;
   // A docked ship never carries an engaged drive or residual mass-lock state.

@@ -158,5 +158,8 @@ export function applyWitchpointArrival(
   state.launchElapsed = 0;
   state.stationAngle = 0;
   state.impulse = vec(0, 0, 0);
+  // No drift crosses witchspace (D-02): `leaveWitchspace` zeroes the velocity
+  // (PlayerEntity.m:6977).
+  state.drift = vec(0, 0, 0);
   state.compassMode = "auto";
 }

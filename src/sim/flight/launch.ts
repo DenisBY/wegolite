@@ -112,6 +112,9 @@ export function beginLaunch(
   // which is what the skipped-launch browser assertion reads.
   state.bounceCount = 0;
   state.impulse = vec(0, 0, 0);
+  // The drift (D-02): Oolite's `leaveDock:` zeroes the velocity
+  // (PlayerEntity.m:6465).
+  state.drift = vec(0, 0, 0);
   // The world-sense station rate: the slot stays steady during the exit.
   state.rollRate = layout.stationRollRadPerSec;
   state.stationAngle = 0;
