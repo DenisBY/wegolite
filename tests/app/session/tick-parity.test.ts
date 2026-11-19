@@ -81,7 +81,7 @@ import { liveEntityCount, spawnEntity } from "../../../src/sim/world/world.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
 import { laveDockGeometry } from "../../helpers/dock-pose.js";
 import { laveFixture } from "../../helpers/lave.js";
-import { realHullTable } from "../../helpers/hull-table.js";
+import { fullHullTable } from "../../helpers/hull-table.js";
 import { sessionSourceFiles } from "../../helpers/session-source.js";
 import { runTickScript } from "../../helpers/tick-script.js";
 
@@ -195,8 +195,9 @@ function session(
         ),
       },
     );
-    // The hull table the boot load builds beside the NPC catalogue.
-    ctx.core.hulls = realHullTable();
+    // The merged hull table the traffic-on boot load builds beside the NPC
+    // catalogue: the ten ship hulls and the static hulls (plan 18-13).
+    ctx.core.hulls = fullHullTable();
   }
   const lifecycle = createWorldLifecycle({
     traffic,

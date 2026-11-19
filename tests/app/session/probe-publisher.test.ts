@@ -51,7 +51,7 @@ import { DT } from "../../../src/sim/time.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
-import { realHullTable } from "../../helpers/hull-table.js";
+import { fullHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { realNpcFlightTable } from "../../helpers/npc-flight.js";
 import { realNpcWeapons } from "../../helpers/npc-weapons.js";
@@ -825,7 +825,7 @@ describe("the spawnTestAttacker hook (plan 17-10, D-02, T-17-24)", () => {
       npcFlight: realNpcFlightTable(),
       combat: {
         mounts: DEFAULT_LASER_MOUNTS,
-        hulls: realHullTable(),
+        hulls: fullHullTable(),
         npcWeapons: realNpcWeapons(),
       },
     };

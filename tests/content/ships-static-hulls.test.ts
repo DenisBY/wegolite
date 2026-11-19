@@ -11,8 +11,9 @@
  * names in order; that the Coriolis and buoy subentities sit where Oolite puts
  * them; that every radius equals the compiled client or debris record; that it
  * stays under its size gate and matches a golden digest; that the schema
- * rejects every bound it carries, naming the path; and that nothing in the sim
- * or the app names the loader yet. The node count of every Coriolis octree is
+ * rejects every bound it carries, naming the path; and that only the session
+ * start-up calls the loader, behind the traffic flag, and nothing in the sim
+ * names it (plan 18-13). The node count of every Coriolis octree is
  * asserted: that is the DATA-15 measurement against the ten-hull cap
  * `MAX_HULL_NODES`.
  *
@@ -516,12 +517,58 @@ describe("loadStaticHulls", () => {
   });
 });
 
+/**
+ * The static chunk never reaches the traffic-off first load (T-18-03, plan
+ * 18-13). `tests/e2e/budget.spec.ts` asserts only `ships-hulls-*.js`, and no
+ * existing browser spec is edited in Phase 18, so this source scan is the
+ * static chunk's only traffic-off guard.
+ */
 describe("boot-path isolation", () => {
-  it("is named by no file under src/sim or src/app yet (plan 18-13 adds the one boot call)", () => {
-    const names = /ships-static-hulls|loadStaticHulls/;
-    const named = [...sourceFiles("src/sim"), ...sourceFiles("src/app")].filter(
-      (file) => names.test(readText(file)),
+  const LOADER = "src/content/ships-static-hulls.ts";
+  const START_SESSION = "src/app/session/start-session.ts";
+  const flat = (text: string): string => text.replace(/\s+/g, " ");
+
+  it("lets the loader name its own generated file and no other", () => {
+    const source = readText(LOADER);
+    expect(source).toContain("./generated/ships-static-hulls.json");
+    const named = source.match(/generated\/[A-Za-z0-9._-]+/g) ?? [];
+    expect(new Set(named)).toEqual(
+      new Set(["generated/ships-static-hulls.json"]),
     );
-    expect(named).toEqual([]);
+  });
+
+  it("is imported by no source file but the session start-up, and no file under src/sim names it", () => {
+    // A quoted specifier naming the module or the file (an import, a dynamic
+    // import or a glob); a doc comment naming them is not an importer.
+    const importsIt = /["'][^"'\s]*ships-static-hulls(?:\.js|\.json)?["']/;
+    const importers = sourceFiles("src").filter(
+      (file) => file !== LOADER && importsIt.test(readText(file)),
+    );
+    expect(importers).toEqual([START_SESSION]);
+    const names = /ships-static-hulls|loadStaticHulls/;
+    expect(
+      sourceFiles("src/sim").filter((file) => names.test(readText(file))),
+    ).toEqual([]);
+  });
+
+  it("is called once, from start-up, behind the same traffic gate as the ship hulls", () => {
+    const source = readText(START_SESSION);
+    expect(source).not.toContain("ships-static-hulls.json");
+    // Every call of the loader, in the same shape as loadShipHulls().
+    const calls = flat(source).match(/[^ ]*loadStaticHulls\(\)/g) ?? [];
+    expect(calls).toEqual(["loaders.loadStaticHulls()"]);
+    const shape = (call: string): RegExp =>
+      new RegExp(
+        `ctx\\.runtime\\.testFlags\\.traffic \\? loaders\\.${call}\\(\\) : Promise\\.resolve\\(undefined\\)`,
+      );
+    expect(flat(source)).toMatch(shape("loadShipHulls"));
+    expect(flat(source)).toMatch(shape("loadStaticHulls"));
+    // Inside the one boot Promise.all, after the ship hulls.
+    const all = source.indexOf("await Promise.all([");
+    const closed = source.indexOf("]);", all);
+    const load = source.indexOf("loadStaticHulls()");
+    expect(load).toBeGreaterThan(source.indexOf("loadShipHulls()"));
+    expect(load).toBeGreaterThan(all);
+    expect(load).toBeLessThan(closed);
   });
 });

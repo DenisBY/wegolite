@@ -62,7 +62,7 @@ import { DT } from "../../../src/sim/time.js";
 import { sessionSources } from "../../helpers/session-source.js";
 import { debrisFixture } from "../../helpers/debris-fixture.js";
 import { laveFixture } from "../../helpers/lave.js";
-import { realHullTable } from "../../helpers/hull-table.js";
+import { fullHullTable } from "../../helpers/hull-table.js";
 import { realNpcWeapons } from "../../helpers/npc-weapons.js";
 
 /** One flight record for the step-options hand-over cases (plan 14-18). */
@@ -647,7 +647,7 @@ describe("combat wiring (plan 13-11, CBT-04 to CBT-07)", () => {
     const lifecycle = createWorldLifecycle({ traffic: false });
     lifecycle.begin(1);
     built.ctx.core.worldLifecycle = lifecycle;
-    built.ctx.core.hulls = realHullTable();
+    built.ctx.core.hulls = fullHullTable();
     built.ctx.core.npcTraffic = {
       catalogue: [],
       records: [],
@@ -1538,7 +1538,7 @@ describe("buildStepOptions", () => {
   });
 
   it("always emits combat with the mounts, and the hull table and NPC weapons only when given (plan 13-11)", () => {
-    const hulls = realHullTable();
+    const hulls = fullHullTable();
     const npcWeapons = realNpcWeapons();
     const base = {
       fuel: 70,

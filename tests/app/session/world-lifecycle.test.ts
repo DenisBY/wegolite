@@ -901,8 +901,10 @@ describe("session wiring of the inert populator (plan 12-08)", () => {
     expect(all).toBeGreaterThan(-1);
     expect(load).toBeGreaterThan(all);
     expect(load).toBeLessThan(closed);
-    // The same failure surface as the other catalogues.
-    expect(source.slice(closed, closed + 900)).toContain("showBootFailure");
+    // The same failure surface as the other catalogues: the catch of
+    // loadSessionContent reports through onBootFailure, which the session start
+    // wires to showBootFailure (plan 18-13).
+    expect(source.slice(closed, closed + 1500)).toContain("onBootFailure");
     expect(source).toContain("ctx.core.npcTraffic =");
   });
 

@@ -11,8 +11,9 @@
  * octrees exceed that file's caps (PROJECT.md Key Decisions, "Statics and
  * debris hulls ship in their own lazily loaded file"). The glob below is
  * non-eager, so Vite splits the file into its own chunk that the first load
- * never fetches. Nothing imports this module yet; plan 18-13 adds the one boot
- * call, traffic-gated beside `loadShipHulls()`.
+ * never fetches. The session start-up is its one importer (plan 18-13): the
+ * boot call is traffic-gated beside `loadShipHulls()`, so a traffic-off session
+ * never fetches the chunk.
  *
  * The module name starts with `ships` on purpose, so the simulation's ESLint
  * denial of `**\/content/ships*` covers it: `src/sim` sees hull data only as a
