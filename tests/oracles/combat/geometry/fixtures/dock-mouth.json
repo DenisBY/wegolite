@@ -1,1 +1,1690 @@
-[]
+[
+  {
+    "id": "dock-slot-through-dock-back-wall",
+    "title": "A beam along -z through the slot, off the octree's centre planes, stops on the dock's back wall; the hull's back face is the runner-up",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [11, 19, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "dock",
+      "distance": 2749.7439,
+      "incidenceDeg": 90,
+      "runnerUp": "hull",
+      "runnerUpDistance": 3500.0000000000005,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 29.214960228000116,
+      "margin": 750.2561000000005
+    },
+    "clearances": [
+      {
+        "part": "faceplate",
+        "clearance": 37.2043,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "tris",
+        "clearance": 335.2272829320586,
+        "required": 27.09035716213197
+      }
+    ]
+  },
+  {
+    "id": "dock-slot-lower-left-dock-back-wall",
+    "title": "A second slot beam in the lower-left quarter of the slot stops on the dock's back wall",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [-13, -27, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "dock",
+      "distance": 2749.7438999999995,
+      "incidenceDeg": 90,
+      "runnerUp": "hull",
+      "runnerUpDistance": 3500.0000000000005,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 29.214960228000116,
+      "margin": 750.256100000001
+    },
+    "clearances": [
+      {
+        "part": "faceplate",
+        "clearance": 35.2043,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "tris",
+        "clearance": 328.1562151201931,
+        "required": 27.09035716213197
+      }
+    ]
+  },
+  {
+    "id": "dock-slot-edge-plus-x-dock",
+    "title": "A slot beam two leaf widths (4 h = 33.4249 m) inside the slot's +x edge (x 48.2043 at y = 3) stops on the dock",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": true,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [14.7794, 3, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "dock",
+      "distance": 2749.7439,
+      "incidenceDeg": 90,
+      "runnerUp": "hull",
+      "runnerUpDistance": 3500.0000000000005,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 29.214960228000116,
+      "margin": 750.2561000000005
+    },
+    "clearances": [
+      {
+        "part": "faceplate",
+        "clearance": 33.4249,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "tris",
+        "clearance": 343.8685520622269,
+        "required": 27.09035716213197
+      }
+    ]
+  },
+  {
+    "id": "dock-slot-edge-minus-x-dock",
+    "title": "A slot beam two leaf widths inside the slot's -x edge stops on the dock",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": true,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [-14.7794, 3, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "dock",
+      "distance": 2749.7439,
+      "incidenceDeg": 90,
+      "runnerUp": "hull",
+      "runnerUpDistance": 3500.0000000000005,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 29.214960228000116,
+      "margin": 750.2561000000005
+    },
+    "clearances": [
+      {
+        "part": "faceplate",
+        "clearance": 33.4249,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "tris",
+        "clearance": 343.8685520622269,
+        "required": 27.09035716213197
+      }
+    ]
+  },
+  {
+    "id": "dock-slot-edge-plus-y-dock",
+    "title": "A slot beam two leaf widths inside the slot's +y edge (y 108.1980 at x = 3) stops on the dock",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": true,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [3, 74.7731, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "dock",
+      "distance": 2749.7438999999995,
+      "incidenceDeg": 90,
+      "runnerUp": "hull",
+      "runnerUpDistance": 3500.0000000000005,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 29.214960228000116,
+      "margin": 750.256100000001
+    },
+    "clearances": [
+      {
+        "part": "faceplate",
+        "clearance": 33.424899999999994,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "tris",
+        "clearance": 301.4465999637555,
+        "required": 27.09035716213197
+      }
+    ]
+  },
+  {
+    "id": "dock-slot-edge-minus-y-dock",
+    "title": "A slot beam two leaf widths inside the slot's -y edge stops on the dock",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": true,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [3, -74.7731, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "dock",
+      "distance": 2749.7438999999995,
+      "incidenceDeg": 90,
+      "runnerUp": "hull",
+      "runnerUpDistance": 3500.0000000000005,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 29.214960228000116,
+      "margin": 750.256100000001
+    },
+    "clearances": [
+      {
+        "part": "faceplate",
+        "clearance": 33.424899999999994,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "tris",
+        "clearance": 301.4465999637555,
+        "required": 27.09035716213197
+      }
+    ]
+  },
+  {
+    "id": "dock-faceplate-edge-plus-x-beside-slot",
+    "title": "A beam two leaf widths outside the slot's +x edge stops on the faceplate",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": true,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [81.6292, 3, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "faceplate",
+      "distance": 2478.799,
+      "incidenceDeg": 90,
+      "runnerUp": "hull",
+      "runnerUpDistance": 3500.0000000000005,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 31.18583293415969,
+      "margin": 1021.2010000000005
+    },
+    "clearances": [
+      {
+        "part": "tris",
+        "clearance": 296.59860516126247,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "dock",
+        "clearance": 31.628699999999995,
+        "required": 27.117420456000232
+      }
+    ]
+  },
+  {
+    "id": "dock-faceplate-edge-minus-x-beside-slot",
+    "title": "A beam two leaf widths outside the slot's -x edge stops on the faceplate",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": true,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [-81.6292, 3, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "faceplate",
+      "distance": 2478.799,
+      "incidenceDeg": 90,
+      "runnerUp": "hull",
+      "runnerUpDistance": 3500.0000000000005,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 31.18583293415969,
+      "margin": 1021.2010000000005
+    },
+    "clearances": [
+      {
+        "part": "tris",
+        "clearance": 296.59860516126247,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "dock",
+        "clearance": 28.217399999999998,
+        "required": 27.117420456000232
+      }
+    ]
+  },
+  {
+    "id": "dock-faceplate-edge-outer-diagonal",
+    "title": "A beam two leaf widths inside the faceplate's outer edge on the +x +y diagonal stops on the faceplate",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": true,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [228.4065, 228.4065, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "faceplate",
+      "distance": 2500,
+      "incidenceDeg": 90,
+      "runnerUp": "hull",
+      "runnerUpDistance": 3500.0000000000005,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 31.18583293415969,
+      "margin": 1000.0000000000005
+    },
+    "clearances": [
+      {
+        "part": "tris",
+        "clearance": 33.42491633348469,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "dock",
+        "clearance": 217.8757214474573,
+        "required": 27.117420456000232
+      }
+    ]
+  },
+  {
+    "id": "dock-faceplate-beside-slot-x",
+    "title": "A beam beside the slot on the x axis stops on the faceplate",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [-150, 3, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "faceplate",
+      "distance": 2487.9802851643854,
+      "incidenceDeg": 87.80517637785928,
+      "runnerUp": "hull",
+      "runnerUpDistance": 3500.0000000000005,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 31.198102505852788,
+      "margin": 1012.0197148356151
+    },
+    "clearances": [
+      {
+        "part": "tris",
+        "clearance": 248.2531488461132,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "dock",
+        "clearance": 96.5882,
+        "required": 27.117420456000232
+      }
+    ]
+  },
+  {
+    "id": "dock-faceplate-beside-slot-y",
+    "title": "A beam beside the slot on the y axis stops on the faceplate",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [5, -190, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "faceplate",
+      "distance": 2503.34,
+      "incidenceDeg": 90,
+      "runnerUp": "hull",
+      "runnerUpDistance": 3500.0000000000005,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 31.18583293415969,
+      "margin": 996.6600000000003
+    },
+    "clearances": [
+      {
+        "part": "tris",
+        "clearance": 218.55466403627824,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "dock",
+        "clearance": 70.66744061475552,
+        "required": 27.117420456000232
+      }
+    ]
+  },
+  {
+    "id": "dock-tris-corner-oblique",
+    "title": "A beam on the +x +y corner of the front stops on a triangular face at an oblique incidence",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [300, 300, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "tris",
+      "distance": 2599.9994115033364,
+      "incidenceDeg": 35.26428225466781,
+      "runnerUp": null,
+      "runnerUpDistance": null,
+      "runnerUpIncidenceDeg": null,
+      "tolerance": 40.63560757659043,
+      "margin": null
+    },
+    "clearances": [
+      {
+        "part": "hull",
+        "clearance": 67.82358234427352,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "faceplate",
+        "clearance": 67.82358234427352,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "dock",
+        "clearance": 318.078793641214,
+        "required": 27.117420456000232
+      }
+    ]
+  },
+  {
+    "id": "dock-hull-alone-from-minus-x",
+    "title": "A beam along +x stops on the hull's -x square face; no subentity is hit",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [-3000, 20, -30],
+      "direction": [1, 0, 0]
+    },
+    "expected": {
+      "winner": "hull",
+      "distance": 2500.0000000000005,
+      "incidenceDeg": 90,
+      "runnerUp": null,
+      "runnerUpDistance": null,
+      "runnerUpIncidenceDeg": null,
+      "tolerance": 29.185803581065983,
+      "margin": null
+    },
+    "clearances": [
+      {
+        "part": "faceplate",
+        "clearance": 523.3113213384553,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "tris",
+        "clearance": 321.08514730832763,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "dock",
+        "clearance": 280.2561,
+        "required": 27.117420456000232
+      }
+    ]
+  },
+  {
+    "id": "dock-hull-alone-from-plus-y",
+    "title": "A beam along -y stops on the hull's +y square face; no subentity is hit",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [21, 3000, -41],
+      "direction": [0, -1, 0]
+    },
+    "expected": {
+      "winner": "hull",
+      "distance": 2500.0000000000005,
+      "incidenceDeg": 90,
+      "runnerUp": null,
+      "runnerUpDistance": null,
+      "runnerUpIncidenceDeg": null,
+      "tolerance": 29.185803581065983,
+      "margin": null
+    },
+    "clearances": [
+      {
+        "part": "faceplate",
+        "clearance": 534.3418166688809,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "tris",
+        "clearance": 312.59986593408905,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "dock",
+        "clearance": 291.2561,
+        "required": 27.117420456000232
+      }
+    ]
+  },
+  {
+    "id": "dock-hull-back-face-before-dock",
+    "title": "A beam along +z stops on the hull's back face; the dock behind it through the open front is the runner-up",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [13, -29, -3000],
+      "direction": [0, 0, 1]
+    },
+    "expected": {
+      "winner": "hull",
+      "distance": 2500.0000000000005,
+      "incidenceDeg": 90,
+      "runnerUp": "dock",
+      "runnerUpDistance": 3250.2561,
+      "runnerUpIncidenceDeg": 90,
+      "tolerance": 29.214960228000116,
+      "margin": 750.2560999999996
+    },
+    "clearances": [
+      {
+        "part": "faceplate",
+        "clearance": 35.2043,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "tris",
+        "clearance": 326.74200155782,
+        "required": 27.09035716213197
+      }
+    ]
+  },
+  {
+    "id": "dock-near-miss-at-clearance",
+    "title": "A beam along -z beside the station at the clearance: every part is missed by at least one leaf diagonal (x 528.7910)",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [528.791, 3, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "none",
+      "distance": null,
+      "incidenceDeg": null,
+      "runnerUp": null,
+      "runnerUpDistance": null,
+      "runnerUpIncidenceDeg": null,
+      "tolerance": 0,
+      "margin": null
+    },
+    "clearances": [
+      {
+        "part": "hull",
+        "clearance": 28.791000000000054,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "faceplate",
+        "clearance": 28.94687687817121,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "tris",
+        "clearance": 28.94687687817121,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "dock",
+        "clearance": 478.79050000000007,
+        "required": 27.117420456000232
+      }
+    ]
+  },
+  {
+    "id": "dock-far-miss",
+    "title": "A beam along -z far outside the station's bounding sphere misses every part",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1737-1762"
+    ],
+    "model": "coriolis",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_coriolis.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1737-1737",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "faceplate",
+        "mesh": "oolite_coriolis_faceplate.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1745-1750",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 534.798,
+          "leafHalfWidth": 8.35621875
+        }
+      },
+      {
+        "name": "tris",
+        "mesh": "oolite_coriolis_tris.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1751-1756",
+        "octreeDepth": {
+          "depth": 6,
+          "rootHalfWidth": 500.5,
+          "leafHalfWidth": 7.8203125
+        }
+      },
+      {
+        "name": "dock",
+        "mesh": "oolite_coriolis_dock.dat",
+        "position": [0, 0, 500.2561],
+        "citation": "third_party/oolite/Config/shipdata.plist:1757-1762",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 250.5,
+          "leafHalfWidth": 7.828125
+        }
+      }
+    ],
+    "ray": {
+      "start": [2000, 1500, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "none",
+      "distance": null,
+      "incidenceDeg": null,
+      "runnerUp": null,
+      "runnerUpDistance": null,
+      "runnerUpIncidenceDeg": null,
+      "tolerance": 0,
+      "margin": null
+    },
+    "clearances": [
+      {
+        "part": "hull",
+        "clearance": 1806.707502348125,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "faceplate",
+        "clearance": 2118.4509480889806,
+        "required": 28.946790868319386
+      },
+      {
+        "part": "tris",
+        "clearance": 1806.707502348125,
+        "required": 27.09035716213197
+      },
+      {
+        "part": "dock",
+        "clearance": 2398.5728296143625,
+        "required": 27.117420456000232
+      }
+    ]
+  },
+  {
+    "id": "dock-buoy-hull-front-before-subentity",
+    "title": "A buoy beam along -z stops on the hull; the subentity behind it is the runner-up",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1026-1049"
+    ],
+    "model": "buoy",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_buoy.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1026-1026",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 58.22786,
+          "leafHalfWidth": 1.819620625
+        }
+      },
+      {
+        "name": "subentity",
+        "mesh": "oolite_buoy_subents.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1044-1049",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 24.3478,
+          "leafHalfWidth": 0.76086875
+        }
+      }
+    ],
+    "ray": {
+      "start": [-17.5, 0.25, 3000],
+      "direction": [0, 0, -1]
+    },
+    "expected": {
+      "winner": "hull",
+      "distance": 2948.0325521266072,
+      "incidenceDeg": 51.7314478744349,
+      "runnerUp": "subentity",
+      "runnerUpDistance": 3004.6632141140185,
+      "runnerUpIncidenceDeg": 51.58777220007958,
+      "tolerance": 7.786963990064286,
+      "margin": 56.63066198741126
+    },
+    "clearances": []
+  },
+  {
+    "id": "dock-buoy-hull-back-face",
+    "title": "A buoy beam along +z stops on the hull's back face; the subentity is missed by more than its leaf diagonal",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1026-1049"
+    ],
+    "model": "buoy",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_buoy.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1026-1026",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 58.22786,
+          "leafHalfWidth": 1.819620625
+        }
+      },
+      {
+        "name": "subentity",
+        "mesh": "oolite_buoy_subents.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1044-1049",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 24.3478,
+          "leafHalfWidth": 0.76086875
+        }
+      }
+    ],
+    "ray": {
+      "start": [-26.5, -14.75, -3000],
+      "direction": [0, 0, 1]
+    },
+    "expected": {
+      "winner": "hull",
+      "distance": 2955.968022484422,
+      "incidenceDeg": 89.78908934210038,
+      "runnerUp": null,
+      "runnerUpDistance": null,
+      "runnerUpIncidenceDeg": null,
+      "tolerance": 6.790941279708168,
+      "margin": null
+    },
+    "clearances": [
+      {
+        "part": "subentity",
+        "clearance": 12.391224148166316,
+        "required": 2.635726665782844
+      }
+    ]
+  },
+  {
+    "id": "dock-buoy-hull-alone-from-minus-x",
+    "title": "A buoy beam along +x stops on the hull; the subentity is missed by more than its leaf diagonal",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1323-1357",
+      "src/Core/Entities/ShipEntity.m:1219-1222",
+      "src/Core/Octree.m:336-471",
+      "src/Core/Universe.m:5620-5627",
+      "src/Core/OOMesh.m:590-623",
+      "src/Core/OOMeshToOctreeConverter.m:260-305",
+      "third_party/oolite/Config/shipdata.plist:1026-1049"
+    ],
+    "model": "buoy",
+    "edge": false,
+    "parts": [
+      {
+        "name": "hull",
+        "mesh": "oolite_buoy.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1026-1026",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 58.22786,
+          "leafHalfWidth": 1.819620625
+        }
+      },
+      {
+        "name": "subentity",
+        "mesh": "oolite_buoy_subents.dat",
+        "position": [0, 0, 0],
+        "citation": "third_party/oolite/Config/shipdata.plist:1044-1049",
+        "octreeDepth": {
+          "depth": 5,
+          "rootHalfWidth": 24.3478,
+          "leafHalfWidth": 0.76086875
+        }
+      }
+    ],
+    "ray": {
+      "start": [-3000, 9, -14],
+      "direction": [1, 0, 0]
+    },
+    "expected": {
+      "winner": "hull",
+      "distance": 2952.253229591885,
+      "incidenceDeg": 59.817427788794255,
+      "runnerUp": null,
+      "runnerUpDistance": null,
+      "runnerUpIncidenceDeg": null,
+      "tolerance": 7.361675780421247,
+      "margin": null
+    },
+    "clearances": [
+      {
+        "part": "subentity",
+        "clearance": 4.002446542493664,
+        "required": 2.635726665782844
+      }
+    ]
+  }
+]

@@ -305,6 +305,7 @@ const DOCK_INTENT: readonly (readonly [string, string, boolean])[] = [
   ["dock-near-miss-at-clearance", "none", false],
   ["dock-far-miss", "none", false],
   ["dock-buoy-hull-front-before-subentity", "hull", false],
+  ["dock-buoy-hull-back-face", "hull", false],
   ["dock-buoy-hull-alone-from-minus-x", "hull", false],
 ];
 
