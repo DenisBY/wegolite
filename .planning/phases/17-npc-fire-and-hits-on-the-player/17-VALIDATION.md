@@ -38,7 +38,7 @@ created: "2026-11-18"
 
 ## Per-Task Verification Map
 
-Requirement-level map, rewritten by plan 17-10 with the test files that exist at the end of the phase (each path checked with `test -f`). Status: ✅ green at the phase close.
+Requirement-level map, rewritten by plan 17-10 and extended by `/gsd-validate-phase` on 2026-11-19 with the gap-closure plans 17-11 to 17-13 (each path checked with `test -f`). Status: ✅ green at the phase close.
 
 | Req ID | Behavior | Test Type | Automated Command | File Exists | Status |
 |--------|----------|-----------|-------------------|-------------|--------|
@@ -55,6 +55,8 @@ Requirement-level map, rewritten by plan 17-10 with the test files that exist at
 | D-13 | Tripwires fail on the first consumer; each names its todo | guard | `docker compose run --rm test npx vitest run tests/guards` | ✅ `tests/guards/kill-credit-consumers.test.ts`, `tests/guards/ship-hit-consumers.test.ts`, `tests/guards/on-event-handlers.test.ts`, `tests/guards/fire-decision-source.test.ts` | ✅ green |
 | Pitfall 16 | New functions total on malformed input | property | `docker compose run --rm test npx vitest run tests/sim/npc/fire.property.test.ts tests/sim/npc/steering.property.test.ts tests/sim/combat/kill.property.test.ts` | ✅ `tests/sim/npc/fire.property.test.ts`, `tests/sim/npc/steering.property.test.ts`, `tests/sim/combat/kill.property.test.ts` | ✅ green |
 | Criterion 4 | New fixtures authored first, independent, in the manifest | oracle + guards | `docker compose run --rm test npx vitest run tests/guards/oracle-independence.test.ts tests/sim/npc/oracle-coverage.test.ts tests/oracles` | ✅ `tests/guards/oracle-independence.test.ts`, `tests/sim/npc/oracle-coverage.test.ts`, `tests/oracles/npc/fire`, `tests/oracles/npc/fire-sites` | ✅ green |
+| G-17-1 (D-07 revised) | NPC shot period at Oolite's literal frame count (pulse 60, beam and military 13, mining 301, unarmed 12000); player period unchanged | oracle + unit + scenario + browser | `docker compose run --rm test npx vitest run tests/oracles/npc/fire tests/sim/npc/fire.test.ts tests/sim/npc/fire.oracle.test.ts tests/app/session/tick-parity.test.ts` | ✅ `tests/oracles/npc/fire/fire.self.test.ts`, `tests/sim/npc/fire.test.ts` (`npcRechargeTicks` literals), `tests/sim/npc/fire.oracle.test.ts`, `tests/app/session/tick-parity.test.ts`, `tests/e2e/combat.spec.ts` | ✅ green (browser and acceptance 21 of 21 remotely at `606e145`) |
+| G-17-4 | The probe publishes the drawn shield and energy gauges; the browser spec asserts them against Oolite's dial rules | unit + fixture + browser | `docker compose run --rm test npx vitest run tests/app/session/probe-publisher.test.ts tests/app/probe-shape-compare.test.ts` | ✅ `tests/app/session/probe-publisher.test.ts`, `tests/app/probe-shape-compare.test.ts`, `tests/fixtures/probe-shape.json`, `tests/e2e/combat.spec.ts`, `tests/e2e/probe-shape.spec.ts` | ✅ green (remote `verify` and combat spec at `124c27e`) |
 
 ### Per-plan map (what each plan's automated verify proved)
 
@@ -70,6 +72,9 @@ Requirement-level map, rewritten by plan 17-10 with the test files that exist at
 | 17-08 | 6 | `fire-sites.oracle.test.ts` (55 fixtures against the port) | none (no `src` change) |
 | 17-09 | 7 | `npc-vs-npc.scenario.test.ts`, `fire-cadence.test.ts`, the two new properties | none (no `src` change) |
 | 17-10 | 8 | `test-spawn.test.ts`, `probe-publisher.test.ts`, `probe-shape-compare.test.ts`, the guards; remote `verify` (the phase's only full `verify`) | see `17-10-SUMMARY.md` |
+| 17-11 | gap | `fire.self.test.ts` re-derived for the literal frame count (G-17-1) | none (no `src` change) |
+| 17-12 | gap | `fire.test.ts`, `fire.oracle.test.ts`, `tick-parity.test.ts`, `combat.spec.ts` | combat spec `exit=0` and acceptance 21 of 21 at `606e145` |
+| 17-13 | gap | `probe-publisher.test.ts`, `probe-shape-compare.test.ts`, `combat.spec.ts` gauge asserts (G-17-4) | `verify` and combat spec `exit=0` at `124c27e` |
 
 ---
 
@@ -101,3 +106,11 @@ Requirement-level map, rewritten by plan 17-10 with the test files that exist at
 - [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** validation strategy signed off after plan 17-10 for every task's automated verify (each plan's targeted runs, the full suite, `lint` and `typecheck`, the remote QUAL-11 acceptance runs of plans 17-04 to 17-07 and the one remote `verify` of plan 17-10, which runs at a HEAD holding every Phase 17 change; its snapshot, exit code and elapsed time are in `17-10-SUMMARY.md`), 2026-11-19. The owner's non-blocking questions at sign-off are listed in `17-10-SUMMARY.md`.
+
+## Validation Audit 2026-11-19
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
