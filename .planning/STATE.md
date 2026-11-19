@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: Not started
+current_plan: 2
 status: executing
-stopped_at: Phase 18 context gathered
-last_updated: "2026-11-19T17:31:16.826Z"
+stopped_at: Completed 18-01-PLAN.md
+last_updated: "2026-11-19T17:50:49.333Z"
 last_activity: 2026-11-19
-last_activity_desc: Phase 17 complete, transitioned to Phase 18
-state_head: dcb48d71dc6f9d298716c01a989c0ee216a426b1
+last_activity_desc: Phase 18 execution started
+state_head: baeeca4c76de7cc16f12062641fd58430afe1418
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 28
+  completed_plans: 29
   percent: 50
 ---
 
@@ -30,11 +30,11 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 
 ## Current Position
 
-Phase: 18 (Stations, Buoys and Collisions) — READY TO EXECUTE
-Current Plan: Not started
+Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
+Current Plan: 2
 Total Plans in Phase: 22
 Status: Ready to execute
-Last activity: 2026-11-19 - Completed quick task 261119-i9g: NPC laser shots use the ship's shipdata laser_color
+Last activity: 2026-11-19 — Phase 18 execution started
 
 
 ## Performance Metrics
@@ -213,6 +213,7 @@ Last activity: 2026-11-19 - Completed quick task 261119-i9g: NPC laser shots use
 | Phase 17 P11 | 25 min | 2 tasks | 6 files |
 | Phase 17 P12 | 14 min | 3 tasks | 16 files |
 | Phase 17 P13 | 20 min | 2 tasks | 9 files |
+| Phase 18 P01 | 15 min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -534,6 +535,7 @@ Recent decisions affecting current work:
 - [Phase 17]: G-17-1: the oracle shot-timer rule is Oolite's literal frame count at 120 Hz (pulse 60, beam 13, mining 301, military 13), D-07 revised by the owner 2026-11-19; fixtures re-derived by deriveGate/deriveHeat (plan 17-11); the port follows in 17-12
 - [Phase 17]: 17-12: NPC shot period is Oolite's literal frame count (pulse 60, beam 13, mining 301, military 13, unarmed 12000), a private double-sum port of shot_time read from a frozen table in fire.ts; the player's period untouched
 - [Phase 17]: 17-13: the HUD probe publishes the drawn gauges as hud.shieldFwd, hud.shieldAft and hud.energyBanks (always four numbers) read from ctx.core.lastModel.bars; the browser spec states Oolite's dial rules itself instead of importing the HUD's
+- [Phase 18]: 18-01: Statics and debris hulls ship in their own lazily loaded file ships-static-hulls.json (Coriolis hull 32,841 and tris 30,089 nodes exceed MAX_HULL_NODES 16,384); caps MAX_STATIC_OCTREE_NODES 40,000, MAX_STATIC_ARTIFACT_NODES 104,000, MAX_STATIC_HULL_ARTIFACT_BYTES 270,000; load traffic-gated beside loadShipHulls (plan 18-13)
 
 ### Pending Todos
 
@@ -673,9 +675,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-19T13:35:59.436Z
-Stopped at: Phase 18 context gathered
-Resume file: .planning/phases/18-stations-buoys-and-collisions/18-CONTEXT.md
+Last session: 2026-11-19T17:50:48.928Z
+Stopped at: Completed 18-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
