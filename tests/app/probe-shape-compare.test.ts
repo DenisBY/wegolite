@@ -252,6 +252,25 @@ describe("the recorded fixture after plan 13-14", () => {
     }
   });
 
+  it("pins the drawn gauge values in every state's hud entry (G-17-4)", () => {
+    for (const [name, state] of Object.entries(fixture)) {
+      const hud = state["hud"] as Record<string, unknown>;
+      expect(hud["shieldFwd"], name).toBe("number");
+      expect(hud["shieldAft"], name).toBe("number");
+      expect(hud["energyBanks"], name).toEqual({ "[]": ["number"] });
+    }
+  });
+
+  it("catches a probe that drops the energy banks from the hud entry", () => {
+    const pinned = fixture["inFlight"];
+    const hud = { ...(pinned?.["hud"] as Record<string, unknown>) };
+    delete hud["energyBanks"];
+    const dropped = { ...pinned, hud };
+    expect(compareProbeShapes(dropped, pinned, NONE, NONE)).toEqual([
+      'hud.energyBanks: missing key (expected {"[]":["number"]})',
+    ]);
+  });
+
   it("catches a probe that drops the combat group or turns the hook member into a value", () => {
     const pinned = fixture["testHookManualDocked"];
     const dropped = { ...pinned };

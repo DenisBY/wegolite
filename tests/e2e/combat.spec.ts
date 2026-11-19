@@ -15,8 +15,10 @@
  * 13-tick beam period, Oolite's literal frame count, the range roll and aim):
  * its hits drain the forward shield
  * and then the energy bank, read here 360 ticks after the spawn and equal to the
- * Node twin's literals (criterion 3: the route from a hook-spawned shooter to the
- * readout). Fire is held from the moment the shooter appears, because the shooter
+ * Node twin's literals, and so are the gauges the HUD draws from them: the
+ * forward and aft shield bars and the four energy banks, read from the HUD
+ * probe (criterion 3, G-17-4: the whole route from a hook-spawned shooter to
+ * the readout drawn on the HUD). Fire is held from the moment the shooter appears, because the shooter
  * fires back: the player's energy bank must still pay for every pulse until the
  * 12th hit kills it (the budget and its Vitest twin are in
  * tests/app/session/tick-parity.test.ts).
@@ -97,6 +99,32 @@ const TWIN_ENERGY_AFTER_SHOOTING = 222.18333333333135;
 const TWIN_HASH_60_AFTER_KILL = "e909751a";
 /** Ticks after the kill at which the hash is read (the twin's 60). */
 const AFTER_KILL_TICKS = 60;
+/** The Cobra's shield dial divisor: the baseline shield level, 128. */
+const SHIELD_DIAL_MAX = 128;
+/** The Cobra's maximum energy (the bank dial's divisor), 256. */
+const ENERGY_DIAL_MAX = 256;
+
+/**
+ * Oolite's shield dial: the shield over its maximum, clamped to 0..1
+ * (`dialForwardShield`, `PlayerEntity.m:4268-4276`). Stated here, not imported,
+ * so the expectation is never computed by the HUD code under test.
+ */
+function shieldDial(shield: number): number {
+  return Math.min(1, Math.max(0, shield / SHIELD_DIAL_MAX));
+}
+
+/**
+ * Oolite's four energy banks, E1 to E4 from the top: the energy over 64 is the
+ * number of full banks, and the bottom bank (E4) fills first, E1 last
+ * (`HeadUpDisplay.m:1977-2041`). Stated here, not imported (see `shieldDial`).
+ */
+function bankDial(energy: number): [number, number, number, number] {
+  const units = Math.min(1, Math.max(0, energy / ENERGY_DIAL_MAX)) * 4;
+  const bank = (fromBottom: number): number =>
+    Math.min(1, Math.max(0, units - fromBottom));
+  return [bank(3), bank(2), bank(1), bank(0)];
+}
+
 /** Draw calls per rendered frame (docs/PERFORMANCE.md, budget.spec.ts). */
 const DRAW_CALL_BUDGET = 50;
 /** Loop frames to wait for after a step, so the counters describe a settled scene. */
@@ -263,10 +291,21 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
   const full = await page.evaluate(() => window.__wegolite?.combat?.fwdShield);
   expect(full, "the shield before the shooter appears").toBe(128);
   // The HUD's drawn forward bar (G-17-4): full before the shooter appears.
-  const drawnFwdBefore = await page.evaluate(
-    () => window.__wegolite?.hud.shieldFwd,
-  );
-  expect(drawnFwdBefore, "the drawn forward bar before the shooter").toBe(1);
+  const drawnBefore = await page.evaluate(() => ({
+    fwd: window.__wegolite?.hud.shieldFwd,
+    aft: window.__wegolite?.hud.shieldAft,
+    banks: window.__wegolite?.hud.energyBanks,
+  }));
+  expect(drawnBefore.fwd, "the drawn forward bar before the shooter").toBe(1);
+  expect(drawnBefore.aft, "the drawn aft bar before the shooter").toBe(1);
+  expect(
+    drawnBefore.banks?.length,
+    "the drawn energy banks before the shooter",
+  ).toBe(4);
+  expect(
+    drawnBefore.banks?.[0] ?? 0,
+    "the drawn top bank E1 before the shooter",
+  ).toBeGreaterThan(0.9);
   await page.keyboard.down("KeyA");
   // The shooter carries 20 cargo capsules (D16-09): `spawnTestShooter(20)`, as
   // in the debris twin. The cargo changes no combat value, so the kill tick and
@@ -289,16 +328,20 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
   ).toBeLessThan(128);
   // The hits' route to the readout (criterion 3, D-04: no first-tick
   // expectation and no gate bypass): the shield and the bank 360 ticks after
-  // the spawn are the Node twin's literals. The HUD draws its shield and
-  // energy gauges from this same combat state (they are not separate
-  // `hud.elements`: tests/e2e/hud.spec.ts pins the element list), so the HUD
-  // must be drawing in the same session.
+  // the spawn are the Node twin's literals, and the drawn gauges are read too
+  // (G-17-4: `hud.shieldFwd`, `shieldAft` and `energyBanks`, the values the
+  // HUD drew on its last frame; the gauges are not `hud.elements`, which
+  // tests/e2e/hud.spec.ts pins). `advance` waits two frames, so the probe and
+  // the drawn model describe the same state; `hud.drawn` keeps the check that
+  // the HUD is drawing in the same session.
   const readout = await page.evaluate(() => ({
     fwd: window.__wegolite?.combat?.fwdShield,
     aft: window.__wegolite?.combat?.aftShield,
     energy: window.__wegolite?.combat?.energy,
     hudDrawn: window.__wegolite?.hud.drawn,
     drawnFwd: window.__wegolite?.hud.shieldFwd,
+    drawnAft: window.__wegolite?.hud.shieldAft,
+    drawnBanks: window.__wegolite?.hud.energyBanks,
   }));
   expect(readout.fwd, "the twin's forward shield at spawn + 360").toBeCloseTo(
     TWIN_SHIELD_AFTER_SHOOTING,
@@ -309,16 +352,39 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
     9,
   );
   expect(readout.aft, "the aft shield is never hit from ahead").toBe(128);
-  // The drawn forward bar fell with the shield and is the probe's forward
-  // shield over 128 (Oolite's shield dial, PlayerEntity.m:4268-4276).
+  // The gauges the HUD drew on the same frame (criterion 3, G-17-4): the drawn
+  // values are Oolite's dial rules applied to the twin's literals (9 digits)
+  // and to the probe's combat values of this frame (12 digits).
+  const twinBanks = bankDial(TWIN_ENERGY_AFTER_SHOOTING);
+  const frameBanks = bankDial(readout.energy ?? Number.NaN);
+  expect(
+    readout.drawnFwd,
+    "the drawn forward bar is the twin's shield over 128",
+  ).toBeCloseTo(shieldDial(TWIN_SHIELD_AFTER_SHOOTING), 9);
+  expect(
+    readout.drawnFwd,
+    "the drawn forward bar is this frame's shield over 128",
+  ).toBeCloseTo(shieldDial(readout.fwd ?? Number.NaN), 12);
+  expect(readout.drawnAft, "the drawn aft bar is still full").toBe(1);
+  expect(readout.drawnBanks?.length, "four drawn energy banks").toBe(4);
+  for (const index of [0, 1, 2, 3]) {
+    expect(
+      readout.drawnBanks?.[index],
+      `the drawn bank E${index + 1} is the twin's energy split`,
+    ).toBeCloseTo(twinBanks[index] ?? Number.NaN, 9);
+    expect(
+      readout.drawnBanks?.[index],
+      `the drawn bank E${index + 1} is this frame's energy split`,
+    ).toBeCloseTo(frameBanks[index] ?? Number.NaN, 12);
+  }
   expect(
     readout.drawnFwd,
     "the drawn forward bar fell below its pre-spawn value",
-  ).toBeLessThan(drawnFwdBefore ?? 0);
+  ).toBeLessThan(drawnBefore.fwd ?? 0);
   expect(
-    readout.drawnFwd,
-    "the drawn forward bar is the forward shield over 128",
-  ).toBeCloseTo((readout.fwd ?? Number.NaN) / 128, 12);
+    readout.drawnBanks?.[0],
+    "the drawn top bank E1 fell below its pre-spawn value",
+  ).toBeLessThan(drawnBefore.banks?.[0] ?? 0);
   expect(readout.hudDrawn, "the HUD is drawing the gauges").toBe(true);
   expect(
     await page.evaluate(() => window.__wegolite?.test?.tainted),

@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import type * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
+import { buildHudModel } from "../../../src/app/hud-model.js";
 import { createRedrawGate } from "../../../src/app/redraw-gate.js";
 import type { RedrawGate } from "../../../src/app/redraw-gate.js";
 import { createSessionState } from "../../../src/app/session/context.js";
@@ -34,6 +35,7 @@ import {
   TEST_FLYER_DISTANCE,
 } from "../../../src/sim/ai/test-spawn.js";
 import { MAX_ENTITIES } from "../../../src/sim/world/ids.js";
+import type { Hud } from "../../../src/render/hud/hud.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { MessageQueue } from "../../../src/render/hud/messages.js";
 import type { WorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
@@ -856,5 +858,114 @@ describe("the spawnTestAttacker hook (plan 17-10, D-02, T-17-24)", () => {
       ).toBeGreaterThanOrEqual(13); // the literal beam period (D-07 revised)
     }
     expect(shieldFell).toBe(true);
+  });
+});
+
+describe("the HUD gauge values (G-17-4)", () => {
+  /** A HUD double with only what the probe's hud block reads. */
+  const stubHud = {
+    drawn: true,
+    elements: [],
+    designScale: 1,
+    letterbox: [0, 0],
+    lift: 0,
+    bounds: {},
+  } as unknown as Hud;
+
+  it("publishes the drawn model's shield bars and energy banks, in the model's order", () => {
+    const { ctx, probe, publisher } = harness();
+    const combat = createPlayerCombatState();
+    combat.fwdShield = 64;
+    combat.aftShield = 128;
+    combat.energy = 200;
+    const model = buildHudModel(
+      initFlightState(layout),
+      layout,
+      config,
+      "",
+      70,
+      0,
+      "",
+      [],
+      { combat },
+    );
+    ctx.runtime.hud = stubHud;
+    ctx.core.lastModel = model;
+
+    publisher.updateProbe();
+
+    expect(probe.hud.shieldFwd).toBe(0.5);
+    expect(probe.hud.shieldAft).toBe(1);
+    // 200 / 256 of four banks: the bottom three full, the top one 0.125.
+    expect(probe.hud.energyBanks).toEqual([0.125, 1, 1, 1]);
+    expect(probe.hud.shieldFwd).toBe(model.bars.shieldFwd);
+    expect(probe.hud.shieldAft).toBe(model.bars.shieldAft);
+    expect(probe.hud.energyBanks).toEqual([...model.bars.energyBanks]);
+  });
+
+  it("copies the banks into a new array, never the model's own", () => {
+    const { ctx, probe, publisher } = harness();
+    const model = buildHudModel(
+      initFlightState(layout),
+      layout,
+      config,
+      "",
+      70,
+    );
+    ctx.runtime.hud = stubHud;
+    ctx.core.lastModel = model;
+
+    publisher.updateProbe();
+
+    expect(probe.hud.energyBanks).not.toBe(model.bars.energyBanks);
+    const published = [...probe.hud.energyBanks];
+    (model.bars.energyBanks as unknown as number[])[0] = 0;
+    expect(probe.hud.energyBanks).toEqual(published);
+  });
+
+  it("reads the live drawn model at every call", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.runtime.hud = stubHud;
+    const combat = createPlayerCombatState();
+    ctx.core.lastModel = buildHudModel(
+      initFlightState(layout),
+      layout,
+      config,
+      "",
+      70,
+      0,
+      "",
+      [],
+      { combat },
+    );
+    publisher.updateProbe();
+    expect(probe.hud.shieldFwd).toBe(1);
+
+    combat.fwdShield = 32;
+    ctx.core.lastModel = buildHudModel(
+      initFlightState(layout),
+      layout,
+      config,
+      "",
+      70,
+      0,
+      "",
+      [],
+      { combat },
+    );
+    publisher.updateProbe();
+    expect(probe.hud.shieldFwd).toBe(0.25);
+  });
+
+  it("publishes 0, 0 and four zeros before the HUD has drawn a frame", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.runtime.hud = stubHud;
+    expect(ctx.core.lastModel).toBeUndefined();
+
+    publisher.updateProbe();
+
+    expect(probe.hud.shieldFwd).toBe(0);
+    expect(probe.hud.shieldAft).toBe(0);
+    expect(probe.hud.energyBanks).toEqual([0, 0, 0, 0]);
   });
 });
