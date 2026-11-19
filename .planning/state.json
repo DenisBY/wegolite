@@ -51,7 +51,7 @@
     {
       "number": "17",
       "name": "NPC Fire and Hits on the Player",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "18",
@@ -74,5 +74,5 @@
     "label": "Advance to the next step",
     "reason": "Phase 3 of 6 · 33% · executing"
   },
-  "updated_at": "2026-11-18T23:10:52.387Z"
+  "updated_at": "2026-11-19T09:24:36.924Z"
 }

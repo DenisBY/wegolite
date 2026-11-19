@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 17
 current_phase_name: NPC Fire and Hits on the Player
-current_plan: 1
+current_plan: 2
 status: executing
-stopped_at: Phase 17 context gathered
-last_updated: "2026-11-18T23:10:52.359Z"
+stopped_at: Completed 17-11-PLAN.md
+last_updated: "2026-11-19T09:24:42.525Z"
 last_activity: 2026-11-19
-last_activity_desc: Phase 17 execution started
-state_head: 462db7b402600dd4837b014fc1c043ee620882c3
+last_activity_desc: Phase 17 execution resumed (wave continue)
+state_head: ea918de0c877ee327487e1fd75382b48b638b37e
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 25
-  completed_plans: 15
+  total_plans: 28
+  completed_plans: 26
   percent: 33
 ---
 
@@ -31,10 +31,10 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 17 (NPC Fire and Hits on the Player) — EXECUTING
-Current Plan: 1
+Current Plan: 2
 Total Plans in Phase: 10
-Status: Executing Phase 17
-Last activity: 2026-11-19 — Phase 17 execution started
+Status: Ready to execute
+Last activity: 2026-11-19 — Phase 17 execution resumed (wave continue)
 
 
 ## Performance Metrics
@@ -209,6 +209,7 @@ Last activity: 2026-11-19 — Phase 17 execution started
 | Phase 16 P07 | 21min | 2 tasks | 9 files |
 | Phase 16 P08 | 20min | 2 tasks | 12 files |
 | Phase 16 P09 | 21min | 2 tasks | 10 files |
+| Phase 17 P11 | 25 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -527,6 +528,7 @@ Recent decisions affecting current work:
 - [Phase 16]: 16-09: D16-25 supported - no populator, traffic or hook path gives a ship an escort owner; port escortCheckMother in the first phase that spawns escorts
 - [Phase 16]: 16-09: the browser reproduces the debris twin (kill +794, 19 entities, hash a10b2dfc 60 ticks later, 21 of 50 calls); verify-full pending the owner's go (OC-6)
 - [Phase 16]: 16-09: OC-1 to OC-7 recorded in PROJECT.md Key Decisions rows A to H as pending owner confirmation
+- [Phase 17]: G-17-1: the oracle shot-timer rule is Oolite's literal frame count at 120 Hz (pulse 60, beam 13, mining 301, military 13), D-07 revised by the owner 2026-11-19; fixtures re-derived by deriveGate/deriveHeat (plan 17-11); the port follows in 17-12
 
 ### Pending Todos
 
@@ -664,9 +666,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-18T20:48:16.700Z
-Stopped at: Phase 17 context gathered
-Resume file: .planning/phases/17-npc-fire-and-hits-on-the-player/17-CONTEXT.md
+Last session: 2026-11-19T09:24:41.928Z
+Stopped at: Completed 17-11-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
