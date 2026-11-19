@@ -39,7 +39,7 @@ import type { Vec3 } from "../math.js";
 import type { SteerComponent } from "../npc/state.js";
 import type { BuoyState, BuoyStates, Entity, StaticHealth } from "./entity.js";
 import type { EntityId } from "./ids.js";
-import { sanitizeStaticHealth } from "./sanitize.js";
+import { sanitizeBuoyStates, sanitizeStaticHealth } from "./sanitize.js";
 import {
   isNeverSpawned,
   isPristineBuoyStates,
@@ -255,12 +255,14 @@ export function entityHashes(world: World): [EntityId, string][] {
  * holds for a never-spawned world too (its section is empty, the line still
  * prints). The buoys line (PD-01, PD-02) follows the static-health line and
  * precedes the combat line under the same rule, printed only when
- * `world.buoys` is not pristine. A hash call can mutate the world: `sanitizeStaticHealth` repairs
- * `world.staticHealth` in place before printing, as the existing
- * `sanitizeCombat(combat)` call already repairs the combat state. That reaches
- * callers that read like pure reads: the `?test=1` probe's `worldHash`
- * (`src/app/session/probe-publisher.ts:171-179`) and the acceptance detectors
- * (`tests/acceptance/detectors.ts`). The mutation is harmless there because it
+ * `world.buoys` is not pristine. A hash call can mutate the world:
+ * `sanitizeStaticHealth` repairs `world.staticHealth` and `sanitizeBuoyStates`
+ * repairs `world.buoys` in place before printing (so a poisoned buoy can
+ * neither reach `canon`, which throws on a non-finite number, nor read as
+ * pristine), as the existing `sanitizeCombat(combat)` call already repairs the
+ * combat state. That reaches callers that read like pure reads: the `?test=1`
+ * probe's `worldHash` (`src/app/session/probe-publisher.ts:171-179`) and the
+ * acceptance detectors (`tests/acceptance/detectors.ts`). The mutation is harmless there because it
  * changes a value only when the state is already corrupt.
  */
 export function hashWorld(
@@ -273,6 +275,7 @@ export function hashWorld(
   if (world !== undefined) {
     // Repair first so a poisoned value cannot reach `canon` or read as pristine.
     sanitizeStaticHealth(world);
+    sanitizeBuoyStates(world);
     if (!isPristineStaticHealth(world.staticHealth)) {
       text += `\n${serializeStaticHealth(world.staticHealth)}`;
     }

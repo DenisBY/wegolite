@@ -48,8 +48,10 @@ import {
 import type { BehaviourId, EntityId, EntityKind, ScanClass } from "./ids.js";
 import {
   BUOY_MAX_ENERGY,
+  BUOY_SUBENTITY_MAX_ENERGY,
   MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
+  MAX_BUOY_OFFSET,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
@@ -1094,6 +1096,23 @@ function parseStaticHealth(value: unknown, path: string): StaticHealthSnapshot {
   };
 }
 
+/** A buoy offset: finite components of magnitude at most `MAX_BUOY_OFFSET`. */
+function parseBuoyOffset(value: unknown, path: string): VectorSnapshot {
+  const o = asObject(value, path, ["x", "y", "z"]);
+  return {
+    x: symmetricNumber(read(o, "x"), `${path}.x`, MAX_BUOY_OFFSET),
+    y: symmetricNumber(read(o, "y"), `${path}.y`, MAX_BUOY_OFFSET),
+    z: symmetricNumber(read(o, "z"), `${path}.z`, MAX_BUOY_OFFSET),
+  };
+}
+
+/**
+ * One buoy (PD-01, PD-02, T-18-39, T-18-51): the offset within
+ * `MAX_BUOY_OFFSET`, the velocity within `MAX_ENTITY_VELOCITY`, the subentity
+ * energy in `0..BUOY_SUBENTITY_MAX_ENERGY` and a boolean routing flag that is
+ * never set on a detached subentity (energy 0), because Oolite clears it when
+ * the subentity dies (`ShipEntity.m:8187-8188`).
+ */
 function parseBuoy(value: unknown, path: string): BuoyStateSnapshot {
   const o = asObject(value, path, [
     "offset",
@@ -1101,18 +1120,25 @@ function parseBuoy(value: unknown, path: string): BuoyStateSnapshot {
     "subentityEnergy",
     "subentityTakingDamage",
   ]);
-  return {
-    offset: parseVector(read(o, "offset"), `${path}.offset`),
-    velocity: parseVelocity(read(o, "velocity"), `${path}.velocity`),
-    subentityEnergy: finiteNumber(
-      read(o, "subentityEnergy"),
-      `${path}.subentityEnergy`,
-    ),
-    subentityTakingDamage: flag(
-      read(o, "subentityTakingDamage"),
+  const offset = parseBuoyOffset(read(o, "offset"), `${path}.offset`);
+  const velocity = parseVelocity(read(o, "velocity"), `${path}.velocity`);
+  const subentityEnergy = limitedNumber(
+    read(o, "subentityEnergy"),
+    `${path}.subentityEnergy`,
+    BUOY_SUBENTITY_MAX_ENERGY,
+  );
+  const subentityTakingDamage = flag(
+    read(o, "subentityTakingDamage"),
+    `${path}.subentityTakingDamage`,
+  );
+  if (subentityTakingDamage && subentityEnergy === 0) {
+    fail(
+      "range",
       `${path}.subentityTakingDamage`,
-    ),
-  };
+      "set on a detached subentity",
+    );
+  }
+  return { offset, velocity, subentityEnergy, subentityTakingDamage };
 }
 
 function parseBuoys(value: unknown, path: string): BuoyStatesSnapshot {

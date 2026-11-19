@@ -43,7 +43,11 @@ import { NO_ENTITY } from "./ids.js";
 import { killShip } from "./kill.js";
 import type { SystemLayout } from "./layout.js";
 import { MAX_UINT32 } from "./limits.js";
-import { sanitizeEntity, sanitizeStaticHealth } from "./sanitize.js";
+import {
+  sanitizeBuoyStates,
+  sanitizeEntity,
+  sanitizeStaticHealth,
+} from "./sanitize.js";
 import { createWorldView } from "./view-impl.js";
 import type { WorldView } from "./view.js";
 import {
@@ -272,8 +276,9 @@ function steerEntity(
 }
 
 /**
- * Repair the world-level hashed state: the stream state, the drop count and the
- * static health (a repair of the last is counted nowhere, FOUND-18).
+ * Repair the world-level hashed state: the stream state, the drop count, the
+ * static health and the buoy states (a repair of the last two is counted
+ * nowhere, FOUND-18, PD-01, PD-02).
  */
 function repairWorldFields(world: World): void {
   const s = world.rng.s;
@@ -284,6 +289,7 @@ function repairWorldFields(world: World): void {
     world.aiDropped = MAX_UINT32;
   }
   sanitizeStaticHealth(world);
+  sanitizeBuoyStates(world);
 }
 
 /**

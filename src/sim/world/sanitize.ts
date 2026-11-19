@@ -70,12 +70,14 @@ import { identity, normalize, quat, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import { ACCURACY_UNRESOLVED, createSteerComponent } from "../npc/state.js";
 import type { SavedCondition, SteerComponent } from "../npc/state.js";
-import type { Entity } from "./entity.js";
+import type { BuoyStates, Entity } from "./entity.js";
 import { BEHAVIOUR_IDS, ENTITY_KINDS, SCAN_CLASSES } from "./ids.js";
 import {
   BUOY_MAX_ENERGY,
+  BUOY_SUBENTITY_MAX_ENERGY,
   MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
+  MAX_BUOY_OFFSET,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
@@ -96,7 +98,7 @@ import {
   STATION_MAX_ENERGY,
   TRACKING_SAMPLES,
 } from "./limits.js";
-import { createStaticHealth } from "./world.js";
+import { createBuoyStates, createStaticHealth } from "./world.js";
 import type { World } from "./world.js";
 
 const FORBIDDEN_PARAM_KEYS: readonly string[] = [
@@ -787,7 +789,108 @@ export function sanitizeStaticHealth(world: World): boolean {
   return repaired;
 }
 
-/** Skeleton: the buoy-state repair, filled in by the GREEN commit. */
-export function sanitizeBuoyStates(_world: World): boolean {
-  return false;
+/**
+ * A buoy vector held inside `-limit..limit` per component. Not an object, or
+ * any component not a finite number: the zero vector (a repair; the buoy rests
+ * at its layout position). A component beyond the limit is clamped to it (a
+ * repair). `-0` becomes 0 without a repair. The vector object is replaced only
+ * when a value changes.
+ */
+function cleanBuoyVector(v: unknown, limit: number): Cleaned<Vec3 | null> {
+  if (!isObject(v)) return { value: vec(0, 0, 0), repaired: true };
+  const { x, y, z } = v;
+  if (
+    typeof x !== "number" ||
+    typeof y !== "number" ||
+    typeof z !== "number" ||
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    !Number.isFinite(z)
+  ) {
+    return { value: vec(0, 0, 0), repaired: true };
+  }
+  const hold = (c: number): number =>
+    noNegativeZero(Math.min(limit, Math.max(-limit, c)));
+  const repaired =
+    Math.abs(x) > limit || Math.abs(y) > limit || Math.abs(z) > limit;
+  const cx = hold(x);
+  const cy = hold(y);
+  const cz = hold(z);
+  const changed = !Object.is(cx, x) || !Object.is(cy, y) || !Object.is(cz, z);
+  return { value: changed ? vec(cx, cy, cz) : null, repaired };
+}
+
+/** Repair one buoy in place; true when a repair was needed. */
+function sanitizeBuoy(buoys: BuoyStates, key: keyof BuoyStates): boolean {
+  const current: unknown = buoys[key];
+  if (!isObject(current)) {
+    buoys[key] = createBuoyStates()[key];
+    return true;
+  }
+  const buoy = buoys[key];
+  let repaired = false;
+
+  const offset = cleanBuoyVector(buoy.offset, MAX_BUOY_OFFSET);
+  if (offset.value !== null) buoy.offset = offset.value;
+  if (offset.repaired) repaired = true;
+  const velocity = cleanBuoyVector(buoy.velocity, MAX_ENTITY_VELOCITY);
+  if (velocity.value !== null) buoy.velocity = velocity.value;
+  if (velocity.repaired) repaired = true;
+
+  const energy: unknown = buoy.subentityEnergy;
+  if (typeof energy !== "number" || !Number.isFinite(energy)) {
+    buoy.subentityEnergy = BUOY_SUBENTITY_MAX_ENERGY;
+    repaired = true;
+  } else if (energy < 0) {
+    buoy.subentityEnergy = 0;
+    repaired = true;
+  } else if (energy > BUOY_SUBENTITY_MAX_ENERGY) {
+    buoy.subentityEnergy = BUOY_SUBENTITY_MAX_ENERGY;
+    repaired = true;
+  } else {
+    buoy.subentityEnergy = noNegativeZero(energy);
+  }
+
+  const taking: unknown = buoy.subentityTakingDamage;
+  if (typeof taking !== "boolean") {
+    buoy.subentityTakingDamage = false;
+    repaired = true;
+  } else if (taking && buoy.subentityEnergy === 0) {
+    // Oolite clears the routing when the subentity dies (ShipEntity.m:8187-8188).
+    buoy.subentityTakingDamage = false;
+    repaired = true;
+  }
+  return repaired;
+}
+
+/**
+ * Repair `world.buoys` in place (Phase 18, PD-01, PD-02, T-18-39, T-18-51);
+ * true when a repair was needed. A record or a buoy that is not an object is
+ * replaced by the pristine one, and so is an offset or velocity that is not an
+ * object. Per buoy:
+ *  - an offset or velocity with a non-finite component becomes the zero
+ *    vector (the buoy rests at its layout position); a component beyond
+ *    `MAX_BUOY_OFFSET` or `MAX_ENTITY_VELOCITY` is clamped to it;
+ *  - a non-finite `subentityEnergy` heals to `BUOY_SUBENTITY_MAX_ENERGY` 200,
+ *    the same direction as `sanitizeStaticHealth` (heal to the maximum), a
+ *    recorded choice: such input arrives only through the `?test=1` hook or a
+ *    post-step corruption (review L742); a negative one becomes 0 and one above
+ *    200 becomes 200;
+ *  - `subentityTakingDamage` becomes false when it is not a boolean, and when
+ *    the subentity is detached (energy 0), as Oolite clears it then.
+ * `-0` becomes 0 without a repair. Never throws. Like the static-health repair,
+ * it is counted in no hashed counter. It runs in `repairWorldFields` before
+ * every world step and inside `hashWorld`, because the `?test=1` probe and the
+ * acceptance detectors hash without stepping and `canon` throws on a
+ * non-finite number.
+ */
+export function sanitizeBuoyStates(world: World): boolean {
+  const current: unknown = world.buoys;
+  if (!isObject(current)) {
+    world.buoys = createBuoyStates();
+    return true;
+  }
+  const witchpoint = sanitizeBuoy(world.buoys, "witchpoint");
+  const navBuoy = sanitizeBuoy(world.buoys, "navBuoy");
+  return witchpoint || navBuoy;
 }
