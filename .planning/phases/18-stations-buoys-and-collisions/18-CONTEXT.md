@@ -128,3 +128,13 @@ Not in this phase: planet and sun collision, scooping, the player's death (Phase
 ---
 
 *Phase: 18-stations-buoys-and-collisions*
+
+## Owner decisions at plan time (2026-11-19, locked)
+
+Taken after the first plan-check pass; they override any conflicting draft plan content.
+
+- **PD-01 — Buoy subentity ported (minimal B).** A laser hit or ram that ends on the buoy's frangible subentity puts `0.01 * damage` on the buoy body **and** the full damage on the subentity, as Oolite does (`ShipEntity.m:10202-10209`, `10409-10416`; collision routing `11123-11128`). The subentity has its own energy (Oolite default 200, recharge 1/s, `ShipEntity.m:291-292`) tracked per world in the world snapshot (same amendment as PD-02; saves never carry world state, D-04). At zero it is detached: dropped from hit tests and colliders, the buoy's mass drops by the subentity mass (about 7,646.79), and its mesh is hidden. No explosion entity or debris for the detached subentity — a recorded FIDELITY divergence, like the buoy's own no-debris row. Advisors (fable, opus) favoured this; sonnet favoured a recorded divergence. Supersedes the draft "1 % only" treatment.
+- **PD-02 — Buoys move when rammed, as in Oolite.** The collision response applies to the buoy side too (Oolite carries a buoy about 10 m after a 100 m/s ram, about 122 m after 350 m/s). Buoy pose and velocity become per-world state (snapshot, sanitiser, hash pristine-omit); scanner, beacon/compass, render and jump blockage read the live pose. Supersedes the draft "buoys are immovable".
+- **PD-03 — Measure on real Oolite.** All three research claims are checked in the reference container (`tools/oolite-reference/run-remote.sh` on the remote machine): the dock-mouth hit distances, the buoy ram numbers, and the pod/plate jump-blockage radius. Results are recorded and either confirm the fixtures or open a fix.
+- **PD-04 — `verify-full` only at phase close (18-12).** Other plans that touch browser-facing code run the fast `verify` remotely.
+- **PD-05 — Rammed pods take damage (scooping deferred).** Oolite returns from `collideWithShip` before damage when `canScoop` holds (`ShipEntity.m:11022-11027`, `11183-11197`); scooping is out of phase, so rammed pods are damaged here. Record as a FIDELITY row and Key Decision.
