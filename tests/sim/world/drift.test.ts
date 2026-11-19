@@ -13,6 +13,8 @@
  * `ship-braking.oracle.test.ts` holds the port to the 18-03 fixtures.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
@@ -112,6 +114,21 @@ describe("the constants (ShipEntity.h:46, shipdata.plist buoy)", () => {
     expect(SHIP_DRIFT_THRUST_FACTOR).toBe(5);
     expect(BUOY_THRUST).toBe(100);
     expect(KRAIT_THRUST).toBe(35);
+  });
+
+  it("BUOY_THRUST equals the compiled buoy record's thrust", () => {
+    const records = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../../src/content/generated/ships-client.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as { key: string; extras?: { thrust?: unknown } }[];
+    const buoys = records.filter((record) => record.key === "buoy");
+    expect(buoys).toHaveLength(1);
+    expect(buoys[0]?.extras?.thrust).toBe(BUOY_THRUST);
   });
 });
 
