@@ -77,6 +77,14 @@ import { realNpcFlightTable } from "../../helpers/npc-flight.js";
 const { layout, config } = laveFixture();
 const HULLS = realHullTable();
 
+/**
+ * Bound on the tick of a freshly spawned shooter's first shot, counted from the
+ * spawn. A new ship has lastShotTick 0 and the NPC gate skips the shot timer
+ * for 0 (src/sim/npc/fire.ts), so the first shot comes on the first tick whose
+ * range roll passes: this is a roll bound, and the beam period plays no part.
+ */
+const FIRST_SHOT_BOUND_TICKS = 13;
+
 /** Far from the station and the planet, so nothing mass-locks the player. */
 const FAR = vec(1e7, 0, 0);
 
@@ -304,10 +312,10 @@ describe("spawnTestShooter", () => {
     spawnTestShooter(world, player, VIPER, player.tick);
 
     // D-08: the shot is the gate's, so it comes on the first tick whose range
-    // roll passes (at most one per 13-tick beam period); the shield refill of 2 a
-    // second is at most 0.22 points over 13 ticks, below the 6 of the hit.
+    // roll passes (FIRST_SHOT_BOUND_TICKS); the shield refill of 2 a second is
+    // at most 0.22 points over 13 ticks, below the 6 of the hit.
     let hitTick = -1;
-    for (let i = 1; i <= 13 && hitTick < 0; i += 1) {
+    for (let i = 1; i <= FIRST_SHOT_BOUND_TICKS && hitTick < 0; i += 1) {
       stepSim(
         player,
         world,

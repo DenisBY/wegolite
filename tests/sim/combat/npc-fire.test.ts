@@ -100,6 +100,14 @@ const BEAM_DAMAGE = BEAM.damage;
  */
 const BEAM_PERIOD = 13;
 
+/**
+ * Bound on the tick of a freshly spawned shooter's first shot, counted from the
+ * spawn. A new ship has lastShotTick 0 and the NPC gate skips the shot timer
+ * for 0 (src/sim/npc/fire.ts), so the first shot comes on the first tick whose
+ * range roll passes: this is a roll bound, and the beam period plays no part.
+ */
+const FIRST_SHOT_BOUND_TICKS = 13;
+
 /** The float32 cooling step of one stepped tick: fround(6 x dt). */
 const COOL_STEP = Math.fround(6 * DT);
 
@@ -320,7 +328,7 @@ function aheadOf(distance: number): Vec3 {
 }
 
 describe("a hook-spawned shooter fires through the gate (tracer, CBT-15, D-09)", () => {
-  it("fires within one period, never closer than the beam's 13 ticks, and drains the shield then energy", () => {
+  it("fires within the first-shot roll bound, never closer than the beam's 13 ticks, and drains the shield then energy", () => {
     const player = flyingPlayer();
     const combat = createPlayerCombatState();
     const world = createWorld(7);
@@ -399,10 +407,11 @@ describe("a hook-spawned shooter fires through the gate (tracer, CBT-15, D-09)",
       expect(shooter.weapon.lastShotTick).toBe(lastShot);
     }
 
-    // The first shot is within 13 ticks of the spawn; no two are closer than 13.
+    // The first shot is within the roll bound of the spawn (the timer is
+    // skipped for a ship that never fired); no two are closer than the period.
     expect(shotTicks.length).toBeGreaterThan(10);
     expect((shotTicks[0] as number) - spawnTick).toBeLessThanOrEqual(
-      BEAM_PERIOD,
+      FIRST_SHOT_BOUND_TICKS,
     );
     for (let i = 1; i < shotTicks.length; i += 1) {
       expect(

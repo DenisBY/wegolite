@@ -497,6 +497,14 @@ const VIPER_BEAM: NpcWeapon = {
 };
 const FACING_PLUS_Z: Quat = { w: 0, x: 0, y: 1, z: 0 };
 
+/**
+ * Bound on the tick of a freshly spawned shooter's first shot, counted from the
+ * spawn. A new ship has lastShotTick 0 and the NPC gate skips the shot timer
+ * for 0 (src/sim/npc/fire.ts), so the first shot comes on the first tick whose
+ * range roll passes: this is a roll bound, and the beam period plays no part.
+ */
+const FIRST_SHOT_BOUND_TICKS = 13;
+
 /** A player launched and flying, parked far from the station and the planet. */
 function flyingPlayerAtFar(): FlightState {
   const player = initFlightState(layout);
@@ -695,11 +703,15 @@ describe("a test shooter's lethal shot through stepSim", () => {
     const combat = createPlayerCombatState();
 
     // D-08: the shooter's shot is the gate's, so the kill comes on the first
-    // tick whose range roll passes, within the first 13 ticks (the beam period,
-    // D-07 revised); every tick before
-    // it also ends with empty queues and no dead entity.
+    // tick whose range roll passes, within FIRST_SHOT_BOUND_TICKS of the spawn
+    // (a roll bound, not the beam period); every tick before it also ends with
+    // empty queues and no dead entity.
     let events: SimEvent[] = [];
-    for (let i = 0; i < 13 && destroyed(events).length === 0; i += 1) {
+    for (
+      let i = 0;
+      i < FIRST_SHOT_BOUND_TICKS && destroyed(events).length === 0;
+      i += 1
+    ) {
       events = stepSim(
         player,
         world,
