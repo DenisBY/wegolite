@@ -7,10 +7,10 @@ current_phase_name: Stations, Buoys and Collisions
 current_plan: Not started
 status: planning
 stopped_at: Phase 18 context gathered
-last_updated: "2026-11-19T13:35:59.840Z"
+last_updated: "2026-11-19T15:19:45.374Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 17 complete, transitioned to Phase 18
-state_head: 27b596813fc6b0c62cb296b4c505926d09cd01f7
+state_head: 70f937023db0684f0fee363add6f3f543b20d43a
 progress:
   total_phases: 6
   completed_phases: 3
@@ -637,6 +637,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261118-spu | Draw the HUD while launching as Oolite does | 2026-11-18 | ce49c5d | [261118-spu-draw-the-hud-while-launching-as-oolite-d](./quick/261118-spu-draw-the-hud-while-launching-as-oolite-d/) |
 | 58 | Size the LS speed readout like its SPD label | 2026-11-18 | 3cec8ed | — |
 | 261119-i9g | NPC laser shots use the ship's shipdata laser_color (Viper fires magenta), weapon colour as fallback | 2026-11-19 | df27cca | [261119-i9g-npc-laser-shots-use-the-ship-s-laser-col](./quick/261119-i9g-npc-laser-shots-use-the-ship-s-laser-col/) |
+| 60 | Make codebase-memory guidance conditional; list recommended agent tooling in README | 2026-11-19 | 70f9370 | — |
 
 ## Deferred Items
 
