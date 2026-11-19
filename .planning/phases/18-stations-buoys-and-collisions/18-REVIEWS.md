@@ -1,8 +1,9 @@
 ---
 phase: 18
+round: 2
 reviewers: [fable, opus, sonnet]
-reviewed_at: 2026-11-19T15:57:00Z
-plans_reviewed: [18-01-PLAN.md, 18-02-PLAN.md, 18-03-PLAN.md, 18-04-PLAN.md, 18-05-PLAN.md, 18-06-PLAN.md, 18-07-PLAN.md, 18-08-PLAN.md, 18-09-PLAN.md, 18-10-PLAN.md, 18-11-PLAN.md, 18-12-PLAN.md, 18-13-PLAN.md, 18-14-PLAN.md, 18-15-PLAN.md, 18-16-PLAN.md, 18-17-PLAN.md, 18-18-PLAN.md, 18-19-PLAN.md, 18-20-PLAN.md]
+reviewed_at: 2026-11-19T17:04:57Z
+plans_reviewed: [18-01-PLAN.md, 18-02-PLAN.md, 18-03-PLAN.md, 18-04-PLAN.md, 18-05-PLAN.md, 18-06-PLAN.md, 18-07-PLAN.md, 18-08-PLAN.md, 18-09-PLAN.md, 18-10-PLAN.md, 18-11-PLAN.md, 18-12-PLAN.md, 18-13-PLAN.md, 18-14-PLAN.md, 18-15-PLAN.md, 18-16-PLAN.md, 18-17-PLAN.md, 18-18-PLAN.md, 18-19-PLAN.md, 18-20-PLAN.md, 18-21-PLAN.md, 18-22-PLAN.md]
 models:
   fable: "fable"
   opus: "opus"
@@ -11,11 +12,12 @@ model_sources:
   fable: "agent-alias"
   opus: "agent-alias"
   sonnet: "agent-alias"
+previous_round: "b45e113"
 ---
 
-# Cross-AI Plan Review — Phase 18
+# Cross-AI Plan Review — Phase 18 (round 2)
 
-Reviewed by three independent Claude subagents (own models, per the owner's standing rule; no external CLIs), each over all 20 plans at commit `2f9eb47`, with a primary focus: Fable — Oolite fidelity and determinism; Opus — executability, sequencing, code grounding; Sonnet — tests, oracle independence, persistence, security. The orchestrator spot-checked the three HIGH findings against source (all confirmed).
+Round 2 over the 22 replanned plans at commit `8f33318`, by three independent Claude subagents (own models, per the owner's rule): Fable — Oolite fidelity and determinism; Opus — executability, sequencing, grounding; Sonnet — tests, oracle independence, persistence, security. Reviewers were told to verify the round-1 dispositions (each plan's Review Dispositions Ledger) and look for new problems. Round 1 is in git at `b45e113` (the ledgers cite its line numbers as `L##@b45e113`).
 
 <!-- gsd:plan-revision-conflicts:begin -->
 ## Plan-Revision Conflicts
@@ -23,280 +25,291 @@ Reviewed by three independent Claude subagents (own models, per the owner's stan
 
 ## Consensus Summary
 
-Overall risk: MEDIUM from all three reviewers. Grounding is strong (cited paths, interfaces and Oolite lines check out); the ported rules come from the right half of the C with no sign errors; no path found that breaks 30/60/144 Hz equality or pristine-omit hashes.
+Overall risk: MEDIUM (all three). Counts: Fable 0 H / 5 M / 13 L; Opus 1 H / 4 M / 13 L; Sonnet 0 H / 7 M / 9 L. The round-1 dispositions traced by the reviewers (prime role, sticky routing, frangible split, split dvOther, drift branch, ram-probe arithmetic, 18-20 gating) are present in executable task text; no path found that breaks 30/60/144 Hz equality or pristine-omit hashes; waves and dependencies match the data flow.
 
-### Agreed Strengths
-- Ported rules (collideWithShip, scrape, blast, subentity hit rule, jump blockage) trace to the correct Oolite lines (Fable, Opus).
-- Hash/snapshot design — pristine-omit, strict bounds, diff-gated goldens — is sound (Sonnet, Fable).
-- Oracle structure (independent fixtures with C citations) and the tracer-first ordering (all three).
+### Agreed Concerns (2+ reviewers)
+1. **18-20 real-Oolite probes can produce a false verdict, and a false MISMATCH stops four plans** (Opus HIGH, Fable MEDIUM).
+   - Shooting the main station in real Oolite marks the player an offender and launches police through the very dock slot the rays cross (`StationEntity.m:1128-1141`).
+   - The probe ignores the laser's offset from the ship centre and the station's spin (Opus).
+   - The pod/plate blockage probe likely measures nothing: a pod that close sits inside the Cobra's hull (Opus).
+   - The ram probe does not log subentity energy, so a hull contact cannot be told from a subentity contact (m2 differs ~91-fold) (Fable).
+   - 18-17 consumes the measured buoy displacement but sits outside the 18-20 gate (Fable).
+2. **18-18 player-death tripwire still too narrow** (Sonnet, Opus): it skips `events.ts` and matches only a literal `kind: "playerDestroyed"` or a `"dead"` FlightMode, so a Phase 20 factory function or a differently named mode would pass unnoticed.
+3. **18-21 / PD-06–PD-07 side effects** (Fable, Opus).
+   - Fable: the proximity port omits Oolite's 2r-extent collision-chain prefilter (`Universe.m:6713-6780`). Phase 14's "no-op for equal radii" justification does not hold for buoys: Wegolite would alert at 236.6 m where Oolite alerts at 164–219 m, and PD-07 would then accept those moved numbers as "more faithful".
+   - Opus: there is no rule for unit-test pins that move because NPCs now avoid buoys (PD-07 covers only the acceptance run), and "an NPC never touches the buoy" is stronger than Oolite guarantees.
 
-### Agreed Concerns (highest priority)
-1. **HIGH — 18-18 player-death tripwire cannot work as written** (Sonnet, Opus). The guard fails when `src/sim/events.ts` names `playerDestroyed`, but that kind is already declared (`src/sim/events.ts:179`, `:227`; confirmed). Key it on a producer (an emit site of `playerDestroyed` in `src/sim`, or a `"dead"` FlightMode), not the declaration.
-2. **MEDIUM — 18-20 ram probe cannot reach contact** (Fable, Opus). A 100 m/s drift started 300 m out brakes at 32 m/s² and stops after ~156 m. Also (Opus) a measured mismatch "stops the plan" but gates nothing: 18-04, 18-16, 18-07 consume the same fixtures/evidence without depending on 18-20.
-3. **MEDIUM — station contact ignores the new player drift** (Fable, Opus; 18-10/18-11, `src/sim/dock/step.ts:101-102`): a pushed player re-bounces every tick at the dock face; docking is proven only at zero drift.
-4. **MEDIUM — no browser coverage of the headline criteria; static-hull chunk outside `budget.spec.ts`** (Sonnet, Opus; 18-13): statics load only with traffic on, the e2e build is traffic-off, `loadStaticHulls` failure path unspecified, and the QUAL-11 acceptance run never enables collisions, so it cannot exercise the new paths.
-
-### Divergent / single-reviewer findings worth acting on
-- **HIGH (Fable) — 18-02 and 18-09 share a wrong sentence:** "the axial octree is the larger by radius". In the C the axial tree is always the caller's (prime) tree (`Octree.m:473-477`, `ShipEntity.m:1897`); the radius comparison (`Octree.m:497`) only selects which crude prune runs. Confirmed by the orchestrator. Because oracle and port share the error, fixtures would pass a wrong port.
-- **HIGH (Opus) — NPCs will ram buoys.** Buoys become colliders but are not proximity candidates (`src/sim/npc/proximity.ts:16-21`, a Phase 14 recorded choice; confirmed). Oolite alerts NPCs to any ship over 2,000 kg (`CollisionRegion.m:308-311`, `ShipEntity.m:6107`), so they steer around buoys; here a Krait at 100 m/s would take ~1,397 damage and die. No gate sees it (acceptance runs never enable collisions). Needs an owner decision.
-- **MEDIUM (Fable) — 18-15 subentity routing is sticky in Oolite:** `subEntityTakingDamage` is set on a subentity hit and not cleared by a later hull hit (`Universe.m:5634-5636`, `ShipEntity.m:10202`, `10409`); the plan routes per shot. Port or record.
-- **MEDIUM (Sonnet) — 18-03/18-19 expected values in plan text** (68.1, 0.027, 0.0007, 0.06, 18.1, 1.3, 0.013 m/s) are visible to the oracle author, against "derive, never copy".
-- **MEDIUM (Opus) — 18-03/18-16 single `dvOther`** cannot express Oolite's case where the rammer dies against a buoy's subentity and the buoy still keeps its push.
+### Single-reviewer findings worth acting on
+- **Sonnet MEDIUM, 18-14:** `hashWorld` repairs `staticHealth` itself (`src/sim/world/serialize.ts:243-247`) because the probe and the acceptance detectors hash without stepping. The new `World.buoys` is sanitised only in `repairWorldFields`, and `canon` throws on non-finite values (`src/sim/hash.ts:30`).
+- **Sonnet MEDIUM, 18-02 → 18-04/18-20:**
+  - the dock-mouth tolerance (leaf half-diagonal) does not bound oblique rays;
+  - "none" fixtures have no clearance rule, so a correct port can fail a fixture, and "never widen the tolerance" then stops the phase;
+  - the prime-role fixtures must each flip individually, and the soundness property only runs one way.
+- **Sonnet MEDIUM, 18-02/18-09:** Oolite's `doOctreesCollide` recurses (`ShipEntity.m:1899-1938`), so its stage 4 can never fire; the specified subentity-against-subentity result contradicts the C.
+- **Sonnet MEDIUM:**
+  - 18-03's behaviour list still contains expected figures, which contradicts its ledger;
+  - 18-13's load-failure test is only a source scan.
+- **Fable MEDIUM, 18-19:** a gate pins a false citation into FIDELITY. `isInSpace` does include `STATUS_ACTIVE` (`Entity.m:1043`); the station is pushed and braked to rest within the frame. (This was Fable's own round-1 error, which the plan copied.)
+- **Fable MEDIUM, 18-11:** the deferral of a populated-world run with collisions on does not hold.
+- **LOW items** (labels and float32 constants): 18-07's 396.1 m label; 18-08's node name; a detached buoy mass that should be the float32 value 691,044.375.
 
 ---
 
 ## Fable Review
 
-## Phase 18 plan review — Oolite fidelity and determinism (fable)
+## Phase 18 plan review, round 2 — Oolite fidelity and determinism (fable)
 
-Reviewer focus: every ported rule against the Oolite C source at `/home/opencode/git/oolite/src/Core`, plus float32/double, frame-rate dependence, 30/60/144 Hz equality and pristine-omit hashes. Read-only; nothing was run. Plan paths are relative to `.planning/phases/18-stations-buoys-and-collisions/`. Oolite paths are relative to `/home/opencode/git/oolite/src/Core/`.
+Focus: every ported rule against the Oolite C, and anything that breaks 30/60/144 Hz equality or pristine-omit hashes. Read-only; nothing was run. Plan paths are relative to `.planning/phases/18-stations-buoys-and-collisions/`. Oolite paths are relative to `/home/opencode/git/oolite/src/Core/` (the cited files are unchanged between pin `7437f22` and the checkout HEAD `21978c37b`; `git diff --stat` is empty for them).
 
-Severity totals: **1 HIGH, 3 MEDIUM, 13 LOW**.
+Severity totals: **0 HIGH, 5 MEDIUM, 13 LOW**.
 
-What I checked and found correct (so later sections can be short): the `collideWithShip` sequence and its asymmetries (`Entities/ShipEntity.m:11020-11152`), the right-half damage formula (`:11089-11090`), the heat-free player scrape (`Entities/PlayerEntity.m:5701-5753`), player braking with raw thrust and integrate-then-brake order (`Entities/PlayerEntity.m:3376-3404`), NPC and buoy braking with brake-then-integrate order (`Entities/ShipEntity.m:5808-5823`, `Entities/Entity.m:868-882`; a tumbling buoy does reach `applyThrust`, `ShipEntity.m:2485-2491`, `2633-2637`), the blast formula and its in-range test (`ShipEntity.m:7680-7698`, `8123-8126`, `Universe.m:5862-5868`), the laser subentity rule (`ShipEntity.m:1323-1357`), the jump-blockage rule and the mass drop on a dead subentity (`ShipEntity.m:12498-12531`, `8185-8194`), the compass fallback (`PlayerEntity.m:4655-4659`), and ident (`Universe.m:5689-5706`).
+One of the MEDIUM findings (18-19) is my own round-1 error, copied faithfully into the plan. It is called out as such.
+
+Round-1 dispositions I checked against the C and the plan tasks and found correct and complete:
+
+- **Prime role of `isHitByOctree`** (18-02, 18-09): the axial tree is the receiver (`Octree.m:473-477`, `ShipEntity.m:1897`), the radius compare only picks the prune (`Octree.m:497-512`), decomposition depends on solidity (`:519-594`). Truths, behaviour, action and gates all say so now (`18-02-PLAN.md:29`, `:192-193`, `:215`; `18-09-PLAN.md:144`, `:168`).
+- **Sticky `subEntityTakingDamage`** (18-14, 18-15): the only setter with a non-nil value is `Universe.m:5634-5636`; the only clears are dealloc (`ShipEntity.m:1041`), the dead-reference getter (`:1245-1247`) and `subEntityDied` / `subEntityReallyDied` (`:8187-8188`, `:8199-8200`); both firing paths read the flag, not the current hit (`:10202-10209`, `:10409-10416`). The plan sets on a subentity win, routes every later laser hit while set, and clears at detachment (`18-15-PLAN.md:32`, `:172`). The flag is pristine-omit, parsed, bounded and repaired (`18-14-PLAN.md` truths 1 and 4).
+- **Frangible 1 % / 100 %**: `0.01 * weapon_damage` on the parent, then the full amount on the subentity, gated on the parent's `isFrangible` (default YES, `ShipEntity.m:376`; Coriolis `frangible = 0`). A ram has no bleed (`ShipEntity.m:11123-11128`), and 18-18 says so in executable text (`18-18-PLAN.md:169`).
+- **Split `dvOtherBody` / `dvOtherSubentity`** (18-03, 18-16, 18-18): `[otherParent adjustVelocity:vel2a]` (`ShipEntity.m:11103-11105`) and the selfDestroyed reversal `[other adjustVelocity:-vel2a]` on the subentity itself (`:11117-11119`). The schema, the fixture `collide-subentity-self-destroyed`, the kernel type and the stage all agree.
+- **Station-contact drift branch** (18-10): traced through `src/sim/dock/step.ts:93-124`. With drift 68 m/s inward and the engine part zero, the engine part gets the `MIN_OUTWARD_SPEED` floor (8 m/s outward), the drift reflects to 34 m/s outward, and the next tick separates: one bounce. The `drift !== 0` guard keeps the zero-drift path byte-identical. Everything runs inside the fixed step.
+- **Blast two sources for a dying buoy** (18-03, 18-19): subentities explode first (`ShipEntity.m:8115-8120`), `subEntityDied` lowers the mass (`:8185-8194`), then `0.125f * mass` (`:8123-8126`).
+- **Jump blockage with live mass and pose** (18-07): `k * [ship mass] > d2 && d2 < SCANNER_MAX_RANGE2` (`ShipEntity.m:12526-12527`), mass reduced by `subEntityDied`.
+- **Compass fallback** (18-08): `PlayerEntity.m:4655-4659`.
+- **100 m/s ram probe** (18-20): 150 m start, 156 m stopping distance, contact at or inside 131.8 m. Reaches contact.
 
 ---
 
 ### 18-01
 
-**Summary.** Measures the Coriolis octrees and ships the four static hulls with subentities in their own artifact.
+**Summary.** Static hull artifact with subentities and `frangible` per hull.
 
-**Strengths.** `frangible` is compiled per hull from the right default (`Entities/ShipEntity.m:376`, default YES), so the buoy/Coriolis difference that drives PD-01 comes from data, not from a hand-typed flag (`18-01-PLAN.md:33`). A non-identity subentity orientation fails the build (`18-01-PLAN.md:32`), which keeps the "shift the beam by the authored position" shortcut honest against `absoluteIJKForSubentity` (`ShipEntity.m:2008-2025`).
+**Strengths.** `frangible` comes from data (`shipdata.plist` Coriolis `frangible = 0`; buoy default YES, `ShipEntity.m:376`), which is what gates the sticky 1 % routing in 18-15.
 
-**Concerns.** No findings in focus.
+**Concerns.** No findings in focus. The buoy subentity position `(0, 0, 0)` (`Resources/Config/shipdata.plist:1045-1048`) is carried, which several later rules silently depend on (see 18-19, LOW).
 
 **Suggestions.** None.
 
 ### 18-02
 
-**Summary.** Independent geometry oracle: dock-mouth rays from the meshes, and a transliteration of `isHitByOctree` / `doOctreesCollide`.
+**Summary.** Independent geometry oracle: dock-mouth rays and a transliteration of `isHitByOctree` / `doOctreesCollide`.
 
-**Strengths.** The soundness property (reference hit implies a brute-force cell overlap) and the pruned-corner fixture are the right way to pin Oolite's crude prunes as a subset of exact geometry (`18-02-PLAN.md:30`, `:187`). Tie rule for the hull is right: `hit_distance > hitSub` is strict (`ShipEntity.m:1350`).
+**Strengths.** The round-1 HIGH is fixed in truths, behaviour, action and a negative grep, with a self-test variant that must fail (`18-02-PLAN.md:192-193`, `:215`).
 
 **Concerns.**
 
-- **HIGH — the oracle is told the wrong rule for the "axial" octree, and the port plan repeats it, so the two cannot disagree.** `18-02-PLAN.md:29` ("the axial choice by radius") and `:189` ("The axial octree is the larger by radius (the C's choice)") and `18-09-PLAN.md:141` ("the axial octree is the larger by radius as in the C") all say the same thing; the source is `18-RESEARCH.md:290`. The C does not choose: the axial octree is always the receiver, i.e. `prime` (`Octree.m:473-477`, called as `[prime_octree isHitByOctree:other_octree ...]` at `ShipEntity.m:1897`). The radius comparison at `Octree.m:497` only selects which crude prune runs (other sphere against axial cube at `:499-503`, or axial sphere against other cube at `:504-512`). After that the decomposition depends only on solidity: axial solid decomposes the other (`:519-559`), otherwise the axial is decomposed (`:560-594`). A port that swaps the trees so the larger is axial changes the octant visiting order, the sign conventions (`nextPosition = otherPosition - resolve(offset, ijk)` at `:551-552` against `otherPosition + offset` at `:588`) and which prune applies at each level. Because the oracle and the port receive the same wrong sentence, the "independent" fixtures, including the one that "pins that asymmetry", would pass against a wrong port. The real asymmetry to pin is prime against other with the same pair, not larger against smaller.
-- **LOW — fixtures express a rotated other as ijk, the port takes quaternions.** The Oolite-to-Wegolite map (x, y, -z) is a reflection, so a quaternion cannot be mapped by negating one component of the axis naively (`18-02-PLAN.md:103`, `18-09-PLAN.md:170`). A wrong map still gives a valid rotation and plausible answers.
+- **LOW — the oracle is told a return value the C never produces, and the port plan repeats it (same defect class as round 1's HIGH, but unreachable in this phase).** `18-02-PLAN.md:194` says the reference returns "the other subentity's index for subentity-subentity", and `18-09-PLAN.md:25` and `:144` say "the four stages in order". In the C, stage 2 is recursive: `doOctreesCollide((ShipEntity*)se, other)` (`ShipEntity.m:1903-1906`) is called with the full `other`, so inside it stage 3 tests the prime subentity's hull against every one of `other`'s subentities (`:1911-1918`) and returns non-nil; the outer call then returns `other`, the hull. A subentity-against-subentity contact therefore returns `other` at stage 2, and stage 4 (`:1921-1935`) is dead code. Both parties need subentities for this to matter, which today means buoy against buoy (unreachable, 223 km apart) because the station is not a collider. It becomes reachable the day a station type or a ship with subentities joins the stage.
 
-**Suggestions.** Reword both plans to: "the axial octree is always prime (`Octree.m:473`, `ShipEntity.m:1897`); the radius comparison selects only the crude prune (`Octree.m:497-512`)", and add one fixture where prime is the smaller tree and one where it is the larger, both with expected values written from a hand trace of the C, not from the reference. Keep fixtures in ijk and have the consumer build the quaternion from the basis with a round-trip assertion (rotate the three unit axes, compare with ijk).
+**Suggestions.** Change the expected result of the subentity-subentity fixture to `"other"` with the recursion cited, or mark the fixture "not the C's result, unreachable in Phase 18" and add a tripwire. A literal recursive transliteration gives the right answer for free.
 
 ### 18-03
 
 **Summary.** Independent response oracle: `collideWithShip`, braking, scrape, blast.
 
-**Strengths.** The step list in `18-03-PLAN.md:28` matches the C line by line, including the two details most often lost: the destroyed flags are read before damage (`ShipEntity.m:11111-11112`) and a subentity contact uses the subentity's mass and energy but the parent's velocity (`:11054`, `:11057-11066`, `:11103-11105`, `:11123-11128`). The fixture for the C's displacement of the subentity inside its parent (`:11143-11146`) as a separate field is correct. Blast `d2` uses the receiver's radius (`ShipEntity.m:7685-7686`), which is the easy one to get backwards.
+**Strengths.** Float handling now follows the C: `m2 * v2b * v2b / 50000000` is a float expression widened on assignment, `magnitude2(v)` is a float compared with the double `0.1`, `energy` is `GLfloat` (`Entity.h:134`). Expected figures are gone from the text. The "receiver at the victim's centre is skipped" fixture matches the C: `vector_normal` of a zero vector is `kZeroVector` (`OOVector.h:247-253`, `:270-273`).
 
-**Concerns.**
+**Concerns.** No new findings in focus.
 
-- **LOW — float choice is inconsistent with the C at exactly the thresholds the branch fixtures sit on.** `18-03-PLAN.md:155` prescribes `Math.fround` for m1, m2, v2b, v1a, t and "float64 for the double dam1, dam2". In the C, `dam1 = m2 * v2b * v2b / 50000000` (`ShipEntity.m:11089-11090`) is a GLfloat expression (GLfloat operands and an int) widened on assignment, and `magnitude2(v)` is a float compared with the double literal 0.1 (`:11096`). Consequences for the planned boundary fixtures (`18-03-PLAN.md:149`): the float nearest 0.1 is 0.100000001490116, which is not `<= 0.1`, so "|v|^2 = 0.1 exactly takes the anti-conjoin branch" is not what Oolite does; the float nearest 0.05 is above the double 0.05, so "dam exactly 0.05 applies nothing" is not Oolite either. Plan 18-16 uses the same choice (`18-16-PLAN.md:97`), so the port and the oracle agree with each other and not with the C. Impact is confined to measure-zero boundaries, but these fixtures claim to pin the C's compare.
-- **LOW — the buoy blast fixture uses the composite mass.** `18-03-PLAN.md:184` pins "a buoy victim (698,691.1875 kg, 59.14 m)". In `becomeExplosion` the ship subentities explode first (`ShipEntity.m:8115-8120`), each calling `subEntityDied` on the parent, which does `mass -= [sub mass]` (`:7901`, `:8185-8194`); only then does the parent deal momentum with `0.125f * mass` (`:8123-8126`). A buoy that dies with its subentity attached therefore blasts with 691,044.40 kg, and the subentity deals its own, separate blast (0.125 x 7,646.79 kg, range 2.5 x its own radius, from its absolute position). The fixture is about 1.1 % high and omits the second source.
-- **LOW — the slow-separating fixture should state the total self displacement.** For `-1 <= v2b < 0` the C moves self by `-hploc` (`:11083`) and later also by `loc * t * v1a` with a negative `v1a` (`:11141-11142`), and moves the other by `loc * t * v2b`, i.e. toward self (`:11144-11145`). `18-03-PLAN.md:148` and `18-16-PLAN.md:147` mention only the 1 m.
-
-**Suggestions.** Either compute dam and `|v|^2` with `Math.fround` at each operation, or keep float64 and move the boundary fixtures off the exact thresholds, stating in the schema that exact-threshold behaviour is not pinned. Derive the buoy blast with the hull-only mass and add the subentity's own blast as a recorded divergence if it is not ported.
+**Suggestions.** None.
 
 ### 18-04
 
-**Summary.** The Coriolis as a laser target through the subentity rule; it absorbs.
+**Summary.** The Coriolis as a laser target through the subentity rule.
 
-**Strengths.** The loop in `18-04-PLAN.md:230` is the C's: hull first, each subentity in list order, accept on `hitSub > 0 && (hit === 0 || hit > hitSub)`, then the outer `hit > 0 && hit < nearest` (`ShipEntity.m:1332-1356`, `Universe.m:5621-5631`). Stage A already uses a radius that includes the dock (`ShipEntity.m:2028-2040`). Absorbing without touching `staticHealth.station` keeps the pristine hash (`18-04-PLAN.md:34`) and matches the guard `amount < energy` (`Entities/StationEntity.m:1150-1154`).
+**Strengths.** Loop order and tie rule match `ShipEntity.m:1332-1356`. Now gated on 18-20.
 
-**Concerns.**
+**Concerns.** No findings in focus. The station also receives Oolite's sticky flag (`Universe.m:5634-5636`), which is inert because the Coriolis is not frangible; the plan's "one full record on the station" is right.
 
-- **LOW — an unrecorded consequence of shooting the main station.** Before the damage guard, Oolite marks the shooter an offender (bounty 64, 96 for an energy mine) and launches police when the station has a JS AI (`Entities/StationEntity.m:1128-1141`). No plan mentions it (`rg -i "offender|bounty|legal"` over the plans finds nothing). "The station only absorbs" is true for energy, not for consequences.
-
-**Suggestions.** Add a FIDELITY row for the missing offender mark, or a todo with a tripwire if legal status exists in the sim.
+**Suggestions.** None.
 
 ### 18-05
 
-**Summary.** Buoys hold 250 energy, recharge 2/s, are destroyed at zero at their live pose.
+**Summary.** Buoy health, recharge, destruction, live pose.
 
-**Strengths.** Destruction at "unfloored result 0 or below" matches `energy <= 0.0` after `energy -= amount`. The `value > 0` recharge guard prevents revival, and recharge reaching exactly 250 through `Math.min` restores the pristine hash (`18-05-PLAN.md:34`, `:200`). One pose function for hit and draw.
+**Strengths.** `n_alloys` divisor and the tumble divergence row are corrected. `buoyOrientation(flightTime)` reads a fixed-step, hashed clock (`src/sim/flight/step.ts:399`, `src/sim/flight/state.ts:169`), so the pose is identical at 30/60/144 Hz.
 
-**Concerns.**
+**Concerns.** No findings in focus.
 
-- **LOW — the "numbers checked" debris figure is from the wrong formula.** `18-05-PLAN.md:115` cites `n_alloys = floor(sqrt(sqrt(698,691 / 25,000))) = 2`. The C is `sqrtf(sqrtf(mass / 6000.0f))` (`ShipEntity.m:7916`; Wegolite's own `N_ALLOYS_MASS_UNIT = 6000`, `src/sim/world/debris.ts:206-209`), which gives 3.29. With `maxWrecks = 3`, `n_alloys < maxWrecks` is false, so a buoy always releases 3 wrecks (`ShipEntity.m:8050-8056`), then `n_alloys = randf() * n_alloys` gives 0 to 3 plates (`:8068`, `:8081`). The divergence being recorded is larger than the row will say.
-- **LOW — the closed-form tumble is now a hit and collision pose.** Oolite integrates roll then pitch incrementally each frame (`behaviour_tumble` to `applySticks`, `ShipEntity.m:3724-3727`), which is not `roll(Z, 0.1 t) * pitch(X, 0.15 t)`. This was cosmetic while the buoy was only drawn; it now decides which cell a beam or hull meets. Deterministic, so no hash risk.
-
-**Suggestions.** Correct the figures before they reach FIDELITY. Mention the closed-form tumble in the buoy pose row.
+**Suggestions.** None.
 
 ### 18-06
 
-**Summary.** Ident over the station, buoys, pods and plates.
+**Summary.** Ident over statics, pods and plates.
 
-**Strengths.** Matches `firstEntityTargetedByPlayer`: `canCollide` and not `CLASS_NO_DRAW`, nearest centre with the strict `<`, cross-section test against the collision radius (`Universe.m:5689-5706`). Subentities are correctly excluded, since they are not in the entity list.
-
-**Concerns.** No findings in focus.
-
-**Suggestions.** None.
+**Concerns.** No findings in focus; matches `Universe.m:5689-5706` (`canCollide`, not `CLASS_NO_DRAW`, strict `<`, collision radius cross-section).
 
 ### 18-07
 
-**Summary.** Live buoys block a completing jump with live pose and live mass.
+**Summary.** Live buoys block a completing jump with live pose and mass.
 
-**Strengths.** Rule, strictness and the scanner-range clause match `ShipEntity.m:12526-12527`. The mass after detachment (691,044.4013671875) follows `subEntityDied` (`ShipEntity.m:8185-8194`). The +-1 m test points around 264.33 m are far enough from the boundary that the C's float `k = 0.1` (`:12511`) cannot flip them. The field is read from the previous tick's world like every other field query, so there is no intra-tick order dependence. `buoyMass` absent keeps every world-less pin.
+**Strengths.** Rule and strictness match `ShipEntity.m:12526-12527`; the field is read from the previous tick's world.
 
-**Concerns.** No findings in focus.
+**Concerns.**
 
-**Suggestions.** None.
+- **LOW — one more reader of the buoys' layout position is not on anybody's list.** PD-02 says "scanner, beacon/compass, render and jump blockage read the live pose" and D-05 lists what a destroyed buoy stops doing. The torus factor is missing from both: `nearestSurfaceDistance` (`src/sim/flight/torus.ts:53-71`, used at `:160` and `:252`) takes `layout.navBuoy` and `layout.witchpoint` as surfaces. In Oolite the nearest surface is the nearest live collidable entity (`PlayerEntity.m:2917-2924`), so a destroyed buoy no longer holds the factor at 32 and a moved buoy counts where it is. After this phase a destroyed witchpoint beacon still caps the torus factor within 102.4 km of where it was. No plan mentions it (`rg -n "nearestSurface|torus\.ts" 18-*-PLAN.md` finds nothing). Deterministic (the layout is static), so no hash risk.
+
+**Suggestions.** Either pass `ShipField.buoy(key)` (this plan adds it; `torus.ts` already imports `ShipField`) so a dead buoy is skipped and the offset is added, or add a FIDELITY row. Guarded on "world present and buoy not pristine", it changes no existing pin.
 
 ### 18-08
 
 **Summary.** Presentation of a destroyed, moved or stripped buoy; compass fallback.
 
-**Strengths.** The fallback is exactly `validateCompassTarget`: a nil or inactive beacon target sets `COMPASS_MODE_PLANET` and stays there (`PlayerEntity.m:4655-4659`); the plan's "later steps keep planet even if a field reports the buoy alive again" (`18-08-PLAN.md:202`) pins the permanence. The cycle divergence gets its own FIDELITY row with the correct Oolite order (`PlayerEntity.m:4761-4808`).
-
-**Concerns.** No findings in focus.
-
-**Suggestions.** None.
+**Concerns.** No findings in focus. The compass rule matches `PlayerEntity.m:4655-4659`, and the cycle divergence has its row.
 
 ### 18-09
 
 **Summary.** `isHitByOctree` and `doOctreesCollide` as pure kernels.
 
-**Strengths.** The four-stage order and return values match `ShipEntity.m:1896-1941` (a prime subentity touching the other's hull returns `other`, not the subentity). Totality on malformed trees. Agreement test against the reference lives outside the oracle tree.
+**Strengths.** The axial rule is now stated correctly and both prime-role fixtures must pass.
 
 **Concerns.**
 
-- **HIGH — same wrong "axial is the larger by radius" instruction as 18-02** (`18-09-PLAN.md:141`). See 18-02 for the C lines. Counted once.
-- **LOW — float64 against the C's float32** is recorded (`18-09-PLAN.md:92`) and deterministic; fine for hashes, and fixtures are cell-centred.
+- **LOW — the dead stage 4** (see 18-02; counted once there).
+- **LOW — a stale sentence survives in a file executors are sent to.** `18-RESEARCH.md:290` still says "it picks the 'axial' octree by radius, so always call it with `prime` = the lower id". Both halves are superseded (the axial rule by this plan, "lower id" by 18-11's rank rule), and RESEARCH is in the phase's read-first list.
 
-**Suggestions.** As in 18-02. In the SUMMARY, record a hand trace of one two-level case against `Octree.m:519-594` so the literal claim has evidence that does not pass through the reference.
+**Suggestions.** Strike or annotate `18-RESEARCH.md:290`.
 
 ### 18-10
 
-**Summary.** `FlightState.drift`, integrated then power-braked with raw thrust.
+**Summary.** `FlightState.drift`, integrate-then-brake with raw thrust, and the new station-contact drift branch.
 
-**Strengths.** Order and factor are right: `applyVelocity` first (`PlayerEntity.m:3376`), then `velmag - dt * thrust * thrust_factor` with no 5x (`:3388`), cleanup terms (`:3392-3399`), zero when negative (`:3400-3401`). Pristine-omit `drift=` line; every pose-reset site zeroes it. The torus factor is the only case to port because the flight code has no injectors (`rg -i "injector|afterburner" src/sim/flight` is empty), so `afterburnerFactor` at `:3380-3381` is unreachable.
+**Strengths.** Order and factor match `PlayerEntity.m:3376-3404`. The drift branch works as specified (traced above) and is guarded so the zero-drift dock path is byte-identical. The float32 underflow is closed.
 
 **Concerns.**
 
-- **MEDIUM — the station contact response ignores drift.** `respondToContact` builds the velocity as `forward * speed + impulse` (`src/sim/dock/step.ts:101-102`) and reflects only that. After this phase the player can reach the station with a drift of tens to hundreds of m/s (D-03's 68 m/s is 72 m of travel; a buoy rebound of 180 m/s is about 500 m over 5.6 s at 32 m/s^2). The drift is integrated every tick before `stepDocking` (`src/sim/flight/step.ts:305`, `:417`; plan `18-10-PLAN.md:172`) and the contact never cancels it, so the hull keeps being re-penetrated until the brake finishes, with a `bounce` per tick or a pass through a wall. In Oolite the station collision goes through `collideWithShip`, where `adjustVelocity` acts on the same velocity that carries the drift (`ShipEntity.m:11109`, `:11173-11176`). Criterion 4 ("touching the station hull stays damage-free, docking is unchanged") is proven only at zero drift (`18-11-PLAN.md:225`).
-- **LOW — a float32 underflow can strand a non-zero drift.** With `Math.fround` on `velmag` (`18-10-PLAN.md:172`), a float64 drift below about 7e-46 has `velmag == 0`, the `if (velmag > 0)` branch is skipped (`PlayerEntity.m:3389`), and the drift is never zeroed, so the `drift=` line stays in the hash for the rest of the flight. Unreachable from the brake itself (the smallest non-zero step is one ulp near 0.27), reachable from a restored state. Same shape in `brakeShipDrift` (`18-17-PLAN.md:144`).
-- **LOW — "exactly zero after 375 ticks" is exact-arithmetic reasoning.** With float32 `dt * thrust` the residue at tick 375 can be a positive ulp-sized value and zero only at 376 (`18-10-PLAN.md:163`).
+- **LOW — a hashed field and a new contact rule land with no decision row.** The plan's file list has no `PROJECT.md`, `FIDELITY.md` or `CHANGELOG.md` (`18-10-PLAN.md:7-19`); "Drift beside the engine speed (Phase 18, D-02)" is written seven waves later by 18-11. Round 1 raised exactly this for 18-14 (L741) and it was fixed there, not here. The station-contact rule is also a planner choice in an area where Oolite does something else entirely: a drifting player meets the station through `collideWithShip` with the station's mass (`ShipEntity.m:11089`, `StationEntity.m:1159-1163`), not through a 0.5-restitution bounce. That is covered by DOCK-09 in spirit, but no row says "drift into the hull bounces with `BOUNCE_RESTITUTION`".
 
-**Suggestions.** Decide and record how drift meets the station: include a non-zero drift in `respondToContact`'s velocity and write the reflected remainder back (guarded by `drift !== 0` so the zero-drift path stays byte-identical), or zero the inward drift component on contact; add a test of a 68 m/s drift into the hull face. In both brakes, treat `fround(|v|) === 0` as zero. Take the stop tick from the 18-03 oracle rather than from 100 / (32/120).
+**Suggestions.** Move the D-02 row into this plan's first commit and add one FIDELITY line for the drift bounce.
 
 ### 18-11
 
 **Summary.** The opt-in collision stage for the player, NPCs, pods and plates.
 
-**Strengths.** `self` by distance from the player is the correct reading of Oolite's update order (`Universe.m:6437-6440`, `:6532-6534`; sort key at `:5086-5088` and `Entities/Entity.m:858`), and it replaces the weaker "lower id" assumption. The stage is fixed-step, uses `10 * DT`, sorts with an id tie-break and is gated by a flag the frozen harness never sets, so criterion 5 and QUAL-11 hold by construction. Total velocity is drift plus `forward * speed` (`ShipEntity.m:11154-11162`). No random draw is needed (`:11659-11667`). Strict `d^2 < (r1 + r2)^2` matches `CollisionRegion.m:296-320`.
+**Strengths.** The prime choice is now recorded as a Wegolite rule with its divergence row. The NaN sort key is a total order. Rank is taken once per stage.
 
 **Concerns.**
 
-- **LOW — "self is `doOctreesCollide`'s prime" is not Oolite's rule, and the plan states it as if it were** (`18-11-PLAN.md:35`). In Oolite prime is `e1` of the collision-chain sweep (`CollisionRegion.m:279-342`), which is independent of update order. It matters only for subentity routing: the subentity is returned only when the ship is `e1` (`ShipEntity.m:1909-1918`); when the buoy is `e1` its subentity touching the ship returns the ship (`:1899-1907`), and `e2`'s list always receives `e1` itself (`CollisionRegion.m:352-356`). Also, after a subentity contact `[[other collisionArray] removeObject:self]` (`ShipEntity.m:11150`) clears the subentity's list, not the buoy's, so the buoy processes the same contact again as `self` with its full mass whenever the first response left less than 1 m/s of separation (closing speed below about 5.3 m/s for the Cobra). Wegolite's rule is a reasonable deterministic choice; it needs a FIDELITY row, not a claim of equivalence.
-- **LOW — a non-finite position makes the sweep comparator inconsistent.** `position.x - radius` (`18-11-PLAN.md:196`) is NaN for a NaN position; a comparator that is not a total order gives an engine-defined order. The sanitiser should make this unreachable, but the totality property in `18-18-PLAN.md:195` feeds NaN positions in.
-- **LOW — the collisions-on path has no world-scale evidence.** QUAL-11 runs with the stage off, so it says nothing about traffic with the stage on. The frozen worlds have `MAX_HULL_CROSSINGS = 0`, so a run of the same seeds with `collisions: true` and `fullHullTable()` should report zero contacts.
+- **MEDIUM — the deferral of a world-scale collisions-on run does not hold, and PD-06 makes the gap larger.** The ledger defers round 1's L189 because "a collisions-on run needs a harness option the frozen-harness rule forbids" (`18-11-PLAN.md` ledger, deferred row). Round 1 asked for an informational test outside `tests/acceptance`, which touches no detector, threshold or harness file. After this phase the production app runs with `collisions: true` (`18-11-PLAN.md:216`), buoys are colliders, and NPC steering near buoys changes (18-21), yet nothing steps a populated world with the stage on: QUAL-11 runs with it off, the cadence scenario has three hand-placed contacts, and 18-22 parks the player at rest. A Krait meeting a buoy at 300 m/s takes about 1,397 damage and dies; whether production traffic does that is unmeasured.
+- **LOW — destroyed flags read stale energy when a body has two contacts, or a contact and a laser hit, in one tick.** The stage computes `selfDestroyed = dam1 > energy` from energy before the ledger (`18-11-PLAN.md:196`), while the C reads it after earlier damage in the same frame has been applied (`ShipEntity.m:11111-11112` after `takeScrapeDamage` of a previous contact). The reversal and nudge decision can differ from the ledger's lethality. Deterministic.
+- **LOW — the player's total velocity leaves out `impulse`.** "Drift plus forward times speed" (`18-11-PLAN.md:196`) ignores the dock-bounce impulse (`src/sim/dock/step.ts:119`), up to tens of m/s for about a second after a station bounce.
 
-**Suggestions.** Record the prime rule and the missing second pass as divergences. Drop non-finite colliders before the sort. Add an informational (not frozen, not a gate) test that runs a few acceptance seeds with collisions on and asserts `CollisionStats.contacts === 0` and unchanged hashes.
+**Suggestions.** Add a non-gating test under `tests/sim` that steps two or three populated seeds for a few thousand ticks with `collisions: true` and `fullHullTable()` and records contacts, kills and their causes in the SUMMARY. Record the two LOW items in the collision FIDELITY row.
 
 ### 18-12
 
-**Summary.** Phase close: todo moves, FIDELITY walk, `verify-full`, QUAL-11.
-
-**Strengths.** One `verify-full` at the end, with the walk listing every rule.
-
-**Concerns.** No findings in focus.
-
-**Suggestions.** Add to the walk list (`18-12-PLAN.md:26`) the rows this review asks for: sticky subentity routing (18-15), the prime rule and second pass (18-11), drift against the station (18-10), the subentity's own blast and the hull-only blast mass (18-19), the offender mark (18-04), and the fixed `10 * DT` nudge against Oolite's frame-dependent `10 * getTimeDelta` (`ShipEntity.m:11139`).
-
-### 18-13
-
-**Summary.** Wires the static hull artifact into the session and the merged hull table.
-
-**Strengths.** Both hull chunks load in the boot `Promise.all`, so no hit or collision depends on when a chunk arrives (`18-13-PLAN.md:105`); that removes a timing-dependent replay difference. `realHullTable()` stays ten hulls, so the frozen worlds cannot gain a candidate.
-
-**Concerns.** No findings in focus.
-
-**Suggestions.** None.
-
-### 18-14
-
-**Summary.** Per-world buoy state (offset, velocity, subentity energy), pristine-omit in snapshot and hash.
-
-**Strengths.** Storing an offset rather than a position makes "pristine" independent of the layout. `-0` is already normalised by `noNegativeZero` (`src/sim/world/snapshot.ts:248`, `:374-378`) and by `canon` (`src/sim/hash.ts:33-34`), so a velocity scaled to `-0` by the brake neither prints nor breaks a snapshot. Subentity default 200 and recharge 1/s are Oolite's defaults (`ShipEntity.m:291-292`), and subentities do reach the recharge in `update` (`:2415-2424`).
-
-**Concerns.** No findings in focus. Note only that the `buoys:` line is permanent after any ram (the offset never returns to zero), which is intended.
-
-**Suggestions.** None.
-
-### 18-15
-
-**Summary.** The buoy's frangible subentity under laser fire; pods and plates as laser targets.
-
-**Strengths.** Two records in the C's order (1 % on the parent, then the full amount on the subentity) match `ShipEntity.m:10202-10209` and `:10409-10416`. Pod and plate energy 1 with no recharge is the shipdata value (`Resources/Config/shipdata.plist`, `oolite_template_barrel` and `oolite_template_alloy`: `max_energy = 1`, `energy_recharge_rate = 0`).
+**Summary.** Phase close.
 
 **Concerns.**
 
-- **MEDIUM — Oolite's routing is sticky; the plan routes by the winning part of each shot.** `firstShipHitByLaserFromShip` sets `subEntityTakingDamage` when a subentity wins (`Universe.m:5634-5636`) and never clears it when a later shot ends on the hull. The firing code does not look at the current hit; it reads `[victim subEntityTakingDamage]` (`ShipEntity.m:10202`, `:10409`). The only clears are a nil setter call at dealloc, the getter when the weak reference is dead, and `subEntityDied` (`:1041`, `:1245-1247`, `:8187-8188`). So once any shot from any shooter has ended on the buoy's subentity, every later laser hit on that buoy, hull hits included, puts 1 % on the buoy and 100 % on the subentity until the subentity dies. `18-15-PLAN.md:32` and `:172` ("when the winning part is a subentity") give the buoy full damage on those later hull hits. Observable: in Oolite a buoy whose subentity was touched once cannot be killed through the hull until 200 subentity energy is gone; in the plan it dies in 17 hull hits regardless. PD-01 says "as Oolite does"; no plan or research line mentions this (`rg -i "sticky|subEntityTakingDamage"` over the phase directory is empty).
-- **LOW — PD-01's wording gives rams a 1 % bleed-through; the C does not.** `18-CONTEXT.md:136` says "A laser hit or ram ... puts `0.01 * damage` on the buoy body". For a ram the subentity of a frangible parent takes all of `dam2` and the parent nothing (`ShipEntity.m:11123-11128`; `takeScrapeDamage` has no bleed, `:11639-11673`). Plans 18-03 and 18-18 implement the C correctly (`18-18-PLAN.md:31`); the risk is that the Key Decision and FIDELITY rows copy the PD sentence.
-- **LOW — detachment skips the subentity's own blast.** A dying subentity runs `becomeExplosion` and deals momentum itself (`ShipEntity.m:7895-7904`, `:8123-8126`). "No explosion" is recorded as a visual divergence; the push is a physics one.
+- **LOW — the FIDELITY walk list predates round 2.** `18-12-PLAN.md` truth 2 enumerates the rows to check but not the ones the replan created or this review asks for: sticky routing, buoys as proximity candidates and the missing prefilter (18-21), the drift bounce at the station (18-10), the torus surface (18-07), the dead stage 4 (18-02).
 
-**Suggestions.** Either port the sticky flag as one more per-buoy boolean (pristine-omit, set when a subentity wins, cleared at detachment) or record it explicitly as a divergence with the hit counts above; ask the owner, since PD-01 chose "as Oolite does". Write the ram rule in the decision rows from `ShipEntity.m:11123-11128`, not from the PD text.
+**Suggestions.** Extend the list; the walk is the only place a missing row is caught.
+
+### 18-13
+
+**Summary.** Wires the static hull artifact into the session.
+
+**Concerns.** No findings in focus. Both hull chunks still load in the boot `Promise.all`, so no hit depends on chunk timing.
+
+### 18-14
+
+**Summary.** Per-world buoy state, now with `subentityTakingDamage`.
+
+**Strengths.** The invariant "flag false when the subentity is detached" is enforced in three places (ledger clear in 18-15, parser reject, sanitiser repair), matching `ShipEntity.m:8187-8188`. A world whose subentity was hit once and recharged keeps the flag and therefore the `buoys:` line; that is Oolite's behaviour (nothing clears the flag on a hull hit or on recharge) and the hash test says so (`18-14-PLAN.md:149`).
+
+**Concerns.** No findings in focus.
+
+### 18-15
+
+**Summary.** Sticky frangible routing, subentity energy and detachment, pods and plates as laser targets.
+
+**Strengths.** The port is the C's: set on a subentity win, read by every later hit from any shooter, cleared at detachment, never touched by a ram. The hit counts are right (14 routed hits detach the subentity; the buoy has lost 2.1 by then).
+
+**Concerns.**
+
+- **LOW — within one tick the routing differs from Oolite's sequential frame.** Records are queued for every shot and applied afterwards, so (a) a second shot in the tick that detaches the subentity is still routed 1 % / 100 % and its 100 % record "changes nothing" (`18-15-PLAN.md:168`, `:172`), where Oolite's second shooter would meet a buoy with the flag cleared and the subentity gone and deal full damage to the hull; (b) the flag is set in ascending shooter id, not in Oolite's update order. At most one shot's damage per event. Deterministic.
+- **LOW — `resolveShotHits` is documented as "applies nothing"** (`src/sim/combat/step.ts:341-343`) and now writes `World.buoys.<key>.subentityTakingDamage`. The task does not ask for the comment to change.
+
+**Suggestions.** Record (a) and (b) in the sticky FIDELITY row; fix the doc comment. Since the sticky rule gives a result nobody would guess (hull hits do 1 % until 200 subentity energy is gone), consider one extra shot pair in 18-20's session reading `buoy.energy` and `buoy.subEntities[0].energy`; it is cheap and it is the only new rule of the replan with no real-engine check.
 
 ### 18-16
 
 **Summary.** `collideWithShip` and the heat-free scrape as pure kernels.
 
-**Strengths.** The prohibition against "fixing" the nudge signs (`18-16-PLAN.md:48`) protects the C's literal behaviour: self moves by `+loc * t * v1a`, toward the other (`ShipEntity.m:11141-11142`). `destroyable: false` for the player keeps the Phase 20 boundary explicit. Totality properties over NaN, infinities and zero mass protect the hash from non-finite writes.
+**Strengths.** The split matches the C exactly, including the double-death case (both net changes zero). `destroyable` comes from the fixture.
 
-**Concerns.**
-
-- **LOW — same float choice as 18-03** (`18-16-PLAN.md:97`): port and oracle share it, so the boundary fixtures cannot catch it. See 18-03.
-- **LOW — a detail for the Phase 20 tripwire.** For the player `selfDestroyed = dam1 > energy` compares against the energy bank only (`ShipEntity.m:11111`), although the shields absorb first (`PlayerEntity.m:5726-5744`). In Oolite a player with full shields can survive a ram and still trigger the inelastic reversal and skip the nudge. The todo written by 18-18 (`18-18-PLAN.md:220`) should say so, or Phase 20 will "correct" it.
-
-**Suggestions.** State in the `response.ts` header which C expressions are float and which double, and that exact-threshold behaviour follows the port's choice.
+**Concerns.** No findings in focus.
 
 ### 18-17
 
 **Summary.** Drift integration and braking for NPC ships and buoys.
 
-**Strengths.** Brake only when thrust is non-zero, `vscale = max((|v| - 5 * thrust * dt) / |v|, 0)`, then move: the C's order within one ship update (`ShipEntity.m:5808-5816`, then `Entity.m:868-869`). `statsFor(...).thrust` is the raw value (`src/sim/npc/stats.ts:40-41`; the 5x is applied at use, `src/sim/npc/flight.ts:156`), so there is no double factor. No ship in `src` is created with a non-zero velocity today (`rg "velocity\s*[:=]" src` finds only debris and plumbing), so the zero-velocity skip keeps the frozen worlds and every pin byte-identical. The sequence across a tick (response at the end of tick N, brake then integrate in tick N+1) reproduces Oolite's `manageCollisions`, `applyThrust`, `applyVelocity` order (`ShipEntity.m:2136`, `:2416`).
+**Strengths.** `BUOY_THRUST = 100` is the shipdata value (`Resources/Config/shipdata.plist:1091`), giving 500 m/s² and PD-02's 10 m and 122 m. Brake-then-integrate matches `ShipEntity.m:5808-5816` and `:2633-2637`.
 
 **Concerns.**
 
-- **LOW — float32 underflow in `brakeShipDrift`**, as in 18-10: "zero or non-finite input returns zero" (`18-17-PLAN.md:144`) should be defined on the frounded magnitude.
+- **MEDIUM — this plan consumes a quantity 18-20 measures and is not behind 18-20's gate.** 18-20 Task 2 measures "the buoy's total displacement until it stops" (`18-20-PLAN.md:155`), which is this plan's `stepBuoyDrift` and the `braking-npc.json` buoy fixture. The 18-20 ledger claims "an open MISMATCH gates every consumer", but only 18-04, 18-07, 18-09 and 18-16 carry `depends_on: 18-20` and the precondition (`rg -n precondition 18-*-PLAN.md`). 18-17 depends on 18-03 and 18-14 only, so a buoy-displacement MISMATCH stops 18-20 and 18-17 still runs in wave 3. 18-10 (player braking, which sets the probe's closing speed) is in the same wave as 18-20 and cannot be gated at all.
 
-**Suggestions.** As in 18-10.
+**Suggestions.** Add `depends_on: 18-20` and the precondition here. For 18-10, either move it to wave 3 or state in 18-20 that a braking mismatch reopens 18-10.
 
 ### 18-18
 
-**Summary.** Buoys as movers in the collision stage; cadence, cost, totality, the tripwire.
+**Summary.** Buoys as movers in the collision stage; cadence, cost, totality, the producer-keyed tripwire.
 
-**Strengths.** The subentity contact is the C's: m2 is the subentity's mass, damage goes to the subentity with no bleed, the velocity change goes to the parent (`ShipEntity.m:11054`, `:11057-11066`, `:11103-11105`, `:11123-11128`), and the C's displacement of the subentity inside its parent (`:11143-11146`) is recorded rather than silently dropped. "When the buoy is self, a contact is the buoy body's" (`18-18-PLAN.md:169`) matches stage two of `doOctreesCollide` returning `other`. The cadence scenario covers all three contact kinds at 30/60/144 Hz.
+**Strengths.** A ram that takes the subentity to 0 goes through the same ledger branch as a laser, so the sticky flag is cleared and 18-19's blast fires for both. The tripwire can no longer be red on day one (`src/sim/events.ts:179`, `:227` are the only matches for `playerDestroyed` in `src`).
 
 **Concerns.**
 
-- **LOW — the todo should carry the shield detail from 18-16** (see there).
-- **LOW — `MAX_BUOY_OFFSET` and `MAX_ENTITY_VELOCITY` clamps are divergences at torus speed.** Buoys do not mass-lock (D-08), so a torus ram at up to 11,200 m/s is possible; Oolite's `v1a` of about 20,200 m/s is clamped to 1e4 per component. Harmless, deterministic, worth one line in the row.
+- **LOW — the tripwire keys on two guessed spellings.** A Phase 20 that names the mode `"destroyed"` or emits through a helper or a constant passes the guard with the marker still in place. The one thing Phase 20 cannot avoid changing is the ledger's player floor (`src/sim/combat/ledger.ts:25-26`).
 
-**Suggestions.** Add the informational collisions-on acceptance-seed check proposed in 18-11 here, since this plan owns the cadence and cost evidence.
+**Suggestions.** Add a third trigger on the floor's marker text or constant in `ledger.ts`.
 
 ### 18-19
 
 **Summary.** The blast pushes ships, buoys and the player; every exploding body is a source.
 
-**Strengths.** Formula, floor, strict range and direction match `ShipEntity.m:7680-7698` and `Universe.m:5862-5868`. Applying the player's push after the kill loop, in ascending id, keeps the tick deterministic. Making pods and plates sources is correct: `becomeExplosion` deals momentum for every ship-class body (`ShipEntity.m:8121-8126`).
+**Strengths.** Sources, order and masses for a dying buoy are the C's. Reading `subentityEnergy` before and after `applyLedger` catches laser and ram detachments alike.
 
 **Concerns.**
 
-- **LOW — a dying buoy's blast mass and second source.** `18-19-PLAN.md:192`, `:197` use "its live mass" (`NAV_BUOY_MASS` with the subentity attached). In the C the subentity explodes first and reduces the parent's mass, and deals its own blast (see 18-03). About 1.1 % on the buoy's push, plus a missing small source.
-- **LOW — two inaccurate justifications.** `18-19-PLAN.md:105` says "only the station is special". The station is not excluded by `addImpactMoment` (not overridden; only `adjustVelocity` is, `Entities/StationEntity.m:1159-1163`); it is excluded because its status is `STATUS_ACTIVE`, which `isInSpace` does not list (`Entities/Entity.m:1033-1041`). The same list includes `STATUS_LAUNCHING`, so Oolite does push a launching player; "the player receives a blast push only in flight" (`18-19-PLAN.md:107`) is therefore a divergence to record, not a neutral note.
+- **MEDIUM — the plan pins a false Oolite citation into FIDELITY, and the falsehood is mine.** Round 1 (L284) said the station is skipped by the blast "because its status is `STATUS_ACTIVE`, which `isInSpace` does not list (`Entity.m:1033-1041`)". That is wrong: `isInSpace` lists `STATUS_ACTIVE` (`Entities/Entity.m:1043`), and stations are `STATUS_IN_FLIGHT` anyway (`Universe.m:5056-5059`). The replan copied it into a truth (`18-19-PLAN.md:26`), the decision row (`:218`) and a gate that requires the string `1033-1041` in FIDELITY (`:227`). What the C does: the station is a receiver, `addImpactMoment` is not overridden (`StationEntity.m:1159-1163` overrides only `adjustVelocity`), so its velocity changes by at most about 0.03 m/s (the 68 m/s player case scaled by 214,737 / 455,223,200), and `applyThrust` removes it before `applyVelocity` moves anything (`ShipEntity.m:5808-5823` then `:2633-2637`; default thrust 15, `ShipEntity.m:270`, so 75 m/s² per second of frame time). "The station never moves" is therefore right as behaviour and wrong as recorded reason. The launching-player half of L284 stands (`Entity.m:1038`).
+- **LOW — "the buoy itself is not its receiver (Oolite's subentity is part of the buoy)" is true by accident.** A detaching subentity is added to the universe at its absolute position (`ShipEntity.m:7895-7904`) and its blast does include the parent (`:7680-7698`); the parent gets nothing only because the subentity sits at `(0, 0, 0)`, so `p2` is exactly zero and `vector_normal` returns the zero vector. The rule in `18-19-PLAN.md:196` would be wrong for any subentity with an offset.
 
-**Suggestions.** Use the hull-only mass for a buoy that dies with its subentity attached and either add the subentity's blast or record its absence. Fix the two citations in the decision row.
+**Suggestions.** Replace the station reason in the truth, the row and the gate with the lines above (gate on `1159-1163` or `5808-5823` instead of `1033-1041`), and record it as "pushed and braked to rest within the frame in Oolite; not pushed here". State the buoy-receiver rule as "the push direction is zero at a zero offset".
 
 ### 18-20
 
-**Summary.** PD-03 measurements on real Oolite.
+**Summary.** PD-03 measurements on real Oolite, now the gate for four consumers.
 
-**Strengths.** A mismatch never edits a fixture; the ram comparison uses the logged frame delta for the C's `10 * getTimeDelta` nudge (`18-20-PLAN.md:155`), which is the one place where real Oolite is frame-rate dependent and the port is not.
+**Strengths.** The 100 m/s case reaches contact; the engine speed is asserted from the log; comparison is at the observed closing speed with the logged frame delta.
 
 **Concerns.**
 
-- **MEDIUM — the 100 m/s ram probe cannot reach the buoy.** `18-20-PLAN.md:155` places the player 300 m from the nav buoy "engines at rest" with "a drift velocity toward the buoy of 100 m/s". The player's drift brakes at `thrust` = 32 m/s^2 (`PlayerEntity.m:3388`), so it stops after 100^2 / (2 x 32) = 156 m. Contact needs the centres within about 59 + 73 = 132 m at most, i.e. at least 168 m of travel. The session ends with no contact, or the executor improvises. The 350 m/s session is fine (stopping distance 1,914 m) but arrives at about 334 m/s, not 350.
-- **LOW — setting `velocity` from script while the engine speed is non-zero.** The JS setter works on the total velocity (`setTotalVelocity`, `ShipEntity.m:11164-11167`), so "engines at rest" must be asserted in the log, not assumed.
+- **MEDIUM — the ram probe cannot tell which part of the buoy was hit, and the two answers differ by two orders of magnitude.** If the Cobra is `e1` and only the buoy's inner assembly touches, `doOctreesCollide` returns the subentity (`ShipEntity.m:1909-1918`) and `m2` is 7,646.79 kg, not 698,691.19 kg (`ShipEntity.m:11054`): the player's damage and rebound are about 91 times and 9.6 times smaller, and the damage lands on the subentity. If the buoy is `e1`, the contact is always the whole buoy (`:1899-1907`, `CollisionRegion.m:352-356`). Which is `e1` depends on the collision chain, not on anything the probe controls. The log has "the buoy's position, velocity and energy" (`18-20-PLAN.md:155`) but not the subentity's energy, and the comparison is against "the 18-03 reference" without saying which row. A subentity contact compared with the whole-buoy row is a false MISMATCH that stops four plans; the reverse is a false SAME.
+- **MEDIUM — the gate does not cover every consumer** (see 18-17; counted once there).
 
-**Suggestions.** Start the 100 m/s case close enough that braking leaves a known closing speed (for example 150 m centre distance), or drive it with engine speed instead of drift and say which; in both sessions take `v2b` from the logged velocities on the frame before contact, as the plan already says for the comparison.
+**Suggestions.** Log `buoy.subEntities[0].energy` every frame and pick the reference row (whole buoy or subentity) from which energy dropped; state that in the verdict. Run the 100 m/s case from two approach directions so at least one is a clean hull contact.
+
+### 18-21
+
+**Summary.** New plan: live buoys join the NPC proximity pass (PD-06).
+
+**Strengths.** Reading buoys through the world view puts liveness and the live pose in one place, and `avoid.ts` already resolves an alert through `ctx.view.body` (`src/sim/npc/avoid.ts:36-47`), so a destroyed buoy lapses the alert as Oolite's weak reference does (`ShipEntity.m:6089-6096`). Mass, the no-crew rule for the buoy side (`ShipEntity.m:6116`) and the zero-offset identity are right. An unalerted world writes nothing, so pristine hashes hold.
+
+**Concerns.**
+
+- **MEDIUM — "as in Oolite" is not true for the alert distance, and the recorded excuse for the difference no longer applies.** Oolite reaches the pair test only for entities left in the same collision chain by `filterSortedLists`, which keeps a pair when their extents of twice the collision radius overlap on each axis (`Universe.m:6713-6780`: `start = position.z - 2.0f * collision_radius`, `finish = start + 4.0f * collision_radius`). For an isolated ship and buoy on one axis that is `d < 2 (r_ship + 59.14)`. Wegolite has no prefilter, a divergence recorded in Phase 14 with the reason "never affects a pair of equal radii and is a no-op near the station, where the planet chains every entity" (`src/sim/npc/proximity.ts:27-33`). Neither half holds for the pairs this plan adds: the radii are unequal for all nine NPC kinds, and the witchpoint buoy is nowhere near the station. Head-on, Wegolite alerts at `4 x 59.14 = 236.6 m` (`pairTriggers`, `proximity.ts:84-91`); Oolite alerts at 163.8 m for a Shuttle, 176.3 m for an Adder, 193.2 m for a Sidewinder and 218.7 m for a Krait. At 300 to 370 m/s those 18 to 73 m are 5 to 30 % of the whole reaction window, and they decide the marginal cases: by a constant-rate turn estimate a Sidewinder clears the sphere sum by about 20 m with Wegolite's alert and overlaps it with Oolite's. The plan cites only `CollisionRegion.m:308-311` (`18-21-PLAN.md` truth 1) and PD-07 then accepts the moved acceptance numbers as "more Oolite-faithful", freezing a behaviour that is more cautious than Oolite's.
+- **LOW — the tracer's truth is a universal the ported rule does not promise.** "Its centre never comes closer to the buoy's centre than the sum of the two collision radii" (`18-21-PLAN.md:149`) has roughly 16 to 20 m of margin for a Krait or Sidewinder at full speed even with an instant pitch rate, and Oolite's own NPCs can touch a buoy. A failing case invites tuning the port. The CHANGELOG line "steer around navigation buoys instead of flying into them" overstates it the same way.
+- **LOW — no path is defined if a pin other than the acceptance numbers moves.** PD-07 covers QUAL-11 only. The plan forbids touching `tests/golden/world` and asserts that populate, npc-cadence and the flight-hash pins "pass unchanged" (`18-21-PLAN.md:152`, `:163`), which holds only if none of those worlds has a steered ship inside a buoy's alert zone. That is unchecked, and NPCs are placed on lanes that start at the witchpoint.
+
+**Suggestions.** Port the necessary condition of the prefilter for the static pairs (`|d_axis| < 2 (r1 + r2)` on each world axis before `pairTriggers`; cheap, deterministic), or keep the divergence and rewrite the Phase 14 row with the numbers above, and say in the PD-07 record that the accepted values come from an earlier alert than Oolite's. Make the tracer assert the alert tick and a measured closest approach per kind, with "no contact" asserted only for a geometry the rule can clear with margin. Before the QUAL-11 rerun, list which pinned worlds have a steered ship within 236.6 m of a buoy, and say what happens if one does.
+
+### 18-22
+
+**Summary.** New plan: a traffic-on browser spec (destroyed nav buoy leaves the scanner, ident locks the station, static chunk load path).
+
+**Strengths.** The firing bound accounts for sticky routing (250 plus 200 energy, `18-22-PLAN.md:82`), so the replan's own rule does not time the spec out. The player is at rest 2,000 m away, so no collision or blast enters.
+
+**Concerns.** No findings in focus.
 
 ---
 
@@ -304,508 +317,617 @@ What I checked and found correct (so later sections can be short): the `collideW
 
 **Risk Assessment: MEDIUM.**
 
-The collision response, both brakes, the blast, the laser subentity rule, jump blockage and the compass fallback are read from the right lines of the right functions, and I found no sign error and no rule taken from `takeScrapeDamage`'s or `takeEnergyDamage`'s half. Determinism is well protected: everything runs inside the fixed 120 Hz step, the one frame-time read in the C (`10 * getTimeDelta`) is replaced by `10 * DT`, orders are by rank or id with tie-breaks, the stage is opt-in so the frozen worlds cannot change, and every new field is pristine-omit with `-0` already normalised. I see no path by which a world that never fires, idents or collides changes its hash.
+The replan did what round 1 asked on the rules that carry the phase. The prime role, the sticky routing with its clears, the frangible split, the split velocity change, both brakes, the two-source buoy blast, live-mass jump blockage and the compass fallback now trace to the right C lines in executable task text, not only in ledgers. I found no path by which a world that never fires, idents or collides changes its hash, and no frame-time read: every new mechanism runs inside the fixed step, new state is pristine-omit, and the new flag's invariant is enforced at the ledger, the parser and the sanitiser.
 
-What keeps the risk from LOW:
+What keeps it at MEDIUM:
 
-1. **HIGH (18-02, 18-09):** oracle and port share one wrong sentence about `isHitByOctree` ("axial is the larger by radius"); the C's axial tree is always prime (`Octree.m:473-477`, `:497`, `ShipEntity.m:1897`). The independent fixtures would pass a wrong port. Fix the wording in both plans before wave 1.
-2. **MEDIUM (18-15):** Oolite's subentity routing is sticky (`Universe.m:5634-5636`, `ShipEntity.m:10202`, `:10409`); the plan routes per shot. Port it or record it; owner call under PD-01.
-3. **MEDIUM (18-10, with 18-11 and 18-19):** drift is invisible to the station contact response (`src/sim/dock/step.ts:101-102`), and criterion 4's dock proof runs only at zero drift.
-4. **MEDIUM (18-20):** the 100 m/s ram probe stops 156 m out and never touches the buoy.
+1. **18-21 (PD-06):** the proximity port omits Oolite's 2r-extent chain prefilter (`Universe.m:6713-6780`), whose recorded "no-op" justification does not apply to buoys. Wegolite alerts at 236.6 m where Oolite alerts at 164 to 219 m, and PD-07 freezes the result as "more faithful".
+2. **18-19:** a false station-exclusion citation (`isInSpace` does list `STATUS_ACTIVE`, `Entity.m:1043`) is pinned by a gate. The error originated in my round-1 review.
+3. **18-20 / 18-17:** the ram probe cannot distinguish a hull contact from a subentity contact (m2 differs 91-fold), and 18-17 consumes a measured quantity outside the gate.
+4. **18-11:** still no populated-world run with collisions on, although the app ships with them on and NPC steering near buoys changes; the deferral's reason does not hold for a test outside `tests/acceptance`.
 
-The LOW items are recording and boundary matters: float choice at exact thresholds, the buoy's hull-only blast mass and the subentity's own blast, the wrong `n_alloys` divisor, the prime rule stated as Oolite's, the offender mark, and float32 underflow in the brakes.
+The LOW items are recording and edge matters: the dead fourth stage of `doOctreesCollide` shared by oracle and port, the torus surface still reading layout buoys, same-tick routing order, stale energy for destroyed flags, the drift decision row, the tripwire's spellings, a stale RESEARCH sentence, and the 18-12 walk list.
 
-All 20 plan ids are covered above.
+All 22 plan ids are covered above.
 
 ---
 
 ## Opus Review
 
-## Phase 18 plan review: executability, sequencing and code grounding (opus)
+## Phase 18 plan review, round 2 (opus): executability, sequencing, code grounding
 
-Reviewer focus: whether an executor working from each plan alone succeeds. I checked waves and depends_on against the data each plan consumes, read_first and action identifiers against the code at HEAD (`2f9eb47`; plan base `76229f5` exists and differs from HEAD only in `.planning/`), acceptance greps against the strings they look for, the guards and pins each plan touches, and the remote command lines against `/home/opencode/.claude/scripts/wegolite-remote-run.sh` and `tools/oolite-reference/run-remote.sh`. Oolite claims were checked in `/home/opencode/git/oolite` (HEAD `21978c37b`; the cited lines match).
+Reviewer focus: whether an executor succeeds from each plan alone; whether waves and depends_on match the real data dependencies (including the 18-20 gate and the placement of 18-21 and 18-22); whether read_first/action identifiers name real code; whether acceptance criteria can be checked and are non-vacuous when plans run in order; whether the touched guards, pins and goldens are named; whether the remote steps can run as written; over-engineering against the "necessary technical minimum".
 
-Overall grounding is very good. Every test file a verify step names exists (I checked about 50 paths). Every "HEAD=1 match" anchor string an acceptance criterion removes exists at the cited place: `step.ts:353`, `hit.ts:17`, `debris.ts:601`, `hyperspace-controller.ts:137`, FIDELITY E-22/E-48/E-52, and the PROJECT.md rows at 192/264/285/298/306/307. The interface line numbers I sampled are accurate. The findings below are the exceptions.
+Method: read every plan's front matter, truths, tasks and ledger; checked identifiers against the tree at `8f33318` (the baseline `76229f5` used by the gates has no `src/`, `tests/` or `tools/` commits after it, so `[HEAD=…]` annotations remain valid); checked Oolite claims against `/home/opencode/git/oolite`.
+
+### Wave and dependency check (whole phase)
+
+I recomputed every wave from depends_on. Each one matches: 18-20 is in wave 2 after 18-02 and 18-03 (wave 1); 18-04, 18-09 and 18-16 are in wave 3 after 18-20. The chain 18-05 → 18-15 → 18-06 → 18-07 → 18-08 runs through waves 4 to 8. 18-11 and 18-22 are in wave 9, 18-18 in 10, 18-21 in 11, 18-19 in 12 and 18-12 in 13. Plans that share a wave have disjoint `files_modified`: wave 2 is {10, 13, 14, 20}, wave 3 is {04, 09, 16, 17} and wave 9 is {11, 22}. Every plan that reads the 18-20 output (18-04, 18-07, 18-09, 18-16) depends on 18-20 directly, and its Task 1 has the todo-absence `<precondition>` (18-04-PLAN.md:~Task 1, 18-07 Task 1, 18-09 Task 1, 18-16 Task 1). The ledger claim for L442 therefore holds in the executable text. 18-18 reads 18-20 only transitively, through 18-11 → 18-09 → 18-20, which is enough for a SUMMARY comparison. 18-12 reaches every plan transitively.
+
+One edge in the chain is artificial: 18-19 → 18-21. The two plans share no file. The edge only serialises the acceptance baseline, at the cost of one wave. It is harmless, but see 18-12 L-1.
 
 ---
 
 ### 18-01
 
-**Summary.** Measures the Coriolis octrees and builds the four static and debris hulls as a separately bounded, lazily loaded artifact with a schema, golden, NOTICE and Key Decision.
-
-**Strengths**
-- Grounded. `checkHullTree(root, declaredDepth)` exists at `src/content/schemas/ship-hull.ts:58`, the caps sit at `:28-47`, `computeShipMasses` at `tools/oolite-ingest/convert/ship-mass.ts:178`, `collisionRadius` at `ship-radius.ts:168` (it already resolves non-flasher subentities through `resolveHull`), and the `emitShipHulls` call at `tools/oolite-ingest/generate.ts:221`. `debris.ts:44-45` confirms the keys `barrel` and `alloy`.
-- The plan keeps the ten-hull caps fixed and checks that with a mechanical acceptance criterion (`18-01-PLAN.md:188-189`).
-- Deriving the caps from the emitted file in Task 2 is a sound two-step approach.
-
-**Concerns**
-- LOW. The subagent brief (`18-01-PLAN.md:97`) says the checkout's lines "equal the pin `7437f22`", but the checkout HEAD is `21978c37b`. The brief gives the re-check command, and the lines I sampled match. No action is needed beyond running that command.
-- LOW. The behaviour list asks for names "after like_ship resolution" from "the compiled catalogue's resolved `name`" (`:215`). The plan does not say which compiled structure holds a resolved `name`: the `shipDef` of `emitShipsFromCatalogue` or something else. An executor may have to resolve `like_ship` itself. Name the source field.
-
-**Suggestions.** Name the catalogue field that carries the resolved `name`.
+**Summary:** Measures the Coriolis octree and ships the four static hulls as their own bounded lazy artifact.
+**Strengths:** The grounding is accurate. `MAX_HULL_NODES 16_384`, `MAX_HULLS 16` and `MAX_HULL_ARTIFACT_BYTES 200_000` exist at `src/content/schemas/ship-hull.ts:36,39,47`, and `checkHullTree` at `:58`. All six `.dat` files are vendored (`third_party/oolite/Models/oolite_coriolis*.dat`, `oolite_buoy*.dat`). The `display_name ?? name` source is the real pattern at `tools/oolite-ingest/convert/npc-ships.ts:525-540`. The buoy record has no subentity rotation (`shipdata.plist:1045-1047`, orientation (1,0,0,0)), so the identity-orientation refusal is safe. The cap guard is non-vacuous: `HEAD=3`.
+**Concerns:** None in my focus.
+**Suggestions:** None.
 
 ### 18-02
 
-**Summary.** Independent geometry oracle: exact ray-mesh dock-mouth fixtures and a transliteration of `isHitByOctree` and `doOctreesCollide`.
-
-**Strengths**
-- The oracle-independence guard (`tests/guards/oracle-independence.test.ts`) allows `node:` built-ins, zod, vitest and relative paths, and refuses a `src` segment in a path-call literal. `third_party/oolite/...` has no `src` segment, so reading the vendored `.dat` files passes the guard as written.
-- The margin rule (winner margin at least twice the tolerance, rays at least two leaf widths from edges) is the right way to make exact geometry decide an octree port's winner.
-
-**Concerns**
-- LOW. The tolerance needs "the leaf half-width ... by Oolite's depth rule" (`:150-ish`, Task 1 action). The port's octrees are built by Wegolite's converter (`tools/oolite-ingest/convert/octree.ts`), which the oracle may not read. If the oracle's derived depth differs from the depth actually emitted, the tolerances differ from what the port can achieve. The plan's fallback ("a conservative bound") covers this. Say explicitly that the bound is checked against the emitted depth when 18-04 consumes the fixtures, and that a mismatch there is a dispute, not a widened tolerance.
-
-**Suggestions.** None beyond the above.
+**Summary:** Independent dock-mouth ray fixtures from the meshes, plus a transliterated octree-against-octree reference.
+**Strengths:** The prime-role correction (L78) is now in executable text, with discriminating `prime-smaller`/`prime-larger` fixtures and a swapped-variant self-check. The oracle guard (`tests/guards/oracle-independence.test.ts`) allows relative imports, `node:` built-ins, zod and vitest, so `readDat` with `readFileSync` over `third_party/` passes. `tests/oracles/combat/` does not exist yet, so the plan creates a new tree with no collisions.
+**Concerns:**
+- LOW: The edge floor (≥4 `edge: true` rays at two leaf widths) feeds 18-20's real-engine check. There the player's weapon origin is offset from the ray (see 18-20 H-1), so the two plans' assumptions about edge rays need reconciling.
+**Suggestions:** Tag each fixture with whether it is eligible for real-engine measurement (non-edge only), so 18-20 can choose without judgement.
 
 ### 18-03
 
-**Summary.** Independent response oracle: `collideWithShip`, braking, scrape and blast.
-
-**Strengths**
-- The transliteration list (`18-03-PLAN.md:31`) matches `ShipEntity.m:11020-11152` line for line, including the `canScoop` returns at 11035-11042 that PD-05 omits, the destroyed flags read before damage (11111-11112), and the `t = 10 x getTimeDelta` nudge.
-- The blast truth uses the receiver's radius in d2 (`ShipEntity.m:7689`), which is the easy thing to get wrong.
-
-**Concerns**
-- MEDIUM (fidelity of a branch). `selfDestroyed` is specified as "the other's net velocity change is zero" (`18-03-PLAN.md:150`). That holds only for a whole-ship other. For a subentity contact, Oolite first applies `vel2a` to `otherParent` (`ShipEntity.m:11103-11106`) and then applies the reversal to `other`, the subentity (`11117-11119`). The parent keeps `+vel2a`. Plan 18-16 (`:148`) copies the same wording, and the `CollisionResponse` type has only one `dvOther`. The case is reachable after PD-01: a destroyable NPC dying against a buoy's subentity.
-- LOW. The independence rule says CONTEXT and RESEARCH figures are "never used as an expected value", yet the Task 2 behaviour list quotes them (`:184`, "about 68.1 m/s", "about 18.1 m/s"). These are cross-checks, but an executor may hard-code them as anchors. Mark them as SUMMARY cross-checks only, as Task 1's action does.
-
-**Suggestions.** Add a fixture for "subentity contact, self destroyed" that pins the parent's net `+vel2a`. Let `CollisionResponse` carry the parent and subentity velocity changes separately, or record the divergence.
-
-### 18-13
-
-**Summary.** Wires the static artifact into the session's boot `Promise.all` (traffic on only), merges it into `HullTable`, adds `fullHullTable()` and switches three app twins to it.
-
-**Strengths**
-- The anchors are exact. `hullTable` is at `src/app/session/traffic.ts:259-266` and the traffic-gated boot load at `start-session.ts:418-447`. `realHullTable` appears 7 times across the three twins (`tick-parity.test.ts:84,199`, `sim-driver.test.ts:65,650,1541`, `probe-publisher.test.ts:54,828`), matching "HEAD=7 matches" (`18-13-PLAN.md:205`).
-- Keeping `realHullTable()` for the frozen worlds is correct. The acceptance harness uses it (`tests/acceptance/detectors.ts:1146`).
-
-**Concerns**
-- MEDIUM. "`budget.spec.ts` passes unedited" (`18-13-PLAN.md:29`) is vacuous for the new chunk. The only hull-chunk assertion matches `/\/assets\/ships-hulls-[^/]+\.js$/` (`tests/e2e/budget.spec.ts:326`), and `ships-static-hulls-*.js` does not match it. Nothing in the browser proves that a traffic-off start never fetches the static chunk; only the unit boot-path scan does. The plan also never measures the traffic-on first load. Production (`npm run build`, the Pages deploy) runs with traffic on, so every player now downloads a chunk of up to 300 KB at boot, and no budget records it.
-- LOW. The tracer behaviour "the hit rule hits the station hull octree" (`:157`) must build a station `HitTarget` by hand, because no static is a candidate until 18-04. Say so, or the executor may start adding candidacy here.
-
-**Suggestions.** Record the traffic-on first-load delta in `docs/PERFORMANCE.md` (`## Load size`). In the SUMMARY, state that the browser budget spec does not cover the static chunk (no browser-spec edit is allowed), so the unit scan is the only guard.
-
-### 18-14
-
-**Summary.** Adds `World.buoys` (offset, velocity, subentity energy): pristine-omit in the hash and the snapshot, sanitised, as an amendment of the v4 snapshot.
-
-**Strengths**
-- The anchors are exact: `StaticHealth` handling at `snapshot.ts:181/197/503-517/1156/1185`, `sanitizeStaticHealth` at `sanitize.ts:761`, `repairWorldFields` at `step.ts:278/286`, `MAX_ENTITY_VELOCITY` at `limits.ts:126`, `BUOY_MAX_ENERGY` at `limits.ts:154`, `WORLD_SNAPSHOT_VERSION = 4` at `snapshot.ts:88`.
-- Storing the pose as an offset from the layout position, so that "pristine" needs no layout, is a good choice.
-
-**Concerns**
-- LOW. `depends_on: ["18-01"]` (`18-14-PLAN.md:6`) has no data dependency. Nothing in this plan reads the static artifact, so it could run in wave 1. This is harmless because wave 2 is the earliest consumer.
-- LOW. The remote acceptance run at the end of Task 2 is provably a no-op: no writer exists yet, and the harness never touches buoys. AGENTS.md mandates it for `src/sim/world/**`, so keep it, but see the gate-cost note under Overall.
-
-**Suggestions.** Drop the dependency or note why it exists.
-
-### 18-16
-
-**Summary.** Pure kernels: `collideWithShip` (response and damage) and the heat-free `routeScrapeDamage`, held to the 18-03 fixtures.
-
-**Strengths**
-- `routeDamage` (`src/sim/combat/shields.ts:124-163`) has exactly the facing test `!(dForward < 0)` that equals Oolite's `d_forward >= 0` (`PlayerEntity.m:5726`). Extracting it into a shared kernel is minimal and correct.
-- `fast-check` is available (`package.json:40`, 4.10.2).
-
-**Concerns**
-- MEDIUM. The same `selfDestroyed` subentity quirk as 18-03 (`18-16-PLAN.md:148`). A single `dvOther` that "goes to the parent for a subentity contact" (`:154`) cannot express Oolite's `+vel2a` to the parent followed by `-vel2a` to the subentity.
-- LOW. The fixture schema of 18-03 has no `destroyable` field, but `CollisionParty.destroyable` is required. The oracle consumer must set `destroyable: true` for every fixture party. State that.
-- LOW. Player `takeScrapeDamage` turns a negative amount positive (`PlayerEntity.m:5710-5713`). The plan says "a non-positive or non-finite amount changes nothing" (`:179`). The kernel never produces negative damage, so this is harmless, but it is a silent divergence from the C. Note it in the doc comment.
-
-**Suggestions.** Fix the response shape as noted under 18-03, or record the divergence.
-
-### 18-10
-
-**Summary.** The player's drift vector: integration, Oolite power braking, resets at pose changes, pristine-omit hashing.
-
-**Strengths**
-- Every reset site exists: `launch.ts:114`, `arrival.ts:160`, `dock/computer.ts:59`, manual capture at `dock/step.ts:174`, sanitiser at `flight/sanitize.ts:81`. `restoreFromSave` starts from `initFlightState` (`src/persistence/autosave.ts:266`), so "no persistence edit" holds.
-- The braking formula matches `PlayerEntity.m:3375-3404`: `applyVelocity`, then `velmag - dt*thrust*thrust_factor`, then the cleanup term.
-
-**Concerns**
-- MEDIUM (an interaction no plan covers). The station contact response ignores drift. `respondToContact` builds the ship's velocity as `forward*speed + impulse` (`src/sim/dock/step.ts:101-102`) and writes the reflection back into `impulse` (`:121`). A player pushed toward the dock face by a collision or by a D-03 blast (68 m/s is the plan's own number) keeps its inward drift. The positional correction (`:221-224`) stops it tunnelling, but the hull branch fires a `bounce` on every tick for as long as the drift lasts (about 2 s, about 250 ticks). Each bounce is enqueued to the message line unthrottled (`src/app/session/event-router.ts`, the `bounce` case). Plan 18-11 then claims "docking is unchanged" and proves it only with a zero-drift replay. Either fold drift into `respondToContact` (reflect drift plus impulse as one velocity) or zero the inward drift component on contact, and record the choice.
-- LOW. "Reaches exactly zero after 375 ticks" (`18-10-PLAN.md:163`) assumes exact decrements. With `Math.fround` on `velmag`/`velmag2`, the last tick can land at 374 or 376. Derive the stop tick from the oracle reference rather than hard-coding 375.
-- LOW. `thrust_factor` is the torus factor only "while speed exceeds maxSpeed". Wegolite resets `torus.factor` to 1 on disengage (`torus.ts:188`) while the speed can still be above `maxSpeed`. Oolite keeps `hyperspeedFactor`. The effect is small; mention it as a recorded edge.
-
-**Suggestions.** Add the drift and station-contact rule to this plan (it already edits `dock/step.ts`), with a test in which a drifting player meets the dock face.
-
-### 18-20
-
-**Summary.** PD-03: measures the dock-mouth decisions, the player-buoy ram and the pod and plate blockage radius on real Oolite.
-
-**Strengths**
-- The tooling claims hold. `run-remote.sh` takes `--out`, `--steps`, `--timeout`, `--addons` and `--no-build` (`tools/oolite-reference/run-remote.sh:9-10`). Entity `position`/`orientation` and ship `velocity` are writable from JS (`OOJSEntity.m:96-98, 314-327`; `OOJSShip.m:464, 1738-1742`, via `setTotalVelocity`).
-- The licence handling (no OXP, log or steps file in the tree) has a mechanical acceptance criterion.
-
-**Concerns**
-- MEDIUM (the measurement as written cannot produce the 100 m/s case). Task 2 (`18-20-PLAN.md:155`) places the player 300 m from the buoy, "engines at rest", with a 100 m/s drift. Oolite brakes drift at `thrust` = 32 m/s² (`PlayerEntity.m:3387`). The stopping distance is 100²/64 ≈ 156 m, but the player must cover about 170-240 m before the hulls touch (sphere contact at 131.8 m). The player stops short. At 350 m/s it arrives at about 330 m/s, not 350. Re-apply the velocity in the frame callback until the first contact frame, start a few metres from contact, or use engine speed. Then compare against the reference evaluated at the observed closing speed, not the 100/350 fixtures.
-- MEDIUM (sequencing). A MISMATCH "stops and reports" (`:23`), but no plan that consumes the measured fixtures depends on 18-20. 18-04 (dock mouth), 18-16 and 18-18 (ram) run in later waves whatever 18-20 found; only 18-12 depends on it. 18-07 also writes the D-08 FIDELITY row "with plan 18-20's measurement as its evidence" (`18-07-PLAN.md:37, 235`) without `depends_on: 18-20`. The wave order happens to hold. Make the stop gate explicit: add 18-20 to the depends_on of 18-04, 18-07 and 18-16, or state that the orchestrator halts the phase on a mismatch todo.
-- LOW (over-engineering against the owner's minimum). Task 1's bracket method (a target ship placed before and after each fixture's distance, one shot per fixture, for 10 or more fixtures) is a heavy probe OXP. PD-03 mandates the measurement, so keep it, but consider measuring a representative subset (one fixture per winning part) first.
-
-**Suggestions.** Rewrite the Task 2 setup as above, and add the explicit gate.
+**Summary:** Response, braking, scrape and blast fixtures derived from the C.
+**Strengths:** I re-read `ShipEntity.m:11020-11152` against the truths. The loc/v2b/v1a sequence, the `v2b < -1` return, the 1 m self step, the `magnitude2(v) <= 0.1` replacement, the parent-velocity application (11103-11107), the reversal on `other` itself (11117-11118) and the frangible routing (11123-11128) all match. The player braking order also matches: applyVelocity, then `velmag - dt*thrust*thrust_factor`, then cleanup (`PlayerEntity.m:3372-3405`, `OO_VARIABLE_TORUS_SPEED` defined at `PlayerEntity.h:47-48`). The buoy's `thrust = 100` is in `ships-client.json` extras.
+**Concerns:** None in my focus.
+**Suggestions:** None.
 
 ### 18-04
 
-**Summary.** The station becomes a laser target through Oolite's subentity hit rule, with the dock-mouth fixtures against the port.
-
-**Strengths**
-- Grounded. The candidate block and its comments are at `src/sim/combat/step.ts:347-353, 390-430`. `firstShipHit` (`hit.ts:71-131`) is a single loop to which the subentity branch adds cleanly. `portQuaternion` is in `src/sim/dock/port-frame.ts`. `worldStepped` already exists as a parameter.
-- The "HitPart beside id" `<assumption_delta_decision>` (`18-04-PLAN.md:126-131`) is a clear no-promote decision with a stated trigger.
-
-**Concerns**
-- LOW. The acceptance criterion `rg -n "Not ported: the subentity branch"` (`:240`) matches `hit.ts:17`, and 18-13 Task 1 also rewrites that paragraph (`18-13-PLAN.md:160`). After 18-13 the string may already be gone, so this criterion passes vacuously. Harmless; drop it or point it at 18-13's new wording.
-- LOW. Station hits from the player make Oolite's station hostile (police and defence ships). The plan records the energy absorb (A6) but not that behavioural difference. Add a FIDELITY note in Task 3.
-
-**Suggestions.** None blocking.
-
-### 18-09
-
-**Summary.** Ports `isHitByOctree` and the four-stage `doOctreesCollide` as total kernels.
-
-**Strengths.** The scope is clean, it is held to the oracle, and the detached-subentity mask is introduced exactly where PD-01 needs it.
-
-**Concerns.** No findings in focus. Its inputs (`HullData.subentities` from 18-13, fixtures from 18-02) are in its depends_on, and nothing calls it yet.
-
-### 18-17
-
-**Summary.** Integrates and brakes NPC ship drift (`Entity.velocity`) and buoy drift.
-
-**Strengths**
-- The plan correctly identifies that ship velocity is unwritten today (`src/sim/world/step.ts:132-133`), that `statsFor(table, specKey)` returns Oolite defaults for an unknown kind (`npc/stats.ts:90-102`), and that `NpcStepFacts.flight` exists (`:111-116`).
-- The buoy brake (5 x 100 = 500 m/s², about 10 m from 100 m/s) is consistent with PD-02's observed numbers and `ShipEntity.m:5810-5823`.
-
-**Concerns.** No findings in focus. One note: `debris.ts:672` uses `victim.velocity` for debris drift, so after this plan a drifting ship's debris inherits its drift. That is Oolite-faithful and only visible once something pushes a ship.
+**Summary:** The station joins the laser candidates; the subentity hit rule is ported; the dock-mouth fixtures run against the port.
+**Strengths:** The L456 disposition is correct when the plans run in order. 18-13 writes the exact sentence `Subentity data arrives (plan 18-13); the hit rule ignores it until plan 18-04.`, and 18-04 gates on the absence of both that sentence and `Not ported` (today at `src/sim/combat/hit.ts:17`), plus the presence of `1323-1357`. The gate is not vacuous. `never candidates in this milestone` exists at `src/sim/combat/step.ts:353`. The E-48 row is at `FIDELITY.md:65,748`. The `StationEntity.m:1128-1141` consequence is recorded.
+**Concerns:**
+- LOW: The Task 2 behaviour also says "the buoy fixtures likewise". Buoy HitTargets only become candidates in 18-05, but the oracle test builds the target by hand from `fullHullTable()`, so this works. It is worth stating, so an executor does not wait for 18-05.
+**Suggestions:** In the oracle test header, add a sentence that the buoy target is built by hand.
 
 ### 18-05
 
-**Summary.** The buoys become laser targets: 250 energy, 2/s recharge, destruction, the live pose, and the tumble moved into the sim.
-
-**Strengths**
-- The shipdata values check out (`energy_recharge_rate = 2`, `max_energy = 250`), as do `ShipEntityAI.m:458-464` and the render constants at `src/render/bodies/buoy.ts:48-50`. `tests/render/buoy.test.ts:20-21, 266-270` imports the rates, so the "re-export for existing importers" instruction is necessary and correct.
-- `destroyBuoy` lives in `kill.ts`, one of the files allowed to name `killer`, so the kill-credit guard stays green.
-
-**Concerns**
-- LOW. `buoyOrientation(t) = roll(Z, t*0.10) x pitch(X, t*0.15)` is a closed form of the existing render. Oolite's `BEHAVIOUR_TUMBLE` applies roll and pitch incrementally in the body frame, which is not the same rotation for t > 0. Making the hit test depend on it turns a cosmetic approximation into a fidelity one. The buoy is nearly symmetric, so the impact is small. Add a FIDELITY row.
-
-### 18-15
-
-**Summary.** The buoy's frangible subentity (1% bleed-through and full subentity damage, detachment) and pods and plates as laser candidates.
-
-**Strengths**
-- The bleed-through is correctly limited to lasers. `ShipEntity.m:10202-10207` and `10409-10414` are both weapon paths. Rams route full damage to the subentity with no bleed (`11123-11128`), and 18-18 implements that. CONTEXT PD-01's wording ("A laser hit or ram ... puts 0.01 * damage on the buoy body") is looser than the C, and the plans correctly follow the C.
-- Fixed ids 6 and 7 avoid touching `STATIC_BODY_IDS` (`ids.ts:56-62`). `tests/sim/world/hash.test.ts:376-381` pins `LAST_RESERVED_STATIC_ID` = 99 and the five body ids, so neither changes.
-
-**Concerns**
-- LOW. Make it explicit in 18-18 that a ram on the subentity applies no 1% bleed, so that nobody "completes" PD-01's wording there. 18-18's text is already right; a one-line note prevents drift.
+**Summary:** Buoy health, recharge and destruction at the live pose; one tumble for hit and draw.
+**Strengths:** Grounded. `BUOY_ROLL_RATE`/`BUOY_PITCH_RATE` exist at `src/render/bodies/buoy.ts:49-50`. The renderer already drives buoys with `flightTime` (`render-driver.ts:233` → `sync.ts:127`), so `buoyOrientation(flightTime)` gives one source of truth. `shipDestroyed` is consumed only by the explosion branch (`event-router.ts:496-509`), so a static id in the event is safe.
+**Concerns:**
+- LOW: `buoyPosition` always adds the offset. 18-21 later makes the view skip the addition when the offset is zero ("so no frozen number moves"). If a layout coordinate is ever `-0`, the two helpers return different signed zeros for the same buoy.
+**Suggestions:** Give `buoyPosition` the same zero-offset short-circuit that 18-21 specifies for the view, so every consumer agrees bit for bit.
 
 ### 18-06
 
-**Summary.** Ident locks the station, the buoys, pods and plates, with compiled names; the lock ends when a buoy is destroyed.
-
-**Strengths**
-- The app call sites are exact: `render-driver.ts:397` and `probe-publisher.ts:460`. `ctx.core.layout` exists (`context.ts:126`). The entity-id-scope guard only scans direct imports of `ids.ts` (`tests/guards/entity-id-scope.test.ts`), so the plan's app changes stay green.
-- The existing combat spec tolerates a re-lock after the kill (`tests/e2e/combat.spec.ts:445-458`), so a static now being lockable does not break it.
-
-**Concerns**
-- LOW. With traffic off the HUD prints the raw key ("Ident system locked onto coriolis-station."), because the names load with the traffic-gated static artifact. Production has traffic on, so this is acceptable, but record it.
+**Summary:** Ident for the statics, buoys, pods and plates, with compiled names.
+**Strengths:** The `layout` threading and the destroyed-buoy loss are concrete. The entity-id-scope guard is named. The tripwire evaluation is explicit.
+**Concerns:** None in my focus.
+**Suggestions:** None.
 
 ### 18-07
 
-**Summary.** Live buoys block a completing jump (live pose, live mass, liveness), plus the sanctioned fixture move and a clearance sweep.
-
-**Strengths**
-- Grounded. `stationMass`/`ships?.blocks` are at `src/sim/flight/step.ts:334-352`, and `ships?: ShipField` at `:128`. The arrival safety is `witchpoint.radius + MIN_DISTANCE_TO_BUOY` with the trunc push-out (`src/sim/hyperspace/arrival.ts:124-128`), so the "at least 809.14 m" sweep is meaningful. The seams build is traffic-off (`vite.seams.config.ts`, `__WEGOLITE_TRAFFIC_DEFAULT__: "false"`) and runs only through `playwright.seams.config.ts`, so the remote command `npm run build && npm run test:e2e:seams` is runnable as written.
-- The acceptance harness never sets `buoyMass` (`tests/acceptance/detectors.ts:1133-1151`), so "21 of 21 unchanged" is sound.
-
-**Concerns**
-- LOW. The D-08 FIDELITY row cites 18-20's evidence without a depends_on (see 18-20).
-- LOW. `depends_on: 18-06` has no data edge. It serialises on shared files (`step-options.ts`, the app context). Fine, but it adds to a 10-wave critical path; see Overall.
+**Summary:** Buoys block a completing jump at their live pose and mass; the sanctioned fixture move; the clearance sweep.
+**Strengths:** The numbers check: sqrt(0.1 × 698,691.1875) = 264.33 m. `ShipField.buoy` lands here before 18-08 consumes it, and 18-08 depends on 18-07.
+**Concerns:**
+- LOW: The pose comment calls 396.1 m "the player-buoy contact distance" (18-07-PLAN.md:39 and the Task 3 action). Sphere contact is 59.14 + 72.70 = 131.8 m (18-20 uses that figure). 396.1 m is the blockage radius plus both radii. The wrong label would be copied into the spec comment and the Key Decisions row.
+**Suggestions:** Use "264.3 m blockage radius plus both hull radii (396.1 m)" in both places.
 
 ### 18-08
 
-**Summary.** Presentation (hide a destroyed buoy, draw and plot it at its live pose, hide a detached subentity) and the compass fallback.
-
-**Strengths**
-- The anchors are exact: `nextCompassMode` at `aegis.ts:66`, `cycleCompass` at `flight/step.ts:201-205`, `bodyFor`/`scannerTargets` at `hud-model.ts:78/89`, `applyFrame` at `sync.ts:96`. The buoy GLB carries the subentity as its own node (`tools/oolite-ingest/convert/glb.ts:83, 111`; `NODE_NAMES` check at `src/render/bodies/buoy.ts:210-213`), so `setSubentityVisible` is implementable.
-- The compass rule matches `PlayerEntity.m:4656-4659`.
-
-**Concerns.** No findings in focus.
-
-### 18-11
-
-**Summary.** The collision stage: broad phase, `doOctreesCollide`, `collideWithShip`, Oolite update-order ranking, scrape records into the ledger, and the app opt-in.
-
-**Strengths**
-- The opt-in gate (`CombatOptions.collisions`, set only by `buildStepOptions`) is the right minimum. The acceptance harness builds its own options (`detectors.ts:1137-1151`) and never sets it.
-- The integration point is right. `resolveShots` (`src/sim/combat/step.ts:508-547`) runs `applyLedger` and the kill loop unconditionally, so appending collision records before `applyLedger` needs no restructuring.
-- `massFor({ flight: npcFlight, masses: hyperspace.shipMasses })` matches the existing fields (`src/sim/sim.ts:116-117`).
-
-**Concerns**
-- LOW (an unlisted file will go red). Making `HitRecord.kind` required breaks typecheck in `tests/sim/combat/kill.property.test.ts:1292`, whose `fc.record` builds `HitRecord`s. That file is not in `files_modified` (`18-11-PLAN.md:7-20`). The executor will find it through typecheck. List it, or make `kind` optional with "laser" as the default.
-- MEDIUM. "A manual dock with collisions on is byte-identical" (`:36`) is proven only for a zero-drift replay; see 18-10's drift and station-contact gap.
-- LOW. The planned PROJECT.md row notes that a straight full-speed departure meets the nav buoy at up to 631 m/s (`:253`). That is 1,712 damage to the player and a destroyed buoy. Traffic-on browser specs that fly straight out could be affected once 18-18 adds buoys. 18-18 reruns the four traffic-on specs, so this will surface; just expect it.
-
-### 18-18
-
-**Summary.** Buoys join the collision stage as movers with their frangible subentity, plus cadence, cost and totality proofs and the tripwire for the player's deferred death reversal.
-
-**Strengths**
-- Correct Oolite semantics for the buoy as `self` versus `other`, and for the subentity contact (parent velocity, subentity mass and energy, no bleed), matching `ShipEntity.m:11057-11070, 11103-11106, 11123-11128`.
-- The deterministic counter test (`CollisionStats`) instead of a wall-clock gate is the right cost pin.
-
-**Concerns**
-- HIGH (the tripwire guard is red, or vacuous, on day one). The guard is to fail "when `src/sim/events.ts` names `playerDestroyed`" (`18-18-PLAN.md:37, 220`). `src/sim/events.ts` already names it: the union member at `:179` (`{ kind: "playerDestroyed"; position: Vec3 }`), the doc at `:195` and the kind list at `:227`. As specified, the guard fails the moment it lands, so Task 3's `docker compose run --rm test npx vitest run tests/guards` is red. The executor then has to change the rule itself, which is exactly what a tripwire must not depend on. Key the guard on an emitter instead: a `kind: "playerDestroyed"` object pushed anywhere in `src/sim/**` outside `events.ts`, or a `"dead"` `FlightMode` (`src/sim/flight/state.ts:18` today: `"docked" | "launching" | "inFlight"`). Keep the synthetic non-vacuity case.
-- HIGH (a phase-level fidelity gap this plan creates). Buoys become colliders here, but the NPC proximity pass excludes them. `src/sim/npc/proximity.ts:16-21` says "planet, sun and buoys are not candidates". In Oolite the collision region raises a proximity alert between any two ships in range (`CollisionRegion.m:308-311`), and `setProximityAlert:` ignores only others under 2,000 kg (`ShipEntity.m:6107`). A 698,691 kg buoy alerts every crewed NPC, which then avoids it. In Wegolite after 18-18, NPCs fly into buoys with no avoidance. A Krait at 100 m/s takes `dam1 = 698,691 x 100² / 5e7 ≈ 1,397` and dies, and the buoy is shoved. The acceptance harness never enables collisions, so the 20-seed run cannot see it, and the four traffic-on browser specs are unlikely to cover the beacons' neighbourhood. This needs an owner decision. Either (a) add the buoys to the proximity pass (an `src/sim/npc/**` change: an acceptance rerun with possible number changes, against the frozen-threshold rule), or (b) record it as a known divergence with a measurement of how often traffic-on worlds ram a buoy.
-- LOW. `tests/sim/combat/collision-stage.test.ts`'s 18-11 byte-identical dock replay with collisions on now runs with buoys as colliders. If its approach path crosses the nav buoy (10 km out on the dock axis), it changes. The full `test` run in Task 3 will catch it. Note it as a possible re-pin with its cause.
-
-**Suggestions.** Rewrite the guard's trigger (above). Add an owner question for the proximity gap before 18-18 executes.
-
-### 18-19
-
-**Summary.** The explosion blast pushes ships, buoys and the player, and every exploding body becomes a blast source.
-
-**Strengths**
-- The formula matches `ShipEntity.m:7680-7698` and `8123-8126`, with the strict `EntityInRange` (`Universe.m:5862-5868`), and the receiver radius is stated in every fixture.
-- No acceptance risk. The harness passes no debris content (`detectors.ts:1137-1151`), and the blast only runs with `debrisContext`, so "21 of 21 unchanged" holds.
-
-**Concerns**
-- LOW. `dealMomentumWithinDesiredRange` pushes every `isShip && isInSpace` entity, and in Oolite the station is a ship. The plan asserts "the station never moves", which matches Wegolite's static station. Record it as a divergence, or cite the Oolite override (if `StationEntity` ignores impact moments, cite it).
-
-### 18-12
-
-**Summary.** Phase close: todo moves, the FIDELITY walk, the tripwire evaluation, the only `verify-full`, and the acceptance run.
-
-**Strengths.** It depends on 18-19 and 18-20, so it is truly last. The prohibitions against editing tests or thresholds to turn a gate green are mechanical.
-
-**Concerns.** No findings in focus. It inherits 18-18's guard problem: if 18-18 landed with a weakened guard, this plan's tripwire evaluation is the place to catch it. Add "the new guard fails on its synthetic positive case" to the evaluation.
-
----
-
-### Cross-plan sequencing
-
-- Every symbol a later wave consumes is produced in an earlier wave. I traced `SubentityHull` (18-13), `World.buoys` (18-14), `collideWithShip`/`routeScrapeDamage` (18-16), `doOctreesCollide` (18-09), `FlightState.drift` (18-10), `STATIC_TARGETS`/`buoyPosition`/`isBuoyDestroyed` (18-04/18-05), the subentity ids (18-15), `NAV_BUOY_MASS`/`ShipField.buoy` (18-07), `PLAYER_MASS_KG` (18-11) and `destroyBuoy` (18-05). The only missing edges are evidence edges on 18-20 (MEDIUM, above).
-- The critical path has 10 sequential waves (18-04 → 05 → 15 → 06 → 07 → 08 → 11 → 18 → 19 → 12). Most edges are file-overlap serialisation (`combat/step.ts`, `flight/step.ts`, `render-driver.ts`), which is legitimate, but 18-06 (ident) and 18-07 (blockage) share little and could pair in one wave if the shared app files are split.
-
-### Gate cost (owner's "necessary technical minimum")
-
-There are about 11 remote acceptance runs (18-14, 04, 05, 15, 17, 07, 08, 11, 18, 19, 12), 6 remote `verify` runs, 7 remote Playwright runs and at least 4 Oolite reference sessions on the slow remote machine. Several acceptance runs are provably no-ops for the frozen harness. It uses `realHullTable()` (no statics), no debris content, no `collisions` and no `buoyMass` (`tests/acceptance/detectors.ts:1133-1151`). That covers 18-14, 18-04, 18-05, 18-15 and 18-08. AGENTS.md mandates the run after `src/sim/world/**` changes, so this is not a defect, but an owner-sanctioned "one acceptance run per wave" would cut about 5 runs with no loss of signal.
-
-### Overall
-
-**Risk assessment: MEDIUM.** The plans are unusually well grounded. Nearly every interface line, test path and anchor string checks out, and the oracle-first structure with opt-in gating protects the frozen worlds. Two findings would stop or mislead an executor:
-1. The 18-18 tripwire guard keys on a symbol that already exists (`events.ts:179/227`), so the plan's own guard run goes red.
-2. Phase 18 makes buoys colliders while the NPC proximity pass ignores them (`proximity.ts:16-21`, against `CollisionRegion.m:308-311`). Traffic-on NPCs will die on buoys, invisible to every gate in the phase.
-
-The MEDIUM items are smaller. The player's drift is ignored by the station contact response (18-10/18-11). The 18-20 ram probe cannot reach contact at 100 m/s. The 18-20 mismatch stop is not a gate on the plans that consume those fixtures. The budget spec is vacuous for the new chunk, with no traffic-on load measurement. The subentity `selfDestroyed` velocity quirk is not representable in `CollisionResponse`.
-
-**Counts:** HIGH 2, MEDIUM 7, LOW 23.
-
-**Plans reached:** all 20 (18-01 to 18-20).
-
----
-
-## Sonnet Review
-
-## Phase 18 plan review (Sonnet): tests, oracle independence, persistence, security
-
-Reviewer focus: tests, oracle independence, snapshot/sanitiser/hash, content artifact, tripwires, threat realism.
-Scope: all 20 plans read (18-01..18-03 and 18-14 in full; 18-04..18-20 must_haves, acceptance criteria, threat models, and the tripwire/test actions). Source claims checked against the repo at HEAD (2f9eb47).
-
-Severity count: 1 HIGH, 6 MEDIUM, 8 LOW.
-
-### 18-01
-**Summary.** Measures the Coriolis octrees and builds a second lazily loaded static-hull artifact with its own strict schema, caps, digest golden, NOTICE paragraph and Key Decisions row.
-**Strengths.**
-- Does not raise the ten-hull caps, which stay MAX_HULL_NODES 16,384, MAX_HULLS 16 and 200,000 bytes. The `git diff --quiet ... ships-hulls.json` gate and the grep for the three unchanged constants are real mutation guards (`src/content/schemas/ship-hull.ts`).
-- Strict objects, iterative `checkHullTree`, a subentity cap, a total node cap and a refusal of non-identity subentity orientation. Zod 4.6.7 (package.json:29) rejects NaN and Infinity in `z.number()`, so the position and radius fields are finite-safe.
-- Provenance: NOTICE paragraph, a note that CHECKSUMS is untouched because nothing is vendored, and a drift gate (`assets:check`).
-**Concerns.**
-- LOW: the caps are "measured plus 20/30 %" taken from the file the build just emitted (18-01-PLAN.md Task 2 action). That is partly self-pinned. It is acceptable only because the digest golden also pins the real node counts. Say so, so the cap is not mistaken for an independent bound.
-- LOW: `StaticNameSchema` is only "non-empty" (Task 1 action), but 18-06 T-18-15 claims "the static schema bounds names (18-01)". The claim is false as written. Add `.max(64)` (or similar) to the name and key fields, or drop the claim and rely on `clampMessage` alone.
-- LOW: T-18-01 is rated high. The artifact is a same-origin build output, not user input. Corruption, not attack, is the realistic threat. The severity is inflated but the mitigation is harmless.
-- LOW: the traffic-gated load means `loadStaticHulls` failure behaviour is unspecified (see 18-13).
-**Suggestions.** Bound name length in the schema. State in the schema doc that the caps are headroom over a golden-pinned measurement.
-
-### 18-02
-**Summary.** Independent geometry oracle: exact ray against mesh fixtures for the dock mouth and buoy, and a transliteration of `isHitByOctree` and `doOctreesCollide` with a brute-force soundness check.
-**Strengths.**
-- Genuinely independent route for the rays. Expected answers come from exact Moller-Trumbore over the vendored `.dat` meshes, not from the port's octrees. The oracle can therefore catch a wrong octree build as well as a wrong rule.
-- The guard (`tests/guards/oracle-independence.test.ts`) refuses non-oracle relative imports, bare packages other than zod and vitest, and literal `src` path segments in fs/path calls. Reading `third_party/oolite/Models/*.dat` passes it (no `src` segment), which is intended.
-- The brute-force overlap soundness loop stops the reference inventing contacts. The pruned-corner fixture pins Oolite's crude-prune behaviour, which a "clean" geometry port would get wrong.
-- The plan does not quote any port number in its fixture instructions.
-**Concerns.**
-- MEDIUM: the dock-mouth tolerance is the winner's leaf half-diagonal "by Oolite's depth rule", and the plan admits that rule may not be derivable and falls back to "a conservative bound" (Task 1 action). A conservative bound shrinks the number of rays that pass the "margin >= 2 x tolerance" filter. The acceptance floor is only >= 10 fixtures with at least one dock win and one faceplate win. The set could degenerate to easy rays that every plausible port passes. Require a minimum of dock-slot-edge and faceplate-edge cases, and have the SUMMARY list the tolerance per fixture.
-- MEDIUM: the "executor reads no Wegolite code" rule is a process rule that no mechanical check can verify. The guard is mechanical but cannot see a path assembled at run time (its own header says so). The same model family transliterates the same C as the port author, so the oracle has common-mode risk. 18-20 (real Oolite measurement) is the only real counter. This is a good design, but 18-20 has no explicit link to the octree-collide fixtures, only the dock-mouth ones.
-- LOW: the "ids unique across every oracle tree" claim relies on the existing check in `tests/oracles/npc/reference.self.test.ts:97`. Confirm it scans `tests/oracles/combat/**` as well, or add a combat-tree uniqueness case.
-**Suggestions.** Add a floor on edge-adjacent dock rays. Add an 18-20 probe for one octree-collide pair (for example two pods), because that is the only geometry the real engine can confirm for collisions.
-
-### 18-03
-**Summary.** Independent response oracle: `collideWithShip`, player and ship braking, the player's scrape, and the blast push, each with a derived fixture.
-**Strengths.**
-- Derivations are cited by C line. A negative grep forbids the wrong half (`takeEnergyDamage`, `canScoop`). One fixture per branch. float32 locals are named (`Math.fround`).
-- It cross-checks against CONTEXT figures afterwards, in the SUMMARY only.
-**Concerns.**
-- MEDIUM: the independence claim is undermined by the plan text itself. The truths say "the figures quoted in CONTEXT and 18-RESEARCH are never used as an expected value" and the objective says "derive, never copy". Yet the Task 2 `<behavior>` hands the oracle author the answers: "about 68.1 m/s", "about 0.027 m/s", "about 0.0007 m/s", "about 0.06 m/s", "about 18.1 m/s", "about 1.3 m/s", "about 0.013 m/s", "d2 = 64 - 5.7986^2 = 30.38", and the Task 1 "241.3 m/s" ram. The oracle author reads this file, so the "derived" blast fixtures are anchored by the planner's numbers. Strip the numeric answers from the behaviour list and keep only the configurations. Do the figure cross-check in a different agent or in the SUMMARY.
-- LOW: both an unenforceable process rule and the same-author transliteration risk remain. 18-20 covers the player-buoy ram only. A real-Oolite check of a ship-ship ram (mass asymmetry, the inelastic reversal) is absent from PD-03.
-**Suggestions.** Remove expected numbers from the plan. Extend PD-03 to one ship-ship ram.
-
-### 18-04
-**Summary.** Station becomes a laser target through the subentity rule; the dock-mouth fixtures drive the port.
-**Strengths.**
-- `tests/sim/combat/dock-mouth.oracle.test.ts` reads the 18-02 JSON, so the criterion-2 proof is an external oracle, not a pinned value.
-- "A failing fixture is a dispute, never a widened tolerance" is the correct discipline.
-- The station's hash-equality case after 1,000 hits (T-18-09) is a real test that the station branch writes nothing.
-- Candidacy is gated on the hull key being in the table, which keeps the frozen acceptance worlds on `realHullTable()` unchanged.
-**Concerns.**
-- MEDIUM: the "remote acceptance 21 of 21, unchanged numbers" check is repeated in 18-04 to 18-19 as evidence. The acceptance harness uses `realHullTable()` (no statics) and never sets `CombatOptions.collisions`, as 18-04 and 18-11 themselves say. By construction it cannot see any new path. It only proves the frozen worlds are untouched, which is useful, but it is not evidence that the new behaviour is deterministic or correct. State that distinction, and rely on the cadence and property tests for the new paths.
-- LOW: the app twins (`fullHullTable`) are updated "with any value that moves re-pinned". Re-pinning needs a recorded cause, which the plan has. The pin diff-gate covers only `tests/acceptance`, `tests/e2e` and `tests/golden/world`, not the twin pins.
-**Suggestions.** Reword the acceptance bullets as "frozen worlds untouched" and do not cite them for the new behaviour.
-
-### 18-05
-**Summary.** Buoy health, recharge, destruction, live pose and the render orientation pin.
-**Strengths.**
-- T-18-11/12 cases: NaN, Infinity, zero and negative amounts; a 10,000-tick no-revival case; one destruction for two lethal records in a tick. These tests fail if the behaviour is wrong.
-- Pins the drawn orientation to the sim's `buoyOrientation` (PITFALLS 11).
-**Concerns.**
-- LOW: the "this plan leaves snapshot.ts alone" acceptance uses `PLAN_BASE..HEAD`, where PLAN_BASE is "recorded in the SUMMARY at the plan's start". The base is not defined anywhere the executor can rely on. Replace it with a fixed commit (as other criteria use `76229f5`) or a `git diff --quiet <sha> -- file` check.
-**Suggestions.** Use a fixed SHA.
-
-### 18-06
-**Summary.** Ident locks the station, buoys, pods and plates. Wrecks and subentities are excluded.
-**Strengths.** The lock ends on the destruction tick (`identLost`), the order is ascending id with strict `<`, and the plan checks the tripwire todo on player-lock self-targeting and states why it is not triggered. A grep forbids display names typed into app code.
-**Concerns.** LOW: T-18-15 assumes the schema bounds names (see 18-01). No other findings in focus.
-**Suggestions.** Align with the 18-01 name-length fix.
-
-### 18-07
-**Summary.** Buoys block a completing jump by Oolite's mass rule. The D-06 e2e fixture pose moves.
-**Strengths.**
-- The 2,048-layout clearance sweep is a real property test of "no arrival or launch pose overlaps a buoy". It addresses T-18-17 (a jump that can never complete).
-- The one sanctioned browser-spec edit is diff-gated by exact path.
-- The rule that `buoyMass` must be finite and positive, with NaN and -1 cases, covers T-18-16.
-**Concerns.**
-- LOW: the pose [1000,0,0] is justified for Lave only. The spec parks the player at one system, so that is fine, but state that the clearance test is the generality check.
-**Suggestions.** None beyond that.
-
-### 18-08
-**Summary.** Destroyed buoy leaves the view, scanner and compass. Subentity mesh hidden.
-**Strengths.** Persistence is explicitly diff-gated (`git diff --quiet ... src/persistence tests/e2e/save-load.spec.ts`). The compass fallback is tested through `stepFlight`. A "Compass cycle model" FIDELITY row is added with a citation.
-**Concerns.** No findings in focus. LOW: the render and scanner behaviour is only unit-tested (`applyBuoyState`); there is no browser assertion (see Overall).
-**Suggestions.** None.
+**Summary:** Destroyed, moved and stripped buoys in the view, the scanner and the compass.
+**Strengths:** `ctx.core.worldLifecycle?.world` is the real read path (`render-driver.ts:252,262`). The compass fallback reads the 18-07 field.
+**Concerns:**
+- LOW: The action says to find the subentity mesh "by its model name in the loaded GLB". The loaded buoy model's nodes are named `"hull"` and `"core"` (`src/render/bodies/buoy.ts:70`, checked at `:210-214`). There is no node named after `oolite_buoy_subents`.
+**Suggestions:** Name the `"core"` node and reuse the existing `NODE_NAMES` check.
 
 ### 18-09
-**Summary.** Port of `isHitByOctree` and `doOctreesCollide`.
-**Strengths.**
-- Passes every 18-02 octree fixture and cross-checks the port against `isHitByOctreeReference` on random depth-2 trees. This is a real independent oracle use. Test code importing the oracle is allowed because the guard restricts only the oracle tree's own imports.
-- Totality and recursion bound (`MAX_OCTREE_DEPTH`) with malformed-node cases (T-18-20). Includes a "bounding spheres overlap but octrees do not" case with the real hulls (no sphere-only contact).
-**Concerns.** LOW: a mutation-style acceptance grep forbids `try {` in `collide.ts`. Comment text containing it would trip it; the other plans' greps are comment-stripped (`rg -v`) but this one is not. Make it consistent.
-**Suggestions.** Use the comment-stripped form.
+
+**Summary:** The octree-against-octree port and the four-stage composition.
+**Strengths:** The prime/axial rule matches `ShipEntity.m:1897` and the composition matches `:1899-1918`. A prime subentity hitting the other's hull returns `other`, which is why 18-18 "when the buoy is self, a contact is the buoy body's" is correct. The precondition is present.
+**Concerns:** None in my focus.
+**Suggestions:** None.
 
 ### 18-10
-**Summary.** Player drift vector with Oolite's braking, zeroed at every pose install.
-**Strengths.** Pristine-omit is tested by the flight-hash pins and `tests/golden/world` diff gate. A grep forbids `thrustAccel` in `drift.ts` (guards the "5 x thrust" mistake). Tests against the 18-03 braking fixtures. Saves are diff-gated, since drift is never persisted.
-**Concerns.** LOW: drift is "zeroed wherever a pose is installed" over a list of four sites plus init. A missed pose-reset site (for example a future teleport path) would leak drift across a dock. A test that enumerates every writer of `FlightState.position` would be stronger than four greps.
-**Suggestions.** Optional guard that every position-reset site also resets drift.
+
+**Summary:** Player drift, braking, reset sites, and the station-contact drift branch.
+**Strengths:** Every named site exists: the `impulse` resets at `launch.ts:114`, `arrival.ts:160`, `computer.ts:59` and the capture at `dock/step.ts:174`; `respondToContact` is at `dock/step.ts:95`; `BOUNCE_RESTITUTION`/`MIN_OUTWARD_SPEED` are at `:56,62`. `FlightConfig` is built in one place (`config.ts:85`), so adding `thrust` does not ripple into the tests. The dock tests are diff-gated.
+**Concerns:**
+- LOW (new branch): The drift branch is self-contradictory. It says to "keep the existing reflection and speed/impulse split … exactly as they are" (which includes the `MIN_OUTWARD_SPEED` floor on the non-drift velocity, `dock/step.ts:114-117`). It also says the "combined outward speed is at least `MIN_OUTWARD_SPEED`". When the drift's outward part already exceeds 8 m/s, keeping the floor unchanged still adds up to 8 m/s to `impulse`. The plan leaves the choice to the executor ("planner choice … recorded in the SUMMARY"), so the 68/350 m/s cases have no fixed expected value.
+**Suggestions:** Choose one rule in the plan. Either compute the floor on the combined outward speed and apply the top-up to `impulse` only, or keep the floor as is and accept the extra push. Say which one the "exactly one bounce" test pins.
 
 ### 18-11
-**Summary.** Collision stage: once-per-pair, update-order ranking, opt-in flag, shield routing, kill path.
-**Strengths.**
-- The 600-tick "damages once, then never again" case directly tests PITFALLS 9.
-- The stage is opt-in (`CombatOptions.collisions === true`), so frozen worlds stay byte-identical. Byte-identical dock with collisions on and off tests DOCK-09.
-- `sourcePosition` copied at queue time (Phase 15 carry-over). Four tripwire todos are evaluated with a reason each.
-**Concerns.**
-- MEDIUM: the mutual-kill tripwire (2026-11-18-mutual-kill-credit-symmetry) is declared "not triggered: nothing reads credits". A collision where both parties die in one tick is exactly the same-tick mutual kill whose asymmetry that todo records, and collisions make it routine rather than rare. The plan says "the credited source is the other party" for each victim, while `killShip` today credits asymmetrically. Reconcile: either collision kills use the existing rule (and the plan says so) or a new rule is introduced (and the todo must be updated in the same commit). Test the both-die case explicitly.
-- LOW: the acceptance-evidence caveat (see 18-04) applies here too.
-**Suggestions.** Add a both-lethal ram case and state the credit outcome.
+
+**Summary:** The collision stage: rank, sweep, response, scrape ledger and the app opt-in.
+**Strengths:** The L544 disposition holds (`kill.property.test.ts` is listed and verified). `FlightState.position` is mutable (`flight/state.ts:49`), so the world-side write is feasible, and the plan amends the D-14 sentence in `sim.ts:8-11` that it breaks. `HitRecord.kind: "scrape"` does not clash with the existing `SimEvent` `"scrape"` (`event-router.ts:518`) because they are different unions. The acceptance harness never sets `collisions` (`tests/acceptance/detectors.ts:1133-1151`), so "frozen" holds.
+**Concerns:**
+- LOW: The "byte-identical dock with collisions on/off at 68 m/s drift" case is vacuous for the stage in this plan, because the station is not a collider and no other collider is present. It is a regression test of 18-10's branch. That is fine, but it should not be cited as evidence about the stage.
+**Suggestions:** Label it as a regression test of 18-10's branch.
 
 ### 18-12
-**Summary.** Phase close: todos, FIDELITY walk, the only `verify-full`.
-**Strengths.** Gate and acceptance diff-gating (`tests/acceptance` unchanged). Tripwires re-evaluated at close with reasons.
-**Concerns.**
-- LOW: PD-04 defers `verify-full` to the end although plans 18-08 (render), 18-13 (app boot and hull load) and 18-14 (hash and snapshot) touch the areas AGENTS.md says require `verify-full`. It is an owner decision (PD-04), so only note that a late `verify-full` failure then has twelve plans of blame to bisect. Consider one mid-phase `verify-full` after 18-14.
-**Suggestions.** Optional mid-phase `verify-full`.
+
+**Summary:** Phase close: todos, the FIDELITY walk, the tripwire evaluation, `verify-full` and QUAL-11.
+**Strengths:** The only `verify-full` (PD-04). It honestly records that QUAL-11 does not exercise collisions.
+**Concerns:**
+- LOW (L-1): The baseline for "numbers unchanged" is "plan 18-21's" run, but 18-19 (wave 12) runs the acceptance afterwards, so the latest recorded run is 18-19's. The 18-19 gate checks only "fewer than 21 passed", not "unchanged numbers", so a drift introduced by 18-19 would be attributed to 18-12. 18-19 probably moves nothing: the harness passes no `debris` content (`detectors.ts:1144-1148`), so no blast fires.
+**Suggestions:** Compare with 18-19's run, and add "numbers unchanged against 18-21's" to 18-19 Task 3.
 
 ### 18-13
-**Summary.** Loads static hulls in traffic-on sessions and merges into the hull table. Twins move to `fullHullTable`.
-**Strengths.** Boot-path scan (`loadStaticHulls` only inside the traffic-gated branch, never named under `src/sim`); `budget.spec.ts` unedited; an equality case pinning app and twin table construction (T-18-37).
-**Concerns.**
-- MEDIUM: nothing exercises the real browser load. With traffic off (the e2e build default) statics are never loaded, and none of the unedited traffic-on specs shoots, locks or rams a static. A broken `import.meta.glob`/`?raw` path in the production bundle, or a rejected schema parse, would leave the game running with no statics and no test failing. The plan also does not say what the session does when `loadStaticHulls()` rejects (fail boot, or silently continue without statics). Specify the failure behaviour and add at least a traffic-on probe or e2e assertion that the loaded table contains `coriolis-station`.
-**Suggestions.** Add a probe field or a tiny traffic-on spec for "statics loaded". Define the reject path.
+
+**Summary:** Traffic-gated load of the static hulls into the one hull table; boot failure; twins on `fullHullTable()`.
+**Strengths:** The L731 disposition holds (start-session rejection case). The chunk measurement uses `run --rm test sh -lc "npm run build && …"`, which the wrapper can run. Twin `realHullTable` call sites exist (gate `HEAD=7 matches in 3 files`).
+**Concerns:** None in my focus.
+**Suggestions:** None.
 
 ### 18-14
-**Summary.** Per-world buoy state (offset, velocity, subentity energy): hash line, snapshot key, bounds, sanitiser, Key Decisions amendment.
-**Strengths.**
-- Pristine-omit follows the proven `staticHealth` pattern (`src/sim/world/serialize.ts:174-181,228-250`, `sanitize.ts:753-790`, `snapshot.ts:503-517,1156-1221`). Hash and snapshot print nothing for a pristine world, so every pin and golden is unchanged. The `git diff --quiet ... tests/golden/world` gate and the `WORLD_SNAPSHOT_VERSION = 4` grep are effective guards.
-- Parser rejects non-finite, over-bound and unknown keys with the path named. The sanitiser repairs before every hash (wired next to `sanitizeStaticHealth` in `repairWorldFields`, `src/sim/world/step.ts:278-290`). Bounds are in `limits.ts` only. `MAX_BUOY_OFFSET = 1e6` is derived (brake 5 x 100 m/s^2, 1e5 m max travel, 10x margin) and `MAX_ENTITY_VELOCITY = 1e4` already exists (`limits.ts:126`).
-- The threat model is honest: it names the `?test=1` hook and tests as the only snapshot source, and saves never carry world state.
-**Concerns.**
-- MEDIUM: PROJECT.md Key Decisions row 298 states the v4 field set is final ("Phases 16 to 20 add no further field or bump"). The plan amends it on owner authority (PD-01/PD-02), which is correct, but the amendment is recorded only in Task 2's last step. If Task 1 lands first, there is a commit where the hashed field exists but the decision row still says it does not. Put the PROJECT.md edit in Task 1's commit ("same commit as the rule", AGENTS.md).
-- LOW: the sanitiser heals a non-finite `subentityEnergy` to 200, which would revive a detached subentity from corrupt input. The existing `staticHealth` repair does the same (heals to max, `sanitize.ts:~775`), so it is consistent, but a detached buoy sub should arguably heal to 0 when non-finite. Decide and record it.
-- LOW: the sanitiser only runs inside `stepWorld`. A hash taken straight after `restoreWorld` relies on the parser's rejection, which the plan does cover.
-- LOW: a buoy that stops at a nonzero offset never returns to pristine, so such a world carries a `buoys:` line for the rest of its life. That is correct but the tests should include "moved then rested" hashing stably across 30/60/144 Hz (18-17 and 18-18 cover it).
-**Suggestions.** Move the Key Decisions amendment into Task 1. Record the non-finite-energy heal direction.
+
+**Summary:** Per-world `World.buoys` state (offset, velocity, subentity energy, sticky flag), pristine-omit, as a v4 amendment.
+**Strengths:** The insertion points are real (`serialize.ts:176-180` static health line, `snapshot.ts:503-517,1018-1032`, `sanitize.ts:786`). `MAX_ENTITY_VELOCITY = 1e4` (`limits.ts:126`) matches the parser bound. The `MAX_BUOY_OFFSET` derivation is consistent with `BUOY_THRUST 100` (5 × 100 = 500 m/s²).
+**Concerns:** None in my focus.
+**Suggestions:** None.
 
 ### 18-15
-**Summary.** Frangible buoy subentity: the 1 % bleed-through, tracked subentity energy, detachment, pods and plates as laser targets.
-**Strengths.** T-18-41 cases (energy in [0,200], no revival after detachment, 10,000 ticks). Wrecks forbidden by a grep and test. Static ids 6 and 7 stay in `ids.ts` and the entity-id-scope guard runs.
-**Concerns.** LOW: the plan says "subentity recharges 1/s while above 0 and below 200". A hit that takes it to exactly 0 detaches it. A hit that leaves 0 < e < 200 means a world with a perpetually changing `buoys:` hash line until it is back at 200. That is deterministic, but the 30/60/144 Hz equality test should cover a mid-recharge snapshot. No other findings.
-**Suggestions.** Add a mid-recharge equality case.
+
+**Summary:** Buoy subentity as static targets 6/7 with sticky routing, recharge and detachment; pods and plates as laser candidates.
+**Strengths:** The sticky routing (L231) is ported from the right lines. `Universe.m:5634-5636` sets the flag only on a subentity win and never clears it on a hull hit. `ShipEntity.m:10202-10207` reads the flag, not the current hit. `:1245-1247` clears it on a dead reference. The executable text implements all three (set in `resolveShotHits`, read for every buoy hit from any shooter, cleared by the ledger write that reaches 0). The gates are non-vacuous (`HEAD=0`). `LAST_RESERVED_STATIC_ID = 99` (`ids.ts:44`) leaves room for ids 6 and 7, and no guard pins the reserved range.
+**Concerns:**
+- LOW (new, fidelity bookkeeping): In Oolite the flag is also set without firing. The HUD's target-sensitive reticle calls `firstEntityTargetedByPlayerPrecisely` every frame (`HeadUpDisplay.m:3314,3321`), which calls `firstShipHitByLaserFromShip` (`Universe.m:5756`), whose `:5634-5636` sets `subEntityTakingDamage`. This happens only with that reticle feature, but it is a path the sticky rule does not port.
+**Suggestions:** Add one FIDELITY sentence to the sticky-routing row: set only by shots in Wegolite; in Oolite also by the precise reticle.
 
 ### 18-16
-**Summary.** Pure `collideWithShip` kernel and `routeScrapeDamage`.
-**Strengths.** Fixture-driven against 18-03. fast-check over NaN, Infinity and 1e308 for totality. `routeDamage` banned in the kernel by a negative grep, with fixtures asserting no heat.
-**Concerns.** LOW: the grep gates (`killer|shipHit|routeDamage|try \{|Math.random`) are not comment-stripped, so a docstring mentioning "routeDamage" or "killer" fails the criterion. Use the `rg -v` comment-stripped form used elsewhere.
-**Suggestions.** Same.
+
+**Summary:** Pure `collideWithShip` port and the heat-free player scrape.
+**Strengths:** The split `dvOtherBody`/`dvOtherSubentity` (L369) is exactly the C. `otherParent adjustVelocity:+vel2a` (11103-11104) and the selfDestroyed reversal on `other` (11117-11118) land on different objects for a subentity contact, so the parent keeps its push. The hand case "dp1 = loc × (10/120) × 100" reproduces the C's same-sign nudge (11140-11146) and is protected by the prohibition on "fixing" signs.
+**Concerns:** None in my focus.
+**Suggestions:** None.
 
 ### 18-17
-**Summary.** NPC ship drift integration and buoy braking.
-**Strengths.** `braking-npc.json` oracle fixtures, 30/60/144 Hz cases for a drifting Krait and buoy, and a world golden diff gate.
-**Concerns.** No findings in focus. The pristine-omit claim for ships rests on `Entity.velocity` already being a hashed v4 field; zero velocity writing nothing is tested.
-**Suggestions.** None.
+
+**Summary:** NPC and buoy drift braking and integration.
+**Strengths:** No ship spawn path sets a non-zero ship velocity today (`world.ts:572-575` only for `init.velocity`, used by debris), so "zero velocity writes nothing" holds. Cargo and wreckage keep `driftEntity` (`world/step.ts:213-235`).
+**Concerns:** None in my focus.
+**Suggestions:** None.
 
 ### 18-18
-**Summary.** Buoy colliders, cost counter, property tests, and the player-death tripwire guard and todo.
-**Strengths.** The deterministic `CollisionStats` counter test at 256 entities beats a wall-clock bound. fast-check over generated worlds with buoys. `colliderRank` is a total order (distance then id).
-**Concerns.**
-- HIGH: the tripwire guard as specified cannot work. The plan (18-18-PLAN.md Task 3 action, line ~220) says: fail when `src/sim/events.ts` names `playerDestroyed` or `FlightMode` includes `"dead"`, while `collide.ts` still contains `PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20`; "pass with neither present". But `playerDestroyed` is already a declared, reserved event kind in `src/sim/events.ts:179` and `:227` (and used in `tests/sim/world/step.test.ts:1058`, `tests/app/session-order.test.ts:1175`). The guard would therefore fail the moment it is created, and the acceptance line "pass with neither present" can never hold. An executor will either weaken the guard until it passes (turning the tripwire into a no-op) or stop. Rewrite the trigger around a producer, not a declaration: for example a `kind: "playerDestroyed"` literal pushed anywhere under `src/sim` outside `events.ts`, a `"dead"` member of `FlightMode` (`src/sim/flight/state.ts:18`), or a call to a player-death function. The synthetic-source case must then prove the new rule still matches.
-- MEDIUM: the todo is created in the same plan as the guard; the AGENTS.md/memory rule is "deferred fix = todo + guard that fails on first consumer". The first consumer of the "reversal never taken for the player" gap is Phase 20's death path, so the producer-based trigger above is the right "first consumer".
-- LOW: cost evidence is a counter (good) plus an informational wall-clock figure in `docs/PERFORMANCE.md`; fine.
-**Suggestions.** Fix the trigger before execution. Keep the synthetic cases for both the producer rule and the `"dead"` mode rule.
+
+**Summary:** Buoys as colliders that move, the subentity contact rule, cadence, cost, totality and the producer-keyed tripwire.
+**Strengths:** The ram routing without bleed matches `ShipEntity.m:11122-11127`. The 241.3 m/s destroy threshold checks (250 × 5e7 / 214,737.6875 = 58,210 m²/s²). The four-input guard design keeps it from being red on day one or silently non-matching.
+**Concerns:**
+- MEDIUM (M-1, the new tripwire): The producer key is narrower than the Phase 20 designs it must catch.
+  - Rule (a) excludes all of `src/sim/events.ts`, not just the two declaration lines (`:179` union member, `:227` kind list). A Phase 20 factory such as `export function playerDestroyed(position) { return { kind: "playerDestroyed", position } }` placed in `events.ts` evades it.
+  - Rule (a) also matches only an object-literal spelling. `kind: PLAYER_DESTROYED` or a factory call elsewhere evades it.
+  - Rule (b) guesses the mode name `"dead"`. Phase 20 may use `"destroyed"`, `"dying"`, `"exploding"`, or a flag outside `FlightMode`.
+
+  The owner's rule is "guard fails on the first consumer". This guard catches one of several plausible first producers.
+- LOW: `tests/sim/combat/collision-stage.test.ts` may be edited (Task 1: "move the replay's start pose off the buoy's line") but is not in `files_modified`.
+- LOW: Traffic-on specs that might ram the nav buoy are found only at the remote run, where the plan can only stop and report. A cheap pre-audit in Task 1 would flag the risk early: the maximum straight-line distance each traffic-on spec flies from the dock, against the 10 km nav-buoy distance.
+**Suggestions:** Key rule (a) on any `playerDestroyed` token in `src/sim/**` outside exactly the two declaration sites (match those two lines, not the file). Make rule (b) "any new member of `FlightMode`" (pin today's three, `flight/state.ts:18`). Add a synthetic factory-in-`events.ts` input that must fail.
 
 ### 18-19
-**Summary.** Explosion blast pushes ships, buoys and the player (D-03).
-**Strengths.** Every blast fixture of 18-03 drives the port. Clamp at `MAX_ENTITY_VELOCITY` at every write for the 0.1 floor (T-18-31). A station-in-range test (the station is never a receiver). Flight pins diff-gated with every re-pin carrying its cause.
-**Concerns.**
-- MEDIUM: the plan's must_haves repeat the exact numbers that 18-03 should have derived (68.1, 0.027, 0.0007, 0.06, 18.1, 1.3, 0.013 m/s). If the oracle author saw them (see 18-03) the "independent" blast fixtures and the port truth are the same planner numbers. The oracle must stay clean of them.
-- LOW: "a pin that moves because a ship, buoy or the player was in range is re-pinned with its cause" is a weak spot for a fidelity-sensitive change. Prefer that no existing pin moves, and make a moved pin a stop-and-ask.
-**Suggestions.** See 18-03.
+
+**Summary:** Blast push onto ships, buoys and the player; every exploding body as a source.
+**Strengths:** The station exclusion now cites its real reason (status, `adjustVelocity` override only). The re-pin rule requires a prediction from a fixture or formula.
+**Concerns:**
+- LOW: Task 3's acceptance gate checks only the count of passed seeds. Add "numbers unchanged" (see 18-12 L-1), because this plan edits `src/sim/world/**`.
+**Suggestions:** As above.
 
 ### 18-20
-**Summary.** PD-03: measure dock-mouth, buoy ram and pod/plate blockage on real Oolite via the reference container.
-**Strengths.** The correct counter to common-mode oracle error. A mismatch never edits a fixture, tolerance or port (diff-gated via `git log PLAN_BASE..HEAD -- tests/oracles src`), and it creates a todo. No Oolite output in the tree (porcelain check for `.oxp`, logs, png, steps; CC BY-NC-SA hygiene). "Unobservable" is recorded, not passed.
-**Concerns.**
-- LOW: `PLAN_BASE` is again "recorded in the SUMMARY when the plan started", with no mechanism. The `git log` gate is only meaningful if the base is a real SHA.
-- LOW: scope does not cover octree-collide fixtures or a ship-ship ram (see 18-02, 18-03).
-**Suggestions.** Use a fixed SHA. Add one ship-ship ram.
 
-### Cross-plan comparison
+**Summary:** PD-03 real-Oolite measurements (dock mouth, player-buoy ram, pod/plate blockage) that gate four consumers.
+**Strengths:** The gating is wired correctly (consumers depend on it, and each has a precondition). Outputs stay out of the tree, with a porcelain check. The ram start of 150 m is now reachable (100²/(2×32) = 156 m braking against a contact at ≤131.8 m). `setTotalVelocity` is the real setter (`OOJSShip.m:1738-1740` → `ShipEntity.m:11164`). The remote wrapper, verbs and output guard match `tools/oolite-reference/run-remote.sh`.
+**Concerns:**
+- HIGH (H-1, Task 1 can produce a false MISMATCH that blocks the phase):
+  - Every shot at the main station in real Oolite calls `markAsOffender` and `launchPolice` (`StationEntity.m:1128-1141`). The Coriolis has a JS AI (`ai_type = "oolite-stationAI.js"`, `shipdata.plist:1692`), so `hasNewAI` holds and the first fixture shot launches police Vipers out of the dock. They launch through the slot, which is exactly where the `dock` winner rays and the slot-edge rays run. Later shots in the same "one session" can end on a launching Viper, or be confused by the station's raised alert level and its target choice.
+  - The beam does not start at the player's centre. It starts at the forward weapon offset (Universe.m:5756 path; Cobra `weapon_position_forward` lateral offsets of −1.7 to −4.6 m in `shipdata.plist:162,363`). The probe "moves the player to the start of each … ray", so every shot is displaced from the fixture ray, and the edge fixtures sit only two leaf widths from an edge.
+  - The station rolls continuously, so the conversion from model frame to world frame must happen on the firing frame.
 
-- Wave order is sound for the oracle: 18-02/18-03 (wave 1) before any port, 18-20 (wave 2) before the ports that consume its fixtures (waves 3+), and a mismatch stops before port work.
-- Hash/snapshot discipline: only 18-10, 18-14 and 18-17 add hashed state, and each uses pristine-omit with a golden diff gate. This is the strongest part of the phase.
-- The recurring "remote acceptance 21 of 21 unchanged" bullet is a frozen-worlds regression check, not new-behaviour evidence. It appears in 11 plans.
-- No plan adds a browser test for the headline criteria (laser stops at station, ident, ram). All existing specs are "passes unedited". The statics are not loaded in the traffic-off e2e bundle at all.
-- Greps used as "mutation guards" are inconsistently comment-stripped across plans (18-09, 18-16 are not).
+  A MISMATCH from any of these creates the todo, and that todo stops 18-04, 18-07, 18-09 and 18-16 until the owner resolves it.
+- MEDIUM (M-2, Task 3 is likely to end "unobservable"): A barrel at 9.5 m or a plate at 5 m from the player's centre lies deep inside the Cobra's 72.7 m sphere. The player has no scoop, so `collideWithShip` damages and destroys or pushes the pod in the same frame, before `witchJumpChecklist` (`PlayerEntity.m:6544-6560`) runs. The plan anticipates this, but then D-08's divergence row gets no evidence. The claim that needs evidence is the class-free loop, and that can be tested without overlap. The probe is an OXP, so it can define a cargo-class object (`like_ship` the barrel, `scan_class CLASS_CARGO`) with a large `density`, so that its mass gives a blockage radius of hundreds of metres. Place it well outside both hulls.
+- LOW: Task 2 needs "engine speed 0 before contact", but `ship.speed` is read-only in JS (`OOJSShip.m:450`). The player's throttle must come down through the steps file (`key` verb, decelerate held, then `waitlog` on a logged speed of 0) before the teleport. The plan does not say how.
+- LOW (minimum scope): Task 1's bracket design places a second ship on the ray "just before" and "just beyond" the expected distance, for a minimum of five winning parts, each fired twice. For `dock` rays that ship sits inside the slot, where Oolite's own collision and docking logic act on it. One shot per part, with `shipTakingDamage`/`shipAttackedOther` naming the victim, plus a bracket only where the winner is ambiguous, would be enough for PD-03.
+**Suggestions:**
+- Run one reference session per fixture, or have the OXP reset `player.bounty`, remove ships with role `police`, and wait for the station alert to clear before each shot.
+- Place the weapon origin, not the centre, on the ray start (compute the offset from the logged `weapon_position_forward`).
+- Convert the ray on the firing frame (frame callback).
+- Restrict the real-engine check to non-edge fixtures.
+- Measure Task 3 with a heavy cargo-class OXP object.
+
+### 18-21
+
+**Summary:** PD-06: live buoys become NPC proximity candidates through the world view; QUAL-11 is rerun under PD-07.
+**Strengths:** Grounded. `runProximityPass` (`src/sim/npc/proximity.ts:224-278`) has the station-body pattern to copy. `candidateMass(undefined)` already returns `PROXIMITY_MIN_MASS` (`:165-169`). The participant sentence to amend exists (`:19-21`, so the absence gate is non-vacuous). `proximityAlertBody` resolves through `view.body` and clears a vanished id (`src/sim/npc/avoid.ts:36-47`), so a destroyed buoy lapses as specified. The zero-offset short-circuit protects frozen numbers. The trigger zone is about 4 × 59 m ≈ 237 m (`pairTriggers`, `proximity.ts:85-92`), and the witchpoint lanes exclude one scanner range around the witchpoint (`placement.ts:165`), so few seeded NPCs should be affected.
+**Concerns:**
+- MEDIUM (M-3): PD-07 covers only the acceptance run. The plan's diff gate covers only `tests/acceptance` and `tests/golden/world`. If PD-06 moves a pinned unit value (app twins `sim-driver`/`tick-parity`, NPC scenario tests, `steering.property` expectations that enumerate CLASS_BUOY at `tests/sim/npc/steering.property.test.ts:253`), the executor has no rule: re-pin with cause, or stop? The traffic-on browser specs (`traffic.spec.ts`, `npc-flight.spec.ts`) are not run until 18-12's `verify-full`, two waves later.
+- MEDIUM (M-4): The truth "keeps its hull clear of the buoy's hull" is stronger than Oolite guarantees. Avoidance is a midpoint steer with a 10-radius desired range (`avoid.ts:65-80`), and a fast ship whose alert fires late can still clip the hull. The plan does not name the NPC kind, speed or distance. If the test fails, the executor may be tempted to tune the steering, which would be a fidelity regression.
+**Suggestions:**
+- Add a rule: a moved unit pin whose cause is a steered NPC within the trigger zone of a buoy is re-pinned with that cause; any other move stops the plan.
+- Run `traffic.spec.ts` and `npc-flight.spec.ts` remotely in Task 2.
+- Fix the scenario (a named kind at its `maxFlightSpeed`, from a stated distance), with the expected outcome derived from Oolite's avoid rule. If contact still occurs, record it as faithful rather than fixing it.
+
+### 18-22
+
+**Summary:** A new traffic-on browser spec: a destroyed nav buoy leaves the scanner, ident locks the station, and the static chunk loads only with traffic on.
+**Strengths:** It uses only existing hooks and fields (`setPosition`, `setSpeed`, `setOrientation`, `contacts`, `identLocked`; `src/app/probe.ts:68,384-387,418`). The chunk regex mirrors `budget.spec.ts:326`, and `ships-hulls-` does not match `ships-static-hulls-`. It is a new file, so D-06 holds. The wave-9 placement is valid because every needed path (13, 04, 05, 15, 06, 08) is upstream.
+**Concerns:**
+- LOW: The "derived tick bound" must include 18-15's sticky routing. A beam at the buoy's centre may make the core subentity win first. From then on every hit goes 99 % to the subentity (200 energy, recharging 1/s) and 1 % to the body, until detachment. Only after that does the body's 250 (recharging 2/s) take full hits, with laser heat throttling the rate. A bound derived from the body alone fails falsely on the remote machine.
+**Suggestions:** Derive the bound from the subentity path plus heat, or aim at a hull cell the subentity does not cover. Say which in the spec header.
+
+---
+
+### Over-engineering against the "necessary technical minimum"
+
+- 18-20 Task 1's bracket design (see above) is the heaviest step that does not change any code. Reduce it to one shot per winning part, with brackets only for ambiguous winners.
+- Remote QUAL-11 runs appear in 18-04, 18-14, 18-15, 18-17, 18-11, 18-18, 18-19, 18-21 and 18-12. The plans themselves state that the harness cannot exercise their new paths (`realHullTable`, no collisions, no buoy mass), except for 18-21. AGENTS.md requires them after `src/sim/world/**` edits, so they are compliant, but they are pure frozen-world checks. Consider asking the owner whether one run at the end of each wave suffices.
+- `CollisionStats` plus a PERFORMANCE row (18-18) and three separate fast-check suites (18-09, 18-16, 18-18) are justified by PITFALLS 17 and the totality pattern. No change is needed.
 
 ### Overall
 
 **Risk Assessment: MEDIUM.**
 
-The persistence and content design is careful: pristine-omit, strict bounded schemas, diff-gated goldens, honest threat models for a static client (the only untrusted-input path is the `?test=1` snapshot hook, correctly named in 18-14). The oracle architecture is sound and has a real-Oolite backstop in 18-20. Three things need fixing before execution:
+The sequencing is sound. The waves match the data dependencies, same-wave plans touch disjoint files, and the 18-20 gate is wired as the ledger claims. Identifiers are well grounded: every symbol, line and HEAD count I checked exists as cited, except two labels (18-07's 396.1 m and 18-08's node name). The ledger dispositions I traced are implemented in task text, not only claimed: L456, L544, L731, L369, L232, L442 and L231.
 
-1. HIGH, 18-18: the player-death tripwire triggers on `playerDestroyed`, which already exists in `src/sim/events.ts:179,227`. The guard cannot pass as specified.
-2. MEDIUM, 18-03/18-19: expected blast and ram numbers are written into the plan text the independent oracle author reads, defeating the "derive, do not copy" rule.
-3. MEDIUM, 18-13 plus phase level: no browser-level evidence that statics load and work in the production-like build, and the 21/21 acceptance run is cited as evidence for paths it cannot execute.
+The main executability risk is new in 18-20. A real-engine measurement against the main station triggers Oolite's offender and police response, and it ignores the weapon offset and the station roll. Either can produce a false MISMATCH, and by design a MISMATCH halts four wave-3 plans until the owner intervenes. Second-order risks:
+- the producer-keyed tripwire is narrower than the Phase 20 designs it must catch;
+- 18-21 has no rule for unit pins moved by PD-06, and its no-ram claim is over-strong;
+- 18-20's pod/plate probe is likely to yield no evidence.
 
-Other MEDIUM items: dock-mouth tolerance and margin rules could degrade to easy rays (18-02); mutual-kill credit asymmetry becomes routine with collisions and is declared "not triggered" (18-11); the Key Decisions amendment should ship in the same commit as the hashed field (18-14).
+**Counts:** HIGH 1, MEDIUM 4, LOW 13.
+
+**Top three:**
+1. 18-20 (HIGH): the station-shot offender/police response, the weapon offset and the station roll are not handled in the dock-mouth probe; a false MISMATCH gates 18-04, 18-07, 18-09 and 18-16.
+2. 18-18 (MEDIUM): the tripwire excludes all of `events.ts`, matches only an object-literal spelling and guesses `"dead"`; a Phase 20 factory or another mode name evades it.
+3. 18-21 (MEDIUM): no re-pin or stop rule for unit pins moved by PD-06 (PD-07 covers acceptance only), traffic-on specs are deferred to 18-12, and the no-ram invariant is unspecified and stronger than Oolite guarantees.
+
+---
+
+## Sonnet Review
+
+## Phase 18 plan review, round 2 (sonnet) — focus: tests, oracle independence, persistence, security
+
+Reviewer: sonnet. Read-only. Scope: all 22 plans, verified against the repo and the Oolite checkout where a claim could be checked. Plan paths are relative to `.planning/phases/18-stations-buoys-and-collisions/`.
+
+Tally: HIGH 0, MEDIUM 7, LOW 9.
+
+Headline findings (details in the per-plan sections):
+1. 18-14: `hashWorld` repairs `staticHealth` itself (`src/sim/world/serialize.ts:243-247`), but the plan repairs `World.buoys` only in `stepWorld`; `canon` throws on a non-finite value (`src/sim/hash.ts:30-32`). The ledger deferral of L743 rests on a wrong premise.
+2. 18-02: the dock-mouth tolerance (leaf half-diagonal) is not a bound for oblique rays, and miss fixtures have no clearance rule. A correct port can fail a fixture, and the plan forbids widening the tolerance.
+3. 18-02/18-09: the C's `doOctreesCollide` recurses, so its stage 4 is unreachable. The fixture and port spec "subentity against subentity returns the other's subentity" contradicts `ShipEntity.m:1899-1918`.
+
+### 18-01
+
+**Summary.** Content build for the four static hulls, a strict schema with caps, a digest golden, the lazy loader and the Key Decisions row.
+
+**Strengths.**
+- Per-octree and total node caps, an iterative `checkHullTree`, strict keys, a 64-character name bound (`StaticNameSchema`), and the ten-hull artifact held byte-identical by a diff gate.
+- A non-identity subentity orientation fails the build instead of being silently ignored.
+- Concurrent-load and drift-gate cases are specified.
+
+**Concerns.**
+- LOW: the digest golden (`tests/golden/content/ships-static-hulls.json`) is written from the same build it pins (18-01:Task 2 action). It detects drift but is no independent evidence that the octrees are right. The only independent evidence is 18-02 reaching the artifact through 18-04. The SUMMARY should say so, as it already does for the caps ("headroom over a measurement").
+- LOW: the caps are 20-30 % headroom over today's measurement, so they bound growth but give no safety margin against a hostile artifact. That is acceptable because the artifact is build-time generated, never user input.
+
+**Suggestions.**
+- State in the golden's header that it is a drift pin, not a correctness oracle.
+
+### 18-02
+
+**Summary.** Independent geometry oracle: dock-mouth and buoy ray fixtures from exact ray-mesh geometry, plus a transliteration of `isHitByOctree` and `doOctreesCollide`, with a self-test and a brute-force soundness loop.
+
+**Strengths.**
+- The reading rule is explicit: no `src/`, no `tests/helpers`, no 18-RESEARCH probe table. The import guard is real. I read `tests/guards/oracle-independence.test.ts:36-150`: it allows only `node:*`, `zod` and `vitest`, and forbids relative imports leaving `tests/oracles`.
+- The prime-role rule matches the C. `Octree.m:473-519` (`isHitByOctree` static): the radius compare at 497 only picks the crude prune, and decomposition depends only on solidity. `ShipEntity.m:1897` passes `prime_octree` as the axial tree.
+- The `hit_distance > hitSub` strict compare, the hull winning ties, and the nearest-non-zero rule match `ShipEntity.m:1347-1357`.
+- Edge-ray floor (`edge: true`, at least 4), a margin of at least 2 x tolerance, and a self-test that re-derives every fixture.
+
+**Concerns.**
+- MEDIUM: the dock-mouth tolerance is the winner's leaf half-diagonal (18-02:Task 1 action). `isHitByLine` returns the distance to the centre of the first solid leaf in visiting order (`Octree.m:366-368`, `hit_dist = sqrt(u0.x^2+u0.y^2+u0.z^2)` after displacing to the leaf). That is within half a diagonal of the exact hit only if the exact hit point lies inside that first-visited leaf. A leaf is solid when any triangle touches it, so a ray can enter a solid layer well before it crosses the triangle. At oblique incidence the gap is up to leaf_width / sin(incidence angle), which is unbounded as the ray approaches grazing. A ray that clips a solid leaf without hitting its triangle also reports a hit that exact geometry calls a miss. The plan keeps rays two leaf widths from slot and panel edges only, and its ray list includes a "grazing miss" with no clearance rule. A correct port can therefore fail a fixture, and 18-04 turns that into a stop-and-dispute because "never a widened tolerance".
+  - Fix: add a per-fixture incidence limit (for example the beam within 30 degrees of the hit face normal), and require every `none` fixture and every runner-up to clear all triangles of the part by more than the leaf diagonal. Compute the clearance with a point-triangle distance in the self-test.
+- MEDIUM: the plan's prime-role evidence is thinner than it reads. The self-test variant that makes the larger tree axial must "disagree with at least one of the two prime-role fixtures" (L193). That tests one wrong port variant, and only collectively. Role matters only where the two crude prunes differ (the inscribed-sphere prune at `Octree.m:497-512`), so each fixture must flip on its own under a role swap. A second wrong variant, "always smaller axial", should also fail one of them.
+  - Fix: require each of `prime-smaller` and `prime-larger` to flip individually under both swap variants.
+- MEDIUM: the soundness property is one-directional (reference hit implies brute-force overlap). A reference that over-prunes, or one that always says miss, passes it. 18-09's agreement test compares the port with this same reference, so a shared over-prune is invisible. Add a completeness property: whenever brute force finds an overlap whose penetration exceeds the inscribed-sphere slack (a margin derived from the cube half-width), the reference must report a hit.
+- MEDIUM: the composition truth lists four stages and says subentity-against-subentity "returns the other subentity's index". In the C, stage 2 is `doOctreesCollide(se, other)`, recursive (`ShipEntity.m:1899-1906`). Inside it the third stage tests `se` against `other`'s subentities, so a prime-subentity against other-subentity contact returns `other` from stage 2 before stage 4 (`:1920-1938`) runs. Stage 4 is shadowed, and the fixture's expected "other subentity index" disagrees with the C. The `{ octree, offset }` hull shape also has no nested subentities, so the reference cannot express the recursion. In practice only buoy-buoy pairs have subentities on both sides (unreachable, 18-18), so the harm is a wrong fixture and a possible stop in 18-09, not wrong game behaviour.
+  - Fix: model the recursion in `doOctreesCollideReference`, change the expected result for that case to `"other"`, and add a fixture that pins the shadowing.
+- LOW: the oracle is specified as "float64 geometry", while 18-03 requires frounded GLfloat locals. The C uses `GLfloat` vectors in `Octree.m`. A fixture documented as "face contact, strict or non-strict as written" is decided by one ulp, and float64 and float32 can disagree on it. Either avoid exact-boundary fixtures or fround the reference's positions.
+- LOW: the independence guard checks literal path arguments only (`SRC_SEGMENT`, `tests/guards/oracle-independence.test.ts:48,125-132`). A computed path, or a read of `tests/golden/**` or `tests/helpers/**`, passes it. The reading rule stays a process rule, as the ledger accepts (disposition for L638/L649).
+
+**Suggestions.** The incidence limit and clearance rule above; per-fixture role-swap flips; a completeness property; model the recursion.
+
+### 18-03
+
+**Summary.** Independent response oracle: `collideWithShip`, braking, the player's scrape and the blast, each fixture carrying a `derivation`.
+
+**Strengths.**
+- The transliteration list matches the C. I checked `ShipEntity.m:11020-11152`: `loc` from `HPvector_normal_or_zbasis`, `v2b < -1` returning before any damage, `magnitude2(v) <= 0.1`, `selfDestroyed = dam1 > energy`, the frangible parent's routing at 11123-11128, and the nudge at 11139-11146.
+- The float discipline (frounded GLfloat locals, doubles for the compares with 0.1 and 0.05) is correct for the C.
+- `dvOtherBody` and `dvOtherSubentity` are split, and `destroyable` is per party.
+- The cross-check against CONTEXT and RESEARCH runs only after the fixtures are committed.
+- Ids are checked as unique across every `tests/oracles/combat/**` JSON file.
+
+**Concerns.**
+- MEDIUM: the ledger says "every expected figure and closed-form answer is removed from truths, decisions and behaviour" (18-03 ledger, first row). The behaviour list the oracle author reads still carries them:
+  - "v1a = 100, dam1 = dam2 = m x 10,000 / 50,000,000";
+  - "loses 32/120 per tick" and "32 x 32 / 120";
+  - "rate (|v| - 2000) / 3000 x 0.001";
+  - "64 -> 14 with energy unchanged" and "lowers energy by 36".
+  Some are labelled hand anchors "derived in the test from the C lines", but they are visible before authoring. The independence argument is weaker than the ledger claims. Either move the numbers into the self-test anchors the author writes from the C, or say plainly that the ledger covers masses and radii only.
+- LOW: the "Input facts" block gives masses and radii from the port's own compiled content (Krait 93,291.40625 kg, buoy 698,691.1875 kg, and so on). That is shared input, not shared code. The claim "equal to a running Oolite" rests on earlier project measurements that this plan does not re-check; 18-20 covers only the buoy ram. State this as a recorded dependency.
+- LOW: the nudge `t = 10 x (1/120)` is encoded as "the t of 11139", but the C uses `10.0 * [UNIVERSE getTimeDelta]` (`ShipEntity.m:11138`), a frame time. 18-11 records the divergence (18-11 line 258). The oracle's `derivation` strings should say it is a fixed-step substitution, so a reader of the fixture does not treat it as the C's value.
+
+**Suggestions.** Remove the figures from the behaviour list, or reword the ledger.
+
+### 18-04
+
+**Summary.** Stations as laser candidates through the subentity hit rule, absorbing every hit, with the dock-mouth fixtures run against the port.
+
+**Strengths.**
+- The success-criterion test fails on wrong behaviour: a shot at an NPC behind the station must end on the station, and the same scene under `realHullTable()` must hit the ship.
+- Pristine-hash is pinned: after 1,000 station hits the hash equals a never-hit world's.
+- The invariant on every queued target, the NaN/Infinity/0/-5 amount cases, and the "tick that did not step the world has no candidate" case are all present.
+- The octree-depth check against the emitted artifact is made before the fixtures run.
+- The `1323-1357` header rewrite is gated by grep.
+
+**Concerns.**
+- MEDIUM (inherited from 18-02): "a failing fixture is a dispute, never a widened tolerance". Because of the 18-02 tolerance and clearance issue, this rule can turn a correct port into a stopped phase. Fix it at the source in 18-02.
+- LOW: re-pinning app-twin values "when a pinned value moves because a beam now ends on the station" (Task 3) is an accepted pattern, but 18-19 states a stricter rule (a named cause plus a predicted value). Adopt the 18-19 wording here.
+
+**Suggestions.** Reuse 18-19's re-pin rule.
+
+### 18-05
+
+**Summary.** Buoys hold 250 energy, recharge, and are destroyed at zero at their live pose.
+
+**Strengths.**
+- Boundary cases are explicit: the 17th pulse destroys (250 / 15 = 16.7), a destroyed buoy never revives (`value > 0` guard), two lethal records in one tick destroy once, and non-finite or non-positive amounts are skipped.
+- One `buoyOrientation` is shared by the hit and the render, with a pin test.
+
+**Concerns.** No findings in focus; the tests would fail on wrong behaviour.
+
+**Suggestions.** None.
+
+### 18-06
+
+**Summary.** Ident on statics, pods and plates by compiled names, with the lock ending when a buoy dies.
+
+**Strengths.**
+- Names go through the bounded `StaticNameSchema` and `clampMessage` (T-18-15).
+- The lock crosses to the app as a spec key, never an id, and the entity-id-scope guard is run.
+- `identLost` is emitted on the tick the buoy is destroyed.
+
+**Concerns.** LOW: ident works with traffic off but falls back to the key as the name, and only the traffic-on browser case (18-22) exercises names. That is acceptable and documented.
+
+**Suggestions.** None.
+
+### 18-07
+
+**Summary.** Live buoys block a completing jump by Oolite's mass rule; the D-06 pose edit; the 2,048-layout clearance sweep.
+
+**Strengths.**
+- Strict compare at 263.3 m versus 265.3 m, non-finite and non-positive `buoyMass` cases, and the 2,048-layout sweep guard both directions.
+- The one sanctioned edit to a browser spec is justified with distances.
+
+**Concerns.**
+- LOW: the detached-buoy blockage mass is stated as 691,044.4013671875. The C computes `mass -= [sub mass]` in a GLfloat (`ShipEntity.m:8194`). Rounded to float32 that is 691,044.375, which is the compiled hull-only mass (`tools/oolite-ingest/convert/ship-mass.test.ts:112`). The plan's value is a double that Oolite never holds (differs by 0.026 kg, about 4e-8 relative). Use `Math.fround` or the compiled hull mass so the value matches the C and the oracle's float discipline.
+
+**Suggestions.** Same constant fix in 18-18.
+
+### 18-08
+
+**Summary.** A destroyed buoy leaves the view and scanner, a moved buoy is drawn where it is, a detached subentity is hidden, plus the compass fallback.
+
+**Strengths.**
+- The compass tests go through `stepFlight` (T-18-18), and the new FIDELITY row for the compass cycle model is in the plan.
+- A destroyed buoy's disappearance is checked in sim queries, render and HUD.
+
+**Concerns.** No findings in focus. The 3D-view removal of a destroyed buoy has only unit-level evidence; 18-22 covers the scanner only (see 18-22).
+
+**Suggestions.** None.
+
+### 18-09
+
+**Summary.** Port of `isHitByOctree` and `doOctreesCollide`, held to the 18-02 fixtures and random agreement/totality properties.
+
+**Strengths.**
+- The precondition on the 18-20 mismatch todo and the `depends_on` on 18-20 gate the plan.
+- The `wegoliteBasis` round trip (basis to quaternion, within 1e-12) closes the reflection-map hole.
+- Totality is tested with NaN, Infinity, 1e308, a node array of length 7, and over-deep trees.
+
+**Concerns.**
+- MEDIUM: the port is told to implement "the four stages ... in order" and return `{kind:"subentity", index}` for subentity-against-subentity. The C's stage 2 recursion returns `other` for that contact (see 18-02). A port that follows the plan will differ from Oolite for any pair where both parties have subentities. Port the recursion (stage 2 and 3 call `doOctreesCollide` on the sub-pair) and take the expected value from the corrected fixture.
+- LOW: the agreement property (300 random depth-2 pairs) compares the port to the reference only. Together with the one-directional soundness property in 18-02, an over-pruning transliteration passes both. See 18-02.
+- LOW: the acceptance line "`rg -n 'killer|shipHit|...try \{' src/sim/combat/collide.ts`" is a text grep, so a `try` hidden by formatting such as `try{` evades it.
+
+**Suggestions.** Recursion plus completeness property.
+
+### 18-10
+
+**Summary.** The player's drift vector, braked by raw thrust with the cleanup terms, pristine-omit in the flight hash.
+
+**Strengths.**
+- Zero drift writes nothing, so every flight-hash pin holds. Pose-reset sites are enumerated, and `sanitizeFlightState` repairs and clamps before the step integrates (T-18-23).
+- The no-tunnel case at 350 m/s and the one-bounce-in-600-ticks case guard the station contact.
+- Fixtures of `braking-player.json` are run against the port.
+
+**Concerns.** No findings in focus.
+
+**Suggestions.** None.
+
+### 18-11
+
+**Summary.** The opt-in collision stage for the player, NPCs, pods and plates, with kills and debris through the one kill path.
+
+**Strengths.**
+- Opt-in flag never set by the acceptance harness, so frozen worlds stay byte-identical.
+- The 600-tick "damage once per contact" case, the DOCK-09 byte-identical dock with and without collisions (at zero and non-zero drift), and a both-lethal ram that pins the credit outcome.
+- A NaN sweep key sorts after every finite key, so the comparator is a total order (T-18-49).
+
+**Concerns.** No findings in focus.
+
+**Suggestions.** None.
+
+### 18-12
+
+**Summary.** Phase close: todos, the FIDELITY walk, tripwire evaluation, the only `verify-full`.
+
+**Strengths.**
+- It re-runs the synthetic positive cases of the new tripwire.
+- It records the open owner question that no gate runs the 20 frozen seeds with collisions on, which honestly states what QUAL-11 does not cover.
+
+**Concerns.** LOW: `depends_on` is 18-19, 18-20, 18-21 and 18-22, but 18-18 (the tripwire guard and todo it evaluates) is only transitive. That works, but name it.
+
+**Suggestions.** None.
+
+### 18-13
+
+**Summary.** The static artifact joins the traffic-gated boot `Promise.all`; the merged hull table; `fullHullTable()`; the twins; a size row.
+
+**Strengths.**
+- The `budget.spec.ts` regex gap is understood (`tests/e2e/budget.spec.ts:326` matches only `ships-hulls-*.js`) and covered by a unit scan plus 18-22.
+- The twins use `fullHullTable()`, with an equality case against `hullTable(...)`.
+
+**Concerns.**
+- MEDIUM: the load-failure path is claimed as pinned "exactly as a rejected `loadShipHulls()` does in `tests/app/session/start-session.test.ts` (the T-16-19 cases near lines 579-600)". Those cases are source scans, not runtime tests: the file says it "has no Node harness" (`tests/app/session/start-session.test.ts:560-563`) and the cited block (569-600) asserts ordering inside the `Promise.all` and that `showBootFailure` appears after it. There is no existing test that makes a loader reject and observes the failure surface. The behaviour line "a traffic-on boot whose `loadStaticHulls()` rejects ends on the visible boot-failure surface with the reason" therefore cannot be written "exactly as" an existing case. The executor will either add only a source-shape scan (which proves wiring order, not that a rejection reaches `catch`) or build a new harness. Say which, and prefer a real test of the `catch`.
+- LOW: the same test file has `expect(source).toContain("hullTable(hullCatalogue)")` (start-session.test.ts:~575) and `source.match(/loadShipHulls\(\)/g)` length checks. Passing the static artifact changes that call, so the plan must update these assertions. It lists the file but does not name them.
+- LOW: `hullCatalogue` and the static artifact load under the same flag, but nothing asserts they cannot be `undefined` independently (a test that sets one and not the other).
+
+**Suggestions.** Specify the failure test shape; update the `hullTable(hullCatalogue)` assertion.
+
+### 18-14
+
+**Summary.** `World.buoys` (offset, velocity, subentity energy, sticky routing flag), pristine-omit in the hash and snapshot, bounded parser and a sanitiser.
+
+**Strengths.**
+- The state is as small as the decisions need, the hash line prints only when non-pristine, and the snapshot key is optional with a pristine default, so every golden stays valid.
+- The parser rejects non-finite values, out-of-range energy, a non-boolean flag, a flag set on a detached subentity, a missing buoy and unknown keys, naming the path.
+- The Key Decisions amendment lands in the same commit as the hashed field.
+
+**Concerns.**
+- MEDIUM: `hashWorld` repairs state itself because it is read by callers that never step. `src/sim/world/serialize.ts:228-233` documents that `sanitizeStaticHealth(world)` runs inside `hashWorld` to reach "the `?test=1` probe's `worldHash` (`probe-publisher.ts:171-179`) and the acceptance detectors". 18-14 places `sanitizeBuoyStates` only in `repairWorldFields` in `src/sim/world/step.ts:278-288`. `canon` throws on a non-finite number (`src/sim/hash.ts:30-32`), so a poisoned `buoys` (a hook or a bug in the collision stage) reaches `hashWorld` through the probe or a detector and throws. The ledger defers L743 ("the sanitiser runs only in stepWorld") with "the parser rejects the same values on restore". That addresses restore, not a live in-memory write followed by a hash. Fix: call `sanitizeBuoyStates(world)` in `hashWorld` before `isPristineBuoyStates`, beside `sanitizeStaticHealth`, and add a hash-without-step case.
+- LOW: T-18-39 names "sanitizeBuoyStates before every hash", but the plan text implements it only before a step (see above); the threat model overstates.
+- LOW: the offset bound is per component (1e6). That is fine for DoS, but the stage's writes (18-18) must clamp to the same constant, or a legitimate state would fail the parser on restore through the `?test=1` hook. 18-18 does say it clamps at `MAX_BUOY_OFFSET`.
+
+**Suggestions.** Sanitise in `hashWorld`; add a case that hashes a poisoned world without stepping.
+
+### 18-15
+
+**Summary.** The buoy subentity as a laser target with sticky bleed-through routing, recharge and detachment; pods and plates as candidates.
+
+**Strengths.**
+- The sticky rule matches the C. `Universe.m:5631-5637` sets `setSubEntityTakingDamage` only when the winning entity is a subentity of the winner; `ShipEntity.m:10202-10209` reads the stored sub, not the current hit. A test for the "hull beam after a subentity hit still routes 1 % + full" case is in the behaviour list, so the plan's rule can fail on wrong behaviour.
+- The 14-hit detach case (200 / 15) and the 15th beam after detachment are tested.
+- A cadence case covers recharge at 30, 60 and 144 Hz.
+
+**Concerns.** LOW: the flag is set at queue time in `resolveShotHits` (a world write from the shot resolver). If the record is later skipped (a destroyed buoy in the same tick), the flag stays set on a buoy that is gone. The plan calls it inert; add a one-line test that a destroyed buoy's flag is not hashed (it is not in the hash because `subentityTakingDamage` prints with `isPristine`; see 18-14).
+
+**Suggestions.** None.
+
+### 18-16
+
+**Summary.** `collideWithShip` and `routeScrapeDamage` as pure kernels held to the response oracle.
+
+**Strengths.**
+- It runs every 18-03 collide and scrape fixture against the port and adds fast-check totality with NaN/Infinity/1e308.
+- A negative grep keeps `routeDamage` (the heating path) out of the response (T-18-22).
+
+**Concerns.** No findings in focus (oracle independence concerns are in 18-03).
+
+**Suggestions.** None.
+
+### 18-17
+
+**Summary.** NPC and buoy drift integration and braking.
+
+**Strengths.**
+- A world with all-zero velocities writes nothing, so the golden and cadence tests stay identical.
+- The braking-npc fixtures are run, and a drifting Krait and buoy hash equal at 30/60/144 Hz.
+- Clamps at write for non-finite input (T-18-24).
+
+**Concerns.** No findings in focus.
+
+**Suggestions.** None.
+
+### 18-18
+
+**Summary.** Buoys as colliders and movers, subentity contact rule, cadence, cost counters, totality properties, and the player-death tripwire.
+
+**Strengths.**
+- The cost test pins deterministic counters (`narrowTests`, `sweptPairs`) rather than a wall time, which is the right way to avoid a flaky performance gate.
+- The totality property feeds NaN, Infinity and 1e308 into positions, velocities and buoy offsets.
+- The tripwire is a pure function over (path, text) pairs with four inputs: the current tree, two synthetic producers, and the bare declaration. I verified it against the current tree: `rg 'kind: "playerDestroyed"' src` matches only `src/sim/events.ts:179`, and `"playerDestroyed",` at `:227` is a list entry with no `kind:` key. `FlightMode` is `"docked" | "launching" | "inFlight"` (`src/sim/flight/state.ts:18`), with no `"dead"` member. The guard passes on the current tree as claimed.
+
+**Concerns.**
+- MEDIUM: the producer key is narrow. Phase 20's death path can name its mode `"destroyed"`, `"exploding"` or `"gameOver"`, or emit through a helper (`emit("playerDestroyed", ...)`, a spread, or `kind: "playerDestroyed" as const` assigned to a variable). None of those match `kind:\s*"playerDestroyed"` outside `events.ts` or the exact member `"dead"`. Key the mode check on the whole union (the guard fails if `FlightMode` gains any member), and key the event check on any `"playerDestroyed"` string literal in `src/sim` outside `events.ts` and outside comparisons (`=== "playerDestroyed"`, `case "playerDestroyed":`).
+- LOW: the detached-buoy collision mass is `NAV_BUOY_MASS - BUOY_SUBENTITY_MASS` = 691,044.4013671875 (double). The C holds a float: 691,044.375 (see 18-07). The player-against-buoy ram is where this enters the oracle comparison; use the float value so the 18-03 `Math.fround` fixtures and this test agree to the last bit.
+- LOW: the "real-engine evidence" comparison against 18-20 is a SUMMARY note ("a difference beyond one tick of travel is a dispute"). Nothing fails if the note is skipped. Make it an assertion in `collision-buoy.test.ts` against a constant read from 18-20's recorded value, or state it as a human gate.
+
+**Suggestions.** Broaden the tripwire as above; use the float mass.
+
+### 18-19
+
+**Summary.** The explosion blast pushes ships, buoys and the player; every exploding body is a source.
+
+**Strengths.**
+- Expected values are the 18-03 fixture file; the plan states no figure of its own.
+- Re-pinning a moved value is allowed only with the source, receiver, distance and predicted value named, otherwise the plan stops.
+- The station is never a receiver (T-18-32), and the clamp at write applies at the 0.1 floor (T-18-31).
+
+**Concerns.** No findings in focus.
+
+**Suggestions.** None.
+
+### 18-20
+
+**Summary.** PD-03: measure the dock mouth, the buoy ram and the pod/plate blockage radius on real Oolite, with verdicts in FIDELITY.md.
+
+**Strengths.**
+- A MISMATCH never edits a fixture, tolerance or port; consumers carry a precondition and a `depends_on` edge. Outputs stay out of the repository (T-18-46).
+- "Unobservable" is recorded as unobservable with the API source checked.
+
+**Concerns.**
+- LOW: the gate is the absence of `.planning/todos/pending/2026-11-19-oolite-measurement-mismatch.md`. If an owner resolves a mismatch by moving the todo to `completed/` without the fix landing, or 18-20 skipped a claim as "unobservable", the consumers' preconditions pass silently. Add a positive marker the consumers also check (the 18-20 SUMMARY exists and its verdict table has no MISMATCH row).
+- LOW: claim (1) compares dock-mouth hit distances with fixtures whose tolerance is the leaf half-diagonal. The real engine returns the first-leaf centre distance, so the comparison is only as good as the 18-02 tolerance (see the 18-02 MEDIUM on oblique rays and clearances). If 18-02 is tightened, 18-20 should use only the tightened fixtures.
+
+**Suggestions.** A positive gate marker.
+
+### 18-21
+
+**Summary.** PD-06: live buoys join the NPC proximity pass; QUAL-11 rerun with PD-07's accept-and-record rule.
+
+**Strengths.**
+- It has a control run (the same course with the buoy destroyed passes through the buoy's position), which proves the avoidance comes from the alert, not from chance.
+- The view returns the layout position unchanged for a zero offset, and the diff gate keeps `tests/acceptance` and `tests/golden/world` untouched.
+- The stop condition is a threshold failure, not a changed number (PD-07).
+
+**Concerns.**
+- LOW: T-18-53 says the view change protects the frozen worlds, but PD-06 itself says NPCs in those worlds may steer differently. The two statements pull in different directions. The `git diff --quiet tests/golden/world` gate in this plan's acceptance criteria could then fail on a legitimate change (the populated Lave golden). State in the plan which goldens may legitimately move and what the executor does if one does: stop and report, as for a threshold failure, not edit.
+- LOW: the QUAL-11 pass proves thresholds hold, not that steering is Oolite-faithful. Its evidence for the avoidance itself is the single-course unit test. Add a second geometry (offset buoy at a non-zero `World.buoys` offset, which the behaviour list mentions only as an alert case).
+
+**Suggestions.** Name the golden-moves procedure.
+
+### 18-22
+
+**Summary.** A new traffic-on browser spec: a shot-at nav buoy leaves the scanner; ident locks the station; the static chunk loads only with traffic on.
+
+**Strengths.**
+- It fills a real gap: the e2e bundle defaults to traffic off, where none of the static hulls load. Without this spec no browser test exercises the headline criteria.
+- It uses only existing probe fields and hooks (I confirmed `contacts` and `identLocked` at `src/app/probe.ts:67-68,418` and the hooks at `:384-387`) and adds none; the diff gate on `src/app/probe.ts` backs that.
+- The firing loop is bounded by a tick count and prints the last contacts on failure (T-18-55).
+- Arithmetic check: the pulse laser (`src/sim/combat/constants.ts:75-81`: damage 15, shot temperature 7, cooling 6 per second, cutout at 0.85 x 256) heats about 8 per second at two shots per second, so roughly 28 s of fire before cutout. The nav buoy needs about 14 subentity hits plus 17 hull hits (about 16 s), so overheating does not defeat the loop.
+
+**Concerns.**
+- LOW: the "gone from contacts" assertion cannot tell destruction from another cause (the buoy leaving scanner range, or a scene reset). Also assert a `shipDestroyed` event or the static health reaching 0 through an existing probe field, if one exists; otherwise note the limitation.
+- LOW: with traffic on, NPCs spawn and may shoot the player or cross the line of fire during the run. The plan does not pin the seed or the NPC count. A flake here would be a spec failure with a misleading message. Pin the `?seed` if the test URL supports it, or retry the park-and-fire once.
+- LOW: the plan asserts "exactly one `/assets/ships-static-hulls-*.js` chunk" with traffic on. If Vite splits or renames the chunk in the `build:e2e` bundle, the spec fails for a reason unrelated to behaviour; copy `budget.spec.ts`'s regex shape (the plan does) and record the observed filename in the SUMMARY.
+
+**Suggestions.** Add a destruction-specific assertion; pin the seed.
+
+### Cross-plan comparison
+
+- Dependencies: the `depends_on` graph is acyclic and ordered (waves 1-13). The 18-20 gate is carried by `depends_on` plus a precondition in 18-04, 18-07, 18-09 and 18-16; the weakness is the absence-of-file marker (see 18-20).
+- Persistence: the saves stay unchanged (`git diff src/persistence` gate in 18-14). The only snapshot change is the optional `buoys` key. The weak point is the `hashWorld` repair (see 18-14).
+- Oracle independence: mechanical import guard plus a process rule. The replan removed `18-RESEARCH.md` and figures from 18-02's reading list, but 18-03's behaviour list still shows figures, and the 18-02 reference and the 18-09 port share the same recursion error.
+- Tests that would fail on wrong behaviour: every success criterion has one. Criterion 2 (laser stops at the station, a buoy dies and leaves the scanner) has 18-04, 18-05 and 18-22. Criterion 3 (ident) has 18-06 and 18-22. Criterion 4 (collisions once per contact, kills with debris, station damage-free, no overlapping pose) has 18-09, 18-11, 18-16, 18-18 and 18-07's sweep. Criterion 5 (pristine hash, 30/60/144 Hz) has the cadence tests in 18-14, 18-17 and 18-18. The one criterion half without a runtime browser proof is "removed from the 3D view": unit-level only.
+- Threat models are realistic and short. The ones that overstate are T-18-39 (see 18-14) and T-18-53 (see 18-21).
+
+### Overall
+
+**Risk Assessment: MEDIUM.**
+
+The replan fixed the structural problems of round 1: ledger rows I checked have matching executable text (the sticky routing, the producer-keyed tripwire, the load-failure case, the split `dvOther`, the subentity bleed rule). None of my findings is a blocker in the sense that it breaks the build, but seven would cause either a stop-and-dispute during execution (the 18-02 tolerance, the stage-4 shadowing) or a latent defect in the delivered state (the missing `hashWorld` repair, the weak load-failure test and tripwire keys).
+
+Priority order for a fix pass:
+1. 18-14: repair `World.buoys` inside `hashWorld`.
+2. 18-02: incidence limit and miss clearance, per-fixture role flips, completeness property, recursion in `doOctreesCollide` (and 18-09's matching text).
+3. 18-13: state the load-failure test shape and the assertions to update.
+4. 18-18: broaden the tripwire keys; use the float32 detached mass here and in 18-07.
+5. 18-03: remove expected figures from the behaviour list or correct the ledger.
 
 ---
 
