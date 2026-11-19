@@ -40,6 +40,10 @@ import { NPC_SHIP_KEYS, emitNpcShips } from "./convert/npc-ships.js";
 import { computeShipMasses } from "./convert/ship-mass.js";
 import { emitShipHulls } from "./convert/ship-hulls.js";
 import {
+  emitStaticHulls,
+  staticSubentityKeys,
+} from "./convert/static-hulls.js";
+import {
   computeCollisionRadii,
   computeShipRadii,
 } from "./convert/ship-radius.js";
@@ -207,6 +211,14 @@ export async function generateContent({
   const debrisMasses = computeShipMasses(debrisKeys, catalogue, models);
   const debrisRadii = computeShipRadii(debrisKeys, catalogue, models);
 
+  // The static hulls' solid subentities (DATA-15) carry their own masses,
+  // computed once from the same parsed meshes.
+  const staticMasses = computeShipMasses(
+    staticSubentityKeys(catalogue),
+    catalogue,
+    models,
+  );
+
   const emitted: EmittedFile[] = [
     emitCommodities(commodities, descriptions),
     ...emitSystems(systems),
@@ -218,6 +230,7 @@ export async function generateContent({
     emitDebris(catalogue, debrisMasses, debrisRadii),
     emitExplosions(explosions),
     emitShipHulls(catalogue, models),
+    emitStaticHulls(catalogue, models, staticMasses),
     emitDockPort(models),
     ...emitModels(models, entries),
   ];

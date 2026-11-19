@@ -551,6 +551,11 @@
       "sha256": "51fb3d4b290e62b44ae6910d5385861bd67469eb10a881046111653667934371"
     },
     {
+      "bytes": 169733,
+      "path": "src/content/generated/ships-static-hulls.json",
+      "sha256": "3c0f0f8b405e7ade6dc567f459beb4fb9367acc383a1bd14b2d5b33b09f607f4"
+    },
+    {
       "bytes": 706553,
       "path": "src/content/generated/ships.json",
       "sha256": "b94f33c025682225e000ec56933421ddbc1efbef5b4d9d406420954a77699fb6"

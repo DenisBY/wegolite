@@ -94,7 +94,7 @@ describe("the generated static hull file", () => {
 
   it("records the Coriolis octree sizes: the hull and the tris exceed the ten-hull cap", () => {
     const station = hullOf("coriolis-station");
-    const measured = {
+    const measured: Record<string, number> = {
       hull: nodeCount(station.octree.root),
       ...Object.fromEntries(
         station.subentities.map((subentity) => [

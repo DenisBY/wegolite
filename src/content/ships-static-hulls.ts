@@ -7,7 +7,7 @@
  * The octrees, subentities, collision radii and frangibility of the Coriolis
  * station, the navigation buoy, the cargo barrel and the alloy plate, and the
  * compiled display names of the ident targets, live in their own generated
- * file, separate from the ten-hull `ships-hulls.json` because the Coriolis
+ * file, separate from the ten-hull artifact (`loadShipHulls`) because the Coriolis
  * octrees exceed that file's caps (PROJECT.md Key Decisions, "Statics and
  * debris hulls ship in their own lazily loaded file"). The glob below is
  * non-eager, so Vite splits the file into its own chunk that the first load

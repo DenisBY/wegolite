@@ -7,7 +7,7 @@
  * The Coriolis station, the navigation buoy, the cargo barrel and the alloy
  * plate carry their hull octrees in a second lazily loaded file,
  * `src/content/generated/ships-static-hulls.json`, beside the ten-hull
- * `ships-hulls.json`. The Coriolis hull octree (32,841 nodes) and its tris
+ * artifact of `ship-hull.ts`. The Coriolis hull octree (32,841 nodes) and its tris
  * subentity (30,089) each exceed the ten-hull per-hull cap `MAX_HULL_NODES`
  * (16,384), and the whole set exceeds that file's byte cap, so the statics get
  * their own schema and bounds instead of a raised ten-hull cap (T-13-06/07 stay
