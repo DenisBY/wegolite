@@ -15,7 +15,8 @@
  * from the shooter's own draw, no bypass), D-07 (a whole-tick shot timer at
  * Oolite's literal frame count, revised by the owner 2026-11-19, UAT test 1,
  * gap G-17-1; float32 temperature, cost and heat on a fired shot) and D-17
- * (every function total).
+ * (every function on the tick path total; the module-load `literalShotFrames`
+ * throws on a rate outside its domain).
  *
  * Width of the roll: `randf()` is a float and `weaponRange` a GLfloat, so the
  * product `u * weaponRange` is rounded to float32 (`Math.fround`) before the
@@ -136,19 +137,33 @@ const MAX_SHOT_FRAMES = 1_000_000;
  * refuses while `[self shotTime] < weapon_recharge_rate` (9946), a double
  * compared with the float32 field promoted to double. The first frame that is
  * not refused is the smallest k with `!(sum_k < Math.fround(rate))`, where
- * `sum_k` is k successive double additions of 1 / 120. Total for every finite
- * positive rate (the loop is bounded), and NaN or a non-positive rate opens at
- * the first frame.
+ * `sum_k` is k successive double additions of 1 / 120.
+ *
+ * Domain: a finite float32 rate above 0 whose count is below `MAX_SHOT_FRAMES`
+ * (a rate below about 8333 s). Outside it the function throws rather than
+ * returning a capped or a one-frame count, as the oracle's twin does, so a bad
+ * rate can never become a ship that fires every tick or almost never. This is
+ * the one function in the file that throws, and it is not on the tick path: it
+ * runs only at module load, on the four `LASER_STATS` rates and the unarmed
+ * 100 s, so a bad rate fails the import of this module and every function the
+ * tick calls stays total (D-17).
  */
 function literalShotFrames(rateSeconds: number): number {
   const rateF32 = Math.fround(rateSeconds);
+  if (!Number.isFinite(rateF32) || !(rateF32 > 0)) {
+    throw new Error(
+      `literalShotFrames: rate ${String(rateSeconds)} s is not finite and positive`,
+    );
+  }
   const step = 1 / TICKS_PER_SECOND;
   let shotTime = 0;
   for (let frames = 1; frames < MAX_SHOT_FRAMES; frames += 1) {
     shotTime += step;
     if (!(shotTime < rateF32)) return frames;
   }
-  return MAX_SHOT_FRAMES;
+  throw new Error(
+    `literalShotFrames: rate ${String(rateSeconds)} s does not open the timer within ${String(MAX_SHOT_FRAMES)} frames`,
+  );
 }
 
 /**
