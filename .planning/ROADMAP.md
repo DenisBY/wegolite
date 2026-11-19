@@ -250,7 +250,7 @@ Plans:
 **Pitfalls to address**: 1 (the decision source: resolved by the owner decision above, and tested through the whole route from the hook spawn), 2 (the fire gate), 4 (the frozen acceptance run), 15 (dead-target handling in each behaviour), 16 (totality)
 **Decisions to settle**: how weapon temperature and `shot_time` quantise to ticks; which attack behaviours call fire and how `onTarget` maps onto the Phase 14 steering port; the name and place of the pilot's opt-in
 **Todos**: `2026-11-16-phase-14-review-followups.md` (the IN-04 manual rerun rule is in force; IN-05, the detector blind spot, needs the owner trailer and is not part of this phase)
-**Plans**: 5/10 plans executed in 8 waves
+**Plans**: 6/10 plans executed in 8 waves
 
 Plans:
 **Wave 1**
@@ -265,7 +265,7 @@ Plans:
 - [x] 17-05-PLAN.md — CBT-15, CBT-16: every NPC shot through the gate at the drain, cooling and `missedShots`, the per-tick hook shooter, the D-08 inventory and the A7 amendment, the Node twin then the browser spec re-pinned (shield and energy readout)
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 17-06-PLAN.md — CBT-15: `SteerContext.fire` and the `fire` opt-in on the flight-script pilot, the evasive, sniper (restructured), six and fly-to fire sites, exclusive routes, byte-identical without the opt-in
+- [x] 17-06-PLAN.md — CBT-15: `SteerContext.fire` and the `fire` opt-in on the flight-script pilot, the evasive, sniper (restructured), six and fly-to fire sites, exclusive routes, byte-identical without the opt-in
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 17-07-PLAN.md — CBT-15: the live temperature in the dispatcher, break-off and the hot-weapon tails, the float32 USABLE, the divergences row
@@ -400,7 +400,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 14. NPC Flight and Steering Fidelity Gate | v2.2 | 19/19 | Complete    | 2026-11-16 |
 | 15. Damage Ledger and Kills | v2.3 | 6/6 | Complete    | 2026-11-16 |
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 9/9 | Complete    | 2026-11-17 |
-| 17. NPC Fire and Hits on the Player | v2.3 | 5/10 | In Progress | - |
+| 17. NPC Fire and Hits on the Player | v2.3 | 6/10 | In Progress | - |
 | 18. Stations, Buoys and Collisions | v2.3 | 0/TBD | Not started | - |
 | 19. Equipment Damage and Repair | v2.3 | 0/TBD | Not started | - |
 | 20. Player Death and Game Over | v2.3 | 0/TBD | Not started | - |
