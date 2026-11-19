@@ -316,7 +316,52 @@ Plans:
 **Pitfalls to address**: 4 (the acceptance harness), 9 (single contact: no energy gained or lost twice), 11 (statics are not world entities: the hull table and their poses), 12 (the collision rule's wrong half), 17 (pair cost)
 **Decisions to settle**: the Coriolis hull's file (one artifact or a separate file); the destroyed-buoy semantics above; the player's response to impact; supersede the Key Decisions row "Statics are neither laser nor ident targets"
 **Todos**: `2026-11-15-lasers-and-ident-hit-stations-and-buoys.md` (closed by CBT-17); `2026-11-14-make-buoys-block-hyperspace-like-oolite.md` touches the same fixture and is a candidate to fold in by owner decision, not a requirement; `2026-11-10-add-planet-and-sun-collision.md` loses its buoy half to CBT-18 (planet and sun stay unscheduled)
-**Plans**: TBD
+**Plans**: 0/20 plans complete; 20 plans in 12 waves (revised twice after plan checks; plan-time owner decisions PD-01..PD-05 in `18-CONTEXT.md`)
+
+Plans:
+**Wave 1**
+- [ ] 18-01-PLAN.md — DATA-15, criterion 1: measure the Coriolis octree in the `assets` container (first plan); the static hulls (Coriolis + 3 subentities, buoy + 1, barrel, alloy) ship as their own lazy file under a strict schema, golden and drift gate; Key Decision row, provenance
+- [ ] 18-02-PLAN.md — CBT-17, CBT-18: independent geometry oracle: dock-mouth and buoy beam fixtures from the vendored meshes, and a reference for Oolite's octree-against-octree test
+- [ ] 18-03-PLAN.md — CBT-18: independent response oracle: `collideWithShip`, drift braking, the player's scrape and the blast, each fixture derived from the C lines
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 18-10-PLAN.md — CBT-18: the player's drift (`FlightState.drift`), integrated and power-braked by raw thrust
+- [ ] 18-13-PLAN.md — DATA-15: the static hull artifact wired into the session and the sim's merged hull table (traffic-gated load, `fullHullTable()`)
+- [ ] 18-14-PLAN.md — CBT-17, CBT-18: per-world buoy state (displacement, drift, subentity energy) for PD-01/PD-02, pristine-omit in snapshot and hash
+- [ ] 18-16-PLAN.md — CBT-18: `collideWithShip` response and the heat-free player scrape as pure kernels held to the response oracle
+- [ ] 18-20-PLAN.md — CBT-17, CBT-18: PD-03, the three research claims measured on real Oolite (dock mouth, buoy ram, pod/plate blockage radius) with recorded verdicts
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 18-04-PLAN.md — CBT-17, criterion 2: the Coriolis as a laser target through Oolite's subentity hit rule; it absorbs hits; supersedes "Statics are neither laser nor ident targets" (laser half)
+- [ ] 18-09-PLAN.md — CBT-18: octree-against-octree contact and its subentity composition as pure kernels held to the geometry oracle
+- [ ] 18-17-PLAN.md — CBT-18: drift integration and braking for NPC ships and buoys
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 18-05-PLAN.md — CBT-17, criterion 2: buoys at 250 energy, recharge, destroyed at zero at their live pose
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 18-15-PLAN.md — CBT-17: the buoy's frangible subentity (PD-01: 1 % on the buoy, full damage on the subentity, detached at 0); pods and plates become laser targets
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 18-06-PLAN.md — CBT-17, criterion 3: ident on the station, buoys, pods and plates (never wrecks) with compiled names; the lock ends when a buoy dies; closes the lasers/ident todo
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 18-07-PLAN.md — CBT-17: live buoys block a completing jump by Oolite's mass rule (D-09); the D-06 fixture moves to `[1000, 0, 0]`; the 2,048-layout clearance sweep; closes the buoy-blocking todo
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 18-08-PLAN.md — CBT-17: a destroyed buoy leaves the view and scanner, a moved buoy is drawn where it is, a detached subentity is hidden; compass fallback (D-05) and the compass cycle FIDELITY row
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [ ] 18-11-PLAN.md — CBT-18, criterion 4: the opt-in collision stage in `resolveShots` for the player, NPCs, pods and plates; station and launch excluded; kills and debris through the one kill path; rammed pods take damage (PD-05)
+
+**Wave 10** *(blocked on Wave 9 completion)*
+- [ ] 18-18-PLAN.md — CBT-18, criteria 4–5: buoys as movers with their subentity in the collision stage; 30/60/144 Hz equality, cost guard, the player-death tripwire
+
+**Wave 11** *(blocked on Wave 10 completion)*
+- [ ] 18-19-PLAN.md — CBT-18: the explosion blast pushes ships, buoys and the player (D-03); every exploding body is a blast source
+
+**Wave 12** *(blocked on Wave 11 completion)*
+- [ ] 18-12-PLAN.md — phase close: todo moves, FIDELITY walk, tripwire evaluation, `verify-full` (PD-04) and QUAL-11 on the remote machine
 
 ### Phase 19: Equipment Damage and Repair
 
