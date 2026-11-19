@@ -23,3 +23,10 @@ The first time anything subscribes to `shipHit`: audio (AUD-01..AUD-03, unschedu
 shake on the player (check Phase 17, NPC fire and hits on the player), or a HUD hit indicator. Add this check
 to that plan's `read_first` and acceptance criteria, with a test that a ship killed by two hits in one tick
 emits one `shipDestroyed` and no `shipHit` after the lethal one.
+
+## Guard
+
+`tests/guards/ship-hit-consumers.test.ts` (Phase 17, D-13.2) fails as soon as any `src` file other than
+`src/sim/events.ts` and `src/sim/combat/ledger.ts` names `shipHit`, which includes a subscriber row in the event
+router. Its failure message names this file. The commit that adds the first consumer takes the skip with it and
+updates the guard's allowlist. This todo stays pending until then.
