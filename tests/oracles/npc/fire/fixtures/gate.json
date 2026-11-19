@@ -614,6 +614,34 @@
     }
   },
   {
+    "id": "gate-roll-product-is-float32-before-the-accuracy-factor",
+    "title": "a non-dyadic draw: the float32 draw x range product refuses a range the float64 product would pass",
+    "oolite": [
+      "src/Core/Entities/ShipEntity.m:9948-9953",
+      "Resources/Config/equipment.plist:125-136"
+    ],
+    "derivation": "randf() is a float and weaponRange a GLfloat, so randf() * weaponRange is a float32 product, then times the double accuracy + 7.5 (9949). The draw 1234567891 / 2^32 = 0.28744523669593036 times 12500 is 3593.0654586991295 in float64 and rounds to the float32 3593.0654296875; at accuracy -5 (factor 2.5) the limit is 3593.0654296875 x 2.5 = 8982.66357421875. A range of 8982.663574218752, the next double above it, refuses at the roll after the draw. The float64 product gives 8982.663646747824, so a float64 gate would pass the roll and fire.",
+    "tolerance": 0.000001,
+    "weapon": "EQ_WEAPON_PULSE_LASER",
+    "input": {
+      "temperature": 0,
+      "energy": 100,
+      "ticksSinceShot": null,
+      "accuracy": -5,
+      "range": 8982.663574218752,
+      "onTarget": true
+    },
+    "draws": [0.28744523669593036, 0.75],
+    "expected": {
+      "fired": false,
+      "refusedAt": "roll",
+      "drawsUsed": 1,
+      "energyAfter": 100,
+      "temperatureAfter": 0,
+      "shotTimerReset": false
+    }
+  },
+  {
     "id": "gate-roll-accuracy-0-narrow-circle-refuses",
     "title": "at accuracy 0 the draw 0.0625 gives a roll limit of 5859.375, below a range of 5859.5",
     "oolite": [

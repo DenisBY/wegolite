@@ -119,6 +119,7 @@ const GATE_INTENT: readonly (readonly [
   ["gate-roll-refuses-draw-too-high", "roll", 1],
   ["gate-roll-passes-at-equality", null, 1],
   ["gate-roll-refuses-one-ulp-above-equality", "roll", 1],
+  ["gate-roll-product-is-float32-before-the-accuracy-factor", "roll", 1],
   ["gate-roll-accuracy-0-narrow-circle-refuses", "roll", 1],
   ["gate-roll-accuracy-9-wide-circle-passes", null, 1],
   ["gate-range-equal-to-weapon-range-passes-roll-and-range", null, 1],

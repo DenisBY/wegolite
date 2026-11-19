@@ -40,6 +40,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   long side, as in Oolite. Before, it left turned 90 degrees, across the slot.
 - Starting a new game or loading a save shows the market in its usual order
   again; a column sort no longer carries over.
+- In a test session (`?test=1&traffic=1`) an NPC's range roll now multiplies
+  its draw by the weapon range in single precision, as Oolite does, so a shot
+  at the very edge of the roll (a fraction of a millimetre) is refused or
+  allowed as in Oolite. In normal play NPC ships still never fire.
 
 ## [0.6.0] - 2026-11-18
 

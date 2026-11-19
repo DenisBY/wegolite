@@ -16,6 +16,12 @@
  * float32 temperature, cost and heat on a fired shot) and D-17 (every function
  * total).
  *
+ * Width of the roll: `randf()` is a float and `weaponRange` a GLfloat, so the
+ * product `u * weaponRange` is rounded to float32 (`Math.fround`) before the
+ * double `accuracy + 7.5` factor, as in Oolite (9949) and in the independent
+ * oracle. This is the one product the gate rounds; the energy compare and the
+ * aim tolerance stay float64 (the 17-01 oracle contract, Phase 14 rule).
+ *
  * Recorded cuts and additions:
  *
  * - The sun clause of `onTarget:` (9868, `isSunlit && !target->isSunlit &&
@@ -188,13 +194,11 @@ export function npcFireGate(
   }
   const u = draw(); // randf() (9949), the gate's only draw
   const weaponRange = laserRange(input.laser);
-  if (
-    !Number.isFinite(input.range) ||
-    !(
-      input.range <=
-      u * weaponRange * (input.accuracy + NPC_FIRE_ACCURACY_OFFSET)
-    )
-  ) {
+  // randf() * weaponRange is float * float, a float32 product, and only then
+  // times the double accuracy + 7.5 (9949); the oracle models the same width.
+  const rollLimit =
+    Math.fround(u * weaponRange) * (input.accuracy + NPC_FIRE_ACCURACY_OFFSET);
+  if (!Number.isFinite(input.range) || !(input.range <= rollLimit)) {
     return refuse("roll", true);
   }
   if (input.range > weaponRange) return refuse("range", true);
