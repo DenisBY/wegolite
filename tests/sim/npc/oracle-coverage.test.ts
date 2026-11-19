@@ -50,7 +50,12 @@ import { BEHAVIOUR_ROUTES } from "../../../src/sim/npc/dispatch.js";
 import type { BehaviourStep } from "../../../src/sim/npc/dispatch.js";
 import { BEHAVIOUR_IDS } from "../../../src/sim/world/ids.js";
 import type { BehaviourId } from "../../../src/sim/world/ids.js";
-import { ORACLE_GROUPS } from "./oracle-groups.js";
+import {
+  FIRE_ORACLE_GROUPS,
+  FIRE_ORACLE_PENDING,
+  ORACLE_GROUPS,
+  fireFixtureFilesFor,
+} from "./oracle-groups.js";
 import { loadOracleFiles } from "./oracle-runner.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -92,15 +97,97 @@ describe("every fixture is assigned to exactly one oracle test file", () => {
     }
   });
 
-  it("every oracle test file on disk is in the manifest", () => {
+  it("every fire manifest entry names an oracle test file that exists, reads the fire manifest and asserts it ran its whole entry", () => {
+    const testFiles = new Set(
+      FIRE_ORACLE_GROUPS.map((group) => group.testFile),
+    );
+    expect(testFiles.size).toBeGreaterThan(0);
+    for (const testFile of testFiles) {
+      const absolute = `${REPO_ROOT}${testFile}`;
+      expect(existsSync(absolute), `${testFile} exists`).toBe(true);
+      const source = readFileSync(absolute, "utf8");
+      expect(source, `${testFile} names itself`).toContain(
+        `const THIS_FILE = "${testFile}";`,
+      );
+      expect(source, `${testFile} reads the fire manifest`).toContain(
+        "fireFixtureFilesFor(THIS_FILE)",
+      );
+      expect(source, `${testFile} asserts its whole entry`).toContain(
+        "runs exactly the fixtures of its files",
+      );
+      expect(fireFixtureFilesFor(testFile).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("every oracle test file on disk is in one of the two manifests", () => {
     const onDisk = readdirSync(`${REPO_ROOT}tests/sim/npc`)
       .filter((name) => name.endsWith(".oracle.test.ts"))
       .map((name) => `tests/sim/npc/${name}`)
       .sort();
     const named = [
-      ...new Set(ORACLE_GROUPS.map((group) => group.testFile)),
+      ...new Set([
+        ...ORACLE_GROUPS.map((group) => group.testFile),
+        ...FIRE_ORACLE_GROUPS.map((group) => group.testFile),
+      ]),
     ].sort();
     expect(named).toEqual(onDisk);
+  });
+});
+
+/**
+ * The Phase 17 fire trees (`tests/oracles/npc/fire/fixtures` and
+ * `tests/oracles/npc/fire-sites/fixtures`) have their own schemas and are not
+ * loaded by `loadOracleFiles()`. Their files are assigned by
+ * `FIRE_ORACLE_GROUPS` (an oracle test file runs them) or listed in
+ * `FIRE_ORACLE_PENDING` (their consumer is a later plan); the two lists
+ * together equal the files on disk, and every id is unique across all four
+ * oracle trees.
+ */
+describe("every fire fixture file is assigned or pending", () => {
+  const FIRE_DIRS = [
+    "tests/oracles/npc/fire/fixtures",
+    "tests/oracles/npc/fire-sites/fixtures",
+  ] as const;
+
+  const onDisk = FIRE_DIRS.flatMap((dir) =>
+    readdirSync(`${REPO_ROOT}${dir}`)
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => `${dir}/${name}`),
+  ).sort();
+
+  it("the groups plus the pending rows equal the fire fixture files on disk, each once", () => {
+    const named = [
+      ...FIRE_ORACLE_GROUPS.map((group) => group.fixtureFile),
+      ...FIRE_ORACLE_PENDING.map((row) => row.fixtureFile),
+    ];
+    expect(new Set(named).size).toBe(named.length);
+    expect([...named].sort()).toEqual(onDisk);
+  });
+
+  it("every pending row names the plan that will run it", () => {
+    for (const row of FIRE_ORACLE_PENDING) {
+      expect(row.plan, row.fixtureFile).toMatch(/^17-\d\d$/);
+    }
+  });
+
+  it("every fixture id is unique across all four oracle trees", () => {
+    const ids: string[] = [];
+    for (const fixtures of loadOracleFiles().values()) {
+      for (const fixture of fixtures) ids.push(fixture.id);
+    }
+    const phase14 = ids.length;
+    for (const file of onDisk) {
+      const parsed = JSON.parse(
+        readFileSync(`${REPO_ROOT}${file}`, "utf8"),
+      ) as { id?: string; fixture?: { id: string } }[];
+      for (const entry of parsed) {
+        const id = entry.id ?? entry.fixture?.id;
+        expect(id, `${file} has an id on every entry`).toBeDefined();
+        ids.push(id ?? "");
+      }
+    }
+    expect(ids.length).toBeGreaterThan(phase14 + 100); // the fire trees are read
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
