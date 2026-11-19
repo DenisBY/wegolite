@@ -37,10 +37,14 @@ import type { FlightState } from "../flight/state.js";
 import type { ParamValue } from "../ai/types.js";
 import type { Vec3 } from "../math.js";
 import type { SteerComponent } from "../npc/state.js";
-import type { BuoyStates, Entity, StaticHealth } from "./entity.js";
+import type { BuoyState, BuoyStates, Entity, StaticHealth } from "./entity.js";
 import type { EntityId } from "./ids.js";
 import { sanitizeStaticHealth } from "./sanitize.js";
-import { isNeverSpawned, isPristineStaticHealth } from "./world.js";
+import {
+  isNeverSpawned,
+  isPristineBuoyStates,
+  isPristineStaticHealth,
+} from "./world.js";
 import type { World } from "./world.js";
 
 /**
@@ -180,9 +184,26 @@ export function serializeStaticHealth(health: StaticHealth): string {
   return `staticHealth:${canon(health.station)},${canon(health.witchpoint)},${canon(health.navBuoy)}`;
 }
 
-/** The buoys line (PD-01, PD-02). Skeleton: filled in by the GREEN commit. */
-export function serializeBuoyStates(_buoys: BuoyStates): string {
-  return "buoys:";
+/** One buoy's segment of the `buoys:` line. */
+function serializeBuoyState(buoy: BuoyState): string {
+  const { offset, velocity } = buoy;
+  return (
+    `offset ${canon(offset.x)},${canon(offset.y)},${canon(offset.z)}` +
+    `;velocity ${canon(velocity.x)},${canon(velocity.y)},${canon(velocity.z)}` +
+    `;sub ${canon(buoy.subentityEnergy)}` +
+    `;taking ${buoy.subentityTakingDamage ? "1" : "0"}`
+  );
+}
+
+/**
+ * The buoys line (Phase 18, PD-01, PD-02): the label `buoys:` then the
+ * witchpoint's segment and the nav buoy's, joined by `|`, each
+ * `offset x,y,z;velocity x,y,z;sub e;taking 0|1` (the offset from the layout
+ * position, the drift, the subentity energy and the sticky routing flag).
+ * `hashWorld` prints it only when the buoys are not pristine.
+ */
+export function serializeBuoyStates(buoys: BuoyStates): string {
+  return `buoys:${serializeBuoyState(buoys.witchpoint)}|${serializeBuoyState(buoys.navBuoy)}`;
 }
 
 /**
@@ -232,7 +253,9 @@ export function entityHashes(world: World): [EntityId, string][] {
  * The static-health line (D-08, D-09) follows the world section and precedes the
  * combat line, and prints only when `world.staticHealth` is not pristine; this
  * holds for a never-spawned world too (its section is empty, the line still
- * prints). A hash call can mutate the world: `sanitizeStaticHealth` repairs
+ * prints). The buoys line (PD-01, PD-02) follows the static-health line and
+ * precedes the combat line under the same rule, printed only when
+ * `world.buoys` is not pristine. A hash call can mutate the world: `sanitizeStaticHealth` repairs
  * `world.staticHealth` in place before printing, as the existing
  * `sanitizeCombat(combat)` call already repairs the combat state. That reaches
  * callers that read like pure reads: the `?test=1` probe's `worldHash`
@@ -252,6 +275,9 @@ export function hashWorld(
     sanitizeStaticHealth(world);
     if (!isPristineStaticHealth(world.staticHealth)) {
       text += `\n${serializeStaticHealth(world.staticHealth)}`;
+    }
+    if (!isPristineBuoyStates(world.buoys)) {
+      text += `\n${serializeBuoyStates(world.buoys)}`;
     }
   }
   if (combat !== undefined) {

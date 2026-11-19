@@ -37,7 +37,7 @@ import type { AiComponent, AiKey, ParamValue } from "../ai/types.js";
 import { AI_KEYS } from "../ai/types.js";
 import { createRngState } from "../rng.js";
 import { ACCURACY_UNRESOLVED } from "../npc/state.js";
-import type { Entity, EntityStreams } from "./entity.js";
+import type { BuoyState, BuoyStates, Entity, EntityStreams } from "./entity.js";
 import {
   BEHAVIOUR_IDS,
   ENTITY_KINDS,
@@ -68,7 +68,11 @@ import {
   TRACKING_SAMPLES,
 } from "./limits.js";
 import { createEntityStore } from "./store.js";
-import { STATIC_ENTITIES, createBuoyStates } from "./world.js";
+import {
+  STATIC_ENTITIES,
+  createBuoyStates,
+  isPristineBuoyStates,
+} from "./world.js";
 import type { World } from "./world.js";
 
 /** The `format` tag of every world snapshot. */
@@ -81,7 +85,12 @@ export const WORLD_SNAPSHOT_FORMAT = "wegolite-world";
  * Version 3 (Phase 14, AI-01) adds the steering record `steer` to every entity;
  * a version-2 snapshot is refused. Version 4 (Phase 15, FOUND-18) adds
  * `velocity`, `weapon` and `cargo` to every entity and `staticHealth` to the
- * world; a version-3 snapshot is refused.
+ * world; a version-3 snapshot is refused. Phase 18 amends the version-4 field
+ * set without a bump, by the owner's decisions PD-01 and PD-02 (FOUND-18: an
+ * owner-approved amendment, not a quiet second bump): the optional world key
+ * `buoys` (each buoy's offset, drift velocity, subentity energy and sticky
+ * subentity routing flag), written only when not pristine, so every existing
+ * snapshot stays valid and restores pristine buoys.
  * World snapshots are not persisted to IndexedDB yet (SAVE-07 is later), so no
  * save migration exists.
  */
@@ -487,6 +496,25 @@ function snapshotEntity(entity: Entity): EntitySnapshot {
   };
 }
 
+function requireFiniteBuoy(buoy: BuoyState, at: string): void {
+  requireFinite(buoy.offset.x, `${at}.offset.x`);
+  requireFinite(buoy.offset.y, `${at}.offset.y`);
+  requireFinite(buoy.offset.z, `${at}.offset.z`);
+  requireFinite(buoy.velocity.x, `${at}.velocity.x`);
+  requireFinite(buoy.velocity.y, `${at}.velocity.y`);
+  requireFinite(buoy.velocity.z, `${at}.velocity.z`);
+  requireFinite(buoy.subentityEnergy, `${at}.subentityEnergy`);
+}
+
+function snapshotBuoy(buoy: BuoyState): BuoyStateSnapshot {
+  return {
+    offset: copyVec(buoy.offset),
+    velocity: copyVec(buoy.velocity),
+    subentityEnergy: noNegativeZero(buoy.subentityEnergy),
+    subentityTakingDamage: buoy.subentityTakingDamage,
+  };
+}
+
 /**
  * The plain JSON-safe snapshot of `world`: deep copies only, so mutating the
  * result never reaches the live world. Throws a `SnapshotError` with reason
@@ -523,6 +551,8 @@ export function snapshotWorld(world: World): WorldSnapshot {
   requireFinite(world.staticHealth.station, "staticHealth.station");
   requireFinite(world.staticHealth.witchpoint, "staticHealth.witchpoint");
   requireFinite(world.staticHealth.navBuoy, "staticHealth.navBuoy");
+  requireFiniteBuoy(world.buoys.witchpoint, "buoys.witchpoint");
+  requireFiniteBuoy(world.buoys.navBuoy, "buoys.navBuoy");
   for (const entity of world.store.live) requireFiniteEntity(entity);
   return {
     format: WORLD_SNAPSHOT_FORMAT,
@@ -536,6 +566,15 @@ export function snapshotWorld(world: World): WorldSnapshot {
       witchpoint: noNegativeZero(world.staticHealth.witchpoint),
       navBuoy: noNegativeZero(world.staticHealth.navBuoy),
     },
+    // Pristine-omit (PD-01, PD-02): pristine buoys add no key.
+    ...(isPristineBuoyStates(world.buoys)
+      ? {}
+      : {
+          buoys: {
+            witchpoint: snapshotBuoy(world.buoys.witchpoint),
+            navBuoy: snapshotBuoy(world.buoys.navBuoy),
+          },
+        }),
     entities: world.store.live.map(snapshotEntity),
   };
 }
@@ -1055,6 +1094,35 @@ function parseStaticHealth(value: unknown, path: string): StaticHealthSnapshot {
   };
 }
 
+function parseBuoy(value: unknown, path: string): BuoyStateSnapshot {
+  const o = asObject(value, path, [
+    "offset",
+    "velocity",
+    "subentityEnergy",
+    "subentityTakingDamage",
+  ]);
+  return {
+    offset: parseVector(read(o, "offset"), `${path}.offset`),
+    velocity: parseVelocity(read(o, "velocity"), `${path}.velocity`),
+    subentityEnergy: finiteNumber(
+      read(o, "subentityEnergy"),
+      `${path}.subentityEnergy`,
+    ),
+    subentityTakingDamage: flag(
+      read(o, "subentityTakingDamage"),
+      `${path}.subentityTakingDamage`,
+    ),
+  };
+}
+
+function parseBuoys(value: unknown, path: string): BuoyStatesSnapshot {
+  const o = asObject(value, path, ["witchpoint", "navBuoy"]);
+  return {
+    witchpoint: parseBuoy(read(o, "witchpoint"), `${path}.witchpoint`),
+    navBuoy: parseBuoy(read(o, "navBuoy"), `${path}.navBuoy`),
+  };
+}
+
 function parseEntity(value: unknown, path: string): EntitySnapshot {
   const o = asObject(value, path, [
     "id",
@@ -1174,6 +1242,7 @@ export function parseWorldSnapshot(input: unknown): WorldSnapshot {
     "rng",
     "aiDropped",
     "staticHealth",
+    "buoys",
     "entities",
   ]);
   if (read(root, "format") !== WORLD_SNAPSHOT_FORMAT) {
@@ -1206,6 +1275,12 @@ export function parseWorldSnapshot(input: unknown): WorldSnapshot {
     read(root, "staticHealth"),
     "snapshot.staticHealth",
   );
+  // Optional (PD-01, PD-02): absent means pristine buoys.
+  const buoysValue = read(root, "buoys");
+  const buoys =
+    buoysValue === undefined
+      ? undefined
+      : parseBuoys(buoysValue, "snapshot.buoys");
   const source = read(root, "entities");
   if (!Array.isArray(source)) {
     return fail("entities", "snapshot.entities", "expected an array");
@@ -1239,6 +1314,7 @@ export function parseWorldSnapshot(input: unknown): WorldSnapshot {
     rng,
     aiDropped,
     staticHealth,
+    ...(buoys === undefined ? {} : { buoys }),
     entities,
   };
 }
@@ -1287,6 +1363,25 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
     fireQueue: [],
     aiDropped: parsed.aiDropped,
     staticHealth: parsed.staticHealth,
-    buoys: createBuoyStates(),
+    buoys:
+      parsed.buoys === undefined
+        ? createBuoyStates()
+        : restoreBuoys(parsed.buoys),
+  };
+}
+
+function restoreBuoy(buoy: BuoyStateSnapshot): BuoyState {
+  return {
+    offset: buoy.offset,
+    velocity: buoy.velocity,
+    subentityEnergy: buoy.subentityEnergy,
+    subentityTakingDamage: buoy.subentityTakingDamage,
+  };
+}
+
+function restoreBuoys(buoys: BuoyStatesSnapshot): BuoyStates {
+  return {
+    witchpoint: restoreBuoy(buoys.witchpoint),
+    navBuoy: restoreBuoy(buoys.navBuoy),
   };
 }
