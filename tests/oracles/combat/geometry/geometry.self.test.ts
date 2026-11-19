@@ -34,12 +34,30 @@ import {
   type DockInput,
   type DockMesh,
 } from "./derive.js";
+import {
+  CHANGE_OCT,
+  IDENTITY_IJK,
+  bruteForceOverlap,
+  doOctreesCollideReference,
+  isHitByOctreeReference,
+  offsetForOctant,
+  resolveVectorInIJK,
+  type Ijk,
+  type OctNode,
+  type OctreeData,
+} from "./octree-collide.js";
 import { rayMeshDistance } from "./ray-mesh.js";
 import {
   DOCK_MOUTH_FIXTURE_FILE,
   DockMouthFileSchema,
   DockMouthFixtureSchema,
+  OCTREE_COLLIDE_FIXTURE_FILE,
+  OctreeCollideFileSchema,
+  OctreeCollideFixtureSchema,
+  wegoliteBasisOf,
   type DockMouthFixture,
+  type OctreeCollideFixture,
+  type OctreePairFixture,
 } from "./schema.js";
 
 const HERE = fileURLToPath(new URL("./", import.meta.url));
@@ -511,5 +529,437 @@ describe("fixture ids are unique across every oracle tree", () => {
     }
     expect(geometry.size).toBeGreaterThan(0);
     expect(elsewhere.filter((id) => geometry.has(id))).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// octree against octree (Task 2)
+
+/** A seeded LCG so the property loop is reproducible. */
+function lcg(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (Math.imul(state, 1103515245) + 12345) >>> 0;
+    return state / 4294967296;
+  };
+}
+
+/** Calls the reference with the trees swapped (the other made axial). */
+function swappedCall(
+  prime: OctreeData,
+  other: OctreeData,
+  origin: Vec3,
+  ijk: Ijk,
+): boolean {
+  const back = resolveVectorInIJK([-origin[0], -origin[1], -origin[2]], ijk);
+  const primeAxesInOther: Ijk = [
+    resolveVectorInIJK([1, 0, 0], ijk),
+    resolveVectorInIJK([0, 1, 0], ijk),
+    resolveVectorInIJK([0, 0, 1], ijk),
+  ];
+  return isHitByOctreeReference(other, prime, back, primeAxesInOther);
+}
+
+/** Mutant: the larger tree is always axial (the superseded rule). */
+function largerAlwaysAxial(
+  prime: OctreeData,
+  other: OctreeData,
+  origin: Vec3,
+  ijk: Ijk,
+): boolean {
+  return prime.radius < other.radius
+    ? swappedCall(prime, other, origin, ijk)
+    : isHitByOctreeReference(prime, other, origin, ijk);
+}
+
+/** Mutant: the smaller tree is always axial. */
+function smallerAlwaysAxial(
+  prime: OctreeData,
+  other: OctreeData,
+  origin: Vec3,
+  ijk: Ijk,
+): boolean {
+  return prime.radius > other.radius
+    ? swappedCall(prime, other, origin, ijk)
+    : isHitByOctreeReference(prime, other, origin, ijk);
+}
+
+const cell = (radius: number): OctreeData => ({ radius, root: -1 });
+
+describe("octree helpers (Octree.m:70, :158-161, OOTriangle.h:58-65)", () => {
+  it("offsetForOctant is minus the child's centre, a set bit the positive half", () => {
+    expect(offsetForOctant(0, 2)).toEqual([1, 1, 1]);
+    expect(offsetForOctant(5, 2)).toEqual([-1, 1, -1]); // x and z set
+    expect(offsetForOctant(7, 4)).toEqual([-2, -2, -2]);
+  });
+
+  it("change_oct visits the nearest octant, its three faces, three edges, the far corner", () => {
+    expect([...CHANGE_OCT]).toEqual([0, 1, 2, 4, 3, 5, 6, 7]);
+  });
+
+  it("resolveVectorInIJK dots with each axis (B^T v for axes as columns)", () => {
+    const ijk: Ijk = [
+      [0, 1, 0],
+      [-1, 0, 0],
+      [0, 0, 1],
+    ]; // the other's x axis is the prime's +y: a quarter turn about z
+    expect(resolveVectorInIJK([0, 3, 0], ijk)).toEqual([3, 0, 0]);
+  });
+});
+
+describe("isHitByOctreeReference on single cells (Octree.m:473-525)", () => {
+  it("hits overlapping cubes, misses cubes one metre apart, hits cubes touching on a face", () => {
+    expect(
+      isHitByOctreeReference(cell(1), cell(1), [1, 0.5, 0], IDENTITY_IJK),
+    ).toBe(true);
+    expect(
+      isHitByOctreeReference(cell(1), cell(1), [3, 0, 0], IDENTITY_IJK),
+    ).toBe(false);
+    // :504-512 rejects only on a strict compare: -2 + 1 < -1 is false
+    expect(
+      isHitByOctreeReference(cell(1), cell(1), [2, 0, 0], IDENTITY_IJK),
+    ).toBe(true);
+    // :497-503 likewise: 3 - 1 > 2 is false
+    expect(
+      isHitByOctreeReference(cell(2), cell(1), [3, 0, 0], IDENTITY_IJK),
+    ).toBe(true);
+    expect(
+      isHitByOctreeReference(cell(2), cell(1), [3.5, 0, 0], IDENTITY_IJK),
+    ).toBe(false);
+  });
+
+  it("never collides an empty root", () => {
+    expect(
+      isHitByOctreeReference(
+        { radius: 2, root: 0 },
+        cell(2),
+        [0, 0, 0],
+        IDENTITY_IJK,
+      ),
+    ).toBe(false);
+    expect(
+      isHitByOctreeReference(
+        cell(2),
+        { radius: 2, root: 0 },
+        [0, 0, 0],
+        IDENTITY_IJK,
+      ),
+    ).toBe(false);
+  });
+});
+
+/**
+ * The intent of every octree fixture, written by hand beside the JSON: id
+ * and the expected answer (true/false for a pair, the result for a compose).
+ */
+const OCTREE_INTENT: readonly (readonly [string, boolean | string])[] = [
+  ["octree-single-cells-overlap-hit", true],
+  ["octree-single-cells-one-metre-apart-miss", false],
+  ["octree-single-cells-face-touch-hit", true],
+  ["octree-single-cells-face-touch-smaller-other-hit", true],
+  ["octree-depth2-face-contact-hit", true],
+  ["octree-depth2-gap-miss", false],
+  ["octree-depth2-deep-overlap-hit", true],
+  ["octree-depth2-clear-miss", false],
+  ["octree-rotated-45-z", false],
+  ["octree-rotated-oblique-axis", false],
+  ["octree-rotated-decomposition-transposed", false],
+  ["octree-pruned-corner", false],
+  ["octree-prime-smaller-axial-prime", true],
+  ["octree-prime-larger-axial-prime", true],
+  ["octree-empty-prime-root-miss", false],
+  ["octree-empty-other-root-miss", false],
+  ["octree-compose-hull-hull-returns-other", "other"],
+  ["octree-compose-prime-sub-other-hull-returns-other", "other"],
+  ["octree-compose-prime-hull-other-sub-returns-subentity", "otherSubentity:1"],
+  ["octree-sub-sub-returns-other", "other"],
+  ["octree-compose-none", "none"],
+  ["octree-compose-empty-roots-never-collide", "none"],
+  ["octree-compose-rotated-prime-sub-offset", "other"],
+];
+
+function intentOf(fixture: OctreeCollideFixture): boolean | string {
+  if (fixture.kind === "pair") return fixture.expected.hit;
+  const result = fixture.expected.result;
+  return typeof result === "string"
+    ? result
+    : `otherSubentity:${result.otherSubentity}`;
+}
+
+describe("octree fixtures (octree-collide.json)", () => {
+  const fixtures = OctreeCollideFileSchema.parse(
+    readJson(OCTREE_COLLIDE_FIXTURE_FILE),
+  );
+  const pairs = fixtures.filter(
+    (f): f is OctreePairFixture => f.kind === "pair",
+  );
+  const byId = (id: string): OctreeCollideFixture => {
+    const found = fixtures.find((f) => f.id === id);
+    if (found === undefined) throw new Error(`no octree fixture ${id}`);
+    return found;
+  };
+  const pairById = (id: string): OctreePairFixture => {
+    const found = byId(id);
+    if (found.kind !== "pair") throw new Error(`${id} is not a pair fixture`);
+    return found;
+  };
+
+  it("holds at least fourteen fixtures, the intent table one to one", () => {
+    expect(fixtures.length).toBeGreaterThanOrEqual(14);
+    expect(fixtures.map((f) => f.id)).toEqual(OCTREE_INTENT.map(([id]) => id));
+    for (const [id, intent] of OCTREE_INTENT)
+      expect(intentOf(byId(id)), id).toBe(intent);
+  });
+
+  it("re-derives every fixture from the transliterated C", () => {
+    for (const fixture of fixtures) {
+      expect(() => OctreeCollideFixtureSchema.parse(fixture)).not.toThrow();
+      if (fixture.kind === "pair") {
+        const hit = isHitByOctreeReference(
+          fixture.prime,
+          fixture.other,
+          fixture.origin,
+          fixture.ijk,
+        );
+        expect(hit, fixture.id).toBe(fixture.expected.hit);
+        const brute = bruteForceOverlap(
+          fixture.prime,
+          fixture.other,
+          fixture.origin,
+          fixture.ijk,
+        );
+        expect(brute.overlap, fixture.id).toBe(
+          fixture.geometry.bruteForceOverlap,
+        );
+        if (fixture.geometry.depth === null) {
+          expect(brute.depth, fixture.id).toBe(-Infinity);
+        } else {
+          expect(
+            Math.abs(brute.depth - fixture.geometry.depth),
+            fixture.id,
+          ).toBeLessThanOrEqual(1e-9);
+        }
+      } else {
+        expect(
+          doOctreesCollideReference(fixture.prime, fixture.other),
+          fixture.id,
+        ).toEqual(fixture.expected.result);
+      }
+    }
+  });
+
+  it("pins the pruned corner: a reference miss that exact geometry overlaps", () => {
+    const fixture = pairById("octree-pruned-corner");
+    expect(fixture.prunedCorner).toBe(true);
+    expect(
+      isHitByOctreeReference(
+        fixture.prime,
+        fixture.other,
+        fixture.origin,
+        fixture.ijk,
+      ),
+    ).toBe(false);
+    expect(
+      bruteForceOverlap(
+        fixture.prime,
+        fixture.other,
+        fixture.origin,
+        fixture.ijk,
+      ).overlap,
+    ).toBe(true);
+    // the overlap lies outside the other's inscribed sphere: its centre is
+    // further than its radius from the axial cube along x (5.25 - 1 > 4)
+    expect(fixture.origin[0] - fixture.other.radius).toBeGreaterThan(
+      fixture.prime.radius,
+    );
+  });
+
+  it("gives the C's answer for a rotated other, not the axis-aligned one", () => {
+    for (const id of ["octree-rotated-45-z", "octree-rotated-oblique-axis"]) {
+      const fixture = pairById(id);
+      const aligned = isHitByOctreeReference(
+        fixture.prime,
+        fixture.other,
+        fixture.origin,
+        IDENTITY_IJK,
+      );
+      expect(aligned, id).not.toBe(fixture.expected.hit);
+      expect(fixture.wegoliteBasis, id).toBeDefined();
+    }
+    // the oblique turn is about an axis with x, y and z components
+    const [i, j, k] = pairById("octree-rotated-oblique-axis").ijk;
+    const axis = [j[2] - k[1], k[0] - i[2], i[1] - j[0]];
+    for (const component of axis)
+      expect(Math.abs(component)).toBeGreaterThan(0.1);
+  });
+
+  it("carries every rotated basis in Wegolite axes, and S B S is not B", () => {
+    const rotated = fixtures
+      .flatMap((f) =>
+        f.kind === "pair"
+          ? [{ ijk: f.ijk, basis: f.wegoliteBasis }]
+          : [f.prime, f.other].map((h) => ({
+              ijk: h.ijk,
+              basis: h.wegoliteBasis,
+            })),
+      )
+      .filter((entry) => entry.basis !== undefined);
+    expect(rotated.length).toBeGreaterThanOrEqual(2);
+    for (const { ijk, basis } of rotated) {
+      expect(basis).toEqual(wegoliteBasisOf(ijk));
+      const plain = [0, 1, 2].map((r) =>
+        [0, 1, 2].map((c) => ijk[c]?.[r] ?? 0),
+      );
+      expect(basis).not.toEqual(plain);
+    }
+  });
+
+  it("keeps the C's transposed child placement (:552) where it disagrees with geometry", () => {
+    const fixture = pairById("octree-rotated-decomposition-transposed");
+    const brute = bruteForceOverlap(
+      fixture.prime,
+      fixture.other,
+      fixture.origin,
+      fixture.ijk,
+    );
+    expect(fixture.expected.hit).toBe(false);
+    expect(brute.overlap).toBe(true);
+    // deeper than any crude-prune slack: the prunes alone cannot explain it
+    const slack =
+      (Math.sqrt(3) - 1) * Math.max(fixture.prime.radius, fixture.other.radius);
+    expect(brute.depth).toBeGreaterThan(slack);
+  });
+
+  it("keeps the prime axial: each prime-role fixture flips under its own mutant", () => {
+    const smaller = pairById("octree-prime-smaller-axial-prime");
+    expect(smaller.prime.radius).toBeLessThan(smaller.other.radius);
+    expect(
+      largerAlwaysAxial(
+        smaller.prime,
+        smaller.other,
+        smaller.origin,
+        smaller.ijk,
+      ),
+    ).not.toBe(smaller.expected.hit);
+    const larger = pairById("octree-prime-larger-axial-prime");
+    expect(larger.prime.radius).toBeGreaterThan(larger.other.radius);
+    expect(
+      smallerAlwaysAxial(larger.prime, larger.other, larger.origin, larger.ijk),
+    ).not.toBe(larger.expected.hit);
+  });
+
+  it("returns the other for a subentity-against-subentity contact (stage 2 recursion)", () => {
+    const fixture = byId("octree-sub-sub-returns-other");
+    if (fixture.kind !== "compose") throw new Error("compose fixture expected");
+    // the hulls alone do not touch, nor the prime hull and the other's subentity
+    const bare = (hull: typeof fixture.prime) => ({ ...hull, subentities: [] });
+    expect(
+      doOctreesCollideReference(bare(fixture.prime), bare(fixture.other)),
+    ).toBe("none");
+    expect(doOctreesCollideReference(bare(fixture.prime), fixture.other)).toBe(
+      "none",
+    );
+    expect(doOctreesCollideReference(fixture.prime, fixture.other)).toBe(
+      "other",
+    );
+  });
+
+  it("places boundary fixtures on float32-exact coordinates", () => {
+    const boundary = pairs.filter((f) => f.boundary);
+    expect(boundary.length).toBeGreaterThanOrEqual(3);
+    for (const fixture of boundary) {
+      for (const value of [
+        ...fixture.origin,
+        fixture.prime.radius,
+        fixture.other.radius,
+      ]) {
+        expect(Math.fround(value), fixture.id).toBe(value);
+      }
+    }
+  });
+});
+
+/**
+ * The crude-prune slack. `isHitByOctree` compares the smaller node's
+ * inscribed-sphere box (half-width r, `Octree.m:497-512`) with the larger
+ * node's cube, while the smaller node's cube reaches sqrt(3) r from its
+ * centre. So (a) a rejected pair can still have cells overlapping by less
+ * than (sqrt(3) - 1) r along the larger node's face axis, and (b) a passed
+ * solid pair can be up to (sqrt(3) - 1) r apart (the sphere box's corner
+ * reaches further than the cube when the frames differ). r is at most the
+ * larger root half-width, so `(sqrt(3) - 1) max(root radii)` bounds both.
+ * The loop draws symmetric poses only (identity and half turns), where the
+ * C's child placement at :552 (`B^T`) equals the geometric one (`B`); the
+ * fixture `octree-rotated-decomposition-transposed` pins the asymmetric case.
+ */
+describe("soundness and completeness of the reference (seeded, depth-2 trees)", () => {
+  const random = lcg(0x18_02);
+  const radii = [1, 2, 3, 4, 6, 8];
+
+  function randomTree(depth: number, inner: number): OctNode {
+    const r = random();
+    if (depth > 0 && r < inner) {
+      return Array.from({ length: 8 }, () =>
+        randomTree(depth - 1, inner * 0.6),
+      );
+    }
+    return r < inner + 0.35 ? -1 : 0;
+  }
+
+  function halfTurn(): Ijk {
+    let n: Vec3 = [0, 0, 0];
+    while (Math.hypot(n[0], n[1], n[2]) < 0.2) {
+      n = [random() * 2 - 1, random() * 2 - 1, random() * 2 - 1];
+    }
+    const l = Math.hypot(n[0], n[1], n[2]);
+    const u: Vec3 = [n[0] / l, n[1] / l, n[2] / l];
+    const b = (r: number, c: number): number =>
+      2 * (u[r] ?? 0) * (u[c] ?? 0) - (r === c ? 1 : 0);
+    return [
+      [b(0, 0), b(1, 0), b(2, 0)],
+      [b(0, 1), b(1, 1), b(2, 1)],
+      [b(0, 2), b(1, 2), b(2, 2)],
+    ];
+  }
+
+  it("never invents a contact and never over-prunes beyond the slack (1000 cases)", () => {
+    let hits = 0;
+    let deep = 0;
+    let prunedWithinSlack = 0;
+    for (let n = 0; n < 1000; n += 1) {
+      const prime: OctreeData = {
+        radius: radii[Math.floor(random() * radii.length)] ?? 1,
+        root: randomTree(2, 0.5),
+      };
+      const other: OctreeData = {
+        radius: radii[Math.floor(random() * radii.length)] ?? 1,
+        root: randomTree(2, 0.5),
+      };
+      const identity = random() < 0.4;
+      const ijk = identity ? IDENTITY_IJK : halfTurn();
+      const spread = (prime.radius + other.radius) * 1.2;
+      const origin: Vec3 = [
+        (random() * 2 - 1) * spread,
+        (random() * 2 - 1) * spread,
+        (random() * 2 - 1) * spread,
+      ];
+      const hit = isHitByOctreeReference(prime, other, origin, ijk);
+      const brute = bruteForceOverlap(prime, other, origin, ijk);
+      const slack = (Math.sqrt(3) - 1) * Math.max(prime.radius, other.radius);
+      const label = JSON.stringify({ prime, other, origin, ijk });
+      // soundness: a reported hit has solid cells at most the slack apart
+      if (hit) expect(brute.depth, label).toBeGreaterThanOrEqual(-slack);
+      // completeness: cells overlapping deeper than the slack are a hit
+      if (brute.depth > slack) expect(hit, label).toBe(true);
+      // with identity axes every prune is exact: hit if and only if overlap
+      if (identity) expect(hit, label).toBe(brute.overlap);
+      if (hit) hits += 1;
+      if (brute.depth > slack) deep += 1;
+      if (!hit && brute.overlap) prunedWithinSlack += 1;
+    }
+    // non-vacuity: the loop reaches hits, deep overlaps and crude-prune misses
+    expect(hits).toBeGreaterThan(50);
+    expect(deep).toBeGreaterThan(20);
+    expect(prunedWithinSlack).toBeGreaterThan(0);
   });
 });
