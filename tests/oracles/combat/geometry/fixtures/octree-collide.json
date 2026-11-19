@@ -1,1 +1,992 @@
-[]
+[
+  {
+    "id": "octree-single-cells-overlap-hit",
+    "title": "Two solid single-cell trees whose cubes overlap collide",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 1,
+      "root": -1
+    },
+    "other": {
+      "radius": 1,
+      "root": -1
+    },
+    "origin": [1, 0.5, 0],
+    "ijk": [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ],
+    "boundary": false,
+    "prunedCorner": false,
+    "expected": {
+      "hit": true
+    },
+    "geometry": {
+      "bruteForceOverlap": true,
+      "depth": 1
+    }
+  },
+  {
+    "id": "octree-single-cells-one-metre-apart-miss",
+    "title": "Two unit-half-width cubes one metre apart on x do not collide",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 1,
+      "root": -1
+    },
+    "other": {
+      "radius": 1,
+      "root": -1
+    },
+    "origin": [3, 0, 0],
+    "ijk": [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ],
+    "boundary": true,
+    "prunedCorner": false,
+    "expected": {
+      "hit": false
+    },
+    "geometry": {
+      "bruteForceOverlap": false,
+      "depth": -1
+    }
+  },
+  {
+    "id": "octree-single-cells-face-touch-hit",
+    "title": "Cubes touching exactly on a face collide: the prune at :504-512 rejects only on a strict compare (equal radii)",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 1,
+      "root": -1
+    },
+    "other": {
+      "radius": 1,
+      "root": -1
+    },
+    "origin": [2, 0, 0],
+    "ijk": [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ],
+    "boundary": true,
+    "prunedCorner": false,
+    "expected": {
+      "hit": true
+    },
+    "geometry": {
+      "bruteForceOverlap": true,
+      "depth": 0
+    }
+  },
+  {
+    "id": "octree-single-cells-face-touch-smaller-other-hit",
+    "title": "A smaller other touching the axial cube exactly on a face collides: the prune at :497-503 rejects only on a strict compare",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 2,
+      "root": -1
+    },
+    "other": {
+      "radius": 1,
+      "root": -1
+    },
+    "origin": [3, 0.5, 0],
+    "ijk": [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ],
+    "boundary": true,
+    "prunedCorner": false,
+    "expected": {
+      "hit": true
+    },
+    "geometry": {
+      "bruteForceOverlap": true,
+      "depth": 0
+    }
+  },
+  {
+    "id": "octree-depth2-face-contact-hit",
+    "title": "Depth-2 trees whose only solid leaves touch on the x = 4 face collide",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 4,
+      "root": [0, 0, 0, 0, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, -1]]
+    },
+    "other": {
+      "radius": 4,
+      "root": [[-1, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0, 0, 0]
+    },
+    "origin": [8, 6, 6],
+    "ijk": [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ],
+    "boundary": true,
+    "prunedCorner": false,
+    "expected": {
+      "hit": true
+    },
+    "geometry": {
+      "bruteForceOverlap": true,
+      "depth": 0
+    }
+  },
+  {
+    "id": "octree-depth2-gap-miss",
+    "title": "The same depth-2 leaves half a metre apart do not collide",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 4,
+      "root": [0, 0, 0, 0, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, -1]]
+    },
+    "other": {
+      "radius": 4,
+      "root": [[-1, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0, 0, 0, 0]
+    },
+    "origin": [8.5, 6, 6],
+    "ijk": [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ],
+    "boundary": true,
+    "prunedCorner": false,
+    "expected": {
+      "hit": false
+    },
+    "geometry": {
+      "bruteForceOverlap": false,
+      "depth": -0.5
+    }
+  },
+  {
+    "id": "octree-depth2-deep-overlap-hit",
+    "title": "Two dense depth-2 trees deeply interpenetrating collide",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 4,
+      "root": [0, -1, 0, -1, -1, 0, 0, -1]
+    },
+    "other": {
+      "radius": 3,
+      "root": [-1, -1, -1, 0, -1, 0, 0, -1]
+    },
+    "origin": [1, 0.5, -0.5],
+    "ijk": [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ],
+    "boundary": false,
+    "prunedCorner": false,
+    "expected": {
+      "hit": true
+    },
+    "geometry": {
+      "bruteForceOverlap": true,
+      "depth": 2.5
+    }
+  },
+  {
+    "id": "octree-depth2-clear-miss",
+    "title": "The same dense trees far apart are pruned at the root",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 4,
+      "root": [0, -1, 0, -1, -1, 0, 0, -1]
+    },
+    "other": {
+      "radius": 3,
+      "root": [-1, -1, -1, 0, -1, 0, 0, -1]
+    },
+    "origin": [20, 1, 0],
+    "ijk": [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ],
+    "boundary": false,
+    "prunedCorner": false,
+    "expected": {
+      "hit": false
+    },
+    "geometry": {
+      "bruteForceOverlap": false,
+      "depth": -13
+    }
+  },
+  {
+    "id": "octree-rotated-45-z",
+    "title": "A depth-1 other turned 45 degrees about z: the C's answer, which differs from the axis-aligned answer",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 4,
+      "root": [0, 0, -1, -1, 0, 0, 0, -1]
+    },
+    "other": {
+      "radius": 4,
+      "root": [0, 0, 0, 0, -1, 0, 0, 0]
+    },
+    "origin": [-4.5, 8, -1],
+    "ijk": [
+      [0.7071067811865476, 0.7071067811865475, 0],
+      [-0.7071067811865475, 0.7071067811865476, 0],
+      [0, 0, 1]
+    ],
+    "wegoliteBasis": [
+      [0.7071067811865476, -0.7071067811865475, 0],
+      [0.7071067811865475, 0.7071067811865476, 0],
+      [0, 0, 1]
+    ],
+    "boundary": false,
+    "prunedCorner": false,
+    "expected": {
+      "hit": false
+    },
+    "geometry": {
+      "bruteForceOverlap": false,
+      "depth": -1.1715728752538102
+    }
+  },
+  {
+    "id": "octree-rotated-oblique-axis",
+    "title": "A depth-1 other turned 50 degrees about (1, 2, 3): the C's answer, which differs from the axis-aligned answer",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 4,
+      "root": [0, 0, -1, -1, 0, 0, 0, -1]
+    },
+    "other": {
+      "radius": 4,
+      "root": [0, 0, 0, 0, -1, 0, 0, 0]
+    },
+    "origin": [-4.5, 8, -1],
+    "ijk": [
+      [0.6683027804232151, 0.6652323091576204, -0.3329224662461519],
+      [-0.5631716262109174, 0.7448482926332424, 0.35782501364814423],
+      [0.4860134906662065, -0.05164296480803501, 0.8724241463166214]
+    ],
+    "wegoliteBasis": [
+      [0.6683027804232151, -0.5631716262109174, -0.4860134906662065],
+      [0.6652323091576204, 0.7448482926332424, 0.05164296480803501],
+      [0.3329224662461519, -0.35782501364814423, 0.8724241463166214]
+    ],
+    "boundary": false,
+    "prunedCorner": false,
+    "expected": {
+      "hit": false
+    },
+    "geometry": {
+      "bruteForceOverlap": false,
+      "depth": -1.02060682946703
+    }
+  },
+  {
+    "id": "octree-rotated-decomposition-transposed",
+    "title": "A rotated, decomposed other where the C (children placed by resolveVectorInIJK, :552, the transpose of the geometric map) disagrees with exact geometry",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901",
+      "src/Core/Octree.m:550-554",
+      "src/Core/Octree.m:505-508"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 4,
+      "root": [-1, 0, -1, 0, 0, 0, 0, -1]
+    },
+    "other": {
+      "radius": 4,
+      "root": [-1, -1, 0, 0, 0, 0, 0, 0]
+    },
+    "origin": [-3.5, 5, 0],
+    "ijk": [
+      [0.7071067811865476, 0.7071067811865475, 0],
+      [-0.7071067811865475, 0.7071067811865476, 0],
+      [0, 0, 1]
+    ],
+    "wegoliteBasis": [
+      [0.7071067811865476, -0.7071067811865475, 0],
+      [0.7071067811865475, 0.7071067811865476, 0],
+      [0, 0, 1]
+    ],
+    "boundary": false,
+    "prunedCorner": false,
+    "expected": {
+      "hit": false
+    },
+    "geometry": {
+      "bruteForceOverlap": true,
+      "depth": 3.32842712474619
+    }
+  },
+  {
+    "id": "octree-pruned-corner",
+    "title": "A rotated single-cell other whose cube corner reaches into the axial tree's corner leaf outside its inscribed sphere: the crude prune at :497-503 rejects, exact geometry overlaps",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 4,
+      "root": [0, 0, 0, 0, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, -1]]
+    },
+    "other": {
+      "radius": 1,
+      "root": -1
+    },
+    "origin": [5.25, 3, 3],
+    "ijk": [
+      [0.7071067811865476, 0.7071067811865475, 0],
+      [-0.7071067811865475, 0.7071067811865476, 0],
+      [0, 0, 1]
+    ],
+    "wegoliteBasis": [
+      [0.7071067811865476, -0.7071067811865475, 0],
+      [0.7071067811865475, 0.7071067811865476, 0],
+      [0, 0, 1]
+    ],
+    "boundary": false,
+    "prunedCorner": true,
+    "expected": {
+      "hit": false
+    },
+    "geometry": {
+      "bruteForceOverlap": true,
+      "depth": 0.16421356237309492
+    }
+  },
+  {
+    "id": "octree-prime-smaller-axial-prime",
+    "title": "Prime is the smaller tree and stays axial: the C's answer, which a larger-always-axial port gets wrong",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 2,
+      "root": [0, 0, 0, -1, 0, 0, -1, 0]
+    },
+    "other": {
+      "radius": 4,
+      "root": [0, 0, 0, -1, 0, 0, -1, -1]
+    },
+    "origin": [-2, 1.5, -1.5],
+    "ijk": [
+      [0.7071067811865476, 0.7071067811865475, 0],
+      [-0.7071067811865475, 0.7071067811865476, 0],
+      [0, 0, 1]
+    ],
+    "wegoliteBasis": [
+      [0.7071067811865476, -0.7071067811865475, 0],
+      [0.7071067811865475, 0.7071067811865476, 0],
+      [0, 0, 1]
+    ],
+    "boundary": false,
+    "prunedCorner": false,
+    "expected": {
+      "hit": true
+    },
+    "geometry": {
+      "bruteForceOverlap": true,
+      "depth": 0.3535533905932735
+    }
+  },
+  {
+    "id": "octree-prime-larger-axial-prime",
+    "title": "Prime is the larger tree and stays axial: the C's answer, which a smaller-always-axial port gets wrong",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 4,
+      "root": [0, 0, 0, -1, 0, 0, -1, 0]
+    },
+    "other": {
+      "radius": 2,
+      "root": -1
+    },
+    "origin": [4.5, 3, 1.5],
+    "ijk": [
+      [0.7071067811865476, 0.7071067811865475, 0],
+      [-0.7071067811865475, 0.7071067811865476, 0],
+      [0, 0, 1]
+    ],
+    "wegoliteBasis": [
+      [0.7071067811865476, -0.7071067811865475, 0],
+      [0.7071067811865475, 0.7071067811865476, 0],
+      [0, 0, 1]
+    ],
+    "boundary": false,
+    "prunedCorner": false,
+    "expected": {
+      "hit": true
+    },
+    "geometry": {
+      "bruteForceOverlap": true,
+      "depth": 0.5
+    }
+  },
+  {
+    "id": "octree-empty-prime-root-miss",
+    "title": "An empty prime root never collides, even inside the other",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 2,
+      "root": 0
+    },
+    "other": {
+      "radius": 2,
+      "root": -1
+    },
+    "origin": [0, 0, 0],
+    "ijk": [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ],
+    "boundary": false,
+    "prunedCorner": false,
+    "expected": {
+      "hit": false
+    },
+    "geometry": {
+      "bruteForceOverlap": false,
+      "depth": null
+    }
+  },
+  {
+    "id": "octree-empty-other-root-miss",
+    "title": "An empty other root never collides, even inside the prime",
+    "citations": [
+      "src/Core/Octree.m:473-595",
+      "src/Core/Octree.m:597-607",
+      "src/Core/Octree.m:158-161",
+      "src/Core/Octree.m:70-70",
+      "src/Core/OOTriangle.h:58-65",
+      "src/Core/Entities/ShipEntity.m:1884-1901"
+    ],
+    "kind": "pair",
+    "prime": {
+      "radius": 2,
+      "root": -1
+    },
+    "other": {
+      "radius": 2,
+      "root": 0
+    },
+    "origin": [0.5, 0, 0],
+    "ijk": [
+      [1, 0, 0],
+      [0, 1, 0],
+      [0, 0, 1]
+    ],
+    "boundary": false,
+    "prunedCorner": false,
+    "expected": {
+      "hit": false
+    },
+    "geometry": {
+      "bruteForceOverlap": false,
+      "depth": null
+    }
+  },
+  {
+    "id": "octree-compose-hull-hull-returns-other",
+    "title": "Hull against hull touches first (:1896-1901): the result is the other",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1878-1942",
+      "src/Core/Entities/ShipEntity.m:2008-2025",
+      "src/Core/Entities/Entity.m:632-646",
+      "src/Core/Octree.m:473-607"
+    ],
+    "kind": "compose",
+    "prime": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [0, 0, 0],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": [
+        {
+          "octree": {
+            "radius": 1,
+            "root": -1
+          },
+          "offset": [0, 0, 4]
+        }
+      ]
+    },
+    "other": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [1.5, 0, 0],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": [
+        {
+          "octree": {
+            "radius": 1,
+            "root": -1
+          },
+          "offset": [0, 0, -4]
+        }
+      ]
+    },
+    "expected": {
+      "result": "other"
+    }
+  },
+  {
+    "id": "octree-compose-prime-sub-other-hull-returns-other",
+    "title": "Only a prime subentity touches the other's hull: stage 2 (:1903-1912) returns the other",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1878-1942",
+      "src/Core/Entities/ShipEntity.m:2008-2025",
+      "src/Core/Entities/Entity.m:632-646",
+      "src/Core/Octree.m:473-607"
+    ],
+    "kind": "compose",
+    "prime": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [0, 0, 0],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": [
+        {
+          "octree": {
+            "radius": 1,
+            "root": -1
+          },
+          "offset": [0, 0, 4]
+        }
+      ]
+    },
+    "other": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [0, 0, 5.5],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": []
+    },
+    "expected": {
+      "result": "other"
+    }
+  },
+  {
+    "id": "octree-compose-prime-hull-other-sub-returns-subentity",
+    "title": "Only the other's second subentity touches the prime hull: stage 3 (:1914-1923) returns that subentity",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1878-1942",
+      "src/Core/Entities/ShipEntity.m:2008-2025",
+      "src/Core/Entities/Entity.m:632-646",
+      "src/Core/Octree.m:473-607"
+    ],
+    "kind": "compose",
+    "prime": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [0, 0, 0],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": []
+    },
+    "other": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [0, 0, 8],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": [
+        {
+          "octree": {
+            "radius": 1,
+            "root": -1
+          },
+          "offset": [0, 4, 0]
+        },
+        {
+          "octree": {
+            "radius": 1,
+            "root": -1
+          },
+          "offset": [0, 0, -6.5]
+        }
+      ]
+    },
+    "expected": {
+      "result": {
+        "otherSubentity": 1
+      }
+    }
+  },
+  {
+    "id": "octree-sub-sub-returns-other",
+    "title": "Only a prime subentity touches an other subentity: stage 2 recurses with the whole other and returns the other; stage 4 (:1925-1938) is never reached",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1878-1942",
+      "src/Core/Entities/ShipEntity.m:2008-2025",
+      "src/Core/Entities/Entity.m:632-646",
+      "src/Core/Octree.m:473-607"
+    ],
+    "kind": "compose",
+    "prime": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [0, 0, 0],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": [
+        {
+          "octree": {
+            "radius": 1,
+            "root": -1
+          },
+          "offset": [0, 0, 4]
+        }
+      ]
+    },
+    "other": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [0, 0, 10],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": [
+        {
+          "octree": {
+            "radius": 1,
+            "root": -1
+          },
+          "offset": [0, 0, -4.5]
+        }
+      ]
+    },
+    "expected": {
+      "result": "other"
+    }
+  },
+  {
+    "id": "octree-compose-none",
+    "title": "Hulls and subentities near but apart: no stage collides",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1878-1942",
+      "src/Core/Entities/ShipEntity.m:2008-2025",
+      "src/Core/Entities/Entity.m:632-646",
+      "src/Core/Octree.m:473-607"
+    ],
+    "kind": "compose",
+    "prime": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [0, 0, 0],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": [
+        {
+          "octree": {
+            "radius": 1,
+            "root": -1
+          },
+          "offset": [0, 0, 4]
+        }
+      ]
+    },
+    "other": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [0, 0, 11],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": [
+        {
+          "octree": {
+            "radius": 1,
+            "root": -1
+          },
+          "offset": [0, 0, -4]
+        }
+      ]
+    },
+    "expected": {
+      "result": "none"
+    }
+  },
+  {
+    "id": "octree-compose-empty-roots-never-collide",
+    "title": "Coincident hulls and subentities with empty roots never collide",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1878-1942",
+      "src/Core/Entities/ShipEntity.m:2008-2025",
+      "src/Core/Entities/Entity.m:632-646",
+      "src/Core/Octree.m:473-607"
+    ],
+    "kind": "compose",
+    "prime": {
+      "octree": {
+        "radius": 1,
+        "root": 0
+      },
+      "position": [0, 0, 0],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": [
+        {
+          "octree": {
+            "radius": 1,
+            "root": 0
+          },
+          "offset": [0, 0, 0]
+        }
+      ]
+    },
+    "other": {
+      "octree": {
+        "radius": 1,
+        "root": 0
+      },
+      "position": [0, 0, 0],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": [
+        {
+          "octree": {
+            "radius": 1,
+            "root": 0
+          },
+          "offset": [0, 0, 0]
+        }
+      ]
+    },
+    "expected": {
+      "result": "none"
+    }
+  },
+  {
+    "id": "octree-compose-rotated-prime-sub-offset",
+    "title": "A prime turned so its forward axis is world +x carries its subentity offset (0, 0, 6) to world (6, 0, 0), where it touches the other: stage 2 returns the other",
+    "citations": [
+      "src/Core/Entities/ShipEntity.m:1878-1942",
+      "src/Core/Entities/ShipEntity.m:2008-2025",
+      "src/Core/Entities/Entity.m:632-646",
+      "src/Core/Octree.m:473-607"
+    ],
+    "kind": "compose",
+    "prime": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [0, 0, 0],
+      "ijk": [
+        [0, 0, -1],
+        [0, 1, 0],
+        [1, 0, 0]
+      ],
+      "wegoliteBasis": [
+        [0, 0, -1],
+        [0, 1, 0],
+        [1, 0, 0]
+      ],
+      "subentities": [
+        {
+          "octree": {
+            "radius": 1,
+            "root": -1
+          },
+          "offset": [0, 0, 6]
+        }
+      ]
+    },
+    "other": {
+      "octree": {
+        "radius": 1,
+        "root": -1
+      },
+      "position": [7.5, 0, 0],
+      "ijk": [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1]
+      ],
+      "subentities": []
+    },
+    "expected": {
+      "result": "other"
+    }
+  }
+]

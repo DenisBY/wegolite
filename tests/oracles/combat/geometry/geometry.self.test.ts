@@ -793,7 +793,7 @@ describe("octree fixtures (octree-collide.json)", () => {
       expect(Math.abs(component)).toBeGreaterThan(0.1);
   });
 
-  it("carries every rotated basis in Wegolite axes, and S B S is not B", () => {
+  it("carries every rotated basis in Wegolite axes (S B S)", () => {
     const rotated = fixtures
       .flatMap((f) =>
         f.kind === "pair"
@@ -805,12 +805,71 @@ describe("octree fixtures (octree-collide.json)", () => {
       )
       .filter((entry) => entry.basis !== undefined);
     expect(rotated.length).toBeGreaterThanOrEqual(2);
-    for (const { ijk, basis } of rotated) {
-      expect(basis).toEqual(wegoliteBasisOf(ijk));
-      const plain = [0, 1, 2].map((r) =>
-        [0, 1, 2].map((c) => ijk[c]?.[r] ?? 0),
+    // Largest entry-wise difference; numeric, because JSON stores -0 as 0.
+    const gap = (
+      a: readonly (readonly number[])[],
+      b: readonly (readonly number[])[],
+    ): number =>
+      Math.max(
+        ...[0, 1, 2].flatMap((r) =>
+          [0, 1, 2].map((c) =>
+            Math.abs((a[r]?.[c] ?? NaN) - (b[r]?.[c] ?? NaN)),
+          ),
+        ),
       );
-      expect(basis).not.toEqual(plain);
+    for (const { ijk, basis } of rotated) {
+      if (basis === undefined) throw new Error("filtered above");
+      expect(gap(basis, wegoliteBasisOf(ijk))).toBeLessThanOrEqual(1e-12);
+    }
+
+    // The oblique turn defeats a port that maps the quaternion by negating
+    // one component: B as a unit quaternion (w, x, y, z); S B S is the turn
+    // (w, -x, -y, z); every single-component negation lands elsewhere.
+    const oblique = pairById("octree-rotated-oblique-axis");
+    const b = [0, 1, 2].map((r) =>
+      [0, 1, 2].map((c) => oblique.ijk[c]?.[r] ?? 0),
+    );
+    const at = (r: number, c: number): number => b[r]?.[c] ?? NaN;
+    const w = Math.sqrt(1 + at(0, 0) + at(1, 1) + at(2, 2)) / 2;
+    const q = [
+      w,
+      (at(2, 1) - at(1, 2)) / (4 * w),
+      (at(0, 2) - at(2, 0)) / (4 * w),
+      (at(1, 0) - at(0, 1)) / (4 * w),
+    ];
+    const matrixOf = ([
+      qw = 0,
+      qx = 0,
+      qy = 0,
+      qz = 0,
+    ]: number[]): number[][] => [
+      [
+        1 - 2 * (qy * qy + qz * qz),
+        2 * (qx * qy - qz * qw),
+        2 * (qx * qz + qy * qw),
+      ],
+      [
+        2 * (qx * qy + qz * qw),
+        1 - 2 * (qx * qx + qz * qz),
+        2 * (qy * qz - qx * qw),
+      ],
+      [
+        2 * (qx * qz - qy * qw),
+        2 * (qy * qz + qx * qw),
+        1 - 2 * (qx * qx + qy * qy),
+      ],
+    ];
+    expect(gap(matrixOf(q), b)).toBeLessThanOrEqual(1e-12);
+    const basis = oblique.wegoliteBasis ?? [];
+    const [qw = 0, qx = 0, qy = 0, qz = 0] = q;
+    expect(gap(matrixOf([qw, -qx, -qy, qz]), basis)).toBeLessThanOrEqual(1e-12);
+    for (const negated of [0, 1, 2, 3]) {
+      const mutant = q.map((value, index) =>
+        index === negated ? -value : value,
+      );
+      expect(gap(matrixOf(mutant), basis), `negate ${negated}`).toBeGreaterThan(
+        0.1,
+      );
     }
   });
 
