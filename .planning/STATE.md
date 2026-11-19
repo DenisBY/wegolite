@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: 11
+current_plan: 12
 status: executing
-stopped_at: Completed 18-17-PLAN.md
-last_updated: "2026-11-19T22:01:09.491Z"
+stopped_at: Completed 18-04-PLAN.md
+last_updated: "2026-11-19T22:31:45.214Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: 848a2d68867e3cc9454ce082b135e8413132daa9
+state_head: 9d11932b6783f329641cd37deb6675465c1e637e
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 38
+  completed_plans: 39
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 11
+Current Plan: 12
 Total Plans in Phase: 22
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 18 execution started
@@ -223,6 +223,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 18 P09 | 24 min | 2 tasks | 5 files |
 | Phase 18 P16 | 16min | 2 tasks | 6 files |
 | Phase 18 P17 | 16min | 2 tasks | 6 files |
+| Phase 18 P04 | 28 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -567,6 +568,7 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-16: a degenerate collision input (mass not finite or not positive as a float, or any non-finite response number) is separating: the pair gets nothing (T-18-21)
 - [Phase 18]: 18-16: the player's scrape keeps 'a non-positive amount is no damage'; Oolite's negative-amount sign flip (PlayerEntity.m:5710-5713) is unported and unreachable (the response never produces negative damage); fixture scrape-negative-amount-made-positive is held to that divergence, FIDELITY row due at 18-12
 - [Phase 18]: 18-17: NPC and buoy drift is one float32 pass (brakeShipDrift, 5 x thrust x dt) after the whole steering loop; a later ship's steering reads an earlier ship's pre-drift position, unlike Oolite's per-ship update (recorded for the FIDELITY walk)
+- [Phase 18]: 18-04: Statics are laser targets through Oolite's subentity rule; the station joins the candidates first (id 3, stationPose) and only absorbs hits (A6); FIDELITY E-48 quotes ShipEntity.m:1337-1354, the two-stage excerpt moved to E-118
 
 ### Pending Todos
 
@@ -706,8 +708,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-19T22:01:08.988Z
-Stopped at: Completed 18-17-PLAN.md
+Last session: 2026-11-19T22:31:44.790Z
+Stopped at: Completed 18-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
