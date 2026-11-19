@@ -316,13 +316,13 @@ Plans:
 **Pitfalls to address**: 4 (the acceptance harness), 9 (single contact: no energy gained or lost twice), 11 (statics are not world entities: the hull table and their poses), 12 (the collision rule's wrong half), 17 (pair cost)
 **Decisions to settle**: the Coriolis hull's file (one artifact or a separate file); the destroyed-buoy semantics above; the player's response to impact; supersede the Key Decisions row "Statics are neither laser nor ident targets"
 **Todos**: `2026-11-15-lasers-and-ident-hit-stations-and-buoys.md` (closed by CBT-17); `2026-11-14-make-buoys-block-hyperspace-like-oolite.md` touches the same fixture and is a candidate to fold in by owner decision, not a requirement; `2026-11-10-add-planet-and-sun-collision.md` loses its buoy half to CBT-18 (planet and sun stay unscheduled)
-**Plans**: 2/22 plans executed; 22 plans in 13 waves (revised twice after plan checks and after two cross-AI review rounds; owner decisions PD-01..PD-08 in `18-CONTEXT.md`)
+**Plans**: 3/22 plans executed; 22 plans in 13 waves (revised twice after plan checks and after two cross-AI review rounds; owner decisions PD-01..PD-08 in `18-CONTEXT.md`)
 
 Plans:
 **Wave 1**
 - [x] 18-01-PLAN.md — DATA-15, criterion 1: measure the Coriolis octree in the `assets` container (first plan); the static hulls (Coriolis + 3 subentities, buoy + 1, barrel, alloy) ship as their own lazy file under a strict schema, golden and drift gate; Key Decision row, provenance
 - [x] 18-02-PLAN.md — CBT-17, CBT-18: independent geometry oracle: dock-mouth and buoy beam fixtures from the vendored meshes, and a reference for Oolite's octree-against-octree test
-- [ ] 18-03-PLAN.md — CBT-18: independent response oracle: `collideWithShip`, drift braking, the player's scrape and the blast, each fixture derived from the C lines
+- [x] 18-03-PLAN.md — CBT-18: independent response oracle: `collideWithShip`, drift braking, the player's scrape and the blast, each fixture derived from the C lines
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 18-10-PLAN.md — CBT-18: the player's drift (`FlightState.drift`), integrated and power-braked by raw thrust
@@ -461,7 +461,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 15. Damage Ledger and Kills | v2.3 | 6/6 | Complete    | 2026-11-16 |
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 9/9 | Complete    | 2026-11-17 |
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
-| 18. Stations, Buoys and Collisions | v2.3 | 2/22 | In Progress | - |
+| 18. Stations, Buoys and Collisions | v2.3 | 3/22 | In Progress | - |
 | 19. Equipment Damage and Repair | v2.3 | 0/TBD | Not started | - |
 | 20. Player Death and Game Over | v2.3 | 0/TBD | Not started | - |
 

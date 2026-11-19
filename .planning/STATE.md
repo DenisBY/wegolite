@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: 3
+current_plan: 4
 status: executing
-stopped_at: Completed 18-02-PLAN.md
-last_updated: "2026-11-19T18:38:04.492Z"
+stopped_at: Completed 18-03-PLAN.md
+last_updated: "2026-11-19T19:11:18.737Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: 36c26c4f5749f87ccd0d368ee66810d1a4e1f662
+state_head: 0f0bb42dcee9d6debd807203b61f691b74c45f97
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 30
+  completed_plans: 31
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 3
+Current Plan: 4
 Total Plans in Phase: 22
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 18 execution started
@@ -215,6 +215,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 17 P13 | 20 min | 2 tasks | 9 files |
 | Phase 18 P01 | 15 min | 2 tasks | 12 files |
 | Phase 18 P02 | 44 min | 2 tasks | 8 files |
+| Phase 18 P03 | 30min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -541,6 +542,9 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-02: The octree oracle keeps Octree.m:552 as written (resolveVectorInIJK places a rotated other's children with the transposed basis); 18-09 must port the transpose, pinned by octree-rotated-decomposition-transposed
 - [Phase 18]: 18-02: Octree soundness and completeness hold within the crude-prune slack (sqrt(3)-1) x the larger root half-width; identity poses match brute force exactly
 - [Phase 18]: 18-02: No buoy subentity beam fixture: the best exact subentity win margin is 3.79 m against 13.58 m required
+- [Phase 18]: 18-03: response-oracle fixtures use a relative tolerance (|a - b| <= 1e-6 x |b| + 1e-9), since one absolute number per fixture was vacuous for small values beside large ones
+- [Phase 18]: 18-03: the oracle cross-check found three disputes with quoted figures (buoy carry after a 100 m/s ram is about 17.9 m with the nudge, not 10 m; a 350 m/s player ram destroys the buoy, so no 122 m carry; no net player rebound at 350 m/s because otherDestroyed reverses vel1a); 18-20's real-Oolite ram measurement decides
+- [Phase 18]: 18-03: the buoy subentity's collision radius 25.822647094726562 m is derived from oolite_buoy_subents.dat with OOMesh's rule (the same rule gives the buoy's 59.13554763793945)
 
 ### Pending Todos
 
@@ -680,8 +684,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-19T18:38:04.097Z
-Stopped at: Completed 18-02-PLAN.md
+Last session: 2026-11-19T19:11:18.328Z
+Stopped at: Completed 18-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
