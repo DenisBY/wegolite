@@ -20,8 +20,8 @@ Requirements for this milestone. Each maps to roadmap phases (numbering continue
 
 ### Combat
 
-- [ ] **CBT-15**: NPC ships fire lasers at the player and at each other through Oolite's fire gate (weapon temperature, energy, shot timer, range roll, `onTarget`). The decision to fire comes from the engine and test pilots only; NPCs do not attack in ordinary play (recorded in Key Decisions).
-- [ ] **CBT-16**: NPC hits on the player pass through shields and the energy bank by Oolite's rules.
+- [x] **CBT-15**: NPC ships fire lasers at the player and at each other through Oolite's fire gate (weapon temperature, energy, shot timer, range roll, `onTarget`). The decision to fire comes from the engine and test pilots only; NPCs do not attack in ordinary play (recorded in Key Decisions).
+- [x] **CBT-16**: NPC hits on the player pass through shields and the energy bank by Oolite's rules.
 - [ ] **CBT-17**: Lasers and ident hit the station and the navigation buoys; the station only absorbs hits, buoys (250 energy) hold damage and can be destroyed; subentities are ported as in Oolite.
 - [ ] **CBT-08**: A ship at zero energy explodes into wreckage, alloy plates and cargo pods by Oolite's cargo rule, under an entity cap of 256 with thresholds 243 and 128; internal hits damage the player's equipment.
 - [ ] **CBT-18**: Ship-ship and ship-buoy collisions damage both by Oolite's mass and closing-speed rule (octree against octree); contact with the station stays damage-free as in v1.
@@ -80,8 +80,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-14 | Phase 15 | Complete |
 | DATA-16 | Phase 16 | Complete |
 | WORLD-17 | Phase 16 | Complete |
-| CBT-15 | Phase 17 | Pending |
-| CBT-16 | Phase 17 | Pending |
+| CBT-15 | Phase 17 | Complete |
+| CBT-16 | Phase 17 | Complete |
 | DATA-15 | Phase 18 | Pending |
 | CBT-17 | Phase 18 | Pending |
 | CBT-18 | Phase 18 | Pending |

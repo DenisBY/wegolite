@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 17
 current_phase_name: NPC Fire and Hits on the Player
-current_plan: 3
+current_plan: 4
 status: executing
-stopped_at: Completed 17-12-PLAN.md
-last_updated: "2026-11-19T09:39:59.001Z"
+stopped_at: Completed 17-13-PLAN.md
+last_updated: "2026-11-19T09:55:03.734Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 17 execution resumed (wave continue)
-state_head: 606e145e6375555dc81eac5669d5ae336a8be68d
+state_head: 124c27ede266a0b552486785b816bd6561931106
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 28
-  completed_plans: 27
+  completed_plans: 28
   percent: 33
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 17 (NPC Fire and Hits on the Player) — EXECUTING
-Current Plan: 3
+Current Plan: 4
 Total Plans in Phase: 10
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 17 execution resumed (wave continue)
@@ -211,6 +211,7 @@ Last activity: 2026-11-19 — Phase 17 execution resumed (wave continue)
 | Phase 16 P09 | 21min | 2 tasks | 10 files |
 | Phase 17 P11 | 25 min | 2 tasks | 6 files |
 | Phase 17 P12 | 14 min | 3 tasks | 16 files |
+| Phase 17 P13 | 20 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -531,6 +532,7 @@ Recent decisions affecting current work:
 - [Phase 16]: 16-09: OC-1 to OC-7 recorded in PROJECT.md Key Decisions rows A to H as pending owner confirmation
 - [Phase 17]: G-17-1: the oracle shot-timer rule is Oolite's literal frame count at 120 Hz (pulse 60, beam 13, mining 301, military 13), D-07 revised by the owner 2026-11-19; fixtures re-derived by deriveGate/deriveHeat (plan 17-11); the port follows in 17-12
 - [Phase 17]: 17-12: NPC shot period is Oolite's literal frame count (pulse 60, beam 13, mining 301, military 13, unarmed 12000), a private double-sum port of shot_time read from a frozen table in fire.ts; the player's period untouched
+- [Phase 17]: 17-13: the HUD probe publishes the drawn gauges as hud.shieldFwd, hud.shieldAft and hud.energyBanks (always four numbers) read from ctx.core.lastModel.bars; the browser spec states Oolite's dial rules itself instead of importing the HUD's
 
 ### Pending Todos
 
@@ -668,8 +670,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-19T09:39:58.590Z
-Stopped at: Completed 17-12-PLAN.md
+Last session: 2026-11-19T09:55:03.189Z
+Stopped at: Completed 17-13-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
