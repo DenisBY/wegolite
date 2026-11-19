@@ -6,8 +6,8 @@
  * `fireWeapon:direction:range:` refusal chain and `onTarget:` as pure, total
  * functions, plus the three weapon-state updates the caller applies around it
  * (cooling, heating, the missed-shot counter). Nothing here writes entity
- * state and nothing calls the gate yet: plan 17-05 puts it on the fire-queue
- * drain.
+ * state; the one caller is the fire-queue drain in `src/sim/combat/step.ts`
+ * (plan 17-05).
  *
  * Sources (pin `7437f22`): the gate `ShipEntity.m:9933-9993`, `onTarget:`
  * 9851-9909, the cooling at the top of every update 2214-2218, and

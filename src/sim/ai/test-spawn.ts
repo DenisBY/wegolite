@@ -67,8 +67,8 @@ const HALF_TURN_ABOUT_UP = quat(0, 0, 1, 0);
  * The ship appears `TEST_SHOOTER_DISTANCE` metres along the player's nose, turned
  * half a turn about the player's own up axis so its nose points back at the
  * player. Its AI is a test pilot with `fire: true`, already in its hold phase
- * with the player as its target, so the first think fires and the shot meets the
- * player's hull by the shared hit rule. The target is the player by
+ * with the player as its target, so every think asks the NPC fire gate and each
+ * shot the gate lets out meets the player's hull by the shared hit rule. The target is the player by
  * construction, not by a scan: a station or planet nearer than the player could
  * otherwise win the scan and the shooter would fire at it instead.
  *

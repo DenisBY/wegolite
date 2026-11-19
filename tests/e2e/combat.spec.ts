@@ -56,7 +56,7 @@ const LAUNCH_TICKS = 300;
 /**
  * A bound well past the gate's first shots, not a think count: the beam-armed
  * Viper asks every tick and the NPC fire gate lets a shot out at most every 12
- * ticks (the first within 12 ticks of the spawn), so 360 ticks hold up to 30.
+ * ticks (the range roll may refuse some), so 360 ticks hold up to 30.
  */
 const SHOOTING_TICKS = 360;
 /** The chunk of manual ticks the kill step advances between scanner reads. */
