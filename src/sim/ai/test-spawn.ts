@@ -14,6 +14,11 @@
  *
  * `spawnTestFlyers` (plan 14-16) is the second seam of the same kind: three
  * flight-script ships for the `?test=1` flying-NPC hook and the acceptance run.
+ *
+ * `spawnTestAttacker` (plan 17-10, D-02) is the third: one Viper that attacks
+ * the player with Phase 14's attack behaviours and fires through the NPC fire
+ * gate. Like the others it is reachable only from the `?test=1` hook, which
+ * taints the session first, and it is for manual checks and UAT only.
  */
 
 import type { FlightState } from "../flight/state.js";
@@ -105,6 +110,60 @@ export function spawnTestShooter(
       maxEnergy: record.maxEnergy,
       energyRechargeRate: record.energyRechargeRate,
       ...(cargo === undefined ? {} : { cargo }),
+    },
+    tick,
+  ).ok;
+}
+
+/**
+ * How far ahead of the player the attacker appears, in metres: the flyers'
+ * distance, inside the beam laser's 15,000 m range and outside the shooter's
+ * 1,500 m, so the attack behaviours have room to close and break off.
+ */
+export const TEST_ATTACKER_DISTANCE = 3_000;
+
+/**
+ * Spawn one attacking NPC of `record` ahead of the player (Phase 17, D-02).
+ *
+ * The ship appears `TEST_ATTACKER_DISTANCE` metres along the player's nose,
+ * turned half a turn about the player's up axis so its nose points back at the
+ * player, as the shooter is placed. Its AI is a flight-script pilot whose
+ * params are exactly script `attack`, phase `start`, the player as its target
+ * (by construction, not by a scan), range 0, speed 0, frustrated 0 and
+ * `fire: true`: it flies Oolite's attack behaviours and asks the NPC fire gate
+ * at their fire sites, so its hits drain the player's shields and then energy.
+ *
+ * Returns whether the world accepted the ship. A record whose scan class is not
+ * in the closed vocabulary is refused (false), as the populator does. It is the
+ * third seam of its kind: world-side, reachable only from the `?test=1` hook
+ * (which taints the session before it calls this) and from tests; the populator
+ * never calls it.
+ */
+export function spawnTestAttacker(
+  world: World,
+  player: Pick<FlightState, "position" | "orientation">,
+  record: InertShipRecord,
+  tick: number,
+): boolean {
+  if (!isScanClass(record.scanClass)) return false;
+  const nose = rotate(player.orientation, LOCAL_FORWARD);
+  return spawnEntity(
+    world,
+    {
+      kind: "ship",
+      specKey: record.key,
+      scanClass: record.scanClass,
+      position: add(player.position, scale(nose, TEST_ATTACKER_DISTANCE)),
+      orientation: normalize(mul(player.orientation, HALF_TURN_ABOUT_UP)),
+      radius: record.radius,
+      speed: 0,
+      ai: createFlightScriptAi(tick, {
+        script: "attack",
+        targetId: PLAYER_ID,
+        fire: true,
+      }),
+      maxEnergy: record.maxEnergy,
+      energyRechargeRate: record.energyRechargeRate,
     },
     tick,
   ).ok;

@@ -339,6 +339,17 @@ export interface WegoliteSimTestHook {
    * it). It returns a boolean only and exposes no entity id.
    */
   spawnTestFlyers(): boolean;
+  /**
+   * Put one attacking NPC (a Viper) 3,000 m ahead of the player (Phase 17, D-02).
+   * It flies Oolite's attack behaviours at the player and fires through the NPC
+   * fire gate, so its hits drain the player's shields and then energy. For
+   * manual checks and UAT only: no browser spec drives it. It works only in
+   * flight with a live world and traffic content; otherwise it returns false
+   * and changes nothing. It marks the session tainted before it mutates the
+   * world, so no autosave can make the attacker durable. It returns a boolean
+   * only and exposes no entity id.
+   */
+  spawnTestAttacker(): boolean;
 }
 
 export interface WegoliteTestHook
@@ -600,6 +611,11 @@ export function createTestHook(
     },
     spawnTestFlyers: () => {
       if (!sim.spawnTestFlyers()) return false;
+      hook.tainted = true;
+      return true;
+    },
+    spawnTestAttacker: () => {
+      if (!sim.spawnTestAttacker()) return false;
       hook.tainted = true;
       return true;
     },

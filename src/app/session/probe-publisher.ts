@@ -24,6 +24,7 @@
  * Plan 13-14 adds `probe.combat` (values and a lock flag from the player's
  * combat state, never an entity id) and the hook member `spawnTestShooter`.
  * Plan 14-18 adds the hook member `spawnTestFlyers` (three scripted flying NPCs).
+ * Plan 17-10 adds `spawnTestAttacker` (one Viper that attacks the player and fires).
  */
 
 import type * as THREE from "three";
@@ -32,7 +33,11 @@ import type { FlightState } from "../../sim/flight/state.js";
 import type { Vec3 } from "../../sim/math.js";
 import { MAX_EQUIPMENT_KEYS, setCredits } from "../../sim/player/profile.js";
 import type { PlayerProfile } from "../../sim/player/profile.js";
-import { spawnTestFlyers, spawnTestShooter } from "../../sim/ai/test-spawn.js";
+import {
+  spawnTestAttacker,
+  spawnTestFlyers,
+  spawnTestShooter,
+} from "../../sim/ai/test-spawn.js";
 import { identTargetSnapshot } from "../../sim/combat/ident.js";
 import { hashWorld } from "../../sim/world/serialize.js";
 import { liveEntityCount } from "../../sim/world/world.js";
@@ -222,6 +227,33 @@ export function createProbePublisher(
   }
 
   /**
+   * The hook's attacking-NPC seam (Phase 17, D-02): one Viper 3,000 m ahead of
+   * the player that attacks it with Phase 14's attack behaviours and fires
+   * through the NPC fire gate. For manual checks and UAT only; no browser spec.
+   * It needs a ship in flight, a live world and the loaded traffic content with
+   * the Viper; anything else returns false and changes nothing, taint included.
+   * The session is tainted before the world is touched, so no autosave can make
+   * the attacker durable (T-17-24).
+   */
+  function spawnAttacker(): boolean {
+    const liveState = ctx.core.state;
+    if (
+      liveState === undefined ||
+      ctx.runtime.disposed ||
+      liveState.mode !== "inFlight"
+    ) {
+      return false;
+    }
+    const world = ctx.core.worldLifecycle?.world;
+    const record = ctx.core.npcTraffic?.records.find(
+      (candidate) => candidate.key === TEST_SHOOTER_KEY,
+    );
+    if (world === undefined || record === undefined) return false;
+    markHookMutation();
+    return spawnTestAttacker(world, liveState, record, liveState.tick);
+  }
+
+  /**
    * The hook's flying-NPC seam (WORLD-07, plan 14-18): a Shuttle flying to the
    * station, a Viper intercepting the player and an Adder fleeing it, 3,000 m
    * from the player. It needs a ship in flight, a live world, the layout and the
@@ -264,6 +296,7 @@ export function createProbePublisher(
     advanceTicks: (n) => advanceTicks(n),
     spawnTestShooter: spawnShooter,
     spawnTestFlyers: spawnFlyers,
+    spawnTestAttacker: spawnAttacker,
   };
 
   /**

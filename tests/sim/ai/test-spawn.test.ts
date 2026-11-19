@@ -19,8 +19,10 @@ import { describe, expect, it } from "vitest";
 import { TEST_PILOT } from "../../../src/sim/ai/pilots/test-pilot.js";
 import {
   FLYER_SCRIPT_RANGES,
+  spawnTestAttacker,
   spawnTestFlyers,
   spawnTestShooter,
+  TEST_ATTACKER_DISTANCE,
   TEST_FLYER_DISTANCE,
   TEST_SHOOTER_DISTANCE,
   TEST_SHOOTER_HOLD_RANGE,
@@ -123,6 +125,17 @@ function options(): StepOptions {
     },
   };
 }
+
+/**
+ * The step options of the attacker run: the shooter's plus the NPC flight
+ * table the attack behaviours steer with.
+ */
+function attackOptions(): StepOptions {
+  return { ...options(), npcFlight: realNpcFlightTable() };
+}
+
+/** How long the attacker run is stepped: 30 s at 120 Hz. */
+const ATTACK_RUN_TICKS = 3_600;
 
 /** A player launched, skipped to flight and parked at `FAR`, facing -Z. */
 function flyingPlayer(): FlightState {
@@ -359,6 +372,161 @@ describe("spawnTestShooter", () => {
     expect(player.position).toEqual(before.position);
     expect(player.orientation).toEqual(before.orientation);
     expect(add(player.position, vec(0, 0, 0))).toEqual(FAR);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// spawnTestAttacker (plan 17-10, D-02)
+// ---------------------------------------------------------------------------
+
+/** The attacker's AI params, exactly (D-02): the opt-in is `fire: true`. */
+const ATTACKER_PARAMS = {
+  script: "attack",
+  phase: "start",
+  targetId: PLAYER_ID,
+  range: 0,
+  speed: 0,
+  frustrated: 0,
+  fire: true,
+};
+
+/** The beam period of the NPC fire gate, in ticks (D-07). */
+const NPC_BEAM_PERIOD_TICKS = 12;
+
+describe("spawnTestAttacker", () => {
+  it("puts one Viper 3,000 m along the player's nose, facing the player, at rest", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+
+    expect(spawnTestAttacker(world, player, VIPER, player.tick)).toBe(true);
+
+    const attacker = theShooter(world);
+    expect(attacker.specKey).toBe("viper");
+    expect(attacker.kind).toBe("ship");
+    expect(TEST_ATTACKER_DISTANCE).toBe(3_000);
+    expect(attacker.position.x).toBeCloseTo(FAR.x, 9);
+    expect(attacker.position.y).toBeCloseTo(0, 9);
+    expect(attacker.position.z).toBeCloseTo(FAR.z - TEST_ATTACKER_DISTANCE, 9);
+    const nose = rotate(attacker.orientation, vec(0, 0, -1));
+    expect(nose.z).toBeCloseTo(1, 9);
+    expect(attacker.energy).toBe(VIPER.maxEnergy);
+    expect(attacker.speed).toBe(0);
+    expect(attacker.radius).toBe(VIPER.radius);
+  });
+
+  it("faces the player whatever the player's own orientation is", () => {
+    const player = flyingPlayer();
+    player.orientation = normalize(axisAngle(1, 2, 3, 1.1));
+    const world = createWorld(7);
+
+    expect(spawnTestAttacker(world, player, VIPER, player.tick)).toBe(true);
+
+    const attacker = theShooter(world);
+    const offset = sub(attacker.position, player.position);
+    expect(length(offset)).toBeCloseTo(TEST_ATTACKER_DISTANCE, 6);
+    const playerNose = rotate(player.orientation, vec(0, 0, -1));
+    expect(dot(offset, playerNose) / length(offset)).toBeCloseTo(1, 9);
+    const attackerNose = rotate(attacker.orientation, vec(0, 0, -1));
+    expect(dot(attackerNose, playerNose)).toBeCloseTo(-1, 9);
+  });
+
+  it("carries a flight-script attack AI at the player with exactly the fire opt-in, scan-free", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    spawnTestAttacker(world, player, VIPER, player.tick + 5);
+
+    const ai = theShooter(world).ai;
+    expect(ai?.aiKey).toBe("flight-script");
+    expect(ai?.params).toEqual(ATTACKER_PARAMS);
+    expect(ai?.nextThinkTick).toBe(player.tick + 5);
+  });
+
+  it("refuses a record whose scan class is not in the vocabulary and touches nothing", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    const nextId = world.store.nextId;
+
+    expect(
+      spawnTestAttacker(
+        world,
+        player,
+        { ...VIPER, scanClass: "CLASS_NOPE" },
+        player.tick,
+      ),
+    ).toBe(false);
+    expect(world.store.nextId).toBe(nextId);
+    expect([...world.store.live]).toHaveLength(0);
+  });
+
+  it("refuses a spawn the world's domain rules refuse", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    const nextId = world.store.nextId;
+
+    expect(
+      spawnTestAttacker(
+        world,
+        player,
+        { ...VIPER, maxEnergy: Number.NaN },
+        player.tick,
+      ),
+    ).toBe(false);
+    expect(world.store.nextId).toBe(nextId);
+  });
+
+  it("attacks the player: it enters an ATTACK behaviour, fires only on gate-allowed ticks and drains the shields then the energy", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    spawnTestAttacker(world, player, VIPER, player.tick);
+    const attacker = theShooter(world);
+
+    const behaviours = new Set<string>();
+    const shotTicks: number[] = [];
+    let shieldFell = false;
+    let energyFell = false;
+    for (let i = 0; i < ATTACK_RUN_TICKS; i += 1) {
+      const events = stepSim(
+        player,
+        world,
+        layout,
+        config,
+        ZERO_INTENT,
+        [],
+        DT,
+        attackOptions(),
+        combat,
+      );
+      behaviours.add(attacker.nav.behaviour);
+      for (const event of events) {
+        if (event.kind === "laserFired" && event.shooter === attacker.id) {
+          shotTicks.push(player.tick);
+        }
+      }
+      if (combat.fwdShield < 128 || combat.aftShield < 128) shieldFell = true;
+      if (combat.energy < 256) energyFell = true;
+    }
+
+    expect([...behaviours].some((name) => name.startsWith("ATTACK_"))).toBe(
+      true,
+    );
+    expect(shotTicks.length).toBeGreaterThan(1);
+    // The gate's beam period: never two shots closer than 12 ticks.
+    for (let i = 1; i < shotTicks.length; i += 1) {
+      expect(
+        (shotTicks[i] as number) - (shotTicks[i - 1] as number),
+      ).toBeGreaterThanOrEqual(NPC_BEAM_PERIOD_TICKS);
+    }
+    expect(shieldFell).toBe(true);
+    expect(energyFell).toBe(true);
+  });
+
+  it("leaves a world that snapshots", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    spawnTestAttacker(world, player, VIPER, player.tick);
+
+    expect(() => snapshotWorld(world)).not.toThrow();
   });
 });
 

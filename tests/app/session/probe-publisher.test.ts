@@ -29,22 +29,30 @@ import type {
 } from "../../../src/app/probe.js";
 import { trafficContent } from "../../../src/app/session/traffic.js";
 import type { NpcShip } from "../../../src/content/types.js";
-import { TEST_FLYER_DISTANCE } from "../../../src/sim/ai/test-spawn.js";
+import {
+  TEST_ATTACKER_DISTANCE,
+  TEST_FLYER_DISTANCE,
+} from "../../../src/sim/ai/test-spawn.js";
 import { MAX_ENTITIES } from "../../../src/sim/world/ids.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { MessageQueue } from "../../../src/render/hud/messages.js";
 import type { WorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
+import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { stepFlight } from "../../../src/sim/flight/step.js";
 import { identity, length, rotate, sub, vec } from "../../../src/sim/math.js";
+import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
+import { realHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { realNpcFlightTable } from "../../helpers/npc-flight.js";
+import { realNpcWeapons } from "../../helpers/npc-weapons.js";
 
 const { system, layout, config } = laveFixture();
 
@@ -690,5 +698,163 @@ describe("the spawnTestFlyers hook (plan 14-18, T-14-29)", () => {
 
     expect(typeof result).toBe("boolean");
     expect(JSON.stringify(h.probe)).not.toMatch(/"(entityId|ids?)"\s*:/);
+  });
+});
+
+describe("the spawnTestAttacker hook (plan 17-10, D-02, T-17-24)", () => {
+  function attackerHarness() {
+    const h = harness();
+    const state = flyingState();
+    const world = createWorld(7);
+    h.ctx.core.state = state;
+    h.ctx.core.worldLifecycle = lifecycleOf(world);
+    h.ctx.core.npcTraffic = trafficOf([VIPER_RECORD]);
+    h.publisher.bindTestHook(state);
+    const hook = h.probe.test;
+    if (hook === undefined) throw new Error("no hook");
+    return { ...h, state, world, hook };
+  }
+
+  it("spawns one Viper 3,000 m ahead with the attack AI and the fire opt-in, taints the session and returns true", () => {
+    const { ctx, state, world, hook } = attackerHarness();
+    expect(ctx.runtime.testTainted).toBe(false);
+
+    expect(hook.spawnTestAttacker()).toBe(true);
+
+    expect(ctx.runtime.testTainted).toBe(true);
+    expect(hook.tainted).toBe(true);
+    expect(world.store.live).toHaveLength(1);
+    const attacker = world.store.live[0];
+    expect(attacker?.specKey).toBe("viper");
+    expect(
+      length(sub(attacker?.position ?? state.position, state.position)),
+    ).toBeCloseTo(TEST_ATTACKER_DISTANCE, 6);
+    expect(attacker?.ai?.aiKey).toBe("flight-script");
+    expect(attacker?.ai?.params["script"]).toBe("attack");
+    expect(attacker?.ai?.params["fire"]).toBe(true);
+    const nose = rotate(attacker?.orientation ?? identity(), vec(0, 0, -1));
+    expect(nose.z).toBeCloseTo(1, 9);
+  });
+
+  it("taints before it touches the world", () => {
+    const { ctx, world, hook } = attackerHarness();
+    let taintedAtSpawn: boolean | undefined;
+    const original = world.store.live;
+    Object.defineProperty(world.store, "live", {
+      get() {
+        taintedAtSpawn ??= ctx.runtime.testTainted;
+        return original;
+      },
+    });
+
+    hook.spawnTestAttacker();
+
+    // The first read of the live list during the call sees the taint already set.
+    expect(taintedAtSpawn).toBe(true);
+  });
+
+  it("asks the redraw gate for a frame, as every other hook mutation does", () => {
+    const { gate, state, hook } = attackerHarness();
+    const keys = [state];
+    while (gate.next(true, keys)) gate.drawn(keys);
+    expect(gate.next(true, keys)).toBe(false);
+
+    hook.spawnTestAttacker();
+
+    expect(gate.next(true, keys)).toBe(true);
+  });
+
+  it("refuses without touching anything outside flight, a world, traffic content or a viper record", () => {
+    const refusals: [
+      string,
+      (h: ReturnType<typeof attackerHarness>) => void,
+    ][] = [
+      ["docked", (h) => void (h.state.mode = "docked")],
+      ["launching", (h) => void (h.state.mode = "launching")],
+      ["no world", (h) => void (h.ctx.core.worldLifecycle = undefined)],
+      ["no traffic content", (h) => void (h.ctx.core.npcTraffic = undefined)],
+      [
+        "no viper record",
+        (h) =>
+          void (h.ctx.core.npcTraffic = trafficOf([
+            { ...VIPER_RECORD, key: "adder" },
+          ])),
+      ],
+      ["disposed", (h) => void (h.ctx.runtime.disposed = true)],
+    ];
+    for (const [name, arrange] of refusals) {
+      const h = attackerHarness();
+      arrange(h);
+
+      expect(h.hook.spawnTestAttacker(), name).toBe(false);
+
+      expect(h.ctx.runtime.testTainted, name).toBe(false);
+      expect(h.hook.tainted, name).toBe(false);
+      expect(h.world.store.live, name).toHaveLength(0);
+    }
+  });
+
+  it("is refused once the session state is gone", () => {
+    const { ctx, hook, world } = attackerHarness();
+    ctx.core.state = undefined;
+
+    expect(hook.spawnTestAttacker()).toBe(false);
+    expect(world.store.live).toHaveLength(0);
+  });
+
+  it("publishes no entity id: the probe and the hook's return are values only", () => {
+    const h = attackerHarness();
+
+    const result = h.hook.spawnTestAttacker();
+    h.publisher.updateProbe();
+
+    expect(typeof result).toBe("boolean");
+    expect(JSON.stringify(h.probe)).not.toMatch(/"(entityId|ids?)"\s*:/);
+  });
+
+  it("the hook-spawned attacker fires through the gate: its laser shots are at least a beam period apart and the player's shield falls", () => {
+    const { state, world, hook } = attackerHarness();
+    const combat = createPlayerCombatState();
+    expect(hook.spawnTestAttacker()).toBe(true);
+    const attacker = world.store.live[0];
+    if (attacker === undefined) throw new Error("no attacker");
+    const options = {
+      npcFlight: realNpcFlightTable(),
+      combat: {
+        mounts: DEFAULT_LASER_MOUNTS,
+        hulls: realHullTable(),
+        npcWeapons: realNpcWeapons(),
+      },
+    };
+
+    const shotTicks: number[] = [];
+    let shieldFell = false;
+    for (let i = 0; i < 3_600; i += 1) {
+      const events = stepSim(
+        state,
+        world,
+        layout,
+        config,
+        ZERO_INTENT,
+        [],
+        DT,
+        options,
+        combat,
+      );
+      for (const event of events) {
+        if (event.kind === "laserFired" && event.shooter === attacker.id) {
+          shotTicks.push(state.tick);
+        }
+      }
+      if (combat.fwdShield < 128 || combat.aftShield < 128) shieldFell = true;
+    }
+
+    expect(shotTicks.length).toBeGreaterThan(1);
+    for (let i = 1; i < shotTicks.length; i += 1) {
+      expect(
+        (shotTicks[i] as number) - (shotTicks[i - 1] as number),
+      ).toBeGreaterThanOrEqual(12);
+    }
+    expect(shieldFell).toBe(true);
   });
 });

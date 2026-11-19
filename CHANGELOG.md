@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- In a test session (`?test=1&traffic=1`) a new test hook member,
+  `spawnTestAttacker()`, puts a Viper 3,000 m ahead of you that attacks you
+  with Oolite's attack manoeuvres and fires through the NPC fire gate. It marks
+  the session as test-tainted, so nothing is saved. In normal play NPC ships
+  still never fire.
+
 ### Changed
 
 - The flight HUD now shows during the launch from the docking slot, as in
