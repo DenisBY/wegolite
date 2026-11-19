@@ -883,7 +883,7 @@
         "src/Core/Entities/ShipEntity.m:4035-4035",
         "src/Core/Entities/ShipEntity.m:4840-4901"
       ],
-      "derivation": "A Mamba-like ship in FLEE_EVASIVE_ACTION at accuracy 2 with frustration 0.4990234375, a stationary ship 5000 m ahead (range 4920), desired range 10000 and temperature 0, scripted draws [0.62, 0.31]. Update 1: evasiveAction, frustration = fround(0.4990234375 + 1/120) > 0.5 (4021-4023); the behaviour is FLEE_EVASIVE_ACTION, so setEvasiveJink(400) draws two ranrot values (jink.x = floor(0.62 * 256) - 128 + 128 = 158, jink.y = floor(0.31 * 256) - 128 - 128 = -177, jink.z 400) and behaviour = FLEE_TARGET (4024-4026). The call at 4035 follows in the same update, so update 1 requests. Update 2 runs behaviour_flee_target (4840-4901): its only fireMainWeapon: call (4890-4892) needs a turret laser as the forward weapon, which no compiled record has, so flee requests nothing. Range 4920 is inside the desired range, so desired_speed = 320 (4858); success_factor = 4920 (4853). Draws consumed: 2.",
+      "derivation": "A Mamba-like ship in FLEE_EVASIVE_ACTION at accuracy 2 with frustration 0.4990234375, a stationary ship 5000 m ahead (range 4920), desired range 10000 and temperature 0, scripted draws [0.62, 0.31]. Update 1: evasiveAction, frustration = fround(0.4990234375 + 1/120) > 0.5 (4021-4023); the behaviour is FLEE_EVASIVE_ACTION, so setEvasiveJink(400) draws two ranrot values (jink.x = floor(0.62 * 256) - 128 + 128 = 158, jink.y = floor(0.31 * 256) - 128 - 128 = -177, jink.z 400) and behaviour = FLEE_TARGET (4024-4026). The call at 4035 follows in the same update, so update 1 requests. Update 2 runs behaviour_flee_target (4840-4901): its only fireMainWeapon: call (4890-4892) needs a turret laser as the forward weapon, which no compiled record has, so flee requests nothing. The ship moves in update 1 (oracle dispute, 17-08): after the behaviour, processBehaviour: runs applyAttitudeChanges: and applyThrust: (2634-2636); evasiveAction's applySticks (7018-7062) left flightPitch = 4/120 and flightRoll = 2/120, and desired_speed = 320 (4001), so dt_thrust = fround(5 * 32 / 120) = 1.3333333730697632 (5810, SHIP_THRUST_FACTOR 5.0f, ShipEntity.h:46), increase_flight_speed: (7405-7415) gives flightSpeed (GLfloat) 1.3333333730697632, and moveForward: (5843, Entity.m:796-801) moves the ship 0.0111111114 m along a forward tilted by the update-1 pitch, (0, -2.78e-4, 0.99999994), so z = 0.0111111108. Update 2's rangeToSecondaryTarget: (9723-9734) narrows the delta to a float Vector (HPVectorToVector) and takes a float magnitude: fround(4999.988888889) = 4999.98876953125, minus both radii 80 gives 4919.98876953125, which success_factor (GLfloat, ShipEntity.h:336-337) stores exactly (4853); the tilt changes the delta by about 4e-10 m, far below one float32 ulp (4.9e-4). Range 4919.99 is inside the desired range 10000, so desired_speed = 320 (4858). Draws consumed: 2.",
       "dt": 0.008333333333333333,
       "horizon": 2,
       "stats": {
@@ -984,9 +984,9 @@
         {
           "tick": 2,
           "field": "successFactor",
-          "expected": 4920,
-          "tolerance": 0.000001,
-          "note": "success_factor = range (4853)"
+          "expected": 4919.98876953125,
+          "tolerance": 0.0005,
+          "note": "success_factor = range read after update 1 moved the ship 0.0111111 m (5810, 5843, 9723-9734) in float32; tolerance one float32 ulp at 5000"
         },
         {
           "tick": 2,

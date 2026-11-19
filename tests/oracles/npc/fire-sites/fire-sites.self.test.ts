@@ -84,7 +84,8 @@ const FROZEN_THRESHOLDS: Record<string, number[]> = {
   "fire-site-flee-evasive-requests-every-update": [],
   // the dispatcher at update 2 reads 437.5 and 12,500 at range 4,920
   "fire-site-evasive-hand-over-still-requests": [437.5, 12500],
-  // flee at update 2 compares the range 4,920 with its desired range 10,000 (4855)
+  // flee at update 2 compares the range 4,920 with its desired range 10,000
+  // (4855); its successFactor read is replayed with the ship moving (MOVING_SELF)
   "fire-site-flee-evasive-hand-over-still-requests": [10000],
   "fire-site-evasive-lost-target-still-requests": [],
   // 15,000 (4414, 4417) and 0.8 x scanner range 20,480 (4417) at range 20,000
@@ -108,6 +109,30 @@ const FROZEN_THRESHOLDS: Record<string, number[]> = {
  * ShipEntity.m:4855-4858).
  */
 const STATIC_SELF = new Set(["fire-site-flee-with-a-laser-requests-nothing"]);
+
+/**
+ * Fixtures whose checks read a continuous range after the ship has moved
+ * (oracle dispute, 17-08): they replay with `{ moveSelf: true }`, which runs
+ * `applyThrust:`'s speed change and `moveForward:` along the stated forward
+ * but not `applyAttitudeChanges:`. The rotation left out must move the ship by
+ * less than the smallest numeric tolerance (see the bound test below).
+ */
+const MOVING_SELF = new Set([
+  "fire-site-flee-evasive-hand-over-still-requests",
+]);
+
+/** The check fields that read the ship's position through a range or directly. */
+const RANGE_READ_FIELDS: ReadonlySet<string> = new Set([
+  "successFactor",
+  "rangeToTarget",
+  "positionX",
+  "positionY",
+  "positionZ",
+]);
+
+function stepOptions(id: string): derive.StepOptions {
+  return MOVING_SELF.has(id) ? { moveSelf: true } : {};
+}
 
 describe("fire-site fixture files", () => {
   it("parses every fire-site file against the strict schema", () => {
@@ -223,8 +248,9 @@ describe("every check, event, draw count and fire request re-derives through der
     for (const entry of loadFireSites(name)) {
       it(`${entry.fixture.id}: checks, events, draws and fire requests`, () => {
         const fixture = like(entry);
+        const options = stepOptions(entry.fixture.id);
         for (const check of entry.fixture.checks) {
-          const derived = derive.deriveCheck(fixture, check);
+          const derived = derive.deriveCheck(fixture, check, options);
           if (typeof check.expected === "string") {
             expect(derived, `${check.field}@${String(check.tick)}`).toBe(
               check.expected,
@@ -239,15 +265,53 @@ describe("every check, event, draw count and fire request re-derives through der
             ).toBeLessThanOrEqual(check.tolerance + 1e-12);
           }
         }
-        expect(derive.deriveEvents(fixture)).toEqual(entry.fixture.events);
-        expect(derive.deriveDrawCount(fixture)).toBe(
+        expect(derive.deriveEvents(fixture, options)).toEqual(
+          entry.fixture.events,
+        );
+        expect(derive.deriveDrawCount(fixture, options)).toBe(
           entry.fixture.draws.length,
         );
-        expect(derive.deriveFireRequests(fixture)).toEqual(
+        expect(derive.deriveFireRequests(fixture, options)).toEqual(
           entry.fireRequestTicks,
         );
       });
     }
+  }
+});
+
+describe("a moving replay leaves out only a rotation below its tolerance", () => {
+  for (const entry of allFireSiteFixtures()) {
+    const { fixture } = entry;
+    if (!MOVING_SELF.has(fixture.id)) continue;
+    it(`${fixture.id}: the unrotated move is exact within the tolerance`, () => {
+      // Each update rotates before it moves (2635-2636), so the forward at
+      // update k is off the stated one by at most the summed attitude change
+      // (|roll| + |pitch|) * dt of updates 1..k, and the move at update k is
+      // off by at most speed * dt times that angle. A check at tick t reads
+      // the pose the moves of updates 1..t-1 left.
+      const rangeReads = fixture.checks.filter((check) =>
+        RANGE_READ_FIELDS.has(check.field),
+      );
+      expect(rangeReads.length).toBeGreaterThan(0);
+      const world = derive.tickZeroWorld(like(entry));
+      let angle = 0;
+      const offsetBefore: number[] = [0, 0];
+      for (let k = 1; k < fixture.horizon; k += 1) {
+        derive.stepTick(world, { moveSelf: true });
+        angle +=
+          (Math.abs(world.self.flightRoll) + Math.abs(world.self.flightPitch)) *
+          fixture.dt;
+        offsetBefore.push(
+          (offsetBefore[k] ?? 0) + world.self.speed * fixture.dt * angle,
+        );
+      }
+      for (const check of rangeReads) {
+        const offset = offsetBefore[check.tick] ?? Number.NaN;
+        expect(offset, `${check.field}@${String(check.tick)}`).toBeLessThan(
+          check.tolerance / 10,
+        );
+      }
+    });
   }
 });
 

@@ -23,6 +23,16 @@
  * self-test bounds the ship's displacement), or a closed form of the target's
  * motion.
  *
+ * Opt-in self motion (Phase 17, plan 17-08 oracle dispute). A caller may pass
+ * `{ moveSelf: true }` to `worldAtTick`, `deriveCheck` and the other derive
+ * functions: each update then also runs the speed change of `applyThrust:`
+ * (5808-5843, `increase_flight_speed:`/`decrease_flight_speed:` 7405-7427) and
+ * `moveForward:` (Entity.m:796-801) along the ship's STATED forward, without
+ * `applyAttitudeChanges:`. That is exact only while the rotation the update
+ * would apply moves the read below the check's tolerance; the caller must
+ * bound it (the fire-site self-test does). The default (no option) is the
+ * frozen pose above, so every fixture that does not opt in is unchanged.
+ *
  * Float widths. Oolite stores most state in `GLfloat`. `frustration` and
  * `success_factor` are rounded with `Math.fround` on every write (contract item
  * 8); every other quantity is computed here in float64, and a fixture's
@@ -1527,8 +1537,45 @@ function behaviourEvasiveAction(world: World): void {
   requestFire(world);
 }
 
-/** One native update of the steered ship (pose frozen), then the `applyThrust:` speed clamp. */
-export function stepTick(world: World): void {
+/** Options of a replay; the default is the frozen pose (see the module comment). */
+export interface StepOptions {
+  /** Also run `applyThrust:`'s speed change and `moveForward:` (no rotation). */
+  moveSelf?: boolean;
+}
+
+/**
+ * The speed change of `applyThrust:` (5808-5843) and `moveForward:`
+ * (Entity.m:796-801), without `applyAttitudeChanges:` (5899-5902). `dt_thrust`
+ * and `flightSpeed` are GLfloat (5810, ShipEntity.h:357). No afterburner and
+ * no Newtonian velocity are modelled, so a speed above the maximum is refused.
+ */
+export function applyThrustAndMove(world: World, dt = DT): void {
+  const s = world.self;
+  const max = world.stats.maxFlightSpeed;
+  if (s.speed > max) {
+    throw new Error(
+      "applyThrustAndMove does not model a speed above the maximum",
+    );
+  }
+  const dtThrust = Math.fround(5 * world.stats.thrust * dt);
+  if (s.speed > s.desiredSpeed) {
+    // decrease_flight_speed: (7417-7427), factor 1 at or below the maximum
+    s.speed = s.speed > dtThrust ? Math.fround(s.speed - dtThrust) : 0;
+    if (s.speed < s.desiredSpeed) s.speed = s.desiredSpeed;
+  }
+  if (s.speed < s.desiredSpeed) {
+    // increase_flight_speed: (7405-7415), factor 1 without injectors
+    s.speed = s.speed < max ? Math.fround(s.speed + dtThrust) : max;
+    if (s.speed > s.desiredSpeed) s.speed = s.desiredSpeed;
+  }
+  s.position = add(s.position, scale(s.forward, dt * s.speed));
+}
+
+/**
+ * One native update of the steered ship, then the `applyThrust:` speed clamp;
+ * the pose stays frozen unless `options.moveSelf` asks for the motion.
+ */
+export function stepTick(world: World, options: StepOptions = {}): void {
   world.tick += 1;
   // cooling at the top of the update (2214-2218); update 1 reads the stated value
   if (world.tick > 1) {
@@ -1577,6 +1624,7 @@ export function stepTick(world: World): void {
       throw new Error(`derive.ts does not model behaviour ${s.behaviour}`);
   }
   clampDesiredSpeed(world);
+  if (options.moveSelf === true) applyThrustAndMove(world);
 }
 
 // ---------------------------------------------------------------------------
@@ -1665,9 +1713,13 @@ export function tickZeroWorld(fixture: FixtureLike): World {
 }
 
 /** The world after `ticks` native updates. */
-export function worldAtTick(fixture: FixtureLike, ticks: number): World {
+export function worldAtTick(
+  fixture: FixtureLike,
+  ticks: number,
+  options: StepOptions = {},
+): World {
   const world = tickZeroWorld(fixture);
-  for (let k = 0; k < ticks; k += 1) stepTick(world);
+  for (let k = 0; k < ticks; k += 1) stepTick(world, options);
   return world;
 }
 
@@ -1733,6 +1785,7 @@ export function readField(world: World, field: string): number | string {
 export function deriveCheck(
   fixture: FixtureLike,
   check: Check,
+  options: StepOptions = {},
 ): number | string {
   if (check.field.startsWith("aimPoint")) {
     // the curve closed form needs no steering replay
@@ -1740,29 +1793,36 @@ export function deriveCheck(
     world.tick = check.tick;
     return readField(world, check.field);
   }
-  const world = worldAtTick(fixture, check.tick);
+  const world = worldAtTick(fixture, check.tick, options);
   return readField(world, check.field);
 }
 
 /** The events a fixture's first `horizon` updates post, re-derived. */
 export function deriveEvents(
   fixture: FixtureLike,
+  options: StepOptions = {},
 ): { tick: number; name: string }[] {
   const world = worldAtTick(fixture, 0);
-  for (let k = 0; k < fixture.horizon; k += 1) stepTick(world);
+  for (let k = 0; k < fixture.horizon; k += 1) stepTick(world, options);
   return world.events;
 }
 
 /** The updates at which the behaviour reached a `fireMainWeapon:` call over the horizon. */
-export function deriveFireRequests(fixture: FixtureLike): number[] {
+export function deriveFireRequests(
+  fixture: FixtureLike,
+  options: StepOptions = {},
+): number[] {
   const world = worldAtTick(fixture, 0);
-  for (let k = 0; k < fixture.horizon; k += 1) stepTick(world);
+  for (let k = 0; k < fixture.horizon; k += 1) stepTick(world, options);
   return world.fireRequests;
 }
 
 /** The scripted draws a fixture consumes over its horizon (the consumer fails on any other count). */
-export function deriveDrawCount(fixture: FixtureLike): number {
+export function deriveDrawCount(
+  fixture: FixtureLike,
+  options: StepOptions = {},
+): number {
   const world = worldAtTick(fixture, 0);
-  for (let k = 0; k < fixture.horizon; k += 1) stepTick(world);
+  for (let k = 0; k < fixture.horizon; k += 1) stepTick(world, options);
   return world.draws.consumed;
 }
