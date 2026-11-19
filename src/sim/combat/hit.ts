@@ -23,7 +23,7 @@
  * table carries has no rotation of its own, so its frame is the parent's and
  * the segment is the hull's model segment shifted by minus the authored
  * position. A subentity answer replaces the running one when it is non-zero
- * and the running one is zero or larger (`:1350`, strict: an exact tie keeps
+ * and the running one is zero or larger (`:1348`, strict: an exact tie keeps
  * the hull). Only the static hulls (the Coriolis station, the buoy, the barrel
  * and the alloy plate) carry subentities; the ten ship hulls are tested against
  * their hull octree alone, as before. The winning part comes back as
@@ -111,7 +111,7 @@ const HULL_PART: HitPart = Object.freeze({ kind: "hull" });
  * distance (to the centre of the first solid leaf it reached), which is what
  * the nearest-ship rule compares; it is the value Oolite stores as the beam
  * length (`nearest`). `part` is what the beam ended on inside that ship (the
- * C's `hitEntity`, `ShipEntity.m:1344-1354`).
+ * C's `hitEntity`, `ShipEntity.m:1332-1353`).
  */
 export function firstShipHit(
   ray: LaserRay,

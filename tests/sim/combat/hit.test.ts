@@ -350,7 +350,7 @@ describe("firstShipHit: the station hull from the merged table (plan 18-13)", ()
  * frame (`absoluteIJKForSubentity`, `:2008-2025`, which is the parent's frame
  * for a subentity with no rotation of its own). A subentity hit replaces the
  * running answer when it is non-zero and the running answer is zero or larger
- * (`:1350`, strict, so an exact tie keeps the hull). The winning part comes
+ * (`:1348`, strict, so an exact tie keeps the hull). The winning part comes
  * back with the hit.
  *
  * Every octree here is "one leaf": half-width 4, a root array whose only solid
@@ -422,7 +422,7 @@ describe("firstShipHit: the subentity rule (ShipEntity.m:1323-1357)", () => {
     expect(hit?.distance).toBeCloseTo(HULL_DISTANCE, 9);
   });
 
-  it("an exact tie keeps the hull (ShipEntity.m:1350 is strict)", () => {
+  it("an exact tie keeps the hull (ShipEntity.m:1348 is strict)", () => {
     const hit = firstShipHit(
       foreRay(vec(0, 0, 0)),
       [composite],
