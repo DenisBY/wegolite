@@ -74,3 +74,7 @@ No CHANGELOG entries (nothing user-visible).
 _Fixed: 2026-11-19_
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 2_
+
+## NPC acceptance run (IN-03 touched `src/sim/npc/fire.ts`)
+
+`npm run test:acceptance` on the remote test machine at `7e7e7a6`: 1 file, 21 tests passed (20 seed epochs plus the summary), 75 s, exit 0.
