@@ -7,12 +7,12 @@
  * `behaviour_attack_break_off_target:` (3886-3942) and
  * `behaviour_attack_slow_dogfight:` (3944-3994).
  *
- * Scope cuts, as in `attack-close.ts`: no afterburner (`canBurn` false), no
- * missile or cloak call, and a weapon that never heats, so
- * `weapon_temp > COMBAT_AI_WEAPON_TEMP_USABLE` (4456) is false and
- * `forward_weapon_temp` (3932) is 0 until plan 17-07 makes the temperature
- * live. The sniper's `fireMainWeapon:` (4454) is the optional `ctx.fire`
- * request of a pilot that opted in (Phase 17, D-05).
+ * Scope cuts, as in `attack-close.ts`: no afterburner (`canBurn` false) and no
+ * missile or cloak call. The sniper's `fireMainWeapon:` (4454) is the optional
+ * `ctx.fire` request of a pilot that opted in (Phase 17, D-05). The weapon
+ * temperature is live (Phase 17, D-06): break-off's hand-over reads
+ * `forward_weapon_temp` (3932) from `entity.weapon.temperature`, as it stands at
+ * steering time (after the previous tick's cooling, before this tick's shot).
  *
  * `frustration` and `successFactor` are GLfloat in Oolite: every write is
  * `Math.fround`.
@@ -42,7 +42,6 @@ import {
   DOGFIGHT_FRUSTRATION_LIMIT,
   DOGFIGHT_SIDE_ASPECT,
   DOGFIGHT_SPEEDS,
-  NPC_WEAPON_TEMP,
   NPC_WEAPON_TEMP_READY,
   SCANNER_MAX_RANGE,
   SNIPER_BOUNCE_RANGE,
@@ -188,7 +187,7 @@ export function behaviourAttackBreakOffTarget(
   } else if (
     steer.frustration > BREAK_OFF_HAND_OVER_FRUSTRATION &&
     approachAspectToPrimaryTarget(entity, ctx) < BREAK_OFF_HAND_OVER_ASPECT &&
-    NPC_WEAPON_TEMP < NPC_WEAPON_TEMP_READY
+    entity.weapon.temperature < NPC_WEAPON_TEMP_READY
   ) {
     steer.frustration = Math.fround(0);
     nav.behaviour =

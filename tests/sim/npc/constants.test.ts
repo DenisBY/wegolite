@@ -222,8 +222,11 @@ describe("attack (plan 14-14)", () => {
     ["NPC_MAX_WEAPON_TEMP", ledger.NPC_MAX_WEAPON_TEMP, 256], // :116
     ["NPC_WEAPON_CUTOUT_F32", ledger.NPC_WEAPON_CUTOUT_F32, 0.8500000238418579], // 0.85f as float32, :117
     ["NPC_WEAPON_TEMP_READY", ledger.NPC_WEAPON_TEMP_READY, 64], // 0.25 * 256, :119
-    ["NPC_WEAPON_TEMP_USABLE", ledger.NPC_WEAPON_TEMP_USABLE, 217.6], // 0.85 * 256, :117, 120
-    ["NPC_WEAPON_TEMP", ledger.NPC_WEAPON_TEMP, 0], // nothing fires (CBT-15)
+    [
+      "NPC_WEAPON_TEMP_USABLE",
+      ledger.NPC_WEAPON_TEMP_USABLE,
+      Math.fround(217.6), // 0.85f * 256.0f = 217.60000610351562 (the nearest float to 217.6)
+    ], // :117, 120
     ["ATTACK_DESIRED_RANGE_SPAN", ledger.ATTACK_DESIRED_RANGE_SPAN, 1250], // ShipEntityAI.m:354
     ["ATTACK_DESIRED_RANGE_BASE", ledger.ATTACK_DESIRED_RANGE_BASE, 750], // :354
     ["ATTACK_SMART_EVASIVE_CHANCE", ledger.ATTACK_SMART_EVASIVE_CHANCE, 0.75], // ShipEntity.m:4102
@@ -316,8 +319,12 @@ describe("attack (plan 14-14)", () => {
 
   it("the weapon temperature tiers agree with the 0.25 and 0.85 shares of 256 (ShipEntity.h:116-120)", () => {
     expect(ledger.NPC_WEAPON_TEMP_READY).toBe(0.25 * 256);
-    expect(ledger.NPC_WEAPON_TEMP_USABLE).toBe(0.85 * 256);
-    expect(ledger.NPC_WEAPON_TEMP).toBeLessThan(ledger.NPC_WEAPON_TEMP_READY);
+    // The float product WEAPON_COOLING_CUTOUT * NPC_MAX_WEAPON_TEMP (0.85f *
+    // 256.0f): multiplying by 256 is exact, so 217.60000610351562 (D-07).
+    expect(ledger.NPC_WEAPON_TEMP_USABLE).toBe(Math.fround(0.85) * 256);
+    expect(ledger.NPC_WEAPON_TEMP_USABLE).toBe(
+      ledger.NPC_WEAPON_CUTOUT_F32 * 256,
+    );
   });
 });
 

@@ -381,14 +381,16 @@ export const NPC_WEAPON_CUTOUT_F32 = Math.fround(0.85);
 /** `0.25 * NPC_MAX_WEAPON_TEMP`: below it a weapon is ready (`ShipEntity.h:119`). */
 export const NPC_WEAPON_TEMP_READY = 0.25 * NPC_MAX_WEAPON_TEMP;
 
-/** `0.85 * NPC_MAX_WEAPON_TEMP`: below it a weapon is usable (`ShipEntity.h:117, 120`). */
-export const NPC_WEAPON_TEMP_USABLE = 0.85 * NPC_MAX_WEAPON_TEMP;
-
 /**
- * The temperature of an NPC's weapon: always 0, because no NPC fires in v2.2
- * (CBT-15 is unscheduled), so the weapon never heats.
+ * `COMBAT_AI_WEAPON_TEMP_USABLE`, `WEAPON_COOLING_CUTOUT * NPC_MAX_WEAPON_TEMP`
+ * (`ShipEntity.h:117, 120`): the C float product `0.85f * 256.0f`. Multiplying
+ * by 256 is exact, so this is 217.60000610351562, derived from the one float32
+ * cutout above. Oolite compares the float32 weapon temperature with it
+ * (`weapon_temp > USABLE`, `forward_weapon_temp < USABLE`), so the behaviours
+ * compare the float32 record field with this float32 product.
  */
-export const NPC_WEAPON_TEMP = 0;
+export const NPC_WEAPON_TEMP_USABLE =
+  NPC_WEAPON_CUTOUT_F32 * NPC_MAX_WEAPON_TEMP;
 
 /** `performAttack`'s `desired_range = 1250 * randf() + 750` (`ShipEntityAI.m:354`). */
 export const ATTACK_DESIRED_RANGE_SPAN = 1250;

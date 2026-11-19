@@ -10,10 +10,12 @@
  * stats (`LASER_STATS`) keyed by `stats.forwardWeapon`, and is `NO_WEAPON_RANGE`
  * (0) for `EQ_WEAPON_NONE`: `isWeaponNone` leaves the type nil and
  * `getWeaponRangeFromType(nil)` is `[nil weaponRange]`, 0 (`ShipEntity.m:443-466,
- * 13041-13044`). The weapon temperature is `NPC_WEAPON_TEMP` (0): nothing fires,
- * so nothing heats (CBT-15 is unscheduled). Every sub-behaviour of this phase
- * skips Oolite's `fireMainWeapon:`, the missile and cloak calls and the
- * afterburner (`canBurn` is false).
+ * 13041-13044`). The weapon temperature is the entity's live forward weapon
+ * temperature (`entity.weapon.temperature`, Phase 17): a ship that never fires
+ * stays at 0 and reads below `NPC_WEAPON_TEMP_READY`, so every non-opted-in world
+ * takes the branch it always took. Every sub-behaviour skips the missile and
+ * cloak calls and the afterburner (`canBurn` is false); `fireMainWeapon:` is the
+ * optional `ctx.fire` request of a pilot that opted in (Phase 17, D-05).
  *
  * Scope cuts at the dispatcher, each ported as the branch Oolite takes when the
  * feature is absent (recorded for plan 14-19):
@@ -25,9 +27,9 @@
  *    (4131-4133, 4174-4176) and ATTACK_BROADSIDE (4134-4136, 4171-4173) are never
  *    selected, and the last `else` (4177-4180) is unreachable because the
  *    forward weapon is ready whenever the first `if` does not take the branch;
- *  - the weapon temperature is `forwardWeaponTemp`, a parameter fixed at
- *    `NPC_WEAPON_TEMP` (0) by the caller; the heating branch (4122) is reachable
- *    only through a forced temperature, which `attack-dispatch.test.ts` does.
+ *  - the temperature is the live `entity.weapon.temperature` as it stands at
+ *    steering time (after the previous tick's cooling, before this tick's shot),
+ *    so the heating branch (4122) is reachable for a ship that fires.
  *
  * Divergences: `COMBAT_IN_RANGE_FACTOR` and its siblings are float literals in
  * C and `factor * weaponRange` is a float product; here the factor is a double,
@@ -56,7 +58,6 @@ import {
   COMBAT_JINK_OFFSET,
   COMBAT_OUT_RANGE_FACTOR,
   NO_WEAPON_RANGE,
-  NPC_WEAPON_TEMP,
   NPC_WEAPON_TEMP_READY,
   NPC_WEAPON_TEMP_USABLE,
   SNIPER_ENTRY_RANGE,
@@ -154,15 +155,12 @@ export function attackJinkZ(
 }
 
 /**
- * `behaviour_attack_target:` (`ShipEntity.m:4038-4185`). `forwardWeaponTemp` is
- * the forward weapon's temperature: the caller leaves it at `NPC_WEAPON_TEMP`
- * (0); a test forces it to reach the branches a ship that never fires cannot.
+ * `behaviour_attack_target:` (`ShipEntity.m:4038-4185`). `forward_weapon_temp`
+ * is the entity's live forward weapon temperature, a float32 value compared
+ * with the float32 thresholds as Oolite compares float with float.
  */
-export function behaviourAttackTarget(
-  entity: Entity,
-  ctx: SteerContext,
-  forwardWeaponTemp: number = NPC_WEAPON_TEMP,
-): void {
+export function behaviourAttackTarget(entity: Entity, ctx: SteerContext): void {
+  const forwardWeaponTemp = entity.weapon.temperature;
   const steer = entity.steer;
   const nav = entity.nav;
   const accuracy = steer.accuracy;

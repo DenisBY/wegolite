@@ -89,8 +89,9 @@ function pick(row: Row) {
     row.values ?? [],
   );
   const energyBefore = entity.energy;
-  behaviourAttackTarget(entity, h.ctx, row.temp);
-  // T-14-24: the steering never fires and never spends energy
+  entity.weapon.temperature = row.temp ?? 0;
+  behaviourAttackTarget(entity, h.ctx);
+  // T-14-24: without the opt-in the steering never fires and never spends energy
   expect(worldOf(entity).fireQueue).toEqual([]);
   expect(entity.energy).toBe(energyBefore);
   return { entity, used: h.used() };
@@ -484,12 +485,12 @@ const TABLE: readonly Row[] = [
     expect: "ATTACK_FLY_FROM_TARGET",
   },
   {
-    line: "4087 temperature 217.6 is not under 217.6: not usable, the overheated branch",
+    line: "4087 float32 temperature 217.6 (217.60000610351562) is not under 0.85f x 256 (the same float): not usable, the overheated branch",
     weapon: "EQ_WEAPON_PULSE_LASER",
     accuracy: 2,
     range: 5000,
     aspect: -1,
-    temp: 217.6,
+    temp: Math.fround(217.6),
     draws: 0,
     expect: "ATTACK_FLY_TO_TARGET",
   },
