@@ -263,6 +263,20 @@ browser never parses a plist and never downloads the snapshot.
 - `third_party/oolite/` — the pinned Oolite snapshot; `public/` holds the
   compiled GLB models and textures served by URL.
 
+## Recommended agent tooling
+
+The project is developed with AI coding agents. None of these tools is needed to
+build, run or test the game — Docker is the only requirement — but the agent
+guide ([`AGENTS.md`](./AGENTS.md)) assumes them when they are present:
+
+- **[GSD (`@opengsd/gsd-core`)](https://github.com/open-gsd/gsd-core)** — the
+  planning and execution workflow behind `.planning/` (phases, plans, summaries,
+  verification). Install with `npx -y @opengsd/gsd-core@latest --claude --local`.
+- **codebase-memory MCP** — a code knowledge graph for symbol, caller and
+  architecture queries. Index this repository as project `wegolite` and, if you
+  keep an Oolite source checkout for reference, index it as project `oolite`.
+  Without it, agents fall back to `rg` and file reads.
+
 ## Licence and source
 
 Wegolite's own source code is licensed under GPL-2.0-or-later; the unmodified

@@ -8,10 +8,10 @@ Read `.planning/PROJECT.md` for the authoritative scope, constraints, and decisi
 
 ## Codebase memory
 
-Use the codebase-memory MCP index before grepping, reading whole directories, or guessing at structure. The repository is indexed as project `wegolite`.
+The codebase-memory MCP is recommended, not required (see README "Recommended agent tooling"). **When it is available**, use its index before grepping, reading whole directories, or guessing at structure. The repository is indexed as project `wegolite`. Without it, explore with `rg` and file reads; nothing else in this guide depends on it.
 
-- The main agent and **every subagent** must use codebase-memory when exploring code. Include this instruction in subagent prompts.
-- Start with `index_status` to check freshness. Re-index with `index_repository` after large structural changes; the index is best-effort, not proof of completeness.
+- When the MCP is available, the main agent and **every subagent** must use codebase-memory when exploring code. Include this instruction in subagent prompts, conditional on the MCP being available.
+- Start with `index_status` to check freshness. The index does not auto-refresh for every session: when `indexed_at` is older than the latest commits that touch code, re-index with `index_repository` (`async: true` for a large repo). Re-index also after large structural changes; the index is best-effort, not proof of completeness.
 - Prefer `search_graph` for symbols, `trace_path` for callers/callees, `get_code_snippet` for source, `query_graph` for multi-hop questions, and `get_architecture` for the overview or layering.
 - Fall back to `rg` (ripgrep) or file reads for literals, configuration, non-code files, and paths reported as coverage gaps. Verify cited paths with `check_index_coverage`.
 - Prefer `rg` over `grep` everywhere: `rg -n <pattern>`, `rg --files -g '<glob>'`. Include this instruction in subagent prompts.
@@ -25,6 +25,7 @@ A full Oolite source checkout is available at `/home/opencode/git/oolite` (outsi
 - Engine source: `/home/opencode/git/oolite/src/`.
 - Models/textures: `/home/opencode/git/oolite/Resources/Models/`, `.../Textures/`.
 - The vendored subset in `third_party/oolite/` is the licence-audited input for the content build. Read behaviour from the checkout; consume data from the vendored copy (and keep `CHECKSUMS.sha256` honest).
+- When the codebase-memory MCP is available, the checkout is indexed as project `oolite`: look up Objective-C classes and methods with `search_graph` / `get_code_snippet` (`project: "oolite"`) before `rg`. Plists are not parsed by the index; read them as text. Check `index_status` for `oolite` and re-index the checkout when it has moved past `indexed_at`.
 - Include this path and instruction in every subagent prompt that may need Oolite references.
 
 ## Non-negotiable constraints
