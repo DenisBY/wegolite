@@ -244,6 +244,64 @@ describe("createFlightScriptAi", () => {
   });
 });
 
+describe("the fire option (Phase 17, D-05)", () => {
+  it("puts the key fire in params only when true, and nothing else changes", () => {
+    const plain = createFlightScriptAi(7, { script: "attack", targetId: 120 });
+    expect(Object.keys(plain.params)).not.toContain("fire");
+    expect(
+      Object.keys(
+        createFlightScriptAi(7, {
+          script: "attack",
+          targetId: 120,
+          fire: false,
+        }).params,
+      ),
+    ).not.toContain("fire");
+    const opted = createFlightScriptAi(7, {
+      script: "attack",
+      targetId: 120,
+      fire: true,
+    });
+    expect(opted.params).toEqual({ ...plain.params, fire: true });
+    expect(JSON.parse(JSON.stringify(opted))).toEqual(opted);
+  });
+
+  it("an opted-in pilot issues exactly the calls of its script, with no fire call, no draw and no wake", () => {
+    for (const row of SCRIPT_CALLS) {
+      const ai = createFlightScriptAi(100, {
+        script: row.script,
+        targetId:
+          row.script === "station" ||
+          row.script === "escort" ||
+          row.script === "face"
+            ? NO_ENTITY
+            : PLAYER_ID,
+        range: 2_500,
+        speed: 80,
+        fire: true,
+      });
+      const { ctl, calls } = recorder();
+      // `random` throws, so a draw fails the case.
+      FLIGHT_SCRIPT.think(context(ai, view({}), ctl));
+      expect(calls).toEqual(row.calls);
+      // later thinks and every goal event: still no fire call, no wake
+      FLIGHT_SCRIPT.think(
+        context(ai, view({ tick: 115, behaviour: "ATTACK_TARGET" }), ctl),
+      );
+      for (const name of [
+        "shipAIFrustrated",
+        "shipAchievedDesiredRange",
+        "shipNowFacingDestination",
+        "shipTargetLost",
+      ] as const) {
+        FLIGHT_SCRIPT.onEvent?.(context(ai, view({}), ctl), event(name));
+      }
+      expect(calls.some((call) => call[0] === "fire")).toBe(false);
+      expect(calls.some((call) => call[0] === "scheduleWake")).toBe(false);
+    }
+  });
+});
+
 describe("the flight-script registration", () => {
   it("is a registered, frozen AI key", () => {
     expect(AI_KEYS).toContain("flight-script");

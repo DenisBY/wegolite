@@ -8,9 +8,11 @@
  * `behaviour_attack_slow_dogfight:` (3944-3994).
  *
  * Scope cuts, as in `attack-close.ts`: no afterburner (`canBurn` false), no
- * `fireMainWeapon:`, missile or cloak call, and a weapon that never heats, so
+ * missile or cloak call, and a weapon that never heats, so
  * `weapon_temp > COMBAT_AI_WEAPON_TEMP_USABLE` (4456) is false and
- * `forward_weapon_temp` (3932) is 0.
+ * `forward_weapon_temp` (3932) is 0 until plan 17-07 makes the temperature
+ * live. The sniper's `fireMainWeapon:` (4454) is the optional `ctx.fire`
+ * request of a pilot that opted in (Phase 17, D-05).
  *
  * `frustration` and `successFactor` are GLfloat in Oolite: every write is
  * `Math.fround`.
@@ -85,41 +87,46 @@ export function behaviourAttackSniper(entity: Entity, ctx: SteerContext): void {
 
   const range = rangeToPrimaryTarget(entity, ctx);
 
+  // 4414-4448: Oolite's if/else. Inside the bounce range the behaviour changes
+  // and the update carries on to the shared tail (4454); it does not return.
   if (range < SNIPER_BOUNCE_RANGE) {
     nav.behaviour = "ATTACK_TARGET";
-    return;
-  }
-
-  if (
-    range > weaponRangeOf(ctx.stats) ||
-    range > SCANNER_MAX_RANGE * SNIPER_SCANNER_SHARE
-  ) {
-    nav.desiredSpeed = maxSpeed; // no fuel injection
   } else {
-    nav.desiredSpeed = maxSpeed / SNIPER_SLOW_DIVISOR;
-  }
+    if (
+      range > weaponRangeOf(ctx.stats) ||
+      range > SCANNER_MAX_RANGE * SNIPER_SCANNER_SHARE
+    ) {
+      nav.desiredSpeed = maxSpeed; // no fuel injection
+    } else {
+      nav.desiredSpeed = maxSpeed / SNIPER_SLOW_DIVISOR;
+    }
 
-  const lastSuccessFactor = steer.successFactor;
-  steer.successFactor = Math.fround(trackPrimaryTarget(entity, ctx, false));
+    const lastSuccessFactor = steer.successFactor;
+    steer.successFactor = Math.fround(trackPrimaryTarget(entity, ctx, false));
 
-  if (
-    steer.successFactor > ATTACK_SUCCESS_GOOD ||
-    steer.successFactor > lastSuccessFactor
-  ) {
-    steer.frustration = Math.fround(steer.frustration - ctx.dt);
-    if (steer.frustration < 0) steer.frustration = 0;
-  } else {
-    steer.frustration = Math.fround(steer.frustration + ctx.dt);
-    if (steer.frustration > SNIPER_FRUSTRATION_LIMIT) {
-      // 3s of frustration
-      noteFrustration(ctx);
-      setEvasiveJink(entity, ctx, ATTACK_FRUSTRATION_JINK_Z);
-      nav.behaviour = "ATTACK_TARGET";
-      steer.frustration = Math.fround(0);
-      nav.desiredSpeed = maxSpeed;
+    if (
+      steer.successFactor > ATTACK_SUCCESS_GOOD ||
+      steer.successFactor > lastSuccessFactor
+    ) {
+      steer.frustration = Math.fround(steer.frustration - ctx.dt);
+      if (steer.frustration < 0) steer.frustration = 0;
+    } else {
+      steer.frustration = Math.fround(steer.frustration + ctx.dt);
+      if (steer.frustration > SNIPER_FRUSTRATION_LIMIT) {
+        // 3s of frustration
+        noteFrustration(ctx);
+        setEvasiveJink(entity, ctx, ATTACK_FRUSTRATION_JINK_Z);
+        nav.behaviour = "ATTACK_TARGET";
+        steer.frustration = Math.fround(0);
+        nav.desiredSpeed = maxSpeed;
+      }
     }
   }
-  // 4449-4458: missiles, cloak, fireMainWeapon and the hot-weapon return.
+
+  // 4449-4454: missiles and cloak are the scope cuts above. `fireMainWeapon:`
+  // (4454) sits outside the 4414 if/else, so both sides reach it; the hot-weapon
+  // return (4456) stays a cut until plan 17-07.
+  ctx.fire?.();
 }
 
 /**

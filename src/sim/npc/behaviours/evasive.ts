@@ -11,7 +11,11 @@
  * at full rate (`evasiveAction:`), and after 0.5 s of that hand over: a
  * FLEE_EVASIVE_ACTION ship gets a new 400 jink and returns to FLEE_TARGET, an
  * EVASIVE_ACTION ship goes to ATTACK_TARGET (4021-4028). The behaviour's own
- * `fireMainWeapon:` call (4035) is not ported: NPCs do not fire in v2.2.
+ * `fireMainWeapon:` call (4035, "probably only useful for Thargoids, except for
+ * the occasional opportunist") is the optional `ctx.fire` request of a pilot
+ * that opted in (Phase 17, D-05): the last statement of every path that did not
+ * return on the proximity alert, with no target guard (the gate refuses a
+ * vanished target later, D-12).
  *
  * `evasiveAction:` returns void, so after `noteLostTargetAndGoIdle` for a gone
  * target this method carries on, as Oolite's does: the frustration is bumped
@@ -50,4 +54,8 @@ export function behaviourEvasiveAction(
       nav.behaviour = "ATTACK_TARGET";
     }
   }
+
+  // 4035: `flightYaw = 0.0` is not state of the steering record; the request
+  // follows the hand-over, on the path that did not return on the alert.
+  ctx.fire?.();
 }

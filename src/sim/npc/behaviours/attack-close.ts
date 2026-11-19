@@ -11,9 +11,9 @@
  *  - no afterburner: `canBurn` is false, so `max_available_speed` is
  *    `maxFlightSpeed`, `isUsingAfterburner` and `closeQuickly` are false;
  *  - no missile, no cloak (`considerFiringMissile:`, `activateCloakingDevice`);
- *    `fireMainWeapon:` is the optional `ctx.fire` call at fly-to (4711),
- *    present only for a pilot that opted in (Phase 17, D-05), so without the
- *    opt-in nothing asks and the weapon never heats, and
+ *    `fireMainWeapon:` is the optional `ctx.fire` call at fly-to (4711) and
+ *    six/twelve (4575), present only for a pilot that opted in (Phase 17,
+ *    D-05), so without the opt-in nothing asks and the weapon never heats, and
  *    `weapon_temp > COMBAT_AI_WEAPON_TEMP_USABLE` stays false (4713, 4577) until
  *    plan 17-07 makes the temperature live;
  *  - fly-to's accuracy >= 9 dodge (4721-4729) needs the target's weapon types,
@@ -464,6 +464,9 @@ export function behaviourFlyToTargetSix(
   ) {
     nav.behaviour = "ATTACK_FLY_TO_TARGET";
   }
-  // 4569-4579: missiles, cloak, fireMainWeapon and the hot-weapon return are
-  // the scope cuts above.
+  // 4569-4575: missiles and cloak are the scope cuts above. `fireMainWeapon:`
+  // (4575) is the request for a pilot that opted in (D-05), reached on every
+  // update that did not return earlier, six and twelve alike. The hot-weapon
+  // return (4577) stays a cut until plan 17-07.
+  ctx.fire?.();
 }

@@ -15,6 +15,8 @@
  * not here.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 import * as fc from "fast-check";
 
@@ -30,6 +32,14 @@ import type { StepOptions } from "../../../src/sim/flight/step.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
+import {
+  behaviourAttackFlyToTarget,
+  behaviourFlyToTargetSix,
+} from "../../../src/sim/npc/behaviours/attack-close.js";
+import { behaviourAttackSniper } from "../../../src/sim/npc/behaviours/attack-evade.js";
+import { behaviourEvasiveAction } from "../../../src/sim/npc/behaviours/evasive.js";
+import { BEHAVIOUR_ROUTES } from "../../../src/sim/npc/dispatch.js";
+import type { SteerContext } from "../../../src/sim/npc/dispatch.js";
 import type { NpcStepFacts } from "../../../src/sim/npc/stats.js";
 import { createRngState, rngNext } from "../../../src/sim/rng.js";
 import { DT } from "../../../src/sim/time.js";
@@ -48,6 +58,16 @@ import { realHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { realNpcFlightTable } from "../../helpers/npc-flight.js";
 import { realNpcWeapons } from "../../helpers/npc-weapons.js";
+import {
+  TARGET_ID,
+  facingAspect,
+  harness,
+  other,
+  ship,
+  statsWith,
+  target,
+} from "./attack-support.js";
+import type { Harness } from "./attack-support.js";
 
 const { layout } = laveFixture();
 const HULLS = realHullTable();
@@ -493,5 +513,418 @@ describe("a faulted pilot (review Fable M4, T-17-15)", () => {
     const before = viper.rng.combat;
     expect(ofKind(drain(world, player), "laserFired")).toEqual([]);
     expect(viper.rng.combat).toBe(before);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The fire sites (D-06, D-12): one ctx.fire call at each of Oolite's
+// fireMainWeapon: sites of the attack IN list, as the last statement of every
+// path that reaches it. Geometry and weapon ranges are those of attack-support.
+// ---------------------------------------------------------------------------
+
+const PULSE = statsWith("EQ_WEAPON_PULSE_LASER"); // range 12,500
+const BEAM = statsWith("EQ_WEAPON_BEAM_LASER"); // range 15,000
+
+/** A context that counts its fire calls. */
+function counted(h: Harness): { ctx: SteerContext; calls: () => number } {
+  let calls = 0;
+  return {
+    ctx: {
+      ...h.ctx,
+      fire: () => {
+        calls += 1;
+      },
+    },
+    calls: () => calls,
+  };
+}
+
+/**
+ * Run `scenario` twice, once with a counting `ctx.fire` and once without one,
+ * and return the fire count of the first run. Without the opt-in the update must
+ * leave exactly the state, the events and the draws the update leaves with it:
+ * the call is a pure request.
+ */
+function viaSite(
+  scenario: (withFire: boolean) => {
+    entity: ReturnType<typeof ship>;
+    h: Harness;
+    calls: () => number;
+  },
+): number {
+  const on = scenario(true);
+  const off = scenario(false);
+  expect(JSON.stringify([off.entity.nav, off.entity.steer])).toBe(
+    JSON.stringify([on.entity.nav, on.entity.steer]),
+  );
+  expect(off.h.events).toEqual(on.h.events);
+  expect(off.h.used()).toBe(on.h.used());
+  expect(off.calls()).toBe(0);
+  return on.calls();
+}
+
+describe("evasive and flee-evasive ask once, after the hand-over (ShipEntity.m:4035)", () => {
+  function evasive(
+    behaviour: "EVASIVE_ACTION" | "FLEE_EVASIVE_ACTION",
+    options: {
+      frustration?: number;
+      alert?: number;
+      targetPresent?: boolean;
+      bodies?: ReturnType<typeof other>[];
+    } = {},
+  ) {
+    return (withFire: boolean) => {
+      const entity = ship(2);
+      entity.nav.behaviour = behaviour;
+      entity.nav.desiredSpeed = 3;
+      entity.steer.frustration = options.frustration ?? 0;
+      entity.steer.proximityAlert = options.alert ?? 0;
+      const h = harness(
+        entity,
+        [
+          ...(options.targetPresent === false ? [] : [target(1000)]),
+          ...(options.bodies ?? []),
+        ],
+        PULSE,
+        [0.5, 0.5, 0.5, 0.5],
+      );
+      const c = counted(h);
+      behaviourEvasiveAction(entity, withFire ? c.ctx : h.ctx);
+      return { entity, h, calls: c.calls };
+    };
+  }
+
+  it("asks once per update in both behaviours, whatever the frustration", () => {
+    for (const behaviour of [
+      "EVASIVE_ACTION",
+      "FLEE_EVASIVE_ACTION",
+    ] as const) {
+      expect(viaSite(evasive(behaviour))).toBe(1);
+    }
+  });
+
+  it("asks after the hand-over, so the request follows the new behaviour", () => {
+    // 0.5 s of frustration: one more dt tips it past 0.5 (4021-4028)
+    const flee = evasive("FLEE_EVASIVE_ACTION", { frustration: 0.5 })(true);
+    expect(flee.entity.nav.behaviour).toBe("FLEE_TARGET");
+    expect(flee.calls()).toBe(1);
+    const attack = evasive("EVASIVE_ACTION", { frustration: 0.5 })(true);
+    expect(attack.entity.nav.behaviour).toBe("ATTACK_TARGET");
+    expect(attack.calls()).toBe(1);
+  });
+
+  it("does not ask on the proximity-alert return, even when the alert is the target", () => {
+    const onOther = evasive("EVASIVE_ACTION", {
+      alert: 300,
+      bodies: [other(300, vec(500, 0, 0))],
+    })(true);
+    expect(onOther.entity.nav.behaviour).toBe("AVOID_COLLISION");
+    expect(onOther.calls()).toBe(0);
+    const onTarget = evasive("FLEE_EVASIVE_ACTION", { alert: TARGET_ID })(true);
+    expect(onTarget.entity.nav.behaviour).toBe("AVOID_COLLISION");
+    expect(onTarget.calls()).toBe(0);
+  });
+
+  it("asks with a target lost during evasiveAction: no target guard, the gate refuses later (D-12)", () => {
+    const lost = evasive("EVASIVE_ACTION", { targetPresent: false })(true);
+    expect(lost.h.events).toEqual([{ name: "shipTargetLost" }]);
+    expect(lost.calls()).toBe(1);
+  });
+});
+
+describe("the sniper asks on both sides of 15,000 m, after the if/else (ShipEntity.m:4414-4454)", () => {
+  function sniper(
+    range: number,
+    options: {
+      frustration?: number;
+      successFactor?: number;
+      position?: ReturnType<typeof vec>;
+      values?: readonly number[];
+    } = {},
+  ) {
+    return (withFire: boolean) => {
+      const entity = ship(2);
+      entity.nav.behaviour = "ATTACK_SNIPER";
+      entity.nav.desiredSpeed = 77;
+      entity.steer.frustration = options.frustration ?? 0;
+      entity.steer.successFactor = options.successFactor ?? 0;
+      const body =
+        options.position === undefined
+          ? target(range)
+          : target(range, { position: options.position });
+      const h = harness(entity, [body], BEAM, options.values ?? []);
+      const c = counted(h);
+      behaviourAttackSniper(entity, withFire ? c.ctx : h.ctx);
+      return { entity, h, calls: c.calls };
+    };
+  }
+
+  it("above 15,000 m it asks after the speed and tracking", () => {
+    expect(viaSite(sniper(20000))).toBe(1);
+    expect(sniper(20000)(true).entity.nav.behaviour).toBe("ATTACK_SNIPER");
+  });
+
+  it("below 15,000 m it hands back to ATTACK_TARGET and asks in the same update (Oolite's fall-through)", () => {
+    const inside = sniper(14000)(true);
+    expect(inside.entity.nav.behaviour).toBe("ATTACK_TARGET");
+    // nothing else of the update ran: the speed stays and no draw was taken
+    expect(inside.entity.nav.desiredSpeed).toBe(77);
+    expect(inside.h.used()).toBe(0);
+    expect(viaSite(sniper(14000))).toBe(1);
+  });
+
+  it("asks when the frustration limit hands the update back to ATTACK_TARGET", () => {
+    const limit = 3 - 2 ** -10; // one dt tips it past 3 s (4436-4445)
+    const run = sniper(20000, {
+      frustration: limit,
+      successFactor: 0.5,
+      position: vec(0, 20060, 0),
+      values: [0.75, 0.25],
+    })(true);
+    expect(run.entity.nav.behaviour).toBe("ATTACK_TARGET");
+    expect(run.calls()).toBe(1);
+  });
+
+  it("a lost target returns before the request", () => {
+    const entity = ship(2);
+    entity.nav.behaviour = "ATTACK_SNIPER";
+    const none = harness(entity, [], BEAM);
+    const c = counted(none);
+    behaviourAttackSniper(entity, c.ctx);
+    expect(entity.nav.behaviour).toBe("IDLE");
+    expect(c.calls()).toBe(0);
+
+    const far = ship(2);
+    far.nav.behaviour = "ATTACK_SNIPER";
+    const h = harness(far, [target(33000)], BEAM);
+    const cf = counted(h);
+    behaviourAttackSniper(far, cf.ctx);
+    expect(far.nav.behaviour).toBe("IDLE");
+    expect(cf.calls()).toBe(0);
+  });
+});
+
+describe("six and twelve ask on every update that reaches 4575", () => {
+  function six(
+    behaviour: "ATTACK_FLY_TO_TARGET_SIX" | "ATTACK_FLY_TO_TARGET_TWELVE",
+    range: number,
+    options: {
+      alert?: number;
+      targetPresent?: boolean;
+      aspect?: number;
+      bodies?: ReturnType<typeof other>[];
+    } = {},
+  ) {
+    return (withFire: boolean) => {
+      const entity = ship(2);
+      entity.nav.behaviour = behaviour;
+      entity.nav.destination = vec(0, 0, -(range + 60));
+      entity.steer.proximityAlert = options.alert ?? 0;
+      const h = harness(
+        entity,
+        [
+          ...(options.targetPresent === false
+            ? []
+            : [
+                target(range, {
+                  orientation: facingAspect(options.aspect ?? -1),
+                }),
+              ]),
+          ...(options.bodies ?? []),
+        ],
+        PULSE,
+      );
+      const c = counted(h);
+      behaviourFlyToTargetSix(entity, withFire ? c.ctx : h.ctx);
+      return { entity, h, calls: c.calls };
+    };
+  }
+
+  it("asks once per update, six and twelve, far and near", () => {
+    for (const behaviour of [
+      "ATTACK_FLY_TO_TARGET_SIX",
+      "ATTACK_FLY_TO_TARGET_TWELVE",
+    ] as const) {
+      expect(viaSite(six(behaviour, 20000))).toBe(1);
+      // inside the vector-in distance the behaviour hands over, and still asks
+      const near = six(behaviour, 400)(true);
+      expect(near.entity.nav.behaviour).toBe("ATTACK_FLY_TO_TARGET");
+      expect(near.calls()).toBe(1);
+    }
+  });
+
+  it("does not ask when an alert returns first, on the target or on another body, or when the target is lost", () => {
+    const onTarget = six("ATTACK_FLY_TO_TARGET_SIX", 5000, {
+      alert: TARGET_ID,
+    })(true);
+    expect(onTarget.calls()).toBe(0);
+    const onOther = six("ATTACK_FLY_TO_TARGET_TWELVE", 5000, {
+      alert: 300,
+      bodies: [other(300, vec(500, 0, 0))],
+    })(true);
+    expect(onOther.entity.nav.behaviour).toBe("AVOID_COLLISION");
+    expect(onOther.calls()).toBe(0);
+    const lost = six("ATTACK_FLY_TO_TARGET_SIX", 5000, {
+      targetPresent: false,
+    })(true);
+    expect(lost.entity.nav.behaviour).toBe("IDLE");
+    expect(lost.calls()).toBe(0);
+  });
+});
+
+describe("fly-to asks as its last statement (ShipEntity.m:4711)", () => {
+  function flyTo(
+    range: number,
+    options: {
+      alert?: number;
+      targetPresent?: boolean;
+      targetSpeed?: number;
+      bodies?: ReturnType<typeof other>[];
+    } = {},
+  ) {
+    return (withFire: boolean) => {
+      const entity = ship(2);
+      entity.nav.behaviour = "ATTACK_FLY_TO_TARGET";
+      entity.steer.proximityAlert = options.alert ?? 0;
+      const h = harness(
+        entity,
+        [
+          ...(options.targetPresent === false
+            ? []
+            : [target(range, { speed: options.targetSpeed ?? 0 })]),
+          ...(options.bodies ?? []),
+        ],
+        PULSE,
+      );
+      const c = counted(h);
+      behaviourAttackFlyToTarget(entity, withFire ? c.ctx : h.ctx);
+      return { entity, h, calls: c.calls };
+    };
+  }
+
+  it("asks once per update that reaches the end, far, near and after the hand-back to ATTACK_TARGET", () => {
+    expect(viaSite(flyTo(10000))).toBe(1);
+    expect(viaSite(flyTo(300, { targetSpeed: 100 }))).toBe(1);
+    const handBack = flyTo(300, { targetSpeed: 100 })(true);
+    expect(handBack.entity.nav.behaviour).toBe("ATTACK_TARGET");
+    expect(handBack.calls()).toBe(1);
+  });
+
+  it("an alert on the target is ignored and the update still reaches the call", () => {
+    expect(flyTo(10000, { alert: TARGET_ID })(true).calls()).toBe(1);
+  });
+
+  it("does not ask when it returns earlier: a lost target, a target too far to track, an alert on another body", () => {
+    expect(flyTo(10000, { targetPresent: false })(true).calls()).toBe(0);
+    expect(flyTo(33000)(true).calls()).toBe(0);
+    const avoid = flyTo(10000, {
+      alert: 300,
+      bodies: [other(300, vec(500, 0, 0))],
+    })(true);
+    expect(avoid.entity.nav.behaviour).toBe("AVOID_COLLISION");
+    expect(avoid.calls()).toBe(0);
+  });
+});
+
+describe("the routes stay exclusive (advisor warning, T-17-17)", () => {
+  /** The code of a source file with its comments removed. */
+  function code(path: string): string {
+    return readFileSync(new URL(path, import.meta.url), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+  }
+
+  /** The behaviour ids whose step asks to fire, found by running every route. */
+  function firingBehaviours(): string[] {
+    const found: string[] = [];
+    for (const [id, step] of BEHAVIOUR_ROUTES) {
+      let calls = 0;
+      const entity = ship(2);
+      entity.nav.behaviour = id;
+      entity.nav.destination = vec(0, 0, -5060);
+      const h = harness(entity, [target(5000)], PULSE, Array(64).fill(0.5));
+      step(entity, {
+        ...h.ctx,
+        fire: () => {
+          calls += 1;
+        },
+      });
+      if (calls > 0) found.push(id);
+    }
+    return found.sort();
+  }
+
+  it("the sites are exactly Oolite's: evasive, flee-evasive, sniper, six, twelve and fly-to", () => {
+    expect(firingBehaviours()).toEqual([
+      "ATTACK_FLY_TO_TARGET",
+      "ATTACK_FLY_TO_TARGET_SIX",
+      "ATTACK_FLY_TO_TARGET_TWELVE",
+      "ATTACK_SNIPER",
+      "EVASIVE_ACTION",
+      "FLEE_EVASIVE_ACTION",
+    ]);
+  });
+
+  it("the flight-script pilot never calls ctl.fire", () => {
+    expect(code("../../../src/sim/ai/pilots/flight-script.ts")).not.toMatch(
+      /\bctl\s*\.\s*fire\b|\.fire\s*\(/,
+    );
+  });
+
+  it("every behaviour the test pilot performs is outside the set of fire sites", () => {
+    const source = code("../../../src/sim/ai/pilots/test-pilot.ts");
+    const performed = [
+      ...source.matchAll(/ctl\.perform\(\s*self,\s*"([A-Z_]+)"/g),
+    ].map((match) => match[1] as string);
+    expect(performed.sort()).toEqual([
+      "FLY_TO_DESTINATION",
+      "IDLE",
+      "STOP_STILL",
+    ]);
+    const sites = new Set(firingBehaviours());
+    for (const id of performed) expect(sites.has(id)).toBe(false);
+  });
+
+  it("an opted-in test pilot and an opted-in attacker in one world: one entry per id per tick, and the pilot only holds or flies", () => {
+    const { world, player, viper, adder } = duel(true);
+    const pilotResult = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "viper",
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(500, 0, -3000),
+        orientation: identity(),
+        radius: 30,
+        maxEnergy: 180,
+        ai: createTestPilotAi(0, { fire: true }),
+      },
+      0,
+    );
+    if (!pilotResult.ok) throw new Error("spawn refused");
+    const pilot = pilotResult.entity;
+    const allowed = new Set(["IDLE", "FLY_TO_DESTINATION", "STOP_STILL"]);
+    let pilotAsked = 0;
+    let viperAsked = 0;
+    for (let i = 0; i < 240; i += 1) {
+      const attackerBefore = viper.nav.behaviour;
+      expect(allowed.has(pilot.nav.behaviour)).toBe(true);
+      stepOnly(world, player);
+      const counts = new Map<number, number>();
+      for (const id of world.fireQueue) {
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+      for (const count of counts.values()) expect(count).toBe(1);
+      // the attacker asks on fly-to updates only; the pilot only through ctl.fire
+      expect(counts.has(viper.id)).toBe(
+        attackerBefore === "ATTACK_FLY_TO_TARGET",
+      );
+      if (counts.has(viper.id)) viperAsked += 1;
+      if (counts.has(pilot.id)) pilotAsked += 1;
+      expect(counts.has(adder.id)).toBe(false);
+      drain(world, player);
+    }
+    expect(viperAsked).toBeGreaterThan(0);
+    expect(pilotAsked).toBeGreaterThan(0);
   });
 });
