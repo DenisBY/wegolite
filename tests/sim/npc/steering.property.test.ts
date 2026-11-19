@@ -481,6 +481,113 @@ describe("steering is total over domain-valid records (T-14-14)", () => {
 });
 
 /* ---------------------------------------------------------------------------
+ * Steering with a recording fire (plan 17-09, D-17, Pitfall 16)
+ * ------------------------------------------------------------------------- */
+
+/** The id of the one target body of a firing scenario. */
+const TARGET_BODY_ID = 4242;
+
+/** The behaviours that reach a fire site: the attack family and the flee pair. */
+const FIRING_BEHAVIOURS: readonly BehaviourId[] = [...ATTACK, ...FLIGHT];
+
+const direction = fc
+  .record({ x: num(-1, 1), y: num(-1, 1), z: num(-1, 1) })
+  .map((v) => {
+    const length = Math.hypot(v.x, v.y, v.z);
+    return length > 1e-6
+      ? vec(v.x / length, v.y / length, v.z / length)
+      : vec(0, 0, -1);
+  });
+
+/** A scenario whose target is a real body, so the attack behaviours reach their sites. */
+const firingScenario = fc.record({
+  base: scenario,
+  behaviour: fc.constantFrom(...FIRING_BEHAVIOURS),
+  bearing: direction,
+  distance: num(50, 30_000),
+  targetRadius: num(10, 400),
+  targetOrientation: orientation,
+  targetSpeed: num(0, 300),
+  targetTargetsUs: fc.boolean(),
+});
+
+describe("steering with a recording fire is total and asks at most once per update (D-17)", () => {
+  it("never throws, requests at most once per steerShip call, stays finite and leaves the sanitiser nothing to repair", () => {
+    let updates = 0;
+    let requested = 0;
+    let runsWithRequest = 0;
+    fc.assert(
+      fc.property(firingScenario, (f) => {
+        const s: Scenario = {
+          ...f.base,
+          nav: {
+            ...f.base.nav,
+            behaviour: f.behaviour,
+            targetId: TARGET_BODY_ID,
+          },
+        };
+        const entity = buildEntity(s);
+        const target: RunnerBody = {
+          id: TARGET_BODY_ID,
+          kind: "ship",
+          scanClass: "CLASS_NEUTRAL",
+          radius: f.targetRadius,
+          mass: 1e5,
+          position: vec(
+            entity.position.x + f.bearing.x * f.distance,
+            entity.position.y + f.bearing.y * f.distance,
+            entity.position.z + f.bearing.z * f.distance,
+          ),
+          orientation: f.targetOrientation,
+          speed: f.targetSpeed,
+          behaviour: "IDLE",
+          targetId: f.targetTargetsUs ? entity.id : 0,
+        };
+        const stream = createRngState(s.seed);
+        const draw = (): number => rngNext(stream);
+        let inRun = 0;
+        for (let tick = 1; tick <= s.ticks; tick += 1) {
+          let requests = 0;
+          const events: string[] = [];
+          steerShip(entity, {
+            view: createSyntheticView([target], entity, tick),
+            stats: s.stats,
+            dt: DT,
+            draw,
+            emit: (event) => {
+              events.push(event.name);
+            },
+            fire: () => {
+              requests += 1;
+            },
+          });
+          updates += 1;
+          // One ship asks at most once an update: the gate draws once per
+          // Oolite call, and Oolite's call sites are exclusive (Pitfall 16).
+          expect(requests).toBeLessThanOrEqual(1);
+          inRun += requests;
+          assertTotal(entity, s.stats);
+          for (const name of events) {
+            expect(AI_EVENT_NAMES as readonly string[]).toContain(name);
+          }
+          expect(sanitizeEntity(entity)).toBe(false);
+          expect(entity.repairs).toBe(0);
+        }
+        requested += inRun;
+        if (inRun > 0) runsWithRequest += 1;
+      }),
+      { numRuns: 150 },
+    );
+    // Not vacuous: the generator reaches the fire sites often. Measured on one
+    // run: 16,350 updates, 6,113 requests, 103 of 150 runs with at least one;
+    // the floors leave a wide margin because the run is not seeded.
+    expect(updates).toBeGreaterThan(1000);
+    expect(requested).toBeGreaterThanOrEqual(500);
+    expect(runsWithRequest).toBeGreaterThanOrEqual(30);
+  }, 120_000);
+});
+
+/* ---------------------------------------------------------------------------
  * The out-of-scope fallback
  * ------------------------------------------------------------------------- */
 

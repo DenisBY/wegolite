@@ -486,6 +486,8 @@ type Role =
       readonly kind: "script";
       readonly script: "attack" | "intercept";
       readonly target: number;
+      /** Opt in to the steering route's fire requests (Phase 17, D-05). */
+      readonly fire?: boolean;
     }
   | { readonly kind: "escort"; readonly owner: number; readonly slot: number };
 
@@ -677,11 +679,19 @@ function spawnFight(
       );
     } else if (role.kind === "script") {
       const t = targetIndex(plan.ships, i, role.target);
+      if (role.fire === true) {
+        // An opted-in attacker starts with its nose on its target, as a pilot
+        // does, so a fight reaches its fire sites inside the run's few ticks.
+        const toward =
+          t === PLAYER_TARGET ? FAR : positionOf(shipPlanAt(plan.ships, t));
+        orientation = noseOn(position, toward);
+      }
       ai = createFlightScriptAi(tick, {
         script: role.script,
         targetId: t === PLAYER_TARGET ? PLAYER_ID : idOf(t),
         range: role.script === "intercept" ? 300 : 1000,
         speed: 100,
+        ...(role.fire === true ? { fire: true } : {}),
       });
     } else if (role.kind === "escort") {
       const owner = targetIndex(plan.ships, i, role.owner);
@@ -868,6 +878,11 @@ interface Tallies {
   wrecksExpired: number;
   /** Runs whose fork was taken while debris was live (and replayed equal). */
   forkWithDebris: number;
+  /** Opted-in fights (plan 17-09): NPC beams, by route, and NPC-credited kills. */
+  pilotShots: number;
+  scriptShots: number;
+  npcKills: number;
+  runsWithNpcKill: number;
 }
 
 function newTallies(): Tallies {
@@ -884,6 +899,10 @@ function newTallies(): Tallies {
     wrecks: 0,
     wrecksExpired: 0,
     forkWithDebris: 0,
+    pilotShots: 0,
+    scriptShots: 0,
+    npcKills: 0,
+    runsWithNpcKill: 0,
   };
 }
 
@@ -981,6 +1000,7 @@ function runFight(
   plan: FightPlan,
   tallies: Tallies,
   debris?: DebrisPlan,
+  strict = false,
 ): void {
   const player = flyingPlayer();
   const combat = createPlayerCombatState();
@@ -989,8 +1009,22 @@ function runFight(
   const options = withDebris ? debrisStepOptions() : stepOptions();
   const spawnTicks = new Map<number, number>();
   const spawnNowIds = new Set<number>();
-  const shipIds = new Set<number>(
-    spawnFight(world, plan, player.tick + 1, spawnTicks, debris?.cargo),
+  const spawnedIds = spawnFight(
+    world,
+    plan,
+    player.tick + 1,
+    spawnTicks,
+    debris?.cargo,
+  );
+  const shipIds = new Set<number>(spawnedIds);
+  // The scripted attackers that opted in to fire (plan 17-09): their shots come
+  // from the steering route, every other NPC shot from a test pilot's ask.
+  const scriptFireIds = new Set<number>(
+    plan.ships.flatMap((ship, i) =>
+      ship.role.kind === "script" && ship.role.fire === true
+        ? [spawnedIds[i] ?? NO_ENTITY]
+        : [],
+    ),
   );
   const log: FightLog = {
     destroyed: new Set(),
@@ -1009,6 +1043,7 @@ function runFight(
   let spawnTickKill = false;
   let spawnNowKill = false;
   let holderTargetKill = false;
+  let npcKill = false;
 
   for (let s = 0; s < steps; s += 1) {
     let fire = plan.script[s] === true;
@@ -1039,6 +1074,25 @@ function runFight(
     stepEvents.push(events);
     recordEvents(log, events, shipIds);
     boundaryHolds(player, world, combat);
+    if (strict) {
+      // Opted-in fights keep every ship inside the sanitiser's domain: it never
+      // has to repair a field (plan 17-09).
+      for (const entity of world.store.live) {
+        if (entity.repairs !== 0) {
+          throw new Error(`entity ${String(entity.id)} needed a repair`);
+        }
+      }
+    }
+    for (const shot of ofKind(events, "laserFired")) {
+      if (scriptFireIds.has(shot.shooter)) tallies.scriptShots += 1;
+      else if (shipIds.has(shot.shooter)) tallies.pilotShots += 1;
+    }
+    for (const event of ofKind(events, "shipDestroyed")) {
+      if (event.killer !== PLAYER_ID && event.killer !== NO_ENTITY) {
+        tallies.npcKills += 1;
+        npcKill = true;
+      }
+    }
     const liveDebris = noteDebris(world, log, tallies);
 
     const destroyedNow = new Set<number>();
@@ -1112,6 +1166,7 @@ function runFight(
   if (spawnTickKill) tallies.spawnTick += 1;
   if (spawnNowKill) tallies.spawnNow += 1;
   if (holderTargetKill) tallies.holderTarget += 1;
+  if (npcKill) tallies.runsWithNpcKill += 1;
 }
 
 describe("random fights (FOUND-19, D-12)", () => {
@@ -1154,6 +1209,46 @@ describe("random fights (FOUND-19, D-12)", () => {
     expect(tallies.plates).toBeGreaterThanOrEqual(1);
     expect(tallies.wrecksExpired).toBeGreaterThanOrEqual(1);
     expect(tallies.forkWithDebris).toBeGreaterThanOrEqual(1);
+  }, 240_000);
+});
+
+/**
+ * The opted-in variant of a fight (plan 17-09, D-17): every scripted attacker
+ * asks the NPC fire gate through its attack behaviours' own fire sites
+ * (`fire: true`), beside the test pilots, which always ask. The script is tiled
+ * four times so a fight runs 80 to 240 ticks, long enough for an attacker to
+ * enter its attack and reach a fire site.
+ */
+const firingFightPlanArb: fc.Arbitrary<FightPlan> = fightPlanArb.map(
+  (plan) => ({
+    ...plan,
+    ships: plan.ships.map((ship) =>
+      ship.role.kind === "script"
+        ? { ...ship, role: { ...ship.role, fire: true } }
+        : ship,
+    ),
+    script: [...plan.script, ...plan.script, ...plan.script, ...plan.script],
+    snapshotAt: plan.snapshotAt * 3,
+  }),
+);
+
+describe("random fights with opted-in pilots (CBT-15, D-17)", () => {
+  it("hold the boundary invariants, report each kill once, never throw and never need a repair", () => {
+    const tallies = newTallies();
+    fc.assert(
+      fc.property(firingFightPlanArb, debrisPlanArb, (plan, debris) => {
+        runFight(plan, tallies, debris, true);
+      }),
+      { seed: 20261709, numRuns: 40 },
+    );
+    // Not vacuous: under the fixed seed both fire routes shot and NPCs killed
+    // NPCs (a floor missed here means the generator weights need tuning).
+    expect(tallies.runs).toBe(40);
+    expect(tallies.pilotShots).toBeGreaterThanOrEqual(30);
+    expect(tallies.scriptShots).toBeGreaterThanOrEqual(10);
+    expect(tallies.npcKills).toBeGreaterThanOrEqual(10);
+    expect(tallies.runsWithNpcKill).toBeGreaterThanOrEqual(10);
+    expect(tallies.withKill).toBeGreaterThanOrEqual(10);
   }, 240_000);
 });
 

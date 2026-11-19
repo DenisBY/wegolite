@@ -596,3 +596,104 @@ describe("two ships hit a third on one tick: the ledger runs in ascending shoote
     expect(ofKind(events, "entityRemoved")).toHaveLength(1);
   });
 });
+
+/**
+ * The mutual-kill cases (D-10) and the seeds they run under. The range roll draws
+ * from each ship's own stream and the accuracy is not pinned (D-04), so a seed is
+ * not interchangeable: each was chosen with a scratch run over seeds 1 to 40
+ * (a fixed list of both spawn orders per seed) as one where, on the first tick
+ * a beam fires, both ships fire. Seed 22 is the counter-example: there only the
+ * higher id fires on the first firing tick (it kills the other before it can
+ * answer), and a seed like it is never accepted by loosening an assertion.
+ */
+const MUTUAL_SEEDS = { lowFacesMinusZ: 7, lowFacesPlusZ: 13 } as const;
+
+describe("a same-tick mutual kill between NPCs: credit stays asymmetric by ascending id (D-10)", () => {
+  /**
+   * Two one-energy Viper pilots nose to nose 1,000 m apart, each the other's
+   * target. `lowFacesMinusZ` decides which of the two takes the lower id (spawn
+   * order), the mirror case.
+   */
+  function duel(seed: number, lowFacesMinusZ: boolean) {
+    const arena = new Arena(seed);
+    const first = arena.nextId;
+    const second = first + 1;
+    const facingMinus = () =>
+      arena.spawn("viper", at(0, 0, 0), identity(), {
+        maxEnergy: 1,
+        ai: holdingPilot(lowFacesMinusZ ? second : first),
+      });
+    const facingPlus = () =>
+      arena.spawn("viper", at(0, 0, -1000), FACING_PLUS_Z, {
+        maxEnergy: 1,
+        ai: holdingPilot(lowFacesMinusZ ? first : second),
+      });
+    if (lowFacesMinusZ) {
+      facingMinus();
+      facingPlus();
+    } else {
+      facingPlus();
+      facingMinus();
+    }
+    const { ticks, ended } = runUntil(arena, 200, hasKind("laserFired"));
+    return { arena, low: first, high: second, ticks, ended };
+  }
+
+  it.each([
+    [true, MUTUAL_SEEDS.lowFacesMinusZ],
+    [false, MUTUAL_SEEDS.lowFacesPlusZ],
+  ])(
+    "lets the lower id die credited to the higher and the higher die credited to nobody (lowFacesMinusZ %s, seed %i)",
+    (lowFacesMinusZ, seed) => {
+      const { arena, low, high, ticks, ended } = duel(seed, lowFacesMinusZ);
+      // The first firing tick, found by a bounded loop: it ended on the event.
+      expect(ended).toBe(true);
+      expect(ticks).toBeLessThan(200);
+      const events = arena.ticks[ticks - 1] as SimEvent[];
+      // Both ships fired on that tick (the seed was chosen for this).
+      expect(
+        ofKind(events, "laserFired")
+          .map((shot) => shot.shooter)
+          .sort((x, y) => x - y),
+      ).toEqual([low, high]);
+      // Each shot hit the other ship, and one hit kills a ship with 1 energy.
+      const hits = ofKind(events, "shipHit");
+      expect(hits.map((hit) => [hit.source, hit.target])).toEqual([
+        [low, high],
+        [high, low],
+      ]);
+      // Victims die in ascending id; a killer that an earlier kill of the same
+      // pass removed is NO_ENTITY (`normaliseKiller`).
+      const destroyed = ofKind(events, "shipDestroyed");
+      expect(destroyed.map((event) => event.id)).toEqual([low, high]);
+      expect(destroyed.map((event) => event.killer)).toEqual([high, NO_ENTITY]);
+      expect(ofKind(events, "entityRemoved").map((event) => event.id)).toEqual([
+        low,
+        high,
+      ]);
+      expect(arena.world.store.live).toHaveLength(0);
+    },
+  );
+
+  it("replays the same events and hashes under the same seed", () => {
+    const first = duel(MUTUAL_SEEDS.lowFacesMinusZ, true);
+    const second = duel(MUTUAL_SEEDS.lowFacesMinusZ, true);
+    expect(second.arena.ticks).toEqual(first.arena.ticks);
+    expect(second.arena.hashes).toEqual(first.arena.hashes);
+    // Both ships are dead when the tick's AI events are delivered, so the credited
+    // ship is told nothing either (no live module receives a kill notice).
+    expect(first.arena.deliveries).toEqual([]);
+  });
+
+  it("is the same through the steering route: two opted-in attackers with 10 energy kill each other on one tick", () => {
+    const { arena, a, b } = attackerFight(7, 10, 10);
+    const { ticks, ended } = runUntil(arena, 6000, hasKind("shipDestroyed"));
+    expect(ended).toBe(true);
+    const events = arena.ticks[ticks - 1] as SimEvent[];
+    const destroyed = ofKind(events, "shipDestroyed");
+    expect(destroyed.map((event) => event.id)).toEqual([a, b]);
+    expect(destroyed.map((event) => event.killer)).toEqual([b, NO_ENTITY]);
+    expect(arena.world.store.get(a)).toBeUndefined();
+    expect(arena.world.store.get(b)).toBeUndefined();
+  });
+});
