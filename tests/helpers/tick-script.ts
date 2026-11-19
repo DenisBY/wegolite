@@ -69,7 +69,8 @@
  *   frame field the keyboard source sets. The hull data is read from the
  *   committed generated file with `readFileSync` and the strict schema, like
  *   the NPC catalogue, and only with traffic on (the session loads it only
- *   then, D-01).
+ *   then, D-01); since plan 18-04 the static hulls are merged in as the
+ *   session merges them, because the station is a laser candidate.
  *
  * - the flying NPCs (Phase 14, plan 14-18): a step with `spawnFlyers` calls the
  *   one `spawnTestFlyers` the `?test=1` hook calls, with the records of the
@@ -92,8 +93,9 @@
  *
  * Node only. It imports `src/sim`, three pure session modules
  * (`step-options.ts`, `traffic.ts`, `world-lifecycle.ts`), the NPC, hull,
- * debris and explosion catalogue schemas, `newProfile` and the readFileSync based fixtures; nothing that
- * touches the DOM, Three or `import.meta.glob`, so the Playwright Node runner
+ * static hull, debris and explosion catalogue schemas, `newProfile` and the
+ * readFileSync based fixtures; nothing that touches the DOM, Three or
+ * `import.meta.glob`, so the Playwright Node runner
  * can import it (RESEARCH A7).
  */
 
@@ -131,6 +133,7 @@ import { createWorldLifecycle } from "../../src/app/session/world-lifecycle.js";
 import { ExplosionCatalogueSchema } from "../../src/content/schemas/explosion.js";
 import { DebrisCatalogueSchema } from "../../src/content/schemas/ship-debris.js";
 import { ShipHullCatalogueSchema } from "../../src/content/schemas/ship-hull.js";
+import { StaticHullArtifactSchema } from "../../src/content/schemas/ship-static-hull.js";
 import { NpcShipCatalogueSchema } from "../../src/content/schemas/ship-npc.js";
 import { laveDockGeometry } from "./dock-pose.js";
 import { laveFixture } from "./lave.js";
@@ -212,15 +215,19 @@ function committedTrafficContent(): TrafficContent {
 }
 
 /**
- * The committed hull data as the session loads it (read with `readFileSync`,
- * validated with the strict schema) and built into the shared hull table.
+ * The committed hull data as the traffic-on session loads it (read with
+ * `readFileSync`, validated with the strict schemas) and built into the shared
+ * hull table: the ten ship hulls merged with the static hulls of
+ * `ships-static-hulls.json` (`hullTable(hulls, statics)`, plan 18-13), so the
+ * replay's laser candidates include the station as the session's do (plan
+ * 18-04).
  */
 function committedHullTable(): HullTable {
-  const raw = readFileSync(
-    new URL("../../src/content/generated/ships-hulls.json", import.meta.url),
-    "utf8",
+  return hullTable(
+    ShipHullCatalogueSchema.parse(committedJson("ships-hulls.json")),
+    StaticHullArtifactSchema.parse(committedJson("ships-static-hulls.json"))
+      .hulls,
   );
-  return hullTable(ShipHullCatalogueSchema.parse(JSON.parse(raw)));
 }
 
 /** Replay `steps` over a New game and hash the result. */

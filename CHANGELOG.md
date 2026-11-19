@@ -16,6 +16,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A laser shot now stops at the Coriolis station, which absorbs it. The station
+  takes no damage, and a shot through the docking slot stops where Oolite's
+  stops: on the dock, the faceplate or the hull.
 - The flight HUD now shows during the launch from the docking slot, as in
   Oolite. Until you leave the slot the compass shows no target and the roll
   indicator stays centred.
