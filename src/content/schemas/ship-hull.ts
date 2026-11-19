@@ -53,11 +53,14 @@ const ChildrenPerNode = 8;
 
 /**
  * Walk the tree without recursion and describe the first rule it breaks, or
- * `undefined` when it holds.
+ * `undefined` when it holds. `maxNodes` is the node cap of the calling schema:
+ * the ten-hull catalogue keeps {@link MAX_HULL_NODES}; the static hulls
+ * (`ship-static-hull.ts`) pass their own, larger per-octree cap.
  */
 export function checkHullTree(
   root: unknown,
   declaredDepth: number,
+  maxNodes: number = MAX_HULL_NODES,
 ): string | undefined {
   const limit = Math.min(declaredDepth, MAX_HULL_DEPTH);
   // Each entry is a node and the number of arrays that enclose it.
@@ -69,8 +72,8 @@ export function checkHullTree(
     const next = stack.pop();
     if (next === undefined) return undefined;
     nodes++;
-    if (nodes > MAX_HULL_NODES) {
-      return `the octree has more than ${String(MAX_HULL_NODES)} nodes`;
+    if (nodes > maxNodes) {
+      return `the octree has more than ${String(maxNodes)} nodes`;
     }
     const { node, enclosing } = next;
     if (node === 0 || node === -1) continue;
