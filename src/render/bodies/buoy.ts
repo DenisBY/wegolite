@@ -25,9 +25,13 @@
  * the time alone, so a paused, reloaded or replayed scene shows the same light.
  *
  * The buoy tumbles as Oolite's does (`performBuoyTumble`: roll 0.10 and pitch
- * 0.15 radians per second). Oolite integrates the two rates step by step; this
- * applies them as two fixed-axis angles of the elapsed time, which looks the
- * same and needs no state.
+ * 0.15 radians per second). The body's orientation is the simulation's
+ * `buoyOrientation(time)` (`src/sim/world/statics.ts`), the same function the
+ * laser hit test poses the buoy with (Phase 18, PITFALLS 11), so a buoy is hit
+ * where it is drawn. The root carries no rotation of its own (the scene sync
+ * only places it), so the body's world orientation is exactly the sim's. Oolite
+ * integrates the two rates step by step; the closed form is a recorded
+ * divergence (FIDELITY).
  *
  * Time is the flight clock, which does not advance while docked or paused, so
  * a quiet scene has nothing to redraw (`src/app/redraw-gate.ts`).
@@ -35,6 +39,11 @@
 
 import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
+import {
+  BUOY_PITCH_RATE,
+  BUOY_ROLL_RATE,
+  buoyOrientation,
+} from "../../sim/world/statics.js";
 import { isMesh, meshMaterials } from "../mesh.js";
 import {
   applyAuthoredEmissive,
@@ -45,9 +54,8 @@ import {
 /** The shipdata keys the build files the two light sets under. */
 export type BuoyRole = "buoy" | "buoy-witchpoint";
 
-/** Oolite's `performBuoyTumble` rates, radians per second. */
-export const BUOY_ROLL_RATE = 0.1;
-export const BUOY_PITCH_RATE = 0.15;
+/** Oolite's `performBuoyTumble` rates, radians per second (owned by the sim). */
+export { BUOY_PITCH_RATE, BUOY_ROLL_RATE };
 
 /** One flasher as the build wrote it (see `FlasherLight` in the ingest tool). */
 export interface FlasherLight {
@@ -256,16 +264,10 @@ export function createBuoy(gltf: GLTF, role: BuoyRole): BuoyBody {
   }
   root.add(body);
 
-  const roll = new THREE.Quaternion();
-  const pitch = new THREE.Quaternion();
-  const FORWARD = new THREE.Vector3(0, 0, 1);
-  const RIGHT = new THREE.Vector3(1, 0, 0);
-
   function update(elapsedSeconds: number): void {
     const time = Number.isFinite(elapsedSeconds) ? elapsedSeconds : 0;
-    roll.setFromAxisAngle(FORWARD, time * BUOY_ROLL_RATE);
-    pitch.setFromAxisAngle(RIGHT, time * BUOY_PITCH_RATE);
-    body.quaternion.copy(roll).multiply(pitch);
+    const q = buoyOrientation(time);
+    body.quaternion.set(q.x, q.y, q.z, q.w);
 
     for (const [index, light] of lights.entries()) {
       const sprite = sprites[index];

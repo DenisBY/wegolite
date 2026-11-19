@@ -25,6 +25,11 @@ import {
   readFlashers,
 } from "../../src/render/bodies/buoy.js";
 import type { FlasherLight } from "../../src/render/bodies/buoy.js";
+import {
+  BUOY_PITCH_RATE as SIM_PITCH_RATE,
+  BUOY_ROLL_RATE as SIM_ROLL_RATE,
+  buoyOrientation,
+} from "../../src/sim/world/statics.js";
 
 const LIGHT: FlasherLight = {
   position: [1, 2, 3],
@@ -276,6 +281,32 @@ describe("createBuoy", () => {
     buoy.update(500);
     buoy.update(10);
     expect(body.quaternion.angleTo(expected)).toBeCloseTo(0, 9);
+  });
+
+  it("draws the body at the simulation's buoyOrientation, the pose the laser hits (PITFALLS 11)", () => {
+    const buoy = createBuoy(fakeGltf(VALID), "buoy");
+    const body = buoy.root.getObjectByName("buoy-body");
+    if (body === undefined) throw new Error("expected the tumbling body");
+    const world = new THREE.Quaternion();
+    for (const t of [0, 1.7, 123.4]) {
+      buoy.update(t);
+      buoy.root.updateMatrixWorld(true);
+      body.getWorldQuaternion(world);
+      const sim = buoyOrientation(t);
+      // A quaternion and its negation are one rotation: align the signs.
+      const sign =
+        world.w * sim.w + world.x * sim.x + world.y * sim.y + world.z * sim.z <
+        0
+          ? -1
+          : 1;
+      expect(Math.abs(sign * world.w - sim.w)).toBeLessThanOrEqual(1e-12);
+      expect(Math.abs(sign * world.x - sim.x)).toBeLessThanOrEqual(1e-12);
+      expect(Math.abs(sign * world.y - sim.y)).toBeLessThanOrEqual(1e-12);
+      expect(Math.abs(sign * world.z - sim.z)).toBeLessThanOrEqual(1e-12);
+    }
+    // The rates the renderer re-exports are the simulation's.
+    expect(BUOY_ROLL_RATE).toBe(SIM_ROLL_RATE);
+    expect(BUOY_PITCH_RATE).toBe(SIM_PITCH_RATE);
   });
 
   it("treats a non-finite time as zero instead of poisoning the pose", () => {
