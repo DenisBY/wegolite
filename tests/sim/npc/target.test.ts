@@ -25,6 +25,7 @@ import {
   currentAimTolerance,
   noteLostTargetAndGoIdle,
   rangeToPrimaryTarget,
+  rangeToTargetIn,
   targetBody,
 } from "../../../src/sim/npc/target.js";
 import { trackPrimaryTarget } from "../../../src/sim/npc/track.js";
@@ -174,6 +175,17 @@ describe("range and aspect (ShipEntity.m:9718-9749)", () => {
     );
   });
 
+  it("rangeToTargetIn reads the view alone and agrees with rangeToPrimaryTarget", () => {
+    const { entity, bodies } = pursuit(vec(0, 0, -1000));
+    const ctx = contextFor(entity, bodies).ctx;
+    expect(rangeToTargetIn(entity, ctx.view)).toBe(940);
+    expect(rangeToTargetIn(entity, ctx.view)).toBe(
+      rangeToPrimaryTarget(entity, ctx),
+    );
+    entity.nav.targetId = entity.id; // a self target is no target (8724-8730)
+    expect(rangeToTargetIn(entity, ctx.view)).toBe(0);
+  });
+
   it("the range is 0 for no valid target (9727)", () => {
     const { entity, bodies } = pursuit(vec(0, 0, -1000));
     entity.nav.targetId = 0;
@@ -281,6 +293,30 @@ describe("currentAimTolerance (ShipEntity.m:9759-9810, setAccuracy 1138)", () =>
     // accuracy 7.5: aim (240 - 135) / 5 = 21; accuracy 10: (240 - 180) / 5 = 12.
     expect(tolerance(7.5)).toBeCloseTo(Math.sqrt(1 - 441 / 1e8), 14);
     expect(tolerance(10)).toBeCloseTo(Math.sqrt(1 - 144 / 1e8), 14);
+  });
+
+  it("the missed-shot term is the identity at missedShots 0, for accuracy -2, 2 and 8 (9769)", () => {
+    // 9769 divides basic_aim by 1 + 0 / 4 = 1. accuracy -2: aim 240 + 36 = 276,
+    // no division at all below accuracy 0; accuracy 2: 204; accuracy 8: the
+    // deadly divisor gives (240 - 144) / 5 = 19.2. The non-zero values are the
+    // on-target and aim-feedback fixtures' (fire.oracle.test.ts).
+    const make = (accuracy: number): Entity => {
+      const entity = ship(accuracy);
+      expect(entity.weapon.missedShots).toBe(0);
+      return entity;
+    };
+    expect(currentAimTolerance(make(-2))).toBeCloseTo(
+      Math.sqrt(1 - 76176 / 1e8),
+      14,
+    );
+    expect(currentAimTolerance(make(2))).toBeCloseTo(
+      Math.sqrt(1 - 41616 / 1e8),
+      14,
+    );
+    expect(currentAimTolerance(make(8))).toBeCloseTo(
+      Math.sqrt(1 - 368.64 / 1e8),
+      14,
+    );
   });
 
   it("is capped at the best cosine of the tier (never binds inside the accuracy domain)", () => {

@@ -182,6 +182,9 @@ export const AIM_BEST_COS_DEADLY = 0.9999999;
 /** A deadly pilot starts with an aim circle this many times smaller (`ShipEntity.m:9775`). */
 export const AIM_DEADLY_DIVISOR = 5;
 
+/** The aim circle shrinks by `1 + missedShots / 4` at accuracy `COMBAT_AI_ISNT_AWFUL` and above (`ShipEntity.m:9769`). */
+export const AIM_MISSED_SHOT_DIVISOR = 4;
+
 /** The divisor under the square root of `max_cos` (`ShipEntity.m:9804`). */
 export const AIM_TOLERANCE_SCALE = 100000000;
 
@@ -359,6 +362,15 @@ export const COMBAT_JINK_OFFSET = 500;
 
 /** `NPC_MAX_WEAPON_TEMP` (`ShipEntity.h:116`). */
 export const NPC_MAX_WEAPON_TEMP = 256;
+
+/**
+ * `WEAPON_COOLING_CUTOUT 0.85f` (`ShipEntity.h:117`): the float32 value Oolite
+ * compares `weapon_temp / NPC_MAX_WEAPON_TEMP` against (`ShipEntity.m:9935-9936`),
+ * the one home of the NPC float32 cutout. The player's double
+ * `WEAPON_COOLING_CUTOUT` in `src/sim/combat/constants.ts` is a separate
+ * constant and is untouched.
+ */
+export const NPC_WEAPON_CUTOUT_F32 = Math.fround(0.85);
 
 /** `0.25 * NPC_MAX_WEAPON_TEMP`: below it a weapon is ready (`ShipEntity.h:119`). */
 export const NPC_WEAPON_TEMP_READY = 0.25 * NPC_MAX_WEAPON_TEMP;

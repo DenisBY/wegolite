@@ -28,6 +28,7 @@ import {
   AIM_BEST_COS_BETTER,
   AIM_BEST_COS_DEADLY,
   AIM_DEADLY_DIVISOR,
+  AIM_MISSED_SHOT_DIVISOR,
   AIM_TOLERANCE_ACCURACY_FACTOR,
   AIM_TOLERANCE_BASE,
   AIM_TOLERANCE_SCALE,
@@ -63,20 +64,29 @@ export function targetBody(
 }
 
 /**
- * `rangeToPrimaryTarget` (`ShipEntity.m:9718-9733`): the centre distance minus
- * both collision radii, or 0 for no valid target.
+ * `rangeToPrimaryTarget` (`ShipEntity.m:9718-9733`) from a world view alone: the
+ * centre distance minus both collision radii, or 0 for no valid target. A
+ * target that is the ship itself is no valid target, so its range is 0.
  */
-export function rangeToPrimaryTarget(
-  entity: Entity,
-  ctx: SteerContext,
-): number {
-  const target = targetBody(entity, ctx.view);
+export function rangeToTargetIn(entity: Entity, view: WorldView): number {
+  const target = targetBody(entity, view);
   if (target === undefined) return 0;
   const delta = sub(target.position, entity.position);
   const dist = Math.sqrt(
     delta.x * delta.x + delta.y * delta.y + delta.z * delta.z,
   );
   return dist - target.radius - entity.radius;
+}
+
+/**
+ * `rangeToPrimaryTarget` (`ShipEntity.m:9718-9733`): `rangeToTargetIn` through
+ * the steering context's view.
+ */
+export function rangeToPrimaryTarget(
+  entity: Entity,
+  ctx: SteerContext,
+): number {
+  return rangeToTargetIn(entity, ctx.view);
 }
 
 /**
@@ -118,13 +128,14 @@ export function canStillTrackPrimaryTarget(
 
 /**
  * `currentAimTolerance` (`ShipEntity.m:9759-9810`): the cosine inside which the
- * ship thinks it is on target; lower is worse. Two Oolite terms are fixed:
- * `missedShots` is 0 because NPCs do not fire in v2.2 (CBT-15), so the "aim
- * better after a miss" divisor is 1; and the sun-glare term is not modelled (a
- * recorded scope cut: every ship is treated as not sunlit, 9784-9797). The
- * weapon-facing terms (9777-9784) never apply: the compiled records author no
- * aft, port or starboard weapon, so every ship's `currentWeaponFacing` is
- * forward.
+ * ship thinks it is on target; lower is worse. The "aim better after a miss"
+ * term is live: for accuracy at least `COMBAT_AI_ISNT_AWFUL` the basic aim is
+ * divided by `1 + missedShots / 4` (9769) before the deadly divisor, and it is
+ * the exact identity at `missedShots` 0. One Oolite term stays cut: the
+ * sun-glare term is not modelled (a recorded scope cut: every ship is treated
+ * as not sunlit, 9784-9797). The weapon-facing terms (9777-9784) never apply:
+ * the compiled records author no aft, port or starboard weapon, so every
+ * ship's `currentWeaponFacing` is forward.
  */
 export function currentAimTolerance(entity: Entity): number {
   const accuracy = entity.steer.accuracy;
@@ -133,6 +144,8 @@ export function currentAimTolerance(entity: Entity): number {
   let bestCos = AIM_BEST_COS_AWFUL;
   if (accuracy >= COMBAT_AI_ISNT_AWFUL) {
     bestCos = AIM_BEST_COS_BETTER; // better general targeting
+    // if missing, aim better! (9769); the identity at missedShots 0
+    basicAim /= 1 + entity.weapon.missedShots / AIM_MISSED_SHOT_DIVISOR;
   }
   if (accuracy >= COMBAT_AI_TRACKS_CLOSER) {
     bestCos = AIM_BEST_COS_DEADLY; // deadly shots
