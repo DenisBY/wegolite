@@ -27,6 +27,7 @@ import { fnv1a32 } from "../../../src/sim/hash.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { rngNext, worldSeedFor } from "../../../src/sim/rng.js";
+import { sanitizeBuoyStates } from "../../../src/sim/world/sanitize.js";
 import {
   BEHAVIOUR_IDS,
   BODY_KINDS,
@@ -445,6 +446,27 @@ describe("the buoys line (PD-01, PD-02)", () => {
     world.buoys.witchpoint.subentityEnergy = 200;
     expect(isPristineBuoyStates(world.buoys)).toBe(true);
     expect(hashWorld(state, world, combat)).toBe(before);
+  });
+
+  it("repairs a NaN buoy state inside hashWorld, without a step (review L792)", () => {
+    const corrupt = (): ReturnType<typeof createWorld> => {
+      const world = createWorld(1234);
+      world.buoys.navBuoy.offset = vec(Number.NaN, 4, 0);
+      world.buoys.witchpoint.velocity = vec(1, 0, Number.NaN);
+      world.buoys.witchpoint.subentityEnergy = 120;
+      return world;
+    };
+    const live = corrupt();
+    expect(() => hashWorld(state, live)).not.toThrow();
+    const repaired = corrupt();
+    expect(sanitizeBuoyStates(repaired)).toBe(true);
+    expect(hashWorld(state, corrupt())).toBe(hashWorld(state, repaired));
+    expect(live.buoys).toEqual(repaired.buoys);
+    expect(hashWorld(state, repaired)).toBe(
+      fnv1a32(
+        `${serializeFlight(state)}\n${serializeBuoyStates(repaired.buoys)}`,
+      ),
+    );
   });
 });
 

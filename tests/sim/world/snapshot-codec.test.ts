@@ -41,6 +41,8 @@ import {
   BUOY_MAX_ENERGY,
   MAX_WEAPON_TEMPERATURE,
   STATION_MAX_ENERGY,
+  BUOY_SUBENTITY_MAX_ENERGY,
+  MAX_BUOY_OFFSET,
 } from "../../../src/sim/world/limits.js";
 import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
 import {
@@ -1264,17 +1266,129 @@ describe("the static health in the snapshot (FOUND-18, D-08)", () => {
   });
 });
 
-describe("the buoy states in the snapshot (PD-01, PD-02)", () => {
-  /** A world whose buoys are moved, drifting, damaged and routing. */
-  function movedBuoys(): World {
-    const world = richWorld();
-    world.buoys.navBuoy.offset = vec(3, -2.5, 1e5);
-    world.buoys.navBuoy.velocity = vec(0.5, 0, -12);
-    world.buoys.witchpoint.subentityEnergy = 120;
-    world.buoys.witchpoint.subentityTakingDamage = true;
-    return world;
-  }
+/** A world whose buoys are moved, drifting, damaged and routing. */
+function movedBuoys(): World {
+  const world = richWorld();
+  world.buoys.navBuoy.offset = vec(3, -2.5, 1e5);
+  world.buoys.navBuoy.velocity = vec(0.5, 0, -12);
+  world.buoys.witchpoint.subentityEnergy = 120;
+  world.buoys.witchpoint.subentityTakingDamage = true;
+  return world;
+}
 
+/** The buoy rows (T-18-39, T-18-51): a path, a mutation and the reason. */
+const BUOY_REJECTIONS: readonly (readonly [
+  string,
+  Mutator,
+  SnapshotErrorReason,
+])[] = [
+  [
+    "buoys.navBuoy.offset.x",
+    set("buoys.navBuoy.offset.x", Number.NaN),
+    "non-finite",
+  ],
+  [
+    "buoys.witchpoint.velocity.z",
+    set("buoys.witchpoint.velocity.z", Number.POSITIVE_INFINITY),
+    "non-finite",
+  ],
+  [
+    "buoys.navBuoy.subentityEnergy",
+    set("buoys.navBuoy.subentityEnergy", null),
+    "non-finite",
+  ],
+  [
+    "buoys.navBuoy.offset.y",
+    set("buoys.navBuoy.offset.y", MAX_BUOY_OFFSET + 1),
+    "magnitude",
+  ],
+  [
+    "buoys.witchpoint.offset.z",
+    set("buoys.witchpoint.offset.z", -(MAX_BUOY_OFFSET + 1)),
+    "magnitude",
+  ],
+  [
+    "buoys.navBuoy.velocity.x",
+    set("buoys.navBuoy.velocity.x", MAX_ENTITY_VELOCITY + 1),
+    "magnitude",
+  ],
+  [
+    "buoys.witchpoint.subentityEnergy",
+    set("buoys.witchpoint.subentityEnergy", -1),
+    "range",
+  ],
+  [
+    "buoys.witchpoint.subentityEnergy",
+    set("buoys.witchpoint.subentityEnergy", BUOY_SUBENTITY_MAX_ENERGY + 0.5),
+    "magnitude",
+  ],
+  [
+    "buoys.navBuoy.subentityTakingDamage",
+    set("buoys.navBuoy.subentityTakingDamage", 1),
+    "type",
+  ],
+  [
+    "buoys.navBuoy.subentityTakingDamage",
+    set("buoys.navBuoy.subentityTakingDamage", "yes"),
+    "type",
+  ],
+  [
+    "buoys.witchpoint.subentityTakingDamage",
+    set("buoys.witchpoint.subentityEnergy", 0),
+    "range",
+  ],
+  [
+    "buoys.navBuoy",
+    (s) => void delete (getAt(s, "buoys") as Plain).navBuoy,
+    "not-object",
+  ],
+  ["buoys", set("buoys", null), "not-object"],
+  ["buoys", set("buoys.extra", 1), "unknown-key"],
+  ["buoys.witchpoint", set("buoys.witchpoint.extra", 1), "unknown-key"],
+  ["buoys.navBuoy.offset", set("buoys.navBuoy.offset.w", 1), "unknown-key"],
+  ["buoys.navBuoy.velocity", set("buoys.navBuoy.velocity.w", 1), "unknown-key"],
+];
+
+describe("buoy bounds at the snapshot boundary (T-18-39, T-18-51)", () => {
+  it("accepts the moved-buoys snapshot", () => {
+    expect(reasonOf(jsonOf(movedBuoys()))).toBe("accepted");
+  });
+
+  it.each(
+    BUOY_REJECTIONS.map(
+      ([path, mutate, reason]) => [path, reason, mutate] as const,
+    ),
+  )("rejects a bad %s as %s, naming the path", (path, reason, mutate) => {
+    const snapshot = jsonOf(movedBuoys());
+    mutate(snapshot);
+    expect(reasonOf(snapshot)).toBe(reason);
+    expect(() => parseWorldSnapshot(snapshot)).toThrow(`snapshot.${path}`);
+    expect(() => restoreWorld(snapshot as unknown as WorldSnapshot)).toThrow(
+      SnapshotError,
+    );
+  });
+
+  it("rejects an own __proto__ key in the buoy record", () => {
+    const snapshot = jsonOf(movedBuoys());
+    withOwnKey(getAt(snapshot, "buoys.navBuoy"), "__proto__");
+    expect(reasonOf(snapshot)).toBe("forbidden-key");
+  });
+
+  it("accepts the bounds themselves", () => {
+    const snapshot = jsonOf(movedBuoys());
+    setAt(snapshot, "buoys.navBuoy.offset.x", MAX_BUOY_OFFSET);
+    setAt(snapshot, "buoys.navBuoy.offset.y", -MAX_BUOY_OFFSET);
+    setAt(snapshot, "buoys.navBuoy.velocity.z", -MAX_ENTITY_VELOCITY);
+    setAt(snapshot, "buoys.navBuoy.subentityEnergy", 0);
+    setAt(snapshot, "buoys.witchpoint.subentityEnergy", 0.5);
+    expect(reasonOf(snapshot)).toBe("accepted");
+    setAt(snapshot, "buoys.navBuoy.subentityEnergy", BUOY_SUBENTITY_MAX_ENERGY);
+    setAt(snapshot, "buoys.navBuoy.subentityTakingDamage", true);
+    expect(reasonOf(snapshot)).toBe("accepted");
+  });
+});
+
+describe("the buoy states in the snapshot (PD-01, PD-02)", () => {
   it("writes no buoys key for pristine buoys", () => {
     const snapshot = snapshotWorld(richWorld());
     expect(Object.hasOwn(snapshot, "buoys")).toBe(false);

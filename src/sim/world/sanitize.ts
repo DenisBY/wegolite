@@ -786,3 +786,8 @@ export function sanitizeStaticHealth(world: World): boolean {
   health.navBuoy = hold(health.navBuoy, BUOY_MAX_ENERGY);
   return repaired;
 }
+
+/** Skeleton: the buoy-state repair, filled in by the GREEN commit. */
+export function sanitizeBuoyStates(_world: World): boolean {
+  return false;
+}

@@ -38,9 +38,12 @@ import {
   NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
   BUOY_MAX_ENERGY,
+  BUOY_SUBENTITY_MAX_ENERGY,
+  MAX_BUOY_OFFSET,
   STATION_MAX_ENERGY,
 } from "../../../src/sim/world/limits.js";
 import {
+  sanitizeBuoyStates,
   sanitizeEntity,
   sanitizeStaticHealth,
 } from "../../../src/sim/world/sanitize.js";
@@ -49,7 +52,14 @@ import {
   parseWorldSnapshot,
   snapshotWorld,
 } from "../../../src/sim/world/snapshot.js";
-import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
+import { stepWorld } from "../../../src/sim/world/step.js";
+import {
+  createBuoyStates,
+  createWorld,
+  spawnEntity,
+} from "../../../src/sim/world/world.js";
+import { initFlightState } from "../../../src/sim/flight/state.js";
+import { laveFixture } from "../../helpers/lave.js";
 
 /** A clean entity with a test-pilot AI, from the real spawn path. */
 function fresh(extra: Partial<SpawnInit> = {}): Entity {
@@ -1617,6 +1627,183 @@ describe("sanitizeStaticHealth (FOUND-18, D-08)", () => {
           ).not.toThrow();
           // The repair is idempotent.
           expect(sanitizeStaticHealth(world)).toBe(false);
+        },
+      ),
+      { numRuns: 300 },
+    );
+  });
+});
+
+describe("sanitizeBuoyStates (PD-01, PD-02, T-18-39, T-18-51)", () => {
+  const ZERO = { x: 0, y: 0, z: 0 };
+
+  it("leaves pristine and valid moved buoys untouched and reports no repair", () => {
+    const world = createWorld(5);
+    const before = world.buoys;
+    expect(sanitizeBuoyStates(world)).toBe(false);
+    expect(world.buoys).toBe(before);
+    expect(world.buoys).toEqual(createBuoyStates());
+    world.buoys.navBuoy.offset = vec(MAX_BUOY_OFFSET, -3, 0.5);
+    world.buoys.navBuoy.velocity = vec(-MAX_ENTITY_VELOCITY, 0, 2);
+    world.buoys.navBuoy.subentityEnergy = 0;
+    world.buoys.witchpoint.subentityEnergy = 0.5;
+    world.buoys.witchpoint.subentityTakingDamage = true;
+    const offset = world.buoys.navBuoy.offset;
+    expect(sanitizeBuoyStates(world)).toBe(false);
+    expect(world.buoys.navBuoy.offset).toBe(offset);
+    expect(world.buoys.navBuoy.velocity).toEqual({
+      x: -MAX_ENTITY_VELOCITY,
+      y: 0,
+      z: 2,
+    });
+    expect(world.buoys.witchpoint.subentityTakingDamage).toBe(true);
+  });
+
+  it("heals a non-finite offset and velocity to rest at the layout position", () => {
+    const world = createWorld(5);
+    world.buoys.navBuoy.offset = vec(Number.NaN, 7, 0);
+    world.buoys.witchpoint.velocity = vec(1, 2, Number.POSITIVE_INFINITY);
+    expect(sanitizeBuoyStates(world)).toBe(true);
+    expect(world.buoys.navBuoy.offset).toEqual(ZERO);
+    expect(world.buoys.witchpoint.velocity).toEqual(ZERO);
+    expect(sanitizeBuoyStates(world)).toBe(false);
+  });
+
+  it("heals a non-finite subentity energy to its maximum, as static health heals", () => {
+    const world = createWorld(5);
+    world.buoys.witchpoint.subentityEnergy = Number.NaN;
+    expect(sanitizeBuoyStates(world)).toBe(true);
+    expect(world.buoys.witchpoint.subentityEnergy).toBe(
+      BUOY_SUBENTITY_MAX_ENERGY,
+    );
+  });
+
+  it.each([
+    ["offset", 2e6, MAX_BUOY_OFFSET],
+    ["offset", -2e6, -MAX_BUOY_OFFSET],
+    ["velocity", 2e4, MAX_ENTITY_VELOCITY],
+    ["velocity", -2e4, -MAX_ENTITY_VELOCITY],
+  ] as const)("clamps a %s component of %s to %s", (field, bad, want) => {
+    const world = createWorld(5);
+    world.buoys.navBuoy[field] = vec(1, bad, -1);
+    expect(sanitizeBuoyStates(world)).toBe(true);
+    expect(world.buoys.navBuoy[field]).toEqual({ x: 1, y: want, z: -1 });
+    expect(sanitizeBuoyStates(world)).toBe(false);
+  });
+
+  it.each([
+    [-3, 0],
+    [300, BUOY_SUBENTITY_MAX_ENERGY],
+  ])("clamps a subentity energy of %s to %s", (bad, want) => {
+    const world = createWorld(5);
+    world.buoys.navBuoy.subentityEnergy = bad;
+    expect(sanitizeBuoyStates(world)).toBe(true);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(want);
+  });
+
+  it.each([1, "yes", null, undefined])("clears a routing flag of %j", (bad) => {
+    const world = createWorld(5);
+    loose(world.buoys.witchpoint).subentityTakingDamage = bad;
+    expect(sanitizeBuoyStates(world)).toBe(true);
+    expect(world.buoys.witchpoint.subentityTakingDamage).toBe(false);
+  });
+
+  it("clears the routing flag of a detached subentity (ShipEntity.m:8187-8188)", () => {
+    const world = createWorld(5);
+    world.buoys.navBuoy.subentityEnergy = 0;
+    world.buoys.navBuoy.subentityTakingDamage = true;
+    expect(sanitizeBuoyStates(world)).toBe(true);
+    expect(world.buoys.navBuoy.subentityTakingDamage).toBe(false);
+    // A negative energy clamps to 0 (detached) and clears the flag too.
+    world.buoys.witchpoint.subentityEnergy = -1;
+    world.buoys.witchpoint.subentityTakingDamage = true;
+    expect(sanitizeBuoyStates(world)).toBe(true);
+    expect(world.buoys.witchpoint.subentityTakingDamage).toBe(false);
+  });
+
+  it("-0 becomes 0 without a repair", () => {
+    const world = createWorld(5);
+    world.buoys.navBuoy.offset = vec(-0, 1, 0);
+    world.buoys.navBuoy.subentityEnergy = -0;
+    expect(sanitizeBuoyStates(world)).toBe(false);
+    expect(Object.is(world.buoys.navBuoy.offset.x, 0)).toBe(true);
+    expect(Object.is(world.buoys.navBuoy.subentityEnergy, 0)).toBe(true);
+  });
+
+  it.each([null, undefined, 7, "x"])(
+    "a record or a buoy of %j is replaced by the pristine one",
+    (bad) => {
+      const world = createWorld(5);
+      loose(world.buoys).navBuoy = bad;
+      expect(sanitizeBuoyStates(world)).toBe(true);
+      expect(world.buoys).toEqual(createBuoyStates());
+      loose(world.buoys.witchpoint).offset = bad;
+      expect(sanitizeBuoyStates(world)).toBe(true);
+      expect(world.buoys).toEqual(createBuoyStates());
+      loose(world).buoys = bad;
+      expect(sanitizeBuoyStates(world)).toBe(true);
+      expect(world.buoys).toEqual(createBuoyStates());
+    },
+  );
+
+  it("runs before every world step (repairWorldFields)", () => {
+    const { layout } = laveFixture();
+    const world = createWorld(5);
+    world.buoys.navBuoy.offset = vec(Number.NaN, 0, 0);
+    world.buoys.witchpoint.subentityEnergy = 300;
+    stepWorld(world, initFlightState(layout), layout, 1 / 60);
+    expect(world.buoys.navBuoy.offset).toEqual(ZERO);
+    expect(world.buoys.witchpoint.subentityEnergy).toBe(
+      BUOY_SUBENTITY_MAX_ENERGY,
+    );
+  });
+
+  it("never throws and leaves a value the parser accepts, for any input", () => {
+    const leaf = fc.oneof(
+      fc.double(),
+      fc.constantFrom(
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        Number.NEGATIVE_INFINITY,
+        -0,
+        0,
+        200,
+        200.5,
+        1e4 + 1,
+        1e6 + 1,
+        1e300,
+      ),
+      fc.constantFrom(null, undefined, "5", true, {}, []),
+    );
+    const vector = fc.oneof(
+      fc.record({ x: leaf, y: leaf, z: leaf }),
+      fc.constantFrom(null, undefined, 3),
+    );
+    const buoy = fc.oneof(
+      fc.record({
+        offset: vector,
+        velocity: vector,
+        subentityEnergy: leaf,
+        subentityTakingDamage: fc.oneof(fc.boolean(), leaf),
+      }),
+      fc.constantFrom(null, undefined, "x"),
+    );
+    fc.assert(
+      fc.property(
+        fc.oneof(
+          fc.record({ witchpoint: buoy, navBuoy: buoy }),
+          fc.constantFrom(null, undefined, 3, "x"),
+        ),
+        (input) => {
+          const world = createWorld(5);
+          loose(world).buoys = input;
+          expect(() => sanitizeBuoyStates(world)).not.toThrow();
+          const text = JSON.stringify(snapshotWorld(world));
+          expect(() =>
+            parseWorldSnapshot(JSON.parse(text) as unknown),
+          ).not.toThrow();
+          // The repair is idempotent.
+          expect(sanitizeBuoyStates(world)).toBe(false);
         },
       ),
       { numRuns: 300 },
