@@ -7,10 +7,10 @@ current_phase_name: Stations, Buoys and Collisions
 current_plan: Not started
 status: planning
 stopped_at: Phase 17 complete, ready to plan Phase 18
-last_updated: "2026-11-19T11:53:08.524Z"
+last_updated: "2026-11-19T12:50:32.443Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 17 complete, transitioned to Phase 18
-state_head: 3ade2b4a63adbc03dd420a4ac36e28f49f97d388
+state_head: df27ccaf3205af6273a1420752e7079d18713e7e
 progress:
   total_phases: 6
   completed_phases: 3
@@ -34,7 +34,7 @@ Phase: 18 — Stations, Buoys and Collisions
 Current Plan: Not started
 Total Plans in Phase: 10
 Status: Ready to plan
-Last activity: 2026-11-19 — Phase 17 re-verified after UAT gap closure (G-17-1, G-17-4) and marked complete; ready to plan Phase 18
+Last activity: 2026-11-19 - Completed quick task 261119-i9g: NPC laser shots use the ship's shipdata laser_color
 
 
 ## Performance Metrics
@@ -636,6 +636,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261118-os8 | Add a 1.5 s pre-roll inside the dock slot before the launch | 2026-11-18 | c8192cb | [261118-os8-add-a-1-5-s-pre-roll-inside-the-dock-slo](./quick/261118-os8-add-a-1-5-s-pre-roll-inside-the-dock-slo/) |
 | 261118-spu | Draw the HUD while launching as Oolite does | 2026-11-18 | ce49c5d | [261118-spu-draw-the-hud-while-launching-as-oolite-d](./quick/261118-spu-draw-the-hud-while-launching-as-oolite-d/) |
 | 58 | Size the LS speed readout like its SPD label | 2026-11-18 | 3cec8ed | — |
+| 261119-i9g | NPC laser shots use the ship's shipdata laser_color (Viper fires magenta), weapon colour as fallback | 2026-11-19 | df27cca | [261119-i9g-npc-laser-shots-use-the-ship-s-laser-col](./quick/261119-i9g-npc-laser-shots-use-the-ship-s-laser-col/) |
 
 ## Deferred Items
 
