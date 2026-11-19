@@ -192,9 +192,8 @@ export function staticSubentityKeys(catalogue: ShipCatalogue): string[] {
  * per {@link STATIC_NAME_KEYS} entry.
  *
  * @throws {ContentError} when a key, model, mesh, subentity mass or name is
- * missing,
- * a non-flasher subentity has no `subentity_key` or `position`, a subentity
- * orientation is not the identity, or the artifact fails
+ * missing, a non-flasher subentity has no `subentity_key` or `position`, a
+ * subentity orientation is not the identity, or the artifact fails
  * `StaticHullArtifactSchema` (`SCHEMA`).
  */
 export function compileStaticHulls(
