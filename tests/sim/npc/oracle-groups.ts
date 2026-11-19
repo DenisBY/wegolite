@@ -107,13 +107,6 @@ export interface FireOracleGroup {
   readonly testFile: string;
 }
 
-/** A fire fixture file whose consumer lands in a later plan. */
-export interface FireOraclePending {
-  readonly fixtureFile: string;
-  /** The plan that adds the oracle test file and moves the row to the groups. */
-  readonly plan: string;
-}
-
 const FIRE_TEST = "tests/sim/npc/fire.oracle.test.ts";
 const FIRE_SITES_TEST = "tests/sim/npc/fire-sites.oracle.test.ts";
 
@@ -143,16 +136,6 @@ export const FIRE_ORACLE_GROUPS: readonly FireOracleGroup[] = Object.freeze([
     testFile: FIRE_SITES_TEST,
   }),
 ]);
-
-/**
- * The fire fixture files no oracle test file runs yet. Empty since plan 17-08,
- * which runs the fire sites and the hot-weapon branches
- * (`fire-sites.oracle.test.ts`); `oracle-coverage.test.ts` asserts it stays
- * empty.
- */
-export const FIRE_ORACLE_PENDING: readonly FireOraclePending[] = Object.freeze(
-  [],
-);
 
 /** The fire fixture files `testFile` must run, in manifest order. */
 export function fireFixtureFilesFor(testFile: string): readonly string[] {

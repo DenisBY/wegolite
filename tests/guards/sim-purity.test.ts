@@ -28,6 +28,7 @@ import { describe, expect, it } from "vitest";
 
 import { lintProbe } from "./eslint-gate.js";
 import { withSimProbe } from "./sim-probe.js";
+import { withoutComments } from "./source-scan.js";
 
 const REPO_ROOT = process.cwd();
 const SIM_DIR = join(REPO_ROOT, "src", "sim");
@@ -83,51 +84,6 @@ function listTsFiles(directory: string): string[] {
     }
   }
   return files;
-}
-
-/**
- * Drop `//` line comments and `/* ... *\/` block comments while keeping string,
- * template and character literals intact and preserving every newline, so prose
- * cannot satisfy or falsify a source scan and line numbers stay meaningful.
- */
-function withoutComments(source: string): string {
-  let out = "";
-  let index = 0;
-  while (index < source.length) {
-    const char = source[index] as string;
-    const next = source[index + 1];
-    if (char === "/" && next === "/") {
-      while (index < source.length && source[index] !== "\n") index += 1;
-    } else if (char === "/" && next === "*") {
-      index += 2;
-      while (
-        index < source.length &&
-        !(source[index] === "*" && source[index + 1] === "/")
-      ) {
-        if (source[index] === "\n") out += "\n";
-        index += 1;
-      }
-      index += 2;
-      out += " ";
-    } else if (char === '"' || char === "'" || char === "`") {
-      out += char;
-      index += 1;
-      while (index < source.length && source[index] !== char) {
-        if (source[index] === "\\") {
-          out += source[index] as string;
-          index += 1;
-        }
-        out += source[index] ?? "";
-        index += 1;
-      }
-      out += char;
-      index += 1;
-    } else {
-      out += char;
-      index += 1;
-    }
-  }
-  return out;
 }
 
 const FRAME_DECLARATION =

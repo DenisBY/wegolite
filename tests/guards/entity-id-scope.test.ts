@@ -30,6 +30,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { lineOf, withoutComments } from "./source-scan.js";
+
 const REPO_ROOT = process.cwd();
 const SRC_DIR = join(REPO_ROOT, "src");
 
@@ -40,61 +42,6 @@ const IMPORT_RULE =
   "imports src/sim/world/ids: no entity id outlives its world (CONTEXT D-06, amended 2026-11-12)";
 const NAME_RULE =
   "names EntityId: no entity id outlives its world (CONTEXT D-06, amended 2026-11-12)";
-
-/**
- * Drop `//` line comments and block comments while keeping string and template
- * literals intact and preserving every newline, so prose cannot trip the scan
- * and line numbers stay meaningful. Local on purpose: this guard stays
- * independent of the sim-purity guard's helper.
- */
-function withoutComments(source: string): string {
-  let out = "";
-  let index = 0;
-  while (index < source.length) {
-    const char = source[index] as string;
-    const next = source[index + 1];
-    if (char === "/" && next === "/") {
-      while (index < source.length && source[index] !== "\n") index += 1;
-    } else if (char === "/" && next === "*") {
-      index += 2;
-      while (
-        index < source.length &&
-        !(source[index] === "*" && source[index + 1] === "/")
-      ) {
-        if (source[index] === "\n") out += "\n";
-        index += 1;
-      }
-      index += 2;
-      out += " ";
-    } else if (char === '"' || char === "'" || char === "`") {
-      out += char;
-      index += 1;
-      while (index < source.length && source[index] !== char) {
-        if (source[index] === "\\") {
-          out += source[index] as string;
-          index += 1;
-        }
-        out += source[index] ?? "";
-        index += 1;
-      }
-      out += char;
-      index += 1;
-    } else {
-      out += char;
-      index += 1;
-    }
-  }
-  return out;
-}
-
-/** The 1-based line of character offset `offset` in `text`. */
-function lineOf(text: string, offset: number): number {
-  let line = 1;
-  for (let index = 0; index < offset; index += 1) {
-    if (text[index] === "\n") line += 1;
-  }
-  return line;
-}
 
 /** Static import, `export ... from`, side-effect import and dynamic `import(`. */
 const SPECIFIER_PATTERNS = [

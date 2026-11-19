@@ -15,24 +15,24 @@
  *
  * - the AI kill notifications `shipTargetDestroyed` and `shipKilledOther`
  *   outside the two files that define and post them, and
- * - a kill-credit read outside the kill path: a `.killer` or `?.killer`
- *   property read, a `["killer"]` index read, or `killer` as a key inside an
- *   object destructuring pattern (`const { killer } = event`, a destructured
- *   parameter `({ killer }) =>`). A local variable, a parameter or an object
- *   literal key that is merely named `killer` is not a read.
+ * - the whole word `killer` outside the kill path. Every way to read the credit
+ *   names the field: a property or index read, a destructuring pattern, an
+ *   alias of the type. A local variable that is merely named `killer` is flagged
+ *   too, which is the signal the guard wants to raise: a new file talking about
+ *   a killer is where the credit gets consumed.
  *
- * It is a tripwire, not a proof: it cannot see a credit carried through a
- * renamed alias or a nested destructuring pattern. A legitimate consumer
- * changes the allowlists below in the same commit as the decision recorded in
- * the todo.
+ * It is a tripwire, not a proof: it cannot see a credit carried by a name other
+ * than `killer`. A legitimate consumer changes the allowlists below in the same
+ * commit as the decision recorded in the todo.
  */
 
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { lineOf, listSrcFiles, withoutComments } from "./source-scan.js";
+
 const REPO_ROOT = process.cwd();
-const SRC_DIR = join(REPO_ROOT, "src");
 
 const KILL_CREDIT_TODO =
   ".planning/todos/pending/2026-11-18-mutual-kill-credit-symmetry.md";
@@ -43,13 +43,12 @@ const KILL_EVENT_FILES: readonly string[] = [
   "src/sim/world/kill.ts",
 ];
 
-/** The kill path: the only files that may read the kill credit. */
+/** The kill path: the only files that may name the kill credit. */
 const KILL_PATH_FILES: readonly string[] = [
   "src/sim/world/kill.ts",
   "src/sim/combat/ledger.ts",
   "src/sim/combat/step.ts",
   "src/sim/events.ts",
-  "src/sim/ai/types.ts",
 ];
 
 const KILL_CREDIT_RULE = `kill credit has a consumer: revisit the asymmetric same-tick mutual-kill credit first (D-10), see ${KILL_CREDIT_TODO}`;
@@ -57,81 +56,6 @@ const KILL_CREDIT_RULE = `kill credit has a consumer: revisit the asymmetric sam
 interface SourceFile {
   readonly path: string;
   readonly source: string;
-}
-
-/**
- * Drop `//` line comments and block comments while keeping string and template
- * literals intact and preserving every newline. Local on purpose: each guard in
- * this directory stays independent of the others' helpers.
- */
-function withoutComments(source: string): string {
-  let out = "";
-  let index = 0;
-  while (index < source.length) {
-    const char = source[index] as string;
-    const next = source[index + 1];
-    if (char === "/" && next === "/") {
-      while (index < source.length && source[index] !== "\n") index += 1;
-    } else if (char === "/" && next === "*") {
-      index += 2;
-      while (
-        index < source.length &&
-        !(source[index] === "*" && source[index + 1] === "/")
-      ) {
-        if (source[index] === "\n") out += "\n";
-        index += 1;
-      }
-      index += 2;
-      out += " ";
-    } else if (char === '"' || char === "'" || char === "`") {
-      out += char;
-      index += 1;
-      while (index < source.length && source[index] !== char) {
-        if (source[index] === "\\") {
-          out += source[index] as string;
-          index += 1;
-        }
-        out += source[index] ?? "";
-        index += 1;
-      }
-      out += char;
-      index += 1;
-    } else {
-      out += char;
-      index += 1;
-    }
-  }
-  return out;
-}
-
-/** The 1-based line of character offset `offset` in `text`. */
-function lineOf(text: string, offset: number): number {
-  let line = 1;
-  for (let index = 0; index < offset; index += 1) {
-    if (text[index] === "\n") line += 1;
-  }
-  return line;
-}
-
-/** A property read: `x.killer` or `x?.killer`, but not the spread `...killer`. */
-const PROPERTY_READ = /(?:\?\.|(?<!\.)\.)\s*killer\b/g;
-
-/** An index read: `x["killer"]`. */
-const INDEX_READ = /\[\s*["'`]killer["'`]\s*\]/g;
-
-/**
- * A flat object pattern naming `killer` as a key, in a destructuring
- * declaration (`const { killer } = e`), a destructured parameter
- * (`({ killer }) =>`) or a typed destructured parameter (`({ killer }: Ev)`).
- * `{ victim: killer }` renames into a local and does not match: the key is
- * `victim`.
- */
-const DESTRUCTURING_READ =
-  /\{([^{}]*)\}\s*(?:=(?![=>])|\)\s*=>|:\s*[A-Za-z_][\w.<>[\]| ]*\s*[,)=])/g;
-
-/** Whether the inside of an object pattern lists `killer` as a key. */
-function patternHasKillerKey(inside: string): boolean {
-  return /(?:^|,)\s*killer\s*(?::|,|=|$)/.test(inside.replace(/\s+/g, " "));
 }
 
 /** Violations over `files`: `<path>:<line>: <rule>`; comments never count. */
@@ -151,39 +75,13 @@ function killCreditViolations(files: readonly SourceFile[]): string[] {
     }
 
     if (KILL_PATH_FILES.includes(path)) continue;
-    for (const pattern of [PROPERTY_READ, INDEX_READ]) {
-      for (const match of cleaned.matchAll(pattern)) {
-        found.push(
-          `${path}:${lineOf(cleaned, match.index)}: ${KILL_CREDIT_RULE}`,
-        );
-      }
-    }
-    for (const match of cleaned.matchAll(DESTRUCTURING_READ)) {
-      if (!patternHasKillerKey(match[1] ?? "")) continue;
+    for (const match of cleaned.matchAll(/\bkiller\b/g)) {
       found.push(
         `${path}:${lineOf(cleaned, match.index)}: ${KILL_CREDIT_RULE}`,
       );
     }
   }
   return found;
-}
-
-/** Every `.ts` file under `src`, repo-relative posix, code-unit ordered. */
-function listSrcFiles(): string[] {
-  const found: string[] = [];
-  const walk = (directory: string, relative: string): void => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (entry.name.startsWith("__purity_")) continue;
-      const rel = `${relative}/${entry.name}`;
-      if (entry.isDirectory()) {
-        walk(join(directory, entry.name), rel);
-      } else if (entry.isFile() && entry.name.endsWith(".ts")) {
-        found.push(rel);
-      }
-    }
-  };
-  walk(SRC_DIR, "src");
-  return found.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 describe("kill credit has no consumer outside the kill path", () => {
@@ -218,32 +116,21 @@ describe("kill credit has no consumer outside the kill path", () => {
     );
   });
 
-  it("reports a property read and an optional property read", () => {
-    expect(violationsOf("const a = event.killer;\n")).toHaveLength(1);
-    expect(violationsOf("const a = event?.killer;\n")).toHaveLength(1);
-    expect(violationsOf("const a = event.\n  killer;\n")).toHaveLength(1);
-  });
-
-  it("reports an index read", () => {
-    expect(violationsOf('const a = event["killer"];\n')).toHaveLength(1);
-  });
-
-  it("reports a destructuring declaration naming killer", () => {
-    expect(violationsOf("const { killer } = event;\n")).toHaveLength(1);
-    expect(violationsOf("const { victim, killer } = event;\n")).toHaveLength(1);
-    expect(violationsOf("const { killer: who } = event;\n")).toHaveLength(1);
-    expect(
-      violationsOf("const { killer = NO_ENTITY } = event;\n"),
-    ).toHaveLength(1);
-  });
-
-  it("reports a destructured parameter naming killer", () => {
-    expect(violationsOf("events.map(({ killer }) => killer);\n")).toHaveLength(
-      1,
-    );
-    expect(
-      violationsOf("function f({ killer }: Ev, other: number) {}\n"),
-    ).toHaveLength(1);
+  it("reports every way to read the credit: property, optional property, index, destructuring, alias", () => {
+    for (const source of [
+      "const a = event.killer;\n",
+      "const a = event?.killer;\n",
+      "const a = event.\n  killer;\n",
+      'const a = event["killer"];\n',
+      "const { killer } = event;\n",
+      "const { victim, killer: who } = event;\n",
+      "events.map(({ killer }) => killer);\n",
+      "const { victim: { killer } } = event;\n",
+      "const k = event; const who = k[`killer`];\n",
+      "type Credit = Event['killer'];\n",
+    ]) {
+      expect(violationsOf(source), source).not.toEqual([]);
+    }
   });
 
   it("reports the AI kill notifications outside the two files that post them", () => {
@@ -277,20 +164,13 @@ describe("kill credit has no consumer outside the kill path", () => {
     ).toHaveLength(1);
   });
 
-  it("passes a local, a parameter or an object literal merely named killer", () => {
-    const text = [
-      "const killer = 3;",
-      "function normalise(victim: number, killer: number): number {",
-      "  return killer + victim;",
-      "}",
-      "const record = ({ victim, killer });",
-      "const spread = [...killer];",
-      "const renamed = (({ victim: killer }) => killer);",
-      "const pairs = entries.map(([victim, killer]) => ({ victim, killer }));",
-      "",
-    ].join("\n");
-
-    expect(violationsOf(text)).toEqual([]);
+  it("flags a local merely named killer, and passes the other words", () => {
+    expect(violationsOf("const killer = 3;\n")).toHaveLength(1);
+    expect(
+      violationsOf(
+        "const killers = 1; const killerX = 2; const bekiller = 3;\n",
+      ),
+    ).toEqual([]);
   });
 
   it("ignores the credit and the events named in comments", () => {

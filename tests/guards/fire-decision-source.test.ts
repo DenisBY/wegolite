@@ -33,12 +33,13 @@
  * the allowlist below in the same commit, with the reason in the commit body.
  */
 
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { lineOf, listSrcFiles, withoutComments } from "./source-scan.js";
+
 const REPO_ROOT = process.cwd();
-const SRC_DIR = join(REPO_ROOT, "src");
 
 /** The directory that may build pilots and write AI record literals. */
 const AI_DIRECTORY = "src/sim/ai/";
@@ -59,60 +60,6 @@ const IMPORT_RULE = `${DECISION_SOURCE_RULE}. Value import of src/sim/ai/test-sp
 interface SourceFile {
   readonly path: string;
   readonly source: string;
-}
-
-/**
- * Drop `//` line comments and block comments while keeping string and template
- * literals intact and preserving every newline. Local on purpose: each guard in
- * this directory stays independent of the others' helpers.
- */
-function withoutComments(source: string): string {
-  let out = "";
-  let index = 0;
-  while (index < source.length) {
-    const char = source[index] as string;
-    const next = source[index + 1];
-    if (char === "/" && next === "/") {
-      while (index < source.length && source[index] !== "\n") index += 1;
-    } else if (char === "/" && next === "*") {
-      index += 2;
-      while (
-        index < source.length &&
-        !(source[index] === "*" && source[index + 1] === "/")
-      ) {
-        if (source[index] === "\n") out += "\n";
-        index += 1;
-      }
-      index += 2;
-      out += " ";
-    } else if (char === '"' || char === "'" || char === "`") {
-      out += char;
-      index += 1;
-      while (index < source.length && source[index] !== char) {
-        if (source[index] === "\\") {
-          out += source[index] as string;
-          index += 1;
-        }
-        out += source[index] ?? "";
-        index += 1;
-      }
-      out += char;
-      index += 1;
-    } else {
-      out += char;
-      index += 1;
-    }
-  }
-  return out;
-}
-
-/** The 1-based line of character offset `offset` in `text`. */
-function lineOf(text: string, offset: number): number {
-  let line = 1;
-  for (let index = 0; index < offset; index += 1) {
-    if (text[index] === "\n") line += 1;
-  }
-  return line;
 }
 
 /** Whether `specifier`, written in the file at `path`, resolves to the seam. */
@@ -186,24 +133,6 @@ function decisionSourceViolations(files: readonly SourceFile[]): string[] {
     }
   }
   return found;
-}
-
-/** Every `.ts` file under `src`, repo-relative posix, code-unit ordered. */
-function listSrcFiles(): string[] {
-  const found: string[] = [];
-  const walk = (directory: string, relative: string): void => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (entry.name.startsWith("__purity_")) continue;
-      const rel = `${relative}/${entry.name}`;
-      if (entry.isDirectory()) {
-        walk(join(directory, entry.name), rel);
-      } else if (entry.isFile() && entry.name.endsWith(".ts")) {
-        found.push(rel);
-      }
-    }
-  };
-  walk(SRC_DIR, "src");
-  return found.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 describe("no firing decision source reaches ordinary play", () => {

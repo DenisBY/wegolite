@@ -52,7 +52,6 @@ import { BEHAVIOUR_IDS } from "../../../src/sim/world/ids.js";
 import type { BehaviourId } from "../../../src/sim/world/ids.js";
 import {
   FIRE_ORACLE_GROUPS,
-  FIRE_ORACLE_PENDING,
   ORACLE_GROUPS,
   fireFixtureFilesFor,
 } from "./oracle-groups.js";
@@ -138,12 +137,10 @@ describe("every fixture is assigned to exactly one oracle test file", () => {
  * The Phase 17 fire trees (`tests/oracles/npc/fire/fixtures` and
  * `tests/oracles/npc/fire-sites/fixtures`) have their own schemas and are not
  * loaded by `loadOracleFiles()`. Their files are assigned by
- * `FIRE_ORACLE_GROUPS` (an oracle test file runs them) or listed in
- * `FIRE_ORACLE_PENDING` (their consumer is a later plan); the two lists
- * together equal the files on disk, and every id is unique across all four
- * oracle trees.
+ * `FIRE_ORACLE_GROUPS` (an oracle test file runs them); the groups equal the
+ * files on disk, and every id is unique across all four oracle trees.
  */
-describe("every fire fixture file is assigned or pending", () => {
+describe("every fire fixture file is assigned to an oracle test file", () => {
   const FIRE_DIRS = [
     "tests/oracles/npc/fire/fixtures",
     "tests/oracles/npc/fire-sites/fixtures",
@@ -155,17 +152,10 @@ describe("every fire fixture file is assigned or pending", () => {
       .map((name) => `${dir}/${name}`),
   ).sort();
 
-  it("the groups plus the pending rows equal the fire fixture files on disk, each once", () => {
-    const named = [
-      ...FIRE_ORACLE_GROUPS.map((group) => group.fixtureFile),
-      ...FIRE_ORACLE_PENDING.map((row) => row.fixtureFile),
-    ];
+  it("the groups equal the fire fixture files on disk, each once", () => {
+    const named = FIRE_ORACLE_GROUPS.map((group) => group.fixtureFile);
     expect(new Set(named).size).toBe(named.length);
     expect([...named].sort()).toEqual(onDisk);
-  });
-
-  it("no fire fixture file is pending: every one has its oracle test file (plan 17-08)", () => {
-    expect(FIRE_ORACLE_PENDING).toEqual([]);
   });
 
   it("every fixture id is unique across all four oracle trees", () => {
