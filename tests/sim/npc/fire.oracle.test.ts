@@ -46,7 +46,6 @@ import type { Entity } from "../../../src/sim/world/entity.js";
 import {
   literalShotFrames,
   rechargeRateF32,
-  rechargeTicks,
 } from "../../oracles/npc/fire/derive.js";
 import {
   FireGateFileSchema,
@@ -437,14 +436,16 @@ describe("the fire rows of the frame-rate rule", () => {
     expect(row?.measuredDifference).toBe(0);
   });
 
+  // The port's loop is a copy of the oracle's, so this catches the two drifting
+  // apart, not a misreading they share; the independent pin of the counts is
+  // the hand-derived literals in tests/sim/npc/fire.test.ts.
   it.each([...LASER_KEYS, NO_LASER] as const)(
-    "npcRechargeTicks(%s) equals the oracle's literal frame count",
+    "npcRechargeTicks(%s) has not drifted from the oracle's literal frame count",
     (laser) => {
       const weapon: FireWeapon = laser === NO_LASER ? "EQ_WEAPON_NONE" : laser;
       expect(npcRechargeTicks(laser)).toBe(
         literalShotFrames(rechargeRateF32(weapon)),
       );
-      expect(npcRechargeTicks(laser)).toBe(rechargeTicks(weapon));
     },
   );
 });
