@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: 9
+current_plan: 10
 status: executing
-stopped_at: Completed 18-09-PLAN.md
-last_updated: "2026-11-19T21:21:02.246Z"
+stopped_at: Completed 18-16-PLAN.md
+last_updated: "2026-11-19T21:41:45.490Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: 0cee942464feb5f05e10a6a311522859d43fd992
+state_head: cb4d4c23b0948168aeddb5bc5261db8e0f52823c
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 36
+  completed_plans: 37
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 9
+Current Plan: 10
 Total Plans in Phase: 22
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 18 execution started
@@ -221,6 +221,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 18 P13 | 23 min | 2 tasks | 14 files |
 | Phase 18 P14 | 17 min | 2 tasks | 11 files |
 | Phase 18 P09 | 24 min | 2 tasks | 5 files |
+| Phase 18 P16 | 16min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -561,6 +562,9 @@ Recent decisions affecting current work:
 - [Phase 18]: Phase 18-14: sanitizeBuoyStates runs in repairWorldFields and inside hashWorld; a non-finite vector rests at the layout position, a non-finite subentity energy heals to 200, the routing flag clears when not boolean or the subentity is detached; bounds MAX_BUOY_OFFSET 1e6, MAX_ENTITY_VELOCITY 1e4, BUOY_SUBENTITY_MAX_ENERGY 200
 - [Phase 18]: 18-09: Octree.m:552's transposed placement is ported as the C has it; a port that corrects it fails two fixtures and both agreement properties
 - [Phase 18]: 18-09: doOctreesCollide ports ShipEntity.m:1878-1942 recursively without the unreachable fourth stage; it takes a ContactHull so a subentity recurses as prime, with otherDetached and primeDetached (PD-01)
+- [Phase 18]: 18-16: collideWithShip takes other.parentFrangible (default true, Oolite's frangible YES) so a non-frangible parent takes dam2 (ShipEntity.m:11124-11125); the response reports dam2Receiver, loc, v2b, v1a, antiConjoin, nudged and dpOtherSubentity
+- [Phase 18]: 18-16: a degenerate collision input (mass not finite or not positive as a float, or any non-finite response number) is separating: the pair gets nothing (T-18-21)
+- [Phase 18]: 18-16: the player's scrape keeps 'a non-positive amount is no damage'; Oolite's negative-amount sign flip (PlayerEntity.m:5710-5713) is unported and unreachable (the response never produces negative damage); fixture scrape-negative-amount-made-positive is held to that divergence, FIDELITY row due at 18-12
 
 ### Pending Todos
 
@@ -700,8 +704,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-19T21:21:01.826Z
-Stopped at: Completed 18-09-PLAN.md
+Last session: 2026-11-19T21:41:45.061Z
+Stopped at: Completed 18-16-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
