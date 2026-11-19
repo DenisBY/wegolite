@@ -162,6 +162,20 @@ export function routeDamage(
   return { shieldAbsorbed: remaining === 0, applied: remaining };
 }
 
+/** Stub for the RED step of plan 18-16. */
+export function routeScrapeDamage(
+  state: PlayerCombatState,
+  amount: number,
+  otherOffset: Vec3,
+  forward: Vec3,
+): DamageResult {
+  void state;
+  void amount;
+  void otherOffset;
+  void forward;
+  return NO_DAMAGE;
+}
+
 /**
  * One tick of cabin cooling in space (C3, `PlayerEntity.m:2663-2675`).
  *

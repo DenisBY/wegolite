@@ -21,6 +21,7 @@ import {
   energyBanks,
   rechargeEnergyAndShields,
   routeDamage,
+  routeScrapeDamage,
   shieldGauge,
 } from "../../../src/sim/combat/shields.js";
 import { vec } from "../../../src/sim/math.js";
@@ -216,6 +217,75 @@ describe("routeDamage", () => {
     const state = createPlayerCombatState();
     routeDamage(state, 10, vec(Number.NaN, 0, 0), FORWARD);
     expect(state.fwdShield).toBe(118);
+  });
+});
+
+describe("routeScrapeDamage (PlayerEntity.m:5701-5753)", () => {
+  it("50 from ahead takes the forward shield 64 -> 14 and touches nothing else", () => {
+    // d_forward >= 0: forward_shield -= 50 leaves 14, amount 0 (5726-5733);
+    // [super takeScrapeDamage:0] lowers energy by nothing, and the scrape
+    // path never heats the cabin.
+    const state = stateWith({ fwdShield: 64 });
+    const result = routeScrapeDamage(state, 50, vec(0, 0, -10), FORWARD);
+    expect(state.fwdShield).toBe(14);
+    expect(state.aftShield).toBe(128);
+    expect(state.energy).toBe(256);
+    expect(state.cabinTemp).toBe(60);
+    expect(result).toEqual({ shieldAbsorbed: true, applied: 0 });
+  });
+
+  it("100 from behind empties a 64 aft shield and lowers energy by 36, no heat", () => {
+    // d_forward < 0: aft_shield -= 100 is -36, so amount 36 and aft 0
+    // (5735-5742); energy -= 36 (ShipEntity.m:11651).
+    const state = stateWith({ aftShield: 64 });
+    const result = routeScrapeDamage(state, 100, vec(0, 0, 10), FORWARD);
+    expect(state.aftShield).toBe(0);
+    expect(state.fwdShield).toBe(128);
+    expect(state.energy).toBe(220);
+    expect(state.cabinTemp).toBe(60);
+    expect(result).toEqual({ shieldAbsorbed: false, applied: 36 });
+  });
+
+  it("an other exactly abeam hits the forward shield (d_forward >= 0)", () => {
+    const state = createPlayerCombatState();
+    routeScrapeDamage(state, 10, vec(5, 3, 0), FORWARD);
+    expect(state.fwdShield).toBe(118);
+    expect(state.aftShield).toBe(128);
+  });
+
+  it("floors energy at zero and leaves a hot cabin as it is", () => {
+    const state = stateWith({ fwdShield: 0, energy: 5, cabinTemp: 200 });
+    const result = routeScrapeDamage(state, 100, vec(0, 0, -1), FORWARD);
+    expect(state.energy).toBe(0);
+    expect(state.cabinTemp).toBe(200);
+    expect(result).toEqual({ shieldAbsorbed: false, applied: 100 });
+  });
+
+  it("changes nothing for a non-finite, zero or negative amount", () => {
+    for (const amount of [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      0,
+      -5,
+    ]) {
+      const state = createPlayerCombatState();
+      const result = routeScrapeDamage(state, amount, vec(0, 0, -1), FORWARD);
+      expect(state).toEqual(createPlayerCombatState());
+      expect(result).toEqual({ shieldAbsorbed: false, applied: 0 });
+    }
+  });
+
+  it("leaves routeDamage heating exactly as before for the same hit", () => {
+    // Same overflow of 15 through each path: only the laser path heats.
+    const laser = stateWith({ fwdShield: 10 });
+    const scrape = stateWith({ fwdShield: 10 });
+    routeDamage(laser, 25, vec(0, 0, -1), FORWARD);
+    routeScrapeDamage(scrape, 25, vec(0, 0, -1), FORWARD);
+    expect(laser.cabinTemp).toBe(67.5);
+    expect(scrape.cabinTemp).toBe(60);
+    expect(scrape.energy).toBe(laser.energy);
+    expect(scrape.fwdShield).toBe(laser.fwdShield);
   });
 });
 
