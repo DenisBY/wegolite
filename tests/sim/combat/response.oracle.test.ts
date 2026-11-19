@@ -4,7 +4,8 @@
 /**
  * The collision response kernels against the independent 18-03 response
  * oracle (CBT-18, D-01): every fixture of `collide.json` runs through
- * `collideWithShip`.
+ * `collideWithShip`, and every fixture of `scrape.json` through
+ * `routeScrapeDamage`.
  *
  * The mapping from a fixture's Oolite axes to Wegolite's is `S = diag(1, 1,
  * -1)`: positions, velocities and every expected vector go through `S`;
@@ -17,6 +18,15 @@
  * oracle's `withinTolerance`; booleans, outcomes and receivers are exact. A
  * failing fixture is a dispute with the C, recorded in the SUMMARY, never a
  * widened tolerance.
+ *
+ * One scrape fixture is a documented divergence, held to the port's rule
+ * rather than the C's: `scrape-negative-amount-made-positive`. Oolite's player
+ * turns a negative scrape amount positive (`PlayerEntity.m:5710-5713`); plan
+ * 18-16 (review L413@b45e113) keeps `routeScrapeDamage`'s "a non-positive
+ * amount is no damage", because the collision response never produces a
+ * negative damage (`response.property.test.ts` holds `dam1, dam2 >= 0`). The
+ * fixture still runs: it must leave the state unchanged, and it fails here if
+ * the port starts flipping the sign without this list changing.
  */
 
 import { readFileSync } from "node:fs";
@@ -24,6 +34,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { collideWithShip } from "../../../src/sim/combat/response.js";
+import { routeScrapeDamage } from "../../../src/sim/combat/shields.js";
+import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import type { CollisionInput } from "../../../src/sim/combat/response.js";
 import { vec } from "../../../src/sim/math.js";
 import type { Vec3 } from "../../../src/sim/math.js";
@@ -31,9 +43,14 @@ import { DT } from "../../../src/sim/step.js";
 import {
   COLLIDE_FIXTURE_FILE,
   CollideFileSchema,
+  SCRAPE_FIXTURE_FILE,
+  ScrapeFileSchema,
   withinTolerance,
 } from "../../oracles/combat/response/schema.js";
-import type { CollideFixture } from "../../oracles/combat/response/schema.js";
+import type {
+  CollideFixture,
+  ScrapeFixture,
+} from "../../oracles/combat/response/schema.js";
 
 const THIS_FILE = "tests/sim/combat/response.oracle.test.ts";
 
@@ -110,10 +127,56 @@ function expectVec(
 }
 
 const collideFixtures = CollideFileSchema.parse(readJson(COLLIDE_FIXTURE_FILE));
+const scrapeFixtures = ScrapeFileSchema.parse(readJson(SCRAPE_FIXTURE_FILE));
+
+/** Scrape fixtures held to a documented port divergence (see the header). */
+const SCRAPE_DIVERGENCES: ReadonlySet<string> = new Set([
+  "scrape-negative-amount-made-positive",
+]);
+
+function runScrape(fixture: ScrapeFixture): void {
+  const state = {
+    ...createPlayerCombatState(),
+    fwdShield: fixture.shields.forward,
+    aftShield: fixture.shields.aft,
+    energy: fixture.energy,
+  };
+  const before = { ...state };
+  const result = routeScrapeDamage(
+    state,
+    fixture.amount,
+    toWegolite(fixture.otherOffset),
+    toWegolite(fixture.forward),
+  );
+  if (SCRAPE_DIVERGENCES.has(fixture.id)) {
+    expect(fixture.amount).toBeLessThan(0);
+    expect(state).toEqual(before);
+    expect(result).toEqual({ shieldAbsorbed: false, applied: 0 });
+    return;
+  }
+  const e = fixture.expected;
+  const tol = fixture.tolerance;
+  // The shield on the other side is untouched (d_forward >= 0, 5726).
+  if (e.shieldHit === "forward") {
+    expect(state.aftShield, "aft untouched").toBe(before.aftShield);
+  } else {
+    expect(state.fwdShield, "forward untouched").toBe(before.fwdShield);
+  }
+  expectNumber("forward shield", state.fwdShield, e.shields.forward, tol);
+  expectNumber("aft shield", state.aftShield, e.shields.aft, tol);
+  expectNumber("remainder", result.applied, e.remainder, tol);
+  expectNumber("energy", state.energy, e.energy, tol);
+  expect(result.shieldAbsorbed).toBe(e.remainder === 0);
+  expect(state.cabinTemp - before.cabinTemp).toBe(e.heatChange);
+}
 
 describe(THIS_FILE, () => {
-  it("reads every collide fixture", () => {
+  it("reads every collide and scrape fixture", () => {
     expect(collideFixtures.length).toBe(28);
+    expect(scrapeFixtures.length).toBe(8);
+    for (const id of SCRAPE_DIVERGENCES) {
+      expect(scrapeFixtures.some((fx) => fx.id === id)).toBe(true);
+    }
   });
 
   describe("collideWithShip against collide.json", () => {
@@ -156,6 +219,15 @@ describe(THIS_FILE, () => {
           e.dpOtherSubentity,
           tol,
         );
+      },
+    );
+  });
+
+  describe("routeScrapeDamage against scrape.json", () => {
+    it.each(scrapeFixtures.map((fx) => [fx.id, fx] as const))(
+      "%s",
+      (_id, fixture) => {
+        runScrape(fixture);
       },
     );
   });
