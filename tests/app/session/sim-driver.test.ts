@@ -1554,7 +1554,7 @@ describe("buildStepOptions", () => {
       laserMounts: DEFAULT_LASER_MOUNTS,
     });
     expect(bare.combat?.mounts).toBe(DEFAULT_LASER_MOUNTS);
-    expect(Object.keys(bare.combat ?? {})).toEqual(["mounts"]);
+    expect(Object.keys(bare.combat ?? {})).toEqual(["mounts", "collisions"]);
 
     const full = buildStepOptions({
       ...base,
@@ -1565,6 +1565,7 @@ describe("buildStepOptions", () => {
     expect(full.combat?.hulls).toBe(hulls);
     expect(full.combat?.npcWeapons).toBe(npcWeapons);
     expect(Object.keys(full.combat ?? {}).sort()).toEqual([
+      "collisions",
       "hulls",
       "mounts",
       "npcWeapons",

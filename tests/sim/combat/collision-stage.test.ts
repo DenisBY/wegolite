@@ -488,8 +488,8 @@ describe("ships, pods and plates (D-01, D-07, PD-05)", () => {
     const pod = spawnPiece(world, at);
     const plate = spawnPiece(
       world,
-      vec(at.x - 8, at.y, at.z),
-      vec(30, 0, 0),
+      vec(at.x - 3, at.y, at.z),
+      vec(300, 0, 0),
       "alloy",
     );
     const podEntity = entityOf(world, pod);
@@ -502,7 +502,7 @@ describe("ships, pods and plates (D-01, D-07, PD-05)", () => {
     const expected = collideWithShip({
       self: {
         position: plateEntity.position,
-        velocity: vec(30, 0, 0),
+        velocity: vec(300, 0, 0),
         mass: plateMass ?? 0,
         energy: 1,
         destroyable: true,
@@ -521,7 +521,7 @@ describe("ships, pods and plates (D-01, D-07, PD-05)", () => {
       [plate, pod, expected.dam1],
       [pod, plate, expected.dam2],
     ]);
-    expect(plateEntity.velocity).toEqual(add(vec(30, 0, 0), expected.dv1));
+    expect(plateEntity.velocity).toEqual(add(vec(300, 0, 0), expected.dv1));
     expect(podEntity.velocity).toEqual(add(vec(0, 0, 0), expected.dvOtherBody));
   });
 

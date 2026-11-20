@@ -20,6 +20,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Ident locks the Coriolis station, the navigation buoys, cargo pods and alloy
   plates, and names them. A lock on a buoy ends when the buoy is destroyed;
   wrecks are never locked.
+- Ships, cargo pods and alloy plates now collide: both sides take damage by
+  Oolite's mass and closing-speed rule and rebound. Touching the station hull
+  stays harmless.
 - In a test session (`?test=1&traffic=1`) a new test hook member,
   `spawnTestAttacker()`, puts a Viper 3,000 m ahead of you that attacks you
   with Oolite's attack manoeuvres and fires through the NPC fire gate. It marks

@@ -58,6 +58,7 @@ import { add, dot, rotate, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import { massFor } from "../npc/stats.js";
 import type { NpcStepFacts } from "../npc/stats.js";
+import { debrisMassOf } from "../world/debris.js";
 import type { Entity } from "../world/entity.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
@@ -369,9 +370,13 @@ function isZeroVec(v: Vec3): boolean {
 
 /**
  * The colliders of this tick, unranked: the in-flight player (with a combat
- * state and its hull; never while launching, A3) and every live store ship
- * whose spec key has a hull and a mass above 0. Never the station (not in
- * the store) and never a wreck.
+ * state and its hull; never while launching, A3), every live store ship whose
+ * spec key has a hull and a mass above 0 (`massFor`, 0 for an unknown kind),
+ * and every live pod and plate (kind `cargo`, D-07) whose spec key has a hull
+ * and whose mass `debrisMassOf` gives (none without the debris content).
+ * Never the station (it is not in the store: touching its hull stays the
+ * dock's damage-free contact, DOCK-09, and NPCs and pods pass through it) and
+ * never a wreck.
  */
 function gatherColliders(
   world: World,
@@ -401,12 +406,21 @@ function gatherColliders(
     ...(flight === undefined ? {} : { flight }),
     ...(masses === undefined ? {} : { masses }),
   };
+  const debris = options.combat?.debris;
   for (const entity of world.store.live) {
-    if (entity.dead || entity.kind !== "ship") continue;
+    // Ships, pods and plates (D-07); a wreck never (`canCollide`,
+    // `ShipEntity.m:1858-1868`).
+    if (entity.dead) continue;
+    if (entity.kind !== "ship" && entity.kind !== "cargo") continue;
     const hull = hulls.get(entity.specKey);
     if (hull === undefined) continue;
-    const mass = massFor(facts, entity.specKey);
-    if (!(mass > 0) || !Number.isFinite(mass)) continue;
+    const mass =
+      entity.kind === "ship"
+        ? massFor(facts, entity.specKey)
+        : debris === undefined
+          ? undefined
+          : debrisMassOf(entity, debris);
+    if (mass === undefined || !(mass > 0) || !Number.isFinite(mass)) continue;
     colliders.push({ id: entity.id, hull, mass, destroyable: true, entity });
   }
   return colliders;

@@ -124,6 +124,9 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
   };
   const combat = {
     mounts: laserMounts,
+    // The collision stage is opt-in (CBT-18): the app turns it on; the frozen
+    // acceptance harness never does.
+    collisions: true,
     ...(hulls === undefined ? {} : { hulls }),
     ...(npcWeapons === undefined ? {} : { npcWeapons }),
     ...(debris === undefined ? {} : { debris }),

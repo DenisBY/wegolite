@@ -5,10 +5,14 @@
  * The composed simulation step (FOUND-11, D-14).
  *
  * `stepSim` is the one function the session calls per fixed step: it runs the
- * unchanged `stepFlight` first and then `stepWorld`. The world side never
- * mutates the `FlightState`. The world enters `stepFlight` read-only, as a ship
- * field (WORLD-10): mass lock and jump blockage count the NPC ships, and
- * `stepFlight` never mutates the world.
+ * unchanged `stepFlight` first and then `stepWorld`. The world side mutates
+ * the `FlightState` in one place only: the collision stage inside
+ * `resolveShots` (`./combat/collide.ts`, CBT-18, D-01), which writes the
+ * player's `drift` and `position` when the player's hull touches a ship, pod
+ * or plate (only with the app's `CombatOptions.collisions` opt-in). The world
+ * enters `stepFlight` read-only, as a ship field (WORLD-10): mass lock and
+ * jump blockage count the NPC ships, and `stepFlight` never mutates the
+ * world.
  */
 
 import { AI_REGISTRY } from "./ai/registry.js";
