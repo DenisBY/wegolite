@@ -26,6 +26,8 @@ import { torusFactor } from "../../../src/sim/flight/torus.js";
 import {
   CORIOLIS_STATION_MASS,
   HYPERSPACE_COUNTDOWN_STEPS,
+  NAV_BUOY_HULL_MASS,
+  NAV_BUOY_MASS,
 } from "../../../src/sim/hyperspace/countdown.js";
 import type { Command } from "../../../src/sim/commands.js";
 import type { SimEvent } from "../../../src/sim/events.js";
@@ -555,5 +557,213 @@ describe("ship field: jump blockage through stepSim (WORLD-10)", () => {
       "hyperspaceRefused",
     );
     expect(state.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS);
+  });
+});
+
+/**
+ * The buoy query of the field and the D-08 pins (Phase 18, D-05, D-08, D-09,
+ * PD-01, PD-02). A buoy blocks from where it is (layout plus offset) with the
+ * mass it has (the whole 698,691.1875, or the float32 691,044.375 once its
+ * subentity is detached, ShipEntity.m line 8194), and a destroyed buoy never
+ * blocks. Expected radii: sqrt(0.1 x 698,691.1875) = 264.328 m and
+ * sqrt(0.1 x 691,044.375) = 262.877 m.
+ */
+describe("ship field: the buoys (D-05, D-08, D-09)", () => {
+  const npcMasses: readonly ShipMass[] = (
+    JSON.parse(
+      readFileSync(
+        new URL(
+          "../../../src/content/generated/ships-npc.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as { key: string; mass: number }[]
+  ).map((ship) => ({ specKey: ship.key, mass: ship.mass }));
+
+  function buoyOptions(): StepOptions {
+    return {
+      hyperspace: {
+        fuel: 70,
+        origin: { id: lave.id, x: lave.chartX, y: lave.chartY },
+        target: { id: diso.id, x: diso.chartX, y: diso.chartY },
+        stationMass: CORIOLIS_STATION_MASS,
+        buoyMass: NAV_BUOY_MASS,
+        shipMasses: npcMasses,
+      },
+    };
+  }
+
+  const navBuoy = layout.navBuoy.position;
+
+  it("pins the field's members: massLocked, blocks and buoy", () => {
+    const field = createShipField(createWorld(1), undefined);
+    expect(Object.keys(field).sort()).toEqual(["blocks", "buoy", "massLocked"]);
+  });
+
+  it("reports a fresh world's buoys alive, unmoved and whole", () => {
+    const field = createShipField(createWorld(1), undefined);
+    for (const key of ["witchpoint", "navBuoy"] as const) {
+      expect(field.buoy(key)).toEqual({
+        alive: true,
+        offset: vec(0, 0, 0),
+        subentityAttached: true,
+      });
+    }
+  });
+
+  it("mirrors the world's liveness, offset and subentity per buoy", () => {
+    const world = createWorld(1);
+    world.staticHealth.navBuoy = 0;
+    world.buoys.navBuoy.offset = vec(300, 0, 0);
+    world.buoys.witchpoint.subentityEnergy = 0;
+    const field = createShipField(world, undefined);
+    expect(field.buoy("navBuoy")).toEqual({
+      alive: false,
+      offset: vec(300, 0, 0),
+      subentityAttached: true,
+    });
+    expect(field.buoy("witchpoint")).toEqual({
+      alive: true,
+      offset: vec(0, 0, 0),
+      subentityAttached: false,
+    });
+  });
+
+  it("refuses beside a live nav buoy and commits once it is destroyed", () => {
+    const live = runCountdown(
+      hoveringAt(add(navBuoy, vec(10, 0, 0))),
+      createWorld(5),
+      buoyOptions(),
+    );
+    expect(live).toEqual([
+      { kind: "hyperspaceRefused", reason: "blocked", blocker: "navBuoy" },
+    ]);
+
+    const world = createWorld(5);
+    world.staticHealth.navBuoy = 0;
+    const dead = runCountdown(
+      hoveringAt(add(navBuoy, vec(10, 0, 0))),
+      world,
+      buoyOptions(),
+    );
+    expect(dead.map((event) => event.kind)).toContain("hyperspaceJumped");
+  });
+
+  it("blocks from the buoy's live position: a buoy moved 300 m away no longer blocks where it was", () => {
+    const moved = (): World => {
+      const world = createWorld(5);
+      world.buoys.navBuoy.offset = vec(300, 0, 0);
+      return world;
+    };
+    const atLayout = runCountdown(hoveringAt(navBuoy), moved(), buoyOptions());
+    expect(atLayout.map((event) => event.kind)).toContain("hyperspaceJumped");
+
+    const atMoved = runCountdown(
+      hoveringAt(add(navBuoy, vec(300, 0, 0))),
+      moved(),
+      buoyOptions(),
+    );
+    expect(atMoved).toEqual([
+      { kind: "hyperspaceRefused", reason: "blocked", blocker: "navBuoy" },
+    ]);
+  });
+
+  it("blocks with the live mass: a detached subentity shrinks the radius from 264.33 m to 262.88 m", () => {
+    expect(Math.sqrt(0.1 * NAV_BUOY_MASS)).toBeCloseTo(264.328, 3);
+    expect(Math.sqrt(0.1 * NAV_BUOY_HULL_MASS)).toBeCloseTo(262.877, 3);
+    const at = add(navBuoy, vec(263.5, 0, 0));
+
+    const whole = runCountdown(hoveringAt(at), createWorld(5), buoyOptions());
+    expect(whole).toEqual([
+      { kind: "hyperspaceRefused", reason: "blocked", blocker: "navBuoy" },
+    ]);
+
+    const world = createWorld(5);
+    world.buoys.navBuoy.subentityEnergy = 0;
+    const detached = runCountdown(hoveringAt(at), world, buoyOptions());
+    expect(detached.map((event) => event.kind)).toContain("hyperspaceJumped");
+  });
+
+  it("names the witchpoint beacon from the world's view of it too", () => {
+    const witchpoint = layout.witchpoint.position;
+    const events = runCountdown(
+      hoveringAt(add(witchpoint, vec(0, 200, 0))),
+      createWorld(5),
+      buoyOptions(),
+    );
+    expect(events).toEqual([
+      {
+        kind: "hyperspaceRefused",
+        reason: "blocked",
+        blocker: "witchpointBeacon",
+      },
+    ]);
+    const world = createWorld(5);
+    world.staticHealth.witchpoint = 0;
+    const dead = runCountdown(
+      hoveringAt(add(witchpoint, vec(0, 200, 0))),
+      world,
+      buoyOptions(),
+    );
+    expect(dead.map((event) => event.kind)).toContain("hyperspaceJumped");
+  });
+
+  it("lets a pod 5 m and a plate 3 m away neither block nor mass-lock (D-08)", () => {
+    const world = createWorld(5);
+    const pod = spawnEntity(
+      world,
+      {
+        kind: "cargo",
+        specKey: "barrel",
+        scanClass: "CLASS_CARGO",
+        position: add(OPEN_SPACE, vec(5, 0, 0)),
+        orientation: identity(),
+        radius: 5.798625946044922,
+      },
+      0,
+    );
+    const plate = spawnEntity(
+      world,
+      {
+        kind: "cargo",
+        specKey: "alloy",
+        scanClass: "CLASS_CARGO",
+        position: add(OPEN_SPACE, vec(0, 3, 0)),
+        orientation: identity(),
+        radius: 5.149232387542725,
+      },
+      0,
+    );
+    if (!pod.ok || !plate.ok) throw new Error("debris spawn refused");
+
+    const field = createShipField(world, npcMasses);
+    expect(field.blocks(OPEN_SPACE, RANGE)).toBe(false);
+    expect(field.massLocked(OPEN_SPACE, RANGE)).toBe(false);
+
+    const events = runCountdown(hoveringAt(OPEN_SPACE), world, buoyOptions());
+    expect(events.map((event) => event.kind)).toContain("hyperspaceJumped");
+  });
+
+  it("never mass-locks for a buoy, live, moved, detached or destroyed (D-08)", () => {
+    // 10 m from the witchpoint buoy: no station, planet or sun lock reaches it.
+    const position = add(layout.witchpoint.position, vec(10, 0, 0));
+    const world = createWorld(5);
+    expect(createShipField(world, npcMasses).massLocked(position, RANGE)).toBe(
+      false,
+    );
+    world.buoys.witchpoint.offset = vec(10, 0, 0);
+    world.buoys.witchpoint.subentityEnergy = 0;
+    expect(createShipField(world, npcMasses).massLocked(position, RANGE)).toBe(
+      false,
+    );
+    world.staticHealth.witchpoint = 0;
+    expect(createShipField(world, npcMasses).massLocked(position, RANGE)).toBe(
+      false,
+    );
+    const state = hoveringAt(position);
+    simStep(state, world, toggle, buoyOptions());
+    expect(state.torus.massLocked).toBe(false);
+    expect(state.torus.engaged).toBe(true);
   });
 });

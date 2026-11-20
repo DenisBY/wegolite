@@ -35,7 +35,13 @@ import {
 import { chartDistance, MAX_JUMP_DIST } from "../../src/sim/hyperspace/jump.js";
 import { initFlightState } from "../../src/sim/flight/state.js";
 import type { FlightState } from "../../src/sim/flight/state.js";
-import { vec } from "../../src/sim/math.js";
+import {
+  NAV_BUOY_MASS,
+  WITCH_BLOCK_K,
+  witchspaceBlockedAt,
+} from "../../src/sim/hyperspace/countdown.js";
+import { length, sub, vec } from "../../src/sim/math.js";
+import { PLAYER_COLLISION_RADIUS_M } from "../../src/sim/npc/stats.js";
 import { deriveSystemLayout } from "../../src/sim/world/layout.js";
 import type { SystemLayout } from "../../src/sim/world/layout.js";
 import { laveDockGeometry } from "../helpers/dock-pose.js";
@@ -170,6 +176,51 @@ describe("arrival pose determinism", () => {
         expect(tilt, `seed ${seed}`).toBeLessThan(0.125);
       }
     }
+  });
+});
+
+describe("arrival clear of both buoys (Phase 18, D-06, D-09)", () => {
+  // The witchpoint buoy blocks a completing jump within sqrt(0.1 x 698,691.1875)
+  // = 264.33 m (ShipEntity.m lines 12498-12531). Oolite places the arrival at
+  // least the safe exit distance, 809.14 m, from it (PlayerEntity.m lines
+  // 6913-6928), so an immediate re-jump is never refused by it; the clearance
+  // asked here adds both hull radii to the blockage radius.
+  const ARRIVAL_SWEEP = 10_000;
+  const clearance =
+    Math.sqrt(WITCH_BLOCK_K * NAV_BUOY_MASS) +
+    layout.navBuoy.radius +
+    PLAYER_COLLISION_RADIUS_M;
+
+  it("lands every seeded arrival at least the safe exit distance from the witchpoint buoy and clear of the nav buoy", () => {
+    let nearestWitchpoint = Number.POSITIVE_INFINITY;
+    let nearestNavBuoy = Number.POSITIVE_INFINITY;
+    for (let seed = 1; seed <= ARRIVAL_SWEEP; seed += 1) {
+      const { position } = arrive(seed);
+      const toWitchpoint = length(sub(position, layout.witchpoint.position));
+      const toNavBuoy = length(sub(position, layout.navBuoy.position));
+      nearestWitchpoint = Math.min(nearestWitchpoint, toWitchpoint);
+      nearestNavBuoy = Math.min(nearestNavBuoy, toNavBuoy);
+      expect(toWitchpoint, `seed ${seed}`).toBeGreaterThanOrEqual(
+        SAFE_DISTANCE - TOLERANCE,
+      );
+      expect(toWitchpoint, `seed ${seed}`).toBeGreaterThan(clearance);
+      expect(toNavBuoy, `seed ${seed}`).toBeGreaterThan(clearance);
+      for (const key of ["witchpoint", "navBuoy"] as const) {
+        expect(
+          witchspaceBlockedAt(
+            position,
+            layout[key].position,
+            NAV_BUOY_MASS,
+            layout.scannerRange,
+          ),
+          `seed ${seed} ${key}`,
+        ).toBe(false);
+      }
+    }
+    // The radial draw is a multiple of 100 m, so a zero draw lands exactly on
+    // the safe exit distance and is reached within the sweep.
+    expect(nearestWitchpoint).toBeCloseTo(SAFE_DISTANCE, 6);
+    expect(nearestNavBuoy).toBeGreaterThan(clearance);
   });
 });
 
