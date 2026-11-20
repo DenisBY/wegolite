@@ -42,3 +42,7 @@ static names whatever the traffic flag (load the static artifact's `names` witho
 five names into the eager catalogue), then re-pins the traffic-off case in `event-router-ident.test.ts` and
 the Node twin's "buoy" message in `tick-parity.test.ts`, and rewords the PROJECT.md row. It touches the app
 boot path, so it needs the remote `verify`.
+
+## Resolution (2026-11-20)
+
+Accepted by the owner as a test-bundle-only behaviour: traffic is on in every player-facing build, so players never see the raw key. No fix planned.

@@ -1,5 +1,5 @@
 ---
-status: testing
+status: complete
 phase: 18-stations-buoys-and-collisions
 source: [18-VERIFICATION.md]
 started: 2026-11-20T00:00:00Z
@@ -8,11 +8,7 @@ updated: 2026-11-20T00:00:00Z
 
 ## Current Test
 
-number: 3
-name: Owner reading of the Phase 18 divergences and open questions
-expected: |
-  Each recorded divergence is accepted or turned into a todo; the open owner questions are decided
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -26,14 +22,14 @@ result: pass — owner 2026-11-20 (screenshot): after shooting the centre, the c
 
 ### 3. Owner reading of the Phase 18 divergences and open questions
 expected: Each recorded divergence (E-131 1 m/s push, E-133 station not pushed, E-135 subentity contact once and station not a collider, E-138 drift edges, E-147 launching player not pushed, E-150 burnt-out wreck, E-151 drift pass, E-152 negative scrape, E-153 octree composition, D-08 pods/plates never block, E-126 compass cycle) is accepted or turned into a todo; the CONTEXT PD-02 figures, the collisions-on seeds question and the traffic-off raw ident key are decided (18-12-SUMMARY.md, Owner questions 1-5 and 7).
-result: [pending]
+result: pass — owner decisions 2026-11-20: todos opened for E-131, E-135, E-147, E-150, E-138, D-08, E-126 (to discuss with the owner when scheduled; no fix decided); accepted as recorded: E-151, E-152, E-133; 18-CONTEXT.md PD-02 figures left as the historical record (correction lives in 18-20-SUMMARY and FIDELITY); collisions-on acceptance variant deferred to a todo for the next NPC phase; traffic-off raw ident key accepted (todo closed); epoch 101 kept as the quiet control; dock straddle double-event todo kept for a dock-feel review.
 
 ## Summary
 
 total: 3
-passed: 2
+passed: 3
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 

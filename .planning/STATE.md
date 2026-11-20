@@ -604,6 +604,7 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-07 second follow-up (owner decision 2026-11-20): MAX_MESSAGE_CHARS 55 -> 60 (rows span x 830.4-1665.6, no new overlap) so both 'roll 90 degrees' docking bounce lines and the default pitch/roll hint fit whole; the guard has no known exceptions, the word-wrap todo stays open
 - [Phase 18]: 18-19: the explosion blast pushes live NPC ships (hull-table mass), the live buoys (live mass) and the in-flight player (accumulated, added to drift after the kills) as well as debris; pods, plates, a dying buoy (subentity first, then NAV_BUOY_HULL_MASS) and a detaching buoy subentity are sources. The in-range test is the C's float compare, the magnitude stays double (all 11 18-03 fixtures pass, no pin moved). The station is no receiver and a launching player is not pushed (recorded divergences); a burnt-out wreck gets no blast (new recorded divergence).
 - [Phase 18]: Phase 18 close: FIDELITY gained the five rows the walk found missing (E-151 to E-153; static hulls, octree composition, NPC drift pass order, player drift edges, negative scrape); verify-full green at 5b3cc96 (exit=0 elapsed=869s) and QUAL-11 21/21 unchanged
+- Phase 18 UAT (2026-11-20): all 3 items passed; seven divergence todos opened for later discussion (no fix decided) (E-131, E-135, E-147, E-150, E-138, D-08, E-126), E-151/E-152/E-133 accepted, collisions-on acceptance variant deferred, traffic-off raw ident key accepted.
 
 ### Pending Todos
 

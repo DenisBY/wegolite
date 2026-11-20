@@ -379,6 +379,7 @@ const NO_CONTACTS = {
 
 /** The measured reports (4,000 ticks, deterministic), pinned by review IN-05. */
 const MEASURED: Record<number, SeedReport> = {
+  // Epoch 101 is the quiet control: ships parked near the station never touch in 4,000 ticks, so its pin records zeros on purpose (owner decision 2026-11-20).
   101: {
     epoch: 101,
     ships: 12,
