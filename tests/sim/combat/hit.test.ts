@@ -478,6 +478,30 @@ describe("firstShipHit: the subentity rule (ShipEntity.m:1323-1357)", () => {
     expect(firstShipHit(unrotated, [turned], far)).toBeNull();
   });
 
+  it("skips a subentity listed in detachedSubentities; without the key it is hit as before (PD-01)", () => {
+    const hull = table(withSub(vec(0, 0, -20)));
+    const detached: HitTarget = {
+      ...composite,
+      detachedSubentities: new Set([0]),
+    };
+    // The nearer subentity is gone: the hull behind it answers.
+    const hit = firstShipHit(foreRay(vec(0, 0, 0)), [detached], hull);
+    expect(hit?.part).toEqual(HULL_PART);
+    expect(hit?.distance).toBeCloseTo(HULL_DISTANCE, 9);
+    // A beam that only the subentity would stop passes.
+    const beside = table(withSub(vec(12, 0, 0)));
+    expect(firstShipHit(foreRay(vec(12, 0, 0)), [detached], beside)).toBeNull();
+    // Another index in the set leaves subentity 0 in the hit test.
+    const other: HitTarget = { ...composite, detachedSubentities: new Set([1]) };
+    expect(firstShipHit(foreRay(vec(0, 0, 0)), [other], hull)?.part).toEqual(
+      SUB_PART(0),
+    );
+    // Without the key: unchanged.
+    expect(
+      firstShipHit(foreRay(vec(0, 0, 0)), [composite], hull)?.part,
+    ).toEqual(SUB_PART(0));
+  });
+
   it("a subentity with a non-finite position never throws: the hull's answer stands", () => {
     const hit = firstShipHit(
       foreRay(vec(0, 0, 0)),

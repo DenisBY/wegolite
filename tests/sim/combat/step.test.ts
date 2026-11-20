@@ -54,12 +54,19 @@ import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import {
   MAIN_STATION_ID,
+  NAV_BUOY_SUBENTITY_ID,
   NO_ENTITY,
   PLAYER_ID,
   STATION_NAV_BUOY_ID,
   WITCHPOINT_BUOY_ID,
+  WITCHPOINT_BUOY_SUBENTITY_ID,
 } from "../../../src/sim/world/ids.js";
-import { STATIC_TARGETS } from "../../../src/sim/world/statics.js";
+import {
+  BUOY_SUBENTITY_TARGETS,
+  FRANGIBLE_BLEED_THROUGH,
+  STATIC_TARGETS,
+  stationPose,
+} from "../../../src/sim/world/statics.js";
 import { npcContacts } from "../../../src/sim/world/contacts.js";
 import {
   hashWorld,
@@ -1134,17 +1141,33 @@ describe("the hit-record target invariant (assumption delta, plan 18-04)", () =>
     // A Viper far out with an Adder dead ahead of its nose (-Z).
     const far = spawnInto(world, "viper", vec(FAR.x + 50_000, 0, 0));
     const adder = spawnInto(world, "adder", vec(FAR.x + 50_000, 0, -1500));
+    // A Viper 2,035 m short of the nav buoy, nose along +Z: its mount sits on
+    // the subentity line (plan 18-15), so its beam is split 1 % and 100 %.
+    const onSub = spawnInto(
+      world,
+      "viper",
+      add(layout.navBuoy.position, vec(0, -4, -2035)),
+      quatFromUnitVectors(vec(0, 0, -1), vec(0, 0, 1)),
+    );
     const live = new Set(
       [...world.store.live].filter((e) => !e.dead).map((e) => e.id),
     );
-    const statics = new Set(STATIC_TARGETS.map((row) => row.id));
+    const statics = new Set([
+      ...STATIC_TARGETS.map((row) => row.id),
+      ...BUOY_SUBENTITY_TARGETS.map((row) => row.id),
+    ]);
 
     const events = resolveShots(
       world,
       true,
       player,
       combat,
-      [playerShot(player), viperShot(world, behind), viperShot(world, far)],
+      [
+        playerShot(player),
+        viperShot(world, behind),
+        viperShot(world, far),
+        viperShot(world, onSub),
+      ],
       hullOptions(FULL),
       DT,
       layout,
@@ -1156,9 +1179,15 @@ describe("the hit-record target invariant (assumption delta, plan 18-04)", () =>
         target === PLAYER_ID || statics.has(target) || live.has(target),
       ).toBe(true);
     }
-    // Not vacuous: one of each kind.
+    // Not vacuous: one of each kind, the buoy subentity included.
     expect([...targets].sort((a, b) => a - b)).toEqual(
-      [MAIN_STATION_ID, PLAYER_ID, adder].sort((a, b) => a - b),
+      [
+        MAIN_STATION_ID,
+        STATION_NAV_BUOY_ID,
+        NAV_BUOY_SUBENTITY_ID,
+        PLAYER_ID,
+        adder,
+      ].sort((a, b) => a - b),
     );
   });
 });
@@ -1497,5 +1526,312 @@ describe("buoy recharge (energy_recharge_rate 2, research Pitfall 9)", () => {
     expect(Object.is(world.staticHealth.witchpoint, 0)).toBe(true);
     expect(world.staticHealth.navBuoy).toBe(250);
     expect(world.staticHealth.station).toBe(24000);
+  });
+});
+
+/*
+ * The buoy's frangible subentity (CBT-17, plan 18-15, PD-01).
+ *
+ * The subentity line runs along world +Z through (0, -4) of the buoy centre:
+ * at the identity pose (flight clock 0) the buoy's rear opening exposes the
+ * subentity there, so it wins about 1,979.46 m from a start 2,000 m out (a
+ * probe of the shipped octrees found the subentity winning at every point of
+ * x -2..2, y -6..-2 on this line, so the Viper's 0.15 m mount offset stays on
+ * it). Oolite's firing code reads the parent's sticky `subEntityTakingDamage`
+ * (`ShipEntity.m:10202-10209`, `10409-10416`): 1 % of the damage on the buoy
+ * (frangible), the full damage on the subentity.
+ */
+const SUB_LINE = vec(0, -4, -2000);
+const SUB_LINE_DISTANCE = 1979.46;
+const SUB_ENERGY = 200;
+
+function splitHits(target: number, sub: number): SimEvent[] {
+  return [
+    {
+      kind: "shipHit",
+      target,
+      source: PLAYER_ID,
+      amount: FRANGIBLE_BLEED_THROUGH * PULSE.damage,
+      shield: false,
+    },
+    {
+      kind: "shipHit",
+      target: sub,
+      source: PLAYER_ID,
+      amount: PULSE.damage,
+      shield: false,
+    },
+  ];
+}
+
+function fullHit(target: number): SimEvent[] {
+  return [
+    {
+      kind: "shipHit",
+      target,
+      source: PLAYER_ID,
+      amount: PULSE.damage,
+      shield: false,
+    },
+  ];
+}
+
+function shoot(
+  world: World,
+  player: FlightState,
+  hulls: HullTable = FULL,
+): SimEvent[] {
+  return resolveShots(
+    world,
+    true,
+    player,
+    createPlayerCombatState(),
+    [pulseOf(player)],
+    hullOptions(hulls),
+    DT,
+    layout,
+  );
+}
+
+describe("the buoy's frangible subentity (tracer, PD-01, plan 18-15)", () => {
+  const subPlayer = (): FlightState =>
+    playerAt(add(layout.navBuoy.position, SUB_LINE), PLUS_Z);
+  const hullPlayer = (): FlightState =>
+    playerAt(add(layout.navBuoy.position, HULL_LINE), PLUS_X);
+
+  it("a pulse whose winning part is the subentity queues the buoy at 1 % then the subentity at 15", () => {
+    const world = createWorld(7);
+    const events = shoot(world, subPlayer());
+
+    expect(ofKind(events, "shipHit")).toEqual(
+      splitHits(STATION_NAV_BUOY_ID, NAV_BUOY_SUBENTITY_ID),
+    );
+    expect(world.staticHealth.navBuoy).toBe(250 - 0.01 * 15);
+    expect(world.staticHealth.navBuoy).toBeCloseTo(249.85, 12);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(185);
+    expect(world.buoys.navBuoy.subentityTakingDamage).toBe(true);
+    expect(world.buoys.witchpoint.subentityEnergy).toBe(SUB_ENERGY);
+    expect(world.buoys.witchpoint.subentityTakingDamage).toBe(false);
+    expect(
+      Math.abs(beamLength(events) - SUB_LINE_DISTANCE),
+    ).toBeLessThanOrEqual(BUOY_TOLERANCE);
+    expect(ofKind(events, "shipDestroyed")).toEqual([]);
+  });
+
+  it("the witchpoint buoy's subentity is target 6", () => {
+    const world = createWorld(7);
+    const player = playerAt(add(layout.witchpoint.position, SUB_LINE), PLUS_Z);
+    const events = shoot(world, player);
+    expect(ofKind(events, "shipHit")).toEqual(
+      splitHits(WITCHPOINT_BUOY_ID, WITCHPOINT_BUOY_SUBENTITY_ID),
+    );
+    expect(world.buoys.witchpoint.subentityEnergy).toBe(185);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(SUB_ENERGY);
+  });
+
+  it("is sticky: after one subentity hit a hull beam is split too; on a fresh world a hull beam is one full record", () => {
+    const fresh = createWorld(7);
+    const hull = shoot(fresh, hullPlayer());
+    expect(ofKind(hull, "shipHit")).toEqual(fullHit(STATION_NAV_BUOY_ID));
+    expect(fresh.staticHealth.navBuoy).toBe(235);
+    expect(fresh.buoys.navBuoy.subentityTakingDamage).toBe(false);
+    expect(fresh.buoys.navBuoy.subentityEnergy).toBe(SUB_ENERGY);
+
+    const world = createWorld(7);
+    shoot(world, subPlayer());
+    const routed = shoot(world, hullPlayer());
+    expect(ofKind(routed, "shipHit")).toEqual(
+      splitHits(STATION_NAV_BUOY_ID, NAV_BUOY_SUBENTITY_ID),
+    );
+    // The beam still ends on the hull: only the damage is routed.
+    expect(
+      Math.abs(beamLength(routed) - HULL_LINE_DISTANCE),
+    ).toBeLessThanOrEqual(BUOY_TOLERANCE);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(170);
+    expect(world.buoys.navBuoy.subentityTakingDamage).toBe(true);
+  });
+
+  it("an NPC shot reads the same flag: a Viper's hull hit after the player's subentity hit is split", () => {
+    const world = createWorld(7);
+    shoot(world, subPlayer());
+    const viper = spawnInto(
+      world,
+      "viper",
+      add(layout.navBuoy.position, vec(-2035, 9, 14)),
+      PLUS_X,
+    );
+    const events = resolveShots(
+      world,
+      true,
+      flyingPlayer(),
+      createPlayerCombatState(),
+      [viperShot(world, viper)],
+      hullOptions(FULL),
+      DT,
+      layout,
+    );
+    const beam = LASER_STATS.EQ_WEAPON_BEAM_LASER.damage;
+    expect(ofKind(events, "shipHit")).toEqual([
+      {
+        kind: "shipHit",
+        target: STATION_NAV_BUOY_ID,
+        source: viper,
+        amount: FRANGIBLE_BLEED_THROUGH * beam,
+        shield: false,
+      },
+      {
+        kind: "shipHit",
+        target: NAV_BUOY_SUBENTITY_ID,
+        source: viper,
+        amount: beam,
+        shield: false,
+      },
+    ]);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(185 - beam);
+  });
+
+  it("14 routed hits detach it at exactly 0 and clear the flag; then the beam no longer meets it and a hull hit is full", () => {
+    const player = subPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    // The first hit is a real shot (it sets the flag); 12 more are applied
+    // directly, as their records (no recharge between).
+    shoot(world, player);
+    for (let i = 2; i <= 13; i += 1) {
+      const events: SimEvent[] = [];
+      applyLedger(
+        world,
+        true,
+        player,
+        combat,
+        [
+          buoyRecord(STATION_NAV_BUOY_ID, FRANGIBLE_BLEED_THROUGH * 15),
+          buoyRecord(NAV_BUOY_SUBENTITY_ID, 15),
+        ],
+        events,
+      );
+      expect(world.buoys.navBuoy.subentityEnergy).toBe(SUB_ENERGY - 15 * i);
+      expect(world.buoys.navBuoy.subentityTakingDamage).toBe(true);
+    }
+    // The 14th, a real shot: 5 (plus at most one tick of recharge) - 15.
+    const detaching = shoot(world, player);
+    expect(ofKind(detaching, "shipHit")).toEqual(
+      splitHits(STATION_NAV_BUOY_ID, NAV_BUOY_SUBENTITY_ID),
+    );
+    expect(Object.is(world.buoys.navBuoy.subentityEnergy, 0)).toBe(true);
+    expect(world.buoys.navBuoy.subentityTakingDamage).toBe(false);
+    expect(ofKind(detaching, "shipDestroyed")).toEqual([]);
+    const health = world.staticHealth.navBuoy;
+    expect(health).toBeGreaterThan(247.8);
+    expect(health).toBeLessThan(250);
+
+    // The 15th on the same line: the subentity is no beam part any more.
+    const after = shoot(world, player);
+    const hits = ofKind(after, "shipHit");
+    expect(hits.filter((h) => h.target === NAV_BUOY_SUBENTITY_ID)).toEqual([]);
+    for (const hit of hits) {
+      expect(hit).toEqual(fullHit(STATION_NAV_BUOY_ID)[0]);
+    }
+    expect(beamLength(after)).toBeGreaterThan(SUB_LINE_DISTANCE + 1);
+    expect(Object.is(world.buoys.navBuoy.subentityEnergy, 0)).toBe(true);
+
+    // A hull beam is one full record again.
+    const before = world.staticHealth.navBuoy;
+    const hull = shoot(world, hullPlayer());
+    expect(ofKind(hull, "shipHit")).toEqual(fullHit(STATION_NAV_BUOY_ID));
+    expect(world.staticHealth.navBuoy).toBeCloseTo(before + 2 * DT - 15, 9);
+    expect(world.buoys.navBuoy.subentityTakingDamage).toBe(false);
+  });
+
+  it("a Coriolis dock-subentity win queues one full record on the station (not frangible)", () => {
+    // The 18-02 fixture `dock-slot-through-dock-back-wall`, 1,500 m out: model
+    // start (11, 19, 1500) along model -z, through the slot to the dock's back
+    // wall about 1,249.74 m on (the fixture's 2,749.74 from 3,000).
+    const player = flyingPlayer();
+    const pose = stationPose(layout, player.stationAngle);
+    const origin = add(pose.position, rotate(pose.orientation, vec(11, 19, -1500)));
+    const forward = rotate(pose.orientation, vec(0, 0, 1));
+    const shooter = playerAt(origin, quatFromUnitVectors(vec(0, 0, -1), forward));
+    shooter.stationAngle = player.stationAngle;
+    const world = createWorld(7);
+    const events = shoot(world, shooter);
+    expect(ofKind(events, "shipHit")).toEqual(fullHit(MAIN_STATION_ID));
+    expect(Math.abs(beamLength(events) - 1249.7439)).toBeLessThanOrEqual(
+      HULL_TOLERANCE,
+    );
+    expect(world.staticHealth).toEqual(createStaticHealth());
+    expect(hashWorld(shooter, world)).toBe(hashWorld(shooter, createWorld(7)));
+  });
+
+  it("without the static hulls (realHullTable) the subentity line hits nothing and changes nothing", () => {
+    const world = createWorld(7);
+    const player = subPlayer();
+    const before = hashWorld(player, world);
+    const events = shoot(world, player, HULLS);
+    expect(ofKind(events, "shipHit")).toEqual([]);
+    expect(hashWorld(player, world)).toBe(before);
+  });
+});
+
+describe("subentity records in the ledger are total (PD-01)", () => {
+  it("skips NaN, Infinity, 0 and negative amounts, a detached subentity and a destroyed buoy's", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    world.buoys.witchpoint.subentityEnergy = 0;
+    world.staticHealth.navBuoy = 0;
+    const events: SimEvent[] = [];
+    const records = [Number.NaN, Infinity, -Infinity, 0, -5].map((amount) =>
+      buoyRecord(NAV_BUOY_SUBENTITY_ID, amount),
+    );
+    records.push(buoyRecord(WITCHPOINT_BUOY_SUBENTITY_ID, 15));
+    records.push(buoyRecord(NAV_BUOY_SUBENTITY_ID, 15));
+    expect(applyLedger(world, true, player, combat, records, events)).toEqual(
+      [],
+    );
+    expect(events).toEqual([]);
+    expect(Object.is(world.buoys.witchpoint.subentityEnergy, 0)).toBe(true);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(SUB_ENERGY);
+    expect(world.buoys.navBuoy.subentityTakingDamage).toBe(false);
+  });
+
+  it("a huge record floors at exactly 0, is never lethal and clears the flag; an unstepped world is untouched", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    world.buoys.navBuoy.subentityTakingDamage = true;
+    const unstepped: SimEvent[] = [];
+    applyLedger(
+      world,
+      false,
+      player,
+      combat,
+      [buoyRecord(NAV_BUOY_SUBENTITY_ID, 15)],
+      unstepped,
+    );
+    expect(unstepped).toEqual([]);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(SUB_ENERGY);
+
+    const events: SimEvent[] = [];
+    expect(
+      applyLedger(
+        world,
+        true,
+        player,
+        combat,
+        [
+          buoyRecord(NAV_BUOY_SUBENTITY_ID, 1e12),
+          buoyRecord(NAV_BUOY_SUBENTITY_ID, 15),
+        ],
+        events,
+      ),
+    ).toEqual([]);
+    expect(Object.is(world.buoys.navBuoy.subentityEnergy, 0)).toBe(true);
+    expect(world.buoys.navBuoy.subentityTakingDamage).toBe(false);
+    // The second record meets a detached subentity: nothing.
+    expect(ofKind(events, "shipHit").map((h) => h.target)).toEqual([
+      NAV_BUOY_SUBENTITY_ID,
+    ]);
+    expect(world.staticHealth.navBuoy).toBe(250);
   });
 });
