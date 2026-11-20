@@ -56,9 +56,18 @@ import {
   STATION_NAV_BUOY_ID,
 } from "../../../src/sim/world/ids.js";
 import type { EntityId } from "../../../src/sim/world/ids.js";
-import { hashWorld } from "../../../src/sim/world/serialize.js";
+import {
+  hashWorld,
+  serializeBuoyStates,
+  serializeStaticHealth,
+} from "../../../src/sim/world/serialize.js";
 import { buoyOrientation } from "../../../src/sim/world/statics.js";
-import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
+import {
+  createWorld,
+  isPristineBuoyStates,
+  isPristineStaticHealth,
+  spawnEntity,
+} from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
 import { debrisFixture, FIXTURE_POD } from "../../helpers/debris-fixture.js";
 import { fullHullTable } from "../../helpers/hull-table.js";
@@ -148,7 +157,10 @@ function firstContactOnZ(flightTime: number): number {
   for (let d = 200; d > 0; d -= 0.01) {
     const contact = doOctreesCollide(
       cobra,
-      { position: vec(NAV_BUOY.x, NAV_BUOY.y, NAV_BUOY.z + d), orientation: identity() },
+      {
+        position: vec(NAV_BUOY.x, NAV_BUOY.y, NAV_BUOY.z + d),
+        orientation: identity(),
+      },
       buoy,
       buoyPose,
     );
@@ -241,13 +253,22 @@ describe("the player rams the nav buoy (tracer, PD-02)", () => {
     expect(contact[0]?.amount).toBe(FIXTURE_100.dam1);
     expect(contact[1]?.amount).toBe(FIXTURE_100.dam2);
     expect(world.staticHealth.navBuoy).toBeCloseTo(250 - FIXTURE_100.dam2, 9);
-    expect(
-      combat.energy + combat.fwdShield + combat.aftShield,
-    ).toBeCloseTo(energyBefore - FIXTURE_100.dam1, 9);
+    expect(combat.energy + combat.fwdShield + combat.aftShield).toBeCloseTo(
+      energyBefore - FIXTURE_100.dam1,
+      9,
+    );
     expect(combat.cabinTemp).toBe(cabinBefore);
-    const hash = hashWorld(player, world, combat);
-    expect(hash).toContain("buoys:");
-    expect(hash).toContain("staticHealth:");
+    // Both lines enter the hash: neither state is pristine any more.
+    expect(isPristineStaticHealth(world.staticHealth)).toBe(false);
+    expect(isPristineBuoyStates(world.buoys)).toBe(false);
+    expect(serializeStaticHealth(world.staticHealth)).toBe(
+      `staticHealth:25000.000000,250.000000,${(250 - FIXTURE_100.dam2).toFixed(6)}`,
+    );
+    expect(serializeBuoyStates(world.buoys)).toMatch(/^buoys:.*\|offset /);
+    const pristine = createWorld(7);
+    expect(hashWorld(player, world, combat)).not.toBe(
+      hashWorld(player, pristine, combat),
+    );
 
     player.speed = 0;
     let later = 0;
@@ -373,12 +394,10 @@ describe("the buoy's frangible subentity (PD-01)", () => {
       layout,
     );
 
-    expect(records.map((r) => [r.kind, r.target, r.source, r.amount])).toEqual(
-      [
-        ["scrape", pod, STATION_NAV_BUOY_ID, expected.dam1],
-        ["scrape", NAV_BUOY_SUBENTITY_ID, pod, expected.dam2],
-      ],
-    );
+    expect(records.map((r) => [r.kind, r.target, r.source, r.amount])).toEqual([
+      ["scrape", pod, STATION_NAV_BUOY_ID, expected.dam1],
+      ["scrape", NAV_BUOY_SUBENTITY_ID, pod, expected.dam2],
+    ]);
     const buoy = world.buoys.navBuoy;
     // The buoy takes dvOtherBody; the subentity's own nudge is not applied.
     expect(buoy.velocity.x).toBe(expected.dvOtherBody.x);

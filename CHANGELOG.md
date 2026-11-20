@@ -23,6 +23,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Ships, cargo pods and alloy plates now collide: both sides take damage by
   Oolite's mass and closing-speed rule and rebound. Touching the station hull
   stays harmless.
+- Navigation buoys collide too: a rammed buoy takes damage and is pushed away,
+  as in Oolite.
 - In a test session (`?test=1&traffic=1`) a new test hook member,
   `spawnTestAttacker()`, puts a Viper 3,000 m ahead of you that attacks you
   with Oolite's attack manoeuvres and fires through the NPC fire gate. It marks

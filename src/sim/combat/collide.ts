@@ -54,6 +54,11 @@
 
 import type { FlightState } from "../flight/state.js";
 import type { StepOptions } from "../flight/step.js";
+import {
+  BUOY_SUBENTITY_MASS,
+  NAV_BUOY_HULL_MASS,
+  NAV_BUOY_MASS,
+} from "../hyperspace/countdown.js";
 import { add, dot, rotate, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import { massFor } from "../npc/stats.js";
@@ -62,11 +67,22 @@ import { debrisMassOf } from "../world/debris.js";
 import type { Entity } from "../world/entity.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
+import type { SystemLayout } from "../world/layout.js";
 import {
+  MAX_BUOY_OFFSET,
   MAX_ENTITY_MAGNITUDE,
   MAX_ENTITY_VELOCITY,
   QUAT_UNIT_TOLERANCE,
 } from "../world/limits.js";
+import {
+  STATIC_TARGETS,
+  buoyOrientation,
+  buoyPosition,
+  buoySubentityTargetOf,
+  isBuoyDestroyed,
+  isBuoySubentityAttached,
+} from "../world/statics.js";
+import type { BuoyKey } from "../world/statics.js";
 import type { World } from "../world/world.js";
 import { PLAYER_HULL_KEY } from "./aim.js";
 import { PLAYER_MASS_KG } from "./constants.js";
@@ -341,13 +357,19 @@ export function runContactCalls(
   }
 }
 
-/** One body of the stage. `entity` is undefined for the player. */
+/**
+ * One body of the stage: the player (`entity` and `buoy` undefined), a store
+ * entity, or a live buoy (`buoy` its key, plan 18-18). `detached` holds the
+ * indices of subentities that take no part (a buoy's dead subentity, PD-01).
+ */
 interface Collider {
   readonly id: EntityId;
   readonly hull: HullData;
   readonly mass: number;
   readonly destroyable: boolean;
   readonly entity: Entity | undefined;
+  readonly buoy: BuoyKey | undefined;
+  readonly detached: ReadonlySet<number> | undefined;
 }
 
 const LOCAL_FORWARD: Vec3 = vec(0, 0, -1);
@@ -372,11 +394,18 @@ function isZeroVec(v: Vec3): boolean {
  * The colliders of this tick, unranked: the in-flight player (with a combat
  * state and its hull; never while launching, A3), every live store ship whose
  * spec key has a hull and a mass above 0 (`massFor`, 0 for an unknown kind),
- * and every live pod and plate (kind `cargo`, D-07) whose spec key has a hull
- * and whose mass `debrisMassOf` gives (none without the debris content).
- * Never the station (it is not in the store: touching its hull stays the
- * dock's damage-free contact, DOCK-09, and NPCs and pods pass through it) and
- * never a wreck.
+ * every live pod and plate (kind `cargo`, D-07) whose spec key has a hull
+ * and whose mass `debrisMassOf` gives (none without the debris content), and,
+ * with a layout, each buoy that is not destroyed and whose hull is loaded
+ * (PD-02, plan 18-18). Never the station (it is not in the store: touching
+ * its hull stays the dock's damage-free contact, DOCK-09, and NPCs and pods
+ * pass through it), never a wreck and never a destroyed buoy.
+ *
+ * A buoy's mass is `NAV_BUOY_MASS` while its subentity is attached and
+ * `NAV_BUOY_HULL_MASS` once it is detached (`subEntityDied` subtracts the
+ * subentity's mass, `ShipEntity.m:8194`, PD-01), and its detached subentity
+ * takes no part in the contact test. Both buoys are Oolite's buoy template,
+ * so both carry the nav buoy's mass.
  */
 function gatherColliders(
   world: World,
@@ -384,6 +413,7 @@ function gatherColliders(
   combat: PlayerCombatState | undefined,
   options: StepOptions,
   hulls: HullTable,
+  layout: SystemLayout | undefined,
 ): Collider[] {
   const colliders: Collider[] = [];
   const playerHull = hulls.get(PLAYER_HULL_KEY);
@@ -398,7 +428,28 @@ function gatherColliders(
       mass: PLAYER_MASS_KG,
       destroyable: !PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20,
       entity: undefined,
+      buoy: undefined,
+      detached: undefined,
     });
+  }
+  if (layout !== undefined) {
+    for (const row of STATIC_TARGETS) {
+      if (row.layoutKey === "station") continue;
+      const hull = hulls.get(row.hullKey);
+      if (hull === undefined || isBuoyDestroyed(world, row.layoutKey)) continue;
+      const attached = isBuoySubentityAttached(world, row.layoutKey);
+      colliders.push({
+        id: row.id,
+        hull,
+        mass: attached ? NAV_BUOY_MASS : NAV_BUOY_HULL_MASS,
+        destroyable: true,
+        entity: undefined,
+        buoy: row.layoutKey,
+        detached: attached
+          ? undefined
+          : new Set([buoySubentityTargetOf(row.layoutKey).subentityIndex]),
+      });
+    }
   }
   const flight = options.npcFlight;
   const masses = options.hyperspace?.shipMasses;
@@ -421,14 +472,23 @@ function gatherColliders(
           ? undefined
           : debrisMassOf(entity, debris);
     if (mass === undefined || !(mass > 0) || !Number.isFinite(mass)) continue;
-    colliders.push({ id: entity.id, hull, mass, destroyable: true, entity });
+    colliders.push({
+      id: entity.id,
+      hull,
+      mass,
+      destroyable: true,
+      entity,
+      buoy: undefined,
+      detached: undefined,
+    });
   }
   return colliders;
 }
 
 /**
- * The collision stage (CBT-18, D-01, PD-05): every octree contact of this
- * tick between the player, NPC ships, pods and plates, resolved by Oolite's
+ * The collision stage (CBT-18, D-01, PD-01, PD-02, PD-05): every octree
+ * contact of this tick between the player, NPC ships, pods, plates and, with
+ * a `layout`, the two buoys (plan 18-18), resolved by Oolite's
  * `collideWithShip` (`./response.ts`) in Oolite's update order. Runs inside
  * `resolveShots` (`./step.ts`) after the laser hits are queued and before
  * the ledger, only with `CombatOptions.collisions` (the app's opt-in).
@@ -450,9 +510,18 @@ function gatherColliders(
  *    parent for a subentity contact; `dvOtherSubentity` and
  *    `dpOtherSubentity` are never applied, an attached subentity having no
  *    motion of its own). The player's share goes to `FlightState.drift` and
- *    `position`, an entity's to `velocity` and `position`; velocities are
- *    held to `MAX_ENTITY_VELOCITY` and entity positions to
- *    `MAX_ENTITY_MAGNITUDE` at the write.
+ *    `position`, an entity's to `velocity` and `position`, a buoy's to
+ *    `World.buoys.<key>.velocity` and `.offset` (a buoy is a mover, PD-02;
+ *    it then brakes by its own thrust, `../world/drift.ts`); velocities are
+ *    held to `MAX_ENTITY_VELOCITY`, entity positions to
+ *    `MAX_ENTITY_MAGNITUDE` and buoy offsets to `MAX_BUOY_OFFSET` at the
+ *    write. A buoy's pose is `buoyPosition` and `buoyOrientation` of the
+ *    flight clock, its velocity its drift (it has no engine speed), its
+ *    energy its `World.staticHealth`. When the other's touched part is a
+ *    buoy's attached subentity (PD-01), the other party is the subentity
+ *    (`BUOY_SUBENTITY_MASS`, its `subentityEnergy`, the buoy's velocity as
+ *    the parent's) and its dam2 record goes to the subentity's own id (6 or
+ *    7); when the buoy is self, the contact is the buoy body's.
  * 5. Damage: one `"scrape"` record per applied side (`dam > 0.05`), self's
  *    first, each with a copy of the source's position at queue time, for the
  *    ledger to apply after the laser records. A ship brought to 0 then dies
@@ -471,22 +540,40 @@ export function resolveCollisions(
   player: FlightState,
   combat: PlayerCombatState | undefined,
   options: StepOptions,
+  layout?: SystemLayout,
 ): { records: HitRecord[] } {
   const records: HitRecord[] = [];
   const hulls = options.combat?.hulls;
   if (hulls === undefined) return { records };
-  const unranked = gatherColliders(world, player, combat, options, hulls);
+  const unranked = gatherColliders(
+    world,
+    player,
+    combat,
+    options,
+    hulls,
+    layout,
+  );
   if (unranked.length < 2) return { records };
 
-  const positionOf = (c: Collider): Vec3 =>
-    c.entity?.position ?? player.position;
-  const orientationOf = (c: Collider): Quat =>
-    c.entity?.orientation ?? player.orientation;
+  // A buoy's pose is read live (`buoyPosition` adds the offset a call wrote).
+  const buoyOrient = buoyOrientation(player.flightTime);
+  const positionOf = (c: Collider): Vec3 => {
+    if (c.buoy !== undefined && layout !== undefined) {
+      return buoyPosition(world, layout, c.buoy);
+    }
+    return c.entity?.position ?? player.position;
+  };
+  const orientationOf = (c: Collider): Quat => {
+    if (c.buoy !== undefined) return buoyOrient;
+    return c.entity?.orientation ?? player.orientation;
+  };
   const poseOf = (c: Collider): HullPose => ({
     position: positionOf(c),
     orientation: orientationOf(c),
   });
   const velocityOf = (c: Collider): Vec3 => {
+    // A buoy has no engine speed: its total velocity is its drift.
+    if (c.buoy !== undefined) return world.buoys[c.buoy].velocity;
     const forward = rotate(orientationOf(c), LOCAL_FORWARD);
     if (c.entity !== undefined) {
       const { velocity, speed } = c.entity;
@@ -503,11 +590,16 @@ export function resolveCollisions(
       drift.z + forward.z * speed + impulse.z,
     );
   };
-  const energyOf = (c: Collider): number =>
-    c.entity?.energy ?? combat?.energy ?? 0;
+  const energyOf = (c: Collider): number => {
+    if (c.buoy !== undefined) return world.staticHealth[c.buoy];
+    return c.entity?.energy ?? combat?.energy ?? 0;
+  };
   const addVelocity = (c: Collider, dv: Vec3): void => {
     if (isZeroVec(dv)) return;
-    if (c.entity !== undefined) {
+    if (c.buoy !== undefined) {
+      const buoy = world.buoys[c.buoy];
+      buoy.velocity = boundVec(add(buoy.velocity, dv), MAX_ENTITY_VELOCITY);
+    } else if (c.entity !== undefined) {
       c.entity.velocity = boundVec(
         add(c.entity.velocity, dv),
         MAX_ENTITY_VELOCITY,
@@ -518,7 +610,10 @@ export function resolveCollisions(
   };
   const addPosition = (c: Collider, dp: Vec3): void => {
     if (isZeroVec(dp)) return;
-    if (c.entity !== undefined) {
+    if (c.buoy !== undefined) {
+      const buoy = world.buoys[c.buoy];
+      buoy.offset = boundVec(add(buoy.offset, dp), MAX_BUOY_OFFSET);
+    } else if (c.entity !== undefined) {
       c.entity.position = boundVec(
         add(c.entity.position, dp),
         MAX_ENTITY_MAGNITUDE,
@@ -572,13 +667,21 @@ export function resolveCollisions(
       const dy = pb.y - pa.y;
       const dz = pb.z - pa.z;
       if (!(dx * dx + dy * dy + dz * dz < reach * reach)) continue;
-      // 3. Narrow phase, the lower rank as the prime.
+      // 3. Narrow phase, the lower rank as the prime; a detached subentity
+      // on either side takes no part (PD-01).
       const self = Math.min(a, b);
       const other = Math.max(a, b);
       const cs = ranked[self];
       const co = ranked[other];
       if (cs === undefined || co === undefined) continue;
-      const part = doOctreesCollide(cs.hull, poseOf(cs), co.hull, poseOf(co));
+      const part = doOctreesCollide(
+        cs.hull,
+        poseOf(cs),
+        co.hull,
+        poseOf(co),
+        co.detached,
+        cs.detached,
+      );
       if (part !== null) contacts.push({ self, other, part });
     }
   }
@@ -594,6 +697,15 @@ export function resolveCollisions(
     const sub =
       part.kind === "subentity" ? co.hull.subentities?.[part.index] : undefined;
     if (part.kind === "subentity" && sub === undefined) return false;
+    // A buoy's frangible subentity (PD-01): its own mass and energy, and its
+    // own target id for dam2.
+    const buoySub =
+      sub !== undefined &&
+      co.buoy !== undefined &&
+      part.kind === "subentity" &&
+      part.index === buoySubentityTargetOf(co.buoy).subentityIndex
+        ? co.buoy
+        : undefined;
     // A subentity contact: the subentity's absolute position and mass, its
     // parent's velocity (`ShipEntity.m:11032, 11057-11067`).
     const otherPosition =
@@ -601,6 +713,16 @@ export function resolveCollisions(
         ? otherPose.position
         : subentityPose(otherPose, sub.position).position;
     const otherVelocity = velocityOf(co);
+    const otherMass =
+      sub === undefined
+        ? co.mass
+        : buoySub === undefined
+          ? sub.mass
+          : BUOY_SUBENTITY_MASS;
+    const otherEnergy =
+      buoySub === undefined
+        ? energyOf(co)
+        : world.buoys[buoySub].subentityEnergy;
     const response = collideWithShip({
       self: {
         position: selfPosition,
@@ -612,8 +734,8 @@ export function resolveCollisions(
       other: {
         position: otherPosition,
         velocity: sub === undefined ? otherVelocity : ZERO_VEC,
-        mass: sub === undefined ? co.mass : sub.mass,
-        energy: energyOf(co),
+        mass: otherMass,
+        energy: otherEnergy,
         destroyable: co.destroyable,
         ...(sub === undefined
           ? {}
@@ -624,9 +746,12 @@ export function resolveCollisions(
       },
     });
     if (response.kind === "separating") return false;
-    // Damage queued, self's first (`ShipEntity.m:11114-11128`). A
-    // subentity's share goes to its parent's id: no collider of this stage
-    // has a subentity with an id of its own yet (plan 18-18 adds the buoys').
+    // Damage queued, self's first (`ShipEntity.m:11114-11128`). A buoy
+    // subentity takes all of dam2 on its own id (6 or 7): a ram has no 1 %
+    // bleed-through on the parent (`takeScrapeDamage`, 11639-11673; the
+    // bleed is the laser rule). A non-frangible parent takes it in the
+    // subentity's place (11124-11125); any other subentity's share goes to
+    // its parent's id (no other collider has a subentity of its own).
     if (response.applied1) {
       records.push({
         kind: "scrape",
@@ -637,9 +762,13 @@ export function resolveCollisions(
       });
     }
     if (response.applied2) {
+      const target =
+        buoySub !== undefined && response.dam2Receiver === "other"
+          ? buoySubentityTargetOf(buoySub).id
+          : co.id;
       records.push({
         kind: "scrape",
-        target: co.id,
+        target,
         source: cs.id,
         amount: response.dam2,
         sourcePosition: { ...selfPosition },
@@ -647,6 +776,11 @@ export function resolveCollisions(
     }
     // Motion at once: the other (or its parent) first, then self
     // (`ShipEntity.m:11102-11109`), then the positions (11083, 11136-11147).
+    // For a subentity contact the parent keeps `dvOtherBody` (+vel2a) even
+    // when the rammer dies; `dvOtherSubentity` and `dpOtherSubentity` (the
+    // C's nudge of the subentity inside its parent, 11143-11146) are never
+    // applied: the subentity stays at its authored offset (a FIDELITY
+    // divergence).
     addVelocity(co, response.dvOtherBody);
     addVelocity(cs, response.dv1);
     addPosition(cs, response.dp1);

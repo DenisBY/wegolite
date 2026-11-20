@@ -724,7 +724,9 @@ export function resolveShots(
     options.combat.hulls !== undefined
   ) {
     // The collision records join the one ledger after the laser records (A5).
-    records.push(...resolveCollisions(world, player, combat, options).records);
+    records.push(
+      ...resolveCollisions(world, player, combat, options, layout).records,
+    );
   }
   const lethal = applyLedger(
     world,
