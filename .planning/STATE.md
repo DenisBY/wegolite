@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: 14
+current_plan: 15
 status: executing
-stopped_at: Completed 18-15-PLAN.md
-last_updated: "2026-11-20T09:27:21.222Z"
+stopped_at: Completed 18-06-PLAN.md
+last_updated: "2026-11-20T10:25:49.772Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: f51b4f7438e7fede6f82945c2f17bf1866339999
+state_head: 38ca857cd5720bf6fd8a7b44e54cab2da7162baf
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 41
+  completed_plans: 42
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 14
+Current Plan: 15
 Total Plans in Phase: 22
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 18 execution started
@@ -226,6 +226,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 18 P04 | 28 min | 3 tasks | 13 files |
 | Phase 18 P05 | 25min | 3 tasks | 16 files |
 | Phase 18 P15 | 27min | 3 tasks | 13 files |
+| Phase 18 P06 | 58min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -576,6 +577,9 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-15: buoy subentities are static hit targets 6 and 7; a routed laser hit puts 1 % on the buoy and the full damage on the subentity, sticky as in Oolite, detached at 0 without explosion or debris (PD-01)
 - [Phase 18]: 18-15: the buoy subentity holds 200 energy recharging 1/s while attached and its buoy alive (ShipEntity.m:291-292)
 - [Phase 18]: 18-15: cargo pods and alloy plates are laser candidates and die silently at 0 through killShip; wrecks stay non-targets (D-07, ShipEntity.m:1858-1868)
+- [Phase 18]: 18-06: ident locks the station, both buoys (live pose), cargo pods and alloy plates with compiled names; never wrecks or buoy subentities; a destroyed buoy's lock ends on its tick
+- [Phase 18]: 18-06: owner option A (2026-11-20) - debris twin hash re-pinned f1926a36 -> f6927215 for the nav buoy re-lock on the kill tick (Node twin and combat.spec.ts)
+- [Phase 18]: 18-06: traffic-off HUD raw static key deferred to todo 2026-11-20-ident-hud-raw-static-key-traffic-off, triage at 18-12 (owner 2026-11-20)
 
 ### Pending Todos
 
@@ -715,8 +719,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-20T09:27:20.786Z
-Stopped at: Completed 18-15-PLAN.md
+Last session: 2026-11-20T10:25:49.319Z
+Stopped at: Completed 18-06-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
