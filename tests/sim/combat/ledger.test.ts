@@ -42,13 +42,14 @@ function player(): FlightState {
 function ship(
   world: World,
   energy: number,
-  kind: "ship" | "cargo" = "ship",
+  kind: "ship" | "cargo" | "wreckage" = "ship",
 ): number {
   const result = spawnEntity(
     world,
     {
       kind,
-      specKey: kind === "ship" ? "adder" : "cargo-pod",
+      specKey:
+        kind === "ship" ? "adder" : kind === "cargo" ? "barrel" : "alloy",
       scanClass: "CLASS_NEUTRAL",
       position: vec(1e7, 0, -2000),
       orientation: identity(),
@@ -231,11 +232,12 @@ describe("applyLedger", () => {
     expect(events).toEqual([]);
   });
 
-  it("skips a missing, dead or non-ship target; the station only absorbs, a buoy holds the damage", () => {
+  it("skips a missing, dead or wreckage target; the station only absorbs, a buoy holds the damage, cargo takes it", () => {
     const world = createWorld(1);
     const dead = ship(world, 10);
     world.store.kill(dead);
     const cargo = ship(world, 10, "cargo");
+    const wreck = ship(world, 10, "wreckage");
     const { lethal, events } = run(world, [
       record(9999, PLAYER_ID, 15),
       record(dead, PLAYER_ID, 15),
@@ -243,12 +245,14 @@ describe("applyLedger", () => {
       record(WITCHPOINT_BUOY_ID, PLAYER_ID, 15),
       record(STATION_NAV_BUOY_ID, PLAYER_ID, 15),
       record(cargo, PLAYER_ID, 15),
+      record(wreck, PLAYER_ID, 15),
     ]);
-    expect(lethal).toEqual([]);
+    // Plan 18-15 (D-07): a pod or plate takes the ship energy path.
+    expect(lethal).toEqual([{ victim: cargo, killer: PLAYER_ID }]);
     // Plan 18-04: the station is a static target (A6): one shipHit, no write.
     // Plan 18-05: each buoy takes the hit into its static health.
     expect(events).toEqual(
-      [MAIN_STATION_ID, WITCHPOINT_BUOY_ID, STATION_NAV_BUOY_ID].map(
+      [MAIN_STATION_ID, WITCHPOINT_BUOY_ID, STATION_NAV_BUOY_ID, cargo].map(
         (target) => ({
           kind: "shipHit",
           target,
@@ -263,7 +267,23 @@ describe("applyLedger", () => {
       witchpoint: 235,
       navBuoy: 235,
     });
-    expect(energyOf(world, cargo)).toBe(10);
+    expect(energyOf(world, cargo)).toBe(0);
+    // A wreck is never a target (ShipEntity.m:1858-1868): its lifetime stays.
+    expect(energyOf(world, wreck)).toBe(10);
+  });
+
+  it("a pod or plate at energy 1 is collected by one pulse, credited to an NPC shooter", () => {
+    const world = createWorld(1);
+    const npc = ship(world, 85);
+    const pod = ship(world, 1, "cargo");
+    const { lethal, events } = run(world, [record(pod, npc, 15)]);
+    expect(lethal).toEqual([{ victim: pod, killer: npc }]);
+    expect(events).toEqual([
+      { kind: "shipHit", target: pod, source: npc, amount: 15, shield: false },
+    ]);
+    expect(Object.is(energyOf(world, pod), 0)).toBe(true);
+    // The ledger marks nothing dead.
+    expect(world.store.get(pod)?.dead).toBe(false);
   });
 
   it("skips amounts that are NaN, Infinity, 0 and -1", () => {

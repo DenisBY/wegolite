@@ -50,8 +50,9 @@ import {
   vec,
 } from "../../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../../src/sim/math.js";
+import { clampFrameDelta } from "../../../src/sim/loop.js";
 import { stepSim } from "../../../src/sim/sim.js";
-import { DT } from "../../../src/sim/time.js";
+import { DT, MAX_STEPS_PER_FRAME } from "../../../src/sim/time.js";
 import {
   MAIN_STATION_ID,
   NAV_BUOY_SUBENTITY_ID,
@@ -68,6 +69,7 @@ import {
   stationPose,
 } from "../../../src/sim/world/statics.js";
 import { npcContacts } from "../../../src/sim/world/contacts.js";
+import { DEBRIS_MAX_ENERGY } from "../../../src/sim/world/debris.js";
 import {
   hashWorld,
   serializeStaticHealth,
@@ -1839,5 +1841,237 @@ describe("subentity records in the ledger are total (PD-01)", () => {
       NAV_BUOY_SUBENTITY_ID,
     ]);
     expect(world.staticHealth.navBuoy).toBe(250);
+  });
+});
+
+describe("buoy subentity recharge (energy_recharge_rate 1, ShipEntity.m:292)", () => {
+  function tick(world: World, player: FlightState, stepped = true): void {
+    resolveShots(world, stepped, player, undefined, [], undefined, DT, layout);
+  }
+
+  it("a subentity at 150 recharges 1/120 per stepped tick to exactly 200 and hashes pristine again", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    world.buoys.navBuoy.subentityEnergy = 150;
+
+    tick(world, player);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(150 + DT);
+    // An unstepped tick (the jump step) recharges nothing.
+    tick(world, player, false);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(150 + DT);
+
+    let ticks = 1;
+    while (world.buoys.navBuoy.subentityEnergy < 200 && ticks < 7000) {
+      tick(world, player);
+      ticks += 1;
+    }
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(200);
+    // 50 / (1 / 120) = 6,000 ticks, give or take the rounding of the sum.
+    expect(Math.abs(ticks - 6000)).toBeLessThanOrEqual(1);
+    expect(world.buoys.witchpoint.subentityEnergy).toBe(SUB_ENERGY);
+    expect(hashWorld(player, world)).toBe(hashWorld(player, createWorld(7)));
+  });
+
+  it("a full subentity whose flag is still set does not hash pristine until the flag clears", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    world.buoys.navBuoy.subentityTakingDamage = true;
+    tick(world, player);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(SUB_ENERGY);
+    expect(hashWorld(player, world)).not.toBe(
+      hashWorld(player, createWorld(7)),
+    );
+  });
+
+  it("a detached subentity stays 0 through 10,000 stepped ticks; a destroyed buoy's never recharges", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    world.buoys.witchpoint.subentityEnergy = 0;
+    world.staticHealth.navBuoy = 0;
+    world.buoys.navBuoy.subentityEnergy = 100;
+    for (let i = 0; i < 10_000; i += 1) tick(world, player);
+    expect(Object.is(world.buoys.witchpoint.subentityEnergy, 0)).toBe(true);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(100);
+    expect(world.staticHealth.witchpoint).toBe(250);
+  });
+
+  it("mid-recharge, the hash is the same at 30, 60 and 144 Hz at every common time until it is full", () => {
+    const CADENCES = [30, 60, 144] as const;
+    /** Hashes after each frame, keyed by tick, until 120 ticks past full. */
+    function run(hz: number): Map<number, string> {
+      const player = flyingPlayer();
+      player.tick = 0;
+      const world = createWorld(7);
+      world.buoys.navBuoy.subentityEnergy = 150;
+      const combat = createPlayerCombatState();
+      const hashes = new Map<number, string>();
+      let accumulator = 0;
+      let fullAt = -1;
+      // Bounded: without recharge the subentity is never full.
+      while (fullAt < 0 ? player.tick < 6200 : player.tick < fullAt + 120) {
+        accumulator += clampFrameDelta(1 / hz);
+        let steps = 0;
+        while (accumulator >= DT && steps < MAX_STEPS_PER_FRAME) {
+          stepOnce(player, world, combat, ZERO_INTENT, hullOptions(FULL));
+          accumulator -= DT;
+          steps += 1;
+        }
+        if (steps === MAX_STEPS_PER_FRAME) accumulator = 0;
+        if (fullAt < 0 && world.buoys.navBuoy.subentityEnergy === 200) {
+          fullAt = player.tick;
+        }
+        hashes.set(player.tick, hashWorld(player, world, combat));
+      }
+      expect(fullAt).toBeGreaterThan(0);
+      return hashes;
+    }
+    const runs = CADENCES.map(run);
+    const [first, ...rest] = runs;
+    if (first === undefined) throw new Error("no run");
+    let common = 0;
+    for (const [tick, hash] of first) {
+      if (!rest.every((other) => other.has(tick))) continue;
+      common += 1;
+      for (const other of rest) expect(other.get(tick)).toBe(hash);
+    }
+    // 30 Hz frames are 4 ticks, 144 Hz frames 5 or 6 every 6 frames: the
+    // common times recur every 20 ticks over about 6,000.
+    expect(common).toBeGreaterThan(250);
+  });
+});
+
+/*
+ * Pods and plates as laser targets (D-07, plan 18-15): a `cargo` entity whose
+ * spec key has a hull (`barrel`, `alloy` in the merged table) is a candidate
+ * after the ships in the same ascending pass; a wreck never is
+ * (`canCollide`, `ShipEntity.m:1858-1868`). Energy 1, so one pulse kills it,
+ * through `killShip`, silently.
+ */
+describe("pods and plates are shot; wrecks are not (D-07)", () => {
+  function spawnDebris(
+    world: World,
+    kind: "cargo" | "wreckage",
+    specKey: string,
+    position: Vec3,
+  ): number {
+    const result = spawnEntity(
+      world,
+      {
+        kind,
+        specKey,
+        scanClass: kind === "cargo" ? "CLASS_CARGO" : "CLASS_NO_DRAW",
+        position,
+        orientation: identity(),
+        radius: 5.8,
+        speed: 0,
+        ai: null,
+        maxEnergy: DEBRIS_MAX_ENERGY,
+        energyRechargeRate: 0,
+      },
+      0,
+    );
+    if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+    return result.entity.id;
+  }
+
+  /** A Viper 50 km from the player, nose -Z, and the point 1,500 m down its line. */
+  const VIPER_AT = vec(FAR.x + 50_000, 0, 0);
+  const VIPER_LINE = vec(VIPER_AT.x, -0.15, -1500);
+
+  it("one tick: the player's pulse kills a pod and a Viper's beam a plate, removed at the second commit, silently", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    const pod = spawnDebris(
+      world,
+      "cargo",
+      "barrel",
+      add(foreMount(), vec(0, 0, -1500)),
+    );
+    const plate = spawnDebris(world, "cargo", "alloy", VIPER_LINE);
+    const viper = spawnInto(world, "viper", VIPER_AT);
+    const shooter = world.store.get(viper);
+    if (shooter === undefined) throw new Error("no viper");
+    shooter.weapon.missedShots = 2;
+    const liveBefore = world.store.live.length;
+
+    const events = resolveShots(
+      world,
+      true,
+      player,
+      createPlayerCombatState(),
+      [playerShot(player), viperShot(world, viper)],
+      hullOptions(FULL),
+      DT,
+      layout,
+    );
+
+    expect(ofKind(events, "shipHit").map((h) => [h.target, h.source])).toEqual([
+      [pod, PLAYER_ID],
+      [plate, viper],
+    ]);
+    expect(ofKind(events, "shipDestroyed")).toEqual([]);
+    expect(ofKind(events, "entityRemoved")).toEqual([
+      { kind: "entityRemoved", id: pod },
+      { kind: "entityRemoved", id: plate },
+    ]);
+    expect(world.store.get(pod)).toBeUndefined();
+    expect(world.store.get(plate)).toBeUndefined();
+    // No debris: only the two pieces left.
+    expect(world.store.live.length).toBe(liveBefore - 2);
+    // The Viper's shot that ended on the plate is a hit (ShipEntity.m:10396).
+    expect(shooter.weapon.missedShots).toBe(1);
+  });
+
+  it("a wreck in the line of fire is no candidate, even with a hull under its key", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    // A probe: the plate's hull key on a wreck, so only the kind filter
+    // keeps it out.
+    const wreck = spawnDebris(
+      world,
+      "wreckage",
+      "alloy",
+      add(foreMount(), vec(0, 0, -1500)),
+    );
+    const events = resolveShots(
+      world,
+      true,
+      player,
+      createPlayerCombatState(),
+      [playerShot(player)],
+      hullOptions(FULL),
+      DT,
+      layout,
+    );
+    expect(ofKind(events, "shipHit")).toEqual([]);
+    expect(beamLength(events)).toBeGreaterThan(1600);
+    expect(energyOf(world, wreck)).toBe(DEBRIS_MAX_ENERGY);
+  });
+
+  it("with realHullTable no pod or plate is a candidate: the same shots change nothing", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    const pod = spawnDebris(
+      world,
+      "cargo",
+      "barrel",
+      add(foreMount(), vec(0, 0, -1500)),
+    );
+    const viper = spawnInto(world, "viper", VIPER_AT);
+    const plate = spawnDebris(world, "cargo", "alloy", VIPER_LINE);
+    const combat = createPlayerCombatState();
+    const events = resolveShots(
+      world,
+      true,
+      player,
+      combat,
+      [playerShot(player), viperShot(world, viper)],
+      hullOptions(HULLS),
+      DT,
+      layout,
+    );
+    expect(ofKind(events, "shipHit")).toEqual([]);
+    expect(energyOf(world, pod)).toBe(DEBRIS_MAX_ENERGY);
+    expect(energyOf(world, plate)).toBe(DEBRIS_MAX_ENERGY);
   });
 });
