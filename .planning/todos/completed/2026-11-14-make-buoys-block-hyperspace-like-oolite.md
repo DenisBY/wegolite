@@ -40,3 +40,23 @@ Check first: the player arrives at the witchpoint buoy, so an immediate re-jump 
 until the ship is about 264 m away. Decide whether that matches Oolite before shipping it.
 
 Revisit: before the next phase that gives buoys another consumer, or in the next fidelity audit.
+
+## Resolution
+
+Done 2026-11-20 by plan 18-07 (Phase 18, D-09, the folded todo of 18-CONTEXT), closed at the phase close by
+plan 18-12. Both live buoys block a completing jump by Oolite's mass rule, from their live position (layout
+plus offset) with their live mass: 698,691.1875 (264.33 m), or the float32 hull mass 691,044.375 (262.88 m)
+once the frangible subentity is detached; a destroyed buoy never blocks. The order is station, witchpoint
+buoy, nav buoy, NPC ships. The HUD names the blocker ("Witchspace jump aborted: too close to Witchpoint
+Beacon", owner decision 2026-11-20). With owner sanction (D-06) `tests/e2e/hyperspace-failure.spec.ts` moved
+its fixture pose to (1000, 0, 0), the phase's one edit of an existing browser spec. Pods and plates never
+block or mass-lock and buoys never mass-lock (D-08, a recorded divergence).
+
+The arrival question in "Check first" is settled by measurement: the arrival is clamped to Oolite's safe
+exit distance, so over 10,000 seeded arrivals the nearest lies 809.1355 m from the witchpoint beacon, outside
+its 264.33 m radius, and an immediate re-jump after arrival is not refused, as in Oolite
+(`tests/sim/hyperspace-arrival.test.ts`; a 2,048-layout sweep in `tests/sim/world/buoy-clearance.test.ts`).
+
+FIDELITY.md: E-22 (the mass-blockage row now covers both buoys; only the D-03 stations remain a divergence)
+and the D-08 row. PROJECT.md: "Buoys block a completing jump (Phase 18, D-09)". The torus factor's nearest
+surface still reads the layout buoys (todo `2026-11-20-torus-nearest-surface-live-buoys.md`).

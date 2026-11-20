@@ -48,3 +48,15 @@ the drawn model is about 100 m across, so the collision radius has to be
 decided as part of this work.
 
 > Note (2026-11-13): v2.0 was narrowed to Phase 8; this todo now belongs to v2.1 (Phase 15 in the v2.1 section of ROADMAP.md).
+
+## Phase 18 progress (2026-11-20)
+
+The buoy half is delivered: the two navigation buoys are solid bodies. Plan 18-07 made both live buoys block
+a completing jump; plan 18-11 brought in the collision stage (Oolite's `collideWithShip`, octree against
+octree, damage through the shield on the other's side); plan 18-18 made the buoys colliders and movers, with
+their collision radius 59.14 m (quick task 261117-k1l, no longer the 10 m of the problem text), so a ram
+damages the ship, pushes the buoy and can destroy it. FIDELITY.md rows E-129 to E-141 and the PROJECT.md row
+"Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)".
+
+The planet and the sun stay open and unscheduled: the player still flies through both. They are chain bodies
+of the ported collision-chain prefilter (plan 18-21) but not colliders.

@@ -20,6 +20,13 @@ frame's update sequence. The difference is a recorded divergence (Phase 17, D-10
 the credit yet: `shipDestroyed.killer` and the kill notifications `shipTargetDestroyed` and `shipKilledOther`
 feed no score, bounty, rating or message today.
 
+Since Phase 18 rams are a second producer (plan 18-11, CBT-18): the collision stage queues each side's ram
+damage as a scrape record into the same ledger, so a ram that is lethal both ways is a same-tick mutual kill,
+routine wherever two ships collide fast enough. The credit outcome follows the same ledger rule and is pinned
+by 18-11's both-lethal case, "two Kraits that kill each other in one ram" in
+`tests/sim/combat/collision-stage.test.ts`: the lower-id Krait is credited to the other, and the higher-id one
+carries no killer (`NO_ENTITY`). The trigger and the guard below are unchanged.
+
 ## When to act
 
 The first time anything consumes kill credit: a bounty or credit reward, the kill tally and combat rating, legal

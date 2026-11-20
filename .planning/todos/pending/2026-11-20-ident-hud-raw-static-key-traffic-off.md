@@ -32,3 +32,13 @@ accept the raw key as a test-bundle-only divergence and record it in FIDELITY.md
 traffic-off pin in `event-router-ident.test.ts` and the PROJECT.md wording.
 
 Owner decision 2026-11-20: deferred out of plan 18-06; triage at phase close (plan 18-12).
+
+## Triage at the phase close (plan 18-12, 2026-11-20)
+
+Kept pending, not fixed in 18-12 (orchestrator instruction: triage only). Reason: the production bundle
+(`npm run build`, the Pages deploy) has traffic on, so a player never sees the raw key; only `?traffic=0`
+and the browser-test bundle do. Proposed follow-up, for the owner to schedule: a quick task that installs the
+static names whatever the traffic flag (load the static artifact's `names` without its octrees, or move the
+five names into the eager catalogue), then re-pins the traffic-off case in `event-router-ident.test.ts` and
+the Node twin's "buoy" message in `tick-parity.test.ts`, and rewords the PROJECT.md row. It touches the app
+boot path, so it needs the remote `verify`.
