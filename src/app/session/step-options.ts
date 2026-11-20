@@ -6,7 +6,7 @@
  *
  * The session derives the same read-only facts for every fixed step: the owned
  * equipment, the fuel, the origin system, the committed target, the origin
- * station's witchspace mass and the dock geometry. This module is the one place
+ * station's and the buoys' witchspace masses and the dock geometry. This module is the one place
  * that assembles them, so the live session and a Node tick replay (plans 08-14
  * and 08-16) cannot drift apart.
  *
@@ -21,7 +21,10 @@ import type { HullTable } from "../../sim/combat/hit.js";
 import type { LaserMounts } from "../../sim/combat/mounts.js";
 import type { DockGeometry } from "../../sim/dock/geometry.js";
 import type { StepOptions } from "../../sim/flight/step.js";
-import { witchspaceStationMass } from "../../sim/hyperspace/countdown.js";
+import {
+  NAV_BUOY_MASS,
+  witchspaceStationMass,
+} from "../../sim/hyperspace/countdown.js";
 import type { NpcFlightStats } from "../../sim/npc/stats.js";
 import type { DebrisContent } from "../../sim/world/debris.js";
 import type { ShipMass } from "../../sim/world/ship-field.js";
@@ -72,7 +75,8 @@ export interface StepOptionsInput {
 }
 
 /**
- * Build one step's options. Optional keys are omitted rather than set to
+ * Build one step's options. `hyperspace.buoyMass` is always `NAV_BUOY_MASS`.
+ * Optional keys are omitted rather than set to
  * `undefined` (`exactOptionalPropertyTypes`): `target` only when a target is
  * committed, `stationMass` only when the origin's station kind has a recorded
  * mass, `shipMasses` only when the caller has them, `dock` only when the
@@ -114,6 +118,8 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
           },
         }),
     ...(stationMass === undefined ? {} : { stationMass }),
+    // Every system has both buoys, so the buoy mass is always supplied (D-09).
+    buoyMass: NAV_BUOY_MASS,
     ...(shipMasses === undefined ? {} : { shipMasses }),
   };
   const combat = {

@@ -33,6 +33,7 @@ import {
 } from "../hyperspace/countdown.js";
 import { jumpTimeSecondsForDist, MAX_JUMP_DIST } from "../hyperspace/jump.js";
 import { add, scale } from "../math.js";
+import type { Vec3 } from "../math.js";
 import { stepAttitude } from "./attitude.js";
 import type { FlightConfig } from "./config.js";
 import type { ControlIntent } from "./controller.js";
@@ -93,6 +94,13 @@ export interface StepOptions {
      * has an entry here; absent means no ship blocks.
      */
     readonly shipMasses?: readonly ShipMass[];
+    /**
+     * The read-only mass of a whole navigation buoy (D-09), supplied by the app
+     * each step as `NAV_BUOY_MASS`, exactly as `stationMass` is. Both buoys
+     * block a completing jump only when it is a finite positive number; absent
+     * (world-less unit flights, the frozen worlds) means no buoy blocks.
+     */
+    readonly buoyMass?: number;
   };
   /**
    * The read-only combat facts (CBT-05, CBT-07): the laser on each facing and
@@ -346,6 +354,11 @@ export function stepFlight(
         fuel >= 0 &&
         fuel >= (snapshot?.fuelCost ?? Number.POSITIVE_INFINITY);
       const stationMass = options?.hyperspace?.stationMass;
+      const blockingBuoy = buoyBlocker(
+        state.position,
+        layout,
+        options?.hyperspace?.buoyMass,
+      );
       if (
         stationMass !== undefined &&
         witchspaceBlockedAt(
@@ -361,6 +374,16 @@ export function stepFlight(
           kind: "hyperspaceRefused",
           reason: "blocked",
           blocker: "station",
+        });
+        state.hyperspaceTarget = null;
+      } else if (blockingBuoy !== undefined) {
+        // A live buoy inside its blockage radius (D-09): the witchpoint buoy,
+        // then the nav buoy, after the station and before the NPC ships, with
+        // the station's clearing.
+        events.push({
+          kind: "hyperspaceRefused",
+          reason: "blocked",
+          blocker: blockingBuoy,
         });
         state.hyperspaceTarget = null;
       } else if (ships?.blocks(state.position, layout.scannerRange) === true) {
@@ -435,4 +458,42 @@ export function stepFlight(
 
   // 7. Events were collected in order above.
   return events;
+}
+
+/**
+ * The first buoy that blocks a jump completing at `position` (D-09), the
+ * witchpoint buoy before the nav buoy, or `undefined`. Both buoys use Oolite's
+ * mass rule through `witchspaceBlockedAt`. A missing, non-finite or
+ * non-positive `buoyMass` blocks nothing (T-18-16), so a forged option can
+ * neither block every jump nor reach the predicate as `NaN`.
+ */
+function buoyBlocker(
+  position: Vec3,
+  layout: SystemLayout,
+  buoyMass: number | undefined,
+): "witchpointBeacon" | "navBuoy" | undefined {
+  if (buoyMass === undefined || !Number.isFinite(buoyMass) || buoyMass <= 0) {
+    return undefined;
+  }
+  if (
+    witchspaceBlockedAt(
+      position,
+      layout.witchpoint.position,
+      buoyMass,
+      layout.scannerRange,
+    )
+  ) {
+    return "witchpointBeacon";
+  }
+  if (
+    witchspaceBlockedAt(
+      position,
+      layout.navBuoy.position,
+      buoyMass,
+      layout.scannerRange,
+    )
+  ) {
+    return "navBuoy";
+  }
+  return undefined;
 }

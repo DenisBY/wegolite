@@ -52,6 +52,7 @@ import {
   ScriptedLaunchController,
 } from "../../../src/sim/flight/controller.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
+import { NAV_BUOY_MASS } from "../../../src/sim/hyperspace/countdown.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { flightTableFrom } from "../../../src/sim/npc/stats.js";
 import type { FlightRecord } from "../../../src/sim/npc/stats.js";
@@ -1426,6 +1427,7 @@ describe("buildStepOptions", () => {
           y: lave.system.chartY,
         },
         stationMass: expect.any(Number) as number,
+        buoyMass: NAV_BUOY_MASS,
       },
     });
     expect(options.hyperspace).not.toHaveProperty("target");

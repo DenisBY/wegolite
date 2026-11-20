@@ -134,15 +134,24 @@ export function createHyperspaceController(
       case "insufficient fuel":
         return "Insufficient fuel";
       case "blocked":
-        // The Coriolis station and, since Phase 12, NPC ships block; the buoys
-        // do not (owner decision 2026-11-14, option A; revisit in todo
-        // 2026-11-14-make-buoys-block-hyperspace-like-oolite). The station
-        // copy is exactly MAX_MESSAGE_CHARS (54) long: the HUD clamps a longer
-        // line with an ellipsis, which would cut the station name. The ship
-        // copy is 44 characters.
-        return blocker === "ship"
-          ? "Witchspace jump aborted: too close to a ship"
-          : "Witchspace jump aborted: too close to Coriolis Station";
+        // The blocker is named as Oolite's witch-blocked message names it
+        // (PlayerEntity.m lines 6550-6553): the Coriolis station, the two
+        // buoys (Phase 18, D-09) or an NPC ship. Every line fits
+        // MAX_MESSAGE_CHARS (54): the HUD clamps a longer line with an
+        // ellipsis, which would cut the name. The station line is exactly 54,
+        // the nav buoy line 53, the ship line 44; the station's wording with
+        // "Witchpoint Beacon" would be 55, so that line says "too near" (51).
+        switch (blocker) {
+          case "ship":
+            return "Witchspace jump aborted: too close to a ship";
+          case "navBuoy":
+            return "Witchspace jump aborted: too close to Navigation Buoy";
+          case "witchpointBeacon":
+            return "Witchspace jump aborted: too near Witchpoint Beacon";
+          case "station":
+          case undefined:
+            return "Witchspace jump aborted: too close to Coriolis Station";
+        }
     }
   }
 
