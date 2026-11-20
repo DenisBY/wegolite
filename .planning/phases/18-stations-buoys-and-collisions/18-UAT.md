@@ -8,10 +8,10 @@ updated: 2026-11-20T00:00:00Z
 
 ## Current Test
 
-number: 2
-name: Buoy subentity detach and buoy destruction in the 3D view
+number: 3
+name: Owner reading of the Phase 18 divergences and open questions
 expected: |
-  On detachment the core mesh disappears while the hull and flashers stay; on destruction the whole buoy disappears from the 3D view
+  Each recorded divergence is accepted or turned into a todo; the open owner questions are decided
 awaiting: user response
 
 ## Tests
@@ -22,7 +22,7 @@ result: pass — owner screenshot 2026-11-20: the line is drawn in full with roo
 
 ### 2. Buoy subentity detach and buoy destruction in the 3D view
 expected: In a traffic-on session, shoot the nav buoy's frangible subentity until it detaches, then destroy the buoy. On detachment the core mesh disappears while the hull and flashers stay; on destruction the whole buoy disappears from the 3D view (the scanner half is automated by statics.spec.ts).
-result: [pending]
+result: pass — owner 2026-11-20 (screenshot): after shooting the centre, the central glowing subentity (oolite_buoy_subents, ~43 m) vanished while the outer hull blocks (~110 m) and the red flashers stayed; on destruction the whole buoy disappeared.
 
 ### 3. Owner reading of the Phase 18 divergences and open questions
 expected: Each recorded divergence (E-131 1 m/s push, E-133 station not pushed, E-135 subentity contact once and station not a collider, E-138 drift edges, E-147 launching player not pushed, E-150 burnt-out wreck, E-151 drift pass, E-152 negative scrape, E-153 octree composition, D-08 pods/plates never block, E-126 compass cycle) is accepted or turned into a todo; the CONTEXT PD-02 figures, the collisions-on seeds question and the traffic-off raw ident key are decided (18-12-SUMMARY.md, Owner questions 1-5 and 7).
@@ -31,9 +31,9 @@ result: [pending]
 ## Summary
 
 total: 3
-passed: 1
+passed: 2
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
