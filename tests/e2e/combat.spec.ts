@@ -96,7 +96,8 @@ const TWIN_ENERGY_AFTER_SHOOTING = 222.18333333333135;
 // launch twist, and the hash includes the orientation.
 // Follows it again in plan 17-05 (D-08), from "34393ce1", and in plan 17-12
 // (G-17-1), from "a545cb4b".
-const TWIN_HASH_60_AFTER_KILL = "e909751a";
+// Follows plan 18-05: the warm-up burst now hits the nav buoy (owner decision 2026-11-20).
+const TWIN_HASH_60_AFTER_KILL = "f1926a36";
 /** Ticks after the kill at which the hash is read (the twin's 60). */
 const AFTER_KILL_TICKS = 60;
 /** The Cobra's shield dial divisor: the baseline shield level, 128. */

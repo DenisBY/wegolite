@@ -785,7 +785,8 @@ const ENTITIES_AT_KILL = 16;
 // value.
 // Re-pinned in plan 17-12 (G-17-1) from "a545cb4b": the literal beam period
 // moves every shot and the shooter's stream. Measured, not derived.
-const HASH_60_AFTER_KILL = "e909751a";
+// Follows plan 18-05: the warm-up burst now hits the nav buoy (owner decision 2026-11-20).
+const HASH_60_AFTER_KILL = "f1926a36";
 
 /** The world's live debris by kind: pods, plates and wrecks. */
 function debrisCounts(world: NonNullable<WorldLifecycle["world"]>): {
