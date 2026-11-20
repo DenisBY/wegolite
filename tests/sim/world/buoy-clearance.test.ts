@@ -92,8 +92,7 @@ describe("buoy clearance of the arrival and launch poses (D-06)", () => {
       // The arrival lies between `safety` and 12,800 m of the witchpoint, so
       // its distance from the nav buoy is at least `separation - 12,800`; the
       // demanded bound subtracts the safety distance as well.
-      const margin =
-        separation - (MAX_ARRIVAL_OFFSET + safety) - clearance;
+      const margin = separation - (MAX_ARRIVAL_OFFSET + safety) - clearance;
       expect(margin, system.id).toBeGreaterThan(0);
       minMargin = Math.min(minMargin, margin);
     }

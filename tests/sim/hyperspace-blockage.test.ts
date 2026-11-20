@@ -471,6 +471,11 @@ describe("witchspace buoy blockage (D-09)", () => {
     const everyShipBlocks: ShipField = {
       massLocked: () => false,
       blocks: () => true,
+      buoy: () => ({
+        alive: true,
+        offset: vec(0, 0, 0),
+        subentityAttached: true,
+      }),
     };
     const result = complete(
       shipNear(navBuoy, 10),

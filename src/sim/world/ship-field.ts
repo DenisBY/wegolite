@@ -25,11 +25,28 @@
  * every ship, whatever its scan class. Masses come from the compiled NPC records
  * through the step options, and Oolite's loop names the first blocker in its own
  * sorted order while Wegolite reports only the kind.
+ *
+ * The two buoys are statics, not ships in the store, so the field answers for
+ * them through `buoy(key)` (Phase 18, D-05, D-09, PD-01, PD-02): whether the
+ * buoy is alive, its offset from its layout position and whether its
+ * frangible subentity is still attached, as the previous tick left them. The
+ * flight step blocks a completing jump with a live buoy at layout plus offset,
+ * with the whole mass or, once the subentity is detached, the hull mass. A
+ * destroyed buoy never blocks. Nothing about a buoy mass-locks (`CLASS_BUOY`,
+ * PlayerEntity.m lines 3044-3061), and neither do pods and plates
+ * (`CLASS_CARGO`); pods and plates have no entry in the NPC mass list, so
+ * they never block a jump either (D-08, a recorded divergence: Oolite's loop
+ * is class-free and would let them block at a few metres).
  */
 
 import { isWitchspaceBlocked } from "../hyperspace/countdown.js";
 import type { Vec3 } from "../math.js";
 import type { ScanClass } from "./ids.js";
+import {
+  isBuoyDestroyed,
+  isBuoySubentityAttached,
+  type BuoyKey,
+} from "./statics.js";
 import type { World } from "./world.js";
 
 /**
@@ -59,7 +76,18 @@ export interface ShipMass {
   readonly mass: number;
 }
 
-/** The two queries the flight step asks of the NPC ships. */
+/**
+ * One buoy as the previous tick left it: alive (its health above 0), its
+ * offset from the layout position (PD-02) and whether its subentity is
+ * attached (PD-01).
+ */
+export interface BuoyField {
+  readonly alive: boolean;
+  readonly offset: Vec3;
+  readonly subentityAttached: boolean;
+}
+
+/** The queries the flight step asks of the NPC ships and the buoys. */
 export interface ShipField {
   /** True when a locking ship lies strictly inside `scannerRange` of `position`. */
   massLocked(position: Vec3, scannerRange: number): boolean;
@@ -68,6 +96,8 @@ export interface ShipField {
    * (`0.1 x mass > d^2` and `d^2 < scannerRange^2`).
    */
   blocks(position: Vec3, scannerRange: number): boolean;
+  /** The liveness, offset and subentity attachment of the buoy `key`. */
+  buoy(key: BuoyKey): BuoyField;
 }
 
 /**
@@ -116,6 +146,13 @@ export function createShipField(
         }
       }
       return false;
+    },
+    buoy(key) {
+      return {
+        alive: !isBuoyDestroyed(world, key),
+        offset: world.buoys[key].offset,
+        subentityAttached: isBuoySubentityAttached(world, key),
+      };
     },
   };
 }

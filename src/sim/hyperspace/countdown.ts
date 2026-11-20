@@ -149,10 +149,7 @@ export type HyperspaceRefusal =
  * first blocker in its sorted order.
  */
 export type WitchspaceBlocker =
-  | "station"
-  | "ship"
-  | "witchpointBeacon"
-  | "navBuoy";
+  "station" | "ship" | "witchpointBeacon" | "navBuoy";
 
 /** The read-only facts the app supplies for one start request (D-07). */
 export interface HyperspaceStartInput {

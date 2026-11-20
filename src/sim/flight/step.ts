@@ -27,6 +27,7 @@ import { DOCK_COMPUTER_KEY, dockWithComputer } from "../dock/computer.js";
 import { stepDocking } from "../dock/step.js";
 import type { DockGeometry } from "../dock/geometry.js";
 import {
+  BUOY_SUBENTITY_MASS,
   canStartJump,
   HYPERSPACE_COUNTDOWN_STEPS,
   witchspaceBlockedAt,
@@ -358,6 +359,7 @@ export function stepFlight(
         state.position,
         layout,
         options?.hyperspace?.buoyMass,
+        ships,
       );
       if (
         stationMass !== undefined &&
@@ -460,40 +462,46 @@ export function stepFlight(
   return events;
 }
 
+/** The blocker kind of each buoy, named after its Oolite name. */
+const BUOY_BLOCKERS = [
+  { key: "witchpoint", blocker: "witchpointBeacon" },
+  { key: "navBuoy", blocker: "navBuoy" },
+] as const;
+
 /**
  * The first buoy that blocks a jump completing at `position` (D-09), the
  * witchpoint buoy before the nav buoy, or `undefined`. Both buoys use Oolite's
- * mass rule through `witchspaceBlockedAt`. A missing, non-finite or
- * non-positive `buoyMass` blocks nothing (T-18-16), so a forged option can
- * neither block every jump nor reach the predicate as `NaN`.
+ * mass rule through `witchspaceBlockedAt`, from where the buoy is (its layout
+ * position plus the field's offset, PD-02) and with the mass it has: the whole
+ * `buoyMass`, or once its subentity is detached the float32 of `buoyMass`
+ * minus the subentity's mass, as Oolite's GLfloat `mass -= [sub mass]` holds it
+ * (ShipEntity.m line 8194; 691,044.375 for `NAV_BUOY_MASS`, PD-01). A
+ * destroyed buoy never blocks (D-05). Without a field (no world) both buoys
+ * count as alive, unmoved and whole. A missing, non-finite or non-positive
+ * `buoyMass` blocks nothing (T-18-16), so a forged option can neither block
+ * every jump nor reach the predicate as `NaN`.
  */
 function buoyBlocker(
   position: Vec3,
   layout: SystemLayout,
   buoyMass: number | undefined,
+  ships: ShipField | undefined,
 ): "witchpointBeacon" | "navBuoy" | undefined {
   if (buoyMass === undefined || !Number.isFinite(buoyMass) || buoyMass <= 0) {
     return undefined;
   }
-  if (
-    witchspaceBlockedAt(
-      position,
-      layout.witchpoint.position,
-      buoyMass,
-      layout.scannerRange,
-    )
-  ) {
-    return "witchpointBeacon";
-  }
-  if (
-    witchspaceBlockedAt(
-      position,
-      layout.navBuoy.position,
-      buoyMass,
-      layout.scannerRange,
-    )
-  ) {
-    return "navBuoy";
+  for (const { key, blocker } of BUOY_BLOCKERS) {
+    const buoy = ships?.buoy(key);
+    if (buoy !== undefined && !buoy.alive) continue;
+    const base = layout[key].position;
+    const centre = buoy === undefined ? base : add(base, buoy.offset);
+    const mass =
+      buoy === undefined || buoy.subentityAttached
+        ? buoyMass
+        : Math.fround(buoyMass - BUOY_SUBENTITY_MASS);
+    if (witchspaceBlockedAt(position, centre, mass, layout.scannerRange)) {
+      return blocker;
+    }
   }
   return undefined;
 }
