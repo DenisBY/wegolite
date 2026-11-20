@@ -71,7 +71,9 @@ function mulberry32(seed: number): () => number {
 
 /** 256 ships and pods in the cube, at rest, ids ascending. */
 function crowdedWorld(): { world: World; player: FlightState } {
-  const random = mulberry32(18_18);
+  // 1894: the first seed from 1800 whose cube holds five sphere-overlapping
+  // pairs, so the narrow-phase count is not vacuous.
+  const random = mulberry32(1894);
   const world = createWorld(7);
   const inCube = (): Vec3 =>
     vec(
@@ -176,8 +178,9 @@ describe("the collision stage at the entity cap (PITFALLS 17)", () => {
     expect(stats.sweptPairs).toBeLessThan(allPairs / 10);
     expect(stats.contacts).toBeLessThanOrEqual(stats.narrowTests);
     // Pinned for this seed: a wider sweep or a looser sphere test moves them.
+    // The five overlapping pairs are all sphere-only (no octree contact).
     expect([stats.sweptPairs, stats.narrowTests, stats.contacts]).toEqual([
-      -1, -1, -1,
+      1373, 5, 0,
     ]);
   });
 

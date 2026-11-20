@@ -358,6 +358,20 @@ export function runContactCalls(
 }
 
 /**
+ * What one stage call did, for the cost guard (PITFALLS 17, plan 18-18):
+ * `colliders` gathered, `sweptPairs` the sorted sweep looked at (their
+ * x-intervals overlap), `narrowTests` the octree tests run (the pairs whose
+ * bounding spheres overlap) and `contacts` the octree contacts found. Plain
+ * counters, nothing allocated per pair.
+ */
+export interface CollisionStats {
+  readonly colliders: number;
+  readonly sweptPairs: number;
+  readonly narrowTests: number;
+  readonly contacts: number;
+}
+
+/**
  * One body of the stage: the player (`entity` and `buoy` undefined), a store
  * entity, or a live buoy (`buoy` its key, plan 18-18). `detached` holds the
  * indices of subentities that take no part (a buoy's dead subentity, PD-01).
@@ -541,10 +555,17 @@ export function resolveCollisions(
   combat: PlayerCombatState | undefined,
   options: StepOptions,
   layout?: SystemLayout,
-): { records: HitRecord[] } {
+): { records: HitRecord[]; stats: CollisionStats } {
   const records: HitRecord[] = [];
+  let sweptPairs = 0;
+  let narrowTests = 0;
   const hulls = options.combat?.hulls;
-  if (hulls === undefined) return { records };
+  if (hulls === undefined) {
+    return {
+      records,
+      stats: { colliders: 0, sweptPairs, narrowTests, contacts: 0 },
+    };
+  }
   const unranked = gatherColliders(
     world,
     player,
@@ -553,7 +574,13 @@ export function resolveCollisions(
     hulls,
     layout,
   );
-  if (unranked.length < 2) return { records };
+  const done = (
+    contacts: number,
+  ): { records: HitRecord[]; stats: CollisionStats } => ({
+    records,
+    stats: { colliders: unranked.length, sweptPairs, narrowTests, contacts },
+  });
+  if (unranked.length < 2) return done(0);
 
   // A buoy's pose is read live (`buoyPosition` adds the offset a call wrote).
   const buoyOrient = buoyOrientation(player.flightTime);
@@ -661,6 +688,7 @@ export function resolveCollisions(
       // A later key at or past this body's reach, or a non-finite one, ends
       // this body's run: no later key can be nearer.
       if (cb === undefined || !((minX[b] ?? NaN) < maxX)) break;
+      sweptPairs += 1;
       const pb = positionOf(cb);
       const reach = ra + cb.hull.collisionRadius;
       const dx = pb.x - pa.x;
@@ -674,6 +702,7 @@ export function resolveCollisions(
       const cs = ranked[self];
       const co = ranked[other];
       if (cs === undefined || co === undefined) continue;
+      narrowTests += 1;
       const part = doOctreesCollide(
         cs.hull,
         poseOf(cs),
@@ -685,7 +714,7 @@ export function resolveCollisions(
       if (part !== null) contacts.push({ self, other, part });
     }
   }
-  if (contacts.length === 0) return { records };
+  if (contacts.length === 0) return done(0);
 
   // 4. and 5. Each body's own list, in rank order.
   runContactCalls(ranked.length, contacts, (self, other, part) => {
@@ -787,5 +816,5 @@ export function resolveCollisions(
     addPosition(co, response.dpOther);
     return true;
   });
-  return { records };
+  return done(contacts.length);
 }

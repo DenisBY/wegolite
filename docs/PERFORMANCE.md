@@ -40,6 +40,16 @@ Since quick task 261110-a3k a docked or paused scene is drawn when it is entered
 
 The Diso scenes are reached through an IndexedDB save fixture (`tests/e2e/helpers/save-fixtures.ts`) and the spec asserts the live `systemId` is Diso's before reading the counts. Their counts match Lave's because the docked and in-flight scenes have the same structure.
 
+### Collision stage at the entity cap (informational)
+
+One call of the collision stage (`resolveCollisions`, `src/sim/combat/collide.ts`, plan 18-18) over the scene of `tests/sim/combat/collision-cost.test.ts`: 256 live ships and pods at fixed-seed positions in a 3 km cube around the Lave nav buoy, plus the player and both buoys (259 colliders). This is a wall-time measurement for information only and not a gate. The gate is the deterministic counter test, which pins the stage's `CollisionStats` for this scene.
+
+| Scene                                         | Swept pairs | Narrow tests | Contacts | Median per call | 90th percentile | Recorded   |
+| --------------------------------------------- | ----------- | ------------ | -------- | --------------- | --------------- | ---------- |
+| 259 colliders, 3 km cube (seed 1894), Node 24 | 1,373       | 5            | 0        | 2.09 to 2.17 ms | 2.29 to 2.38 ms | 2026-11-20 |
+
+The figure is the median over 1,000 calls after 200 warm-up calls, from a scratch script run in the `test` container (two runs). The sorted sweep on x looks at 1,373 of the 33,411 pairs an all-pairs loop would test, and only the 5 pairs whose bounding spheres overlap reach the octree test. Those 5 octree tests cost about 1.34 ms of the call by themselves (about 0.27 ms each); gathering, ranking and the sweep take the rest. Nothing collides in this scene, so no response or record is in the figure. At the fixed 1/120 s step the stage would take about a quarter of a tick at this load; a populated system holds far fewer than 256 entities.
+
 ## Load size
 
 The first-load test in `tests/e2e/budget.spec.ts` records the same-origin response body bytes of every request from a cold start (a fresh browser context, no cache) to the first in-flight frame.

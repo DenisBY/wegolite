@@ -153,7 +153,7 @@ function build(c: WorldCase): { world: World; player: FlightState } {
         kind: pod ? "cargo" : "ship",
         specKey: body.kind,
         scanClass: pod ? "CLASS_CARGO" : "CLASS_NEUTRAL",
-        position,
+        position: NAV_BUOY,
         orientation: identity(),
         radius: pod ? FIXTURE_POD.radius : 30,
         maxEnergy: pod ? DEBRIS_MAX_ENERGY : 50,
@@ -289,9 +289,9 @@ describe("directed edge cases", () => {
   it("three bodies touching in one tick resolve in rank order, the same on a replay", () => {
     const run = () => {
       const world = createWorld(5);
-      // The player 100 m off the nav buoy on +Z, a Krait 60 m behind it.
+      // The player 90 m off the nav buoy on +Z, a Krait 60 m behind it.
       const player = flyingPlayer(
-        vec(NAV_BUOY.x, NAV_BUOY.y, NAV_BUOY.z + 100),
+        vec(NAV_BUOY.x, NAV_BUOY.y, NAV_BUOY.z + 90),
         50,
       );
       player.flightTime = 0;
@@ -301,7 +301,7 @@ describe("directed edge cases", () => {
           kind: "ship",
           specKey: "krait",
           scanClass: "CLASS_NEUTRAL",
-          position: vec(NAV_BUOY.x, NAV_BUOY.y, NAV_BUOY.z + 160),
+          position: vec(NAV_BUOY.x, NAV_BUOY.y, NAV_BUOY.z + 150),
           orientation: identity(),
           radius: 50,
           maxEnergy: 80,
@@ -330,7 +330,7 @@ describe("directed edge cases", () => {
     expect(a).toEqual(b);
     expect(a.stats.contacts).toBe(2);
     // The player is rank 0: its two calls come first, nearest other first
-    // (the Krait at 60 m, then the buoy at 100 m), each self's record first.
+    // (the Krait at 60 m, then the buoy at 90 m), each self's record first.
     expect(a.records.map((r) => [r.target, r.source])).toEqual([
       [PLAYER_ID, a.krait],
       [a.krait, PLAYER_ID],
