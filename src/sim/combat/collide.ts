@@ -5,8 +5,9 @@
  * Octree-against-octree contact over hulls and their subentities (CBT-18,
  * D-01, PD-01): a literal recursive port of Oolite's `doOctreesCollide`
  * (`ShipEntity.m:1878-1942`). It decides contact only; it applies nothing
- * (no damage, no push, no record), and nothing calls it yet (plans 18-11 and
- * 18-18 build the collision stage on it).
+ * (no damage, no push, no record). The collision stage at the end of this
+ * file (`resolveCollisions`, plan 18-11; the buoys join in plan 18-18) calls
+ * it once per pair whose bounding spheres overlap.
  *
  * D-01: contact is decided octree against octree with Oolite's own crude
  * prunes (`isHitByOctree`, `./octree.ts`), never by bounding spheres alone and
@@ -46,17 +47,31 @@
  * Total: a non-finite position or a non-unit orientation is no contact; the
  * octree test refuses everything else it cannot use. Pure TypeScript: no
  * Three.js, no DOM.
+ *
+ * The collision stage (`resolveCollisions`, `colliderRank`,
+ * `runContactCalls`) is documented where it is defined below.
  */
 
 import type { FlightState } from "../flight/state.js";
 import type { StepOptions } from "../flight/step.js";
-import { dot, rotate, vec } from "../math.js";
+import { add, dot, rotate, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
+import { massFor } from "../npc/stats.js";
+import type { NpcStepFacts } from "../npc/stats.js";
+import type { Entity } from "../world/entity.js";
+import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
-import { QUAT_UNIT_TOLERANCE } from "../world/limits.js";
+import {
+  MAX_ENTITY_MAGNITUDE,
+  MAX_ENTITY_VELOCITY,
+  QUAT_UNIT_TOLERANCE,
+} from "../world/limits.js";
 import type { World } from "../world/world.js";
-import type { HullData } from "./hit.js";
+import { PLAYER_HULL_KEY } from "./aim.js";
+import { PLAYER_MASS_KG } from "./constants.js";
+import type { HullData, HullTable } from "./hit.js";
 import type { HitRecord } from "./ledger.js";
+import { collideWithShip } from "./response.js";
 import type { PlayerCombatState } from "./state.js";
 import { isHitByOctree } from "./octree.js";
 
@@ -193,9 +208,17 @@ export function doOctreesCollide(
   return null;
 }
 
-// --- The collision stage (plan 18-11, skeleton) ------------------------------
+// --- The collision stage (plan 18-11) ----------------------------------------
 
-/** The player cannot die of a collision before Phase 20 (stub). */
+/**
+ * Tripwire marker: the player is never `destroyable` in a collision before
+ * Phase 20 owns its death (D-13, T-18-30). With it the response never takes
+ * the inelastic reversal for the player (`selfDestroyed`/`otherDestroyed`,
+ * `ShipEntity.m:11111-11134`) and the ledger floors the player's energy at 0.
+ * Plan 18-18 adds the guard `tests/guards/collision-player-death.test.ts` and
+ * the todo that names this marker; whoever gives the player a death in Phase
+ * 20 turns it off there.
+ */
 export const PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20 = true;
 
 /** A body the update order ranks: its id and where it is. */
@@ -204,43 +227,417 @@ export interface RankedBody {
   readonly position: Vec3;
 }
 
-/** One octree contact between two colliders, by rank. */
+/**
+ * One octree contact by rank: `self` is the lower rank and was the prime of
+ * `doOctreesCollide`; `part` is the part of `other` it touched.
+ */
 export interface RankedContact {
   readonly self: number;
   readonly other: number;
   readonly part: ContactPart;
 }
 
-/** Stub. */
+/**
+ * Non-finite keys after every finite key, then ascending id: a total order
+ * for any doubles, NaN included (T-18-49).
+ */
+function compareKeys(
+  keyA: number,
+  idA: EntityId,
+  keyB: number,
+  idB: EntityId,
+): number {
+  const finiteA = Number.isFinite(keyA);
+  const finiteB = Number.isFinite(keyB);
+  if (finiteA !== finiteB) return finiteA ? -1 : 1;
+  if (finiteA && keyA !== keyB) return keyA < keyB ? -1 : 1;
+  return idA - idB;
+}
+
+/**
+ * Oolite's update order, the ids in the order their `update:` runs
+ * (`Universe.m:6439, 6534`): `sortedEntities`, the player first, then by
+ * distance from the player, nearest first. Here the player (`PLAYER_ID`)
+ * comes first, then every other body by ascending squared distance from
+ * `playerPosition`, ties by ascending id, a non-finite distance after every
+ * finite one. Oolite keeps the list incrementally sorted from frame to frame;
+ * this is an exact sort of the positions the stage sees (a FIDELITY row).
+ */
 export function colliderRank(
   bodies: readonly RankedBody[],
   playerPosition: Vec3,
 ): EntityId[] {
-  void playerPosition;
-  return bodies.map((body) => body.id);
+  const keyed = bodies.map((body) => {
+    const dx = body.position.x - playerPosition.x;
+    const dy = body.position.y - playerPosition.y;
+    const dz = body.position.z - playerPosition.z;
+    return { id: body.id, key: dx * dx + dy * dy + dz * dz };
+  });
+  keyed.sort((a, b) => {
+    if (a.id === PLAYER_ID || b.id === PLAYER_ID) {
+      if (a.id === b.id) return 0;
+      return a.id === PLAYER_ID ? -1 : 1;
+    }
+    return compareKeys(a.key, a.id, b.key, b.id);
+  });
+  return keyed.map((entry) => entry.id);
 }
 
-/** Stub. */
+interface ListEntry {
+  readonly other: number;
+  readonly part: ContactPart;
+  removed: boolean;
+  reverse: ListEntry | undefined;
+}
+
+/**
+ * Each body's own collision list, run as Oolite runs them
+ * (`-[ShipEntity manageCollisions]`, `ShipEntity.m:10991-11017`): the bodies
+ * in rank order (`count` of them, ranks `0..count-1`), each through its list
+ * in the other's rank order, calling `call(self, other, part)` for every
+ * entry still there. A contact puts each side in the other's list
+ * (`CollisionRegion.m:340-351`): `self`'s entry carries the touched `part`,
+ * the other's entry the hull (Oolite's `e2` lists `e1` itself). A call that
+ * returns true (collided) removes `self` from the other's list
+ * (`ShipEntity.m:11149-11150`), so the contact is resolved once; one that
+ * returns false (separating, the C's `return NO` at 11080-11081) leaves it,
+ * and the other calls in its own turn with the roles swapped.
+ */
 export function runContactCalls(
   count: number,
   contacts: readonly RankedContact[],
   call: (self: number, other: number, part: ContactPart) => boolean,
 ): void {
-  void count;
-  void contacts;
-  void call;
+  const lists: ListEntry[][] = [];
+  for (let i = 0; i < count; i += 1) lists.push([]);
+  for (const contact of contacts) {
+    const forward: ListEntry = {
+      other: contact.other,
+      part: contact.part,
+      removed: false,
+      reverse: undefined,
+    };
+    const backward: ListEntry = {
+      other: contact.self,
+      part: HULL,
+      removed: false,
+      reverse: forward,
+    };
+    forward.reverse = backward;
+    lists[contact.self]?.push(forward);
+    lists[contact.other]?.push(backward);
+  }
+  for (let self = 0; self < count; self += 1) {
+    const list = lists[self] ?? [];
+    list.sort((a, b) => a.other - b.other);
+    for (const entry of list) {
+      if (entry.removed) continue;
+      entry.removed = true;
+      if (call(self, entry.other, entry.part) && entry.reverse !== undefined) {
+        entry.reverse.removed = true;
+      }
+    }
+  }
 }
 
-/** Stub. */
+/** One body of the stage. `entity` is undefined for the player. */
+interface Collider {
+  readonly id: EntityId;
+  readonly hull: HullData;
+  readonly mass: number;
+  readonly destroyable: boolean;
+  readonly entity: Entity | undefined;
+}
+
+const LOCAL_FORWARD: Vec3 = vec(0, 0, -1);
+const ZERO_VEC: Vec3 = vec(0, 0, 0);
+
+/** `n` held to `±limit`, -0 written as 0. */
+function bound(n: number, limit: number): number {
+  if (n > limit) return limit;
+  if (n < -limit) return -limit;
+  return n === 0 ? 0 : n;
+}
+
+function boundVec(v: Vec3, limit: number): Vec3 {
+  return vec(bound(v.x, limit), bound(v.y, limit), bound(v.z, limit));
+}
+
+function isZeroVec(v: Vec3): boolean {
+  return v.x === 0 && v.y === 0 && v.z === 0;
+}
+
+/**
+ * The colliders of this tick, unranked: the in-flight player (with a combat
+ * state and its hull; never while launching, A3) and every live store ship
+ * whose spec key has a hull and a mass above 0. Never the station (not in
+ * the store) and never a wreck.
+ */
+function gatherColliders(
+  world: World,
+  player: FlightState,
+  combat: PlayerCombatState | undefined,
+  options: StepOptions,
+  hulls: HullTable,
+): Collider[] {
+  const colliders: Collider[] = [];
+  const playerHull = hulls.get(PLAYER_HULL_KEY);
+  if (
+    combat !== undefined &&
+    player.mode === "inFlight" &&
+    playerHull !== undefined
+  ) {
+    colliders.push({
+      id: PLAYER_ID,
+      hull: playerHull,
+      mass: PLAYER_MASS_KG,
+      destroyable: !PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20,
+      entity: undefined,
+    });
+  }
+  const flight = options.npcFlight;
+  const masses = options.hyperspace?.shipMasses;
+  const facts: NpcStepFacts = {
+    ...(flight === undefined ? {} : { flight }),
+    ...(masses === undefined ? {} : { masses }),
+  };
+  for (const entity of world.store.live) {
+    if (entity.dead || entity.kind !== "ship") continue;
+    const hull = hulls.get(entity.specKey);
+    if (hull === undefined) continue;
+    const mass = massFor(facts, entity.specKey);
+    if (!(mass > 0) || !Number.isFinite(mass)) continue;
+    colliders.push({ id: entity.id, hull, mass, destroyable: true, entity });
+  }
+  return colliders;
+}
+
+/**
+ * The collision stage (CBT-18, D-01, PD-05): every octree contact of this
+ * tick between the player, NPC ships, pods and plates, resolved by Oolite's
+ * `collideWithShip` (`./response.ts`) in Oolite's update order. Runs inside
+ * `resolveShots` (`./step.ts`) after the laser hits are queued and before
+ * the ledger, only with `CombatOptions.collisions` (the app's opt-in).
+ *
+ * 1. Colliders: see `gatherColliders`. Each is ranked by `colliderRank`
+ *    from the player's position.
+ * 2. Broad phase: a sweep over the colliders sorted by `x - radius` (ties by
+ *    id, a non-finite key last), then Oolite's sphere test
+ *    `d^2 < (r1 + r2)^2` with the hull's collision radius
+ *    (`CollisionRegion.m:292-297`, strict).
+ * 3. Narrow phase: `doOctreesCollide(self, other)` with `self` the lower
+ *    rank as the prime (a Wegolite choice: Oolite's prime is `e1` of the
+ *    collision-chain sweep, `CollisionRegion.m:279-342`; a FIDELITY row).
+ * 4. Response: `runContactCalls` runs each body's list in rank order. Each
+ *    call reads the live positions and total velocities (drift plus
+ *    forward x speed, plus the player's decaying dock `impulse`), calls
+ *    `collideWithShip`, and on a contact applies at once (A5) `dv1` and
+ *    `dp1` to self and `dvOtherBody` and `dpOther` to the other (or its
+ *    parent for a subentity contact; `dvOtherSubentity` and
+ *    `dpOtherSubentity` are never applied, an attached subentity having no
+ *    motion of its own). The player's share goes to `FlightState.drift` and
+ *    `position`, an entity's to `velocity` and `position`; velocities are
+ *    held to `MAX_ENTITY_VELOCITY` and entity positions to
+ *    `MAX_ENTITY_MAGNITUDE` at the write.
+ * 5. Damage: one `"scrape"` record per applied side (`dam > 0.05`), self's
+ *    first, each with a copy of the source's position at queue time, for the
+ *    ledger to apply after the laser records. A ship brought to 0 then dies
+ *    through the one kill path; the player's energy floors at 0.
+ *
+ * The destroyed flags read each body's energy as it stood before this
+ * tick's ledger, so a body in two contacts of one tick decides its reversal
+ * and nudge on the same energy for both (a FIDELITY divergence; Oolite
+ * reads the energy after the earlier damage of the frame,
+ * `ShipEntity.m:11111-11112`). No `shipCollided` event (RESEARCH A8); no
+ * random draw (`takeScrapeDamage`'s roll only sets `being_mined`, asteroids,
+ * `ShipEntity.m:11659-11667`); no scoop (PD-05).
+ */
 export function resolveCollisions(
   world: World,
   player: FlightState,
   combat: PlayerCombatState | undefined,
   options: StepOptions,
 ): { records: HitRecord[] } {
-  void world;
-  void player;
-  void combat;
-  void options;
-  return { records: [] };
+  const records: HitRecord[] = [];
+  const hulls = options.combat?.hulls;
+  if (hulls === undefined) return { records };
+  const unranked = gatherColliders(world, player, combat, options, hulls);
+  if (unranked.length < 2) return { records };
+
+  const positionOf = (c: Collider): Vec3 =>
+    c.entity?.position ?? player.position;
+  const orientationOf = (c: Collider): Quat =>
+    c.entity?.orientation ?? player.orientation;
+  const poseOf = (c: Collider): HullPose => ({
+    position: positionOf(c),
+    orientation: orientationOf(c),
+  });
+  const velocityOf = (c: Collider): Vec3 => {
+    const forward = rotate(orientationOf(c), LOCAL_FORWARD);
+    if (c.entity !== undefined) {
+      const { velocity, speed } = c.entity;
+      return vec(
+        velocity.x + forward.x * speed,
+        velocity.y + forward.y * speed,
+        velocity.z + forward.z * speed,
+      );
+    }
+    const { drift, impulse, speed } = player;
+    return vec(
+      drift.x + forward.x * speed + impulse.x,
+      drift.y + forward.y * speed + impulse.y,
+      drift.z + forward.z * speed + impulse.z,
+    );
+  };
+  const energyOf = (c: Collider): number =>
+    c.entity?.energy ?? combat?.energy ?? 0;
+  const addVelocity = (c: Collider, dv: Vec3): void => {
+    if (isZeroVec(dv)) return;
+    if (c.entity !== undefined) {
+      c.entity.velocity = boundVec(
+        add(c.entity.velocity, dv),
+        MAX_ENTITY_VELOCITY,
+      );
+    } else {
+      player.drift = boundVec(add(player.drift, dv), MAX_ENTITY_VELOCITY);
+    }
+  };
+  const addPosition = (c: Collider, dp: Vec3): void => {
+    if (isZeroVec(dp)) return;
+    if (c.entity !== undefined) {
+      c.entity.position = boundVec(
+        add(c.entity.position, dp),
+        MAX_ENTITY_MAGNITUDE,
+      );
+    } else {
+      player.position = add(player.position, dp);
+    }
+  };
+
+  // 1. Rank.
+  const order = colliderRank(
+    unranked.map((c) => ({ id: c.id, position: positionOf(c) })),
+    player.position,
+  );
+  const byId = new Map(unranked.map((c) => [c.id, c]));
+  const ranked: Collider[] = [];
+  for (const id of order) {
+    const collider = byId.get(id);
+    if (collider !== undefined) ranked.push(collider);
+  }
+
+  // 2. Broad phase: sweep on x.
+  const minX = ranked.map((c) => positionOf(c).x - c.hull.collisionRadius);
+  const sweep = ranked.map((_, i) => i);
+  sweep.sort((a, b) =>
+    compareKeys(
+      minX[a] ?? NaN,
+      ranked[a]?.id ?? 0,
+      minX[b] ?? NaN,
+      ranked[b]?.id ?? 0,
+    ),
+  );
+  const contacts: RankedContact[] = [];
+  for (let s = 0; s < sweep.length; s += 1) {
+    const a = sweep[s] ?? 0;
+    const ca = ranked[a];
+    const keyA = minX[a] ?? NaN;
+    if (ca === undefined || !Number.isFinite(keyA)) break;
+    const pa = positionOf(ca);
+    const ra = ca.hull.collisionRadius;
+    const maxX = pa.x + ra;
+    for (let t = s + 1; t < sweep.length; t += 1) {
+      const b = sweep[t] ?? 0;
+      const cb = ranked[b];
+      // A later key at or past this body's reach, or a non-finite one, ends
+      // this body's run: no later key can be nearer.
+      if (cb === undefined || !((minX[b] ?? NaN) < maxX)) break;
+      const pb = positionOf(cb);
+      const reach = ra + cb.hull.collisionRadius;
+      const dx = pb.x - pa.x;
+      const dy = pb.y - pa.y;
+      const dz = pb.z - pa.z;
+      if (!(dx * dx + dy * dy + dz * dz < reach * reach)) continue;
+      // 3. Narrow phase, the lower rank as the prime.
+      const self = Math.min(a, b);
+      const other = Math.max(a, b);
+      const cs = ranked[self];
+      const co = ranked[other];
+      if (cs === undefined || co === undefined) continue;
+      const part = doOctreesCollide(cs.hull, poseOf(cs), co.hull, poseOf(co));
+      if (part !== null) contacts.push({ self, other, part });
+    }
+  }
+  if (contacts.length === 0) return { records };
+
+  // 4. and 5. Each body's own list, in rank order.
+  runContactCalls(ranked.length, contacts, (self, other, part) => {
+    const cs = ranked[self];
+    const co = ranked[other];
+    if (cs === undefined || co === undefined) return false;
+    const selfPosition = positionOf(cs);
+    const otherPose = poseOf(co);
+    const sub =
+      part.kind === "subentity" ? co.hull.subentities?.[part.index] : undefined;
+    if (part.kind === "subentity" && sub === undefined) return false;
+    // A subentity contact: the subentity's absolute position and mass, its
+    // parent's velocity (`ShipEntity.m:11032, 11057-11067`).
+    const otherPosition =
+      sub === undefined
+        ? otherPose.position
+        : subentityPose(otherPose, sub.position).position;
+    const otherVelocity = velocityOf(co);
+    const response = collideWithShip({
+      self: {
+        position: selfPosition,
+        velocity: velocityOf(cs),
+        mass: cs.mass,
+        energy: energyOf(cs),
+        destroyable: cs.destroyable,
+      },
+      other: {
+        position: otherPosition,
+        velocity: sub === undefined ? otherVelocity : ZERO_VEC,
+        mass: sub === undefined ? co.mass : sub.mass,
+        energy: energyOf(co),
+        destroyable: co.destroyable,
+        ...(sub === undefined
+          ? {}
+          : {
+              parentVelocity: otherVelocity,
+              parentFrangible: co.hull.frangible ?? true,
+            }),
+      },
+    });
+    if (response.kind === "separating") return false;
+    // Damage queued, self's first (`ShipEntity.m:11114-11128`). A
+    // subentity's share goes to its parent's id: no collider of this stage
+    // has a subentity with an id of its own yet (plan 18-18 adds the buoys').
+    if (response.applied1) {
+      records.push({
+        kind: "scrape",
+        target: cs.id,
+        source: co.id,
+        amount: response.dam1,
+        sourcePosition: { ...otherPosition },
+      });
+    }
+    if (response.applied2) {
+      records.push({
+        kind: "scrape",
+        target: co.id,
+        source: cs.id,
+        amount: response.dam2,
+        sourcePosition: { ...selfPosition },
+      });
+    }
+    // Motion at once: the other (or its parent) first, then self
+    // (`ShipEntity.m:11102-11109`), then the positions (11083, 11136-11147).
+    addVelocity(co, response.dvOtherBody);
+    addVelocity(cs, response.dv1);
+    addPosition(cs, response.dp1);
+    addPosition(co, response.dpOther);
+    return true;
+  });
+  return { records };
 }

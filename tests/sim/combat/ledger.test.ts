@@ -287,10 +287,14 @@ describe("applyLedger", () => {
   it("a scrape on a ship lowers its energy as a laser record does", () => {
     const world = createWorld(1);
     const id = ship(world, 10);
-    const { lethal, events } = run(world, [record(id, PLAYER_ID, 15, "scrape")]);
+    const { lethal, events } = run(world, [
+      record(id, PLAYER_ID, 15, "scrape"),
+    ]);
     expect(lethal).toEqual([{ victim: id, killer: PLAYER_ID }]);
     expect(energyOf(world, id)).toBe(0);
-    expect(events).toMatchObject([{ kind: "shipHit", target: id, shield: false }]);
+    expect(events).toMatchObject([
+      { kind: "shipHit", target: id, shield: false },
+    ]);
   });
 
   it("skips a player record when there is no combat state", () => {

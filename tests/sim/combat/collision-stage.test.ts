@@ -56,14 +56,14 @@ const KRAIT_ENERGY = 80;
 /** Far from the station and the planet, so nothing mass-locks the player. */
 const FAR = vec(1e7, 0, 0);
 
-/** The app's options: hulls, the flight table and, unless off, collisions. */
-function options(collisions: boolean | undefined = true): StepOptions {
+/** The app's options: hulls, the flight table and `collisions` (null: absent). */
+function options(collisions: boolean | null = true): StepOptions {
   return {
     npcFlight: NPC_FLIGHT,
     combat: {
       mounts: DEFAULT_LASER_MOUNTS,
       hulls: HULLS,
-      ...(collisions === undefined ? {} : { collisions }),
+      ...(collisions === null ? {} : { collisions }),
     },
   };
 }
@@ -128,7 +128,9 @@ function step(
   );
 }
 
-function hits(events: readonly SimEvent[]): Extract<SimEvent, { kind: "shipHit" }>[] {
+function hits(
+  events: readonly SimEvent[],
+): Extract<SimEvent, { kind: "shipHit" }>[] {
   return events.filter(
     (event): event is Extract<SimEvent, { kind: "shipHit" }> =>
       event.kind === "shipHit",
@@ -328,12 +330,13 @@ describe("the player rams a Krait (tracer)", () => {
   });
 
   it("without the opt-in nothing happens: the player passes through, and the hashes equal collisions: false", () => {
-    const runs = [undefined, false].map((collisions) => {
+    const runs = [null, false].map((collisions) => {
       const { player, combat, world } = ramScene(100);
       let hitCount = 0;
       for (let tick = 0; tick < 200; tick += 1) {
-        hitCount += hits(step(player, world, combat, options(collisions)))
-          .length;
+        hitCount += hits(
+          step(player, world, combat, options(collisions)),
+        ).length;
       }
       return {
         hitCount,

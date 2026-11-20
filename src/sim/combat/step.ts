@@ -657,6 +657,13 @@ function debrisContext(
  * update the ident lock, after `stepWorld`.
  *
  * 1. `resolveShotHits` draws the beams and queues the hits.
+ * 1a. With `options.combat.collisions` (the app's opt-in), a stepped world
+ *    and a hull table, the collision stage (`./collide.ts`,
+ *    `resolveCollisions`, CBT-18) resolves every octree contact of the tick
+ *    in Oolite's update order: it applies each rebound to the velocities and
+ *    positions at once and queues the damage as `"scrape"` records after the
+ *    laser records (A5). It is the one place the world side writes the
+ *    player's `FlightState` (its `drift` and `position`).
  * 2. `applyLedger` (`./ledger.ts`) applies every record in queue order (ascending
  *    shooter id) and returns the ships brought to 0 energy; every record applies
  *    before lethality is decided.
